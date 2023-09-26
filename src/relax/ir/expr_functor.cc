@@ -140,10 +140,7 @@ void ExprVisitor::VisitExpr_(const VarNode* op) {
 
 // Visit the use-site of a defined DataflowVar
 void ExprVisitor::VisitExpr_(const DataflowVarNode* op) {
-  this->VisitSpan(op->span);
-  if (auto* sinfo = op->struct_info_.as<StructInfoNode>()) {
-    this->VisitExprDepStructInfoField(GetRef<StructInfo>(sinfo));
-  }
+  VisitExpr_(static_cast<const VarNode*>(op));
 }
 
 void ExprVisitor::VisitExpr_(const FunctionNode* op) {
@@ -275,7 +272,9 @@ void ExprVisitor::VisitBindingBlock_(const DataflowBlockNode* block) {
   }
 }
 
-void ExprVisitor::VisitVarDef_(const DataflowVarNode* var) { this->VisitSpan(var->span); }
+void ExprVisitor::VisitVarDef_(const DataflowVarNode* var) {
+  VisitVarDef_(static_cast<const VarNode*>(var));
+}
 
 void ExprVisitor::VisitVarDef_(const VarNode* var) { this->VisitSpan(var->span); }
 
@@ -400,9 +399,7 @@ Expr ExprMutatorBase::VisitExpr_(const VarNode* op) {
 
 // Visit the use-site of a defined DataflowVar
 Expr ExprMutatorBase::VisitExpr_(const DataflowVarNode* op) {
-  // struct info of var-use should remain stable
-  // or the var itself will get replaced
-  return GetRef<Expr>(op);
+  return VisitExpr_(static_cast<const VarNode*>(op));
 }
 
 Expr ExprMutatorBase::VisitExpr_(const FunctionNode* op) {
@@ -565,13 +562,7 @@ Expr ExprMutator::VisitExpr_(const VarNode* op) {
 
 // Visit the use-site of a defined DataflowVar
 Expr ExprMutator::VisitExpr_(const DataflowVarNode* op) {
-  auto it = var_remap_.find(op->vid);
-  if (it != var_remap_.end()) {
-    return it->second;
-  }
-
-  // default case return self.
-  return GetRef<Expr>(op);
+  return VisitExpr_(static_cast<const VarNode*>(op));
 }
 
 Expr ExprMutator::VisitExpr_(const FunctionNode* op) {
@@ -718,16 +709,14 @@ BindingBlock ExprMutator::VisitBindingBlock_(const DataflowBlockNode* block) {
 }
 
 Var ExprMutator::VisitVarDef_(const DataflowVarNode* var) {
-  if (auto* sinfo = var->struct_info_.as<StructInfoNode>()) {
-    StructInfo struct_info = this->VisitExprDepStructInfoField(GetRef<StructInfo>(sinfo));
-    if (struct_info.same_as(var->struct_info_)) {
-      return GetRef<DataflowVar>(var);
-    } else {
-      return DataflowVar(var->vid, struct_info, var->span);
-    }
-  } else {
-    return GetRef<DataflowVar>(var);
+  Var output = VisitVarDef_(static_cast<const VarNode*>(var));
+  // Because we delegate from DataflowVar visitor to Var visitor to
+  // provide default behavior in subclasses, we may produce a Var
+  // where we should produce a DataflowVar.
+  if (!output->IsInstance<DataflowVarNode>()) {
+    output = DataflowVar(output->vid, GetStructInfo(output), output->span);
   }
+  return output;
 }
 
 Var ExprMutator::VisitVarDef_(const VarNode* var) {

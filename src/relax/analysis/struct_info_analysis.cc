@@ -189,10 +189,6 @@ class WellDefinedEraser : public StructInfoMutator,
     }
   }
 
-  Expr VisitExpr_(const DataflowVarNode* var) final {
-    return VisitExpr_(static_cast<const VarNode*>(var));
-  }
-
   Expr VisitExpr_(const VarNode* var) final {
     Optional<Expr> ret;
     if (f_var_map_ != nullptr) {
