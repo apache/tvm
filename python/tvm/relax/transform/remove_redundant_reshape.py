@@ -15,9 +15,11 @@
 # specific language governing permissions and limitations
 # under the License.
 # pylint: disable=invalid-name, unused-argument, missing-function-docstring, abstract-method
-
-from tvm.ir.module import IRModule
+"""Relax Remove Redundant Reshape ops"""
+import tvm
+from tvm import IRModule, relax
 from tvm.ir.transform import PassContext
+from tvm.ir import structural_equal
 from tvm.relax import Expr, Function
 from tvm.relax.dpl import is_op, rewrite_call, wildcard
 from . import function_pass
@@ -30,10 +32,13 @@ class RemoveRedundantReshape:
     """
 
     def __init__(self):
-        input = wildcard()
+        self.input1 = wildcard()
         shape1 = wildcard()
-        pattern_redundant_reshape = is_op("relax.reshape")(input, shape1)
-        self.pattern = pattern_redundant_reshape
+        pattern_redundant_reshape = is_op("relax.reshape")(self.input1, shape1)
+        self.pattern1 = pattern_redundant_reshape
+        shape2 = wildcard()
+        self.pattern2 = is_op("relax.reshape")(pattern_redundant_reshape, shape2)
+        self.pattern = self.pattern2 | self.pattern1
 
     def transform_function(self, func: Expr, mod: IRModule, ctx: PassContext) -> IRModule:
         """
@@ -53,21 +58,26 @@ class RemoveRedundantReshape:
         """
 
         updated_func = func
-        for _, func in mod.functions.items():
+        for _, funct in mod.functions.items():
             # Skip non-relax functions
-            if not isinstance(func, Function):
+            if not isinstance(funct, Function):
                 continue
             # Skip primitive functions
-            if "Primitive" in func.attrs.keys() and func.attrs["Primitive"] != 0:
+            if "Primitive" in funct.attrs.keys() and funct.attrs["Primitive"] != 0:
                 continue
 
             def rewriter(expr, matches):
                 args = matches[self.pattern]
-                if list(args.args[0].struct_info.shape) == list(args.args[1]):
-                    return args.args[0]
-                else:
-                    return expr
+                if self.pattern2 in matches and args == matches[self.pattern2]:
+                    return relax.op.reshape(matches[self.input1], args.args[1])
+                elif self.pattern1 in matches and args == matches[self.pattern1]:
+                    if args.args[0].struct_info.shape:
+                        if structural_equal(args.args[0].struct_info.shape, args.args[1]):
+                            return args.args[0]
+                    else:
+                        raise Exception("Tensor of unknown dimension or full shape is not known")
+                return expr
 
-            updated_func = rewrite_call(self.pattern, rewriter, func)
+            updated_func = rewrite_call(self.pattern, rewriter, funct)
 
         return updated_func

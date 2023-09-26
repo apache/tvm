@@ -27,17 +27,15 @@ from tvm.script import ir as I, relax as R
 
 def _run_pass_compare_output(Before, Expected):
     fused_mod = RemoveRedundantReshape()(Before)
-    if not relax.analysis.well_formed(fused_mod):
-        print("IRModule is not well-formed")
+    assert relax.analysis.well_formed(fused_mod), "IRModule is not well-formed"
 
     fused_mod = DeadCodeElimination()(fused_mod)
-    if not relax.analysis.well_formed(fused_mod):
-        print("IRModule is not well-formed")
+    assert relax.analysis.well_formed(fused_mod), "IRModule is not well-formed"
 
     tvm.ir.assert_structural_equal(Expected, fused_mod)
 
 
-def test_remove_redundant_reshape_pass():
+def test_remove_redundant_reshape_pass_one_arg():
     @I.ir_module
     class Before:
         @R.function
@@ -46,6 +44,33 @@ def test_remove_redundant_reshape_pass():
         ) -> R.Tensor((1, 1001), dtype="float16"):
             with R.dataflow():
                 lv: R.Tensor((1, 1001), dtype="float16") = R.reshape(x, R.shape([1, 1001]))
+                lv1: R.Tensor((1, 1001), dtype="float16") = R.reshape(lv, R.shape([1, 1001]))
+                lv2: R.Tensor((1, 1001), dtype="float16") = R.reshape(lv1, R.shape([1, 1001]))
+                R.output(lv2)
+            return lv2
+
+    @I.ir_module
+    class Expected:
+        @R.function
+        def main(
+            x: R.Tensor((1, 1001, 1, 1), dtype="float16")
+        ) -> R.Tensor((1, 1001), dtype="float16"):
+            with R.dataflow():
+                lv1: R.Tensor((1, 1001), dtype="float16") = R.reshape(x, R.shape([1, 1001]))
+                R.output(lv1)
+            return lv1
+    
+    _run_pass_compare_output(Before, Expected)
+
+def test_remove_redundant_reshape_pass_two_arg():
+    @I.ir_module
+    class Before:
+        @R.function
+        def main(
+            x: R.Tensor((1, 1001, 1, 1), dtype="float16")
+        ) -> R.Tensor((1, 1001), dtype="float16"):
+            with R.dataflow():
+                lv: R.Tensor((1, 1001, 1), dtype="float16") = R.reshape(x, R.shape([1, 1001, 1]))
                 lv1: R.Tensor((1, 1001), dtype="float16") = R.reshape(lv, R.shape([1, 1001]))
                 R.output(lv1)
             return lv1
