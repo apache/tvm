@@ -71,10 +71,6 @@ void DataflowBlockRewriteNode::ReplaceAllUses(Var old_var, Var new_var) {
       return (op == old_var.get()) ? new_var : GetRef<Expr>(op);
     }
 
-    Expr VisitExpr_(const DataflowVarNode* op) override {
-      return (op == old_var.get()) ? new_var : GetRef<Expr>(op);
-    }
-
     BindingBlock VisitBindingBlock_(const DataflowBlockNode* op) override {
       BindingBlock res = ExprMutator::VisitBindingBlock_(op);
       if (op == to_catch) caught = Downcast<DataflowBlock>(res);
@@ -136,7 +132,6 @@ std::set<const VarNode*> GetUsedVars(Expr val) {
    public:
     std::set<const VarNode*> used_vars;
     void VisitExpr_(const VarNode* op) override { used_vars.insert(op); }
-    void VisitExpr_(const DataflowVarNode* op) override { used_vars.insert(op); }
   } uvar{};
   uvar.VisitExpr(val);
   return std::move(uvar.used_vars);

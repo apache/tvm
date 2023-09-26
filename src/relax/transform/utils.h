@@ -214,12 +214,6 @@ class VarReplacer : public ExprMutator {
     return it == var_remap_.end() ? var : it->second;
   }
 
-  Expr VisitExpr_(const DataflowVarNode* op) final {
-    Var var = GetRef<Var>(op);
-    auto it = var_remap_.find(var->vid);
-    return it == var_remap_.end() ? var : it->second;
-  }
-
   const VarMap& var_remap_;
 };
 
@@ -294,14 +288,6 @@ class FunctionCopier : public ExprMutator {
   Function Copy(Function func) {
     auto new_func = Downcast<Function>(VisitExpr(func));
     return SymbolicVarRenewMutator::Renew(new_func);
-  }
-
-  Var VisitVarDef_(const DataflowVarNode* var) override {
-    Var new_var = ExprMutator::VisitVarDef_(var);
-    Var copied_var = DataflowVar(new_var->name_hint(), GetStructInfo(new_var), new_var->span);
-    var_remap_[var->vid] = copied_var;
-    var_map.Set(GetRef<Var>(var), copied_var);
-    return copied_var;
   }
 
   Var VisitVarDef_(const VarNode* var) override {

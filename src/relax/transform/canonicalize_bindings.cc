@@ -48,14 +48,6 @@ class BindingCanonicalizer : public ExprMutator {
     return ExprMutator::VisitExpr_(LookupBinding(v).as<VarNode>());
   }
 
-  Expr VisitExpr_(const DataflowVarNode* op) override {
-    Var v = Downcast<Var>(ExprMutator::VisitExpr_(op));
-    if (!CanCanonicalizeVar(v)) {
-      return Downcast<Expr>(v);
-    }
-    return ExprMutator::VisitExpr_(LookupBinding(v).as<VarNode>());
-  }
-
   Expr VisitExpr_(const TupleGetItemNode* tuple_get_item) override {
     if (auto tuple_var = tuple_get_item->tuple.as<Var>()) {
       if (auto tuple_value = LookupBinding(tuple_var.value())) {
