@@ -71,7 +71,7 @@ def _visit_class_def(self: Parser, node: doc.ClassDef) -> None:
 
 
 @dispatch.register(token="ir", type_name="Assign")
-def _visit_assign(_self: Parser, _node: doc.Assign) -> None:
+def _visit_assign(self: Parser, node: doc.Assign) -> None:
     """The assign visiting method for ir module.
 
     Parameters
@@ -82,6 +82,13 @@ def _visit_assign(_self: Parser, _node: doc.Assign) -> None:
     node : doc.ClassDef
         The doc AST assign node.
     """
+    if len(node.targets) != 1:
+        self.report_error(node, "Consequential assignments like 'a = b = c' are not supported.")
+    lhs = node.targets[0].id
+    rhs = self.eval_expr(node.value)
+
+    I.decl_function(lhs, rhs)
+    I.def_function(lhs, rhs)
 
 
 @dispatch.register(token="ir", type_name="Expr")

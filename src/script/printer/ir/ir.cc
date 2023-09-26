@@ -87,17 +87,26 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
       // Print functions
       for (const auto& entry : functions) {
         const GlobalVar& gv = entry.gv;
-        const BaseFunc& func = entry.func;
+        const BaseFunc& base_func = entry.func;
         d->cfg->binding_names.push_back(gv->name_hint);
-        Doc doc = d->AsDoc(func, p->Attr("functions")->MapValue(gv));
+        Doc doc = d->AsDoc(base_func, p->Attr("functions")->MapValue(gv));
         d->cfg->binding_names.pop_back();
         if (const auto* stmt_block = doc.as<StmtBlockDocNode>()) {
           (*f)->stmts.push_back(stmt_block->stmts.back());
           (*f)->stmts.back()->source_paths = std::move(doc->source_paths);
         } else if (auto stmt = doc.as<StmtDoc>()) {
           (*f)->stmts.push_back(stmt.value());
+        } else if (auto func = doc.as<FunctionDoc>()) {
+          (*f)->stmts.push_back(func.value());
+        } else if (auto expr = doc.as<ExprDoc>()) {
+          ExprDoc lhs = IdDoc(gv->name_hint);
+          AssignDoc assignment(lhs, expr.value(), NullOpt);
+          (*f)->stmts.push_back(assignment);
         } else {
-          (*f)->stmts.push_back(Downcast<FunctionDoc>(doc));
+          LOG(FATAL) << "TypeError: "
+                     << "Expected IRModule to only contain functions, "
+                     << " but mod[" << gv->name_hint << "] with type  " << base_func->GetTypeKey()
+                     << " produced Doc type of " << doc->GetTypeKey();
         }
       }
       return HeaderWrapper(d, ClassDoc(module_doc, {IR(d, "ir_module")}, (*f)->stmts));

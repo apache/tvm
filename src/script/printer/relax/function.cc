@@ -129,7 +129,7 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
     .set_dispatch<relax::ExternFunc>(  //
         "", [](relax::ExternFunc n, ObjectPath n_p, IRDocsifier d) -> Doc {
           // TODO(@junrushao): print more information out of extern function.
-          return ExprStmtDoc(LiteralDoc::Str(n->global_symbol, n_p));
+          return Relax(d, "ExternFunc")->Call({LiteralDoc::Str(n->global_symbol, n_p)});
         });
 
 TVM_SCRIPT_REPR(relax::FunctionNode, ReprPrintRelax);

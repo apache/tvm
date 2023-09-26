@@ -1772,5 +1772,48 @@ def test_macro_no_variable_leak():
             return x  # Should be undefined here
 
 
+def test_reused_extern_func():
+    """ExternFunc lookups can become bindings in EliminateCommonSubexpr"""
+
+    @R.function(private=True)
+    def parsed(x: R.Tensor((128, 128), "float32")) -> R.Tensor((128, 128), "float32"):
+        func = R.ExternFunc("extern_func")
+        gv0 = R.call_dps_packed(func, x, R.Tensor((128, 128), dtype="float32"))
+        gv1 = R.call_dps_packed(func, gv0, R.Tensor((128, 128), dtype="float32"))
+        return gv1
+
+    x = relax.Var("x", R.Tensor((128, 128), "float32"))
+    bb = relax.BlockBuilder()
+    with bb.function("main", [x], private=True):
+        func = bb.emit(relax.ExternFunc("extern_func"))
+        y = bb.emit(relax.call_dps_packed(func, x, out_sinfo=R.Tensor((128, 128), "float32")))
+        z = bb.emit(relax.call_dps_packed(func, y, out_sinfo=R.Tensor((128, 128), "float32")))
+        bb.emit_func_output(z)
+
+    expected = bb.get()["main"]
+
+    _check(parsed, expected)
+
+
+def test_extern_func_in_module():
+    """Module-level parsing may produce function bindings"""
+
+    @I.ir_module
+    class parsed_module:
+        my_ext = R.ExternFunc("my_ext")
+
+        @R.function
+        def func(a: R.Tensor((10, 10))) -> R.Tensor((10, 10)):
+            return a
+
+    @R.function
+    def func(a: R.Tensor((10, 10))) -> R.Tensor((10, 10)):
+        return a
+
+    expected = tvm.IRModule({"my_ext": relax.ExternFunc("my_ext"), "func": func})
+
+    _check(parsed_module, expected)
+
+
 if __name__ == "__main__":
     tvm.testing.main()

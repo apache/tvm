@@ -153,6 +153,35 @@ class StructInfoProxy(ObjectGeneric):
         return self.as_struct_info(None)
 
 
+############################### R.Object ################################
+
+
+class ObjectProxy(StructInfoProxy):
+    """The proxy fo ObjectStructInfo.
+
+    Parameters
+    ----------
+    values : Optional[List[PrimExpr]]
+       The symbolic shape values if known.
+
+    ndim : Optional[int]
+       The size of the shape.
+    """
+
+    def __init__(self) -> None:
+        pass
+
+    def get_symbolic_vars(self) -> Set[str]:
+        return set()
+
+    def as_struct_info(self, dict_globals: Optional[Dict[str, Any]] = None) -> ShapeStructInfo:
+        return ObjectStructInfo()
+
+
+def Object() -> ObjectProxy:
+    return ObjectProxy()
+
+
 ############################### R.Tensor ###############################
 
 
@@ -270,30 +299,54 @@ class CallableProxy(StructInfoProxy):
 
     def __init__(
         self,
-        params: Union[StructInfoProxy, List[StructInfoProxy]],
-        ret: StructInfoProxy,
-        purity: bool = True,
+        params: Optional[Union[StructInfoProxy, List[StructInfoProxy]]] = None,
+        ret: Optional[StructInfoProxy] = None,
+        purity: Optional[bool] = None,
     ) -> None:
-        if not isinstance(params, (list, tuple)):
-            params = [params]
-        # convert `R.Tensor` to `R.Tensor()`
-        self.params = [param() if callable(param) else param for param in params]
+        if params is None:
+            self.params = params
+        else:
+            if not isinstance(params, (list, tuple)):
+                params = [params]
+            # convert `R.Callable` to `R.Callable()`
+            self.params = [param() if callable(param) else param for param in params]
+
+        # Mimic the C++ defaults, where an opaque function is assumed
+        # to be impure, and a non-opaque function is assumed to be
+        # pure.
+        if purity is None:
+            purity = params is not None
+
         self.ret = ret() if callable(ret) else ret
         self.purity = purity
 
     def get_symbolic_vars(self) -> Set[str]:
-        return set().union(*[p.get_symbolic_vars() for p in self.params])
+        if self.params is None:
+            return set()
+        else:
+            return set().union(*[p.get_symbolic_vars() for p in self.params])
 
     def as_struct_info(self, dict_globals: Optional[Dict[str, Any]] = None) -> FuncStructInfo:
-        params = [param.as_struct_info(dict_globals) for param in self.params]
-        ret = self.ret.as_struct_info(dict_globals)
-        return FuncStructInfo(params, ret, purity=self.purity)
+        if self.ret is None:
+            ret = None
+        else:
+            ret = self.ret.as_struct_info(dict_globals)
+
+        if self.params is None:
+            params = None
+        else:
+            params = [param.as_struct_info(dict_globals) for param in self.params]
+
+        if params is None:
+            return FuncStructInfo.opaque_func(ret=ret, purity=self.purity)
+        else:
+            return FuncStructInfo(params, ret, purity=self.purity)
 
 
 def Callable(
-    params: Union[StructInfoProxy, List[StructInfoProxy]],
-    ret: StructInfoProxy,
-    purity: bool = True,
+    params: Optional[Union[StructInfoProxy, List[StructInfoProxy]]] = None,
+    ret: Optional[StructInfoProxy] = None,
+    purity: Optional[bool] = None,
 ) -> CallableProxy:
     return CallableProxy(params, ret, purity=purity)
 
@@ -370,35 +423,6 @@ class ShapeProxy(StructInfoProxy):
 
 def Shape(values: Optional[List[PrimExpr]] = None, ndim: int = -1) -> ShapeProxy:
     return ShapeProxy(values, ndim)
-
-
-############################### R.Object ################################
-
-
-class ObjectProxy(StructInfoProxy):
-    """The proxy fo ObjectStructInfo.
-
-    Parameters
-    ----------
-    values : Optional[List[PrimExpr]]
-       The symbolic shape values if known.
-
-    ndim : Optional[int]
-       The size of the shape.
-    """
-
-    def __init__(self) -> None:
-        pass
-
-    def get_symbolic_vars(self) -> Set[str]:
-        return set()
-
-    def as_struct_info(self, dict_globals: Optional[Dict[str, Any]] = None) -> ShapeStructInfo:
-        return ObjectStructInfo()
-
-
-def Object() -> ObjectProxy:
-    return ObjectProxy()
 
 
 ################################ R.Prim ################################
