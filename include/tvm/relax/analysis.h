@@ -346,18 +346,6 @@ TVM_DLL Array<Var> AllVars(const Expr& expr);
 TVM_DLL Array<GlobalVar> AllGlobalVars(const Expr& expr);
 
 /*!
- * \brief Retrieve the target device for the execution of the primfuncs.
- *
- * This function returns a mapping where each global variable of representing primfunc
- * points to the device type. A device type of -1 signifies the undefined device.
- *
- * \param m The IR module to process.
- *
- * \return GlobalVar -> device type (Integer)
- */
-TVM_DLL Map<GlobalVar, Integer> GetPrimFuncDevice(const IRModule& m);
-
-/*!
  * \brief Find all sets of recursive or mutually recursive functions in the module.
  *
  * Two or more functions are mutually recursive if there is some cycle of references
