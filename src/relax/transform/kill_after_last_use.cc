@@ -101,12 +101,24 @@ class CollectLastUsage : public ExprVisitor {
         const auto* last_usage_point = it->second;
         bool is_output = last_usage_point == nullptr;
         bool already_killed = visitor.killed_objects_.count(var);
+
+        // Currently, the VM requires that objects to be killed
+        // objects only exist in VM registers.  This requires
+        // KillAfterLastUse to have more knowledge about the VM
+        // implementation than should exist at this stage of lowering.
+        // In the future, this may be handled more easily at the
+        // CodeGenVM level.
+        bool stored_in_vm_register =
+            !(visitor.constant_tensors_.count(var) || var->struct_info_.as<FuncStructInfoNode>() ||
+              var->struct_info_.as<ShapeStructInfoNode>() ||
+              var->struct_info_.as<PrimStructInfoNode>());
+
         if (!is_output && !already_killed) {
           if (visitor.storage_objects_.count(var)) {
             output[last_usage_point].storage.push_back(var);
-          } else if (var->struct_info_.as<TensorStructInfoNode>()) {
+          } else if (var->struct_info_.as<TensorStructInfoNode>() && stored_in_vm_register) {
             output[last_usage_point].tensors.push_back(var);
-          } else if (!var->struct_info_.as<FuncStructInfoNode>()) {
+          } else if (stored_in_vm_register) {
             output[last_usage_point].objects.push_back(var);
           }
         }
@@ -170,6 +182,10 @@ class CollectLastUsage : public ExprVisitor {
     // rebinding should not be treated as a point of use.
   }
 
+  void VisitBinding_(const VarBindingNode* binding, const ConstantNode* val) override {
+    constant_tensors_.insert(binding->var.get());
+  }
+
  private:
   const VarNode* UnwrapTrivialBindings(const VarNode* var) const {
     while (true) {
@@ -193,10 +209,14 @@ class CollectLastUsage : public ExprVisitor {
   // of it.
   std::unordered_map<const VarNode*, const VarNode*> last_usage_of_;
 
-  // Set of objects that are eligible for use in R.vm.kill_object.
-  // This cannot be determined solely from the StructInfo, because the
+  // Storage objects, eligible for R.vm.kill_object.  This cannot be
+  // determined solely from the StructInfo, because the
   // `R.*.alloc_storage` operators return ObjectStructInfo
   std::unordered_set<const VarNode*> storage_objects_;
+
+  // Constants, which do not have a VM register, and may *not* have
+  // R.builtin.kill_tensor called on them.
+  std::unordered_set<const VarNode*> constant_tensors_;
 
   // Set of objects that already have a call node to kill them.  Should not have a duplicate
   std::unordered_set<const VarNode*> killed_objects_;
