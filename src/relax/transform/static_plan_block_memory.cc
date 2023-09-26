@@ -720,6 +720,12 @@ class StorageAllocationRewriter : public ExprMutator {
       const auto* sinfo = call->struct_info_.as<TensorStructInfoNode>();
       ICHECK_NOTNULL(sinfo);
       ICHECK_NOTNULL(sinfo->shape.as<ShapeExprNode>());
+      LOG(INFO) << "call node in static_plan_block_memory: " << GetRef<Call>(call);
+      int count = 0;
+      LOG(INFO) << "call node op: " << call->op;
+      for (auto arg : call->args) {
+        LOG(INFO) << "call node arg[" << count++ << "] = " << arg;
+      }
       PrimValue runtime_device_index = Downcast<PrimValue>(call->args[2]);
 
       // If the token is visited for the first time, create a storage variable using
