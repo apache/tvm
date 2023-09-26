@@ -88,6 +88,49 @@ def test_matmul():
                         C[v_i, v_j] = T.float16(0)
                     C[v_i, v_j] = C[v_i, v_j] + A[v_i, v_k] * B[v_k, v_j]
 
+        @T.prim_func
+        def matmul_gpu(
+            A: T.Buffer((32, 32), "float16"),
+            B: T.Buffer((32, 32), "float16"),
+            C: T.Buffer((32, 32), "float16"),
+        ):
+            T.func_attr({"global_symbol": "main",
+                         "target": T.target({"arch": "sm_86",
+                                             "keys": ["cuda", "gpu"],
+                                             "kind": "cuda",
+                                             "max_num_threads": 1024,
+                                             "tag": "",
+                                             "thread_warp_size": 32}),
+                         "tir.noalias": True})
+            # with T.block("root"):
+            for i, j, k in T.grid(32, 32, 32):
+                with T.block("C"):
+                    v_i, v_j, v_k = T.axis.remap("SSR", [i, j, k])
+                    T.reads(A[v_i, v_k], B[v_k, v_j])
+                    T.writes(C[v_i, v_j])
+                    with T.init():
+                        C[v_i, v_j] = T.float16(0)
+                    C[v_i, v_j] = C[v_i, v_j] + A[v_i, v_k] * B[v_k, v_j]
+
+        @T.prim_func
+        def matmul_cpu(
+            A: T.Buffer((32, 32), "float16"),
+            B: T.Buffer((32, 32), "float16"),
+            C: T.Buffer((32, 32), "float16"),
+        ):
+            T.func_attr({"global_symbol": "main",
+                         "target": T.target({"keys": ["cpu"], "kind": "llvm", "tag": ""}),
+                        "tir.noalias": True})
+            # with T.block("root"):
+            for i, j, k in T.grid(32, 32, 32):
+                with T.block("C"):
+                    v_i, v_j, v_k = T.axis.remap("SSR", [i, j, k])
+                    T.reads(A[v_i, v_k], B[v_k, v_j])
+                    T.writes(C[v_i, v_j])
+                    with T.init():
+                        C[v_i, v_j] = T.float16(0)
+                    C[v_i, v_j] = C[v_i, v_j] + A[v_i, v_k] * B[v_k, v_j]
+
     @tvm.script.ir_module
     class Expected:
         @T.prim_func
@@ -108,6 +151,36 @@ def test_matmul():
                             v_j = T.axis.spatial(
                                 32, (i_j_fused_0 * 1024 + i_j_fused_1) % 32
                             )
+                            v_k = T.axis.reduce(32, k)
+                            T.reads(A[v_i, v_k], B[v_k, v_j])
+                            T.writes(C[v_i, v_j])
+                            with T.init():
+                                C[v_i, v_j] = T.float16(0)
+                            C[v_i, v_j] = C[v_i, v_j] + A[v_i, v_k] * B[v_k, v_j]
+
+        @T.prim_func
+        def matmul_cpu(A: T.Buffer((32, 32), "float16"), B: T.Buffer((32, 32), "float16"), C: T.Buffer((32, 32), "float16")):
+            T.func_attr({"global_symbol": "main", "target": T.target({"keys": ["cpu"], "kind": "llvm", "tag": ""}), "tir.is_scheduled": T.bool(True), "tir.noalias": T.bool(True)})
+            # with T.block("root"):
+            for i, j, k in T.grid(32, 32, 32):
+                with T.block("C"):
+                    v_i, v_j, v_k = T.axis.remap("SSR", [i, j, k])
+                    T.reads(A[v_i, v_k], B[v_k, v_j])
+                    T.writes(C[v_i, v_j])
+                    with T.init():
+                        C[v_i, v_j] = T.float16(0)
+                    C[v_i, v_j] = C[v_i, v_j] + A[v_i, v_k] * B[v_k, v_j]
+
+        @T.prim_func
+        def matmul_gpu(A: T.Buffer((32, 32), "float16"), B: T.Buffer((32, 32), "float16"), C: T.Buffer((32, 32), "float16")):
+            T.func_attr({"global_symbol": "main", "target": T.target({"arch": "sm_86", "keys": ["cuda", "gpu"], "kind": "cuda", "max_num_threads": 1024, "tag": "", "thread_warp_size": 32}), "tir.is_scheduled": T.bool(True), "tir.noalias": T.bool(True)})
+            # with T.block("root"):
+            for i_j_fused_0 in T.thread_binding(1, thread="blockIdx.x"):
+                for i_j_fused_1 in T.thread_binding(1024, thread="threadIdx.x"):
+                    for k in range(32):
+                        with T.block("C"):
+                            v_i = T.axis.spatial(32, (i_j_fused_0 * 1024 + i_j_fused_1) // 32)
+                            v_j = T.axis.spatial(32, (i_j_fused_0 * 1024 + i_j_fused_1) % 32)
                             v_k = T.axis.reduce(32, k)
                             T.reads(A[v_i, v_k], B[v_k, v_j])
                             T.writes(C[v_i, v_j])
