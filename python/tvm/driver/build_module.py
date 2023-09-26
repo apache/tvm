@@ -243,27 +243,23 @@ def build(
 
     if not isinstance(inputs, (dict, container.Map)):
         target = Target.current() if target is None else target
-        if target is None:
-            if isinstance(input_mod, tvm.IRModule):
-                target_mod = {}
-                for gvar, func in input_mod.functions.items():
-                    if func.attrs and "target" in func.attrs:
-                        tgt = func.attrs["target"]
-                        if tgt not in target_mod:
-                            target_mod[tgt] = {}
-                        target_mod[tgt][gvar] = func
+        if target is None and isinstance(input_mod, tvm.IRModule):
+            target_mod = {}
+            for gvar, func in input_mod.functions.items():
+                tgt = func.attrs["target"] if func.attrs and "target" in func.attrs else "llvm"
+                if tgt not in target_mod:
+                    target_mod[tgt] = {}
+                target_mod[tgt][gvar] = func
 
-                target_input_mod = {}
-                for tgt in target_mod.keys():
-                    tir_mod = tvm.IRModule(target_mod[tgt])
-                    tir_mod.with_attrs(input_mod.attrs)
-                    target_input_mod[tgt] = tir_mod
+            target_input_mod = {}
+            for tgt in target_mod.keys():
+                tir_mod = tvm.IRModule(target_mod[tgt])
+                tir_mod.with_attrs(input_mod.attrs)
+                target_input_mod[tgt] = tir_mod
         else:
             target_input_mod = {target: input_mod}
     else:
-        target_input_mod = {}
-        for tgt, mod in inputs.items():
-            target_input_mod[tgt] = lower(mod)
+        target_input_mod = {tgt: lower(mod) for tgt, mod in inputs.items()}
 
     # Because modules can be created from a variety of sources, we annotate them
     # with the relevant attributes here to ensure they propagate

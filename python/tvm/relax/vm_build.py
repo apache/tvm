@@ -217,8 +217,10 @@ def _vmlink(
     builder: relax.ExecBuilder
         Builder used to collect executables.
 
-    target : Union[str, tvm.target.Target]
+    target : Optional[Union[str, tvm.target.Target]]
         A build target which can have optional host side compilation target.
+        If the target is not specified, the target in the vdevice list will be used.
+        For multi-target compilation, the vdevice should be annotated.
 
     tir_mod: IRModule
         The input TIR IRModule to be linked together.
@@ -241,7 +243,6 @@ def _vmlink(
     if ext_libs is None:
         ext_libs = []
     lib = None
-
     if tir_mod is not None:
         lib = tvm.build(
             tir_mod,

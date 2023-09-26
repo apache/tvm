@@ -134,6 +134,17 @@ class LegalizeMutator : public ExprMutator {
     return Target();
   }
 
+  void SaveTarget(const Expr& expr) {
+    if (expr->IsInstance<CallNode>()) {
+      auto call = Downcast<Call>(expr);
+      auto target = GetTarget(call->sinfo_args);
+      const GlobalVarNode* gvar_node;
+      if (target.defined() && (gvar_node = call->args[0].as<GlobalVarNode>())) {
+        this->tmap_.Set(GetRef<GlobalVar>(gvar_node), target);
+      }
+    }
+  }
+
   Expr VisitExpr_(const CallNode* call) final {
     Call visited_call = Downcast<Call>(this->VisitExprPostOrder_(call));
     static const auto& legalize_map = Op::GetAttrMap<FLegalize>("FLegalize");
@@ -189,6 +200,10 @@ class LegalizeMutator : public ExprMutator {
       builder_->BeginBindingBlock();
     }
     Expr legalized = legalization_func(builder_, visited_call);
+
+    // Save the expected target info. into tmap_
+    SaveTarget(legalized);
+
     legalized = builder_->Normalize(legalized);
 
     BindingBlock prologue = builder_->EndBlock();

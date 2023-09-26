@@ -99,8 +99,7 @@ IRModule MarkScheduled(const IRModule& mod) {
                   mod->import_set_,       // import_set
                   mod->source_map,        // map
                   mod->attrs,             // attrs
-                  mod->global_infos       // global_infos
-  );
+                  mod->global_infos);     // global_infos
 }
 
 bool IsScheduledOnGPU(const BaseFunc& func) {
