@@ -73,7 +73,6 @@ def test_one_fold_addone():
 
         @R.function
         def expected(c1: R.Tensor((16, 16), "float32")):
-            lv0 = c1
             return c1
 
     c0_np = np.arange((16 * 16)).astype("float32").reshape(16, 16)
@@ -104,7 +103,6 @@ def test_one_fold_transpose():
 
         @R.function
         def expected(c1: R.Tensor((3, 2), "float32")):
-            lv0 = c1
             return c1
 
     c0_np = np.arange(2 * 3).astype("float32").reshape(2, 3)
@@ -135,8 +133,6 @@ def test_two_hop_addone():
 
         @R.function
         def expected(c1: R.Tensor((2, 2), "float32"), c2: R.Tensor((2, 2), "float32")):
-            lv0 = c1
-            lv1 = c2
             return c2
 
     c0_np = np.arange((2 * 2)).astype("float32").reshape(2, 2)
@@ -218,7 +214,7 @@ def test_fold_mixed_case():
             lv2 = relax.call_tir(cls.sub, (c0, lv1), R.Tensor((16, 16), dtype="float32"))
             # this line can not be folded because x's shape is unknown
             lv3 = relax.call_tir(cls.sub, (lv2, x), R.Tensor((16, 16), dtype="float32"))
-            return lv3
+            return (lv0, lv3)
 
         @R.function
         def expected(
@@ -226,19 +222,15 @@ def test_fold_mixed_case():
             c1: R.Tensor((16, 16), "float32"),
             c2: R.Tensor((16, 16), "float32"),
             x: R.Tensor("float32", ndim=2),
-        ) -> R.Tensor:
+        ):
             n, m = T.int64(), T.int64()
             cls = Module
             x0 = R.match_cast(x, R.Tensor((n, m), "float32"))
             # this line cannot be folded because n is unknown
             lv0 = relax.call_tir(cls.addone, (c0,), R.Tensor((n, 16), dtype="float32"))
-            # this line can be folded
-            lv1 = c1
-            # this line can be folded because all inputs are const
-            lv2 = c2
             # this line can not be folded because x's shape is unknown
             lv3 = relax.call_tir(cls.sub, (c2, x), R.Tensor((16, 16), dtype="float32"))
-            return lv3
+            return (lv0, lv3)
 
     c0_np = np.arange((16 * 16)).astype("float32").reshape(16, 16)
     c1_np = c0_np + 1
@@ -268,7 +260,6 @@ def test_int32_fold():
 
         @R.function
         def expected(c1: R.Tensor((16, 16), "int32")):
-            lv0 = c1
             return c1
 
     c0_np = np.arange((16 * 16)).astype("int32").reshape(16, 16)
