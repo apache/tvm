@@ -88,6 +88,13 @@ def test_chained_remove_all_unused():
 
 
 def test_binding_block_remove_all_unused():
+    """Remove unused dataflow bindings
+
+    Removal of unused bindings may not remove side effects.  Since
+    bindings within a dataflow block are guaranteed not to have side
+    effects, they may be removed if unused.
+    """
+
     @tvm.script.ir_module
     class IdentityUnused:
         @R.function
@@ -117,24 +124,49 @@ def test_binding_block_remove_all_unused():
     tvm.ir.assert_structural_equal(optimized, GroundTruth["main"])
 
 
-def test_binding_block_remove_all_unused_without_dataflow():
-    @tvm.script.ir_module
-    class IdentityUnused:
-        @R.function
-        def main(x: R.Tensor((32, 32), "float32")) -> R.Tensor:
-            lv0 = x
-            unused0 = R.call_dps_packed("my_sigmoid", (x,), R.Tensor((32, 32), dtype="float32"))
-            unused1 = R.call_dps_packed(
-                "my_dps_func", (unused0,), R.Tensor((32, 32), dtype="float32")
-            )
-            z = R.call_packed("vm.builtin.copy", lv0, sinfo_args=(R.Tensor((32, 32), "float32")))
-            return z
+def test_binding_block_remove_unused_pure_without_dataflow():
+    """Remove unused dataflow bindings
 
-    optimized = remove_all_unused(IdentityUnused["main"])
+    Removal of unused bindings may not remove side effects.  Unused
+    bindings whose value is a pure operation
+    (e.g. `R.call_dps_packed`) may be removed, even if outside of a
+    dataflow block.
+    """
 
-    GroundTruth = IdentityUnused
+    @R.function(private=True)
+    def before(x: R.Tensor((32, 32), "float32")) -> R.Tensor:
+        lv0 = x
+        unused0 = R.call_dps_packed("my_sigmoid", (x,), R.Tensor((32, 32), dtype="float32"))
+        unused1 = R.call_dps_packed("my_dps_func", (unused0,), R.Tensor((32, 32), dtype="float32"))
+        return x
 
-    tvm.ir.assert_structural_equal(optimized, GroundTruth["main"])
+    @R.function(private=True)
+    def expected(x: R.Tensor((32, 32), "float32")) -> R.Tensor:
+        return x
+
+    after = remove_all_unused(before)
+    tvm.ir.assert_structural_equal(expected, after)
+
+
+def test_binding_block_keep_impure_without_dataflow():
+    """Remove unused dataflow bindings
+
+    Removal of unused bindings may not remove side effects.  Unused
+    bindings whose value is an impure operation (e.g. `R.call_packed`)
+    may not be removed, as outside of a dataflow block they may
+    contain side effects.
+    """
+
+    @R.function(private=True)
+    def before(x: R.Tensor((32, 32), "float32")) -> R.Tensor:
+        lv0 = x
+        y = R.call_packed("vm.builtin.copy", lv0, sinfo_args=(R.Tensor((32, 32), "float32")))
+        return y
+
+    expected = before
+
+    after = remove_all_unused(before)
+    tvm.ir.assert_structural_equal(expected, after)
 
 
 def test_binding_block_remove_all_unused_func_without_dataflow():
@@ -224,6 +256,70 @@ def test_edge_binding_block_fake_unused_remove_all_unused2():
 
     optimized = remove_all_unused(IdentityUnused["main"])
     tvm.ir.assert_structural_equal(optimized, IdentityUnused["main"])
+
+
+def test_remove_all_unused_from_dataflow_block():
+    """Like test_chained_remove_all_unused, but on a SeqExpr"""
+
+    @R.function
+    def before(x: R.Tensor((32, 32), "float32")) -> R.Tensor:
+        with R.dataflow():
+            lv0 = x
+            unused0 = R.call_dps_packed("my_sigmoid", (x,), R.Tensor((32, 32), dtype="float32"))
+            unused1 = R.call_dps_packed(
+                "my_dps_func", (unused0,), R.Tensor((32, 32), dtype="float32")
+            )
+            R.output(lv0)
+        return lv0
+
+    @R.function
+    def expected(x: R.Tensor((32, 32), "float32")) -> R.Tensor:
+        with R.dataflow():
+            lv0 = x
+            R.output(lv0)
+        return lv0
+
+    after = remove_all_unused(before.body)
+    tvm.ir.assert_structural_equal(expected.body, after, map_free_vars=True)
+
+
+def test_remove_all_unused_from_binding_block():
+    """Like test_chained_remove_all_unused, but on a SeqExpr"""
+
+    @R.function
+    def before(x: R.Tensor((32, 32), "float32")) -> R.Tensor:
+        lv0 = x
+        unused0 = R.call_dps_packed("my_sigmoid", (x,), R.Tensor((32, 32), dtype="float32"))
+        unused1 = R.call_dps_packed("my_dps_func", (unused0,), R.Tensor((32, 32), dtype="float32"))
+        return lv0
+
+    @R.function
+    def expected(x: R.Tensor((32, 32), "float32")) -> R.Tensor:
+        lv0 = x
+        return lv0
+
+    after = remove_all_unused(before.body)
+    tvm.ir.assert_structural_equal(expected.body, after, map_free_vars=True)
+
+
+def test_retain_impure_calls_unused_in_binding_block():
+    """An impure call may have side effects, and must be kept"""
+
+    @R.function
+    def before(x: R.Tensor((32, 32), "float32")) -> R.Tensor:
+        lv0 = x
+        unused0 = R.call_packed("my_impure_call", x, sinfo_args=R.Tensor((32, 32), dtype="float32"))
+        unused1 = R.call_dps_packed("my_unused_call", (lv0,), R.Tensor((32, 32), dtype="float32"))
+        return lv0
+
+    @R.function
+    def expected(x: R.Tensor((32, 32), "float32")) -> R.Tensor:
+        lv0 = x
+        unused0 = R.call_packed("my_impure_call", x, sinfo_args=R.Tensor((32, 32), dtype="float32"))
+        return lv0
+
+    after = remove_all_unused(before.body)
+    tvm.ir.assert_structural_equal(expected.body, after, map_free_vars=True)
 
 
 def test_name_to_binding_var_shadowing():

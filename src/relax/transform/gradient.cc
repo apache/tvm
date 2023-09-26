@@ -632,7 +632,7 @@ class GradientMutator : private ExprMutator {
     new_func = CallTIRWithGradEliminator::Transform(new_func);
 
     if (remove_all_unused) {
-      new_func = RemoveAllUnused(new_func);
+      new_func = Downcast<Function>(RemoveAllUnused(new_func));
     }
 
     // Step 5.3 mark the transformed function as public

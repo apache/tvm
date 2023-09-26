@@ -64,7 +64,6 @@ class TestModule:
     # Expected IRModule after transformation.
     @R.function
     def expected(c1: R.Tensor((16, 16), "int32")):
-        lv0 = c1
         return c1
 
 

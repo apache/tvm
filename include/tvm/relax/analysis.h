@@ -399,18 +399,25 @@ TVM_DLL Map<Var, Array<Var>> DataflowBlockUseDef(const DataflowBlock& dfb);
 /*!
  * \brief Get the use-def chain of variables inside a function.
  *
- * \param fn The function to be analyzed.
- * \return A map from variable definitions to a set of uses and variables needed by return value.
+ * \param expr The expression to be analyzed.
+ *
+ * \return A tuple of variable usage and variable outputs.  The first
+ * element is a map from variable definitions to the set of downstream
+ * users of that definition.  The second element is a list of
+ * variables whose usage occurs outside of any variable binding,
+ * typically the output body of a relax::Function or a relax::SeqExpr.
  */
-std::pair<Map<Var, Array<Var>>, Array<Var>> FunctionUseDef(const Function& fn);
+std::pair<Map<Var, Array<Var>>, Array<Var>> FunctionUseDef(const Expr& expr);
 
 /*!
  * \brief Remove unused statements inside DataflowBlocks.
  *
- * \param fn The function to remove unused statements.
- * \return The function that contains no unused statements in DataflowBlock.
+ * \param expr The expression (typically a relax::Function) from which
+ * to remove unused statements.
+ *
+ * \return The updated function with no unused statements in DataflowBlock.
  */
-TVM_DLL Function RemoveAllUnused(const Function fn);
+TVM_DLL Expr RemoveAllUnused(Expr expr);
 
 /*!
  * \brief Annotate Op Pattern Kind for PrimFunc, which is used in relax FuseOps.

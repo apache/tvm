@@ -934,7 +934,7 @@ class PatternRewriter : ExprMutator {
       params.insert(p.get());
     }
     PatternRewriter rewriter(pat, rewriter_func, params);
-    return RemoveAllUnused(Downcast<Function>(rewriter.VisitExpr(f)));
+    return Downcast<Function>(RemoveAllUnused(rewriter.VisitExpr(f)));
   }
 
   void VisitBinding_(const VarBindingNode* binding) final {
