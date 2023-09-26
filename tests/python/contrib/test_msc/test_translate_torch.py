@@ -782,7 +782,8 @@ def test_arange():
     verify_model(Arange(), [([10, 10], "float32")])
 
 
-via_relax = tvm.testing.parameter(
+# pylint: disable=redefined-outer-name
+via_relax_param = tvm.testing.parameter(
     True,
     pytest.param(
         False,
@@ -793,7 +794,7 @@ via_relax = tvm.testing.parameter(
 )
 
 
-def test_tril(via_relax):
+def test_tril(via_relax_param):
     """test torch translator for tril"""
 
     class Tril(Module):
@@ -801,10 +802,10 @@ def test_tril(via_relax):
             return torch.tril(data, 1)
 
     input_info = [([10, 10], "float32")]
-    verify_model(Tril(), input_info, via_relax)
+    verify_model(Tril(), input_info, via_relax_param)
 
 
-def test_tril_inplace(via_relax):
+def test_tril_inplace(via_relax_param):
     """test torch translator for tril"""
 
     class InplaceTril(Module):
@@ -813,10 +814,10 @@ def test_tril_inplace(via_relax):
             return data
 
     input_info = [([10, 10], "float32")]
-    verify_model(InplaceTril(), input_info, via_relax)
+    verify_model(InplaceTril(), input_info, via_relax_param)
 
 
-def test_triu(via_relax):
+def test_triu(via_relax_param):
     """test torch translator for triu"""
 
     class Triu(Module):
@@ -824,10 +825,10 @@ def test_triu(via_relax):
             return torch.triu(data, 1)
 
     input_info = [([10, 10], "float32")]
-    verify_model(Triu(), input_info, via_relax)
+    verify_model(Triu(), input_info, via_relax_param)
 
 
-def test_triu_inplace(via_relax):
+def test_triu_inplace(via_relax_param):
     """test torch translator for triu"""
 
     class InplaceTriu(Module):
@@ -836,7 +837,7 @@ def test_triu_inplace(via_relax):
             return data
 
     input_info = [([10, 10], "float32")]
-    verify_model(InplaceTriu(), input_info, via_relax)
+    verify_model(InplaceTriu(), input_info, via_relax_param)
 
 
 def test_new_ones():
