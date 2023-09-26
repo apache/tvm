@@ -59,8 +59,9 @@ def test_remove_redundant_reshape_pass_one_arg():
                 lv1: R.Tensor((1, 1001), dtype="float16") = R.reshape(x, R.shape([1, 1001]))
                 R.output(lv1)
             return lv1
-    
+
     _run_pass_compare_output(Before, Expected)
+
 
 def test_remove_redundant_reshape_pass_two_arg():
     @I.ir_module
