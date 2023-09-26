@@ -18,6 +18,7 @@
 import pytest
 
 import tvm
+import tvm.testing
 from tvm.script import tir as T
 
 
@@ -530,12 +531,4 @@ def test_fail_match_func_param():
 
 
 if __name__ == "__main__":
-    test_buffer_load_store()
-    test_opaque_access()
-    test_high_dim_opaque_access()
-    test_recursive_match()
-    test_symbolic_match()
-    test_rank0_buffer()
-    test_fail_load_store()
-    test_fail_buffer_bind()
-    test_fail_match_func_param()
+    tvm.testing.main()
