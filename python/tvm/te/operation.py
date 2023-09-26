@@ -19,7 +19,7 @@ import inspect
 
 # pylint: disable=invalid-name
 from numbers import Integral as _Integral
-from typing import List, Optional
+from typing import List, Optional, Union
 
 import tvm._ffi
 import tvm.arith._ffi_api
@@ -567,12 +567,12 @@ def reduce_axis(dom, name="rv", thread_tag="", span=None):
 
 
 def create_prim_func(
-    ops: List[_tensor.Tensor], index_dtype_override: Optional[str] = None
+    ops: List[Union[_tensor.Tensor, tvm.tir.Var]], index_dtype_override: Optional[str] = None
 ) -> tvm.tir.PrimFunc:
     """Create a TensorIR PrimFunc from tensor expression
     Parameters
     ----------
-    ops : List[Tensor]
+    ops : List[Union[_tensor.Tensor, tvm.tir.Var]]
         The source expression.
     Example
     -------
@@ -672,4 +672,7 @@ def create_relax_prim_func(
     """
     if not isinstance(ops, (list, tuple, Array)):
         ops = [ops]
-    return _ffi_api.CreateRelaxPrimFunc(ops, tir_var_list, index_dtype_override)
+    arg_list = ops
+    if tir_var_list is not None:
+        arg_list += tir_var_list
+    return _ffi_api.CreatePrimFunc(arg_list, index_dtype_override)
