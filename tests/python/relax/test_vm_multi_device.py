@@ -20,7 +20,6 @@ import tvm
 from tvm import relax
 import tvm.testing
 from tvm.ir.module import IRModule
-from tvm.relax.transform import RealizeVDevice
 from tvm.script.parser import ir as I, relax as R
 from tvm._ffi.runtime_ctypes import Device
 import numpy as np
@@ -62,9 +61,11 @@ def test_multi_cpu():
             z: R.Tensor((4, 5), "float32"),
         ) -> R.Tensor((2, 5), "float32"):
             with R.dataflow():
-                lv0: R.Tensor((2, 4), "float32", "llvm:0") = R.matmul(x, y)
-                lv1: R.Tensor((2, 4), "float32", "llvm:1") = R.to_vdevice(lv0, "llvm:1")
-                gv: R.Tensor((2, 4), "float32", "llvm:1") = R.matmul(lv1, z)
+                lv0: R.Tensor((2, 4), "float32", "llvm:0") = R.matmul(x, y)  # noqa: F722
+                lv1: R.Tensor((2, 4), "float32", "llvm:1") = R.to_vdevice(  # noqa: F722
+                    lv0, "llvm:1"  # noqa: F722
+                )
+                gv: R.Tensor((2, 4), "float32", "llvm:1") = R.matmul(lv1, z)  # noqa: F722
                 R.output(gv)
             return gv
 
@@ -83,7 +84,7 @@ def test_multi_cpu():
     tvm.testing.assert_allclose(res.numpy(), np_res)
 
 
-@tvm.testing.requires_gpu
+@tvm.testing.requires_multi_gpu
 def test_multi_gpu():
     @I.ir_module
     class Example:
@@ -104,9 +105,11 @@ def test_multi_gpu():
             z: R.Tensor((4, 5), "float32"),
         ) -> R.Tensor((2, 5), "float32"):
             with R.dataflow():
-                lv0: R.Tensor((2, 4), "float32", "cuda:0") = R.matmul(x, y)
-                lv1: R.Tensor((2, 4), "float32", "cuda:1") = R.to_vdevice(lv0, "cuda:1")
-                gv: R.Tensor((2, 4), "float32", "cuda:1") = R.matmul(lv1, z)
+                lv0: R.Tensor((2, 4), "float32", "cuda:0") = R.matmul(x, y)  # noqa: F722
+                lv1: R.Tensor((2, 4), "float32", "cuda:1") = R.to_vdevice(  # noqa: F722
+                    lv0, "cuda:1"  # noqa: F722
+                )
+                gv: R.Tensor((2, 4), "float32", "cuda:1") = R.matmul(lv1, z)  # noqa: F722
                 R.output(gv)
             return gv
 
