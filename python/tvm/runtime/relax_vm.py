@@ -130,7 +130,6 @@ class VirtualMachine(object):
             init_args.append(device.device_id)
             alloc_type = memory_cfg[device] if device in memory_cfg else default_alloc_type
             init_args.append(alloc_type)
-        print("init_args： ", init_args)
         self.module["vm_initialization"](*init_args)
 
     def __getitem__(self, key: str) -> PackedFunc:

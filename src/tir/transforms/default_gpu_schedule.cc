@@ -117,19 +117,30 @@ bool IsScheduledOnGPU(const BaseFunc& func) {
 Pass DefaultGPUSchedule() {
   runtime::TypedPackedFunc<IRModule(IRModule, PassContext)> pass_func =  //
       [=](IRModule m, PassContext pc) {
-        // get the target from context.
-        tvm::Target target = tvm::Target::Current();
-        ICHECK(target.defined()) << "Target is not set in current context";
-        // get the max thread per block from target.
-        Optional<Integer> opt_max_thread_per_block = target->GetAttr<Integer>("max_num_threads");
-        ICHECK(opt_max_thread_per_block.defined())
-            << "max_num_threads is not set for target " << target;
-        int64_t max_thread_per_block = opt_max_thread_per_block.value().IntValue();
         tir::Schedule sch = tir::Schedule::Traced(m, /*seed=*/-1, /*debug_mask=*/0,
                                                   tir::ScheduleErrorRenderLevel::kDetail);
         for (const auto& [gv, func] : m->functions) {
           if (func->IsInstance<tir::PrimFuncNode>() && !func->HasNonzeroAttr(attr::kIsScheduled) &&
               IsScheduledOnGPU(func)) {
+            tvm::Target target;
+            // get the target from kTarget attribute
+            Optional<tvm::Target> func_target =
+                func->attrs.GetAttr<tvm::Target>(tvm::attr::kTarget);
+            if (func_target.defined()) {
+              target = func_target.value();
+            } else {
+              // get the target from context.
+              target = tvm::Target::Current();
+            }
+            ICHECK(target.defined()) << "The target is missing either in the current context or in "
+                                        "the prim_func's attribute.";
+            // get the max thread per block from target.
+            Optional<Integer> opt_max_thread_per_block =
+                target->GetAttr<Integer>("max_num_threads");
+            ICHECK(opt_max_thread_per_block.defined())
+                << "max_num_threads is not set for target " << target;
+            int64_t max_thread_per_block = opt_max_thread_per_block.value().IntValue();
+
             sch->WorkOn(gv->name_hint);
             Array<tir::BlockRV> blocks = meta_schedule::BlockCollector::Collect(sch);
             for (const tir::BlockRV& block : blocks) {

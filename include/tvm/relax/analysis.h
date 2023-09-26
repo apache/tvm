@@ -310,7 +310,7 @@ TVM_DLL Array<tir::Var> FreeSymbolicVars(const Expr& expr);
  *
  * \return List of bound vars, in the PostDFS order in the expression.
  */
-TVM_DLL Array<Var> BoundVars(const Expr& expr);
+TVM_DLL tvm::Array<Var> BoundVars(const Expr& expr);
 
 /*!
  * \brief Get free type parameters from expression expr.
@@ -322,7 +322,7 @@ TVM_DLL Array<Var> BoundVars(const Expr& expr);
  *
  * \return List of free vars, in the PostDFS order in the expression.
  */
-TVM_DLL Array<Var> FreeVars(const Expr& expr);
+TVM_DLL tvm::Array<Var> FreeVars(const Expr& expr);
 
 /*!
  * \brief Get all variables from expression expr.
@@ -331,7 +331,7 @@ TVM_DLL Array<Var> FreeVars(const Expr& expr);
  *
  * \return List of all vars, in the PostDFS order in the expression.
  */
-TVM_DLL Array<Var> AllVars(const Expr& expr);
+TVM_DLL tvm::Array<Var> AllVars(const Expr& expr);
 
 /*!
  * \brief Get all global variables from expression expr.
@@ -343,7 +343,7 @@ TVM_DLL Array<Var> AllVars(const Expr& expr);
  *
  * \return List of all global variables, in the PostDFS order in the expression.
  */
-TVM_DLL Array<GlobalVar> AllGlobalVars(const Expr& expr);
+TVM_DLL tvm::Array<GlobalVar> AllGlobalVars(const Expr& expr);
 
 /*!
  * \brief Find all sets of recursive or mutually recursive functions in the module.
@@ -368,7 +368,7 @@ TVM_DLL Array<GlobalVar> AllGlobalVars(const Expr& expr);
  *     If a function is simply recursive and not mutually recursive with any other,
  *     then it will be listed as a group by itself.
  */
-TVM_DLL Array<Array<GlobalVar>> DetectRecursion(const IRModule& m);
+TVM_DLL tvm::Array<tvm::Array<GlobalVar>> DetectRecursion(const IRModule& m);
 
 /*!
  * \brief Analyze var -> value mapping from VarBindings.

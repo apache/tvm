@@ -234,8 +234,6 @@ def build(
         input_mod = lower(inputs, name=name)
     elif isinstance(inputs, tvm.IRModule):
         input_mod = lower(inputs)
-        print("input_mod")
-        input_mod.show()
     elif not isinstance(inputs, (dict, container.Map)):
         raise ValueError(
             f"Inputs must be te.Schedule, IRModule, PrimFunc, "
@@ -245,7 +243,6 @@ def build(
 
     if not isinstance(inputs, (dict, container.Map)):
         target = Target.current() if target is None else target
-        # target = target if target else "llvm"
         if target is None:
             if isinstance(input_mod, tvm.IRModule):
                 target_mod = {}

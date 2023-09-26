@@ -473,13 +473,11 @@ def gen_call_tir_inputs(
     # with old set of variables.
     tir_var_inverse_map = {v: k for k, v in tir_var_map.items()}
 
-    vdevice = _get_vdevice(args)
-
     output_sinfo = [
         TensorStructInfo(
             _shape_with_old_tir_var(out.shape, tir_var_inverse_map),
             out.dtype,
-            vdevice,
+            _get_vdevice(args),
         )
         for out in outs
     ]

@@ -109,7 +109,6 @@ inline int FindVDeviceIndexByTargetKind(const VDevice& vdevice, const IRDocsifie
       kind_index++;
     }
   }
-  LOG(WARNING) << "The VDevice was not found in the global_infos map: " << vdevice;
   return -1;
 }
 

@@ -133,13 +133,13 @@ class VarVisitor : protected ExprVisitor {
   InsertionSet<GlobalVar> global_vars_;
 };
 
-Array<Var> FreeVars(const Expr& expr) { return VarVisitor().Free(expr); }
+tvm::Array<Var> FreeVars(const Expr& expr) { return VarVisitor().Free(expr); }
 
-Array<Var> BoundVars(const Expr& expr) { return VarVisitor().Bound(expr); }
+tvm::Array<Var> BoundVars(const Expr& expr) { return VarVisitor().Bound(expr); }
 
-Array<Var> AllVars(const Expr& expr) { return VarVisitor().All(expr); }
+tvm::Array<Var> AllVars(const Expr& expr) { return VarVisitor().All(expr); }
 
-Array<GlobalVar> AllGlobalVars(const Expr& expr) { return VarVisitor().AllGlobalVars(expr); }
+tvm::Array<GlobalVar> AllGlobalVars(const Expr& expr) { return VarVisitor().AllGlobalVars(expr); }
 
 bool ContainsImpureCall(const Expr& expr, const Optional<Expr>& own_name) {
   class ImpureCallChecker : public ExprVisitor {
