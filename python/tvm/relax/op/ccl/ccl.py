@@ -56,7 +56,7 @@ def allgather(x, num_workers: Union[int, PrimExpr, PrimValue]):  # pylint: disab
       The input tensor.
 
     num_worker : Union[int, PrimExpr, PrimValue]
-      The number of workers, i.e. the number of parts the given buffer should be chunked into.
+      The number of workers to gather data from.
 
     Returns
     -------
