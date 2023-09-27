@@ -676,8 +676,13 @@ class Conv2dInlineCopy1:
     def main(input_placeholder_3: T.Buffer((1, 10, 12, 8), "int8"), input_ethosu_write_1: T.Buffer((1, 8, 8, 16), "int8")) -> None:
         # function attr dict
         T.func_attr({"from_legacy_te_schedule": True, "global_symbol": "main", "tir.noalias": True})
-        buffer = T.Buffer([848], "uint8")
-        buffer_1 = T.Buffer([160], "uint8")
+
+        data_1 = T.allocate_const([0]*160, 'uint8', [160])
+        buffer_1 = T.Buffer([160], "uint8", data=data_1)
+        data = T.allocate_const([0]*848, 'uint8', [848])
+        buffer = T.Buffer([848], "uint8", data=data)
+
+
         placeholder_3 = T.Buffer([960], 'int8', data=input_placeholder_3.data)
         ethosu_write_1 = T.Buffer([1024], 'int8', data=input_ethosu_write_1.data)
         # body
@@ -691,8 +696,13 @@ class Conv2dInlineCopy2:
     def main(input_placeholder_3: T.Buffer((1, 7, 9, 5), "int8"), input_ethosu_write_1: T.Buffer((1, 3, 5, 16), "int8")) -> None:
         # function attr dict
         T.func_attr({"from_legacy_te_schedule": True, "global_symbol": "main", "tir.noalias": True})
-        buffer = T.Buffer([160], "uint8")
-        buffer_1 = T.Buffer([656], "uint8")
+
+        data_1 = T.allocate_const([0]*656, 'uint8', [656])
+        buffer_1 = T.Buffer([656], "uint8", data=data_1)
+        data = T.allocate_const([0]*160, 'uint8', [160])
+        buffer = T.Buffer([160], "uint8", data=data)
+
+
         placeholder_3 = T.Buffer([315], 'int8', data=input_placeholder_3.data)
         ethosu_write_1 = T.Buffer([240], 'int8', data=input_ethosu_write_1.data)
         # body
