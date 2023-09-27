@@ -18,10 +18,10 @@
  */
 
 /*!
- * \file tvm/runtime/vm/memory_manager.cc
+ * \file tvm/runtime/memory_manager.cc
  * \brief Allocate and manage memory for the runtime.
  */
-#include <tvm/runtime/vm/memory_manager.h>
+#include <tvm/runtime/memory_manager.h>
 
 #include <memory>
 #include <utility>
@@ -31,12 +31,11 @@
 
 namespace tvm {
 namespace runtime {
-namespace vm {
 
 static void BufferDeleter(Object* obj) {
   auto* ptr = static_cast<NDArray::Container*>(obj);
   ICHECK(ptr->manager_ctx != nullptr);
-  Buffer* buffer = reinterpret_cast<Buffer*>(ptr->manager_ctx);
+  MBuffer* buffer = reinterpret_cast<MBuffer*>(ptr->manager_ctx);
   MemoryManager::GetAllocator(buffer->device)->Free(*(buffer));
   delete buffer;
   delete ptr;
@@ -154,21 +153,26 @@ Allocator* MemoryManager::GetAllocator(Device dev) {
   return it->second.get();
 }
 
-NDArray Allocator::Empty(std::vector<int64_t> shape, DLDataType dtype, DLDevice dev) {
+NDArray Allocator::Empty(std::vector<int64_t> shape, DLDataType dtype, DLDevice dev,
+                         Optional<String> mem_scope) {
   VerifyDataType(dtype);
   NDArray::Container* container = new NDArray::Container(nullptr, shape, dtype, dev);
   container->SetDeleter(BufferDeleter);
   size_t size = GetDataSize(container->dl_tensor);
   size_t alignment = GetDataAlignment(container->dl_tensor);
-  Buffer* buffer = new Buffer;
-  *buffer = this->Alloc(size, alignment, dtype);
+  MBuffer* buffer = new MBuffer;
+  if (!mem_scope.defined() || mem_scope == "global") {
+    *buffer = this->Alloc(size, alignment, dtype);
+  } else {
+    *buffer = this->Alloc(shape.size(), shape.data(), dtype, mem_scope.value());
+  }
   container->manager_ctx = reinterpret_cast<void*>(buffer);
   container->dl_tensor.data = buffer->data;
   return NDArray(GetObjectPtr<Object>(container));
 }
 
-Buffer Allocator::Alloc(Device dev, int ndims, int64_t* shape, DLDataType type_hint,
-                        const std::string& mem_scope) {
+MBuffer Allocator::Alloc(Device dev, int ndims, int64_t* shape, DLDataType type_hint,
+                         const std::string& mem_scope) {
   if (mem_scope.empty() || mem_scope == "global") {
     // by default, we can always redirect to the flat memory allocations
     std::vector<int64_t> s;
@@ -185,6 +189,5 @@ Buffer Allocator::Alloc(Device dev, int ndims, int64_t* shape, DLDataType type_h
   return {};
 }
 
-}  // namespace vm
 }  // namespace runtime
 }  // namespace tvm

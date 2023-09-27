@@ -20,25 +20,24 @@
 /*!
  * \file src/runtime/naive_allocator.h
  */
-#ifndef TVM_RUNTIME_VM_NAIVE_ALLOCATOR_H_
-#define TVM_RUNTIME_VM_NAIVE_ALLOCATOR_H_
+#ifndef TVM_RUNTIME_NAIVE_ALLOCATOR_H_
+#define TVM_RUNTIME_NAIVE_ALLOCATOR_H_
 
 #include <tvm/runtime/device_api.h>
-#include <tvm/runtime/vm/memory_manager.h>
+#include <tvm/runtime/memory_manager.h>
 
 #include <atomic>
 #include <string>
 
 namespace tvm {
 namespace runtime {
-namespace vm {
 
 class NaiveAllocator final : public Allocator {
  public:
   explicit NaiveAllocator(Device dev) : Allocator(kNaive), used_memory_(0), device_(dev) {}
 
-  Buffer Alloc(size_t nbytes, size_t alignment, DLDataType type_hint) override {
-    Buffer buf;
+  MBuffer Alloc(size_t nbytes, size_t alignment, DLDataType type_hint) override {
+    MBuffer buf;
     buf.device = device_;
     buf.size = nbytes;
     buf.data = DeviceAPI::Get(device_)->AllocDataSpace(device_, nbytes, alignment, type_hint);
@@ -47,9 +46,9 @@ class NaiveAllocator final : public Allocator {
     return buf;
   }
 
-  Buffer Alloc(int ndims, int64_t* shape, DLDataType type_hint,
-               const std::string& mem_scope) override {
-    Buffer buf;
+  MBuffer Alloc(int ndims, int64_t* shape, DLDataType type_hint,
+                const std::string& mem_scope) override {
+    MBuffer buf;
     size_t nbytes = 1;
     for (int i = 0; i < ndims; ++i) {
       buf.shape.push_back(shape[i]);
@@ -72,7 +71,7 @@ class NaiveAllocator final : public Allocator {
     return buf;
   }
 
-  void Free(const Buffer& buffer) override {
+  void Free(const MBuffer& buffer) override {
     DeviceAPI::Get(device_)->FreeDataSpace(buffer.device, buffer.data);
     used_memory_.fetch_sub(buffer.size, std::memory_order_relaxed);
     DLOG(INFO) << "free " << buffer.size << " B, used memory " << used_memory_ << " B";
@@ -85,8 +84,7 @@ class NaiveAllocator final : public Allocator {
   Device device_;
 };
 
-}  // namespace vm
 }  // namespace runtime
 }  // namespace tvm
 
-#endif  // TVM_RUNTIME_VM_NAIVE_ALLOCATOR_H_
+#endif  // TVM_RUNTIME_NAIVE_ALLOCATOR_H_

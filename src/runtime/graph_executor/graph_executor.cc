@@ -26,6 +26,7 @@
 #include <tvm/runtime/container/string.h>
 #include <tvm/runtime/data_type.h>
 #include <tvm/runtime/device_api.h>
+#include <tvm/runtime/memory_manager.h>
 #include <tvm/runtime/ndarray.h>
 #include <tvm/runtime/packed_func.h>
 #include <tvm/runtime/profiling.h>
@@ -466,7 +467,8 @@ void GraphExecutor::SetupStorage() {
       if (!pit.scope.empty()) {
         mem_scope = String(pit.scope);
       }
-      storage_pool_.push_back(NDArray::Empty(shape, pit.dtype, dev, mem_scope));
+      storage_pool_.push_back(MemoryManager::GetOrCreateAllocator(dev, AllocatorType::kNaive)
+                                  ->Empty(shape, pit.dtype, dev, mem_scope));
     }
   }
 
