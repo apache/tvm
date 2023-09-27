@@ -27,7 +27,7 @@ from ..runtime import String, convert_to_object
 from . import _ffi_api
 from .expr import Tuple as rx_Tuple
 from .expr import Expr, ShapeExpr, Function, PrimValue, StringImm, te_tensor
-from ..te import Tensor as te_Tensor, create_relax_prim_func
+from ..te import Tensor as te_Tensor, create_prim_func
 from ..ir import Array, Attrs, Type, Map
 from .struct_info import PrimStructInfo, ShapeStructInfo, TensorStructInfo
 
@@ -441,8 +441,8 @@ def gen_call_tir_inputs(
     outs = [te_out] if isinstance(te_out, te_Tensor) else list(te_out)
     unbound_tir_vars = _get_unbound_tir_vars(te_args + outs, tir_arg_list + tir_kwarg_list)
 
-    inputs = [*te_args] + outs
-    tir_func = create_relax_prim_func(inputs, unbound_tir_vars, "int64")
+    inputs = [*te_args] + outs + unbound_tir_vars
+    tir_func = create_prim_func(inputs, "int64")
 
     if primfunc_attrs:
         tir_func = tir_func.with_attrs(primfunc_attrs)
