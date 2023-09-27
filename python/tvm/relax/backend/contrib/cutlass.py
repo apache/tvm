@@ -576,7 +576,7 @@ def annotate_workspace(mod, _):
     return mod
 
 
-def partition_for_cutlass(mod, annotate_codegen=True):
+def partition_for_cutlass(mod, annotate_codegen=True, use_flash_mqa=True):
     """
     Partition the input module into CUTLASS-supported subgraphs.
 
@@ -590,6 +590,10 @@ def partition_for_cutlass(mod, annotate_codegen=True):
         body consists only of a call to the composite function. See the doc of FuseOpsByPattern
         for more detail.
 
+    use_flash_mqa: bool
+        Whether to consider a rewrite pattern for multi-query attention, which is supported by
+        the Flash Attention kernel.
+
     Returns
     -------
     mod: tvm.IRModule
@@ -598,8 +602,15 @@ def partition_for_cutlass(mod, annotate_codegen=True):
     """
     for func_name, func in mod.functions.items():
         if isinstance(func, Function):
+            if use_flash_mqa:
+                mqa_pattern, rewriter = make_attention_rewrite_pattern(
+                    "BSNH", "BSNH", with_bias=False, with_cast=True, with_kv_repeat=True
+                )
+                func = rewrite_call(mqa_pattern, rewriter, func)
+
             for pattern, rewriter in _REWRITE_PATTERNS:
                 func = rewrite_call(pattern, rewriter, func)
+
         mod[func_name] = func
 
     patterns = get_patterns_with_prefix("cutlass")
