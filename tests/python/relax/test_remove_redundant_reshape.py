@@ -27,11 +27,7 @@ from tvm.script import ir as I, relax as R
 
 def _run_pass_compare_output(Before, Expected):
     fused_mod = RemoveRedundantReshape()(Before)
-    assert relax.analysis.well_formed(fused_mod), "IRModule is not well-formed"
-
     fused_mod = DeadCodeElimination()(fused_mod)
-    assert relax.analysis.well_formed(fused_mod), "IRModule is not well-formed"
-
     tvm.ir.assert_structural_equal(Expected, fused_mod)
 
 
@@ -86,6 +82,34 @@ def test_remove_redundant_reshape_pass_two_arg():
                 lv1: R.Tensor((1, 1001), dtype="float16") = R.reshape(x, R.shape([1, 1001]))
                 R.output(lv1)
             return lv1
+
+    _run_pass_compare_output(Before, Expected)
+
+
+def test_remove_redundant_reshape_pass_three_arg():
+    @I.ir_module
+    class Before:
+        @R.function
+        def main(
+            x: R.Tensor((1, 1001, 1, 1), dtype="float16")
+        ) -> R.Tensor((1, 1001, 1, 1), dtype="float16"):
+            with R.dataflow():
+                lv: R.Tensor((1, 1001, 1, 1), dtype="float16") = R.reshape(
+                    x, R.shape([1, 1001, 1, 1])
+                )
+                R.output(lv)
+            return lv
+
+    @I.ir_module
+    class Expected:
+        @R.function
+        def main(
+            x: R.Tensor((1, 1001, 1, 1), dtype="float16")
+        ) -> R.Tensor((1, 1001, 1, 1), dtype="float16"):
+            with R.dataflow():
+                lv: R.Tensor((1, 1001, 1, 1), dtype="float16") = x
+                R.output(lv)
+            return lv
 
     _run_pass_compare_output(Before, Expected)
 

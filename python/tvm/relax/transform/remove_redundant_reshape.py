@@ -16,7 +16,6 @@
 # under the License.
 # pylint: disable=invalid-name, unused-argument, missing-function-docstring, abstract-method
 """Relax Remove Redundant Reshape ops"""
-import tvm
 from tvm import IRModule, relax
 from tvm.ir.transform import PassContext
 from tvm.ir import structural_equal
@@ -35,10 +34,10 @@ class RemoveRedundantReshape:
         self.input1 = wildcard()
         shape1 = wildcard()
         pattern_redundant_reshape = is_op("relax.reshape")(self.input1, shape1)
-        self.pattern1 = pattern_redundant_reshape
+        self.no_op_reshape = pattern_redundant_reshape
         shape2 = wildcard()
-        self.pattern2 = is_op("relax.reshape")(pattern_redundant_reshape, shape2)
-        self.pattern = self.pattern2 | self.pattern1
+        self.repeated_reshape = is_op("relax.reshape")(pattern_redundant_reshape, shape2)
+        self.pattern = self.repeated_reshape | self.no_op_reshape
 
     def transform_function(self, func: Expr, mod: IRModule, ctx: PassContext) -> IRModule:
         """
@@ -68,14 +67,12 @@ class RemoveRedundantReshape:
 
             def rewriter(expr, matches):
                 args = matches[self.pattern]
-                if self.pattern2 in matches and args == matches[self.pattern2]:
+                if self.repeated_reshape in matches:
                     return relax.op.reshape(matches[self.input1], args.args[1])
-                elif self.pattern1 in matches and args == matches[self.pattern1]:
+                elif self.no_op_reshape in matches:
                     if args.args[0].struct_info.shape:
                         if structural_equal(args.args[0].struct_info.shape, args.args[1]):
                             return args.args[0]
-                    else:
-                        raise Exception("Tensor of unknown dimension or full shape is not known")
                 return expr
 
             updated_func = rewrite_call(self.pattern, rewriter, funct)
