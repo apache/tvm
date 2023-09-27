@@ -124,7 +124,10 @@ def test_double_conv_compute_cycles_hint():
     for double convolution.
     """
     primfunc = _compile_model(_create_double_conv2d())
-    ops = primfunc.body.body.body.body.seq
+
+    ops = primfunc.body
+    while not isinstance(ops, tvm.tir.SeqStmt):
+        ops = ops.body
     compute_cycles_hints = [2944, 1408, 320, 240]
     for op, compute_cycle_hint in zip(ops, compute_cycles_hints):
         assert op.attr_key == "pragma_compute_cycles_hint"
