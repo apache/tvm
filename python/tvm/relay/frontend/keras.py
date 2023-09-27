@@ -1060,6 +1060,8 @@ def _convert_simple_rnn(
     assert units > 0, "The value of units must be a positive integer"
     if keras_layer.use_bias:
         in_bias = etab.new_const(weightList[2])
+    if keras_layer.go_backwards:
+        in_data = _op.reverse(in_data, axis=1)
     assert len(in_data.type_annotation.shape) == 3
     timeDim = in_data.type_annotation.shape[1].value
     in_data_split = _op.split(in_data, indices_or_sections=timeDim, axis=1)
@@ -1090,6 +1092,8 @@ def _convert_gru(
     recurrent_weight = etab.new_const(weightList[1].transpose([1, 0]))
     if keras_layer.use_bias:
         in_bias = etab.new_const(weightList[2])
+    if keras_layer.go_backwards:
+        in_data = _op.reverse(in_data, axis=1)
     units = list(weightList[0].shape)[1]
     assert units > 0, "The value of units must be a positive integer"
     in_data = _op.nn.batch_flatten(in_data)
