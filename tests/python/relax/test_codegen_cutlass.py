@@ -1992,5 +1992,31 @@ def test_attention_rewrite_multi_query():
     tvm.testing.assert_allclose(out, ref, rtol=1e-2, atol=1e-2)
 
 
+def test_batched_var_len_attention():
+    @I.ir_module
+    class Module:
+        @R.function
+        def main(
+            query: R.Tensor(("num_tokens", 4096), dtype="float16"),
+            key: R.Tensor(("num_tokens", 4096), dtype="float16"),
+            value: R.Tensor(("num_tokens", 4096), dtype="float16"),
+            seqstart_q: R.Tensor(("num_seq",), dtype="int32"),
+        ) -> R.Tensor(("num_tokens", 4096), dtype="float16"):
+            cls = Module
+            num_tokens = T.int64()
+            with R.dataflow():
+                max_seqlen_q = R.max(seqstart_q)
+                q = R.reshape(query, R.shape([1, num_tokens, 128, 32]))
+                k = R.reshape(key, R.shape([1, num_tokens, 128, 32]))
+                v = R.reshape(value, R.shape([1, num_tokens, 128, 32]))
+                attn_out = R.nn.attention(q, k, v, seqstart_q=seqstart_q, max_seqlen_q=max_seqlen_q)
+                out = R.reshape(attn_out, R.shape([num_tokens, 4096]))
+                R.output(out)
+            return out
+
+    print(partition_for_cutlass(Module))
+
+
 if __name__ == "__main__":
-    tvm.testing.main()
+    # tvm.testing.main()
+    test_batched_var_len_attention()
