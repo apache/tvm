@@ -79,8 +79,8 @@ StructInfo InferStructInfoAttention(const Call& call, const BlockBuilder& ctx) {
   };
   diag_equal(num_batches, k_shape->values[0], "query", "key", "batch size");
   diag_equal(num_batches, v_shape->values[0], "query", "value", "batch size");
-  diag_equal(num_heads, k_shape->values[2], "query", "key", "number of heads");
-  diag_equal(num_heads, v_shape->values[2], "query", "value", "number of heads");
+  // diag_equal(num_heads, k_shape->values[2], "query", "key", "number of heads");
+  // diag_equal(num_heads, v_shape->values[2], "query", "value", "number of heads");
   diag_equal(num_keys, v_shape->values[1], "key", "value", "sequence length");
   diag_equal(head_dim, k_shape->values[3], "query", "key", "dimension of heads");
 

@@ -745,7 +745,6 @@ def instantiate_template(func_name, annotations, func_args):
 
         attrs["data_type"] = DataTypeTag[data_type]
         attrs["num_batches"] = b = annotations["num_batches"]
-        attrs["num_heads"] = n = annotations["num_heads"]
         attrs["head_dim"] = h = annotations["head_dim"]
         attrs["head_dim_value"] = h_v = annotations["head_dim_value"]
         attrs["kMaxK"] = max(int(attrs["head_dim"]), int(attrs["head_dim_value"]))
@@ -754,24 +753,28 @@ def instantiate_template(func_name, annotations, func_args):
         )
 
         use_flash = (
-            annotations["ret_dtype"] == "float16"
+            not annotations["disable_flash"]
+            and annotations["ret_dtype"] == "float16"
             and "bias" not in attrs
             and int(attrs["head_dim"]) <= 256
             and int(attrs["head_dim"]) % 8 == 0
             and int(attrs["head_dim"]) == int(attrs["head_dim_value"])
-            # We have not thoroughly validated flash with causal mask yet, so for now we support
-            # only non-causal cases.
-            and int(annotations["custom_mask_type"]) == 0
+            and int(annotations["custom_mask_type"]) in (0, 2)
             # Flash v2 is currently not supported for sm < 80
             and int(annotations["arch"]) >= 80
         )
 
         if use_flash:
             headers.append("flash.h")
-            attrs["is_causal"] = int(annotations["custom_mask_type"]) > 0
+            attrs["is_causal"] = int(annotations["custom_mask_type"]) == 2
+            attrs["num_q_heads"] = annotations["num_q_heads"]
+            attrs["num_kv_heads"] = annotations["num_kv_heads"]
             code = instantiate_flash_attention_template(attrs)
         else:
             headers.append("kernel_forward.h")
+
+            assert annotations["num_q_heads"] == annotations["num_kv_heads"]
+            attrs["num_heads"] = n = annotations["num_q_heads"]
 
             data_type_size = DataTypeSize[data_type]
             if (data_type_size * h // 8) % 16 == 0 and (data_type_size * h_v // 8) % 16 == 0:

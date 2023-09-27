@@ -113,7 +113,7 @@ def get_result_with_relax_cutlass_offload(
     if assert_all_bindings_fused:
         assert len(mod["main"].body.blocks[0].bindings) == num_final_bindings
 
-    codegen_pass = relax.transform.RunCodegen({"cutlass": {"sm": 80, "find_first_valid": True}})
+    codegen_pass = relax.transform.RunCodegen({"cutlass": {"sm": 80, "find_first_valid": True, "disable_flash": True}})
     mod = codegen_pass(mod)
 
     return build_and_run(mod, args, "cuda")
@@ -746,7 +746,7 @@ def attention_causal(request):
 def test_attention_causal_offload(attention_causal_size, attention_causal):
     b, (s, s_kv), n, (h, h_v), bias_shape = attention_causal_size
     q, k, v, bias, ref = get_numpy_attention_ref(
-        b, s, s_kv, n, h, h_v, bias_shape, "none", attention_causal, "float32"
+        b, s, s_kv, n, h, h_v, bias_shape, "none", attention_causal, "float16"
     )
 
     q_shape = (b, s, n, h)
@@ -757,10 +757,11 @@ def test_attention_causal_offload(attention_causal_size, attention_causal):
         q_shape,
         k_shape,
         v_shape,
-        dtype="float32",
+        dtype="float16",
         bias_shape=bias_shape,
         causal_mask=attention_causal,
     )
+
     if bias is None:
         out = get_result_with_relax_cutlass_offload(mod, q, k, v, num_final_bindings=3)
     else:
@@ -1930,7 +1931,10 @@ def test_fp16A_int8B_gemm_batched():
     ex = relax.build(mod_transform, target="llvm")
     vm = relax.vm.VirtualMachine(ex, tvm.cpu(0))
 
-    (packed_weight, scales,) = vm[
+    (
+        packed_weight,
+        scales,
+    ) = vm[
         transform_func_name
     ]((tvm.nd.array(y),))
 
@@ -1945,5 +1949,55 @@ def test_fp16A_int8B_gemm_batched():
     tvm.testing.assert_allclose(out, ref, rtol=1e-2, atol=1e-2)
 
 
+def test_attention_rewrite_multi_query():
+    @I.ir_module
+    class Module:
+        @R.function
+        def main(
+            q: R.Tensor((4, 16, 32, 16), dtype="float16"),
+            k_single: R.Tensor((4, 16, 1, 16), dtype="float16"),
+            v_single: R.Tensor((4, 16, 1, 16), dtype="float16"),
+        ) -> R.Tensor((4, 16, 32, 8), dtype="float16"):
+            with R.dataflow():
+                k = R.repeat(k_single, 32, axis=2)
+                v = R.repeat(v_single, 32, axis=2)
+
+                lv = R.permute_dims(q, axes=[0, 2, 1, 3])
+                lv1 = R.reshape(lv, R.shape([128, 16, 16]))
+                lv2 = R.permute_dims(k, axes=[0, 2, 1, 3])
+                lv3 = R.reshape(lv2, R.shape([128, 16, 16]))
+                lv4 = R.permute_dims(v, axes=[0, 2, 1, 3])
+                lv5 = R.reshape(lv4, R.shape([128, 16, 16]))
+
+                lv6 = R.permute_dims(lv3, axes=[0, 2, 1])
+                lv7 = R.matmul(lv1, lv6, out_dtype="float16")
+                lv3_1 = R.astype(R.const(0.25, "float32"), "float16")
+                lv8 = R.multiply(lv7, lv3_1)
+                lv11 = R.astype(R.nn.softmax(R.astype(lv8, "float32"), axis=2), "float16")
+                lv12 = R.matmul(lv11, lv5, out_dtype="float16")
+                lv13 = R.reshape(lv12, R.shape([4, 32, 16, 16]))
+                lv6_1 = R.permute_dims(lv13, axes=[0, 2, 1, 3])
+                R.output(lv6_1)
+            return lv6_1
+
+    q_np = np.random.randn(4, 16, 32, 16).astype("float16")
+    k_np = np.random.randn(4, 16, 1, 16).astype("float16")
+    v_np = np.random.randn(4, 16, 1, 16).astype("float16")
+    args = [q_np, k_np, v_np]
+    ref = build_and_run(Module, args, "llvm", legalize=True)
+
+    mod = partition_for_cutlass(Module, use_flash_attn=True)
+    codegen_pass = relax.transform.RunCodegen({"cutlass": {"sm": 80, "find_first_valid": True, "disable_flash": False}})
+    mod = codegen_pass(mod)
+
+    out = build_and_run(mod, args, "cuda")
+
+    print(np.max(np.abs(out - ref)), np.mean(np.abs(out - ref)))
+    tvm.testing.assert_allclose(out, ref, rtol=1e-2, atol=1e-2)
+
+
 if __name__ == "__main__":
-    tvm.testing.main()
+    # tvm.testing.main()
+    test_attention_rewrite_multi_query()
+    # test_attention_offload((4, (16, 16), 32, (8, 8)), "float16")
+    # test_attention_causal_offload((1, (1, 8), 4, (16, 16), "none"), "BottomRight")

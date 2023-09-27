@@ -318,7 +318,7 @@ def make_rms_norm_pattern():
 
 
 def make_attention_rewrite_pattern(
-    qkv_layout: str, out_layout: str, with_bias: bool, with_cast: bool
+        qkv_layout: str, out_layout: str, with_bias: bool, with_cast: bool, with_kv_repeat: bool = False
 ):
     """
     Create pattern for implicit fused multi head attention rewriting.
@@ -350,7 +350,10 @@ def make_attention_rewrite_pattern(
     """
 
     # pylint: disable=invalid-name
-    def handle_input(tensor, layout, transpose):
+    def handle_input(tensor, layout, transpose, repeat=False):
+        if repeat:
+            tensor = is_op("relax.repeat")(tensor)
+
         if layout == "BSNH":
             permuted = is_op("relax.permute_dims")(tensor)
             shape = wildcard()
@@ -434,8 +437,8 @@ def make_attention_rewrite_pattern(
 
     q_raw, k_raw, v_raw = wildcard(), wildcard(), wildcard()
     q, q_rewriter = handle_input(q_raw, qkv_layout, False)
-    k, k_rewriter = handle_input(k_raw, qkv_layout, True)
-    v, v_rewriter = handle_input(v_raw, qkv_layout, False)
+    k, k_rewriter = handle_input(k_raw, qkv_layout, True, repeat=with_kv_repeat)
+    v, v_rewriter = handle_input(v_raw, qkv_layout, False, repeat=with_kv_repeat)
     matmul_1 = is_op("relax.matmul")(q, k)
     scale = is_const()
 
