@@ -735,8 +735,11 @@ class Conv2dInlineReshape1:
     def main(input_placeholder_3: T.Buffer((4, 6, 8, 1), "int8"), input_ethosu_write_1: T.Buffer((1, 8, 6, 16), "int8")) -> None:
         # function attr dict
         T.func_attr({"from_legacy_te_schedule": True, "global_symbol": "main", "tir.noalias": True})
-        buffer = T.Buffer([160], "uint8")
-        buffer_1 = T.Buffer([848], "uint8")
+
+        data = T.allocate_const([0]*192, 'uint8', 160)
+        buffer = T.Buffer([160], "uint8", data=data)
+        data_1 = T.allocate_const([0]*848, 'uint8', 848)
+        buffer_1 = T.Buffer([848], "uint8", data=data_1)
         placeholder_3 = T.Buffer([192], 'int8', data=input_placeholder_3.data)
         ethosu_write_1 = T.Buffer([768], 'int8', data=input_ethosu_write_1.data)
         # body
@@ -751,8 +754,10 @@ class Conv2dInlineReshape2:
     def main(input_placeholder_3: T.Buffer((1, 24, 8), "int8"), input_ethosu_write_1: T.Buffer((1, 8, 6, 16), "int8")) -> None:
         # function attr dict
         T.func_attr({"from_legacy_te_schedule": True, "global_symbol": "main", "tir.noalias": True})
-        buffer = T.Buffer([160], "uint8")
-        buffer_1 = T.Buffer([848], "uint8")
+        data = T.allocate_const([0]*192, 'uint8', 160)
+        buffer = T.Buffer([160], "uint8", data=data)
+        data_1 = T.allocate_const([0]*848, 'uint8', 848)
+        buffer_1 = T.Buffer([848], "uint8", data=data_1)
         placeholder_3 = T.Buffer([192], 'int8', data=input_placeholder_3.data)
         ethosu_write_1 = T.Buffer([768], 'int8', data=input_ethosu_write_1.data)
         # body
@@ -767,8 +772,10 @@ class Conv2dInlineReshape3:
     def main(input_placeholder_3: T.Buffer((192, 1), "int8"), input_ethosu_write_1: T.Buffer((1, 8, 6, 16), "int8")) -> None:
         # function attr dict
         T.func_attr({"from_legacy_te_schedule": True, "global_symbol": "main", "tir.noalias": True})
-        buffer = T.Buffer([160], "uint8")
-        buffer_1 = T.Buffer([848], "uint8")
+        data = T.allocate_const([0]*192, 'uint8', 160)
+        buffer = T.Buffer([160], "uint8", data=data)
+        data_1 = T.allocate_const([0]*848, 'uint8', 848)
+        buffer_1 = T.Buffer([848], "uint8", data=data_1)
         placeholder_3 = T.Buffer([192], 'int8', data=input_placeholder_3.data)
         ethosu_write_1 = T.Buffer([768], 'int8', data=input_ethosu_write_1.data)
         # body
@@ -783,8 +790,10 @@ class Conv2dInlineReshape4:
     def main(placeholder_3: T.Buffer((192,), "int8"), input_ethosu_write_1: T.Buffer((1, 8, 6, 16), "int8")) -> None:
         # function attr dict
         T.func_attr({"from_legacy_te_schedule": True, "global_symbol": "main", "tir.noalias": True})
-        buffer = T.Buffer([160], "uint8")
-        buffer_1 = T.Buffer([848], "uint8")
+        data = T.allocate_const([0]*192, 'uint8', 160)
+        buffer = T.Buffer([160], "uint8", data=data)
+        data_1 = T.allocate_const([0]*848, 'uint8', 848)
+        buffer_1 = T.Buffer([848], "uint8", data=data_1)
         ethosu_write_1 = T.Buffer([768], 'int8', data=input_ethosu_write_1.data)
         # body
         T.evaluate(T.call_extern("ethosu_conv2d", "int8", 5, 6, 4, 5, 0, 6, placeholder_3[0], 0, 0, 0, T.float32(0.5), 10, "NHWC", 24, 4, 1, "int8", 4, 6, 16, 4, 0, 6, ethosu_write_1[0], 0, 0, 0, T.float32(0.25), 14, "NHWC", 96, 16, 1, 3, 3, 1, 1, 1, 1, buffer_1[0], 848, T.int8(-1), T.int8(-1), 12, buffer[0], 160, T.int8(-1), T.int8(-1), 1, 1, 0, 1, "NONE", 0, 0, "TFL", "NONE", 0, 0, 0, dtype="handle"))
@@ -825,6 +834,7 @@ def test_conv2d_inline_reshape(trial):
     params = trial[1:]
     func = _get_func(*params)
     mod = _lower_to_tir(func, cascader=total_cascader((1, 4, 6, 16)))
+    reference_mod = copy_allocate_const_data(mod, reference_mod)
     script = mod.script()
     mod = tvm.script.from_source(script)
     tvm.ir.assert_structural_equal(mod["main"], reference_mod["main"], True)
