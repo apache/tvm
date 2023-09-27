@@ -886,7 +886,7 @@ def test_alter_layout_depthwise_conv2d():
     from tvm import topi
 
     def alter_conv2d(attrs, inputs, tinfos, out_type):
-        with tvm.target.Target("llvm -mcpu=core-avx2"):
+        with tvm.target.Target("llvm -mtriple=x86_64-linux-gnu -mcpu=core-avx2"):
             return topi.nn.conv2d_alter_layout(attrs, inputs, tinfos, out_type)
 
     def expected():
@@ -1373,7 +1373,7 @@ def test_alter_op_dense():
         y = relay.Function(analysis.free_vars(y), y)
         return y
 
-    target = "llvm -mcpu=core-avx2"
+    target = "llvm -mtriple=x86_64-linux-gnu -mcpu=core-avx2"
     with tvm.target.Target(target):
         with TempOpAttr(
             "nn.dense", "FTVMAlterOpLayout", topi.x86.dense_alter_op._alter_dense_layout
@@ -1441,7 +1441,7 @@ def test_alter_op_dense_packed_data():
         )
         return relay.Function(analysis.free_vars(dense), dense)
 
-    with tvm.target.Target("llvm -mcpu=core-avx2"):
+    with tvm.target.Target("llvm -mtriple=x86_64-linux-gnu -mcpu=core-avx2"):
         with TempOpAttr(
             "nn.dense", "FTVMAlterOpLayout", topi.x86.dense_alter_op._alter_dense_layout
         ):
