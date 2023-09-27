@@ -379,6 +379,10 @@ struct DropoutAttrs : public tvm::AttrsNode<DropoutAttrs> {
 struct AttentionAttrs : public tvm::AttrsNode<AttentionAttrs> {
   Optional<FloatImm> scale;
   Optional<String> causal_mask;
+  Optional<Expr> seqstart_q;
+  Optional<Expr> seqstart_k;
+  Optional<Expr> max_seqlen_q;
+  Optional<Expr> max_seqlen_k;
 
   TVM_DECLARE_ATTRS(AttentionAttrs, "relax.attrs.AttentionAttrs") {
     TVM_ATTR_FIELD(scale).describe(

@@ -21,6 +21,7 @@
 
 #include <utility>
 #include <vector>
+#include "tvm/runtime/container/optional.h"
 
 namespace tvm {
 namespace relax {
@@ -29,10 +30,16 @@ namespace relax {
 TVM_REGISTER_NODE_TYPE(AttentionAttrs);
 
 Expr attention(Expr query, Expr key, Expr value, Optional<Expr> bias, Optional<FloatImm> scale,
-               Optional<String> causal_mask) {
+               Optional<String> causal_mask, Optional<Expr> seqstart_q, Optional<Expr> seqstart_k,
+               Optional<Expr> max_seqlen_q, Optional<Expr> max_seqlen_k) {
   ObjectPtr<AttentionAttrs> attrs = make_object<AttentionAttrs>();
   attrs->scale = scale;
   attrs->causal_mask = causal_mask;
+  attrs->seqstart_q = seqstart_q;
+  attrs->seqstart_k = seqstart_k;
+  attrs->max_seqlen_q = max_seqlen_q;
+  attrs->max_seqlen_k = max_seqlen_k;
+
   if (bias.defined()) {
     return Call(Op::Get("relax.nn.attention_bias"),
                 {std::move(query), std::move(key), std::move(value), std::move(bias.value())},
@@ -124,8 +131,7 @@ StructInfo InferStructInfoAttention(const Call& call, const BlockBuilder& ctx) {
 }
 
 Call InferMixedPrecisionAttention(const Call& call, const DataType& out_dtype) {
-  return Downcast<Call>(
-      attention(call->args[0], call->args[1], call->args[2], NullOpt, NullOpt, NullOpt));
+  return Downcast<Call>(attention(call->args[0], call->args[1], call->args[2]));
 }
 
 TVM_REGISTER_OP("relax.nn.attention")

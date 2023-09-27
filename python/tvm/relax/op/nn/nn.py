@@ -1192,6 +1192,10 @@ def attention(
     bias: Optional[Expr] = None,
     scale: Optional[FloatImm] = None,
     causal_mask: Optional[str] = None,
+    seqstart_q: Optional[Expr] = None,
+    seqstart_k: Optional[Expr] = None,
+    max_seqlen_q: Optional[int] = None,
+    max_seqlen_k: Optional[int] = None,
 ) -> Expr:
     r"""Computes fused multi head attention.
 
@@ -1255,4 +1259,4 @@ def attention(
         The computed result. The layout of the output should be
         (batch_size, seq_len, num_head, head_dim_v).
     """
-    return _ffi_api.attention(query, key, value, bias, scale, causal_mask)  # type: ignore
+    return _ffi_api.attention(query, key, value, bias, scale, causal_mask, seqstart_q, seqstart_k, max_seqlen_q, max_seqlen_k)  # type: ignore
