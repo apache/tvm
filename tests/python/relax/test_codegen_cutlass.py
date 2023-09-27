@@ -113,7 +113,9 @@ def get_result_with_relax_cutlass_offload(
     if assert_all_bindings_fused:
         assert len(mod["main"].body.blocks[0].bindings) == num_final_bindings
 
-    codegen_pass = relax.transform.RunCodegen({"cutlass": {"sm": 80, "find_first_valid": True, "disable_flash": True}})
+    codegen_pass = relax.transform.RunCodegen(
+        {"cutlass": {"sm": 80, "find_first_valid": True, "disable_flash": True}}
+    )
     mod = codegen_pass(mod)
 
     return build_and_run(mod, args, "cuda")
@@ -1987,7 +1989,9 @@ def test_attention_rewrite_multi_query():
     ref = build_and_run(Module, args, "llvm", legalize=True)
 
     mod = partition_for_cutlass(Module, use_flash_attn=True)
-    codegen_pass = relax.transform.RunCodegen({"cutlass": {"sm": 80, "find_first_valid": True, "disable_flash": False}})
+    codegen_pass = relax.transform.RunCodegen(
+        {"cutlass": {"sm": 80, "find_first_valid": True, "disable_flash": False}}
+    )
     mod = codegen_pass(mod)
 
     out = build_and_run(mod, args, "cuda")

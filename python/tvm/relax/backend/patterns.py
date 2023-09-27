@@ -318,7 +318,7 @@ def make_rms_norm_pattern():
 
 
 def make_attention_rewrite_pattern(
-        qkv_layout: str, out_layout: str, with_bias: bool, with_cast: bool, with_kv_repeat: bool = False
+    qkv_layout: str, out_layout: str, with_bias: bool, with_cast: bool, with_kv_repeat: bool = False
 ):
     """
     Create pattern for implicit fused multi head attention rewriting.
