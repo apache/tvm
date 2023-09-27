@@ -449,6 +449,10 @@ def attention_patterns():
             *make_stacked_attention_pattern(start_op="strided_slice", with_bias=True),
             _check_stacked_attention,
         ),
+        (
+            "cutlass.attention_var_len",
+            *make_attention_pattern(var_len=True),
+        ),
     ]
 
 
