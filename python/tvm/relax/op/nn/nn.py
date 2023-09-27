@@ -1259,4 +1259,8 @@ def attention(
         The computed result. The layout of the output should be
         (batch_size, seq_len, num_head, head_dim_v).
     """
+    if seqstart_k == None:
+        seqstart_k = seqstart_q
+    if max_seqlen_k == None:
+        max_seqlen_k = max_seqlen_q
     return _ffi_api.attention(query, key, value, bias, scale, causal_mask, seqstart_q, seqstart_k, max_seqlen_q, max_seqlen_k)  # type: ignore
