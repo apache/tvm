@@ -109,8 +109,8 @@ def test_linear():
 
     input_info = [([1, 3, 10, 10], "float32")]
     verify_model(Dense1(), input_info)
-    # verify_model(Dense2(), input_info)
-    # verify_model(MatMul1(), [([10, 10], "float32"), ([10, 10], "float32")])
+    verify_model(Dense2(), input_info)
+    verify_model(MatMul1(), [([10, 10], "float32"), ([10, 10], "float32")])
 
 
 def test_bmm():
