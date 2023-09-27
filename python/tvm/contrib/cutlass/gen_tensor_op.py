@@ -753,13 +753,18 @@ def instantiate_template(func_name, annotations, func_args):
         )
 
         use_flash = (
-            not annotations["disable_flash"]
-            and annotations["ret_dtype"] == "float16"
+            annotations["ret_dtype"] == "float16"
             and "bias" not in attrs
             and int(attrs["head_dim"]) <= 256
             and int(attrs["head_dim"]) % 8 == 0
             and int(attrs["head_dim"]) == int(attrs["head_dim_value"])
-            and int(annotations["custom_mask_type"]) in (0, 2)
+            # For the causal case (custom mask = "BottomRight"), only use flash for multi-query
+            # attention workloads (indicated by the "repeat" op in the pattern).
+            # Otherwise, CUTLASS fMHA seems faster for causal attention with a single query.
+            and (
+                int(annotations["custom_mask_type"]) == 0
+                or (int(annotations["custom_mask_type"]) == 2 and "repeat" in func_name)
+            )
             # Flash v2 is currently not supported for sm < 80
             and int(annotations["arch"]) >= 80
         )

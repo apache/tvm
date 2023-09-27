@@ -576,7 +576,7 @@ def annotate_workspace(mod, _):
     return mod
 
 
-def partition_for_cutlass(mod, annotate_codegen=True, use_flash_attn=True):
+def partition_for_cutlass(mod, annotate_codegen=True, use_flash_mqa=True):
     """
     Partition the input module into CUTLASS-supported subgraphs.
 
@@ -598,7 +598,7 @@ def partition_for_cutlass(mod, annotate_codegen=True, use_flash_attn=True):
     """
     for func_name, func in mod.functions.items():
         if isinstance(func, Function):
-            if use_flash_attn:
+            if use_flash_mqa:
                 mqa_pattern, rewriter = make_attention_rewrite_pattern(
                     "BSNH", "BSNH", with_bias=False, with_cast=True, with_kv_repeat=True
                 )
