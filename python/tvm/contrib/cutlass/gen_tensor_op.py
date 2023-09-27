@@ -752,6 +752,8 @@ def instantiate_template(func_name, annotations, func_args):
             float(1 / math.sqrt(h.value)) if annotations["scale"] is None else annotations["scale"]
         )
 
+        is_mqa = annotations["num_q_heads"] != annotations["num_kv_heads"]
+
         use_flash = (
             annotations["ret_dtype"] == "float16"
             and "bias" not in attrs
@@ -759,11 +761,11 @@ def instantiate_template(func_name, annotations, func_args):
             and int(attrs["head_dim"]) % 8 == 0
             and int(attrs["head_dim"]) == int(attrs["head_dim_value"])
             # For the causal case (custom mask = "BottomRight"), only use flash for multi-query
-            # attention workloads (indicated by the "repeat" op in the pattern).
-            # Otherwise, CUTLASS fMHA seems faster for causal attention with a single query.
+            # attention workloads. Otherwise, CUTLASS fMHA seems faster for causal attention
+            # with a single query.
             and (
                 int(annotations["custom_mask_type"]) == 0
-                or (int(annotations["custom_mask_type"]) == 2 and "repeat" in func_name)
+                or (int(annotations["custom_mask_type"]) == 2 and is_mqa)
             )
             # Flash v2 is currently not supported for sm < 80
             and int(annotations["arch"]) >= 80
@@ -779,7 +781,7 @@ def instantiate_template(func_name, annotations, func_args):
             headers.append("kernel_forward.h")
 
             assert (
-                annotations["num_q_heads"] == annotations["num_kv_heads"]
+                not is_mqa
             ), "The number of query and KV heads need to be the same for CUTLASS fMHA."
 
             attrs["num_heads"] = n = annotations["num_q_heads"]
