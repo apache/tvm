@@ -80,7 +80,7 @@ StructInfo InferStructInfoAttention(const Call& call, const BlockBuilder& ctx) {
   auto multiple_of = [&](PrimExpr v1, PrimExpr v2, String m1, String m2, String dim) {
     if (analyzer->CanProve(indexmod(v1, v2) != 0)) {
       ctx->ReportFatal(Diagnostic::Error(call)
-                       << "The " << m1 << " " << dim << " should be an multiple of " << m2 << " "
+                       << "The " << m1 << " " << dim << " should be a multiple of " << m2 << " "
                        << dim << ". However, the " << dim << " of " << m1 << " is " << v1
                        << " while the " << dim << " of " << m2 << " is " << v2);
     }
