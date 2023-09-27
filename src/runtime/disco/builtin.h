@@ -53,6 +53,12 @@ NDArray DiscoEmptyNDArray(ShapeTuple shape, DataType dtype, Device device);
  */
 void AllReduce(NDArray send, ReduceKind reduce_kind, NDArray recv);
 /*!
+ * \brief Perform an allgather operation using the underlying communication library
+ * \param send The array send to perform allgather on
+ * \return The outcome of allgather
+ */
+void AllGather(NDArray send, NDArray recv);
+/*!
  * \brief Perform a broadcast operation from worker-0
  * \param buffer The buffer to be broadcasted
  * \return The result buffer
