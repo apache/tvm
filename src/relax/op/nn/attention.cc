@@ -21,6 +21,7 @@
 
 #include <utility>
 #include <vector>
+
 #include "tvm/runtime/container/optional.h"
 
 namespace tvm {
@@ -35,12 +36,16 @@ Expr attention(Expr query, Expr key, Expr value, Optional<Expr> bias, Optional<F
   ObjectPtr<AttentionAttrs> attrs = make_object<AttentionAttrs>();
   attrs->scale = scale;
   attrs->causal_mask = causal_mask;
-  attrs->seqstart_q = seqstart_q;
-  attrs->seqstart_k = seqstart_k;
-  attrs->max_seqlen_q = max_seqlen_q;
-  attrs->max_seqlen_k = max_seqlen_k;
 
-  if (bias.defined()) {
+  if (seqstart_q) {
+    ICHECK(!bias) << "Var len with bias not supported for now";
+    return Call(Op::Get("relax.nn.attention_var_len"),
+                {query, key, value, seqstart_q.value(), seqstart_k.value(), max_seqlen_q.value(),
+                 max_seqlen_k.value()},
+                Attrs(attrs), {});
+  }
+
+  if (bias) {
     return Call(Op::Get("relax.nn.attention_bias"),
                 {std::move(query), std::move(key), std::move(value), std::move(bias.value())},
                 Attrs(attrs), {});
@@ -152,6 +157,21 @@ TVM_REGISTER_OP("relax.nn.attention_bias")
     .add_argument("key", "Tensor", "The input keys tensor.")
     .add_argument("value", "Tensor", "The input values tensor.")
     .add_argument("bias", "Tensor", "The input bias tensor.")
+    .set_attr<TMixedPrecisionPolicy>("TMixedPrecisionPolicy", MixedPrecisionPolicyKind::kAlways)
+    .set_attr<FInferMixedPrecision>("FInferMixedPrecision", InferMixedPrecisionAttention)
+    .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoAttention)
+    .set_attr<Bool>("FPurity", Bool(true));
+
+TVM_REGISTER_OP("relax.nn.attention_var_len")
+    .set_attrs_type<AttentionAttrs>()
+    .set_num_inputs(7)
+    .add_argument("query", "Tensor", "The input queries tensor.")
+    .add_argument("key", "Tensor", "The input keys tensor.")
+    .add_argument("value", "Tensor", "The input values tensor.")
+    .add_argument("seqstart_q", "Tensor", "TODO")
+    .add_argument("seqstart_k", "Tensor", "TODO")
+    .add_argument("max_seqlen_q", "Tensor", "TODO")
+    .add_argument("max_seqlen_k", "Tensor", "TODO")
     .set_attr<TMixedPrecisionPolicy>("TMixedPrecisionPolicy", MixedPrecisionPolicyKind::kAlways)
     .set_attr<FInferMixedPrecision>("FInferMixedPrecision", InferMixedPrecisionAttention)
     .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoAttention)
