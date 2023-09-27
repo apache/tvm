@@ -778,7 +778,10 @@ def instantiate_template(func_name, annotations, func_args):
         else:
             headers.append("kernel_forward.h")
 
-            assert annotations["num_q_heads"] == annotations["num_kv_heads"]
+            assert (
+                annotations["num_q_heads"] == annotations["num_kv_heads"]
+            ), "The number of query and KV heads need to be the same for CUTLASS fMHA."
+
             attrs["num_heads"] = n = annotations["num_q_heads"]
 
             data_type_size = DataTypeSize[data_type]

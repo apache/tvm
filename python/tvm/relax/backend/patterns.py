@@ -338,6 +338,10 @@ def make_attention_rewrite_pattern(
         Whether or not rewriting is intended to be applied to a module after the FP16 conversion
         pass.
 
+    with_kv_repeat: bool
+        Whether or not to include the Relax repeat op in the pattern, which is typically used
+        in a Relax module to support multi-query attention.
+
     Returns
     -------
     pattern: DFPattern

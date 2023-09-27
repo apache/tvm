@@ -590,6 +590,10 @@ def partition_for_cutlass(mod, annotate_codegen=True, use_flash_mqa=True):
         body consists only of a call to the composite function. See the doc of FuseOpsByPattern
         for more detail.
 
+    use_flash_mqa: bool
+        Whether to consider a rewrite pattern for multi-query attention, which is supported by
+        the Flash Attention kernel.
+
     Returns
     -------
     mod: tvm.IRModule

@@ -983,7 +983,6 @@ def profile_relax_function(functions, options):
     """Tune and annotate CUTLASS composite functions with shape, dtype and generated templates."""
     tmp_dir = options.get("tmp_dir", "./tmp")
     sm = options.get("sm", 80)
-
     conv2d_profiler = CutlassConv2DProfiler(sm, _get_cutlass_path(), tmp_dir)
     gemm_profiler = CutlassGemmProfiler(sm, _get_cutlass_path(), tmp_dir)
 

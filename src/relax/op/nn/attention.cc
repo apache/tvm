@@ -77,10 +77,19 @@ StructInfo InferStructInfoAttention(const Call& call, const BlockBuilder& ctx) {
                        << v1 << " while the " << dim << " of " << m2 << " is " << v2);
     }
   };
+  auto multiple_of = [&](PrimExpr v1, PrimExpr v2, String m1, String m2, String dim) {
+    if (analyzer->CanProve(indexmod(v1, v2) != 0)) {
+      ctx->ReportFatal(Diagnostic::Error(call)
+                       << "The " << m1 << " " << dim << " should be an multiple of " << m2 << " "
+                       << dim << ". However, the " << dim << " of " << m1 << " is " << v1
+                       << " while the " << dim << " of " << m2 << " is " << v2);
+    }
+  };
+
   diag_equal(num_batches, k_shape->values[0], "query", "key", "batch size");
   diag_equal(num_batches, v_shape->values[0], "query", "value", "batch size");
-  // diag_equal(num_heads, k_shape->values[2], "query", "key", "number of heads");
-  // diag_equal(num_heads, v_shape->values[2], "query", "value", "number of heads");
+  multiple_of(num_heads, k_shape->values[2], "query", "key", "number of heads");
+  multiple_of(num_heads, v_shape->values[2], "query", "value", "number of heads");
   diag_equal(num_keys, v_shape->values[1], "key", "value", "sequence length");
   diag_equal(head_dim, k_shape->values[3], "query", "key", "dimension of heads");
 
