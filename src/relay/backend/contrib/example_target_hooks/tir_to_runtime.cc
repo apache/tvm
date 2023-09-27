@@ -49,16 +49,30 @@ runtime::Module TIRToRuntime(IRModule mod, Target target) {
   bool emit_asserts = false;
   bool emit_fwd_func_decl = false;
   CodeGenExampleTargetHook codegen;
-  Array<String> function_names;
+
   std::unordered_set<std::string> devices;
   codegen.Init(output_ssa, emit_asserts, emit_fwd_func_decl, target->str(), devices);
-  for (auto kv : mod->functions) {
-    auto prim_func = Downcast<PrimFunc>(kv.second);
-    auto global_symbol = prim_func->GetAttr<String>(tvm::attr::kGlobalSymbol);
-    function_names.push_back(global_symbol.value());
-    codegen.AddFunction(prim_func);
+
+  Map<GlobalVar, PrimFunc> functions;
+  for (auto [gvar, base_func] : mod->functions) {
+    auto prim_func = Downcast<PrimFunc>(base_func);
+    functions.Set(gvar, prim_func);
   }
+
+  for (auto [gvar, prim_func] : functions) {
+    codegen.DeclareFunction(gvar, prim_func);
+  }
+  for (auto [gvar, prim_func] : functions) {
+    codegen.AddFunction(gvar, prim_func, emit_fwd_func_decl);
+  }
+
   std::string code = codegen.Finish();
+
+  Array<String> function_names;
+  for (auto [gvar, prim_func] : functions) {
+    function_names.push_back(codegen.GetFunctionName(gvar));
+  }
+
   return codegen::CSourceModuleCreate(code, "c", function_names);
 }
 

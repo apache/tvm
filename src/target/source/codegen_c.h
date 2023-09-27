@@ -65,12 +65,33 @@ class CodeGenC : public ExprFunctor<void(const PrimExpr&, std::ostream&)>,
    * \param output_ssa Whether output SSA.
    */
   void Init(bool output_ssa);
+
   /*!
-   * \brief Add the function to the generated module.
-   * \param f The function to be compiled.
+   * \brief Add the function declaration to the generated module,
+   * without defining it.
+   *
+   * \param gvar The GlobalVar representing the function.
+   * \param func The function to be compiled.
    * \param whether to append return 0 in the end.
    */
-  void AddFunction(const PrimFunc& f);
+  virtual void DeclareFunction(const GlobalVar& gvar, const PrimFunc& func);
+
+  /*!
+   * \brief Add the function to the generated module, including its
+   * declaration and definition.
+   *
+   * \param gvar The GlobalVar representing the function.
+   * \param func The function to be compiled.
+   */
+  virtual void AddFunction(const GlobalVar& gvar, const PrimFunc& func);
+
+  /*!
+   * \brief Get the name of a declared function
+   * \param gvar The GlobalVar of the function
+   * \returns The string name of the function
+   */
+  String GetFunctionName(const GlobalVar& gvar);
+
   /*!
    * \brief Finalize the compilation and return the code.
    * \return The code.
@@ -96,7 +117,23 @@ class CodeGenC : public ExprFunctor<void(const PrimExpr&, std::ostream&)>,
     PrintExpr(n, os);
     return os.str();
   }
+
   // The following parts are overloadable print operations.
+
+  /*! \brief Print the function signature before the argument list
+   *
+   * The default implementation delegates out to PrintFuncPrefix and
+   * PrintExtraAttrs.
+   *
+   * \param function_name The name of the function
+   *
+   * \param func The function whose signature should be printed
+   *
+   * \param os The output stream
+   */
+  virtual void PrintFunctionSignature(const String& function_name, const PrimFunc& func,
+                                      std::ostream& os);
+
   /*!
    * \brief Print the function header before the argument list
    * \param os The output stream
@@ -109,7 +146,7 @@ class CodeGenC : public ExprFunctor<void(const PrimExpr&, std::ostream&)>,
    *
    *  Example: __launch_bounds__(256) for CUDA functions
    */
-  virtual void PrintExtraAttrs(const PrimFunc& f);
+  virtual void PrintExtraAttrs(const PrimFunc& f, std::ostream& os);  // NOLINT(*)
   /*!
    * \brief Insert statement before function body.
    * \param f The function to be compiled.
@@ -284,10 +321,24 @@ class CodeGenC : public ExprFunctor<void(const PrimExpr&, std::ostream&)>,
  private:
   /*! \brief set of volatile buf access */
   std::unordered_set<const VarNode*> volatile_buf_;
+
   // deep comparison of PrimExpr
   ExprDeepEqual deep_equal_;
+
   // binding of let variables. Enables duplicate var defs that map to same value
   std::unordered_map<Var, const LetNode*, ObjectPtrHash, ObjectPtrEqual> let_binding_;
+
+  /* \brief Map of GlobalVar to their symbol.
+   *
+   * For externally-exposed functions, this is given by the
+   * tvm::attr::kTarget attribute of the PrimFunc.  For internal
+   * functions, this is the name of the function's GlobalVar, possibly
+   * altered to prevent duplicate names.
+   */
+  std::unordered_map<GlobalVar, String, ObjectPtrHash, ObjectPtrEqual> internal_functions_;
+
+  /* \brief Name supply to generate unique function names */
+  NameSupply func_name_supply_{""};
 };
 
 }  // namespace codegen

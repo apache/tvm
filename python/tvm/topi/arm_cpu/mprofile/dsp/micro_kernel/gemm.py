@@ -156,9 +156,14 @@ __attribute__((always_inline)) static inline const int8_t *read_and_pad(const in
 extern "C"
 #endif
 __attribute__((always_inline)) static inline int32_t gemm_{M}x{N}_body_rest_{uniq_id}(
-    int K,
+    int32_t K_arg,
     int8_t *aa, int8_t *bb, int32_t *cc,
-    int A_stride, int B_stride, int C_stride) {{
+    int32_t A_stride_arg, int32_t B_stride_arg, int32_t C_stride_arg) {{
+  int K = K_arg;
+  int A_stride = A_stride_arg;
+  int B_stride = B_stride_arg;
+  int C_stride = C_stride_arg;
+
   int k_base = (K / 4) * 4;
   switch ( K % 4 ) {{
   case 1:
@@ -200,7 +205,12 @@ extern "C"
 #endif
 __attribute__((always_inline)) static inline int32_t gemm_{M}x{K}x{N}_body_loop_{uniq_id}(
     int8_t *aa, int8_t *bb, int32_t *cc,
-    int A_stride, int B_stride, int C_stride) {{
+    int32_t A_stride_arg, int32_t B_stride_arg, int32_t C_stride_arg) {{
+  int A_stride = A_stride_arg;
+  int B_stride = B_stride_arg;
+  int C_stride = C_stride_arg;
+
+
   for (int i = 0; i < {M}; i++) {{
     for (int j = 0; j < {N}; j++) {{
       int32_t sum = 0;
@@ -221,7 +231,11 @@ extern "C"
 #endif
 __attribute__((always_inline)) static inline int32_t gemm_{M}x{K}x{N}_body_{uniq_id}(
     int8_t *aa, int8_t *bb, int32_t *cc,
-    int A_stride, int B_stride, int C_stride) {{
+    int32_t A_stride_arg, int32_t B_stride_arg, int32_t C_stride_arg) {{
+  int A_stride = A_stride_arg;
+  int B_stride = B_stride_arg;
+  int C_stride = C_stride_arg;
+
   int16_t bb_pad[{bb_pad_size}];
   int32_t retcode = 0;
 
@@ -265,9 +279,14 @@ out:
 extern "C"
 #endif
 __attribute__((always_inline)) static inline int32_t gemm_{M}x{N}_update_rest_{uniq_id}(
-    int K,
+    int32_t K_arg,
     int8_t *aa, int8_t *bb, int32_t *cc,
-    int A_stride, int B_stride, int C_stride) {{
+    int32_t A_stride_arg, int32_t B_stride_arg, int32_t C_stride_arg) {{
+  int K = K_arg;
+  int A_stride = A_stride_arg;
+  int B_stride = B_stride_arg;
+  int C_stride = C_stride_arg;
+
   int k_base = (K / 4) * 4;
   switch ( K % 4 ) {{
   case 1:
@@ -309,7 +328,11 @@ extern "C"
 #endif
 __attribute__((always_inline)) static inline int32_t gemm_{M}x{K}x{N}_update_loop_{uniq_id}(
     int8_t *aa, int8_t *bb, int32_t *cc,
-    int A_stride, int B_stride, int C_stride) {{
+    int32_t A_stride_arg, int32_t B_stride_arg, int32_t C_stride_arg) {{
+  int A_stride = A_stride_arg;
+  int B_stride = B_stride_arg;
+  int C_stride = C_stride_arg;
+
   for (int i = 0; i < {M}; i++) {{
     for (int j = 0; j < {N}; j++) {{
       int32_t sum = 0;
@@ -327,7 +350,11 @@ extern "C"
 #endif
 __attribute__((always_inline)) static inline int32_t gemm_{M}x{K}x{N}_update_{uniq_id}(
     int8_t *aa, int8_t *bb, int32_t *cc,
-    int A_stride, int B_stride, int C_stride) {{
+    int32_t A_stride_arg, int32_t B_stride_arg, int32_t C_stride_arg) {{
+  int A_stride = A_stride_arg;
+  int B_stride = B_stride_arg;
+  int C_stride = C_stride_arg;
+
   int16_t bb_pad[{bb_pad_size}];
   int32_t retcode = 0;
 
@@ -368,9 +395,14 @@ out:
 extern "C"
 #endif
 __attribute__((always_inline)) static inline int32_t gemm16_{M}x{N}_body_rest_{uniq_id}(
-    int K,
+    int32_t K_arg,
     int16_t *aa, int16_t *bb, int32_t *cc,
-    int A_stride, int B_stride, int C_stride) {{
+    int32_t A_stride_arg, int32_t B_stride_arg, int32_t C_stride_arg) {{
+  int K = K_arg;
+  int A_stride = A_stride_arg;
+  int B_stride = B_stride_arg;
+  int C_stride = C_stride_arg;
+
   int k_base = (K / 2) * 2;
   for (int i = 0; i < {M}; i++) {{
     for (int j = 0; j < {N}; j++) {{
@@ -387,7 +419,11 @@ extern "C"
 #endif
 __attribute__((always_inline)) static inline int32_t gemm16_{M}x{K}x{N}_body_loop_{uniq_id}(
     int16_t *aa, int16_t *bb, int32_t *cc,
-    int A_stride, int B_stride, int C_stride) {{
+    int32_t A_stride_arg, int32_t B_stride_arg, int32_t C_stride_arg) {{
+  int A_stride = A_stride_arg;
+  int B_stride = B_stride_arg;
+  int C_stride = C_stride_arg;
+
   for (int i = 0; i < {M}; i++) {{
     for (int j = 0; j < {N}; j++) {{
       int32_t sum = 0;
@@ -408,7 +444,11 @@ extern "C"
 #endif
 __attribute__((always_inline)) static inline int32_t gemm16_{M}x{K}x{N}_body_{uniq_id}(
     int16_t *aa, int16_t *bb, int32_t *cc,
-    int A_stride, int B_stride, int C_stride) {{
+    int32_t A_stride_arg, int32_t B_stride_arg, int32_t C_stride_arg) {{
+  int A_stride = A_stride_arg;
+  int B_stride = B_stride_arg;
+  int C_stride = C_stride_arg;
+
   int32_t retcode = 0;
 
   if ( {M} < 2 && {N} < 2 ) {{
@@ -450,9 +490,14 @@ out:
 extern "C"
 #endif
 __attribute__((always_inline)) static inline int32_t gemm16_{M}x{N}_update_rest_{uniq_id}(
-    int K,
+    int32_t K_arg,
     int16_t *aa, int16_t *bb, int32_t *cc,
-    int A_stride, int B_stride, int C_stride) {{
+    int32_t A_stride_arg, int32_t B_stride_arg, int32_t C_stride_arg) {{
+  int K = K_arg;
+  int A_stride = A_stride_arg;
+  int B_stride = B_stride_arg;
+  int C_stride = C_stride_arg;
+
   int k_base = (K / 2) * 2;
   for (int i = 0; i < {M}; i++) {{
     for (int j = 0; j < {N}; j++) {{
@@ -469,7 +514,11 @@ extern "C"
 #endif
 __attribute__((always_inline)) static inline int32_t gemm16_{M}x{K}x{N}_update_loop_{uniq_id}(
     int16_t *aa, int16_t *bb, int32_t *cc,
-    int A_stride, int B_stride, int C_stride) {{
+    int32_t A_stride_arg, int32_t B_stride_arg, int32_t C_stride_arg) {{
+  int A_stride = A_stride_arg;
+  int B_stride = B_stride_arg;
+  int C_stride = C_stride_arg;
+
   for (int i = 0; i < {M}; i++) {{
     for (int j = 0; j < {N}; j++) {{
       int32_t sum = 0;
@@ -487,7 +536,11 @@ extern "C"
 #endif
 __attribute__((always_inline)) static inline int32_t gemm16_{M}x{K}x{N}_update_{uniq_id}(
     int16_t *aa, int16_t *bb, int32_t *cc,
-    int A_stride, int B_stride, int C_stride) {{
+    int32_t A_stride_arg, int32_t B_stride_arg, int32_t C_stride_arg) {{
+  int A_stride = A_stride_arg;
+  int B_stride = B_stride_arg;
+  int C_stride = C_stride_arg;
+
   int32_t retcode = 0;
 
   if ( {M} < 2 && {N} < 2 ) {{
@@ -520,7 +573,7 @@ out:
 #ifdef __cplusplus
 extern "C"
 #endif
-__attribute__((always_inline)) static inline int32_t gemm_{M}x{K}x{N}_reset_{uniq_id}(int32_t *cc, int C_stride) {{
+__attribute__((always_inline)) static inline int32_t gemm_{M}x{K}x{N}_reset_{uniq_id}(int32_t *cc, int32_t C_stride) {{
   for (int i = 0; i < {M}; i++) {{
     for (int j = 0; j < {N}; j++) {{
       cc[i*C_stride + j] = 0;
