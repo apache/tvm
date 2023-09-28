@@ -131,6 +131,11 @@ def compile_metal(code, path_target=None, sdk="macosx", min_os_version=None):
     temp_ir = temp.relpath("my_lib.air")
     temp_target = temp.relpath("my_lib.metallib")
 
+    # Debug printout for https://github.com/apache/tvm/pull/15835
+    print('/////////////// BEGIN METAL CODEGEN ///////////////')
+    print(code)
+    print('///////////////   END METAL CODEGEN ///////////////', flush=True)
+
     with open(temp_code, "w") as out_file:
         out_file.write(code)
     file_target = path_target if path_target else temp_target
