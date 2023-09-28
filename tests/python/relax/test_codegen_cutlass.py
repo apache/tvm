@@ -2009,7 +2009,14 @@ def test_batched_var_len_attention():
                 q = R.reshape(queries, R.shape([1, num_tokens, 128, 32]))
                 k = R.reshape(keys, R.shape([1, num_tokens, 128, 32]))
                 v = R.reshape(values, R.shape([1, num_tokens, 128, 32]))
-                attn_out = R.nn.attention(q, k, v, seqstart_q=seqstart_q, max_seqlen_q=max_seqlen_q)
+                attn_out = R.nn.attention(
+                    q,
+                    k,
+                    v,
+                    causal_mask="BottomRight",
+                    seqstart_q=seqstart_q,
+                    max_seqlen_q=max_seqlen_q,
+                )
                 out = R.reshape(attn_out, R.shape([num_tokens, 4096]))
                 R.output(out)
             return out
@@ -2017,7 +2024,6 @@ def test_batched_var_len_attention():
     seq_lens = [5, 3, 8]
     num_head = 128
     head_size = 32
-
     hidden_size = num_head * head_size
 
     batched_queries = []
@@ -2027,7 +2033,7 @@ def test_batched_var_len_attention():
 
     for s in seq_lens:
         q, k, v, _, ref = get_numpy_attention_ref(
-            1, s, s, num_head, head_size, head_size, "none", "none", "none", "float16"
+            1, s, s, num_head, head_size, head_size, "none", "none", "BottomRight", "float16"
         )
         batched_queries.append(np.reshape(q, [-1, hidden_size]))
         batched_keys.append(np.reshape(k, [-1, hidden_size]))
@@ -2053,6 +2059,22 @@ def test_batched_var_len_attention():
     out = build_and_run(mod, [batched_queries, batched_keys, batched_values, seqstart_q], "cuda")
 
     tvm.testing.assert_allclose(out, ref, rtol=1e-2, atol=1e-2)
+
+    ############# xformer reference for verification #############
+
+    # attn_bias = BlockDiagonalCausalMask.from_seqlens(seq_lens)
+
+    # queries = torch.from_numpy(np.reshape(batched_queries, [1, -1, num_head, head_size])).to("cuda")
+    # keys = torch.from_numpy(np.reshape(batched_keys, [1, -1, num_head, head_size])).to("cuda")
+    # values = torch.from_numpy(np.reshape(batched_values, [1, -1, num_head, head_size])).to("cuda")
+
+    # out = xops.memory_efficient_attention_forward(
+    #     queries, keys, values,
+    #     attn_bias=attn_bias,
+    # ).cpu().numpy()[0]
+    # out = np.reshape(out, [-1, hidden_size])
+
+    # tvm.testing.assert_allclose(out, ref, rtol=1e-2, atol=1e-2)
 
 
 if __name__ == "__main__":
