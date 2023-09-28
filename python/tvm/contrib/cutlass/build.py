@@ -862,7 +862,6 @@ class CutlassRelaxFunctionAnnotator(relax.PyExprMutator):
     def handle_attention(self, f, op_type):
         """Annotate an attention op."""
         signature = _extract_relax_function_signature(f)
-        arg_idx = _extract_arg_idx(op_type, f)
 
         if _get_call_node(f.body, "relax.nn.attention") is not None:
             op_attrs = _get_call_node(f.body, "relax.nn.attention").attrs
@@ -945,9 +944,11 @@ class CutlassRelaxFunctionAnnotator(relax.PyExprMutator):
             **arg,
         }
 
-        for arg in ["seqstart_q", "seqstart_k", "max_seqlen_q", "max_seqlen_k"]:
-            if arg in arg_idx:
-                attrs[arg + "_idx"] = arg_idx[arg]
+        if "var_len" in op_type:
+            arg_idx = _extract_arg_idx(op_type, f)
+            for arg in ["seqstart_q", "seqstart_k", "max_seqlen_q", "max_seqlen_k"]:
+                if arg in arg_idx:
+                    attrs[arg + "_idx"] = arg_idx[arg]
 
         return f.with_attrs(attrs)
 
