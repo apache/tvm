@@ -33,10 +33,8 @@ namespace tvm {
 namespace relax {
 
 /*! \brief fused multi head attention */
-Expr attention(Expr query, Expr key, Expr value, Optional<Expr> bias = NullOpt,
-               Optional<FloatImm> scale = NullOpt, Optional<String> causal_mask = NullOpt,
-               Optional<Expr> seqstart_q = NullOpt, Optional<Expr> seqstart_k = NullOpt,
-               Optional<Expr> max_seqlen_q = NullOpt, Optional<Expr> max_seqlen_k = NullOpt);
+Expr attention(Expr query, Expr key, Expr value, Optional<Expr> bias, Optional<FloatImm> scale,
+               Optional<String> causal_mask);
 
 }  // namespace relax
 }  // namespace tvm

@@ -1341,15 +1341,14 @@ def attention_var_len(
         seqstart_k = seqstart_q
     if max_seqlen_k is None:
         max_seqlen_k = max_seqlen_q
-    return _ffi_api.attention(
+    return _ffi_api.attention_var_len(
         queries,
         keys,
         values,
-        None,  # bias not supported for now
-        scale,
-        causal_mask,
         seqstart_q,
         seqstart_k,
         max_seqlen_q,
         max_seqlen_k,
+        scale,
+        causal_mask,
     )  # type: ignore
