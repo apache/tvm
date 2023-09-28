@@ -38,16 +38,6 @@ class BindingCanonicalizer : public ExprMutator {
 
   using ExprMutator::VisitExpr_;
 
-  Expr VisitExpr_(const VarNode* op) override {
-    // remap first
-    Var v = Downcast<Var>(ExprMutator::VisitExpr_(op));
-    if (!CanCanonicalizeVar(v)) {
-      return Downcast<Expr>(v);
-    }
-    // visit again in case we need to do a substitution in the value
-    return ExprMutator::VisitExpr_(LookupBinding(v).as<VarNode>());
-  }
-
   Expr VisitExpr_(const TupleGetItemNode* tuple_get_item) override {
     if (auto tuple_var = tuple_get_item->tuple.as<Var>()) {
       if (auto tuple_value = LookupBinding(tuple_var.value())) {
@@ -71,12 +61,14 @@ class BindingCanonicalizer : public ExprMutator {
     Expr new_value = this->VisitExpr(binding->value);
     Var new_var = this->VisitVarDef(binding->var);
 
-    if (new_var.same_as(binding->var) && new_value.same_as(binding->value)) {
+    if (auto opt_var = new_value.as<Var>();
+        opt_var && CanCanonicalizeVar(new_var, opt_var.value())) {
+      var_remap_[new_var->vid] = opt_var.value();
+    } else if (new_var.same_as(binding->var) && new_value.same_as(binding->value)) {
       this->builder_->EmitNormalized(GetRef<VarBinding>(binding));
-      return;
+    } else {
+      this->builder_->EmitNormalized(VarBinding(new_var, new_value));
     }
-
-    this->builder_->EmitNormalized(VarBinding(new_var, new_value));
   }
 
   void VisitBinding_(const MatchCastNode* binding) override {
@@ -84,9 +76,19 @@ class BindingCanonicalizer : public ExprMutator {
     // we can canonicalize to a var binding
     Expr new_value = this->VisitExpr(binding->value);
 
-    // if the LHS and RHS have the same struct info, we canonicalize to a var binding instead
-    if (StructuralEqual()(binding->struct_info, GetStructInfo(new_value))) {
-      builder_->EmitNormalized(VarBinding(binding->var, new_value));
+    bool has_same_struct_info = StructuralEqual()(binding->struct_info, GetStructInfo(new_value));
+
+    if (has_same_struct_info) {
+      if (auto parent = new_value.as<Var>();
+          parent && CanCanonicalizeVar(binding->var, parent.value())) {
+        // LHS and RHS have the same struct info, and occur in a
+        // context where the RHS can replace the LHS.
+        var_remap_[binding->var->vid] = parent.value();
+      } else {
+        // LHS and RHS have the same struct info, but the RHS is not a
+        // drop-in replacement for the LHS.
+        builder_->EmitNormalized(VarBinding(binding->var, new_value));
+      }
     } else if (new_value.same_as(binding->value)) {
       builder_->EmitNormalized(GetRef<MatchCast>(binding));
     } else {
@@ -104,24 +106,17 @@ class BindingCanonicalizer : public ExprMutator {
     return !(both_present || neither_present) || (both_present && !check_eq(obj1, obj2));
   }
 
-  bool CanCanonicalizeVar(Var v) {
-    Optional<Expr> value = LookupBinding(v);
-    // can replace only if the value is also a var
-    if (!value || !value.as<VarNode>()) {
-      return false;
-    }
-    Var parent_var = Downcast<Var>(value);
-
+  bool CanCanonicalizeVar(Var var, Var parent_var) {
     // Cases when we conservatively do not unify:
     // 1. checked_type_ or shape_ of the child differs from that of the parent
     //    In this case, we could be overriding user annotations.
     // 2. If the child is a Var and the parent is a DataflowVar.
     //    That could result in a DataflowVar leaving the current DataflowBlock.
-    bool annotations_differ = AnnotationsDiffer(v->struct_info_, parent_var->struct_info_,
+    bool annotations_differ = AnnotationsDiffer(var->struct_info_, parent_var->struct_info_,
                                                 [&](const ObjectRef& lhs, const ObjectRef& rhs) {
                                                   return tvm::StructuralEqual()(lhs, rhs);
                                                 });
-    bool var_to_dataflow = (!v.as<DataflowVarNode>() && parent_var.as<DataflowVarNode>());
+    bool var_to_dataflow = (!var.as<DataflowVarNode>() && parent_var.as<DataflowVarNode>());
     return !annotations_differ && !var_to_dataflow;
   }
 };
