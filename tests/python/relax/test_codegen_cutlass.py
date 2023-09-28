@@ -2000,12 +2000,16 @@ def test_batched_var_len_attention():
             queries: R.Tensor(("num_tokens", 4096), dtype="float16"),
             keys: R.Tensor(("num_tokens", 4096), dtype="float16"),
             values: R.Tensor(("num_tokens", 4096), dtype="float16"),
-            seqstart_q: R.Tensor(("num_seq",), dtype="int32"),
+            # TODO(masahi): Ideally, we want to pass seq_lens as an input and compute seqstart_q
+            # and max_seq_len_q inside the model. This is currently not possible since
+            # the legalization of the Relax cumsum op is currently broken.
+            # seq_lens: R.Tensor(("num_seq",), dtype="int32"),
+            seqstart_q: R.Tensor(("num_seq_plus_1",), dtype="int32"),
+            max_seqlen_q: R.Tensor((), dtype="int32"),
         ) -> R.Tensor(("num_tokens", 4096), dtype="float16"):
             cls = Module
             num_tokens = T.int64()
             with R.dataflow():
-                max_seqlen_q = R.max(seqstart_q)
                 q = R.reshape(queries, R.shape([1, num_tokens, 128, 32]))
                 k = R.reshape(keys, R.shape([1, num_tokens, 128, 32]))
                 v = R.reshape(values, R.shape([1, num_tokens, 128, 32]))
@@ -2056,7 +2060,17 @@ def test_batched_var_len_attention():
     with tvm.target.Target("cuda"):
         mod = tvm.tir.transform.DefaultGPUSchedule()(mod)
 
-    out = build_and_run(mod, [batched_queries, batched_keys, batched_values, seqstart_q], "cuda")
+    out = build_and_run(
+        mod,
+        [
+            batched_queries,
+            batched_keys,
+            batched_values,
+            seqstart_q,
+            np.array(max(seq_lens), dtype="int32"),
+        ],
+        "cuda",
+    )
 
     tvm.testing.assert_allclose(out, ref, rtol=1e-2, atol=1e-2)
 

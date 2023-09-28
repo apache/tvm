@@ -35,8 +35,9 @@ def instantiate_attention_template(attrs):
     var_len_template = """
   p.seqstart_q_ptr = (int32_t*)${seqstart_q}->data;
   p.seqstart_k_ptr = (int32_t*)${seqstart_q}->data;
-  cudaMemcpy(&p.num_queries, (int32_t*)${max_seqlen_q}->data, sizeof(int32_t), cudaMemcpyDeviceToHost); // TODO: Pass integer
-  p.num_keys = 0; // Will be set inside the kernel
+  // TODO(masahi): Pass max_seqlen_q as an integer
+  cudaMemcpy(&p.num_queries, (int32_t*)${max_seqlen_q}->data, sizeof(int32_t),
+             cudaMemcpyDeviceToHost);
   p.num_batches = ${seqstart_q}->shape[0] - 1;
 """
 
