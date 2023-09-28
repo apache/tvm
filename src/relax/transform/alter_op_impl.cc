@@ -30,7 +30,11 @@
 #include <tvm/relax/attrs/manipulate.h>
 #include <tvm/relax/expr_functor.h>
 #include <tvm/relax/transform.h>
+#include <tvm/te/operation.h>
 #include <tvm/tir/transform.h>
+#include <tvm/topi/tags.h>
+
+#include "../../te/operation/create_primfunc.h"
 namespace tvm {
 namespace relax {
 
@@ -162,8 +166,18 @@ class AlterOpImplMutator : public ExprMutator {
     return arr_tensor_sinfo;
   }
 
+  bool IsScalarConstant(const Expr& expr) {
+    if (expr->IsInstance<ConstantNode>() && expr.as<ConstantNode>()->is_scalar()) {
+      return true;
+    }
+    return false;
+  }
+
   Expr TransformLayout(const Expr& expr, const IndexMap& index_map,
-                       const Array<IntImm> axis_separators) {
+                       const Array<IntImm>& axis_separators) {
+    if (IsScalarConstant(expr) || index_map.get() == nullptr) {
+      return expr;
+    }
     ObjectPtr<LayoutTransformAttrs> attrs = make_object<LayoutTransformAttrs>();
     // We want to avoid two layout_transform ops to share the same index map even if they are
     // identical. The scope of vars used in index map initial indices is local to the op. Not doing
@@ -173,19 +187,70 @@ class AlterOpImplMutator : public ExprMutator {
     return Call(layout_transform_op_, {expr}, Attrs{std::move(attrs)}, {});
   }
 
+  /*!
+   * \brief Adds the \p remove_pad op to the module if it has not already been added before.
+   * \returns The global var associated with the remove_pad PrimFunc.
+   */
+  GlobalVar GetOrCreateRemovePadOp(const Array<PrimExpr>& old_shape, const DataType& dtype) {
+    int t_shape = old_shape.size();
+    if (remove_pad_map_.count(t_shape) != 0) {
+      return remove_pad_map_[t_shape];
+    }
+    // Create dynamic shapes for input and output tensors
+    Array<PrimExpr> dyn_padded_shape, dyn_old_shape;
+    for (int i = 0; i < t_shape; i++) {
+      tir::Var var1("p" + std::to_string(i), old_shape[i].dtype());
+      tir::Var var2("i" + std::to_string(i), old_shape[i].dtype());
+      dyn_padded_shape.push_back(var1);
+      dyn_old_shape.push_back(var2);
+    }
+
+    // Input tensor of remove_pad op
+    te::Tensor placeholder_tensor = te::placeholder(dyn_padded_shape, dtype, "input");
+    // Output tensor of remove_pad op
+    te::Tensor output_tensor = te::compute(
+        dyn_old_shape,
+        [&placeholder_tensor](const Array<tir::Var>& indices) {
+          return placeholder_tensor(indices);
+        },
+        "output", topi::kElementWise);
+
+    String op_name = "remove_pad";
+    // Create PrimFunc and add op_name to func.attrs
+    PrimFunc remove_pad_with_frozen_layout =
+        WithAttr(CreatePrimFunc({placeholder_tensor, output_tensor}), kOperatorName, op_name);
+    // Add PrimFunc to module
+    GlobalVar gv_remove_pad = builder_->AddFunction(remove_pad_with_frozen_layout, op_name);
+    // Mark the remove_pad PrimFunc as private by removing it from global scope
+    builder_->UpdateFunction(gv_remove_pad,
+                             WithoutAttr(remove_pad_with_frozen_layout, "global_symbol"));
+
+    remove_pad_map_[t_shape] = gv_remove_pad;
+    return gv_remove_pad;
+  }
+
   Expr TransformLayoutInverse(const Expr& expr, const IndexMap& index_map,
                               const TensorStructInfo& old_tensor_sinfo,
                               const Array<IntImm>& axis_separator) {
+    if (IsScalarConstant(expr) || index_map.get() == nullptr) {
+      return expr;
+    }
     Array<PrimExpr> old_shape = GetShapeFromTensorStructInfo(old_tensor_sinfo);
     Array<Range> initial_ranges = ConstructRangeFromShape(old_shape);
     arith::Analyzer analyzer;
     auto [inverse_index_map, padding_predicate] =
         index_map.NonSurjectiveInverse(initial_ranges, &analyzer);
-    ICHECK(tir::is_zero(padding_predicate))
-        << "Only bijective transformations on input/output buffers are supported, but found "
-           "padding predicate "
-        << padding_predicate << " on initial range " << initial_ranges;
-    return TransformLayout(expr, inverse_index_map, axis_separator);
+
+    if (tir::is_zero(padding_predicate)) {
+      return TransformLayout(expr, inverse_index_map, axis_separator);
+    } else {
+      auto padded_expr =
+          builder_->Normalize(TransformLayout(expr, inverse_index_map, axis_separator));
+      const auto& tensor_sinfo = Downcast<TensorStructInfo>(padded_expr->struct_info_);
+
+      GlobalVar gv_remove_pad = GetOrCreateRemovePadOp(old_shape, tensor_sinfo->dtype);
+      return Call(call_tir_op_, {gv_remove_pad, Tuple({padded_expr})}, {}, {old_tensor_sinfo});
+    }
   }
 
   /*!
@@ -223,8 +288,6 @@ class AlterOpImplMutator : public ExprMutator {
         axis_separator = axis_separators_value[index];
       }
       auto transform = transforms[index++];
-      ICHECK(IsTransformBijective(input, transform))
-          << "Non bijective transforms on input and output buffers are not supported.";
       updated_inputs.push_back(TransformLayout(input, transform, axis_separator));
     }
     return Tuple(updated_inputs);
@@ -314,6 +377,8 @@ class AlterOpImplMutator : public ExprMutator {
   Map<PrimFunc, GlobalVar> cache_;
   /*! \brief Input IRModule */
   const IRModule& mod_;
+  /*! \brief Map from shape_dim.size to the remove_pad GlobalVar */
+  std::unordered_map<int, GlobalVar> remove_pad_map_;
   /*! \brief Map from kOperatorName attribute to the replacement PrimFunc */
   const Map<String, PrimFunc>& op_impl_map_;
   /*! \brief Map from kOperatorName attribute to the layout transforms on i/o buffers */

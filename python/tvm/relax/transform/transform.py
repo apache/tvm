@@ -1034,7 +1034,7 @@ def AlterOpImpl(
         l = []
         for transform in transform_list:
             if isinstance(transform, Callable):
-                transform = IndexMap.from_func(transform)
+                transform = IndexMap.from_func_with_separators(transform)[0]
             l.append(transform)
         op_buffer_transforms[operator_name] = l
 

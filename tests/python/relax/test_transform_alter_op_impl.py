@@ -303,13 +303,13 @@ def test_multiple_outputs_with_axis_sep():
     )
 
 
-def test_unsupported_implicit_padding():
+def test_supported_implicit_padding():
     @I.ir_module
-    class InputModule:
+    class Before:
         @R.function
         def foo(x: R.Tensor((14,), dtype="float32")) -> R.Tensor((14,), dtype="float32"):
             with R.dataflow():
-                lv = R.call_tir(InputModule.relu, (x,), out_sinfo=R.Tensor((14,), dtype="float32"))
+                lv = R.call_tir(Before.relu, (x,), out_sinfo=R.Tensor((14,), dtype="float32"))
                 gv: R.Tensor((14,), dtype="float32") = lv
                 R.output(gv)
             return gv
@@ -324,7 +324,62 @@ def test_unsupported_implicit_padding():
                     T.writes(output[v_ax0])
                     output[v_ax0] = T.max(arg0[v_ax0], T.float32(0))
 
-    before = InputModule
+    @I.ir_module
+    class Expected:
+        @R.function
+        def foo(x: R.Tensor((14,), dtype="float32")) -> R.Tensor((14,), dtype="float32"):
+            with R.dataflow():
+                lv: R.Tensor((16,), dtype="float32") = R.layout_transform(
+                    x,
+                    index_map=T.index_map(lambda i: (i % 16,)),
+                    pad_value=None,
+                    axis_separators=[],
+                )
+                lv1 = R.call_tir(
+                    Expected.relax_relu_replacement,
+                    (lv,),
+                    out_sinfo=R.Tensor((16,), dtype="float32"),
+                )
+                lv2: R.Tensor((16,), dtype="float32") = R.layout_transform(
+                    lv1,
+                    index_map=T.index_map(lambda axis0: (axis0,)),
+                    pad_value=None,
+                    axis_separators=[],
+                )
+                lv_1 = R.call_tir(
+                    Expected.remove_pad, (lv2,), out_sinfo=R.Tensor((14,), dtype="float32")
+                )
+                gv: R.Tensor((14,), dtype="float32") = lv_1
+                R.output(gv)
+            return gv
+
+        @T.prim_func(private=True)
+        def relax_relu_replacement(
+            arg0: T.Buffer((16,), "float32"), output: T.Buffer((16,), "float32")
+        ):
+            T.func_attr({"operator_name": "relax.relu"})
+            # with T.block("root"):
+            for ax0 in range(16):
+                with T.block("T_add"):
+                    v_ax0 = T.axis.spatial(16, ax0)
+                    T.reads(arg0[v_ax0])
+                    T.writes(output[v_ax0])
+                    output[v_ax0] = T.max(arg0[v_ax0], T.float32(0))
+
+        @T.prim_func(private=True)
+        def remove_pad(var_input: T.handle, var_output: T.handle):
+            T.func_attr({"operator_name": "remove_pad", "tir.noalias": T.bool(True)})
+            p0 = T.int64()
+            input = T.match_buffer(var_input, (p0,))
+            i0 = T.int64()
+            output = T.match_buffer(var_output, (i0,))
+            # with T.block("root"):
+            for ax0 in range(i0):
+                with T.block("output"):
+                    v_ax0 = T.axis.spatial(i0, ax0)
+                    T.reads(input[v_ax0])
+                    T.writes(output[v_ax0])
+                    output[v_ax0] = input[v_ax0]
 
     @T.prim_func(private=True)
     def relu_pad(arg0: T.Buffer((16,), "float32"), output: T.Buffer((16,), "float32")):
@@ -338,16 +393,13 @@ def test_unsupported_implicit_padding():
     # introduces implicit padding for shape (14,)
     index_map = lambda i: (i % 16)
     operator_name = "relax.relu"
-    with pytest.raises(
-        tvm.TVMError, match="Non bijective transforms on input and output buffers are not supported"
-    ):
-        _ = relax.transform.AlterOpImpl(
-            {operator_name: relu_pad},
-            {
-                operator_name: [index_map, index_map],
-            },
-            {operator_name: None},
-        )(before)
+    _check(
+        Before,
+        Expected,
+        operator_name="relax.relu",
+        replacement_primfunc=relu_pad,
+        layout_changes=[index_map, index_map],
+    )
 
 
 def test_multiple_call_sites():
