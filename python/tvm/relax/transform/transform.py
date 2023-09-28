@@ -368,6 +368,16 @@ def StaticPlanBlockMemory() -> tvm.ir.transform.Pass:
     return _ffi_api.StaticPlanBlockMemory()  # type: ignore
 
 
+def KillAfterLastUse() -> tvm.ir.transform.Pass:
+    """Drop all tensor/storage objects after last use
+
+    Returns
+    -------
+    ret : tvm.ir.transform.Pass
+    """
+    return _ffi_api.KillAfterLastUse()  # type: ignore
+
+
 def VMBuiltinLower() -> tvm.ir.transform.Pass:
     """Lowering generic intrinsic to VM intrinsics.
 
