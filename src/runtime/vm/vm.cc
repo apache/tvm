@@ -839,9 +839,13 @@ void VirtualMachine::RunLoop(const std::vector<Index>& output_tensor_reg_indices
                   << ", dtype_hint=" << DLDataType2String(instr.alloc_storage.dtype_hint)
                   << ", device_index=" << instr.alloc_storage.device_index
                   << ", memory_scope=" << mem_scope;
+
+          std::vector<ShapeTuple::index_type> shape_;
+          shape_.resize(instr.alloc_storage.ndim);
+          shape_.assign(instr.alloc_storage.shape,
+                        instr.alloc_storage.shape + instr.alloc_storage.ndim);
           storage_obj->buffer =
-              allocator->Alloc(instr.alloc_storage.ndim, instr.alloc_storage.shape,
-                               instr.alloc_storage.dtype_hint, mem_scope);
+              allocator->Alloc(ShapeTuple(shape_), instr.alloc_storage.dtype_hint, mem_scope);
         } else {
           auto size = LoadScalarInt(instr.alloc_storage.allocation_size);
           auto alignment = instr.alloc_storage.alignment;

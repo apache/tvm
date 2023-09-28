@@ -47,29 +47,25 @@ class NaiveAllocator final : public Allocator {
     return buf;
   }
 
-  Buffer Alloc(int ndims, int64_t* shape, DLDataType type_hint,
-               const std::string& mem_scope) override {
+  Buffer Alloc(ShapeTuple shape, DLDataType type_hint, const std::string& mem_scope) override {
     Buffer buf;
     size_t nbytes = 1;
-    std::vector<ShapeTuple::index_type> shape_;
-    shape_.resize(ndims);
-    shape_.assign(shape, shape + ndims);
-    buf.shape = ShapeTuple(shape_);
-    for (int i = 0; i < ndims; ++i) {
+    buf.shape = shape;
+    for (int i = 0; i < shape.size(); ++i) {
       nbytes *= static_cast<size_t>(shape[i]);
     }
     nbytes *= (type_hint.bits * type_hint.lanes + 7) / 8;
     buf.device = device_;
     if (mem_scope.empty() || mem_scope == "global") {
-      auto tmp_buf = Allocator::Alloc(device_, ndims, shape, type_hint, mem_scope);
+      auto tmp_buf = Allocator::Alloc(device_, shape, type_hint, mem_scope);
       buf.size = tmp_buf.size;
       buf.data = tmp_buf.data;
       return buf;
     }
 
     buf.size = nbytes;
-    buf.data = DeviceAPI::Get(device_)->AllocDataSpace(device_, ndims, shape, type_hint,
-                                                       String(mem_scope));
+    buf.data = DeviceAPI::Get(device_)->AllocDataSpace(device_, shape.size(), shape.data(),
+                                                       type_hint, String(mem_scope));
     used_memory_.fetch_add(nbytes, std::memory_order_relaxed);
     DLOG(INFO) << "allocate " << nbytes << " B, used memory " << used_memory_ << " B";
     return buf;
@@ -92,4 +88,4 @@ class NaiveAllocator final : public Allocator {
 }  // namespace runtime
 }  // namespace tvm
 
-#endif  // TVM_RUNTIME_NAIVE_ALLOCATOR_H_
+#endif  // TVM_RUNTIME_MEMORY_NAIVE_ALLOCATOR_H_

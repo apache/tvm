@@ -72,10 +72,9 @@ class PooledAllocator final : public Allocator {
     return buf;
   }
 
-  Buffer Alloc(int ndims, int64_t* shape, DLDataType type_hint,
-               const std::string& mem_scope) override {
+  Buffer Alloc(ShapeTuple shape, DLDataType type_hint, const std::string& mem_scope) override {
     if (mem_scope.empty() || mem_scope == "global") {
-      return Allocator::Alloc(device_, ndims, shape, type_hint, mem_scope);
+      return Allocator::Alloc(device_, shape, type_hint, mem_scope);
     }
     LOG(FATAL) << "This alloc should be implemented";
     return {};
@@ -118,4 +117,4 @@ class PooledAllocator final : public Allocator {
 }  // namespace runtime
 }  // namespace tvm
 
-#endif  // TVM_RUNTIME_POOLED_ALLOCATOR_H_
+#endif  // TVM_RUNTIME_MEMORY_POOLED_ALLOCATOR_H_

@@ -165,22 +165,18 @@ NDArray Allocator::Empty(ShapeTuple shape, DLDataType dtype, DLDevice dev,
   if (!mem_scope.defined() || mem_scope == "global") {
     *buffer = this->Alloc(size, alignment, dtype);
   } else {
-    *buffer = this->Alloc(shape.size(), const_cast<int64_t*>(shape.data()), dtype, mem_scope.value());
+    *buffer = this->Alloc(shape, dtype, mem_scope.value());
   }
   container->manager_ctx = reinterpret_cast<void*>(buffer);
   container->dl_tensor.data = buffer->data;
   return NDArray(GetObjectPtr<Object>(container));
 }
 
-Buffer Allocator::Alloc(Device dev, int ndims, int64_t* shape, DLDataType type_hint,
+Buffer Allocator::Alloc(Device dev, ShapeTuple shape, DLDataType type_hint,
                         const std::string& mem_scope) {
   if (mem_scope.empty() || mem_scope == "global") {
     // by default, we can always redirect to the flat memory allocations
-    std::vector<int64_t> s;
-    for (int i = 0; i < ndims; ++i) {
-      s.push_back(shape[i]);
-    }
-    NDArray::Container container(nullptr, s, type_hint, dev);
+    NDArray::Container container(nullptr, shape, type_hint, dev);
     size_t size = GetDataSize(container.dl_tensor);
     size_t alignment = GetDataAlignment(container.dl_tensor);
     return Alloc(size, alignment, type_hint);

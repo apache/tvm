@@ -77,13 +77,12 @@ class Allocator {
    */
   virtual Buffer Alloc(size_t nbytes, size_t alignment, DLDataType type_hint) = 0;
   /*! \brief Allocate a buffer given a shape and type.
-   *  \param ndims The rank of the tensor.
    *  \param shape The shape of the tensor.
    *  \param type_hint A type hint to the allocator.
    *  \param mem_scope A memory scope of the buffer.
    *  \return A sized allocation in the form of a buffer.
    */
-  virtual Buffer Alloc(int ndims, int64_t* shape, DLDataType type_hint,
+  virtual Buffer Alloc(ShapeTuple shape, DLDataType type_hint,
                        const std::string& mem_scope = "") = 0;
   /*! \brief Free a buffer allocated by the allocator.
    *  \param buffer The buffer to free.
@@ -95,7 +94,7 @@ class Allocator {
   virtual size_t UsedMemory() const = 0;
 
  protected:
-  virtual Buffer Alloc(Device dev, int ndims, int64_t* shape, DLDataType type_hint,
+  virtual Buffer Alloc(Device dev, ShapeTuple shape, DLDataType type_hint,
                        const std::string& mem_scope);
 
  private:
@@ -161,4 +160,4 @@ class Storage : public ObjectRef {
 }  // namespace runtime
 }  // namespace tvm
 
-#endif  // TVM_RUNTIME_MEMORY_MANAGER_H_
+#endif  // TVM_RUNTIME_MEMORY_MEMORY_MANAGER_H_
