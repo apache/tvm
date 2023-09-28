@@ -909,8 +909,8 @@ class CutlassRelaxFunctionAnnotator(relax.PyExprMutator):
 
         out_shape = signature["ret_shape"]
         out_dtype = signature["ret_dtype"]
-        num_batches, num_queries, num_heads, head_dim = q_shape
-        _, num_keys, _, _ = k_shape
+        num_batches, num_queries, num_q_heads, head_dim = q_shape
+        _, num_keys, num_kv_heads, _ = k_shape
         _, _, _, head_dim_value = v_shape
         scale = op_attrs.scale
 
@@ -931,7 +931,8 @@ class CutlassRelaxFunctionAnnotator(relax.PyExprMutator):
                 "num_batches": num_batches,
                 "num_queries": num_queries,
                 "num_keys": num_keys,
-                "num_heads": num_heads,
+                "num_q_heads": num_q_heads,
+                "num_kv_heads": num_kv_heads,
                 "head_dim": head_dim,
                 "head_dim_value": head_dim_value,
                 "scale": scale,

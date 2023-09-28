@@ -88,7 +88,7 @@ def test_extern_func():
 
 @I.ir_module
 class Module:
-    "my_ext"
+    my_ext = R.ExternFunc("my_ext")
     @R.function
     def func(a: R.Tensor((10, 10))) -> R.Tensor((10, 10)):
         return a
@@ -749,6 +749,58 @@ class Module:
         z: R.Tensor((), dtype="int32") = R.multiply(x, x)
         return z
 """,
+    )
+
+
+def test_reused_extern_func():
+    """An ExternFunc used in a variable binding should be explicit"""
+
+    @R.function
+    def func(x: R.Tensor((128, 128), dtype="float32")) -> R.Tensor((128, 128), dtype="float32"):
+        extern_func = R.ExternFunc("extern_func")
+        y = R.call_dps_packed(extern_func, (x,), out_sinfo=R.Tensor((128, 128), dtype="float32"))
+        z = R.call_dps_packed(extern_func, (y,), out_sinfo=R.Tensor((128, 128), dtype="float32"))
+        return z
+
+    _assert_print(
+        func,
+        """
+# from tvm.script import relax as R
+
+@R.function
+def func(x: R.Tensor((128, 128), dtype="float32")) -> R.Tensor((128, 128), dtype="float32"):
+    extern_func: R.Callable = R.ExternFunc("extern_func")
+    y = R.call_dps_packed(extern_func, (x,), out_sinfo=R.Tensor((128, 128), dtype="float32"))
+    z = R.call_dps_packed(extern_func, (y,), out_sinfo=R.Tensor((128, 128), dtype="float32"))
+    return z
+                  """,
+    )
+
+
+def test_inline_extern_func():
+    """An ExternFunc used in-line may be printed as a string"""
+
+    @R.function
+    def func(x: R.Tensor((128, 128), dtype="float32")) -> R.Tensor((128, 128), dtype="float32"):
+        y = R.call_dps_packed(
+            R.ExternFunc("extern_func"), (x,), out_sinfo=R.Tensor((128, 128), dtype="float32")
+        )
+        z = R.call_dps_packed(
+            R.ExternFunc("extern_func"), (y,), out_sinfo=R.Tensor((128, 128), dtype="float32")
+        )
+        return z
+
+    _assert_print(
+        func,
+        """
+# from tvm.script import relax as R
+
+@R.function
+def func(x: R.Tensor((128, 128), dtype="float32")) -> R.Tensor((128, 128), dtype="float32"):
+    y = R.call_dps_packed("extern_func", (x,), out_sinfo=R.Tensor((128, 128), dtype="float32"))
+    z = R.call_dps_packed("extern_func", (y,), out_sinfo=R.Tensor((128, 128), dtype="float32"))
+    return z
+                  """,
     )
 
 

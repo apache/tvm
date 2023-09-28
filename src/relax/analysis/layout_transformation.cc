@@ -440,8 +440,8 @@ class BlockAnalyzer : public StmtExprVisitor {
         /*indices=*/indices, /*input_iters*/ spatial_dom_,
         /*predicate*/ 1, /*check_level*/ arith::IterMapLevel::NoCheck, &arith_analyzer_);
     if (result->indices.empty()) {
-      LOG(WARNING) << "[LayoutInference] Failed to analyze indices " << indices
-                   << ", error: " << result->errors;
+      DLOG(INFO) << "[LayoutInference] Failed to analyze indices " << indices
+                 << ", error: " << result->errors;
       return {};
     }
     return GetSpatialLayout(result);

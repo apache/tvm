@@ -35,6 +35,9 @@ namespace relax {
 /*! \brief AllReduce. */
 Expr allreduce(Expr data, String op_type);
 
+/*! \brief AllGather. */
+Expr allgather(Expr data, Expr num_workers);
+
 /*! \brief Broadcast data from worker-0 to all other workers. */
 Expr broadcast_from_worker0(Expr data);
 

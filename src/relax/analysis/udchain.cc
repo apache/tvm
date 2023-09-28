@@ -40,14 +40,15 @@ class UDChain : public relax::ExprVisitor {
   // nullptr users means it is the output of the function.
   std::map<const VarNode*, std::set<const VarNode*>> to_users;
 
-  const VarNode* cur_user_;
+  const VarNode* cur_user_{nullptr};
 
   void VisitBinding_(const VarBindingNode* binding) override {
     // init
+    auto cache = cur_user_;
     cur_user_ = binding->var.get();
     this->VisitVarDef(binding->var);
     this->VisitExpr(binding->value);
-    cur_user_ = nullptr;
+    cur_user_ = cache;
   }
 
   void VisitExpr_(const VarNode* op) override { to_users[op].insert(cur_user_); }
@@ -56,14 +57,10 @@ class UDChain : public relax::ExprVisitor {
     cur_user_ = nullptr;
     ExprVisitor::VisitExpr_(op);
   }
-
-  void VisitExpr_(const DataflowVarNode* op) override {
-    VisitExpr_(static_cast<const VarNode*>(op));
-  }
 };
 
 std::pair<runtime::Map<Var, runtime::Array<Var>>, runtime::Array<Var>> FunctionUseDef(
-    const Function& fn) {
+    const Expr& fn) {
   UDChain udchain;
   udchain.VisitExpr(fn);
 

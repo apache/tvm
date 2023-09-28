@@ -627,6 +627,7 @@ __all__ = [
     "SeqExpr",
     "Then",
     "TupleGetItem",
+    "ExternFunc",
     "abs",
     "acos",
     "acosh",

@@ -34,7 +34,7 @@ class ConstantFolder : public ExprMutator {
  public:
   static Function Fold(Function func, IRModule ctx_module) {
     ConstantFolder folder(std::move(ctx_module));
-    func = RemoveAllUnused(Downcast<Function>(folder(func)));
+    func = Downcast<Function>(RemoveAllUnused(folder(func)));
     return func;
   }
 
@@ -303,15 +303,6 @@ class ConstantFolder : public ExprMutator {
     }
 
     return std::move(post_call);
-  }
-
-  Expr VisitExpr_(const DataflowVarNode* op) final {
-    Optional<Expr> opt = LookupBinding(GetRef<Var>(op));
-    // `as` check checks if opt is not null and is instance of constant
-    if (opt.as<relax::ConstantNode>()) {
-      return opt.value();
-    }
-    return ExprMutator::VisitExpr_(op);
   }
 
   Expr VisitExpr_(const VarNode* op) final {

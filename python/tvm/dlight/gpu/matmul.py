@@ -86,6 +86,28 @@ def auto_inline_consumers(
             return
 
 
+def auto_inline_consumer_chain(
+    sch: tir.Schedule,
+    block: tir.schedule.BlockRV,
+):
+    auto_inline_consumers(sch, block)
+    remaining_consumers = sch.get_consumers(block)
+
+    if len(remaining_consumers) != 0:
+        # Some blocks have failed to be inlined to the producer cache-write stage.
+        # This could be due to another producer block that has not been scheduled.
+        for c in remaining_consumers:
+            for p in sch.get_producers(c):
+                if sch.get(p) != sch.get(block):
+                    sch.compute_inline(p)
+
+        # Try inlining into the cache-write stage again, this time it should succeed.
+        auto_inline_consumers(sch, block)
+
+    msg = "There are some consumers of the cache-write stage that are not properly inlined."
+    assert len(sch.get_consumers(block)) == 0, msg
+
+
 class IterKind(Enum):
     """Iter kinds for GEMM-liked programs.
     We can simplify the computation to C[S, I, J] += A[S, I, K] * B[S, J, K],
@@ -482,8 +504,7 @@ class MatmulTensorization(ScheduleRule):
                 tensorize_success = True
             except:  # pylint: disable=bare-except
                 return None
-
-        auto_inline_consumers(sch, accumulator_shared_to_global)
+        auto_inline_consumer_chain(sch, accumulator_shared_to_global)
 
         fused = sch.fuse(*sch.get_loops(accumulator_shared_to_global)[-2:])
         _, f1, f2 = sch.split(fused, factors=[None, warp_size, vector_size])
@@ -669,23 +690,7 @@ class Matmul(ScheduleRule):
         else:
             auto_inline_producers(sch, main_block)
 
-        auto_inline_consumers(sch, l2g)
-
-        remaining_consumers = sch.get_consumers(l2g)
-
-        if len(remaining_consumers) != 0:
-            # Some blocks have failed to be inlined to the producer cache-write stage.
-            # This could be due to another producer block that has not been scheduled.
-            for c in remaining_consumers:
-                for p in sch.get_producers(c):
-                    if sch.get(p) != sch.get(l2g):
-                        sch.compute_inline(p)
-
-            # Try inlining into the cache-write stage again, this time it should succeed.
-            auto_inline_consumers(sch, l2g)
-
-        msg = "There are some consumers of the cache-write stage that are not properly inlined."
-        assert len(sch.get_consumers(l2g)) == 0, msg
+        auto_inline_consumer_chain(sch, l2g)
 
         sch.decompose_reduction(main_block, ko)
         return sch

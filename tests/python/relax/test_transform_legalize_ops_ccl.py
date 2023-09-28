@@ -51,6 +51,29 @@ def test_allreduce():
     tvm.ir.assert_structural_equal(mod, Expected)
 
 
+def test_allgather():
+    # fmt: off
+    @tvm.script.ir_module
+    class AllGather:
+        @R.function
+        def main(x: R.Tensor((10, 10), "float32"))  -> R.Tensor((10, 10), "float32"):
+            gv0: R.Tensor((20, 10), "float32") = R.ccl.allgather(x, 2)
+            gv1 = R.ccl.allgather(x, 2)
+            return x
+
+    @I.ir_module
+    class Expected:
+        @R.function
+        def main(x: R.Tensor((10, 10), dtype="float32")) -> R.Tensor((10, 10), dtype="float32"):
+            gv0: R.Tensor((20, 10), dtype="float32") = R.call_dps_packed("runtime.disco.allgather", [x], out_sinfo=R.Tensor((20, 10), dtype="float32"))
+            gv1: R.Tensor((20, 10), dtype="float32") = R.call_dps_packed("runtime.disco.allgather", [x], out_sinfo=R.Tensor((20, 10), dtype="float32"))
+            return x
+    # fmt: on
+
+    mod = LegalizeOps()(AllGather)
+    tvm.ir.assert_structural_equal(mod, Expected)
+
+
 def test_broadcast_from_zero():
     # fmt: off
     @tvm.script.ir_module

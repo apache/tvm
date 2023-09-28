@@ -137,20 +137,12 @@ inline ncclRedOp_t AsNCCLRedOp(ReduceKind kind) {
 struct CCLThreadLocalContext {
   DiscoWorker* worker;
   int device_id;
-  deviceStream_t default_stream;
+  deviceStream_t default_stream = nullptr;
   ncclComm_t comm;
 
-  void Clear() {
-    NCCL_CALL(ncclCommDestroy(comm));
-    StreamDestroy(default_stream);
-  }
+  void Clear() { NCCL_CALL(ncclCommDestroy(comm)); }
 
-  deviceStream_t GetDefaultStream() {
-    const auto* func = tvm::runtime::Registry::Get("runtime.get_" TVM_DISCO_DEVICE_NAME "_stream");
-    ICHECK(func != nullptr);
-    deviceStream_t stream = static_cast<deviceStream_t>((*func)().operator void*());
-    return stream == nullptr ? default_stream : stream;
-  }
+  deviceStream_t GetDefaultStream() { return nullptr; }
 
   static CCLThreadLocalContext* Get() {
     thread_local static CCLThreadLocalContext ctx;
@@ -179,7 +171,6 @@ void InitCCLPerWorker(ShapeTuple device_ids, std::string unique_id_bytes) {
   // Step up local context of NCCL
   int device_id = device_ids[worker->worker_id];
   SetDevice(device_id);
-  StreamCreate(&ctx->default_stream);
   Device device{TVM_DISCO_DEVICE_TYPE, device_id};
   worker->default_device = device;
   worker->ccl = TVM_DISCO_CCL_NAME;
@@ -199,6 +190,15 @@ void AllReduce(NDArray send, ReduceKind reduce_kind, NDArray recv) {
   NCCL_CALL(ncclAllReduce(send->data, recv->data, numel,
                           /*datatype=*/AsNCCLDataType(DataType(send->dtype)),
                           /*op=*/AsNCCLRedOp(reduce_kind), ctx->comm, stream));
+}
+
+void AllGather(NDArray send, NDArray recv) {
+  CCLThreadLocalContext* ctx = CCLThreadLocalContext::Get();
+  ShapeTuple shape = send.Shape();
+  int64_t numel = shape->Product();
+  cudaStream_t stream = ctx->GetDefaultStream();
+  NCCL_CALL(ncclAllGather(send->data, recv->data, numel,
+                          /*datatype=*/AsNCCLDataType(DataType(send->dtype)), ctx->comm, stream));
 }
 
 void BroadcastFromWorker0(NDArray send, NDArray recv) {
@@ -325,6 +325,8 @@ TVM_REGISTER_GLOBAL("runtime.disco." TVM_DISCO_CCL_NAME ".allreduce")
       CHECK(0 <= kind && kind <= 4) << "ValueError: Unknown ReduceKind: " << kind;
       AllReduce(send, static_cast<ReduceKind>(kind), recv);
     });
+TVM_REGISTER_GLOBAL("runtime.disco." TVM_DISCO_CCL_NAME ".allgather")
+    .set_body_typed([](NDArray send, NDArray recv) { AllGather(send, recv); });
 TVM_REGISTER_GLOBAL("runtime.disco." TVM_DISCO_CCL_NAME ".broadcast_from_worker0")
     .set_body_typed(BroadcastFromWorker0);
 TVM_REGISTER_GLOBAL("runtime.disco." TVM_DISCO_CCL_NAME ".scatter_from_worker0")

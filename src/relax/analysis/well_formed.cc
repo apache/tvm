@@ -431,16 +431,6 @@ class WellFormedChecker : public relax::ExprVisitor,
     CheckStructInfo(var);
   }
 
-  void VisitVarDef(const Var& var) final {
-    if (const DataflowVarNode* lv_node = var.as<DataflowVarNode>()) {
-      VisitVarDef_(lv_node);
-    } else if (const VarNode* gv_node = var.as<VarNode>()) {
-      VisitVarDef_(gv_node);
-    } else {
-      LOG(FATAL) << "TypeError: Invalid type: " << var->GetTypeKey();
-    }
-  }
-
   void VisitExpr_(const tir::VarNode* op) final {
     tir::Var var = GetRef<tir::Var>(op);
     // default mode, check defined.

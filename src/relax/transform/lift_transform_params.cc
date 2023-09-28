@@ -296,10 +296,6 @@ class TransformParamsLifter : ExprMutator {
     return ExprMutator::VisitExpr_(var);
   }
 
-  Expr VisitExpr_(const DataflowVarNode* var) final {
-    return VisitExpr_(static_cast<const VarNode*>(var));
-  }
-
   // Remap the original parameters to TupleGetItem from the packed tuple of transformed parameters.
   std::unordered_map<Var, Expr, ObjectPtrHash, ObjectPtrEqual> param_remap_;
   // The plan of lifting the transform params

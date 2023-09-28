@@ -329,6 +329,23 @@ class Session(Object):
         func = self._get_cached_method("runtime.disco.allreduce")
         func(src, op, dst)
 
+    def allgather(
+        self,
+        src: DRef,
+        dst: DRef,
+    ) -> DRef:
+        """Perform an allgather operation on an array.
+
+        Parameters
+        ----------
+        src : DRef
+            The array to be gathered from.
+        dst : DRef
+            The array to be gathered to.
+        """
+        func = self._get_cached_method("runtime.disco.allgather")
+        func(src, dst)
+
 
 @register_object("runtime.disco.ThreadedSession")
 class ThreadedSession(Session):

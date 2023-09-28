@@ -15,9 +15,12 @@
 # specific language governing permissions and limitations
 # under the License.
 """Relax Collective Communications Library (CCL) operators"""
-from . import _ffi_api
+from typing import Union
+from tvm.relax import PrimValue
 
+from . import _ffi_api
 from ...expr import Expr
+from ....ir import PrimExpr
 
 
 def allreduce(x, op_type: str = "sum"):  # pylint: disable=invalid-name
@@ -42,6 +45,27 @@ def allreduce(x, op_type: str = "sum"):  # pylint: disable=invalid-name
         f"including {supported_op_types}, but got {op_type}."
     )
     return _ffi_api.allreduce(x, op_type)  # type: ignore # pylint: disable=no-member
+
+
+def allgather(x, num_workers: Union[int, PrimExpr, PrimValue]):  # pylint: disable=invalid-name
+    """AllGather operator
+
+    Parameters
+    ----------
+    x : relax.Expr
+      The input tensor.
+
+    num_worker : Union[int, PrimExpr, PrimValue]
+      The number of workers to gather data from.
+
+    Returns
+    -------
+    result : relax.Expr
+      The result of allgather.
+    """
+    if not isinstance(num_workers, PrimValue):
+        num_workers = PrimValue(num_workers)
+    return _ffi_api.allgather(x, num_workers)  # type: ignore # pylint: disable=no-member
 
 
 def broadcast_from_worker0(x: Expr) -> Expr:

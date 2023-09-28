@@ -15,11 +15,13 @@
 # specific language governing permissions and limitations
 # under the License.
 
+import pytest
+
 import tvm
 from tvm import relax
 from tvm.relax.transform import LegalizeOps
 from tvm.relax.transform.legalize_ops.common import register_legalize
-from tvm.script import relax as R, tir as T
+from tvm.script import relax as R, tir as T, ir as I
 import tvm.testing
 
 
@@ -258,6 +260,26 @@ def test_legalize_scalar_data_type_preserve():
     tvm.ir.assert_structural_equal(After1, Expected1)
     After2 = LegalizeOps()(Before2)
     tvm.ir.assert_structural_equal(After2, Expected2)
+
+
+def test_matmul_legalization_requires_known_dtype():
+    @I.ir_module
+    class ArbitraryDtype:
+        @R.function
+        def main(A: R.Tensor([16, 32]), B: R.Tensor([32, 8])) -> R.Tensor([16, 8]):
+            return R.matmul(A, B)
+
+    with pytest.raises(AssertionError) as err:
+        LegalizeOps()(ArbitraryDtype)
+
+    # This error should be caught while attempting to legalize the
+    # R.matmul, where we can present a user-friendly error.
+    # Otherwise, the error isn't caught until the implementation of
+    # `BlockBuilder.call_te`, when attempting to create a numeric
+    # constant of type kHandle, which produces a much less
+    # user-friendly error.
+    err_message = err.value.args[0]
+    assert err_message.startswith("To legalize R.matmul")
 
 
 if __name__ == "__main__":

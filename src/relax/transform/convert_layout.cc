@@ -131,8 +131,6 @@ class LayoutConvertMutator : public ExprMutator {
 
   Expr VisitExpr_(const VarNode* op) final { return VisitVars_(GetRef<Var>(op)); }
 
-  Expr VisitExpr_(const DataflowVarNode* op) final { return VisitVars_(GetRef<Var>(op)); }
-
   bool HasUnknownDimTensor(const NLayout& nlayout) {
     bool find = false;
     auto fvisit = [&](const LayoutDecision& layout) {

@@ -233,9 +233,6 @@ class CheckpointGenerator : private ExprMutator {
   // Visit the use-site of a defined Var
   Expr VisitExpr_(const VarNode* op) final { return VisitVar(GetRef<Var>(op)); }
 
-  // Visit the use-site of a defined DataflowVar
-  Expr VisitExpr_(const DataflowVarNode* op) final { return VisitVar(GetRef<Var>(op)); }
-
   Expr VisitVar(const Var& var) {
     auto it = checkpoint_map_.find(var);
     if (it != checkpoint_map_.end()) {
@@ -635,7 +632,7 @@ class GradientMutator : private ExprMutator {
     new_func = CallTIRWithGradEliminator::Transform(new_func);
 
     if (remove_all_unused) {
-      new_func = RemoveAllUnused(new_func);
+      new_func = Downcast<Function>(RemoveAllUnused(new_func));
     }
 
     // Step 5.3 mark the transformed function as public

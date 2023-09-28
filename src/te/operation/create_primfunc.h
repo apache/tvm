@@ -45,8 +45,7 @@ PrimFunc CreatePrimFuncWithConstants(const Array<te::Tensor>& arg_list,
 // Relax version
 // TODO(relax-team) combine with the relay version
 /*! \brief Use Tensor Expression to create a schedulable TensorIR func. */
-PrimFunc CreatePrimFunc(const Array<te::Tensor>& arg_list,
-                        const Optional<Array<tir::Var>> tir_var_list,
+PrimFunc CreatePrimFunc(const Array<ObjectRef>& arg_list,
                         std::optional<DataType> index_dtype_override);
 
 /*! \brief The same as above but create a PrimFunc with AllocateConstNode. If the size of the
@@ -54,10 +53,9 @@ PrimFunc CreatePrimFunc(const Array<te::Tensor>& arg_list,
  * Constant tensors will not be part of the parameters of the created PrimFunc, instead constants
  * will be embedded in the body as AllocateConstNode.
  */
-PrimFunc CreatePrimFuncWithConstants(const Array<te::Tensor>& arg_list,
+PrimFunc CreatePrimFuncWithConstants(const Array<ObjectRef>& arg_list,
                                      const Array<runtime::NDArray>& constants,
-                                     const Optional<Array<tir::Var>>& tir_var_list,
-                                     std::optional<DataType> index_dtype_override = std::nullopt);
+                                     std::optional<DataType> index_dtype_override);
 
 }  // namespace tir
 }  // namespace tvm

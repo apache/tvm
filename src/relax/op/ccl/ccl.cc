@@ -50,6 +50,42 @@ TVM_REGISTER_OP("relax.ccl.allreduce")
     .set_attr<FRelaxInferLayout>("FRelaxInferLayout", InferLayoutUnaryEwise)
     .set_attr<Bool>("FPurity", Bool(true));
 
+/* relax.ccl.allgather */
+Expr allgather(Expr x, Expr num_workers) {
+  static const Op& op = Op::Get("relax.ccl.allgather");
+  return Call(op, {std::move(x), std::move(num_workers)});
+}
+
+TVM_REGISTER_GLOBAL("relax.op.ccl.allgather").set_body_typed(allgather);
+
+StructInfo InferStructInfoAllGather(const Call& call, const BlockBuilder& ctx) {
+  CHECK_EQ(call->args.size(), 2);
+  auto input_sinfo = Downcast<TensorStructInfo>(call->args[0]->struct_info_);
+  auto num_workers_sinfo = Downcast<PrimStructInfo>(call->args[1]->struct_info_);
+
+  auto num_workers = num_workers_sinfo->value;
+
+  DataType output_dtype = input_sinfo->dtype;
+  auto input_shape = input_sinfo->GetShape();
+  if (!input_shape.defined()) {
+    return input_sinfo;
+  }
+  Array<PrimExpr> output_shape = input_shape.value();
+  output_shape.Set(0, floor(output_shape[0] * num_workers.value()));
+  VDevice vdevice;
+  if (input_sinfo->vdevice.defined()) {
+    vdevice = input_sinfo->vdevice.value();
+  }
+  return TensorStructInfo(ShapeExpr(output_shape), output_dtype, vdevice);
+}
+
+TVM_REGISTER_OP("relax.ccl.allgather")
+    .set_num_inputs(1)
+    .add_argument("x", "Tensor", "Input to which allgather will be applied.")
+    .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoAllGather)
+    .set_attr<FRelaxInferLayout>("FRelaxInferLayout", InferLayoutUnaryEwise)
+    .set_attr<Bool>("FPurity", Bool(true));
+
 /* relax.ccl.broadcast_from_worker0 */
 Expr broadcast_from_worker0(Expr x) {
   static const Op& op = Op::Get("relax.ccl.broadcast_from_worker0");

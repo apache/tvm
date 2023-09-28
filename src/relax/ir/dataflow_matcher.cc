@@ -619,10 +619,6 @@ class MatcherUseDefAnalysis : public relax::ExprVisitor {
 
     caller2callees[cur_user_].push_back(op);
   }
-
-  void VisitExpr_(const DataflowVarNode* op) override {
-    VisitExpr_(static_cast<const VarNode*>(op));
-  }
 };
 
 struct PNode {
@@ -938,7 +934,7 @@ class PatternRewriter : ExprMutator {
       params.insert(p.get());
     }
     PatternRewriter rewriter(pat, rewriter_func, params);
-    return RemoveAllUnused(Downcast<Function>(rewriter.VisitExpr(f)));
+    return Downcast<Function>(RemoveAllUnused(rewriter.VisitExpr(f)));
   }
 
   void VisitBinding_(const VarBindingNode* binding) final {
