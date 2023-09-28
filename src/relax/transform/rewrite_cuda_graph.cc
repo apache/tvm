@@ -206,14 +206,17 @@ class CUDAGraphRewritePlanner : public ExprVisitor {
     current_.capture_builder = nullptr;
   }
 
-  void VisitBindingBlock_(const BindingBlockNode* binding_block) final {
+  void VisitExpr_(const SeqExprNode* seq) final {
     Scope new_scope;
     std::swap(new_scope, current_);
     current_.alloc_storage_builder = arena_.make<FuncBuilder>();
-    for (const auto& binding : binding_block->bindings) {
-      VisitBinding(binding);
+
+    for (BindingBlock block : seq->blocks) {
+      this->VisitBindingBlock(block);
     }
     EndRegion();
+    this->VisitExpr(seq->body);
+
     if (current_.alloc_storage_builder->outputs_.size()) {
       alloc_storages_.emplace_back(current_.alloc_storage_builder);
     }
@@ -225,10 +228,17 @@ class CUDAGraphRewritePlanner : public ExprVisitor {
     static const auto& builtin_alloc_tensor_op = Op::Get("relax.builtin.alloc_tensor");
     static const auto& call_builtin_with_ctx_op = Op::Get("relax.call_builtin_with_ctx");
 
-    if (call->op.same_as(mem_alloc_storage_op) && IsStaticAllocStorage(binding)) {
-      AddStaticBinding(binding, /*is_alloc_storage=*/true);
-      return;
-    } else if (call->op.same_as(builtin_alloc_tensor_op)) {
+    // Allocations may not occur within the captured cuda-graph.
+    // Whether they are left in the original function or moved to the
+    // captured cuda-graph allocation depends on whether it is a
+    // static allocation.
+    bool is_alloc =
+        call->op.same_as(mem_alloc_storage_op) || call->op.same_as(builtin_alloc_tensor_op);
+    if (is_alloc) {
+      bool is_static_alloc = is_alloc && IsStatic(call->args[0]);
+      if (is_static_alloc) {
+        AddStaticBinding(binding, /*is_alloc_storage=*/true);
+      }
       return;
     }
 
@@ -315,6 +325,13 @@ class CUDAGraphRewritePlanner : public ExprVisitor {
     MarkAsFuncOutput({var});
   }
 
+  void VisitExpr_(const VarNode* var) final {
+    // Because VisitBinding_(const VarBindingNode*, const VarNode*)
+    // does not call ExprVisitor::VisitBinding_, this visitor can only
+    // be reached through visiting of the body of a SeqExpr.
+    MarkAsFuncOutput({var});
+  }
+
   void VisitBinding_(const VarBindingNode* binding, const ConstantNode* constant) final {
     AddStaticBinding(binding, false);
   }
@@ -385,14 +402,6 @@ class CUDAGraphRewritePlanner : public ExprVisitor {
   }
 
  private:
-  bool IsStaticAllocStorage(const VarBindingNode* binding) {
-    // Check if the allocation has constant shape
-    const auto* alloc_storage_call = binding->value.as<CallNode>();
-    auto shape = Downcast<ShapeExpr>(alloc_storage_call->args[0]);
-    return std::all_of(shape->values.begin(), shape->values.end(),
-                       [](const PrimExpr& expr) { return expr.as<IntImmNode>() != nullptr; });
-  }
-
   /*!
    * \brief Add a static bindings. This is used to mark the bindings that are known to be static
    * and further propagate to other bindings.

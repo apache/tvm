@@ -104,5 +104,31 @@ def test_vm_run():
     tvm.testing.assert_allclose(y.asnumpy(), y_np, rtol=1e-5, atol=1e-5)
 
 
+@tvm.testing.requires_cudagraph
+def test_vm_lower_and_run():
+    @I.ir_module
+    class Module:
+        @R.function
+        def main(A: R.Tensor((16, 16), dtype="float32")) -> R.Tensor((16, 16), dtype="float32"):
+            B = A + R.const(1, "float32")
+            C = B + R.const(1, "float32")
+            D = C + R.const(1, "float32")
+            return D
+
+    with tvm.transform.PassContext(config={"relax.backend.use_cuda_graph": True}):
+        legalized = relax.transform.LegalizeOps()(Module)
+        with tvm.target.Target("cuda"):
+            scheduled = tvm.tir.transform.DefaultGPUSchedule()(legalized)
+        built = relax.build(scheduled, target="cuda")
+
+    dev = tvm.cuda(0)
+    vm = relax.VirtualMachine(built, dev)
+    x_np = np.random.uniform(size=(16, 16)).astype("float32")
+    x = tvm.nd.array(x_np, dev)
+    y = vm["main"](x)
+    y_np = x_np + 3.0
+    tvm.testing.assert_allclose(y.asnumpy(), y_np)
+
+
 if __name__ == "__main__":
     tvm.testing.main()
