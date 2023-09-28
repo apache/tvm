@@ -25,7 +25,7 @@
 #define TVM_RUNTIME_VM_VM_H_
 
 #include <tvm/runtime/container/closure.h>
-#include <tvm/runtime/memory_manager.h>
+#include <tvm/runtime/memory/memory_manager.h>
 #include <tvm/runtime/module.h>
 #include <tvm/runtime/object.h>
 #include <tvm/runtime/packed_func.h>
@@ -41,6 +41,13 @@
 
 namespace tvm {
 namespace runtime {
+
+using memory::Allocator;
+using memory::AllocatorType;
+using memory::MemoryManager;
+using memory::Storage;
+using memory::StorageObj;
+
 namespace vm {
 
 /*!

@@ -18,13 +18,13 @@
  */
 
 /*!
- * \file runtime/pooled_allocator.h
+ * \file src/runtime/memory/pooled_allocator.h
  */
-#ifndef TVM_RUNTIME_POOLED_ALLOCATOR_H_
-#define TVM_RUNTIME_POOLED_ALLOCATOR_H_
+#ifndef TVM_RUNTIME_MEMORY_POOLED_ALLOCATOR_H_
+#define TVM_RUNTIME_MEMORY_POOLED_ALLOCATOR_H_
 
 #include <tvm/runtime/device_api.h>
-#include <tvm/runtime/memory_manager.h>
+#include <tvm/runtime/memory/memory_manager.h>
 
 #include <atomic>
 #include <mutex>
@@ -34,6 +34,7 @@
 
 namespace tvm {
 namespace runtime {
+namespace memory {
 
 class PooledAllocator final : public Allocator {
  public:
@@ -44,7 +45,7 @@ class PooledAllocator final : public Allocator {
 
   ~PooledAllocator() { ReleaseAll(); }
 
-  MBuffer Alloc(size_t nbytes, size_t alignment, DLDataType type_hint) override {
+  Buffer Alloc(size_t nbytes, size_t alignment, DLDataType type_hint) override {
     std::lock_guard<std::recursive_mutex> lock(mu_);
     size_t size = ((nbytes + page_size_ - 1) / page_size_) * page_size_;
     auto&& it = memory_pool_.find(size);
@@ -54,7 +55,7 @@ class PooledAllocator final : public Allocator {
       pool.pop_back();
       return ret;
     }
-    MBuffer buf;
+    Buffer buf;
     buf.device = device_;
     buf.size = size;
     try {
@@ -71,8 +72,8 @@ class PooledAllocator final : public Allocator {
     return buf;
   }
 
-  MBuffer Alloc(int ndims, int64_t* shape, DLDataType type_hint,
-                const std::string& mem_scope) override {
+  Buffer Alloc(int ndims, int64_t* shape, DLDataType type_hint,
+               const std::string& mem_scope) override {
     if (mem_scope.empty() || mem_scope == "global") {
       return Allocator::Alloc(device_, ndims, shape, type_hint, mem_scope);
     }
@@ -80,10 +81,10 @@ class PooledAllocator final : public Allocator {
     return {};
   }
 
-  void Free(const MBuffer& buffer) override {
+  void Free(const Buffer& buffer) override {
     std::lock_guard<std::recursive_mutex> lock(mu_);
     if (memory_pool_.find(buffer.size) == memory_pool_.end()) {
-      memory_pool_.emplace(buffer.size, std::vector<MBuffer>{});
+      memory_pool_.emplace(buffer.size, std::vector<Buffer>{});
     }
     memory_pool_.at(buffer.size).push_back(buffer);
     VLOG(1) << "reclaim buffer " << buffer.size;
@@ -108,11 +109,12 @@ class PooledAllocator final : public Allocator {
  private:
   size_t page_size_;
   std::atomic<size_t> used_memory_;
-  std::unordered_map<size_t, std::vector<MBuffer>> memory_pool_;
+  std::unordered_map<size_t, std::vector<Buffer>> memory_pool_;
   std::recursive_mutex mu_;
   Device device_;
 };
 
+}  // namespace memory
 }  // namespace runtime
 }  // namespace tvm
 

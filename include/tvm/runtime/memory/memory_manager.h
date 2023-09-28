@@ -18,11 +18,11 @@
  */
 
 /*!
- * \file tvm/runtime/memory_manager.h
+ * \file tvm/runtime/memory/memory_manager.h
  * \brief Abstract device memory management API
  */
-#ifndef TVM_RUNTIME_MEMORY_MANAGER_H_
-#define TVM_RUNTIME_MEMORY_MANAGER_H_
+#ifndef TVM_RUNTIME_MEMORY_MEMORY_MANAGER_H_
+#define TVM_RUNTIME_MEMORY_MEMORY_MANAGER_H_
 
 #include <tvm/runtime/c_runtime_api.h>
 #include <tvm/runtime/ndarray.h>
@@ -37,14 +37,15 @@
 
 namespace tvm {
 namespace runtime {
+namespace memory {
 
-struct MBuffer {
+struct Buffer {
   /*! \brief The pointer to the allocated block of memory. */
   void* data{nullptr};
   /*! \brief The size of the block. */
   size_t size{0};
   /*! \brief The shape of the tensor. */
-  std::vector<int64_t> shape;
+  ShapeTuple shape;
   /*! \brief The context of the allocated buffers. */
   Device device;
 };
@@ -62,7 +63,7 @@ class Allocator {
    *  \param shape The shape of the NDArray.
    *  \param dtype The datatype of the NDArray.
    *  \param dev The device where the array is allocated.
-   *  \param mem_scope is the device memory scope hint.
+   *  \param mem_scope The device memory scope hint.
    *  \return The empty NDArray.
    */
   NDArray Empty(std::vector<int64_t> shape, DLDataType dtype, Device dev,
@@ -75,7 +76,7 @@ class Allocator {
    *  \param type_hint A type hint to the allocator.
    *  \return A sized allocation in the form of a buffer.
    */
-  virtual MBuffer Alloc(size_t nbytes, size_t alignment, DLDataType type_hint) = 0;
+  virtual Buffer Alloc(size_t nbytes, size_t alignment, DLDataType type_hint) = 0;
   /*! \brief Allocate a buffer given a shape and type.
    *  \param ndims The rank of the tensor.
    *  \param shape The shape of the tensor.
@@ -83,20 +84,20 @@ class Allocator {
    *  \param mem_scope A memory scope of the buffer.
    *  \return A sized allocation in the form of a buffer.
    */
-  virtual MBuffer Alloc(int ndims, int64_t* shape, DLDataType type_hint,
-                        const std::string& mem_scope = "") = 0;
+  virtual Buffer Alloc(int ndims, int64_t* shape, DLDataType type_hint,
+                       const std::string& mem_scope = "") = 0;
   /*! \brief Free a buffer allocated by the allocator.
    *  \param buffer The buffer to free.
    */
-  virtual void Free(const MBuffer& buffer) = 0;
+  virtual void Free(const Buffer& buffer) = 0;
   /*! \brief The amount of memory currently allocated.
    *  \return The amount of memory currently allocated.
    */
   virtual size_t UsedMemory() const = 0;
 
  protected:
-  virtual MBuffer Alloc(Device dev, int ndims, int64_t* shape, DLDataType type_hint,
-                        const std::string& mem_scope);
+  virtual Buffer Alloc(Device dev, int ndims, int64_t* shape, DLDataType type_hint,
+                       const std::string& mem_scope);
 
  private:
   AllocatorType type_;
@@ -131,7 +132,7 @@ class MemoryManager {
 class StorageObj : public Object {
  public:
   /*! \brief The index into the VM function table. */
-  MBuffer buffer;
+  Buffer buffer;
 
   /*! \brief Allocate an NDArray from a given piece of storage. */
   NDArray AllocNDArray(size_t offset, std::vector<int64_t> shape, DLDataType dtype);
@@ -152,11 +153,12 @@ class StorageObj : public Object {
 /*! \brief reference to storage. */
 class Storage : public ObjectRef {
  public:
-  explicit Storage(MBuffer buffer);
+  explicit Storage(Buffer buffer);
 
   TVM_DEFINE_MUTABLE_OBJECT_REF_METHODS(Storage, ObjectRef, StorageObj);
 };
 
+}  // namespace memory
 }  // namespace runtime
 }  // namespace tvm
 

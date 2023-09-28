@@ -18,10 +18,10 @@
  */
 
 /*!
- * \file tvm/runtime/memory_manager.cc
+ * \file tvm/runtime/memory/memory_manager.cc
  * \brief Allocate and manage memory for the runtime.
  */
-#include <tvm/runtime/memory_manager.h>
+#include <tvm/runtime/memory/memory_manager.h>
 
 #include <memory>
 #include <utility>
@@ -31,11 +31,12 @@
 
 namespace tvm {
 namespace runtime {
+namespace memory {
 
 static void BufferDeleter(Object* obj) {
   auto* ptr = static_cast<NDArray::Container*>(obj);
   ICHECK(ptr->manager_ctx != nullptr);
-  MBuffer* buffer = reinterpret_cast<MBuffer*>(ptr->manager_ctx);
+  Buffer* buffer = reinterpret_cast<Buffer*>(ptr->manager_ctx);
   MemoryManager::GetAllocator(buffer->device)->Free(*(buffer));
   delete buffer;
   delete ptr;
@@ -160,7 +161,7 @@ NDArray Allocator::Empty(std::vector<int64_t> shape, DLDataType dtype, DLDevice 
   container->SetDeleter(BufferDeleter);
   size_t size = GetDataSize(container->dl_tensor);
   size_t alignment = GetDataAlignment(container->dl_tensor);
-  MBuffer* buffer = new MBuffer;
+  Buffer* buffer = new Buffer;
   if (!mem_scope.defined() || mem_scope == "global") {
     *buffer = this->Alloc(size, alignment, dtype);
   } else {
@@ -171,8 +172,8 @@ NDArray Allocator::Empty(std::vector<int64_t> shape, DLDataType dtype, DLDevice 
   return NDArray(GetObjectPtr<Object>(container));
 }
 
-MBuffer Allocator::Alloc(Device dev, int ndims, int64_t* shape, DLDataType type_hint,
-                         const std::string& mem_scope) {
+Buffer Allocator::Alloc(Device dev, int ndims, int64_t* shape, DLDataType type_hint,
+                        const std::string& mem_scope) {
   if (mem_scope.empty() || mem_scope == "global") {
     // by default, we can always redirect to the flat memory allocations
     std::vector<int64_t> s;
@@ -189,5 +190,6 @@ MBuffer Allocator::Alloc(Device dev, int ndims, int64_t* shape, DLDataType type_
   return {};
 }
 
+}  // namespace memory
 }  // namespace runtime
 }  // namespace tvm

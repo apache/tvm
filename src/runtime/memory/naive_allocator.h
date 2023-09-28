@@ -18,26 +18,27 @@
  */
 
 /*!
- * \file src/runtime/naive_allocator.h
+ * \file src/runtime/memory/naive_allocator.h
  */
-#ifndef TVM_RUNTIME_NAIVE_ALLOCATOR_H_
-#define TVM_RUNTIME_NAIVE_ALLOCATOR_H_
+#ifndef TVM_RUNTIME_MEMORY_NAIVE_ALLOCATOR_H_
+#define TVM_RUNTIME_MEMORY_NAIVE_ALLOCATOR_H_
 
 #include <tvm/runtime/device_api.h>
-#include <tvm/runtime/memory_manager.h>
+#include <tvm/runtime/memory/memory_manager.h>
 
 #include <atomic>
 #include <string>
 
 namespace tvm {
 namespace runtime {
+namespace memory {
 
 class NaiveAllocator final : public Allocator {
  public:
   explicit NaiveAllocator(Device dev) : Allocator(kNaive), used_memory_(0), device_(dev) {}
 
-  MBuffer Alloc(size_t nbytes, size_t alignment, DLDataType type_hint) override {
-    MBuffer buf;
+  Buffer Alloc(size_t nbytes, size_t alignment, DLDataType type_hint) override {
+    Buffer buf;
     buf.device = device_;
     buf.size = nbytes;
     buf.data = DeviceAPI::Get(device_)->AllocDataSpace(device_, nbytes, alignment, type_hint);
@@ -46,12 +47,15 @@ class NaiveAllocator final : public Allocator {
     return buf;
   }
 
-  MBuffer Alloc(int ndims, int64_t* shape, DLDataType type_hint,
-                const std::string& mem_scope) override {
-    MBuffer buf;
+  Buffer Alloc(int ndims, int64_t* shape, DLDataType type_hint,
+               const std::string& mem_scope) override {
+    Buffer buf;
     size_t nbytes = 1;
+    std::vector<ShapeTuple::index_type> shape_;
+    shape_.resize(ndims);
+    shape_.assign(shape, shape + ndims);
+    buf.shape = ShapeTuple(shape_);
     for (int i = 0; i < ndims; ++i) {
-      buf.shape.push_back(shape[i]);
       nbytes *= static_cast<size_t>(shape[i]);
     }
     nbytes *= (type_hint.bits * type_hint.lanes + 7) / 8;
@@ -71,7 +75,7 @@ class NaiveAllocator final : public Allocator {
     return buf;
   }
 
-  void Free(const MBuffer& buffer) override {
+  void Free(const Buffer& buffer) override {
     DeviceAPI::Get(device_)->FreeDataSpace(buffer.device, buffer.data);
     used_memory_.fetch_sub(buffer.size, std::memory_order_relaxed);
     DLOG(INFO) << "free " << buffer.size << " B, used memory " << used_memory_ << " B";
@@ -84,6 +88,7 @@ class NaiveAllocator final : public Allocator {
   Device device_;
 };
 
+}  // namespace memory
 }  // namespace runtime
 }  // namespace tvm
 

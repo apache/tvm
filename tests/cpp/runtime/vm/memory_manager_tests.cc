@@ -19,14 +19,15 @@
 
 #include <gmock/gmock.h>
 #include <gtest/gtest.h>
-#include <tvm/runtime/memory_manager.h>
+#include <tvm/runtime/memory/memory_manager.h>
 
 #include <exception>
 
-#include "../../../../src/runtime/pooled_allocator.h"
+#include "../../../../src/runtime/memory/pooled_allocator.h"
 
 namespace tvm {
 namespace runtime {
+namespace memory {
 
 // MemoryManangerWrapper is necessary because in class MemoryManager we don't have access to its
 // protected members. In this class we add a new method which allow us to clear internal state of
@@ -198,5 +199,6 @@ TEST_F(TvmVMMemoryManagerTest, PooledAllocOpenCLTexture) {
     EXPECT_NE(what.find(pattern), std::string::npos) << what;
   }
 }
+}  // namespace memory
 }  // namespace runtime
 }  // namespace tvm
