@@ -85,7 +85,7 @@ NDArray StorageObj::AllocNDArray(size_t offset, ShapeTuple shape, DLDataType dty
   container->dl_tensor.byte_offset = offset;
 
   container->SetDeleter(StorageObj::Deleter);
-  size_t needed_size = GetDataSize(container->dl_tensor);
+  size_t needed_size = DeviceAPI::Get(this->buffer.device)->GetDataSize(container->dl_tensor);
   this->IncRef();
   // The manager context pointer must continue to point to the storage object
   // which owns the backing memory, and keeps track of the reference count.
@@ -159,7 +159,7 @@ NDArray Allocator::Empty(ShapeTuple shape, DLDataType dtype, DLDevice dev,
   VerifyDataType(dtype);
   NDArray::Container* container = new NDArray::Container(nullptr, shape, dtype, dev);
   container->SetDeleter(BufferDeleter);
-  size_t size = GetDataSize(container->dl_tensor);
+  size_t size = DeviceAPI::Get(dev)->GetDataSize(container->dl_tensor);
   size_t alignment = GetDataAlignment(container->dl_tensor);
   Buffer* buffer = new Buffer;
   if (!mem_scope.defined() || mem_scope == "global") {
@@ -177,7 +177,7 @@ Buffer Allocator::Alloc(Device dev, ShapeTuple shape, DLDataType type_hint,
   if (mem_scope.empty() || mem_scope == "global") {
     // by default, we can always redirect to the flat memory allocations
     NDArray::Container container(nullptr, shape, type_hint, dev);
-    size_t size = GetDataSize(container.dl_tensor);
+    size_t size = DeviceAPI::Get(dev)->GetDataSize(container.dl_tensor);
     size_t alignment = GetDataAlignment(container.dl_tensor);
     return Alloc(size, alignment, type_hint);
   }

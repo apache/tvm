@@ -77,7 +77,7 @@ TEST_F(TvmVMMemoryManagerTest, NaiveEmptyBasic) {
   EXPECT_EQ(allocator->UsedMemory(), 0);
   auto dt = DataType::Float(32);
   size_t nbytes = 1 * 3 * 6 * 6 * dt.bytes();
-  std::vector<int64_t> shape = {1, 3, 6, 6};
+  ShapeTuple shape = {1, 3, 6, 6};
   {
     auto ndarray = allocator->Empty(shape, dt, dev);
     EXPECT_EQ(allocator->UsedMemory(), nbytes);
@@ -93,7 +93,7 @@ TEST_F(TvmVMMemoryManagerTest, PooledEmptyBasic) {
   size_t nbytes = 1 * 3 * 6 * 6 * dt.bytes();
   size_t page_size = PooledAllocator::kDefaultPageSize;
   size_t size = ((nbytes + page_size - 1) / page_size) * page_size;
-  std::vector<int64_t> shape = {1, 3, 6, 6};
+  ShapeTuple shape = {1, 3, 6, 6};
   {
     auto ndarray = allocator->Empty(shape, dt, dev);
     EXPECT_EQ(allocator->UsedMemory(), size);
@@ -107,14 +107,14 @@ TEST_F(TvmVMMemoryManagerTest, NaiveAllocWithShape) {
   EXPECT_EQ(allocator->UsedMemory(), 0);
   auto dt = DataType::Float(32);
   size_t nbytes = 1 * 3 * 6 * 6 * dt.bytes();
-  std::vector<int64_t> shape = {1, 3, 6, 6};
-  auto buff = allocator->Alloc(shape.size(), shape.data(), dt);
+  ShapeTuple shape = {1, 3, 6, 6};
+  auto buff = allocator->Alloc(shape, dt);
   EXPECT_EQ(allocator->UsedMemory(), nbytes);
   allocator->Free(buff);
   EXPECT_EQ(allocator->UsedMemory(), 0);
 
   try {
-    auto texture = allocator->Alloc(shape.size(), shape.data(), dt, "global.texture");
+    auto texture = allocator->Alloc(shape, dt, "global.texture");
     FAIL();
   } catch (std::exception& e) {
     std::string pattern =
@@ -132,14 +132,14 @@ TEST_F(TvmVMMemoryManagerTest, PooledAllocWithShape) {
   size_t nbytes = 1 * 3 * 6 * 6 * dt.bytes();
   size_t page_size = PooledAllocator::kDefaultPageSize;
   size_t size = ((nbytes + page_size - 1) / page_size) * page_size;
-  std::vector<int64_t> shape = {1, 3, 6, 6};
-  auto buff = allocator->Alloc(shape.size(), shape.data(), dt);
+  ShapeTuple shape = {1, 3, 6, 6};
+  auto buff = allocator->Alloc(shape, dt);
   EXPECT_EQ(allocator->UsedMemory(), size);
   allocator->Free(buff);
   EXPECT_EQ(allocator->UsedMemory(), size);
 
   try {
-    auto texture = allocator->Alloc(shape.size(), shape.data(), dt, "global.texture");
+    auto texture = allocator->Alloc(shape, dt, "global.texture");
     FAIL();
   } catch (std::exception& e) {
     std::string pattern = "This alloc should be implemented";
@@ -159,13 +159,13 @@ TEST_F(TvmVMMemoryManagerTest, NaiveAllocOpenCLTexture) {
   EXPECT_EQ(allocator->UsedMemory(), 0);
   auto dt = DataType::Float(32);
   size_t nbytes = 1 * 3 * 6 * 6 * dt.bytes();
-  std::vector<int64_t> shape = {1, 3, 6, 6};
-  auto buff = allocator->Alloc(shape.size(), shape.data(), dt);
+  ShapeTuple shape = {1, 3, 6, 6};
+  auto buff = allocator->Alloc(shape, dt);
   EXPECT_EQ(allocator->UsedMemory(), nbytes);
   allocator->Free(buff);
   EXPECT_EQ(allocator->UsedMemory(), 0);
 
-  auto texture = allocator->Alloc(shape.size(), shape.data(), dt, "global.texture");
+  auto texture = allocator->Alloc(shape, dt, "global.texture");
   EXPECT_EQ(allocator->UsedMemory(), nbytes);
   allocator->Free(texture);
   EXPECT_EQ(allocator->UsedMemory(), 0);
@@ -184,14 +184,14 @@ TEST_F(TvmVMMemoryManagerTest, PooledAllocOpenCLTexture) {
   size_t nbytes = 1 * 3 * 6 * 6 * dt.bytes();
   size_t page_size = PooledAllocator::kDefaultPageSize;
   size_t size = ((nbytes + page_size - 1) / page_size) * page_size;
-  std::vector<int64_t> shape = {1, 3, 6, 6};
-  auto buff = allocator->Alloc(shape.size(), shape.data(), dt);
+  ShapeTuple shape = {1, 3, 6, 6};
+  auto buff = allocator->Alloc(shape, dt);
   EXPECT_EQ(allocator->UsedMemory(), size);
   allocator->Free(buff);
   EXPECT_EQ(allocator->UsedMemory(), size);
 
   try {
-    auto texture = allocator->Alloc(shape.size(), shape.data(), dt, "global.texture");
+    auto texture = allocator->Alloc(shape, dt, "global.texture");
     FAIL();
   } catch (std::exception& e) {
     std::string pattern = "This alloc should be implemented";

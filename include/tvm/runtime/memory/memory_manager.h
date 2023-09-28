@@ -66,7 +66,8 @@ class Allocator {
    *  \param mem_scope The device memory scope hint.
    *  \return The empty NDArray.
    */
-  NDArray Empty(ShapeTuple shape, DLDataType dtype, Device dev, Optional<String> mem_scope);
+  NDArray Empty(ShapeTuple shape, DLDataType dtype, Device dev,
+                Optional<String> mem_scope = String());
   /*! \brief Return the allocator type. */
   inline AllocatorType type() const { return type_; }
   /*! \brief Allocate a buffer given a size, alignment and type.

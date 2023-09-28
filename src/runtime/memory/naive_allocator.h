@@ -51,7 +51,7 @@ class NaiveAllocator final : public Allocator {
     Buffer buf;
     size_t nbytes = 1;
     buf.shape = shape;
-    for (int i = 0; i < shape.size(); ++i) {
+    for (int i = 0; i < static_cast<int>(shape.size()); ++i) {
       nbytes *= static_cast<size_t>(shape[i]);
     }
     nbytes *= (type_hint.bits * type_hint.lanes + 7) / 8;
