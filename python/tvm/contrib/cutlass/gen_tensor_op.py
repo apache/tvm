@@ -723,6 +723,7 @@ def instantiate_template(func_name, annotations, func_args):
         return CodegenResult(code, headers)
 
     elif "attention" in func_name:
+        is_var_len = "var_len" in func_name
         data_type = dtype_map[annotations["arg0_dtype"]]
 
         attrs["qkv_layout"] = annotations["qkv_layout"]
@@ -732,13 +733,13 @@ def instantiate_template(func_name, annotations, func_args):
             attrs["value"] = func_args[2]
             attrs["num_queries"] = s = get_dim(annotations["num_queries"], func_args[0], 1)
             attrs["num_keys"] = get_dim(annotations["num_keys"], func_args[1], 1)
-            if len(func_args) > 4:  # +1 for workspace, the last arg
+            if len(func_args) > 4 and not is_var_len:  # +1 for workspace, the last arg
                 attrs["bias"] = func_args[3]
         elif attrs["qkv_layout"] == "qkv_stacked":
             attrs["qkv"] = func_args[0]
             attrs["num_queries"] = s = annotations["num_queries"]
             attrs["num_keys"] = annotations["num_keys"]
-            if len(func_args) > 5:  # +1 for workspace, the last arg
+            if len(func_args) > 5 and not is_var_len:  # +1 for workspace, the last arg
                 attrs["bias"] = func_args[4]
         else:
             raise NotImplementedError()
@@ -752,9 +753,9 @@ def instantiate_template(func_name, annotations, func_args):
             float(1 / math.sqrt(h.value)) if annotations["scale"] is None else annotations["scale"]
         )
 
-        if "seqstart_q" in annotations:
+        if is_var_len:
             attrs["seqstart_q"] = func_args[3]
-            attrs["max_seq_q"] = func_args[4]
+            attrs["max_seqlen_q"] = func_args[4]
 
         is_mqa = annotations["num_q_heads"] != annotations["num_kv_heads"]
 
@@ -773,7 +774,7 @@ def instantiate_template(func_name, annotations, func_args):
             )
             # Flash v2 is currently not supported for sm < 80
             and int(annotations["arch"]) >= 80
-            and "seqstart_q" not in annotations
+            and not is_var_len
         )
 
         if use_flash:

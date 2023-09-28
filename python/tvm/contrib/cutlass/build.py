@@ -862,10 +862,13 @@ class CutlassRelaxFunctionAnnotator(relax.PyExprMutator):
     def handle_attention(self, f, op_type):
         """Annotate an attention op."""
         signature = _extract_relax_function_signature(f)
+        print(signature)
         if _get_call_node(f.body, "relax.nn.attention") is not None:
             op_attrs = _get_call_node(f.body, "relax.nn.attention").attrs
         elif _get_call_node(f.body, "relax.nn.attention_bias") is not None:
             op_attrs = _get_call_node(f.body, "relax.nn.attention_bias").attrs
+        elif _get_call_node(f.body, "relax.nn.attention_var_len") is not None:
+            op_attrs = _get_call_node(f.body, "relax.nn.attention_var_len").attrs
         else:
             raise ValueError("Cannot find call node for attention")
         arg = {}

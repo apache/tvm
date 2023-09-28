@@ -2015,7 +2015,9 @@ def test_batched_var_len_attention():
             return out
 
 
-    print(partition_for_cutlass(Module))
+    mod = partition_for_cutlass(Module)
+    codegen_pass = relax.transform.RunCodegen({"cutlass": {"sm": 80}})
+    mod = codegen_pass(mod)
 
 
 if __name__ == "__main__":
