@@ -2017,6 +2017,10 @@ def test_batched_var_len_attention():
     seq_lens = [5, 3, 8]
     num_head = 128
     head_size = 32
+    # seq_lens = [6, 8, 6, 6]
+    # num_head = 12
+    # head_size = 64
+
     hidden_size = num_head * head_size
 
     batched_queries = []
@@ -2049,8 +2053,21 @@ def test_batched_var_len_attention():
 
     out = build_and_run(mod, [batched_queries, batched_keys, batched_values, seqstart_q], "cuda")
 
-    print(out)
-    print(ref)
+    print(np.abs(np.mean(out - batched_refs)))
+
+    # attn_bias = BlockDiagonalMask.from_seqlens(seq_lens)
+
+    # queries = torch.from_numpy(np.reshape(batched_queries, [1, -1, num_head, head_size])).to("cuda")
+    # keys = torch.from_numpy(np.reshape(batched_keys, [1, -1, num_head, head_size])).to("cuda")
+    # values = torch.from_numpy(np.reshape(batched_values, [1, -1, num_head, head_size])).to("cuda")
+
+    # with torch.no_grad():
+    #     out = xops.memory_efficient_attention_forward(
+    #         queries, keys, values,
+    #         attn_bias=attn_bias,
+    #     ).cpu().numpy()[0]
+
+    #     print(np.abs(np.mean(np.reshape(out, [-1, hidden_size]) - batched_refs)))
 
 
 if __name__ == "__main__":
