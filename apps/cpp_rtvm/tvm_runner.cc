@@ -193,7 +193,6 @@ inline size_t GetMemSize(NDArray& narr) {
  * \return The memory size.
  */
 size_t TVMRunner::GetInputMemSize(std::string input_id) {
-  // LOG(INFO) << "TVMRunner::GetInputMemSize:" << input_id;
   NDArray in_arr = r_graph_handle.GetFunction("get_input")(input_id);
   auto ssize = GetMemSize(in_arr);
 
@@ -206,7 +205,6 @@ size_t TVMRunner::GetInputMemSize(std::string input_id) {
  * \return The memory size.
  */
 size_t TVMRunner::GetOutputMemSize(std::string output_id) {
-  // LOG(INFO) << "TVMRunner::GetOutputMemSize:" << output_id;
   NDArray out_arr = r_graph_handle.GetFunction("get_output")(output_id);
   auto ssize = GetMemSize(out_arr);
 
