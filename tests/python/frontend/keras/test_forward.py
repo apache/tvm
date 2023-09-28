@@ -28,11 +28,11 @@ from tensorflow import keras as tf_keras
 # prevent Keras from using up all gpu memory
 import keras
 
+import pytest
 import tvm
 from tvm import relay
 from tvm.contrib import graph_executor
 import tvm.testing
-import pytest
 
 if tf.executing_eagerly():
     GPUS = tf.config.experimental.list_physical_devices("GPU")
