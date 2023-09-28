@@ -2036,12 +2036,21 @@ def test_batched_var_len_attention():
     batched_values = np.vstack(batched_values)
     batched_refs = np.vstack(batched_refs)
 
-    seqstart_q = np.insert(np.cumsum(seq_lens), 0, 0)
-    print(seqstart_q)
+    seqstart_q = np.insert(np.cumsum(seq_lens), 0, 0).astype(np.int32)
 
     mod = partition_for_cutlass(Module)
     codegen_pass = relax.transform.RunCodegen({"cutlass": {"sm": 80}})
     mod = codegen_pass(mod)
+
+    mod = relax.pipeline.get_pipeline()(mod)
+
+    with tvm.target.Target("cuda"):
+        mod = tvm.tir.transform.DefaultGPUSchedule()(mod)
+
+    out = build_and_run(mod, [batched_queries, batched_keys, batched_values, seqstart_q], "cuda")
+
+    print(out)
+    print(ref)
 
 
 if __name__ == "__main__":
