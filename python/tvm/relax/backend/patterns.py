@@ -215,7 +215,10 @@ def make_attention_pattern(with_bias: bool = False, var_len: bool = False):
     Parameters
     ----------
     with_bias: bool
-        Whether or not to include bias addition
+        Whether or not to include bias addition.
+
+    var_len: bool
+        Whether or not to make a pattern for batched attention with variable sequence lengths.
 
     Returns
     -------
@@ -240,8 +243,17 @@ def make_attention_pattern(with_bias: bool = False, var_len: bool = False):
         seqstart_k = wildcard()
         max_seqlen_q = wildcard()
         max_seqlen_k = wildcard()
-        annotations.update({"seqstart_q": seqstart_q, "seqstart_k": seqstart_k, "max_seqlen_q": max_seqlen_q, "max_seqlen_k": max_seqlen_k})
-        out = is_op("relax.nn.attention_var_len")(query, key, value, seqstart_q, seqstart_k, max_seqlen_q, max_seqlen_k)
+        annotations.update(
+            {
+                "seqstart_q": seqstart_q,
+                "seqstart_k": seqstart_k,
+                "max_seqlen_q": max_seqlen_q,
+                "max_seqlen_k": max_seqlen_k,
+            }
+        )
+        out = is_op("relax.nn.attention_var_len")(
+            query, key, value, seqstart_q, seqstart_k, max_seqlen_q, max_seqlen_k
+        )
     else:
         out = is_op("relax.nn.attention")(query, key, value)
 
