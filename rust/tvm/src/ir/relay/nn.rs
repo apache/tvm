@@ -1,6 +1,5 @@
 use crate::runtime::array::Array;
 use crate::runtime::function::Result;
-use crate::runtime::map::Map;
 use crate::runtime::string::String as TVMString;
 use crate::runtime::{external, IsObjectRef, Object, ObjectRef};
 use crate::ir::PrimExpr;

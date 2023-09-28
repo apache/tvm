@@ -10,44 +10,44 @@ use crate::ir::tir::IntImm;
 
 external! {
     #[name("relay.op._make.argmax")]
-    fn argmax(data: Expr, axis: Array<IntImm>, keepdims: bool, exclude : bool, select_last_index: bool) -> Expr;
+    pub fn argmax(data: Expr, axis: Array<IntImm>, keepdims: bool, exclude : bool, select_last_index: bool) -> Expr;
 
     #[name("relay.op._make.argmin")]
-    fn argmin(data: Expr, axis: Array<IntImm>, keepdims: bool, exclude : bool, select_last_index: bool) -> Expr;
+    pub fn argmin(data: Expr, axis: Array<IntImm>, keepdims: bool, exclude : bool, select_last_index: bool) -> Expr;
 
     #[name("relay.op._make.sum")]
-    fn sum(data: Expr, axis: Array<IntImm>, keepdims: bool, exclude : bool) -> Expr;
+    pub fn sum(data: Expr, axis: Array<IntImm>, keepdims: bool, exclude : bool) -> Expr;
 
     #[name("relay.op._make.all")]
-    fn all(data: Expr, axis: Array<IntImm>, keepdims: bool, exclude : bool) -> Expr;
+    pub fn all(data: Expr, axis: Array<IntImm>, keepdims: bool, exclude : bool) -> Expr;
 
     #[name("relay.op._make.any")]
-    fn any(data: Expr, axis: Array<IntImm>, keepdims: bool, exclude : bool) -> Expr;
+    pub fn any(data: Expr, axis: Array<IntImm>, keepdims: bool, exclude : bool) -> Expr;
 
     #[name("relay.op._make.max")]
-    fn max(data: Expr, axis: Array<IntImm>, keepdims: bool, exclude : bool) -> Expr;
+    pub fn max(data: Expr, axis: Array<IntImm>, keepdims: bool, exclude : bool) -> Expr;
 
     #[name("relay.op._make.min")]
-    fn min(data: Expr, axis: Array<IntImm>, keepdims: bool, exclude : bool) -> Expr;
+    pub fn min(data: Expr, axis: Array<IntImm>, keepdims: bool, exclude : bool) -> Expr;
 
     #[name("relay.op._make.mean")]
-    fn mean(data: Expr, axis: Array<IntImm>, keepdims: bool, exclude : bool) -> Expr;
+    pub fn mean(data: Expr, axis: Array<IntImm>, keepdims: bool, exclude : bool) -> Expr;
 
     #[name("relay.op._make.variance")]
-    fn variance(data: Expr, axis: Array<IntImm>, keepdims: bool, exclude : bool, unbiased: bool, with_mean: bool) -> Expr;
+    pub fn variance(data: Expr, axis: Array<IntImm>, keepdims: bool, exclude : bool, unbiased: bool, with_mean: bool) -> Expr;
 
     #[name("relay.op._make.std")]
-    fn std(data: Expr, axis: Array<IntImm>, keepdims: bool, exclude : bool, unbiased: bool) -> Expr;
+    pub fn std(data: Expr, axis: Array<IntImm>, keepdims: bool, exclude : bool, unbiased: bool) -> Expr;
 
     #[name("relay.op._make.mean_variance")]
-    fn mean_variance(data: Expr, axis: Array<IntImm>, keepdims: bool, exclude : bool, unbiased: bool) -> Expr;
+    pub fn mean_variance(data: Expr, axis: Array<IntImm>, keepdims: bool, exclude : bool, unbiased: bool) -> Expr;
 
     #[name("relay.op._make.mean_std")]
-    fn mean_std(data: Expr, axis: Array<IntImm>, keepdims: bool, exclude : bool) -> Expr;
+    pub fn mean_std(data: Expr, axis: Array<IntImm>, keepdims: bool, exclude : bool) -> Expr;
 
     #[name("relay.op._make.prod")]
-    fn prod(data: Expr, axis: Array<IntImm>, keepdims: bool) -> Expr;
+    pub fn prod(data: Expr, axis: Array<IntImm>, keepdims: bool) -> Expr;
 
     #[name("relay.op._make.logsumexp")]
-    fn logsumexp(data: Expr, axis: Array<IntImm>, keepdims: bool) -> Expr;
+    pub fn logsumexp(data: Expr, axis: Array<IntImm>, keepdims: bool) -> Expr;
 }

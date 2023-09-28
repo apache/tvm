@@ -1,12 +1,11 @@
 use crate::runtime::array::Array;
-use crate::runtime::function::Result;
 use crate::runtime::map::Map;
 use crate::runtime::string::String as TVMString;
 use crate::runtime::{external, IsObjectRef, Object, ObjectRef};
 use crate::ir::PrimExpr;
 use crate::ir::relay::Expr;
 use crate::function::ffi::DLDataType;
-
+use crate::ir::tir::IntImm;
 
 external!{
     #[name("relay.op._make.log")]
@@ -216,4 +215,7 @@ external!{
 
     #[name("relay.op._make.isfinite")]
     pub fn isfinite(data: Expr) -> Expr;
+
+    #[name("relay.op._make.reshape")]
+    pub fn reshape(data: Expr, newshape: Array<PrimExpr>, allowzero: bool) -> Expr;
 }
