@@ -42,6 +42,12 @@ static void BufferDeleter(Object* obj) {
   delete ptr;
 }
 
+Storage::Storage(Buffer buffer) {
+  auto n = make_object<StorageObj>();
+  n->buffer = std::move(buffer);
+  data_ = std::move(n);
+}
+
 void StorageObj::Deleter(Object* obj) {
   auto* ptr = static_cast<NDArray::Container*>(obj);
   // When invoking AllocNDArray we don't own the underlying allocation

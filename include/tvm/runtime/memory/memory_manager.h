@@ -44,8 +44,6 @@ struct Buffer {
   void* data{nullptr};
   /*! \brief The size of the block. */
   size_t size{0};
-  /*! \brief The shape of the tensor. */
-  ShapeTuple shape;
   /*! \brief The context of the allocated buffers. */
   Device device;
 };
@@ -67,7 +65,7 @@ class Allocator {
    *  \return The empty NDArray.
    */
   NDArray Empty(ShapeTuple shape, DLDataType dtype, Device dev,
-                Optional<String> mem_scope = String());
+                Optional<String> mem_scope = NullOpt);
   /*! \brief Return the allocator type. */
   inline AllocatorType type() const { return type_; }
   /*! \brief Allocate a buffer given a size, alignment and type.

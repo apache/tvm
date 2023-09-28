@@ -50,7 +50,6 @@ class NaiveAllocator final : public Allocator {
   Buffer Alloc(ShapeTuple shape, DLDataType type_hint, const std::string& mem_scope) override {
     Buffer buf;
     size_t nbytes = 1;
-    buf.shape = shape;
     for (int i = 0; i < static_cast<int>(shape.size()); ++i) {
       nbytes *= static_cast<size_t>(shape[i]);
     }
