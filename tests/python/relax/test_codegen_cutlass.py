@@ -1997,23 +1997,47 @@ def test_batched_var_len_attention():
     class Module:
         @R.function
         def main(
-            query: R.Tensor(("num_tokens", 4096), dtype="float16"),
-            key: R.Tensor(("num_tokens", 4096), dtype="float16"),
-            value: R.Tensor(("num_tokens", 4096), dtype="float16"),
+            queries: R.Tensor(("num_tokens", 4096), dtype="float16"),
+            keys: R.Tensor(("num_tokens", 4096), dtype="float16"),
+            values: R.Tensor(("num_tokens", 4096), dtype="float16"),
             seqstart_q: R.Tensor(("num_seq",), dtype="int32"),
         ) -> R.Tensor(("num_tokens", 4096), dtype="float16"):
             cls = Module
             num_tokens = T.int64()
             with R.dataflow():
                 max_seqlen_q = R.max(seqstart_q)
-                q = R.reshape(query, R.shape([1, num_tokens, 128, 32]))
-                k = R.reshape(key, R.shape([1, num_tokens, 128, 32]))
-                v = R.reshape(value, R.shape([1, num_tokens, 128, 32]))
+                q = R.reshape(queries, R.shape([1, num_tokens, 128, 32]))
+                k = R.reshape(keys, R.shape([1, num_tokens, 128, 32]))
+                v = R.reshape(values, R.shape([1, num_tokens, 128, 32]))
                 attn_out = R.nn.attention(q, k, v, seqstart_q=seqstart_q, max_seqlen_q=max_seqlen_q)
                 out = R.reshape(attn_out, R.shape([num_tokens, 4096]))
                 R.output(out)
             return out
 
+    seq_lens = [5, 3, 8]
+    num_head = 128
+    head_size = 32
+    hidden_size = num_head * head_size
+
+    batched_queries = []
+    batched_keys = []
+    batched_values = []
+    batched_refs = []
+
+    for s in seq_lens:
+        q, k, v, _, ref = get_numpy_attention_ref(1, s, s, num_head, head_size, head_size, "none", "none", "none", "float16")
+        batched_queries.append(np.reshape(q, [-1, hidden_size]))
+        batched_keys.append(np.reshape(k, [-1, hidden_size]))
+        batched_values.append(np.reshape(v, [-1, hidden_size]))
+        batched_refs.append(np.reshape(ref, [-1, hidden_size]))
+
+    batched_queries = np.vstack(batched_queries)
+    batched_keys = np.vstack(batched_keys)
+    batched_values = np.vstack(batched_values)
+    batched_refs = np.vstack(batched_refs)
+
+    seqstart_q = np.insert(np.cumsum(seq_lens), 0, 0)
+    print(seqstart_q)
 
     mod = partition_for_cutlass(Module)
     codegen_pass = relax.transform.RunCodegen({"cutlass": {"sm": 80}})
