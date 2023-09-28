@@ -2002,7 +2002,7 @@ def test_batched_var_len_attention():
             values: R.Tensor(("num_tokens", 4096), dtype="float16"),
             # TODO(masahi): Ideally, we want to pass seq_lens as an input and compute seqstart_q
             # and max_seq_len_q inside the model. This is currently not possible since
-            # the legalization of the Relax cumsum op is currently broken.
+            # the legalization of the Relax cumsum op is broken.
             # seq_lens: R.Tensor(("num_seq",), dtype="int32"),
             seqstart_q: R.Tensor(("num_seq_plus_1",), dtype="int32"),
             max_seqlen_q: R.Tensor((), dtype="int32"),

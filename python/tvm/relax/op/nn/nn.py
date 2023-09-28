@@ -1337,9 +1337,9 @@ def attention_var_len(
     result : relax.Expr
         The computed result with shape (1, total_seq_len, num_head, head_dim_v).
     """
-    if seqstart_k == None:
+    if seqstart_k is None:
         seqstart_k = seqstart_q
-    if max_seqlen_k == None:
+    if max_seqlen_k is None:
         max_seqlen_k = max_seqlen_q
     return _ffi_api.attention(
         queries,
