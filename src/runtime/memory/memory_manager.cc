@@ -76,7 +76,7 @@ inline size_t GetDataAlignment(const DLTensor& arr) {
   return align;
 }
 
-NDArray StorageObj::AllocNDArray(size_t offset, std::vector<int64_t> shape, DLDataType dtype) {
+NDArray StorageObj::AllocNDArray(size_t offset, ShapeTuple shape, DLDataType dtype) {
   VerifyDataType(dtype);
 
   // crtical zone: allocate header, cannot throw
@@ -154,7 +154,7 @@ Allocator* MemoryManager::GetAllocator(Device dev) {
   return it->second.get();
 }
 
-NDArray Allocator::Empty(std::vector<int64_t> shape, DLDataType dtype, DLDevice dev,
+NDArray Allocator::Empty(ShapeTuple shape, DLDataType dtype, DLDevice dev,
                          Optional<String> mem_scope) {
   VerifyDataType(dtype);
   NDArray::Container* container = new NDArray::Container(nullptr, shape, dtype, dev);
@@ -165,7 +165,7 @@ NDArray Allocator::Empty(std::vector<int64_t> shape, DLDataType dtype, DLDevice 
   if (!mem_scope.defined() || mem_scope == "global") {
     *buffer = this->Alloc(size, alignment, dtype);
   } else {
-    *buffer = this->Alloc(shape.size(), shape.data(), dtype, mem_scope.value());
+    *buffer = this->Alloc(shape.size(), const_cast<int64_t*>(shape.data()), dtype, mem_scope.value());
   }
   container->manager_ctx = reinterpret_cast<void*>(buffer);
   container->dl_tensor.data = buffer->data;

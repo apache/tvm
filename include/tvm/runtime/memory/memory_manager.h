@@ -66,8 +66,7 @@ class Allocator {
    *  \param mem_scope The device memory scope hint.
    *  \return The empty NDArray.
    */
-  NDArray Empty(std::vector<int64_t> shape, DLDataType dtype, Device dev,
-                Optional<String> mem_scope);
+  NDArray Empty(ShapeTuple shape, DLDataType dtype, Device dev, Optional<String> mem_scope);
   /*! \brief Return the allocator type. */
   inline AllocatorType type() const { return type_; }
   /*! \brief Allocate a buffer given a size, alignment and type.
@@ -135,7 +134,7 @@ class StorageObj : public Object {
   Buffer buffer;
 
   /*! \brief Allocate an NDArray from a given piece of storage. */
-  NDArray AllocNDArray(size_t offset, std::vector<int64_t> shape, DLDataType dtype);
+  NDArray AllocNDArray(size_t offset, ShapeTuple shape, DLDataType dtype);
 
   /*! \brief The deleter for an NDArray when allocated from underlying storage. */
   static void Deleter(Object* ptr);

@@ -94,8 +94,8 @@ inline ObjectRef CopyTo(ObjectRef src, const DLDevice& dev, Optional<String> mem
   }
 }
 
-std::vector<int64_t> ToShape(NDArray shape_tensor) {
-  std::vector<int64_t> shape;
+ShapeTuple ToShape(NDArray shape_tensor) {
+  std::vector<ShapeTuple::index_type> shape;
   auto rank = shape_tensor.Shape().size();
   auto dtype = shape_tensor.DataType();
 
@@ -121,7 +121,7 @@ std::vector<int64_t> ToShape(NDArray shape_tensor) {
     LOG(FATAL) << "invalid shape tensor datatype: " << dtype;
   }
 
-  return shape;
+  return ShapeTuple(shape);
 }
 
 void VirtualMachine::OpStartHook(Instruction instr) {}
