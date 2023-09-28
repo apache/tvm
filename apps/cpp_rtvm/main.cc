@@ -226,26 +226,26 @@ int ExecuteModel(ToolArgs& args) {
 #endif
 
   // Initialize TVM Runner
-  TVMRunner runner = TVMRunner(args.model, args.device);
+  auto runner = new TVMRunner(args.model, args.device);
 
   // Load the model
-  runner.Load();
+  runner->Load();
   if (!args.pre_compiled.empty()) {
-    runner.UsePreCompiledPrograms(args.pre_compiled);
+    runner->UsePreCompiledPrograms(args.pre_compiled);
   }
 
   // Query Model meta Information
-  TVMMetaInfo mInfo = runner.GetMetaInfo();
+  TVMMetaInfo mInfo = runner->GetMetaInfo();
 
   // Print Meta Information
-  if (args.dump_meta) runner.PrintMetaInfo();
+  if (args.dump_meta) runner->PrintMetaInfo();
 
   int total_exec_time = 0;
 
   if (args.profile) {
     if (args.dry_run) {
       for (int ii = 0; ii < args.dry_run; ++ii) {
-        runner.Run();
+        runner->Run();
       }
       TVMSynchronize(GetTVMDevice(args.device), 0, nullptr);
     }
@@ -269,7 +269,7 @@ int ExecuteModel(ToolArgs& args) {
                            DLDevice{GetTVMDevice(args.device), 0});
         input_data_odd.insert({elem.first, ndarr});
       } else {
-        char* data = (char*)malloc(runner.GetInputMemSize(elem.first));
+        char* data = (char*)malloc(runner->GetInputMemSize(elem.first));
         input_data.insert({elem.first, data});
       }
     }
@@ -287,7 +287,7 @@ int ExecuteModel(ToolArgs& args) {
                            DLDevice{GetTVMDevice(args.device), 0});
         output_data_odd.insert({elem.first, ndarr});
       } else {
-        char* data = (char*)malloc(runner.GetOutputMemSize(elem.first));
+        char* data = (char*)malloc(runner->GetOutputMemSize(elem.first));
         output_data.insert({elem.first, data});
       }
     }
@@ -299,12 +299,12 @@ int ExecuteModel(ToolArgs& args) {
       for (auto& elem : mInfo.input_info) {
         if (args.zero_copy) {
           if (ii % 2) {
-            runner.SetInput(elem.first, input_data_even[elem.first]);
+            runner->SetInput(elem.first, input_data_even[elem.first]);
           } else {
-            runner.SetInput(elem.first, input_data_odd[elem.first]);
+            runner->SetInput(elem.first, input_data_odd[elem.first]);
           }
         } else {
-          runner.SetInput(elem.first, input_data[elem.first]);
+          runner->SetInput(elem.first, input_data[elem.first]);
         }
       }
 
@@ -312,20 +312,20 @@ int ExecuteModel(ToolArgs& args) {
         // With zero copy set the result NDArray up front
         for (auto& elem : mInfo.output_info) {
           if (ii % 2) {
-            runner.SetOutput(elem.first, output_data_even[elem.first]);
+            runner->SetOutput(elem.first, output_data_even[elem.first]);
           } else {
-            runner.SetOutput(elem.first, output_data_odd[elem.first]);
+            runner->SetOutput(elem.first, output_data_odd[elem.first]);
           }
         }
       }
 
       // Run the model
-      runner.Run();
+      runner->Run();
 
       if (!args.zero_copy) {
         // W/o zero copy we need to invoke explicite data copy
         for (auto& elem : mInfo.output_info) {
-          runner.GetOutput(elem.first, output_data[elem.first]);
+          runner->GetOutput(elem.first, output_data[elem.first]);
         }
       } else {
         // Just wait for the run to complete.
@@ -350,32 +350,32 @@ int ExecuteModel(ToolArgs& args) {
   } else if (!args.input.empty() && !args.output.empty()) {
     LOG(INFO) << "Executing with Input:" << args.input << " Output:" << args.output;
     // Set Input from Numpy Input
-    runner.SetInput(args.input);
+    runner->SetInput(args.input);
     // Run the model
-    runner.Run();
+    runner->Run();
     // Get Output as Numpy dump
-    runner.GetOutput(args.output);
+    runner->GetOutput(args.output);
   } else {
     LOG(INFO) << "Executing dry run ... ";
     // Set random input for all inputs
     for (auto& elem : mInfo.input_info) {
       LOG(INFO) << "Set Random Input for :" << elem.first;
       auto shape = elem.second.first;
-      size_t ssize = runner.GetInputMemSize(elem.first);
+      size_t ssize = runner->GetInputMemSize(elem.first);
       char* data = (char*)malloc(ssize);
       LOG(INFO) << "Random Input Size:" << ssize << "  bytes";
-      runner.SetInput(elem.first, data);
+      runner->SetInput(elem.first, data);
       free(data);
     }
     // Run the model
-    runner.Run();
+    runner->Run();
     // Get Output and dump few values
     for (auto& elem : mInfo.output_info) {
       LOG(INFO) << "Get Output for :" << elem.first;
       auto shape = elem.second.first;
-      size_t ssize = runner.GetOutputMemSize(elem.first);
+      size_t ssize = runner->GetOutputMemSize(elem.first);
       char* data = (char*)malloc(ssize);
-      runner.GetOutput(elem.first, data);
+      runner->GetOutput(elem.first, data);
       LOG(INFO) << "Output Size:" << ssize << "  bytes";
       free(data);
     }
@@ -383,10 +383,10 @@ int ExecuteModel(ToolArgs& args) {
 
   if (args.profile) {
     // Print Stats
-    runner.PrintStats();
+    runner->PrintStats();
   }
   auto tstart = std::chrono::high_resolution_clock::now();
-  runner.~TVMRunner();
+  delete runner;
   auto tend = std::chrono::high_resolution_clock::now();
 
   if (args.profile) {
