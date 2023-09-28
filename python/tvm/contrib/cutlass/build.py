@@ -862,6 +862,8 @@ class CutlassRelaxFunctionAnnotator(relax.PyExprMutator):
     def handle_attention(self, f, op_type):
         """Annotate an attention op."""
         signature = _extract_relax_function_signature(f)
+        arg_idx = _extract_arg_idx(op_type, f)
+
         if _get_call_node(f.body, "relax.nn.attention") is not None:
             op_attrs = _get_call_node(f.body, "relax.nn.attention").attrs
         elif _get_call_node(f.body, "relax.nn.attention_bias") is not None:
@@ -925,25 +927,29 @@ class CutlassRelaxFunctionAnnotator(relax.PyExprMutator):
         else:
             raise NotImplementedError()
 
-        return f.with_attrs(
-            {
-                "op_type": op_type,
-                "ret_dtype": out_dtype,
-                "ret_shape": out_shape,
-                "num_batches": num_batches,
-                "num_queries": num_queries,
-                "num_keys": num_keys,
-                "num_q_heads": num_q_heads,
-                "num_kv_heads": num_kv_heads,
-                "head_dim": head_dim,
-                "head_dim_value": head_dim_value,
-                "scale": scale,
-                "arch": self.options["sm"],
-                "qkv_layout": qkv_layout,
-                "custom_mask_type": custom_mask_type,
-                **arg,
-            }
-        )
+        attrs = {
+            "op_type": op_type,
+            "ret_dtype": out_dtype,
+            "ret_shape": out_shape,
+            "num_batches": num_batches,
+            "num_queries": num_queries,
+            "num_keys": num_keys,
+            "num_q_heads": num_q_heads,
+            "num_kv_heads": num_kv_heads,
+            "head_dim": head_dim,
+            "head_dim_value": head_dim_value,
+            "scale": scale,
+            "arch": self.options["sm"],
+            "qkv_layout": qkv_layout,
+            "custom_mask_type": custom_mask_type,
+            **arg,
+        }
+
+        for arg in ["seqstart_q", "seqstart_k", "max_seqlen_q", "max_seqlen_k"]:
+            if arg in arg_idx:
+                attrs[arg + "_idx"] = arg_idx[arg]
+
+        return f.with_attrs(attrs)
 
     def handle_norm(self, f, _):
         """Annotate a layer or rms norm op."""

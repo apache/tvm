@@ -34,7 +34,7 @@ def instantiate_attention_template(attrs):
 
     var_len_template = """
   p.seqstart_q_ptr = (int32_t*)${seqstart_q}->data;
-  p.seqstart_k_ptr = (int32_t*)${seqstart_q}->data;
+  p.seqstart_k_ptr = (int32_t*)${seqstart_k}->data;
   // TODO(masahi): Pass max_seqlen_q as an integer
   cudaMemcpy(&p.num_queries, (int32_t*)${max_seqlen_q}->data, sizeof(int32_t),
              cudaMemcpyDeviceToHost);

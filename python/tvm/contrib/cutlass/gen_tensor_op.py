@@ -754,8 +754,10 @@ def instantiate_template(func_name, annotations, func_args):
         )
 
         if is_var_len:
-            attrs["seqstart_q"] = func_args[3]
-            attrs["max_seqlen_q"] = func_args[4]
+            attrs["seqstart_q"] = func_args[int(annotations["seqstart_q_idx"])]
+            attrs["seqstart_k"] = func_args[int(annotations["seqstart_k_idx"])]
+            attrs["max_seqlen_q"] = func_args[int(annotations["max_seqlen_q_idx"])]
+            attrs["max_seqlen_k"] = func_args[int(annotations["max_seqlen_k_idx"])]
 
         is_mqa = annotations["num_q_heads"] != annotations["num_kv_heads"]
 
