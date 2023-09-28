@@ -752,6 +752,10 @@ def instantiate_template(func_name, annotations, func_args):
             float(1 / math.sqrt(h.value)) if annotations["scale"] is None else annotations["scale"]
         )
 
+        if "seqstart_q" in annotations:
+            attrs["seqstart_q"] = func_args[3]
+            attrs["max_seq_q"] = func_args[4]
+
         is_mqa = annotations["num_q_heads"] != annotations["num_kv_heads"]
 
         use_flash = (
@@ -769,6 +773,7 @@ def instantiate_template(func_name, annotations, func_args):
             )
             # Flash v2 is currently not supported for sm < 80
             and int(annotations["arch"]) >= 80
+            and "seqstart_q" not in annotations
         )
 
         if use_flash:
