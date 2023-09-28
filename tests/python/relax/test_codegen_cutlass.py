@@ -2092,5 +2092,4 @@ def test_batched_var_len_attention():
 
 
 if __name__ == "__main__":
-    # tvm.testing.main()
-    test_batched_var_len_attention()
+    tvm.testing.main()

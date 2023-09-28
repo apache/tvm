@@ -482,6 +482,11 @@ def _nn_attention_bias(bb: BlockBuilder, call: Call) -> Expr:
     )
 
 
+@register_legalize("relax.nn.attention_var_len")
+def _nn_attention_var_len(bb: BlockBuilder, call: Call) -> Expr:
+    raise RuntimeError("Legalization of attention_var_len op is not supported yet.")
+
+
 @register_legalize("relax.nn.nll_loss")
 def _nn_nll_loss(bb: BlockBuilder, call: Call) -> Expr:
     def nll_loss_without_weight(predictions, targets, reduction, ignore_index):
