@@ -22,8 +22,6 @@
 #include <utility>
 #include <vector>
 
-#include "tvm/runtime/container/optional.h"
-
 namespace tvm {
 namespace relax {
 
@@ -38,7 +36,10 @@ Expr attention(Expr query, Expr key, Expr value, Optional<Expr> bias, Optional<F
   attrs->causal_mask = causal_mask;
 
   if (seqstart_q) {
-    ICHECK(!bias) << "Var len with bias not supported for now";
+    ICHECK(!bias) << "Bias not supported for batched attention with variable sequence lengths.";
+    ICHECK(seqstart_k) << "seqstart_k needs to be passed.";
+    ICHECK(max_seqlen_q) << "max_seqlen_q needs to be passed.";
+    ICHECK(max_seqlen_k) << "max_seqlen_k needs to be passed.";
     return Call(Op::Get("relax.nn.attention_var_len"),
                 {query, key, value, seqstart_q.value(), seqstart_k.value(), max_seqlen_q.value(),
                  max_seqlen_k.value()},
@@ -168,10 +169,10 @@ TVM_REGISTER_OP("relax.nn.attention_var_len")
     .add_argument("query", "Tensor", "The input queries tensor.")
     .add_argument("key", "Tensor", "The input keys tensor.")
     .add_argument("value", "Tensor", "The input values tensor.")
-    .add_argument("seqstart_q", "Tensor", "TODO")
-    .add_argument("seqstart_k", "Tensor", "TODO")
-    .add_argument("max_seqlen_q", "Tensor", "TODO")
-    .add_argument("max_seqlen_k", "Tensor", "TODO")
+    .add_argument("seqstart_q", "Tensor", "The cumsum of query sequence lengths, prepended with 0.")
+    .add_argument("seqstart_k", "Tensor", "The cumsum of key sequence lengths, prepended with 0.")
+    .add_argument("max_seqlen_q", "Tensor", "The maximum query sequence length in the batch.")
+    .add_argument("max_seqlen_k", "Tensor", "The maximum key sequence length in the batch.")
     .set_attr<TMixedPrecisionPolicy>("TMixedPrecisionPolicy", MixedPrecisionPolicyKind::kAlways)
     .set_attr<FInferMixedPrecision>("FInferMixedPrecision", InferMixedPrecisionAttention)
     .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoAttention)

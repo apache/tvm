@@ -2013,13 +2013,13 @@ def test_batched_var_len_attention():
                 q = R.reshape(queries, R.shape([1, num_tokens, 128, 32]))
                 k = R.reshape(keys, R.shape([1, num_tokens, 128, 32]))
                 v = R.reshape(values, R.shape([1, num_tokens, 128, 32]))
-                attn_out = R.nn.attention(
+                attn_out = R.nn.attention_var_len(
                     q,
                     k,
                     v,
+                    seqstart_q,
+                    max_seqlen_q,
                     causal_mask="BottomRight",
-                    seqstart_q=seqstart_q,
-                    max_seqlen_q=max_seqlen_q,
                 )
                 out = R.reshape(attn_out, R.shape([num_tokens, 4096]))
                 R.output(out)
