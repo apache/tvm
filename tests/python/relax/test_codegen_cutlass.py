@@ -2017,9 +2017,6 @@ def test_batched_var_len_attention():
     seq_lens = [5, 3, 8]
     num_head = 128
     head_size = 32
-    # seq_lens = [6, 8, 6, 6]
-    # num_head = 12
-    # head_size = 64
 
     hidden_size = num_head * head_size
 
@@ -2029,7 +2026,9 @@ def test_batched_var_len_attention():
     batched_refs = []
 
     for s in seq_lens:
-        q, k, v, _, ref = get_numpy_attention_ref(1, s, s, num_head, head_size, head_size, "none", "none", "none", "float16")
+        q, k, v, _, ref = get_numpy_attention_ref(
+            1, s, s, num_head, head_size, head_size, "none", "none", "none", "float16"
+        )
         batched_queries.append(np.reshape(q, [-1, hidden_size]))
         batched_keys.append(np.reshape(k, [-1, hidden_size]))
         batched_values.append(np.reshape(v, [-1, hidden_size]))
@@ -2038,7 +2037,7 @@ def test_batched_var_len_attention():
     batched_queries = np.vstack(batched_queries)
     batched_keys = np.vstack(batched_keys)
     batched_values = np.vstack(batched_values)
-    batched_refs = np.vstack(batched_refs)
+    ref = np.vstack(batched_refs)
 
     seqstart_q = np.insert(np.cumsum(seq_lens), 0, 0).astype(np.int32)
 
@@ -2053,21 +2052,7 @@ def test_batched_var_len_attention():
 
     out = build_and_run(mod, [batched_queries, batched_keys, batched_values, seqstart_q], "cuda")
 
-    print(np.abs(np.mean(out - batched_refs)))
-
-    # attn_bias = BlockDiagonalMask.from_seqlens(seq_lens)
-
-    # queries = torch.from_numpy(np.reshape(batched_queries, [1, -1, num_head, head_size])).to("cuda")
-    # keys = torch.from_numpy(np.reshape(batched_keys, [1, -1, num_head, head_size])).to("cuda")
-    # values = torch.from_numpy(np.reshape(batched_values, [1, -1, num_head, head_size])).to("cuda")
-
-    # with torch.no_grad():
-    #     out = xops.memory_efficient_attention_forward(
-    #         queries, keys, values,
-    #         attn_bias=attn_bias,
-    #     ).cpu().numpy()[0]
-
-    #     print(np.abs(np.mean(np.reshape(out, [-1, hidden_size]) - batched_refs)))
+    tvm.testing.assert_allclose(out, ref, rtol=1e-2, atol=1e-2)
 
 
 if __name__ == "__main__":
