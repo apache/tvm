@@ -78,7 +78,7 @@ class TestMatmulTensorize(BaseBeforeAfter):
                                     T.writes(compute_reindex_shared_dyn_wmma_accumulator[0, v1_o * 16:v1_o * 16 + 16, v2_o * 16:v2_o * 16 + 16])
                                     C = T.match_buffer(compute_reindex_shared_dyn_wmma_accumulator[0, v1_o * 16:v1_o * 16 + 16, v2_o * 16:v2_o * 16 + 16], (16, 16), "float16", strides=("C_s0", "C_s1"), scope="wmma.accumulator", offset_factor=16)
                                     T.tvm_fill_fragment(C.data, 16, 16, 16, C.elem_offset // C.strides[0] // 16 * (C.strides[0] // 16) + C.elem_offset % C.strides[0] // 16, T.float32(0))
-                        for ax3_0_0 in range(4):
+                        for ax3_0_0 in range(4, annotations={"software_pipeline_order": [0, 3, 1, 4, 5, 2, 6], "software_pipeline_stage": [0, 0, 0, 0, 0, 1, 1]}):
                             for ax0_ax1_fused_0 in range(4):
                                 for ax0_ax1_fused_1 in T.thread_binding(16, thread="threadIdx.y"):
                                     for ax0_ax1_fused_2 in T.thread_binding(32, thread="threadIdx.x"):
@@ -89,7 +89,7 @@ class TestMatmulTensorize(BaseBeforeAfter):
                                                 v2 = T.axis.spatial(256, ax3_0_0 * 64 + (ax0_ax1_fused_0 * 2048 + ax0_ax1_fused_1 * 128 + ax0_ax1_fused_2 * 4 + ax0_ax1_fused_3) % 64)
                                                 T.reads(X[v1, v2])
                                                 T.writes(X_reindex_shared_dyn[v0, v1, v2])
-                                                T.block_attr({"buffer_dim_align": [[0, 1, 16, 8]]})
+                                                T.block_attr({"buffer_dim_align": [[0, 1, 16, 8]], "double_buffer_scope": 0, "tir.manifest_shared_memory_local_stage": 1})
                                                 X_reindex_shared_dyn[v0, v1, v2] = X[v1, v2]
                             for ax0_ax1_fused_0 in range(4):
                                 for ax0_ax1_fused_1 in T.thread_binding(16, thread="threadIdx.y"):
@@ -101,9 +101,9 @@ class TestMatmulTensorize(BaseBeforeAfter):
                                                 v2 = T.axis.spatial(256, ax3_0_0 * 64 + (ax0_ax1_fused_0 * 2048 + ax0_ax1_fused_1 * 128 + ax0_ax1_fused_2 * 4 + ax0_ax1_fused_3) % 64)
                                                 T.reads(W[v1, v2])
                                                 T.writes(W_reindex_shared_dyn[v0, v1, v2])
-                                                T.block_attr({"buffer_dim_align": [[0, 1, 16, 8]]})
+                                                T.block_attr({"buffer_dim_align": [[0, 1, 16, 8]], "double_buffer_scope": 0, "tir.manifest_shared_memory_local_stage": 1})
                                                 W_reindex_shared_dyn[v0, v1, v2] = W[v1, v2]
-                            for ax3_0_1 in range(4):
+                            for ax3_0_1 in range(4, annotations={"software_pipeline_order": [0, 1, 2], "software_pipeline_stage": [0, 0, 1]}):
                                 for ax0_0 in T.unroll(2):
                                     for ax1_0 in T.unroll(1):
                                         with T.block("X_reindex_shared.dyn_wmma.matrix_a_o"):
@@ -334,7 +334,7 @@ class TestMatmulTensorizeEpilogue(BaseBeforeAfter):
                                     T.writes(var_NT_matmul_intermediate_reindex_pad_shared_dyn_wmma_accumulator[0, v1_o * 16:v1_o * 16 + 16, v2_o * 16:v2_o * 16 + 16])
                                     C = T.match_buffer(var_NT_matmul_intermediate_reindex_pad_shared_dyn_wmma_accumulator[0, v1_o * 16:v1_o * 16 + 16, v2_o * 16:v2_o * 16 + 16], (16, 16), "float16", strides=("C_s0", "C_s1"), scope="wmma.accumulator", offset_factor=16)
                                     T.tvm_fill_fragment(C.data, 16, 16, 16, C.elem_offset // C.strides[0] // 16 * (C.strides[0] // 16) + C.elem_offset % C.strides[0] // 16, T.float32(0))
-                        for ax3_0_0 in range(32):
+                        for ax3_0_0 in range(32, annotations={"software_pipeline_order": [0, 3, 1, 4, 5, 2, 6], "software_pipeline_stage": [0, 0, 0, 0, 0, 1, 1]}):
                             for ax0_ax1_fused_0 in range(4):
                                 for ax0_ax1_fused_1 in T.thread_binding(16, thread="threadIdx.y"):
                                     for ax0_ax1_fused_2 in T.thread_binding(32, thread="threadIdx.x"):
@@ -345,7 +345,7 @@ class TestMatmulTensorizeEpilogue(BaseBeforeAfter):
                                                 v2 = T.axis.spatial(2048, ax3_0_0 * 64 + (ax0_ax1_fused_0 * 2048 + ax0_ax1_fused_1 * 128 + ax0_ax1_fused_2 * 4 + ax0_ax1_fused_3) % 64)
                                                 T.reads(lv42[v0, v1, v2])
                                                 T.writes(lv42_reindex_pad_shared_dyn[v0, v1, v2])
-                                                T.block_attr({"buffer_dim_align": [[0, 1, 16, 8]]})
+                                                T.block_attr({"buffer_dim_align": [[0, 1, 16, 8]], "double_buffer_scope": 0, "tir.manifest_shared_memory_local_stage": 1})
                                                 lv42_reindex_pad_shared_dyn[v0, v1, v2] = T.if_then_else(v1 < n, lv42[v0, v1, v2], T.float16(0))
                             for ax0_ax1_fused_0 in range(4):
                                 for ax0_ax1_fused_1 in T.thread_binding(16, thread="threadIdx.y"):
@@ -357,9 +357,9 @@ class TestMatmulTensorizeEpilogue(BaseBeforeAfter):
                                                 v2 = T.axis.spatial(2048, ax3_0_0 * 64 + (ax0_ax1_fused_0 * 2048 + ax0_ax1_fused_1 * 128 + ax0_ax1_fused_2 * 4 + ax0_ax1_fused_3) % 64)
                                                 T.reads(lv686[v1, v2 // 8], lv687[v1, v2 // 32])
                                                 T.writes(p_output0_intermediate_1_reindex_shared_dyn[v0, v1, v2])
-                                                T.block_attr({"buffer_dim_align": [[0, 1, 16, 8]]})
+                                                T.block_attr({"buffer_dim_align": [[0, 1, 16, 8]], "double_buffer_scope": 0, "tir.manifest_shared_memory_local_stage": 1})
                                                 p_output0_intermediate_1_reindex_shared_dyn[v0, v1, v2] = (T.Cast("float16", T.bitwise_and(T.shift_right(lv686[v1, v2 // 8], T.Cast("uint32", v2 % 8) * T.uint32(4)), T.uint32(15))) - T.float16(7)) * lv687[v1, v2 // 32]
-                            for ax3_0_1 in range(4):
+                            for ax3_0_1 in range(4, annotations={"software_pipeline_order": [0, 1, 2], "software_pipeline_stage": [0, 0, 1]}):
                                 for ax0_0 in T.unroll(2):
                                     for ax1_0 in T.unroll(1):
                                         with T.block("lv42_reindex_pad_shared.dyn_wmma.matrix_a_o"):
