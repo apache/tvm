@@ -368,6 +368,26 @@ def StaticPlanBlockMemory() -> tvm.ir.transform.Pass:
     return _ffi_api.StaticPlanBlockMemory()  # type: ignore
 
 
+def LowerAllocTensor() -> tvm.ir.transform.Pass:
+    """Lower remaining instances of R.builtin.alloc_tensor
+
+    The static memory planner removes static instances of
+    `R.builtin.alloc_tensor`, replacing with `R.memory.alloc_storage`
+    and `R.memory.alloc_tensor`.  However, `R.builtin.alloc_tensor`
+    still remains for any dynamic allocations.
+
+    This transform replaces any remaining `R.builtin.alloc_tensor`
+    instances with `R.memory.alloc_storage` and
+    `R.memory.alloc_tensor`.  If no `R.builtin.alloc_tensor` are
+    present, this pass has no effect.
+
+    Returns
+    -------
+    ret : tvm.ir.transform.Pass
+    """
+    return _ffi_api.LowerAllocTensor()  # type: ignore
+
+
 def KillAfterLastUse() -> tvm.ir.transform.Pass:
     """Drop all tensor/storage objects after last use
 
