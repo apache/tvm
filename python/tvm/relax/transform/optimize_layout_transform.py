@@ -20,7 +20,7 @@ from tvm.ir import structural_equal
 from tvm.ir.module import IRModule
 from tvm.ir.transform import PassContext
 from tvm.relax import Expr, Function
-from tvm.relax.dpl import *
+from tvm.relax.dpl import is_op, rewrite_call, wildcard, TuplePattern
 from . import function_pass
 
 
