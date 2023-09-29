@@ -168,7 +168,7 @@ NDArray Allocator::Empty(ShapeTuple shape, DLDataType dtype, DLDevice dev,
   size_t size = DeviceAPI::Get(dev)->GetDataSize(container->dl_tensor);
   size_t alignment = GetDataAlignment(container->dl_tensor);
   Buffer* buffer = new Buffer;
-  if (!mem_scope.defined() || mem_scope == "global") {
+  if (!mem_scope.defined() || mem_scope.value().empty() || mem_scope.value() == "global") {
     *buffer = this->Alloc(size, alignment, dtype);
   } else {
     *buffer = this->Alloc(shape, dtype, mem_scope.value());
