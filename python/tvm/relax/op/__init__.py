@@ -95,6 +95,7 @@ from .manipulate import (
     tile,
 )
 from .mask import masked_fill
+from .qdq import quantize, dequantize
 from .search import argmax, argmin, where
 from .set import unique
 from .statistical import cumsum, max, mean, min, prod, std, sum, variance
