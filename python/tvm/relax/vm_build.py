@@ -314,8 +314,8 @@ def build(
     if tvm.transform.PassContext.current().config.get("relax.backend.use_cuda_graph", False):
         passes.append(relax.transform.RewriteCUDAGraph())
 
-    passes.append(relax.transform.KillAfterLastUse())
     passes.append(relax.transform.LowerAllocTensor())
+    passes.append(relax.transform.KillAfterLastUse())
 
     passes.append(relax.transform.VMBuiltinLower())
     passes.append(relax.transform.VMShapeLower())
