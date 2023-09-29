@@ -115,6 +115,7 @@ TEST_F(TvmVMMemoryManagerTest, NaiveAllocWithShape) {
 
   try {
     auto texture = allocator->Alloc(shape, dt, "global.texture");
+    (void) texture;
     FAIL();
   } catch (std::exception& e) {
     std::string pattern =
@@ -140,6 +141,7 @@ TEST_F(TvmVMMemoryManagerTest, PooledAllocWithShape) {
 
   try {
     auto texture = allocator->Alloc(shape, dt, "global.texture");
+    (void) texture;
     FAIL();
   } catch (std::exception& e) {
     std::string pattern = "This alloc should be implemented";
@@ -192,6 +194,7 @@ TEST_F(TvmVMMemoryManagerTest, PooledAllocOpenCLTexture) {
 
   try {
     auto texture = allocator->Alloc(shape, dt, "global.texture");
+    (void) texture;
     FAIL();
   } catch (std::exception& e) {
     std::string pattern = "This alloc should be implemented";
