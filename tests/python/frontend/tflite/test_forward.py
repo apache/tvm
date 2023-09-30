@@ -2873,7 +2873,7 @@ def _test_elemwise_qnn_out_range(qnn_op):
         _test_less: (-150, 150),
         _test_floor_mod: (-150, 150),
         _test_not_equal: (-150, 150),
-        _test_pow: (0, 3e38),
+        _test_pow: (0, 3),
         _test_less_equal: (-150, 150),
         _test_greater_equal: (-150, 150),
     }
