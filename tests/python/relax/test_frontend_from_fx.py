@@ -3073,11 +3073,11 @@ def test_cat():
     class Cat1(Module):
         def forward(self, x, y):
             return torch.cat((x, y), dim=1)
-        
+
     class Cat2(Module):
         def forward(self, x, y):
             return torch.cat((x, y), 1)
-        
+ 
     class Cat3(Module):
         def forward(self, x, y):
             return torch.concat((x, y), dim=0)
@@ -3094,7 +3094,7 @@ def test_cat():
                 gv: R.Tensor((4, 3), dtype="float32") = lv
                 R.output(gv)
             return gv
-        
+
     @I.ir_module
     class Expected2:
         @R.function
