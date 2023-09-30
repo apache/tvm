@@ -2483,7 +2483,7 @@ def _test_elemwise(
 
             if exclude_zero_point:
                 if inq1_max == inq1_min:
-                    raise ZeroDivisionError('Input range is 0.')
+                    raise ZeroDivisionError("Input range is 0.")
 
                 # only compute for rhs.
                 quant_scale = 255 / (inq1_max - inq1_min)
