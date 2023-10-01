@@ -3077,7 +3077,7 @@ def test_cat():
     class Cat2(Module):
         def forward(self, x, y):
             return torch.cat((x, y), 1)
- 
+
     class Cat3(Module):
         def forward(self, x, y):
             return torch.concat((x, y), dim=0)
