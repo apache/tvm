@@ -1993,6 +1993,9 @@ def test_attention_rewrite_multi_query():
 
 
 def test_batched_var_len_attention():
+    if not tvm.get_global_func("tvm.contrib.thrust.sum_scan", True):
+        return
+
     @I.ir_module
     class Module:
         @R.function
@@ -2000,16 +2003,19 @@ def test_batched_var_len_attention():
             queries: R.Tensor(("num_tokens", 4096), dtype="float16"),
             keys: R.Tensor(("num_tokens", 4096), dtype="float16"),
             values: R.Tensor(("num_tokens", 4096), dtype="float16"),
-            # TODO(masahi): Ideally, we want to pass seq_lens as an input and compute seqstart_q
-            # and max_seq_len_q inside the model. This is currently not possible since
-            # the legalization of the Relax cumsum op is broken.
-            # seq_lens: R.Tensor(("num_seq",), dtype="int32"),
-            seqstart_q: R.Tensor(("num_seq_plus_1",), dtype="int32"),
-            max_seqlen_q: R.Tensor((), dtype="int32"),
+            seq_lens: R.Tensor(("num_seq",), dtype="int32"),
         ) -> R.Tensor(("num_tokens", 4096), dtype="float16"):
             cls = Module
             num_tokens = T.int64()
+            num_seq = T.int64()
+
             with R.dataflow():
+                # TODO(masahi): Workaround for the broken Relax cumsum op on GPU.
+                cumsum = R.call_dps_packed(
+                    "tvm.contrib.thrust.sum_scan", seq_lens, out_sinfo=seq_lens.struct_info
+                )
+                max_seqlen_q = R.max(seq_lens)
+                seqstart_q = R.concat([R.zeros((1,), "int32"), cumsum])
                 q = R.reshape(queries, R.shape([1, num_tokens, 128, 32]))
                 k = R.reshape(keys, R.shape([1, num_tokens, 128, 32]))
                 v = R.reshape(values, R.shape([1, num_tokens, 128, 32]))
@@ -2049,15 +2055,12 @@ def test_batched_var_len_attention():
     batched_values = np.vstack(batched_values)
     ref = np.vstack(batched_refs)
 
-    seqstart_q = np.insert(np.cumsum(seq_lens), 0, 0).astype(np.int32)
-
     mod = partition_for_cutlass(Module)
     codegen_pass = relax.transform.RunCodegen({"cutlass": {"sm": 80}})
     mod = codegen_pass(mod)
 
-    mod = relax.pipeline.get_pipeline()(mod)
-
     with tvm.target.Target("cuda"):
+        mod = relax.transform.LegalizeOps()(mod)
         mod = tvm.tir.transform.DefaultGPUSchedule()(mod)
 
     out = build_and_run(
@@ -2066,8 +2069,7 @@ def test_batched_var_len_attention():
             batched_queries,
             batched_keys,
             batched_values,
-            seqstart_q,
-            np.array(max(seq_lens), dtype="int32"),
+            np.array(seq_lens, dtype="int32"),
         ],
         "cuda",
     )
