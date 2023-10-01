@@ -315,7 +315,6 @@ def build(
         passes.append(relax.transform.RewriteCUDAGraph())
 
     passes.append(relax.transform.LowerAllocTensor())
-    passes.append(relax.transform.KillAfterLastUse())
 
     passes.append(relax.transform.VMBuiltinLower())
     passes.append(relax.transform.VMShapeLower())
