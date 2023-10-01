@@ -721,7 +721,7 @@ class BlockBuilder(Object):
         _ffi_api.BlockBuilderEmitNormalized(self, binding)  # type: ignore
 
     def lookup_binding(self, var: Var) -> Optional[Expr]:
-        """Lookup a var in the binding table binding_table_.
+        """Lookup a var in the binding table.
 
         Parameters
         ----------

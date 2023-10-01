@@ -426,7 +426,7 @@ class Var(ExprWithOp):
         )
 
     @property
-    def name_hint(self):
+    def name_hint(self) -> str:
         """Get name hint of the current var."""
         name = str(self.vid.name_hint)
         return name
@@ -671,7 +671,7 @@ class Function(BaseFunc, Scriptable):
         binding_map: Mapping[
                 Union[str, Var],
                 Union[int, float, PrimExpr, tvm.runtime.NDArray, _np.ndarray, Expr],
-            ]
+        ]
 
             The mapping of values to be replaced.
 

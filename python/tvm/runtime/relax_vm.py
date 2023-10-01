@@ -338,7 +338,7 @@ class VirtualMachine(object):
 
         return get_output_rec(func_name)
 
-    def set_instrument(self, instrument: tvm.runtime.PackedFunc):
+    def set_instrument(self, instrument: tvm.runtime.PackedFunc) -> None:
         """Set an instrumentation function.
 
         If instrument is present, the function will be called
@@ -380,14 +380,14 @@ class VirtualMachine(object):
 
     def time_evaluator(
         self,
-        func_name,
-        dev,
-        number=10,
-        repeat=1,
-        min_repeat_ms=0,
-        cooldown_interval_ms=0,
-        repeats_to_cooldown=1,
-        f_preproc="",
+        func_name: str,
+        dev: Device,
+        number: int = 10,
+        repeat: int = 1,
+        min_repeat_ms: int = 0,
+        cooldown_interval_ms: int = 0,
+        repeats_to_cooldown: int = 1,
+        f_preproc: str = "",
     ) -> Callable[..., tvm.runtime.module.BenchmarkResult]:
         """
         Returns an evaluator that times a function in the module.
@@ -489,12 +489,15 @@ class VirtualMachine(object):
 
     def profile(self, func_name: str, *args):
         """Profile a function call.
+
         Parameters
         ----------
         func_name : str
             The name of the function.
+
         args: List of NDArray or other objects supported by PackedFunc.
             The arguments to the function.
+
         Returns
         -------
         report: tvm.runtime.profiling.Report
