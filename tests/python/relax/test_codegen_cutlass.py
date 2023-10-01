@@ -2011,6 +2011,7 @@ def test_batched_var_len_attention():
 
             with R.dataflow():
                 # TODO(masahi): Workaround for the broken Relax cumsum op on GPU.
+                # https://github.com/apache/tvm/issues/15851
                 cumsum = R.call_dps_packed(
                     "tvm.contrib.thrust.sum_scan", seq_lens, out_sinfo=seq_lens.struct_info
                 )
