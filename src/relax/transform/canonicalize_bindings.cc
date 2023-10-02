@@ -76,6 +76,9 @@ class BindingCanonicalizer : public ExprMutator {
     // If we have a trivial shape check (the struct_info_ of LHS and RHS is the same),
     // we can canonicalize to a var binding
     Expr new_value = this->VisitExpr(binding->value);
+    if (new_value->IsInstance<VarNode>()) {
+      subst_map_[binding->var] = Downcast<Var>(new_value);
+    }
 
     bool has_same_struct_info = StructuralEqual()(binding->struct_info, GetStructInfo(new_value));
 
@@ -93,6 +96,8 @@ class BindingCanonicalizer : public ExprMutator {
     } else if (new_value.same_as(binding->value)) {
       builder_->EmitNormalized(GetRef<MatchCast>(binding));
     } else {
+      // we can't elide in the same way as with var bindings because
+      // the struct info comparison has semantics
       builder_->EmitNormalized(MatchCast(binding->var, new_value, binding->struct_info));
     }
   }

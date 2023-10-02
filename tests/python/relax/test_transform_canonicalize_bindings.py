@@ -70,19 +70,14 @@ def test_dataflow_block():
         @R.function
         def main(x: R.Tensor):
             with R.dataflow():
-                y = R.const(1)
-                # We can't get rid of n because it leaves the block.
-                # CanonicalizeBindings does not do a full dead-code
-                # elimination, and only does local analysis of trivial
-                # bindings that it may produce.
-                n = y
+                n = R.const(1)
                 R.output(n)
             return n
 
     verify(TestDataflowAssignments, Expected)
 
 
-def test_assign_to_output_indataflow_block():
+def test_assign_to_output_in_dataflow_block():
     @tvm.script.ir_module
     class TestDataflowAssignments:
         @R.function
@@ -101,6 +96,9 @@ def test_assign_to_output_indataflow_block():
     class Expected:
         @R.function
         def main(x: R.Tensor):
+            # we get a dataflow block where the
+            # only assignment is n = x, which we can eliminate,
+            # resulting in an empty block that is normalized away
             return x
 
     verify(TestDataflowAssignments, Expected)
@@ -188,6 +186,8 @@ def test_same_shape():
     class Expected:
         @R.function
         def main(x: R.Tensor(("m", "n"), "float32")):
+            # the trivial check is canonicalized into a var binding
+            # and then eliminated
             q = R.add(x, x)
             return R.add(q, x)
 
