@@ -14,6 +14,5 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-# pylint: disable=wildcard-import
 """Image operators."""
-from .image import *
+from .image import resize2d

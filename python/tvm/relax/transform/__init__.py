@@ -14,14 +14,64 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-# pylint: disable=wildcard-import, redefined-builtin
 """Relax transformations. """
 
-from .transform import *
+from .transform import (
+    AllocateWorkspace,
+    AlterOpImpl,
+    AnnotateTIROpPattern,
+    AttachGlobalSymbol,
+    BindParams,
+    BindSymbolicVars,
+    BundleModelParams,
+    CallTIRRewrite,
+    CanonicalizeBindings,
+    CombineParallelMatmul,
+    ConvertLayout,
+    DataflowBlockPass,
+    DeadCodeElimination,
+    DecomposeOpsForInference,
+    DecomposeOpsForTraining,
+    EliminateCommonSubexpr,
+    FewShotTuning,
+    FoldConstant,
+    FoldDataflowBlockOutput,
+    FunctionPass,
+    FuseOps,
+    FuseOpsByPattern,
+    FuseTIR,
+    FusionPattern,
+    Gradient,
+    KillAfterLastUse,
+    LambdaLift,
+    LegalizeOps,
+    LiftTransformParams,
+    LowerAllocTensor,
+    MergeCompositeFunctions,
+    MetaScheduleApplyDatabase,
+    MetaScheduleTuneIRMod,
+    MetaScheduleTuneTIR,
+    Normalize,
+    PatternCheckContext,
+    RealizeVDevice,
+    RemovePurityChecking,
+    RewriteCUDAGraph,
+    RewriteDataflowReshape,
+    RunCodegen,
+    SplitCallTIRByPattern,
+    StaticPlanBlockMemory,
+    ToMixedPrecision,
+    ToNonDataflow,
+    UpdateVDevice,
+    VMBuiltinLower,
+    VMShapeLower,
+    dataflowblock_pass,
+    function_pass,
+)
+
 from .lazy_transform_params import LazyTransformParams
 from .optimize_layout_transform import OptimizeLayoutTransform
 from .remove_redundant_reshape import RemoveRedundantReshape
 
 # Import to register the legalization functions.
-from . import legalize_ops
-from . import tuning_api
+from . import legalize_ops, tuning_api
