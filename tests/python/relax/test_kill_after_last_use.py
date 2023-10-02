@@ -94,8 +94,9 @@ def test_track_usage_across_trivial_rebindings_in_match_cast():
         def main(w: R.Tensor([16, 32], "float32")):
             x = R.add(w, R.const(1, "float32"))
             y = R.match_cast(x, R.Tensor([16, 32]))
-            z = R.add(y, R.const(1, "float32"))
             _ = R.memory.kill_tensor(x)
+            z = R.add(y, R.const(1, "float32"))
+            _ = R.memory.kill_tensor(y)
             return z
 
     After = KillAfterLastUse()(Before)

@@ -149,7 +149,7 @@ class CollectLastUsage : public ExprVisitor {
     // completes, last_usage_of_ contains the last usage point.  If
     // this occurs in an output, then current_binding_ will be
     // nullptr.
-    last_usage_of_[UnwrapTrivialBindings(op)] = current_binding_;
+    last_usage_of_[op] = current_binding_;
   }
 
   void VisitBinding_(const VarBindingNode* binding, const CallNode* val) override {
@@ -169,33 +169,10 @@ class CollectLastUsage : public ExprVisitor {
           << "but instead found " << val->args.size() << " arguments: " << val->args;
       auto killed_object = val->args[0].as<VarNode>();
       ICHECK(killed_object) << "Internal error: non-normalized expression " << GetRef<Call>(val);
-      killed_objects_.insert(UnwrapTrivialBindings(killed_object));
+      killed_objects_.insert(killed_object);
     } else {
       // Only recursively visit if it isn't one of the special cases.
       ExprVisitor::VisitBinding_(binding, val);
-    }
-  }
-
-  void VisitBinding_(const VarBindingNode* binding, const VarNode* val) override {
-    // Because the VM re-uses the same register for variable
-    // re-binding, we need to de-duplicate across trivial bindings in
-    // order to avoid calling `vm.kill_object` multiple times on the
-    // same register.  In the future, this can be simplified by
-    // replacing the de-duplication in CodeGenVM with a call to
-    // CanonicalizeBindings.
-    trivial_bindings_.insert({binding->var.get(), UnwrapTrivialBindings(val)});
-
-    // Do not call ExprVisitor::VisitBinding_ here, as the trivial
-    // rebinding should not be treated as a point of use.
-  }
-
-  void VisitBinding_(const MatchCastNode* binding) override {
-    if (auto rebound = binding->value.as<VarNode>()) {
-      // Because CodeGenVM treats MatchCast nodes identically to
-      // VarBinding nodes, we must also de-duplicate at this level.
-      trivial_bindings_.insert({binding->var.get(), UnwrapTrivialBindings(rebound)});
-    } else {
-      ExprVisitor::VisitBinding_(binding);
     }
   }
 
@@ -204,16 +181,6 @@ class CollectLastUsage : public ExprVisitor {
   }
 
  private:
-  const VarNode* UnwrapTrivialBindings(const VarNode* var) const {
-    while (true) {
-      if (auto it = trivial_bindings_.find(var); it != trivial_bindings_.end()) {
-        var = it->second;
-      } else {
-        return var;
-      }
-    }
-  }
-
   // The current binding being visited, or nullptr if no binding is
   // being visited.
   const VarNode* current_binding_{nullptr};
