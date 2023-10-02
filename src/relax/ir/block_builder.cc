@@ -612,7 +612,17 @@ class Normalizer : public BlockBuilderImpl, private ExprFunctor<Expr(const Expr&
       unchanged &= new_block.same_as(block);
     }
 
-    this->BeginBindingBlock();
+    // Because the input may not be normalized, the SeqExpr may occur
+    // nested within another SeqExpr.  In that case, we want to use
+    // whatever binding-block type the parent uses, so that we any
+    // bindings collected into the prologue will be compatible with
+    // the parent block.
+    if (block_stack_.size() && CurrentBlockIsDataFlow()) {
+      this->BeginDataflowBlock();
+    } else {
+      this->BeginBindingBlock();
+    }
+
     // the body may not be a leaf expression, so check for that
     Expr new_body = this->NormalizeArgument(op->body);
     unchanged &= new_body.same_as(op->body);
