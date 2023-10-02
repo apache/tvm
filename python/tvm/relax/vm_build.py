@@ -291,6 +291,7 @@ def build(
     -------
 
     .. code-block:: python
+
         class InputModule:
             @R.function
             def foo(x: Tensor((3, 4), "float32"), y: Tensor((3, 4), "float32")):
