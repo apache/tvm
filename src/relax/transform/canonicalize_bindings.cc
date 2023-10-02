@@ -102,16 +102,17 @@ class BindingCanonicalizer : public ExprMutator {
   // use the dataflow var's definition directly
   BindingBlock VisitBindingBlock_(const DataflowBlockNode* block) override {
     auto new_block = Downcast<DataflowBlock>(ExprMutator::VisitBindingBlock_(block));
-    std::unordered_map<DataflowVar, Expr, ObjectPtrHash, ObjectPtrEqual> binding_map;
     std::unordered_set<DataflowVar, ObjectPtrHash, ObjectPtrEqual> disqualified_set;
     std::unordered_set<DataflowVar, ObjectPtrHash, ObjectPtrEqual> output_vars;
 
-    for (auto binding : new_block->bindings) {
+    std::unordered_map<DataflowVar, Expr, ObjectPtrHash, ObjectPtrEqual> candidates;
+    for (int i = new_block->bindings.size() - 1; i >= 0; i--) {
+      auto binding = new_block->bindings[i];
       auto var = binding->var;
       auto value = GetBoundValue(binding);
 
       if (var->IsInstance<DataflowVarNode>()) {
-        binding_map[Downcast<DataflowVar>(var)] = value;
+        auto df_var = Downcast<DataflowVar>(var);
 
         // disqualify any vars that appear in the RHS
         // (for a function literal, consider only free vars)
@@ -126,6 +127,12 @@ class BindingCanonicalizer : public ExprMutator {
           if (rhs_var->IsInstance<DataflowVarNode>()) {
             disqualified_set.insert(Downcast<DataflowVar>(rhs_var));
           }
+        }
+
+        // if the current var is an output and has not been disqualified,
+        // then include it in the candidate map
+        if (!disqualified_set.count(df_var) && output_vars.count(df_var)) {
+          candidates[df_var] = value;
         }
       } else {
         // The LHS is an output binding.
@@ -152,14 +159,6 @@ class BindingCanonicalizer : public ExprMutator {
             }
           }
         }
-      }
-    }
-
-    // final candidates: those in the output set that are not disqualified
-    std::unordered_map<DataflowVar, Expr, ObjectPtrHash, ObjectPtrEqual> candidates;
-    for (auto var : output_vars) {
-      if (!disqualified_set.count(var)) {
-        candidates[var] = binding_map.at(var);
       }
     }
 
