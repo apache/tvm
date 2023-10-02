@@ -36,17 +36,10 @@ def test_simple_assignments():
             o = p
             return o
 
-    # a little annoying to have these unused bindings around
-    # but they can be eliminated in a separate pass
     @tvm.script.ir_module
     class Expected:
         @R.function
         def main(x: R.Tensor):
-            y = x
-            z = x
-            q = x
-            p = x
-            o = x
             return x
 
     new_mod = relax.transform.CanonicalizeBindings()(TestChainAssignments)
@@ -68,19 +61,16 @@ def test_dataflow_block():
                 R.output(n)
             return n
 
-    # a little annoying to have these unused bindings around
-    # but they can be eliminated in a separate pass
     @tvm.script.ir_module
     class Expected:
         @R.function
         def main(x: R.Tensor):
             with R.dataflow():
                 y = R.const(1)
-                z = y
-                o = y
-                p = y
-                m = y
-                # we can't get rid of n because it leaves the block
+                # We can't get rid of n because it leaves the block.
+                # CanonicalizeBindings does not do a full dead-code
+                # elimination, and only does local analysis of trivial
+                # bindings that it may produce.
                 n = y
                 R.output(n)
             return n
@@ -108,15 +98,6 @@ def test_assign_to_output_indataflow_block():
     class Expected:
         @R.function
         def main(x: R.Tensor):
-            with R.dataflow():
-                y = x
-                z = x
-                o = x
-                p = x
-                m = x
-                # we can't get rid of n because it leaves the block
-                n = x
-                R.output(n)
             return x
 
     new_mod = relax.transform.CanonicalizeBindings()(TestDataflowAssignments)
@@ -137,8 +118,6 @@ def test_ops():
     class Expected:
         @R.function
         def main(x: R.Tensor, y: R.Tensor):
-            w = y
-            q = x
             z = R.add(y, x)
             return R.add(x, z)
 
@@ -161,7 +140,6 @@ def test_casting():
     class Expected:
         @R.function
         def main(x: R.Tensor) -> R.Object:
-            y = x
             # Cannot unify because the cast indicates user intent
             z: R.Object = x
             return z
@@ -185,11 +163,9 @@ def test_match_cast():
     class Expected:
         @R.function
         def main(x: R.Tensor):
-            q = x
             # can't get rid of z because its shape_ is different from x's
             m, n = T.int64(), T.int64()
             z = R.match_cast(x, R.Tensor((m, n)))
-            w = z
             return z
 
     new_mod = relax.transform.CanonicalizeBindings()(TestMatchCast)
@@ -213,11 +189,6 @@ def test_same_shape():
     class Expected:
         @R.function
         def main(x: R.Tensor(("m", "n"), "float32")):
-            m, n = T.int64(), T.int64()
-            y = x
-            # canonicalized into a var binding
-            z = x
-            w = x
             q = R.add(x, x)
             return R.add(q, x)
 
@@ -242,10 +213,8 @@ def test_change_shape():
     class Expected:
         @R.function
         def main(x: R.Tensor(("m", "n"))):
-            y = x
             o, p = T.int64(), T.int64()
             z = R.match_cast(x, R.Tensor((o, p)))
-            w = z
             # the shape_ field on q will need to be updated
             q = R.add(z, x)
             return R.add(q, z)
@@ -270,8 +239,6 @@ def test_unwrap_tuple():
         @R.function
         def main(x: R.Tensor, y: R.Tensor):
             tuple_var = (x, y)
-            w = x
-            q = y
             z = R.add(x, y)
             return R.add(y, z)
 
