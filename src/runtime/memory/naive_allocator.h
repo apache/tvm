@@ -41,6 +41,7 @@ class NaiveAllocator final : public Allocator {
     Buffer buf;
     buf.device = device_;
     buf.size = nbytes;
+    buf.alloc_type = kNaive;
     buf.data = DeviceAPI::Get(device_)->AllocDataSpace(device_, nbytes, alignment, type_hint);
     used_memory_.fetch_add(nbytes, std::memory_order_relaxed);
     DLOG(INFO) << "allocate " << nbytes << " B, used memory " << used_memory_ << " B";
@@ -59,6 +60,7 @@ class NaiveAllocator final : public Allocator {
       auto tmp_buf = Allocator::Alloc(device_, shape, type_hint, mem_scope);
       buf.size = tmp_buf.size;
       buf.data = tmp_buf.data;
+      buf.alloc_type = kNaive;
       return buf;
     }
 
@@ -67,6 +69,7 @@ class NaiveAllocator final : public Allocator {
                                                        type_hint, String(mem_scope));
     used_memory_.fetch_add(nbytes, std::memory_order_relaxed);
     DLOG(INFO) << "allocate " << nbytes << " B, used memory " << used_memory_ << " B";
+    buf.alloc_type = kNaive;
     return buf;
   }
 

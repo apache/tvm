@@ -58,6 +58,7 @@ class PooledAllocator final : public Allocator {
     Buffer buf;
     buf.device = device_;
     buf.size = size;
+    buf.alloc_type = kPooled;
     try {
       buf.data = DeviceAPI::Get(device_)->AllocDataSpace(device_, size, alignment, type_hint);
     } catch (InternalError& err) {

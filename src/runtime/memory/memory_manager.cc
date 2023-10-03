@@ -37,7 +37,7 @@ static void BufferDeleter(Object* obj) {
   auto* ptr = static_cast<NDArray::Container*>(obj);
   ICHECK(ptr->manager_ctx != nullptr);
   Buffer* buffer = reinterpret_cast<Buffer*>(ptr->manager_ctx);
-  MemoryManager::GetAllocator(buffer->device)->Free(*(buffer));
+  MemoryManager::GetAllocator(buffer->device, buffer->alloc_type)->Free(*(buffer));
   delete buffer;
   delete ptr;
 }
@@ -122,6 +122,9 @@ Allocator* MemoryManager::GetOrCreateAllocator(Device dev, AllocatorType type) {
   MemoryManager* m = MemoryManager::Global();
   std::lock_guard<std::mutex> lock(m->mu_);
   if (m->allocators_.find(dev) == m->allocators_.end()) {
+    m->allocators_.emplace(dev, std::unordered_map<AllocatorType, std::unique_ptr<Allocator>>());
+  }
+  if (m->allocators_.at(dev).find(type) == m->allocators_.at(dev).end()) {
     std::unique_ptr<Allocator> alloc;
     switch (type) {
       case kNaive: {
@@ -138,26 +141,29 @@ Allocator* MemoryManager::GetOrCreateAllocator(Device dev, AllocatorType type) {
         LOG(FATAL) << "Unknown allocator type: " << type;
     }
     auto ret = alloc.get();
-    m->allocators_.emplace(dev, std::move(alloc));
+    m->allocators_.at(dev).emplace(type, std::move(alloc));
     return ret;
   }
-  auto alloc = m->allocators_.at(dev).get();
-  if (alloc->type() != type) {
+  auto alloc = m->allocators_.at(dev).at(type).get();
+  /*if (alloc->type() != type) {
     LOG(WARNING) << "The type of existing allocator for " << dev
                  << " is different from the request type (" << alloc->type() << " vs " << type
                  << ")";
-  }
+  }*/
   return alloc;
 }
 
-Allocator* MemoryManager::GetAllocator(Device dev) {
+Allocator* MemoryManager::GetAllocator(Device dev, AllocatorType type) {
   MemoryManager* m = MemoryManager::Global();
   std::lock_guard<std::mutex> lock(m->mu_);
   auto it = m->allocators_.find(dev);
   if (it == m->allocators_.end()) {
     LOG(FATAL) << "Allocator for " << dev << " has not been created yet.";
   }
-  return it->second.get();
+  if (it->second.find(type) == it->second.end()) {
+    LOG(FATAL) << "Allocator for " << dev << " of type " << type << " has not been created yet.";
+  }
+  return it->second.at(type).get();
 }
 
 NDArray Allocator::Empty(ShapeTuple shape, DLDataType dtype, DLDevice dev,

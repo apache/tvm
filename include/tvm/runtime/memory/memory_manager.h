@@ -39,6 +39,11 @@ namespace tvm {
 namespace runtime {
 namespace memory {
 
+enum AllocatorType {
+  kNaive = 1,
+  kPooled,
+};
+
 struct Buffer {
   /*! \brief The pointer to the allocated block of memory. */
   void* data{nullptr};
@@ -46,11 +51,8 @@ struct Buffer {
   size_t size{0};
   /*! \brief The context of the allocated buffers. */
   Device device;
-};
-
-enum AllocatorType {
-  kNaive = 1,
-  kPooled,
+  /*! \brief The allocator that created this buffer. */
+  AllocatorType alloc_type;
 };
 
 class Allocator {
@@ -113,16 +115,18 @@ class MemoryManager {
   /*!
    * \brief Get an allocator given the context.
    * \param dev The TVM device
+   * \param type The allocator type
    * \return The memory allocator.
    */
-  static Allocator* GetAllocator(Device dev);
+  static Allocator* GetAllocator(Device dev, AllocatorType type);
 
  private:
   MemoryManager() {}
 
  protected:
   std::mutex mu_;
-  std::unordered_map<Device, std::unique_ptr<Allocator>> allocators_;
+  std::unordered_map<Device, std::unordered_map<AllocatorType, std::unique_ptr<Allocator>>>
+      allocators_;
 };
 
 /*! \brief An object representing a storage allocation. */
@@ -138,7 +142,7 @@ class StorageObj : public Object {
   static void Deleter(Object* ptr);
 
   ~StorageObj() {
-    auto alloc = MemoryManager::Global()->GetAllocator(buffer.device);
+    auto alloc = MemoryManager::Global()->GetAllocator(buffer.device, buffer.alloc_type);
     alloc->Free(buffer);
   }
 
