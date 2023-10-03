@@ -2920,6 +2920,7 @@ def test_batch_norm_dynamic_subgraph(target, dev):
     """test_batch_norm_dynamic_subgraph"""
 
     def verify_batch_norm_dynamic_subgraph(in_shape, o_shape):
+
         batchnorm = onnx.helper.make_node(
             "BatchNormalization", inputs=["x", "scale", "B", "mean", "var"], outputs=["Y"]
         )
@@ -6651,6 +6652,7 @@ def test_qlinearconv(target, dev):
         bias=False,
         per_channel_quantization=False,
     ):
+
         x_array = np.random.randint(low=0, high=255, size=x_shape).astype("uint8")
         w_array = np.random.uniform(low=0, high=255, size=w_shape).astype("uint8")
 
@@ -7010,6 +7012,7 @@ def test_qlinearadd(target, dev):
     """test_qlinearadd"""
 
     def verify_qlinearadd(a_shape, b_shape, c_shape):
+
         _ = np.random.random(a_shape).astype("float32")
         _ = np.random.random(b_shape).astype("float32")
 
@@ -7042,6 +7045,7 @@ def test_qlinearmul(target, dev):
     """test_qlinearmul"""
 
     def verify_qlinearmul(a_shape, b_shape, c_shape):
+
         _ = np.random.random(a_shape).astype("float32")
         _ = np.random.random(b_shape).astype("float32")
 
@@ -7076,6 +7080,7 @@ def test_qlinearleakyrelu(target, dev):
     """test_qlinearleakyrelu"""
 
     def verify_qlinearleakyrelu(inshape, kwargs):
+
         in_array = np.random.random(inshape).astype("float32")
         node = helper.make_node("LeakyRelu", ["X"], ["Y"], **kwargs)
 
@@ -7103,6 +7108,7 @@ def test_qlinearsigmoid(target, dev):
     """test_qlinearsigmoid"""
 
     def verify_qlinearsigmoid(a_shape):
+
         _ = np.random.random(a_shape).astype("float32")
 
         input_nodes = [helper.make_tensor_value_info("a", TensorProto.FLOAT, list(a_shape))]
@@ -7128,6 +7134,7 @@ def test_qlinearsoftmax(target, dev):
     """test_qlinearsoftmax"""
 
     def verify_qlinearsoftmax(a_shape):
+
         _ = np.random.random(a_shape).astype("float32")
 
         input_nodes = [helper.make_tensor_value_info("a", TensorProto.FLOAT, list(a_shape))]
@@ -7903,6 +7910,7 @@ def test_scan(target, dev):
         scan_output_directions,
         opset,
     ):
+
         body_input_shapes = copy.deepcopy(input_shapes)
         num_state_inputs = len(input_shapes) - num_scan_inputs
 
