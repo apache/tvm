@@ -871,9 +871,11 @@ def batch_norm(
     .. note::
 
         This operator has two modes:
+
         - Training mode.
             - Use the mean and var computed from THIS batch to normalize.
             - Update and then return the running mean and running var.
+
         - Inference mode.
             - Use the running_mean and running_var parameters to normalize.
             - Do not update the running mean and running var. Just return the original value.
@@ -1005,7 +1007,7 @@ def group_norm(
     into groups along the channel axis. Then apply layer normalization to each group.
 
     Parameters
-        ----------
+    ----------
     data : relax.Expr
         Input to which group_norm will be applied.
 
@@ -1231,6 +1233,104 @@ def attention(
         while for 'BottomRight', the mask matrix is as `np.tril(*, k=abs(seq_len - seq_len_kv))`
         For example, with seq_len = 4, seq_len_kv = 2,
         mask for 'TopLeft':
+
+        .. code:: python
+
+            [[1, 0],
+            [1, 1],
+            [1, 1],
+            [1, 1]]
+
+        mask for 'BottomRight':
+
+        .. code:: python
+
+            [[1, 1],
+            [1, 1],
+            [1, 1],
+            [1, 1]]
+
+        with seq_len = 2, seq_len_kv = 4,
+        mask for 'TopLeft':
+
+        .. code:: python
+
+            [[1, 0, 0, 0],
+            [1, 1, 0, 0]]
+
+        mask for 'BottomRight':
+
+        .. code:: python
+
+            [[1, 1, 1, 0],
+            [1, 1, 1, 1]]
+
+
+    Returns
+    -------
+    result : relax.Expr
+        The computed result. The layout of the output should be
+        (batch_size, seq_len, num_head, head_dim_v).
+    """
+    return _ffi_api.attention(query, key, value, bias, scale, causal_mask)  # type: ignore
+
+
+def attention_var_len(
+    queries: Expr,
+    keys: Expr,
+    values: Expr,
+    seqstart_q: Expr,
+    max_seqlen_q: Expr,
+    seqstart_k: Optional[Expr] = None,
+    max_seqlen_k: Optional[Expr] = None,
+    scale: Optional[FloatImm] = None,
+    causal_mask: Optional[str] = None,
+) -> Expr:
+    r"""Computes fused multi head attention over batched sequences of variable lengths.
+
+    Given concatenated inputs and sequence lengths information, this operator computes
+    attention for all sequences more efficiently than calling the normal attention operator
+    for each sequence individually.
+
+    Parameters
+    ----------
+    queries: relax.Expr
+        The input queries concatenated along the second axis. Its shape must be
+        (1, total_seq_len, num_head, head_dim).
+
+    keys: relax.Expr
+        The input keys concatenated along the second axis. Its shape must be
+        (1, total_seq_len_kv, num_head, head_dim).
+
+    values: relax.Expr
+        The input values concatenated along the second axis. Its shape must be
+        (1, total_seq_len_kv, num_head, head_dim_v).
+
+    seqstart_q: Optional[Expr]
+        The cumsum of query sequence lengths, prepended with 0. Its dtype must be int32.
+        For example, if the lengths of the sequences that are batched are [2, 5, 3],
+        this tensor has values [0, 2, 7, 10].
+
+    seqstart_k: Optional[Expr]
+        The cumsum of key sequence lengths, prepended with 0.
+        By default it is the same as seqstart_q.
+
+    max_seqlen_q: Optional[Expr]
+        The maximum query sequence length in the batch. It must be int32.
+
+    max_seqlen_k: Optional[Expr]
+        The maximum key sequence length in the batch. It must be int32.
+        By default it is the same as max_seqlen_q.
+
+    scale: Optional[float]
+        The scale value to be applied to the attention score, by default 1 / sqrt(head_dim).
+
+    causal_mask: Optional[str]
+        The optional causal mask, i.e. 'TopLeft' and 'BottomRight'.
+        For 'TopLeft', the mask matrix is as `np.tril(*, k=0)`,
+        while for 'BottomRight', the mask matrix is as `np.tril(*, k=abs(seq_len - seq_len_kv))`
+        For example, with seq_len = 4, seq_len_kv = 2,
+        mask for 'TopLeft':
         [[1, 0],
          [1, 1],
          [1, 1],
@@ -1252,7 +1352,20 @@ def attention(
     Returns
     -------
     result : relax.Expr
-        The computed result. The layout of the output should be
-        (batch_size, seq_len, num_head, head_dim_v).
+        The computed result with shape (1, total_seq_len, num_head, head_dim_v).
     """
-    return _ffi_api.attention(query, key, value, bias, scale, causal_mask)  # type: ignore
+    if seqstart_k is None:
+        seqstart_k = seqstart_q
+    if max_seqlen_k is None:
+        max_seqlen_k = max_seqlen_q
+    return _ffi_api.attention_var_len(
+        queries,
+        keys,
+        values,
+        seqstart_q,
+        seqstart_k,
+        max_seqlen_q,
+        max_seqlen_k,
+        scale,
+        causal_mask,
+    )  # type: ignore

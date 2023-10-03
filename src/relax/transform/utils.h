@@ -388,6 +388,19 @@ inline String GetCodegenName(const std::string& composite_name) {
  */
 Expr EliminateCommonSubexpr(const Expr& expr, bool call_only = false);
 
+/* \brief Remove use of trivial bindings
+ *
+ * Utility for simplifying relax expressions by folding var bindings
+ * and match shape nodes.  May include other forms of simplification
+ * in the future.  Ideally should be used before constant folding and
+ * eliminating unused bindings.
+ *
+ * \param expr The expression to be canonicalized
+ *
+ * \ret The canonicalized expression
+ */
+Expr CanonicalizeBindings(const Expr& expr);
+
 }  // namespace relax
 }  // namespace tvm
 

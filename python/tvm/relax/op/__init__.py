@@ -14,40 +14,130 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-# pylint: disable=wildcard-import, redefined-builtin
+# pylint: disable= redefined-builtin
 """Relax core operators."""
 
-# Operators
-from .base import *
-from .binary import *
-from .create import *
-from .datatype import *
-from .index import *
-from .linear_algebra import *
-from .manipulate import *
-from .mask import *
-from .op_attrs import *
-from .statistical import *
-from .search import *
-from .set import *
-from .ternary import *
-from .unary import *
-from . import builtin
-from . import distributed
-from . import grad
-from . import image
-from . import memory
-from . import nn
-from . import ccl
-
 # Register operator gradient functions
-from . import _op_gradient
+from . import _op_gradient, builtin, ccl, distributed, grad, image, memory, nn, op_attrs
+
+# Operators
+from .base import (
+    assert_op,
+    call_builtin_with_ctx,
+    call_dps_packed,
+    call_pure_packed,
+    call_tir,
+    call_tir_inplace,
+    call_tir_with_grad,
+    hint_on_device,
+    invoke_closure,
+    invoke_pure_closure,
+    make_closure,
+    null_value,
+    print,
+    register_gradient,
+    shape_of,
+    shape_to_tensor,
+    tensor_to_shape,
+    to_vdevice,
+)
+from .binary import (
+    add,
+    bitwise_and,
+    bitwise_or,
+    bitwise_xor,
+    divide,
+    equal,
+    floor_divide,
+    greater,
+    greater_equal,
+    less,
+    less_equal,
+    logical_and,
+    logical_or,
+    logical_xor,
+    maximum,
+    minimum,
+    multiply,
+    not_equal,
+    power,
+    subtract,
+)
+from .create import (
+    arange,
+    full,
+    full_like,
+    ones,
+    ones_like,
+    tril,
+    triu,
+    zeros,
+    zeros_like,
+)
+from .datatype import astype, wrap_param
+from .index import dynamic_strided_slice, strided_slice, take
+from .linear_algebra import einsum, linear, matmul
+from .manipulate import (
+    broadcast_to,
+    collapse_sum_like,
+    collapse_sum_to,
+    concat,
+    expand_dims,
+    flatten,
+    flip,
+    layout_transform,
+    permute_dims,
+    repeat,
+    reshape,
+    scatter_elements,
+    split,
+    squeeze,
+    tile,
+)
+from .mask import masked_fill
+from .search import argmax, argmin, where
+from .set import unique
+from .statistical import cumsum, max, mean, min, prod, std, sum, variance
+from .ternary import ewise_fma
+from .unary import (
+    abs,
+    acos,
+    acosh,
+    asin,
+    asinh,
+    atan,
+    atanh,
+    bitwise_not,
+    ceil,
+    clip,
+    cos,
+    cosh,
+    erf,
+    exp,
+    floor,
+    isfinite,
+    isinf,
+    isnan,
+    log,
+    logical_not,
+    negative,
+    round,
+    rsqrt,
+    sigmoid,
+    sign,
+    sin,
+    sinh,
+    sqrt,
+    square,
+    tan,
+    tanh,
+)
 
 
 def _register_op_make():
     # pylint: disable=import-outside-toplevel
-    from . import _ffi_api
     from .. import expr
+    from . import _ffi_api
 
     expr._op_ffi_api = _ffi_api  # type: ignore
 

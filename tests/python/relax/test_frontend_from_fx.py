@@ -3089,6 +3089,55 @@ def test_rsqrt():
     verify_model(Rsqrt(), [([256, 256], "float32")], {}, Expected1)
 
 
+def test_cat():
+    class Cat0(Module):
+        def forward(self, x, y):
+            return torch.cat((x, y))
+
+    class Cat1(Module):
+        def forward(self, x, y):
+            return torch.cat((x, y), dim=1)
+
+    class Cat2(Module):
+        def forward(self, x, y):
+            return torch.cat((x, y), 1)
+
+    class Cat3(Module):
+        def forward(self, x, y):
+            return torch.concat((x, y), dim=0)
+
+    @I.ir_module
+    class Expected1:
+        @R.function
+        def main(
+            inp_0: R.Tensor((2, 3), dtype="float32"),
+            inp_1: R.Tensor((2, 3), dtype="float32"),
+        ) -> R.Tensor((4, 3), dtype="float32"):
+            with R.dataflow():
+                lv: R.Tensor((4, 3), dtype="float32") = R.concat((inp_0, inp_1), axis=0)
+                gv: R.Tensor((4, 3), dtype="float32") = lv
+                R.output(gv)
+            return gv
+
+    @I.ir_module
+    class Expected2:
+        @R.function
+        def main(
+            inp_0: R.Tensor((2, 3), dtype="float32"),
+            inp_1: R.Tensor((2, 3), dtype="float32"),
+        ) -> R.Tensor((2, 6), dtype="float32"):
+            with R.dataflow():
+                lv: R.Tensor((2, 6), dtype="float32") = R.concat((inp_0, inp_1), axis=1)
+                gv: R.Tensor((2, 6), dtype="float32") = lv
+                R.output(gv)
+            return gv
+
+    verify_model(Cat0(), [([2, 3], "float32"), ([2, 3], "float32")], {}, Expected1)
+    verify_model(Cat1(), [([2, 3], "float32"), ([2, 3], "float32")], {}, Expected2)
+    verify_model(Cat2(), [([2, 3], "float32"), ([2, 3], "float32")], {}, Expected2)
+    verify_model(Cat3(), [([2, 3], "float32"), ([2, 3], "float32")], {}, Expected1)
+
+
 def test_neg():
     class Neg(Module):
         def forward(self, input):

@@ -617,8 +617,8 @@ def call_pure_packed(
     The resulting call will have the same semantics as calling the packed function directly.
 
     Note: This should be used for cases when the user knows that calling the packed function
-    with these arguments will _in reality_ not cause any side effects.
-    If it is used for a call that _does_ result in side effects, then the compiler
+    with these arguments will **in reality** not cause any side effects.
+    If it is used for a call that **does** result in side effects, then the compiler
     may end up removing, reordering, or repeating that call, with no guarantees
     made about any side effects from the callee.
 
@@ -664,7 +664,7 @@ def invoke_pure_closure(
     Invoke a closure and indicate to the compiler that it is pure.
 
     Note: This should be used for cases when the user knows that calling the closure
-    with these arguments will _in reality_ not cause any side effects.
+    with these arguments will **in reality** not cause any side effects.
     If it is used for a call that _does_ result in side effects, then the compiler
     may end up removing, reordering, or repeating that call, with no guarantees
     made about any side effects from the callee.

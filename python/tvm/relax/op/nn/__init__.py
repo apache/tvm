@@ -14,6 +14,29 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-# pylint: disable=wildcard-import
 """Neural network related operators."""
-from .nn import *
+from .nn import (
+    adaptive_avg_pool2d,
+    attention,
+    avg_pool2d,
+    batch_norm,
+    conv1d,
+    conv1d_transpose,
+    conv2d,
+    conv2d_transpose,
+    cross_entropy_with_logits,
+    dropout,
+    gelu,
+    gelu_tanh,
+    group_norm,
+    layer_norm,
+    leakyrelu,
+    log_softmax,
+    max_pool2d,
+    nll_loss,
+    pad,
+    relu,
+    rms_norm,
+    silu,
+    softmax,
+)

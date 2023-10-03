@@ -148,7 +148,7 @@ class TensorStructInfo(StructInfo):
     dtype : Optional[str]
         The content data type.
 
-    vdevice : Optional[Vdevice]
+    vdevice : Optional[VDevice]
         The virtual device.
 
     ndim : Optional[int]

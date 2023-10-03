@@ -389,9 +389,13 @@ class PyExprVisitor:
     See also: visitor, _PyExprVisitor
 
     Example:
+
+    .. code-block:: python
+
         @relax.expr_functor.visitor
         def MyExprVisitor(PyExprVisitor):
             ...
+
     """
 
     _tvm_metadata = {
@@ -922,9 +926,13 @@ class PyExprMutator:
     See also: visitor, _PyExprVisitor
 
     Example:
+
+    .. code-block:: python
+
         @relax.expr_functor.mutator
         def MyExprMutator(PyExprMutator):
             ...
+
     """
 
     _tvm_metadata = {

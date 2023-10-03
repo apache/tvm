@@ -14,5 +14,34 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-"""Image operators."""
-from .image import resize2d
+
+import tvm
+import tvm.testing
+
+from tvm.script import ir as I, relax as R
+
+from tvm.relax.transform import LowerAllocTensor
+
+
+def test_basic():
+    @I.ir_module
+    class Before:
+        @R.function
+        def main():
+            x = R.builtin.alloc_tensor(R.shape([16, 32]), "float32", 0)
+            return x
+
+    @I.ir_module
+    class Expected:
+        @R.function
+        def main():
+            storage = R.memory.alloc_storage(R.shape([2048]), 0, "global", "uint8")
+            x = R.memory.alloc_tensor(storage, 0, R.shape([16, 32]), "float32")
+            return x
+
+    After = LowerAllocTensor()(Before)
+    tvm.ir.assert_structural_equal(Expected, After)
+
+
+if __name__ == "__main__":
+    tvm.testing.main()

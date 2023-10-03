@@ -65,6 +65,7 @@ def Gradient(
     The new function will be like:
 
     .. code-block:: python
+
         @R.function
         def main_adjoint(original_parameters):
             with R.dataflow():
@@ -161,6 +162,7 @@ def Gradient(
     The second example is returning multiple values and specifying the target with `target_index`:
 
     .. code-block:: python
+
         @I.ir_module
         class Module:
             @R.function
@@ -178,6 +180,7 @@ def Gradient(
     The module after the Gradient pass will be:
 
     .. code-block:: python
+
         @I.ir_module
         class Module:
             @R.function
@@ -271,7 +274,8 @@ def CallTIRRewrite() -> tvm.ir.transform.Pass:
 
 def Normalize() -> tvm.ir.transform.Pass:
     """Transforming Relax IR to normal form, i.e., the expressions are normalized(no nesting
-    and hence the AST is in ANF), and all checked_type_ and shape_ of expressions are available.
+    and hence the AST is in ANF), and all ``checked_type_`` and ``shape_`` of expressions are
+    available.
 
     Returns
     -------
@@ -356,7 +360,7 @@ def StaticPlanBlockMemory() -> tvm.ir.transform.Pass:
     function signature for clarity.
 
     For example, we can annotate a Relax function with
-      `R.func_attr({"tir_var_upper_bound": {"n": 1024}})`.
+    :code:`R.func_attr({"tir_var_upper_bound": {"n": 1024}})`.
     It means the maximum value of variable that names "n" in the function
     signature will have upper bound 1024. And we will use 1024 as its value
     during memory planning.
@@ -366,6 +370,36 @@ def StaticPlanBlockMemory() -> tvm.ir.transform.Pass:
     ret : tvm.ir.transform.Pass
     """
     return _ffi_api.StaticPlanBlockMemory()  # type: ignore
+
+
+def LowerAllocTensor() -> tvm.ir.transform.Pass:
+    """Lower remaining instances of R.builtin.alloc_tensor
+
+    The static memory planner removes static instances of
+    `R.builtin.alloc_tensor`, replacing with `R.memory.alloc_storage`
+    and `R.memory.alloc_tensor`.  However, `R.builtin.alloc_tensor`
+    still remains for any dynamic allocations.
+
+    This transform replaces any remaining `R.builtin.alloc_tensor`
+    instances with `R.memory.alloc_storage` and
+    `R.memory.alloc_tensor`.  If no `R.builtin.alloc_tensor` are
+    present, this pass has no effect.
+
+    Returns
+    -------
+    ret : tvm.ir.transform.Pass
+    """
+    return _ffi_api.LowerAllocTensor()  # type: ignore
+
+
+def KillAfterLastUse() -> tvm.ir.transform.Pass:
+    """Drop all tensor/storage objects after last use
+
+    Returns
+    -------
+    ret : tvm.ir.transform.Pass
+    """
+    return _ffi_api.KillAfterLastUse()  # type: ignore
 
 
 def VMBuiltinLower() -> tvm.ir.transform.Pass:
@@ -411,15 +445,10 @@ def BindParams(
 
     Parameters
     ----------
-
     func_name: str
         The function name to be bound
 
-    params : Dict[
-                Union[str,relax.Var],
-                Union[tvm.runtime.NDArray, np.ndarray],
-             ]
-
+    params : Dict[Union[str,relax.Var],Union[tvm.runtime.NDArray, np.ndarray]]
         The map from parameter or parameter name name to constant
         tensors.
 
@@ -444,15 +473,14 @@ def BindSymbolicVars(
     func_name: Optional[str] = None,
 ) -> tvm.ir.transform.Pass:
     """Bind params of function of the module to constant tensors.
+
     Parameters
     ----------
     binding_map : Mapping[Union[str, tvm.tir.Var], tvm.tir.PrimExpr]
-
         The map from symbolic varname to integer.
 
-    func_name: Optional[str]
-
-        The function name to be bound.  If None (default), all
+    func_name : Optional[str]
+        The function name to be bound. If None (default), all
         functions within the module will be updated.
 
     Returns
@@ -656,7 +684,7 @@ def FuseOpsByPattern(
         in which they are matched. Higher-priority patterns should come earlier in the list.
 
         In addition to FusionPattern, a tuple can be passed as item of this list. The pattern
-        will be constructed through FusionPattern(*item)
+        will be constructed through :code:`FusionPattern(*item)`
 
     bind_constants : bool
         Whether or not to keep bound constants in the grouped function.
@@ -911,6 +939,7 @@ def MetaScheduleTuneIRMod(
     op_names: Optional[List[str]] = None,
 ) -> tvm.ir.transform.Pass:
     """Tune Relax IRModule with MetaSchedule.
+
     Parameters
     ----------
     params: Dict[str, NDArray]
@@ -1024,7 +1053,7 @@ def AlterOpImpl(
         l = []
         for transform in transform_list:
             if isinstance(transform, Callable):
-                transform = IndexMap.from_func(transform)
+                transform = IndexMap.from_func_with_separators(transform)[0]
             l.append(transform)
         op_buffer_transforms[operator_name] = l
 
@@ -1035,13 +1064,15 @@ def AlterOpImpl(
 
 def ConvertLayout(desired_layouts: Dict[str, List[str]]) -> tvm.ir.transform.Pass:
     """Automatic layout conversion pass.
+
     Parameters
     ----------
     desired_layouts : Dict[str, List[str]]
         The desired layout of conv2d ops is a map from the name of the op to the desired layout
         of the desired feature map, weight and output. For example, if we want to convert the
         layout of conv2d from NCHW to NHWC, we can set the desired layout of conv2d to be
-        {"relax.nn.conv2d": ["NHWC", "OHWI"]}.
+        ``{"relax.nn.conv2d": ["NHWC", "OHWI"]}``.
+
     Returns
     -------
     ret : tvm.transform.Pass
@@ -1052,20 +1083,22 @@ def ConvertLayout(desired_layouts: Dict[str, List[str]]) -> tvm.ir.transform.Pas
 
 def DeadCodeElimination(entry_functions: Optional[List[str]] = None) -> tvm.ir.transform.Pass:
     """Remove dead code in the IRModule.
-       Currently it removes:
+    Currently it removes:
+
        1. Unused local VarBindings in a DataflowBlock.
        2. Unused DataflowBlocks in a function.
        3. Unused Relax functions in the module.
           We detect the call chain from the entry function, and remove all unused functions.
 
-    Parameters
-    ----------
-    entry_functions: Optional[List[str]]
-        The set of entry functions to start from.
 
     Notes
     -----
     For function-wise DCE, use py:func:`tvm.relax.analysis.remove_all_unused`.
+
+    Parameters
+    ----------
+    entry_functions: Optional[List[str]]
+        The set of entry functions to start from.
 
     Returns
     -------
@@ -1082,6 +1115,7 @@ def ToMixedPrecision(
 ) -> tvm.ir.transform.Pass:
     """Automatic mixed precision pass. Currently the pass assumes the input module to be fp32
     only, and will automatically cast fp32 to fp16 for certain ops.
+
     Parameters
     ----------
     out_dtype : str
@@ -1098,17 +1132,20 @@ def ToMixedPrecision(
     return _ffi_api.ToMixedPrecision(out_dtype, fp16_input_names)  # type: ignore
 
 
-def SplitCallTIRByPattern(patterns, fcodegen) -> tvm.ir.transform.Pass:
+def SplitCallTIRByPattern(patterns: List[PrimFunc], fcodegen: Callable) -> tvm.ir.transform.Pass:
     """Split a PrimFunc into 2 parts: the first part is a TIR PrimFunc which is
        matched with some pattern, and the second part is the rest of the original
        PrimFunc. It will call fcodegen to generate the code for the matched pattern
        to replace it with a ExternFunc call.
+
     Parameters
     ----------
     patterns : List[PrimFunc]
         The list of patterns to match.
+
     fcodegen: Callable[[List[MatchResult]], List[Object]]
         The function to generate the code for the matched patterns.
+
     Returns
     -------
     ret : tvm.transform.Pass

@@ -182,7 +182,15 @@ def _layout_transform(bb: BlockBuilder, call: Call) -> Expr:
         )
 
     index_map: tvm.tir.IndexMap = call.attrs.index_map
-    pad_value = call.attrs.pad_value.value
+    pad_value = call.attrs.pad_value
+    if pad_value is not None:
+        pad_value = pad_value.value
+    else:
+        if "int" in call.args[0].struct_info.dtype:
+            pad_value = int(0)
+        else:
+            pad_value = float(0.0)
+
     axis_separators: tvm.tir.IndexMap.AXIS_SEPARATOR = call.attrs.axis_separators
     # Convert to list from array
     axis_separators = list(map(lambda x: x.value, axis_separators))

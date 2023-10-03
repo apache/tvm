@@ -21,7 +21,6 @@ import tempfile
 
 import numpy as np
 
-from tvm import dlight as dl
 from tvm import relax as rx
 from tvm._ffi import register_func
 from tvm.contrib import tvmjs
@@ -32,10 +31,50 @@ from tvm.script import relax as R
 from tvm.target import Target
 
 
-@register_func("tests.disco.shard_with_numpy", override=True)
-def _shard_with_numpy(src, num_shards, tgt):
-    s_0, s_1, s_2 = src.shape
-    tgt.copyfrom(src.numpy().reshape(s_0, num_shards, s_1 // num_shards, s_2).transpose(1, 0, 2, 3))
+@register_func("tests.disco.shard_dim_0", override=True)
+def _shard_dim_0(src, num_shards, tgt):
+    s_0, s_1 = src.shape
+    tgt.copyfrom(src.numpy().reshape(num_shards, s_0 // num_shards, s_1))
+
+
+@register_func("tests.disco.shard_dim_1", override=True)
+def _shard_dim_1(src, num_shards, tgt):
+    s_0, s_1 = src.shape
+    tgt.copyfrom(src.numpy().reshape(s_0, num_shards, s_1 // num_shards).transpose(1, 0, 2))
+
+
+@register_func("tests.disco.shard_qkv_0", override=True)
+def _shard_qkv_0(src, num_shards, q_heads, kv_heads, tgt):
+    total_dim, hidden_size = src.shape
+    head_dim = total_dim // (q_heads + kv_heads + kv_heads)
+    q_dim = q_heads * head_dim
+    kv_dim = kv_heads * head_dim
+    w_q = src.numpy()[:q_dim, :].reshape(
+        num_shards,
+        q_heads // num_shards,
+        head_dim,
+        hidden_size,
+    )
+    w_k = src.numpy()[q_dim : q_dim + kv_dim, :].reshape(
+        num_shards,
+        kv_heads // num_shards,
+        head_dim,
+        hidden_size,
+    )
+    w_v = src.numpy()[q_dim + kv_dim :, :].reshape(
+        num_shards,
+        kv_heads // num_shards,
+        head_dim,
+        hidden_size,
+    )
+    w_qkv = np.concatenate([w_q, w_k, w_v], axis=1)
+    tgt.copyfrom(w_qkv)
+
+
+@register_func("tests.disco.shard_qkv_1", override=True)
+def _shard_qkv_1(src, tgt):
+    s, _, _, h = src.shape  # pylint: disable=invalid-name
+    tgt.copyfrom(src.numpy().reshape(s, -1, h))
 
 
 def _create_loader(sess, path, param_dict, shard_info):
@@ -44,23 +83,33 @@ def _create_loader(sess, path, param_dict, shard_info):
     with open(path_ndarray_cache, "r", encoding="utf-8") as i_f:
         ndarray_cache = i_f.read()
     loader_create = sess.get_global_func("runtime.disco.ShardLoader")
-    shard_with_numpy = sess.get_global_func("tests.disco.shard_with_numpy")
-    loader = loader_create(path_ndarray_cache, ndarray_cache, shard_info, shard_with_numpy)
+    loader = loader_create(path_ndarray_cache, ndarray_cache, json.dumps(shard_info), None)
     return loader
 
 
 def test_load_shard():
     devices = [0, 1]
+    num_shards = len(devices)
     param_dict = {
         "x_0": np.random.uniform(size=[64, 128]).astype("float16"),
         "x_1": np.random.uniform(size=[32, 128]).astype("float32"),
     }
-    shard_info = json.dumps(
-        {
-            "x_0": 1,
-            "x_1": 0,
-        }
-    )
+    shard_info = {
+        "x_0": [
+            [
+                "tests.disco.shard_dim_1",
+                [(num_shards, 64, 64), "float16"],
+                num_shards,
+            ],
+        ],
+        "x_1": [
+            [
+                "tests.disco.shard_dim_0",
+                [(num_shards, 16, 128), "float32"],
+                num_shards,
+            ]
+        ],
+    }
     with tempfile.TemporaryDirectory() as path:
         sess = di.ThreadedSession(num_workers=len(devices))
         sess.init_ccl("nccl", *devices)
@@ -88,16 +137,27 @@ def test_load_shard():
 
 def test_load_shard_in_relax():
     devices = [0, 1]
+    num_shards = len(devices)
     param_dict = {
         "x_0": np.random.uniform(size=[64, 128]).astype("float16"),
         "x_1": np.random.uniform(size=[32, 128]).astype("float32"),
     }
-    shard_info = json.dumps(
-        {
-            "x_0": 1,
-            "x_1": 0,
-        }
-    )
+    shard_info = {
+        "x_0": [
+            [
+                "tests.disco.shard_dim_1",
+                [(num_shards, 64, 64), "float16"],
+                num_shards,
+            ],
+        ],
+        "x_1": [
+            [
+                "tests.disco.shard_dim_0",
+                [(num_shards, 16, 128), "float32"],
+                num_shards,
+            ]
+        ],
+    }
 
     # pylint: disable=invalid-name
     @I.ir_module
@@ -128,13 +188,6 @@ def test_load_shard_in_relax():
     def relax_build(mod, target):
         with target:
             mod = rx.get_pipeline("zero")(mod)  # pylint: disable=no-value-for-parameter
-            mod = dl.ApplyDefaultSchedule(  # pylint: disable=not-callable
-                dl.gpu.Matmul(),
-                dl.gpu.GEMV(),
-                dl.gpu.Reduction(),
-                dl.gpu.GeneralReduction(),
-                dl.gpu.Fallback(),
-            )(mod)
             return rx.build(mod, target="cuda")
 
     target = Target(
@@ -149,9 +202,10 @@ def test_load_shard_in_relax():
     )
     with tempfile.TemporaryDirectory() as tmpdir:
         dso_path = tmpdir + "/test.so"
-        relax_build(Module, target).export_library(dso_path)
         sess = di.ThreadedSession(num_workers=len(devices))
         sess.init_ccl("nccl", *devices)
+        relax_build(Module, target).export_library(dso_path)
+
         mod = sess.load_vm_module(dso_path)
         loader = _create_loader(sess, tmpdir, param_dict, shard_info)
         result = mod["main"](loader)
@@ -175,16 +229,27 @@ def test_load_shard_in_relax():
 
 def test_load_shard_all():
     devices = [0, 1]
+    num_shards = len(devices)
     param_dict = {
         "param_0": np.random.uniform(size=[64, 128]).astype("float16"),
         "param_1": np.random.uniform(size=[32, 128]).astype("float32"),
     }
-    shard_info = json.dumps(
-        {
-            "param_0": 1,
-            "param_1": 0,
-        }
-    )
+    shard_info = {
+        "param_0": [
+            [
+                "tests.disco.shard_dim_1",
+                [(num_shards, 64, 64), "float16"],
+                num_shards,
+            ],
+        ],
+        "param_1": [
+            [
+                "tests.disco.shard_dim_0",
+                [(2, 16, 128), "float32"],
+                num_shards,
+            ]
+        ],
+    }
     with tempfile.TemporaryDirectory() as path:
         sess = di.ThreadedSession(num_workers=len(devices))
         sess.init_ccl("nccl", *devices)
@@ -205,7 +270,7 @@ def test_load_shard_broadcast():
         "param_0": np.random.uniform(size=[64, 128]).astype("float16"),
         "param_1": np.random.uniform(size=[32, 128]).astype("float32"),
     }
-    shard_info = "{}"
+    shard_info = {}
     with tempfile.TemporaryDirectory() as path:
         sess = di.ThreadedSession(num_workers=len(devices))
         sess.init_ccl("nccl", *devices)
@@ -220,8 +285,68 @@ def test_load_shard_broadcast():
         np.testing.assert_equal(param_dict["param_1"], p_1[1].numpy())
 
 
+def test_load_qkv_proj_shard():  # pylint: disable=too-many-locals
+    devices = [0, 1]
+    num_shards = len(devices)
+    q_heads = 8
+    kv_heads = 10
+    head_dim = 10
+    hidden_size = 20
+    w_q = np.random.uniform(size=[q_heads * head_dim, hidden_size]).astype("float16")
+    w_k = np.random.uniform(size=[kv_heads * head_dim, hidden_size]).astype("float16")
+    w_v = np.random.uniform(size=[kv_heads * head_dim, hidden_size]).astype("float16")
+    w_qkv = np.concatenate([w_q, w_k, w_v], axis=0)
+    param_dict = {"w_qkv": w_qkv}
+    np_qkv = np.concatenate(
+        [
+            w_q.reshape((num_shards, q_heads // num_shards, head_dim, hidden_size)),
+            w_k.reshape((num_shards, kv_heads // num_shards, head_dim, hidden_size)),
+            w_v.reshape((num_shards, kv_heads // num_shards, head_dim, hidden_size)),
+        ],
+        axis=1,
+    ).reshape((num_shards, -1, hidden_size))
+
+    shard_info = {
+        "w_qkv": [
+            [
+                "tests.disco.shard_qkv_0",
+                [
+                    (num_shards, (q_heads + kv_heads * 2) // num_shards, head_dim, hidden_size),
+                    "float16",
+                ],
+                num_shards,
+                q_heads,
+                kv_heads,
+            ],
+            [
+                "tests.disco.shard_qkv_1",
+                [
+                    (num_shards, (q_heads + kv_heads * 2) // num_shards * head_dim, hidden_size),
+                    "float16",
+                ],
+            ],
+        ],
+    }
+
+    with tempfile.TemporaryDirectory() as path:
+        sess = di.ThreadedSession(num_workers=len(devices))
+        sess.init_ccl("nccl", *devices)
+        loader = _create_loader(sess, path, param_dict, shard_info)
+        loader_load = sess.get_global_func("runtime.disco.ShardLoaderLoad")
+        d_0 = loader_load(loader, ShapeTuple([0]))
+        np.testing.assert_equal(
+            np_qkv[0],
+            d_0.debug_get_from_remote(0).numpy(),
+        )
+        np.testing.assert_equal(
+            np_qkv[1],
+            d_0.debug_get_from_remote(1).numpy(),
+        )
+
+
 if __name__ == "__main__":
     test_load_shard()
     test_load_shard_in_relax()
     test_load_shard_all()
     test_load_shard_broadcast()
+    test_load_qkv_proj_shard()
