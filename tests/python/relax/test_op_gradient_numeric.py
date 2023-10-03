@@ -122,8 +122,7 @@ def relax_check_gradients(
             out = forward_bb.emit_output(call)
         forward_bb.emit_func_output(out)
     forward_mod = forward_bb.get()
-    forward_lower_mod = LegalizeOps()(forward_mod)
-    forward_ex = relax.build(forward_lower_mod, target)
+    forward_ex = relax.build(forward_mod, target)
     forward_vm = relax.VirtualMachine(forward_ex, dev)
 
     # Generate weights
@@ -187,8 +186,7 @@ def relax_check_gradients(
         grad_bb.emit_func_output(out)
 
     grad_mod = grad_bb.get()
-    grad_lower_mod = LegalizeOps()(grad_mod)
-    grad_ex = relax.build(grad_lower_mod, target)
+    grad_ex = relax.build(grad_mod, target)
     grad_vm = relax.VirtualMachine(grad_ex, dev)
 
     # tvm.runtime.NDArray inputs

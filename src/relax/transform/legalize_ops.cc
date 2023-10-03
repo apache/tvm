@@ -31,6 +31,8 @@
 namespace tvm {
 namespace relax {
 
+TVM_REGISTER_PASS_CONFIG_OPTION("relax.transform.apply_legalize_ops", Bool);
+
 /*!
  * \brief Check if a given Tensor/Shape/TupleStructInfo contains shapes whose
  * values are all known.
@@ -206,7 +208,12 @@ namespace transform {
 Pass LegalizeOps(Optional<Map<String, PackedFunc>> cmap, bool enable_warning) {
   runtime::TypedPackedFunc<IRModule(IRModule, PassContext)> pass_func = [=](IRModule mod,
                                                                             PassContext pc) {
-    return LegalizeMutator(mod, cmap, enable_warning).Transform();
+    bool apply_legalize_ops =
+        pc->GetConfig<Bool>("relax.transform.apply_legalize_ops").value_or(Bool(true))->value;
+    if (apply_legalize_ops) {
+      mod = LegalizeMutator(mod, cmap, enable_warning).Transform();
+    }
+    return mod;
   };
   return CreateModulePass(/*pass_function=*/pass_func,
                           /*opt_level=*/0,

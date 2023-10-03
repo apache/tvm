@@ -49,8 +49,7 @@ def test_dynamic_strided_slice(begin, end, strides):
             gv: R.Tensor("float32", ndim=4) = R.dynamic_strided_slice(x, begin, end, strides)
             return gv
     # fmt: on
-    mod = LegalizeOps()(DynamicStridedSlice)
-    vm = build(mod)
+    vm = build(DynamicStridedSlice)
 
     x_np = np.random.rand(8, 9, 10, 10).astype(np.float32)
     data_nd = tvm.nd.array(x_np, dev)
@@ -83,8 +82,7 @@ def test_dynamic_strided_slice_symbolic(begin, end, strides):
             gv: R.Tensor("float32", ndim=4) = R.dynamic_strided_slice(x, begin, end, strides)
             return gv
     # fmt: on
-    mod = LegalizeOps()(DynamicStridedSlice)
-    vm = build(mod)
+    vm = build(DynamicStridedSlice)
 
     x_np = np.random.rand(8, 9, 10, 10).astype(np.float32)
     data_nd = tvm.nd.array(x_np, dev)

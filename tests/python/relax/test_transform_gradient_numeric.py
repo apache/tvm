@@ -22,12 +22,10 @@ from tvm.relay.testing import rand
 from tvm.testing import assert_allclose
 from tvm.testing.utils import check_numerical_grads
 from tvm.script.parser import ir as I, relax as R
-from tvm.relax.transform import LegalizeOps
 
 
 def _legalize_and_build(mod, target, dev):
-    lowered_mod = LegalizeOps()(mod)
-    ex = relax.build(lowered_mod, target)
+    ex = relax.build(mod, target)
     vm = relax.VirtualMachine(ex, dev)
     return vm
 

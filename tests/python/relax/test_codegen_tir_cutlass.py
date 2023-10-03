@@ -65,7 +65,6 @@ def build(mod):
 
 
 def build_and_run_reference(mod, inputs_np):
-    mod = relax.transform.LegalizeOps()(mod)
     dev = tvm.device("llvm", 0)
     ex = relax.build(mod, "llvm")
     vm = relax.VirtualMachine(ex, dev)
