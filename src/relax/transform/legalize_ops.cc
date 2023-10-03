@@ -177,7 +177,14 @@ class LegalizeMutator : public ExprMutator {
     // intrinsic whose legalization is implemented in terms of relax
     // intrinsics.  The base case of the recursion occurs when no
     // additional legalization steps are found.
-    legalized = VisitExpr(legalized);
+    //
+    // Only perform recursive legalization when the legalization
+    // function returned a modified expression, as some legalizations
+    // return the original expression if they are unable to produce a
+    // legalized version.
+    if (!legalized.same_as(visited_call)) {
+      legalized = VisitExpr(legalized);
+    }
 
     return legalized;
   }
