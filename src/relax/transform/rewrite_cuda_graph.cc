@@ -554,7 +554,15 @@ namespace transform {
 
 Pass RewriteCUDAGraph() {
   runtime::TypedPackedFunc<IRModule(IRModule, PassContext)> pass_func =  //
-      [=](IRModule m, PassContext pc) { return ::tvm::relax::RewriteCUDAGraph(std::move(m)); };
+      [=](IRModule mod, PassContext pc) {
+        bool use_cuda_graph =
+            pc->GetConfig<Bool>("relax.backend.use_cuda_graph").value_or(Bool(false))->value;
+        if (use_cuda_graph) {
+          mod = ::tvm::relax::RewriteCUDAGraph(std::move(mod));
+        }
+
+        return mod;
+      };
   return CreateModulePass(pass_func, 0, "RewriteCUDAGraph", {});
 }
 
