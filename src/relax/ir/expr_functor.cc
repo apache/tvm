@@ -71,6 +71,7 @@
   void ExprVisitor::VisitBinding_(const VarBindingNode* binding, const OP* value) { \
     this->VisitExpr(binding->value);                                                \
     this->VisitVarDef(binding->var);                                                \
+    this->binding_table_.insert({binding->var->vid, binding->value});               \
   }
 
 // functions to be overriden.
@@ -258,6 +259,7 @@ RELAX_EXPR_VISITOR_VISIT_BINDING_IMPL(DataTypeImmNode);
 void ExprVisitor::VisitBinding_(const MatchCastNode* binding) {
   this->VisitExpr(binding->value);
   this->VisitVarDef(binding->var);
+  this->binding_table_.insert({binding->var->vid, binding->value});
 }
 
 void ExprVisitor::VisitBindingBlock_(const BindingBlockNode* block) {
