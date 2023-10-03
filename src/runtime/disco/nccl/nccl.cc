@@ -196,7 +196,7 @@ void AllGather(NDArray send, NDArray recv) {
   CCLThreadLocalContext* ctx = CCLThreadLocalContext::Get();
   ShapeTuple shape = send.Shape();
   int64_t numel = shape->Product();
-  cudaStream_t stream = ctx->GetDefaultStream();
+  deviceStream_t stream = ctx->GetDefaultStream();
   NCCL_CALL(ncclAllGather(send->data, recv->data, numel,
                           /*datatype=*/AsNCCLDataType(DataType(send->dtype)), ctx->comm, stream));
 }
