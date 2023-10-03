@@ -155,8 +155,8 @@ TVM_DLL Pass AttachGlobalSymbol();
 TVM_DLL Pass Normalize();
 
 /*!
- * \brief Simplify a Relax module by folding var bindings and match shape nodes.
- * May include other forms of expression simplification in the future.
+ * \brief Simplify a Relax module by folding var bindings and match shape nodes,
+ * as well as tuple indices.
  * Best used alongside constant folding and eliminating unused bindings.
  *
  * \note If a dataflow var is used only in a binding to the dataflow block

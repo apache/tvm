@@ -284,6 +284,8 @@ def CanonicalizeBindings() -> tvm.ir.transform.Pass:
     """
     Canonicalizes variable definitions
     (e.g., if there is y = x and z = y, it replaces uses of y and z with x).
+    Also simplifies match cast nodes (eliminating redundant checks)
+    and tuple indices.
 
     Best combined with constant folding and the elimination of unused definitions.
 
