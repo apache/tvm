@@ -42,6 +42,6 @@ def instantiate_rms_norm_template(attrs):
     ICHECK(func != nullptr);
     cudaStream_t stream = static_cast<cudaStream_t>((*func)().operator void*());
 
-    cutlass::rmsnorm(size, _output, _input, _weight, stream);
+    cutlass::rmsnorm(size, _output, _input, _weight, stream, ${rms_eps});
     """
     return substitute_template(template, attrs)

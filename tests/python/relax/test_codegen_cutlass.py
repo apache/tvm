@@ -1743,7 +1743,9 @@ def test_rms_norm():
     with tvm.target.Target("cuda"):
         mod = tvm.tir.transform.DefaultGPUSchedule()(mod)
 
-    mod = relax.transform.RunCodegen()(mod)
+    mod = relax.transform.RunCodegen(
+        {"cutlass": {"rms_eps": 1e-6}},
+    )(mod)
 
     inp = np.random.randn(*data_shape).astype(dtype)
     weight = np.random.randn(data_shape[-1]).astype(dtype)

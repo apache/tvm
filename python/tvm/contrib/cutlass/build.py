@@ -943,7 +943,7 @@ class CutlassRelaxFunctionAnnotator(relax.PyExprMutator):
             }
         )
 
-    def handle_norm(self, f, _):
+    def handle_norm(self, f, op_type):
         """Annotate a layer or rms norm op."""
         signature = _extract_relax_function_signature(f)
         attrs = {}
@@ -952,6 +952,12 @@ class CutlassRelaxFunctionAnnotator(relax.PyExprMutator):
         attrs["N"] = signature["arg0_shape"][-1]
         dtype = signature["arg0_dtype"]
         attrs["data_type"] = {"float32": "float", "float16": "cutlass::half_t"}[str(dtype)]
+
+        if "rms" in op_type:
+            attrs["rms_eps"] = self.options.get("rms_eps", 1e-5)
+        else:
+            attrs["layer_norm_eps"] = self.options.get("layer_nrom_eps", 1e-5)
+
         return f.with_attrs(attrs)
 
     def visit_function_(self, f):
