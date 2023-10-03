@@ -15,6 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 """Configuration of TVMScript printer"""
+import os
 from typing import Dict, List, Optional, Sequence
 
 from tvm._ffi import get_global_func, register_object
@@ -261,7 +262,7 @@ class Scriptable:
     def show(
         self,
         style: Optional[str] = None,
-        black_format: bool = False,
+        black_format: Optional[bool] = None,
         *,
         name: Optional[str] = None,
         show_meta: bool = False,
@@ -290,8 +291,26 @@ class Scriptable:
         style : str, optional
             Pygmentize printing style, auto-detected if None.  See
             `tvm.script.highlight.cprint` for more details.
-        black_format: bool
-            If true, use the formatter Black to format the TVMScript
+
+        black_format: Optional[bool]
+
+            If true, use the formatter Black to format the TVMScript.
+            If false, do not apply the auto-formatter.
+
+            If None (default), determine the behavior based on the
+            environment variable "TVM_BLACK_FORMAT".  If this
+            environment variable is unset, set to the empty string, or
+            set to the integer zero, black auto-formatting will be
+            disabled.  If the environment variable is set to a
+            non-zero integer, black auto-formatting will be enabled.
+
+            Note that the "TVM_BLACK_FORMAT" environment variable only
+            applies to the `.show()` method, and not the underlying
+            `.script()` method.  The `.show()` method is intended for
+            human-readable output based on individual user
+            preferences, while the `.script()` method is intended to
+            provided a consistent output regardless of environment.
+
         name : Optional[str] = None
             The name of the object
         show_meta : bool = False
@@ -331,10 +350,15 @@ class Scriptable:
             Object to be underlined
         obj_to_annotate : Optional[Dict[Object, str]] = None
             Object to be annotated
+
         """
         from tvm.script.highlight import (  # pylint: disable=import-outside-toplevel
             cprint,
         )
+
+        if black_format is None:
+            env = os.environ.get("TVM_BLACK_FORMAT")
+            black_format = env and int(env)
 
         cprint(
             self.script(

@@ -16,30 +16,7 @@
 # under the License.
 """Common x86 related utilities"""
 from .._ffi import register_func
-from . import _ffi_api
-from ..ir.container import Array
-
-
-@register_func("tvm.target.x86.target_has_features")
-def target_has_features(features, target=None):
-    """Check X86 CPU features.
-    Parameters
-    ----------
-    features : str or Array
-        Feature(s) to check.
-    target : Target
-        Optional TVM target, default `None` use the global context target.
-    Returns
-    -------
-    has_feats : bool
-        True if feature(s) are in the target arch.
-    """
-    has_feats = True
-    assert isinstance(features, (Array, str))
-    features = [features] if isinstance(features, str) else features
-    for feat in features:
-        has_feats &= _ffi_api.llvm_x86_has_feature(feat, target)
-    return has_feats
+from .codegen import target_has_features
 
 
 @register_func("tvm.topi.x86.utils.get_simd_32bit_lanes")
@@ -53,9 +30,6 @@ def get_simd_32bit_lanes():
         The optimal vector length of CPU from the global context target.
     """
     vec_len = 4
-    # avx512f:  llvm.x86.avx512.addpd.w.512 (LLVM auto, added)
-    # avx512bw: llvm.x86.avx512.pmaddubs.w.512" (TVM required)
-    #         + llvm.x86.avx512.pmaddw.d.512"
     if target_has_features(["avx512bw", "avx512f"]):
         vec_len = 16
     elif target_has_features("avx2"):

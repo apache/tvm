@@ -20,11 +20,11 @@ import os
 
 import numpy as np
 import oneflow as flow
+from packaging import version as package_version
 import tvm
 import tvm.testing
 import tvm.topi.testing
 from tvm import relay
-from packaging import version as package_version
 
 MODEL_HOME = "test_model"
 
