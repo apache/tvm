@@ -585,7 +585,9 @@ void TransitiveComparisonAnalyzer::Impl::Bind(const tir::Var& var, const Range& 
 
 void TransitiveComparisonAnalyzer::Impl::Bind(const tir::Var& var, const PrimExpr& expr,
                                               bool allow_override) {
-  Bind(var, Range::FromMinExtent(expr, 1), allow_override);
+  if (expr.dtype().is_integer_type()) {
+    Bind(var, Range::FromMinExtent(expr, 1), allow_override);
+  }
 }
 
 std::function<void()> TransitiveComparisonAnalyzer::Impl::EnterConstraint(const PrimExpr& expr) {

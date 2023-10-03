@@ -146,11 +146,39 @@ TVM_REGISTER_GLOBAL("ir.FloatImm").set_body_typed([](DataType dtype, double valu
 
 TVM_REGISTER_NODE_TYPE(FloatImmNode);
 
-Range::Range(PrimExpr begin, PrimExpr end, Span span)
-    : Range(make_object<RangeNode>(begin, tir::is_zero(begin) ? end : (end - begin), span)) {}
+Range::Range(PrimExpr begin, PrimExpr end, Span span) {
+  auto sub = [](PrimExpr a, PrimExpr b) {
+    // Match and undo potential "extent + min" from FromMinExtent.
+    if (const auto* n = a.as<tir::AddNode>()) {
+      if (n->b.same_as(b)) return n->a;
+      if (n->a.same_as(b)) return n->b;
+    }
+    return a - b;
+  };
+  PrimExpr min = begin;
+  PrimExpr extent = tir::is_zero(begin) ? end : sub(end, begin);
+
+  if (min.dtype() != extent.dtype()) {
+    auto widest = DataType::WidestOf({min.dtype(), extent.dtype()});
+    CHECK(!widest.is_void()) << "ValueError: Incompatible types for Range(min:" << min.dtype()
+                             << ", extent=" << extent.dtype();
+    if (min.dtype() != widest) {
+      min = tvm::cast(widest, min);
+    } else if (extent.dtype() != widest) {
+      extent = tvm::cast(widest, extent);
+    }
+  }
+
+  ObjectPtr<RangeNode> node = make_object<RangeNode>();
+  node->min = min;
+  node->extent = extent;
+  node->span = span;
+  data_ = std::move(node);
+}
 
 Range Range::FromMinExtent(PrimExpr min, PrimExpr extent, Span span) {
-  return Range(make_object<RangeNode>(min, extent, span));
+  // Invoke the PrimExpr-based constructor to ensure type processing.
+  return Range(min, extent + min, span);
 }
 
 TVM_REGISTER_GLOBAL("ir.Range_from_min_extent").set_body_typed(Range::FromMinExtent);

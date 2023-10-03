@@ -29,6 +29,7 @@
 
 #include <string>
 #include <type_traits>
+#include <vector>
 
 namespace tvm {
 namespace runtime {
@@ -119,6 +120,8 @@ class DataType {
   bool is_vector_bool() const { return is_vector() && bits() == 1; }
   /*! \return whether type is a Void type. */
   bool is_void() const { return code() == DataType::kHandle && bits() == 0 && lanes() == 0; }
+  /*! \return whether type is an integer type (signed or unsigned). */
+  bool is_integer_type() const { return is_int() || is_uint(); }
   /*!
    * \brief Create a new data type by change lanes to a specified value.
    * \param lanes The target number of lanes.
@@ -235,6 +238,49 @@ class DataType {
     } else {
       return DataType::UInt(sizeof(tvm_index_t) * 8);
     }
+  }
+
+  /*!
+   * \brief Return the widest type from a given array.
+   *
+   * Given an array of types, return the one of those types that can
+   * hold all values representable in the other types, or "Void" if
+   * such type is not present in the array.
+   */
+  static DataType WidestOf(const std::vector<DataType>& types) {
+    DataType none = Void();
+    if (types.empty()) return none;
+
+    // Normally we'd require all types to have the same type code, but we
+    // need to give special treatment to int/uint. A wider int can hold
+    // all values from a narrower uint, but no uint can hold all values
+    // from an int (because uint can't have negative values).
+    // Because of that, if the widest type is uint, but there was a signed
+    // int present, the result is still "none". However there may be an
+    // even longer int in the array later on, so we can't return just yet.
+    DataType widest = types[0];
+    bool delayed_none = false;
+    for (int i = 1, e = types.size(); i < e; ++i) {
+      auto current = types[i];
+      if (current.code() == widest.code()) {
+        if (current.bits() > widest.bits()) widest = current;
+      } else if (current.is_integer_type() && widest.is_integer_type()) {
+        // One must be signed, the other must be unsigned.
+        if (current.is_uint() && current.bits() >= widest.bits()) {
+          delayed_none = true;
+          widest = current;
+        } else if (current.is_int() && current.bits() <= widest.bits()) {
+          delayed_none = true;
+        } else {
+          delayed_none = false;
+          widest = Int(std::max(current.bits(), widest.bits()));
+        }
+      } else {
+        // The types are incompatible.
+        return none;
+      }
+    }
+    return delayed_none ? none : widest;
   }
 
  private:
