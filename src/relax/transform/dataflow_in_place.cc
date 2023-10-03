@@ -82,7 +82,7 @@ class AliasAnalyzer {
       int curr_idx = get_fresh_idx();
       alias_map_[input] = {curr_idx};
       if (auto* tup_info = GetStructInfoAs<TupleStructInfoNode>(input)) {
-        insert_fresh_tuple(curr_idx, tup_info->fields.size());
+        insert_fresh_tuple(curr_idx, tup_info);
       }
     }
 
@@ -96,7 +96,7 @@ class AliasAnalyzer {
       } else {
         CHECK(false) << "Invalid binding";  // impossible
       }
-      alias_map_[current_var] = get_alias_set(value);
+      alias_map_[current_var] = get_alias_set(value, current_var);
     }
 
     return alias_map_;
@@ -109,12 +109,29 @@ class AliasAnalyzer {
     return ret;
   }
 
-  void insert_fresh_tuple(int tup_idx, size_t num_members) {
+  void insert_fresh_tuple(int tup_idx, const TupleStructInfoNode* tup_info) {
     std::vector<std::unordered_set<int>> tuple_set;
-    for (int i = 0; i < num_members; i++) {
-      tuple_set.push_back({get_fresh_idx()});
+    for (int i = 0; i < static_cast<int>(tup_info->fields.size()); i++) {
+      int curr_field = get_fresh_idx();
+      tuple_set.push_back({curr_field});
+      if (auto* nested_tup_info = tup_info->fields[i].as<TupleStructInfoNode>()) {
+        insert_fresh_tuple(curr_field, nested_tup_info);
+      }
     }
     tuple_map_[tup_idx] = tuple_set;
+  }
+
+  // capture the given index and also its tuple components (including recursively)
+  // if they exist
+  void add_to_captured_set(int idx) {
+    captured_by_functions_.insert(idx);
+    if (tuple_map_.count(idx)) {
+      for (auto comp_set : tuple_map_[idx]) {
+        for (auto tup_comp_idx : comp_set) {
+          add_to_captured_set(tup_comp_idx);
+        }
+      }
+    }
   }
 
   // Conservative extremely pessimistic assumption:
@@ -123,38 +140,29 @@ class AliasAnalyzer {
   // For tuples, assume all members are aliased. Yeah, it's bad.
   // (Skip first arg is for handling call_pure_packed, where the first arg is an ExternFunc that we
   // should ignore)
-  std::unordered_set<int> handle_mystery_call(const CallNode* call_node,
+  std::unordered_set<int> handle_mystery_call(const CallNode* call_node, const Var& bound_var,
                                               bool skip_first_arg = false) {
     // the result may or may not be newly allocated
     std::unordered_set<int> ret;
     int res_idx = get_fresh_idx();
-    captured_by_functions_.insert(res_idx);
+    // the result may be a tuple
+    if (auto* tup_info_node = GetStructInfoAs<TupleStructInfoNode>(bound_var)) {
+      insert_fresh_tuple(res_idx, tup_info_node);
+    }
+    add_to_captured_set(res_idx);
 
     for (size_t i = (skip_first_arg) ? 1 : 0; i < call_node->args.size(); i++) {
       auto arg = call_node->args[i];
-      auto arg_alias_set = get_alias_set(arg);
-      // for any tuples in the set, also throw in all components since they can get captured
-      // too
-      std::vector<int> captured_tuples;
+      auto arg_alias_set = get_alias_set(arg, bound_var);
       for (int alias_idx : arg_alias_set) {
-        if (tuple_map_.count(alias_idx)) {
-          captured_tuples.push_back(alias_idx);
-        }
+        add_to_captured_set(alias_idx);
       }
-      // this is to avoid modifying the set while we're iterating over it
-      for (int tuple_idx : captured_tuples) {
-        auto tuple_members = tuple_map_[tuple_idx];
-        for (std::unordered_set<int> tuple_member : tuple_members) {
-          arg_alias_set.insert(tuple_member.begin(), tuple_member.end());
-        }
-      }
-      captured_by_functions_.insert(arg_alias_set.begin(), arg_alias_set.end());
     }
     ret.insert(captured_by_functions_.begin(), captured_by_functions_.end());
     return ret;
   }
 
-  std::unordered_set<int> get_alias_set(const Expr& expr) {
+  std::unordered_set<int> get_alias_set(const Expr& value, const Var& bound_var) {
     std::unordered_set<int> ret;
 
     // cases for value:
@@ -172,7 +180,7 @@ class AliasAnalyzer {
       // TODO(@slyubomirsky): We will probably want special handling for closures
       ret.insert(get_fresh_idx());
     } else if (auto* target_var_node = value.as<VarNode>()) {
-      auto target_var = Downcast<Var>(target_var_node);
+      auto target_var = GetRef<Var>(target_var_node);
       if (alias_map_.count(target_var)) {
         ret.insert(alias_map_[target_var].begin(), alias_map_[target_var].end());
       } else {
@@ -183,12 +191,12 @@ class AliasAnalyzer {
       int tup_idx = get_fresh_idx();
       ret.insert(tup_idx);
       std::vector<std::unordered_set<int>> new_tuple_map;
-      for (auto field = target_tuple->fields) {
-        new_tuple_map.push_back(get_alias_set(field));
+      for (auto field : target_tuple->fields) {
+        new_tuple_map.push_back(get_alias_set(field, bound_var));
       }
       tuple_map_[tup_idx] = new_tuple_map;
     } else if (auto* target_tgi = value.as<TupleGetItemNode>()) {
-      std::unordered_set<int> tuple_set = get_alias_set(target_tgi->tuple);
+      std::unordered_set<int> tuple_set = get_alias_set(target_tgi->tuple, bound_var);
       // if there's only one possibility for the tuple and it's in the tuple map,
       // index into it
       if (tuple_set.size() == 1) {
@@ -204,40 +212,23 @@ class AliasAnalyzer {
     } else if (auto* call_node = value.as<CallNode>()) {
       if (auto* op_node = call_node->op.as<OpNode>()) {
         // call_pure_packed: treat as non-op call
-        if (op_node.name == "call_pure_packed") {
-          return handle_mystery_call(call_node, true);
+        if (op_node->name == "relax.call_pure_packed") {
+          return handle_mystery_call(call_node, bound_var, true);
         }
         // split: Returns a tuple, treat as allocation
-        else if (op_node.name == "split") {
+        else if (op_node->name == "relax.split") {
           // tuple is freshly allocated, but also add components to the tuple map
           int tup_idx = get_fresh_idx();
           ret.insert(tup_idx);
-
-          std::vector<std::unordered_set<int>> tuple_set;
-          auto attrs = Downcast<SplitAttrs>(call_node->attrs);
-          int num_members = 0;
-          if (const auto* indices = attrs->indices_or_sections.as<ArrayNode>()) {
-            // see struct info rule for split
-            num_members = indices.size() + 1;
-          } else if (const auto* n_section = attrs->indices_or_sections.as<IntImmNode>()) {
-            num_members = n_section->value;
-          } else {
-            CHECK(false) << "Invalid split call";
-          }
-
-          for (int i = 0; i < num_members; i++) {
-            tuple_set.push_back({get_fresh_idx()});
-          }
-          tuple_map_[tup_idx] = tuple_set;
+          // the LHS (the bound var) will definitely have a tuple struct info
+          insert_fresh_tuple(tup_idx, GetStructInfoAs<TupleStructInfoNode>(bound_var));
         }
         // call_tir: can potentially return a tuple
-        else if (op_node.name == "call_tir") {
-          if (auto* tuple_struct_info = call->sinfo_args[0].as<TupleStructInfoNode>()) {
+        else if (op_node->name == "relax.call_tir") {
+          if (auto* tuple_struct_info = call_node->sinfo_args[0].as<TupleStructInfoNode>()) {
             int tup_idx = get_fresh_idx();
             ret.insert(tup_idx);
-
-            int num_members = tuple_struct_info->fields.size();
-            insert_fresh_tuple(tup_idx, num_members);
+            insert_fresh_tuple(tup_idx, tuple_struct_info);
           } else {
             ret.insert(get_fresh_idx());
           }
@@ -249,7 +240,7 @@ class AliasAnalyzer {
         }
       } else {
         // assume any non-op call can be extremely dangerous and do anything
-        return handle_mystery_call(call_node);
+        return handle_mystery_call(call_node, bound_var);
       }
     }
 
@@ -262,13 +253,41 @@ class AliasAnalyzer {
   int mem_idx_;
 };
 
-// export for testing
-
 // check for in-place eligibility:
 //  1. see if there's an arg big enough to hold the result
 //  2. see if the arg is live past the call
 //  3. see if the arg has an alias that's live past the call
 //  if conditions are met, we're good to go
 
+// export for testing
+namespace transform {
+
+Map<Var, Array<Integer>> DataflowLivenessAnalysis(const DataflowBlock& block) {
+  auto liveness_ranges = analyze_liveness(block);
+  Map<Var, Array<Integer>> ret;
+  for (auto kv : liveness_ranges) {
+    ret.Set(kv.first, {kv.second.first, kv.second.second});
+  }
+  return ret;
+}
+
+Map<Var, Array<Integer>> DataflowAliasAnalysis(const DataflowBlock& block, Array<Var> inputs) {
+  AliasAnalyzer analyzer;
+  auto alias_sets = analyzer.Analyze(block, inputs);
+  Map<Var, Array<Integer>> ret;
+  for (auto kv : alias_sets) {
+    Array<Integer> aliases;
+    for (auto alias : kv.second) {
+      aliases.push_back(alias);
+    }
+    ret.Set(kv.first, aliases);
+  }
+  return ret;
+}
+
+TVM_REGISTER_GLOBAL("relax.analysis.DataflowLivenessAnalysis")
+    .set_body_typed(DataflowLivenessAnalysis);
+TVM_REGISTER_GLOBAL("relax.analysis.DataflowAliasAnalysis").set_body_typed(DataflowAliasAnalysis);
+}  // namespace transform
 }  // namespace relax
 }  // namespace tvm

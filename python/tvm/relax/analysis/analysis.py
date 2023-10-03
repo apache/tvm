@@ -21,7 +21,7 @@ This file contains the set of passes for Relax, which exposes an interface for
 configuring the passes and scripting them in Python.
 """
 
-from typing import Dict, List, Optional, Union, Callable
+from typing import Dict, List, Optional, Set, Tuple, Union, Callable
 from enum import IntEnum
 
 import tvm
@@ -528,3 +528,20 @@ def detect_recursion(mod: tvm.IRModule) -> List[List[GlobalVar]]:
         with any other, it will be a singleton in this list.
     """
     return _ffi_api.detect_recursion(mod)  # type: ignore
+
+
+# expose for testing
+def dataflow_liveness_analysis(block: DataflowBlock) -> Dict[Var, Tuple[int, int]]:
+    live_ranges = _ffi_api.DataflowLivenessAnalysis(block)  # type: ignore
+    ret = {}
+    for (var, live_range) in live_ranges.items():
+        ret[var] = tuple(live_range)
+    return ret  # type: ignore
+
+
+def dataflow_alias_analysis(block: DataflowBlock, inputs: List[Var]) -> Dict[Var, Set[int]]:
+    alias_sets = _ffi_api.DataflowAliasAnalysis(block, inputs)  # type: ignore
+    ret = {}
+    for (var, alias_set) in alias_sets.items():
+        ret[var] = set(alias_set)
+    return ret  # type: ignore
