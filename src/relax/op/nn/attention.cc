@@ -33,7 +33,8 @@ Expr attention(Expr query, Expr key, Expr value, Optional<Expr> bias, Optional<F
   ObjectPtr<AttentionAttrs> attrs = make_object<AttentionAttrs>();
   attrs->scale = scale;
   attrs->causal_mask = causal_mask;
-  if (bias.defined()) {
+
+  if (bias) {
     return Call(Op::Get("relax.nn.attention_bias"),
                 {std::move(query), std::move(key), std::move(value), std::move(bias.value())},
                 Attrs(attrs), {});
@@ -42,7 +43,20 @@ Expr attention(Expr query, Expr key, Expr value, Optional<Expr> bias, Optional<F
               Attrs(attrs), {});
 }
 
+Expr attention_var_len(Expr query, Expr key, Expr value, Expr seqstart_q, Expr seqstart_k,
+                       Expr max_seqlen_q, Expr max_seqlen_k, Optional<FloatImm> scale,
+                       Optional<String> causal_mask) {
+  ObjectPtr<AttentionAttrs> attrs = make_object<AttentionAttrs>();
+  attrs->scale = scale;
+  attrs->causal_mask = causal_mask;
+
+  return Call(Op::Get("relax.nn.attention_var_len"),
+              {query, key, value, seqstart_q, seqstart_k, max_seqlen_q, max_seqlen_k}, Attrs(attrs),
+              {});
+}
+
 TVM_REGISTER_GLOBAL("relax.op.nn.attention").set_body_typed(attention);
+TVM_REGISTER_GLOBAL("relax.op.nn.attention_var_len").set_body_typed(attention_var_len);
 
 StructInfo InferStructInfoAttention(const Call& call, const BlockBuilder& ctx) {
   Array<TensorStructInfo> input_sinfo = GetInputTensorStructInfo(call, ctx);
@@ -146,6 +160,21 @@ TVM_REGISTER_OP("relax.nn.attention_bias")
     .add_argument("key", "Tensor", "The input keys tensor.")
     .add_argument("value", "Tensor", "The input values tensor.")
     .add_argument("bias", "Tensor", "The input bias tensor.")
+    .set_attr<TMixedPrecisionPolicy>("TMixedPrecisionPolicy", MixedPrecisionPolicyKind::kAlways)
+    .set_attr<FInferMixedPrecision>("FInferMixedPrecision", InferMixedPrecisionAttention)
+    .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoAttention)
+    .set_attr<Bool>("FPurity", Bool(true));
+
+TVM_REGISTER_OP("relax.nn.attention_var_len")
+    .set_attrs_type<AttentionAttrs>()
+    .set_num_inputs(7)
+    .add_argument("query", "Tensor", "The input queries tensor.")
+    .add_argument("key", "Tensor", "The input keys tensor.")
+    .add_argument("value", "Tensor", "The input values tensor.")
+    .add_argument("seqstart_q", "Tensor", "The cumsum of query sequence lengths, prepended with 0.")
+    .add_argument("seqstart_k", "Tensor", "The cumsum of key sequence lengths, prepended with 0.")
+    .add_argument("max_seqlen_q", "Tensor", "The maximum query sequence length in the batch.")
+    .add_argument("max_seqlen_k", "Tensor", "The maximum key sequence length in the batch.")
     .set_attr<TMixedPrecisionPolicy>("TMixedPrecisionPolicy", MixedPrecisionPolicyKind::kAlways)
     .set_attr<FInferMixedPrecision>("FInferMixedPrecision", InferMixedPrecisionAttention)
     .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoAttention)

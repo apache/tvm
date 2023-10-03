@@ -32,6 +32,15 @@ def instantiate_attention_template(attrs):
   p.bias_strideB = ${bias_strideB};
 """
 
+    var_len_template = """
+  p.seqstart_q_ptr = (int32_t*)${seqstart_q}->data;
+  p.seqstart_k_ptr = (int32_t*)${seqstart_k}->data;
+  // TODO(masahi): Pass max_seqlen_q as an integer
+  cudaMemcpy(&p.num_queries, (int32_t*)${max_seqlen_q}->data, sizeof(int32_t),
+             cudaMemcpyDeviceToHost);
+  p.num_batches = ${seqstart_q}->shape[0] - 1;
+"""
+
     qkv_template = {
         "default": """
   p.query_ptr = reinterpret_cast<T *>(${query}->data);
@@ -127,6 +136,7 @@ def instantiate_attention_template(attrs):
 
   ${qkv_template}
   ${bias_template}
+  ${var_len_template}
 
   constexpr auto kernel_fn = attention_kernel_batched_impl<Attention>;
   int smem_bytes = sizeof(typename Attention::SharedStorage);
@@ -155,6 +165,7 @@ def instantiate_attention_template(attrs):
         {
             "qkv_template": qkv_template[attrs["qkv_layout"]],
             "bias_template": bias_template if "bias" in attrs else "",
+            "var_len_template": var_len_template if "seqstart_q" in attrs else "",
         },
     )
 
