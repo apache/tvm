@@ -16,10 +16,11 @@
 # under the License.
 # pylint: disable=invalid-name, unused-argument, redefined-argument-from-local
 """Relax Optimize Layout Transform pass."""
+from tvm.ir import structural_equal
 from tvm.ir.module import IRModule
 from tvm.ir.transform import PassContext
 from tvm.relax import Expr, Function
-from tvm.relax.dpl import is_op, rewrite_call, wildcard
+from tvm.relax.dpl import is_op, rewrite_call, wildcard, TuplePattern
 from . import function_pass
 
 
@@ -35,7 +36,12 @@ class OptimizeLayoutTransform:
         pattern_transform_layout = is_op("relax.layout_transform")(self.input)
         pattern_1 = is_op("relax.layout_transform")(pattern_transform_layout)
 
-        self.pattern = pattern_1
+        self.gv_ = wildcard()
+        args = TuplePattern([pattern_transform_layout])
+        pattern_2 = is_op("relax.call_tir")(self.gv_, args)
+        self.pattern_2 = is_op("relax.layout_transform")(pattern_2)
+
+        self.pattern = pattern_1 | self.pattern_2
 
     def transform_function(self, func: Expr, mod: IRModule, ctx: PassContext) -> IRModule:
         """
@@ -54,6 +60,7 @@ class OptimizeLayoutTransform:
             Relax pass context
         """
 
+        self.mod = mod
         updated_func = func
         for _, func in mod.functions.items():
             # Skip non-relax functions
@@ -65,9 +72,15 @@ class OptimizeLayoutTransform:
 
             def rewriter(expr, matches):
                 arg1 = matches[self.pattern]
-                arg2 = matches[self.input]
-                if list(arg1.struct_info.shape) == list(arg2.struct_info.shape):
-                    return arg2
+                if self.pattern_2 not in matches.keys():
+                    arg2 = matches[self.input]
+                else:
+                    arg2 = matches[self.gv_]
+                    if "remove_pad" == self.mod[arg2].attrs["operator_name"]:
+                        arg2 = matches[self.input]
+                if hasattr(arg1.struct_info, "shape") and hasattr(arg2.struct_info, "shape"):
+                    if structural_equal(arg1.struct_info.shape, arg2.struct_info.shape):
+                        return arg2
                 return expr
 
             updated_func = rewrite_call(self.pattern, rewriter, func)
