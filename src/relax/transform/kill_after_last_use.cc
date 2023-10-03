@@ -49,6 +49,13 @@ class UnusedTrivialBindingRemover : public ExprMutator {
         has_trivial_binding.insert(binding->var.get());
         ExprVisitor::VisitBinding_(binding, val);
       }
+      void VisitBinding_(const MatchCastNode* binding) override {
+        if (binding->value.as<VarNode>() &&
+            StructuralEqual()(GetStructInfo(binding->var), GetStructInfo(binding->value))) {
+          has_trivial_binding.insert(binding->var.get());
+        }
+        ExprVisitor::VisitBinding_(binding);
+      }
       void VisitBinding_(const VarBindingNode* binding, const DataflowVarNode* val) override {
         VisitBinding_(binding, static_cast<const VarNode*>(val));
       }
@@ -180,6 +187,16 @@ class CollectLastUsage : public ExprVisitor {
 
     // Do not call ExprVisitor::VisitBinding_ here, as the trivial
     // rebinding should not be treated as a point of use.
+  }
+
+  void VisitBinding_(const MatchCastNode* binding) override {
+    if (auto rebound = binding->value.as<VarNode>()) {
+      // Because CodeGenVM treats MatchCast nodes identically to
+      // VarBinding nodes, we must also de-duplicate at this level.
+      trivial_bindings_.insert({binding->var.get(), UnwrapTrivialBindings(rebound)});
+    } else {
+      ExprVisitor::VisitBinding_(binding);
+    }
   }
 
   void VisitBinding_(const VarBindingNode* binding, const ConstantNode* val) override {

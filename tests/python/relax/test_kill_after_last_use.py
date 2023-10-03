@@ -51,5 +51,56 @@ def test_basic():
     tvm.ir.assert_structural_equal(Expected, After)
 
 
+def test_track_usage_across_trivial_rebindings():
+    """To work around VM de-duplication of register usage"""
+
+    @I.ir_module
+    class Before:
+        @R.function(pure=False)
+        def main(w: R.Tensor([16, 32], "float32")):
+            x = R.add(w, R.const(1, "float32"))
+            y = x
+            z = R.add(y, R.const(1, "float32"))
+            return z
+
+    @I.ir_module
+    class Expected:
+        @R.function(pure=False)
+        def main(w: R.Tensor([16, 32], "float32")):
+            x = R.add(w, R.const(1, "float32"))
+            z = R.add(x, R.const(1, "float32"))
+            _ = R.memory.kill_tensor(x)
+            return z
+
+    After = KillAfterLastUse()(Before)
+    tvm.ir.assert_structural_equal(Expected, After)
+
+
+def test_track_usage_across_trivial_rebindings_in_match_cast():
+    """To work around VM de-duplication of register usage"""
+
+    @I.ir_module
+    class Before:
+        @R.function(pure=False)
+        def main(w: R.Tensor([16, 32], "float32")):
+            x = R.add(w, R.const(1, "float32"))
+            y = R.match_cast(x, R.Tensor([16, 32]))
+            z = R.add(y, R.const(1, "float32"))
+            return z
+
+    @I.ir_module
+    class Expected:
+        @R.function(pure=False)
+        def main(w: R.Tensor([16, 32], "float32")):
+            x = R.add(w, R.const(1, "float32"))
+            y = R.match_cast(x, R.Tensor([16, 32]))
+            z = R.add(y, R.const(1, "float32"))
+            _ = R.memory.kill_tensor(x)
+            return z
+
+    After = KillAfterLastUse()(Before)
+    tvm.ir.assert_structural_equal(Expected, After)
+
+
 if __name__ == "__main__":
     tvm.testing.main()
