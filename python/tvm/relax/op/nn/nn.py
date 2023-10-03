@@ -871,9 +871,11 @@ def batch_norm(
     .. note::
 
         This operator has two modes:
+
         - Training mode.
             - Use the mean and var computed from THIS batch to normalize.
             - Update and then return the running mean and running var.
+
         - Inference mode.
             - Use the running_mean and running_var parameters to normalize.
             - Do not update the running mean and running var. Just return the original value.
@@ -1005,7 +1007,7 @@ def group_norm(
     into groups along the channel axis. Then apply layer normalization to each group.
 
     Parameters
-        ----------
+    ----------
     data : relax.Expr
         Input to which group_norm will be applied.
 
@@ -1231,22 +1233,37 @@ def attention(
         while for 'BottomRight', the mask matrix is as `np.tril(*, k=abs(seq_len - seq_len_kv))`
         For example, with seq_len = 4, seq_len_kv = 2,
         mask for 'TopLeft':
-        [[1, 0],
-         [1, 1],
-         [1, 1],
-         [1, 1]]
+
+        .. code:: python
+
+            [[1, 0],
+            [1, 1],
+            [1, 1],
+            [1, 1]]
+
         mask for 'BottomRight':
-        [[1, 1],
-         [1, 1],
-         [1, 1],
-         [1, 1]]
+
+        .. code:: python
+
+            [[1, 1],
+            [1, 1],
+            [1, 1],
+            [1, 1]]
+
         with seq_len = 2, seq_len_kv = 4,
         mask for 'TopLeft':
-        [[1, 0, 0, 0],
-         [1, 1, 0, 0]]
+
+        .. code:: python
+
+            [[1, 0, 0, 0],
+            [1, 1, 0, 0]]
+
         mask for 'BottomRight':
-        [[1, 1, 1, 0],
-         [1, 1, 1, 1]]
+
+        .. code:: python
+
+            [[1, 1, 1, 0],
+            [1, 1, 1, 1]]
 
 
     Returns
