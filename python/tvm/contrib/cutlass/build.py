@@ -952,6 +952,7 @@ class CutlassRelaxFunctionAnnotator(relax.PyExprMutator):
         attrs["N"] = signature["arg0_shape"][-1]
         dtype = signature["arg0_dtype"]
         attrs["data_type"] = {"float32": "float", "float16": "cutlass::half_t"}[str(dtype)]
+        attrs["eps"] =self.options.get("norm_eps", 1e-5)
         return f.with_attrs(attrs)
 
     def visit_function_(self, f):
