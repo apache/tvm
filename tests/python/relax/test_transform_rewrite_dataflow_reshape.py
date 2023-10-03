@@ -18,7 +18,7 @@
 import tvm
 import tvm.testing
 from tvm import relax
-from tvm.script import relax as R, tir as T
+from tvm.script import relax as R, tir as T, ir as I
 
 
 def test_reshape_expand_dims():
@@ -498,6 +498,77 @@ def test_reshape_scalar():
     mod = relax.transform.LegalizeOps()(mod)
     rewritten = relax.transform.RewriteDataflowReshape()(mod)
     tvm.ir.assert_structural_equal(rewritten, Expected)
+
+
+def test_reshape_with_tuple_var_as_argument():
+    @I.ir_module
+    class Before:
+        @T.prim_func(private=True)
+        def add(
+            A: T.Buffer((T.int64(1),), "float32"),
+            B: T.Buffer((T.int64(1),), "float32"),
+            T_add: T.Buffer((T.int64(1),), "float32"),
+        ):
+            T.func_attr({"tir.noalias": T.bool(True)})
+            for i in range(T.int64(1)):
+                with T.block("T_add"):
+                    vi = T.axis.spatial(T.int64(1), i)
+                    T_add[vi] = A[vi] + B[vi]
+
+        @T.prim_func(private=True)
+        def reshape(A: T.Buffer((), "float32"), T_reshape: T.Buffer((T.int64(1),), "float32")):
+            T.func_attr({"tir.noalias": T.bool(True)})
+            for i in range(T.int64(1)):
+                with T.block("T_reshape"):
+                    vi = T.axis.spatial(T.int64(1), i)
+                    T_reshape[vi] = A[()]
+
+        @R.function
+        def main(x: R.Tensor((), dtype="float32")) -> R.Tensor((1,), dtype="float32"):
+            cls = Before
+            with R.dataflow():
+                reshape_args = (x,)
+                y = R.call_tir(cls.reshape, reshape_args, out_sinfo=R.Tensor((1,), dtype="float32"))
+                add_args = (y, y)
+                z = R.call_tir(cls.add, add_args, out_sinfo=R.Tensor((1,), dtype="float32"))
+                R.output(z)
+            return z
+
+    @tvm.script.ir_module
+    class Expected:
+        @T.prim_func(private=True)
+        def add(
+            A: T.Buffer((T.int64(1),), "float32"),
+            B: T.Buffer((T.int64(1),), "float32"),
+            T_add: T.Buffer((T.int64(1),), "float32"),
+        ):
+            T.func_attr({"tir.noalias": T.bool(True)})
+            for i in range(T.int64(1)):
+                with T.block("T_add"):
+                    vi = T.axis.spatial(T.int64(1), i)
+                    T_add[vi] = A[vi] + B[vi]
+
+        @T.prim_func(private=True)
+        def reshape(A: T.Buffer((), "float32"), T_reshape: T.Buffer((T.int64(1),), "float32")):
+            T.func_attr({"tir.noalias": T.bool(True)})
+            for i in range(T.int64(1)):
+                with T.block("T_reshape"):
+                    vi = T.axis.spatial(T.int64(1), i)
+                    T_reshape[vi] = A[()]
+
+        @R.function
+        def main(x: R.Tensor((), dtype="float32")) -> R.Tensor((1,), dtype="float32"):
+            cls = Expected
+            with R.dataflow():
+                reshape_args = (x,)
+                y = R.reshape(x, R.shape([1]))
+                add_args = (y, y)
+                z = R.call_tir(cls.add, add_args, out_sinfo=R.Tensor((1,), dtype="float32"))
+                R.output(z)
+            return z
+
+    After = relax.transform.RewriteDataflowReshape()(Before)
+    tvm.ir.assert_structural_equal(Expected, After)
 
 
 if __name__ == "__main__":

@@ -82,8 +82,11 @@ class DataflowReshapeRewriter : public ExprMutator {
     // vm.builtin.reshape in the VMBuiltinLower pass.
 
     auto prim_fn = Downcast<tir::PrimFunc>(mod_->Lookup(Downcast<GlobalVar>(call->args[0])));
-    auto arg_tuple = Downcast<Tuple>(call->args[1])->fields;
-    auto used_arg_indices = GetUsedArgsIndices(prim_fn, arg_tuple.size());
+
+    auto args_expr = call->args[1];
+    auto args_sinfo = GetStructInfo(args_expr).as<TupleStructInfoNode>();
+
+    auto used_arg_indices = GetUsedArgsIndices(prim_fn, args_sinfo->fields.size());
 
     // The number of inputs to call_tir(reshape, (...)) might not be one, since FuseOps
     // can generate a fused TupleGetItem + reshape function whose input is a tuple. FuseTIR
@@ -92,18 +95,32 @@ class DataflowReshapeRewriter : public ExprMutator {
     if (used_arg_indices.size() != 1) {
       return GetRef<Call>(call);
     }
+    size_t arg_index = used_arg_indices[0];
 
-    auto arg = arg_tuple[used_arg_indices[0]];
+    auto arg_sinfo = Downcast<TensorStructInfo>(args_sinfo->fields[arg_index]);
 
-    if (!IsCallingTIRReshape(call, arg)) {
+    if (!IsCallingTIRReshape(call, arg_sinfo)) {
       return GetRef<Call>(call);
     }
+
+    // Now we know that we're calling a reshape, but we don't yet know
+    // on what.  Ideally, the arguments are either a tuple, or a
+    // variable that is bound to a known tuple, but we may need to
+    // fall back to a TupleGetItem.
+    args_expr = UnwrapBindings(args_expr);
+    auto arg = [&]() -> Expr {
+      if (auto known_tuple = args_expr.as<TupleNode>()) {
+        return known_tuple->fields[arg_index];
+      } else {
+        return TupleGetItem(args_expr, arg_index);
+      }
+    }();
 
     TensorStructInfo res_sinfo = Downcast<TensorStructInfo>(call->struct_info_.value());
     return reshape(arg, res_sinfo->shape.value());
   }
 
-  bool IsCallingTIRReshape(const CallNode* call, Expr inp) {
+  bool IsCallingTIRReshape(const CallNode* call, TensorStructInfo inp_sinfo) {
     const GlobalVar& global_var = Downcast<GlobalVar>(call->args[0]);
     const auto* func = mod_->functions.Get(global_var).as<tir::PrimFuncNode>();
     ICHECK_NOTNULL(func);
@@ -115,8 +132,7 @@ class DataflowReshapeRewriter : public ExprMutator {
     // as the number of elements in the result. There are operators that could have a reshape
     // pattern that don't meet this requirement (e.g. strided_slice), and they should not be
     // converted to reshape.
-    ICHECK(inp->struct_info_.defined() && call->struct_info_.defined());
-    TensorStructInfo inp_sinfo = Downcast<TensorStructInfo>(inp->struct_info_.value());
+    ICHECK(call->struct_info_.defined());
     TensorStructInfo res_sinfo = Downcast<TensorStructInfo>(call->struct_info_.value());
 
     if (inp_sinfo->IsUnknownDtype() || inp_sinfo->dtype != res_sinfo->dtype) {
