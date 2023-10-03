@@ -331,8 +331,8 @@ def contains_impure_call(expr: Expr, own_name: Optional[Union[Var, GlobalVar]] =
     """
     Check if the given expression (likely a function body) contains any impure calls.
 
-    Parameter
-    ---------
+    Parameters
+    ----------
     expr : Expr
         The expression to be examined. If expr is a function, we check the body.
 

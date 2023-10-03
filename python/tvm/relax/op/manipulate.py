@@ -350,6 +350,7 @@ def repeat(data: Expr, repeats: int, axis: Optional[int] = None) -> Expr:
     Examples
     --------
     .. code-block:: python
+
         x = R.const([[1, 2], [3, 4]])
         lv1 = R.repeat(x, repeats=2) # lv1 == [1, 1, 2, 2, 3, 3, 4, 4]
         lv2 = R.repeat(x, repeats=2, axis=1) # lv2 == [[1., 1., 2., 2.],
@@ -435,13 +436,20 @@ def scatter_elements(
     specified by `updates` at specific index positions specified by `indices`.
     For example, in 2D tensor, the update corresponding to the [i][j] entry is performed
     as below:
+
+    .. code-block::
+
         output[indices[i][j]][j] = updates[i][j] if axis = 0
         output[i][indices[i][j]] = updates[i][j] if axis = 1
 
     When the `reduction` is set to some reduction function `f`, the update corresponding to
     [i][j] entry is performed as below:
+
+    .. code-block::
+
         output[indices[i][j]][j] += f(output[indices[i][j]][j], updates[i][j]) if axis = 0
         output[i][indices[i][j]] += f(output[i][indices[i][j]], updates[i][j]) if axis = 1
+
     Where `f` is update, add, mul, mean, max, min.
 
     Parameters
@@ -470,6 +478,7 @@ def scatter_elements(
     Examples
     --------
     .. code-block:: python
+
        # inputs
        data = [
             [0.0, 0.0, 0.0],
