@@ -173,7 +173,6 @@ def _create_process_pool(num_workers: int):
         if worker_id != 0:
             read_fd, write_fd = pool[worker_id - 1].start()
             return ShapeTuple([read_fd, write_fd])
-        print("Shutting down the process pool")
         del pool
         return None
 
