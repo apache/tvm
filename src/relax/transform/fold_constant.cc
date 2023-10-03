@@ -177,9 +177,27 @@ class ConstantFolder : public ExprMutator {
     // call_tir needs to have at least three arguments
     ICHECK_GE(call->args.size(), 2);
     Optional<tir::PrimFunc> func = MatchPrimFunc(call->args[0]);
-    ICHECK(call->args[1].as<TupleNode>()) << "call_tir.args[1] must be Tuple";
-    Optional<Array<runtime::NDArray>> arr_args =
-        MatchConstArrayArgs(call->args[1].as<TupleNode>()->fields);
+
+    Expr arg_expr = call->args[1];
+    ICHECK(GetStructInfo(arg_expr).as<TupleStructInfo>())
+        << "call_tir.args[1] must be Tuple"
+        << ", but instead args[1] was " << arg_expr << " with struct info "
+        << GetStructInfo(arg_expr);
+
+    // The arguments to call_tir may be a variable bound to a tuple,
+    // rather than the tuple itself.  Unwrap any such variable
+    // bindings if they are known.
+    arg_expr = UnwrapBindings(arg_expr);
+
+    // The arguments may still be a variable bound to a tuple, where
+    // the tuple was produced outside the current function.  In that
+    // case, we cannot fold the expression.
+    auto arg_tuple = arg_expr.as<TupleNode>();
+    if (!arg_tuple) {
+      return NullOpt;
+    }
+
+    Optional<Array<runtime::NDArray>> arr_args = MatchConstArrayArgs(arg_tuple->fields);
     ICHECK_EQ(call->sinfo_args.size(), 1) << "call_tir should have exactly one sinfo arg";
     Optional<runtime::ShapeTuple> shape = MatchConstShape(call->sinfo_args[0]);
     bool output_not_tuple = call->sinfo_args.size() == 1;

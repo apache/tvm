@@ -25,7 +25,7 @@ from tvm.runtime.object import Object
 from . import _ffi_api
 from ..expr import Expr, StringImm, ShapeExpr, Call, ExternFunc, GlobalVar, Var
 from ..expr import Tuple as RxTuple
-from ..struct_info import StructInfo, TensorStructInfo
+from ..struct_info import StructInfo, TensorStructInfo, TupleStructInfo
 from ...ir import PrimExpr
 from ..utils import args_converter
 
@@ -97,7 +97,7 @@ def call_tir(
     ret: Call
         A call node for the call_tir operator.
     """
-    if isinstance(args, Expr) and not isinstance(args, RxTuple):  # type: ignore
+    if isinstance(args, Expr) and not isinstance(args, RxTuple) and not isinstance(args.struct_info_, TupleStructInfo):  # type: ignore
         args = RxTuple((args,))
 
     if not isinstance(out_sinfo, list):

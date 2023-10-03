@@ -263,7 +263,7 @@ RELAY_REGISTER_OP("relax.call_tir")
     .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoCallTIR)
     .set_attr<Bool>("FPurity", Bool(true));
 
-Expr MakeCallTIR(Expr func, Tuple args, Array<TensorStructInfo> out_sinfo_list,
+Expr MakeCallTIR(Expr func, Expr arg_tuple, Array<TensorStructInfo> out_sinfo_list,
                  Optional<Expr> packed_ints) {
   for (const TensorStructInfo& sinfo : out_sinfo_list) {
     const auto* shape = sinfo->shape.as<ShapeExprNode>();
@@ -283,9 +283,9 @@ Expr MakeCallTIR(Expr func, Tuple args, Array<TensorStructInfo> out_sinfo_list,
   Call call;
   if (!packed_ints) {
     // don't use additional optional argument
-    call = Call(op, {func, args}, {}, {out_sinfo});
+    call = Call(op, {func, arg_tuple}, {}, {out_sinfo});
   } else {
-    call = Call(op, {func, args, packed_ints.value()}, {}, {out_sinfo});
+    call = Call(op, {func, arg_tuple, packed_ints.value()}, {}, {out_sinfo});
   }
   return call;
 }
@@ -307,7 +307,7 @@ RELAY_REGISTER_OP("relax.call_tir_with_grad")
     .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoCallTIR)
     .set_attr<Bool>("FPurity", Bool(true));
 
-Expr MakeCallTIRWithGrad(Expr func, Tuple args, Array<TensorStructInfo> out_sinfo_list,
+Expr MakeCallTIRWithGrad(Expr func, Expr arg_tuple, Array<TensorStructInfo> out_sinfo_list,
                          String te_grad_name, Map<String, ObjectRef> te_grad_kwargs,
                          Optional<Expr> packed_ints) {
   for (const TensorStructInfo& sinfo : out_sinfo_list) {
@@ -333,9 +333,9 @@ Expr MakeCallTIRWithGrad(Expr func, Tuple args, Array<TensorStructInfo> out_sinf
   Call call;
   if (!packed_ints) {
     // don't use additional optional argument
-    call = Call(op, {func, args}, Attrs(attrs), {out_sinfo});
+    call = Call(op, {func, arg_tuple}, Attrs(attrs), {out_sinfo});
   } else {
-    call = Call(op, {func, args, packed_ints.value()}, Attrs(attrs), {out_sinfo});
+    call = Call(op, {func, arg_tuple, packed_ints.value()}, Attrs(attrs), {out_sinfo});
   }
   return call;
 }
@@ -453,7 +453,7 @@ RELAY_REGISTER_OP("relax.call_tir_inplace")
     // arguments will no longer be live)
     .set_attr<Bool>("FPurity", Bool(true));
 
-Expr MakeCallTIRInplace(Expr func, Tuple args, Array<Integer> inplace_indices,
+Expr MakeCallTIRInplace(Expr func, Expr arg_tuple, Array<Integer> inplace_indices,
                         Array<TensorStructInfo> out_sinfo_list, Optional<Expr> packed_ints) {
   for (const TensorStructInfo& sinfo : out_sinfo_list) {
     const auto* shape = sinfo->shape.as<ShapeExprNode>();
@@ -476,9 +476,9 @@ Expr MakeCallTIRInplace(Expr func, Tuple args, Array<Integer> inplace_indices,
   Call call;
   if (!packed_ints) {
     // don't use additional optional argument
-    call = Call(op, {func, args}, Attrs(attrs), {out_sinfo});
+    call = Call(op, {func, arg_tuple}, Attrs(attrs), {out_sinfo});
   } else {
-    call = Call(op, {func, args, packed_ints.value()}, Attrs(attrs), {out_sinfo});
+    call = Call(op, {func, arg_tuple, packed_ints.value()}, Attrs(attrs), {out_sinfo});
   }
   return call;
 }

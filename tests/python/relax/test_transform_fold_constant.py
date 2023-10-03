@@ -84,6 +84,38 @@ def test_one_fold_addone():
     tvm.ir.assert_structural_equal(after, expected)
 
 
+def test_one_fold_addone_with_arg_tuple():
+    """Like test_one_fold_addone, but without an inline tuple"""
+
+    @tvm.script.ir_module
+    class Module:
+        @T.prim_func
+        def addone(A: T.Buffer((16, 16), "float32"), B: T.Buffer((16, 16), "float32")) -> None:
+            for i, j in T.grid(16, 16):
+                with T.block("addone"):
+                    vi, vj = T.axis.remap("SS", [i, j])
+                    B[vi, vj] = A[vi, vj] + T.float32(1)
+
+        @R.function
+        def before(c0: R.Tensor((16, 16), "float32")):
+            cls = Module
+            arg_tuple = (c0,)
+            lv0 = relax.call_tir(cls.addone, arg_tuple, R.Tensor((16, 16), dtype="float32"))
+            return lv0
+
+        @R.function
+        def expected(c1: R.Tensor((16, 16), "float32")):
+            return c1
+
+    c0_np = np.arange((16 * 16)).astype("float32").reshape(16, 16)
+    c1_np = c0_np + 1
+    before = gen_mod(Module, "before", {"c0": c0_np})
+    expected = gen_mod(Module, "expected", {"c1": c1_np})
+
+    after = relax.transform.FoldConstant()(before)
+    tvm.ir.assert_structural_equal(after, expected)
+
+
 def test_one_fold_transpose():
     # put before after in a single module
     @tvm.script.ir_module
