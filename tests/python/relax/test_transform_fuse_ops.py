@@ -1501,5 +1501,47 @@ def test_partially_used_tuple_param():
     _check(Module, Expected)
 
 
+def test_fuse_call_tir_with_var_tuple():
+    """Call_tir may contain either inline tuple or a var"""
+
+    def before():
+        bb = relax.BlockBuilder()
+        x = relax.Var("x", R.Tensor([10, 20], "float32"))
+        with bb.function("main", [x]):
+            with bb.dataflow():
+                lv0 = bb.emit_te(topi.sin, x)
+                lv1 = bb.emit_te(topi.cos, x)
+                gv = bb.emit_output(bb.call_te(topi.add, lv0, lv1))
+            bb.emit_func_output(gv)
+
+        return bb.get()
+
+    def expected():
+        bb = relax.BlockBuilder()
+        x = relax.Var("x", R.Tensor([10, 20], "float32"))
+        p0 = relax.Var("p0", R.Tensor((), "float32"))
+
+        with bb.function("fused_sin_cos_add", [x], attrs={"Primitive": 1}, private=True):
+            with bb.dataflow():
+                lv0 = bb.emit_te(topi.sin, x)
+                lv1 = bb.emit_te(topi.cos, x)
+                gv = bb.emit_output(bb.call_te(topi.add, lv0, lv1))
+            bb.emit_func_output(gv)
+        fused_sin_cos_add = bb.get().get_global_var("fused_sin_cos_add")
+
+        x = relax.Var("x", R.Tensor([10, 20], "float32"))
+        with bb.function("main", [x]):
+            with bb.dataflow():
+                gv = bb.emit_output(relax.Call(fused_sin_cos_add, [x]))
+            bb.emit_func_output(gv)
+
+        return bb.get()
+
+    before = relax.transform.EliminateCommonSubexpr()(before())
+    expected = relax.transform.EliminateCommonSubexpr()(expected())
+
+    _check(before, expected)
+
+
 if __name__ == "__main__":
     tvm.testing.main()

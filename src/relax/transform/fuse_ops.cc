@@ -150,12 +150,16 @@ class GraphCreator : public ExprVisitor {
   }
 
   void VisitBinding_(const MatchCastNode* binding) final {
+    ExprVisitor::VisitBinding_(binding);
+
     IndexedForwardGraph::Node* node = CreateNode(binding->var.get());
     SetNodePattern(node, OpPatternKind::kOpaque);
     AddToPostDFSOrder(node, binding->var.get());
   }
 
   void VisitBinding_(const VarBindingNode* binding) final {
+    ExprVisitor::VisitBinding_(binding);
+
     IndexedForwardGraph::Node* node = CreateNode(binding->var.get());
 
     // If the variable is not a dataflow variable, it must be the output variable of this dataflow
@@ -169,9 +173,12 @@ class GraphCreator : public ExprVisitor {
     } else if (const auto* tuple_get_item = binding->value.as<TupleGetItemNode>()) {
       // Case 2. The expression is a TupleGetItemNode
       VisitTupleGetItem(tuple_get_item, node);
+    } else if (const auto* tuple = binding->value.as<TupleNode>()) {
+      // Case 3. The expression is a Tuple
+      VisitTuple(tuple, node);
     } else {
       VisitUnsupportedNode(binding->value, node);
-      // Case 3. The type of the expression is not fusion-supported.
+      // Case 4. The type of the expression is not fusion-supported.
       // In this case, we skip adding edges, adding an empty node into graph.
     }
     AddToPostDFSOrder(node, binding->var.get());
@@ -195,8 +202,16 @@ class GraphCreator : public ExprVisitor {
       const GlobalVar& global_var = Downcast<GlobalVar>(call->args[0]);
       tir::PrimFunc func = Downcast<tir::PrimFunc>(mod_->Lookup(global_var));
 
-      // Override args for call_tir
-      args = Downcast<Tuple>(call->args[1])->fields;
+      // Override args for call_tir, where possible.  If the argument
+      // is a variable bound to a tuple, do not unwrap it, as doing so
+      // would prevent the tuple object from being exposed to the
+      // GraphPartitioner.
+      Expr arg_tuple = call->args[1];
+      if (auto ptr = arg_tuple.as<TupleNode>()) {
+        args = ptr->fields;
+      } else {
+        args = {arg_tuple};
+      }
 
       Optional<Integer> opt_pattern = func->GetAttr<Integer>("op_pattern");
       if (opt_pattern.defined()) {
@@ -215,6 +230,13 @@ class GraphCreator : public ExprVisitor {
           << ", which is neither a leaf node nor a relax::Tuple";
       VisitLeaf(arg, binding_var_node, pattern);
     }
+  }
+
+  void VisitTuple(const TupleNode* tuple, IndexedForwardGraph::Node* binding_var_node) {
+    ICHECK_NOTNULL(binding_var_node);
+
+    SetNodePattern(binding_var_node, OpPatternKind::kTuple);
+    VisitLeaf(GetRef<Tuple>(tuple), binding_var_node, OpPatternKind::kTuple);
   }
 
   void VisitTupleGetItem(const TupleGetItemNode* tuple_item,
@@ -248,17 +270,11 @@ class GraphCreator : public ExprVisitor {
       for (const Expr& expr : tuple->fields) {
         VisitLeaf(expr, binding_var_node, pattern);
       }
-      return;
     }
 
-    if (!leaf_expr->IsInstance<LeafExprNode>()) {
-      // Skip GlobalVar, ExternFunc, OpNode.
-      return;
-    }
-
-    auto it = graph_.node_map.find(leaf_expr.get());
     IndexedForwardGraph::Node* leaf_node = nullptr;
-    if (it != graph_.node_map.end()) {
+
+    if (auto it = graph_.node_map.find(leaf_expr.get()); it != graph_.node_map.end()) {
       leaf_node = it->second;
     } else if (leaf_expr->IsInstance<ConstantNode>() || leaf_expr->IsInstance<ShapeExprNode>() ||
                leaf_expr->IsInstance<PrimValueNode>() || leaf_expr->IsInstance<StringImmNode>() ||
@@ -267,11 +283,11 @@ class GraphCreator : public ExprVisitor {
       // Since we never fuse constants, the pattern of the constant is set to `kOpaque`.
       SetNodePattern(leaf_node, OpPatternKind::kOpaque);
       AddToPostDFSOrder(leaf_node, leaf_expr.get());
-    } else {
-      LOG(FATAL) << "The leaf Expr is supposed to be defined before, but got: " << leaf_expr
-                 << " used before definition.";
     }
-    AddEdge(leaf_node, binding_var_node, pattern);
+
+    if (leaf_node) {
+      AddEdge(leaf_node, binding_var_node, pattern);
+    }
   }
 
   /********** Helper Functions **********/
@@ -387,14 +403,21 @@ class FunctionCreator : public ExprMutator {
 
     if (const auto* var_binding = binding.as<VarBindingNode>()) {
       if (const auto* call = var_binding->value.as<CallNode>()) {
+        Array<Expr> args;
+
         if (call->op == Op::Get("relax.call_tir")) {
           // Update the name of the function.
           name_hint_ = name_hint_ + "_" + Downcast<GlobalVar>(call->args[0])->name_hint;
 
-          const Tuple& args = Downcast<Tuple>(call->args[1]);
-          for (const Expr& arg : args->fields) {
-            CheckDefAndUpdateParam(arg);
-            ICHECK(GetStructInfoAs<TupleStructInfoNode>(arg) == nullptr);
+          // Unwrap a tuple variable to a tuple expression, if
+          // possible.  This treats use of a relax::Var that points to
+          // a tuple to be treated as a direct usage of the underlying
+          // relax::Var, preventing duplicate parameters.
+          Expr arg_tuple = UnwrapBindings(call->args[1]);
+          if (auto ptr = arg_tuple.as<TupleNode>()) {
+            args = ptr->fields;
+          } else {
+            args = {arg_tuple};
           }
           // TODO(tvm-team): handle shape expr
         } else {
@@ -409,27 +432,29 @@ class FunctionCreator : public ExprMutator {
             }
           }
 
-          for (const Expr& arg : call->args) {
-            CheckDefAndUpdateParam(arg);
-            if (GetStructInfoAs<TupleStructInfoNode>(arg) != nullptr) {
-              // The argument is fully referenced. Thus we remove it from the mapping.
-              partially_used_tuple_params_.erase(arg.get());
-            }
+          args = call->args;
+        }
+
+        for (const Expr& arg : args) {
+          CheckDefAndUpdateParam(arg);
+
+          if (arg->struct_info_.as<TupleStructInfoNode>()) {
+            // Mark the tuple as being used as a tuple object.  Therefore, we'll retain it as a
+            // tuple parameter.
+            tuple_param_info_[arg.get()].is_fully_used = true;
           }
         }
-      } else if (var_binding->value.as<TupleGetItemNode>()) {
-        const auto* tuple_item = var_binding->value.as<TupleGetItemNode>();
+
+      } else if (const auto* tuple_item = var_binding->value.as<TupleGetItemNode>()) {
         CheckDefAndUpdateParam(tuple_item->tuple);
 
-        if (partially_used_tuple_params_.find(tuple_item->tuple.get()) !=
-            partially_used_tuple_params_.end()) {
-          // Appending get-item index to the mapping.
-          partially_used_tuple_params_[tuple_item->tuple.get()].push_back(tuple_item->index);
-        }
+        tuple_param_info_[tuple_item->tuple.get()].used_by_index.push_back(tuple_item->index);
+      } else if (const auto* tuple = var_binding->value.as<TupleNode>()) {
+        tuple_param_info_[tuple].is_fully_used = true;
       }
 
       // Mark the binding variable as defined.
-      defined_vars_.insert(var_binding->var.get());
+      defined_vars_.insert({var_binding->var.get(), var_binding->value});
       // Set var as output true if the binding is not a dataflow variable
       if (!var_binding->var->IsInstance<DataflowVarNode>()) {
         AppendOutput(var_binding->var);
@@ -465,27 +490,31 @@ class FunctionCreator : public ExprMutator {
     // parameters with the parameters of its fields that are accessed in the
     // function.
     std::unordered_map<const ExprNode*, std::unordered_map<int, Var>> tuple_get_item_remap;
-    for (auto& [tuple_arg, item_indices] : partially_used_tuple_params_) {
-      ICHECK(!item_indices.empty());
-      int param_idx = tuple_param_idx_[tuple_arg];
-      Var param = params_[param_idx];
-      String param_name = params_[param_idx]->name_hint();
-      TupleStructInfo param_sinfo = Downcast<TupleStructInfo>(tuple_arg->struct_info_);
+    for (const auto& [tuple_arg, tuple_info] : tuple_param_info_) {
+      if (!tuple_info.is_fully_used && tuple_info.param_index.has_value()) {
+        const auto& item_indices = tuple_info.used_by_index;
+        ICHECK(!item_indices.empty());
+        int param_idx = tuple_info.param_index.value();
+        Var param = params_[param_idx];
+        String param_name = params_[param_idx]->name_hint();
+        TupleStructInfo param_sinfo = Downcast<TupleStructInfo>(tuple_arg->struct_info_);
 
-      Array<Expr> item_args;
-      Array<Var> item_params;
-      item_args.reserve(item_indices.size());
-      item_params.reserve(item_indices.size());
-      for (int item_idx : item_indices) {
-        Var item_param(param_name + "_" + std::to_string(item_idx), param_sinfo->fields[item_idx]);
-        item_args.push_back(TupleGetItem(GetRef<Expr>(tuple_arg), item_idx));
-        item_params.push_back(item_param);
-        tuple_get_item_remap[tuple_arg][item_idx] = item_param;
+        Array<Expr> item_args;
+        Array<Var> item_params;
+        item_args.reserve(item_indices.size());
+        item_params.reserve(item_indices.size());
+        for (int item_idx : item_indices) {
+          Var item_param(param_name + "_" + std::to_string(item_idx),
+                         param_sinfo->fields[item_idx]);
+          item_args.push_back(TupleGetItem(GetRef<Expr>(tuple_arg), item_idx));
+          item_params.push_back(item_param);
+          tuple_get_item_remap[tuple_arg][item_idx] = item_param;
+        }
+        arguments_.erase(arguments_.begin() + param_idx);
+        arguments_.insert(arguments_.begin() + param_idx, item_args.begin(), item_args.end());
+        params_.erase(params_.begin() + param_idx);
+        params_.insert(params_.begin() + param_idx, item_params.begin(), item_params.end());
       }
-      arguments_.erase(arguments_.begin() + param_idx);
-      arguments_.insert(arguments_.begin() + param_idx, item_args.begin(), item_args.end());
-      params_.erase(params_.begin() + param_idx);
-      params_.insert(params_.begin() + param_idx, item_params.begin(), item_params.end());
     }
 
     // Step 3. Visit each binding and collect outputs one by one.
@@ -606,8 +635,7 @@ class FunctionCreator : public ExprMutator {
       // Mark the tuple parameter is partially referenced in the beginning.
       // We will remove it from the mapping once we find it is fully referenced.
       if (param_sinfo->IsInstance<TupleStructInfoNode>()) {
-        partially_used_tuple_params_[expr.get()] = {};
-        tuple_param_idx_[expr.get()] = static_cast<int>(arguments_.size()) - 1;
+        tuple_param_info_[expr.get()].param_index = static_cast<int>(arguments_.size()) - 1;
       }
     }
   }
@@ -623,21 +651,47 @@ class FunctionCreator : public ExprMutator {
   }
 
  private:
+  /* \brief Shadow the ExprMutator::UnwrapBindings
+   *
+   * Because the ExprMutator only knows of bindings that have been
+   * visited, and we do not call VisitBinding until FunctionCreate, we
+   * cannot use it to unwrap the known binding.  Therefore,
+   * reproducing the same functionality here.
+   */
+  Expr UnwrapBindings(Expr expr) {
+    while (true) {
+      auto var = expr.as<Var>();
+      if (!var) return expr;
+
+      auto it = defined_vars_.find(var.get());
+      if (it == defined_vars_.end()) return expr;
+
+      expr = it->second;
+    }
+  }
+
   /*! \brief The variables defined in this function */
-  std::unordered_set<const VarNode*> defined_vars_;
+  std::unordered_map<const VarNode*, Expr> defined_vars_;
   /*! \brief The number of parameters reserved for constants */
   int n_param_for_const_ = 0;
   /*! \brief The output vars */
   std::vector<const VarNode*> output_vars_;
   /*! \brief Whether or not to lift bound constants to parameters */
   bool lift_constant_;
-  /*! \brief Mapping from tuple parameter of the function to its position index */
-  std::unordered_map<const ExprNode*, int> tuple_param_idx_;
+
+  struct TupleParamInfo {
+    std::optional<int> param_index = std::nullopt;
+    bool is_fully_used{false};
+    std::vector<int> used_by_index;
+  };
+
   /*!
-   * \brief Mapping from partially referenced tuple parameter to the list of
-   * indices that the parameter is referred by TupleGetItem
+   * \brief Mapping from tuple parameters to collected information about them.
+   *
+   * Used to decide whether to pass individual tuple elements to the
+   * fused function, or entire tuple objects.
    */
-  std::unordered_map<const ExprNode*, std::vector<int>> partially_used_tuple_params_;
+  std::unordered_map<const ExprNode*, TupleParamInfo> tuple_param_info_;
 };
 
 /*!
