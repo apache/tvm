@@ -46,7 +46,7 @@ def intrin_max(shape, in_dtype, out_dtype):
             ib = tvm.tir.ir_builder.create()
             ib.emit(
                 tvm.tir.call_extern(
-                    "int32",
+                    cc.dtype,
                     f"{func_prefix}_{uniq_id}",
                     aa.access_ptr("r"),
                     cc.access_ptr("w"),
@@ -59,7 +59,7 @@ def intrin_max(shape, in_dtype, out_dtype):
             ib = tvm.tir.ir_builder.create()
             ib.emit(
                 tvm.tir.call_extern(
-                    "int32", f"{func_prefix}_reset_{uniq_id}", cc.access_ptr("w"), cc.strides[0]
+                    cc.dtype, f"{func_prefix}_reset_{uniq_id}", cc.access_ptr("w"), cc.strides[0]
                 )
             )
             return ib.get()
@@ -96,7 +96,7 @@ extern "C"
 #endif
 __attribute__((always_inline)) static inline int32_t max8_reset_{uniq_id}(
     int8_t *res,
-    int32_t N) {{
+    int N) {{
   memset(res, (int8_t)-128, N * sizeof(*res));
   return 0;
 }}
@@ -107,9 +107,7 @@ extern "C"
 __attribute__((always_inline)) static inline int32_t max8_loop_{uniq_id}(
     int8_t *arg,
     int8_t *res,
-    int32_t N_arg) {{
-  int N = N_arg;
-
+    int N) {{
   for ( int i = 0; i < N; ++ i )
     if ( arg[i] > res[i] )
       res[i] = arg[i];
@@ -122,8 +120,7 @@ extern "C"
 __attribute__((always_inline)) static inline int32_t max8_{uniq_id}(
     int8_t *arg,
     int8_t *res,
-    int32_t N_arg) {{
-  int N = N_arg;
+    int N) {{
   int32_t *parg32, *pres32;
   int una_arg = (int32_t)arg & 0x3, una_res = (int32_t)res & 0x3;
   int32_t retcode = 0;

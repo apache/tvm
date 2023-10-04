@@ -1025,15 +1025,17 @@ class Dropout(OneFlowOpConverter):
         return out
 
 
-class ThresholdedRelu(OneFlowOpConverter):
-    """Operator converter for ThresholdedRelu."""
+class Threshold(OneFlowOpConverter):
+    """Operator converter for Threshold."""
 
     @classmethod
     def _impl_v1(cls, inputs, attrs, params):
-        alpha = float(attrs.get("alpha", 1.0))
-        alpha_tensor = _op.full_like(inputs[0], fill_value=_expr.const(alpha))
-        mask = _op.greater(inputs[0], alpha_tensor).astype("float32")
-        return inputs[0] * mask
+        threshold = float(attrs.get("threshold_val", 1.0))
+        threshold_tensor = _op.full_like(inputs[0], fill_value=_expr.const(threshold))
+        value = float(attrs.get("value"))
+        value_tensor = _op.full_like(inputs[0], fill_value=_expr.const(value))
+        mask = _op.greater(inputs[0], threshold_tensor)
+        return _op.where(mask, inputs[0], value_tensor)
 
 
 class Elu(OneFlowOpConverter):
@@ -1425,6 +1427,7 @@ def get_convert_map():
         "relu": Renamer("relu"),
         "leaky_relu": Renamer("leaky_relu"),
         "prelu": PReLU.get_converter(),
+        "threshold": Threshold.get_converter(),
         "selu": Selu.get_converter(),
         "silu": Silu.get_converter(),
         "gelu": Gelu.get_converter(),

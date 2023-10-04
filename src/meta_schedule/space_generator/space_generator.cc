@@ -24,18 +24,18 @@ namespace meta_schedule {
 
 String GetRuleKindFromTarget(const Target& target) {
   if (target->kind->name == "llvm") {
-    static const PackedFunc* f_check_vnni =
-        runtime::Registry::Get("tvm.target.x86.target_has_vnni");
-    ICHECK(f_check_vnni != nullptr) << "The `target_has_vnni` func is not in tvm registry.";
-    if (target->GetAttr<String>("mcpu") &&
-        (*f_check_vnni)(target->GetAttr<String>("mcpu").value())) {
+    static const PackedFunc* target_has_feature_fn_ptr =
+        runtime::Registry::Get("target.target_has_feature");
+    ICHECK(target_has_feature_fn_ptr != nullptr)
+        << "The `target.target_has_feature` func is not in tvm registry.";
+    bool have_avx512vnni = (*target_has_feature_fn_ptr)("avx512vnni", target);
+    bool have_avxvnni = (*target_has_feature_fn_ptr)("avxvnni", target);
+    if (have_avx512vnni || have_avxvnni) {
       return "vnni";
     } else {
-      static const PackedFunc* f_check_avx512 =
-          runtime::Registry::Get("tvm.target.x86.target_has_avx512");
-      ICHECK(f_check_avx512 != nullptr) << "The `target_has_avx512` func is not in tvm registry.";
-      if (target->GetAttr<String>("mcpu") &&
-          (*f_check_avx512)(target->GetAttr<String>("mcpu").value())) {
+      bool have_avx512f = (*target_has_feature_fn_ptr)("avx512f", target);
+      bool have_avx512bw = (*target_has_feature_fn_ptr)("avx512bw", target);
+      if (have_avx512bw && have_avx512f) {
         return "avx512";
       }
     }

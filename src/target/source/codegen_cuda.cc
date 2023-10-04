@@ -75,7 +75,7 @@ class ThreadIdxExtractor : public tir::StmtVisitor {
   PrimExpr threadIdx_z_ext = Integer(1);
 };
 
-void CodeGenCUDA::PrintExtraAttrs(const PrimFunc& f, std::ostream& os) {
+void CodeGenCUDA::PrintExtraAttrs(const PrimFunc& f) {
   ThreadIdxExtractor extractor;
   extractor(f->body);
   arith::Analyzer analyzer;
@@ -86,7 +86,7 @@ void CodeGenCUDA::PrintExtraAttrs(const PrimFunc& f, std::ostream& os) {
       // unable to extract the number of threads per block, hence directly return
       return;
     }
-    os << " __launch_bounds__(" << threadIdx_ext_int->value << ")";
+    stream << " __launch_bounds__(" << threadIdx_ext_int->value << ")";
   }
 }
 
@@ -968,10 +968,10 @@ void CodeGenCUDA::VisitExpr_(const CallNode* op, std::ostream& os) {
     std::string src = this->PrintExpr(op->args[2]);
     std::string src_offset = this->PrintExpr(op->args[3]);
     std::string size = this->PrintExpr(op->args[4]);
-    std::string barrier_ptr = this->PrintExpr(op->args[5]);
-    std::string barrier_offset = this->PrintExpr(op->args[6]);
-    this->stream << PrintCpAsyncBulkAsm(dst, dst_offset, src, src_offset, size, barrier_ptr,
-                                        barrier_offset);
+    int barrier_id = Downcast<IntImm>(op->args[5])->value;
+    CHECK(barrier_id < barrier_count_);
+    std::string barrier = barrier_name_ + "[" + std::to_string(barrier_id) + "]";
+    this->stream << PrintCpAsyncBulkAsm(dst, dst_offset, src, src_offset, size, barrier);
   } else if (op->op.same_as(builtin::ptx_commit_group())) {
     this->stream << "__asm__ __volatile__(\"cp.async.commit_group;\");\n\n";
   } else if (op->op.same_as(builtin::ptx_wait_group())) {
@@ -979,31 +979,50 @@ void CodeGenCUDA::VisitExpr_(const CallNode* op, std::ostream& os) {
     this->stream << "__asm__ __volatile__(\"cp.async.wait_group " << n << ";\");\n\n";
   } else if (op->op.same_as(builtin::ptx_cp_async_barrier())) {
     need_cast_smem_ptr_to_int_ = true;
-    std::string barrier_ptr = this->PrintExpr(op->args[0]);
-    std::string barrier_offset = this->PrintExpr(op->args[1]);
-    this->stream << PrintCpAsyncBarrierAsm(barrier_ptr, barrier_offset);
+    int barrier_id = Downcast<IntImm>(op->args[0])->value;
+    CHECK(barrier_id < barrier_count_);
+    std::string barrier = barrier_name_ + "[" + std::to_string(barrier_id) + "]";
+    this->stream << PrintCpAsyncBarrierAsm(barrier);
   } else if (op->op.same_as(builtin::ptx_init_barrier_thread_count())) {
     need_cast_smem_ptr_to_int_ = true;
-    std::string barrier_ptr = this->PrintExpr(op->args[0]);
-    std::string barrier_offset = this->PrintExpr(op->args[1]);
-    std::string thread_count = this->PrintExpr(op->args[2]);
-    this->stream << PrintInitBarrierThreadCountAsm(barrier_ptr, barrier_offset, thread_count);
+    int barrier_id = Downcast<IntImm>(op->args[0])->value;
+    CHECK(barrier_id < barrier_count_);
+    std::string barrier = barrier_name_ + "[" + std::to_string(barrier_id) + "]";
+    std::string thread_count = this->PrintExpr(op->args[1]);
+    this->stream << PrintInitBarrierThreadCountAsm(barrier, thread_count);
   } else if (op->op.same_as(builtin::ptx_arrive_barrier())) {
     need_cast_smem_ptr_to_int_ = true;
-    std::string barrier_ptr = this->PrintExpr(op->args[0]);
-    std::string barrier_offset = this->PrintExpr(op->args[1]);
-    this->stream << PrintArriveBarrierAsm(barrier_ptr, barrier_offset);
+    int barrier_id = Downcast<IntImm>(op->args[0])->value;
+    CHECK(barrier_id < barrier_count_);
+    std::string barrier = barrier_name_ + "[" + std::to_string(barrier_id) + "]";
+    this->stream << PrintArriveBarrierAsm(barrier);
   } else if (op->op.same_as(builtin::ptx_arrive_barrier_expect_tx())) {
     need_cast_smem_ptr_to_int_ = true;
-    std::string barrier_ptr = this->PrintExpr(op->args[0]);
-    std::string barrier_offset = this->PrintExpr(op->args[1]);
-    std::string byte_count = this->PrintExpr(op->args[2]);
-    this->stream << PrintArriveBarrierExpectTxAsm(barrier_ptr, barrier_offset, byte_count);
+    int barrier_id = Downcast<IntImm>(op->args[0])->value;
+    CHECK(barrier_id < barrier_count_);
+    std::string barrier = barrier_name_ + "[" + std::to_string(barrier_id) + "]";
+    std::string byte_count = this->PrintExpr(op->args[1]);
+    this->stream << PrintArriveBarrierExpectTxAsm(barrier, byte_count);
   } else if (op->op.same_as(builtin::ptx_wait_barrier())) {
     need_cast_smem_ptr_to_int_ = true;
-    std::string barrier_ptr = this->PrintExpr(op->args[0]);
-    std::string barrier_offset = this->PrintExpr(op->args[1]);
-    this->stream << PrintWaitBarrierAsm(barrier_ptr, barrier_offset);
+    int barrier_id = Downcast<IntImm>(op->args[0])->value;
+    CHECK(barrier_id < barrier_count_);
+    std::string barrier = barrier_name_ + "[" + std::to_string(barrier_id) + "]";
+    this->stream << PrintWaitBarrierAsm(barrier);
+  } else if (op->op.same_as(builtin::create_barriers())) {
+    CHECK_EQ(barrier_count_, -1);
+    int barrier_count = Downcast<IntImm>(op->args[0])->value;
+    // pad barrier alignment to avoid runtime alignment errors
+    CHECK_EQ(barrier_alignment_bytes_ % sizeof(uint64_t), 0);
+    int barrier_alignment_count = barrier_alignment_bytes_ / sizeof(uint64_t);
+    if (barrier_count % barrier_alignment_count != 0) {
+      barrier_count = ((barrier_count / barrier_alignment_count) + 1) * barrier_alignment_count;
+    }
+    barrier_count_ = barrier_count;
+    this->stream << "__shared__ __align__(" << barrier_alignment_bytes_ << ") uint64_t "
+                 << barrier_name_ << "[" << barrier_count << "];\n";
+    this->stream << "for (int i = 0; i < " << barrier_count << "; ++i) { " << barrier_name_
+                 << "[i] = 0; }\n";
   } else if (op->op.same_as(builtin::ptx_ldg32())) {
     /*
     asm volatile (

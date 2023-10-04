@@ -25,6 +25,7 @@ import tvm
 from tvm import te
 from tvm import relay
 from tvm import autotvm
+from tvm.target.target import Target
 
 from ..nn import conv2d_alter_layout, conv2d_legalize
 from ..utils import get_const_tuple
@@ -503,12 +504,45 @@ def _conv2d_legalize(attrs, inputs, arg_types):
     # Collect the input exprs.
     data, kernel = inputs
 
+    # Determine conv2d implementation
+    target = Target.current(allow_none=False)
+    _, outs = relay.backend.te_compiler.select_implementation(
+        relay.op.get("nn.conv2d"),
+        attrs,
+        [
+            te.placeholder(data_tensor.shape, data_dtype),
+            te.placeholder(kernel_tensor.shape, kernel_dtype),
+        ],
+        output_tensor,
+        target,
+    )
+    workload = autotvm.task.get_workload(outs)
+    if workload is not None:
+        topi_tmpl = workload[0]
+
     # ARM vector instructions operate on the same dtype for data and kernel, we
     # provide those here and conv2d_alter_int8_common will convert to the
     # correct datatype.
     if is_int8_hw_support(kernel_dtype, kernel_dtype):
         # ARM intrinsics need the datatypes of data and kernel to be the same
+        if (
+            attrs["data_layout"] == "NHWC"
+            and attrs["kernel_layout"] == "HWIO"
+            and topi_tmpl == "conv2d_NHWC_quantized_native.arm_cpu"
+        ):
+            in_channel_vector_length = data_tensor.shape[3]
+        else:
+            in_channel_vector_length = 8
+
         return conv2d_alter_int8_common(
-            data, data_tensor, kernel, kernel_tensor, output_tensor, attrs, kernel_dtype, 8, 8
+            data,
+            data_tensor,
+            kernel,
+            kernel_tensor,
+            output_tensor,
+            attrs,
+            kernel_dtype,
+            in_channel_vector_length,
+            8,
         )
     return None

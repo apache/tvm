@@ -27,6 +27,7 @@
 #include <tvm/runtime/c_runtime_api.h>
 #include <tvm/runtime/container/array.h>
 #include <tvm/runtime/container/map.h>
+#include <tvm/runtime/container/variant.h>
 #include <tvm/runtime/data_type.h>
 #include <tvm/runtime/logging.h>
 #include <tvm/runtime/module.h>
@@ -680,9 +681,6 @@ class TVMArgValue : public TVMPODValue_ {
     } else if (type_code_ == kTVMStr) {
       return std::string(value_.v_str);
     } else {
-      ICHECK(IsObjectRef<tvm::runtime::String>())
-          << "Could not convert TVM object of type " << runtime::Object::TypeIndex2Key(type_code_)
-          << " to a string.";
       return AsObjectRef<tvm::runtime::String>().operator std::string();
     }
   }
@@ -2060,6 +2058,56 @@ struct PackedFuncValueConverter<Optional<T>> {
   static Optional<T> From(const TVMRetValue& val) {
     if (val.type_code() == kTVMNullptr) return Optional<T>(nullptr);
     return PackedFuncValueConverter<T>::From(val);
+  }
+};
+
+template <typename... VariantTypes>
+struct PackedFuncValueConverter<Variant<VariantTypes...>> {
+  using VType = Variant<VariantTypes...>;
+
+  // Can't just take `const TVMPODValue&` as an argument, because
+  // `TVMArgValue` and `TVMRetValue` have different implementations
+  // for `operator std::string()`.
+  template <typename PODSubclass>
+  static VType From(const PODSubclass& val) {
+    if (auto opt = TryAsObjectRef<VariantTypes...>(val)) {
+      return opt.value();
+    }
+
+    if (auto opt = TryValueConverter<PODSubclass, VariantTypes...>(val)) {
+      return opt.value();
+    }
+
+    LOG(FATAL) << "Expected one of "
+               << static_cast<const std::stringstream&>(
+                      (std::stringstream() << ... << VariantTypes::ContainerType::_type_key))
+                      .str()
+               << " but got " << ArgTypeCode2Str(val.type_code());
+  }
+
+  template <typename VarFirst, typename... VarRest>
+  static Optional<VType> TryAsObjectRef(const TVMPODValue_& val) {
+    if (val.IsObjectRef<VarFirst>()) {
+      return VType(val.AsObjectRef<VarFirst>());
+    } else if constexpr (sizeof...(VarRest)) {
+      return TryAsObjectRef<VarRest...>(val);
+    } else {
+      return NullOpt;
+    }
+  }
+
+  template <typename PODSubclass, typename VarFirst, typename... VarRest>
+  static Optional<VType> TryValueConverter(const PODSubclass& val) {
+    try {
+      return VType(PackedFuncValueConverter<VarFirst>::From(val));
+    } catch (const InternalError&) {
+    }
+
+    if constexpr (sizeof...(VarRest)) {
+      return TryValueConverter<PODSubclass, VarRest...>(val);
+    } else {
+      return NullOpt;
+    }
   }
 };
 

@@ -39,6 +39,14 @@ def saturate(x: te.Tensor, dtype: str):
     return te.max(te.min_value(dtype), te.min(x, te.max_value(dtype)))
 
 
+def get_temp_dtype(h, w, dtype):
+    temp_dtype = "int16" if h * w < 256 else "int32"
+    if dtype in ("uint8", "int8"):
+        return temp_dtype
+    else:
+        raise RuntimeError(f"Unsupported output dtype, {odtype}'")
+
+
 def qnn_avg_pool2d_NCHW(
     data: te.Tensor,
     kernel: list,
@@ -59,12 +67,7 @@ def qnn_avg_pool2d_NCHW(
     rh = te.reduce_axis((0, kh), name="rh")
     rw = te.reduce_axis((0, kw), name="rw")
 
-    if odtype == "uint8":
-        temp_dtype = "uint16"
-    elif odtype == "int8":
-        temp_dtype = "int16"
-    else:
-        raise RuntimeError(f"Unsupported output dtype, {odtype}'")
+    temp_dtype = get_temp_dtype(kh, kw, odtype)
 
     sh, sw = stride
     dh, dw = dilation
@@ -155,12 +158,7 @@ def qnn_avg_pool2d_NHWC(
     rh = te.reduce_axis((0, kh), name="rh")
     rw = te.reduce_axis((0, kw), name="rw")
 
-    if odtype == "uint8":
-        temp_dtype = "uint16"
-    elif odtype == "int8":
-        temp_dtype = "int16"
-    else:
-        raise RuntimeError(f"Unsupported output dtype, {odtype}'")
+    temp_dtype = get_temp_dtype(kh, kw, odtype)
 
     sh, sw = stride
     dh, dw = dilation

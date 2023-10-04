@@ -71,23 +71,13 @@ def ptx_cp_async_barrier(
     T.launch_thread(bx, 1)
     T.launch_thread(tx, 32)
     with T.block():
-        # Shared memory targets for cp.async.bulk must be 16 byte aligned
-        # Problem: CUDA codegen does not support allocation alignment
-        # Workaround: Ensure that `A_shared` occurs before `barrier` in program order
-        #             by allocating and initializing `A_shared` before `barrier`
-        #             which should result in `A_shared` being 16+ byte aligned
-        #             given it will be the first shared memory allocation
-        # TODO(Straw) Add CUDA codegen support for allocation alignment
         A_shared = T.alloc_buffer([32, 128], "float16", scope="shared")
-        A_shared[0, 0] = 0
-
-        barrier = T.alloc_buffer([1], "uint64", scope="shared")
-        barrier[0] = 0
 
         T.reads(A[0:32, 0:128])
         T.writes(B[0:32, 0:128])
 
-        T.evaluate(T.ptx_init_barrier_thread_count(barrier.data, 0, 32, dtype=""))
+        T.evaluate(T.create_barriers(1, dtype=""))
+        T.evaluate(T.ptx_init_barrier_thread_count(0, 32, dtype=""))
 
         for i in range(16):
             T.evaluate(
@@ -96,9 +86,9 @@ def ptx_cp_async_barrier(
                 )
             )
 
-        T.evaluate(T.ptx_cp_async_barrier(barrier.data, 0, dtype=""))
-        T.evaluate(T.ptx_arrive_barrier(barrier.data, 0, dtype=""))
-        T.evaluate(T.ptx_wait_barrier(barrier.data, 0, dtype=""))
+        T.evaluate(T.ptx_cp_async_barrier(0, dtype=""))
+        T.evaluate(T.ptx_arrive_barrier(0, dtype=""))
+        T.evaluate(T.ptx_wait_barrier(0, dtype=""))
 
         for i in range(128):
             B[tx, i] = A_shared[tx, i]
@@ -126,32 +116,20 @@ def ptx_cp_async_bulk(A: T.Buffer((32, 128), "float16"), B: T.Buffer((32, 128), 
     T.launch_thread(bx, 1)
     T.launch_thread(tx, 32)
     with T.block():
-        # Shared memory targets for cp.async.bulk must be 16 byte aligned
-        # Problem: CUDA codegen does not support allocation alignment
-        # Workaround: Ensure that `A_shared` occurs before `barrier` in program order
-        #             by allocating and initializing `A_shared` before `barrier`
-        #             which should result in `A_shared` being 16+ byte aligned
-        #             given it will be the first shared memory allocation
-        # TODO(Straw) Add CUDA codegen support for allocation alignment
-        A_shared = T.alloc_buffer([32, 128], "float16", scope="shared", align=16)
-        A_shared[0, 0] = 0
-
-        barrier = T.alloc_buffer([1], "uint64", scope="shared")
-        barrier[0] = 0
+        A_shared = T.alloc_buffer([32, 128], "float16", scope="shared")
 
         T.reads(A[0:32, 0:128])
         T.writes(B[0:32, 0:128])
 
-        T.evaluate(T.ptx_init_barrier_thread_count(barrier.data, 0, 32, dtype=""))
+        T.evaluate(T.create_barriers(1, dtype=""))
+        T.evaluate(T.ptx_init_barrier_thread_count(0, 32, dtype=""))
 
         T.evaluate(
-            T.ptx_cp_async_bulk(
-                A_shared.data, tx * 128, A.data, tx * 128, 256, barrier.data, 0, dtype="float16"
-            )
+            T.ptx_cp_async_bulk(A_shared.data, tx * 128, A.data, tx * 128, 256, 0, dtype="float16")
         )
 
-        T.evaluate(T.ptx_arrive_barrier_expect_tx(barrier.data, 0, 256, dtype=""))
-        T.evaluate(T.ptx_wait_barrier(barrier.data, 0, dtype=""))
+        T.evaluate(T.ptx_arrive_barrier_expect_tx(0, 256, dtype=""))
+        T.evaluate(T.ptx_wait_barrier(0, dtype=""))
 
         for i in range(128):
             B[tx, i] = A_shared[tx, i]

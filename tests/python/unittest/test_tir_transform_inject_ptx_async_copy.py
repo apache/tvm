@@ -193,21 +193,21 @@ def ptx_global_to_shared_copy_fp32x1_barrier(
     T.launch_thread(bx, 1)
     T.launch_thread(tx, 32)
     with T.block():
-        barrier = T.alloc_buffer([1], "uint64", scope="shared")
         A_shared = T.alloc_buffer([32, 128], "float32", scope="shared")
-        T.reads(A[0:32, 0:128])
-        T.writes(B[0:32, 0:128], barrier[0:1])
 
-        barrier[0] = 0
-        T.evaluate(T.ptx_init_barrier_thread_count(barrier.data, 0, 32, dtype=""))
+        T.reads(A[0:32, 0:128])
+        T.writes(B[0:32, 0:128])
+
+        T.evaluate(T.create_barriers(1, dtype=""))
+        T.evaluate(T.ptx_init_barrier_thread_count(0, 32, dtype=""))
 
         T.attr("default", "async_scope", 1)
         for i in T.serial(128):
             A_shared[tx, i] = A[tx, i]
 
-        T.evaluate(T.ptx_cp_async_barrier(barrier.data, 0, dtype=""))
-        T.evaluate(T.ptx_arrive_barrier(barrier.data, 0, dtype=""))
-        T.evaluate(T.ptx_wait_barrier(barrier.data, 0, dtype=""))
+        T.evaluate(T.ptx_cp_async_barrier(0, dtype=""))
+        T.evaluate(T.ptx_arrive_barrier(0, dtype=""))
+        T.evaluate(T.ptx_wait_barrier(0, dtype=""))
 
         for i in range(128):
             B[tx, i] = A_shared[tx, i]
@@ -268,7 +268,6 @@ cast_smem_ptr_to_int(const void* const smem_ptr)
   #define int64_t long long
   #define uint64_t unsigned long long
 #endif
-extern "C" __global__ void __launch_bounds__(16) main_kernel(float* __restrict__ A, float* __restrict__ B, float* __restrict__ C);
 extern "C" __global__ void __launch_bounds__(16) main_kernel(float* __restrict__ A, float* __restrict__ B, float* __restrict__ C) {
   __shared__ float A_shared[64];
   __shared__ float B_shared[64];

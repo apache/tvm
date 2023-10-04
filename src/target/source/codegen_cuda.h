@@ -47,7 +47,7 @@ class CodeGenCUDA final : public CodeGenC {
   }
   // override behavior
   void PrintFuncPrefix(std::ostream& os) final;
-  void PrintExtraAttrs(const PrimFunc& f, std::ostream& os) final;  // NOLINT(*)
+  void PrintExtraAttrs(const PrimFunc& f) final;
   void VisitStmt_(const ForNode* op) final;
   void PrintStorageSync(const CallNode* op) final;
   void PrintStorageScope(const std::string& scope, std::ostream& os) final;  // NOLINT(*)
@@ -108,6 +108,14 @@ class CodeGenCUDA final : public CodeGenC {
   bool need_cast_smem_ptr_to_int_{false};
   // Op attribute map
   OpAttrMap<bool> op_need_warp_shuffle_ = Op::GetAttrMap<bool>("cuda.need_warp_shuffle");
+
+  // The name of the barrier array in shared memory
+  const std::string barrier_name_ = "barrier";
+  // The size of the barrier array in shared memory
+  int barrier_count_ = -1;
+  // The alignment of the barrier array in shared memory
+  // Set to 16 to maintain minimum alignment requirements for async bulk copy
+  const int barrier_alignment_bytes_ = 16;
 
   std::unordered_map<const VarNode*, std::string> fragment_shapes;
   std::unordered_map<const VarNode*, std::string> fragment_layouts;

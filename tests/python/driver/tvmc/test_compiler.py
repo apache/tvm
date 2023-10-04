@@ -798,6 +798,7 @@ def test_compile_opencl(tflite_mobilenet_v1_0_25_128):
     assert type(tvmc_package.lib_path) is str
     assert type(tvmc_package.params) is bytearray
     assert os.path.exists(dumps_path)
+    assert path.exists("{}.{}".format(tvmc_package.package_path, "opencl"))
 
 
 @tvm.testing.requires_cmsisnn

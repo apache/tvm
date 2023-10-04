@@ -138,7 +138,10 @@ def test_qnn_legalize_qnn_conv2d():
         # Check transformations for platforms with fast Int8 support.
         #############################################################
         # Check that Intel AVX512 (with or w/o VNNI) gets picked up.
-        for target in ["llvm -mcpu=skylake-avx512", "llvm -mcpu=cascadelake"]:
+        for target in [
+            "llvm -mtriple=x86_64-linux-gnu -mcpu=skylake-avx512",
+            "llvm -mtriple=x86_64-linux-gnu -mcpu=cascadelake",
+        ]:
             with tvm.target.Target(target):
                 mod = relay.transform.InferType()(mod)
                 legalized_mod = relay.qnn.transform.Legalize()(mod)
@@ -170,7 +173,7 @@ def test_qnn_legalize_qnn_conv2d():
     # Check transformations for platforms with fast Int8 support.
     #############################################################
     # Check no transformation for Intel AVX512.
-    with tvm.target.Target("llvm -mcpu=skylake-avx512"):
+    with tvm.target.Target("llvm -mtriple=x86_64-linux-gnu -mcpu=skylake-avx512"):
         mod = relay.transform.InferType()(mod)
         legalized_mod = relay.qnn.transform.Legalize()(mod)
         assert tvm.ir.structural_equal(mod, legalized_mod)
@@ -232,7 +235,10 @@ def test_qnn_legalize_qnn_dense():
         # Check transformations for platforms with fast Int8 support.
         #############################################################
         # Check that Intel AVX512 (with or w/o VNNI) gets picked up.
-        for target in ["llvm -mcpu=skylake-avx512", "llvm -mcpu=cascadelake"]:
+        for target in [
+            "llvm -mtriple=x86_64-linux-gnu -mcpu=skylake-avx512",
+            "llvm -mtriple=x86_64-linux-gnu -mcpu=cascadelake",
+        ]:
             with tvm.target.Target(target):
                 mod = relay.transform.InferType()(mod)
                 legalized_mod = relay.qnn.transform.Legalize()(mod)
@@ -264,7 +270,7 @@ def test_qnn_legalize_qnn_dense():
     # Check transformations for platforms with fast Int8 support.
     #############################################################
     # Check no transformation for Intel AVX512.
-    with tvm.target.Target("llvm -mcpu=skylake-avx512"):
+    with tvm.target.Target("llvm -mtriple=x86_64-linux-gnu -mcpu=skylake-avx512"):
         mod = relay.transform.InferType()(mod)
         legalized_mod = relay.qnn.transform.Legalize()(mod)
         assert tvm.ir.structural_equal(mod, legalized_mod)

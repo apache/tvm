@@ -488,5 +488,50 @@ def test_target_features():
     assert not target_with_features.features.is_missing
 
 
+@tvm.testing.requires_cuda
+@pytest.mark.parametrize("input_device", ["cuda", tvm.cuda()])
+def test_target_from_device_cuda(input_device):
+    target = Target.from_device(input_device)
+
+    dev = tvm.cuda()
+    assert target.kind.name == "cuda"
+    assert target.attrs["max_threads_per_block"] == dev.max_threads_per_block
+    assert target.max_shared_memory_per_block == dev.max_shared_memory_per_block
+    assert target.thread_warp_size == dev.warp_size
+    assert target.arch == "sm_" + dev.compute_version.replace(".", "")
+
+
+@tvm.testing.requires_rocm
+@pytest.mark.parametrize("input_device", ["rocm", tvm.rocm()])
+def test_target_from_device_rocm(input_device):
+    target = Target.from_device(input_device)
+
+    dev = tvm.rocm()
+    assert target.kind.name == "rocm"
+    assert target.attrs["mtriple"] == "amdgcn-and-amdhsa-hcc"
+    assert target.attrs["max_threads_per_block"] == dev.max_threads_per_block
+    assert target.max_shared_memory_per_block == dev.max_shared_memory_per_block
+    assert target.thread_warp_size == dev.warp_size
+
+
+@tvm.testing.requires_vulkan
+@pytest.mark.parametrize("input_device", ["vulkan", tvm.vulkan()])
+def test_target_from_device_rocm(input_device):
+    target = Target.from_device(input_device)
+
+    f_get_target_property = tvm.get_global_func("device_api.vulkan.get_target_property")
+    dev = tvm.vulkan()
+    assert target.kind.name == "vulkan"
+    assert target.attrs["max_threads_per_block"] == dev.max_threads_per_block
+    assert target.max_shared_memory_per_block == dev.max_shared_memory_per_block
+    assert target.thread_warp_size == dev.warp_size
+    assert target.attrs["supports_float16"] == f_get_target_property(dev, "supports_float16")
+    assert target.attrs["supports_int16"] == f_get_target_property(dev, "supports_int16")
+    assert target.attrs["supports_int8"] == f_get_target_property(dev, "supports_int8")
+    assert target.attrs["supports_16bit_buffer"] == f_get_target_property(
+        dev, "supports_16bit_buffer"
+    )
+
+
 if __name__ == "__main__":
     tvm.testing.main()
