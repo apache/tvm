@@ -162,6 +162,7 @@ class LegalizeMutator : public ExprMutator {
       builder_->BeginBindingBlock();
     }
     Expr legalized = legalization_func(builder_, visited_call);
+    legalized = builder_->Normalize(legalized);
 
     BindingBlock prologue = builder_->EndBlock();
     for (const auto& binding : prologue->bindings) {
@@ -183,7 +184,6 @@ class LegalizeMutator : public ExprMutator {
     // return the original expression if they are unable to produce a
     // legalized version.
     if (!legalized.same_as(visited_call)) {
-      legalized = builder_->Normalize(legalized);
       legalized = VisitExpr(legalized);
     }
 
