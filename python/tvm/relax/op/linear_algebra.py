@@ -41,7 +41,7 @@ def matmul(x1: Expr, x2: Expr, out_dtype: Optional[Union[str, DataType]] = None)
 
     out_dtype: Optional[Union[str, DataType]]
         The data type of the matmul result.
-        When it is not specified, the output dtype will be the the same as input dtype.
+        When it is not specified, the output dtype will be the same as input dtype.
 
     Returns
     -------
@@ -72,7 +72,7 @@ def linear(
 
     out_dtype: Optional[Union[str, DataType]]
         The data type of the matmul result.
-        When it is not specified, the output dtype will be the the same as input dtype.
+        When it is not specified, the output dtype will be the same as input dtype.
 
     Notes
     -----
