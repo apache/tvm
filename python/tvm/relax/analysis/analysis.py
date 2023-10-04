@@ -539,9 +539,14 @@ def dataflow_liveness_analysis(block: DataflowBlock) -> Dict[Var, Tuple[int, int
     return ret  # type: ignore
 
 
-def dataflow_alias_analysis(block: DataflowBlock, inputs: List[Var]) -> Dict[Var, Set[int]]:
-    alias_sets = _ffi_api.DataflowAliasAnalysis(block, inputs)  # type: ignore
-    ret = {}
+def dataflow_alias_analysis(
+    block: DataflowBlock, inputs: List[Var]
+) -> Tuple[Dict[Var, Set[int]], Dict[int, List[Set[int]]]]:
+    alias_sets, tuple_map = _ffi_api.DataflowAliasAnalysis(block, inputs)  # type: ignore
+    res_alias_sets = {}
+    res_tuple_map = {}
     for (var, alias_set) in alias_sets.items():
-        ret[var] = set(alias_set)
-    return ret  # type: ignore
+        res_alias_sets[var] = set(alias_set)
+    for (idx, elem_alias_sets) in tuple_map.items():
+        res_tuple_map[idx] = [set(alias_set) for alias_set in elem_alias_sets]
+    return res_alias_sets, res_tuple_map  # type: ignore

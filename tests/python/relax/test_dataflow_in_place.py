@@ -61,7 +61,7 @@ def test_alias_analysis_basic():
             return n
 
     block = BasicAliasAnalysis["main"].body.blocks[0]
-    alias_sets = dataflow_alias_analysis(block, BasicAliasAnalysis["main"].params)
+    alias_sets, tuple_map = dataflow_alias_analysis(block, BasicAliasAnalysis["main"].params)
     expected = {
         "x": {0},
         "y": {0},
@@ -71,6 +71,7 @@ def test_alias_analysis_basic():
 
     for var, alias_set in alias_sets.items():
         assert alias_set == expected[var.name_hint]
+    assert tuple_map == {}
 
 
 def test_alias_analysis_tuple():
@@ -94,7 +95,7 @@ def test_alias_analysis_tuple():
             return n
 
     block = AliasesWithTuples["main"].body.blocks[0]
-    alias_sets = dataflow_alias_analysis(block, AliasesWithTuples["main"].params)
+    alias_sets, tuple_map = dataflow_alias_analysis(block, AliasesWithTuples["main"].params)
     expected = {
         "x": {0},
         "y": {1},
@@ -112,6 +113,8 @@ def test_alias_analysis_tuple():
 
     for var, alias_set in alias_sets.items():
         assert alias_set == expected[var.name_hint]
+    assert 2 in tuple_map
+    assert tuple_map[2] == [{0}, {1}]
 
 
 def test_alias_split():
@@ -130,7 +133,7 @@ def test_alias_split():
             return n
 
     block = AliasSplit["main"].body.blocks[0]
-    alias_sets = dataflow_alias_analysis(block, AliasSplit["main"].params)
+    alias_sets, tuple_map = dataflow_alias_analysis(block, AliasSplit["main"].params)
     expected = {
         "x": {0},
         "t": {1},
@@ -143,6 +146,9 @@ def test_alias_split():
 
     for var, alias_set in alias_sets.items():
         assert alias_set == expected[var.name_hint]
+    assert len(tuple_map) == 1
+    assert 1 in tuple_map
+    assert tuple_map[1] == [{2}, {3}, {4}, {5}]
 
 
 def test_alias_call_tir():
@@ -198,7 +204,7 @@ def test_alias_call_tir():
             return v
 
     block = AliasCallTir["main"].body.blocks[0]
-    alias_sets = dataflow_alias_analysis(block, AliasCallTir["main"].params)
+    alias_sets, tuple_map = dataflow_alias_analysis(block, AliasCallTir["main"].params)
     expected = {
         "x": {0},
         "y": {1},
@@ -214,6 +220,9 @@ def test_alias_call_tir():
 
     for var, alias_set in alias_sets.items():
         assert alias_set == expected[var.name_hint]
+    assert len(tuple_map) == 1
+    assert 2 in tuple_map
+    assert tuple_map[2] == [{3}, {4}]
 
 
 def test_mystery_calls():
@@ -241,7 +250,7 @@ def test_mystery_calls():
             return c
 
     block = AliasChaosCalls["main"].body.blocks[0]
-    alias_sets = dataflow_alias_analysis(block, AliasChaosCalls["main"].params)
+    alias_sets, tuple_map = dataflow_alias_analysis(block, AliasChaosCalls["main"].params)
     expected = {
         "x": {0},
         "y": {0, 1},
@@ -256,6 +265,11 @@ def test_mystery_calls():
 
     for var, alias_set in alias_sets.items():
         assert alias_set == expected[var.name_hint]
+    assert len(tuple_map) == 2
+    assert 5 in tuple_map
+    assert tuple_map[5] == [{3}, {4}]
+    assert 6 in tuple_map
+    assert tuple_map[6] == [{7}, {8}]
 
 
 if __name__ == "__main__":
