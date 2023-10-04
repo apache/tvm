@@ -29,6 +29,7 @@
 #include "../../src/runtime/graph_executor/graph_executor.cc"
 #include "../../src/runtime/library_module.cc"
 #include "../../src/runtime/logging.cc"
+#include "../../src/runtime/memory/memory_manager.cc"
 #include "../../src/runtime/module.cc"
 #include "../../src/runtime/ndarray.cc"
 #include "../../src/runtime/object.cc"

@@ -96,6 +96,14 @@ class TVM_DLL DeviceAPI {
   virtual void GetAttr(Device dev, DeviceAttrKind kind, TVMRetValue* rv) = 0;
 
   /*!
+   * \brief Get the physical memory size required.
+   * \param arr the tensor object.
+   * \param mem_scope the memory scope if any
+   * \return the memory size.
+   */
+  virtual size_t GetDataSize(const DLTensor& arr, Optional<String> mem_scope = NullOpt);
+
+  /*!
    * \brief Query the device for specified properties.
    *
    * This is used to expand "-from_device=N" in the target string to

@@ -3340,6 +3340,15 @@ def test_convtranspose(target, dev):
             repeat(1, dims),
             auto_pad="SAME_UPPER",
         )
+        # Convolution with default stride
+        verify_convtranspose_with_padding(
+            (1, 1) + repeat(5, dims),
+            (1, 1) + repeat(3, dims),
+            2 * repeat(1, dims),
+            repeat(3, dims),
+            None,
+            repeat(1, dims),
+        )
         # Convolution with dilation
         # TODO(mbrookhart): Relay doesn't currently support convtranspose with dilation
         # verify_convtranspose_with_padding(

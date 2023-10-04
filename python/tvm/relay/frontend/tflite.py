@@ -1434,8 +1434,6 @@ class OperatorConverter(object):
     def convert_pow(self, op):
         """Convert TFLite POW"""
         # Check if the input tensor is quantized, call QNN op
-        if self.is_quantized(op):
-            raise tvm.error.OpNotImplemented("TFlite quantized POW operator is not supported yet.")
         return self._convert_elemwise(_op.power, op)
 
     def convert_maximum(self, op):
