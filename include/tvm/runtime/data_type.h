@@ -27,6 +27,7 @@
 #include <tvm/runtime/c_runtime_api.h>
 #include <tvm/runtime/logging.h>
 
+#include <algorithm>
 #include <string>
 #include <type_traits>
 #include <vector>
