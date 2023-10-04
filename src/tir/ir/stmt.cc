@@ -117,13 +117,14 @@ For::For(Var loop_var, PrimExpr min, PrimExpr extent, ForKind kind, Stmt body,
   ICHECK(body.defined());
 
   if (loop_var.dtype() != min.dtype() || min.dtype() != extent.dtype()) {
-    auto widest = DataType::WidestOf(loop_var.dtype(), min.dtype(), extent.dtype());
+    auto widest =
+        DataType::WidestOf(loop_var.dtype(), restricted_type(min), restricted_type(extent));
     ICHECK(!widest.is_void()) << "ValueError: Incompatible types for For(loop_var:"
                               << loop_var.dtype() << ", min:" << min.dtype()
-                              << ", extent=" << extent.dtype();
-    ICHECK(loop_var.dtype() == widest)
-        << "ValueError: Loop var type (" << loop_var.dtype()
-        << ") disagree with range types (min:" << min.dtype() << ", extent:" << extent.dtype();
+                              << ", extent=" << extent.dtype() << ')';
+    ICHECK(loop_var.dtype() == widest) << "ValueError: Loop var type (" << loop_var.dtype()
+                                       << ") disagree with range types (min:" << min.dtype()
+                                       << ", extent:" << extent.dtype() << ')';
     if (min.dtype() != widest) {
       if (tir::is_const_number(min)) {
         min = tvm::cast(widest, min);

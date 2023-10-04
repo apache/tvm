@@ -28,7 +28,35 @@
 #include <tvm/te/tensor.h>
 #include <tvm/tir/expr.h>
 
+#include <utility>
+
 #include "../support/scalars.h"
+
+namespace detail {
+std::pair<tvm::PrimExpr, tvm::PrimExpr> EqualizeTypes(tvm::PrimExpr a, tvm::PrimExpr b) {
+  if (a.dtype() != b.dtype()) {
+    // If both expressions are immediate values, don't restrict them, or otherwise this
+    // could reduce (int32(1), int64(2)) to (int3(1), int3(2)).
+    auto widest =
+        tvm::tir::is_const_number(a) && tvm::tir::is_const_number(b)
+            ? tvm::DataType::WidestOf(a.dtype(), b.dtype())
+            : tvm::DataType::WidestOf(tvm::tir::restricted_type(a), tvm::tir::restricted_type(b));
+    if (widest.is_void()) {
+      return std::make_pair(a, b);
+    }
+    if (a.dtype() != widest) {
+      if (tvm::tir::is_const_number(a)) {
+        a = tvm::cast(widest, a);
+      }
+    } else if (b.dtype() != widest) {
+      if (tvm::tir::is_const_number(b)) {
+        b = tvm::cast(widest, b);
+      }
+    }
+  }
+  return std::make_pair(a, b);
+}
+}  // namespace detail
 
 namespace tvm {
 
@@ -147,34 +175,13 @@ TVM_REGISTER_GLOBAL("ir.FloatImm").set_body_typed([](DataType dtype, double valu
 TVM_REGISTER_NODE_TYPE(FloatImmNode);
 
 Range::Range(PrimExpr begin, PrimExpr end, Span span) {
-  auto sub = [](PrimExpr a, PrimExpr b) {
-    // Match and undo potential "extent + min" from FromMinExtent.
-    if (const auto* n = a.as<tir::AddNode>()) {
-      if (n->b.same_as(b)) return n->a;
-      if (n->a.same_as(b)) return n->b;
-    }
-    return a - b;
-  };
-  PrimExpr min = begin;
-  PrimExpr extent = tir::is_zero(begin) ? end : sub(end, begin);
+  auto [new_begin, new_end] = ::detail::EqualizeTypes(begin, end);
+  ICHECK(new_begin.dtype() == new_end.dtype())
+      << "ValueError: Incompatible types for Range(min:" << begin.dtype()
+      << ", end=" << end.dtype() << ')';
 
-  if (min.dtype() != extent.dtype()) {
-    auto widest = DataType::WidestOf(min.dtype(), extent.dtype());
-    ICHECK(!widest.is_void()) << "ValueError: Incompatible types for Range(min:" << begin.dtype()
-                              << ", end=" << end.dtype();
-    if (min.dtype() != widest) {
-      if (tir::is_const_number(min)) {
-        min = tvm::cast(widest, min);
-      }
-    } else if (extent.dtype() != widest) {
-      if (tir::is_const_number(extent)) {
-        extent = tvm::cast(widest, extent);
-      }
-    }
-    ICHECK(min.dtype() == extent.dtype())
-        << "ValueError: Incompatible types for Range(min:" << begin.dtype()
-        << ", end=" << end.dtype();
-  }
+  PrimExpr min = new_begin;
+  PrimExpr extent = tir::is_zero(new_begin) ? new_end : new_end - new_begin;
 
   ObjectPtr<RangeNode> node = make_object<RangeNode>();
   node->min = min;
@@ -184,8 +191,11 @@ Range::Range(PrimExpr begin, PrimExpr end, Span span) {
 }
 
 Range Range::FromMinExtent(PrimExpr min, PrimExpr extent, Span span) {
-  // Invoke the PrimExpr-based constructor to ensure type processing.
-  return Range(min, extent + min, span);
+  auto [new_min, new_extent] = ::detail::EqualizeTypes(min, extent);
+  ICHECK(new_min.dtype() == new_extent.dtype())
+      << "ValueError: Incompatible types for Range(min:" << min.dtype()
+      << ", extent=" << extent.dtype() << ')';
+  return Range(make_object<RangeNode>(new_min, new_extent, span));
 }
 
 TVM_REGISTER_GLOBAL("ir.Range_from_min_extent").set_body_typed(Range::FromMinExtent);

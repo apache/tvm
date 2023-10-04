@@ -849,7 +849,6 @@ inline bool is_const_int(const PrimExpr& x);
 
 /*!
  * \brief Check whether x is an integer/float constant.
- * \note This only return true for integer types.
  * \return whether x is constant
  */
 inline bool is_const_number(const PrimExpr& x);
@@ -881,6 +880,15 @@ inline PrimExpr foldl(FReduce freduce, PrimExpr init_value, const Array<PrimExpr
  * \return whether x is constant power of two
  */
 TVM_DLL bool is_const_power_of_two_integer(const PrimExpr& x, int* shift);
+
+/*!
+ * \brief Returns the narrowest type which can still represent the value of x.
+ * \param x The input expression.
+ * \param round_to_zero Whether the result should be a power-of-two number of bytes.
+ * \return DataType with the same type code as x.dtype(), but possibly fewer bits.
+ * \note The rounding to bytes does not apply to bool type.
+ */
+inline DataType restricted_type(const PrimExpr& x, bool round_to_bytes = false);
 
 // Implementation details after this
 inline bool is_const_int(const PrimExpr& x) { return as_const_int(x); }
@@ -971,6 +979,55 @@ inline PrimExpr make_zero(DataType t, Span span) {
     return reinterpret(t, make_const(DataType::UInt(64), 0, span));
   }
   return make_const(t, 0, span);
+}
+
+inline DataType restricted_type(const PrimExpr& x, bool round_to_bytes) {
+  if (const int64_t* val = as_const_int(x)) {
+    int64_t v = *val;
+    if (x.dtype().is_uint() && (v == 0 || v == 1)) {
+      return DataType::Bool();
+    }
+    auto num_significant_bits = [](uint64_t t) -> unsigned {
+      // Always return at least 1.
+      if (t == 0) return 1;
+#ifdef __GNUC__
+      return 64 - __builtin_clzll(t);
+#else
+      for (int i = 8 * sizeof(t) - 1; i > 0; --i) {
+        if (((t << i) >> i) == t) return 64 - i;
+      }
+      return 64;
+#endif
+    };
+    auto round_if_needed = [&](unsigned c) {
+      if (round_to_bytes) {
+        unsigned bytes = (c + 7) / 8;
+        if ((bytes & (bytes - 1)) == 0) {
+          return bytes;
+        }
+        return 1u << num_significant_bits(bytes);
+      }
+      return c;
+    };
+    if (x.dtype().is_uint()) {
+      return DataType::UInt(round_if_needed(num_significant_bits(v)));
+    } else if (x.dtype().is_int()) {
+      if (v < 0) {
+        if (v == 0x8000000000000000ll) return x.dtype();
+        v = -v;
+      }
+      return DataType::Int(round_if_needed(1 + num_significant_bits(v)));
+    }
+    return x.dtype();
+  }
+  if (const auto* fpimm = x.as<FloatImmNode>()) {
+    if (fpimm->dtype.bits() == 64) {
+      if (static_cast<double>(static_cast<float>(fpimm->value))) {
+        return DataType::Float(32);
+      }
+    }
+  }
+  return x.dtype();
 }
 
 }  // namespace tir
