@@ -21,7 +21,7 @@ from tvm import relax
 from tvm.ir import structural_equal
 
 import tvm.script
-from tvm.script import tir as T, relax as R
+from tvm.script import tir as T, relax as R, ir as I
 
 
 def test_to_non_dataflow():
@@ -84,8 +84,8 @@ def test_to_non_dataflow():
 
 
 def test_call_tir_rewrite():
-    @tvm.script.ir_module
-    class TestCallTIRRewrite:
+    @I.ir_module
+    class Before:
         @T.prim_func
         def exp(A: T.Buffer((2, 3), "float32"), B: T.Buffer((2, 3), "float32")):
             T.evaluate(0)
@@ -95,32 +95,63 @@ def test_call_tir_rewrite():
             # we expect RemovePurityChecking to have been used before this point
             R.func_attr({"relax.force_pure": True})
             m, n = T.int64(), T.int64()
-            gv0 = R.call_tir(TestCallTIRRewrite.exp, (x,), R.Tensor((m, n), dtype="float32"))
+            gv0 = R.call_tir(Before.exp, (x,), R.Tensor((m, n), dtype="float32"))
             return gv0
 
-    mod = TestCallTIRRewrite
+    @I.ir_module
+    class Expected:
+        @T.prim_func
+        def exp(A: T.Buffer((2, 3), "float32"), B: T.Buffer((2, 3), "float32")):
+            T.evaluate(0)
 
-    # before rewrite
-    v0 = mod["foo"].body.blocks[0].bindings[0].var
-    s0 = mod["foo"].body.blocks[0].bindings[0].value
-    assert isinstance(s0, relax.Call)
-    assert s0.op.name == "relax.call_tir"
+        @R.function
+        def foo(x: R.Tensor(("m", "n"), "float32")):
+            # we expect RemovePurityChecking to have been used before this point
+            R.func_attr({"relax.force_pure": True})
+            m, n = T.int64(), T.int64()
+            alloc = R.builtin.alloc_tensor(R.shape([m, n]), "float32", R.prim_value(0))
+            _ = Expected.exp(x, alloc)
+            gv0 = alloc
+            return gv0
 
-    # after rewrite
-    new_mod = relax.transform.CallTIRRewrite()(mod)
-    func = new_mod["foo"]
+    After = relax.transform.CallTIRRewrite()(Before)
+    tvm.ir.assert_structural_equal(Expected, After)
 
-    block = func.body.blocks[0]
-    assert not isinstance(block, relax.DataflowBlock)
 
-    s1 = block.bindings[0].value
-    assert isinstance(s1, relax.Call)
-    assert s1.op.name == "relax.builtin.alloc_tensor"
-    assert isinstance(s1.args[0], relax.ShapeExpr)
-    assert structural_equal(s1.args[0], s0.sinfo_args[0].shape)
-    s2 = block.bindings[1].value
-    tvm.ir.expr.GlobalVar
-    assert s2.op.name_hint == "exp"
+def test_call_tir_rewrite_with_var_tuple():
+    @I.ir_module
+    class Before:
+        @T.prim_func
+        def exp(A: T.Buffer((2, 3), "float32"), B: T.Buffer((2, 3), "float32")):
+            T.evaluate(0)
+
+        @R.function
+        def foo(x: R.Tensor(("m", "n"), "float32")):
+            # we expect RemovePurityChecking to have been used before this point
+            R.func_attr({"relax.force_pure": True})
+            m, n = T.int64(), T.int64()
+            exp_args = (x,)
+            gv0 = R.call_tir(Before.exp, exp_args, R.Tensor((m, n), dtype="float32"))
+            return gv0
+
+    @I.ir_module
+    class Expected:
+        @T.prim_func
+        def exp(A: T.Buffer((2, 3), "float32"), B: T.Buffer((2, 3), "float32")):
+            T.evaluate(0)
+
+        @R.function
+        def foo(x: R.Tensor(("m", "n"), "float32")):
+            R.func_attr({"relax.force_pure": True})
+            m, n = T.int64(), T.int64()
+            exp_args = (x,)
+            alloc = R.builtin.alloc_tensor(R.shape([m, n]), "float32", R.prim_value(0))
+            _ = Expected.exp(x, alloc)
+            gv0 = alloc
+            return gv0
+
+    After = relax.transform.CallTIRRewrite()(Before)
+    tvm.ir.assert_structural_equal(Expected, After)
 
 
 def test_transform_remove_purity_checking():

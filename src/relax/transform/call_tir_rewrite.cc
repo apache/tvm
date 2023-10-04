@@ -57,7 +57,7 @@ class CallTIRMutator : public ExprMutator {
 
     if (call->op == call_tir_op || call->op == call_tir_inplace_op ||
         call->op == call_dps_packed_op) {
-      bool is_inplace = (call->op == call_tir_inplace_op);
+      bool is_inplace_op = (call->op == call_tir_inplace_op);
       const auto* inplace_attrs = call->attrs.as<CallTIRInplaceAttrs>();
       Array<Expr> outs;
       if (const auto& _tensor_sinfo = MatchStructInfo<TensorStructInfo>(expr)) {
@@ -65,7 +65,7 @@ class CallTIRMutator : public ExprMutator {
         const TensorStructInfo& tensor_sinfo = _tensor_sinfo.value();
         ICHECK(tensor_sinfo->shape.defined())
             << "the TensorStructInfo shape of call_tir has not populated";
-        if (!is_inplace) {
+        if (!is_inplace_op) {
           outs.push_back(
               builder_->Emit(Call(alloc_tensor_op,  //
                                   {Downcast<ShapeExpr>(tensor_sinfo->shape.value()),
@@ -93,7 +93,7 @@ class CallTIRMutator : public ExprMutator {
           ICHECK(field_tensor->shape.defined())
               << "call_tir expects all TensorStructInfo has shape, but got " << field_tensor
               << " as an element of TupleStructInfo";
-          if (!is_inplace || inplace_attrs->inplace_indices[i].IntValue() == -1) {
+          if (!is_inplace_op || inplace_attrs->inplace_indices[i].IntValue() == -1) {
             outs.push_back(
                 builder_->Emit(Call(alloc_tensor_op,
                                     {Downcast<ShapeExpr>(field_tensor->shape.value()),
@@ -111,41 +111,69 @@ class CallTIRMutator : public ExprMutator {
                    << expr->struct_info_;
       }
 
-      Array<Expr> args;
-      if (call->args[1].as<TupleNode>()) {
-        args = Downcast<Tuple>(call->args[1])->fields;
-        // for call_tir_inplace, don't reinsert in-place args, only the newly allocated ones
-        if (!is_inplace) {
-          args.insert(args.end(), outs.begin(), outs.end());
-        } else {
-          for (size_t i = 0; i < outs.size(); i++) {
-            if (inplace_attrs->inplace_indices[i].IntValue() == -1) {
-              args.push_back(outs[i]);
-            }
-          }
-        }
-
-        if (call->args.size() == 2) {
-          builder_->Emit(Call(call->args[0], args), "_");
-        } else {
-          // unpack semantics
-          args.push_back(call->args[2]);
-          builder_->Emit(Call(call_tir_dyn_op, {call->args[0], Tuple(args)}), "_");
-        }
-      } else {
-        if (!is_inplace) {
-          args = outs;
-          args.insert(args.begin(), call->args[1]);
-        } else {
-          args.push_back(call->args[1]);
-        }
-        builder_->Emit(Call(call->args[0], args), "_");
+      Expr callee = call->args[0];
+      Expr arg_tuple = call->args[1];
+      Optional<Expr> shape_tuple_of_tir_args = NullOpt;
+      if (call->args.size() > 2) {
+        shape_tuple_of_tir_args = call->args[2];
       }
+
+      while (true) {
+        auto as_var = arg_tuple.as<Var>();
+        if (!as_var) break;
+
+        auto bound_expr = LookupBinding(as_var.value());
+        if (!bound_expr) break;
+
+        arg_tuple = bound_expr.value();
+      }
+
+      Array<Expr> args = [&]() {
+        if (auto ptr = arg_tuple.as<TupleNode>()) {
+          return ptr->fields;
+        } else if (auto ptr = arg_tuple->struct_info_.as<TupleStructInfoNode>()) {
+          size_t n_args = ptr->fields.size();
+          Array<Expr> args;
+          for (size_t i = 0; i < n_args; i++) {
+            args.push_back(TupleGetItem(arg_tuple, i));
+          }
+          return args;
+        } else {
+          LOG(FATAL) << "Lowering of " << call
+                     << " requires knowing how many arguments are passed to the function.  "
+                     << "However, the tuple of arguments " << arg_tuple
+                     << " is not itself a tuple, "
+                     << "nor does its struct info " << GetStructInfo(arg_tuple)
+                     << " define the number of arguments.";
+        }
+      }();
+
+      for (size_t i = 0; i < outs.size(); i++) {
+        bool output_is_inplace =
+            is_inplace_op && inplace_attrs->inplace_indices[i].IntValue() != -1;
+        if (!output_is_inplace) {
+          args.push_back(outs[i]);
+        }
+      }
+
+      if (shape_tuple_of_tir_args) {
+        args.push_back(shape_tuple_of_tir_args.value());
+      }
+
+      Expr new_call = [&]() {
+        if (shape_tuple_of_tir_args) {
+          return Call(call_tir_dyn_op, {callee, Tuple(args)});
+        } else {
+          return Call(callee, args);
+        }
+      }();
+      builder_->Emit(new_call, "_");
 
       if (outs.size() == 1) {
         return outs[0];
+      } else {
+        return Tuple(outs);
       }
-      return std::move(Tuple(outs));
     }
 
     return GetRef<Expr>(call);
