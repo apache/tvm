@@ -384,12 +384,16 @@ bool intersecting_live_aliases(
 //  2. see if the arg is live past the call
 //  3. see if the arg has an alias that's live past the call
 //  if conditions are met, we're good to go
-void find_inplace_opportunities(const DataflowBlock& block, const Array<Var>& inputs) {
+std::pair<std::vector<int>, std::vector<int>> find_inplace_opportunities(const DataflowBlock& block,
+                                                                         const Array<Var>& inputs) {
   auto live_ranges = analyze_liveness(block);
   AliasAnalyzer analyzer;
   auto alias_info = analyzer.Analyze(block, inputs);
   auto alias_sets = alias_info.first;
   auto tuple_map = alias_info.second;
+
+  std::vector<int> size_match_list;
+  std::vector<int> exact_match_list;
 
   // sort the live ranges by starting index
   std::vector<Var> live_order;
@@ -475,14 +479,15 @@ void find_inplace_opportunities(const DataflowBlock& block, const Array<Var>& in
         candidates.erase(remove_candidates.begin(), remove_candidates.end());
 
         // if we have a candidate, then this can be made in-place. Report the result
-        std::cout << "Operation " << i << " (" << value << ") can be made in-place";
+        if (candidates.size()) {
+          size_match_list.push_back(i);
+        }
         for (auto candidate : candidates) {
           if (exact_match_candidates.count(candidate)) {
-            std::cout << " (exact dimension match)";
+            exact_match_list.push_back(i);
             break;
           }
         }
-        std::cout << std::endl;
       }
     }
 
@@ -497,6 +502,8 @@ void find_inplace_opportunities(const DataflowBlock& block, const Array<Var>& in
     }
     currently_live.erase(remove.begin(), remove.end());
   }
+
+  return {size_match_list, exact_match_list};
 }
 
 // export for testing
@@ -539,8 +546,18 @@ Array<ObjectRef> DataflowAliasAnalysis(const DataflowBlock& block, Array<Var> in
   return {new_alias_sets, new_tuple_map};
 }
 
-void DataflowInPlaceAnalysis(const DataflowBlock& block, const Array<Var>& inputs) {
-  relax::find_inplace_opportunities(block, inputs);
+Array<Array<Integer>> DataflowInPlaceAnalysis(const DataflowBlock& block,
+                                              const Array<Var>& inputs) {
+  auto index_lists = relax::find_inplace_opportunities(block, inputs);
+  Array<Integer> size_match_array;
+  for (int index : index_lists.first) {
+    size_match_array.push_back(index);
+  }
+  Array<Integer> exact_match_array;
+  for (int index : index_lists.second) {
+    exact_match_array.push_back(index);
+  }
+  return {size_match_array, exact_match_array};
 }
 
 TVM_REGISTER_GLOBAL("relax.analysis.DataflowLivenessAnalysis")
