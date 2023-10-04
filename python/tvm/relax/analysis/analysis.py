@@ -550,3 +550,10 @@ def dataflow_alias_analysis(
     for (idx, elem_alias_sets) in tuple_map.items():
         res_tuple_map[idx] = [set(alias_set) for alias_set in elem_alias_sets]
     return res_alias_sets, res_tuple_map  # type: ignore
+
+
+def dataflow_inplace_analysis(
+    block: DataflowBlock, inputs: List[Var]
+) -> Tuple[List[int], List[int]]:
+    index_lists = _ffi_api.DataflowInPlaceAnalysis(block, inputs)  # type: ignore
+    return tuple(index_lists)  # type: ignore
