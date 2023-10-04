@@ -159,7 +159,7 @@ Range::Range(PrimExpr begin, PrimExpr end, Span span) {
   PrimExpr extent = tir::is_zero(begin) ? end : sub(end, begin);
 
   if (min.dtype() != extent.dtype()) {
-    auto widest = DataType::WidestOf({min.dtype(), extent.dtype()});
+    auto widest = DataType::WidestOf(min.dtype(), extent.dtype());
     ICHECK(!widest.is_void()) << "ValueError: Incompatible types for Range(min:" << begin.dtype()
                               << ", end=" << end.dtype();
     if (min.dtype() != widest) {

@@ -117,7 +117,7 @@ For::For(Var loop_var, PrimExpr min, PrimExpr extent, ForKind kind, Stmt body,
   ICHECK(body.defined());
 
   if (loop_var.dtype() != min.dtype() || min.dtype() != extent.dtype()) {
-    auto widest = DataType::WidestOf({loop_var.dtype(), min.dtype(), extent.dtype()});
+    auto widest = DataType::WidestOf(loop_var.dtype(), min.dtype(), extent.dtype());
     ICHECK(!widest.is_void()) << "ValueError: Incompatible types for For(loop_var:"
                               << loop_var.dtype() << ", min:" << min.dtype()
                               << ", extent=" << extent.dtype();

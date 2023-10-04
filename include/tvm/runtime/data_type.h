@@ -30,7 +30,7 @@
 #include <algorithm>
 #include <string>
 #include <type_traits>
-#include <vector>
+#include <utility>
 
 namespace tvm {
 namespace runtime {
@@ -248,43 +248,53 @@ class DataType {
    * hold all values representable in the other types, or "Void" if
    * such type is not present in the array.
    */
-  static DataType WidestOf(const std::vector<DataType>& types) {
-    DataType none = Void();
-    if (types.empty()) return none;
-
-    // Normally we'd require all types to have the same type code, but we
-    // need to give special treatment to int/uint. A wider int can hold
-    // all values from a narrower uint, but no uint can hold all values
-    // from an int (because uint can't have negative values).
-    // Because of that, if the widest type is uint, but there was a signed
-    // int present, the result is still "none". However there may be an
-    // even longer int in the array later on, so we can't return just yet.
-    DataType widest = types[0];
-    bool delayed_none = false;
-    for (int i = 1, e = types.size(); i < e; ++i) {
-      auto current = types[i];
-      if (current.code() == widest.code()) {
-        if (current.bits() > widest.bits()) widest = current;
-      } else if (current.is_integer_type() && widest.is_integer_type()) {
-        // One must be signed, the other must be unsigned.
-        if (current.is_uint() && current.bits() >= widest.bits()) {
-          delayed_none = true;
-          widest = current;
-        } else if (current.is_int() && current.bits() <= widest.bits()) {
-          delayed_none = true;
-        } else {
-          delayed_none = false;
-          widest = Int(std::max(current.bits(), widest.bits()));
-        }
-      } else {
-        // The types are incompatible.
-        return none;
-      }
+  template <typename... T>
+  static DataType WidestOf(T... types) {
+    if constexpr (sizeof...(types) == 0) {
+      return Void();
+    } else {
+      auto [widest, delayed_void] = WidestOfImpl(/*initial_delayed_void=*/false, types...);
+      return delayed_void ? Void() : widest;
     }
-    return delayed_none ? none : widest;
   }
 
  private:
+  template <typename... T>
+  static std::pair<DataType, bool> WidestOfImpl(bool initial_delayed_void, DataType widest,
+                                                T... rest_of_types) {
+    if constexpr (sizeof...(rest_of_types) == 0) {
+      return std::make_pair(widest, initial_delayed_void);
+    } else {
+      auto [widest_of_rest, delayed_void] = WidestOfImpl(initial_delayed_void, rest_of_types...);
+
+      // Normally we'd require all types to have the same type code, but we
+      // need to give special treatment to int/uint. A wider int can hold
+      // all values from a narrower uint, but no uint can hold all values
+      // from an int (because uint can't have negative values).
+      // Because of that, if the widest type is uint, but there was a signed
+      // int present, the result is still void. However there may be an
+      // even longer int in the array later on, so we can't return just yet.
+      if (widest_of_rest.code() == widest.code()) {
+        if (widest_of_rest.bits() > widest.bits()) widest = widest_of_rest;
+      } else if (widest_of_rest.is_integer_type() && widest.is_integer_type()) {
+        // One must be signed, the other must be unsigned.
+        if (widest_of_rest.is_uint() && widest_of_rest.bits() >= widest.bits()) {
+          delayed_void = true;
+          widest = widest_of_rest;
+        } else if (widest_of_rest.is_int() && widest_of_rest.bits() <= widest.bits()) {
+          delayed_void = true;
+        } else {
+          delayed_void = false;
+          widest = Int(std::max(widest_of_rest.bits(), widest.bits()));
+        }
+      } else {
+        // The types are incompatible.
+        return std::make_pair(Void(), delayed_void);
+      }
+      return std::make_pair(widest, delayed_void);
+    }
+  }
+
   DLDataType data_;
 };
 
