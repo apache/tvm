@@ -160,13 +160,20 @@ Range::Range(PrimExpr begin, PrimExpr end, Span span) {
 
   if (min.dtype() != extent.dtype()) {
     auto widest = DataType::WidestOf({min.dtype(), extent.dtype()});
-    CHECK(!widest.is_void()) << "ValueError: Incompatible types for Range(min:" << min.dtype()
-                             << ", extent=" << extent.dtype();
+    ICHECK(!widest.is_void()) << "ValueError: Incompatible types for Range(min:" << begin.dtype()
+                              << ", end=" << end.dtype();
     if (min.dtype() != widest) {
-      min = tvm::cast(widest, min);
+      if (tir::is_const_number(min)) {
+        min = tvm::cast(widest, min);
+      }
     } else if (extent.dtype() != widest) {
-      extent = tvm::cast(widest, extent);
+      if (tir::is_const_number(extent)) {
+        extent = tvm::cast(widest, extent);
+      }
     }
+    ICHECK(min.dtype() == extent.dtype())
+        << "ValueError: Incompatible types for Range(min:" << begin.dtype()
+        << ", end=" << end.dtype();
   }
 
   ObjectPtr<RangeNode> node = make_object<RangeNode>();

@@ -125,9 +125,13 @@ For::For(Var loop_var, PrimExpr min, PrimExpr extent, ForKind kind, Stmt body,
         << "ValueError: Loop var type (" << loop_var.dtype()
         << ") disagree with range types (min:" << min.dtype() << ", extent:" << extent.dtype();
     if (min.dtype() != widest) {
-      min = tvm::cast(widest, min);
+      if (tir::is_const_number(min)) {
+        min = tvm::cast(widest, min);
+      }
     } else if (extent.dtype() != widest) {
-      extent = tvm::cast(widest, extent);
+      if (tir::is_const_number(extent)) {
+        extent = tvm::cast(widest, extent);
+      }
     }
   }
 
