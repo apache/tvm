@@ -28,6 +28,9 @@
 #include <tvm/runtime/logging.h>
 
 #include <algorithm>
+#include <cstddef>
+#include <ostream>
+#include <sstream>
 #include <string>
 #include <type_traits>
 #include <utility>
