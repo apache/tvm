@@ -46,7 +46,7 @@ namespace transform {
  * \param loss_function The loss function.
  * \param num_backbone_outputs Specify the number of `prediction_outputs` of the backbone function.
  * Default: 1.
- * \param new_func_name Specify the name of the appended result. If is is not specified, the name
+ * \param new_func_name Specify the name of the appended result. If it is not specified, the name
  * will be `func_name + "_loss"`.
  * \return The Pass.
  */

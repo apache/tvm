@@ -90,7 +90,7 @@ def AppendLoss(
         Specify the number of `prediction_outputs` of the backbone function. Default: 1.
 
     new_func_name : Optional[str]
-        Specify the name of the appended result. If is is not specified, the name will be
+        Specify the name of the appended result. If it is not specified, the name will be
         `func_name + "_loss"`.
 
     Returns

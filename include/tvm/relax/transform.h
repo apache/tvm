@@ -503,7 +503,7 @@ TVM_DLL Pass DecomposeOpsForTraining(Optional<String> func_name);
  * pass inserts the layout transformations in the call sites of PrimFuncs being replaced to
  * transform i/o buffers into expected layout.
  *
- * \param op_impl_map Map from from kOperatorName attr (e.g., relax.conv2d) to replacement PrimFunc
+ * \param op_impl_map Map from kOperatorName attr (e.g., relax.conv2d) to replacement PrimFunc
  * \param op_buffer_transforms Map from kOperatorName attr to layout transformations on each of the
  * PrimFunc i/o buffers.
  * \param axis_separators Map from kOperatorName attr to axis_separators of each buffer_transforms

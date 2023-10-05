@@ -662,7 +662,7 @@ class StorageAllocator : public StorageAllocatorBaseVisitor {
   /*!
    * \brief Check if a token has no reference and thus can be released. And release it if so.
    * \param token The token to be checked.
-   * \param release_site The CallNode where the the input token is send for release.
+   * \param release_site The CallNode where the input token is send for release.
    * If the token is checked to release here, we keep record of the release site so that
    * kill_tensor can be inserted here at the rewrite stage.
    */

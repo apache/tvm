@@ -256,7 +256,7 @@ def matmul(a: Tensor, b: Tensor, out_dtype: Optional[str] = None, name: str = "m
 
     out_dtype: Optional[Union[str, DataType]]
         The data type of the matmul result.
-        When it is not specified, the output dtype will be the the same as input dtype.
+        When it is not specified, the output dtype will be the same as input dtype.
 
     name : str
         Name hint.
