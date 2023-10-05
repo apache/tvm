@@ -884,7 +884,7 @@ TVM_DLL bool is_const_power_of_two_integer(const PrimExpr& x, int* shift);
 /*!
  * \brief Returns the narrowest type which can still represent the value of x.
  * \param x The input expression.
- * \param round_to_zero Whether the result should be a power-of-two number of bytes.
+ * \param round_to_bytes Whether the result should be a power-of-two number of bytes.
  * \return DataType with the same type code as x.dtype(), but possibly fewer bits.
  * \note The rounding to bytes does not apply to bool type.
  */
