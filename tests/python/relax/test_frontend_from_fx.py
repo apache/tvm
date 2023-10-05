@@ -1138,7 +1138,7 @@ def test_functional_layernorm():
                 lv: R.Tensor((1, 3, 10, 10), dtype="float32") = R.nn.layer_norm(
                     input_1,
                     gamma=relax.const(np.ones((10, 10)), dtype="float32"),
-                    beta=relax.const(np.zeros((10,10)), dtype="float32"),
+                    beta=relax.const(np.zeros((10, 10)), dtype="float32"),
                     axes=[-2, -1],
                     epsilon=1e-05,
                     center=True,
