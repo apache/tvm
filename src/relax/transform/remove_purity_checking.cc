@@ -52,6 +52,12 @@ class PurityRemover : public ExprMutator {
                       call->attrs, call->sinfo_args);
       return VisitExpr(ret);
     }
+    if (call->op == call_inplace_packed_op_) {
+      // call_inplace_packed has its own attrs so we don't pass those down
+      auto ret = Call(call->args[0], Array<Expr>(call->args.begin() + 1, call->args.end()),
+                      tvm::Attrs(), call->sinfo_args);
+      return VisitExpr(ret);
+    }
     if (call->op == invoke_pure_closure_op_) {
       auto ret = Call(invoke_closure_op_, call->args, call->attrs, call->sinfo_args);
       return VisitExpr(ret);
@@ -66,6 +72,7 @@ class PurityRemover : public ExprMutator {
 
  private:
   const Op& call_pure_packed_op_ = Op::Get("relax.call_pure_packed");
+  const Op& call_inplace_packed_op_ = Op::Get("relax.call_inplace_packed");
   const Op& invoke_pure_closure_op_ = Op::Get("relax.invoke_pure_closure");
   const Op& invoke_closure_op_ = Op::Get("relax.invoke_closure");
 };

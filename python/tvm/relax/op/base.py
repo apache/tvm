@@ -605,6 +605,72 @@ def shape_to_tensor(expr: Expr) -> Expr:
 
 
 @args_converter.auto
+def call_inplace_packed(
+    func: Union[str, ExternFunc, GlobalVar],
+    *args: Expr,
+    inplace_indices: Union[int, List[int]],
+    sinfo_args: Union[StructInfo, List[StructInfo]],
+) -> Expr:
+    """
+    Construct a call to a packed function that consumes some of its arguments "in-place"
+    and returns the mutated arguments (aliased), but should be considered to be otherwise pure.
+    The `inplace_indices` argument indicates which of the outputs are mutated arguments.
+
+    The resulting call will have the same semantics as calling the packed function directly.
+
+    Note: This should be used for cases when the user knows that calling the packed function
+    with these arguments will **in reality** not cause any other side effects.
+    If it is used for a call that **does** result in other side effects, then the compiler
+    may end up removing, reordering, or repeating that call, with no guarantees
+    made about any side effects from the callee.
+
+    Warning: This operator as treated as pure by the type system even though it *is* performing
+    side effects (mutating some arguments). It is therefore incumbent upon the user to ensure
+    that it is being used safely (viz., that mutated arguments are not live after the mutation,
+    that they do not alias values live after the mutation).
+
+    Parameters
+    ----------
+    func : Union[str, ExternFunc]
+      The name (global symbol) for a PackedFunc or an ExternFunc node.
+
+    args: Expr
+      The arguments for the PackedFunc.
+
+    input_indices : Union[int, List[int]]
+      Specify which arguments should be used for in-place computations.
+      If `input_indices` is a single integer, it will be made into a singleton list.
+      Suppose `input_indices[i] = j`, where `j >= 0`. Then the `i`th output
+      will be an alias of `args[j]`.
+      If `input_indices[i] = -1`, then the `i`th output will be a freshly allocated tensor.
+      At least one member of `input_indices` must not be -1.
+
+    sinfo_args: Union[StructInfo, List[StructInfo]]
+        The list of structure info arguments (giving the structural info for the returned value).
+
+    Returns
+    -------
+    result : Expr
+      A Relax call, corresponding to
+      `call_pure_packed(ExternFunc(func), args, DictAttrs(kwargs), sinfo_args)`
+    """
+    if isinstance(func, ExternFunc):
+        func = func.global_symbol
+
+    op = ExternFunc(func)
+    if sinfo_args is None:
+        raise ValueError("R.call_pure_packed is required to have type_args")
+    if isinstance(sinfo_args, tuple):  # type: ignore
+        sinfo_args = list(sinfo_args)
+    elif not isinstance(sinfo_args, list):
+        sinfo_args = [sinfo_args]
+    if not isinstance(inplace_indices, list):
+        inplace_indices = [inplace_indices]
+
+    return _ffi_api.call_inplace_packed(op, args, inplace_indices, sinfo_args)  # type: ignore # pylint: disable=no-member
+
+
+@args_converter.auto
 def call_pure_packed(
     func: Union[str, ExternFunc, GlobalVar],
     *args: Expr,
