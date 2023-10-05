@@ -1021,10 +1021,8 @@ inline DataType restricted_type(const PrimExpr& x, bool round_to_bytes) {
     return x.dtype();
   }
   if (const auto* fpimm = x.as<FloatImmNode>()) {
-    if (fpimm->dtype.bits() == 64) {
-      if (static_cast<double>(static_cast<float>(fpimm->value))) {
-        return DataType::Float(32);
-      }
+    if (fpimm->dtype.bits() == 64 && static_cast<double>(static_cast<float>(fpimm->value))) {
+      return DataType::Float(32);
     }
   }
   return x.dtype();
