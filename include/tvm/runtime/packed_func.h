@@ -133,7 +133,7 @@ class PackedFuncSubObj : public PackedFuncObj {
  *  The arguments are passed by packed format.
  *
  *  This is an useful unified interface to call generated functions,
- *  It is the unified function function type of TVM.
+ *  It is the unified function type of TVM.
  *  It corresponds to TVMFunctionHandle in C runtime API.
  */
 class PackedFunc : public ObjectRef {
