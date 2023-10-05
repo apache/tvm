@@ -72,7 +72,7 @@ std::unordered_map<Var, std::pair<int, int>, ObjectPtrHash, ObjectPtrEqual> anal
 
 class AliasAnalyzer {
  public:
-  explicit AliasAnalyzer() : alias_map_(), tuple_map_(), captured_by_functions_(), mem_idx_(0) {}
+  explicit AliasAnalyzer() : alias_map_(), tuple_map_(), mem_idx_(0) {}
 
   // alias: map of var to memory locations (we will call these indices and use -1 as an index for
   // "unknown")
@@ -219,17 +219,20 @@ class AliasAnalyzer {
       tuple_map_[tup_idx] = new_tuple_map;
     } else if (auto* target_tgi = value.as<TupleGetItemNode>()) {
       std::unordered_set<int> tuple_set = get_alias_set(target_tgi->tuple, bound_var);
-      // if there's only one possibility for the tuple and it's in the tuple map,
-      // index into it
-      if (tuple_set.size() == 1) {
-        int index = *(tuple_set.begin());
-        if (tuple_map_.count(index)) {
-          return tuple_map_[index][target_tgi->index];
-        } else {
-          ret.insert(-1);
-        }
-      } else {
+      // if -1 is a member of the tuple set, then we have to assume the result is -1
+      if (tuple_set.count(-1)) {
         ret.insert(-1);
+      } else {
+        // otherwise, consider all members that are tuples of appropriate size and index into them
+        // (this is safe because the type system will ensure we're not indexing into a tuple
+        // of the wrong size)
+        for (int member : tuple_set) {
+          if (tuple_map_.count(member) &&
+              static_cast<int>(tuple_map_[member].size()) > target_tgi->index) {
+            auto member_set = tuple_map_[member][target_tgi->index];
+            ret.insert(member_set.begin(), member_set.end());
+          }
+        }
       }
     } else if (auto* call_node = value.as<CallNode>()) {
       if (auto* op_node = call_node->op.as<OpNode>()) {
@@ -271,7 +274,6 @@ class AliasAnalyzer {
 
   std::unordered_map<Var, std::unordered_set<int>, ObjectPtrHash, ObjectPtrEqual> alias_map_;
   std::unordered_map<int, std::vector<std::unordered_set<int>>> tuple_map_;
-  std::unordered_set<int> captured_by_functions_;
   int mem_idx_;
 };
 
@@ -338,65 +340,102 @@ std::pair<bool, bool> size_matches(const StructInfo& target_info, const StructIn
   }
 }
 
-bool intersecting_live_aliases(
-    std::unordered_map<Var, std::pair<int, int>, ObjectPtrHash, ObjectPtrEqual>& live_ranges,
-    std::unordered_map<Var, std::unordered_set<int>, ObjectPtrHash, ObjectPtrEqual>& alias_sets,
-    std::unordered_map<int, std::vector<std::unordered_set<int>>>& tuple_map,
-    std::unordered_set<Var, ObjectPtrHash, ObjectPtrEqual>& currently_live, const Expr& target,
-    int idx) {
+// Given an alias index, check if it's a tuple and gather the sets of aliases for the tuple
+// members if so (apply recursively if any of those members are tuples).
+// Return false if the alias set contains -1, meaning a reference to an unknown or
+// possibly dangerous value (no checking we can do for that).
+bool gather_sets_to_check_for_liveness(
+    const std::unordered_map<Var, std::unordered_set<int>, ObjectPtrHash, ObjectPtrEqual>&
+        alias_sets,
+    const std::unordered_map<int, std::vector<std::unordered_set<int>>>& tuple_map,
+    std::vector<std::unordered_set<int>>* sets_to_check, int alias_idx) {
+  if (tuple_map.count(alias_idx)) {
+    for (auto member_set : tuple_map.at(alias_idx)) {
+      // contains -1 -> unknown and dangerous, we can short-circuit
+      if (member_set.count(-1)) {
+        return false;
+      }
+      sets_to_check->push_back(member_set);
+
+      // if a member can be a tuple, check it recursively
+      for (int member : member_set) {
+        if (tuple_map.count(member)) {
+          if (!gather_sets_to_check_for_liveness(alias_sets, tuple_map, sets_to_check, member)) {
+            return false;
+          }
+        }
+      }
+    }
+  }
+  return true;
+}
+
+// check that the target is not live past the index and that no alias of it is live past the
+// binding index (if the target is a tuple, check the conditions recursively for the members)
+bool df_inplace_conditions_met(
+    const std::unordered_map<Var, std::pair<int, int>, ObjectPtrHash, ObjectPtrEqual>& live_ranges,
+    const std::unordered_map<Var, std::unordered_set<int>, ObjectPtrHash, ObjectPtrEqual>&
+        alias_sets,
+    const std::unordered_map<int, std::vector<std::unordered_set<int>>>& tuple_map,
+    const std::unordered_set<Var, ObjectPtrHash, ObjectPtrEqual>& currently_live,
+    const Expr& target, int idx) {
   if (auto* var_node = target.as<VarNode>()) {
     auto current_var = GetRef<Var>(var_node);
+    // if the var is live past this point, we can't use it for in-place computations anyway
+    if (live_ranges.count(current_var)) {
+      auto live_range = live_ranges.at(current_var);
+      if (live_range.second > idx) {
+        return false;
+      }
+    }
+
     // no entry for the current var -> it must be something external and we have to assume the worst
     if (!alias_sets.count(current_var)) {
-      return true;
+      return false;
     }
-    auto alias_set = alias_sets[current_var];
+    auto alias_set = alias_sets.at(current_var);
     // -1 -> an external value and we must assume the worst
     if (alias_set.count(-1)) {
-      return true;
+      return false;
     }
     std::vector<std::unordered_set<int>> sets_to_check = {alias_set};
     std::unordered_set<int> indices_checked;
-    // if a possible alias is a tuple, we will also check for aliases of the members
+    // If a possible alias is a tuple, we will also check for aliases of the members
+    // (possibly recursively)
     for (int alias_idx : alias_set) {
-      if (tuple_map.count(alias_idx)) {
-        for (auto member_set : tuple_map[alias_idx]) {
-          if (member_set.count(-1)) {
-            return true;
-          }
-          sets_to_check.push_back(member_set);
-        }
+      if (!gather_sets_to_check_for_liveness(alias_sets, tuple_map, &sets_to_check, alias_idx)) {
+        return false;
       }
     }
 
     for (Var other_var : currently_live) {
       if (!alias_sets.count(other_var) || !live_ranges.count(other_var)) {
-        return true;
+        return false;
       }
       // var is not live past this point => don't need to worry
-      if (live_ranges[other_var].second <= idx) {
+      if (live_ranges.at(other_var).second <= idx) {
         continue;
       }
-      auto other_alias_set = alias_sets[other_var];
+      auto other_alias_set = alias_sets.at(other_var);
       for (int alias_idx : other_alias_set) {
         for (auto check_set : sets_to_check) {
           if (check_set.count(alias_idx)) {
-            return true;
+            return false;
           }
         }
       }
     }
-    return false;
+    return true;
   } else if (auto* tup_node = target.as<TupleNode>()) {
     for (auto field : tup_node->fields) {
-      if (intersecting_live_aliases(live_ranges, alias_sets, tuple_map, currently_live, field,
-                                    idx)) {
-        return true;
+      if (!df_inplace_conditions_met(live_ranges, alias_sets, tuple_map, currently_live, field,
+                                     idx)) {
+        return false;
       }
     }
-    return false;
+    return true;
   } else {
-    return false;
+    return true;
   }
 }
 
@@ -453,7 +492,7 @@ std::pair<std::vector<int>, std::vector<int>> find_inplace_opportunities(const D
         std::unordered_set<Expr, ObjectPtrHash, ObjectPtrEqual> candidates;
         std::unordered_set<Expr, ObjectPtrHash, ObjectPtrEqual> exact_match_candidates;
 
-        // 1. Check that at least one argument matches size with the result
+        // Check that at least one argument matches size with the result
         for (auto arg : call_node->args) {
           std::pair<bool, bool> match =
               size_matches(GetStructInfo(defined_var), GetStructInfo(arg));
@@ -468,32 +507,13 @@ std::pair<std::vector<int>, std::vector<int>> find_inplace_opportunities(const D
           continue;
         }
 
-        // 2. Make sure at least one candidate is not live past this point
+        // Make sure at least one candidate is not live past this point and does not have an alias
+        // live past this point
         std::unordered_set<Expr, ObjectPtrHash, ObjectPtrEqual> remove_candidates;
-        for (auto candidate : candidates) {
-          // only var nodes need to be checked; other leaf exprs (e.g., tuples) are live
-          // only in the current binding unless they're bound
-          if (auto* var_node = candidate.as<VarNode>()) {
-            // live past the current binding -> remove from candidates
-            auto arg_var = GetRef<Var>(var_node);
-            if (live_ranges.count(arg_var)) {
-              auto live_range = live_ranges[arg_var];
-              if (live_range.second > static_cast<int>(i)) {
-                remove_candidates.insert(candidate);
-              }
-            }
-          }
-        }
-        candidates.erase(remove_candidates.begin(), remove_candidates.end());
-        if (!candidates.size()) {
-          continue;
-        }
-
-        // 3. Make sure at least one candidate does not have an alias live past this point
         remove_candidates.clear();
         for (auto candidate : candidates) {
-          if (intersecting_live_aliases(live_ranges, alias_sets, tuple_map, currently_live,
-                                        candidate, i)) {
+          if (!df_inplace_conditions_met(live_ranges, alias_sets, tuple_map, currently_live,
+                                         candidate, i)) {
             remove_candidates.insert(candidate);
           }
         }
