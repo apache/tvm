@@ -1124,9 +1124,7 @@ def test_functional_layernorm():
             self.bias = None
 
         def forward(self, input):
-            return torch.nn.functional.layer_norm(
-                input, self.shape, self.weight, self.bias, 1e-5
-            )
+            return torch.nn.functional.layer_norm(input, self.shape, self.weight, self.bias, 1e-5)
 
     @tvm.script.ir_module
     class expected2:
