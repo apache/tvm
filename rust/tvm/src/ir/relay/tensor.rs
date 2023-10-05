@@ -218,4 +218,7 @@ external!{
 
     #[name("relay.op._make.reshape")]
     pub fn reshape(data: Expr, newshape: Array<PrimExpr>, allowzero: bool) -> Expr;
+
+    #[name("relay.op._make.transpose")]
+    pub fn transpose(data: Expr, axes: Array<PrimExpr>) -> Expr;
 }
