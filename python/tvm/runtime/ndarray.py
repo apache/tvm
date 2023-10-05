@@ -617,7 +617,7 @@ def array(arr, device=cpu(0), mem_scope=None):
         The array to be copied from
 
     device : Device, optional
-        The device device to create the array
+        The device to create the array
 
     mem_scope : Optional[str]
         The memory scope of the array
