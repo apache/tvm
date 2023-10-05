@@ -258,9 +258,10 @@ def test_mystery_calls():
         "m": {3},
         "n": {4},
         "t": {5},
-        "a": {3, 4, 5, 6, 7, 8},
-        "b": {-1},  # because a can be many things, b is unknown
-        "c": {-1},  # because a can be many things, c is unknown
+        "a": {3, 4, 5, 6, 7, 8},  # either t or a fresh tuple
+        "b": {3, 4, 5, 6, 7, 8},  # the tuple components can be aliased to any member...
+        "c": {3, 4, 5, 6, 7, 8},  # the tuple components can be aliased to any member...
+        # (in principle, we can use type information to narrow down the aliasing)
     }
 
     for var, alias_set in alias_sets.items():
@@ -269,7 +270,7 @@ def test_mystery_calls():
     assert 5 in tuple_map
     assert tuple_map[5] == [{3}, {4}]
     assert 6 in tuple_map
-    assert tuple_map[6] == [{7}, {8}]
+    assert tuple_map[6] == [{3, 4, 5, 6, 7, 8}, {3, 4, 5, 6, 7, 8}]
 
 
 if __name__ == "__main__":

@@ -122,6 +122,25 @@ class AliasAnalyzer {
     tuple_map_[tup_idx] = tuple_set;
   }
 
+  void update_tuple_components(int tup_idx, const std::unordered_set<int>& insert_idxs) {
+    if (tuple_map_.count(tup_idx)) {
+      auto tuple_comps = tuple_map_[tup_idx];
+      for (size_t i = 0; i < tuple_comps.size(); i++) {
+        auto comp_set = tuple_comps[i];
+
+        // if a member is a tuple, update its components as well
+        for (int member : comp_set) {
+          if (tuple_map_.count(member)) {
+            update_tuple_components(member, insert_idxs);
+          }
+        }
+
+        // update after iterating to avoid iterating over the inserted elements
+        tuple_map_[tup_idx][i].insert(insert_idxs.begin(), insert_idxs.end());
+      }
+    }
+  }
+
   // capture the given index and also its tuple components (including recursively)
   // if they exist
   void add_captured_indices(std::unordered_set<int>* captured_set, int idx) {
@@ -159,7 +178,9 @@ class AliasAnalyzer {
         add_captured_indices(&ret, alias_idx);
       }
     }
-    ret.insert(captured_by_functions_.begin(), captured_by_functions_.end());
+    // if the result is a tuple, the components can also potentially be aliased to any arg
+    // or, in fact, to each other
+    update_tuple_components(res_idx, ret);
     return ret;
   }
 
