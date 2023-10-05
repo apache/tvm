@@ -236,7 +236,10 @@ const Array<String> ExprUtils::GetInputTypes(const String& optype, size_t inputs
   } else if (optype == "full" && as_relax) {
     input_types.push_back("shape");
     input_types.push_back("input");
-  } else if (optype == "trilu") {
+  } else if (optype == "triu") {
+    input_types.push_back("input");
+    input_types.push_back("k");
+  } else if (optype == "tril") {
     input_types.push_back("input");
     input_types.push_back("k");
   } else if (optype == "image.resize2d" && as_relax) {

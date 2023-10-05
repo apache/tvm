@@ -82,9 +82,21 @@ Expr zeros_like(Expr x, DataType dtype);
 Expr arange(PrimValue start, PrimValue stop, PrimValue step, DataType dtype);
 
 /*! \brief Return the lower triangular part of a matrix or a batch of matrices. */
+Expr tril(Expr x, Expr k);
+
+/*! \brief Return the lower triangular part of a matrix or a batch of matrices.
+ *
+ * Overload provided for backwards compatibility.
+ */
 Expr tril(Expr x, int k);
 
 /*! \brief Return the upper triangular part of a matrix or a batch of matrices. */
+Expr triu(Expr x, Expr k);
+
+/*! \brief Return the upper triangular part of a matrix or a batch of matrices.
+ *
+ * Overload provided for backwards compatibility.
+ */
 Expr triu(Expr x, int k);
 
 }  // namespace relax

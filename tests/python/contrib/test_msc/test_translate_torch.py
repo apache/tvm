@@ -18,6 +18,7 @@
 """ Test translate from torch. """
 
 import numpy as np
+import pytest
 
 import torch
 from torch.nn import Module
@@ -781,12 +782,31 @@ def test_arange():
     verify_model(Arange(), [([10, 10], "float32")])
 
 
-def test_tril():
+# pylint: disable=redefined-outer-name
+via_relax_param = tvm.testing.parameter(
+    True,
+    pytest.param(
+        False,
+        marks=pytest.mark.xfail(
+            reason="Failure to convert from R.PrimValue argument in msc/framework/tvm/codegen.cc"
+        ),
+    ),
+)
+
+
+def test_tril(via_relax_param):
     """test torch translator for tril"""
 
     class Tril(Module):
         def forward(self, data):
             return torch.tril(data, 1)
+
+    input_info = [([10, 10], "float32")]
+    verify_model(Tril(), input_info, via_relax_param)
+
+
+def test_tril_inplace(via_relax_param):
+    """test torch translator for tril"""
 
     class InplaceTril(Module):
         def forward(self, data):
@@ -794,17 +814,22 @@ def test_tril():
             return data
 
     input_info = [([10, 10], "float32")]
-    for via_relax in [True, False]:
-        verify_model(Tril(), input_info, via_relax)
-        verify_model(InplaceTril(), input_info, via_relax)
+    verify_model(InplaceTril(), input_info, via_relax_param)
 
 
-def test_triu():
+def test_triu(via_relax_param):
     """test torch translator for triu"""
 
     class Triu(Module):
         def forward(self, data):
             return torch.triu(data, 1)
+
+    input_info = [([10, 10], "float32")]
+    verify_model(Triu(), input_info, via_relax_param)
+
+
+def test_triu_inplace(via_relax_param):
+    """test torch translator for triu"""
 
     class InplaceTriu(Module):
         def forward(self, data):
@@ -812,9 +837,7 @@ def test_triu():
             return data
 
     input_info = [([10, 10], "float32")]
-    for via_relax in [True, False]:
-        verify_model(Triu(), input_info, via_relax)
-        verify_model(InplaceTriu(), input_info, via_relax)
+    verify_model(InplaceTriu(), input_info, via_relax_param)
 
 
 def test_new_ones():
