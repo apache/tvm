@@ -885,7 +885,10 @@ TVM_DLL bool is_const_power_of_two_integer(const PrimExpr& x, int* shift);
  * \brief Returns the narrowest type which can still represent the value of x.
  * \param x The input expression.
  * \param round_to_bytes Whether the result should be a power-of-two number of bytes.
- * \return DataType with the same type code as x.dtype(), but possibly fewer bits.
+ * \return DataType that can hold x, but possibly with fewer bits. For immediate values
+ *         of integer types, if the value is non-negative, the returned type will be
+ *         an unsigned with the minimal number of required bits (subject to rounding).
+ *         For floating point values the type code will remain unchanged.
  * \note The rounding to bytes does not apply to bool type.
  */
 inline DataType restricted_type(const PrimExpr& x, bool round_to_bytes = false);
@@ -984,7 +987,7 @@ inline PrimExpr make_zero(DataType t, Span span) {
 inline DataType restricted_type(const PrimExpr& x, bool round_to_bytes) {
   if (const int64_t* val = as_const_int(x)) {
     int64_t v = *val;
-    if (x.dtype().is_uint() && (v == 0 || v == 1)) {
+    if (x.dtype().is_integer_type() && (v == 0 || v == 1)) {
       return DataType::Bool();
     }
     auto num_significant_bits = [](uint64_t t) -> unsigned {
@@ -1009,7 +1012,7 @@ inline DataType restricted_type(const PrimExpr& x, bool round_to_bytes) {
       }
       return c;
     };
-    if (x.dtype().is_uint()) {
+    if (x.dtype().is_uint() || v > 0) { // v == 0 handled earlier
       return DataType::UInt(round_if_needed(num_significant_bits(v)));
     } else if (x.dtype().is_int()) {
       if (v < 0) {
