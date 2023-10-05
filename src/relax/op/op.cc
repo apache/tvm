@@ -184,8 +184,8 @@ StructInfo InferStructInfoCallInplacePacked(const Call& call, const BlockBuilder
     if (!IsBaseOf(ret, arg_sinfo, ctx->GetAnalyzer())) {
       ctx->ReportFatal(Diagnostic::Error(call)
                        << "The derived return StructInfo does not match that for "
-                       << "the in-place argument at index " << (arg_idx - 1) << ": " << ret << " vs "
-                       << arg_sinfo);
+                       << "the in-place argument at index " << (arg_idx - 1) << ": " << ret
+                       << " vs " << arg_sinfo);
     }
   } else {
     auto* tup_info = ret.as<TupleStructInfoNode>();
