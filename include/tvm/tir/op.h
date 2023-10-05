@@ -1013,7 +1013,7 @@ inline DataType restricted_type(const PrimExpr& x, bool round_to_bytes) {
       return DataType::UInt(round_if_needed(num_significant_bits(v)));
     } else if (x.dtype().is_int()) {
       if (v < 0) {
-        if (v == 0x8000000000000000ll) return x.dtype();
+        if (v == std::numeric_limits<decltype(v)>::min()) return x.dtype();
         v = -v;
       }
       return DataType::Int(round_if_needed(1 + num_significant_bits(v)));
