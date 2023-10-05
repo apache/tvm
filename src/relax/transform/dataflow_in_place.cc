@@ -124,20 +124,20 @@ class AliasAnalyzer {
 
   // capture the given index and also its tuple components (including recursively)
   // if they exist
-  void add_to_captured_set(int idx) {
-    captured_by_functions_.insert(idx);
+  void add_captured_indices(std::unordered_set<int>* captured_set, int idx) {
+    captured_set->insert(idx);
     if (tuple_map_.count(idx)) {
       for (auto comp_set : tuple_map_[idx]) {
         for (auto tup_comp_idx : comp_set) {
-          add_to_captured_set(tup_comp_idx);
+          add_captured_indices(captured_set, tup_comp_idx);
         }
       }
     }
   }
 
   // Conservative extremely pessimistic assumption:
-  // assume that the result of a non-op call can be aliased to anything
-  // ever passed to or returned from any non-op call.
+  // assume that the result of a non-op call can be aliased to any argument
+  // or that it could be a newly allocated value.
   // For tuples, assume all members are aliased. Yeah, it's bad.
   // (Skip first arg is for handling call_pure_packed, where the first arg is an ExternFunc that we
   // should ignore)
@@ -150,13 +150,13 @@ class AliasAnalyzer {
     if (auto* tup_info_node = GetStructInfoAs<TupleStructInfoNode>(bound_var)) {
       insert_fresh_tuple(res_idx, tup_info_node);
     }
-    add_to_captured_set(res_idx);
+    add_captured_indices(&ret, res_idx);
 
     for (size_t i = (skip_first_arg) ? 1 : 0; i < call_node->args.size(); i++) {
       auto arg = call_node->args[i];
       auto arg_alias_set = get_alias_set(arg, bound_var);
       for (int alias_idx : arg_alias_set) {
-        add_to_captured_set(alias_idx);
+        add_captured_indices(&ret, alias_idx);
       }
     }
     ret.insert(captured_by_functions_.begin(), captured_by_functions_.end());

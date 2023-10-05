@@ -258,7 +258,7 @@ def test_mystery_calls():
         "m": {3},
         "n": {4},
         "t": {5},
-        "a": {0, 1, 2, 3, 4, 5, 6, 7, 8},
+        "a": {3, 4, 5, 6, 7, 8},
         "b": {-1},  # because a can be many things, b is unknown
         "c": {-1},  # because a can be many things, c is unknown
     }
