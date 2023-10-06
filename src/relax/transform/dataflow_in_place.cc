@@ -604,7 +604,7 @@ Array<Array<Integer>> DataflowInPlaceAnalysis(const DataflowBlock& block,
 TVM_REGISTER_GLOBAL("relax.analysis.DataflowLivenessAnalysis")
     .set_body_typed(DataflowLivenessAnalysis);
 TVM_REGISTER_GLOBAL("relax.analysis.DataflowAliasAnalysis").set_body_typed(DataflowAliasAnalysis);
-TVM_REGISTER_GLOBAL("relax.analysis.DataflowInPlaceAnalasis")
+TVM_REGISTER_GLOBAL("relax.analysis.DataflowInPlaceAnalysis")
     .set_body_typed(DataflowInPlaceAnalysis);
 
 }  // namespace transform
