@@ -1206,5 +1206,402 @@ def test_extern_func():
     _check(mod, mod)
 
 
+def test_symbolic_var_in_buffer_shape():
+    """A PrimFunc may have dynamic buffer shapes
+
+    Symbolic variables in a PrimFunc may be present in the buffer
+    shape without a corresponding parameter.  These symbolic variables
+    are inferred from the buffer's shape.  (Or, at runtime, they are
+    typically determined from the DLTensor's known shape.)
+    """
+
+    @I.ir_module
+    class Before:
+        @T.prim_func(private=True)
+        def foo(
+            X_handle: T.handle,
+            Y: T.Buffer((T.int64(2048), T.int64(128)), "float32"),
+            rotary_handle: T.handle,
+            m: T.int64,
+        ):
+            sequence_length = T.int64()
+
+            X = T.match_buffer(
+                X_handle, [T.int64(1), sequence_length, T.int64(32), T.int64(128)], "float32"
+            )
+            rotary = T.match_buffer(
+                rotary_handle, [T.int64(1), sequence_length, T.int64(32), T.int64(128)], "float32"
+            )
+
+            for i0, i1, i2, i3 in T.grid(T.int64(1), sequence_length, T.int64(32), T.int64(128)):
+                with T.block("rotary"):
+                    v0, v1, v2, v3 = T.axis.remap("SSSS", [i0, i1, i2, i3])
+                    rotary[v0, v1, v2, v3] = Y[m + v1 - 1, v3] * X[v0, v1, v2, v3]
+
+        @R.function
+        def fused(
+            x: R.Tensor((1, "sequence_length", 32, 128), dtype="float32"),
+            y: R.Tensor((2048, 128), dtype="float32"),
+            len: R.Shape(["m"]),
+        ) -> R.Tensor((1, "sequence_length", 32, 128), dtype="float32"):
+            R.func_attr({"Primitive": 1})
+            sequence_length = T.int64()
+            m = T.int64()
+            cls = Before
+            with R.dataflow():
+                lv1 = R.emit_te(topi.add, x, x)
+                gv = R.call_tir(
+                    cls.foo,
+                    [lv1, y],
+                    out_sinfo=R.Tensor((1, sequence_length, 32, 128), dtype="float32"),
+                    tir_vars=R.shape([m]),
+                )
+                R.output(gv)
+            return gv
+
+        @R.function
+        def main(
+            x: R.Tensor((1, "sequence_length", 32, 128), dtype="float32"),
+            y: R.Tensor((2048, 128), dtype="float32"),
+            len: R.Shape(["m"]),
+        ) -> R.Tensor((1, "sequence_length", 32, 128), dtype="float32"):
+            cls = Before
+            with R.dataflow():
+                gv = cls.fused(x, y, len)
+                R.output(gv)
+            return gv
+
+    @I.ir_module
+    class Expected:
+        @T.prim_func(private=True)
+        def fused(
+            X_handle: T.handle,
+            Y: T.Buffer((T.int64(2048), T.int64(128)), "float32"),
+            rotary_handle: T.handle,
+            m: T.int64,
+        ):
+            T.func_attr({"tir.noalias": T.bool(True)})
+
+            sequence_length = T.int64()
+
+            X = T.match_buffer(
+                X_handle, [T.int64(1), sequence_length, T.int64(32), T.int64(128)], "float32"
+            )
+            rotary = T.match_buffer(
+                rotary_handle, [T.int64(1), sequence_length, T.int64(32), T.int64(128)], "float32"
+            )
+
+            T_add = T.alloc_buffer((T.int64(1), sequence_length, T.int64(32), T.int64(128)))
+            for ax0, ax1, ax2, ax3 in T.grid(
+                T.int64(1), sequence_length, T.int64(32), T.int64(128)
+            ):
+                with T.block("T_add"):
+                    v_ax0, v_ax1, v_ax2, v_ax3 = T.axis.remap("SSSS", [ax0, ax1, ax2, ax3])
+                    T_add[v_ax0, v_ax1, v_ax2, v_ax3] = (
+                        X[v_ax0, v_ax1, v_ax2, v_ax3] + X[v_ax0, v_ax1, v_ax2, v_ax3]
+                    )
+            for i0, i1, i2, i3 in T.grid(T.int64(1), sequence_length, T.int64(32), T.int64(128)):
+                with T.block("rotary"):
+                    v0, v1, v2, v3 = T.axis.remap("SSSS", [i0, i1, i2, i3])
+                    rotary[v0, v1, v2, v3] = Y[m + v1 - T.int64(1), v3] * T_add[v0, v1, v2, v3]
+
+        @R.function
+        def main(
+            x: R.Tensor((1, "sequence_length", 32, 128), dtype="float32"),
+            y: R.Tensor((2048, 128), dtype="float32"),
+            len: R.Shape(["m"]),
+        ) -> R.Tensor((1, "sequence_length", 32, 128), dtype="float32"):
+            sequence_length = T.int64()
+            m = T.int64()
+            cls = Expected
+            with R.dataflow():
+                gv = R.call_tir(
+                    cls.fused,
+                    (x, y),
+                    out_sinfo=R.Tensor([1, sequence_length, 32, 128], "float32"),
+                    tir_vars=R.shape([m]),
+                )
+                R.output(gv)
+            return gv
+
+    _check(Before, Expected)
+
+
+def test_symbolic_var_called_with_static_shape():
+    """A dynamic PrimFunc may be called with a static shape"""
+
+    @I.ir_module
+    class Before:
+        @T.prim_func(private=True)
+        def sum_1d(
+            X_handle: T.handle,
+            Y: T.Buffer([T.int64(1)], "float32"),
+        ):
+            num_elements = T.int64()
+
+            X = T.match_buffer(X_handle, [num_elements], "float32")
+
+            for i in range(num_elements):
+                with T.block("sum"):
+                    vi = T.axis.remap("R", [i])
+                    with T.init():
+                        Y[0] = 0.0
+                    Y[0] = Y[0] + X[vi]
+
+        @R.function(private=True)
+        def fused(
+            x: R.Tensor([64], dtype="float32"),
+        ) -> R.Tensor([1], dtype="float32"):
+            R.func_attr({"Primitive": 1})
+            cls = Before
+            with R.dataflow():
+                gv = R.call_tir(
+                    cls.sum_1d,
+                    [x],
+                    out_sinfo=R.Tensor([1], dtype="float32"),
+                )
+                R.output(gv)
+            return gv
+
+        @R.function
+        def main(
+            x: R.Tensor([64], dtype="float32"),
+        ) -> R.Tensor([1], dtype="float32"):
+            cls = Before
+            with R.dataflow():
+                gv = cls.fused(x)
+                R.output(gv)
+            return gv
+
+    @I.ir_module
+    class Expected:
+        @T.prim_func(private=True)
+        def fused(
+            X: T.Buffer([T.int64(64)], "float32"),
+            Y: T.Buffer([T.int64(1)], "float32"),
+        ):
+            T.func_attr({"tir.noalias": True})
+
+            for i in range(T.int64(64)):
+                with T.block("sum"):
+                    vi = T.axis.remap("R", [i])
+                    with T.init():
+                        Y[0] = 0.0
+                    Y[0] = Y[0] + X[vi]
+
+        @R.function
+        def main(
+            x: R.Tensor([64], dtype="float32"),
+        ) -> R.Tensor([1], dtype="float32"):
+            cls = Expected
+            with R.dataflow():
+                gv = R.call_tir(cls.fused, (x,), out_sinfo=R.Tensor((1,), dtype="float32"))
+                R.output(gv)
+            return gv
+
+    _check(Before, Expected)
+
+
+def test_symbolic_var_called_with_multiple_static_shapes():
+    """A dynamic PrimFunc may be called with different shapes each time"""
+
+    @I.ir_module
+    class Before:
+        @T.prim_func(private=True)
+        def sum_1d(
+            X_handle: T.handle,
+            Sum: T.Buffer([T.int64(1)], "float32"),
+        ):
+            num_elements = T.int64()
+
+            X = T.match_buffer(X_handle, [num_elements], "float32")
+
+            for i in range(num_elements):
+                with T.block("sum"):
+                    vi = T.axis.remap("R", [i])
+                    with T.init():
+                        Sum[0] = 0.0
+                    Sum[0] = Sum[0] + X[vi]
+
+        @T.prim_func(private=True)
+        def sum_scalar(
+            X: T.Buffer([T.int64(1)], "float32"),
+            Y: T.Buffer([T.int64(1)], "float32"),
+            Sum: T.Buffer([T.int64(1)], "float32"),
+        ):
+            for i in range(T.int64(1)):
+                with T.block("Out"):
+                    vi = T.axis.remap("S", [i])
+                    Sum[vi] = X[vi] + Y[vi]
+
+        @R.function(private=True)
+        def fused(
+            x: R.Tensor([64], dtype="float32"),
+            y: R.Tensor([16], dtype="float32"),
+        ) -> R.Tensor([1], dtype="float32"):
+            R.func_attr({"Primitive": 1})
+            cls = Before
+            with R.dataflow():
+                x_sum = R.call_tir(
+                    cls.sum_1d,
+                    [x],
+                    out_sinfo=R.Tensor([1], dtype="float32"),
+                )
+                y_sum = R.call_tir(
+                    cls.sum_1d,
+                    [y],
+                    out_sinfo=R.Tensor([1], dtype="float32"),
+                )
+                gv = R.call_tir(
+                    cls.sum_scalar,
+                    [x_sum, y_sum],
+                    out_sinfo=R.Tensor([1], dtype="float32"),
+                )
+                R.output(gv)
+            return gv
+
+        @R.function
+        def main(
+            x: R.Tensor([64], dtype="float32"),
+            y: R.Tensor([16], dtype="float32"),
+        ) -> R.Tensor([1], dtype="float32"):
+            cls = Before
+            with R.dataflow():
+                gv = cls.fused(x, y)
+                R.output(gv)
+            return gv
+
+    @I.ir_module
+    class Expected:
+        @T.prim_func(private=True)
+        def fused(
+            X: T.Buffer([T.int64(64)], "float32"),
+            Y: T.Buffer([T.int64(16)], "float32"),
+            Out: T.Buffer([T.int64(1)], "float32"),
+        ):
+            T.func_attr({"tir.noalias": True})
+
+            XSum = T.alloc_buffer([T.int64(1)], "float32")
+            YSum = T.alloc_buffer([T.int64(1)], "float32")
+
+            for i in range(T.int64(64)):
+                with T.block("XSum"):
+                    vi = T.axis.remap("R", [i])
+                    with T.init():
+                        XSum[0] = 0.0
+                    XSum[0] = XSum[0] + X[vi]
+
+            for i in range(T.int64(16)):
+                with T.block("YSum"):
+                    vi = T.axis.remap("R", [i])
+                    with T.init():
+                        YSum[0] = 0.0
+                    YSum[0] = YSum[0] + Y[vi]
+
+            for i in range(T.int64(1)):
+                with T.block("Out"):
+                    vi = T.axis.remap("S", [i])
+                    Out[vi] = XSum[vi] + YSum[vi]
+
+        @R.function
+        def main(
+            x: R.Tensor([64], dtype="float32"),
+            y: R.Tensor([16], dtype="float32"),
+        ) -> R.Tensor([1], dtype="float32"):
+            cls = Expected
+            with R.dataflow():
+                gv = R.call_tir(cls.fused, (x, y), out_sinfo=R.Tensor((1,), dtype="float32"))
+                R.output(gv)
+            return gv
+
+    _check(Before, Expected)
+
+
+def test_symbolic_var_called_with_static_argument():
+    """A dynamic PrimFunc may accept a static argument
+
+    The `tir_vars` parameter in `R.call_tir` contains definitions for
+    all TIR variables explicitly listed in the function signature, and
+    contains the TIR expression to be passed as the argument for for
+    each parameter.
+
+    This test is identical to the earlier test named
+    "test_symbolic_var_called_with_static_shape", except for the
+    explicit parameter in `sum_1d`.
+    """
+
+    @I.ir_module
+    class Before:
+        @T.prim_func(private=True)
+        def sum_1d(
+            X_handle: T.handle,
+            Y: T.Buffer([T.int64(1)], "float32"),
+            num_elements: T.int64,
+        ):
+
+            X = T.match_buffer(X_handle, [num_elements], "float32")
+
+            for i in range(num_elements):
+                with T.block("sum"):
+                    vi = T.axis.remap("R", [i])
+                    with T.init():
+                        Y[0] = 0.0
+                    Y[0] = Y[0] + X[vi]
+
+        @R.function(private=True)
+        def fused(
+            x: R.Tensor([64], dtype="float32"),
+        ) -> R.Tensor([1], dtype="float32"):
+            R.func_attr({"Primitive": 1})
+            cls = Before
+            with R.dataflow():
+                gv = R.call_tir(
+                    cls.sum_1d,
+                    [x],
+                    out_sinfo=R.Tensor([1], dtype="float32"),
+                    tir_vars=R.shape([64]),
+                )
+                R.output(gv)
+            return gv
+
+        @R.function
+        def main(
+            x: R.Tensor([64], dtype="float32"),
+        ) -> R.Tensor([1], dtype="float32"):
+            cls = Before
+            with R.dataflow():
+                gv = cls.fused(x)
+                R.output(gv)
+            return gv
+
+    @I.ir_module
+    class Expected:
+        @T.prim_func(private=True)
+        def fused(
+            X: T.Buffer([T.int64(64)], "float32"),
+            Y: T.Buffer([T.int64(1)], "float32"),
+        ):
+            T.func_attr({"tir.noalias": True})
+
+            for i in range(T.int64(64)):
+                with T.block("sum"):
+                    vi = T.axis.remap("R", [i])
+                    with T.init():
+                        Y[0] = 0.0
+                    Y[0] = Y[0] + X[vi]
+
+        @R.function
+        def main(
+            x: R.Tensor([64], dtype="float32"),
+        ) -> R.Tensor([1], dtype="float32"):
+            cls = Expected
+            with R.dataflow():
+                gv = R.call_tir(cls.fused, (x,), out_sinfo=R.Tensor((1,), dtype="float32"))
+                R.output(gv)
+            return gv
+
+    _check(Before, Expected)
+
+
 if __name__ == "__main__":
     tvm.testing.main()
