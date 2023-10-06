@@ -1012,7 +1012,7 @@ inline DataType restricted_type(const PrimExpr& x, bool round_to_bytes) {
       }
       return c;
     };
-    if (x.dtype().is_uint() || v > 0) { // v == 0 handled earlier
+    if (x.dtype().is_uint() || v > 0) {  // v == 0 handled earlier
       return DataType::UInt(round_if_needed(num_significant_bits(v)));
     } else if (x.dtype().is_int()) {
       if (v < 0) {

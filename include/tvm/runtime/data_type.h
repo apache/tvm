@@ -247,9 +247,10 @@ class DataType {
   /*!
    * \brief Return the widest type from a given array.
    *
-   * Given an array of types, return the one of those types that can
-   * hold all values representable in the other types, or "Void" if
-   * such type is not present in the array.
+   * Given a sequence of types T0, T1, ..., consider the sequence of corresponding
+   * scalar types T0.element_of(), T1.element_of(), ... In the list of the scalar
+   * types, find a type which can hold all values representable in all other scalar
+   * types. Return that scalar type, or Void() if such type cannot be found.
    */
   template <typename... T>
   static DataType WidestOf(T... types) {
@@ -257,7 +258,7 @@ class DataType {
       return Void();
     } else {
       auto [widest, delayed_void] = WidestOfImpl(/*initial_delayed_void=*/false, types...);
-      return delayed_void ? Void() : widest;
+      return delayed_void ? Void() : widest.element_of();
     }
   }
 

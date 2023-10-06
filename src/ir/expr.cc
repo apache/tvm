@@ -33,7 +33,18 @@
 #include "../support/scalars.h"
 
 namespace detail {
-std::pair<tvm::PrimExpr, tvm::PrimExpr> EqualizeTypes(tvm::PrimExpr a, tvm::PrimExpr b) {
+/*!
+ * \brief Attempt to convert two input expressions to a pair whose types are equal.
+ * \param a First input expression
+ * \param b Second input expression
+ * \return Pair of expressions with matching types, or original pair (a, b) if conversion
+ *         was not possible.
+ * \note Only scalar immediates are subject to conversion. If the other expression is a
+ *       vector, the scalar immediate will be converted to a vector with the same number
+ *       of lanes.
+ *       This function is intended to deal with cases like (expr, 1) or (0, expr).
+ */
+std::pair<tvm::PrimExpr, tvm::PrimExpr> TryEqualizeTypes(tvm::PrimExpr a, tvm::PrimExpr b) {
   if (a.dtype() != b.dtype()) {
     // If both expressions are immediate values, don't restrict them, or otherwise this
     // could reduce (int32(1), int64(2)) to (int3(1), int3(2)).
@@ -44,15 +55,18 @@ std::pair<tvm::PrimExpr, tvm::PrimExpr> EqualizeTypes(tvm::PrimExpr a, tvm::Prim
     if (widest.is_void()) {
       return std::make_pair(a, b);
     }
-    if (a.dtype() != widest) {
-      if (tvm::tir::is_const_number(a)) {
-        a = tvm::cast(widest, a);
+
+    int lanes = std::max(a.dtype().lanes(), b.dtype().lanes());
+    auto adjust_const = [](tvm::PrimExpr e, tvm::DataType widest, int lanes) {
+      if (e.dtype() != widest) {
+        if (tvm::tir::is_const_number(e)) {
+          e = tvm::cast(widest, e);
+        }
       }
-    } else if (b.dtype() != widest) {
-      if (tvm::tir::is_const_number(b)) {
-        b = tvm::cast(widest, b);
-      }
-    }
+      return lanes == 1 || e.dtype().is_vector() ? e : tvm::tir::Broadcast(e, lanes);
+    };
+    a = adjust_const(a, widest, lanes);
+    b = adjust_const(b, widest, lanes);
   }
   return std::make_pair(a, b);
 }
@@ -175,10 +189,10 @@ TVM_REGISTER_GLOBAL("ir.FloatImm").set_body_typed([](DataType dtype, double valu
 TVM_REGISTER_NODE_TYPE(FloatImmNode);
 
 Range::Range(PrimExpr begin, PrimExpr end, Span span) {
-  auto [new_begin, new_end] = ::detail::EqualizeTypes(begin, end);
+  auto [new_begin, new_end] = ::detail::TryEqualizeTypes(begin, end);
   ICHECK(new_begin.dtype() == new_end.dtype())
-      << "ValueError: Incompatible types for Range(min:" << begin.dtype()
-      << ", end=" << end.dtype() << ')';
+      << "ValueError: Incompatible types for Range(min:" << begin.dtype() << ", end=" << end.dtype()
+      << ')';
 
   PrimExpr min = new_begin;
   PrimExpr extent = tir::is_zero(new_begin) ? new_end : new_end - new_begin;
@@ -191,7 +205,7 @@ Range::Range(PrimExpr begin, PrimExpr end, Span span) {
 }
 
 Range Range::FromMinExtent(PrimExpr min, PrimExpr extent, Span span) {
-  auto [new_min, new_extent] = ::detail::EqualizeTypes(min, extent);
+  auto [new_min, new_extent] = ::detail::TryEqualizeTypes(min, extent);
   ICHECK(new_min.dtype() == new_extent.dtype())
       << "ValueError: Incompatible types for Range(min:" << min.dtype()
       << ", extent=" << extent.dtype() << ')';
