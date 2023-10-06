@@ -273,5 +273,39 @@ def test_mystery_calls():
     assert tuple_map[6] == [{3, 4, 5, 6, 7, 8}, {3, 4, 5, 6, 7, 8}]
 
 
+def test_alias_external_value():
+    @I.ir_module
+    class AliasExternalValue:
+        @R.function
+        def main(x: R.Tensor((), "int32")) -> R.Tensor((), "int32"):
+            y = R.const(1, dtype="int32")  # not in DF block, treated as external
+            t1 = (y, y)  # not in DF block, treated as external
+            with R.dataflow():
+                z = y  # mystery value
+                a = R.const(2, dtype="int32")
+                t2 = (z, a)
+                b = t2[0]
+                c = t1[1]  # tuple index into external value
+                R.output(b)
+            return b
+
+    block = AliasExternalValue["main"].body.blocks[1]
+    alias_sets, tuple_map = dataflow_alias_analysis(block, AliasExternalValue["main"].params)
+    expected = {
+        "x": {0},
+        "z": {-1},
+        "a": {1},
+        "t2": {2},
+        "b": {-1},
+        "c": {-1},
+    }
+
+    for var, alias_set in alias_sets.items():
+        assert alias_set == expected[var.name_hint]
+    assert len(tuple_map) == 1
+    assert 2 in tuple_map
+    assert tuple_map[2] == [{-1}, {1}]
+
+
 if __name__ == "__main__":
     tvm.testing.main()
