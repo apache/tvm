@@ -16,7 +16,12 @@
 # under the License.
 
 import tvm
-from tvm.relax.analysis import dataflow_liveness_analysis, dataflow_alias_analysis
+from tvm import testing
+from tvm.relax.analysis import (
+    dataflow_liveness_analysis,
+    dataflow_alias_analysis,
+    dataflow_inplace_analysis,
+)
 from tvm.script.parser import ir as I, relax as R, tir as T
 
 
@@ -307,5 +312,30 @@ def test_alias_external_value():
     assert tuple_map[2] == [{-1}, {1}]
 
 
+def test_inplace_simple_case():
+    @I.ir_module
+    class InplaceBasic:
+        @R.function
+        def main(
+            x: R.Tensor((2, 3), "int32"), y: R.Tensor((2, 3), "int32")
+        ) -> R.Tensor((2, 3), "int32"):
+            with R.dataflow():
+                z = R.add(x, y)  # cannot be done inplace: x and y are live later
+                q = R.multiply(x, y)  # can be done inplace: neither x nor y is used later
+                p = R.add(z, q)  # can be done inplace: neither z nor q is used later
+                r = p  # alias of p
+                m = R.multiply(p, p)  # p is not used later but r is, so can't do inplace
+                n = R.add(m, r)  # can be done inplace: neither is used again
+                l = R.reshape(n, (1, 2, 3))  # same size but not not identical shape
+                ret = R.reshape(l, (2, 3))  # same size but not identical shape
+                R.output(ret)
+            return ret
+
+    block = InplaceBasic["main"].body.blocks[0]
+    size_match, exact_match = dataflow_inplace_analysis(block, InplaceBasic["main"].params)
+    assert size_match == [1, 2, 5, 6, 7]
+    assert exact_match == [1, 2, 5]
+
+
 if __name__ == "__main__":
-    tvm.testing.main()
+    testing.main()

@@ -556,4 +556,4 @@ def dataflow_inplace_analysis(
     block: DataflowBlock, inputs: List[Var]
 ) -> Tuple[List[int], List[int]]:
     index_lists = _ffi_api.DataflowInPlaceAnalysis(block, inputs)  # type: ignore
-    return tuple(index_lists)  # type: ignore
+    return tuple(map(list, index_lists))  # type: ignore

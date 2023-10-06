@@ -466,15 +466,20 @@ std::pair<std::vector<int>, std::vector<int>> find_inplace_opportunities(const D
             });
 
   std::unordered_set<Var, ObjectPtrHash, ObjectPtrEqual> currently_live;
-  for (auto var : live_order) {
-    auto live_range = live_ranges[var];
-    if (live_range.first > 0) {
-      break;
-    }
-    currently_live.insert(var);
-  }
+  int last_live = 0;
 
   for (size_t i = 0; i < block->bindings.size(); i++) {
+    // include all vars that are currently live
+    for (int j = last_live; j < static_cast<int>(live_order.size()); j++) {
+      auto live_var = live_order[j];
+      auto live_range = live_ranges[live_var];
+      if (live_range.first > static_cast<int>(i)) {
+        break;
+      }
+      currently_live.insert(live_var);
+      last_live++;
+    }
+
     // if we reach a binding check the conditions
     Binding b = block->bindings[i];
     Var defined_var = b->var;
@@ -510,14 +515,18 @@ std::pair<std::vector<int>, std::vector<int>> find_inplace_opportunities(const D
         // Make sure at least one candidate is not live past this point and does not have an alias
         // live past this point
         std::unordered_set<Expr, ObjectPtrHash, ObjectPtrEqual> remove_candidates;
-        remove_candidates.clear();
         for (auto candidate : candidates) {
           if (!df_inplace_conditions_met(live_ranges, alias_sets, tuple_map, currently_live,
                                          candidate, i)) {
             remove_candidates.insert(candidate);
           }
         }
-        candidates.erase(remove_candidates.begin(), remove_candidates.end());
+        // bizarre bug: this works,
+        // but candidates.erase(remove_candidates.begin(), remove_candidates.end())
+        // gives a segfault
+        for (auto candidate : remove_candidates) {
+          candidates.erase(candidate);
+        }
 
         // if we have a candidate, then this can be made in-place. Report the result
         if (candidates.size()) {
@@ -541,7 +550,10 @@ std::pair<std::vector<int>, std::vector<int>> find_inplace_opportunities(const D
         remove.insert(var);
       }
     }
-    currently_live.erase(remove.begin(), remove.end());
+    // same issue, using the ranged erase causes a segfault
+    for (auto var : remove) {
+      currently_live.erase(var);
+    }
   }
 
   return {size_match_list, exact_match_list};
