@@ -31,6 +31,8 @@
 #include <iostream>
 #include <vector>
 
+#include "../../support/ordered_set.h"
+
 namespace tvm {
 namespace relax {
 
@@ -42,24 +44,6 @@ struct LiftTransformParamsInfoPlan {
   std::unordered_set<Var, ObjectPtrHash, ObjectPtrEqual>
       lifted_bindings;  // the bindings of the original function that are lifted
 };
-
-namespace {
-template <typename T>
-struct InsertionOrderSet {
-  std::vector<T> values;
-  std::unordered_set<T, ObjectPtrHash, ObjectPtrEqual> lookup;
-
-  void insert(T t) {
-    if (lookup.insert(t).second) {
-      values.push_back(t);
-    }
-  }
-
-  auto begin() const { return values.begin(); }
-  auto end() const { return values.end(); }
-  auto count(const T& t) const { return lookup.count(t); }
-};
-}  // namespace
 
 /*! \brief Builder of the function that transforms the parameters. */
 class TransformParamsFuncBuilder : public ExprMutator {
@@ -211,7 +195,7 @@ class TransformParamsFuncBuilder : public ExprMutator {
    * transformation function.  A binding that depends on a symbolic
    * variable not contained in this set may not be lifted.
    */
-  InsertionOrderSet<tir::Var> known_symbolic_var_during_transform_;
+  support::OrderedSet<tir::Var> known_symbolic_var_during_transform_;
 
   /* Symbolic variables that are known during the runtime
    *
@@ -222,7 +206,7 @@ class TransformParamsFuncBuilder : public ExprMutator {
    * set, causes the Build() function to output an additional
    * R.ShapeExpr in order to propagate the symbolic variables.
    */
-  InsertionOrderSet<tir::Var> known_symbolic_var_during_inference_;
+  support::OrderedSet<tir::Var> known_symbolic_var_during_inference_;
 
   /* Symbolic variables that must be known at runtime
    *
@@ -232,7 +216,7 @@ class TransformParamsFuncBuilder : public ExprMutator {
    * additional R.ShapeExpr parameter from the transform_params
    * function.
    */
-  InsertionOrderSet<tir::Var> required_symbolic_var_during_inference_;
+  support::OrderedSet<tir::Var> required_symbolic_var_during_inference_;
 };
 
 /*!
