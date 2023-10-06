@@ -1252,6 +1252,8 @@ class TorchFXImporter:
                 stride_axes.append(i)
                 i += 1
             taken = x
+            if len(take_indices) > 1:
+                raise ValueError("Multiple tensors as index not yet supported")
             for each_index, each_axis in zip(take_indices, take_axes):
                 taken = self.block_builder.emit(relax.op.take(taken, each_index, each_axis))
             sliced = self.block_builder.emit(relax.op.strided_slice(taken, stride_axes, stride_begin, stride_end, stride))
