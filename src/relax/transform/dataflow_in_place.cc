@@ -299,7 +299,7 @@ std::pair<bool, bool> size_matches(const StructInfo& target_info, const StructIn
       auto arg_shape = Downcast<ShapeExpr>(arg_tensor->shape);
       int target_size = shape_size(target_shape);
       int arg_size = shape_size(arg_shape);
-      if (target_size == -1 || arg_size == -1 || target_size != arg_size) {
+      if (target_size == -1 || arg_size == -1 || target_size < arg_size) {
         return {false, false};
       }
       // exact match: number of dims and each dim matches
