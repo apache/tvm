@@ -210,6 +210,18 @@ TVM_DLL Array<StmtSRef> Split(ScheduleState self, const StmtSRef& loop_sref,
                               const Array<PrimExpr>& factors, bool preserve_unit_iters);
 
 /*!
+ * \brief Separate a certain number of iterations from the end of a given loop into a tail loop.
+ * The loop can't have annotation or thread binding.
+ * \param self The state of the schedule
+ * \param loop_sref The sref to the loop to peel iterations from.
+ * \param iter_count The number of iterations to separate.
+ * \param preserve_unit_iters Whether or not to preserve unit iterators in block bindings
+ * \return An array of srefs to the new loops after peeling.
+ */
+TVM_DLL Array<StmtSRef> Peel(ScheduleState self, const StmtSRef& loop_sref, PrimExpr iter_count,
+                             bool preserve_unit_iters);
+
+/*!
  * \brief Merge a list of loops into one. The loops under their LCA requires:
  * 1) Under the same scope
  * 2) Can't have annotations or thread bindings

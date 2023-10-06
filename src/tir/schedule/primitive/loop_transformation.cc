@@ -454,6 +454,56 @@ Array<StmtSRef> Split(ScheduleState self, const StmtSRef& loop_sref, const Array
   return result_srefs;
 }
 
+Array<StmtSRef> Peel(ScheduleState self, const StmtSRef& loop_sref, PrimExpr iter_count,
+                     bool preserve_unit_iters) {
+  const ForNode* loop = TVM_SREF_TO_FOR(loop_sref);
+  if (!loop->annotations.empty() || loop->thread_binding.defined()) {
+    throw HasAnnotationOrThreadBindingError(self->mod, GetRef<For>(loop));
+  }
+
+  Var main_var = loop->loop_var.copy_with_suffix("_main");
+  Var tail_var = loop->loop_var.copy_with_suffix("_tail");
+  Map<Block, Block> opaque_block_reuse;
+
+  auto make_loop_body = [&opaque_block_reuse](Var old_var, PrimExpr new_expr, Stmt body) -> Stmt {
+    SubstituteVarAndCollectOpaqueBlock rewriter(
+        [old_var, new_expr](const Var& v) -> Optional<PrimExpr> {
+          return v.same_as(old_var) ? Optional<PrimExpr>(new_expr) : NullOpt;
+        },
+        &opaque_block_reuse);
+    return rewriter(body);
+  };
+
+  PrimExpr main_extent = loop->extent - iter_count;
+  PrimExpr tail_extent = iter_count;
+
+  // Loop before peeling:     iv:[min, min + extent)
+  // Main loop after peeling: iv0:[0, main_extent)  iv -> iv0 + min
+  // Tail loop after peeling: iv1:[0, tail_extent)  iv -> iv1 + min + main_extent
+  Stmt main_body = make_loop_body(loop->loop_var, main_var + loop->min, loop->body);
+  Stmt tail_body = make_loop_body(loop->loop_var, tail_var + loop->min + main_extent, loop->body);
+
+  Stmt main_loop = IterMapSimplifyBlockBinding::SimplifyBindings(
+      For(main_var, 0, main_extent, ForKind::kSerial, main_body),  // initial loop
+      GetLoops(loop_sref), opaque_block_reuse.CopyOnWrite(), preserve_unit_iters);
+  Stmt tail_loop = IterMapSimplifyBlockBinding::SimplifyBindings(
+      For(tail_var, 0, tail_extent, ForKind::kSerial, tail_body),  // initial_loop
+      GetLoops(loop_sref), opaque_block_reuse.CopyOnWrite(), preserve_unit_iters);
+
+  BlockRealize main_block({}, main_extent > 0, Block({}, {}, {}, "peel_main", main_loop));
+  BlockRealize tail_block({}, tail_extent > 0, Block({}, {}, {}, "peel_tail", tail_loop));
+
+  // Common block to gather the two loops into a single statement.
+  BlockRealize common({}, make_const(DataType::Bool(), 1),
+                      Block({}, {}, {}, "peel_common", tir::SeqStmt({main_block, tail_block})));
+
+  self->Replace(loop_sref, common, opaque_block_reuse);
+
+  StmtSRef main_sref = self->stmt2ref.at(main_loop.get());
+  StmtSRef tail_sref = self->stmt2ref.at(tail_loop.get());
+  return {main_sref, tail_sref};
+}
+
 class LoopReconstructor : private StmtMutator {
  public:
   explicit LoopReconstructor(Block scope_root, const std::vector<std::vector<For>>& loops)

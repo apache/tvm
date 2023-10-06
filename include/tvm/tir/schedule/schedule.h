@@ -355,6 +355,16 @@ class ScheduleNode : public runtime::Object {
   virtual Array<LoopRV> Split(const LoopRV& loop_rv, const Array<Optional<ExprRV>>& factors,
                               bool preserve_unit_iters = true) = 0;
   /*!
+   * \brief Separate a certain number of iterations from the end of a given loop into a tail loop.
+   * The loop can't have annotation or thread binding.
+   * \param loop_rv The loop to peel iterations from.
+   * \param iter_count The number of iterations to separate.
+   * \param preserve_unit_iters Whether or not to preserve unit iterators in block bindings
+   * \return The new loops after peeling.
+   */
+  virtual Array<LoopRV> Peel(const LoopRV& loop_rv, const ExprRV& iter_count,
+                             bool preserve_unit_iters = true) = 0;
+  /*!
    * \brief Reorder a list of loops. It doesn't require the loops to be consecutive.
    * It requires:
    * 1) The loops are in the same chain. That means: the loops can be ordered to [l_1, l_2, ... ,

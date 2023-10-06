@@ -814,6 +814,19 @@ class Schedule(Object):
         )
 
     @type_checked
+    def peel(
+        self,
+        loop: LoopRV,
+        iter_count: Union[int, ExprRV],
+        preserve_unit_iters: bool = True,
+    ) -> List[LoopRV]:
+        return list(
+            _ffi_api.SchedulePeel(  # type: ignore # pylint: disable=no-member
+                self, loop, iter_count, preserve_unit_iters
+            )
+        )
+
+    @type_checked
     def reorder(self, *ordered_loops: List[LoopRV]) -> None:
         """
         Reorder a list of loops. It doesn't require the loops to be consecutive.

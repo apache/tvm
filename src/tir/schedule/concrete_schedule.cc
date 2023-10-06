@@ -500,6 +500,17 @@ Array<LoopRV> ConcreteScheduleNode::Split(const LoopRV& loop_rv,
   return CreateRV<LoopRV>(results);
 }
 
+Array<LoopRV> ConcreteScheduleNode::Peel(const LoopRV& loop_rv, const ExprRV& iter_count,
+                                         bool preserve_unit_iters) {
+  StmtSRef loop_sref = GetSRef(loop_rv);
+  PrimExpr iters = Get(iter_count);
+  Array<StmtSRef> results;
+  TVM_TIR_SCHEDULE_BEGIN();
+  results = tir::Peel(state_, loop_sref, iters, preserve_unit_iters);
+  TVM_TIR_SCHEDULE_END("peel", error_render_level_);
+  return CreateRV<LoopRV>(results);
+}
+
 void ConcreteScheduleNode::Reorder(const Array<LoopRV>& ordered_loop_rvs) {
   TVM_TIR_SCHEDULE_BEGIN();
   tir::Reorder(state_, GetSRefs(ordered_loop_rvs));
