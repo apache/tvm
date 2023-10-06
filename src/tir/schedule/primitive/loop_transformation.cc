@@ -438,7 +438,7 @@ Array<StmtSRef> Split(ScheduleState self, const StmtSRef& loop_sref, const Array
   }
   // Step 4. Generate nested loops to replace the original loop and simplify the binding
   for (int i = n - 1; i >= 0; i--) {
-    new_stmt = For(new_loop_vars[i], 0, factors[i], ForKind::kSerial, new_stmt);
+    new_stmt = For(new_loop_vars[i], 0, tvm::cast(dtype, factors[i]), ForKind::kSerial, new_stmt);
   }
   new_stmt = IterMapSimplifyBlockBinding::SimplifyBindings(std::move(new_stmt), GetLoops(loop_sref),
                                                            opaque_block_reuse.CopyOnWrite(),

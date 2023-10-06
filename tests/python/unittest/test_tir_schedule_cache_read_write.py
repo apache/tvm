@@ -755,9 +755,9 @@ def cache_read_shape_int64(var_A: T.handle, var_C: T.handle) -> None:
     for i, j in T.grid(128, 128):
         with T.block("B"):
             vi, vj = T.axis.remap("SS", [i, j])
-            T.reads(A_global[vi, vj])
+            T.reads(A_global[T.int64(vi), T.int64(vj)])
             T.writes(B[vi, vj])
-            B[vi, vj] = A_global[vi, vj] * T.float32(2)
+            B[vi, vj] = A_global[T.int64(vi), T.int64(vj)] * T.float32(2)
     for i, j in T.grid(128, 128):
         with T.block("C"):
             vi, vj = T.axis.remap("SS", [i, j])
