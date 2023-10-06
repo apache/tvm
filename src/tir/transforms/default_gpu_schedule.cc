@@ -103,9 +103,16 @@ IRModule MarkScheduled(const IRModule& mod) {
 }
 
 bool IsScheduledOnGPU(const BaseFunc& func) {
-  Optional<tvm::Target> target = func->attrs.GetAttr<tvm::Target>(tvm::attr::kTarget);
+  // the target from context.
+  tvm::Target target = tvm::Target::Current();
+  // the Target in kTarget attribute of PrimFunc
+  Optional<tvm::Target> func_target = func->attrs.GetAttr<tvm::Target>(tvm::attr::kTarget);
+  if (func_target.defined()) {
+    target = func_target.value();
+  }
+
   if (target.defined()) {
-    int dev_type = target.value()->GetTargetDeviceType();
+    int dev_type = target->GetTargetDeviceType();
     if (dev_type != kDLCUDA) {
       return false;
     }
@@ -121,15 +128,13 @@ Pass DefaultGPUSchedule() {
         for (const auto& [gv, func] : m->functions) {
           if (func->IsInstance<tir::PrimFuncNode>() && !func->HasNonzeroAttr(attr::kIsScheduled) &&
               IsScheduledOnGPU(func)) {
-            tvm::Target target;
+            // get the target from context.
+            tvm::Target target = tvm::Target::Current();
             // get the target from kTarget attribute
             Optional<tvm::Target> func_target =
                 func->attrs.GetAttr<tvm::Target>(tvm::attr::kTarget);
             if (func_target.defined()) {
               target = func_target.value();
-            } else {
-              // get the target from context.
-              target = tvm::Target::Current();
             }
             ICHECK(target.defined()) << "The target is missing either in the current context or in "
                                         "the prim_func's attribute.";

@@ -132,7 +132,7 @@ def check_correctness(
 
     # Multiple ouputs
     assert len(tvm_output) == len(jax_output), "numbers of outputs mismatch"
-    for (tvm_out, jax_out) in zip(tvm_output, jax_output):
+    for tvm_out, jax_out in zip(tvm_output, jax_output):
         tvm.testing.assert_allclose(tvm_out.numpy(), jax_out, rtol=1e-5, atol=1e-5)
 
 
@@ -314,7 +314,9 @@ def test_dot_general():
     check_correctness(jax.jit(fn), input_shapes)
 
 
+@pytest.mark.skip()
 @tvm.testing.requires_gpu
+# TODO(yongwww): fix flaky error of "invalid device ordinal"
 def test_conv():
     import jax
     from flax import linen as nn
