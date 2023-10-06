@@ -289,12 +289,52 @@ int shape_size(const ShapeExpr& shape) {
   return ret;
 }
 
+std::unordered_set<StructInfo, ObjectPtrHash, ObjectPtrEqual> gather_candidate_sinfo(
+    const StructInfo& result_sinfo) {
+  if (auto* tensor_info = result_sinfo.as<TensorStructInfoNode>()) {
+    // don't consider void dtype (don't know the size at compile time)
+    if (tensor_info->dtype.is_void()) {
+      return {};
+    }
+    // don't consider cases where we don't know the shape at compile time
+    // TODO(@slyubomirsky): variables might be okay if we use the arithmetic analyzer
+    if (auto* shape_node = tensor_info->shape.as<ShapeExprNode>()) {
+      for (auto dim : shape_node->values) {
+        if (!dim.as<IntImmNode>()) {
+          return {};
+        }
+      }
+      return {GetRef<TensorStructInfo>(tensor_info)};
+    } else {
+      return {};
+    }
+  } else if (auto* tuple_info = result_sinfo.as<TupleStructInfoNode>()) {
+    // we can see if the whole tuple matches or go for any of the components
+    std::unordered_set<StructInfo, ObjectPtrHash, ObjectPtrEqual> ret;
+    for (auto field : tuple_info->fields) {
+      auto field_candidates = gather_candidate_sinfo(field);
+      ret.insert(field_candidates.begin(), field_candidates.end());
+    }
+    // at least one field should be eligible to be done in-place
+    if (!ret.empty()) {
+      ret.insert(GetRef<StructInfo>(tuple_info));
+    }
+    return ret;
+  } else {
+    // don't consider any other types
+    return {};
+  }
+}
+
 std::pair<bool, bool> size_matches(const StructInfo& target_info, const StructInfo& arg_info) {
   if (target_info.as<TensorStructInfoNode>() && arg_info.as<TensorStructInfoNode>()) {
     auto target_tensor = Downcast<TensorStructInfo>(target_info);
     auto arg_tensor = Downcast<TensorStructInfo>(arg_info);
     if (target_tensor->shape.defined() && target_tensor->shape.as<ShapeExprNode>() &&
         arg_tensor->shape.defined() && arg_tensor->shape.as<ShapeExprNode>()) {
+      if (target_tensor->dtype != arg_tensor->dtype) {
+        return {false, false};
+      }
       auto target_shape = Downcast<ShapeExpr>(target_tensor->shape);
       auto arg_shape = Downcast<ShapeExpr>(arg_tensor->shape);
       int target_size = shape_size(target_shape);
@@ -305,6 +345,9 @@ std::pair<bool, bool> size_matches(const StructInfo& target_info, const StructIn
       // exact match: number of dims and each dim matches
       if (target_shape->values.size() == arg_shape->values.size()) {
         for (size_t i = 0; i < target_shape->values.size(); i++) {
+          if (!arg_shape->values[i].as<IntImmNode>()) {
+            return {false, false};
+          }
           if (Downcast<IntImm>(target_shape->values[i])->value !=
               Downcast<IntImm>(arg_shape->values[i])->value) {
             return {true, false};
@@ -497,14 +540,21 @@ std::pair<std::vector<int>, std::vector<int>> find_inplace_opportunities(const D
         std::unordered_set<Expr, ObjectPtrHash, ObjectPtrEqual> candidates;
         std::unordered_set<Expr, ObjectPtrHash, ObjectPtrEqual> exact_match_candidates;
 
+        auto target_sinfo = gather_candidate_sinfo(GetStructInfo(defined_var));
+        // can't be done in-place, ignore
+        if (target_sinfo.empty()) {
+          continue;
+        }
+
         // Check that at least one argument matches size with the result
         for (auto arg : call_node->args) {
-          std::pair<bool, bool> match =
-              size_matches(GetStructInfo(defined_var), GetStructInfo(arg));
-          if (match.first) {
-            candidates.insert(arg);
-            if (match.second) {
-              exact_match_candidates.insert(arg);
+          for (auto target : target_sinfo) {
+            std::pair<bool, bool> match = size_matches(target, GetStructInfo(arg));
+            if (match.first) {
+              candidates.insert(arg);
+              if (match.second) {
+                exact_match_candidates.insert(arg);
+              }
             }
           }
         }
