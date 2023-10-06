@@ -1191,6 +1191,8 @@ class TorchFXImporter:
         return getattr(self.env[node.args[0]], node.args[1])
 
     def _getitem(self, node: fx.node.Node) -> relax.Var:
+        import torch
+
         x = self.env[node.args[0]]
         if isinstance(x, (list, tuple, relax.ShapeExpr, relax.Tuple)):
             return x[node.args[1]]
@@ -1199,48 +1201,60 @@ class TorchFXImporter:
                 return self.block_builder.emit(relax.TupleGetItem(x, node.args[1]))
 
             assert isinstance(x.struct_info, relax.TensorStructInfo)
-            begin = []
-            end = []
+            take_indices = []
+            take_axes = []
+            stride_begin = []
+            stride_end = []
             stride = []
-            axes = []
+            stride_axes = []
             expand_dim = []
             i = 0
             shape = self.shape_of(x)
             non_ellipsis_cnt = 0
             for index in node.args[1]:
-                if isinstance(index, (int, slice)):
+                if isinstance(index, (int, slice, torch.fx.node.Node)):
                     non_ellipsis_cnt += 1
             for index in node.args[1]:
                 if isinstance(index, int):
-                    begin.append(index)
-                    end.append(index + 1)
+                    stride_begin.append(index)
+                    stride_end.append(index + 1)
                     stride.append(1)
-                    axes.append(i)
+                    stride_axes.append(i)
                     i = i + 1
                 elif isinstance(index, slice):
-                    begin.append(0 if index.start is None else index.start)
-                    end.append(shape[i] if index.stop is None else index.stop)
+                    stride_begin.append(0 if index.start is None else index.start)
+                    stride_end.append(shape[i] if index.stop is None else index.stop)
                     stride.append(1 if index.step is None else index.step)
-                    axes.append(i)
+                    stride_axes.append(i)
                     i = i + 1
                 elif index is None:
-                    expand_dim.append(len(axes) + len(expand_dim))
+                    expand_dim.append(len(stride_axes) + len(expand_dim))
                 elif index is Ellipsis:
                     for _ in range(len(shape) - non_ellipsis_cnt):
-                        begin.append(0)
-                        end.append(shape[i])
+                        stride_begin.append(0)
+                        stride_end.append(shape[i])
                         stride.append(1)
-                        axes.append(i)
+                        stride_axes.append(i)
                         i += 1
+                elif isinstance(index, torch.fx.node.Node):
+                    node_index = self.env[index]
+                    if not isinstance(node_index, relax.Expr):
+                        raise ValueError("Unsupported index type for relax.op.take: " + str(type(node_index)))
+                    take_indices.append(node_index)
+                    take_axes.append(i)
+                    i = i + 1
                 else:
                     raise ValueError("Unsupported index type: " + str(type(index)))
             while i < len(shape):
-                begin.append(0)
-                end.append(shape[i])
+                stride_begin.append(0)
+                stride_end.append(shape[i])
                 stride.append(1)
-                axes.append(i)
+                stride_axes.append(i)
                 i += 1
-            sliced = self.block_builder.emit(relax.op.strided_slice(x, axes, begin, end, stride))
+            taken = x
+            for each_index, each_axis in zip(take_indices, take_axes):
+                taken = self.block_builder.emit(relax.op.take(x, each_index, each_axis))
+            sliced = self.block_builder.emit(relax.op.strided_slice(taken, stride_axes, stride_begin, stride_end, stride))
             sliced_shape = list(self.shape_of(sliced))
             for i in expand_dim:
                 sliced_shape.insert(i, 1)
