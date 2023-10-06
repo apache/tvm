@@ -62,8 +62,8 @@ Module LoadVMModule(std::string path, Device device) {
       << "ValueError: File `" << path
       << "` is not built by RelaxVM, because `vm_initialization` does not exist";
   vm_initialization(static_cast<int>(device.device_type), static_cast<int>(device.device_id),
-                    static_cast<int>(relax_vm::AllocatorType::kPooled), static_cast<int>(kDLCPU), 0,
-                    static_cast<int>(relax_vm::AllocatorType::kPooled));
+                    static_cast<int>(AllocatorType::kPooled), static_cast<int>(kDLCPU), 0,
+                    static_cast<int>(AllocatorType::kPooled));
   return mod;
 }
 
