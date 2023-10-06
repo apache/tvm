@@ -436,6 +436,40 @@ def test_masked_fill():
         InplaceMaskedFill(), [([256, 256], "bool"), ([256, 256], "float32")], {}, Expected1
     )
 
+@tvm.testing.requires_gpu
+def test_getitem():
+    import torch
+    from torch.nn import Module
+
+    class Select1(Module):
+        def forward(self, input1, input2):
+            result = input1[torch.arange(
+                input1.shape[0]), input2.argmax(dim=-1),]
+            return result
+
+    @I.ir_module
+    class Expected1:
+        @R.function
+        def main(inp_0: R.Tensor((1, 77, 1280), dtype="float32"), inp_1: R.Tensor((1, 77), dtype="float32")) -> R.Tensor((1, 1, 1280), dtype="float32"):
+            with R.dataflow():
+                lv: R.Tensor((1,), dtype="int64") = R.argmax(
+                    inp_1, axis=-1, keepdims=False)
+                lv1: R.Tensor((1,), dtype="int64") = R.arange(
+                    R.prim_value(0), R.prim_value(1), R.prim_value(1), dtype="int64")
+                lv2: R.Tensor((1, 77, 1280), dtype="float32") = R.take(
+                    inp_0, lv1, axis=0)
+                lv3: R.Tensor((1, 1, 1280), dtype="float32") = R.take(
+                    lv2, lv, axis=1)
+                lv4: R.Tensor((1, 1, 1280), dtype="float32") = R.strided_slice(
+                    lv3, axes=[2], begin=[0], end=[1280], strides=[1], assume_inbound=False)
+                lv5: R.Tensor((1, 1, 1280), dtype="float32") = R.reshape(
+                    lv4, R.shape([1, 1, 1280]))
+                gv: R.Tensor((1, 1, 1280), dtype="float32") = lv5
+                R.output(gv)
+            return gv
+
+    verify_dynamo_model(
+        Select1(), [([1, 77, 1280], "float32"), ([1, 77], "float32")], {}, Expected1)
 
 if __name__ == "__main__":
     tvm.testing.main()
