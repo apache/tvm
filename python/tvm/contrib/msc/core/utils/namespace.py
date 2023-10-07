@@ -63,3 +63,5 @@ class MSCFramework:
     MSC = "msc"
     TVM = "tvm"
     TORCH = "torch"
+    TENSORFLOW = "tensorflow"
+    TENSORRT = "tensorrt"

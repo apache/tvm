@@ -19,7 +19,7 @@
 
 /*!
  * \file src/contrib/msc/core/printer/python_printer.h
- * \brief Prototxt Printer.
+ * \brief Python Printer.
  */
 
 #ifndef TVM_CONTRIB_MSC_CORE_PRINTER_PYTHON_PRINTER_H_
@@ -36,7 +36,7 @@ namespace msc {
 using namespace tvm::script::printer;
 
 /*!
- * \brief PythonPrinter change list of dict to python format
+ * \brief PythonPrinter change list of docs to python format
  * \sa Doc
  */
 class PythonPrinter : public MSCBasePrinter {
@@ -77,6 +77,9 @@ class PythonPrinter : public MSCBasePrinter {
 
   /*! * \brief Print a CommentDoc to python format*/
   void PrintTypedDoc(const CommentDoc& doc) final;
+
+  /*! \brief Virtual method to print a StrictListDoc*/
+  void PrintTypedDoc(const StrictListDoc& doc) final;
 
  private:
   /*! \brief Print block with indent*/

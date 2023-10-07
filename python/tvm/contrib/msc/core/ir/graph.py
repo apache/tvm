@@ -210,6 +210,22 @@ class MSCJoint(BaseJoint):
 
         return _ffi_api.MSCJointOutputAt(self, idx)
 
+    def weight_at(self, wtype: str) -> MSCTensor:
+        """Get weight from reference.
+
+        Parameters
+        ----------
+        wtype: str
+            The type of weight.
+
+        Returns
+        -------
+        weight: MSCTensor
+            The weight Tensor.
+        """
+
+        return _ffi_api.MSCJointWeightAt(self, wtype)
+
     def get_inputs(self) -> List[MSCTensor]:
         """Get all the inputs.
 
@@ -242,7 +258,7 @@ class MSCJoint(BaseJoint):
         """
 
         src_weights = _ffi_api.MSCJointGetWeights(self)
-        return {ref: src_weights[ref] for ref in src_weights}
+        return {wtype: src_weights[wtype] for wtype in src_weights}
 
     def get_attrs(self) -> Dict[str, str]:
         """Get all the attributes from node
@@ -406,6 +422,22 @@ class MSCGraph(BaseGraph):
             output_names,
         )
 
+    def has_node(self, name: str) -> bool:
+        """Check if node in the graph.
+
+        Parameters
+        ----------
+        name: string
+            The name of the node.
+
+        Returns
+        -------
+        has_node: bool
+            Whether the node is in the graph
+        """
+
+        return bool(_ffi_api.MSCGraphHasNode(self, name))
+
     def find_node(self, name: str) -> MSCJoint:
         """Find node by name.
 
@@ -421,6 +453,22 @@ class MSCGraph(BaseGraph):
         """
 
         return _ffi_api.MSCGraphFindNode(self, name)
+
+    def has_tensor(self, name: str) -> bool:
+        """Check if tensor in the graph.
+
+        Parameters
+        ----------
+        name: string
+            The name of the tensor.
+
+        Returns
+        -------
+        has_tensor: bool
+            Whether the tensor is in the graph
+        """
+
+        return bool(_ffi_api.MSCGraphHasTensor(self, name))
 
     def find_tensor(self, name: str) -> MSCTensor:
         """Find tensor by name.

@@ -638,6 +638,16 @@ const Array<MSCJoint> MSCGraphNode::GetExits() const {
   return exits;
 }
 
+const bool MSCGraphNode::HasTensor(const String& name) const {
+  if (weight_holders.count(name)) {
+    return true;
+  }
+  const String& tensor_name = tensor_alias.count(name) ? tensor_alias[name] : name;
+  String host, index;
+  std::tie(host, index) = StringUtils::SplitOnce(tensor_name, ":");
+  return nodes.count(host) > 0 ? true : false;
+}
+
 const MSCTensor MSCGraphNode::FindTensor(const String& name) const {
   if (weight_holders.count(name)) {
     const auto& node = FindNode(weight_holders[name][0]);
@@ -991,9 +1001,19 @@ TVM_REGISTER_GLOBAL("msc.core.WeightGraph")
     });
 
 // Graph APIS
+TVM_REGISTER_GLOBAL("msc.core.MSCGraphHasNode")
+    .set_body_typed([](const MSCGraph& graph, const String& name) -> Bool {
+      return Bool(graph->nodes.count(name));
+    });
+
 TVM_REGISTER_GLOBAL("msc.core.MSCGraphFindNode")
     .set_body_typed([](const MSCGraph& graph, const String& name) -> MSCJoint {
       return graph->FindNode(name);
+    });
+
+TVM_REGISTER_GLOBAL("msc.core.MSCGraphHasTensor")
+    .set_body_typed([](const MSCGraph& graph, const String& name) -> Bool {
+      return Bool(graph->HasTensor(name));
     });
 
 TVM_REGISTER_GLOBAL("msc.core.MSCGraphFindTensor")
@@ -1052,6 +1072,11 @@ TVM_REGISTER_GLOBAL("msc.core.MSCJointInputAt")
 TVM_REGISTER_GLOBAL("msc.core.MSCJointOutputAt")
     .set_body_typed([](const MSCJoint& node, int index) -> MSCTensor {
       return node->OutputAt(index);
+    });
+
+TVM_REGISTER_GLOBAL("msc.core.MSCJointWeightAt")
+    .set_body_typed([](const MSCJoint& node, const String& wtype) -> MSCTensor {
+      return node->WeightAt(wtype);
     });
 
 TVM_REGISTER_GLOBAL("msc.core.MSCJointGetInputs")

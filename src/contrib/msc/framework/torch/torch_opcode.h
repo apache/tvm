@@ -96,7 +96,7 @@ class TorchOpCode : public BaseOpCode<TorchCodeGenConfig> {
   virtual void CodeGenForward();
 
   /*! \brief Get the padding from op*/
-  const std::vector<int> GetPadding(const String& key = "padding");
+  const StrictListDoc GetPadding(const String& key = "padding");
 
   /*! \brief Get the is_init_ of codegen*/
   bool is_init() { return is_init_; }

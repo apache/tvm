@@ -59,7 +59,7 @@ class MSCDirectory(object):
         if self._cleanup and os.path.isdir(self._path):
             shutil.rmtree(self._path)
 
-    def add_file(self, name: str, contains: str):
+    def add_file(self, name: str, contains: str) -> str:
         """Add a file under the folder
 
         Parameters
@@ -72,11 +72,85 @@ class MSCDirectory(object):
         Returns
         -------
         path: str
-            The concatenated path.
+            The abs file path.
         """
 
-        with open(self.relpath(name), "w") as f:
+        file_path = self.relpath(name)
+        with open(file_path, "w") as f:
             f.write(contains)
+        return file_path
+
+    def move_file(self, src_file: str, dst_folder: object, dst_file: str = None):
+        """Move a file to another folder
+
+        Parameters
+        ----------
+        src_file: str
+            The name of the source file.
+        dst_folder: MSCDirectory
+            The target folder.
+        dst_file: str
+            The target file name.
+
+        Returns
+        -------
+        path: str
+            The abs file path.
+        """
+
+        src_path = os.path.join(self.relpath(src_file))
+        assert os.path.isfile(src_path), "Source file {} not exist".format(src_path)
+        dst_path = dst_folder.relpath(dst_file or src_file)
+        os.rename(src_path, dst_path)
+        return dst_path
+
+    def copy_file(self, src_file: str, dst_folder: object, dst_file: str = None):
+        """Copy a file to another folder
+
+        Parameters
+        ----------
+        src_file: str
+            The name of the source file.
+        dst_folder: MSCDirectory
+            The target folder.
+        dst_file: str
+            The target file name.
+
+        Returns
+        -------
+        path: str
+            The abs file path.
+        """
+
+        src_path = os.path.join(self.relpath(src_file))
+        assert os.path.isfile(src_path), "Source file {} not exist".format(src_path)
+        dst_path = dst_folder.relpath(dst_file or src_file)
+        shutil.copy2(src_path, dst_path)
+        return dst_path
+
+    def create_dir(self, name: str, keep_history: bool = True, cleanup: bool = False) -> object:
+        """Add a dir under the folder
+
+        Parameters
+        ----------
+        name: str
+            The name of the file.
+        keep_history: bol
+            Whether to keep history.
+        cleanup: bool
+            Whether to clean up before exit.
+
+
+        Returns
+        -------
+        dir: MSCDirectory
+            The created dir.
+        """
+
+        dir_path = self.relpath(name)
+        if os.path.isfile(dir_path):
+            os.remove(dir_path)
+        return self.__class__(dir_path, keep_history=keep_history, cleanup=cleanup)
 
     def relpath(self, name: str) -> str:
         """Relative path in dir

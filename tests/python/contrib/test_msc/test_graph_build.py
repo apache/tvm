@@ -1416,8 +1416,8 @@ def test_inplace_fill():
 
     expected = {
         "inputs": [{"name": "inp_0", "shape": [10, 10], "dtype": "float32", "layout": ""}],
-        "outputs": [{"name": "full", "shape": [10, 10], "dtype": "float32", "layout": ""}],
-        "nodes": {"total": 3, "input": 1, "constant": 1, "full": 1},
+        "outputs": [{"name": "const", "shape": [10, 10], "dtype": "float32", "layout": ""}],
+        "nodes": {"total": 2, "input": 1, "constant": 1},
     }
 
     verify_model(InplaceFill(), [([10, 10], "float32")], expected)
@@ -1537,8 +1537,8 @@ def test_new_ones():
 
     expected = {
         "inputs": [{"name": "inp_0", "shape": [1, 2, 3], "dtype": "float32", "layout": ""}],
-        "outputs": [{"name": "full", "shape": [1, 2, 3], "dtype": "float32", "layout": ""}],
-        "nodes": {"total": 3, "input": 1, "constant": 1, "full": 1},
+        "outputs": [{"name": "const", "shape": [1, 2, 3], "dtype": "float32", "layout": ""}],
+        "nodes": {"total": 2, "input": 1, "constant": 1},
     }
 
     input_info = [([1, 2, 3], "float32")]

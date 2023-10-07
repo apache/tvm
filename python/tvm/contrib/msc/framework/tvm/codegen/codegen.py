@@ -67,4 +67,4 @@ def to_relax(
         return mod
 
     codegen = CodeGen(graph, _ffi_api.GetRelaxSources, codegen_config, print_config, build_folder)
-    return codegen.load(inputs, _bind_weights)
+    return codegen.load(inputs, post_load=_bind_weights)

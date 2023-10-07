@@ -160,9 +160,9 @@ def test_linear():
             return torch.matmul(x, y)
 
     input_info = [([1, 3, 10, 10], "float32")]
-    verify_model(Dense1(), input_info)
-    verify_model(Dense2(), input_info)
-    verify_model(MatMul1(), [([10, 10], "float32"), ([10, 10], "float32")])
+    verify_model(Dense1(), input_info, build_target="llvm")
+    verify_model(Dense2(), input_info, build_target="llvm")
+    verify_model(MatMul1(), [([10, 10], "float32"), ([10, 10], "float32")], build_target="llvm")
 
 
 def test_bmm():
