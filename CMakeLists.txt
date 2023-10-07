@@ -356,6 +356,7 @@ list(APPEND COMPILER_SRCS "src/target/datatype/myfloat/myfloat.cc")
 tvm_file_glob(GLOB RUNTIME_SRCS
   src/runtime/*.cc
   src/runtime/vm/*.cc
+  src/runtime/memory/*.cc
   src/runtime/disco/*.cc
   src/runtime/minrpc/*.cc
   src/runtime/relax_vm/*.cc

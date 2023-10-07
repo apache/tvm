@@ -66,11 +66,11 @@ inline void UnpackSum(const PrimExpr& value, FLeaf fleaf, int sign = 1) {
 }
 
 /*!
- * \brief Helper function to multiply extent and and re-normalize.
+ * \brief Helper function to multiply extent and re-normalize.
  *
  * Multiply extent scale and re-normalize to form (x * y) * z
  *
- * NOTE on multiplication order: when have have shape (s[0], s[1], s[2]),
+ * NOTE on multiplication order: when have shape (s[0], s[1], s[2]),
  * we prefer to multiple in order of s[0] * s[1] * s[2]
 
  * \param lhs The lhs iterator

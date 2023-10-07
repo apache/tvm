@@ -1904,6 +1904,15 @@ PrimExpr IterMapRewriter::SplitFloorDivConst(IterSplitExpr lhs, PrimExpr base, P
                               /* lower_factor = */ padded->lower_factor * rhs,
                               /* extent = */ analyzer_->Simplify(floordiv(padded->extent, rhs)),
                               /* scale = */ padded->scale);
+  } else if (is_one(padded->lower_factor) &&
+             analyzer_->CanProveEqual(padded->extent, padded->source->extent)) {
+    // floordiv(floormod(floordiv(iter, lower_factor), ext), c)
+    // = floordiv(iter, c)
+    // when lower_factor = 1 and ext = iter.extent
+    new_split = IterSplitExpr(padded->source,
+                              /* lower_factor = */ rhs,
+                              /* extent = */ analyzer_->Simplify(ceildiv(padded->extent, rhs)),
+                              /* scale = */ padded->scale);
   } else {
     new_split = IterSplitExpr(IterMark(padded, padded->extent),
                               /* lower_factor = */ rhs,

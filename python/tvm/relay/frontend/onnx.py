@@ -931,6 +931,7 @@ class ConvTranspose(OnnxOpConverter):
         data = inputs[0]
         input_shape = infer_shape(data)
         ndim = len(input_shape)
+        num_spatial_dims = ndim - 2
         if "auto_pad" in attr or "output_shape" in attr:
             if "auto_pad" in attr:
                 attr["auto_pad"] = attr["auto_pad"].decode("utf-8")
@@ -941,7 +942,8 @@ class ConvTranspose(OnnxOpConverter):
                 kndim = len(kernel_shape)
                 dilations = attr.get("dilations", [1] * kndim)
                 output_padding = attr.get("output_padding", [0] * kndim)
-                strides = attr["strides"]
+                # this is meant to handle the field 'strides' being optional for opsets 11+
+                strides = attr.get("strides", [1] * num_spatial_dims)
                 total_pad = [0] * kndim
                 # https://github.com/onnx/onnx/blob/main/docs/Operators.md#ConvTranspose
                 if "output_shape" in attr:

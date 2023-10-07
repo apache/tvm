@@ -94,8 +94,8 @@ inline ObjectRef CopyTo(ObjectRef src, const DLDevice& dev, Optional<String> mem
   }
 }
 
-std::vector<int64_t> ToShape(NDArray shape_tensor) {
-  std::vector<int64_t> shape;
+ShapeTuple ToShape(NDArray shape_tensor) {
+  std::vector<ShapeTuple::index_type> shape;
   auto rank = shape_tensor.Shape().size();
   auto dtype = shape_tensor.DataType();
 
@@ -121,7 +121,7 @@ std::vector<int64_t> ToShape(NDArray shape_tensor) {
     LOG(FATAL) << "invalid shape tensor datatype: " << dtype;
   }
 
-  return shape;
+  return ShapeTuple(shape);
 }
 
 void VirtualMachine::OpStartHook(Instruction instr) {}
@@ -839,9 +839,13 @@ void VirtualMachine::RunLoop(const std::vector<Index>& output_tensor_reg_indices
                   << ", dtype_hint=" << DLDataType2String(instr.alloc_storage.dtype_hint)
                   << ", device_index=" << instr.alloc_storage.device_index
                   << ", memory_scope=" << mem_scope;
+
+          std::vector<ShapeTuple::index_type> shape_;
+          shape_.resize(instr.alloc_storage.ndim);
+          shape_.assign(instr.alloc_storage.shape,
+                        instr.alloc_storage.shape + instr.alloc_storage.ndim);
           storage_obj->buffer =
-              allocator->Alloc(instr.alloc_storage.ndim, instr.alloc_storage.shape,
-                               instr.alloc_storage.dtype_hint, mem_scope);
+              allocator->Alloc(ShapeTuple(shape_), instr.alloc_storage.dtype_hint, mem_scope);
         } else {
           auto size = LoadScalarInt(instr.alloc_storage.allocation_size);
           auto alignment = instr.alloc_storage.alignment;
