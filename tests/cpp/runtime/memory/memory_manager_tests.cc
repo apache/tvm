@@ -144,7 +144,8 @@ TEST_F(TvmVMMemoryManagerTest, PooledAllocWithShape) {
     (void)texture;
     FAIL();
   } catch (std::exception& e) {
-    std::string pattern = "This alloc should be implemented";
+    std::string pattern =
+        "Device does not support allocate data space with specified memory scope: global.texture";
     std::string what = e.what();
     EXPECT_NE(what.find(pattern), std::string::npos) << what;
   }
@@ -192,15 +193,10 @@ TEST_F(TvmVMMemoryManagerTest, PooledAllocOpenCLTexture) {
   allocator->Free(buff);
   EXPECT_EQ(allocator->UsedMemory(), size);
 
-  try {
-    auto texture = allocator->Alloc(shape, dt, "global.texture");
-    (void)texture;
-    FAIL();
-  } catch (std::exception& e) {
-    std::string pattern = "This alloc should be implemented";
-    std::string what = e.what();
-    EXPECT_NE(what.find(pattern), std::string::npos) << what;
-  }
+  auto texture = allocator->Alloc(shape, dt, "global.texture");
+  EXPECT_EQ(allocator->UsedMemory(), nbytes);
+  allocator->Free(texture);
+  EXPECT_EQ(allocator->UsedMemory(), nbytes);
 }
 }  // namespace memory
 }  // namespace runtime
