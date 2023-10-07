@@ -1073,6 +1073,8 @@ def test_layernorm():
 
 
 def test_functional_layernorm():
+    import numpy as np
+    
     input_info = [([1, 3, 10, 10], "float32")]
 
     class LayerNorm(Module):
