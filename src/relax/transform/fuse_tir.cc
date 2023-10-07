@@ -62,10 +62,6 @@ class SymbolicMatcher : ExprFunctor<bool(const PrimExpr& n, const PrimExpr& othe
     } else {
       return ExprFunctor::VisitExpr(node, other);
     }
-    // bool matched = node.same_as(other) || ((node->type_index() == other->type_index()) &&
-    //                                     node.dtype().code() == other.dtype().code());
-
-    // return matched && ExprFunctor::VisitExpr(node, other);
   }
 
 #define TVM_DECLARE_SYMBOLIC_MATCHER_BINOP(OpName)               \
