@@ -26,14 +26,28 @@
 
 #include "../src/runtime/opencl/opencl_common.h"
 
+class TextureCopyTest : public ::testing::Test {
+ protected:
+  void SetUp() override {
+    bool enabled = tvm::runtime::RuntimeEnabled("opencl");
+    if (!enabled) {
+      GTEST_SKIP() << "Skip texture copy test because opencl runtime is disabled.\n";
+    }
+    // Check hardware support
+    tvm::runtime::cl::OpenCLWorkspace* workspace = tvm::runtime::cl::OpenCLWorkspace::Global();
+    tvm::runtime::cl::OpenCLThreadEntry* thr = workspace->GetThreadEntry();
+    if (!workspace->IsBufferToImageSupported(thr->device.device_id)) {
+      GTEST_SKIP() << "Skip test case as BufferToImage is not supported \n";
+    }
+  }
+};
+
 TEST(TextureCopy, HostDeviceRT) {
   using namespace tvm;
   bool enabled = tvm::runtime::RuntimeEnabled("opencl");
   if (!enabled) {
-    LOG(INFO) << "Skip texture copy test because opencl runtime is disabled.\n";
-    return;
+    GTEST_SKIP() << "Skip texture copy test because opencl runtime is disabled.\n";
   }
-
   std::vector<int64_t> shape{16, 16, 4};
   auto cpu_arr0 = runtime::NDArray::Empty(shape, {kDLFloat, 32, 1}, {kDLCPU, 0});
   auto cpu_arr1 = runtime::NDArray::Empty(shape, {kDLFloat, 32, 1}, {kDLCPU, 0});
@@ -64,19 +78,8 @@ TEST(TextureCopy, HostDeviceRT) {
   }
 }
 
-TEST(TextureCopy, ViewBufferAsBuffer) {
+TEST_F(TextureCopyTest, ViewBufferAsBuffer) {
   using namespace tvm;
-  bool enabled = tvm::runtime::RuntimeEnabled("opencl");
-  if (!enabled) {
-    LOG(INFO) << "Skip texture copy test because opencl runtime is disabled.\n";
-    return;
-  }
-
-  // Check hardware support
-  tvm::runtime::cl::OpenCLWorkspace* workspace = tvm::runtime::cl::OpenCLWorkspace::Global();
-  tvm::runtime::cl::OpenCLThreadEntry* thr = workspace->GetThreadEntry();
-  if (!workspace->IsBufferToImageSupported(thr->device.device_id)) return;
-
   std::vector<int64_t> shape{1, 16, 16, 8};
   std::vector<int64_t> same_shape{1, 8, 16, 16};
   auto cpu_arr = runtime::NDArray::Empty(shape, {kDLFloat, 32, 1}, {kDLCPU, 0});
@@ -126,19 +129,8 @@ TEST(TextureCopy, ViewBufferAsBuffer) {
   }
 }
 
-TEST(TextureCopy, ViewBufferAsImage) {
+TEST_F(TextureCopyTest, ViewBufferAsImage) {
   using namespace tvm;
-  bool enabled = tvm::runtime::RuntimeEnabled("opencl");
-  if (!enabled) {
-    LOG(INFO) << "Skip texture copy test because opencl runtime is disabled.\n";
-    return;
-  }
-
-  // Check hardware support
-  tvm::runtime::cl::OpenCLWorkspace* workspace = tvm::runtime::cl::OpenCLWorkspace::Global();
-  tvm::runtime::cl::OpenCLThreadEntry* thr = workspace->GetThreadEntry();
-  if (!workspace->IsBufferToImageSupported(thr->device.device_id)) return;
-
   // Shape that doesn't cause padding for image row
   std::vector<int64_t> shape{1, 16, 16, 8, 4};
   std::vector<int64_t> same_shape{1, 8, 16, 16, 4};
@@ -190,19 +182,8 @@ TEST(TextureCopy, ViewBufferAsImage) {
   }
 }
 
-TEST(TextureCopy, ViewImageAsBuffer) {
+TEST_F(TextureCopyTest, ViewImageAsBuffer) {
   using namespace tvm;
-  bool enabled = tvm::runtime::RuntimeEnabled("opencl");
-  if (!enabled) {
-    LOG(INFO) << "Skip texture copy test because opencl runtime is disabled.\n";
-    return;
-  }
-
-  // Check hardware support
-  tvm::runtime::cl::OpenCLWorkspace* workspace = tvm::runtime::cl::OpenCLWorkspace::Global();
-  tvm::runtime::cl::OpenCLThreadEntry* thr = workspace->GetThreadEntry();
-  if (!workspace->IsBufferToImageSupported(thr->device.device_id)) return;
-
   // Shape that doesn't cause padding for image row
   std::vector<int64_t> shape{1, 16, 16, 8, 4};
   std::vector<int64_t> same_shape{1, 8, 16, 16, 4};
@@ -253,19 +234,8 @@ TEST(TextureCopy, ViewImageAsBuffer) {
   }
 }
 
-TEST(TextureCopy, ViewImageAsImage) {
+TEST_F(TextureCopyTest, ViewImageAsImage) {
   using namespace tvm;
-  bool enabled = tvm::runtime::RuntimeEnabled("opencl");
-  if (!enabled) {
-    LOG(INFO) << "Skip texture copy test because opencl runtime is disabled.\n";
-    return;
-  }
-
-  // Check hardware support
-  tvm::runtime::cl::OpenCLWorkspace* workspace = tvm::runtime::cl::OpenCLWorkspace::Global();
-  tvm::runtime::cl::OpenCLThreadEntry* thr = workspace->GetThreadEntry();
-  if (!workspace->IsBufferToImageSupported(thr->device.device_id)) return;
-
   // Shape that doesn't cause padding for image row
   std::vector<int64_t> shape{1, 16, 16, 8, 4};
   std::vector<int64_t> same_shape{1, 8, 16, 16, 4};
