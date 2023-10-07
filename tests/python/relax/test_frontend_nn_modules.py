@@ -28,6 +28,24 @@ from tvm.script import ir as I
 from tvm.script import relax as R
 
 
+def test_relu():
+    @R.function
+    def forward(
+        x: R.Tensor((3, 3), dtype="float32"),
+        _io: R.Object,
+    ) -> R.Tuple(R.Tensor((3, 3), dtype="float32"), R.Tuple(R.Object)):
+        R.func_attr({"num_input": 2})
+        with R.dataflow():
+            relu: R.Tensor((3, 3), dtype="float32") = R.nn.relu(x)
+            gv1: R.Tuple(R.Tensor((3, 3), dtype="float32"), R.Tuple(R.Object)) = relu, (_io,)
+            R.output(gv1)
+        return gv1
+
+    mod = modules.ReLU()
+    tvm_mod, _ = mod.export_tvm(spec={"forward": {"x": spec.Tensor((3, 3), "float32")}}, debug=True)
+    assert_structural_equal(tvm_mod["forward"], forward, True)
+
+
 def test_silu():
     @R.function
     def forward(
@@ -42,6 +60,24 @@ def test_silu():
         return gv1
 
     mod = modules.SiLU()
+    tvm_mod, _ = mod.export_tvm(spec={"forward": {"x": spec.Tensor((3, 3), "float32")}}, debug=True)
+    assert_structural_equal(tvm_mod["forward"], forward, True)
+
+
+def test_gelu():
+    @R.function
+    def forward(
+        x: R.Tensor((3, 3), dtype="float32"),
+        _io: R.Object,
+    ) -> R.Tuple(R.Tensor((3, 3), dtype="float32"), R.Tuple(R.Object)):
+        R.func_attr({"num_input": 2})
+        with R.dataflow():
+            gelu: R.Tensor((3, 3), dtype="float32") = R.nn.gelu(x)
+            gv1: R.Tuple(R.Tensor((3, 3), dtype="float32"), R.Tuple(R.Object)) = gelu, (_io,)
+            R.output(gv1)
+        return gv1
+
+    mod = modules.GELU()
     tvm_mod, _ = mod.export_tvm(spec={"forward": {"x": spec.Tensor((3, 3), "float32")}}, debug=True)
     assert_structural_equal(tvm_mod["forward"], forward, True)
 
