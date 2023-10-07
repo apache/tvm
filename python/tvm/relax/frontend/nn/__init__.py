@@ -18,6 +18,7 @@
 from . import op, spec
 from .core import Effect, ExternModule, Module, ModuleList, Parameter, Tensor
 from .modules import (
+    GELU,
     Conv1D,
     ConvTranspose1D,
     Embedding,
@@ -26,7 +27,9 @@ from .modules import (
     LayerNorm,
     Linear,
     MultiLinear,
+    ReLU,
     RMSNorm,
+    SiLU,
 )
 from .op import *
 from .subroutine import SubroutineMixin
