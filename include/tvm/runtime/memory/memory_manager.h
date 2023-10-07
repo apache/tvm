@@ -83,8 +83,7 @@ class Allocator {
    *  \param mem_scope A memory scope of the buffer.
    *  \return A sized allocation in the form of a buffer.
    */
-  virtual Buffer Alloc(ShapeTuple shape, DLDataType type_hint,
-                       const std::string& mem_scope = "") = 0;
+  Buffer Alloc(ShapeTuple shape, DLDataType type_hint, const std::string& mem_scope = "");
   /*! \brief Free a buffer allocated by the allocator.
    *  \param buffer The buffer to free.
    */
@@ -95,8 +94,8 @@ class Allocator {
   virtual size_t UsedMemory() const = 0;
 
  protected:
-  virtual Buffer Alloc(Device dev, ShapeTuple shape, DLDataType type_hint,
-                       const std::string& mem_scope);
+  std::atomic<size_t> used_memory_;
+  Device device_;
 
  private:
   AllocatorType type_;

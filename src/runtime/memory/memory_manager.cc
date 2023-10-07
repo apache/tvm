@@ -145,11 +145,6 @@ Allocator* MemoryManager::GetOrCreateAllocator(Device dev, AllocatorType type) {
     return ret;
   }
   auto alloc = m->allocators_.at(dev).at(type).get();
-  /*if (alloc->type() != type) {
-    LOG(WARNING) << "The type of existing allocator for " << dev
-                 << " is different from the request type (" << alloc->type() << " vs " << type
-                 << ")";
-  }*/
   return alloc;
 }
 
@@ -180,18 +175,22 @@ NDArray Allocator::Empty(ShapeTuple shape, DLDataType dtype, DLDevice dev,
   return NDArray(GetObjectPtr<Object>(container));
 }
 
-Buffer Allocator::Alloc(Device dev, ShapeTuple shape, DLDataType type_hint,
-                        const std::string& mem_scope) {
+Buffer Allocator::Alloc(ShapeTuple shape, DLDataType type_hint, const std::string& mem_scope) {
+  NDArray::Container container(nullptr, shape, type_hint, device_);
+  size_t size = DeviceAPI::Get(device_)->GetDataSize(container.dl_tensor);
   if (mem_scope.empty() || mem_scope == "global") {
-    // by default, we can always redirect to the flat memory allocations
-    NDArray::Container container(nullptr, shape, type_hint, dev);
-    size_t size = DeviceAPI::Get(dev)->GetDataSize(container.dl_tensor);
     size_t alignment = GetDataAlignment(container.dl_tensor);
     return Alloc(size, alignment, type_hint);
   }
-  LOG(FATAL) << "Allocator cannot allocate data space with "
-             << "specified memory scope: " << mem_scope;
-  return {};
+
+  Buffer buf;
+  buf.size = size;
+  buf.alloc_type = type_;
+  buf.data = DeviceAPI::Get(device_)->AllocDataSpace(device_, shape.size(), shape.data(), type_hint,
+                                                     String(mem_scope));
+  used_memory_.fetch_add(size, std::memory_order_relaxed);
+  DLOG(INFO) << "allocate " << size << " B, used memory " << used_memory_ << " B";
+  return buf;
 }
 
 }  // namespace memory

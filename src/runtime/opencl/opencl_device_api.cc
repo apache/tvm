@@ -103,6 +103,19 @@ String cl::BufferDescriptor::ScopeFromMemoryLayout(cl::BufferDescriptor::MemoryL
   return "";
 }
 
+static size_t GetMemObjectSize(Device dev, int ndim, const int64_t* shape, DLDataType dtype) {
+  DLTensor temp;
+  temp.data = nullptr;
+  temp.device = dev;
+  temp.ndim = ndim;
+  temp.dtype = dtype;
+  temp.shape = const_cast<int64_t*>(shape);
+  temp.strides = nullptr;
+  temp.byte_offset = 0;
+  size_t size = DeviceAPI::Get(dev)->GetDataSize(temp);
+  return size;
+}
+
 OpenCLThreadEntry* OpenCLWorkspace::GetThreadEntry() { return OpenCLThreadEntry::ThreadLocal(); }
 
 OpenCLWorkspace* OpenCLWorkspace::Global() {
@@ -260,11 +273,7 @@ void* OpenCLWorkspace::AllocDataSpace(Device dev, int ndim, const int64_t* shape
   if (!mem_scope.defined() || mem_scope.value().empty() || mem_scope.value() == "global") {
     // Call DeviceAPI to compute the size and invoke other version of AllocDataSpace (w/ size).
     // return DeviceAPI::AllocDataSpace(dev, ndim, shape, dtype, mem_scope);
-    size_t size = 1;
-    for (tvm_index_t i = 0; i < ndim; ++i) {
-      size *= static_cast<size_t>(shape[i]);
-    }
-    size *= (dtype.bits * dtype.lanes + 7) / 8;
+    size_t size = GetMemObjectSize(dev, ndim, shape, dtype);
     cl::BufferDescriptor* ret_buffer = nullptr;
     auto buf = MemoryManager::GetOrCreateAllocator(dev, AllocatorType::kNaive)
                    ->Alloc(size, kTempAllocaAlignment, dtype);
@@ -334,19 +343,6 @@ size_t OpenCLWorkspace::GetDataSize(const DLTensor& arr, Optional<String> mem_sc
                                                              mem_scope.value(), row_align);
 }
 
-static size_t GetMemObjectSize(Device dev, ShapeTuple shape, DLDataType dtype) {
-  DLTensor temp;
-  temp.data = nullptr;
-  temp.device = dev;
-  temp.ndim = shape.size();
-  temp.dtype = dtype;
-  temp.shape = const_cast<int64_t*>(shape.data());
-  temp.strides = nullptr;
-  temp.byte_offset = 0;
-  size_t size = GetDataSize(temp);
-  return size;
-}
-
 void* OpenCLWorkspace::AllocDataSpaceView(Device dev, void* data, ShapeTuple shape,
                                           DLDataType dtype, Optional<String> mem_scope) {
   cl::BufferDescriptor* desc = static_cast<cl::BufferDescriptor*>(data);
@@ -357,7 +353,7 @@ void* OpenCLWorkspace::AllocDataSpaceView(Device dev, void* data, ShapeTuple sha
     if (!mem_scope.defined() || mem_scope.value() == "global") {
       if (desc->layout != cl::BufferDescriptor::MemoryLayout::kBuffer1D) {
         // image -> buffer
-        size_t nbytes = GetMemObjectSize(dev, shape, dtype);
+        size_t nbytes = GetMemObjectSize(dev, shape.size(), shape.data(), dtype);
         ret_desc = static_cast<cl::BufferDescriptor*>(
             OpenCLWorkspace::AllocCLBuffer(dev, nbytes, kTempAllocaAlignment, dtype));
         ret_desc->is_compat_view = true;
