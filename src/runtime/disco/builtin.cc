@@ -94,6 +94,17 @@ void ScatterFromWorker0(Optional<NDArray> send, NDArray recv) {
   GetCCLFunc("scatter_from_worker0")(send, recv);
 }
 
+void ScatterFromLocal(NDArray send, NDArray recv) {
+  DiscoWorker* worker = DiscoWorker::ThreadLocal();
+  int64_t send_numel = send.Shape()->Product();
+  int64_t recv_numel = recv.Shape()->Product();
+  ICHECK(send->shape[0] == worker->num_workers);
+  ICHECK(send_numel == recv_numel * worker->num_workers);
+  recv.CopyFromBytes(
+      static_cast<char*>(send->data) + send->byte_offset + send->dtype.bits / 8 * recv_numel * worker->worker_id,
+      recv_numel * send->dtype.bits / 8);
+}
+
 void GatherToWorker0(NDArray send, Optional<NDArray> recv) {
   GetCCLFunc("gather_to_worker0")(send, recv);
 }
@@ -119,6 +130,7 @@ TVM_REGISTER_GLOBAL("runtime.disco.allreduce")
 TVM_REGISTER_GLOBAL("runtime.disco.allgather").set_body_typed(AllGather);
 TVM_REGISTER_GLOBAL("runtime.disco.broadcast_from_worker0").set_body_typed(BroadcastFromWorker0);
 TVM_REGISTER_GLOBAL("runtime.disco.scatter_from_worker0").set_body_typed(ScatterFromWorker0);
+TVM_REGISTER_GLOBAL("runtime.disco.scatter_from_local").set_body_typed(ScatterFromLocal);
 TVM_REGISTER_GLOBAL("runtime.disco.gather_to_worker0").set_body_typed(GatherToWorker0);
 TVM_REGISTER_GLOBAL("runtime.disco.recv_from_worker0").set_body_typed(RecvFromWorker0);
 TVM_REGISTER_GLOBAL("runtime.disco.worker_id").set_body_typed([]() -> ShapeTuple {

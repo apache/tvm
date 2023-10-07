@@ -118,25 +118,50 @@ def test_broadcast_from_worker0(session_kind, ccl):
 
 @pytest.mark.parametrize("session_kind", _all_session_kinds)
 @pytest.mark.parametrize("ccl", _ccl)
-def test_scatter(session_kind, ccl):
+def test_scatter_from_worker0(session_kind, ccl):
     devices = [0, 1]
     sess = session_kind(num_workers=len(devices))
     sess.init_ccl(ccl, *devices)
 
-    array = np.arange(36, dtype="float32").reshape(3, 4, 3)
-    d_src = sess.empty((3, 4, 3), "float32")
-    d_dst = sess.empty((3, 3, 2), "float32")
+    array = np.arange(36, dtype="float32").reshape(2, 3, 6)
+    d_src = sess.empty((2, 3, 6), "float32")
+    d_dst = sess.empty((3, 6), "float32")
 
     d_src.debug_copy_from(0, array)
     sess.scatter_from_worker0(d_src, d_dst)
 
     np.testing.assert_equal(
         d_dst.debug_get_from_remote(0).numpy(),
-        array.flat[:18].reshape(3, 3, 2),
+        array.flat[:18].reshape(3, 6),
     )
     np.testing.assert_equal(
         d_dst.debug_get_from_remote(1).numpy(),
-        array.flat[18:].reshape(3, 3, 2),
+        array.flat[18:].reshape(3, 6),
+    )
+
+
+@pytest.mark.parametrize("session_kind", _all_session_kinds)
+@pytest.mark.parametrize("ccl", _ccl)
+def test_scatter_from_local(session_kind, ccl):
+    devices = [0, 1]
+    sess = session_kind(num_workers=len(devices))
+    sess.init_ccl(ccl, *devices)
+
+    array = np.arange(36, dtype="float32").reshape(2, 3, 6)
+    d_src = sess.empty((2, 3, 6), "float32")
+    d_dst = sess.empty((3, 6), "float32")
+
+    d_src.debug_copy_from(0, array)
+    sess.broadcast_from_worker0(d_src, d_src)
+    sess.scatter_from_local(d_src, d_dst)
+
+    np.testing.assert_equal(
+        d_dst.debug_get_from_remote(0).numpy(),
+        array.flat[:18].reshape(3, 6),
+    )
+    np.testing.assert_equal(
+        d_dst.debug_get_from_remote(1).numpy(),
+        array.flat[18:].reshape(3, 6),
     )
 
 

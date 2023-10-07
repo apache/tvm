@@ -289,6 +289,19 @@ class Session(Object):
         """
         func = self._get_cached_method("runtime.disco.scatter_from_worker0")
         func(from_array, to_array)
+        
+    def scatter_from_local(self, from_array: DRef, to_array: DRef) -> None:
+        """Scatter an array which is pre-broadcasted.
+
+        Parameters
+        ----------
+        from_array : DRef
+            The array to be scattered from.
+        to_array : DRef
+            The array to be scattered to.
+        """
+        func = self._get_cached_method("runtime.disco.scatter_from_local")
+        func(from_array, to_array)
 
     def gather_to_worker0(self, from_array: DRef, to_array: DRef) -> None:
         """Gather an array from all other workers to worker-0.
