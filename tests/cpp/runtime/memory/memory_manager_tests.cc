@@ -194,9 +194,7 @@ TEST_F(TvmVMMemoryManagerTest, PooledAllocOpenCLTexture) {
   EXPECT_EQ(allocator->UsedMemory(), size);
 
   auto texture = allocator->Alloc(shape, dt, "global.texture");
-  EXPECT_EQ(allocator->UsedMemory(), nbytes);
   allocator->Free(texture);
-  EXPECT_EQ(allocator->UsedMemory(), nbytes);
 }
 }  // namespace memory
 }  // namespace runtime

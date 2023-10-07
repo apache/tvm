@@ -77,6 +77,8 @@ class PooledAllocator final : public Allocator {
   }
 
   void Free(const Buffer& buffer) override {
+    ICHECK(buffer.alloc_type == type())
+        << "Allocator type mismatch, expected " << type() << " got " << buffer.alloc_type;
     std::lock_guard<std::recursive_mutex> lock(mu_);
     if (memory_pool_.find(buffer.size) == memory_pool_.end()) {
       memory_pool_.emplace(buffer.size, std::vector<Buffer>{});

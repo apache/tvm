@@ -39,6 +39,8 @@ class TextureCopyTest : public ::testing::Test {
     if (!workspace->IsBufferToImageSupported(thr->device.device_id)) {
       GTEST_SKIP() << "Skip test case as BufferToImage is not supported \n";
     }
+    (void)tvm::runtime::memory::MemoryManager::GetOrCreateAllocator(
+        thr->device, tvm::runtime::memory::AllocatorType::kNaive);
   }
 };
 
@@ -48,6 +50,10 @@ TEST(TextureCopy, HostDeviceRT) {
   if (!enabled) {
     GTEST_SKIP() << "Skip texture copy test because opencl runtime is disabled.\n";
   }
+  tvm::runtime::cl::OpenCLWorkspace* workspace = tvm::runtime::cl::OpenCLWorkspace::Global();
+  tvm::runtime::cl::OpenCLThreadEntry* thr = workspace->GetThreadEntry();
+  (void)tvm::runtime::memory::MemoryManager::GetOrCreateAllocator(
+      thr->device, tvm::runtime::memory::AllocatorType::kNaive);
   std::vector<int64_t> shape{16, 16, 4};
   auto cpu_arr0 = runtime::NDArray::Empty(shape, {kDLFloat, 32, 1}, {kDLCPU, 0});
   auto cpu_arr1 = runtime::NDArray::Empty(shape, {kDLFloat, 32, 1}, {kDLCPU, 0});

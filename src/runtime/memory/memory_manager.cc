@@ -155,7 +155,13 @@ Allocator* MemoryManager::GetAllocator(Device dev, AllocatorType type) {
   if (it == m->allocators_.end()) {
     LOG(FATAL) << "Allocator for " << dev << " has not been created yet.";
   }
-  if (it->second.find(type) == it->second.end()) {
+  if (type == AllocatorType::kAny) {
+    if (it->second.begin() != it->second.end()) {
+      return it->second.begin()->second.get();
+    } else {
+      LOG(FATAL) << "No allocator for " << dev << " has been created.";
+    }
+  } else if (it->second.find(type) == it->second.end()) {
     LOG(FATAL) << "Allocator for " << dev << " of type " << type << " has not been created yet.";
   }
   return it->second.at(type).get();
@@ -184,6 +190,7 @@ Buffer Allocator::Alloc(ShapeTuple shape, DLDataType type_hint, const std::strin
   }
 
   Buffer buf;
+  buf.device = device_;
   buf.size = size;
   buf.alloc_type = type_;
   buf.data = DeviceAPI::Get(device_)->AllocDataSpace(device_, shape.size(), shape.data(), type_hint,

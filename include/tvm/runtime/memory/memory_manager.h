@@ -42,6 +42,7 @@ namespace memory {
 enum AllocatorType {
   kNaive = 1,
   kPooled,
+  kAny,
 };
 
 struct Buffer {
@@ -117,7 +118,7 @@ class MemoryManager {
    * \param type The allocator type
    * \return The memory allocator.
    */
-  static Allocator* GetAllocator(Device dev, AllocatorType type);
+  static Allocator* GetAllocator(Device dev, AllocatorType type = AllocatorType::kAny);
 
  private:
   MemoryManager() {}

@@ -255,8 +255,7 @@ void* OpenCLWorkspace::AllocDataSpace(Device dev, size_t width, size_t height, D
   // Alloc back buffer from pool
   cl::BufferDescriptor* back_buffer = nullptr;
   if (IsBufferToImageSupported(dev.device_id)) {
-    auto buf = MemoryManager::GetOrCreateAllocator(dev, AllocatorType::kPooled)
-                   ->Alloc(mem_size, kTempAllocaAlignment, type_hint);
+    auto buf = MemoryManager::GetAllocator(dev)->Alloc(mem_size, kTempAllocaAlignment, type_hint);
     back_buffer = static_cast<cl::BufferDescriptor*>(buf.data);
     back_buffer->mbuf = buf;
   }
@@ -275,8 +274,7 @@ void* OpenCLWorkspace::AllocDataSpace(Device dev, int ndim, const int64_t* shape
     // return DeviceAPI::AllocDataSpace(dev, ndim, shape, dtype, mem_scope);
     size_t size = GetMemObjectSize(dev, ndim, shape, dtype);
     cl::BufferDescriptor* ret_buffer = nullptr;
-    auto buf = MemoryManager::GetOrCreateAllocator(dev, AllocatorType::kNaive)
-                   ->Alloc(size, kTempAllocaAlignment, dtype);
+    auto buf = MemoryManager::GetAllocator(dev)->Alloc(size, kTempAllocaAlignment, dtype);
     ret_buffer = static_cast<cl::BufferDescriptor*>(buf.data);
     ret_buffer->mbuf = buf;
     return ret_buffer;
@@ -435,7 +433,8 @@ void OpenCLWorkspace::FreeDataSpace(Device dev, void* ptr) {
     // 2D Image w/ back buffer allocated from pool
     OPENCL_CALL(clReleaseMemObject(desc->buffer));
     // GetThreadEntry()->mpool.FreeMemory(dev, desc->back_buffer);
-    MemoryManager::GetOrCreateAllocator(dev, AllocatorType::kPooled)->Free(desc->back_buffer->mbuf);
+    MemoryManager::GetAllocator(dev, desc->back_buffer->mbuf.alloc_type)
+        ->Free(desc->back_buffer->mbuf);
     delete desc;
   } else {
     if (desc->layout == cl::BufferDescriptor::MemoryLayout::kBuffer1D) {
@@ -546,8 +545,7 @@ void OpenCLWorkspace::StreamSync(Device dev, TVMStreamHandle stream) {
 void* OpenCLWorkspace::AllocWorkspace(Device dev, size_t size, DLDataType type_hint) {
   this->Init();
   cl::BufferDescriptor* ret_buffer = nullptr;
-  auto buf = MemoryManager::GetOrCreateAllocator(dev, AllocatorType::kPooled)
-                 ->Alloc(size, kTempAllocaAlignment, type_hint);
+  auto buf = MemoryManager::GetAllocator(dev)->Alloc(size, kTempAllocaAlignment, type_hint);
   ret_buffer = static_cast<cl::BufferDescriptor*>(buf.data);
   ret_buffer->mbuf = buf;
   return ret_buffer;
@@ -555,7 +553,7 @@ void* OpenCLWorkspace::AllocWorkspace(Device dev, size_t size, DLDataType type_h
 
 void OpenCLWorkspace::FreeWorkspace(Device dev, void* data) {
   cl::BufferDescriptor* desc = static_cast<cl::BufferDescriptor*>(data);
-  MemoryManager::GetOrCreateAllocator(dev, AllocatorType::kPooled)->Free(desc->mbuf);
+  MemoryManager::GetAllocator(dev, desc->mbuf.alloc_type)->Free(desc->mbuf);
 }
 
 typedef dmlc::ThreadLocalStore<OpenCLThreadEntry> OpenCLThreadStore;

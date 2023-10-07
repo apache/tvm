@@ -52,6 +52,8 @@ class NaiveAllocator final : public Allocator {
   }
 
   void Free(const Buffer& buffer) override {
+    ICHECK(buffer.alloc_type == type())
+        << "Allocator type mismatch, expected " << type() << " got " << buffer.alloc_type;
     DeviceAPI::Get(device_)->FreeDataSpace(buffer.device, buffer.data);
     used_memory_.fetch_sub(buffer.size, std::memory_order_relaxed);
     DLOG(INFO) << "free " << buffer.size << " B, used memory " << used_memory_ << " B";
