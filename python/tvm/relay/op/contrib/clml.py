@@ -35,7 +35,7 @@ from ..strategy.generic import is_depthwise_conv2d
 
 
 def clml_sdk_version():
-    """Utility function to get clml version version"""
+    """Utility function to get clml version"""
 
     return int(tvm.support.libinfo().get("TVM_CLML_VERSION", 2))
 

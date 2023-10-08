@@ -648,7 +648,7 @@ class SpecializedCondition(Object):
 
 
 # Sentinel value used to indicate which groups of pre-flattening axes
-# should be used to post-flattening axes axes.  Moved from
+# should be used to post-flattening axes.  Moved from
 # te.AXIS_SEPARATOR to tir.IndexMap.AXIS_SEPARATOR for general use,
 # maintained here for backwards compatibility.
 AXIS_SEPARATOR = IndexMap.AXIS_SEPARATOR

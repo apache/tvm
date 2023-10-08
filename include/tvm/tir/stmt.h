@@ -778,7 +778,7 @@ class SeqStmt : public Stmt {
     }
 
     // If the argument is a single SeqStmt argument with no
-    // flattening or unwrapping required required, then we may
+    // flattening or unwrapping required, then we may
     // return the SeqStmt as-is.
     if constexpr (sizeof...(seq_args) == 1) {
       if (auto opt = Flattener::AsSeqStmt(std::forward<Args>(seq_args)...)) {
