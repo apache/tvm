@@ -153,7 +153,7 @@ Allocator* MemoryManager::GetAllocator(Device dev, AllocatorType type) {
   std::lock_guard<std::mutex> lock(m->mu_);
   auto it = m->allocators_.find(dev);
   if (it == m->allocators_.end()) {
-    LOG(FATAL) << "Allocator for " << dev << " has not been created yet.";
+    return nullptr;
   }
   if (type == AllocatorType::kAny) {
     if (it->second.begin() != it->second.end()) {
