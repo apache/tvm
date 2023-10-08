@@ -33,7 +33,7 @@ class TokenAllocatorMixedWrapper : public TokenAllocatorMixed {
   inline size_t AllocListSize() const { return data_.size(); }
 };
 
-TEST(TokenMixedAlloc, OneToken) {
+TEST(TokenMixedAlloc, TextureOneToken) {
   TokenAllocatorMixedWrapper alloc;
   int storage_ids = 0;
   EXPECT_EQ(alloc.AllocListSize(), 0);
@@ -63,7 +63,7 @@ TEST(TokenMixedAlloc, OneToken) {
   EXPECT_EQ(alloc.FreeListSize(), 1);
 }
 
-TEST(TokenMixedAlloc, EqualSizeTokenReuse) {
+TEST(TokenMixedAlloc, TextureEqualSizeTokenReuse) {
   TokenAllocatorMixedWrapper alloc;
   int storage_ids = 0;
   EXPECT_EQ(alloc.AllocListSize(), 0);
@@ -137,7 +137,7 @@ TEST(TokenMixedAlloc, EqualSizeTokenReuse) {
   EXPECT_EQ(alloc.FreeListSize(), 1);
 }
 
-TEST(TokenMixedAlloc, EqualSizeDiffTypes) {
+TEST(TokenMixedAlloc, TextureEqualSizeDiffTypes) {
   TokenAllocatorMixedWrapper alloc;
   int storage_ids = 0;
   EXPECT_EQ(alloc.AllocListSize(), 0);
@@ -186,7 +186,7 @@ TEST(TokenMixedAlloc, EqualSizeDiffTypes) {
   EXPECT_EQ(alloc.FreeListSize(), 1);
 }
 
-TEST(TokenMixedAlloc, DifferentSizesTokenReuse) {
+TEST(TokenMixedAlloc, TextureDifferentSizesTokenReuse) {
   TokenAllocatorMixedWrapper alloc;
   int storage_ids = 0;
   EXPECT_EQ(alloc.AllocListSize(), 0);
@@ -255,7 +255,7 @@ TEST(TokenMixedAlloc, DifferentSizesTokenReuse) {
   EXPECT_EQ(sizeReq, 576000);
 }
 
-TEST(TokenMixedAlloc, DifferentSizesTokenReuse2) {
+TEST(TokenMixedAlloc, TextureDifferentSizesTokenReuse2) {
   TokenAllocatorMixedWrapper alloc;
   int storage_ids = 0;
   EXPECT_EQ(alloc.AllocListSize(), 0);
@@ -302,7 +302,7 @@ TEST(TokenMixedAlloc, DifferentSizesTokenReuse2) {
   EXPECT_EQ(sizeReq, 140800);
 }
 
-TEST(TokenMixedAlloc, SameSizesButDiffMemoryScopes) {
+TEST(TokenMixedAlloc, TextureSameSizesButDiffMemoryScopes) {
   TokenAllocatorMixedWrapper alloc;
   int storage_ids = 0;
   EXPECT_EQ(alloc.AllocListSize(), 0);
@@ -354,5 +354,187 @@ TEST(TokenMixedAlloc, SameSizesButDiffMemoryScopes) {
   EXPECT_EQ(alloc.AllocListSize(), 1);
   EXPECT_EQ(alloc.FreeListSize(), 1);
 }
+
+TEST(TokenMixedAlloc, OneToken) {
+  TokenAllocatorMixedWrapper alloc;
+  int storage_ids = 0;
+  EXPECT_EQ(alloc.AllocListSize(), 0);
+  EXPECT_EQ(alloc.FreeListSize(), 0);
+
+  TensorType tt1({1, 22, 20, 20, 4}, DataType(kDLFloat, 32, 1));
+  VirtualDevice vd1(kDLOpenCL, 0, Target("opencl"));
+  StorageToken tok1 = {
+      1,    // ref_counter
+      0,    // max bytes
+      tt1,  // tensor type
+      vd1,  // virtual device
+      -1    // storage_id
+  };
+  EXPECT_EQ(alloc.Request(&tok1), nullptr);
+
+  alloc.Alloc(&tok1, storage_ids++);
+  EXPECT_EQ(alloc.AllocListSize(), 1);
+  EXPECT_EQ(alloc.FreeListSize(), 0);
+
+  tok1.ref_counter -= 1;
+  alloc.CheckForRelease(&tok1);
+  EXPECT_EQ(alloc.AllocListSize(), 1);
+  EXPECT_EQ(alloc.FreeListSize(), 1);
+}
+
+TEST(TokenMixedAlloc, EqualSizeTokenReuse) {
+  TokenAllocatorMixedWrapper alloc;
+  int storage_ids = 0;
+  EXPECT_EQ(alloc.AllocListSize(), 0);
+  EXPECT_EQ(alloc.FreeListSize(), 0);
+
+  TensorType tt1({1, 22, 20, 20, 4}, DataType(kDLFloat, 32, 1));
+  VirtualDevice vd1(kDLOpenCL, 0, Target("opencl"));
+  StorageToken tok1 = {
+      1,    // ref_counter
+      0,    // max bytes
+      tt1,  // tensor type
+      vd1,  // virtual device
+      -1    // storage_id
+  };
+  EXPECT_EQ(alloc.Request(&tok1), nullptr);
+
+  alloc.Alloc(&tok1, storage_ids++);
+  EXPECT_EQ(alloc.AllocListSize(), 1);
+  EXPECT_EQ(alloc.FreeListSize(), 0);
+
+  tok1.ref_counter -= 1;
+  alloc.CheckForRelease(&tok1);
+  EXPECT_EQ(alloc.AllocListSize(), 1);
+  EXPECT_EQ(alloc.FreeListSize(), 1);
+
+  StorageToken tok2 = {
+      1,    // ref_counter
+      0,    // max bytes
+      tt1,  // tensor type
+      vd1,  // virtual device
+      -1    // storage_id
+  };
+  auto req = alloc.Request(&tok2);
+  EXPECT_NE(req, nullptr);
+  EXPECT_EQ(alloc.AllocListSize(), 1);
+  EXPECT_EQ(alloc.FreeListSize(), 0);
+  EXPECT_EQ(req->storage_id, storage_ids - 1);
+  EXPECT_EQ(req->ref_counter, 1);
+
+  req->ref_counter -= 1;
+  alloc.CheckForRelease(req);
+  EXPECT_EQ(alloc.AllocListSize(), 1);
+  EXPECT_EQ(alloc.FreeListSize(), 1);
+}
+
+TEST(TokenMixedAlloc, EqualSizeDiffTypes) {
+  TokenAllocatorMixedWrapper alloc;
+  int storage_ids = 0;
+  EXPECT_EQ(alloc.AllocListSize(), 0);
+  EXPECT_EQ(alloc.FreeListSize(), 0);
+
+  TensorType tt1({1, 22, 20, 20, 4}, DataType(kDLFloat, 32, 1));
+  VirtualDevice vd1(kDLOpenCL, 0, Target("opencl"));
+  StorageToken tok1 = {
+      1,    // ref_counter
+      0,    // max bytes
+      tt1,  // tensor type
+      vd1,  // virtual device
+      -1    // storage_id
+  };
+  EXPECT_EQ(alloc.Request(&tok1), nullptr);
+
+  alloc.Alloc(&tok1, storage_ids++);
+  EXPECT_EQ(alloc.AllocListSize(), 1);
+  EXPECT_EQ(alloc.FreeListSize(), 0);
+
+  tok1.ref_counter -= 1;
+  alloc.CheckForRelease(&tok1);
+  EXPECT_EQ(alloc.AllocListSize(), 1);
+  EXPECT_EQ(alloc.FreeListSize(), 1);
+
+  TensorType tt2({1, 22, 20, 20, 4}, DataType(kDLFloat, 16, 1));
+  StorageToken tok2 = {
+      1,    // ref_counter
+      0,    // max bytes
+      tt2,  // tensor type
+      vd1,  // virtual device
+      -1    // storage_id
+  };
+
+  auto req1 = alloc.Request(&tok2);
+  EXPECT_NE(req1, nullptr);
+  EXPECT_EQ(alloc.AllocListSize(), 1);
+  EXPECT_EQ(alloc.FreeListSize(), 0);
+
+  req1->ref_counter -= 1;
+  alloc.CheckForRelease(req1);
+  EXPECT_EQ(alloc.AllocListSize(), 1);
+  EXPECT_EQ(alloc.FreeListSize(), 1);
+}
+
+TEST(TokenMixedAlloc, DifferentSizesTokenReuse) {
+  TokenAllocatorMixedWrapper alloc;
+  int storage_ids = 0;
+  EXPECT_EQ(alloc.AllocListSize(), 0);
+  EXPECT_EQ(alloc.FreeListSize(), 0);
+
+  TensorType tt1({1, 22, 20, 20, 4}, DataType(kDLFloat, 32, 1));
+  VirtualDevice vd1(kDLOpenCL, 0, Target("opencl"));
+  StorageToken tok1 = {
+      1,    // ref_counter
+      0,    // max bytes
+      tt1,  // tensor type
+      vd1,  // virtual device
+      -1    // storage_id
+  };
+  EXPECT_EQ(alloc.Request(&tok1), nullptr);
+
+  alloc.Alloc(&tok1, storage_ids++);
+  EXPECT_EQ(alloc.AllocListSize(), 1);
+  EXPECT_EQ(alloc.FreeListSize(), 0);
+
+  tok1.ref_counter -= 1;
+  alloc.CheckForRelease(&tok1);
+  EXPECT_EQ(alloc.AllocListSize(), 1);
+  EXPECT_EQ(alloc.FreeListSize(), 1);
+
+  TensorType tt2({1, 40, 30, 30, 4}, DataType(kDLFloat, 32, 1));
+  StorageToken tok2 = {
+      1,    // ref_counter
+      0,    // max bytes
+      tt2,  // tensor type
+      vd1,  // virtual device
+      -1    // storage_id
+  };
+  auto req = alloc.Request(&tok2);
+  EXPECT_NE(req, nullptr);
+  EXPECT_EQ(alloc.AllocListSize(), 1);
+  EXPECT_EQ(alloc.FreeListSize(), 0);
+  EXPECT_EQ(req->storage_id, storage_ids - 1);
+  EXPECT_EQ(req->ref_counter, 1);
+
+  req->ref_counter -= 1;
+  alloc.CheckForRelease(req);
+  EXPECT_EQ(alloc.AllocListSize(), 1);
+  EXPECT_EQ(alloc.FreeListSize(), 1);
+
+  TensorType tt3({1, 25, 30, 30, 4}, DataType(kDLFloat, 32, 1));
+  StorageToken tok3 = {
+      1,    // ref_counter
+      0,    // max bytes
+      tt3,  // tensor type
+      vd1,  // virtual device
+      -1    // storage_id
+  };
+  auto req2 = alloc.Request(&tok3);
+  EXPECT_NE(req2, nullptr);
+  EXPECT_EQ(alloc.AllocListSize(), 1);
+  EXPECT_EQ(alloc.FreeListSize(), 0);
+  EXPECT_EQ(req2->storage_id, storage_ids - 1);
+  EXPECT_EQ(req2->ref_counter, 1);
+}
+
 }  // namespace relay
 }  // namespace tvm

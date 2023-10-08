@@ -77,6 +77,12 @@ class PooledAllocator final : public Allocator {
   }
 
   void Free(const Buffer& buffer) override {
+    ICHECK(buffer.device.device_type == device_.device_type)
+        << "Device mismatch, expected type " << device_.device_type << " got type"
+        << buffer.device.device_type;
+    ICHECK(buffer.device.device_id == device_.device_id)
+        << "Device mismatch, expected id " << device_.device_id << " got id"
+        << buffer.device.device_id;
     ICHECK(buffer.alloc_type == type())
         << "Allocator type mismatch, expected " << type() << " got " << buffer.alloc_type;
     std::lock_guard<std::recursive_mutex> lock(mu_);

@@ -85,6 +85,38 @@ TEST_F(TvmVMMemoryManagerTest, NaiveEmptyBasic) {
   EXPECT_EQ(allocator->UsedMemory(), 0);
 }
 
+TEST_F(TvmVMMemoryManagerTest, BothAllocatorsCoexists) {
+  Device dev = {kDLCPU, 0};
+  // Initialize and use Naive allocator
+  Allocator* nallocator = MemoryManagerWrapper::GetOrCreateAllocator(dev, kNaive);
+  EXPECT_EQ(nallocator->UsedMemory(), 0);
+  auto dt = DataType::Float(32);
+  size_t nbytes = 1 * 3 * 6 * 6 * dt.bytes();
+  ShapeTuple shape = {1, 3, 6, 6};
+  {
+    auto ndarray = nallocator->Empty(shape, dt, dev);
+    EXPECT_EQ(nallocator->UsedMemory(), nbytes);
+  }
+  EXPECT_EQ(nallocator->UsedMemory(), 0);
+  auto naive_buff = nallocator->Alloc(shape, dt);
+  EXPECT_EQ(nallocator->UsedMemory(), nbytes);
+
+  // Initialize and use Pooled allocator
+  Allocator* pallocator = MemoryManagerWrapper::GetOrCreateAllocator(dev, kPooled);
+  EXPECT_EQ(pallocator->UsedMemory(), 0);
+  auto pooled_buff = pallocator->Alloc(shape, dt);
+  EXPECT_NE(pallocator->UsedMemory(), 0);
+
+  // Operate on Naive allocator
+  EXPECT_EQ(nallocator->UsedMemory(), nbytes);
+  nallocator->Free(naive_buff);
+  EXPECT_EQ(nallocator->UsedMemory(), 0);
+
+  // Operate on Pooled allocator
+  pallocator->Free(pooled_buff);
+  EXPECT_NE(pallocator->UsedMemory(), 0);
+}
+
 TEST_F(TvmVMMemoryManagerTest, PooledEmptyBasic) {
   Device dev = {kDLCPU, 0};
   Allocator* allocator = MemoryManagerWrapper::GetOrCreateAllocator(dev, kPooled);
@@ -196,6 +228,199 @@ TEST_F(TvmVMMemoryManagerTest, PooledAllocOpenCLTexture) {
   auto texture = allocator->Alloc(shape, dt, "global.texture");
   allocator->Free(texture);
 }
+
+TEST_F(TvmVMMemoryManagerTest, DeviceConflictsNaive) {
+  bool enabled = tvm::runtime::RuntimeEnabled("opencl");
+  if (!enabled) {
+    LOG(INFO) << "Skip OpenCL Texture alloc test because opencl runtime is disabled.\n";
+    return;
+  }
+  // Initializations
+  Device cpu_dev = {kDLCPU, 0};
+  Device cl_dev = {kDLOpenCL, 0};
+  auto dt = DataType::Float(32);
+  size_t nbytes = 1 * 3 * 6 * 6 * dt.bytes();
+  ShapeTuple shape = {1, 3, 6, 6};
+  // CL Allocator
+  Allocator* cl_allocator = MemoryManagerWrapper::GetOrCreateAllocator(cl_dev, kNaive);
+  EXPECT_EQ(cl_allocator->UsedMemory(), 0);
+  {
+    auto ndarray = cl_allocator->Empty(shape, dt, cl_dev);
+    EXPECT_EQ(cl_allocator->UsedMemory(), nbytes);
+  }
+  EXPECT_EQ(cl_allocator->UsedMemory(), 0);
+  // CPU Allocator
+  Allocator* cpu_allocator = MemoryManagerWrapper::GetOrCreateAllocator(cpu_dev, kNaive);
+  {
+    auto ndarray = cpu_allocator->Empty(shape, dt, cpu_dev);
+    EXPECT_EQ(cpu_allocator->UsedMemory(), nbytes);
+  }
+  EXPECT_EQ(cpu_allocator->UsedMemory(), 0);
+
+  // Try allocating CL Tensor on CPU Allocator
+  try {
+    auto cpu_buff = cpu_allocator->Empty(shape, dt, cl_dev);
+    (void)cpu_buff;
+    FAIL();
+  } catch (std::exception& e) {
+    std::string pattern = "Device mismatch, expected";
+    std::string what = e.what();
+    EXPECT_NE(what.find(pattern), std::string::npos) << what;
+  }
+  auto cpu_buff = cpu_allocator->Alloc(shape, dt);
+  EXPECT_EQ(cpu_allocator->UsedMemory(), nbytes);
+
+  // Try allocating CPU Tensor on CL Allocator
+  try {
+    auto cl_buff = cl_allocator->Empty(shape, dt, cpu_dev);
+    (void)cl_buff;
+    FAIL();
+  } catch (std::exception& e) {
+    std::string pattern = "Device mismatch, expected";
+    std::string what = e.what();
+    EXPECT_NE(what.find(pattern), std::string::npos) << what;
+  }
+  auto cl_buff = cl_allocator->Alloc(shape, dt);
+  EXPECT_EQ(cl_allocator->UsedMemory(), nbytes);
+
+  // Attempt conflicting Free calls
+  try {
+    cl_allocator->Free(cpu_buff);
+    FAIL();
+  } catch (std::exception& e) {
+    std::string pattern = "Device mismatch, expected";
+    std::string what = e.what();
+    EXPECT_NE(what.find(pattern), std::string::npos) << what;
+  }
+  try {
+    cpu_allocator->Free(cl_buff);
+    FAIL();
+  } catch (std::exception& e) {
+    std::string pattern = "Device mismatch, expected";
+    std::string what = e.what();
+    EXPECT_NE(what.find(pattern), std::string::npos) << what;
+  }
+
+  // Regular Free calls
+  cl_allocator->Free(cl_buff);
+  EXPECT_EQ(cl_allocator->UsedMemory(), 0);
+
+  cpu_allocator->Free(cpu_buff);
+  EXPECT_EQ(cpu_allocator->UsedMemory(), 0);
+}
+
+TEST_F(TvmVMMemoryManagerTest, DeviceConflictsPooled) {
+  bool enabled = tvm::runtime::RuntimeEnabled("opencl");
+  if (!enabled) {
+    LOG(INFO) << "Skip OpenCL Texture alloc test because opencl runtime is disabled.\n";
+    return;
+  }
+  // Initializations
+  Device cpu_dev = {kDLCPU, 0};
+  Device cl_dev = {kDLOpenCL, 0};
+  auto dt = DataType::Float(32);
+  ShapeTuple shape = {1, 3, 6, 6};
+  // CL Allocator
+  Allocator* cl_allocator = MemoryManagerWrapper::GetOrCreateAllocator(cl_dev, kPooled);
+  EXPECT_EQ(cl_allocator->UsedMemory(), 0);
+  {
+    auto ndarray = cl_allocator->Empty(shape, dt, cl_dev);
+    EXPECT_NE(cl_allocator->UsedMemory(), 0);
+  }
+  EXPECT_NE(cl_allocator->UsedMemory(), 0);
+  // CPU Allocator
+  Allocator* cpu_allocator = MemoryManagerWrapper::GetOrCreateAllocator(cpu_dev, kPooled);
+  {
+    auto ndarray = cpu_allocator->Empty(shape, dt, cpu_dev);
+    EXPECT_NE(cpu_allocator->UsedMemory(), 0);
+  }
+  EXPECT_NE(cpu_allocator->UsedMemory(), 0);
+
+  // Try allocating CL Tensor on CPU Allocator
+  try {
+    auto cpu_buff = cpu_allocator->Empty(shape, dt, cl_dev);
+    (void)cpu_buff;
+    FAIL();
+  } catch (std::exception& e) {
+    std::string pattern = "Device mismatch, expected";
+    std::string what = e.what();
+    EXPECT_NE(what.find(pattern), std::string::npos) << what;
+  }
+  auto cpu_buff = cpu_allocator->Alloc(shape, dt);
+  EXPECT_NE(cpu_allocator->UsedMemory(), 0);
+
+  // Try allocating CPU Tensor on CL Allocator
+  try {
+    auto cl_buff = cl_allocator->Empty(shape, dt, cpu_dev);
+    (void)cl_buff;
+    FAIL();
+  } catch (std::exception& e) {
+    std::string pattern = "Device mismatch, expected";
+    std::string what = e.what();
+    EXPECT_NE(what.find(pattern), std::string::npos) << what;
+  }
+  auto cl_buff = cl_allocator->Alloc(shape, dt);
+  EXPECT_NE(cl_allocator->UsedMemory(), 0);
+
+  // Attempt conflicting Free calls
+  try {
+    cl_allocator->Free(cpu_buff);
+    FAIL();
+  } catch (std::exception& e) {
+    std::string pattern = "Device mismatch, expected";
+    std::string what = e.what();
+    EXPECT_NE(what.find(pattern), std::string::npos) << what;
+  }
+  try {
+    cpu_allocator->Free(cl_buff);
+    FAIL();
+  } catch (std::exception& e) {
+    std::string pattern = "Device mismatch, expected";
+    std::string what = e.what();
+    EXPECT_NE(what.find(pattern), std::string::npos) << what;
+  }
+
+  // Regular Free calls
+  cl_allocator->Free(cl_buff);
+  EXPECT_NE(cl_allocator->UsedMemory(), 0);
+
+  cpu_allocator->Free(cpu_buff);
+  EXPECT_NE(cpu_allocator->UsedMemory(), 0);
+}
+
+TEST_F(TvmVMMemoryManagerTest, AllocatorConflicts) {
+  // Initializations
+  Device cpu_dev = {kDLCPU, 0};
+  auto dt = DataType::Float(32);
+  ShapeTuple shape = {1, 3, 6, 6};
+  Allocator* nallocator = MemoryManagerWrapper::GetOrCreateAllocator(cpu_dev, kNaive);
+  Allocator* pallocator = MemoryManagerWrapper::GetOrCreateAllocator(cpu_dev, kPooled);
+  auto n_buff = nallocator->Alloc(shape, dt);
+  auto p_buff = pallocator->Alloc(shape, dt);
+
+  // Attempt conflicting Free calls
+  try {
+    nallocator->Free(p_buff);
+    FAIL();
+  } catch (std::exception& e) {
+    std::string pattern = "Allocator type mismatch, expected";
+    std::string what = e.what();
+    EXPECT_NE(what.find(pattern), std::string::npos) << what;
+  }
+  try {
+    pallocator->Free(n_buff);
+    FAIL();
+  } catch (std::exception& e) {
+    std::string pattern = "Allocator type mismatch, expected";
+    std::string what = e.what();
+    EXPECT_NE(what.find(pattern), std::string::npos) << what;
+  }
+
+  // Regular Free calls
+  nallocator->Free(n_buff);
+  pallocator->Free(p_buff);
+}
+
 }  // namespace memory
 }  // namespace runtime
 }  // namespace tvm

@@ -169,6 +169,10 @@ Allocator* MemoryManager::GetAllocator(Device dev, AllocatorType type) {
 
 NDArray Allocator::Empty(ShapeTuple shape, DLDataType dtype, DLDevice dev,
                          Optional<String> mem_scope) {
+  ICHECK(dev.device_type == device_.device_type)
+      << "Device mismatch, expected type " << device_.device_type << " got type" << dev.device_type;
+  ICHECK(dev.device_id == device_.device_id)
+      << "Device mismatch, expected id " << device_.device_id << " got id" << dev.device_id;
   VerifyDataType(dtype);
   NDArray::Container* container = new NDArray::Container(nullptr, shape, dtype, dev);
   container->SetDeleter(BufferDeleter);
