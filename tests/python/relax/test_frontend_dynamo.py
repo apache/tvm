@@ -463,7 +463,7 @@ def test_getitem():
                     begin=[0, 0],
                     end=[1, 1280],
                     strides=[1, 1],
-                    assume_inbound=False
+                    assume_inbound=False,
                 )
                 lv3: R.Tensor((1, 1, 1280), dtype="float32") = R.reshape(lv2, R.shape([1, 1, 1280]))
                 gv: R.Tensor((1, 1, 1280), dtype="float32") = lv3
@@ -487,7 +487,7 @@ def test_getitem():
                     begin=[0, 0],
                     end=[77, 1280],
                     strides=[1, 1],
-                    assume_inbound=False
+                    assume_inbound=False,
                 )
                 lv3: R.Tensor((1, 77, 1280), dtype="float32") = R.reshape(
                     lv2, R.shape([1, 77, 1280])
