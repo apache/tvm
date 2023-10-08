@@ -576,7 +576,7 @@ class SearchTask(Object):
         # workload[0] is either the compute function name or the ComputeDAG hash.
         # The compute functions are already registered when importing TVM, so here
         # we only register the ComputeDAG workloads. If the same workload has
-        # already been registered, the later registration overrides the prvious one.
+        # already been registered, the later registration overrides the previous one.
         if workload[0] not in WORKLOAD_FUNC_REGISTRY:
             register_workload_tensors(state["workload_key"], state["compute_dag"].tensors)
 

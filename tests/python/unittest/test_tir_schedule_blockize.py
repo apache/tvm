@@ -54,7 +54,9 @@ def test_blockize_outer():
     s = tir.Schedule(func, debug_mask="all")
     x, _ = s.get_loops(s.get_block("B"))
     s.blockize(x)
-    tvm.ir.assert_structural_equal(s.mod["main"], after_blockize_outer)
+    tvm.ir.assert_structural_equal(
+        s.mod["main"], after_blockize_outer.with_attr("global_symbol", "single_elementwise")
+    )
     verify_trace_roundtrip(sch=s, mod=func)
 
 
@@ -77,7 +79,9 @@ def test_blockize_inner():
     s = tir.Schedule(func, debug_mask="all")
     _, y = s.get_loops(s.get_block("B"))
     s.blockize(y)
-    tvm.ir.assert_structural_equal(s.mod["main"], after_blockize_inner)
+    tvm.ir.assert_structural_equal(
+        s.mod["main"], after_blockize_inner.with_attr("global_symbol", "single_elementwise")
+    )
     verify_trace_roundtrip(sch=s, mod=func)
 
 
@@ -139,7 +143,9 @@ def test_two_elementwise_blockize_reverse_compute_at():
     s = tir.Schedule(func, debug_mask="all")
     _, _, x, _ = s.get_loops(s.get_block("C"))
     s.blockize(x)
-    tvm.ir.assert_structural_equal(s.mod["main"], after_blockize_rca)
+    tvm.ir.assert_structural_equal(
+        s.mod["main"], after_blockize_rca.with_attr("global_symbol", "before_blockize_rca")
+    )
     verify_trace_roundtrip(sch=s, mod=func)
 
 
@@ -209,7 +215,10 @@ def test_two_elementwise_blockize_compute_at():
     s = tir.Schedule(func, debug_mask="all")
     _, _, x, _ = s.get_loops(s.get_block("B"))
     s.blockize(x)
-    tvm.ir.assert_structural_equal(s.mod["main"], after_blockize_compute_at)
+    tvm.ir.assert_structural_equal(
+        s.mod["main"],
+        after_blockize_compute_at.with_attr("global_symbol", "before_blockize_compute_at"),
+    )
     verify_trace_roundtrip(sch=s, mod=func)
 
 
@@ -244,7 +253,9 @@ def test_blockize_init_loops():
     s = tir.Schedule(rowsum, debug_mask="all")
     k, _ = s.get_loops(s.get_block("B"))
     s.blockize(k)
-    tvm.ir.assert_structural_equal(s.mod["main"], after_rowsum_blockize)
+    tvm.ir.assert_structural_equal(
+        s.mod["main"], after_rowsum_blockize.with_attr("global_symbol", "rowsum")
+    )
     verify_trace_roundtrip(sch=s, mod=rowsum)
 
 
@@ -301,7 +312,9 @@ def test_blockize_outer_int64_shape(preserve_unit_iters):
         if preserve_unit_iters
         else after_single_elementwise_int64_blockize
     )
-    tvm.ir.assert_structural_equal(s.mod["main"], expected)
+    tvm.ir.assert_structural_equal(
+        s.mod["main"], expected.with_attr("global_symbol", "single_elementwise_int64")
+    )
     verify_trace_roundtrip(sch=s, mod=single_elementwise_int64)
 
 
@@ -350,7 +363,9 @@ def test_blockize_blocks():
     blocks = [s.get_block("B"), s.get_block("C")]
     s.blockize(blocks, preserve_unit_iters=False)
     expected = after_blocks_blockize
-    tvm.ir.assert_structural_equal(s.mod["main"], expected)
+    tvm.ir.assert_structural_equal(
+        s.mod["main"], expected.with_attr("global_symbol", "blocks_func")
+    )
     verify_trace_roundtrip(sch=s, mod=blocks_func)
 
 

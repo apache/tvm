@@ -1909,13 +1909,14 @@ void CollectReindexCacheStageInfoAndCreateBuffer(
     ReindexCacheStageInfo* info, const IRModule& mod, const StmtSRef& block_sref,
     const String& storage_scope, const IndexMap& index_map, const Block& block,
     const BlockRealize& realize, const Buffer& old_buffer, const BufferRegion& cache_region) {
+  arith::Analyzer analyzer;
   Array<PrimExpr> block_iter_vars, block_shape;
   for (const IterVar& iter_var : block->iter_vars) {
     block_iter_vars.push_back(iter_var);
     block_shape.push_back(iter_var->dom->extent);
   }
-  Array<PrimExpr> new_indices = index_map->MapIndices(block_iter_vars);
-  Array<PrimExpr> new_shape = index_map->MapShape(block_shape);
+  Array<PrimExpr> new_indices = index_map->MapIndices(block_iter_vars, &analyzer);
+  Array<PrimExpr> new_shape = index_map->MapShape(block_shape, &analyzer);
   info->indices = new_indices;
 
   // Step 5. Update CacheTouchedInfo
@@ -1925,8 +1926,6 @@ void CollectReindexCacheStageInfoAndCreateBuffer(
     collector_old(range->min);
     old_indices.push_back(range->min);
   }
-
-  arith::Analyzer analyzer;
 
   VarUseDefAnalyzer collector_new(/*defined_vars=*/{});
   for (const PrimExpr& idx : new_indices) {

@@ -100,7 +100,7 @@ def main(model_str, output_path):
     with tvm.transform.PassContext(opt_level=3):
         graph, lib, params = relay.build(net, tvm.target.Target(target, target_host), params=params)
     print("dumping lib...")
-    lib.export_library(output_path_str + "/" + "deploy_lib_cpu.so", ndk.create_shared)
+    lib.export_library(output_path_str + "/" + "deploy_lib_cpu.so", fcompile=ndk.create_shared)
     print("dumping graph...")
     with open(output_path_str + "/" + "deploy_graph.json", "w") as f:
         f.write(graph)

@@ -58,7 +58,7 @@ def test_rpc_module(host, port, key, mode):
     # If we don't want to do metal and only use cpu, just set target to be target
     f = tvm.build(s, [A, B], tvm.target.Target("metal", host=target), name="myadd")
     path_dso1 = temp.relpath("dev_lib.dylib")
-    f.export_library(path_dso1, xcode.create_dylib, arch=arch, sdk=sdk)
+    f.export_library(path_dso1, fcompile=xcode.create_dylib, arch=arch, sdk=sdk)
 
     s = te.create_schedule(B.op)
     xo, xi = s[B].split(B.op.axis[0], factor=64)
@@ -67,7 +67,7 @@ def test_rpc_module(host, port, key, mode):
     s[B].pragma(xi, "parallel_barrier_when_finish")
     f = tvm.build(s, [A, B], target, name="myadd_cpu")
     path_dso2 = temp.relpath("cpu_lib.dylib")
-    f.export_library(path_dso2, xcode.create_dylib, arch=arch, sdk=sdk)
+    f.export_library(path_dso2, fcompile=xcode.create_dylib, arch=arch, sdk=sdk)
 
     # connect to the proxy
     if mode == "tracker":

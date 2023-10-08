@@ -742,7 +742,6 @@ class ExpandDim(OneFlowOpConverter):
 
     @classmethod
     def _impl_v1(cls, inputs, attrs, params):
-
         return _op.expand_dims(inputs[0], axis=attrs.get("axis", 0))
 
 
@@ -1025,15 +1024,17 @@ class Dropout(OneFlowOpConverter):
         return out
 
 
-class ThresholdedRelu(OneFlowOpConverter):
-    """Operator converter for ThresholdedRelu."""
+class Threshold(OneFlowOpConverter):
+    """Operator converter for Threshold."""
 
     @classmethod
     def _impl_v1(cls, inputs, attrs, params):
-        alpha = float(attrs.get("alpha", 1.0))
-        alpha_tensor = _op.full_like(inputs[0], fill_value=_expr.const(alpha))
-        mask = _op.greater(inputs[0], alpha_tensor).astype("float32")
-        return inputs[0] * mask
+        threshold = float(attrs.get("threshold_val", 1.0))
+        threshold_tensor = _op.full_like(inputs[0], fill_value=_expr.const(threshold))
+        value = float(attrs.get("value"))
+        value_tensor = _op.full_like(inputs[0], fill_value=_expr.const(value))
+        mask = _op.greater(inputs[0], threshold_tensor)
+        return _op.where(mask, inputs[0], value_tensor)
 
 
 class Elu(OneFlowOpConverter):
@@ -1119,8 +1120,11 @@ class Softplus(OneFlowOpConverter):
     def _impl_v1(cls, inputs, attrs, params):
         data = inputs[0]
         data_dtype = infer_type(data).checked_type.dtype
-        data = _op.exp(data) + _expr.const(1, dtype=data_dtype)
-        return _op.log(data)
+        beta = _expr.const(float(attrs.get("beta", 1.0)))
+        threshold = float(attrs.get("threshold", 20.0))
+        threshold_ = _op.full_like(data, fill_value=_expr.const(threshold))
+        softplus_value = _op.log(_op.exp(data * beta) + _expr.const(1.0, dtype=data_dtype)) / beta
+        return _op.where(_op.greater(data * beta, threshold_), data, softplus_value)
 
 
 class Softsign(OneFlowOpConverter):
@@ -1422,14 +1426,17 @@ def get_convert_map():
         "relu": Renamer("relu"),
         "leaky_relu": Renamer("leaky_relu"),
         "prelu": PReLU.get_converter(),
+        "threshold": Threshold.get_converter(),
         "selu": Selu.get_converter(),
         "silu": Silu.get_converter(),
         "gelu": Gelu.get_converter(),
         # defs/nn
         "conv2d": Conv2d.get_converter(),
         "deconv2d": ConvTranspose2d.get_converter(),
-        "maxpool_2d": MaxPool2d.get_converter(),
-        "avgpool_2d": AveragePool2d.get_converter(),
+        "max_pool_2d": MaxPool2d.get_converter(),
+        "avg_pool_2d": AveragePool2d.get_converter(),
+        "maxpool_2d": MaxPool2d.get_converter(),  # Maintained for oneflow versions <= "0.7.0"
+        "avgpool_2d": AveragePool2d.get_converter(),  # Maintained for oneflow versions <= "0.7.0"
         "adaptive_avg_pool2d": AdaptiveAvgPool2d.get_converter(),
         "adaptive_max_pool2d": AdaptiveMaxPool2d.get_converter(),
         "dropout": Dropout.get_converter(),
@@ -1903,7 +1910,10 @@ def from_oneflow(graph, model_dir_path):
             size_attr = size_str[0].replace("size=", "")
             if size_attr[-2] == ",":
                 size_attr = size_attr.replace(",", "")
-            data_size = tuple(map(int, size_attr[1:-1].split(", ")))
+            if size_attr == "()":
+                data_size = ()
+            else:
+                data_size = tuple(map(int, size_attr[1:-1].split(", ")))
             node_name = attrs[1]
             shape[node_name] = data_size
             dtype[node_name] = "float32"

@@ -141,6 +141,18 @@ std::string CodeGenCUDA::Finish() {
     decl_stream << "#include <mma.h>\n";
   }
 
+  if (need_cast_smem_ptr_to_int_) {
+    decl_stream << "__forceinline__ __device__ unsigned int\n";
+    decl_stream << "cast_smem_ptr_to_int(const void* const smem_ptr)\n";
+    decl_stream << "{\n";
+    decl_stream << "  unsigned int smem_int;\n";
+    decl_stream << "  asm volatile (\"{ .reg .u64 smem_int; cvta.to.shared.u64 smem_int, %1; "
+                   "cvt.u32.u64 %0, smem_int; }\"\n";
+    decl_stream << "    : \"=r\"(smem_int) : \"l\"(smem_ptr));\n";
+    decl_stream << "  return smem_int;\n";
+    decl_stream << "}\n";
+  }
+
   decl_stream << "\n#if (((__CUDACC_VER_MAJOR__ == 11) && (__CUDACC_VER_MINOR__ >= 4)) || \\\n";
   decl_stream << "     (__CUDACC_VER_MAJOR__ > 11))\n";
   decl_stream << "#define TVM_ENABLE_L2_PREFETCH 1\n";
@@ -873,6 +885,7 @@ void CodeGenCUDA::VisitExpr_(const CallNode* op, std::ostream& os) {
       os << "}\n";
     } else {
       std::string smem_elem_offset = this->PrintExpr(op->args[6]);
+      need_cast_smem_ptr_to_int_ = true;
       this->stream << PrintLoadMatrixAssembly(trans, num, type, local_ptr, local_elem_offset,
                                               smem_ptr, smem_elem_offset);
     }
@@ -898,8 +911,9 @@ void CodeGenCUDA::VisitExpr_(const CallNode* op, std::ostream& os) {
         runtime::Registry::Get("tir.index_map.shared_16x16_to_ldmatrix_32x8_layout");
     ICHECK(index_map_func);
 
+    arith::Analyzer analyzer;
     auto inverse_index_map =
-        IndexMap::FromFunc(2, *index_map_func).Inverse({Range(0, m), Range(0, n)});
+        IndexMap::FromFunc(2, *index_map_func).Inverse({Range(0, m), Range(0, n)}, &analyzer);
     auto indices_16x16 = inverse_index_map->final_indices;
 
     // "//" and "%" in the index map are translated to FloorDiv/Mod, but the plain Div/Mod are fine.
@@ -939,6 +953,7 @@ void CodeGenCUDA::VisitExpr_(const CallNode* op, std::ostream& os) {
     std::string src = this->PrintExpr(op->args[2]);
     std::string src_offset = this->PrintExpr(op->args[3]);
     std::string size = this->PrintExpr(op->args[4]);
+    need_cast_smem_ptr_to_int_ = true;
     // use size of argument list to indicate whether or not to use predicated cp.async
     if (op->args.size() == 5) {
       this->stream << PrintCpAsyncAssembly(dst, dst_offset, src, src_offset, size);
@@ -946,11 +961,68 @@ void CodeGenCUDA::VisitExpr_(const CallNode* op, std::ostream& os) {
       this->stream << PrintPredicatedCpAsyncAssembly(dst, dst_offset, src, src_offset, size,
                                                      this->PrintExpr(op->args[5]));
     }
+  } else if (op->op.same_as(builtin::ptx_cp_async_bulk())) {
+    need_cast_smem_ptr_to_int_ = true;
+    std::string dst = this->PrintExpr(op->args[0]);
+    std::string dst_offset = this->PrintExpr(op->args[1]);
+    std::string src = this->PrintExpr(op->args[2]);
+    std::string src_offset = this->PrintExpr(op->args[3]);
+    std::string size = this->PrintExpr(op->args[4]);
+    int barrier_id = Downcast<IntImm>(op->args[5])->value;
+    CHECK(barrier_id < barrier_count_);
+    std::string barrier = barrier_name_ + "[" + std::to_string(barrier_id) + "]";
+    this->stream << PrintCpAsyncBulkAsm(dst, dst_offset, src, src_offset, size, barrier);
   } else if (op->op.same_as(builtin::ptx_commit_group())) {
     this->stream << "__asm__ __volatile__(\"cp.async.commit_group;\");\n\n";
   } else if (op->op.same_as(builtin::ptx_wait_group())) {
     int n = Downcast<IntImm>(op->args[0])->value;
     this->stream << "__asm__ __volatile__(\"cp.async.wait_group " << n << ";\");\n\n";
+  } else if (op->op.same_as(builtin::ptx_cp_async_barrier())) {
+    need_cast_smem_ptr_to_int_ = true;
+    int barrier_id = Downcast<IntImm>(op->args[0])->value;
+    CHECK(barrier_id < barrier_count_);
+    std::string barrier = barrier_name_ + "[" + std::to_string(barrier_id) + "]";
+    this->stream << PrintCpAsyncBarrierAsm(barrier);
+  } else if (op->op.same_as(builtin::ptx_init_barrier_thread_count())) {
+    need_cast_smem_ptr_to_int_ = true;
+    int barrier_id = Downcast<IntImm>(op->args[0])->value;
+    CHECK(barrier_id < barrier_count_);
+    std::string barrier = barrier_name_ + "[" + std::to_string(barrier_id) + "]";
+    std::string thread_count = this->PrintExpr(op->args[1]);
+    this->stream << PrintInitBarrierThreadCountAsm(barrier, thread_count);
+  } else if (op->op.same_as(builtin::ptx_arrive_barrier())) {
+    need_cast_smem_ptr_to_int_ = true;
+    int barrier_id = Downcast<IntImm>(op->args[0])->value;
+    CHECK(barrier_id < barrier_count_);
+    std::string barrier = barrier_name_ + "[" + std::to_string(barrier_id) + "]";
+    this->stream << PrintArriveBarrierAsm(barrier);
+  } else if (op->op.same_as(builtin::ptx_arrive_barrier_expect_tx())) {
+    need_cast_smem_ptr_to_int_ = true;
+    int barrier_id = Downcast<IntImm>(op->args[0])->value;
+    CHECK(barrier_id < barrier_count_);
+    std::string barrier = barrier_name_ + "[" + std::to_string(barrier_id) + "]";
+    std::string byte_count = this->PrintExpr(op->args[1]);
+    this->stream << PrintArriveBarrierExpectTxAsm(barrier, byte_count);
+  } else if (op->op.same_as(builtin::ptx_wait_barrier())) {
+    need_cast_smem_ptr_to_int_ = true;
+    int barrier_id = Downcast<IntImm>(op->args[0])->value;
+    CHECK(barrier_id < barrier_count_);
+    std::string barrier = barrier_name_ + "[" + std::to_string(barrier_id) + "]";
+    this->stream << PrintWaitBarrierAsm(barrier);
+  } else if (op->op.same_as(builtin::create_barriers())) {
+    CHECK_EQ(barrier_count_, -1);
+    int barrier_count = Downcast<IntImm>(op->args[0])->value;
+    // pad barrier alignment to avoid runtime alignment errors
+    CHECK_EQ(barrier_alignment_bytes_ % sizeof(uint64_t), 0);
+    int barrier_alignment_count = barrier_alignment_bytes_ / sizeof(uint64_t);
+    if (barrier_count % barrier_alignment_count != 0) {
+      barrier_count = ((barrier_count / barrier_alignment_count) + 1) * barrier_alignment_count;
+    }
+    barrier_count_ = barrier_count;
+    this->stream << "__shared__ __align__(" << barrier_alignment_bytes_ << ") uint64_t "
+                 << barrier_name_ << "[" << barrier_count << "];\n";
+    this->stream << "for (int i = 0; i < " << barrier_count << "; ++i) { " << barrier_name_
+                 << "[i] = 0; }\n";
   } else if (op->op.same_as(builtin::ptx_ldg32())) {
     /*
     asm volatile (

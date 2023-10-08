@@ -426,12 +426,48 @@ Stmt TransformReductionBlock(const BlockRealizeNode* realize,            //
           BufferStore(wb_buffers[i], BufferLoad(ct_buffers[i], {Integer(0)}), wb_indices));
       wb_regions.push_back(BufferRegion(wb_buffers[i], region));
     }
+
+    // Construct the predicate of the write-back block. It is the conjunction of
+    // - each predicate clause of the original block which contains spatial loop var, and
+    // - `t == 0` for each reduction thread dim when the write-back buffer is not local.
     PrimExpr wb_predicate = const_true();
-    for (const ForNode* loop : reduction_loops) {
-      if (loop->thread_binding.defined()) {
-        wb_predicate = wb_predicate && (loop->loop_var == IntImm(loop->loop_var->dtype, 0));
+    std::unordered_set<const VarNode*> reduction_loop_vars;
+    reduction_loop_vars.reserve(reduction_loops.size());
+    for (const ForNode* reduction_loop : reduction_loops) {
+      reduction_loop_vars.insert(reduction_loop->loop_var.get());
+    }
+    PostOrderVisit(realize->predicate, [&wb_predicate, &reduction_loop_vars](const ObjectRef& obj) {
+      if (const auto* and_node = obj.as<AndNode>()) {
+        Array<PrimExpr> sub_exprs = {and_node->a, and_node->b};
+        for (PrimExpr sub_expr : sub_exprs) {
+          if (sub_expr->IsInstance<AndNode>()) {
+            continue;
+          }
+          bool is_reduction = [sub_expr, &reduction_loop_vars]() {
+            Array<Var> vars = UndefinedVars(sub_expr);
+            for (Var var : vars) {
+              if (reduction_loop_vars.find(var.get()) != reduction_loop_vars.end()) {
+                return true;
+              }
+            }
+            return false;
+          }();
+          if (!is_reduction) {
+            wb_predicate = wb_predicate && sub_expr;
+          }
+        }
+        return true;
+      }
+      return false;
+    });
+    if (wb_buffers[0].scope() != "local") {
+      for (const ForNode* loop : reduction_loops) {
+        if (loop->thread_binding.defined()) {
+          wb_predicate = wb_predicate && (loop->loop_var == IntImm(loop->loop_var->dtype, 0));
+        }
       }
     }
+
     stmts.push_back(BlockRealize(
         /*iter_values=*/std::move(bindings),
         /*predicate=*/wb_predicate,
@@ -498,21 +534,45 @@ class CrossThreadReductionTransformer : public StmtMutator {
   }
 
   // Check if the input block needs thread broadcast rewrite.
-  // One block needs broadcast rewrite when there exists one or more thread
-  // vars which vars free variables to this block.
+  // One block needs broadcast rewrite when
+  // 1. it consumes a buffer produced by cross-thread reduction under
+  // the same kernel (i.e., same group of blockIdx),
+  // 2. it writes to non-local memory,
+  // 3. at least one of the reduction thread vars of the cross-thread reduction
+  // is free to this block (i.e., not bound to the block).
   std::vector<std::pair<ThreadScope, Range>> NeedCrossThreadBroadcast(
       const BlockRealizeNode* realize) {
-    std::unordered_map<ThreadScope, Range, ThreadScopeHash, ThreadScopeEqual> unbound_thread2range =
-        thread2range_;
-    for (const ForNode* loop : loop_stack_) {
-      if (loop->thread_binding.defined()) {
-        ThreadScope scope = ThreadScope::Create(loop->thread_binding.value()->thread_tag);
-        unbound_thread2range.erase(scope);
+    Block block = realize->block;
+
+    // If the block writes to local memory, no rewrite is needed.
+    for (BufferRegion write_region : block->writes) {
+      if (write_region->buffer.scope() == "local") {
+        return {};
       }
     }
 
+    // Find out the reduction threads for the read-buffers which are produced by
+    // cross-thread reduction.
+    std::unordered_map<ThreadScope, Range, ThreadScopeHash, ThreadScopeEqual> thread2range;
+    for (BufferRegion read_region : block->reads) {
+      auto buf_it = crt_buf2threads_.find(read_region->buffer.get());
+      if (buf_it == crt_buf2threads_.end()) {
+        continue;
+      }
+      for (auto [scope, range] : buf_it->second) {
+        thread2range[scope] = range;
+      }
+    }
+
+    // Erase those threads which are not free to this block.
+    for (const ForNode* loop : loop_stack_) {
+      if (loop->thread_binding.defined()) {
+        ThreadScope scope = ThreadScope::Create(loop->thread_binding.value()->thread_tag);
+        thread2range.erase(scope);
+      }
+    }
     std::vector<std::pair<ThreadScope, Range>> unbound_thread2range_list;
-    for (auto [scope, range] : unbound_thread2range) {
+    for (auto [scope, range] : thread2range) {
       unbound_thread2range_list.emplace_back(scope, range);
     }
     return unbound_thread2range_list;
@@ -582,13 +642,28 @@ class CrossThreadReductionTransformer : public StmtMutator {
     std::tie(reducer, combiner_lhs, combiner_rhs) =
         GetReducerAndCombinerLhsRhs(NullOpt, init_values, updates);
 
+    // Condition 4. All reduction buffers should be all local or all non-local.
+    int is_local_buf = -1;
     Array<Buffer> reduction_buffers;
     reduction_buffers.reserve(updates.size());
     for (const BufferStore& buf_store : updates) {
       reduction_buffers.push_back(buf_store->buffer);
+      if (buf_store->buffer.scope() == "local") {
+        CHECK_NE(is_local_buf, 0)
+            << "ValueError: Cross-thread reduction requires all reduction buffers to be all "
+               "local or all non-local. However, here some buffer is local while some buffer is "
+               "shared or global.";
+        is_local_buf = 1;
+      } else {
+        CHECK_NE(is_local_buf, 1)
+            << "ValueError: Cross-thread reduction requires all reduction buffers to be all "
+               "local or all non-local. However, here some buffer is local while some buffer is "
+               "shared or global.";
+        is_local_buf = 0;
+      }
     }
 
-    // Condition 4. The block should be the last block under the first reduction-related loop.
+    // Condition 5. The block should be the last block under the first reduction-related loop.
     bool visit = false;
     PreOrderVisit(GetRef<For>(reduction_loops[0]), [block, &visit](const ObjectRef& obj) {
       if (const auto* realize = obj.as<BlockRealizeNode>()) {
@@ -631,8 +706,6 @@ class CrossThreadReductionTransformer : public StmtMutator {
       if (scope.rank == 1 && scope.dim_index >= 0) {
         is_thread_idx = true;
         ++thread_idx_depth;
-        thread2range_[scope] = Range::FromMinExtent(loop->min, loop->extent);
-        thread_loop_var2scope_[loop->loop_var.get()] = scope;
       } else if (scope.rank == 0) {
         is_block_idx = true;
         ++block_idx_depth;
@@ -649,7 +722,7 @@ class CrossThreadReductionTransformer : public StmtMutator {
       --block_idx_depth;
     }
     if (is_block_idx || (is_thread_idx && thread_idx_depth == 0 && block_idx_depth == 0)) {
-      thread2range_.clear();
+      crt_buf2threads_.clear();
     }
 
     // Replace `result` with the pre-stored result if `loop` appears as a key in `loop2new_stmt_`.
@@ -716,6 +789,21 @@ class CrossThreadReductionTransformer : public StmtMutator {
     loop2new_stmt_[reduction_loops[0]] =
         TransformReductionBlock(realize, it_buffers, ct_buffers, reduction_buffers, wb_indices,
                                 reducer, combiner_rhs, reduction_loops);
+
+    // Step 5. Record the reduction thread dims for the write-back buffers.
+    // The information is used for consumer block broadcasting detection.
+    std::vector<std::pair<ThreadScope, Range>> reduction_threads;
+    reduction_threads.reserve(reduction_loops.size());
+    for (const ForNode* loop : reduction_loops) {
+      if (loop->thread_binding.defined()) {
+        reduction_threads.emplace_back(
+            ThreadScope::Create(loop->thread_binding.value()->thread_tag),
+            Range::FromMinExtent(loop->min, loop->extent));
+      }
+    }
+    for (const Buffer& reduction_buf : reduction_buffers) {
+      crt_buf2threads_[reduction_buf.get()] = reduction_threads;
+    }
   }
 
   Stmt MakeCrossThreadBroadcast(
@@ -792,8 +880,8 @@ class CrossThreadReductionTransformer : public StmtMutator {
 
   int block_idx_depth = 0;
   int thread_idx_depth = 0;
-  std::unordered_map<ThreadScope, Range, ThreadScopeHash, ThreadScopeEqual> thread2range_;
-  std::unordered_map<const VarNode*, ThreadScope> thread_loop_var2scope_;
+  std::unordered_map<const BufferNode*, std::vector<std::pair<ThreadScope, Range>>>
+      crt_buf2threads_;
 };
 
 PrimFunc LowerCrossThreadReduction(PrimFunc f) {

@@ -571,7 +571,7 @@ class _WrappedBuildFunc:
                     raise ImportError("Requires USE_MICRO")
                 micro.export_model_library_format(func, filename)
             else:
-                func.export_library(filename, self.build_func)
+                func.export_library(filename, fcompile=self.build_func)
         except Exception as e:  # pylint: disable=broad-except
             tb = traceback.format_exc()
             return BuildResult(None, None, (tb, e), time.time() - tic)

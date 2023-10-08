@@ -15,6 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 """The TensorIR schedule class"""
+import inspect
 from typing import Callable, Dict, List, Optional, Tuple, Union
 
 from tvm._ffi import register_object as _register_object
@@ -91,6 +92,15 @@ def _parse_seed(seed: Optional[int]) -> int:
     if seed < 1 or seed > 2147483647:
         raise ValueError(f"seed must be in the range [1, 2147483647], but gets: {seed}")
     return seed
+
+
+def _get_block_default_dtype(block: Block) -> str:
+    for i in block.iter_vars:
+        return i.var.dtype
+    for buffer_region in list(block.reads) + list(block.writes):
+        for dom in buffer_region.region:
+            return dom.min.dtype
+    return "int64"
 
 
 @_register_object("tir.Schedule")
@@ -259,26 +269,24 @@ class Schedule(Object):
         """
         return _ffi_api.ScheduleForkSeed(self)  # type: ignore # pylint: disable=no-member
 
-    def show(self, style: Optional[str] = None, black_format: bool = True) -> None:
+    def show(self, *args, **kwargs) -> None:
         """A sugar for print highlighted TVM script.
 
-        Parameters
-        ----------
-        style : str, optional
-
-            Pygmentize printing style, auto-detected if None.  See
-            `tvm.script.highlight.cprint` for more details.
-
-        black_format: bool
-
-            If true (default), use the formatter Black to format the TVMScript
+        All parameters are forwarded to the underlying `Module.show`
+        and `Trace.show` methods.
         """
         mod = self.mod
         if mod is not None:
-            mod.show(style=style, black_format=black_format)
+            mod.show(*args, **kwargs)
+
         trace = self.trace
         if trace is not None:
-            trace.show(style=style, black_format=black_format)
+            # Trace.show only supports the style and black_format arguments
+            param_binding = inspect.signature(mod.show).bind(*args, **kwargs)
+            param_binding.apply_defaults()
+            bound_args = param_binding.arguments
+
+            trace.show(style=bound_args["style"], black_format=bound_args["black_format"])
 
     ########## Lookup ##########
 
@@ -1492,7 +1500,10 @@ class Schedule(Object):
         block = self._normalize_block_arg(block)
 
         if callable(index_map):
-            index_map = IndexMap.from_func(index_map)
+            index_map = IndexMap.from_func(
+                index_map,
+                index_dtype=_get_block_default_dtype(self.get(block)),
+            )
         return _ffi_api.ScheduleReindexCacheRead(  # type: ignore # pylint: disable=no-member
             self, block, read_buffer_index, storage_scope, index_map
         )
@@ -1589,7 +1600,10 @@ class Schedule(Object):
         block = self._normalize_block_arg(block)
 
         if callable(index_map):
-            index_map = IndexMap.from_func(index_map)
+            index_map = IndexMap.from_func(
+                index_map,
+                index_dtype=_get_block_default_dtype(self.get(block)),
+            )
         return _ffi_api.ScheduleReindexCacheWrite(  # type: ignore # pylint: disable=no-member
             self, block, write_buffer_index, storage_scope, index_map
         )
@@ -1602,7 +1616,7 @@ class Schedule(Object):
         storage_scope: str,
     ) -> List[BlockRV]:
         """Create blocks that reads & write a buffer region into a cache block.
-        It requires the the target block both read & write the target buffer.
+        It requires the target block both read & write the target buffer.
         Mainly for inplace operation.
 
         Parameters
@@ -3246,14 +3260,22 @@ class Schedule(Object):
 
         ndim = len(buffer_obj.shape)
         if callable(index_map):
-            index_map, axis_separators = IndexMap.from_func_with_separators(index_map, ndim=ndim)
+            index_map, axis_separators = IndexMap.from_func_with_separators(
+                index_map,
+                ndim=ndim,
+                index_dtype=_get_block_default_dtype(self.get(block)),
+            )
         else:
             axis_separators = []
 
         if pad_value is None:
             pass
         elif callable(pad_value):
-            pad_value = IndexMap.from_func(pad_value, ndim=len(index_map.final_indices))
+            pad_value = IndexMap.from_func(
+                pad_value,
+                ndim=len(index_map.final_indices),
+                index_dtype=_get_block_default_dtype(self.get(block)),
+            )
         elif not isinstance(pad_value, IndexMap):
             # Explicitly convert python int/float arguments to the
             # buffer's type.  If the default `tvm.runtime.convert`
@@ -3264,7 +3286,9 @@ class Schedule(Object):
             elif "float" in buffer_obj.dtype and isinstance(pad_value, float):
                 pad_value = FloatImm(buffer_obj.dtype, pad_value)
             pad_value = IndexMap.from_func(
-                lambda *indices: pad_value, ndim=len(index_map.final_indices)
+                lambda *indices: pad_value,
+                ndim=len(index_map.final_indices),
+                index_dtype=_get_block_default_dtype(self.get(block)),
             )
 
         buffer_index_type_enum = 0 if buffer_index_type == "read" else 1
@@ -3337,7 +3361,10 @@ class Schedule(Object):
         """
         block = self._normalize_block_arg(block)
         if callable(index_map):
-            index_map = IndexMap.from_func(index_map)
+            index_map = IndexMap.from_func(
+                index_map,
+                index_dtype=_get_block_default_dtype(self.get(block)),
+            )
         _ffi_api.ScheduleTransformBlockLayout(  # type: ignore # pylint: disable=no-member
             self, block, index_map
         )

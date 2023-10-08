@@ -321,8 +321,10 @@ def test_condition():
                 i * 65 + j >= 0 and i * 65 + j < 128, A[i * 65 + j], T.float32(0), dtype="float32"
             )
 
-    after = tvm.tir.transform.NarrowDataType(32)(tvm.IRModule.from_expr(before))["main"]
-    tvm.ir.assert_structural_equal(after, expected_after)
+    after = tvm.tir.transform.NarrowDataType(32)(
+        tvm.IRModule.from_expr(before.with_attr("global_symbol", "main"))
+    )["main"]
+    tvm.ir.assert_structural_equal(after, expected_after.with_attr("global_symbol", "main"))
 
 
 def test_block():
@@ -342,8 +344,10 @@ def test_block():
                     vi = T.axis.spatial(T.int32(128), i * T.int32(8) + j)
                     B[vi] = A[vi] + T.float32(1)
 
-    after = tvm.tir.transform.NarrowDataType(32)(tvm.IRModule.from_expr(before))["main"]
-    tvm.ir.assert_structural_equal(after, expected_after)
+    after = tvm.tir.transform.NarrowDataType(32)(
+        tvm.IRModule.from_expr(before.with_attr("global_symbol", "main"))
+    )["main"]
+    tvm.ir.assert_structural_equal(after, expected_after.with_attr("global_symbol", "main"))
 
 
 def test_avg_pool2d():
@@ -402,9 +406,11 @@ def test_avg_pool2d():
                         ),
                     )
 
-    after = tvm.tir.transform.NarrowDataType(32)(tvm.IRModule.from_expr(before))
+    after = tvm.tir.transform.NarrowDataType(32)(
+        tvm.IRModule.from_expr(before.with_attr("global_symbol", "main"))
+    )
     after = tvm.tir.transform.Simplify()(after)
-    tvm.ir.assert_structural_equal(after["main"], expected_after)
+    tvm.ir.assert_structural_equal(after["main"], expected_after.with_attr("global_symbol", "main"))
 
 
 if __name__ == "__main__":

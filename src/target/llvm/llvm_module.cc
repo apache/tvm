@@ -485,6 +485,71 @@ TVM_REGISTER_GLOBAL("target.llvm_get_intrinsic_name").set_body_typed([](int64_t 
 #endif
 });
 
+TVM_REGISTER_GLOBAL("target.llvm_get_targets").set_body_typed([]() -> Array<String> {
+  auto llvm_instance = std::make_unique<LLVMInstance>();
+  LLVMTargetInfo llvm_backend(*llvm_instance, "llvm");
+  return llvm_backend.GetAllLLVMTargets();
+});
+
+TVM_REGISTER_GLOBAL("target.llvm_get_cpu_archlist")
+    .set_body_typed([](const Target& target) -> Array<String> {
+      auto use_target = target.defined() ? target : Target::Current(false);
+      // ignore non "llvm" target
+      if (target.defined()) {
+        if (target->kind->name != "llvm") {
+          return Array<String>{};
+        }
+      }
+      auto llvm_instance = std::make_unique<LLVMInstance>();
+      LLVMTargetInfo llvm_backend(*llvm_instance, use_target);
+      return llvm_backend.GetAllLLVMTargetArches();
+    });
+
+TVM_REGISTER_GLOBAL("target.llvm_get_cpu_features")
+    .set_body_typed([](const Target& target) -> Array<String> {
+      auto use_target = target.defined() ? target : Target::Current(false);
+      // ignore non "llvm" target
+      if (target.defined()) {
+        if (target->kind->name != "llvm") {
+          return Array<String>{};
+        }
+      }
+      auto llvm_instance = std::make_unique<LLVMInstance>();
+      LLVMTargetInfo llvm_backend(*llvm_instance, use_target);
+      return llvm_backend.GetAllLLVMCpuFeatures();
+    });
+
+TVM_REGISTER_GLOBAL("target.llvm_cpu_has_feature")
+    .set_body_typed([](const String feature, const Target& target) -> bool {
+      auto use_target = target.defined() ? target : Target::Current(false);
+      // ignore non "llvm" target
+      if (target.defined()) {
+        if (target->kind->name != "llvm") {
+          return false;
+        }
+      }
+      auto llvm_instance = std::make_unique<LLVMInstance>();
+      LLVMTargetInfo llvm_backend(*llvm_instance, use_target);
+      auto cpu_features = llvm_backend.GetAllLLVMCpuFeatures();
+      bool has_feature = std::any_of(cpu_features.begin(), cpu_features.end(),
+                                     [&](auto& var) { return var == feature; });
+      return has_feature;
+    });
+
+TVM_REGISTER_GLOBAL("target.target_has_feature")
+    .set_body_typed([](const String feature, const Target& target) -> bool {
+      auto use_target = target.defined() ? target : Target::Current(false);
+      // ignore non "llvm" target
+      if (target.defined()) {
+        if (target->kind->name != "llvm") {
+          return false;
+        }
+      }
+      auto llvm_instance = std::make_unique<LLVMInstance>();
+      LLVMTargetInfo llvm_target(*llvm_instance, use_target);
+      return llvm_target.TargetHasCPUFeature(feature);
+    });
+
 TVM_REGISTER_GLOBAL("target.llvm_version_major").set_body_typed([]() -> int {
   return TVM_LLVM_VERSION / 10;
 });

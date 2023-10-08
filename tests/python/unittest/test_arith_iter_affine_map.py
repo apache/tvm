@@ -16,7 +16,7 @@
 # under the License.
 import tvm
 import tvm.testing
-from tvm.tir import floormod, floordiv
+from tvm.tir import floordiv, floormod
 
 
 def ifuse(inputs, pred_extent=None):
@@ -236,6 +236,7 @@ def test_compound_floormod_two_regression():
 def test_predicate():
     x = tvm.tir.Var("x", "int32")
     y = tvm.tir.Var("y", "int32")
+    z = tvm.tir.Var("z", "int32")
 
     # available contraints
     # upper bound only
@@ -267,6 +268,12 @@ def test_predicate():
         {x * 10 + y: (122, 6)},
         var_dom([(x, 13), (y, 10)]),
         predicate=tvm.tir.And(x * 10 + y >= 6, x * 10 + y <= 127),
+    )
+
+    assert_iter_sum_pattern(
+        {x * 64 + y * 4 + z: (16, 16)},
+        var_dom([(x, 16), (y, 16), (z, 4)]),
+        predicate=tvm.tir.And(x * 64 + y * 4 + z < 32, 4 <= x * 16 + y),
     )
 
     # constraint on one fused iter
@@ -1044,6 +1051,8 @@ class TestPadding:
         # original extent is smaller than the divident
         # it is not surjective wrt to the region [0, 16)
         ({x: 3}, {flm(x, 16)}),
+        # (x % c1) // c2 is not proved as surjective if c1 % c2 != 0
+        ({x: 255}, {fld(flm(x, 255), 16)}),
     )
 
     def test_padding(self, positive_test_case):
@@ -1211,18 +1220,36 @@ def test_iter_map_simplify_unit_loop_order():
     # When we have iterators that have same scale but one of them come
     # with unit extent, we should prioritize unit extent
     assert_iter_map_simplify(
-        {x // 128 + y + z: y + x // 128 + z},
+        {x // 128 + y + z: y + z},
         var_dom([(x, 128), (y, 128), (z, 1)]),
         simplify_trivial_iterators=False,
     )
 
 
 def assert_normalize_to_iter_sum(index, input_iters, args, base):
+    """Assert the result of arith.normalize_to_iter_sum is correct
+
+    Parameters
+    ----------
+    index : tvm.tir.PrimExpr
+        The index to be normalized
+    input_iters : Mapping[Var, Range]
+        The input iterators
+    args : List[Union[tvm.arith.IterSplitExpr, Tuple[PrimExpr, PrimExpr]]]
+        The expected result. Ordered list of args of the expected IterSumExpr. Each arg can be
+        either IterSplitExpr or a tuple of (PrimExpr, PrimExpr) where the first element is the
+        iterator normalized to PrimExpr and the second element is the scale.
+    base : tvm.tir.PrimExpr
+        The expected base
+    """
     res = tvm.arith.normalize_to_iter_sum(index, input_iters)
 
     assert isinstance(res, tvm.arith.IterSumExpr)
     assert len(res.args) == len(args)
     for split, item in zip(res.args, args):
+        if isinstance(item, tvm.arith.IterSplitExpr):
+            tvm.ir.assert_structural_equal(split, item)
+            continue
         tvm.testing.assert_prim_expr_equal(split.scale, item[1])
         tvm.testing.assert_prim_expr_equal(
             tvm.arith.normalize_iter_map_to_expr(split), item[0] * item[1]
@@ -1236,6 +1263,7 @@ def test_normalize_to_iter_sum():
     z = tvm.tir.Var("z", "int64")
     a = tvm.tir.Var("a", "int64")
     n = tvm.tir.Var("n", "int64")
+    flm = tvm.tir.floormod
 
     assert_normalize_to_iter_sum(
         z + ((y + x * 4 + 2) * n) + 3,
@@ -1276,6 +1304,21 @@ def test_normalize_to_iter_sum():
         0,
     )
 
+    # non-divisible
+    assert_normalize_to_iter_sum(
+        x // 5,
+        var_dom([(x, 4096)]),
+        [
+            tvm.arith.IterSplitExpr(
+                tvm.arith.IterMark(x, 4096),
+                lower_factor=tvm.tir.const(5, "int64"),
+                extent=tvm.tir.const(820, "int64"),
+                scale=tvm.tir.const(1, "int64"),
+            )
+        ],
+        0,
+    )
+
     # iter simplify
     assert_normalize_to_iter_sum(
         z * 2 + 2 * y * 3 + 4 * (x // 4) + (x % 4),
@@ -1283,6 +1326,26 @@ def test_normalize_to_iter_sum():
         [(y, 6), (z, 2), (x, 1)],
         0,
     )
+
+
+def test_detect_iter_map_with_bufferload_recursion():
+    n = tvm.tir.Var("n", "int32")
+    m = tvm.tir.Var("m", "int32")
+    divisor = tvm.tir.Var("divisor", "int32")
+
+    i = tvm.tir.Var("i", "int32")
+    j = tvm.tir.Var("j", "int32")
+
+    buffer = tvm.tir.decl_buffer((n,), "int32", name="seqlen")
+
+    indices = [(buffer[i] + j) // divisor]
+    iter_vars = {
+        i: tvm.ir.Range(tvm.tir.const(0, "int32"), n),
+        j: tvm.ir.Range(tvm.tir.const(0, "int32"), m),
+    }
+
+    result = tvm.arith.detect_iter_map(indices, iter_vars)
+    assert len(result.indices) == 0
 
 
 if __name__ == "__main__":

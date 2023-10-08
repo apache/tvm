@@ -55,7 +55,7 @@ __all__ = ["from_pytorch"]
 # nodes to the extracted graph's nodes.
 # As Python objects are not round-trippable through C++, and
 # our type annotations only live in Python, we need to map
-# the we need to map the nodes we get in visiting to the nodes
+# the nodes we get in visiting to the nodes
 # we used to construct the graph (they are the same in C++,
 # match each other in dictionary lookups, but are not the same
 # in Python) by using the hint dictionary filled as
@@ -1549,24 +1549,22 @@ class PyTorchOpConverter:
     def addmm(self, inputs, input_types):
         input_mat = inputs[0]
         mat1 = inputs[1]
-        data_type = input_types[1]
         mat2 = inputs[2]
-
         beta = inputs[3]
         alpha = inputs[4]
+        data_type = input_types[1]
+
+        transposed_mat2 = _op.transform.transpose(mat2, axes=[1, 0])
+        units = self.infer_shape(transposed_mat2)[0]
+        dense_out = _op.nn.dense(mat1, transposed_mat2, units=units)
 
         if not isinstance(alpha, _expr.Expr) and alpha != 1:
             alpha = _create_typed_const(alpha, data_type)
-            mat1 *= alpha
+            dense_out *= alpha
 
         if not isinstance(beta, _expr.Expr) and beta != 1:
             beta = _create_typed_const(beta, data_type)
-            mat2 *= beta
-
-        transposed_mat2 = _op.transform.transpose(mat2, axes=[1, 0])
-
-        units = self.infer_shape(transposed_mat2)[0]
-        dense_out = _op.nn.dense(mat1, transposed_mat2, units=units)
+            input_mat *= beta
 
         return dense_out + input_mat
 
@@ -1621,6 +1619,18 @@ class PyTorchOpConverter:
                 new_shape[i] = val.numpy().item(0)
 
         return _op.transform.reshape(data, new_shape)
+
+    def view_as(self, inputs, input_types):
+        data = inputs[0]
+        tensors = inputs[1]
+
+        if not isinstance(tensors, (_expr.Call, _expr.Constant, _expr.Var)):
+            msg = f"Data type {type(tensors)} could not be parsed in view_as op"
+            raise AssertionError(msg)
+
+        shape = self.infer_shape(tensors)
+
+        return _op.transform.reshape(data, shape)
 
     def reshape(self, inputs, input_types):
         data = inputs[0]
@@ -2967,7 +2977,10 @@ class PyTorchOpConverter:
     def flip(self, inputs, input_types):
         data = inputs[0]
         axis = inputs[1]
-        return _op.transform.reverse(data, axis=axis[0])
+        out = data
+        for ax in axis:
+            out = _op.reverse(out, ax)
+        return out
 
     def bidir_rnn_cell(self, input_seqs, weights_dicts, act=_op.tanh):
         """
@@ -3838,6 +3851,7 @@ class PyTorchOpConverter:
             "aten::addmm": self.addmm,
             "aten::size": self.size,
             "aten::view": self.view,
+            "aten::view_as": self.view_as,
             "aten::reshape": self.reshape,
             "aten::reshape_as": self.reshape_as,
             "aten::clone": self.clone,
@@ -4280,7 +4294,15 @@ class PyTorchOpConverter:
 
             self.current_op.pop()
 
-        return [_wrap_const(outputs[ret_name]) for ret_name in ret_names]
+        # TODO(@haoyang9804): outputs[ret_name] could be None and cause some issue
+        # revealed by https://github.com/apache/tvm/issues/15004
+        # Now only adaptive_max_pool1d is considered. Maybe other ops could also
+        # trigger this problem.
+        return [
+            _wrap_const(outputs[ret_name])
+            for ret_name in ret_names
+            if ret_name != "aten::adaptive_max_pool1d_0_1"
+        ]
 
     def _set_parameter_source_name(self, op_node, outputs):
         """A helper function to rewrite source_name of parameter."""
@@ -4405,7 +4427,7 @@ def _create_typed_const(data, dtype):
     dtype should be a TVM dtype"""
 
     if dtype == "float64":
-        typed_data = _expr.const(np.float64(data), dtype=dtype)
+        typed_data = _expr.const(np.asarray(data, dtype="float64"), dtype=dtype)
     elif dtype == "float32":
         typed_data = _expr.const(np.float32(data), dtype=dtype)
     elif dtype == "float16":

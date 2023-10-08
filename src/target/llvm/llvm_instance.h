@@ -266,6 +266,36 @@ class LLVMTargetInfo {
    */
   bool MatchesGlobalState() const;
 
+  /*!
+   * \brief Get all supported targets from the LLVM backend
+   * \return list with all valid targets
+   */
+  const Array<String> GetAllLLVMTargets() const;
+
+  /*!
+   * \brief Get all CPU arches from target
+   * \return list with all valid cpu architectures
+   * \note The arches are fetched from the LLVM backend using the target `-mtriple`.
+   */
+  const Array<String> GetAllLLVMTargetArches() const;
+
+  /*!
+   * \brief Get all CPU features from target
+   * \return list with all valid cpu features
+   * \note The features are fetched from the LLVM backend using the target `-mtriple`
+   *       and the `-mcpu` architecture, but also consider the `-mattr` attributes.
+   */
+  const Array<String> GetAllLLVMCpuFeatures() const;
+
+  /*!
+   * \brief Check the target if has a specific cpu feature
+   * \param feature string with the feature to check
+   * \return true or false
+   * \note The feature is checked in the LLVM backend for the target `-mtriple`
+   *       and `-mcpu` architecture, but also consider the `-mattr` attributes.
+   */
+  const bool TargetHasCPUFeature(const std::string& feature) const;
+
  protected:
   /*!
    * \brief Get the current value of given LLVM option

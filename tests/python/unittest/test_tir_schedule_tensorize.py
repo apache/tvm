@@ -21,7 +21,10 @@ import tvm
 import tvm.testing
 from tvm import te, tir
 from tvm.script import tir as T
-from tvm.tir.schedule.testing import verify_trace_roundtrip
+from tvm.tir.schedule.testing import (
+    assert_structural_equal_ignore_global_symbol,
+    verify_trace_roundtrip,
+)
 from tvm.tir.tensor_intrin.arm_cpu import (
     DP4A_INTRIN,
     ARM_DOT_4x4_i8_NEON_INTRIN,
@@ -507,7 +510,7 @@ def test_tensorize_matmul():
     s.reorder(io, jo, ko, ii, ji, ki)
     s.decompose_reduction(update, ko)
     s.tensorize(ii, "test_mma_intrin")
-    tvm.ir.assert_structural_equal(tensorized_matmul, s.mod["main"])
+    assert_structural_equal_ignore_global_symbol(tensorized_matmul, s.mod["main"])
     verify_trace_roundtrip(sch=s, mod=func)
 
 
@@ -521,7 +524,7 @@ def test_tensorize_batch_matmul():
     ko, ki = s.split(k, factors=[None, 16])
     s.reorder(io, jo, ko, ii, ji, ki)
     s.tensorize(ii, "test_mma_intrin")
-    tvm.ir.assert_structural_equal(tensorized_batch_matmul_mma, s.mod["main"])
+    assert_structural_equal_ignore_global_symbol(tensorized_batch_matmul_mma, s.mod["main"])
     verify_trace_roundtrip(sch=s, mod=batch_matmul)
 
 
@@ -532,7 +535,7 @@ def test_tensorize_dot_product():
     _, _, _, k = s.get_loops(C)
     _, ki = s.split(k, factors=[None, 4])
     s.tensorize(ki, "test_dot_product_intrin")
-    tvm.ir.assert_structural_equal(tensorized_batch_matmul_dot_product, s.mod["main"])
+    assert_structural_equal_ignore_global_symbol(tensorized_batch_matmul_dot_product, s.mod["main"])
     verify_trace_roundtrip(sch=s, mod=func)
 
 
@@ -545,7 +548,7 @@ def test_tensorize_outer_product():
     jo, ji = s.split(j, factors=[None, 16])
     s.reorder(io, jo, k, ii, ji)
     s.tensorize(ii, "test_outer_product_intrin")
-    tvm.ir.assert_structural_equal(tensorized_batch_matmul_outer_product, s.mod["main"])
+    assert_structural_equal_ignore_global_symbol(tensorized_batch_matmul_outer_product, s.mod["main"])
     verify_trace_roundtrip(sch=s, mod=func)
 
 
@@ -560,7 +563,7 @@ def test_tensorize_with_annotation():
     s.reorder(io, jo, ko, ii, ji, ki)
     s.decompose_reduction(update, ko)
     s.tensorize(ii, "test_annotated_mma_intrin")
-    tvm.ir.assert_structural_equal(annotated_tensorized_matmul, s.mod["main"])
+    assert_structural_equal_ignore_global_symbol(annotated_tensorized_matmul, s.mod["main"])
     verify_trace_roundtrip(sch=s, mod=func)
 
 
@@ -820,7 +823,7 @@ def test_tensorize_matmul_mixed_dtype():
     update = s.get_block("update")
     ii = s.get_loops(update)[-3]
     s.tensorize(ii, "test_mma_intrin")
-    tvm.ir.assert_structural_equal(s.mod["main"], tensorized_matmul_int64_shape)
+    assert_structural_equal_ignore_global_symbol(s.mod["main"], tensorized_matmul_int64_shape)
     verify_trace_roundtrip(sch=s, mod=matmul_int64_shape)
 
 

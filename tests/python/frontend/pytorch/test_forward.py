@@ -1661,6 +1661,21 @@ def test_forward_view():
 
 
 @tvm.testing.uses_gpu
+def test_forward_view_as():
+    """test_forward_view_as"""
+    torch.set_grad_enabled(False)
+    input_shape = [1, 3, 10]
+
+    class ViewAs1(Module):
+        def forward(self, *args):
+            t1 = torch.ones((1 * 3 * 10))
+            return args[0].view_as(t1)
+
+    input_data = torch.rand(input_shape).float()
+    verify_model(ViewAs1().float().eval(), input_data=input_data)
+
+
+@tvm.testing.uses_gpu
 def test_forward_select():
     """test_forward_select"""
     torch.set_grad_enabled(False)
@@ -3425,6 +3440,30 @@ def test_forward_full():
 
 
 @tvm.testing.uses_gpu
+def test_forward_adaptive_max_pool1d():
+    """test_forward_adaptive_max_pool1d"""
+    torch.set_grad_enabled(False)
+    input_data = [torch.randn([2, 2, 4], dtype=torch.float32)]
+    m = torch.nn.AdaptiveMaxPool1d(3)
+
+    verify_model(m.float().eval(), input_data=input_data)
+
+
+@tvm.testing.uses_gpu
+def test_forward_instance_norm():
+    """test_forward_instance_norm"""
+
+    class instance_norm(Module):
+        def forward(self, *args):
+            return torch.nn.functional.instance_norm(args[0], use_input_stats=True)
+
+    m = instance_norm().float().eval()
+    input_data = torch.randn([1, 1, 1, 2], dtype=torch.float64)
+
+    verify_model(m.float().eval(), input_data=input_data)
+
+
+@tvm.testing.uses_gpu
 def test_forward_full_like():
     """test_forward_full_like"""
     torch.set_grad_enabled(False)
@@ -4860,13 +4899,14 @@ def test_forward_flip():
             self.axis = axis
 
         def forward(self, x):
-            return x.flip([self.axis])
+            return x.flip(self.axis)
 
     input_t = torch.randn(2, 3, 4)
-    verify_model(Flip(axis=0), input_data=input_t)
-    verify_model(Flip(axis=1), input_data=input_t)
-    verify_model(Flip(axis=2), input_data=input_t)
-    verify_model(Flip(axis=-1), input_data=input_t)
+    verify_model(Flip(axis=[0]), input_data=input_t)
+    verify_model(Flip(axis=[1]), input_data=input_t)
+    verify_model(Flip(axis=[2]), input_data=input_t)
+    verify_model(Flip(axis=[-1]), input_data=input_t)
+    verify_model(Flip(axis=[0, 1]), input_data=input_t)
 
 
 def test_annotate_span():
@@ -5258,6 +5298,18 @@ def test_weight_norm():
     linear_wn = torch.nn.utils.weight_norm(torch.nn.Linear(in_channels, out_channels))
     input_data_linear = torch.rand((128, in_channels)).float()
     verify_model(linear_wn.eval().float(), input_data_linear)
+
+
+@tvm.testing.uses_gpu
+def test_addmm():
+    def test_fn(alpha, beta):
+        return lambda inp, batch1, batch2: torch.addmm(inp, batch1, batch2, beta=beta, alpha=alpha)
+
+    M = torch.randn(3, 5)
+    batch1 = torch.randn(3, 4)
+    batch2 = torch.randn(4, 5)
+
+    verify_model(test_fn(0.4, 0.8), [M, batch1, batch2])
 
 
 @tvm.testing.uses_gpu

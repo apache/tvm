@@ -28,6 +28,8 @@
 #include <tvm/relay/type.h>
 
 #include <string>
+#include <unordered_map>
+#include <utility>
 #include <vector>
 
 namespace tvm {
@@ -360,6 +362,10 @@ class WildcardPatternNode : public DFPatternNode {
  public:
   void VisitAttrs(tvm::AttrVisitor* v) {}
 
+  /*! \brief If the wildcard is redirected, then pattern is not nullptr, and the wildcard
+   * redirects to the pattern. */
+  Optional<DFPattern> pattern{nullptr};
+
   static constexpr const char* _type_key = "relay.dataflow_pattern.WildcardPattern";
   TVM_DECLARE_FINAL_OBJECT_INFO(WildcardPatternNode, DFPatternNode);
 };
@@ -370,6 +376,8 @@ class WildcardPatternNode : public DFPatternNode {
 class WildcardPattern : public DFPattern {
  public:
   TVM_DEFINE_OBJECT_REF_METHODS(WildcardPattern, DFPattern, WildcardPatternNode);
+
+  void redirect_to(DFPattern pat) const;
 };
 
 class TypePattern;
@@ -536,6 +544,45 @@ DFPattern IsOp(const String& op_name);
 DFPattern IsTuple(const Array<DFPattern>& fields);
 /*! \brief Syntatic Sugar for creating a TupleGetItemPattern*/
 DFPattern IsTupleGetItem(const DFPattern tuple, int index = -1);
+
+/*! \brief A printer class to print pattern. */
+class DFPatternPrinter : public ReprPrinter {
+ public:
+  std::stringstream string_stream{};
+
+  std::unordered_map<DFPattern, std::pair<size_t, std::string>, ObjectPtrHash, ObjectPtrEqual>
+      memo_{};
+  /*! \brief Subpatterns that are encountered more than once during printing. If a subpattern has
+   * already printed, only the pattern ID will be printed in the next encounter of the same pattern.
+   * This avoids printing a subpattern infinitely many times is the considered pattern involves
+   * recursion.*/
+  std::vector<DFPattern> auxiliary_patterns{};
+
+  DFPatternPrinter(std::ostream& stream)  // NOLINT(*)
+      : ReprPrinter(stream) {}
+  TVM_DLL void Print(const ObjectRef& node);
+  using FType = NodeFunctor<void(const ObjectRef&, DFPatternPrinter*)>;
+  TVM_DLL static FType& vtable();
+};
+
+inline std::ostream& operator<<(std::ostream& os,
+                                const DFPattern& n) {  // NOLINT(*)
+  std::stringstream string_stream{}, tmp_stream{};
+  DFPatternPrinter printer{tmp_stream};
+  printer.Print(n);
+  string_stream << "Main pattern:" << std::endl;
+  string_stream << printer.string_stream.str();
+  string_stream << std::endl;
+  string_stream << "Auxiliary patterns:";
+  for (const DFPattern& pat : printer.auxiliary_patterns) {
+    string_stream << std::endl;
+    string_stream << printer.memo_[pat].second;
+  }
+  os << string_stream.str();
+  return os;
+}
+
+String PrettyPrint(const DFPattern& pattern);
 
 }  // namespace relay
 }  // namespace tvm

@@ -48,7 +48,6 @@ def _module():
             # We exchange data between function by handles, which are similar to pointer.
             T.func_attr(
                 {
-                    "global_symbol": "main",
                     "tir.noalias": True,
                     "target": T.target("llvm"),
                 }
@@ -165,7 +164,7 @@ def test_llvm_ir_debug_accuracy():
 
     # Check that it matches the expected line number (in main.tir)
     debug_line_no = int(locations[directive_idx])
-    assert debug_line_no == 42
+    assert debug_line_no == 43
 
 
 if __name__ == "__main__":

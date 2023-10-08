@@ -162,15 +162,22 @@ def buffer_decl(*args, **kwargs):
     return buffer(*args, **kwargs)
 
 
-def prim_func() -> frame.PrimFuncFrame:
+def prim_func(is_private: bool = False) -> frame.PrimFuncFrame:
     """The primitive function statement.
+
+    Parameters
+    ----------
+    is_private : bool
+        Whether the PrimFunc is annotated as private
+        (if yes, it does not have a global symbol assigned;
+        otherwise, the global symbol is the PrimFunc's name)
 
     Returns
     -------
     res : frame.PrimFuncFrame
         The PrimFuncFrame.
     """
-    return _ffi_api.PrimFunc()  # type: ignore[attr-defined] # pylint: disable=no-member
+    return _ffi_api.PrimFunc(is_private)  # type: ignore[attr-defined] # pylint: disable=no-member
 
 
 def arg(name: str, obj: Union[Var, Buffer]) -> Union[Var, Buffer]:
@@ -1270,6 +1277,9 @@ def buffer_store(
     """
     from tvm.arith import Analyzer  # pylint: disable=import-outside-toplevel
 
+    if not isinstance(indices, (list, tuple, ir.Array)):
+        indices = [indices]
+
     expr_indices = []
     for index in indices:
         if isinstance(index, slice):
@@ -1834,6 +1844,12 @@ tvm_warp_shuffle_down = _tir_op.tvm_warp_shuffle_down
 tvm_warp_activemask = _tir_op.tvm_warp_activemask
 ptx_wait_group = _op_wrapper(_tir_op.ptx_wait_group)
 ptx_commit_group = _op_wrapper(_tir_op.ptx_commit_group)
+ptx_cp_async_barrier = _op_wrapper(_tir_op.ptx_cp_async_barrier)
+ptx_init_barrier_thread_count = _op_wrapper(_tir_op.ptx_init_barrier_thread_count)
+ptx_arrive_barrier = _op_wrapper(_tir_op.ptx_arrive_barrier)
+ptx_arrive_barrier_expect_tx = _op_wrapper(_tir_op.ptx_arrive_barrier_expect_tx)
+ptx_wait_barrier = _op_wrapper(_tir_op.ptx_wait_barrier)
+create_barriers = _op_wrapper(_tir_op.create_barriers)
 assume = _op_wrapper(_tir_op.assume)
 undef = _op_wrapper(_tir_op.undef)
 TVMBackendAllocWorkspace = _op_wrapper(_tir_op.TVMBackendAllocWorkspace)
@@ -1862,6 +1878,7 @@ ptx_mma = _dtype_forward(_tir_op.ptx_mma)
 ptx_mma_sp = _dtype_forward(_tir_op.ptx_mma_sp)
 ptx_ldmatrix = _dtype_forward(_tir_op.ptx_ldmatrix)
 ptx_cp_async = _dtype_forward(_tir_op.ptx_cp_async)
+ptx_cp_async_bulk = _dtype_forward(_tir_op.ptx_cp_async_bulk)
 mma_store = _dtype_forward(_tir_op.mma_store)
 mma_fill = _dtype_forward(_tir_op.mma_fill)
 vectorlow = _dtype_forward(_tir_op.vectorlow)
@@ -2101,8 +2118,15 @@ __all__ = [
     "ptx_mma_sp",
     "ptx_ldmatrix",
     "ptx_cp_async",
+    "ptx_cp_async_bulk",
     "ptx_wait_group",
     "ptx_commit_group",
+    "ptx_cp_async_barrier",
+    "ptx_init_barrier_thread_count",
+    "ptx_arrive_barrier",
+    "ptx_arrive_barrier_expect_tx",
+    "ptx_wait_barrier",
+    "create_barriers",
     "mma_store",
     "mma_fill",
     "vectorlow",

@@ -20,7 +20,10 @@ import tvm
 import tvm.testing
 from tvm import tir
 from tvm.script import tir as T
-from tvm.tir.schedule.testing import verify_trace_roundtrip
+from tvm.tir.schedule.testing import (
+    assert_structural_equal_ignore_global_symbol,
+    verify_trace_roundtrip,
+)
 
 
 @T.prim_func
@@ -72,7 +75,7 @@ def test_hide_buffer_access_read():
     sch = tir.Schedule(indirect_mem_access, debug_mask="all")
     block_b = sch.get_block("B")
     sch.unsafe_hide_buffer_access(block_b, "read", [1])
-    tvm.ir.assert_structural_equal(indirect_mem_access_hide_ia, sch.mod["main"])
+    assert_structural_equal_ignore_global_symbol(indirect_mem_access_hide_ia, sch.mod["main"])
     verify_trace_roundtrip(sch=sch, mod=indirect_mem_access)
 
 
@@ -80,7 +83,7 @@ def test_hide_buffer_access_write():
     sch = tir.Schedule(indirect_mem_access, debug_mask="all")
     block_b = sch.get_block("B")
     sch.unsafe_hide_buffer_access(block_b, "write", [1])
-    tvm.ir.assert_structural_equal(indirect_mem_access_hide_ib, sch.mod["main"])
+    assert_structural_equal_ignore_global_symbol(indirect_mem_access_hide_ib, sch.mod["main"])
     verify_trace_roundtrip(sch=sch, mod=indirect_mem_access)
 
 

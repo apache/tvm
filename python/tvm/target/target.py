@@ -18,9 +18,11 @@
 import json
 import re
 import warnings
+from typing import Union
 
 import tvm._ffi
 from tvm._ffi import register_func as _register_func
+from tvm._ffi.runtime_ctypes import Device
 from tvm.runtime import Object, convert
 from tvm.runtime.container import String
 from tvm.ir.container import Map, Array
@@ -149,6 +151,28 @@ class Target(Object):
         return _ffi_api.WithHost(self, Target(host))
 
     @staticmethod
+    def from_device(device: Union[str, Device]) -> "Target":
+        """Detects Target associated with the given device. If the device does not exist,
+        there will be an Error.
+
+        Parameters
+        ----------
+        dev : Union[str, Device]
+            The device to detect the target for.
+            Supported device types: ["cuda", "metal", "rocm", "vulkan", "opencl", "cpu"]
+
+        Returns
+        -------
+        target : Target
+            The detected target.
+        """
+        from .detect_target import (  # pylint: disable=import-outside-toplevel
+            detect_target_from_device,
+        )
+
+        return detect_target_from_device(device)
+
+    @staticmethod
     def current(allow_none=True):
         """Returns the current target.
 
@@ -194,7 +218,7 @@ class Target(Object):
 
     @property
     def max_function_args(self):
-        return int(self.attrs.get("max_function_args", -1))
+        return int(self.attrs.get("max_function_args", 0))
 
     @property
     def vtcm_capacity(self):
@@ -243,6 +267,10 @@ class Target(Object):
     @property
     def features(self):
         return TargetFeatures(self)
+
+    @property
+    def l2_cache_size_bytes(self):
+        return int(self.attrs.get("l2_cache_size_bytes", 0))
 
     def get_kind_attr(self, attr_name):
         """Get additional attribute about the target kind.
@@ -695,6 +723,17 @@ def hexagon(cpu_ver="v68", **kwargs):
         msg = "{} is not a valid Hexagon version\nvalid versions include {}"
         raise ValueError(msg.format(cpu_ver, valid_hex)) from None
 
+    def get_vtcm_capacity(cpu_ver):
+        one_mb = 2**20
+        default_vtcm_sizes = {
+            "v65": one_mb // 4,
+            "v66": one_mb // 4,
+            "v68": 4 * one_mb,
+            "v69": 8 * one_mb,
+            "v73": 8 * one_mb,
+        }
+        return default_vtcm_sizes.get(cpu_ver, 0)
+
     # Target configuration:
     arch_version = get_arch_version(cpu_ver)
     config = {
@@ -702,7 +741,7 @@ def hexagon(cpu_ver="v68", **kwargs):
         "llvm_options": None,
         "use_qfloat": arch_version >= 68,
         "use_ieee_fp": False,
-        "vtcm_capacity": 0,
+        "vtcm_capacity": get_vtcm_capacity(cpu_ver),
     }
     config.update(kwargs)
 

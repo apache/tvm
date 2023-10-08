@@ -1429,15 +1429,11 @@ class OperatorConverter(object):
     def convert_div(self, op):
         """Convert TFLite DIV"""
         # Check if the input tensor is quantized, call QNN op
-        if self.is_quantized(op):
-            raise tvm.error.OpNotImplemented("TFlite quantized DIV operator is not supported yet.")
-        return self._convert_elemwise(_op.divide, op)
+        return self._convert_elemwise(_op.divide, op, self.is_quantized(op))
 
     def convert_pow(self, op):
         """Convert TFLite POW"""
         # Check if the input tensor is quantized, call QNN op
-        if self.is_quantized(op):
-            raise tvm.error.OpNotImplemented("TFlite quantized POW operator is not supported yet.")
         return self._convert_elemwise(_op.power, op)
 
     def convert_maximum(self, op):
@@ -1476,25 +1472,17 @@ class OperatorConverter(object):
 
     def convert_greater_equal(self, op):
         """Convert TFLite GREATER_EQUAL"""
-        if self.is_quantized(op):
-            raise tvm.error.OpNotImplemented(
-                "TFlite quantized GREATER_EQUAL operator is not supported yet."
-            )
-        return self._convert_elemwise(_op.greater_equal, op)
+        return self._convert_elemwise(
+            _op.greater_equal, op, self.is_quantized(op), comparison_op=True
+        )
 
     def convert_less(self, op):
         """Convert TFLite LESS"""
-        if self.is_quantized(op):
-            raise tvm.error.OpNotImplemented("TFlite quantized LESS operator is not supported yet.")
-        return self._convert_elemwise(_op.less, op)
+        return self._convert_elemwise(_op.less, op, self.is_quantized(op), comparison_op=True)
 
     def convert_less_equal(self, op):
         """Convert TFLite LESS_EQUAL"""
-        if self.is_quantized(op):
-            raise tvm.error.OpNotImplemented(
-                "TFlite quantized LESS_EQUAL operator is not supported yet."
-            )
-        return self._convert_elemwise(_op.less_equal, op)
+        return self._convert_elemwise(_op.less_equal, op, self.is_quantized(op), comparison_op=True)
 
     def convert_equal(self, op):
         """Convert TFLite EQUAL"""
@@ -1502,11 +1490,7 @@ class OperatorConverter(object):
 
     def convert_not_equal(self, op):
         """Convert TFLite NOT_EQUAL"""
-        if self.is_quantized(op):
-            raise tvm.error.OpNotImplemented(
-                "TFlite quantized NOT_EQUAL operator is not supported yet."
-            )
-        return self._convert_elemwise(_op.not_equal, op)
+        return self._convert_elemwise(_op.not_equal, op, self.is_quantized(op), comparison_op=True)
 
     def _convert_logical_binary(self, relay_op, op):
         """Generic method to convert logical binary ops"""
@@ -2686,19 +2670,11 @@ class OperatorConverter(object):
 
     def convert_floor_div(self, op):
         """Convert TFLite FLOOR_DIV"""
-        if self.is_quantized(op):
-            raise tvm.error.OpNotImplemented(
-                "TFlite quantized FLOOR DIV operator is not supported yet."
-            )
-        return self._convert_elemwise(_op.floor_divide, op)
+        return self._convert_elemwise(_op.floor_divide, op, self.is_quantized(op))
 
     def convert_floor_mod(self, op):
         """Convert TFLite FLOOR_MOD"""
-        if self.is_quantized(op):
-            raise tvm.error.OpNotImplemented(
-                "TFlite quantized FLOOR MOD operator is not supported yet."
-            )
-        return self._convert_elemwise(_op.floor_mod, op)
+        return self._convert_elemwise(_op.floor_mod, op, self.is_quantized(op))
 
     def convert_mirror_pad(self, op):
         """Convert TFLite MIRROR_PAD"""
@@ -3006,7 +2982,9 @@ class OperatorConverter(object):
                 rank_diff = rank_a - rank_b
                 new_b_shape = _op.concatenate(
                     [
-                        _expr.const([1] * rank_diff, dtype=_infer_type(b_shape).checked_type.dtype),
+                        _expr.const(
+                            [1] * rank_diff, dtype=_infer_type(new_b_shape).checked_type.dtype
+                        ),
                         shape_b,
                     ],
                     0,
@@ -3015,7 +2993,9 @@ class OperatorConverter(object):
                 rank_diff = rank_b - rank_a
                 new_a_shape = _op.concatenate(
                     [
-                        _expr.const([1] * rank_diff, dtype=_infer_type(a_shape).checked_type.dtype),
+                        _expr.const(
+                            [1] * rank_diff, dtype=_infer_type(new_a_shape).checked_type.dtype
+                        ),
                         shape_a,
                     ],
                     0,
@@ -3041,9 +3021,9 @@ class OperatorConverter(object):
                 _op.concatenate([out_batch, _op.strided_slice(shape_b, [rank_b - 2], [rank_b])], 0)
             )
             if not tvm.ir.structural_equal(shape_a, a_broadcasted_shape):
-                input_a = _op.transform.broadcast_to(a, a_broadcasted_shape)
+                input_a = _op.transform.broadcast_to(input_a, a_broadcasted_shape)
             if not tvm.ir.structural_equal(shape_b, b_broadcasted_shape):
-                input_b = _op.transform.broadcast_to(b, b_broadcasted_shape)
+                input_b = _op.transform.broadcast_to(input_b, b_broadcasted_shape)
 
             input_a = self.flatten_to_nd(input_a, shape_a, 3)
             input_b = self.flatten_to_nd(input_b, shape_b, 3)
@@ -3439,12 +3419,7 @@ class OperatorConverter(object):
         flexbuffer = op.CustomOptionsAsNumpy().tobytes()
         custom_options = FlexBufferDecoder(flexbuffer).decode()
 
-        if "use_regular_nms" in custom_options:
-            if custom_options["use_regular_nms"]:
-                raise tvm.error.OpAttributeUnImplemented(
-                    "use_regular_nms=True is not yet supported for operator "
-                    "TFLite_Detection_PostProcess."
-                )
+        use_regular_nms = "use_regular_nms" in custom_options and custom_options["use_regular_nms"]
 
         inputs = self.get_input_tensors(op)
         assert len(inputs) == 3, "inputs length should be 3"
@@ -3477,15 +3452,14 @@ class OperatorConverter(object):
                 input_zero_point=inputs[2].qnn_params["zero_point"],
             )
 
-        # reshape the cls_pred and loc_prob tensors so
-        # they can be consumed by multibox_transform_loc
-        cls_pred = _op.transpose(cls_pred, [0, 2, 1])
         # loc_prob coords are in yxhw format
         # need to convert to xywh
         loc_coords = _op.split(loc_prob, 4, axis=2)
         loc_prob = _op.concatenate(
             [loc_coords[1], loc_coords[0], loc_coords[3], loc_coords[2]], axis=2
         )
+        # reshape loc_prob tensor so is can be consumed by
+        # multibox_transform_loc
         loc_prob = _op.reshape(loc_prob, [batch_size, anchor_boxes * 4])
 
         # anchor coords are in yxhw format
@@ -3507,13 +3481,41 @@ class OperatorConverter(object):
         # attributes for multibox_transform_loc
         multibox_transform_loc_attrs = {}
         multibox_transform_loc_attrs["clip"] = False
-        multibox_transform_loc_attrs["threshold"] = custom_options["nms_score_threshold"]
+        multibox_transform_loc_attrs["threshold"] = (
+            0.0 if use_regular_nms else custom_options["nms_score_threshold"]
+        )
         multibox_transform_loc_attrs["variances"] = (
             1 / custom_options["x_scale"],
             1 / custom_options["y_scale"],
             1 / custom_options["w_scale"],
             1 / custom_options["h_scale"],
         )
+        multibox_transform_loc_attrs["keep_background"] = use_regular_nms
+
+        ret = _op.vision.multibox_transform_loc(
+            # reshape cls_pred so it can be consumed by
+            # multibox_transform_loc
+            _op.transpose(cls_pred, [0, 2, 1]),
+            loc_prob,
+            anchor_expr,
+            **multibox_transform_loc_attrs,
+        )
+
+        if use_regular_nms:
+            # box coordinates need to be converted from ltrb to (ymin, xmin, ymax, xmax)
+            _, transformed_boxes = _op.split(ret[0], (2,), axis=2)
+            box_l, box_t, box_r, box_b = _op.split(transformed_boxes, 4, axis=2)
+            transformed_boxes = _op.concatenate([box_t, box_l, box_b, box_r], axis=2)
+
+            return _op.vision.regular_non_max_suppression(
+                boxes=transformed_boxes,
+                scores=cls_pred,
+                max_detections_per_class=custom_options["detections_per_class"],
+                max_detections=custom_options["max_detections"],
+                num_classes=custom_options["num_classes"],
+                iou_threshold=custom_options["nms_iou_threshold"],
+                score_threshold=custom_options["nms_score_threshold"],
+            )
 
         # attributes for non_max_suppression
         non_max_suppression_attrs = {}
@@ -3524,9 +3526,6 @@ class OperatorConverter(object):
         non_max_suppression_attrs["max_output_size"] = custom_options["max_detections"]
         non_max_suppression_attrs["invalid_to_bottom"] = False
 
-        ret = _op.vision.multibox_transform_loc(
-            cls_pred, loc_prob, anchor_expr, **multibox_transform_loc_attrs
-        )
         ret = _op.vision.non_max_suppression(ret[0], ret[1], ret[1], **non_max_suppression_attrs)
         ret = _op.vision.get_valid_counts(ret, 0)
         valid_count = ret[0]

@@ -605,6 +605,23 @@ class TestFloorModTwo(BaseCompare):
     )
 
 
+class TestFloorModPadded(BaseCompare):
+    """Special-case simplifications for divisibility proof
+    such that (x - x % k) must be divisible by k
+    """
+
+    x, y = te.var("x"), te.var("y")
+    test_case = tvm.testing.parameter(
+        TestCase(flm(x - flm(x, 9), 9), 0),
+        TestCase(flm(x - flm(x, -9), 9), 0),
+        TestCase(flm(x + flm(-x, 9), 9), 0),
+        TestCase(flm(x + flm(8 * x, 9), 9), 0),
+        TestCase(flm(x - flm(x, y), y), 0),
+        TestCase(flm(x - flm(x, -y), y), 0),
+        TestCase(flm(x + flm(-x, y), y), 0),
+    )
+
+
 class TestMinIndex(BaseCompare):
     x, y, z = te.var("x"), te.var("y"), te.var("z")
     test_case = tvm.testing.parameter(
@@ -951,6 +968,7 @@ class TestLogical(BaseCompare):
         TestCase(tvm.tir.And(x <= 1, 2 <= x), tvm.tir.const(False, "bool")),
         TestCase(tvm.tir.And(2 <= x, x <= 1), tvm.tir.const(False, "bool")),
         TestCase(tvm.tir.And(x == 1, x != 2), x == 1),
+        TestCase(tvm.tir.And(x == 1, x == 2), tvm.tir.const(False, "bool")),
         TestCase(tvm.tir.Or(tvm.tir.EQ(x, y), tvm.tir.NE(x, y)), tvm.tir.const(True, "bool")),
         TestCase(tvm.tir.Or(tvm.tir.NE(x, y), tvm.tir.EQ(x, y)), tvm.tir.const(True, "bool")),
         TestCase(tvm.tir.Or(x > y, tvm.tir.Not(x > y)), tvm.tir.const(True, "bool")),
@@ -965,6 +983,7 @@ class TestLogical(BaseCompare):
         TestCase(tvm.tir.Or(x <= 1, 2 <= x), tvm.tir.const(True, "bool")),
         TestCase(tvm.tir.Or(2 <= x, x <= 1), tvm.tir.const(True, "bool")),
         TestCase(tvm.tir.Or(x != 1, x == 2), x != 1),
+        TestCase(tvm.tir.Or(x != 1, x != 2), tvm.tir.const(True, "bool")),
         TestCase(
             tvm.tir.Or(x == 1, tvm.tir.Or(y == 1, z == 1)),
             tvm.tir.Or(tvm.tir.Or(x == 1, y == 1), z == 1),

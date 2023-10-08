@@ -46,8 +46,8 @@ export function Uint8ArrayToString(arr: Uint8Array): string {
 
 /**
  * Internal assert helper
- * @param condition condition The condition to fail.
- * @param msg msg The message.
+ * @param condition The condition to fail.
+ * @param msg The message.
  */
 export function assert(condition: boolean, msg?: string): asserts condition {
   if (!condition) {

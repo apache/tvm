@@ -946,7 +946,7 @@ def test_llvm_target_attributes():
     xo, xi = s[C].split(C.op.axis[0], nparts=2)
     s[C].parallel(xo)
 
-    target_llvm = "llvm -mcpu=skylake -mattr=+avx512f"
+    target_llvm = "llvm -mtriple=x86_64-linux-gnu -mcpu=skylake -mattr=+avx512f"
     target = tvm.target.Target(target_llvm, host=target_llvm)
     module = tvm.build(s, [A, B, C, n], target=target, name="test_func")
 

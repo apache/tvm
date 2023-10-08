@@ -35,7 +35,7 @@ def prepare_test_libs(base_path):
     fadd = tvm.build(s, [A, B], target, runtime=runtime, name="add_one")
 
     wasm_path = os.path.join(base_path, "test_addone.wasm")
-    fadd.export_library(wasm_path, emcc.create_tvmjs_wasm)
+    fadd.export_library(wasm_path, fcompile=emcc.create_tvmjs_wasm)
 
 
 if __name__ == "__main__":

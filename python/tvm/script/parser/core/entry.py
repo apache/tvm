@@ -25,6 +25,23 @@ from .error import ParserError
 from .parser import Parser
 
 
+def _default_globals() -> Dict[str, Any]:
+    import tvm  # pylint: disable=import-outside-toplevel
+    from tvm.script.parser import ir  # pylint: disable=import-outside-toplevel
+    from tvm.script.parser import tir  # pylint: disable=import-outside-toplevel
+
+    extra_vars = {"tvm": tvm, "I": ir, "ir": ir, "T": tir, "tir": tir}
+    return extra_vars
+
+
+def scan_macro(program: Union[Any, str], extra_vars: Dict[str, Any] = None) -> Any:
+    """Generate the AST, and the source code for __repr__."""
+    # The AST will be converted into TIR at the time of expansion.
+    source = Source(program)
+    closure_vars = extra_vars or _default_globals()
+    return source, closure_vars
+
+
 def parse(program: Union[doc.AST, Any, str], extra_vars: Dict[str, Any] = None) -> Any:
     """Register a method for a operand type, AST operator node and operand index.
 
@@ -42,17 +59,7 @@ def parse(program: Union[doc.AST, Any, str], extra_vars: Dict[str, Any] = None) 
         The parsed TVMScript program.
     """
     if extra_vars is None:
-        import tvm  # pylint: disable=import-outside-toplevel
-        from tvm.script.parser import ir  # pylint: disable=import-outside-toplevel
-        from tvm.script.parser import tir  # pylint: disable=import-outside-toplevel
-
-        extra_vars = {
-            "tvm": tvm,
-            "I": ir,
-            "ir": ir,
-            "T": tir,
-            "tir": tir,
-        }
+        extra_vars = _default_globals()
 
     ann = {}
     if inspect.isfunction(program):

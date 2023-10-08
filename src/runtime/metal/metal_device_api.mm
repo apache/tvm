@@ -81,6 +81,8 @@ void MetalWorkspace::GetAttr(Device dev, DeviceAttrKind kind, TVMRetValue* rv) {
         return;
       case kDriverVersion:
         return;
+      case kL2CacheSizeBytes:
+        return;
     }
   };
 }
@@ -162,7 +164,7 @@ void MetalWorkspace::Init() {
   for (size_t i = 0; i < devs.count; ++i) {
     id<MTLDevice> d = [devs objectAtIndex:i];
     devices.push_back(d);
-    LOG(INFO) << "Intializing Metal device " << i << ", name=" << [d.name UTF8String];
+    DLOG(INFO) << "Intializing Metal device " << i << ", name=" << [d.name UTF8String];
     warp_size.push_back(GetWarpSize(d));
   }
 #endif

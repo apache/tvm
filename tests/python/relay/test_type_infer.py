@@ -541,7 +541,7 @@ def test_custom_op_rel_infer_exception():
     t2 = sb.let("t2", relay.add(t1, x))
     sb.ret(t2)
     f = relay.Function([x], sb.get())
-    with pytest.raises(tvm.error.TVMError) as cm:
+    with pytest.raises(AssertionError) as cm:
         fchecked = infer_expr(f)
         assert "type relation arg number mismatch" in str(cm.execption)
 

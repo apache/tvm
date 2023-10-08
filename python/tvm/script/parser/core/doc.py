@@ -414,13 +414,20 @@ def _register_subscription_handling():
                 ctx=from_doc(x.ctx),
             )
         elif isinstance(x.slice, doc.Tuple):
-            result = ast.Subscript(
-                value=from_doc(x.value),
-                slice=ast.ExtSlice(
-                    dims=[from_doc(i) for i in x.slice.elts],
-                ),
-                ctx=from_doc(x.ctx),
-            )
+
+            def remap_dim(doc_item: doc.Expr) -> ast.Expr:
+                ast_item = from_doc(doc_item)
+                if isinstance(ast_item, (ast.Index, ast.Slice)):
+                    return ast_item
+                return ast.Index(value=ast_item)
+
+            # ast.ExtSlice requires a non-empty list of dims, and each dim must be either
+            # a Slice or an Index.
+            if x.slice.elts:
+                ast_slice = ast.ExtSlice(dims=[*map(remap_dim, x.slice.elts)])
+            else:
+                ast_slice = ast.Index(value=ast.Tuple(elts=[], ctx=from_doc(x.ctx)))
+            result = ast.Subscript(value=from_doc(x.value), slice=ast_slice, ctx=from_doc(x.ctx))
         else:
             result = ast.Subscript(
                 value=from_doc(x.value),

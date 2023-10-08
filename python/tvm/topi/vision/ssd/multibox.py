@@ -137,7 +137,7 @@ def multibox_prior(data, sizes=(1,), ratios=(1,), steps=(-1, -1), offsets=(0.5, 
 
 
 @hybrid.script
-def _hybridy_transform_loc(anchor, pred_loc, variance, clip, batch_idx, anchor_idx):
+def _hybrid_transform_loc(anchor, pred_loc, variance, clip, batch_idx, anchor_idx):
     """Transform prior anchor box to output box through location predictions."""
     al = anchor[0, anchor_idx, 0]
     at = anchor[0, anchor_idx, 1]
@@ -172,7 +172,15 @@ def _hybridy_transform_loc(anchor, pred_loc, variance, clip, batch_idx, anchor_i
 
 
 @hybrid.script
-def hybrid_multibox_transform_loc(cls_prob, loc_pred, anchor, clip, threshold, variances):
+def hybrid_multibox_transform_loc(
+    cls_prob,
+    loc_pred,
+    anchor,
+    clip,
+    threshold,
+    variances,
+    keep_background,
+):
     """Hybrid routing for transform location in multibox_detection operator.
 
     Parameters
@@ -195,6 +203,9 @@ def hybrid_multibox_transform_loc(cls_prob, loc_pred, anchor, clip, threshold, v
     variances : tvm.nd.NDArray
         Variances to be decoded from box regression output.
 
+    keep_background : tvm.tir.const
+        Whether to keep boxes detected as background or not.
+
     Returns
     -------
     out_loc : tvm.te.Tensor or numpy NDArray
@@ -216,27 +227,28 @@ def hybrid_multibox_transform_loc(cls_prob, loc_pred, anchor, clip, threshold, v
     out_loc = output_tensor((batch_size, num_anchors, 6), loc_pred.dtype)
     valid_count = output_tensor((batch_size,), "int32")
 
+    start_cls_idx = 0 if keep_background else 1
+
     for i in parallel(batch_size):
         valid_count[i] = 0
         for j in range(num_anchors):
             # Find the predicted class id and probability
             score = -1.0
             cls_id = 0
-            for k in range(num_classes):
-                if k > 0:
-                    temp = cls_prob[i, k, j]
-                    cls_id = k if temp > score else cls_id
-                    score = max(temp, score)
+            for k in range(start_cls_idx, num_classes):
+                temp = cls_prob[i, k, j]
+                cls_id = k if temp > score else cls_id
+                score = max(temp, score)
             if cls_id > 0 and score < threshold:
                 cls_id = 0
             # [id, prob, xmin, ymin, xmax, ymax]
-            # Remove background, restore original id
-            if cls_id > 0:
-                out_loc[i, valid_count[i], 0] = cls_id - 1.0
+            # Remove background if 'keep_background=False', restore original id
+            if keep_background or cls_id > 0:
+                out_loc[i, valid_count[i], 0] = cls_id - 0.0 if keep_background else cls_id - 1.0
                 out_loc[i, valid_count[i], 1] = score
                 for l in range(4):
                     pred_coord[i, l] = loc_pred[i, j * 4 + l]
-                out_coord = _hybridy_transform_loc(anchor, pred_coord, variances, clip, i, j)
+                out_coord = _hybrid_transform_loc(anchor, pred_coord, variances, clip, i, j)
                 out_loc[i, valid_count[i], 2] = out_coord[0]
                 out_loc[i, valid_count[i], 3] = out_coord[1]
                 out_loc[i, valid_count[i], 4] = out_coord[2]
@@ -247,7 +259,13 @@ def hybrid_multibox_transform_loc(cls_prob, loc_pred, anchor, clip, threshold, v
 
 
 def multibox_transform_loc(
-    cls_prob, loc_pred, anchor, clip=True, threshold=0.01, variances=(0.1, 0.1, 0.2, 0.2)
+    cls_prob,
+    loc_pred,
+    anchor,
+    clip=True,
+    threshold=0.01,
+    variances=(0.1, 0.1, 0.2, 0.2),
+    keep_background=False,
 ):
     """Location transformation for multibox detection
 
@@ -271,10 +289,14 @@ def multibox_transform_loc(
     variances : tuple of float
         Variances to be decoded from box regression output.
 
+    keep_background : boolean
+        Whether to keep boxes detected as background or not.
+
     Returns
     -------
     ret : tuple of tvm.te.Tensor
     """
+
     return hybrid_multibox_transform_loc(
         cls_prob,
         loc_pred,
@@ -282,6 +304,7 @@ def multibox_transform_loc(
         tvm.tir.const(clip, "bool"),
         tvm.tir.const(threshold, "float32"),
         tvm.runtime.convert(variances),
+        tvm.tir.const(keep_background, "bool"),
     )
 
 

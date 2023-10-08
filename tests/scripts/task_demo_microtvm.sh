@@ -20,8 +20,21 @@ set -euxo pipefail
 
 source tests/scripts/setup-pytest-env.sh
 
+TMP_LOG_FILE=/tmp/$$.out.log
+
+cleanup()
+{
+    rm -f $TMP_LOG_FILE
+}
+trap cleanup 0
+
 pushd apps/microtvm/cmsisnn
- timeout 5m ./run_demo.sh
+timeout 5m ./run_demo.sh > $TMP_LOG_FILE
+cat $TMP_LOG_FILE
+if ! grep -q "Person detected." $TMP_LOG_FILE; then
+    echo "The demo returned the wrong result"
+    exit 1
+fi
 popd
 
 # TODO(mehrdadh): disabled due to https://github.com/apache/tvm/issues/13856
@@ -34,6 +47,18 @@ FVP_PATH="/opt/arm/FVP_Corstone_SSE-300_Ethos-U55"
 CMAKE_PATH="/opt/arm/cmake/bin/cmake"
 FREERTOS_PATH="/opt/freertos/FreeRTOSv202112.00"
 
- timeout 5m ./run_demo.sh --fvp_path $FVP_PATH --cmake_path $CMAKE_PATH
- timeout 5m ./run_demo.sh --fvp_path $FVP_PATH --cmake_path $CMAKE_PATH --freertos_path $FREERTOS_PATH
+timeout 5m ./run_demo.sh --fvp_path $FVP_PATH --cmake_path $CMAKE_PATH > $TMP_LOG_FILE
+cat $TMP_LOG_FILE
+if ! grep -q "The image has been classified as 'tabby'" $TMP_LOG_FILE; then
+    echo "The demo returned the wrong result"
+    exit 1
+fi
+
+timeout 5m ./run_demo.sh --fvp_path $FVP_PATH --cmake_path $CMAKE_PATH --freertos_path $FREERTOS_PATH > $TMP_LOG_FILE
+cat $TMP_LOG_FILE
+if ! grep -q "The image has been classified as 'tabby'" $TMP_LOG_FILE; then
+    echo "The demo returned the wrong result"
+    exit 1
+fi
+
 popd

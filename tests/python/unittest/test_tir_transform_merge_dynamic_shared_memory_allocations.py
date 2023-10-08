@@ -330,7 +330,7 @@ def test_dyn_shared_more_dtype():
 class TestMatmul(tvm.testing.CompareBeforeAfter):
     """Shared allocations should be merged, preserving DeclBuffer if present
 
-    This test uses a matmul PrimFunc adapted from from
+    This test uses a matmul PrimFunc adapted from
     test_matmul_dyn_shared, using either `T.Buffer` (Allocate without
     DeclBuffer) or `T.decl_buffer` (Allocate followed by DeclBuffer)
     for the replaced allocations.

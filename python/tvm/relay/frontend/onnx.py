@@ -931,6 +931,7 @@ class ConvTranspose(OnnxOpConverter):
         data = inputs[0]
         input_shape = infer_shape(data)
         ndim = len(input_shape)
+        num_spatial_dims = ndim - 2
         if "auto_pad" in attr or "output_shape" in attr:
             if "auto_pad" in attr:
                 attr["auto_pad"] = attr["auto_pad"].decode("utf-8")
@@ -941,7 +942,8 @@ class ConvTranspose(OnnxOpConverter):
                 kndim = len(kernel_shape)
                 dilations = attr.get("dilations", [1] * kndim)
                 output_padding = attr.get("output_padding", [0] * kndim)
-                strides = attr["strides"]
+                # this is meant to handle the field 'strides' being optional for opsets 11+
+                strides = attr.get("strides", [1] * num_spatial_dims)
                 total_pad = [0] * kndim
                 # https://github.com/onnx/onnx/blob/main/docs/Operators.md#ConvTranspose
                 if "output_shape" in attr:
@@ -1159,6 +1161,24 @@ class BiasGelu(OnnxOpConverter):
 
         inp = _op.add(x, b)
         return Gelu._impl_v1([inp], attr, params)
+
+
+class Mish(OnnxOpConverter):
+    """Operator converter for Mish from Microsoft onnxruntime contrib opset.
+
+    mish(x) = x * tanh(softplus(x)) = x * tanh(ln(1 + e^{x}))
+    """
+
+    @classmethod
+    def _impl_v18(cls, inputs, attr, params):
+        x = inputs[0]
+        # Declare const
+        const_dtype = infer_type(x).checked_type.dtype
+        one = _expr.const(1.0, dtype=const_dtype)
+
+        # Compute Mish
+        term1 = _op.log(one + _op.exp(x))
+        return _op.multiply(x, _op.tanh(term1))
 
 
 class LayerNormalization(OnnxOpConverter):
@@ -4492,14 +4512,19 @@ class If(OnnxOpConverter):
         # Add constants from both branches to parent graph.
         graph_scope._params.update(then_graph._params)
         graph_scope._nodes.update(then_graph._nodes)
+        graph_scope._params.update(else_graph._params)
+        graph_scope._nodes.update(else_graph._nodes)
+
         then_free_vars = analysis.free_vars(then_expr)
         for var in then_free_vars:
             graph_scope._nodes.update({var.name_hint: var})
-        graph_scope._params.update(else_graph._params)
-        graph_scope._nodes.update(else_graph._nodes)
+            if var.name_hint in graph_scope._inputs:
+                graph_scope._inputs.update({var.name_hint: var})
         else_free_vars = analysis.free_vars(else_expr)
         for var in else_free_vars:
             graph_scope._nodes.update({var.name_hint: var})
+            if var.name_hint in graph_scope._inputs:
+                graph_scope._inputs.update({var.name_hint: var})
 
         # Sometimes pytorch to onnx will insert silly if statements that produce dynamic ranks.
         # Often these dont contribute anything. If we see a dynamic rank output, try to unify
@@ -6536,6 +6561,7 @@ def _get_convert_map(opset):
         "Gelu": Gelu.get_converter(opset),
         "FastGelu": FastGelu.get_converter(opset),
         "BiasGelu": BiasGelu.get_converter(opset),
+        "Mish": Mish.get_converter(opset),
         "LayerNormalization": LayerNormalization.get_converter(opset),
         # TODO: We need a better way to handle different domains, in case
         # of name collisions. EmbedLayerNormalization, SkipLayerNormalization, and Attention

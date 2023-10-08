@@ -41,7 +41,7 @@
 #include <utility>
 #include <vector>
 
-#include "../../../runtime/vm/naive_allocator.h"
+#include "../../../runtime/memory/naive_allocator.h"
 #include "../../../runtime/vm/profiler/vm.h"
 #include "../../transforms/pass_utils.h"
 #include "../te_compiler.h"

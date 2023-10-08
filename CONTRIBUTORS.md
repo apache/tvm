@@ -176,6 +176,7 @@ We do encourage everyone to work anything they are interested in.
 - [Janet Schneider](https://github.com/janetsc): @janetsc
 - [Junru Shao](https://github.com/junrushao): @junrushao
 - [Haichen Shen](https://github.com/icemelon): @icemelon
+- [Qingchao Shen](https://github.com/jikechao): @jikechao
 - [Xingjian Shi](https://github.com/sxjscience): @sxjscience
 - [Yuanjing Shi](https://github.com/shingjan): @shingjan
 - [Mark Shields](https://github.com/mbs-octoml): @mbs-octoml

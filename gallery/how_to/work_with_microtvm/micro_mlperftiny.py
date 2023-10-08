@@ -166,7 +166,7 @@ EXECUTOR = Executor(
 # Select a Zephyr board
 BOARD = os.getenv("TVM_MICRO_BOARD", default="nucleo_l4r5zi")
 
-# Get the the full target description using the BOARD
+# Get the full target description using the BOARD
 TARGET = tvm.micro.testing.get_target("zephyr", BOARD)
 
 ######################################################################
