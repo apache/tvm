@@ -1239,7 +1239,9 @@ class TorchFXImporter:
                 elif isinstance(index, torch.fx.node.Node):
                     node_index = self.env[index]
                     if not isinstance(node_index, relax.Expr):
-                        raise ValueError("Unsupported index type for relax.op.take: " + str(type(node_index)))
+                        raise ValueError(
+                            "Unsupported index type for relax.op.take: " + str(type(node_index))
+                        )
                     take_indices.append(node_index)
                     take_axes.append(i)
                     i = i + 1
@@ -1256,7 +1258,9 @@ class TorchFXImporter:
                 raise ValueError("Multiple tensors as index not yet supported")
             for each_index, each_axis in zip(take_indices, take_axes):
                 taken = self.block_builder.emit(relax.op.take(taken, each_index, each_axis))
-            sliced = self.block_builder.emit(relax.op.strided_slice(taken, stride_axes, stride_begin, stride_end, stride))
+            sliced = self.block_builder.emit(
+                relax.op.strided_slice(taken, stride_axes, stride_begin, stride_end, stride)
+            )
             sliced_shape = list(self.shape_of(sliced))
             for i in expand_dim:
                 sliced_shape.insert(i, 1)
