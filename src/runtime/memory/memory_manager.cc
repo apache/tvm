@@ -121,9 +121,20 @@ MemoryManager* MemoryManager::Global() {
 Allocator* MemoryManager::GetOrCreateAllocator(Device dev, AllocatorType type) {
   MemoryManager* m = MemoryManager::Global();
   std::lock_guard<std::mutex> lock(m->mu_);
-  if (m->allocators_.find(dev) == m->allocators_.end()) {
+  auto it = m->allocators_.find(dev);
+  if (it == m->allocators_.end()) {
     m->allocators_.emplace(dev, std::unordered_map<AllocatorType, std::unique_ptr<Allocator>>());
   }
+
+  // Look for any available, else create Naive.
+  if (type == AllocatorType::kAny) {
+    if (it->second.begin() != it->second.end()) {
+      return it->second.begin()->second.get();
+    } else {
+      type = AllocatorType::kNaive;
+    }
+  }
+
   if (m->allocators_.at(dev).find(type) == m->allocators_.at(dev).end()) {
     std::unique_ptr<Allocator> alloc;
     switch (type) {
@@ -153,15 +164,9 @@ Allocator* MemoryManager::GetAllocator(Device dev, AllocatorType type) {
   std::lock_guard<std::mutex> lock(m->mu_);
   auto it = m->allocators_.find(dev);
   if (it == m->allocators_.end()) {
-    return nullptr;
+    LOG(FATAL) << "Allocator for " << dev << " has not been created yet.";
   }
-  if (type == AllocatorType::kAny) {
-    if (it->second.begin() != it->second.end()) {
-      return it->second.begin()->second.get();
-    } else {
-      LOG(FATAL) << "No allocator for " << dev << " has been created.";
-    }
-  } else if (it->second.find(type) == it->second.end()) {
+  if (it->second.find(type) == it->second.end()) {
     LOG(FATAL) << "Allocator for " << dev << " of type " << type << " has not been created yet.";
   }
   return it->second.at(type).get();

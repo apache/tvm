@@ -244,15 +244,6 @@ void* OpenCLWorkspace::AllocDataSpace(Device dev, size_t size, size_t alignment,
   return AllocCLBuffer(dev, size, alignment, type_hint);
 }
 
-Allocator* GetAnyAllocator(Device dev) {
-  // Look for available allocator, else create a Naive allocator.
-  Allocator* allocator = MemoryManager::GetAllocator(dev);
-  if (nullptr == allocator) {
-    return MemoryManager::GetOrCreateAllocator(dev, AllocatorType::kNaive);
-  }
-  return allocator;
-}
-
 void* OpenCLWorkspace::AllocDataSpace(Device dev, size_t width, size_t height, DLDataType type_hint,
                                       Optional<String> mem_scope) {
   // Texture allocation given width and height
@@ -264,7 +255,8 @@ void* OpenCLWorkspace::AllocDataSpace(Device dev, size_t width, size_t height, D
   // Alloc back buffer from pool
   cl::BufferDescriptor* back_buffer = nullptr;
   if (IsBufferToImageSupported(dev.device_id)) {
-    auto buf = GetAnyAllocator(dev)->Alloc(mem_size, kTempAllocaAlignment, type_hint);
+    auto buf = MemoryManager::GetOrCreateAllocator(dev, AllocatorType::kAny)
+                   ->Alloc(mem_size, kTempAllocaAlignment, type_hint);
     back_buffer = static_cast<cl::BufferDescriptor*>(buf.data);
     back_buffer->mbuf = buf;
   }
@@ -283,7 +275,8 @@ void* OpenCLWorkspace::AllocDataSpace(Device dev, int ndim, const int64_t* shape
     // return DeviceAPI::AllocDataSpace(dev, ndim, shape, dtype, mem_scope);
     size_t size = GetMemObjectSize(dev, ndim, shape, dtype);
     cl::BufferDescriptor* ret_buffer = nullptr;
-    auto buf = GetAnyAllocator(dev)->Alloc(size, kTempAllocaAlignment, dtype);
+    auto buf = MemoryManager::GetOrCreateAllocator(dev, AllocatorType::kAny)
+                   ->Alloc(size, kTempAllocaAlignment, dtype);
     ret_buffer = static_cast<cl::BufferDescriptor*>(buf.data);
     ret_buffer->mbuf = buf;
     return ret_buffer;
@@ -554,7 +547,8 @@ void OpenCLWorkspace::StreamSync(Device dev, TVMStreamHandle stream) {
 void* OpenCLWorkspace::AllocWorkspace(Device dev, size_t size, DLDataType type_hint) {
   this->Init();
   cl::BufferDescriptor* ret_buffer = nullptr;
-  auto buf = GetAnyAllocator(dev)->Alloc(size, kTempAllocaAlignment, type_hint);
+  auto buf = MemoryManager::GetOrCreateAllocator(dev, AllocatorType::kAny)
+                 ->Alloc(size, kTempAllocaAlignment, type_hint);
   ret_buffer = static_cast<cl::BufferDescriptor*>(buf.data);
   ret_buffer->mbuf = buf;
   return ret_buffer;
