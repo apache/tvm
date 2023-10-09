@@ -25,13 +25,19 @@ class WellFormedInstrument:
     is well formed. It will skip specific passes, like Normalize.
     """
 
-    def __init__(self):
+    def __init__(self, check_struct_info=True):
         self.skip_pass_name = ["Normalize", "ResolveGlobals"]
+        self.check_struct_info = check_struct_info
 
     def run_before_pass(self, mod, pass_info):
-        if pass_info.name not in self.skip_pass_name:
-            assert relax.analysis.well_formed(mod)
+        self._check(mod, pass_info.name, "Before")
 
     def run_after_pass(self, mod, pass_info):
-        if pass_info.name not in self.skip_pass_name:
-            assert relax.analysis.well_formed(mod)
+        self._check(mod, pass_info.name, "After")
+
+    def _check(self, mod, pass_name, name_prefix):
+        if pass_name not in self.skip_pass_name:
+            is_well_formed = relax.analysis.well_formed(mod, self.check_struct_info)
+            if not is_well_formed:
+                mod.show(name=f"{name_prefix}{pass_name}")
+            assert is_well_formed
