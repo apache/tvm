@@ -981,10 +981,15 @@ class TorchFXImporter:
             dim_num = len(normalized_shape)
             axes = list(range(-dim_num, 0))
 
-            gamma = self.env[node.kwargs["weight"]]
+            gamma = node.kwargs["weight"]
+            if gamma is None:
+                shape_tuple = [int(s) for s in normalized_shape]
+                gamma = relax.const(np.ones(shape_tuple), x.struct_info.dtype)
+            else:
+                gamma = self.env[gamma]
             beta = node.kwargs["bias"]
             if beta is None:
-                shape_tuple = [int(s) for s in normalized_shape.values]
+                shape_tuple = [int(s) for s in normalized_shape]
                 beta = relax.const(np.zeros(shape_tuple), x.struct_info.dtype)
             else:
                 beta = self.env[beta]

@@ -1073,6 +1073,8 @@ def test_layernorm():
 
 
 def test_functional_layernorm():
+    import numpy as np
+
     input_info = [([1, 3, 10, 10], "float32")]
 
     class LayerNorm(Module):
@@ -1115,6 +1117,40 @@ def test_functional_layernorm():
         "w2": model.bias.detach().numpy(),
     }
     verify_model(model, input_info, binding, expected1)
+
+    class LayerNorm2(Module):
+        def __init__(self, shape):
+            super().__init__()
+            self.shape = shape
+            self.weight = None
+            self.bias = None
+
+        def forward(self, input):
+            return torch.nn.functional.layer_norm(input, self.shape, self.weight, self.bias, 1e-5)
+
+    @tvm.script.ir_module
+    class expected2:
+        @R.function
+        def main(
+            input_1: R.Tensor((1, 3, 10, 10), dtype="float32"),
+        ) -> R.Tensor((1, 3, 10, 10), dtype="float32"):
+            with R.dataflow():
+                lv: R.Tensor((1, 3, 10, 10), dtype="float32") = R.nn.layer_norm(
+                    input_1,
+                    gamma=relax.const(np.ones((10, 10)), dtype="float32"),
+                    beta=relax.const(np.zeros((10, 10)), dtype="float32"),
+                    axes=[-2, -1],
+                    epsilon=1e-05,
+                    center=True,
+                    scale=True,
+                )
+                gv: R.Tensor((1, 3, 10, 10), dtype="float32") = lv
+                R.output(gv)
+            return gv
+
+    model = LayerNorm2((10, 10))
+    binding = {}
+    verify_model(model, input_info, binding, expected2)
 
 
 def test_cross_entropy():
