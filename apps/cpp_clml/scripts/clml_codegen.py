@@ -57,7 +57,7 @@ def main():
         f_src = open("../clml_models.cc", "w")
         f_src.write("\n".join(gen_src))
         f_src.close()
-        os.popen("clang-format-10 -i ../clml_models.cc")
+        os.popen("clang-format-15 -i ../clml_models.cc")
 
 
 if __name__ == "__main__":
