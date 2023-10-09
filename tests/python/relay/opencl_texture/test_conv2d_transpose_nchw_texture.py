@@ -31,7 +31,7 @@ dtype = tvm.testing.parameter("float32")
 @tvm.testing.requires_opencl
 @tvm.testing.parametrize_targets("opencl -device=adreno")
 def test_conv2d_transpose_adreno(remote, target, executor_type, dtype):
-
+    # Conv2d transpose test cases lists
     trials = [
         [4, 4, (1, 1), (2, 2), (1, 1), 64, (256, 100, 100), (False, False)],
         [4, 4, (0, 0), (2, 2), (1, 1), 256, (32, 64, 64), (False, False)],
