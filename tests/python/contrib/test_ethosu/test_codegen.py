@@ -1565,7 +1565,7 @@ def test_tflite_fully_connected(
 
 
 @pytest.mark.parametrize("accel_type", ["ethos-u55-256", "ethos-u65-256"])
-@pytest.mark.parametrize("ifm_shape", [(1, 16)])
+@pytest.mark.parametrize("ifm_shape", [(1, 16), (4, 8)])
 @pytest.mark.parametrize("ofm_channels", [8, 32])
 @pytest.mark.parametrize("activation_function", ["NONE", "RELU"])
 def test_tflite_matmul(
