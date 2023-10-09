@@ -209,7 +209,10 @@ class GraphCreator : public ExprVisitor {
     SetNodePattern(binding_var_node, pattern);
     // Visit all call args
     for (const Expr& arg : args) {
-      ICHECK(IsLeafOrTuple(arg));
+      ICHECK(IsLeafOrTuple(arg))
+          << "FuseOps expects all relax::Call nodes to have non-nested arguments, "
+          << "but " << GetRef<Expr>(call) << " has argument " << arg
+          << ", which is neither a leaf node nor a relax::Tuple";
       VisitLeaf(arg, binding_var_node, pattern);
     }
   }
@@ -281,7 +284,7 @@ class GraphCreator : public ExprVisitor {
    */
   IndexedForwardGraph::Node* CreateNode(const Object* key) {
     ICHECK(graph_.node_map.find(key) == graph_.node_map.end())
-        << "The node corresponding to the input key is not supposed to be created before";
+        << "The object " << GetRef<ObjectRef>(key) << " appears at multiple definition sites.";
     auto* node = arena_->make<IndexedForwardGraph::Node>();
     graph_.node_map[key] = node;
     return node;
@@ -296,12 +299,14 @@ class GraphCreator : public ExprVisitor {
   void AddToPostDFSOrder(IndexedForwardGraph::Node* node, const Object* key) {
     auto it = graph_.node_map.find(key);
     ICHECK(it != graph_.node_map.end() && it->second == node)
-        << "The node must have been created before adding to the post-dfs order";
+        << "Cannot add node " << GetRef<ObjectRef>(key) << " to the post-DFS order, "
+        << "because the node for this object has not yet been created.";
 
     // We only set the reference of the node when adding it to the post-dfs order. Thus, if the
     // reference of a node is already set, it must have been appended to the post-dfs order.
-    ICHECK(node->ref == nullptr)
-        << "The node is not supposed to be added into the post-dfs order before";
+    ICHECK(node->ref == nullptr) << "Cannot add node " << GetRef<ObjectRef>(key)
+                                 << " to the post-DFS order, "
+                                 << "because it has already been added.";
 
     node->ref = key;
     node->index = graph_.post_dfs_order.size();
@@ -336,7 +341,8 @@ class GraphCreator : public ExprVisitor {
    */
   void SetNodePattern(IndexedForwardGraph::Node* node, OpPatternKind pattern) {
     ICHECK(initialized_nodes_.find(node) == initialized_nodes_.end())
-        << "The input node is supposed to be set pattern for only once";
+        << "The input node " << GetRef<ObjectRef>(node->ref)
+        << " cannot have have its OpPatternKind set more than once.";
     initialized_nodes_.insert(node);
     node->pattern = pattern;
   }
@@ -915,7 +921,8 @@ class OperatorFusor : public ExprMutator {
    */
   Group* GetGroupFromVar(const Var& var) {
     const auto& it_group = obj2group_.find(var.get());
-    ICHECK(it_group != obj2group_.end());
+    ICHECK(it_group != obj2group_.end())
+        << "Variable " << var << " could not be found in any group";
     Group* group = it_group->second;
     return group->FindRoot();
   }
