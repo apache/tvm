@@ -614,6 +614,8 @@ class MSCGraphNode : public BaseGraphNode {
   void FromJson(const std::string& json_str);
   /*! \brief Export graph to prototxt. */
   const String ToPrototxt() const;
+  /*! \brief Check if node in the graph. */
+  const bool HasNode(const String& name) const;
   /*! \brief Find node in graph. */
   const MSCJoint FindNode(const String& name) const;
   /*! \brief Get input from the graph. */

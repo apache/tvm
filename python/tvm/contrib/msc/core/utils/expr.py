@@ -24,6 +24,26 @@ from tvm.relax import PyExprVisitor
 from tvm.contrib.msc.core import _ffi_api
 
 
+def get_expr_name(expr: relax.Expr) -> str:
+    """Get name hint ofr expr
+
+    Parameters
+    ----------
+    expr: Expr
+        The Expr of relax.
+
+    Returns
+    -------
+    name: str
+        The name_hint of expr
+    """
+
+    name = _ffi_api.SpanGetAttr(expr.span, "name")
+    if not name and isinstance(expr, relax.Var):
+        return expr.name_hint
+    return name
+
+
 def get_span_attrs(mod: tvm.IRModule) -> dict:
     """Extract the span attributes from relax.Function.
 
@@ -53,7 +73,7 @@ def get_span_attrs(mod: tvm.IRModule) -> dict:
         def _update_attrs(self, expr: relax.Expr, name: str = "") -> None:
             if not expr.span:
                 return
-            name = name or _ffi_api.SpanGetAttr(expr.span, "name")
+            name = name or get_expr_name(expr)
             if not name:
                 return
             self._span_info[name] = dict(_ffi_api.SpanGetAttrs(expr.span))

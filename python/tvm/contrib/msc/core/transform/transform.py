@@ -84,3 +84,19 @@ def SetExprLayout(allow_missing: bool = True, entry_name: str = "main") -> tvm.i
     """
 
     return relax_api.SetExprLayout(allow_missing, entry_name)  # type: ignore
+
+
+def BindShape(entry_name: str = "main") -> tvm.ir.transform.Pass:
+    """Bind ShapeExpr to reshape
+
+    Parameters
+    ----------
+    entry_name: str
+        The entry name
+
+    Returns
+    -------
+    ret: tvm.ir.transform.Pass
+    """
+
+    return relax_api.BindShape(entry_name)  # type: ignore
