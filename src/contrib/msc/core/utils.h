@@ -60,6 +60,24 @@ class CommonUtils {
 class StringUtils {
  public:
   /*!
+   * \brief Check if the String contains a substring.
+   * \return Whether substring is contained.
+   */
+  TVM_DLL static bool Contains(const String& src_string, const String& sub_string);
+
+  /*!
+   * \brief Check if the String starts with a substring.
+   * \return Whether string starts with substring.
+   */
+  TVM_DLL static bool StartsWith(const String& src_string, const String& sub_string);
+
+  /*!
+   * \brief Check if the String ens with a substring.
+   * \return Whether string endswith substring.
+   */
+  TVM_DLL static bool EndsWith(const String& src_string, const String& sub_string);
+
+  /*!
    * \brief Split the String into sub Strings.
    * \return The SubStrings.
    */
@@ -159,7 +177,11 @@ class ArrayUtils {
   TVM_DLL static const Array<T> Cast(const Array<PrimExpr>& src_array) {
     Array<T> new_array;
     for (const auto& s : src_array) {
-      new_array.push_back(Downcast<T>(s));
+      if (s->IsInstance<tvm::tir::AnyNode>()) {
+        new_array.push_back(T(-1));
+      } else {
+        new_array.push_back(Downcast<T>(s));
+      }
     }
     return new_array;
   }

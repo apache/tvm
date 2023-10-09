@@ -25,6 +25,7 @@ from . import index
 from . import linear_algebra
 from . import manipulate
 from . import nn
+from . import qdq
 from . import search
 from . import statistical
 from . import unary

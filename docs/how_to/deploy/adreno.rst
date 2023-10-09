@@ -432,7 +432,7 @@ as the OpenCL path is fallback option for any operator didn't go through OpenCLM
 
    python3 -m tvm.driver.tvmc compile \
    --cross-compiler ${ANDROID_NDK_HOME}/toolchains/llvm/prebuilt/linux-x86_64/bin/aarch64-linux-android28-clang \
-   --target="opencl, clml, llvm" --target-llvm-mtriple aarch64-linux-gnu --target-opencl-device adreno \
+   --target="opencl, clml, llvm" --desired-layout NCHW --target-llvm-mtriple aarch64-linux-gnu --target-opencl-device adreno \
    --tuning-records keras-resnet50.log -o keras-resnet50.tar resnet50.h5
 
 On successful compilation, above command produce ``keras-resnet50.tar``.

@@ -320,9 +320,155 @@ def _check_relax_mask_attention(context: PatternCheckContext) -> bool:
     return True
 
 
+def make_opt_relax_conv_bias_pattern(
+    op_name: str,
+) -> Tuple[relax_pattern.DFPattern, Mapping[str, relax_pattern.DFPattern]]:
+    """Create patterns for an conv2d fused with bias, for mod after optimize.
+
+    Parameters
+    ----------
+    op_name: str
+        The name of a Relax op, such as "relax.nn.conv2d"
+
+    Returns
+    -------
+    out: tvm.relax.dpl.pattern.DFPattern
+        The resulting pattern describing a conv_bias operation.
+
+    annotations: Mapping[str, tvm.relax.dpl.pattern.DFPattern]
+        A mapping from name to sub pattern. It can be used to extract
+        important expressions from match result, to power the partition
+        check function and codegen.
+    """
+
+    data = relax_pattern.wildcard()
+    weight = relax_pattern.is_const()
+    conv = relax_pattern.is_op(op_name)(data, weight)
+    bias = relax_pattern.is_const()
+    out = relax_pattern.is_op("relax.add")(conv, bias)
+    annotations = {"data": data, "weight": weight, "bias": bias, "conv": conv, "out": out}
+    return out, annotations
+
+
+def _check_opt_relax_conv_bias(context: PatternCheckContext) -> bool:
+    """Check if conv_bias fuse pattern is correct.
+
+    Returns
+    -------
+    pass: bool
+        Whether the pattern is correct.
+    """
+
+    ndim_conv = len(context.annotated_expr["conv"].struct_info.shape.values)
+    ndim_bias = len(context.annotated_expr["bias"].struct_info.shape.values)
+    ndim_out = len(context.annotated_expr["out"].struct_info.shape.values)
+    return ndim_conv == ndim_bias and ndim_bias == ndim_out
+
+
+def make_opt_relax_linear_pattern() -> Tuple[
+    relax_pattern.DFPattern, Mapping[str, relax_pattern.DFPattern]
+]:
+    """Create patterns for an linear, for mod after optimize.
+
+    Returns
+    -------
+    out: tvm.relax.dpl.pattern.DFPattern
+        The resulting pattern describing a conv_bias operation.
+
+    annotations: Mapping[str, tvm.relax.dpl.pattern.DFPattern]
+        A mapping from name to sub pattern. It can be used to extract
+        important expressions from match result, to power the partition
+        check function and codegen.
+    """
+
+    data = relax_pattern.wildcard()
+    weight = relax_pattern.is_const()
+    out = relax_pattern.is_op("relax.matmul")(data, weight)
+    annotations = {"weight": weight}
+    return out, annotations
+
+
+def _check_opt_relax_linear(context: PatternCheckContext) -> bool:
+    """Check if linear fuse pattern is correct.
+
+    Returns
+    -------
+    pass: bool
+        Whether the pattern is correct.
+    """
+
+    ndim_weight = len(context.annotated_expr["weight"].struct_info.shape.values)
+    return ndim_weight == 2
+
+
+def make_opt_relax_linear_bias_pattern() -> Tuple[
+    relax_pattern.DFPattern, Mapping[str, relax_pattern.DFPattern]
+]:
+    """Create patterns for an linear_bias, for mod after optimize.
+
+    Returns
+    -------
+    out: tvm.relax.dpl.pattern.DFPattern
+        The resulting pattern describing a conv_bias operation.
+
+    annotations: Mapping[str, tvm.relax.dpl.pattern.DFPattern]
+        A mapping from name to sub pattern. It can be used to extract
+        important expressions from match result, to power the partition
+        check function and codegen.
+    """
+
+    data = relax_pattern.wildcard()
+    weight = relax_pattern.is_const()
+    linear = relax_pattern.is_op("relax.matmul")(data, weight)
+    bias = relax_pattern.is_const()
+    out = relax_pattern.is_op("relax.add")(linear, bias)
+    annotations = {"weight": weight, "bias": bias, "linear": linear, "out": out}
+    return out, annotations
+
+
+def _check_opt_relax_linear_bias(context: PatternCheckContext) -> bool:
+    """Check if linear fuse pattern is correct.
+
+    Returns
+    -------
+    pass: bool
+        Whether the pattern is correct.
+    """
+
+    if not _check_opt_relax_linear(context):
+        return False
+    ndim_bias = len(context.annotated_expr["bias"].struct_info.shape.values)
+    ndim_out = len(context.annotated_expr["out"].struct_info.shape.values)
+    return ndim_bias == 1 or ndim_bias == ndim_out
+
+
 # TODO(tong.meng): support patterns after optimize
 register_patterns(
     [
+        (
+            "msc.conv1d_bias",
+            *make_opt_relax_conv_bias_pattern(
+                "relax.nn.conv1d",
+            ),
+            _check_opt_relax_conv_bias,
+        ),
+        (
+            "msc.conv2d_bias",
+            *make_opt_relax_conv_bias_pattern(
+                "relax.nn.conv2d",
+            ),
+            _check_opt_relax_conv_bias,
+        ),
+        (
+            "msc.linear",
+            *make_opt_relax_linear_pattern(),
+            _check_opt_relax_linear,
+        ),
+        (
+            "msc.linear_bias",
+            *make_opt_relax_linear_bias_pattern(),
+            _check_opt_relax_linear_bias,
+        ),
         (
             "msc.conv1d_bias",
             *make_relax_conv_bias_pattern(

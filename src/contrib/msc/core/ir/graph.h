@@ -628,6 +628,8 @@ class MSCGraphNode : public BaseGraphNode {
   const Array<MSCJoint> GetEntries() const;
   /*! \brief Get exits from the graph. */
   const Array<MSCJoint> GetExits() const;
+  /*! \brief Check if tensor in the graph. */
+  const bool HasTensor(const String& name) const;
   /*! \brief Find tensor from the graph. */
   const MSCTensor FindTensor(const String& name) const;
   /*! \brief Find producer of tensor from the graph. */

@@ -446,7 +446,7 @@ class FunctionCreator : public ExprMutator {
   }
 
   /*!
-   * \brief Create the grouped function according according to the collected bindings and parameters
+   * \brief Create the grouped function according to the collected bindings and parameters
    * \param composite_name The name to identify the pattern this function is created from, if any.
    * It will become the value of the kComposite attribute of the created function.
    * \note The created function won't be returned immediately. It's stored in the `function_` field.

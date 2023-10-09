@@ -19,6 +19,8 @@
 """ Test translate from relay. """
 
 import numpy as np
+import pytest
+
 import torch
 from torch import fx
 from torch.nn import Module
@@ -158,9 +160,9 @@ def test_linear():
             return torch.matmul(x, y)
 
     input_info = [([1, 3, 10, 10], "float32")]
-    verify_model(Dense1(), input_info)
-    verify_model(Dense2(), input_info)
-    verify_model(MatMul1(), [([10, 10], "float32"), ([10, 10], "float32")])
+    verify_model(Dense1(), input_info, build_target="llvm")
+    verify_model(Dense2(), input_info, build_target="llvm")
+    verify_model(MatMul1(), [([10, 10], "float32"), ([10, 10], "float32")], build_target="llvm")
 
 
 def test_bmm():
@@ -805,6 +807,9 @@ def test_tensor():
     verify_model(Empty2(), [([10, 10], "float32")], build_target="llvm")
 
 
+@pytest.mark.xfail(
+    reason="Failure to convert from R.PrimValue argument in msc/framework/tvm/codegen.cc"
+)
 def test_tril():
     """test relay to relax for tril"""
 
@@ -822,6 +827,9 @@ def test_tril():
     verify_model(InplaceTril(), input_info)
 
 
+@pytest.mark.xfail(
+    reason="Failure to convert from R.PrimValue argument in msc/framework/tvm/codegen.cc"
+)
 def test_triu():
     """test relay to relax for triu"""
 

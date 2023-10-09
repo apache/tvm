@@ -27,11 +27,11 @@ from tvm.contrib.msc.core.ir import translate
 from tvm.contrib.msc.framework.tvm import codegen as tvm_codegen
 
 
-def verify_model(torch_model, input_info):
+def verify_model(torch_model, input_info, opt_config=None):
     graph_model = fx.symbolic_trace(torch_model)
     with torch.no_grad():
         expected = from_fx(graph_model, input_info)
-    graph, weights = translate.from_relax(expected)
+    graph, weights = translate.from_relax(expected, opt_config=opt_config)
     mod = tvm_codegen.to_relax(graph, weights, codegen_config={"explicit_name": False})
     tvm.ir.assert_structural_equal(mod, expected)
 
@@ -753,7 +753,7 @@ def test_inplace_fill():
             data.fill_(1.5)
             return data
 
-    verify_model(InplaceFill(), [([10, 10], "float32")])
+    verify_model(InplaceFill(), [([10, 10], "float32")], opt_config={"opt_level": 0})
 
 
 def test_arange():
@@ -833,7 +833,7 @@ def test_new_ones():
             return x.new_ones(1, 2, 3)
 
     input_info = [([1, 2, 3], "float32")]
-    verify_model(NewOnes(), input_info)
+    verify_model(NewOnes(), input_info, opt_config={"opt_level": 0})
 
 
 def test_expand():

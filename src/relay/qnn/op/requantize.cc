@@ -121,9 +121,9 @@ InferCorrectLayoutOutput RequantizeInferCorrectLayout(const Attrs& attrs,
 }
 
 bool has_current_target_sse41_support() {
-  auto llvm_x86_has_feature_fn_ptr = tvm::runtime::Registry::Get("target.llvm_x86_has_feature");
-  ICHECK(llvm_x86_has_feature_fn_ptr) << "Function target.llvm_x86_has_feature not found";
-  return (*llvm_x86_has_feature_fn_ptr)("sse4.1", Target::Current(true));
+  auto target_has_feature_fn_ptr = tvm::runtime::Registry::Get("target.target_has_feature");
+  ICHECK(target_has_feature_fn_ptr) << "Function target.target_has_feature not found";
+  return (*target_has_feature_fn_ptr)("sse4.1", Target::Current(true));
 }
 
 /*

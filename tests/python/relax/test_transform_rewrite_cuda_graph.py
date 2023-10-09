@@ -15,6 +15,8 @@
 # specific language governing permissions and limitations
 # under the License.
 
+import pytest
+
 import tvm
 from tvm import relax
 from tvm.script import tir as T, relax as R, ir as I
@@ -23,6 +25,13 @@ import tvm.testing
 
 class BaseCompare(tvm.testing.CompareBeforeAfter):
     transform = relax.transform.RewriteCUDAGraph()
+
+
+@pytest.fixture(autouse=True)
+def enable_cuda_graph():
+    """Enable cuda graph transform for all tests in this file"""
+    with tvm.transform.PassContext(config={"relax.backend.use_cuda_graph": True}):
+        yield
 
 
 def test_rewrite_cuda_graph():
@@ -675,6 +684,24 @@ class TestNullValue(BaseCompare):
             return gv
 
     expected = before
+
+
+def test_transform_is_no_op_when_disabled():
+    @I.ir_module
+    class Before:
+        @R.function
+        def main():
+            storage = R.memory.alloc_storage(R.shape([8]), 0, "global", "float32")
+            alloc3 = R.memory.alloc_tensor(storage, 0, R.shape([8]), "float32")
+            return R.tuple()
+
+    with tvm.transform.PassContext(config={"relax.backend.use_cuda_graph": True}):
+        AfterWhenEnabled = relax.transform.RewriteCUDAGraph()(Before)
+    with tvm.transform.PassContext(config={"relax.backend.use_cuda_graph": False}):
+        AfterWhenDisabled = relax.transform.RewriteCUDAGraph()(Before)
+
+    assert not tvm.ir.structural_equal(Before, AfterWhenEnabled)
+    tvm.ir.assert_structural_equal(Before, AfterWhenDisabled)
 
 
 if __name__ == "__main__":

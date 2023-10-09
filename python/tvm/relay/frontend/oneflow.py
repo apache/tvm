@@ -742,7 +742,6 @@ class ExpandDim(OneFlowOpConverter):
 
     @classmethod
     def _impl_v1(cls, inputs, attrs, params):
-
         return _op.expand_dims(inputs[0], axis=attrs.get("axis", 0))
 
 
@@ -1434,8 +1433,10 @@ def get_convert_map():
         # defs/nn
         "conv2d": Conv2d.get_converter(),
         "deconv2d": ConvTranspose2d.get_converter(),
-        "maxpool_2d": MaxPool2d.get_converter(),
-        "avgpool_2d": AveragePool2d.get_converter(),
+        "max_pool_2d": MaxPool2d.get_converter(),
+        "avg_pool_2d": AveragePool2d.get_converter(),
+        "maxpool_2d": MaxPool2d.get_converter(),  # Maintained for oneflow versions <= "0.7.0"
+        "avgpool_2d": AveragePool2d.get_converter(),  # Maintained for oneflow versions <= "0.7.0"
         "adaptive_avg_pool2d": AdaptiveAvgPool2d.get_converter(),
         "adaptive_max_pool2d": AdaptiveMaxPool2d.get_converter(),
         "dropout": Dropout.get_converter(),
@@ -1909,7 +1910,10 @@ def from_oneflow(graph, model_dir_path):
             size_attr = size_str[0].replace("size=", "")
             if size_attr[-2] == ",":
                 size_attr = size_attr.replace(",", "")
-            data_size = tuple(map(int, size_attr[1:-1].split(", ")))
+            if size_attr == "()":
+                data_size = ()
+            else:
+                data_size = tuple(map(int, size_attr[1:-1].split(", ")))
             node_name = attrs[1]
             shape[node_name] = data_size
             dtype[node_name] = "float32"

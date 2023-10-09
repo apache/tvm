@@ -47,6 +47,49 @@ std::vector<size_t> CommonUtils::GetIndices(const std::vector<int>& indices, siz
   return v_indices;
 }
 
+bool StringUtils::Contains(const String& src_string, const String& sub_string) {
+  if (src_string.size() == 0) {
+    return false;
+  }
+  if (sub_string.size() == 0) {
+    return false;
+  }
+
+  const std::string& src_cstring = src_string;
+  const std::string& sub_cstring = sub_string;
+  int pos = src_cstring.find(sub_cstring);
+  return pos >= 0;
+}
+
+bool StringUtils::StartsWith(const String& src_string, const String& sub_string) {
+  if (src_string.size() == 0) {
+    return false;
+  }
+  if (sub_string.size() == 0) {
+    return false;
+  }
+  const std::string& src_cstring = src_string;
+  const std::string& sub_cstring = sub_string;
+  int pos = src_cstring.find(sub_cstring);
+  return pos == 0;
+}
+
+bool StringUtils::EndsWith(const String& src_string, const String& sub_string) {
+  if (src_string.size() == 0) {
+    return false;
+  }
+  if (sub_string.size() == 0) {
+    return false;
+  }
+  const std::string& src_cstring = src_string;
+  const std::string& sub_cstring = sub_string;
+  int pos = src_cstring.rfind(sub_cstring);
+  if (pos < 0) {
+    return false;
+  }
+  return static_cast<size_t>(pos) == src_cstring.size() - sub_cstring.size();
+}
+
 const Array<String> StringUtils::Split(const String& src_string, const String& sep) {
   Array<String> sub_strings;
   if (src_string.size() == 0) {
@@ -192,7 +235,8 @@ const Span SpanUtils::SetAttr(const Span& span, const String& key, const String&
     const String& source_str = span->source_name->name;
     String left = std::get<0>(StringUtils::SplitOnce(source_str, tokens[0]));
     String right = std::get<1>(StringUtils::SplitOnce(source_str, tokens[1]));
-    if (left.size() > 0) {
+    if (StringUtils::Contains(source_str, tokens[0]) &&
+        StringUtils::Contains(source_str, tokens[1])) {
       new_source = left + tokens[0] + value + tokens[1] + right;
     } else {
       new_source = source_str + tokens[0] + value + tokens[1];
@@ -236,7 +280,10 @@ const Array<String> ExprUtils::GetInputTypes(const String& optype, size_t inputs
   } else if (optype == "full" && as_relax) {
     input_types.push_back("shape");
     input_types.push_back("input");
-  } else if (optype == "trilu") {
+  } else if (optype == "triu") {
+    input_types.push_back("input");
+    input_types.push_back("k");
+  } else if (optype == "tril") {
     input_types.push_back("input");
     input_types.push_back("k");
   } else if (optype == "image.resize2d" && as_relax) {
@@ -256,28 +303,18 @@ const Array<String> ExprUtils::GetInputTypes(const String& optype, size_t inputs
     input_types.push_back("gamma");
     input_types.push_back("beta");
   } else if (optype == "msc.linear") {
-    if (as_relax) {
-      input_types.push_back("weight");
-      input_types.push_back("input");
-    } else {
-      input_types.push_back("input");
-      input_types.push_back("weight");
-    }
+    input_types.push_back("input");
+    input_types.push_back("weight");
   } else if (optype == "msc.conv1d_bias" || optype == "msc.conv2d_bias") {
     input_types.push_back("input");
     input_types.push_back("weight");
     input_types.push_back("bias");
-    if (as_relax) {
+    if (as_relax && inputs_num > 3) {
       input_types.push_back("expand_bias");
     }
   } else if (optype == "msc.linear_bias") {
-    if (as_relax) {
-      input_types.push_back("weight");
-      input_types.push_back("input");
-    } else {
-      input_types.push_back("input");
-      input_types.push_back("weight");
-    }
+    input_types.push_back("input");
+    input_types.push_back("weight");
     input_types.push_back("bias");
   } else if (optype == "msc.embedding" && inputs_num == 2) {
     input_types.push_back("input");

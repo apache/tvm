@@ -2627,9 +2627,16 @@ def _test_div(data, fused_activation_function=None, quantized=False, qnn_op=None
 # -----
 
 
-def _test_pow(data):
+def _test_pow(data, fused_activation_function=None, quantized=False, qnn_op=None):
     """One iteration of power"""
-    return _test_elemwise(math_ops.pow, data)
+    return _test_elemwise(
+        math_ops.pow,
+        data,
+        fused_activation_function,
+        quantized,
+        qnn_op,
+        same_qnn_params=True,
+    )
 
 
 #######################################################################
@@ -2866,6 +2873,7 @@ def _test_elemwise_qnn_out_range(qnn_op):
         _test_less: (-150, 150),
         _test_floor_mod: (-150, 150),
         _test_not_equal: (-150, 150),
+        _test_pow: (0, 3),
         _test_less_equal: (-150, 150),
         _test_greater_equal: (-150, 150),
     }
@@ -2894,6 +2902,7 @@ def test_all_elemwise():
     _test_forward_elemwise(partial(_test_div, fused_activation_function="RELU6"))
     _test_forward_elemwise_quantized(_test_div)
     _test_forward_elemwise(_test_pow)
+    _test_forward_elemwise_quantized(_test_pow)
     _test_forward_elemwise(_test_maximum)
     _test_forward_elemwise_quantized(_test_maximum)
     _test_forward_elemwise(_test_minimum)

@@ -19,7 +19,7 @@
 
 import tvm
 from tvm import autotvm, relay, te
-from tvm.target.x86 import target_has_features
+from tvm.target.codegen import target_has_features
 
 from .. import nn
 from ..nn import dense_alter_layout
@@ -28,9 +28,6 @@ from .dense import _default_dense_pack_config
 
 
 def check_int8_applicable(x, y, allow_padding=False):
-    # avx512f:  llvm.x86.avx512.addpd.w.512 (LLVM auto, added)
-    # avx512bw: llvm.x86.avx512.pmaddubs.w.512" (TVM required)
-    #         + llvm.x86.avx512.pmaddw.d.512"
     simd_avai = target_has_features(["avx512bw", "avx512f"])
     simd_avai |= target_has_features("amx-int8")
     # TODO(vvchernov): may be also target_has_features("avx2") or lower?

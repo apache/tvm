@@ -24,7 +24,7 @@ from tvm.script import ir as I, tir as T, relax as R
 
 
 def gen_mod(mod, name, binding):
-    """Select relax function with name, rename to main and and bind constant.
+    """Select relax function with name, rename to main and bind constant.
 
     Parameters
     ----------

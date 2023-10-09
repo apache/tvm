@@ -16,6 +16,8 @@
 # under the License.
 """tvm.contrib.msc.core.utils.expr"""
 
+import copy
+
 import tvm
 from tvm import relax
 from tvm.relax import PyExprVisitor
@@ -41,6 +43,7 @@ def get_span_attrs(mod: tvm.IRModule) -> dict:
 
         def extract(self, expr: relax.Expr) -> dict:
             self._span_info = {}
+            self._local_funcs = {}
             if isinstance(expr, relax.Expr):
                 self.visit_expr(expr)
             elif isinstance(expr, relax.BindingBlock):
@@ -53,11 +56,21 @@ def get_span_attrs(mod: tvm.IRModule) -> dict:
             name = name or _ffi_api.SpanGetAttr(expr.span, "name")
             if not name:
                 return
-            self._span_info[name] = _ffi_api.SpanGetAttrs(expr.span)
+            self._span_info[name] = dict(_ffi_api.SpanGetAttrs(expr.span))
 
         def visit_var_binding_(self, binding: relax.VarBinding) -> None:
-            super().visit_var_binding_(binding)
-            self._update_attrs(binding.value, binding.var.name_hint)
+            if isinstance(binding.value, relax.expr.Function):
+                self._local_funcs[binding.var] = binding.value
+            elif (
+                isinstance(binding.value, relax.expr.Call) and binding.value.op in self._local_funcs
+            ):
+                cache_info = copy.deepcopy(self._span_info)
+                func_info = self.extract(self._local_funcs[binding.value.op])
+                self._span_info = cache_info
+                self._span_info[binding.value.op.name_hint] = func_info
+            else:
+                super().visit_var_binding_(binding)
+                self._update_attrs(binding.value, binding.var.name_hint)
 
         def visit_constant_(self, op: relax.Constant) -> None:
             super().visit_constant_(op)

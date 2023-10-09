@@ -69,4 +69,4 @@ def to_torch(
         return model
 
     codegen = CodeGen(graph, _ffi_api.GetTorchSources, codegen_config, print_config, build_folder)
-    return codegen.load([], _bind_weights)
+    return codegen.load([], post_load=_bind_weights)

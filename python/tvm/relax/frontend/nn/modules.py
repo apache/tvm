@@ -71,13 +71,25 @@ def _print(_, array: NDArray) -> None:
     print(f"effect.print: shape = {array.shape}, dtype = {array.dtype}, data =\n{array}")
 
 
+class ReLU(Module):
+    """Module for ReLU activation layer."""
+
+    def forward(self, x: Tensor):
+        return op.relu(x)
+
+
 class SiLU(Module):
-    """
-    Module for SiLU activation layer.
-    """
+    """Module for SiLU activation layer."""
 
     def forward(self, x: Tensor):
         return op.silu(x)
+
+
+class GELU(Module):
+    """Module for GELU activation layer."""
+
+    def forward(self, x: Tensor):
+        return op.gelu(x)
 
 
 class Identity(Module):

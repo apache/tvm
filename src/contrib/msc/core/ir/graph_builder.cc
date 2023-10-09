@@ -47,6 +47,32 @@ void RelaxFuncAttrGetter::VisitExpr_(const relax::CallNode* op) {
   }
 }
 
+void RelaxFuncParamsFinder::VisitBinding_(const relax::VarBindingNode* binding,
+                                          const relax::FunctionNode* val) {
+  local_funcs_.Set(binding->var, GetRef<relax::Function>(val));
+}
+
+void RelaxFuncParamsFinder::VisitExpr_(const relax::CallNode* call_node) {
+  RelaxExprVisitor::VisitExpr_(call_node);
+  relax::Function func;
+  if (const auto* v_node = call_node->op.as<GlobalVarNode>()) {
+    func = Downcast<relax::Function>(ref_module_->Lookup(v_node->name_hint));
+  } else if (call_node->op.as<relax::VarNode>()) {
+    ICHECK(local_funcs_.count(call_node->op)) << "Can not find local func " << call_node->op;
+    func = local_funcs_[call_node->op];
+  }
+  if (func.defined()) {
+    for (size_t i = 0; i < call_node->args.size(); i++) {
+      const auto& arg = call_node->args[i];
+      if (arg->IsInstance<relax::VarNode>() && params_.count(Downcast<relax::Var>(arg))) {
+        params_.Set(func->params[i], params_[Downcast<relax::Var>(arg)]);
+      } else {
+        params_.Set(func->params[i], arg);
+      }
+    }
+  }
+}
+
 const MSCGraph RelaxGraphBuilder::Build(const relax::Function& func) {
   // Add input nodes and record inputs;
   Array<String> input_names, output_names;
@@ -64,21 +90,32 @@ const MSCGraph RelaxGraphBuilder::Build(const relax::Function& func) {
   }
   // remove const nodes as weights
   Array<MSCJoint> valid_nodes;
+  std::set<String> ignore_inputs;
   for (const auto& n : nodes_) {
-    if (!weights_.count(n->name)) {
+    if (!weights_.count(n->name) && !ignore_nodes_.count(n->name)) {
       n->index = valid_nodes.size();
       valid_nodes.push_back(n);
+    } else if (n->optype == "input") {
+      ignore_inputs.insert(n->OutputAt(0)->name);
     }
   }
-  const auto& graph = MSCGraph(name_, valid_nodes, input_names, output_names);
+  // remove uselese inputs
+  Array<String> valid_inputs;
+  for (const auto& i : input_names) {
+    if (!ignore_inputs.count(i)) {
+      valid_inputs.push_back(i);
+    }
+  }
+  // build graph
+  const auto& graph = MSCGraph(name_, valid_nodes, valid_inputs, output_names);
   // set inputs and outputs alias
-  if (config_.input_aliases.size() == input_names.size()) {
-    for (size_t i = 0; i < input_names.size(); i++) {
-      graph->FindTensor(input_names[i])->alias = config_.input_aliases[i];
+  if (config_.input_aliases.size() == valid_inputs.size()) {
+    for (size_t i = 0; i < valid_inputs.size(); i++) {
+      graph->FindTensor(valid_inputs[i])->alias = config_.input_aliases[i];
     }
   } else {
-    for (size_t i = 0; i < input_names.size(); i++) {
-      graph->FindTensor(input_names[i])->alias = graph->FindProducer(input_names[i])->name;
+    for (size_t i = 0; i < valid_inputs.size(); i++) {
+      graph->FindTensor(valid_inputs[i])->alias = graph->FindProducer(valid_inputs[i])->name;
     }
   }
   if (config_.output_aliases.size() == output_names.size()) {
@@ -123,6 +160,11 @@ const MSCJoint RelaxGraphBuilder::AddNode(const Expr& expr, const Optional<Expr>
       const auto& name_opt = func->GetAttr<runtime::String>(relax::attr::kComposite);
       ICHECK(name_opt.defined()) << "Unexpected global func without composite";
       optype = name_opt.value();
+    } else if (call_node->op.as<relax::VarNode>()) {
+      ICHECK(target_funcs_.count(call_node->op)) << "Can not find target func: " << call_node->op;
+      const auto& func = target_funcs_[call_node->op];
+      const auto& name_opt = func->GetAttr<runtime::String>(relax::attr::kComposite);
+      optype = StringUtils::Replace(name_opt.value(), config_.target + ".", "");
     } else if (const auto* f_node = call_node->op.as<relax::FunctionNode>()) {
       const auto& name_opt = f_node->GetAttr<runtime::String>(relax::attr::kComposite);
       ICHECK(name_opt.defined()) << "Unexpected func without composite";
@@ -138,6 +180,10 @@ const MSCJoint RelaxGraphBuilder::AddNode(const Expr& expr, const Optional<Expr>
   if (const auto* call_node = expr.as<relax::CallNode>()) {
     if (const auto* v_node = call_node->op.as<GlobalVarNode>()) {
       const auto& func = Downcast<relax::Function>(ref_module_->Lookup(v_node->name_hint));
+      attrs = RelaxFuncAttrGetter().GetAttrs(func);
+    } else if (call_node->op->IsInstance<relax::VarNode>()) {
+      ICHECK(target_funcs_.count(call_node->op)) << "Can not find target func: " << call_node->op;
+      const auto& func = target_funcs_[call_node->op];
       attrs = RelaxFuncAttrGetter().GetAttrs(func);
     } else if (call_node->op->IsInstance<relax::FunctionNode>()) {
       attrs = RelaxFuncAttrGetter().GetAttrs(call_node->op);
@@ -173,29 +219,67 @@ const MSCJoint RelaxGraphBuilder::AddNode(const Expr& expr, const Optional<Expr>
         attrs.Set(input_types[i], StringUtils::ToString(s_node->values));
         continue;
       }
+      if (func_params_.count(arg) && func_params_[arg]->IsInstance<relax::ShapeExprNode>()) {
+        const auto* s_node = func_params_[arg].as<relax::ShapeExprNode>();
+        attrs.Set(input_types[i], StringUtils::ToString(s_node->values));
+        ignore_nodes_.insert(Downcast<relax::Var>(arg)->name_hint());
+        continue;
+      }
       if (const auto* s_node = arg.as<relax::PrimValueNode>()) {
         ICHECK(input_types[i] != "input") << i << " th PrimValue of " << optype
                                           << " should has special type, get " << input_types;
         attrs.Set(input_types[i], StringUtils::ToString(s_node->value));
         continue;
       }
-      ICHECK(expr_tensor_map_.count(arg)) << "Missing argument " << arg;
+      Array<String> arg_names;
+      if (expr_tensor_map_.count(arg)) {
+        arg_names = expr_tensor_map_[arg];
+      } else if (const auto* tuple_node = arg.as<relax::TupleNode>()) {
+        for (const auto& f : tuple_node->fields) {
+          ICHECK(expr_tensor_map_.count(f)) << "Can not find tuple field " << f;
+          for (const auto& in_name : expr_tensor_map_[f]) {
+            arg_names.push_back(in_name);
+          }
+        }
+      }
+      String weight_name;
       if (input_types[i] != "input" && arg->IsInstance<relax::ConstantNode>()) {
-        const auto& t_name = expr_tensor_map_[arg][0];
-        const auto& w_name = SpanUtils::GetAttr(arg->span, "name");
+        weight_name = SpanUtils::GetAttr(arg->span, "name");
+      } else if (input_types[i] != "input" && func_params_.count(arg) &&
+                 func_params_[arg]->IsInstance<relax::ConstantNode>()) {
+        weight_name = SpanUtils::GetAttr(func_params_[arg]->span, "name");
+        ignore_nodes_.insert(Downcast<relax::Var>(arg)->name_hint());
+      }
+      // set weights or inputs
+      if (weight_name.size() > 0) {
+        const auto& t_name = arg_names[0];
         const auto& pair = tensor_input_map_[t_name];
         const auto& producer = Downcast<MSCJoint>(pair.first);
-        if (!weights_.count(w_name)) {
+        if (!weights_.count(weight_name)) {
           const auto& ref = producer->OutputAt(pair.second);
-          const auto& weight = MSCTensor(w_name, ref->dtype, ref->layout.name(), ref->shape);
-          weights_.Set(w_name, weight);
+          MSCTensor weight;
+          if (input_types[i] == "bias") {
+            weight = MSCTensor(weight_name, ref->dtype, "O", Array<Integer>{ref->GetSize()});
+          } else if (input_types[i] == "weight" &&
+                     (optype == "msc.linear" || optype == "msc.linear_bias")) {
+            if (ref->layout.name() == "IO") {
+              String valid_layout = ref->layout[1].name() + ref->layout[0].name();
+              const auto& valid_shape = Array<Integer>({ref->shape[1], ref->shape[0]});
+              weight = MSCTensor(weight_name, ref->dtype, valid_layout, valid_shape);
+            } else {
+              weight = MSCTensor(weight_name, ref->dtype, ref->layout.name(), ref->shape);
+            }
+          } else {
+            weight = MSCTensor(weight_name, ref->dtype, ref->layout.name(), ref->shape);
+          }
+          weights_.Set(weight_name, weight);
         }
         if (producer->HasAttr("scalar")) {
           attrs.Set(input_types[i], producer->GetTypeAttr<std::string>("scalar"));
         }
-        node_weights.Set(input_types[i], weights_[w_name]);
+        node_weights.Set(input_types[i], weights_[weight_name]);
       } else {
-        for (const auto& in_name : expr_tensor_map_[arg]) {
+        for (const auto& in_name : arg_names) {
           input_names.push_back(in_name);
         }
       }
@@ -280,19 +364,22 @@ void RelaxGraphBuilder::VisitExpr_(const relax::ConstantNode* op) {
 
 void RelaxGraphBuilder::VisitBinding_(const relax::VarBindingNode* binding,
                                       const relax::ConstantNode* val) {
-  AddNode(GetRef<relax::Constant>(val), binding->var);
+  const String& name = config_.use_var_name ? binding->var->name_hint() : "";
+  AddNode(GetRef<relax::Constant>(val), binding->var, name);
 }
 
 void RelaxGraphBuilder::VisitBinding_(const relax::VarBindingNode* binding,
                                       const relax::ShapeExprNode* val) {
-  AddNode(GetRef<relax::ShapeExpr>(val), binding->var);
+  const String& name = config_.use_var_name ? binding->var->name_hint() : "";
+  AddNode(GetRef<relax::ShapeExpr>(val), binding->var, name);
 }
 
 void RelaxGraphBuilder::VisitBinding_(const relax::VarBindingNode* binding,
                                       const relax::CallNode* call_node) {
   RelaxExprVisitor::VisitBinding_(binding, call_node);
+  const String& name = config_.use_var_name ? binding->var->name_hint() : "";
   try {
-    AddNode(GetRef<relax::Call>(call_node), binding->var);
+    AddNode(GetRef<relax::Call>(call_node), binding->var, name);
   } catch (runtime::InternalError& err) {
     LOG(WARNING) << "Failed to add node from " << binding->var << " : " << binding->value
                  << ", reason: " << err.message();
@@ -303,13 +390,15 @@ void RelaxGraphBuilder::VisitBinding_(const relax::VarBindingNode* binding,
 void RelaxGraphBuilder::VisitBinding_(const relax::VarBindingNode* binding,
                                       const relax::TupleNode* val) {
   RelaxExprVisitor::VisitBinding_(binding, val);
-  AddNode(GetRef<relax::Tuple>(val), binding->var);
+  const String& name = config_.use_var_name ? binding->var->name_hint() : "";
+  AddNode(GetRef<relax::Tuple>(val), binding->var, name);
 }
 
 void RelaxGraphBuilder::VisitBinding_(const relax::VarBindingNode* binding,
                                       const relax::TupleGetItemNode* val) {
   RelaxExprVisitor::VisitBinding_(binding, val);
-  AddNode(GetRef<relax::TupleGetItem>(val), binding->var);
+  const String& name = config_.use_var_name ? binding->var->name_hint() : "";
+  AddNode(GetRef<relax::TupleGetItem>(val), binding->var, name);
 }
 
 void RelaxGraphBuilder::VisitBinding_(const relax::VarBindingNode* binding,
@@ -326,6 +415,15 @@ void RelaxGraphBuilder::VisitBinding_(const relax::VarBindingNode* binding,
   const auto& output = GetRef<relax::DataflowVar>(val);
   ICHECK(expr_tensor_map_.count(output)) << "Can not find dataflow var " << output;
   expr_tensor_map_.Set(binding->var, expr_tensor_map_[output]);
+}
+
+void RelaxGraphBuilder::VisitBinding_(const relax::VarBindingNode* binding,
+                                      const relax::FunctionNode* val) {
+  const auto& name_opt = val->GetAttr<runtime::String>(relay::attr::kComposite);
+  ICHECK(name_opt.defined()) << "Unexpected target func without composite";
+  ICHECK(config_.target.size() > 0 && StringUtils::StartsWith(name_opt.value(), config_.target))
+      << "Target should be given for target function";
+  target_funcs_.Set(binding->var, GetRef<relax::Function>(val));
 }
 
 Map<MSCTensor, NDArray> RelaxWeightsExtractor::GetWeights(const relax::Function& func) {
@@ -476,18 +574,23 @@ MSCJoint RelayGraphBuilder::AddNode(const Expr& expr, const String& name) {
       ICHECK(expr_tensor_map_.count(arg)) << "Missing argument " << arg;
       if (input_types[i] != "input" && arg->IsInstance<relay::ConstantNode>()) {
         const auto& t_name = expr_tensor_map_[arg][0];
-        const auto& w_name = SpanUtils::GetAttr(arg->span, "name");
+        const auto& weight_name = SpanUtils::GetAttr(arg->span, "name");
         const auto& pair = tensor_input_map_[t_name];
         const auto& producer = Downcast<MSCJoint>(pair.first);
-        if (!weights_.count(w_name)) {
+        if (!weights_.count(weight_name)) {
           const auto& ref = producer->OutputAt(pair.second);
-          const auto& weight = MSCTensor(w_name, ref->dtype, ref->layout.name(), ref->shape);
-          weights_.Set(w_name, weight);
+          MSCTensor weight;
+          if (input_types[i] == "bias") {
+            weight = MSCTensor(weight_name, ref->dtype, "O", Array<Integer>{ref->GetSize()});
+          } else {
+            weight = MSCTensor(weight_name, ref->dtype, ref->layout.name(), ref->shape);
+          }
+          weights_.Set(weight_name, weight);
         }
         if (producer->HasAttr("scalar")) {
           attrs.Set(input_types[i], producer->GetTypeAttr<std::string>("scalar"));
         }
-        node_weights.Set(input_types[i], weights_[w_name]);
+        node_weights.Set(input_types[i], weights_[weight_name]);
       } else {
         for (const auto& in_name : expr_tensor_map_[arg]) {
           input_names.push_back(in_name);
@@ -606,6 +709,9 @@ void RelayGraphBuilder::VisitExpr_(const relay::CallNode* op) {
     const auto& name_opt = f_node->GetAttr<runtime::String>(relay::attr::kComposite);
     if (name_opt.defined()) {
       for (size_t i = 0; i < op->args.size(); i++) {
+        if (!expr_tensor_map_.count(op->args[i])) {
+          RelayExprVisitor::VisitExpr(op->args[i]);
+        }
         ICHECK(expr_tensor_map_.count(op->args[i]))
             << "Can not find argument " << relay::PrettyPrint(op->args[i]);
         expr_tensor_map_.Set(f_node->params[i], expr_tensor_map_[op->args[i]]);

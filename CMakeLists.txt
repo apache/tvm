@@ -356,6 +356,7 @@ list(APPEND COMPILER_SRCS "src/target/datatype/myfloat/myfloat.cc")
 tvm_file_glob(GLOB RUNTIME_SRCS
   src/runtime/*.cc
   src/runtime/vm/*.cc
+  src/runtime/memory/*.cc
   src/runtime/disco/*.cc
   src/runtime/minrpc/*.cc
   src/runtime/relax_vm/*.cc
@@ -895,8 +896,9 @@ if(USE_CUDA AND USE_NVTX)
 endif()
 
 if(USE_CUDA AND USE_NCCL)
-  target_link_libraries(tvm PRIVATE nccl)
-  target_link_libraries(tvm_runtime PRIVATE nccl)
+  find_library(LIBRT rt)
+  target_link_libraries(tvm PRIVATE nccl ${LIBRT})
+  target_link_libraries(tvm_runtime PRIVATE nccl ${LIBRT})
 endif()
 
 if(USE_ROCM AND USE_RCCL)

@@ -38,7 +38,7 @@ namespace relax {
  * \param x1 The first input tensor.
  * \param x2 The second input tensor.
  * \param out_dtype The data type of the matmul result.
- * When it is not specified, the output dtype will be the the same as input dtype.
+ * When it is not specified, the output dtype will be the same as input dtype.
  * \return The computed result.
  */
 Expr matmul(Expr x1, Expr x2, DataType out_dtype);

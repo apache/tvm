@@ -256,7 +256,7 @@ def matmul(a: Tensor, b: Tensor, out_dtype: Optional[str] = None, name: str = "m
 
     out_dtype: Optional[Union[str, DataType]]
         The data type of the matmul result.
-        When it is not specified, the output dtype will be the the same as input dtype.
+        When it is not specified, the output dtype will be the same as input dtype.
 
     name : str
         Name hint.
@@ -748,6 +748,28 @@ def astype(x: Tensor, dtype: str, name: str = "astype") -> Tensor:
     if x.dtype == dtype:
         return x
     return _wrap_nested(_op.astype(x._expr, dtype), name)
+
+
+def relu(x: Tensor, name: str = "relu") -> Tensor:
+    """Rectified Linear Unit (ReLU) activation function.
+
+    .. math::
+        \text{ReLU}(x) = \text{max}(x, 0)
+
+    Parameters
+    ----------
+    x : Tensor
+        The input data.
+
+    name : str
+        Name hint.
+
+    Returns
+    -------
+    result : Tensor
+        The computed result.
+    """
+    return _wrap_nested(_op.nn.relu(x._expr), name)
 
 
 def silu(x: Tensor, name: str = "silu") -> Tensor:

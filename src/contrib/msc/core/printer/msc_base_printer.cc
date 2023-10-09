@@ -76,6 +76,12 @@ void MSCBasePrinter::PrintDoc(const Doc& doc, bool new_line) {
     PrintTypedDoc(doc_node.value());
   } else if (auto doc_node = doc.as<CommentDoc>()) {
     PrintTypedDoc(doc_node.value());
+  } else if (auto doc_node = doc.as<DeclareDoc>()) {
+    PrintTypedDoc(doc_node.value());
+  } else if (auto doc_node = doc.as<StrictListDoc>()) {
+    PrintTypedDoc(doc_node.value());
+  } else if (auto doc_node = doc.as<PointerDoc>()) {
+    PrintTypedDoc(doc_node.value());
   } else {
     LOG(FATAL) << "Do not know how to print " << doc->GetTypeKey();
     throw;
@@ -103,21 +109,6 @@ void MSCBasePrinter::PrintTypedDoc(const LiteralDoc& doc) {
 }
 
 void MSCBasePrinter::PrintTypedDoc(const IdDoc& doc) { output_ << doc->name; }
-
-void MSCBasePrinter::PrintTypedDoc(const IndexDoc& doc) {
-  PrintDoc(doc->value);
-  if (doc->indices.size() == 0) {
-    output_ << "[()]";
-  } else {
-    for (size_t i = 0; i < doc->indices.size(); i++) {
-      if (i == 0) {
-        output_ << "[";
-      }
-      PrintDoc(doc);
-      output_ << (i == doc->indices.size() - 1 ? "]" : ", ");
-    }
-  }
-}
 
 void MSCBasePrinter::PrintTypedDoc(const ListDoc& doc) {
   output_ << "[";

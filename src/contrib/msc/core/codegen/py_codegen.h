@@ -52,7 +52,7 @@ class PyCodeGen : public BaseCodeGen<ConfigType> {
       : BaseCodeGen<ConfigType>(graph, config) {}
 
   /*! \brief Stack the docs for the script*/
-  virtual const Array<Doc> GetDocs() {
+  virtual void CodeGenScript() {
     CodeGenHeader();
     this->stack_.line().comment("Define the helpers");
     CodeGenHelper();
@@ -62,14 +62,14 @@ class PyCodeGen : public BaseCodeGen<ConfigType> {
       this->stack_.line().comment("Define the test");
       CodeGenTest();
     }
-    return this->stack_.GetDocs();
   }
 
   /*! \brief Get sources*/
   virtual const Map<String, String> GetSources(const std::string& print_options = "") {
     Map<String, String> sources;
     PythonPrinter printer(print_options);
-    for (const auto& d : this->GetDocs()) {
+    CodeGenScript();
+    for (const auto& d : this->stack_.GetDocs()) {
       printer.Append(d);
     }
     sources.Set(this->graph()->name + ".py", printer.GetString());
@@ -100,25 +100,20 @@ class PyCodeGen : public BaseCodeGen<ConfigType> {
           .func_arg("shape", "List[int]")
           .func_arg("dtype", "str")
           .func_start()
-          .call_start("os.path.join")
-          .call_str_arg(this->config()->baseline_folder)
+          .func_call("os.path.join", "path")
+          .call_arg(DocUtils::ToStrDoc(this->config()->baseline_folder))
           .call_arg("name + \".bin\"")
-          .call_end("path")
           .cond_if("os.path.isfile(path)")
-          .call_start("np.fromfile")
+          .func_call("np.fromfile", "data")
           .call_arg("path")
           .call_arg("dtype", "dtype")
-          .call_end("data")
-          .inplace_start("reshape")
+          .method_call("reshape")
           .call_arg("shape")
-          .inplace_end()
           .cond_else()
-          .call_start("np.ones")
+          .func_call("np.ones", "data")
           .call_arg("(shape)")
-          .call_end("data")
-          .inplace_start("astype")
+          .method_call("astype")
           .call_arg("dtype")
-          .inplace_end()
           .cond_end()
           .func_end("data");
     }
@@ -132,19 +127,17 @@ class PyCodeGen : public BaseCodeGen<ConfigType> {
         .assign("golden", "{}");
     for (const auto& i : this->graph()->input_names) {
       const auto& input = this->graph()->FindTensor(i);
-      this->stack_.call_start("load_data")
-          .call_str_arg(input->alias)
-          .call_list_arg(input->shape, "", true)
-          .call_str_arg(runtime::DLDataType2String(input->dtype))
-          .call_end("inputs[\"" + input->alias + "\"]");
+      this->stack_.func_call("load_data", "inputs[\"" + input->alias + "\"]")
+          .call_arg(DocUtils::ToStrDoc(input->alias))
+          .call_arg(DocUtils::ToListDoc(input->shape, true))
+          .call_arg(DocUtils::ToStrDoc(runtime::DLDataType2String(input->dtype)));
     }
     for (const auto& o : this->graph()->output_names) {
       const auto& output = this->graph()->FindTensor(o);
-      this->stack_.call_start("load_data")
-          .call_str_arg(output->alias)
-          .call_list_arg(output->shape, "", true)
-          .call_str_arg(runtime::DLDataType2String(output->dtype))
-          .call_end("golden[\"" + output->alias + "\"]");
+      this->stack_.func_call("load_data", "golden[\"" + output->alias + "\"]")
+          .call_arg(DocUtils::ToStrDoc(output->alias))
+          .call_arg(DocUtils::ToListDoc(output->shape, true))
+          .call_arg(DocUtils::ToStrDoc(runtime::DLDataType2String(output->dtype)));
     }
     this->stack_.comment("Build and inference the graph");
     CodeGenInference();
@@ -157,18 +150,16 @@ class PyCodeGen : public BaseCodeGen<ConfigType> {
     if (this->config()->need_process) {
       for (size_t i = 0; i < node->inputs.size(); i++) {
         const auto& input = node->InputAt(i);
-        this->stack_.call_start("process_tensor")
-            .call_arg(this->IdxInput(node, i, true))
-            .call_str_arg(input->name)
-            .call_str_arg(node->name)
-            .call_end(this->IdxInput(node, i, false));
+        this->stack_.func_call("process_tensor", this->IdxInputBase(node, i, false))
+            .call_arg(this->IdxInputBase(node, i, true))
+            .call_arg(DocUtils::ToStrDoc(input->name))
+            .call_arg(DocUtils::ToStrDoc(node->name));
       }
       for (const auto& pair : node->weights) {
-        this->stack_.call_start("process_tensor")
-            .call_arg(this->IdxWeight(node, pair.first, true))
-            .call_str_arg(pair.second->name)
-            .call_str_arg(node->name)
-            .call_end(this->IdxWeight(node, pair.first, false));
+        this->stack_.func_call("process_tensor", this->IdxWeightBase(node, pair.first, false))
+            .call_arg(this->IdxWeightBase(node, pair.first, true))
+            .call_arg(DocUtils::ToStrDoc(pair.second->name))
+            .call_arg(DocUtils::ToStrDoc(node->name));
       }
     }
     for (const auto& d : this->GetOpCodes(node)) {

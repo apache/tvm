@@ -448,8 +448,12 @@ def BindParams(
     func_name: str
         The function name to be bound
 
-    params : Dict[Union[str,relax.Var],Union[tvm.runtime.NDArray, np.ndarray]]
-        The map from parameter or parameter name name to constant
+    params : Dict[
+                Union[str,relax.Var],
+                Union[tvm.runtime.NDArray, np.ndarray],
+             ]
+
+        The map from parameter or parameter name to constant
         tensors.
 
     Returns

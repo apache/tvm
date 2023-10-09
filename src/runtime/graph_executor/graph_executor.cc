@@ -466,7 +466,8 @@ void GraphExecutor::SetupStorage() {
       if (!pit.scope.empty()) {
         mem_scope = String(pit.scope);
       }
-      storage_pool_.push_back(NDArray::Empty(shape, pit.dtype, dev, mem_scope));
+      storage_pool_.push_back(MemoryManager::GetOrCreateAllocator(dev, AllocatorType::kNaive)
+                                  ->Empty(shape, pit.dtype, dev, mem_scope));
     }
   }
 

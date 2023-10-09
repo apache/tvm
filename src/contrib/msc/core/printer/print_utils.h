@@ -28,6 +28,8 @@
 
 #include <vector>
 
+#include "msc_doc.h"
+
 namespace tvm {
 namespace contrib {
 namespace msc {
@@ -54,7 +56,23 @@ class DocUtils {
   TVM_DLL static const ExprDoc ToDoc(const char* val);
   TVM_DLL static const ExprDoc ToDoc(const String& val);
   TVM_DLL static const ExprDoc ToDoc(bool val);
+  TVM_DLL static const ExprDoc ToDoc(const ExprDoc& val);
   TVM_DLL static const ExprDoc ToStrDoc(const String& val);
+  TVM_DLL static const PointerDoc ToPtrDoc(const String& val);
+
+  /*!
+   * \brief Change object to DeclareDoc.
+   * \return The DeclareDoc.
+   */
+  TVM_DLL static const DeclareDoc ToDeclareDoc(const String& type, const String& variable,
+                                               size_t len = 0, bool use_constructor = true);
+
+  /*!
+   * \brief Change object to AttrAccessDoc.
+   * \return The AttrAccessDoc.
+   */
+  TVM_DLL static const AttrAccessDoc ToAttrAccessDoc(const String& value, const String& name);
+
   /*!
    * \brief Change object to List of Docs.
    * \return The List of Docs.
@@ -81,12 +99,53 @@ class DocUtils {
    * \return The ListDoc.
    */
   template <typename T>
-  TVM_DLL static const ListDoc ToListDoc(const std::vector<T>& values) {
-    return ListDoc(ToDocList(values));
+  TVM_DLL static const StrictListDoc ToListDoc(const std::vector<T>& values,
+                                               bool allow_empty = false) {
+    if (values.size() > 0 || allow_empty) {
+      return StrictListDoc(ListDoc(ToDocList(values)), allow_empty);
+    }
+    return StrictListDoc(ListDoc(), false);
   }
   template <typename T>
-  TVM_DLL static const ListDoc ToListDoc(const Array<T>& values) {
-    return ListDoc(ToDocList(values));
+  TVM_DLL static const StrictListDoc ToListDoc(const Array<T>& values, bool allow_empty = false) {
+    if (values.size() > 0 || allow_empty) {
+      return StrictListDoc(ListDoc(ToDocList(values)), allow_empty);
+    }
+    return StrictListDoc(ListDoc(), false);
+  }
+
+  /*!
+   * \brief Change object to IndexDoc.
+   * \return The ListDoc.
+   */
+  template <typename T>
+  TVM_DLL static const IndexDoc ToIndexDoc(const String& value, const std::vector<T>& indices) {
+    Array<Doc> doc_indices;
+    for (const auto& i : indices) {
+      doc_indices.push_back(ToDoc(i));
+    }
+    return IndexDoc(IdDoc(value), doc_indices);
+  }
+  template <typename T>
+  TVM_DLL static const IndexDoc ToIndexDoc(const String& value, const Array<T>& indices) {
+    Array<Doc> doc_indices;
+    for (const auto& i : indices) {
+      doc_indices.push_back(ToDoc(i));
+    }
+    return IndexDoc(IdDoc(value), doc_indices);
+  }
+
+  /*!
+   * \brief Change object to AssignDoc.
+   * \return The AssignDoc.
+   */
+  template <typename T>
+  TVM_DLL static const AssignDoc ToAssignDoc(const String& lhs, const T& rhs,
+                                             const String& annotation = "") {
+    if (annotation.size() == 0) {
+      return AssignDoc(IdDoc(lhs), ToDoc(rhs), NullOpt);
+    }
+    return AssignDoc(IdDoc(lhs), ToDoc(rhs), IdDoc(annotation));
   }
 
   /*!
