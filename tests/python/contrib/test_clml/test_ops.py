@@ -562,22 +562,8 @@ def test_dense(device, dtype):
                 "op": "const",
             },
         ]
-
-        dense_node = {
-            "attrs": {
-                "num_inputs": "2",
-                "num_outputs": "1",
-                "dtype": [[dtype]],
-                "out_dtype": [[""]],
-                "shape": [[[x_shape[0], k_shape[0]]]],
-                "units": [[str(k_shape[0])]],
-            },
-            "inputs": [[0, 0, 0], [1, 0, 0]],
-            "name": "nn.dense",
-            "op": "kernel",
-        }
-        exp_codegen.append(dense_node)
-
+        input_nodes = [[0, 0, 0], [1, 0, 0]]
+        num_inputs = 2
         if has_bias:
             bias = relay.var("bias", shape=(k_shape[0],), dtype=dtype)
             out = relay.nn.bias_add(out, bias)
@@ -590,20 +576,24 @@ def test_dense(device, dtype):
                 "op": "const",
             }
             exp_codegen.append(bias_data_node)
-            bias_node = {
-                "attrs": {
-                    "num_inputs": "2",
-                    "num_outputs": "1",
-                    "dtype": [[dtype]],
-                    "shape": [[[x_shape[0], k_shape[0]]]],
-                },
-                "inputs": [[2, 0, 0], [3, 0, 0]],
-                "name": "add",
-                "op": "kernel",
-            }
-            exp_codegen.append(bias_node)
-
+            input_nodes.append([2, 0, 0])
+            num_inputs += 1
             params["bias"] = tvm.nd.array(np.random.uniform(-1, 1, (k_shape[0],)).astype(dtype))
+
+        dense_node = {
+            "attrs": {
+                "num_inputs": str(num_inputs),
+                "num_outputs": "1",
+                "dtype": [[dtype]],
+                "out_dtype": [[""]],
+                "shape": [[[x_shape[0], k_shape[0]]]],
+                "units": [[str(k_shape[0])]],
+            },
+            "inputs": input_nodes,
+            "name": "nn.dense",
+            "op": "kernel",
+        }
+        exp_codegen.append(dense_node)
 
         return out, params, inputs, exp_codegen
 
@@ -614,9 +604,11 @@ def test_dense(device, dtype):
         tvm.testing.assert_allclose(
             clml_out[0].asnumpy(), opencl_out[0].asnumpy(), rtol=1e-2, atol=1e-2
         )
-        # verify_codegen(out, exp_codegen, device, params)
+        verify_codegen(out, exp_codegen, device, params)
 
     _verify(*(_get_model((5, 16), (32, 16), False)))
+    _verify(*(_get_model((320, 64), (320, 64), False)))
+    _verify(*(_get_model((1, 256), (100, 256), False)))
     _verify(*(_get_model((1, 16), (32, 16), True)))
 
 

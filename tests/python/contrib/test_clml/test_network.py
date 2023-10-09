@@ -103,19 +103,21 @@ def get_network(name, batch_size, dtype="float32"):
 
     return net, params, {"data": (input_shape, dtype)}, output_shape
 
+
 @pytest.mark.parametrize("dtype", ["float32", "float16"])
-@pytest.mark.parametrize("name", [
-                                "resnet-18",
-                                "resnet-34",
-                                "resnet-50",
-                                # "vgg-16",
-                                # "vgg-19",
-                                "densenet-121",
-                                "inception_v3",
-                                "mobilenet",
-                                "squeezenet_v1.0",
-                                "squeezenet_v1.1",
-])
+@pytest.mark.parametrize(
+    "name",
+    [
+        "resnet-18",
+        "resnet-34",
+        "resnet-50",
+        "densenet-121",
+        "inception_v3",
+        "mobilenet",
+        "squeezenet_v1.0",
+        "squeezenet_v1.1",
+    ],
+)
 @tvm.testing.requires_openclml
 def test_network(device, name, dtype):
     print("Network evaluating .. " + name + " " + dtype)
@@ -140,20 +142,4 @@ def test_network(device, name, dtype):
 
 
 if __name__ == "__main__":
-    #networks = [
-    #        "resnet-18",
-    #        "resnet-34",
-    #        "resnet-50",
-    #        # "vgg-16",
-    #        # "vgg-19",
-    #        "densenet-121",
-    #        "inception_v3",
-    #        "mobilenet",
-    #        "squeezenet_v1.0",
-    #        "squeezenet_v1.1",
-    #    ]
-    #device = Device()
-    #for name in networks:
-    #    test_network(device, name, "float32")
-    #    test_network(device, name, "float16")
     tvm.testing.main()

@@ -81,36 +81,6 @@ class RemoveDropoutPass:
         return RemoveDropout().visit(func)
 
 
-class BroadcastInputs(ExprMutator):
-    """
-    Binary operators need broadcasting for CLML.
-    """
-
-    def visit_call(self, call):
-        if call.op.name in ["add", "subtract", "multiply", "divide", "maximum", "minimum"]:
-            new_fn = self.visit(call.op)
-            call_shape = call.checked_type.shape
-            lhs = call.args[0]
-            rhs = call.args[1]
-            lhs_shape = lhs.checked_type.shape
-            rhs_shape = rhs.checked_type.shape
-            if list(call_shape) != list(lhs_shape):
-                lhs = relay.broadcast_to(self.visit(lhs), call_shape)
-            if list(call_shape) != list(rhs_shape):
-                rhs = relay.broadcast_to(self.visit(rhs), call_shape)
-            args = [lhs, rhs]
-            return Call(new_fn, args, call.attrs)
-        return super().visit_call(call)
-
-
-@transform.function_pass(opt_level=0)
-class BinaryOpBroadcaster:
-    def transform_function(
-        self, func: relay.function.Function, mod: tvm.IRModule, _: tvm.transform.PassContext
-    ) -> relay.function.Function:
-        return BroadcastInputs().visit(func)
-
-
 def partition_for_clml(mod, params=None, **opts):
     """Partition the graph greedily offloading supported
     operators to CLML Library.
@@ -134,7 +104,6 @@ def partition_for_clml(mod, params=None, **opts):
         [
             transform.InferType(),
             RemoveDropoutPass(),
-            #BinaryOpBroadcaster(),
             transform.FoldConstant(),
             transform.MergeComposite(clml_pattern_table()),
             transform.AnnotateTarget("clml", False),
@@ -289,11 +258,16 @@ def clml_pattern_table():
 
         return pattern
 
-    def dense_pattern():
+    def dense1d_pattern():
         """Create a dense pattern."""
         pattern = is_op("nn.dense")(wildcard(), is_constant())
         pattern = pattern.optional(lambda x: is_op("nn.bias_add")(x, is_constant()))
         pattern = pattern.optional(lambda x: is_op("add")(x, is_constant()))
+        return pattern
+
+    def dense2d_pattern():
+        """Create a dense pattern."""
+        pattern = is_op("nn.dense")(wildcard(), is_constant())
         return pattern
 
     def pad_pattern():
@@ -438,11 +412,21 @@ def clml_pattern_table():
             return False
         return True
 
+    def check_dense1d_op(extract):
+        call = extract
+        # Only support single Matmul
+        if call.args[0].checked_type.shape[0] > 1:
+            return False
+        if not (call.op.name in ["nn.bias_add", "add"] and call.args[0].op.name == "nn.dense"):
+            return False
+        return True
+
     return [
         ("clml.pad_conv2d", pad_conv_pattern(), check_conv),
         ("clml.conv2d", conv_pattern(), check_conv),
         ("clml.conv2d_transpose", conv_transpose_pattern(), check_conv_transpose),
-        ("clml.dense", dense_pattern(), check_default_op),
+        ("clml.dense1d", dense1d_pattern(), check_dense1d_op),
+        ("clml.dense2d", dense2d_pattern(), check_default_op),
         ("clml.pad", pad_pattern(), check_pad_op),
         ("clml.concat", concat_pattern(), check_concat_op),
         ("clml.batch_norm", batch_norm_pattern(), check_default_op),

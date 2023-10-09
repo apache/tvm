@@ -87,7 +87,7 @@ class CLMLJSONSerializer : public backend::contrib::JSONSerializer {
       json_node = CreateCompositeConvJSONNode(cn);
     } else if (name == "clml.batch_norm") {
       json_node = CreateBatchNormJSONNode(cn);
-    } else if (name == "clml.dense") {
+    } else if (name == "clml.dense1d" || name == "clml.dense2d") {
       json_node = CreateDenseJSONNode(cn);
     } else if (name == "clml.pad") {
       json_node = CreatePadJSONNode(cn);
