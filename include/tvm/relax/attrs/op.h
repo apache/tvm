@@ -57,6 +57,20 @@ struct CallTIRInplaceAttrs : public tvm::AttrsNode<CallTIRInplaceAttrs> {
   }
 };  // struct CallTIRInplaceAttrs
 
+/*! \brief Attributes used in call_inplace_packed */
+struct CallInplacePackedAttrs : public tvm::AttrsNode<CallInplacePackedAttrs> {
+  Array<Integer> inplace_indices;
+
+  TVM_DECLARE_ATTRS(CallInplacePackedAttrs, "relax.attrs.CallInplacePackedAttrs") {
+    TVM_ATTR_FIELD(inplace_indices)
+        .describe(
+            "Indices that describe which input corresponds to which output. If the `i`th member "
+            "has the value `k` >= 0, then that means that input `k` should be used to store the "
+            "`i`th output. If an element has the value -1, that means the output will be newly "
+            "allocated.");
+  }
+};  // struct CallInplacePackedAttrs
+
 /*! \brief Attributes used in to_vdevice */
 struct ToVDeviceAttrs : public tvm::AttrsNode<ToVDeviceAttrs> {
   VDevice dst_vdevice;

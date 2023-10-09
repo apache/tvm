@@ -121,6 +121,125 @@ Expr MakeCallPurePacked(const Expr& callee, Array<Expr> args, const Attrs& attrs
 
 TVM_REGISTER_GLOBAL("relax.op.call_pure_packed").set_body_typed(MakeCallPurePacked);
 
+// call_inplace_packed
+
+StructInfo InferStructInfoCallInplacePacked(const Call& call, const BlockBuilder& ctx) {
+  if (call->args.size() <= 1) {
+    ctx->ReportFatal(
+        Diagnostic::Error(call)
+        << "call_inplace_packed must be called with at least two arguments"
+        << " (the packed call and at least one argument to the packed call"
+        << "if the packed call does not need arguments, use call_pure_packed instead)");
+  }
+
+  // the callee must be an opaque function
+  auto callee = call->args[0];
+  ICHECK(!callee.as<OpNode>()) << "call_pure_packed cannot be used with an op node";
+  auto opt = MatchStructInfo<FuncStructInfo>(callee);
+  ICHECK(opt) << "Callee must have a function struct info";
+  FuncStructInfo finfo = opt.value();
+  ICHECK(finfo->IsOpaque()) << "call_pure_packed must be called with an opaque function, but "
+                            << callee << " is not opaque";
+
+  // check the range for inplace indices, make sure at least one is not -1, ensure they're unique
+  const auto* attrs = call->attrs.as<CallInplacePackedAttrs>();
+  size_t num_args = call->args.size() - 1;
+  std::unordered_set<int> encountered;
+  for (size_t i = 0; i < attrs->inplace_indices.size(); i++) {
+    int index = attrs->inplace_indices[i].IntValue();
+    if (index < -1 || index >= static_cast<int>(num_args)) {
+      ctx->ReportFatal(Diagnostic::Error(call)
+                       << "In-place index " << i << " is out of range (must be between -1 and "
+                       << (num_args - 1) << ", inclusive, but is " << index << ")");
+    }
+    if (index != -1) {
+      if (encountered.count(index)) {
+        ctx->ReportFatal(Diagnostic::Error(call)
+                         << "All in-place indices must be unique, but index " << index
+                         << " appears more than once.");
+      }
+      encountered.insert(index);
+    }
+  }
+  if (encountered.empty()) {
+    ctx->ReportFatal(Diagnostic::Error(call) << "At least one index must have a value other than "
+                                                "-1 (or else simply use call_pure_packed)");
+  }
+
+  // same logic as from DeriveCallRetStructInfo for ordinary calls
+  StructInfo ret;
+  if (finfo->derive_func.defined()) {
+    // derive using custom derivation function.
+    ret = finfo->derive_func.value()(call, ctx);
+  } else {
+    // directly return the normal value.
+    ret = finfo->ret;
+  }
+
+  // make sure that the derived return struct info matches that of the in-place args
+  // (note: arg 0 is the packed func, so we add 1 to the arg index)
+  if (attrs->inplace_indices.size() == 1) {
+    auto arg_idx = attrs->inplace_indices[0].IntValue() + 1;
+    auto arg_sinfo = GetStructInfo(call->args[arg_idx]);
+    if (!IsBaseOf(ret, arg_sinfo, ctx->GetAnalyzer())) {
+      ctx->ReportFatal(Diagnostic::Error(call)
+                       << "The derived return StructInfo does not match that for "
+                       << "the in-place argument at index " << (arg_idx - 1) << ": " << ret
+                       << " vs " << arg_sinfo);
+    }
+  } else {
+    auto* tup_info = ret.as<TupleStructInfoNode>();
+    if (!tup_info) {
+      ctx->ReportFatal(Diagnostic::Error(call) << "Multiple outputs given via the inplace indices "
+                                                  "but the derived StructInfo is not a tuple");
+    }
+    for (size_t i = 0; i < attrs->inplace_indices.size(); i++) {
+      if (attrs->inplace_indices[i] == -1) {
+        continue;
+      }
+      auto arg_idx = attrs->inplace_indices[i].IntValue() + 1;
+      auto arg_sinfo = GetStructInfo(call->args[arg_idx]);
+      auto ret_sinfo = tup_info->fields[i];
+      if (!IsBaseOf(ret_sinfo, arg_sinfo, ctx->GetAnalyzer())) {
+        ctx->ReportFatal(Diagnostic::Error(call)
+                         << "The derived return StructInfo does not match that for "
+                         << "the in-place argument at index " << (arg_idx - 1) << ": " << ret_sinfo
+                         << " vs " << arg_sinfo);
+      }
+    }
+  }
+
+  return ret;
+}
+
+TVM_REGISTER_NODE_TYPE(CallInplacePackedAttrs);
+
+RELAY_REGISTER_OP("relax.call_inplace_packed")
+    .set_num_inputs(-1)
+    .set_attrs_type<CallInplacePackedAttrs>()
+    .add_argument("args", "Array<Expr>",
+                  "The first argument is the function being called. The rest are the "
+                  "arguments to that function.")
+    .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoCallInplacePacked)
+    // Warning: considered pure, but it has the potential to create visible effects!
+    // This should only be used if it has been *checked* that it is safe (no aliases, in-place
+    // arguments will no longer be live) and the user believes the packed func to have no
+    // side effects other than modifying the arguments specified as "inplace"
+    .set_attr<Bool>("FPurity", Bool(true));
+
+Expr MakeCallInplacePacked(Expr func, Array<Expr> args, Array<Integer> inplace_indices,
+                           Array<StructInfo> sinfo_args) {
+  ObjectPtr<CallInplacePackedAttrs> attrs = make_object<CallInplacePackedAttrs>();
+  attrs->inplace_indices = Array<Integer>(inplace_indices.begin(), inplace_indices.end());
+
+  static const Op& op = Op::Get("relax.call_inplace_packed");
+  Array<Expr> call_args = {func};
+  call_args.insert(call_args.end(), args.begin(), args.end());
+  return Call(op, call_args, Attrs(attrs), sinfo_args);
+}
+
+TVM_REGISTER_GLOBAL("relax.op.call_inplace_packed").set_body_typed(MakeCallInplacePacked);
+
 // call_tir
 
 StructInfo InferStructInfoCallTIR(const Call& call, const BlockBuilder& ctx) {
