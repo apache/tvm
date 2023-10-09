@@ -128,6 +128,7 @@ Allocator* MemoryManager::GetOrCreateAllocator(Device dev, AllocatorType type) {
 
   // Look for any available, else create Naive.
   if (type == AllocatorType::kAny) {
+    it = m->allocators_.find(dev);
     if (it->second.begin() != it->second.end()) {
       return it->second.begin()->second.get();
     } else {
