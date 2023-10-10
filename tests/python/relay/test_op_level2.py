@@ -1837,7 +1837,10 @@ def test_depthwise_conv2d_int8():
     wdata = np.random.rand(*kernel_shape) * 10
     parameters = {"weight": tvm.nd.array(wdata.astype(weight_dtype))}
 
-    targets = ["llvm -mcpu=skylake-avx512", "llvm -mcpu=cascadelake"]
+    targets = [
+        "llvm -mtriple=x86_64-linux-gnu -mcpu=skylake-avx512",
+        "llvm -mtriple=x86_64-linux-gnu -mcpu=cascadelake",
+    ]
     llvm_version = tvm.target.codegen.llvm_version_major()
     for target in targets:
         if llvm_version >= 8:

@@ -1434,8 +1434,6 @@ class OperatorConverter(object):
     def convert_pow(self, op):
         """Convert TFLite POW"""
         # Check if the input tensor is quantized, call QNN op
-        if self.is_quantized(op):
-            raise tvm.error.OpNotImplemented("TFlite quantized POW operator is not supported yet.")
         return self._convert_elemwise(_op.power, op)
 
     def convert_maximum(self, op):
@@ -1474,11 +1472,9 @@ class OperatorConverter(object):
 
     def convert_greater_equal(self, op):
         """Convert TFLite GREATER_EQUAL"""
-        if self.is_quantized(op):
-            raise tvm.error.OpNotImplemented(
-                "TFlite quantized GREATER_EQUAL operator is not supported yet."
-            )
-        return self._convert_elemwise(_op.greater_equal, op)
+        return self._convert_elemwise(
+            _op.greater_equal, op, self.is_quantized(op), comparison_op=True
+        )
 
     def convert_less(self, op):
         """Convert TFLite LESS"""
@@ -1486,11 +1482,7 @@ class OperatorConverter(object):
 
     def convert_less_equal(self, op):
         """Convert TFLite LESS_EQUAL"""
-        if self.is_quantized(op):
-            raise tvm.error.OpNotImplemented(
-                "TFlite quantized LESS_EQUAL operator is not supported yet."
-            )
-        return self._convert_elemwise(_op.less_equal, op)
+        return self._convert_elemwise(_op.less_equal, op, self.is_quantized(op), comparison_op=True)
 
     def convert_equal(self, op):
         """Convert TFLite EQUAL"""

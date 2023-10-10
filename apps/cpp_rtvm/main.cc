@@ -29,6 +29,7 @@
 #endif
 #include <dmlc/logging.h>
 
+#include <chrono>
 #include <cstring>
 #include <iostream>
 #include <sstream>
@@ -54,7 +55,11 @@ static const string kUsage =
     "--input        - Numpy file for the model input (optional and we use random of not given)\n"
     "--output       - Numpy file name to dump the model output as numpy\n"
     "--dump-meta    - Dump model meta information\n"
-    "--pre-compiled - The file name of a file where pre-compiled programs should be stored"
+    "--pre-compiled - The file name of a file where pre-compiled programs should be stored\n"
+    "--profile      - Profile over all execution\n"
+    "--dry-run      - Profile after given dry runs, default 10\n"
+    "--run-count    - Profile for given runs, default 50\n"
+    "--zero-copy    - Profile with zero copy api\n"
     "\n"
     "  Example\n"
     "  ./rtvm --model=keras-resnet50 --device=\"opencl\" --dump-meta\n"
@@ -68,6 +73,7 @@ static const string kUsage =
  * \arg input Numpy file for the model input
  * \arg output Numpy file name to dump the model output as numpy
  * \arg pre_compiled File name where pre-compiled programs should be stored
+ * \arg profile Do we profile overall execution
  */
 struct ToolArgs {
   string model;
@@ -75,7 +81,11 @@ struct ToolArgs {
   string input;
   string output;
   string pre_compiled;
-  bool dump_meta = false;
+  bool dump_meta{false};
+  bool profile{false};
+  int dry_run{10};
+  int run_count{50};
+  bool zero_copy{false};
 };
 
 /*!
@@ -89,6 +99,10 @@ void PrintArgs(const ToolArgs& args) {
   LOG(INFO) << "Output        = " << args.output;
   LOG(INFO) << "Pre-compiled  = " << args.pre_compiled;
   LOG(INFO) << "Dump Metadata = " << ((args.dump_meta) ? ("True") : ("False"));
+  LOG(INFO) << "Profile       = " << ((args.profile) ? ("True") : ("False"));
+  LOG(INFO) << "Dry Run       = " << args.dry_run;
+  LOG(INFO) << "Run Count     = " << args.run_count;
+  LOG(INFO) << "Zero Copy     = " << ((args.zero_copy) ? ("True") : ("False"));
 }
 
 #if defined(__linux__) || defined(__ANDROID__)
@@ -178,6 +192,26 @@ void ParseCmdArgs(int argc, char* argv[], struct ToolArgs& args) {
   }
 
   args.pre_compiled = GetCmdOption(argc, argv, "--pre-compiled=");
+
+  const string pprofile = GetCmdOption(argc, argv, "--profile", true);
+  if (!pprofile.empty()) {
+    args.profile = true;
+  }
+
+  const string pdry_run = GetCmdOption(argc, argv, "--dry-run=");
+  if (!pdry_run.empty()) {
+    args.dry_run = stoi(pdry_run);
+  }
+
+  const string prun = GetCmdOption(argc, argv, "--run-count=");
+  if (!prun.empty()) {
+    args.run_count = stoi(prun);
+  }
+
+  const string pzcopy = GetCmdOption(argc, argv, "--zero-copy", true);
+  if (!pzcopy.empty()) {
+    args.zero_copy = true;
+  }
 }
 
 /*!
@@ -192,59 +226,174 @@ int ExecuteModel(ToolArgs& args) {
 #endif
 
   // Initialize TVM Runner
-  TVMRunner runner = TVMRunner(args.model, args.device);
+  auto runner = new TVMRunner(args.model, args.device);
 
   // Load the model
-  runner.Load();
+  runner->Load();
   if (!args.pre_compiled.empty()) {
-    runner.UsePreCompiledPrograms(args.pre_compiled);
+    runner->UsePreCompiledPrograms(args.pre_compiled);
   }
 
   // Query Model meta Information
-  TVMMetaInfo mInfo = runner.GetMetaInfo();
+  TVMMetaInfo mInfo = runner->GetMetaInfo();
 
   // Print Meta Information
-  if (args.dump_meta) runner.PrintMetaInfo();
+  if (args.dump_meta) runner->PrintMetaInfo();
 
-  if (args.input.empty() || args.output.empty()) {
+  int total_exec_time = 0;
+
+  if (args.profile) {
+    if (args.dry_run) {
+      for (int ii = 0; ii < args.dry_run; ++ii) {
+        runner->Run();
+      }
+      TVMSynchronize(GetTVMDevice(args.device), 0, nullptr);
+    }
+    int total_time = 0;
+    std::map<std::string, NDArray> input_data_even, input_data_odd;
+    std::map<std::string, NDArray> output_data_even, output_data_odd;
+
+    std::map<std::string, char*> input_data;
+    std::map<std::string, char*> output_data;
+
+    // Alloc / populate and keep input data ready
+    for (auto& elem : mInfo.input_info) {
+      if (args.zero_copy) {
+        auto ndarr =
+            NDArray::Empty(elem.second.first, tvm::runtime::String2DLDataType(elem.second.second),
+                           DLDevice{GetTVMDevice(args.device), 0});
+        input_data_even.insert({elem.first, ndarr});
+
+        ndarr =
+            NDArray::Empty(elem.second.first, tvm::runtime::String2DLDataType(elem.second.second),
+                           DLDevice{GetTVMDevice(args.device), 0});
+        input_data_odd.insert({elem.first, ndarr});
+      } else {
+        char* data = (char*)malloc(runner->GetInputMemSize(elem.first));
+        input_data.insert({elem.first, data});
+      }
+    }
+
+    // Alloc and keep output bufers ready
+    for (auto& elem : mInfo.output_info) {
+      if (args.zero_copy) {
+        auto ndarr =
+            NDArray::Empty(elem.second.first, tvm::runtime::String2DLDataType(elem.second.second),
+                           DLDevice{GetTVMDevice(args.device), 0});
+        output_data_even.insert({elem.first, ndarr});
+
+        ndarr =
+            NDArray::Empty(elem.second.first, tvm::runtime::String2DLDataType(elem.second.second),
+                           DLDevice{GetTVMDevice(args.device), 0});
+        output_data_odd.insert({elem.first, ndarr});
+      } else {
+        char* data = (char*)malloc(runner->GetOutputMemSize(elem.first));
+        output_data.insert({elem.first, data});
+      }
+    }
+
+    for (int ii = 0; ii < args.run_count; ++ii) {
+      // Timer start
+      auto tstart = std::chrono::high_resolution_clock::now();
+      // Set random input for all input
+      for (auto& elem : mInfo.input_info) {
+        if (args.zero_copy) {
+          if (ii % 2) {
+            runner->SetInput(elem.first, input_data_even[elem.first]);
+          } else {
+            runner->SetInput(elem.first, input_data_odd[elem.first]);
+          }
+        } else {
+          runner->SetInput(elem.first, input_data[elem.first]);
+        }
+      }
+
+      if (args.zero_copy) {
+        // With zero copy set the result NDArray up front
+        for (auto& elem : mInfo.output_info) {
+          if (ii % 2) {
+            runner->SetOutput(elem.first, output_data_even[elem.first]);
+          } else {
+            runner->SetOutput(elem.first, output_data_odd[elem.first]);
+          }
+        }
+      }
+
+      // Run the model
+      runner->Run();
+
+      if (!args.zero_copy) {
+        // W/o zero copy we need to invoke explicite data copy
+        for (auto& elem : mInfo.output_info) {
+          runner->GetOutput(elem.first, output_data[elem.first]);
+        }
+      } else {
+        // Just wait for the run to complete.
+        TVMSynchronize(GetTVMDevice(args.device), 0, nullptr);
+      }
+
+      // Timer end
+      auto tend = std::chrono::high_resolution_clock::now();
+      LOG(INFO) << "Exec Time:" << static_cast<double>((tend - tstart).count()) / 1e6;
+      total_exec_time += static_cast<double>((tend - tstart).count()) / 1e6;
+    }
+
+    // Free input bufers
+    for (auto& elem : mInfo.input_info) {
+      free(input_data[elem.first]);
+    }
+
+    // Free output bufers
+    for (auto& elem : mInfo.output_info) {
+      free(output_data[elem.first]);
+    }
+  } else if (!args.input.empty() && !args.output.empty()) {
+    LOG(INFO) << "Executing with Input:" << args.input << " Output:" << args.output;
+    // Set Input from Numpy Input
+    runner->SetInput(args.input);
+    // Run the model
+    runner->Run();
+    // Get Output as Numpy dump
+    runner->GetOutput(args.output);
+  } else {
     LOG(INFO) << "Executing dry run ... ";
     // Set random input for all inputs
     for (auto& elem : mInfo.input_info) {
       LOG(INFO) << "Set Random Input for :" << elem.first;
       auto shape = elem.second.first;
-      size_t ssize = runner.GetInputMemSize(elem.first);
+      size_t ssize = runner->GetInputMemSize(elem.first);
       char* data = (char*)malloc(ssize);
       LOG(INFO) << "Random Input Size:" << ssize << "  bytes";
-      runner.SetInput(elem.first, data);
+      runner->SetInput(elem.first, data);
       free(data);
     }
-
     // Run the model
-    runner.Run();
-
+    runner->Run();
     // Get Output and dump few values
     for (auto& elem : mInfo.output_info) {
       LOG(INFO) << "Get Output for :" << elem.first;
       auto shape = elem.second.first;
-      size_t ssize = runner.GetOutputMemSize(elem.first);
+      size_t ssize = runner->GetOutputMemSize(elem.first);
       char* data = (char*)malloc(ssize);
-      runner.GetOutput(elem.first, data);
+      runner->GetOutput(elem.first, data);
       LOG(INFO) << "Output Size:" << ssize << "  bytes";
       free(data);
     }
-  } else {
-    LOG(INFO) << "Executing with Input:" << args.input << " Output:" << args.output;
-
-    // Set Input from Numpy Input
-    runner.SetInput(args.input);
-
-    // Run the model
-    runner.Run();
-
-    // Get Output as Numpy dump
-    runner.GetOutput(args.output);
   }
 
+  if (args.profile) {
+    // Print Stats
+    runner->PrintStats();
+  }
+  auto tstart = std::chrono::high_resolution_clock::now();
+  delete runner;
+  auto tend = std::chrono::high_resolution_clock::now();
+
+  if (args.profile) {
+    LOG(INFO) << "Average ExecTime :" << total_exec_time / args.run_count << " ms";
+    LOG(INFO) << "Unload Time      :" << static_cast<double>((tend - tstart).count()) / 1e6
+              << " ms";
+  }
   return 0;
 }
 

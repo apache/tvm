@@ -1030,7 +1030,7 @@ class CommReducer : public ObjectRef {
   TVM_DEFINE_OBJECT_REF_METHODS(CommReducer, ObjectRef, CommReducerNode);
 };
 
-/*! \brief Reduction operator operator */
+/*! \brief Reduction operator */
 class ReduceNode : public PrimExprNode {
  public:
   /*! \brief The commutative combiner */

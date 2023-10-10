@@ -41,8 +41,8 @@ namespace runtime {
 typedef struct _TVMMetaInfo {
   int n_inputs;
   int n_outputs;
-  std::map<std::string, std::pair<std::vector<int>, std::string>> input_info;
-  std::map<std::string, std::pair<std::vector<int>, std::string>> output_info;
+  std::map<std::string, std::pair<std::vector<int64_t>, std::string>> input_info;
+  std::map<std::string, std::pair<std::vector<int64_t>, std::string>> output_info;
 } TVMMetaInfo;
 
 /*!
@@ -63,10 +63,14 @@ class TVMRunner {
   int SetInput(std::string);
   /*! \brief To set the input from binary data */
   int SetInput(std::string, char*);
+  /*! \brief To set the input from NDArray */
+  int SetInput(std::string, NDArray& ndarr);
   /*! \brief Save the model output into given npz file */
   int GetOutput(std::string);
   /*! \brief Get the model output in binary format */
   int GetOutput(std::string, char*);
+  /*! \brief Swap output NDArray with given one */
+  int SetOutput(std::string, NDArray& ndarr);
   /*! \brief To get the input mem size */
   size_t GetInputMemSize(std::string);
   /*! \brief To get the output mem size */
@@ -75,6 +79,21 @@ class TVMRunner {
   TVMMetaInfo GetMetaInfo(void);
   /*! \brief Print function to show all meta information */
   void PrintMetaInfo(void);
+
+  /*! \brief Print function to show all stats information */
+  void PrintStats(void);
+
+  // Public profiling information
+  /*! Module load time */
+  int r_module_load_ms{0};
+  /*! Graph runtime creatint time */
+  int r_graph_load_ms{0};
+  /*! Params read time */
+  int r_param_read_ms{0};
+  /*! Params load time */
+  int r_param_load_ms{0};
+  /*! Pre compiled programs load time */
+  int r_pre_compiled_load_ms{0};
 
  private:
   /*! \brief Module handle for the shared object */
@@ -91,6 +110,7 @@ class TVMRunner {
   bool r_run_was_called;
 };
 
+DLDeviceType GetTVMDevice(std::string device);
 }  // namespace runtime
 }  // namespace tvm
 #endif  // TVM_APPS_CPP_RTVM_RUNNER_H_

@@ -45,16 +45,6 @@
 #include <llvm/Support/raw_ostream.h>
 #include <llvm/Target/TargetMachine.h>
 #include <llvm/Target/TargetOptions.h>
-#if TVM_LLVM_VERSION < 110
-#include <llvm/MC/MCSubtargetInfo.h>
-#include <llvm/Support/TargetSelect.h>
-#else
-#if TVM_LLVM_VERSION < 170
-#include <llvm/Support/X86TargetParser.h>
-#else
-#include <llvm/TargetParser/X86TargetParser.h>
-#endif
-#endif
 #include <llvm/Transforms/Utils/Cloning.h>
 #include <tvm/ir/module.h>
 #include <tvm/relay/runtime.h>
@@ -86,25 +76,6 @@
 #include "codegen_cpu.h"
 #include "codegen_llvm.h"
 #include "llvm_instance.h"
-
-#if TVM_LLVM_VERSION < 110
-namespace llvm {
-// SubtargetSubTypeKV view
-template <ArrayRef<SubtargetSubTypeKV> MCSubtargetInfo::*Member>
-struct ArchViewer {
-  friend ArrayRef<SubtargetSubTypeKV>& archViewer(MCSubtargetInfo Obj) { return Obj.*Member; }
-};
-template struct ArchViewer<&MCSubtargetInfo::ProcDesc>;
-ArrayRef<SubtargetSubTypeKV>& archViewer(MCSubtargetInfo);
-// SubtargetFeatureKV view
-template <ArrayRef<SubtargetFeatureKV> MCSubtargetInfo::*Member>
-struct FeatViewer {
-  friend ArrayRef<SubtargetFeatureKV>& featViewer(MCSubtargetInfo Obj) { return Obj.*Member; }
-};
-template struct FeatViewer<&MCSubtargetInfo::ProcFeatures>;
-ArrayRef<SubtargetFeatureKV>& featViewer(MCSubtargetInfo);
-}  // namespace llvm
-#endif
 
 namespace tvm {
 namespace codegen {
@@ -514,131 +485,69 @@ TVM_REGISTER_GLOBAL("target.llvm_get_intrinsic_name").set_body_typed([](int64_t 
 #endif
 });
 
-#if TVM_LLVM_VERSION < 110
-static const llvm::MCSubtargetInfo* llvm_compat_get_subtargetinfo(const std::string triple,
-                                                                  const std::string cpu_name) {
-  std::string error;
-  llvm::InitializeAllTargets();
-  llvm::InitializeAllTargetMCs();
-  // create a LLVM x86 instance
-  auto* llvm_instance = llvm::TargetRegistry::lookupTarget(triple, error);
-  // create a target machine
-  llvm::TargetOptions target_options;
-  auto RM = llvm::Optional<llvm::Reloc::Model>();
-  auto* tm = llvm_instance->createTargetMachine(triple, cpu_name.c_str(), "", target_options, RM);
-  // create subtarget info module
-  const llvm::MCSubtargetInfo* MCInfo = tm->getMCSubtargetInfo();
+TVM_REGISTER_GLOBAL("target.llvm_get_targets").set_body_typed([]() -> Array<String> {
+  auto llvm_instance = std::make_unique<LLVMInstance>();
+  LLVMTargetInfo llvm_backend(*llvm_instance, "llvm");
+  return llvm_backend.GetAllLLVMTargets();
+});
 
-  return MCInfo;
-}
-
-static const Array<String> llvm_compat_get_archlist(const std::string triple) {
-  // get the subtarget info module
-  const auto* MCInfo = llvm_compat_get_subtargetinfo(triple, "");
-  // get all X86 arches
-  llvm::ArrayRef<llvm::SubtargetSubTypeKV> x86_arches =
-      llvm::archViewer(*(llvm::MCSubtargetInfo*)MCInfo);
-  Array<String> cpu_arches;
-  for (auto& arch : x86_arches) {
-    cpu_arches.push_back(arch.Key);
-  }
-  return cpu_arches;
-}
-
-static const Array<String> llvm_compat_get_features(const std::string triple,
-                                                    const std::string cpu_name) {
-  // get the subtarget info module
-  const auto* MCInfo = llvm_compat_get_subtargetinfo(triple, cpu_name.c_str());
-  // get all features
-  llvm::ArrayRef<llvm::SubtargetFeatureKV> x86_features =
-      llvm::featViewer(*(llvm::MCSubtargetInfo*)MCInfo);
-  // only targeted CPU features
-  Array<String> cpu_features;
-  for (auto& feat : x86_features) {
-    if (MCInfo->checkFeatures("+" + std::string(feat.Key))) {
-      cpu_features.push_back(feat.Key);
-    }
-  }
-  return cpu_features;
-}
-#endif
-
-TVM_REGISTER_GLOBAL("target.llvm_x86_get_archlist")
-    .set_body_typed([](bool only64bit) -> Array<String> {
-      Array<String> cpu_arches;
-#if TVM_LLVM_VERSION < 110
-      cpu_arches = llvm_compat_get_archlist("x86_64--");
-#else
-      llvm::SmallVector<llvm::StringRef> x86_arches;
-      llvm::X86::fillValidCPUArchList(x86_arches, only64bit);
-      for (auto& arch : x86_arches) {
-        cpu_arches.push_back(arch.str());
+TVM_REGISTER_GLOBAL("target.llvm_get_cpu_archlist")
+    .set_body_typed([](const Target& target) -> Array<String> {
+      auto use_target = target.defined() ? target : Target::Current(false);
+      // ignore non "llvm" target
+      if (target.defined()) {
+        if (target->kind->name != "llvm") {
+          return Array<String>{};
+        }
       }
-#endif
-      return cpu_arches;
+      auto llvm_instance = std::make_unique<LLVMInstance>();
+      LLVMTargetInfo llvm_backend(*llvm_instance, use_target);
+      return llvm_backend.GetAllLLVMTargetArches();
     });
 
-TVM_REGISTER_GLOBAL("target.llvm_x86_get_features")
-    .set_body_typed([](std::string cpu_name) -> Array<String> {
-      Array<String> cpu_features;
-#if TVM_LLVM_VERSION < 110
-      cpu_features = llvm_compat_get_features("x86_64--", cpu_name);
-#else
-      llvm::SmallVector<llvm::StringRef> x86_features;
-      llvm::X86::getFeaturesForCPU(cpu_name, x86_features);
-      for (auto& feat : x86_features) {
-        cpu_features.push_back(feat.str());
+TVM_REGISTER_GLOBAL("target.llvm_get_cpu_features")
+    .set_body_typed([](const Target& target) -> Array<String> {
+      auto use_target = target.defined() ? target : Target::Current(false);
+      // ignore non "llvm" target
+      if (target.defined()) {
+        if (target->kind->name != "llvm") {
+          return Array<String>{};
+        }
       }
-#endif
-      return cpu_features;
+      auto llvm_instance = std::make_unique<LLVMInstance>();
+      LLVMTargetInfo llvm_backend(*llvm_instance, use_target);
+      return llvm_backend.GetAllLLVMCpuFeatures();
     });
 
-TVM_REGISTER_GLOBAL("target.llvm_x86_has_feature")
-    .set_body_typed([](String feature, const Target& target) -> bool {
-      // target argument is optional (nullptr or None)
-      // if not explicit then use the current context target
-      Optional<String> mcpu = target.defined() ? target->GetAttr<String>("mcpu")
-                                               : Target::Current(false)->GetAttr<String>("mcpu");
-      Optional<Array<String>> mattr = target.defined()
-                                          ? target->GetAttr<Array<String>>("mattr")
-                                          : Target::Current(false)->GetAttr<Array<String>>("mattr");
-      String name = target.defined() ? target->kind->name : Target::Current(false)->kind->name;
-      // lookup only for `llvm` targets having -mcpu
-      if ((name != "llvm") || !mcpu) {
-        return false;
+TVM_REGISTER_GLOBAL("target.llvm_cpu_has_feature")
+    .set_body_typed([](const String feature, const Target& target) -> bool {
+      auto use_target = target.defined() ? target : Target::Current(false);
+      // ignore non "llvm" target
+      if (target.defined()) {
+        if (target->kind->name != "llvm") {
+          return false;
+        }
       }
-      // lookup in -mattr flags
-      bool is_in_mattr =
-          !mattr ? false
-                 : std::any_of(mattr.value().begin(), mattr.value().end(),
-                               [&](const String& var) { return var == ("+" + feature); });
-#if TVM_LLVM_VERSION < 110
-      auto x86_arches = llvm_compat_get_archlist("x86_64--");
-      // decline on invalid arch (avoid llvm assertion)
-      if (!std::any_of(x86_arches.begin(), x86_arches.end(),
-                       [&](const String& var) { return var == mcpu.value(); })) {
-        return false;
-      }
-      // lookup in -mcpu llvm architecture flags
-      auto cpu_features = llvm_compat_get_features("x86_64--", mcpu.value());
+      auto llvm_instance = std::make_unique<LLVMInstance>();
+      LLVMTargetInfo llvm_backend(*llvm_instance, use_target);
+      auto cpu_features = llvm_backend.GetAllLLVMCpuFeatures();
       bool has_feature = std::any_of(cpu_features.begin(), cpu_features.end(),
-                                     [&](const String& var) { return var == feature; });
-#else
-      llvm::SmallVector<llvm::StringRef> x86_arches;
-      llvm::X86::fillValidCPUArchList(x86_arches, false);
-      // decline on invalid arch (avoid llvm assertion)
-      if (!std::any_of(x86_arches.begin(), x86_arches.end(),
-                       [&](const llvm::StringRef& var) { return var == mcpu.value().c_str(); })) {
-        return false;
+                                     [&](auto& var) { return var == feature; });
+      return has_feature;
+    });
+
+TVM_REGISTER_GLOBAL("target.target_has_feature")
+    .set_body_typed([](const String feature, const Target& target) -> bool {
+      auto use_target = target.defined() ? target : Target::Current(false);
+      // ignore non "llvm" target
+      if (target.defined()) {
+        if (target->kind->name != "llvm") {
+          return false;
+        }
       }
-      // lookup in -mcpu llvm architecture flags
-      llvm::SmallVector<llvm::StringRef> x86_features;
-      llvm::X86::getFeaturesForCPU(mcpu.value().c_str(), x86_features);
-      bool has_feature =
-          std::any_of(x86_features.begin(), x86_features.end(),
-                      [&](const llvm::StringRef& var) { return var == feature.c_str(); });
-#endif
-      return has_feature || is_in_mattr;
+      auto llvm_instance = std::make_unique<LLVMInstance>();
+      LLVMTargetInfo llvm_target(*llvm_instance, use_target);
+      return llvm_target.TargetHasCPUFeature(feature);
     });
 
 TVM_REGISTER_GLOBAL("target.llvm_version_major").set_body_typed([]() -> int {

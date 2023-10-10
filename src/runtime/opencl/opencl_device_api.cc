@@ -111,6 +111,7 @@ OpenCLWorkspace* OpenCLWorkspace::Global() {
 }
 
 cl_device_id OpenCLWorkspace::GetCLDeviceID(int device_id) {
+  this->Init();
   ICHECK_LT(device_id, devices.size()) << "Invalid device id " << device_id << ". " << GetError();
   return devices[device_id];
 }
@@ -210,6 +211,7 @@ void OpenCLWorkspace::GetAttr(Device dev, DeviceAttrKind kind, TVMRetValue* rv) 
 
 void* OpenCLWorkspace::CreateHostPtrIfEnabled(cl::BufferDescriptor* desc, Device dev, size_t size) {
 #if defined(OPENCL_ENABLE_HOST_PTR)
+  this->Init();
   cl_int err_code;
   desc->host_ptr = reinterpret_cast<cl_uchar*>(
       clEnqueueMapBuffer(this->GetQueue(dev), desc->buffer, CL_TRUE, CL_MAP_WRITE, 0,
@@ -300,6 +302,7 @@ void OpenCLWorkspace::FreeTextureWorkspace(Device dev, void* ptr) {
 }
 
 void OpenCLWorkspace::CopyDataFromTo(DLTensor* from, DLTensor* to, TVMStreamHandle stream) {
+  this->Init();
   size_t nbytes = GetDataSize(*from);
   ICHECK_EQ(nbytes, GetDataSize(*to));
   ICHECK(IsContiguous(*from) && IsContiguous(*to))
@@ -379,6 +382,7 @@ void OpenCLWorkspace::CopyDataFromTo(DLTensor* from, DLTensor* to, TVMStreamHand
 }
 
 void OpenCLWorkspace::StreamSync(Device dev, TVMStreamHandle stream) {
+  this->Init();
   ICHECK(stream == nullptr);
   OPENCL_CALL(clFinish(this->GetQueue(dev)));
 }

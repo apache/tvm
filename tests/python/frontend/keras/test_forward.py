@@ -28,11 +28,11 @@ from tensorflow import keras as tf_keras
 # prevent Keras from using up all gpu memory
 import keras
 
+import pytest
 import tvm
 from tvm import relay
 from tvm.contrib import graph_executor
 import tvm.testing
-import pytest
 
 if tf.executing_eagerly():
     GPUS = tf.config.experimental.list_physical_devices("GPU")
@@ -568,6 +568,9 @@ class TestKeras:
             keras_mod.layers.SimpleRNN(
                 units=16, return_state=False, activation="tanh", use_bias=False
             ),
+            keras_mod.layers.SimpleRNN(
+                units=16, return_state=False, activation="tanh", go_backwards=True
+            ),
             keras_mod.layers.GRU(
                 units=16,
                 return_state=False,
@@ -582,6 +585,15 @@ class TestKeras:
                 activation="tanh",
                 reset_after=False,
                 use_bias=False,
+            ),
+            keras_mod.layers.GRU(
+                units=16,
+                return_state=False,
+                recurrent_activation="sigmoid",
+                activation="tanh",
+                reset_after=False,
+                use_bias=False,
+                go_backwards=True,
             ),
         ]
         for rnn_func in rnn_funcs:

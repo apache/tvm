@@ -24,20 +24,17 @@ namespace meta_schedule {
 
 String GetRuleKindFromTarget(const Target& target) {
   if (target->kind->name == "llvm") {
-    static const PackedFunc* llvm_x86_has_feature_fn_ptr =
-        runtime::Registry::Get("target.llvm_x86_has_feature");
-    ICHECK(llvm_x86_has_feature_fn_ptr != nullptr)
-        << "The `target.llvm_x86_has_feature` func is not in tvm registry.";
-    bool have_avx512vnni = (*llvm_x86_has_feature_fn_ptr)("avx512vnni", target);
-    bool have_avxvnni = (*llvm_x86_has_feature_fn_ptr)("avxvnni", target);
+    static const PackedFunc* target_has_feature_fn_ptr =
+        runtime::Registry::Get("target.target_has_feature");
+    ICHECK(target_has_feature_fn_ptr != nullptr)
+        << "The `target.target_has_feature` func is not in tvm registry.";
+    bool have_avx512vnni = (*target_has_feature_fn_ptr)("avx512vnni", target);
+    bool have_avxvnni = (*target_has_feature_fn_ptr)("avxvnni", target);
     if (have_avx512vnni || have_avxvnni) {
       return "vnni";
     } else {
-      // avx512f:  llvm.x86.avx512.addpd.w.512 (LLVM auto, added)
-      // avx512bw: llvm.x86.avx512.pmaddubs.w.512" (TVM required)
-      //         + llvm.x86.avx512.pmaddw.d.512"
-      bool have_avx512f = (*llvm_x86_has_feature_fn_ptr)("avx512f", target);
-      bool have_avx512bw = (*llvm_x86_has_feature_fn_ptr)("avx512bw", target);
+      bool have_avx512f = (*target_has_feature_fn_ptr)("avx512f", target);
+      bool have_avx512bw = (*target_has_feature_fn_ptr)("avx512bw", target);
       if (have_avx512bw && have_avx512f) {
         return "avx512";
       }
