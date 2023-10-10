@@ -39,31 +39,37 @@ namespace tir {
  */
 class SymbolicMatcher : ExprFunctor<bool(const PrimExpr& n, const PrimExpr& other)> {
  public:
-  explicit SymbolicMatcher(Map<tir::Var, tir::Var>* var_remap) : var_remap_(var_remap) {}
+  explicit SymbolicMatcher(Map<tir::Var, PrimExpr>* var_remap) : var_remap_(var_remap) {}
 
-  void Match(const Array<PrimExpr>& lhs, const Array<PrimExpr>& rhs) {
-    CHECK_EQ(lhs.size(), rhs.size());
-    for (size_t i = 0; i < lhs.size(); ++i) {
-      Match(lhs[i], rhs[i]);
+  void Match(const Array<PrimExpr>& params, const Array<PrimExpr>& args) {
+    CHECK_EQ(params.size(), args.size());
+    for (size_t i = 0; i < params.size(); ++i) {
+      Match(params[i], args[i]);
     }
   }
-  void Match(const PrimExpr& lhs, const PrimExpr& rhs) {
-    if (!VisitExpr(lhs, rhs)) {
-      LOG(FATAL) << "Failed to match PrimExpr " << lhs << " with " << rhs;
+  void Match(const PrimExpr& param, const PrimExpr& arg) {
+    if (!VisitExpr(param, arg)) {
+      LOG(FATAL) << "Failed to match PrimExpr " << param << " with " << arg;
     }
   }
 
  private:
-  bool VisitExpr(const PrimExpr& n, const PrimExpr& other) {
-    bool matched = n.same_as(other) || ((n->type_index() == other->type_index()) &&
-                                        n.dtype().code() == other.dtype().code());
-    return matched && ExprFunctor::VisitExpr(n, other);
+  bool VisitExpr(const PrimExpr& node, const PrimExpr& other) {
+    if (node.same_as(other)) {
+      return true;
+    } else if (node.dtype().code() != other.dtype().code()) {
+      return false;
+    } else {
+      return ExprFunctor::VisitExpr(node, other);
+    }
   }
 
 #define TVM_DECLARE_SYMBOLIC_MATCHER_BINOP(OpName)               \
   bool VisitExpr_(const OpName* op, const PrimExpr& other) {     \
     const auto* rhs = other.as<OpName>();                        \
-    ICHECK(rhs);                                                 \
+    if (!rhs) {                                                  \
+      return false;                                              \
+    }                                                            \
     return VisitExpr(op->a, rhs->a) && VisitExpr(op->b, rhs->b); \
   }
 
@@ -87,34 +93,35 @@ class SymbolicMatcher : ExprFunctor<bool(const PrimExpr& n, const PrimExpr& othe
 
   bool VisitExpr_(const IntImmNode* op, const PrimExpr& other) {
     const auto* rhs = other.as<IntImmNode>();
-    return op->value == rhs->value;
+    return rhs && (op->value == rhs->value);
   }
 
   bool VisitExpr_(const FloatImmNode* op, const PrimExpr& other) {
     const auto* rhs = other.as<FloatImmNode>();
-    return op->value == rhs->value;
+    return rhs && (op->value == rhs->value);
   }
 
   bool VisitExpr_(const CastNode* op, const PrimExpr& other) {
     const auto* rhs = other.as<CastNode>();
-    return VisitExpr(op->value, rhs->value);
+    return rhs && VisitExpr(op->value, rhs->value);
   }
 
-  bool VisitExpr_(const VarNode* op, const PrimExpr& other) {
-    const auto* rhs = other.as<VarNode>();
+  bool VisitExpr_(const VarNode* op, const PrimExpr& rhs) {
     auto lhs = GetRef<Var>(op);
-    if (lhs.same_as(other)) return true;
-    if (op->dtype.code() != rhs->dtype.code()) return false;
-    auto it = var_remap_->find(lhs);
-    if (it == var_remap_->end()) {
-      var_remap_->Set(lhs, GetRef<Var>(rhs));
+
+    if (lhs.same_as(rhs)) {
       return true;
+    } else if (op->dtype.code() != rhs->dtype.code()) {
+      return false;
+    } else if (auto it = var_remap_->find(lhs); it != var_remap_->end()) {
+      return VisitExpr((*it).second, rhs);
     } else {
-      return (*it).second.same_as(other);
+      var_remap_->Set(lhs, rhs);
+      return true;
     }
   }
 
-  Map<tir::Var, tir::Var>* var_remap_;
+  Map<tir::Var, PrimExpr>* var_remap_;
 };
 
 /*!
@@ -123,7 +130,7 @@ class SymbolicMatcher : ExprFunctor<bool(const PrimExpr& n, const PrimExpr& othe
 class FuseTIRBufferSubstitutor : private StmtExprMutator {
  public:
   explicit FuseTIRBufferSubstitutor(const Map<Buffer, Buffer>& buffer_map,
-                                    const Map<Var, Var>& var_map) {
+                                    const Map<Var, PrimExpr>& var_map) {
     buffer_remap_ = buffer_map;
     var_remap_ = var_map;
     for (const auto& [src, tgt] : buffer_map) {
@@ -156,8 +163,7 @@ class FuseTIRBufferSubstitutor : private StmtExprMutator {
 
  private:
   PrimExpr VisitExpr_(const VarNode* _op) final {
-    auto it = var_remap_.find(GetRef<Var>(_op));
-    if (it != var_remap_.end()) {
+    if (auto it = var_remap_.find(GetRef<Var>(_op)); it != var_remap_.end()) {
       return (*it).second;
     } else {
       return GetRef<PrimExpr>(_op);
@@ -246,7 +252,7 @@ class FuseTIRBufferSubstitutor : private StmtExprMutator {
   /*! \brief Mapping from src buffer to tgt buffer. */
   Map<tir::Buffer, tir::Buffer> buffer_remap_;
   /*! \brief Mapping from src tir var to tgt var. */
-  Map<tir::Var, tir::Var> var_remap_;
+  Map<tir::Var, PrimExpr> var_remap_;
 
   Array<tir::BufferRegion> UnionAccessRegion(const Array<BufferRegion>& regions) const {
     // For now we only allow Buffer access the same elements.
@@ -474,6 +480,7 @@ class FusedTIRConstructor : public ExprVisitor {
     // Step 5. Map input arguments to buffer
     MapInputBuffer(prim_func, call->args[1]);
     const Array<Array<PrimExpr>>& output_buffer_shapes = GetCallTIROutputShapes(call);
+
     AllocateIntermediateBuffer(GetRef<Expr>(call), prim_func, output_buffer_shapes);
 
     // Step 6. Update tir_vars
@@ -481,17 +488,12 @@ class FusedTIRConstructor : public ExprVisitor {
       ICHECK(call->args.size() == 3);
       const Expr& tir_vars = call->args[2];
       if (const auto* shape_expr = tir_vars.as<ShapeExprNode>()) {
-        const Array<tir::Var> vars = shape_expr->values.Map([](const PrimExpr& expr) {
-          if (!expr->IsInstance<tir::VarNode>()) {
-            LOG(FATAL) << "Expected a single var, but got: " << expr;
-          }
-          return Downcast<tir::Var>(expr);
-        });
+        const auto& args = shape_expr->values;
         size_t num_params = prim_func->params.size();
-        ICHECK_GE(num_params, vars.size());
-        for (size_t i = 0; i < vars.size(); ++i) {
-          const tir::Var& param = prim_func->params[num_params - vars.size() + i];
-          func_info_.symbolic_var_matcher.Match(param, vars[i]);
+        ICHECK_GE(num_params, args.size());
+        for (size_t i = 0; i < args.size(); ++i) {
+          const tir::Var& param = prim_func->params[num_params - args.size() + i];
+          func_info_.symbolic_var_matcher.Match(param, args[i]);
         }
       } else {
         LOG(FATAL) << "TIR vars should be a shape expr, but got: " << tir_vars->GetTypeKey();
@@ -805,8 +807,8 @@ class FusedTIRConstructor : public ExprVisitor {
      * function
      */
     Map<tir::Buffer, tir::Buffer> buffer_subst_map;
-    /*! \brief The map from symbolic var to its corresponding var in the fused function */
-    Map<tir::Var, tir::Var> symbolic_var_remap;
+    /*! \brief The map from symbolic var to its value in the fused function */
+    Map<tir::Var, PrimExpr> symbolic_var_remap;
     /*! \brief The `buffer_map` in the fused function*/
     Map<tir::Var, tir::Buffer> buffer_map;
     /*! \brief The output buffers in the function buffer_map*/

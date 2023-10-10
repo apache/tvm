@@ -25,6 +25,7 @@ from .base import (
     assert_op,
     call_builtin_with_ctx,
     call_dps_packed,
+    call_inplace_packed,
     call_pure_packed,
     call_tir,
     call_tir_inplace,
