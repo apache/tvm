@@ -152,9 +152,11 @@ def test_sample_categorical_serialize():
 def test_sample_perfect_tile_power_of_two():
     sch = tir.Schedule(elementwise, debug_mask="all")
     i, _, _ = sch.get_loops(sch.get_block("B"))
-    factors = sch.sample_perfect_tile(i, n=4)
+    # factors = sch.sample_perfect_tile(i, n=4)
+    factors = sch.sample_perfect_tile(i, n=4, decision=[1,64,1,5])
     factors = [sch.get(i) for i in factors]
     prod = factors[0] * factors[1] * factors[2] * factors[3]
+    print("factors", factors)
     assert prod == 128
     verify_trace_roundtrip(sch, mod=elementwise)
 
@@ -213,4 +215,5 @@ def test_sample_perfect_tile_after_copy():
 
 
 if __name__ == "__main__":
-    tvm.testing.main()
+    # tvm.testing.main()
+    test_sample_perfect_tile_power_of_two()

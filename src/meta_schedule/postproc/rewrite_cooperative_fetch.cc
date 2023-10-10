@@ -125,7 +125,7 @@ class RewriteCooperativeFetchNode : public PostprocNode {
   }
 
   // Inherited from PostprocNode
-  bool Apply(const tir::Schedule& sch) final;
+  bool Apply(const tir::Schedule& sch, const tir::Schedule& orig) final;
 
   Postproc Clone() const {
     ObjectPtr<RewriteCooperativeFetchNode> n = make_object<RewriteCooperativeFetchNode>(*this);
@@ -141,7 +141,7 @@ class RewriteCooperativeFetchNode : public PostprocNode {
   int thread_warp_size_ = -1;
 };
 
-bool RewriteCooperativeFetchNode::Apply(const tir::Schedule& sch) {
+bool RewriteCooperativeFetchNode::Apply(const tir::Schedule& sch, const tir::Schedule& orig) {
   tir::Trace trace = sch->trace().value();
   int64_t thread_extent_x = -1;
   int64_t thread_extent_y = -1;
@@ -179,8 +179,6 @@ bool RewriteCooperativeFetchNode::Apply(const tir::Schedule& sch) {
       }
       // If the block involves 64 bit values, disable vectorization for now since
       // vectorization of 64 bit values does not work well on CUDA.
-      // TODO(masahi, vinx13): Decouple epilogue fusion computation and shared to global store, so
-      // that we can always vectorize the latter.
       if (tir::GetMaxUsedDtypeBytes(sch->Get(block)) > 4) {
         vector_lane = 1;
       }

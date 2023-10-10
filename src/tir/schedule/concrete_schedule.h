@@ -80,6 +80,7 @@ class ConcreteScheduleNode : public ScheduleNode {
   inline bool HasBlock(const BlockRV& block_rv) const final;
   inline Array<StmtSRef> GetSRefs(const Array<BlockRV>& rvs) const;
   inline Array<StmtSRef> GetSRefs(const Array<LoopRV>& rvs) const;
+  inline Array<Integer> GetSplitFactors(const LoopRV& loop_rv) const final;
   void RemoveRV(const BlockRV& block_rv) final { RemoveFromSymbolTable(block_rv); }
   void RemoveRV(const LoopRV& loop_rv) final { RemoveFromSymbolTable(loop_rv); }
   void RemoveRV(const ExprRV& expr_rv) final { RemoveFromSymbolTable(expr_rv); }
@@ -257,6 +258,31 @@ inline PrimExpr ConcreteScheduleNode::Get(const ExprRV& expr_rv) const {
   return this->analyzer_->Simplify(transformed);
 }
 
+inline Array<Integer> ConcreteScheduleNode::GetSplitFactors(const LoopRV& loop_rv) const {
+  static auto kind_split = tir::InstructionKind::Get("Split");
+
+  tir::Trace trace = this->trace().value();
+  std::vector<std::pair<LoopRV, Array<Integer>>> data;
+  for (const tir::Instruction& inst : trace->insts) {
+    if (inst->kind->IsPostproc()) {
+      break;
+    }
+    if (inst->kind.same_as(kind_split)) {
+      tir::LoopRV flooprv = Downcast<tir::LoopRV>(inst->inputs[0]);
+      data.push_back({flooprv, {}});
+      for (auto i : inst->inputs) {
+      }
+      for (size_t i = 1; i < inst->inputs.size(); ++i) {
+        CHECK(inst->inputs[i].defined()) << "ValueError: ICE";
+        tir::ExprRV exprrv = Downcast<tir::ExprRV>(inst->inputs[i]);
+        auto newf = this->Get(exprrv);
+        data.back().second.push_back(*tir::as_const_int(newf));
+      }
+    }
+  }
+  return {1, 1, 1, 1};
+}
+
 inline bool ConcreteScheduleNode::HasBlock(const BlockRV& block_rv) const {
   auto it = this->symbol_table_.find(block_rv);
   if (it == this->symbol_table_.end()) {
@@ -308,6 +334,7 @@ inline StmtSRef ConcreteScheduleNode::GetSRef(const LoopRV& loop_rv) const {
   }
   if (sref->stmt == nullptr) {
     LOG(FATAL) << "ValueError: The loop no longer exists in the IRModule";
+    // return StmtSRef{nullptr}; // Sometimes you want to print nullptr
   }
   return GetRef<StmtSRef>(sref);
 }

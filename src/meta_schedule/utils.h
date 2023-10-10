@@ -43,6 +43,7 @@
 #include <tvm/tir/transform.h>
 
 #include <algorithm>
+#include <queue>
 #include <string>
 #include <unordered_set>
 #include <utility>
@@ -323,19 +324,59 @@ struct ThreadedTraceApply {
    * \return The schedule created, or NullOpt if any postprocessor fails
    */
   Optional<tir::Schedule> Apply(const IRModule& mod, const tir::Trace& trace,
-                                TRandState* rand_state) {
+                                TRandState* rand_state /*, filter*/) {
     tir::Schedule sch =
         tir::Schedule::Traced(mod,
                               /*rand_state=*/ForkSeed(rand_state),
                               /*debug_mode=*/0,
                               /*error_render_level=*/tir::ScheduleErrorRenderLevel::kNone);
+    tir::Schedule orig = sch->Copy();
+    auto get_loops = [](const tir::Schedule& sch) {
+      Array<tir::LoopRV> loops;
+      std::queue<tir::BlockRV> blocks;
+      blocks.push(sch->GetBlock("root"));
+      while (!blocks.empty()) {
+        tir::BlockRV block = blocks.front();
+        auto block_loops = sch->GetLoops(block);
+        loops.insert(loops.end(), block_loops.begin(), block_loops.end());
+        for (auto& b : sch->GetChildBlocks(block)) {
+          blocks.emplace(std::move(b));
+        }
+        blocks.pop();
+      }
+      return loops;
+    };
+    Array<tir::LoopRV> orig_loops = get_loops(orig);
+    Array<tir::LoopRV> traced_loops = get_loops(sch);
 
-    trace->ApplyToSchedule(sch, /*remove_postproc=*/true);
+    Map<tir::StmtSRef, tir::StmtSRef> traced_to_origin;
+    for (size_t i = 0; i < traced_loops.size(); ++i) {
+      traced_to_origin.Set(sch->GetSRef(traced_loops[i]), orig->GetSRef(orig_loops[i]));
+    }
+
+    Map<tir::StmtSRef, Array<Integer>> traced_loops_splits =
+        trace->ApplyToSchedule(sch, /*remove_postproc=*/true);
+
+    Map<tir::StmtSRef, Array<Integer>> origin_loops_splits;
+    for (auto& v : traced_loops_splits) {
+      origin_loops_splits.Set(traced_to_origin[v.first], v.second);
+    }
+
+    for (int i = 0; i < n_; ++i) {
+      Item& item = items_[i];
+      auto filter = item.postproc->GetFilter();
+      if (filter != nullptr && filter.packed().defined()) {
+        if (!filter(orig, origin_loops_splits)) {
+          return NullOpt;
+        }
+      }
+    }
+
     sch->EnterPostproc();
 
     for (int i = 0; i < n_; ++i) {
       Item& item = items_[i];
-      if (!item.postproc->Apply(sch)) {
+      if (!item.postproc->Apply(sch, orig)) {
         item.fail_counter++;
         return NullOpt;
       }

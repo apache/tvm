@@ -31,7 +31,7 @@ class VerifyVTCMLimitNode : public PostprocNode {
     ICHECK(context->target.defined());
     Target target = context->target.value();
     ICHECK(target->kind->name == "hexagon");
-    // The value of 0 will disable VTCM verification.
+    // The value of 0 will disable VTCM verification
     vtcm_capacity = target->GetAttr<Integer>("vtcm-capacity").value_or(0);
   }
 
@@ -42,7 +42,7 @@ class VerifyVTCMLimitNode : public PostprocNode {
     return true;
   }
 
-  bool Apply(const tir::Schedule& sch) final {
+  bool Apply(const tir::Schedule& sch, const tir::Schedule& orig) final {
     IRModule mod = sch->mod();
     IRModule lowered{nullptr};
     auto pass_list = tir::GetVTCMCompactionPasses();

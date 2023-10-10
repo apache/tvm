@@ -257,7 +257,7 @@ void AdjustParallelVectorize(const Schedule& sch, const BlockRV& block_rv,
   // Calculate how many loops are rewritable, i.e. valid for vectorization and parallelization.
   int max_rw_loops = CalculateNumRewritableLoops(loop_srefs, loop_types);
 
-  // Calculate the parallelize extent
+  // Calculate the parallelize extent.
   if (parsed->max_parallel_extent != -1) {
     int max_extent = parsed->max_parallel_extent;
     int& num_fusible = parsed->num_parallel_loops = 0;
@@ -410,7 +410,7 @@ class RewriteParallelVectorizeUnrollNode : public PostprocNode {
  public:
   void InitializeWithTuneContext(const TuneContext& context) final {}
 
-  bool Apply(const Schedule& sch) final {
+  bool Apply(const Schedule& sch, const tir::Schedule& orig) final {
     tir::ParsedAnnotation parsed_root;
     tir::BlockRV root_rv{nullptr};
     while (tir::FindAnnotatedRootBlock(sch, &parsed_root, &root_rv)) {

@@ -96,7 +96,7 @@ class RewriteUnboundBlockNode : public PostprocNode {
   }
 
   // Inherited from PostprocNode
-  bool Apply(const tir::Schedule& sch) final;
+  bool Apply(const tir::Schedule& sch, const tir::Schedule& orig) final;
 
   Postproc Clone() const {
     ObjectPtr<RewriteUnboundBlockNode> n = make_object<RewriteUnboundBlockNode>(*this);
@@ -110,15 +110,15 @@ class RewriteUnboundBlockNode : public PostprocNode {
   int max_threadblocks_ = -1;
 
   void VisitAttrs(tvm::AttrVisitor* v) {
-    // `max_threads_per_block_` is not visited
-    // `max_threadblocks_` is not visited
+    // `max_threads_per_block_` is not visited.
+    // `max_threadblocks_` is not visited.
   }
 
   static constexpr const char* _type_key = "meta_schedule.RewriteUnboundBlock";
   TVM_DECLARE_FINAL_OBJECT_INFO(RewriteUnboundBlockNode, PostprocNode);
 };
 
-bool RewriteUnboundBlockNode::Apply(const tir::Schedule& sch) {
+bool RewriteUnboundBlockNode::Apply(const tir::Schedule& sch, const tir::Schedule& orig) {
   using tir::BlockRV;
   using tir::ExprRV;
   using tir::LoopRV;

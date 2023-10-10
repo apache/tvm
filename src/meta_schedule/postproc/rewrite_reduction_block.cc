@@ -112,7 +112,7 @@ class RewriteReductionBlockNode : public PostprocNode {
   // Inherited from PostprocNode
   void InitializeWithTuneContext(const TuneContext& context) final {}
   // Inherited from PostprocNode
-  bool Apply(const tir::Schedule& sch) final;
+  bool Apply(const tir::Schedule& sch, const tir::Schedule& orig) final;
 
   Postproc Clone() const {
     ObjectPtr<RewriteReductionBlockNode> n = make_object<RewriteReductionBlockNode>(*this);
@@ -125,7 +125,7 @@ class RewriteReductionBlockNode : public PostprocNode {
   TVM_DECLARE_FINAL_OBJECT_INFO(RewriteReductionBlockNode, PostprocNode);
 };
 
-bool RewriteReductionBlockNode::Apply(const tir::Schedule& sch) {
+bool RewriteReductionBlockNode::Apply(const tir::Schedule& sch, const tir::Schedule& orig) {
   for (;;) {
     std::vector<std::pair<tir::StmtSRef, String>> results =
         tir::ReductionBlockFinder::Find(sch->state());
@@ -141,7 +141,7 @@ bool RewriteReductionBlockNode::Apply(const tir::Schedule& sch) {
       Array<tir::LoopRV> loop_rvs = sch->GetLoops(block_rv);
       tir::BlockRV init_block_rv = sch->DecomposeReduction(block_rv, loop_rvs[decompose_point]);
 
-      // Rewrite auto tensorization related annotations
+      // Rewrite auto tensorization related annotations.
       if (tir::GetAnn<String>(block_sref, tir::attr::meta_schedule_auto_tensorize).defined()) {
         // Remove tensorization annotation as it shouldn't be propagated to the init block.
         sch->Unannotate(init_block_rv, tir::attr::meta_schedule_auto_tensorize);

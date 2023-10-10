@@ -1,0 +1,655 @@
+relay
+ def @main(%data: Tensor[(1, 32, 32, 64), int32]) {
+  %0 = nn.conv2d(%data, meta[relay.Constant][0], padding=[1, 1, 1, 1], groups=64, channels=64, kernel_size=[3, 3], data_layout="NHWC", kernel_layout="HWOI", out_dtype="int32");
+  %1 = nn.bias_add(%0, meta[relay.Constant][1], axis=3);
+  %2 = nn.conv2d(%1, meta[relay.Constant][2], padding=[1, 1, 1, 1], groups=64, channels=64, kernel_size=[3, 3], data_layout="NHWC", kernel_layout="HWOI", out_dtype="int32");
+  nn.conv2d(%2, meta[relay.Constant][3], padding=[1, 1, 1, 1], groups=64, channels=64, kernel_size=[3, 3], data_layout="NHWC", kernel_layout="HWOI", out_dtype="int32")
+}
+
+
+module_equality anchor-block
+task name fused_nn_conv2d weight 3
+task mod
+ # from tvm.script import ir as I
+# from tvm.script import tir as T
+
+@I.ir_module
+class Module:
+    @T.prim_func
+    def main(p0: T.Buffer((T.int64(1), T.int64(32), T.int64(32), T.int64(64)), "int32"), DepthwiseConv2d: T.Buffer((T.int64(1), T.int64(32), T.int64(32), T.int64(64)), "int32")):
+        T.func_attr({"global_symbol": "main", "tir.noalias": T.bool(True)})
+        # with T.block("root"):
+        PaddedInput = T.alloc_buffer((T.int64(1), T.int64(34), T.int64(34), T.int64(64)), "int32")
+        fused_constant = T.allocate_const([-2044185007, 1908866427, 1578170150, -2120642097, 765127756, -652276874, -721125852, 1700465666, -344499205, 1062263848, 814752046, 1047357884, 978967566, -4405895, 731697970, -469161781, -200755670, 1622189574, 1477788193, -213191650, 1975685045, 78823699, -710090318, 110234631, 1364380817, -1158062943, 567367123, 335178952, -274876284, 425609201, 1888091282, 230995941, 596025765, -1535217588, -1768078083, -952958850, 1018348077, 1524441171, 60594124, -553334660, 859307663, 927558666, -2112104929, -817664561, -712384924, 318557734, -393074669, -1934433098, -928793689, 30572106, 934386099, 103389023, 1621511640, -1511297926, -537201200, -556403445, -1775500242, -1070344966, 1202904327, -2048653827, -768129983, -1461405795, 962058105, -271326262, -998068367, -1883276942, 721590033, 1782841919, -702221817, -85704082, 1359338925, 1842755703, 1818420135, -2017704317, 1456687931, -1613652129, 1781597763, 163930553, -601987729, 1834871892, -1726658160, 1353800893, 1812382742, -1913809221, 1750785542, 357888734, 204042595, -323985497, -278311967, -1335578147, 714927692, 1024913100, -1816278738, -2073776172, -795879186, 1536096266, 818877190, 210722502, 1654903429, 1090707801, 1132490902, 734661015, -1850753596, 980689711, -1904801015, 215597179, -89620228, 1933427596, -31603671, -23551002, -118035664, 1475607750, 169287123, -813569471, -1291551451, 1127950963, 924315046, 1382524002, -722547828, -1749763291, -1232245657, -828677299, -1675893585, -545198428, -1478718629, 1335537036, -1955916094, -202099151, 555661325, -1337881427, -916690450, 736730457, -1747670655, -132821149, 1240222721, -1525621763, -486312122, 1297116837, 654697524, -1060066577, 2022890059, -558198585, -580773986, -1628187343, -1323841808, -1035698737, 773606615, -883007675, 705207407, -902820095, -858738510, -2052219209, 1343512156, -1650209026, -2120686209, -69429510, -1561304436, -2036321371, -598365855, 1286298386, -266652347, 732210971, -330235435, 693096495, -2019081336, -1203654668, -734304937, 253944871, 458406482, 332624787, 1239961008, -775014085, 72577650, 1413798913, 1097427382, -1757415950, -1362993221, -261010273, -1305025260, -1064201080, 746854298, 1502824132, -1950490675, 749200189, 78413542, 917299645, -735978174, 1857750153, -345964567, -786834891, -1067558998, -630993724, -1033076942, 936139362, -1873873526, 2083925205, -2126821181, 557506348, -1210670353, 935447727, 228938535], "int32", [3, 3, 64, 1])
+        for i0, i1, i2, i3 in T.grid(T.int64(1), T.int64(34), T.int64(34), T.int64(64)):
+            with T.block("PaddedInput"):
+                v_i0, v_i1, v_i2, v_i3 = T.axis.remap("SSSS", [i0, i1, i2, i3])
+                T.reads(p0[v_i0, v_i1 - T.int64(1), v_i2 - T.int64(1), v_i3])
+                T.writes(PaddedInput[v_i0, v_i1, v_i2, v_i3])
+                PaddedInput[v_i0, v_i1, v_i2, v_i3] = T.if_then_else(T.int64(1) <= v_i1 and v_i1 < T.int64(33) and T.int64(1) <= v_i2 and v_i2 < T.int64(33), p0[v_i0, v_i1 - T.int64(1), v_i2 - T.int64(1), v_i3], 0)
+        for b, i, j, c, di, dj in T.grid(T.int64(1), T.int64(32), T.int64(32), T.int64(64), T.int64(3), T.int64(3)):
+            with T.block("DepthwiseConv2d"):
+                v_b, v_i, v_j, v_c, v_di, v_dj = T.axis.remap("SSSSRR", [b, i, j, c, di, dj])
+                fused_constant_1 = T.Buffer((3, 3, 64, 1), "int32", data=fused_constant)
+                T.reads(PaddedInput[v_b, v_i + v_di, v_j + v_dj, v_c], fused_constant_1[v_di, v_dj, v_c, T.int64(0)])
+                T.writes(DepthwiseConv2d[v_b, v_i, v_j, v_c])
+                with T.init():
+                    DepthwiseConv2d[v_b, v_i, v_j, v_c] = 0
+                DepthwiseConv2d[v_b, v_i, v_j, v_c] = DepthwiseConv2d[v_b, v_i, v_j, v_c] + PaddedInput[v_b, v_i + v_di, v_j + v_dj, v_c] * fused_constant_1[v_di, v_dj, v_c, T.int64(0)]
+rm /git/tvm/my_dir/
+Postproc::FilterLoopSplits
+2023-04-27 16:21:07 [INFO] Logging directory: my_dir/logs
+2023-04-27 16:21:11 [INFO] LocalBuilder: max_workers = 5
+2023-04-27 16:21:12 [INFO] LocalRunner: max_workers = 1
+2023-04-27 16:21:12 [INFO] [task_scheduler.cc:159] Initializing Task #0: "fused_nn_conv2d"
+PreTuning design_spaces size: 1
+PreTuning design_space_traces size: 1
+2023-04-27 16:21:12 [INFO] [task_scheduler.cc:322] 
+ ID |            Name |    FLOP | Weight | Speed (GFLOPS) | Latency (us) | Weighted Latency (us) | Trials | Done 
+-----------------------------------------------------------------------------------------------------------------
+  0 | fused_nn_conv2d | 1179648 |      3 |            N/A |          N/A |                   N/A |      0 |      
+-----------------------------------------------------------------------------------------------------------------
+Total trials: 0
+Total latency (us): 0
+
+2023-04-27 16:21:12 [INFO] [task_scheduler.cc:182] TaskScheduler picks Task #0: "fused_nn_conv2d"
+all factors [[1, 1, 1, 1], [1, 2, 1, 16], [4, 1, 4, 2], [1, 8, 1, 8], [3, 1], [3, 1]]
+ICERES  int(s4.value) <= 2 is False where s4 16
+ICE FILTERED
+all factors [[1, 1, 1, 1], [4, 2, 4, 1], [8, 1, 1, 4], [8, 2, 1, 4], [1, 3], [3, 1]]
+ICERES  int(s4.value) <= 2 is True where s4 1
+all factors [[1, 1, 1, 1], [1, 32, 1, 1], [1, 16, 2, 1], [2, 2, 2, 8], [3, 1], [1, 3]]
+ICERES  int(s4.value) <= 2 is True where s4 1
+all factors [[1, 1, 1, 1], [2, 1, 8, 2], [4, 1, 1, 8], [2, 2, 16, 1], [3, 1], [3, 1]]
+ICERES  int(s4.value) <= 2 is True where s4 2
+all factors [[1, 1, 1, 1], [32, 1, 1, 1], [1, 4, 2, 4], [1, 2, 16, 2], [3, 1], [1, 3]]
+ICERES  int(s4.value) <= 2 is True where s4 1
+all factors [[1, 1, 1, 1], [4, 8, 1, 1], [1, 2, 1, 16], [4, 1, 8, 2], [1, 3], [1, 3]]
+ICERES  int(s4.value) <= 2 is True where s4 1
+all factors [[1, 1, 1, 1], [4, 4, 1, 2], [1, 8, 1, 4], [2, 2, 8, 2], [3, 1], [1, 3]]
+ICERES  int(s4.value) <= 2 is True where s4 2
+all factors [[1, 1, 1, 1], [16, 1, 2, 1], [1, 1, 1, 32], [32, 2, 1, 1], [1, 3], [3, 1]]
+ICERES  int(s4.value) <= 2 is True where s4 1
+all factors [[1, 1, 1, 1], [1, 4, 1, 8], [1, 1, 16, 2], [2, 1, 32, 1], [3, 1], [1, 3]]
+ICERES  int(s4.value) <= 2 is False where s4 8
+ICE FILTERED
+all factors [[1, 1, 1, 1], [8, 1, 4, 1], [4, 1, 4, 2], [1, 4, 8, 2], [1, 3], [1, 3]]
+ICERES  int(s4.value) <= 2 is True where s4 1
+2023-04-27 16:21:13 [INFO] [task_scheduler.cc:195] Sending 8 sample(s) to builder
+2023-04-27 16:21:14 [INFO] [task_scheduler.cc:197] Sending 8 sample(s) to runner
+2023-04-27 16:21:15 [DEBUG] XGB iter   0: tr-p-rmse: 0.383076	tr-a-peak@32: 1.000000	tr-rmse: 0.320431	tr-rmse: 0.320431
+2023-04-27 16:21:15 [DEBUG] XGB iter  25: tr-p-rmse: 0.053355	tr-a-peak@32: 1.000000	tr-rmse: 0.378749	tr-rmse: 0.378749
+2023-04-27 16:21:15 [DEBUG] XGB iter  50: tr-p-rmse: 0.048490	tr-a-peak@32: 1.000000	tr-rmse: 0.380718	tr-rmse: 0.380718
+2023-04-27 16:21:15 [DEBUG] XGB iter  75: tr-p-rmse: 0.048490	tr-a-peak@32: 1.000000	tr-rmse: 0.380718	tr-rmse: 0.380718
+2023-04-27 16:21:15 [DEBUG] XGB stopped. Best iteration: [46] tr-p-rmse:0.04849	tr-a-peak@32:1.00000	tr-rmse:0.38072	tr-rmse:0.38072 
+2023-04-27 16:21:15 [INFO] [task_scheduler.cc:239] [Updated] Task #0: "fused_nn_conv2d"
+2023-04-27 16:21:15 [INFO] [task_scheduler.cc:322] 
+ ID |            Name |    FLOP | Weight | Speed (GFLOPS) | Latency (us) | Weighted Latency (us) | Trials | Done 
+-----------------------------------------------------------------------------------------------------------------
+  0 | fused_nn_conv2d | 1179648 |      3 |         7.8908 |     149.4958 |              448.4875 |      8 |      
+-----------------------------------------------------------------------------------------------------------------
+Total trials: 8
+Total latency (us): 448.488
+
+2023-04-27 16:21:15 [INFO] [task_scheduler.cc:182] TaskScheduler picks Task #0: "fused_nn_conv2d"
+all factors [[1, 1, 1, 1], [2, 16, 1, 1], [2, 2, 4, 2], [8, 4, 1, 2], [1, 3], [3, 1]]
+ICERES  int(s4.value) <= 2 is True where s4 1
+all factors [[1, 1, 1, 1], [1, 16, 1, 2], [1, 8, 1, 4], [16, 1, 1, 4], [3, 1], [1, 3]]
+ICERES  int(s4.value) <= 2 is True where s4 2
+all factors [[1, 1, 1, 1], [1, 2, 1, 16], [1, 32, 1, 1], [8, 1, 2, 4], [1, 3], [1, 3]]
+ICERES  int(s4.value) <= 2 is False where s4 16
+ICE FILTERED
+all factors [[1, 1, 1, 1], [1, 4, 1, 8], [4, 1, 4, 2], [1, 32, 1, 2], [1, 3], [3, 1]]
+ICERES  int(s4.value) <= 2 is False where s4 8
+ICE FILTERED
+all factors [[1, 1, 1, 1], [1, 32, 1, 1], [2, 2, 2, 4], [4, 1, 8, 2], [3, 1], [1, 3]]
+ICERES  int(s4.value) <= 2 is True where s4 1
+all factors [[1, 1, 1, 1], [1, 16, 1, 2], [16, 2, 1, 1], [4, 1, 1, 16], [1, 3], [1, 3]]
+ICERES  int(s4.value) <= 2 is True where s4 2
+all factors [[1, 1, 1, 1], [2, 4, 2, 2], [1, 1, 2, 16], [1, 2, 32, 1], [1, 3], [3, 1]]
+ICERES  int(s4.value) <= 2 is True where s4 2
+all factors [[1, 1, 1, 1], [1, 2, 1, 16], [1, 2, 16, 1], [8, 4, 2, 1], [3, 1], [3, 1]]
+ICERES  int(s4.value) <= 2 is False where s4 16
+ICE FILTERED
+all factors [[1, 1, 1, 1], [2, 4, 4, 1], [1, 16, 2, 1], [2, 1, 2, 16], [3, 1], [3, 1]]
+ICERES  int(s4.value) <= 2 is True where s4 1
+all factors [[1, 1, 1, 1], [8, 2, 1, 2], [2, 2, 4, 2], [1, 1, 2, 32], [1, 3], [3, 1]]
+ICERES  int(s4.value) <= 2 is True where s4 2
+all factors [[1, 1, 1, 1], [16, 1, 1, 2], [2, 2, 2, 4], [16, 2, 1, 2], [1, 3], [3, 1]]
+ICERES  int(s4.value) <= 2 is True where s4 2
+2023-04-27 16:21:15 [INFO] [task_scheduler.cc:195] Sending 8 sample(s) to builder
+2023-04-27 16:21:17 [INFO] [task_scheduler.cc:197] Sending 8 sample(s) to runner
+2023-04-27 16:21:18 [DEBUG] XGB validation: p-rmse: 1.049484	a-peak@32: 0.763739
+2023-04-27 16:21:19 [DEBUG] XGB iter   0: tr-p-rmse: 0.532816	tr-a-peak@32: 1.000000	tr-rmse: 0.307642	tr-rmse: 0.307642
+2023-04-27 16:21:19 [DEBUG] XGB iter  25: tr-p-rmse: 0.095067	tr-a-peak@32: 1.000000	tr-rmse: 0.347623	tr-rmse: 0.347623
+2023-04-27 16:21:19 [DEBUG] XGB iter  50: tr-p-rmse: 0.094947	tr-a-peak@32: 1.000000	tr-rmse: 0.347752	tr-rmse: 0.347752
+2023-04-27 16:21:19 [DEBUG] XGB iter  75: tr-p-rmse: 0.094947	tr-a-peak@32: 1.000000	tr-rmse: 0.347752	tr-rmse: 0.347752
+2023-04-27 16:21:19 [DEBUG] XGB stopped. Best iteration: [36] tr-p-rmse:0.09495	tr-a-peak@32:1.00000	tr-rmse:0.34775	tr-rmse:0.34775 
+2023-04-27 16:21:19 [INFO] [task_scheduler.cc:239] [Updated] Task #0: "fused_nn_conv2d"
+2023-04-27 16:21:19 [INFO] [task_scheduler.cc:322] 
+ ID |            Name |    FLOP | Weight | Speed (GFLOPS) | Latency (us) | Weighted Latency (us) | Trials | Done 
+-----------------------------------------------------------------------------------------------------------------
+  0 | fused_nn_conv2d | 1179648 |      3 |        23.0340 |      51.2134 |              153.6402 |     16 |      
+-----------------------------------------------------------------------------------------------------------------
+Total trials: 16
+Total latency (us): 153.64
+
+2023-04-27 16:21:19 [INFO] [task_scheduler.cc:182] TaskScheduler picks Task #0: "fused_nn_conv2d"
+all factors [[1, 1, 1, 1], [2, 8, 2, 1], [1, 8, 4, 1], [8, 1, 2, 4], [3, 1], [3, 1]]
+ICERES  int(s4.value) <= 2 is True where s4 1
+all factors [[1, 1, 1, 1], [1, 16, 2, 1], [8, 1, 4, 1], [16, 1, 4, 1], [1, 3], [1, 3]]
+ICERES  int(s4.value) <= 2 is True where s4 1
+all factors [[1, 1, 1, 1], [1, 32, 1, 1], [2, 2, 2, 4], [1, 4, 4, 4], [1, 3], [1, 3]]
+ICERES  int(s4.value) <= 2 is True where s4 1
+all factors [[1, 1, 1, 1], [1, 4, 2, 4], [1, 8, 1, 4], [1, 4, 4, 4], [3, 1], [1, 3]]
+ICERES  int(s4.value) <= 2 is False where s4 4
+ICE FILTERED
+all factors [[1, 1, 1, 1], [4, 2, 1, 4], [2, 1, 8, 2], [2, 1, 4, 8], [3, 1], [3, 1]]
+ICERES  int(s4.value) <= 2 is False where s4 4
+ICE FILTERED
+all factors [[1, 1, 1, 1], [2, 1, 16, 1], [1, 8, 2, 2], [8, 1, 1, 8], [1, 3], [3, 1]]
+ICERES  int(s4.value) <= 2 is True where s4 1
+all factors [[1, 1, 1, 1], [2, 2, 2, 4], [1, 8, 4, 1], [8, 2, 1, 4], [3, 1], [3, 1]]
+ICERES  int(s4.value) <= 2 is False where s4 4
+ICE FILTERED
+all factors [[1, 1, 1, 1], [2, 1, 16, 1], [2, 8, 2, 1], [1, 16, 2, 2], [3, 1], [3, 1]]
+ICERES  int(s4.value) <= 2 is True where s4 1
+all factors [[1, 1, 1, 1], [2, 1, 1, 16], [1, 8, 1, 4], [16, 1, 2, 2], [3, 1], [3, 1]]
+ICERES  int(s4.value) <= 2 is False where s4 16
+ICE FILTERED
+all factors [[1, 1, 1, 1], [4, 1, 1, 8], [2, 1, 8, 2], [8, 2, 1, 4], [3, 1], [3, 1]]
+ICERES  int(s4.value) <= 2 is False where s4 8
+ICE FILTERED
+all factors [[1, 1, 1, 1], [1, 1, 4, 8], [4, 8, 1, 1], [1, 2, 2, 16], [1, 3], [3, 1]]
+ICERES  int(s4.value) <= 2 is False where s4 8
+ICE FILTERED
+all factors [[1, 1, 1, 1], [1, 8, 4, 1], [1, 4, 1, 8], [2, 4, 1, 8], [3, 1], [3, 1]]
+ICERES  int(s4.value) <= 2 is True where s4 1
+all factors [[1, 1, 1, 1], [8, 1, 4, 1], [1, 2, 4, 4], [4, 4, 4, 1], [3, 1], [1, 3]]
+ICERES  int(s4.value) <= 2 is True where s4 1
+all factors [[1, 1, 1, 1], [1, 2, 1, 16], [1, 16, 1, 2], [8, 8, 1, 1], [3, 1], [1, 3]]
+ICERES  int(s4.value) <= 2 is False where s4 16
+ICE FILTERED
+all factors [[1, 1, 1, 1], [2, 4, 2, 2], [2, 4, 4, 1], [4, 4, 1, 4], [3, 1], [3, 1]]
+ICERES  int(s4.value) <= 2 is True where s4 2
+2023-04-27 16:21:19 [INFO] [task_scheduler.cc:195] Sending 8 sample(s) to builder
+2023-04-27 16:21:20 [INFO] [task_scheduler.cc:197] Sending 8 sample(s) to runner
+2023-04-27 16:21:22 [DEBUG] XGB validation: p-rmse: 0.543565	a-peak@32: 0.637111
+2023-04-27 16:21:22 [DEBUG] XGB iter   0: tr-p-rmse: 0.534065	tr-a-peak@32: 1.000000	tr-rmse: 0.292974	tr-rmse: 0.292974
+2023-04-27 16:21:22 [DEBUG] XGB iter  25: tr-p-rmse: 0.097911	tr-a-peak@32: 1.000000	tr-rmse: 0.332949	tr-rmse: 0.332949
+2023-04-27 16:21:22 [DEBUG] XGB iter  50: tr-p-rmse: 0.094553	tr-a-peak@32: 1.000000	tr-rmse: 0.332957	tr-rmse: 0.332957
+2023-04-27 16:21:22 [DEBUG] XGB iter  75: tr-p-rmse: 0.094553	tr-a-peak@32: 1.000000	tr-rmse: 0.332957	tr-rmse: 0.332957
+2023-04-27 16:21:22 [DEBUG] XGB stopped. Best iteration: [43] tr-p-rmse:0.09455	tr-a-peak@32:1.00000	tr-rmse:0.33296	tr-rmse:0.33296 
+2023-04-27 16:21:22 [INFO] [task_scheduler.cc:239] [Updated] Task #0: "fused_nn_conv2d"
+2023-04-27 16:21:22 [INFO] [task_scheduler.cc:322] 
+ ID |            Name |    FLOP | Weight | Speed (GFLOPS) | Latency (us) | Weighted Latency (us) | Trials | Done 
+-----------------------------------------------------------------------------------------------------------------
+  0 | fused_nn_conv2d | 1179648 |      3 |        30.0390 |      39.2705 |              117.8116 |     24 |      
+-----------------------------------------------------------------------------------------------------------------
+Total trials: 24
+Total latency (us): 117.812
+
+2023-04-27 16:21:22 [INFO] [task_scheduler.cc:182] TaskScheduler picks Task #0: "fused_nn_conv2d"
+all factors [[1, 1, 1, 1], [1, 4, 8, 1], [1, 16, 1, 2], [2, 1, 8, 4], [1, 3], [1, 3]]
+ICERES  int(s4.value) <= 2 is True where s4 1
+all factors [[1, 1, 1, 1], [1, 16, 2, 1], [4, 1, 1, 8], [32, 1, 1, 2], [3, 1], [3, 1]]
+ICERES  int(s4.value) <= 2 is True where s4 1
+all factors [[1, 1, 1, 1], [4, 1, 2, 4], [4, 4, 1, 2], [1, 16, 2, 2], [1, 3], [1, 3]]
+ICERES  int(s4.value) <= 2 is False where s4 4
+ICE FILTERED
+all factors [[1, 1, 1, 1], [2, 4, 1, 4], [1, 1, 1, 32], [2, 2, 2, 8], [3, 1], [1, 3]]
+ICERES  int(s4.value) <= 2 is False where s4 4
+ICE FILTERED
+all factors [[1, 1, 1, 1], [8, 2, 1, 2], [4, 1, 8, 1], [1, 1, 64, 1], [1, 3], [3, 1]]
+ICERES  int(s4.value) <= 2 is True where s4 2
+all factors [[1, 1, 1, 1], [4, 4, 2, 1], [2, 16, 1, 1], [1, 4, 2, 8], [1, 3], [3, 1]]
+ICERES  int(s4.value) <= 2 is True where s4 1
+all factors [[1, 1, 1, 1], [1, 1, 2, 16], [4, 4, 1, 2], [1, 16, 2, 2], [3, 1], [1, 3]]
+ICERES  int(s4.value) <= 2 is False where s4 16
+ICE FILTERED
+all factors [[1, 1, 1, 1], [1, 8, 1, 4], [1, 4, 1, 8], [32, 2, 1, 1], [1, 3], [3, 1]]
+ICERES  int(s4.value) <= 2 is False where s4 4
+ICE FILTERED
+all factors [[1, 1, 1, 1], [2, 4, 4, 1], [1, 1, 16, 2], [2, 2, 2, 8], [3, 1], [1, 3]]
+ICERES  int(s4.value) <= 2 is True where s4 1
+all factors [[1, 1, 1, 1], [8, 4, 1, 1], [4, 4, 2, 1], [8, 1, 1, 8], [3, 1], [3, 1]]
+ICERES  int(s4.value) <= 2 is True where s4 1
+all factors [[1, 1, 1, 1], [1, 4, 4, 2], [2, 8, 1, 2], [4, 4, 2, 2], [3, 1], [1, 3]]
+ICERES  int(s4.value) <= 2 is True where s4 2
+all factors [[1, 1, 1, 1], [1, 2, 16, 1], [8, 2, 2, 1], [8, 2, 2, 2], [1, 3], [3, 1]]
+ICERES  int(s4.value) <= 2 is True where s4 1
+2023-04-27 16:21:22 [INFO] [task_scheduler.cc:195] Sending 8 sample(s) to builder
+2023-04-27 16:21:23 [INFO] [task_scheduler.cc:197] Sending 8 sample(s) to runner
+2023-04-27 16:21:25 [DEBUG] XGB validation: p-rmse: 0.457557	a-peak@32: 0.958419
+2023-04-27 16:21:25 [DEBUG] XGB iter   0: tr-p-rmse: 0.582519	tr-a-peak@32: 1.000000	tr-rmse: 0.281667	tr-rmse: 0.281667
+2023-04-27 16:21:25 [DEBUG] XGB iter  25: tr-p-rmse: 0.082374	tr-a-peak@32: 1.000000	tr-rmse: 0.300258	tr-rmse: 0.300258
+2023-04-27 16:21:25 [DEBUG] XGB iter  50: tr-p-rmse: 0.080274	tr-a-peak@32: 1.000000	tr-rmse: 0.300362	tr-rmse: 0.300362
+2023-04-27 16:21:25 [DEBUG] XGB iter  75: tr-p-rmse: 0.080274	tr-a-peak@32: 1.000000	tr-rmse: 0.300362	tr-rmse: 0.300362
+2023-04-27 16:21:25 [DEBUG] XGB stopped. Best iteration: [42] tr-p-rmse:0.08027	tr-a-peak@32:1.00000	tr-rmse:0.30036	tr-rmse:0.30036 
+2023-04-27 16:21:25 [INFO] [task_scheduler.cc:239] [Updated] Task #0: "fused_nn_conv2d"
+2023-04-27 16:21:25 [INFO] [task_scheduler.cc:322] 
+ ID |            Name |    FLOP | Weight | Speed (GFLOPS) | Latency (us) | Weighted Latency (us) | Trials | Done 
+-----------------------------------------------------------------------------------------------------------------
+  0 | fused_nn_conv2d | 1179648 |      3 |        51.8667 |      22.7438 |               68.2315 |     32 |      
+-----------------------------------------------------------------------------------------------------------------
+Total trials: 32
+Total latency (us): 68.2315
+
+2023-04-27 16:21:25 [INFO] [task_scheduler.cc:182] TaskScheduler picks Task #0: "fused_nn_conv2d"
+all factors [[1, 1, 1, 1], [2, 1, 8, 2], [4, 1, 4, 2], [1, 16, 2, 2], [3, 1], [1, 3]]
+ICERES  int(s4.value) <= 2 is True where s4 2
+all factors [[1, 1, 1, 1], [1, 1, 4, 8], [1, 16, 1, 2], [8, 2, 2, 2], [1, 3], [3, 1]]
+ICERES  int(s4.value) <= 2 is False where s4 8
+ICE FILTERED
+all factors [[1, 1, 1, 1], [1, 2, 8, 2], [2, 8, 2, 1], [2, 8, 2, 2], [1, 3], [3, 1]]
+ICERES  int(s4.value) <= 2 is True where s4 2
+all factors [[1, 1, 1, 1], [2, 8, 1, 2], [1, 2, 16, 1], [1, 1, 64, 1], [3, 1], [3, 1]]
+ICERES  int(s4.value) <= 2 is True where s4 2
+all factors [[1, 1, 1, 1], [1, 1, 16, 2], [2, 1, 4, 4], [4, 4, 4, 1], [1, 3], [1, 3]]
+ICERES  int(s4.value) <= 2 is True where s4 2
+all factors [[1, 1, 1, 1], [1, 16, 1, 2], [8, 1, 1, 4], [1, 4, 2, 8], [1, 3], [3, 1]]
+ICERES  int(s4.value) <= 2 is True where s4 2
+all factors [[1, 1, 1, 1], [1, 2, 8, 2], [4, 1, 8, 1], [8, 4, 1, 2], [1, 3], [1, 3]]
+ICERES  int(s4.value) <= 2 is True where s4 2
+all factors [[1, 1, 1, 1], [1, 8, 1, 4], [4, 4, 1, 2], [16, 1, 4, 1], [1, 3], [1, 3]]
+ICERES  int(s4.value) <= 2 is False where s4 4
+ICE FILTERED
+all factors [[1, 1, 1, 1], [1, 4, 8, 1], [1, 4, 2, 4], [1, 16, 2, 2], [1, 3], [1, 3]]
+ICERES  int(s4.value) <= 2 is True where s4 1
+all factors [[1, 1, 1, 1], [1, 16, 2, 1], [1, 8, 1, 4], [1, 4, 4, 4], [1, 3], [1, 3]]
+ICERES  int(s4.value) <= 2 is True where s4 1
+2023-04-27 16:21:25 [INFO] [task_scheduler.cc:195] Sending 8 sample(s) to builder
+2023-04-27 16:21:26 [INFO] [task_scheduler.cc:197] Sending 8 sample(s) to runner
+2023-04-27 16:21:28 [DEBUG] XGB validation: p-rmse: 0.085814	a-peak@32: 1.000000
+2023-04-27 16:21:28 [DEBUG] XGB iter   0: tr-p-rmse: 0.575920	tr-a-peak@32: 1.000000	tr-rmse: 0.277651	tr-rmse: 0.277651
+2023-04-27 16:21:28 [DEBUG] XGB iter  25: tr-p-rmse: 0.079261	tr-a-peak@32: 1.000000	tr-rmse: 0.299410	tr-rmse: 0.299410
+2023-04-27 16:21:28 [DEBUG] XGB iter  50: tr-p-rmse: 0.078858	tr-a-peak@32: 1.000000	tr-rmse: 0.299709	tr-rmse: 0.299709
+2023-04-27 16:21:28 [DEBUG] XGB iter  75: tr-p-rmse: 0.078858	tr-a-peak@32: 1.000000	tr-rmse: 0.299709	tr-rmse: 0.299709
+2023-04-27 16:21:28 [DEBUG] XGB stopped. Best iteration: [42] tr-p-rmse:0.07886	tr-a-peak@32:1.00000	tr-rmse:0.29971	tr-rmse:0.29971 
+2023-04-27 16:21:28 [INFO] [task_scheduler.cc:239] [Updated] Task #0: "fused_nn_conv2d"
+2023-04-27 16:21:28 [INFO] [task_scheduler.cc:322] 
+ ID |            Name |    FLOP | Weight | Speed (GFLOPS) | Latency (us) | Weighted Latency (us) | Trials | Done 
+-----------------------------------------------------------------------------------------------------------------
+  0 | fused_nn_conv2d | 1179648 |      3 |        51.8667 |      22.7438 |               68.2315 |     40 |      
+-----------------------------------------------------------------------------------------------------------------
+Total trials: 40
+Total latency (us): 68.2315
+
+2023-04-27 16:21:28 [INFO] [task_scheduler.cc:182] TaskScheduler picks Task #0: "fused_nn_conv2d"
+all factors [[1, 1, 1, 1], [1, 2, 2, 8], [2, 2, 8, 1], [4, 4, 4, 1], [3, 1], [3, 1]]
+ICERES  int(s4.value) <= 2 is False where s4 8
+ICE FILTERED
+all factors [[1, 1, 1, 1], [4, 4, 2, 1], [2, 16, 1, 1], [1, 1, 4, 16], [3, 1], [1, 3]]
+ICERES  int(s4.value) <= 2 is True where s4 1
+all factors [[1, 1, 1, 1], [16, 2, 1, 1], [1, 1, 1, 32], [32, 2, 1, 1], [1, 3], [3, 1]]
+ICERES  int(s4.value) <= 2 is True where s4 1
+all factors [[1, 1, 1, 1], [2, 4, 4, 1], [1, 4, 2, 4], [1, 1, 2, 32], [1, 3], [3, 1]]
+ICERES  int(s4.value) <= 2 is True where s4 1
+all factors [[1, 1, 1, 1], [1, 8, 2, 2], [1, 16, 1, 2], [4, 8, 1, 2], [3, 1], [3, 1]]
+ICERES  int(s4.value) <= 2 is True where s4 2
+all factors [[1, 1, 1, 1], [1, 1, 1, 32], [1, 1, 2, 16], [2, 8, 4, 1], [3, 1], [3, 1]]
+ICERES  int(s4.value) <= 2 is False where s4 32
+ICE FILTERED
+all factors [[1, 1, 1, 1], [4, 1, 2, 4], [8, 1, 1, 4], [8, 2, 4, 1], [1, 3], [1, 3]]
+ICERES  int(s4.value) <= 2 is False where s4 4
+ICE FILTERED
+all factors [[1, 1, 1, 1], [2, 4, 2, 2], [1, 2, 16, 1], [2, 1, 8, 4], [3, 1], [3, 1]]
+ICERES  int(s4.value) <= 2 is True where s4 2
+all factors [[1, 1, 1, 1], [8, 2, 2, 1], [8, 4, 1, 1], [1, 4, 16, 1], [3, 1], [1, 3]]
+ICERES  int(s4.value) <= 2 is True where s4 1
+all factors [[1, 1, 1, 1], [32, 1, 1, 1], [2, 8, 2, 1], [4, 4, 2, 2], [3, 1], [3, 1]]
+ICERES  int(s4.value) <= 2 is True where s4 1
+all factors [[1, 1, 1, 1], [1, 4, 2, 4], [4, 4, 2, 1], [2, 2, 2, 8], [1, 3], [3, 1]]
+ICERES  int(s4.value) <= 2 is False where s4 4
+ICE FILTERED
+all factors [[1, 1, 1, 1], [2, 4, 4, 1], [2, 8, 2, 1], [4, 2, 8, 1], [1, 3], [3, 1]]
+ICERES  int(s4.value) <= 2 is True where s4 1
+2023-04-27 16:21:28 [INFO] [task_scheduler.cc:195] Sending 8 sample(s) to builder
+2023-04-27 16:21:29 [INFO] [task_scheduler.cc:197] Sending 8 sample(s) to runner
+2023-04-27 16:21:31 [DEBUG] XGB validation: p-rmse: 0.163929	a-peak@32: 0.966422
+2023-04-27 16:21:31 [DEBUG] XGB iter   0: tr-p-rmse: 0.583286	tr-a-peak@32: 1.000000	tr-rmse: 0.303402	tr-rmse: 0.303402
+2023-04-27 16:21:31 [DEBUG] XGB iter  25: tr-p-rmse: 0.075349	tr-a-peak@32: 1.000000	tr-rmse: 0.327363	tr-rmse: 0.327363
+2023-04-27 16:21:31 [DEBUG] XGB iter  50: tr-p-rmse: 0.073230	tr-a-peak@32: 1.000000	tr-rmse: 0.327585	tr-rmse: 0.327585
+2023-04-27 16:21:31 [DEBUG] XGB iter  75: tr-p-rmse: 0.073230	tr-a-peak@32: 1.000000	tr-rmse: 0.327585	tr-rmse: 0.327585
+2023-04-27 16:21:31 [DEBUG] XGB stopped. Best iteration: [40] tr-p-rmse:0.07323	tr-a-peak@32:1.00000	tr-rmse:0.32758	tr-rmse:0.32758 
+2023-04-27 16:21:31 [INFO] [task_scheduler.cc:239] [Updated] Task #0: "fused_nn_conv2d"
+2023-04-27 16:21:31 [INFO] [task_scheduler.cc:322] 
+ ID |            Name |    FLOP | Weight | Speed (GFLOPS) | Latency (us) | Weighted Latency (us) | Trials | Done 
+-----------------------------------------------------------------------------------------------------------------
+  0 | fused_nn_conv2d | 1179648 |      3 |        52.6600 |      22.4012 |               67.2037 |     48 |      
+-----------------------------------------------------------------------------------------------------------------
+Total trials: 48
+Total latency (us): 67.2037
+
+2023-04-27 16:21:31 [INFO] [task_scheduler.cc:182] TaskScheduler picks Task #0: "fused_nn_conv2d"
+all factors [[1, 1, 1, 1], [1, 2, 4, 4], [8, 1, 2, 2], [8, 4, 2, 1], [1, 3], [3, 1]]
+ICERES  int(s4.value) <= 2 is False where s4 4
+ICE FILTERED
+all factors [[1, 1, 1, 1], [1, 8, 4, 1], [1, 32, 1, 1], [2, 32, 1, 1], [3, 1], [3, 1]]
+ICERES  int(s4.value) <= 2 is True where s4 1
+all factors [[1, 1, 1, 1], [2, 1, 16, 1], [8, 2, 2, 1], [8, 1, 4, 2], [1, 3], [3, 1]]
+ICERES  int(s4.value) <= 2 is True where s4 1
+all factors [[1, 1, 1, 1], [2, 1, 8, 2], [4, 1, 2, 4], [16, 4, 1, 1], [1, 3], [3, 1]]
+ICERES  int(s4.value) <= 2 is True where s4 2
+all factors [[1, 1, 1, 1], [4, 2, 4, 1], [2, 16, 1, 1], [1, 32, 2, 1], [1, 3], [3, 1]]
+ICERES  int(s4.value) <= 2 is True where s4 1
+all factors [[1, 1, 1, 1], [1, 4, 8, 1], [32, 1, 1, 1], [4, 2, 1, 8], [1, 3], [1, 3]]
+ICERES  int(s4.value) <= 2 is True where s4 1
+all factors [[1, 1, 1, 1], [4, 4, 2, 1], [1, 4, 4, 2], [2, 4, 1, 8], [1, 3], [3, 1]]
+ICERES  int(s4.value) <= 2 is True where s4 1
+all factors [[1, 1, 1, 1], [4, 1, 2, 4], [16, 1, 1, 2], [1, 1, 16, 4], [3, 1], [1, 3]]
+ICERES  int(s4.value) <= 2 is False where s4 4
+ICE FILTERED
+all factors [[1, 1, 1, 1], [1, 8, 1, 4], [8, 1, 2, 2], [2, 4, 8, 1], [3, 1], [1, 3]]
+ICERES  int(s4.value) <= 2 is False where s4 4
+ICE FILTERED
+all factors [[1, 1, 1, 1], [1, 8, 4, 1], [1, 16, 2, 1], [1, 2, 16, 2], [3, 1], [1, 3]]
+ICERES  int(s4.value) <= 2 is True where s4 1
+all factors [[1, 1, 1, 1], [16, 1, 1, 2], [8, 1, 2, 2], [4, 4, 1, 4], [3, 1], [1, 3]]
+ICERES  int(s4.value) <= 2 is True where s4 2
+2023-04-27 16:21:31 [INFO] [task_scheduler.cc:195] Sending 8 sample(s) to builder
+2023-04-27 16:21:32 [INFO] [task_scheduler.cc:197] Sending 8 sample(s) to runner
+2023-04-27 16:21:34 [DEBUG] XGB validation: p-rmse: 0.322535	a-peak@32: 0.887179
+2023-04-27 16:21:34 [INFO] [task_scheduler.cc:239] [Updated] Task #0: "fused_nn_conv2d"
+2023-04-27 16:21:34 [INFO] [task_scheduler.cc:322] 
+ ID |            Name |    FLOP | Weight | Speed (GFLOPS) | Latency (us) | Weighted Latency (us) | Trials | Done 
+-----------------------------------------------------------------------------------------------------------------
+  0 | fused_nn_conv2d | 1179648 |      3 |        53.8492 |      21.9065 |               65.7195 |     56 |      
+-----------------------------------------------------------------------------------------------------------------
+Total trials: 56
+Total latency (us): 65.7195
+
+2023-04-27 16:21:34 [INFO] [task_scheduler.cc:182] TaskScheduler picks Task #0: "fused_nn_conv2d"
+all factors [[1, 1, 1, 1], [4, 8, 1, 1], [1, 2, 16, 1], [1, 16, 2, 2], [3, 1], [3, 1]]
+ICERES  int(s4.value) <= 2 is True where s4 1
+all factors [[1, 1, 1, 1], [1, 32, 1, 1], [1, 2, 4, 4], [1, 8, 4, 2], [3, 1], [3, 1]]
+ICERES  int(s4.value) <= 2 is True where s4 1
+all factors [[1, 1, 1, 1], [1, 1, 32, 1], [2, 1, 16, 1], [1, 2, 2, 16], [1, 3], [3, 1]]
+ICERES  int(s4.value) <= 2 is True where s4 1
+all factors [[1, 1, 1, 1], [1, 2, 1, 16], [4, 2, 4, 1], [4, 8, 1, 2], [3, 1], [1, 3]]
+ICERES  int(s4.value) <= 2 is False where s4 16
+ICE FILTERED
+all factors [[1, 1, 1, 1], [8, 1, 4, 1], [4, 1, 4, 2], [2, 8, 1, 4], [1, 3], [3, 1]]
+ICERES  int(s4.value) <= 2 is True where s4 1
+all factors [[1, 1, 1, 1], [2, 1, 16, 1], [4, 2, 1, 4], [1, 1, 2, 32], [1, 3], [1, 3]]
+ICERES  int(s4.value) <= 2 is True where s4 1
+all factors [[1, 1, 1, 1], [2, 8, 1, 2], [1, 2, 2, 8], [2, 1, 8, 4], [1, 3], [3, 1]]
+ICERES  int(s4.value) <= 2 is True where s4 2
+all factors [[1, 1, 1, 1], [4, 2, 4, 1], [4, 4, 2, 1], [4, 2, 8, 1], [3, 1], [1, 3]]
+ICERES  int(s4.value) <= 2 is True where s4 1
+all factors [[1, 1, 1, 1], [2, 4, 4, 1], [8, 4, 1, 1], [2, 1, 8, 4], [1, 3], [1, 3]]
+ICERES  int(s4.value) <= 2 is True where s4 1
+2023-04-27 16:21:34 [INFO] [task_scheduler.cc:195] Sending 8 sample(s) to builder
+2023-04-27 16:21:36 [INFO] [task_scheduler.cc:197] Sending 8 sample(s) to runner
+2023-04-27 16:21:37 [DEBUG] XGB validation: p-rmse: 0.107004	a-peak@32: 1.000000
+2023-04-27 16:21:37 [DEBUG] XGB iter   0: tr-p-rmse: 0.576906	tr-a-peak@32: 0.999310	tr-rmse: 0.303211	tr-rmse: 0.303211
+2023-04-27 16:21:37 [DEBUG] XGB iter  25: tr-p-rmse: 0.074529	tr-a-peak@32: 0.998850	tr-rmse: 0.327429	tr-rmse: 0.327429
+2023-04-27 16:21:37 [DEBUG] XGB iter  50: tr-p-rmse: 0.074474	tr-a-peak@32: 0.998850	tr-rmse: 0.327473	tr-rmse: 0.327473
+2023-04-27 16:21:37 [DEBUG] XGB iter  75: tr-p-rmse: 0.074474	tr-a-peak@32: 0.998850	tr-rmse: 0.327473	tr-rmse: 0.327473
+2023-04-27 16:21:37 [DEBUG] XGB stopped. Best iteration: [35] tr-p-rmse:0.07447	tr-a-peak@32:0.99885	tr-rmse:0.32747	tr-rmse:0.32747 
+2023-04-27 16:21:37 [INFO] [task_scheduler.cc:239] [Updated] Task #0: "fused_nn_conv2d"
+2023-04-27 16:21:37 [INFO] [task_scheduler.cc:322] 
+ ID |            Name |    FLOP | Weight | Speed (GFLOPS) | Latency (us) | Weighted Latency (us) | Trials | Done 
+-----------------------------------------------------------------------------------------------------------------
+  0 | fused_nn_conv2d | 1179648 |      3 |        53.8492 |      21.9065 |               65.7195 |     64 |      
+-----------------------------------------------------------------------------------------------------------------
+Total trials: 64
+Total latency (us): 65.7195
+
+2023-04-27 16:21:37 [INFO] [task_scheduler.cc:182] TaskScheduler picks Task #0: "fused_nn_conv2d"
+all factors [[1, 1, 1, 1], [2, 1, 2, 8], [1, 1, 8, 4], [1, 4, 4, 4], [3, 1], [3, 1]]
+ICERES  int(s4.value) <= 2 is False where s4 8
+ICE FILTERED
+all factors [[1, 1, 1, 1], [2, 8, 1, 2], [2, 16, 1, 1], [2, 2, 2, 8], [1, 3], [3, 1]]
+ICERES  int(s4.value) <= 2 is True where s4 2
+all factors [[1, 1, 1, 1], [1, 1, 16, 2], [2, 8, 2, 1], [1, 16, 2, 2], [3, 1], [3, 1]]
+ICERES  int(s4.value) <= 2 is True where s4 2
+all factors [[1, 1, 1, 1], [1, 2, 1, 16], [2, 2, 2, 4], [8, 2, 1, 4], [1, 3], [1, 3]]
+ICERES  int(s4.value) <= 2 is False where s4 16
+ICE FILTERED
+all factors [[1, 1, 1, 1], [4, 4, 2, 1], [1, 4, 8, 1], [1, 2, 32, 1], [1, 3], [3, 1]]
+ICERES  int(s4.value) <= 2 is True where s4 1
+all factors [[1, 1, 1, 1], [2, 8, 1, 2], [16, 1, 2, 1], [2, 2, 1, 16], [1, 3], [3, 1]]
+ICERES  int(s4.value) <= 2 is True where s4 2
+all factors [[1, 1, 1, 1], [2, 4, 4, 1], [2, 2, 2, 4], [4, 2, 1, 8], [1, 3], [1, 3]]
+ICERES  int(s4.value) <= 2 is True where s4 1
+all factors [[1, 1, 1, 1], [1, 16, 1, 2], [2, 4, 2, 2], [1, 4, 1, 16], [3, 1], [1, 3]]
+ICERES  int(s4.value) <= 2 is True where s4 2
+all factors [[1, 1, 1, 1], [1, 2, 8, 2], [1, 1, 16, 2], [4, 1, 1, 16], [3, 1], [1, 3]]
+ICERES  int(s4.value) <= 2 is True where s4 2
+all factors [[1, 1, 1, 1], [1, 1, 4, 8], [1, 8, 1, 4], [2, 16, 2, 1], [1, 3], [3, 1]]
+ICERES  int(s4.value) <= 2 is False where s4 8
+ICE FILTERED
+all factors [[1, 1, 1, 1], [1, 1, 4, 8], [2, 1, 8, 2], [8, 2, 4, 1], [3, 1], [3, 1]]
+ICERES  int(s4.value) <= 2 is False where s4 8
+ICE FILTERED
+all factors [[1, 1, 1, 1], [2, 8, 2, 1], [1, 32, 1, 1], [1, 8, 2, 4], [1, 3], [1, 3]]
+ICERES  int(s4.value) <= 2 is True where s4 1
+2023-04-27 16:21:37 [INFO] [task_scheduler.cc:195] Sending 8 sample(s) to builder
+2023-04-27 16:21:39 [INFO] [task_scheduler.cc:197] Sending 8 sample(s) to runner
+2023-04-27 16:21:40 [DEBUG] XGB validation: p-rmse: 0.199554	a-peak@32: 1.000000
+2023-04-27 16:21:40 [INFO] [task_scheduler.cc:239] [Updated] Task #0: "fused_nn_conv2d"
+2023-04-27 16:21:40 [INFO] [task_scheduler.cc:322] 
+ ID |            Name |    FLOP | Weight | Speed (GFLOPS) | Latency (us) | Weighted Latency (us) | Trials | Done 
+-----------------------------------------------------------------------------------------------------------------
+  0 | fused_nn_conv2d | 1179648 |      3 |        53.8492 |      21.9065 |               65.7195 |     72 |      
+-----------------------------------------------------------------------------------------------------------------
+Total trials: 72
+Total latency (us): 65.7195
+
+2023-04-27 16:21:40 [INFO] [task_scheduler.cc:182] TaskScheduler picks Task #0: "fused_nn_conv2d"
+all factors [[1, 1, 1, 1], [4, 2, 1, 4], [1, 8, 4, 1], [1, 1, 8, 8], [3, 1], [1, 3]]
+ICERES  int(s4.value) <= 2 is False where s4 4
+ICE FILTERED
+all factors [[1, 1, 1, 1], [2, 4, 1, 4], [1, 1, 16, 2], [2, 2, 16, 1], [3, 1], [3, 1]]
+ICERES  int(s4.value) <= 2 is False where s4 4
+ICE FILTERED
+all factors [[1, 1, 1, 1], [1, 1, 1, 32], [2, 4, 4, 1], [1, 1, 8, 8], [3, 1], [3, 1]]
+ICERES  int(s4.value) <= 2 is False where s4 32
+ICE FILTERED
+all factors [[1, 1, 1, 1], [1, 2, 4, 4], [4, 1, 2, 4], [1, 2, 32, 1], [1, 3], [3, 1]]
+ICERES  int(s4.value) <= 2 is False where s4 4
+ICE FILTERED
+all factors [[1, 1, 1, 1], [1, 1, 4, 8], [4, 4, 1, 2], [1, 4, 16, 1], [1, 3], [3, 1]]
+ICERES  int(s4.value) <= 2 is False where s4 8
+ICE FILTERED
+all factors [[1, 1, 1, 1], [2, 1, 1, 16], [2, 1, 16, 1], [2, 4, 8, 1], [3, 1], [1, 3]]
+ICERES  int(s4.value) <= 2 is False where s4 16
+ICE FILTERED
+all factors [[1, 1, 1, 1], [16, 2, 1, 1], [8, 1, 2, 2], [1, 4, 16, 1], [3, 1], [3, 1]]
+ICERES  int(s4.value) <= 2 is True where s4 1
+all factors [[1, 1, 1, 1], [1, 32, 1, 1], [2, 4, 4, 1], [2, 1, 2, 16], [1, 3], [1, 3]]
+ICERES  int(s4.value) <= 2 is True where s4 1
+all factors [[1, 1, 1, 1], [4, 1, 8, 1], [1, 16, 1, 2], [4, 1, 4, 4], [3, 1], [1, 3]]
+ICERES  int(s4.value) <= 2 is True where s4 1
+all factors [[1, 1, 1, 1], [4, 2, 2, 2], [2, 8, 1, 2], [1, 1, 16, 4], [3, 1], [1, 3]]
+ICERES  int(s4.value) <= 2 is True where s4 2
+all factors [[1, 1, 1, 1], [4, 2, 1, 4], [4, 1, 4, 2], [1, 1, 4, 16], [1, 3], [3, 1]]
+ICERES  int(s4.value) <= 2 is False where s4 4
+ICE FILTERED
+all factors [[1, 1, 1, 1], [4, 1, 8, 1], [8, 2, 1, 2], [1, 8, 2, 4], [1, 3], [3, 1]]
+ICERES  int(s4.value) <= 2 is True where s4 1
+all factors [[1, 1, 1, 1], [8, 4, 1, 1], [1, 8, 4, 1], [8, 2, 1, 4], [3, 1], [3, 1]]
+ICERES  int(s4.value) <= 2 is True where s4 1
+all factors [[1, 1, 1, 1], [4, 2, 2, 2], [4, 1, 4, 2], [1, 4, 16, 1], [1, 3], [1, 3]]
+ICERES  int(s4.value) <= 2 is True where s4 2
+all factors [[1, 1, 1, 1], [2, 8, 1, 2], [1, 8, 4, 1], [4, 1, 1, 16], [1, 3], [3, 1]]
+ICERES  int(s4.value) <= 2 is True where s4 2
+2023-04-27 16:21:41 [INFO] [task_scheduler.cc:195] Sending 8 sample(s) to builder
+2023-04-27 16:21:42 [INFO] [task_scheduler.cc:197] Sending 8 sample(s) to runner
+2023-04-27 16:21:44 [DEBUG] XGB validation: p-rmse: 0.265693	a-peak@32: 0.885736
+2023-04-27 16:21:44 [DEBUG] XGB iter   0: tr-p-rmse: 0.568022	tr-a-peak@32: 0.998816	tr-rmse: 0.301715	tr-rmse: 0.301715
+2023-04-27 16:21:44 [DEBUG] XGB iter  25: tr-p-rmse: 0.090624	tr-a-peak@32: 1.000000	tr-rmse: 0.331986	tr-rmse: 0.331986
+2023-04-27 16:21:44 [DEBUG] XGB iter  50: tr-p-rmse: 0.079953	tr-a-peak@32: 1.000000	tr-rmse: 0.331972	tr-rmse: 0.331972
+2023-04-27 16:21:44 [DEBUG] XGB iter  75: tr-p-rmse: 0.079953	tr-a-peak@32: 1.000000	tr-rmse: 0.331972	tr-rmse: 0.331973
+2023-04-27 16:21:44 [DEBUG] XGB stopped. Best iteration: [48] tr-p-rmse:0.07995	tr-a-peak@32:1.00000	tr-rmse:0.33197	tr-rmse:0.33197 
+2023-04-27 16:21:44 [INFO] [task_scheduler.cc:239] [Updated] Task #0: "fused_nn_conv2d"
+2023-04-27 16:21:44 [INFO] [task_scheduler.cc:322] 
+ ID |            Name |    FLOP | Weight | Speed (GFLOPS) | Latency (us) | Weighted Latency (us) | Trials | Done 
+-----------------------------------------------------------------------------------------------------------------
+  0 | fused_nn_conv2d | 1179648 |      3 |        55.9698 |      21.0765 |               63.2295 |     80 |      
+-----------------------------------------------------------------------------------------------------------------
+Total trials: 80
+Total latency (us): 63.2295
+
+2023-04-27 16:21:44 [INFO] [task_scheduler.cc:182] TaskScheduler picks Task #0: "fused_nn_conv2d"
+2023-04-27 16:21:44 [INFO] [task_scheduler.cc:262] Task #0 has finished. Remaining task(s): 0
+2023-04-27 16:21:44 [INFO] [task_scheduler.cc:322] 
+ ID |            Name |    FLOP | Weight | Speed (GFLOPS) | Latency (us) | Weighted Latency (us) | Trials | Done 
+-----------------------------------------------------------------------------------------------------------------
+  0 | fused_nn_conv2d | 1179648 |      3 |        55.9698 |      21.0765 |               63.2295 |     80 |    Y 
+-----------------------------------------------------------------------------------------------------------------
+Total trials: 80
+Total latency (us): 63.2295
+
+time 37.393744230270386
+ICE get_all_tuning_records [meta_schedule.TuningRecord(0x46e59f0), meta_schedule.TuningRecord(0x47fd350), meta_schedule.TuningRecord(0x4570d50), meta_schedule.TuningRecord(0x46f4050), meta_schedule.TuningRecord(0x44cc170), meta_schedule.TuningRecord(0x44c6e90), meta_schedule.TuningRecord(0x4493940), meta_schedule.TuningRecord(0x44986c0), meta_schedule.TuningRecord(0x46751d0), meta_schedule.TuningRecord(0x44abb80), meta_schedule.TuningRecord(0x46052c0), meta_schedule.TuningRecord(0x43e89b0), meta_schedule.TuningRecord(0x44a8a20), meta_schedule.TuningRecord(0x45a4670), meta_schedule.TuningRecord(0x45a3b80), meta_schedule.TuningRecord(0x43e6e60), meta_schedule.TuningRecord(0x43e5d00), meta_schedule.TuningRecord(0x44bcaa0), meta_schedule.TuningRecord(0x44d60c0), meta_schedule.TuningRecord(0x468c740), meta_schedule.TuningRecord(0x44bda90), meta_schedule.TuningRecord(0x4498ab0), meta_schedule.TuningRecord(0x43e8360), meta_schedule.TuningRecord(0x4495510), meta_schedule.TuningRecord(0x43fbc50), meta_schedule.TuningRecord(0x43e37a0), meta_schedule.TuningRecord(0x44b2690), meta_schedule.TuningRecord(0x44ac580), meta_schedule.TuningRecord(0x415a100), meta_schedule.TuningRecord(0x4475f40), meta_schedule.TuningRecord(0x4604fe0), meta_schedule.TuningRecord(0x44b6640), meta_schedule.TuningRecord(0x4475410), meta_schedule.TuningRecord(0x43df080), meta_schedule.TuningRecord(0x461d5a0), meta_schedule.TuningRecord(0x44ea310), meta_schedule.TuningRecord(0x455dd00), meta_schedule.TuningRecord(0x46f1710), meta_schedule.TuningRecord(0x44953b0), meta_schedule.TuningRecord(0x440f520), meta_schedule.TuningRecord(0x46e6cd0), meta_schedule.TuningRecord(0x4563a50), meta_schedule.TuningRecord(0x439c170), meta_schedule.TuningRecord(0x44f7010), meta_schedule.TuningRecord(0x45a4430), meta_schedule.TuningRecord(0x43ef450), meta_schedule.TuningRecord(0x4476de0), meta_schedule.TuningRecord(0x44d2080), meta_schedule.TuningRecord(0x45a8fa0), meta_schedule.TuningRecord(0x45733f0), meta_schedule.TuningRecord(0x44c1660), meta_schedule.TuningRecord(0x43c4e10), meta_schedule.TuningRecord(0x44cb570), meta_schedule.TuningRecord(0x43e7ab0), meta_schedule.TuningRecord(0x456cd70), meta_schedule.TuningRecord(0x43c4c30), meta_schedule.TuningRecord(0x44ad420), meta_schedule.TuningRecord(0x43c69b0), meta_schedule.TuningRecord(0x44b4050), meta_schedule.TuningRecord(0x46e5b20), meta_schedule.TuningRecord(0x44cf340), meta_schedule.TuningRecord(0x43c6520), meta_schedule.TuningRecord(0x4621ba0), meta_schedule.TuningRecord(0x44b54a0), meta_schedule.TuningRecord(0x439b410), meta_schedule.TuningRecord(0x44bcb80), meta_schedule.TuningRecord(0x44b2d80), meta_schedule.TuningRecord(0x44e79d0), meta_schedule.TuningRecord(0x44088f0), meta_schedule.TuningRecord(0x44be6f0), meta_schedule.TuningRecord(0x44eca80), meta_schedule.TuningRecord(0x43f3030), meta_schedule.TuningRecord(0x44cbd10), meta_schedule.TuningRecord(0x476b550), meta_schedule.TuningRecord(0x44a4bd0), meta_schedule.TuningRecord(0x43c5600), meta_schedule.TuningRecord(0x43da6b0), meta_schedule.TuningRecord(0x43ada10), meta_schedule.TuningRecord(0x43c5280), meta_schedule.TuningRecord(0x456f2c0)]
+orig
+ # from tvm.script import ir as I
+# from tvm.script import tir as T
+
+@I.ir_module
+class Module:
+    @T.prim_func
+    def main(p0: T.Buffer((T.int64(1), T.int64(32), T.int64(32), T.int64(64)), "int32"), DepthwiseConv2d: T.Buffer((T.int64(1), T.int64(32), T.int64(32), T.int64(64)), "int32")):
+        T.func_attr({"global_symbol": "main", "tir.noalias": T.bool(True)})
+        # with T.block("root"):
+        PaddedInput = T.alloc_buffer((T.int64(1), T.int64(34), T.int64(34), T.int64(64)), "int32")
+        fused_constant = T.allocate_const([-2044185007, 1908866427, 1578170150, -2120642097, 765127756, -652276874, -721125852, 1700465666, -344499205, 1062263848, 814752046, 1047357884, 978967566, -4405895, 731697970, -469161781, -200755670, 1622189574, 1477788193, -213191650, 1975685045, 78823699, -710090318, 110234631, 1364380817, -1158062943, 567367123, 335178952, -274876284, 425609201, 1888091282, 230995941, 596025765, -1535217588, -1768078083, -952958850, 1018348077, 1524441171, 60594124, -553334660, 859307663, 927558666, -2112104929, -817664561, -712384924, 318557734, -393074669, -1934433098, -928793689, 30572106, 934386099, 103389023, 1621511640, -1511297926, -537201200, -556403445, -1775500242, -1070344966, 1202904327, -2048653827, -768129983, -1461405795, 962058105, -271326262, -998068367, -1883276942, 721590033, 1782841919, -702221817, -85704082, 1359338925, 1842755703, 1818420135, -2017704317, 1456687931, -1613652129, 1781597763, 163930553, -601987729, 1834871892, -1726658160, 1353800893, 1812382742, -1913809221, 1750785542, 357888734, 204042595, -323985497, -278311967, -1335578147, 714927692, 1024913100, -1816278738, -2073776172, -795879186, 1536096266, 818877190, 210722502, 1654903429, 1090707801, 1132490902, 734661015, -1850753596, 980689711, -1904801015, 215597179, -89620228, 1933427596, -31603671, -23551002, -118035664, 1475607750, 169287123, -813569471, -1291551451, 1127950963, 924315046, 1382524002, -722547828, -1749763291, -1232245657, -828677299, -1675893585, -545198428, -1478718629, 1335537036, -1955916094, -202099151, 555661325, -1337881427, -916690450, 736730457, -1747670655, -132821149, 1240222721, -1525621763, -486312122, 1297116837, 654697524, -1060066577, 2022890059, -558198585, -580773986, -1628187343, -1323841808, -1035698737, 773606615, -883007675, 705207407, -902820095, -858738510, -2052219209, 1343512156, -1650209026, -2120686209, -69429510, -1561304436, -2036321371, -598365855, 1286298386, -266652347, 732210971, -330235435, 693096495, -2019081336, -1203654668, -734304937, 253944871, 458406482, 332624787, 1239961008, -775014085, 72577650, 1413798913, 1097427382, -1757415950, -1362993221, -261010273, -1305025260, -1064201080, 746854298, 1502824132, -1950490675, 749200189, 78413542, 917299645, -735978174, 1857750153, -345964567, -786834891, -1067558998, -630993724, -1033076942, 936139362, -1873873526, 2083925205, -2126821181, 557506348, -1210670353, 935447727, 228938535], "int32", [3, 3, 64, 1])
+        for i0, i1, i2, i3 in T.grid(T.int64(1), T.int64(34), T.int64(34), T.int64(64)):
+            with T.block("PaddedInput"):
+                v_i0, v_i1, v_i2, v_i3 = T.axis.remap("SSSS", [i0, i1, i2, i3])
+                T.reads(p0[v_i0, v_i1 - T.int64(1), v_i2 - T.int64(1), v_i3])
+                T.writes(PaddedInput[v_i0, v_i1, v_i2, v_i3])
+                PaddedInput[v_i0, v_i1, v_i2, v_i3] = T.if_then_else(T.int64(1) <= v_i1 and v_i1 < T.int64(33) and T.int64(1) <= v_i2 and v_i2 < T.int64(33), p0[v_i0, v_i1 - T.int64(1), v_i2 - T.int64(1), v_i3], 0)
+        for b, i, j, c, di, dj in T.grid(T.int64(1), T.int64(32), T.int64(32), T.int64(64), T.int64(3), T.int64(3)):
+            with T.block("DepthwiseConv2d"):
+                v_b, v_i, v_j, v_c, v_di, v_dj = T.axis.remap("SSSSRR", [b, i, j, c, di, dj])
+                fused_constant_1 = T.Buffer((3, 3, 64, 1), "int32", data=fused_constant)
+                T.reads(PaddedInput[v_b, v_i + v_di, v_j + v_dj, v_c], fused_constant_1[v_di, v_dj, v_c, T.int64(0)])
+                T.writes(DepthwiseConv2d[v_b, v_i, v_j, v_c])
+                with T.init():
+                    DepthwiseConv2d[v_b, v_i, v_j, v_c] = 0
+                DepthwiseConv2d[v_b, v_i, v_j, v_c] = DepthwiseConv2d[v_b, v_i, v_j, v_c] + PaddedInput[v_b, v_i + v_di, v_j + v_dj, v_c] * fused_constant_1[v_di, v_dj, v_c, T.int64(0)]
+orig sch
+ # from tvm import tir
+def apply_trace(sch: tir.Schedule) -> None:
+  pass
+best
+ # from tvm.script import ir as I
+# from tvm.script import tir as T
+
+@I.ir_module
+class Module:
+    @T.prim_func
+    def main(p0: T.Buffer((T.int64(1), T.int64(32), T.int64(32), T.int64(64)), "int32"), DepthwiseConv2d: T.Buffer((T.int64(1), T.int64(32), T.int64(32), T.int64(64)), "int32")):
+        T.func_attr({"global_symbol": "main", "tir.noalias": T.bool(True)})
+        # with T.block("root"):
+        PaddedInput = T.alloc_buffer((T.int64(1), T.int64(34), T.int64(34), T.int64(64)), "int32")
+        fused_constant = T.allocate_const([-2044185007, 1908866427, 1578170150, -2120642097, 765127756, -652276874, -721125852, 1700465666, -344499205, 1062263848, 814752046, 1047357884, 978967566, -4405895, 731697970, -469161781, -200755670, 1622189574, 1477788193, -213191650, 1975685045, 78823699, -710090318, 110234631, 1364380817, -1158062943, 567367123, 335178952, -274876284, 425609201, 1888091282, 230995941, 596025765, -1535217588, -1768078083, -952958850, 1018348077, 1524441171, 60594124, -553334660, 859307663, 927558666, -2112104929, -817664561, -712384924, 318557734, -393074669, -1934433098, -928793689, 30572106, 934386099, 103389023, 1621511640, -1511297926, -537201200, -556403445, -1775500242, -1070344966, 1202904327, -2048653827, -768129983, -1461405795, 962058105, -271326262, -998068367, -1883276942, 721590033, 1782841919, -702221817, -85704082, 1359338925, 1842755703, 1818420135, -2017704317, 1456687931, -1613652129, 1781597763, 163930553, -601987729, 1834871892, -1726658160, 1353800893, 1812382742, -1913809221, 1750785542, 357888734, 204042595, -323985497, -278311967, -1335578147, 714927692, 1024913100, -1816278738, -2073776172, -795879186, 1536096266, 818877190, 210722502, 1654903429, 1090707801, 1132490902, 734661015, -1850753596, 980689711, -1904801015, 215597179, -89620228, 1933427596, -31603671, -23551002, -118035664, 1475607750, 169287123, -813569471, -1291551451, 1127950963, 924315046, 1382524002, -722547828, -1749763291, -1232245657, -828677299, -1675893585, -545198428, -1478718629, 1335537036, -1955916094, -202099151, 555661325, -1337881427, -916690450, 736730457, -1747670655, -132821149, 1240222721, -1525621763, -486312122, 1297116837, 654697524, -1060066577, 2022890059, -558198585, -580773986, -1628187343, -1323841808, -1035698737, 773606615, -883007675, 705207407, -902820095, -858738510, -2052219209, 1343512156, -1650209026, -2120686209, -69429510, -1561304436, -2036321371, -598365855, 1286298386, -266652347, 732210971, -330235435, 693096495, -2019081336, -1203654668, -734304937, 253944871, 458406482, 332624787, 1239961008, -775014085, 72577650, 1413798913, 1097427382, -1757415950, -1362993221, -261010273, -1305025260, -1064201080, 746854298, 1502824132, -1950490675, 749200189, 78413542, 917299645, -735978174, 1857750153, -345964567, -786834891, -1067558998, -630993724, -1033076942, 936139362, -1873873526, 2083925205, -2126821181, 557506348, -1210670353, 935447727, 228938535], "int32", [3, 3, 64, 1])
+        for i0, i1, i2, i3 in T.grid(T.int64(1), T.int64(34), T.int64(34), T.int64(64)):
+            with T.block("PaddedInput"):
+                v_i0, v_i1, v_i2, v_i3 = T.axis.remap("SSSS", [i0, i1, i2, i3])
+                T.reads(p0[v_i0, v_i1 - T.int64(1), v_i2 - T.int64(1), v_i3])
+                T.writes(PaddedInput[v_i0, v_i1, v_i2, v_i3])
+                PaddedInput[v_i0, v_i1, v_i2, v_i3] = T.if_then_else(T.int64(1) <= v_i1 and v_i1 < T.int64(33) and T.int64(1) <= v_i2 and v_i2 < T.int64(33), p0[v_i0, v_i1 - T.int64(1), v_i2 - T.int64(1), v_i3], 0)
+        for b_0, i_0, j_0, c_0, b_1, i_1, j_1, c_1, di_0, dj_0, b_2, i_2, j_2, c_2, di_1, dj_1, b_3, i_3, j_3, c_3 in T.grid(T.int64(1), T.int64(4), T.int64(4), T.int64(1), T.int64(1), T.int64(2), T.int64(1), T.int64(4), T.int64(1), T.int64(1), T.int64(1), T.int64(2), T.int64(4), T.int64(16), T.int64(3), T.int64(3), T.int64(1), T.int64(2), T.int64(2), T.int64(1)):
+            with T.block("DepthwiseConv2d"):
+                v_b = T.axis.spatial(T.int64(1), b_0 + b_1 + b_2 + b_3)
+                v_i = T.axis.spatial(T.int64(32), i_0 * T.int64(8) + i_1 * T.int64(4) + i_2 * T.int64(2) + i_3)
+                v_j = T.axis.spatial(T.int64(32), j_0 * T.int64(8) + j_1 * T.int64(8) + j_2 * T.int64(2) + j_3)
+                v_c = T.axis.spatial(T.int64(64), c_0 * T.int64(64) + c_1 * T.int64(16) + c_2 + c_3)
+                v_di = T.axis.reduce(T.int64(3), di_0 * T.int64(3) + di_1)
+                v_dj = T.axis.reduce(T.int64(3), dj_0 * T.int64(3) + dj_1)
+                fused_constant_1 = T.Buffer((3, 3, 64, 1), "int32", data=fused_constant)
+                T.reads(PaddedInput[v_b, v_i + v_di, v_j + v_dj, v_c], fused_constant_1[v_di, v_dj, v_c, T.int64(0)])
+                T.writes(DepthwiseConv2d[v_b, v_i, v_j, v_c])
+                T.block_attr({"meta_schedule.tiling_structure": "SSRSRS"})
+                with T.init():
+                    DepthwiseConv2d[v_b, v_i, v_j, v_c] = 0
+                DepthwiseConv2d[v_b, v_i, v_j, v_c] = DepthwiseConv2d[v_b, v_i, v_j, v_c] + PaddedInput[v_b, v_i + v_di, v_j + v_dj, v_c] * fused_constant_1[v_di, v_dj, v_c, T.int64(0)]
+best time
+ 0.00002107651230425056
+best trace
+ # from tvm import tir
+def apply_trace(sch: tir.Schedule) -> None:
+  b0 = sch.get_block(name="DepthwiseConv2d", func_name="main")
+  l1, l2, l3, l4, l5, l6 = sch.get_loops(block=b0)
+  b7 = sch.get_block(name="DepthwiseConv2d", func_name="main")
+  l8, l9, l10, l11, l12, l13 = sch.get_loops(block=b7)
+  b14 = sch.get_block(name="DepthwiseConv2d", func_name="main")
+  sch.annotate(block_or_loop=b14, ann_key="meta_schedule.tiling_structure", ann_val="SSRSRS")
+  l15, l16, l17, l18, l19, l20 = sch.get_loops(block=b14)
+  v21, v22, v23, v24 = sch.sample_perfect_tile(loop=l15, n=4, max_innermost_factor=-1, decision=[1, 1, 1, 1])
+  l25, l26, l27, l28 = sch.split(loop=l15, factors=[v21, v22, v23, v24], preserve_unit_iters=True)
+  v29, v30, v31, v32 = sch.sample_perfect_tile(loop=l16, n=4, max_innermost_factor=-1, decision=[4, 2, 2, 2])
+  l33, l34, l35, l36 = sch.split(loop=l16, factors=[v29, v30, v31, v32], preserve_unit_iters=True)
+  v37, v38, v39, v40 = sch.sample_perfect_tile(loop=l17, n=4, max_innermost_factor=-1, decision=[4, 1, 4, 2])
+  l41, l42, l43, l44 = sch.split(loop=l17, factors=[v37, v38, v39, v40], preserve_unit_iters=True)
+  v45, v46, v47, v48 = sch.sample_perfect_tile(loop=l18, n=4, max_innermost_factor=-1, decision=[1, 4, 16, 1])
+  l49, l50, l51, l52 = sch.split(loop=l18, factors=[v45, v46, v47, v48], preserve_unit_iters=True)
+  v53, v54 = sch.sample_perfect_tile(loop=l19, n=2, max_innermost_factor=-1, decision=[1, 3])
+  l55, l56 = sch.split(loop=l19, factors=[v53, v54], preserve_unit_iters=True)
+  v57, v58 = sch.sample_perfect_tile(loop=l20, n=2, max_innermost_factor=-1, decision=[1, 3])
+  l59, l60 = sch.split(loop=l20, factors=[v57, v58], preserve_unit_iters=True)
+  sch.reorder(l25, l33, l41, l49, l26, l34, l42, l50, l55, l59, l27, l35, l43, l51, l56, l60, l28, l36, l44, l52)
+  sch.enter_postproc()
+worst
+ # from tvm.script import ir as I
+# from tvm.script import tir as T
+
+@I.ir_module
+class Module:
+    @T.prim_func
+    def main(p0: T.Buffer((T.int64(1), T.int64(32), T.int64(32), T.int64(64)), "int32"), DepthwiseConv2d: T.Buffer((T.int64(1), T.int64(32), T.int64(32), T.int64(64)), "int32")):
+        T.func_attr({"global_symbol": "main", "tir.noalias": T.bool(True)})
+        # with T.block("root"):
+        PaddedInput = T.alloc_buffer((T.int64(1), T.int64(34), T.int64(34), T.int64(64)), "int32")
+        fused_constant = T.allocate_const([-2044185007, 1908866427, 1578170150, -2120642097, 765127756, -652276874, -721125852, 1700465666, -344499205, 1062263848, 814752046, 1047357884, 978967566, -4405895, 731697970, -469161781, -200755670, 1622189574, 1477788193, -213191650, 1975685045, 78823699, -710090318, 110234631, 1364380817, -1158062943, 567367123, 335178952, -274876284, 425609201, 1888091282, 230995941, 596025765, -1535217588, -1768078083, -952958850, 1018348077, 1524441171, 60594124, -553334660, 859307663, 927558666, -2112104929, -817664561, -712384924, 318557734, -393074669, -1934433098, -928793689, 30572106, 934386099, 103389023, 1621511640, -1511297926, -537201200, -556403445, -1775500242, -1070344966, 1202904327, -2048653827, -768129983, -1461405795, 962058105, -271326262, -998068367, -1883276942, 721590033, 1782841919, -702221817, -85704082, 1359338925, 1842755703, 1818420135, -2017704317, 1456687931, -1613652129, 1781597763, 163930553, -601987729, 1834871892, -1726658160, 1353800893, 1812382742, -1913809221, 1750785542, 357888734, 204042595, -323985497, -278311967, -1335578147, 714927692, 1024913100, -1816278738, -2073776172, -795879186, 1536096266, 818877190, 210722502, 1654903429, 1090707801, 1132490902, 734661015, -1850753596, 980689711, -1904801015, 215597179, -89620228, 1933427596, -31603671, -23551002, -118035664, 1475607750, 169287123, -813569471, -1291551451, 1127950963, 924315046, 1382524002, -722547828, -1749763291, -1232245657, -828677299, -1675893585, -545198428, -1478718629, 1335537036, -1955916094, -202099151, 555661325, -1337881427, -916690450, 736730457, -1747670655, -132821149, 1240222721, -1525621763, -486312122, 1297116837, 654697524, -1060066577, 2022890059, -558198585, -580773986, -1628187343, -1323841808, -1035698737, 773606615, -883007675, 705207407, -902820095, -858738510, -2052219209, 1343512156, -1650209026, -2120686209, -69429510, -1561304436, -2036321371, -598365855, 1286298386, -266652347, 732210971, -330235435, 693096495, -2019081336, -1203654668, -734304937, 253944871, 458406482, 332624787, 1239961008, -775014085, 72577650, 1413798913, 1097427382, -1757415950, -1362993221, -261010273, -1305025260, -1064201080, 746854298, 1502824132, -1950490675, 749200189, 78413542, 917299645, -735978174, 1857750153, -345964567, -786834891, -1067558998, -630993724, -1033076942, 936139362, -1873873526, 2083925205, -2126821181, 557506348, -1210670353, 935447727, 228938535], "int32", [3, 3, 64, 1])
+        for i0, i1, i2, i3 in T.grid(T.int64(1), T.int64(34), T.int64(34), T.int64(64)):
+            with T.block("PaddedInput"):
+                v_i0, v_i1, v_i2, v_i3 = T.axis.remap("SSSS", [i0, i1, i2, i3])
+                T.reads(p0[v_i0, v_i1 - T.int64(1), v_i2 - T.int64(1), v_i3])
+                T.writes(PaddedInput[v_i0, v_i1, v_i2, v_i3])
+                PaddedInput[v_i0, v_i1, v_i2, v_i3] = T.if_then_else(T.int64(1) <= v_i1 and v_i1 < T.int64(33) and T.int64(1) <= v_i2 and v_i2 < T.int64(33), p0[v_i0, v_i1 - T.int64(1), v_i2 - T.int64(1), v_i3], 0)
+        for b_0, i_0, j_0, c_0, b_1, i_1, j_1, c_1, di_0, dj_0, b_2, i_2, j_2, c_2, di_1, dj_1, b_3, i_3, j_3, c_3 in T.grid(T.int64(1), T.int64(1), T.int64(2), T.int64(1), T.int64(1), T.int64(1), T.int64(8), T.int64(16), T.int64(3), T.int64(3), T.int64(1), T.int64(16), T.int64(2), T.int64(2), T.int64(1), T.int64(1), T.int64(1), T.int64(2), T.int64(1), T.int64(2)):
+            with T.block("DepthwiseConv2d"):
+                v_b = T.axis.spatial(T.int64(1), b_0 + b_1 + b_2 + b_3)
+                v_i = T.axis.spatial(T.int64(32), i_0 * T.int64(32) + i_1 * T.int64(32) + i_2 * T.int64(2) + i_3)
+                v_j = T.axis.spatial(T.int64(32), j_0 * T.int64(16) + j_1 * T.int64(2) + j_2 + j_3)
+                v_c = T.axis.spatial(T.int64(64), c_0 * T.int64(64) + c_1 * T.int64(4) + c_2 * T.int64(2) + c_3)
+                v_di = T.axis.reduce(T.int64(3), di_0 + di_1)
+                v_dj = T.axis.reduce(T.int64(3), dj_0 + dj_1)
+                fused_constant_1 = T.Buffer((3, 3, 64, 1), "int32", data=fused_constant)
+                T.reads(PaddedInput[v_b, v_i + v_di, v_j + v_dj, v_c], fused_constant_1[v_di, v_dj, v_c, T.int64(0)])
+                T.writes(DepthwiseConv2d[v_b, v_i, v_j, v_c])
+                T.block_attr({"meta_schedule.tiling_structure": "SSRSRS"})
+                with T.init():
+                    DepthwiseConv2d[v_b, v_i, v_j, v_c] = 0
+                DepthwiseConv2d[v_b, v_i, v_j, v_c] = DepthwiseConv2d[v_b, v_i, v_j, v_c] + PaddedInput[v_b, v_i + v_di, v_j + v_dj, v_c] * fused_constant_1[v_di, v_dj, v_c, T.int64(0)]
+worst time
+ 0.00084292901840490810
+worst trace
+ # from tvm import tir
+def apply_trace(sch: tir.Schedule) -> None:
+  b0 = sch.get_block(name="DepthwiseConv2d", func_name="main")
+  l1, l2, l3, l4, l5, l6 = sch.get_loops(block=b0)
+  b7 = sch.get_block(name="DepthwiseConv2d", func_name="main")
+  l8, l9, l10, l11, l12, l13 = sch.get_loops(block=b7)
+  b14 = sch.get_block(name="DepthwiseConv2d", func_name="main")
+  sch.annotate(block_or_loop=b14, ann_key="meta_schedule.tiling_structure", ann_val="SSRSRS")
+  l15, l16, l17, l18, l19, l20 = sch.get_loops(block=b14)
+  v21, v22, v23, v24 = sch.sample_perfect_tile(loop=l15, n=4, max_innermost_factor=-1, decision=[1, 1, 1, 1])
+  l25, l26, l27, l28 = sch.split(loop=l15, factors=[v21, v22, v23, v24], preserve_unit_iters=True)
+  v29, v30, v31, v32 = sch.sample_perfect_tile(loop=l16, n=4, max_innermost_factor=-1, decision=[1, 1, 16, 2])
+  l33, l34, l35, l36 = sch.split(loop=l16, factors=[v29, v30, v31, v32], preserve_unit_iters=True)
+  v37, v38, v39, v40 = sch.sample_perfect_tile(loop=l17, n=4, max_innermost_factor=-1, decision=[2, 8, 2, 1])
+  l41, l42, l43, l44 = sch.split(loop=l17, factors=[v37, v38, v39, v40], preserve_unit_iters=True)
+  v45, v46, v47, v48 = sch.sample_perfect_tile(loop=l18, n=4, max_innermost_factor=-1, decision=[1, 16, 2, 2])
+  l49, l50, l51, l52 = sch.split(loop=l18, factors=[v45, v46, v47, v48], preserve_unit_iters=True)
+  v53, v54 = sch.sample_perfect_tile(loop=l19, n=2, max_innermost_factor=-1, decision=[3, 1])
+  l55, l56 = sch.split(loop=l19, factors=[v53, v54], preserve_unit_iters=True)
+  v57, v58 = sch.sample_perfect_tile(loop=l20, n=2, max_innermost_factor=-1, decision=[3, 1])
+  l59, l60 = sch.split(loop=l20, factors=[v57, v58], preserve_unit_iters=True)
+  sch.reorder(l25, l33, l41, l49, l26, l34, l42, l50, l55, l59, l27, l35, l43, l51, l56, l60, l28, l36, l44, l52)
+  sch.enter_postproc()

@@ -140,7 +140,7 @@ class VerifyGPUCodeNode : public PostprocNode {
     return true;
   }
 
-  bool Apply(const tir::Schedule& sch) final {
+  bool Apply(const tir::Schedule& sch, const tir::Schedule& orig) final {
     IRModule mod = sch->mod();
     for (const auto& kv : mod->functions) {
       const GlobalVar& g_var = kv.first;
@@ -152,7 +152,7 @@ class VerifyGPUCodeNode : public PostprocNode {
         IRModule lowered{nullptr};
         try {
           auto pass_list = Array<tvm::transform::Pass>();
-          // Phase 1
+          // Phase 1.
           // First three passes are not needed in TIR schedule.
           // pass_list.push_back(tir::transform::InjectPrefetch());
           // pass_list.push_back(tir::transform::TextureFlatten());

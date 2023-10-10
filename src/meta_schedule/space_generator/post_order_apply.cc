@@ -119,7 +119,6 @@ class PostOrderApplyNode : public SpaceGeneratorNode {
     std::vector<ScheduleAndUnvisitedBlocks> stack;
     Array<tir::Schedule> result{sch};
     Array<tir::BlockRV> all_blocks = BlockCollector::Collect(sch, f_block_filter_);
-
     for (ScheduleRule sch_rule : sch_rules.value()) {
       for (const tir::Schedule& sch : result) {
         stack.emplace_back(sch, all_blocks);
