@@ -23,6 +23,7 @@ from tvm.ir.base import assert_structural_equal
 from tvm.relax.transform import FastMathTransform
 from tvm.script import ir as I, relax as R
 
+
 def _run_pass_compare_output(Before, Expected):
     fast_mod = FastMathTransform()(Before)
     if not relax.analysis.well_formed(fast_mod):
