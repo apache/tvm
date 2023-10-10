@@ -119,10 +119,9 @@ For::For(Var loop_var, PrimExpr min, PrimExpr extent, ForKind kind, Stmt body,
   Optional<PrimExpr> maybe_min = tir::try_reset_expr_dtype(loop_var.dtype(), min);
   Optional<PrimExpr> maybe_extent = tir::try_reset_expr_dtype(loop_var.dtype(), extent);
 
-  CHECK(maybe_min && maybe_extent)
-      << "Incompatible types when binding a loop variable " << loop_var << ':' << loop_var.dtype()
-      << " to a range min=" << min << ':' << min.dtype() << ", extent=" << extent << ':'
-      << extent.dtype();
+  CHECK(maybe_min && maybe_extent) << "Incompatible types when binding a loop variable " << loop_var
+                                   << ':' << loop_var.dtype() << " to a range min=" << min << ':'
+                                   << min.dtype() << ", extent=" << extent << ':' << extent.dtype();
 
   min = maybe_min.value();
   extent = maybe_extent.value();
