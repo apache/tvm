@@ -975,9 +975,15 @@ class TorchFXImporter:
         # functional.layer_norm
         if node.target not in self.named_modules:
             # static or symbolic
-            normalized_shape = (
-                node.args[1] if type(node.args[1]) == tuple else self.env[node.args[1]]
-            )
+            arg = node.args[1]
+            if isinstance(arg, tuple):
+                value = arg
+            else:
+                try:
+                    value = self.env[arg]
+                except TypeError:
+                    value = tuple(arg)
+            normalized_shape = value
             dim_num = len(normalized_shape)
             axes = list(range(-dim_num, 0))
 
