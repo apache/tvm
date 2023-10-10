@@ -1590,6 +1590,15 @@ def test_max_pool():
             strides=[2, 2],
         ),
     )
+    verify_unary(
+        "MaxPool",
+        [1, 1, 32, 32],
+        dict(
+            auto_pad="SAME_UPPER",
+            kernel_shape=[3, 3],
+            pads=None,
+        ),
+    )
 
 
 def test_global_average_pool():
