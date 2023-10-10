@@ -442,7 +442,6 @@ def test_getitem():
     import torch
     from torch.nn import Module
 
-
     class Select1(Module):
         def forward(self, input1, input2):
             result = input1[:, input2.argmax(dim=-1), :]
