@@ -983,7 +983,7 @@ class TorchFXImporter:
                     value = self.env[arg]
                 except TypeError:
                     value = tuple(arg)
-            normalized_shape = (value)
+            normalized_shape = value
             dim_num = len(normalized_shape)
             axes = list(range(-dim_num, 0))
 
