@@ -271,8 +271,6 @@ void* OpenCLWorkspace::AllocDataSpace(Device dev, int ndim, const int64_t* shape
                                       Optional<String> mem_scope) {
   this->Init();
   if (!mem_scope.defined() || mem_scope.value().empty() || mem_scope.value() == "global") {
-    // Call DeviceAPI to compute the size and invoke other version of AllocDataSpace (w/ size).
-    // return DeviceAPI::AllocDataSpace(dev, ndim, shape, dtype, mem_scope);
     size_t size = GetMemObjectSize(dev, ndim, shape, dtype);
     cl::BufferDescriptor* ret_buffer = nullptr;
     auto buf = MemoryManager::GetOrCreateAllocator(dev, AllocatorType::kAny)
@@ -309,6 +307,8 @@ void* OpenCLWorkspace::AllocCLImage(Device dev, void* back_buffer, size_t width,
                                     size_t row_pitch, DLDataType type_hint,
                                     Optional<String> mem_scope) {
   this->Init();
+  ICHECK(std::string(mem_scope.value()).find("texture") != std::string::npos)
+      << "Expect texture scope while creating an Image object";
   cl::BufferDescriptor* back_desc = static_cast<cl::BufferDescriptor*>(back_buffer);
   cl_device_id device_id = GetCLDeviceID(dev.device_id);
   auto platform = device_info[device_id].platform_id;
@@ -434,14 +434,12 @@ void OpenCLWorkspace::FreeDataSpace(Device dev, void* ptr) {
   if (desc->back_buffer) {
     // 2D Image w/ back buffer allocated from pool
     OPENCL_CALL(clReleaseMemObject(desc->buffer));
-    // GetThreadEntry()->mpool.FreeMemory(dev, desc->back_buffer);
     MemoryManager::GetAllocator(dev, desc->back_buffer->mbuf.alloc_type)
         ->Free(desc->back_buffer->mbuf);
     delete desc;
   } else {
     if (desc->layout == cl::BufferDescriptor::MemoryLayout::kBuffer1D) {
       // 1D buffer allocated from pool
-      // GetThreadEntry()->mpool.FreeMemory(dev, desc);
       if (desc->host_ptr) {
         clEnqueueUnmapMemObject(this->GetQueue(dev), desc->buffer,
                                 reinterpret_cast<void*>(desc->host_ptr), 0, nullptr, nullptr);
@@ -704,17 +702,8 @@ void OpenCLWorkspace::Init(const std::string& type_key, const std::string& devic
         row_pitch = kAllocAlignment;  // Fallback
       }
       dev_info.image_row_align = row_pitch;
-      size_t reqd_size = 0;
-      OPENCL_CALL(clGetDeviceInfo(did, CL_DEVICE_EXTENSIONS, 0, nullptr, &reqd_size));
-      std::vector<char> extn_buf(reqd_size);
-      OPENCL_CALL(clGetDeviceInfo(did, CL_DEVICE_EXTENSIONS, reqd_size, extn_buf.data(), nullptr));
-      std::string extensions(extn_buf.data());
-
-      if (extensions.find("cl_khr_image2d_from_buffer") != std::string::npos) {
-        dev_info.image_from_buffer_support = true;
-      } else {
-        dev_info.image_from_buffer_support = false;
-      }
+      dev_info.image_from_buffer_support =
+          IsOpenCLExtensionSupported(did, "cl_khr_image2d_from_buffer");
       device_info.insert({did, dev_info});
     }
     OPENCL_CHECK_ERROR(err_code);

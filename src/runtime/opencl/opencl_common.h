@@ -281,6 +281,15 @@ class OpenCLWorkspace : public DeviceAPI {
         << "Invalid OpenCL device_id=" << dev.device_id << ". " << GetError();
     return events[dev.device_id];
   }
+  bool IsOpenCLExtensionSupported(cl_device_id did, const std::string& name) {
+    size_t reqd_size = 0;
+    OPENCL_CALL(clGetDeviceInfo(did, CL_DEVICE_EXTENSIONS, 0, nullptr, &reqd_size));
+    std::vector<char> extn_buf(reqd_size);
+    OPENCL_CALL(clGetDeviceInfo(did, CL_DEVICE_EXTENSIONS, reqd_size, extn_buf.data(), nullptr));
+    std::string extensions(extn_buf.data());
+    return (extensions.find(name) != std::string::npos);
+  }
+
   // is current clCommandQueue in profiling mode
   bool IsProfiling(Device dev) {
     cl_command_queue queue = GetQueue(dev);
