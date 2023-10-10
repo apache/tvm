@@ -116,22 +116,16 @@ For::For(Var loop_var, PrimExpr min, PrimExpr extent, ForKind kind, Stmt body,
   ICHECK(loop_var.dtype().is_scalar());
   ICHECK(body.defined());
 
-  // When extent or min is an IntImm but has narrower dtype than loop_var, we directly promote them
-  // without raising errors.
-  auto try_promote_imm_dtype = [&](const PrimExpr& e) {
-    ICHECK(e.dtype().bits() <= loop_var.dtype().bits())
-        << " Loop variable's dtype (" << loop_var.dtype()
-        << ") is narrower than that of `min` or `extent` (" << e.dtype() << ")";
-    const IntImmNode* a = e.as<IntImmNode>();
-    if (a && e.dtype().bits() < loop_var.dtype().bits()) {
-      return make_const(loop_var.dtype(), a->value);
-    } else {
-      return e;
-    }
-  };
+  Optional<PrimExpr> maybe_min = tir::try_reset_expr_dtype(loop_var.dtype(), min);
+  Optional<PrimExpr> maybe_extent = tir::try_reset_expr_dtype(loop_var.dtype(), extent);
 
-  min = try_promote_imm_dtype(min);
-  extent = try_promote_imm_dtype(extent);
+  CHECK(maybe_min && maybe_extent)
+      << "Incompatible types when binding a loop variable " << loop_var << ':' << loop_var.dtype()
+      << " to a range min=" << min << ':' << min.dtype() << ", extent=" << extent << ':'
+      << extent.dtype();
+
+  min = maybe_min.value();
+  extent = maybe_extent.value();
 
   ICHECK(loop_var.dtype() == min.dtype()) << loop_var.dtype() << " vs " << min.dtype();
   ICHECK(loop_var.dtype() == extent.dtype()) << loop_var.dtype() << " vs " << extent.dtype();

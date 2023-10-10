@@ -153,9 +153,16 @@ IterVar::IterVar(Range dom, Var var, IterVarType t, String thread_tag, Span span
         << "The dtype of the domain of an IterVar must be an integer type. However, the domain's "
            "dtype is "
         << dom->extent.dtype();
-    CHECK_EQ(dom->extent.dtype(), var.dtype())
-        << "The dtype of the extent of an IterVar (" << dom->extent.dtype()
-        << ") must match its associated Var's dtype (" << var.dtype() << ")";
+
+    Optional<PrimExpr> maybe_min = tir::try_reset_expr_dtype(var.dtype(), dom->min);
+    Optional<PrimExpr> maybe_extent = tir::try_reset_expr_dtype(var.dtype(), dom->extent);
+
+    CHECK(maybe_min && maybe_extent)
+        << "Incompatible types when binding a variable " << var << ':' << var.dtype()
+        << " to a range min=" << dom->min << ':' << dom->min.dtype() << ", extent=" << dom->extent
+        << ':' << dom->extent.dtype();
+
+    dom = Range::FromMinExtent(maybe_min.value(), maybe_extent.value());
   }
   n->dom = dom;
   n->var = var;

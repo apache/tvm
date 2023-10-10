@@ -119,6 +119,8 @@ class DataType {
   bool is_vector_bool() const { return is_vector() && bits() == 1; }
   /*! \return whether type is a Void type. */
   bool is_void() const { return code() == DataType::kHandle && bits() == 0 && lanes() == 0; }
+  /* ! \return whether type is a signed or an unsigned int. */
+  bool is_integer_type() const { return is_int() || is_uint(); }
   /*!
    * \brief Create a new data type by change lanes to a specified value.
    * \param lanes The target number of lanes.
