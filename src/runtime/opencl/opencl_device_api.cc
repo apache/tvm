@@ -350,7 +350,7 @@ void* OpenCLWorkspace::AllocDataSpaceView(Device dev, void* data, ShapeTuple sha
   // Fall back for devices w/o "cl_khr_image2d_from_buffer"
   if (!IsBufferToImageSupported(dev.device_id)) {
     cl::BufferDescriptor* ret_desc = desc;  // buffer -> buffer
-    if (!mem_scope.defined() || mem_scope.value() == "global") {
+    if (!mem_scope.defined() || mem_scope.value().empty() || mem_scope.value() == "global") {
       if (desc->layout != cl::BufferDescriptor::MemoryLayout::kBuffer1D) {
         // image -> buffer
         size_t nbytes = GetMemObjectSize(dev, shape.size(), shape.data(), dtype);
