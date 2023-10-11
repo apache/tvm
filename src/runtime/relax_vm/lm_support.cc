@@ -210,7 +210,7 @@ class AttentionKVCacheObj : public Object {
     }
     // create a view of copy dest to copy the value into it.
     DLTensor copy_dst = *(data.operator->());
-    copy_dst.byte_offset = num_filled_elements * ((data->dtype.bits * data->dtype.lanes + 7) / 8);
+    copy_dst.byte_offset += num_filled_elements * ((data->dtype.bits * data->dtype.lanes + 7) / 8);
     copy_dst.shape = value->shape;
     NDArray::CopyFromTo(value.operator->(), &copy_dst);
     this->fill_count += value->shape[0];
