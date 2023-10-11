@@ -525,16 +525,16 @@ def test_arange():
         @R.function
         def main(inp_0: R.Tensor((1, 77), dtype="float32")) -> R.Tensor((77,), dtype="int64"):
             with R.dataflow():
-                lv: R.Tensor((77,), dtype="int64") = R.arange(R.prim_value(0), R.prim_value(77), R.prim_value(1), dtype="int64")
+                lv: R.Tensor((77,), dtype="int64") = R.arange(
+                    R.prim_value(0), R.prim_value(77), R.prim_value(1), dtype="int64"
+                )
                 lv1: R.Tensor((77,), dtype="int64") = R.add(lv, R.const(1, "int64"))
                 gv: R.Tensor((77,), dtype="int64") = lv1
                 R.output(gv)
             return gv
 
 
-    verify_dynamo_model(
-        Arange1(), [([1, 77], "float32")], {}, Expected1
-    )
+    verify_dynamo_model(Arange1(), [([1, 77], "float32")], {}, Expected1)
 
 
 if __name__ == "__main__":
