@@ -2436,7 +2436,7 @@ def test_all_unary_elemwise():
         # from the converter that we need to provide a custom Tan operator
         # implementation.
         # _test_forward_unary_elemwise(_test_tan)
-        _test_forward_unary_elemwise(_test_elu, quantized=False)
+        _test_forward_unary_elemwise(_test_elu)
 
 
 #######################################################################
