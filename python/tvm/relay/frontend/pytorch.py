@@ -3746,12 +3746,19 @@ class PyTorchOpConverter:
 
     def inplace_copy(self, inputs, input_types):
         source = inputs[0]
+        values = inputs[1]
+        accumulate = inputs[2]
+        if not accumulate:
+            mode = "update"
+        else:
+            mode = "add"
+
+        # Track slice and select calls
         slice_and_select_calls = []
         while True:
             if isinstance(source, _expr.Call) and source.op.name in [
                 "strided_slice",
                 "take",
-                "expand_dims",
             ]:
                 slice_and_select_calls.append(source)
                 source = source.args[0]
@@ -3759,8 +3766,10 @@ class PyTorchOpConverter:
                 break
         slice_and_select_calls = slice_and_select_calls[::-1]
         source_shape = _infer_shape(source)
-        indices = [list(range(source_shape[i])) for i in range(len(source_shape))]
 
+        # Create index map
+        index_map = {}
+        squeezed_axes = []
         for call in slice_and_select_calls:
             if call.op.name == "strided_slice":
                 axes = call.attrs.axes
@@ -3769,24 +3778,58 @@ class PyTorchOpConverter:
                 begins = call.attrs.begin
                 ends = call.attrs.end
                 for axis, begin, end in zip(axes, begins, ends):
+                    num_squeezed_axis = len([v for v in squeezed_axes if v <= axis])
+                    axis += num_squeezed_axis
+                    # Set range
                     if begin < 0:
                         begin = source_shape[axis] + begin
                     if end < 0:
                         end = source_shape[axis] + end
-                    indices[axis] = [v for v in indices[axis] if begin <= v < end]
+                    if begin == 0 and end == source_shape[axis]:
+                        continue
+                    index_map[axis] = (begin.value, end.value)
             elif call.op.name == "take":
-                axis = call.attrs.axis.value
+                num_squeezed_axis = len([v for v in squeezed_axes if v <= axis])
+                axis = call.attrs.axis.value + num_squeezed_axis
                 idx = call.args[1]
                 assert isinstance(idx, _expr.Constant)
                 idx = idx.data.numpy().item()
-                indices[axis] = [idx]
+                index_map[axis] = (idx, idx + 1)
+                values = _op.expand_dims(values, axis)
+                squeezed_axes.append(axis)
             else:
                 pass
-        indices = tuple([_expr.const(i) for i in indices])
-        return self.index_put(
-            [source, indices, inputs[1], inputs[2]],
-            [input_types[0], "int64", input_types[1], input_types[2]],
-        )
+        last_index_dim = np.max([k for k in index_map]).item()
+        for axis in range(last_index_dim + 1):
+            if axis not in index_map:
+                index_map[axis] = (0, source_shape[axis])
+        
+        # Create indices
+        nelem = 1
+        for (begin, end) in index_map.values():
+            nelem *= end - begin
+        chunk_sizes = [nelem]
+        for i in range(1, last_index_dim + 1):
+            begin, end = index_map[i - 1]
+            chunk_sizes.append(chunk_sizes[-1] // (end - begin))
+        indices = []
+        for axis in range(last_index_dim + 1):
+            chunk_size = chunk_sizes[axis]
+            repeat = nelem // chunk_size
+            begin, end = index_map[axis]
+            step_size = chunk_size // (end - begin)
+            chunk = np.repeat(np.arange(begin, end), step_size)
+            chunk = np.concatenate([chunk] * repeat)
+            indices.append(chunk)
+        indices = np.stack(indices, axis=0).astype(np.int64)
+        new_shape = [indices.shape[0]] + [
+            index_map[i][1] - index_map[i][0] for i in range(last_index_dim + 1)
+        ]
+        indices = np.resize(indices, new_shape)
+        indices = _expr.const(indices)
+
+        # Return
+        return _op.scatter_nd(source, indices, values, mode)
 
     # Operator mappings
     def create_convert_map(self):
