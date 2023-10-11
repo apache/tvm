@@ -2414,7 +2414,7 @@ def test_all_unary_elemwise():
     _test_forward_unary_elemwise(_test_floor)
     _test_forward_unary_elemwise(_test_exp)
     _test_forward_unary_elemwise(_test_log, negative=False)
-    _test_forward_unary_elemwise(_test_square)
+    _test_forward_unary_elemwise(_test_square, int_quant_dtype=tf.int8)
     _test_forward_unary_elemwise(_test_sin)
     _test_forward_unary_elemwise(_test_neg)
     _test_forward_unary_elemwise(_test_sqrt, negative=False)
