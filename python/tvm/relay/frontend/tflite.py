@@ -2432,11 +2432,6 @@ class OperatorConverter(object):
         except ImportError:
             raise ImportError("The tflite package must be installed")
 
-        if self.is_quantized(op):
-            raise tvm.error.OpNotImplemented(
-                "TFLite does not support quantized REVERSE_SEQUENCE operator yet."
-            )
-
         input_tensors = self.get_input_tensors(op)
         assert len(input_tensors) == 2, "input tensors length should be 2"
 
