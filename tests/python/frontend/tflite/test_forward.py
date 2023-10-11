@@ -4280,11 +4280,24 @@ def _test_reverse_sequence(shape, dtype, seq_lengths, batch_axis, seq_axis):
     data = np.random.uniform(0, 100, size=shape).astype(dtype)
     with tf.Graph().as_default():
         in_data = array_ops.placeholder(dtype=dtype, name="input", shape=shape)
-        out = tf.reverse_sequence(
-            in_data, seq_lengths=seq_lengths, batch_axis=batch_axis, seq_axis=seq_axis
-        )
-
-        compare_tflite_with_tvm(data, "input", [in_data], [out])
+        
+        if quantized:
+            inq_data = tf.quantization.fake_quant_with_min_max_args(
+                in_data, min=0, max=10, name="inq_0"
+            )
+            input_range = {"inq_0": (0, 10)}
+            out = tf.reverse_sequence(
+                inq_data, seq_lengths=seq_lengths, batch_axis=batch_axis, seq_axis=seq_axis
+            )
+            out = tf.quantization.fake_quant_with_min_max_args(out, min=0, max=6, name="out")
+            compare_tflite_with_tvm(
+                data, "inq_0:0", [inq_data], [out], quantized=True, input_range=input_range
+            )
+        else:
+            out = tf.reverse_sequence(
+                in_data, seq_lengths=seq_lengths, batch_axis=batch_axis, seq_axis=seq_axis
+            )
+            compare_tflite_with_tvm(data, "input", [in_data], [out])
 
 
 def test_forward_reverse_sequence():
@@ -4294,6 +4307,11 @@ def test_forward_reverse_sequence():
         _test_reverse_sequence([2, 3, 3, 3], "float32", [2, 3, 2], 2, 1)
         _test_reverse_sequence([2, 4, 6, 4, 5], "float32", [5, 3], 0, 2)
         _test_reverse_sequence([2, 4, 6, 4, 5], "float32", [5, 3, 1, 4], 3, 2)
+        _test_reverse_sequence([4, 3], "uint8", [3, 2, 1], 1, 0, quantized=True)
+        _test_reverse_sequence([4, 3], "uint8", [3, 2, 1, 3], 0, 1, quantized=True)
+        _test_reverse_sequence([2, 3, 3, 3], "uint8", [2, 3, 2], 2, 1, quantized=True)
+        _test_reverse_sequence([2, 4, 6, 4, 5], "uint8", [5, 3], 0, 2, quantized=True)
+        _test_reverse_sequence([2, 4, 6, 4, 5], "uint8", [5, 3, 1, 4], 3, 2, quantized=True)
 
 
 #######################################################################
