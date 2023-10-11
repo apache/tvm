@@ -18,8 +18,6 @@
 
 """ Test translate from tensorflow. """
 
-from distutils.version import LooseVersion
-
 from packaging import version as package_version
 import numpy as np
 
@@ -28,7 +26,6 @@ from tensorflow.python.ops import nn_ops
 from tensorflow.python.ops import array_ops
 from tensorflow.python.ops import math_ops
 from tensorflow.python.ops import variables
-from tensorflow.python.client import device_lib
 
 
 try:
