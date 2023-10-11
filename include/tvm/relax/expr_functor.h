@@ -292,6 +292,23 @@ class ExprVisitor : public ExprFunctor<void(const Expr&)> {
     }
   }
 
+  /*!
+   * \brief Unwrap any known binding
+   * \param expr The expression to be unwrapped.
+   * \return The expression after following any known Var bindings
+   */
+  inline Expr UnwrapBindings(Expr expr) {
+    while (true) {
+      auto as_var = expr.as<Var>();
+      if (!as_var) return expr;
+
+      auto bound_expr = LookupBinding(as_var.value());
+      if (!bound_expr) return expr;
+
+      expr = bound_expr.value();
+    }
+  }
+
  private:
   using TSelf = ExprVisitor;
   using VisitBindingVTable =
@@ -533,6 +550,23 @@ class ExprMutator : public ExprMutatorBase {
    * \note For function parameters, this function returns NullOpt.
    */
   Optional<Expr> LookupBinding(const Var& var);
+
+  /*!
+   * \brief Unwrap any known binding
+   * \param expr The expression to be unwrapped.
+   * \return The expression after following any known Var bindings
+   */
+  inline Expr UnwrapBindings(Expr expr) {
+    while (true) {
+      auto as_var = expr.as<Var>();
+      if (!as_var) return expr;
+
+      auto bound_expr = LookupBinding(as_var.value());
+      if (!bound_expr) return expr;
+
+      expr = bound_expr.value();
+    }
+  }
 
   /*!
    * \brief Post-order rewrite a node and normalize.
