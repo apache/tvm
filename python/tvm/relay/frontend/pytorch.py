@@ -3803,7 +3803,7 @@ class PyTorchOpConverter:
         for axis in range(last_index_dim + 1):
             if axis not in index_map:
                 index_map[axis] = (0, source_shape[axis])
-        
+
         # Create indices
         nelem = 1
         for (begin, end) in index_map.values():
