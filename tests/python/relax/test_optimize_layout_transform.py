@@ -30,7 +30,7 @@ def _run_pass_compare_output(Before, Expected):
     if not relax.analysis.well_formed(fused_mod):
         print("IRModule is not well-formed")
 
-    fused_mode = DeadCodeElimination()(fused_mod)
+    fused_mod = DeadCodeElimination()(fused_mod)
     if not relax.analysis.well_formed(fused_mod):
         print("IRModule is not well-formed")
 
