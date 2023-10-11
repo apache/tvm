@@ -509,5 +509,33 @@ def test_getitem():
     verify_dynamo_model(Select2(), [([1, 77, 1280], "float32")], {}, Expected2)
 
 
+@tvm.testing.requires_gpu
+def test_arange():
+    import torch
+    from torch.nn import Module
+
+    class Arange1(Module):
+        def forward(self, input0):
+            mask_cond = torch.arange(input0.size(-1))
+            result = mask_cond + 1
+            return result
+
+    @I.ir_module
+    class Expected1:
+        @R.function
+        def main(inp_0: R.Tensor((1, 77), dtype="float32")) -> R.Tensor((77,), dtype="int64"):
+            with R.dataflow():
+                lv: R.Tensor((77,), dtype="int64") = R.arange(R.prim_value(0), R.prim_value(77), R.prim_value(1), dtype="int64")
+                lv1: R.Tensor((77,), dtype="int64") = R.add(lv, R.const(1, "int64"))
+                gv: R.Tensor((77,), dtype="int64") = lv1
+                R.output(gv)
+            return gv
+
+
+    verify_dynamo_model(
+        Arange1(), [([1, 77], "float32")], {}, Expected1
+    )
+
+
 if __name__ == "__main__":
     tvm.testing.main()
