@@ -41,6 +41,7 @@
 #include <llvm/IR/Module.h>
 #include <llvm/IRReader/IRReader.h>
 #include <llvm/Support/FileSystem.h>
+#include <llvm/Support/Host.h>
 #include <llvm/Support/SourceMgr.h>
 #include <llvm/Support/raw_ostream.h>
 #include <llvm/Target/TargetMachine.h>
@@ -483,6 +484,30 @@ TVM_REGISTER_GLOBAL("target.llvm_get_intrinsic_name").set_body_typed([](int64_t 
   // Nothing to do, just return the intrinsic id number
   return std::to_string(id);
 #endif
+});
+
+TVM_REGISTER_GLOBAL("target.llvm_get_system_x86_vendor").set_body_typed([]() -> String {
+#if TVM_LLVM_VERSION >= 120
+#if defined(__i386__) || defined(_M_IX86) || defined(__x86_64__) || defined(_M_X64)
+  using namespace llvm::sys::detail::x86;
+  const auto x86_sign = getVendorSignature();
+  if (x86_sign == VendorSignatures::GENUINE_INTEL)
+    return "intel";
+  else if (x86_sign == VendorSignatures::AUTHENTIC_AMD)
+    return "amd";
+  else if (x86_sign == VendorSignatures::UNKNOWN)
+    return "unknown";
+#endif
+#endif
+  return "unimplemented";
+});
+
+TVM_REGISTER_GLOBAL("target.llvm_get_system_triple").set_body_typed([]() -> String {
+  return llvm::sys::getDefaultTargetTriple();
+});
+
+TVM_REGISTER_GLOBAL("target.llvm_get_system_cpu").set_body_typed([]() -> String {
+  return llvm::sys::getHostCPUName().str();
 });
 
 TVM_REGISTER_GLOBAL("target.llvm_get_targets").set_body_typed([]() -> Array<String> {
