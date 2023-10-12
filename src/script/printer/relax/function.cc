@@ -50,7 +50,7 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
       if (Optional<String> name = GetBindingName(d)) {
         func_name = std::move(IdDoc(name.value()));
       } else {
-        func_name = std::move(d->Define(n, f(), FindFunctionName(d, n).value_or("main")));
+        func_name = std::move(IdDoc(FindFunctionName(d, n).value_or("main")));
       }
       (*f)->AddDispatchToken(d, "relax");
       (*f)->is_func = true;
