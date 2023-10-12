@@ -3264,6 +3264,7 @@ def test_forward_arg_min_max():
         # There is no quantized version of ArgMin
         for axis in [None, 0, 1, -1]:
             _test_arg_min_max(math_ops.argmax, data, axis, True)
+            _test_arg_min_max(math_ops.argmin, data, axis, True)
 
     for data in [np.array(np.random.uniform(-100, 100, (3, 4)), dtype=np.float32)]:
         for axis in [None, 0, 1, -1]:
