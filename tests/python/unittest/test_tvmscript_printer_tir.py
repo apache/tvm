@@ -704,7 +704,7 @@ def test_range():
     _assert_print(
         obj,
         """
-T.Range(0, 10)
+I.Range(0, 10)
 """,
     )
 
