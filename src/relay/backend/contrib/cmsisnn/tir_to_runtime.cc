@@ -106,6 +106,11 @@ class CodeGenCMSISNN : public codegen::CodeGenCHost {
     int clip_max;
   };
 
+  struct CMSISNNSoftmaxLutS16 {
+    std::string exp_lut_name;
+    std::string one_by_one_lut_name;
+  };
+
   using codegen::CodeGenCHost::VisitStmt_;
 
   /*!  * \brief Emits CMSIS-NN APIs for every call_extern */
@@ -114,6 +119,7 @@ class CodeGenCMSISNN : public codegen::CodeGenCHost {
       CodeGenCHost::VisitExpr_(op, os);
       return;
     }
+
     std::string cmsis_func_name = op->args[0].as<StringImmNode>()->value;
     if (cmsis_func_name == "arm_softmax_s8" || cmsis_func_name == "arm_elementwise_mul_s8" ||
         cmsis_func_name == "arm_elementwise_add_s8" ||
@@ -131,6 +137,8 @@ class CodeGenCMSISNN : public codegen::CodeGenCHost {
     } else if (cmsis_func_name == "arm_avgpool_s8" || cmsis_func_name == "arm_avgpool_s16" ||
                cmsis_func_name == "arm_max_pool_s8" || cmsis_func_name == "arm_max_pool_s16") {
       EmitPool2D(op);
+    } else if (cmsis_func_name == "arm_softmax_s16") {
+      EmitSoftmaxInt16(op);
     }
     return;
   }
@@ -227,6 +235,14 @@ class CodeGenCMSISNN : public codegen::CodeGenCHost {
        << "," << dims.c << "};\n";
     return struct_name;
   }
+  /*!  * \brief Emits cmsis_nn_softmax_params struct */
+  std::string EmitCMSISNNSoftmaxLutS16(std::ostream& os, CMSISNNSoftmaxLutS16 softmax_params) {
+    std::string struct_name = "softmax_params";
+    PrintIndent();
+    os << "cmsis_nn_softmax_lut_s16 " << struct_name << "= {" << softmax_params.exp_lut_name << ", "
+       << softmax_params.one_by_one_lut_name << "};\n";
+    return struct_name;
+  }
 
   /*!  * \brief Deduces variable name from call_extern argument resting at id */
   std::string VarNameFromArg(const CallNode* op, int id) {
@@ -301,6 +317,14 @@ class CodeGenCMSISNN : public codegen::CodeGenCHost {
     dims.w = ValueFromArg(op, ++base_pos);
     dims.c = ValueFromArg(op, ++base_pos);
     return dims;
+  }
+  /*!  * \brief extracts CMSIS-NN softmax LUTs from call_extern */
+  CMSISNNSoftmaxLutS16 extract_softmax_softmax_lut_s16(const CallNode* op, int exp_lut_pos,
+                                                       int one_by_one_lut_pos) {
+    CMSISNNSoftmaxLutS16 softmax_params;
+    softmax_params.exp_lut_name = op->args[exp_lut_pos].as<VarNode>()->name_hint;
+    softmax_params.one_by_one_lut_name = op->args[one_by_one_lut_pos].as<VarNode>()->name_hint;
+    return softmax_params;
   }
 
   /*!  * \brief Emits CMSIS-NN APIs for every call_extern comprising convolution */
@@ -476,6 +500,38 @@ class CodeGenCMSISNN : public codegen::CodeGenCHost {
     stream << "&" << input_dim << ", " << input_data << ", ";
     stream << "&" << filter_dim << ", ";
     stream << "&" << output_dim << ", " << output_data << ");\n";
+    EmitErrorCheck();
+  }
+
+  void EmitSoftmaxInt16(const CallNode* op) {
+    std::string cmsis_func_name = op->args[0].as<StringImmNode>()->value;
+
+    // extract buffer names from call_extern
+    int arg_id = 0;
+    std::string input_data = VarNameFromArg(op, ++arg_id);
+    int num_rows = ValueFromArg(op, ++arg_id);
+    int row_size = ValueFromArg(op, ++arg_id);
+    int multiplier = ValueFromArg(op, ++arg_id);
+    int shift = ValueFromArg(op, ++arg_id);
+    // extracting LUT names from call_extern
+    CMSISNNSoftmaxLutS16 softmax_params_buffer =
+        extract_softmax_softmax_lut_s16(op, arg_id + 1, arg_id + 2);
+    arg_id += 2;
+    std::string output_data = VarNameFromArg(op, ++arg_id);
+
+    // Emit CMSIS-NN API arguments
+    std::string softmax_params = EmitCMSISNNSoftmaxLutS16(stream, softmax_params_buffer);
+
+    PrintIndent();
+    stream << "arm_cmsis_nn_status status = ";
+    stream << cmsis_func_name << "(";
+    stream << input_data << ", ";
+    stream << num_rows << ", ";
+    stream << row_size << ", ";
+    stream << multiplier << ", ";
+    stream << shift << ", ";
+    stream << "&" << softmax_params << ", ";
+    stream << output_data << ");\n";
     EmitErrorCheck();
   }
 

@@ -1510,10 +1510,10 @@ bool Conv2DGemmWeightTransformRel(const Array<Type>& types, int num_inputs, cons
   const auto K = weight->shape[0] * weight->shape[1] * weight->shape[2];
   const auto N = weight->shape[3];
 
-  auto K_mod_k = indexmod(K, k);
+  auto K_mod_k = indexmod(K, k * 4);
   auto N_mod_n = indexmod(N, n);
 
-  auto pad_K = tvm::if_then_else(K_mod_k != 0, k - K_mod_k, tir::make_zero(DataType::Int(32)));
+  auto pad_K = tvm::if_then_else(K_mod_k != 0, k * 4 - K_mod_k, tir::make_zero(DataType::Int(32)));
   auto pad_N = tvm::if_then_else(N_mod_n != 0, n - N_mod_n, tir::make_zero(DataType::Int(32)));
 
   const auto N_padded = N + pad_N;

@@ -20,48 +20,56 @@ import pytest
 import tvm
 import numpy as np
 from tvm import relay
-from tvm.relay import testing
-from tvm.contrib import utils
-from utils.adreno_utils import gpu_preprocess, build_run_compare
+from utils.adreno_utils import build_run_compare, build_run_compare_vm
 
 
+executor_type = tvm.testing.parameter("ge", "vm")
 dtype = tvm.testing.parameter("float32")
 
 
 @tvm.testing.requires_opencl
 @tvm.testing.parametrize_targets("opencl -device=adreno")
-def test_layout_transform_to_block_nchw4c(remote, target, dtype):
+def test_layout_transform_to_block_nchw4c(remote, target, executor_type, dtype):
     """Verification of the case NCHW->NCHW4c"""
     input_shape = (1, 32, 720, 1280)
     A = relay.var("data", shape=input_shape, dtype=dtype)
     lt = relay.layout_transform(A, "NCHW", "NCHW4c")
     mod = relay.Function([A], lt)
 
-    build_run_compare(remote, mod, {}, {"data": input_shape}, {"data": dtype}, target)
+    if executor_type == "ge":
+        build_run_compare(remote, mod, {}, {"data": input_shape}, {"data": dtype}, target)
+    else:
+        build_run_compare_vm(remote, mod, {}, {"data": input_shape}, {"data": dtype}, target)
 
 
 @tvm.testing.requires_opencl
 @tvm.testing.parametrize_targets("opencl -device=adreno")
-def test_layout_transform_to_block_nchw(remote, target, dtype):
+def test_layout_transform_to_block_nchw(remote, target, executor_type, dtype):
     """Verification of the case NCHW4c->NCHW"""
     input_shape = (1, 36, 1, 1, 4)
     A = relay.var("data", shape=input_shape, dtype=dtype)
     lt = relay.layout_transform(A, "NCHW4c", "NCHW")
     mod = relay.Function([A], lt)
 
-    build_run_compare(remote, mod, {}, {"data": input_shape}, {"data": dtype}, target)
+    if executor_type == "ge":
+        build_run_compare(remote, mod, {}, {"data": input_shape}, {"data": dtype}, target)
+    else:
+        build_run_compare_vm(remote, mod, {}, {"data": input_shape}, {"data": dtype}, target)
 
 
 @tvm.testing.requires_opencl
 @tvm.testing.parametrize_targets("opencl -device=adreno")
-def test_layout_transform_to_block_nhwc4c(remote, target, dtype):
+def test_layout_transform_to_block_nhwc4c(remote, target, executor_type, dtype):
     """Verification of the case NHWC->NHWC4c"""
     input_shape = (1, 1, 1, 144)
     A = relay.var("data", shape=input_shape, dtype=dtype)
     lt = relay.layout_transform(A, "NHWC", "NHWC4c")
     mod = relay.Function([A], lt)
 
-    build_run_compare(remote, mod, {}, {"data": input_shape}, {"data": dtype}, target)
+    if executor_type == "ge":
+        build_run_compare(remote, mod, {}, {"data": input_shape}, {"data": dtype}, target)
+    else:
+        build_run_compare_vm(remote, mod, {}, {"data": input_shape}, {"data": dtype}, target)
 
 
 @pytest.mark.skipif(
@@ -69,7 +77,7 @@ def test_layout_transform_to_block_nhwc4c(remote, target, dtype):
 )
 @tvm.testing.requires_opencl
 @tvm.testing.parametrize_targets("opencl -device=adreno")
-def test_layout_transform_to_block_nhwc(remote, target, dtype):
+def test_layout_transform_to_block_nhwc(remote, target, executor_type, dtype):
     """Verification of the case NHWC4c->NHWC"""
     input_shape = (1, 80, 80, 36, 4)
     A = relay.var("data", shape=input_shape, dtype=dtype)
@@ -78,7 +86,10 @@ def test_layout_transform_to_block_nhwc(remote, target, dtype):
     lt = relay.layout_transform(cast, "NHWC4c", "NHWC")
     mod = relay.Function([A], lt)
 
-    build_run_compare(remote, mod, {}, {"data": input_shape}, {"data": dtype}, target)
+    if executor_type == "ge":
+        build_run_compare(remote, mod, {}, {"data": input_shape}, {"data": dtype}, target)
+    else:
+        build_run_compare_vm(remote, mod, {}, {"data": input_shape}, {"data": dtype}, target)
 
 
 if __name__ == "__main__":

@@ -25,7 +25,7 @@ pip3 install --upgrade \
     "Pygments>=2.4.0" \
     attrs \
     cloudpickle \
-    cython==0.29.34 \
+    cython \
     decorator \
     mypy \
     numpy==1.21.* \

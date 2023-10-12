@@ -55,7 +55,7 @@ __all__ = ["from_pytorch"]
 # nodes to the extracted graph's nodes.
 # As Python objects are not round-trippable through C++, and
 # our type annotations only live in Python, we need to map
-# the we need to map the nodes we get in visiting to the nodes
+# the nodes we get in visiting to the nodes
 # we used to construct the graph (they are the same in C++,
 # match each other in dictionary lookups, but are not the same
 # in Python) by using the hint dictionary filled as
@@ -2977,7 +2977,10 @@ class PyTorchOpConverter:
     def flip(self, inputs, input_types):
         data = inputs[0]
         axis = inputs[1]
-        return _op.transform.reverse(data, axis=axis[0])
+        out = data
+        for ax in axis:
+            out = _op.reverse(out, ax)
+        return out
 
     def bidir_rnn_cell(self, input_seqs, weights_dicts, act=_op.tanh):
         """
@@ -4379,7 +4382,15 @@ class PyTorchOpConverter:
 
             self.current_op.pop()
 
-        return [_wrap_const(outputs[ret_name]) for ret_name in ret_names]
+        # TODO(@haoyang9804): outputs[ret_name] could be None and cause some issue
+        # revealed by https://github.com/apache/tvm/issues/15004
+        # Now only adaptive_max_pool1d is considered. Maybe other ops could also
+        # trigger this problem.
+        return [
+            _wrap_const(outputs[ret_name])
+            for ret_name in ret_names
+            if ret_name != "aten::adaptive_max_pool1d_0_1"
+        ]
 
     def _set_parameter_source_name(self, op_node, outputs):
         """A helper function to rewrite source_name of parameter."""
@@ -4504,7 +4515,7 @@ def _create_typed_const(data, dtype):
     dtype should be a TVM dtype"""
 
     if dtype == "float64":
-        typed_data = _expr.const(np.float64(data), dtype=dtype)
+        typed_data = _expr.const(np.asarray(data, dtype="float64"), dtype=dtype)
     elif dtype == "float32":
         typed_data = _expr.const(np.float32(data), dtype=dtype)
     elif dtype == "float16":

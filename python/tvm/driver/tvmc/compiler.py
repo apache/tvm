@@ -445,6 +445,8 @@ def compile_model(
                 # TODO lib.get_source call have inconsistent behavior for unsupported
                 #      formats (@leandron).
                 dumps[source_type] = lib.get_source(source_type)
+                for smod in lib.imported_modules:
+                    dumps[smod.type_key] = smod.get_source()
 
         # Create a new tvmc model package object from the graph definition.
         package_path = tvmc_model.export_package(

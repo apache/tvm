@@ -73,7 +73,7 @@
 #endif
 
 // TVM version
-#define TVM_VERSION "0.14.dev0"
+#define TVM_VERSION "0.15.dev0"
 
 // TVM Runtime is DLPack compatible.
 #include <dlpack/dlpack.h>
@@ -243,6 +243,13 @@ typedef void* TVMObjectHandle;
  * \param msg The error message to be set.
  */
 TVM_DLL void TVMAPISetLastError(const char* msg);
+
+/*!
+ * \brief Used for implementing C API function.
+ *  Set last exception before return.
+ * \param py_object The python exception to be set
+ */
+TVM_DLL void TVMAPISetLastPythonError(void* py_object);
 
 /*!
  * \brief return str message of the last error

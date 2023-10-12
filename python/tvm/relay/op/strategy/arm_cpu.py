@@ -74,8 +74,7 @@ def schedule_pool_arm_cpu(attrs, outs, target):
             and layout in ("NWC", "NHWC")
         ):
             return topi.arm_cpu.schedule_pool(outs, layout)
-        logger.warning("pool is not optimized for arm cpu.")
-        return topi.generic.schedule_pool(outs, layout)
+        return topi.x86.schedule_pool(outs, layout)
 
 
 def _get_padding_width(padding):
@@ -214,19 +213,35 @@ def conv2d_strategy_arm_cpu(attrs, inputs, out_type, target):
                 is_aarch64 = target.features.is_aarch64
                 has_asimd = target.features.has_asimd
                 has_dot_prod = target.features.has_dotprod
+                has_matmul_i8 = target.features.has_matmul_i8
 
-                if has_dot_prod and data.dtype in ["int8", "uint8"]:
-                    strategy.add_implementation(
-                        wrap_compute_conv2d(topi.arm_cpu.compute_conv2d_NHWC_quantized_native),
-                        wrap_topi_schedule(topi.arm_cpu.schedule_conv2d_NHWC_quantized_native),
-                        name="conv2d_NHWC_quantized_native.arm_cpu",
-                    )
-                if is_aarch64 and has_asimd and data.dtype in ["int8", "uint8"]:
-                    strategy.add_implementation(
-                        wrap_compute_conv2d(topi.arm_cpu.compute_conv2d_NHWC_quantized_interleaved),
-                        wrap_topi_schedule(topi.arm_cpu.schedule_conv2d_NHWC_quantized_interleaved),
-                        name="conv2d_NHWC_quantized_interleaved.arm_cpu",
-                    )
+                if data.dtype in ["int8", "uint8"]:
+                    if has_matmul_i8:
+                        strategy.add_implementation(
+                            wrap_compute_conv2d(
+                                topi.arm_cpu.compute_conv2d_NHWC_quantized_interleaved
+                            ),
+                            wrap_topi_schedule(
+                                topi.arm_cpu.schedule_conv2d_NHWC_quantized_interleaved
+                            ),
+                            name="conv2d_NHWC_quantized_interleaved.arm_cpu",
+                        )
+                    if has_dot_prod:
+                        strategy.add_implementation(
+                            wrap_compute_conv2d(topi.arm_cpu.compute_conv2d_NHWC_quantized_native),
+                            wrap_topi_schedule(topi.arm_cpu.schedule_conv2d_NHWC_quantized_native),
+                            name="conv2d_NHWC_quantized_native.arm_cpu",
+                        )
+                    if is_aarch64 and has_asimd:
+                        strategy.add_implementation(
+                            wrap_compute_conv2d(
+                                topi.arm_cpu.compute_conv2d_NHWC_quantized_interleaved
+                            ),
+                            wrap_topi_schedule(
+                                topi.arm_cpu.schedule_conv2d_NHWC_quantized_interleaved
+                            ),
+                            name="conv2d_NHWC_quantized_interleaved.arm_cpu",
+                        )
                 if (not is_aarch64) or (data.dtype not in ["int8", "uint8"]):
                     # TODO(@giuseros)
                     # This strategy errors out for quantized data types when tuning.
@@ -469,24 +484,38 @@ def conv2d_gemm_without_weight_transform_strategy_arm_cpu(attrs, inputs, out_typ
     layout = attrs.data_layout
     data = inputs[0]
     strategy = _op.OpStrategy()
+    is_aarch64 = target.features.is_aarch64
+    has_asimd = target.features.has_asimd
+    has_dot_prod = target.features.has_dotprod
+    has_matmul_i8 = target.features.has_matmul_i8
 
     interleaved_compute = topi.arm_cpu.compute_conv2d_NHWC_quantized_interleaved_without_transform
     native_compute = topi.arm_cpu.compute_conv2d_NHWC_quantized_native_without_transform
     if layout == "NHWC" and data.dtype in ["int8", "uint8"]:
-        strategy.add_implementation(
-            wrap_compute_conv2d_gemm(native_compute),
-            wrap_topi_schedule(
-                topi.arm_cpu.schedule_conv2d_NHWC_quantized_native_without_transform
-            ),
-            name="conv2d_NHWC_quantized_native_without_transform.arm_cpu",
-        )
-        strategy.add_implementation(
-            wrap_compute_conv2d_gemm(interleaved_compute),
-            wrap_topi_schedule(
-                topi.arm_cpu.schedule_conv2d_NHWC_quantized_interleaved_without_transform
-            ),
-            name="conv2d_NHWC_quantized_interleaved_without_transform.arm_cpu",
-        )
+        if has_matmul_i8:
+            strategy.add_implementation(
+                wrap_compute_conv2d_gemm(interleaved_compute),
+                wrap_topi_schedule(
+                    topi.arm_cpu.schedule_conv2d_NHWC_quantized_interleaved_without_transform
+                ),
+                name="conv2d_NHWC_quantized_interleaved_without_transform.arm_cpu",
+            )
+        if has_dot_prod:
+            strategy.add_implementation(
+                wrap_compute_conv2d_gemm(native_compute),
+                wrap_topi_schedule(
+                    topi.arm_cpu.schedule_conv2d_NHWC_quantized_native_without_transform
+                ),
+                name="conv2d_NHWC_quantized_native_without_transform.arm_cpu",
+            )
+        if is_aarch64 and has_asimd:
+            strategy.add_implementation(
+                wrap_compute_conv2d_gemm(interleaved_compute),
+                wrap_topi_schedule(
+                    topi.arm_cpu.schedule_conv2d_NHWC_quantized_interleaved_without_transform
+                ),
+                name="conv2d_NHWC_quantized_interleaved_without_transform.arm_cpu",
+            )
     else:
         raise RuntimeError(
             f"Unsupported conv2d_NHWC_quantized_without_transform layout {layout}"
@@ -559,33 +588,53 @@ def schedule_dense_arm_cpu(attrs, inputs, out_type, target):
             wrap_topi_schedule(topi.arm_cpu.schedule_dense_dsp),
             name="dense_dsp.arm_cpu",
         )
-    else:
-        # For dynamic matrix-vector multiply we use a hand written kernel.
-        if (
-            isinstance(inputs[0].shape[0], (int, tir.IntImm))
-            and inputs[0].shape[0] == 1
-            and (
-                topi.utils.is_dynamic_shape(inputs[0].shape)
-                or topi.utils.is_dynamic_shape(inputs[1].shape)
-            )
-        ):
-            strategy.add_implementation(
-                wrap_compute_dense(topi.x86.dense_dynamic),
-                wrap_topi_schedule(topi.x86.schedule_dense_dynamic),
-                name="dense_dynamic.x86",
-                plevel=20,
-            )
-            return strategy
-        logger.warning("dense is not optimized for arm cpu.")
+        return strategy
+
+    # For dynamic matrix-vector multiply we use a hand written kernel.
+    if (
+        isinstance(inputs[0].shape[0], (int, tir.IntImm))
+        and inputs[0].shape[0] == 1
+        and (
+            topi.utils.is_dynamic_shape(inputs[0].shape)
+            or topi.utils.is_dynamic_shape(inputs[1].shape)
+        )
+    ):
+        strategy.add_implementation(
+            wrap_compute_dense(topi.x86.dense_dynamic),
+            wrap_topi_schedule(topi.x86.schedule_dense_dynamic),
+            name="dense_dynamic.x86",
+            plevel=20,
+        )
+        return strategy
+
+    need_auto_scheduler_layout = is_auto_scheduler_enabled()
+    need_meta_schedule_layout = is_meta_schedule_enabled()
+    if need_auto_scheduler_layout or need_meta_schedule_layout:
         strategy.add_implementation(
             wrap_compute_dense(
                 topi.nn.dense,
-                need_auto_scheduler_layout=is_auto_scheduler_enabled(),
-                need_meta_schedule_layout=is_meta_schedule_enabled(),
+                need_auto_scheduler_layout=need_auto_scheduler_layout,
+                need_meta_schedule_layout=need_meta_schedule_layout,
             ),
-            wrap_topi_schedule(topi.generic.schedule_dense),
+            naive_schedule,
             name="dense.generic",
+            plevel=11,
         )
+
+    # Fallback to x86 schedules as there is currently no arm_cpu schedule for dense
+    strategy.add_implementation(
+        wrap_compute_dense(topi.x86.dense_nopack),
+        wrap_topi_schedule(topi.x86.schedule_dense_nopack),
+        name="dense_nopack.x86",
+        plevel=5,
+    )
+    strategy.add_implementation(
+        wrap_compute_dense(topi.x86.dense_pack),
+        wrap_topi_schedule(topi.x86.schedule_dense_pack),
+        name="dense_pack.x86",
+        plevel=10,
+    )
+
     return strategy
 
 

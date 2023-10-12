@@ -16,6 +16,7 @@
 # under the License.
 """Test legalize pass"""
 import numpy as np
+import pytest
 import tvm
 from tvm import te
 
@@ -178,8 +179,60 @@ def test_legalize_multi_input():
     assert tvm.ir.structural_equal(a, b), "Actual = \n" + str(a)
 
 
+@pytest.mark.parametrize(
+    "target,exp_in_channels",
+    [
+        (
+            "llvm -device=arm_cpu -mtriple=aarch64-linux-gnu",
+            8,
+        ),
+        (
+            "llvm --device=arm_cpu --mtriple=aarch64-linux-gnu -mattr=+v8.2a,+dotprod",
+            3,
+        ),
+        (
+            "llvm --device=arm_cpu --mtriple=aarch64-linux-gnu -mattr=+v8.2a,+i8mm",
+            8,
+        ),
+        (
+            "llvm -device=arm_cpu -mtriple=aarch64-linux-gnu -mattr=+neon",
+            8,
+        ),
+        (
+            "llvm -device=arm_cpu -mtriple=armv8l-linux-gnu -mattr=+neon",
+            8,
+        ),
+    ],
+)
+def test_conv2d_NHWC_legalize(target, exp_in_channels):
+    target = tvm.target.Target(target)
+
+    dtype = "int8"
+    data_layout = "NHWC"
+    kernel_layout = "HWIO"
+    in_channels = 3
+    out_channels = 4
+    kernel_size = (1, 1)
+
+    x = relay.var("x", shape=(1, 1, 1, in_channels), dtype=dtype)
+    weight = relay.var("weight", shape=(1, 1, in_channels, out_channels), dtype=dtype)
+    out = relay.nn.conv2d(
+        x,
+        weight,
+        kernel_size=kernel_size,
+        channels=out_channels,
+        data_layout=data_layout,
+        kernel_layout=kernel_layout,
+        out_dtype=dtype,
+    )
+
+    with target:
+        out = run_opt_pass(out, transform.Legalize())
+
+    act_in_channels = out.args[0].type_args[0].shape[3]
+
+    assert act_in_channels == exp_in_channels, "Actual input channels = " + str(act_in_channels)
+
+
 if __name__ == "__main__":
-    test_legalize()
-    test_legalize_none()
-    test_legalize_multiple_ops()
-    test_legalize_multi_input()
+    tvm.testing.main()

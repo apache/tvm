@@ -179,7 +179,7 @@ if __name__ == "__main__":
     repo = "tvm"
 
     if args.convert_with_link:
-        with open("release_note_0.13.0.md", "r") as f:
+        with open(args.notes, "r") as f:
             lines = f.readlines()
         formated = []
         for line in lines:
@@ -202,7 +202,7 @@ if __name__ == "__main__":
     pr_dict = create_pr_dict(cache)
 
     # 2. Categorize csv file as dict by category and subject (sub-category)
-    headings = categorize_csv_file(args.notes_csv)
+    headings = categorize_csv_file(args.notes)
 
     # 3. Summarize and sort all categories
     def sorter(x):

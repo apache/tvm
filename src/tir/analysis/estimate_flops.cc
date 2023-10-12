@@ -19,6 +19,8 @@
 #include <tvm/tir/analysis.h>
 #include <tvm/tir/stmt_functor.h>
 
+#include "tvm/arith/analyzer.h"
+
 namespace tvm {
 namespace tir {
 
@@ -84,6 +86,8 @@ struct TResult {
 
 class FlopEstimator : private ExprFunctor<TResult(const PrimExpr& n)>,
                       private StmtFunctor<TResult(const Stmt& n)> {
+  arith::Analyzer ana;
+
  public:
   TResult VisitExpr(const PrimExpr& expr) override { return ExprFunctor::VisitExpr(expr); }
   TResult VisitStmt(const Stmt& stmt) override { return StmtFunctor::VisitStmt(stmt); }
@@ -112,6 +116,15 @@ class FlopEstimator : private ExprFunctor<TResult(const PrimExpr& n)>,
   TResult VisitExpr_(const GTNode* op) override { return TResult(); }
   TResult VisitExpr_(const GENode* op) override { return TResult(); }
 
+  int64_t GetLoopExtent(const ForNode* node, const arith::Analyzer& ana) {
+    int64_t bound = ana.const_int_bound(node->extent)->max_value;
+    if (bound == arith::ConstIntBound::kPosInf) {
+      return 1;  // Analyzer could not determine a valid bound, use 1 instead.
+    } else {
+      return bound;
+    }
+  }
+
   TResult VisitExpr_(const NotNode* op) override { return VisitExpr(op->a); }
   TResult VisitExpr_(const AndNode* op) final {
     TResult result = VisitExpr(op->a);
@@ -138,11 +151,10 @@ class FlopEstimator : private ExprFunctor<TResult(const PrimExpr& n)>,
     return result;
   }
   TResult VisitStmt_(const ForNode* loop) override {
+    ana.Bind(loop->loop_var, Range::FromMinExtent(loop->min, loop->extent));
+    const auto int_imm = GetLoopExtent(loop, ana);
     TResult result = VisitStmt(loop->body);
-    const auto* int_imm = loop->extent.as<IntImmNode>();
-    ICHECK(int_imm) << "TypeError: Expect the extent of a loop to be IntImm, but gets: "
-                    << loop->extent->GetTypeKey();
-    result *= int_imm->value;
+    result *= int_imm;
     return result;
   }
 

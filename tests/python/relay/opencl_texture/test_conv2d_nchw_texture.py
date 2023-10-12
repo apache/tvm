@@ -21,16 +21,17 @@ import numpy as np
 from tvm import relay
 from tvm.relay import testing
 from tvm.contrib import utils
-from utils.adreno_utils import gpu_preprocess, build_run_compare
+from utils.adreno_utils import gpu_preprocess, build_run_compare, build_run_compare_vm
 import pytest
 
 
+executor_type = tvm.testing.parameter("ge", "vm")
 dtype = tvm.testing.parameter("float32")
 
 
 @tvm.testing.requires_opencl
 @tvm.testing.parametrize_targets("opencl -device=adreno")
-def test_conv2d_inceptionv3_64x35x35_96x64x3x3_nopad(remote, target, dtype):
+def test_conv2d_inceptionv3_64x35x35_96x64x3x3_nopad(remote, target, executor_type, dtype):
     input_shape = (1, 32, 42, 42)
     filter_shape = (96, 32, 3, 3)
     bias_shape = (1, 96, 1, 1)
@@ -65,14 +66,19 @@ def test_conv2d_inceptionv3_64x35x35_96x64x3x3_nopad(remote, target, dtype):
         "bias": tvm.nd.array(bias_data),
     }
 
-    build_run_compare(
-        remote, mod, params1, {"data": input_shape}, {"data": dtype}, target, [], gpu_preprocess
-    )
+    if executor_type == "ge":
+        build_run_compare(
+            remote, mod, params1, {"data": input_shape}, {"data": dtype}, target, [], gpu_preprocess
+        )
+    else:
+        build_run_compare_vm(
+            remote, mod, params1, {"data": input_shape}, {"data": dtype}, target, [], gpu_preprocess
+        )
 
 
 @tvm.testing.requires_opencl
 @tvm.testing.parametrize_targets("opencl -device=adreno")
-def test_conv2d_inceptionv3_64x35x35_96x64x3x3_nopad_pass(remote, target, dtype):
+def test_conv2d_inceptionv3_64x35x35_96x64x3x3_nopad_pass(remote, target, executor_type, dtype):
     input_shape = (1, 32, 40, 40)
     filter_shape = (96, 32, 2, 2)
     bias_shape = (1, 96, 1, 1)
@@ -107,14 +113,19 @@ def test_conv2d_inceptionv3_64x35x35_96x64x3x3_nopad_pass(remote, target, dtype)
         "bias": tvm.nd.array(bias_data),
     }
 
-    build_run_compare(
-        remote, mod, params1, {"data": input_shape}, {"data": dtype}, target, [], gpu_preprocess
-    )
+    if executor_type == "ge":
+        build_run_compare(
+            remote, mod, params1, {"data": input_shape}, {"data": dtype}, target, [], gpu_preprocess
+        )
+    else:
+        build_run_compare_vm(
+            remote, mod, params1, {"data": input_shape}, {"data": dtype}, target, [], gpu_preprocess
+        )
 
 
 @tvm.testing.requires_opencl
 @tvm.testing.parametrize_targets("opencl -device=adreno")
-def test_conv2d_inceptionv3_35_35_strides(remote, target, dtype):
+def test_conv2d_inceptionv3_35_35_strides(remote, target, executor_type, dtype):
     input_shape = (1, 48, 35, 35)
     filter_shape = (64, 48, 5, 5)
     bias_shape = (1, 64, 1, 1)
@@ -149,14 +160,19 @@ def test_conv2d_inceptionv3_35_35_strides(remote, target, dtype):
         "bias": tvm.nd.array(bias_data),
     }
 
-    build_run_compare(
-        remote, mod, params1, {"data": input_shape}, {"data": dtype}, target, [], gpu_preprocess
-    )
+    if executor_type == "ge":
+        build_run_compare(
+            remote, mod, params1, {"data": input_shape}, {"data": dtype}, target, [], gpu_preprocess
+        )
+    else:
+        build_run_compare_vm(
+            remote, mod, params1, {"data": input_shape}, {"data": dtype}, target, [], gpu_preprocess
+        )
 
 
 @tvm.testing.requires_opencl
 @tvm.testing.parametrize_targets("opencl -device=adreno")
-def test_conv2d_resnet50_v2_nchw_3c(remote, target, dtype):
+def test_conv2d_resnet50_v2_nchw_3c(remote, target, executor_type, dtype):
     input_shape = (1, 3, 224, 224)
     filter_shape = (64, 3, 7, 7)
     bias_shape = (1, 64, 1, 1)
@@ -192,12 +208,15 @@ def test_conv2d_resnet50_v2_nchw_3c(remote, target, dtype):
         "bias": tvm.nd.array(bias_data),
     }
 
-    build_run_compare(remote, mod, params1, {"data": input_shape}, {"data": dtype}, target)
+    if executor_type == "ge":
+        build_run_compare(remote, mod, params1, {"data": input_shape}, {"data": dtype}, target)
+    else:
+        build_run_compare_vm(remote, mod, params1, {"data": input_shape}, {"data": dtype}, target)
 
 
 @tvm.testing.requires_opencl
 @tvm.testing.parametrize_targets("opencl -device=adreno")
-def test_conv2d_inceptionv3_nchw_3c(remote, target, dtype):
+def test_conv2d_inceptionv3_nchw_3c(remote, target, executor_type, dtype):
     input_shape = (1, 3, 299, 299)
     filter_shape = (64, 3, 3, 3)
     bias_shape = (1, 64, 1, 1)
@@ -232,12 +251,15 @@ def test_conv2d_inceptionv3_nchw_3c(remote, target, dtype):
         "bias": tvm.nd.array(bias_data),
     }
 
-    build_run_compare(remote, mod, params1, {"data": input_shape}, {"data": dtype}, target)
+    if executor_type == "ge":
+        build_run_compare(remote, mod, params1, {"data": input_shape}, {"data": dtype}, target)
+    else:
+        build_run_compare_vm(remote, mod, params1, {"data": input_shape}, {"data": dtype}, target)
 
 
 @tvm.testing.requires_opencl
 @tvm.testing.parametrize_targets("opencl -device=adreno")
-def test_conv2d_1x1_16c16spatial(remote, target, dtype):
+def test_conv2d_1x1_16c16spatial(remote, target, executor_type, dtype):
     input_shape = (1, 16, 256, 256)
     filter_shape = (32, 16, 4, 4)
     bias_shape = (1, 32, 1, 1)
@@ -272,12 +294,15 @@ def test_conv2d_1x1_16c16spatial(remote, target, dtype):
         "bias": tvm.nd.array(bias_data),
     }
 
-    build_run_compare(remote, mod, params1, {"data": input_shape}, {"data": dtype}, target)
+    if executor_type == "ge":
+        build_run_compare(remote, mod, params1, {"data": input_shape}, {"data": dtype}, target)
+    else:
+        build_run_compare_vm(remote, mod, params1, {"data": input_shape}, {"data": dtype}, target)
 
 
 @tvm.testing.requires_opencl
 @tvm.testing.parametrize_targets("opencl -device=adreno")
-def test_conv2d_4x4_16c16pad(remote, target, dtype):
+def test_conv2d_4x4_16c16pad(remote, target, executor_type, dtype):
     input_shape = (1, 32, 256, 256)
     filter_shape = (32, 32, 4, 4)
     bias_shape = (1, 32, 1, 1)
@@ -312,12 +337,15 @@ def test_conv2d_4x4_16c16pad(remote, target, dtype):
         "bias": tvm.nd.array(bias_data),
     }
 
-    build_run_compare(remote, mod, params1, {"data": input_shape}, {"data": dtype}, target)
+    if executor_type == "ge":
+        build_run_compare(remote, mod, params1, {"data": input_shape}, {"data": dtype}, target)
+    else:
+        build_run_compare_vm(remote, mod, params1, {"data": input_shape}, {"data": dtype}, target)
 
 
 @tvm.testing.requires_opencl
 @tvm.testing.parametrize_targets("opencl -device=adreno")
-def test_conv2d_4x4x4_16c16pad(remote, target, dtype):
+def test_conv2d_4x4x4_16c16pad(remote, target, executor_type, dtype):
     input_shape = (1, 32, 256, 256)
     filter_shape = (4, 32, 4, 4)
     bias_shape = (1, 4, 1, 1)
@@ -352,12 +380,15 @@ def test_conv2d_4x4x4_16c16pad(remote, target, dtype):
         "bias": tvm.nd.array(bias_data),
     }
 
-    build_run_compare(remote, mod, params1, {"data": input_shape}, {"data": dtype}, target)
+    if executor_type == "ge":
+        build_run_compare(remote, mod, params1, {"data": input_shape}, {"data": dtype}, target)
+    else:
+        build_run_compare_vm(remote, mod, params1, {"data": input_shape}, {"data": dtype}, target)
 
 
 @tvm.testing.requires_opencl
 @tvm.testing.parametrize_targets("opencl -device=adreno")
-def test_conv2d_yolov3_v2_nchw_3c(remote, target, dtype):
+def test_conv2d_yolov3_v2_nchw_3c(remote, target, executor_type, dtype):
     input_shape = (1, 1024, 13, 13)
     filter_shape = (255, 1024, 1, 1)
     A = relay.var("data", shape=input_shape, dtype=dtype)
@@ -385,12 +416,15 @@ def test_conv2d_yolov3_v2_nchw_3c(remote, target, dtype):
         "weight": tvm.nd.array(filter_data),
     }
 
-    build_run_compare(remote, mod, params, {"data": input_shape}, {"data": dtype}, target)
+    if executor_type == "ge":
+        build_run_compare(remote, mod, params, {"data": input_shape}, {"data": dtype}, target)
+    else:
+        build_run_compare_vm(remote, mod, params, {"data": input_shape}, {"data": dtype}, target)
 
 
 @tvm.testing.requires_opencl
 @tvm.testing.parametrize_targets("opencl -device=adreno")
-def test_conv2d_vgg16_winograd_4d(remote, target, dtype):
+def test_conv2d_vgg16_winograd_4d(remote, target, executor_type, dtype):
     input_shape = (1, 512, 28, 28)
     filter_shape = (512, 512, 3, 3)
     bias_shape = (1, 512, 1, 1)
@@ -429,16 +463,35 @@ def test_conv2d_vgg16_winograd_4d(remote, target, dtype):
         f.write(
             f'{{"input": ["opencl -keys=adreno,opencl,gpu -device=adreno -max_num_threads=256", "conv2d_nchw_winograd.image2d", [["TENSOR", [1, 512, 28, 28], "{dtype}"], ["TENSOR", [512, 512, 3, 3], "{dtype}"], [1, 1], [1, 1, 1, 1], [1, 1], "{dtype}"], {{}}], "config": {{"index": 1591, "code_hash": null, "entity": [["auto_unroll_max_step", "ot", 4], ["tile_y", "sp", [-1, 1, 32]], ["tile_x", "sp", [-1, 4, 2]], ["tile_rc", "sp", [-1, 8]]]}}, "result": [[0.0037244], 0, 7.06374192237854, 1653898629.7427933], "version": 0.2, "tvm_version": "0.8.dev0"}}\n'
         )
-    graph = build_run_compare(
-        remote, mod, params1, {"data": input_shape}, {"data": dtype}, target, stat_file=stat_file
-    )
-    matches = re.findall("winograd", graph)
-    assert len(matches) > 0
+    if executor_type == "ge":
+        graph = build_run_compare(
+            remote,
+            mod,
+            params1,
+            {"data": input_shape},
+            {"data": dtype},
+            target,
+            stat_file=stat_file,
+        )
+        matches = re.findall("winograd", graph)
+        assert len(matches) > 0
+    else:
+        vmc = build_run_compare_vm(
+            remote,
+            mod,
+            params1,
+            {"data": input_shape},
+            {"data": dtype},
+            target,
+            stat_file=stat_file,
+        )
+        matches = re.findall("winograd", vmc.primitives)
+        assert len(matches) > 0
 
 
 @tvm.testing.requires_opencl
 @tvm.testing.parametrize_targets("opencl -device=adreno")
-def test_conv2d_winograd_conv(remote, target, dtype):
+def test_conv2d_winograd_conv(remote, target, executor_type, dtype):
     input_shape = (1, 4, 3, 3)
     A = relay.var("data", shape=input_shape, dtype=dtype)
     filter_shape3 = (8, 4, 3, 3)
@@ -476,16 +529,35 @@ def test_conv2d_winograd_conv(remote, target, dtype):
         f.write(
             f'{{"input": ["opencl -keys=adreno,opencl,gpu -device=adreno -max_num_threads=256", "conv2d_nchw_winograd.image2d", [["TENSOR", [1, 4, 3, 3], "{dtype}"], ["TENSOR", [8, 4, 3, 3], "{dtype}"], [1, 1], [1, 1, 1, 1], [1, 1], "{dtype}"], {{}}], "config": {{"index": 1591, "code_hash": null, "entity": [["auto_unroll_max_step", "ot", 4], ["tile_y", "sp", [-1, 1, 32]], ["tile_x", "sp", [-1, 4, 2]], ["tile_rc", "sp", [-1, 8]]]}}, "result": [[0.0037244], 0, 7.06374192237854, 1653898629.7427933], "version": 0.2, "tvm_version": "0.8.dev0"}}\n'
         )
-    graph = build_run_compare(
-        remote, mod, params1, {"data": input_shape}, {"data": dtype}, target, stat_file=stat_file
-    )
-    matches = re.findall("winograd", graph)
-    assert len(matches) > 0
+    if executor_type == "ge":
+        graph = build_run_compare(
+            remote,
+            mod,
+            params1,
+            {"data": input_shape},
+            {"data": dtype},
+            target,
+            stat_file=stat_file,
+        )
+        matches = re.findall("winograd", graph)
+        assert len(matches) > 0
+    else:
+        vmc = build_run_compare_vm(
+            remote,
+            mod,
+            params1,
+            {"data": input_shape},
+            {"data": dtype},
+            target,
+            stat_file=stat_file,
+        )
+        matches = re.findall("winograd", vmc.primitives)
+        assert len(matches) > 0
 
 
 @tvm.testing.requires_opencl
 @tvm.testing.parametrize_targets("opencl -device=adreno")
-def test_residual_block(remote, target, dtype):
+def test_residual_block(remote, target, executor_type, dtype):
     """
     - some kind of residual block followed by convolution to have texture after residual block
     - scalar data type verification which should be mapped to global memory scope
@@ -602,14 +674,30 @@ def test_residual_block(remote, target, dtype):
             "",
         ]
 
-    build_run_compare(
-        remote, mod, params1, {"data": input_shape}, {"data": dtype}, target, static_memory_scope
-    )
+    if executor_type == "ge":
+        build_run_compare(
+            remote,
+            mod,
+            params1,
+            {"data": input_shape},
+            {"data": dtype},
+            target,
+            static_memory_scope,
+        )
+    else:
+        build_run_compare_vm(
+            remote,
+            mod,
+            params1,
+            {"data": input_shape},
+            {"data": dtype},
+            target,
+        )
 
 
 @tvm.testing.requires_opencl
 @tvm.testing.parametrize_targets("opencl -device=adreno")
-def test_concat(remote, target, dtype):
+def test_concat(remote, target, executor_type, dtype):
     """
         layout_transform (NCHW->NCHW4c)
                   |                      <- buffer
@@ -701,11 +789,12 @@ def test_concat(remote, target, dtype):
 
     static_memory_scope = [
         "",
+        "global.texture",
         "global",
         "global.texture-weight",
-        "global.texture-weight",
         "global",
-        "global.texture-weight",
+        "global.texture-nhwc",
+        "global",
         "global.texture-weight",
         "",
         "",
@@ -714,16 +803,30 @@ def test_concat(remote, target, dtype):
         "",
     ]
 
-    static_memory_scope = []
-
-    build_run_compare(
-        remote, mod, params1, {"data": input_shape}, {"data": dtype}, target, static_memory_scope
-    )
+    if executor_type == "ge":
+        build_run_compare(
+            remote,
+            mod,
+            params1,
+            {"data": input_shape},
+            {"data": dtype},
+            target,
+            static_memory_scope,
+        )
+    else:
+        build_run_compare_vm(
+            remote,
+            mod,
+            params1,
+            {"data": input_shape},
+            {"data": dtype},
+            target,
+        )
 
 
 @tvm.testing.requires_opencl
 @tvm.testing.parametrize_targets("opencl -device=adreno")
-def test_pooling_branching_texture_params(remote, target, dtype):
+def test_pooling_branching_texture_params(remote, target, executor_type, dtype):
     """
     Verification of the pooling and many branches having textures
                 layout_transform (NCHW->NCHW4c)
@@ -844,14 +947,30 @@ def test_pooling_branching_texture_params(remote, target, dtype):
         "",
     ]
 
-    build_run_compare(
-        remote, mod, params1, {"data": input_shape}, {"data": dtype}, target, static_memory_scope
-    )
+    if executor_type == "ge":
+        build_run_compare(
+            remote,
+            mod,
+            params1,
+            {"data": input_shape},
+            {"data": dtype},
+            target,
+            static_memory_scope,
+        )
+    else:
+        build_run_compare_vm(
+            remote,
+            mod,
+            params1,
+            {"data": input_shape},
+            {"data": dtype},
+            target,
+        )
 
 
 @tvm.testing.requires_opencl
 @tvm.testing.parametrize_targets("opencl -device=adreno")
-def test_branching_texture_params(remote, target, dtype):
+def test_branching_texture_params(remote, target, executor_type, dtype):
     """
     Verification of passing texture to several consumers markup of relay variables in
     primary functions + on_device
@@ -970,15 +1089,31 @@ def test_branching_texture_params(remote, target, dtype):
         "",
     ]
 
-    build_run_compare(
-        remote, mod, params1, {"data": input_shape}, {"data": dtype}, target, static_memory_scope
-    )
+    if executor_type == "ge":
+        build_run_compare(
+            remote,
+            mod,
+            params1,
+            {"data": input_shape},
+            {"data": dtype},
+            target,
+            static_memory_scope,
+        )
+    else:
+        build_run_compare_vm(
+            remote,
+            mod,
+            params1,
+            {"data": input_shape},
+            {"data": dtype},
+            target,
+        )
 
 
 # function repeat, params scope are different in reused functions
 @tvm.testing.requires_opencl
 @tvm.testing.parametrize_targets("opencl -device=adreno")
-def test_conv2d_different_lowering_same_op(remote, target, dtype):
+def test_conv2d_different_lowering_same_op(remote, target, executor_type, dtype):
     """
     Use case for verification of caching compiled functions
     Three convolutions following by each other in this case should be
@@ -1054,14 +1189,30 @@ def test_conv2d_different_lowering_same_op(remote, target, dtype):
         "",
     ]
 
-    build_run_compare(
-        remote, mod, params1, {"data": input_shape}, {"data": dtype}, target, static_memory_scope
-    )
+    if executor_type == "ge":
+        build_run_compare(
+            remote,
+            mod,
+            params1,
+            {"data": input_shape},
+            {"data": dtype},
+            target,
+            static_memory_scope,
+        )
+    else:
+        build_run_compare_vm(
+            remote,
+            mod,
+            params1,
+            {"data": input_shape},
+            {"data": dtype},
+            target,
+        )
 
 
 @tvm.testing.requires_opencl
 @tvm.testing.parametrize_targets("opencl -device=adreno")
-def test_conv2d_winograd_non_rect(remote, target, dtype):
+def test_conv2d_winograd_non_rect(remote, target, executor_type, dtype):
     input_shape = (1, 771, 36, 64)
     A = relay.var("data", shape=input_shape, dtype=dtype)
     filter_shape = (128, 771, 3, 3)
@@ -1085,17 +1236,36 @@ def test_conv2d_winograd_non_rect(remote, target, dtype):
         f.write(
             f'{{"input": ["opencl -keys=adreno,opencl,gpu -device=adreno -max_num_threads=256 -texture_spatial_limit=16384 -thread_warp_size=1", "conv2d_nchw_winograd.image2d", [["TENSOR", [1, 771, 36, 64], "{dtype}"], ["TENSOR", [128, 771, 3, 3], "{dtype}"], [1, 1], [1, 1, 1, 1], [1, 1], "{dtype}"], {{}}], "config": {{"index": 5399, "code_hash": null, "entity": [["auto_unroll_max_step", "ot", 16], ["tile_y", "sp", [-1, 1, 32]], ["tile_x", "sp", [-1, 4, 8]], ["tile_rc", "sp", [-1, 193]]]}}, "result": [[0.0037244], 0, 7.06374192237854, 1653898629.7427933], "version": 0.2, "tvm_version": "0.8.dev0"}}\n'
         )
-    graph = build_run_compare(
-        remote, mod, params1, {"data": input_shape}, {"data": dtype}, target, stat_file=stat_file
-    )
-    matches = re.findall("winograd", graph)
-    assert len(matches) > 0
+    if executor_type == "ge":
+        graph = build_run_compare(
+            remote,
+            mod,
+            params1,
+            {"data": input_shape},
+            {"data": dtype},
+            target,
+            stat_file=stat_file,
+        )
+        matches = re.findall("winograd", graph)
+        assert len(matches) > 0
+    else:
+        vmc = build_run_compare_vm(
+            remote,
+            mod,
+            params1,
+            {"data": input_shape},
+            {"data": dtype},
+            target,
+            stat_file=stat_file,
+        )
+        matches = re.findall("winograd", vmc.primitives)
+        assert len(matches) > 0
 
 
 # function repeat, params scope are different in reused functions
 @tvm.testing.requires_opencl
 @tvm.testing.parametrize_targets("opencl -device=adreno")
-def test_injective_nwo_inputs1(remote, target, dtype):
+def test_injective_nwo_inputs1(remote, target, executor_type, dtype):
     """
     Use case for verification of stability of annotation primary functions
     having several ops accepting data outside of Primary function
@@ -1186,15 +1356,31 @@ def test_injective_nwo_inputs1(remote, target, dtype):
         "global",
         "global",
     ]
-    build_run_compare(
-        remote, mod, params1, {"data": input_shape}, {"data": dtype}, target, static_memory_scope
-    )
+    if executor_type == "ge":
+        build_run_compare(
+            remote,
+            mod,
+            params1,
+            {"data": input_shape},
+            {"data": dtype},
+            target,
+            static_memory_scope,
+        )
+    else:
+        build_run_compare_vm(
+            remote,
+            mod,
+            params1,
+            {"data": input_shape},
+            {"data": dtype},
+            target,
+        )
 
 
 # function repeat, params scope are different in reused functions
 @tvm.testing.requires_opencl
 @tvm.testing.parametrize_targets("opencl -device=adreno")
-def test_injective_nwo_inputs2(remote, target, dtype):
+def test_injective_nwo_inputs2(remote, target, executor_type, dtype):
     """
     Use case for verification of stability of annotation primary functions
     having several ops accepting data outside of Primary function
@@ -1284,14 +1470,30 @@ def test_injective_nwo_inputs2(remote, target, dtype):
         "global.texture",
         "global",
     ]
-    build_run_compare(
-        remote, mod, params1, {"data": input_shape}, {"data": dtype}, target, static_memory_scope
-    )
+    if executor_type == "ge":
+        build_run_compare(
+            remote,
+            mod,
+            params1,
+            {"data": input_shape},
+            {"data": dtype},
+            target,
+            static_memory_scope,
+        )
+    else:
+        build_run_compare_vm(
+            remote,
+            mod,
+            params1,
+            {"data": input_shape},
+            {"data": dtype},
+            target,
+        )
 
 
 @tvm.testing.requires_opencl
 @tvm.testing.parametrize_targets("opencl -device=adreno")
-def test_conv2d_to_3_channels(remote, target, dtype):
+def test_conv2d_to_3_channels(remote, target, executor_type, dtype):
     input_shape = (1, 256, 200, 200)
     filter_shape = (3, 256, 1, 1)
     A = relay.var("data", shape=input_shape, dtype=dtype)
@@ -1316,7 +1518,75 @@ def test_conv2d_to_3_channels(remote, target, dtype):
         "weight": tvm.nd.array(filter_data),
     }
 
-    build_run_compare(remote, mod, params1, {"data": input_shape}, {"data": dtype}, target, [])
+    if executor_type == "ge":
+        build_run_compare(remote, mod, params1, {"data": input_shape}, {"data": dtype}, target, [])
+    else:
+        build_run_compare_vm(
+            remote, mod, params1, {"data": input_shape}, {"data": dtype}, target, []
+        )
+
+
+@tvm.testing.requires_opencl
+@tvm.testing.parametrize_targets("opencl -device=adreno")
+def test_conv2d_weight_on_buffers(remote, target, executor_type, dtype):
+    target = "opencl -device=adreno"
+    input_shape = (1, 64, 75, 75)
+    filter_shape = (64, 64, 3, 3)
+    bias_shape = (64,)
+    A = relay.var("data", shape=input_shape, dtype=dtype)
+    W = relay.var("weight", shape=filter_shape, dtype=dtype)
+    BS = relay.var("bias", shape=bias_shape, dtype=dtype)
+    conv = relay.nn.conv2d(A, W, padding=[1, 1, 1, 1], channels=64, kernel_size=(3, 3))
+    conv = relay.nn.bias_add(conv, BS)
+    conv = relay.op.nn.relu(conv)
+
+    mod = relay.Function([A, W, BS], conv)
+    np.random.seed(0)
+    initializer = relay.testing.init.Xavier()
+    filter_data = np.zeros(filter_shape).astype(dtype)
+    bias_data = np.zeros(bias_shape).astype(dtype)
+    initializer("weight", filter_data)
+    initializer("bias", bias_data)
+    params1 = {
+        "weight": tvm.nd.array(filter_data),
+        "bias": tvm.nd.array(bias_data),
+    }
+
+    if executor_type == "ge":
+        static_memory_scope = [
+            "",
+            "global.texture",
+            "global",
+            "global.texture-weight",
+            "",
+            "",
+        ]
+        build_run_compare(
+            remote,
+            mod,
+            params1,
+            {"data": input_shape},
+            {"data": dtype},
+            target,
+            static_memory_scope,
+        )
+    else:
+        static_memory_scope = """
+        VM VirtualDevice[0]: device type 1, id 0 and mem_scope
+        VM VirtualDevice[1]: device type 4, id 0 and mem_scope
+        VM VirtualDevice[2]: device type 4, id 0 and mem_scope global.texture
+        VM VirtualDevice[3]: device type 4, id 0 and mem_scope global
+        VM VirtualDevice[4]: device type 4, id 0 and mem_scope global.texture-weight
+        """
+        build_run_compare_vm(
+            remote,
+            mod,
+            params1,
+            {"data": input_shape},
+            {"data": dtype},
+            target,
+            static_memory_scope,
+        )
 
 
 if __name__ == "__main__":

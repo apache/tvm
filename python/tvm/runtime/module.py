@@ -23,7 +23,6 @@ import struct
 from typing import Sequence
 import numpy as np
 
-import tvm._ffi
 from tvm._ffi.base import _LIB, check_call, c_str, string_types, _RUNTIME_ONLY
 from tvm._ffi.libinfo import find_include_path
 from .packed_func import PackedFunc, PackedFuncHandle, _set_class_module
@@ -439,7 +438,16 @@ class Module(object):
     def _collect_dso_modules(self):
         return self._collect_from_import_tree(lambda m: m.is_dso_exportable)
 
-    def export_library(self, file_name, fcompile=None, addons=None, workspace_dir=None, **kwargs):
+    def export_library(
+        self,
+        file_name,
+        *,
+        fcompile=None,
+        fpack_imports=None,
+        addons=None,
+        workspace_dir=None,
+        **kwargs,
+    ):
         """
         Export the module and all imported modules into a single device library.
 
@@ -465,6 +473,16 @@ class Module(object):
             This behavior is controlled by the type of object exported.
             If fcompile has attribute object_format, will compile host library
             to that format. Otherwise, will use default format "o".
+
+        fpack_imports: function(mod: runtime.Module, is_system_lib: bool, symbol_prefix: str,
+                                workspace_dir: str) -> str
+            Function used to pack imported modules from `mod` into a file suitable for passing
+            to fcompile as an input file. The result can be a C source, or an .o object file,
+            or any other file that the fcompile function can handle. The function returns the
+            name of the created file.
+
+            If not provided, the imported modules will be serialized either via packing to an
+            LLVM module, or to a C source file.
 
         workspace_dir : str, optional
             The path of the directory used to create the intermediate
@@ -568,7 +586,10 @@ class Module(object):
         if self.imported_modules:
             pack_lib_prefix = system_lib_prefix if system_lib_prefix else ""
 
-            if enabled("llvm") and llvm_target_string:
+            if fpack_imports is not None:
+                path_out = fpack_imports(self, is_system_lib, pack_lib_prefix, workspace_dir)
+                files.append(path_out)
+            elif enabled("llvm") and llvm_target_string:
                 path_obj = os.path.join(
                     workspace_dir, f"{pack_lib_prefix}devc.{global_object_format}"
                 )

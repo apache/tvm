@@ -28,6 +28,7 @@
 #include <dlpack/dlpack.h>
 #include <dmlc/json.h>
 #include <dmlc/memory_io.h>
+#include <tvm/runtime/memory/memory_manager.h>
 #include <tvm/runtime/ndarray.h>
 #include <tvm/runtime/packed_func.h>
 
@@ -41,6 +42,9 @@
 
 namespace tvm {
 namespace runtime {
+
+using memory::AllocatorType;
+using memory::MemoryManager;
 
 /*! \brief macro to do C API call */
 #define TVM_CCALL(func)                     \

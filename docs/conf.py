@@ -244,7 +244,7 @@ INSTALL_TVM_CUDA_DEV = f"""\
 # Installs the latest dev build of TVM from PyPI, with CUDA enabled. To use this,
 # you must request a Google Colab instance with a GPU by going to Runtime ->
 # Change runtime type -> Hardware accelerator -> GPU. If you wish to build from
-# source, see see https://tvm.apache.org/docs/install/from_source.html
+# source, see https://tvm.apache.org/docs/install/from_source.html
 pip install tlcpack-nightly-cu113 --pre -f https://tlcpack.ai/wheels"""
 
 INSTALL_TVM_CUDA_FIXED = f"""\
@@ -252,7 +252,7 @@ INSTALL_TVM_CUDA_FIXED = f"""\
 # Installs TVM version {version} from PyPI, with CUDA enabled. To use this,
 # you must request a Google Colab instance with a GPU by going to Runtime ->
 # Change runtime type -> Hardware accelerator -> GPU. If you wish to build from
-# source, see see https://tvm.apache.org/docs/install/from_source.html
+# source, see https://tvm.apache.org/docs/install/from_source.html
 pip install apache-tvm-cu113=={version} -f https://tlcpack.ai/wheels"""
 
 
@@ -649,7 +649,15 @@ html_context = {
     "header_dropdown": header_dropdown,
     "header_logo": header_logo,
     "header_logo_link": header_logo_link,
-    "version_prefixes": ["main", "v0.8.0/", "v0.9.0/", "v0.10.0/", "v0.11.0/", "v0.12.0/"],
+    "version_prefixes": [
+        "main",
+        "v0.8.0/",
+        "v0.9.0/",
+        "v0.10.0/",
+        "v0.11.0/",
+        "v0.12.0/",
+        "v0.13.0/",
+    ],
     "display_github": True,
     "github_user": "apache",
     "github_repo": "tvm",

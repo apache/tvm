@@ -235,12 +235,12 @@ def cross_compiler(
        # export using arm gcc
        mod = build_runtime_module()
        mod.export_library(path_dso,
-                          cc.cross_compiler("arm-linux-gnueabihf-gcc"))
+                          fcompile=cc.cross_compiler("arm-linux-gnueabihf-gcc"))
        # specialize ndk compilation options.
        specialized_ndk = cc.cross_compiler(
            ndk.create_shared,
            ["--sysroot=/path/to/sysroot", "-shared", "-fPIC", "-lm"])
-       mod.export_library(path_dso, specialized_ndk)
+       mod.export_library(path_dso, fcompile=specialized_ndk)
     """
     base_options = [] if options is None else options
     kwargs = {}
@@ -280,7 +280,7 @@ def _linux_compile(output, objects, options, compile_cmd, compile_shared=False):
             cmd += ["-c"]
     else:
         if compile_shared or output.endswith(".so") or output.endswith(".dylib"):
-            cmd += ["--shared"]
+            cmd += ["-shared"]
     cmd += ["-o", output]
     if isinstance(objects, str):
         cmd += [objects]

@@ -102,6 +102,7 @@ class CodeGenSPIRV : public ExprFunctor<spirv::Value(const PrimExpr&)>,
   spirv::Value VisitExpr_(const RampNode* op) override;
   spirv::Value VisitExpr_(const BroadcastNode* op) override;
   spirv::Value VisitExpr_(const BufferLoadNode* op) override;
+  spirv::Value VisitExpr_(const ShuffleNode* op) override;
   // stmt
   void VisitStmt_(const BufferStoreNode* op) override;
   void VisitStmt_(const ForNode* op) override;

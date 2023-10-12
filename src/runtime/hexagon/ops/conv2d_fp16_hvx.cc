@@ -255,7 +255,7 @@ void conv_layer_fp16_hvx(DLTensor& cr_out, const DLTensor& cr_act,  // NOLINT(*)
    * height to finally get 32 elements representing 32 output channels.
    *
    * Since the output block also has the 8h2w32c2w format, the 32 elements of the next element
-   * along the width is also added into the the same vector such that the first 32 channel elements
+   * along the width is also added into the same vector such that the first 32 channel elements
    * occupy the even lanes and the next 32 occupy the odd lanes to form a single 64-element vector
    * which is then stored
    */

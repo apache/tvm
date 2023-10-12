@@ -359,7 +359,7 @@ class LayoutOptimizer:
 
 
 class PadsWithMultipleConsumersReplicator(ExprMutator):
-    """A pass to to handle the situation when nn.pad operator has
+    """A pass to handle the situation when nn.pad operator has
     more than one qnn.conv2d consumer.
 
              pad

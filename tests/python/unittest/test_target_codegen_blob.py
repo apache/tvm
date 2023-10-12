@@ -106,8 +106,8 @@ def test_cuda_multi_lib():
     pathAll = temp.relpath("libAll.a")
 
     path_dso = temp.relpath("mylib.so")
-    libA.export_library(pathA, tar.tar)
-    libB.export_library(pathB, tar.tar)
+    libA.export_library(pathA, fcompile=tar.tar)
+    libB.export_library(pathB, fcompile=tar.tar)
     cc.create_staticlib(pathAll, [pathA, pathB])
     # package two static libs together
     cc.create_shared(path_dso, ["-Wl,--whole-archive", pathAll, "-Wl,--no-whole-archive"])

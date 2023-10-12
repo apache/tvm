@@ -228,7 +228,7 @@ int TVMAotExecutor_Release(TVMAotExecutor* executor, const DLDevice device) {
   int status;
 
   if (executor->num_args > 0) {
-    // free TVMNDArray data memory for each each argument
+    // free TVMNDArray data memory for each argument
     int i;
     for (i = 0; i < executor->num_args; ++i) {
       status = TVMNDArray_Release(&executor->args[i]);

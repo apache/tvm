@@ -67,15 +67,6 @@ class LibraryModuleNode final : public ModuleNode {
   PackedFuncWrapper packed_func_wrapper_;
 };
 
-/*!
- * \brief Helper classes to get into internal of a module.
- */
-class ModuleInternal {
- public:
-  // Get mutable reference of imports.
-  static std::vector<Module>* GetImportsAddr(ModuleNode* node) { return &(node->imports_); }
-};
-
 PackedFunc WrapPackedFunc(TVMBackendPackedCFunc faddr, const ObjectPtr<Object>& sptr_to_self) {
   return PackedFunc([faddr, sptr_to_self](TVMArgs args, TVMRetValue* rv) {
     TVMValue ret_value;
