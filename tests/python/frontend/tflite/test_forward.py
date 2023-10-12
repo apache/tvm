@@ -4280,7 +4280,6 @@ def _test_reverse_sequence(shape, dtype, seq_lengths, batch_axis, seq_axis, quan
     data = np.random.uniform(0, 100, size=shape).astype(dtype)
     with tf.Graph().as_default():
         in_data = array_ops.placeholder(dtype=dtype, name="input", shape=shape)
-        
         if quantized:
             inq_data = tf.quantization.fake_quant_with_min_max_args(
                 in_data, min=0, max=10, name="inq_0"
@@ -4307,11 +4306,11 @@ def test_forward_reverse_sequence():
         _test_reverse_sequence([2, 3, 3, 3], "float32", [2, 3, 2], 2, 1)
         _test_reverse_sequence([2, 4, 6, 4, 5], "float32", [5, 3], 0, 2)
         _test_reverse_sequence([2, 4, 6, 4, 5], "float32", [5, 3, 1, 4], 3, 2)
-        _test_reverse_sequence([4, 3], "uint8", [3, 2, 1], 1, 0, quantized=True)
-        _test_reverse_sequence([4, 3], "uint8", [3, 2, 1, 3], 0, 1, quantized=True)
-        _test_reverse_sequence([2, 3, 3, 3], "uint8", [2, 3, 2], 2, 1, quantized=True)
-        _test_reverse_sequence([2, 4, 6, 4, 5], "uint8", [5, 3], 0, 2, quantized=True)
-        _test_reverse_sequence([2, 4, 6, 4, 5], "uint8", [5, 3, 1, 4], 3, 2, quantized=True)
+        _test_reverse_sequence([4, 3], "np.uint8", [3, 2, 1], 1, 0, quantized=True)
+        _test_reverse_sequence([4, 3], "np.uint8", [3, 2, 1, 3], 0, 1, quantized=True)
+        _test_reverse_sequence([2, 3, 3, 3], "np.uint8", [2, 3, 2], 2, 1, quantized=True)
+        _test_reverse_sequence([2, 4, 6, 4, 5], "np.uint8", [5, 3], 0, 2, quantized=True)
+        _test_reverse_sequence([2, 4, 6, 4, 5], "np.uint8", [5, 3, 1, 4], 3, 2, quantized=True)
 
 
 #######################################################################
