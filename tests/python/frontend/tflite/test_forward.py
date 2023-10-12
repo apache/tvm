@@ -4280,6 +4280,7 @@ def _test_reverse_sequence(shape, dtype, seq_lengths, batch_axis, seq_axis, quan
     data = np.random.uniform(0, 100, size=shape).astype(dtype)
     with tf.Graph().as_default():
         in_data = array_ops.placeholder(dtype=dtype, name="input", shape=shape)
+
         if quantized:
             inq_data = tf.quantization.fake_quant_with_min_max_args(
                 in_data, min=0, max=10, name="inq_0"
