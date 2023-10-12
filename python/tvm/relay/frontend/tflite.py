@@ -1898,10 +1898,6 @@ class OperatorConverter(object):
 
     def convert_arg_min(self, op):
         """Convert TFLite ARG_MIN"""
-        if self.is_quantized(op):
-            raise tvm.error.OpNotImplemented(
-                "TFlite quantized ARG_MIN operator is not supported yet."
-            )
         return self._convert_arg_min_max(_op.argmin, op)
 
     def convert_arg_max(self, op):
