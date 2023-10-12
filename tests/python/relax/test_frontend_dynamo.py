@@ -533,7 +533,6 @@ def test_arange():
                 R.output(gv)
             return gv
 
-
     verify_dynamo_model(Arange1(), [([1, 77], "float32")], {}, Expected1)
 
 
