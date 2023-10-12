@@ -729,6 +729,8 @@ class CumSum(OnnxOpConverter):
 
         if isinstance(axis, relax.Constant):
             axis = int(axis.data.numpy())
+        elif isinstance(axis, relax.Var):
+            axis = 0
         data = relax.op.cumsum(data, axis)
         if attr.get("reverse", 0) != 0:
             data = bb.emit_te(topi.flip, data, axis=axis if axis else 0)
