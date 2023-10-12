@@ -184,6 +184,24 @@ def tir_vars_in_struct_info(sinfo: StructInfo) -> List[tir.Var]:
     return _ffi_api.TIRVarsInStructInfo(sinfo)  # type: ignore
 
 
+def definable_tir_vars_in_struct_info(sinfo: StructInfo) -> List[tir.Var]:
+    """Get the TIR variables that may be defined from input struct info.
+    The returned list is deduplicated - each TIR variable will appear at most once.
+
+    Parameters
+    ----------
+    sinfo : StructInfo
+        The struct info object to be analyzed.
+
+    Returns
+    -------
+    ret : List[tir.Var]
+
+        The list of TIR variables that can be defined from the StructInfo
+    """
+    return _ffi_api.DefinableTIRVarsInStructInfo(sinfo)  # type: ignore
+
+
 def defined_symbolic_vars(func: Function) -> List[Var]:
     """Get the TIR variables that defined in the input function.
     The returned list is deduplicated - each TIR variable will appear at most once.

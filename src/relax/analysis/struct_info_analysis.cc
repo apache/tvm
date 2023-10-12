@@ -920,58 +920,89 @@ TVM_REGISTER_GLOBAL("relax.analysis.StructInfoLCA")
 // TIRVarsInStructInfo
 //--------------------------
 
-Array<tir::Var> TIRVarsInStructInfo(const StructInfo& sinfo) {
-  struct TIRVarsDetector : public StructInfoVisitor {
-    void VisitShape(Array<PrimExpr> shape) {
-      for (const PrimExpr& value : shape) {
-        Array<tir::Var> vars = tir::UndefinedVars(value);
-        for (const tir::Var& var : vars) {
-          auto insert_res = tir_vars_dedup_set.insert(var.get());
-          if (insert_res.second) {
-            tir_vars.push_back(var);
-          }
-        }
-      }
-    }
-
-    void VisitStructInfo_(const ShapeStructInfoNode* shape_sinfo) final {
-      if (shape_sinfo->values.defined()) {
-        VisitShape(shape_sinfo->values.value());
-      }
-    }
-
-    void VisitStructInfo_(const TensorStructInfoNode* tensor_sinfo) final {
-      if (tensor_sinfo->shape.defined()) {
-        VisitStructInfo(GetStructInfo(tensor_sinfo->shape.value()));
-      }
-    }
-
-    Array<tir::Var> tir_vars;
-    std::unordered_set<const tir::VarNode*> tir_vars_dedup_set;
+class TIRVarsDetector : public StructInfoVisitor {
+ public:
+  enum class VarType {
+    Definition,
+    Usage,
   };
+  TIRVarsDetector(VarType collection_type) : collection_type(collection_type) {}
 
-  TIRVarsDetector detector;
+  Array<tir::Var> GetTIRVars() const { return tir_vars_; }
+
+ private:
+  void VisitShape(Array<PrimExpr> shape) {
+    for (const PrimExpr& value : shape) {
+      if (collection_type == VarType::Definition) {
+        if (auto opt = value.as<tir::Var>()) {
+          RecordTIRVar(opt.value());
+        }
+      } else if (collection_type == VarType::Usage) {
+        for (const tir::Var& tir_var : tir::UndefinedVars(value)) {
+          RecordTIRVar(tir_var);
+        }
+      } else {
+        LOG(FATAL) << "Invalid value for VarType enum, " << static_cast<int>(collection_type);
+      }
+    }
+  }
+
+  void VisitStructInfo_(const ShapeStructInfoNode* shape_sinfo) final {
+    if (shape_sinfo->values.defined()) {
+      VisitShape(shape_sinfo->values.value());
+    }
+  }
+
+  void VisitStructInfo_(const TensorStructInfoNode* tensor_sinfo) final {
+    if (tensor_sinfo->shape.defined()) {
+      VisitStructInfo(GetStructInfo(tensor_sinfo->shape.value()));
+    }
+  }
+
+  void RecordTIRVar(const tir::Var& tir_var) {
+    auto insert_res = used_tir_vars_dedup_.insert(tir_var.get());
+    if (insert_res.second) {
+      tir_vars_.push_back(tir_var);
+    }
+  }
+
+  Array<tir::Var> tir_vars_;
+  std::unordered_set<const tir::VarNode*> used_tir_vars_dedup_;
+
+  VarType collection_type;
+};
+
+Array<tir::Var> TIRVarsInStructInfo(const StructInfo& sinfo) {
+  TIRVarsDetector detector(TIRVarsDetector::VarType::Usage);
   detector(sinfo);
-  return detector.tir_vars;
+  return detector.GetTIRVars();
 }
 
-TVM_REGISTER_GLOBAL("relax.analysis.TIRVarsInStructInfo")
-    .set_body_typed([](const StructInfo& sinfo) { return TIRVarsInStructInfo(sinfo); });
+Array<tir::Var> DefinableTIRVarsInStructInfo(const StructInfo& sinfo) {
+  TIRVarsDetector detector(TIRVarsDetector::VarType::Definition);
+  detector(sinfo);
+  return detector.GetTIRVars();
+}
+
+TVM_REGISTER_GLOBAL("relax.analysis.TIRVarsInStructInfo").set_body_typed(TIRVarsInStructInfo);
+
+TVM_REGISTER_GLOBAL("relax.analysis.DefinableTIRVarsInStructInfo")
+    .set_body_typed(DefinableTIRVarsInStructInfo);
 
 class SymbolicVarCollector : public relax::ExprVisitor,
                              public relax::StructInfoVisitor,
                              public tir::ExprVisitor {
  public:
-  static Array<tir::Var> Free(const Function& func) {
+  static Array<tir::Var> Free(const Expr& expr) {
     SymbolicVarCollector collector;
-    collector.VisitExpr(func);
+    collector.VisitExpr(expr);
     Array<tir::Var> ret{collector.free_symbolic_var_.begin(), collector.free_symbolic_var_.end()};
     return ret;
   }
 
-  static Array<tir::Var> Defined(const Function& func) {
+  static Array<tir::Var> Defined(const Expr& expr) {
     SymbolicVarCollector collector;
-    collector.VisitExpr(func);
+    collector.VisitExpr(expr);
     Array<tir::Var> ret{collector.defined_symbolic_var_.begin(),
                         collector.defined_symbolic_var_.end()};
     return ret;
@@ -1098,10 +1129,10 @@ class SymbolicVarCollector : public relax::ExprVisitor,
   std::unordered_set<tir::Var, ObjectPtrHash, ObjectPtrEqual> free_symbolic_var_;
 };
 
-Array<tir::Var> DefinedSymbolicVars(const Function& func) {
-  return SymbolicVarCollector::Defined(func);
+Array<tir::Var> DefinedSymbolicVars(const Expr& expr) {
+  return SymbolicVarCollector::Defined(expr);
 }
-Array<tir::Var> FreeSymbolicVars(const Function& func) { return SymbolicVarCollector::Free(func); }
+Array<tir::Var> FreeSymbolicVars(const Expr& expr) { return SymbolicVarCollector::Free(expr); }
 
 TVM_REGISTER_GLOBAL("relax.analysis.DefinedSymbolicVars").set_body_typed(DefinedSymbolicVars);
 

@@ -269,20 +269,34 @@ TVM_DLL StructInfo StructInfoLCA(const StructInfo& lhs, const StructInfo& rhs,
 TVM_DLL Array<tir::Var> TIRVarsInStructInfo(const StructInfo& sinfo);
 
 /*!
+ * \brief Get the TIR variables that appear in the input struct info.
+ *
+ * Returns all symbolic variables that are definable based on, and
+ * used within, the StructInfo.
+ *
+ * \param sinfo The struct info object to be analyzed.
+ *
+ * \return A tuple of (definable,used) TIR variables.  Both lists are
+ *   deduplicated, each TIR variable will appear at most once, and in
+ *   order of occurrence.
+ */
+TVM_DLL Array<tir::Var> DefinableTIRVarsInStructInfo(const StructInfo& sinfo);
+
+/*!
  * \brief Get the TIR variables that defined in the input function.
  * The returned list is deduplicated - each TIR variable will appear at most once.
- * \param func The function object to be analyzed.
+ * \param expr The relax expression (e.g. a Function) to be analyzed.
  * \return The list of TIR variables that are defined in the input function.
  */
-TVM_DLL Array<tir::Var> DefinedSymbolicVars(const Function& func);
+TVM_DLL Array<tir::Var> DefinedSymbolicVars(const Expr& expr);
 
 /*!
  * \brief Get the TIR variables that are used but not defined in the input function.
  * The returned list is deduplicated - each TIR variable will appear at most once.
- * \param func The function object to be analyzed.
+ * \param expr The relax expression (e.g. a Function) to be analyzed.
  * \return The list of TIR variables that are used but not defined in the input function.
  */
-TVM_DLL Array<tir::Var> FreeSymbolicVars(const Function& func);
+TVM_DLL Array<tir::Var> FreeSymbolicVars(const Expr& expr);
 //-----------------------------------
 // General IR analysis
 //-----------------------------------

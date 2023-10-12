@@ -619,21 +619,40 @@ def test_struct_info_lca():
     _check_lca(fopaque2(), fn_info_shape(1), fopaque2())
 
 
-def test_tir_vars_in_struct_info():
+def _generate_tir_var_test_cases():
     n, m = tir.Var("n", "int64"), tir.Var("m", "int64")
     shape0 = rx.ShapeStructInfo([1, n, 3])
     shape1 = rx.ShapeStructInfo([1, 2 * n, n, m])
+    shape2 = rx.ShapeStructInfo([1, 2 * n, m])
     tensor0 = rx.TensorStructInfo([1, n, 3], "int32")
     tensor1 = rx.TensorStructInfo([1, 2 * n, n, m], "int32")
+    tensor2 = rx.TensorStructInfo([1, 2 * n, m], "int32")
     func = rx.FuncStructInfo(
         [rx.TensorStructInfo([1, 2 * n, n, m], "int32")], rx.TensorStructInfo([1, n, 3], "int32")
     )
 
-    tvm.ir.assert_structural_equal(rx.analysis.tir_vars_in_struct_info(shape0), [n])
-    tvm.ir.assert_structural_equal(rx.analysis.tir_vars_in_struct_info(shape1), [n, m])
-    tvm.ir.assert_structural_equal(rx.analysis.tir_vars_in_struct_info(tensor0), [n])
-    tvm.ir.assert_structural_equal(rx.analysis.tir_vars_in_struct_info(tensor1), [n, m])
-    tvm.ir.assert_structural_equal(rx.analysis.tir_vars_in_struct_info(func), [n, m])
+    yield shape0, [n], [n]
+    yield shape1, [n, m], [n, m]
+    yield shape2, [m], [n, m]
+    yield tensor0, [n], [n]
+    yield tensor1, [n, m], [n, m]
+    yield tensor2, [m], [n, m]
+    yield func, [n, m], [n, m]
+
+
+tir_var_test_case = tvm.testing.parameter(*_generate_tir_var_test_cases())
+
+
+def test_tir_vars_in_struct_info(tir_var_test_case):
+    sinfo, _vars_definable, vars_used = tir_var_test_case
+    tvm.ir.assert_structural_equal(rx.analysis.tir_vars_in_struct_info(sinfo), vars_used)
+
+
+def test_definable_tir_vars_in_struct_info(tir_var_test_case):
+    sinfo, vars_definable, _vars_used = tir_var_test_case
+    tvm.ir.assert_structural_equal(
+        rx.analysis.definable_tir_vars_in_struct_info(sinfo), vars_definable
+    )
 
 
 def test_collect_symbolic_var_from_tensor_shape():

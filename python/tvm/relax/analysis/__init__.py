@@ -22,6 +22,7 @@ from .analysis import (
     all_vars,
     bound_vars,
     contains_impure_call,
+    definable_tir_vars_in_struct_info,
     defined_symbolic_vars,
     derive_call_ret_struct_info,
     detect_recursion,
