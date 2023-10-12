@@ -846,13 +846,13 @@ def test_dense_amx_int8():
         np.testing.assert_equal(out, ref)
 
 
-@tvm.testing.requires_cascadelake
+@tvm.testing.requires_x86_vnni
 @pytest.mark.parametrize("m,n,k", [(32, 128, 96), (32, 128, 97)])
 def test_dense_vnni(m, n, k):
     dense_x86_test(m, n, k)
 
 
-@tvm.testing.requires_skylake_avx512
+@tvm.testing.requires_x86_avx512
 @pytest.mark.parametrize("m,n,k", [(32, 128, 96), (32, 128, 97)])
 def test_dense_skylake_avx512(m, n, k):
     dense_x86_test(m, n, k, "llvm -mcpu=skylake-avx512", ["pmaddubs", "pmaddw", "vpaddd"])
