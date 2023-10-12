@@ -22,7 +22,7 @@ import tvm.testing
 
 
 def test_thread_axis1():
-    @T.prim_func
+    @T.prim_func(private=True)
     def before(A: T.Buffer((T.int64(64),), "float32"), B: T.Buffer((T.int64(64),), "float32")):
         blockIdx_x = T.env_thread("blockIdx.x")
         T.launch_thread(blockIdx_x, T.int64(2))
@@ -32,7 +32,7 @@ def test_thread_axis1():
             T.Cast("int64", blockIdx_x) * T.int64(32) + T.Cast("int64", threadIdx_x)
         ] + T.float32(1)
 
-    @T.prim_func
+    @T.prim_func(private=True)
     def expected(A: T.Buffer((64,), "float32"), B: T.Buffer((64,), "float32")):
         blockIdx_x = T.env_thread("blockIdx.x")
         T.launch_thread(blockIdx_x, 2)
@@ -161,7 +161,7 @@ def test_thread_axis2():
 
 
 def test_block():
-    @T.prim_func
+    @T.prim_func(private=True)
     def before(A: T.Buffer((128,), "float32"), B: T.Buffer((128,), "float32")):
         for i in T.serial(0, T.int64(16)):
             for j in T.serial(0, T.int64(8)):
@@ -169,7 +169,7 @@ def test_block():
                     vi = T.axis.spatial(T.int64(128), i * T.int64(8) + j)
                     B[vi] = A[vi] + T.float32(1)
 
-    @T.prim_func
+    @T.prim_func(private=True)
     def expected(A: T.Buffer((128,), "float32"), B: T.Buffer((128,), "float32")):
         for i in T.serial(0, T.int32(16)):
             for j in T.serial(0, T.int32(8)):
@@ -183,7 +183,7 @@ def test_block():
 
 
 def test_i16_buffer():
-    @T.prim_func
+    @T.prim_func(private=True)
     def before(A: T.Buffer((128,), "int16"), B: T.Buffer((128,), "int16")):
         for i in T.serial(0, T.int64(16)):
             for j in T.serial(0, T.int64(16)):
@@ -191,7 +191,7 @@ def test_i16_buffer():
                     vi = T.axis.spatial(T.int64(128), i * 8 + j)
                     B[vi] = A[vi] + T.int16(1)
 
-    @T.prim_func
+    @T.prim_func(private=True)
     def expected(A: T.Buffer((128,), "int16"), B: T.Buffer((128,), "int16")):
         for i in T.serial(0, 16):
             for j in T.serial(0, 16):
@@ -205,7 +205,7 @@ def test_i16_buffer():
 
 
 def test_fail_on_buffer_map():
-    @T.prim_func
+    @T.prim_func(private=True)
     def func(A: T.Buffer((128,), "int64"), B: T.Buffer((128,), "int64")):
         for i in T.serial(0, 16):
             for j in T.serial(0, 8):
@@ -219,7 +219,7 @@ def test_fail_on_buffer_map():
 
 
 def test_fail_on_buffer_map():
-    @T.prim_func
+    @T.prim_func(private=True)
     def func(A: T.Buffer((128,), "int32"), B: T.Buffer((128,), "int32")):
         C = T.alloc_buffer((128,), "int64")
         for i in T.serial(0, 16):
