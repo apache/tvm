@@ -97,7 +97,11 @@ def call_tir(
     ret: Call
         A call node for the call_tir operator.
     """
-    if isinstance(args, Expr) and not isinstance(args, RxTuple) and not isinstance(args.struct_info_, TupleStructInfo):  # type: ignore
+    if (
+        isinstance(args, Expr)
+        and not isinstance(args, RxTuple)
+        and not isinstance(args.struct_info_, TupleStructInfo)
+    ):
         args = RxTuple((args,))
 
     if not isinstance(out_sinfo, list):
