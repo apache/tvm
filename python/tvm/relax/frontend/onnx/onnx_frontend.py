@@ -100,13 +100,16 @@ def get_constant(
         return var
 
 
-def get_info(info_proto: onnx.onnx_ml_pb2.ValueInfoProto) -> Tuple[str, List, str, List]:
+def get_info(info_proto: onnx.onnx_ml_pb2.ValueInfoProto, value_dict={}) -> Tuple[str, List, str, List]:
     """Extract the shape from a ValueInfoProto.
 
     Parameters
     ----------
     info_proto: onnx.onnx_ml_pb2.ValueInfoProto
         The ValueInfoProto to extract the info from.
+
+    value_dict: Dict
+        The Dictionary mapping from the name of ValueInfoProto to SizeVar
 
     Returns
     -------
@@ -119,7 +122,9 @@ def get_info(info_proto: onnx.onnx_ml_pb2.ValueInfoProto) -> Tuple[str, List, st
         name = dim.dim_param
         value = dim.dim_value
         if value is None or value == 0:
-            value = tvm.tir.SizeVar(name, "int64")
+            if name not in value_dict:
+                value_dict[name] = tvm.tir.SizeVar(name, "int64")
+            value = value_dict[name]
             shape_name.append(name)
         else:
             shape_name.append(value)
@@ -2039,10 +2044,11 @@ class ONNXGraphImporter:
 
     def _parse_graph_input(self, graph: onnx.onnx_ml_pb2.GraphProto):
         """Parse model inputs to Relax parameters."""
+        value_dict = {}
         for i in graph.input:
             # from onnx v0.2, GraphProto.input has type ValueInfoProto,
             #  and the name is 'i.name'
-            i_name, i_shape, d_type, i_shape_name = get_info(i)
+            i_name, i_shape, d_type, i_shape_name = get_info(i, value_dict)
             if i_name not in self._nodes:
                 self._num_input += 1
                 self._input_names.append(i_name)
