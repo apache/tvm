@@ -638,7 +638,7 @@ class Trilu(OnnxOpConverter):
         k = inputs[1] if len(inputs) > 1 else 0
 
         if isinstance(k, relax.Var) and k.name_hint in params:
-            k = get_constant(k,params)
+            k = get_constant(k, params)
         else:
             k = 0
 
