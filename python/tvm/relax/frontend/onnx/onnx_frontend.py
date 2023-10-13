@@ -101,8 +101,9 @@ def get_constant(
 
 
 def get_info(
-    info_proto: onnx.onnx_ml_pb2.ValueInfoProto, value_dict={}
-) -> Tuple[str, List, str, List]:
+    info_proto: onnx.onnx_ml_pb2.ValueInfoProto,
+    value_dict: Dict[str, tvm.tir.SizeVar]
+) -> Tuple[str, List, str, List, Dict]:
     """Extract the shape from a ValueInfoProto.
 
     Parameters
