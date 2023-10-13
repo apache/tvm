@@ -1565,6 +1565,30 @@ def test_tflite_fully_connected(
 
 
 @pytest.mark.parametrize("accel_type", ["ethos-u55-256", "ethos-u65-256"])
+@pytest.mark.parametrize("ifm_shape", [(1, 16), (4, 8)])
+@pytest.mark.parametrize("ofm_channels", [8, 32])
+@pytest.mark.parametrize("activation_function", ["NONE", "RELU"])
+def test_tflite_matmul(
+    accel_type,
+    ifm_shape,
+    ofm_channels,
+    activation_function,
+):
+    np.random.seed(0)
+
+    @tf.function
+    def matmul(x, y):
+        x = tf.matmul(x, y, transpose_b=True)
+        if activation_function == "RELU":
+            x = tf.nn.relu(x)
+        return x
+
+    infra.compare_tvm_with_tflite(
+        matmul, [ifm_shape, [ofm_channels, ifm_shape[-1]]], accel_type, enable_cascader=False
+    )
+
+
+@pytest.mark.parametrize("accel_type", ["ethos-u55-256", "ethos-u65-256"])
 def test_tflite_subtract_sigmoid(accel_type):
     np.random.seed(0)
     ifm_shape = [1, 6, 8, 4]
