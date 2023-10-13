@@ -22,7 +22,7 @@ from collections import namedtuple
 import tvm
 from tvm import autotvm, te
 from tvm.autotvm.task.space import OtherOptionEntity, SplitEntity
-from tvm.target.x86 import get_simd_32bit_lanes
+from tvm.target.x86 import get_x86_simd_32bit_lanes
 
 from ..nn.pad import pad
 from ..nn.utils import get_pad_tuple3d, infer_pad3d
@@ -536,7 +536,7 @@ def _get_conv3d_workload(data, kernel, stride, padding, groups, out_dtype, data_
 
 
 def _fallback_schedule(cfg, wkl):
-    simd_width = get_simd_32bit_lanes()
+    simd_width = get_x86_simd_32bit_lanes() if get_x86_simd_32bit_lanes() else 4
     DPAD, HPAD, WPAD = wkl.dpad, wkl.hpad, wkl.wpad
     DSTR, HSTR, WSTR = wkl.dstride, wkl.hstride, wkl.wstride
     out_width = (wkl.width + 2 * WPAD - wkl.wkernel) // WSTR + 1

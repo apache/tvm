@@ -85,7 +85,8 @@ bool CommonSubexpressionEliminator::IsEligibleComputation(const PrimExpr& expr) 
   return (
       // In order to be eligible, the given expression should not be a constant
       (expr.as<IntImmNode>() == nullptr) && (expr.as<FloatImmNode>() == nullptr) &&
-      (expr.as<StringImmNode>() == nullptr)
+      (expr.as<StringImmNode>() == nullptr) &&
+      (expr.as<ArrayIntImmNode>() == nullptr)
       // and it should not be a variable
       && (expr.as<VarNode>() == nullptr)
       // and it should not be a forbidden computation (function calls and loads)

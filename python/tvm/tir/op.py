@@ -16,7 +16,6 @@
 # under the License.
 # pylint: disable=redefined-builtin, invalid-name
 """Operators used in TIR expression."""
-import warnings
 from typing import Any, Optional
 
 import tvm._ffi
@@ -271,11 +270,11 @@ def call_llvm_intrin(dtype, name, *args, span=None):
     else:
         llvm_id = name
     if llvm_id == 0:
-        warnings.warn(f"Unknown llvm intrinsic function {name}, falling back to 0")
+        raise ValueError(f"Unknown llvm intrinsic function {name}")
     return call_intrin(
         dtype,
         Op.get("tir.call_llvm_intrin"),
-        tvm.tir.const(llvm_id, "uint32"),
+        codegen.llvm_get_intrinsic_name(llvm_id),
         *args,
         span=span,
     )
@@ -293,7 +292,7 @@ def call_llvm_pure_intrin(dtype, name, *args, span=None):
        The name of the llvm intrinsic function.
 
     args : list
-       Poistional arguments.
+       Positional arguments.
 
     span : Optional[Span]
         The location of this operator in the source code.
@@ -313,11 +312,11 @@ def call_llvm_pure_intrin(dtype, name, *args, span=None):
     else:
         llvm_id = name
     if llvm_id == 0:
-        warnings.warn(f"Unknown llvm intrinsic function {name}, falling back to 0")
+        raise ValueError(f"Unknown llvm intrinsic function {name}")
     return call_intrin(
         dtype,
         Op.get("tir.call_llvm_pure_intrin"),
-        tvm.tir.const(llvm_id, "uint32"),
+        codegen.llvm_get_intrinsic_name(llvm_id),
         *args,
         span=span,
     )
@@ -1609,6 +1608,80 @@ def vectorcombine(dtype, vec1, vec2):
     return call_intrin(dtype, "tir.vectorcombine", vec1, vec2)
 
 
+def vectorpermute(dtype, vec, indices):
+    """Permute vector using position indices
+
+    Parameters
+    ----------
+    dtype : str
+       The data type of the result.
+
+    vec : list
+       The input vector.
+
+    indices : list
+       The list with positional indices for element permutation,
+       numbered from left to right starting with 0 as the first element.
+       The length of resulting vector is given by the length of the indices.
+
+    Returns
+    -------
+    call : PrimExpr
+        The call expression.
+    """
+    return call_intrin(dtype, "tir.vectorpermute", vec, indices)
+
+
+def vectorshuffle(dtype, vec0, vec1, indices):
+    """Shuffle two vector using position indices
+
+    Parameters
+    ----------
+    dtype : str
+       The data type of the result.
+
+    vec0 : list
+       The first input vector.
+
+    vec1 : list
+       The second input vector.
+
+    indices : list
+       The list with positional indices for element permutation,
+       numbered from left to right, starting with 0 as the first element
+       of vec0, or `len(vec0)` as the first element starting in vec1.
+       The length of resulting vector is given by the length of the indices.
+
+    Returns
+    -------
+    call : PrimExpr
+        The call expression.
+    """
+    return call_intrin(dtype, "tir.vectorshuffle", vec0, vec1, indices)
+
+
+def atomic_add(dtype, vec0, vec1):
+    """Atomic add instruction.
+
+    Parameters
+    ----------
+    vec0 : list
+       The input vector.
+
+    Parameters
+    ----------
+    vec1 : list
+       The input vector.
+
+    Returns
+    -------
+    call : PrimExpr
+        The call expression.
+    """
+    assert vec0.dtype == vec1.dtype == dtype
+    return call_intrin(dtype, "tir.atomic_add", vec0, vec1)
+
+
 def ret(val):
     """Create a tir return expression
 
@@ -1775,7 +1848,7 @@ def infinity(dtype: str, span: Optional[Span] = None) -> Any:
 
 
 def reinterpret(dtype, value) -> Any:
-    """infinity value of dtype
+    """Reinterpret of the value
 
     Parameters
     ----------
@@ -1791,9 +1864,75 @@ def reinterpret(dtype, value) -> Any:
     Returns
     -------
     value : tvm.Expr
-        The reinterpret cast value of dtype.
+        The reinterpret value of dtype.
     """
     return call_intrin(dtype, "tir.reinterpret", value)
+
+
+def zextend(dtype, value) -> Any:
+    """Zero extend the value
+
+    Parameters
+    ----------
+    dtype : str
+        The target data type.
+
+    value : PrimExpr
+        The input value.
+
+    span : Optional[Span]
+        The location of this operator in the source code.
+
+    Returns
+    -------
+    value : tvm.Expr
+        The zero extend value of dtype.
+    """
+    return call_intrin(dtype, "tir.zextend", value)
+
+
+def sextend(dtype, value) -> Any:
+    """Sign extend the value
+
+    Parameters
+    ----------
+    dtype : str
+        The target data type.
+
+    value : PrimExpr
+        The input value.
+
+    span : Optional[Span]
+        The location of this operator in the source code.
+
+    Returns
+    -------
+    value : tvm.Expr
+        The sign extend value of dtype.
+    """
+    return call_intrin(dtype, "tir.sextend", value)
+
+
+def truncate(dtype, value) -> Any:
+    """Truncate the value
+
+    Parameters
+    ----------
+    dtype : str
+        The target data type.
+
+    value : PrimExpr
+        The input value.
+
+    span : Optional[Span]
+        The location of this operator in the source code.
+
+    Returns
+    -------
+    value : tvm.Expr
+        The truncated value of dtype.
+    """
+    return call_intrin(dtype, "tir.truncate", value)
 
 
 def exp(x):

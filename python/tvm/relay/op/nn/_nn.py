@@ -80,7 +80,7 @@ def legalize_dense(attrs, inputs, types):
     Parameters
     ----------
     attrs : tvm.ir.Attrs
-        Attributes of current convolution
+        Attributes of current dense operation
     inputs : list of tvm.relay.Expr
         The args of the Relay expr to be legalized
     types : list of types

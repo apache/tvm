@@ -24,6 +24,7 @@ import tvm
 from tvm import te
 from tvm import relay
 from tvm import autotvm
+from tvm.target.x86 import get_x86_simd_32bit_lanes
 from .conv2d import _get_default_config
 from .conv2d_int8 import is_int8_hw_support, _get_default_config_int8
 from ..utils import get_const_tuple
@@ -148,6 +149,7 @@ def _alter_conv2d_layout(attrs, inputs, tinfos, out_type):
     if topi_tmpl == "conv2d_NCHWc_int8.x86":
         # TODO(@icemelon9, @anijain2305): Need to support data layout NHWC with kernel layout HWIO
         assert data_layout == "NCHW" and kernel_layout == "OIHW"
+        vec_width = get_x86_simd_32bit_lanes() if get_x86_simd_32bit_lanes() else 16
         if cfg.is_fallback:
             _get_default_config_int8(
                 cfg,
@@ -159,7 +161,7 @@ def _alter_conv2d_layout(attrs, inputs, tinfos, out_type):
                 out_dtype,
                 False,
                 data_layout,
-                int32_lanes=16,
+                int32_lanes=vec_width,
             )
 
         batch_size, in_channel, height, width = get_const_tuple(data_tensor.shape)
@@ -282,11 +284,13 @@ def _conv2d_legalize(attrs, inputs, arg_types):
     # Collect the input exprs.
     data, kernel = inputs
 
-    # Intel vector intructions require data and kernel to have different dtypes.
+    vec_width = get_x86_simd_32bit_lanes() if get_x86_simd_32bit_lanes() else 16
+
+    # x86 vector intructions require data as uint8 and kernel as int8.
     if data_tensor.dtype == "int8" and kernel_tensor.dtype == "int8":
         data_dtype = "uint8"
     if is_int8_hw_support(data_dtype, kernel_dtype):
         return conv2d_alter_int8_common(
-            data, data_tensor, kernel, kernel_tensor, output_tensor, attrs, data_dtype, 4, 16
+            data, data_tensor, kernel, kernel_tensor, output_tensor, attrs, data_dtype, 4, vec_width
         )
     return None

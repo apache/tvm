@@ -19,8 +19,8 @@ from .._ffi import register_func
 from .codegen import target_has_features
 
 
-@register_func("tvm.topi.x86.utils.get_simd_32bit_lanes")
-def get_simd_32bit_lanes():
+@register_func("tvm.topi.x86.utils.get_x86_simd_32bit_lanes")
+def get_x86_simd_32bit_lanes():
     """X86 SIMD optimal vector length lookup.
     Parameters
     ----------
@@ -29,9 +29,13 @@ def get_simd_32bit_lanes():
      vec_len : int
         The optimal vector length of CPU from the global context target.
     """
-    vec_len = 4
-    if target_has_features(["avx512bw", "avx512f"]):
+    vec_len = None
+    if target_has_features("avx512vnni") or target_has_features("avxvnni"):
+        vec_len = 16
+    elif target_has_features(["avx512bw", "avx512f"]):
         vec_len = 16
     elif target_has_features("avx2"):
         vec_len = 8
+    elif target_has_features("ssse3"):
+        vec_len = 4
     return vec_len

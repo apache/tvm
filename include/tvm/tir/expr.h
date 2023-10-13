@@ -82,6 +82,39 @@ class StringImm : public PrimExpr {
   TVM_DEFINE_OBJECT_REF_COW_METHOD(StringImmNode);
 };
 
+/*! \brief Array of integer constants */
+class ArrayIntImmNode : public PrimExprNode {
+ public:
+  /*! \brief The constant value content. */
+  Array<Integer> data;
+
+  void VisitAttrs(AttrVisitor* v) {
+    v->Visit("dtype", &dtype);
+    v->Visit("data", &data);
+    v->Visit("span", &span);
+  }
+
+  bool SEqualReduce(const ArrayIntImmNode* other, SEqualReducer equal) const {
+    return equal(data, other->data);
+  }
+
+  void SHashReduce(SHashReducer hash_reduce) const { hash_reduce(data); }
+
+  static constexpr const char* _type_key = "tir.ArrayIntImm";
+  TVM_DECLARE_FINAL_OBJECT_INFO(ArrayIntImmNode, PrimExprNode);
+};
+
+/*!
+ * \brief Managed reference to ArrayIntImmNode.
+ * \sa ArrayIntImmNode
+ */
+class ArrayIntImm : public PrimExpr {
+ public:
+  TVM_DLL ArrayIntImm(Array<Integer> data, Span span = Span());
+  TVM_DEFINE_OBJECT_REF_METHODS(ArrayIntImm, PrimExpr, ArrayIntImmNode);
+  TVM_DEFINE_OBJECT_REF_COW_METHOD(ArrayIntImmNode);
+};
+
 /*!
  * \brief Cast value from one data type to another.
  * \note The lanes of value should keep fixed.

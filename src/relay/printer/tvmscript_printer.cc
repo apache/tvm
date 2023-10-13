@@ -240,6 +240,7 @@ class TVMScriptPrinter : public StmtFunctor<Doc(const Stmt&)>,
   Doc VisitExpr_(const IntImmNode* op, ExprPrecedence* out_precedence) override;
   Doc VisitExpr_(const FloatImmNode* op, ExprPrecedence* out_precedence) override;
   Doc VisitExpr_(const StringImmNode* op, ExprPrecedence* out_precedence) override;
+  Doc VisitExpr_(const ArrayIntImmNode* op, ExprPrecedence* out_precedence) override;
   Doc VisitExpr_(const ProducerLoadNode* op, ExprPrecedence* out_precedence) override;
   Doc VisitExpr_(const BufferLoadNode* op, ExprPrecedence* out_precedence) override;
   Doc VisitExpr_(const RampNode* op, ExprPrecedence* out_precedence) override;
@@ -782,6 +783,19 @@ Doc TVMScriptPrinter::VisitExpr_(const FloatImmNode* op, ExprPrecedence* out_pre
 Doc TVMScriptPrinter::VisitExpr_(const StringImmNode* op, ExprPrecedence* out_precedence) {
   *out_precedence = ExprPrecedence::kIdentity;
   return Doc::StrLiteral(op->value);
+}
+
+Doc TVMScriptPrinter::VisitExpr_(const ArrayIntImmNode* op, ExprPrecedence* out_precedence) {
+  Doc doc;
+  doc << "[";
+  for (size_t i = 0; i < op->data.size(); ++i) {
+    doc << Print(op->data[i]);
+    if (i < op->data.size() - 1) {
+      doc << ", ";
+    }
+  }
+  doc << "]";
+  return doc;
 }
 
 Doc TVMScriptPrinter::VisitExpr_(const CastNode* op, ExprPrecedence* out_precedence) {
@@ -1559,7 +1573,7 @@ Doc TVMScriptPrinter::VisitStmt_(const BlockRealizeNode* op) {
 }
 
 Doc TVMScriptPrinter::PrintBody(const Stmt& body) {
-  int memo_num_child, memo_current_num;
+  int memo_num_child = 0, memo_current_num = 0;
   std::swap(memo_num_child, num_child_);
   std::swap(memo_current_num, current_num_);
 

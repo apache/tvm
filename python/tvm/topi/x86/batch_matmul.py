@@ -22,6 +22,7 @@ from tvm import autotvm, te
 from tvm.autotvm.task.space import SplitEntity
 from tvm.contrib import cblas, mkl
 from tvm.target.codegen import target_has_features
+from tvm.target.x86 import get_x86_simd_32bit_lanes
 
 from .. import generic, nn
 from ..transform import layout_transform
@@ -32,13 +33,20 @@ from .injective import schedule_injective_from_existing
 
 @autotvm.register_topi_compute("batch_matmul_int8.x86")
 def batch_matmul_int8_compute(cfg, x, y, *_):
-    """Compute for uint8 x int8 -> int32 batch_matmul"""
+    """Compute for (u)int8 x (u)int8 -> int32 batch_matmul"""
     batch, m, k = x.shape
-    packed_y_layout = "BNK16n4k"
+    vec_width = get_x86_simd_32bit_lanes() if get_x86_simd_32bit_lanes() else 16
+    packed_y_layout = f"BNK{vec_width}n4k"
     packed_y = layout_transform(y, "BNK", packed_y_layout)
     _, n_o, _, n_i, _ = packed_y.shape
     ak = te.reduce_axis((0, k), name="k")
-    if target_has_features(["avx512bw", "avx512f"]):
+    if (
+        target_has_features(["avx512bw", "avx512f"])
+        or target_has_features("avx512vnni")
+        or target_has_features("avxvnni")
+        or target_has_features("avx2")
+        or target_has_features("ssse3")
+    ):
         attrs_info = {"schedule_rule": "batch_matmul_int8"}
     else:
         attrs_info = None
@@ -47,9 +55,9 @@ def batch_matmul_int8_compute(cfg, x, y, *_):
         (batch, m, n_o * n_i),
         lambda b, i, j: te.sum(
             x[b, i, ak].astype("int32")
-            * packed_y[b, tvm.tir.indexdiv(j, 16), tvm.tir.indexdiv(ak, 4), j % 16, ak % 4].astype(
-                "int32"
-            ),
+            * packed_y[
+                b, tvm.tir.indexdiv(j, vec_width), tvm.tir.indexdiv(ak, 4), j % vec_width, ak % 4
+            ].astype("int32"),
             axis=ak,
         ),
         tag="batch_matmul_int8",
@@ -222,7 +230,8 @@ def schedule_batch_matmul(cfg, outs):
             _, _, y, x = s[Crf].op.axis
             s[Crf].fuse(y, x)
             s[Crf].vectorize(s[Crf].op.axis[0])
-            s[O].pragma(bxyo, "auto_unroll_max_step", 16)
+            vec_width = get_x86_simd_32bit_lanes() if get_x86_simd_32bit_lanes() else 16
+            s[O].pragma(bxyo, "auto_unroll_max_step", vec_width)
 
     traverse_inline(s, outs[0].op, _callback)
     return s
@@ -238,7 +247,13 @@ def schedule_batch_matmul_int8(cfg, outs):
             layout_trans = op.input_tensors[1]
             if target_has_features("amx-int8"):
                 batch_matmul_amx_schedule(cfg, s, op.output(0), outs[0], layout_trans)
-            elif target_has_features(["avx512bw", "avx512f"]):
+            elif (
+                target_has_features(["avx512bw", "avx512f"])
+                or target_has_features("avxvnni")
+                or target_has_features("avx512vnni")
+                or target_has_features("avx2")
+                or target_has_features("ssse3")
+            ):
                 batch_matmul_int8_schedule(cfg, s, op.output(0), outs[0], layout_trans)
 
     traverse_inline(s, outs[0].op, _callback)
@@ -246,7 +261,8 @@ def schedule_batch_matmul_int8(cfg, outs):
 
 
 def _default_batch_matmul_config(cfg, M, N, K):
-    cfg["tile_k"] = SplitEntity([K // 16, 16])
+    vec_width = get_x86_simd_32bit_lanes() if get_x86_simd_32bit_lanes() else 16
+    cfg["tile_k"] = SplitEntity([K // vec_width, vec_width])
     x_bn = get_max_power2_factor(N, 8)
     cfg["tile_x"] = SplitEntity([N // x_bn, x_bn])
     y_bn = get_max_power2_factor(M, 8)

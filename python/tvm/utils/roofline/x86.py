@@ -62,7 +62,8 @@ def _detect_vec_width_registers(
             and target.keys[0] == "cpu"
         ):
             with target:
-                vec_width = x86.get_simd_32bit_lanes() * 4  # in number of bytes
+                simd_width = x86.get_x86_simd_32bit_lanes() if x86.get_x86_simd_32bit_lanes() else 4
+                vec_width = simd_width * 4  # in number of bytes
         else:
             raise RuntimeError(f"Cannot determine vector width for target {target}")
     if num_vector_registers is None:

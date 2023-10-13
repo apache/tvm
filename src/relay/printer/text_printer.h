@@ -190,6 +190,7 @@ class RelayTextPrinter : public ExprFunctor<Doc(const Expr&)>,
   Doc VisitAttr_(const tir::IntImmNode* op) final;
   Doc VisitAttr_(const tir::FloatImmNode* op) final;
   Doc VisitAttr_(const tir::StringImmNode* op) final;
+  Doc VisitAttr_(const tir::ArrayIntImmNode* op) final;
 
  private:
   /*! \brief Whether to print meta data. */
@@ -242,7 +243,7 @@ class MetaCollector : public StmtExprVisitor {
   void Collect(const ObjectRef& n) {
     // these nodes can be print directly(StringLiteral or use identifier to identify)
     if (!n.defined() || n.as<StringImmNode>() || n.as<StringObj>() || n.as<SizeVarNode>() ||
-        n.as<VarNode>() || n.as<BufferNode>() || n.as<IterVarNode>()) {
+        n.as<VarNode>() || n.as<BufferNode>() || n.as<IterVarNode>() || n.as<ArrayIntImmNode>()) {
       return;
     }
     if (n->IsInstance<StmtNode>()) {
@@ -290,6 +291,7 @@ class TIRTextPrinter : public StmtFunctor<Doc(const Stmt&)>,
   Doc VisitExpr_(const IntImmNode* op) override;
   Doc VisitExpr_(const FloatImmNode* op) override;
   Doc VisitExpr_(const StringImmNode* op) override;
+  Doc VisitExpr_(const ArrayIntImmNode* op) override;
   Doc VisitExpr_(const CastNode* op) override;
   Doc VisitExpr_(const tir::VarNode* op) override;
   Doc VisitExpr_(const AddNode* op) override;

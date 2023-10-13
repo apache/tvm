@@ -1320,7 +1320,13 @@ void CodeGenLLVM::EmitFloat16ConversionBuiltins(bool use_float16_abi) {
 llvm::Value* CodeGenLLVM::CreateIntrinsic(const CallNode* op) {
   if (op->op.same_as(builtin_call_llvm_intrin_) || op->op.same_as(builtin_call_llvm_pure_intrin_)) {
     ICHECK_GE(op->args.size(), 2U);
-    llvm::Intrinsic::ID id = static_cast<llvm::Intrinsic::ID>(Downcast<IntImm>(op->args[0])->value);
+    llvm::Intrinsic::ID id = 0;
+    if (op->args[0]->IsInstance<StringImmNode>()) {
+      id = llvm::Function::lookupIntrinsicID(Downcast<StringImm>(op->args[0])->value.c_str());
+    } else if (op->args[0]->IsInstance<IntImmNode>()) {
+      id = static_cast<llvm::Intrinsic::ID>(Downcast<IntImm>(op->args[0])->value);
+    }
+    assert(id != 0);
     int64_t num_signature = Downcast<IntImm>(op->args[1])->value;
     std::vector<llvm::Value*> arg_value;
     std::vector<llvm::Type*> arg_type;
@@ -1441,6 +1447,15 @@ llvm::Value* CodeGenLLVM::CreateIntrinsic(const CallNode* op) {
   } else if (op->op.same_as(builtin::reinterpret())) {
     llvm::Type* target = DTypeToLLVMType(op->dtype);
     return builder_->CreateBitCast(MakeValue(op->args[0]), target);
+  } else if (op->op.same_as(builtin::zextend())) {
+    llvm::Type* target = DTypeToLLVMType(op->dtype);
+    return builder_->CreateZExt(MakeValue(op->args[0]), target);
+  } else if (op->op.same_as(builtin::sextend())) {
+    llvm::Type* target = DTypeToLLVMType(op->dtype);
+    return builder_->CreateSExt(MakeValue(op->args[0]), target);
+  } else if (op->op.same_as(builtin::truncate())) {
+    llvm::Type* target = DTypeToLLVMType(op->dtype);
+    return builder_->CreateTrunc(MakeValue(op->args[0]), target);
   } else if (op->op.same_as(builtin::isnan())) {
     // TODO(hgt312): set fast math flag
     llvm::Value* a = MakeValue(op->args[0]);
@@ -1466,9 +1481,39 @@ llvm::Value* CodeGenLLVM::CreateIntrinsic(const CallNode* op) {
       indices.push_back(i);
     }
     return builder_->CreateShuffleVector(v0, v1, indices);
+  } else if (op->op.same_as(builtin::vectorpermute())) {
+    llvm::Value* vec = MakeValue(op->args[0]);
+    const ArrayIntImmNode* ind = op->args[1].as<ArrayIntImmNode>();
+#if TVM_LLVM_VERSION >= 110
+    std::vector<int> indices;
+#else
+    std::vector<unsigned> indices;
+#endif
+    for (size_t i = 0; i < ind->data.size(); ++i) {
+      indices.push_back(ind->data[i].IntValue());
+    }
+#if TVM_LLVM_VERSION >= 120
+    return builder_->CreateShuffleVector(vec, indices);
+#else
+    return builder_->CreateShuffleVector(vec, vec, indices);
+#endif
+  } else if (op->op.same_as(builtin::vectorshuffle())) {
+    llvm::Value* vec0 = MakeValue(op->args[0]);
+    llvm::Value* vec1 = MakeValue(op->args[1]);
+    const ArrayIntImmNode* ind = op->args[2].as<ArrayIntImmNode>();
+#if TVM_LLVM_VERSION >= 110
+    std::vector<int> indices;
+#else
+    std::vector<unsigned> indices;
+#endif
+    for (size_t i = 0; i < ind->data.size(); ++i) {
+      indices.push_back(ind->data[i].IntValue());
+    }
+    return builder_->CreateShuffleVector(vec0, vec1, indices);
   } else if (op->op.same_as(builtin::atomic_add())) {
-    // TODO(masahi): Support atomic for CPU backend
-    LOG(FATAL) << "CPU backend does not support atomic add yet.";
+    llvm::Value* v0 = MakeValue(op->args[0]);
+    llvm::Value* v1 = MakeValue(op->args[1]);
+    return builder_->CreateAdd(v0, v1);
   } else if (op->op.same_as(builtin::start_profile_intrinsic()) ||
              op->op.same_as(builtin::end_profile_intrinsic())) {
     LOG(INFO) << "Ignoring profile_intrinsic ... " << op->op;
@@ -1837,7 +1882,7 @@ llvm::Value* CodeGenLLVM::VisitExpr_(const ShuffleNode* op) {
   std::vector<uint32_t> idx(op->indices.size());
   for (int i = 0, e = op->indices.size(); i < e; ++i) {
     const int64_t* val = as_const_int(op->indices[i]);
-    ICHECK(val && *val >= 0 && *val < total_lanes) << "Shuffled indeces are suppose to be int, "
+    ICHECK(val && *val >= 0 && *val < total_lanes) << "Shuffled indices are suppose to be int, "
                                                    << "but get " << op->indices[i] << "\n";
     idx[i] = *val;
   }

@@ -19,7 +19,7 @@
 from functools import partial, reduce
 
 from tvm import autotvm, te, tir
-from tvm.target.x86 import get_simd_32bit_lanes
+from tvm.target.x86 import get_x86_simd_32bit_lanes
 
 from ..transform import reshape
 from ..utils import get_const_int, traverse_inline
@@ -30,7 +30,7 @@ def schedule_sparse_dense(outs):
     s = te.create_schedule([x.op for x in outs])
 
     def _callback(op):
-        simd_width = get_simd_32bit_lanes()
+        simd_width = get_x86_simd_32bit_lanes() if get_x86_simd_32bit_lanes() else 4
         if op.tag == "sparse_dense_sp_lhs_csrmm" or op.tag == "sparse_dense_sp_lhs_csrmm":
             (y_o, y_i) = s[op].split(s[op].op.axis[1], 2)
             fused = s[op].fuse(s[op].op.axis[0], y_o)

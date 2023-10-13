@@ -602,6 +602,36 @@ class StringImm(ConstExpr):
         return PrimExpr.__hash__(self)
 
 
+@tvm._ffi.register_object("tir.ArrayIntImm")  # type: ignore
+class ArrayIntImm(ConstExpr):
+    """Array of integer constants.
+
+    Parameters
+    ----------
+    data : list
+        The list with values of the function.
+
+    span : Optional[Span]
+        The location of this itervar in the source code.
+    """
+
+    def __init__(self, data, span=None):
+        self.__init_handle_by_constructor__(_ffi_api.ArrayIntImm, data, span)  # type: ignore
+
+    def __eq__(self, other):
+        if isinstance(other, ConstExpr):
+            return str(self.data) == str(other.data)
+        return str(self.data) == str(other)
+
+    def __ne__(self, other):
+        if isinstance(other, ConstExpr):
+            return str(self.data) != str(other.data)
+        return str(self.data) != str(other)
+
+    def __hash__(self):
+        return PrimExpr.__hash__(self)
+
+
 @tvm._ffi.register_object("tir.Cast")
 class Cast(PrimExprWithOp):
     """Cast expression.

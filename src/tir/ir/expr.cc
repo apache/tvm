@@ -187,6 +187,21 @@ TVM_REGISTER_GLOBAL("tir.StringImm").set_body_typed([](String value, Span span) 
 
 TVM_REGISTER_NODE_TYPE(StringImmNode);
 
+// ArrayIntImm
+ArrayIntImm::ArrayIntImm(Array<Integer> data, Span span) {
+  ObjectPtr<ArrayIntImmNode> node = make_object<ArrayIntImmNode>();
+  node->dtype = DataType::Handle();
+  node->data = std::move(data);
+  node->span = std::move(span);
+  data_ = std::move(node);
+}
+
+TVM_REGISTER_GLOBAL("tir.ArrayIntImm").set_body_typed([](Array<Integer> data, Span span) {
+  return ArrayIntImm(data, span);
+});
+
+TVM_REGISTER_NODE_TYPE(ArrayIntImmNode);
+
 // Cast
 Cast::Cast(DataType t, PrimExpr value, Span span) {
   ICHECK(value.defined());
@@ -511,11 +526,18 @@ TVM_REGISTER_GLOBAL("tir.Call")
     .set_body_typed([](DataType type, RelayExpr op, Array<ObjectRef> args, Span span) {
       Array<PrimExpr> prim_expr_args;
       for (const auto& it : args) {
-        ICHECK(it->IsInstance<runtime::StringObj>() || it->IsInstance<PrimExprNode>() ||
-               it->IsInstance<IterVarNode>() || it->IsInstance<BufferRegionNode>())
+        ICHECK(it->IsInstance<runtime::StringObj>() || it->IsInstance<runtime::ArrayNode>() ||
+               it->IsInstance<PrimExprNode>() || it->IsInstance<IterVarNode>() ||
+               it->IsInstance<BufferRegionNode>())
             << "Argument " << it << " is not a string or primexpr";
         if (const auto* str = it.as<runtime::StringObj>()) {
           prim_expr_args.push_back(StringImm(str->data));
+        } else if (const auto* arr = it.as<runtime::ArrayNode>()) {
+          Array<Integer> indices;
+          for (size_t i = 0; i < arr->size(); ++i) {
+            indices.push_back(arr->at(i).as<IntImmNode>()->value);
+          }
+          prim_expr_args.push_back(ArrayIntImm(indices));
         } else if (const auto* iter_var = it.as<IterVarNode>()) {
           prim_expr_args.push_back(iter_var->var);
         } else if (const auto* br = it.as<BufferRegionNode>()) {

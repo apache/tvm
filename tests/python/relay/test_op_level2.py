@@ -29,6 +29,7 @@ from tvm.ir.module import IRModule
 from tvm.relay import transform
 from tvm.relay.testing import run_infer_type
 from tvm.topi.cuda.conv3d_winograd import _infer_tile_size
+from tvm.target import codegen
 
 executor_kind = tvm.testing.parameter("graph", "vm")
 
@@ -1672,12 +1673,15 @@ def test_upsampling3d():
 
 
 @tvm.testing.requires_x86
-@pytest.mark.skipif(tvm.target.codegen.llvm_version_major() < 8, reason="Requires LLVM 8")
+@pytest.mark.skipif(codegen.llvm_version_major() < 8, reason="Requires LLVM 8")
 class TestConv2DInt8Intrinsics:
     supported_targets = [
         "llvm -mcpu=nehalem",
+        "llvm -mcpu=nehalem -keys=cpu,fast-math",
         "llvm -mcpu=core-avx2",
+        "llvm -mcpu=core-avx2 -keys=cpu,fast-math",
         "llvm -mcpu=skylake-avx512",
+        "llvm -mcpu=skylake-avx512 -keys=cpu,fast-math",
         "llvm -mcpu=cascadelake",
     ]
 
@@ -1708,16 +1712,33 @@ class TestConv2DInt8Intrinsics:
     )
 
     @tvm.testing.fixture
-    def fast_int8_intrinsic(self, target):
-        if "nehalem" in target or "core-avx2" in target or "skylake-avx512" in target:
-            return "pmaddubs"
-        elif "cascadelake" in target:
-            return "vpdpbusd"
-        else:
-            assert False, "Target should be Nehalem or core-avx2 or Skylake or Cascadelake"
+    def fast_int8_intrinsics(self, target):
+        code = ["throw-error"]
+        with tvm.target.Target(target):
+            if codegen.llvm_cpu_has_features("avxvnni") or codegen.llvm_cpu_has_features(
+                "avx512vnni"
+            ):
+                code = ["avx512.vpdpbusd"]
+            elif codegen.llvm_cpu_has_features(["avx512bw", "avx512f"]):
+                if "fast-math" in target:
+                    code = ["avx512.pmaddubs.w", "avx512.pmaddw.d"]
+                else:
+                    code = ["avx512.pmaddw.d"]
+            elif codegen.llvm_cpu_has_features("avx2"):
+                if "fast-math" in target:
+                    code = ["avx2.pmadd.ub.sw", "avx2.pmadd.wd"]
+                else:
+                    code = ["avx2.pmadd.wd", "avx2.phadd.d"]
+            elif codegen.llvm_cpu_has_features("ssse3"):
+                if "fast-math" in target:
+                    code = ["ssse3.pmadd.ub.sw", "sse2.pmadd"]
+                else:
+                    code = ["sse2.pmadd", "ssse3.phadd.d"]
+
+        return code
 
     @tvm.testing.fixture
-    def assembly(
+    def irllvm(
         self,
         target,
         dtypes,
@@ -1770,15 +1791,15 @@ class TestConv2DInt8Intrinsics:
         with tvm.transform.PassContext(opt_level=3):
             graph, lib, params = relay.build(func, target, params=parameters)
 
-        return lib.get_source("asm")
+        return lib.get_source()
 
     # Ensure that code uses the fast int8 instructions when available.
     @tvm.testing.parametrize_targets(*supported_targets)
     @pytest.mark.parametrize(
         "dtypes",
         [
-            # compile conv2d for x86 (skylake, cascadelake) and test
-            # assembly contains *pmadd* instructions
+            # compile conv2d for x86 targets
+            # check llvm ir contains expected SIMD instructions
             ("uint8", "int8", "int32"),
             # Check that int8 x int8 goes through legalization so that
             # fast instructions can be picked up.
@@ -1787,29 +1808,42 @@ class TestConv2DInt8Intrinsics:
     )
     def test_uses_intrinsic(
         self,
-        fast_int8_intrinsic,
-        assembly,
+        fast_int8_intrinsics,
+        irllvm,
     ):
-        assert fast_int8_intrinsic in assembly
+        is_present = True
+        for intrin in fast_int8_intrinsics:
+            is_present &= intrin in irllvm
+        assert is_present == True
 
     # For datatypes that don't have HW support, ensure that code is
     # generated without the fast int8 intrinsic.
     @tvm.testing.parametrize_targets(*supported_targets)
-    @pytest.mark.parametrize("dtypes", [("uint8", "uint8", "int32")])
+    @pytest.mark.parametrize(
+        "dtypes",
+        [
+            ("uint8", "uint8", "int32"),
+        ],
+    )
     def test_no_intrinsic(
         self,
-        fast_int8_intrinsic,
-        assembly,
+        fast_int8_intrinsics,
+        irllvm,
     ):
-        assert fast_int8_intrinsic not in assembly
+        is_present = True
+        for intrin in fast_int8_intrinsics:
+            is_present &= intrin in irllvm
+        assert is_present == False
 
     # Check that a vectorized instruction is generated for older Intel
     # generations, because we default to NCHWc layout.
     @tvm.testing.parametrize_targets(*unsupported_targets)
     @pytest.mark.parametrize("dtypes", [("uint8", "int8", "int32")])
-    def test_uses_vectorized_instruction(self, assembly):
-        assert "pmulhw" in assembly or "pmaddwd" in assembly
-        assert "paddd" in assembly
+    def test_uses_vectorized_instruction(self, irllvm):
+        assert "mul nsw" in irllvm
+        assert "pmadd" not in irllvm
+        assert "phadd" not in irllvm
+        assert "vpdpbusd" not in irllvm
 
 
 @tvm.testing.uses_gpu
@@ -2159,15 +2193,15 @@ def test_conv2d_nhwc_dnnl():
             np.testing.assert_allclose(out, ref, rtol=1e-5, atol=1e-5)
 
 
-def _test_conv2d_int8_alter_dtype(data_dtype, target, dot_product_instrs):
+def _test_conv2d_int8(I, O, H, W, kHW, S, P, target, dot_product_instrs):
     def get_conv2d_nchw(
         d_shape,
         w_shape,
         data_dtype,
     ):
         out_dtype = "int32"
-        strides = (1, 1)
-        padding = (1, 1)
+        strides = S
+        padding = P
         data = relay.var("data", shape=d_shape, dtype=data_dtype)
         weight = relay.var("weight", shape=w_shape, dtype="int8")
         out_channel = w_shape[0]
@@ -2181,72 +2215,97 @@ def _test_conv2d_int8_alter_dtype(data_dtype, target, dot_product_instrs):
             out_dtype=out_dtype,
         )
 
-    I, O, H, W = 64, 64, 56, 56
-    kH = kW = 3
+    kH, kW = kHW
 
     data_shape = (1, I, H, W)
     weight_shape = (O, I, kH, kW)
     bias_shape = (1, weight_shape[0], 1, 1)
 
-    bias = relay.var("bias", shape=bias_shape, dtype="int32")
-    bias_np = np.random.randint(low=-127, high=128, size=bias_shape).astype("int32")
-    weight_np = np.random.uniform(-32, 32, size=weight_shape).astype("int8")
+    for data_dtype in ["uint8", "int8"]:
 
-    conv2d = get_conv2d_nchw(data_shape, weight_shape, data_dtype)
-    bias_add = relay.add(conv2d, bias)
-    mod = tvm.IRModule.from_expr(bias_add)
+        bias = relay.var("bias", shape=bias_shape, dtype="int32")
+        conv2d = get_conv2d_nchw(data_shape, weight_shape, data_dtype)
+        bias_add = relay.add(conv2d, bias)
+        mod = tvm.IRModule.from_expr(bias_add)
 
-    if data_dtype == "uint8":
-        data_np = np.random.uniform(0, 64, size=data_shape).astype("uint8")
-    else:
-        data_np = np.random.uniform(-32, 32, size=data_shape).astype("int8")
+        if "fast-math" in target:
+            if data_dtype == "int8":
+                data_np = np.random.randint(low=0, high=127, size=data_shape).astype(data_dtype)
+            else:
+                data_np = np.random.randint(low=-63, high=63, size=data_shape).astype(data_dtype)
+            weight_np = np.random.randint(low=-63, high=63, size=weight_shape).astype("int8")
+        else:
+            if data_dtype == "int8":
+                data_np = np.random.randint(low=-128, high=-127, size=data_shape).astype(data_dtype)
+            else:
+                data_np = np.random.randint(low=0, high=255, size=data_shape).astype(data_dtype)
+            weight_np = np.random.randint(low=-128, high=127, size=weight_shape).astype("int8")
+        bias_np = np.random.randint(low=-65535, high=65535, size=bias_shape).astype("int32")
 
-    params = {"weight": weight_np, "bias": bias_np}
+        params = {"weight": weight_np, "bias": bias_np}
 
-    ref = (
-        relay.create_executor("graph", mod=mod, device=tvm.cpu(0), target="llvm")
-        .evaluate()(*[data_np, weight_np, bias_np])
-        .numpy()
-    )
+        ref = (
+            relay.create_executor("graph", mod=mod, device=tvm.cpu(0), target="llvm")
+            .evaluate()(*[data_np, weight_np, bias_np])
+            .numpy()
+        )
 
-    dev = tvm.cpu(0)
+        with tvm.transform.PassContext(opt_level=3):
+            lib = relay.build(mod, target=target, params=params)
 
-    with tvm.transform.PassContext(
-        opt_level=3,
-    ):
-        lib = relay.build(mod, target=target, params=params)
+        for dot_product_instr in dot_product_instrs:
+            assert dot_product_instr in lib.lib.get_source()
 
-    for dot_product_instr in dot_product_instrs:
-        assert dot_product_instr in lib.lib.get_source("asm")
+        dev = tvm.cpu(0)
+        rt_mod = tvm.contrib.graph_executor.GraphModule(lib["default"](dev))
+        rt_mod.set_input("data", data_np)
+        rt_mod.run()
+        out = rt_mod.get_output(0).numpy()
 
-    rt_mod = tvm.contrib.graph_executor.GraphModule(lib["default"](dev))
-
-    rt_mod.set_input("data", data_np)
-
-    rt_mod.run()
-
-    out = rt_mod.get_output(0).numpy()
-
-    np.testing.assert_equal(out, ref)
+        np.testing.assert_equal(out, ref)
 
 
 @tvm.testing.requires_arm_dot
-def test_conv2d_int8_alter_dtype_arm():
-    _test_conv2d_int8_alter_dtype(
-        "uint8", "llvm -mtriple=aarch64-linux-gnu -mattr=+v8.2a,+dotprod", ["sdot"]
-    )
+@pytest.mark.parametrize("I,O,H,W,kHW,S,P", [(64, 64, 56, 56, (3, 3), (1, 1), (1, 1))])
+def test_conv2d_int8_arm_dot(I, O, H, W, kHW, S, P):
+    target = "llvm -mtriple=aarch64-linux-gnu -mattr=+v8.2a,+dotprod"
+    _test_conv2d_int8(I, O, H, W, kHW, S, P, target, ["sdot"])
 
 
 @tvm.testing.requires_x86_vnni
-def test_conv2d_int8_alter_dtype_vnni():
-    _test_conv2d_int8_alter_dtype("int8", "llvm -mcpu=cascadelake", ["vpdpbusd"])
+@pytest.mark.parametrize("I,O,H,W,kHW,S,P", [(64, 64, 56, 56, (3, 3), (1, 1), (1, 1))])
+def test_conv2d_int8_x86_vnni(I, O, H, W, kHW, S, P):
+    target = "llvm -mcpu=cascadelake"
+    _test_conv2d_int8(I, O, H, W, kHW, S, P, target, ["avx512.vpdpbusd"])
 
 
 @tvm.testing.requires_x86_avx512
-def test_conv2d_int8_alter_dtype_avx512():
-    _test_conv2d_int8_alter_dtype(
-        "int8", "llvm -mcpu=skylake-avx512", ["pmaddubs", "pmaddw", "vpaddd"]
+@pytest.mark.parametrize("I,O,H,W,kHW,S,P", [(64, 64, 56, 56, (3, 3), (1, 1), (1, 1))])
+def test_conv2d_int8_avx512(I, O, H, W, kHW, S, P):
+    target = "llvm -mcpu=skylake-avx512"
+    fast = " -keys=cpu,fast-math"
+    _test_conv2d_int8(I, O, H, W, kHW, S, P, target, ["avx512.pmaddw.d"])
+    _test_conv2d_int8(
+        I, O, H, W, kHW, S, P, target + fast, ["avx512.pmaddubs.w", "avx512.pmaddw.d"]
     )
+
+
+@tvm.testing.requires_x86
+@pytest.mark.parametrize("I,O,H,W,kHW,S,P", [(64, 64, 56, 56, (3, 3), (1, 1), (1, 1))])
+def test_conv2d_int8_x86_avx2(I, O, H, W, kHW, S, P):
+    target = "llvm -mcpu=haswell"
+    fast = " -keys=cpu,fast-math"
+    _test_conv2d_int8(I, O, H, W, kHW, S, P, target, ["avx2.pmadd.wd", "avx2.phadd.d"])
+    _test_conv2d_int8(I, O, H, W, kHW, S, P, target + fast, ["avx2.pmadd.ub.sw", "avx2.pmadd.wd"])
+
+
+@tvm.testing.requires_x86
+@pytest.mark.parametrize("I,O,H,W,kHW,S,P", [(64, 64, 56, 56, (3, 3), (1, 1), (1, 1))])
+def test_conv2d_int8_x86_ssse3(I, O, H, W, kHW, S, P):
+    target = "llvm -mcpu=ivybridge"
+    fast = " -keys=cpu,fast-math"
+    _test_conv2d_int8(I, O, H, W, kHW, S, P, target, ["sse2.pmadd", "ssse3.phadd.d"])
+    _test_conv2d_int8(I, O, H, W, kHW, S, P, target + fast, ["ssse3.pmadd.ub.sw", "sse2.pmadd"])
 
 
 if __name__ == "__main__":

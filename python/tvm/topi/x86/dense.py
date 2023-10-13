@@ -23,7 +23,7 @@ import tvm
 from tvm import autotvm, te
 from tvm.autotvm.task.space import SplitEntity
 from tvm.contrib import cblas, dnnl, mkl
-from tvm.target.x86 import get_simd_32bit_lanes
+from tvm.target.x86 import get_x86_simd_32bit_lanes
 from tvm.target.codegen import target_has_features
 
 from .. import generic, tag
@@ -111,7 +111,7 @@ def _default_dense_pack_config(cfg, M, N, K):
     if isinstance(K, (tvm.tir.Var, tvm.tir.Any)):
         K = 16
 
-    vec_width = get_simd_32bit_lanes()
+    vec_width = get_x86_simd_32bit_lanes() if get_x86_simd_32bit_lanes() else 4
     tilex_ii = 1
     for bn in range(vec_width * 2, 0, -1):
         if N % bn == 0:
@@ -149,7 +149,7 @@ def _default_dense_nopack_config(cfg, M, N, K):
     if isinstance(K, (tvm.tir.Var, tvm.tir.Any)):
         K = 16
 
-    vec_width = get_simd_32bit_lanes()
+    vec_width = get_x86_simd_32bit_lanes() if get_x86_simd_32bit_lanes() else 4
     tilek_bn = 1
     for bn in range(vec_width * 2, 0, -1):
         if K % bn == 0:
@@ -291,20 +291,27 @@ def dense_int8(cfg, data, weight, bias=None, out_dtype=None):
     assert len(weight.shape) == 4
     assert data.dtype == "uint8" and weight.dtype == "int8"
     _, _, n_inner, k_inner = get_const_tuple(weight.shape)  # out_dim
-    assert n_inner == 16 and k_inner == 4
+    simd_lanes = get_x86_simd_32bit_lanes() if get_x86_simd_32bit_lanes() else 16
+    assert n_inner == simd_lanes and k_inner == 4
     return dense_int8_compute(cfg, data, weight, bias)
 
 
 @autotvm.register_topi_schedule("dense_int8.x86")
 def schedule_dense_int8(cfg, outs):
-    """Create a schedule for dense__int8"""
+    """Create a schedule for dense_int8"""
     s = te.create_schedule([x.op for x in outs])
 
     def _callback(op):
         if "dense_int8" in op.tag:
             if target_has_features("amx-int8"):
                 dense_amx_int8_schedule(cfg, s, op.output(0), outs[0])
-            elif target_has_features(["avx512bw", "avx512f"]):
+            elif (
+                target_has_features(["avx512bw", "avx512f"])
+                or target_has_features("avx512vnni")
+                or target_has_features("avxvnni")
+                or target_has_features("avx2")
+                or target_has_features("ssse3")
+            ):
                 dense_int8_schedule(cfg, s, op.output(0), outs[0])
 
     traverse_inline(s, outs[0].op, _callback)
@@ -316,18 +323,26 @@ def dense_int8_compute(cfg, X, packed_w, bias=None):
     m, k = X.shape
     n_o, _, n_i, _ = packed_w.shape
     ak = te.reduce_axis((0, k), name="k")
-    if target_has_features(["avx512bw", "avx512f"]):
+    if (
+        target_has_features(["avx512bw", "avx512f"])
+        or target_has_features("avx512vnni")
+        or target_has_features("avxvnni")
+        or target_has_features("avx2")
+        or target_has_features("ssse3")
+    ):
         target_attr = {"schedule_rule": "meta_schedule.x86.dense_int8"}
     else:
         target_attr = None
+
+    vec_width = get_x86_simd_32bit_lanes() if get_x86_simd_32bit_lanes() else 16
 
     C = te.compute(
         (m, n_o * n_i),
         lambda i, j: te.sum(
             X[i, ak].astype("int32")
-            * packed_w[tvm.tir.indexdiv(j, 16), tvm.tir.indexdiv(ak, 4), j % 16, ak % 4].astype(
-                "int32"
-            ),
+            * packed_w[
+                tvm.tir.indexdiv(j, vec_width), tvm.tir.indexdiv(ak, 4), j % vec_width, ak % 4
+            ].astype("int32"),
             axis=ak,
         ),
         tag="dense_int8",
@@ -341,8 +356,7 @@ def dense_int8_compute(cfg, X, packed_w, bias=None):
 
 
 def dense_int8_schedule(cfg, s, C, O, do_parallel=True):
-    """Schedule dense compute using avx512 or lower instructions
-    including VNNI vpdpbusd instruction if possible"""
+    """Schedule dense compute using x86 VNNI or AVX512, AVX2, SSSE3"""
     # C: The output of GEMM
     # O: The output of the fused op
     def split_y(out):
@@ -357,8 +371,10 @@ def dense_int8_schedule(cfg, s, C, O, do_parallel=True):
 
     (a_k,) = C.op.reduce_axis
 
+    vec_width = get_x86_simd_32bit_lanes() if get_x86_simd_32bit_lanes() else 16
+
     a_yo, a_yi = split_y(C)
-    a_xo, a_xi = s[C].split(C.op.axis[-1], factor=16)
+    a_xo, a_xi = s[C].split(C.op.axis[-1], factor=vec_width)
     a_ko, a_ki = s[C].split(a_k, factor=4)
 
     s[C].reorder(a_yo, a_xo, a_yi, a_ko, a_xi, a_ki)
@@ -370,7 +386,7 @@ def dense_int8_schedule(cfg, s, C, O, do_parallel=True):
         fused = s[O].fuse(a_yo, a_xo)
     else:
         a_yo, a_yi = split_y(O)
-        a_xo, a_xi = s[O].split(O.op.axis[-1], factor=16)
+        a_xo, a_xi = s[O].split(O.op.axis[-1], factor=vec_width)
 
         s[O].reorder(a_yo, a_xo, a_yi, a_xi)
         s[O].vectorize(a_xi)
