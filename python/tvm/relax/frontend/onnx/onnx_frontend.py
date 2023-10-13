@@ -1290,7 +1290,7 @@ class Resize(OnnxOpConverter):
         ), "Only one of scales and sizes can be provided in Resize."
 
         # Define relax implementation.
-        if roi is not None:
+        if roi is not None and not _np.array_equal(roi.data.numpy(),  _np.array([], dtype=_np.float32)):
             roi = relax.op.concat(
                 [
                     relax.op.strided_slice(roi, axes=[0], begin=[2], end=[ndims]),
