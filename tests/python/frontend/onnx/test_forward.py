@@ -5409,6 +5409,28 @@ def test_load_cumsum():
     from_onnx(create_cumsum_model())
 
 
+def test_load_trilu():
+    """test_load_trilu"""
+
+    def create_trilu_model():
+        input_shape = [2, 3, 3]
+
+        graph = helper.make_graph(
+            [
+                helper.make_node("Trilu", inputs=["x", "k"], outputs=["y"]),
+            ],
+            "trilu_graph",
+            inputs=[
+                helper.make_tensor_value_info("x", onnx.TensorProto.DOUBLE, input_shape),
+                helper.make_tensor_value_info("k", onnx.TensorProto.INT32, [1], "k"),
+            ],
+            outputs=[helper.make_tensor_value_info("y", onnx.TensorProto.DOUBLE, input_shape)],
+        )
+        return helper.make_model(graph)
+
+    from_onnx(create_trilu_model())
+
+
 @tvm.testing.parametrize_targets
 def test_cumsum(target, dev):
     """test_cumsum"""

@@ -637,6 +637,11 @@ class Trilu(OnnxOpConverter):
         x = inputs[0]
         k = inputs[1] if len(inputs) > 1 else 0
 
+        if isinstance(k, relax.Var) and k.name_hint in params:
+            k = get_constant(k,params)
+        else:
+            k = 0
+
         if upper:
             return relax.op.triu(x, k)
         else:
