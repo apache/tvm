@@ -357,7 +357,10 @@ class CodeGenVM : public ExprFunctor<Instruction::Arg(const Expr&)> {
   RegName EmitKillObject(const Call& call_node) {
     ICHECK_EQ(call_node->args.size(), 1);
     Instruction::Arg arg = this->VisitExpr(call_node->args[0]);
-    ICHECK(arg.kind() == Instruction::ArgKind::kRegister);
+    ICHECK(arg.kind() == Instruction::ArgKind::kRegister)
+        << "Expected the object to be killed to be stored in a register, "
+        << "but argument " << call_node->args[0] << " produced VM instruction of type "
+        << arg.kind();
     RegName dst_reg = arg.value();
     builder_->EmitCall("vm.builtin.null_value", {}, dst_reg);
     return dst_reg;

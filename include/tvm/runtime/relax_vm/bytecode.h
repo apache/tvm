@@ -90,6 +90,28 @@ struct Instruction {
    * \brief The kind of instruction's argument.
    */
   enum class ArgKind : int { kRegister = 0, kImmediate = 1, kConstIdx = 2, kFuncIdx = 3 };
+
+  friend std::ostream& operator<<(std::ostream& os, const ArgKind& kind) {
+    switch (kind) {
+      case ArgKind::kRegister:
+        os << "kRegister";
+        break;
+      case ArgKind::kImmediate:
+        os << "kImmediate";
+        break;
+      case ArgKind::kConstIdx:
+        os << "kConstIdx";
+        break;
+      case ArgKind::kFuncIdx:
+        os << "kFuncIdx";
+        break;
+      default:
+        LOG(FATAL) << "Internal error: "
+                   << "Invalid ArgKind with integer value " << static_cast<int>(kind);
+    }
+    return os;
+  }
+
   /*!
    * \brief The auxiliary data structure for instruction argument.
    */
