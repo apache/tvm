@@ -197,9 +197,12 @@ std::unique_ptr<llvm::Module> CloneLLVMModule(llvm::Module* mod) { return llvm::
 #if TVM_LLVM_VERSION <= 90
 constexpr auto llvm_object_file_target = llvm::TargetMachine::CGFT_ObjectFile;
 constexpr auto llvm_assembly_file_target = llvm::TargetMachine::CGFT_AssemblyFile;
-#else
+#elif TVM_LLVM_VERSION <= 170
 constexpr auto llvm_object_file_target = llvm::CGFT_ObjectFile;
 constexpr auto llvm_assembly_file_target = llvm::CGFT_AssemblyFile;
+#else
+constexpr auto llvm_object_file_target = llvm::CodeGenFileType::ObjectFile;
+constexpr auto llvm_assembly_file_target = llvm::CodeGenFileType::AssemblyFile;
 #endif
 
 bool LLVMAddPassesToEmitFile(llvm::TargetMachine* tm, llvm::legacy::PassManager* pm,
@@ -274,9 +277,12 @@ String LLVMModuleNode::GetSource(const String& format) {
 #elif TVM_LLVM_VERSION <= 90
     ICHECK(tm->addPassesToEmitFile(pass, rso, nullptr, llvm::TargetMachine::CGFT_AssemblyFile) == 0)
         << "Cannot emit target CGFT_AssemblyFile";
-#else
+#elif TVM_LLVM_VERSION <= 170
     ICHECK(tm->addPassesToEmitFile(pass, rso, nullptr, llvm::CGFT_AssemblyFile) == 0)
         << "Cannot emit target CGFT_AssemblyFile";
+#else
+    ICHECK(tm->addPassesToEmitFile(pass, rso, nullptr, llvm::CodeGenFileType::AssemblyFile) == 0)
+        << "Cannot emit target CodeGenFileType::AssemblyFile";
 #endif
     pass.run(*m);
     return rso.str().str();
@@ -383,7 +389,11 @@ void LLVMModuleNode::LazyInitJIT() {
   With<LLVMTarget> llvm_target(*llvm_instance_, LLVMTarget::GetTargetMetadata(*module_));
   llvm::EngineBuilder builder(std::move(module_owning_ptr_));
   builder.setEngineKind(llvm::EngineKind::JIT);
+#if TVM_LLVM_VERSION <= 170
   builder.setOptLevel(llvm::CodeGenOpt::Aggressive);
+#else
+  builder.setOptLevel(llvm::CodeGenOptLevel::Aggressive);
+#endif
   builder.setMCPU(llvm_target->GetCPU());
   builder.setMAttrs(llvm_target->GetTargetFeatures());
   builder.setTargetOptions(llvm_target->GetTargetOptions());

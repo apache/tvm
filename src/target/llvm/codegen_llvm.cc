@@ -429,6 +429,7 @@ void CodeGenLLVM::Optimize() {
 
   // Construct the default pass pipeline depending on the opt level.
   std::string pipeline;
+#if TVM_LLVM_VERSION <= 170
   switch (llvm_target_->GetOptLevel()) {
     case llvm::CodeGenOpt::Level::None:
       pipeline = "default<O0>";
@@ -444,6 +445,23 @@ void CodeGenLLVM::Optimize() {
       pipeline = "default<O3>";
       break;
   }
+#else
+  switch (llvm_target_->GetOptLevel()) {
+    case llvm::CodeGenOptLevel::None:
+      pipeline = "default<O0>";
+      break;
+    case llvm::CodeGenOptLevel::Less:
+      pipeline = "default<O1>";
+      break;
+    case llvm::CodeGenOptLevel::Default:
+      pipeline = "default<O2>";
+      break;
+    default:
+      // CodeGenOptLevel::Aggressive
+      pipeline = "default<O3>";
+      break;
+  }
+#endif
 
   llvm::StandardInstrumentations si(*llvm_target_->GetContext(), debug_logging, verify_each);
 #if LLVM_VERSION_MAJOR >= 17
