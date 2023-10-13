@@ -110,6 +110,25 @@ impl Conv2DAttrs {
 
 #[repr(C)]
 #[derive(Object, Debug)]
+#[ref_name = "Conv2DTransposeAttrs"]
+#[type_key = "relay.attrs.Conv2DTransposeAttrs"]
+pub struct Conv2DTransposeAttrsNode {
+    pub base: BaseAttrsNode,
+    pub channels: IndexExpr,
+    pub kernel_size: Array<IndexExpr>,
+    pub strides: Array<IndexExpr>,
+    pub padding: Array<IndexExpr>,
+    pub output_padding: Array<IndexExpr>,
+    pub dilation: Array<IndexExpr>,
+    pub groups: i32,
+    pub data_layout: TString,
+    pub kernel_layout: TString,
+    pub out_layout: TString,
+    pub out_dtype: DataType,
+}
+
+#[repr(C)]
+#[derive(Object, Debug)]
 #[ref_name = "Conv3DAttrs"]
 #[type_key = "relay.attrs.Conv3DAttrs"]
 pub struct Conv3DAttrsNode {

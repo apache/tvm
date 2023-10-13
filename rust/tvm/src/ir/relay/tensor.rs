@@ -183,7 +183,7 @@ external!{
     pub fn ones_like(data: Expr) -> Expr;
 
    #[name("relay.op._make.clip")]
-    pub fn clip(data: Expr, a_min: Expr, a_max: Expr) -> Expr; 
+    pub fn clip(data: Expr, a_min: f64, a_max: f64) -> Expr; 
 
     #[name("relay.op._make.fixed_point_multiply")]
     pub fn fixed_point_multiply(data: Expr, mulitplier: i32, shift: i32) -> Expr;
