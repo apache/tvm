@@ -114,7 +114,8 @@ def get_info(info_proto: onnx.onnx_ml_pb2.ValueInfoProto, value_dict={}) -> Tupl
     Returns
     -------
     Tuple[str, List, str, List]
-        The name, shape, type, and shape name of the ValueInfoProto.
+        The name, shape, type, and shape name of the ValueInfoProto, and the
+        value_dict.
     """
     shape = []
     shape_name = []
@@ -135,7 +136,7 @@ def get_info(info_proto: onnx.onnx_ml_pb2.ValueInfoProto, value_dict={}) -> Tupl
         dtype = get_type(info_proto.type.tensor_type.elem_type)
     else:
         dtype = None
-    return name, shape, dtype, shape_name
+    return name, shape, dtype, shape_name, value_dict
 
 
 def get_numpy(tensor_proto: onnx.onnx_ml_pb2.TensorProto) -> _np.ndarray:
@@ -2048,7 +2049,7 @@ class ONNXGraphImporter:
         for i in graph.input:
             # from onnx v0.2, GraphProto.input has type ValueInfoProto,
             #  and the name is 'i.name'
-            i_name, i_shape, d_type, i_shape_name = get_info(i, value_dict)
+            i_name, i_shape, d_type, i_shape_name, value_dict = get_info(i, value_dict)
             if i_name not in self._nodes:
                 self._num_input += 1
                 self._input_names.append(i_name)
