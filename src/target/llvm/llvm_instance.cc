@@ -94,7 +94,11 @@ namespace codegen {
 namespace {
 namespace defaults {
 static const char* cpu = "generic";
+#if TVM_LLVM_VERSION <= 170
 static const llvm::CodeGenOpt::Level opt_level = llvm::CodeGenOpt::Aggressive;
+#else
+static const llvm::CodeGenOptLevel opt_level = llvm::CodeGenOptLevel::Aggressive;
+#endif
 }  // namespace defaults
 }  // namespace
 
@@ -258,7 +262,7 @@ LLVMTargetInfo::LLVMTargetInfo(LLVMInstance& instance, const Target& target) {
   }
 
   auto maybe_level = target->GetAttr<Integer>("opt-level");
-
+#if TVM_LLVM_VERSION <= 170
   if (maybe_level.defined()) {
     int level = maybe_level.value()->value;
     if (level <= 0) {
@@ -274,6 +278,23 @@ LLVMTargetInfo::LLVMTargetInfo(LLVMInstance& instance, const Target& target) {
   } else {
     opt_level_ = defaults::opt_level;
   }
+#else
+  if (maybe_level.defined()) {
+    int level = maybe_level.value()->value;
+    if (level <= 0) {
+      opt_level_ = llvm::CodeGenOptLevel::None;
+    } else if (level == 1) {
+      opt_level_ = llvm::CodeGenOptLevel::Less;
+    } else if (level == 2) {
+      opt_level_ = llvm::CodeGenOptLevel::Default;
+    } else {
+      // level >= 3
+      opt_level_ = llvm::CodeGenOptLevel::Aggressive;
+    }
+  } else {
+    opt_level_ = defaults::opt_level;
+  }
+#endif
 
   target_options_.UseInitArray = true;
 
@@ -338,7 +359,11 @@ static llvm::TargetMachine* CreateLLVMTargetMachine(
     const llvm::Target* llvm_instance, const std::string& triple, const std::string& cpu,
     const std::string& features, const llvm::TargetOptions& target_options,
     const llvm::Reloc::Model& reloc_model, const llvm::CodeModel::Model& code_model,
+#if TVM_LLVM_VERSION <= 170
     const llvm::CodeGenOpt::Level& opt_level) {
+#else
+    const llvm::CodeGenOptLevel& opt_level) {
+#endif
   llvm::TargetMachine* tm = llvm_instance->createTargetMachine(
       triple, cpu, features, target_options, reloc_model, code_model, opt_level);
   ICHECK(tm != nullptr);
@@ -356,7 +381,11 @@ static const llvm::MCSubtargetInfo* GetLLVMSubtargetInfo(const std::string& trip
   llvm::TargetOptions target_options;
   auto tm = CreateLLVMTargetMachine(llvm_instance, triple, cpu_name, feats, target_options,
                                     llvm::Reloc::Static, llvm::CodeModel::Small,
+#if TVM_LLVM_VERSION <= 170
                                     llvm::CodeGenOpt::Level(0));
+#else
+                                    llvm::CodeGenOptLevel(0));
+#endif
   // create subtarget info module
   const llvm::MCSubtargetInfo* MCInfo = tm->getMCSubtargetInfo();
 
@@ -435,6 +464,7 @@ std::string LLVMTargetInfo::str() const {
 #endif
   }
 
+#if TVM_LLVM_VERSION <= 170
   if (opt_level_ != defaults::opt_level) {
     os << " -opt-level=";
     switch (opt_level_) {
@@ -452,6 +482,25 @@ std::string LLVMTargetInfo::str() const {
         break;
     }
   }
+#else
+  if (opt_level_ != defaults::opt_level) {
+    os << " -opt-level=";
+    switch (opt_level_) {
+      case llvm::CodeGenOptLevel::None:
+        os << "0";
+        break;
+      case llvm::CodeGenOptLevel::Less:
+        os << "1";
+        break;
+      case llvm::CodeGenOptLevel::Default:
+        os << "2";
+        break;
+      case llvm::CodeGenOptLevel::Aggressive:
+        os << "3";
+        break;
+    }
+  }
+#endif
 
   if (size_t num = llvm_options_.size(); num > 0) {
     os << " -cl-opt=";
