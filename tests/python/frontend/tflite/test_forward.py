@@ -4274,7 +4274,6 @@ def test_forward_spacetodepth():
 # ---------------
 def _test_reverse_sequence(shape, dtype, seq_lengths, batch_axis, seq_axis, quantized=False):
     """One iteration of reverse_sequence operation with given data and attributes"""
-    
     data = np.random.uniform(0, 100, size=shape).astype(dtype)
     with tf.Graph().as_default():
         in_data = array_ops.placeholder(dtype="float32", name="in_0", shape=shape)
