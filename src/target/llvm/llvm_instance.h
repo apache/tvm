@@ -216,7 +216,11 @@ class LLVMTargetInfo {
    * \brief Get the LLVM optimization level
    * \return optimization level for this target
    */
+#if TVM_LLVM_VERSION <= 170
   llvm::CodeGenOpt::Level GetOptLevel() const { return opt_level_; }
+#else
+  llvm::CodeGenOptLevel GetOptLevel() const { return opt_level_; }
+#endif
 
   /*!
    * \class Option
@@ -312,7 +316,11 @@ class LLVMTargetInfo {
   std::vector<Option> llvm_options_;
   llvm::TargetOptions target_options_;
   llvm::FastMathFlags fast_math_flags_;
+#if TVM_LLVM_VERSION <= 170
   llvm::CodeGenOpt::Level opt_level_;
+#else
+  llvm::CodeGenOptLevel opt_level_;
+#endif
   llvm::Reloc::Model reloc_model_ = llvm::Reloc::PIC_;
   llvm::CodeModel::Model code_model_ = llvm::CodeModel::Small;
   std::shared_ptr<llvm::TargetMachine> target_machine_;
