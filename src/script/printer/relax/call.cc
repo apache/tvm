@@ -27,9 +27,9 @@ namespace printer {
 
 class AttrPrinter : public tvm::AttrVisitor {
  public:
-  explicit AttrPrinter(const ObjectPath& p, const IRDocsifier& d, Array<String>* keys,
+  explicit AttrPrinter(ObjectPath p, const IRDocsifier& d, Array<String>* keys,
                        Array<ExprDoc>* values)
-      : p(p), d(d), keys(keys), values(values) {}
+      : p(std::move(p)), d(d), keys(keys), values(values) {}
 
   void Visit(const char* key, double* value) final {
     keys->push_back(key);
@@ -79,7 +79,7 @@ class AttrPrinter : public tvm::AttrVisitor {
     LOG(FATAL) << "TypeError: NDArray is not allowed in Attrs";
   }
 
-  const ObjectPath& p;
+  ObjectPath p;
   const IRDocsifier& d;
   Array<String>* keys;
   Array<ExprDoc>* values;
