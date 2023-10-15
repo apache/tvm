@@ -1088,7 +1088,7 @@ class TorchFXImporter:
         method = (
             node.args[3]
             if len(node.args) > 3
-            else (node.kwargs["method"] if "method" in node.kwargs else "nearest")
+            else (node.kwargs["mode"] if "mode" in node.kwargs else "nearest")
         )
         align_corners = (
             node.args[4]
