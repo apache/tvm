@@ -2338,7 +2338,13 @@ def test_interpolate():
 
     class Interpolate2(Module):
         def forward(self, input):
-            return torch.nn.functional.interpolate(input, size=None, scale_factor=2.0, mode='bilinear', align_corners=False,)
+            return torch.nn.functional.interpolate(
+                input,
+                size=None,
+                scale_factor=2.0,
+                mode='bilinear',
+                align_corners=False,
+            )
 
     @tvm.script.ir_module
     class expected2:
