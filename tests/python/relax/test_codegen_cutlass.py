@@ -644,6 +644,10 @@ def get_numpy_attention_ref(
         )
         score_masked_sum = np.sum(score_masked_exp, axis=-1, keepdims=True)
         attn = np.divide(score_masked_exp, score_masked_sum)
+
+        if window_size:
+            attn = np.triu(attn, -window_size)
+
     vt = v.transpose(0, 2, 1, 3)  # b, n, s_kv, h_v
     ref = attn @ vt  # b, n, s, h_v
     return q, k, v, bias, ref.transpose(0, 2, 1, 3)  # b, s, n, h_v
@@ -2109,11 +2113,11 @@ def test_batched_var_len_attention():
     # tvm.testing.assert_allclose(out, ref, rtol=1e-2, atol=1e-2)
 
 
-def test_sliding_window(is_causal):
+def test_sliding_window():
     q_shape = (1, 64, 16, 8)
     k_shape = v_shape = q_shape
     window_size = 8
-    causal = "BottomRight" if is_causal else "none"
+    causal = "BottomRight"
 
     mod = get_relax_attention_module(
         q_shape, k_shape, v_shape, dtype="float16", causal_mask=causal, window_size=window_size,
@@ -2125,8 +2129,11 @@ def test_sliding_window(is_causal):
         1, 64, 64, 16, 8, 8, "none", "none", causal, "float16", window_size=8
     )
 
+    out = get_result_with_relax_cutlass_offload(mod, q, k, v, num_final_bindings=3)
+
+    tvm.testing.assert_allclose(out, ref, rtol=1e-2, atol=1e-2)
 
 
 if __name__ == "__main__":
     # tvm.testing.main()
-    test_sliding_window(False)
+    test_sliding_window()
