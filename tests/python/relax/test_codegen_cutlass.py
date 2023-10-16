@@ -571,7 +571,15 @@ def attention_size(request):
 
 
 def get_relax_attention_module(
-    q_shape, k_shape, v_shape, *, dtype, bias_shape=None, qk_scale=None, causal_mask=None
+    q_shape,
+    k_shape,
+    v_shape,
+    *,
+    dtype,
+    bias_shape=None,
+    qk_scale=None,
+    causal_mask=None,
+    window_size=None,
 ):
     from tvm.script.ir_builder import IRBuilder
     from tvm.script.ir_builder import relax as relax_builder
@@ -579,6 +587,9 @@ def get_relax_attention_module(
 
     if qk_scale is not None:
         qk_scale = T.FloatImm("float32", qk_scale)
+
+    if window_size is not None:
+        window_size = T.IntImm("int32", window_size)
 
     with IRBuilder() as builder:
         with relax_builder.function():
@@ -591,7 +602,7 @@ def get_relax_attention_module(
                 bias = R.arg("bias", R.Tensor(bias_shape, dtype))
 
             with R.dataflow() as frame:
-                result = R.emit(R.nn.attention(q, k, v, bias, qk_scale, causal_mask))
+                result = R.emit(R.nn.attention(q, k, v, bias, qk_scale, causal_mask, window_size))
                 R.output(result)
 
             R.func_ret_value(frame.output_vars[0])
@@ -601,7 +612,9 @@ def get_relax_attention_module(
 
 
 @memoize("topi.tests.test_codegen_cutlass.test_attention_offload")
-def get_numpy_attention_ref(b, s, s_kv, n, h, h_v, bias_shape, qk_scale, causal, dtype):
+def get_numpy_attention_ref(
+    b, s, s_kv, n, h, h_v, bias_shape, qk_scale, causal, dtype, window_size=None
+):
     q = np.random.randn(b, s, n, h).astype(dtype)
     k = np.random.randn(b, s_kv, n, h).astype(dtype)
     v = np.random.randn(b, s_kv, n, h_v).astype(dtype)
@@ -2096,5 +2109,24 @@ def test_batched_var_len_attention():
     # tvm.testing.assert_allclose(out, ref, rtol=1e-2, atol=1e-2)
 
 
+def test_sliding_window(is_causal):
+    q_shape = (1, 64, 16, 8)
+    k_shape = v_shape = q_shape
+    window_size = 8
+    causal = "BottomRight" if is_causal else "none"
+
+    mod = get_relax_attention_module(
+        q_shape, k_shape, v_shape, dtype="float16", causal_mask=causal, window_size=window_size,
+    )
+
+    print(mod)
+
+    q, k, v, _, ref = get_numpy_attention_ref(
+        1, 64, 64, 16, 8, 8, "none", "none", causal, "float16", window_size=8
+    )
+
+
+
 if __name__ == "__main__":
-    tvm.testing.main()
+    # tvm.testing.main()
+    test_sliding_window(False)

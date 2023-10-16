@@ -1194,7 +1194,7 @@ def attention(
     bias: Optional[Expr] = None,
     scale: Optional[FloatImm] = None,
     causal_mask: Optional[str] = None,
-    window_size: Optional[int] = 0,
+    window_size: Optional[int] = None,
 ) -> Expr:
     r"""Computes fused multi head attention.
 
@@ -1286,7 +1286,7 @@ def attention_var_len(
     max_seqlen_k: Optional[Expr] = None,
     scale: Optional[FloatImm] = None,
     causal_mask: Optional[str] = None,
-    window_size: Optional[int] = 0,
+    window_size: Optional[int] = None,
 ) -> Expr:
     r"""Computes fused multi head attention over batched sequences of variable lengths.
 
