@@ -23,8 +23,9 @@ from tvm.relay import testing
 from tvm.contrib import utils
 from utils.adreno_utils import gpu_preprocess, build_run_compare, build_run_compare_vm
 import pytest
+from conftest import remote
 
-executor_type = tvm.testing.parameter("ge")
+executor_type = tvm.testing.parameter("ge", "vm")
 dtype = tvm.testing.parameter("float32")
 
 
@@ -59,8 +60,12 @@ def test_conv2d_transpose_adreno(remote, target, executor_type, dtype):
         x = relay.var("data", shape=input_shape, dtype=dtype)
         w = relay.var("weight", shape=filter_shape, dtype=dtype)
         inputs = [x, w]
+        W1 = relay.var("weight1", shape=(shape[1], shape[1], 1, 1), dtype=dtype)
+        conv = relay.nn.conv2d(x, W1, padding=[0, 0, 0, 0], channels=shape[1], kernel_size=(1, 1))
+        inputs.append(W1)
+        conv = relay.op.nn.relu(conv)
         y = relay.nn.conv2d_transpose(
-            x,
+            conv,
             w,
             channels=out_channels,
             kernel_size=(kernel_w, kernel_h),
@@ -70,6 +75,7 @@ def test_conv2d_transpose_adreno(remote, target, executor_type, dtype):
             data_layout="NCHW",
             dilation=dilation,
         )
+
         np.random.seed(0)
         initializer = relay.testing.init.Xavier()
         filter_data = np.zeros(filter_shape).astype(dtype)
@@ -85,12 +91,10 @@ def test_conv2d_transpose_adreno(remote, target, executor_type, dtype):
             bias_data = np.zeros((out_channels,)).astype(dtype)
             initializer("bias", bias_data)
             params1["bias"] = tvm.nd.array(bias_data)
-
         if has_activation:
             y = relay.nn.relu(y)
 
-        mod = relay.Function(inputs, y)
-
+        mod = relay.Function(inputs, out)
         if executor_type == "ge":
             build_run_compare(
                 remote,
@@ -114,6 +118,100 @@ def test_conv2d_transpose_adreno(remote, target, executor_type, dtype):
                 gpu_preprocess,
             )
 
+@tvm.testing.requires_opencl
+@tvm.testing.parametrize_targets("opencl -device=adreno")
+def test_conv2d_transpose_three_layer_block(remote, target, executor_type, dtype):
+    # Conv2d transpose test cases lists
+    trials = [
+        [4, 4, (1, 1), (2, 2), (1, 1), 64, (256, 100, 100), (False, False)],
+        [3, 3, (0, 0), (2, 2), (1, 1), 64, (256, 12, 12), (True, True)],
+    ]
+
+    for (
+        kernel_h,
+        kernel_w,
+        pad,
+        stride,
+        dilation,
+        out_channels,
+        shape,
+        composite,
+    ) in trials:
+        shape = (1, *shape)
+        has_bias = composite[0]
+        has_activation = composite[1]
+        input_shape = shape
+        filter_shape = (shape[1], out_channels, kernel_w, kernel_h)
+        x = relay.var("data", shape=input_shape, dtype=dtype)
+        w = relay.var("weight", shape=filter_shape, dtype=dtype)
+        inputs = [x, w]
+        W1 = relay.var("weight1", shape=(shape[1], shape[1], 1, 1), dtype=dtype)
+        conv = relay.nn.conv2d(x, W1, padding=[0, 0, 0, 0], channels=shape[1], kernel_size=(1, 1))
+        inputs.append(W1)
+        conv = relay.op.nn.relu(conv)
+        y = relay.nn.conv2d_transpose(
+            conv,
+            w,
+            channels=out_channels,
+            kernel_size=(kernel_w, kernel_h),
+            strides=stride,
+            padding=pad,
+            kernel_layout="IOHW",
+            data_layout="NCHW",
+            dilation=dilation,
+        )
+        if has_bias:
+            b = relay.var("bias", shape=(out_channels,), dtype=dtype)
+            y = relay.nn.bias_add(y, b, axis=1)
+            inputs.append(b)
+            bias_data = np.zeros((out_channels,)).astype(dtype)
+            initializer("bias", bias_data)
+            params1["bias"] = tvm.nd.array(bias_data)
+
+        if has_activation:
+            y = relay.nn.relu(y)
+        W2 = relay.var("weight2", shape=(out_channels, out_channels, 1, 1), dtype=dtype)
+        out = relay.nn.conv2d(y, W2, padding=[0, 0, 0, 0], channels=out_channels, kernel_size=(1, 1))
+        out = relay.op.nn.relu(out)
+        np.random.seed(0)
+        inputs.append(W2)
+        initializer = relay.testing.init.Xavier()
+        filter_data = np.zeros(filter_shape).astype(dtype)
+        initializer("weight", filter_data)
+        filter_data1 = np.zeros((shape[1], shape[1], 1, 1)).astype(dtype)
+        initializer("weight", filter_data1)
+        filter_data2 = np.zeros((out_channels, out_channels, 1, 1)).astype(dtype)
+        initializer("weight", filter_data2)
+        params1 = {
+            "weight": tvm.nd.array(filter_data),
+            "weight1": tvm.nd.array(filter_data1),
+            "weight2": tvm.nd.array(filter_data2),
+        }
+
+        mod = relay.Function(inputs, out)
+
+        if executor_type == "ge":
+            build_run_compare(
+                remote,
+                mod,
+                params1,
+                {"data": input_shape},
+                {"data": dtype},
+                target,
+                [],
+                gpu_preprocess,
+            )
+        else:
+            build_run_compare_vm(
+                remote,
+                mod,
+                params1,
+                {"data": input_shape},
+                {"data": dtype},
+                target,
+                [],
+                gpu_preprocess,
+            )
 
 if __name__ == "__main__":
     tvm.testing.main()
