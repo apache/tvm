@@ -319,6 +319,7 @@ struct EthosuIdentityAttrs : public tvm::AttrsNode<EthosuIdentityAttrs> {
   double ofm_scale;
   int ofm_zero_point;
   String activation;
+  String rounding_mode;
 
   TVM_DECLARE_ATTRS(EthosuIdentityAttrs, "relay.attrs.EthosuIdentityAttrs") {
     TVM_ATTR_FIELD(ifm_scale).describe("The quantization scale for the Input Feature Map tensor.");
@@ -335,6 +336,13 @@ struct EthosuIdentityAttrs : public tvm::AttrsNode<EthosuIdentityAttrs> {
             "'SIGMOID' - sigmoid activation function. "
             "'LUT' - use a look-up table to perform the activation function.")
         .set_default("NONE");
+    TVM_ATTR_FIELD(rounding_mode)
+        .describe(
+            "The rounding mode to apply to the Output Feature Map tensor. "
+            "'TFL' - Tensorflow Lite rounding scheme. "
+            "'TRUNCATE' - Truncate towards zero."
+            "'NATURAL' - Round to nearest value, with x.5 rounded up towards +infinity.")
+        .set_default("TFL");
   }
 };
 
