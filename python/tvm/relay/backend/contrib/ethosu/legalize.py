@@ -1216,6 +1216,7 @@ class RequantizeRewriter(DFPatternCallback):
             ifm_zero_point=int(params.ifm.q_params.zero_point),
             ofm_scale=float(params.ofm.q_params.scale_f32),
             ofm_zero_point=int(params.ofm.q_params.zero_point),
+            rounding_mode="NATURAL",
         )
 
 
