@@ -58,7 +58,7 @@ def make_test_conv_depthwise_conv():
     input_scale_1 = np.float32(0.5)
     output_scale_1 = np.array([0.5, 2.0, 0.25, 4.0], dtype="float32")
 
-    out = relay.qnn.op.conv2d(
+    out = relay.qnn.conv2d(
         input_var,
         tvm_const(kernel_1),
         tvm_const(np.int32(-128)),
@@ -80,7 +80,7 @@ def make_test_conv_depthwise_conv():
     )
 
     input_scale_2 = np.float32(0.25)
-    out = relay.qnn.op.requantize(
+    out = relay.qnn.requantize(
         out,
         tvm_const(input_scale_1 * output_scale_1),
         tvm_const(np.int32(0)),
@@ -106,7 +106,7 @@ def make_test_conv_depthwise_conv():
         dtype="int8",
     ).reshape((3, 3, 4, 1))
     output_scale_2 = np.array([0.25, 0.125, 2.0, 0.125], dtype="float32")
-    out = relay.qnn.op.conv2d(
+    out = relay.qnn.conv2d(
         out,
         tvm_const(kernel_2),
         tvm_const(np.int32(-128)),
@@ -129,7 +129,7 @@ def make_test_conv_depthwise_conv():
     )
 
     input_scale_3 = np.float32(0.125)
-    out = relay.qnn.op.requantize(
+    out = relay.qnn.requantize(
         out,
         tvm_const(input_scale_2 * output_scale_2),
         tvm_const(np.int32(0)),
@@ -145,7 +145,7 @@ def make_test_conv_depthwise_conv():
     ).reshape((1, 1, 4, 4))
     output_scale_3 = np.array([0.25, 0.125, 1.0, 0.5], dtype="float32")
 
-    out = relay.qnn.op.conv2d(
+    out = relay.qnn.conv2d(
         out,
         tvm_const(kernel_3),
         tvm_const(np.int32(-128)),
@@ -181,7 +181,7 @@ def make_test_conv_pool_dense():
     input_scale = np.float32(0.029626124)
     output_scale = np.array([0.5, 2.0, 0.25, 4.0], dtype="float32")
 
-    out = relay.qnn.op.conv2d(
+    out = relay.qnn.conv2d(
         input_var,
         tvm_const(kernel),
         tvm_const(np.int32(-128)),
@@ -202,7 +202,7 @@ def make_test_conv_pool_dense():
         axis=3,
     )
 
-    out = relay.qnn.op.requantize(
+    out = relay.qnn.requantize(
         out,
         tvm_const(input_scale * output_scale),
         tvm_const(np.int32(0)),
@@ -226,7 +226,7 @@ def make_test_conv_pool_dense():
     out = relay.reshape(out, newshape=[-1, 4])
 
     dense_weights = np.array([[15, -2, -3, 11], [12, -10, 13, -10]], dtype="int8")
-    out = relay.qnn.op.dense(
+    out = relay.qnn.dense(
         out,
         tvm_const(dense_weights),
         tvm_const(np.int32(-128)),
