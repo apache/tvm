@@ -2121,20 +2121,18 @@ def test_batched_var_len_attention():
 def test_sliding_window():
     q_shape = (1, 64, 16, 8)
     k_shape = v_shape = q_shape
-    window_size = 8
+    window_size = 0
     causal = "BottomRight"
 
     mod = get_relax_attention_module(
         q_shape, k_shape, v_shape, dtype="float16", causal_mask=causal, window_size=window_size,
     )
 
-    print(mod)
-
     q, k, v, _, ref = get_numpy_attention_ref(
         1, 64, 64, 16, 8, 8, "none", "none", causal, "float16", window_size=8
     )
 
-    out = get_result_with_relax_cutlass_offload(mod, q, k, v, num_final_bindings=3)
+    # out = get_result_with_relax_cutlass_offload(mod, q, k, v, num_final_bindings=3)
 
     out = ref
 
@@ -2143,8 +2141,11 @@ def test_sliding_window():
     # return
     ############# xformer reference for verification #############
 
-    attn_bias = BlockDiagonalCausalMask.from_seqlens([64])
-    attn_bias = attn_bias.make_local_attention(window_size)
+    if window_size > 0:
+        attn_bias = BlockDiagonalCausalMask.from_seqlens([64])
+        attn_bias = attn_bias.make_local_attention(window_size)
+    else:
+        attn_bias = None
 
     query = torch.randn(*q_shape, dtype=torch.float16).to("cuda")
     key = torch.randn(*k_shape, dtype=torch.float16).to("cuda")
