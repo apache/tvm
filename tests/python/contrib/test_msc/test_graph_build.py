@@ -1306,10 +1306,10 @@ def test_interpolate():
 
     expected = {
         "inputs": [
-            {"name": "inp_0", "shape": [1, 3, 10, 10], "dtype": "float32", "layout": "ABCD"}
+            {"name": "inp_0", "shape": [1, 3, 10, 10], "dtype": "float32", "layout": "NCHW"}
         ],
         "outputs": [
-            {"name": "resize2d", "shape": [1, 3, 5, 5], "dtype": "float32", "layout": "ABCD"}
+            {"name": "resize2d", "shape": [1, 3, 5, 5], "dtype": "float32", "layout": "NCHW"}
         ],
         "nodes": {"total": 2, "input": 1, "image.resize2d": 1},
     }

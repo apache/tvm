@@ -38,7 +38,7 @@ bool LayoutUtils::LayoutInfered(const Expr& expr) {
 bool LayoutUtils::SetLayout(const Expr& expr, const NLayout& layout) {
   const String& saved_layout = SpanUtils::GetAttr(expr->span, "layout");
   const auto& sinfo = GetStructInfo(expr);
-  if (sinfo.as<TensorStructInfoNode>() || sinfo.as<ShapeStructInfoNode>()) {
+  if (sinfo->IsInstance<TensorStructInfoNode>() || sinfo->IsInstance<ShapeStructInfoNode>()) {
     ICHECK(layout.IsLeaf()) << "Expr has tensor struct, but find nested layout " << expr;
     const auto& l_layout = layout.LeafValue()->layout;
     if (!l_layout.defined()) {
@@ -48,7 +48,7 @@ bool LayoutUtils::SetLayout(const Expr& expr, const NLayout& layout) {
       return false;
     }
     expr->span = SpanUtils::SetAttr(expr->span, "layout", l_layout.name());
-  } else if (sinfo.as<TupleStructInfoNode>()) {
+  } else if (sinfo->IsInstance<TupleStructInfoNode>()) {
     ICHECK(!layout.IsLeaf()) << "Expr has tuple struct, but find non-nested layout " << expr;
     String layout_str;
     Array<NLayout> nested_layouts = layout.NestedArray();
@@ -74,10 +74,10 @@ const NLayout LayoutUtils::GetNLayout(const Expr& expr) {
     return LayoutDecision("");
   }
   auto sinfo = GetStructInfo(expr);
-  if (sinfo.as<TensorStructInfoNode>()) {
+  if (sinfo->IsInstance<TensorStructInfoNode>()) {
     return LayoutDecision(SpanUtils::GetAttr(expr->span, "layout"));
   }
-  if (sinfo.as<TupleStructInfoNode>()) {
+  if (sinfo->IsInstance<TupleStructInfoNode>()) {
     String layout_str = SpanUtils::GetAttr(expr->span, "layout");
     std::vector<NLayout> output_layout;
     for (const auto& l : StringUtils::Split(layout_str, ",")) {

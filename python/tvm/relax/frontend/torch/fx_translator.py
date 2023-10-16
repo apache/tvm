@@ -296,7 +296,7 @@ class TorchFXImporter:
         start_end_step = [
             self.env[x] if isinstance(x, torch.fx.node.Node) else x for x in start_end_step
         ]
-        return relax.op.arange(*start_end_step, dtype=dtype)
+        return self.block_builder.emit(relax.op.arange(*start_end_step, dtype=dtype))
 
     def _empty(self, node: fx.node.Node) -> relax.Var:
         dtype = TorchFXImporter._convert_data_type(str(node.kwargs["dtype"]), self.env)
@@ -1094,7 +1094,7 @@ class TorchFXImporter:
         method = (
             node.args[3]
             if len(node.args) > 3
-            else (node.kwargs["method"] if "method" in node.kwargs else "nearest")
+            else (node.kwargs["mode"] if "mode" in node.kwargs else "nearest")
         )
         align_corners = (
             node.args[4]
