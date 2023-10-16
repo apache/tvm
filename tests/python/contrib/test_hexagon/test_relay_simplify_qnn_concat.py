@@ -75,9 +75,7 @@ def get_expected_output_module():
     out_r1 = relay.qnn.requantize(
         nn_max_pool, out_s4, out_z1, out_s3, out_z1, axis=1, out_dtype="uint8"
     )
-    out_r2 = relay.qnn.requantize(
-        out_q2, out_s2, out_z1, out_s3, out_z1, axis=1, out_dtype="uint8"
-    )
+    out_r2 = relay.qnn.requantize(out_q2, out_s2, out_z1, out_s3, out_z1, axis=1, out_dtype="uint8")
     out_q_tuple = relay.expr.Tuple([out_r1, out_r2, out_q3])
     out_graph = relay.op.concatenate(out_q_tuple, axis=1)
 
