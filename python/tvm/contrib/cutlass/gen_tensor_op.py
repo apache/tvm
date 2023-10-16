@@ -779,6 +779,10 @@ def instantiate_template(func_name, annotations, func_args):
             and not is_var_len
         )
 
+        if "window_size" in annotations:
+            assert use_flash, "Sliding-window attention is supported only by Flash Attention."
+            attrs["window_size"] = int(annotations["window_size"])
+
         if use_flash:
             headers.append("flash.h")
             attrs["is_causal"] = int(annotations["custom_mask_type"]) == 2
