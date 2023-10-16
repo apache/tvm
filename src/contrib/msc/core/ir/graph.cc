@@ -585,6 +585,10 @@ const String MSCGraphNode::ToPrototxt() const {
   return printer.GetString();
 }
 
+const bool MSCGraphNode::HasNode(const String& name) const {
+  return nodes.count(name) ? true : false;
+}
+
 const MSCJoint MSCGraphNode::FindNode(const String& name) const {
   ICHECK(nodes.count(name)) << "Can not find node " << name;
   return Downcast<MSCJoint>(nodes[name]);
@@ -1003,7 +1007,7 @@ TVM_REGISTER_GLOBAL("msc.core.WeightGraph")
 // Graph APIS
 TVM_REGISTER_GLOBAL("msc.core.MSCGraphHasNode")
     .set_body_typed([](const MSCGraph& graph, const String& name) -> Bool {
-      return Bool(graph->nodes.count(name));
+      return Bool(graph->HasNode(name));
     });
 
 TVM_REGISTER_GLOBAL("msc.core.MSCGraphFindNode")

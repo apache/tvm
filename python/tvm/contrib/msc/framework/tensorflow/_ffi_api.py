@@ -14,11 +14,8 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-"""tvm.contrib.msc.core.utils"""
+"""tvm.contrib.msc.framework.tensorflow._ffi_api"""
 
-from .expr import *
-from .info import *
-from .file import *
-from .namespace import *
-from .register import *
-from .dataset import *
+import tvm._ffi
+
+tvm._ffi._init_api("msc.framework.tensorflow", __name__)

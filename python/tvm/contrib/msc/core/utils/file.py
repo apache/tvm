@@ -179,6 +179,12 @@ class MSCDirectory(object):
 
         return os.listdir(self._path)
 
+    def destory(self):
+        """Destory the dir."""
+
+        if os.path.isdir(self._path):
+            shutil.rmtree(self._path)
+
     @property
     def path(self):
         return self._path

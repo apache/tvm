@@ -127,9 +127,11 @@ def get_version(framework: str) -> List[int]:
         elif framework == MSCFramework.TENSORFLOW:
             import tensorflow  # pylint: disable=import-outside-toplevel
 
-            raw_version = tensorflow.__version
+            raw_version = tensorflow.__version__
         if framework == MSCFramework.TENSORRT:
-            raw_version = ".".join(tvm.get_global_func("relax.get_tensorrt_version")())
+            raw_version = ".".join(
+                [str(v) for v in tvm.get_global_func("relax.get_tensorrt_version")()]
+            )
         else:
             raw_version = "1.0.0"
     except:  # pylint: disable=bare-except
