@@ -31,6 +31,8 @@
 #include <iostream>
 #include <vector>
 
+#include "../../support/ordered_set.h"
+
 namespace tvm {
 namespace relax {
 
@@ -49,13 +51,54 @@ class TransformParamsFuncBuilder : public ExprMutator {
   TransformParamsFuncBuilder() { builder_->BeginDataflowBlock(); }
 
   /*! \brief Add a input parameter. */
-  void AddInput(const Var& var) { inputs_.push_back(var); }
+  void AddInput(const Var& var) {
+    inputs_.push_back(var);
+    lifted_binding_lookup_.insert(var);
+  }
+
+  void UpdateBasedOnRuntimeInput(const Var& var) {
+    for (const auto& var : DefinableTIRVarsInStructInfo(GetStructInfo(var))) {
+      known_symbolic_var_during_inference_.insert(var);
+    }
+    for (const auto& var : TIRVarsInStructInfo(GetStructInfo(var))) {
+      required_symbolic_var_during_inference_.insert(var);
+    }
+  }
 
   /*! \brief Add a binding to lift. */
-  void AddBinding(const VarBinding& binding) { bindings_.push_back(binding); }
+  void AddInternalBinding(const VarBinding& binding) {
+    bindings_.push_back(binding);
+    lifted_binding_lookup_.insert(binding->var);
+  }
 
-  /*! \brief Mark a variable as the output of the function. */
-  void MarkOutput(const Var& output) { outputs_.insert(output); }
+  /*! \brief Update based on bindings not being lifted. */
+  void UpdateBasedOnRuntimeBinding(const VarBinding& binding) {
+    for (const auto& producer : FreeVars(binding->value)) {
+      // An external value that uses a lifted binding requires the
+      // lifted binding to be returned as output.
+      if (lifted_binding_lookup_.count(producer)) {
+        outputs_.insert(producer);
+
+        for (const auto& var : DefinableTIRVarsInStructInfo(GetStructInfo(producer))) {
+          known_symbolic_var_during_inference_.insert(var);
+        }
+      }
+    }
+
+    // All TIR variables used in the binding must be available at runtime.
+    for (const auto& var : FreeSymbolicVars(binding->value)) {
+      required_symbolic_var_during_inference_.insert(var);
+    }
+  }
+
+  bool UsesOnlyLiftableProducers(const Expr& expr) {
+    auto producers = FreeVars(expr);
+    bool uses_only_liftable_producers = [&]() {
+      return std::all_of(producers.begin(), producers.end(),
+                         [&](const auto& var) { return lifted_binding_lookup_.count(var); });
+    }();
+    return uses_only_liftable_producers;
+  }
 
   /*!
    * \brief Build the function that transforms the parameters
@@ -63,6 +106,13 @@ class TransformParamsFuncBuilder : public ExprMutator {
    * of the element of the output tuple
    */
   std::pair<Function, std::unordered_map<Var, int, ObjectPtrHash, ObjectPtrEqual>> Build() {
+    Array<PrimExpr> extra_symbolic_vars;
+    for (const auto& var : required_symbolic_var_during_inference_) {
+      if (!known_symbolic_var_during_inference_.count(var)) {
+        extra_symbolic_vars.push_back(var);
+      }
+    }
+
     Array<StructInfo> input_sinfo;
     Array<Expr> output_vars;
     std::unordered_map<Var, int, ObjectPtrHash, ObjectPtrEqual> output_to_index;
@@ -71,6 +121,10 @@ class TransformParamsFuncBuilder : public ExprMutator {
       input_sinfo.push_back(Downcast<StructInfo>(input->struct_info_.value()));
     }
     Var params("params", TupleStructInfo(input_sinfo));
+
+    if (extra_symbolic_vars.size()) {
+      output_vars.push_back(builder_->Emit(ShapeExpr(extra_symbolic_vars), "extra_symbolic_vars"));
+    }
 
     // Helper to add a variable to the output tuple
     // original_var: the binding variable in the original function
@@ -107,7 +161,7 @@ class TransformParamsFuncBuilder : public ExprMutator {
     // Create the function.
     Expr transformed_params = builder_->EmitOutput(Tuple(output_vars));
     BindingBlock block = builder_->EndBlock();
-    Expr body = builder_->Normalize(SeqExpr({block}, transformed_params));
+    Expr body = VisitWithNewScope(SeqExpr({block}, transformed_params), Array<Var>{params});
     Function f_transform_params =
         Function(/*params=*/{params}, /*body=*/body, /*ret_struct_info=*/NullOpt);
     return {f_transform_params, output_to_index};
@@ -130,6 +184,39 @@ class TransformParamsFuncBuilder : public ExprMutator {
   Array<VarBinding> bindings_;
   // The variables that are marked as the output of the function.
   std::unordered_set<Var, ObjectPtrHash, ObjectPtrEqual> outputs_;
+
+  // The bindings that are lifted
+  std::unordered_set<Var, ObjectPtrHash, ObjectPtrEqual> lifted_binding_lookup_;
+
+  /* Symbolic variables that are known during the transform_params execution.
+   *
+   * This set is populated based on the variables declared with
+   * AddInput, and contains variables that may appear inside the
+   * transformation function.  A binding that depends on a symbolic
+   * variable not contained in this set may not be lifted.
+   */
+  support::OrderedSet<tir::Var> known_symbolic_var_during_transform_;
+
+  /* Symbolic variables that are known during the runtime
+   *
+   * This set is populated based on the variables declared with
+   * UpdateBasedOnRuntimeInput, and contains variables that are
+   * defined at runtime.  A variable that present in
+   * required_symbolic_var_during_inference_, but not present in this
+   * set, causes the Build() function to output an additional
+   * R.ShapeExpr in order to propagate the symbolic variables.
+   */
+  support::OrderedSet<tir::Var> known_symbolic_var_during_inference_;
+
+  /* Symbolic variables that must be known at runtime
+   *
+   * This set is populated based on the variables used in external
+   * bindings.  A variable that is present here, but not present in
+   * known_symbolic_var_during_inference_, must be provided as an
+   * additional R.ShapeExpr parameter from the transform_params
+   * function.
+   */
+  support::OrderedSet<tir::Var> required_symbolic_var_during_inference_;
 };
 
 /*!
@@ -145,14 +232,17 @@ class TransformParamsFuncBuilder : public ExprMutator {
 class LiftTransformParamsPlanner : public ExprVisitor {
  public:
   LiftTransformParamsInfoPlan Plan(const Function& function, int num_inputs) {
-    for (int i = num_inputs; i < static_cast<int>(function->params.size()); ++i) {
-      builder_.AddInput(function->params[i]);
-      lifted_bindings_.emplace(function->params[i]);
+    for (int i = 0; i < static_cast<int>(function->params.size()); ++i) {
+      if (i < num_inputs) {
+        builder_.UpdateBasedOnRuntimeInput(function->params[i]);
+      } else {
+        builder_.AddInput(function->params[i]);
+      }
     }
     VisitExpr(function->body);
 
     const auto& [f_transform_params, output_to_index] = builder_.Build();
-    return {f_transform_params, output_to_index, std::move(lifted_bindings_)};
+    return {f_transform_params, output_to_index, std::move(builder_.lifted_binding_lookup_)};
   }
 
  private:
@@ -163,7 +253,6 @@ class LiftTransformParamsPlanner : public ExprVisitor {
   }
 
   void VisitBinding_(const VarBindingNode* binding) final {
-    std::vector<const VarNode*> producers;
     bool can_lift = true;
 
     // Cond 1. Do not lift bindings outside dataflow blocks.
@@ -180,34 +269,29 @@ class LiftTransformParamsPlanner : public ExprVisitor {
     }
 
     // Cond 3. Do not lift when involving Vars that are not liftable.
-    PostOrderVisit(binding->value, [&](const ObjectRef& obj) {
-      if (const VarNode* var = obj.as<VarNode>()) {
-        producers.push_back(var);
-        if (!lifted_bindings_.count(GetRef<Var>(var))) {
-          can_lift = false;
-        }
-      }
-    });
+    auto producers = FreeVars(binding->value);
+    bool uses_only_liftable_producers = builder_.UsesOnlyLiftableProducers(binding->value);
+    if (!uses_only_liftable_producers) {
+      can_lift = false;
+    }
 
     // Cond 4. Do not lift when its struct info contains symbolic variables.
     if (!TIRVarsInStructInfo(GetStructInfo(binding->var)).empty()) {
       can_lift = false;
     }
 
+    // Cond 5. Do not lift declarations of external functions
+    if (binding->value.as<relax::ExternFuncNode>()) {
+      can_lift = false;
+    }
+
     if (can_lift) {
-      lifted_bindings_.insert(binding->var);
-      builder_.AddBinding(GetRef<VarBinding>(binding));
+      builder_.AddInternalBinding(GetRef<VarBinding>(binding));
     } else {
-      for (const VarNode* producer : producers) {
-        if (lifted_bindings_.count(GetRef<Var>(producer))) {
-          builder_.MarkOutput(GetRef<Var>(producer));
-        }
-      }
+      builder_.UpdateBasedOnRuntimeBinding(GetRef<VarBinding>(binding));
     }
   }
 
-  // The bindings that are lifted
-  std::unordered_set<Var, ObjectPtrHash, ObjectPtrEqual> lifted_bindings_;
   // The builder of the function that transforms the parameters
   TransformParamsFuncBuilder builder_;
   // Whether we are in a dataflow block
@@ -256,6 +340,7 @@ class TransformParamsLifter : ExprMutator {
     // Step 3.1: Update the function signature
     Array<StructInfo> param_fields =
         Downcast<TupleStructInfo>(lift_plan_.f_transform_params->ret_struct_info)->fields;
+
     Array<Var> new_params(func->params.begin(), func->params.begin() + num_input);
     for (size_t i = 0; i < param_fields.size(); i++) {
       std::stringstream name;
@@ -320,12 +405,15 @@ Pass LiftTransformParams() {
         }
       }
     }
-    for (const auto& [gvar, transform_func] : mutator.GetTransformParamFunctions()) {
+    for (auto [gvar, transform_func] : mutator.GetTransformParamFunctions()) {
       String name = gvar->name_hint + "_transform_params";
       GlobalVar new_gvar(name);
       new_gvar->struct_info_ = transform_func->struct_info_;
 
-      updates->Add(new_gvar, WithAttr(transform_func, tvm::attr::kGlobalSymbol, name));
+      transform_func = CopyWithNewVars(transform_func);
+      transform_func = WithAttr(transform_func, tvm::attr::kGlobalSymbol, name);
+
+      updates->Add(new_gvar, transform_func);
     }
 
     if (updates->functions.size()) {

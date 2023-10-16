@@ -24,21 +24,44 @@
 #ifndef TVM_SUPPORT_ORDERED_SET_H_
 #define TVM_SUPPORT_ORDERED_SET_H_
 
+#include <tvm/runtime/object.h>
+
 #include <list>
 #include <unordered_map>
 
 namespace tvm {
 namespace support {
 
+namespace detail {
+/* \brief Utility to allow use for standard and ObjectRef types
+ *
+ * \tparam T The type held by the OrderedSet
+ */
+template <typename T, typename = void>
+struct OrderedSetLookupType {
+  using MapType = std::unordered_map<T, typename std::list<T>::iterator>;
+};
+
+template <typename T>
+struct OrderedSetLookupType<T, std::enable_if_t<std::is_base_of_v<runtime::ObjectRef, T>>> {
+  using MapType = std::unordered_map<T, typename std::list<T>::iterator, runtime::ObjectPtrHash,
+                                     runtime::ObjectPtrEqual>;
+};
+}  // namespace detail
+
 template <typename T>
 class OrderedSet {
  public:
+  OrderedSet() = default;
+
   void push_back(const T& t) {
     if (!elem_to_iter_.count(t)) {
       elements_.push_back(t);
       elem_to_iter_[t] = std::prev(elements_.end());
     }
   }
+
+  void insert(const T& t) { push_back(t); }
 
   void erase(const T& t) {
     if (auto it = elem_to_iter_.find(t); it != elem_to_iter_.end()) {
@@ -52,6 +75,8 @@ class OrderedSet {
     elem_to_iter_.clear();
   }
 
+  size_t count(const T& t) const { return elem_to_iter_.count(t); }
+
   auto begin() const { return elements_.begin(); }
   auto end() const { return elements_.end(); }
   auto size() const { return elements_.size(); }
@@ -59,7 +84,7 @@ class OrderedSet {
 
  private:
   std::list<T> elements_;
-  std::unordered_map<T, typename std::list<T>::iterator> elem_to_iter_;
+  typename detail::OrderedSetLookupType<T>::MapType elem_to_iter_;
 };
 
 }  // namespace support

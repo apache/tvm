@@ -31,6 +31,8 @@ def get_base_h_code() -> str:
     return """#ifndef TVM_CONTRIB_MSC_UTILS_BASE_H_
 #define TVM_CONTRIB_MSC_UTILS_BASE_H_
 
+#include <cassert>
+#include <fstream>
 #include <string>
 #include <utility>
 #include <vector>
@@ -39,12 +41,33 @@ namespace tvm {
 namespace contrib {
 namespace msc {
 
+class CommonUtils {
+ public:
+  template <typename T>
+  static bool CompareBuffers(const T* golden, const T* result, size_t size) {
+    return true;
+  }
+};
+
 class FileUtils {
  public:
-  static inline bool FileExist(const std::string& file);
+  static bool FileExist(const std::string& file);
 
   template <typename T>
-  static bool ReadToBuffer(const std::string& file, T* buffer, size_t size);
+  static bool ReadToBuffer(const std::string& file, T* buffer, size_t size) {
+    std::ifstream in_file(file, std::ifstream::binary);
+    if (!in_file.is_open()) {
+      return false;
+    }
+    try {
+      in_file.read((char*)(&buffer[0]), size * sizeof(T));
+    } catch (std::exception const& e) {
+      in_file.close();
+      return false;
+    }
+    in_file.close();
+    return true;
+  }
 };
 
 class DatasetReader {
@@ -79,10 +102,10 @@ def get_base_cc_code() -> str:
         The base cc source.
     """
 
-    return """#include "base.h"
-
-#include <algorithm>
+    return """#include <algorithm>
 #include <fstream>
+
+#include "base.h"
 
 namespace tvm {
 namespace contrib {
@@ -97,22 +120,6 @@ bool FileUtils::FileExist(const std::string& file) {
   return false;
 }
 
-template <typename T>
-bool FileUtils::ReadToBuffer(const std::string& file, T* buffer, size_t size) {
-  std::ifstream in_file(file, std::ifstream::binary);
-  if (!in_file.is_open()) {
-    return false;
-  }
-  try {
-    in_file.read((char*)(&buffer[0]), size * sizeof(T));
-  } catch (std::exception const& e) {
-    in_file.close();
-    return false;
-  }
-  in_file.close();
-  return true;
-}
-
 DatasetReader::DatasetReader(const std::string& folder, int max_size) {
   folder_ = folder;
   const std::string info_file = folder_ + "/tensor_info";
@@ -120,8 +127,8 @@ DatasetReader::DatasetReader(const std::string& folder, int max_size) {
   assert(input.is_open() && ("Failed to open file " + info_file).c_str());
   std::string line;
   while (getline(input, line)) {
-    int pos = line.find(":");
-    assert(pos > 0 && ("Can not find : in line " + line).c_str());
+    int pos = line.find(" ");
+    assert(pos > 0 && ("Can not find space in line " + line).c_str());
     const auto& name = line.substr(0, pos);
     const auto& byte_size = line.substr(pos + 1, line.size());
     tensor_info_.push_back(std::make_pair(name, static_cast<size_t>(std::stoi(byte_size))));

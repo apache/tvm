@@ -42,6 +42,7 @@
 #include <utility>
 #include <vector>
 
+#include "../transform/utils.h"
 #include "dataflow_matcher_impl.h"
 
 namespace tvm {
@@ -937,57 +938,76 @@ class PatternRewriter : ExprMutator {
     return Downcast<Function>(RemoveAllUnused(rewriter.VisitExpr(f)));
   }
 
-  void VisitBinding_(const VarBindingNode* binding) final {
-    bindings_.Set(binding->var, binding->value);
-    ExprMutator::VisitBinding_(binding);
-    if (auto it = memo_.find(binding->value.get()); it != memo_.end()) {
-      // We need to update the binding to pass to ExtractMatchedExpr, so that the rewritten
-      // expression can be subject to further pattern matchings.
-      bindings_.Set(binding->var, it->second);
+  Expr VisitExpr_(const SeqExprNode* seq) override {
+    if (ctx_) {
+      return ExprMutator::VisitExpr_(seq);
+    }
+
+    auto cache = bindings_;
+    SeqExpr prev = GetRef<SeqExpr>(seq);
+
+    StructuralEqual struct_equal;
+
+    while (true) {
+      SeqExpr next = Downcast<SeqExpr>(builder_->Normalize(ExprMutator::VisitExpr_(prev.get())));
+      if (struct_equal(prev, next)) {
+        return std::move(next);
+      }
+
+      // Canonicalization may result in two previously-different
+      // expressions being recognized as identical.  Elimination of
+      // common subexpressions may result in trival var-to-var
+      // bindings that can be canonicalized.  Therefore, iterate the
+      // simplification steps until converged.
+      while (true) {
+        auto start_of_loop = next;
+        next = Downcast<SeqExpr>(CanonicalizeBindings(next));
+        next = Downcast<SeqExpr>(EliminateCommonSubexpr(next));
+        next = Downcast<SeqExpr>(RemoveAllUnused(next));
+        if (struct_equal(start_of_loop, next)) {
+          break;
+        }
+      }
+
+      if (struct_equal(prev, next)) {
+        return std::move(next);
+      }
+
+      // Reset all knowledge of bindings that were collected from
+      // this DataflowBlock.  The collected bindings are only after
+      // the point where they were collected, and we are repeating
+      // the mutation of this DataflowBlock.
+      bindings_ = cache;
+      prev = next;
     }
   }
 
-  Expr VisitExpr(const Expr& expr) final {
+  BindingBlock VisitBindingBlock_(const DataflowBlockNode* block_node) override {
+    if (ctx_) {
+      return RewriteDataflowBlockFixedPoint(GetRef<DataflowBlock>(block_node));
+    } else {
+      return ExprMutator::VisitBindingBlock_(block_node);
+    }
+  }
+
+  void VisitBinding_(const VarBindingNode* binding) override {
+    auto expr = VisitExpr(binding->value);
+    bindings_.Set(binding->var, expr);
+    ReEmitBinding(binding, expr);
+  }
+
+  Expr VisitExpr(const Expr& expr) override {
     auto node = ExprMutator::VisitExpr(expr);
+
     if (pattern_) {
       if (auto matches_opt = ExtractMatchedExpr(pattern_.value(), node, bindings_)) {
         Expr rewritten_expr = rewriter_func_(node, matches_opt.value());
         if (!rewritten_expr.same_as(node)) {
-          rewritten_expr = builder_->Normalize(rewritten_expr);
-
-          // If the rewriter returns a variable (e.g. when rewriting
-          // from `R.add(x, R.const(0.0))` to `x`), the variable
-          // should be dereferenced to avoid trivial `var_2 = var_1`
-          // bindings.  This lookup is done using the builder_ instead
-          // of the bindings_, as the previous `builder_->Normalize`
-          // call may have introduced variable bindings.
-          if (auto opt_var = rewritten_expr.as<Var>()) {
-            if (auto binding = builder_->LookupBinding(opt_var.value())) {
-              rewritten_expr = binding.value();
-            }
-          }
-          memo_[expr.get()] = rewritten_expr;
-          return rewritten_expr;
+          return builder_->Normalize(rewritten_expr);
         }
       }
     }
     return node;
-  }
-
-  BindingBlock VisitBindingBlock_(const DataflowBlockNode* block_node) final {
-    if (ctx_) {
-      return RewriteDataflowBlockFixedPoint(GetRef<DataflowBlock>(block_node));
-    }
-
-    DataflowBlock prev = GetRef<DataflowBlock>(block_node);
-    while (true) {
-      DataflowBlock next = Downcast<DataflowBlock>(ExprMutator::VisitBindingBlock_(prev.get()));
-      if (StructuralEqual()(prev, next)) {
-        return std::move(next);
-      } else {
-        prev = next;
-      }
-    }
   }
 
  private:
@@ -1076,7 +1096,6 @@ class PatternRewriter : ExprMutator {
   PackedFunc rewriter_func_;
   std::unordered_set<const VarNode*> params_;
   Map<Var, Expr> bindings_;
-  std::unordered_map<const Object*, Expr> memo_;
 };
 
 Function RewriteBindings(const PatternContext& ctx, PackedFunc rewriter, Function f) {

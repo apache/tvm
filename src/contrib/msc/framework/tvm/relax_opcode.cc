@@ -256,14 +256,7 @@ class RelaxConstantCodeGen : public RelaxOpCode {
   RELAX_OP_CODEGEN_METHODS(RelaxConstantCodeGen)
 
  protected:
-  void CodeGenBuild() final {
-    stack_.op_call()
-        .op_name_arg("")
-        .func_call("relax.TensorStructInfo")
-        .call_arg(DocUtils::ToListDoc(node()->OutputAt(0)->shape, true), "")
-        .call_arg(DocUtils::ToStrDoc(node()->OutputAt(0)->DTypeName()))
-        .pop_nest();
-  }
+  void CodeGenBuild() final { stack_.assign(IdxNode(), IdxWeight("const")); }
 };
 
 class RelaxConvCodeGen : public RelaxOpCode {

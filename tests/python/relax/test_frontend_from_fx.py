@@ -1152,6 +1152,46 @@ def test_functional_layernorm():
     binding = {}
     verify_model(model, input_info, binding, expected2)
 
+    class LayerNorm3(Module):
+        def __init__(self, shape):
+            super().__init__()
+            self.shape = shape
+            self.weight = torch.nn.Parameter(torch.ones(shape))
+            self.bias = torch.nn.Parameter(torch.zeros(shape))
+
+        def forward(self, input):
+            return torch.nn.functional.layer_norm(input, self.shape, self.weight, self.bias, 1e-5)
+
+    @tvm.script.ir_module
+    class expected3:
+        @R.function
+        def main(
+            input_1: R.Tensor((1, 3, 10, 10), dtype="float32"),
+            w1: R.Tensor([10, 10], dtype="float32"),
+            w2: R.Tensor([10, 10], dtype="float32"),
+        ) -> R.Tensor((1, 3, 10, 10), dtype="float32"):
+            # block 0
+            with R.dataflow():
+                lv: R.Tensor((1, 3, 10, 10), dtype="float32") = R.nn.layer_norm(
+                    input_1,
+                    w1,
+                    w2,
+                    axes=[-2, -1],
+                    epsilon=1e-05,
+                    center=True,
+                    scale=True,
+                )
+                gv: R.Tensor((1, 3, 10, 10), dtype="float32") = lv
+                R.output(gv)
+            return gv
+
+    model = LayerNorm3([10, 10])
+    binding = {
+        "w1": model.weight.detach().numpy(),
+        "w2": model.bias.detach().numpy(),
+    }
+    verify_model(model, input_info, binding, expected3)
+
 
 def test_cross_entropy():
     input_info = [([3, 2], "float32"), ([3], "int32")]
@@ -2335,6 +2375,43 @@ def test_interpolate():
             return gv
 
     verify_model(Interpolate(), input_info, {}, expected1)
+
+    class Interpolate2(Module):
+        def forward(self, input):
+            return torch.nn.functional.interpolate(
+                input,
+                size=None,
+                scale_factor=2.0,
+                mode="bilinear",
+                align_corners=False,
+            )
+
+    @tvm.script.ir_module
+    class expected2:
+        @R.function
+        def main(
+            input_1: R.Tensor((1, 3, 10, 10), dtype="float32")
+        ) -> R.Tensor((1, 3, 20, 20), dtype="float32"):
+            # block 0
+            with R.dataflow():
+                lv: R.Tensor((1, 3, 20, 20), dtype="float32") = R.image.resize2d(
+                    input_1,
+                    (20, 20),
+                    roi=[0.000000, 0.000000, 0.000000, 0.000000],
+                    layout="NCHW",
+                    method="linear",
+                    coordinate_transformation_mode="half_pixel",
+                    rounding_method="round",
+                    cubic_alpha=-0.5,
+                    cubic_exclude=0,
+                    extrapolation_value=0,
+                    out_dtype="",
+                )
+                gv: R.Tensor((1, 3, 20, 20), dtype="float32") = lv
+                R.output(gv)
+            return gv
+
+    verify_model(Interpolate2(), input_info, {}, expected2)
 
     class Interpolate3(Module):
         def forward(self, input):

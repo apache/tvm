@@ -276,5 +276,19 @@ def test_do_not_eliminate_shape_expr():
     verify(Before, Expected)
 
 
+def test_do_not_eliminate_extern_func():
+    @I.ir_module
+    class Before:
+        @R.function(pure=False)
+        def foo(x: R.Tensor((2, 3), dtype="float32")):
+            y = R.call_packed("extern_func_name", x, sinfo_args=R.Tensor([2, 3]))
+            z = R.call_packed("extern_func_name", y, sinfo_args=R.Tensor([2, 3]))
+            return z
+
+    Expected = Before
+
+    verify(Before, Expected)
+
+
 if __name__ == "__main__":
     tvm.testing.main()

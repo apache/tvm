@@ -542,5 +542,105 @@ def test_symbolic_var_2():
     tvm.ir.assert_structural_equal(after, Expected)
 
 
+def test_symbolic_var_from_shape():
+    @I.ir_module
+    class Before:
+        @R.function
+        def main(
+            A: R.Tensor([16, 16], "int32"),
+            B: R.Tensor([16, 16], "int32"),
+            shape: R.Shape(["slice_index"]),
+        ) -> R.Tensor([16], "int32"):
+            R.func_attr({"num_input": 1})
+            slice_index = T.int64()
+            cls = Before
+            with R.dataflow():
+                B_slice = R.call_tir(
+                    cls.slice,
+                    [B],
+                    tir_vars=R.ShapeExpr([slice_index]),
+                    out_sinfo=R.Tensor([16], dtype="int32"),
+                )
+                A_slice = R.call_tir(
+                    cls.slice,
+                    [A],
+                    tir_vars=R.ShapeExpr([slice_index]),
+                    out_sinfo=R.Tensor([16], dtype="int32"),
+                )
+                A_scale = R.multiply(A_slice, B_slice)
+                R.output(A_scale)
+            return A_scale
+
+        @T.prim_func(private=True)
+        def slice(
+            Input_2d: T.Buffer(shape=[16, 16], dtype="int32"),
+            Output_Slice: T.Buffer(shape=[16], dtype="int32"),
+            slice_index: T.int64,
+        ):
+            T.func_attr({"tir.noalias": T.bool(True)})
+            for j in range(16):
+                with T.block("T_full"):
+                    vj = T.axis.remap("S", [j])
+                    Output_Slice[vj] = Input_2d[slice_index, vj]
+
+    @I.ir_module
+    class Expected:
+        @R.function
+        def main(
+            A: R.Tensor([16, 16], "int32"),
+            shape: R.Shape(["slice_index"]),
+            B_slice: R.Tensor([16], "int32"),
+        ) -> R.Tensor([16], "int32"):
+            R.func_attr({"num_input": 1})
+            slice_index = T.int64()
+            cls = Expected
+            with R.dataflow():
+                A_slice = R.call_tir(
+                    cls.slice,
+                    [A],
+                    tir_vars=R.ShapeExpr([slice_index]),
+                    out_sinfo=R.Tensor([16], dtype="int32"),
+                )
+                B_slice = B_slice
+                A_scale = R.multiply(A_slice, B_slice)
+                R.output(A_scale)
+            return A_scale
+
+        @R.function
+        def main_transform_params(
+            params: R.Tuple(R.Tensor([16, 16], "int32"), R.Shape(["slice_index"]))
+        ):
+            slice_index = T.int64()
+            cls = Expected
+            with R.dataflow():
+                extra_symbolic_vars = R.ShapeExpr([slice_index])
+                B = params[0]
+                B_slice = R.call_tir(
+                    cls.slice,
+                    [B],
+                    tir_vars=R.ShapeExpr([slice_index]),
+                    out_sinfo=R.Tensor([16], dtype="int32"),
+                )
+                output = (extra_symbolic_vars, B_slice)
+                R.output(output)
+            return output
+
+        @T.prim_func(private=True)
+        def slice(
+            Input_2d: T.Buffer(shape=[16, 16], dtype="int32"),
+            Output_Slice: T.Buffer(shape=[16], dtype="int32"),
+            slice_index: T.int64,
+        ):
+            T.func_attr({"tir.noalias": T.bool(True)})
+            for j in range(16):
+                with T.block("T_full"):
+                    vj = T.axis.remap("S", [j])
+                    Output_Slice[vj] = Input_2d[slice_index, vj]
+
+    mod = Before
+    after = relax.transform.LiftTransformParams()(mod)
+    tvm.ir.assert_structural_equal(Expected, after)
+
+
 if __name__ == "__main__":
     tvm.testing.main()

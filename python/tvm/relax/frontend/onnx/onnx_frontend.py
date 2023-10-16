@@ -729,6 +729,8 @@ class CumSum(OnnxOpConverter):
 
         if isinstance(axis, relax.Constant):
             axis = int(axis.data.numpy())
+        elif isinstance(axis, relax.Var):
+            axis = 0
         data = relax.op.cumsum(data, axis)
         if attr.get("reverse", 0) != 0:
             data = bb.emit_te(topi.flip, data, axis=axis if axis else 0)
@@ -1424,7 +1426,7 @@ class MaxPool(OnnxOpConverter):
         dilations = attr.get("dilations", [1, 1])
         kernel_shape = attr.get("kernel_shape")
         pads = attr.get("pads", 0)
-        strides = attr.get("strides", 1)
+        strides = attr.get("strides", [1, 1])
 
         assert len(kernel_shape) == 2, "Currently only 2D pooling is supported."
         assert auto_pad in [

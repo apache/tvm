@@ -66,13 +66,18 @@ class RemoveRedundantReshape:
                 continue
 
             def rewriter(expr, matches):
-                args = matches[self.pattern]
+                arg = matches[self.input1]
+
                 if self.repeated_reshape in matches:
-                    return relax.op.reshape(matches[self.input1], args.args[1])
+                    output_shape = matches[self.repeated_reshape].args[1]
+                    return relax.op.reshape(arg, output_shape)
+
                 elif self.no_op_reshape in matches:
-                    if args.args[0].struct_info.shape:
-                        if structural_equal(args.args[0].struct_info.shape, args.args[1]):
-                            return args.args[0]
+                    output_shape = matches[self.no_op_reshape].args[1]
+                    if arg.struct_info.shape and structural_equal(
+                        arg.struct_info.shape, output_shape
+                    ):
+                        return arg
                 return expr
 
             updated_func = rewrite_call(self.pattern, rewriter, funct)

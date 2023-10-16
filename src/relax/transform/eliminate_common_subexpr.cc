@@ -94,7 +94,7 @@ class SubexprCounter : public ExprVisitor {
     if (!(e->IsInstance<VarNode>() || e->IsInstance<DataflowVarNode>() ||
           e->IsInstance<GlobalVarNode>() || e->IsInstance<tvm::OpNode>() ||
           e->IsInstance<PrimValueNode>() || e->IsInstance<StringImmNode>() ||
-          e->IsInstance<ShapeExprNode>() ||
+          e->IsInstance<ShapeExprNode>() || e->IsInstance<ExternFuncNode>() ||
           (e.as<ConstantNode>() && (e.as<ConstantNode>()->is_scalar())))) {
       // also if e has an impure subexpression, we will not deduplicate it
       if (!impurity_detector_.Detect(e)) {
@@ -105,7 +105,27 @@ class SubexprCounter : public ExprVisitor {
         count_map_[e] = count + 1;
       }
     }
-    ExprVisitor::VisitExpr(e);
+
+    // Only visit the interior of objects that we might still keep
+    // around.  Otherwise, double-counting these would lead to extra
+    // variable bindings.
+    //
+    // Before:
+    //     y = f(a+b)
+    //     z = f(a+b)
+    //
+    // Expected:
+    //     y = f(a+b)  // De-duped from (y==z)
+    //     z = y
+    //
+    // Erroneous output:
+    //     c = a+b    // Incorrect, a+b only has a single usage.
+    //     y = f(c)   // De-duped from
+    //     z = y
+    //
+    if (auto it = count_map_.find(e); it == count_map_.end() || it->second < 2) {
+      ExprVisitor::VisitExpr(e);
+    }
   }
 
   // do not visit inner functions: we will do CSE within those

@@ -52,6 +52,15 @@ class CommonUtils {
    * \return The valid indices.
    */
   TVM_DLL static std::vector<size_t> GetIndices(const std::vector<int>& indices, size_t max_size);
+
+  /*!
+   * \brief Compare version with version in config
+   * 0 for same version, 1 for greater version, -1 for less version
+   */
+  TVM_DLL static int CompareVersion(const std::vector<size_t>& given_version,
+                                    const std::vector<size_t>& target_version);
+  TVM_DLL static int CompareVersion(const Array<Integer>& given_version,
+                                    const Array<Integer>& target_version);
 };
 
 /*!
