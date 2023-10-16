@@ -2342,7 +2342,7 @@ def test_interpolate():
                 input,
                 size=None,
                 scale_factor=2.0,
-                mode='bilinear',
+                mode="bilinear",
                 align_corners=False,
             )
 
