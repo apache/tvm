@@ -218,7 +218,7 @@ def instantiate_flash_attention_template(attrs):
     			    o_row_stride,
     			    ${scale},
     			    ${is_causal},
-                            -1, // win_left
+                            ${window_size},
                             -1, // win_right
     			    stream);
     """

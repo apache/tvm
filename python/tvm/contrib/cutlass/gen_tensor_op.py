@@ -773,6 +773,7 @@ def instantiate_template(func_name, annotations, func_args):
             and (
                 int(annotations["custom_mask_type"]) == 0
                 or (int(annotations["custom_mask_type"]) == 2 and is_mqa)
+                or (int(annotations["custom_mask_type"]) == 2 and "window_size" in annotations)
             )
             # Flash v2 is currently not supported for sm < 80
             and int(annotations["arch"]) >= 80
@@ -782,6 +783,8 @@ def instantiate_template(func_name, annotations, func_args):
         if "window_size" in annotations:
             assert use_flash, "Sliding-window attention is supported only by Flash Attention."
             attrs["window_size"] = int(annotations["window_size"])
+        else:
+            attrs["window_size"] = -1
 
         if use_flash:
             headers.append("flash.h")
