@@ -3797,6 +3797,8 @@ class PyTorchOpConverter:
                 idx = call.args[1]
                 assert isinstance(idx, _expr.Constant)
                 idx = idx.data.numpy().item()
+                if idx < 0:
+                    idx = source_shape[axis] + idx
                 index_map[axis] = (idx, idx + 1)
                 values = _op.expand_dims(values, axis)
                 squeezed_axes.append(axis)
@@ -4559,6 +4561,19 @@ def _run_jit_passes(graph, enable_lower_all_tuples=True):
 
 
 def _redirect_inplace_output(graph):
+    """
+    This pass redirects the output node of the in-place op i.e. aten::copy_.
+    Before:
+      %1: ...
+      %2: ... 
+      %3: Float(requires_grad=0, device=cpu) = aten::copy_(%input, %1, %2)
+      return (%input)
+    After:
+      %1: ...
+      %2: ... 
+      %3: Float(requires_grad=0, device=cpu) = aten::copy_(%input, %1, %2)
+      return (%3)
+    """
     for node in graph.nodes():
         if node.kind() == "aten::copy_":
             node_inputs = list(node.inputs())

@@ -5356,13 +5356,29 @@ def test_exporting_renamed_c_graph():
 
 
 def test_inplace_copy():
-    class InplaceCopy(torch.nn.Module):
+    class SimpleInplaceCopy(torch.nn.Module):
         def forward(self, x):
-            x[:5, 0] = x[:5, 0] + 1
+            x[:5, 0, 5:] = x[:5, 0, 5:] + 1
+            return x
+    
+    class NegativeSliceInplaceCopy(torch.nn.Module):
+        def forward(self, x):
+            x[5:-1, -1, :] = x[5:-1, -1, :] + 1
             return x
 
-    inputs = torch.randn(10, 10)
-    verify_model(InplaceCopy(), [inputs])
+    class PartialDimensionInplaceCopy(torch.nn.Module):
+        def forward(self, x):
+            x[:5] = x[:5] + 1
+            x[0:5, ...] = x[0:5, ...] + 1
+            x[0:5, ..., -1] = x[0:5, ..., -1] + 1
+            return x
+
+    inputs = torch.randn(10, 10, 10)
+    verify_model(SimpleInplaceCopy(), [inputs])
+    inputs = torch.randn(10, 10, 10)
+    verify_model(NegativeSliceInplaceCopy(), [inputs])
+    inputs = torch.randn(10, 10, 10)
+    verify_model(PartialDimensionInplaceCopy(), [inputs])
 
 
 class TestSetSpan:
