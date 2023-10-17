@@ -125,7 +125,7 @@ def get_info(
         name = dim.dim_param
         value = dim.dim_value
         if value is None or value == 0:
-            if name not in value_dict:
+            if name not in value_dict or name == '?':
                 value_dict[name] = tvm.tir.SizeVar(name, "int64")
             value = value_dict[name]
             shape_name.append(name)
