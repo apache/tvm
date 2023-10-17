@@ -1820,6 +1820,17 @@ class OneHot(OnnxOpConverter):
         return bb.emit_te(topi.one_hot, indices, on_value, off_value, depth, axis, dtype)
 
 
+class Elu(OnnxOpConverter):
+    """Converts an onnx Elu node into an equivalent Relax expression."""
+
+    @classmethod
+    def _impl_v1(cls, bb, inputs, attr, params):
+        alpha = float(attr.get("alpha", 1.0))
+        return relax.expr.const(-alpha) * relax.op.nn.relu(
+            relax.expr.const(1.0) - relax.op.exp(inputs[0])
+        ) + relax.op.nn.relu(inputs[0])
+
+
 def _get_convert_map():
     return {
         "MatMul": MatMul,
@@ -1897,6 +1908,7 @@ def _get_convert_map():
         "Greater": Greater,
         "Reciprocal": Reciprocal,
         "OneHot": OneHot,
+        "Elu": Elu,
     }
 
 

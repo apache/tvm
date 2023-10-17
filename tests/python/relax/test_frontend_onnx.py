@@ -543,6 +543,10 @@ def test_triu():
     verify_unary("Trilu", [3, 5, 5], attrs={"upper": True})
 
 
+def test_elu():
+    verify_unary("Elu", [32, 32])
+
+
 def test_conv():
     def _verify_conv(input_shape, weight_shape, output_shape):
         bias_shape = [output_shape[1]]
