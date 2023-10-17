@@ -196,6 +196,61 @@ class MultiLevelTilingTensorCore(ScheduleRule):
             use_software_pipeline,
         )
 
+@register_object("meta_schedule.MultiLevelTilingMatrixCore")
+class MultiLevelTilingMatrixCore(ScheduleRule):
+    """Extension of MultiLevelTiling for auto-tensorizing with multiple groups of candidate matrix
+    core intrinsics.
+
+    Parameters
+    ----------
+    intrin_groups : List[Mapping[str, str]]
+        A list of groups of matrix core intrinsics. The map should contains key "init", "load_a",
+        "load_b", "compute", "store", which represent the tensor intrin for initialization,
+        loading operand A, loading operand B, tensor core computation, storing the result.
+        The value of the map should be names of tensor intrinsics, must be registerd via
+        TensorIntrin.register(...) beforehand
+    structure : str
+        The tiling structure. Recommended:
+        - 'SSSRRSRS' on GPU
+    tile_bind : Optional[List[str]]
+        For each level of tiles, which thread axis it is bound to. Recommended:
+        - [blockIdx.y, vthread.x, threadIdx.y] on GPU
+    max_innermost_factor : Optional[int]
+        The maximum size of the innermost factor. None means no limit
+    vector_load_lens : Optional[List[int]]
+        The length of vector lane in vectorized cooperative fetching.
+        None means disable vectorization
+    reuse_read : Optional[ReuseType]
+        Data reuse configuration for reading. None means no reuse.
+    reuse_write : Optional[ReuseType]
+        Data reuse configuration for writing. None means no reuse.
+    use_software_pipeline : bool
+        Whether to use the software pipeline.
+    """
+
+    def __init__(
+        self,
+        intrin_groups: List[Mapping[str, str]],
+        structure: str,
+        tile_binds: Optional[List[str]] = None,
+        max_innermost_factor: Optional[int] = None,
+        vector_load_lens: Optional[List[int]] = None,
+        reuse_read: Optional[ReuseType] = None,
+        reuse_write: Optional[ReuseType] = None,
+        use_software_pipeline: bool = False,
+    ) -> None:
+        self.__init_handle_by_constructor__(
+            _ffi_api.ScheduleRuleMultiLevelTilingMatrixCore,  # type: ignore # pylint: disable=no-member
+            intrin_groups,
+            structure,
+            tile_binds,
+            max_innermost_factor,
+            vector_load_lens,
+            reuse_read.as_dict() if reuse_read is not None else None,
+            reuse_write.as_dict() if reuse_write is not None else None,
+            use_software_pipeline,
+        )
+
 
 @register_object("meta_schedule.MultiLevelTilingWideVector")
 class MultiLevelTilingWideVector(ScheduleRule):

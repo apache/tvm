@@ -135,6 +135,8 @@ class Mutator : public runtime::ObjectRef {
   TVM_DLL static Map<Mutator, FloatImm, void> DefaultCUDA();
   /*! \brief Create default mutators for CUDA with TensorCore */
   TVM_DLL static Map<Mutator, FloatImm, void> DefaultCUDATensorCore();
+  /*! \brief Create default mutators for ROCM with MatrixCore */
+  TVM_DLL static Map<Mutator, FloatImm, void> DefaultROCMMatrixCore();
   /*! \brief Create default mutators for Hexagon */
   TVM_DLL static Map<Mutator, FloatImm, void> DefaultHexagon();
   /*! \brief Create default mutators for Micro */

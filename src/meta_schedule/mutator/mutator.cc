@@ -68,6 +68,8 @@ Map<Mutator, FloatImm> Mutator::DefaultCUDA() {
 
 Map<Mutator, FloatImm> Mutator::DefaultCUDATensorCore() { return Mutator::DefaultCUDA(); }
 
+Map<Mutator, FloatImm> Mutator::DefaultROCMMatrixCore() { return Mutator::DefaultCUDA(); }
+
 Map<Mutator, FloatImm> Mutator::DefaultHexagon() {
   return Map<Mutator, FloatImm>{
       {Mutator::MutateTileSize(), FloatImm(DataType::Float(64), 0.9)},
@@ -108,6 +110,8 @@ TVM_REGISTER_GLOBAL("meta_schedule.MutatorDefaultLLVM").set_body_typed(Mutator::
 TVM_REGISTER_GLOBAL("meta_schedule.MutatorDefaultCUDA").set_body_typed(Mutator::DefaultCUDA);
 TVM_REGISTER_GLOBAL("meta_schedule.MutatorDefaultCUDATensorCore")
     .set_body_typed(Mutator::DefaultCUDATensorCore);
+TVM_REGISTER_GLOBAL("meta_schedule.MutatorDefaultROCMMatrixCore")
+    .set_body_typed(Mutator::DefaultROCMMatrixCore);
 TVM_REGISTER_GLOBAL("meta_schedule.MutatorDefaultHexagon").set_body_typed(Mutator::DefaultHexagon);
 TVM_REGISTER_GLOBAL("meta_schedule.MutatorDefaultMicro").set_body_typed(Mutator::DefaultMicro);
 
