@@ -248,6 +248,9 @@ def wmma_schedule(
     i_factors,
     j_factors,
     k_factors,
+    wmma_m,
+    wmma_n,
+    wmma_k,
     ldmatrix_a_intrin,
     ldmatrix_b_intrin,
     wmma_intrin,
@@ -260,10 +263,6 @@ def wmma_schedule(
 
     ir_module = tvm.IRModule({"main": workload})
     sch = tvm.tir.Schedule(ir_module)
-
-    wmma_m = 16
-    wmma_n = 16
-    wmma_k = 16
     warp_size = 64
 
     block = sch.get_block("C")
