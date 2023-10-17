@@ -376,5 +376,57 @@ def test_output():
         tvm.testing.assert_allclose(expected_i, transformed_i)
 
 
+def test_duplicate_outputs():
+    """A tensor may be repeated in the output
+
+    This is something that should be avoided upstream, but is a legal
+    parameter transformation, and should produce correct output.
+    """
+
+    @I.ir_module
+    class Before:
+        @R.function
+        def main_transform_params(
+            params: R.Tuple(R.Tensor([16], dtype="int32"), R.Tensor([16], dtype="int32"))
+        ):
+            R.func_attr({"relax.force_pure": True})
+            param0 = params[0]
+            param1 = params[1]
+            transformed0 = R.add(param0, R.const(1, "int32"))
+            transformed1 = R.add(param1, R.const(2, "int32"))
+            output = (transformed0, transformed1, transformed0)
+            return output
+
+    @I.ir_module
+    class Expected:
+        @R.function(pure=False)
+        def main_transform_params() -> R.Tuple:
+            gv: R.Object = R.call_packed("get_item", R.prim_value(0), sinfo_args=(R.Object,))
+            gv1: R.Tensor((16,), dtype="int32") = R.match_cast(gv, R.Tensor((16,), dtype="int32"))
+            param0: R.Tensor((16,), dtype="int32") = gv1
+
+            gv2: R.Object = R.call_packed("get_item", R.prim_value(1), sinfo_args=(R.Object,))
+            gv3: R.Tensor((16,), dtype="int32") = R.match_cast(gv2, R.Tensor((16,), dtype="int32"))
+            param1: R.Tensor((16,), dtype="int32") = gv3
+
+            transformed0: R.Tensor((16,), dtype="int32") = R.add(param0, R.const(1, "int32"))
+            _: R.Tuple = R.vm.kill_object(param0)
+            _: R.Object = R.call_packed(
+                "set_item", R.prim_value(0), transformed0, sinfo_args=(R.Object,)
+            )
+            _: R.Object = R.call_packed(
+                "set_item", R.prim_value(2), transformed0, sinfo_args=(R.Object,)
+            )
+
+            transformed1: R.Tensor((16,), dtype="int32") = R.add(param1, R.const(2, "int32"))
+            _ = R.vm.kill_object(param1)
+            _ = R.call_packed("set_item", R.prim_value(1), transformed1, sinfo_args=(R.Object,))
+            output = R.tuple()
+            return output
+
+    after = LazyTransformParams()(Before)
+    tvm.ir.assert_structural_equal(after, Expected)
+
+
 if __name__ == "__main__":
     tvm.testing.main()
