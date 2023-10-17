@@ -5360,7 +5360,7 @@ def test_inplace_copy():
         def forward(self, x):
             x[:5, 0, 5:] = x[:5, 0, 5:] + 1
             return x
-    
+
     class NegativeSliceInplaceCopy(torch.nn.Module):
         def forward(self, x):
             x[5:-1, -1, :] = x[5:-1, -1, :] + 1
