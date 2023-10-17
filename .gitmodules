@@ -28,3 +28,6 @@
 [submodule "3rdparty/libflash_attn"]
 	path = 3rdparty/libflash_attn
 	url = https://github.com/tlc-pack/libflash_attn
+[submodule "3rdparty/composable_kernel"]
+	path = 3rdparty/composable_kernel
+	url = https://github.com/ROCmSoftwarePlatform/composable_kernel.git
