@@ -92,6 +92,20 @@ Array<Postproc> Postproc::DefaultCUDATensorCore() {
   };
 }
 
+Array<Postproc> Postproc::DefaultROCMMatrixCore() {
+  return Array<Postproc>{
+      Postproc::DisallowDynamicLoop(),
+      Postproc::RewriteCooperativeFetch(),
+      Postproc::RewriteUnboundBlock(/*max_threadblocks=*/256),
+      Postproc::RewriteParallelVectorizeUnroll(),
+      Postproc::RewriteReductionBlock(),
+      Postproc::VerifyGPUCode(),
+      // RewriteTensorize is relatively expensive and it doesn't affect the validity of a sample, so
+      // run it only on samples that have passed VerifyGPUCode.
+      Postproc::RewriteTensorize(/*vectorize_init_loop=*/false),
+  };
+}
+
 Array<Postproc> Postproc::DefaultHexagon() {
   return Array<Postproc>{
       Postproc::DisallowDynamicLoop(),   Postproc::RewriteParallelVectorizeUnroll(),
@@ -129,6 +143,8 @@ TVM_REGISTER_GLOBAL("meta_schedule.PostprocDefaultLLVM").set_body_typed(Postproc
 TVM_REGISTER_GLOBAL("meta_schedule.PostprocDefaultCUDA").set_body_typed(Postproc::DefaultCUDA);
 TVM_REGISTER_GLOBAL("meta_schedule.PostprocDefaultCUDATensorCore")
     .set_body_typed(Postproc::DefaultCUDATensorCore);
+TVM_REGISTER_GLOBAL("meta_schedule.PostprocDefaultROCMMatrixCore")
+    .set_body_typed(Postproc::DefaultROCMMatrixCore);
 TVM_REGISTER_GLOBAL("meta_schedule.PostprocDefaultHexagon")
     .set_body_typed(Postproc::DefaultHexagon);
 

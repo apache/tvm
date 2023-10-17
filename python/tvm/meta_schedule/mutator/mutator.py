@@ -99,6 +99,7 @@ class Mutator(Object):
             "llvm": _ffi_api.MutatorDefaultLLVM,  # type: ignore
             "cuda": _ffi_api.MutatorDefaultCUDA,  # type: ignore
             "cuda-tensorcore": _ffi_api.MutatorDefaultCUDATensorCore,  # type: ignore
+            "rocm-matrixcore": _ffi_api.MutatorDefaultROCMMatrixCore,  # type: ignore
             "hexagon": _ffi_api.MutatorDefaultHexagon,  # type: ignore
             # pylint: enable=no-member
         }
