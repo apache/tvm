@@ -28,14 +28,14 @@
 
 #include "../../core/codegen/base_codegen.h"
 #include "../../core/codegen/py_codegen.h"
-#include "config.h"
+#include "codegen_utils.h"
 #include "torch_opcode.h"
 
 namespace tvm {
 namespace contrib {
 namespace msc {
 
-class TorchCodeGen : public PyCodeGen<TorchCodeGenConfig> {
+class TorchCodeGen : public PyCodeGen<TorchCodeGenConfig, TorchCodeGenHelper> {
  public:
   /*!
    * \brief The constructor of TorchCodeGen
@@ -43,7 +43,7 @@ class TorchCodeGen : public PyCodeGen<TorchCodeGenConfig> {
    * \param config the options for codegen.
    */
   explicit TorchCodeGen(const MSCGraph& graph, const std::string& config = "")
-      : PyCodeGen<TorchCodeGenConfig>(graph, config) {}
+      : PyCodeGen<TorchCodeGenConfig, TorchCodeGenHelper>(graph, config) {}
 
  protected:
   /*! \brief Stack the docs for the header*/

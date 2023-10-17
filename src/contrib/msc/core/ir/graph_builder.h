@@ -156,6 +156,8 @@ class RelaxFuncAttrGetter : public RelaxExprVisitor {
 
   void VisitExpr_(const relax::CallNode* op) final;
 
+  void VisitExpr_(const relax::TupleGetItemNode* op) final;
+
  private:
   Map<String, String> attrs_;
 };

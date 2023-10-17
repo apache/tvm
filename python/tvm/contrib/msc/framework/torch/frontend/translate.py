@@ -50,7 +50,7 @@ def from_torch(
     via_relax: bool
         Whether translate torch to relax.
     trans_config: dict
-        The config for transfrorm IRModule.
+        The config for transform IRModule.
     build_config: dict
         The config for build MSCGraph.
     opt_config: dict
