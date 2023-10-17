@@ -335,6 +335,12 @@ def legalize_conv2d_transpose(attrs, inputs, types):
     return topi.nn.conv2d_transpose_legalize(attrs, inputs, types)
 
 
+@reg.register_alter_op_layout("nn.conv2d_transpose")
+def alter_op_layout_conv2d_transpose(attrs, inputs, tinfos, out_type):
+    """Alternate the layout of conv2d_transpose"""
+    return topi.nn.conv2d_transpose_alter_layout(attrs, inputs, tinfos, out_type)
+
+
 @reg.register_convert_op_layout("nn.conv2d_transpose")
 def convert_conv2d_transpose(attrs, inputs, tinfos, desired_layouts):
     """Convert Layout pass registration for conv2d_transpose op.
