@@ -37,10 +37,15 @@ from tvm.tir.tensor_intrin.rocm import (
     ROCM_MFMA_LOAD_16x16_B_SHARED_s8_INTRIN,
     ROCM_MFMA_s8s8s32_INTRIN,
     ROCM_MFMA_STORE_16x16_s32_INTRIN,
+    WMMA_FILL_16x16x16_F32_INTRIN,
+    WMMA_LOAD_16x16x16_F16_A_INTRIN,
+    WMMA_LOAD_16x16x16_F16_B_INTRIN,
+    WMMA_SYNC_16x16x16_f16f16f32_INTRIN,
+    WMMA_STORE_16x16x16_F32_GLOBAL_INTRIN,
 )
 import tvm.testing
 import numpy as np
-from tvm.testing.tir import mfma_schedule
+from tvm.testing.tir import mfma_schedule, wmma_schedule
 
 
 M = 1024
@@ -90,26 +95,43 @@ def run_test(
     mma_intrin,
     mma_fill_intrin,
     mma_store_intrin,
+    is_wmma = False
 ):
-    sch = mfma_schedule(
-        te.create_prim_func(matmul(M, N, K, in_dtype, out_dtype, b_transposed)),
-        k_inner,
-        in_dtype,
-        b_transposed,
-        i_factors,
-        j_factors,
-        k_factors,
-        index_map_A,
-        index_map_B,
-        index_map_C,
-        ldmatrix_a_intrin,
-        ldmatrix_b_intrin,
-        mma_intrin,
-        mma_fill_intrin,
-        mma_store_intrin,
-    )
+    if is_wmma:
+        sch = wmma_schedule(
+            te.create_prim_func(matmul(M, N, K, in_dtype, out_dtype, b_transposed)),
+            k_inner,
+            in_dtype,
+            b_transposed,
+            i_factors,
+            j_factors,
+            k_factors,
+            ldmatrix_a_intrin,
+            ldmatrix_b_intrin,
+            mma_intrin,
+            mma_fill_intrin,
+            mma_store_intrin,
+        )
+    else:
+        sch = mfma_schedule(
+            te.create_prim_func(matmul(M, N, K, in_dtype, out_dtype, b_transposed)),
+            k_inner,
+            in_dtype,
+            b_transposed,
+            i_factors,
+            j_factors,
+            k_factors,
+            index_map_A,
+            index_map_B,
+            index_map_C,
+            ldmatrix_a_intrin,
+            ldmatrix_b_intrin,
+            mma_intrin,
+            mma_fill_intrin,
+            mma_store_intrin,
+        )
 
-    f = tvm.build(sch.mod["main"], target="rocm", name="dense")
+    f = tvm.build(sch.mod["main"], target="hip", name="dense")
 
     dev = tvm.device("rocm", 0)
     if in_dtype == "float32":
@@ -261,6 +283,36 @@ def test_f16f16f32_m16n16k16():
 
 
 @tvm.testing.requires_matrixcore
+def test_f16f16f32_m16n16k16():
+    k_inner = 16
+    in_dtype = "float16"
+    out_dtype = "float32"
+    i_factors, j_factors, k_factors = [1, 8, 2, 4, 1], [1, 16, 2, 1, 2], [32, 2, 1]
+
+    timer = run_test(
+        k_inner,
+        in_dtype,
+        out_dtype,
+        False,  # b_transposed
+        i_factors,
+        j_factors,
+        k_factors,
+        None,
+        None,
+        None,
+        WMMA_LOAD_16x16x16_F16_A_INTRIN,
+        WMMA_LOAD_16x16x16_F16_B_INTRIN,
+        WMMA_SYNC_16x16x16_f16f16f32_INTRIN,
+        WMMA_FILL_16x16x16_F32_INTRIN,
+        WMMA_STORE_16x16x16_F32_GLOBAL_INTRIN,
+        True
+    )
+
+    if measure_perf and timer:
+        print("f16f16f32_m16n16k16: %f GFLOPS" % (gflops / (timer().mean)))
+
+
+@tvm.testing.requires_matrixcore
 def test_f32f32f32_m16n16k4():
     def index_map_A(i, j):
         return (
@@ -311,4 +363,5 @@ def test_f32f32f32_m16n16k4():
 
 
 if __name__ == "__main__":
-    tvm.testing.main()
+    #tvm.testing.main()
+    test_f16f16f32_m16n16k16()
