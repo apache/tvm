@@ -51,59 +51,6 @@ def matmul_fp16(M: int, N: int, K: int, out_dtype: str):
     return (x, y, c)
 
 
-def multi_level_tiling_matrix_core(
-    *,
-    read_reuse_scope="shared",
-    write_reuse_scope="shared",
-    in_dtype="float16",
-    out_dtype="float32",
-    trans_b=False,
-    use_software_pipeline=False,
-) -> ms.schedule_rule.ScheduleRule:
-    assert read_reuse_scope in ["shared"]
-    assert write_reuse_scope in ["shared", "global"]
-    if not isinstance(in_dtype, list):
-        in_dtype = [in_dtype]
-    if not isinstance(out_dtype, list):
-        out_dtype = [out_dtype]
-    if not isinstance(trans_b, list):
-        trans_b = [trans_b]
-    return ms.schedule_rule.MultiLevelTilingMatrixCore(
-        intrin_groups=[
-            get_rocwmma_intrin_group(
-                read_reuse_scope, write_reuse_scope, _in_dtype, _out_dtype, _trans_b
-            )
-            for _in_dtype in in_dtype
-            for _out_dtype in out_dtype
-            for _trans_b in trans_b
-        ],
-        structure="SSSRRSRS",
-        tile_binds=["blockIdx.y", "blockIdx.x", "threadIdx.y"],
-        max_innermost_factor=4,  # 64 // tensor intrin size
-        vector_load_lens=[1, 2, 3, 4, 8, 16],
-        reuse_read=ms.schedule_rule.ReuseType(
-            req="must",
-            levels=[4],
-            scope=read_reuse_scope,
-        ),
-        reuse_write=ms.schedule_rule.ReuseType(
-            req="must" if write_reuse_scope.startswith("shared") else "no",
-            levels=[2],
-            scope=write_reuse_scope,
-        ),
-        #use_software_pipeline=use_software_pipeline,
-    )
-
-
-
-gemm_decision = [
-    ("SamplePartitionedTile", [1, 32, 2, 1, 4]),
-    ("SamplePartitionedTile", [4, 8, 2, 1, 8]),
-    ("SamplePerfectTile", [128, 4, 1]),
-]
-
-
-
 def initializer():
     @register_func("meta_schedule.builder.async_build")
     def async_build(mod, target, _params):  # pylint: disable=unused-variable, unused-argument
@@ -122,25 +69,20 @@ def initializer():
 
 
 
-def test_wmma_tune(idx):
-
-    def tune(out_dtype, idx):
-        
-        idx = idx
-        M_list = [8192, 8192, 14336, 8192, 8192, 4864]
-        K_list = [14336, 9728, 8192, 4864, 14336, 8192]
-        N_list = [9728, 14336, 8192, 4864, 14336, 14336]
-        M, N, K = M_list[idx], N_list[idx], K_list[idx]
-        print("================ task idx is %d, M:%d, N:%d, K%d :" % (idx, M, N, K))
+def test_wmma_tune():
+    M, N, K = 1024, 1024, 1024
+    def tune(out_dtype):
         target = Target("hip")
         func = te.create_prim_func(matmul_fp16(M=M, N=N, K=K, out_dtype=out_dtype)).with_attr(
             {"global_symbol": "main"}
         )
+
         space=ms.space_generator.PostOrderApply(
           sch_rules="rocm-matrixcore",
           postprocs="rocm-matrixcore",
           mutator_probs="rocm-matrixcore",
         )
+
         mod = tvm.IRModule({"main": func})
         work_dir = "hip_auto_schedule.log"
         db = ms.tir_integration.tune_tir(
@@ -172,9 +114,9 @@ def test_wmma_tune(idx):
             tvm.testing.assert_allclose(golden, c_tvm.numpy(), atol=1e-3, rtol=1e-3)
 
     #tune("float16")
-    tune("float32", idx)
+    tune("float32")
 
 
 if __name__ == "__main__":
     #for idx in range(2, 6):
-    test_wmma_tune(2)
+    test_wmma_tune()

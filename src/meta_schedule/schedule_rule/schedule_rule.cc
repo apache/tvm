@@ -282,7 +282,29 @@ Array<ScheduleRule> ScheduleRule::DefaultROCMMatrixCore() {
           {"load_b", "rocwmma_load_16x16x16_f16_b_shared"},
           {"compute", "rocwmma_sync_16x16x16_f16f16f32"},
           {"store", "rocwmma_store_16x16x16_f32_shared"},
-      }
+      },
+      {
+          {"init", "rocwmma_fill_32x32x8_f32"},
+          {"load_a", "rocwmma_load_32x32x8_f16_a_shared"},
+          {"load_b", "rocwmma_load_32x32x8_f16_b_shared"},
+          {"compute", "rocwmma_sync_32x32x8_f16f16f32"},
+          {"store", "rocwmma_store_32x32x8_f32_shared"},
+      },
+      {
+          {"init", "rocwmma_fill_16x16x16_i32"},
+          {"load_a", "rocwmma_load_16x16x16_i8_a_shared"},
+          {"load_b", "rocwmma_load_16x16x16_i8_b_shared"},
+          {"compute", "rocwmma_sync_16x16x16_i8i8i32"},
+          {"store", "rocwmma_store_16x16x16_i32_shared"},
+      },
+      {
+          {"init", "rocwmma_fill_32x32x8_i32"},
+          {"load_a", "rocwmma_load_32x32x8_i8_a_shared"},
+          {"load_b", "rocwmma_load_32x32x8_i8_b_shared"},
+          {"compute", "rocwmma_sync_32x32x8_i8i8i32"},
+          {"store", "rocwmma_store_32x32x8_i32_shared"},
+      },
+
   };
   Array<ScheduleRule> results{
       ScheduleRule::ApplyCustomRule(),
