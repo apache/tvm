@@ -18,11 +18,11 @@
  */
 
 /*!
- * \file src/contrib/msc/framework/tensorflow/config.h
- * \brief Tensorflow config for codegen.
+ * \file src/contrib/msc/framework/tensorflow/codegen_utils.h
+ * \brief Utils for tensorflow codegen.
  */
-#ifndef TVM_CONTRIB_MSC_FRAMEWORK_TENSORFLOW_CONFIG_H_
-#define TVM_CONTRIB_MSC_FRAMEWORK_TENSORFLOW_CONFIG_H_
+#ifndef TVM_CONTRIB_MSC_FRAMEWORK_TENSORFLOW_CODEGEN_UTILS_H_
+#define TVM_CONTRIB_MSC_FRAMEWORK_TENSORFLOW_CODEGEN_UTILS_H_
 
 #include <string>
 
@@ -60,4 +60,4 @@ struct TensorflowCodeGenConfig {
 }  // namespace msc
 }  // namespace contrib
 }  // namespace tvm
-#endif  // TVM_CONTRIB_MSC_FRAMEWORK_TENSORFLOW_CONFIG_H_
+#endif  // TVM_CONTRIB_MSC_FRAMEWORK_TENSORFLOW_CODEGEN_UTILS_H_

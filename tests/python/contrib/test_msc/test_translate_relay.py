@@ -19,7 +19,6 @@
 """ Test translate from relay. """
 
 import numpy as np
-import pytest
 
 import torch
 from torch import fx

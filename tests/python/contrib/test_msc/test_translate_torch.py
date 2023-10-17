@@ -18,7 +18,6 @@
 """ Test translate from torch. """
 
 import numpy as np
-import pytest
 
 import torch
 from torch.nn import Module

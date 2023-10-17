@@ -18,11 +18,11 @@
  */
 
 /*!
- * \file src/contrib/msc/framework/tvm/config.h
- * \brief Relax config for codegen.
+ * \file src/contrib/msc/framework/tvm/codegen_utils.h
+ * \brief Utils for TVM codegen.
  */
-#ifndef TVM_CONTRIB_MSC_FRAMEWORK_TVM_CONFIG_H_
-#define TVM_CONTRIB_MSC_FRAMEWORK_TVM_CONFIG_H_
+#ifndef TVM_CONTRIB_MSC_FRAMEWORK_TVM_CODEGEN_UTILS_H_
+#define TVM_CONTRIB_MSC_FRAMEWORK_TVM_CODEGEN_UTILS_H_
 
 #include <string>
 
@@ -63,4 +63,4 @@ struct RelaxCodeGenConfig {
 }  // namespace msc
 }  // namespace contrib
 }  // namespace tvm
-#endif  // TVM_CONTRIB_MSC_FRAMEWORK_TVM_CONFIG_H_
+#endif  // TVM_CONTRIB_MSC_FRAMEWORK_TVM_CODEGEN_UTILS_H_

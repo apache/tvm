@@ -18,11 +18,11 @@
  */
 
 /*!
- * \file src/contrib/msc/framework/torch/config.h
- * \brief Torch config for codegen.
+ * \file src/contrib/msc/framework/torch/codegen_utils.h
+ * \brief Utils for torch codegen.
  */
-#ifndef TVM_CONTRIB_MSC_FRAMEWORK_TORCH_CONFIG_H_
-#define TVM_CONTRIB_MSC_FRAMEWORK_TORCH_CONFIG_H_
+#ifndef TVM_CONTRIB_MSC_FRAMEWORK_TORCH_CODEGEN_UTILS_H_
+#define TVM_CONTRIB_MSC_FRAMEWORK_TORCH_CODEGEN_UTILS_H_
 
 #include <string>
 
@@ -71,4 +71,4 @@ struct TorchCodeGenConfig {
 }  // namespace msc
 }  // namespace contrib
 }  // namespace tvm
-#endif  // TVM_CONTRIB_MSC_FRAMEWORK_TORCH_CONFIG_H_
+#endif  // TVM_CONTRIB_MSC_FRAMEWORK_TORCH_CODEGEN_UTILS_H_
