@@ -44,7 +44,7 @@ def test_tflite_same_io_qnn_params():
 
     x = relay.var("x", shape=(1, 4), dtype=data_dtype)
     y = relay.var("y", shape=(1, 4), dtype=data_dtype)
-    z = relay.qnn.op.mul(
+    z = relay.qnn.mul(
         lhs=x,
         rhs=y,
         lhs_scale=relay.const(lhs_scale, "float32"),
@@ -99,7 +99,7 @@ def test_tflite_different_io_qnn_params():
 
     x = relay.var("x", shape=(1, 4), dtype=data_dtype)
     y = relay.var("y", shape=(1, 4), dtype=data_dtype)
-    z = relay.qnn.op.mul(
+    z = relay.qnn.mul(
         lhs=x,
         rhs=y,
         lhs_scale=relay.const(lhs_scale, "float32"),
@@ -149,7 +149,7 @@ def test_saturation():
 
     x = relay.var("x", shape=(1, 4), dtype=data_dtype)
     y = relay.var("y", shape=(1, 4), dtype=data_dtype)
-    z = relay.qnn.op.mul(
+    z = relay.qnn.mul(
         lhs=x,
         rhs=y,
         lhs_scale=relay.const(lhs_scale, "float32"),
@@ -184,7 +184,7 @@ def test_saturation():
     lhs_scale = rhs_scale = 0.125
     output_scale = 0.25
 
-    z = relay.qnn.op.mul(
+    z = relay.qnn.mul(
         lhs=x,
         rhs=y,
         lhs_scale=relay.const(lhs_scale, "float32"),
@@ -220,7 +220,7 @@ def test_saturation():
     rhs_scale = 0.25
     output_scale = 0.125
 
-    z = relay.qnn.op.mul(
+    z = relay.qnn.mul(
         lhs=x,
         rhs=y,
         lhs_scale=relay.const(lhs_scale, "float32"),

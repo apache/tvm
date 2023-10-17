@@ -36,7 +36,7 @@ def quantize_test_driver(in_dtype, quant_args, axis, out_dtype, in_data):
     input_data = relay.var("input_data", shape=shape, dtype=in_dtype)
     output_zero_point = relay.const(quant_args["out_zero_point"])
     output_scale = relay.const(quant_args["out_scale"])
-    quantized_output = relay.qnn.op.quantize(
+    quantized_output = relay.qnn.quantize(
         input_data,
         output_scale=output_scale,
         output_zero_point=output_zero_point,
@@ -56,7 +56,7 @@ def quantize_test_driver(in_dtype, quant_args, axis, out_dtype, in_data):
 
 
 def build_simulated_quantize(input_data, scale, zp, dtype, axis=-1):
-    sim_q = relay.qnn.op.simulated_quantize(
+    sim_q = relay.qnn.simulated_quantize(
         input_data,
         scale,
         zp,

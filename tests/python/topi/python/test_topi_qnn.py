@@ -54,7 +54,7 @@ def verify_simulated_quantize(data_shape, out_dtype, channels, axis):
         else:
             s_var = relay.const(s_np[0])
             z_var = relay.const(z_np[0])
-        real_q_op = relay.qnn.op.quantize(a_var, s_var, z_var, axis=axis, out_dtype=out_dtype)
+        real_q_op = relay.qnn.quantize(a_var, s_var, z_var, axis=axis, out_dtype=out_dtype)
         with tvm.transform.PassContext(opt_level=3):
             lib = relay.build(tvm.IRModule.from_expr(real_q_op), target=target)
 
@@ -121,7 +121,7 @@ def verify_simulated_dequantize(data_shape, in_dtype, channels, axis):
         else:
             s_var = relay.const(s_np[0])
             z_var = relay.const(z_np[0])
-        real_dq_op = relay.qnn.op.dequantize(a_var, s_var, z_var, axis=axis)
+        real_dq_op = relay.qnn.dequantize(a_var, s_var, z_var, axis=axis)
         with tvm.transform.PassContext(opt_level=3):
             lib = relay.build(tvm.IRModule.from_expr(real_dq_op), target=target)
 
