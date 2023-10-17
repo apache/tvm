@@ -1122,7 +1122,13 @@ class TorchFXImporter:
         if size is None:
             shape = self.shape_of(data)
             assert isinstance(shape, relax.ShapeExpr)
-            size = tuple(int(shape[i].value * scale_factor) for i in range(2, len(shape)))
+            if isinstance(scale_factor, tuple):
+                assert len(scale_factor) == len(shape) - 2
+                size = tuple(
+                    int(shape[i].value * scale_factor[i - 2]) for i in range(2, len(shape))
+                )
+            else:
+                size = tuple(int(shape[i].value * scale_factor) for i in range(2, len(shape)))
 
         if method.startswith("nearest"):
             method = "nearest_neighbor"
