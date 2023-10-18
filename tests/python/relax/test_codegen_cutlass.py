@@ -2129,27 +2129,26 @@ def test_sliding_window():
     )
 
     q, k, v, _, ref = get_numpy_attention_ref(
-        1, 64, 64, 16, 8, 8, "none", "none", causal, "float16", window_size=8
+        1, 64, 64, 16, 8, 8, "none", "none", causal, "float16", window_size=window_size
     )
 
-    # out = get_result_with_relax_cutlass_offload(mod, q, k, v, num_final_bindings=3)
+    out = get_result_with_relax_cutlass_offload(mod, q, k, v, num_final_bindings=3)
 
-    out = ref
+    # out = ref
 
     # tvm.testing.assert_allclose(out, ref, rtol=1e-2, atol=1e-2)
 
     # return
     ############# xformer reference for verification #############
 
-    if window_size > 0:
-        attn_bias = BlockDiagonalCausalMask.from_seqlens([64])
-        attn_bias = attn_bias.make_local_attention(window_size)
-    else:
-        attn_bias = None
+    attn_bias = BlockDiagonalCausalMask.from_seqlens([64])
 
-    query = torch.randn(*q_shape, dtype=torch.float16).to("cuda")
-    key = torch.randn(*k_shape, dtype=torch.float16).to("cuda")
-    value = torch.randn(*v_shape, dtype=torch.float16).to("cuda")
+    if window_size > 0:
+        attn_bias = attn_bias.make_local_attention(window_size)
+
+    query = torch.from_numpy(q).to("cuda")
+    key = torch.from_numpy(k).to("cuda")
+    value = torch.from_numpy(v).to("cuda")
 
     ref = xops.memory_efficient_attention_forward(
         query, key, value, attn_bias=attn_bias,
