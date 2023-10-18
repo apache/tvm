@@ -1233,6 +1233,7 @@ def test_tflite_split(accel_type, ifm_shape, num_or_size_splits, axis):
     [
         [(1, 8, 8, 3), 1.0, 0, 1.0, 0],
         [(1, 20, 30, 3), 1.345, 34, 0.32, -23],
+        [(1, 1, 4, 8), 0.0078125, 0, 0.00997, -30],
     ],
 )
 def test_ethosu_requantize(accel_type, ifm_shape, ifm_scale, ifm_zp, ofm_scale, ofm_zp):
