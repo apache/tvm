@@ -5427,7 +5427,7 @@ def test_load_trilu():
             outputs=[helper.make_tensor_value_info("y", onnx.TensorProto.DOUBLE, input_shape)],
         )
         return helper.make_model(graph)
-    
+
     def create_trilu_model_const_k():
         input_shape = [2, 3, 3]
 
