@@ -543,6 +543,10 @@ def test_triu():
     verify_unary("Trilu", [3, 5, 5], attrs={"upper": True})
 
 
+def test_elu():
+    verify_unary("Elu", [32, 32])
+
+
 def test_conv():
     def _verify_conv(input_shape, weight_shape, output_shape):
         bias_shape = [output_shape[1]]
@@ -1686,6 +1690,22 @@ def test_symbolic_shape_deduction():
 
     # TODO(siyuan): Enable assertion after fixing the SizeVar roundtrip issue
     # tvm.ir.assert_structural_equal(expected, tvm_model["main"])
+
+
+def test_multi_inputs_with_same_symbolic_shape():
+    concat_node = helper.make_node("Concat", ["data1", "data2"], ["output"], axis=1)
+
+    graph = helper.make_graph(
+        [concat_node],
+        "test_multi_symbolic_shape_input",
+        inputs=[
+            helper.make_tensor_value_info("data1", TensorProto.FLOAT, ["batch", 1]),
+            helper.make_tensor_value_info("data2", TensorProto.FLOAT, ["batch", 1]),
+        ],
+        outputs=[helper.make_tensor_value_info("output", TensorProto.FLOAT, ["batch", 2])],
+    )
+    model = helper.make_model(graph, producer_name="test_multi_symbolic_shape_input")
+    check_correctness(model)
 
 
 if __name__ == "__main__":
