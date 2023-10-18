@@ -46,13 +46,6 @@ class CodeGenCMSISNN : public codegen::CodeGenCHost {
     CodeGenCHost::Init(output_ssa, emit_asserts, emit_fwd_func_decl, target_str, devices);
   }
 
-  /*!
-   * \brief Emit code that offloads a subgraph to the Cortex-M
-   *
-   * \return string of code that offloads a subgraph to the Cortex-M
-   */
-  void AddFunction(const PrimFunc& prim_func) { CodeGenC::AddFunction(prim_func); }
-
  private:
   /*!  * \brief Enable storing the last error */
   bool debug_last_error;
@@ -575,11 +568,11 @@ runtime::Module TIRToRuntime(IRModule mod, Target target) {
   bool emit_fwd_func_decl = false;
   bool debug_last_error = GetCompilerAttrs()->debug_last_error;
   CodeGenCMSISNN codegen;
-  Array<String> function_names;
   codegen.Init(output_ssa, emit_asserts, emit_fwd_func_decl, target->str(), debug_last_error);
-  std::vector<std::pair<tvm::GlobalVar, tvm::BaseFunc>> funcs;
-  for (auto kv : mod->functions) {
-    funcs.push_back(kv);
+
+  std::vector<std::pair<tvm::GlobalVar, tvm::PrimFunc>> funcs;
+  for (auto [gvar, base_func] : mod->functions) {
+    funcs.push_back({gvar, Downcast<PrimFunc>(base_func)});
   }
 
   std::sort(funcs.begin(), funcs.end(),
@@ -594,13 +587,16 @@ runtime::Module TIRToRuntime(IRModule mod, Target target) {
               return name_hint_a < name_hint_b;
             });
 
-  for (auto kv : funcs) {
-    auto prim_func = Downcast<PrimFunc>(kv.second);
-    auto global_symbol = prim_func->GetAttr<String>(tvm::attr::kGlobalSymbol);
-    function_names.push_back(global_symbol.value());
-    codegen.AddFunction(prim_func);
+  for (auto [gvar, prim_func] : funcs) {
+    codegen.AddFunction(gvar, prim_func);
   }
   std::string code = codegen.Finish();
+
+  Array<String> function_names;
+  for (auto [gvar, prim_func] : funcs) {
+    function_names.push_back(codegen.GetFunctionName(gvar));
+  }
+
   return codegen::CSourceModuleCreate(code, "c", function_names);
 }
 
