@@ -1692,5 +1692,21 @@ def test_symbolic_shape_deduction():
     # tvm.ir.assert_structural_equal(expected, tvm_model["main"])
 
 
+def test_multi_inputs_with_same_symbolic_shape():
+    concat_node = helper.make_node("Concat", ["data1", "data2"], ["output"], axis=1)
+
+    graph = helper.make_graph(
+        [concat_node],
+        "test_multi_symbolic_shape_input",
+        inputs=[
+            helper.make_tensor_value_info("data1", TensorProto.FLOAT, ["batch", 1]),
+            helper.make_tensor_value_info("data2", TensorProto.FLOAT, ["batch", 1]),
+        ],
+        outputs=[helper.make_tensor_value_info("output", TensorProto.FLOAT, ["batch", 2])],
+    )
+    model = helper.make_model(graph, producer_name="test_multi_symbolic_shape_input")
+    check_correctness(model)
+
+
 if __name__ == "__main__":
     tvm.testing.main()
