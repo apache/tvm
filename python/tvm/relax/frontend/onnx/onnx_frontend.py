@@ -647,6 +647,8 @@ class Trilu(OnnxOpConverter):
 
         if isinstance(k, relax.Var) and k.name_hint in params:
             k = get_constant(k, params)
+        elif isinstance(k, relax.Constant):
+            k = int(k.data.numpy()[0])
         else:
             k = 0
 
