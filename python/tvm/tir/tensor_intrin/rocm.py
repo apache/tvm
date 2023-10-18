@@ -918,7 +918,7 @@ TensorIntrin.register(
 )
 
 # i16i16f32, BlockM=32, BlockN=32, BlockK=8
-WMMA_SYNC_32x32x8_I8I8I32_INTRIN = "rocwmma_sync_32x32x8_i16i16i32"
+WMMA_SYNC_32x32x8_I8I8I32_INTRIN = "rocwmma_sync_32x32x8_i8i8i32"
 TensorIntrin.register(
     WMMA_SYNC_32x32x8_I8I8I32_INTRIN,
     *get_wmma_sync_intrin(32, 32, 8, "int8", "int32", False),
