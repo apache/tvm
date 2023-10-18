@@ -45,7 +45,7 @@ using namespace tvm::script::printer;
 /*!
  * \brief CodeGen for MSCJoint op
  */
-template <typename ConfigType>
+template <typename ConfigType, typename HelperType>
 class BaseOpCode {
  public:
   /*!
@@ -108,7 +108,7 @@ class BaseOpCode {
 /*!
  * \brief CodeGen for MSCGraph
  */
-template <typename ConfigType>
+template <typename ConfigType, typename HelperType>
 class BaseCodeGen {
  public:
   /*!

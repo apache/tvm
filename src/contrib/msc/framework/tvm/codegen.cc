@@ -27,7 +27,7 @@ namespace contrib {
 namespace msc {
 
 void RelaxCodeGen::CodeGenHeader() {
-  PyCodeGen<RelaxCodeGenConfig>::CodeGenHeader();
+  PyCodeGen<RelaxCodeGenConfig, RelaxCodeGenHelper>::CodeGenHeader();
   stack_.line("from tvm import relax");
 }
 

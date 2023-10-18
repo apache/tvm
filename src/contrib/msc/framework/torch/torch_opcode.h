@@ -30,7 +30,7 @@
 #include <vector>
 
 #include "../../core/codegen/base_codegen.h"
-#include "config.h"
+#include "codegen_utils.h"
 
 namespace tvm {
 namespace contrib {
@@ -42,7 +42,7 @@ typedef OpCodeStack<TorchOpCode> TorchOpCodeStack;
 /*!
  * \brief CodeGen for torch op
  */
-class TorchOpCode : public BaseOpCode<TorchCodeGenConfig> {
+class TorchOpCode : public BaseOpCode<TorchCodeGenConfig, TorchCodeGenHelper> {
  public:
   /*!
    * \brief The constructor of BaseOpDocsifier
@@ -50,26 +50,27 @@ class TorchOpCode : public BaseOpCode<TorchCodeGenConfig> {
    * \param config the config json for the node.
    */
   explicit TorchOpCode(const String& module_name, const String& func_name)
-      : BaseOpCode<TorchCodeGenConfig>(func_name) {
+      : BaseOpCode<TorchCodeGenConfig, TorchCodeGenHelper>(func_name) {
     module_name_ = module_name;
   }
 
   /*! \brief Config the TorchOpCode*/
   void Config(const MSCJoint& node, const std::shared_ptr<TorchCodeGenConfig> config,
               bool is_init) {
-    BaseOpCode<TorchCodeGenConfig>::Config(node, config);
+    BaseOpCode<TorchCodeGenConfig, TorchCodeGenHelper>::Config(node, config);
     is_init_ = is_init;
     module_ref_ = "self." + StringUtils::Replace(node->name, ".", "_");
   }
 
   /*! \brief Get return describe for default node*/
   const String IdxNode(bool as_raw = true) final {
-    return is_init_ ? module_ref_ : BaseOpCode<TorchCodeGenConfig>::IdxNode(as_raw);
+    return is_init_ ? module_ref_
+                    : BaseOpCode<TorchCodeGenConfig, TorchCodeGenHelper>::IdxNode(as_raw);
   };
 
   /*! \brief Get dtype string*/
   const String DType(const DataType& dtype) final {
-    return "torch." + BaseOpCode<TorchCodeGenConfig>::DType(dtype);
+    return "torch." + BaseOpCode<TorchCodeGenConfig, TorchCodeGenHelper>::DType(dtype);
   }
 
   /*! \brief Get func_name for the default node*/
@@ -80,7 +81,7 @@ class TorchOpCode : public BaseOpCode<TorchCodeGenConfig> {
     if (module_name_.size() > 0) {
       return module_ref_;
     }
-    return BaseOpCode<TorchCodeGenConfig>::callee_name();
+    return BaseOpCode<TorchCodeGenConfig, TorchCodeGenHelper>::callee_name();
   }
 
   /*! \brief Convert node to docs*/

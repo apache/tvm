@@ -30,7 +30,7 @@
 #include <vector>
 
 #include "../../core/codegen/base_codegen.h"
-#include "config.h"
+#include "codegen_utils.h"
 
 namespace tvm {
 namespace contrib {
@@ -42,14 +42,15 @@ typedef OpCodeStack<RelaxOpCode> RelaxOpCodeStack;
 /*!
  * \brief CodeGen for relax op
  */
-class RelaxOpCode : public BaseOpCode<RelaxCodeGenConfig> {
+class RelaxOpCode : public BaseOpCode<RelaxCodeGenConfig, RelaxCodeGenHelper> {
  public:
   /*!
    * \brief The constructor of BaseOpDocsifier
    * \param func_name the function name for the node.
    * \param config the config json for the node.
    */
-  explicit RelaxOpCode(const String& func_name) : BaseOpCode<RelaxCodeGenConfig>(func_name) {}
+  explicit RelaxOpCode(const String& func_name)
+      : BaseOpCode<RelaxCodeGenConfig, RelaxCodeGenHelper>(func_name) {}
 
   /*! \brief Convert node to docs*/
   const Array<Doc> GetDocs() final;

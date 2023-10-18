@@ -317,7 +317,7 @@ const Array<String> ExprUtils::GetInputTypes(const String& optype, size_t inputs
   } else if (optype == "triu") {
     input_types.push_back("input");
     input_types.push_back("k");
-  } else if (optype == "tril") {
+  } else if (optype == "tril" || optype == "trilu") {
     input_types.push_back("input");
     input_types.push_back("k");
   } else if (optype == "image.resize2d" && as_relax) {

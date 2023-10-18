@@ -28,14 +28,14 @@
 
 #include "../../core/codegen/base_codegen.h"
 #include "../../core/codegen/py_codegen.h"
-#include "config.h"
+#include "codegen_utils.h"
 #include "tf_v1_opcode.h"
 
 namespace tvm {
 namespace contrib {
 namespace msc {
 
-class TensorflowCodeGen : public PyCodeGen<TensorflowCodeGenConfig> {
+class TensorflowCodeGen : public PyCodeGen<TensorflowCodeGenConfig, TFV1CodeGenHelper> {
  public:
   /*!
    * \brief The constructor of TensorflowCodeGen
@@ -43,7 +43,7 @@ class TensorflowCodeGen : public PyCodeGen<TensorflowCodeGenConfig> {
    * \param config the options for codegen.
    */
   explicit TensorflowCodeGen(const MSCGraph& graph, const std::string& config = "")
-      : PyCodeGen<TensorflowCodeGenConfig>(graph, config) {}
+      : PyCodeGen<TensorflowCodeGenConfig, TFV1CodeGenHelper>(graph, config) {}
 
  protected:
   /*! \brief Stack the docs for the header*/

@@ -28,14 +28,14 @@
 
 #include "../../core/codegen/base_codegen.h"
 #include "../../core/codegen/py_codegen.h"
-#include "config.h"
+#include "codegen_utils.h"
 #include "relax_opcode.h"
 
 namespace tvm {
 namespace contrib {
 namespace msc {
 
-class RelaxCodeGen : public PyCodeGen<RelaxCodeGenConfig> {
+class RelaxCodeGen : public PyCodeGen<RelaxCodeGenConfig, RelaxCodeGenHelper> {
  public:
   /*!
    * \brief The constructor of RelaxCodeGen
@@ -43,7 +43,7 @@ class RelaxCodeGen : public PyCodeGen<RelaxCodeGenConfig> {
    * \param config the options for codegen.
    */
   explicit RelaxCodeGen(const MSCGraph& graph, const std::string& config = "")
-      : PyCodeGen<RelaxCodeGenConfig>(graph, config) {}
+      : PyCodeGen<RelaxCodeGenConfig, RelaxCodeGenHelper>(graph, config) {}
 
  protected:
   /*! \brief Stack the docs for the header*/

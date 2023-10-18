@@ -27,13 +27,13 @@ namespace contrib {
 namespace msc {
 
 void TensorflowCodeGen::CodeGenHeader() {
-  PyCodeGen<TensorflowCodeGenConfig>::CodeGenHeader();
+  PyCodeGen<TensorflowCodeGenConfig, TFV1CodeGenHelper>::CodeGenHeader();
   stack_.line("from tensorflow.python import ops")
       .line("from tvm.contrib.msc.framework.tensorflow import tf_v1");
 }
 
 void TensorflowCodeGen::CodeGenHelper() {
-  PyCodeGen<TensorflowCodeGenConfig>::CodeGenHelper();
+  PyCodeGen<TensorflowCodeGenConfig, TFV1CodeGenHelper>::CodeGenHelper();
   stack_.func_def("get_variable", TensorType())
       .func_arg("name", "str")
       .func_arg("shape", "List[int]")

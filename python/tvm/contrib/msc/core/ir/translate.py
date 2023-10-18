@@ -85,7 +85,7 @@ def from_relax(
     params: dict of <string:tvm.ndarray>
         The parameters of the IRModule.
     trans_config: dict
-        The config for transfrorm IRModule.
+        The config for transform IRModule.
     build_config: dict
         The config for build MSCGraph.
     opt_config: dict
@@ -196,7 +196,7 @@ def from_relay(
     params: dict of <string:tvm.ndarray>
         The parameters of the IRModule.
     trans_config: dict
-        The config for transfrorm IRModule.
+        The config for transform IRModule.
     build_config: dict
         The config for build MSCGraph.
     opt_config: dict
@@ -281,7 +281,7 @@ def byoc_partition(
     mod: IRModule
         The IRModule of relax.
     trans_config: dict
-        The config for transfrorm IRModule.
+        The config for transform IRModule.
     params: dict of <string:tvm.ndarray>
         The parameters of the IRModule.
     build_config: dict

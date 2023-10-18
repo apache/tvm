@@ -31,7 +31,7 @@
 #include <vector>
 
 #include "../../core/codegen/base_codegen.h"
-#include "config.h"
+#include "codegen_utils.h"
 
 namespace tvm {
 namespace contrib {
@@ -43,21 +43,22 @@ typedef OpCodeStack<TFV1OpCode> TFV1OpCodeStack;
 /*!
  * \brief CodeGen for tensorflow op
  */
-class TFV1OpCode : public BaseOpCode<TensorflowCodeGenConfig> {
+class TFV1OpCode : public BaseOpCode<TensorflowCodeGenConfig, TFV1CodeGenHelper> {
  public:
   /*!
    * \brief The constructor of BaseOpDocsifier
    * \param func_name the function name for the node.
    * \param config the config json for the node.
    */
-  explicit TFV1OpCode(const String& func_name) : BaseOpCode<TensorflowCodeGenConfig>(func_name) {}
+  explicit TFV1OpCode(const String& func_name)
+      : BaseOpCode<TensorflowCodeGenConfig, TFV1CodeGenHelper>(func_name) {}
 
   /*! \brief Convert node to docs*/
   const Array<Doc> GetDocs() final;
 
   /*! \brief Get dtype string*/
   const String DType(const DataType& dtype) final {
-    return "tf_v1." + BaseOpCode<TensorflowCodeGenConfig>::DType(dtype);
+    return "tf_v1." + BaseOpCode<TensorflowCodeGenConfig, TFV1CodeGenHelper>::DType(dtype);
   }
 
  protected:
