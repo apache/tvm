@@ -182,7 +182,7 @@ def qnn_batch_matmul_driver(test_configuration):
     expected_out_dtype = test_configuration["out_dtype"]
     quantized_x = relay.var(quantized_x_name, shape=test_configuration["x_shape"], dtype=in_dtype)
     quantized_y = relay.var(quantized_y_name, shape=test_configuration["y_shape"], dtype=in_dtype)
-    mod = relay.qnn.op.batch_matmul(
+    mod = relay.qnn.batch_matmul(
         quantized_x,
         quantized_y,
         relay.const(test_configuration["x_zero_point"], "int32"),
@@ -192,7 +192,7 @@ def qnn_batch_matmul_driver(test_configuration):
     )
     if test_configuration["requantize"] is not None:
         requantize_config = test_configuration["requantize"]
-        mod = relay.qnn.op.requantize(
+        mod = relay.qnn.requantize(
             mod,
             input_scale=relay.const(requantize_config["input_scale"], "float32"),
             input_zero_point=relay.const(0, "int32"),

@@ -104,7 +104,7 @@ def get_qnn_func(
     if isinstance(kernel_zero_point, (int, float)):
         kernel_zero_point = relay.const(kernel_zero_point, "int32")
 
-    func = relay.qnn.op.conv2d(
+    func = relay.qnn.conv2d(
         data,
         kernel,
         input_zero_point=input_zero_point,
@@ -1077,7 +1077,7 @@ def test_per_channel_kernel_scale():
         kernel = relay.var("kernel", shape=kernel_shape, dtype=kernel_dtype)
         kernel_scales = [2, 2, 2]
         kernel_scales = relay.const(np.array(kernel_scales).astype("float32"))
-        func = relay.qnn.op.conv2d(
+        func = relay.qnn.conv2d(
             data,
             kernel,
             input_zero_point=relay.const(0, "int32"),

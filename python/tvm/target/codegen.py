@@ -96,6 +96,48 @@ def llvm_get_intrinsic_name(intrin_id: int) -> str:
     return _ffi_api.llvm_get_intrinsic_name(intrin_id)
 
 
+def llvm_get_system_x86_vendor():
+    """Get system x86 vendor info.
+
+    Parameters
+    ----------
+
+    Returns
+    -------
+    vendor : str
+        The current system's cpu vendor.
+    """
+    return _ffi_api.llvm_get_system_x86_vendor()
+
+
+def llvm_get_system_triple():
+    """Get system host triple.
+
+    Parameters
+    ----------
+
+    Returns
+    -------
+    triple : str
+        The current system's triple.
+    """
+    return _ffi_api.llvm_get_system_triple()
+
+
+def llvm_get_system_cpu():
+    """Get system host cpu name.
+
+    Parameters
+    ----------
+
+    Returns
+    -------
+    cpu_name : str
+        The current system's cpu name.
+    """
+    return _ffi_api.llvm_get_system_cpu()
+
+
 def llvm_get_targets():
     """Get LLVM target list.
 

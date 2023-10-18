@@ -181,7 +181,7 @@ def qnn_dense_driver(test_configuration):
     quantized_kernel = relay.var(
         quantized_kernel_name, shape=test_configuration["kernel_shape"], dtype=in_dtype
     )
-    mod = relay.qnn.op.dense(
+    mod = relay.qnn.dense(
         quantized_data,
         quantized_kernel,
         relay.const(test_configuration["input_zero_point"], "int32"),
@@ -195,7 +195,7 @@ def qnn_dense_driver(test_configuration):
         mod = relay.nn.bias_add(mod, bias)
     if test_configuration["requantize"] is not None:
         requantize_config = test_configuration["requantize"]
-        mod = relay.qnn.op.requantize(
+        mod = relay.qnn.requantize(
             mod,
             input_scale=relay.const(requantize_config["input_scale"], "float32"),
             input_zero_point=relay.const(0, "int32"),

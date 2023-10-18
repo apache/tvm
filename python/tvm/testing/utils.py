@@ -77,7 +77,6 @@ import sys
 import textwrap
 import time
 import shutil
-import subprocess
 
 from pathlib import Path
 from typing import Optional, Callable, Union, List, Tuple
@@ -91,6 +90,7 @@ import tvm.tir
 import tvm.te
 import tvm._ffi
 
+from tvm.target import codegen
 from tvm.contrib import nvcc, cudnn, rocm
 import tvm.contrib.hexagon._ci_env_check as hexagon
 from tvm.driver.tvmc.frontends import load_model
@@ -1002,76 +1002,43 @@ requires_corstone300 = Feature(
 requires_vitis_ai = Feature("vitis_ai", "Vitis AI", cmake_flag="USE_VITIS_AI")
 
 
-def _arm_dot_supported():
-    arch = platform.machine()
+# check cpu features
+def _has_cpu_feat(features):
+    cpu = codegen.llvm_get_system_cpu()
+    triple = codegen.llvm_get_system_triple()
+    target = "llvm -mtriple=%s -mcpu=%s" % (triple, cpu)
+    has_feat = codegen.target_has_features(features, tvm.target.Target(target))
 
-    if arch not in ["arm64", "aarch64"]:
-        return False
-
-    if sys.platform.startswith("darwin"):
-        cpu_info = subprocess.check_output("sysctl -a", shell=True).strip().decode()
-        for line in cpu_info.split("\n"):
-            if line.startswith("hw.optional.arm.FEAT_DotProd"):
-                return bool(int(line.split(":", 1)[1]))
-    elif sys.platform.startswith("linux"):
-        return True
-
-    return False
+    return has_feat
 
 
-def _is_intel():
-    # Only linux is supported for now.
-    if sys.platform.startswith("linux"):
-        with open("/proc/cpuinfo", "r") as content:
-            return "Intel" in content.read()
-
-    return False
-
-
-def _has_vnni():
-    arch = platform.machine()
-    # Only linux is supported for now.
-    if arch == "x86_64" and sys.platform.startswith("linux"):
-        with open("/proc/cpuinfo", "r") as content:
-            return "avx512_vnni" in content.read()
-
-    return False
-
-
-# check avx512 intrinsic groups for SkyLake X
-def _has_slavx512():
-    # Check LLVM support
-    llvm_version = tvm.target.codegen.llvm_version_major()
-    is_llvm_support = llvm_version >= 8
-    arch = platform.machine()
-    # Only linux is supported for now.
-    if arch == "x86_64" and sys.platform.startswith("linux"):
-        with open("/proc/cpuinfo", "r") as content:
-            ctx = content.read()
-            check = (
-                "avx512f" in ctx
-                and "avx512cd" in ctx
-                and "avx512bw" in ctx
-                and "avx512dq" in ctx
-                and "avx512vl" in ctx
-            )
-            return check and is_llvm_support
-
-    return False
-
-
-requires_arm_dot = Feature("arm_dot", "ARM dot product", run_time_check=_arm_dot_supported)
-
-
-requires_cascadelake = Feature(
-    "cascadelake", "x86 CascadeLake", run_time_check=lambda: _has_vnni() and _is_intel()
+requires_arm_dot = Feature(
+    "arm_dot",
+    "ARM dot product",
+    run_time_check=lambda: _has_cpu_feat("dotprod"),
 )
 
 
-requires_skylake_avx512 = Feature(
-    "skylake_avx512",
-    "x86 SkyLake AVX512",
-    run_time_check=lambda: _has_slavx512() and _is_intel(),
+requires_x86_vnni = Feature(
+    "x86_vnni",
+    "x86 VNNI Extensions",
+    run_time_check=lambda: (_has_cpu_feat("avx512vnni") or _has_cpu_feat("avxvnni")),
+)
+
+
+requires_x86_avx512 = Feature(
+    "x86_avx512",
+    "x86 AVX512 Extensions",
+    run_time_check=lambda: _has_cpu_feat(
+        ["avx512bw", "avx512cd", "avx512dq", "avx512vl", "avx512f"]
+    ),
+)
+
+
+requires_x86_amx = Feature(
+    "x86_amx",
+    "x86 AMX Extensions",
+    run_time_check=lambda: _has_cpu_feat("amx-int8"),
 )
 
 
