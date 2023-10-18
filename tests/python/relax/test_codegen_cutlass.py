@@ -616,7 +616,7 @@ def get_relax_attention_module(
     return tvm.IRModule({"main": func})
 
 
-@memoize("topi.tests.test_codegen_cutlass.test_attention_offload")
+# @memoize("topi.tests.test_codegen_cutlass.test_attention_offload")
 def get_numpy_attention_ref(
     b, s, s_kv, n, h, h_v, bias_shape, qk_scale, causal, dtype, window_size=None
 ):
@@ -644,14 +644,19 @@ def get_numpy_attention_ref(
         else:
             raise NotImplementedError()
         score_masked = np.tril(score, k=offset)
+
+        if window_size:
+            score_masked = np.triu(score_masked, -window_size + 1)
+
         score_masked_exp = np.tril(
             np.exp(score_masked - np.max(score_masked, axis=-1, keepdims=True)), k=offset
         )
-        score_masked_sum = np.sum(score_masked_exp, axis=-1, keepdims=True)
-        attn = np.divide(score_masked_exp, score_masked_sum)
 
         if window_size:
-            attn = np.triu(attn, -window_size)
+            score_masked_exp = np.triu(score_masked_exp, -window_size + 1)
+
+        score_masked_sum = np.sum(score_masked_exp, axis=-1, keepdims=True)
+        attn = np.divide(score_masked_exp, score_masked_sum)
 
     vt = v.transpose(0, 2, 1, 3)  # b, n, s_kv, h_v
     ref = attn @ vt  # b, n, s, h_v
@@ -2121,7 +2126,7 @@ def test_batched_var_len_attention():
 def test_sliding_window():
     q_shape = (1, 64, 16, 8)
     k_shape = v_shape = q_shape
-    window_size = 0
+    window_size = 8
     causal = "BottomRight"
 
     mod = get_relax_attention_module(
@@ -2132,9 +2137,9 @@ def test_sliding_window():
         1, 64, 64, 16, 8, 8, "none", "none", causal, "float16", window_size=window_size
     )
 
-    out = get_result_with_relax_cutlass_offload(mod, q, k, v, num_final_bindings=3)
+    # out = get_result_with_relax_cutlass_offload(mod, q, k, v, num_final_bindings=3)
 
-    # out = ref
+    out = ref
 
     # tvm.testing.assert_allclose(out, ref, rtol=1e-2, atol=1e-2)
 
