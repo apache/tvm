@@ -1275,7 +1275,9 @@ def attention(
         The computed result. The layout of the output should be
         (batch_size, seq_len, num_head, head_dim_v).
     """
-    return _ffi_api.attention(query, key, value, bias, scale, causal_mask, window_size)  # type: ignore
+    return _ffi_api.attention(
+        query, key, value, bias, scale, causal_mask, window_size
+    )  # type: ignore
 
 
 def attention_var_len(
