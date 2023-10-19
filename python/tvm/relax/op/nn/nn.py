@@ -1194,6 +1194,7 @@ def attention(
     bias: Optional[Expr] = None,
     scale: Optional[FloatImm] = None,
     causal_mask: Optional[str] = None,
+    window_size: Optional[int] = None,
 ) -> Expr:
     r"""Computes fused multi head attention.
 
@@ -1265,6 +1266,8 @@ def attention(
             [[1, 1, 1, 0],
             [1, 1, 1, 1]]
 
+    window_size: Optional[int]
+        The size of the window for sliding-window attention.
 
     Returns
     -------
@@ -1272,7 +1275,9 @@ def attention(
         The computed result. The layout of the output should be
         (batch_size, seq_len, num_head, head_dim_v).
     """
-    return _ffi_api.attention(query, key, value, bias, scale, causal_mask)  # type: ignore
+    return _ffi_api.attention(
+        query, key, value, bias, scale, causal_mask, window_size
+    )  # type: ignore
 
 
 def attention_var_len(
@@ -1285,6 +1290,7 @@ def attention_var_len(
     max_seqlen_k: Optional[Expr] = None,
     scale: Optional[FloatImm] = None,
     causal_mask: Optional[str] = None,
+    window_size: Optional[int] = None,
 ) -> Expr:
     r"""Computes fused multi head attention over batched sequences of variable lengths.
 
@@ -1348,6 +1354,8 @@ def attention_var_len(
         [[1, 1, 1, 0],
          [1, 1, 1, 1]]
 
+    window_size: Optional[int]
+        The size of the window for sliding-window attention.
 
     Returns
     -------
@@ -1368,4 +1376,5 @@ def attention_var_len(
         max_seqlen_k,
         scale,
         causal_mask,
+        window_size,
     )  # type: ignore

@@ -29,10 +29,11 @@ namespace relax {
 TVM_REGISTER_NODE_TYPE(AttentionAttrs);
 
 Expr attention(Expr query, Expr key, Expr value, Optional<Expr> bias, Optional<FloatImm> scale,
-               Optional<String> causal_mask) {
+               Optional<String> causal_mask, Optional<IntImm> window_size) {
   ObjectPtr<AttentionAttrs> attrs = make_object<AttentionAttrs>();
   attrs->scale = scale;
   attrs->causal_mask = causal_mask;
+  attrs->window_size = window_size;
 
   if (bias) {
     return Call(Op::Get("relax.nn.attention_bias"),
@@ -45,10 +46,11 @@ Expr attention(Expr query, Expr key, Expr value, Optional<Expr> bias, Optional<F
 
 Expr attention_var_len(Expr query, Expr key, Expr value, Expr seqstart_q, Expr seqstart_k,
                        Expr max_seqlen_q, Expr max_seqlen_k, Optional<FloatImm> scale,
-                       Optional<String> causal_mask) {
+                       Optional<String> causal_mask, Optional<IntImm> window_size) {
   ObjectPtr<AttentionAttrs> attrs = make_object<AttentionAttrs>();
   attrs->scale = scale;
   attrs->causal_mask = causal_mask;
+  attrs->window_size = window_size;
 
   return Call(Op::Get("relax.nn.attention_var_len"),
               {query, key, value, seqstart_q, seqstart_k, max_seqlen_q, max_seqlen_k}, Attrs(attrs),
@@ -139,7 +141,7 @@ StructInfo InferStructInfoAttention(const Call& call, const BlockBuilder& ctx) {
 
 Call InferMixedPrecisionAttention(const Call& call, const DataType& out_dtype) {
   return Downcast<Call>(
-      attention(call->args[0], call->args[1], call->args[2], NullOpt, NullOpt, NullOpt));
+      attention(call->args[0], call->args[1], call->args[2], NullOpt, NullOpt, NullOpt, NullOpt));
 }
 
 TVM_REGISTER_OP("relax.nn.attention")
