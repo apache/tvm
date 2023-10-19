@@ -218,8 +218,8 @@ def instantiate_flash_attention_template(attrs):
     			    o_row_stride,
     			    ${scale},
     			    ${is_causal},
-                            ${window_size} - 1,
-                            -1, // win_right
+                            ${window_size_left},
+                            ${window_size_right},
     			    stream);
     """
 
@@ -270,8 +270,8 @@ def instantiate_flash_attention_template(attrs):
     			    o_row_stride,
     			    ${scale},
     			    ${is_causal},
-                            ${window_size} - 1,
-                            -1, // win_right
+                            ${window_size_left},
+                            ${window_size_right},
     			    stream);
     """
 

@@ -770,6 +770,7 @@ def instantiate_template(func_name, annotations, func_args):
             # For the causal case (custom mask = "BottomRight"), only use flash for multi-query
             # attention workloads. Otherwise, CUTLASS fMHA seems faster for causal attention
             # with a single query.
+            # In addition, sliding-window attention is only supported by flash.
             and (
                 int(annotations["custom_mask_type"]) == 0
                 or (int(annotations["custom_mask_type"]) == 2 and is_mqa)
@@ -782,9 +783,14 @@ def instantiate_template(func_name, annotations, func_args):
 
         if "window_size" in annotations:
             assert use_flash, "Sliding-window attention is supported only by Flash Attention."
-            attrs["window_size"] = int(annotations["window_size"])
+            assert (
+                int(annotations["custom_mask_type"]) == 2
+            ), "Sliding-window attention is only supported for causal with bottom right mask."
+            attrs["window_size_left"] = int(annotations["window_size"]) - 1
+            attrs["window_size_right"] = 0
         else:
-            attrs["window_size"] = -1
+            attrs["window_size_left"] = -1
+            attrs["window_size_right"] = -1
 
         if use_flash:
             headers.append("flash.h")

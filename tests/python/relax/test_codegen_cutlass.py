@@ -17,11 +17,6 @@
 import numpy as np
 import pytest
 
-import torch
-import torch.nn as nn
-from xformers import ops as xops
-from xformers.ops.fmha.attn_bias import BlockDiagonalCausalMask
-
 import tvm
 import tvm.testing
 import tvm.topi.testing
@@ -2130,36 +2125,38 @@ def test_sliding_window():
     causal = "BottomRight"
 
     mod = get_relax_attention_module(
-        q_shape, k_shape, v_shape, dtype="float16", causal_mask=causal, window_size=window_size,
+        q_shape,
+        k_shape,
+        v_shape,
+        dtype="float16",
+        causal_mask=causal,
+        window_size=window_size,
     )
 
     q, k, v, _, ref = get_numpy_attention_ref(
         1, 64, 64, 16, 8, 8, "none", "none", causal, "float16", window_size=window_size
     )
 
-    # out = get_result_with_relax_cutlass_offload(mod, q, k, v, num_final_bindings=3)
-
-    out = ref
-
-    # tvm.testing.assert_allclose(out, ref, rtol=1e-2, atol=1e-2)
-
-    # return
-    ############# xformer reference for verification #############
-
-    attn_bias = BlockDiagonalCausalMask.from_seqlens([64])
-
-    if window_size > 0:
-        attn_bias = attn_bias.make_local_attention(window_size)
-
-    query = torch.from_numpy(q).to("cuda")
-    key = torch.from_numpy(k).to("cuda")
-    value = torch.from_numpy(v).to("cuda")
-
-    ref = xops.memory_efficient_attention_forward(
-        query, key, value, attn_bias=attn_bias,
-    ).cpu().numpy()
+    out = get_result_with_relax_cutlass_offload(mod, q, k, v, num_final_bindings=3)
 
     tvm.testing.assert_allclose(out, ref, rtol=1e-2, atol=1e-2)
+
+    ############# xformer reference for verification #############
+
+    # attn_bias = BlockDiagonalCausalMask.from_seqlens([64])
+
+    # if window_size > 0:
+    #     attn_bias = attn_bias.make_local_attention(window_size)
+
+    # query = torch.from_numpy(q).to("cuda")
+    # key = torch.from_numpy(k).to("cuda")
+    # value = torch.from_numpy(v).to("cuda")
+
+    # ref = xops.memory_efficient_attention_forward(
+    #     query, key, value, attn_bias=attn_bias,
+    # ).cpu().numpy()
+
+    # tvm.testing.assert_allclose(out, ref, rtol=1e-2, atol=1e-2)
 
 
 if __name__ == "__main__":
