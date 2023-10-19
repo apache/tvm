@@ -223,9 +223,11 @@ Stmt MakeCrossThreadReduction(const ComputeOpNode* self, const Stage& stage,
   Stmt body = SeqStmt::Flatten(reduce_body, assign_body);
   for (size_t idx = size; idx != 0; --idx) {
     const auto& res_buffer = res_buffers[idx - 1];
+    body = DeclBuffer(res_buffer, body);
     body = Allocate(res_buffer->data, res_buffer->dtype, res_buffer->shape, const_true(), body);
     if (!normal_red.empty()) {
       const auto& normal_res_buffer = normal_res_buffers[idx - 1];
+      body = DeclBuffer(normal_res_buffer, body);
       body = Allocate(normal_res_buffer->data, normal_res_buffer->dtype, normal_res_buffer->shape,
                       const_true(), body);
     }

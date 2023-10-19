@@ -1745,21 +1745,14 @@ def test_reverse_compute_at_layout_trans():
     verify_trace_roundtrip(sch=sch, mod=before)
 
 
-@pytest.mark.parametrize("use_decl_buffer", [True, False])
 @pytest.mark.parametrize("use_reverse_compute_at", [True, False])
-def test_compute_at_allocate_const(use_decl_buffer, use_reverse_compute_at):
-    def apply_decl_buffer(*args, **kwargs):
-        if use_decl_buffer:
-            return T.decl_buffer(*args, **kwargs)
-        else:
-            return T.Buffer(*args, **kwargs)
-
+def test_compute_at_allocate_const(use_reverse_compute_at):
     @T.prim_func
     def before(A: T.Buffer([4, 256], "float32"), C: T.Buffer([4, 256], "float32")):
         B = T.alloc_buffer([4])
 
         offset_ptr = T.allocate_const([1.0, 2.0, 3.0, 4.0], dtype="float32", extents=[4])
-        offset = apply_decl_buffer([4], data=offset_ptr)
+        offset = T.decl_buffer([4], data=offset_ptr)
         for i in range(4):
             with T.block("compute_B"):
                 vi = T.axis.remap("S", [i])
@@ -1775,7 +1768,7 @@ def test_compute_at_allocate_const(use_decl_buffer, use_reverse_compute_at):
         B = T.alloc_buffer([4])
 
         offset_ptr = T.allocate_const([1.0, 2.0, 3.0, 4.0], dtype="float32", extents=[4])
-        offset = apply_decl_buffer([4], data=offset_ptr)
+        offset = T.decl_buffer([4], data=offset_ptr)
         for i in range(4):
             with T.block("compute_B"):
                 vi = T.axis.remap("S", [i])
@@ -1802,20 +1795,13 @@ def test_compute_at_allocate_const(use_decl_buffer, use_reverse_compute_at):
     verify_trace_roundtrip(sch=sch, mod=before)
 
 
-@pytest.mark.parametrize("use_decl_buffer", [True, False])
-def test_compute_inline_allocate_const(use_decl_buffer):
-    def apply_decl_buffer(*args, **kwargs):
-        if use_decl_buffer:
-            return T.decl_buffer(*args, **kwargs)
-        else:
-            return T.Buffer(*args, **kwargs)
-
+def test_compute_inline_allocate_const():
     @T.prim_func
     def before(A: T.Buffer([4, 256], "float32"), C: T.Buffer([4, 256], "float32")):
         B = T.alloc_buffer([4])
 
         offset_ptr = T.allocate_const([1.0, 2.0, 3.0, 4.0], dtype="float32", extents=[4])
-        offset = apply_decl_buffer([4], data=offset_ptr)
+        offset = T.decl_buffer([4], data=offset_ptr)
         for i in range(4):
             with T.block("compute_B"):
                 vi = T.axis.remap("S", [i])
@@ -1829,7 +1815,7 @@ def test_compute_inline_allocate_const(use_decl_buffer):
     @T.prim_func
     def expected(A: T.Buffer([4, 256], "float32"), C: T.Buffer([4, 256], "float32")):
         offset_ptr = T.allocate_const([1.0, 2.0, 3.0, 4.0], dtype="float32", extents=[4])
-        offset = apply_decl_buffer([4], data=offset_ptr)
+        offset = T.decl_buffer([4], data=offset_ptr)
         for i, j in T.grid(4, 256):
             with T.block("compute_C"):
                 vi, vj = T.axis.remap("SS", [i, j])

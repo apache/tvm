@@ -382,6 +382,17 @@ class StoragePlanRewriter : public StmtExprMutator {
 
   Stmt Rewrite(Stmt stmt, bool detect_inplace) {
     detect_inplace_ = detect_inplace;
+
+    // Keep DeclBuffer of flattend argument buffers at the top of the
+    // function.
+    std::vector<Stmt> init_nest;
+    while (auto opt = stmt.as<DeclBuffer>()) {
+      auto node = opt.value();
+      stmt = node->body;
+      node.CopyOnWrite()->body = Evaluate(0);
+      init_nest.push_back(node);
+    }
+
     // plan the rewrite
     LinearAccessPatternFinder finder;
     finder(stmt);
@@ -391,43 +402,42 @@ class StoragePlanRewriter : public StmtExprMutator {
     this->PrepareNewAlloc();
     // start rewrite
     stmt = operator()(std::move(stmt));
+
     if (attach_map_.count(nullptr)) {
-      return MakeAttach(attach_map_.at(nullptr), stmt);
+      stmt = MakeAttach(attach_map_.at(nullptr), stmt);
     }
+    stmt = MergeNest(init_nest, stmt);
     return stmt;
   }
 
   template <typename Node>
   Node VisitBufferAccess(Node node) {
-    auto it = alloc_map_.find(node->buffer->data.get());
-    if (it != alloc_map_.end()) {
-      Buffer buf = RemapBuffer(node->buffer, it->second->alloc_var);
+    if (Buffer buf = RemapBuffer(node->buffer); !buf.same_as(node->buffer)) {
+      node.CopyOnWrite()->buffer = buf;
+    }
 
+    if (auto it = alloc_map_.find(node->buffer->data.get()); it != alloc_map_.end()) {
       Array<PrimExpr> indices = node->indices;
       indices.Set(indices.size() - 1,
                   RemapIndex(node->buffer->dtype, indices[indices.size() - 1], it->second));
 
-      auto writer = node.CopyOnWrite();
-      writer->buffer = buf;
-      writer->indices = indices;
+      node.CopyOnWrite()->indices = indices;
     }
     return node;
   }
 
-  Buffer RemapBuffer(Buffer buf, Var new_backing_array) {
+  Buffer RemapBuffer(Buffer buf) {
     auto key = buf.get();
-    auto it = buffer_remap_.find(key);
-    if (it != buffer_remap_.end()) {
-      ICHECK_EQ(it->second->data.get(), new_backing_array.get())
-          << "Cannot remap buffer " << buf->name << " to use backing array "
-          << new_backing_array->name_hint << ", previously used backing array "
-          << it->second->data->name_hint;
+
+    if (auto it = buffer_remap_.find(key); it != buffer_remap_.end()) {
       return it->second;
     }
 
-    Buffer remapped = Buffer(new_backing_array, buf->dtype, buf->shape, buf->strides,
-                             buf->elem_offset, new_backing_array->name_hint, buf->data_alignment,
-                             buf->offset_factor, buf->buffer_type, buf->axis_separators, buf->span);
+    Buffer remapped = buf;
+    if (auto it = alloc_map_.find(buf->data.get()); it != alloc_map_.end()) {
+      remapped.CopyOnWrite()->data = it->second->alloc_var;
+    }
+
     buffer_remap_[key] = remapped;
     return remapped;
   }
@@ -522,8 +532,7 @@ class StoragePlanRewriter : public StmtExprMutator {
     }
     auto node = Downcast<DeclBuffer>(StmtExprMutator::VisitStmt_(op));
 
-    if (auto it = alloc_map_.find(op->buffer->data.get()); it != alloc_map_.end()) {
-      Buffer buf = RemapBuffer(op->buffer, it->second->alloc_var);
+    if (Buffer buf = RemapBuffer(op->buffer); !buf.same_as(node->buffer)) {
       node.CopyOnWrite()->buffer = buf;
     }
     return std::move(node);
@@ -660,11 +669,26 @@ class StoragePlanRewriter : public StmtExprMutator {
           // simply use the original allocation.
           e->alloc_nest.push_back(Allocate(e->alloc_var, alloc_type, e->allocs[0]->extents,
                                            e->allocs[0]->condition, Evaluate(0)));
-          if (auto ptr = e->allocs[0]->body.as<DeclBufferNode>()) {
-            e->alloc_nest.push_back(
-                DeclBuffer(RemapBuffer(ptr->buffer, e->alloc_var), Evaluate(0)));
+          // The first allocation may have a DeclBuffer that should be
+          // hoisted alongside the Allocate.
+          if (auto ptr = e->allocs[0]->body.as<DeclBufferNode>();
+              ptr && ptr->buffer->data.same_as(e->alloc_var)) {
+            auto remapped = RemapBuffer(ptr->buffer);
+            e->alloc_nest.push_back(DeclBuffer(remapped, Evaluate(0)));
             hoisted_buffer_decls_.insert(ptr->buffer.get());
+            // Remaining allocations may have a DeclBuffer that should
+            // be removed, with all occurrences of that buffer
+            // replaced.
+            for (size_t i = 1; i < e->allocs.size(); i++) {
+              const auto* alloc = e->allocs[i];
+              if (auto ptr = alloc->body.as<DeclBufferNode>();
+                  ptr && ptr->buffer->data.same_as(alloc->buffer_var)) {
+                hoisted_buffer_decls_.insert(ptr->buffer.get());
+                buffer_remap_[ptr->buffer.get()] = remapped;
+              }
+            }
           }
+
           if (IsSpecialTaggedMemory(e->scope)) {
             MemoryInfo info = GetMemoryInfo(e->scope.to_string());
             if (info.defined()) {
@@ -713,6 +737,19 @@ class StoragePlanRewriter : public StmtExprMutator {
           combo_size = analyzer_.Simplify(combo_size);
           e->alloc_nest.push_back(
               Allocate(e->alloc_var, alloc_type, {combo_size}, const_true(), Evaluate(0)));
+
+          // Any buffers immediately within the Allocate should be
+          // hoisted to the Allocate's new location.
+          for (const auto& alloc : e->allocs) {
+            Stmt body = alloc->body;
+            auto decl = body.as<DeclBufferNode>();
+            if (decl && decl->buffer->data.same_as(alloc->buffer_var)) {
+              e->alloc_nest.push_back(DeclBuffer(RemapBuffer(decl->buffer), Evaluate(0)));
+              hoisted_buffer_decls_.insert(decl->buffer.get());
+              body = decl->body;
+            }
+          }
+
           if (IsSpecialTaggedMemory(e->scope)) {
             MemoryInfo info = GetMemoryInfo(e->scope.to_string());
             if (info.defined()) {

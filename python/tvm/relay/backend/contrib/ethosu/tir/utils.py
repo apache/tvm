@@ -178,7 +178,7 @@ def collect_buffer_map(stmt):
     buffer_map = {}
 
     def _visit(node):
-        if isinstance(node, (tvm.tir.BufferLoad, tvm.tir.BufferStore)):
+        if isinstance(node, (tvm.tir.DeclBuffer, tvm.tir.BufferLoad, tvm.tir.BufferStore)):
             buf = node.buffer
             if buf.data not in buffer_map:
                 buffer_map[buf.data] = buf

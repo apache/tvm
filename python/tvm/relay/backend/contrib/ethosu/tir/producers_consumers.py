@@ -27,52 +27,52 @@ class ProducersConsumers:
 
     def __init__(self) -> None:
         self.indices: dict[tvm.tir.AttrStmt, int] = {}
-        self.producers: list[(tvm.tir.AttrStmt, tvm.tir.expr.Var)] = []
-        self.consumers: list[(tvm.tir.AttrStmt, list[tvm.tir.expr.Var])] = []
+        self.producers: list[(tvm.tir.AttrStmt, tvm.tir.expr.Buffer)] = []
+        self.consumers: list[(tvm.tir.AttrStmt, list[tvm.tir.expr.Buffer])] = []
         self.allocate_variables: Optional[KeysView] = None
 
-    def add_producer(self, var: tvm.tir.expr.Var, attr: tvm.tir.AttrStmt) -> None:
+    def add_producer(self, buf: tvm.tir.Buffer, attr: tvm.tir.AttrStmt) -> None:
         """Add the attribute statement attr as producer of the variable var."""
         self.indices[attr] = len(self.producers)
-        self.producers.append((attr, var))
+        self.producers.append((attr, buf))
 
     def get_producer(
-        self, var: tvm.tir.expr.Var, attr: tvm.tir.AttrStmt
+        self, buf: tvm.tir.Buffer, attr: tvm.tir.AttrStmt
     ) -> Optional[tvm.tir.AttrStmt]:
         """Get the last attribute statement which produces the variable var when
         the current attribute statement is attr."""
-        if var not in self.allocate_variables:
+        if buf.data not in self.allocate_variables:
             return None
 
         index = self.indices[attr]
         for i in list(reversed(range(index + 1))):
-            if self.producers[i][1] == var:
+            if self.producers[i][1] == buf:
                 return self.producers[i][0]
         return None
 
-    def get_last_producer(self, var: tvm.tir.expr.Var) -> Optional[tvm.tir.AttrStmt]:
+    def get_last_producer(self, buf: tvm.tir.Buffer) -> Optional[tvm.tir.AttrStmt]:
         """Get the last attribute statement which produces the variable var."""
-        return self.get_producer(var, self.producers[-1][0])
+        return self.get_producer(buf, self.producers[-1][0])
 
     def add_allocate_variables(self, allocate_variables: KeysView) -> None:
         """Add the allocated variables."""
         self.allocate_variables = allocate_variables
 
-    def add_consumer(self, var: tvm.tir.expr.Var, attr: tvm.tir.AttrStmt) -> None:
+    def add_consumer(self, buf: tvm.tir.Buffer, attr: tvm.tir.AttrStmt) -> None:
         """Add the attribute statement attr as consumer of the variable var."""
         index = self.indices[attr]
         if index < len(self.consumers):
-            self.consumers[index][1].append(var)
+            self.consumers[index][1].append(buf)
         else:
-            self.consumers.append((attr, [var]))
+            self.consumers.append((attr, [buf]))
 
     def get_consumer(
-        self, var: tvm.tir.expr.Var, attr: tvm.tir.AttrStmt
+        self, buf: tvm.tir.Buffer, attr: tvm.tir.AttrStmt
     ) -> Optional[tvm.tir.AttrStmt]:
         """Get the first attribute statement which consumes the variable var when
         the current attribute statement is attr."""
         index = self.indices[attr]
         for i in range(index, len(self.consumers)):
-            if var in self.consumers[i][1]:
+            if buf in self.consumers[i][1]:
                 return self.consumers[i][0]
         return None

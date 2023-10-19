@@ -33,6 +33,8 @@ def test_for():
     body = ib.get()
     assert isinstance(body, tvm.tir.Allocate)
     body = body.body
+    assert isinstance(body, tvm.tir.DeclBuffer)
+    body = body.body
     assert isinstance(body, tvm.tir.For)
     body = body.body
     assert isinstance(body, tvm.tir.SeqStmt)

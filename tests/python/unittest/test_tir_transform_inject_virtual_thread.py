@@ -108,8 +108,12 @@ def test_vthread_extern(vthread_name):
         )
     )["main"]
 
-    assert list(stmt.body.body.extents) == [A_expected_alloc]
-    assert list(stmt.body.body.body.body.extents) == [C_expected_alloc]
+    A_alloc = stmt.body.body
+    assert A_alloc.buffer_var.name == "A"
+    assert list(A_alloc.extents) == [A_expected_alloc]
+    C_alloc = A_alloc.body.body.body.body
+    assert C_alloc.buffer_var.name == "C"
+    assert list(C_alloc.extents) == [C_expected_alloc]
 
 
 def test_vthread_if_then_else():
@@ -132,8 +136,8 @@ def test_vthread_if_then_else():
         tvm.IRModule.from_expr(tvm.tir.PrimFunc([], stmt).with_attr("global_symbol", "main"))
     )["main"]
 
-    assert stmt.body.body.body[0].else_case != None
-    assert stmt.body.body.body[1].else_case == None
+    assert stmt.body.body.body.body[0].else_case != None
+    assert stmt.body.body.body.body[1].else_case == None
 
 
 def test_vthread_simplified():

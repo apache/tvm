@@ -53,7 +53,7 @@ def test_flatten_prefetch():
     mod = tvm.transform.Sequential(
         [tvm.tir.transform.StorageFlatten(64), tvm.tir.transform.Simplify()]
     )(mod)
-    stmt = mod["main"].body
+    stmt = mod["main"].body.body
     assert stmt.extent.value == 2
     assert isinstance(stmt.body, tvm.tir.For)
     assert stmt.body.extent.value == 2
@@ -80,7 +80,7 @@ def test_flatten_storage_align():
         [tvm.tir.transform.StorageFlatten(64), tvm.tir.transform.Simplify()]
     )(mod)
 
-    stmt = mod["main"].body
+    stmt = mod["main"].body.body.body
     assert stmt.extents[0].value == 17 * 8
 
 
@@ -114,9 +114,9 @@ def test_flatten_double_buffer():
             ]
         )(mod)
 
-    stmt = mod["main"].body
-    assert isinstance(stmt.body, tvm.tir.Allocate)
-    assert list(stmt.body.extents) == [8]
+    stmt = mod["main"].body.body.body.body
+    assert isinstance(stmt, tvm.tir.Allocate)
+    assert list(stmt.extents) == [8]
 
     mod = tvm.tir.transform.ThreadSync("shared")(mod)
     f = mod["main"]

@@ -30,7 +30,9 @@ from .utils import get_op_attrs, get_base_address, get_strides, get_loads
 from .producers_consumers import ProducersConsumers
 
 
-def _get_feature_map(stmt: tvm.tir.AttrStmt, fm_type: str) -> Tuple[SerialFeatureMap, tvm.tir.Var]:
+def _get_feature_map(
+    stmt: tvm.tir.AttrStmt, fm_type: str
+) -> Tuple[SerialFeatureMap, tvm.tir.Buffer]:
     """Get the feature map parameters from a loop nest of any shape (as long there are at
     most 4 nested loops).
 
@@ -45,8 +47,8 @@ def _get_feature_map(stmt: tvm.tir.AttrStmt, fm_type: str) -> Tuple[SerialFeatur
     -------
     SerialFeatureMap
         The serializable feature map.
-    output_pointer : tvm.tir.Var
-        The pointer produced by the operation.
+    output_buffer : tvm.tir.Buffer
+        The buffer produced by the operation.
 
     """
     assert fm_type in ("ifm", "ofm")
@@ -96,14 +98,14 @@ def _get_feature_map(stmt: tvm.tir.AttrStmt, fm_type: str) -> Tuple[SerialFeatur
         stride_c=strides[2] if len(strides) > 2 else 1,
     )
 
-    output_pointer = inner.buffer.data
+    output_buffer = inner.buffer
 
-    return serial_feature_map, output_pointer
+    return serial_feature_map, output_buffer
 
 
 def get_identity_params(
     stmt: tvm.tir.AttrStmt, producers_consumers: ProducersConsumers
-) -> Tuple[SerialPooling, tvm.tir.Var, tvm.tir.Var]:
+) -> Tuple[SerialPooling, tvm.tir.Buffer, tvm.tir.Buffer]:
     """Get the parameters necessary to construct a call_extern for an identity pooling.
 
     Parameters
@@ -118,11 +120,11 @@ def get_identity_params(
     -------
     SerialPooling
         The parameters needed to construct a 2D pooling.
-    output_pointer : tvm.tir.Var
-        The output pointer of the pooling operation.
-    replace_pointer : tvm.tir.Var
-        The output pointer of the DMA write operation, which is to replace
-        the pooling output pointer.
+    output_buffer : tvm.tir.Buffer
+        The output buffer of the pooling operation.
+    replace_buffer : tvm.tir.Buffer
+        The output buffer of the DMA write operation, which is to replace
+        the pooling output buffer.
     is_allocator : bool
         Whether this operator allocates its output.
 
@@ -136,19 +138,19 @@ def get_identity_params(
     # loads = [input, LUT, LUT]
     loads = get_loads(store)
 
-    input_pointer = loads[0].buffer.data
-    output_pointer = store.buffer.data
+    input_buffer = loads[0].buffer
+    output_buffer = store.buffer
 
-    read = producers_consumers.get_producer(input_pointer, stmt)
-    write = producers_consumers.get_consumer(output_pointer, stmt)
+    read = producers_consumers.get_producer(input_buffer, stmt)
+    write = producers_consumers.get_consumer(output_buffer, stmt)
 
     serial_ifm, _ = _get_feature_map(read, "ifm")
-    serial_ofm, write_output_pointer = _get_feature_map(write, "ofm")
+    serial_ofm, write_output_buffer = _get_feature_map(write, "ofm")
 
-    replace_pointer = write_output_pointer
+    replace_buffer = write_output_buffer
 
     is_allocator = True
-    producer = producers_consumers.get_producer(write_output_pointer, write)
+    producer = producers_consumers.get_producer(write_output_buffer, write)
     if producer is None or producer != write:
         is_allocator = False
 
@@ -169,7 +171,7 @@ def get_identity_params(
             rounding_mode=attrs["rounding_mode"],
             block_config=SerialBlockConfig(0, 0, 0),
         ),
-        output_pointer,
-        replace_pointer,
+        output_buffer,
+        replace_buffer,
         is_allocator,
     )

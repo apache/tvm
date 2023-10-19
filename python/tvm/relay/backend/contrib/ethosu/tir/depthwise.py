@@ -47,11 +47,11 @@ def get_depthwise_conv2d_params(
     -------
     Serial2DDepthwise
         The parameters needed to construct a 2D depthwise.
-    output_pointer : tvm.tir.Var
-        The output pointer of the convolution operation.
-    replace_pointer : tvm.tir.Var
-        The output pointer of the DMA write operation, which is to replace
-        the convolution output pointer.
+    output_buffer : tvm.tir.Buffer
+        The output buffer of the convolution operation.
+    replace_buffer : tvm.tir.Buffer
+        The output buffer of the DMA write operation, which is to replace
+        the convolution output buffer.
     is_allocator : bool
         Whether this operator allocates its output.
 
@@ -64,12 +64,12 @@ def get_depthwise_conv2d_params(
     loads = get_loads(rw.body)
     # stores = [output]
     stores = get_stores(rw.body)
-    input_pointer = loads[1].buffer.data
-    output_pointer = stores[0].buffer.data
+    input_buffer = loads[1].buffer
+    output_buffer = stores[0].buffer
     # Get feature map info
-    serial_ifm, serial_padding = get_ifm_params(input_pointer, producers_consumers, stmt)
-    serial_ofm, serial_block_config, replace_pointer, is_allocator = get_ofm_params(
-        output_pointer, producers_consumers, stmt
+    serial_ifm, serial_padding = get_ifm_params(input_buffer, producers_consumers, stmt)
+    serial_ofm, serial_block_config, replace_buffer, is_allocator = get_ofm_params(
+        output_buffer, producers_consumers, stmt
     )
     # Get kernel info
     serial_kernel = SerialKernel(
@@ -113,7 +113,7 @@ def get_depthwise_conv2d_params(
             upscale="NONE",
             block_config=serial_block_config,
         ),
-        output_pointer,
-        replace_pointer,
+        output_buffer,
+        replace_buffer,
         is_allocator,
     )
