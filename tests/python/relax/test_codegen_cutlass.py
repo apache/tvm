@@ -1955,7 +1955,10 @@ def test_fp16A_int8B_gemm_batched():
     ex = relax.build(mod_transform, target="llvm")
     vm = relax.vm.VirtualMachine(ex, tvm.cpu(0))
 
-    (packed_weight, scales,) = vm[
+    (
+        packed_weight,
+        scales,
+    ) = vm[
         transform_func_name
     ]((tvm.nd.array(y),))
 
@@ -2160,5 +2163,4 @@ def test_sliding_window():
 
 
 if __name__ == "__main__":
-    # tvm.testing.main()
-    test_sliding_window()
+    tvm.testing.main()

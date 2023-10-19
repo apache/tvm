@@ -1266,6 +1266,8 @@ def attention(
             [[1, 1, 1, 0],
             [1, 1, 1, 1]]
 
+    window_size: Optional[int]
+        The size of the window for sliding-window attention.
 
     Returns
     -------
@@ -1350,6 +1352,8 @@ def attention_var_len(
         [[1, 1, 1, 0],
          [1, 1, 1, 1]]
 
+    window_size: Optional[int]
+        The size of the window for sliding-window attention.
 
     Returns
     -------
