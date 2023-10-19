@@ -611,7 +611,7 @@ def get_relax_attention_module(
     return tvm.IRModule({"main": func})
 
 
-# @memoize("topi.tests.test_codegen_cutlass.test_attention_offload")
+@memoize("topi.tests.test_codegen_cutlass.test_attention_offload")
 def get_numpy_attention_ref(
     b, s, s_kv, n, h, h_v, bias_shape, qk_scale, causal, dtype, window_size=None
 ):
@@ -1955,10 +1955,7 @@ def test_fp16A_int8B_gemm_batched():
     ex = relax.build(mod_transform, target="llvm")
     vm = relax.vm.VirtualMachine(ex, tvm.cpu(0))
 
-    (
-        packed_weight,
-        scales,
-    ) = vm[
+    (packed_weight, scales,) = vm[
         transform_func_name
     ]((tvm.nd.array(y),))
 
