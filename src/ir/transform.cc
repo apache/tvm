@@ -531,6 +531,23 @@ Pass CreateModulePass(const runtime::TypedPackedFunc<IRModule(IRModule, PassCont
   return ModulePass(pass_func, pass_info);
 }
 
+Pass ApplyPassToFunction(Pass pass, String func_name, bool error_if_function_missing) {
+  auto pass_name =
+      static_cast<const std::stringstream&>(std::stringstream() << "ApplyPassTo" << func_name)
+          .str();
+
+  auto pass_func = [pass, func_name](IRModule mod, PassContext) -> IRModule {
+    auto gvar = mod->GetGlobalVar(func_name);
+    auto func = mod->Lookup(gvar);
+    auto mutated = pass(IRModule({{gvar, func}}));
+
+    mod.CopyOnWrite()->Update(mutated);
+    return mod;
+  };
+
+  return CreateModulePass(pass_func, 0, pass_name, {});
+}
+
 TVM_REGISTER_NODE_TYPE(PassInfoNode);
 
 TVM_REGISTER_GLOBAL("transform.PassInfo")
