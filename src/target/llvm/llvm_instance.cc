@@ -68,6 +68,10 @@
 #include <utility>
 
 #if TVM_LLVM_VERSION < 180
+#if defined(__clang__)
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wreturn-stack-address"
+#endif
 namespace llvm {
 #if TVM_LLVM_VERSION < 170
 // SubtargetSubTypeKV view
@@ -86,6 +90,9 @@ struct FeatViewer {
 template struct FeatViewer<&MCSubtargetInfo::ProcFeatures>;
 ArrayRef<SubtargetFeatureKV>& featViewer(MCSubtargetInfo);
 }  // namespace llvm
+#if defined(__clang__)
+#pragma clang diagnostic pop
+#endif
 #endif
 
 namespace tvm {
@@ -809,7 +816,7 @@ const Array<String> LLVMTargetInfo::GetAllLLVMTargetArches() const {
   // get all arches
   llvm::ArrayRef<llvm::SubtargetSubTypeKV> llvm_arches =
 #if TVM_LLVM_VERSION < 170
-      llvm::archViewer(*(llvm::MCSubtargetInfo*)MCInfo);
+      llvm::archViewer(*(const llvm::MCSubtargetInfo*)MCInfo);
 #else
       MCInfo->getAllProcessorDescriptions();
 #endif
@@ -830,7 +837,7 @@ const Array<String> LLVMTargetInfo::GetAllLLVMCpuFeatures() const {
   // get all features for CPU
   llvm::ArrayRef<llvm::SubtargetFeatureKV> llvm_features =
 #if TVM_LLVM_VERSION < 180
-      llvm::featViewer(*(llvm::MCSubtargetInfo*)MCInfo);
+      llvm::featViewer(*(const llvm::MCSubtargetInfo*)MCInfo);
 #else
       MCInfo->getAllProcessorFeatures();
 #endif
