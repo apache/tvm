@@ -163,7 +163,6 @@ void CodeGenHIP::PrintType(DataType t, std::ostream& os) {  // NOLINT(*)
     os << "void*";
     return;
   }
-
   if (t.is_void()) {
     os << "void";
     return;

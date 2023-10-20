@@ -240,7 +240,6 @@ def mfma_schedule(
 
     return sch
 
-
 def wmma_schedule(
     workload,
     k_inner,
@@ -301,10 +300,6 @@ def wmma_schedule(
         _, f_1, f_2 = sch.split(fused, factors=[None, num_ty, warp_size])
         sch.bind(f_2, "threadIdx.x")
         sch.bind(f_1, "threadIdx.y")
-        # sch.vectorize(f_3)
-        # offset = 8
-        # sch.storage_align(block_read, 0, axis=-2, factor=32, offset=offset)
-
         return block_read
 
     fetch_to_shared(block_outer, 0, 2)
@@ -344,3 +339,4 @@ def wmma_schedule(
     sch.tensorize(sch.get_loops(C_warp)[-2], wmma_store_intrin)
 
     return sch
+

@@ -67,7 +67,6 @@ def initializer():
             rt_mod = tvm_build(mod, target=target)
         return rt_mod
 
-
 @tvm.testing.requires_matrixcore
 def test_wmma_tune():
     M, N, K = 1024, 1024, 1024
