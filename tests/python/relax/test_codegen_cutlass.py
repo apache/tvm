@@ -1213,6 +1213,7 @@ def test_attention_rewrite_fp16():
             v: R.Tensor((4, 8, 32, 16), dtype="float16"),
             bias: R.Tensor((4, 32, 16, 8), dtype="float16"),
         ) -> R.Tensor((4, 16, 32, 16), dtype="float16"):
+            R.func_attr({"num_input": 4})
             with R.dataflow():
                 lv = R.permute_dims(q, axes=[0, 2, 1, 3])
                 lv1 = R.reshape(lv, R.shape([128, 16, 8]))
@@ -1284,7 +1285,8 @@ def test_attention_rewrite_fp16():
             k: R.Tensor((4, 8, 32, 8), dtype="float16"),
             v: R.Tensor((4, 8, 32, 16), dtype="float16"),
             bias: R.Tensor((4, 32, 16, 8), dtype="float16"),
-        ) -> R.Tensor((4, 16, 32, 16), dtype="float16"):
+        ) -> R.Tensor((4, 16, 32, 16), dtype="float32"):
+            R.func_attr({"num_input": 4})
             cls = Expected
             with R.dataflow():
                 lv = R.vm.alloc_storage(R.shape([65536]), R.prim_value(0), R.dtype("uint8"))
@@ -2119,6 +2121,7 @@ def test_batched_var_len_attention():
             values: R.Tensor(("num_tokens", 4096), dtype="float16"),
             seq_lens: R.Tensor(("num_seq",), dtype="int32"),
         ) -> R.Tensor(("num_tokens", 4096), dtype="float16"):
+            R.func_attr({"num_input": 4})
             cls = Module
             num_tokens = T.int64()
             num_seq = T.int64()
@@ -2163,6 +2166,7 @@ def test_batched_var_len_multi_query_attention():
             values: R.Tensor(("num_tokens", 512), dtype="float16"),
             seq_lens: R.Tensor(("num_seq",), dtype="int32"),
         ) -> R.Tensor(("num_tokens", 4096), dtype="float16"):
+            R.func_attr({"num_input": 4})
             cls = Module
             num_tokens = T.int64()
             num_seq = T.int64()
