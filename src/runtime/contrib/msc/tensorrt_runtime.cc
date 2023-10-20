@@ -167,6 +167,12 @@ class MSCTensorRTRuntime : public JSONRuntimeBase {
       bindings_[i] = nullptr;
       binding_sizes_[i] = 0;
     }
+    // destroy runtime
+#if TRT_VERSION_GE(8, 0, 0)
+    delete runtime;
+#else
+    runtime->destroy();
+#endif
     return true;
   }
 
