@@ -16,7 +16,7 @@
 # under the License.
 """A PyTorch-like API to build IRModules."""
 from . import op, spec
-from .core import Effect, ExternModule, Module, ModuleList, Parameter, Tensor, Matuator
+from .core import Effect, ExternModule, Module, ModuleList, Parameter, Tensor
 from .modules import (
     GELU,
     Conv1D,
@@ -33,3 +33,4 @@ from .modules import (
 )
 from .op import *
 from .subroutine import SubroutineMixin
+from .visitor import Mutator
