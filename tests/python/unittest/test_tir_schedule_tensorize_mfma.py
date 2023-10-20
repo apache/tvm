@@ -179,6 +179,7 @@ def run_test(
 
     return lambda: f.time_evaluator(f.entry_name, dev, number=500)(a, b, c)
 
+
 def run_wmma_test(
     k_inner,
     in_dtype,
@@ -494,6 +495,7 @@ def test_wmma_f16f16f32_m16n16k16():
     if measure_perf and timer:
         print("f16f16f32_m16n16k16: %f GFLOPS" % (gflops / (timer().mean)))
 
+
 @tvm.testing.requires_matrixcore
 def test_wmma_f16f16f32_m32n32k8():
     k_inner = 8
@@ -521,6 +523,7 @@ def test_wmma_f16f16f32_m32n32k8():
 
     if measure_perf and timer:
         print("f16f16f32_m32n32k8: %f GFLOPS" % (gflops / (timer().mean)))
+
 
 @tvm.testing.requires_matrixcore
 def test_wmma_i8i8i32_m16n16k16():
@@ -550,6 +553,7 @@ def test_wmma_i8i8i32_m16n16k16():
     if measure_perf and timer:
         print("i16i16i32_m16n16k16: %f GFLOPS" % (gflops / (timer().mean)))
 
+
 @tvm.testing.requires_matrixcore
 def test_wmma_i8i8i32_m32n32k8():
     k_inner = 8
@@ -577,7 +581,6 @@ def test_wmma_i8i8i32_m32n32k8():
 
     if measure_perf and timer:
         print("i8i8i32_m32n32k8: %f GFLOPS" % (gflops / (timer().mean)))
-
 
 
 if __name__ == "__main__":

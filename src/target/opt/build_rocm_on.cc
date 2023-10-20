@@ -39,21 +39,12 @@
 namespace tvm {
 namespace codegen {
 
-#define HIPRTC_CALL(x)                                                                  \
-  \  
-  {                                                                                     \
-    \  
-    hiprtcResult result = x;                                                            \
-    \  
-    if (result != HIPRTC_SUCCESS) {                                                     \
-      \  
-      LOG(FATAL)                                                                        \
-          << "HiprtcError: " #x " failed with error: " << hiprtcGetErrorString(result); \
-      \  
-                                                                                   \
-    }                                                                                   \
-    \  
-                                                                                   \
+#define HIPRTC_CALL(x)                                                                         \
+  {                                                                                            \
+    hiprtcResult result = x;                                                                   \
+    if (result != HIPRTC_SUCCESS) {                                                            \
+      LOG(FATAL) << "HiprtcError: " #x " failed with error: " << hiprtcGetErrorString(result); \
+    }                                                                                          \
   }
 
 std::string FindHIPIncludePath() {
@@ -140,13 +131,21 @@ runtime::Module BuildHIP(IRModule mod, Target target) {
   CodeGenHIP cg;
   cg.Init(output_ssa);
 
-  for (auto kv : mod->functions) {
-    ICHECK(kv.second->IsInstance<PrimFuncNode>()) << "CodeGenHIP: Can only take PrimFunc";
-    auto f = Downcast<PrimFunc>(kv.second);
-    auto calling_conv = f->GetAttr<Integer>(tvm::attr::kCallingConv);
+  Map<GlobalVar, PrimFunc> functions;
+  for (auto [gvar, base_func] : mod->functions) {
+    ICHECK(base_func->IsInstance<PrimFuncNode>()) << "CodeGenHIP: Can only take PrimFunc";
+    auto prim_func = Downcast<PrimFunc>(base_func);
+    auto calling_conv = prim_func->GetAttr<Integer>(tvm::attr::kCallingConv);
     ICHECK(calling_conv == CallingConv::kDeviceKernelLaunch)
         << "CodeGenHIP: expect calling_conv equals CallingConv::kDeviceKernelLaunch";
-    cg.AddFunction(f);
+    functions.Set(gvar, prim_func);
+  }
+
+  for (auto [gvar, prim_func] : functions) {
+    cg.DeclareFunction(gvar, prim_func);
+  }
+  for (auto [gvar, prim_func] : functions) {
+    cg.AddFunction(gvar, prim_func);
   }
 
   std::string code = cg.Finish();

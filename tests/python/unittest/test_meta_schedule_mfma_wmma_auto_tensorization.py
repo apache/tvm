@@ -68,7 +68,7 @@ def initializer():
         return rt_mod
 
 
-
+@tvm.testing.requires_matrixcore
 def test_wmma_tune():
     M, N, K = 1024, 1024, 1024
     def tune(out_dtype):
@@ -113,10 +113,8 @@ def test_wmma_tune():
             golden = np.matmul(a_np.astype("float16"), b_np.astype("float16")) 
             tvm.testing.assert_allclose(golden, c_tvm.numpy(), atol=1e-3, rtol=1e-3)
 
-    #tune("float16")
     tune("float32")
 
 
 if __name__ == "__main__":
-    #for idx in range(2, 6):
     test_wmma_tune()

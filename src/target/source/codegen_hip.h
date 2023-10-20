@@ -45,7 +45,7 @@ class CodeGenHIP final : public CodeGenC {
   bool need_include_path() { return (need_math_constants_h_ || need_wmma_h_); }
   // override behavior
   void PrintFuncPrefix(std::ostream& os) final;
-  void PrintExtraAttrs(const PrimFunc& f) final;
+  void PrintExtraAttrs(const PrimFunc& f, std::ostream& os) final;
   void VisitStmt_(const ForNode* op) final;
   void PrintStorageSync(const CallNode* op) final;
   void PrintStorageScope(const std::string& scope, std::ostream& os) final;  // NOLINT(*)

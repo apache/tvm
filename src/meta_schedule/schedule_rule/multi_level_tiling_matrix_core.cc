@@ -183,7 +183,7 @@ Array<Schedule> MultiLevelTilingMatrixCoreNode::Apply(const Schedule& sch,
     return {sch};
   }
 
-  LOG(INFO)<<"enable Matrix Core";
+  LOG(INFO) << "enable Matrix Core";
 
   std::unordered_map<int, tir::AutoTensorizeMappingInfo> intrin_group_to_mapping_info;
   for (int i = 0, n = intrin_groups.size(); i < n; ++i) {
@@ -242,11 +242,11 @@ std::vector<State> MultiLevelTilingMatrixCoreNode::ApplySubRules(std::vector<Sta
   states = SubRule(std::move(states), [&](State state) {
     return AddReadReuseMatrixCore(Downcast<MatrixCoreState>(state));
   });
-  
+
   states = SubRule(std::move(states), [&](State state) {
     return AddSoftwarePipeline(Downcast<MatrixCoreState>(state));
   });
-  
+
   return states;
 }
 
@@ -317,7 +317,7 @@ std::vector<State> MultiLevelTilingMatrixCoreNode::TransformIntermediateOutputLa
   // The dimension of the buffer should be larger or same as that of the tensor intrin.
   ICHECK_GE(buffer_ndim, 2);
   int num_higher_dims = buffer_ndim - 2;
-  
+
   auto index_map =
       tir::IndexMap::FromFunc(buffer_ndim,
                               // frag_shape_m and frag_shape_n are structural bindings that cannot
@@ -344,8 +344,7 @@ std::vector<State> MultiLevelTilingMatrixCoreNode::TransformIntermediateOutputLa
                                 result.push_back(accum_n);
                                 return result;
                               });
-  sch->TransformLayout(state->block_rv, 0, tir::BufferIndexType::kWrite, index_map,
-                       NullOpt, true);
+  sch->TransformLayout(state->block_rv, 0, tir::BufferIndexType::kWrite, index_map, NullOpt, true);
   return {state};
 }
 
@@ -440,7 +439,7 @@ std::vector<State> MultiLevelTilingMatrixCoreNode::AddReadReuseMatrixCore(
     tir::Buffer cache_read_buffer = tir::GetNthAccessBuffer(
         sch->state(), GetRef<tir::Block>(cache_read_block), 0, tir::BufferIndexType::kWrite);
     const DataType& dtype = cache_read_buffer->dtype;
-    
+
     if (dtype.is_float16()) {
       sch->StorageAlign(cache_read, 0, -2, 64, 8);
     } else if (dtype.is_int() && dtype.bits() == 8) {
@@ -449,7 +448,6 @@ std::vector<State> MultiLevelTilingMatrixCoreNode::AddReadReuseMatrixCore(
       TVM_PY_LOG(WARNING, logger) << "StorageAlign is not applied for data type " << dtype
                                   << ", shared memory accesses might be inefficient.";
     }
-    
   }
   return {state};
 }

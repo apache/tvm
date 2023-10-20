@@ -240,6 +240,7 @@ def mfma_schedule(
 
     return sch
 
+
 def wmma_schedule(
     workload,
     k_inner,
@@ -300,9 +301,9 @@ def wmma_schedule(
         _, f_1, f_2 = sch.split(fused, factors=[None, num_ty, warp_size])
         sch.bind(f_2, "threadIdx.x")
         sch.bind(f_1, "threadIdx.y")
-        #sch.vectorize(f_3)
-        #offset = 8
-        #sch.storage_align(block_read, 0, axis=-2, factor=32, offset=offset)
+        # sch.vectorize(f_3)
+        # offset = 8
+        # sch.storage_align(block_read, 0, axis=-2, factor=32, offset=offset)
 
         return block_read
 
@@ -318,7 +319,6 @@ def wmma_schedule(
     C_warp = sch.cache_write(block_outer, 0, "wmma.accumulator")
     sch.reverse_compute_at(C_warp, thread_idy)
 
-
     ii, jj = sch.get_loops(C_warp)[-2:]
     io, ii = sch.split(ii, factors=[None, wmma_m])
     jo, ji = sch.split(jj, factors=[None, wmma_n])
@@ -326,7 +326,6 @@ def wmma_schedule(
 
     sch.decompose_reduction(block_outer, sch.get_loops(block_outer)[3])
     block_init_c = sch.get_block("C_init")
-
 
     def tile_wmma_fragment(block_read, height, width):
         i, j = sch.get_loops(block_read)[-2:]

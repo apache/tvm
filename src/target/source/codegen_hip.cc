@@ -127,7 +127,7 @@ class ThreadIdxExtractor : public tir::StmtVisitor {
   PrimExpr threadIdx_z_ext = Integer(1);
 };
 
-void CodeGenHIP::PrintExtraAttrs(const PrimFunc& f) {
+void CodeGenHIP::PrintExtraAttrs(const PrimFunc& f, std::ostream& os) {
   ThreadIdxExtractor extractor;
   extractor(f->body);
   arith::Analyzer analyzer;
@@ -163,12 +163,11 @@ void CodeGenHIP::PrintType(DataType t, std::ostream& os) {  // NOLINT(*)
     os << "void*";
     return;
   }
-  
+
   if (t.is_void()) {
     os << "void";
     return;
   }
-  
 
   bool fail = false;
   if (t.is_float()) {
@@ -785,14 +784,9 @@ void CodeGenHIP::VisitExpr_(const CallNode* op, std::ostream& os) {
     ICHECK(A_layout == "row" || B_layout == "row") << "Matrix core only support row major";
     // map for dtype -> float32x4 -> float4
     std::unordered_map<std::string, std::string> dtype_map = {
-        {"int8", "char"},
-        {"int32", "int"},
-        {"int32x4", "int32x4"},
-        {"float16", "half"},
-        {"float32", "float"},
-        {"float64", "double"},
-        {"float16x4", "float16x4"},
-        {"float32x4", "float32x4"},
+        {"int8", "char"},           {"int32", "int"},           {"int32x4", "int32x4"},
+        {"float16", "half"},        {"float32", "float"},       {"float64", "double"},
+        {"float16x4", "float16x4"}, {"float32x4", "float32x4"},
     };
     std::string call_mfma_code = R"({
     *(({C_dytpe}*){c_ref} + {c_bias}) = {mfma_buildin}(*(({A_dytpe}*){a_ref} + {a_bias}),
