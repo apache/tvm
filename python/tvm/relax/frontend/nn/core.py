@@ -520,6 +520,87 @@ class ModuleList(Module):
         return x
 
 
+class Matuator:
+    def visit_module(self, name: str, node: Module) -> Any:
+        """The base visiting method for mutation of nn.Module nodes.
+
+        Parameters
+        ----------
+        name : str
+            The name of the current node in parent's attribute.
+
+        node : nn.Module
+            The current node of nn.Module to mutate.
+
+        Returns
+        ------
+        ret_node: Any
+            The new node to replace current node.
+        """
+        return self.visit(name, node)
+
+    def visit_effect(self, name: str, node: Parameter) -> Any:
+        """The base visiting method for mutation of nn.Parameter nodes.
+
+        Parameters
+        ----------
+        name : str
+            The name of the current node in parent's attribute.
+
+        node : nn.Parameter
+            The current node of nn.Parameter to mutate.
+
+        Returns
+        ------
+        ret_node: Any
+            The new node to replace current node.
+        """
+        return self.visit(name, node)
+
+    def visit_param(self, name: str, node: Effect) -> Any:
+        """The base visiting method for mutation of nn.Effect nodes.
+
+        Parameters
+        ----------
+        name : str
+            The name of the current node in parent's attribute.
+
+        node : nn.Effect
+            The current node of nn.Effect to mutate.
+
+        Returns
+        ------
+        ret_node: Any
+            The new node to replace current node.
+        """
+        return self.visit(name, node)
+
+    def visit(self, name: str, node: Any) -> Any:
+        """The base dispatching method for visiting of all nodes.
+
+        Parameters
+        ----------
+        name : str
+            The name of the current node in parent's attribute.
+
+        node : Any
+            The current node to visit.
+
+        Returns
+        ------
+        ret_node: Any
+            The new node to replace current node.
+        """
+        for key, value in node.__dict__.items():
+            if isinstance(value, Module):
+                setattr(node, key, self.visit_module(f"{name}.{key}", value))
+            elif isinstance(value, Effect):
+                setattr(node, key, self.visit_effect(f"{name}.{key}", value))
+            elif isinstance(value, Parameter):
+                setattr(node, key, self.visit_param(f"{name}.{key}", value))
+        return node
+
+
 def _attribute_finder(root: Module, prefix: str, condition_yield: Callable[[Any], bool]):
     """Find attributes that satisfy the condition recursively"""
     for name, item in root.__dict__.items():
