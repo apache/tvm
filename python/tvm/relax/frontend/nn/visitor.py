@@ -15,8 +15,8 @@
 # specific language governing permissions and limitations
 # under the License.
 """The visitor and mutator infra for nn.Module."""
-from . import core as nn
 from typing import Any
+from . import core as nn
 
 
 class Mutator:
