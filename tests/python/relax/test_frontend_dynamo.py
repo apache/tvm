@@ -137,6 +137,21 @@ def test_relax_dynamo_dynamic():
         opt_model(inp).detach().numpy(), model(inp).detach().numpy(), rtol=1e-5, atol=1e-5
     )
 
+    def Func1(x, y):
+        z = torch.cat([x, y])
+        if z.size(0) > 5:
+            return z.mul(2)
+        else:
+            return z.add(2)
+
+    opt_func = torch.compile(Func1, backend=relax_dynamo(), dynamic=True)
+
+    for s in (2, 4):
+        x = torch.randn(s, 100)
+        y = torch.randn(s, 100)
+        with torch.no_grad():
+            tvm.testing.assert_allclose(opt_func(x, y), opt_func(x, y))
+
 
 def test_subgraph_capture():
     import torch

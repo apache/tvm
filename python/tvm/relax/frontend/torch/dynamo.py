@@ -71,6 +71,8 @@ def relax_dynamo(pipeline: Optional[tvm.transform.Pass] = None):
             real_tensor = torch.randn(torch_tensor.shape, dtype=torch_tensor.dtype)
             return tvm.nd.array(real_tensor.numpy())
 
+        graph_module.graph.eliminate_dead_code()
+
         device = device_from_inputs(example_inputs)
 
         assert len(example_inputs)
