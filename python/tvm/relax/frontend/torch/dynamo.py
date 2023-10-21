@@ -73,12 +73,33 @@ def relax_dynamo(pipeline: Optional[tvm.transform.Pass] = None):
 
         device = device_from_inputs(example_inputs)
 
+        assert len(example_inputs)
+
+        fake_inputs = []
+        if isinstance(example_inputs[0], torch._subclasses.fake_tensor.FakeTensor):
+            # Fake tensors
+            fake_inputs = example_inputs
+        else:
+            # Real tensors
+            for node in graph_module.graph.nodes:
+                if node.op != "placeholder":
+                    continue
+                if "grapharg" not in node.meta:
+                    continue
+                fake_tensor = node.meta["grapharg"].fake_tensor
+                if fake_tensor is None:
+                    continue
+                fake_inputs.append(fake_tensor)
+
         input_info = []
-        for tensor in example_inputs:
+        shape_vars = {}
+        for tensor in fake_inputs:
             shape = []
             for s in tensor.shape:
                 if isinstance(s, torch.SymInt):
-                    shape.append(tvm.tir.Var(str(s), "int64"))
+                    if str(s) not in shape_vars:
+                        shape_vars[str(s)] = tvm.tir.Var(str(s), "int64")
+                    shape.append(shape_vars[str(s)])
                 else:
                     shape.append(s)
             input_info.append((shape, tensor.dtype))
@@ -110,7 +131,7 @@ def relax_dynamo(pipeline: Optional[tvm.transform.Pass] = None):
         vm = tvm.relax.VirtualMachine(ex.mod, device=dev)
 
         def exec_tvm(*i_args):
-            args = [a.contiguous() for a in i_args]
+            args = [a.contiguous() for a in i_args if isinstance(a, torch.Tensor)]
             vm_args = list()
             for arg in args:
                 if arg.dim() != 0:
