@@ -285,5 +285,88 @@ class TestLowerAllocateRequiresDeviceType(tvm.testing.CompareBeforeAfter):
     expected = tvm.TVMError
 
 
+class TestMakeArrayInRootScope(tvm.testing.CompareBeforeAfter):
+
+    transform = tvm.tir.transform.LowerTVMBuiltin()
+
+    @T.prim_func
+    def before(var_placeholder: T.handle, var_extern: T.handle):
+        T.func_attr({"target": T.target("llvm")})
+        placeholder = T.match_buffer(var_placeholder, (1, 3, 4, 4), offset_factor=1)
+        extern = T.match_buffer(var_extern, (1, 3, 8, 8), offset_factor=1)
+        # T.attr("dummy", "device_type", 1)
+        # T.attr("dummy", "device_id", 0)
+        T.call_extern(
+            "void",
+            "resize2d_with_dltensor",  # suppose a c function accept dltensor
+            T.tvm_stack_make_array(
+                placeholder.data,
+                T.tvm_stack_make_shape(1, 3, 4, 4),
+                0,
+                4,
+                T.float32(0),
+                placeholder.elem_offset,
+            ),
+            T.tvm_stack_make_array(
+                extern.data,
+                T.tvm_stack_make_shape(1, 3, 8, 8),
+                0,
+                4,
+                T.float32(0),
+                extern.elem_offset,
+            ),
+        )
+
+    @T.prim_func
+    def expected(var_placeholder: T.handle, var_extern: T.handle):
+        T.func_attr(
+            {
+                "global_symbol": "main",
+                "target": T.target({"keys": ["cpu"], "kind": "llvm", "tag": ""}),
+            }
+        )
+        placeholder = T.match_buffer(var_placeholder, (1, 3, 4, 4), offset_factor=1)
+        extern = T.match_buffer(var_extern, (1, 3, 8, 8), offset_factor=1)
+        stack_array: T.handle = T.tvm_stack_alloca("array", 2)
+        stack_shape: T.handle("int64") = T.tvm_stack_alloca("shape", 8)
+        stack_shape_1 = T.decl_buffer((T.int64(8),), "int64", data=stack_shape)
+        stack_shape_1[0] = T.int64(1)
+        stack_shape_1[1] = T.int64(3)
+        stack_shape_1[2] = T.int64(4)
+        stack_shape_1[3] = T.int64(4)
+        T.tvm_struct_set(stack_array, 0, 1, placeholder.data)
+        stack_shape_2 = T.Buffer((1,), "int64", data=stack_shape)
+        T.tvm_struct_set(stack_array, 0, 2, T.address_of(stack_shape_2[0]))
+        T.tvm_struct_set(stack_array, 0, 3, T.reinterpret("handle", T.uint64(0)))
+        T.tvm_struct_set(stack_array, 0, 4, 4)
+        T.tvm_struct_set(stack_array, 0, 5, T.uint8(2))
+        T.tvm_struct_set(stack_array, 0, 6, T.uint8(32))
+        T.tvm_struct_set(stack_array, 0, 7, T.uint16(1))
+        T.tvm_struct_set(stack_array, 0, 8, T.Cast("uint64", placeholder.elem_offset * 4))
+        T.tvm_struct_set(stack_array, 0, 9, 0)
+        T.tvm_struct_set(stack_array, 0, 10, 1)
+        stack_shape_1[4] = T.int64(1)
+        stack_shape_1[5] = T.int64(3)
+        stack_shape_1[6] = T.int64(8)
+        stack_shape_1[7] = T.int64(8)
+        T.tvm_struct_set(stack_array, 1, 1, extern.data)
+        stack_shape_3 = T.Buffer((5,), "int64", data=stack_shape)
+        T.tvm_struct_set(stack_array, 1, 2, T.address_of(stack_shape_3[4]))
+        T.tvm_struct_set(stack_array, 1, 3, T.reinterpret("handle", T.uint64(0)))
+        T.tvm_struct_set(stack_array, 1, 4, 4)
+        T.tvm_struct_set(stack_array, 1, 5, T.uint8(2))
+        T.tvm_struct_set(stack_array, 1, 6, T.uint8(32))
+        T.tvm_struct_set(stack_array, 1, 7, T.uint16(1))
+        T.tvm_struct_set(stack_array, 1, 8, T.Cast("uint64", extern.elem_offset * 4))
+        T.tvm_struct_set(stack_array, 1, 9, 0)
+        T.tvm_struct_set(stack_array, 1, 10, 1)
+        T.call_extern(
+            "void",
+            "resize2d_with_dltensor",
+            T.tvm_struct_get(stack_array, 0, 0, "handle"),
+            T.tvm_struct_get(stack_array, 1, 0, "handle"),
+        )
+
+
 if __name__ == "__main__":
     tvm.testing.main()
