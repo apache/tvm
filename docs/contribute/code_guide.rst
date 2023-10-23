@@ -89,7 +89,7 @@ Python Code Styles
 - Check your code style using ``python tests/scripts/ci.py lint``
 - Stick to language features in ``python 3.7``
 
-- For functions with early returns, prefer ``if``/``elif``/``else`
+- For functions with early returns, prefer ``if``/``elif``/``else``
   chains for functions with parallel and short bodies to the
   conditions, such as functions that apply a simple mapping to the
   arguments.  For more procedural functions, especially where the
