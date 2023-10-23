@@ -418,7 +418,7 @@ const char* TVMGetLastError() {
   }
 }
 
-extern "C" void* TVMGetLastPythonError() {
+TVM_DLL extern "C" void* TVMGetLastPythonError() {
   auto& last_error = TVMAPIRuntimeStore::Get()->last_error;
   if (auto* wrapped = std::get_if<WrappedPythonError>(&last_error)) {
     return wrapped->obj.raw_pointer();
@@ -427,7 +427,7 @@ extern "C" void* TVMGetLastPythonError() {
   }
 }
 
-extern "C" const char* TVMGetLastBacktrace() {
+TVM_DLL extern "C" const char* TVMGetLastBacktrace() {
   const auto& last_error = TVMAPIRuntimeStore::Get()->last_error;
   if (const auto* wrapped = std::get_if<WrappedPythonError>(&last_error)) {
     return wrapped->cpp_backtrace.data();
@@ -438,7 +438,7 @@ extern "C" const char* TVMGetLastBacktrace() {
   }
 }
 
-extern "C" void TVMDropLastPythonError() {
+TVM_DLL extern "C" void TVMDropLastPythonError() {
   auto& last_error = TVMAPIRuntimeStore::Get()->last_error;
   if (std::get_if<WrappedPythonError>(&last_error)) {
     last_error = "";
