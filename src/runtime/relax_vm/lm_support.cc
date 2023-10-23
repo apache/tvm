@@ -543,8 +543,8 @@ NDArray LogProbsFromLogits(NDArray logits) {
 
   for (size_t seq_ind = 0; seq_ind < seq_length; ++seq_ind) {
     data.clear();
-    const float* plogits = static_cast<float*>(logits->data) + vocab_length*seq_ind;
-    float* res_log_probs = res_ptr + vocab_length*seq_ind;
+    const float* plogits = static_cast<float*>(logits->data) + vocab_length * seq_ind;
+    float* res_log_probs = res_ptr + vocab_length * seq_ind;
     for (int i = 0; i < vocab_length; ++i) {
       data[i] = std::make_pair(plogits[i], i);
     }
@@ -552,13 +552,13 @@ NDArray LogProbsFromLogits(NDArray logits) {
     // sort by logits from largest to smallest
     std::sort(data.begin(), data.end(),
               [](const std::pair<float, int>& lhs, const std::pair<float, int>& rhs) {
-      return lhs.first > rhs.first;
-    });
+                return lhs.first > rhs.first;
+              });
 
     // Compute denominator
     float sum = 0.0f;
     float max_value = data[0].first;  // it is maximum after sorting
-    std::transform(data.begin(), data.end(), data.begin(), [&sum, max_value] (float d) {
+    std::transform(data.begin(), data.end(), data.begin(), [&sum, max_value](float d) {
       float value = d - max_value;
       sum = expf(value);
       return value;
@@ -575,8 +575,7 @@ NDArray LogProbsFromLogits(NDArray logits) {
   return final_result;
 }
 
-TVM_REGISTER_GLOBAL("vm.builtin.logprobs_from_logits")
-    .set_body_typed(LogProbsFromLogits);
+TVM_REGISTER_GLOBAL("vm.builtin.logprobs_from_logits").set_body_typed(LogProbsFromLogits);
 
 // This is an inplace operation.
 void ApplyRepetitionPenalty(NDArray logits, NDArray token_ids, double penalty) {
