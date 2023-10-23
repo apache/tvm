@@ -541,7 +541,7 @@ NDArray SampleLogProbsFromLogits(NDArray logits) {
   data.resize(logits->shape[logits->ndim - 1]);
   float* res_ptr = static_cast<float*>(final_result->data);
 
-  for (size_t seq_ind = 0; seq_ind < seq_length; ++seq_ind){
+  for (size_t seq_ind = 0; seq_ind < seq_length; ++seq_ind) {
     data.clear();
     const float* plogits = static_cast<float*>(logits->data) + vocab_length*seq_ind;
     float* res_log_probs = res_ptr + vocab_length*seq_ind;
@@ -550,7 +550,8 @@ NDArray SampleLogProbsFromLogits(NDArray logits) {
     }
 
     // sort by logits from largest to smallest
-    std::sort(data.begin(), data.end(), [](const std::pair<float, int>& lhs, const std::pair<float, int>& rhs) {
+    std::sort(data.begin(), data.end(),
+              [](const std::pair<float, int>& lhs, const std::pair<float, int>& rhs) {
       return lhs.first > rhs.first;
     });
 
@@ -574,7 +575,8 @@ NDArray SampleLogProbsFromLogits(NDArray logits) {
   return final_result;
 }
 
-TVM_REGISTER_GLOBAL("vm.builtin.sample_logprobs_from_logits").set_body_typed(SampleLogProbsFromLogits);
+TVM_REGISTER_GLOBAL("vm.builtin.sample_logprobs_from_logits")
+    .set_body_typed(SampleLogProbsFromLogits);
 
 // This is an inplace operation.
 void ApplyRepetitionPenalty(NDArray logits, NDArray token_ids, double penalty) {
