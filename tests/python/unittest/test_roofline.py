@@ -42,7 +42,7 @@ def test_estimate_peak_flops_cpu(dtype):
     target = tvm.target.Target("llvm -mattr=+fma,+avx2")
     dev = remote.device(str(target))
     # This test uses vectorized instructions so we need a target that supports them
-    flops = tvm.utils.roofline.x86.estimate_peak_fma_vector_flops(target, dev, remote, "float32")
+    flops = tvm.utils.roofline.x86.estimate_peak_fma_vector_flops(target, dev, remote, dtype)
     # Assume we can achieve 1 GFLOP/s per thread, which is 1 FLOP per cycle on a 1GHz cpu.
     assert (
         flops > 10**9 and flops < 10**14
