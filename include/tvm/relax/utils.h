@@ -132,6 +132,11 @@ TVM_DLL Function CopyWithNewVars(Function func);
  */
 Expr ToNonDataflow(const Expr& e);
 
+/*!
+ * \brief Get the value bound in the binding.
+ */
+Expr GetBoundValue(const Binding& b);
+
 }  // namespace relax
 }  // namespace tvm
 
