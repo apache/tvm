@@ -44,6 +44,7 @@
 #include <tvm/runtime/relax_vm/vm.h>
 
 #include <cmath>
+#include <algorithm>
 
 namespace tvm {
 namespace runtime {
@@ -509,6 +510,71 @@ int SampleTopPFromProb(NDArray prob, double top_p, double uniform_sample) {
 }
 
 TVM_REGISTER_GLOBAL("vm.builtin.sample_top_p_from_prob").set_body_typed(SampleTopPFromProb);
+
+NDArray SampleLogProbsFromLogits(NDArray logits) {
+  // log_softmax from logits is calculated.
+  // Both operations are joined to more quick and stable calculations:
+  // Log(Softmax(logits))[i] = Log(exp(logits[i])/Sum(exp(logits[i]), i)) =
+  // logits[i] - Log(Sum(exp(logits[i]), i)) =
+  // logits[i] - logits_max - Log(Sum(exp(logits[i]-logits_max), i))
+  // TODO(vvchernov): torch.log_softmax calculates sum by chunks in parallel and reduces it after,
+  // possibly we need to do it here and extend it to other "vm.builtin.sample_top_p_from..."
+  ICHECK(logits.IsContiguous());
+  ICHECK(logits.DataType() == DataType::Float(32));
+
+  if (logits->device.device_type != kDLCPU) {
+    logits = logits.CopyTo(DLDevice{kDLCPU, 0});
+  }
+
+  ICHECK(logits->device.device_type == kDLCPU);
+
+  // TODO(vvchernov): It is still assumed that batch size = 1 only
+  for (int i = 0; i < logits->ndim - 2; ++i) {
+    ICHECK_EQ(logits->shape[i], 1) << "The leading dimensions of logits must be 1";
+  }
+
+  auto final_result = NDArray::Empty(logits.Shape(), logits.DataType(), DLDevice{kDLCPU, 0});
+
+  size_t seq_length = logits->shape[logits->ndim - 2];
+  size_t vocab_length = logits->shape[logits->ndim - 1];
+  std::vector<std::pair<float, int>> data;
+  data.resize(logits->shape[logits->ndim - 1]);
+  float* res_ptr = static_cast<float*>(final_result->data);
+
+  for (size_t seq_ind = 0; seq_ind < seq_length; ++seq_ind){
+    data.clear();
+    const float* plogits = static_cast<float*>(logits->data) + vocab_length*seq_ind;
+    float* res_log_probs = res_ptr + vocab_length*seq_ind;
+    for (int i = 0; i < vocab_length; ++i) {
+      data[i] = std::make_pair(plogits[i], i);
+    }
+
+    // sort by logits from largest to smallest
+    std::sort(data.begin(), data.end(), [](const std::pair<float, int>& lhs, const std::pair<float, int>& rhs) {
+      return lhs.first > rhs.first;
+    });
+
+    // Compute denominator
+    float sum = 0.0f;
+    float max_value = data[0].first;  // it is maximum after sorting
+    std::transform(data.begin(), data.end(), data.begin(), [&sum, max_value] (float d) {
+      float value = d - max_value;
+      sum = expf(value);
+      return value;
+    });
+
+    float log_sum = logf(sum);
+
+    // Compute log probes
+    for (int i = 0; i < vocab_length; ++i) {
+      res_log_probs[data[i].second] = data[i].first - log_sum;
+    }
+  }
+
+  return final_result;
+}
+
+TVM_REGISTER_GLOBAL("vm.builtin.sample_logprobs_from_logits").set_body_typed(SampleLogProbsFromLogits);
 
 // This is an inplace operation.
 void ApplyRepetitionPenalty(NDArray logits, NDArray token_ids, double penalty) {
