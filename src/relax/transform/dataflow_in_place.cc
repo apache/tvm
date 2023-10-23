@@ -47,6 +47,13 @@ std::unordered_map<Var, std::pair<int, int>, ObjectPtrHash, ObjectPtrEqual> anal
     // (those captured from the outer scope)
     if (value.as<FunctionNode>()) {
       used_vars = FreeVars(value);
+    } else if (value.as<TupleGetItemNode>()) {
+      // Special case: we do not consider a tuple index to be a "use."
+      // This is a bit of a hack but allows us to do operations that
+      // create tuples to be done in-place (otherwise, any index of the tuple
+      // would be considered a use and so the tuple would be live later).
+      // Hence we keep the array empty.
+      ;
     } else {
       used_vars = AllVars(value);
     }
@@ -58,7 +65,13 @@ std::unordered_map<Var, std::pair<int, int>, ObjectPtrHash, ObjectPtrEqual> anal
     }
 
     if (!ret.count(defined_var)) {
-      ret[defined_var] = {i, block->bindings.size()};
+      // if it's an output, then it lives past the end of the block
+      if (!defined_var.as<DataflowVarNode>()) {
+        ret[defined_var] = {i, block->bindings.size()};
+      } else {
+        // otherwise, it's live only here
+        ret[defined_var] = {i, i};
+      }
     } else {
       // this means the var is used later but we encountered its definition now
       auto last_range = ret[defined_var];
