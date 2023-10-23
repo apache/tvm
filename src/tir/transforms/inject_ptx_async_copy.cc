@@ -80,10 +80,8 @@ class PTXAsyncCopyInjector : public StmtMutator {
         if (indices_lanes == 1) {
           auto src_offset = load->indices[0];
           auto dst_offset = store->indices[0];
-          Array<PrimExpr> args = {
-              store->buffer->data,
-              tir::Mul(dst_offset, cast(dst_offset.dtype(), PrimExpr(index_factor))),
-              load->buffer->data, src_offset, PrimExpr(bytes)};
+          Array<PrimExpr> args = {store->buffer->data, mul(dst_offset, PrimExpr(index_factor)),
+                                  load->buffer->data, src_offset, PrimExpr(bytes)};
           // use arguments size to indicate whether or not to use predicated cp.async
           if (predicated) {
             args.push_back(predicate_value);
@@ -116,11 +114,9 @@ class PTXAsyncCopyInjector : public StmtMutator {
             return PrimExpr();
           }();
           if (src_offset.defined() && dst_offset.defined()) {
-            return Evaluate(
-                Call(store->buffer->dtype, tvm::tir::builtin::ptx_cp_async(),
-                     {store->buffer->data,
-                      tir::Mul(dst_offset, cast(dst_offset.dtype(), PrimExpr(index_factor))),
-                      load->buffer->data, src_offset, PrimExpr(bytes)}));
+            return Evaluate(Call(store->buffer->dtype, tvm::tir::builtin::ptx_cp_async(),
+                                 {store->buffer->data, mul(dst_offset, PrimExpr(index_factor)),
+                                  load->buffer->data, src_offset, PrimExpr(bytes)}));
           }
         } else {
           // Only some vectorized indexing patterns are supported for now.
@@ -149,8 +145,7 @@ class PTXAsyncCopyInjector : public StmtMutator {
           if (src_offset.defined() && dst_offset.defined()) {
             return Evaluate(
                 Call(store->buffer->dtype, tvm::tir::builtin::ptx_cp_async(),
-                     {store->buffer->data,
-                      tir::Mul(dst_offset, cast(dst_offset.dtype(), PrimExpr(index_factor))),
+                     {store->buffer->data, mul(dst_offset, PrimExpr(index_factor)),
                       load->buffer->data, src_offset, PrimExpr(bytes), predicate_value}));
           }
         }
