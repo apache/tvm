@@ -530,8 +530,4 @@ def test_wmma_i8i8i32_m32n32k8():
         print("i8i8i32_m32n32k8: %f GFLOPS" % (gflops / (timer().mean)))
 
 if __name__ == "__main__":
-    #tvm.testing.main()
-    test_wmma_f16f16f32_m16n16k16()
-    test_wmma_f16f16f32_m32n32k8()
-    test_wmma_i8i8i32_m16n16k16()
-    test_wmma_i8i8i32_m32n32k8()
+    tvm.testing.main()
