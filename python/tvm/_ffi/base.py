@@ -349,7 +349,7 @@ def _append_traceback_frame(tb, func_name, filepath, lineno: Optional[int]):
     # filepath to show code snippets from that FFI file.
     header = "" if lineno is None else "\n" * (lineno - 1)
     code = compile(
-        "{}def dummy_func(): raise NotImplementedError()".format("\n" * (lineno - 1)),
+        f"{header}def dummy_func(): raise NotImplementedError()",
         filepath,
         "exec",
     )
