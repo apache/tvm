@@ -66,7 +66,7 @@ def test_micro_tuning_with_meta_schedule():
                 num_trials_per_iter=2,
                 max_trials_per_task=10,
                 max_trials_global=100,
-                work_dir=str(work_dir),
+                work_dir=str(work_dir.path),
                 module_equality="ignore-ndarray",
             )
 
