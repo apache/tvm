@@ -23,10 +23,6 @@ import tvm
 from tvm import te
 from tvm import meta_schedule as ms
 from tvm._ffi import register_func
-from tvm.meta_schedule.testing.space_generation import (
-    check_sketches,
-    generate_design_space,
-)
 from tvm.meta_schedule.builder import LocalBuilder
 from tvm.script import ir as I
 from tvm.script import tir as T
@@ -36,7 +32,6 @@ from tvm.tir.schedule import Trace
 
 # get tensor intrin
 from tvm.tir.tensor_intrin import rocm  # pylint: disable=unused-import
-from tvm.tir.tensor_intrin.rocm import get_rocwmma_intrin_group
 import tvm.testing
 
 def matmul_fp16(M: int, N: int, K: int, in_dtype:str, out_dtype: str):
@@ -83,26 +78,24 @@ def test_wmma_tune():
         )
 
         mod = tvm.IRModule({"main": func})
-        work_dir = "hip_auto_schedule.log"
-        db = ms.tir_integration.tune_tir(
-            mod=mod,
-            target=target,
-            work_dir=work_dir,
-            max_trials_global=32,
-            builder=LocalBuilder(
-                f_build="meta_schedule.builder.async_build", initializer=initializer
-            ),
-            space = space,
-            
-
-        )
-        sch = db.query_schedule(mod, target=target, workload_name="main")
-        with tvm.transform.PassContext(config={"tir.use_async_copy": 1}):
-            rt_mod = tvm.build(sch.mod, target=target)
-
+        with tempfile.TemporaryDirectory() as work_dir:
+            db = ms.tir_integration.tune_tir(
+                mod=mod,
+                target=target,
+                work_dir=work_dir,
+                max_trials_global=128,
+                builder=LocalBuilder(
+                    f_build="meta_schedule.builder.async_build", initializer=initializer
+                ),
+                space = space,
+            )
+            sch = db.query_schedule(mod, target=target, workload_name="main")
+            with tvm.transform.PassContext(config={"tir.use_async_copy": 1}):
+                rt_mod = tvm.build(sch.mod, target=target)
+            print(sch.trace)
+            print(rt_mod.imported_modules[0].get_source())
         a_np = np.random.uniform(0, 1, size=(M, K)).astype(in_dtype)
         b_np = np.random.uniform(0, 1, size=(K, N)).astype(in_dtype)
-        
         dev = tvm.rocm(0)
         a_tvm = tvm.nd.array(a_np, device=tvm.rocm(0))
         b_tvm = tvm.nd.array(b_np, device=tvm.rocm(0))

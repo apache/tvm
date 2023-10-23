@@ -304,11 +304,10 @@ Array<ScheduleRule> ScheduleRule::DefaultROCMMatrixCore() {
           {"compute", "rocwmma_sync_32x32x8_i8i8i32"},
           {"store", "rocwmma_store_32x32x8_i32_shared"},
       },
-
   };
   Array<ScheduleRule> results{
       ScheduleRule::ApplyCustomRule(),
-      ScheduleRule::MultiLevelTilingMatrixCore(
+      ScheduleRule::MultiLevelTilingTensorCore(
           /*intrin_groups=*/intrin_groups,
           /*structure=*/"SSSRRSRS",
           /*tile_binds=*/Array<String>{"blockIdx.y", "blockIdx.x", "threadIdx.y"},
@@ -322,10 +321,10 @@ Array<ScheduleRule> ScheduleRule::DefaultROCMMatrixCore() {
           Map<String, ObjectRef>{{"req", String("must")},
                                  {"levels", Array<Integer>{2}},  //
                                  {"scope", String("shared")}},
-          /*use_software_pipeline=*/false)  //
+          /*use_software_pipeline=*/true)  //
   };
-  //Array<ScheduleRule> append = ScheduleRule::DefaultCUDA();
-  //results.insert(results.end(), append.begin() + 1, append.end());
+  Array<ScheduleRule> append = ScheduleRule::DefaultCUDA();
+  results.insert(results.end(), append.begin() + 1, append.end());
   return results;
 }
 
