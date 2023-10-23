@@ -329,7 +329,7 @@ def test_strided_buffer():
     _check(compacted_strided_buffer_func, transformed_strided_buffer_func)
 
 
-def test_strided_buffer():
+def test_symbolic_strided_buffer():
     _check(compacted_symbolic_strided_buffer_func, transformed_symbolic_strided_buffer_func)
 
 
