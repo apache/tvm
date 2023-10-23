@@ -239,3 +239,104 @@ def mfma_schedule(
     sch.tensorize(sch.get_loops(C_warp)[-2], mfma_store_intrin)
 
     return sch
+
+
+def wmma_schedule(
+    workload,
+    k_inner,
+    in_dtype,
+    b_transposed,
+    i_factors,
+    j_factors,
+    k_factors,
+    wmma_m,
+    wmma_n,
+    wmma_k,
+    ldmatrix_a_intrin,
+    ldmatrix_b_intrin,
+    wmma_intrin,
+    wmma_fill_intrin,
+    wmma_store_intrin,
+    shared_scope="shared",
+):
+    """Create a tensorized schedule for GEMM with MMA intrinsics."""
+    import tvm  # pylint: disable=import-outside-toplevel
+
+    ir_module = tvm.IRModule({"main": workload})
+    sch = tvm.tir.Schedule(ir_module)
+    warp_size = 64
+
+    block = sch.get_block("C")
+    i, j, k = sch.get_loops(block)
+    i, i_tc = sch.split(i, factors=[None, wmma_m])
+    j, j_tc = sch.split(j, factors=[None, wmma_n])
+    k, k_tc = sch.split(k, factors=[None, wmma_k])
+
+    sch.reorder(i, j, k, i_tc, j_tc, k_tc)
+
+    block_inner = sch.blockize(i_tc)
+    block_outer, block_inner = block_inner, block
+
+    num_ty = i_factors[2] * j_factors[2]
+
+    i0, i1, i2, i3, i4 = sch.split(i, factors=i_factors)
+    j0, j1, j2, j3, j4 = sch.split(j, factors=j_factors)
+    k0, k1, k2 = sch.split(k, k_factors)
+
+    sch.reorder(i0, j0, i1, j1, j2, i2, k0, k1, i3, j3, k2, i4, j4)
+
+    block_idx = sch.fuse(i0, j0)
+    block_idy = sch.fuse(i1, j1)
+    thread_idy = sch.fuse(j2, i2)
+    sch.bind(block_idx, "blockIdx.x")
+    sch.bind(block_idy, "blockIdx.y")
+    sch.bind(thread_idy, "threadIdx.y")
+
+    def fetch_to_shared(block, idx, ndim):
+        block_read = sch.cache_read(block, idx, "shared")
+        sch.compute_at(block_read, k0)
+
+        vector_size = 8
+        fused = sch.fuse(*sch.get_loops(block_read)[-ndim:])
+        _, f_1, f_2 = sch.split(fused, factors=[None, num_ty, warp_size])
+        sch.bind(f_2, "threadIdx.x")
+        sch.bind(f_1, "threadIdx.y")
+        return block_read
+
+    fetch_to_shared(block_outer, 0, 2)
+    fetch_to_shared(block_outer, 1, 2)
+
+    A_warp = sch.cache_read(block_outer, 0, "wmma.matrix_a")
+    B_warp = sch.cache_read(block_outer, 1, "wmma.matrix_b")
+
+    sch.compute_at(A_warp, k1)
+    sch.compute_at(B_warp, k1)
+
+    C_warp = sch.cache_write(block_outer, 0, "wmma.accumulator")
+    sch.reverse_compute_at(C_warp, thread_idy)
+
+    ii, jj = sch.get_loops(C_warp)[-2:]
+    io, ii = sch.split(ii, factors=[None, wmma_m])
+    jo, ji = sch.split(jj, factors=[None, wmma_n])
+    sch.reorder(io, jo, ii, ji)
+
+    sch.decompose_reduction(block_outer, sch.get_loops(block_outer)[3])
+    block_init_c = sch.get_block("C_init")
+
+    def tile_wmma_fragment(block_read, height, width):
+        i, j = sch.get_loops(block_read)[-2:]
+        i0, i1 = sch.split(i, factors=[None, height])
+        j0, j1 = sch.split(j, factors=[None, width])
+        sch.reorder(i0, j0, i1, j1)
+        return i1
+
+    loop_a = tile_wmma_fragment(A_warp, wmma_m, wmma_k)
+    loop_b = tile_wmma_fragment(B_warp, wmma_k, wmma_n)
+
+    sch.tensorize(loop_a, ldmatrix_a_intrin)
+    sch.tensorize(loop_b, ldmatrix_b_intrin)
+    sch.tensorize(sch.get_loops(block_inner)[-3], wmma_intrin)
+    sch.tensorize(sch.get_loops(block_init_c)[-2], wmma_fill_intrin)
+    sch.tensorize(sch.get_loops(C_warp)[-2], wmma_store_intrin)
+
+    return sch
