@@ -511,7 +511,7 @@ int SampleTopPFromProb(NDArray prob, double top_p, double uniform_sample) {
 
 TVM_REGISTER_GLOBAL("vm.builtin.sample_top_p_from_prob").set_body_typed(SampleTopPFromProb);
 
-NDArray SampleLogProbsFromLogits(NDArray logits) {
+NDArray LogProbsFromLogits(NDArray logits) {
   // log_softmax from logits is calculated.
   // Both operations are joined to more quick and stable calculations:
   // Log(Softmax(logits))[i] = Log(exp(logits[i])/Sum(exp(logits[i]), i)) =
@@ -575,8 +575,8 @@ NDArray SampleLogProbsFromLogits(NDArray logits) {
   return final_result;
 }
 
-TVM_REGISTER_GLOBAL("vm.builtin.sample_logprobs_from_logits")
-    .set_body_typed(SampleLogProbsFromLogits);
+TVM_REGISTER_GLOBAL("vm.builtin.logprobs_from_logits")
+    .set_body_typed(LogProbsFromLogits);
 
 // This is an inplace operation.
 void ApplyRepetitionPenalty(NDArray logits, NDArray token_ids, double penalty) {
