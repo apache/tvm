@@ -512,11 +512,12 @@ int SampleTopPFromProb(NDArray prob, double top_p, double uniform_sample) {
 TVM_REGISTER_GLOBAL("vm.builtin.sample_top_p_from_prob").set_body_typed(SampleTopPFromProb);
 
 NDArray LogSoftmax(NDArray logits) {
-  // log_softmax from logits is calculated.
-  // Both operations are joined to more quick and stable calculations:
-  // Log(Softmax(logits))[i] = Log(exp(logits[i])/Sum(exp(logits[i]), i)) =
-  // logits[i] - Log(Sum(exp(logits[i]), i)) =
-  // logits[i] - logits_max - Log(Sum(exp(logits[i]-logits_max), i))
+  /* log_softmax from logits is calculated.
+   * Both operations are joined to more quick and stable calculations:
+   * Log(Softmax(logits))[i] = Log(exp(logits[i])/Sum(exp(logits[i]), i)) =
+   * logits[i] - Log(Sum(exp(logits[i]), i)) =
+   * logits[i] - logits_max - Log(Sum(exp(logits[i]-logits_max), i))
+   */
   // TODO(vvchernov): torch.log_softmax calculates sum by chunks in parallel and reduces it after,
   // possibly we need to do it here and extend it to other "vm.builtin.sample_top_p_from..."
   ICHECK(logits.IsContiguous());
@@ -537,30 +538,28 @@ NDArray LogSoftmax(NDArray logits) {
 
   size_t seq_length = logits->shape[logits->ndim - 2];
   size_t vocab_length = logits->shape[logits->ndim - 1];
-  std::vector<std::pair<float, int>> data;
-  data.resize(logits->shape[logits->ndim - 1]);
+  std::vector<float> data(vocab_length);
   float* res_ptr = static_cast<float*>(final_result->data);
 
   for (size_t seq_ind = 0; seq_ind < seq_length; ++seq_ind) {
     data.clear();
     const float* plogits = static_cast<float*>(logits->data) + vocab_length * seq_ind;
     float* res_log_probs = res_ptr + vocab_length * seq_ind;
-    for (int i = 0; i < vocab_length; ++i) {
-      data[i] = std::make_pair(plogits[i], i);
-    }
 
-    // sort by logits from largest to smallest
-    std::sort(data.begin(), data.end(),
-              [](const std::pair<float, int>& lhs, const std::pair<float, int>& rhs) {
-                return lhs.first > rhs.first;
-              });
+    // Fill data and find max value
+    float max_value = plogits[0];
+    for (int i = 0; i < vocab_length; ++i) {
+      data[i] = plogits[i];
+      if (max_value < plogits[i]) {
+        max_value = plogits[i];
+      }
+    }
 
     // Compute denominator
     float sum = 0.0f;
-    float max_value = data[0].first;  // it is maximum after sorting
     std::transform(data.begin(), data.end(), data.begin(), [&sum, max_value](float d) {
       float value = d - max_value;
-      sum = expf(value);
+      sum += expf(value);
       return value;
     });
 
@@ -568,7 +567,7 @@ NDArray LogSoftmax(NDArray logits) {
 
     // Compute log probes
     for (int i = 0; i < vocab_length; ++i) {
-      res_log_probs[data[i].second] = data[i].first - log_sum;
+      res_log_probs[i] = data[i] - log_sum;
     }
   }
 
