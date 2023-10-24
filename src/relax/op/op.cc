@@ -412,24 +412,23 @@ StructInfo InferStructInfoCallTIRInplace(const Call& call, const BlockBuilder& c
   } else {
     auto out_sinfos = call->sinfo_args[0].as<TupleStructInfoNode>()->fields;
     for (size_t i = 0; i < attrs->inplace_indices.size(); i++) {
-      if (attrs->inplace_indices[i].IntValue() == -1) {
+      int inplace_index = attrs->inplace_indices[i].IntValue();
+      if (inplace_index == -1) {
         continue;
       }
       auto* out_sinfo = out_sinfos[i].as<TensorStructInfoNode>();
       if (!out_sinfo) {
         ctx->ReportFatal(Diagnostic::Error(call) << "The output struct info must be a tensor");
       }
-      auto* input_sinfo =
-          arg_sinfo->fields[attrs->inplace_indices[0].IntValue()].as<TensorStructInfoNode>();
+      auto* input_sinfo = arg_sinfo->fields[inplace_index].as<TensorStructInfoNode>();
       if (!input_sinfo || !input_sinfo->shape.defined() ||
           !CanProveShapeEqual(input_sinfo->shape.value(), out_sinfo->shape.value(),
                               ctx->GetAnalyzer())) {
         ctx->ReportFatal(Diagnostic::Error(call)
                          << "The shape of output " << i << " must match that of input "
-                         << attrs->inplace_indices[i].IntValue() << ", whereas we have "
-                         << out_sinfo->shape.value() << " in output " << i << " versus "
-                         << input_sinfo->shape.value() << " in input "
-                         << attrs->inplace_indices[i].IntValue());
+                         << inplace_index << ", whereas we have " << out_sinfo->shape.value()
+                         << " in output " << i << " versus " << input_sinfo->shape.value()
+                         << " in input " << attrs->inplace_indices[i].IntValue());
       }
     }
   }
