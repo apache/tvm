@@ -78,7 +78,7 @@ class CallTIRMutator : public ExprMutator {
               << "If calling call_tir_inplace and there is one output, its in-place index must not"
                  " be -1.";
           outs.push_back(
-              Downcast<Tuple>(call->args[1])->fields[inplace_attrs->inplace_indices[0].IntValue()]);
+              GetTupleIndex(call->args[1], inplace_attrs->inplace_indices[0].IntValue()));
         }
       } else if (const auto& _tuple_sinfo = MatchStructInfo<TupleStructInfo>(expr)) {
         // multiple output case
@@ -101,8 +101,8 @@ class CallTIRMutator : public ExprMutator {
                                     Attrs()),
                                "alloc"));
           } else {
-            outs.push_back(Downcast<Tuple>(call->args[1])
-                               ->fields[inplace_attrs->inplace_indices[i].IntValue()]);
+            outs.push_back(
+                GetTupleIndex(call->args[1], inplace_attrs->inplace_indices[i].IntValue()));
           }
         }
       } else {
@@ -112,8 +112,10 @@ class CallTIRMutator : public ExprMutator {
       }
 
       Array<Expr> args;
-      if (call->args[1].as<TupleNode>()) {
-        args = Downcast<Tuple>(call->args[1])->fields;
+      if (const auto* tuple_info = GetStructInfoAs<TupleStructInfoNode>(call->args[1])) {
+        for (size_t i = 0; i < tuple_info->fields.size(); i++) {
+          args.push_back(GetTupleIndex(call->args[1], i));
+        }
         // for call_tir_inplace, don't reinsert in-place args, only the newly allocated ones
         if (!is_inplace) {
           args.insert(args.end(), outs.begin(), outs.end());
@@ -149,6 +151,18 @@ class CallTIRMutator : public ExprMutator {
     }
 
     return GetRef<Expr>(call);
+  }
+
+ private:
+  // If e is a tuple literal, return the field denoted by the index.
+  // Otherwise, insert a tuple get item for that field and return the
+  // var the result is bound to.
+  Expr GetTupleIndex(const Expr& e, int index) {
+    if (const auto* tuple_node = e.as<TupleNode>()) {
+      return tuple_node->fields[index];
+    }
+    auto out = builder_->Emit(TupleGetItem(e, index));
+    return out;
   }
 };
 

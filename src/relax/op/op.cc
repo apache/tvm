@@ -263,7 +263,7 @@ RELAY_REGISTER_OP("relax.call_tir")
     .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoCallTIR)
     .set_attr<Bool>("FPurity", Bool(true));
 
-Expr MakeCallTIR(Expr func, Tuple args, Array<TensorStructInfo> out_sinfo_list,
+Expr MakeCallTIR(const Expr& func, const Expr& args, const Array<TensorStructInfo>& out_sinfo_list,
                  Optional<Expr> packed_ints) {
   for (const TensorStructInfo& sinfo : out_sinfo_list) {
     const auto* shape = sinfo->shape.as<ShapeExprNode>();
@@ -307,9 +307,9 @@ RELAY_REGISTER_OP("relax.call_tir_with_grad")
     .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoCallTIR)
     .set_attr<Bool>("FPurity", Bool(true));
 
-Expr MakeCallTIRWithGrad(Expr func, Tuple args, Array<TensorStructInfo> out_sinfo_list,
-                         String te_grad_name, Map<String, ObjectRef> te_grad_kwargs,
-                         Optional<Expr> packed_ints) {
+Expr MakeCallTIRWithGrad(const Expr& func, const Expr& args,
+                         const Array<TensorStructInfo>& out_sinfo_list, String te_grad_name,
+                         Map<String, ObjectRef> te_grad_kwargs, Optional<Expr> packed_ints) {
   for (const TensorStructInfo& sinfo : out_sinfo_list) {
     const auto* shape = sinfo->shape.as<ShapeExprNode>();
     CHECK(shape != nullptr)
@@ -364,7 +364,8 @@ StructInfo InferStructInfoCallTIRInplace(const Call& call, const BlockBuilder& c
   }
 
   // check the range for inplace indices, make sure at least one is not -1, ensure they're unique
-  size_t num_args = Downcast<Tuple>(call->args[1])->fields.size();
+  auto arg_sinfo = GetStructInfoAs<TupleStructInfoNode>(call->args[1]);
+  size_t num_args = arg_sinfo->fields.size();
   std::unordered_set<int> encountered;
   for (size_t i = 0; i < attrs->inplace_indices.size(); i++) {
     int index = attrs->inplace_indices[i].IntValue();
@@ -391,14 +392,13 @@ StructInfo InferStructInfoCallTIRInplace(const Call& call, const BlockBuilder& c
   // for safety, we will make sure the output shape for each in-place argument exactly matches the
   // input shape
   // TODO(@slyubomirsky): eventually we will want to handle cases where that is not true
-  Tuple call_args = Downcast<Tuple>(call->args[1]);
   if (attrs->inplace_indices.size() == 1) {
     auto* out_sinfo = call->sinfo_args[0].as<TensorStructInfoNode>();
     if (!out_sinfo) {
       ctx->ReportFatal(Diagnostic::Error(call) << "The output struct info must be a tensor");
     }
-    auto* input_sinfo = GetStructInfoAs<TensorStructInfoNode>(
-        call_args->fields[attrs->inplace_indices[0].IntValue()]);
+    auto* input_sinfo =
+        arg_sinfo->fields[attrs->inplace_indices[0].IntValue()].as<TensorStructInfoNode>();
     if (!input_sinfo || !input_sinfo->shape.defined() ||
         !CanProveShapeEqual(input_sinfo->shape.value(), out_sinfo->shape.value(),
                             ctx->GetAnalyzer())) {
@@ -419,8 +419,8 @@ StructInfo InferStructInfoCallTIRInplace(const Call& call, const BlockBuilder& c
       if (!out_sinfo) {
         ctx->ReportFatal(Diagnostic::Error(call) << "The output struct info must be a tensor");
       }
-      auto* input_sinfo = GetStructInfoAs<TensorStructInfoNode>(
-          call_args->fields[attrs->inplace_indices[i].IntValue()]);
+      auto* input_sinfo =
+          arg_sinfo->fields[attrs->inplace_indices[0].IntValue()].as<TensorStructInfoNode>();
       if (!input_sinfo || !input_sinfo->shape.defined() ||
           !CanProveShapeEqual(input_sinfo->shape.value(), out_sinfo->shape.value(),
                               ctx->GetAnalyzer())) {
@@ -453,7 +453,7 @@ RELAY_REGISTER_OP("relax.call_tir_inplace")
     // arguments will no longer be live)
     .set_attr<Bool>("FPurity", Bool(true));
 
-Expr MakeCallTIRInplace(Expr func, Tuple args, Array<Integer> inplace_indices,
+Expr MakeCallTIRInplace(const Expr& func, const Expr& args, const Array<Integer>& inplace_indices,
                         Array<TensorStructInfo> out_sinfo_list, Optional<Expr> packed_ints) {
   for (const TensorStructInfo& sinfo : out_sinfo_list) {
     const auto* shape = sinfo->shape.as<ShapeExprNode>();
