@@ -511,7 +511,7 @@ int SampleTopPFromProb(NDArray prob, double top_p, double uniform_sample) {
 
 TVM_REGISTER_GLOBAL("vm.builtin.sample_top_p_from_prob").set_body_typed(SampleTopPFromProb);
 
-NDArray LogSoftmax(NDArray logits) {
+void LogSoftmax(NDArray logits, NDArray& output) {
   /* log_softmax from logits is calculated.
    * Both operations are joined to more quick and stable calculations:
    * Log(Softmax(logits))[i] = Log(exp(logits[i])/Sum(exp(logits[i]), i)) =
@@ -534,12 +534,10 @@ NDArray LogSoftmax(NDArray logits) {
     ICHECK_EQ(logits->shape[i], 1) << "The leading dimensions of logits must be 1";
   }
 
-  auto final_result = NDArray::Empty(logits.Shape(), logits.DataType(), DLDevice{kDLCPU, 0});
-
   size_t seq_length = logits->shape[logits->ndim - 2];
   size_t vocab_length = logits->shape[logits->ndim - 1];
   std::vector<float> data(vocab_length);
-  float* res_ptr = static_cast<float*>(final_result->data);
+  float* res_ptr = static_cast<float*>(output->data);
 
   for (size_t seq_ind = 0; seq_ind < seq_length; ++seq_ind) {
     data.clear();
@@ -570,8 +568,6 @@ NDArray LogSoftmax(NDArray logits) {
       res_log_probs[i] = data[i] - log_sum;
     }
   }
-
-  return final_result;
 }
 
 TVM_REGISTER_GLOBAL("vm.builtin.log_softmax").set_body_typed(LogSoftmax);
