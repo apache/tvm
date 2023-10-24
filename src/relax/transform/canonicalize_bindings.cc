@@ -150,14 +150,12 @@ class CanonicalizePlanner : public ExprVisitor {
     // Unwrap TupleGetItem, if the Tuple being accessed is known.
     if (auto tuple_get_item = value.as<TupleGetItemNode>()) {
       Expr tuple = tuple_get_item->tuple;
-      while (true) {
-        if (auto tuple_var = tuple.as<Var>()) {
-          if (auto it = known_bindings_.find(tuple_var.value()); it != known_bindings_.end()) {
-            tuple = it->second;
-            continue;
-          }
+      while (auto tuple_var = tuple.as<Var>()) {
+        if (auto it = known_bindings_.find(tuple_var.value()); it != known_bindings_.end()) {
+          tuple = it->second;
+        } else {
+          break;
         }
-        break;
       }
 
       if (auto ptr = tuple.as<TupleNode>()) {
