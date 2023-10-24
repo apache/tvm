@@ -1484,6 +1484,10 @@ class TorchFXImporter:
                 for node in graph.nodes:
                     if node.op == "placeholder":
                         assert len(inputs) > 0, "Provided inputs is less than actual inputs"
+                        if "grapharg" in node.meta and node.meta["grapharg"].fake_tensor is None:
+                            # Ignore sym input
+                            continue
+
                         self.env[node] = inputs.pop(0)
                     elif node.op == "output":
                         args = self.retrieve_args(node)
