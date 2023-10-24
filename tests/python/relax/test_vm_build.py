@@ -29,6 +29,7 @@ from tvm.contrib import utils, cc, popen_pool
 from tvm.relax.testing import nn
 from tvm.script import relax as R, tir as T, ir as I
 from tvm.relax.testing.vm import check_saved_func
+from tvm.runtime import ShapeTuple
 
 EXEC_MODE = ["bytecode", "compiled"]
 
@@ -513,6 +514,125 @@ def test_vm_relax_symbolic_shape(exec_mode):
         return inp.numpy() + np.repeat(inp2.numpy(), 2)[:5]
 
     tvm.testing.assert_allclose(res.numpy(), expected_output(), rtol=1e-7, atol=1e-7)
+
+
+@pytest.mark.parametrize("exec_mode", EXEC_MODE)
+def test_vm_relax_symbolic_shape_tuple(exec_mode):
+    @I.ir_module
+    class mod:
+        @R.function
+        def main(shape: R.Shape(["m", "n"])):
+            m = T.int64()
+            n = T.int64()
+            return R.shape([2 * m, 3 * n])
+
+    target = tvm.target.Target("llvm", host="llvm")
+    ex = relax.build(mod, target, exec_mode=exec_mode)
+    vm = relax.VirtualMachine(ex, tvm.cpu())
+
+    func = vm["main"]
+
+    assert func(ShapeTuple([2, 3])) == [4, 9]
+
+    with pytest.raises(ValueError):
+        func(ShapeTuple([2, 3, 4]))
+
+    with pytest.raises(TypeError):
+        func(R.prim_value(2))
+
+
+@pytest.mark.parametrize("exec_mode", EXEC_MODE)
+def test_vm_relax_symbolic_prim_value(exec_mode):
+    @I.ir_module
+    class mod:
+        @R.function
+        def main(shape: R.Prim(value="n")):
+            n = T.int64()
+            return R.prim_value(n * n)
+
+    target = tvm.target.Target("llvm", host="llvm")
+    ex = relax.build(mod, target, exec_mode=exec_mode)
+    vm = relax.VirtualMachine(ex, tvm.cpu())
+
+    func = vm["main"]
+
+    assert func(2) == 4
+
+    with pytest.raises(tvm.TVMError):
+        func(ShapeTuple([2]))
+
+
+@pytest.mark.parametrize("exec_mode", EXEC_MODE)
+def test_vm_relax_multiple_symbolic_prim_value(exec_mode):
+    """Like test_vm_relax_symbolic_prim_value, but with multiple variables"""
+
+    @I.ir_module
+    class mod:
+        @R.function
+        def main(
+            # Provides definition of "n"
+            _n: R.Prim(value="n"),
+            # Requires definitions of both "n" and "m", but cannot
+            # provide either.
+            _shape: R.Shape(["n*2", "m*2"]),
+            # Provides definition of "m"
+            _m: R.Prim(value="m"),
+        ):
+            n = T.int64()
+            m = T.int64()
+            return R.shape([n * n, m + 1])
+
+    target = tvm.target.Target("llvm", host="llvm")
+    ex = relax.build(mod, target, exec_mode=exec_mode)
+    vm = relax.VirtualMachine(ex, tvm.cpu())
+
+    func = vm["main"]
+
+    assert func(2, ShapeTuple([4, 12]), 6) == [4, 7]
+
+    with pytest.raises(RuntimeError):
+        func(2, ShapeTuple([4, 12]), 1)
+
+    with pytest.raises(tvm.TVMError):
+        func(ShapeTuple([2]))
+
+
+@pytest.mark.xfail(reason="Current support for R.Prim with known value is primarily for int64")
+@pytest.mark.parametrize("exec_mode", EXEC_MODE)
+def test_vm_relax_prim_value_fp32(exec_mode):
+    """A PrimValue may be R.prim('float32')
+
+    Unlike shape tuples, which must contain int64, a PrimValue may be
+    any type that can be represented as a single primitive value.
+    """
+
+    @I.ir_module
+    class mod:
+        @R.function
+        def main(
+            # First failure occurs during parsing.  The syntactic
+            # sugar for symbolic variables assumes that all symbolic
+            # variables are int64, rather than using the type that is
+            # later declared.
+            _x: R.Prim(value="half_fill_value"),
+        ):
+            half_fill_value = T.float32()
+            # Second failure occurs when calling `relax.op.full`.  The
+            # `fill_value` is expected to be a scalar constant
+            # (R.Tensor with 0-dim shape), not a primitive value, even
+            # though these are semantically the same.
+            return R.full(shape=[16, 16], fill_value=R.prim_value(2 * half_fill_value))
+
+    target = tvm.target.Target("llvm", host="llvm")
+    # Third failure occurs here.  The current codegen assumes that all
+    # symbolic variables are int64.
+    ex = relax.build(mod, target, exec_mode=exec_mode)
+    vm = relax.VirtualMachine(ex, tvm.cpu())
+
+    func = vm["main"]
+
+    res = func(16.0).numpy()
+    assert np.all(res == 32.0)
 
 
 @pytest.mark.parametrize("exec_mode", EXEC_MODE)
