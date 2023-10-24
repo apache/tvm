@@ -153,8 +153,8 @@ class LazyTransformParamsMutator(PyExprMutator):
         params = []
         symbolic_vars = relax.analysis.defined_symbolic_vars(func)
         if symbolic_vars:
-            for param in self.input_tuple_param:
-                sinfo = param.struct_info
+            # direct iterate over the struct info annotation
+            for sinfo in self.input_tuple_param.struct_info.fields:
                 if not isinstance(sinfo, relax.TensorStructInfo):
                     params.append(relax.Var("symbolic_var_holder", sinfo))
 
