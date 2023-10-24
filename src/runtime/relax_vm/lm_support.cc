@@ -43,8 +43,8 @@
 #include <tvm/runtime/relax_vm/memory_manager.h>
 #include <tvm/runtime/relax_vm/vm.h>
 
-#include <cmath>
 #include <algorithm>
+#include <cmath>
 
 namespace tvm {
 namespace runtime {
