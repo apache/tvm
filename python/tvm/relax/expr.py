@@ -19,7 +19,7 @@
 """The expression nodes of Relax."""
 import typing
 from numbers import Number
-from typing import Any, Callable, Dict, List, Optional, Union, Mapping
+from typing import Any, Callable, Dict, List, Optional, Union, Mapping, Iterator
 
 import numpy as _np  # type: ignore
 
@@ -215,6 +215,27 @@ class ExprWithOp(Expr, Scriptable):
         """
         return Call(self, args, attrs=attrs)
 
+    def __iter__(self) -> Iterator[Expr]:
+        """Prevent iteration over the Expr
+
+        Iteration is only allowed for `relax.Tuple` and
+        `relax.ShapeExpr`.  By default, if an object `__getitem__`,
+        but doesn't define either `__len__` or `__iter__`, Python will
+        allow iteration over the object by repeatedly calling
+        `__getitem__`, incrementing the index until it raises
+        `IndexError`.  Providing an explicit implementation for
+        `__iter__` prevents this default implementation.
+
+        This allows `ExprWithOp` to provide `__getitem__` as syntactic
+        sugar for `TupleGetItem`, but prevents iteration over arbitrary
+        expressions.
+
+        """
+        raise TypeError(
+            f"Iteration is only allowed over relax.Tuple and relax.ShapeExpr, "
+            f"but was applied to object {self} of type {type(self)}."
+        )
+
     def __getitem__(self, index: int) -> "ExprWithOp":
         """Get the i-th element of the tuple or Expr with TupleType.
 
@@ -232,17 +253,16 @@ class ExprWithOp(Expr, Scriptable):
         result: ExprWithOp
             The result expression.
         """
-        try:
-            return TupleGetItem(self, index)
-        except tvm.TVMError as err:
-            # For Python objects with __getitem__, but without
-            # __len__, tuple unpacking is done by iterating over
-            # sequential indices until IndexError is raised.
-            # Therefore, convert from TVMError to IndexError for
-            # compatibility.
-            if "Index out of bounds" in err.args[0]:
-                raise IndexError from err
-            raise
+        # Throw the python-expected IndexError in case of
+        # out-of-bounds access, rather than the TVMError that would
+        # otherwise occur.
+        if isinstance(self.struct_info_, tvm.relax.TupleStructInfo):
+            tuple_size = len(self.struct_info.fields)
+            is_valid = 0 <= index < tuple_size
+            if not is_valid:
+                raise IndexError(f"Index {index} is out of range for tuple of length {tuple_size}")
+
+        return TupleGetItem(self, index)
 
 
 @tvm._ffi.register_object("relax.expr.Call")
@@ -339,6 +359,14 @@ class Tuple(ExprWithOp):
     def __len__(self) -> int:
         return len(self.fields)
 
+    def __iter__(self) -> Iterator[Expr]:
+        """Override ExprWithOp.__iter__
+
+        Iteration over a relax.Tuple should not require generating any
+        intermediate TupleGetItem objects.
+        """
+        return iter(self.fields)
+
 
 @tvm._ffi.register_object("relax.expr.TupleGetItem")
 class TupleGetItem(ExprWithOp):
@@ -379,6 +407,15 @@ class ShapeExpr(ExprWithOp):
 
     def __len__(self):
         return len(self.values)
+
+    def __iter__(self) -> Iterator[PrimExpr]:
+        """Override ExprWithOp.__iter__
+
+        Iteration over a relax.ShapeExpr should produce PrimExpr, not
+        relax.Expr, and should not produce any intermediate
+        TupleGetItem instances.
+        """
+        return iter(self.values)
 
 
 def make_shape(shape: Union[List[Any], typing.Tuple[Any, ...]]) -> ShapeExpr:
