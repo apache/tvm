@@ -540,6 +540,24 @@ class IntImm : public PrimExpr {
   TVM_DEFINE_OBJECT_REF_COW_METHOD(IntImmNode);
 };
 
+/* \brief FFI extention, ObjectRef to integer conversion
+ *
+ * If a PackedFunc expects an integer type, and the user passes an
+ * IntImm as the argument, this specialization allows it to be
+ * converted by the FFI.
+ */
+template <typename IntType>
+struct runtime::PackedFuncObjectRefConverter<IntType,
+                                             std::enable_if_t<std::is_integral_v<IntType>>> {
+  static std::optional<IntType> TryFrom(const ObjectRef& obj) {
+    if (auto ptr = obj.as<IntImmNode>()) {
+      return ptr->value;
+    } else {
+      return std::nullopt;
+    }
+  }
+};
+
 /*!
  * \brief Constant floating point literals in the program.
  * \sa FloatImm
@@ -585,6 +603,24 @@ class FloatImm : public PrimExpr {
 
   TVM_DEFINE_OBJECT_REF_METHODS(FloatImm, PrimExpr, FloatImmNode);
   TVM_DEFINE_OBJECT_REF_COW_METHOD(FloatImmNode);
+};
+
+/* \brief FFI extention, ObjectRef to integer conversion
+ *
+ * If a PackedFunc expects an integer type, and the user passes an
+ * IntImm as the argument, this specialization allows it to be
+ * converted by the FFI.
+ */
+template <typename FloatType>
+struct runtime::PackedFuncObjectRefConverter<
+    FloatType, std::enable_if_t<std::is_floating_point_v<FloatType>>> {
+  static std::optional<FloatType> TryFrom(const ObjectRef& obj) {
+    if (auto ptr = obj.as<FloatImmNode>()) {
+      return ptr->value;
+    } else {
+      return std::nullopt;
+    }
+  }
 };
 
 /*!
