@@ -511,6 +511,7 @@ int SampleTopPFromProb(NDArray prob, double top_p, double uniform_sample) {
 
 TVM_REGISTER_GLOBAL("vm.builtin.sample_top_p_from_prob").set_body_typed(SampleTopPFromProb);
 
+// NOLINTNEXTLINE(runtime/references)
 void LogSoftmax(NDArray logits, NDArray& output) {
   /* log_softmax from logits is calculated.
    * Both operations are joined to more quick and stable calculations:
