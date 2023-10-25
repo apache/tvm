@@ -68,29 +68,32 @@ def test_fastmath(target, dev):
             def main(x: R.Tensor(a_np.shape, dtype=dtype)) -> R.Tensor(a_np.shape, dtype=dtype):
                 lv: R.Tensor(a_np.shape, dtype=dtype) = R.power(x, R.const(alpha, dtype=dtype))
                 return lv
+
         fast_mod = FastMathTransform()(ConstPower)
         ex = relax.build(fast_mod, target=target)
         vm = relax.VirtualMachine(ex, dev)
         x_tvm = tvm.nd.array(a_np)
         tvm_output = vm["main"](x_tvm)
-        
+
         tvm.testing.assert_allclose(tvm_output.numpy(), b_np, rtol=1e-5, atol=1e-5)
 
         @I.ir_module
         class Power:
             @R.function
-            def main(x: R.Tensor(a_np.shape, dtype=dtype), y: R.Tensor((), dtype=dtype)) -> R.Tensor(a_np.shape, dtype=dtype):
+            def main(
+                x: R.Tensor(a_np.shape, dtype=dtype), y: R.Tensor((), dtype=dtype)
+            ) -> R.Tensor(a_np.shape, dtype=dtype):
                 lv: R.Tensor(a_np.shape, dtype=dtype) = R.power(x, y)
                 return lv
+
         fast_mod = FastMathTransform()(Power)
         ex = relax.build(fast_mod, target=target)
         vm = relax.VirtualMachine(ex, dev)
         x_tvm = tvm.nd.array(a_np)
         y_tvm = tvm.nd.array(np.array(alpha).astype(dtype))
         tvm_output = vm["main"](x_tvm, y_tvm)
-        
-        tvm.testing.assert_allclose(tvm_output.numpy(), b_np, rtol=1e-5, atol=1e-5)
 
+        tvm.testing.assert_allclose(tvm_output.numpy(), b_np, rtol=1e-5, atol=1e-5)
 
     test_apply(low=1, high=88, step=0.01, alpha=0.5)
     test_apply(low=-88, high=88, step=0.01, alpha=10)

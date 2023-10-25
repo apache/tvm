@@ -46,6 +46,7 @@ class FastMathCodeGenerator(PyExprMutator):
         if call.op.name == "relax.tanh":
             return self.builder_.call_te(topi.fast_tanh, call.args[0])
         if call.op.name == "relax.power":
+
             def te_fast_power_const(x, y):
                 """power(x, y) = exp(log(x) * y) when x > 0 or y is not an integer."""
                 return topi.fast_exp(topi.multiply(topi.log(x), y))
@@ -65,20 +66,20 @@ class FastMathCodeGenerator(PyExprMutator):
                             topi.log(
                                 topi.add(
                                     topi.multiply(
-                                        topi.subtract(topi.divide(
-                                            x, topi.abs(x)), tir.const(1.0, dtype)),
+                                        topi.subtract(
+                                            topi.divide(x, topi.abs(x)), tir.const(1.0, dtype)
+                                        ),
                                         topi.ceil(y) - topi.floor(y),
                                     ),
                                     tir.const(1.0, dtype),
                                 )
                             ),
                             topi.multiply(
-                                topi.subtract(topi.divide(
-                                    x, topi.abs(x)), tir.const(1.0, dtype)),
+                                topi.subtract(topi.divide(x, topi.abs(x)), tir.const(1.0, dtype)),
                                 topi.mod(y, tir.const(2.0, dtype)),
                             ),
                         ),
-                        tir.const(1.0, dtype)
+                        tir.const(1.0, dtype),
                     ),
                     topi.fast_exp(topi.multiply(topi.log(topi.abs(x)), y)),
                 )
