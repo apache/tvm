@@ -14,13 +14,13 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-import os
+
 import ctypes
 from typing import Tuple, Callable
 
-
 import numpy as np
 import pytest
+
 import tvm
 import tvm.script
 import tvm.testing
@@ -34,7 +34,11 @@ from tvm.runtime import ShapeTuple
 EXEC_MODE = ["bytecode", "compiled"]
 
 
-@pytest.mark.parametrize("exec_mode", EXEC_MODE)
+@pytest.fixture(params=EXEC_MODE)
+def exec_mode(request):
+    return request.param
+
+
 def test_vm_compile_simple(exec_mode):
     @tvm.script.ir_module
     class TestVMCompileStage0:
@@ -55,7 +59,6 @@ def test_vm_compile_simple(exec_mode):
     tvm.testing.assert_allclose(inp2.numpy(), inp1.numpy(), rtol=1e-7, atol=1e-7)
 
 
-@pytest.mark.parametrize("exec_mode", EXEC_MODE)
 def test_match_check(exec_mode):
     @tvm.script.ir_module
     class TestMatchCheck:
@@ -81,7 +84,6 @@ def test_match_check(exec_mode):
         vm["foo"](x0, y2)
 
 
-@pytest.mark.parametrize("exec_mode", EXEC_MODE)
 def test_vm_compile_stage2(exec_mode):
     @tvm.script.ir_module
     class TestVMCompileStage2:
@@ -115,7 +117,6 @@ def test_vm_compile_stage2(exec_mode):
         vm["foo"]([])
 
 
-@pytest.mark.parametrize("exec_mode", EXEC_MODE)
 def test_vm_compile_stage3(exec_mode):
     @tvm.script.ir_module
     class TestVMCompileStage3:
@@ -137,7 +138,6 @@ def test_vm_compile_stage3(exec_mode):
     tvm.testing.assert_allclose(res.numpy(), inp.numpy(), rtol=1e-7, atol=1e-7)
 
 
-@pytest.mark.parametrize("exec_mode", EXEC_MODE)
 def test_vm_compile_e2e(exec_mode):
     @tvm.script.ir_module
     class TestVMCompileE2E:
@@ -162,7 +162,6 @@ def test_vm_compile_e2e(exec_mode):
     tvm.testing.assert_allclose(res.numpy(), np.tile(inp.numpy(), (1, 2)), rtol=1e-7, atol=1e-7)
 
 
-@pytest.mark.parametrize("exec_mode", EXEC_MODE)
 def test_vm_compile_e2e_func_param_with_shape(exec_mode):
     @tvm.script.ir_module
     class TestVMCompileE2E2:
@@ -205,7 +204,6 @@ def test_vm_compile_e2e_func_param_with_shape(exec_mode):
     tvm.testing.assert_allclose(res.numpy(), expected, rtol=1e-6, atol=1e-6)
 
 
-@pytest.mark.parametrize("exec_mode", EXEC_MODE)
 def test_call_tir_inplace_e2e_simple(exec_mode):
     @tvm.script.ir_module
     class TestCallTIRInplaceE2ESimple:
@@ -264,7 +262,6 @@ def test_call_tir_inplace_e2e_simple(exec_mode):
     tvm.testing.assert_allclose(outs[2].numpy(), z.numpy(), rtol=1e-7, atol=1e-7)
 
 
-@pytest.mark.parametrize("exec_mode", EXEC_MODE)
 def test_call_tir_inplace_e2e_rw(exec_mode):
     # read and write from the same tensor
     @tvm.script.ir_module
@@ -306,7 +303,6 @@ def test_call_tir_inplace_e2e_rw(exec_mode):
     tvm.testing.assert_allclose(out.numpy(), expected.numpy(), rtol=1e-7, atol=1e-7)
 
 
-@pytest.mark.parametrize("exec_mode", EXEC_MODE)
 def test_vm_emit_te_extern(exec_mode):
     if not tvm.get_global_func("tvm.contrib.cblas.matmul", True):
         print("skip because extern function is not available")
@@ -333,7 +329,6 @@ def test_vm_emit_te_extern(exec_mode):
     tvm.testing.assert_allclose(res.numpy(), expected, rtol=1e-6, atol=1e-6)
 
 
-@pytest.mark.parametrize("exec_mode", EXEC_MODE)
 def test_vm_emit_te_concat(exec_mode):
     # concatenate of two vectors of size (n,) and (m,)
     bb = relax.BlockBuilder()
@@ -371,7 +366,6 @@ def test_vm_emit_te_concat(exec_mode):
     )
 
 
-@pytest.mark.parametrize("exec_mode", EXEC_MODE)
 def test_vm_emit_te_dtype_change(exec_mode):
     bb = relax.BlockBuilder()
     n = tir.Var("n", "int64")
@@ -401,7 +395,6 @@ def test_vm_emit_te_dtype_change(exec_mode):
     np.testing.assert_allclose(res.numpy(), inp.numpy().astype("int16"))
 
 
-@pytest.mark.parametrize("exec_mode", EXEC_MODE)
 def test_vm_emit_te_floor_symbolic_shape(exec_mode):
     bb = relax.BlockBuilder()
     n = tir.Var("n", "int64")
@@ -432,7 +425,6 @@ def test_vm_emit_te_floor_symbolic_shape(exec_mode):
     tvm.testing.assert_allclose(res.numpy(), expected_output(), rtol=1e-7, atol=1e-7)
 
 
-@pytest.mark.parametrize("exec_mode", EXEC_MODE)
 def test_vm_emit_te_constant_param_cpu(exec_mode):
     x_np = np.random.rand(2, 2).astype("float32")
     c_np = np.random.rand(2, 2).astype("float32")
@@ -455,7 +447,6 @@ def test_vm_emit_te_constant_param_cpu(exec_mode):
     tvm.testing.assert_allclose(add_res.numpy(), x_np + c_np, rtol=1e-7, atol=1e-7)
 
 
-@pytest.mark.parametrize("exec_mode", EXEC_MODE)
 @tvm.testing.requires_gpu
 def test_vm_emit_te_constant_param_gpu(exec_mode):
     x_np = np.random.rand(2, 2).astype("float32")
@@ -483,7 +474,6 @@ def test_vm_emit_te_constant_param_gpu(exec_mode):
     tvm.testing.assert_allclose(add_res.numpy(), x_np + c_np, rtol=1e-7, atol=1e-7)
 
 
-@pytest.mark.parametrize("exec_mode", EXEC_MODE)
 def test_vm_relax_symbolic_shape(exec_mode):
     bb = relax.BlockBuilder()
     n = tir.Var("n", "int64")
@@ -516,7 +506,6 @@ def test_vm_relax_symbolic_shape(exec_mode):
     tvm.testing.assert_allclose(res.numpy(), expected_output(), rtol=1e-7, atol=1e-7)
 
 
-@pytest.mark.parametrize("exec_mode", EXEC_MODE)
 def test_vm_relax_symbolic_shape_tuple(exec_mode):
     @I.ir_module
     class mod:
@@ -541,7 +530,6 @@ def test_vm_relax_symbolic_shape_tuple(exec_mode):
         func(R.prim_value(2))
 
 
-@pytest.mark.parametrize("exec_mode", EXEC_MODE)
 def test_vm_relax_symbolic_prim_value(exec_mode):
     @I.ir_module
     class mod:
@@ -562,7 +550,6 @@ def test_vm_relax_symbolic_prim_value(exec_mode):
         func(ShapeTuple([2]))
 
 
-@pytest.mark.parametrize("exec_mode", EXEC_MODE)
 def test_vm_relax_multiple_symbolic_prim_value(exec_mode):
     """Like test_vm_relax_symbolic_prim_value, but with multiple variables"""
 
@@ -635,7 +622,6 @@ def test_vm_relax_prim_value_fp32(exec_mode):
     assert np.all(res == 32.0)
 
 
-@pytest.mark.parametrize("exec_mode", EXEC_MODE)
 def test_vm_relax_dyn_tir_shape(exec_mode):
     # case where TIR variables are unbound in generated PrimFunc
     bb = relax.BlockBuilder()
@@ -667,7 +653,6 @@ def test_vm_relax_dyn_tir_shape(exec_mode):
     tvm.testing.assert_allclose(res.numpy(), inp2.numpy(), rtol=1e-7, atol=1e-7)
 
 
-@pytest.mark.parametrize("exec_mode", EXEC_MODE)
 def test_vm_tuple(exec_mode):
     bb = relax.BlockBuilder()
     n = tir.Var("n", "int64")
@@ -695,7 +680,6 @@ def test_vm_tuple(exec_mode):
     tvm.testing.assert_allclose(res3.numpy(), inp.numpy(), rtol=1e-7, atol=1e-7)
 
 
-@pytest.mark.parametrize("exec_mode", EXEC_MODE)
 def test_vm_tuplegetitem(exec_mode):
     @tvm.script.ir_module
     class TestVMTupleGetItem:
@@ -722,7 +706,6 @@ def test_vm_tuplegetitem(exec_mode):
     tvm.testing.assert_allclose(res.numpy(), x_inp.numpy() + y_inp.numpy(), rtol=1e-7, atol=1e-7)
 
 
-@pytest.mark.parametrize("exec_mode", EXEC_MODE)
 def test_lower_memory_alloc_storage_tensor(exec_mode):
     @tvm.script.ir_module
     class TestMemoryAllocStorageTensor:
@@ -754,7 +737,6 @@ def test_lower_memory_alloc_storage_tensor(exec_mode):
     tvm.testing.assert_allclose(y.numpy(), x.numpy(), rtol=1e-7, atol=1e-7)
 
 
-@pytest.mark.parametrize("exec_mode", EXEC_MODE)
 def test_sub_func_call(exec_mode):
     @tvm.script.ir_module
     class TestVMSubFunction:
@@ -812,7 +794,6 @@ def test_sub_func_call(exec_mode):
     tvm.testing.assert_allclose(res.numpy(), expected, rtol=1e-6, atol=1e-6)
 
 
-@pytest.mark.parametrize("exec_mode", EXEC_MODE)
 def test_recursion(exec_mode):
     @tvm.script.ir_module
     class TestVMRecursion:
@@ -846,7 +827,6 @@ def test_recursion(exec_mode):
 
 
 @tvm.testing.requires_gpu
-@pytest.mark.parametrize("exec_mode", EXEC_MODE)
 def test_vm_to_device(exec_mode):
     @tvm.script.ir_module
     class TestToVDevice:
@@ -880,7 +860,6 @@ def test_vm_to_device(exec_mode):
     tvm.testing.assert_allclose(res_2.numpy(), x_inp.numpy())
 
 
-@pytest.mark.parametrize("exec_mode", EXEC_MODE)
 def test_vm_closure(exec_mode):
     @tvm.script.ir_module
     class TestClosure:
@@ -908,7 +887,6 @@ def test_vm_closure(exec_mode):
     tvm.testing.assert_allclose(res.numpy(), x_inp.numpy() + y_inp.numpy())
 
 
-@pytest.mark.parametrize("exec_mode", EXEC_MODE)
 def test_time_evaluator(exec_mode):
     @tvm.script.ir_module
     class TestTimeEvaluator:
@@ -984,7 +962,6 @@ class TestVMSetInput:
         return gv0
 
 
-@pytest.mark.parametrize("exec_mode", EXEC_MODE)
 def test_multi_systemlib(exec_mode):
     @tvm.script.ir_module
     class ModA:
@@ -1151,13 +1128,11 @@ def run_on_rpc(
     check_remote(rpc.Server("127.0.0.1"))
 
 
-@pytest.mark.parametrize("exec_mode", EXEC_MODE)
 def test_set_input(exec_mode):
     temp = utils.tempdir()
     set_input_trial(*make_vm(TestVMSetInput, exec_mode, temp))
 
 
-@pytest.mark.parametrize("exec_mode", EXEC_MODE)
 def test_set_input_tuple(exec_mode):
     @tvm.script.ir_module
     class MyMod:
@@ -1184,13 +1159,11 @@ def save_function_kwargs_trial(vm: relax.VirtualMachine, device: tvm.runtime.Dev
     tvm.testing.assert_allclose(res0.numpy(), a.numpy() * b.numpy(), rtol=1e-7, atol=1e-7)
 
 
-@pytest.mark.parametrize("exec_mode", EXEC_MODE)
 def test_save_function_kwargs(exec_mode):
     temp = utils.tempdir()
     save_function_kwargs_trial(*make_vm(TestVMSetInput, exec_mode, temp))
 
 
-@pytest.mark.parametrize("exec_mode", EXEC_MODE)
 def test_save_function_kwargs_rpc(exec_mode):
     run_on_rpc(TestVMSetInput, save_function_kwargs_trial, exec_mode)
 
@@ -1205,57 +1178,53 @@ def save_function_time_evaluator_trial(
     vm.time_evaluator("saved_main", device)()
 
 
-@pytest.mark.parametrize("exec_mode", EXEC_MODE)
 def test_save_function_time_evaluator(exec_mode):
     temp = utils.tempdir()
     save_function_time_evaluator_trial(*make_vm(TestVMSetInput, exec_mode, temp))
 
 
-@pytest.mark.parametrize("exec_mode", EXEC_MODE)
-def test_save_function_time_evaluator(exec_mode):
+def test_save_function_time_evaluator_rpc(exec_mode):
     run_on_rpc(TestVMSetInput, save_function_time_evaluator_trial, exec_mode)
 
 
 # if you set an input, you should not be able to call statelessly
-@pytest.mark.parametrize("exec_mode", EXEC_MODE)
-@pytest.mark.xfail()
+
+
 def test_set_input_stateless_failure(exec_mode):
     temp = utils.tempdir()
-    set_input_attempt_stateless(*make_vm(TestVMSetInput, exec_mode, temp))
+    args = make_vm(TestVMSetInput, exec_mode, temp)
+    with pytest.raises(RuntimeError):
+        set_input_attempt_stateless(*args)
 
 
-@pytest.mark.parametrize("exec_mode", EXEC_MODE)
-@pytest.mark.xfail()
 def test_set_input_stateless_failure_rpc(exec_mode):
-    run_on_rpc(TestVMSetInput, set_input_attempt_stateless, exec_mode)
+    with pytest.raises(RuntimeError):
+        run_on_rpc(TestVMSetInput, set_input_attempt_stateless, exec_mode)
 
 
-@pytest.mark.parametrize("exec_mode", EXEC_MODE)
-@pytest.mark.xfail()
 def test_set_input_invoke_failure(exec_mode):
     temp = utils.tempdir()
-    set_input_attempt_invoke(*make_vm(TestVMSetInput, exec_mode, temp))
+    args = make_vm(TestVMSetInput, exec_mode, temp)
+    with pytest.raises(ValueError):
+        set_input_attempt_invoke(*args)
 
 
-@pytest.mark.parametrize("exec_mode", EXEC_MODE)
-@pytest.mark.xfail()
 def test_set_input_invoke_failure_rpc(exec_mode):
-    temp = utils.tempdir()
-    run_on_rpc(TestVMSetInput, set_input_attempt_invoke, exec_mode, temp)
+    with pytest.raises(RuntimeError):
+        run_on_rpc(TestVMSetInput, set_input_attempt_invoke, exec_mode)
 
 
-@pytest.mark.parametrize("exec_mode", EXEC_MODE)
-@pytest.mark.xfail()
 def test_set_input_get_failure(exec_mode):
     temp = utils.tempdir()
-    set_input_attempt_get(*make_vm(TestVMSetInput, exec_mode, temp))
+    args = make_vm(TestVMSetInput, exec_mode, temp)
+    with pytest.raises(ValueError):
+        set_input_attempt_get(*args)
 
 
-@pytest.mark.parametrize("exec_mode", EXEC_MODE)
-@pytest.mark.xfail()
 def test_set_input_get_failure_rpc(exec_mode):
-    run_on_rpc(TestVMSetInput, set_input_attempt_get, exec_mode)
+    with pytest.raises(RuntimeError):
+        run_on_rpc(TestVMSetInput, set_input_attempt_get, exec_mode)
 
 
 if __name__ == "__main__":
-    pytest.main()
+    tvm.testing.main()
