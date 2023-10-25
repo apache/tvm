@@ -33,6 +33,7 @@
 #include <tvm/runtime/relax_vm/vm.h>
 
 #include "../runtime_base.h"
+#include "tvm/ir/expr.h"
 
 namespace tvm {
 namespace runtime {
