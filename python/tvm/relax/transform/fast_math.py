@@ -16,8 +16,6 @@
 # under the License.
 # pylint: disable=invalid-name, unused-argument, redefined-argument-from-local
 """Relax Use Fast Math pass."""
-import math
-
 import tvm
 from tvm import topi, tir
 from tvm.ir.module import IRModule
