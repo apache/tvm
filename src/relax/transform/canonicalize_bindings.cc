@@ -36,8 +36,8 @@ namespace relax {
 namespace {
 
 struct CanonicalizationPlan {
-  std::unordered_map<Id, Var, ObjectPtrHash, ObjectPtrEqual> replace_usage;
-  std::unordered_map<Id, Var, ObjectPtrHash, ObjectPtrEqual> replace_binding;
+  Map<Id, Var> replace_usage;
+  Map<Id, Var> replace_binding;
   std::unordered_set<Id, ObjectPtrHash, ObjectPtrEqual> bindings_to_remove;
 };
 
@@ -63,27 +63,18 @@ class CanonicalizePlanner : public ExprVisitor {
       Var bound_var = binding_iter.first;
       Var bound_to = binding_iter.second;
 
-      while (true) {
-        if (auto it = visitor.trivial_bindings_.find(bound_to);
-            it != visitor.trivial_bindings_.end()) {
-          // This may be a trivial binding into a trivial binding.  In
-          // that case, unwrap the bindings until we find the earliest
-          // non-trivial binding.
-          bound_to = it->second;
-        } else {
-          break;
-        }
+      while (auto opt = visitor.trivial_bindings_.Get(bound_to)) {
+        // This may be a trivial binding into a trivial binding.  In
+        // that case, unwrap the bindings until we find the earliest
+        // non-trivial binding.
+        bound_to = opt.value();
       }
 
-      while (true) {
-        if (auto it = plan.replace_binding.find(bound_to->vid); it != plan.replace_binding.end()) {
-          // The variable we are binding to may have already been
-          // replaced, if it fell into Case 4 (Var = DataflowVar).  In
-          // that case, we check against its replacement instead.
-          bound_to = it->second;
-        } else {
-          break;
-        }
+      while (auto opt = plan.replace_binding.Get(bound_to->vid)) {
+        // The variable we are binding to may have already been
+        // replaced, if it fell into Case 4 (Var = DataflowVar).  In
+        // that case, we check against its replacement instead.
+        bound_to = opt.value();
       }
 
       if (bound_var.as<DataflowVarNode>() || !bound_to.as<DataflowVarNode>()) {
@@ -94,7 +85,7 @@ class CanonicalizePlanner : public ExprVisitor {
         // For these three cases, the trivial binding can be
         // unwrapped, using the bound variable directly at the point
         // of use.
-        plan.replace_usage[bound_var->vid] = bound_to;
+        plan.replace_usage.Set(bound_var->vid, bound_to);
         plan.bindings_to_remove.insert(bound_var->vid);
         handled.insert(bound_to);
       } else {
@@ -104,8 +95,8 @@ class CanonicalizePlanner : public ExprVisitor {
         // use of a DataflowVar outside of a DataflowBlock.  Instead,
         // we replace in the opposite direction, replacing the binding
         // of the DataflowVar with a binding of the Var.
-        plan.replace_binding[bound_to->vid] = bound_var;
-        plan.replace_usage[bound_to->vid] = bound_var;
+        plan.replace_binding.Set(bound_to->vid, bound_var);
+        plan.replace_usage.Set(bound_to->vid, bound_var);
         plan.bindings_to_remove.insert(bound_var->vid);
         handled.insert(bound_var);
       }
@@ -118,8 +109,8 @@ class CanonicalizePlanner : public ExprVisitor {
       if (!var.as<DataflowVarNode>() && !visitor.used_outside_dataflow_.count(var) &&
           !handled.count(var)) {
         DataflowVar new_var(var->name_hint(), GetStructInfo(var));
-        plan.replace_binding[var->vid] = new_var;
-        plan.replace_usage[var->vid] = new_var;
+        plan.replace_binding.Set(var->vid, new_var);
+        plan.replace_usage.Set(var->vid, new_var);
       }
     }
 
@@ -151,8 +142,8 @@ class CanonicalizePlanner : public ExprVisitor {
     if (auto tuple_get_item = value.as<TupleGetItemNode>()) {
       Expr tuple = tuple_get_item->tuple;
       while (auto tuple_var = tuple.as<Var>()) {
-        if (auto it = known_bindings_.find(tuple_var.value()); it != known_bindings_.end()) {
-          tuple = it->second;
+        if (auto opt = known_bindings_.Get(tuple_var.value())) {
+          tuple = opt.value();
         } else {
           break;
         }
@@ -164,10 +155,10 @@ class CanonicalizePlanner : public ExprVisitor {
     }
 
     if (auto parent = value.as<Var>(); parent && has_same_struct_info) {
-      trivial_bindings_[binding->var] = parent.value();
+      trivial_bindings_.Set(binding->var, parent.value());
     }
 
-    known_bindings_[binding->var] = value;
+    known_bindings_.Set(binding->var, value);
 
     ExprVisitor::VisitBinding(binding);
   }
@@ -186,8 +177,8 @@ class CanonicalizePlanner : public ExprVisitor {
 
   bool inside_dataflow_{false};
 
-  std::unordered_map<Var, Var, ObjectPtrHash, ObjectPtrEqual> trivial_bindings_;
-  std::unordered_map<Var, Expr, ObjectPtrHash, ObjectPtrEqual> known_bindings_;
+  Map<Var, Var> trivial_bindings_;
+  Map<Var, Expr> known_bindings_;
   std::unordered_set<Var, ObjectPtrHash, ObjectPtrEqual> defined_inside_dataflow_;
   std::unordered_set<Var, ObjectPtrHash, ObjectPtrEqual> used_outside_dataflow_;
 };
@@ -211,16 +202,16 @@ class BindingCanonicalizer : public ExprMutator {
   }
 
   Var VisitVarDef(const Var& var) override {
-    if (auto it = plan_.replace_binding.find(var->vid); it != plan_.replace_binding.end()) {
-      return ExprMutator::VisitVarDef(it->second);
+    if (auto opt = plan_.replace_binding.Get(var->vid)) {
+      return ExprMutator::VisitVarDef(opt.value());
     } else {
       return ExprMutator::VisitVarDef(var);
     }
   }
 
   Expr VisitExpr_(const VarNode* var) override {
-    if (auto it = plan_.replace_usage.find(var->vid); it != plan_.replace_usage.end()) {
-      return ExprMutator::VisitExpr(it->second);
+    if (auto opt = plan_.replace_usage.Get(var->vid)) {
+      return ExprMutator::VisitExpr(opt.value());
     } else {
       return ExprMutator::VisitExpr_(var);
     }
