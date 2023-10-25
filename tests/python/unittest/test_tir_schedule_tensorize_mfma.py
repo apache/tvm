@@ -173,8 +173,8 @@ def run_test(
     f(a, b, c)
 
     if in_dtype != "float16":
-    # The numpy reference is computed with fp32 precision (otherwise too slow).
-    # So there is non-trivial accuracy difference if TVM result is computed with fp16 accumulation.
+        # The numpy reference is computed with fp32 precision (otherwise too slow).
+        # So there is non-trivial accuracy difference if TVM result is computed with fp16 accumulation.
         tvm.testing.assert_allclose(c.numpy(), c_np, rtol=1e-2, atol=1e-2)
 
     return lambda: f.time_evaluator(f.entry_name, dev, number=500)(a, b, c)
@@ -528,6 +528,7 @@ def test_wmma_i8i8i32_m32n32k8():
 
     if measure_perf and timer:
         print("i8i8i32_m32n32k8: %f GFLOPS" % (gflops / (timer().mean)))
+
 
 if __name__ == "__main__":
     tvm.testing.main()
