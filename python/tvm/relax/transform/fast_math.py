@@ -16,10 +16,12 @@
 # under the License.
 # pylint: disable=invalid-name, unused-argument, redefined-argument-from-local
 """Relax Use Fast Math pass."""
+import math
+
 import tvm
-from tvm import topi
+from tvm import topi, tir
 from tvm.ir.module import IRModule
-from tvm.relax import Expr, Call, expr_functor, PyExprMutator
+from tvm.relax import Expr, Call, expr_functor, PyExprMutator, expr
 
 
 @expr_functor.mutator
@@ -45,6 +47,49 @@ class FastMathCodeGenerator(PyExprMutator):
             return self.builder_.call_te(topi.fast_erf, call.args[0])
         if call.op.name == "relax.tanh":
             return self.builder_.call_te(topi.fast_tanh, call.args[0])
+        if call.op.name == "relax.power":
+            def te_fast_power_const(x, y):
+                """power(x, y) = exp(log(x) * y) when x > 0 or y is not an integer."""
+                return topi.fast_exp(topi.multiply(topi.log(x), y))
+
+            def te_fast_power(x, y):
+                """
+                power(x, y) = exp(log(abs(x)) * y) * (log((x / abs(x) - 1) * (ceil(y) - floor(y)) + 1) +
+                (x / abs(x) - 1) * (y % 2) + 1).
+                When x < 0 and y is not an integer, power(x, y) = log((x / abs(x) - 1) * (ceil(y) - floor(y)) + 1)
+                = nan, otherwise log((x / abs(x) - 1) * (ceil(y) - floor(y)) + 1) = log(1) = 0.
+                When x < 0 and y is an integer, the sign of power(x, y) = (x / abs(x) - 1) * (y % 2) + 1.
+                """
+                dtype = x.dtype
+                return topi.multiply(
+                    topi.add(
+                        topi.add(
+                            topi.log(
+                                topi.add(
+                                    topi.multiply(
+                                        topi.subtract(topi.divide(
+                                            x, topi.abs(x)), tir.const(1.0, dtype)),
+                                        topi.ceil(y) - topi.floor(y),
+                                    ),
+                                    tir.const(1.0, dtype),
+                                )
+                            ),
+                            topi.multiply(
+                                topi.subtract(topi.divide(
+                                    x, topi.abs(x)), tir.const(1.0, dtype)),
+                                topi.mod(y, tir.const(2.0, dtype)),
+                            ),
+                        ),
+                        tir.const(1.0, dtype)
+                    ),
+                    topi.fast_exp(topi.multiply(topi.log(topi.abs(x)), y)),
+                )
+
+            if isinstance(call.args[1], expr.Constant):
+                if call.args[1].data.numpy().tolist().is_integer():
+                    return self.builder_.call_te(topi.power, call.args[0], call.args[1])
+                return self.builder_.call_te(te_fast_power_const, call.args[0], call.args[1])
+            return self.builder_.call_te(te_fast_power, call.args[0], call.args[1])
 
         return super().visit_call_(call)
 
