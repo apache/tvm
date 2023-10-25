@@ -421,5 +421,89 @@ def test_vm_kill_object(exec_mode):
     tvm.testing.assert_allclose(res.numpy(), np.ones((4,), "float32"))
 
 
+@pytest.fixture
+def packed_func_check_if_exists():
+    func_name = "testing.check_if_none"
+
+    cached = tvm.get_global_func(func_name, allow_missing=True)
+
+    @tvm.register_func(func_name, override=True)
+    def func(obj: tvm.Object) -> tvm.tir.IntImm:
+        return tvm.runtime.convert(obj is not None)
+
+    yield func_name
+
+    if cached is None:
+        tvm._ffi.registry.remove_global_func(func_name)
+    else:
+        tvm.register_func(func_name, cached, override=True)
+
+
+@pytest.mark.parametrize("exec_mode", EXEC_MODE)
+def test_preserve_trivial_bindings(exec_mode, packed_func_check_if_exists):
+    @I.ir_module
+    class mod:
+        @R.function
+        def main():
+            callback = R.ExternFunc(packed_func_check_if_exists)
+
+            storage = R.vm.alloc_storage(R.shape([16]), R.prim_value(0), R.dtype("uint8"))
+            alloc = R.vm.alloc_tensor(storage, R.prim_value(0), R.shape([4]), R.dtype("float32"))
+            storage_alias = storage
+            alloc_alias = alloc
+
+            storage_before = callback(storage)
+            alloc_before = callback(alloc)
+            storage_alias_before = callback(storage_alias)
+            alloc_alias_before = callback(alloc_alias)
+
+            _ = R.vm.kill_object(storage)
+            _ = R.vm.kill_object(alloc)
+
+            storage_after = callback(storage)
+            alloc_after = callback(alloc)
+            storage_alias_after = callback(storage_alias)
+            alloc_alias_after = callback(alloc_alias)
+
+            return (
+                storage_before,
+                alloc_before,
+                storage_alias_before,
+                alloc_alias_before,
+                storage_after,
+                alloc_after,
+                storage_alias_after,
+                alloc_alias_after,
+            )
+
+    target = tvm.target.Target("llvm", host="llvm")
+    ex = codegen(mod, target, exec_mode)
+    dev = tvm.cpu()
+    vm = relax.VirtualMachine(ex, dev)
+
+    result_list = vm["main"]()
+
+    # Making a dictionary of expected results is purely to improve
+    # readability of test failures.  This is equivalent to asserting
+    # on each element of the result array, but lets pytest give us a
+    # diff of the dictionaries in case of failure.
+    expected_results = {
+        "storage_before": True,
+        "alloc_before": True,
+        "storage_alias_before": True,
+        "alloc_alias_before": True,
+        "storage_after": False,
+        "alloc_after": False,
+        "storage_alias_after": True,
+        "alloc_alias_after": True,
+    }
+
+    observed_results = {
+        name: bool(tir_bool) for name, tir_bool in zip(expected_results.keys(), result_list)
+    }
+
+    assert observed_results == expected_results
+
+
 if __name__ == "__main__":
     tvm.testing.main()
