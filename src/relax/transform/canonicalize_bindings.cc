@@ -33,68 +33,187 @@
 namespace tvm {
 namespace relax {
 
-class BindingCanonicalizer : public ExprMutator {
+namespace {
+
+struct CanonicalizationPlan {
+  Map<Id, Var> replace_usage;
+  Map<Id, Var> replace_binding;
+  std::unordered_set<Id, ObjectPtrHash, ObjectPtrEqual> bindings_to_remove;
+};
+
+/*! \brief Utility class to identify usage location
+ *
+ * Canonicalization of a variable binding may require information from
+ * later in the function.  For example, replacing `dataflow_x = expr`
+ * with `var_x = expr` to avoid a trivial binding of `var_x =
+ * dataflow_x` later in the function.  This utility examines a relax
+ * expression, and plans the changes to be made in a mutation pass.
+ */
+class CanonicalizePlanner : public ExprVisitor {
  public:
-  BindingCanonicalizer() {}
+  static CanonicalizationPlan Collect(const Expr& expr) {
+    CanonicalizePlanner visitor;
+    visitor.VisitExpr(expr);
 
-  using ExprMutator::VisitExpr_;
+    CanonicalizationPlan plan;
 
-  Expr VisitExpr_(const TupleGetItemNode* tuple_get_item) override {
-    if (auto tuple_var = tuple_get_item->tuple.as<Var>()) {
-      if (auto tuple_value = LookupBinding(tuple_var.value())) {
-        if (auto explicit_tuple = tuple_value.as<TupleNode>()) {
-          CHECK_GE(tuple_get_item->index, 0)
-              << "Tuple " << tuple_value << " is accessed at index " << tuple_get_item->index
-              << ", but negative indices are not supported in this context.";
-          CHECK_LT(tuple_get_item->index, explicit_tuple->fields.size())
-              << "Tuple " << tuple_value << " is accessed at index " << tuple_get_item->index
-              << ", but the tuple size is only " << explicit_tuple->fields.size();
-          return VisitExpr(explicit_tuple->fields[tuple_get_item->index]);
+    std::unordered_set<Var, ObjectPtrHash, ObjectPtrEqual> handled;
+
+    for (const auto& binding_iter : visitor.trivial_bindings_) {
+      Var bound_var = binding_iter.first;
+      Var bound_to = binding_iter.second;
+
+      while (auto opt = visitor.trivial_bindings_.Get(bound_to)) {
+        // This may be a trivial binding into a trivial binding.  In
+        // that case, unwrap the bindings until we find the earliest
+        // non-trivial binding.
+        bound_to = opt.value();
+      }
+
+      while (auto opt = plan.replace_binding.Get(bound_to->vid)) {
+        // The variable we are binding to may have already been
+        // replaced, if it fell into Case 4 (Var = DataflowVar).  In
+        // that case, we check against its replacement instead.
+        bound_to = opt.value();
+      }
+
+      if (bound_var.as<DataflowVarNode>() || !bound_to.as<DataflowVarNode>()) {
+        // Case 1: Var = Var
+        // Case 2: DataflowVar = Var
+        // Case 3: DataflowVar = DataflowVar
+        //
+        // For these three cases, the trivial binding can be
+        // unwrapped, using the bound variable directly at the point
+        // of use.
+        plan.replace_usage.Set(bound_var->vid, bound_to);
+        plan.bindings_to_remove.insert(bound_var->vid);
+        handled.insert(bound_to);
+      } else {
+        // Case 4: Var = DataflowVar
+        //
+        // Replacing a Var with a DataflowVar could result in illegal
+        // use of a DataflowVar outside of a DataflowBlock.  Instead,
+        // we replace in the opposite direction, replacing the binding
+        // of the DataflowVar with a binding of the Var.
+        plan.replace_binding.Set(bound_to->vid, bound_var);
+        plan.replace_usage.Set(bound_to->vid, bound_var);
+        plan.bindings_to_remove.insert(bound_var->vid);
+        handled.insert(bound_var);
+      }
+    }
+
+    // If a Var has been defined inside a DataflowBlock, is only used
+    // within a DataflowBlock, and is not already handled by removal
+    // of trivial bindings, then we can replace it with a DataflowVar.
+    for (const auto& var : visitor.defined_inside_dataflow_) {
+      if (!var.as<DataflowVarNode>() && !visitor.used_outside_dataflow_.count(var) &&
+          !handled.count(var)) {
+        DataflowVar new_var(var->name_hint(), GetStructInfo(var));
+        plan.replace_binding.Set(var->vid, new_var);
+        plan.replace_usage.Set(var->vid, new_var);
+      }
+    }
+
+    return plan;
+  }
+
+ private:
+  void VisitBindingBlock_(const DataflowBlockNode* block) override {
+    bool cache = inside_dataflow_;
+    inside_dataflow_ = true;
+    ExprVisitor::VisitBindingBlock_(block);
+    inside_dataflow_ = cache;
+  }
+
+  void VisitBinding(const Binding& binding) override {
+    bool has_same_struct_info = true;
+    Expr value;
+    if (auto ptr = binding.as<VarBindingNode>()) {
+      value = ptr->value;
+    } else if (auto ptr = binding.as<MatchCastNode>()) {
+      has_same_struct_info =
+          StructuralEqual()(GetStructInfo(binding->var), GetStructInfo(ptr->value));
+      value = ptr->value;
+    } else {
+      LOG(FATAL) << "Invalid binding type: " << binding->GetTypeKey();
+    }
+
+    // Unwrap TupleGetItem, if the Tuple being accessed is known.
+    if (auto tuple_get_item = value.as<TupleGetItemNode>()) {
+      Expr tuple = tuple_get_item->tuple;
+      while (auto tuple_var = tuple.as<Var>()) {
+        if (auto opt = known_bindings_.Get(tuple_var.value())) {
+          tuple = opt.value();
+        } else {
+          break;
         }
       }
-    }
-    return ExprMutator::VisitExpr_(tuple_get_item);
-  }
 
-  void VisitBinding_(const VarBindingNode* binding) override {
-    // Unlike default visitor, we do not permit the struct info to change
-    // if the new value's struct info is different (this preserves user annotations)
-    Expr new_value = this->VisitExpr(binding->value);
-    Var new_var = this->VisitVarDef(binding->var);
-
-    if (auto opt_var = new_value.as<Var>();
-        opt_var && CanCanonicalizeVar(new_var, opt_var.value())) {
-      var_remap_[new_var->vid] = opt_var.value();
-    } else if (new_var.same_as(binding->var) && new_value.same_as(binding->value)) {
-      this->builder_->EmitNormalized(GetRef<VarBinding>(binding));
-    } else {
-      this->builder_->EmitNormalized(VarBinding(new_var, new_value));
-    }
-  }
-
-  void VisitBinding_(const MatchCastNode* binding) override {
-    // If we have a trivial shape check (the struct_info_ of LHS and RHS is the same),
-    // we can canonicalize to a var binding
-    Expr new_value = this->VisitExpr(binding->value);
-    bool has_same_struct_info = StructuralEqual()(binding->struct_info, GetStructInfo(new_value));
-
-    if (has_same_struct_info) {
-      if (auto parent = new_value.as<Var>();
-          parent && CanCanonicalizeVar(binding->var, parent.value())) {
-        // LHS and RHS have the same struct info, and occur in a
-        // context where the RHS can replace the LHS.
-        var_remap_[binding->var->vid] = parent.value();
-      } else {
-        // LHS and RHS have the same struct info, but the RHS is not a
-        // drop-in replacement for the LHS.
-        builder_->EmitNormalized(VarBinding(binding->var, new_value));
+      if (auto ptr = tuple.as<TupleNode>()) {
+        value = ptr->fields[tuple_get_item->index];
       }
-    } else if (new_value.same_as(binding->value)) {
-      builder_->EmitNormalized(GetRef<MatchCast>(binding));
+    }
+
+    if (auto parent = value.as<Var>(); parent && has_same_struct_info) {
+      trivial_bindings_.Set(binding->var, parent.value());
+    }
+
+    known_bindings_.Set(binding->var, value);
+
+    ExprVisitor::VisitBinding(binding);
+  }
+
+  void VisitVarDef(const Var& var) override {
+    if (inside_dataflow_) {
+      defined_inside_dataflow_.insert(var);
+    }
+  }
+
+  void VisitExpr_(const VarNode* var) override {
+    if (!inside_dataflow_) {
+      used_outside_dataflow_.insert(GetRef<Var>(var));
+    }
+  }
+
+  bool inside_dataflow_{false};
+
+  Map<Var, Var> trivial_bindings_;
+  Map<Var, Expr> known_bindings_;
+  std::unordered_set<Var, ObjectPtrHash, ObjectPtrEqual> defined_inside_dataflow_;
+  std::unordered_set<Var, ObjectPtrHash, ObjectPtrEqual> used_outside_dataflow_;
+};
+
+/*! \brief The mutator class to apply a CanonicalizationPlan */
+class BindingCanonicalizer : public ExprMutator {
+ public:
+  static Expr Apply(Expr expr) {
+    auto used_outside_dataflow = CanonicalizePlanner::Collect(expr);
+    BindingCanonicalizer mutator(std::move(used_outside_dataflow));
+    return mutator.VisitExpr(expr);
+  }
+
+ private:
+  explicit BindingCanonicalizer(CanonicalizationPlan plan) : plan_(plan) {}
+
+  void VisitBinding(const Binding& binding) override {
+    if (!plan_.bindings_to_remove.count(binding->var->vid)) {
+      ExprMutator::VisitBinding(binding);
+    }
+  }
+
+  Var VisitVarDef(const Var& var) override {
+    if (auto opt = plan_.replace_binding.Get(var->vid)) {
+      return ExprMutator::VisitVarDef(opt.value());
     } else {
-      // we can't elide in the same way as with var bindings because
-      // the struct info comparison has semantics
-      builder_->EmitNormalized(MatchCast(binding->var, new_value, binding->struct_info));
+      return ExprMutator::VisitVarDef(var);
+    }
+  }
+
+  Expr VisitExpr_(const VarNode* var) override {
+    if (auto opt = plan_.replace_usage.Get(var->vid)) {
+      return ExprMutator::VisitExpr(opt.value());
+    } else {
+      return ExprMutator::VisitExpr_(var);
     }
   }
 
@@ -200,31 +319,11 @@ class BindingCanonicalizer : public ExprMutator {
   }
 
  private:
-  bool AnnotationsDiffer(const ObjectRef& obj1, const ObjectRef& obj2,
-                         std::function<bool(const ObjectRef&, const ObjectRef&)> check_eq) {
-    // annotations differ if one is present but not the other
-    // or they're both present and they differ
-    bool both_present = obj1.defined() && obj2.defined();
-    bool neither_present = !obj1.defined() && !obj2.defined();
-    return !(both_present || neither_present) || (both_present && !check_eq(obj1, obj2));
-  }
-
-  bool CanCanonicalizeVar(Var var, Var parent_var) {
-    // Cases when we conservatively do not unify:
-    // 1. The struct_info_ of the child differs from that of the parent
-    //    In this case, we could be overriding user annotations.
-    // 2. If the child is a Var and the parent is a DataflowVar.
-    //    That could result in a DataflowVar leaving the current DataflowBlock.
-    bool annotations_differ = AnnotationsDiffer(var->struct_info_, parent_var->struct_info_,
-                                                [&](const ObjectRef& lhs, const ObjectRef& rhs) {
-                                                  return tvm::StructuralEqual()(lhs, rhs);
-                                                });
-    bool var_to_dataflow = (!var.as<DataflowVarNode>() && parent_var.as<DataflowVarNode>());
-    return !annotations_differ && !var_to_dataflow;
-  }
+  CanonicalizationPlan plan_;
 };
+}  // namespace
 
-Expr CanonicalizeBindings(const Expr& e) { return BindingCanonicalizer().VisitExpr(e); }
+Expr CanonicalizeBindings(const Expr& expr) { return BindingCanonicalizer::Apply(expr); }
 
 namespace transform {
 

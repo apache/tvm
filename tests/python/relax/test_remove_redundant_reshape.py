@@ -52,8 +52,7 @@ def test_remove_redundant_reshape_pass_one_arg():
             x: R.Tensor((1, 1001, 1, 1), dtype="float16")
         ) -> R.Tensor((1, 1001), dtype="float16"):
             with R.dataflow():
-                lv: R.Tensor((1, 1001), dtype="float16") = R.reshape(x, R.shape([1, 1001]))
-                gv: R.Tensor((1, 1001), dtype="float16") = lv
+                gv: R.Tensor((1, 1001), dtype="float16") = R.reshape(x, R.shape([1, 1001]))
                 R.output(gv)
             return gv
 

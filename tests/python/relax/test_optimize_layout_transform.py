@@ -130,10 +130,9 @@ def test_optimize_transform_layout_pass_one_arg():
                     (lv1, lv2),
                     out_sinfo=R.Tensor((4, 4), dtype="float32"),
                 )
-                lv2_1: R.Tensor((16,), dtype="float32") = R.layout_transform(
+                gv: R.Tensor((16,), dtype="float32") = R.layout_transform(
                     lv5, index_map=lambda axis0, axis1: (axis0 * 4 + axis1,), pad_value=None
                 )
-                gv: R.Tensor((16,), dtype="float32") = lv2_1
                 R.output(gv)
             return gv
 
@@ -256,10 +255,9 @@ def test_optimize_transform_layout_pass_two_args():
                     (lv3, lv4),
                     out_sinfo=R.Tensor((4, 4), dtype="float32"),
                 )
-                lv6: R.Tensor((16,), dtype="float32") = R.layout_transform(
+                gv: R.Tensor((16,), dtype="float32") = R.layout_transform(
                     lv5, index_map=lambda axis0, axis1: (axis0 * 4 + axis1,), pad_value=None
                 )
-                gv: R.Tensor((16,), dtype="float32") = lv6
                 R.output(gv)
             return gv
 
@@ -399,10 +397,9 @@ def test_tranform_layout_tir_remove_pad_transform_layout():
                     pad_value=None,
                     axis_separators=[],
                 )
-                lv_2 = R.call_tir(
+                gv = R.call_tir(
                     Expected.remove_pad, (lv5,), out_sinfo=R.Tensor((14,), dtype="float32")
                 )
-                gv: R.Tensor((14,), dtype="float32") = lv_2
                 R.output(gv)
             return gv
 
