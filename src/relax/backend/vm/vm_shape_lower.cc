@@ -347,6 +347,41 @@ class VMShapeLowerMutator
     return GetRef<Expr>(op);
   }
 
+  std::pair<Expr, Expr> MakeSymbolicShapeArg(const PrimExpr& expr) {
+    using runtime::relax_vm::MakeShapeCode;
+
+    if (auto* int_expr = expr.as<IntImmNode>()) {
+      return {PrimValue::Int64(static_cast<int>(MakeShapeCode::kUseImm)),
+              PrimValue::Int64(int_expr->value)};
+    } else {
+      auto it = slot_map_.find(expr);
+      ICHECK(it != slot_map_.end());
+      auto* slot = it->second;
+      ICHECK(slot->value_computed) << "PrimExpr " << expr << " has not been computed";
+      return {PrimValue::Int64(static_cast<int>(MakeShapeCode::kLoadShape)),
+              PrimValue::Int64(slot->index)};
+    }
+  }
+
+  Expr VisitExpr_(const PrimValueNode* op) final {
+    using runtime::relax_vm::MakeShapeCode;
+    // Constant shape can be preserved.
+    bool is_const_value =
+        op->value->IsInstance<IntImmNode>() || op->value->IsInstance<FloatImmNode>();
+    if (is_const_value) {
+      return GetRef<Expr>(op);
+    }
+
+    Array<Expr> args = {shape_heap_};
+    auto [code, value_or_index] = MakeSymbolicShapeArg(op->value);
+    args.push_back(code);
+    args.push_back(value_or_index);
+
+    // make_shape(heap, n, c[0], r[0], c[1], r[1] ..., c[n], r[n])
+    Call call(builtin_make_prim_value_, args, Attrs(), {Downcast<StructInfo>(op->struct_info_)});
+    return call;
+  }
+
   Expr VisitExpr_(const ShapeExprNode* op) final {
     using runtime::relax_vm::MakeShapeCode;
     // Constant shape can be preserved.
@@ -359,17 +394,9 @@ class VMShapeLowerMutator
 
     Array<Expr> args = {shape_heap_, PrimValue::Int64(static_cast<int64_t>(op->values.size()))};
     for (PrimExpr expr : op->values) {
-      if (auto* int_expr = expr.as<IntImmNode>()) {
-        args.push_back(PrimValue::Int64(static_cast<int>(MakeShapeCode::kUseImm)));
-        args.push_back(PrimValue::Int64(int_expr->value));
-      } else {
-        auto it = slot_map_.find(expr);
-        ICHECK(it != slot_map_.end());
-        auto* slot = it->second;
-        ICHECK(slot->value_computed) << "PrimExpr " << expr << " has not been computed";
-        args.push_back(PrimValue::Int64(static_cast<int>(MakeShapeCode::kLoadShape)));
-        args.push_back(PrimValue::Int64(slot->index));
-      }
+      auto [code, value_or_index] = MakeSymbolicShapeArg(expr);
+      args.push_back(code);
+      args.push_back(value_or_index);
     }
 
     // make_shape(heap, n, c[0], r[0], c[1], r[1] ..., c[n], r[n])
@@ -402,6 +429,45 @@ class VMShapeLowerMutator
   // Place this pass as last pass before codegen.
   StructInfo VisitExprDepStructInfoField(const StructInfo& sinfo) final { return sinfo; }
 
+  /* \brief Internal utility function used for RunMatch()
+   *
+   * \param expr The expression to be matched
+   *
+   * \param require_value_computed Whether we require all expr to be computed.
+   *
+   * \return The MatchShapeCode, and a relax expression specifying the
+   *    argument used by that MatchShapeCode.
+   */
+  std::pair<runtime::relax_vm::MatchShapeCode, Expr> MakeMatchArgs(const PrimExpr& expr,
+                                                                   bool require_value_computed) {
+    using runtime::relax_vm::MatchShapeCode;
+
+    if (auto* int_expr = expr.as<IntImmNode>()) {
+      return {MatchShapeCode::kAssertEqualToImm, PrimValue::Int64(int_expr->value)};
+    }
+
+    auto it = slot_map_.find(expr);
+    ICHECK(it != slot_map_.end());
+    auto* slot = it->second;
+    if (slot->value_computed) {
+      return {MatchShapeCode::kAssertEqualToLoad, PrimValue::Int64(slot->index)};
+    }
+
+    // the value is not yet computed
+    ICHECK(!require_value_computed) << "PrimExpr " << expr << " is not computed";
+    if (expr.as<tir::VarNode>()) {
+      // It is a var we will populate it in this round.
+
+      slot->value_computed = true;
+      ready_vars_.push_back(slot);
+
+      return {MatchShapeCode::kStoreToHeap, PrimValue::Int64(slot->index)};
+    }
+
+    // otherwise, we skip and mark it as outstanding
+    return {MatchShapeCode::kNoOp, PrimValue::Int64(0)};
+  }
+
   //-------------------------------------------------------
   // Shape computations.
   //-------------------------------------------------------
@@ -426,52 +492,33 @@ class VMShapeLowerMutator
 
     using runtime::relax_vm::MatchShapeCode;
     for (const MatchShapeTodoItem& item : match_todos) {
-      int64_t shape_len = static_cast<int64_t>(item.pattern.size());
       bool all_nop = true;
-      int num_outstanding_exprs = 0;
+      bool any_nop = false;
 
-      Array<Expr> args = {item.input, shape_heap_, PrimValue::Int64(shape_len)};
+      Array<Expr> args = {item.input, shape_heap_};
+
+      Expr match_op;
+      if (item.input->struct_info_.as<PrimStructInfoNode>()) {
+        match_op = builtin_match_prim_value_;
+        ICHECK_EQ(item.pattern.size(), 1);
+      } else {
+        match_op = builtin_match_shape_;
+        args.push_back(PrimValue::Int64(item.pattern.size()));
+      }
 
       for (PrimExpr expr : item.pattern) {
-        MatchShapeCode code = MatchShapeCode::kNoOp;
-        int64_t rvalue = 0;
-        if (auto* int_expr = expr.as<IntImmNode>()) {
-          code = MatchShapeCode::kAssertEqualToImm;
-          rvalue = int_expr->value;
-        } else {
-          auto it = slot_map_.find(expr);
-          ICHECK(it != slot_map_.end());
-          auto* slot = it->second;
-          if (slot->value_computed) {
-            code = MatchShapeCode::kAssertEqualToLoad;
-            rvalue = slot->index;
-          } else {
-            // the value is not yet computed
-            ICHECK(!require_value_computed) << "PrimExpr " << expr << " is not computed";
-            if (expr.as<tir::VarNode>()) {
-              // if it is a var, we will populate it in this round.
-              // otherwise, we skip and mark it as outstanding
-              code = MatchShapeCode::kStoreToHeap;
-              rvalue = slot->index;
-              slot->value_computed = true;
-              ready_vars_.push_back(slot);
-            } else {
-              code = MatchShapeCode::kNoOp;
-              rvalue = 0;
-              ++num_outstanding_exprs;
-            }
-          }
-        }
+        auto [code, rvalue] = MakeMatchArgs(expr, require_value_computed);
         all_nop = all_nop && code == MatchShapeCode::kNoOp;
+        any_nop = any_nop || code == MatchShapeCode::kNoOp;
         args.push_back(PrimValue::Int64(static_cast<int>(code)));
-        args.push_back(PrimValue::Int64(rvalue));
+        args.push_back(rvalue);
       }
-      if (num_outstanding_exprs != 0) {
+      if (any_nop) {
         outstanding_todos.push_back(item);
       }
       args.push_back(GetErrContext(item.err_ctx));
       if (!all_nop) {
-        Call call(builtin_match_shape_, args, Attrs(), {void_sinfo_});
+        Call call(match_op, args, Attrs(), {void_sinfo_});
         builder_->Emit(call, "_");
       }
     }
@@ -592,8 +639,20 @@ class VMShapeLowerMutator
   void VisitStructInfo_(const PrimStructInfoNode* op, Expr value, bool always_check,
                         bool dynamic_only, const String& err_ctx,
                         std::vector<MatchShapeTodoItem>* match_todos) final {
-    // TODO(relax-team) add PrimValue checks later.
-    LOG(FATAL) << "MatchCast of PrimValue is not yet supported";
+    // emit runtime check of shape
+    if (always_check || !IsBaseOf(PrimStructInfo(op->dtype), GetStructInfo(value))) {
+      // check_shape_info(value, ndim, err_ctx)
+      Call call(builtin_check_prim_value_info_,
+                {value, DataTypeImm(op->dtype), GetErrContext(err_ctx)}, Attrs(), {void_sinfo_});
+      builder_->Emit(call, "_");
+    }
+    if (op->value.defined()) {
+      MatchShapeTodoItem item;
+      item.input = value;
+      item.pattern = {op->value.value()};
+      item.err_ctx = err_ctx;
+      match_todos->push_back(item);
+    }
   }
 
   void VisitStructInfo_(const ShapeStructInfoNode* op, Expr value, bool always_check,
@@ -729,6 +788,9 @@ class VMShapeLowerMutator
   const ExternFunc builtin_match_shape_{"vm.builtin.match_shape"};
   const ExternFunc builtin_make_shape_{"vm.builtin.make_shape"};
   const ExternFunc builtin_check_shape_info_{"vm.builtin.check_shape_info"};
+  const ExternFunc builtin_match_prim_value_{"vm.builtin.match_prim_value"};
+  const ExternFunc builtin_make_prim_value_{"vm.builtin.make_prim_value"};
+  const ExternFunc builtin_check_prim_value_info_{"vm.builtin.check_prim_value_info"};
   const ExternFunc builtin_check_tensor_info_{"vm.builtin.check_tensor_info"};
   const ExternFunc builtin_check_tuple_info_{"vm.builtin.check_tuple_info"};
   const ExternFunc builtin_check_func_info_{"vm.builtin.check_func_info"};

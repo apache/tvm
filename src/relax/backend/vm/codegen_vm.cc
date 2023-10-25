@@ -246,10 +246,11 @@ class CodeGenVM : public ExprFunctor<Instruction::Arg(const Expr&)> {
   Instruction::Arg VisitExpr_(const PrimValueNode* op) final {
     if (auto* int_imm = op->value.as<IntImmNode>()) {
       return builder_->ConvertConstant(int_imm->value);
-    } else {
-      auto* float_imm = op->value.as<FloatImmNode>();
-      ICHECK(float_imm) << "PrimValue can only be IntImm/FloatImm for now";
+    } else if (auto* float_imm = op->value.as<FloatImmNode>()) {
       return builder_->ConvertConstant(float_imm->value);
+    } else {
+      LOG(FATAL) << "PrimValue should only contain constant after  VMShapeLower, "
+                 << "but received " << GetRef<Expr>(op) << " with type " << op->value->GetTypeKey();
     }
   }
 
