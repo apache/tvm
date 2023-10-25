@@ -23,7 +23,6 @@ from typing import Dict, Tuple
 from typing_extensions import Literal
 from tvm.script import tir as T
 from tvm.tir.function import PrimFunc
-from ..._ffi import register_func
 from ...runtime import convert
 from .. import Cast, IntImm, TensorIntrin
 from .dot_product_common import dp4a_desc
@@ -486,6 +485,7 @@ TensorIntrin.register(
 
 ######## WMMA intrinsics ########
 
+
 def get_wmma_fragment_index(buffer, stride, m_dim, n_dim):
     """Compute wmma fragment index using elem_offset of the buffer"""
     frag_index_m = buffer.elem_offset // stride // m_dim
@@ -708,6 +708,7 @@ def get_wmma_sync_intrin(
     m_dim: int, n_dim: int, k_dim: int, in_dtype: str, out_dtype: str, b_transposed: bool
 ) -> Tuple[PrimFunc, PrimFunc]:
     """Generator of wmma_sync intrins"""
+
     def maybe_cast(v):
         if in_dtype != out_dtype:
             return Cast(out_dtype, v)
@@ -817,6 +818,7 @@ def get_wmma_sync_intrin(
 
     return wmma_sync_desc, wmma_sync_impl
 
+
 # f16f16f32, BlockM=16, BlockN=16, BlockK=16
 WMMA_SYNC_16x16x16_f16f16f32_INTRIN = "rocwmma_sync_16x16x16_f16f16f32"
 TensorIntrin.register(
@@ -837,8 +839,7 @@ TensorIntrin.register(
 )
 
 WMMA_FILL_16x16x16_F32_INTRIN = "rocwmma_fill_16x16x16_f32"
-TensorIntrin.register(WMMA_FILL_16x16x16_F32_INTRIN, *get_wmma_fill_intrin(16, 16, 16, "float32")
-)
+TensorIntrin.register(WMMA_FILL_16x16x16_F32_INTRIN, *get_wmma_fill_intrin(16, 16, 16, "float32"))
 
 WMMA_STORE_16x16x16_F32_SHARED_INTRIN = "rocwmma_store_16x16x16_f32_shared"
 TensorIntrin.register(
@@ -870,8 +871,7 @@ TensorIntrin.register(
 )
 
 WMMA_FILL_32x32x8_F32_INTRIN = "rocwmma_fill_32x32x8_f32"
-TensorIntrin.register(WMMA_FILL_32x32x8_F32_INTRIN, *get_wmma_fill_intrin(32, 32, 8, "float32")
-)
+TensorIntrin.register(WMMA_FILL_32x32x8_F32_INTRIN, *get_wmma_fill_intrin(32, 32, 8, "float32"))
 
 WMMA_STORE_32x32x8_F32_SHARED_INTRIN = "rocwmma_store_32x32x8_f32_shared"
 TensorIntrin.register(
@@ -904,8 +904,7 @@ TensorIntrin.register(
 )
 
 WMMA_FILL_16x16x16_I32_INTRIN = "rocwmma_fill_16x16x16_i32"
-TensorIntrin.register(WMMA_FILL_16x16x16_I32_INTRIN, *get_wmma_fill_intrin(16, 16, 16, "int32")
-)
+TensorIntrin.register(WMMA_FILL_16x16x16_I32_INTRIN, *get_wmma_fill_intrin(16, 16, 16, "int32"))
 
 WMMA_STORE_16x16x16_I32_SHARED_INTRIN = "rocwmma_store_16x16x16_i32_shared"
 TensorIntrin.register(
@@ -937,8 +936,7 @@ TensorIntrin.register(
 )
 
 WMMA_FILL_32x32x8_I32_INTRIN = "rocwmma_fill_32x32x8_i32"
-TensorIntrin.register(WMMA_FILL_32x32x8_I32_INTRIN, *get_wmma_fill_intrin(32, 32, 8, "int32")
-)
+TensorIntrin.register(WMMA_FILL_32x32x8_I32_INTRIN, *get_wmma_fill_intrin(32, 32, 8, "int32"))
 
 WMMA_STORE_32x32x8_I32_SHARED_INTRIN = "rocwmma_store_32x32x8_i32_shared"
 TensorIntrin.register(

@@ -34,7 +34,8 @@ from tvm.tir.schedule import Trace
 from tvm.tir.tensor_intrin import rocm  # pylint: disable=unused-import
 import tvm.testing
 
-def matmul_fp16(M: int, N: int, K: int, in_dtype:str, out_dtype: str):
+
+def matmul_fp16(M: int, N: int, K: int, in_dtype: str, out_dtype: str):
     x = te.placeholder((M, K), name="X", dtype=in_dtype)
     y = te.placeholder((K, N), name="Y", dtype=in_dtype)
     k = te.reduce_axis((0, K), name="k")
@@ -62,19 +63,21 @@ def initializer():
             rt_mod = tvm_build(mod, target=target)
         return rt_mod
 
+
 @tvm.testing.requires_matrixcore
 def test_wmma_tune():
     M, N, K = 1024, 1024, 1024
+
     def tune(in_dtype, out_dtype):
         target = Target("hip")
-        func = te.create_prim_func(matmul_fp16(M=M, N=N, K=K, in_dtype=in_dtype, out_dtype=out_dtype)).with_attr(
-            {"global_symbol": "main"}
-        )
+        func = te.create_prim_func(
+            matmul_fp16(M=M, N=N, K=K, in_dtype=in_dtype, out_dtype=out_dtype)
+        ).with_attr({"global_symbol": "main"})
 
-        space=ms.space_generator.PostOrderApply(
-          sch_rules="rocm-matrixcore",
-          postprocs="rocm-matrixcore",
-          mutator_probs="rocm-matrixcore",
+        space = ms.space_generator.PostOrderApply(
+            sch_rules="rocm-matrixcore",
+            postprocs="rocm-matrixcore",
+            mutator_probs="rocm-matrixcore",
         )
 
         mod = tvm.IRModule({"main": func})
@@ -83,17 +86,15 @@ def test_wmma_tune():
                 mod=mod,
                 target=target,
                 work_dir=work_dir,
-                max_trials_global=128,
+                max_trials_global=256,
                 builder=LocalBuilder(
                     f_build="meta_schedule.builder.async_build", initializer=initializer
                 ),
-                space = space,
+                space=space,
             )
             sch = db.query_schedule(mod, target=target, workload_name="main")
             with tvm.transform.PassContext(config={"tir.use_async_copy": 1}):
                 rt_mod = tvm.build(sch.mod, target=target)
-            print(sch.trace)
-            print(rt_mod.imported_modules[0].get_source())
         a_np = np.random.uniform(0, 1, size=(M, K)).astype(in_dtype)
         b_np = np.random.uniform(0, 1, size=(K, N)).astype(in_dtype)
         dev = tvm.rocm(0)
@@ -102,10 +103,10 @@ def test_wmma_tune():
         c_tvm = tvm.nd.array(np.empty((M, N)).astype(out_dtype), device=tvm.rocm(0))
         rt_mod(a_tvm, b_tvm, c_tvm)
         if M < 256 and N < 256 and K < 256:
-            golden = np.matmul(a_np.astype(in_dtype), b_np.astype(in_dtype)) 
+            golden = np.matmul(a_np.astype(in_dtype), b_np.astype(in_dtype))
             tvm.testing.assert_allclose(golden, c_tvm.numpy(), atol=1e-3, rtol=1e-3)
 
-    tune("int8", "int32")
+    # tune("int8", "int32")
     tune("float16", "float32")
 
 

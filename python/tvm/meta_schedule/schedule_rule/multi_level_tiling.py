@@ -196,6 +196,7 @@ class MultiLevelTilingTensorCore(ScheduleRule):
             use_software_pipeline,
         )
 
+
 @register_object("meta_schedule.MultiLevelTilingWideVector")
 class MultiLevelTilingWideVector(ScheduleRule):
     """Extension of MultiLevelTiling for backends with wide vectors. The loop over the innermost

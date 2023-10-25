@@ -64,7 +64,7 @@ def compile_hip(code, target_format="hsaco", arch=None, options=None, path_targe
 
     file_target = path_target if path_target else temp_target
     cmd = ["hipcc"]
-    cmd += ["-O3", "--std=c++14", '-c']
+    cmd += ["-O3", "--std=c++14", "-c"]
     if isinstance(arch, str):
         cmd += [f"--offload-arch={arch}"]
     if target_format == "hsaco":
@@ -79,8 +79,7 @@ def compile_hip(code, target_format="hsaco", arch=None, options=None, path_targe
 
     cmd += ["-o", file_target]
     cmd += [temp_code]
-    proc = subprocess.Popen(cmd, stdout=subprocess.PIPE,
-                            stderr=subprocess.STDOUT)
+    proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
 
     (out, _) = proc.communicate()
 
