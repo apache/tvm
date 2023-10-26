@@ -154,6 +154,62 @@ def test_call_tir_rewrite_with_var_tuple():
     tvm.ir.assert_structural_equal(Expected, After)
 
 
+def test_call_tir_rewrite_separate_tuple():
+    # if the arguments to call_tir are tuple-typed but not a tuple literal,
+    # the rewrite should index into the tuple
+    @tvm.script.ir_module
+    class TestCallTIRRewrite:
+        @T.prim_func
+        def add(
+            A: T.Buffer((2, 3), "float32"),
+            B: T.Buffer((2, 3), "float32"),
+            C: T.Buffer((2, 3), "float32"),
+        ):
+            T.func_attr({"tir.noalias": True})
+            for i0, i1 in T.grid(T.int64(2), T.int64(3)):
+                with T.block("T_add"):
+                    ax0, ax1 = T.axis.remap("SS", [i0, i1])
+                    T.reads(A[ax0, ax1], B[ax0, ax1])
+                    T.writes(C[ax0, ax1])
+                    C[ax0, ax1] = A[ax0, ax1] + B[ax0, ax1]
+
+        @R.function
+        def foo(x: R.Tensor((2, 3), "float32")):
+            # we expect RemovePurityChecking to have been used before this point
+            R.func_attr({"relax.force_pure": True})
+            tup = (x, x)
+            gv0 = R.call_tir(TestCallTIRRewrite.add, tup, R.Tensor((2, 3), dtype="float32"))
+            return gv0
+
+    @tvm.script.ir_module
+    class Expected:
+        @T.prim_func
+        def add(
+            A: T.Buffer((2, 3), "float32"),
+            B: T.Buffer((2, 3), "float32"),
+            C: T.Buffer((2, 3), "float32"),
+        ):
+            T.func_attr({"tir.noalias": True})
+            for i0, i1 in T.grid(T.int64(2), T.int64(3)):
+                with T.block("T_add"):
+                    ax0, ax1 = T.axis.remap("SS", [i0, i1])
+                    T.reads(A[ax0, ax1], B[ax0, ax1])
+                    T.writes(C[ax0, ax1])
+                    C[ax0, ax1] = A[ax0, ax1] + B[ax0, ax1]
+
+        @R.function
+        def foo(x: R.Tensor((2, 3), "float32")):
+            R.func_attr({"relax.force_pure": True})
+            tup = (x, x)
+            alloc = R.builtin.alloc_tensor(R.shape([2, 3]), dtype="float32", runtime_device_index=0)
+            _ = Expected.add(x, x, alloc)
+            gv0 = alloc
+            return gv0
+
+    new_mod = relax.transform.CallTIRRewrite()(TestCallTIRRewrite)
+    tvm.ir.assert_structural_equal(new_mod, Expected)
+
+
 def test_transform_remove_purity_checking():
     @tvm.script.ir_module
     class Before:

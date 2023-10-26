@@ -231,9 +231,11 @@ def test_call_tir_inplace_e2e_simple(exec_mode):
         ) -> R.Tuple(
             R.Tensor((2, 3), "int32"), R.Tensor((2, 3), "int32"), R.Tensor((2, 3), "int32")
         ):
+            # also make sure it works with a tuple bound separately
+            tup = (x, y, z)
             res = R.call_tir_inplace(
                 TestCallTIRInplaceE2ESimple.copy,
-                (x, y, z),
+                tup,
                 [0, 1, -1],
                 [R.Tensor((2, 3), "int32"), R.Tensor((2, 3), "int32"), R.Tensor((2, 3), "int32")],
             )
@@ -301,6 +303,48 @@ def test_call_tir_inplace_e2e_rw(exec_mode):
 
     assert x == out
     tvm.testing.assert_allclose(out.numpy(), expected.numpy(), rtol=1e-7, atol=1e-7)
+
+
+@pytest.mark.parametrize("exec_mode", EXEC_MODE)
+def test_call_tir_reuse_tuple_input(exec_mode):
+    # read and write from the same tensor
+    @tvm.script.ir_module
+    class TestCallTIRTupleInput:
+        @T.prim_func
+        def add(
+            A: T.Buffer((2, 3), "int32"), B: T.Buffer((2, 3), "int32"), C: T.Buffer((2, 3), "int32")
+        ):
+            T.func_attr({"tir.noalias": True})
+            for i0, i1 in T.grid(T.int64(2), T.int64(3)):
+                with T.block("T_add"):
+                    ax0, ax1 = T.axis.remap("SS", [i0, i1])
+                    T.reads(A[ax0, ax1], B[ax0, ax1])
+                    T.writes(C[ax0, ax1])
+                    C[ax0, ax1] = A[ax0, ax1] + B[ax0, ax1]
+
+        @R.function
+        def main(
+            x: R.Tensor((2, 3), "int32"), y: R.Tensor((2, 3), "int32")
+        ) -> R.Tuple(R.Tensor((2, 3), "int32"), R.Tensor((2, 3), "int32")):
+            tup = (x, y)
+            res1 = R.call_tir(TestCallTIRTupleInput.add, tup, out_sinfo=R.Tensor((2, 3), "int32"))
+            res2 = R.call_tir(TestCallTIRTupleInput.add, tup, out_sinfo=R.Tensor((2, 3), "int32"))
+            return (res1, res2)
+
+    mod = TestCallTIRTupleInput
+
+    target = tvm.target.Target("llvm", host="llvm")
+    ex = relax.build(mod, target, exec_mode=exec_mode)
+    vm = relax.VirtualMachine(ex, tvm.cpu())
+
+    x = tvm.nd.array(np.ones((2, 3)).astype(np.int32))
+    y = tvm.nd.array(np.ones((2, 3)).astype(np.int32))
+    vm.set_input("main", x, y)
+    vm.invoke_stateful("main")
+    out = vm.get_outputs("main")
+    expected = tvm.nd.array(np.full((2, 3), 2).astype(np.int32))
+    tvm.testing.assert_allclose(out[0].numpy(), expected.numpy(), rtol=1e-7, atol=1e-7)
+    tvm.testing.assert_allclose(out[1].numpy(), expected.numpy(), rtol=1e-7, atol=1e-7)
 
 
 def test_vm_emit_te_extern(exec_mode):
@@ -763,7 +807,8 @@ def test_sub_func_call(exec_mode):
         ) -> R.Tensor((32, 32), dtype="float32"):
             cls = TestVMSubFunction
             with R.dataflow():
-                gv0 = R.call_tir(cls.tir_matmul, (x, w), R.Tensor((32, 32), dtype="float32"))
+                tup = (x, w)
+                gv0 = R.call_tir(cls.tir_matmul, tup, R.Tensor((32, 32), dtype="float32"))
                 R.output(gv0)
             return gv0
 

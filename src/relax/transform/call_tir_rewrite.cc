@@ -77,14 +77,14 @@ class CallTIRMutator : public ExprMutator {
           ICHECK(inplace_attrs->inplace_indices[0].IntValue() != -1)
               << "If calling call_tir_inplace and there is one output, its in-place index must not"
                  " be -1.";
-          outs.push_back(
-              Downcast<Tuple>(call->args[1])->fields[inplace_attrs->inplace_indices[0].IntValue()]);
+          outs.push_back(GetTupleIndex(call->args[1], 0));
         }
       } else if (const auto& _tuple_sinfo = MatchStructInfo<TupleStructInfo>(expr)) {
         // multiple output case
         const TupleStructInfo& tuple_sinfo = _tuple_sinfo.value();
         for (size_t i = 0; i < tuple_sinfo->fields.size(); ++i) {
           const auto& field = tuple_sinfo->fields[i];
+          int inplace_index = inplace_attrs->inplace_indices[i].IntValue();
 
           ICHECK(field->IsInstance<TensorStructInfoNode>())
               << "call_tir expects Tuple of TensorStructInfo, but got " << field
@@ -93,7 +93,7 @@ class CallTIRMutator : public ExprMutator {
           ICHECK(field_tensor->shape.defined())
               << "call_tir expects all TensorStructInfo has shape, but got " << field_tensor
               << " as an element of TupleStructInfo";
-          if (!is_inplace_op || inplace_attrs->inplace_indices[i].IntValue() == -1) {
+          if (!is_inplace_op || inplace_index == -1) {
             outs.push_back(
                 builder_->Emit(Call(alloc_tensor_op,
                                     {Downcast<ShapeExpr>(field_tensor->shape.value()),
@@ -101,8 +101,7 @@ class CallTIRMutator : public ExprMutator {
                                     Attrs()),
                                "alloc"));
           } else {
-            outs.push_back(Downcast<Tuple>(call->args[1])
-                               ->fields[inplace_attrs->inplace_indices[i].IntValue()]);
+            outs.push_back(GetTupleIndex(call->args[1], inplace_index));
           }
         }
       } else {
@@ -177,6 +176,18 @@ class CallTIRMutator : public ExprMutator {
     }
 
     return GetRef<Expr>(call);
+  }
+
+ private:
+  // If e is a tuple literal, return the field denoted by the index.
+  // Otherwise, insert a tuple get item for that field and return the
+  // var the result is bound to.
+  Expr GetTupleIndex(const Expr& e, int index) {
+    if (const auto* tuple_node = e.as<TupleNode>()) {
+      return tuple_node->fields[index];
+    }
+    auto out = builder_->Emit(TupleGetItem(e, index));
+    return out;
   }
 };
 
