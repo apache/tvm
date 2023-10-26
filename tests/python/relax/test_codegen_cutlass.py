@@ -2174,6 +2174,7 @@ def test_batched_var_len_multi_query_attention():
                 ]
             }
         )
+
         @R.function
         def main(
             queries: R.Tensor(("num_tokens", 4096), dtype="float16"),
