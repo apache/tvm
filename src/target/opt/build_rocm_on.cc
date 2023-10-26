@@ -39,12 +39,13 @@
 namespace tvm {
 namespace codegen {
 
-#define HIPRTC_CALL(x)                                                                        \
-  {                                                                                          \
-    hiprtcResult result = x;                                                                  \
-    if (result != HIPRTC_SUCCESS) {                                                           \
-      LOG(FATAL) << "HiprtcError: " #x " failed with error: " << hiprtcGetErrorString(result); \
-    }                                                                                        \
+#define HIPRTC_CALL(x)                                                         \
+  {                                                                            \
+    hiprtcResult result = x;                                                   \
+    if (result != HIPRTC_SUCCESS) {                                            \
+      LOG(FATAL) << "HiprtcError: " #x " failed with error: "                  \
+                 << hiprtcGetErrorString(result);                              \
+    }                                                                          \
   }
 
 std::string FindHIPIncludePath() {
@@ -54,7 +55,7 @@ std::string FindHIPIncludePath() {
   const std::string delimiter = "/";
 #endif
   std::string hip_include_path;
-  const char* hip_path_env = std::getenv("HIP_PATH");
+  const char *hip_path_env = std::getenv("HIP_PATH");
   if (hip_path_env != nullptr) {
     hip_include_path += hip_path_env;
     hip_include_path += delimiter + "include";
@@ -73,19 +74,22 @@ std::string FindHIPIncludePath() {
   }
 #endif
   LOG(FATAL) << "Cannot find HIP include path."
-             << "HIP_PATH is not set or ROCm is not installed in the default installation path."
+             << "HIP_PATH is not set or ROCm is not installed in the default "
+                "installation path."
              << "In other than linux, it is necessary to set HIP_PATH.";
   return hip_include_path;
 }
 
-std::string HIPRTCCompile(const std::string& code, bool include_path = false) {
+std::string HIPRTCCompile(const std::string &code, bool include_path = false) {
   std::vector<std::string> compile_params;
-  std::vector<const char*> param_cstrings{};
+  std::vector<const char *> param_cstrings{};
   hiprtcProgram prog;
   std::string cc = "gfx908";
   int major, minor;
-  hipError_t e1 = hipDeviceGetAttribute(&major, hipDeviceAttributeComputeCapabilityMajor, 0);
-  hipError_t e2 = hipDeviceGetAttribute(&minor, hipDeviceAttributeComputeCapabilityMinor, 0);
+  hipError_t e1 = hipDeviceGetAttribute(
+      &major, hipDeviceAttributeComputeCapabilityMajor, 0);
+  hipError_t e2 = hipDeviceGetAttribute(
+      &minor, hipDeviceAttributeComputeCapabilityMinor, 0);
 
   if (e1 == hipSuccess && e2 == hipSuccess) {
     cc = "gfx" + std::to_string(major * 100 + minor * 10);
@@ -101,10 +105,11 @@ std::string HIPRTCCompile(const std::string& code, bool include_path = false) {
     compile_params.push_back(include_option);
   }
 
-  for (const auto& string : compile_params) {
+  for (const auto &string : compile_params) {
     param_cstrings.push_back(string.c_str());
   }
-  HIPRTC_CALL(hiprtcCreateProgram(&prog, code.c_str(), nullptr, 0, nullptr, nullptr));
+  HIPRTC_CALL(
+      hiprtcCreateProgram(&prog, code.c_str(), nullptr, 0, nullptr, nullptr));
   hiprtcResult compile_res =
       hiprtcCompileProgram(prog, param_cstrings.size(), param_cstrings.data());
 
@@ -133,11 +138,13 @@ runtime::Module BuildHIP(IRModule mod, Target target) {
 
   Map<GlobalVar, PrimFunc> functions;
   for (auto [gvar, base_func] : mod->functions) {
-    ICHECK(base_func->IsInstance<PrimFuncNode>()) << "CodeGenHIP: Can only take PrimFunc";
+    ICHECK(base_func->IsInstance<PrimFuncNode>())
+        << "CodeGenHIP: Can only take PrimFunc";
     auto prim_func = Downcast<PrimFunc>(base_func);
     auto calling_conv = prim_func->GetAttr<Integer>(tvm::attr::kCallingConv);
     ICHECK(calling_conv == CallingConv::kDeviceKernelLaunch)
-        << "CodeGenHIP: expect calling_conv equals CallingConv::kDeviceKernelLaunch";
+        << "CodeGenHIP: expect calling_conv equals "
+           "CallingConv::kDeviceKernelLaunch";
     functions.Set(gvar, prim_func);
   }
 
@@ -150,26 +157,27 @@ runtime::Module BuildHIP(IRModule mod, Target target) {
 
   std::string code = cg.Finish();
 
-  if (const auto* f = Registry::Get("tvm_callback_hip_postproc")) {
+  if (const auto *f = Registry::Get("tvm_callback_hip_postproc")) {
     code = (*f)(code).operator std::string();
   }
   std::string fmt = "ptx";
   std::string ptx;
-  const auto* f_enter = Registry::Get("target.TargetEnterScope");
+  const auto *f_enter = Registry::Get("target.TargetEnterScope");
   (*f_enter)(target);
-  if (const auto* f = Registry::Get("tvm_callback_hip_compile")) {
+  if (const auto *f = Registry::Get("tvm_callback_hip_compile")) {
     ptx = (*f)(code).operator std::string();
     // Dirty matching to check PTX vs hsaco.
     // TODO(leiwang1999) more reliable checks
-    if (ptx[0] != '/') fmt = "hsaco";
+    if (ptx[0] != '/')
+      fmt = "hsaco";
   } else {
     ptx = HIPRTCCompile(code, cg.need_include_path());
   }
-  const auto* f_exit = Registry::Get("target.TargetExitScope");
+  const auto *f_exit = Registry::Get("target.TargetExitScope");
   (*f_exit)(target);
   return ROCMModuleCreate(ptx, fmt, ExtractFuncInfo(mod), code, std::string());
 }
 
 TVM_REGISTER_GLOBAL("target.build.hip").set_body_typed(BuildHIP);
-}  // namespace codegen
-}  // namespace tvm
+} // namespace codegen
+} // namespace tvm
