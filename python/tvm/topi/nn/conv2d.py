@@ -162,7 +162,6 @@ def conv2d_transpose_alter_layout(attrs, inputs, tinfos, out_type):
     ----
     Unlike other TOPI functions, this function operates on both graph level and operator level.
     """
-    print("Transpose conv alter op layout called")
     # not to change by default
     return None
 

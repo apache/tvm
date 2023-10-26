@@ -25,8 +25,6 @@ from tvm import te
 from tvm import relay
 from tvm import autotvm
 from ..utils import get_const_tuple
-from .utils import infer_tile_size
-from ..nn import conv2d_alter_layout
 from ..nn import conv2d_transpose_alter_layout
 
 logger = logging.getLogger("topi")
