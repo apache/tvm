@@ -86,10 +86,12 @@ pytestmark = [cutlass_enabled]
 
 
 def build_and_run(mod, inputs_np, target, legalize=True, cuda_graph=False):
-    if legalize:
-        mod = relax.transform.LegalizeOps()(mod)  # For cpu reference, nop for cutlass.
-
-    with tvm.transform.PassContext(config={"relax.backend.use_cuda_graph": cuda_graph}):
+    with tvm.transform.PassContext(
+        config={
+            "relax.backend.use_cuda_graph": cuda_graph,
+            "relax.transform.apply_legalize_ops": legalize,
+        }
+    ):
         ex = relax.build(mod, target)
 
     dev = tvm.device(target, 0)

@@ -110,11 +110,13 @@ def get_result_with_relax_cudnn_offload(mod, np_inputs, cuda_graph=False):
 
 
 def build_and_run(mod, inputs_np, target, legalize=False, cuda_graph=False):
-    if legalize:
-        mod = relax.transform.LegalizeOps()(mod)
-
     dev = tvm.device(target, 0)
-    with tvm.transform.PassContext(config={"relax.backend.use_cuda_graph": cuda_graph}):
+    with tvm.transform.PassContext(
+        config={
+            "relax.backend.use_cuda_graph": cuda_graph,
+            "relax.transform.apply_legalize_ops": legalize,
+        }
+    ):
         ex = relax.build(mod, target)
     vm = relax.VirtualMachine(ex, dev)
     f = vm["main"]

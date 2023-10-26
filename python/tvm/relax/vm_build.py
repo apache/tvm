@@ -307,6 +307,7 @@ def build(
 
     lowering_passes = tvm.transform.Sequential(
         [
+            relax.transform.LegalizeOps(),
             relax.transform.RewriteDataflowReshape(),
             relax.transform.ToNonDataflow(),
             relax.transform.RemovePurityChecking(),

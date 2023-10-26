@@ -1181,7 +1181,6 @@ def test_combine_matmul_emit_order():
         # make sure it builds
         mod = tvm.IRModule()
         mod["main"] = rewritten
-        mod = rx.transform.LegalizeOps()(mod)
 
         rx.build(mod, target="llvm")
 
@@ -1279,7 +1278,6 @@ def test_combine_transposed_matmul_twice():
         # make sure it builds
         mod = tvm.IRModule()
         mod["main"] = rewritten
-        mod = rx.transform.LegalizeOps()(mod)
 
         rx.build(mod, target="llvm")
 
