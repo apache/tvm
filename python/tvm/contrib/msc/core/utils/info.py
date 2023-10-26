@@ -18,8 +18,9 @@
 
 import os
 import json
-from typing import List
+from typing import List, Tuple
 from distutils.version import LooseVersion
+import numpy as np
 
 import tvm
 from .namespace import MSCFramework
@@ -138,3 +139,66 @@ def get_version(framework: str) -> List[int]:
         raw_version = "1.0.0"
 
     return LooseVersion(raw_version).version
+
+
+class MSCArray(object):
+    """MSC wrapper for array like object
+
+    Parameters
+    ----------
+    data: array_like: np.ndarray| torch.Tensor| tvm.ndarray| ...
+        The data object.
+    """
+
+    def __init__(self, data: object):
+        self._type, self._data = self._analysis(data)
+
+    def __str__(self):
+        return "<{}>[S:{},D:{}] Max {:g}, Min {:g}, Avg {:g}".format(
+            self._type,
+            ";".join([str(s) for s in self._data.shape]),
+            self._data.dtype.name,
+            self._data.max(),
+            self._data.min(),
+            self._data.sum() / self._data.size,
+        )
+
+    def _analysis(self, data: object) -> Tuple[str, np.ndarray]:
+        if isinstance(data, np.ndarray):
+            return "np", data
+        if isinstance(data, tvm.runtime.NDArray):
+            return "tvm", data.asnumpy()
+        try:
+            import torch  # pylint: disable=import-outside-toplevel
+
+            if isinstance(data, torch.Tensor):
+                return "torch", data.detach().cpu().numpy()
+        except:  # pylint: disable=bare-except
+            pass
+
+        raise TypeError("Unkonwn data {}({})".format(data, type(data)))
+
+    @property
+    def type(self):
+        return self._type
+
+    @property
+    def data(self):
+        return self._data
+
+
+def cast_array(data: object):
+    """Cast array like object to np.ndarray
+
+    Parameters
+    ----------
+    data: array_like: np.ndarray| torch.Tensor| tvm.ndarray| ...
+        The data object.
+
+    Returns
+    -------
+    output: np.ndarray
+        The output as numpy array.
+    """
+
+    return MSCArray(data).data

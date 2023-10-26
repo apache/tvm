@@ -14,6 +14,6 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-"""tvm.contrib.msc.framework.tensorflow.frontend"""
+"""tvm.contrib.msc.core.runtime"""
 
-from .translate import *
+from .runner import *

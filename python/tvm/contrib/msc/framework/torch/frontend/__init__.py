@@ -15,3 +15,5 @@
 # specific language governing permissions and limitations
 # under the License.
 """tvm.contrib.msc.framework.torch.frontend"""
+
+from .translate import *

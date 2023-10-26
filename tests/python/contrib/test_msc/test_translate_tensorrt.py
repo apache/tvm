@@ -30,7 +30,6 @@ from tvm.contrib.msc.framework.tensorrt.frontend import translate
 from tvm.contrib.msc.framework.tensorrt import codegen
 from tvm.contrib.msc.core import utils as msc_utils
 
-
 requires_tensorrt = pytest.mark.skipif(
     tvm.get_global_func("relax.ext.tensorrt", True) is None,
     reason="TENSORRT is not enabled",
@@ -66,7 +65,9 @@ def verify_model(torch_model, input_info, allow_incomplete=False):
         golden = [golden]
     golden = [g.detach().cpu().numpy() for g in golden]
     # partition module for tensorrt
-    mod, graph_infos = translate.partition_for_tensorrt(mod, allow_incomplete=allow_incomplete)
+    mod, graph_infos = translate.partition_for_tensorrt(
+        mod, trans_config={"allow_incomplete": allow_incomplete}
+    )
     output_folder = msc_utils.msc_dir()
     # tranalte to tensorrt
     mod = codegen.to_tensorrt(mod, graph_infos, output_folder=output_folder)

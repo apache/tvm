@@ -16,7 +16,7 @@
 # under the License.
 """tvm.contrib.msc.framework.tensorflow.codegen.codegen"""
 
-from typing import Dict, Optional, Union, List
+from typing import Dict, Optional
 
 import tvm
 from tvm.contrib.msc.core.ir import MSCGraph
@@ -54,16 +54,13 @@ def to_tensorflow(
         The tensorflow Graph.
     """
 
-    def _bind_weights(
-        outs: Union[tf_v1.Tensor, List[tf_v1.Tensor]], folder: msc_utils.MSCDirectory
-    ) -> Union[tf_v1.Tensor, List[tf_v1.Tensor]]:
+    def _save_weights(folder: msc_utils.MSCDirectory):
         if weights:
             with open(folder.relpath(graph.name + "_params.bin"), "wb") as f_params:
                 f_params.write(tvm.runtime.save_param_dict(weights))
-        return outs
 
     inputs = [tf_v1.placeholder(i.dtype_name, i.get_shape(), i.alias) for i in graph.get_inputs()]
     codegen = CodeGen(
         graph, _ffi_api.GetTensorflowSources, codegen_config, print_config, build_folder
     )
-    return codegen.load(inputs + [weights], post_load=_bind_weights)
+    return codegen.load(inputs + [weights], pre_load=_save_weights)

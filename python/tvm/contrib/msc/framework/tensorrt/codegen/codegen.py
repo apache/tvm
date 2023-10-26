@@ -149,11 +149,11 @@ def to_tensorrt(
     """
 
     target_options = {}
-    for name, graph, weights in graph_infos:
+    for graph, weights in graph_infos:
         options = to_sub_tensorrt(
             graph, weights, codegen_config, print_config, build_folder, output_folder
         )
-        target_options[name] = msc_utils.dump_dict(options)
+        target_options[graph.name] = msc_utils.dump_dict(options)
     mod = tvm.transform.Sequential(
         [
             tvm.relax.transform.RunCodegen({"msc_tensorrt": target_options}),
