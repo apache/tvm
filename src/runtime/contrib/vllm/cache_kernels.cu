@@ -104,7 +104,7 @@ TVM_REGISTER_GLOBAL("tvm.contrib.vllm.reshape_and_cache")
         block_size,
         vec_size);
 
-      return Array({key_cache, value_cache});
+      return Array{key_cache, value_cache};
     });
 }  // namespace runtime
 }  // namespace tvm
