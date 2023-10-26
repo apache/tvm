@@ -20,7 +20,7 @@ import tvm
 import tvm.script
 import tvm.testing
 from tvm import relax
-from tvm.script import relax as R, ir as I
+from tvm.script import relax as R, tir as T
 
 exec_mode = tvm.testing.parameter("bytecode", "compiled")
 
@@ -35,8 +35,6 @@ tuple_index_type = tvm.testing.parameter("static", "dynamic")
 
 
 def test_vm_tuple_get_item(exec_mode, tuple_type_annotation, tuple_index_type):
-    index_var = tvm.tir.Var("index", "int64")
-
     def access_tuple(tuple_obj, dyn_index):
         if tuple_index_type == "static":
             return tuple_obj[0]
@@ -44,13 +42,13 @@ def test_vm_tuple_get_item(exec_mode, tuple_type_annotation, tuple_index_type):
             return tuple_obj[dyn_index]
 
     @R.function(private=True)
-    def func(arg: tuple_type_annotation, index_param: R.Prim(value=index_var)):
+    def func(arg: tuple_type_annotation, index_param: R.Prim(value="index_var")):
+        index_var = T.int64()
         # Trivial binding provides a usage of
         # `tuple_type_annotation` within the body of the function,
         # which is required to expose it as a meta-variable for
         # TVMScript.
         arg: tuple_type_annotation = arg
-        index_param: R.Prim(value=index_var) = index_param
         return access_tuple(arg, index_param)
 
     mod = tvm.IRModule({"main": func})
