@@ -793,7 +793,7 @@ class CLMLGetSubModuleSrc:
                         elif activation == "relu6":
                             activation = "CL_ACTIVATION_RELU6"
                         else:
-                            RuntimeError("Unknown activation:" + activation)
+                            raise RuntimeError("Unknown activation:" + activation)
                     has_bias = bool((node["inputs"] == 3) or (node["inputs"] == 7))
                     has_bn = bool((node["inputs"] == 6) or (node["inputs"] == 7))
                     input_tensor = get_tensor_from_map(node["inputs"][0][0])
@@ -893,8 +893,8 @@ class CLMLGetSubModuleSrc:
                         )
                     )
                 elif node["name"] == "nn.batch_norm":
-                    bn_attrs = tuple(node["attrs"]["batchnorm"][0][0])
-                    axis = bn_attrs[0]
+                    bn_attrs = tuple(node["attrs"]["axis"])
+                    axis = int(bn_attrs[0][0])
                     bn_shape = [1, 1, 1, 1]
                     bn_node = self.nodes[node["inputs"][0][0]]
                     bn_shape[axis] = bn_node["attrs"]["shape"][0][0]
@@ -1080,7 +1080,7 @@ class CLMLGetSubModuleSrc:
                         )
                     )
                 else:
-                    RuntimeError("Unsupported Op:" + node["name"])
+                    raise RuntimeError("Unsupported Op:" + node["name"])
                 self.clml_code.append(
                     self.MapInsert.substitute(nid=node_out_name, tensor_desc=node_out_name)
                 )

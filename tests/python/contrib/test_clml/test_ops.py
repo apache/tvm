@@ -23,7 +23,7 @@ from tvm.relay.op.contrib import clml
 from tvm.relay import testing
 from tvm.ir import IRModule
 from tvm.contrib import utils
-from test_clml.infrastructure import (
+from infrastructure import (
     build_and_run,
     Device,
     skip_codegen_test,
@@ -181,7 +181,7 @@ def _get_conv_expected_codegen(
     return inputs
 
 
-@pytest.mark.parametrize("dtype", ["float32"])
+@pytest.mark.parametrize("dtype", ["float32", "float16"])
 @tvm.testing.requires_openclml
 def test_conv2d(device, dtype):
     trials = [
@@ -246,15 +246,15 @@ def test_conv2d(device, dtype):
         )
         opencl_out = build_and_run(func, inputs, 1, params, device, enable_clml=False)[0]
         clml_out = build_and_run(func, inputs, 1, params, device, enable_clml=True)[0]
-
+        out_rtol = 1e-2 if dtype == "float16" else 1e-5
         tvm.testing.assert_allclose(
-            clml_out[0].asnumpy(), opencl_out[0].asnumpy(), rtol=1e-5, atol=1e-5
+            clml_out[0].asnumpy(), opencl_out[0].asnumpy(), rtol=out_rtol, atol=out_rtol
         )
         args = (shape, kernel_h, kernel_w, pad, stride, dilation, groups, dtype, out_channels)
         exp_codegen = _get_conv_expected_codegen(
             *args, has_bias=composite[1], has_activation=composite[2]
         )
-        # verify_codegen(func, exp_codegen, device, params)
+        verify_codegen(func, exp_codegen, device, params)
 
 
 def _get_conv2d_transpose_expected_codegen(
@@ -301,7 +301,7 @@ def _get_conv2d_transpose_expected_codegen(
     return exp_codegen
 
 
-@pytest.mark.parametrize("dtype", ["float32"])
+@pytest.mark.parametrize("dtype", ["float32", "float16"])
 @tvm.testing.requires_openclml
 def test_conv2d_transpose(device, dtype):
     trials = [
@@ -335,8 +335,9 @@ def test_conv2d_transpose(device, dtype):
 
         opencl_out = build_and_run(mod, inputs, 1, params, device, enable_clml=False)[0]
         clml_out = build_and_run(mod, inputs, 1, params, device, enable_clml=True)[0]
+        out_rtol = 1e-2 if dtype == "float16" else 1e-5
         tvm.testing.assert_allclose(
-            clml_out[0].asnumpy(), opencl_out[0].asnumpy(), rtol=1e-3, atol=1e-3
+            clml_out[0].asnumpy(), opencl_out[0].asnumpy(), rtol=out_rtol, atol=out_rtol
         )
 
         args = (
@@ -351,7 +352,7 @@ def test_conv2d_transpose(device, dtype):
             opencl_out[0].shape,
         )
         exp_codegen = _get_conv2d_transpose_expected_codegen(*args)
-        # verify_codegen(mod, exp_codegen, device, params)
+        verify_codegen(mod, exp_codegen, device, params)
 
 
 @pytest.mark.parametrize("dtype", ["float16"])
@@ -388,9 +389,9 @@ def test_batchnorm(device, dtype):
 
     opencl_out = build_and_run(mod, inputs, 1, params, device, enable_clml=False)[0]
     clml_out = build_and_run(mod, inputs, 1, params, device, enable_clml=True)[0]
-
+    out_rtol = 1e-2 if dtype == "float16" else 1e-5
     tvm.testing.assert_allclose(
-        clml_out[0].asnumpy(), opencl_out[0].asnumpy(), rtol=1e-3, atol=1e-3
+        clml_out[0].asnumpy(), opencl_out[0].asnumpy(), rtol=out_rtol, atol=out_rtol
     )
 
 
@@ -413,9 +414,9 @@ def test_concat(device, dtype):
 
     opencl_out = build_and_run(mod, inputs, 1, params, device, enable_clml=False)[0]
     clml_out = build_and_run(mod, inputs, 1, params, device, enable_clml=True)[0]
-
+    out_rtol = 1e-2 if dtype == "float16" else 1e-5
     tvm.testing.assert_allclose(
-        clml_out[0].asnumpy(), opencl_out[0].asnumpy(), rtol=1e-3, atol=1e-3
+        clml_out[0].asnumpy(), opencl_out[0].asnumpy(), rtol=out_rtol, atol=out_rtol
     )
     exp_codegen = [
         {
@@ -447,7 +448,7 @@ def test_concat(device, dtype):
             "op": "kernel",
         },
     ]
-    # verify_codegen(func, exp_codegen, device, params)
+    verify_codegen(func, exp_codegen, device, params)
 
 
 def _get_pool_expected_codegen(input_shape, pool_size, stride, padding, pool_type, dtype):
@@ -526,16 +527,17 @@ def test_pool(device, dtype):
 
         opencl_out = build_and_run(mod, inputs, 1, params, device, enable_clml=False)[0]
         clml_out = build_and_run(mod, inputs, 1, params, device, enable_clml=True)[0]
+        out_rtol = 1e-2 if dtype == "float16" else 1e-5
         tvm.testing.assert_allclose(
-            clml_out[0].asnumpy(), opencl_out[0].asnumpy(), rtol=1e-3, atol=1e-3
+            clml_out[0].asnumpy(), opencl_out[0].asnumpy(), rtol=out_rtol, atol=out_rtol
         )
 
         args = (input_shape, pool_size, stride, padding, pooling_type, dtype)
         exp_codegen = _get_pool_expected_codegen(*args)
-        # verify_codegen(func, exp_codegen, device, params)
+        verify_codegen(func, exp_codegen, device, params)
 
 
-@pytest.mark.parametrize("dtype", ["float32"])
+@pytest.mark.parametrize("dtype", ["float32", "float16"])
 @tvm.testing.requires_openclml
 def test_dense(device, dtype):
     def _get_model(x_shape, k_shape, has_bias=False):
@@ -601,8 +603,9 @@ def test_dense(device, dtype):
         mod = IRModule.from_expr(out)
         opencl_out = build_and_run(mod, inputs, 1, params, device, enable_clml=False)[0]
         clml_out = build_and_run(mod, inputs, 1, params, device, enable_clml=True)[0]
+        out_rtol = 1e-2 if dtype == "float16" else 1e-5
         tvm.testing.assert_allclose(
-            clml_out[0].asnumpy(), opencl_out[0].asnumpy(), rtol=1e-2, atol=1e-2
+            clml_out[0].asnumpy(), opencl_out[0].asnumpy(), rtol=out_rtol, atol=out_rtol
         )
         verify_codegen(out, exp_codegen, device, params)
 
@@ -612,7 +615,7 @@ def test_dense(device, dtype):
     _verify(*(_get_model((1, 16), (32, 16), True)))
 
 
-@pytest.mark.parametrize("dtype", ["float32"])
+@pytest.mark.parametrize("dtype", ["float32", "float16"])
 @tvm.testing.requires_openclml
 def test_binary_ops(device, dtype):
     def _get_model(a_shape, b_shape, op):
@@ -630,8 +633,9 @@ def test_binary_ops(device, dtype):
         mod = IRModule.from_expr(out)
         opencl_out = build_and_run(mod, inputs, 1, params, device, enable_clml=False)[0]
         clml_out = build_and_run(mod, inputs, 1, params, device, enable_clml=True)[0]
+        out_rtol = 1e-2 if dtype == "float16" else 1e-5
         tvm.testing.assert_allclose(
-            clml_out[0].asnumpy(), opencl_out[0].asnumpy(), rtol=1e-3, atol=1e-3
+            clml_out[0].asnumpy(), opencl_out[0].asnumpy(), rtol=out_rtol, atol=out_rtol
         )
 
         # Check to make sure these ops are offloaded to CLML instead of TVM.
@@ -650,7 +654,7 @@ def test_binary_ops(device, dtype):
     _verify(*(_get_model((1, 16), (1, 16), relay.maximum)))
 
 
-@pytest.mark.parametrize("dtype", ["float32"])
+@pytest.mark.parametrize("dtype", ["float32", "float16"])
 @tvm.testing.requires_openclml
 def test_unary_ops(device, dtype):
     def _get_model(a_shape, op):
@@ -664,8 +668,9 @@ def test_unary_ops(device, dtype):
         mod = IRModule.from_expr(out)
         opencl_out = build_and_run(mod, inputs, 1, params, device, enable_clml=False)[0]
         clml_out = build_and_run(mod, inputs, 1, params, device, enable_clml=True)[0]
+        out_rtol = 1e-2 if dtype == "float16" else 1e-5
         tvm.testing.assert_allclose(
-            clml_out[0].asnumpy(), opencl_out[0].asnumpy(), rtol=1e-3, atol=1e-3
+            clml_out[0].asnumpy(), opencl_out[0].asnumpy(), rtol=out_rtol, atol=out_rtol
         )
 
         # Check to make sure these ops are offloaded to CLML instead of TVM.
@@ -694,8 +699,9 @@ def test_depth_to_space(device, dtype):
         mod = IRModule.from_expr(out)
         opencl_out = build_and_run(mod, inputs, 1, params, device, enable_clml=False)[0]
         clml_out = build_and_run(mod, inputs, 1, params, device, enable_clml=True)[0]
+        out_rtol = 1e-2 if dtype == "float16" else 1e-5
         tvm.testing.assert_allclose(
-            clml_out[0].asnumpy(), opencl_out[0].asnumpy(), rtol=1e-3, atol=1e-3
+            clml_out[0].asnumpy(), opencl_out[0].asnumpy(), rtol=out_rtol, atol=out_rtol
         )
 
         # Check to make sure these ops are offloaded to CLML instead of TVM.
@@ -723,7 +729,7 @@ def test_depth_to_space(device, dtype):
                 "op": "kernel",
             },
         ]
-        # verify_codegen(out, exp_codegen, device, params)
+        verify_codegen(out, exp_codegen, device, params)
 
     _verify(*(_get_model((1, 64, 8, 8), 4)))
     _verify(*(_get_model((1, 64, 8, 8), 8)))
@@ -745,8 +751,9 @@ def test_resize_bilinear(device, dtype):
         mod = IRModule.from_expr(out)
         opencl_out = build_and_run(mod, inputs, 1, params, device, enable_clml=False)[0]
         clml_out = build_and_run(mod, inputs, 1, params, device, enable_clml=True)[0]
+        out_rtol = 1e-2 if dtype == "float16" else 1e-5
         tvm.testing.assert_allclose(
-            clml_out[0].asnumpy(), opencl_out[0].asnumpy(), rtol=1e-3, atol=1e-3
+            clml_out[0].asnumpy(), opencl_out[0].asnumpy(), rtol=out_rtol, atol=out_rtol
         )
 
         # Check to make sure these ops are offloaded to CLML instead of TVM.
@@ -776,13 +783,13 @@ def test_resize_bilinear(device, dtype):
                 "op": "kernel",
             },
         ]
-        # verify_codegen(out, exp_codegen, device, params)
+        verify_codegen(out, exp_codegen, device, params)
 
     _verify(*(_get_model((1, 16, 8, 8), (2, 2), False)))
     _verify(*(_get_model((1, 16, 7, 7), (2, 2), True)))
 
 
-@pytest.mark.parametrize("dtype", ["float32"])
+@pytest.mark.parametrize("dtype", ["float32", "float16"])
 @tvm.testing.requires_openclml
 def test_batch_matmul(device, dtype):
     def _get_model(a_shape, b_shape, a_transpose, b_transpose):
@@ -800,8 +807,9 @@ def test_batch_matmul(device, dtype):
         mod = IRModule.from_expr(out)
         opencl_out = build_and_run(mod, inputs, 1, params, device, enable_clml=False)[0]
         clml_out = build_and_run(mod, inputs, 1, params, device, enable_clml=True)[0]
+        out_rtol = 1e-2 if dtype == "float16" else 1e-5
         tvm.testing.assert_allclose(
-            clml_out[0].asnumpy(), opencl_out[0].asnumpy(), rtol=1e-3, atol=1e-3
+            clml_out[0].asnumpy(), opencl_out[0].asnumpy(), rtol=out_rtol, atol=out_rtol
         )
 
         # Check to make sure these ops are offloaded to CLML instead of TVM.
@@ -837,7 +845,7 @@ def test_batch_matmul(device, dtype):
                 "op": "kernel",
             },
         ]
-        # verify_codegen(out, exp_codegen, device, params)
+        verify_codegen(out, exp_codegen, device, params)
 
     _verify(*(_get_model((1, 128, 32), (1, 128, 32), False, True)))
     _verify(*(_get_model((1, 128, 128), (1, 32, 128), False, True)))
