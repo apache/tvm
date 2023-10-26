@@ -418,15 +418,21 @@ class BackwardBindingGenerator : private ExprVisitor {
     auto* tuple_sinfo = GetStructInfoAs<TupleStructInfoNode>(tuple_get_item->tuple);
     ICHECK(tuple_sinfo) << "The tuple field of a TupleGetItem must has a TupleStructInfo";
 
+    auto opt_index = tuple_get_item->GetKnownIndex();
+    ICHECK(opt_index) << "relax.transform.Gradient requires all tuple indices to be known, "
+                      << "but expression " << GetRef<Expr>(tuple_get_item) << " has index "
+                      << tuple_get_item->index << ", whose value isn't known.";
+    int index = opt_index.value()->value;
+
     const Var& tuple_var = Downcast<Var>(tuple_get_item->tuple);
     if (adjoint_var_map_.count(tuple_var) == 0) {
       auto nested_zeros = Downcast<Tuple>(NestedZeros(GetRef<StructInfo>(tuple_sinfo)));
       auto tuple_fields = nested_zeros->fields;
-      tuple_fields.Set(tuple_get_item->index, adjoint_var_map_[binding->var]);
+      tuple_fields.Set(index, adjoint_var_map_[binding->var]);
       EmitAdjoint(tuple_var, Tuple(tuple_fields), false);
     } else {
-      Expr updated_adjoint = AddInTuple(adjoint_var_map_[tuple_var], tuple_get_item->index,
-                                        adjoint_var_map_[binding->var]);
+      Expr updated_adjoint =
+          AddInTuple(adjoint_var_map_[tuple_var], index, adjoint_var_map_[binding->var]);
       EmitAdjoint(tuple_var, updated_adjoint, false);
     }
   }

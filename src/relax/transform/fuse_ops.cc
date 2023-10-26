@@ -424,7 +424,15 @@ class FunctionCreator : public ExprMutator {
         if (partially_used_tuple_params_.find(tuple_item->tuple.get()) !=
             partially_used_tuple_params_.end()) {
           // Appending get-item index to the mapping.
-          partially_used_tuple_params_[tuple_item->tuple.get()].push_back(tuple_item->index);
+          auto& used_indices = partially_used_tuple_params_[tuple_item->tuple.get()];
+          if (auto known_index = tuple_item->GetKnownIndex()) {
+            used_indices.push_back(known_index.value()->value);
+          } else {
+            auto num_fields = Downcast<TupleStructInfo>(tuple_item->struct_info_)->fields.size();
+            for (size_t i = 0; i < num_fields; i++) {
+              used_indices.push_back(i);
+            }
+          }
         }
       }
 
@@ -494,12 +502,15 @@ class FunctionCreator : public ExprMutator {
       // Special handing for TupleGetItem.
       if (const auto* var_binding = binding.as<VarBindingNode>()) {
         if (const auto* tuple_get_item = var_binding->value.as<TupleGetItemNode>()) {
-          auto it = tuple_get_item_remap.find(tuple_get_item->tuple.get());
-          if (it != tuple_get_item_remap.end()) {
-            ICHECK(it->second.find(tuple_get_item->index) != it->second.end());
-            var_remap_[var_binding->var->vid] = it->second[tuple_get_item->index];
+          if (auto it = tuple_get_item_remap.find(tuple_get_item->tuple.get());
+              it != tuple_get_item_remap.end()) {
+            auto opt_known_index = tuple_get_item->GetKnownIndex();
+            ICHECK(opt_known_index) << "FuseOps requires static indices into tuples";
+            int known_index = opt_known_index.value()->value;
+            ICHECK(it->second.find(known_index) != it->second.end());
+            var_remap_[var_binding->var->vid] = it->second[known_index];
             if (auto output_idx = GetOutputIndex(binding->var)) {
-              outputs.Set(*output_idx, it->second[tuple_get_item->index]);
+              outputs.Set(*output_idx, it->second[known_index]);
             }
             continue;
           }

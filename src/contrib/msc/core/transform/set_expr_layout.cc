@@ -48,10 +48,14 @@ LayoutDecision InferLayoutDecision(const Expr& expr, const VarLayoutMap& var_lay
 }
 
 LayoutDecision InferLayoutDecisionAt(const Expr& expr, const VarLayoutMap& var_layout_map,
-                                     size_t index = 0) {
+                                     Expr index = PrimValue::Int64(0)) {
   const auto& nlayouts = InferNLayout(expr, var_layout_map);
   if (nlayouts.IsLeaf()) {
-    return index == 0 ? nlayouts.LeafValue() : LayoutDecision("");
+    auto int_index = Downcast<PrimStructInfo>(index->struct_info_)
+                         ->value.as<IntImm>()
+                         .value_or(Integer(0))
+                         ->value;
+    return int_index == 0 ? nlayouts.LeafValue() : LayoutDecision("");
   }
   const auto& nlayout = nlayouts.NestedArray()[0];
   ICHECK(nlayout.IsLeaf()) << "Cannot get output layout for " << expr;
@@ -715,7 +719,7 @@ InferLayoutOutput BackwardInferLayoutArgMaxMin(const Call& call,
 InferLayoutOutput BackwardInferLayoutBatchNorm(const Call& call,
                                                const Map<String, Array<String>>& desired_layouts,
                                                const VarLayoutMap& var_layout_map) {
-  LayoutDecision output_layout = InferLayoutDecisionAt(call, var_layout_map, 0);
+  LayoutDecision output_layout = InferLayoutDecisionAt(call, var_layout_map);
   if (!output_layout->layout.defined()) {
     return InferLayoutOutput();
   }
@@ -749,7 +753,7 @@ InferLayoutOutput BackwardInferLayoutExpandDims(const Call& call,
 InferLayoutOutput BackwardInferLayoutNormalize(const Call& call,
                                                const Map<String, Array<String>>& desired_layouts,
                                                const VarLayoutMap& var_layout_map) {
-  LayoutDecision output_layout = InferLayoutDecisionAt(call, var_layout_map, 0);
+  LayoutDecision output_layout = InferLayoutDecisionAt(call, var_layout_map);
   if (!output_layout->layout.defined()) {
     return InferLayoutOutput();
   }

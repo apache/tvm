@@ -64,8 +64,9 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
 TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
     .set_dispatch<relax::TupleGetItem>(  //
         "", [](relax::TupleGetItem n, ObjectPath n_p, IRDocsifier d) -> Doc {
-          ExprDoc idx = LiteralDoc::Int(n->index, n_p->Attr("index"));
-          return d->AsDoc<ExprDoc>(n->tuple, n_p->Attr("tuple"))[{idx}];
+          auto tuple_doc = d->AsDoc<ExprDoc>(n->tuple, n_p->Attr("tuple"));
+          auto index_doc = d->AsDoc<ExprDoc>(n->index, n_p->Attr("index"));
+          return tuple_doc[{index_doc}];
         });
 
 TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)

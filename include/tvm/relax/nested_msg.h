@@ -388,26 +388,36 @@ TargetType NestedMsgTo(NestedMsg<T> msg, FMapLeaf fmapleaf, FCombine fcombine) {
  */
 template <typename T, typename FType>
 Expr NestedMsgToExpr(NestedMsg<T> msg, FType fmapleaf) {
-  return NestedMsgTo<Expr>(msg, fmapleaf, [](Array<Expr> arr) {
+  return NestedMsgTo<Expr>(msg, fmapleaf, [](Array<Expr> arr) -> Expr {
+    if (arr.empty()) {
+      return Tuple(arr);
+    }
+
     Optional<Expr> simplified_tuple;
-    bool simplified_flag = false;
-    if (arr.size() >= 1) {
-      simplified_flag = true;
-      for (size_t i = 0; i < arr.size() && simplified_flag; ++i) {
-        auto* node = arr[i].as<TupleGetItemNode>();
-        if (node == nullptr || node->index != static_cast<int>(i)) {
-          simplified_flag = false;
-        } else {
-          if (simplified_tuple.defined()) {
-            simplified_flag &= (simplified_tuple == node->tuple);
-          } else {
-            simplified_tuple = node->tuple;
-            ICHECK(simplified_tuple.defined());
-          }
-        }
+    for (size_t i = 0; i < arr.size(); ++i) {
+      auto* node = arr[i].as<TupleGetItemNode>();
+      if (node == nullptr) {
+        return Tuple(arr);
+      }
+
+      auto index_sinfo = node->index->struct_info_.as<PrimStructInfoNode>();
+      CHECK(index_sinfo && index_sinfo->dtype == DataType::Int(64))
+          << "The index of TupleGetItem must be R.Prim('int64'), "
+          << "but expression " << GetRef<Expr>(node) << " has index " << node->index
+          << " with struct info " << node->index->struct_info_;
+
+      auto known_index = index_sinfo->value.as<IntImmNode>();
+      if (!known_index || known_index->value != static_cast<int>(i)) {
+        return Tuple(arr);
+      }
+
+      if (simplified_tuple && !simplified_tuple.same_as(node->tuple)) {
+        return Tuple(arr);
+      } else if (!simplified_tuple) {
+        simplified_tuple = node->tuple;
       }
     }
-    return simplified_flag ? simplified_tuple.value() : Tuple(arr);
+    return simplified_tuple.value();
   });
 }
 

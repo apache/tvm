@@ -338,7 +338,7 @@ class TupleGetItemNode : public ExprNode {
   /*! \brief The tuple Expression */
   Expr tuple;
   /*! \brief which value to get */
-  int index;
+  Expr index;
 
   void VisitAttrs(tvm::AttrVisitor* v) {
     v->Visit("tuple_value", &tuple);
@@ -358,12 +358,29 @@ class TupleGetItemNode : public ExprNode {
     hash_reduce(index);
   }
 
+  /* \brief Utility to get the exact index, if known
+   *
+   * In the most common case where index is known to be an integer,
+   * this utility allows it to be extracted.
+   *
+   * \return The known integer index, or NullOpt if unknown.
+   */
+  Optional<Integer> GetKnownIndex() const;
+
   static constexpr const char* _type_key = "relax.expr.TupleGetItem";
   TVM_DECLARE_FINAL_OBJECT_INFO(TupleGetItemNode, ExprNode);
 };
 
 class TupleGetItem : public Expr {
  public:
+  /*!
+   * \brief The constructor
+   * \param tuple The tuple to get an element from.
+   * \param index The index for extracting a value in the tuple.
+   * \param span The source span of the expression.
+   */
+  TVM_DLL TupleGetItem(Expr tuple, Expr index, Span span = Span());
+
   /*!
    * \brief The constructor
    * \param tuple The tuple to get an element from.
@@ -381,9 +398,8 @@ class TupleGetItem : public Expr {
  * Returns \p tuple_get_item if all properties are unchanged. Otherwise, returns a copy with the new
  * fields.
  */
-TupleGetItem WithFields(TupleGetItem tuple_get_item, Optional<Expr> opt_tuple = Optional<Expr>(),
-                        Optional<Integer> opt_index = Optional<Integer>(),
-                        Optional<Span> opt_span = Optional<Span>());
+TupleGetItem WithFields(TupleGetItem tuple_get_item, Optional<Expr> opt_tuple = NullOpt,
+                        Optional<Expr> opt_index = NullOpt, Optional<Span> opt_span = NullOpt);
 
 /*!
  * \brief Base type of all (non-function) leaf Exprs.

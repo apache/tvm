@@ -282,9 +282,10 @@ class CodeGenVM : public ExprFunctor<Instruction::Arg(const Expr&)> {
 
   Instruction::Arg VisitExpr_(const TupleGetItemNode* op) final {
     TupleGetItem expr = GetRef<TupleGetItem>(op);
-    std::vector<Instruction::Arg> args = {this->VisitExpr(expr->tuple)};
-
-    args.push_back(builder_->ConvertConstant(expr->index));
+    std::vector<Instruction::Arg> args = {
+        VisitExpr(expr->tuple),
+        VisitExpr(expr->index),
+    };
 
     size_t dst_register = NewRegister();
     builder_->EmitCall("vm.builtin.tuple_getitem", args, dst_register);

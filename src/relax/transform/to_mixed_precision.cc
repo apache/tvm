@@ -218,15 +218,24 @@ class DTypeDecisionCollector : public ExprVisitor {
     // require the i-th field rhs tuple to be the type of the lhs
     NType lhs_type = GetDType(binding->var);
     std::vector<NType> require_rhs;
+
     const TupleStructInfoNode* sinfo =
         tuple_get_item_node->tuple->struct_info_.as<TupleStructInfoNode>();
     ICHECK(sinfo != nullptr) << "TupleGetItemNode must have TupleStructInfo";
+
+    auto opt_known_index = tuple_get_item_node->GetKnownIndex();
+    ICHECK(opt_known_index) << "ToMixedPrecision pass does not support dynamic tuple indices";
+    size_t known_index = opt_known_index.value()->value;
+
     for (size_t i = 0; i < sinfo->fields.size(); ++i) {
-      if (i == static_cast<size_t>(tuple_get_item_node->index)) {
-        require_rhs.push_back(lhs_type);
-      } else {
-        require_rhs.push_back(NTypeFrom(sinfo->fields[i], unknown_));
-      }
+      NType field_type = [&]() {
+        if (i == known_index) {
+          return lhs_type;
+        } else {
+          return NTypeFrom(sinfo->fields[i], unknown_);
+        }
+      }();
+      require_rhs.push_back(field_type);
     }
     RequireArgsToType({tuple_get_item_node->tuple}, {NType(require_rhs)});
   }

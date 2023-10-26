@@ -323,9 +323,10 @@ class CodeGenVMTIR : public ExprFunctor<Optional<PrimExpr>(const Expr&)> {
 
   Optional<PrimExpr> VisitExpr_(const TupleGetItemNode* op) final {
     TupleGetItem expr = GetRef<TupleGetItem>(op);
-    Array<PrimExpr> args = {this->VisitExpr(expr->tuple).value()};
-
-    args.push_back(ConstInt64(expr->index));
+    Array<PrimExpr> args = {
+        VisitExpr(expr->tuple).value(),
+        VisitExpr(expr->index).value(),
+    };
 
     int64_t dst_register = NewRegister();
     this->EmitCallPacked("vm.builtin.tuple_getitem", args, dst_register);

@@ -689,12 +689,9 @@ class Normalizer : public BlockBuilderImpl, private ExprFunctor<Expr(const Expr&
     TupleGetItem node = new_tuple.same_as(op->tuple) ? GetRef<TupleGetItem>(op)
                                                      : TupleGetItem(new_tuple, op->index);
 
-    if (!node->struct_info_.defined()) {
-      auto opt = MatchStructInfo<TupleStructInfo>(node->tuple);
-      ICHECK(opt) << "The struct info of Tuple must be TupleStructInfo, "
-                  << "but expression " << node << " has struct info " << node->struct_info_;
-      UpdateStructInfo(node, opt.value()->fields[node->index]);
-    }
+    ICHECK(node->struct_info_.defined())
+        << "InternalError: "
+        << "TupleGetItem expected to define its struct info on construction";
 
     return node;
   }
