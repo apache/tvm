@@ -512,7 +512,7 @@ int SampleTopPFromProb(NDArray prob, double top_p, double uniform_sample) {
 TVM_REGISTER_GLOBAL("vm.builtin.sample_top_p_from_prob").set_body_typed(SampleTopPFromProb);
 
 // NOLINTNEXTLINE(runtime/references)
-void LogSoftmax(NDArray logits, NDArray& output) {
+void LogSoftmax(NDArray logits, const NDArray& output) {
   /* log_softmax from logits is calculated.
    * Both operations are joined to more quick and stable calculations:
    * Log(Softmax(logits))[i] = Log(exp(logits[i])/Sum(exp(logits[i]), i)) =
@@ -547,7 +547,7 @@ void LogSoftmax(NDArray logits, NDArray& output) {
 
     // Fill data and find max value
     float max_value = plogits[0];
-    for (int i = 0; i < vocab_length; ++i) {
+    for (size_t i = 0; i < vocab_length; ++i) {
       data[i] = plogits[i];
       if (max_value < plogits[i]) {
         max_value = plogits[i];
@@ -565,7 +565,7 @@ void LogSoftmax(NDArray logits, NDArray& output) {
     float log_sum = logf(sum);
 
     // Compute log probes
-    for (int i = 0; i < vocab_length; ++i) {
+    for (size_t i = 0; i < vocab_length; ++i) {
       res_log_probs[i] = data[i] - log_sum;
     }
   }
