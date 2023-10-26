@@ -1403,8 +1403,7 @@ def test_rewrite_without_trivial_binding(bind_to_dataflow_var):
         @R.function(private=True)
         def expected(x: R.Tensor((1024,))):
             with R.dataflow():
-                a = R.add(x, x)
-                b = a
+                b = R.add(x, x)
                 R.output(b)
             return b
 

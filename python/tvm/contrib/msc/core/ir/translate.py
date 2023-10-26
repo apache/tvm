@@ -314,6 +314,7 @@ def byoc_partition(
         passes.extend(
             [
                 msc_transform.BindShape(),
+                msc_transform.FuseTuple(target),
                 tvm.relax.transform.MergeCompositeFunctions(),
                 msc_transform.SetExprName(target=target),
                 msc_transform.SetExprLayout(trans_config.get("allow_layout_missing", True)),

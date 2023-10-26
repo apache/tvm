@@ -228,6 +228,16 @@ bool IsImpureCall(const Call& call) {
   return !func_struct_info->purity;
 }
 
+Expr GetBoundValue(const Binding& b) {
+  if (auto* var_binding = b.as<VarBindingNode>()) {
+    return var_binding->value;
+  } else if (auto* match_binding = b.as<MatchCastNode>()) {
+    return match_binding->value;
+  } else {
+    CHECK(false) << "Invalid binding (should never happen)";
+  }
+}
+
 /*!
  * \brief Copy a new Relax function with new remapped vars and symbolic vars.
  * To get the var mapping from old vars to new vars, see FuncCopier in src/relax/transform/utils.h.
