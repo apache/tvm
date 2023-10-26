@@ -70,7 +70,9 @@ function run_pytest() {
 
     has_reruns=$(python3 -m pytest --help 2>&1 | grep 'reruns=' || true)
     if [ -n "$has_reruns" ]; then
-        extra_args+=('--reruns=3')
+        if [[ ! "${extra_args[*]}" == *"--reruns"* ]]; then
+          extra_args+=('--reruns=3')
+        fi
     fi
 
     suite_name="${test_suite_name}-${current_shard}-${ffi_type}"

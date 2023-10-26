@@ -61,11 +61,26 @@ find . -type f -path "*.pyc" | xargs rm -f
 # Test TVM
 make cython3
 
+# The RPC to remote Android device has issue of hang after few tests with in CI environments.
+# Lets run them individually on fresh rpc session.
 # OpenCL texture test on Adreno
-run_pytest ctypes ${TVM_INTEGRATION_TESTSUITE_NAME}-opencl-texture tests/python/relay/opencl_texture
+TEXTURE_TESTS=$(./ci/scripts/jenkins/pytest_ids.py --folder tests/python/relay/opencl_texture)
+i=0
+IFS=$'\n'
+for node_id in $TEXTURE_TESTS; do
+    echo "$node_id"
+    run_pytest ctypes "$TVM_INTEGRATION_TESTSUITE_NAME-opencl-texture-$i" "$node_id" --reruns=1
+    i=$((i+1))
+done
 
 # Adreno CLML test
-run_pytest ctypes ${TVM_INTEGRATION_TESTSUITE_NAME}-openclml tests/python/contrib/test_clml
+CLML_TESTS=$(./ci/scripts/jenkins/pytest_ids.py --folder tests/python/contrib/test_clml)
+i=0
+for node_id in $CLML_TESTS; do
+    echo "$node_id"
+    run_pytest ctypes "$TVM_INTEGRATION_TESTSUITE_NAME-openclml-$i" "$node_id" --reruns=1
+    i=$((i+1))
+done
 
 kill ${TRACKER_PID}
 kill ${DEVICE_PID}
