@@ -22,8 +22,8 @@ from tvm.script import ir as I, relax as R, tir as T
 
 
 def _check(mod_before, mod_expected):
-    mod = relax.transform.FuseTIR()(mod_before)
-    tvm.ir.assert_structural_equal(mod, mod_expected)
+    mod_after = relax.transform.FuseTIR()(mod_before)
+    tvm.ir.assert_structural_equal(mod_expected, mod_after)
 
 
 def test_simple():
@@ -730,6 +730,159 @@ def test_symbolic_shape_aware_fuse():
         def main(x: R.Tensor(["n", "m"], "float32")) -> R.Tensor(["n", "m"], dtype="float32"):
             with R.dataflow():
                 gv = R.emit_te(fused_add_exp_squeeze, x, R.const(1, "float32"))
+                R.output(gv)
+            return gv
+
+    _check(Before, Expected)
+
+
+def test_fuse_of_dynamic_kernel_with_var_params_and_static_args():
+    @I.ir_module
+    class Before:
+        @T.prim_func(private=True)
+        def dynamic_tir_kernel(a: T.handle, b: T.handle):
+            m = T.int64()
+            n = T.int64()
+            A = T.match_buffer(a, [m, n], "float32")
+            B = T.match_buffer(b, [m, n], "float32")
+
+            for iters in T.grid(m, n):
+                with T.block("compute"):
+                    i, j = T.axis.remap("SS", iters)
+                    B[i, j] = A[i, j] * i + j
+
+        @R.function(private=True)
+        def fused_function(x: R.Tensor([16, 32], "float32")) -> R.Tensor([16, 32], dtype="float32"):
+            R.func_attr({"Primitive": 1})
+            cls = Before
+            with R.dataflow():
+                y = R.call_tir(cls.dynamic_tir_kernel, [x], out_sinfo=R.Tensor([16, 32], "float32"))
+                z = R.call_tir(cls.dynamic_tir_kernel, [y], out_sinfo=R.Tensor([16, 32], "float32"))
+                R.output(z)
+            return z
+
+        @R.function
+        def main(x: R.Tensor([16, 32], "float32")) -> R.Tensor([16, 32], dtype="float32"):
+            cls = Before
+            with R.dataflow():
+                gv = cls.fused_function(x)
+                R.output(gv)
+            return gv
+
+    @I.ir_module
+    class Expected:
+        @T.prim_func(private=True)
+        def fused_function(
+            X: T.Buffer([T.int64(16), T.int64(32)], "float32"),
+            Z: T.Buffer([T.int64(16), T.int64(32)], "float32"),
+        ):
+            T.func_attr({"tir.noalias": True})
+            Y = T.alloc_buffer(X.shape, "float32")
+            for iters in T.grid(*X.shape):
+                with T.block("compute_Y"):
+                    i, j = T.axis.remap("SS", iters)
+                    Y[i, j] = X[i, j] * i + j
+
+            for iters in T.grid(*X.shape):
+                with T.block("compute_Z"):
+                    i, j = T.axis.remap("SS", iters)
+                    Z[i, j] = Y[i, j] * i + j
+
+        @R.function
+        def main(x: R.Tensor([16, 32], "float32")) -> R.Tensor([16, 32], dtype="float32"):
+            cls = Expected
+            with R.dataflow():
+                gv = R.call_tir(cls.fused_function, [x], out_sinfo=R.Tensor([16, 32], "float32"))
+                R.output(gv)
+            return gv
+
+    _check(Before, Expected)
+
+
+def test_fuse_of_dynamic_kernel_with_expression_params_and_static_args():
+    """Parameters and arguments do not need to match structurally
+
+    Here, the kernel requires arguments (m*n), and is provided
+    """
+
+    @I.ir_module
+    class Before:
+        @T.prim_func(private=True)
+        def dynamic_tir_kernel(a: T.handle, b: T.handle, c: T.handle, d: T.handle):
+            m = T.int64()
+            n = T.int64()
+            A = T.match_buffer(a, [m * n], "float32")
+            B = T.match_buffer(b, [m], "float32")
+            C = T.match_buffer(c, [n], "float32")
+            D = T.match_buffer(d, [m * n], "float32")
+
+            for i, j in T.grid(m, n):
+                with T.block("compute"):
+                    vi, vj = T.axis.remap("SS", [i, j])
+                    D[vi * 32 + vj] = A[vi * 32 + vj] * B[vi] + C[vj]
+
+        @R.function(private=True)
+        def fused_function(
+            x: R.Tensor([16 * 32], "float32"),
+            B: R.Tensor([16], "float32"),
+            C: R.Tensor([32], "float32"),
+        ):
+            R.func_attr({"Primitive": 1})
+            cls = Before
+            with R.dataflow():
+                y = R.call_tir(
+                    cls.dynamic_tir_kernel, [x, B, C], out_sinfo=R.Tensor([16 * 32], "float32")
+                )
+                z = R.call_tir(
+                    cls.dynamic_tir_kernel, [y, B, C], out_sinfo=R.Tensor([16 * 32], "float32")
+                )
+                R.output(z)
+            return z
+
+        @R.function
+        def main(
+            x: R.Tensor([16 * 32], "float32"),
+            B: R.Tensor([16], "float32"),
+            C: R.Tensor([32], "float32"),
+        ):
+            cls = Before
+            with R.dataflow():
+                gv = cls.fused_function(x, B, C)
+                R.output(gv)
+            return gv
+
+    @I.ir_module
+    class Expected:
+        @T.prim_func(private=True)
+        def fused_function(
+            X: T.Buffer(T.int64(512), "float32"),
+            B: T.Buffer(T.int64(16), "float32"),
+            C: T.Buffer(T.int64(32), "float32"),
+            Z: T.Buffer(T.int64(512), "float32"),
+        ):
+            T.func_attr({"tir.noalias": T.bool(True)})
+            Y = T.alloc_buffer((T.int64(512),))
+            for i, j in T.grid(T.int64(16), T.int64(32)):
+                with T.block("compute"):
+                    vi, vj = T.axis.remap("SS", [i, j])
+                    Y[vi * 32 + vj] = X[vi * 32 + vj] * B[vi] + C[vj]
+
+            for i, j in T.grid(T.int64(16), T.int64(32)):
+                with T.block("compute_1"):
+                    vi, vj = T.axis.remap("SS", [i, j])
+                    Z[vi * 32 + vj] = Y[vi * 32 + vj] * B[vi] + C[vj]
+
+        @R.function
+        def main(
+            x: R.Tensor((512,), dtype="float32"),
+            B: R.Tensor((16,), dtype="float32"),
+            C: R.Tensor((32,), dtype="float32"),
+        ) -> R.Tensor((512,), dtype="float32"):
+            cls = Expected
+            with R.dataflow():
+                gv = R.call_tir(
+                    cls.fused_function, (x, B, C), out_sinfo=R.Tensor((512,), dtype="float32")
+                )
                 R.output(gv)
             return gv
 

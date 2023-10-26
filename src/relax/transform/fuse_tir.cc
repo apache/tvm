@@ -37,7 +37,7 @@ namespace tir {
  * \brief Match symbolic vars according to the given PrimExpr, and update the var_remap.
  * Will throw errors if there is a mismatch.
  */
-class SymbolicMatcher : ExprFunctor<bool(const PrimExpr& n, const PrimExpr& other)> {
+class SymbolicMatcher : ExprFunctor<void(const PrimExpr& n, const PrimExpr& other)> {
  public:
   explicit SymbolicMatcher(Map<tir::Var, PrimExpr>* var_remap) : var_remap_(var_remap) {}
 
@@ -48,29 +48,32 @@ class SymbolicMatcher : ExprFunctor<bool(const PrimExpr& n, const PrimExpr& othe
     }
   }
   void Match(const PrimExpr& param, const PrimExpr& arg) {
-    if (!VisitExpr(param, arg)) {
-      LOG(FATAL) << "Failed to match PrimExpr " << param << " with " << arg;
-    }
+    VisitExpr(param, arg);
+    must_prove_ = arith::Analyzer().Simplify(Substitute(must_prove_, *var_remap_));
+    CHECK(!is_zero(must_prove_));
   }
 
  private:
-  bool VisitExpr(const PrimExpr& node, const PrimExpr& other) {
+  void VisitExpr(const PrimExpr& node, const PrimExpr& other) {
     if (node.same_as(other)) {
-      return true;
+      return;
     } else if (node.dtype().code() != other.dtype().code()) {
-      return false;
+      LOG(FATAL) << "Parameter expression " << node << " with dtype " << node.dtype()
+                 << " cannot match to argument " << other << " with dtype " << other.dtype();
     } else {
-      return ExprFunctor::VisitExpr(node, other);
+      ExprFunctor::VisitExpr(node, other);
     }
   }
 
-#define TVM_DECLARE_SYMBOLIC_MATCHER_BINOP(OpName)               \
-  bool VisitExpr_(const OpName* op, const PrimExpr& other) {     \
-    const auto* rhs = other.as<OpName>();                        \
-    if (!rhs) {                                                  \
-      return false;                                              \
-    }                                                            \
-    return VisitExpr(op->a, rhs->a) && VisitExpr(op->b, rhs->b); \
+#define TVM_DECLARE_SYMBOLIC_MATCHER_BINOP(OpName)                  \
+  void VisitExpr_(const OpName* op, const PrimExpr& other) {        \
+    const auto* rhs = other.as<OpName>();                           \
+    if (rhs) {                                                      \
+      VisitExpr(op->a, rhs->a);                                     \
+      VisitExpr(op->b, rhs->b);                                     \
+    } else {                                                        \
+      must_prove_ = must_prove_ && (GetRef<PrimExpr>(op) == other); \
+    }                                                               \
   }
 
   TVM_DECLARE_SYMBOLIC_MATCHER_BINOP(AddNode);
@@ -91,37 +94,51 @@ class SymbolicMatcher : ExprFunctor<bool(const PrimExpr& n, const PrimExpr& othe
   TVM_DECLARE_SYMBOLIC_MATCHER_BINOP(FloorDivNode);
   TVM_DECLARE_SYMBOLIC_MATCHER_BINOP(FloorModNode);
 
-  bool VisitExpr_(const IntImmNode* op, const PrimExpr& other) {
+  void VisitExpr_(const IntImmNode* op, const PrimExpr& other) {
     const auto* rhs = other.as<IntImmNode>();
-    return rhs && (op->value == rhs->value);
+    if (!rhs || (op->value != rhs->value)) {
+      LOG(FATAL) << "Parameter expression " << GetRef<PrimExpr>(op)
+                 << " expected an integer argument with value " << op->value << ", "
+                 << "but was provided with the argument " << other;
+    }
   }
 
-  bool VisitExpr_(const FloatImmNode* op, const PrimExpr& other) {
+  void VisitExpr_(const FloatImmNode* op, const PrimExpr& other) {
     const auto* rhs = other.as<FloatImmNode>();
-    return rhs && (op->value == rhs->value);
+    if (!rhs || (op->value != rhs->value)) {
+      LOG(FATAL) << "Parameter expression " << GetRef<PrimExpr>(op)
+                 << " expected an float argument with value " << op->value << ", "
+                 << "but was provided with the argument " << other;
+    }
   }
 
-  bool VisitExpr_(const CastNode* op, const PrimExpr& other) {
+  void VisitExpr_(const CastNode* op, const PrimExpr& other) {
     const auto* rhs = other.as<CastNode>();
-    return rhs && VisitExpr(op->value, rhs->value);
+    if (!rhs) {
+      LOG(FATAL) << "Parameter expression " << GetRef<PrimExpr>(op) << " expected an cast to "
+                 << op->dtype << " as the argument, "
+                 << "but was provided with the argument " << other;
+    }
+    VisitExpr(op->value, rhs->value);
   }
 
-  bool VisitExpr_(const VarNode* op, const PrimExpr& rhs) {
+  void VisitExpr_(const VarNode* op, const PrimExpr& rhs) {
     auto lhs = GetRef<Var>(op);
 
     if (lhs.same_as(rhs)) {
-      return true;
+      // Reference identity, no further checks needed.
     } else if (op->dtype.code() != rhs->dtype.code()) {
-      return false;
+      LOG(FATAL) << "Parameter expression " << GetRef<PrimExpr>(op) << " with dtype " << op->dtype
+                 << " cannot match to argument " << rhs << " with dtype " << rhs.dtype();
     } else if (auto it = var_remap_->find(lhs); it != var_remap_->end()) {
-      return VisitExpr((*it).second, rhs);
+      VisitExpr((*it).second, rhs);
     } else {
       var_remap_->Set(lhs, rhs);
-      return true;
     }
   }
 
   Map<tir::Var, PrimExpr>* var_remap_;
+  PrimExpr must_prove_ = Bool(true);
 };
 
 /*!
@@ -131,6 +148,8 @@ class FuseTIRBufferSubstitutor : private StmtExprMutator {
  public:
   explicit FuseTIRBufferSubstitutor(const Map<Buffer, Buffer>& buffer_map,
                                     const Map<Var, PrimExpr>& var_map) {
+    LOG(DEBUG) << "Substituting using buffer map " << buffer_map;
+    LOG(DEBUG) << "Substituting using var map " << var_map;
     buffer_remap_ = buffer_map;
     var_remap_ = var_map;
     for (const auto& [src, tgt] : buffer_map) {
