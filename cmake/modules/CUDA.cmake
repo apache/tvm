@@ -38,8 +38,6 @@ if(USE_CUDA)
   list(APPEND TVM_RUNTIME_LINKER_LIBS ${CUDA_CUDA_LIBRARY})
   list(APPEND TVM_RUNTIME_LINKER_LIBS ${CUDA_NVRTC_LIBRARY})
 
-  set(CMAKE_CUDA_ARCHITECTURES "86;80")
-
   if(USE_CUDNN)
     message(STATUS "Build with cuDNN support")
     include_directories(SYSTEM ${CUDA_CUDNN_INCLUDE_DIRS})
@@ -66,6 +64,7 @@ if(USE_CUDA)
     message(STATUS "Build with Thrust support")
     cmake_minimum_required(VERSION 3.13) # to compile CUDA code
     enable_language(CUDA)
+    set(CMAKE_CUDA_ARCHITECTURES "80;75")
     set(CMAKE_CUDA_FLAGS "${CMAKE_CUDA_FLAGS} --expt-extended-lambda")
     tvm_file_glob(GLOB CONTRIB_THRUST_SRC src/runtime/contrib/thrust/*.cu)
     list(APPEND RUNTIME_SRCS ${CONTRIB_THRUST_SRC})

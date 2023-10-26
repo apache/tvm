@@ -18,7 +18,8 @@
 if(USE_VLLM)
   message(STATUS "Build with vllm paged attention kernel.")
   include_directories(src/runtime/contrib/vllm)
-  set(CMAKE_CUDA_ARCHITECTURES 80) # without this, cmake tries to compile with compute_52
+  enable_language(CUDA)
+  set(CMAKE_CUDA_ARCHITECTURES "80;75")
   tvm_file_glob(GLOB VLLM_CONTRIB_SRC src/runtime/contrib/vllm/*.cu src/runtime/contrib/vllm/*.cc)
   list(APPEND RUNTIME_SRCS ${VLLM_CONTRIB_SRC})
 endif(USE_VLLM)
