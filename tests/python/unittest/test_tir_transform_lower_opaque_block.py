@@ -251,6 +251,34 @@ def transformed_strided_buffer_func(
 
 
 @T.prim_func
+def compacted_symbolic_strided_buffer_func(var_A: T.handle) -> None:
+    n = T.int64()
+    A = T.match_buffer(var_A, (1, n, 10240), "float32")
+    for i, j, k in T.grid(((n + 63) // 64 * 4 + 7) // 8, 2, 160):
+        with T.block(""):
+            T.reads(A[0, i * 128 + j * 32:i * 128 + j * 32 + 96, k * 64:k * 64 + 64])
+            A_pad_shared_dyn = T.alloc_buffer((1, T.min((n + 63) // 64 * 64, 96), 64), "float32", strides=(72 * T.min((n + 63) // 64 * 64, 96), 72, 1), scope="shared.dyn")
+            for ax0, ax1 in T.grid(96, 64):
+                with T.block("A_pad_shared.dyn"):
+                    T.where(i * 128 + j * 32 + ax0 < (n + 63) // 64 * 64)
+                    T.reads(A[0, i * 128 + j * 32 + ax0, k * 64 + ax1])
+                    T.writes(A_pad_shared_dyn[0, ax0, ax1])
+                    A_pad_shared_dyn[0, ax0, ax1] = T.if_then_else(i * 128 + j * 32 + ax0 < n, A[0, i * 128 + j * 32 + ax0, k * 64 + ax1], T.float16(0))
+
+
+@T.prim_func
+def transformed_symbolic_strided_buffer_func(var_A: T.handle):
+        n = T.int64()
+        A = T.match_buffer(var_A, (1, n, 10240))
+        for i, j, k in T.grid(((n + T.int64(63)) // T.int64(64) * T.int64(4) + T.int64(7)) // T.int64(8), 2, 160):
+            A_pad_shared_dyn = T.allocate([1, T.min((n + T.int64(63)) // T.int64(64) * T.int64(64), T.int64(96)), 72], "float32", "shared.dyn")
+            A_pad_shared_dyn_1 = T.decl_buffer((1, T.min((n + T.int64(63)) // T.int64(64) * T.int64(64), T.int64(96)), 64), data=A_pad_shared_dyn, strides=(T.int64(72) * T.min((n + T.int64(63)) // T.int64(64) * T.int64(64), T.int64(96)), 72, 1), scope="shared.dyn")
+            for ax0, ax1 in T.grid(96, 64):
+                if i * T.int64(128) + T.Cast("int64", j) * T.int64(32) + T.Cast("int64", ax0) < (n + T.int64(63)) // T.int64(64) * T.int64(64):
+                    A_pad_shared_dyn_1[0, ax0, ax1] = T.if_then_else(i * T.int64(128) + T.Cast("int64", j) * T.int64(32) + T.Cast("int64", ax0) < n, A[0, i * T.int64(128) + T.Cast("int64", j) * T.int64(32) + T.Cast("int64", ax0), k * 64 + ax1], T.float32(0))
+
+
+@T.prim_func
 def annotated_loops(a: T.handle) -> None:
     A = T.match_buffer(a, (16,), "float32")
     for i in range(0, 16, annotations={"pragma_1": "str_value", "pragma_2": 1, "pragma_3": 0.0}):
@@ -299,6 +327,10 @@ def test_multi_alloc():
 
 def test_strided_buffer():
     _check(compacted_strided_buffer_func, transformed_strided_buffer_func)
+
+
+def test_symbolic_strided_buffer():
+    _check(compacted_symbolic_strided_buffer_func, transformed_symbolic_strided_buffer_func)
 
 
 def test_lower_te():
