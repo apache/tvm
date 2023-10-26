@@ -2114,6 +2114,14 @@ def _test_batched_var_len_attention(mod, seq_lens, num_head, num_kv_head, head_s
 def test_batched_var_len_attention():
     @I.ir_module
     class Module:
+        I.module_global_infos(
+            {
+                "vdevice": [
+                    I.vdevice("llvm"),
+                ]
+            }
+        )
+
         @R.function
         def main(
             queries: R.Tensor(("num_tokens", 4096), dtype="float16"),
@@ -2132,7 +2140,7 @@ def test_batched_var_len_attention():
                 cumsum = R.call_dps_packed(
                     "tvm.contrib.thrust.sum_scan", seq_lens, out_sinfo=seq_lens.struct_info
                 )
-                max_seqlen_q = R.max(seq_lens)
+                max_seqlen_q = R.to_vdevice(R.max(seq_lens), "llvm:0")
                 seqstart_q = R.concat([R.zeros((1,), "int32"), cumsum])
                 q = R.reshape(queries, R.shape([1, num_tokens, 128, 32]))
                 k = R.reshape(keys, R.shape([1, num_tokens, 128, 32]))
@@ -2159,6 +2167,13 @@ def test_batched_var_len_attention():
 def test_batched_var_len_multi_query_attention():
     @I.ir_module
     class Module:
+        I.module_global_infos(
+            {
+                "vdevice": [
+                    I.vdevice("llvm"),
+                ]
+            }
+        )
         @R.function
         def main(
             queries: R.Tensor(("num_tokens", 4096), dtype="float16"),
@@ -2177,7 +2192,7 @@ def test_batched_var_len_multi_query_attention():
                 cumsum = R.call_dps_packed(
                     "tvm.contrib.thrust.sum_scan", seq_lens, out_sinfo=seq_lens.struct_info
                 )
-                max_seqlen_q = R.max(seq_lens)
+                max_seqlen_q = R.to_vdevice(R.max(seq_lens), "llvm:0")
                 seqstart_q = R.concat([R.zeros((1,), "int32"), cumsum])
                 q = R.reshape(queries, R.shape([1, num_tokens, 128, 32]))
                 k = R.reshape(keys, R.shape([1, num_tokens, 16, 32]))

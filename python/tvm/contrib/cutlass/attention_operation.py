@@ -35,9 +35,7 @@ def instantiate_attention_template(attrs):
     var_len_template = """
   p.seqstart_q_ptr = (int32_t*)${seqstart_q}->data;
   p.seqstart_k_ptr = (int32_t*)${seqstart_k}->data;
-  // TODO(masahi): Pass max_seqlen_q as an integer
-  cudaMemcpy(&p.num_queries, (int32_t*)${max_seqlen_q}->data, sizeof(int32_t),
-             cudaMemcpyDeviceToHost);
+  p.num_queries = ((int32_t*)${max_seqlen_q}->data)[0];
   p.num_batches = ${seqstart_q}->shape[0] - 1;
 """
 
@@ -285,11 +283,8 @@ def instantiate_flash_attention_var_len_template(attrs):
     """Return host code for flash attention with variable sequence lengths."""
 
     template = """
-    int _max_seqlen_q, _max_seqlen_k;
-    cudaMemcpy(&_max_seqlen_q, (int32_t*)${max_seqlen_q}->data, sizeof(int32_t),
-               cudaMemcpyDeviceToHost);
-    cudaMemcpy(&_max_seqlen_k, (int32_t*)${max_seqlen_k}->data, sizeof(int32_t),
-               cudaMemcpyDeviceToHost);
+    int _max_seqlen_q = ((int32_t*)${max_seqlen_q}->data)[0];
+    int _max_seqlen_k = ((int32_t*)${max_seqlen_k}->data)[0];
 
     int batch_size = ${seqstart_q}->shape[0] - 1;
 
