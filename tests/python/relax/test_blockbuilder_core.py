@@ -24,7 +24,7 @@ from tvm import te, tir, topi
 from tvm import relax as rx, relay
 from tvm.ir.base import assert_structural_equal
 from tvm.relax import ExternFunc
-from tvm.script import relax as R
+from tvm.script import relax as R, tir as T
 from tvm.tir.function import PrimFunc
 
 
@@ -626,6 +626,61 @@ def test_block_builder_scope_recovery():
     with bb.function("func", [x, y]):
         gv0 = bb.emit(rx.op.add(x, y))
         bb.emit_func_output(gv0)
+
+
+@pytest.mark.parametrize("emit_nested_tuple", [True, False])
+def test_emit_nested_tuple(emit_nested_tuple):
+    """Convert nested tuples when emitting relax"""
+
+    def make_function(emit_nested_tuple: bool):
+        bb = rx.BlockBuilder()
+
+        n_sym = tir.Var("n", "int64")
+        m_sym = tir.Var("m", "int64")
+        n = rx.Var("n", rx.PrimStructInfo(value=n_sym))
+        m = rx.Var("m", rx.PrimStructInfo(value=m_sym))
+        x = rx.Var("x", rx.TensorStructInfo([n_sym, m_sym], "float32"))
+        y = rx.Var("y", rx.TensorStructInfo([m_sym, n_sym], "float32"))
+
+        with bb.function("func", [n, m, x, y]):
+            scalars = (n, m)
+            if not emit_nested_tuple:
+                scalars = bb.emit(scalars)
+            output = (scalars, x, y)
+            bb.emit_func_output(output)
+
+        return bb.get()["func"]
+
+    def make_expected(emit_nested_tuple: bool):
+        if emit_nested_tuple:
+
+            @R.function
+            def func(
+                n_1: R.Prim(value="n"),
+                m_1: R.Prim(value="m"),
+                x: R.Tensor(("n", "m"), dtype="float32"),
+                y: R.Tensor(("m", "n"), dtype="float32"),
+            ):
+                return ((n_1, m_1), x, y)
+
+        else:
+
+            @R.function
+            def func(
+                n_1: R.Prim(value="n"),
+                m_1: R.Prim(value="m"),
+                x: R.Tensor(("n", "m"), dtype="float32"),
+                y: R.Tensor(("m", "n"), dtype="float32"),
+            ):
+                gv = n_1, m_1
+                return (gv, x, y)
+
+        return func
+
+    expected = make_expected(emit_nested_tuple)
+    actual = make_function(emit_nested_tuple)
+
+    tvm.ir.assert_structural_equal(expected, actual)
 
 
 if __name__ == "__main__":
