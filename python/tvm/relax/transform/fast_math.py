@@ -53,11 +53,13 @@ class FastMathCodeGenerator(PyExprMutator):
 
             def te_fast_power(x, y):
                 """
-                power(x, y) = exp(log(abs(x)) * y) * (log((x / abs(x) - 1) * (ceil(y) - floor(y)) + 1) +
-                (x / abs(x) - 1) * (y % 2) + 1).
-                When x < 0 and y is not an integer, power(x, y) = log((x / abs(x) - 1) * (ceil(y) - floor(y)) + 1)
-                = nan, otherwise log((x / abs(x) - 1) * (ceil(y) - floor(y)) + 1) = log(1) = 0.
-                When x < 0 and y is an integer, the sign of power(x, y) = (x / abs(x) - 1) * (y % 2) + 1.
+                power(x, y) = exp(log(abs(x)) * y) * (log((x / abs(x) - 1) *
+                (ceil(y) - floor(y)) + 1) + (x / abs(x) - 1) * (y % 2) + 1).
+                When x < 0 and y is not an integer, power(x, y) =
+                log((x / abs(x) - 1) * (ceil(y) - floor(y)) + 1) = nan,
+                otherwise log((x / abs(x) - 1) * (ceil(y) - floor(y)) + 1) =
+                log(1) = 0. When x < 0 and y is an integer, the sign of
+                power(x, y) = (x / abs(x) - 1) * (y % 2) + 1.
                 """
                 dtype = x.dtype
                 return topi.multiply(
