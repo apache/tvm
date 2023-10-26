@@ -34,9 +34,6 @@ struct SessionObj::FFI {
 TVM_REGISTER_OBJECT_TYPE(DRefObj);
 TVM_REGISTER_OBJECT_TYPE(SessionObj);
 TVM_REGISTER_GLOBAL("runtime.disco.SessionThreaded").set_body_typed(Session::ThreadedSession);
-TVM_REGISTER_GLOBAL("runtime.disco.DRefSession").set_body_typed([](DRef obj) {
-  return obj->session;
-});
 TVM_REGISTER_GLOBAL("runtime.disco.DRefDebugGetFromRemote")
     .set_body_method<DRef>(&DRefObj::DebugGetFromRemote);
 TVM_REGISTER_GLOBAL("runtime.disco.DRefDebugCopyFrom")
