@@ -14,17 +14,6 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+"""tvm.contrib.msc.framework.tensorrt.codegen"""
 
-if(USE_MSC)
-    tvm_file_glob(GLOB_RECURSE MSC_CORE_SOURCE "src/contrib/msc/*.cc")
-    list(APPEND COMPILER_SRCS ${MSC_CORE_SOURCE})
-
-    tvm_file_glob(GLOB_RECURSE MSC_RUNTIME_SOURCE "src/runtime/contrib/msc/*.cc")
-    list(APPEND RUNTIME_SRCS ${MSC_RUNTIME_SOURCE})
-
-    if(USE_TENSORRT_RUNTIME)
-        add_definitions("-DTENSORRT_ROOT_DIR=\"${TENSORRT_ROOT_DIR}\"")
-    endif()
-
-    message(STATUS "Build with MSC support...")
-endif()
+from .codegen import *

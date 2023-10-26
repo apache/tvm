@@ -14,17 +14,29 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+# pylint: disable=invalid-name
+"""tvm.contrib.msc.framework.tensorrt.transform.transform"""
 
-if(USE_MSC)
-    tvm_file_glob(GLOB_RECURSE MSC_CORE_SOURCE "src/contrib/msc/*.cc")
-    list(APPEND COMPILER_SRCS ${MSC_CORE_SOURCE})
+from typing import List
 
-    tvm_file_glob(GLOB_RECURSE MSC_RUNTIME_SOURCE "src/runtime/contrib/msc/*.cc")
-    list(APPEND RUNTIME_SRCS ${MSC_RUNTIME_SOURCE})
+import tvm
+from tvm.relax.transform import _ffi_api as relax_api
+from tvm.contrib.msc.core.utils import MSCFramework
+from tvm.contrib.msc.core import utils as msc_utils
 
-    if(USE_TENSORRT_RUNTIME)
-        add_definitions("-DTENSORRT_ROOT_DIR=\"${TENSORRT_ROOT_DIR}\"")
-    endif()
 
-    message(STATUS "Build with MSC support...")
-endif()
+def TransformTensorRT(version: List[int] = None) -> tvm.ir.transform.Pass:
+    """Transform the Function to fit TensorRT.
+
+    Parameters
+    ----------
+    version: list<int>
+        The tensorrt version.
+
+    Returns
+    -------
+    ret: tvm.ir.transform.Pass
+    """
+
+    version = version or msc_utils.get_version(MSCFramework.TENSORRT)
+    return relax_api.TransformTensorRT(version)  # type: ignore

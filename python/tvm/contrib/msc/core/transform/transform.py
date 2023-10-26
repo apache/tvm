@@ -100,3 +100,21 @@ def BindShape(entry_name: str = "main") -> tvm.ir.transform.Pass:
     """
 
     return relax_api.BindShape(entry_name)  # type: ignore
+
+
+def FuseTuple(target, entry_name: str = "main") -> tvm.ir.transform.Pass:
+    """Fuse Tuple and TupleGetItem to target
+
+    Parameters
+    ----------
+    target: str
+        The byoc target name
+    entry_name: str
+        The entry name
+
+    Returns
+    -------
+    ret: tvm.ir.transform.Pass
+    """
+
+    return relax_api.FuseTuple(target, entry_name)  # type: ignore
