@@ -54,6 +54,7 @@ class CodeGenCUDA final : public CodeGenC {
   void PrintVecBinaryOp(const std::string& op, DataType t, PrimExpr lhs, PrimExpr rhs,
                         std::ostream& os) final;       // NOLINT(*)
   void PrintType(DataType t, std::ostream& os) final;  // NOLINT(*)
+  void PrintVecConstructor(DataType t, std::ostream& os) final;
   void PrintVecElemLoad(const std::string& vec, DataType t, int i,
                         std::ostream& os) final;  // NOLINT(*)
   void PrintVecElemStore(const std::string& vec, DataType t, int i, const std::string& value) final;
@@ -62,7 +63,6 @@ class CodeGenCUDA final : public CodeGenC {
   std::string CastFromTo(std::string value, DataType from, DataType target) final;
   // overload visitor
   void VisitExpr_(const RampNode* op, std::ostream& os) final;       // NOLINT(*)
-  void VisitExpr_(const ShuffleNode* op, std::ostream& os) final;    // NOLINT(*)
   void VisitExpr_(const SelectNode* op, std::ostream& os) final;     // NOLINT(*)
   void VisitExpr_(const BroadcastNode* op, std::ostream& os) final;  // NOLINT(*)
   void VisitExpr_(const FloatImmNode* op, std::ostream& os) final;
