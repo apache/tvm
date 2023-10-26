@@ -203,14 +203,7 @@ class CodeGenVMTIR : public ExprFunctor<Optional<PrimExpr>(const Expr&)> {
   Optional<PrimExpr> VisitExpr_(const SeqExprNode* op) final {
     for (auto block : op->blocks) {
       for (Binding binding : block->bindings) {
-        Optional<PrimExpr> value;
-        if (auto* var_binding = binding.as<VarBindingNode>()) {
-          value = this->VisitExpr(var_binding->value);
-        } else if (auto* match_cast = binding.as<MatchCastNode>()) {
-          value = this->VisitExpr(match_cast->value);
-        } else {
-          LOG(FATAL) << "Unsupported binding " << binding->GetTypeKey();
-        }
+        Optional<PrimExpr> value = VisitExpr(binding->value);
         this->var_map_.insert({binding->var, value});
       }
     }

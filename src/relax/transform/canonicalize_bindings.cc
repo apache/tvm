@@ -127,15 +127,10 @@ class CanonicalizePlanner : public ExprVisitor {
 
   void VisitBinding(const Binding& binding) override {
     bool has_same_struct_info = true;
-    Expr value;
-    if (auto ptr = binding.as<VarBindingNode>()) {
-      value = ptr->value;
-    } else if (auto ptr = binding.as<MatchCastNode>()) {
+    Expr value = binding->value;
+    if (auto ptr = binding.as<MatchCastNode>()) {
       has_same_struct_info =
           StructuralEqual()(GetStructInfo(binding->var), GetStructInfo(ptr->value));
-      value = ptr->value;
-    } else {
-      LOG(FATAL) << "Invalid binding type: " << binding->GetTypeKey();
     }
 
     // Unwrap TupleGetItem, if the Tuple being accessed is known.
@@ -229,7 +224,7 @@ class BindingCanonicalizer : public ExprMutator {
     for (int i = new_block->bindings.size() - 1; i >= 0; i--) {
       auto binding = new_block->bindings[i];
       auto var = binding->var;
-      auto value = GetBoundValue(binding);
+      auto value = binding->value;
 
       if (var->IsInstance<DataflowVarNode>()) {
         auto df_var = Downcast<DataflowVar>(var);
@@ -292,8 +287,8 @@ class BindingCanonicalizer : public ExprMutator {
         changed = true;
         continue;
       } else if (!binding->var->IsInstance<DataflowVarNode>() &&
-                 GetBoundValue(binding)->IsInstance<DataflowVarNode>() &&
-                 candidates.count(Downcast<DataflowVar>(GetBoundValue(binding)))) {
+                 binding->value->IsInstance<DataflowVarNode>() &&
+                 candidates.count(Downcast<DataflowVar>(binding->value))) {
         changed = true;
         if (auto* match_binding = binding.as<MatchCastNode>()) {
           auto new_binding =

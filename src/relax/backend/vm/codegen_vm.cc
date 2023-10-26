@@ -122,14 +122,7 @@ class CodeGenVM : public ExprFunctor<Instruction::Arg(const Expr&)> {
   Instruction::Arg VisitExpr_(const SeqExprNode* op) final {
     for (auto block : op->blocks) {
       for (Binding binding : block->bindings) {
-        Instruction::Arg value;
-        if (auto* var_binding = binding.as<VarBindingNode>()) {
-          value = this->VisitExpr(var_binding->value);
-        } else if (auto* match_cast = binding.as<MatchCastNode>()) {
-          value = this->VisitExpr(match_cast->value);
-        } else {
-          LOG(FATAL) << "Unsupported binding " << binding->GetTypeKey();
-        }
+        Instruction::Arg value = VisitExpr(binding->value);
         this->var_arg_map_.insert({binding->var, value});
       }
     }

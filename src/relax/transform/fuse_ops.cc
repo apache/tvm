@@ -894,13 +894,7 @@ class OperatorFusor : public ExprMutator {
         }
       };
 
-      if (const auto* var_binding = binding.as<VarBindingNode>()) {
-        PostOrderVisit(var_binding->value, update_boundary);
-      } else {
-        const auto* match_cast = binding.as<MatchCastNode>();
-        ICHECK_NOTNULL(match_cast);
-        PostOrderVisit(match_cast->value, update_boundary);
-      }
+      PostOrderVisit(binding->value, update_boundary);
     }
   }
 

@@ -229,13 +229,13 @@ bool IsImpureCall(const Call& call) {
 }
 
 Expr GetBoundValue(const Binding& b) {
-  if (auto* var_binding = b.as<VarBindingNode>()) {
-    return var_binding->value;
-  } else if (auto* match_binding = b.as<MatchCastNode>()) {
-    return match_binding->value;
-  } else {
-    CHECK(false) << "Invalid binding (should never happen)";
+  static bool first_usage = true;
+  if (first_usage) {
+    LOG(WARNING) << "Use of the GetBoundValue function is deprecated.  "
+                 << "The bound value can instead be accessed directly "
+                 << "with 'binding->value'.";
   }
+  return b->value;
 }
 
 /*!

@@ -519,11 +519,10 @@ BindingBlock ExprMutatorBase::VisitBindingBlock(const BindingBlock& block) {
   Array<Binding> bindings;
   if (const auto* node = block.as<BindingBlockNode>()) {
     for (auto binding : node->bindings) {
+      Expr new_value = this->VisitExpr(binding->value);
       if (auto var_binding = binding.as<VarBindingNode>()) {
-        Expr new_value = this->VisitExpr(var_binding->value);
         bindings.push_back(VarBinding(var_binding->var, new_value));
       } else if (auto match_cast = binding.as<MatchCastNode>()) {
-        Expr new_value = this->VisitExpr(match_cast->value);
         bindings.push_back(MatchCast(match_cast->var, new_value, match_cast->struct_info));
       } else {
         LOG(FATAL) << "TypeError: Invalid type: " << binding->GetTypeKey();

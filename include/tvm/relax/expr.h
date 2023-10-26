@@ -722,6 +722,10 @@ class BindingNode : public Object {
  public:
   /*! \brief The return variable to bound to. */
   Var var;
+
+  /*! \brief The binding value. */
+  Expr value;
+
   mutable Span span;
 
   static constexpr const char* _type_key = "relax.expr.Binding";
@@ -751,8 +755,6 @@ class Binding : public ObjectRef {
  */
 class MatchCastNode : public BindingNode {
  public:
-  /*! \brief The input value to match cast. */
-  Expr value;
   /*! \brief The struct info pattern to match to. */
   StructInfo struct_info;
 
@@ -796,9 +798,6 @@ class MatchCast : public Binding {
 
 class VarBindingNode : public BindingNode {
  public:
-  /*! \brief The binding value. */
-  Expr value;
-
   void VisitAttrs(AttrVisitor* v) {
     v->Visit("var", &var);
     v->Visit("value", &value);

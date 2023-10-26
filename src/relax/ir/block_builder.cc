@@ -226,29 +226,18 @@ class BlockBuilderImpl : public BlockBuilderNode {
   void EmitNormalized(Binding binding) final {
     BlockFrame* cur_frame = CurrentBlockFrame();
 
-    if (const auto* var_binding = binding.as<VarBindingNode>()) {
-      if (!cur_frame->is_dataflow) {
-        ICHECK(!var_binding->var.as<DataflowVarNode>())
-            << "Cannot emit dataflow var in non-dataflow block";
-      }
-      // normalized check
-      ICHECK(var_binding->var->struct_info_.defined());
-      ICHECK(var_binding->value->struct_info_.defined());
-      cur_frame->bindings.push_back(binding);
-      binding_table_[var_binding->var->vid] = var_binding->value;
-    } else if (const auto* match_cast = binding.as<MatchCastNode>()) {
-      if (!cur_frame->is_dataflow) {
-        ICHECK(!match_cast->var.as<DataflowVarNode>())
-            << "Cannot emit dataflow var in non-dataflow block";
-      }
-      // normalized check
-      ICHECK(match_cast->var->struct_info_.defined());
-      ICHECK(match_cast->value->struct_info_.defined());
+    if (!cur_frame->is_dataflow) {
+      ICHECK(!binding->var.as<DataflowVarNode>())
+          << "Cannot emit dataflow var in non-dataflow block";
+    }
+    // normalized check
+    ICHECK(binding->var->struct_info_.defined());
+    ICHECK(binding->value->struct_info_.defined());
+    cur_frame->bindings.push_back(binding);
+    if (binding.as<VarBindingNode>()) {
       // NOTE match shape do not follow simple binding rule
       // as a result should not appear in binding table.
-      cur_frame->bindings.push_back(binding);
-    } else {
-      LOG(FATAL) << "Unsupported binding type: " << binding->GetTypeKey();
+      binding_table_[binding->var->vid] = binding->value;
     }
   }
 
