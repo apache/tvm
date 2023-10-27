@@ -16,15 +16,14 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+#include <tvm/runtime/ndarray.h>
+#include <tvm/runtime/packed_func.h>
+#include <tvm/runtime/registry.h>
 
 #include <algorithm>
 #include <cassert>
 #include <map>
 #include <vector>
-
-#include <tvm/runtime/ndarray.h>
-#include <tvm/runtime/packed_func.h>
-#include <tvm/runtime/registry.h>
 
 namespace vllm {
 
@@ -77,7 +76,7 @@ namespace runtime {
 
 TVM_REGISTER_GLOBAL("tvm.contrib.vllm.reshape_and_cache")
     .set_body_typed([](NDArray key, NDArray value, NDArray key_cache,
-		       NDArray value_cache, NDArray slot_mapping) {
+                       NDArray value_cache, NDArray slot_mapping) {
       int num_tokens = key->shape[0];
       int num_heads = key->shape[1];
       int head_size = key->shape[2];
@@ -92,11 +91,11 @@ TVM_REGISTER_GLOBAL("tvm.contrib.vllm.reshape_and_cache")
 
       using scalar_t = uint16_t;
       vllm::reshape_and_cache_kernel<scalar_t><<<grid, block>>>(
-	static_cast<const scalar_t*>(key->data),
-	static_cast<const scalar_t*>(value->data),
-	static_cast<scalar_t*>(key_cache->data),
-	static_cast<scalar_t*>(value_cache->data),
-	static_cast<const int*>(slot_mapping->data),
+        static_cast<const scalar_t*>(key->data),
+        static_cast<const scalar_t*>(value->data),
+        static_cast<scalar_t*>(key_cache->data),
+        static_cast<scalar_t*>(value_cache->data),
+        static_cast<const int*>(slot_mapping->data),
         key_stride,
         value_stride,
         num_heads,

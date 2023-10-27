@@ -719,4 +719,4 @@ inline __device__ void zero(uint16_t& dst) {
   dst = uint16_t(0);
 }
 
-} // namespace vllm
+}  // namespace vllm

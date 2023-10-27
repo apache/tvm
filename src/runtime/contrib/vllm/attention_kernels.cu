@@ -17,13 +17,13 @@
  */
 #include "dtype_float16.h"
 
-#include <algorithm>
-#include <float.h>
-#include <type_traits>
-
 #include <tvm/runtime/ndarray.h>
 #include <tvm/runtime/packed_func.h>
 #include <tvm/runtime/registry.h>
+
+#include <algorithm>
+#include <float.h>
+#include <type_traits>
 
 #define WARP_SIZE 32
 #define MAX(a, b) ((a) > (b) ? (a) : (b))
@@ -111,12 +111,12 @@ __global__ void single_query_cached_kv_attention_kernel(
   const int* __restrict__ block_tables,   // [num_seqs, max_num_blocks_per_seq]
   const int* __restrict__ context_lens,   // [num_seqs]
   const int max_num_blocks_per_seq,
-  const float* __restrict__ alibi_slopes, // [num_heads]
+  const float* __restrict__ alibi_slopes,  // [num_heads]
   const int q_stride,
   const int kv_block_stride,
   const int kv_head_stride) {
   constexpr int THREAD_GROUP_SIZE = MAX(WARP_SIZE / BLOCK_SIZE, 1);
-  constexpr int NUM_THREAD_GROUPS = NUM_THREADS / THREAD_GROUP_SIZE; // Note: This assumes THREAD_GROUP_SIZE divides NUM_THREADS
+  constexpr int NUM_THREAD_GROUPS = NUM_THREADS / THREAD_GROUP_SIZE;  // Note: This assumes THREAD_GROUP_SIZE divides NUM_THREADS
   assert(NUM_THREADS % THREAD_GROUP_SIZE == 0);
   constexpr int NUM_TOKENS_PER_THREAD_GROUP = (BLOCK_SIZE + WARP_SIZE - 1) / WARP_SIZE;
   constexpr int NUM_WARPS = NUM_THREADS / WARP_SIZE;
@@ -158,7 +158,7 @@ __global__ void single_query_cached_kv_attention_kernel(
     const int vec_idx = thread_group_offset + i * THREAD_GROUP_SIZE;
     q_vecs[thread_group_offset][i] = *reinterpret_cast<const Q_vec*>(q_ptr + vec_idx * VEC_SIZE);
   }
-  __syncthreads(); // TODO(naed90): possible speedup if this is replaced with a memory wall right before we use q_vecs
+  __syncthreads();  // TODO(naed90): possible speedup if this is replaced with a memory wall right before we use q_vecs
 
   // Memory planning.
   extern __shared__ char shared_mem[];
@@ -368,7 +368,7 @@ __global__ void single_query_cached_kv_attention_kernel(
   }
 }
 
-} // namespace vllm
+}  // namespace vllm
 
 namespace tvm {
 namespace runtime {
@@ -400,14 +400,14 @@ template<
   int NUM_THREADS = 128>
 void single_query_cached_kv_attention_launcher(
                        DLTensor* out,
-		       const DLTensor* query,
-		       const DLTensor* key_cache,
-		       const DLTensor* value_cache,
-		       const DLTensor* head_mapping,
-		       float scale,
-		       const DLTensor* block_tables,
-       		       const DLTensor* context_lens,
-   	               int max_context_len) {
+                       const DLTensor* query,
+                       const DLTensor* key_cache,
+                       const DLTensor* value_cache,
+                       const DLTensor* head_mapping,
+                       float scale,
+                       const DLTensor* block_tables,
+                       const DLTensor* context_lens,
+                       int max_context_len) {
   int num_seqs = query->shape[0];
   int num_heads = query->shape[1];
   int head_size = query->shape[2];
@@ -476,26 +476,26 @@ void single_query_cached_kv_attention_launcher(
 
 TVM_REGISTER_GLOBAL("tvm.contrib.vllm.single_query_cached_kv_attention")
     .set_body_typed([](const DLTensor* query,
-		       const DLTensor* key_cache,
-		       const DLTensor* value_cache,
-		       const DLTensor* head_mapping,
-		       const DLTensor* block_tables,
-       		       const DLTensor* context_lens,
-		       int block_size,
-		       const DLTensor* max_context_len_tensor, // TODO(masahi): pass integer
-		       DLTensor* out) {
+                       const DLTensor* key_cache,
+                       const DLTensor* value_cache,
+                       const DLTensor* head_mapping,
+                       const DLTensor* block_tables,
+                       const DLTensor* context_lens,
+                       int block_size,
+                       const DLTensor* max_context_len_tensor,  // TODO(masahi): pass integer
+                       DLTensor* out) {
         float scale = 1.0 / sqrt(query->shape[2]);
-        int max_context_len = ((int*)max_context_len_tensor->data)[0];
+        int max_context_len = static_cast<int*>(max_context_len_tensor->data)[0];
 
-	if (block_size == 8) {
-	  CALL_KERNEL_LAUNCHER(8);
-	} else if (block_size == 16) {
-	  CALL_KERNEL_LAUNCHER(16);
-	} else if (block_size == 32) {
-	  CALL_KERNEL_LAUNCHER(32);
-	} else {
-	  LOG(FATAL) << "Unsupported block size: " << block_size;
-	}
+        if (block_size == 8) {
+          CALL_KERNEL_LAUNCHER(8);
+        } else if (block_size == 16) {
+          CALL_KERNEL_LAUNCHER(16);
+        } else if (block_size == 32) {
+          CALL_KERNEL_LAUNCHER(32);
+        } else {
+          LOG(FATAL) << "Unsupported block size: " << block_size;
+        }
     });
 }  // namespace runtime
 }  // namespace tvm
