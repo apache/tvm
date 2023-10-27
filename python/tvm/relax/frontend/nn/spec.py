@@ -18,11 +18,10 @@
 import inspect
 import threading
 import typing
-from collections import defaultdict
 
 from tvm import tir
 from tvm.ir import IRModule
-from tvm.runtime import load_static_library
+from tvm.runtime import Module, load_static_library
 
 from ... import expr as rx
 from ...block_builder import BlockBuilder
@@ -329,19 +328,28 @@ class ExternFunctionSpec:  # pylint: disable=too-few-public-methods
 class ExternModuleSpec:  # pylint: disable=too-few-public-methods
     """A spec for a compiled external Module."""
 
-    filename: str
+    library: typing.Union[str, Module]
     functions: typing.List[ExternFunctionSpec]
 
     def __init__(
         self,
-        filename: str,
+        library: typing.Union[str, Module],
         functions: typing.List[ExternFunctionSpec],
     ) -> None:
-        self.filename = filename
+        self.library = library
         self.functions = functions
 
+    def load_library(self) -> Module:
+        """Load the external library into Module."""
+        if isinstance(self.library, Module):
+            return self.library
+        return load_static_library(
+            self.library,
+            func_names=[func.symbol for func in self.functions],
+        )
+
     def __repr__(self) -> str:
-        return f"ExternModuleSpec(path={self.filename}):\n" + "\n".join(
+        return f"ExternModuleSpec(library={self.library}):\n" + "\n".join(
             f"  {func.__repr__()}" for func in self.functions
         )
 
@@ -399,16 +407,16 @@ class SpecBuilder:
                 result.append((name, effect))
             return result
 
-        def _extern_modules():
-            mod2func = defaultdict(set)
+        def _extern_modules() -> typing.List[core.ExternModule]:
+            result = []
+            used = set()
             for _, extern_module in core._attribute_finder(
                 spec.module, "", condition_yield=lambda x: isinstance(x, core.ExternModule)
             ):
-                module_spec = extern_module.module_spec
-                mod2func[module_spec.filename].update(
-                    [function_spec.symbol for function_spec in module_spec.functions]
-                )
-            return [(mod, list(funcs)) for mod, funcs in mod2func.items()]
+                if extern_module not in used:
+                    used.add(extern_module)
+                    result.append(extern_module)
+            return result
 
         # pylint: enable=protected-access
 
@@ -439,8 +447,8 @@ class SpecBuilder:
                         outputs, inputs = _emit_method(self.builder, method_spec, params, effects)
                     self.builder.emit_func_output(outputs, inputs)
         external_mods = []
-        for lib_path, func_names in extern_modules:
-            external_mods.append(load_static_library(path=lib_path, func_names=func_names))
+        for extern_module in extern_modules:
+            external_mods.append(extern_module.module_spec.load_library())
         mod = self.builder.get()
         if extern_modules:
             original_external_mods = mod.get_attr("external_mods")

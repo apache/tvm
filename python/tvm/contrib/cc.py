@@ -15,14 +15,16 @@
 # specific language governing permissions and limitations
 # under the License.
 """Util to invoke C/C++ compilers in the system."""
-# pylint: disable=invalid-name
-import sys
-import shutil
 import os
+import shutil
 import subprocess
 
-from . import utils as _utils, tar as _tar
+# pylint: disable=invalid-name
+import sys
+
 from .._ffi.base import py_str
+from . import tar as _tar
+from . import utils as _utils
 
 
 def _is_linux_like():
@@ -31,6 +33,10 @@ def _is_linux_like():
         or sys.platform.startswith("linux")
         or sys.platform.startswith("freebsd")
     )
+
+
+def _is_windows_like():
+    return sys.platform == "win32"
 
 
 def get_cc():
@@ -79,7 +85,7 @@ def create_shared(output, objects, options=None, cc=None):
 
     if _is_linux_like():
         _linux_compile(output, objects, options, cc, compile_shared=True)
-    elif sys.platform == "win32":
+    elif _is_windows_like():
         _windows_compile(output, objects, options)
     else:
         raise ValueError("Unsupported platform")
@@ -154,7 +160,7 @@ def create_executable(output, objects, options=None, cc=None):
 
     if _is_linux_like():
         _linux_compile(output, objects, options, cc)
-    elif sys.platform == "win32":
+    elif _is_windows_like():
         _windows_compile(output, objects, options)
     else:
         raise ValueError("Unsupported platform")
