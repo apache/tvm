@@ -39,13 +39,13 @@
 namespace tvm {
 namespace codegen {
 
-#define HIPRTC_CALL(x)                                                         \
-  {                                                                            \
-    hiprtcResult result = x;                                                   \
-    if (result != HIPRTC_SUCCESS) {                                            \
-      LOG(FATAL) << "HiprtcError: " #x " failed with error: "                  \
-                 << hiprtcGetErrorString(result);                              \
-    }                                                                          \
+#define HIPRTC_CALL(x)                                        \
+  {                                                           \
+    hiprtcResult result = x;                                  \
+    if (result != HIPRTC_SUCCESS) {                           \
+      LOG(FATAL) << "HiprtcError: " #x " failed with error: " \
+                 << hiprtcGetErrorString(result);             \
+    }                                                         \
   }
 
 std::string FindHIPIncludePath() {
@@ -168,8 +168,7 @@ runtime::Module BuildHIP(IRModule mod, Target target) {
     ptx = (*f)(code).operator std::string();
     // Dirty matching to check PTX vs hsaco.
     // TODO(leiwang1999) more reliable checks
-    if (ptx[0] != '/')
-      fmt = "hsaco";
+    if (ptx[0] != '/') fmt = "hsaco";
   } else {
     ptx = HIPRTCCompile(code, cg.need_include_path());
   }
@@ -179,5 +178,5 @@ runtime::Module BuildHIP(IRModule mod, Target target) {
 }
 
 TVM_REGISTER_GLOBAL("target.build.hip").set_body_typed(BuildHIP);
-} // namespace codegen
-} // namespace tvm
+}  // namespace codegen
+}  // namespace tvm

@@ -164,7 +164,6 @@ def test_wmma_f16f16f32_m16n16k16():
     in_dtype = "float16"
     out_dtype = "float32"
     i_factors, j_factors, k_factors = [1, 8, 2, 4, 1], [1, 16, 2, 1, 2], [32, 2, 1]
-
     timer = run_wmma_test(
         k_inner,
         in_dtype,
@@ -272,3 +271,7 @@ def test_wmma_i8i8i32_m32n32k8():
 
     if measure_perf and timer:
         print("i8i8i32_m32n32k8: %f GFLOPS" % (gflops / (timer().mean)))
+
+
+if __name__ == "__main__":
+    test_wmma_f16f16f32_m16n16k16()
