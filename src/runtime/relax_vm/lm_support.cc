@@ -556,11 +556,11 @@ void LogSoftmax(NDArray logits, const NDArray& output) {
 
     // Compute denominator
     float sum = 0.0f;
-    std::transform(data.begin(), data.end(), data.begin(), [&sum, max_value](float d) {
-      float value = d - max_value;
+    for (size_t i = 0; i < vocab_length; ++i) {
+      float value = data[i] - max_value;
       sum += expf(value);
-      return value;
-    });
+      data[i] = value;
+    }
 
     float log_sum = logf(sum);
 
