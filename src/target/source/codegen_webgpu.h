@@ -67,6 +67,7 @@ class CodeGenWebGPU final : public CodeGenC {
   void VisitExpr_(const SelectNode* op, std::ostream& os) override;   // NOLINT(*)
   void VisitExpr_(const FloatImmNode* op, std::ostream& os) final;    // NOLINT(*)
   void VisitExpr_(const IntImmNode* op, std::ostream& os) final;      // NOLINT(*)
+  void VisitExpr_(const ShuffleNode* op, std::ostream& os) final;     // NOLINT(*)
 
   // stmt printing
   void VisitStmt_(const LetStmtNode* op) final;

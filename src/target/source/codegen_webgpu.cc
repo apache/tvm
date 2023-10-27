@@ -349,6 +349,47 @@ void CodeGenWebGPU::VisitExpr_(const BufferLoadNode* op, std::ostream& os) {  //
   }
 }
 
+void CodeGenWebGPU::VisitExpr_(const ShuffleNode* op, std::ostream& os) {  // NOLINT(*)
+  // First concatenate op->vectors, then return those indexed by op->indices.
+  // 1. concat_vec = concat(op->vectors)
+  // 2. Return (concat_vec[op->indices[0]], concat_vec[op->indices[1]], ...)
+
+  // 1. Print expr first in case each expr have their own nested expressions.
+  // e.g. if op->vectors is [f32 a, vec3 b, vec2 c]
+  // then concat_vec is ["a", "b[0]", "b[1]", "b[2]", "c[0]", "c[1]"]
+  std::vector<std::string> concat_vec;
+  for (PrimExpr vec : op->vectors) {
+    std::string vec_value = this->PrintExpr(vec);
+    if (vec.dtype().lanes() == 1) {
+      concat_vec.push_back(vec_value);
+    } else {
+      // Print out each element of vec
+      for (int i = 0; i < vec.dtype().lanes(); ++i) {
+        std::ostringstream vec_elem_strm;
+        vec_elem_strm << vec_value << "[" << i << "]";
+        concat_vec.push_back(vec_elem_strm.str());
+      }
+    }
+  }
+
+  // 2. Print out shuffle
+  if (op->indices.size() == 1) {
+    // If only accessing one element (ExtractElement), directly print the value
+    // e.g. if op->indices is [1], then print "b[0]"
+    os << concat_vec[Downcast<IntImm>(op->indices[0])->value];
+  } else {
+    // Otherwise, print the shuffle as a vector constructor
+    // e.g. if op->indices is [0, 3, 5], then print "vec3<f32>(a, b[2], c[1])"
+    PrintType(op->dtype, os);
+    os << '(';
+    for (size_t i = 0; i < op->indices.size(); ++i) {
+      if (i != 0) os << ", ";
+      os << concat_vec[Downcast<IntImm>(op->indices[i])->value];
+    }
+    os << ')';
+  }
+}
+
 void CodeGenWebGPU::VisitStmt_(const LetStmtNode* op) {
   // use ssa form.
   if (print_ssa_form_) {
