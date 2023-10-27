@@ -183,9 +183,9 @@ class EnvCAPIRegistry {
   }
 
   void DecRef(void* python_obj) {
-    ICHECK(py_inc_ref) << "Attempted to call Py_IncRef through EnvCAPIRegistry, "
-                       << "but Py_IncRef wasn't registered";
-    (*py_inc_ref)(python_obj);
+    ICHECK(py_dec_ref) << "Attempted to call Py_DecRef through EnvCAPIRegistry, "
+                       << "but Py_DecRef wasn't registered";
+    (*py_dec_ref)(python_obj);
   }
 
  private:
