@@ -332,7 +332,7 @@ def byoc_partition(
 
     graphs_info, all_weights = [], _ffi_api.GetRelaxWeights(msc_mod, entry)
     for name in func_names:
-        build_config.update({"graph_name": msc_mod[name].attrs["byoc_name"], "byoc_entry": name})
+        build_config.update({"graph_name": name, "byoc_entry": name})
         graph = _ffi_api.BuildFromRelax(msc_mod, entry, msc_utils.dump_dict(build_config))
         graphs_info.append((graph, normalize_weights(all_weights, graph)))
     return _partition_mod(mod, False), graphs_info
