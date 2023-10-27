@@ -54,7 +54,7 @@ import numpy as np
 import pathlib
 
 import tvm
-from tvm.relay.backend import Runtime
+from tvm.relay.backend import Runtime, Executor
 import tvm.micro.testing
 
 ####################
@@ -103,6 +103,7 @@ params = {"weight": weight_sample}
 #
 
 RUNTIME = Runtime("crt", {"system-lib": True})
+EXECUTOR = Executor("graph")
 TARGET = tvm.micro.testing.get_target("crt")
 
 # Compiling for physical hardware
@@ -212,7 +213,9 @@ for task in tasks:
 #
 
 with pass_context:
-    lowered = tvm.relay.build(relay_mod, target=TARGET, runtime=RUNTIME, params=params)
+    lowered = tvm.relay.build(
+        relay_mod, target=TARGET, runtime=RUNTIME, params=params, executor=EXECUTOR
+    )
 
 temp_dir = tvm.contrib.utils.tempdir()
 project = tvm.micro.generate_project(
@@ -256,7 +259,9 @@ with tvm.micro.Session(project.transport()) as session:
 
 with tvm.autotvm.apply_history_best(str(autotune_log_file)):
     with pass_context:
-        lowered_tuned = tvm.relay.build(relay_mod, target=TARGET, runtime=RUNTIME, params=params)
+        lowered_tuned = tvm.relay.build(
+            relay_mod, target=TARGET, runtime=RUNTIME, params=params, executor=EXECUTOR
+        )
 
 temp_dir = tvm.contrib.utils.tempdir()
 project = tvm.micro.generate_project(

@@ -102,6 +102,16 @@ def _make_add_sess(temp_dir, board, build_config, use_fvp, serial_number, dtype=
     )
 
 
+def _build_module(ir_module, board: str, target: tvm.target.Target = None):
+    runtime = Runtime("crt", {"system-lib": True})
+    if not target:
+        target = tvm.micro.testing.get_target("zephyr", board)
+    executor = Executor("graph")
+    with tvm.transform.PassContext(opt_level=3, config={"tir.disable_vectorize": True}):
+        mod = tvm.relay.build(ir_module, target=target, runtime=runtime, executor=executor)
+    return mod
+
+
 # The same test code can be executed on both the QEMU simulation and on real hardware.
 @tvm.testing.requires_micro
 @pytest.mark.skip_boards(["mps2_an521"])
@@ -206,11 +216,7 @@ def test_relay(workspace_dir, board, microtvm_debug, use_fvp, serial_number):
     z = relay.add(xx, relay.const(np.ones(shape=shape, dtype=dtype)))
     func = relay.Function([x], z)
     ir_mod = tvm.IRModule.from_expr(func)
-
-    runtime = Runtime("crt", {"system-lib": True})
-    target = tvm.micro.testing.get_target("zephyr", board)
-    with tvm.transform.PassContext(opt_level=3, config={"tir.disable_vectorize": True}):
-        mod = tvm.relay.build(ir_mod, target=target, runtime=runtime)
+    mod = _build_module(ir_mod, board)
 
     with _make_session(workspace_dir, board, mod, build_config, use_fvp, serial_number) as session:
         graph_mod = tvm.micro.create_local_graph_executor(
@@ -291,10 +297,7 @@ def check_result(
 ):
     """Helper function to verify results"""
     TOL = 1e-5
-    runtime = Runtime("crt", {"system-lib": True})
-    target = tvm.micro.testing.get_target("zephyr", board)
-    with tvm.transform.PassContext(opt_level=3, config={"tir.disable_vectorize": True}):
-        mod = tvm.relay.build(relay_mod, target=target, runtime=runtime)
+    mod = _build_module(relay_mod, board)
 
     with _make_session(temp_dir, board, mod, build_config, use_fvp, serial_number) as session:
         rt_mod = tvm.micro.create_local_graph_executor(
@@ -577,11 +580,7 @@ def test_schedule_build_with_cmsis_dependency(workspace_dir, board, microtvm_deb
     )
     func = relay.Function([data, weight], y)
     ir_mod = tvm.IRModule.from_expr(func)
-
-    runtime = Runtime("crt", {"system-lib": True})
-
-    with tvm.transform.PassContext(opt_level=3, config={"tir.disable_vectorize": True}):
-        mod = tvm.relay.build(ir_mod, target=target, runtime=runtime)
+    mod = _build_module(ir_mod, board, target=target)
 
     project_options = {
         "project_type": "host_driven",
@@ -628,13 +627,7 @@ def test_debugging_enabled(workspace_dir):
     z = relay.add(xx, relay.const(np.ones(shape=shape, dtype=dtype)))
     func = relay.Function([x], z)
     ir_mod = tvm.IRModule.from_expr(func)
-
-    runtime = Runtime("crt", {"system-lib": True})
-    executor = Executor("aot")
-    target = tvm.micro.testing.get_target("zephyr", board)
-
-    with tvm.transform.PassContext(opt_level=3, config={"tir.disable_vectorize": True}):
-        mod = tvm.relay.build(ir_mod, target=target, runtime=runtime, executor=executor)
+    mod = _build_module(ir_mod, board)
 
     project = tvm.micro.generate_project(
         str(utils.TEMPLATE_PROJECT_DIR),
@@ -662,12 +655,7 @@ def test_qemu_make_fail(workspace_dir, board, microtvm_debug, serial_number):
     z = relay.add(xx, relay.const(np.ones(shape=shape, dtype=dtype)))
     func = relay.Function([x], z)
     ir_mod = tvm.IRModule.from_expr(func)
-
-    target = tvm.micro.testing.get_target("zephyr", board)
-    executor = Executor("aot")
-    runtime = Runtime("crt", {"system-lib": True})
-    with tvm.transform.PassContext(opt_level=3, config={"tir.disable_vectorize": True}):
-        lowered = relay.build(ir_mod, target, executor=executor, runtime=runtime)
+    mod = _build_module(ir_mod, board)
 
     project_options = {
         "project_type": "host_driven",
@@ -675,10 +663,9 @@ def test_qemu_make_fail(workspace_dir, board, microtvm_debug, serial_number):
         "board": board,
     }
 
-    sample = np.zeros(shape=shape, dtype=dtype)
     project = tvm.micro.generate_project(
         str(utils.TEMPLATE_PROJECT_DIR),
-        lowered,
+        mod,
         workspace_dir / "project",
         project_options,
     )

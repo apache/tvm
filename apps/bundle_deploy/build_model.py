@@ -18,14 +18,12 @@
 
 import argparse
 import os
-import pathlib
 
 from tvm import relay
 import tvm
 from tvm import runtime as tvm_runtime
 import logging
-from tvm.relay.backend import Runtime
-from tvm.contrib import cc as _cc
+from tvm.relay.backend import Runtime, Executor
 
 RUNTIMES = [
     (Runtime("crt", {"system-lib": True}), "{name}_c.{ext}"),
@@ -47,7 +45,9 @@ def build_module(opts):
 
     for runtime, file_format_str in RUNTIMES:
         with tvm.transform.PassContext(opt_level=3, config={"tir.disable_vectorize": True}):
-            graph, lib, params = relay.build(func, "llvm", runtime=runtime, params=params)
+            graph, lib, params = relay.build(
+                func, "llvm", runtime=runtime, executor=Executor("graph"), params=params
+            )
 
         build_dir = os.path.abspath(opts.out_dir)
         if not os.path.isdir(build_dir):
@@ -90,6 +90,7 @@ def build_test_module(opts):
                 tvm.IRModule.from_expr(func),
                 "llvm",
                 runtime=runtime,
+                executor=Executor("graph"),
                 params=params,
             )
 

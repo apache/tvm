@@ -129,7 +129,9 @@ def test_graph_executor():
 
     runtime = Runtime("crt", {"system-lib": True})
     with tvm.transform.PassContext(opt_level=3, config={"tir.disable_vectorize": True}):
-        factory = tvm.relay.build(relay_mod, target=TARGET, runtime=runtime)
+        factory = tvm.relay.build(
+            relay_mod, target=TARGET, runtime=runtime, executor=Executor("graph")
+        )
 
     def do_test(graph_mod):
 
@@ -404,7 +406,9 @@ def test_autotune():
 
     # Build without tuning
     with pass_context:
-        lowered = tvm.relay.build(mod, target=TARGET, runtime=runtime, params=params)
+        lowered = tvm.relay.build(
+            mod, target=TARGET, runtime=runtime, executor=Executor("graph"), params=params
+        )
 
     temp_dir = tvm.contrib.utils.tempdir()
     with _make_session(temp_dir, lowered) as sess:
@@ -419,7 +423,9 @@ def test_autotune():
     # Build using autotune logs
     with tvm.autotvm.apply_history_best(str(tune_log_file)):
         with pass_context:
-            lowered_tuned = tvm.relay.build(mod, target=target, runtime=runtime, params=params)
+            lowered_tuned = tvm.relay.build(
+                mod, target=target, runtime=runtime, executor=Executor("graph"), params=params
+            )
 
     temp_dir = tvm.contrib.utils.tempdir()
     with _make_session(temp_dir, lowered_tuned) as sess:
@@ -432,6 +438,33 @@ def test_autotune():
         del graph_mod
 
     tvm.testing.assert_allclose(output, expected_output, rtol=1e-4, atol=1e-5)
+
+
+@tvm.testing.requires_micro
+def test_default_executor():
+    """Verify default executor is AOTExecutor when
+    runtime is CRT.
+    """
+    runtime = Runtime("crt")
+
+    data = tvm.relay.var("data", tvm.relay.TensorType((1, 3, 64, 64), "float32"))
+    weight = tvm.relay.var("weight", tvm.relay.TensorType((8, 3, 5, 5), "float32"))
+    y = tvm.relay.nn.conv2d(
+        data,
+        weight,
+        padding=(2, 2),
+        kernel_size=(5, 5),
+        kernel_layout="OIHW",
+        out_dtype="float32",
+    )
+    f = tvm.relay.Function([data, weight], y)
+    mod = tvm.IRModule.from_expr(f)
+    mod = tvm.relay.transform.InferType()(mod)
+
+    with tvm.transform.PassContext(opt_level=3, config={"tir.disable_vectorize": True}):
+        lowered = tvm.relay.build(mod, target=TARGET, runtime=runtime)
+
+    assert lowered.module.type_key == "AotExecutorFactory"
 
 
 if __name__ == "__main__":

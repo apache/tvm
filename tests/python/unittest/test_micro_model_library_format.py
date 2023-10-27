@@ -268,6 +268,7 @@ def test_export_model_library_format_llvm():
                 relay_mod,
                 target,
                 runtime=Runtime("crt", {"system-lib": True}),
+                executor=Executor("graph"),
                 mod_name="add",
                 params={"c": np.array([[2.0, 4.0]], dtype="float32")},
             )
@@ -460,7 +461,9 @@ def test_export_byoc_c_module():
     mod = tvm.relay.transform.InferType()(mod)
 
     with tvm.transform.PassContext(opt_level=3, config={"tir.disable_vectorize": True}):
-        factory = tvm.relay.build(mod, tvm.target.target.micro("host"), runtime=Runtime("crt"))
+        factory = tvm.relay.build(
+            mod, tvm.target.target.micro("host"), runtime=Runtime("crt"), executor=Executor("graph")
+        )
 
     temp_dir = utils.tempdir()
     mlf_tar_path = temp_dir.relpath("lib.tar")
