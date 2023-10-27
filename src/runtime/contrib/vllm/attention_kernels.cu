@@ -15,7 +15,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-#include "dtype_float16.cuh"
+#include "dtype_float16.h"
 
 #include <algorithm>
 #include <float.h>
