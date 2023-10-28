@@ -258,11 +258,17 @@ def compacted_symbolic_strided_buffer_func(a: T.handle) -> None:
     # with T.block("root"):
     for i, j, k in T.grid(((n + 63) // 64 * 4 + 7) // 8, 2, 160):
         with T.block(""):
-            A_pad_shared_dyn = T.alloc_buffer((1, padded_size, 64), strides=(72 * padded_size, 72, 1), scope="shared.dyn")
+            A_pad_shared_dyn = T.alloc_buffer(
+                (1, padded_size, 64), strides=(72 * padded_size, 72, 1), scope="shared.dyn"
+            )
             for ax0, ax1 in T.grid(96, 64):
                 with T.block("A_pad_shared.dyn"):
                     T.where(i * 128 + j * 32 + ax0 < (n + 63) // 64 * 64)
-                    A_pad_shared_dyn[0, ax0, ax1] = T.if_then_else(i * 128 + j * 32 + ax0 < n, A[0, i * 128 + j * 32 + ax0, k * 64 + ax1], T.float32(0))
+                    A_pad_shared_dyn[0, ax0, ax1] = T.if_then_else(
+                        i * 128 + j * 32 + ax0 < n,
+                        A[0, i * 128 + j * 32 + ax0, k * 64 + ax1],
+                        T.float32(0),
+                    )
 
 
 @T.prim_func
@@ -270,11 +276,22 @@ def transformed_symbolic_strided_buffer_func(a: T.handle):
     n = T.int32()
     A = T.match_buffer(a, (1, n, 10240))
     for i, j, k in T.grid(((n + 63) // 64 * 4 + 7) // 8, 2, 160):
-        A_pad_shared_dyn = T.allocate([1, T.min((n + 63) // 64 * 64, 96), 72], "float32", "shared.dyn")
-        A_pad_shared_dyn_1 = T.decl_buffer((1, T.min((n + 63) // 64 * 64, 96), 64), data=A_pad_shared_dyn, strides=(72 * T.min((n + 63) // 64 * 64, 96), 72, 1), scope="shared.dyn")
+        A_pad_shared_dyn = T.allocate(
+            [1, T.min((n + 63) // 64 * 64, 96), 72], "float32", "shared.dyn"
+        )
+        A_pad_shared_dyn_1 = T.decl_buffer(
+            (1, T.min((n + 63) // 64 * 64, 96), 64),
+            data=A_pad_shared_dyn,
+            strides=(72 * T.min((n + 63) // 64 * 64, 96), 72, 1),
+            scope="shared.dyn",
+        )
         for ax0, ax1 in T.grid(96, 64):
             if i * 128 + j * 32 + ax0 < (n + 63) // 64 * 64:
-                A_pad_shared_dyn_1[0, ax0, ax1] = T.if_then_else(i * 128 + j * 32 + ax0 < n, A[0, i * 128 + j * 32 + ax0, k * 64 + ax1], T.float32(0))  
+                A_pad_shared_dyn_1[0, ax0, ax1] = T.if_then_else(
+                    i * 128 + j * 32 + ax0 < n,
+                    A[0, i * 128 + j * 32 + ax0, k * 64 + ax1],
+                    T.float32(0),
+                )
 
 
 @T.prim_func
