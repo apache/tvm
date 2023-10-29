@@ -132,4 +132,4 @@ def _method_spec_from_torch(
     if len(arg_names) != len(args_torch):
         raise TypeError(f"Expected {len(arg_names)} arguments, but got {len(args_torch)} arguments")
     arg_specs = [_as_spec(i) for i in args_torch]
-    return _spec.MethodSpec(method, arg_names, arg_specs)
+    return _spec.MethodSpec(method, arg_names, arg_specs, param_mode="plain", effect_mode="plain")

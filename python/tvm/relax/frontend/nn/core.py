@@ -52,6 +52,8 @@ from ._tensor_op import _TensorOp
 from .subroutine import SubroutineMixin
 
 if TYPE_CHECKING:
+    import torch
+
     from . import spec as _spec
 
 
@@ -169,13 +171,17 @@ class Parameter(Tensor):
 
     _data: Optional[NDArray]
 
-    def __init__(self, shape: List[Union[int, tir.PrimExpr]], dtype: Optional[str] = None) -> None:
+    def __init__(
+        self,
+        shape: Sequence[Union[int, tir.PrimExpr]],
+        dtype: Optional[str] = None,
+    ) -> None:
         """Create a parameter with given shape and dtype. The parameter is not bound to any
         concrete values.
 
         Parameters
         ----------
-        shape : List[Union[int, tir.PrimExpr]]
+        shape : Sequence[Union[int, tir.PrimExpr]]
             The shape of the parameter
         dtype : Optional[str]
             The data type of the parameter. If not specified, the default dtype will be used.
@@ -243,6 +249,10 @@ class Effect:
 
     def create(self, name_hint: str) -> List[rx.Var]:
         """Create the implicit inputs to a relax.Function that represents the side effect"""
+        raise NotImplementedError
+
+    def set_state(self, state_vars: List[rx.Var]) -> None:
+        """Set the variables that represents the effect"""
         raise NotImplementedError
 
     def finalize(self) -> List[rx.Var]:
@@ -389,13 +399,13 @@ class Module(SubroutineMixin):
 
     def jit(  # pylint: disable=too-many-arguments
         self,
-        spec: "_spec.Module",
+        spec: "_spec.ModuleSpec",
         target: Union[str, Target] = "llvm",
-        device: str = "cpu",
+        device: Union[str, Device] = "cpu",
         pipeline: str = "zero",
         out_format: str = "torch",
         debug: bool = False,
-    ) -> Callable:
+    ) -> Any:
         """Just-in-time compilation of a nn.model to an executable"""
         from tvm import relax  # pylint: disable=import-outside-toplevel
 
@@ -407,17 +417,19 @@ class Module(SubroutineMixin):
 
         # Convert parameters
         device = _str_to_device(device)
-        params = _param_to_ndarray(params, device)
+        params_ndarray = _param_to_ndarray(params, device)
 
         # Compile mod and feed it to VM
         mod = relax.pipeline.get_pipeline(pipeline)(mod)  # pylint: disable=no-value-for-parameter
-        mod = relax.build(mod, target=target)
-        vm = VirtualMachine(mod, device)  # pylint: disable=invalid-name
+        vm = VirtualMachine(  # pylint: disable=invalid-name
+            relax.build(mod, target=target),
+            device,
+        )
 
         if out_format == "torch":
             from . import torch  # pylint: disable=import-outside-toplevel
 
-            return torch.TorchModule(spec=spec, params=params, vm=vm)
+            return torch.TorchModule(spec=spec, params=params_ndarray, vm=vm)
 
         raise ValueError(f"Unknown out_format: {out_format}")
 
@@ -449,8 +461,10 @@ class ExternModule(Module):
         for function_spec in self.module_spec.functions:
             if function_spec.symbol == func_name:
                 # pylint: disable=cell-var-from-loop, import-outside-toplevel, protected-access
+                from tvm.relax import Tuple as RxTuple
+                from tvm.relax import call_dps_packed
+
                 from .op import _wrap_nested
-                from tvm.relax import call_dps_packed, Tuple as RxTuple
 
                 def extern_func(*args: Tensor) -> Tensor:
                     spec2var = {}
@@ -507,6 +521,7 @@ class ModuleList(Module):
         return len(self.modules)
 
     def append(self, module):
+        """Add a module to the end of the ModuleList"""
         self.modules.append(module)
 
     def to(self, dtype: Optional[str] = None) -> None:  # pylint: disable=invalid-name
@@ -558,7 +573,7 @@ def _tensor_placeholder(
         _expr=rx.Var(
             name_hint=name,
             struct_info=TensorStructInfo(
-                shape=new_shape,
+                shape=new_shape,  # type: ignore[arg-type]
                 dtype=dtype,
             ),
         )
@@ -582,7 +597,9 @@ def _from_dlpack(tensor) -> NDArray:
     )
 
 
-def _str_to_device(device: str) -> Device:
+def _str_to_device(device: Union[str, Device]) -> Device:
+    if isinstance(device, Device):
+        return device
     split = device.split(":")
     if len(split) > 2:
         raise ValueError(f"Invalid device: {device}")

@@ -1383,7 +1383,7 @@ def interpolate(
 def tensor_expr_op(
     tensor_expr_func: Callable,
     name_hint: str,
-    args: List[Union[Tensor, _tir.Var]],
+    args: List[Union[Tensor, _tir.Var, int]],
     *,
     attrs: Optional[Dict[str, Any]] = None,
 ):
