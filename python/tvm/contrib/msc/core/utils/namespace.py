@@ -57,6 +57,9 @@ class MSCKey:
     REGISTERED_FUNCS = "registered_funcs"
     REGISTERED_TOOLS = "registered_tools"
 
+    MSC_STAGE = "msc_stage"
+    TIME_STAMPS = "time_stamps"
+
 
 class MSCFramework:
     """Framework type for the MSC"""

@@ -82,7 +82,7 @@ def test_tvm_runner_cpu():
 def test_tvm_runner_gpu():
     """Test runner for tvm on gpu"""
 
-    _test_from_torch(TVMRunner, "gpu", is_training=True)
+    _test_from_torch(TVMRunner, "cuda", is_training=True)
 
 
 if __name__ == "__main__":

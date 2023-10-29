@@ -28,13 +28,13 @@ from tvm.contrib.msc.framework.tvm.codegen import to_relax
 class TVMRunner(ModelRunner):
     """Runner of Relax"""
 
-    def _to_device(self, model: object, device: str, is_training: bool) -> object:
-        """Place model on device
+    def _to_runnable(self, model: object, device: str, is_training: bool) -> object:
+        """Build runnable object
 
         Parameters
         -------
         model: object
-            The runnable model on cpu.
+            The meta model.
         device: str
             The device for place model
         is_training: bool
@@ -42,8 +42,8 @@ class TVMRunner(ModelRunner):
 
         Returns
         -------
-        model: object
-            The runnable model
+        runnable: object
+            The runnable
         """
 
         if "builder" in self._load_config:
@@ -61,7 +61,7 @@ class TVMRunner(ModelRunner):
                 with tvm.transform.PassContext(opt_level=3):
                     relax_exec = tvm.relax.build(model, target)
                     runnable = tvm.relax.VirtualMachine(relax_exec, tvm.cpu())
-            elif device == "gpu":
+            elif device.startswith("cuda"):
                 target = tvm.target.Target("cuda")
                 with target:
                     model = tvm.tir.transform.DefaultGPUSchedule()(model)
@@ -72,14 +72,14 @@ class TVMRunner(ModelRunner):
                 raise NotImplementedError("Unsupported device " + str(device))
         return runnable
 
-    def _run_model(
-        self, model: tvm.relax.VirtualMachine, inputs: Dict[str, np.ndarray], device: str
+    def _call_runnable(
+        self, runnable: tvm.relax.VirtualMachine, inputs: Dict[str, np.ndarray], device: str
     ) -> Union[List[np.ndarray], Dict[str, np.ndarray]]:
-        """Run the model to get outputs
+        """Call the runnable to get outputs
 
         Parameters
         -------
-        model: tvm.relax.VirtualMachine
+        runnable: tvm.relax.VirtualMachine
             The virtual machine.
         inputs: dict<str, data>
             The inputs in dict.
@@ -95,11 +95,14 @@ class TVMRunner(ModelRunner):
         model_inputs = self.get_inputs()
         if device == "cpu":
             tvm_inputs = [tvm.nd.array(inputs[i["name"]]) for i in model_inputs]
-        elif device == "gpu":
-            tvm_inputs = [tvm.nd.array(inputs[i["name"]], device=tvm.cuda()) for i in model_inputs]
+        elif device.startswith("cuda"):
+            dev_id = int(device.split(":")[1]) if ":" in device else 0
+            tvm_inputs = [
+                tvm.nd.array(inputs[i["name"]], device=tvm.cuda(dev_id)) for i in model_inputs
+            ]
         else:
             raise NotImplementedError("Unsupported device " + str(device))
-        return model["main"](*tvm_inputs)
+        return runnable["main"](*tvm_inputs)
 
     def _device_enabled(self, device: str) -> bool:
         """Check if the device is enabled
@@ -112,8 +115,9 @@ class TVMRunner(ModelRunner):
 
         if device == "cpu":
             return True
-        if device == "gpu":
-            return tvm.cuda().exist
+        if device.startswith("cuda"):
+            dev_id = int(device.split(":")[1]) if ":" in device else 0
+            return tvm.cuda(dev_id).exist
         return False
 
     @property

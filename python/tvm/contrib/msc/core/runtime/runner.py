@@ -17,6 +17,8 @@
 # pylint: disable=unused-argument
 """tvm.contrib.msc.core.runtime.runner"""
 
+import os
+import json
 import logging
 from typing import Dict, Optional, Any, List, Tuple, Union
 import numpy as np
@@ -47,7 +49,7 @@ class BaseRunner(object):
     name: str
         The name of the runner
     device: str
-        The device of the model, cpu| gpu
+        The device of the model, cpu| cuda| cuda:0|...
     is_training: bool
         Whether use model in training
     logger: logging.Logger
@@ -74,31 +76,56 @@ class BaseRunner(object):
         self._is_training = is_training
         self._logger = logger or msc_utils.get_global_logger()
         self.setup()
+        config = {
+            "class": self.__class__.__name__,
+            "tools_config": self._tools_config,
+            "translate_config": self._translate_config,
+            "load_config": self._load_config,
+            "name": self._name,
+            "device": self._device,
+            "is_training": self._is_training,
+        }
+        self._logger.debug(msc_utils.msg_block("RUNNER_CONFIG", config))
 
     def setup(self):
         """Setup the runner"""
+
         self._graphs, self._weights = [], []
         self._model, self._model_info = None, {}
+        self._runnable = None
 
-    def build(self, build_graph: bool = False) -> object:
+    def build(self, cache_dir: msc_utils.MSCDirectory = None, build_graph: bool = False) -> object:
         """Build the runnable object
 
         Parameters
         -------
+        cache_dir: MSCDirectory
+            cache path for save/load info
         build_graph: bool
             Whether to build the MSCGraphs.
 
         Returns
         -------
-        model: object
+        runnable: object
            The runnable object.
         """
+
+        if cache_dir and os.path.isfile(cache_dir.relpath("cache_info.json")):
+            cache_info = msc_utils.load_dict(cache_dir.relpath("cache_info.json"))
+        else:
+            cache_info = {}
+
+        # Load graphs from cache
+        if cache_info.get("graphs"):
+            self._graphs, self._weights = self._load_graphs(cache_dir, cache_info["graphs"])
+            self._logger.debug(
+                "Load {} graphs from cache @ {}".format(len(self._graphs), cache_dir)
+            )
 
         # Get or rebuild graphs
         if build_graph or not self._graphs:
             self._graphs, self._weights = self._translate()
-            self._model_info = self._inspect_model()
-            self._logger.info("Translate {} graphs from module".format(len(self._graphs)))
+            self._logger.debug("Translate {} graphs from module".format(len(self._graphs)))
 
         # Save graphs for debug
         for graph in self._graphs:
@@ -108,24 +135,54 @@ class BaseRunner(object):
         if self._tools_config:
             raise NotImplementedError("Build runner with tools is not supported")
 
-        # Load model
-        model = self._generate_model()
-        if "loader" in self._load_config:
-            loader, load_config = self._load_config["loader"]
-            model = loader(model, **load_config)
-            self._logger.info(
-                "Model({}) processed by customize loader {}({})".format(
-                    self.framework, loader, load_config
+        if cache_info.get("model") and not build_graph:
+            # Load model from cache
+            self._model = self._load_model(cache_dir, cache_info["model"])
+        else:
+            # Generate and save model
+            self._model = self._generate_model()
+            if "loader" in self._load_config:
+                loader, load_config = self._load_config["loader"]
+                self._model = loader(self._model, **load_config)
+                self._logger.info(
+                    "Model({}) processed by customize loader {}({})".format(
+                        self.framework, loader, load_config
+                    )
                 )
-            )
-        self._model = self._to_device(model, self._device, self._is_training)
+        self._model_info = self._inspect_model()
+        self._logger.debug(msc_utils.msg_block("MODEL_INFO", self._model_info))
 
+        if cache_info.get("runnable") and not build_graph:
+            # Load runnable from cache
+            self._runnable = self._load_runnable(cache_dir, cache_info["runnable"])
+        else:
+            # Build runnable on device
+            self._runnable = self._to_runnable(self._model, self._device, self._is_training)
         self._logger.info(
-            "Model({}, is_training {}) loaded on device {}".format(
-                self.framework, self._is_training, self._device
+            "Runnable({}, {}) loaded on device {}".format(
+                self.framework, "train" if self._is_training else "eval", self._device
             )
         )
-        return self._model
+        return self._runnable
+
+    def save_cache(self, cache_dir: msc_utils.MSCDirectory):
+        """Save runner to cache
+
+        Parameters
+        -------
+        cache_dir: MSCDirectory
+            cache path for save/load info
+        """
+
+        cache_info = {
+            "graphs": self._save_graphs(cache_dir),
+            "model": self._save_model(cache_dir),
+            "runnable": self._save_runnable(cache_dir),
+        }
+        with open(cache_dir.relpath("cache_info.json"), "w") as f:
+            f.write(json.dumps(cache_info, indent=2))
+        self._logger.debug("Runner save cache -> " + str(cache_dir.path))
+        self._logger.debug(msc_utils.msg_block("CACHE_INFO", cache_info))
 
     def run(
         self, inputs: Union[List[np.ndarray], Dict[str, np.ndarray]], ret_type="dict"
@@ -159,7 +216,7 @@ class BaseRunner(object):
             isinstance(data, np.ndarray) for data in inputs.values()
         ), "Expected all inputs as np.ndarray"
         inputs = {i["name"]: inputs[i["name"]] for i in model_inputs}
-        outputs = self._run_model(self._model, inputs, self._device)
+        outputs = self._call_runnable(self._runnable, inputs, self._device)
         if ret_type == "dict":
             if isinstance(outputs, (list, tuple)):
                 assert len(outputs) == len(
@@ -205,16 +262,11 @@ class BaseRunner(object):
 
         return self._model_info["outputs"]
 
-    def get_model(self) -> object:
-        """Get the model
+    def destory(self):
+        """Destory runner"""
 
-        Returns
-        -------
-        model:
-            The runnable model.
-        """
-
-        return self._model
+        if self._model:
+            del self._model
 
     def _translate(self) -> Tuple[List[MSCGraph], Dict[str, tvm.nd.array]]:
         """Translate IRModule to MSCgraphs
@@ -229,24 +281,97 @@ class BaseRunner(object):
 
         raise NotImplementedError("_translate is not implemented for " + str(self.__class__))
 
+    def _load_graphs(
+        self, cache_dir: msc_utils.MSCDirectory, cache_info: dict
+    ) -> Tuple[List[MSCGraph], Dict[str, tvm.nd.array]]:
+        """Load MSCgraphs from cache
+
+        Parameters
+        -------
+        cache_dir: MSCDirectory
+            cache path for save/load info
+        cache_info: dict
+            The cache info.
+
+        Returns
+        -------
+        graph_list: list<MSCGraph>
+            The translated graphs
+        weights_list: list<dict<str, tvm.nd.array>>
+            The translated weights
+        """
+
+        raise NotImplementedError("_load_graphs is not implemented for " + str(self.__class__))
+
+    def _save_graphs(self, cache_dir: msc_utils.MSCDirectory) -> dict:
+        """Save MSCgraphs to cache
+
+        Parameters
+        -------
+        cache_dir: MSCDirectory
+            cache path for save/load info
+
+        Returns
+        -------
+        cache_info: dict
+            The cache info.
+        """
+
+        raise NotImplementedError("_save_graphs is not implemented for " + str(self.__class__))
+
     def _generate_model(self) -> object:
         """Codegen the model according to framework
 
         Returns
         -------
         model: object
-            The runnable model
+            The meta model
         """
 
         raise NotImplementedError("_load is not implemented for " + str(self.__class__))
 
-    def _to_device(self, model: object, device: str, is_training: bool) -> object:
-        """Place model on device
+    def _load_model(self, cache_dir: msc_utils.MSCDirectory, cache_info: dict) -> object:
+        """Load the model from cache
+
+        Parameters
+        -------
+        cache_dir: MSCDirectory
+            cache path for save/load info
+        cache_info: dict
+            The cache info.
+
+        Returns
+        -------
+        model: object
+            The meta model
+        """
+
+        raise NotImplementedError("_load_model is not implemented for " + str(self.__class__))
+
+    def _save_model(self, cache_dir: msc_utils.MSCDirectory) -> dict:
+        """Save model to cache
+
+        Parameters
+        -------
+        cache_dir: MSCDirectory
+            cache path for save/load info
+
+        Returns
+        -------
+        cache_info: dict
+            The cache info.
+        """
+
+        # disable save model by default
+        return {}
+
+    def _to_runnable(self, model: object, device: str, is_training: bool) -> object:
+        """Build runnable object
 
         Parameters
         -------
         model: object
-            The runnable model on cpu.
+            The meta model.
         device: str
             The device for place model
         is_training: bool
@@ -254,11 +379,46 @@ class BaseRunner(object):
 
         Returns
         -------
-        model: object
-            The runnable model
+        runnable: object
+            The runnable
         """
 
-        raise NotImplementedError("_to_device is not implemented for " + str(self.__class__))
+        raise NotImplementedError("_to_runnable is not implemented for " + str(self.__class__))
+
+    def _load_runnable(self, cache_dir: msc_utils.MSCDirectory, cache_info: dict) -> object:
+        """Load the runnable from cache
+
+        Parameters
+        -------
+        cache_dir: MSCDirectory
+            cache path for save/load info
+        cache_info: dict
+            The cache info.
+
+        Returns
+        -------
+        runnable: object
+            The runnable
+        """
+
+        raise NotImplementedError("_load_runnable is not implemented for " + str(self.__class__))
+
+    def _save_runnable(self, cache_dir: msc_utils.MSCDirectory) -> dict:
+        """Save runnable to cache
+
+        Parameters
+        -------
+        cache_dir: MSCDirectory
+            cache path for save/load info
+
+        Returns
+        -------
+        cache_info: dict
+            The cache info.
+        """
+
+        # disable save runnable by default
+        return {}
 
     def _inspect_model(self) -> dict:
         """Inspect the model
@@ -271,10 +431,10 @@ class BaseRunner(object):
 
         raise NotImplementedError("_inspect_model is not implemented for " + str(self.__class__))
 
-    def _run_model(
-        self, model: object, inputs: Dict[str, np.ndarray], device: str
+    def _call_runnable(
+        self, runnable: object, inputs: Dict[str, np.ndarray], device: str
     ) -> Union[List[np.ndarray], Dict[str, np.ndarray]]:
-        """Run the model to get outputs
+        """Call the runnable to get outputs
 
         Parameters
         -------
@@ -291,7 +451,7 @@ class BaseRunner(object):
             The outputs in list or dict.
         """
 
-        raise NotImplementedError("_run_model is not implemented for " + str(self.__class__))
+        raise NotImplementedError("_call_runnable is not implemented for " + str(self.__class__))
 
     def _device_enabled(self, device: str) -> bool:
         """Check if the device is enabled
@@ -303,6 +463,18 @@ class BaseRunner(object):
         """
 
         return True
+
+    @property
+    def model(self):
+        return self._model
+
+    @property
+    def runnable(self):
+        return self._runnable
+
+    @property
+    def device(self):
+        return self._device
 
     @property
     def codegen_func(self):
@@ -335,6 +507,57 @@ class ModelRunner(BaseRunner):
         )
         return [graph], [weights]
 
+    def _load_graphs(
+        self, cache_dir: msc_utils.MSCDirectory, cache_info: dict
+    ) -> Tuple[List[MSCGraph], Dict[str, tvm.nd.array]]:
+        """Load MSCgraphs from cache
+
+        Parameters
+        -------
+        cache_dir: MSCDirectory
+            cache path for save/load info
+        cache_info: dict
+            The cache info.
+
+        Returns
+        -------
+        graph_list: list<MSCGraph>
+            The translated graphs
+        weights_list: list<dict<str, tvm.nd.array>>
+            The translated weights
+        """
+
+        assert "main" in cache_info, "main should be given in cache_info, get " + str(cache_info)
+        graph = MSCGraph.from_json(cache_dir.relpath(cache_info["main"]["graph"]))
+        with open(cache_dir.relpath(cache_info["main"]["weights"]), "rb") as f:
+            weights = tvm.runtime.load_param_dict(f.read())
+        return [graph], [weights]
+
+    def _save_graphs(self, cache_dir: msc_utils.MSCDirectory) -> dict:
+        """Save MSCgraphs to cache
+
+        Parameters
+        -------
+        cache_dir: MSCDirectory
+            cache path for save/load info
+
+        Returns
+        -------
+        cache_info: dict
+            The cache info.
+        """
+
+        main_info = {
+            "graph": self._graphs[0].name + "_graph.json",
+            "weights": self._graphs[0].name + "_params.bin",
+        }
+        with cache_dir:
+            with open(main_info["graph"], "w") as f_graph:
+                f_graph.write(self._graphs[0].to_json())
+            with open(main_info["weights"], "wb") as f_params:
+                f_params.write(tvm.runtime.save_param_dict(self._weights[0]))
+        return {"main": main_info}
+
     def _generate_model(self) -> object:
         """Codegen the model according to framework
 
@@ -349,7 +572,7 @@ class ModelRunner(BaseRunner):
             self._weights[0],
             codegen_config=self._load_config.get("codegen"),
             print_config=self._load_config.get("build"),
-            build_folder=msc_utils.get_build_dir(),
+            build_folder=self._load_config.get("build_folder", msc_utils.get_build_dir()),
         )
 
     def _inspect_model(self) -> dict:
@@ -402,6 +625,82 @@ class BYOCRunner(BaseRunner):
         )
         return graphs, weights
 
+    def _load_graphs(
+        self, cache_dir: msc_utils.MSCDirectory, cache_info: dict
+    ) -> Tuple[List[MSCGraph], Dict[str, tvm.nd.array]]:
+        """Load MSCgraphs from cache
+
+        Parameters
+        -------
+        cache_dir: MSCDirectory
+            cache path for save/load info
+        cache_info: dict
+            The cache info.
+
+        Returns
+        -------
+        graph_list: list<MSCGraph>
+            The translated graphs
+        weights_list: list<dict<str, tvm.nd.array>>
+            The translated weights
+        """
+
+        assert "byoc_mod" in cache_info, "byoc_mod should be given in cache_info, get " + str(
+            cache_info
+        )
+        assert "byoc_graph" in cache_info, "byoc_graph should be given in cache_info, get " + str(
+            cache_info
+        )
+        assert "sub_graphs" in cache_info, "sub_graphs should be given in cache_info, get " + str(
+            cache_info
+        )
+
+        self._byoc_mod = tvm.ir.load_json(cache_dir.relpath(cache_info["byoc_mod"]))
+        graphs, weights = [], []
+        for f_graph, f_weights in cache_info["sub_graphs"]:
+            graphs.append(MSCGraph.from_json(cache_dir.relpath(f_graph)))
+            with open(cache_dir.relpath(f_weights), "rb") as f:
+                weights = tvm.runtime.load_param_dict(f.read())
+        self._graph_infos = list(zip(graphs, weights))
+        self._byoc_graph = MSCGraph.from_json(cache_dir.relpath(cache_info["byoc_graph"]))
+        self._byoc_graph.visualize(
+            msc_utils.get_debug_dir().relpath(self._byoc_graph.name + ".prototxt")
+        )
+        return graphs, weights
+
+    def _save_graphs(self, cache_dir: msc_utils.MSCDirectory) -> dict:
+        """Save MSCgraphs to cache
+
+        Parameters
+        -------
+        cache_dir: MSCDirectory
+            cache path for save/load info
+
+        Returns
+        -------
+        cache_info: dict
+            The cache info.
+        """
+
+        sub_graphs = [
+            (graph.name + "_graph.info", graph.name + "_params.bin") for graph in self._graphs
+        ]
+        with cache_dir:
+            for graph, weights, info in zip(self._graphs, self._weights, sub_graphs):
+                with open(info[0], "w") as f_graph:
+                    f_graph.write(graph.to_json())
+                with open(info[1], "wb") as f_params:
+                    f_params.write(tvm.runtime.save_param_dict(weights))
+            with open("byoc_graph.json", "w") as f:
+                f.write(self._byoc_graph.to_json())
+            with open("byoc_module.json", "w") as f:
+                f.write(tvm.ir.save_json(self._byoc_mod))
+        return {
+            "sub_graphs": sub_graphs,
+            "byoc_graph": "byoc_graph.json",
+            "byoc_mod": "byoc_module.json",
+        }
+
     def _generate_model(self) -> tvm.IRModule:
         """Codegen the model according to framework
 
@@ -416,12 +715,12 @@ class BYOCRunner(BaseRunner):
             self._graph_infos,
             codegen_config=self._load_config.get("codegen"),
             print_config=self._load_config.get("build"),
-            build_folder=msc_utils.get_build_dir(),
-            output_folder=msc_utils.get_output_dir(),
+            build_folder=self._load_config.get("build_folder", msc_utils.get_build_dir()),
+            output_folder=self._load_config.get("output_folder", msc_utils.get_output_dir()),
         )
 
-    def _to_device(self, model: object, device: str, is_training: bool) -> object:
-        """Place model on device
+    def _to_runnable(self, model: object, device: str, is_training: bool) -> object:
+        """Build runnable object
 
         Parameters
         -------
@@ -434,8 +733,8 @@ class BYOCRunner(BaseRunner):
 
         Returns
         -------
-        model: object
-            The runnable model
+        runnable: object
+            The runnable
         """
 
         model = tvm.relax.transform.LegalizeOps()(model)
@@ -444,7 +743,7 @@ class BYOCRunner(BaseRunner):
             with tvm.transform.PassContext(opt_level=3):
                 relax_exec = tvm.relax.build(model, target)
                 runnable = tvm.relax.VirtualMachine(relax_exec, tvm.cpu())
-        elif device == "gpu":
+        elif device.startswith("cuda"):
             target = tvm.target.Target("cuda")
             with target:
                 model = tvm.tir.transform.DefaultGPUSchedule()(model)
@@ -455,14 +754,14 @@ class BYOCRunner(BaseRunner):
             raise NotImplementedError("Unsupported device " + str(device))
         return runnable
 
-    def _run_model(
-        self, model: tvm.relax.VirtualMachine, inputs: Dict[str, np.ndarray], device: str
+    def _call_runnable(
+        self, runnable: tvm.relax.VirtualMachine, inputs: Dict[str, np.ndarray], device: str
     ) -> Union[List[np.ndarray], Dict[str, np.ndarray]]:
-        """Run the model to get outputs
+        """Call the runnable to get outputs
 
         Parameters
         -------
-        model: tvm.relax.VirtualMachine
+        runnable: tvm.relax.VirtualMachine
             The virtual machine.
         inputs: dict<str, data>
             The inputs in dict.
@@ -478,11 +777,14 @@ class BYOCRunner(BaseRunner):
         model_inputs = self.get_inputs()
         if device == "cpu":
             tvm_inputs = [tvm.nd.array(inputs[i["name"]]) for i in model_inputs]
-        elif device == "gpu":
-            tvm_inputs = [tvm.nd.array(inputs[i["name"]], device=tvm.cuda()) for i in model_inputs]
+        elif device.startswith("cuda"):
+            dev_id = int(device.split(":")[1]) if ":" in device else 0
+            tvm_inputs = [
+                tvm.nd.array(inputs[i["name"]], device=tvm.cuda(dev_id)) for i in model_inputs
+            ]
         else:
             raise NotImplementedError("Unsupported device " + str(device))
-        return model["main"](*tvm_inputs)
+        return runnable["main"](*tvm_inputs)
 
     def _inspect_model(self) -> dict:
         """Inspect the model
@@ -506,8 +808,9 @@ class BYOCRunner(BaseRunner):
 
         if device == "cpu":
             return True
-        if device == "gpu":
-            return tvm.cuda().exist
+        if device.startswith("cuda"):
+            dev_id = int(device.split(":")[1]) if ":" in device else 0
+            return tvm.cuda(dev_id).exist
         return False
 
     @property

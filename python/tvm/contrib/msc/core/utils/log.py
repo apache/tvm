@@ -18,6 +18,8 @@
 
 import os
 import logging
+from typing import Union
+
 from .file import get_workspace
 from .namespace import MSCMap, MSCKey
 
@@ -72,15 +74,21 @@ def create_file_logger(level=logging.INFO, path: str = None) -> logging.Logger:
     logger.setLevel(level)
     if any(isinstance(h, logging.FileHandler) and h.baseFilename == path for h in logger.handlers):
         return logger
-    formatter = "%(asctime)s %(filename)s [ln:%(lineno)d]<%(levelname)s> %(message)s"
-    f_handler = logging.FileHandler(path, encoding=None, delay=False)
-    f_handler.setLevel(level)
-    f_handler.setFormatter(formatter)
-    logger.addHandler(f_handler)
+    formatter = logging.Formatter(
+        "%(asctime)s %(filename)s[ln:%(lineno)d]<%(levelname)s> %(message)s"
+    )
+    handlers = [
+        logging.FileHandler(path, mode="a", encoding=None, delay=False),
+        logging.StreamHandler(),
+    ]
+    for handler in handlers:
+        handler.setLevel(level)
+        handler.setFormatter(formatter)
+        logger.addHandler(handler)
     return logger
 
 
-def set_global_logger(level=logging.INFO, path: str = None) -> logging.Logger:
+def set_global_logger(level: Union[str, int] = logging.INFO, path: str = None) -> logging.Logger:
     """Create file logger and set to global
 
     Parameters
@@ -96,6 +104,15 @@ def set_global_logger(level=logging.INFO, path: str = None) -> logging.Logger:
         The logger.
     """
 
+    if isinstance(level, str):
+        if level == "debug":
+            level = logging.DEBUG
+        elif level == "info":
+            level = logging.INFO
+        elif level == "warn":
+            level = logging.WARN
+        else:
+            raise Exception("Unexcept verbose {}, should be debug| info| warn")
     logger = create_file_logger(level, path)
     MSCMap.set(MSCKey.GLOBALE_LOGGER, logger)
     return logger

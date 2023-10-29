@@ -17,8 +17,9 @@
 """tvm.contrib.msc.core.utils.dataset"""
 
 import os
+import shutil
 import json
-from typing import List
+from typing import List, Union, Dict
 import numpy as np
 
 from .info import load_dict
@@ -38,7 +39,6 @@ class MSCDataLoader(object):
     """
 
     def __init__(self, folder: str, start: int = 0, end: int = -1):
-        super(MSCDataLoader, self).__init__()
         self._folder = folder
         self._start = start
         self._current = 0
@@ -93,9 +93,14 @@ class MSCDataLoader(object):
            The loaded data.
         """
 
-        f_path = os.path.join(self._folder, name, "batch_{}.bin".format(self._start + index))
+        save_name = info.get("save_name", name)
+        f_path = os.path.join(self._folder, save_name, "batch_{}.bin".format(self._start + index))
         assert os.path.isfile(f_path), "Can not find data file " + str(f_path)
         return np.fromfile(f_path, dtype=info["dtype"]).reshape(info["shape"])
+
+    @property
+    def info(self):
+        return self._info
 
 
 class MSCDataSaver(object):
@@ -123,9 +128,9 @@ class MSCDataSaver(object):
         start: int = 0,
         max_size: int = -1,
     ):
-        super(MSCDataSaver, self).__init__()
-        if not os.path.isdir(folder):
-            os.mkdir(folder)
+        if os.path.isdir(folder):
+            shutil.rmtree(folder)
+        os.mkdir(folder)
         self._folder = folder
         self._input_names = input_names
         self._output_names = output_names
@@ -146,31 +151,48 @@ class MSCDataSaver(object):
     def reset(self):
         self._current = 0
 
-    def save(self, inputs: List[np.ndarray], outputs: List[np.ndarray] = None):
+    def save(
+        self,
+        inputs: Union[Dict[str, np.ndarray], List[np.ndarray]],
+        outputs: Union[Dict[str, np.ndarray], List[np.ndarray]] = None,
+    ):
         """Save 1 batch inputs and outputs.
 
         Parameters
         -------
-        inputs: list<np.ndarray>
+        inputs: list<np.ndarray>/dict<str, np.ndarray>
             The inputs datas.
-        outputs: list<np.ndarray>
+        outputs: list<np.ndarray>/dict<str, np.ndarray>
             The outputs datas.
         """
 
-        assert len(inputs) == len(
-            self._input_names
-        ), "inputs size {} mismatch with input_names {}".format(len(inputs), self._input_names)
-        for idx, i_data in enumerate(inputs):
-            self._save_data(self._input_names[idx], i_data, True)
+        if isinstance(inputs, dict):
+            assert set(inputs.keys()) == set(
+                self._input_names
+            ), "Input names mismatch {} with {}".format(inputs.keys(), self._input_names)
+        elif isinstance(inputs, (tuple, list)):
+            assert len(inputs) == len(
+                self._input_names
+            ), "Inputs size {} mismatch with input_names {}".format(len(inputs), self._input_names)
+            inputs = dict(zip(self._input_names, inputs))
+        for name, data in inputs.items():
+            self._save_data(name, data, True)
         if outputs:
-            assert len(outputs) == len(
-                self._output_names
-            ), "outputs size {} mismatch with output_names {}".format(
-                len(outputs), self._output_names
-            )
-            for idx, o_data in enumerate(outputs):
-                self._save_data(self._output_names[idx], o_data, False)
+            if isinstance(outputs, dict):
+                assert set(outputs.keys()) == set(
+                    self._output_names
+                ), "Output names mismatch {} with {}".format(outputs.keys(), self._output_names)
+            elif isinstance(outputs, (tuple, list)):
+                assert len(outputs) == len(
+                    self._output_names
+                ), "Outputs size {} mismatch with input_names {}".format(
+                    len(outputs), self._output_names
+                )
+                outputs = dict(zip(self._output_names, outputs))
+            for name, data in outputs.items():
+                self._save_data(name, data, False)
         self._current += 1
+        return self._current
 
     def _save_data(self, name: str, data: np.ndarray, is_input: bool):
         """Save data to file.
@@ -185,7 +207,8 @@ class MSCDataSaver(object):
             Whether the data is input.
         """
 
-        sub_folder = f_path = os.path.join(self._folder, name)
+        save_name = name.replace("/", "_")
+        sub_folder = f_path = os.path.join(self._folder, save_name)
         if not os.path.isdir(sub_folder):
             os.mkdir(sub_folder)
         f_path = os.path.join(sub_folder, "batch_{}.bin".format(self._start + self._current))
@@ -203,5 +226,16 @@ class MSCDataSaver(object):
                 "shape": list(data.shape),
                 "dtype": data.dtype.name,
                 "bytes": data.size * data.itemsize,
+                "save_name": save_name,
             }
         data.tofile(f_path)
+
+    @property
+    def info(self):
+        return self._info
+
+
+def is_dataset(folder: str) -> bool:
+    """Check if a folder is MSC dataset"""
+
+    return os.path.isfile(os.path.join(folder, "msc_info.json"))

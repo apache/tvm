@@ -99,9 +99,9 @@ def from_relax(
         The weights from the IRModule.
     """
 
-    trans_config = trans_config or {}
-    build_config = build_config or {}
-    opt_config = opt_config or {}
+    trans_config = msc_utils.copy_dict(trans_config)
+    build_config = msc_utils.copy_dict(build_config)
+    opt_config = msc_utils.copy_dict(opt_config)
     entry = trans_config.get("entry", "main")
     if params:
         mod = BindParams("main", params)(mod)
@@ -210,9 +210,9 @@ def from_relay(
         The weights from the IRModule.
     """
 
-    trans_config = trans_config or {}
-    build_config = build_config or {}
-    opt_config = opt_config or {}
+    trans_config = msc_utils.copy_dict(trans_config)
+    build_config = msc_utils.copy_dict(build_config)
+    opt_config = msc_utils.copy_dict(opt_config)
     # TODO(tong.meng): optimize before translate?
     opt_level = opt_config.get("opt_level", 0)
     if params:
@@ -294,9 +294,12 @@ def byoc_partition(
         The func <MSCGraph and weights> list, each element for a sub graph.
     """
 
-    trans_config = trans_config or {}
-    build_config = build_config or {}
+    trans_config = msc_utils.copy_dict(trans_config)
+    build_config = msc_utils.copy_dict(build_config)
     build_config["target"] = target
+    for key in ["input_aliases", "output_aliases"]:
+        if key in build_config:
+            build_config.pop(key)
     entry = trans_config.get("entry", "main")
     if params:
         mod = BindParams("main", params)(mod)

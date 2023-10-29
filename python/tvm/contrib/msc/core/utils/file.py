@@ -181,7 +181,7 @@ class MSCDirectory(object):
             os.remove(dir_path)
         return self.__class__(dir_path, keep_history=keep_history, cleanup=cleanup)
 
-    def relpath(self, name: str) -> str:
+    def relpath(self, name: str, keep_history: bool = True) -> str:
         """Relative path in dir
 
         Parameters
@@ -195,7 +195,12 @@ class MSCDirectory(object):
             The concatenated path.
         """
 
-        return os.path.join(self._path, name)
+        f_path = os.path.join(self._path, name)
+        if os.path.isfile(f_path) and not keep_history:
+            os.remove(f_path)
+        if os.path.isdir(f_path) and not keep_history:
+            shutil.rmtree(f_path)
+        return f_path
 
     def listdir(self) -> List[str]:
         """List contents in the dir.
@@ -260,7 +265,7 @@ def set_workspace(
         The created dir.
     """
 
-    path = path or "msc_worksapce"
+    path = path or "msc_workspace"
     workspace = MSCDirectory(path, keep_history, cleanup)
     MSCMap.set(MSCKey.WORKSPACE, workspace)
     return workspace
@@ -280,7 +285,7 @@ def get_workspace() -> MSCDirectory:
     return workspace
 
 
-def create_workspace_subdir(name: str = None) -> MSCDirectory:
+def get_workspace_subdir(name: str = None) -> MSCDirectory:
     """Create sub dir for workspace
 
     Parameters
@@ -297,7 +302,8 @@ def create_workspace_subdir(name: str = None) -> MSCDirectory:
     return get_workspace().create_dir(name)
 
 
-get_build_dir = partial(create_workspace_subdir, name="Build")
-get_output_dir = partial(create_workspace_subdir, name="Output")
-get_dataset_dir = partial(create_workspace_subdir, name="Dataset")
-get_debug_dir = partial(create_workspace_subdir, name="Debug")
+get_build_dir = partial(get_workspace_subdir, name="Build")
+get_output_dir = partial(get_workspace_subdir, name="Output")
+get_dataset_dir = partial(get_workspace_subdir, name="Dataset")
+get_debug_dir = partial(get_workspace_subdir, name="Debug")
+get_cache_dir = partial(get_workspace_subdir, name="Cache")
