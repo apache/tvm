@@ -36,11 +36,6 @@ class DRef(Object):
     to each object, and the worker process uses this id to refer to the object residing on itself.
     """
 
-    @property
-    def session(self) -> "Session":
-        """Get the session that this DRef belongs to."""
-        return _ffi_api.DRefSession(self)  # type: ignore # pylint: disable=no-member
-
     def debug_get_from_remote(self, worker_id: int) -> Any:
         """Get the value of a DRef from a remote worker. It is only used for debugging purposes.
 
@@ -78,9 +73,10 @@ class DRef(Object):
 class DPackedFunc(DRef):
     """A PackedFunc in a Disco session."""
 
-    def __init__(self, dref: DRef) -> None:
+    def __init__(self, dref: DRef, session: "Session") -> None:
         self.handle = dref.handle
         dref.handle = None
+        self.session = session
 
     def __call__(self, *args) -> DRef:
         return self.session.call_packed(self, *args)
@@ -89,13 +85,14 @@ class DPackedFunc(DRef):
 class DModule(DRef):
     """A Module in a Disco session."""
 
-    def __init__(self, dref: DRef) -> None:
+    def __init__(self, dref: DRef, session: "Session") -> None:
         self.handle = dref.handle
         del dref.handle
+        self.session = session
 
     def __getitem__(self, name: str) -> DPackedFunc:
         func = self.session._get_cached_method("runtime.ModuleGetFunction")
-        return DPackedFunc(func(self, name, False))
+        return DPackedFunc(func(self, name, False), self.session)
 
 
 @register_object("runtime.disco.Session")
@@ -104,7 +101,7 @@ class Session(Object):
     various PackedFunc calling convention."""
 
     def _get_cached_method(self, name: str) -> Callable:
-        if not hasattr(self, "_cache"):
+        if "_cache" not in self.__dict__:
             cache = self._cache = {}  # pylint: disable=attribute-defined-outside-init
         else:
             cache = self._cache
@@ -154,7 +151,7 @@ class Session(Object):
         func : DRef
             The global packed function
         """
-        return DPackedFunc(_ffi_api.SessionGetGlobalFunc(self, name))  # type: ignore # pylint: disable=no-member
+        return DPackedFunc(_ffi_api.SessionGetGlobalFunc(self, name), self)  # type: ignore # pylint: disable=no-member
 
     def call_packed(self, func: DRef, *args) -> DRef:
         """Call a PackedFunc on workers providing variadic arguments.
@@ -248,7 +245,7 @@ class Session(Object):
         if device is None:
             device = Device(device_type=0, device_id=0)
         func = self._get_cached_method("runtime.disco.load_vm_module")
-        return DModule(func(path, device))
+        return DModule(func(path, device), self)
 
     def init_ccl(self, ccl: str, *device_ids):
         """Initialize the underlying communication collective library.
