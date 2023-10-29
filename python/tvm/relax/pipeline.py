@@ -23,6 +23,7 @@ as it is or serves as a basis to do further composition.
 # pylint: disable=unused-argument
 import tvm
 from tvm import meta_schedule as ms
+
 from . import transform
 
 
@@ -93,9 +94,26 @@ def get_pipeline(name: str = "zero", **kwargs) -> tvm.transform.Pass:
        The transformation pipeline.
     """
 
-    if name in PIPELINE_MAP:
-        return PIPELINE_MAP[name](**kwargs)
-    else:
+    if name not in PIPELINE_MAP:
         raise ValueError(
             f"Unknown pre-built pipeline {name}," f"candidates are {list(PIPELINE_MAP.keys())}"
         )
+    return PIPELINE_MAP[name](**kwargs)
+
+
+def register_pipeline(name: str):
+    """Register a new pipeline
+
+    Parameters
+    ----------
+    name : str
+        Name of the pipeline
+    """
+    if name in PIPELINE_MAP:
+        raise ValueError(f"Pipeline {name} has already been registered")
+
+    def _register(func):
+        PIPELINE_MAP[name] = func
+        return func
+
+    return _register

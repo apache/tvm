@@ -1123,8 +1123,6 @@ inline Tensor take(const Tensor& a, const Tensor& indices, int batch_dims, int a
           name, tag);
     }
   } else if (mode == "fast") {
-    LOG(WARNING) << "Fast mode segfaults when there are out-of-bounds indices. "
-                    "Make sure input indices are in bound";
     return compute(
         out_shape,
         [&](const Array<Var>& out_index) {

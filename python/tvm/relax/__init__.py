@@ -85,6 +85,7 @@ from .struct_info import (
 
 # pipeline
 from .pipeline import get_pipeline
+from .pipeline import register_pipeline
 
 # Import submodules in the last to avoid dependency
 from . import exec_builder
