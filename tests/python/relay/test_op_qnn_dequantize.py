@@ -30,7 +30,7 @@ def dequantize_test_driver(
     input_data = relay.var("input_data", shape=shape, dtype=in_dtype)
     input_zero_point = relay.const(quant_args["in_zero_point"], "int32")
     input_scale = relay.const(quant_args["in_scale"], "float32")
-    quantized_output = relay.qnn.op.dequantize(
+    quantized_output = relay.qnn.dequantize(
         input_data,
         input_scale=input_scale,
         input_zero_point=input_zero_point,
@@ -175,7 +175,7 @@ def test_dynamic_dequantize():
     scale_var = relay.var("scale", shape=(), dtype="float32")
     zp_var = relay.var("zp", shape=(), dtype="int32")
 
-    deq_x = relay.qnn.op.dequantize(x, scale_var * scale_var, zp_var + zp_var)
+    deq_x = relay.qnn.dequantize(x, scale_var * scale_var, zp_var + zp_var)
     tt = run_infer_type(deq_x)
 
     assert tt.checked_type == relay.TensorType((1, 2, 3, 4), "float32")

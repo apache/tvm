@@ -108,6 +108,12 @@ std::string CodeGenWebGPU::Finish() {
 
 void CodeGenWebGPU::InitFuncState(const PrimFunc& f) {
   CodeGenC::InitFuncState(f);
+  // skip the first underscore, so SSA variable starts from
+  name_supply_->FreshName("v_");
+  // Setup the thread group info.
+  ICHECK_EQ(name_supply_->FreshName("threadIdx"), "threadIdx");
+  ICHECK_EQ(name_supply_->FreshName("blockIdx"), "blockIdx");
+
   // analyze the data;
   for (Var arg : f->params) {
     if (arg.dtype().is_handle()) {
@@ -153,7 +159,7 @@ runtime::FunctionInfo CodeGenWebGPU::AddFunction(const PrimFunc& f, bool skip_re
   std::ostringstream os_param_access;
   os_param_access << "paramWriteAccess:[";
   // setup buffer argumemts
-  for (Var arg : f->params) {
+  for (Var arg : func->params) {
     DataType t = arg.dtype();
     func_info.arg_types.push_back(t);
 
@@ -700,14 +706,19 @@ runtime::Module BuildWebGPU(IRModule mod, Target target) {
     auto calling_conv = f->GetAttr<Integer>(tvm::attr::kCallingConv);
     ICHECK(calling_conv == CallingConv::kDeviceKernelLaunch)
         << "CodeGenWebGPU: expect calling_conv equals CallingConv::kDeviceKernelLaunch";
-    auto global_symbol = f->GetAttr<String>(tvm::attr::kGlobalSymbol);
+    auto global_symbol = prim_func->GetAttr<String>(tvm::attr::kGlobalSymbol);
     ICHECK(global_symbol.defined())
         << "CodeGenWebGPU: Expect PrimFunc to have the global_symbol attribute";
-    std::string f_name = global_symbol.value();
+    functions.Set(gvar, prim_func);
+  }
+
+  std::unordered_map<std::string, std::string> smap;
+  for (auto [gvar, prim_func] : functions) {
+    CodeGenWebGPU cg(target);
     cg.Init(output_ssa);
     fmap[f_name] = cg.AddFunction(f, skip_readonly_decl);
     std::string code = cg.Finish();
-    smap[f_name] = code;
+    smap[cg.GetFunctionName(gvar)] = code;
   }
 
   auto n = make_object<WebGPUSourceModuleNode>(smap, fmap);

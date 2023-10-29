@@ -1233,6 +1233,7 @@ def test_tflite_split(accel_type, ifm_shape, num_or_size_splits, axis):
     [
         [(1, 8, 8, 3), 1.0, 0, 1.0, 0],
         [(1, 20, 30, 3), 1.345, 34, 0.32, -23],
+        [(1, 1, 4, 8), 0.0078125, 0, 0.00997, -30],
     ],
 )
 def test_ethosu_requantize(accel_type, ifm_shape, ifm_scale, ifm_zp, ofm_scale, ofm_zp):
@@ -1561,6 +1562,30 @@ def test_tflite_fully_connected(
 
     infra.compare_tvm_with_tflite(
         fully_connected, [ifm_shape], accel_type, enable_cascader=is_u55_accel_type(accel_type)
+    )
+
+
+@pytest.mark.parametrize("accel_type", ["ethos-u55-256", "ethos-u65-256"])
+@pytest.mark.parametrize("ifm_shape", [(1, 16), (4, 8)])
+@pytest.mark.parametrize("ofm_channels", [8, 32])
+@pytest.mark.parametrize("activation_function", ["NONE", "RELU"])
+def test_tflite_matmul(
+    accel_type,
+    ifm_shape,
+    ofm_channels,
+    activation_function,
+):
+    np.random.seed(0)
+
+    @tf.function
+    def matmul(x, y):
+        x = tf.matmul(x, y, transpose_b=True)
+        if activation_function == "RELU":
+            x = tf.nn.relu(x)
+        return x
+
+    infra.compare_tvm_with_tflite(
+        matmul, [ifm_shape, [ofm_channels, ifm_shape[-1]]], accel_type, enable_cascader=False
     )
 
 

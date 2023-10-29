@@ -287,12 +287,12 @@ def _test_bert_int8(relay_mod, params, input_info, target, sch_rules, postprocs)
     print(runtime.benchmark(dev, number=1, repeat=50).mean)
 
 
-@tvm.testing.requires_cascadelake
+@tvm.testing.requires_x86_vnni
 def test_vnni_dense():
     _test_dense("uint8", SCH_RULES_FOR_VNNI, POSTPROCS_FOR_VNNI, CASCADELAKE_VNNI_TARGET)
 
 
-@tvm.testing.requires_skylake_avx512
+@tvm.testing.requires_x86_avx512
 def test_avx512_dense():
     _test_dense("uint8", SCH_RULES_FOR_AVX512, POSTPROCS_FOR_VNNI, SKYLAKE_AVX512_TARGET)
 
@@ -310,12 +310,12 @@ def test_dp4a_dense():
     # )
 
 
-@tvm.testing.requires_cascadelake
+@tvm.testing.requires_x86_vnni
 def test_vnni_conv2d():
     _test_conv2d("uint8", SCH_RULES_FOR_VNNI, POSTPROCS_FOR_VNNI, CASCADELAKE_VNNI_TARGET)
 
 
-@tvm.testing.requires_skylake_avx512
+@tvm.testing.requires_x86_avx512
 def test_avx512_conv2d():
     _test_conv2d("uint8", SCH_RULES_FOR_AVX512, POSTPROCS_FOR_VNNI, SKYLAKE_AVX512_TARGET)
 
@@ -333,7 +333,7 @@ def test_dp4a_conv2d():
     # )
 
 
-@tvm.testing.requires_cascadelake
+@tvm.testing.requires_x86_vnni
 @pytest.mark.skipif(tvm.testing.IS_IN_CI, reason="Slow on CI")
 def test_vnni_bert_int8():
     pytest.importorskip("onnx")
@@ -348,7 +348,7 @@ def test_vnni_bert_int8():
     )
 
 
-@tvm.testing.requires_skylake_avx512
+@tvm.testing.requires_x86_avx512
 @pytest.mark.skip("Due to quantized BERT download issue")
 def test_avx512_bert_int8():
     relay_mod, params, input_info = load_quantized_bert_base()

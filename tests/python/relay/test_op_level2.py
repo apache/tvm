@@ -2237,12 +2237,12 @@ def test_conv2d_int8_alter_dtype_arm():
     )
 
 
-@tvm.testing.requires_cascadelake
+@tvm.testing.requires_x86_vnni
 def test_conv2d_int8_alter_dtype_vnni():
     _test_conv2d_int8_alter_dtype("int8", "llvm -mcpu=cascadelake", ["vpdpbusd"])
 
 
-@tvm.testing.requires_skylake_avx512
+@tvm.testing.requires_x86_avx512
 def test_conv2d_int8_alter_dtype_avx512():
     _test_conv2d_int8_alter_dtype(
         "int8", "llvm -mcpu=skylake-avx512", ["pmaddubs", "pmaddw", "vpaddd"]

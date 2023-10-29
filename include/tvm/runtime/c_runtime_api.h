@@ -73,7 +73,7 @@
 #endif
 
 // TVM version
-#define TVM_VERSION "0.14.dev0"
+#define TVM_VERSION "0.15.dev0"
 
 // TVM Runtime is DLPack compatible.
 #include <dlpack/dlpack.h>
@@ -251,6 +251,18 @@ TVM_DLL void TVMAPISetLastError(const char* msg);
  */
 TVM_DLL void TVMAPISetLastPythonError(void* py_object);
 
+/*! \brief Return the previous python error, if any.
+ *
+ * Used to propagate the original Python exception to a python
+ * try/except, when there are C++ stack frames between the location thro
+ *
+ * \return The previous argument passed during the most recent call to
+ *     TVMAPISetLastPythonError.  If TVMAPISetLastPythonError has not
+ *     been called, or if TVMDropLastPythonError has been called since
+ *     the most recent to TVMAPISetLastPythonError, returns nullptr.
+ */
+TVM_DLL void* TVMGetLastPythonError();
+
 /*!
  * \brief return str message of the last error
  *  all function in this file will return 0 when success
@@ -261,6 +273,42 @@ TVM_DLL void TVMAPISetLastPythonError(void* py_object);
  *  \return error info
  */
 TVM_DLL const char* TVMGetLastError(void);
+
+/*!
+ * \brief Return the backtrace of the most recent error
+ *
+ * Returns the backtrace of the most recent error, if an error exists,
+ * and the error contains a backtrace.  If no error exists or the
+ * error does not contain a backtrace, returns nullptr.
+ *
+ *  \return The backtrace of the most recent error
+ */
+TVM_DLL const char* TVMGetLastBacktrace();
+
+/*!
+ * \brief Remove the propagated python error, if any
+ *
+ * Removes the TVM-held reference to a thrown python exception object.
+ * Because these objects contain references to the stack frames from
+ * which the exception was thrown, maintaining a reference to an
+ * exception object prevents any local python variables from being
+ * garbage-collected.  After retrieving the object using
+ * TVMGetLastPythonError, the Python FFI interface uses this method to
+ * clear the TVM-held reference to the exception, to allow garbage
+ * collection to continue.
+ */
+TVM_DLL void TVMDropLastPythonError();
+
+/*! \brief Re-throw the most recent error.
+ *
+ * If an error was previously set using TVMAPISetLastError or
+ * TVMAPISetLastPythonError, re-throw the error.  This is similar to
+ * `LOG(FATAL) << TVMGetLastError()`, but includes handling to
+ * propagate a python exception across C++ stack frames, or to append
+ * a stack trace to an error message.
+ */
+TVM_DLL void TVMThrowLastError();
+
 /*!
  * \brief Load module from file.
  * \param file_name The file name to load the module from.

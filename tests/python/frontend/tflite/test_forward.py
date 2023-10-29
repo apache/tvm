@@ -2436,7 +2436,7 @@ def test_all_unary_elemwise():
         # from the converter that we need to provide a custom Tan operator
         # implementation.
         # _test_forward_unary_elemwise(_test_tan)
-        _test_forward_unary_elemwise(_test_elu, quantized=False)
+        _test_forward_unary_elemwise(_test_elu)
 
 
 #######################################################################
@@ -2452,6 +2452,7 @@ def _test_elemwise(
     qnn_op=None,
     same_qnn_params=False,
     comparison_op=False,
+    exclude_zero_point=False,
 ):
     """One iteration of elemwise"""
 
@@ -2479,6 +2480,16 @@ def _test_elemwise(
             if same_qnn_params:
                 inq0_min, inq0_max = (out_min, out_max)
                 inq1_min, inq1_max = (out_min, out_max)
+
+            if exclude_zero_point:
+                if inq1_max == inq1_min:
+                    raise ZeroDivisionError("Input range is 0.")
+
+                # only compute for rhs.
+                quant_scale = 255 / (inq1_max - inq1_min)
+                zero_point = int(round(-inq1_min * quant_scale))
+                data[1][data[1] == zero_point] += 1
+                data[1][data[1] == 0] += 1
 
             # fake_quant will keep the tensors in float32 until the conversion in the session
             inq_data = [
@@ -2619,6 +2630,7 @@ def _test_div(data, fused_activation_function=None, quantized=False, qnn_op=None
         quantized,
         qnn_op,
         same_qnn_params=True,
+        exclude_zero_point=True,
     )
 
 
@@ -2802,6 +2814,7 @@ def _test_floor_divide(data, fused_activation_function=None, quantized=False, qn
         quantized,
         qnn_op,
         same_qnn_params=True,
+        exclude_zero_point=True,
     )
 
 
@@ -2882,7 +2895,7 @@ def _test_elemwise_qnn_out_range(qnn_op):
 
 
 def test_all_elemwise():
-    """All_elewise"""
+    """All_elemwise"""
     _test_forward_elemwise(_test_add)
     _test_forward_elemwise_quantized(_test_add)
     _test_forward_elemwise(partial(_test_add, fused_activation_function="RELU"))

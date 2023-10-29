@@ -3592,7 +3592,7 @@ class Schedule(Object):
 
             sch = tir.Schedule(before_pad_einsum, debug_mask="all")
             block = sch.get_block("C_shared")
-            sch.pad_einsum(block, [0, 1, 1])
+            sch.pad_einsum(block, [32, 32, 32])
             print(sch.mod["main"].script())
 
         After applying decompose-padding, the IR becomes:

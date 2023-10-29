@@ -166,7 +166,7 @@ def get_identity_params(
             padding=SerialPadding(0, 0, 0, 0),
             activation=serial_activation,
             upscale="NONE",
-            rounding_mode="TFL",
+            rounding_mode=attrs["rounding_mode"],
             block_config=SerialBlockConfig(0, 0, 0),
         ),
         output_pointer,
