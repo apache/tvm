@@ -867,6 +867,10 @@ def test_adaptive_avgpool2d():
         def forward(self, input):
             return torch.nn.functional.adaptive_avg_pool2d(input, [10, 10])
 
+    class AdaptiveAvgPool2d2(Module):
+        def forward(self, input):
+            return torch.nn.functional.adaptive_avg_pool2d(input, [None, None])
+
     @tvm.script.ir_module
     class expected1:
         @R.function
@@ -882,8 +886,25 @@ def test_adaptive_avgpool2d():
                 R.output(gv)
             return gv
 
+    @tvm.script.ir_module
+    class expected2:
+        @R.function
+        def main(
+            inp_0: R.Tensor((1, 3, 10, 10), dtype="float32")
+        ) -> R.Tensor((1, 3, 10, 10), dtype="float32"):
+            # block 0
+            with R.dataflow():
+                lv: R.Tensor((1, 3, 10, 10), dtype="float32") = R.nn.adaptive_avg_pool2d(
+                    inp_0, output_size=[10, 10], layout="NCHW", out_layout="NCHW"
+                )
+                gv: R.Tensor((1, 3, 10, 10), dtype="float32") = lv
+                R.output(gv)
+            return gv
+
+
     verify_model(AdaptiveAvgPool2d0(), input_info, {}, expected1)
     verify_model(AdaptiveAvgPool2d1(), input_info, {}, expected1)
+    verify_model(AdaptiveAvgPool2d2(), input_info, {}, expected2)
 
 
 def test_flatten():
