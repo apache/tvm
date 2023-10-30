@@ -421,31 +421,13 @@ def test_vm_kill_object(exec_mode):
     tvm.testing.assert_allclose(res.numpy(), np.ones((4,), "float32"))
 
 
-@pytest.fixture
-def packed_func_check_if_exists():
-    func_name = "testing.check_if_none"
-
-    cached = tvm.get_global_func(func_name, allow_missing=True)
-
-    @tvm.register_func(func_name, override=True)
-    def func(obj: tvm.Object) -> tvm.tir.IntImm:
-        return tvm.runtime.convert(obj is not None)
-
-    yield func_name
-
-    if cached is None:
-        tvm._ffi.registry.remove_global_func(func_name)
-    else:
-        tvm.register_func(func_name, cached, override=True)
-
-
 @pytest.mark.parametrize("exec_mode", EXEC_MODE)
-def test_preserve_trivial_bindings(exec_mode, packed_func_check_if_exists):
+def test_preserve_trivial_bindings(exec_mode):
     @I.ir_module
     class mod:
         @R.function
         def main():
-            callback = R.ExternFunc(packed_func_check_if_exists)
+            callback = R.ExternFunc("test.vm.check_if_defined")
 
             storage = R.vm.alloc_storage(R.shape([16]), R.prim_value(0), R.dtype("uint8"))
             alloc = R.vm.alloc_tensor(storage, R.prim_value(0), R.shape([4]), R.dtype("float32"))
