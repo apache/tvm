@@ -859,7 +859,7 @@ class TorchFXImporter:
             ceil_mode = module.ceil_mode
         else:
             nargs = len(node.args)
-            kernel = node.args[1] if nargs > 1 else node.kwargs["kernel_size"]            
+            kernel = node.args[1] if nargs > 1 else node.kwargs["kernel_size"]
             if nargs > 2:
                 stride = node.args[2]
             elif "stride" in node.kwargs.keys():
