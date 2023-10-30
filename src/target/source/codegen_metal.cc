@@ -138,16 +138,16 @@ void CodeGenMetal::PrintFunctionSignature(const String& function_name, const Pri
 
   if (work_dim != 0) {
     // use ushort by default for now
-    stream << "  ";
-    PrintType(DataType::UInt(thread_index_bits_, work_dim), stream);
-    stream << " blockIdx [[threadgroup_position_in_grid]],\n";
-    stream << "  ";
-    PrintType(DataType::UInt(thread_index_bits_, work_dim), stream);
-    stream << " threadIdx [[thread_position_in_threadgroup]]\n";
+    os << "  ";
+    PrintType(DataType::UInt(thread_index_bits_, work_dim), os);
+    os << " blockIdx [[threadgroup_position_in_grid]],\n";
+    os << "  ";
+    PrintType(DataType::UInt(thread_index_bits_, work_dim), os);
+    os << " threadIdx [[thread_position_in_threadgroup]]\n";
   }
   thread_work_dim_ = work_dim;
 
-  stream << ")";
+  os << ")";
 }
 
 void CodeGenMetal::BindThreadIndex(const IterVar& iv) {

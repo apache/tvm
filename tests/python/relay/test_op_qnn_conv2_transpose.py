@@ -80,7 +80,7 @@ def get_qnn_func(
     channels,
     groups,
 ):
-    func = relay.qnn.op.conv2d_transpose(
+    func = relay.qnn.conv2d_transpose(
         data,
         kernel,
         input_zero_point=relay.const(input_zero_point, "int32"),
@@ -644,7 +644,7 @@ def test_broadcast_layout():
     func = relay.Function(relay.analysis.free_vars(func), func)
     mod = tvm.IRModule.from_expr(func)
     with tvm.transform.PassContext(opt_level=3):
-        libs = relay.build(mod, "llvm -mcpu=skylake-avx512")
+        libs = relay.build(mod, "llvm -mtriple=x86_64-linux-gnu -mcpu=skylake-avx512")
 
 
 def test_non_scalar_input_scale_zp():
@@ -681,7 +681,7 @@ def test_per_channel_kernel_scale():
     kernel = relay.var("kernel", shape=kernel_shape, dtype=kernel_dtype)
     kernel_scales = [2, 2, 2]
     kernel_scales = relay.const(np.array(kernel_scales).astype("float32"))
-    func = relay.qnn.op.conv2d_transpose(
+    func = relay.qnn.conv2d_transpose(
         data,
         kernel,
         input_zero_point=relay.const(0, "int32"),

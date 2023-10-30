@@ -104,7 +104,7 @@ def get_qnn_func(
     if isinstance(kernel_zero_point, (int, float)):
         kernel_zero_point = relay.const(kernel_zero_point, "int32")
 
-    func = relay.qnn.op.conv2d(
+    func = relay.qnn.conv2d(
         data,
         kernel,
         input_zero_point=input_zero_point,
@@ -948,7 +948,9 @@ def test_broadcast_layout():
         func = relay.Function(relay.analysis.free_vars(func), func)
         mod = tvm.IRModule.from_expr(func)
         with tvm.transform.PassContext(opt_level=3):
-            graph, lib, params = relay.build(mod, "llvm -mcpu=skylake-avx512")
+            graph, lib, params = relay.build(
+                mod, "llvm -mtriple=x86_64-linux-gnu -mcpu=skylake-avx512"
+            )
 
 
 def test_depthwise_depth_multiplier():
@@ -1075,7 +1077,7 @@ def test_per_channel_kernel_scale():
         kernel = relay.var("kernel", shape=kernel_shape, dtype=kernel_dtype)
         kernel_scales = [2, 2, 2]
         kernel_scales = relay.const(np.array(kernel_scales).astype("float32"))
-        func = relay.qnn.op.conv2d(
+        func = relay.qnn.conv2d(
             data,
             kernel,
             input_zero_point=relay.const(0, "int32"),

@@ -121,12 +121,9 @@ InferCorrectLayoutOutput RequantizeInferCorrectLayout(const Attrs& attrs,
 }
 
 bool has_current_target_sse41_support() {
-  auto target = Target::Current(true);
-  Optional<String> mcpu =
-      target.defined() ? target->GetAttr<String>("mcpu") : Optional<String>(nullptr);
-  auto target_has_sse41_fn_ptr = tvm::runtime::Registry::Get("tvm.target.x86.target_has_sse41");
-  ICHECK(target_has_sse41_fn_ptr) << "Function tvm.target.x86.target_has_sse41 not found";
-  return mcpu && (*target_has_sse41_fn_ptr)(mcpu.value());
+  auto target_has_feature_fn_ptr = tvm::runtime::Registry::Get("target.target_has_feature");
+  ICHECK(target_has_feature_fn_ptr) << "Function target.target_has_feature not found";
+  return (*target_has_feature_fn_ptr)("sse4.1", Target::Current(true));
 }
 
 /*

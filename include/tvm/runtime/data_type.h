@@ -339,6 +339,7 @@ inline const char* DLDataTypeCode2Str(DLDataTypeCode type_code) {
     default:
       LOG(FATAL) << "unknown type_code=" << static_cast<int>(type_code);
   }
+  throw;
 }
 
 inline std::ostream& operator<<(std::ostream& os, DLDataType t) {  // NOLINT(*)

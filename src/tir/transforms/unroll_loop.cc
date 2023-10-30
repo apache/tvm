@@ -247,7 +247,7 @@ class LoopUnroller : public StmtExprMutator {
   int auto_max_step_;
   int auto_max_depth_;
   // max extent of loop to auto unroll
-  // this not not count the total steps, only count the number of loops
+  // this does not count the total steps, only count the number of loops
   int auto_max_extent_;
   bool explicit_unroll_;
   // Wether to unroll loops to local access.

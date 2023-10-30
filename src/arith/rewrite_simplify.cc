@@ -1053,6 +1053,16 @@ PrimExpr RewriteSimplifier::Impl::VisitExpr_(const FloorModNode* op) {
 
     TVM_TRY_REWRITE(matches_one_of(floormod(x * y, y), floormod(y * x, y)), ZeroWithTypeLike(y));
 
+    // x = ay + b, then (ay + b + (ny - ay - b) % y) % y -> (b + (-b) % y) % y -> 0
+    TVM_TRY_REWRITE_IF(
+        matches_one_of(floormod(x + floormod(z, y), y), floormod(floormod(z, y) + x, y)),
+        ZeroWithTypeLike(x), CanProveEqual(floormod(x.Eval() + z.Eval(), y.Eval()), 0));
+    // x = ay + b, then (ay + b - (ay + b) % +-y) % y -> (b - b % +-y) % y -> 0
+    TVM_TRY_REWRITE_IF(
+        matches_one_of(floormod(x - floormod(x, z), y), floormod(floormod(x, z) - x, y)),
+        ZeroWithTypeLike(x),
+        CanProveEqual(y.Eval() - z.Eval(), 0) || CanProveEqual(y.Eval() + z.Eval(), 0));
+
     if (floormod(x, c1).Match(ret)) {
       int64_t c1val = c1.Eval()->value;
       if (c1val > 0) {
@@ -1856,6 +1866,7 @@ PrimExpr RewriteSimplifier::Impl::VisitExpr_(const AndNode* op) {
                      }),
                      cfalse, c2.Eval()->value > c1.Eval()->value);
 
+  TVM_TRY_REWRITE((x == c1) && (x == c2), (x == c1) && (c1 == c2));
   TVM_TRY_REWRITE(matches_one_of(x == c1 && x != c2, x != c2 && x == c1), x == c1 && c1 != c2);
 
   TVM_TRY_RECURSIVE_REWRITE(matches_one_of(floordiv(x, c2) == c1 && floormod(x, c2) == c3,
@@ -2000,6 +2011,7 @@ PrimExpr RewriteSimplifier::Impl::VisitExpr_(const OrNode* op) {
   TVM_TRY_REWRITE_IF(x <= c1 || c2 <= x, ctrue, c2.Eval()->value <= c1.Eval()->value + 1);
   TVM_TRY_REWRITE_IF(c2 <= x || x <= c1, ctrue, c2.Eval()->value <= c1.Eval()->value + 1);
 
+  TVM_TRY_REWRITE(x != c1 || x != c2, x != c1 || c1 != c2);
   TVM_TRY_REWRITE(x != c1 || x == c2, x != c1 || c1 == c2);
   TVM_TRY_REWRITE(x == c2 || x != c1, x != c1 || c1 == c2);
 

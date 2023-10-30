@@ -142,7 +142,7 @@ class AOTExecutorFactoryModule(ExecutorFactoryModule):
         return self.lib
 
     def export_library(self, file_name, fcompile=None, addons=None, **kwargs):
-        return self.module.export_library(file_name, fcompile, addons, **kwargs)
+        return self.module.export_library(file_name, fcompile=fcompile, addons=addons, **kwargs)
 
 
 class GraphExecutorFactoryModule(ExecutorFactoryModule):
@@ -204,7 +204,7 @@ class GraphExecutorFactoryModule(ExecutorFactoryModule):
         self.lowered_ir_mods = lowered_ir_mods
 
     def export_library(self, file_name, fcompile=None, addons=None, **kwargs):
-        return self.module.export_library(file_name, fcompile, addons, **kwargs)
+        return self.module.export_library(file_name, fcompile=fcompile, addons=addons, **kwargs)
 
     def get_devices(self):
         return []

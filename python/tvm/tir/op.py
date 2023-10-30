@@ -16,7 +16,6 @@
 # under the License.
 # pylint: disable=redefined-builtin, invalid-name
 """Operators used in TIR expression."""
-import warnings
 from typing import Any, Optional
 
 import tvm._ffi
@@ -251,7 +250,7 @@ def call_llvm_intrin(dtype, name, *args, span=None):
        The name of the llvm intrinsic function.
 
     args : list
-       Poistional arguments.
+       Positional arguments.
 
     span : Optional[Span]
         The location of this operator in the source code.
@@ -271,7 +270,7 @@ def call_llvm_intrin(dtype, name, *args, span=None):
     else:
         llvm_id = name
     if llvm_id == 0:
-        warnings.warn(f"Unknown llvm intrinsic function {name}, falling back to 0")
+        raise ValueError(f"Unknown llvm intrinsic function {name}")
     return call_intrin(
         dtype,
         Op.get("tir.call_llvm_intrin"),
@@ -293,7 +292,7 @@ def call_llvm_pure_intrin(dtype, name, *args, span=None):
        The name of the llvm intrinsic function.
 
     args : list
-       Poistional arguments.
+       Positional arguments.
 
     span : Optional[Span]
         The location of this operator in the source code.
@@ -313,7 +312,7 @@ def call_llvm_pure_intrin(dtype, name, *args, span=None):
     else:
         llvm_id = name
     if llvm_id == 0:
-        warnings.warn(f"Unknown llvm intrinsic function {name}, falling back to 0")
+        raise ValueError(f"Unknown llvm intrinsic function {name}")
     return call_intrin(
         dtype,
         Op.get("tir.call_llvm_pure_intrin"),
@@ -1335,7 +1334,7 @@ def ptx_ldmatrix(dtype, trans, num, type, local_ptr, local_offset, smem_ptr, sme
 
 
 def ptx_cp_async(dtype, shared_ptr, shared_offset, global_ptr, global_offset, bytes):
-    """TVM intrinsic for ptx async copy from global to shared memory
+    """TVM intrinsic for ptx async copy from global to shared memory using cp.async
     https://docs.nvidia.com/cuda/parallel-thread-execution/index.html#data-movement-and-conversion-instructions-cp-async
 
     Parameters
@@ -1368,6 +1367,52 @@ def ptx_cp_async(dtype, shared_ptr, shared_offset, global_ptr, global_offset, by
     )
 
 
+def ptx_cp_async_bulk(
+    dtype, shared_ptr, shared_offset, global_ptr, global_offset, bytes, barrier_id
+):
+    """TVM intrinsic for ptx async copy from global to shared memory using cp.async.bulk
+    https://docs.nvidia.com/cuda/parallel-thread-execution/index.html#data-movement-and-conversion-instructions-cp-async-bulk
+
+    Parameters
+    ----------
+    dtype : str
+       The data type of the result.
+
+    shared_ptr : Var
+        The shared memory pointer variable.
+
+    shared_offset : Expr
+        The offset of shared memory pointer.
+
+    global_ptr : Var
+        The global memory pointer variable.
+
+    global_offset : Expr
+        The offset of global memory pointer.
+
+    bytes : int
+        The data size to copy.
+
+    barrier_id : int
+        The ID of the barrier shared memory pointer.
+
+    Returns
+    -------
+    call : PrimExpr
+        The call expression.
+    """
+    return call_intrin(
+        dtype,
+        "tir.ptx_cp_async_bulk",
+        shared_ptr,
+        shared_offset,
+        global_ptr,
+        global_offset,
+        bytes,
+        barrier_id,
+    )
+
+
 def ptx_commit_group():
     """TVM intrinsic for ptx async copy commit
     https://docs.nvidia.com/cuda/parallel-thread-execution/index.html#data-movement-and-conversion-instructions-cp-async-commit-group
@@ -1395,6 +1440,115 @@ def ptx_wait_group(num):
         The call expression.
     """
     return call_intrin("", "tir.ptx_wait_group", num)
+
+
+def ptx_cp_async_barrier(barrier_id):
+    """TVM intrinsic for ptx async copy barrier using cp.async.mbarrier.arrive
+    https://docs.nvidia.com/cuda/parallel-thread-execution/index.html#parallel-synchronization-and-communication-instructions-cp-async-mbarrier-arrive
+
+    Parameters
+    ----------
+    barrier_id : int
+        The ID of the barrier shared memory pointer.
+
+    Returns
+    -------
+    call : PrimExpr
+        The call expression.
+    """
+    return call_intrin("", "tir.ptx_cp_async_barrier", barrier_id)
+
+
+def ptx_init_barrier_thread_count(barrier_id, thread_count):
+    """TVM intrinsic for ptx barrier initialization of thread count using mbarrier.init
+    https://docs.nvidia.com/cuda/parallel-thread-execution/index.html#parallel-synchronization-and-communication-instructions-mbarrier-init
+
+    Parameters
+    ----------
+    barrier_id : int
+        The ID of the barrier shared memory pointer.
+
+    thread_count : int
+        Number of threads expected to arrive at the barrier.
+
+    Returns
+    -------
+    call : PrimExpr
+        The call expression.
+    """
+    return call_intrin("", "tir.ptx_init_barrier_thread_count", barrier_id, thread_count)
+
+
+def ptx_arrive_barrier(barrier_id):
+    """TVM intrinsic for ptx barrier arrival using mbarrier.arrive
+    https://docs.nvidia.com/cuda/parallel-thread-execution/index.html#parallel-synchronization-and-communication-instructions-mbarrier-arrive
+
+    Parameters
+    ----------
+    barrier_id : int
+        The ID of the barrier shared memory pointer.
+
+    Returns
+    -------
+    call : PrimExpr
+        The call expression.
+    """
+    return call_intrin("", "tir.ptx_arrive_barrier", barrier_id)
+
+
+def ptx_arrive_barrier_expect_tx(barrier_id, byte_count):
+    """TVM intrinsic for ptx barrier arrival with expect tx using mbarrier.arrive.expect_tx
+    https://docs.nvidia.com/cuda/parallel-thread-execution/index.html#parallel-synchronization-and-communication-instructions-mbarrier-arrive
+    https://docs.nvidia.com/cuda/parallel-thread-execution/index.html#parallel-synchronization-and-communication-instructions-mbarrier-expect-tx-operation
+
+    Parameters
+    ----------
+    barrier_id : int
+        The ID of the barrier shared memory pointer.
+
+    byte_count : int
+        Increases the tx count of the mbarrier object to track completion of
+        addtional async transactions.
+
+    Returns
+    -------
+    call : PrimExpr
+        The call expression.
+    """
+    return call_intrin("", "tir.ptx_arrive_barrier_expect_tx", barrier_id, byte_count)
+
+
+def ptx_wait_barrier(barrier_id):
+    """TVM intrinsic for ptx barrier wait using mbarrier.try_wait
+    https://docs.nvidia.com/cuda/parallel-thread-execution/index.html#parallel-synchronization-and-communication-instructions-mbarrier-test-wait-mbarrier-try-wait
+
+    Parameters
+    ----------
+    barrier_id : int
+        The ID of the barrier shared memory pointer.
+
+    Returns
+    -------
+    call : PrimExpr
+        The call expression.
+    """
+    return call_intrin("", "tir.ptx_wait_barrier", barrier_id)
+
+
+def create_barriers(barrier_count):
+    """TVM intrinsic to create N barriers
+
+    Parameters
+    ----------
+    barrier_count : int
+        The number of barriers to create.
+
+    Returns
+    -------
+    call : PrimExpr
+        The call expression.
+    """
+    return call_intrin("", "tir.create_barriers", barrier_count)
 
 
 def vectorlow(dtype, vec):
@@ -2995,10 +3149,16 @@ def comm_reducer(fcombine, fidentity, name="reduce"):
         if isinstance(axis, (tvm.tir.IterVar, list, tuple)):
             assert not args
             return _make_reduce(expr, axis, where, init)
+
         if where is None:
             assert not args
+            assert init is None
             return _reduce_directly(expr, axis)
-        return _reduce_directly(expr, axis, where, *args)
+        elif init is None:
+            assert not args
+            return _reduce_directly(expr, axis, where)
+        else:
+            return _reduce_directly(expr, axis, where, init, *args)
 
     doc_str = """Create a {0} expression over axis.
 

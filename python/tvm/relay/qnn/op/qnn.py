@@ -27,7 +27,7 @@ from tvm.relay.op.nn.utils import get_pad_tuple2d
 from tvm.runtime import Object
 from tvm.target import Target
 from tvm.topi.nn.qnn import SQNN_DTYPE_TO_CODE
-from tvm.target.x86 import target_has_sse41
+from tvm.target.x86 import target_has_features
 
 from . import _make, _requantize
 
@@ -54,8 +54,9 @@ class RequantizeConfig(Object):
     @staticmethod
     def _get_node_default_compute_dtype():
         target = Target.current(True)
-        if target and str(target.kind) == "llvm" and target_has_sse41(target.mcpu):
-            return "float32"
+        if target and str(target.kind) == "llvm":
+            if target_has_features("sse4.1", target):
+                return "float32"
 
         return "int64"
 

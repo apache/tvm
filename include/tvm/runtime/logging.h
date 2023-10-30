@@ -113,7 +113,7 @@
  * in a function, or 'continue' or 'break' in a loop)
  * The default behavior when quit_on_assertion is false, is to 'return false'. If this is not
  * desirable, the macro caller can pass one more last parameter to COND_X to tell COND_X what
- * to do when when quit_on_assertion is false and the assertion fails.
+ * to do when quit_on_assertion is false and the assertion fails.
  *
  * Rationale: These macros were designed to implement functions that have two behaviors
  * in a concise way. Those behaviors are quitting on assertion failures, or trying to

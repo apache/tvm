@@ -35,6 +35,17 @@ Code reviews are one of the key ways to ensure the quality of the code. High-qua
 
 The community should strive to reach a consensus on technical decisions through discussion. We expect committers and PMCs to moderate technical discussions in a diplomatic way, and provide suggestions with clear technical reasoning when necessary.
 
+Strategy Decision Process
+-------------------------
+It takes lazy 2/3 majority (at least 3 votes and twice as many +1 votes as -1 votes) of binding decisions to make the following
+strategic decisions in the TVM community:
+
+- Adoption of a guidance-level community strategy to enable new directions or overall project evolution.
+- Establishment of a new module in the project.
+- Adoption of a new codebase: When the codebase for an existing, released product is to be replaced with an alternative codebase.
+  If such a vote fails to gain approval, the existing code base will continue. This also covers the creation of new sub-projects within the project.
+
+All these decisions are made after community conversations that get captured as part of the summary.
 
 
 Committers

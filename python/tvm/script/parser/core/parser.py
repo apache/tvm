@@ -163,7 +163,6 @@ class ScriptMacro(abc.ABC):
                 for k, v in local_vars.items():
                     parser.var_table.add(k, v)
 
-                print(parser.var_table.get())
                 parse_result = self.parse_macro(parser)
 
         return parse_result
@@ -522,7 +521,18 @@ class Parser(doc.NodeVisitor):
             msg = "KeyError: " + str(err)
         else:
             msg = str(err)
-        self.diag.error(node, msg)
+
+        try:
+            self.diag.error(node, msg)
+        except Exception as diag_err:
+            # Calling self.diag.error is guaranteed to throw an
+            # exception.  When shown to a user, this error should
+            # reference the point of error within the provided
+            # TVMScript.  However, when caught in pdb, the full
+            # traceback should be available for debugging.
+            if isinstance(err, Exception):
+                diag_err = diag_err.with_traceback(err.__traceback__)
+            raise diag_err
 
     def visit(self, node: doc.AST) -> None:
         """The general visiting method.

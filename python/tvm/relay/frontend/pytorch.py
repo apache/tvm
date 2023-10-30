@@ -2977,7 +2977,10 @@ class PyTorchOpConverter:
     def flip(self, inputs, input_types):
         data = inputs[0]
         axis = inputs[1]
-        return _op.transform.reverse(data, axis=axis[0])
+        out = data
+        for ax in axis:
+            out = _op.reverse(out, ax)
+        return out
 
     def bidir_rnn_cell(self, input_seqs, weights_dicts, act=_op.tanh):
         """
@@ -3744,6 +3747,95 @@ class PyTorchOpConverter:
         )
         return weight_g * (weight_v / norm_v)
 
+    def inplace_copy(self, inputs, input_types):
+        source = inputs[0]
+        values = inputs[1]
+        accumulate = inputs[2]
+        if not accumulate:
+            mode = "update"
+        else:
+            mode = "add"
+
+        # Track slice and select calls
+        slice_and_select_calls = []
+        while True:
+            if isinstance(source, _expr.Call) and source.op.name in [
+                "strided_slice",
+                "take",
+            ]:
+                slice_and_select_calls.append(source)
+                source = source.args[0]
+            else:
+                break
+        slice_and_select_calls = slice_and_select_calls[::-1]
+        source_shape = _infer_shape(source)
+
+        # Create index map
+        index_map = {}
+        squeezed_axes = []
+        for call in slice_and_select_calls:
+            if call.op.name == "strided_slice":
+                axes = call.attrs.axes
+                if axes is None:
+                    axes = list(range(len(source_shape)))
+                begins = call.attrs.begin
+                ends = call.attrs.end
+                for axis, begin, end in zip(axes, begins, ends):
+                    num_squeezed_axis = len([v for v in squeezed_axes if v <= axis])
+                    axis += num_squeezed_axis
+                    # Set range
+                    if begin < 0:
+                        begin = source_shape[axis] + begin
+                    if end < 0:
+                        end = source_shape[axis] + end
+                    if begin == 0 and end == source_shape[axis]:
+                        continue
+                    index_map[axis] = (begin.value, end.value)
+            elif call.op.name == "take":
+                num_squeezed_axis = len([v for v in squeezed_axes if v <= axis])
+                axis = call.attrs.axis.value + num_squeezed_axis
+                idx = call.args[1]
+                assert isinstance(idx, _expr.Constant)
+                idx = idx.data.numpy().item()
+                if idx < 0:
+                    idx = source_shape[axis] + idx
+                index_map[axis] = (idx, idx + 1)
+                values = _op.expand_dims(values, axis)
+                squeezed_axes.append(axis)
+            else:
+                pass
+        last_index_dim = np.max(list(index_map)).item()
+        for axis in range(last_index_dim + 1):
+            if axis not in index_map:
+                index_map[axis] = 0, source_shape[axis]
+
+        # Create indices
+        nelem = 1
+        for (begin, end) in index_map.values():
+            nelem *= end - begin
+        chunk_sizes = [nelem]
+        for i in range(1, last_index_dim + 1):
+            begin, end = index_map[i - 1]
+            chunk_sizes.append(chunk_sizes[-1] // (end - begin))
+        indices = []
+        for axis in range(last_index_dim + 1):
+            chunk_size = chunk_sizes[axis]
+            repeat = nelem // chunk_size
+            begin, end = index_map[axis]
+            step_size = chunk_size // (end - begin)
+            chunk = np.repeat(np.arange(begin, end), step_size)
+            chunk = np.concatenate([chunk] * repeat)
+            indices.append(chunk)
+        indices = np.stack(indices, axis=0).astype(np.int64)
+        new_shape = [indices.shape[0]] + [
+            index_map[i][1] - index_map[i][0] for i in range(last_index_dim + 1)
+        ]
+        indices = np.resize(indices, new_shape)
+        indices = _expr.const(indices)
+
+        # Return
+        return _op.scatter_nd(source, indices, values, mode)
+
     # Operator mappings
     def create_convert_map(self):
         self.convert_map = {
@@ -4015,6 +4107,7 @@ class PyTorchOpConverter:
             "aten::__rshift__": self.make_elemwise("right_shift"),
             "aten::multinomial": self.multinomial,
             "aten::_weight_norm": self.weight_norm,
+            "aten::copy_": self.inplace_copy,
         }
 
     def update_convert_map(self, custom_map):
@@ -4291,7 +4384,15 @@ class PyTorchOpConverter:
 
             self.current_op.pop()
 
-        return [_wrap_const(outputs[ret_name]) for ret_name in ret_names]
+        # TODO(@haoyang9804): outputs[ret_name] could be None and cause some issue
+        # revealed by https://github.com/apache/tvm/issues/15004
+        # Now only adaptive_max_pool1d is considered. Maybe other ops could also
+        # trigger this problem.
+        return [
+            _wrap_const(outputs[ret_name])
+            for ret_name in ret_names
+            if ret_name != "aten::adaptive_max_pool1d_0_1"
+        ]
 
     def _set_parameter_source_name(self, op_node, outputs):
         """A helper function to rewrite source_name of parameter."""
@@ -4416,7 +4517,7 @@ def _create_typed_const(data, dtype):
     dtype should be a TVM dtype"""
 
     if dtype == "float64":
-        typed_data = _expr.const(np.float64(data), dtype=dtype)
+        typed_data = _expr.const(np.asarray(data, dtype="float64"), dtype=dtype)
     elif dtype == "float32":
         typed_data = _expr.const(np.float32(data), dtype=dtype)
     elif dtype == "float16":
@@ -4457,6 +4558,39 @@ def _run_jit_passes(graph, enable_lower_all_tuples=True):
 
     if enable_lower_all_tuples:
         torch._C._jit_pass_lower_all_tuples(graph)
+
+
+def _redirect_inplace_output(graph):
+    """
+    This pass redirects the output node of the in-place op i.e. aten::copy_.
+    Before:
+      %1: ...
+      %2: ...
+      %3: Float(requires_grad=0, device=cpu) = aten::copy_(%input, %1, %2)
+      return (%input)
+    After:
+      %1: ...
+      %2: ...
+      %3: Float(requires_grad=0, device=cpu) = aten::copy_(%input, %1, %2)
+      return (%3)
+    """
+    for node in graph.nodes():
+        if node.kind() == "aten::copy_":
+            node_inputs = list(node.inputs())
+            src_node = node_inputs[0].node()
+            slice_and_select_nodes = []
+            while True:
+                if src_node.kind() in ["aten::slice", "aten::select", "aten::unsqueeze"]:
+                    src_node = list(src_node.inputs())[0].node()
+                    slice_and_select_nodes.append(src_node)
+                else:
+                    break
+            if src_node.kind() == "prim::Param":
+                # First one is "self"
+                src_value = list(src_node.outputs())[1]
+            else:
+                src_value = src_node.output()
+            src_value.replaceAllUsesAfterNodeWith(node, node.output())
 
 
 def _get_tensor_and_var(torch_tensor, name):
@@ -4960,6 +5094,7 @@ def from_pytorch(
             break
 
     _run_jit_passes(graph, enable_lower_all_tuples)
+    _redirect_inplace_output(graph)
 
     if custom_convert_map:
         converter.update_convert_map(custom_convert_map)

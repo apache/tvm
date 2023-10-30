@@ -187,7 +187,8 @@ class CodeGenAMDGPU : public CodeGenLLVM {
       }
     }
     llvm::Function* f = llvm::Intrinsic::getDeclaration(module_.get(), intrin_id);
-    return builder_->CreateCall(f, {});
+    llvm::Value* result = builder_->CreateCall(f, {});
+    return this->CreateCast(DataType::Int(32), iv->var->dtype, result);
   }
 
   llvm::Value* CreateStorageSync(const CallNode* op) final {
@@ -301,9 +302,12 @@ runtime::Module BuildAMDGPU(IRModule mod, Target target) {
 #elif TVM_LLVM_VERSION <= 90
   ICHECK(tm->addPassesToEmitFile(pass, destObj, nullptr, llvm::TargetMachine::CGFT_ObjectFile) == 0)
       << "Cannot emit target CGFT_ObjectFile";
-#else
+#elif TVM_LLVM_VERSION <= 170
   ICHECK(tm->addPassesToEmitFile(pass, destObj, nullptr, llvm::CGFT_ObjectFile) == 0)
       << "Cannot emit target CGFT_ObjectFile";
+#else
+  ICHECK(tm->addPassesToEmitFile(pass, destObj, nullptr, llvm::CodeGenFileType::ObjectFile) == 0)
+      << "Cannot emit target CodeGenFileType::ObjectFile";
 #endif
   pass.run(*mObj);
   std::string obj(dataObj.begin(), dataObj.end());
@@ -316,8 +320,12 @@ runtime::Module BuildAMDGPU(IRModule mod, Target target) {
   ICHECK(tm->addPassesToEmitFile(passAsm, destAsm, nullptr,
                                  llvm::TargetMachine::CGFT_AssemblyFile) == 0)
       << "Cannot emit target CGFT_AssemblyFile";
-#else
+#elif TVM_LLVM_VERSION <= 170
   ICHECK(tm->addPassesToEmitFile(passAsm, destAsm, nullptr, llvm::CGFT_AssemblyFile) == 0)
+      << "Cannot emit target CGFT_AssemblyFile";
+#else
+  ICHECK(tm->addPassesToEmitFile(passAsm, destAsm, nullptr, llvm::CodeGenFileType::AssemblyFile) ==
+         0)
       << "Cannot emit target CGFT_AssemblyFile";
 #endif
   passAsm.run(*mAsm);

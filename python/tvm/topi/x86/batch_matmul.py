@@ -21,7 +21,7 @@ import tvm
 from tvm import autotvm, te
 from tvm.autotvm.task.space import SplitEntity
 from tvm.contrib import cblas, mkl
-from tvm.target.x86 import target_has_amx, target_has_avx512
+from tvm.target.codegen import target_has_features
 
 from .. import generic, nn
 from ..transform import layout_transform
@@ -38,8 +38,7 @@ def batch_matmul_int8_compute(cfg, x, y, *_):
     packed_y = layout_transform(y, "BNK", packed_y_layout)
     _, n_o, _, n_i, _ = packed_y.shape
     ak = te.reduce_axis((0, k), name="k")
-    mcpu = tvm.target.Target.current().mcpu
-    if target_has_avx512(mcpu):
+    if target_has_features(["avx512bw", "avx512f"]):
         attrs_info = {"schedule_rule": "batch_matmul_int8"}
     else:
         attrs_info = None
@@ -233,14 +232,13 @@ def schedule_batch_matmul(cfg, outs):
 def schedule_batch_matmul_int8(cfg, outs):
     """Schedule for batch_matmul_int8"""
     s = te.create_schedule([x.op for x in outs])
-    mcpu = tvm.target.Target.current().mcpu
 
     def _callback(op):
         if "batch_matmul_int8" in op.tag:
             layout_trans = op.input_tensors[1]
-            if target_has_amx(mcpu):
+            if target_has_features("amx-int8"):
                 batch_matmul_amx_schedule(cfg, s, op.output(0), outs[0], layout_trans)
-            elif target_has_avx512(mcpu):
+            elif target_has_features(["avx512bw", "avx512f"]):
                 batch_matmul_int8_schedule(cfg, s, op.output(0), outs[0], layout_trans)
 
     traverse_inline(s, outs[0].op, _callback)

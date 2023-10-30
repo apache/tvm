@@ -97,6 +97,51 @@ namespace runtime {
  */
 TVM_DLL void EnvCheckSignals();
 
+/*! \brief A class that wraps a Python object and preserves its ownership.
+
+ * This class is used to wrap a PyObject* from the Python API and preserve its ownership.
+ * Allows for the creation of strong references to Python objects, which prevent them from being
+ * garbage-collected as long as the wrapper object exists.
+ */
+class WrappedPythonObject {
+ public:
+  /*! \brief Construct a wrapper that doesn't own anything */
+  WrappedPythonObject() : python_obj_(nullptr) {}
+
+  /*! \brief Conversion constructor from nullptr */
+  explicit WrappedPythonObject(std::nullptr_t) : python_obj_(nullptr) {}
+
+  /*! \brief Take ownership of a python object
+   *
+   * A new strong reference is created for the underlying python
+   * object.
+   *
+   * \param python_obj A PyObject* from the Python.h API.  A new
+   * strong reference is created using Py_IncRef.
+   */
+  explicit WrappedPythonObject(void* python_obj);
+
+  /*! \brief Drop ownership of a python object
+   *
+   * Removes the strong reference held by the wrapper.
+   */
+  ~WrappedPythonObject();
+
+  WrappedPythonObject(WrappedPythonObject&&);
+  WrappedPythonObject& operator=(WrappedPythonObject&&);
+
+  WrappedPythonObject(const WrappedPythonObject&);
+  WrappedPythonObject& operator=(const WrappedPythonObject&);
+  WrappedPythonObject& operator=(std::nullptr_t);
+
+  operator bool() { return python_obj_; }
+
+  void* raw_pointer() { return python_obj_; }
+
+ private:
+  void* python_obj_ = nullptr;
+};
+
 /*! \brief Registry for global function */
 class Registry {
  public:

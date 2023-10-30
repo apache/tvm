@@ -27,6 +27,7 @@
 #include <tvm/runtime/c_runtime_api.h>
 #include <tvm/runtime/container/array.h>
 #include <tvm/runtime/container/map.h>
+#include <tvm/runtime/container/variant.h>
 #include <tvm/runtime/data_type.h>
 #include <tvm/runtime/logging.h>
 #include <tvm/runtime/module.h>
@@ -132,7 +133,7 @@ class PackedFuncSubObj : public PackedFuncObj {
  *  The arguments are passed by packed format.
  *
  *  This is an useful unified interface to call generated functions,
- *  It is the unified function function type of TVM.
+ *  It is the unified function type of TVM.
  *  It corresponds to TVMFunctionHandle in C runtime API.
  */
 class PackedFunc : public ObjectRef {
@@ -418,6 +419,8 @@ class TVMArgs {
  */
 inline const char* ArgTypeCode2Str(int type_code);
 
+inline std::ostream& operator<<(std::ostream& os, DLDevice dev);  // NOLINT(*)
+
 // macro to check type code.
 #define TVM_CHECK_TYPE_CODE(CODE, T) \
   ICHECK_EQ(CODE, T) << "expected " << ArgTypeCode2Str(T) << " but got " << ArgTypeCode2Str(CODE)
@@ -678,9 +681,6 @@ class TVMArgValue : public TVMPODValue_ {
     } else if (type_code_ == kTVMStr) {
       return std::string(value_.v_str);
     } else {
-      ICHECK(IsObjectRef<tvm::runtime::String>())
-          << "Could not convert TVM object of type " << runtime::Object::TypeIndex2Key(type_code_)
-          << " to a string.";
       return AsObjectRef<tvm::runtime::String>().operator std::string();
     }
   }
@@ -1257,6 +1257,56 @@ inline const char* ArgTypeCode2Str(int type_code) {
     default:
       LOG(FATAL) << "unknown type_code=" << static_cast<int>(type_code);
   }
+  throw;
+}
+
+/*!
+ * \brief The name of DLDeviceType.
+ * \param type The device type.
+ * \return the device name.
+ */
+inline const char* DLDeviceType2Str(int type) {
+  switch (type) {
+    case kDLCPU:
+      return "cpu";
+    case kDLCUDA:
+      return "cuda";
+    case kDLCUDAHost:
+      return "cuda_host";
+    case kDLCUDAManaged:
+      return "cuda_managed";
+    case kDLOpenCL:
+      return "opencl";
+    case kDLSDAccel:
+      return "sdaccel";
+    case kDLAOCL:
+      return "aocl";
+    case kDLVulkan:
+      return "vulkan";
+    case kDLMetal:
+      return "metal";
+    case kDLVPI:
+      return "vpi";
+    case kDLROCM:
+      return "rocm";
+    case kDLROCMHost:
+      return "rocm_host";
+    case kDLExtDev:
+      return "ext_dev";
+    case kDLOneAPI:
+      return "oneapi";
+    case kDLWebGPU:
+      return "webgpu";
+    case kDLHexagon:
+      return "hexagon";
+    case kOpenGL:
+      return "opengl";
+    case kDLMicroDev:
+      return "microdev";
+    default:
+      LOG(FATAL) << "unknown type = " << type;
+  }
+  throw;
 }
 
 namespace detail {
@@ -1641,7 +1691,7 @@ inline TVMRetValue PackedFunc::operator()(Args&&... args) const {
   return rv;
 }
 
-template <int i, typename T>
+template <size_t i, typename T>
 struct TVMArgsSetterApply {
   static TVM_ALWAYS_INLINE void F(TVMArgsSetter* setter, T&& value) {
     (*setter)(i, std::forward<T>(value));
@@ -2008,6 +2058,56 @@ struct PackedFuncValueConverter<Optional<T>> {
   static Optional<T> From(const TVMRetValue& val) {
     if (val.type_code() == kTVMNullptr) return Optional<T>(nullptr);
     return PackedFuncValueConverter<T>::From(val);
+  }
+};
+
+template <typename... VariantTypes>
+struct PackedFuncValueConverter<Variant<VariantTypes...>> {
+  using VType = Variant<VariantTypes...>;
+
+  // Can't just take `const TVMPODValue&` as an argument, because
+  // `TVMArgValue` and `TVMRetValue` have different implementations
+  // for `operator std::string()`.
+  template <typename PODSubclass>
+  static VType From(const PODSubclass& val) {
+    if (auto opt = TryAsObjectRef<VariantTypes...>(val)) {
+      return opt.value();
+    }
+
+    if (auto opt = TryValueConverter<PODSubclass, VariantTypes...>(val)) {
+      return opt.value();
+    }
+
+    LOG(FATAL) << "Expected one of "
+               << static_cast<const std::stringstream&>(
+                      (std::stringstream() << ... << VariantTypes::ContainerType::_type_key))
+                      .str()
+               << " but got " << ArgTypeCode2Str(val.type_code());
+  }
+
+  template <typename VarFirst, typename... VarRest>
+  static Optional<VType> TryAsObjectRef(const TVMPODValue_& val) {
+    if (val.IsObjectRef<VarFirst>()) {
+      return VType(val.AsObjectRef<VarFirst>());
+    } else if constexpr (sizeof...(VarRest)) {
+      return TryAsObjectRef<VarRest...>(val);
+    } else {
+      return NullOpt;
+    }
+  }
+
+  template <typename PODSubclass, typename VarFirst, typename... VarRest>
+  static Optional<VType> TryValueConverter(const PODSubclass& val) {
+    try {
+      return VType(PackedFuncValueConverter<VarFirst>::From(val));
+    } catch (const InternalError&) {
+    }
+
+    if constexpr (sizeof...(VarRest)) {
+      return TryValueConverter<PODSubclass, VarRest...>(val);
+    } else {
+      return NullOpt;
+    }
   }
 };
 

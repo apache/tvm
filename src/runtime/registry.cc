@@ -128,12 +128,25 @@ class EnvCAPIRegistry {
    */
   typedef int (*F_PyErr_CheckSignals)();
 
-  // NOTE: the following function are only registered
-  // in a python environment.
+  /*! \brief Callback to increment/decrement the python ref count */
+  typedef void (*F_Py_IncDefRef)(void*);
+
+  // NOTE: the following functions are only registered in a python
+  // environment.
   /*!
    * \brief PyErr_CheckSignal function
    */
   F_PyErr_CheckSignals pyerr_check_signals = nullptr;
+
+  /*!
+   * \brief Py_IncRef function
+   */
+  F_Py_IncDefRef py_inc_ref = nullptr;
+
+  /*!
+   * \brief Py_IncRef function
+   */
+  F_Py_IncDefRef py_dec_ref = nullptr;
 
   static EnvCAPIRegistry* Global() {
     static EnvCAPIRegistry* inst = new EnvCAPIRegistry();
@@ -144,6 +157,10 @@ class EnvCAPIRegistry {
   void Register(const String& symbol_name, void* fptr) {
     if (symbol_name == "PyErr_CheckSignals") {
       Update(symbol_name, &pyerr_check_signals, fptr);
+    } else if (symbol_name == "Py_IncRef") {
+      Update(symbol_name, &py_inc_ref, fptr);
+    } else if (symbol_name == "Py_DecRef") {
+      Update(symbol_name, &py_dec_ref, fptr);
     } else {
       LOG(FATAL) << "Unknown env API " << symbol_name;
     }
@@ -159,6 +176,18 @@ class EnvCAPIRegistry {
     }
   }
 
+  void IncRef(void* python_obj) {
+    ICHECK(py_inc_ref) << "Attempted to call Py_IncRef through EnvCAPIRegistry, "
+                       << "but Py_IncRef wasn't registered";
+    (*py_inc_ref)(python_obj);
+  }
+
+  void DecRef(void* python_obj) {
+    ICHECK(py_inc_ref) << "Attempted to call Py_IncRef through EnvCAPIRegistry, "
+                       << "but Py_IncRef wasn't registered";
+    (*py_inc_ref)(python_obj);
+  }
+
  private:
   // update the internal API table
   template <typename FType>
@@ -172,6 +201,35 @@ class EnvCAPIRegistry {
 };
 
 void EnvCheckSignals() { EnvCAPIRegistry::Global()->CheckSignals(); }
+
+WrappedPythonObject::WrappedPythonObject(void* python_obj) : python_obj_(python_obj) {
+  if (python_obj_) {
+    EnvCAPIRegistry::Global()->IncRef(python_obj_);
+  }
+}
+
+WrappedPythonObject::~WrappedPythonObject() {
+  if (python_obj_) {
+    EnvCAPIRegistry::Global()->DecRef(python_obj_);
+  }
+}
+
+WrappedPythonObject::WrappedPythonObject(WrappedPythonObject&& other) : python_obj_(nullptr) {
+  std::swap(python_obj_, other.python_obj_);
+}
+WrappedPythonObject& WrappedPythonObject::operator=(WrappedPythonObject&& other) {
+  std::swap(python_obj_, other.python_obj_);
+  return *this;
+}
+
+WrappedPythonObject::WrappedPythonObject(const WrappedPythonObject& other)
+    : WrappedPythonObject(other.python_obj_) {}
+WrappedPythonObject& WrappedPythonObject::operator=(const WrappedPythonObject& other) {
+  return *this = WrappedPythonObject(other);
+}
+WrappedPythonObject& WrappedPythonObject::operator=(std::nullptr_t) {
+  return *this = WrappedPythonObject(nullptr);
+}
 
 }  // namespace runtime
 }  // namespace tvm

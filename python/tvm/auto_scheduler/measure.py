@@ -631,7 +631,7 @@ def _local_build_worker(inp_serialized, build_func, verbose):
         try:
             with transform.PassContext().current():
                 func = build_module.build(sch, args, target=task.target)
-            func.export_library(filename, build_func)
+            func.export_library(filename, fcompile=build_func)
         # pylint: disable=broad-except
         except Exception:
             error_no = MeasureErrorNo.COMPILE_HOST

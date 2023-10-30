@@ -15,6 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 """The TensorIR schedule class"""
+import inspect
 from typing import Callable, Dict, List, Optional, Tuple, Union
 
 from tvm._ffi import register_object as _register_object
@@ -268,26 +269,24 @@ class Schedule(Object):
         """
         return _ffi_api.ScheduleForkSeed(self)  # type: ignore # pylint: disable=no-member
 
-    def show(self, style: Optional[str] = None, black_format: bool = True) -> None:
+    def show(self, *args, **kwargs) -> None:
         """A sugar for print highlighted TVM script.
 
-        Parameters
-        ----------
-        style : str, optional
-
-            Pygmentize printing style, auto-detected if None.  See
-            `tvm.script.highlight.cprint` for more details.
-
-        black_format: bool
-
-            If true (default), use the formatter Black to format the TVMScript
+        All parameters are forwarded to the underlying `Module.show`
+        and `Trace.show` methods.
         """
         mod = self.mod
         if mod is not None:
-            mod.show(style=style, black_format=black_format)
+            mod.show(*args, **kwargs)
+
         trace = self.trace
         if trace is not None:
-            trace.show(style=style, black_format=black_format)
+            # Trace.show only supports the style and black_format arguments
+            param_binding = inspect.signature(mod.show).bind(*args, **kwargs)
+            param_binding.apply_defaults()
+            bound_args = param_binding.arguments
+
+            trace.show(style=bound_args["style"], black_format=bound_args["black_format"])
 
     ########## Lookup ##########
 
@@ -3593,7 +3592,7 @@ class Schedule(Object):
 
             sch = tir.Schedule(before_pad_einsum, debug_mask="all")
             block = sch.get_block("C_shared")
-            sch.pad_einsum(block, [0, 1, 1])
+            sch.pad_einsum(block, [32, 32, 32])
             print(sch.mod["main"].script())
 
         After applying decompose-padding, the IR becomes:

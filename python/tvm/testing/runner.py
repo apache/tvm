@@ -61,7 +61,7 @@ def _normalize_export_func(export_func, output_format) -> Tuple[Callable, str]:
     from tvm.contrib import ndk, tar
 
     def export_with(func):
-        return lambda mod, path: mod.export_library(path, func)
+        return lambda mod, path: mod.export_library(path, fcompile=func)
 
     if export_func == "tar":
         export_func = export_with(tar.tar)
