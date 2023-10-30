@@ -30,8 +30,17 @@ namespace printer {
 TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
     .set_dispatch<relax::PrimValue>(  //
         "", [](relax::PrimValue n, ObjectPath n_p, IRDocsifier d) -> Doc {
+          auto path = n_p->Attr("value");
+
+          // Special case to print `R.prim_value(0)` as `0`, since it
+          // would be converted back to `R.prim_value` on parsing.
+          if (d->cfg->syntax_sugar && n->value->dtype == DataType::Int(64)) {
+            if (auto as_int = n->value.as<IntImmNode>()) {
+              return LiteralDoc::Int(as_int->value, path);
+            }
+          }
           // TODO(@junrushao): float numbers
-          return Relax(d, "prim_value")->Call({d->AsDoc<ExprDoc>(n->value, n_p->Attr("value"))});
+          return Relax(d, "prim_value")->Call({d->AsDoc<ExprDoc>(n->value, path)});
         });
 
 TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)

@@ -685,13 +685,23 @@ class Normalizer : public BlockBuilderImpl, private ExprFunctor<Expr(const Expr&
 
   Expr VisitExpr_(const TupleGetItemNode* op) final {
     Expr new_tuple = this->NormalizeArgument(op->tuple);
+    Expr new_index = this->NormalizeArgument(op->index);
 
-    TupleGetItem node = new_tuple.same_as(op->tuple) ? GetRef<TupleGetItem>(op)
-                                                     : TupleGetItem(new_tuple, op->index);
+    TupleGetItem node = [&]() {
+      if (new_tuple.same_as(op->tuple) && new_index.same_as(op->index) &&
+          op->struct_info_.defined()) {
+        return GetRef<TupleGetItem>(op);
+      } else {
+        return TupleGetItem(new_tuple, new_index);
+      }
+    }();
 
     ICHECK(node->struct_info_.defined())
         << "InternalError: "
-        << "TupleGetItem expected to define its struct info on construction";
+        << "TupleGetItem expected to define its struct info on construction, "
+        << "but access of " << node->tuple << " (struct info = " << node->tuple->struct_info_
+        << ") at index " << node->index << " (struct info = " << node->index->struct_info_
+        << ") produced empty struct info";
 
     return node;
   }
