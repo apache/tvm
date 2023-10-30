@@ -563,7 +563,9 @@ class PrimValue(Expr, Scriptable):
     value: PrimExpr
 
     def __init__(self, value: Union[PrimExpr, int], span: Optional[Span] = None) -> None:
-        if isinstance(value, int):
+        if isinstance(value, bool):
+            value = tvm.tir.IntImm("bool", value)
+        elif isinstance(value, int):
             value = tvm.tir.IntImm("int64", value)
         self.__init_handle_by_constructor__(_ffi_api.PrimValue, value, span)  # type: ignore
 
