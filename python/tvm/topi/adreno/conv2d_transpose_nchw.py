@@ -231,6 +231,23 @@ def schedule_conv2d_transpose_NCHWc(cfg, s, output):
     schedule optimized for batch size = 1
 
     Algo:
+    1. Split output axis to three parts: global work size, vthread, local worksize.
+       The limitations for tuning includes heuristics from some tuned networks to limit
+       search space and not pay much time for useles configurations.
+    2. In case of 4d convolution schedule copying of the input (and filter) into
+      5d tensors
+    4. pad should be scheduled separately to create independent opencl kernel. If pad is
+       inlined into convolution, this gives 1.5x performance drop
+    5. We are using cache_read for intermediate tensors to produce texture and guarantee
+       the best performance on the next stage.
+       The weights are managed through static texture planning mechanism and guarantied come
+       in texture memory scope.
+       Thus way we are calling cache_read only for data tensor
+    6. For 5d convolution we schedule the latest op with binding 5d axis and vectorize
+       for textures
+       For 4d tensor we are doing the same for the latest blocked stage, i.e. conversion
+       of data type
+    7. In case of 4d conv we need to schedule postops as well
     """
     latest = s.outputs[0].output(0)
     if len(latest.op.axis) == 4:
