@@ -40,6 +40,18 @@ def conv2d_transpose_nchwc(
     """
     Transposed Convolution operator in NCHWc layout.
     Algo:
+      1. Convert into blocked format if we have 4d original tensor.
+         In case of AutoTVM we override the convert by just tensors since such conversion
+         will be absent for real blocked convolution, no sense to include into tuning
+      2. Expand spatial dimensions to have width and height be dividable by factor 4
+         This leads to slightly bigger amount of compute but allow utilize GPU much better
+      3. Add paddings. This happens even if we do not need pad originaly. This is useful
+         due to work arounding of the gaps of texture annotation between Primary Functions
+         and limited support of textures in schedules. Later on this pad will be executed
+         separately and will produce texture
+      4. 5d Convolution compute with accumulating into out_dtype
+      5. Cast to the origin output data type
+      6. For case of 4d convolution: convert of output from 5d to 4d
     """
 
     if out_dtype is None:
