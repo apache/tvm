@@ -23,19 +23,25 @@ import sys
 
 import tvm
 from tvm.relay.backend import Runtime
-from tvm import te
+from tvm.script import tir as T
 
 
 def main():
-    n = te.var("n")
-    A = te.placeholder((n,), name="A")
-    B = te.placeholder((n,), name="B")
-    C = te.compute(A.shape, lambda *i: A(*i) + B(*i), name="C")
-    s = tvm.te.create_schedule(C.op)
-    s[C].parallel(s[C].op.axis[0])
+    @T.prim_func
+    def func(var_A: T.handle, var_B: T.handle, var_C: T.handle):
+        T.func_attr({"global_symbol": "main", "tir.noalias": T.bool(True)})
+        n = T.int32()
+        A = T.match_buffer(var_A, (n,), align=1)
+        B = T.match_buffer(var_B, (n,), align=1)
+        C = T.match_buffer(var_C, (n,), align=1)
+        for i in T.parallel(n):
+            with T.block("C"):
+                vi = T.axis.spatial(n, i)
+                C[vi] = A[vi] + B[vi]
+
     runtime = Runtime("cpp", {"system-lib": True})
-    print(tvm.lower(s, [A, B, C], simple_mode=True))
-    tvm.build(s, [A, B, C], "llvm", runtime=runtime).save(osp.join(sys.argv[1], "test.o"))
+    print(tvm.lower(func, simple_mode=True))
+    tvm.build(func, target="llvm", runtime=runtime).save(osp.join(sys.argv[1], "test.o"))
 
 
 if __name__ == "__main__":
