@@ -860,6 +860,7 @@ class TorchFXImporter:
         else:
             nargs = len(node.args)
             kernel = node.args[1] if nargs > 1 else node.kwargs["kernel_size"]
+            
             if nargs > 2:
                 stride = node.args[2]
             elif "stride" in node.kwargs.keys():
@@ -878,7 +879,7 @@ class TorchFXImporter:
                 ceil_mode = node.kwargs["ceil_mode"]
             else:
                 ceil_mode = False
-
+            
         stride = kernel if stride is None else stride
 
         return self.block_builder.emit(
@@ -902,7 +903,11 @@ class TorchFXImporter:
                 output_size = module.output_size
             else:
                 x = self.env[node.args[0]]
-                output_size = node.args[1]
+                shape = self.shape_of(x)
+                output_size = ()
+                first = int(shape[2]) if (node.args[1])[0] is None else (node.args[1])[0]
+                second = int(shape[3]) if (node.args[1])[1] is None else (node.args[1])[1]
+                output_size = output_size+tuple([first])+tuple([second])
             return self.block_builder.emit(
                 relax.op.nn.adaptive_avg_pool2d(x, output_size, layout="NCHW")
             )
@@ -1203,6 +1208,11 @@ class TorchFXImporter:
 
         return self.block_builder.emit(attn)
 
+    # Test
+    def _hard_swish(self, node: fx.node.Node) -> relax.Expr:
+        data = self.env[node.args[0]]
+        return data
+
     ########## Others ##########
 
     def _size(self, node: fx.node.Node) -> relax.Expr:
@@ -1337,6 +1347,7 @@ class TorchFXImporter:
             nn.Identity: lambda node: self.env[node.args[0]],
             nn.modules.sparse.Embedding: self._embedding,
             nn.CrossEntropyLoss: self._cross_entropy,
+            nn.Hardswish: self._hard_swish,
             # call_function and call_method
             "sin": lambda node: self.block_builder.emit(relax.op.sin(self.env[node.args[0]])),
             "cos": lambda node: self.block_builder.emit(relax.op.cos(self.env[node.args[0]])),
@@ -1428,6 +1439,7 @@ class TorchFXImporter:
             "max": self._max,
             "cross_entropy": self._cross_entropy,
             "scaled_dot_product_attention": self._scaled_dot_product_attention,
+            "hardswish": self._hard_swish,
         }
 
     def from_fx(
