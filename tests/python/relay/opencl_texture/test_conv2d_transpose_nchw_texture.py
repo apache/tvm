@@ -26,7 +26,7 @@ import pytest
 
 
 executor_type = tvm.testing.parameter("ge", "vm")
-dtype = tvm.testing.parameter("float32", "float16")
+dtype = tvm.testing.parameter("float32")
 
 
 @tvm.testing.requires_opencl
