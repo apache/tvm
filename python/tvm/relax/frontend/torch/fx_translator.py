@@ -1208,11 +1208,6 @@ class TorchFXImporter:
 
         return self.block_builder.emit(attn)
 
-    # Test
-    def _hard_swish(self, node: fx.node.Node) -> relax.Expr:
-        data = self.env[node.args[0]]
-        return data
-
     ########## Others ##########
 
     def _size(self, node: fx.node.Node) -> relax.Expr:
@@ -1347,7 +1342,6 @@ class TorchFXImporter:
             nn.Identity: lambda node: self.env[node.args[0]],
             nn.modules.sparse.Embedding: self._embedding,
             nn.CrossEntropyLoss: self._cross_entropy,
-            nn.Hardswish: self._hard_swish,
             # call_function and call_method
             "sin": lambda node: self.block_builder.emit(relax.op.sin(self.env[node.args[0]])),
             "cos": lambda node: self.block_builder.emit(relax.op.cos(self.env[node.args[0]])),
@@ -1439,7 +1433,6 @@ class TorchFXImporter:
             "max": self._max,
             "cross_entropy": self._cross_entropy,
             "scaled_dot_product_attention": self._scaled_dot_product_attention,
-            "hardswish": self._hard_swish,
         }
 
     def from_fx(
