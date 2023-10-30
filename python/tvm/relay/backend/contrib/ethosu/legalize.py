@@ -1184,7 +1184,7 @@ class ConcatRewriter(DFPatternCallback):
         # Find the tensors that are inputs to the concat and the scales and zero points
         concat_args = list()
         for arg in post.args:
-            if isinstance(arg, tvm.relay.expr.Call):
+            if isinstance(arg, (tvm.relay.expr.Call, tvm.relay.expr.TupleGetItem)):
                 concat_args.append(arg)
 
         axis = post.op.body.attrs.axis
