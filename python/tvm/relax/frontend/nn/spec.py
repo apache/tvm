@@ -15,10 +15,10 @@
 # specific language governing permissions and limitations
 # under the License.
 """Compilation specifications, for example, dynamic shape inputs."""
-from collections import defaultdict
 import inspect
 import threading
 import typing
+from collections import defaultdict
 
 from tvm import tir
 from tvm.ir import IRModule
@@ -60,7 +60,7 @@ class Tensor:  # pylint: disable=too-few-public-methods
         return f"Tensor([{shape}], '{self.dtype}')"
 
 
-class Tuple:
+class Tuple:  # pylint: disable=too-few-public-methods
     """A tuple input or a list input"""
 
     name: str
@@ -85,16 +85,26 @@ class MethodSpec:
     method: typing.Callable
     arg_names: typing.List[str]
     arg_specs: typing.List[ArgSpecType]
+    param_mode: str  # "plain", "packed", "none"
+    effect_mode: str  # "plain", "packed", "none"
 
-    def __init__(
+    def __init__(  # pylint: disable=too-many-arguments
         self,
         method: typing.Callable,
         arg_names: typing.List[str],
         arg_specs: typing.List[ArgSpecType],
+        param_mode: str,
+        effect_mode: str,
     ):
+        if param_mode not in ["plain", "packed", "none"]:
+            raise ValueError(f"Invalid param_mode: {param_mode}")
+        if effect_mode not in ["plain", "packed", "none"]:
+            raise ValueError(f"Invalid effect_mode: {effect_mode}")
         self.method = method
         self.arg_names = arg_names
         self.arg_specs = arg_specs
+        self.param_mode = param_mode
+        self.effect_mode = effect_mode
 
     def _repr(self, name: str) -> str:
         args = ", ".join(
@@ -127,6 +137,9 @@ class MethodSpec:
         """
         if isinstance(spec, MethodSpec):
             return spec
+        config: typing.Dict[str, typing.Any] = spec.pop("$", {})  # type: ignore[assignment]
+        param_mode = config.get("param_mode", "plain")
+        effect_mode = config.get("effect_mode", "plain")
         method_signature = inspect.signature(method)
         arg_names = list(method_signature.parameters.keys())
         arg_specs = []
@@ -134,11 +147,11 @@ class MethodSpec:
         def _convert_arg_spec(arg_spec, arg_name):
             if arg_spec is Int or arg_spec is int:
                 return Int()
-            elif isinstance(arg_spec, str) and arg_spec == "int":
+            if isinstance(arg_spec, str) and arg_spec == "int":
                 return Int()
-            elif isinstance(arg_spec, (Int, Tensor)):
+            if isinstance(arg_spec, (Int, Tensor)):
                 return arg_spec
-            elif isinstance(arg_spec, (tuple, list, Tuple)):
+            if isinstance(arg_spec, (tuple, list, Tuple)):
                 return Tuple(
                     arg_name,
                     elements=type(arg_spec)(
@@ -148,16 +161,20 @@ class MethodSpec:
                         ]
                     ),
                 )
-
-            else:
-                raise TypeError(f"Invalid spec for argument {arg_name}: {arg_spec}")
+            raise TypeError(f"Invalid spec for argument {arg_name}: {arg_spec}")
 
         for arg_name in arg_names:
             if arg_name in spec:
                 arg_spec = spec[arg_name]
                 arg_spec = _convert_arg_spec(arg_spec, arg_name)
                 arg_specs.append(arg_spec)
-        return MethodSpec(method, arg_names, arg_specs)
+        return MethodSpec(
+            method,
+            arg_names,
+            arg_specs,
+            param_mode=param_mode,
+            effect_mode=effect_mode,
+        )
 
     @staticmethod
     def from_torch(args: typing.List[typing.Any], method: typing.Callable) -> "MethodSpec":
@@ -217,13 +234,13 @@ class ModuleSpec:
 
     module: core.Module
     method_names: typing.List[str]
-    method_specs: typing.List[MethodSpecType]
+    method_specs: typing.List[MethodSpec]
 
     def __init__(
         self,
         module: core.Module,
         method_names: typing.List[str],
-        method_specs: typing.List[MethodSpecType],
+        method_specs: typing.List[MethodSpec],
     ) -> None:
         self.module = module
         self.method_names = method_names
@@ -259,7 +276,7 @@ class ModuleSpec:
         if isinstance(spec, ModuleSpec):
             return spec
         method_names = list(spec.keys())
-        method_specs = []
+        method_specs: typing.List[MethodSpec] = []
         for method_name in method_names:
             method_spec = spec[method_name]
             if isinstance(method_spec, MethodSpec):
@@ -279,19 +296,22 @@ class ModuleSpec:
         )
 
 
-class ExternFunctionSpec:
+class ExternFunctionSpec:  # pylint: disable=too-few-public-methods
     """A spec for a compiled external function."""
 
-    symbol: str
     args: typing.List[Tensor]
     ret: typing.Union[Tensor, typing.List[Tensor]]
+    symbol: typing.Optional[str]
 
     def __init__(
-        self, symbol: str, args: typing.List[Tensor], ret: typing.Union[Tensor, typing.List[Tensor]]
+        self,
+        args: typing.List[Tensor],
+        ret: typing.Union[Tensor, typing.List[Tensor]],
+        symbol: typing.Optional[str] = None,
     ) -> None:
-        self.symbol = symbol
         self.args = args
         self.ret = ret
+        self.symbol = symbol
 
     def __repr__(self) -> str:
         arg_repr = ", ".join(arg.__repr__() for arg in self.args)
@@ -299,16 +319,24 @@ class ExternFunctionSpec:
             ret_repr = "(" + ", ".join(ret.__repr__() for ret in self.ret) + ")"
         else:
             ret_repr = self.ret.__repr__()
-        return f"ExternFunctionSpec: {self.symbol}({arg_repr}) -> {ret_repr}"
+        if self.symbol is None:
+            func = f"({arg_repr}) -> {ret_repr}"
+        else:
+            func = f"{self.symbol}({arg_repr}) -> {ret_repr}"
+        return f"ExternFunctionSpec: {func}"
 
 
-class ExternModuleSpec:
+class ExternModuleSpec:  # pylint: disable=too-few-public-methods
     """A spec for a compiled external Module."""
 
     filename: str
     functions: typing.List[ExternFunctionSpec]
 
-    def __init__(self, filename: str, functions: typing.List[ExternFunctionSpec]) -> None:
+    def __init__(
+        self,
+        filename: str,
+        functions: typing.List[ExternFunctionSpec],
+    ) -> None:
         self.filename = filename
         self.functions = functions
 
@@ -347,7 +375,7 @@ class SpecBuilder:
         assert hasattr(SpecBuilder._tls, "current")
         delattr(SpecBuilder._tls, "current")
 
-    def build(
+    def build(  # pylint: disable=too-many-locals
         self, spec: ModuleSpec, debug: bool = False
     ) -> typing.Tuple[IRModule, typing.List[typing.Tuple[str, core.Parameter]]]:
         """Build the ModuleSpec to TVM IRModule. Returns the IRModule and the parameters."""
@@ -371,7 +399,7 @@ class SpecBuilder:
                 result.append((name, effect))
             return result
 
-        def _extern_modules() -> typing.List[typing.Tuple[str, typing.List[str]]]:
+        def _extern_modules():
             mod2func = defaultdict(set)
             for _, extern_module in core._attribute_finder(
                 spec.module, "", condition_yield=lambda x: isinstance(x, core.ExternModule)
@@ -397,8 +425,15 @@ class SpecBuilder:
                         outputs = _emit_effect_init(self.builder, effects)
                     self.builder.emit_func_output(outputs, params=[])
             for method_name, method_spec in zip(spec.method_names, spec.method_specs):
+                len_args = len(method_spec.arg_specs)
+                len_effects = {
+                    "packed": 1,
+                    "none": 0,
+                    "plain": len(effects),
+                }[method_spec.effect_mode]
                 with self.builder.function(
-                    method_name, attrs={"num_input": len(method_spec.arg_specs) + len(effects)}
+                    method_name,
+                    attrs={"num_input": len_args + len_effects},  # type: ignore
                 ):
                     with self.builder.dataflow():
                         outputs, inputs = _emit_method(self.builder, method_spec, params, effects)
@@ -428,7 +463,7 @@ def _emit_effect_init(
     return outputs
 
 
-def _emit_method(
+def _emit_method(  # pylint: disable=too-many-locals,too-many-branches,too-many-statements
     builder: BlockBuilder,
     spec: MethodSpec,
     params: typing.List[typing.Tuple[str, core.Parameter]],
@@ -437,7 +472,7 @@ def _emit_method(
     # pylint: disable=protected-access
     def _unwrap_ret(expr: typing.Any) -> typing.Any:
         if isinstance(expr, core.Tensor):
-            return expr._expr  # pylint: disable=protected-access
+            return expr._expr
         if isinstance(expr, tuple):
             return rx.Tuple([_unwrap_ret(x) for x in expr])
         if isinstance(expr, list):
@@ -458,30 +493,78 @@ def _emit_method(
             )
         raise TypeError(f"Unsupported input type: {type(arg)}")
 
-    explicit_inputs = spec.as_inputs()
-    inputs = []
-    for arg in explicit_inputs:
-        inputs.append(_convert_input(arg))
-    for name, effect in effects:
-        inputs.extend(effect.create(name))
-    for name, param in params:
-        param._expr = core._tensor_placeholder(name, param.shape, param.dtype)._expr
-        inputs.append(param._expr)
-        # pylint: enable=protected-access
+    def _params(mode: str) -> typing.List[rx.Var]:
+        inputs: typing.List[rx.Var] = []
+        for name, param in params:
+            var = core._tensor_placeholder(name, param.shape, param.dtype)._expr
+            inputs.append(var)
+            param._expr = var
+        if mode == "none":
+            return []
+        if mode == "plain":
+            return inputs
+        if mode == "packed":
+            input_var = rx.Var(
+                "packed_params",
+                TupleStructInfo(fields=[x.struct_info for x in inputs]),
+            )
+            for i, (name, param) in enumerate(params):
+                param._expr = builder.emit(rx.TupleGetItem(input_var, i), name_hint=name)
+            return [input_var]
+        raise ValueError(f"Invalid param_mode: {mode}")
+
+    def _effects(mode: str) -> typing.List[rx.Var]:
+        unflat_inputs: typing.List[typing.List[rx.Var]] = []
+        for name, effect in effects:
+            effect_input = effect.create(name)
+            effect.set_state(effect_input)
+            unflat_inputs.append(effect_input)
+        inputs: typing.List[rx.Var] = sum(unflat_inputs, [])
+        if mode == "none":
+            return []
+        if mode == "plain":
+            return inputs
+        if mode == "packed":
+            input_var = rx.Var(
+                "packed_effects",
+                TupleStructInfo(fields=[x.struct_info for x in inputs]),
+            )
+            i = 0
+            for effect_input, (_, effect) in zip(unflat_inputs, effects):
+                updated_effect_input = []
+                for effect_input_i in effect_input:
+                    updated_effect_input.append(
+                        builder.emit(
+                            rx.TupleGetItem(input_var, i),
+                            name_hint=effect_input_i.name_hint,
+                        )
+                    )
+                    i += 1
+                effect.set_state(updated_effect_input)
+            return [input_var]
+
+        raise ValueError(f"Invalid effect_mode: {mode}")
+
+    # pylint: enable=protected-access
 
     def _detuple(arg, var: rx.Var, builder: BlockBuilder):
         if isinstance(arg, Tuple):
             ret = []
-            for i in range(len(arg.elements)):
+            for i, elem in enumerate(arg.elements):
                 field = builder.emit(rx.TupleGetItem(var, i), name_hint=f"{arg.name}_{i}")
-                ret.append(_detuple(arg.elements[i], field, builder))
+                ret.append(_detuple(elem, field, builder))
             return type(arg.elements)(ret)
-        elif isinstance(arg, core.Tensor):
+        if isinstance(arg, core.Tensor):
             return core.Tensor(_expr=var)
-        elif isinstance(arg, tir.Var):
+        if isinstance(arg, tir.Var):
             return arg
-        else:
-            raise TypeError(f"Unsupported input type: {type(arg)}")
+        raise TypeError(f"Unsupported input type: {type(arg)}")
+
+    # TODO(@junrushao): Warn if params/effects are used when their mode is "none"
+    explicit_inputs = spec.as_inputs()
+    inputs = [_convert_input(x) for x in explicit_inputs]
+    inputs = inputs + _effects(spec.effect_mode)
+    inputs = inputs + _params(spec.param_mode)
 
     for arg_idx, (arg, var) in enumerate(zip(explicit_inputs, inputs)):
         if isinstance(arg, Tuple):
@@ -491,7 +574,7 @@ def _emit_method(
     effect_outputs = []
     for _, effect in effects:
         effect_outputs.extend(effect.finalize())
-    if effect_outputs:
+    if effect_outputs and spec.effect_mode != "none":
         outputs = builder.emit_output(rx.Tuple([_unwrap_ret(outputs), rx.Tuple(effect_outputs)]))
     else:
         outputs = builder.emit_output(_unwrap_ret(outputs))

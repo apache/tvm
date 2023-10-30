@@ -45,8 +45,11 @@ class IOEffect(Effect):
 
     def create(self, name_hint: str) -> List[rx.Var]:
         assert self.effect is None
-        self.effect = rx.Var(f"{name_hint}.io", struct_info=rx.ObjectStructInfo())
-        return [self.effect]
+        effect = rx.Var(f"{name_hint}.io", struct_info=rx.ObjectStructInfo())
+        return [effect]
+
+    def set_state(self, state_vars: List[rx.Var]) -> None:
+        (self.effect,) = state_vars
 
     def finalize(self) -> List[rx.Var]:
         result = self.effect
@@ -575,7 +578,7 @@ class KVCache(Effect):
             )
         ]
 
-    def create(self, name_hint: str) -> rx.Var:
+    def create(self, name_hint: str) -> List[rx.Var]:
         """
         Create the implicit inputs to a relax.Function that represents the KVCache effect.
 
@@ -586,11 +589,14 @@ class KVCache(Effect):
 
         Returns
         -------
-        ret : relax.Var
+        ret : List[relax.Var]
             The relax.Var for KVCache.
         """
-        self.cache = rx.Var(name_hint, struct_info=rx.ObjectStructInfo())
-        return [self.cache]
+        cache = rx.Var(name_hint, struct_info=rx.ObjectStructInfo())
+        return [cache]
+
+    def set_state(self, state_vars: List[rx.Var]) -> None:
+        (self.cache,) = state_vars
 
     def finalize(self) -> List[rx.Var]:
         """
