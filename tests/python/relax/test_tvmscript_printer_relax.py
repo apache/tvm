@@ -266,9 +266,19 @@ def test_func_type():
     )
 
 
-def test_prim_value():
-    obj = relax.PrimValue(1)
-    _assert_print(obj, "R.prim_value(1)")
+def test_prim_value_int64():
+    obj = relax.PrimValue(T.int64(1))
+    _assert_print(obj, "1")
+
+
+def test_prim_value_int32():
+    obj = relax.PrimValue(T.int32(1))
+    _assert_print(obj, "R.prim_value(T.int32(1))")
+
+
+def test_prim_value_int16():
+    obj = relax.PrimValue(T.int16(1))
+    _assert_print(obj, "R.prim_value(T.int16(1))")
 
 
 def test_string_imm():

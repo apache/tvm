@@ -72,8 +72,11 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable).set_dispatch<tir::SizeVar>("relax", P
 TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
     .set_dispatch<tvm::IntImm>(                                             //
         "relax", [](tvm::IntImm n, ObjectPath n_p, IRDocsifier d) -> Doc {  //
-          // TODO(@junrushao): support non-int64 cases
-          return LiteralDoc::Int(n->value, n_p);
+          ExprDoc doc = LiteralDoc::Int(n->value, n_p);
+          if (n->dtype != DataType::Int(64)) {
+            doc = TIR(d, DType2Str(n->dtype))->Call({doc});
+          }
+          return doc;
         });
 
 TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
