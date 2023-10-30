@@ -98,18 +98,22 @@ class CheckpointCollector : private ExprMutator {
    * and the end_checkpoint bindings.
    *
    * \param func The original function
-   * \return The function with all start_checkpoint and end_checkpoint bindings removed, and a
-   * VarIdSet containing all checkpointed vars.
+   * \return The function with all start_checkpoint and end_checkpoint bindings removed.
    */
-  static std::pair<Function, VarIdSet> Collect(const Function& func) {
+  Function Transform(const Function& func) {
     auto collector = CheckpointCollector();
-    return std::make_pair(Downcast<Function>(collector.VisitExpr(func)), collector.checkpoints_);
+    return Downcast<Function>(this->VisitExpr(func));
   }
+
+  // checkpointed vars
+  VarIdSet checkpoints;
+  // mapping from vars that are wrapped in start_checkpoint or end_checkpoint to the original vars
+  std::unordered_map<Id, Var, ObjectPtrHash, ObjectPtrEqual> var_mapping;
 
  private:
   Expr VisitExpr_(const FunctionNode* func) final {
     for (auto var : func->params) {
-      checkpoints_.insert(var->vid);
+      checkpoints.insert(var->vid);
     }
 
     return ExprMutator::VisitExpr_(func);
@@ -119,7 +123,7 @@ class CheckpointCollector : private ExprMutator {
     static const auto s_cp = Op::Get("relax.grad.start_checkpoint");
     static const auto e_cp = Op::Get("relax.grad.end_checkpoint");
 
-    // If every variable that the variable of binding relys on is either
+    // If every variable that the variable of binding relies on is either
     // 1) the output of end_checkpoint; 2) checkpointed
     // then the variable of binding will be checkpointed
     auto var_binding = binding.as<VarBindingNode>();
@@ -131,12 +135,12 @@ class CheckpointCollector : private ExprMutator {
       PostOrderVisit(var_binding->value, [this, &all_inner_var_checkpointed](const Expr& expr) {
         if (auto var = expr.as<VarNode>()) {
           all_inner_var_checkpointed &=
-              (checkpoints_.count(var->vid) != 0 || e_vars_.count(var->vid) != 0);
+              (checkpoints.count(var->vid) != 0 || e_vars_.count(var->vid) != 0);
         }
       });
 
       if (all_inner_var_checkpointed) {
-        checkpoints_.insert(var_binding->var->vid);
+        checkpoints.insert(var_binding->var->vid);
       }
     }
 
@@ -162,10 +166,11 @@ class CheckpointCollector : private ExprMutator {
       } else {
         this->var_remap_[binding->var->vid] = orig_var;
       }
+      var_mapping[binding->var->vid] = orig_var;
 
       if (value->op == s_cp) {
         // mark the original var to be checkpointed
-        checkpoints_.insert(orig_var->vid);
+        checkpoints.insert(orig_var->vid);
       } else if (value->op == e_cp) {
         e_vars_.insert(binding->var->vid);
       }
@@ -174,7 +179,7 @@ class CheckpointCollector : private ExprMutator {
     }
   }
 
-  VarIdSet checkpoints_;
+  // vars that are the output of end_checkpoint
   VarIdSet e_vars_;
 };
 
@@ -233,6 +238,9 @@ class CheckpointGenerator : private ExprMutator {
   // Visit the use-site of a defined Var
   Expr VisitExpr_(const VarNode* op) final { return VisitVar(GetRef<Var>(op)); }
 
+  // Visit the use-site of a defined DataflowVar
+  Expr VisitExpr_(const DataflowVarNode* op) final { return VisitVar(GetRef<Var>(op)); }
+
   Expr VisitVar(const Var& var) {
     auto it = checkpoint_map_.find(var);
     if (it != checkpoint_map_.end()) {
@@ -286,9 +294,10 @@ class BackwardBindingGenerator : private ExprVisitor {
   static Expr Generate(const BlockBuilder& builder, const DataflowBlock& forward_block,
                        const Array<Var>& require_grads, const Var& target_var,
                        const Array<Var>& orig_params, const Expr& orig_return_value,
-                       const VarIdSet& checkpoints) {
-    CheckpointGenerator checkpoint_generator(builder, orig_params, forward_block, checkpoints);
-    BackwardBindingGenerator generator(builder, checkpoint_generator);
+                       const CheckpointCollector& cp_collector) {
+    CheckpointGenerator checkpoint_generator(builder, orig_params, forward_block,
+                                             cp_collector.checkpoints);
+    BackwardBindingGenerator generator(builder, cp_collector, checkpoint_generator);
 
     // Initialize the adjoint of target_var as ones op. We have already checked the target.
     auto* target_sinfo = GetStructInfoAs<TensorStructInfoNode>(target_var);
@@ -304,8 +313,11 @@ class BackwardBindingGenerator : private ExprVisitor {
 
  private:
   explicit BackwardBindingGenerator(const BlockBuilder& builder,
+                                    const CheckpointCollector& cp_collector,
                                     const CheckpointGenerator& checkpoint_generator)
-      : builder_(builder), checkpoint_generator_(checkpoint_generator) {}
+      : builder_(builder),
+        cp_collector_(cp_collector),
+        checkpoint_generator_(checkpoint_generator) {}
 
   void VisitBinding(const Binding& binding) final {
     // TODO(chaofan, yixin): support other types of bindings
@@ -469,6 +481,11 @@ class BackwardBindingGenerator : private ExprVisitor {
     Array<Expr> out_adjoints;
 
     for (Var var : require_grads) {
+      // var might be wrapped in start_checkpoint or end_checkpoint, so we should find the original
+      // var first
+      if (cp_collector_.var_mapping.count(var->vid)) {
+        var = cp_collector_.var_mapping[var->vid];
+      }
       // If the var don't have adjoint var, it do not contribute to the target. So its adjoint is
       // zeros
       auto it = adjoint_var_map_.find(var);
@@ -575,6 +592,8 @@ class BackwardBindingGenerator : private ExprVisitor {
   BlockBuilder builder_;
   // Forward Var to its adjoint Var
   Map<Var, Var> adjoint_var_map_;
+  // information collected by CheckpointCollector
+  CheckpointCollector cp_collector_;
   // The generator for checkpoint bindings
   CheckpointGenerator checkpoint_generator_;
 };
@@ -586,48 +605,42 @@ class GradientMutator : private ExprMutator {
     // Step 1. Copy function
     auto* old_func = mod->Lookup(func_name).as<FunctionNode>();
     CHECK(old_func) << func_name << "is not a Relax Function";
-    auto new_func = CopyWithNewVars(GetRef<Function>(old_func));
+    auto copier = FunctionCopier();
+    auto new_func = copier.Copy(GetRef<Function>(old_func));
 
     // Step 2. Handle the checkpoints and eliminate start_checkpoint and end_checkpoint ops
-    auto checkpoint_collected = CheckpointCollector::Collect(new_func);
-    new_func = checkpoint_collected.first;
-    auto checkpoints = checkpoint_collected.second;
+    auto cp_collector = CheckpointCollector();
+    new_func = cp_collector.Transform(new_func);
 
-    // Step 3. Collect call_tir_with_grad information
-    auto tir_grad_collected = CallTIRWithGradEliminator::Transform(new_func);
-
-    // Step 4. Handle require_grads
+    // Step 3. Handle require_grads
     // When require_grads is not specified, it would be set to all params of the function
-    if (require_grads) {
-      CheckRequireGrads(require_grads.value(), old_func->params, func_name);
+    if (!require_grads) {
+      require_grads = new_func->params;
+    } else {
+      require_grads = CheckAndMapRequireGrads(require_grads.value(), copier.var_map, func_name);
     }
-    // then map the parameter list into new params
-    auto require_grads_value = require_grads.value_or(old_func->params).Map([&](const Var& v) {
-      return new_func->params[std::find(old_func->params.begin(), old_func->params.end(), v) -
-                              old_func->params.begin()];
-    });
 
-    // Step 5. Generate the adjoint function, use RemoveAllUnused to simplify it, and then return
+    // Step 4. Generate the adjoint function, use RemoveAllUnused to simplify it, and then return
     // the IRModule with the adjoint function
-    return GradientMutator(mod, require_grads_value, target_index, checkpoints)
+    return GradientMutator(mod, require_grads.value(), target_index, cp_collector)
         .AddAdjointFunction(new_func, func_name, true);
   }
 
  private:
   GradientMutator(const IRModule& module, const Array<Var>& require_grads, int target_index,
-                  const VarIdSet& checkpoints)
+                  const CheckpointCollector& cp_collector)
       : ExprMutator(module),
         require_grads_(require_grads),
-        checkpoints_(checkpoints),
+        cp_collector_(cp_collector),
         target_index_(target_index) {}
 
   // Add the adjoint function of func to the IRModule using BlockBuilder
   IRModule AddAdjointFunction(const Function& func, const String& func_name,
                               bool remove_all_unused = true) {
-    // Step 5.1 forward -> forward + backward
+    // Step 4.1 forward -> forward + backward
     auto new_func = Downcast<Function>(VisitExpr(func));
 
-    // Step 5.2 Convert call_tir_with_grad nodes into call_tir nodes
+    // Step 4.2 Convert call_tir_with_grad nodes into call_tir nodes
     // because call_tir_with_grad nodes is not actually implemented
     new_func = CallTIRWithGradEliminator::Transform(new_func);
 
@@ -635,12 +648,12 @@ class GradientMutator : private ExprMutator {
       new_func = Downcast<Function>(RemoveAllUnused(new_func));
     }
 
-    // Step 5.3 mark the transformed function as public
+    // Step 4.3 mark the transformed function as public
     // because the original function may be public, and have gsymbol attribute as func_name
     auto new_func_name = func_name + "_adjoint";
     auto new_func_with_gsymbol = WithAttr(new_func, tvm::attr::kGlobalSymbol, new_func_name);
 
-    // Step 5.4 Add the transformed function to IRModule
+    // Step 4.4 Add the transformed function to IRModule
     builder_->AddFunction(new_func_with_gsymbol, new_func_name);
     return builder_->GetContextIRModule();
   }
@@ -679,7 +692,7 @@ class GradientMutator : private ExprMutator {
     // generate backward bindings and the return value
     return_expr_ = BackwardBindingGenerator::Generate(builder_, GetRef<DataflowBlock>(block),
                                                       require_grads_, target_var_, orig_params_,
-                                                      orig_return_expr_, checkpoints_);
+                                                      orig_return_expr_, cp_collector_);
 
     return builder_->EndBlock();
   }
@@ -700,7 +713,8 @@ class GradientMutator : private ExprMutator {
       target_var_ = GetRef<Var>(var);
     } else if (auto* tuple = e.as<TupleNode>()) {
       CHECK(target_index >= 0 && target_index < static_cast<int>(tuple->fields.size()))
-          << "target_index should be in the range of the number of return values of the function. "
+          << "target_index should be in the range of the number of return values of the "
+             "function. "
              "But the specified target_index is "
           << target_index << ", while the number of return values is " << tuple->fields.size();
       auto* var = tuple->fields[target_index].as<VarNode>();
@@ -721,30 +735,33 @@ class GradientMutator : private ExprMutator {
 
   // Check every Var in require_grads:
   // 1. there should be no duplicate var
-  // 2. every var should be a parameter of the function
+  // 2. every var should be a parameter or a intermediate var in the function
   // 3. the type of the input var should be Tensor of floating point dtype, or Tuple of that
-  static void CheckRequireGrads(const Array<Var>& require_grads, const Array<Var>& func_params,
-                                const String& func_name) {
+  static Array<Var> CheckAndMapRequireGrads(const Array<Var>& require_grads,
+                                            const Map<Var, Var>& var_map, const String& func_name) {
     VarIdSet var_set;
+    Array<Var> mapped_vars;
     for (const auto& var : require_grads) {
-      CHECK(std::find(func_params.begin(), func_params.end(), var) != func_params.end())
-          << "There is no Var named " << var->name_hint() << " in the parameters of the function "
-          << func_name;
+      auto it = var_map.find(var);
+      CHECK(it != var_map.end()) << "There is no Var named " << var->name_hint()
+                                 << " in the function " << func_name;
       CHECK_EQ(var_set.count(var->vid), 0)
           << "Var " << var->name_hint() << " appears more than once";
       var_set.emplace(var->vid);
+      mapped_vars.push_back((*it).second);
 
       CHECK(IsNestedTensorConditioned(GetStructInfo(var), IsFloatTensorSInfo))
           << "Only Tensors of floating point dtype or Tuples of float "
              "Tensors can require gradients, but the StructInfo of Var "
           << var->name_hint() << " is " << GetStructInfo(var);
     }
+    return mapped_vars;
   }
 
   // differentiation sources
   Array<Var> require_grads_;
-  // checkpoint
-  VarIdSet checkpoints_;
+  // information collected by CheckpointCollector
+  CheckpointCollector cp_collector_;
   // the differentiation target
   int target_index_;
   Var target_var_;

@@ -309,6 +309,64 @@ def test_target_index():
     assert_structural_equal(After, Expected)
 
 
+def test_intermediate_var_require_grads():
+    x = relax.Var("x", R.Tensor((3, 3), "float32"))
+    y = relax.Var("y", R.Tensor((3, 3), "float32"))
+
+    bb = relax.BlockBuilder()
+    with bb.function("main", [x, y]):
+        with bb.dataflow():
+            lv0 = bb.emit(x * x)
+            lv1 = bb.emit(lv0 * y)
+            lv2 = bb.emit(lv1 * y)
+            gv0 = bb.emit_output(relax.op.sum(lv2))
+        bb.emit_func_output(gv0)
+
+    Before = bb.get()
+
+    # fmt: off
+    @I.ir_module
+    class Expected:
+        @R.function
+        def main_adjoint(x: R.Tensor((3, 3), dtype="float32"), y: R.Tensor((3, 3), dtype="float32")) -> R.Tuple(R.Tensor((), dtype="float32"), R.Tuple(R.Tensor((3, 3), dtype="float32"), R.Tensor((3, 3), dtype="float32"), R.Tensor((), dtype="float32"))):
+            with R.dataflow():
+                lv: R.Tensor((3, 3), dtype="float32") = R.multiply(x, x)
+                lv1: R.Tensor((3, 3), dtype="float32") = R.multiply(lv, y)
+                lv2: R.Tensor((3, 3), dtype="float32") = R.multiply(lv1, y)
+                gv: R.Tensor((), dtype="float32") = R.sum(lv2, axis=None, keepdims=False)
+                gv_adjoint: R.Tensor((), dtype="float32") = R.ones(R.shape([]), dtype="float32")
+                lv2_adjoint: R.Tensor((3, 3), dtype="float32") = R.broadcast_to(gv_adjoint, R.shape([3, 3]))
+                lv1_adjoint: R.Tensor((3, 3), dtype="float32") = R.multiply(lv2_adjoint, y)
+                lv_adjoint: R.Tensor((3, 3), dtype="float32") = R.multiply(lv1_adjoint, y)
+                x_adjoint: R.Tensor((3, 3), dtype="float32") = R.multiply(lv_adjoint, x)
+                lv1_1: R.Tensor((3, 3), dtype="float32") = R.multiply(lv_adjoint, x)
+                x_adjoint1: R.Tensor((3, 3), dtype="float32") = R.add(x_adjoint, lv1_1)
+                x_adjoint_out: R.Tensor((3, 3), dtype="float32") = x_adjoint1
+                lv1_adjoint_out: R.Tensor((3, 3), dtype="float32") = lv1_adjoint
+                gv_adjoint_out: R.Tensor((), dtype="float32") = gv_adjoint
+                R.output(gv, x_adjoint_out, lv1_adjoint_out, gv_adjoint_out)
+            return (gv, (x_adjoint_out, lv1_adjoint_out, gv_adjoint_out))
+
+        @R.function
+        def main(x: R.Tensor((3, 3), dtype="float32"), y: R.Tensor((3, 3), dtype="float32")) -> R.Tensor((), dtype="float32"):
+            with R.dataflow():
+                lv: R.Tensor((3, 3), dtype="float32") = R.multiply(x, x)
+                lv1: R.Tensor((3, 3), dtype="float32") = R.multiply(lv, y)
+                lv2: R.Tensor((3, 3), dtype="float32") = R.multiply(lv1, y)
+                gv: R.Tensor((), dtype="float32") = R.sum(lv2, axis=None, keepdims=False)
+                R.output(gv)
+            return gv
+    # fmt: on
+
+    After = relax.transform.Gradient("main", [x, lv1, gv0])(Before)
+    assert_structural_equal(After, Expected)
+
+    # z does not occur in function
+    z = relax.Var("z", R.Tensor((3, 3), "float32"))
+    with pytest.raises(TVMError):
+        relax.transform.Gradient("main", [x, lv1, z])(Before)
+
+
 def test_tuple():
     # fmt: off
     @I.ir_module
