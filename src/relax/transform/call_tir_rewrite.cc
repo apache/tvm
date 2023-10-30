@@ -84,7 +84,6 @@ class CallTIRMutator : public ExprMutator {
         const TupleStructInfo& tuple_sinfo = _tuple_sinfo.value();
         for (size_t i = 0; i < tuple_sinfo->fields.size(); ++i) {
           const auto& field = tuple_sinfo->fields[i];
-          int inplace_index = inplace_attrs->inplace_indices[i].IntValue();
 
           ICHECK(field->IsInstance<TensorStructInfoNode>())
               << "call_tir expects Tuple of TensorStructInfo, but got " << field
@@ -93,7 +92,7 @@ class CallTIRMutator : public ExprMutator {
           ICHECK(field_tensor->shape.defined())
               << "call_tir expects all TensorStructInfo has shape, but got " << field_tensor
               << " as an element of TupleStructInfo";
-          if (!is_inplace_op || inplace_index == -1) {
+          if (!is_inplace_op || inplace_attrs->inplace_indices[i].IntValue() == -1) {
             outs.push_back(
                 builder_->Emit(Call(alloc_tensor_op,
                                     {Downcast<ShapeExpr>(field_tensor->shape.value()),
@@ -101,7 +100,8 @@ class CallTIRMutator : public ExprMutator {
                                     Attrs()),
                                "alloc"));
           } else {
-            outs.push_back(GetTupleIndex(call->args[1], inplace_index));
+            outs.push_back(
+                GetTupleIndex(call->args[1], inplace_attrs->inplace_indices[i].IntValue()));
           }
         }
       } else {
