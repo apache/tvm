@@ -878,7 +878,7 @@ class TorchFXImporter:
                 ceil_mode = node.kwargs["ceil_mode"]
             else:
                 ceil_mode = False
-                                            
+
         stride = kernel if stride is None else stride
 
         return self.block_builder.emit(
