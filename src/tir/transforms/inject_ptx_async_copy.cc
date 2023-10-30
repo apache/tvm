@@ -24,6 +24,7 @@
 #include <tvm/tir/analysis.h>
 #include <tvm/tir/builtin.h>
 #include <tvm/tir/expr.h>
+#include <tvm/tir/op.h>
 #include <tvm/tir/stmt_functor.h>
 #include <tvm/tir/transform.h>
 
@@ -79,7 +80,7 @@ class PTXAsyncCopyInjector : public StmtMutator {
         if (indices_lanes == 1) {
           auto src_offset = load->indices[0];
           auto dst_offset = store->indices[0];
-          Array<PrimExpr> args = {store->buffer->data, tir::Mul(dst_offset, PrimExpr(index_factor)),
+          Array<PrimExpr> args = {store->buffer->data, mul(dst_offset, PrimExpr(index_factor)),
                                   load->buffer->data, src_offset, PrimExpr(bytes)};
           // use arguments size to indicate whether or not to use predicated cp.async
           if (predicated) {
@@ -114,7 +115,7 @@ class PTXAsyncCopyInjector : public StmtMutator {
           }();
           if (src_offset.defined() && dst_offset.defined()) {
             return Evaluate(Call(store->buffer->dtype, tvm::tir::builtin::ptx_cp_async(),
-                                 {store->buffer->data, tir::Mul(dst_offset, PrimExpr(index_factor)),
+                                 {store->buffer->data, mul(dst_offset, PrimExpr(index_factor)),
                                   load->buffer->data, src_offset, PrimExpr(bytes)}));
           }
         } else {
@@ -144,7 +145,7 @@ class PTXAsyncCopyInjector : public StmtMutator {
           if (src_offset.defined() && dst_offset.defined()) {
             return Evaluate(
                 Call(store->buffer->dtype, tvm::tir::builtin::ptx_cp_async(),
-                     {store->buffer->data, tir::Mul(dst_offset, PrimExpr(index_factor)),
+                     {store->buffer->data, mul(dst_offset, PrimExpr(index_factor)),
                       load->buffer->data, src_offset, PrimExpr(bytes), predicate_value}));
           }
         }
