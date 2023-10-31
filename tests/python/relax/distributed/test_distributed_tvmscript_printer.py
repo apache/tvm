@@ -40,7 +40,7 @@ def test_constant():
     )
     assert (
         constant.__str__()
-        == """R.dist.const(1, R.DTensor((), "float32", R.device_mesh((2, 2), R.Range(0, 4)), "R, R"))"""
+        == """R.dist.const(1, R.DTensor((), "float32", R.device_mesh((2, 2), T.Range(0, 4)), "R, R"))"""
     )
 
 
@@ -52,7 +52,7 @@ def test_dtensor_struct_info():
     )
     assert (
         obj0.__str__()
-        == """R.DTensor((32, 32), "float32", R.device_mesh((2, 2), R.Range(0, 4)), "S[1], R")"""
+        == """R.DTensor((32, 32), "float32", R.device_mesh((2, 2), T.Range(0, 4)), "S[1], R")"""
     )
 
     obj1 = DTensorStructInfo(
@@ -60,7 +60,7 @@ def test_dtensor_struct_info():
     )
     assert (
         obj1.__str__()
-        == """R.DTensor((32, 32), device_mesh=R.device_mesh((2, 2), R.Range(0, 4)), placement="S[1], R")"""
+        == """R.DTensor((32, 32), device_mesh=R.device_mesh((2, 2), T.Range(0, 4)), placement="S[1], R")"""
     )
 
     obj2 = DTensorStructInfo(
@@ -113,11 +113,12 @@ def test_func():
     _assert_print(
         TestModule["foo"],
         """
+# from tvm.script import tir as T
 # from tvm.script import relax as R
 
 @R.function
-def foo(x: R.DTensor((128, 128), "float32", R.device_mesh((2, 2), R.Range(0, 4)), "S[0], R")) -> R.DTensor((128, 128), "float32", R.device_mesh((2, 2), R.Range(0, 4)), "S[0], R"):
-    gv0 = R.dist.call_tir(tir_func, (x,), out_sinfo=R.DTensor((128, 128), "float32", R.device_mesh((2, 2), R.Range(0, 4)), "S[0], R"))
+def foo(x: R.DTensor((128, 128), "float32", R.device_mesh((2, 2), T.Range(0, 4)), "S[0], R")) -> R.DTensor((128, 128), "float32", R.device_mesh((2, 2), T.Range(0, 4)), "S[0], R"):
+    gv0 = R.dist.call_tir(tir_func, (x,), out_sinfo=R.DTensor((128, 128), "float32", R.device_mesh((2, 2), T.Range(0, 4)), "S[0], R"))
     return gv0
             """,
     )

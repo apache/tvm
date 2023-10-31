@@ -20,6 +20,7 @@
 #include <tvm/relax/distributed/struct_info.h>
 
 #include "../ir/utils.h"
+#include "../tir/utils.h"
 #include "./utils.h"
 
 namespace tvm {
@@ -101,8 +102,15 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
               f = ir_frame;
             }
           }
+
           if (!has_relax_frame || !f) {
             Array<ExprDoc> args;
+
+            // Device mesh uses the TIR integer conversion rules, so
+            // we print the arguments using the TIR printer.
+            With<TIRFrame> frame(d, n);
+            (*frame)->AddDispatchToken(d, "tir");
+
             args.push_back(d->AsDoc<ExprDoc>(n->shape, n_p->Attr("shape")));
             if (n->device_range.defined()) {
               args.push_back(d->AsDoc<ExprDoc>(n->device_range, n_p->Attr("device_range")));
