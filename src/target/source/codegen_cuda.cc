@@ -1168,7 +1168,7 @@ void CodeGenCUDA::VisitExpr_(const RampNode* op, std::ostream& os) {
        << "+(" << PrintExpr(op->stride) << "*" << i << ")";
     if (i != op->lanes - 1) os << ", ";
   }
-  os << "))";
+  os << ")";
 }
 
 void CodeGenCUDA::VisitExpr_(const BroadcastNode* op, std::ostream& os) {  // NOLINT(*)
