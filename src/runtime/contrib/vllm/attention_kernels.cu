@@ -15,12 +15,14 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+
+#include <float.h>
+
 #include <tvm/runtime/ndarray.h>
 #include <tvm/runtime/packed_func.h>
 #include <tvm/runtime/registry.h>
 
 #include <algorithm>
-#include <float.h>
 #include <type_traits>
 
 #include "dtype_float16.h"
@@ -208,7 +210,7 @@ __global__ void single_query_cached_kv_attention_kernel(
       // Compute dot product.
       // This includes a reduction across the threads in the same thread group.
       float qk = scale * Qk_dot<scalar_t, THREAD_GROUP_SIZE>::dot(q_vecs[thread_group_offset],
-								  k_vecs);
+                                                                  k_vecs);
       // Add the ALiBi bias if slopes are given.
       qk += (alibi_slope != 0) ? alibi_slope * (token_idx - context_len + 1) : 0;
 
