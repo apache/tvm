@@ -216,7 +216,7 @@ class EnvCAPIRegistry {
   }
 
   struct WithGIL {
-    WithGIL(EnvCAPIRegistry* self) : self(self) {
+    explicit WithGIL(EnvCAPIRegistry* self) : self(self) {
       ICHECK(self->py_gil_state_ensure) << "Attempted to acquire GIL through EnvCAPIRegistry, "
                                         << "but PyGILState_Ensure wasn't registered";
       ICHECK(self->py_gil_state_release) << "Attempted to acquire GIL through EnvCAPIRegistry, "
