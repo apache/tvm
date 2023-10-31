@@ -108,6 +108,8 @@ To cut a release candidate branch for v0.6 release:
 
 	# After pull request merged
 	# cut branch on first commit
+        git checkout <first-commit-id>
+
 	# Replace v0.6 with the relevant version
 	git branch v0.6
 	git push --set-upstream origin v0.6
