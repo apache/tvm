@@ -29,11 +29,11 @@ namespace vllm {
 
 template<typename scalar_t>
 __global__ void reshape_and_cache_kernel(
-  const scalar_t* __restrict__ key,     // [num_tokens, num_heads, head_size]
-  const scalar_t* __restrict__ value,   // [num_tokens, num_heads, head_size]
-  scalar_t* __restrict__ key_cache,     // [num_blocks, num_heads, head_size/x, block_size, x]
-  scalar_t* __restrict__ value_cache,   // [num_blocks, num_heads, head_size, block_size]
-  const int* __restrict__ slot_mapping, // [num_tokens]
+  const scalar_t* __restrict__ key,      // [num_tokens, num_heads, head_size]
+  const scalar_t* __restrict__ value,    // [num_tokens, num_heads, head_size]
+  scalar_t* __restrict__ key_cache,      // [num_blocks, num_heads, head_size/x, block_size, x]
+  scalar_t* __restrict__ value_cache,    // [num_blocks, num_heads, head_size, block_size]
+  const int* __restrict__ slot_mapping,  // [num_tokens]
   const int key_stride,
   const int value_stride,
   const int num_heads,
@@ -69,7 +69,7 @@ __global__ void reshape_and_cache_kernel(
   }
 }
 
-} // namespace vllm
+}  // namespace vllm
 
 namespace tvm {
 namespace runtime {
