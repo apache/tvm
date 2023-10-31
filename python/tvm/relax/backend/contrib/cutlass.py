@@ -25,16 +25,16 @@ from tvm.contrib.cutlass.build import is_shape_valid_for_cutlass_matmul
 from tvm.relax import (
     Call,
     DataflowVar,
+    ExternFunc,
     Function,
     PyExprMutator,
     Var,
     expr_functor,
     transform,
-    ExternFunc,
 )
 from tvm.relax.dpl import rewrite_call
-from tvm.relax.transform import PatternCheckContext
 from tvm.relax.dpl.pattern import GlobalVarPattern, TuplePattern, is_op, wildcard
+from tvm.relax.transform import PatternCheckContext
 
 from ..pattern_registry import get_patterns_with_prefix, register_patterns
 from ..patterns import (
@@ -42,9 +42,9 @@ from ..patterns import (
     make_attention_rewrite_pattern,
     make_fused_bias_activation_pattern,
     make_layer_norm_pattern,
-    make_rms_norm_pattern,
     make_matmul_pattern,
     make_residual_block_pattern,
+    make_rms_norm_pattern,
     make_stacked_attention_pattern,
 )
 
@@ -573,7 +573,7 @@ class WorkspaceAnnotator(PyExprMutator):
 def annotate_workspace(mod, _):
     """Pass to annotate a workspace requirement for each CUTLASS-offloaded function."""
     annotator = WorkspaceAnnotator(mod)
-    for name, f in mod.functions.items():
+    for name, f in mod.functions_items():
         if isinstance(f, Function):
             new_f = annotator.visit_expr(f)
             mod.update_func(name, new_f)
@@ -604,7 +604,7 @@ def partition_for_cutlass(mod, annotate_codegen=True, use_flash_mqa=True):
         The resulting IRModule, containing partitioned subgraphs to be
         compiled by the CUTLASS backend.
     """
-    for func_name, func in mod.functions.items():
+    for func_name, func in mod.functions_items():
         if isinstance(func, Function):
             if use_flash_mqa:
                 mqa_pattern, rewriter = make_attention_rewrite_pattern(

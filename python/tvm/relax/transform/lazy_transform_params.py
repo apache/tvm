@@ -17,9 +17,8 @@
 # pylint: disable=invalid-name, unused-argument, missing-function-docstring, abstract-method
 """Relax LazyTransformParams pass."""
 import tvm
-from tvm import IRModule
-from tvm import relax
-from tvm.relax.expr_functor import visitor, mutator, PyExprMutator, PyExprVisitor
+from tvm import IRModule, relax
+from tvm.relax.expr_functor import PyExprMutator, PyExprVisitor, mutator, visitor
 
 
 @visitor
@@ -228,7 +227,7 @@ class LazyTransformParams:
 
     def transform_module(self, mod: IRModule, ctx: tvm.transform.PassContext) -> IRModule:
         lazy_mutator = LazyTransformParamsMutator(mod)
-        for gv in mod.functions:
+        for gv, _ in mod.functions_items():
             if gv.name_hint.endswith("transform_params"):
                 func = mod[gv]
                 if not isinstance(func, relax.Function):

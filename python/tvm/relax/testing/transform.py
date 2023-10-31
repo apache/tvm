@@ -17,15 +17,14 @@
 # pylint: disable=unused-argument, invalid-name, no-else-return, abstract-method, arguments-differ
 """Relax transformation passes for testing"""
 
-from tvm import ir
-from tvm import relax
+from tvm import ir, relax
+from tvm.ir import transform
 from tvm.ir.module import IRModule
 from tvm.ir.transform import PassContext
-from tvm.target import Target
-from tvm.ir import transform
 from tvm.relax import PyExprMutator
 from tvm.relax.expr import Call
 from tvm.relay.backend.te_compiler import select_implementation
+from tvm.target import Target
 
 
 @ir.transform.module_pass(opt_level=0)
@@ -114,7 +113,7 @@ class LowerWithRelayOpStrategyPass(transform.Pass):
             # TOOD(@team): transform() wapper is necessary to include TIR functions.
             # IMO, this is bit unintuitive. Can we improve this?
             def transform(self):
-                for gv, func in mod.functions.items():
+                for gv, func in mod.functions_items():
                     if isinstance(func, relax.Function):
                         updated_func = self.visit_expr(func)
                         self.builder_.update_func(gv, updated_func)

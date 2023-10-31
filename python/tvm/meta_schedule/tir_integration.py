@@ -111,7 +111,7 @@ def tune_tir(  # pylint: disable=too-many-locals
         mod = _normalize_mod(mod)
 
     named_tasks: List[Tuple[str, tir.PrimFunc]] = []
-    for gv, func in mod.functions.items():  # pylint: disable=invalid-name
+    for gv, func in mod.functions_items():  # pylint: disable=invalid-name
         if isinstance(func, tir.PrimFunc):
             named_tasks.append((gv.name_hint, func))
     named_tasks.sort(key=lambda x: x[0])
