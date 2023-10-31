@@ -147,11 +147,20 @@ TVM_REGISTER_GLOBAL("ir.FloatImm").set_body_typed([](DataType dtype, double valu
 TVM_REGISTER_NODE_TYPE(FloatImmNode);
 
 Range::Range(PrimExpr begin, PrimExpr end, Span span)
-    : Range(make_object<RangeNode>(begin, tir::is_zero(begin) ? end : (end - begin), span)) {}
+    : Range(make_object<RangeNode>(begin, tir::is_zero(begin) ? end : (end - begin), span)) {
+  CHECK_EQ(begin->dtype, end->dtype)
+      << "Range expects the begin and end to be the same dtype, "
+      << "but the range starts at " << begin << " with dtype " << begin->dtype << " and ends at "
+      << end << " with dtype " << end->dtype;
+}
 
 Range::Range(int begin, PrimExpr end, Span span) : Range(IntImm(end->dtype, begin), end, span) {}
 
 Range Range::FromMinExtent(PrimExpr min, PrimExpr extent, Span span) {
+  CHECK_EQ(min->dtype, extent->dtype)
+      << "Range::FromMinExtent expects the begin and end to be the same dtype, "
+      << "but the range starts at " << min << " with dtype " << min->dtype << " and has extent "
+      << extent << " with dtype " << extent->dtype;
   return Range(make_object<RangeNode>(min, extent, span));
 }
 
