@@ -14,47 +14,49 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+"""Configure pytest"""
+import importlib
 import pytest
-
-import tvm
-from tvm import te
 import numpy as np
+import tvm
 from tvm import rpc
 from tvm.contrib import utils, tflite_runtime
 
 
 def _create_tflite_model():
+    """Functions of creating a tflite model"""
     if not tvm.runtime.enabled("tflite"):
         print("skip because tflite runtime is not enabled...")
-        return
+        return None
     if not tvm.get_global_func("tvm.tflite_runtime.create", True):
         print("skip because tflite runtime is not enabled...")
-        return
+        return None
 
     try:
-        import tensorflow as tf
+        tf_lib = importlib.import_module("tensorflow")
     except ImportError:
         print("skip because tensorflow not installed...")
-        return
+        return None
 
-    root = tf.Module()
-    root.const = tf.constant([1.0, 2.0], tf.float32)
-    root.f = tf.function(lambda x: root.const * x)
+    root = tf_lib.Module()
+    root.const = tf_lib.constant([1.0, 2.0], tf_lib.float32)
+    root.f = tf_lib.function(lambda x: root.const * x)
 
-    input_signature = tf.TensorSpec(
+    input_signature = tf_lib.TensorSpec(
         shape=[
             2,
         ],
-        dtype=tf.float32,
+        dtype=tf_lib.float32,
     )
     concrete_func = root.f.get_concrete_function(input_signature)
-    converter = tf.lite.TFLiteConverter.from_concrete_functions([concrete_func])
+    converter = tf_lib.lite.TFLiteConverter.from_concrete_functions([concrete_func])
     tflite_model = converter.convert()
     return tflite_model
 
 
 @pytest.mark.skip("skip because accessing output tensor is flakey")
 def test_local():
+    """Local tests of tflite model"""
     if not tvm.runtime.enabled("tflite"):
         print("skip because tflite runtime is not enabled...")
         return
@@ -63,7 +65,7 @@ def test_local():
         return
 
     try:
-        import tensorflow as tf
+        tf_lib = importlib.import_module("tensorflow")
     except ImportError:
         print("skip because tensorflow not installed...")
         return
@@ -75,7 +77,7 @@ def test_local():
     open(tflite_model_path, "wb").write(tflite_model)
 
     # inference via tflite interpreter python apis
-    interpreter = tf.lite.Interpreter(model_path=tflite_model_path)
+    interpreter = tf_lib.lite.Interpreter(model_path=tflite_model_path)
     interpreter.allocate_tensors()
     input_details = interpreter.get_input_details()
     output_details = interpreter.get_output_details()
@@ -96,6 +98,7 @@ def test_local():
 
 
 def test_remote():
+    """Remote tests of tflite model"""
     if not tvm.runtime.enabled("tflite"):
         print("skip because tflite runtime is not enabled...")
         return
@@ -104,7 +107,7 @@ def test_remote():
         return
 
     try:
-        import tensorflow as tf
+        tf_lib = importlib.import_module("tensorflow")
     except ImportError:
         print("skip because tensorflow not installed...")
         return
@@ -116,7 +119,7 @@ def test_remote():
     open(tflite_model_path, "wb").write(tflite_model)
 
     # inference via tflite interpreter python apis
-    interpreter = tf.lite.Interpreter(model_path=tflite_model_path)
+    interpreter = tf_lib.lite.Interpreter(model_path=tflite_model_path)
     interpreter.allocate_tensors()
     input_details = interpreter.get_input_details()
     output_details = interpreter.get_output_details()
@@ -130,7 +133,6 @@ def test_remote():
     # inference via remote tvm tflite runtime
     def check_remote(server):
         remote = rpc.connect(server.host, server.port)
-        a = remote.upload(tflite_model_path)
 
         with open(tflite_model_path, "rb") as model_fin:
             runtime = tflite_runtime.create(model_fin.read(), remote.cpu(0))
