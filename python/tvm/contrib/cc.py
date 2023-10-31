@@ -15,12 +15,16 @@
 # specific language governing permissions and limitations
 # under the License.
 """Util to invoke C/C++ compilers in the system."""
-# pylint: disable=invalid-name
-import sys
 import os
+import shutil
 import subprocess
 
+# pylint: disable=invalid-name
+import sys
+
 from .._ffi.base import py_str
+from . import tar as _tar
+from . import utils as _utils
 
 
 def _is_linux_like():
@@ -29,6 +33,10 @@ def _is_linux_like():
         or sys.platform.startswith("linux")
         or sys.platform.startswith("freebsd")
     )
+
+
+def _is_windows_like():
+    return sys.platform == "win32"
 
 
 def get_cc():
@@ -77,14 +85,26 @@ def create_shared(output, objects, options=None, cc=None):
 
     if _is_linux_like():
         _linux_compile(output, objects, options, cc, compile_shared=True)
-    elif sys.platform == "win32":
+    elif _is_windows_like():
         _windows_compile(output, objects, options)
     else:
         raise ValueError("Unsupported platform")
 
 
-def _linux_ar(output, objects):
-    cmd = ["ar", "-crs", output]
+def _linux_ar(output, inputs, ar):
+    ar = ar or "ar"
+
+    libname = os.path.basename(output)
+    if not libname.startswith("lib"):
+        libname = "lib" + libname
+    temp = _utils.tempdir()
+    temp_output = temp.relpath(libname)
+    cmd = [ar, "-crs", temp_output]
+
+    # handles the case where some input files are tar of objects
+    # unpack them and return the list of files inside
+    objects = _tar.normalize_file_list_by_unpacking_tars(temp, inputs)
+
     cmd += objects
     proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
     (out, _) = proc.communicate()
@@ -94,21 +114,27 @@ def _linux_ar(output, objects):
         msg += "\nCommand line: " + " ".join(cmd)
         raise RuntimeError(msg)
 
+    shutil.move(temp_output, output)
 
-def create_staticlib(output, objects):
-    """Create shared library.
+
+def create_staticlib(output, inputs, ar=None):
+    """Create static library.
 
     Parameters
     ----------
     output : str
         The target shared library.
 
-    objects : List[str]
-        List of object files.
+    inputs : List[str]
+        List of inputs files. Each input file can be a tarball
+        of objects or an object file.
+
+    ar : Optional[str]
+        Path to the ar command to be used
     """
 
     if _is_linux_like():
-        return _linux_ar(output, objects)
+        return _linux_ar(output, inputs, ar)
     else:
         raise ValueError("Unsupported platform")
 
@@ -134,7 +160,7 @@ def create_executable(output, objects, options=None, cc=None):
 
     if _is_linux_like():
         _linux_compile(output, objects, options, cc)
-    elif sys.platform == "win32":
+    elif _is_windows_like():
         _windows_compile(output, objects, options)
     else:
         raise ValueError("Unsupported platform")
@@ -215,12 +241,12 @@ def cross_compiler(
        # export using arm gcc
        mod = build_runtime_module()
        mod.export_library(path_dso,
-                          cc.cross_compiler("arm-linux-gnueabihf-gcc"))
+                          fcompile=cc.cross_compiler("arm-linux-gnueabihf-gcc"))
        # specialize ndk compilation options.
        specialized_ndk = cc.cross_compiler(
            ndk.create_shared,
            ["--sysroot=/path/to/sysroot", "-shared", "-fPIC", "-lm"])
-       mod.export_library(path_dso, specialized_ndk)
+       mod.export_library(path_dso, fcompile=specialized_ndk)
     """
     base_options = [] if options is None else options
     kwargs = {}
@@ -260,7 +286,7 @@ def _linux_compile(output, objects, options, compile_cmd, compile_shared=False):
             cmd += ["-c"]
     else:
         if compile_shared or output.endswith(".so") or output.endswith(".dylib"):
-            cmd += ["--shared"]
+            cmd += ["-shared"]
     cmd += ["-o", output]
     if isinstance(objects, str):
         cmd += [objects]
