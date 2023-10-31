@@ -23,6 +23,9 @@
 - Effect, a non-user-facing class that encloses potential side effects, for example, IO,
   impure external function callings, inplace mutation, etc.
 """
+import os
+import sys
+import tempfile
 from collections import OrderedDict
 from typing import (
     TYPE_CHECKING,
@@ -40,8 +43,10 @@ from typing import (
 import numpy as np
 
 from tvm import tir
+from tvm._ffi.libinfo import find_include_path
+from tvm.contrib import cc as _cc
 from tvm.ir import IRModule
-from tvm.runtime import Device, NDArray, ndarray
+from tvm.runtime import Device, NDArray, load_static_library, ndarray
 from tvm.runtime.relax_vm import VirtualMachine
 from tvm.target import Target
 
@@ -366,6 +371,8 @@ class Module(SubroutineMixin):
         for _, item in self.__dict__.items():
             if hasattr(item, "to") and callable(item.to):
                 item.to(dtype=dtype)
+        if dtype is not None and isinstance(getattr(self, "dtype", None), str):
+            self.dtype = dtype  # pylint: disable=attribute-defined-outside-init
 
     def export_tvm(
         self,
@@ -464,6 +471,7 @@ class ExternModule(Module):
                 from tvm.relax import Tuple as RxTuple
                 from tvm.relax import call_dps_packed
 
+                from . import spec as _spec
                 from .op import _wrap_nested
 
                 def extern_func(*args: Tensor) -> Tensor:
@@ -480,15 +488,22 @@ class ExternModule(Module):
                                             f"for {value_spec} in {function_spec}"
                                         )
                     out_shape = []
-                    for value_spec in function_spec.ret.shape:
+                    func_spec_ret = function_spec.ret
+                    assert isinstance(
+                        func_spec_ret, _spec.Tensor
+                    ), "Only single return value is supported for now"
+                    for value_spec in func_spec_ret.shape:
                         if isinstance(value_spec, int):
                             out_shape.append(value_spec)
                         elif isinstance(value_spec, str):
                             if not value_spec in spec2var:
                                 raise ValueError(f"Undefined var {value_spec} in {function_spec}")
                             out_shape.append(spec2var[value_spec])
-                    out_sinfo = TensorStructInfo(out_shape, function_spec.ret.dtype)
-                    return _wrap_nested(
+                    out_sinfo = TensorStructInfo(
+                        out_shape,  # type: ignore[arg-type]
+                        func_spec_ret.dtype,
+                    )
+                    ret_tensor = _wrap_nested(
                         call_dps_packed(
                             func_name,
                             args=RxTuple([tensor._expr for tensor in args]),
@@ -496,10 +511,84 @@ class ExternModule(Module):
                         ),
                         func_name,
                     )
+                    assert isinstance(ret_tensor, Tensor)
+                    return ret_tensor
+
+                # pylint: enable=cell-var-from-loop, import-outside-toplevel, protected-access
 
                 return extern_func
+        raise ValueError(f"Unknown function {func_name} in the external module:{self.module_spec}")
 
-        raise ValueError(f"Unknown function {func_name} in {self.module_spec.filename}")
+
+class SourceModule(ExternModule):
+    """Base class for source module. Subclass it to import your source models.
+
+    See PR #16006 (https://github.com/apache/tvm/pull/16006) for a detailed example.
+    """
+
+    def __init__(  # pylint: disable=too-many-arguments,too-many-locals
+        self,
+        source_code: str,
+        source_format: str,  # "cpp", "cu"
+        functions: Dict[str, "_spec.ExternFunctionSpec"],
+        compile_options: Optional[List[str]] = None,
+        compiler: Optional[str] = None,
+        output_format: str = "obj",  # "obj", "wasm"
+    ):
+        from . import spec as _spec  # pylint: disable=import-outside-toplevel
+
+        def _detect_input_suffix(source_format: str) -> str:
+            if source_format == "cpp":
+                return ".cpp"
+            if source_format == "cu":
+                return ".cu"
+            raise ValueError(f"Invalid source format: {source_format}")
+
+        def _detect_output_suffix(output_format: str) -> str:
+            if output_format == "obj":
+                if _cc._is_linux_like():  # pylint: disable=protected-access
+                    return ".o"
+                if _cc._is_windows_like():  # pylint: disable=protected-access
+                    return ".obj"
+                raise ValueError(f"Unsupported platform: {sys.platform}")
+            if output_format == "wasm":
+                return ".wasm"
+            raise ValueError(f"Invalid output format: {output_format}")
+
+        source_suffix = _detect_input_suffix(source_format)
+        output_suffix = _detect_output_suffix(output_format)
+        if compile_options is None:
+            compile_options = []
+            for include_path in find_include_path():
+                compile_options.append("-I")
+                compile_options.append(include_path)
+            compile_options.append("-c")
+            compile_options.append("-DDMLC_USE_FOPEN64=0")
+            compile_options.append("-DDMLC_USE_LOGGING_LIBRARY=<tvm/runtime/logging.h>")
+        with tempfile.TemporaryDirectory() as temp_dir:
+            source_file = os.path.join(temp_dir, f"main{source_suffix}")
+            with open(source_file, "w", encoding="utf-8") as file:
+                file.write(source_code)
+            output_file = os.path.join(temp_dir, f"main{output_suffix}")
+            _cc.create_shared(
+                output=output_file,
+                objects=[source_file],
+                options=compile_options,
+                cc=compiler,
+            )
+            func_names: List[str] = []
+            func_specs: List[_spec.ExternFunctionSpec] = []
+            for func_name, func_spec in functions.items():
+                func_names.append(func_name)
+                func_specs.append(func_spec)
+                if func_spec.symbol is None:
+                    func_spec.symbol = func_name
+            library = load_static_library(output_file, func_names=func_names)
+        module_spec = _spec.ExternModuleSpec(
+            library=library,
+            functions=func_specs,
+        )
+        super().__init__(module_spec=module_spec)
 
 
 class ModuleList(Module):

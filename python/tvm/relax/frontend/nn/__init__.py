@@ -16,7 +16,15 @@
 # under the License.
 """A PyTorch-like API to build IRModules."""
 from . import op, spec
-from .core import Effect, ExternModule, Module, ModuleList, Parameter, Tensor
+from .core import (
+    Effect,
+    ExternModule,
+    Module,
+    ModuleList,
+    Parameter,
+    SourceModule,
+    Tensor,
+)
 from .modules import (
     GELU,
     Conv1D,
