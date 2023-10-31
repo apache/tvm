@@ -14,10 +14,11 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+import io
+import sys
+
 import pytest
 import torch
-import sys
-import io
 
 import tvm
 import tvm.testing
@@ -447,7 +448,7 @@ def test_tensor_expr_op():
             tensor_expr_op_out = op.tensor_expr_op(
                 tensor_expr_func=lambda x: x + 1, name_hint="add_one", args=[x]
             )
-            return x
+            return tensor_expr_op_out
 
     # fmt: off
     @I.ir_module
@@ -478,8 +479,7 @@ def test_tensor_expr_op():
             R.func_attr({"num_input": 2})
             with R.dataflow():
                 lv1 = R.call_tir(cls.add_one, (x,), out_sinfo=R.Tensor((10, 10), dtype="float32"))
-                add_one1: R.Tensor((10, 10), dtype="float32") = lv1
-                gv1: R.Tuple(R.Tensor((10, 10), dtype="float32"), R.Tuple(R.Object)) = x, (_io,)
+                gv1: R.Tuple(R.Tensor((10, 10), dtype="float32"), R.Tuple(R.Object)) = lv1, (_io,)
                 R.output(gv1)
             return gv1
     # fmt: on
