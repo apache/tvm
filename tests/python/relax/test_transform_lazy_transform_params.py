@@ -14,9 +14,12 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+import numpy as np
+
 import tvm
 import tvm.testing
-import pytest
+
+from tvm import relax
 from tvm.script import relax as R, tir as T
 from tvm.script import ir as I
 from tvm.relax.transform import LazyTransformParams
@@ -317,6 +320,60 @@ def test_output_with_use_site():
 
     after = LazyTransformParams()(Module)
     tvm.ir.assert_structural_equal(after, Expected, map_free_vars=True)
+
+
+def test_output():
+    target = "llvm"
+    dev = tvm.device(target)
+
+    @I.ir_module
+    class TransformModule:
+        @R.function
+        def transform_params(
+            params: R.Tuple(
+                R.Tensor((3, "ic", 3, 3), dtype="float32"),
+                R.Tensor((16, 16, 3, 3), dtype="float32"),
+            )
+        ) -> R.Tuple(
+            R.Tensor((16, 16, 3, 3), dtype="float32"), R.Tensor(("ic", 3, 3, 3), dtype="float32")
+        ):
+            R.func_attr({"relax.force_pure": True})
+            param0 = params[0]
+            param1 = params[1]
+            transformed0 = R.permute_dims(param0, [1, 0, 2, 3])
+            transformed = (transformed0, param1)
+            return transformed
+
+    mod = TransformModule
+    mod = relax.transform.LazyTransformParams()(mod)
+    mod = relax.transform.LegalizeOps()(mod)
+    built = relax.build(mod, target=target)
+
+    params = [
+        np.random.random(size=(3, 64, 3, 3)).astype("float32"),
+        np.random.random(size=(16, 16, 3, 3)).astype("float32"),
+    ]
+    transformed = {}
+    expected = [params[0].transpose(1, 0, 2, 3), params[1]]
+
+    @tvm.register_func("get_item", override=True)
+    def get_item(i):
+        return tvm.nd.array(params[i], dev)
+
+    @tvm.register_func("set_item", override=True)
+    def set_item(i, value):
+        assert i not in transformed, f"Set item called multiple times for index {i}"
+        transformed[i] = value.numpy()
+
+    vm = relax.VirtualMachine(built, dev)
+    vm["transform_params"]()
+
+    assert sorted(transformed) == list(range(len(transformed)))
+    transformed = [value for i, value in sorted(transformed.items())]
+    assert len(transformed) == len(expected)
+
+    for expected_i, transformed_i in zip(expected, transformed):
+        tvm.testing.assert_allclose(expected_i, transformed_i)
 
 
 if __name__ == "__main__":

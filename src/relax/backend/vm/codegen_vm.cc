@@ -122,14 +122,20 @@ class CodeGenVM : public ExprFunctor<Instruction::Arg(const Expr&)> {
   Instruction::Arg VisitExpr_(const SeqExprNode* op) final {
     for (auto block : op->blocks) {
       for (Binding binding : block->bindings) {
-        Instruction::Arg value;
-        if (auto* var_binding = binding.as<VarBindingNode>()) {
-          value = this->VisitExpr(var_binding->value);
-        } else if (auto* match_cast = binding.as<MatchCastNode>()) {
-          value = this->VisitExpr(match_cast->value);
-        } else {
-          LOG(FATAL) << "Unsupported binding " << binding->GetTypeKey();
+        Expr expr = GetBoundValue(binding);
+
+        Instruction::Arg value = VisitExpr(expr);
+        if (expr.as<VarNode>()) {
+          // For a normalized relax module, there should be one
+          // register for each relax::Binding.  This makes the Relax
+          // semantics of R.vm.kill_* operate the same as the Python
+          // "del" operator.  These bindings may be removable by using
+          // relax.transform.CanonicalizeBindings earlier in lowering.
+          RegName new_reg = NewRegister();
+          builder_->EmitCall("vm.builtin.copy", {value}, new_reg);
+          value = Instruction::Arg::Register(new_reg);
         }
+
         this->var_arg_map_.insert({binding->var, value});
       }
     }
