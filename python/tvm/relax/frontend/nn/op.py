@@ -33,7 +33,7 @@ from .spec import SpecBuilder
 IntExpr = Union[int, _tir.PrimExpr]
 
 
-def _wrap_nested(expr: rx.Expr, name: str) -> Union[Tensor, Tuple[Tensor, ...]]:
+def _wrap_nested(expr: rx.Expr, name: str) -> Union[Tensor, Sequence[Tensor]]:
     """Wrap the given relax.Expr, emit it using the current BlockBuilder,
     and automatically handle nested cases if the expr represents a Tuple.
 
@@ -50,7 +50,8 @@ def _wrap_nested(expr: rx.Expr, name: str) -> Union[Tensor, Tuple[Tensor, ...]]:
     result : Union[Tensor, Tuple[Tensor]]
         The computed result.
     """
-    expr = BlockBuilder.current().emit(expr, name)
+    if not isinstance(expr, rx.DataflowVar):
+        expr = BlockBuilder.current().emit(expr, name)
     if isinstance(expr.struct_info_, TensorStructInfo):
         return Tensor(_expr=expr)
     if isinstance(expr.struct_info_, TupleStructInfo):
