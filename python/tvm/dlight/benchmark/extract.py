@@ -16,13 +16,14 @@
 # under the License.
 """Performance debug tool for dynamic shape workloads"""
 
-from typing import List, Dict, Union, Tuple, Optional
 from pathlib import Path
+from typing import Dict, List, Optional, Tuple, Union
 
 import cloudpickle
 
 import tvm
 from tvm import relax
+
 from .utils import default_dym_var_sample_func, get_func_name_from_gv
 
 SKETCH = """import pickle
@@ -215,7 +216,7 @@ def extract_all_func_info_from_relax(
         The function input information and dynamic shape variable dictionary.
     """
     relax_func_dict: Dict[tvm.ir.GlobalVar, Dict[tvm.ir.GlobalVar, List[Tuple[List, int]]]] = {}
-    for gv, func in mod.functions.items():  # pylint: disable=invalid-name,too-many-nested-blocks
+    for gv, func in mod.functions_items():  # pylint: disable=invalid-name,too-many-nested-blocks
         if isinstance(func, tvm.relax.Function):
             for block in func.body.blocks:
                 for binding in block.bindings:

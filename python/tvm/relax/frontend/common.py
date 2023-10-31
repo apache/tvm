@@ -41,7 +41,7 @@ def detach_params(mod: tvm.IRModule) -> Tuple[tvm.IRModule, Dict[str, List[tvm.n
     """
     detached_mod = tvm.IRModule()
     params_dict = dict()
-    for gv, func in mod.functions.items():
+    for gv, func in mod.functions_items():
         if func.attrs is not None and "params" in func.attrs:
             params = list(func.attrs["params"])
             if not all([isinstance(param, tvm.nd.NDArray) for param in params]):

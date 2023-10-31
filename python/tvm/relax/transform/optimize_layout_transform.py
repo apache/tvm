@@ -20,7 +20,8 @@ from tvm.ir import structural_equal
 from tvm.ir.module import IRModule
 from tvm.ir.transform import PassContext
 from tvm.relax import Expr, Function
-from tvm.relax.dpl import is_op, rewrite_call, wildcard, TuplePattern
+from tvm.relax.dpl import TuplePattern, is_op, rewrite_call, wildcard
+
 from . import function_pass
 
 
@@ -62,7 +63,7 @@ class OptimizeLayoutTransform:
 
         self.mod = mod
         updated_func = func
-        for _, func in mod.functions.items():
+        for _, func in mod.functions_items():
             # Skip non-relax functions
             if not isinstance(func, Function):
                 continue

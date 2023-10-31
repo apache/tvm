@@ -17,12 +17,13 @@
 # pylint: disable=abstract-method,unused-argument
 # pylint: disable=missing-function-docstring,missing-module-docstring
 from typing import Union
+
 import tvm
 from tvm.ir import Op
 from tvm.ir.module import IRModule
 
 from ..expr import Call, Expr, Function, ShapeExpr
-from ..expr_functor import visitor, PyExprVisitor
+from ..expr_functor import PyExprVisitor, visitor
 
 
 def estimate_memory_usage(mod: Union[IRModule, Function]) -> str:
@@ -87,7 +88,7 @@ def estimate_memory_usage(mod: Union[IRModule, Function]) -> str:
 
         def estimate(self, mod: IRModule) -> str:
             estimation: str = ""
-            for global_var, func in mod.functions.items():
+            for global_var, func in mod.functions_items():
                 if not isinstance(func, Function):
                     continue
 

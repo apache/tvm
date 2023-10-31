@@ -59,7 +59,7 @@ class ApplyDefaultSchedule:  # pylint: disable=too-few-public-methods
     ) -> IRModule:
         target = Target.current(allow_none=False)
         updated_functions = {}
-        for g_var, func in mod.functions.items():
+        for g_var, func in mod.functions_items():
             if isinstance(func, tir.PrimFunc) and not _is_scheduled(func):
                 sch = _apply_rules(func, target, self.rules, tunable=False)
                 if sch is not None:
