@@ -30,4 +30,3 @@ echo set\(USE_RPC ON\) >> config.cmake
 echo set\(USE_GRAPH_EXECUTOR ON\) >> config.cmake
 echo set\(USE_LIBBACKTRACE AUTO\) >> config.cmake
 echo set\(USE_LLVM ON\) >> config.cmake
-echo set\(USE_OPENCL ON\) >> config.cmake
