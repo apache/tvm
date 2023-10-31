@@ -589,7 +589,7 @@ class TVMPODValue_ {
     } else if (auto opt = ThroughObjectRef<double>()) {
       return opt.value();
     } else if (auto opt = ThroughObjectRef<int64_t>()) {
-      return opt.value();
+      return static_cast<double>(opt.value());
     }
     TVM_CHECK_TYPE_CODE(type_code_, kDLFloat);
     return value_.v_float64;
