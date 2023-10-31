@@ -721,6 +721,21 @@ class Range : public ObjectRef {
    * \param span The location of the Range in the source.
    */
   TVM_DLL Range(PrimExpr begin, PrimExpr end, Span span = Span());
+
+  /*!
+   * \brief constructor by begin and end
+   *
+   * This overload is used to handle the common use case of `Range(0,
+   * end)`.  Without this overload, automatic conversion of `int` to
+   * `PrimExpr` would produce a begin with `DataType::Int(32)`, when
+   * it should have the same datatype as `end`.
+   *
+   * \param begin The begin of the range.
+   * \param end The end of the range.
+   * \param span The location of the Range in the source.
+   */
+  TVM_DLL Range(int begin, PrimExpr end, Span span = Span());
+
   /*!
    * \brief construct a new range with min and extent
    *  The corresponding constructor is removed,
@@ -732,6 +747,22 @@ class Range : public ObjectRef {
    * \param span The location of the Range in the source.
    */
   static Range FromMinExtent(PrimExpr min, PrimExpr extent, Span span = Span());
+
+  /*!
+   * \brief construct a new range with min and extent
+   *
+   * This overload is used to handle the common use case of
+   * `Range::FromMinExtent(0, extent)`.  Without this overload,
+   * automatic conversion of `int` to `PrimExpr` would produce a begin
+   * with `DataType::Int(32)`, when it should have the same datatype
+   * as `extent`.
+   *
+   * \param min The minimum range.
+   * \param extent The extent of the range.
+   * \param span The location of the Range in the source.
+   */
+  static Range FromMinExtent(int min, PrimExpr extent, Span span = Span());
+
   // declare range.
   TVM_DEFINE_OBJECT_REF_METHODS(Range, ObjectRef, RangeNode);
 };

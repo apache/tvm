@@ -149,14 +149,23 @@ TVM_REGISTER_NODE_TYPE(FloatImmNode);
 Range::Range(PrimExpr begin, PrimExpr end, Span span)
     : Range(make_object<RangeNode>(begin, tir::is_zero(begin) ? end : (end - begin), span)) {}
 
+Range::Range(int begin, PrimExpr end, Span span) : Range(IntImm(end->dtype, begin), end, span) {}
+
 Range Range::FromMinExtent(PrimExpr min, PrimExpr extent, Span span) {
   return Range(make_object<RangeNode>(min, extent, span));
 }
 
-TVM_REGISTER_GLOBAL("ir.Range_from_min_extent").set_body_typed(Range::FromMinExtent);
+Range Range::FromMinExtent(int min, PrimExpr extent, Span span) {
+  return Range::FromMinExtent(IntImm(extent->dtype, min), extent, span);
+}
 
-TVM_REGISTER_GLOBAL("ir.Range").set_body([](TVMArgs args, TVMRetValue* ret) {
-  *ret = Range(args[0], args[1], args[2]);
+TVM_REGISTER_GLOBAL("ir.Range_from_min_extent")
+    .set_body_typed([](PrimExpr min, PrimExpr extent, Span span) {
+      return Range::FromMinExtent(min, extent, span);
+    });
+
+TVM_REGISTER_GLOBAL("ir.Range").set_body_typed([](PrimExpr begin, PrimExpr end, Span span) {
+  return Range(begin, end, span);
 });
 
 TVM_REGISTER_NODE_TYPE(RangeNode);
