@@ -105,6 +105,8 @@ To cut a release candidate branch, one needs to push two commits in one pull req
 	git add .
 	git commit -m "Bump version numbers to v0.7.dev0"
 
+        # After pull request merged
+        # cut branch on first commit
 	# Replace v0.6 with the relevant version
 	git branch v0.6
 	git push --set-upstream origin v0.6
