@@ -18,6 +18,7 @@
 from __future__ import annotations
 
 from typing import Dict, Union
+
 import tvm._ffi
 from tvm._ffi.base import string_types
 from tvm.runtime import Scriptable
@@ -79,6 +80,18 @@ class IRModule(Node, Scriptable):
             attrs,
             global_infos,
         )
+
+    def functions_items(self):
+        """Get items in self.functions.items() in alphabetical order.
+
+        Returns
+        -------
+        items: List[Tuple[GlobalVar, Function]]
+            The functions items.
+        """
+        items = list(self.functions.items())
+        items.sort(key=lambda item: str(item[0].name_hint))
+        return items
 
     def __setitem__(self, var, val):
         """Add a mapping to the module.
