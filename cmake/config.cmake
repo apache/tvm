@@ -442,3 +442,7 @@ set(USE_UMA OFF)
 
 # Set custom Alloc Alignment for device allocated memory ndarray points to
 set(USE_KALLOC_ALIGNMENT 64)
+
+# List of architectures to generate CUDA device code for, only used for
+# compiling external kernels from Thrust and vLLM.
+set(CMAKE_CUDA_ARCHITECTURES "80;75")
