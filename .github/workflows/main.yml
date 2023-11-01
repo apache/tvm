@@ -73,6 +73,7 @@ jobs:
         shell: bash -l {0}
         run: >-
           python -m pytest -v -s 'tests/python/unittest/test_allreduce.py::test_allreduce_sum_compile'
+          python -m pytest -v -s 'tests/python/unittest/test_target_codegen_metal.py::test_func_with_trailing_pod_params'
       - name: Minimal Metal Compile-and-Run
         shell: bash -l {0}
         run: >-
