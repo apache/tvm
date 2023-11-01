@@ -30,6 +30,8 @@
 #include <functional>
 #include <iterator>
 
+#include "../../support/ordered_set.h"
+
 namespace tvm {
 namespace relax {
 
@@ -316,8 +318,18 @@ TVM_REGISTER_GLOBAL("relax.dfb_rewrite_remove_all_unused")
     .set_body_typed([](DataflowBlockRewrite rwt) { rwt->RemoveAllUnused(); });
 
 Expr RemoveAllUnused(Expr expr) {
-  auto [users, outputs] = FunctionUseDef(expr);
-  RemoveUnusedVars remover(users, outputs);
+  auto var_usage = CollectVarUsage(expr);
+
+  // For the purpose of
+  support::OrderedSet<Var> externally_exposed(var_usage.outputs.begin(), var_usage.outputs.end());
+  for (const auto& [var, expr] : var_usage.bound_values) {
+    if (ContainsImpureCall(expr)) {
+      externally_exposed.insert(var);
+    }
+  }
+
+  RemoveUnusedVars remover(var_usage.downstream_usage,
+                           Array<Var>(externally_exposed.begin(), externally_exposed.end()));
   return remover.VisitExpr(std::move(expr));
 }
 
