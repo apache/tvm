@@ -42,7 +42,7 @@ class BcastSessionObj : public SessionObj {
   void CopyToWorker0(const NDArray& host_array, const DRef& remote_array) override;
   void SyncWorker(int worker_id) override;
   void Shutdown() override;
-  void InitCCL(String ccl, ShapeTuple device_ids) override;
+  void InitCCL(String ccl, IntTuple device_ids) override;
   TVMRetValue DebugGetFromRemote(int64_t reg_id, int worker_id) override = 0;
   void DebugSetRegister(int64_t reg_id, TVMArgValue value, int worker_id) override = 0;
 
