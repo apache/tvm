@@ -246,7 +246,7 @@ void CheckTensorInfo(TVMArgs args, TVMRetValue* rv) {
   if (dtype != DataType::Void()) {
     CHECK(DataType(ptr->dl_tensor.dtype) == dtype)
         << "ValueError: " << err_ctx.value_or("") << " expect Tensor with dtype " << dtype
-        << " but get " << ptr->dl_tensor.dtype;
+        << " but get " << DataType(ptr->dl_tensor.dtype);
   }
 }
 
