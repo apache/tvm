@@ -17,7 +17,7 @@
 # pylint: disable=no-else-return, invalid-name, unused-argument
 """Developer API of constructing Relax AST."""
 
-from typing import Dict, List, Optional, Union, Any, Callable
+from typing import Dict, List, Optional, Union, Any, Callable, Sequence
 from tvm.ir.module import IRModule
 from tvm.runtime import Object
 from tvm import relax as rx, tir
@@ -286,6 +286,21 @@ class BlockBuilder(Object):
         """
         return DataflowScope(self)
 
+    def _normalize_python_tuple(self, expr: Union[Expr, Sequence[Expr]]):
+        """Internal utility function to convert to relax.Tuple
+
+        The `emit`, `emit_output`, and `emit_func_output` can be
+        called with python `list` or `tuple` objects.  These objects
+        should be converted to `relax.Tuple` prior to calling an FFI
+        function, as they would otherwise be converted to
+        `tvm.runtime.Array`.  In addition, any nested tuple objects
+        should be converted.
+        """
+        if isinstance(expr, (list, tuple)):
+            return Tuple([self._normalize_python_tuple(element) for element in expr])
+        else:
+            return expr
+
     def emit(self, expr: Expr, name_hint: str = "") -> Var:
         """Emit an expr.
         This infers the shape and type of the expr, create a variable,
@@ -304,6 +319,7 @@ class BlockBuilder(Object):
         ret : tvm.relax.Var
             A newly created variable that gets bound to the input expr.
         """
+        expr = self._normalize_python_tuple(expr)
         return _ffi_api.BlockBuilderEmit(self, expr, name_hint)  # type: ignore
 
     def call_te(self, func: Callable, *args: Any, **kwargs: Any) -> Expr:
@@ -557,8 +573,7 @@ class BlockBuilder(Object):
         ret : tvm.relax.Var
             The return variable which gets bound to the output.
         """
-        if isinstance(output, (list, tuple)):
-            output = Tuple(output)
+        output = self._normalize_python_tuple(output)
         return _ffi_api.BlockBuilderEmitOutput(self, output, name_hint)  # type: ignore
 
     def emit_func_output(
@@ -601,8 +616,7 @@ class BlockBuilder(Object):
         if BlockBuilder.current() is not self:
             raise RuntimeError("BlockBuilder.current() must be self.")
 
-        if isinstance(output, (list, tuple)):
-            output = Tuple(output)
+        output = self._normalize_python_tuple(output)
 
         block = self._end_block()
         if len(block.bindings) > 0:
