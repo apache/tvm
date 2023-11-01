@@ -418,11 +418,6 @@ class GEMV(ScheduleRule):
                 else:
                     TS, TR = 16, 32
         elif target.kind.name == "metal":
-            # VEC_C = 2
-            # LOAD_V_SHARED = True
-            # LOAD_V_VEC = 4
-            # UNROLL = 256
-            # TS, TR = 64, 8
             # Note that the following tile size is tuned on M2 Ultra for 7B
             TAG_S, TAG_R = "threadIdx.x", "threadIdx.y"
             VEC_C = 4
