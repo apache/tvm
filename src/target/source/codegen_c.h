@@ -221,6 +221,8 @@ class CodeGenC : public ExprFunctor<void(const PrimExpr&, std::ostream&)>,
   // print store of single element.
   virtual void PrintVecElemStore(const std::string& vec, DataType t, int i,
                                  const std::string& value);
+  // print vector constructor
+  virtual void PrintVecConstructor(DataType t, std::ostream& os);
   // Get a cast type from to
   virtual std::string CastFromTo(std::string value, DataType from, DataType target);
   // Get load of single element with expression

@@ -22,9 +22,12 @@
  */
 #include "codegen_metal.h"
 
+#include <tvm/tir/transform.h>
+
 #include <algorithm>
 #include <string>
 #include <unordered_map>
+#include <utility>
 #include <vector>
 
 #include "../../runtime/metal/metal_module.h"
@@ -327,6 +330,7 @@ void CodeGenMetal::VisitExpr_(const FloatImmNode* op, std::ostream& os) {  // NO
 runtime::Module BuildMetal(IRModule mod, Target target) {
   using tvm::runtime::Registry;
   bool output_ssa = false;
+  mod = tir::transform::PointerValueTypeRewrite()(std::move(mod));
 
   std::ostringstream source_maker;
   std::unordered_map<std::string, std::string> smap;
