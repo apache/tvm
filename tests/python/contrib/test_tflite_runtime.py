@@ -15,7 +15,6 @@
 # specific language governing permissions and limitations
 # under the License.
 """Configure pytest"""
-import importlib
 import pytest
 import numpy as np
 import tvm
@@ -33,23 +32,24 @@ def _create_tflite_model():
         return None
 
     try:
-        tf_lib = importlib.import_module("tensorflow")
+        # pylint: disable=import-outside-toplevel
+        import tensorflow as tf
     except ImportError:
         print("skip because tensorflow not installed...")
         return None
 
-    root = tf_lib.Module()
-    root.const = tf_lib.constant([1.0, 2.0], tf_lib.float32)
-    root.f = tf_lib.function(lambda x: root.const * x)
+    root = tf.Module()
+    root.const = tf.constant([1.0, 2.0], tf.float32)
+    root.f = tf.function(lambda x: root.const * x)
 
-    input_signature = tf_lib.TensorSpec(
+    input_signature = tf.TensorSpec(
         shape=[
             2,
         ],
-        dtype=tf_lib.float32,
+        dtype=tf.float32,
     )
     concrete_func = root.f.get_concrete_function(input_signature)
-    converter = tf_lib.lite.TFLiteConverter.from_concrete_functions([concrete_func])
+    converter = tf.lite.TFLiteConverter.from_concrete_functions([concrete_func])
     tflite_model = converter.convert()
     return tflite_model
 
@@ -65,7 +65,8 @@ def test_local():
         return
 
     try:
-        tf_lib = importlib.import_module("tensorflow")
+        # pylint: disable=import-outside-toplevel
+        import tensorflow as tf
     except ImportError:
         print("skip because tensorflow not installed...")
         return
@@ -77,7 +78,7 @@ def test_local():
     open(tflite_model_path, "wb").write(tflite_model)
 
     # inference via tflite interpreter python apis
-    interpreter = tf_lib.lite.Interpreter(model_path=tflite_model_path)
+    interpreter = tf.lite.Interpreter(model_path=tflite_model_path)
     interpreter.allocate_tensors()
     input_details = interpreter.get_input_details()
     output_details = interpreter.get_output_details()
@@ -107,7 +108,8 @@ def test_remote():
         return
 
     try:
-        tf_lib = importlib.import_module("tensorflow")
+        # pylint: disable=import-outside-toplevel
+        import tensorflow as tf
     except ImportError:
         print("skip because tensorflow not installed...")
         return
@@ -119,7 +121,7 @@ def test_remote():
     open(tflite_model_path, "wb").write(tflite_model)
 
     # inference via tflite interpreter python apis
-    interpreter = tf_lib.lite.Interpreter(model_path=tflite_model_path)
+    interpreter = tf.lite.Interpreter(model_path=tflite_model_path)
     interpreter.allocate_tensors()
     input_details = interpreter.get_input_details()
     output_details = interpreter.get_output_details()
