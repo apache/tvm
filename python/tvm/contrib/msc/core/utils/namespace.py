@@ -53,8 +53,12 @@ class MSCKey:
 
     WORKSPACE = "workspace"
     VERBOSE = "verbose"
+    GLOBALE_LOGGER = "global_logger"
     REGISTERED_FUNCS = "registered_funcs"
     REGISTERED_TOOLS = "registered_tools"
+
+    MSC_STAGE = "msc_stage"
+    TIME_STAMPS = "time_stamps"
 
 
 class MSCFramework:

@@ -23,7 +23,7 @@ from typing import Dict, List, Optional, Any, Callable
 import tvm
 from tvm.relax.transform import BindParams
 from tvm.contrib.msc.core.ir import MSCGraph
-from tvm.contrib.msc.core.ir.translate import from_relay
+from tvm.contrib.msc.core.frontend import from_relay
 from tvm.contrib.msc.core import utils as msc_utils
 
 

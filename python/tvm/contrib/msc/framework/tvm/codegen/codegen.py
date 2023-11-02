@@ -59,12 +59,16 @@ def to_relax(
         for i in graph.get_inputs()
     ]
 
+    def _save_weights(folder: msc_utils.MSCDirectory):
+        if weights:
+            with open(folder.relpath(graph.name + "_params.bin"), "wb") as f_params:
+                f_params.write(tvm.runtime.save_param_dict(weights))
+
+    # pylint: disable=unused-argument
     def _bind_weights(mod: tvm.IRModule, folder: msc_utils.MSCDirectory) -> tvm.IRModule:
         if weights:
             mod = BindParams("main", weights)(mod)
-            with open(folder.relpath(graph.name + "_params.bin"), "wb") as f_params:
-                f_params.write(tvm.runtime.save_param_dict(weights))
         return mod
 
     codegen = CodeGen(graph, _ffi_api.GetRelaxSources, codegen_config, print_config, build_folder)
-    return codegen.load(inputs, post_load=_bind_weights)
+    return codegen.load(inputs, pre_load=_save_weights, post_load=_bind_weights)

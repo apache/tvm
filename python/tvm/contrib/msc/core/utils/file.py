@@ -20,11 +20,40 @@ import os
 import shutil
 import tempfile
 import types
+from functools import partial
 from typing import List
 from importlib.machinery import SourceFileLoader
 
-from .namespace import MSCFramework
+from .namespace import MSCMap, MSCKey, MSCFramework
 from .register import get_registered_func
+
+
+def load_callable(name: str, framework: str = MSCFramework.MSC) -> callable:
+    """Load a callable  object.
+
+    Parameters
+    ----------
+    name: string
+        The name of the registered func or path:f_name str.
+    framework: string
+        Should be from MSCFramework.
+
+    Returns
+    -------
+    func: callable
+        The function.
+    """
+
+    func = get_registered_func(name, framework)
+    if func:
+        return func
+    if ".py:" in name:
+        path, func_name = name.split(":")
+        loader = SourceFileLoader(path.replace(".py", ""), path)
+        mod = types.ModuleType(loader.name)
+        loader.exec_module(mod)
+        return getattr(mod, func_name)
+    raise Exception("Func {} is neighter registered nor path.py:name string")
 
 
 class MSCDirectory(object):
@@ -152,7 +181,7 @@ class MSCDirectory(object):
             os.remove(dir_path)
         return self.__class__(dir_path, keep_history=keep_history, cleanup=cleanup)
 
-    def relpath(self, name: str) -> str:
+    def relpath(self, name: str, keep_history: bool = True) -> str:
         """Relative path in dir
 
         Parameters
@@ -166,7 +195,12 @@ class MSCDirectory(object):
             The concatenated path.
         """
 
-        return os.path.join(self._path, name)
+        f_path = os.path.join(self._path, name)
+        if os.path.isfile(f_path) and not keep_history:
+            os.remove(f_path)
+        if os.path.isdir(f_path) and not keep_history:
+            shutil.rmtree(f_path)
+        return f_path
 
     def listdir(self) -> List[str]:
         """List contents in the dir.
@@ -211,29 +245,65 @@ def msc_dir(path: str = None, keep_history: bool = True, cleanup: bool = False) 
     return MSCDirectory(path, keep_history, cleanup)
 
 
-def load_callable(name: str, framework: str = MSCFramework.MSC) -> callable:
-    """Load a callable  object.
+def set_workspace(
+    path: str = None, keep_history: bool = True, cleanup: bool = False
+) -> MSCDirectory:
+    """Create MSCDirectory as worksapce and set to map
 
     Parameters
     ----------
-    name: string
-        The name of the registered func or path:f_name str.
-    framework: string
-        Should be from MSCFramework.
+    path: str
+        The path of the dir.
+    keep_history: bool
+        Whether to remove files before start.
+    cleanup: bool
+        Whether to clean up before exit.
 
     Returns
     -------
-    func: callable
-        The function.
+    dir: MSCDirectory
+        The created dir.
     """
 
-    func = get_registered_func(name, framework)
-    if func:
-        return func
-    if ".py:" in name:
-        path, func_name = name.split(":")
-        loader = SourceFileLoader(path.replace(".py", ""), path)
-        mod = types.ModuleType(loader.name)
-        loader.exec_module(mod)
-        return getattr(mod, func_name)
-    raise Exception("Func {} is neighter registered nor path.py:name string")
+    path = path or "msc_workspace"
+    workspace = MSCDirectory(path, keep_history, cleanup)
+    MSCMap.set(MSCKey.WORKSPACE, workspace)
+    return workspace
+
+
+def get_workspace() -> MSCDirectory:
+    """Get workspace from MSCMap
+
+    Returns
+    -------
+    dir: MSCDirectory
+        The worksapce dir.
+    """
+
+    workspace = MSCMap.get(MSCKey.WORKSPACE)
+    assert workspace, "Can not find workspace, please call set_workspace"
+    return workspace
+
+
+def get_workspace_subdir(name: str = None) -> MSCDirectory:
+    """Create sub dir for workspace
+
+    Parameters
+    ----------
+    name: str
+        The sub dir name under workspace.
+
+    Returns
+    -------
+    dir: MSCDirectory
+        The created dir.
+    """
+
+    return get_workspace().create_dir(name)
+
+
+get_build_dir = partial(get_workspace_subdir, name="Build")
+get_output_dir = partial(get_workspace_subdir, name="Output")
+get_dataset_dir = partial(get_workspace_subdir, name="Dataset")
+get_debug_dir = partial(get_workspace_subdir, name="Debug")
+get_cache_dir = partial(get_workspace_subdir, name="Cache")
