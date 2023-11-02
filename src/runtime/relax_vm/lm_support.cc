@@ -536,18 +536,16 @@ void LogSoftmax(NDArray logits, const NDArray& output) {
 
   size_t seq_length = logits->shape[logits->ndim - 2];
   size_t vocab_length = logits->shape[logits->ndim - 1];
-  std::vector<float> data(vocab_length);
   float* res_ptr = static_cast<float*>(output->data);
 
   for (size_t seq_ind = 0; seq_ind < seq_length; ++seq_ind) {
-    data.clear();
     const float* plogits = static_cast<float*>(logits->data) + vocab_length * seq_ind;
     float* res_log_probs = res_ptr + vocab_length * seq_ind;
 
-    // Fill data and find max value
+    // Fill intermediate data and find max value
     float max_value = plogits[0];
     for (size_t i = 0; i < vocab_length; ++i) {
-      data[i] = plogits[i];
+      res_log_probs[i] = plogits[i];
       if (max_value < plogits[i]) {
         max_value = plogits[i];
       }
@@ -556,16 +554,16 @@ void LogSoftmax(NDArray logits, const NDArray& output) {
     // Compute denominator
     float sum = 0.0f;
     for (size_t i = 0; i < vocab_length; ++i) {
-      float value = data[i] - max_value;
+      float value = res_log_probs[i] - max_value;
       sum += expf(value);
-      data[i] = value;
+      res_log_probs[i] = value;
     }
 
     float log_sum = logf(sum);
 
-    // Compute log probes
+    // Compute final log probes
     for (size_t i = 0; i < vocab_length; ++i) {
-      res_log_probs[i] = data[i] - log_sum;
+      res_log_probs[i] = res_log_probs[i] - log_sum;
     }
   }
 }
