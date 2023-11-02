@@ -1153,7 +1153,6 @@ PrimExpr RewriteSimplifier::Impl::VisitExpr_(const MinNode* op) {
 
     if (min(x + y, x).Match(ret) || min(x, x + y).Match(ret)) {
       ConstIntBound y_bound = analyzer_->const_int_bound(y.Eval());
-      VLOG(0) << y_bound;
       if (y_bound->min_value >= 0) {
         return x.Eval();
       } else if (y_bound->max_value <= 0) {
@@ -1163,7 +1162,6 @@ PrimExpr RewriteSimplifier::Impl::VisitExpr_(const MinNode* op) {
 
     if (min(x - y, x).Match(ret) || min(x, x - y).Match(ret)) {
       ConstIntBound y_bound = analyzer_->const_int_bound(y.Eval());
-      VLOG(0) << y_bound;
       if (y_bound->min_value >= 0) {
         return (x - y).Eval();
       } else if (y_bound->max_value <= 0) {
@@ -1347,7 +1345,6 @@ PrimExpr RewriteSimplifier::Impl::VisitExpr_(const MaxNode* op) {
 
     if (max(x + y, x).Match(ret) || max(x, x + y).Match(ret)) {
       ConstIntBound y_bound = analyzer_->const_int_bound(y.Eval());
-      VLOG(0) << y_bound;
       if (y_bound->min_value >= 0) {
         return (x + y).Eval();
       } else if (y_bound->max_value <= 0) {
@@ -1357,7 +1354,6 @@ PrimExpr RewriteSimplifier::Impl::VisitExpr_(const MaxNode* op) {
 
     if (max(x - y, x).Match(ret) || max(x, x - y).Match(ret)) {
       ConstIntBound y_bound = analyzer_->const_int_bound(y.Eval());
-      VLOG(0) << y_bound;
       if (y_bound->min_value >= 0) {
         return x.Eval();
       } else if (y_bound->max_value <= 0) {
