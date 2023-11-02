@@ -225,7 +225,7 @@ class SessionObj : public Object {
    * \param ccl The name of the communication backend, e.g., nccl, rccl, mpi.
    * \param device_ids The device ids of the workers.
    */
-  virtual void InitCCL(String ccl, ShapeTuple device_ids) = 0;
+  virtual void InitCCL(String ccl, IntTuple device_ids) = 0;
   /*!
    * \brief Get the value of a register from a remote worker.
    * \param reg_id The id of the register to be fetched.
