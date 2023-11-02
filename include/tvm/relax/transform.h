@@ -275,6 +275,12 @@ TVM_DLL Pass LiftTransformParams();
  */
 TVM_DLL Pass UpdateVDevice(VDevice new_vdevice, int64_t index);
 
+/*! \brief Remove unused outputs from internal functions
+ *
+ * \return The Pass
+ */
+TVM_DLL Pass RemoveUnusedOutputs();
+
 /*!
  * \brief Annotate Op Pattern Kind for TIR functions, which is used in FuseOps.
  * \note It is an auto-detect pass for "unscheduled prim_funcs", the op_pattern will be

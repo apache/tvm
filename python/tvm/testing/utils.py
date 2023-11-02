@@ -1938,7 +1938,7 @@ class CompareBeforeAfter:
 
     @classmethod
     def _normalize_ir_module(cls, func):
-        if isinstance(func, tvm.tir.PrimFunc):
+        if isinstance(func, (tvm.tir.PrimFunc, tvm.IRModule)):
 
             def inner(self):
                 # pylint: disable=unused-argument
@@ -2042,8 +2042,7 @@ class CompareBeforeAfter:
 
     @staticmethod
     def _is_method(func):
-        sig = inspect.signature(func)
-        return "self" in sig.parameters
+        return callable(func) and "self" in inspect.signature(func).parameters
 
     def test_compare(self, before, expected, transform):
         """Unit test to compare the expected TIR PrimFunc to actual"""

@@ -367,6 +367,9 @@ def visit_if(self: Parser, node: doc.If) -> None:
 @dispatch.register(token="relax", type_name="enter_token")
 def enter_token(self: Parser) -> Dict[str, Any]:
     def relax_call(self, *args) -> Expr:
+
+        args = [convert_to_expr(arg) if isinstance(arg, tuple) else arg for arg in args]
+
         if all(isinstance(x, Expr) for x in args):
             return relax.Call(self, args)
         arg_types = [type(x) for x in args]
