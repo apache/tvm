@@ -23,6 +23,7 @@ from tvm.contrib import utils
 
 
 def validate_debug_dir_path(temp_dir, expected_basename):
+    """Validate the dir path of debugging"""
     dirname, basename = os.path.split(temp_dir.temp_dir)
     assert basename == expected_basename, "unexpected basename: %s" % (basename,)
 
@@ -32,7 +33,8 @@ def validate_debug_dir_path(temp_dir, expected_basename):
 
 
 def test_tempdir():
-    assert utils.TempDirectory._KEEP_FOR_DEBUG == False, "don't submit with KEEP_FOR_DEBUG == True"
+    """Tests for temporary dir"""
+    assert utils.TempDirectory._KEEP_FOR_DEBUG is False, "don't submit with KEEP_FOR_DEBUG == True"
 
     temp_dir = utils.tempdir()
     assert os.path.exists(temp_dir.temp_dir)
