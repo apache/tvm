@@ -15,7 +15,8 @@
 # specific language governing permissions and limitations
 # under the License.
 """The visitor and mutator infra for nn.Module."""
-from typing import Any
+from typing import Any, Union
+
 from . import core as nn
 
 
@@ -112,6 +113,15 @@ class Mutator:
         ret_node: Any
             The new node to replace current node.
         """
+
+        def _get_child_name(parent: str, child: str) -> str:
+            """Get the name of the child node/key given the parent's name."""
+            if parent == "":
+                # in the top level of the module
+                return child
+            else:
+                return f"{parent}.{child}"
+
         if isinstance(node, nn.ModuleList):
             for i in range(len(node)):
                 if isinstance(node[i], nn.ModuleList):
@@ -125,11 +135,11 @@ class Mutator:
         else:
             for key, value in node.__dict__.items():
                 if isinstance(value, nn.ModuleList):
-                    setattr(node, key, self.visit_modulelist(f"{name}.{key}", value))
+                    setattr(node, key, self.visit_modulelist(_get_child_name(name, key), value))
                 elif isinstance(value, nn.Module):
-                    setattr(node, key, self.visit_module(f"{name}.{key}", value))
+                    setattr(node, key, self.visit_module(_get_child_name(name, key), value))
                 elif isinstance(value, nn.Effect):
-                    setattr(node, key, self.visit_effect(f"{name}.{key}", value))
+                    setattr(node, key, self.visit_effect(_get_child_name(name, key), value))
                 elif isinstance(value, nn.Parameter):
-                    setattr(node, key, self.visit_param(f"{name}.{key}", value))
+                    setattr(node, key, self.visit_param(_get_child_name(name, key), value))
         return node
