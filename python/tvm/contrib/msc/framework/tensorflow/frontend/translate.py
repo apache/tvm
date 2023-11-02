@@ -25,6 +25,7 @@ from tvm.contrib.msc.core import transform as msc_transform
 from tvm.contrib.msc.core.frontend import from_relax
 from tvm.contrib.msc.core.codegen import relay_to_relax
 from tvm.contrib.msc.framework.tensorflow import tf_v1
+from tvm.contrib.msc.core import utils as msc_utils
 
 
 def from_tensorflow(
@@ -75,7 +76,7 @@ def from_tensorflow(
     relax_mod = relay_to_relax(relay_mod, params, trans_config, build_config, opt_config)
     if not as_msc:
         return relax_mod, params
-    build_config = build_config or {}
+    build_config = msc_utils.copy_dict(build_config)
     build_config["use_var_name"] = True
     graph, weights = from_relax(relax_mod, trans_config=trans_config, build_config=build_config)
     return graph, weights

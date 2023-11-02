@@ -51,7 +51,7 @@ const String CodeGenUtils::IdxInput(const MSCJoint& node, const String& prefix, 
 
 const String CodeGenUtils::IdxWeight(const MSCJoint& node, const String& wtype,
                                      const String& suffix) {
-  return wtype + std::to_string(node->index) + suffix;
+  return wtype + "_" + std::to_string(node->index) + suffix;
 }
 
 const String CodeGenUtils::CommentNode(const MSCJoint& node, const String& prefix) {

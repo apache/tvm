@@ -24,8 +24,8 @@ import numpy as np
 import tvm
 from tvm.contrib.msc.core.ir import MSCGraph
 from tvm.contrib.msc.core.codegen import CodeGen
-from tvm.contrib.msc.core import utils as msc_utils
 from tvm.contrib.msc.core.utils import MSCFramework
+from tvm.contrib.msc.core import utils as msc_utils
 from tvm.contrib.msc.framework.tensorrt import _ffi_api
 from .sources import get_trt_sources
 from .utils import write_weight
@@ -62,7 +62,7 @@ def to_sub_tensorrt(
         The engine file.
     """
 
-    codegen_config = codegen_config or {}
+    codegen_config = msc_utils.copy_dict(codegen_config)
     codegen_config["version"] = msc_utils.get_version(MSCFramework.TENSORRT)
     if "tensorrt_root" not in codegen_config:
         codegen_config["tensorrt_root"] = _ffi_api.GetTensorRTRoot()
