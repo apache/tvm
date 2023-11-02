@@ -32,6 +32,7 @@
 #include <vector>
 
 #include "../../support/ordered_set.h"
+#include "utils.h"
 
 namespace tvm {
 namespace relax {
@@ -237,6 +238,13 @@ class LiftTransformParamsPlanner : public ExprVisitor {
         builder_.UpdateBasedOnRuntimeInput(function->params[i]);
       } else {
         builder_.AddInput(function->params[i]);
+        if (function->params[i]->struct_info_.defined()) {
+          Array<tir::Var> symbolic_vars =
+              TIRVarsInStructInfo(Downcast<StructInfo>(function->params[i]->struct_info_.value()));
+          for (const auto& var : symbolic_vars) {
+            param_symbolic_vars_.insert(var);
+          }
+        }
       }
     }
     VisitExpr(function->body);
@@ -275,9 +283,12 @@ class LiftTransformParamsPlanner : public ExprVisitor {
       can_lift = false;
     }
 
-    // Cond 4. Do not lift when its struct info contains symbolic variables.
-    if (!TIRVarsInStructInfo(GetStructInfo(binding->var)).empty()) {
-      can_lift = false;
+    // Cond 4. Do not lift when its struct info contains symbolic variables that do not appear in
+    // params.
+    for (const auto& var : TIRVarsInStructInfo(GetStructInfo(binding->var))) {
+      if (!param_symbolic_vars_.count(var)) {
+        can_lift = false;
+      }
     }
 
     // Cond 5. Do not lift declarations of external functions
@@ -296,6 +307,8 @@ class LiftTransformParamsPlanner : public ExprVisitor {
   TransformParamsFuncBuilder builder_;
   // Whether we are in a dataflow block
   bool is_in_dataflow_block_{false};
+  // The symbolic variables in the parameters
+  std::unordered_set<tir::Var, ObjectPtrHash, ObjectPtrEqual> param_symbolic_vars_;
 };
 
 /*!
