@@ -205,7 +205,7 @@ def test_two_subfunction():
         with bb.function("main", [x]):
             with bb.dataflow():
                 lv = bb.emit_te(fused_exp_squeeze, x)
-                lv2 = bb.emit_te(fused_exp_squeeze, lv)
+                lv2 = bb.call_te(fused_exp_squeeze, lv)
                 gv = bb.emit_output(lv2)
             bb.emit_func_output(gv)
         return bb.get()
@@ -245,7 +245,7 @@ def test_fuse_same_primfunc():
         x = relax.Var("x", R.Tensor([10, 20], "float32"))
         with bb.function("main", [x]):
             with bb.dataflow():
-                lv = bb.emit_te(fused_exp_exp_squeeze, x)
+                lv = bb.call_te(fused_exp_exp_squeeze, x)
                 gv = bb.emit_output(lv)
             bb.emit_func_output(gv)
         return bb.get()
@@ -257,7 +257,7 @@ def test_fuse_with_tuple_as_param():
     def before():
         bb = relax.BlockBuilder()
         x = relax.Var("x", R.Tuple([R.Tensor([10], "float32"), R.Tensor([10], "float32")]))
-        with bb.function("fused_exp_add", [x], attrs={"Primitive": True}):
+        with bb.function("fused_exp_add", [x], attrs={"Primitive": True}, private=True):
             with bb.dataflow():
                 lv0 = bb.emit(relax.TupleGetItem(x, 0))
                 lv1 = bb.emit(relax.TupleGetItem(x, 1))
@@ -300,7 +300,7 @@ def test_fuse_with_nested_tuple_as_param():
     def before():
         bb = relax.BlockBuilder()
         x = relax.Var("x", tuple_struct_info)
-        with bb.function("fused_exp_add_add", [x], attrs={"Primitive": True}):
+        with bb.function("fused_exp_add_add", [x], attrs={"Primitive": True}, private=True):
             with bb.dataflow():
                 lv0 = bb.emit(relax.TupleGetItem(x, 0))
                 lv0_exp = bb.emit_te(topi.exp, lv0)
@@ -373,7 +373,7 @@ def test_fuse_with_call_tir_in_main():
         with bb.function("main", [x]):
             with bb.dataflow():
                 lv = bb.emit_te(fused_exp_squeeze, x)
-                lv2 = bb.emit_te(topi.add, lv, relax.const(1, "float32"))
+                lv2 = bb.call_te(topi.add, lv, relax.const(1, "float32"))
                 gv = bb.emit_output(lv2)
             bb.emit_func_output(gv)
         return bb.get()
@@ -414,7 +414,7 @@ def test_fuse_with_const_in_argument():
         x = relax.Var("x", R.Tensor([10, 20], "float32"))
         with bb.function("main", [x]):
             with bb.dataflow():
-                lv = bb.emit_te(fused_add_exp_squeeze, x, relax.const(1, "float32"))
+                lv = bb.call_te(fused_add_exp_squeeze, x, relax.const(1, "float32"))
                 gv = bb.emit_output(lv)
             bb.emit_func_output(gv)
         return bb.get()
@@ -1268,7 +1268,7 @@ def test_tuple_input_unused_field():
                         (v_ax2 * T.int64(64) + v_ax3) % T.int64(2048),
                     ]
 
-        @R.function
+        @R.function(private=True)
         def fused_reshape(
             lv: R.Tuple(
                 R.Tensor((4, 8, 2048), dtype="float32"), R.Tensor((4, 8, 2048), dtype="float32")
