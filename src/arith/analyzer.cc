@@ -290,8 +290,14 @@ TVM_REGISTER_GLOBAL("arith.CreateAnalyzer").set_body([](TVMArgs args, TVMRetValu
       return PackedFunc(
           [self](TVMArgs args, TVMRetValue* ret) { *ret = self->canonical_simplify(args[0]); });
     } else if (name == "int_set") {
-      return PackedFunc(
-          [self](TVMArgs args, TVMRetValue* ret) { *ret = self->int_set(args[0], args[1]); });
+      return PackedFunc([self](TVMArgs args, TVMRetValue* ret) {
+        auto dom_map = args[1].operator Optional<Map<Var, IntSet>>();
+        if (dom_map) {
+          *ret = self->int_set(args[0], dom_map.value());
+        } else {
+          *ret = self->int_set(args[0]);
+        }
+      });
     } else if (name == "bind") {
       return PackedFunc([self](TVMArgs args, TVMRetValue* ret) {
         if (args[1].IsObjectRef<Range>()) {

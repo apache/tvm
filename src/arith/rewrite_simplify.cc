@@ -209,6 +209,26 @@ CompareResult RewriteSimplifier::Impl::TryCompare(const PrimExpr& x, int64_t val
     return CompareResult::kLE;
   }
 
+  auto bound = analyzer_->int_set(diff);
+  auto min_value = analyzer_->const_int_bound(this->VisitExpr(bound.min()))->min_value;
+  auto max_value = analyzer_->const_int_bound(this->VisitExpr(bound.max()))->max_value;
+
+  if (min_value == val && max_value == val) {
+    return CompareResult::kEQ;
+  }
+  if (min_value > val) {
+    return CompareResult::kGT;
+  }
+  if (max_value < val) {
+    return CompareResult::kLT;
+  }
+  if (min_value >= val) {
+    return CompareResult::kGE;
+  }
+  if (max_value <= val) {
+    return CompareResult::kLE;
+  }
+
   // modular analysis
   if (val == 0) {
     ModularSet dmod = analyzer_->modular_set(diff);
@@ -1122,18 +1142,32 @@ PrimExpr RewriteSimplifier::Impl::VisitExpr_(const MinNode* op) {
         return (x + c2).Eval();
       }
     }
-    if (min(x + c1, x).Match(ret) || min(x, x + c1).Match(ret)) {
-      if (c1.Eval()->value < 0) {
-        return (x + c1).Eval();
-      } else {
-        return x.Eval();
-      }
-    }
+
     if (min(c1 - x, c2 - x).Match(ret)) {
       if (c1.Eval()->value < c2.Eval()->value) {
         return (c1 - x).Eval();
       } else {
         return (c2 - x).Eval();
+      }
+    }
+
+    if (min(x + y, x).Match(ret) || min(x, x + y).Match(ret)) {
+      ConstIntBound y_bound = analyzer_->const_int_bound(y.Eval());
+      VLOG(0) << y_bound;
+      if (y_bound->min_value >= 0) {
+        return x.Eval();
+      } else if (y_bound->max_value <= 0) {
+        return (x + y).Eval();
+      }
+    }
+
+    if (min(x - y, x).Match(ret) || min(x, x - y).Match(ret)) {
+      ConstIntBound y_bound = analyzer_->const_int_bound(y.Eval());
+      VLOG(0) << y_bound;
+      if (y_bound->min_value >= 0) {
+        return (x - y).Eval();
+      } else if (y_bound->max_value <= 0) {
+        return x.Eval();
       }
     }
 
@@ -1308,6 +1342,26 @@ PrimExpr RewriteSimplifier::Impl::VisitExpr_(const MaxNode* op) {
         return (c1 - x).Eval();
       } else {
         return (c2 - x).Eval();
+      }
+    }
+
+    if (max(x + y, x).Match(ret) || max(x, x + y).Match(ret)) {
+      ConstIntBound y_bound = analyzer_->const_int_bound(y.Eval());
+      VLOG(0) << y_bound;
+      if (y_bound->min_value >= 0) {
+        return (x + y).Eval();
+      } else if (y_bound->max_value <= 0) {
+        return x.Eval();
+      }
+    }
+
+    if (max(x - y, x).Match(ret) || max(x, x - y).Match(ret)) {
+      ConstIntBound y_bound = analyzer_->const_int_bound(y.Eval());
+      VLOG(0) << y_bound;
+      if (y_bound->min_value >= 0) {
+        return x.Eval();
+      } else if (y_bound->max_value <= 0) {
+        return (x - y).Eval();
       }
     }
 

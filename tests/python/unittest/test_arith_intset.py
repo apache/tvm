@@ -25,6 +25,9 @@ class IntSetChecker:
     def __init__(self):
         self.analyzer = tvm.arith.Analyzer()
 
+    def bind(self, var, range):
+        self.analyzer.bind(var, range)
+
     def verify(self, data, dmap, expected):
         res = self.analyzer.int_set(data, dmap)
 
@@ -127,6 +130,15 @@ def test_select():
     ck = IntSetChecker()
     x, y = te.var("x"), te.var("y")
     ck.verify(tvm.tir.Select(x > 0, x - 1, x + 1), {x: tvm.arith.IntervalSet(0, 10)}, (-1, 11))
+
+
+def test_dmap_none():
+    ck = IntSetChecker()
+    x, y = te.var("x"), te.var("y")
+    ck.bind(x, tvm.ir.Range(0, 11))
+    ck.bind(y, tvm.ir.Range(1, 12))
+    ck.verify(x + y, None, (1, 21))
+    ck.verify(x - y, None, (-11, 9))
 
 
 def check_region_bound(expect_region, var_dom, mode, predicate=None):
