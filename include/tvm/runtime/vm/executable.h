@@ -57,19 +57,28 @@ struct VMFunction;
  */
 class TVM_DLL Executable : public ModuleNode {
  public:
-  /*!
-   * \brief Get a PackedFunc from an executable module.
-   *
-   * \param name the name of the function.
-   * \param sptr_to_self The shared_ptr that points to this module node.
-   *
-   * \return PackedFunc or nullptr when it is not available.
-   */
-  PackedFunc GetFunction(const String& name, const ObjectPtr<Object>& sptr_to_self) final;
+  TVM_MODULE_VTABLE_BEGIN("VMExecutable");
+  TVM_MODULE_VTABLE_ENTRY("get_lib", &Executable::GetLib);
+  TVM_MODULE_VTABLE_ENTRY("get_bytecode", &Executable::GetBytecode);
+  TVM_MODULE_VTABLE_ENTRY("get_constants", &Executable::GetConstants);
+  TVM_MODULE_VTABLE_ENTRY("get_virtual_devices", &Executable::GetVirtualDevices);
+  TVM_MODULE_VTABLE_ENTRY("get_primitives", &Executable::GetPrimitives);
+  TVM_MODULE_VTABLE_ENTRY("get_stats", &Executable::Stats);
+  TVM_MODULE_VTABLE_ENTRY("save", &Executable::Save);
+  TVM_MODULE_VTABLE_ENTRY("get_function_arity", &Executable::GetFunctionArity);
+  TVM_MODULE_VTABLE_ENTRY("get_function_param_name", &Executable::GetFunctionParameterName);
+  TVM_MODULE_VTABLE_ENTRY("vm_load_executable", &Executable::VMLoadExecutable);
+  TVM_MODULE_VTABLE_ENTRY("move_late_bound_consts", &Executable::MoveLateBoundConstantsToFile);
+  TVM_MODULE_VTABLE_ENTRY("get_late_bound_consts", &Executable::GetLateBoundConstants);
+  TVM_MODULE_VTABLE_ENTRY("load_late_bound_consts", &Executable::LoadLateBoundConstantsFromFile);
+  TVM_MODULE_VTABLE_ENTRY("load_late_bound_consts_from_map",
+                          &Executable::LoadLateBoundConstantsFromMap);
+  TVM_MODULE_VTABLE_END();
 
   /*! \brief Get the property of the runtime module .*/
   int GetPropertyMask() const final { return ModulePropertyMask::kBinarySerializable; };
-
+  /*! \brief Creates a VM that loads `this` as the executable. */
+  Module VMLoadExecutable();
   /*!
    * \brief Write the Executable to the binary stream in serialized form.
    *
@@ -123,17 +132,17 @@ class TVM_DLL Executable : public ModuleNode {
    * Must be called before \p SaveToBinary and friends if late-bound constants are
    * desired. Otherwise can be ignore.
    */
-  void MoveLateBoundConstantsToStream(dmlc::Stream* stream, size_t byte_limit);
+  void MoveLateBoundConstantsToStream(dmlc::Stream* stream, int64_t byte_limit);
 
   /*!
    * \brief As for \p MoveLateBoundConstantsToStream, but save to file at \p path.
    */
-  void MoveLateBoundConstantsToFile(const std::string& path, size_t byte_limit);
+  void MoveLateBoundConstantsToFile(const std::string& path, int64_t byte_limit);
 
   /*!
    * \brief Get a map of all constants with larger that byte_limit in size.
    */
-  Map<String, NDArray> GetLateBoundConstants(size_t byte_limit);
+  Map<String, NDArray> GetLateBoundConstants(int64_t byte_limit);
 
   /*!
    * \brief Restores the late-bound constants for the executable (if any) from given byte-stream.
@@ -255,11 +264,9 @@ class TVM_DLL Executable : public ModuleNode {
    * \param index Parameter index.
    * \return The parameter name.
    */
-  std::string GetFunctionParameterName(std::string func, uint32_t index) const;
+  std::string GetFunctionParameterName(std::string func, int index) const;
 
   virtual ~Executable() {}
-
-  const char* type_key() const final { return "VMExecutable"; }
 
   /*!
    * \brief The (compile-time, virtual) devices corresponding to each device index.
