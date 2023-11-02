@@ -112,24 +112,31 @@ class Mutator:
         ret_node: Any
             The new node to replace current node.
         """
+
+        def _get_name(name: str, key: Any) -> str:
+            """Get the name of the current node/key given the parent's name."""
+            if name == "":
+                return str(key)
+            return f"{name}.{key}"
+
         if isinstance(node, nn.ModuleList):
             for i in range(len(node)):
                 if isinstance(node[i], nn.ModuleList):
-                    node[i] = self.visit_modulelist(f"{name}.{i}", node[i])
+                    node[i] = self.visit_modulelist(_get_name(name, i), node[i])
                 elif isinstance(node[i], nn.Module):
-                    node[i] = self.visit_module(f"{name}.{i}", node[i])
+                    node[i] = self.visit_module(_get_name(name, i), node[i])
                 elif isinstance(node[i], nn.Effect):
-                    node[i] = self.visit_effect(f"{name}.{i}", node[i])
+                    node[i] = self.visit_effect(_get_name(name, i), node[i])
                 elif isinstance(node[i], nn.Parameter):
-                    node[i] = self.visit_param(f"{name}.{i}", node[i])
+                    node[i] = self.visit_param(_get_name(name, i), node[i])
         else:
             for key, value in node.__dict__.items():
                 if isinstance(value, nn.ModuleList):
-                    setattr(node, key, self.visit_modulelist(f"{name}.{key}", value))
+                    setattr(node, key, self.visit_modulelist(_get_name(name, key), value))
                 elif isinstance(value, nn.Module):
-                    setattr(node, key, self.visit_module(f"{name}.{key}", value))
+                    setattr(node, key, self.visit_module(_get_name(name, key), value))
                 elif isinstance(value, nn.Effect):
-                    setattr(node, key, self.visit_effect(f"{name}.{key}", value))
+                    setattr(node, key, self.visit_effect(_get_name(name, key), value))
                 elif isinstance(value, nn.Parameter):
-                    setattr(node, key, self.visit_param(f"{name}.{key}", value))
+                    setattr(node, key, self.visit_param(_get_name(name, key), value))
         return node
