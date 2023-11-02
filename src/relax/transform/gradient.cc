@@ -617,7 +617,7 @@ class GradientMutator : private ExprMutator {
     if (!require_grads) {
       require_grads = new_func->params;
     } else {
-      require_grads = CheckAndMapRequireGrads(require_grads.value(), copier.var_map, func_name);
+      require_grads = CheckAndMapRequireGrads(require_grads.value(), copier.GetVarMap(), func_name);
     }
 
     // Step 4. Generate the adjoint function, use RemoveAllUnused to simplify it, and then return
