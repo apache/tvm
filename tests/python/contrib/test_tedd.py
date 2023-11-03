@@ -14,8 +14,8 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+"""Configure pytest of Tensor Expression Debug Display"""
 import re
-
 import tvm
 from tvm import te
 from tvm import topi
@@ -24,27 +24,31 @@ from tvm.relay import testing
 from tvm.relay.backend import Runtime, Executor
 
 
-def findany(pattern, str):
-    matches = re.findall(pattern, str)
-    assert len(matches) > 0, "Pattern not found.\nPattern: " + pattern + "\nString:  " + str
+def findany(pattern, _str):
+    matches = re.findall(pattern, _str)
+    assert len(matches) > 0, "Pattern not found.\nPattern: " + pattern + "\nString:  " + _str
 
 
 def checkdependency():
+    # pylint: disable=import-outside-toplevel
     import pkg_resources
 
+    # pylint: disable=E1133
     return not {"graphviz", "ipython"} - {pkg.key for pkg in pkg_resources.working_set}
 
 
 def test_dfg():
-    A = te.placeholder((1024, 4096), dtype="float32", name="A")
-    B = topi.nn.softmax(A)
+    """Tests dataflow graph"""
+    input_a = te.placeholder((1024, 4096), dtype="float32", name="input_a")
+    input_b = topi.nn.softmax(input_a)
     # confirm lower works
-    s = te.create_schedule([B.op])
+    s = te.create_schedule([input_b.op])
 
     def verify():
+        # pylint: disable=import-outside-toplevel
         from tvm.contrib import tedd
 
-        str = tedd.viz_dataflow_graph(s, False, "", True)
+        _str = tedd.viz_dataflow_graph(s, False, "", True)
         # Check all edges are available
         findany(r"digraph \"Dataflow Graph\"", str)
         findany(r"Stage_0:O_0 -> Tensor_0_0", str)
@@ -64,19 +68,21 @@ def test_dfg():
 
 
 def test_itervar_relationship_graph():
+    """Tests itervars relationship graph"""
     n = te.var("n")
     m = te.var("m")
-    A = te.placeholder((n, m), name="A")
+    input_a = te.placeholder((n, m), name="input_a")
     k = te.reduce_axis((0, m), "k")
-    B = te.compute((n,), lambda i: te.sum(A[i, k], axis=k), name="B")
+    input_b = te.compute((n,), lambda i: te.sum(input_a[i, k], axis=k), name="input_b")
 
-    s = te.create_schedule(B.op)
-    s[B].split(B.op.reduce_axis[0], factor=16)
+    s = te.create_schedule(input_b.op)
+    s[input_b].split(input_b.op.reduce_axis[0], factor=16)
 
     def verify():
+        # pylint: disable=import-outside-toplevel
         from tvm.contrib import tedd
 
-        str = tedd.viz_itervar_relationship_graph(s, False, "", True)
+        _str = tedd.viz_itervar_relationship_graph(s, False, "", True)
         findany(r"digraph \"IterVar Relationship Graph\"", str)
         findany(r"subgraph cluster_legend", str)
         # Check subgraphs for stages
@@ -97,39 +103,41 @@ def test_itervar_relationship_graph():
 
 
 def test_schedule_tree():
+    """Tests schedule tree"""
     block_x = te.thread_axis("blockIdx.x")
     thread_x = te.thread_axis("threadIdx.x")
     n = te.var("n")
     m = te.var("m")
-    l = te.var("l")
-    A = te.placeholder((n, m, l), name="A")
-    B = te.compute((n, m, l), lambda bi, bj, bk: A[bi, bj, bk] + 1, name="B")
-    r = te.reduce_axis((0, m), "r")
-    C = te.compute(
+    op_l = te.var("op_l")
+    input_a = te.placeholder((n, m, op_l), name="input_a")
+    result_b = te.compute((n, m, op_l), lambda bi, bj, bk: input_a[bi, bj, bk] + 1, name="result_b")
+    op_r = te.reduce_axis((0, m), "op_r")
+    result_c = te.compute(
         (
             n,
             m,
         ),
-        lambda ci, cj: te.sum(B[ci, cj, r], axis=r),
-        name="C",
+        lambda ci, cj: te.sum(result_b[ci, cj, op_r], axis=op_r),
+        name="result_c",
     )
-    s = te.create_schedule(C.op)
-    s.cache_read(A, "shared", [B])
-    s[B].vectorize(B.op.axis[-1])
-    s[C].reorder(C.op.reduce_axis[0], C.op.axis[0])
-    _, ki = s[C].split(C.op.reduce_axis[0], factor=16)
-    Cr = s.rfactor(C, ki)
-    s[Cr].compute_at(s[C], s[C].op.axis[-1])
-    s[C].bind(s[C].op.axis[0], block_x)
-    s[C].bind(s[C].op.axis[1], thread_x)
+    s = te.create_schedule(result_c.op)
+    s.cache_read(input_a, "shared", [result_b])
+    s[result_b].vectorize(result_b.op.axis[-1])
+    s[result_c].reorder(result_c.op.reduce_axis[0], result_c.op.axis[0])
+    _, op_ki = s[result_c].split(result_c.op.reduce_axis[0], factor=16)
+    result_c2 = s.rfactor(result_c, op_ki)
+    s[result_c2].compute_at(s[result_c], s[result_c].op.axis[-1])
+    s[result_c].bind(s[result_c].op.axis[0], block_x)
+    s[result_c].bind(s[result_c].op.axis[1], thread_x)
 
     def verify():
+        # pylint: disable=import-outside-toplevel
         from tvm.contrib import tedd
 
-        str = tedd.viz_schedule_tree(s, False, "", True)
+        _str = tedd.viz_schedule_tree(s, False, "", True)
         findany(r"digraph \"Schedule Tree\"", str)
         findany(r"subgraph cluster_legend", str)
-        # Check the A_shared stage, including memory scope, itervars,
+        # Check the input_a_shared stage, including memory scope, itervars,
         # and compute
         findany(
             r"Stage_1.*A\.shared<br/>Scope: shared.+>0.+>"
@@ -153,6 +161,7 @@ def test_tedd_with_schedule_record():
     """Test to build a nn model and check if all schedules could be generated"""
 
     def check_schedule(executor):
+        # pylint: disable=import-outside-toplevel
         from tvm.contrib import tedd
 
         error = {}
@@ -167,12 +176,12 @@ def test_tedd_with_schedule_record():
                         tedd.viz_dataflow_graph(sch, False, "", True)
                         tedd.viz_itervar_relationship_graph(sch, False, "", True)
                         tedd.viz_schedule_tree(sch, False, "", True)
-                    except:
+                    except:  # pylint: disable=W0702
                         if func_name not in error:
                             error[func_name] = []
                         error[func_name].append(index)
 
-        assert error == {}, str(error)
+        assert not error, str(error)
 
     if checkdependency():
         relay_mod, params = testing.mobilenet.get_workload(batch_size=1, dtype="float32")
