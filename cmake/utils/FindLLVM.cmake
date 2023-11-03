@@ -111,6 +111,14 @@ macro(find_llvm use_llvm)
       message(FATAL_ERROR "Fatal error executing: ${LLVM_CONFIG} --libdir")
     endif()
     message(STATUS "LLVM libdir: ${__llvm_libdir}")
+    execute_process(COMMAND ${LLVM_CONFIG} --cmakedir
+      RESULT_VARIABLE __llvm_exit_code
+      OUTPUT_VARIABLE __llvm_cmakedir
+      OUTPUT_STRIP_TRAILING_WHITESPACE)
+    if(NOT "${__llvm_exit_code}" STREQUAL "0")
+      message(FATAL_ERROR "Fatal error executing: ${LLVM_CONFIG} --cmakedir")
+    endif()
+    message(STATUS "LLVM cmakedir: ${__llvm_cmakedir}")
     # map prefix => $
     # to handle the case when the prefix contains space.
     string(REPLACE ${__llvm_prefix} "$" __llvm_cxxflags ${__llvm_cxxflags_space})
@@ -165,6 +173,7 @@ macro(find_llvm use_llvm)
         find_package(ZLIB REQUIRED)
         list(APPEND LLVM_LIBS "ZLIB::ZLIB")
       elseif("${__flag}" STREQUAL "-lzstd" OR ("${__flag}" STREQUAL "zstd.dll.lib"))
+        list(APPEND CMAKE_MODULE_PATH "${__llvm_cmakedir}")
         find_package(zstd REQUIRED)
         if (TARGET "zstd::libzstd_static")
           message(STATUS "LLVM links against static zstd")
