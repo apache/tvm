@@ -253,6 +253,14 @@ StructInfo InferStructInfoCallTIR(const Call& call, const BlockBuilder& ctx) {
   return call->sinfo_args[0];
 }
 
+Expr NormalizeCallTIR(const BlockBuilder&, Call call) {
+  // Temporary implementation to ensure that at least one op has a
+  // registered value for FNormalize.  This temporary implementation
+  // is fully implemented in follow-up PR
+  // https://github.com/apache/tvm/pull/16068.
+  return std::move(call);
+}
+
 RELAY_REGISTER_OP("relax.call_tir")
     .set_num_inputs(3)
     .add_argument("func", "Expr", "The destination-passing-style function.")
@@ -261,6 +269,7 @@ RELAY_REGISTER_OP("relax.call_tir")
                   "ShapeExpr representing a tuple of ints to unpack during runtime. Omitted from "
                   "args if unused")
     .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoCallTIR)
+    .set_attr<FNormalize>("FNormalize", NormalizeCallTIR)
     .set_attr<Bool>("FPurity", Bool(true));
 
 Expr MakeCallTIR(Expr func, Tuple args, Array<TensorStructInfo> out_sinfo_list,

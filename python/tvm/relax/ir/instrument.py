@@ -23,14 +23,29 @@ from tvm import relax
 class WellFormedInstrument:
     """An instrument that checks the input/output IRModule of the Pass
     is well formed. It will skip specific passes, like Normalize.
+
+    Parameters
+    ----------
+    check_struct_info: bool
+
+        If True, validate the struct info in the module.  If False,
+        skip these checks.
+
+    validate_before_transform: bool
+
+        If True (default), perform a well-formed check before running
+        a transform.  If False, only perform the well-formed check
+        after running a transform.
     """
 
-    def __init__(self, check_struct_info=True):
+    def __init__(self, check_struct_info: bool = True, validate_before_transform: bool = True):
         self.skip_pass_name = ["Normalize", "ResolveGlobals"]
         self.check_struct_info = check_struct_info
+        self.validate_before_transform = validate_before_transform
 
     def run_before_pass(self, mod, pass_info):
-        self._check(mod, pass_info.name, "Before")
+        if self.validate_before_transform:
+            self._check(mod, pass_info.name, "Before")
 
     def run_after_pass(self, mod, pass_info):
         self._check(mod, pass_info.name, "After")

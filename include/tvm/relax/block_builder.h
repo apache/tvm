@@ -223,6 +223,7 @@ class BlockBuilder : public ObjectRef {
    * \brief Create a BlockBuilder.
    *
    * \param ctx_mod Optional before-transformation context module for rewriting.
+   *
    * \return The created BlockBuilder.
    *
    * \note When rewriting an existing IRModule, it is important to pass it in as
@@ -230,6 +231,37 @@ class BlockBuilder : public ObjectRef {
    *       call analysis.
    */
   TVM_DLL static BlockBuilder Create(Optional<IRModule> ctx_mod);
+
+  /*! \brief A marker struct to disable FNormalize
+   *
+   * This struct is used as a marker to disable the use of FNormalize
+   * by this block builder.  This should only be used for TVMScript
+   * parsing, which may require producing un-normalized Relax IR for
+   * testing purposes, and to ensure that round-trips are unchanged.
+   *
+   * The name is deliberately verbose to draw attention during a code
+   * review.  The explicit default constructor prevents aggregate
+   * initialization, ensuring that the full name of the marker struct
+   * appears at the callsite.
+   */
+  struct DisableOperatorSpecificNormalizationForTVMScript {
+    explicit DisableOperatorSpecificNormalizationForTVMScript() = default;
+  };
+  /*!
+   * \brief Create a BlockBuilder.
+   *
+   * \param ctx_mod Optional before-transformation context module for rewriting.
+   *
+   * \param tag An instance of DisableOperatorSpecificNormalizationForTVMScript
+   *
+   * \return The created BlockBuilder.
+   *
+   * \note When rewriting an existing IRModule, it is important to pass it in as
+   *       ctx_mod so you can lookup the context functions for cross function
+   *       call analysis.
+   */
+  TVM_DLL static BlockBuilder Create(Optional<IRModule> ctx_mod,
+                                     DisableOperatorSpecificNormalizationForTVMScript tag);
 
   TVM_DEFINE_MUTABLE_OBJECT_REF_METHODS(BlockBuilder, ObjectRef, BlockBuilderNode);
 };

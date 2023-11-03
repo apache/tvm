@@ -67,6 +67,7 @@
 #include <tvm/relax/analysis.h>
 #include <tvm/relax/expr.h>
 #include <tvm/relax/expr_functor.h>
+#include <tvm/relax/op_attr_types.h>
 #include <tvm/relax/struct_info_functor.h>
 #include <tvm/relax/utils.h>
 #include <tvm/tir/expr_functor.h>
@@ -282,17 +283,17 @@ class WellFormedChecker : public relax::ExprVisitor,
     }
   }
 
-  void VisitExpr_(const CallNode* op) final {
-    if (IsLeafOrTuple(op->op)) {
+  void VisitExpr_(const CallNode* call) final {
+    if (IsLeafOrTuple(call->op)) {
       const FunctionNode* prev_visited_func = cur_visited_func_;
       cur_visited_func_ = nullptr;  // close the symbolic var dup check
-      this->VisitExpr(op->op);
+      this->VisitExpr(call->op);
       cur_visited_func_ = prev_visited_func;
     } else {
-      Malformed(Diagnostic::Error(op) << "The called expression must be a leaf expression");
+      Malformed(Diagnostic::Error(call) << "The called expression must be a leaf expression");
     }
-    for (size_t i = 0; i < op->args.size(); i++) {
-      Expr arg = op->args[i];
+    for (size_t i = 0; i < call->args.size(); i++) {
+      Expr arg = call->args[i];
       if (IsLeafOrTuple(arg)) {
         this->VisitExpr(arg);
       } else {
@@ -301,13 +302,38 @@ class WellFormedChecker : public relax::ExprVisitor,
       }
     }
 
-    for (const StructInfo& sinfo_arg : op->sinfo_args) {
+    for (const StructInfo& sinfo_arg : call->sinfo_args) {
       this->VisitStructInfo(sinfo_arg);
     }
 
-    CheckStructInfo(op);
-    if (is_dataflow_ && check_struct_info_ && IsImpureCall(GetRef<Call>(op))) {
-      Malformed(Diagnostic::Error(op) << "There cannot be an impure call inside a dataflow block.");
+    CheckStructInfo(call);
+    if (is_dataflow_ && check_struct_info_ && IsImpureCall(GetRef<Call>(call))) {
+      Malformed(Diagnostic::Error(call)
+                << "There cannot be an impure call inside a dataflow block.");
+    }
+
+    // If the operation has defined a custom normalization function
+    // using the FNormalize attribute, the call node must be normalized in order to be well-formed.
+    // If we apply the FNormalize and it produces any change, modified the expression, re-visit in
+    // case it produced a nested expression.
+
+    if (auto opt_op = call->op.as<Op>()) {
+      auto op = opt_op.value();
+      if (op_map_normalize_.count(op)) {
+        auto func_normalize = op_map_normalize_[op];
+
+        auto dummy_builder = tvm::relax::BlockBuilder::Create(mod_);
+        auto before_normalize = GetRef<Call>(call);
+        auto after_normalize = func_normalize(dummy_builder, before_normalize);
+        if (!before_normalize.same_as(after_normalize)) {
+          Malformed(
+              Diagnostic::Error(call)
+              << "If an operator defines an operator-specific normalization function (FNormalize), "
+              << "calls to that operator must be normalized with it.  "
+              << "However, normalization of " << before_normalize << " resulted in "
+              << after_normalize);
+        }
+      }
     }
   }
 
@@ -538,6 +564,8 @@ class WellFormedChecker : public relax::ExprVisitor,
   std::unordered_map<Var, const FunctionNode*, ObjectPtrHash, ObjectPtrEqual> param_var_func_map_;
   std::unordered_map<tir::Var, const FunctionNode*, ObjectPtrHash, ObjectPtrEqual>
       symbolic_var_func_map_;
+
+  tvm::OpAttrMap<FNormalize> op_map_normalize_ = Op::GetAttrMap<FNormalize>("FNormalize");
 };
 
 bool WellFormed(IRModule m, bool check_struct_info) {
