@@ -253,11 +253,54 @@ StructInfo InferStructInfoCallTIR(const Call& call, const BlockBuilder& ctx) {
   return call->sinfo_args[0];
 }
 
-Expr NormalizeCallTIR(const BlockBuilder&, Call call) {
-  // Temporary implementation to ensure that at least one op has a
-  // registered value for FNormalize.  This temporary implementation
-  // is fully implemented in follow-up PR
-  // https://github.com/apache/tvm/pull/16068.
+Expr NormalizeCallTIR(const BlockBuilder& ctx, Call call) {
+  CHECK(call->args.size() == 2 || call->args.size() == 3)
+      << "Operation " << call->op << " expects either two arguments [callee, arg_tuple], "
+      << "or three arguments [callee, arg_tuple, tir_args], "
+      << "but " << call << " has " << call->args.size() << " arguments.";
+
+  Expr arg_expr = call->args[1];
+
+  CHECK(arg_expr->struct_info_.as<TupleStructInfoNode>())
+      << "Operation " << call->op << " expects the second argument to be a tuple of relax Expr.  "
+      << "However, the second argument " << arg_expr << " has struct info "
+      << arg_expr->struct_info_ << ".";
+
+  if (arg_expr.as<TupleNode>()) {
+    return std::move(call);
+  }
+
+  CHECK(arg_expr.as<VarNode>())
+      << "Operation " << call->op << " must hold its arguments as an in-line tuple.  "
+      << "However, " << call << " has arguments " << arg_expr
+      << ", which is neither an in-line tuple, "
+      << "nor a variable binding that may be normalized to an in-line tuple.";
+
+  auto unwrap_binding = [&ctx](Expr expr) -> Optional<Expr> {
+    if (auto var = expr.as<Var>()) {
+      if (auto bound_value = ctx->LookupBinding(var.value())) {
+        return bound_value.value();
+      }
+    }
+    return NullOpt;
+  };
+
+  while (auto unwrapped = unwrap_binding(arg_expr)) {
+    arg_expr = unwrapped.value();
+  }
+
+  CHECK(arg_expr.as<TupleNode>()) << "Operation " << call->op
+                                  << " must hold its arguments as an in-line tuple.  "
+                                  << "However, " << call << " has argument tuple " << call->args[1]
+                                  << ".  "
+                                  << "Unwrapping known variable bindings results in " << arg_expr
+                                  << ", which is not a tuple and so the " << call->op
+                                  << " cannot be normalized to have arguments as an in-line tuple.";
+
+  auto new_args = call->args;
+  new_args.Set(1, arg_expr);
+  call.CopyOnWrite()->args = new_args;
+
   return std::move(call);
 }
 
