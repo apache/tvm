@@ -757,6 +757,11 @@ class Squeeze(OnnxOpConverter):
 
     @classmethod
     def _impl_v13(cls, bb, inputs, attr, params):
+        # if axes is not none, use it directly.
+        if 'axes' in attr.keys():
+            axis = [x for x in attr['axes']]
+            return relax.op.squeeze(inputs[0], axis)
+        
         axis = get_constant(inputs[1], params)
         if isinstance(axis, relax.Constant):
             axis = [int(x) for x in axis.data.numpy()]
