@@ -39,7 +39,8 @@ namespace tir {
  */
 class SymbolicMatcher : ExprFunctor<void(const PrimExpr& n, const PrimExpr& other)> {
  public:
-  explicit SymbolicMatcher(Map<tir::Var, PrimExpr>* var_remap) : var_remap_(var_remap) {}
+  explicit SymbolicMatcher(arith::Analyzer* analyzer, Map<tir::Var, PrimExpr>* var_remap)
+      : analyzer_(analyzer), var_remap_(var_remap) {}
 
   void Match(const Array<PrimExpr>& params, const Array<PrimExpr>& args) {
     CHECK_EQ(params.size(), args.size());
@@ -49,7 +50,7 @@ class SymbolicMatcher : ExprFunctor<void(const PrimExpr& n, const PrimExpr& othe
   }
   void Match(const PrimExpr& param, const PrimExpr& arg) {
     VisitExpr(param, arg);
-    must_prove_ = arith::Analyzer().Simplify(Substitute(must_prove_, *var_remap_));
+    must_prove_ = analyzer_->Simplify(Substitute(must_prove_, *var_remap_));
     CHECK(!is_zero(must_prove_));
   }
 
@@ -137,6 +138,7 @@ class SymbolicMatcher : ExprFunctor<void(const PrimExpr& n, const PrimExpr& othe
     }
   }
 
+  arith::Analyzer* analyzer_;
   Map<tir::Var, PrimExpr>* var_remap_;
   PrimExpr must_prove_ = Bool(true);
 };
@@ -844,16 +846,33 @@ class FusedTIRConstructor : public ExprVisitor {
      * function
      */
     Map<tir::Buffer, tir::Buffer> buffer_subst_map;
-    /*! \brief The map from symbolic var to its value in the fused function */
-    Map<tir::Var, PrimExpr> symbolic_var_remap;
     /*! \brief The `buffer_map` in the fused function*/
     Map<tir::Var, tir::Buffer> buffer_map;
     /*! \brief The output buffers in the function buffer_map*/
     std::unordered_set<const tir::BufferNode*> output_buffers;
     /*! \brief The name of the fused function */
     std::string global_name = "fused";
+
+    /*! \brief The map from symbolic var to its value in the fused function
+     *
+     * This is used in the default initialization of
+     * `symbolic_var_matcher`, and must be before it in the struct
+     * order.
+     */
+    Map<tir::Var, PrimExpr> symbolic_var_remap;
+
+    /*! \brief The map from symbolic var to its value in the fused function
+     *
+     * This is used in the default initialization of
+     * `symbolic_var_matcher`, and must be before it in the struct
+     * order.
+     */
+    arith::Analyzer analyzer;
+
     /*! \brief The map from symbolic var to its corresponding var in the fused function */
-    tir::SymbolicMatcher symbolic_var_matcher = tir::SymbolicMatcher(&symbolic_var_remap);
+    tir::SymbolicMatcher symbolic_var_matcher =
+        tir::SymbolicMatcher(&analyzer, &symbolic_var_remap);
+
     /*! \brief Record indices of tuple fields that are actually accessed. */
     std::unordered_map<const Object*, std::unordered_set<size_t>> used_tuple_field_indices;
   };
