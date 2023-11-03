@@ -14,33 +14,34 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+"""Configure pytest"""
+from collections import namedtuple
+import numpy as np
 import tvm
 import tvm.testing
 from tvm import te
 import tvm.contrib.sparse as tvmsp
 import tvm.runtime.ndarray as _nd
-import numpy as np
-from collections import namedtuple
 
 
 def test_static_tensor():
+    """Tests static tensor"""
     dtype = "float32"
-    stype = "csr"
     target = "llvm"
     dev = tvm.device(target, 0)
     m = te.size_var("m")
     n = te.size_var("n")
-    A = tvmsp.placeholder(shape=(m, n), name="A", dtype=dtype)
-    assert A.stype == "csr"
+    input_a = tvmsp.placeholder(shape=(m, n), name="input_a", dtype=dtype)
+    assert input_a.stype == "csr"
     n = 3
     a = np.maximum(np.random.uniform(size=(n, n)).astype(dtype) - 0.6, 0.0)
     a = tvmsp.array(a, dev)
-    A.data = te.placeholder(a.data.shape, dtype, name="A_data")
-    Ab = tvm.tir.decl_buffer(a.data.shape, dtype, name="A_data")
-    binds = {A.data: Ab}
-    C = te.compute(A.data.shape, lambda i: A.data[i] * 2.0, tag="cs_scatter")
-    s = te.create_schedule(C.op)
-    f = tvm.build(s, [A.data, C], target, binds=binds)
+    input_a.data = te.placeholder(a.data.shape, dtype, name="input_a_data")
+    result_b = tvm.tir.decl_buffer(a.data.shape, dtype, name="input_a_data")
+    binds = {input_a.data: result_b}
+    result_c = te.compute(input_a.data.shape, lambda i: input_a.data[i] * 2.0, tag="cs_scatter")
+    s = te.create_schedule(result_c.op)
+    f = tvm.build(s, [input_a.data, result_c], target, binds=binds)
     c = tvmsp.array(np.zeros((n, n), dtype), dev)
     c.data = tvm.nd.empty(a.data.shape, dtype)
     c.indices = a.indices
@@ -50,25 +51,25 @@ def test_static_tensor():
 
 
 def test_dynamic_tensor():
+    """Tests dynamic tensor"""
     dtype = "float32"
-    stype = "csr"
     target = "llvm"
     dev = tvm.device(target, 0)
-    nr, nc, n = te.size_var("nr"), te.size_var("nc"), te.size_var("n")
-    A = tvmsp.placeholder(shape=(nr, nc), nonzeros=n, name="A", dtype=dtype)
-    assert A.stype == "csr"
-    C = te.compute(A.data.shape, lambda i: A.data[i] * 2.0, tag="cs_scatter")
-    s = te.create_schedule(C.op)
-    _nr, _nc = 3, 5
-    a = np.maximum(np.random.uniform(size=(_nr, _nc)).astype(dtype) - 0.6, 0.0)
+    n_row, n_col, n = te.size_var("n_row"), te.size_var("n_col"), te.size_var("n")
+    input_a = tvmsp.placeholder(shape=(n_row, n_col), nonzeros=n, name="input_a", dtype=dtype)
+    assert input_a.stype == "csr"
+    result_c = te.compute(input_a.data.shape, lambda i: input_a.data[i] * 2.0, tag="cs_scatter")
+    s = te.create_schedule(result_c.op)
+    _n_row, _n_col = 3, 5
+    a = np.maximum(np.random.uniform(size=(_n_row, _n_col)).astype(dtype) - 0.6, 0.0)
     a = tvmsp.array(a, dev)
     assert a.data.dtype == a.dtype
-    Ab = namedtuple("CSRBuffer", ["data", "indices", "indptr"])
-    Ab.data = tvm.tir.decl_buffer(a.data.shape, a.data.dtype, name="A_data")
-    Ab.indices = tvm.tir.decl_buffer(a.data.shape, a.data.dtype, name="A_indices")
-    binds = {A.data: Ab.data, A.indices: Ab.indices}
-    f = tvm.build(s, [nr, A.data, C], target, binds=binds)
-    c = tvmsp.array(np.zeros((_nr, _nc), dtype), dev)
+    result_b = namedtuple("CSRBuffer", ["data", "indices", "indptr"])
+    result_b.data = tvm.tir.decl_buffer(a.data.shape, a.data.dtype, name="input_a_data")
+    result_b.indices = tvm.tir.decl_buffer(a.data.shape, a.data.dtype, name="input_a_indices")
+    binds = {input_a.data: result_b.data, input_a.indices: result_b.indices}
+    f = tvm.build(s, [n_row, input_a.data, result_c], target, binds=binds)
+    c = tvmsp.array(np.zeros((_n_row, _n_col), dtype), dev)
     c.data = tvm.nd.empty(a.data.shape, dtype)
     c.indices = a.indices
     c.indptr = a.indptr
@@ -77,21 +78,21 @@ def test_dynamic_tensor():
 
 
 def test_sparse_array_tuple():
+    """Tests array when it is sparse"""
     dtype, itype = "float32", "int32"
-    stype = "csr"
     target = "llvm"
     dev = tvm.device(target, 0)
-    nr, nc, n = te.size_var("nr"), te.size_var("nc"), te.size_var("n")
-    A = tvmsp.placeholder(shape=(nr, nc), nonzeros=n, name="A", dtype=dtype)
-    assert A.stype == "csr"
-    C = te.compute(A.data.shape, lambda i: A.data[i] * 2.0, tag="cs_scatter")
-    s = te.create_schedule(C.op)
-    _nr, _nc = 3, 5
-    a = np.maximum(np.random.uniform(size=(_nr, _nc)).astype(dtype) - 0.6, 0.0)
+    n_row, n_col, n = te.size_var("n_row"), te.size_var("n_col"), te.size_var("n")
+    input_a = tvmsp.placeholder(shape=(n_row, n_col), nonzeros=n, name="input_a", dtype=dtype)
+    assert input_a.stype == "csr"
+    result_c = te.compute(input_a.data.shape, lambda i: input_a.data[i] * 2.0, tag="cs_scatter")
+    s = te.create_schedule(result_c.op)
+    _n_row, _n_col = 3, 5
+    a = np.maximum(np.random.uniform(size=(_n_row, _n_col)).astype(dtype) - 0.6, 0.0)
     # convert to sparse array tuple
     source_array = a
-    ridx, cidx = np.nonzero(source_array)
-    data = source_array[ridx, cidx]
+    row_idx, col_idx = np.nonzero(source_array)
+    data = source_array[row_idx, col_idx]
     a_data = _nd.array(data, dev)
     indices = np.nonzero(source_array)[1].astype(itype)
     a_indices = _nd.array(indices, dev)
@@ -102,12 +103,12 @@ def test_sparse_array_tuple():
     # construct tvm sparse array with tuple
     a = tvmsp.array(a_init, shape=source_array.shape, device=dev)
     assert a.data.dtype == a.dtype
-    Ab = namedtuple("CSRBuffer", ["data", "indices", "indptr"])
-    Ab.data = tvm.tir.decl_buffer(a.data.shape, a.data.dtype, name="A_data")
-    Ab.indices = tvm.tir.decl_buffer(a.data.shape, a.data.dtype, name="A_indices")
-    binds = {A.data: Ab.data, A.indices: Ab.indices}
-    f = tvm.build(s, [nr, A.data, C], target, binds=binds)
-    c = tvmsp.array(np.zeros((_nr, _nc), dtype), dev)
+    result_b = namedtuple("CSRBuffer", ["data", "indices", "indptr"])
+    result_b.data = tvm.tir.decl_buffer(a.data.shape, a.data.dtype, name="input_a_data")
+    result_b.indices = tvm.tir.decl_buffer(a.data.shape, a.data.dtype, name="input_a_indices")
+    binds = {input_a.data: result_b.data, input_a.indices: result_b.indices}
+    f = tvm.build(s, [n_row, input_a.data, result_c], target, binds=binds)
+    c = tvmsp.array(np.zeros((_n_row, _n_col), dtype), dev)
     c.data = tvm.nd.empty(a.data.shape, dtype)
     c.indices = a.indices
     c.indptr = a.indptr
