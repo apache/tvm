@@ -340,6 +340,9 @@ tvm_file_glob(GLOB DATATYPE_SRCS src/target/datatype/*.cc)
 list(APPEND COMPILER_SRCS ${DATATYPE_SRCS})
 list(APPEND COMPILER_SRCS "src/target/datatype/myfloat/myfloat.cc")
 
+tvm_file_glob(GLOB TILE_LIBRARY_SRCS src/tl/*.cc)
+list(APPEND COMPILER_SRCS ${TILE_LIBRARY_SRCS})
+
 tvm_file_glob(GLOB RUNTIME_SRCS
   src/runtime/*.cc
   src/runtime/vm/*.cc
