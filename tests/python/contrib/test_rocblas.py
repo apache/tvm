@@ -14,34 +14,35 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+"""Configure pytest"""
+import numpy as np
 import tvm
 import tvm.testing
 from tvm import te
-import numpy as np
 import tvm.topi.testing
-import tvm.testing
 from tvm.contrib import rocblas
 
 
 @tvm.testing.requires_rocm
 def test_matmul():
+    """Tests matmul operation using roc"""
     n = 1024
-    l = 128
+    op_l = 128
     m = 235
-    A = te.placeholder((n, l), name="A")
-    B = te.placeholder((l, m), name="B")
-    C = rocblas.matmul(A, B)
-    s = te.create_schedule(C.op)
+    input_a = te.placeholder((n, op_l), name="input_a")
+    input_b = te.placeholder((op_l, m), name="input_b")
+    result_c = rocblas.matmul(input_a, input_b)
+    s = te.create_schedule(result_c.op)
 
     def verify(target="rocm"):
         if not tvm.get_global_func("tvm.contrib.rocblas.matmul", True):
             print("skip because extern function is not available")
             return
         dev = tvm.rocm(0)
-        f = tvm.build(s, [A, B, C], target)
-        a = tvm.nd.array(np.random.uniform(size=(n, l)).astype(A.dtype), dev)
-        b = tvm.nd.array(np.random.uniform(size=(l, m)).astype(B.dtype), dev)
-        c = tvm.nd.array(np.zeros((n, m), dtype=C.dtype), dev)
+        f = tvm.build(s, [input_a, input_b, result_c], target)
+        a = tvm.nd.array(np.random.uniform(size=(n, op_l)).astype(input_a.dtype), dev)
+        b = tvm.nd.array(np.random.uniform(size=(op_l, m)).astype(input_b.dtype), dev)
+        c = tvm.nd.array(np.zeros((n, m), dtype=result_c.dtype), dev)
         f(a, b, c)
         tvm.testing.assert_allclose(c.numpy(), np.dot(a.numpy(), b.numpy()), rtol=1e-5)
 
@@ -49,12 +50,13 @@ def test_matmul():
 
 
 def verify_batch_matmul(batch, m, k, n, lib, transa=False, transb=False, dtype="float32"):
+    """Tests matmul operation in batch using roc"""
     ashape = (batch, k, m) if transa else (batch, m, k)
     bshape = (batch, n, k) if transb else (batch, k, n)
-    A = te.placeholder(ashape, name="A", dtype=dtype)
-    B = te.placeholder(bshape, name="B", dtype=dtype)
-    C = lib.batch_matmul(A, B, transa, transb)
-    s = te.create_schedule(C.op)
+    input_a = te.placeholder(ashape, name="input_a", dtype=dtype)
+    input_b = te.placeholder(bshape, name="input_b", dtype=dtype)
+    result_c = lib.batch_matmul(input_a, input_b, transa, transb)
+    s = te.create_schedule(result_c.op)
 
     def get_numpy(a, b, transa, transb):
         if transa:
@@ -71,10 +73,10 @@ def verify_batch_matmul(batch, m, k, n, lib, transa=False, transb=False, dtype="
             print("skip because extern function is not available")
             return
         dev = tvm.rocm(0)
-        f = tvm.build(s, [A, B, C], target)
-        a = tvm.nd.array(np.random.uniform(size=ashape).astype(A.dtype), dev)
-        b = tvm.nd.array(np.random.uniform(size=bshape).astype(B.dtype), dev)
-        c = tvm.nd.array(np.zeros((batch, m, n), dtype=C.dtype), dev)
+        f = tvm.build(s, [input_a, input_b, result_c], target)
+        a = tvm.nd.array(np.random.uniform(size=ashape).astype(input_a.dtype), dev)
+        b = tvm.nd.array(np.random.uniform(size=bshape).astype(input_b.dtype), dev)
+        c = tvm.nd.array(np.zeros((batch, m, n), dtype=result_c.dtype), dev)
         f(a, b, c)
         tvm.testing.assert_allclose(
             c.numpy(), get_numpy(a.numpy(), b.numpy(), transa, transb), rtol=1e-5
@@ -85,6 +87,7 @@ def verify_batch_matmul(batch, m, k, n, lib, transa=False, transb=False, dtype="
 
 @tvm.testing.requires_rocm
 def test_batch_matmul():
+    """Tests of matmul operation in batch using roc"""
     verify_batch_matmul(128, 64, 512, 512, rocblas, transa=False, transb=False)
     verify_batch_matmul(128, 64, 512, 512, rocblas, transa=False, transb=True)
     verify_batch_matmul(128, 64, 512, 512, rocblas, transa=True, transb=False)
