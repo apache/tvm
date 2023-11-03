@@ -1538,7 +1538,6 @@ def test_symbolic_var_called_with_static_argument():
             Y: T.Buffer([T.int64(1)], "float32"),
             num_elements: T.int64,
         ):
-
             X = T.match_buffer(X_handle, [num_elements], "float32")
 
             for i in range(num_elements):
@@ -1601,6 +1600,95 @@ def test_symbolic_var_called_with_static_argument():
             return gv
 
     _check(Before, Expected)
+
+
+def test_gather():
+    @I.ir_module
+    class Before:
+        @T.prim_func(private=True)
+        def add(
+            A: T.Buffer((T.int64(4096), T.int64(4096)), "float16"),
+            Out: T.Buffer((T.int64(4096), T.int64(4096)), "float16"),
+        ):
+            for i, j in T.grid(T.int64(4096), T.int64(4096)):
+                with T.block("add"):
+                    vi, vj = T.axis.remap("SS", [i, j])
+                    Out[vi, vj] = A[vi, vj] + T.float16(1.0)
+
+        @T.prim_func(private=True)
+        def take(
+            A: T.Buffer((T.int64(4096), T.int64(4096)), "float16"),
+            B: T.Buffer((T.int64(1),), "int32"),
+            T_take: T.Buffer((T.int64(1), T.int64(4096)), "float16"),
+        ):
+            for ax0, ax1 in T.grid(T.int64(1), T.int64(4096)):
+                with T.block("T_take"):
+                    v_ax0, v_ax1 = T.axis.remap("SS", [ax0, ax1])
+                    T_take[v_ax0, v_ax1] = A[B[v_ax0], v_ax1]
+
+        @R.function
+        def main(
+            input_ids: R.Tensor((1,), dtype="int32"),
+            input_embeds: R.Tensor((4096, 4096), dtype="float16"),
+        ) -> R.Tensor((1, 4096), dtype="float16"):
+            cls = Before
+            with R.dataflow():
+                gv: R.Tensor((1, 4096), dtype="float16") = cls.fused_func(input_ids, input_embeds)
+                R.output(gv)
+            return gv
+
+        @R.function(private=True)
+        def fused_func(
+            input_ids: R.Tensor((1,), dtype="int32"),
+            input_embeds: R.Tensor((4096, 4096), dtype="float16"),
+        ) -> R.Tensor((1, 4096), dtype="float16"):
+            R.func_attr({"Primitive": 1})
+            cls = Before
+            with R.dataflow():
+                lv = R.call_tir(
+                    cls.add, (input_embeds,), out_sinfo=R.Tensor((4096, 4096), dtype="float16")
+                )
+                gv = R.call_tir(
+                    cls.take, (lv, input_ids), out_sinfo=R.Tensor((1, 4096), dtype="float16")
+                )
+                R.output(gv)
+            return gv
+
+    @I.ir_module
+    class After:
+        @T.prim_func(private=True)
+        def fused_func(
+            input_ids: T.Buffer((T.int64(1),), "int32"),
+            input_embeds: T.Buffer((T.int64(4096), T.int64(4096)), "float16"),
+            T_take: T.Buffer((T.int64(1), T.int64(4096)), "float16"),
+        ):
+            T.func_attr({"tir.noalias": T.bool(True)})
+            Out_handle_intermediate = T.alloc_buffer((T.int64(4096), T.int64(4096)), "float16")
+            for i, j in T.grid(T.int64(4096), T.int64(4096)):
+                with T.block("add"):
+                    vi, vj = T.axis.remap("SS", [i, j])
+                    Out_handle_intermediate[vi, vj] = input_embeds[vi, vj] + T.float16(1)
+            for ax0, ax1 in T.grid(T.int64(1), T.int64(4096)):
+                with T.block("T_take"):
+                    v_ax0, v_ax1 = T.axis.remap("SS", [ax0, ax1])
+                    T_take[v_ax0, v_ax1] = Out_handle_intermediate[input_ids[v_ax0], v_ax1]
+
+        @R.function
+        def main(
+            input_ids: R.Tensor((1,), dtype="int32"),
+            input_embeds: R.Tensor((4096, 4096), dtype="float16"),
+        ) -> R.Tensor((1, 4096), dtype="float16"):
+            cls = After
+            with R.dataflow():
+                gv = R.call_tir(
+                    cls.fused_func,
+                    (input_ids, input_embeds),
+                    out_sinfo=R.Tensor((1, 4096), dtype="float16"),
+                )
+                R.output(gv)
+            return gv
+
+    _check(Before, After)
 
 
 if __name__ == "__main__":

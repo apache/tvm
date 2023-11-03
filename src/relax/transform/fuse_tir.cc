@@ -202,21 +202,27 @@ class FuseTIRBufferSubstitutor : private StmtExprMutator {
     auto f_mutate_match_buffers = [this](const MatchBufferRegion& match_buffer) {
       const Buffer& src_buffer = SubstituteBuffer(match_buffer->source->buffer);
       const Buffer& tgt_buffer = SubstituteAllocatedBuffer(match_buffer->buffer);
+      Region region = MutateRegion(match_buffer->source->region);
       if (src_buffer.same_as(match_buffer->source->buffer) &&
-          tgt_buffer.same_as(match_buffer->buffer)) {
+          tgt_buffer.same_as(match_buffer->buffer) &&
+          region.same_as(match_buffer->source->region)) {
         return match_buffer;
       } else {
         auto n = make_object<MatchBufferRegionNode>(*match_buffer.get());
         n->buffer = tgt_buffer;
-        n->source = BufferRegion(src_buffer, match_buffer->source->region);
+        n->source = BufferRegion(src_buffer, region);
         return MatchBufferRegion(n);
       }
     };
 
     auto f_mutate_read_write_region = [this](const BufferRegion& buffer_region) {
-      auto it = buffer_remap_.find(buffer_region->buffer);
-      return it == buffer_remap_.end() ? buffer_region
-                                       : BufferRegion((*it).second, buffer_region->region);
+      const Buffer& buffer = SubstituteBuffer(buffer_region->buffer);
+      const Region& region = MutateRegion(buffer_region->region);
+      if (buffer.same_as(buffer_region->buffer) && region.same_as(buffer_region->region)) {
+        return buffer_region;
+      } else {
+        return BufferRegion(buffer, region);
+      }
     };
 
     // Step 1. Mutate `match_buffers`.
@@ -284,6 +290,18 @@ class FuseTIRBufferSubstitutor : private StmtExprMutator {
     } else {
       return buffer;
     }
+  }
+
+  inline Region MutateRegion(const Region& region) {
+    return MutateArray(region, [this](const Range& range) {
+      const PrimExpr& min = this->VisitExpr(range->min);
+      const PrimExpr& extent = this->VisitExpr(range->extent);
+      if (min.same_as(range->min) && extent.same_as(range->extent)) {
+        return range;
+      } else {
+        return Range::FromMinExtent(min, extent);
+      }
+    });
   }
 };
 
