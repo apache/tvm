@@ -14,12 +14,11 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-import tvm
-from tvm import te
+"""Configure pytest"""
 import logging
-import numpy as np
 import time
 import multiprocessing
+import tvm
 from tvm import rpc
 
 
@@ -35,6 +34,7 @@ def rpc_proxy_check():
     """
 
     try:
+        # pylint: disable=import-outside-toplevel
         from tvm.rpc import proxy
 
         web_port = 8888
@@ -52,9 +52,9 @@ def rpc_proxy_check():
             server.deamon = True
             server.start()
             client = rpc.connect(prox.host, prox.port, key="x1")
-            f1 = client.get_function("testing.echo")
-            assert f1(10) == 10
-            assert f1("xyz") == "xyz"
+            test_f1 = client.get_function("testing.echo")
+            assert test_f1(10) == 10
+            assert test_f1("xyz") == "xyz"
 
         check()
     except ImportError:
