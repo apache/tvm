@@ -35,7 +35,7 @@ from ..strategy.generic import is_depthwise_conv2d
 
 
 def clml_sdk_version():
-    """Utility function to get clml version version"""
+    """Utility function to get clml version"""
 
     return int(tvm.support.libinfo().get("TVM_CLML_VERSION", 2))
 
@@ -81,6 +81,36 @@ class RemoveDropoutPass:
         return RemoveDropout().visit(func)
 
 
+class BroadcastInputs(ExprMutator):
+    """
+    Binary operators need broadcasting for CLML.
+    """
+
+    def visit_call(self, call):
+        if call.op.name in ["add", "subtract", "multiply", "divide", "maximum", "minimum"]:
+            new_fn = self.visit(call.op)
+            call_shape = call.checked_type.shape
+            lhs = call.args[0]
+            rhs = call.args[1]
+            lhs_shape = lhs.checked_type.shape
+            rhs_shape = rhs.checked_type.shape
+            if list(call_shape) != list(lhs_shape):
+                lhs = relay.broadcast_to(self.visit(lhs), call_shape)
+            if list(call_shape) != list(rhs_shape):
+                rhs = relay.broadcast_to(self.visit(rhs), call_shape)
+            args = [lhs, rhs]
+            return Call(new_fn, args, call.attrs)
+        return super().visit_call(call)
+
+
+@transform.function_pass(opt_level=0)
+class BinaryOpBroadcaster:
+    def transform_function(
+        self, func: relay.function.Function, mod: tvm.IRModule, _: tvm.transform.PassContext
+    ) -> relay.function.Function:
+        return BroadcastInputs().visit(func)
+
+
 def partition_for_clml(mod, params=None, **opts):
     """Partition the graph greedily offloading supported
     operators to CLML Library.
@@ -104,6 +134,7 @@ def partition_for_clml(mod, params=None, **opts):
         [
             transform.InferType(),
             RemoveDropoutPass(),
+            BinaryOpBroadcaster(),
             transform.FoldConstant(),
             transform.MergeComposite(clml_pattern_table()),
             transform.AnnotateTarget("clml", False),
@@ -261,8 +292,6 @@ def clml_pattern_table():
     def dense_pattern():
         """Create a dense pattern."""
         pattern = is_op("nn.dense")(wildcard(), is_constant())
-        pattern = pattern.optional(lambda x: is_op("add")(x, is_constant()))
-        pattern = pattern.optional(lambda x: is_op("nn.bias_add")(x, is_constant()))
         return pattern
 
     def pad_pattern():
@@ -344,9 +373,19 @@ def clml_pattern_table():
 
     def check_binary_op(extract):
         call = extract
-        if len(call.args[1].checked_type.shape) > 0:
-            return True
-        return False
+        # Scalars are not supported
+        if len(call.args[1].checked_type.shape) == 0:
+            return False
+
+        for arg in call.args:
+            # Avoid any operators with dtype Int64
+            if arg.checked_type.dtype == "int64":
+                return False
+            # No support for batch> 1
+            if arg.checked_type.shape[0] > 1:
+                return False
+
+        return True
 
     def check_pad_op(extract):
         call = extract
@@ -377,6 +416,24 @@ def clml_pattern_table():
         return True
 
     def check_default_op(extract):
+        call = extract
+
+        if isinstance(call, tvm.relay.expr.TupleGetItem):
+            call = call.tuple_value
+
+        # Avoid any operators with dtype Int64
+        for arg in call.args:
+            if arg.checked_type.dtype == "int64":
+                return False
+        return True
+
+    def check_batch_matmul_op(extract):
+        call = extract
+        # Only support single Matmul
+        if call.args[0].checked_type.shape[0] > 1:
+            return False
+        if call.args[1].checked_type.shape[0] > 1:
+            return False
         return True
 
     return [
@@ -394,7 +451,7 @@ def clml_pattern_table():
         ("clml.minimum", is_op("minimum")(wildcard(), wildcard()), check_binary_op),
         ("clml.maximum", is_op("maximum")(wildcard(), wildcard()), check_binary_op),
         ("clml.softmax", is_op("nn.softmax")(wildcard()), check_softmax_op),
-        ("clml.reshape", is_op("reshape")(wildcard()), check_default_op),
+        # ("clml.reshape", is_op("reshape")(wildcard()), check_default_op),
         ("clml.avg_pool2d", is_op("nn.avg_pool2d")(wildcard()), check_default_op),
         ("clml.max_pool2d", is_op("nn.max_pool2d")(wildcard()), check_default_op),
         ("clml.global_avg_pool2d", is_op("nn.global_avg_pool2d")(wildcard()), check_default_op),
@@ -404,6 +461,11 @@ def clml_pattern_table():
         ("clml.batch_flatten", is_op("nn.batch_flatten")(wildcard()), check_default_op),
         ("clml.depth_to_space", is_op("nn.depth_to_space")(wildcard()), check_default_op),
         ("clml.upsampling", is_op("nn.upsampling")(wildcard()), check_upsampling_op),
+        (
+            "clml.batch_matmul",
+            is_op("nn.batch_matmul")(wildcard(), wildcard()),
+            check_batch_matmul_op,
+        ),
     ]
 
 
@@ -570,7 +632,9 @@ class CLMLGetSubModuleSrc:
         runner.MakeDense($input_tensor,
           $weight_tensor,
           $output_tensor,
-          $bias_tensor, "$dtype");"""
+          std::vector<cl_uint> ({$in_shape}),
+          std::vector<cl_uint> ({$wt_shape}),
+          "$dtype");"""
         )
         self.MakeSoftMax = Template(
             """
@@ -641,13 +705,12 @@ class CLMLGetSubModuleSrc:
             "    Output Count : $output_count\\n"
             '    Input MetaInfo\\n$input_meta\\n    Output MetaInfo\\n$output_meta");'
         )
-
         self.MakeInputMetaInfo = Template(
-            "        Input: $in_name\\n            Dtype : $dtype\\n            Shape : [$shape]"
+            "        Input: $in_name\\n          Dtype : $dtype\\n          Shape : [$shape]\\n"
         )
 
         self.MakeOutputMetaInfo = Template(
-            "        Output: $out_name\\n            Dtype : $dtype\\n            Shape : [$shape]"
+            "        Output: $out_name\\n         Dtype : $dtype\\n          Shape : [$shape]\\n"
         )
 
     def get_src(self):
@@ -666,23 +729,40 @@ class CLMLGetSubModuleSrc:
             else:
                 node = self.nodes[node_seq]
                 dtype = str(node["attrs"]["dtype"][0][0])
+                if node["op"] == "input":
+                    self.clml_code.append("// Input Node")
+                    node_out_name = self.sub_module_name + "_" + "input_" + str(node_seq)
+                else:
+                    node_out_name = node["name"]
                 if shape is None:
                     shape = str(tuple(node["attrs"]["shape"][0][0]))[1:-1]
 
                 self.clml_code.append(
                     self.MakeCLMLTensor.substitute(
-                        name=node["name"], shape=shape, dtype=dtype, layout=layout
+                        name=node_out_name, shape=shape, dtype=dtype, layout=layout
                     )
                 )
                 self.clml_code.append(
-                    self.MapInsert.substitute(nid=node["name"], tensor_desc=node["name"])
+                    self.MapInsert.substitute(nid=node_out_name, tensor_desc=node_out_name)
                 )
+                if node["op"] == "input":
+                    self.clml_code.append(
+                        Template("runner.inputs.push_back($clml_input);").substitute(
+                            clml_input=node_out_name
+                        )
+                    )
+                    self.input_meta.append(
+                        self.MakeInputMetaInfo.substitute(
+                            in_name=node_out_name, dtype=dtype, shape=shape
+                        )
+                    )
+
                 if self.nodes[node_seq]["op"] == "const":
                     self.clml_code.append(
                         Template('runner.consts.push_back("$nid");').substitute(nid=node["name"])
                     )
-                self.node_map[node_seq] = node["name"]
-                return node["name"]
+                self.node_map[node_seq] = node_out_name
+                return node_out_name
 
         def make_output_tensor(
             node, node_seq, shape=None, layout="CL_TENSOR_LAYOUT_OPTIMAL_QCOM", dtype="float32"
@@ -697,40 +777,13 @@ class CLMLGetSubModuleSrc:
                     name=node_out_name,
                     shape=shape,
                     dtype=dtype,
-                    layout="CL_TENSOR_LAYOUT_OPTIMAL_QCOM",
+                    layout=layout,
                 )
             )
             return node_out_name
 
         for node_seq, node in enumerate(self.nodes):
-            if node["op"] == "input":
-                self.clml_code.append("// Input Node")
-                dtype = str(node["attrs"]["dtype"][0][0])
-                shape = str(tuple(node["attrs"]["shape"][0][0]))[1:-1]
-                node_out_name = self.sub_module_name + "_" + "input_" + str(node_seq)
-                self.clml_code.append(
-                    self.MakeCLMLTensor.substitute(
-                        name=node_out_name,
-                        shape=shape,
-                        dtype=dtype,
-                        layout="CL_TENSOR_LAYOUT_OPTIMAL_QCOM",
-                    )
-                )
-                self.clml_code.append(
-                    self.MapInsert.substitute(nid=node_out_name, tensor_desc=node_out_name)
-                )
-                self.clml_code.append(
-                    Template("runner.inputs.push_back($clml_input);").substitute(
-                        clml_input=node_out_name
-                    )
-                )
-                self.node_map[node_seq] = node_out_name
-                self.input_meta.append(
-                    self.MakeInputMetaInfo.substitute(
-                        in_name=node_out_name, dtype=dtype, shape=shape
-                    )
-                )
-            elif node["op"] == "kernel":
+            if node["op"] == "kernel":
                 self.clml_code.append("// Kernel Node : " + node["name"])
                 if node["name"] == "nn.conv2d" or node["name"] == "nn.depthwise_conv2d":
                     if "padding" in node["attrs"]:
@@ -791,6 +844,7 @@ class CLMLGetSubModuleSrc:
                         bn_shape = [1, 1, 1, 1]
                         bn_node = self.nodes[node["inputs"][bn_index][0]]
                         bn_shape[axis] = bn_node["attrs"]["shape"][0][0]
+                        dtype = bn_node["attrs"]["dtype"][0][0]
 
                         bn_scale_tensor = get_tensor_from_map(
                             node["inputs"][bn_index][0],
@@ -858,6 +912,7 @@ class CLMLGetSubModuleSrc:
                     bn_shape = [1, 1, 1, 1]
                     bn_node = self.nodes[node["inputs"][0][0]]
                     bn_shape[axis] = bn_node["attrs"]["shape"][0][0]
+                    dtype = bn_node["attrs"]["dtype"][0][0]
                     bn_scale_tensor = get_tensor_from_map(
                         node["inputs"][0][0], shape=str(tuple(bn_shape))[1:-1], dtype=dtype
                     )
@@ -947,26 +1002,26 @@ class CLMLGetSubModuleSrc:
                     in_shape = tuple(in_node["attrs"]["shape"][0][0])
                     wt_shape = tuple(in_node["attrs"]["shape"][0][0])
                     input_tensor = get_tensor_from_map(
-                        node["inputs"][0][0], shape=str(tuple([1, in_shape[1], 1, 1]))[1:-1]
+                        node["inputs"][0][0], layout="CL_TENSOR_LAYOUT_NCHW_QCOM"
                     )
                     weight_tensor = get_tensor_from_map(
                         node["inputs"][1][0],
-                        shape=str(tuple([wt_shape[0], wt_shape[1], 1, 1]))[1:-1],
+                        shape=str(tuple([1, 1, wt_shape[0], wt_shape[1]]))[1:-1],
+                        layout="CL_TENSOR_LAYOUT_NCHW_QCOM",
                     )
-                    if len(node["inputs"]) == 3:
-                        bias_tensor = "runner.unusedTensor"
-                    else:
-                        bias_tensor = get_tensor_from_map(node["inputs"][2][0])
-
                     node_out_name = make_output_tensor(
-                        node, node_seq, shape=str(tuple([1, wt_shape[0], 1, 1]))[1:-1]
+                        node,
+                        node_seq,
+                        shape=str(tuple([in_shape[0], wt_shape[0], 1, 1]))[1:-1],
+                        layout="CL_TENSOR_LAYOUT_NCHW_QCOM",
                     )
                     self.clml_code.append(
                         self.MakeDense.substitute(
                             input_tensor=input_tensor,
                             weight_tensor=weight_tensor,
                             output_tensor=node_out_name,
-                            bias_tensor=bias_tensor,
+                            in_shape=str(in_shape)[1:-1],
+                            wt_shape=str(wt_shape)[1:-1],
                             dtype=node["attrs"]["dtype"][0][0],
                         )
                     )
@@ -1045,7 +1100,7 @@ class CLMLGetSubModuleSrc:
                 )
                 self.node_map[node_seq] = node_out_name
 
-            elif node["op"] != "const":
+            elif node["op"] not in ["const", "input"]:
                 print("Unknown Node type:", node["op"])
 
         # Populate outputs
@@ -1086,8 +1141,8 @@ class CLMLGetSubModuleSrc:
                 name=self.sub_module_name,
                 input_count=len(self.input_meta),
                 output_count=len(self.output_meta),
-                input_meta="\n".join(self.input_meta),
-                output_meta="\n".join(self.output_meta),
+                input_meta="\\\n".join(self.input_meta),
+                output_meta="\\\n".join(self.output_meta),
             )
         )
 

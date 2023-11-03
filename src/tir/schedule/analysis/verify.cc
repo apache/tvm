@@ -172,10 +172,10 @@ void VerifyCachedFlags(const ScheduleState& self) {
                                                  new_block_info.region_cover,
                                                  old_block_info.region_cover);
     }
-    if (new_block_info.scope->stage_pipeline != old_block_info.scope->stage_pipeline) {
+    if (new_block_info.stage_pipeline != old_block_info.stage_pipeline) {
       block_info_wrong_stage_pipeline.emplace_back(new_sref,  //
-                                                   new_block_info.scope->stage_pipeline,
-                                                   old_block_info.scope->stage_pipeline);
+                                                   new_block_info.stage_pipeline,
+                                                   old_block_info.stage_pipeline);
     }
   }
 

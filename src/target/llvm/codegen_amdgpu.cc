@@ -87,9 +87,9 @@ class CodeGenAMDGPU : public CodeGenLLVM {
   CodeGenAMDGPU() = default;
   virtual ~CodeGenAMDGPU() = default;
 
-  void AddFunction(const PrimFunc& f) final {
+  void AddFunction(const GlobalVar& gvar, const PrimFunc& f) final {
     // add function as void return value
-    CodeGenLLVM::AddFunctionInternal(f, true);
+    CodeGenLLVM::AddFunctionInternal(gvar, f);
     function_->setCallingConv(llvm::CallingConv::AMDGPU_KERNEL);
     std::ostringstream attr;
     attr << "1," << DetectROCMmaxThreadsPerBlock();
@@ -187,7 +187,8 @@ class CodeGenAMDGPU : public CodeGenLLVM {
       }
     }
     llvm::Function* f = llvm::Intrinsic::getDeclaration(module_.get(), intrin_id);
-    return builder_->CreateCall(f, {});
+    llvm::Value* result = builder_->CreateCall(f, {});
+    return this->CreateCast(DataType::Int(32), iv->var->dtype, result);
   }
 
   llvm::Value* CreateStorageSync(const CallNode* op) final {
@@ -260,13 +261,9 @@ runtime::Module BuildAMDGPU(IRModule mod, Target target) {
 #endif
   auto cg = std::make_unique<CodeGenAMDGPU>();
 
-  cg->Init("TVMAMDGPUModule", llvm_target.get(), false, false, false);
+  cg->Init("TVMAMDGPUModule", llvm_target.get(), NullOpt, false, false);
 
-  cg->AddFunctionsOrdered(mod->functions.begin(), mod->functions.end(), [](auto& kv) {
-    ICHECK(kv.second->template IsInstance<PrimFuncNode>())
-        << "Can only lower IR Module with PrimFuncs";
-    return Downcast<PrimFunc>(kv.second);
-  });
+  cg->AddFunctionsOrdered(mod->functions.begin(), mod->functions.end());
 
   llvm::TargetMachine* tm = llvm_target->GetOrCreateTargetMachine();
   const auto* find_rocm_bitcodes = tvm::runtime::Registry::Get("tvm_callback_rocm_bitcode_path");
@@ -305,9 +302,12 @@ runtime::Module BuildAMDGPU(IRModule mod, Target target) {
 #elif TVM_LLVM_VERSION <= 90
   ICHECK(tm->addPassesToEmitFile(pass, destObj, nullptr, llvm::TargetMachine::CGFT_ObjectFile) == 0)
       << "Cannot emit target CGFT_ObjectFile";
-#else
+#elif TVM_LLVM_VERSION <= 170
   ICHECK(tm->addPassesToEmitFile(pass, destObj, nullptr, llvm::CGFT_ObjectFile) == 0)
       << "Cannot emit target CGFT_ObjectFile";
+#else
+  ICHECK(tm->addPassesToEmitFile(pass, destObj, nullptr, llvm::CodeGenFileType::ObjectFile) == 0)
+      << "Cannot emit target CodeGenFileType::ObjectFile";
 #endif
   pass.run(*mObj);
   std::string obj(dataObj.begin(), dataObj.end());
@@ -320,8 +320,12 @@ runtime::Module BuildAMDGPU(IRModule mod, Target target) {
   ICHECK(tm->addPassesToEmitFile(passAsm, destAsm, nullptr,
                                  llvm::TargetMachine::CGFT_AssemblyFile) == 0)
       << "Cannot emit target CGFT_AssemblyFile";
-#else
+#elif TVM_LLVM_VERSION <= 170
   ICHECK(tm->addPassesToEmitFile(passAsm, destAsm, nullptr, llvm::CGFT_AssemblyFile) == 0)
+      << "Cannot emit target CGFT_AssemblyFile";
+#else
+  ICHECK(tm->addPassesToEmitFile(passAsm, destAsm, nullptr, llvm::CodeGenFileType::AssemblyFile) ==
+         0)
       << "Cannot emit target CGFT_AssemblyFile";
 #endif
   passAsm.run(*mAsm);

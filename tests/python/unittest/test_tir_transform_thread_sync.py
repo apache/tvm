@@ -24,12 +24,13 @@ def run_passes(func: tvm.tir.PrimFunc):
     mod = tvm.IRModule.from_expr(func)
     mod = tvm.tir.transform.StorageFlatten(64)(mod)
 
-    cuda_target = tvm.target.Target("cuda")
+    cuda_target = tvm.target.Target("cuda", host="llvm")
 
     mod = tvm.tir.transform.Apply(
         lambda f: f.with_attr({"global_symbol": "test", "target": cuda_target})
     )(mod)
 
+    mod = tvm.tir.transform.AnnotateDeviceRegions()(mod)
     mod = tvm.tir.transform.SplitHostDevice()(mod)
     return tvm.tir.transform.ThreadSync("shared")(mod)
 
@@ -55,8 +56,8 @@ def test_thread_storage_sync():
 
     func = tvm.te.schedule.SchedulePostProcToPrimFunc([A, A2], stmt, None)
     mod = run_passes(func)
-    f = mod["test_kernel0"]
-    body_list = tvm.tir.stmt_list(f.body.body.body)
+    f = mod["test_kernel"]
+    body_list = tvm.tir.stmt_list(f.body.body.body.body.body.body)
     assert body_list[1].value.op.same_as(tvm.ir.Op.get("tir.tvm_storage_sync"))
 
 
@@ -118,7 +119,49 @@ def test_sync_read_thread_id_independent_location():
     assert "T.tvm_storage_sync" in str(mod)
 
 
+def test_sync_shared_dyn():
+    @T.prim_func(private=True)
+    def func(A: T.Buffer((4, 4), "float32"), E: T.Buffer((4, 4), "float32")):
+        blockIdx_x = T.launch_thread("blockIdx.x", 1)
+        B = T.allocate([24], "float32", "shared.dyn")
+        C = T.allocate([1], "float32", "local")
+        D = T.allocate([16], "float32", "shared.dyn")
+        threadIdx_x = T.launch_thread("threadIdx.x", 16)
+        B_1 = T.Buffer((24,), data=B, scope="shared.dyn")
+        A_1 = T.Buffer((16,), data=A.data)
+        B_1[threadIdx_x // 4 * 6 + threadIdx_x % 4] = A_1[threadIdx_x]
+        C_1 = T.Buffer((1,), data=C, scope="local")
+        C_1[0] = B_1[threadIdx_x // 4 * 6 + threadIdx_x % 4]
+        D_1 = T.Buffer((16,), data=D, scope="shared.dyn")
+        D_1[threadIdx_x] = C_1[0]
+        E_1 = T.Buffer((16,), data=E.data)
+        E_1[threadIdx_x] = D_1[threadIdx_x]
+
+    @T.prim_func(private=True)
+    def expected(A: T.Buffer((4, 4), "float32"), E: T.Buffer((4, 4), "float32")):
+        blockIdx_x = T.launch_thread("blockIdx.x", 1)
+        B_1 = T.allocate([24], "float32", "shared.dyn")
+        C_1 = T.allocate([1], "float32", "local")
+        D_1 = T.allocate([16], "float32", "shared.dyn")
+        threadIdx_x = T.launch_thread("threadIdx.x", 16)
+        B_1_1 = T.Buffer((24,), data=B_1, scope="shared.dyn")
+        A_1 = T.Buffer((16,), data=A.data)
+        B_1_1[threadIdx_x // 4 * 6 + threadIdx_x % 4] = A_1[threadIdx_x]
+        C_1_1 = T.Buffer((1,), data=C_1, scope="local")
+        C_1_1[0] = B_1_1[threadIdx_x // 4 * 6 + threadIdx_x % 4]
+        T.tvm_storage_sync("shared.dyn")
+        D_1_1 = T.Buffer((16,), data=D_1, scope="shared.dyn")
+        D_1_1[threadIdx_x] = C_1_1[0]
+        E_1 = T.Buffer((16,), data=E.data)
+        E_1[threadIdx_x] = D_1_1[threadIdx_x]
+
+    mod = tvm.IRModule({"main": func})
+    mod = tvm.tir.transform.ThreadSync("shared.dyn")(mod)
+    tvm.ir.assert_structural_equal(mod["main"], expected)
+
+
 if __name__ == "__main__":
     test_thread_storage_sync()
     test_sync_else_branch()
     test_sync_read_thread_id_independent_location()
+    test_sync_shared_dyn()

@@ -27,7 +27,7 @@ from .common import infer_shape as _infer_shape
 
 
 def _warn_not_used(attr, op="nnvm"):
-    err = "{} is ignored in {}.".format(attr, op)
+    err = f"{attr} is ignored in {op}."
     warnings.warn(err)
 
 

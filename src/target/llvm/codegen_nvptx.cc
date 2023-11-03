@@ -66,9 +66,13 @@ namespace codegen {
 // NVPTX code generator.
 class CodeGenNVPTX : public CodeGenLLVM {
  public:
-  void AddFunction(const PrimFunc& f) final {
+  llvm::Function* DeclareFunction(const GlobalVar& gvar, const PrimFunc& f) final {
     // add function as void return value
-    CodeGenLLVM::AddFunctionInternal(f, true);
+    return CodeGenLLVM::DeclareFunctionInternal(gvar, f);
+  }
+  void AddFunction(const GlobalVar& gvar, const PrimFunc& f) final {
+    // add function as void return value
+    CodeGenLLVM::AddFunctionInternal(gvar, f);
     // annotate as kernel function
     llvm::LLVMContext* ctx = llvm_target_->GetContext();
     module_->getOrInsertNamedMetadata("nvvm.annotations")
@@ -309,13 +313,9 @@ runtime::Module BuildNVPTX(IRModule mod, Target target) {
   int compute_ver = GetCUDAComputeVersion(target);
   auto cg = std::make_unique<CodeGenNVPTX>();
 
-  cg->Init("TVMPTXModule", llvm_target.get(), false, false, false);
+  cg->Init("TVMPTXModule", llvm_target.get(), NullOpt, false, false);
 
-  cg->AddFunctionsOrdered(mod->functions.begin(), mod->functions.end(), [](auto& kv) {
-    ICHECK(kv.second->template IsInstance<PrimFuncNode>())
-        << "Can only lower IR Module with PrimFuncs";
-    return Downcast<PrimFunc>(kv.second);
-  });
+  cg->AddFunctionsOrdered(mod->functions.begin(), mod->functions.end());
 
   llvm::TargetMachine* tm = llvm_target->GetOrCreateTargetMachine();
   const auto* flibdevice_path = tvm::runtime::Registry::Get("tvm_callback_libdevice_path");
@@ -345,9 +345,12 @@ runtime::Module BuildNVPTX(IRModule mod, Target target) {
   ICHECK(tm->addPassesToEmitFile(pass, dest_ptx, nullptr, llvm::TargetMachine::CGFT_AssemblyFile) ==
          0)
       << "Cannot emit target CGFT_ObjectFile";
-#else
+#elif TVM_LLVM_VERSION <= 170
   ICHECK(tm->addPassesToEmitFile(pass, dest_ptx, nullptr, llvm::CGFT_AssemblyFile) == 0)
       << "Cannot emit target CGFT_ObjectFile";
+#else
+  ICHECK(tm->addPassesToEmitFile(pass, dest_ptx, nullptr, llvm::CodeGenFileType::AssemblyFile) == 0)
+      << "Cannot emit target CodeGenFileType::ObjectFile";
 #endif
   pass.run(*module);
   std::string ptx(data_ptx.begin(), data_ptx.end());

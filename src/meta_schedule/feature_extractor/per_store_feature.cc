@@ -310,9 +310,10 @@ Sequential PassListForPerStoreFeature() {
       tir::transform::LowerInitBlock(),
       tir::transform::PlanAndUpdateBufferAllocationLocation(),
       tir::transform::ConvertBlocksToOpaque(),
-      tir::transform::UnifyThreadBinding(),
       tir::transform::CompactBufferAllocation(),
+      tir::transform::Simplify(),
       tir::transform::LowerAutoCopy(),
+      tir::transform::UnifyThreadBinding(),
       tir::transform::LowerMatchBuffer(),
       tir::transform::Simplify(),
   });

@@ -68,6 +68,7 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
     .set_dispatch<tir::PrimFunc>("", [](tir::PrimFunc func, ObjectPath p, IRDocsifier d) -> Doc {
       With<TIRFrame> f(d, func);
       (*f)->AddDispatchToken(d, "tir");
+      auto func_name = IdDoc(FindFunctionName(d, func).value_or("main"));
       d->SetCommonPrefix(func, [](const ObjectRef& obj) {
         return obj->IsInstance<tir::VarNode>() || obj->IsInstance<tir::BufferNode>();
       });
@@ -104,9 +105,25 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
       }
       // Step 2. Handle `func->attrs`
       if (func->attrs.defined() && !func->attrs->dict.empty()) {
-        (*f)->stmts.push_back(
-            ExprStmtDoc(TIR(d, "func_attr")  //
-                            ->Call({d->AsDoc<ExprDoc>(func->attrs, p->Attr("attrs"))})));
+        // for global symbol, don't display it if it matches the func name
+        if (func->attrs->dict.count(tvm::attr::kGlobalSymbol) &&
+            Downcast<String>(func->attrs->dict.at(tvm::attr::kGlobalSymbol)) == func_name->name) {
+          Map<String, ObjectRef> new_attrs;
+          for (auto kv : func->attrs->dict) {
+            if (kv.first != tvm::attr::kGlobalSymbol) {
+              new_attrs.Set(kv.first, kv.second);
+            }
+          }
+          if (!new_attrs.empty()) {
+            (*f)->stmts.push_back(ExprStmtDoc(
+                TIR(d, "func_attr")  //
+                    ->Call({d->AsDoc<ExprDoc>(DictAttrs(new_attrs), p->Attr("attrs"))})));
+          }
+        } else {
+          (*f)->stmts.push_back(
+              ExprStmtDoc(TIR(d, "func_attr")  //
+                              ->Call({d->AsDoc<ExprDoc>(func->attrs, p->Attr("attrs"))})));
+        }
       }
       // Step 3. Handle `func->buffer_map`
       for (int i = 0; i < n_args; ++i) {
@@ -119,7 +136,8 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
           ExprDoc param_doc = args[i]->lhs;
           ObjectPath buffer_p = p->Attr("buffer_map")->MapValue(param);
           ExprDoc lhs = DefineBuffer(buffer, *f, d);
-          ExprDoc rhs = BufferDecl(buffer, "match_buffer", {param_doc}, buffer_p, *f, d);
+          ExprDoc rhs = BufferDecl(buffer, "match_buffer", {param_doc}, buffer_p, *f, d,
+                                   BufferVarDefinition::MatchBuffer);
           (*f)->stmts.push_back(AssignDoc(lhs, rhs, NullOpt));
         }
       }
@@ -152,7 +170,8 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
           tir::Buffer buffer = root_block->alloc_buffers[i];
           ObjectPath buffer_p = root_block_p->Attr("alloc_buffers")->ArrayIndex(i);
           IdDoc lhs = DefineBuffer(buffer, *f, d);
-          ExprDoc rhs = BufferDecl(buffer, "alloc_buffer", {}, buffer_p, *f, d);
+          ExprDoc rhs = BufferDecl(buffer, "alloc_buffer", {}, buffer_p, *f, d,
+                                   BufferVarDefinition::DataPointer);
           (*f)->stmts.push_back(AssignDoc(lhs, rhs, NullOpt));
         }
         AsDocBody(root_block->body, root_block_p->Attr("body"), f->get(), d);
@@ -166,15 +185,44 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
           ret_type = d->AsDoc<ExprDoc>(func->ret_type, p->Attr("ret_type"));
         }
       }
+      // Step 5. Determine if we need to display the private annotation in the decorator
+      ExprDoc decorator = TIR(d, "prim_func");
+      // mark private if there is no global symbol
+      if (!func->attrs.defined() || !func->attrs->dict.count(tvm::attr::kGlobalSymbol)) {
+        Array<ExprDoc> pos_args;
+        decorator = std::move(decorator->Call(pos_args, {"private"},
+                                              {LiteralDoc::Boolean(true, Optional<ObjectPath>())}));
+      }
+
       return HeaderWrapper(d, FunctionDoc(
-                                  /*name=*/IdDoc(FindFunctionName(d, func).value_or("main")),
+                                  /*name=*/func_name,
                                   /*args=*/args,
-                                  /*decorators=*/{TIR(d, "prim_func")},
+                                  /*decorators=*/{decorator},
                                   /*return_type=*/ret_type,
                                   /*body=*/(*f)->stmts));
     });
 
 TVM_SCRIPT_REPR(tir::PrimFuncNode, ReprPrintTIR);
+
+TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
+    .set_dispatch<tvm::GlobalVar>(                                           //
+        "tir", [](tvm::GlobalVar n, ObjectPath n_p, IRDocsifier d) -> Doc {  //
+          if (Optional<ExprDoc> doc = d->GetVarDoc(n)) {
+            return doc.value();
+          } else {
+            IdDoc ret(n->name_hint);
+            ret->source_paths.push_back(n_p);
+            return ret;
+          }
+        });
+
+TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
+    .set_dispatch<tvm::IRModule>(                                             //
+        "tir", [](tvm::IRModule mod, ObjectPath n_p, IRDocsifier d) -> Doc {  //
+          Optional<ExprDoc> doc = d->GetVarDoc(mod);
+          ICHECK(doc) << "Unable to print IRModule before definition in TIR.";
+          return doc.value();
+        });
 
 }  // namespace printer
 }  // namespace script

@@ -43,9 +43,9 @@
 #ifndef TVM_RUNTIME_REGISTRY_H_
 #define TVM_RUNTIME_REGISTRY_H_
 
+#include <tvm/runtime/container/string.h>
 #include <tvm/runtime/packed_func.h>
 
-#include <string>
 #include <type_traits>
 #include <utility>
 #include <vector>
@@ -96,6 +96,51 @@ namespace runtime {
  *         indicate an error happens, otherwise it returns normally.
  */
 TVM_DLL void EnvCheckSignals();
+
+/*! \brief A class that wraps a Python object and preserves its ownership.
+
+ * This class is used to wrap a PyObject* from the Python API and preserve its ownership.
+ * Allows for the creation of strong references to Python objects, which prevent them from being
+ * garbage-collected as long as the wrapper object exists.
+ */
+class WrappedPythonObject {
+ public:
+  /*! \brief Construct a wrapper that doesn't own anything */
+  WrappedPythonObject() : python_obj_(nullptr) {}
+
+  /*! \brief Conversion constructor from nullptr */
+  explicit WrappedPythonObject(std::nullptr_t) : python_obj_(nullptr) {}
+
+  /*! \brief Take ownership of a python object
+   *
+   * A new strong reference is created for the underlying python
+   * object.
+   *
+   * \param python_obj A PyObject* from the Python.h API.  A new
+   * strong reference is created using Py_IncRef.
+   */
+  explicit WrappedPythonObject(void* python_obj);
+
+  /*! \brief Drop ownership of a python object
+   *
+   * Removes the strong reference held by the wrapper.
+   */
+  ~WrappedPythonObject();
+
+  WrappedPythonObject(WrappedPythonObject&&);
+  WrappedPythonObject& operator=(WrappedPythonObject&&);
+
+  WrappedPythonObject(const WrappedPythonObject&);
+  WrappedPythonObject& operator=(const WrappedPythonObject&);
+  WrappedPythonObject& operator=(std::nullptr_t);
+
+  operator bool() { return python_obj_; }
+
+  void* raw_pointer() { return python_obj_; }
+
+ private:
+  void* python_obj_ = nullptr;
+};
 
 /*! \brief Registry for global function */
 class Registry {
@@ -295,32 +340,32 @@ class Registry {
    * \param override Whether allow override existing function.
    * \return Reference to the registry.
    */
-  TVM_DLL static Registry& Register(const std::string& name, bool override = false);  // NOLINT(*)
+  TVM_DLL static Registry& Register(const String& name, bool override = false);  // NOLINT(*)
   /*!
    * \brief Erase global function from registry, if exist.
    * \param name The name of the function.
    * \return Whether function exist.
    */
-  TVM_DLL static bool Remove(const std::string& name);
+  TVM_DLL static bool Remove(const String& name);
   /*!
    * \brief Get the global function by name.
    * \param name The name of the function.
    * \return pointer to the registered function,
    *   nullptr if it does not exist.
    */
-  TVM_DLL static const PackedFunc* Get(const std::string& name);  // NOLINT(*)
+  TVM_DLL static const PackedFunc* Get(const String& name);  // NOLINT(*)
   /*!
    * \brief Get the names of currently registered global function.
    * \return The names
    */
-  TVM_DLL static std::vector<std::string> ListNames();
+  TVM_DLL static std::vector<String> ListNames();
 
   // Internal class.
   struct Manager;
 
  protected:
   /*! \brief name of the function */
-  std::string name_;
+  String name_;
   /*! \brief internal packed function */
   PackedFunc func_;
   friend struct Manager;

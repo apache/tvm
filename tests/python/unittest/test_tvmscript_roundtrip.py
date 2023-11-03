@@ -32,7 +32,7 @@ def opt_gemm_normalize():
         @T.prim_func
         def mmult(A: T.handle, B: T.handle, C: T.handle) -> None:
             # function attr dict
-            T.func_attr({"global_symbol": "mmult", "tir.noalias": True})
+            T.func_attr({"tir.noalias": True})
             # buffer definition
             C_global = T.Buffer([1024, 1024], elem_offset=0, align=64, offset_factor=1)
             packedB = T.Buffer([32, 1024, 32], elem_offset=0, align=64, offset_factor=1)
@@ -89,7 +89,7 @@ def opt_gemm_lower():
         @T.prim_func
         def mmult(A: T.handle, B: T.handle, C: T.handle) -> None:
             # function attr dict
-            T.func_attr({"global_symbol": "mmult", "tir.noalias": True})
+            T.func_attr({"tir.noalias": True})
             A_1 = T.match_buffer(A, [16384], elem_offset=0, align=64, offset_factor=1)
             B_1 = T.match_buffer(B, [1024, 1024], elem_offset=0, align=64, offset_factor=1)
             C_1 = T.match_buffer(C, [16384], elem_offset=0, align=64, offset_factor=1)
@@ -196,7 +196,6 @@ def opt_gemm_mod_host():
             T.func_attr(
                 {
                     "tir.noalias": True,
-                    "global_symbol": "mmult",
                     "tir.is_entry_func": True,
                     "calling_conv": 1,
                 }
@@ -3123,6 +3122,15 @@ def func_with_target_spec_by_str():
     return func_with_target_spec_by_str
 
 
+def func_with_target_and_host_spec_by_str():
+    @T.prim_func
+    def func():
+        T.func_attr({"target": T.target("nvidia/nvidia-a100", host="llvm")})
+        T.evaluate(0)
+
+    return func
+
+
 def func_root_attr():
     @T.prim_func
     def func_root_attr():
@@ -3558,7 +3566,9 @@ def multi_env_threads():
         for i in T.thread_binding(128, thread="threadIdx.x"):
             C[i] = B[i] + 2.0
 
-    mod = tvm.tir.transform.LowerOpaqueBlock()(tvm.IRModule.from_expr(func))
+    mod = tvm.tir.transform.LowerOpaqueBlock()(
+        tvm.IRModule.from_expr(func.with_attr("global_symbol", "main"))
+    )
     return mod["main"]
 
 
@@ -3792,6 +3802,176 @@ def nested_seqstmt():
     return func
 
 
+def subroutine_call():
+    """A GlobalVar may reference other functions in the module"""
+
+    @I.ir_module
+    class mod:
+        @T.prim_func
+        def main(A: T.Buffer(16, "float32")):
+            mod.subroutine(A.data, T.int32(16))
+
+        @T.prim_func
+        def subroutine(A_data: T.handle("float32"), n: T.int32):
+            T.evaluate(0)
+
+    return mod
+
+
+def subroutine_call_returning_int():
+    """An internal function call may return non-void"""
+
+    @I.ir_module
+    class mod:
+        @T.prim_func
+        def main(A: T.Buffer(2, "float32")):
+            mod.subroutine(A[0]) + mod.subroutine(A[1])
+
+        @T.prim_func
+        def subroutine(x: T.float32) -> T.float32:
+            T.ret(x * x)
+
+    return mod
+
+
+def undefined_data_ptr_in_decl_buffer():
+    """The T.decl_buffer syntax should not introduce an Allocate
+
+    While T.decl_buffer can be used to represent an
+    Allocate/DeclBuffer pair, performing a round-trip through
+    TVMScript should not introduce an Allocate node.
+    """
+
+    @T.prim_func
+    def func():
+        data_ptr = T.handle("float32")
+        buf = T.decl_buffer(shape=[1], dtype="float32", data=data_ptr)
+        T.evaluate(buf[0])
+
+    return func
+
+
+def undefined_shape_in_decl_buffer():
+    @T.prim_func
+    def func():
+        size = T.int32()
+        buf = T.decl_buffer(shape=[size], dtype="float32")
+        T.evaluate(buf[0])
+
+    return func
+
+
+def undefined_stride_in_decl_buffer():
+    @T.prim_func
+    def func():
+        stride = T.int32()
+        buf = T.decl_buffer(shape=[1], dtype="float32", strides=[stride])
+        T.evaluate(buf[0])
+
+    return func
+
+
+def undefined_elem_offset_in_decl_buffer():
+    @T.prim_func
+    def func():
+        elem_offset = T.int32()
+        buf = T.decl_buffer(shape=[1], dtype="float32", elem_offset=elem_offset)
+        T.evaluate(buf[0])
+
+    return func
+
+
+def subroutine_call_without_arguments():
+    @I.ir_module
+    class mod:
+        @T.prim_func
+        def main():
+            # Should be equivalent to the bare "mod.subroutine()", but
+            # that relies on `GlobalVar.__call__` returning the
+            # correct IR type.  Previously, this instead returned a
+            # `relay.Call` object.
+            tir.call_tir(mod.subroutine)
+
+        @T.prim_func
+        def subroutine():
+            T.evaluate(0)
+
+    return mod
+
+
+def return_zero():
+    @T.prim_func
+    def func() -> T.int32:
+        T.ret(0)
+
+    return func
+
+
+def return_zero_private():
+    @T.prim_func(private=True)
+    def func() -> T.int32:
+        T.ret(0)
+
+    return func
+
+
+def return_zero_private_with_attr():
+    @T.prim_func(private=True)
+    def func() -> T.int32:
+        T.func_attr({"greeting": "hello"})
+        T.ret(0)
+
+    return func
+
+
+def op_of_literal():
+    op_list = [
+        (T.exp, 0),
+        (T.exp2, 0),
+        (T.exp10, 0),
+        (T.erf, 0.0),
+        (T.tanh, 0.0),
+        (T.sigmoid, 0.0),
+        (T.log, 0.0),
+        (T.log2, 0.0),
+        (T.log1p, 0.0),
+        (T.tan, 0.0),
+        (T.cos, 0.0),
+        (T.acos, 0.0),
+        (T.acosh, 0.0),
+        (T.sin, 0.0),
+        (T.sinh, 0.0),
+        (T.asin, 0.0),
+        (T.asinh, 0.0),
+        (T.atan, 0.0),
+        (T.atanh, 0.0),
+        (T.atan2, (1.0, 0.0)),
+        (T.sqrt, 0.0),
+        (T.rsqrt, 1.0),
+        (T.nextafter, (0.0, 1.0)),
+        (T.hypot, (1.0, 1.0)),
+        (T.copysign, (1.0, 1.0)),
+        (T.popcount, 0),
+        (T.fmod, (1.0, 1.0)),
+    ]
+
+    def make_ir_generator(op, arg):
+        def inner():
+            call_expr = op(*arg) if isinstance(arg, tuple) else op(arg)
+
+            @T.prim_func
+            def func():
+                T.evaluate(call_expr)
+
+            return func
+
+        inner.__name__ = f"{op.__name__}_of_literal"
+        return inner
+
+    for op, arg in op_list:
+        yield make_ir_generator(op, arg)
+
+
 ir_generator = tvm.testing.parameter(
     launch_env_thread,
     opt_gemm_normalize,
@@ -3820,6 +4000,7 @@ ir_generator = tvm.testing.parameter(
     nontrivial_range_axis,
     func_with_target_spec_by_config,
     func_with_target_spec_by_str,
+    func_with_target_and_host_spec_by_str,
     func_root_attr,
     func_trivial_root_block,
     func_nested_root_block,
@@ -3861,6 +4042,17 @@ ir_generator = tvm.testing.parameter(
     tvm_struct_set_generated_in_cpp,
     ir_module_with_attrs,
     nested_seqstmt,
+    subroutine_call,
+    subroutine_call_returning_int,
+    undefined_data_ptr_in_decl_buffer,
+    undefined_shape_in_decl_buffer,
+    undefined_stride_in_decl_buffer,
+    undefined_elem_offset_in_decl_buffer,
+    subroutine_call_without_arguments,
+    return_zero,
+    return_zero_private,
+    return_zero_private_with_attr,
+    *op_of_literal(),
 )
 
 

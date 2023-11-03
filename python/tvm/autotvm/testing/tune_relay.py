@@ -68,16 +68,10 @@ def _parse_args():
         help="The host address of the RPC tracker. Example: 192.168.6.66",
     )
     args.add_argument(
-        "--rpc-port",
-        type=int,
-        required=True,
-        help="The port of the RPC tracker. Example: 4445",
+        "--rpc-port", type=int, required=True, help="The port of the RPC tracker. Example: 4445"
     )
     args.add_argument(
-        "--rpc-key",
-        type=str,
-        required=True,
-        help="The key of the RPC tracker. Example: '3090ti'",
+        "--rpc-key", type=str, required=True, help="The key of the RPC tracker. Example: '3090ti'"
     )
     args.add_argument(
         "--work-dir",
@@ -91,26 +85,10 @@ def _parse_args():
         default=None,
         help="The layout of the workload. Example: 'NCHW', 'NHWC'",
     )
-    args.add_argument(
-        "--cache-dir",
-        type=str,
-        default=None,
-    )
-    args.add_argument(
-        "--number",
-        type=int,
-        default=3,
-    )
-    args.add_argument(
-        "--repeat",
-        type=int,
-        default=1,
-    )
-    args.add_argument(
-        "--min-repeat-ms",
-        type=int,
-        default=100,
-    )
+    args.add_argument("--cache-dir", type=str, default=None)
+    args.add_argument("--number", type=int, default=3)
+    args.add_argument("--repeat", type=int, default=1)
+    args.add_argument("--min-repeat-ms", type=int, default=100)
     args.add_argument(
         "--cpu-flush",
         type=lambda x: bool(strtobool(x)),
@@ -124,11 +102,7 @@ def _parse_args():
         required=True,
     )
     args.add_argument(
-        "--backend",
-        type=str,
-        choices=["graph", "vm"],
-        help="example: graph / vm",
-        required=True,
+        "--backend", type=str, choices=["graph", "vm"], help="example: graph / vm", required=True
     )
     parsed = args.parse_args()
     parsed.target = tvm.target.Target(parsed.target)
@@ -170,18 +144,9 @@ def main():
     describe()
     print(f"Workload: {ARGS.workload}")
     mod, params, (input_name, input_shape, input_dtype) = get_network(
-        ARGS.workload,
-        ARGS.input_shape,
-        layout=ARGS.layout,
-        cache_dir=ARGS.cache_dir,
+        ARGS.workload, ARGS.input_shape, layout=ARGS.layout, cache_dir=ARGS.cache_dir
     )
-    input_info = [
-        {
-            "name": input_name,
-            "shape": input_shape,
-            "dtype": input_dtype,
-        },
-    ]
+    input_info = [{"name": input_name, "shape": input_shape, "dtype": input_dtype}]
     input_data = {
         item["name"]: generate_input_data(item["shape"], item["dtype"]) for item in input_info
     }
@@ -211,7 +176,7 @@ def main():
         with ms.Profiler.timeit("Tuning"):
             if ARGS.num_trials > 0:
                 for i, task in enumerate(tasks):
-                    prefix = "[Task %2d/%2d] " % (i + 1, len(tasks))
+                    prefix = f"[Task {i + 1:2d}/{len(tasks):2d}] "
                     tuner_obj = XGBTuner(task, loss_type="reg")
                     n_trial = min(len(task.config_space), ARGS.num_trials)
                     tuner_obj.tune(
@@ -228,9 +193,7 @@ def main():
                         graph=mod["main"],
                         input_shapes={input_name: input_shape},
                         records=log_file,
-                        target_ops=[
-                            relay.op.get("nn.conv2d"),
-                        ],
+                        target_ops=[relay.op.get("nn.conv2d")],
                         target=ARGS.target,
                     )
                     executor.benchmark_layout_transform(min_exec_num=1000)

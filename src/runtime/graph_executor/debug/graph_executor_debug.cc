@@ -143,7 +143,7 @@ std::vector<double> GraphExecutorDebug::RunOpRPC(int index, int number, int repe
           ->
           operator()(module_, name, static_cast<int>(dev.device_type), dev.device_id, number,
                      repeat, min_repeat_ms, limit_zero_time_iterations, cooldown_interval_ms,
-                     repeats_to_cooldown, "");
+                     repeats_to_cooldown, /*cache_flush_bytes=*/0, "");
 
   int num_flat_args = num_inputs + num_outputs;
   auto values = std::make_unique<TVMValue[]>(num_flat_args);
@@ -192,7 +192,7 @@ Timer GraphExecutorDebug::RunOpHost(int index) {
  * \param name The function which needs to be invoked.
  * \param sptr_to_self Packed function pointer.
  */
-PackedFunc GraphExecutorDebug::GetFunction(const std::string& name,
+PackedFunc GraphExecutorDebug::GetFunction(const String& name,
                                            const ObjectPtr<Object>& sptr_to_self) {
   // return member functions during query.
   if (name == "debug_get_output") {

@@ -410,7 +410,7 @@ def test_underline_from_obj():
         T.evaluate(a)
         T.evaluate(b)
 
-    result = func.script(obj_to_underline=[func.params[0]])
+    result = func.with_attr("global_symbol", "main").script(obj_to_underline=[func.params[0]])
     assert result == format_script(
         """
         # from tvm.script import tir as T
@@ -442,7 +442,7 @@ def test_underline_from_multi_obj():
         T.evaluate(6)
         T.evaluate(7)
 
-    result = func.script(
+    result = func.with_attr("global_symbol", "main").script(
         obj_to_underline=[
             func.body.seq[1],
             func.body.seq[3],
@@ -477,7 +477,7 @@ def test_underline_func():
     def func():
         T.evaluate(0)
 
-    result = func.script(
+    result = func.with_attr("global_symbol", "main").script(
         path_to_underline=[
             ObjectPath.root(),
         ]

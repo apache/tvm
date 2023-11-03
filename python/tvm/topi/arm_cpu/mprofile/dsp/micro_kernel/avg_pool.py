@@ -55,7 +55,7 @@ def intrin_sum(shape, in_dtype, out_dtype, reset=False):
             ib = tvm.tir.ir_builder.create()
             ib.emit(
                 tvm.tir.call_extern(
-                    cc.dtype,
+                    "int32",
                     f"{func_prefix}_{width}_{uniq_id}",
                     aa.access_ptr("r"),
                     cc.access_ptr("w"),
@@ -68,7 +68,7 @@ def intrin_sum(shape, in_dtype, out_dtype, reset=False):
         def _reduce_reset():
             ib = tvm.tir.ir_builder.create()
             ib.emit(
-                tvm.tir.call_extern(cc.dtype, f"{func_prefix}_reset_{uniq_id}", cc.access_ptr("w"))
+                tvm.tir.call_extern("int32", f"{func_prefix}_reset_{uniq_id}", cc.access_ptr("w"))
             )
             return ib.get()
 
@@ -113,8 +113,8 @@ extern "C"
 __attribute__((always_inline)) static inline int32_t sum16_{N}_{uniq_id}(
     int16_t *arr,
     int16_t *res16,
-    long arr_offset,
-    int reset) {{
+    int32_t arr_offset,
+    int32_t reset) {{
   int n;
   int32_t *p32;
   int32_t res = reset ? 0 : *res16;

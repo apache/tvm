@@ -57,7 +57,9 @@ def test_reorder_block_iter_var():
     sch = tir.Schedule(matmul, debug_mask="all")
     C = sch.get_block("C")
     sch.reorder_block_iter_var(C, [2, 1, 0])
-    tvm.ir.assert_structural_equal(matmul_after_reorder_block_iter_var, sch.mod["main"])
+    tvm.ir.assert_structural_equal(
+        matmul_after_reorder_block_iter_var.with_attr("global_symbol", "matmul"), sch.mod["main"]
+    )
     verify_trace_roundtrip(sch=sch, mod=matmul)
 
 

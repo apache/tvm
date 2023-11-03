@@ -45,7 +45,7 @@ def get_pad_tuple1d(padding):
     elif isinstance(padding, int):
         pad_w = padding * 2
     else:
-        raise ValueError("Unknown padding option %s" % padding)
+        raise ValueError(f"Unknown padding option {padding}")
     pad_left = (pad_w + 1) // 2
     return pad_left, pad_w - pad_left
 
@@ -81,7 +81,7 @@ def get_pad_tuple2d(padding):
     elif isinstance(padding, int):
         pad_h = pad_w = padding * 2
     else:
-        raise ValueError("Unknown padding option %s" % padding)
+        raise ValueError(f"Unknown padding option {padding}")
     pad_top = (pad_h + 1) // 2
     pad_left = (pad_w + 1) // 2
     return pad_top, pad_left, pad_h - pad_top, pad_w - pad_left
@@ -123,7 +123,7 @@ def get_pad_tuple3d(padding):
     elif isinstance(padding, int):
         pad_d = pad_h = pad_w = padding * 2
     else:
-        raise ValueError("Unknown padding option %s" % padding)
+        raise ValueError(f"Unknown padding option {padding}")
     pad_front = (pad_d + 1) // 2
     pad_top = (pad_h + 1) // 2
     pad_left = (pad_w + 1) // 2

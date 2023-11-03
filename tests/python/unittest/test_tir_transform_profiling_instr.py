@@ -277,9 +277,11 @@ def test6_expected_output(a: T.handle, b: T.handle, c: T.handle, d: T.handle) ->
 # By default, only loops with siblings are instrumented.
 def test1():
     with tvm.transform.PassContext(config=default_lwp_test_config):
-        mod = tvm.IRModule.from_expr(input1)
+        mod = tvm.IRModule.from_expr(input1.with_attr("global_symbol", "main"))
         mod = tvm.tir.transform.InstrumentProfileIntrinsics()(mod)
-    tvm.ir.assert_structural_equal(mod["main"], test1_expected_output)
+    tvm.ir.assert_structural_equal(
+        mod["main"], test1_expected_output.with_attr("global_symbol", "main")
+    )
 
 
 # By default, only loops with siblings are instrumented. Here, 'lwp_max_depth'
@@ -288,9 +290,11 @@ def test2():
     test2_config = default_lwp_test_config.copy()
     test2_config.update({"tir.lwp_max_depth": 3})
     with tvm.transform.PassContext(config=test2_config):
-        mod = tvm.IRModule.from_expr(input1)
+        mod = tvm.IRModule.from_expr(input1.with_attr("global_symbol", "main"))
         mod = tvm.tir.transform.InstrumentProfileIntrinsics()(mod)
-    tvm.ir.assert_structural_equal(mod["main"], test1_expected_output)
+    tvm.ir.assert_structural_equal(
+        mod["main"], test1_expected_output.with_attr("global_symbol", "main")
+    )
 
 
 # test3: Use 'lwp_max_depth' to instrument loops upto a certain depth. This flag
@@ -301,18 +305,22 @@ def test3():
     test3_config = default_lwp_test_config.copy()
     test3_config.update({"tir.lwp_max_depth": 3, "tir.instr_siblings": False})
     with tvm.transform.PassContext(config=test3_config):
-        mod = tvm.IRModule.from_expr(input1)
+        mod = tvm.IRModule.from_expr(input1.with_attr("global_symbol", "main"))
         mod = tvm.tir.transform.InstrumentProfileIntrinsics()(mod)
-    tvm.ir.assert_structural_equal(mod["main"], test3_expected_output)
+    tvm.ir.assert_structural_equal(
+        mod["main"], test3_expected_output.with_attr("global_symbol", "main")
+    )
 
 
 # test4: Use 'lwp_min_height' to exclude inner loops upto a certain height from
 # instrumentation.
 def test4():
     with tvm.transform.PassContext(config=default_lwp_test_config):
-        mod = tvm.IRModule.from_expr(input2)
+        mod = tvm.IRModule.from_expr(input2.with_attr("global_symbol", "main"))
         mod = tvm.tir.transform.InstrumentProfileIntrinsics()(mod)
-    tvm.ir.assert_structural_equal(mod["main"], test4_expected_output)
+    tvm.ir.assert_structural_equal(
+        mod["main"], test4_expected_output.with_attr("global_symbol", "main")
+    )
 
 
 # test5: Use both 'lwp_min_height' and 'lwp_max_depth'.
@@ -323,17 +331,21 @@ def test5():
         {"tir.lwp_max_depth": 3, "tir.instr_siblings": False, "tir.lwp_min_height": 2}
     )
     with tvm.transform.PassContext(config=test5_config):
-        mod = tvm.IRModule.from_expr(input1)
+        mod = tvm.IRModule.from_expr(input1.with_attr("global_symbol", "main"))
         mod = tvm.tir.transform.InstrumentProfileIntrinsics()(mod)
-    tvm.ir.assert_structural_equal(mod["main"], test5_expected_output)
+    tvm.ir.assert_structural_equal(
+        mod["main"], test5_expected_output.with_attr("global_symbol", "main")
+    )
 
 
 # test6: Tests instrumentation for the parallel loops
 def test6():
     with tvm.transform.PassContext(config=default_lwp_test_config):
-        mod = tvm.IRModule.from_expr(input3)
+        mod = tvm.IRModule.from_expr(input3.with_attr("global_symbol", "main"))
         mod = tvm.tir.transform.InstrumentProfileIntrinsics()(mod)
-    tvm.ir.assert_structural_equal(mod["main"], test6_expected_output)
+    tvm.ir.assert_structural_equal(
+        mod["main"], test6_expected_output.with_attr("global_symbol", "main")
+    )
 
 
 if __name__ == "__main__":

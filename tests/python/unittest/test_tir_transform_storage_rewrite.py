@@ -299,7 +299,7 @@ def test_address_of():
             total_alloc[0] += n.extents[0].value
 
     total_alloc = [0]
-    mod = tvm.IRModule.from_expr(before)
+    mod = tvm.IRModule.from_expr(before.with_attr("global_symbol", "main"))
     mod.show()
     tvm.tir.stmt_functor.post_order_visit(mod["main"].body, verify)
     assert total_alloc[0] == 24
@@ -722,8 +722,10 @@ def test_access_in_let_value():
             x: T.float32 = T.exp(B[0], dtype="float32")
             A[i] = (x + 1.0) / (x - 1.0)
 
-    mod = tvm.tir.transform.StorageRewrite()(tvm.IRModule.from_expr(func))
-    tvm.ir.assert_structural_equal(mod["main"], func_rewritten)
+    mod = tvm.tir.transform.StorageRewrite()(
+        tvm.IRModule.from_expr(func.with_attr("global_symbol", "main"))
+    )
+    tvm.ir.assert_structural_equal(mod["main"], func_rewritten.with_attr("global_symbol", "main"))
 
 
 class BaseCompare(tvm.testing.CompareBeforeAfter):
@@ -858,6 +860,72 @@ class TestNoRewriteOfSharedNonFlatBuffer(BaseCompare):
             D[i, j] = C[i, j]
 
     expected = before
+
+
+class TestRewriteDeclBuffer(BaseCompare):
+    """A DeclBuffer node may appear in StorageRewrite's input"""
+
+    def before(A: T.Buffer(16, "float32"), D: T.Buffer(16, "float32")):
+        B = T.decl_buffer(16, dtype="float32")
+        C = T.decl_buffer(16, dtype="float32")
+
+        for i in range(16):
+            B[i] = A[i]
+
+        for i in range(16):
+            C[i] = 2.0 * B[i]
+
+        for i in range(16):
+            D[i] = C[i]
+
+    def expected(A: T.Buffer(16, "float32"), D: T.Buffer(16, "float32")):
+        B = T.decl_buffer(16, dtype="float32")
+        C = T.decl_buffer(16, dtype="float32", data=B.data)
+
+        for i in range(16):
+            B[i] = A[i]
+
+        for i in range(16):
+            C[i] = 2.0 * B[i]
+
+        for i in range(16):
+            D[i] = C[i]
+
+
+class TestNoOrphanedDeclBuffer(BaseCompare):
+    """A DeclBuffer of an unused Allocate should be removed
+
+    StorageRewrite removes any allocations that are unused.  When it
+    does so, any DeclBuffer that refers to that allocation should also
+    be removed.
+    """
+
+    def before(A: T.Buffer(16, "float32"), D: T.Buffer(16, "float32")):
+        B = T.decl_buffer(16, dtype="float32")
+        C = T.decl_buffer(16, dtype="float32")
+        Unused = T.decl_buffer(16, dtype="float32")
+
+        for i in range(16):
+            B[i] = A[i]
+
+        for i in range(16):
+            C[i] = 2.0 * B[i]
+
+        for i in range(16):
+            D[i] = C[i]
+
+    def expected(A: T.Buffer(16, "float32"), D: T.Buffer(16, "float32")):
+        B = T.decl_buffer(16, dtype="float32")
+        C = T.decl_buffer(16, dtype="float32", data=B.data)
+
+        for i in range(16):
+            B[i] = A[i]
+
+        for i in range(16):
+            C[i] = 2.0 * B[i]
+
+        for i in range(16):
+            D[i] = C[i]
 
 
 if __name__ == "__main__":

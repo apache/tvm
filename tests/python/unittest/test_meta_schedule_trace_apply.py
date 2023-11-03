@@ -15,16 +15,14 @@
 # specific language governing permissions and limitations
 # under the License.
 import pytest
-
 import tvm
-import tvm.testing
 import tvm.meta_schedule as ms
+import tvm.testing
 from tvm.script import tir as T
-from tvm.tir import Schedule, floormod, floordiv
-from tvm.tir.tensor_intrin.cuda import *
 from tvm.target import Target
 from tvm.target.codegen import llvm_lookup_intrinsic_id
-
+from tvm.tir import Schedule, floordiv, floormod
+from tvm.tir.tensor_intrin.cuda import *
 from tvm.tir.tensor_intrin.x86 import VNNI_DOT_16x4_INTRIN as VNNI_INTRIN
 
 
@@ -1885,6 +1883,7 @@ def test_dense_add_cpu():
                     ((i0 * 64) + i2),
                     i1,
                 ),
+                index_dtype="int32",
             ),
             pad_value=None,
         )
@@ -1950,6 +1949,7 @@ def test_dense_add_cpu_no_write_cache():
                     ((i1 * 32) + i3),
                     ((i0 * 16) + i2),
                 ),
+                index_dtype="int32",
             ),
             pad_value=None,
         )
@@ -2150,7 +2150,7 @@ def test_conv2d_int8_tensorcore():
         l28, l29 = sch.split(loop=l21, factors=[None, 16], preserve_unit_iters=True)
         l30, l31, l32, l33, l34, l35, l36, l37 = sch.get_loops(block=b1)
         sch.reorder(l34, l36, l29, l27, l25)
-        b38 = sch.blockize(loop=l29)
+        b38 = sch.blockize(target=l29)
         sch.annotate(
             block_or_loop=b38,
             ann_key="meta_schedule.auto_tensorize",
@@ -2243,7 +2243,7 @@ def test_conv2d_int8_tensorcore():
         l95, l96 = sch.split(loop=l91, factors=[None, 16], preserve_unit_iters=True)
         l97, l98, l99, l100, l101, l102, l103 = sch.get_loops(block=b86)
         sch.reorder(l102, l96, l94)
-        b104 = sch.blockize(loop=l96)
+        b104 = sch.blockize(target=l96)
         sch.annotate(
             block_or_loop=b104,
             ann_key="meta_schedule.auto_tensorize",
@@ -2308,7 +2308,7 @@ def test_conv2d_int8_tensorcore():
             l157,
         ) = sch.get_loops(block=b129)
         sch.reorder(l156, l144, l142)
-        b158 = sch.blockize(loop=l144)
+        b158 = sch.blockize(target=l144)
         sch.annotate(
             block_or_loop=b158,
             ann_key="meta_schedule.auto_tensorize",
@@ -2351,7 +2351,7 @@ def test_conv2d_int8_tensorcore():
             l191,
         ) = sch.get_loops(block=b159)
         sch.reorder(l190, l176, l174)
-        b192 = sch.blockize(loop=l176)
+        b192 = sch.blockize(target=l176)
         sch.annotate(
             block_or_loop=b192,
             ann_key="meta_schedule.auto_tensorize",
@@ -2554,7 +2554,7 @@ def test_conv2d_int8_vnni():
         l34, l35 = sch.split(loop=l26, factors=[None, 16], preserve_unit_iters=True)
         l36, l37, l38, l39, l40, l41, l42, l43, l44, l45, l46, l47 = sch.get_loops(block=b1)
         sch.reorder(l42, l43, l44, l45, l46, l35, l33)
-        b48 = sch.blockize(loop=l35)
+        b48 = sch.blockize(target=l35)
         sch.annotate(block_or_loop=b48, ann_key="meta_schedule.auto_tensorize", ann_val=VNNI_INTRIN)
         l49, l50, l51, l52, l53, l54, l55, l56, l57, l58 = sch.get_loops(block=b48)
         v59, v60, v61, v62 = sch.sample_perfect_tile(
@@ -3119,7 +3119,7 @@ def test_inline_order():
         l22, l23 = sch.split(loop=l15, factors=[None, 16], preserve_unit_iters=True)
         l24, l25, l26, l27, l28, l29, l30, l31 = sch.get_loops(block=b1)
         sch.reorder(l28, l30, l23, l21, l19)
-        b32 = sch.blockize(loop=l23)
+        b32 = sch.blockize(target=l23)
         sch.annotate(
             block_or_loop=b32,
             ann_key="meta_schedule.auto_tensorize",
@@ -3212,7 +3212,7 @@ def test_inline_order():
         l89, l90 = sch.split(loop=l85, factors=[None, 16], preserve_unit_iters=True)
         l91, l92, l93, l94, l95, l96, l97 = sch.get_loops(block=b80)
         sch.reorder(l96, l90, l88)
-        b98 = sch.blockize(loop=l90)
+        b98 = sch.blockize(target=l90)
         sch.annotate(
             block_or_loop=b98,
             ann_key="meta_schedule.auto_tensorize",
@@ -3277,7 +3277,7 @@ def test_inline_order():
             l151,
         ) = sch.get_loops(block=b123)
         sch.reorder(l150, l138, l136)
-        b152 = sch.blockize(loop=l138)
+        b152 = sch.blockize(target=l138)
         sch.annotate(
             block_or_loop=b152,
             ann_key="meta_schedule.auto_tensorize",
@@ -3320,7 +3320,7 @@ def test_inline_order():
             l185,
         ) = sch.get_loops(block=b153)
         sch.reorder(l184, l170, l168)
-        b186 = sch.blockize(loop=l170)
+        b186 = sch.blockize(target=l170)
         sch.annotate(
             block_or_loop=b186,
             ann_key="meta_schedule.auto_tensorize",

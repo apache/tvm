@@ -628,7 +628,7 @@ class GraphExecutorCodegen : public backend::MemoizedExprTranslator<std::vector<
 class GraphExecutorCodegenModule : public runtime::ModuleNode {
  public:
   GraphExecutorCodegenModule() {}
-  virtual PackedFunc GetFunction(const std::string& name, const ObjectPtr<Object>& sptr_to_self) {
+  virtual PackedFunc GetFunction(const String& name, const ObjectPtr<Object>& sptr_to_self) {
     if (name == "init") {
       return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
         ICHECK_EQ(args.num_args, 2) << "The expected of arguments are: "

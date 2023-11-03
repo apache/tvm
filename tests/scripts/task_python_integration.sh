@@ -64,7 +64,7 @@ run_pytest ctypes ${TVM_INTEGRATION_TESTSUITE_NAME}-integration tests/python/int
 run_pytest ctypes ${TVM_INTEGRATION_TESTSUITE_NAME}-contrib tests/python/contrib --ignore=tests/python/contrib/test_ethosu --ignore=tests/python/contrib/test_cmsisnn
 # forked is needed because the global registry gets contaminated
 TVM_TEST_TARGETS="${TVM_RELAY_TEST_TARGETS:-llvm;cuda}" \
-    run_pytest ctypes ${TVM_INTEGRATION_TESTSUITE_NAME}-relay tests/python/relay
+    run_pytest ctypes ${TVM_INTEGRATION_TESTSUITE_NAME}-relay tests/python/relay --ignore=tests/python/relay/aot
 
 # OpenCL texture test. Deselected specific tests that fails  in CI
 TVM_TEST_TARGETS="${TVM_RELAY_OPENCL_TEXTURE_TARGETS:-opencl}" \

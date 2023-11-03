@@ -56,7 +56,7 @@ class TFLiteModel:
             elif activation == "NONE":
                 pass
             else:
-                assert False, "Unsupported activation {}".format(activation)
+                assert False, f"Unsupported activation {activation}"
             return op
 
         return conv2d_single_function

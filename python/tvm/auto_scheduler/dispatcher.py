@@ -380,7 +380,7 @@ class ApplyHistoryBestOrSample(ApplyHistoryBest):
         task = SearchTask(workload_key=workload_key, target=target)
         measure_ctx = LocalRPCMeasureContext(min_repeat_ms=300)
 
-        log_file = self.log_dir.relpath("%s.log" % decode_workload_key(workload_key)[0])
+        log_file = self.log_dir.relpath(f"{decode_workload_key(workload_key)[0]}.log")
 
         while ret is None:
             tune_option = TuningOptions(

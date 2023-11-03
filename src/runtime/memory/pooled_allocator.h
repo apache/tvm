@@ -18,22 +18,23 @@
  */
 
 /*!
- * \file runtime/pooled_allocator.h
+ * \file src/runtime/memory/pooled_allocator.h
  */
-#ifndef TVM_RUNTIME_VM_POOLED_ALLOCATOR_H_
-#define TVM_RUNTIME_VM_POOLED_ALLOCATOR_H_
+#ifndef TVM_RUNTIME_MEMORY_POOLED_ALLOCATOR_H_
+#define TVM_RUNTIME_MEMORY_POOLED_ALLOCATOR_H_
 
 #include <tvm/runtime/device_api.h>
-#include <tvm/runtime/vm/memory_manager.h>
+#include <tvm/runtime/memory/memory_manager.h>
 
 #include <atomic>
 #include <mutex>
+#include <string>
 #include <unordered_map>
 #include <vector>
 
 namespace tvm {
 namespace runtime {
-namespace vm {
+namespace memory {
 
 class PooledAllocator final : public Allocator {
  public:
@@ -57,6 +58,7 @@ class PooledAllocator final : public Allocator {
     Buffer buf;
     buf.device = device_;
     buf.size = size;
+    buf.alloc_type = kPooled;
     try {
       buf.data = DeviceAPI::Get(device_)->AllocDataSpace(device_, size, alignment, type_hint);
     } catch (InternalError& err) {
@@ -69,6 +71,14 @@ class PooledAllocator final : public Allocator {
     used_memory_.fetch_add(size, std::memory_order_relaxed);
     VLOG(1) << "allocate " << size << " B, used memory " << used_memory_ << " B";
     return buf;
+  }
+
+  Buffer Alloc(ShapeTuple shape, DLDataType type_hint, const std::string& mem_scope) override {
+    if (mem_scope.empty() || mem_scope == "global") {
+      return Allocator::Alloc(device_, shape, type_hint, mem_scope);
+    }
+    LOG(FATAL) << "This alloc should be implemented";
+    return {};
   }
 
   void Free(const Buffer& buffer) override {
@@ -104,8 +114,8 @@ class PooledAllocator final : public Allocator {
   Device device_;
 };
 
-}  // namespace vm
+}  // namespace memory
 }  // namespace runtime
 }  // namespace tvm
 
-#endif  // TVM_RUNTIME_VM_POOLED_ALLOCATOR_H_
+#endif  // TVM_RUNTIME_MEMORY_POOLED_ALLOCATOR_H_

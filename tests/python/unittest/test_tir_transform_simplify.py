@@ -1689,5 +1689,73 @@ class TestSimplifyBufferStore(BaseBeforeAfter):
         A[0] = 12
 
 
+class TestSimplifyTrivialLetBufferVar(BaseBeforeAfter):
+    """A LetStmt used in a buffer definition should be retained"""
+
+    def before(A_ptr: T.handle("float32")):
+        A_ptr_redef: T.handle("float32") = A_ptr
+        A = T.decl_buffer(1, "float32", data=A_ptr_redef)
+        A[0] = 42.0
+
+    expected = before
+
+
+class TestSimplifyTrivialLetElemOffset(BaseBeforeAfter):
+    """A LetStmt used in a buffer definition should be retained"""
+
+    def before(A_ptr: T.handle("float32"), A_offset: T.int32):
+        A_offset_redef = A_offset
+        A = T.decl_buffer(1, "float32", elem_offset=A_offset_redef, data=A_ptr)
+        A[0] = 42.0
+
+    expected = before
+
+
+class TestSimplifyTrivialLetShape(BaseBeforeAfter):
+    """A LetStmt used in a buffer definition should be retained"""
+
+    def before(A_ptr: T.handle("float32"), A_size: T.int32):
+        A_size_redef = A_size
+        A = T.decl_buffer([A_size_redef], "float32", data=A_ptr)
+        A[0] = 42.0
+
+    expected = before
+
+
+class TestSimplifyTrivialLetStride(BaseBeforeAfter):
+    """A LetStmt used in a buffer definition should be retained"""
+
+    def before(A_ptr: T.handle("float32"), A_stride: T.int32):
+        A_stride_redef = A_stride
+        A = T.decl_buffer(1, "float32", strides=[A_stride_redef], data=A_ptr)
+        A[0] = 42.0
+
+    expected = before
+
+
+class TestBufferShapeConstraint(BaseBeforeAfter):
+    def before(a: T.handle):
+        n = T.int64()
+        A = T.match_buffer(a, (n * 32,), "float32")
+        A[T.min(T.int64(0), n)] = T.float32(0)
+
+    def expected(a: T.handle):
+        n = T.int64()
+        A = T.match_buffer(a, (n * 32,), "float32")
+        A[T.int64(0)] = T.float32(0)
+
+
+class TestBufferShapeConstraintWithOffset(BaseBeforeAfter):
+    def before(a: T.handle):
+        n = T.int64()
+        A = T.match_buffer(a, (n * 32 + 1 - 2,), "float32")
+        A[T.min(T.int64(1), n)] = T.float32(0)
+
+    def expected(a: T.handle):
+        n = T.int64()
+        A = T.match_buffer(a, (n * 32 + 1 - 2,), "float32")
+        A[T.int64(1)] = T.float32(0)
+
+
 if __name__ == "__main__":
     tvm.testing.main()

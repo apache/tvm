@@ -64,9 +64,10 @@ class CodeGenCPU : public CodeGenLLVM {
   CodeGenCPU();
   virtual ~CodeGenCPU();
 
-  void Init(const std::string& module_name, LLVMTarget* llvm_target, bool system_lib,
-            bool dynamic_lookup, bool target_c_runtime) override;
-  void AddFunction(const PrimFunc& f) override;
+  void Init(const std::string& module_name, LLVMTarget* llvm_target,
+            Optional<String> system_lib_prefix, bool dynamic_lookup,
+            bool target_c_runtime) override;
+  void AddFunction(const GlobalVar& gvar, const PrimFunc& f) override;
   void AddMainFunction(const std::string& entry_func_name) override;
   std::unique_ptr<llvm::Module> Finish() override;
   void VisitStmt_(const AssertStmtNode* op) override;
@@ -191,7 +192,9 @@ class CodeGenCPU : public CodeGenLLVM {
   // internal debug information, to be populated by
   std::unique_ptr<DebugInfo> dbg_info_;
   bool target_c_runtime_;
-  bool is_system_lib_;
+  // The system lib prefix if it is not nullopt, then we should do
+  // system lib registration with the given prefix. The prefix can be ""
+  Optional<String> system_lib_prefix_;
 
   // Get the DWARF type corresponding to the LLVM type |ty|. The current API in practice only
   // generates |int32|, and |int8*|.

@@ -750,6 +750,37 @@ def test_not_match_dominator():
     assert not diamond.match(out)
 
 
+def test_not_match_dominator2():
+    # Pattern
+    P = is_op("nn.conv2d")(wildcard(), wildcard())  # 'parent'
+    I = is_op("nn.relu")(wildcard())  # 'intermediate' ('path' in the code)
+    C = is_op("add")(wildcard(), wildcard())  # 'child'
+    pattern = dominates(P, I, C)
+
+    #       n6(P)
+    #      /  \
+    #     n7   \
+    #    /      \
+    #    n8(P)  n9(I)
+    #    \      /
+    #     \    /
+    #      \  /
+    #      n10(C)
+
+    x = relay.var("x")
+    w = relay.var("w")
+    n6 = relay.op.nn.conv2d(x, w)  # matches P
+    n7 = relay.op.tanh(n6)  # does not match I
+    n8 = relay.op.nn.conv2d(n7, w)  # matches P
+    n9 = relay.op.nn.relu(n6)  # matches I
+    n10 = relay.add(n8, n9)  # matches C
+
+    # Does not match: Can't match the parent pattern P at both 8 and 6.
+    # Note that if we did allow P to be used twice the implementation would
+    # need to be changed to not 'jump over' n7.
+    assert not pattern.match(n10)
+
+
 def test_match_typed_dominator():
     # Pattern
     is_conv2d = is_op("nn.conv2d")(wildcard(), wildcard())
@@ -1962,6 +1993,62 @@ def test_partition_parallel_branch_with_same_input():
     partitioned = pattern.partition(add)
     reference = f(l, conv2d, r)
     assert tvm.ir.structural_equal(partitioned, reference)
+
+
+def test_rewrite_with_pattern_recursion():
+    data = relay.var("data", relay.TensorType((2, 8), "float32"))
+    dense_weight = relay.const(np.zeros((4, 8)))
+    feat = relay.nn.dense(data, dense_weight)
+    feat = relay.cast(feat, "float32")
+    feat = relay.cast(feat, "float32")
+    feat = relay.cast(feat, "float32")
+    feat = relay.cast(feat, "float32")
+    feat = relay.cast(feat, "float32")
+    oup = relay.cast(feat, "float32")
+
+    expected = relay.nn.relu(oup)
+
+    class TheRewrite(DFPatternCallback):
+        def __init__(self, pattern):
+            super(TheRewrite, self).__init__(rewrite_once=True)
+            self.pattern = pattern
+
+        def callback(self, pre, post, node_map):
+            return relay.nn.relu(post)
+
+    def test_reset_call_args():
+        dense_pattern = is_op("nn.dense")(wildcard(), wildcard())
+        wildcard_redirect = wildcard()
+        the_pattern = is_op("cast")(wildcard_redirect)
+        the_pattern2 = the_pattern | dense_pattern
+        wildcard_redirect.redirect_to(the_pattern2)
+
+        actual = rewrite(TheRewrite(the_pattern), oup)
+        tvm.ir.assert_structural_equal(actual, expected)
+
+    def test_reset_alt_left():
+        dense_pattern = is_op("nn.dense")(wildcard(), wildcard())
+        wildcard_redirect = wildcard()
+        or_pattern = wildcard_redirect | dense_pattern
+        the_pattern = is_op("cast")(or_pattern)
+        wildcard_redirect.redirect_to(the_pattern)
+
+        actual = rewrite(TheRewrite(the_pattern), oup)
+        tvm.ir.assert_structural_equal(actual, expected)
+
+    def test_reset_alt_right():
+        dense_pattern = is_op("nn.dense")(wildcard(), wildcard())
+        wildcard_redirect = wildcard()
+        or_pattern = dense_pattern | wildcard_redirect
+        the_pattern = is_op("cast")(or_pattern)
+        wildcard_redirect.redirect_to(the_pattern)
+
+        actual = rewrite(TheRewrite(the_pattern), oup)
+        tvm.ir.assert_structural_equal(actual, expected)
+
+    test_reset_call_args()
+    test_reset_alt_left()
+    test_reset_alt_right()
 
 
 if __name__ == "__main__":

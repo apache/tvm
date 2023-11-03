@@ -45,9 +45,12 @@ class VarUseDefAnalyzer : public StmtExprVisitor {
   // be accessible to the users.
   bool visit_thread_extent_{true};
   Array<Var> undefined_;
+  Array<Buffer> undefined_buffers_;
 
   std::unordered_map<const VarNode*, int> use_count_;
   std::unordered_map<const VarNode*, int> def_count_;
+  std::unordered_map<const BufferNode*, int> buffer_use_count_;
+  std::unordered_map<const BufferNode*, int> buffer_def_count_;
 
  private:
   ExprDeepEqual deep_equal_;
@@ -57,6 +60,8 @@ class VarUseDefAnalyzer : public StmtExprVisitor {
   void VisitStmt_(const LetStmtNode* op) final;
 
   void VisitStmt_(const ForNode* op) final;
+
+  void VisitStmt_(const DeclBufferNode* op) final;
 
   void VisitStmt_(const AllocateNode* op) final;
 
@@ -72,11 +77,13 @@ class VarUseDefAnalyzer : public StmtExprVisitor {
 
   void VisitExpr_(const BufferLoadNode* op) final;
 
-  void HandleDef(const VarNode* v);
+  void HandleDef(const Var& v);
+  void HandleUse(const Var& v);
 
-  void HandleUse(const VarNode* v);
+  void HandleDef(const Buffer& buf);
+  void HandleUse(const Buffer& buf);
 
-  void VisitBuffer(Buffer buffer);
+  void VisitBuffer(const Buffer& buffer);
 };
 
 }  // namespace tir

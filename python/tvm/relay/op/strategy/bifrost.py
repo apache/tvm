@@ -74,7 +74,7 @@ def conv2d_strategy_bifrost(attrs, inputs, out_type, target):
                 name="conv2d_nhwc_spatial_pack.bifrost",
             )
         else:
-            raise RuntimeError("Unsupported conv2d layout {} for Mali(Bifrost)".format(layout))
+            raise RuntimeError(f"Unsupported conv2d layout {layout} for Mali(Bifrost)")
     elif is_depthwise_conv2d(data.shape, layout, kernel.shape, kernel_layout, groups):
         if layout == "NCHW":
             assert kernel_layout == "OIHW"
@@ -92,9 +92,7 @@ def conv2d_strategy_bifrost(attrs, inputs, out_type, target):
                 name="depthwise_conv2d_nchw.bifrost",
             )
         else:
-            raise RuntimeError(
-                "Unsupported depthwise_conv2d layout {} for Mali(Bifrost)".format(layout)
-            )
+            raise RuntimeError(f"Unsupported depthwise_conv2d layout {layout} for Mali(Bifrost)")
     else:  # group_conv2d
         raise RuntimeError("group_conv2d is not supported for Mali(Bifrost)")
     return strategy
@@ -118,9 +116,7 @@ def conv2d_winograd_without_weight_transform_strategy_bifrost(attrs, inputs, out
             name="conv2d_nchw_winograd.bifrost",
         )
     else:
-        raise RuntimeError(
-            "Unsupported conv2d_winograd_without_weight_transform layout {}".format(layout)
-        )
+        raise RuntimeError(f"Unsupported conv2d_winograd_without_weight_transform layout {layout}")
     return strategy
 
 

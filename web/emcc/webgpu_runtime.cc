@@ -159,7 +159,7 @@ class WebGPUModuleNode final : public runtime::ModuleNode {
 
   const char* type_key() const final { return "webgpu"; }
 
-  PackedFunc GetFunction(const std::string& name, const ObjectPtr<Object>& sptr_to_self) final {
+  PackedFunc GetFunction(const String& name, const ObjectPtr<Object>& sptr_to_self) final {
     auto it = smap_.find(name);
     if (it != smap_.end()) {
       FunctionInfo info = fmap_.at(name);
@@ -173,13 +173,13 @@ class WebGPUModuleNode final : public runtime::ModuleNode {
     }
   }
 
-  void SaveToFile(const std::string& file_name, const std::string& format) final {
+  void SaveToFile(const String& file_name, const String& format) final {
     LOG(FATAL) << "Not implemented";
   }
 
   void SaveToBinary(dmlc::Stream* stream) final { LOG(FATAL) << "Not implemented"; }
 
-  std::string GetSource(const std::string& format) final {
+  String GetSource(const String& format) final {
     // can only return source code.
     return source_;
   }

@@ -135,7 +135,8 @@ static inline Expr Dequantize(const Expr& data, const Expr& input_scale,
 
   return DequantizeLower(data, input_scale, input_zero_point, types, attrs.operator->());
 }
-Expr MakeDequantize(Expr data, Expr input_scale, Expr input_zero_point, int axis);
+Expr MakeDequantize(Expr data, Expr input_scale, Expr input_zero_point, int axis,
+                    DataType out_dtype = DataType::Float(32));
 
 Expr QuantizeLower(const Expr& input_tensor, const Expr& output_scale,
                    const Expr& output_zero_point, const Array<tvm::relay::Type>& types,

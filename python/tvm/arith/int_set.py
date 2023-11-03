@@ -81,6 +81,14 @@ class IntervalSet(IntSet):
         self.__init_handle_by_constructor__(_ffi_api.IntervalSet, min_value, max_value)
 
 
+@tvm._ffi.register_object("arith.PresburgerSet")
+class PresburgerSet(IntSet):
+    """Represent of Presburger Set"""
+
+    def __init__(self):
+        self.__init_handle_by_constructor__(_ffi_api.PresburgerSet)
+
+
 def estimate_region_lower_bound(region, var_dom, predicate):
     """Analyze the region with affine map, given the domain of variables and their predicate
     Some subregion may be discarded during the lower-bound analysis.

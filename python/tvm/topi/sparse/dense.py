@@ -56,7 +56,7 @@ def dense_si(data, indices, indptr, weight, bias=None):
     ), "only support 2-dim dense"
     assert isinstance(
         weight, te.tensor.Tensor
-    ), "weight matrix is assumed to be tvm.te.Tensor, but weight is `%s`" % (type(weight))
+    ), f"weight matrix is assumed to be tvm.te.Tensor, but weight is `{type(weight)}`"
     if bias is not None:
         assert len(bias.shape) == 1
     dtype = data.dtype
@@ -135,7 +135,7 @@ def dense_sw(data, w_data, w_indices, w_indptr, bias=None):
     ), "only support 2-dim dense"
     assert isinstance(
         data, te.tensor.Tensor
-    ), "data matrix is assumed to be tvm.te.Tensor, but weight is `%s`" % (type(data))
+    ), f"data matrix is assumed to be tvm.te.Tensor, but weight is `{type(data)}`"
     if bias is not None:
         assert len(bias.shape) == 1
     dtype = data.dtype
@@ -212,10 +212,6 @@ def dense(data, weight, bias=None):
     else:
         raise NotImplementedError(
             "implementation for %s as data and %s as weights, "
-            "is not supported yet."
-            % (
-                type(data),
-                type(weight),
-            )
+            "is not supported yet." % (type(data), type(weight))
         )
     return ret

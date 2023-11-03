@@ -453,7 +453,7 @@ def verify_dynamic_strided_slice(in_shape, begin, end, strides=None):
         foo(data_nd, begin_nd, end_nd, strides_nd, out_nd)
         tvm.testing.assert_allclose(out_nd.numpy(), out_npy)
 
-    for target in ["llvm", "opencl", "sdaccel", "aocl_sw_emu"]:
+    for target in ["llvm", "opencl", "sdaccel", "aocl_sw_emu", "opencl --device=adreno"]:
         check_device(target)
 
 

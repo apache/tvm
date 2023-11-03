@@ -64,7 +64,7 @@ def _tensorlist_set_item():
         input_rank = len(input_t_shape)
 
         if input_ta_shape is None:
-            tensor_name = "tensor{}".format(input_rank)
+            tensor_name = f"tensor{input_rank}"
             tensor_func = prelude.get_tensor_ctor(tensor_name, dtype_str)
             v = tensor_func(inputs[2])
             write_func = prelude.get_global_var("tensor_array_write", dtype_str)

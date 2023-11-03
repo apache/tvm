@@ -441,7 +441,7 @@ struct SymbolicLimits {
 /*!
  * \brief Opaque expression representing positive infinity.
  *
- *  It can can only be used as parameter of by min/max
+ *  It can only be used as parameter of by min/max
  *  for integer analysis and cannot be used in normal expressions.
  *
  * \return positive infinity.
@@ -459,7 +459,7 @@ inline bool is_pos_inf(const PrimExpr& value) { return value.same_as(SymbolicLim
 /*!
  * \brief Opaque expression representing negative infinity.
  *
- *  It can can only be used as parameter of by min/max
+ *  It can only be used as parameter of by min/max
  *  for integer analysis and cannot be used in normal expressions.
  *
  * \return negative infinity.

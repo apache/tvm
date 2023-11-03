@@ -210,5 +210,66 @@ RELAY_REGISTER_OP("vision.all_class_non_max_suppression")
     .set_support_level(5)
     .add_type_rel("AllClassNMS", AllClassNMSRel);
 
+TVM_REGISTER_NODE_TYPE(RegularNonMaximumSuppressionAttrs);
+
+bool RegularNMSRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
+                   const TypeReporter& reporter) {
+  ICHECK_EQ(types.size(), 3);
+  const auto* boxes = types[0].as<TensorTypeNode>();
+  if (boxes == nullptr) return false;
+  const auto* scores = types[1].as<TensorTypeNode>();
+  if (scores == nullptr) return false;
+
+  const auto& boxes_shape = boxes->shape;
+  const auto& scores_shape = scores->shape;
+  ICHECK_EQ(boxes_shape.size(), 3) << "Input boxes should be 3-D.";
+  ICHECK_EQ(scores_shape.size(), 3) << "Input scores count should be 3-D.";
+
+  IndexExpr num_batches = boxes_shape[0];
+
+  const auto* param = attrs.as<RegularNonMaximumSuppressionAttrs>();
+  CHECK(param);
+
+  std::vector<Type> fields;
+  std::vector<IndexExpr> nmsed_boxes_shape{num_batches, param->max_detections, 4};
+  std::vector<IndexExpr> nmsed_classes_shape{num_batches, param->max_detections};
+  std::vector<IndexExpr> nmsed_scores_shape{num_batches, param->max_detections};
+  std::vector<IndexExpr> nmsed_detections_number_shape{num_batches};
+  fields.push_back(TensorType(nmsed_boxes_shape, DataType::Float(32)));
+  fields.push_back(TensorType(nmsed_classes_shape, DataType::Float(32)));
+  fields.push_back(TensorType(nmsed_scores_shape, DataType::Float(32)));
+  fields.push_back(TensorType(nmsed_detections_number_shape, DataType::Int(32)));
+
+  reporter->Assign(types[2], TupleType(Array<Type>(fields)));
+  return true;
+}
+
+Expr MakeRegularNMS(Expr boxes, Expr scores, int32_t max_detections_per_class,
+                    int32_t max_detections, int32_t num_classes, double iou_threshold,
+                    double score_threshold) {
+  auto attrs = make_object<RegularNonMaximumSuppressionAttrs>();
+  attrs->max_detections_per_class = max_detections_per_class;
+  attrs->max_detections = max_detections;
+  attrs->num_classes = num_classes;
+  attrs->iou_threshold = iou_threshold;
+  attrs->score_threshold = score_threshold;
+  static const Op& op = Op::Get("vision.regular_non_max_suppression");
+  return Call(op, {boxes, scores}, Attrs(attrs), {});
+}
+
+TVM_REGISTER_GLOBAL("relay.op.vision._make.regular_non_max_suppression")
+    .set_body_typed(MakeRegularNMS);
+
+RELAY_REGISTER_OP("vision.regular_non_max_suppression")
+    .describe(R"doc(TBD)doc" TVM_ADD_FILELINE)
+    .set_num_inputs(2)
+    .add_argument("boxes", "Tensor",
+                  "3-D tensor with shape (batch_size, num_boxes, 4). The four values in boxes "
+                  "encode (ymin, xmin, ymax, xmax) coordinates of a box.")
+    .add_argument("scores", "Tensor",
+                  "3-D tensor with shape (batch_size, num_boxes, num_classes_with_background).")
+    .set_support_level(5)
+    .add_type_rel("RegularNMS", RegularNMSRel);
+
 }  // namespace relay
 }  // namespace tvm

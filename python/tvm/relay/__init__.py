@@ -73,6 +73,7 @@ setrecursionlimit(10000)
 
 # Span
 Span = base.Span
+SequentialSpan = base.SequentialSpan
 SourceName = base.SourceName
 
 # Type

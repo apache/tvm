@@ -94,15 +94,15 @@ class VulkanModuleNode final : public runtime::ModuleNode {
     return ModulePropertyMask::kBinarySerializable | ModulePropertyMask::kRunnable;
   }
 
-  PackedFunc GetFunction(const std::string& name, const ObjectPtr<Object>& sptr_to_self) final;
+  PackedFunc GetFunction(const String& name, const ObjectPtr<Object>& sptr_to_self) final;
 
   std::shared_ptr<VulkanPipeline> GetPipeline(size_t device_id, const std::string& func_name,
                                               size_t num_pack_args);
 
-  void SaveToFile(const std::string& file_name, const std::string& format) final;
+  void SaveToFile(const String& file_name, const String& format) final;
 
   void SaveToBinary(dmlc::Stream* stream) final;
-  std::string GetSource(const std::string& format) final;
+  String GetSource(const String& format) final;
 
  private:
   // function information table.

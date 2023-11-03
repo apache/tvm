@@ -20,7 +20,9 @@ from __future__ import absolute_import as _abs
 
 import subprocess
 import os
+import shutil
 from .._ffi.base import py_str
+from . import utils as _utils, tar as _tar
 from .cc import get_target_by_dump_machine
 
 
@@ -68,3 +70,56 @@ create_shared.output_format = "so"
 create_shared.get_target_triple = (
     get_target_by_dump_machine(os.environ["TVM_NDK_CC"]) if "TVM_NDK_CC" in os.environ else None
 )
+
+
+def create_staticlib(output, inputs):
+    """Create static library:
+
+    Parameters
+    ----------
+    output : str
+        The target static library.
+
+    inputs : list
+        List of object files or tar files
+    """
+    if "TVM_NDK_CC" not in os.environ:
+        raise RuntimeError(
+            "Require environment variable TVM_NDK_CC" " to be the NDK standalone compiler"
+        )
+    output_name = os.path.basename(output)
+
+    temp = _utils.tempdir()
+    tmp_output = temp.relpath("lib" + output_name)
+    objects = _tar.normalize_file_list_by_unpacking_tars(temp, inputs)
+
+    compiler = os.environ["TVM_NDK_CC"]
+    base_path = os.path.dirname(compiler)
+    ar_path = os.path.join(base_path, "llvm-ar")
+    cmd = [ar_path]
+    cmd += ["qcs", tmp_output]
+    cmd += objects
+
+    proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+    (out, _) = proc.communicate()
+    if proc.returncode != 0:
+        msg = "AR error:\n"
+        msg += py_str(out)
+        msg += "\nCommand line: " + " ".join(cmd)
+        raise RuntimeError(msg)
+
+    ranlib_path = os.path.join(base_path, "llvm-ranlib")
+    cmd = [ranlib_path]
+    cmd += [tmp_output]
+    proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+    (out, _) = proc.communicate()
+    if proc.returncode != 0:
+        msg = "Ranlib error:\n"
+        msg += py_str(out)
+        msg += "\nCommand line: " + " ".join(cmd)
+        raise RuntimeError(msg)
+
+    shutil.move(tmp_output, output)
+
+
+create_staticlib.output_format = "a"

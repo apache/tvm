@@ -81,7 +81,7 @@ void* HexagonDeviceAPI::AllocDataSpace(Device dev, int ndim, const int64_t* shap
   // until the AoT executor's multi-device dispatch code is mature. --cconvey 2022-08-26
   CHECK(dev.device_type == kDLHexagon)
       << "dev.device_type: " << dev.device_type << " DeviceName(" << dev.device_type
-      << "): " << DeviceName(dev.device_type) << "";
+      << "): " << DLDeviceType2Str(dev.device_type) << "";
 
   CHECK(ndim >= 0 && ndim <= 2)
       << "Hexagon Device API supports only 1d and 2d allocations, but received ndim = " << ndim;

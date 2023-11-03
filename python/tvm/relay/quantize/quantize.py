@@ -128,7 +128,7 @@ class QConfig(Object):
 
     def __setattr__(self, name, value):
         if name in QConfig._node_defaults:
-            raise AttributeError("'%s' object cannot set attribute '%s'" % (str(type(self)), name))
+            raise AttributeError(f"'{type(self)}' object cannot set attribute '{name}'")
         return super(QConfig, self).__setattr__(name, value)
 
 
@@ -304,7 +304,7 @@ def _bind_params(func, params):
             continue
         arg = name_dict[k]
         if arg is None:
-            raise ValueError("Multiple args in the function have name %s" % k)
+            raise ValueError(f"Multiple args in the function have name {k}")
         bind_dict[arg] = _expr.const(v)
     return _expr.bind(func, bind_dict)
 

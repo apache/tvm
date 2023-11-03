@@ -471,22 +471,42 @@ def test_bound_simplification_failure():
     _check(te.compute((10,), lambda i: A[i]))
 
 
+def test_bound_block():
+    def _check(shape, expected, block_size=4):
+        N, C, H, W = shape
+        tail = C % block_size
+        chunks = C // block_size
+        if tail != 0:
+            chunks += 1
+        A = te.placeholder((N, C, H, W), name="A")
+        pad_value = tvm.tir.const(0, A.dtype)
+
+        def _reorder_data_nchw(*indices):
+            condition = []
+            condition.append(indices[1] == chunks - 1)
+            condition.append(indices[4] >= tail)
+            condition = tvm.tir.all(*condition)
+            return tvm.tir.if_then_else(
+                condition,
+                pad_value,
+                A[indices[0], indices[1] * block_size + indices[4], indices[2], indices[3]],
+            )
+
+        repack = te.compute((N, chunks, H, W, block_size), _reorder_data_nchw, name="repack")
+        B = te.compute(
+            (N, C, H, W),
+            lambda n, c, h, w: repack[n, c // block_size, h, w, c % block_size],
+            name="back_repack",
+        )
+        s = te.create_schedule([B.op])
+        bounds = tvm.te.schedule.InferBound(s)
+        # Block for intermediate compute function should be equal to 4 for all cases except than number of channels is less than 4
+        assert bounds[repack.op.axis[4]].extent.value == expected
+
+    _check((1, 4, 6, 6), 4)
+    _check((1, 7, 6, 6), 4)
+    _check((1, 3, 6, 6), 3)
+
+
 if __name__ == "__main__":
-    test_bound_nest_thread()
-    test_bound1()
-    test_bound_nest_group()
-    test_bound_group_schedule()
-    test_bound_scan()
-    test_bound3()
-    test_bound_rfactor()
-    test_bound_blur()
-    test_bound_conv1d()
-    test_bound2()
-    test_gemm_bound()
-    test_bound_warp()
-    test_bound_tensor_compute_op()
-    test_bound_simplification_failure()
-    test_bound_fusesplit1()
-    test_bound_fusesplit2()
-    test_bound_split_divisible()
-    test_bound_tile_divisible()
+    tvm.testing.main()

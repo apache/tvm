@@ -116,11 +116,12 @@ bool MultiBoxTransformLocRel(const Array<Type>& types, int num_inputs, const Att
 }
 
 Expr MakeMultiBoxTransformLoc(Expr cls_prob, Expr loc_pred, Expr anchor, bool clip,
-                              double threshold, Array<IndexExpr> variances) {
+                              double threshold, Array<IndexExpr> variances, bool keep_background) {
   auto attrs = make_object<MultiBoxTransformLocAttrs>();
   attrs->clip = std::move(clip);
   attrs->threshold = std::move(threshold);
   attrs->variances = std::move(variances);
+  attrs->keep_background = std::move(keep_background);
   static const Op& op = Op::Get("vision.multibox_transform_loc");
   return Call(op, {cls_prob, loc_pred, anchor}, Attrs(attrs), {});
 }

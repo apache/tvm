@@ -24,3 +24,4 @@ build system.
 * `C++ doyxgen API <doxygen/index.html>`_
 * `Typescript typedoc API <typedoc/index.html>`_
 * `Java Javadoc API <javadoc/index.html>`_
+* `Rust Rustdoc API <rust/index.html>`_

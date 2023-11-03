@@ -220,12 +220,10 @@ class XGBoostCostModel(CostModel):
             callbacks=[
                 CustomCallback(
                     stopping_rounds=20,
-                    metric="tr-a-recall@%d" % plan_size,
+                    metric=f"tr-a-recall@{plan_size}",
                     evals=[(dtrain, "tr")],
                     maximize=True,
-                    fevals=[
-                        xgb_average_recalln_curve_score(plan_size),
-                    ],
+                    fevals=[xgb_average_recalln_curve_score(plan_size)],
                     verbose_eval=self.log_interval,
                     loss_type=self.loss_type,
                 )
@@ -305,12 +303,10 @@ class XGBoostCostModel(CostModel):
             callbacks=[
                 CustomCallback(
                     stopping_rounds=100,
-                    metric="tr-a-recall@%d" % plan_size,
+                    metric=f"tr-a-recall@{plan_size}",
                     evals=[(dtrain, "tr")],
                     maximize=True,
-                    fevals=[
-                        xgb_average_recalln_curve_score(plan_size),
-                    ],
+                    fevals=[xgb_average_recalln_curve_score(plan_size)],
                     verbose_eval=self.log_interval,
                     loss_type=self.loss_type,
                 )
@@ -591,11 +587,11 @@ class CustomCallback(XGBoostCallback):
             and self.verbose_eval
             and epoch % self.verbose_eval == 0
         ):
-            infos = ["XGB iter: %3d" % epoch]
+            infos = [f"XGB iter: {epoch:3d}"]
             for item in eval_res:
                 if "null" in item[0]:
                     continue
-                infos.append("%s: %.6f" % (item[0], item[1]))
+                infos.append(f"{item[0]}: {item[1]:.6f}")
 
             logger.debug("\t".join(infos))
             if self.log_file:
@@ -615,7 +611,7 @@ class CustomCallback(XGBoostCallback):
         maximize_score = self.state["maximize_score"]
 
         if (maximize_score and score > best_score) or (not maximize_score and score < best_score):
-            msg = "[%d] %s" % (epoch, "\t".join([_fmt_metric(x) for x in eval_res]))
+            msg = f"[{epoch}] " + "\t".join([_fmt_metric(x) for x in eval_res])
             self.state["best_msg"] = msg
             self.state["best_score"] = score
             self.state["best_iteration"] = epoch
@@ -644,7 +640,7 @@ def xgb_max_curve_score(N):
         trials = np.argsort(preds)[::-1]
         scores = labels[trials]
         curve = max_curve(scores)
-        return "Smax@%d" % N, curve[N] / np.max(labels)
+        return f"Smax@{N}", curve[N] / np.max(labels)
 
     return feval
 
@@ -657,7 +653,7 @@ def xgb_recalln_curve_score(N):
         trials = np.argsort(preds)[::-1]
         ranks = get_rank(labels[trials])
         curve = recall_curve(ranks)
-        return "recall@%d" % N, curve[N]
+        return f"recall@{N}", curve[N]
 
     return feval
 
@@ -670,7 +666,7 @@ def xgb_average_recalln_curve_score(N):
         trials = np.argsort(preds)[::-1]
         ranks = get_rank(labels[trials])
         curve = recall_curve(ranks)
-        return "a-recall@%d" % N, np.sum(curve[:N]) / N
+        return f"a-recall@{N}", np.sum(curve[:N]) / N
 
     return feval
 
@@ -683,7 +679,7 @@ def xgb_recallk_curve_score(N, topk):
         trials = np.argsort(preds)[::-1]
         ranks = get_rank(labels[trials])
         curve = recall_curve(ranks, topk)
-        return "recall@%d" % topk, curve[N]
+        return f"recall@{topk}", curve[N]
 
     return feval
 
@@ -696,7 +692,7 @@ def xgb_cover_curve_score(N):
         trials = np.argsort(preds)[::-1]
         ranks = get_rank(labels[trials])
         curve = cover_curve(ranks)
-        return "cover@%d" % N, curve[N]
+        return f"cover@{N}", curve[N]
 
     return feval
 

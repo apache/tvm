@@ -128,8 +128,7 @@ void CoreMLRuntime::Init(const std::string& symbol, const std::string& _model_pa
   model_ = std::unique_ptr<CoreMLModel>(new CoreMLModel(url));
 }
 
-PackedFunc CoreMLRuntime::GetFunction(const std::string& name,
-                                      const ObjectPtr<Object>& sptr_to_self) {
+PackedFunc CoreMLRuntime::GetFunction(const String& name, const ObjectPtr<Object>& sptr_to_self) {
   // Return member functions during query.
   if (name == "invoke" || name == "run") {
     return PackedFunc([this](TVMArgs args, TVMRetValue* rv) { model_->Invoke(); });

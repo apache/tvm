@@ -33,11 +33,7 @@ class DataType(enum.Enum):
     s32 = enum_auto()
 
 
-ShortDataTypeNames = {
-    DataType.f16: "h",
-    DataType.f32: "s",
-    DataType.s32: "i",
-}
+ShortDataTypeNames = {DataType.f16: "h", DataType.f32: "s", DataType.s32: "i"}
 
 
 DataTypeNames = {
@@ -143,7 +139,7 @@ def substitute_template(template, values):
     while changed:
         changed = False
         for key, value in values.items():
-            regex = "\\$\\{%s\\}" % key
+            regex = f"\\$\\{{{key}\\}}"
             newtext = re.sub(regex, value, text)
             if newtext != text:
                 changed = True
@@ -155,9 +151,7 @@ class GemmKind(enum.Enum):
     Gemm = enum_auto()
 
 
-GemmKindNames = {
-    GemmKind.Gemm: "gemm",
-}
+GemmKindNames = {GemmKind.Gemm: "gemm"}
 
 
 class EpilogueFunctor(enum.Enum):
@@ -217,11 +211,7 @@ ConvKindTag = {
 }
 
 
-ConvKindNames = {
-    ConvKind.Fprop: "fprop",
-    ConvKind.Dgrad: "dgrad",
-    ConvKind.Wgrad: "wgrad",
-}
+ConvKindNames = {ConvKind.Fprop: "fprop", ConvKind.Dgrad: "dgrad", ConvKind.Wgrad: "wgrad"}
 
 
 class StrideSupport(enum.Enum):
@@ -235,10 +225,7 @@ StrideSupportTag = {
 }
 
 
-StrideSupportNames = {
-    StrideSupport.Strided: "",
-    StrideSupport.Unity: "unity_stride",
-}
+StrideSupportNames = {StrideSupport.Strided: "", StrideSupport.Unity: "unity_stride"}
 
 
 class IteratorAlgorithm(enum.Enum):

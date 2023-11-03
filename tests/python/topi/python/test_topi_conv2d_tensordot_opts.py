@@ -135,8 +135,13 @@ def test_write_3x3_depthwise_code():
     #define TENSORDOT_OPT_X1_INT16_W48_3X3_000_EXISTS
     #include <arm_acle.h>
     __attribute__((always_inline)) static inline int32_t tensordot_opt_x1_int16_w48_3x3_000(
-        int32_t *output, int32_t *tensor, int32_t *kernel, int32_t *bias, int32_t *scale
+        int16_t *output_arg, int16_t *tensor_arg, int16_t *kernel_arg,
+        int32_t *bias, int32_t *scale
     ) {
+      int32_t *output = output_arg;
+      int32_t *tensor = tensor_arg;
+      int32_t *kernel = kernel_arg;
+
       int32_t sum_0 = *bias;
 
       int32_t tensor__y00_x00__y00_x01 = tensor[0];
@@ -188,8 +193,13 @@ def test_odd_width_3x3_depthwise_strides_code():
     #define TENSORDOT_OPT_X2_INT16_W49_3X3_000_2_4_EXISTS
     #include <arm_acle.h>
     __attribute__((always_inline)) static inline int32_t tensordot_opt_x2_int16_w49_3x3_000_2_4(
-        int32_t *output, int32_t *tensor, int32_t *kernel, int32_t *bias, int32_t *scale
+        int16_t *output_arg, int16_t *tensor_arg, int16_t *kernel_arg,
+        int32_t *bias, int32_t *scale
     ) {
+      int32_t *output = output_arg;
+      int32_t *tensor = tensor_arg;
+      int32_t *kernel = kernel_arg;
+
       int32_t sum_0 = *bias, sum_1 = *bias;
 
       int32_t tensor__y00_x00__y00_x01 = tensor[0];
@@ -251,8 +261,13 @@ def test_1x1x8_convolution_code():
     #define TENSORDOT_OPT_X4_INT16_W384_1X8_000_8_1_EXISTS
     #include <arm_acle.h>
     __attribute__((always_inline)) static inline int32_t tensordot_opt_x4_int16_w384_1x8_000_8_1(
-        int32_t *output, int32_t *tensor, int32_t *kernel, int32_t *bias, int32_t *scale
+        int16_t *output_arg, int16_t *tensor_arg, int16_t *kernel_arg,
+        int32_t *bias, int32_t *scale
     ) {
+      int32_t *output = output_arg;
+      int32_t *tensor = tensor_arg;
+      int32_t *kernel = kernel_arg;
+
       int32_t sum_0 = *bias, sum_1 = *bias, sum_2 = *bias, sum_3 = *bias;
 
       int32_t tensor__y00_x00__y00_x01 = tensor[0];
@@ -349,8 +364,13 @@ def test_3x3x3_offset_convolution_code():
     #define TENSORDOT_OPT_X1_INT16_W288_3X9_111_EXISTS
     #include <arm_acle.h>
     __attribute__((always_inline)) static inline int32_t tensordot_opt_x1_int16_w288_3x9_111(
-        int32_t *output, int32_t *tensor, int32_t *kernel, int32_t *bias, int32_t *scale
+        int16_t *output_arg, int16_t *tensor_arg, int16_t *kernel_arg,
+        int32_t *bias, int32_t *scale
     ) {
+      int32_t *output = output_arg;
+      int32_t *tensor = tensor_arg;
+      int32_t *kernel = kernel_arg;
+
       int32_t sum_0 = *bias;
 
       int32_t tensor__unknown__y00_x00 = tensor[0];

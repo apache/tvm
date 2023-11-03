@@ -42,6 +42,7 @@
 #include "../src/runtime/graph_executor/graph_executor_factory.cc"
 #include "../src/runtime/library_module.cc"
 #include "../src/runtime/logging.cc"
+#include "../src/runtime/memory/memory_manager.cc"
 #include "../src/runtime/minrpc/minrpc_logger.cc"
 #include "../src/runtime/module.cc"
 #include "../src/runtime/ndarray.cc"
@@ -70,6 +71,7 @@
 #endif
 
 #ifdef TVM_VULKAN_RUNTIME
+#include "../src/runtime/vulkan/vulkan_amdrgp.cc"
 #include "../src/runtime/vulkan/vulkan_buffer.cc"
 #include "../src/runtime/vulkan/vulkan_common.cc"
 #include "../src/runtime/vulkan/vulkan_device.cc"

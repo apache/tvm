@@ -558,7 +558,7 @@ class LocalRPCMeasureContext:
         from tvm.rpc.tracker import Tracker
 
         self.tracker = Tracker(port=9000, port_end=10000, silent=True)
-        device_key = "$local$device$%d" % self.tracker.port
+        device_key = f"$local$device${self.tracker.port}"
         self.server = Server(
             port=self.tracker.port,
             port_end=10000,
@@ -631,7 +631,7 @@ def _local_build_worker(inp_serialized, build_func, verbose):
         try:
             with transform.PassContext().current():
                 func = build_module.build(sch, args, target=task.target)
-            func.export_library(filename, build_func)
+            func.export_library(filename, fcompile=build_func)
         # pylint: disable=broad-except
         except Exception:
             error_no = MeasureErrorNo.COMPILE_HOST
@@ -698,15 +698,7 @@ def local_builder_build(inputs, timeout, n_parallel, build_func="default", verbo
         n_parallel, timeout, reset_global_scope, (AutotvmGlobalScope.current,)
     )
     tuple_res = executor.map_with_error_catching(
-        local_build_worker,
-        [
-            (
-                i.serialize(),
-                BuildFunc.build_func,
-                verbose,
-            )
-            for i in inputs
-        ],
+        local_build_worker, [(i.serialize(), BuildFunc.build_func, verbose) for i in inputs]
     )
 
     results = []
@@ -771,7 +763,7 @@ def register_task_input_check_func(func_name, f=None, override=False):
     def register(myf):
         """internal register function"""
         if func_name in TASK_INPUT_CHECK_FUNC_REGISTRY and not override:
-            raise RuntimeError("%s has been registered already" % func_name)
+            raise RuntimeError(f"{func_name} has been registered already")
         TASK_INPUT_CHECK_FUNC_REGISTRY[func_name] = myf
         return myf
 
@@ -869,8 +861,8 @@ def prepare_runner_args(inp, build_res):
                 task_inputs_count += 1
             else:
                 raise ValueError(
-                    "%s not found in task_inputs, " % (tensor_name)
-                    + "should provide with `SearchTask(..., task_inputs={...})`"
+                    f"{tensor_name} not found in task_inputs, "
+                    f"should provide with `SearchTask(..., task_inputs={{...}})`"
                 )
         else:
             args.append(None)

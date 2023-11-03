@@ -131,6 +131,12 @@ class MinRPCReturns : public MinRPCReturnInterface {
     io_->Exit(static_cast<int>(code));
   }
 
+  void WriteObject(void* obj) { this->ThrowError(RPCServerStatus::kUnknownTypeCode); }
+  uint64_t GetObjectBytes(void* obj) {
+    this->ThrowError(RPCServerStatus::kUnknownTypeCode);
+    return 0;
+  }
+
   template <typename T>
   void Write(const T& data) {
     static_assert(std::is_trivial<T>::value && std::is_standard_layout<T>::value,
@@ -746,6 +752,10 @@ class MinRPCServer {
     static_assert(std::is_trivial<T>::value && std::is_standard_layout<T>::value,
                   "need to be trival");
     return ReadRawBytes(data, sizeof(T) * count);
+  }
+
+  void ReadObject(int* tcode, TVMValue* value) {
+    this->ThrowError(RPCServerStatus::kUnknownTypeCode);
   }
 
  private:

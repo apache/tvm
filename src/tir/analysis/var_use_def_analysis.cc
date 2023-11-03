@@ -39,7 +39,7 @@ void VarUseDefAnalyzer::VisitStmt_(const AttrStmtNode* op) {
     // thread_extent can appear multiple times
     // use the first appearance as def.
     if (!use_count_.count(iv->var.get())) {
-      this->HandleDef(iv->var.get());
+      this->HandleDef(iv->var);
     }
 
     if (visit_thread_extent_) {
@@ -53,27 +53,32 @@ void VarUseDefAnalyzer::VisitStmt_(const AttrStmtNode* op) {
 }
 
 void VarUseDefAnalyzer::VisitStmt_(const LetStmtNode* op) {
-  this->HandleDef(op->var.get());
+  this->HandleDef(op->var);
   StmtExprVisitor::VisitStmt_(op);
 }
 
 void VarUseDefAnalyzer::VisitStmt_(const ForNode* op) {
-  this->HandleDef(op->loop_var.get());
+  this->HandleDef(op->loop_var);
+  StmtExprVisitor::VisitStmt_(op);
+}
+
+void VarUseDefAnalyzer::VisitStmt_(const DeclBufferNode* op) {
+  this->HandleDef(op->buffer);
   StmtExprVisitor::VisitStmt_(op);
 }
 
 void VarUseDefAnalyzer::VisitStmt_(const AllocateNode* op) {
-  this->HandleDef(op->buffer_var.get());
+  this->HandleDef(op->buffer_var);
   StmtExprVisitor::VisitStmt_(op);
 }
 
 void VarUseDefAnalyzer::VisitStmt_(const AllocateConstNode* op) {
-  this->HandleDef(op->buffer_var.get());
+  this->HandleDef(op->buffer_var);
   StmtExprVisitor::VisitStmt_(op);
 }
 
 void VarUseDefAnalyzer::VisitStmt_(const BufferStoreNode* op) {
-  VisitBuffer(op->buffer);
+  HandleUse(op->buffer);
   StmtExprVisitor::VisitStmt_(op);
 }
 
@@ -90,31 +95,32 @@ void VarUseDefAnalyzer::VisitExpr_(const LetNode* op) {
     ICHECK(deep_equal_(it->second->value, op->value))
         << "Let cannot bind the same var to two different values";
   } else {
-    this->HandleDef(op->var.get());
+    this->HandleDef(op->var);
     let_binding_[op->var.get()] = op;
   }
   this->VisitExpr(op->body);
 }
 
 void VarUseDefAnalyzer::VisitExpr_(const VarNode* op) {
-  this->HandleUse(op);
+  this->HandleUse(GetRef<Var>(op));
   StmtExprVisitor::VisitExpr_(op);
 }
 
 void VarUseDefAnalyzer::VisitExpr_(const ReduceNode* op) {
   for (const auto& iv : op->axis) {
-    this->HandleDef(iv->var.get());
+    this->HandleDef(iv->var);
   }
   StmtExprVisitor::VisitExpr_(op);
 }
 
 void VarUseDefAnalyzer::VisitExpr_(const BufferLoadNode* op) {
-  VisitBuffer(op->buffer);
+  HandleUse(op->buffer);
   StmtExprVisitor::VisitExpr_(op);
 }
 
-void VarUseDefAnalyzer::VisitBuffer(Buffer buffer) {
-  this->HandleUse(buffer->data.get());
+void VarUseDefAnalyzer::VisitBuffer(const Buffer& buffer) {
+  this->HandleUse(buffer->data);
+
   auto visit_arr = [&](Array<PrimExpr> arr) {
     for (const auto& element : arr) {
       this->VisitExpr(element);
@@ -125,7 +131,8 @@ void VarUseDefAnalyzer::VisitBuffer(Buffer buffer) {
   visit_arr(buffer->strides);
 }
 
-void VarUseDefAnalyzer::HandleDef(const VarNode* v) {
+void VarUseDefAnalyzer::HandleDef(const Var& var) {
+  auto v = var.get();
   ICHECK(!def_count_.count(v)) << "variable " << v->name_hint
                                << " has already been defined, the Stmt is not SSA";
   ICHECK(!use_count_.count(v)) << "variable " << v->name_hint
@@ -134,7 +141,8 @@ void VarUseDefAnalyzer::HandleDef(const VarNode* v) {
   def_count_[v] = 1;
 }
 
-void VarUseDefAnalyzer::HandleUse(const VarNode* v) {
+void VarUseDefAnalyzer::HandleUse(const Var& var) {
+  auto v = var.get();
   auto it = use_count_.find(v);
   if (it != use_count_.end()) {
     if (it->second >= 0) {
@@ -144,6 +152,33 @@ void VarUseDefAnalyzer::HandleUse(const VarNode* v) {
     undefined_.push_back(GetRef<Var>(v));
     use_count_[v] = -1;
   }
+}
+
+void VarUseDefAnalyzer::HandleDef(const Buffer& buf) {
+  auto ptr = buf.get();
+  ICHECK(!buffer_def_count_.count(ptr))
+      << "buffer " << ptr->name << " has already been defined, the Stmt is not SSA";
+  ICHECK(!buffer_use_count_.count(ptr))
+      << "buffer " << ptr->name << " has been used before definition!";
+  buffer_use_count_[ptr] = 0;
+  buffer_def_count_[ptr] = 1;
+
+  VisitBuffer(buf);
+}
+
+void VarUseDefAnalyzer::HandleUse(const Buffer& buf) {
+  auto ptr = buf.get();
+  auto it = buffer_use_count_.find(ptr);
+  if (it != buffer_use_count_.end()) {
+    if (it->second >= 0) {
+      ++it->second;
+    }
+  } else {
+    undefined_buffers_.push_back(GetRef<Buffer>(ptr));
+    buffer_use_count_[ptr] = -1;
+  }
+
+  VisitBuffer(buf);
 }
 
 Array<Var> UndefinedVars(const Stmt& stmt, const Array<Var>& args) {
@@ -164,5 +199,14 @@ Array<Var> UndefinedVars(const PrimExpr& expr, const Array<Var>& args) {
   return m.undefined_;
 }
 
+TVM_REGISTER_GLOBAL("tir.analysis.UndefinedVars").set_body([](TVMArgs args, TVMRetValue* rv) {
+  if (args.size() == 2 && args[0].IsObjectRef<Stmt>()) {
+    *rv = UndefinedVars(args[0].AsObjectRef<Stmt>(), args[1]);
+  } else if (args.size() == 2 && args[0].IsObjectRef<PrimExpr>()) {
+    *rv = UndefinedVars(args[0].AsObjectRef<PrimExpr>(), args[1]);
+  } else {
+    LOG(FATAL) << "either UndefinedVars(stmt, args) or UndefinedVars(expr, args) is expected";
+  }
+});
 }  // namespace tir
 }  // namespace tvm

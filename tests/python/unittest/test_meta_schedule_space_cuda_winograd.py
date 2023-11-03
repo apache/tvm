@@ -458,7 +458,7 @@ def test_cuda_nchw_add_relu():
                                 ci = T.axis.spatial(2048, (i2_i3_fused_0 * 262144 + i2_i3_fused_1 * 1024 + i2_i3_fused_2) // 1900 + ax0)
                                 p = T.axis.spatial(1900, (i2_i3_fused_0 * 262144 + i2_i3_fused_1 * 1024 + i2_i3_fused_2) % 1900 + ax1)
                                 eps, nu = T.axis.remap("SS", [ax2, ax3])
-                                T.where(i2_i3_fused_0 * 262144 + i2_i3_fused_1 * 1024 + i2_i3_fused_2 < 3891200)
+                                T.where(i2_i3_fused_0 * 256 + i2_i3_fused_1 < 3800)
                                 T.reads(p0[p // 950, ci, p % 950 // 38 * 2 + eps - 1, p % 38 * 2 + nu - 1])
                                 T.writes(input_tile_local[ci, p, eps, nu])
                                 T.block_attr({"schedule_rule": "None"})
@@ -484,7 +484,7 @@ def test_cuda_nchw_add_relu():
                                 v0, v1 = T.axis.remap("SS", [ax0, ax1])
                                 v2 = T.axis.spatial(2048, (i2_i3_fused_0 * 262144 + i2_i3_fused_1 * 1024 + i2_i3_fused_2) // 1900 + ax2)
                                 v3 = T.axis.spatial(1900, (i2_i3_fused_0 * 262144 + i2_i3_fused_1 * 1024 + i2_i3_fused_2) % 1900 + ax3)
-                                T.where(i2_i3_fused_0 * 262144 + i2_i3_fused_1 * 1024 + i2_i3_fused_2 < 3891200)
+                                T.where(i2_i3_fused_0 * 256 + i2_i3_fused_1 < 3800)
                                 T.reads(data_pack_local[v0, v1, v2, v3])
                                 T.writes(data_pack[v0, v1, v2, v3])
                                 data_pack[v0, v1, v2, v3] = data_pack_local[v0, v1, v2, v3]
@@ -534,33 +534,36 @@ def test_cuda_nchw_add_relu():
                                 T.reads(bgemm_local[v0, v1, v2, v3])
                                 T.writes(bgemm[v0, v1, v2, v3])
                                 bgemm[v0, v1, v2, v3] = bgemm_local[v0, v1, v2, v3]
-            for i0, i1, i2_0, i3_0, ax0, ax1 in T.grid(2, 2048, 25, 38, 1, 1):
-                for ax2 in T.unroll(2):
-                    for ax3 in T.unroll(2):
-                        for ax4 in T.unroll(4):
-                            for ax5 in T.unroll(4):
-                                with T.block("inverse"):
-                                    co = T.axis.spatial(2048, i1 + ax0)
-                                    p = T.axis.spatial(1900, i0 * 950 + i2_0 * 38 + i3_0 + ax1)
-                                    vh, vw, r_a, r_b = T.axis.remap("SSRR", [ax2, ax3, ax4, ax5])
-                                    T.reads(bgemm[r_a, r_b, co, p])
-                                    T.writes(inverse_local[co, p, vh, vw])
-                                    T.block_attr({"schedule_rule": "conv2d_nchw_winograd_inverse"})
-                                    with T.init():
-                                        inverse_local[co, p, vh, vw] = T.float32(0)
-                                    inverse_local[co, p, vh, vw] = inverse_local[co, p, vh, vw] + bgemm[r_a, r_b, co, p] * T.Select(r_a % 4 == 3 and vh % 2 == 1, T.float32(1), T.Select(r_a % 4 == 3 and vh % 2 == 0, T.float32(0), T.Select(r_a % 4 == 2 and vh % 2 == 1, T.float32(1), T.Select(r_a % 4 == 2 and vh % 2 == 0, T.float32(1), T.Select(r_a % 4 == 1 and vh % 2 == 1, T.float32(-1), T.Select(r_a % 4 == 1 and vh % 2 == 0, T.float32(1), T.Select(r_a % 4 == 0 and vh % 2 == 1, T.float32(0), T.Select(r_a % 4 == 0 and vh % 2 == 0, T.float32(1), T.float32(0))))))))) * T.Select(r_b % 4 == 3 and vw % 2 == 1, T.float32(1), T.Select(r_b % 4 == 3 and vw % 2 == 0, T.float32(0), T.Select(r_b % 4 == 2 and vw % 2 == 1, T.float32(1), T.Select(r_b % 4 == 2 and vw % 2 == 0, T.float32(1), T.Select(r_b % 4 == 1 and vw % 2 == 1, T.float32(-1), T.Select(r_b % 4 == 1 and vw % 2 == 0, T.float32(1), T.Select(r_b % 4 == 0 and vw % 2 == 1, T.float32(0), T.Select(r_b % 4 == 0 and vw % 2 == 0, T.float32(1), T.float32(0)))))))))
-            for i0_i1_i2_i3_fused_1 in T.thread_binding(256, thread="blockIdx.x"):
-                for i0_i1_i2_i3_fused_2 in T.thread_binding(1024, thread="threadIdx.x"):
-                    for i0_i1_i2_i3_fused_0 in range(59):
-                        with T.block("T_add"):
-                            ax0 = T.axis.spatial(2, (i0_i1_i2_i3_fused_0 * 262144 + i0_i1_i2_i3_fused_1 * 1024 + i0_i1_i2_i3_fused_2) // 7680000)
-                            ax1 = T.axis.spatial(2048, (i0_i1_i2_i3_fused_0 * 262144 + i0_i1_i2_i3_fused_1 * 1024 + i0_i1_i2_i3_fused_2) % 7680000 // 3750)
-                            ax2 = T.axis.spatial(50, (i0_i1_i2_i3_fused_0 * 262144 + i0_i1_i2_i3_fused_1 * 1024 + i0_i1_i2_i3_fused_2) % 3750 // 75)
-                            ax3 = T.axis.spatial(75, (i0_i1_i2_i3_fused_0 * 262144 + i0_i1_i2_i3_fused_1 * 1024 + i0_i1_i2_i3_fused_2) % 75)
-                            T.where((i0_i1_i2_i3_fused_0 * 256 + i0_i1_i2_i3_fused_1) * 1024 + i0_i1_i2_i3_fused_2 < 15360000)
-                            T.reads(inverse_local[ax1, ax0 * 950 + ax2 // 2 * 38 + ax3 // 2, ax2 % 2, ax3 % 2], p2[0, ax1, 0, 0])
-                            T.writes(T_relu[ax0, ax1, ax2, ax3])
-                            T_relu[ax0, ax1, ax2, ax3] = T.max(inverse_local[ax1, ax0 * 950 + ax2 // 2 * 38 + ax3 // 2, ax2 % 2, ax3 % 2] + p2[0, ax1, 0, 0], T.float32(0))
+            for i0_i1_i2_0_i3_0_fused_1 in T.thread_binding(256, thread="blockIdx.x"):
+                for i0_i1_i2_0_i3_0_fused_2 in T.thread_binding(1024, thread="threadIdx.x"):
+                    for i0_i1_i2_0_i3_0_fused_0 in range(15):
+                        for ax0, ax1 in T.grid(1, 1):
+                            for ax2 in T.unroll(2):
+                                for ax3 in T.unroll(2):
+                                    for ax4 in T.unroll(4):
+                                        for ax5 in T.unroll(4):
+                                            with T.block("inverse"):
+                                                co = T.axis.spatial(2048, (i0_i1_i2_0_i3_0_fused_0 * 262144 + i0_i1_i2_0_i3_0_fused_1 * 1024 + i0_i1_i2_0_i3_0_fused_2) % 1945600 // 950 + ax0)
+                                                p = T.axis.spatial(1900, (i0_i1_i2_0_i3_0_fused_0 * 262144 + i0_i1_i2_0_i3_0_fused_1 * 1024 + i0_i1_i2_0_i3_0_fused_2) // 1945600 * 950 + (i0_i1_i2_0_i3_0_fused_0 * 262144 + i0_i1_i2_0_i3_0_fused_1 * 1024 + i0_i1_i2_0_i3_0_fused_2) % 950 + ax1)
+                                                vh, vw, r_a, r_b = T.axis.remap("SSRR", [ax2, ax3, ax4, ax5])
+                                                T.where((i0_i1_i2_0_i3_0_fused_0 * 256 + i0_i1_i2_0_i3_0_fused_1) * 1024 + i0_i1_i2_0_i3_0_fused_2 < 3891200)
+                                                T.reads(bgemm[r_a, r_b, co, p])
+                                                T.writes(inverse_local[co, p, vh, vw])
+                                                T.block_attr({"schedule_rule": "conv2d_nchw_winograd_inverse"})
+                                                with T.init():
+                                                    inverse_local[co, p, vh, vw] = T.float32(0)
+                                                inverse_local[co, p, vh, vw] = inverse_local[co, p, vh, vw] + bgemm[r_a, r_b, co, p] * T.Select(r_a % 4 == 3 and vh % 2 == 1, T.float32(1), T.Select(r_a % 4 == 3 and vh % 2 == 0, T.float32(0), T.Select(r_a % 4 == 2 and vh % 2 == 1, T.float32(1), T.Select(r_a % 4 == 2 and vh % 2 == 0, T.float32(1), T.Select(r_a % 4 == 1 and vh % 2 == 1, T.float32(-1), T.Select(r_a % 4 == 1 and vh % 2 == 0, T.float32(1), T.Select(r_a % 4 == 0 and vh % 2 == 1, T.float32(0), T.Select(r_a % 4 == 0 and vh % 2 == 0, T.float32(1), T.float32(0))))))))) * T.Select(r_b % 4 == 3 and vw % 2 == 1, T.float32(1), T.Select(r_b % 4 == 3 and vw % 2 == 0, T.float32(0), T.Select(r_b % 4 == 2 and vw % 2 == 1, T.float32(1), T.Select(r_b % 4 == 2 and vw % 2 == 0, T.float32(1), T.Select(r_b % 4 == 1 and vw % 2 == 1, T.float32(-1), T.Select(r_b % 4 == 1 and vw % 2 == 0, T.float32(1), T.Select(r_b % 4 == 0 and vw % 2 == 1, T.float32(0), T.Select(r_b % 4 == 0 and vw % 2 == 0, T.float32(1), T.float32(0)))))))))
+                        for i2_1, i3_1 in T.grid(2, 2):
+                            with T.block("conv2d_winograd"):
+                                n = T.axis.spatial(2, (i0_i1_i2_0_i3_0_fused_0 * 262144 + i0_i1_i2_0_i3_0_fused_1 * 1024 + i0_i1_i2_0_i3_0_fused_2) // 1945600)
+                                co = T.axis.spatial(2048, (i0_i1_i2_0_i3_0_fused_0 * 262144 + i0_i1_i2_0_i3_0_fused_1 * 1024 + i0_i1_i2_0_i3_0_fused_2) % 1945600 // 950)
+                                h = T.axis.spatial(50, (i0_i1_i2_0_i3_0_fused_0 * 262144 + i0_i1_i2_0_i3_0_fused_1 * 1024 + i0_i1_i2_0_i3_0_fused_2) % 950 // 38 * 2 + i2_1)
+                                w = T.axis.spatial(75, (i0_i1_i2_0_i3_0_fused_0 * 262144 + i0_i1_i2_0_i3_0_fused_1 * 1024 + i0_i1_i2_0_i3_0_fused_2) % 38 * 2 + i3_1)
+                                T.where(((i0_i1_i2_0_i3_0_fused_0 * 256 + i0_i1_i2_0_i3_0_fused_1) * 1024 + i0_i1_i2_0_i3_0_fused_2) % 38 * 2 + i3_1 < 75 and (i0_i1_i2_0_i3_0_fused_0 * 256 + i0_i1_i2_0_i3_0_fused_1) * 1024 + i0_i1_i2_0_i3_0_fused_2 < 3891200)
+                                T.reads(inverse_local[co, n * 950 + h // 2 * 38 + w // 2, h % 2, w % 2], p2[0, co, 0, 0])
+                                T.writes(T_relu[n, co, h, w])
+                                T_relu[n, co, h, w] = T.max(inverse_local[co, n * 950 + h // 2 * 38 + w // 2, h % 2, w % 2] + p2[0, co, 0, 0], T.float32(0))
+
     # fmt: on
     decision_0 = [
         ("SamplePerfectTile", [2, 1, 2, 1, 1]),

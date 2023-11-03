@@ -29,6 +29,7 @@ from .op import (
     debug,
     register_external_compiler,
     register_fake_quantization_to_integer,
+    register_optional_fake_quantization_to_integer,
     register_mixed_precision_conversion,
 )
 from . import strategy

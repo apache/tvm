@@ -80,7 +80,7 @@ def _dimension_picker(prefix, surfix=""):
         if len(kernel) == 3:
             return prefix + "3d" + surfix
         raise tvm.error.OpAttributeInvalid(
-            "Only 2D or 3D kernels are supported for operator {}".format(prefix + "2d or 3d")
+            f"Only 2D or 3D kernels are supported for operator {prefix}2d or 3d"
         )
 
     return _impl
@@ -167,9 +167,7 @@ def _argx(func, func_name):
             # support the case where it inputs from a scalar constant.
             axis_input_value = [_get_num_param(params, inputs[1])]
         except (IndexError, KeyError):
-            raise TypeError(
-                "Unsupported argument for `{}` : `axis` should be a constant".format(func_name)
-            )
+            raise TypeError(f"Unsupported argument for `{func_name}` : `axis` should be a constant")
         out = func(inputs[0], axis=axis_input_value, keepdims=False)
         dtype = attr["output_type"].name
         if dtype != "int32":
@@ -181,7 +179,7 @@ def _argx(func, func_name):
 
 def _elemwise(name):
     def _impl(inputs, attr, params, mod):
-        assert len(inputs) == 2, "{} take 2 inputs, {} given".format(name, len(inputs))
+        assert len(inputs) == 2, f"{name} take 2 inputs, {len(inputs)} given"
         return get_relay_op(name)(*inputs)
 
     return _impl
@@ -201,8 +199,11 @@ def _pool3d(name):
             attr["kernel_shape"] = (attr["ksize"][2], attr["ksize"][3], attr["ksize"][4])
             attr["strides"] = (attr["strides"][2], attr["strides"][3], attr["strides"][4])
         else:
-            msg = 'Value {} of attribute "data_format" of operator Pooling ' "is not valid."
-            raise tvm.error.OpAttributeInvalid(msg.format(attr["data_format"]))
+            msg = (
+                f'Value {attr["data_format"]} of attribute "data_format" of operator Pooling '
+                f"is not valid."
+            )
+            raise tvm.error.OpAttributeInvalid(msg)
         if attr["data_format"] == "NDHWC":
             input_shape = [_infer_shape(inputs[0], mod)[i] for i in (0, 4, 1, 2, 3)]
             inputs[0] = _op.transpose(inputs[0], axes=(0, 4, 1, 2, 3))
@@ -230,8 +231,11 @@ def _pool3d(name):
 
             attr["padding"] = [pad_d[0], pad_v[0], pad_h[0], pad_d[1], pad_v[1], pad_h[1]]
         else:
-            msg = 'Value {} in attribute "padding" of operator Pooling is ' "not valid."
-            raise tvm.error.OpAttributeInvalid(msg.format(attr["padding"]))
+            msg = (
+                f'Value {attr["padding"]} in attribute "padding" of operator Pooling is '
+                f"not valid."
+            )
+            raise tvm.error.OpAttributeInvalid(msg)
 
         if name == "avg_pool":
             attr["count_include_pad"] = False
@@ -263,8 +267,11 @@ def _pooling(name):
             attr["kernel_shape"] = (attr["ksize"][2], attr["ksize"][3])
             attr["strides"] = (attr["strides"][2], attr["strides"][3])
         else:
-            msg = 'Value {} of attribute "data_format" of operator Pooling ' "is not valid."
-            raise tvm.error.OpAttributeInvalid(msg.format(attr["data_format"]))
+            msg = (
+                f'Value {attr["data_format"]} of attribute "data_format" of operator Pooling '
+                f"is not valid."
+            )
+            raise tvm.error.OpAttributeInvalid(msg)
 
         if attr["_target_layout"] == "NCHW" and attr["data_format"] == "NHWC":
             tmp_shape = _infer_shape(inputs[0], mod)
@@ -300,8 +307,11 @@ def _pooling(name):
             else:
                 attr["padding"] = [paddings[4], paddings[6], paddings[5], paddings[7]]
         else:
-            msg = 'Value {} in attribute "padding" of operator Pooling is ' "not valid."
-            raise tvm.error.OpAttributeInvalid(msg.format(attr["padding"]))
+            msg = (
+                f'Value {attr["padding"]} in attribute "padding" of operator Pooling is '
+                f"not valid."
+            )
+            raise tvm.error.OpAttributeInvalid(msg)
 
         if name == "avg_pool":
             attr["count_include_pad"] = False
@@ -410,8 +420,11 @@ def _conv(opname):
                 attr["dilations"] = (attr["dilations"][2], attr["dilations"][3])
             attr["strides"] = (attr["strides"][2], attr["strides"][3])
         else:
-            msg = 'Value {} in attribute "data_format" of operator Conv is ' "not valid."
-            raise tvm.error.OpAttributeInvalid(msg.format(attr["data_format"]))
+            msg = (
+                f'Value {attr["data_format"]} in attribute "data_format" of operator Conv is '
+                f"not valid."
+            )
+            raise tvm.error.OpAttributeInvalid(msg)
 
         if opname == "depthwise":
             attr["groups"] = in_channels
@@ -457,8 +470,10 @@ def _conv(opname):
             else:
                 attr["padding"] = [paddings[4], paddings[6], paddings[5], paddings[7]]
         else:
-            msg = 'Value {} in attribute "padding" of operator Conv is not ' "valid."
-            raise tvm.error.OpAttributeInvalid(msg.format(attr["padding"]))
+            msg = (
+                f'Value {attr["padding"]} in attribute "padding" of operator Conv is not ' f"valid."
+            )
+            raise tvm.error.OpAttributeInvalid(msg)
 
         if "kernel_layout" not in attr:
             if opname == "conv":
@@ -515,8 +530,11 @@ def _dilation2d():
                 attr["dilations"] = (attr["dilations"][1], attr["dilations"][2])
             attr["strides"] = (attr["strides"][1], attr["strides"][2])
         else:
-            msg = 'Value {} in attribute "data_format" of operator Dilation2D is ' "not valid."
-            raise tvm.error.OpAttributeInvalid(msg.format(attr["data_format"]))
+            msg = (
+                f'Value {attr["data_format"]} in attribute "data_format" of operator Dilation2D is '
+                f"not valid."
+            )
+            raise tvm.error.OpAttributeInvalid(msg)
 
         attr["padding"] = attr["padding"].decode("utf-8")
         if attr["padding"] == "VALID":
@@ -555,16 +573,17 @@ def _dilation2d():
             attr["padding"] = [0, 0]
 
         else:
-            msg = 'Value {} in attribute "padding" of operator Dilation2d is not ' "valid."
-            raise tvm.error.OpAttributeInvalid(msg.format(attr["padding"]))
+            msg = (
+                f'Value {attr["padding"]} in attribute "padding" of operator Dilation2d is not '
+                f"valid."
+            )
+            raise tvm.error.OpAttributeInvalid(msg)
 
         attr["kernel_layout"] = "HWI" if attr["data_format"] == "NHWC" else "IHW"
         out = AttrCvt(
             op_name="dilation2d",
             ignores=["explicit_paddings", "rates"],
-            transforms={
-                "data_format": "data_layout",
-            },
+            transforms={"data_format": "data_layout"},
         )([inputs[0], inputs[1]], attr)
         if attr["_target_layout"] == "NCHW":
             out = _op.transpose(out, axes=(0, 2, 3, 1))
@@ -631,8 +650,11 @@ def _conv3d(opname):
                 )
             attr["strides"] = (attr["strides"][2], attr["strides"][3], attr["strides"][4])
         else:
-            msg = 'Value {} in attribute "data_format" of operator Conv is ' "not valid."
-            raise tvm.error.OpAttributeInvalid(msg.format(attr["data_format"]))
+            msg = (
+                f'Value {attr["data_format"]} in attribute "data_format" of operator Conv is '
+                f"not valid."
+            )
+            raise tvm.error.OpAttributeInvalid(msg)
 
         # Fix padding
         attr["padding"] = attr["padding"].decode("utf-8")
@@ -689,8 +711,10 @@ def _conv3d(opname):
                     paddings[9],
                 ]
         else:
-            msg = 'Value {} in attribute "padding" of operator Conv is not ' "valid."
-            raise tvm.error.OpAttributeInvalid(msg.format(attr["padding"]))
+            msg = (
+                f'Value {attr["padding"]} in attribute "padding" of operator Conv is not ' f"valid."
+            )
+            raise tvm.error.OpAttributeInvalid(msg)
 
         if "kernel_layout" not in attr:
             if opname == "conv":
@@ -816,7 +840,7 @@ def convert_combined_nms_with_all_class_nms(
     clip_boxes,
 ):
     """Converts TF combined_nms using Relay all_class_max_suppression op"""
-    (selected_indices, selected_scores, num_detections,) = _op.vision.all_class_non_max_suppression(
+    (selected_indices, selected_scores, num_detections) = _op.vision.all_class_non_max_suppression(
         boxes,
         scores,
         max_output_boxes_per_class,
@@ -1031,7 +1055,7 @@ def _crop_and_resize():
         method = attr["method"].decode()
         method = "nearest_neighbor" if method == "nearest" else method
         if method not in ["bilinear", "nearest_neighbor"]:
-            raise tvm.error.OpAttributeUnImplemented("Method {} is not supported".format(method))
+            raise tvm.error.OpAttributeUnImplemented(f"Method {method} is not supported")
         layout = attr["layout"] if "layout" in attr else "NHWC"
         extrapolation_value = attr["extrapolation_value"]
 
@@ -1146,11 +1170,7 @@ def _matmul():
                 extras={"units": channels},
                 ignores=["transpose_a", "transpose_b", "T"],
             )(inputs, attr)
-        return AttrCvt(
-            op_name="matmul",
-            extras={"units": channels},
-            ignores=["T"],
-        )(inputs, attr)
+        return AttrCvt(op_name="matmul", extras={"units": channels}, ignores=["T"])(inputs, attr)
 
     return _impl
 
@@ -1326,8 +1346,7 @@ def _sparse_fill_empty_rows():
         )
 
         return _expr.TupleWrapper(
-            _expr.Tuple([new_sparse_indices, new_sparse_values, empty_row_indicator]),
-            3,
+            _expr.Tuple([new_sparse_indices, new_sparse_values, empty_row_indicator]), 3
         )
 
     return _impl
@@ -1574,7 +1593,7 @@ def _tensor_array_scatter():
 
         if input_shape is None:
             values_rank = len(values_shape)
-            unstack_name = "tensor_array_unstack_tensor{}".format(values_rank)
+            unstack_name = f"tensor_array_unstack_tensor{values_rank}"
             unstack_function = prelude.get_global_var(unstack_name, dtype_str)
             values = unstack_function(inputs[2])
             tensor_array_scatter_func = prelude.get_global_var("tensor_array_scatter", dtype_str)
@@ -1669,15 +1688,15 @@ def _tensor_array_write():
         input_rank = len(input_t_shape)
 
         if input_ta_shape is None:
-            tensor_name = "tensor{}".format(input_rank)
+            tensor_name = f"tensor{input_rank}"
             tensor_func = prelude.get_tensor_ctor(tensor_name, dtype_str)
             v = tensor_func(inputs[2])
             write_func = prelude.get_global_var("tensor_array_write", dtype_str)
         else:
             input_ta_rank = len(input_ta_shape)
-            assert input_ta_rank == input_rank, "Shape rank mismatch: {} vs {}".format(
-                input_ta_rank, input_rank
-            )
+            assert (
+                input_ta_rank == input_rank
+            ), f"Shape rank mismatch: {input_ta_rank} vs {input_rank}"
             static_tensor_array_ops = StaticTensorArrayOps(prelude, dtype_str, input_ta_shape)
             static_tensor_array_ops.register()
             tensor_func = static_tensor_array_ops.get_ctor("tensor_constructor")
@@ -1735,15 +1754,15 @@ def _tensor_array_split():
         input_rank = len(value_shape)
 
         if input_ta_shape is None:
-            tensor_name = "tensor{}".format(input_rank)
+            tensor_name = f"tensor{input_rank}"
             tensor_ctor = prelude.get_tensor_ctor(tensor_name, dtype_str)
             v = tensor_ctor(inputs[1])
             split_func = prelude.get_global_var("tensor_array_split", dtype_str)
         else:
             input_ta_rank = len(input_ta_shape)
-            assert input_ta_rank == input_rank, "Shape rank mismatch: {} vs {}".format(
-                input_ta_rank, input_rank
-            )
+            assert (
+                input_ta_rank == input_rank
+            ), f"Shape rank mismatch: {input_ta_rank} vs {input_rank}"
             static_tensor_array_ops = StaticTensorArrayOps(prelude, dtype_str, input_ta_shape)
             static_tensor_array_ops.register()
 
@@ -1925,10 +1944,9 @@ def _broadcast_args():
             elif s0[s0_size - i] == 1:
                 out.appendleft(s1[s1_size - i])
             else:
-                assert s1[s1_size - i] == 1, "Incompatible broadcast type %s and %s" % (
-                    s0[s0_size - i],
-                    s1[s1_size - i],
-                )
+                assert (
+                    s1[s1_size - i] == 1
+                ), f"Incompatible broadcast type {s0[s0_size - i]} and {s1[s1_size - i]}"
                 out.appendleft(s0[s0_size - i])
         if s0_size < s1_size:
             for i in range(s0_size + 1, s1_size + 1):
@@ -2348,10 +2366,7 @@ def _pad(name):
                 attr["pad_value"] = _get_num_param(params, inputs[2])
             except (IndexError, KeyError, AttributeError):
                 attr["pad_value"] = inputs[2]
-        return AttrCvt(
-            op_name="pad",
-            ignores=["Tpaddings"],
-        )(new_inputs, attr)
+        return AttrCvt(op_name="pad", ignores=["Tpaddings"])(new_inputs, attr)
 
     return _impl
 
@@ -2364,10 +2379,7 @@ def _mirror_pad():
         mode = attr["mode"].decode("utf-8")
         attr["mode"] = mode
         new_inputs = [inputs[0]]
-        return AttrCvt(
-            op_name="mirror_pad",
-            ignores=["Tpaddings"],
-        )(new_inputs, attr)
+        return AttrCvt(op_name="mirror_pad", ignores=["Tpaddings"])(new_inputs, attr)
 
     return _impl
 
@@ -2874,17 +2886,13 @@ def _unique(return_counts=True):
             unique_sliced = _op.strided_slice(unique, begin=[0], end=num_uniq, slice_mode="size")
             counts_sliced = _op.strided_slice(counts, begin=[0], end=num_uniq, slice_mode="size")
             return _expr.TupleWrapper(
-                _expr.Tuple([unique_sliced, inverse_indices, counts_sliced]),
-                3,
+                _expr.Tuple([unique_sliced, inverse_indices, counts_sliced]), 3
             )
         [unique, _, inverse_indices, num_uniq] = _op.unique(
             data, is_sorted=False, return_counts=False
         )
         unique_sliced = _op.strided_slice(unique, begin=[0], end=num_uniq, slice_mode="size")
-        return _expr.TupleWrapper(
-            _expr.Tuple([unique_sliced, inverse_indices]),
-            2,
-        )
+        return _expr.TupleWrapper(_expr.Tuple([unique_sliced, inverse_indices]), 2)
 
     return _impl
 

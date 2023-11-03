@@ -205,6 +205,26 @@ class WmmaToGlobalWithFusion:
 
 
 @tvm.script.ir_module
+class MmaToGlobal:
+    @T.prim_func
+    def main(c: T.handle) -> None:
+        C = T.match_buffer(c, [1024, 1024])
+        with T.block("root"):
+            T.block_attr({"warp_execution": True})
+            for bx in T.thread_binding(8, thread="blockIdx.x"):
+                for by in T.thread_binding(8, thread="blockIdx.y"):
+                    for ty in T.thread_binding(8, thread="threadIdx.y"):
+                        with T.block():
+                            C_accum = T.alloc_buffer(
+                                [128, 128], dtype="float32", scope="m16n8k8.matrixC"
+                            )
+                            with T.block("C_global"):
+                                T.block_attr({"auto_copy": 1, "vector_bytes": 16})
+                                for ax0, ax1 in T.grid(128, 128):
+                                    C[bx * 128 + ax0, by * 128 + ax1] = C_accum[ax0, ax1]
+
+
+@tvm.script.ir_module
 class TransformedGlobalToShared:
     @T.prim_func
     def main(a: T.handle, b: T.handle) -> None:
@@ -295,8 +315,6 @@ class TransformedGlobalToSharedWithLocalStage:
         A = T.match_buffer(a, (1024, 1024))
         B = T.match_buffer(b, (1024, 1024))
         with T.block("root"):
-            T.reads(A[0:1024, 0:1024])
-            T.writes(B[0:1024, 0:1024])
             T.block_attr({"warp_execution": True})
             for bx in T.thread_binding(8, thread="blockIdx.x"):
                 for by in T.thread_binding(8, thread="blockIdx.y"):
@@ -563,8 +581,6 @@ class TransformedWmmaToGlobal:
     @T.prim_func
     def main(C: T.Buffer((1024, 1024), "float32")):
         with T.block("root"):
-            T.reads()
-            T.writes(C[0:1024, 0:1024])
             T.block_attr({"warp_execution": True})
             for bx in T.thread_binding(8, thread="blockIdx.x"):
                 for by in T.thread_binding(8, thread="blockIdx.y"):
@@ -765,8 +781,6 @@ class TransformedWmmaToGlobalWithFusion:
         s1 = T.int32()
         # body
         with T.block("root"):
-            T.reads(A[0:1024])
-            T.writes(C[0:1024, 0:1024])
             T.block_attr({"warp_execution": True})
             for bx in T.thread_binding(8, thread="blockIdx.x"):
                 for by in T.thread_binding(8, thread="blockIdx.y"):
@@ -984,6 +998,106 @@ class TransformedWmmaToGlobalWithFusion:
                                                     )
 
 
+@tvm.script.ir_module
+class TransformedMmaToGlobal:
+    @T.prim_func
+    def main(C: T.Buffer((1024, 1024), "float32")):
+        with T.block("root"):
+            T.block_attr({"warp_execution": T.bool(True)})
+            for bx in T.thread_binding(8, thread="blockIdx.x"):
+                for by in T.thread_binding(8, thread="blockIdx.y"):
+                    for ty in T.thread_binding(8, thread="threadIdx.y"):
+                        with T.block(""):
+                            T.reads()
+                            T.writes(C[bx * 128 : bx * 128 + 128, by * 128 : by * 128 + 128])
+                            C_accum = T.alloc_buffer((128, 128), scope="m16n8k8.matrixC")
+                            with T.block("C_global"):
+                                T.reads(C_accum[0:128, 0:128])
+                                T.writes(C[bx * 128 : bx * 128 + 128, by * 128 : by * 128 + 128])
+                                T.block_attr({"auto_copy": 1, "vector_bytes": 16})
+                                C_accum_shared_dyn = T.alloc_buffer(
+                                    (8, 16, 8, 8), strides=(1152, 72, 8, 1), scope="shared.dyn"
+                                )
+                                for ax0_0 in range(16):
+                                    for ax1_0 in range(16):
+                                        with T.block("mma_store"):
+                                            T.reads(
+                                                C_accum[
+                                                    ax0_0 * 8 : ax0_0 * 8 + 8,
+                                                    ax1_0 * 8 : ax1_0 * 8 + 8,
+                                                ]
+                                            )
+                                            T.writes(C_accum_shared_dyn[ty, ax1_0, 0:8, 0:8])
+                                            src = T.match_buffer(
+                                                C_accum[
+                                                    ax0_0 * 8 : ax0_0 * 8 + 8,
+                                                    ax1_0 * 8 : ax1_0 * 8 + 8,
+                                                ],
+                                                (8, 8),
+                                                scope="m16n8k8.matrixC",
+                                                offset_factor=8,
+                                            )
+                                            tgt = T.match_buffer(
+                                                C_accum_shared_dyn[ty, ax1_0, 0:8, 0:8],
+                                                (8, 8),
+                                                strides=("s1", "s0"),
+                                                scope="shared.dyn",
+                                                offset_factor=8,
+                                            )
+                                            tx = T.launch_thread("threadIdx.x", 32)
+                                            for vec in T.vectorized(2):
+                                                tgt[tx // 4, tx % 4 * 2 + vec] = src[
+                                                    tx // 4, tx % 4 * 2 + vec
+                                                ]
+                                    for ax1_1 in range(8):
+                                        for ty_0 in T.thread_binding(8, thread="threadIdx.y"):
+                                            for tx_0 in T.thread_binding(32, thread="threadIdx.x"):
+                                                for v in T.vectorized(4):
+                                                    C[
+                                                        bx * 128
+                                                        + (
+                                                            ax0_0 * 8
+                                                            + (
+                                                                ((ax1_1 * 8 + ty_0) * 32 + tx_0) * 4
+                                                                + v
+                                                            )
+                                                            // 8
+                                                            % 8
+                                                        ),
+                                                        by * 128
+                                                        + (
+                                                            (
+                                                                ((ax1_1 * 8 + ty_0) * 32 + tx_0) * 4
+                                                                + v
+                                                            )
+                                                            // 8
+                                                            // 8
+                                                            % 16
+                                                            * 8
+                                                            + (
+                                                                ((ax1_1 * 8 + ty_0) * 32 + tx_0) * 4
+                                                                + v
+                                                            )
+                                                            % 8
+                                                        ),
+                                                    ] = C_accum_shared_dyn[
+                                                        (((ax1_1 * 8 + ty_0) * 32 + tx_0) * 4 + v)
+                                                        // 8
+                                                        // 8
+                                                        // 16
+                                                        % 8,
+                                                        (((ax1_1 * 8 + ty_0) * 32 + tx_0) * 4 + v)
+                                                        // 8
+                                                        // 8
+                                                        % 16,
+                                                        (((ax1_1 * 8 + ty_0) * 32 + tx_0) * 4 + v)
+                                                        // 8
+                                                        % 8,
+                                                        (((ax1_1 * 8 + ty_0) * 32 + tx_0) * 4 + v)
+                                                        % 8,
+                                                    ]
+
+
 def _check(original, transformed):
     mod = tvm.tir.transform.LowerAutoCopy()(original)
     tvm.ir.assert_structural_equal(mod, transformed, True)
@@ -1051,6 +1165,10 @@ def test_rewrite_wmma_to_global_fusion():
     _check(WmmaToGlobalWithFusion, TransformedWmmaToGlobalWithFusion)
 
 
+def test_rewrite_mma_to_global():
+    _check(MmaToGlobal, TransformedMmaToGlobal)
+
+
 if __name__ == "__main__":
     test_coalesce_vectorize()
     test_inverse()
@@ -1060,3 +1178,4 @@ if __name__ == "__main__":
     test_rewrite_wmma_to_global()
     test_auto_padding()
     test_rewrite_wmma_to_global_fusion()
+    test_rewrite_mma_to_global()

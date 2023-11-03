@@ -537,7 +537,12 @@ std::unique_ptr<IndexedGraph<DFPattern>> CreateIndexedGraph(const DFPattern& pat
 
     void VisitDFPattern_(const VarPatternNode* op) override {}
 
-    void VisitDFPattern_(const WildcardPatternNode* op) override {}
+    void VisitDFPattern_(const WildcardPatternNode* op) override {
+      if (op->pattern) {
+        auto node = graph_->item_to_node(GetRef<WildcardPattern>(op));
+        AddOutput(op->pattern.value(), node);
+      }
+    }
 
     std::unique_ptr<IndexedGraph<DFPattern>> graph_;
   };

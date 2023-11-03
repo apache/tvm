@@ -224,14 +224,14 @@ def calibrate(dataset=None):
         elif cfg.calibrate_mode == "percentile":
             input_scale_func = _percentile_scale(mod, dataset)
         else:
-            raise ValueError("Unknown calibrate mode {}".format(cfg.calibrate_mode))
+            raise ValueError(f"Unknown calibrate mode {cfg.calibrate_mode}")
 
         if cfg.weight_scale == "max":
             weight_scale_func = _max_scale
         elif cfg.weight_scale == "power2":
             weight_scale_func = _power2_scale
         else:
-            raise ValueError("Unknown weight scale mode {}".format(cfg.weight_scale))
+            raise ValueError(f"Unknown weight scale mode {cfg.weight_scale}")
 
         return _set_params(mod, input_scale_func, weight_scale_func)
 

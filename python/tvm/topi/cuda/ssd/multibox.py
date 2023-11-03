@@ -158,7 +158,15 @@ def multibox_prior(data, sizes=(1,), ratios=(1,), steps=(-1, -1), offsets=(0.5, 
     return out
 
 
-def transform_loc_pre(cls_prob, valid_count, temp_valid_count, temp_cls_id, temp_score, threshold):
+def transform_loc_pre(
+    cls_prob,
+    valid_count,
+    temp_valid_count,
+    temp_cls_id,
+    temp_score,
+    threshold,
+    keep_background,
+):
     """Low level IR routing for transform location data preparation.
 
     Parameters
@@ -181,6 +189,9 @@ def transform_loc_pre(cls_prob, valid_count, temp_valid_count, temp_cls_id, temp
     threshold : float
         Threshold to be a positive prediction.
 
+    keep_background : int
+        1 to keep background, 0 to remove it.
+
     Returns
     -------
     stmt : Stmt
@@ -199,6 +210,7 @@ def transform_loc_pre(cls_prob, valid_count, temp_valid_count, temp_cls_id, temp
     score = ib.buffer_ptr(temp_score)
 
     threshold = tvm.tir.FloatImm("float32", threshold)
+    keep_background = tvm.tir.IntImm("int8", keep_background)
 
     max_threads = int(tvm.target.Target.current(allow_none=False).max_num_threads)
     nthread_tx = max_threads
@@ -217,13 +229,14 @@ def transform_loc_pre(cls_prob, valid_count, temp_valid_count, temp_cls_id, temp
         valid_count[i] = 0
         score[tid] = -1.0
         cls_id[tid] = 0
-        with ib.for_range(0, num_classes - 1) as k:
-            temp = cls_prob[i * num_classes * num_anchors + (k + 1) * num_anchors + j]
-            cls_id[tid] = if_then_else(temp > score[tid], k + 1, cls_id[tid])
-            score[tid] = tvm.te.max(temp, score[tid])
+        with ib.for_range(0, num_classes) as k:
+            with ib.if_scope(tvm.tir.any(keep_background == 1, k > 0)):
+                temp = cls_prob[i * num_classes * num_anchors + k * num_anchors + j]
+                cls_id[tid] = if_then_else(temp > score[tid], k, cls_id[tid])
+                score[tid] = tvm.te.max(temp, score[tid])
         with ib.if_scope(tvm.tir.all(cls_id[tid] > 0, score[tid] < threshold)):
             cls_id[tid] = 0
-        with ib.if_scope(cls_id[tid] > 0):
+        with ib.if_scope(tvm.tir.any(keep_background == 1, cls_id[tid] > 0)):
             temp_valid_count[tid] = 1
         with ib.else_scope():
             temp_valid_count[tid] = 0
@@ -250,6 +263,7 @@ def transform_loc_ir(
     variances,
     batch_size,
     num_anchors,
+    keep_background,
 ):
     """Low level IR routing for transform location in multibox_detection operator.
 
@@ -284,6 +298,9 @@ def transform_loc_ir(
 
     num_anchors : int
         Number of anchors
+
+    keep_background : int
+        1 to keep background, 0 to remove it.
 
     Returns
     -------
@@ -325,6 +342,8 @@ def transform_loc_ir(
     score = ib.buffer_ptr(temp_score)
     out_loc = ib.buffer_ptr(out)
 
+    keep_background = tvm.tir.IntImm("int8", keep_background)
+
     max_threads = int(tvm.target.Target.current(allow_none=False).max_num_threads)
     nthread_tx = max_threads
     nthread_bx = (batch_size * num_anchors) // max_threads + 1
@@ -341,10 +360,12 @@ def transform_loc_ir(
         i = idxd(tid, num_anchors)
         j = idxm(tid, num_anchors)
 
-        with ib.if_scope(cls_id[tid] > 0):
+        with ib.if_scope(tvm.tir.any(keep_background == 1, cls_id[tid] > 0)):
             with ib.if_scope(j == 0):
                 out_base_idx = i * num_anchors * 6
-                out_loc[out_base_idx] = cls_id[tid] - 1.0
+                out_loc[out_base_idx] = (
+                    cls_id[tid] * 1.0 if keep_background == 1 else cls_id[tid] - 1.0
+                )
                 out_loc[out_base_idx + 1] = score[tid]
                 (
                     out_loc[out_base_idx + 2],
@@ -364,7 +385,9 @@ def transform_loc_ir(
                 )
             with ib.else_scope():
                 out_base_idx = i * num_anchors * 6 + temp_valid_count[tid - 1] * 6
-                out_loc[out_base_idx] = cls_id[tid] - 1.0
+                out_loc[out_base_idx] = (
+                    cls_id[tid] * 1.0 if keep_background == 1 else cls_id[tid] - 1.0
+                )
                 out_loc[out_base_idx + 1] = score[tid]
                 (
                     out_loc[out_base_idx + 2],
@@ -387,7 +410,13 @@ def transform_loc_ir(
 
 
 def multibox_transform_loc(
-    cls_prob, loc_pred, anchor, clip=True, threshold=0.01, variances=(0.1, 0.1, 0.2, 0.2)
+    cls_prob,
+    loc_pred,
+    anchor,
+    clip=True,
+    threshold=0.01,
+    variances=(0.1, 0.1, 0.2, 0.2),
+    keep_background=False,
 ):
     """Location transformation for multibox detection
 
@@ -410,6 +439,9 @@ def multibox_transform_loc(
 
     variances : tuple of float
         Variances to be decoded from box regression output.
+
+    keep_background : boolean
+        Whether to keep boxes detected as background or not.
 
     Returns
     -------
@@ -481,7 +513,15 @@ def multibox_transform_loc(
             ),
         ],
         [cls_prob],
-        lambda ins, outs: transform_loc_pre(ins[0], outs[0], outs[1], outs[2], outs[3], threshold),
+        lambda ins, outs: transform_loc_pre(
+            ins[0],
+            outs[0],
+            outs[1],
+            outs[2],
+            outs[3],
+            threshold,
+            int(keep_background),
+        ),
         dtype=[valid_count_dtype, valid_count_dtype, valid_count_dtype, cls_prob.dtype],
         out_buffers=[valid_count_buf, temp_valid_count_buf, temp_cls_id_buf, temp_score_buf],
         tag="multibox_transform_loc_phase_one",
@@ -501,6 +541,7 @@ def multibox_transform_loc(
             variances,
             batch_size,
             num_anchors,
+            int(keep_background),
         ),
         in_buffers=[
             loc_pred_buf,

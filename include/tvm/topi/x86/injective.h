@@ -51,7 +51,7 @@ inline Schedule schedule_injective_from_existing(Schedule sch, const Tensor& out
     auto c = axis[1];
     auto fused = detail::Fuse(sch[out], {n, c});  // for nhwc layout, fuse n and h
     sch[out].parallel(fused);
-  } else {
+  } else if (!axis.empty()) {
     sch[out].parallel(axis[0]);
   }
   return sch;

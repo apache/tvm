@@ -22,6 +22,7 @@
  * \brief The function data structure.
  */
 #include <tvm/ir/function.h>
+#include <tvm/relay/function.h>
 #include <tvm/runtime/registry.h>
 #include <tvm/tir/function.h>
 
@@ -42,6 +43,18 @@ TVM_REGISTER_GLOBAL("ir.BaseFuncWithAttr")
         }
       }
       LOG(FATAL) << "Do not support function type " << func->GetTypeKey();
+    });
+
+TVM_REGISTER_GLOBAL("ir.BaseFuncWithoutAttr")
+    .set_body_typed([](BaseFunc func, String key) -> BaseFunc {
+      if (func->IsInstance<tir::PrimFuncNode>()) {
+        return WithoutAttr(Downcast<tir::PrimFunc>(std::move(func)), key);
+      } else if (func->IsInstance<relay::FunctionNode>()) {
+        return WithoutAttr(Downcast<relay::Function>(std::move(func)), key);
+      } else {
+        LOG(FATAL) << "Do not support function type " << func->GetTypeKey();
+        return func;
+      }
     });
 
 }  // namespace tvm

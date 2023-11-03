@@ -28,15 +28,15 @@ from .init import create_workload
 
 def _make_dense_layer(data, growth_rate, bn_size, index):
     """Single densenet layer."""
-    bn1 = layers.batch_norm_infer(data, name="batch_1_%s" % index)
+    bn1 = layers.batch_norm_infer(data, name=f"batch_1_{index}")
     relu1 = relay.nn.relu(bn1)
     conv1 = layers.conv2d(
-        relu1, channels=bn_size * growth_rate, kernel_size=(1, 1), name="conv2d_1_%s" % index
+        relu1, channels=bn_size * growth_rate, kernel_size=(1, 1), name=f"conv2d_1_{index}"
     )
     bn2 = layers.batch_norm_infer(conv1, name="batch_2_" + index)
     relu2 = relay.nn.relu(bn2)
     conv2 = layers.conv2d(
-        relu2, channels=growth_rate, kernel_size=(3, 3), padding=(1, 1), name="conv2d_2_%s" % index
+        relu2, channels=growth_rate, kernel_size=(3, 3), padding=(1, 1), name=f"conv2d_2_{index}"
     )
     return conv2
 
@@ -46,7 +46,7 @@ def _make_dense_block(data, num_layers, bn_size, growth_rate, index):
     layer_out = data
     blocks = []
     for i in range(num_layers):
-        layer_out = _make_dense_layer(layer_out, growth_rate, bn_size, "%s_%s" % (index, i))
+        layer_out = _make_dense_layer(layer_out, growth_rate, bn_size, f"{index}_{i}")
         blocks.append(layer_out)
     block_out = relay.concatenate(blocks, 1)
     return block_out
@@ -54,10 +54,10 @@ def _make_dense_block(data, num_layers, bn_size, growth_rate, index):
 
 def _make_transition(data, num_output_features, index):
     """Transition between layers."""
-    bn = layers.batch_norm_infer(data, name="batch_t_%s" % index)
+    bn = layers.batch_norm_infer(data, name=f"batch_t_{index}")
     relu = relay.nn.relu(bn)
     conv = layers.conv2d(
-        relu, channels=num_output_features, kernel_size=(1, 1), name="conv_t_%s" % index
+        relu, channels=num_output_features, kernel_size=(1, 1), name=f"conv_t_{index}"
     )
     return relay.nn.avg_pool2d(conv, pool_size=(2, 2), strides=(2, 2))
 

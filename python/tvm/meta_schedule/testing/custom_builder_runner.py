@@ -161,7 +161,7 @@ def run_module_via_rpc(
         filename = os.path.join(tmp_dir, "tvm_tmp_mod." + tar.output_format)
         if backend == "vm":
             code, lib = lib.save()
-        lib.export_library(filename, tar)
+        lib.export_library(filename, fcompile=tar)
         session = rpc_config.connect_server()
         session.upload(filename)
         _, filename = os.path.split(filename)

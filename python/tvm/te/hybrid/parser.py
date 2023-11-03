@@ -161,9 +161,7 @@ class HybridParser(ast.NodeVisitor):
         if key in self.symbols.keys():
             old = str(self.symbols[key])
             new = str((ty, val))
-            _internal_assert(
-                False, "Name conflict in symbol table! [%s] %s -> %s" % (key, old, new)
-            )
+            _internal_assert(False, f"Name conflict in symbol table! [{key}] {old} -> {new}")
 
         self.symbols[key] = ty, val
 
@@ -188,7 +186,7 @@ class HybridParser(ast.NodeVisitor):
                 continue
             if level != node:
                 continue
-            _internal_assert(key in self.symbols.keys(), "Unknown symbol %s!" % key)
+            _internal_assert(key in self.symbols.keys(), f"Unknown symbol {key}!")
 
             ty, entry = self.symbols[key]  # pylint: disable=invalid-name
             if ty in [Symbol.Input, Symbol.OutputBuffer]:
@@ -254,7 +252,7 @@ class HybridParser(ast.NodeVisitor):
             return tvm.runtime.convert(self.closure_vars[name])
 
         ty, entry = self.symbols[name]
-        _internal_assert(name in self.symbols, "Unknown symbol %s!" % name)
+        _internal_assert(name in self.symbols, f"Unknown symbol {name}!")
         if ty in [Symbol.LoopVar, Symbol.Input, Symbol.ConstLoopVar]:
             return entry
         if ty is Symbol.ThreadBind:
@@ -473,7 +471,7 @@ class HybridParser(ast.NodeVisitor):
         # Contexts'
         _internal_assert(
             func_id in self.symbols.keys(),
-            "The function called (%s) is not in the context either!" % func_id,
+            f"The function called ({func_id}) is not in the context either!",
         )
         ty, entry = self.symbols[func_id]
         _internal_assert(ty is Symbol.Callable, "Are you sure what you call is a function?!")

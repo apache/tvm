@@ -165,5 +165,21 @@ def test_flatten_tir():
     )  # StorageFlatten should do nothing to TIR functions
 
 
+class TestPreserveDeclBuffer(tvm.testing.CompareBeforeAfter):
+    transform = tvm.tir.transform.StorageFlatten(64)
+
+    def before():
+        T.func_attr({"from_legacy_te_schedule": True})
+        A = T.decl_buffer([16, 16], "float32")
+        for i, j in T.grid(16, 16):
+            A[i, j] = 0.0
+
+    def expected():
+        T.func_attr({"from_legacy_te_schedule": True})
+        A = T.decl_buffer([256], "float32")
+        for i, j in T.grid(16, 16):
+            A[i * 16 + j] = 0.0
+
+
 if __name__ == "__main__":
     tvm.testing.main()

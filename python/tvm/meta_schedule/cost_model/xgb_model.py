@@ -21,6 +21,8 @@ from collections import OrderedDict
 from itertools import chain as itertools_chain
 from typing import TYPE_CHECKING, Any, Callable, Dict, List, NamedTuple, Optional, Tuple
 
+from typing_extensions import Literal
+
 import numpy as np  # type: ignore
 
 from ...contrib.tar import tar, untar
@@ -202,6 +204,8 @@ class PackSum:
 class XGBConfig(NamedTuple):
     """XGBoost model configuration
 
+    Reference: https://xgboost.readthedocs.io/en/stable/parameter.html
+
     Parameters
     ----------
     max_depth : int
@@ -217,6 +221,8 @@ class XGBConfig(NamedTuple):
     nthread : Optional[int],
         The number of threads to use.
         Default is None, which means to use physical number of cores.
+    tree_method : Literal["auto", "exact", "approx", "hist", "gpu_hist"]
+        The tree construction algorithm used in XGBoost.
     """
 
     max_depth: int = 10
@@ -225,8 +231,11 @@ class XGBConfig(NamedTuple):
     eta: float = 0.2
     seed: int = 43
     nthread: Optional[int] = None
+    tree_method: Literal["auto", "exact", "approx", "hist", "gpu_hist"] = "auto"
 
     def to_dict(self):
+        """Convert to dict"""
+
         return {
             "max_depth": self.max_depth,
             "gamma": self.gamma,
@@ -234,6 +243,7 @@ class XGBConfig(NamedTuple):
             "eta": self.eta,
             "seed": self.seed,
             "nthread": self.nthread,
+            "tree_method": self.tree_method,
         }
 
 
@@ -334,6 +344,7 @@ class XGBModel(PyCostModel):
         average_peak_n: int = 32,
         adaptive_training: bool = True,
         num_tuning_cores: Optional[int] = None,
+        tree_method: Optional[Literal["auto", "exact", "approx", "hist", "gpu_hist"]] = None,
     ):
         super().__init__()
         if not isinstance(extractor, FeatureExtractor):
@@ -347,6 +358,9 @@ class XGBModel(PyCostModel):
                 config = config._replace(nthread=cpu_count(logical=False))
             else:
                 config = config._replace(nthread=num_tuning_cores)
+
+        if tree_method is not None:
+            config._replace(tree_method=tree_method)
 
         self.config = config
         # behavior of randomness

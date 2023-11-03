@@ -264,11 +264,49 @@ TVM_DLL Pass LowerCustomDatatypes();
 TVM_DLL Pass DecorateDeviceScope();
 
 /*!
+ * \brief Annotate locations that should be run on the device
+ *
+ * Insert `AttrStmt` nodes specifying a target on which regions within
+ * the PrimFunc should be executed.  Only modifies functions that have
+ * a `tvm::attr::kTarget` attribute, and where that target defines a
+ * host.
+ *
+ * \return The pass.
+ */
+TVM_DLL Pass AnnotateDeviceRegions();
+
+/*!
  * \brief Split the function into a host function and device functions.
+ *
+ * The resulting host-side function will keep the same
+ * `tvm::attr::kTarget` attribute (e.g. `T.target("cuda",
+ * host=T.target("llvm"))`).  This ensures that `MakePackedAPI` knows
+ * which device type should be used for the input buffers.
+ *
+ * The resulting device-side function will
+ * have the host stripped from its target attribute
+ * (e.g. `T.target("cuda")`).
  *
  * \return The pass.
  */
 TVM_DLL Pass SplitHostDevice();
+
+/*!
+ * \brief Lower cross-device function calls.
+ *
+ * Prior to this pass, host to device calls are represented as
+ * subroutine calls, with environment parameters (e.g. env_thread)
+ * specified internally.  The device function is an internal function,
+ * without a `tvm::attr::kGlobalSymbol` attribute.
+ *
+ * After this pass, host to device calls are represented as
+ * tvm_call_packed built-in.  The device function is an
+ * externally-exposed function, with a non-empty
+ * `tvm::attr::kGlobalSymbol` attribute.
+ *
+ * \return The pass.
+ */
+TVM_DLL Pass LowerDeviceKernelLaunch();
 
 /*!
  * \brief skip assert stmt.
@@ -357,10 +395,24 @@ TVM_DLL Pass NarrowDataType(int target_bits);
 TVM_DLL Pass BF16ComputeLegalize();
 
 /*!
+ * \brief Legalize fp8 compute Ops. Add a cast to fp16/fp32
+ *   before Ops, then add a cast back to fp8.
+ * \param promote_dtype_str The data type used for type promotion, defaults to float16
+ * \return The pass.
+ */
+TVM_DLL Pass FP8ComputeLegalize(String promote_dtype_str = "float16");
+
+/*!
  * \brief Legalize bf16 storage types to u16.
  * \return The pass.
  */
 TVM_DLL Pass BF16StorageLegalize();
+
+/*!
+ * \brief Legalize fp8 storage types to u8.
+ * \return The pass.
+ */
+TVM_DLL Pass FP8StorageLegalize();
 
 /*!
  * \brief Rewrite the pointer content type of arguments,
@@ -423,6 +475,12 @@ TVM_DLL Pass PlanAndUpdateBufferAllocationLocation();
 TVM_DLL Pass ConvertBlocksToOpaque();
 
 /*!
+ * \brief Lift the same thread bindings to their LCA loops
+ * \return The pass.
+ */
+TVM_DLL Pass LiftThreadBinding();
+
+/*!
  * \brief Compact the buffer access region by removing the buffer regions that are not accessed,
  *        i.e. narrowing the buffer shape and adjust the access region if necessary.
  *
@@ -472,6 +530,18 @@ TVM_DLL Pass LegalizePackedCalls();
  * \return The pass.
  */
 TVM_DLL Pass LowerMatchBuffer();
+
+/*!
+ * \brief Inject permuted layout for shared memory.
+ * \return The pass.
+ */
+TVM_DLL Pass InjectPermutedLayout();
+
+/*!
+ * \brief Transform Mma scope (m16n8k8.matrixA/B/C) to local scope with layout transformation.
+ * \return The pass.
+ */
+TVM_DLL Pass TransformMmaBufferLayout();
 
 /*!
  * \brief Remove the block to ensure that the TIR can not be scheduled again.

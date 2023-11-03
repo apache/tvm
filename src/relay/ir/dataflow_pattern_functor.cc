@@ -105,7 +105,11 @@ void DFPatternVisitor::VisitDFPattern_(const VarPatternNode* op) {}
 
 void DFPatternVisitor::VisitDFPattern_(const ConstantPatternNode* op) {}
 
-void DFPatternVisitor::VisitDFPattern_(const WildcardPatternNode* op) {}
+void DFPatternVisitor::VisitDFPattern_(const WildcardPatternNode* op) {
+  if (op->pattern) {
+    VisitDFPattern(op->pattern.value());
+  }
+}
 
 }  // namespace relay
 }  // namespace tvm

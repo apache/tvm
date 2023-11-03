@@ -66,12 +66,7 @@ class GemmOperation:
             ):
                 intermediate_type = DataTypeNames[self.tile_description.math_instruction.element_a]
 
-        return "%s%s%s%s" % (
-            self.short_math_name(),
-            inst_shape,
-            intermediate_type,
-            "gemm",
-        )
+        return f"{self.short_math_name()}{inst_shape}{intermediate_type}gemm"
 
     def extended_name(self):
         """Append data types if they differ from compute type."""
@@ -100,7 +95,7 @@ class GemmOperation:
         return extended_name
 
     def layout_name(self):
-        return "%s%s" % (ShortLayoutTypeNames[self.A.layout], ShortLayoutTypeNames[self.B.layout])
+        return f"{ShortLayoutTypeNames[self.A.layout]}{ShortLayoutTypeNames[self.B.layout]}"
 
     def procedural_name(self):
         """The full procedural name indicates architecture, extended name, tile size,
@@ -116,7 +111,7 @@ class GemmOperation:
                 "extended_name": self.extended_name(),
                 "threadblock": threadblock,
                 "layout": self.layout_name(),
-                "alignment": "%d" % self.A.alignment,
+                "alignment": f"{self.A.alignment}",
             },
         )
 
@@ -145,11 +140,7 @@ class GemmOperation:
 
         return substitute_template(
             "int lda = ${lda_val};\n\tint ldb = ${ldb_val};\n\tint ldc = ${ldc_val};\n",
-            {
-                "lda_val": lda,
-                "ldb_val": ldb,
-                "ldc_val": ldc,
-            },
+            {"lda_val": lda, "ldb_val": ldb, "ldc_val": ldc},
         )
 
 
@@ -217,7 +208,7 @@ class EmitGemmInstance:
             "opcode_class": OpcodeClassTag[
                 operation.tile_description.math_instruction.opcode_class
             ],
-            "arch": "cutlass::arch::Sm%d" % operation.arch,
+            "arch": f"cutlass::arch::Sm{operation.arch}",
             "threadblock_shape_m": str(operation.tile_description.threadblock_shape[0]),
             "threadblock_shape_n": str(operation.tile_description.threadblock_shape[1]),
             "threadblock_shape_k": str(operation.tile_description.threadblock_shape[2]),
@@ -343,6 +334,6 @@ def instantiate_gemm_template(attrs, func_args):
     template = substitute_template(template, aux_map)
 
     for i, arg in enumerate(func_args):
-        attrs["arg{}".format(i)] = arg
+        attrs[f"arg{i}"] = arg
 
     return substitute_template(template, attrs)

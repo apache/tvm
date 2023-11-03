@@ -422,19 +422,43 @@ std::pair<Var, BlockVarDomainInfo> SolveBlockVarDomain(const arith::IntSet& prov
       var_dom = arith::IntSet::Interval(required_min, required_max);
       var_bound = arith::IntSet::Interval(0, dim_max);
     } else {
-      arith::PVar<PrimExpr> p_f;
-      if ((floordiv(p_v, p_f)).Match(provided_min)) {
-        // a <= (x // factor) <= b, fac > 0 ==> (a * fac) <= x <= (b * fac + fac - 1)
-        PrimExpr fac = p_f.Eval();
+      arith::PVar<PrimExpr> p_f1, p_f2;
+      if ((floordiv(p_f1, p_f2).Match(provided_min))) {
+        PrimExpr var_expr = p_f1.Eval();
+        PrimExpr fac = p_f2.Eval();
         if (analyzer->CanProveGreaterEqual(fac, 1)) {
-          var = p_v.Eval();
-          var_dom = arith::IntSet::Interval(required_min * fac,
-                                            analyzer->Simplify(required_max * fac + fac - 1));
-          var_bound = arith::IntSet::Interval(0, analyzer->Simplify(dim_max * fac + fac - 1));
+          if (var_expr->IsInstance<VarNode>()) {
+            // a <= (x // factor) <= b, fac > 0 ==> (a * fac) <= x <= (b * fac + fac - 1)
+            var = Downcast<Var>(var_expr);
+            var_dom = arith::IntSet::Interval(required_min * fac,
+                                              analyzer->Simplify(required_max * fac + fac - 1));
+            var_bound = arith::IntSet::Interval(0, analyzer->Simplify(dim_max * fac + fac - 1));
+          } else {
+            const arith::IntSet new_provided = arith::IntSet::SinglePoint(p_f1.Eval());
+            const arith::IntSet new_required = arith::IntSet::Interval(
+                required_min * fac, analyzer->Simplify(required_max * fac + fac - 1));
+            return SolveBlockVarDomain(new_provided, new_required, dim_max, analyzer);
+          }
         }
-      } else if ((floormod(p_v, p_f).Match(provided_min))) {
-        // generally domain of (x % fac) enforce no constraints to domain of x
-        return {p_v.Eval(), BlockVarDomainInfo()};
+      } else if ((floormod(p_f1, p_f2).Match(provided_min))) {
+        PrimExpr var_expr = p_f1.Eval();
+        if (var_expr->IsInstance<VarNode>()) {
+          // generally domain of (x % fac) enforce no constraints to domain of x
+          Var var_mod = Downcast<Var>(var_expr);
+          return {var_mod, BlockVarDomainInfo()};
+        } else {
+          PrimExpr mod_1 = p_f1.Eval();
+          PrimExpr mod_2 = p_f2.Eval();
+          if (analyzer->CanProveGreaterEqual(mod_1, 1) &&
+              analyzer->CanProveGreaterEqual(mod_2, 1)) {
+            const arith::IntSet new_provided = arith::IntSet::SinglePoint(p_f1.Eval());
+            if (analyzer->CanProveGreaterEqual(required_min, 0)) {
+              const arith::IntSet new_required =
+                  arith::IntSet::Interval(required_min, arith::SymbolicLimits::pos_inf_);
+              return SolveBlockVarDomain(new_provided, new_required, dim_max, analyzer);
+            }
+          }
+        }
       }
     }
   }
@@ -668,6 +692,7 @@ void ComputeAtOrReverseComputeAtImpl(ScheduleState self, const StmtSRef& block_s
   StmtSRef scope_root_sref = GetScopeRoot(self, block_sref,
                                           /*require_stage_pipeline=*/true);
   Block scope_root = GetRef<Block>(scope_root_sref->StmtAs<BlockNode>());
+  AddShapeVarBounds(self, scope_root_sref.get(), analyzer);
   BlockScope scope = self->GetBlockScope(scope_root_sref);
   Array<StmtSRef> producer_srefs = GetProducers(block_sref, scope);
   Array<StmtSRef> consumer_srefs = GetConsumers(block_sref, scope);

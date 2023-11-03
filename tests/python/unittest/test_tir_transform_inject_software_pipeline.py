@@ -37,10 +37,12 @@ from tvm.tir.tensor_intrin.cuda import (
 
 def _check(original, transformed):
     func = original
-    mod = tvm.IRModule.from_expr(func)
+    mod = tvm.IRModule.from_expr(func.with_attr("global_symbol", "main"))
     mod = tvm.tir.transform.InjectSoftwarePipeline()(mod)
     mod = tvm.tir.transform.Simplify()(mod)
-    tvm.ir.assert_structural_equal(mod["main"], transformed, True)
+    tvm.ir.assert_structural_equal(
+        mod["main"], transformed.with_attr("global_symbol", "main"), True
+    )
 
 
 def _check_error(func):
@@ -149,6 +151,74 @@ def transformed_simple_compute(
                 T.reads([B[1, tx, 0]])
                 T.writes([C[tx, 15]])
                 C[tx, 15] = B[1, tx, 0] + T.float32(1)
+
+
+@T.prim_func
+def dynamic_compute(a_handle: T.handle, c_handle: T.handle):
+    k = T.int32()
+    A = T.match_buffer(a_handle, (16, k), "float32")
+    C = T.match_buffer(c_handle, (16, k), "float32")
+    for tx in T.thread_binding(0, 16, thread="threadIdx.x"):
+        for i in T.serial(
+            0,
+            k,
+            annotations={
+                "software_pipeline_stage": [0, 1],
+                "software_pipeline_order": [0, 1],
+            },
+        ):
+            with T.block("compute"):
+                T.reads(A[tx, i])
+                T.writes(C[tx, i])
+                B = T.alloc_buffer((16, 1), dtype="float32", scope="shared")
+                with T.block():
+                    T.reads(A[tx, i])
+                    T.writes(B[tx, 0])
+                    B[tx, 0] = A[tx, i] * T.float32(2)
+                with T.block():
+                    T.reads(B[tx, 0])
+                    T.writes(C[tx, i])
+                    C[tx, i] = B[tx, 0] + T.float32(1)
+
+
+@T.prim_func
+def transformed_dynamic_compute(a_handle: T.handle, c_handle: T.handle):
+    k = T.int32()
+    A = T.match_buffer(a_handle, (16, k), "float32")
+    C = T.match_buffer(c_handle, (16, k), "float32")
+    for tx in T.thread_binding(0, 16, thread="threadIdx.x"):
+        with T.block():
+            T.reads(A[tx, 0 : T.max(1, k)])
+            T.writes(C[tx, T.min(0, k - 1) : T.min(0, k - 1) + T.max(k, 1)])
+            B = T.alloc_buffer([2, 16, 1], dtype="float32", scope="shared")
+            with T.block(""):
+                T.reads(A[tx, 0])
+                T.writes(B[0, tx, 0])
+                with T.block(""):
+                    T.where(0 < k)
+                    T.reads(A[tx, 0])
+                    T.writes(B[0, tx, 0])
+                    B[0, tx, 0] = A[tx, 0] * T.float32(2)
+            with T.block(""):
+                T.reads(A[tx, 1 : 1 + (k - 1)], B[0:2, tx, 0])
+                T.writes(B[0:2, tx, 0], C[tx, 0 : k - 1])
+                for i in range(k - 1):
+                    with T.block(""):
+                        T.reads(A[tx, i + 1])
+                        T.writes(B[(i + 1) % 2, tx, 0])
+                        B[(i + 1) % 2, tx, 0] = A[tx, i + 1] * T.float32(2)
+                    with T.block(""):
+                        T.reads(B[i % 2, tx, 0])
+                        T.writes(C[tx, i])
+                        C[tx, i] = B[i % 2, tx, 0] + T.float32(1)
+            with T.block(""):
+                T.reads(B[(k + 1) % 2, tx, 0])
+                T.writes(C[tx, k - 1])
+                with T.block(""):
+                    T.where(1 <= k)
+                    T.reads(B[(k + 1) % 2, tx, 0])
+                    T.writes(C[tx, k - 1])
+                    C[tx, k - 1] = B[(k + 1) % 2, tx, 0] + T.float32(1)
 
 
 @T.prim_func
@@ -1067,6 +1137,10 @@ def test_simple_compute_with_other_annotation():
     _check(simple_compute_with_other_annotation, transformed_simple_compute_with_other_annotation)
 
 
+def test_dynamic_compute():
+    _check(dynamic_compute, transformed_dynamic_compute)
+
+
 def test_trivial_pipeline():
     _check(trivial_pipeline, transformed_trivial_pipeline)
 
@@ -1108,7 +1182,7 @@ def test_error_missing_annotation():
 
 
 def test_simple_compute_async():
-    mod = tvm.IRModule.from_expr(gen_simple_compute(1))
+    mod = tvm.IRModule.from_expr(gen_simple_compute(1).with_attr("global_symbol", "main"))
     sch = tvm.tir.Schedule(mod)
 
     _, loop = sch.get_loops(sch.get_block("compute"))
@@ -1153,9 +1227,9 @@ def test_simple_compute_async():
                         with T.attr(0, "async_wait_inflight_count", 0):
                             C[tx, 15] = B[T.FloorMod(15, 2), tx, 0] + T.float32(1)
 
-    tvm.ir.assert_structural_equal(mod["main"], ref, True)
+    tvm.ir.assert_structural_equal(mod["main"], ref.with_attr("global_symbol", "main"), True)
 
-    mod = tvm.IRModule.from_expr(gen_simple_compute(3))
+    mod = tvm.IRModule.from_expr(gen_simple_compute(3).with_attr("global_symbol", "main"))
     sch = tvm.tir.Schedule(mod)
 
     _, loop = sch.get_loops(sch.get_block("compute"))
@@ -1210,7 +1284,7 @@ def test_simple_compute_async():
                                 with T.attr(0, "async_wait_inflight_count", 2 - i):
                                     C[tx, i - 3 + 16] = B[(i - 3 + 16) % 4, tx, 0] + T.float32(1)
 
-    tvm.ir.assert_structural_equal(mod["main"], ref, True)
+    tvm.ir.assert_structural_equal(mod["main"], ref.with_attr("global_symbol", "main"), True)
 
 
 def test_async_producer_interleaving():
@@ -1240,7 +1314,7 @@ def test_async_producer_interleaving():
                         T.writes(C[tx, i])
                         C[tx, i] = A_shared[tx, 0] + B_shared[tx, 0]
 
-    mod = tvm.IRModule.from_expr(simple_compute)
+    mod = tvm.IRModule.from_expr(simple_compute.with_attr("global_symbol", "main"))
     sch = tvm.tir.Schedule(mod)
 
     _, loop = sch.get_loops(sch.get_block("compute"))
@@ -1317,11 +1391,11 @@ def test_async_producer_interleaving():
                                         + B_shared[(i - 3 + 16) % 4, tx, 0]
                                     )
 
-    tvm.ir.assert_structural_equal(mod["main"], ref, True)
+    tvm.ir.assert_structural_equal(mod["main"], ref.with_attr("global_symbol", "main"), True)
 
 
 def test_three_stage_compute_two_stage_async():
-    mod = tvm.IRModule.from_expr(three_stage_compute)
+    mod = tvm.IRModule.from_expr(three_stage_compute.with_attr("global_symbol", "main"))
     sch = tvm.tir.Schedule(mod)
 
     _, loop = sch.get_loops(sch.get_block("compute"))
@@ -1415,7 +1489,7 @@ def test_three_stage_compute_two_stage_async():
                                 ):
                                     D[tx, i - 2 + 16] = C[(i - 2 + 16) % 2, tx, 0] + T.float32(1)
 
-    tvm.ir.assert_structural_equal(mod["main"], ref, True)
+    tvm.ir.assert_structural_equal(mod["main"], ref.with_attr("global_symbol", "main"), True)
 
 
 N = K = M = 4096

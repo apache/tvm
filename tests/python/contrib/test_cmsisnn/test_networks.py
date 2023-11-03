@@ -120,5 +120,32 @@ def test_cnn_small(test_runner):
     )
 
 
+@tvm.testing.requires_package("tflite")
+def test_keyword_scramble():
+    """Download keyword_scrambled and test for Relay conversion.
+    In future, this test can be extended for CMSIS-NN"""
+    # download the model
+    base_url = (
+        "https://github.com/tensorflow/tflite-micro/raw/"
+        "de8f61a074460e1fa5227d875c95aa303be01240/"
+        "tensorflow/lite/micro/models"
+    )
+    file_to_download = "keyword_scrambled.tflite"
+    file_saved = "keyword_scrambled.tflite"
+    model_file = download_testdata("{}/{}".format(base_url, file_to_download), file_saved)
+
+    with open(model_file, "rb") as f:
+        tflite_model_buf = f.read()
+
+    input_shape = (1, 96)
+    dtype = "int8"
+    in_min, in_max = get_dtype_range(dtype)
+    rng = np.random.default_rng(12345)
+    input_data = rng.integers(in_min, high=in_max, size=input_shape, dtype=dtype)
+
+    with pytest.raises(tvm.error.OpNotImplemented):
+        _, _ = _convert_to_relay(tflite_model_buf, input_data, "input")
+
+
 if __name__ == "__main__":
     tvm.testing.main()

@@ -1,6 +1,6 @@
-cachecontrol==0.12.11; python_version >= "3.7" and python_version < "4.0" \
-    --hash=sha256:2c75d6a8938cb1933c75c50184549ad42728a27e9f6b92fd677c3151aa72555b \
-    --hash=sha256:a5b9fcc986b184db101aa280b42ecdcdfc524892596f606858e0b7a8b4d9e144
+cachecontrol==0.12.14; python_version >= "3.7" and python_version < "4.0" \
+    --hash=sha256:d1087f45781c0e00616479bfd282c78504371ca71da017b49df9f5365a95feba \
+    --hash=sha256:1c2939be362a70c4e5f02c6249462b3b7a24441e4f1ced5e9ef028172edf356a
 cachy==0.3.0; python_version >= "3.7" and python_full_version < "3.0.0" and python_version < "4.0" or python_version >= "3.7" and python_version < "4.0" and python_full_version >= "3.4.0" \
     --hash=sha256:338ca09c8860e76b275aff52374330efedc4d5a5e45dc1c5b539c1ead0786fe7 \
     --hash=sha256:186581f4ceb42a0bbe040c407da73c14092379b1e4c0e327fdb72ae4a9b269b1

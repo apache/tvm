@@ -21,6 +21,7 @@
 import numpy
 import tvm
 from tvm import te
+from tvm.relay.backend import Executor
 
 
 def ceildiv(o, d):
@@ -110,6 +111,27 @@ def build_and_run(inputs, func, target: str, target_host: str, *args, **kwargs):
     func(*tensors)
 
     return tensors[-1].asnumpy()
+
+
+def build_module(relay_mod, target):
+    """builds a relay module for a specified target"""
+    params = {}
+    executor = Executor("aot", {"link-params": True})
+    lowered = tvm.relay.build(
+        relay_mod,
+        tvm.target.Target(target, host=target),
+        executor=executor,
+        params=params,
+    )
+    return lowered
+
+
+def run_module(mod, inputs):
+    """invokes run function of specified module with inputs provided"""
+    mod.set_input(**inputs)
+    mod.run()
+    output = mod.get_output(0).numpy()
+    return output
 
 
 def get_conv2d_nhwc_shape(shape_nhwc, kernel_size, strides, padding, dilation, out_channels):

@@ -50,9 +50,7 @@ __all__ = ["from_tensorflow"]
 
 # A map to record tensor list write ops and input tl/tensor indices
 # Value is (index of tensor list, index of written node)
-_tensor_list_write_ops = {
-    "TensorListSetItem": (0, 2),
-}
+_tensor_list_write_ops = {"TensorListSetItem": (0, 2)}
 
 
 def _infer_type_with_prelude(val, prelude):
@@ -453,12 +451,7 @@ class GraphProto:
         """
         if op_name in ["PartitionedCall", "StatefulPartitionedCall"]:
             sym = _partition_call_operator(
-                self._module,
-                graph,
-                inputs,
-                attrs,
-                self._prelude,
-                gdef_lib=self._gdef_lib,
+                self._module, graph, inputs, attrs, self._prelude, gdef_lib=self._gdef_lib
             )
         elif op_name in ["StatelessIf", "If"]:
             sym = _convert_if(
@@ -488,7 +481,7 @@ class GraphProto:
             else:
                 sym = _convert_map_tf2[op_name](inputs, attrs, self._params, self._module.mod)
         else:
-            raise NotImplementedError("Operator {} not implemented.".format(op_name))
+            raise NotImplementedError(f"Operator {op_name} not implemented.")
 
         sym = set_span(sym, node_name)
         return sym
@@ -649,8 +642,7 @@ def _convert_loop(module, graph, inputs, attr, node_name, nodes, prelude, gdef_l
         return new_vars
 
     while_func = next(
-        (f for f in graph.library.function if f.signature.name == attr["body"].name),
-        None,
+        (f for f in graph.library.function if f.signature.name == attr["body"].name), None
     )
     loop_inputs = convert_vars(inputs, while_func.signature.input_arg)
 
@@ -722,18 +714,13 @@ def _convert_function(
         @func___inference_add_95(%x)
 
     """
-    func = next(
-        (f for f in graph.library.function if f.signature.name == node_func_name),
-        None,
-    )
+    func = next((f for f in graph.library.function if f.signature.name == node_func_name), None)
     if func is None:
-        raise Exception("Function not found - {}".format(node_func_name))
+        raise Exception(f"Function not found - {node_func_name}")
     devices = set(node.device for node in func.node_def)
     if len(devices) > 1:
         raise Exception(
-            "node_def in function {} contains > 1 types of devices {}".format(
-                node_func_name, devices
-            )
+            f"node_def in function {node_func_name} contains > 1 types of devices {devices}"
         )
 
     subgraph = gdef_lib[node_func_name]
@@ -748,7 +735,7 @@ def _convert_function(
         input_expr_dict[f_arg.name] = input_
         input_types[f_arg.name] = _infer_type_with_prelude(input_, prelude)
 
-    func_name = "func_{}".format(func.signature.name)
+    func_name = f"func_{func.signature.name}"
     try:
         global_func = module.mod[func_name]
         sub_func = global_func
@@ -777,7 +764,7 @@ def _convert_function(
         elif param_name in sub_params.keys():
             param_exprs.append(param_expr)
         else:
-            raise Exception("Input parameter {} not found".format(param_name))
+            raise Exception(f"Input parameter {param_name} not found")
 
     sb = tvm.relay.scope_builder.ScopeBuilder()
     loop_ret = global_func(*param_exprs)

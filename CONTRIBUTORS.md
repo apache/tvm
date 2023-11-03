@@ -92,6 +92,7 @@ We do encourage everyone to work anything they are interested in.
 - [Lianmin Zheng](https://github.com/merrymercy) (PMC): @merrymercy - autotvm, auto_scheduler, topi, relay
 - [Xiyou Zhou](https://github.com/zxybazh): @zxybazh - relay
 - [wrongtest](https://github.com/wrongtest-intellif) (PMC): @wrongtest-intellif - tir, tvm-script, arith
+- [Anirudh Sundar Subramaniam](https://github.com/quic-sanirudh): @quic-sanirudh
 
 ## Reviewers
 
@@ -175,6 +176,7 @@ We do encourage everyone to work anything they are interested in.
 - [Janet Schneider](https://github.com/janetsc): @janetsc
 - [Junru Shao](https://github.com/junrushao): @junrushao
 - [Haichen Shen](https://github.com/icemelon): @icemelon
+- [Qingchao Shen](https://github.com/jikechao): @jikechao
 - [Xingjian Shi](https://github.com/sxjscience): @sxjscience
 - [Yuanjing Shi](https://github.com/shingjan): @shingjan
 - [Mark Shields](https://github.com/mbs-octoml): @mbs-octoml
@@ -206,6 +208,7 @@ We do encourage everyone to work anything they are interested in.
 - [Zhao Wu](https://github.com/FrozenGene): @FrozenGene
 - [Bing Xu](https://github.com/antinucleon): @antinucleon
 - [Eddie Yan](https://github.com/eqy): @eqy
+- [Aleksei Yazev](https://github.com/Aleksei-grovety): @Aleksei-grovety
 - [Zihao Ye](https://github.com/yzh119): @yzh119
 - [Hao Yu](https://github.com/comaniac): @comaniac
 - [Joshua Z. Zhang](https://github.com/zhreshold): @zhreshold

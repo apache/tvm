@@ -42,7 +42,7 @@ struct Registry::Manager {
   // This is because PackedFunc can contain callbacks into the host language (Python) and the
   // resource can become invalid because of indeterministic order of destruction and forking.
   // The resources will only be recycled during program exit.
-  std::unordered_map<std::string, Registry*> fmap;
+  std::unordered_map<String, Registry*> fmap;
   // mutex
   std::mutex mutex;
 
@@ -62,7 +62,7 @@ Registry& Registry::set_body(PackedFunc f) {  // NOLINT(*)
   return *this;
 }
 
-Registry& Registry::Register(const std::string& name, bool can_override) {  // NOLINT(*)
+Registry& Registry::Register(const String& name, bool can_override) {  // NOLINT(*)
   Manager* m = Manager::Global();
   std::lock_guard<std::mutex> lock(m->mutex);
   if (m->fmap.count(name)) {
@@ -75,7 +75,7 @@ Registry& Registry::Register(const std::string& name, bool can_override) {  // N
   return *r;
 }
 
-bool Registry::Remove(const std::string& name) {
+bool Registry::Remove(const String& name) {
   Manager* m = Manager::Global();
   std::lock_guard<std::mutex> lock(m->mutex);
   auto it = m->fmap.find(name);
@@ -84,7 +84,7 @@ bool Registry::Remove(const std::string& name) {
   return true;
 }
 
-const PackedFunc* Registry::Get(const std::string& name) {
+const PackedFunc* Registry::Get(const String& name) {
   Manager* m = Manager::Global();
   std::lock_guard<std::mutex> lock(m->mutex);
   auto it = m->fmap.find(name);
@@ -92,10 +92,10 @@ const PackedFunc* Registry::Get(const std::string& name) {
   return &(it->second->func_);
 }
 
-std::vector<std::string> Registry::ListNames() {
+std::vector<String> Registry::ListNames() {
   Manager* m = Manager::Global();
   std::lock_guard<std::mutex> lock(m->mutex);
-  std::vector<std::string> keys;
+  std::vector<String> keys;
   keys.reserve(m->fmap.size());
   for (const auto& kv : m->fmap) {
     keys.push_back(kv.first);
@@ -128,12 +128,25 @@ class EnvCAPIRegistry {
    */
   typedef int (*F_PyErr_CheckSignals)();
 
-  // NOTE: the following function are only registered
-  // in a python environment.
+  /*! \brief Callback to increment/decrement the python ref count */
+  typedef void (*F_Py_IncDefRef)(void*);
+
+  // NOTE: the following functions are only registered in a python
+  // environment.
   /*!
    * \brief PyErr_CheckSignal function
    */
   F_PyErr_CheckSignals pyerr_check_signals = nullptr;
+
+  /*!
+   * \brief Py_IncRef function
+   */
+  F_Py_IncDefRef py_inc_ref = nullptr;
+
+  /*!
+   * \brief Py_IncRef function
+   */
+  F_Py_IncDefRef py_dec_ref = nullptr;
 
   static EnvCAPIRegistry* Global() {
     static EnvCAPIRegistry* inst = new EnvCAPIRegistry();
@@ -141,9 +154,13 @@ class EnvCAPIRegistry {
   }
 
   // register environment(e.g. python) specific api functions
-  void Register(const std::string& symbol_name, void* fptr) {
+  void Register(const String& symbol_name, void* fptr) {
     if (symbol_name == "PyErr_CheckSignals") {
       Update(symbol_name, &pyerr_check_signals, fptr);
+    } else if (symbol_name == "Py_IncRef") {
+      Update(symbol_name, &py_inc_ref, fptr);
+    } else if (symbol_name == "Py_DecRef") {
+      Update(symbol_name, &py_dec_ref, fptr);
     } else {
       LOG(FATAL) << "Unknown env API " << symbol_name;
     }
@@ -159,10 +176,22 @@ class EnvCAPIRegistry {
     }
   }
 
+  void IncRef(void* python_obj) {
+    ICHECK(py_inc_ref) << "Attempted to call Py_IncRef through EnvCAPIRegistry, "
+                       << "but Py_IncRef wasn't registered";
+    (*py_inc_ref)(python_obj);
+  }
+
+  void DecRef(void* python_obj) {
+    ICHECK(py_inc_ref) << "Attempted to call Py_IncRef through EnvCAPIRegistry, "
+                       << "but Py_IncRef wasn't registered";
+    (*py_inc_ref)(python_obj);
+  }
+
  private:
   // update the internal API table
   template <typename FType>
-  void Update(const std::string& symbol_name, FType* target, void* ptr) {
+  void Update(const String& symbol_name, FType* target, void* ptr) {
     FType ptr_casted = reinterpret_cast<FType>(ptr);
     if (target[0] != nullptr && target[0] != ptr_casted) {
       LOG(WARNING) << "tvm.runtime.RegisterEnvCAPI overrides an existing function " << symbol_name;
@@ -173,13 +202,42 @@ class EnvCAPIRegistry {
 
 void EnvCheckSignals() { EnvCAPIRegistry::Global()->CheckSignals(); }
 
+WrappedPythonObject::WrappedPythonObject(void* python_obj) : python_obj_(python_obj) {
+  if (python_obj_) {
+    EnvCAPIRegistry::Global()->IncRef(python_obj_);
+  }
+}
+
+WrappedPythonObject::~WrappedPythonObject() {
+  if (python_obj_) {
+    EnvCAPIRegistry::Global()->DecRef(python_obj_);
+  }
+}
+
+WrappedPythonObject::WrappedPythonObject(WrappedPythonObject&& other) : python_obj_(nullptr) {
+  std::swap(python_obj_, other.python_obj_);
+}
+WrappedPythonObject& WrappedPythonObject::operator=(WrappedPythonObject&& other) {
+  std::swap(python_obj_, other.python_obj_);
+  return *this;
+}
+
+WrappedPythonObject::WrappedPythonObject(const WrappedPythonObject& other)
+    : WrappedPythonObject(other.python_obj_) {}
+WrappedPythonObject& WrappedPythonObject::operator=(const WrappedPythonObject& other) {
+  return *this = WrappedPythonObject(other);
+}
+WrappedPythonObject& WrappedPythonObject::operator=(std::nullptr_t) {
+  return *this = WrappedPythonObject(nullptr);
+}
+
 }  // namespace runtime
 }  // namespace tvm
 
 /*! \brief entry to easily hold returning information */
 struct TVMFuncThreadLocalEntry {
   /*! \brief result holder for returning strings */
-  std::vector<std::string> ret_vec_str;
+  std::vector<tvm::runtime::String> ret_vec_str;
   /*! \brief result holder for returning string pointers */
   std::vector<const char*> ret_vec_charp;
 };

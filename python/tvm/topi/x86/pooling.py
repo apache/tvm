@@ -108,7 +108,7 @@ def schedule_pool(outs, layout):
             Pool = OP.output(0)
             _schedule(PaddedInput, Pool)
         else:
-            raise RuntimeError("Unsupported operator: %s" % OP.tag)
+            raise RuntimeError(f"Unsupported operator: {OP.tag}")
 
         scheduled_ops.append(OP)
 
@@ -153,7 +153,7 @@ def schedule_adaptive_pool(outs):
             Pool = OP.output(0)
             _parallel_sch(s[Pool], outs[0].shape)
         else:
-            raise RuntimeError("Unsupported operator: %s" % OP.tag)
+            raise RuntimeError(f"Unsupported operator: {OP.tag}")
 
         scheduled_ops.append(OP)
 

@@ -275,7 +275,8 @@ std::pair<Stmt, SeqStmt> InsertCacheStage(Stmt stmt, bool is_write_cache, String
   if (is_write_cache) {
     tir::PreOrderVisit(stmt, [&](const ObjectRef& obj) {
       if (const auto* buffer_load = obj.as<BufferLoadNode>()) {
-        if (buffer_load->buffer.scope() == "wmma.accumulator") {
+        if (buffer_load->buffer.scope() == "wmma.accumulator" ||
+            buffer_load->buffer.scope() == "m16n8k8.matrixC") {
           if (target_buffer_load == nullptr) {
             target_buffer_load = buffer_load;
           } else {

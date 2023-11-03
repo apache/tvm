@@ -25,7 +25,6 @@
 #define TVM_TARGET_TARGET_H_
 
 #include <tvm/ir/expr.h>
-#include <tvm/ir/module.h>
 #include <tvm/node/node.h>
 #include <tvm/support/with.h>
 #include <tvm/target/target_kind.h>
@@ -70,6 +69,16 @@ class TargetNode : public Object {
   TVM_DLL Optional<Target> GetHost() const;
   /*! \return The device type for this target */
   TVM_DLL int GetTargetDeviceType() const;
+
+  /*!
+   * \brief Check if the target contains a key
+   *
+   * \param query_key The string name of the key to be checked
+   *
+   * \return True if the target's `TargetNode::keys` contains the
+   * specified key, False otherwise.
+   */
+  TVM_DLL bool HasKey(const std::string& query_key) const;
 
   /*!
    * \brief Returns a human readable representation of \p Target which includes all fields,
@@ -218,6 +227,9 @@ class Target : public ObjectRef {
    */
   static Target WithHost(const Target& target, const Target& host);
 
+  /*! \return The target with the host stripped out */
+  Target WithoutHost() const;
+
   /*!
    * \brief Returns true if \p this target represents an external codegen. If so,
    * \p this->kind->name can be used as the "Compiler" attribute on partitioned functions,
@@ -270,15 +282,6 @@ class Target : public ObjectRef {
  * \param host The pointer to a Target typed object for target host to be updated
  */
 void CheckAndUpdateHostConsistency(Target* target, Target* host);
-
-/*!
- * \brief Check and update host field of the given legacy heterogeneous targets and
- *  target host.Note that this function is for legacy target api compatibility issue only,
- *  not recommended for other use.
- * \param ir_modules The pointer to a Map objects with keys being Target objects
- * \param host The Target typed object for target host to be updated
- */
-void CheckAndUpdateHostConsistency(Map<Target, IRModule>* ir_modules, Target* host);
 
 }  // namespace tvm
 #endif  // TVM_TARGET_TARGET_H_

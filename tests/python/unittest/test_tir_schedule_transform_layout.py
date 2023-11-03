@@ -22,7 +22,10 @@ import tvm
 import tvm.testing
 from tvm import tir
 from tvm.script import tir as T
-from tvm.tir.schedule.testing import verify_trace_roundtrip
+from tvm.tir.schedule.testing import (
+    assert_structural_equal_ignore_global_symbol,
+    verify_trace_roundtrip,
+)
 
 # fmt: off
 # pylint: disable=no-member,invalid-name,unused-variable,line-too-long,redefined-outer-name,unexpected-keyword-arg,too-many-nested-blocks
@@ -154,11 +157,9 @@ def conv2d_nhwc_transformed(
     for ax0, ax1, ax2 in T.grid(12544, 64, 147):
         with T.block("conv2d_nhwc"):
             v0, v1, v2 = T.axis.remap("SSR", [ax0, ax1, ax2])
-            T.reads(PadInput[v0 // 12544, v0 // 112 * 2 + v2 // 21, v0 % 112 * 2 + v2 % 21 // 3, v2 % 3], Weight[v2 // 21, v2 % 21 // 3, v2 % 3, v1])
-            T.writes(Conv2d_nhwc[v0 // 12544, v0 // 112, v0 % 112, v1])
             with T.init():
-                Conv2d_nhwc[v0 // 12544, v0 // 112, v0 % 112, v1] = T.float32(0)
-            Conv2d_nhwc[v0 // 12544, v0 // 112, v0 % 112, v1] = Conv2d_nhwc[v0 // 12544, v0 // 112, v0 % 112, v1] + PadInput[v0 // 12544, v0 // 112 * 2 + v2 // 21, v0 % 112 * 2 + v2 % 21 // 3, v2 % 3] * Weight[v2 // 21, v2 % 21 // 3, v2 % 3, v1]
+                Conv2d_nhwc[0, v0 // 112, v0 % 112, v1] = T.float32(0)
+            Conv2d_nhwc[0, v0 // 112, v0 % 112, v1] = Conv2d_nhwc[0, v0 // 112, v0 % 112, v1] + PadInput[0, v0 // 112 * 2 + v2 // 21, v0 % 112 * 2 + v2 % 21 // 3, v2 % 3] * Weight[v2 // 21, v2 % 21 // 3, v2 % 3, v1]
 
 
 @T.prim_func
@@ -243,7 +244,9 @@ def test_two_elementwise_transform_intermediate_buffer(use_block_name):
         block = sch.get_block("B")
         sch.transform_layout(block, ("write", 0), packed_index_map_func)
 
-    tvm.ir.assert_structural_equal(two_elementwise_transformed_intermediate_buffer, sch.mod["main"])
+    assert_structural_equal_ignore_global_symbol(
+        two_elementwise_transformed_intermediate_buffer, sch.mod["main"]
+    )
     verify_trace_roundtrip(sch=sch, mod=two_elementwise)
 
 
@@ -269,7 +272,9 @@ def test_two_elementwise_transform_input_buffer(use_block_name):
         block = sch.get_block("B")
         sch.transform_layout(block, ("read", 0), packed_index_map_func)
 
-    tvm.ir.assert_structural_equal(two_elementwise_transformed_input_buffer, sch.mod["main"])
+    assert_structural_equal_ignore_global_symbol(
+        two_elementwise_transformed_input_buffer, sch.mod["main"]
+    )
     verify_trace_roundtrip(sch=sch, mod=two_elementwise)
 
 
@@ -286,7 +291,9 @@ def test_two_elementwise_transform_output_buffer(use_block_name):
         block = sch.get_block("C")
         sch.transform_layout(block, ("write", 0), packed_index_map_func)
 
-    tvm.ir.assert_structural_equal(two_elementwise_transformed_output_buffer, sch.mod["main"])
+    assert_structural_equal_ignore_global_symbol(
+        two_elementwise_transformed_output_buffer, sch.mod["main"]
+    )
     verify_trace_roundtrip(sch=sch, mod=two_elementwise)
 
 
@@ -304,7 +311,7 @@ def test_two_elementwise_unit_dim(use_block_name):
         block = sch.get_block("B")
         sch.transform_layout(block, ("write", 0), index_map)
 
-    tvm.ir.assert_structural_equal(two_elementwise_unit_dim, sch.mod["main"])
+    assert_structural_equal_ignore_global_symbol(two_elementwise_unit_dim, sch.mod["main"])
     verify_trace_roundtrip(sch=sch, mod=two_elementwise_unit_dim)
 
 
@@ -345,6 +352,7 @@ def test_simplify():
                         # T.reads(B[vi // 16 + vi_o, vj // 16 + vj_o, vi % 16, vj % 16])
                         # C[...] = B[vi // 16 + vi_o, vj // 16 + vj_o, vi % 16, vj % 16] + T.float32(1)
 
+    # not comparing PrimFuncs
     tvm.ir.assert_structural_equal(ref.body.block.body, sch.get(sch.get_loops(block_outer)[0]))
 
 
@@ -373,14 +381,14 @@ def test_var_args_sugar():
     sch.transform_layout(
         index_map=lambda *indices, k: [*indices, k // 4, k % 4], block="compute", buffer="A"
     )
-    tvm.ir.assert_structural_equal(summation_3d_split, sch.mod["main"])
+    assert_structural_equal_ignore_global_symbol(summation_3d_split, sch.mod["main"])
 
 
 def test_transform_block_layout_basic(use_block_name):
     sch = tir.Schedule(elementwise, debug_mask="all")
     block = "B" if use_block_name else sch.get_block("B")
     sch.transform_block_layout(block, lambda i, j: (i * 128 + j,))
-    tvm.ir.assert_structural_equal(elementwise_transformed, sch.mod["main"])
+    assert_structural_equal_ignore_global_symbol(elementwise_transformed, sch.mod["main"])
     verify_trace_roundtrip(sch=sch, mod=elementwise)
 
 
@@ -391,7 +399,7 @@ def test_transform_block_layout_conv2d_nhwc(use_block_name):
         block,
         lambda n, h, w, co, rh, rw, rc: (n * 112 * 112 + h * 112 + w, co, rh * 7 * 3 + rw * 3 + rc),
     )
-    tvm.ir.assert_structural_equal(conv2d_nhwc_transformed, sch.mod["main"])
+    assert_structural_equal_ignore_global_symbol(conv2d_nhwc_transformed, sch.mod["main"])
     verify_trace_roundtrip(sch=sch, mod=conv2d_nhwc)
 
 
@@ -414,7 +422,9 @@ def test_transform_block_layout_unit_dim(use_block_name):
                 vi, vj = T.axis.remap("SS", [i, j])
                 C[vi, vj] = B[vi, vj] + 1.0
 
-    tvm.ir.assert_structural_equal(two_elementwise_unit_dim_transformed, sch.mod["main"])
+    assert_structural_equal_ignore_global_symbol(
+        two_elementwise_unit_dim_transformed, sch.mod["main"]
+    )
     verify_trace_roundtrip(sch=sch, mod=two_elementwise_unit_dim)
 
 
@@ -461,12 +471,9 @@ def test_transform_block_layout_int64_extent(use_block_name):
     sch = tir.Schedule(elementwise_int64_extent, debug_mask="all")
     block = "B" if use_block_name else sch.get_block("B")
     sch.transform_block_layout(block, lambda i, j: (i * 128 + j,))
-    print(
-        tvm.ir.base.get_first_structural_mismatch(
-            elementwise_int64_extent_transformed, sch.mod["main"]
-        )
+    assert_structural_equal_ignore_global_symbol(
+        elementwise_int64_extent_transformed, sch.mod["main"]
     )
-    tvm.ir.assert_structural_equal(elementwise_int64_extent_transformed, sch.mod["main"])
     verify_trace_roundtrip(sch=sch, mod=elementwise_int64_extent)
 
 
@@ -1083,6 +1090,107 @@ def test_index_map_dtype_legalize_with_constant():
     # TVMError: Check failed: dom->extent.dtype() == var.dtype() (int64 vs. int32) :
     # The dtype of the extent of an IterVar (int64) must match its associated Var's dtype (int32)
     sch.transform_layout(block="block", buffer="A", index_map=func, pad_value=0)
+
+
+def test_transform_layout_with_symbolic_bound():
+    # fmt: off
+    # pylint: disable=invalid-name,line-too-long,too-many-locals
+    @T.prim_func
+    def before(a: T.handle, b: T.handle, c: T.handle):
+        T.func_attr({"global_symbol": "main", "tir.noalias": T.bool(True)})
+        n = T.int64()
+        A = T.match_buffer(a, (T.int64(1), T.int64(32), T.int64(1), T.int64(128)), "float16")
+        B = T.match_buffer(b, (T.int64(1), T.int64(32), n, T.int64(128)), "float16")
+        C = T.match_buffer(c, (T.int64(1), T.int64(32), T.int64(1), n), "float16")
+        for i0, i1, i2, i3, k in T.grid(T.int64(1), T.int64(32), T.int64(1), n, T.int64(128)):
+            with T.block("NT_matmul"):
+                v_i0, v_i1, v_i2, v_i3, v_k = T.axis.remap("SSSSR", [i0, i1, i2, i3, k])
+                T.reads(A[v_i0, v_i1, v_i2, v_k], B[v_i0, v_i1, v_i3, v_k])
+                T.writes(C[v_i0, v_i1, v_i2, v_i3])
+                with T.init():
+                    C[v_i0, v_i1, v_i2, v_i3] = T.float16(0)
+                C[v_i0, v_i1, v_i2, v_i3] = C[v_i0, v_i1, v_i2, v_i3] + A[v_i0, v_i1, v_i2, v_k] * B[v_i0, v_i1, v_i3, v_k]
+
+    @T.prim_func
+    def after(a: T.handle, b: T.handle, c: T.handle):
+        T.func_attr({"global_symbol": "main", "tir.noalias": T.bool(True)})
+        n = T.int64()
+        A = T.match_buffer(a, (T.int64(1), T.int64(32), T.int64(1), T.int64(128)), "float16")
+        B = T.match_buffer(b, (T.int64(1), T.int64(32), n, T.int64(128)), "float16")
+        C = T.match_buffer(c, (n * T.int64(32),), "float16")
+        for i0, i1, i2, i3, k in T.grid(T.int64(1), T.int64(32), T.int64(1), n, T.int64(128)):
+            with T.block("NT_matmul"):
+                v_i0, v_i1, v_i2, v_i3, v_k = T.axis.remap("SSSSR", [i0, i1, i2, i3, k])
+                T.reads(A[v_i0, v_i1, v_i2, v_k], B[v_i0, v_i1, v_i3, v_k])
+                T.writes(C[v_i1 * n + v_i3])
+                with T.init():
+                    C[v_i1 * n + v_i3] = T.float16(0)
+                C[v_i1 * n + v_i3] = C[v_i1 * n + v_i3] + A[v_i0, v_i1, v_i2, v_k] * B[v_i0, v_i1, v_i3, v_k]
+    # pylint: enable=invalid-name,line-too-long,too-many-locals
+    # fmt: on
+    # pylint: disable=invalid-name
+    _, _, n, _ = before.buffer_map[before.params[1]].shape
+    sch = tvm.tir.Schedule(before)
+    block = sch.get_block("NT_matmul")
+    sch.transform_layout(
+        block,
+        ("write", 0),
+        lambda x, y, z, w: x * 32 * n + y * n + z * n + w,
+        assume_injective_transform=True,
+    )
+    # pylint: enable=invalid-name
+    tvm.ir.assert_structural_equal(after, sch.mod["main"])
+
+
+def test_transform_block_layout_with_symbolic_bound():
+    # fmt: off
+    # pylint: disable=invalid-name,line-too-long,too-many-locals
+    @T.prim_func
+    def before(a: T.handle, b: T.handle, c: T.handle):
+        T.func_attr({"global_symbol": "main", "tir.noalias": T.bool(True)})
+        n = T.int64()
+        A = T.match_buffer(a, (T.int64(1), T.int64(32), T.int64(1), T.int64(128)), "float16")
+        B = T.match_buffer(b, (T.int64(1), T.int64(32), n, T.int64(128)), "float16")
+        C = T.match_buffer(c, (n * T.int64(32),), "float16")
+        for i0, i1, i2, i3, k in T.grid(T.int64(1), T.int64(32), T.int64(1), n, T.int64(128)):
+            with T.block("NT_matmul"):
+                v_i0, v_i1, v_i2, v_i3, v_k = T.axis.remap("SSSSR", [i0, i1, i2, i3, k])
+                T.reads(A[v_i0, v_i1, v_i2, v_k], B[v_i0, v_i1, v_i3, v_k])
+                T.writes(C[v_i1 * n + v_i3])
+                with T.init():
+                    C[v_i1 * n + v_i3] = T.float16(0)
+                C[v_i1 * n + v_i3] = C[v_i1 * n + v_i3] + A[v_i0, v_i1, v_i2, v_k] * B[v_i0, v_i1, v_i3, v_k]
+
+    @T.prim_func
+    def after(a: T.handle, b: T.handle, c: T.handle):
+        T.func_attr({"global_symbol": "main", "tir.noalias": T.bool(True)})
+        n = T.int64()
+        A = T.match_buffer(a, (T.int64(1), T.int64(32), T.int64(1), T.int64(128)), "float16")
+        B = T.match_buffer(b, (T.int64(1), T.int64(32), n, T.int64(128)), "float16")
+        C = T.match_buffer(c, (n * T.int64(32),), "float16")
+        for ax0, ax1 in T.grid(n * T.int64(32), T.int64(128)):
+            with T.block("NT_matmul"):
+                v0, v1 = T.axis.remap("SR", [ax0, ax1])
+                T.reads(A[T.int64(0), v0 // n, T.int64(0), v1], B[T.int64(0), v0 // n, v0 % n, v1])
+                T.writes(C[v0])
+                with T.init():
+                    C[v0] = T.float16(0)
+                C[v0] = C[v0] + A[T.int64(0), v0 // n, T.int64(0), v1] * B[T.int64(0), v0 // n, v0 % n, v1]
+    # pylint: enable=invalid-name,line-too-long,too-many-locals
+    # fmt: on
+    # pylint: disable=invalid-name
+    _, _, n, _ = before.buffer_map[before.params[1]].shape
+    sch = tvm.tir.Schedule(before)
+    block = sch.get_block("NT_matmul")
+    sch.transform_block_layout(
+        block,
+        lambda x, y, z, w, k: (
+            x * 32 * n + y * n + z * n + w,
+            k,
+        ),
+    )
+    # pylint: enable=invalid-name
+    tvm.ir.assert_structural_equal(after, sch.mod["main"])
 
 
 if __name__ == "__main__":

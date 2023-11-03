@@ -489,14 +489,15 @@ int RPCTimeEvaluator(TVMValue* args, int* type_codes, int num_args, TVMValue* re
                      int* ret_type_code) {
   ret_val[0].v_handle = NULL;
   ret_type_code[0] = kTVMNullptr;
-  if (num_args < 11) {
+  if (num_args < 12) {
     TVMAPIErrorf("not enough args");
     return kTvmErrorFunctionCallNumArguments;
   }
   if (type_codes[0] != kTVMModuleHandle || type_codes[1] != kTVMStr ||
       type_codes[2] != kTVMArgInt || type_codes[3] != kTVMArgInt || type_codes[4] != kTVMArgInt ||
       type_codes[5] != kTVMArgInt || type_codes[6] != kTVMArgInt || type_codes[7] != kTVMArgInt ||
-      type_codes[8] != kTVMArgInt || type_codes[9] != kTVMArgInt || type_codes[10] != kTVMStr) {
+      type_codes[8] != kTVMArgInt || type_codes[9] != kTVMArgInt || type_codes[10] != kTVMArgInt ||
+      type_codes[11] != kTVMStr) {
     TVMAPIErrorf("one or more invalid arg types");
     return kTvmErrorFunctionCallWrongArgType;
   }

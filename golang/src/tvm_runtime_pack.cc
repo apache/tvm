@@ -46,6 +46,7 @@
 
 // Graph executor
 #include "src/runtime/graph_executor/graph_executor.cc"
+#include "src/runtime/memory/memory_manager.cc"
 
 // Uncomment the following lines to enable RPC
 // #include "../../src/runtime/rpc/rpc_session.cc"

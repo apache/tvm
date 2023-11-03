@@ -24,7 +24,7 @@ import tvm.testing
 def test_annotate_entry_func_single_primfunc():
     @tvm.script.ir_module
     class MockModule:
-        @T.prim_func
+        @T.prim_func(private=True)
         def func1(A: T.Buffer((16,), "float32")):
             for i in T.serial(16):
                 if i == 5:
@@ -45,14 +45,14 @@ def test_annotate_entry_func_single_primfunc():
 # Test module
 @tvm.script.ir_module
 class MockModule:
-    @T.prim_func
+    @T.prim_func(private=True)
     def func1(A: T.Buffer((16,), "float32")):
         for i in T.serial(16):
             if i == 5:
                 if i == 5:
                     A[i] = 0.0
 
-    @T.prim_func
+    @T.prim_func(private=True)
     def func2(A: T.Buffer((32,), "float32")):
         for i in T.serial(32):
             if i == 15:
@@ -83,6 +83,130 @@ def test_bind_target():
     assert after["func1"].attrs["target"] == target
     assert after["func2"].attrs and "target" in after["func2"].attrs
     assert after["func2"].attrs["target"] == target
+
+
+class TestBindTarget(tvm.testing.CompareBeforeAfter):
+    """BindTarget adds the "target" attribute"""
+
+    transform = tvm.tir.transform.BindTarget(tvm.target.Target("cuda"))
+
+    def before():
+        T.evaluate(0)
+
+    def expected():
+        T.func_attr({"target": T.target("cuda")})
+        T.evaluate(0)
+
+
+class TestBindTargetWithHostToExposedFunction(tvm.testing.CompareBeforeAfter):
+    """BindTarget adds the host target to externally-exposed functions"""
+
+    transform = tvm.tir.transform.BindTarget(tvm.target.Target("cuda", host="llvm"))
+
+    def before():
+        T.func_attr({"global_symbol": "main"})
+        T.evaluate(0)
+
+    def expected():
+        T.func_attr({"global_symbol": "main", "target": T.target("cuda", host="llvm")})
+        T.evaluate(0)
+
+
+class TestBindTargetWithHostToInternalFunction(tvm.testing.CompareBeforeAfter):
+    """Internal functions have a target annotation, but without the host
+
+    The host portion of the target annotation provides host
+    parameters, and is used to expose a function externally as part of
+    `MakePackedAPI` and `MakeUnpackedAPI`.  For internal functions, no
+    external exposure is required, so the host attribute should not be
+    used.
+    """
+
+    transform = tvm.tir.transform.BindTarget(tvm.target.Target("cuda", host="llvm"))
+
+    def before(self):
+        @I.ir_module
+        class module:
+            @T.prim_func(private=True)
+            def main():
+                T.evaluate(0)
+
+        return module
+
+    def expected(self):
+        @I.ir_module
+        class module:
+            @T.prim_func(private=True)
+            def main():
+                T.func_attr({"target": T.target("cuda")})
+                T.evaluate(0)
+
+        return module
+
+
+class TestBindTargetIgnoresExisting(tvm.testing.CompareBeforeAfter):
+    """BindTarget should not replace existing annotations"""
+
+    transform = tvm.tir.transform.BindTarget(tvm.target.Target("cuda"))
+
+    def before():
+        T.func_attr({"target": T.target("nvptx")})
+        T.evaluate(0)
+
+    expected = before
+
+
+class TestBindTargetUpdatesHost(tvm.testing.CompareBeforeAfter):
+    """BindTarget should update host for existing annotations"""
+
+    transform = tvm.tir.transform.BindTarget(tvm.target.Target("cuda", host="llvm -opt-level=0"))
+
+    def before():
+        T.func_attr({"global_symbol": "func", "target": T.target("nvptx")})
+        T.evaluate(0)
+
+    def expected():
+        T.func_attr(
+            {
+                "global_symbol": "func",
+                "target": T.target("nvptx", host="llvm -opt-level=0"),
+            }
+        )
+        T.evaluate(0)
+
+
+class TestBindTargetMultipleFunctions(tvm.testing.CompareBeforeAfter):
+    """BindTarget may apply to multiple functions in a module"""
+
+    transform = tvm.tir.transform.BindTarget(tvm.target.Target("cuda"))
+
+    def before(self):
+        @tvm.script.ir_module
+        class mod:
+            @T.prim_func
+            def func1():
+                T.evaluate(0)
+
+            @T.prim_func
+            def func2():
+                T.evaluate(0)
+
+        return mod
+
+    def expected(self):
+        @tvm.script.ir_module
+        class mod:
+            @T.prim_func
+            def func1():
+                T.func_attr({"target": T.target("cuda")})
+                T.evaluate(0)
+
+            @T.prim_func
+            def func2():
+                T.func_attr({"target": T.target("cuda")})
+                T.evaluate(0)
+
+        return mod
 
 
 def test_filter_primfunc():

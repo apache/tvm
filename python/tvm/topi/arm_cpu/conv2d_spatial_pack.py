@@ -20,6 +20,7 @@ from __future__ import absolute_import as _abs
 import tvm
 from tvm import te
 from tvm import autotvm
+from tvm.target import Target
 from tvm.autotvm.task.space import SplitEntity, OtherOptionEntity, AnnotateEntity, ReorderEntity
 from .. import nn
 from ..utils import get_const_tuple
@@ -316,12 +317,23 @@ def conv2d_spatial_pack_nhwc(cfg, data, kernel, strides, padding, dilation, out_
                     return candidate
             return 1
 
-        # Tile size 8 results in efficient vectorization for these schedules.
-        # If the axis is not divisible by 8, try 4
+        # For data tensors with unity height and width we can leave it to the
+        # backend to vectorize the inner loop. This has been observed to be more
+        # performant on SVE targets with a vector width > 128bits.
+        target = Target.current(allow_none=False)
+        if target.features.has_sve and OW == OH and OW == 1:
+            tile_size = [OC]
+            vectorize = "none"
+        else:
+            # Tile size 8 results in efficient vectorization for these schedules.
+            # If the axis is not divisible by 8, try 4
+            tile_size = [8, 4]
+            vectorize = "vec"
+
         cfg["tile_oh"] = SplitEntity([-1, 1])
         cfg["tile_ow"] = SplitEntity([-1, _tile_size(OW, [8, 4])])
-        cfg["tile_co"] = SplitEntity([-1, _tile_size(OC, [8, 4])])
-        cfg["ann_spatial"] = AnnotateEntity(["none", "vec"])
+        cfg["tile_co"] = SplitEntity([-1, _tile_size(OC, tile_size)])
+        cfg["ann_spatial"] = AnnotateEntity(["none", vectorize])
         cfg["ann_reduce"] = AnnotateEntity(["none", "none"])
         cfg["reorder_conv"] = ReorderEntity([0, 1, 2, 3, 4, 5, 6, 7, 8, 9])
         cfg["compat"] = OtherOptionEntity(0)

@@ -33,6 +33,8 @@
 
 #include <unordered_map>
 
+#include "ir_utils.h"
+
 namespace tvm {
 namespace tir {
 
@@ -102,8 +104,9 @@ namespace transform {
 
 Pass CombineContextCall() {
   auto pass_func = [](PrimFunc f, IRModule m, PassContext ctx) {
-    auto* n = f.CopyOnWrite();
-    n->body = ContextCallCombiner().Combine(std::move(n->body));
+    if (IsHostFunc(f).value_or(false)) {
+      f.CopyOnWrite()->body = ContextCallCombiner().Combine(f->body);
+    }
     return f;
   };
   return CreatePrimFuncPass(pass_func, 0, "tir.CombineContextCall", {});

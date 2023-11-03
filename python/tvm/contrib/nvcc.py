@@ -18,15 +18,15 @@
 """Utility to invoke nvcc compiler in the system"""
 from __future__ import absolute_import as _abs
 
-import subprocess
 import os
+import subprocess
 import warnings
 
 import tvm._ffi
 from tvm.target import Target
 
-from . import utils
 from .._ffi.base import py_str
+from . import utils
 
 
 def compile_cuda(code, target_format="ptx", arch=None, options=None, path_target=None):
@@ -70,14 +70,14 @@ def compile_cuda(code, target_format="ptx", arch=None, options=None, path_target
     if target_format not in ["cubin", "ptx", "fatbin"]:
         raise ValueError("target_format must be in cubin, ptx, fatbin")
     temp_code = temp.relpath("my_kernel.cu")
-    temp_target = temp.relpath("my_kernel.%s" % target_format)
+    temp_target = temp.relpath(f"my_kernel.{target_format}")
 
     with open(temp_code, "w") as out_file:
         out_file.write(code)
 
     file_target = path_target if path_target else temp_target
     cmd = ["nvcc"]
-    cmd += ["--%s" % target_format, "-O3"]
+    cmd += [f"--{target_format}", "-O3"]
     if isinstance(arch, list):
         cmd += arch
     elif isinstance(arch, str):
@@ -184,7 +184,7 @@ def get_cuda_version(cuda_path=None):
 
 
 @tvm._ffi.register_func
-def tvm_callback_cuda_compile(code):
+def tvm_callback_cuda_compile(code, target):  # pylint: disable=unused-argument
     """use nvcc to generate fatbin code for better optimization"""
     ptx = compile_cuda(code, target_format="fatbin")
     return ptx
@@ -242,7 +242,7 @@ def find_libdevice_path(arch):
                 selected_path = fn
 
         if selected_path is None:
-            raise RuntimeError("Cannot find libdevice for arch {}".format(arch))
+            raise RuntimeError(f"Cannot find libdevice for arch {arch}")
         path = os.path.join(lib_path, selected_path)
     return path
 
@@ -403,4 +403,21 @@ def have_bf16(compute_version):
     if major >= 8:
         return True
 
+    return False
+
+
+def have_fp8(compute_version):
+    """Whether fp8 support is provided in the specified compute capability or not
+
+    Parameters
+    ----------
+    compute_version : str
+        GPU capability
+    """
+    major, minor = parse_compute_version(compute_version)
+    # fp8 is suppored in Ada Lovelace (8.9) or later architectures.
+    if major == 8 and minor == 9:
+        return True
+    if major >= 9:
+        return True
     return False

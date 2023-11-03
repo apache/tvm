@@ -24,6 +24,7 @@
 #ifndef TVM_TOPI_TRANSFORM_H_
 #define TVM_TOPI_TRANSFORM_H_
 
+#include <tvm/arith/analyzer.h>
 #include <tvm/te/operation.h>
 #include <tvm/tir/data_layout.h>
 #include <tvm/tir/index_map.h>
@@ -722,7 +723,7 @@ inline te::Tensor dynamic_strided_slice(const te::Tensor& x, const te::Tensor& b
 }
 
 /*!
- * \brief Calcluate the output shape of strided_slice, the entry point for Relay type relation
+ * \brief Calculate the output shape of strided_slice, the entry point for Relay type relation
  *
  * \param ishape The input tensor shape
  * \param begin The indices to begin with in the slicing
@@ -1738,16 +1739,18 @@ inline Tensor auto_scheduler_layout_transform(const Tensor& src, const String& s
 inline Tensor meta_schedule_layout_transform(const Tensor& src, const tir::IndexMap& index_map,
                                              const String name = "T_meta_schedule_layout_trans",
                                              const String tag = kInjective) {
+  arith::Analyzer analyzer;
   Array<Range> iter_domain;
   iter_domain.reserve(src->shape.size());
   for (const PrimExpr& e : src->shape) {
     iter_domain.push_back(Range::FromMinExtent(make_zero(e->dtype), e));
   }
-  Array<PrimExpr> post_transform_shape = index_map->MapShape(src->shape);
+  Array<PrimExpr> post_transform_shape = index_map->MapShape(src->shape, &analyzer);
   return compute(
       post_transform_shape,
-      [src, inv = index_map.Inverse(iter_domain)](const Array<Var>& indices) -> PrimExpr {
-        return src(inv->MapIndices(Array<PrimExpr>{indices.begin(), indices.end()}));
+      [src, inv = index_map.Inverse(iter_domain, &analyzer),
+       &analyzer](const Array<Var>& indices) -> PrimExpr {
+        return src(inv->MapIndices(Array<PrimExpr>{indices.begin(), indices.end()}, &analyzer));
       },
       name, tag);
 }

@@ -331,7 +331,7 @@ def tune_and_evaluate():
         from tvm.contrib import ndk
 
         filename = "net.so"
-        lib.export_library(tmp.relpath(filename), ndk.create_shared)
+        lib.export_library(tmp.relpath(filename), fcompile=ndk.create_shared)
     else:
         filename = "net.tar"
         lib.export_library(tmp.relpath(filename))

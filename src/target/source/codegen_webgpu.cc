@@ -45,6 +45,12 @@ std::string CodeGenWebGPU::Finish() {
 
 void CodeGenWebGPU::InitFuncState(const PrimFunc& f) {
   CodeGenC::InitFuncState(f);
+  // skip the first underscore, so SSA variable starts from
+  name_supply_->FreshName("v_");
+  // Setup the thread group info.
+  ICHECK_EQ(name_supply_->FreshName("threadIdx"), "threadIdx");
+  ICHECK_EQ(name_supply_->FreshName("blockIdx"), "blockIdx");
+
   // analyze the data;
   for (Var arg : f->params) {
     if (arg.dtype().is_handle()) {
@@ -56,28 +62,12 @@ void CodeGenWebGPU::InitFuncState(const PrimFunc& f) {
 
 CodeGenWebGPU::CodeGenWebGPU(Target target) : target_(target) {}
 
-void CodeGenWebGPU::AddFunction(const PrimFunc& f) {
-  // clear previous generated state.
-  this->InitFuncState(f);
-  // skip the first underscore, so SSA variable starts from
-  name_supply_->FreshName("v_");
-  // Setup the thread group info.
-  ICHECK_EQ(name_supply_->FreshName("threadIdx"), "threadIdx");
-  ICHECK_EQ(name_supply_->FreshName("blockIdx"), "blockIdx");
-
-  // add to alloc buffer type.
-  auto global_symbol = f->GetAttr<String>(tvm::attr::kGlobalSymbol);
-  ICHECK(global_symbol.defined())
-      << "CodeGenWebGPU: Expect PrimFunc to have the global_symbol attribute";
-
-  decl_stream << "//----------------------------------------\n"
-              << "// function: " << global_symbol.value() << "\n"
-              << "//----------------------------------------\n";
-
+void CodeGenWebGPU::PrintFunctionSignature(const String& function_name, const PrimFunc& func,
+                                           std::ostream& os) {
   std::vector<Var> pod_args;
   int num_buffer = 0;
   // setup buffer argumemts
-  for (Var arg : f->params) {
+  for (Var arg : func->params) {
     DataType t = arg.dtype();
     if (t.is_handle()) {
       auto* ptr = arg->type_annotation.as<PointerTypeNode>();
@@ -111,16 +101,18 @@ void CodeGenWebGPU::AddFunction(const PrimFunc& f) {
   }
   // add to alloc buffer type.
   // Function header.
-  this->stream << "fn main(\n"
-               << "  @builtin(workgroup_id) blockIdx : vec3<u32>,\n"
-               << "  @builtin(local_invocation_id) threadIdx : vec3<u32>\n"
-               << ") {\n";
-  // the function scope.
-  int func_scope = this->BeginScope();
-  this->PrintStmt(f->body);
-  this->EndScope(func_scope);
-  this->PrintIndent();
-  this->stream << "}\n\n";
+  os << "fn main(\n"
+     << "  @builtin(workgroup_id) blockIdx : vec3<u32>,\n"
+     << "  @builtin(local_invocation_id) threadIdx : vec3<u32>\n"
+     << ")";
+}
+
+void CodeGenWebGPU::AddFunction(const GlobalVar& gvar, const PrimFunc& func) {
+  CodeGenC::AddFunction(gvar, func);
+  decl_stream << "//----------------------------------------\n"
+              << "// function: " << GetFunctionName(gvar) << "\n"
+              << "//----------------------------------------\n";
+
   // anotate workgroup
   this->fwd_decl_stream << "@compute @workgroup_size(" << workgroup_size_[0] << ", "
                         << workgroup_size_[1] << ", " << workgroup_size_[2] << ")\n";
@@ -492,13 +484,9 @@ class WebGPUSourceModuleNode final : public runtime::ModuleNode {
   /*! \brief Get the property of the runtime module .*/
   int GetPropertyMask() const final { return runtime::ModulePropertyMask::kBinarySerializable; }
 
-  PackedFunc GetFunction(const std::string& name, const ObjectPtr<Object>& sptr_to_self) final {
+  PackedFunc GetFunction(const String& name, const ObjectPtr<Object>& sptr_to_self) final {
     LOG(FATAL) << "WebGPUSourceModule is not directly runnable, export and run through tvmjs";
     return PackedFunc(nullptr);
-  }
-
-  void SaveToFile(const std::string& file_name, const std::string& format) final {
-    LOG(FATAL) << "Not implemented";
   }
 
   void SaveToBinary(dmlc::Stream* stream) final {
@@ -506,7 +494,7 @@ class WebGPUSourceModuleNode final : public runtime::ModuleNode {
     stream->Write(smap_);
   }
 
-  std::string GetSource(const std::string& format) final {
+  String GetSource(const String& format) final {
     std::ostringstream os;
     for (auto kv : smap_) {
       os << kv.second;
@@ -528,22 +516,31 @@ runtime::Module BuildWebGPU(IRModule mod, Target target) {
   mod = tir::transform::PointerValueTypeRewrite()(std::move(mod));
   bool output_ssa = false;
 
-  std::unordered_map<std::string, std::string> smap;
-  for (auto kv : mod->functions) {
-    CodeGenWebGPU cg(target);
-    ICHECK(kv.second->IsInstance<PrimFuncNode>()) << "CodeGenWebGPU: Can only take PrimFunc";
-    auto f = Downcast<PrimFunc>(kv.second);
-    auto calling_conv = f->GetAttr<Integer>(tvm::attr::kCallingConv);
+  Map<GlobalVar, PrimFunc> functions;
+  for (auto [gvar, base_func] : mod->functions) {
+    ICHECK(base_func->IsInstance<PrimFuncNode>()) << "CodeGenWebGPU: Can only take PrimFunc";
+    auto prim_func = Downcast<PrimFunc>(base_func);
+    auto calling_conv = prim_func->GetAttr<Integer>(tvm::attr::kCallingConv);
     ICHECK(calling_conv == CallingConv::kDeviceKernelLaunch)
         << "CodeGenWebGPU: expect calling_conv equals CallingConv::kDeviceKernelLaunch";
-    auto global_symbol = f->GetAttr<String>(tvm::attr::kGlobalSymbol);
+    auto global_symbol = prim_func->GetAttr<String>(tvm::attr::kGlobalSymbol);
     ICHECK(global_symbol.defined())
         << "CodeGenWebGPU: Expect PrimFunc to have the global_symbol attribute";
-    std::string f_name = global_symbol.value();
+    functions.Set(gvar, prim_func);
+  }
+
+  std::unordered_map<std::string, std::string> smap;
+  for (auto [gvar, prim_func] : functions) {
+    CodeGenWebGPU cg(target);
     cg.Init(output_ssa);
-    cg.AddFunction(f);
+
+    for (auto [other_gvar, other_prim_func] : functions) {
+      cg.DeclareFunction(other_gvar, other_prim_func);
+    }
+    cg.AddFunction(gvar, prim_func);
+
     std::string code = cg.Finish();
-    smap[f_name] = code;
+    smap[cg.GetFunctionName(gvar)] = code;
   }
   auto n = make_object<WebGPUSourceModuleNode>(smap, ExtractFuncInfo(mod));
   return runtime::Module(n);

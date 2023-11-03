@@ -19,5 +19,8 @@ if(USE_CUDA AND USE_CUTLASS)
   tvm_file_glob(GLOB CUTLASS_RELAY_CONTRIB_SRC src/relay/backend/contrib/cutlass/*.cc)
   list(APPEND COMPILER_SRCS ${CUTLASS_RELAY_CONTRIB_SRC})
 
+  set(CUTLASS_DIR ${PROJECT_SOURCE_DIR}/3rdparty/cutlass)
+  add_subdirectory(${PROJECT_SOURCE_DIR}/3rdparty/cutlass_fpA_intB_gemm)
+
   message(STATUS "Build with CUTLASS")
 endif()

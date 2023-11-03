@@ -237,6 +237,24 @@ class ScheduleNode : public runtime::Object {
   virtual Array<ExprRV> SamplePerfectTile(const LoopRV& loop_rv, int n, int max_innermost_factor,
                                           Optional<Array<Integer>> decision = NullOpt) = 0;
   /*!
+   * \brief Sample the factors to a partitioned tile for a specific loop
+   *
+   *  The sampled tile size will be partitioned into two parts. The second part has a guarantee
+   *  that their extent's product have a factor of `innerpart_factor`. The first part is loops at
+   *  [0, partition_pos); the second part is loops at [partition_pos, n) and we will have
+   *  `innerpart_factor` | (l[partition_pos].extent * ... * l[n-1].extent)
+   *
+   * \param loop_rv The loop to be tiled
+   * \param n The number of tiles to be sampled
+   * \param partition_pos The position to partition tiles to two parts
+   * \param innerpart_factor The factor of the second part
+   * \param decision The sampling decision
+   * \return A list of length `n`, the random partitioned tile sizes sampled
+   */
+  virtual Array<ExprRV> SamplePartitionedTile(const LoopRV& loop_rv, int n, int partition_pos,
+                                              int innerpart_factor,
+                                              Optional<Array<Integer>> decision = NullOpt) = 0;
+  /*!
    * \brief Sample a compute-at location of the given block
    * \param block_rv The block whose compute-at location is to be sampled
    * \param decision The sampling decision
@@ -462,7 +480,7 @@ class ScheduleNode : public runtime::Object {
                                     const String& storage_scope, const IndexMap& index_map) = 0;
   /*!
    * \brief Create 2 blocks that read&write a buffer region into a read/write cache.
-   * It requires the the target block both read & write the target buffer.
+   * It requires the target block both read & write the target buffer.
    * \param block_rv The target block operates on the target buffer.
    * \param read_buffer_index The index of the buffer in block's read region.
    * \param storage_scope The target storage scope
@@ -642,6 +660,13 @@ class ScheduleNode : public runtime::Object {
    */
   virtual BlockRV Blockize(const LoopRV& loop_rv, bool preserve_unit_iters = true) = 0;
   /*!
+   * \brief Convert specified blocks into a nested block.
+   * \param blocks the specified block to construct the new block
+   * \param preserve_unit_iters Whether or not to preserve unit iterators in block bindings
+   * \return the new block
+   */
+  virtual BlockRV Blockize(const Array<BlockRV>& blocks, bool preserve_unit_iters = true) = 0;
+  /*!
    * \brief Tensorize the computation enclosed by loop with the tensor intrin.
    * \param loop_rv The loop to be tensorized
    * \param intrin Name of the tensor intrinsic
@@ -795,6 +820,15 @@ class ScheduleNode : public runtime::Object {
   /******** Schedule: Misc ********/
   /*! \brief A no-op that marks the start of postprocessing phase of scheduling */
   virtual void EnterPostproc() = 0;
+
+  /*!
+   * \brief Hide some buffer access in the given block.
+   * \param block_rv The block where we hide buffer access.
+   * \param buf_type The buffer type: read/write
+   * \param buf_index_array The array of buffer indices we hide access.
+   */
+  virtual void UnsafeHideBufferAccess(const BlockRV& block_rv, const String& buf_type,
+                                      const Array<IntImm>& buf_index_array) = 0;
 };
 
 /*!

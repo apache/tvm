@@ -24,9 +24,9 @@ from tvm.tir.function import PrimFunc
 
 def _check(before, expect):
     if isinstance(before, PrimFunc):
-        before = IRModule({"main": before})
+        before = IRModule({"main": before.with_attr("global_symbol", "main")})
     if isinstance(expect, PrimFunc):
-        expect = IRModule({"main": expect})
+        expect = IRModule({"main": expect.with_attr("global_symbol", "main")})
 
     mod = tvm.tir.transform.RemoveWeightLayoutRewriteBlock()(before)
     tvm.ir.assert_structural_equal(mod, expect)

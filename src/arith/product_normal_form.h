@@ -47,21 +47,32 @@ inline void UnpackReduction(const PrimExpr& value, FLeaf fleaf) {
   }
 }
 
+/**
+ * \brief Unpack chain of add sub by calling each leaf via fleaf
+ * \param value The expression value.
+ * \tparam FLeaf The callback function at leaf.
+ */
+template <typename FLeaf>
+inline void UnpackSum(const PrimExpr& value, FLeaf fleaf, int sign = 1) {
+  if (const tir::AddNode* node = value.as<tir::AddNode>()) {
+    UnpackSum(node->a, fleaf, sign);
+    UnpackSum(node->b, fleaf, sign);
+  } else if (const tir::SubNode* node = value.as<tir::SubNode>()) {
+    UnpackSum(node->a, fleaf, sign);
+    UnpackSum(node->b, fleaf, -sign);
+  } else {
+    fleaf(value, sign);
+  }
+}
+
 /*!
- * \brief Helper function to multiply extent and and re-normalize.
+ * \brief Helper function to multiply extent and re-normalize.
  *
  * Multiply extent scale and re-normalize to form (x * y) * z
  *
- * NOTE on multiplication order: when have have shape (s[0], s[1], s[2]),
+ * NOTE on multiplication order: when have shape (s[0], s[1], s[2]),
  * we prefer to multiple in order of s[0] * s[1] * s[2]
- *
- * That means when we are looking at the pattern of split iterator:
- *
- * - result = (source // lower_factor) % extent * scale
- *
- * We should take the order of lower_factor, extent, scale.
- * Please do best keeping this order to make future simplifcation easy.
- *
+
  * \param lhs The lhs iterator
  * \param rhs The rhs iterator
  * \return the result.

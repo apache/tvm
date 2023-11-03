@@ -64,7 +64,7 @@ class TypeFunctor:
         elif isinstance(typ, TypeData):
             return self.visit_type_data(typ)
         else:
-            raise Exception("unhandled case: {0}".format(type(typ)))
+            raise Exception(f"unhandled case: {type(typ)}")
 
     def visit_type_var(self, _):
         raise NotImplementedError()

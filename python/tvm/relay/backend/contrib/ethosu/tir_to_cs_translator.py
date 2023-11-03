@@ -926,17 +926,20 @@ def _create_npu_dma_op(serial_copy):
     """This is a helper function to capture the list of arguments
     to create a NpuDmaOperation object"""
     data_type_bytes = np.iinfo(np.dtype(serial_copy.read_address.dtype)).bits // 8
+    length = int(serial_copy.length.value) * data_type_bytes
+    # The buffer size in bytes must be at least 16 bytes
+    length = max(length, 16)
     src = vapi.NpuAddressRange(
         # region will be updated later
         region=0,
         address=serial_copy.read_address,
-        length=int(serial_copy.length.value) * data_type_bytes,
+        length=length,
     )
     dest = vapi.NpuAddressRange(
         # region will be updated later
         region=0,
         address=serial_copy.write_address,
-        length=int(serial_copy.length.value) * data_type_bytes,
+        length=length,
     )
     return vapi.NpuDmaOperation(src, dest)
 
@@ -1076,7 +1079,6 @@ def _create_npu_op_binary_elementwise(serial_binary_elementwise: spec.SerialBina
 def translate_ethosu_unary_elementwise(
     tir_extern_call: tvm.tir.Call,
 ) -> vapi.NpuElementWiseOperation:
-
     """This function will translate a tir extern_call
     as produced by Relay to TIR compilation.
     Parameters

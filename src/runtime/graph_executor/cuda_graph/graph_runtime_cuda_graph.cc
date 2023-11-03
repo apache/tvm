@@ -84,7 +84,7 @@ class GraphExecutorCudaGraph : public GraphExecutor {
    * \param name The function which needs to be invoked.
    * \param sptr_to_self Packed function pointer.
    */
-  PackedFunc GetFunction(const std::string& name, const ObjectPtr<Object>& sptr_to_self);
+  PackedFunc GetFunction(const String& name, const ObjectPtr<Object>& sptr_to_self);
 
  private:
   /*! \brief The Cuda stream on which to capture a CUDA graph. */
@@ -93,7 +93,7 @@ class GraphExecutorCudaGraph : public GraphExecutor {
   cudaGraphExec_t cuda_graph_exec_;
 };
 
-PackedFunc GraphExecutorCudaGraph::GetFunction(const std::string& name,
+PackedFunc GraphExecutorCudaGraph::GetFunction(const String& name,
                                                const ObjectPtr<Object>& sptr_to_self) {
   if (name == "run_cuda_graph") {
     return PackedFunc(

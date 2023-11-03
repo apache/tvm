@@ -25,13 +25,13 @@
 #define TVM_RUNTIME_VM_VM_H_
 
 #include <tvm/runtime/container/closure.h>
+#include <tvm/runtime/memory/memory_manager.h>
 #include <tvm/runtime/module.h>
 #include <tvm/runtime/object.h>
 #include <tvm/runtime/packed_func.h>
 #include <tvm/runtime/registry.h>
 #include <tvm/runtime/vm/bytecode.h>
 #include <tvm/runtime/vm/executable.h>
-#include <tvm/runtime/vm/memory_manager.h>
 
 #include <memory>
 #include <string>
@@ -41,6 +41,13 @@
 
 namespace tvm {
 namespace runtime {
+
+using memory::Allocator;
+using memory::AllocatorType;
+using memory::MemoryManager;
+using memory::Storage;
+using memory::StorageObj;
+
 namespace vm {
 
 /*!
@@ -164,7 +171,7 @@ class TVM_DLL VirtualMachine : public runtime::ModuleNode {
    *   If the function needs resource from the module(e.g. late linking),
    *   it should capture sptr_to_self.
    */
-  virtual PackedFunc GetFunction(const std::string& name, const ObjectPtr<Object>& sptr_to_self);
+  virtual PackedFunc GetFunction(const String& name, const ObjectPtr<Object>& sptr_to_self);
 
   virtual ~VirtualMachine() {}
 

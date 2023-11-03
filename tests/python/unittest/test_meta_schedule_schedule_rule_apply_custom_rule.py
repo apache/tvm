@@ -59,7 +59,7 @@ def test_custom_rule():
                 max_trials_global=10,
                 space=space_gen,
             )
-    assert "ValueError: Intended for meta_schedule.cpu.test_apply_custom_rule" in str(e_info.value)
+    assert "Intended for meta_schedule.cpu.test_apply_custom_rule" in str(e_info.value)
 
 
 if __name__ == "__main__":

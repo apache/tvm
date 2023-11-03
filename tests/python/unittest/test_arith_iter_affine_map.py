@@ -16,7 +16,7 @@
 # under the License.
 import tvm
 import tvm.testing
-from tvm.tir import floormod, floordiv
+from tvm.tir import floordiv, floormod
 
 
 def ifuse(inputs, pred_extent=None):
@@ -83,7 +83,7 @@ def assert_iter_sum_pattern(
             tvm.ir.assert_structural_equal(sum_expr, expect_iter)
 
 
-def assert_iter_map_simplfy(
+def assert_iter_map_simplify(
     expect_dict, dom_map, predicate=True, check_level="surjective", simplify_trivial_iterators=True
 ):
     keys = list(expect_dict.keys())
@@ -236,6 +236,7 @@ def test_compound_floormod_two_regression():
 def test_predicate():
     x = tvm.tir.Var("x", "int32")
     y = tvm.tir.Var("y", "int32")
+    z = tvm.tir.Var("z", "int32")
 
     # available contraints
     # upper bound only
@@ -267,6 +268,12 @@ def test_predicate():
         {x * 10 + y: (122, 6)},
         var_dom([(x, 13), (y, 10)]),
         predicate=tvm.tir.And(x * 10 + y >= 6, x * 10 + y <= 127),
+    )
+
+    assert_iter_sum_pattern(
+        {x * 64 + y * 4 + z: (16, 16)},
+        var_dom([(x, 16), (y, 16), (z, 4)]),
+        predicate=tvm.tir.And(x * 64 + y * 4 + z < 32, 4 <= x * 16 + y),
     )
 
     # constraint on one fused iter
@@ -1044,6 +1051,8 @@ class TestPadding:
         # original extent is smaller than the divident
         # it is not surjective wrt to the region [0, 16)
         ({x: 3}, {flm(x, 16)}),
+        # (x % c1) // c2 is not proved as surjective if c1 % c2 != 0
+        ({x: 255}, {fld(flm(x, 255), 16)}),
     )
 
     def test_padding(self, positive_test_case):
@@ -1120,28 +1129,28 @@ def test_iter_map_simplify_symbolic_case():
     def simple_fuse0(x):
         return (x // n) * n + x % n
 
-    assert_iter_map_simplfy({simple_fuse0(x): x}, var_dom([(x, n * 32)]))
+    assert_iter_map_simplify({simple_fuse0(x): x}, var_dom([(x, n * 32)]))
 
-    assert_iter_map_simplfy({simple_fuse0(z): z}, var_dom([(x, n), (y, 32)]))
+    assert_iter_map_simplify({simple_fuse0(z): z}, var_dom([(x, n), (y, 32)]))
 
     def fsymbolic_fuse0(x):
         return ((x // (n * n)) % 32) * (n * n) + ((x // n) % n) * n + x % n
 
-    assert_iter_map_simplfy({fsymbolic_fuse0(x): x}, var_dom([(x, n * n * 32)]))
+    assert_iter_map_simplify({fsymbolic_fuse0(x): x}, var_dom([(x, n * n * 32)]))
 
-    assert_iter_map_simplfy({fsymbolic_fuse0(z): z}, var_dom([(x, n * n), (y, 32)]))
+    assert_iter_map_simplify({fsymbolic_fuse0(z): z}, var_dom([(x, n * n), (y, 32)]))
 
     def fsymbolic_fuse1(x):
         return ((x % (n * n * 32)) // (n * n) * n + (x % (n * n) // n)) * n + x % n
 
-    assert_iter_map_simplfy({fsymbolic_fuse1(x): x}, var_dom([(x, n * n * 32)]))
+    assert_iter_map_simplify({fsymbolic_fuse1(x): x}, var_dom([(x, n * n * 32)]))
 
-    assert_iter_map_simplfy({fsymbolic_fuse1(z): z}, var_dom([(x, n * n), (y, 32)]))
+    assert_iter_map_simplify({fsymbolic_fuse1(z): z}, var_dom([(x, n * n), (y, 32)]))
 
     def fsymbolic_fuse2(i):
         return (i // (n * n) * n + i % (n * n) // n) * n + i % n
 
-    assert_iter_map_simplfy({fsymbolic_fuse2(x): x}, var_dom([(x, n * n * 32)]))
+    assert_iter_map_simplify({fsymbolic_fuse2(x): x}, var_dom([(x, n * n * 32)]))
 
 
 def test_iter_map_simplify_symbolic_predicate():
@@ -1155,7 +1164,7 @@ def test_iter_map_simplify_symbolic_predicate():
         return (x // n) * n + x % n
 
     z = x * 32 + y
-    assert_iter_map_simplfy(
+    assert_iter_map_simplify(
         {simple_fuse0(z): z}, var_dom([(x, (n + 1) // 2), (y, 32)]), predicate=(z < n * 16)
     )
 
@@ -1163,11 +1172,24 @@ def test_iter_map_simplify_symbolic_predicate():
         return (i // (n * n) * n + i % (n * n) // n) * n + i % n
 
     z = x * 64 + y
-    assert_iter_map_simplfy(
+    assert_iter_map_simplify(
         {fsymbolic_fuse2(z): z},
         var_dom([(x, (n * n + 1) // 2), (y, 64)]),
         predicate=(z < n * n * 32),
     )
+
+
+def test_iter_map_simplify_symbolic_reshape():
+    n = tvm.tir.Var("n", "int64")
+    fused = tvm.tir.Var("fused", "int64")
+
+    ax0 = (fused // 4096) // n
+    ax1 = (fused // 4096) % n
+    ax2 = fused % 4096
+
+    rhs_index = ((ax2 // 4096 + ax0 * n + ax1) % n) * 4096 + ax2 % 4096
+
+    assert_iter_map_simplify({rhs_index: fused}, var_dom([(fused, n * 4096)]))
 
 
 def test_iter_map_simplify_unit_loop_order():
@@ -1178,18 +1200,18 @@ def test_iter_map_simplify_unit_loop_order():
 
     # trivial iterators can be found at any when comparing via scale
     # ensure order unchange
-    assert_iter_map_simplfy(
+    assert_iter_map_simplify(
         {x + y + z: x + y + z}, var_dom([(x, 1), (y, 1), (z, 1)]), simplify_trivial_iterators=False
     )
 
     # Even with simplifcation, it should follow the original order
-    assert_iter_map_simplfy(
+    assert_iter_map_simplify(
         {x + y + (z // 4) * 4 + z % 4: z + x + y},
         var_dom([(x, 1), (y, 1), (z, 32)]),
         simplify_trivial_iterators=False,
     )
 
-    assert_iter_map_simplfy(
+    assert_iter_map_simplify(
         {y + 64 - x % 2 * 64: y + 64 - x % 2 * 64},
         var_dom([(x, 6), (y, 64)]),
         simplify_trivial_iterators=False,
@@ -1197,11 +1219,133 @@ def test_iter_map_simplify_unit_loop_order():
 
     # When we have iterators that have same scale but one of them come
     # with unit extent, we should prioritize unit extent
-    assert_iter_map_simplfy(
-        {x // 128 + y + z: y + x // 128 + z},
+    assert_iter_map_simplify(
+        {x // 128 + y + z: y + z},
         var_dom([(x, 128), (y, 128), (z, 1)]),
         simplify_trivial_iterators=False,
     )
+
+
+def assert_normalize_to_iter_sum(index, input_iters, args, base):
+    """Assert the result of arith.normalize_to_iter_sum is correct
+
+    Parameters
+    ----------
+    index : tvm.tir.PrimExpr
+        The index to be normalized
+    input_iters : Mapping[Var, Range]
+        The input iterators
+    args : List[Union[tvm.arith.IterSplitExpr, Tuple[PrimExpr, PrimExpr]]]
+        The expected result. Ordered list of args of the expected IterSumExpr. Each arg can be
+        either IterSplitExpr or a tuple of (PrimExpr, PrimExpr) where the first element is the
+        iterator normalized to PrimExpr and the second element is the scale.
+    base : tvm.tir.PrimExpr
+        The expected base
+    """
+    res = tvm.arith.normalize_to_iter_sum(index, input_iters)
+
+    assert isinstance(res, tvm.arith.IterSumExpr)
+    assert len(res.args) == len(args)
+    for split, item in zip(res.args, args):
+        if isinstance(item, tvm.arith.IterSplitExpr):
+            tvm.ir.assert_structural_equal(split, item)
+            continue
+        tvm.testing.assert_prim_expr_equal(split.scale, item[1])
+        tvm.testing.assert_prim_expr_equal(
+            tvm.arith.normalize_iter_map_to_expr(split), item[0] * item[1]
+        )
+    tvm.testing.assert_prim_expr_equal(res.base, base)
+
+
+def test_normalize_to_iter_sum():
+    x = tvm.tir.Var("x", "int64")
+    y = tvm.tir.Var("y", "int64")
+    z = tvm.tir.Var("z", "int64")
+    a = tvm.tir.Var("a", "int64")
+    n = tvm.tir.Var("n", "int64")
+    flm = tvm.tir.floormod
+
+    assert_normalize_to_iter_sum(
+        z + ((y + x * 4 + 2) * n) + 3,
+        var_dom([(x, 9), (y, 4), (z, 3)]),
+        [(x, n * 4), (y, n), (z, 1)],
+        2 * n + 3,
+    )
+
+    # max cannot detected so it goes into base
+    assert_normalize_to_iter_sum(
+        tvm.tir.max(z, a) + ((y + x * 4 + 2) * n) + 3,
+        var_dom([(x, 9), (y, 4), (z, 3)]),
+        [(x, n * 4), (y, n)],
+        tvm.tir.max(z, a) + 2 * n + 3,
+    )
+
+    # order by symbolc prod
+    assert_normalize_to_iter_sum(
+        z + ((y * 4 * a + x * 4 + 2) * n) + 3,
+        var_dom([(y, a * n * 4), (x, n * 4), (z, a)]),
+        [(y, a * n * 4), (x, n * 4), (z, 1)],
+        2 * n + 3,
+    )
+
+    # order by cscale
+    assert_normalize_to_iter_sum(
+        z + 2 * y * 3 + 4 * x,
+        var_dom([(y, a * n * 4), (x, n * 4), (z, a)]),
+        [(y, 6), (x, 4), (z, 1)],
+        0,
+    )
+
+    # split pattern
+    assert_normalize_to_iter_sum(
+        z + 2 * y * 3 + 4 * (x // 2),
+        var_dom([(y, a * n * 4), (x, n * 4), (z, a)]),
+        [(y, 6), (x // 2, 4), (z, 1)],
+        0,
+    )
+
+    # non-divisible
+    assert_normalize_to_iter_sum(
+        x // 5,
+        var_dom([(x, 4096)]),
+        [
+            tvm.arith.IterSplitExpr(
+                tvm.arith.IterMark(x, 4096),
+                lower_factor=tvm.tir.const(5, "int64"),
+                extent=tvm.tir.const(820, "int64"),
+                scale=tvm.tir.const(1, "int64"),
+            )
+        ],
+        0,
+    )
+
+    # iter simplify
+    assert_normalize_to_iter_sum(
+        z * 2 + 2 * y * 3 + 4 * (x // 4) + (x % 4),
+        var_dom([(y, a * n * 4), (x, n * 4), (z, a)]),
+        [(y, 6), (z, 2), (x, 1)],
+        0,
+    )
+
+
+def test_detect_iter_map_with_bufferload_recursion():
+    n = tvm.tir.Var("n", "int32")
+    m = tvm.tir.Var("m", "int32")
+    divisor = tvm.tir.Var("divisor", "int32")
+
+    i = tvm.tir.Var("i", "int32")
+    j = tvm.tir.Var("j", "int32")
+
+    buffer = tvm.tir.decl_buffer((n,), "int32", name="seqlen")
+
+    indices = [(buffer[i] + j) // divisor]
+    iter_vars = {
+        i: tvm.ir.Range(tvm.tir.const(0, "int32"), n),
+        j: tvm.ir.Range(tvm.tir.const(0, "int32"), m),
+    }
+
+    result = tvm.arith.detect_iter_map(indices, iter_vars)
+    assert len(result.indices) == 0
 
 
 if __name__ == "__main__":

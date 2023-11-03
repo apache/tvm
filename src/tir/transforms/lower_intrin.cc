@@ -119,7 +119,8 @@ class IntrinInjecter : public tvm::arith::IRMutatorWithAnalyzer {
       // in terms of truncdiv using only positive operands.
       arith::ConstIntBound const_int_bound = analyzer_->const_int_bound(op->a);
       if (const_int_bound->min_value < 0 &&
-          const_int_bound->min_value > -(Downcast<IntImm>(tvm::max_value(op->a->dtype))->value)) {
+          const_int_bound->min_value >
+              -(Downcast<IntImm>(tvm::max_value(op->a->dtype.element_of()))->value)) {
         // The goal is to write floordiv(a,b) in terms of truncdiv, without using
         // negative operands.
         //
@@ -150,7 +151,7 @@ class IntrinInjecter : public tvm::arith::IRMutatorWithAnalyzer {
         //   floordiv(a,b)
         //     == floordiv(a + b*c, b) - c
         //     == truncdiv(a + b*c, b) - c
-        IntImm min(op->a->dtype, const_int_bound->min_value);
+        IntImm min(op->a->dtype.element_of(), const_int_bound->min_value);
         PrimExpr ceildiv = truncdiv((op->b - 1) - min, op->b);
         PrimExpr offset_numerator = analyzer_->Simplify(op->a + op->b * ceildiv);
         return truncdiv(offset_numerator, op->b) - ceildiv;
@@ -214,7 +215,8 @@ class IntrinInjecter : public tvm::arith::IRMutatorWithAnalyzer {
       // in terms of truncmod using only positive operands.
       arith::ConstIntBound const_int_bound = analyzer_->const_int_bound(op->a);
       if (const_int_bound->min_value < 0 &&
-          const_int_bound->min_value > -(Downcast<IntImm>(tvm::max_value(op->a->dtype))->value)) {
+          const_int_bound->min_value >
+              -(Downcast<IntImm>(tvm::max_value(op->a->dtype.element_of()))->value)) {
         // The goal is to write floormod(a,b) in terms of truncdiv and truncmod,
         // without using negative operands.
         //
@@ -244,7 +246,7 @@ class IntrinInjecter : public tvm::arith::IRMutatorWithAnalyzer {
         //   floormod(a,b)
         //     == floormod(a + b*c, b)
         //     == truncmod(a + b*c, b)
-        IntImm min(op->a->dtype, const_int_bound->min_value);
+        IntImm min(op->a->dtype.element_of(), const_int_bound->min_value);
         PrimExpr ceildiv = truncdiv(-min + (op->b - 1), op->b);
         PrimExpr offset_numerator = analyzer_->Simplify(op->a + op->b * ceildiv);
         return truncmod(offset_numerator, op->b);

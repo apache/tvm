@@ -26,6 +26,7 @@ from tvm.contrib import utils, ndk
 from tvm.relay import testing
 from tvm.relay.transform import recast
 from tvm.contrib import graph_runtime
+from tvm.runtime.vm import VirtualMachine
 import json
 
 
@@ -102,7 +103,7 @@ def build_run_compare(
         dso_binary = "dev_lib_cl.so"
         dso_binary_path = temp.relpath(dso_binary)
         ctx = remote.cl(0)
-        lib.export_library(dso_binary_path, ndk.create_shared)
+        lib.export_library(dso_binary_path, fcompile=ndk.create_shared)
         remote.upload(dso_binary_path)
         rlib = remote.load_module(dso_binary)
         m = graph_runtime.create(graph, rlib, ctx)
@@ -120,6 +121,81 @@ def build_run_compare(
 
         np.testing.assert_allclose(output, ref_output, rtol=1e-1, atol=1e-1)
     return graph
+
+
+def build_run_compare_vm(
+    remote,
+    tvm_mod,
+    params1,
+    input_shape,
+    dtypes,
+    target="llvm",
+    static_mem_scopes=[],
+    gpu_preprocess=None,
+    stat_file=None,
+):
+    if remote is None:
+        target_host = "llvm"
+    else:
+        target_host = "llvm -mtriple=arm64-linux-android"
+
+    if gpu_preprocess:
+        tvm_mod_nchwc = gpu_preprocess(tvm_mod)
+    else:
+        tvm_mod_nchwc = tvm_mod
+
+    if isinstance(tvm_mod_nchwc, relay.Function):
+        module = tvm.IRModule({})
+        module["main"] = tvm_mod_nchwc
+        tvm_mod_nchwc = module
+
+    if stat_file is not None:
+        with autotvm.apply_history_best(stat_file):
+            with tvm.transform.PassContext(opt_level=3):
+                vmc = relay.vm.compile(
+                    tvm_mod_nchwc, target=target, target_host=target_host, params=params1
+                )
+    else:
+        with tvm.transform.PassContext(opt_level=3):
+            vmc = relay.vm.compile(
+                tvm_mod_nchwc, target=target, target_host=target_host, params=params1
+            )
+
+    if len(static_mem_scopes) > 0:
+        mem_scopes_lines = static_mem_scopes.strip().split("\n")
+        vm_lines = vmc._get_virtual_devices().strip().split("\n")
+        for i in range(0, len(mem_scopes_lines)):
+            assert mem_scopes_lines[i].strip() == vm_lines[i].strip()
+
+    if remote is None:
+        dev = tvm.opencl()
+        vm = VirtualMachine(vmc, dev, "naive")
+    else:
+        temp = utils.tempdir()
+        dso_binary = "dev_lib_cl.so"
+        dso_binary_path = temp.relpath(dso_binary)
+        dev = remote.cl(0)
+        vmc.mod.export_library(dso_binary_path, fcompile=ndk.create_shared)
+        remote.upload(dso_binary_path)
+        rlib = remote.load_module(dso_binary)
+        vm = VirtualMachine(rlib, dev, "naive")
+    data = {}
+    inputs = []
+    for key in input_shape:
+        inputs.append(np.random.normal(size=input_shape[key]).astype(dtypes[key]))
+        data[key] = tvm.nd.array(inputs[-1], dev)
+    for k, v in params1.items():
+        data[k] = tvm.nd.array(v, dev)
+    vm.set_input("main", **data)
+    vm.invoke_stateful("main")
+
+    ref_outputs = get_cpu_reference(tvm_mod, params1, input_shape, inputs)
+    for i, ref_output in enumerate(ref_outputs):
+        tvm_output = vm.get_outputs()[i]
+        output = tvm_output.asnumpy()
+
+        np.testing.assert_allclose(output, ref_output, rtol=1e-1, atol=1e-1)
+    return vmc
 
 
 def gpu_preprocess(tvm_mod):

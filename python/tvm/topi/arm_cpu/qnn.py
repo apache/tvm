@@ -309,7 +309,7 @@ def qnn_conv2d(attrs, inputs, out_type):
     # the output width, but autotuning this value would improve performance a lot.
     num_outputs = _pick_num_outputs(out_width)
 
-    # Next, decide whether whether we need "parity alternation". For example, if we have an
+    # Next, decide whether we need "parity alternation". For example, if we have an
     # 8x3x3x3 kernel (8 output channels, height 3, width 3, input channels 3) in the OHWI layout,
     # then every output channel kernel slice will be 27 halfwords. This means every other output
     # channel will not be word aligned, which will cause slowness/crashes!

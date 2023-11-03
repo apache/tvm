@@ -17,6 +17,7 @@
  * under the License.
  */
 
+#include <tvm/arith/analyzer.h>
 #include <tvm/node/node.h>
 
 #include <optional>
@@ -93,12 +94,12 @@ class TransformLayoutPlanner : private StmtExprVisitor {
 
   static TransformPlan Plan(Block block, Buffer old_buffer, Buffer new_buffer, IndexMap index_map,
                             IndexMap inverse, PrimExpr padding_predicate,
-                            Optional<IndexMap> pad_value) {
+                            Optional<IndexMap> pad_value, arith::Analyzer* analyzer) {
     ICHECK(!pad_value.defined() || pad_value.value()->final_indices.size() == 1)
         << "Internal error: Should be caught by ScheduleError checks prior to this point";
     TransformLayoutPlanner visitor(old_buffer);
     visitor(block);
-    return visitor.Finalize(new_buffer, index_map, inverse, padding_predicate, pad_value);
+    return visitor.Finalize(new_buffer, index_map, inverse, padding_predicate, pad_value, analyzer);
   }
 
  private:
@@ -220,14 +221,15 @@ class TransformLayoutPlanner : private StmtExprVisitor {
    public:
     BufferStoreReplacer(const WriteInfo& info, const Buffer& new_buffer, PrimExpr padding_predicate,
                         const IndexMap& inverse, const Optional<IndexMap>& pad_value,
-                        Map<Block, Block>* new_block_to_old)
+                        Map<Block, Block>* new_block_to_old, arith::Analyzer* analyzer)
         : info(info),
           new_buffer(new_buffer),
           new_indices(inverse->initial_indices),
           padding_predicate(padding_predicate),
           inverse(inverse),
           pad_value(pad_value),
-          new_block_to_old(*new_block_to_old) {
+          new_block_to_old(*new_block_to_old),
+          analyzer(analyzer) {
       ICHECK_EQ(info.dependent_loopnest.size(), inverse->final_indices.size());
       for (size_t i = 0; i < info.dependent_loopnest.size(); i++) {
         Var var = info.dependent_loopnest[i]->loop_var;
@@ -353,7 +355,7 @@ class TransformLayoutPlanner : private StmtExprVisitor {
       if (can_replace) {
         Array<PrimExpr> new_index_exprs =
             new_indices.Map([](const auto& var) -> PrimExpr { return var; });
-        PrimExpr pad_value_at_index = pad_value.value()->MapIndices(new_index_exprs)[0];
+        PrimExpr pad_value_at_index = pad_value.value()->MapIndices(new_index_exprs, analyzer)[0];
         store =
             BufferStore(new_buffer, if_then_else(padding_predicate, pad_value_at_index, op->value),
                         new_index_exprs);
@@ -429,22 +431,24 @@ class TransformLayoutPlanner : private StmtExprVisitor {
     const Optional<IndexMap>& pad_value;
     Map<Block, Block>& new_block_to_old;
     bool all_stores_replaced{true};
+    arith::Analyzer* analyzer;
 
     Map<Var, PrimExpr> var_remap;
   };
 
   TransformPlan Finalize(Buffer new_buffer, IndexMap index_map, IndexMap inverse,
-                         PrimExpr padding_predicate, Optional<IndexMap> pad_value) const {
-    if (auto prologue_plan =
-            FinalizeProloguePlan(new_buffer, index_map, inverse, padding_predicate, pad_value);
+                         PrimExpr padding_predicate, Optional<IndexMap> pad_value,
+                         arith::Analyzer* analyzer) const {
+    if (auto prologue_plan = FinalizeProloguePlan(new_buffer, index_map, inverse, padding_predicate,
+                                                  pad_value, analyzer);
         prologue_plan.has_value()) {
       return prologue_plan.value();
-    } else if (auto replacement_plan = FinalizeReplacementPlan(new_buffer, index_map, inverse,
-                                                               padding_predicate, pad_value);
+    } else if (auto replacement_plan = FinalizeReplacementPlan(
+                   new_buffer, index_map, inverse, padding_predicate, pad_value, analyzer);
                replacement_plan.has_value()) {
       return replacement_plan.value();
     } else if (auto epilogue_plan = FinalizeEpiloguePlan(new_buffer, index_map, inverse,
-                                                         padding_predicate, pad_value);
+                                                         padding_predicate, pad_value, analyzer);
                epilogue_plan.has_value()) {
       return epilogue_plan.value();
     } else {
@@ -454,7 +458,8 @@ class TransformLayoutPlanner : private StmtExprVisitor {
 
   std::optional<ProloguePlan> FinalizeProloguePlan(Buffer new_buffer, IndexMap index_map,
                                                    IndexMap inverse, PrimExpr padding_predicate,
-                                                   Optional<IndexMap> pad_value) const {
+                                                   Optional<IndexMap> pad_value,
+                                                   arith::Analyzer* analyzer) const {
     if (write_info_.size() || is_zero(padding_predicate) || !pad_value.defined()) {
       return std::nullopt;
     }
@@ -476,7 +481,7 @@ class TransformLayoutPlanner : private StmtExprVisitor {
     }
     padding_predicate = Substitute(std::move(padding_predicate), loop_indices_to_block_indices);
 
-    PrimExpr pad_value_at_index = pad_value.value()->MapIndices(indices)[0];
+    PrimExpr pad_value_at_index = pad_value.value()->MapIndices(indices, analyzer)[0];
     PrimExpr expr = (!padding_predicate) || (BufferLoad(new_buffer, indices) == pad_value_at_index);
     Stmt stmt = Evaluate(Call(DataType::Bool(), builtin::assume(), {expr}));
 
@@ -498,7 +503,8 @@ class TransformLayoutPlanner : private StmtExprVisitor {
   std::optional<ReplacementPlan> FinalizeReplacementPlan(Buffer new_buffer, IndexMap index_map,
                                                          IndexMap inverse,
                                                          PrimExpr padding_predicate,
-                                                         Optional<IndexMap> pad_value) const {
+                                                         Optional<IndexMap> pad_value,
+                                                         arith::Analyzer* analyzer) const {
     if (write_info_.empty() || is_zero(padding_predicate) || !pad_value.defined()) {
       return std::nullopt;
     }
@@ -511,7 +517,7 @@ class TransformLayoutPlanner : private StmtExprVisitor {
       }
 
       BufferStoreReplacer replacer(info, new_buffer, padding_predicate, inverse, pad_value,
-                                   &new_block_to_old);
+                                   &new_block_to_old, analyzer);
       Stmt stmt = replacer(info.dependent_loopnest.back()->body);
       if (!replacer.is_all_stores_replaced()) {
         return NullOpt;
@@ -547,7 +553,8 @@ class TransformLayoutPlanner : private StmtExprVisitor {
 
   std::optional<EpiloguePlan> FinalizeEpiloguePlan(Buffer new_buffer, IndexMap index_map,
                                                    IndexMap inverse, PrimExpr padding_predicate,
-                                                   Optional<IndexMap> pad_value) const {
+                                                   Optional<IndexMap> pad_value,
+                                                   arith::Analyzer* analyzer) const {
     if (write_info_.empty() || is_zero(padding_predicate) || !pad_value.defined()) {
       return std::nullopt;
     }
@@ -566,7 +573,7 @@ class TransformLayoutPlanner : private StmtExprVisitor {
       iter_values.push_back(loop_var);
     }
 
-    PrimExpr pad_value_at_index = pad_value.value()->MapIndices(indices)[0];
+    PrimExpr pad_value_at_index = pad_value.value()->MapIndices(indices, analyzer)[0];
     Stmt stmt = BufferStore(new_buffer, pad_value_at_index, indices);
 
     std::stringstream block_name;
@@ -757,12 +764,13 @@ class TransformLayoutRewriter : private arith::IRMutatorWithAnalyzer {
       const Block& scope_stmt, const Buffer& old_buffer, const Buffer& new_buffer,
       const IndexMap& index_map, const Optional<IndexMap>& opt_inverse,
       const PrimExpr& padding_predicate, const Optional<IndexMap>& pad_value) {
-    auto plan = pad_value.defined() ? TransformLayoutPlanner::Plan(
-                                          scope_stmt, old_buffer, new_buffer, index_map,
-                                          opt_inverse.value(), padding_predicate, pad_value)
-                                    : TransformLayoutPlanner::NoPaddingRequired();
-
     arith::Analyzer analyzer;
+    auto plan = pad_value.defined()
+                    ? TransformLayoutPlanner::Plan(scope_stmt, old_buffer, new_buffer, index_map,
+                                                   opt_inverse.value(), padding_predicate,
+                                                   pad_value, &analyzer)
+                    : TransformLayoutPlanner::NoPaddingRequired();
+
     TransformLayoutRewriter rewriter(old_buffer, new_buffer, index_map, plan, &analyzer);
     Block result = Downcast<Block>(rewriter(scope_stmt));
     if (auto plan_ptr = std::get_if<TransformLayoutPlanner::ProloguePlan>(&plan)) {
@@ -794,9 +802,8 @@ class TransformLayoutRewriter : private arith::IRMutatorWithAnalyzer {
 
   void RewriteBufferAccess(Buffer* buffer, Array<PrimExpr>* indices) {
     *buffer = new_buffer_;
-    *indices = index_map_->MapIndices(*indices);
-    (*indices).MutateByApply(
-        [&](const PrimExpr& e) { return SimplifyNonTrivialExpr(e, analyzer_); });
+    *indices = index_map_->MapIndices(*indices, &index_simplifier_);
+    *indices = this->IterMapSimplifyWithContext(*indices, true);
   }
 
   using Parent = arith::IRMutatorWithAnalyzer;
@@ -913,6 +920,7 @@ class TransformLayoutRewriter : private arith::IRMutatorWithAnalyzer {
   const TransformLayoutPlanner::TransformPlan& plan_;
   Map<Var, Buffer> buffer_data_to_buffer_;
   Map<Block, Block> new_block_to_old_;
+  arith::Analyzer index_simplifier_;
 };
 
 class BufferIsSubregionError : public ScheduleError {
@@ -1032,7 +1040,7 @@ class TransformationPaddingExpressionError : public ScheduleError {
 
   String FastErrorString() const final {
     std::ostringstream ss;
-    ss << "ScheduleError: Pad value may not contain load load from " << illegal_load_->buffer->name;
+    ss << "ScheduleError: Pad value may not contain load from " << illegal_load_->buffer->name;
     return ss.str();
   }
 
@@ -1069,7 +1077,8 @@ class TransformationIntroducesPaddingError : public ScheduleError {
   }
 
   String DetailRenderTemplate() const final {
-    auto new_shape = index_map_->MapShape(buffer_->shape);
+    arith::Analyzer analyzer;
+    auto new_shape = index_map_->MapShape(buffer_->shape, &analyzer);
     std::ostringstream os;
     os << "The transformation " << index_map_ << " applied on buffer " << buffer_->name
        << " of shape " << buffer_->shape << " would result in shape " << new_shape
@@ -1138,6 +1147,8 @@ IndexMap LegalizeIndexMapDType(const IndexMap& index_map, const Array<PrimExpr>&
 void TransformLayout(ScheduleState self, const StmtSRef& block_sref, int buffer_index,
                      BufferIndexType buffer_index_type, const IndexMap& index_map_orig,
                      const Optional<IndexMap>& pad_value, bool assume_injective_transform) {
+  arith::Analyzer analyzer;
+  AddShapeVarBounds(self, block_sref.get(), &analyzer);
   // Step 1: Input handling and error checking
   const BlockNode* block_ptr = TVM_SREF_TO_BLOCK(block_sref);
   Buffer old_buffer =
@@ -1173,7 +1184,7 @@ void TransformLayout(ScheduleState self, const StmtSRef& block_sref, int buffer_
       for (const auto& dim : old_buffer->shape) {
         region.push_back(Range::FromMinExtent(make_zero(dim.dtype()), dim));
       }
-      return index_map.NonSurjectiveInverse(region);
+      return index_map.NonSurjectiveInverse(region, &analyzer);
     }();
   }
 
@@ -1184,7 +1195,7 @@ void TransformLayout(ScheduleState self, const StmtSRef& block_sref, int buffer_
 
   // Step 2: Infer the shape of the new buffer
   Buffer new_buffer = old_buffer;
-  new_buffer.CopyOnWrite()->shape = index_map->MapShape(old_buffer->shape);
+  new_buffer.CopyOnWrite()->shape = index_map->MapShape(old_buffer->shape, &analyzer);
 
   // Step 3: Rewrite BufferLoad/BufferStore access indices, block read/write regions, and block
   // alloc_buffers.
@@ -1336,6 +1347,7 @@ void TransformBlockLayout(ScheduleState self, const StmtSRef& block_sref,
   const BlockNode* block_ptr = TVM_SREF_TO_BLOCK(block_sref);
   const Block& block = GetRef<Block>(block_ptr);
   arith::Analyzer analyzer;
+  AddShapeVarBounds(self, block_sref.get(), &analyzer);
 
   // Step 1: Collect outer loops and loop vars
   Array<StmtSRef> loops = GetLoops(block_sref);  // outer loops of the block
@@ -1375,8 +1387,8 @@ void TransformBlockLayout(ScheduleState self, const StmtSRef& block_sref,
 
   // Step 4: Apply the IndexMap to block iters.
   IndexMapNotApplicableToBlockIterError::Check(self->mod, block, index_map);
-  Array<PrimExpr> transformed_block_iters = index_map->MapIndices(block_vars);
-  Array<PrimExpr> new_block_iter_range = index_map->MapShape(block_iter_range_array);
+  Array<PrimExpr> transformed_block_iters = index_map->MapIndices(block_vars, &analyzer);
+  Array<PrimExpr> new_block_iter_range = index_map->MapShape(block_iter_range_array, &analyzer);
 
   // Step 5: Create the new block after transformation.
 
@@ -1408,14 +1420,13 @@ void TransformBlockLayout(ScheduleState self, const StmtSRef& block_sref,
     }
     IndexMap inverse_index_map{nullptr};
     try {
-      inverse_index_map = index_map.Inverse(initial_ranges);
+      inverse_index_map = index_map.Inverse(initial_ranges, &analyzer);
     } catch (...) {
       throw NotBijectiveAffineIndexMapError(self->mod, index_map);
     }
-
-    Array<PrimExpr> inversed_new_block_vars = inverse_index_map->MapIndices(
-        new_block_vars);  // old block vars written in terms of new block vars
-
+    // old block vars written in terms of new block vars
+    Array<PrimExpr> inversed_new_block_vars =
+        inverse_index_map->MapIndices(new_block_vars, &analyzer);
     for (int i = 0, n = block_vars.size(); i < n; ++i) {
       inverse_subst_map.Set(Downcast<Var>(block_vars[i]), inversed_new_block_vars[i]);
     }

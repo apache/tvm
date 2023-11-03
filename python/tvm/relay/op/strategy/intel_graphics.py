@@ -52,7 +52,7 @@ def conv2d_strategy_intel_graphics(attrs, inputs, out_type, target):
                 plevel=5,
             )
         else:
-            raise RuntimeError("Unsupported conv2d layout {} for intel graphics".format(layout))
+            raise RuntimeError(f"Unsupported conv2d layout {layout} for intel graphics")
     elif is_depthwise_conv2d(data.shape, layout, kernel.shape, kernel_layout, groups):
         if layout == "NCHW":
             assert kernel_layout == "OIHW"
@@ -62,7 +62,7 @@ def conv2d_strategy_intel_graphics(attrs, inputs, out_type, target):
                 name="depthwise_conv2d_nchw.intel_graphics",
             )
         else:
-            raise RuntimeError("Unsupported depthwise_conv2d layout {}".format(layout))
+            raise RuntimeError(f"Unsupported depthwise_conv2d layout {layout}")
     else:  # group_conv2d
         raise RuntimeError("group_conv2d is not supported for intel graphics")
     return strategy

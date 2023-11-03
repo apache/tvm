@@ -414,7 +414,7 @@ class TestRemoveSeparatedOverwriteOfPredicatedLoop(BaseBeforeAfter):
     """Remove repeated writes to the same predicated region.
 
     Similar to TestRemoveSeparatedOverwrites, but the independent loop
-    between the first and second writes writes to a different subset
+    between the first and second writes to a different subset
     of the same buffer.
     """
 
@@ -546,6 +546,22 @@ class TestRemoveEmptyTemporary(BaseBeforeAfter):
 
     def before():
         A = T.allocate([16], "int32", "local")
+        T.evaluate(0)
+
+    def expected():
+        T.evaluate(0)
+
+
+class TestRemoveEmptyTemporaryWithDeclBuffer(BaseBeforeAfter):
+    """Remove DeclBuffer alongside Allocate
+
+    If an unused allocation is removed, any DeclBuffer instances that
+    refer to it should also be removed.
+    """
+
+    def before():
+        A = T.decl_buffer([4, 4], "int32", scope="local")
+        A_flat = T.decl_buffer(16, "int32", scope="local", data=A.data)
         T.evaluate(0)
 
     def expected():

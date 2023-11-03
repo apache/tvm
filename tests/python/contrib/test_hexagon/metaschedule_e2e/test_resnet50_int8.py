@@ -493,7 +493,7 @@ def _schedule_async_dma_conv2d():
         sch.parallel(new_loops[4])
         sch.unroll(new_loops[5])
         # TODO(nverke): Add compute optimizations here.
-        sch.blockize(loop=oc_i)
+        sch.blockize(target=oc_i)
 
         sch.tensorize(oc_i, VRMPY_u8i8i32_VTCM_INTRIN)
 

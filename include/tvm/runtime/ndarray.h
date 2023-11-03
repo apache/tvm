@@ -110,9 +110,10 @@ class NDArray : public ObjectRef {
   /*!
    * \brief Copy the data to another device.
    * \param dev The target device.
+   * \param mem_scope The memory scope of the target array.
    * \return The array under another device.
    */
-  inline NDArray CopyTo(const Device& dev) const;
+  inline NDArray CopyTo(const Device& dev, Optional<String> mem_scope = NullOpt) const;
   /*!
    * \brief Load NDArray from stream
    * \param stream The input data stream
@@ -274,7 +275,7 @@ class NDArray::ContainerBase {
  protected:
   /*!
    * \brief The shape container,
-   *  can be used used for shape data.
+   *  can be used for shape data.
    */
   ShapeTuple shape_;
 };
@@ -398,10 +399,11 @@ inline void NDArray::CopyTo(const NDArray& other) const {
   CopyFromTo(&(get_mutable()->dl_tensor), &(other.get_mutable()->dl_tensor));
 }
 
-inline NDArray NDArray::CopyTo(const Device& dev) const {
+inline NDArray NDArray::CopyTo(const Device& dev, Optional<String> mem_scope) const {
   ICHECK(data_ != nullptr);
   const DLTensor* dptr = operator->();
-  NDArray ret = Empty(ShapeTuple(dptr->shape, dptr->shape + dptr->ndim), dptr->dtype, dev);
+  NDArray ret =
+      Empty(ShapeTuple(dptr->shape, dptr->shape + dptr->ndim), dptr->dtype, dev, mem_scope);
   this->CopyTo(ret);
   return ret;
 }

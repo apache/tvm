@@ -46,6 +46,33 @@ in_shape, axis, keepdims, reduce_type, dtype = tvm.testing.parameters(
     ((128, 24, 128, 24), 2, False, "any", "bool"),
     ((128, 24, 128, 24), 2, False, "sum", "bool"),
     ((128, 24, 128, 24), 0, True, "sum", "bool"),
+    ((3, 4, 5), None, False, "prod", "float32"),
+    ((3, 4, 5), (2,), False, "prod", "float32"),
+    ((3, 4, 5), (1, 2), True, "prod", "float32"),
+    ((3, 4, 5), (), False, "sum", "float32"),
+    ((3, 4, 5), (), True, "sum", "float32"),
+    ((3, 4, 5), (0, 1, 2), False, "sum", "float32"),
+    ((3, 4, 5), (0, 1, 2), True, "sum", "float32"),
+    ((3, 4, 5), (), False, "prod", "float32"),
+    ((3, 4, 5), (), True, "prod", "float32"),
+    ((3, 4, 5), (0, 1, 2), False, "prod", "float32"),
+    ((3, 4, 5), (0, 1, 2), True, "prod", "float32"),
+    ((3, 4, 5), (), False, "min", "float32"),
+    ((3, 4, 5), (), True, "min", "float32"),
+    ((3, 4, 5), (0, 1, 2), False, "min", "float32"),
+    ((3, 4, 5), (0, 1, 2), True, "min", "float32"),
+    ((3, 4, 5), (), False, "max", "float32"),
+    ((3, 4, 5), (), True, "max", "float32"),
+    ((3, 4, 5), (0, 1, 2), False, "max", "float32"),
+    ((3, 4, 5), (0, 1, 2), True, "max", "float32"),
+    ((3, 4, 5), (), False, "any", "bool"),
+    ((3, 4, 5), (), True, "any", "bool"),
+    ((3, 4, 5), (0, 1, 2), False, "any", "bool"),
+    ((3, 4, 5), (0, 1, 2), True, "any", "bool"),
+    ((3, 4, 5), (), False, "all", "bool"),
+    ((3, 4, 5), (), True, "all", "bool"),
+    ((3, 4, 5), (0, 1, 2), False, "all", "bool"),
+    ((3, 4, 5), (0, 1, 2), True, "all", "bool"),
 )
 
 
@@ -63,6 +90,8 @@ def ref_data(in_shape, axis, keepdims, reduce_type, dtype):
             out_npy = in_npy_map.sum(axis=axis, keepdims=keepdims, dtype="bool")
         else:
             out_npy = in_npy_map.sum(axis=axis, keepdims=keepdims)
+    elif reduce_type == "prod":
+        out_npy = in_npy_map.prod(axis=axis, keepdims=keepdims)
     elif reduce_type == "all" and dtype == "bool":
         out_npy = in_npy_map.all(axis=axis, keepdims=keepdims)
     elif reduce_type == "any" and dtype == "bool":
@@ -108,7 +137,7 @@ def _my_npy_argmin(arr, axis, keepdims):
 
 def test_reduce_map(target, dev, ref_data, in_shape, axis, keepdims, reduce_type, dtype):
     target = tvm.target.Target(target)
-    if target.kind.name == "vulkan" and reduce_type in ["sum", "any", "all"]:
+    if target.kind.name == "vulkan" and reduce_type in ["sum", "prod", "any", "all"]:
         pytest.xfail(f"Vulkan backend has known errors on {reduce_type}")
 
     in_npy, in_npy_map, out_npy = ref_data
@@ -122,6 +151,8 @@ def test_reduce_map(target, dev, ref_data, in_shape, axis, keepdims, reduce_type
             B = topi.sum(A, axis=axis, keepdims=keepdims)
         else:
             B = topi.sum(A1, axis=axis, keepdims=keepdims)
+    elif reduce_type == "prod":
+        B = topi.prod(A1, axis=axis, keepdims=keepdims)
     elif reduce_type == "all":
         B = topi.all(A, axis=axis, keepdims=keepdims)
     elif reduce_type == "any":

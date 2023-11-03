@@ -90,7 +90,7 @@ class Module : public ObjectRef {
    *  This function will return PackedFunc(nullptr) if function do not exist.
    * \note Implemented in packed_func.cc
    */
-  inline PackedFunc GetFunction(const std::string& name, bool query_imports = false);
+  inline PackedFunc GetFunction(const String& name, bool query_imports = false);
   // The following functions requires link with runtime.
   /*!
    * \brief Import another module into this module.
@@ -111,7 +111,7 @@ class Module : public ObjectRef {
    * \note This function won't load the import relationship.
    *  Re-create import relationship by calling Import.
    */
-  TVM_DLL static Module LoadFromFile(const std::string& file_name, const std::string& format = "");
+  TVM_DLL static Module LoadFromFile(const String& file_name, const String& format = "");
   // refer to the corresponding container.
   using ContainerType = ModuleNode;
   friend class ModuleNode;
@@ -165,14 +165,13 @@ class TVM_DLL ModuleNode : public Object {
    *   If the function need resource from the module(e.g. late linking),
    *   it should capture sptr_to_self.
    */
-  virtual PackedFunc GetFunction(const std::string& name,
-                                 const ObjectPtr<Object>& sptr_to_self) = 0;
+  virtual PackedFunc GetFunction(const String& name, const ObjectPtr<Object>& sptr_to_self) = 0;
   /*!
    * \brief Save the module to file.
    * \param file_name The file to be saved to.
    * \param format The format of the file.
    */
-  virtual void SaveToFile(const std::string& file_name, const std::string& format);
+  virtual void SaveToFile(const String& file_name, const String& format);
   /*!
    * \brief Save the module to binary stream.
    * \param stream The binary stream to save to.
@@ -186,12 +185,12 @@ class TVM_DLL ModuleNode : public Object {
    * \param format Format of the source code, can be empty by default.
    * \return Possible source code when available.
    */
-  virtual std::string GetSource(const std::string& format = "");
+  virtual String GetSource(const String& format = "");
   /*!
    * \brief Get the format of the module, when available.
    * \return Possible format when available.
    */
-  virtual std::string GetFormat();
+  virtual String GetFormat();
   /*!
    * \brief Get packed function from current module by name.
    *
@@ -201,7 +200,7 @@ class TVM_DLL ModuleNode : public Object {
    *  This function will return PackedFunc(nullptr) if function do not exist.
    * \note Implemented in packed_func.cc
    */
-  PackedFunc GetFunction(const std::string& name, bool query_imports = false);
+  PackedFunc GetFunction(const String& name, bool query_imports = false);
   /*!
    * \brief Import another module into this module.
    * \param other The module to be imported.
@@ -217,7 +216,7 @@ class TVM_DLL ModuleNode : public Object {
    * \param name name of the function.
    * \return The corresponding function.
    */
-  const PackedFunc* GetFuncFromEnv(const std::string& name);
+  const PackedFunc* GetFuncFromEnv(const String& name);
   /*! \return The module it imports from */
   const std::vector<Module>& imports() const { return imports_; }
 
@@ -231,6 +230,11 @@ class TVM_DLL ModuleNode : public Object {
   /*! \brief Returns true if this module is 'DSO exportable'. */
   bool IsDSOExportable() const {
     return (GetPropertyMask() & ModulePropertyMask::kDSOExportable) != 0;
+  }
+
+  /*! \brief Returns true if this module is 'Binary Serializable'. */
+  bool IsBinarySerializable() const {
+    return (GetPropertyMask() & ModulePropertyMask::kBinarySerializable) != 0;
   }
 
   /*!
@@ -268,7 +272,7 @@ class TVM_DLL ModuleNode : public Object {
  * \param target The target module name.
  * \return Whether runtime is enabled.
  */
-TVM_DLL bool RuntimeEnabled(const std::string& target);
+TVM_DLL bool RuntimeEnabled(const String& target);
 
 /*! \brief namespace for constant symbols */
 namespace symbol {
@@ -278,8 +282,6 @@ constexpr const char* tvm_get_c_metadata = "get_c_metadata";
 constexpr const char* tvm_module_ctx = "__tvm_module_ctx";
 /*! \brief Global variable to store device module blob */
 constexpr const char* tvm_dev_mblob = "__tvm_dev_mblob";
-/*! \brief Number of bytes of device module blob. */
-constexpr const char* tvm_dev_mblob_nbytes = "__tvm_dev_mblob_nbytes";
 /*! \brief global function to set device */
 constexpr const char* tvm_set_device = "__tvm_set_device";
 /*! \brief Auxiliary counter to global barrier. */

@@ -71,7 +71,7 @@ def test_experimental_compiler(capfd):
     tei.build(mod, {}, True, additional_config_args=additional_config_args)
 
     # Check for hints that the experimental compiler was activated.
-    # The support library logs a warning to say the the experimental
+    # The support library logs a warning to say the experimental
     # compiler is in use. Check that this warning was logged.
     captured = capfd.readouterr()
     assert (
@@ -98,7 +98,7 @@ def test_without_experimental_compiler(capfd):
     tei.build(mod, {}, True, additional_config_args=additional_config_args)
 
     # Check for hints that the experimental compiler was activated.
-    # The support library logs a warning to say the the experimental
+    # The support library logs a warning to say the experimental
     # compiler is in use. Check that this warning was logged.
     captured = capfd.readouterr()
     assert (

@@ -25,6 +25,7 @@
 #define TVM_TIR_BUFFER_H_
 
 #include <tvm/ir/expr.h>
+#include <tvm/node/script_printer.h>
 #include <tvm/runtime/container/array.h>
 #include <tvm/runtime/container/string.h>
 #include <tvm/tir/var.h>
@@ -150,6 +151,7 @@ class BufferNode : public Object {
   static constexpr const bool _type_has_method_sequal_reduce = true;
   static constexpr const bool _type_has_method_shash_reduce = true;
   TVM_DECLARE_FINAL_OBJECT_INFO(BufferNode, Object);
+  TVM_OBJECT_ENABLE_SCRIPT_PRINTER();
 };
 
 /*!

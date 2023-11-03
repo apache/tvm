@@ -14,27 +14,13 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-import pytest
-import tvm
-from tvm import tir, ir
+"""Error classes for diagnostics."""
+from . import doc
 
 
-def test_convert_ssa():
-    dtype = "int32"
-    zero = tir.const(0)
-    nop = tir.Evaluate(zero)
-    var_type = ir.PointerType(ir.PrimType(dtype))
-    v = tir.Var("i1", var_type)
-    buf = tir.decl_buffer([16], dtype=dtype, data=v)
-    let = tir.LetStmt(v, v, nop)
-    load = tir.Evaluate(tir.BufferLoad(buf, [zero]))
-    seq = tir.SeqStmt([let, let, load])
-    func = tir.PrimFunc([], seq)
-    mod = tvm.IRModule({"main": func})
-    mod = tir.transform.InjectVirtualThread()(
-        mod
-    )  # Use pass InjectVirtualThread to invoke ConvertSSA
+class ParserError(Exception):
+    """Error class for diagnostics."""
 
-
-if __name__ == "__main__":
-    tvm.testing.main()
+    def __init__(self, node: doc.AST, msg: str):
+        super().__init__(msg)
+        self.node = node

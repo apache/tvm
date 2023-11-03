@@ -28,6 +28,7 @@ from tensorflow import keras as tf_keras
 # prevent Keras from using up all gpu memory
 import keras
 
+import pytest
 import tvm
 from tvm import relay
 from tvm.contrib import graph_executor
@@ -65,7 +66,7 @@ def pytest_generate_tests(metafunc):
 # Scenarios:
 # - classic keras, using keras from "import keras"
 # - tensorflow keras, using keras from "from tensorflow import keras as tf_keras"
-USING_CALSSIC_KERAS = ("keras", {"keras_mod": keras})
+USING_CLASSIC_KERAS = ("keras", {"keras_mod": keras})
 USING_TENSORFLOW_KERAS = ("tf_keras", {"keras_mod": tf_keras})
 
 
@@ -133,7 +134,7 @@ def get_mobilenet(keras_mod):
 class TestKeras:
     """Keras test"""
 
-    scenarios = [USING_CALSSIC_KERAS, USING_TENSORFLOW_KERAS]
+    scenarios = [USING_CLASSIC_KERAS, USING_TENSORFLOW_KERAS]
 
     def test_forward_merge(self, keras_mod):
         """test_forward_merge"""
@@ -158,6 +159,24 @@ class TestKeras:
                 out = merge_func([conv2d_x, conv2d_y, conv2d_z])
             keras_model = keras_mod.models.Model(data, out)
             verify_keras_frontend(keras_model)
+
+    def test_forward_concatenate(self, keras_mod):
+        """test_forward_concatenate"""
+        data1 = keras_mod.layers.Input(shape=(1, 2, 2))
+        data2 = keras_mod.layers.Input(shape=(1, 1, 2))
+        merge_func = keras_mod.layers.Concatenate(axis=2)
+        out = merge_func([data1, data2])
+        keras_model = keras_mod.models.Model([data1, data2], out)
+        verify_keras_frontend(keras_model, layout="NHWC")
+        verify_keras_frontend(keras_model, layout="NCHW")
+        # test default axis (e.g., -1)
+        data1 = keras_mod.layers.Input(shape=(1, 2, 2))
+        data2 = keras_mod.layers.Input(shape=(1, 2, 3))
+        merge_func = keras_mod.layers.Concatenate()
+        out = merge_func([data1, data2])
+        keras_model = keras_mod.models.Model([data1, data2], out)
+        verify_keras_frontend(keras_model, layout="NHWC")
+        verify_keras_frontend(keras_model, layout="NCHW")
 
     def test_forward_merge_dot(self, keras_mod):
         """test_forward_merge_dot"""
@@ -194,6 +213,7 @@ class TestKeras:
             keras_mod.layers.Activation("tanh"),
             keras_mod.layers.Activation("linear"),
             keras_mod.layers.Activation("selu"),
+            keras_mod.layers.Activation("swish"),
             keras_mod.layers.ReLU(),
             keras_mod.layers.ReLU(max_value=6.0),
             keras_mod.layers.ReLU(max_value=6.0, threshold=0.0),
@@ -211,6 +231,13 @@ class TestKeras:
             keras_model = keras_mod.models.Model(data, x)
             verify_keras_frontend(keras_model)
             verify_keras_frontend(keras_model, need_transpose=False, layout="NHWC")
+        # Test the input dimension = 1
+        data = keras_mod.layers.Input(shape=(11,))
+        act_func = keras_mod.layers.Softmax()
+        x = act_func(data)
+        keras_model = keras_mod.models.Model(data, x)
+        verify_keras_frontend(keras_model)
+        verify_keras_frontend(keras_model, need_transpose=False, layout="NHWC")
 
     def test_forward_activations_except(self, keras_mod):
         """
@@ -226,7 +253,8 @@ class TestKeras:
         ):
             act_funcs = [
                 keras_mod.layers.LeakyReLU(alpha=None),
-                keras_mod.layers.LEU(2, 3, 4),
+                keras_mod.layers.ELU(2, 3, 4),
+                keras_mod.layers.ReLU(threshold=None),
             ]
             data = keras_mod.layers.Input(shape=(2, 3, 4))
             for act_func in act_funcs:
@@ -269,6 +297,7 @@ class TestKeras:
         verify_keras_frontend(keras_model)
 
     def test_forward_pool(self, keras_mod):
+        """test_forward_pool"""
         data = keras_mod.layers.Input(shape=(32, 32, 1))
         # maxpool
         x = keras_mod.layers.MaxPooling2D((3, 3), strides=(1, 1), padding="same")(data)
@@ -278,6 +307,12 @@ class TestKeras:
         y = keras_mod.layers.AveragePooling2D((3, 3), strides=(1, 1), padding="same")(data)
         keras_model = keras_mod.models.Model(data, y)
         verify_keras_frontend(keras_model)
+        # reject the invalid input shape
+        data = keras_mod.layers.Input(shape=(0, 3, 6, 4))
+        x = keras_mod.layers.GlobalAveragePooling3D()(data)
+        keras_model = keras_mod.models.Model(data, x)
+        with pytest.raises(ValueError):
+            verify_keras_frontend(keras_model)
 
     def test_forward_conv1d(self, keras_mod):
         """test_forward_conv1d"""
@@ -309,6 +344,8 @@ class TestKeras:
             keras_mod.layers.DepthwiseConv2D(kernel_size=(3, 3), padding="same"),
             keras_mod.layers.Conv2DTranspose(filters=10, kernel_size=(3, 3), padding="valid"),
             keras_mod.layers.SeparableConv2D(filters=10, kernel_size=(3, 3), padding="same"),
+            keras_mod.layers.SeparableConv2D(filters=10, kernel_size=(3, 3), dilation_rate=(2, 2)),
+            keras_mod.layers.SeparableConv2D(filters=2, kernel_size=(3, 3), dilation_rate=2),
         ]
         for conv_func in conv_funcs:
             x = conv_func(data)
@@ -320,6 +357,9 @@ class TestKeras:
         data = keras_mod.layers.Input(shape=(32, 32, 128))
         conv_funcs = [
             keras_mod.layers.Conv2DTranspose(filters=64, kernel_size=(2, 2), padding="valid"),
+            keras_mod.layers.Conv2DTranspose(
+                filters=2, kernel_size=(3, 3), strides=(2, 2), output_padding=(1, 1)
+            ),
         ]
         for conv_func in conv_funcs:
             x = conv_func(data)
@@ -378,11 +418,16 @@ class TestKeras:
         for batch_norm_func in batch_norm_funcs:
             x = batch_norm_func(data)
             keras_model = keras_mod.models.Model(data, x)
-        verify_keras_frontend(keras_model)
+            verify_keras_frontend(keras_model)
 
     def test_forward_upsample(self, keras_mod, interpolation="nearest"):
         data = keras_mod.layers.Input(shape=(32, 32, 3))
         x = keras_mod.layers.UpSampling2D(size=(3, 3), interpolation=interpolation)(data)
+        keras_model = keras_mod.models.Model(data, x)
+        verify_keras_frontend(keras_model)
+        # Height and width are not equal for the attribute size
+        data = keras_mod.layers.Input(shape=(2, 1, 3))
+        x = keras_mod.layers.UpSampling2D(size=(1, 2), interpolation=interpolation)(data)
         keras_model = keras_mod.models.Model(data, x)
         verify_keras_frontend(keras_model)
 
@@ -440,7 +485,15 @@ class TestKeras:
         x = keras_mod.layers.Cropping2D(cropping=0)(x)
         x = keras_mod.layers.Add()([x, x])
         keras_model = keras_mod.models.Model(data, x)
-        verify_keras_frontend(keras_model)
+        verify_keras_frontend(keras_model, layout="NHWC")
+        verify_keras_frontend(keras_model, layout="NHWC")
+
+        data = keras_mod.layers.Input(shape=(32, 32, 3))
+        x = keras_mod.layers.Cropping2D(cropping=(2, 1))(data)
+        x = keras_mod.layers.Cropping2D(cropping=(1, 2))(x)
+        keras_model = keras_mod.models.Model(data, x)
+        verify_keras_frontend(keras_model, layout="NHWC")
+        verify_keras_frontend(keras_model, layout="NCHW")
 
     def test_forward_multi_inputs(self, keras_mod):
         data1 = keras_mod.layers.Input(shape=(32, 32, 3))
@@ -488,6 +541,8 @@ class TestKeras:
         rnn_funcs = [
             keras_mod.layers.LSTM(16),
             keras_mod.layers.LSTM(16, return_sequences=True),
+            keras_mod.layers.LSTM(16, go_backwards=True),
+            keras_mod.layers.LSTM(16, return_sequences=True, go_backwards=True),
             keras_mod.layers.LSTM(16, return_sequences=True, use_bias=False),
         ]
         for rnn_func in rnn_funcs:
@@ -513,6 +568,9 @@ class TestKeras:
             keras_mod.layers.SimpleRNN(
                 units=16, return_state=False, activation="tanh", use_bias=False
             ),
+            keras_mod.layers.SimpleRNN(
+                units=16, return_state=False, activation="tanh", go_backwards=True
+            ),
             keras_mod.layers.GRU(
                 units=16,
                 return_state=False,
@@ -527,6 +585,15 @@ class TestKeras:
                 activation="tanh",
                 reset_after=False,
                 use_bias=False,
+            ),
+            keras_mod.layers.GRU(
+                units=16,
+                return_state=False,
+                recurrent_activation="sigmoid",
+                activation="tanh",
+                reset_after=False,
+                use_bias=False,
+                go_backwards=True,
             ),
         ]
         for rnn_func in rnn_funcs:
@@ -618,6 +685,9 @@ class TestKeras:
                 filters=1, kernel_size=(3, 3, 3), padding="valid", use_bias=False
             ),
             keras_mod.layers.Conv3DTranspose(filters=10, kernel_size=(2, 2, 2), padding="valid"),
+            keras_mod.layers.Conv3DTranspose(
+                filters=2, kernel_size=(3, 3, 3), strides=(2, 2, 2), output_padding=(1, 1, 1)
+            ),
         ]
         for conv_func in conv_funcs:
             x = conv_func(data)
@@ -767,10 +837,21 @@ class TestKeras:
         )
         verify_keras_frontend(dense_model, need_transpose=False)
 
+    def test_simplernn_with_infertype(self, keras_mod):
+        """This test case is from https://github.com/apache/tvm/issues/14868"""
+        input_shape = (2, 2, 2)
+        x = keras_mod.layers.Input(shape=input_shape[1:], dtype="float32")
+        layer = keras_mod.layers.SimpleRNN(units=4)
+        y = layer(x)
+        model = keras_mod.models.Model(x, y)
+        mod, _ = relay.frontend.from_keras(model, {model.input_names[0]: input_shape})
+        relay.transform.InferType()(mod)
+
 
 if __name__ == "__main__":
     for k in [keras, tf_keras]:
         sut = TestKeras()
+        sut.test_forward_concatenate(keras_mod=k)
         sut.test_forward_merge_dot(keras_mod=k)
         sut.test_forward_merge(keras_mod=k)
         sut.test_forward_activations(keras_mod=k)
@@ -808,3 +889,4 @@ if __name__ == "__main__":
         sut.test_forward_repeat_vector(keras_mod=k)
         sut.test_forward_l2_normalize(keras_mod=k)
         sut.test_forward_time_distributed(keras_mod=k)
+        sut.test_simplernn_with_infertype(keras_mod=k)

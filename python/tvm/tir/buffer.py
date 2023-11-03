@@ -93,7 +93,7 @@ class Buffer(Object, Scriptable):
                 elif value == "w":
                     mask = mask | Buffer.WRITE
                 else:
-                    raise ValueError("Unknown access_mask %s" % access_mask)
+                    raise ValueError(f"Unknown access_mask {access_mask}")
             access_mask = mask
         offset = convert(offset)
         extent = convert(extent)
@@ -179,11 +179,7 @@ class Buffer(Object, Scriptable):
 
     def __getitem__(self, indices):
         from ..arith import Analyzer  # pylint: disable=import-outside-toplevel
-        from .expr import (  # pylint: disable=import-outside-toplevel
-            BufferLoad,
-            Ramp,
-            const,
-        )
+        from .expr import BufferLoad, Ramp, const  # pylint: disable=import-outside-toplevel
         from .stmt import BufferRegion  # pylint: disable=import-outside-toplevel
 
         if not isinstance(indices, (tuple, list)):
@@ -207,11 +203,14 @@ class Buffer(Object, Scriptable):
             return BufferRegion(self, region)
         else:
             expr_indices = []
-            for index in indices:
+            for i, index in enumerate(indices):
                 if isinstance(index, slice):
                     start = 0 if index.start is None else index.start
                     stop = self.shape[i] if index.stop is None else index.stop
                     step = 1 if index.step is None else index.step
+                    # We should ensure the dtype of start is the same with that of step.
+                    if isinstance(start, tvm.tir.expr.PrimExpr) and isinstance(step, int):
+                        step = tvm.tir.expr.IntImm(start.dtype, step)
                     lanes = analyzer.simplify((stop - start + step - 1) // step)
                     if lanes == 1:
                         expr_indices.append(start)
@@ -344,7 +343,7 @@ def decl_buffer(
 
     if offset_factor != 0 and elem_offset is None:
         shape_dtype = shape[0].dtype if shape and hasattr(shape[0], "dtype") else "int32"
-        elem_offset = Var("%s_elem_offset" % name, shape_dtype)
+        elem_offset = Var(f"{name}_elem_offset", shape_dtype)
     if data is None:
         # Bool is represented as uint1 in the IR, but stored as int8
         storage_type = PrimType(dtype)

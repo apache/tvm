@@ -72,6 +72,16 @@ const PrimFuncNode* GetRootPrimFunc(const IRModule& mod, const StmtNode* root_bl
  */
 StmtSRef GetSRefTreeRoot(const StmtSRef& sref);
 
+/*!
+ * \brief Given an arbitrary sref, bind the shape var info of the PrimFunc it belongs to the
+ * given analyzer
+ * \param state The schedule state
+ * \param sref The given sref
+ * \param analyzer The analyzer to be bound
+ */
+void AddShapeVarBounds(const ScheduleState& state, const StmtSRefNode* sref,
+                       arith::Analyzer* analyzer);
+
 /******** Scope ********/
 /*!
  * \brief Checks if scope the specified sref is in is a stage-pipeline and return it
@@ -706,24 +716,6 @@ Array<arith::IntSet> AnalyzeRegionLowerBound(const BufferRegion& region, const P
                                              const StmtSRef& dom_low_inclusive,
                                              const StmtSRef& dom_high_exclusive,
                                              arith::Analyzer* analyzer);
-
-/*!
- * \brief Check if buffer indices are all Vars and extr
- * \param buffer_access The BufferLoad or BufferStore
- * \return The indices if the indices are all Vars, otherwise NullOpt
- */
-template <typename T>
-Optional<Array<Var>> CheckTrivialBufferIndices(const T& buffer_access) {
-  Array<Var> indices;
-  for (const PrimExpr& index : buffer_access->indices) {
-    const VarNode* var = index.as<VarNode>();
-    if (var == nullptr) {
-      return NullOpt;
-    }
-    indices.push_back(GetRef<Var>(var));
-  }
-  return indices;
-}
 
 /*!
  * \brief Simplify non-trivial expressions

@@ -30,6 +30,7 @@ _injective_schedule = {
     "arm_cpu": topi.arm_cpu.schedule_injective,
     "gpu": topi.cuda.schedule_injective,
     "hls": topi.hls.schedule_injective,
+    "adreno": topi.adreno.schedule_injective,
 }
 
 _reduce_schedule = {

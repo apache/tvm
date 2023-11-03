@@ -25,7 +25,10 @@ from tvm.ir import TensorAffineType, TupleAffineType
 from tvm.relay.qnn.op import canonicalizations
 from tvm.tir import bijective_layout
 
-from ..op import register_fake_quantization_to_integer
+from ..op import (
+    register_fake_quantization_to_integer,
+    register_optional_fake_quantization_to_integer,
+)
 
 
 def fold_constant(expr):
@@ -108,6 +111,63 @@ register_unary_identity("min")
 register_unary_identity("image.resize2d")
 
 
+@register_fake_quantization_to_integer("nn.avg_pool2d")
+def avgpool2d(expr, type_map):
+    """Rewrite an avgpool op"""
+    attrs = {**expr.attrs}
+    arg = expr.args[0]
+    t = type_map[arg]
+    out_t = type_map[expr]
+
+    # dq > nn.avg_pool2d > q
+    # Use the same input quantization parameters for output if the pattern is not the above.
+    # Type_map is a map of graphs and their Tensoraffinetypes
+    # Find the current "nn.avg_pool2d" op after checking for the "qnn.quantize" op in the graph.
+    # Structure for .. dq > op > q will be q [op [dq ..
+    def check(y, expr):
+        if isinstance(y, type(expr)):
+            if y.op.name != "nn.avg_pool2d":
+                return True
+            # check if this is the expr avg_pool
+            if y.attrs != expr.attrs:
+                return True
+        return False
+
+    for x in type_map.items():
+        if isinstance(x[0], type(expr)):
+            if x[0].op.name == "qnn.quantize":
+                prev = x[0]
+                y = prev.args[0]
+                while check(y, expr):
+                    prev = y
+                    y = prev.args[0]
+                if (
+                    isinstance(y, type(expr))
+                    and y.op.name == "nn.avg_pool2d"
+                    and y.attrs == expr.attrs
+                ):
+                    if prev.op.name != "qnn.quantize":
+                        out_t = t
+                    break
+
+    out = relay.qnn.op.avg_pool2d(
+        arg,
+        t.scale,
+        t.zero_point,
+        out_t.scale,
+        out_t.zero_point,
+        attrs["pool_size"],
+        attrs["strides"],
+        attrs["padding"],
+        attrs["dilation"],
+        attrs["ceil_mode"],
+        attrs["count_include_pad"],
+        attrs["layout"],
+    )
+
+    return [out, TensorAffineType(out_t.scale, out_t.zero_point, out_t.dtype, out_t.axis)]
+
+
 @register_fake_quantization_to_integer("nn.adaptive_avg_pool1d")
 def adaptive_avgpool1d(expr, type_map):
     """Rewrite an adaptive avgpool op"""
@@ -133,37 +193,6 @@ def adaptive_avgpool1d(expr, type_map):
     output_size = expr.attrs.output_size
     out = relay.op.nn.adaptive_avg_pool1d(arg, output_size)
     return [out, TensorAffineType(out_t.scale, out_t.zero_point, "int32", out_t.axis)]
-
-
-@register_fake_quantization_to_integer("nn.avg_pool2d")
-def avgpool2d(expr, type_map):
-    """Rewrite a avgpool op"""
-    arg = expr.args[0]
-    t = type_map[arg]
-    out_t = type_map[expr]
-    # Cast (or requantize) to int32.
-    if not (
-        approx_equal(t.scale, out_t.scale)
-        and approx_equal(t.zero_point, out_t.zero_point)
-        and tvm.ir.structural_equal(t.dtype, out_t.dtype)
-    ):
-        arg = relay.qnn.op.requantize(
-            arg,
-            t.scale,
-            t.zero_point,
-            out_t.scale,
-            out_t.zero_point,
-            out_dtype="int32",
-            axis=t.axis,
-        )
-    else:
-        arg = relay.op.cast(arg, "int32")
-    out = relay.op.nn.avg_pool2d(arg, **expr.attrs)
-    if out_t.dtype != "int32":
-        # Cast back to output dtype to preserve input dtype == output dtype for AvgPool2d.
-        out = relay.op.clip(out, a_min=np.iinfo(out_t.dtype).min, a_max=np.iinfo(out_t.dtype).max)
-        out = relay.op.cast(out, out_t.dtype)
-    return [out, TensorAffineType(out_t.scale, out_t.zero_point, out_t.dtype, out_t.axis)]
 
 
 @register_fake_quantization_to_integer("nn.global_avg_pool2d")
@@ -219,13 +248,7 @@ def bias_add(expr, type_map):
             and tvm.ir.structural_equal(x_t.dtype, b_t.dtype)
         ):
             b = relay.qnn.op.requantize(
-                b,
-                b_t.scale,
-                b_t.zero_point,
-                in_scale,
-                in_zero_point,
-                out_dtype=x_t.dtype,
-                axis=0,
+                b, b_t.scale, b_t.zero_point, in_scale, in_zero_point, out_dtype=x_t.dtype, axis=0
             )
     else:
         # If the bias is a constant, we need to quantize it
@@ -522,15 +545,13 @@ def register_binary_qnn(op_name, op):
             # addition is typically done in 32 bit).
             return [left + right, left_t]
 
-        assert (
-            len(out_t.scale.data.shape) == 0
-        ), "The output scale needs to be a scalar, but got a tensor of shape {}".format(
-            out_t.scale.data.shape
+        assert len(out_t.scale.data.shape) == 0, (
+            f"The output scale needs to be a scalar, but got a tensor of shape "
+            f"{out_t.scale.data.shape}"
         )
-        assert (
-            len(out_t.zero_point.data.shape) == 0
-        ), "The output zero point needs to be a scalar, but got a tensor of shape {}".format(
-            out_t.zero_point.data.shape
+        assert len(out_t.zero_point.data.shape) == 0, (
+            f"The output zero point needs to be a scalar, but got a tensor of shape "
+            f"{out_t.zero_point.data.shape}"
         )
 
         out = op(
@@ -601,13 +622,7 @@ def register_unary_qnn(op_name, op):
         arg = expr.args[0]
         x_t = type_map[arg]
         out_t = type_map[expr]
-        out = op(
-            arg,
-            x_t.scale,
-            x_t.zero_point,
-            out_t.scale,
-            out_t.zero_point,
-        )
+        out = op(arg, x_t.scale, x_t.zero_point, out_t.scale, out_t.zero_point)
         return [out, out_t]
 
     return register_fake_quantization_to_integer(op_name, unary)
@@ -633,3 +648,16 @@ def take(expr, type_map):
 
     out = relay.op.take(arg, indices, **expr.attrs)
     return [out, t]
+
+
+@register_optional_fake_quantization_to_integer("nn.softmax")
+def softmax(expr, type_map):
+    """Rewrite a softmax op"""
+    arg = expr.args[0]
+    arg_t = type_map[arg]
+    out_t = type_map[expr]
+
+    out = relay.qnn.op.softmax(
+        arg, arg_t.scale, arg_t.zero_point, out_t.scale, out_t.zero_point, **expr.attrs
+    )
+    return [out, out_t]

@@ -30,6 +30,7 @@
 
 #include <functional>
 #include <string>
+#include <vector>
 
 namespace tvm {
 namespace runtime {
@@ -79,6 +80,15 @@ PackedFunc WrapPackedFunc(TVMBackendPackedCFunc faddr, const ObjectPtr<Object>& 
 void InitContextFunctions(std::function<void*(const char*)> fgetsymbol);
 
 /*!
+ * \brief Helper classes to get into internal of a module.
+ */
+class ModuleInternal {
+ public:
+  // Get mutable reference of imports.
+  static std::vector<Module>* GetImportsAddr(ModuleNode* node) { return &(node->imports_); }
+};
+
+/*!
  * \brief Type alias for function to wrap a TVMBackendPackedCFunc.
  * \param The function address imported from a module.
  * \param mptr The module pointer node.
@@ -101,6 +111,8 @@ ObjectPtr<Library> CreateDSOLibraryObject(std::string library_path);
  * \param lib The library.
  * \param wrapper Optional function used to wrap a TVMBackendPackedCFunc,
  * by default WrapPackedFunc is used.
+ * \param symbol_prefix Optional symbol prefix that can be used to search alternative symbols.
+ *
  * \return The corresponding loaded module.
  *
  * \note This function can create multiple linked modules

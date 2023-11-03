@@ -238,9 +238,8 @@ def _save_buffer_to_file(buffer_name, buffer_data):
 
     buffer_name += "."
     for i in np_data.shape:
-        buffer_name += "%d_" % (i)
-    buffer_name += "%s" % (np_data.dtype)
-    buffer_name += ".npy"
+        buffer_name += f"{i}_"
+    buffer_name += f"{np_data.dtype}.npy"
 
     np_data.tofile(buffer_name, " ")
 
@@ -265,11 +264,7 @@ def _try_load_buffer_from_file(buffer_name):
 
 
 def register_task_input_buffer(
-    workload_key,
-    input_name,
-    input_data,
-    overwrite=False,
-    save_to_file=False,
+    workload_key, input_name, input_data, overwrite=False, save_to_file=False
 ):
     """Register special buffer for measurement.
 
@@ -360,8 +355,8 @@ def get_task_input_buffer(workload_key, input_name):
         return input_table[input_name]
 
     raise ValueError(
-        "%s not found in TASK_INPUT_BUFFER_TABLE, " % (input_name)
-        + "should provide with `SearchTask(..., task_inputs={...})`"
+        f"{input_name} not found in TASK_INPUT_BUFFER_TABLE, "
+        f"should provide with `SearchTask(..., task_inputs={{...}})`"
     )
 
 
@@ -519,7 +514,7 @@ class SearchTask(Object):
         )
         if inp is None:
             raise RuntimeError(
-                "Cannot find any valid schedule for %s in file %s" % (self.workload_key, log_file)
+                f"Cannot find any valid schedule for {self.workload_key} in file {log_file}"
             )
 
         sch, args = self.compute_dag.apply_steps_from_state(
@@ -546,7 +541,7 @@ class SearchTask(Object):
         inp, _ = load_best_record(log_file, self.workload_key)
         if inp is None:
             raise RuntimeError(
-                "Cannot find any valid schedule for %s in file %s" % (self.workload_key, log_file)
+                f"Cannot find any valid schedule for {self.workload_key} in file {log_file}"
             )
 
         if print_mode == "schedule":
@@ -556,7 +551,7 @@ class SearchTask(Object):
             sch, args = self.compute_dag.apply_steps_from_state(inp.state)
             func = build(sch, args, "cuda")
             return func.imported_modules[0].get_source()
-        raise ValueError("Invalid print_mode: %s" % print_mode)
+        raise ValueError(f"Invalid print_mode: {print_mode}")
 
     def __getstate__(self):
         self.target, self.target_host = Target.canon_target_and_host(self.target, self.target_host)
@@ -576,12 +571,12 @@ class SearchTask(Object):
         try:
             workload = json.loads(state["workload_key"])
         except Exception:  # pylint: disable=broad-except
-            raise RuntimeError("Invalid workload key %s" % state["workload_key"])
+            raise RuntimeError(f"Invalid workload key {state['workload_key']}")
 
         # workload[0] is either the compute function name or the ComputeDAG hash.
         # The compute functions are already registered when importing TVM, so here
         # we only register the ComputeDAG workloads. If the same workload has
-        # already been registered, the later registration overrides the prvious one.
+        # already been registered, the later registration overrides the previous one.
         if workload[0] not in WORKLOAD_FUNC_REGISTRY:
             register_workload_tensors(state["workload_key"], state["compute_dag"].tensors)
 

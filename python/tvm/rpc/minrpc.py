@@ -36,11 +36,11 @@ def find_minrpc_server_libpath(server="posix_popen_server"):
     curr_dir = os.path.dirname(os.path.realpath(os.path.expanduser(__file__)))
     source_dir = os.path.abspath(os.path.join(curr_dir, "..", "..", ".."))
     minrpc_dir = os.path.join(source_dir, "src", "runtime", "minrpc")
-    path = os.path.join(minrpc_dir, server, ("%s.cc" % server))
+    path = os.path.join(minrpc_dir, server, f"{server}.cc")
 
     candidates = [path]
     if not os.path.isfile(path):
-        raise RuntimeError("Cannot find minserver %s, in candidates %s" % (server, candidates))
+        raise RuntimeError(f"Cannot find minserver {server}, in candidates {candidates}")
     return minrpc_dir, path
 
 

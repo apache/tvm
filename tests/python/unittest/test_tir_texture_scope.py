@@ -29,7 +29,7 @@ def test_texture_scope():
     class PlusOneMultTwo:
         @T.prim_func
         def main(a: T.handle, b: T.handle) -> None:
-            T.func_attr({"global_symbol": "main", "tir.noalias": True})
+            T.func_attr({"tir.noalias": True})
             A = T.match_buffer(a, (128, 128, 4), dtype="float32", scope="global.texture")
             B = T.alloc_buffer((128, 128, 4), dtype="float32", scope="global.texture")
             C = T.match_buffer(b, (128, 128, 4), dtype="float32", scope="global.texture")

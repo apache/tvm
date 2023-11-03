@@ -48,6 +48,18 @@ using PassContext = tvm::transform::PassContext;
 using PassContextNode = tvm::transform::PassContextNode;
 using Sequential = tvm::transform::Sequential;
 
+/*!
+ * \brief RelayToTIR tvm::transform::Pass specific to a TargetKind
+ *
+ * Called before the default lowering passes.
+ *
+ * \param mod The module that an optimization pass runs on.
+ * \param pass_ctx The pass context that can provide information for the optimization.
+ *
+ * \return The transformed module.
+ */
+using FTVMRelayToTIR = tvm::transform::Pass;
+
 /*
  * \brief Create a function pass.
  *
@@ -120,9 +132,12 @@ TVM_DLL Pass FoldConstant(bool fold_qnn = false);
 /*!
  * \brief Split function with huge number of arguments to smaller pieces.
  *
+ * \param max_function_args Maximum number of function arguments. If it equals 0 then SplitArgs
+ *                          shouldn't split the function.
+ *
  * \return The pass.
  */
-TVM_DLL Pass SplitArgs(int max_function_args);
+TVM_DLL Pass SplitArgs(uint64_t max_function_args);
 
 /*!
  * \brief Fuse operations into expr into separate functions.
@@ -489,7 +504,7 @@ TVM_DLL Pass SimplifyExprPostAlterOp();
  * A typical custom pass will:
  *  - Find calls to "Compiler" attributes functions with matching compiler name.
  *  - Lower those function to TIR PrimFuncs.
- *  - Bind those functions into the IRModule under the the functions' "global_symbol" attribute.
+ *  - Bind those functions into the IRModule under the functions' "global_symbol" attribute.
  *  - Replace all calls to those functions with 'call_lowered' to the matching global.
  * Care should be taken to handle multiple calls to the same function.
  * See src/relay/backend/contrib/example_target_hooks/relay_to_tir.cc for an example custom pass.

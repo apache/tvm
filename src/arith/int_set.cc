@@ -1053,11 +1053,17 @@ Map<Var, arith::IntSet> AsIntSet(const Map<Var, Range>& var_dom) {
 /*! \brief Helper function to convert IterSumExpr to the actual touched range. */
 static Optional<IntSet> EvalIterSum(const IterSumExpr& iter_min, const PrimExpr& extent,
                                     Analyzer* analyzer) {
+  if (analyzer->CanProve(extent == 0)) {
+    return IntSet::Nothing();
+  }
   if (iter_min->args.empty()) {
     return IntSet::FromMinExtent(iter_min->base, extent);
   }
   ICHECK_EQ(iter_min->args.size(), 1) << "The `EvalIterSum` expects fused iter sum expr";
   const IterSplitExpr& split = iter_min->args[0];
+  if (analyzer->CanProve(split->extent == 0)) {
+    return IntSet::Nothing();
+  }
   if (!analyzer->CanProve(extent >= split->scale)) {
     return NullOpt;
   }

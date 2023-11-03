@@ -21,6 +21,8 @@
 #include <tvm/runtime/registry.h>
 #include <tvm/script/printer/ir_docsifier.h>
 
+#include <sstream>
+
 #include "./utils.h"
 
 namespace tvm {
@@ -29,7 +31,13 @@ namespace printer {
 
 IdDoc IRDocsifierNode::Define(const ObjectRef& obj, const Frame& frame, const String& name_hint) {
   ICHECK(obj2info.find(obj) == obj2info.end()) << "Duplicated object: " << obj;
-  String name = GenerateUniqueName(name_hint, this->defined_names);
+  String name = name_hint;
+  if (cfg->show_object_address) {
+    std::stringstream stream;
+    stream << name << "_" << obj.get();
+    name = stream.str();
+  }
+  name = GenerateUniqueName(name, this->defined_names);
   this->defined_names.insert(name);
   DocCreator doc_factory = [name]() { return IdDoc(name); };
   obj2info.insert({obj, VariableInfo{std::move(doc_factory), name}});
@@ -95,6 +103,13 @@ void IRDocsifierNode::SetCommonPrefix(const ObjectRef& root,
       if (obj == nullptr) {
         return;
       }
+      if (visited_.count(obj)) {
+        if (is_var(GetRef<ObjectRef>(obj))) {
+          HandleVar(obj);
+        }
+        return;
+      }
+      visited_.insert(obj);
       stack_.push_back(obj);
       if (obj->IsInstance<ArrayNode>()) {
         const ArrayNode* array = static_cast<const ArrayNode*>(obj);
@@ -134,6 +149,7 @@ void IRDocsifierNode::SetCommonPrefix(const ObjectRef& root,
 
     ReflectionVTable* vtable_ = ReflectionVTable::Global();
     std::vector<const Object*> stack_;
+    std::unordered_set<const Object*> visited_;
 
    public:
     runtime::TypedPackedFunc<bool(ObjectRef)> is_var;
@@ -159,6 +175,11 @@ IRDocsifier::FType& IRDocsifier::vtable() {
 
 TVM_REGISTER_NODE_TYPE(FrameNode);
 TVM_REGISTER_NODE_TYPE(IRDocsifierNode);
+
+TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
+    .set_fallback([](ObjectRef obj, ObjectPath p, IRDocsifier d) -> Doc {
+      return d->AddMetadata(obj);
+    });
 
 }  // namespace printer
 }  // namespace script

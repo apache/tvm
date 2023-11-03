@@ -85,14 +85,6 @@ def test_undefined_buffer():
     check_error(undefined_buffer, 5)
 
 
-def test_unsupported_stmt():
-    def unsupported_stmt(a: T.int32) -> None:
-        if a > 0:
-            print("I love tvm")  # error
-
-    check_error(unsupported_stmt, 3)
-
-
 def test_unsupported_function_call():
     def unsupported_function_call(a: T.handle) -> None:
         A = T.match_buffer(a, (16, 16), "float32")
@@ -236,11 +228,11 @@ def test_invalid_loop_var():
 
 
 def test_inconsistent_grid():
-    def inconsistent_grid() -> None:
-        for i in T.grid(16, 16):  # error
-            T.evaluate(1.0)
+    def inconsistent_grid(A: T.Buffer(16)) -> None:
+        for i in T.grid(16, 16):  # valid, i is a tuple (iter0, iter1)
+            T.evaluate(A[i])  # error
 
-    check_error(inconsistent_grid, 2)
+    check_error(inconsistent_grid, 3)
 
 
 def test_invalid_match_buffer_region():

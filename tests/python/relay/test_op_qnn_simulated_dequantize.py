@@ -29,7 +29,7 @@ def dequantize_test_driver(in_dtype, quant_args, axis, in_data):
     input_data = relay.var("input_data", shape=shape, dtype=in_dtype)
     input_zero_point = relay.const(quant_args["in_zero_point"])
     input_scale = relay.const(quant_args["in_scale"])
-    dequantized_output = relay.qnn.op.dequantize(
+    dequantized_output = relay.qnn.dequantize(
         input_data,
         input_scale=input_scale,
         input_zero_point=input_zero_point,
@@ -48,7 +48,7 @@ def dequantize_test_driver(in_dtype, quant_args, axis, in_data):
 
 
 def build_simulated_dequantize(input_data, scale, zp, dtype, axis=-1):
-    sim_q = relay.qnn.op.simulated_dequantize(
+    sim_q = relay.qnn.simulated_dequantize(
         input_data,
         scale,
         zp,

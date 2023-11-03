@@ -99,6 +99,7 @@ Instruction::Instruction(const Instruction& instr) {
       return;
     case Opcode::LoadConst:
       this->const_index = instr.const_index;
+      this->device_index = instr.device_index;
       return;
     case Opcode::LoadConsti:
       this->load_consti = instr.load_consti;
@@ -114,7 +115,15 @@ Instruction::Instruction(const Instruction& instr) {
       this->pc_offset = instr.pc_offset;
       return;
     case Opcode::AllocStorage:
-      this->alloc_storage = instr.alloc_storage;
+      this->alloc_storage.allocation_size = instr.alloc_storage.allocation_size;
+      this->alloc_storage.alignment = instr.alloc_storage.alignment;
+      this->alloc_storage.dtype_hint = instr.alloc_storage.dtype_hint;
+      this->alloc_storage.device_index = instr.alloc_storage.device_index;
+      this->alloc_storage.ndim = instr.alloc_storage.ndim;
+      if (this->alloc_storage.ndim > 0) {
+        this->alloc_storage.shape =
+            Duplicate<int64_t>(instr.alloc_storage.shape, instr.alloc_storage.ndim);
+      }
       return;
     case Opcode::ShapeOf:
       this->shape_of.tensor = instr.shape_of.tensor;
@@ -207,6 +216,7 @@ Instruction& Instruction::operator=(const Instruction& instr) {
       return *this;
     case Opcode::LoadConst:
       this->const_index = instr.const_index;
+      this->device_index = instr.device_index;
       return *this;
     case Opcode::GetField:
       this->object = instr.object;
@@ -219,7 +229,15 @@ Instruction& Instruction::operator=(const Instruction& instr) {
       this->pc_offset = instr.pc_offset;
       return *this;
     case Opcode::AllocStorage:
-      this->alloc_storage = instr.alloc_storage;
+      this->alloc_storage.allocation_size = instr.alloc_storage.allocation_size;
+      this->alloc_storage.alignment = instr.alloc_storage.alignment;
+      this->alloc_storage.dtype_hint = instr.alloc_storage.dtype_hint;
+      this->alloc_storage.device_index = instr.alloc_storage.device_index;
+      this->alloc_storage.ndim = instr.alloc_storage.ndim;
+      if (this->alloc_storage.ndim > 0) {
+        this->alloc_storage.shape =
+            Duplicate<int64_t>(instr.alloc_storage.shape, instr.alloc_storage.ndim);
+      }
       return *this;
     case Opcode::ShapeOf:
       this->shape_of.tensor = instr.shape_of.tensor;
@@ -250,12 +268,16 @@ Instruction::~Instruction() {
     case Opcode::GetTag:
     case Opcode::Goto:
     case Opcode::LoadConsti:
-    case Opcode::AllocStorage:
     case Opcode::ShapeOf:
     case Opcode::ReshapeTensor:
     case Opcode::DeviceCopy:
     case Opcode::Fatal:
     case Opcode::KillRegister:
+      return;
+    case Opcode::AllocStorage:
+      if (this->alloc_storage.ndim > 0) {
+        delete[] this->alloc_storage.shape;
+      }
       return;
     case Opcode::AllocTensor:
       delete[] this->alloc_tensor.shape;
@@ -338,7 +360,8 @@ Instruction Instruction::AllocTensorReg(RegName storage, RegName offset, RegName
 }
 
 Instruction Instruction::AllocStorage(RegName size, Index alignment, DLDataType dtype_hint,
-                                      Index device_index, RegName dst) {
+                                      Index device_index, const std::vector<int64_t>& shape,
+                                      RegName dst) {
   Instruction instr;
   instr.op = Opcode::AllocStorage;
   instr.dst = dst;
@@ -346,6 +369,13 @@ Instruction Instruction::AllocStorage(RegName size, Index alignment, DLDataType 
   instr.alloc_storage.alignment = alignment;
   instr.alloc_storage.dtype_hint = dtype_hint;
   instr.alloc_storage.device_index = device_index;
+  instr.alloc_storage.ndim = static_cast<uint32_t>(shape.size());
+  if (instr.alloc_storage.ndim > 0) {
+    instr.alloc_storage.shape = new int64_t[shape.size()];
+    for (size_t i = 0; i < shape.size(); ++i) {
+      instr.alloc_storage.shape[i] = shape[i];
+    }
+  }
   return instr;
 }
 
@@ -474,11 +504,12 @@ Instruction Instruction::InvokeClosure(RegName closure, const std::vector<RegNam
   return instr;
 }
 
-Instruction Instruction::LoadConst(Index const_index, RegName dst) {
+Instruction Instruction::LoadConst(Index const_index, Index device_index, RegName dst) {
   Instruction instr;
   instr.op = Opcode::LoadConst;
   instr.dst = dst;
   instr.const_index = const_index;
+  instr.device_index = device_index;
   return instr;
 }
 
@@ -596,7 +627,8 @@ void InstructionPrint(std::ostream& os, const Instruction& instr) {
       break;
     }
     case Opcode::LoadConst: {
-      os << "load_const $" << instr.dst << " Const[" << instr.const_index << "]";
+      os << "load_const $" << instr.dst << " Const[" << instr.const_index << "] "
+         << instr.device_index;
       break;
     }
     case Opcode::LoadConsti: {
@@ -616,9 +648,15 @@ void InstructionPrint(std::ostream& os, const Instruction& instr) {
       break;
     }
     case Opcode::AllocStorage: {
-      os << "alloc_storage $" << instr.dst << " $" << instr.alloc_storage.allocation_size << " "
-         << instr.alloc_storage.alignment << " "
-         << DLDataType2String(instr.alloc_storage.dtype_hint) << " "
+      os << "alloc_storage $" << instr.dst << " ";
+      if (instr.alloc_storage.ndim > 0) {
+        os << "[" << StrJoin<int64_t>(instr.alloc_storage.shape, 0, instr.alloc_storage.ndim)
+           << "] ";
+      } else {
+        os << "$" << instr.alloc_storage.allocation_size << " " << instr.alloc_storage.alignment
+           << " ";
+      }
+      os << DLDataType2String(instr.alloc_storage.dtype_hint) << " "
          << instr.alloc_storage.device_index;
       break;
     }

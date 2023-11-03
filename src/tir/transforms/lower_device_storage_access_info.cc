@@ -62,6 +62,16 @@ class StorageAccessInfoLower : public StmtExprMutator {
     }
   }
 
+  Stmt VisitStmt_(const DeclBufferNode* op) final {
+    auto node = Downcast<DeclBuffer>(StmtExprMutator::VisitStmt_(op));
+    if (auto it = storage_info_.find(node->buffer->data.get());
+        it != storage_info_.end() && !it->second->head_address.defined()) {
+      return node->body;
+    } else {
+      return std::move(node);
+    }
+  }
+
   PrimExpr VisitExpr_(const CallNode* op) final {
     if (op->op.same_as(builtin::tvm_access_ptr())) {
       return MakeAccessPtr(op);

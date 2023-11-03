@@ -31,6 +31,7 @@
 
 #include <utility>
 
+#include "../../support/scalars.h"
 #include "pattern_utils.h"
 
 namespace tvm {
@@ -109,6 +110,39 @@ class MixedPrecisionPass : public MixedModeMutator {
   const RelayExprNode* root_;
   std::vector<DataType> original_dtype_;
   bool keep_orig_output_dtype_;
+
+  /*! \brief If some of the constant attributes are out of mixed_precision_type_ bounds, then
+   * computation cannot be performed in mixed precision. */
+  bool IsMixedPrecisionApplicableToAttrs(const Attrs& attrs) const {
+    if (attrs.get() != nullptr) {
+      double min_bound;
+      double max_bound;
+      if (mixed_precision_type_.is_float16()) {
+        min_bound = -support::kMaxFloat16;
+        max_bound = support::kMaxFloat16;
+      } else if (mixed_precision_type_.is_bfloat16()) {
+        min_bound = -support::kMaxBFloat16;
+        max_bound = support::kMaxBFloat16;
+      } else if (mixed_precision_type_.is_float8()) {
+        double bound = (mixed_precision_type_.code() == DataType::kE4M3Float) ? support::kMaxE4M3
+                                                                              : support::kMaxE5M2;
+        min_bound = -bound;
+        max_bound = bound;
+      } else if (mixed_precision_type_.is_float()) {
+        min_bound = std::numeric_limits<float>::lowest();
+        max_bound = std::numeric_limits<float>::max();
+      } else {
+        return true;
+      }
+
+      if (auto cur_attrs = attrs.as<ClipAttrs>()) {
+        if (cur_attrs->a_min < min_bound || cur_attrs->a_max > max_bound) {
+          return false;
+        }
+      }
+    }
+    return true;
+  }
 
   Attrs GetNewAttrs(const CallNode* call, const DataType& accumulation_dtype) const {
     /* If the accumulation dtype is in the attributes make a copy and mutate the field. */
@@ -316,10 +350,11 @@ class MixedPrecisionPass : public MixedModeMutator {
 
     // TODO(AndrewZhaoLuo): Support ADTs
     // Relay's algebraic data types are not supported yet.
-    ICHECK(!cur_op.as<GlobalVarNode>()       // used to declare functions for recursion
-           && !cur_op.as<ConstructorNode>()  // constructing ADT types
-           && !cur_op.as<VarNode>())         // used for calling recursive functions
-        << "Algebraic Data Types (ADT) are not supported yet for mixed precision pass.";
+    bool isADT = (cur_op.as<GlobalVarNode>()       // used to declare functions for recursion
+                  || cur_op.as<ConstructorNode>()  // constructing ADT types
+                  || cur_op.as<LetNode>()          // used for binding lambdas
+                  || cur_op.as<VarNode>());        // used for calling recursive functions
+    if (isADT) return post;
 
     // Get info on the operation being called:
     // conversion category (int), accumulation dtype (str), output dtype (str)
@@ -382,9 +417,12 @@ class MixedPrecisionPass : public MixedModeMutator {
           all_args_mixed_type_compatible ? MIXED_PRECISION_ALWAYS : MIXED_PRECISION_NEVER;
     }
 
+    bool is_mixed_precision_applicable =
+        static_cast<bool>(final_category == MIXED_PRECISION_ALWAYS &&
+                          IsMixedPrecisionApplicableToAttrs(pre_call_node->attrs));
     // Create the new arguments to the call.
     DataType wanted_arg_dtypes =
-        final_category == MIXED_PRECISION_ALWAYS ? mixed_precision_type_ : DataType::Float(32);
+        is_mixed_precision_applicable ? mixed_precision_type_ : DataType::Float(32);
     auto call_args_and_types = CastAllArgs(post_call_node->args, cur_arg_types, wanted_arg_dtypes);
     Array<Expr> new_args = call_args_and_types.first;
     Array<Type> new_arg_types;
@@ -397,7 +435,7 @@ class MixedPrecisionPass : public MixedModeMutator {
     }
 
     // Finally create the new attributes.
-    if (final_category == MIXED_PRECISION_ALWAYS) {
+    if (is_mixed_precision_applicable) {
       Attrs new_attrs = GetNewAttrs(pre_call_node, accumulation_dtype);
       Expr output = Call(cur_op, new_args, new_attrs, new_arg_types, pre_call_node->span);
       if (accumulation_dtype != output_dtype) {

@@ -86,11 +86,21 @@ def pattern_table():
         zero_point = pattern.args[2].data.numpy().item(0)
 
         # check for dtypes of quantize and dequantize
-        return (
+        if (
             (scale == 1.0 / 256 and zero_point == -128)
             and pattern.attrs.out_dtype == "int8"
             and dequantize_call.args[0].checked_type.dtype == "int8"
-        )
+        ):
+            return True
+
+        if (
+            (scale == 1.0 / 32768 and zero_point == 0)
+            and pattern.attrs.out_dtype == "int16"
+            and dequantize_call.args[0].checked_type.dtype == "int16"
+        ):
+            return True
+
+        return False
 
     def qnn_conv2d_pattern(with_pad):
         """Create pattern for qnn.conv2D with optional pad and/or optional fused relu."""

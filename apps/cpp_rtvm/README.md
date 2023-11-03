@@ -122,6 +122,11 @@ Command line usage
 --input        - Numpy file for the model input (optional and we use random of not given)
 --output       - Numpy file name to dump the model output as numpy
 --dump-meta    - Dump model meta information
+--pre-compiled - The file name of a file where pre-compiled programs should be stored
+--profile      - Profile over all execution
+--dry-run      - Profile after given dry runs, default 10
+--run-count    - Profile for given runs, default 50
+--zero-copy    - Profile with zero copy api
 
   Example
   ./rtvm --model=keras-resnet50 --device="opencl" --dump-meta
@@ -366,3 +371,20 @@ stored. If the pre-compiled file name was passed to the `rtvm` then After method
 `Load`, method `UsePreCompiledProgram` is called. This method loads pre-compiled
 programs if the file exists. In opposite case the file will be created and
 pre-compiled programs will be saved to this file.
+
+# Performnace Profiling Options
+The tool has added few options to measure wall clock performance of the given model on Target natively.
+--profile : Can turn on the profiling
+--dry-run : The number of times dry run the model before mearuring the performance. Default value os 10
+--run-count : The number times to run the model and take an average. Default value is 50.
+--zero-copy: This option enables graph runtime zero copy to be used for input and output than byte copy to DLTensor.
+
+Performance profile options dumps information summary as given below.
+     Module Load              :27 ms
+     Graph Runtime Create     :11 ms
+     Params Read              :15 ms
+     Params Set               :41 ms
+     Pre Compiled Progs Load  :24 ms
+Total Load Time     :118 ms
+Average ExecTime    :27 ms
+Unload Time         :35.9236 ms

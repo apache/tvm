@@ -47,10 +47,9 @@ import argparse
 import collections
 import os
 import re
-import textwrap
 import sys
+import textwrap
 import typing
-
 
 RequirementsByPieceType = typing.List[typing.Tuple[str, typing.Tuple[str, typing.List[str]]]]
 
@@ -67,10 +66,12 @@ REQUIREMENTS_BY_PIECE: RequirementsByPieceType = [
                 "attrs",
                 "cloudpickle",
                 "decorator",
+                "ml_dtypes",
                 "numpy",
                 "psutil",
                 "scipy",
                 "tornado",
+                "typing_extensions",
             ],
         ),
     ),
@@ -246,13 +247,12 @@ CONSTRAINTS = [
         "docutils",
         "<0.17",
     ),  # Work around https://github.com/readthedocs/sphinx_rtd_theme/issues/1115
-    ("ethos-u-vela", "==3.7.0"),
+    ("ethos-u-vela", "==3.8.0"),
     ("future", None),
     ("h5py", "==2.10.0"),
     ("image", None),
     ("matplotlib", None),
-    # Workaround, see https://github.com/apache/tvm/issues/13647
-    ("numpy", "<=1.23"),
+    ("numpy", None),
     ("onnx", None),
     ("onnxoptimizer", None),
     ("onnxruntime", None),
@@ -276,6 +276,7 @@ CONSTRAINTS = [
     ("torch", None),
     ("torchvision", None),
     ("tornado", None),
+    ("typing_extensions", None),
     ("xgboost", ">=1.1.0"),  # From PR #4953 & Issue #12009
 ]
 

@@ -70,8 +70,8 @@ def serialize_args(args):
         if x is None:
             return None
         raise RuntimeError(
-            'Do not support type "%s" in argument. Consider to use'
-            "primitive types or tvm.tir.Var only" % type(x)
+            f'Do not support type "{type(x)}" in argument. Consider to use'
+            f"primitive types or tvm.tir.Var only"
         )
 
     ret = []
@@ -304,7 +304,7 @@ def _register_task_compute(name, func=None):
             TASK_TABLE[name] = TaskTemplate()
         tmpl = TASK_TABLE[name]
         if tmpl.fcompute is not None:
-            raise ValueError("Compute is already registered in autoTVM task %s" % name)
+            raise ValueError(f"Compute is already registered in autoTVM task {name}")
         tmpl.fcompute = f
         return f
 
@@ -336,7 +336,7 @@ def _register_task_schedule(name, func=None):
             TASK_TABLE[name] = TaskTemplate()
         tmpl = TASK_TABLE[name]
         if tmpl.fschedule is not None:
-            raise ValueError("Schedule is already registered in autoTVM task %s" % name)
+            raise ValueError(f"Schedule is already registered in autoTVM task {name}")
         tmpl.fschedule = f
         return f
 
@@ -368,7 +368,7 @@ def _register_customized_task(name, func=None):
             TASK_TABLE[name] = TaskTemplate()
         tmpl = TASK_TABLE[name]
         if tmpl.fcustomized is not None:
-            raise ValueError("Customized func is already registered in autoTVM task %s" % name)
+            raise ValueError(f"Customized func is already registered in autoTVM task {name}")
         tmpl.fcustomized = f
         return f
 

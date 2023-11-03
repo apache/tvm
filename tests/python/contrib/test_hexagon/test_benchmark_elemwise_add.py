@@ -345,7 +345,7 @@ def _get_elemwise_add_reference_value_tensors(shape: list, dtype: str):
                 next_value += 1
 
     elif np_dtype.kind == "f":
-        # NOTE: For simplicity, we avoid test data that that require
+        # NOTE: For simplicity, we avoid test data that require
         # well-defined behavior on floating-point overflow.
         # But it may be reasonable to test that in the future.
         min_value = np.finfo(np_dtype).min

@@ -28,7 +28,7 @@ import tvm.testing
 from tvm import te
 from tvm.contrib import clang, utils
 from tvm.relay.backend import Runtime
-from tvm.script import tir as T
+from tvm.script import tir as T, ir as I
 from tvm.target.codegen import llvm_get_intrinsic_name, llvm_lookup_intrinsic_id
 
 
@@ -946,7 +946,7 @@ def test_llvm_target_attributes():
     xo, xi = s[C].split(C.op.axis[0], nparts=2)
     s[C].parallel(xo)
 
-    target_llvm = "llvm -mcpu=skylake -mattr=+avx512f"
+    target_llvm = "llvm -mtriple=x86_64-linux-gnu -mcpu=skylake -mattr=+avx512f"
     target = tvm.target.Target(target_llvm, host=target_llvm)
     module = tvm.build(s, [A, B, C, n], target=target, name="test_func")
 
@@ -1020,6 +1020,93 @@ def test_debug_symbol_for_float64():
             B[i] = A[i]
 
     tvm.build(func, target="llvm")
+
+
+@tvm.testing.requires_llvm
+def test_subroutine_call():
+    @I.ir_module
+    class mod:
+        @T.prim_func
+        def main(A: T.Buffer(1, dtype="float32")):
+            T.func_attr({"global_symbol": "main"})
+            mod.subroutine(A.data)
+
+        @T.prim_func
+        def subroutine(A_data: T.handle("float32")):
+            # The calling_conv parameter is to prevent MakePackedAPI
+            # from changing the call signature of the subroutine.
+            T.func_attr({"global_symbol": "subroutine", "calling_conv": -1})
+            A = T.decl_buffer(1, dtype="float32", data=A_data)
+            A[0] = 42.0
+
+    target = "llvm"
+    dev = tvm.cpu()
+
+    built = tvm.build(mod)
+
+    arr = tvm.nd.array(np.zeros([1], "float32"), device=dev)
+    built["main"](arr)
+    assert arr.numpy()[0] == 42.0
+
+
+@tvm.testing.requires_llvm
+def test_call_packed_returning_void():
+    """Allow codegen of PackedFunc calls returning void
+
+    The LLVM codegen uses the CallNode's dtype to cast the return type
+    of the PackedFunc into the appropriate LLVM output type.  However,
+    there is no API type for `DataType::Void()`.  When the return type
+    of a PackedFunc is void, the generated code should not attempt to
+    read the return value.
+
+    While `T.call_packed()` will produce a CallNode with an output
+    dtype of "int32", the use of other return types is valid in TIR.
+    This test case uses `T.Call` directly to allow an explicit dtype
+    for the packed function call.
+    """
+
+    @T.prim_func
+    def func():
+        T.Call(
+            "void",
+            tvm.ir.Op.get("tir.tvm_call_packed"),
+            ["dummy_function_name"],
+        )
+
+    # Error occurred during build, as part of
+    # CodeGenCPU::MakeCallPackedLowered.
+    built = tvm.build(func, target="llvm")
+
+
+@tvm.testing.requires_llvm
+def test_call_packed_without_string_arg():
+    """The first argument to tvm_call_packed must be a string
+
+    Even if the invalid TIR is constructed, this should throw an
+    exception to exit cleanly.  Previously, use of
+    `args[0].as<StringImmNode>()` without a null check resulted in
+    a segfault during codegen.
+    """
+
+    @T.prim_func
+    def func(A: T.Buffer(1, "float32")):
+        T.func_attr({"global_symbol": "func"})
+        T.Call("int32", tvm.ir.Op.get("tir.tvm_call_packed"), [A.data])
+
+    with pytest.raises(tvm.TVMError):
+        built = tvm.build(func, target="llvm")
+
+
+@tvm.testing.requires_llvm
+def test_call_extern_returning_void():
+    """Like test_call_packed_returning_void, but for call_extern"""
+
+    @T.prim_func
+    def func():
+        T.func_attr({"global_symbol": "func"})
+        T.Call("void", tvm.ir.Op.get("tir.call_extern"), ["dummy_function_name"])
+
+    built = tvm.build(func, target="llvm")
 
 
 if __name__ == "__main__":

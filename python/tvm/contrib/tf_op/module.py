@@ -102,7 +102,7 @@ class TensorFunc:
             if not isinstance(dim_value, int):
                 return False
             if dim_value < 0:
-                raise Exception("Negative dimension is illegal: %d" % dim_value)
+                raise Exception(f"Negative dimension is illegal: {dim_value}")
         return True
 
     def _pack_shape_tensor(self, shape):

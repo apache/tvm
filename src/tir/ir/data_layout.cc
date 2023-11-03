@@ -328,7 +328,7 @@ inline Array<PrimExpr> TransformShape(const Array<PrimExpr>& src_shape,
                                       const Array<PrimExpr>& transform_rule) {
   arith::Analyzer ana;
   ICHECK_EQ(src_shape.size(), src_axis.size())
-      << "Input shape size " << src_shape.size() << " mismatch with the exepected shape size "
+      << "Input shape size " << src_shape.size() << " mismatch with the expected shape size "
       << src_axis.size();
   // bind variables for original axes
   // for major-axis, bind the corresponding size

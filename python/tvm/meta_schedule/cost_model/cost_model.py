@@ -127,9 +127,12 @@ class CostModel(Object):
         if kind == "xgb":
             return XGBModel(*args, **kwargs)  # type: ignore
 
-        if "num_tuning_cores" in kwargs:
-            # num_tuning_cores is only relevant for XGBModel.
-            kwargs.pop("num_tuning_cores")
+        # params only relevant to XGBModel
+        _xgb_params = ["num_tuning_cores", "tree_method"]
+
+        for param in _xgb_params:
+            if param in kwargs:
+                kwargs.pop(param)
 
         if kind == "random":
             return RandomModel(*args, **kwargs)  # type: ignore

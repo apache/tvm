@@ -64,6 +64,12 @@ enum class StorageRank {
   kTexture = 7,
   /*! \brief global scope amx tmm memory */
   kAMXTMM = 8,
+  /*! \brief mma scope memory of matrix_a */
+  kMMAMatrixA = 9,
+  /*! \brief mma scope memory of matrix_b */
+  kMMAMatrixB = 10,
+  /*! \brief mma scope memory of accumulator */
+  kMMAMatrixC = 11,
 };
 
 /*!
@@ -114,6 +120,12 @@ struct StorageScope {
         return "wmma.accumulator" + tag;
       case StorageRank::kTexture:
         return "texture" + tag;
+      case StorageRank::kMMAMatrixA:
+        return "m16n8k8.matrixA" + tag;
+      case StorageRank::kMMAMatrixB:
+        return "m16n8k8.matrixB" + tag;
+      case StorageRank::kMMAMatrixC:
+        return "m16n8k8.matrixC" + tag;
       default:
         LOG(FATAL) << "unknown storage scope";
     }
@@ -154,6 +166,15 @@ struct StorageScope {
     } else if (s.compare(0, 7, "amx.tmm") == 0) {
       r.rank = StorageRank::kAMXTMM;
       r.tag = s.substr(7, std::string::npos);
+    } else if (s.compare(0, 15, "m16n8k8.matrixA") == 0) {
+      r.rank = StorageRank::kMMAMatrixA;
+      r.tag = s.substr(15, std::string::npos);
+    } else if (s.compare(0, 15, "m16n8k8.matrixB") == 0) {
+      r.rank = StorageRank::kMMAMatrixB;
+      r.tag = s.substr(15, std::string::npos);
+    } else if (s.compare(0, 15, "m16n8k8.matrixC") == 0) {
+      r.rank = StorageRank::kMMAMatrixC;
+      r.tag = s.substr(15, std::string::npos);
     } else {
       LOG(FATAL) << "unknown storage scope " << s;
     }

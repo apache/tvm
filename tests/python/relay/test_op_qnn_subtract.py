@@ -33,7 +33,7 @@ def qnn_subtract_driver(x_datas, y_datas, golden_outputs, scale_and_zp, data_dty
     rhs_zp = relay.const(scale_and_zp["rhs_zp"], "int32")
     output_scale = relay.const(scale_and_zp["output_scale"], "float32")
     output_zp = relay.const(scale_and_zp["output_zp"], "int32")
-    z = relay.qnn.op.subtract(
+    z = relay.qnn.subtract(
         lhs=x,
         rhs=y,
         lhs_scale=lhs_scale,

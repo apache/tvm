@@ -38,7 +38,7 @@ class CodeGenMetal final : public CodeGenC {
   explicit CodeGenMetal(Target target);
   // override print thread tag.
   void PrintArgUnionDecl();
-  void AddFunction(const PrimFunc& f);  // NOLINT(*)
+  void AddFunction(const GlobalVar& gvar, const PrimFunc& func) final;
   void InitFuncState(const PrimFunc& f) final;
   void PrintStorageScope(const std::string& scope, std::ostream& os) final;  // NOLINT(*)
   void PrintStorageSync(const CallNode* op) final;                           // NOLINT(*)
@@ -50,6 +50,7 @@ class CodeGenMetal final : public CodeGenC {
   // print store of single element.
   void PrintVecElemStore(const std::string& vec, DataType t, int i, const std::string& value) final;
   // overload visitor
+  void VisitExpr_(const SelectNode* op, std::ostream& os) final;     // NOLINT(*)
   void VisitExpr_(const BroadcastNode* op, std::ostream& os) final;  // NOLINT(*)
   void VisitExpr_(const CallNode* op, std::ostream& os) final;       // NOLINT(*)
   void VisitExpr_(const FloatImmNode* op, std::ostream& os) final;   // NOLINT(*)

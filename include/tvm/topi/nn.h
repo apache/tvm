@@ -685,7 +685,6 @@ inline Tensor nll_loss(const Tensor& predictions, const Tensor& targets, const T
       return T;
     }
   }
-
   auto T = tvm::te::compute(
       targets->shape,
       [&](const tvm::Array<tvm::tir::Var>& target_indices) {
@@ -710,9 +709,10 @@ inline Tensor nll_loss(const Tensor& predictions, const Tensor& targets, const T
                                   tvm::tir::make_const(predictions->dtype, 0));
         },
         name, tag);
-    return topi::divide(topi::sum(T, {}), topi::sum(W, {}));
+    return topi::divide(topi::sum(T, tvm::Array<Integer>(nullptr)),
+                        topi::sum(W, tvm::Array<Integer>(nullptr)));
   } else if (reduction == "sum") {
-    return topi::sum(T, {});
+    return topi::sum(T, tvm::Array<Integer>(nullptr));
   } else {  // reduction == "none"
     return T;
   }

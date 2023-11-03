@@ -20,12 +20,13 @@
 ENVIRONMENT=""
 RPC_PORT=""
 ADB_SERIAL=""
+LISTEN_PORT=5000
 
 function usage() {
     echo "Helper script to setup the environment for Tracker, RPC Device and for application"
     echo "Usage (Help) : source setup-adreno-env.sh -h"
     echo "Usage (Tracker): source setup-adreno-env.sh -e tracker -p <RPC PORT>"
-    echo "Usage (Device): source setup-adreno-env.sh -e device -p <RPC PORT> -d <Android Serial>"
+    echo "Usage (Device): source setup-adreno-env.sh -e device -p <RPC PORT> -d <Android Serial> [-l <device listen port>]"
     echo "Usage (Query): source setup-adreno-env.sh -e query -p <RPC PORT>"
 }
 
@@ -46,6 +47,11 @@ while [[ $# -gt 0 ]]; do
       shift # past argument
       shift # past value
       ;;
+    -l|--listen-port)
+      LISTEN_PORT="$2"
+      shift # past argument
+      shift # past value
+      ;;
     -h|--help)
       usage
       return 0
@@ -62,6 +68,7 @@ done
 echo "ENVIRONMENT   = ${ENVIRONMENT}"
 echo "RPC_PORT      = ${RPC_PORT}"
 echo "ADB_SERIAL    = ${ADB_SERIAL}"
+echo "DEVICE LISTEN POPRT    = ${LISTEN_PORT}"
 
 
 function def_environment() {
@@ -90,15 +97,21 @@ case ${ENVIRONMENT} in
     def_environment
     export ANDROID_SERIAL=${ADB_SERIAL}
 
-    adb shell "mkdir -p /data/local/tmp/tvm_ci"
-    adb push build-adreno-target/tvm_rpc /data/local/tmp/tvm_ci/tvm_rpc_ci
-    adb push build-adreno-target/libtvm_runtime.so /data/local/tmp/tvm_ci
+    TARGET_FOLDER=/data/local/tmp/tvm_ci-${USER}
+    CPP_LIB=`find ${ANDROID_NDK_HOME} -name libc++_shared.so | grep aarch64`
+    adb shell "mkdir -p ${TARGET_FOLDER}"
+    adb push build-adreno-target/tvm_rpc ${TARGET_FOLDER}/tvm_rpc-${USER}
+    adb push build-adreno-target/libtvm_runtime.so ${TARGET_FOLDER}
+    if [ -f ${CPP_LIB} ] ; then
+        adb push ${CPP_LIB} ${TARGET_FOLDER}
+    fi
 
     adb reverse tcp:${TVM_TRACKER_PORT} tcp:${TVM_TRACKER_PORT}
-    adb forward tcp:5000 tcp:5000
-    adb forward tcp:5001 tcp:5001
-    adb forward tcp:5002 tcp:5002
-    adb shell "cd /data/local/tmp/tvm_ci; killall -9 tvm_rpc_ci; sleep 2; LD_LIBRARY_PATH=/data/local/tmp/tvm_ci/ ./tvm_rpc_ci server --host=0.0.0.0 --port=5000 --port-end=5010 --tracker=127.0.0.1:${TVM_TRACKER_PORT} --key=${RPC_DEVICE_KEY}"
+    adb forward tcp:${LISTEN_PORT} tcp:${LISTEN_PORT}
+    adb forward tcp:$((LISTEN_PORT + 1)) tcp:$((LISTEN_PORT + 1))
+    adb forward tcp:$((LISTEN_PORT + 2)) tcp:$((LISTEN_PORT + 2))
+    adb forward tcp:$((LISTEN_PORT + 3)) tcp:$((LISTEN_PORT + 3))
+    adb shell "cd ${TARGET_FOLDER}; killall -9 tvm_rpc-${USER}; sleep 2; LD_LIBRARY_PATH=${TARGET_FOLDER}/ ./tvm_rpc-${USER} server --host=0.0.0.0 --port=${LISTEN_PORT} --port-end=$((LISTEN_PORT + 10)) --tracker=127.0.0.1:${TVM_TRACKER_PORT} --key=${RPC_DEVICE_KEY}"
     ;;
 
   "query")

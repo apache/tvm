@@ -645,13 +645,27 @@ TVM_DLL const Op& ptx_mma_sp();
 TVM_DLL const Op& ptx_ldmatrix();
 
 /*!
- * \brief tvm intrinsics for ptx async copy from global to shared memory
+ * \brief tvm intrinsics for ptx async copy from global to shared memory using cp.async
  *
- * void ptx_cp_async(Var shared_ptr, Expr shared_offset, Var global_ptr, Expr global_offset, size_t
- * bytes);
- *
+ * void ptx_cp_async(Var shared_ptr,
+ *                   Expr shared_offset,
+ *                   Var global_ptr,
+ *                   Expr global_offset,
+ *                   size_t bytes);
  */
 TVM_DLL const Op& ptx_cp_async();
+
+/*!
+ * \brief tvm intrinsics for ptx async copy from global to shared memory using cp.async.bulk
+ *
+ * void ptx_cp_async(Var shared_ptr,
+ *                   Expr shared_offset,
+ *                   Var global_ptr,
+ *                   Expr global_offset,
+ *                   size_t bytes,
+ *                   int barrier_id);
+ */
+TVM_DLL const Op& ptx_cp_async_bulk();
 
 /*!
  * \brief tvm intrinsics for ptx async copy commit and wait.
@@ -662,6 +676,54 @@ TVM_DLL const Op& ptx_cp_async();
  */
 TVM_DLL const Op& ptx_commit_group();
 TVM_DLL const Op& ptx_wait_group();
+
+/*!
+ * \brief tvm intrinsics for ptx async copy barrier using cp.async.mbarrier.arrive
+ *
+ * ptx_cp_async_barrier(int barrier_id)
+ *
+ */
+TVM_DLL const Op& ptx_cp_async_barrier();
+
+/*!
+ * \brief tvm intrinsics for ptx barrier initialization of thread count using mbarrier.init
+ *
+ * ptx_init_barrier_thread_count(int barrier_id, int thread_count)
+ *
+ */
+TVM_DLL const Op& ptx_init_barrier_thread_count();
+
+/*!
+ * \brief tvm intrinsics for ptx barrier arrival using mbarrier.arrive
+ *
+ * ptx_arrive_barrier(int barrier_id)
+ *
+ */
+TVM_DLL const Op& ptx_arrive_barrier();
+
+/*!
+ * \brief tvm intrinsic for ptx barrier arrival with expect tx using mbarrier.arrive.expect_tx
+ *
+ * ptx_arrive_barrier_expect_tx(int barrier_id, int byte_count)
+ *
+ */
+TVM_DLL const Op& ptx_arrive_barrier_expect_tx();
+
+/*!
+ * \brief tvm intrinsics for ptx barrier wait using mbarrier.try_wait
+ *
+ * ptx_wait_barrier(int barrier_id)
+ *
+ */
+TVM_DLL const Op& ptx_wait_barrier();
+
+/*!
+ * \brief tvm intrinsics to create N barriers
+ *
+ * ptx_wait_barrier(int barrier_count)
+ *
+ */
+TVM_DLL const Op& create_barriers();
 
 /*!
  * \brief tvm intrinsic for storing the result of PTX MMA into a destination pointer.

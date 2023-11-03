@@ -53,7 +53,7 @@ class PassInstrument(tvm.runtime.Object):
             return getattr(self, name)
 
         # Create runtime pass instrument object.
-        # reister instance's enter_pass_ctx,exit_pass_ctx, should_run, run_before_pass and
+        # register instance's enter_pass_ctx,exit_pass_ctx, should_run, run_before_pass and
         # run_after_pass methods to it if present.
         self.__init_handle_by_constructor__(
             _ffi_instrument_api.PassInstrument,

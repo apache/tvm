@@ -18,14 +18,15 @@
 import pytest
 
 import tvm
+import tvm.testing
 from tvm.script import tir as T
 
 
 def _check(original, transformed):
-    mod = tvm.IRModule.from_expr(original)
+    mod = tvm.IRModule.from_expr(original.with_attr("global_symbol", "main"))
     mod = tvm.tir.transform.LowerMatchBuffer()(mod)
     mod = tvm.tir.transform.Simplify()(mod)
-    tvm.ir.assert_structural_equal(mod["main"], transformed)
+    tvm.ir.assert_structural_equal(mod["main"], transformed.with_attr("global_symbol", "main"))
 
 
 def _check_fail(original):
@@ -530,12 +531,4 @@ def test_fail_match_func_param():
 
 
 if __name__ == "__main__":
-    test_buffer_load_store()
-    test_opaque_access()
-    test_high_dim_opaque_access()
-    test_recursive_match()
-    test_symbolic_match()
-    test_rank0_buffer()
-    test_fail_load_store()
-    test_fail_buffer_bind()
-    test_fail_match_func_param()
+    tvm.testing.main()

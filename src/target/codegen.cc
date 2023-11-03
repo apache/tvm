@@ -37,8 +37,24 @@
 #include <unordered_set>
 #include <vector>
 
+#include "../runtime/library_module.h"
+#include "../support/base64.h"
+
 namespace tvm {
+
 namespace codegen {
+
+/*!
+ * \brief TIRToRuntime conversion specific to a TargetKind
+ *
+ * This function is responsible for scanning an IRModule for appropriate Target-specific functions
+ and generating a Runtime module representing the compiled output
+ *
+ * \param ir_module Unified IRModule
+ * \param target Target to filter on or retrieve arguments from
+ * \return Runtime Module containing compiled functions
+ */
+using FTVMTIRToRuntime = tvm::runtime::TypedPackedFunc<runtime::Module(IRModule, Target)>;
 
 runtime::Module Build(IRModule mod, Target target) {
   if (transform::PassContext::Current()
@@ -63,13 +79,15 @@ class ModuleSerializer {
  public:
   explicit ModuleSerializer(runtime::Module mod) : mod_(mod) { Init(); }
 
-  void SerializeModule(dmlc::Stream* stream) {
+  void SerializeModuleToBytes(dmlc::Stream* stream, bool export_dso) {
     // Only have one DSO module and it is in the root, then
     // we will not produce import_tree_.
     bool has_import_tree = true;
-    if (mod_->IsDSOExportable() && mod_->imports().empty()) {
-      has_import_tree = false;
+
+    if (export_dso) {
+      has_import_tree = !mod_->imports().empty();
     }
+
     uint64_t sz = 0;
     if (has_import_tree) {
       // we will append one key for _import_tree
@@ -83,17 +101,26 @@ class ModuleSerializer {
 
     for (const auto& group : mod_group_vec_) {
       ICHECK_NE(group.size(), 0) << "Every allocated group must have at least one module";
-      if (!group[0]->IsDSOExportable()) {
+      // we prioritize export dso when a module is both serializable and exportable
+      if (export_dso) {
+        if (group[0]->IsDSOExportable()) {
+          if (has_import_tree) {
+            std::string mod_type_key = "_lib";
+            stream->Write(mod_type_key);
+          }
+        } else if (group[0]->IsBinarySerializable()) {
+          ICHECK_EQ(group.size(), 1U) << "Non DSO module is never merged";
+          std::string mod_type_key = group[0]->type_key();
+          stream->Write(mod_type_key);
+          group[0]->SaveToBinary(stream);
+        }
+      } else {
+        ICHECK(group[0]->IsBinarySerializable())
+            << group[0]->type_key() << " is not binary serializable.";
         ICHECK_EQ(group.size(), 1U) << "Non DSO module is never merged";
         std::string mod_type_key = group[0]->type_key();
         stream->Write(mod_type_key);
         group[0]->SaveToBinary(stream);
-      } else {
-        // DSOExportable: do not need binary
-        if (has_import_tree) {
-          std::string mod_type_key = "_lib";
-          stream->Write(mod_type_key);
-        }
       }
     }
 
@@ -227,21 +254,77 @@ class ModuleSerializer {
   std::vector<uint64_t> import_tree_child_indices_;
 };
 
-namespace {
-std::string SerializeModule(const runtime::Module& mod) {
+std::string SerializeModuleToBytes(const runtime::Module& mod, bool export_dso) {
   std::string bin;
   dmlc::MemoryStringStream ms(&bin);
   dmlc::Stream* stream = &ms;
 
   ModuleSerializer module_serializer(mod);
-  module_serializer.SerializeModule(stream);
-
+  module_serializer.SerializeModuleToBytes(stream, export_dso);
   return bin;
 }
-}  // namespace
 
-std::string PackImportsToC(const runtime::Module& mod, bool system_lib) {
-  std::string bin = SerializeModule(mod);
+runtime::Module DeserializeModuleFromBytes(std::string blob) {
+  dmlc::MemoryStringStream ms(&blob);
+  dmlc::Stream* stream = &ms;
+
+  uint64_t size;
+  ICHECK(stream->Read(&size));
+  std::vector<runtime::Module> modules;
+  std::vector<uint64_t> import_tree_row_ptr;
+  std::vector<uint64_t> import_tree_child_indices;
+
+  for (uint64_t i = 0; i < size; ++i) {
+    std::string tkey;
+    ICHECK(stream->Read(&tkey));
+    // "_lib" serves as a placeholder in the module import tree to indicate where
+    // to place the DSOModule
+    ICHECK(tkey != "_lib") << "Should not contain any placeholder for DSOModule.";
+    if (tkey == "_import_tree") {
+      ICHECK(stream->Read(&import_tree_row_ptr));
+      ICHECK(stream->Read(&import_tree_child_indices));
+    } else {
+      auto m = runtime::LoadModuleFromBinary(tkey, stream);
+      modules.emplace_back(m);
+    }
+  }
+
+  for (size_t i = 0; i < modules.size(); ++i) {
+    for (size_t j = import_tree_row_ptr[i]; j < import_tree_row_ptr[i + 1]; ++j) {
+      auto module_import_addr = runtime::ModuleInternal::GetImportsAddr(modules[i].operator->());
+      auto child_index = import_tree_child_indices[j];
+      ICHECK(child_index < modules.size());
+      module_import_addr->emplace_back(modules[child_index]);
+    }
+  }
+
+  ICHECK(!modules.empty()) << "modules cannot be empty when import tree is present";
+  // invariance: root module is always at location 0.
+  // The module order is collected via DFS
+  runtime::Module root_mod = modules[0];
+  return root_mod;
+}
+
+std::string PackImportsToBytes(const runtime::Module& mod) {
+  std::string bin = SerializeModuleToBytes(mod);
+
+  uint64_t nbytes = bin.length();
+  std::string header;
+  for (size_t i = 0; i < sizeof(nbytes); ++i) {
+    header.push_back(((nbytes >> (i * 8)) & 0xffUL));
+  }
+  return header + bin;
+}
+
+std::string PackImportsToC(const runtime::Module& mod, bool system_lib,
+                           const std::string& c_symbol_prefix) {
+  if (c_symbol_prefix.length() != 0) {
+    CHECK(system_lib)
+        << "c_symbol_prefix advanced option should be used in conjuction with system-lib";
+  }
+
+  std::string mdev_blob_name = c_symbol_prefix + runtime::symbol::tvm_dev_mblob;
+  std::string blob = PackImportsToBytes(mod);
 
   // translate to C program
   std::ostringstream os;
@@ -253,35 +336,23 @@ std::string PackImportsToC(const runtime::Module& mod, bool system_lib) {
   os << "#ifdef __cplusplus\n"
      << "extern \"C\" {\n"
      << "#endif\n";
-  os << "TVM_EXPORT extern const unsigned char " << runtime::symbol::tvm_dev_mblob << "[];\n";
-  uint64_t nbytes = bin.length();
-  os << "const unsigned char " << runtime::symbol::tvm_dev_mblob << "["
-     << bin.length() + sizeof(nbytes) << "] = {\n  ";
+  os << "TVM_EXPORT extern const unsigned char " << mdev_blob_name << "[];\n";
+  os << "const unsigned char " << mdev_blob_name << "[" << blob.length() << "] = {";
   os << std::hex;
-  size_t nunit = 80 / 4;
-  for (size_t i = 0; i < sizeof(nbytes); ++i) {
-    // sperators
-    if (i != 0) {
-      os << ",";
+  size_t nunit = 100 / 5;  // 100 columns, 5 chars per "0xab,"
+  for (size_t i = 0; i < blob.length(); ++i) {
+    if (i % nunit == 0) {
+      os << "\n  ";
     }
-    os << "0x" << ((nbytes >> (i * 8)) & 0xffUL);
-  }
-  for (size_t i = 0; i < bin.length(); ++i) {
-    // sperators
-    if ((i + sizeof(nbytes)) % nunit == 0) {
-      os << ",\n  ";
-    } else {
-      os << ",";
-    }
-    int c = bin[i];
-    os << "0x" << (c & 0xff);
+    int c = blob[i];
+    os << "0x" << std::setw(2) << std::setfill('0') << (c & 0xff) << ',';
   }
   os << "\n};\n";
   if (system_lib) {
     os << "extern int TVMBackendRegisterSystemLibSymbol(const char*, void*);\n";
-    os << "static int " << runtime::symbol::tvm_dev_mblob << "_reg_ = "
-       << "TVMBackendRegisterSystemLibSymbol(\"" << runtime::symbol::tvm_dev_mblob << "\", (void*)"
-       << runtime::symbol::tvm_dev_mblob << ");\n";
+    os << "static int " << mdev_blob_name << "_reg_ = "
+       << "TVMBackendRegisterSystemLibSymbol(\"" << mdev_blob_name << "\", (void*)"
+       << mdev_blob_name << ");\n";
   }
   os << "#ifdef __cplusplus\n"
      << "}\n"
@@ -290,15 +361,14 @@ std::string PackImportsToC(const runtime::Module& mod, bool system_lib) {
 }
 
 runtime::Module PackImportsToLLVM(const runtime::Module& mod, bool system_lib,
-                                  const std::string& llvm_target_string) {
-  std::string bin = SerializeModule(mod);
-
-  uint64_t nbytes = bin.length();
-  std::string header;
-  for (size_t i = 0; i < sizeof(nbytes); ++i) {
-    header.push_back(((nbytes >> (i * 8)) & 0xffUL));
+                                  const std::string& llvm_target_string,
+                                  const std::string& c_symbol_prefix) {
+  if (c_symbol_prefix.length() != 0) {
+    CHECK(system_lib)
+        << "c_symbol_prefix advanced option should be used in conjuction with system-lib";
   }
-  std::string blob = header + bin;
+
+  std::string blob = PackImportsToBytes(mod);
   TVMByteArray blob_byte_array;
   blob_byte_array.size = blob.length();
   blob_byte_array.data = blob.data();
@@ -308,14 +378,33 @@ runtime::Module PackImportsToLLVM(const runtime::Module& mod, bool system_lib,
   // the codegen function.
   const PackedFunc* codegen_f = runtime::Registry::Get(codegen_f_name);
   ICHECK(codegen_f != nullptr) << "codegen.codegen_blob is not presented.";
-  return (*codegen_f)(blob_byte_array, system_lib, llvm_target_string);
+  return (*codegen_f)(blob_byte_array, system_lib, llvm_target_string, c_symbol_prefix);
 }
 
 TVM_REGISTER_GLOBAL("target.Build").set_body_typed(Build);
 
-// Export two auxiliary function to the runtime namespace.
-TVM_REGISTER_GLOBAL("runtime.ModulePackImportsToC").set_body_typed(PackImportsToC);
+// Export a few auxiliary function to the runtime namespace.
+TVM_REGISTER_GLOBAL("runtime.ModuleImportsBlobName").set_body_typed([]() -> std::string {
+  return runtime::symbol::tvm_dev_mblob;
+});
 
+TVM_REGISTER_GLOBAL("runtime.ModulePackImportsToNDArray")
+    .set_body_typed([](const runtime::Module& mod) {
+      std::string buffer = PackImportsToBytes(mod);
+      ShapeTuple::index_type size = buffer.size();
+      DLDataType uchar;
+      uchar.code = kDLUInt;
+      uchar.bits = 8;
+      uchar.lanes = 1;
+      DLDevice dev;
+      dev.device_type = kDLCPU;
+      dev.device_id = 0;
+      auto array = runtime::NDArray::Empty({size}, uchar, dev);
+      array.CopyFromBytes(buffer.data(), size);
+      return array;
+    });
+
+TVM_REGISTER_GLOBAL("runtime.ModulePackImportsToC").set_body_typed(PackImportsToC);
 TVM_REGISTER_GLOBAL("runtime.ModulePackImportsToLLVM").set_body_typed(PackImportsToLLVM);
 
 }  // namespace codegen

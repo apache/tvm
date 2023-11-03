@@ -21,6 +21,7 @@
  * \file schedule_lang.cc
  */
 #include <dmlc/thread_local.h>
+#include <tvm/arith/analyzer.h>
 #include <tvm/ir/transform.h>
 #include <tvm/runtime/registry.h>
 #include <tvm/te/operation.h>
@@ -491,10 +492,11 @@ Stage& Stage::transform_layout(const Array<Var>& initial_indices,
   for (const auto& iter_var : compute->axis) {
     initial_ranges.push_back(iter_var->dom);
   }
-  Array<Range> final_ranges = map->MapRanges(initial_ranges);
+  arith::Analyzer analyzer;
+  Array<Range> final_ranges = map->MapRanges(initial_ranges, &analyzer);
 
   // Make IterVar objects to represent the new iterations.
-  auto inverse = map.Inverse(initial_ranges);
+  auto inverse = map.Inverse(initial_ranges, &analyzer);
   Array<IterVar> final_indices_iter;
   ICHECK_EQ(inverse->initial_indices.size(), final_ranges.size());
   for (size_t i = 0; i < inverse->initial_indices.size(); i++) {

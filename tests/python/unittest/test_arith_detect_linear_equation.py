@@ -43,6 +43,10 @@ def test_basic():
     assert len(m) == 1
     tvm.testing.assert_prim_expr_equal(m[0], b * 7)
 
+    c = te.var("c", "uint32")
+    m = tvm.arith.detect_linear_equation(128 - c, [c])
+    assert m[0].value == -1
+
 
 def test_multivariate():
     v = [te.var("v%d" % i) for i in range(4)]

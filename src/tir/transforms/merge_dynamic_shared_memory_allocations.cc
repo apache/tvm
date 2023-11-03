@@ -299,6 +299,14 @@ class DynamicSharedMemoryRewriter : public StmtExprMutator {
     return StmtExprMutator::VisitStmt_(op);
   }
 
+  Stmt VisitStmt_(const DeclBufferNode* op) final {
+    auto node = Downcast<DeclBuffer>(StmtExprMutator::VisitStmt_(op));
+    if (auto new_buf = GetUpdatedBuffer(node->buffer); !new_buf.same_as(node->buffer)) {
+      node.CopyOnWrite()->buffer = new_buf;
+    }
+    return std::move(node);
+  }
+
   PrimExpr VisitExpr_(const BufferLoadNode* op) final {
     auto node = Downcast<BufferLoad>(StmtExprMutator::VisitExpr_(op));
     return VisitBufferAccess(std::move(node));
@@ -336,6 +344,7 @@ class DynamicSharedMemoryRewriter : public StmtExprMutator {
 
     if (IsDynamicSharedMemory(buffer->data)) {
       ICHECK_EQ(buffer->shape.size(), 1)
+          << "Buffer " << buffer << " has shape " << buffer->shape << ".  "
           << "MergeDynamicSharedMemoryAllocations expects flat memory buffers, "
           << "and is to be run after "
           << "StorageFlatten (TE schedules) or FlattenBuffer (TIR schedules)";

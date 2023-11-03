@@ -29,6 +29,7 @@
 #include <tvm/tir/transform.h>
 
 #include <unordered_map>
+#include <utility>
 
 #include "../../runtime/thread_storage_scope.h"
 #include "ir_utils.h"
@@ -59,9 +60,11 @@ PrimExpr UpdatePointerStorageScope::VisitExpr_(const VarNode* op) {
 }
 
 Stmt UpdatePointerStorageScope::VisitStmt_(const AllocateNode* op) {
-  auto remapped = Downcast<Var>(StmtExprMutator::VisitExpr(op->buffer_var));
-  return Allocate(remapped, op->dtype, op->extents, StmtExprMutator::VisitExpr(op->condition),
-                  StmtExprMutator::VisitStmt(op->body));
+  auto node = Downcast<Allocate>(StmtExprMutator::VisitStmt_(op));
+  if (auto it = new_var_remap_.find(node->buffer_var.get()); it != new_var_remap_.end()) {
+    node.CopyOnWrite()->buffer_var = it->second;
+  }
+  return std::move(node);
 }
 
 template <typename Node>
@@ -92,6 +95,11 @@ Buffer UpdatePointerStorageScope::GetUpdatedBuffer(Buffer buf) {
   // Update the cache and return
   new_buffer_remap_[key] = buf;
   return buf;
+}
+
+Stmt UpdatePointerStorageScope::VisitStmt_(const DeclBufferNode* op) {
+  auto node = Downcast<DeclBuffer>(StmtExprMutator::VisitStmt_(op));
+  return UpdateBufferAccess(node);
 }
 
 PrimExpr UpdatePointerStorageScope::VisitExpr_(const BufferLoadNode* op) {

@@ -30,12 +30,33 @@ namespace tvm {
 namespace tir {
 namespace transform {
 transform::Pass BindTarget(Target target) {
-  auto fpass = [target](tir::PrimFunc f, IRModule m, transform::PassContext ctx) {
-    if (f->GetAttr<Integer>(tvm::tir::attr::kIsHostFunc) == 1) {
-      return WithAttr(std::move(WithoutAttr(std::move(f), tvm::tir::attr::kIsHostFunc)),
-                      tvm::attr::kTarget, target->host.value_or(Target("llvm")));
+  Target without_host = target.WithoutHost();
+  Target target_host = Downcast<Target>(target->host.value_or(Target("llvm")));
+
+  auto fpass = [target, target_host, without_host](tir::PrimFunc func, IRModule m,
+                                                   transform::PassContext ctx) {
+    bool is_externally_exposed = func->GetAttr<String>(tvm::attr::kGlobalSymbol).defined();
+
+    if (auto func_target = func->GetAttr<Target>(tvm::attr::kTarget)) {
+      auto func_target_host = func_target.value()->GetHost();
+      auto target_host = target->GetHost();
+
+      if (target_host && !func_target_host && is_externally_exposed) {
+        auto new_target = Target::WithHost(func_target.value(), target_host.value());
+        func = WithAttr(std::move(func), tvm::attr::kTarget, new_target);
+      }
+    } else if (func->HasNonzeroAttr(tvm::tir::attr::kIsHostFunc)) {
+      func =
+          WithAttr(std::move(func), tvm::attr::kTarget, Target::WithHost(target_host, target_host));
+    } else if (is_externally_exposed) {
+      func = WithAttr(std::move(func), tvm::attr::kTarget, target);
+    } else {
+      func = WithAttr(std::move(func), tvm::attr::kTarget, without_host);
     }
-    return WithAttr(std::move(f), tvm::attr::kTarget, target);
+
+    func = WithoutAttr(std::move(func), tvm::tir::attr::kIsHostFunc);
+
+    return func;
   };
   return tir::transform::CreatePrimFuncPass(fpass, 0, "tir.BindTarget", {});
 }

@@ -152,8 +152,8 @@ The main goal of TVM's runtime is to provide a minimal API for loading and execu
     mod: tvm.runtime.Module = tvm.runtime.load_module("compiled_artifact.so")
     arr: tvm.runtime.NDArray = tvm.nd.array([1, 2, 3], device=tvm.cuda(0))
     fun: tvm.runtime.PackedFunc = mod["addone"]
-    fun(a)
-    print(a.numpy())
+    fun(arr)
+    print(arr.numpy())
 
 
 :py:class:`tvm.runtime.Module` encapsulates the result of compilation. A runtime.Module contains a GetFunction method to obtain PackedFuncs by name.

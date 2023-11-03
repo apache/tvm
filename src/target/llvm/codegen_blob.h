@@ -44,11 +44,13 @@ class LLVMTarget;
  * \param data Blob data
  * \param system_lib Whether expose as system library.
  * \param target_triple LLVM target triple
+ * \param c_symbol prefix The C symbol prefix of the blob.
  *
  * \return LLVM module and LLVM context
  */
 std::unique_ptr<llvm::Module> CodeGenBlob(const std::string& data, bool system_lib,
-                                          LLVMTarget* llvm_target);
+                                          LLVMTarget* llvm_target,
+                                          const std::string& c_symbol_prefix = "");
 
 }  // namespace codegen
 }  // namespace tvm

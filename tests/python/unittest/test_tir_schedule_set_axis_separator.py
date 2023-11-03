@@ -21,7 +21,10 @@ import tvm.testing
 from tvm import tir
 from tvm.tir import IndexMap
 from tvm.script import tir as T
-from tvm.tir.schedule.testing import verify_trace_roundtrip
+from tvm.tir.schedule.testing import (
+    assert_structural_equal_ignore_global_symbol,
+    verify_trace_roundtrip,
+)
 
 # fmt: off
 # pylint: disable=no-member,invalid-name,unused-variable,unexpected-keyword-arg
@@ -122,7 +125,7 @@ def test_set_axis_separator(argument_style):
     else:
         raise ValueError(f'Unexpected argument_style: {argument_style}')
 
-    tvm.ir.assert_structural_equal(element_wise_set_axis_separator, s.mod["main"])
+    assert_structural_equal_ignore_global_symbol(element_wise_set_axis_separator, s.mod["main"])
     verify_trace_roundtrip(sch=s, mod=func)
 
 
@@ -150,7 +153,7 @@ def test_set_axis_separator_input_buffer(argument_style):
         raise ValueError(f'Unexpected argument_style: {argument_style}')
 
 
-    tvm.ir.assert_structural_equal(element_wise_set_axis_separator_input_buffer, s.mod["main"])
+    assert_structural_equal_ignore_global_symbol(element_wise_set_axis_separator_input_buffer, s.mod["main"])
     verify_trace_roundtrip(sch=s, mod=func)
 
 
@@ -168,7 +171,7 @@ def test_set_axis_separator_subregion(argument_style):
     else:
         raise ValueError(f'Unexpected argument_style: {argument_style}')
 
-    tvm.ir.assert_structural_equal(element_wise_subregion_match_set_axis_separator, s.mod["main"])
+    assert_structural_equal_ignore_global_symbol(element_wise_subregion_match_set_axis_separator, s.mod["main"])
     verify_trace_roundtrip(sch=s, mod=func)
 
 class TestIndexedLookup(tvm.testing.CompareBeforeAfter):

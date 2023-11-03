@@ -195,7 +195,7 @@ class GraphModule(object):
         if key is not None:
             v = self._get_input(key)
             if v is None:
-                raise RuntimeError("Could not find '%s' in graph's inputs" % key)
+                raise RuntimeError(f"Could not find '{key}' in graph's inputs")
             v.copyfrom(value)
 
         if params:

@@ -138,6 +138,7 @@ SECTIONS
   {
     . = ALIGN(16);
     *(ethosu_scratch)
+    *(output_data_sec)
     . = ALIGN (16);
     *(.rodata.tvm)
     . = ALIGN (16);

@@ -82,6 +82,22 @@ Array<ExprRV> TracedScheduleNode::SamplePerfectTile(const LoopRV& loop_rv, int n
   return results;
 }
 
+Array<ExprRV> TracedScheduleNode::SamplePartitionedTile(const LoopRV& loop_rv, int n,
+                                                        int partition_pos, int innerpart_factor,
+                                                        Optional<Array<Integer>> decision) {
+  Array<ExprRV> results = CreateRV(tir::SamplePartitionedTile(
+      &this->rand_state_, this->GetSRef(loop_rv), n, partition_pos, innerpart_factor, &decision));
+
+  static const InstructionKind& kind = InstructionKind::Get("SamplePartitionedTile");
+  trace_->Append(/*inst=*/Instruction(
+                     /*kind=*/kind,  //
+                     /*inputs=*/{loop_rv},
+                     /*attrs=*/{Integer(n), Integer(partition_pos), Integer(innerpart_factor)},
+                     /*outputs=*/{results.begin(), results.end()}),
+                 /*decision=*/decision);
+  return results;
+}
+
 LoopRV TracedScheduleNode::SampleComputeLocation(const BlockRV& block_rv,
                                                  Optional<Integer> decision) {
   LoopRV result = CreateRV<LoopRV>(tir::SampleComputeLocation(this->state_, &this->rand_state_,
@@ -558,6 +574,17 @@ BlockRV TracedScheduleNode::Blockize(const LoopRV& loop_rv, bool preserve_unit_i
   return new_block;
 }
 
+BlockRV TracedScheduleNode::Blockize(const Array<BlockRV>& blocks, bool preserve_unit_iters) {
+  BlockRV new_block = ConcreteScheduleNode::Blockize(blocks, preserve_unit_iters);
+  static const InstructionKind& kind = InstructionKind::Get("Blockize");
+  trace_->Append(/*inst=*/Instruction(
+      /*kind=*/kind,
+      /*inputs=*/{blocks},
+      /*attrs=*/{Bool(preserve_unit_iters)},
+      /*outputs=*/{new_block}));
+  return new_block;
+}
+
 void TracedScheduleNode::Tensorize(const LoopRV& loop_rv, const String& intrin,
                                    bool preserve_unit_iters) {
   ConcreteScheduleNode::Tensorize(loop_rv, intrin, preserve_unit_iters);
@@ -706,6 +733,17 @@ void TracedScheduleNode::EnterPostproc() {
                                       /*inputs=*/{},
                                       /*attrs=*/{},
                                       /*outputs=*/{}));
+}
+
+void TracedScheduleNode::UnsafeHideBufferAccess(const BlockRV& block_rv, const String& buf_type,
+                                                const Array<IntImm>& buf_index_array) {
+  ConcreteScheduleNode::UnsafeHideBufferAccess(block_rv, buf_type, buf_index_array);
+  static const InstructionKind& kind = InstructionKind::Get("UnsafeHideBufferAccess");
+  trace_->Append(/*inst=*/Instruction(
+      /*kind=*/kind,
+      /*inputs=*/{block_rv, buf_type, buf_index_array},
+      /*attrs=*/{},
+      /*outputs=*/{}));
 }
 
 }  // namespace tir

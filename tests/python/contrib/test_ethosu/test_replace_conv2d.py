@@ -633,11 +633,15 @@ def test_conv2d_double_cascade(trial):
 
     reference_mod = trial[0]
     params = trial[1:]
-    func = _get_func(*params[:-1])
-    mod, _ = _lower_to_tir(func, cascader=total_cascader(params[-1]))
-    script = mod.script()
-    mod = tvm.script.from_source(script)
-    tvm.ir.assert_structural_equal(mod["main"], reference_mod["main"], True)
+    config = {
+        "enable_cascader": True,
+    }
+    with tvm.transform.PassContext(opt_level=3, config={"relay.ext.ethos-u.options": config}):
+        func = _get_func(*params[:-1])
+        mod, _ = _lower_to_tir(func, cascader=total_cascader(params[-1]))
+        script = mod.script()
+        mod = tvm.script.from_source(script)
+        tvm.ir.assert_structural_equal(mod["main"], reference_mod["main"], True)
 
 
 # fmt: off

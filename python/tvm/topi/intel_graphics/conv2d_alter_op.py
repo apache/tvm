@@ -69,10 +69,10 @@ def _alter_conv2d_layout(attrs, inputs, tinfos, out_type):
 
         # update new attrs
         new_attrs["channels"] = out_channel
-        new_attrs["data_layout"] = "NCHW%dc" % ic_bn
+        new_attrs["data_layout"] = f"NCHW{ic_bn}c"
         # (oc, ic, h, w) -> (OC, IC, h, w, ic, oc)
-        new_attrs["kernel_layout"] = "OIHW%di%do" % (ic_bn, oc_bn)
-        new_attrs["out_layout"] = "NCHW%dc" % oc_bn
+        new_attrs["kernel_layout"] = f"OIHW{ic_bn}i{oc_bn}o"
+        new_attrs["out_layout"] = f"NCHW{oc_bn}c"
 
         # Store altered operator's config
         new_data = te.placeholder(
@@ -109,7 +109,7 @@ def _conv2d_infer_layout(workload, cfg):
     out_width = (in_width + 2 * padding[1] - k_width) // strides[1] + 1
     tile_ic, tile_oc = cfg["tile_ic"].size[-1], cfg["tile_oc"].size[-1]
     in_shape = (batch_size, in_channel // tile_ic, in_height, in_width, tile_ic)
-    in_layout = "NCHW%dc" % tile_ic
+    in_layout = f"NCHW{tile_ic}c"
     out_shape = (batch_size, out_channel // tile_oc, out_height, out_width, tile_oc)
-    out_layout = "NCHW%dc" % tile_oc
+    out_layout = f"NCHW{tile_oc}c"
     return ((in_shape, in_layout),), ((out_shape, out_layout),)

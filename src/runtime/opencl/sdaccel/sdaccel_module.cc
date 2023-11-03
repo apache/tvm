@@ -53,7 +53,7 @@ Module SDAccelModuleCreate(std::string data, std::string fmt,
   return Module(n);
 }
 
-Module SDAccelModuleLoadFile(const std::string& file_name, const std::string& format) {
+Module SDAccelModuleLoadFile(const std::string& file_name, const String& format) {
   std::string data;
   std::unordered_map<std::string, FunctionInfo> fmap;
   std::string fmt = GetFileFormat(file_name, format);

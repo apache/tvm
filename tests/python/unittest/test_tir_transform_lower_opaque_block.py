@@ -22,10 +22,12 @@ from tvm.script import tir as T
 
 def _check(original, transformed):
     func = original
-    mod = tvm.IRModule.from_expr(func)
+    mod = tvm.IRModule.from_expr(func.with_attr("global_symbol", "main"))
     mod = tvm.tir.transform.LowerOpaqueBlock()(mod)
     mod = tvm.tir.transform.Simplify()(mod)
-    tvm.ir.assert_structural_equal(mod["main"], transformed, True)
+    tvm.ir.assert_structural_equal(
+        mod["main"], transformed.with_attr("global_symbol", "main"), True
+    )
 
 
 @T.prim_func
@@ -249,6 +251,50 @@ def transformed_strided_buffer_func(
 
 
 @T.prim_func
+def compacted_symbolic_strided_buffer_func(a: T.handle) -> None:
+    n = T.int32()
+    A = T.match_buffer(a, (1, n, 10240))
+    padded_size = T.meta_var(T.min((n + 63) // 64 * 64, 96))
+    # with T.block("root"):
+    for i, j, k in T.grid(((n + 63) // 64 * 4 + 7) // 8, 2, 160):
+        with T.block(""):
+            A_pad_shared_dyn = T.alloc_buffer(
+                (1, padded_size, 64), strides=(72 * padded_size, 72, 1), scope="shared.dyn"
+            )
+            for ax0, ax1 in T.grid(96, 64):
+                with T.block("A_pad_shared.dyn"):
+                    T.where(i * 128 + j * 32 + ax0 < (n + 63) // 64 * 64)
+                    A_pad_shared_dyn[0, ax0, ax1] = T.if_then_else(
+                        i * 128 + j * 32 + ax0 < n,
+                        A[0, i * 128 + j * 32 + ax0, k * 64 + ax1],
+                        T.float32(0),
+                    )
+
+
+@T.prim_func
+def transformed_symbolic_strided_buffer_func(a: T.handle):
+    n = T.int32()
+    A = T.match_buffer(a, (1, n, 10240))
+    for i, j, k in T.grid(((n + 63) // 64 * 4 + 7) // 8, 2, 160):
+        A_pad_shared_dyn = T.allocate(
+            [1, T.min((n + 63) // 64 * 64, 96), 72], "float32", "shared.dyn"
+        )
+        A_pad_shared_dyn_1 = T.decl_buffer(
+            (1, T.min((n + 63) // 64 * 64, 96), 64),
+            data=A_pad_shared_dyn,
+            strides=(72 * T.min((n + 63) // 64 * 64, 96), 72, 1),
+            scope="shared.dyn",
+        )
+        for ax0, ax1 in T.grid(96, 64):
+            if i * 128 + j * 32 + ax0 < (n + 63) // 64 * 64:
+                A_pad_shared_dyn_1[0, ax0, ax1] = T.if_then_else(
+                    i * 128 + j * 32 + ax0 < n,
+                    A[0, i * 128 + j * 32 + ax0, k * 64 + ax1],
+                    T.float32(0),
+                )
+
+
+@T.prim_func
 def annotated_loops(a: T.handle) -> None:
     A = T.match_buffer(a, (16,), "float32")
     for i in range(0, 16, annotations={"pragma_1": "str_value", "pragma_2": 1, "pragma_3": 0.0}):
@@ -299,6 +345,10 @@ def test_strided_buffer():
     _check(compacted_strided_buffer_func, transformed_strided_buffer_func)
 
 
+def test_symbolic_strided_buffer():
+    _check(compacted_symbolic_strided_buffer_func, transformed_symbolic_strided_buffer_func)
+
+
 def test_lower_te():
     x = te.placeholder((1,))
     y = te.compute((1,), lambda i: x[i] + 2)
@@ -309,7 +359,7 @@ def test_lower_te():
 
 
 def test_annotated_loops():
-    mod = tvm.IRModule.from_expr(annotated_loops)
+    mod = tvm.IRModule.from_expr(annotated_loops.with_attr("global_symbol", "main"))
     mod = tvm.tir.transform.LowerOpaqueBlock()(mod)
     attr1 = mod["main"].body
     attr2 = attr1.body
@@ -328,7 +378,7 @@ def test_annotated_block():
             T.block_attr({"pragma_1": "str_value", "pragma_2": 1, "pragma_3": 0.0})
             T.evaluate(0)
 
-    mod = tvm.IRModule.from_expr(annotated_block)
+    mod = tvm.IRModule.from_expr(annotated_block.with_attr("global_symbol", "main"))
     mod = tvm.tir.transform.LowerOpaqueBlock()(mod)
     attr1 = mod["main"].body
     attr2 = attr1.body
@@ -353,9 +403,9 @@ def test_preserved_annotations():
         for i in T.serial(8, annotations={"k_0": 1, "k_1": [2, 3], "k_2": 3.14}):
             B[i] = A[i] + 1.0
 
-    mod = tvm.IRModule.from_expr(before)
+    mod = tvm.IRModule.from_expr(before.with_attr("global_symbol", "main"))
     mod = tvm.tir.transform.LowerOpaqueBlock()(mod)
-    tvm.ir.assert_structural_equal(mod["main"], after)
+    tvm.ir.assert_structural_equal(mod["main"], after.with_attr("global_symbol", "main"))
 
 
 def test_boolean_handling():

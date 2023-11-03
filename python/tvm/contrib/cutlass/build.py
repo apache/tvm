@@ -37,15 +37,14 @@ def has_cutlass():
 
 
 def _get_cutlass_path():
-    tvm_root = os.path.join(os.path.dirname(os.path.realpath(__file__)), "../../../../")
-    cutlass_path = os.path.join(tvm_root, "3rdparty/cutlass")
-    assert os.path.exists(
-        cutlass_path
-    ), """The CUTLASS root directory not found in {}.
-        Currently, using CUTLASS requires building TVM from source.""".format(
-        cutlass_path
-    )
-    return cutlass_path
+    invalid_paths = []
+    for rel in ["../../../../", "../../../", "../../"]:
+        tvm_root = os.path.join(os.path.dirname(os.path.realpath(__file__)), rel)
+        cutlass_path = os.path.join(tvm_root, "3rdparty/cutlass")
+        if os.path.exists(cutlass_path):
+            return cutlass_path
+        invalid_paths.append(cutlass_path)
+    raise AssertionError(f"The CUTLASS root directory not found in: {invalid_paths}")
 
 
 def _get_cutlass_compile_options(sm, threads, use_fast_math=False):
@@ -58,22 +57,23 @@ def _get_cutlass_compile_options(sm, threads, use_fast_math=False):
     kwargs["options"] = [
         "-c",
         "-DCUTLASS_ENABLE_TENSOR_CORE_MMA=1",
-        "-gencode=arch=compute_%d,code=[sm_%d,compute_%d]" % (sm, sm, sm),
+        f"-gencode=arch=compute_{sm},code=[sm_{sm},compute_{sm}]",
         "-DNDEBUG",
         "-Xcompiler=-fPIC",
         "-Xcompiler=-Wconversion",
         "-Xcompiler=-fno-strict-aliasing",
+        "-Xcompiler=-fvisibility=hidden",
         "-O3",
         "-std=c++17",
-        "-I" + cutlass_include,
-        "-I" + cutlass_util_include,
+        f"-I{cutlass_include}",
+        f"-I{cutlass_util_include}",
     ]
     if use_fast_math:
         kwargs["options"].append("-DCUTLASS_USE_TANH_FOR_SIGMOID")
     cuda_ver = get_cuda_version()
     if cuda_ver >= (11, 2):
         ncpu = multiprocessing.cpu_count() if threads < 0 else threads
-        kwargs["options"].append("-t %d" % ncpu)
+        kwargs["options"].append(f"-t {ncpu}")
     return kwargs
 
 
@@ -89,8 +89,8 @@ class OpAnnotator(tvm.relay.ExprVisitor):
         if isinstance(op, relay.Function) and "Composite" in op.attrs:
             self.signature["op_type"] = op.attrs["Composite"]
             for i, arg in enumerate(op.params):
-                self.signature["arg%d_shape" % i] = arg.checked_type.shape
-                self.signature["arg%d_dtype" % i] = arg.checked_type.dtype
+                self.signature[f"arg{i}_shape"] = arg.checked_type.shape
+                self.signature[f"arg{i}_dtype"] = arg.checked_type.dtype
             self.signature["ret_shape"] = op.ret_type.shape
             self.signature["ret_dtype"] = op.ret_type.dtype
             self.visit(op.body)
@@ -292,10 +292,7 @@ def handle_conv2d(
         else:
             logger.info("Picked the first kernel found %s", name)
 
-    return {
-        "cutlass_op_def": cutlass_op_def,
-        "cutlass_op_name": name,
-    }
+    return {"cutlass_op_def": cutlass_op_def, "cutlass_op_name": name}
 
 
 def num_cutlass_partitions(mod):
@@ -510,7 +507,7 @@ def tune_cutlass_function(
             )
         )
     else:
-        raise ValueError("%s unsupported composite" % op_type)
+        raise ValueError(f"{op_type} unsupported composite")
 
     new_attrs = tvm.ir.make_node("DictAttrs", **new_attrs)
     return relay.Function(

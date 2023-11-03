@@ -42,6 +42,7 @@ namespace runtime {
  * \param data The module data.
  * \param fmt The format of the data, can be "clbin", "cl"
  * \param fmap The map function information map of each function.
+ * \param source Generated OpenCL kernels.
  */
 Module OpenCLModuleCreate(std::string data, std::string fmt,
                           std::unordered_map<std::string, FunctionInfo> fmap, std::string source);

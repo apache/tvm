@@ -20,7 +20,10 @@ import tvm
 import tvm.testing
 from tvm import te, tir
 from tvm.script import tir as T
-from tvm.tir.schedule.testing import verify_trace_roundtrip
+from tvm.tir.schedule.testing import (
+    verify_trace_roundtrip,
+    assert_structural_equal_ignore_global_symbol,
+)
 
 # fmt: off
 # pylint: disable=no-member,invalid-name,unused-variable,line-too-long,redefined-outer-name,unexpected-keyword-arg,too-many-nested-blocks
@@ -996,6 +999,48 @@ def floordiv_and_floormod_indices_after_reverse_compute_at(a: T.handle, b: T.han
 
 
 @T.prim_func
+def recursive_floordiv_floormod(A: T.Buffer((16, 64, 1, 8, 8, 32), "float32"),
+                                C: T.Buffer((3, 512, 512), "float32")) -> None:
+    T.func_attr({"tir.noalias": True})
+    # with T.block("root"):
+    B = T.alloc_buffer((1, 128, 16, 8, 2, 32, 2), "float32")
+    for axis1, axis2, axis3, axis4, axis5, axis6, axis7 in T.grid(1, 128, 16, 8, 2, 32, 2):
+        with T.block("In"):
+            v_axis1, v_axis2, v_axis3, v_axis4, v_axis5, v_axis6, v_axis7 = T.axis.remap("SSSSSSS", [axis1, axis2, axis3, axis4, axis5, axis6, axis7])
+            T.reads(A[(v_axis2 * 4 + v_axis5 * 2 + v_axis7) // 32, (v_axis3 * 32 + v_axis6) // 8, (v_axis1 * 8 + v_axis4) // 8, (v_axis3 * 32 + v_axis6) % 8, v_axis1 * 8 + v_axis4, (v_axis2 * 4 + v_axis5 * 2 + v_axis7) % 32])
+            T.writes(B[v_axis1, v_axis2, v_axis3, v_axis4, v_axis5, v_axis6, v_axis7])
+            B[v_axis1, v_axis2, v_axis3, v_axis4, v_axis5, v_axis6, v_axis7] = A[(v_axis2 * 4 + v_axis5 * 2 + v_axis7) // 32, (v_axis3 * 32 + v_axis6) // 8, (v_axis1 * 8 + v_axis4) // 8, (v_axis3 * 32 + v_axis6) % 8, v_axis1 * 8 + v_axis4, (v_axis2 * 4 + v_axis5 * 2 + v_axis7) % 32] + 3
+    for ax1, ax2, ax3 in T.grid(3, 512, 512):
+        with T.block("Out"):
+            v1, v2, v3 = T.axis.remap("SSS", [ax1, ax2, ax3])
+            T.reads(B[v1 // 8, v2 // 4, v3 // 32, v1, v2 % 4 // 2, v3 % 32, v2 % 2])
+            T.writes(C[v1, v2, v3])
+            C[v1, v2, v3] = B[v1 // 8, v2 // 4, v3 // 32, v1, v2 % 4 // 2, v3 % 32, v2 % 2] * 2
+
+
+@T.prim_func
+def recursive_floordiv_floormod_after_reverse_compute_at(A: T.Buffer((16, 64, 1, 8, 8, 32), "float32"), C: T.Buffer((3, 512, 512), "float32")) -> None:
+    T.func_attr({"tir.noalias": T.bool(True)})
+    # with T.block("root"):
+    B = T.alloc_buffer((1, 128, 16, 8, 2, 32, 2))
+    for axis1, axis2, axis3 in T.grid(1, 128, 16):
+        for axis4, axis5, axis6, axis7 in T.grid(8, 2, 32, 2):
+            with T.block("In"):
+                v_axis1, v_axis2, v_axis3, v_axis4, v_axis5, v_axis6, v_axis7 = T.axis.remap("SSSSSSS", [axis1, axis2, axis3, axis4, axis5, axis6, axis7])
+                T.reads(A[(v_axis2 * 4 + v_axis5 * 2 + v_axis7) // 32, (v_axis3 * 32 + v_axis6) // 8, (v_axis1 * 8 + v_axis4) // 8, (v_axis3 * 32 + v_axis6) % 8, v_axis1 * 8 + v_axis4, (v_axis2 * 4 + v_axis5 * 2 + v_axis7) % 32])
+                T.writes(B[v_axis1, v_axis2, v_axis3, v_axis4, v_axis5, v_axis6, v_axis7])
+                B[v_axis1, v_axis2, v_axis3, v_axis4, v_axis5, v_axis6, v_axis7] = A[(v_axis2 * 4 + v_axis5 * 2 + v_axis7) // 32, (v_axis3 * 32 + v_axis6) // 8, (v_axis1 * 8 + v_axis4) // 8, (v_axis3 * 32 + v_axis6) % 8, v_axis1 * 8 + v_axis4, (v_axis2 * 4 + v_axis5 * 2 + v_axis7) % 32] + T.float32(3)
+        for ax0, ax1, ax2 in T.grid(3, 4, 32):
+            with T.block("Out"):
+                v1 = T.axis.spatial(3, ax0)
+                v2 = T.axis.spatial(512, axis2 * 4 + ax1)
+                v3 = T.axis.spatial(512, axis3 * 32 + ax2)
+                T.reads(B[v1 // 8, v2 // 4, v3 // 32, v1, v2 % 4 // 2, v3 % 32, v2 % 2])
+                T.writes(C[v1, v2, v3])
+                C[v1, v2, v3] = B[v1 // 8, v2 // 4, v3 // 32, v1, v2 % 4 // 2, v3 % 32, v2 % 2] * T.float32(2)
+
+
+@T.prim_func
 def tiled_repeat_op(x: T.Buffer((4,), "float32"), T_repeat: T.Buffer((64,), "float32")) -> None:
     T_add = T.alloc_buffer([4], dtype="float32")
     for i0 in T.serial(4):
@@ -1060,7 +1105,7 @@ def test_compute_at_two_elementwise(use_block_name):
     block = "B" if use_block_name else sch.get_block("B")
     loop, _ = sch.get_loops("C" if use_block_name else sch.get_block("C"))
     sch.compute_at(block, loop, preserve_unit_loops=True)
-    tvm.ir.assert_structural_equal(two_elementwise_after_compute_at, sch.mod["main"])
+    assert_structural_equal_ignore_global_symbol(two_elementwise_after_compute_at, sch.mod["main"])
     verify_trace_roundtrip(sch=sch, mod=two_elementwise)
 
 
@@ -1069,7 +1114,7 @@ def test_compute_at_blockized_1(use_block_name):
     block = sch.get_block("B")
     _, loop = sch.get_loops(sch.get_block("C_outer"))
     sch.compute_at(block, loop, preserve_unit_loops=True)
-    tvm.ir.assert_structural_equal(blockized_after_compute_at, sch.mod["main"])
+    assert_structural_equal_ignore_global_symbol(blockized_after_compute_at, sch.mod["main"])
     verify_trace_roundtrip(sch=sch, mod=blockized_1)
 
 
@@ -1078,7 +1123,7 @@ def test_compute_at_blockized_2(use_block_name):
     block = sch.get_block("B_outer")
     _, loop, _, _ = sch.get_loops(sch.get_block("C"))
     sch.compute_at(block, loop, preserve_unit_loops=True)
-    tvm.ir.assert_structural_equal(blockized_2_after_compute_at, sch.mod["main"])
+    assert_structural_equal_ignore_global_symbol(blockized_2_after_compute_at, sch.mod["main"])
     verify_trace_roundtrip(sch=sch, mod=blockized_2)
 
 
@@ -1087,7 +1132,7 @@ def test_compute_at_cuda_matmul_0(use_block_name):
     block = sch.get_block("C")
     _, _, _, _, _, loop, _, _ = sch.get_loops(sch.get_block("C_local"))
     sch.compute_at(block, loop, preserve_unit_loops=True)
-    tvm.ir.assert_structural_equal(cuda_matmul_0_after_compute_at, sch.mod["main"])
+    assert_structural_equal_ignore_global_symbol(cuda_matmul_0_after_compute_at, sch.mod["main"])
     verify_trace_roundtrip(sch=sch, mod=cuda_matmul_0)
 
 
@@ -1096,7 +1141,7 @@ def test_compute_at_cuda_matmul_1(use_block_name):
     block = sch.get_block("A_shared_local")
     _, _, _, _, _, _, _, loop, _, _, _ = sch.get_loops(sch.get_block("C"))
     sch.compute_at(block, loop, preserve_unit_loops=True)
-    tvm.ir.assert_structural_equal(cuda_matmul_2, sch.mod["main"])
+    assert_structural_equal_ignore_global_symbol(cuda_matmul_2, sch.mod["main"])
     verify_trace_roundtrip(sch=sch, mod=cuda_matmul_1)
 
 
@@ -1105,7 +1150,7 @@ def test_compute_at_cuda_matmul_2(use_block_name):
     block = sch.get_block("B_shared_local")
     _, _, _, _, _, _, _, loop, _, _, _ = sch.get_loops(sch.get_block("C"))
     sch.compute_at(block, loop, preserve_unit_loops=True)
-    tvm.ir.assert_structural_equal(cuda_matmul_3, sch.mod["main"])
+    assert_structural_equal_ignore_global_symbol(cuda_matmul_3, sch.mod["main"])
     verify_trace_roundtrip(sch=sch, mod=cuda_matmul_2)
 
 
@@ -1114,7 +1159,7 @@ def test_compute_at_cuda_matmul_3(use_block_name):
     block = sch.get_block("A_shared")
     _, _, _, _, _, _, loop, _, _, _, _ = sch.get_loops(sch.get_block("C"))
     sch.compute_at(block, loop, preserve_unit_loops=True)
-    tvm.ir.assert_structural_equal(cuda_matmul_4, sch.mod["main"])
+    assert_structural_equal_ignore_global_symbol(cuda_matmul_4, sch.mod["main"])
     verify_trace_roundtrip(sch=sch, mod=cuda_matmul_3)
 
 
@@ -1123,7 +1168,7 @@ def test_compute_at_cuda_matmul_4(use_block_name):
     block = sch.get_block("B_shared")
     _, _, _, _, _, _, loop, _, _, _, _ = sch.get_loops(sch.get_block("C"))
     sch.compute_at(block, loop, preserve_unit_loops=True)
-    tvm.ir.assert_structural_equal(cuda_matmul_5, sch.mod["main"])
+    assert_structural_equal_ignore_global_symbol(cuda_matmul_5, sch.mod["main"])
     verify_trace_roundtrip(sch=sch, mod=cuda_matmul_4)
 
 
@@ -1132,7 +1177,7 @@ def test_compute_at_reduction_block(use_block_name):
     block = sch.get_block("B")
     (loop,) = sch.get_loops(sch.get_block("C"))
     sch.compute_at(block, loop, preserve_unit_loops=False)
-    tvm.ir.assert_structural_equal(multi_reduction_after_compute_at, sch.mod["main"])
+    assert_structural_equal_ignore_global_symbol(multi_reduction_after_compute_at, sch.mod["main"])
     verify_trace_roundtrip(sch=sch, mod=multi_reduction)
 
 
@@ -1142,7 +1187,9 @@ def test_compute_at_tiled_pooling_read_cache(use_block_name):
     _, w_o, _, _, _, _ = sch.get_loops(compute)
     cache = sch.get_block("cache")
     sch.compute_at(cache, w_o)
-    tvm.ir.assert_structural_equal(tiled_pooling_read_cache_after_compute_at, sch.mod["main"])
+    assert_structural_equal_ignore_global_symbol(
+        tiled_pooling_read_cache_after_compute_at, sch.mod["main"]
+    )
     verify_trace_roundtrip(sch=sch, mod=tiled_pooling_read_cache)
 
 
@@ -1150,7 +1197,9 @@ def test_compute_at_non_uniform_tiled_conv(use_block_name):
     sch = tir.Schedule(non_uniform_tiled_conv, debug_mask="all")
     compute = sch.get_block("compute")
     sch.compute_at(sch.get_block("cache"), sch.get_loops(compute)[1])
-    tvm.ir.assert_structural_equal(non_uniform_tiled_conv_after_compute_at, sch.mod["main"])
+    assert_structural_equal_ignore_global_symbol(
+        non_uniform_tiled_conv_after_compute_at, sch.mod["main"]
+    )
     verify_trace_roundtrip(sch=sch, mod=non_uniform_tiled_conv)
 
 
@@ -1162,7 +1211,9 @@ def test_compute_at_concat(use_block_name):
     axis = sch.get_loops(concat)[0]
     sch.compute_at(add1, axis)
     sch.compute_at(add2, axis)
-    tvm.ir.assert_structural_equal(concat_two_elemwise_after_compute_at, sch.mod["main"])
+    assert_structural_equal_ignore_global_symbol(
+        concat_two_elemwise_after_compute_at, sch.mod["main"]
+    )
     verify_trace_roundtrip(sch=sch, mod=concat_two_elemwise)
 
 
@@ -1170,7 +1221,7 @@ def test_compute_at_tiled_repeat_op(use_block_name):
     sch = tir.Schedule(tiled_repeat_op, debug_mask="all")
     outer_ax, _ = sch.get_loops(sch.get_block("T_repeat"))
     sch.compute_at(sch.get_block("T_add"), outer_ax)
-    tvm.ir.assert_structural_equal(tiled_repeat_op_after_compute_at, sch.mod["main"])
+    assert_structural_equal_ignore_global_symbol(tiled_repeat_op_after_compute_at, sch.mod["main"])
     verify_trace_roundtrip(sch=sch, mod=tiled_repeat_op)
 
 
@@ -1204,7 +1255,7 @@ def test_compute_at_rev_iter():
     sch = tir.Schedule(before, debug_mask="all")
     axis = sch.get_loops(sch.get_block("b1"))[0]
     sch.compute_at(sch.get_block("b0"), axis)
-    tvm.ir.assert_structural_equal(after, sch.mod["main"])
+    assert_structural_equal_ignore_global_symbol(after, sch.mod["main"])
     verify_trace_roundtrip(sch=sch, mod=before)
 
 
@@ -1213,7 +1264,7 @@ def test_reverse_compute_at_tiled(use_block_name):
     block = sch.get_block("C")
     _, _, loop, _ = sch.get_loops(sch.get_block("B"))
     sch.reverse_compute_at(block, loop, preserve_unit_loops=False)
-    tvm.ir.assert_structural_equal(tiled_after_reverse_compute_at, sch.mod["main"])
+    assert_structural_equal_ignore_global_symbol(tiled_after_reverse_compute_at, sch.mod["main"])
     verify_trace_roundtrip(sch=sch, mod=tiled)
 
 
@@ -1222,7 +1273,9 @@ def test_reverse_compute_at_tiled_trivial_binding(use_block_name):
     block = sch.get_block("C")
     _, _, loop, _ = sch.get_loops(sch.get_block("B"))
     sch.reverse_compute_at(block, loop, preserve_unit_loops=False)
-    tvm.ir.assert_structural_equal(tiled_trivial_binding_after_reverse_compute_at, sch.mod["main"])
+    assert_structural_equal_ignore_global_symbol(
+        tiled_trivial_binding_after_reverse_compute_at, sch.mod["main"]
+    )
     verify_trace_roundtrip(sch=sch, mod=tiled_trivial_binding)
 
 
@@ -1231,7 +1284,9 @@ def test_reverse_compute_at_blockized_2(use_block_name):
     block = sch.get_block("C")
     _, loop = sch.get_loops(sch.get_block("B_outer"))
     sch.reverse_compute_at(block, loop, preserve_unit_loops=True)
-    tvm.ir.assert_structural_equal(blockized_2_after_reverse_compute_at, sch.mod["main"])
+    assert_structural_equal_ignore_global_symbol(
+        blockized_2_after_reverse_compute_at, sch.mod["main"]
+    )
     verify_trace_roundtrip(sch=sch, mod=blockized_2)
 
 
@@ -1240,7 +1295,9 @@ def test_reverse_compute_at_factorized(use_block_name):
     block = sch.get_block("B")
     _, loop, _, _ = sch.get_loops(sch.get_block("B_rf"))
     sch.reverse_compute_at(block, loop, preserve_unit_loops=False)
-    tvm.ir.assert_structural_equal(factorized_after_reverse_compute_at, sch.mod["main"])
+    assert_structural_equal_ignore_global_symbol(
+        factorized_after_reverse_compute_at, sch.mod["main"]
+    )
     verify_trace_roundtrip(sch=sch, mod=factorized)
 
 
@@ -1249,10 +1306,20 @@ def test_reverse_compute_at_floordiv_and_floormod_indices(use_block_name):
     A = sch.get_block("A")
     B = sch.get_block("B")
     sch.reverse_compute_at(B, sch.get_loops(A)[0])
-    tvm.ir.assert_structural_equal(
+    assert_structural_equal_ignore_global_symbol(
         floordiv_and_floormod_indices_after_reverse_compute_at, sch.mod["main"]
     )
     verify_trace_roundtrip(sch=sch, mod=floordiv_and_floormod_indices)
+
+
+def test_reverse_compute_at_floordiv_and_floormod_recursive(use_block_name):
+    sch = tir.Schedule(recursive_floordiv_floormod, debug_mask="all")
+    write_block = sch.get_block("Out")
+    sch.reverse_compute_at(write_block, sch.get_loops("In")[2])
+    assert_structural_equal_ignore_global_symbol(
+        recursive_floordiv_floormod_after_reverse_compute_at, sch.mod["main"]
+    )
+    verify_trace_roundtrip(sch=sch, mod=recursive_floordiv_floormod)
 
 
 def test_read_out_of_bound(use_block_name):
@@ -1260,7 +1327,9 @@ def test_read_out_of_bound(use_block_name):
     block = sch.get_block("B")
     (loop,) = sch.get_loops(sch.get_block("C"))
     sch.compute_at(block, loop)
-    tvm.ir.assert_structural_equal(read_out_of_bound_after_compute_at, sch.mod["main"])
+    assert_structural_equal_ignore_global_symbol(
+        read_out_of_bound_after_compute_at, sch.mod["main"]
+    )
     verify_trace_roundtrip(sch=sch, mod=read_out_of_bound)
 
 
@@ -1269,7 +1338,9 @@ def test_compact_dataflow(use_block_name):
     block = sch.get_block("B")
     _, loop = sch.get_loops(sch.get_block("C_1"))
     sch.compute_at(block, loop)
-    tvm.ir.assert_structural_equal(not_all_compact_data_flow_after_compute_at, sch.mod["main"])
+    assert_structural_equal_ignore_global_symbol(
+        not_all_compact_data_flow_after_compute_at, sch.mod["main"]
+    )
     verify_trace_roundtrip(sch=sch, mod=not_all_compact_data_flow)
 
 
@@ -1278,7 +1349,7 @@ def test_compute_at_simplify_static_bound(use_block_name):
     block = sch.get_block("B")
     loop, _ = sch.get_loops(sch.get_block("C"))
     sch.compute_at(block, loop, preserve_unit_loops=True)
-    tvm.ir.assert_structural_equal(static_bound_after_compute_at, sch.mod["main"])
+    assert_structural_equal_ignore_global_symbol(static_bound_after_compute_at, sch.mod["main"])
     verify_trace_roundtrip(sch=sch, mod=static_bound)
 
 
@@ -1358,7 +1429,9 @@ def test_compute_at_non_perfect_channel_group(use_block_name):
     sch = tir.Schedule(grouped_channel_bias, debug_mask="all")
     loop = sch.get_loops(sch.get_block("compute"))[0]
     sch.compute_at(sch.get_block("init"), loop)
-    tvm.ir.assert_structural_equal(sch.mod["main"], grouped_channel_bias_non_perfect_tiled)
+    assert_structural_equal_ignore_global_symbol(
+        sch.mod["main"], grouped_channel_bias_non_perfect_tiled
+    )
 
 
 def test_fail_subtree_complete_block(use_block_name):
@@ -1514,7 +1587,7 @@ def test_compute_at_to_index():
     block_c = sch.get_block("pad")
     axis = sch.get_loops("conv")[0]
     sch.compute_at(block_c, axis, index=-2)
-    tvm.ir.assert_structural_equal(multi_producers_after_compute_at, sch.mod["main"])
+    assert_structural_equal_ignore_global_symbol(multi_producers_after_compute_at, sch.mod["main"])
 
 
 def test_reverse_compute_at_to_index():
@@ -1577,7 +1650,7 @@ def test_reverse_compute_at_to_index():
     block_c = sch.get_block("D")
     axis = sch.get_loops("B")[2]
     sch.reverse_compute_at(block_c, axis, index=1)
-    tvm.ir.assert_structural_equal(main_reverse_compute_at, sch.mod["main"])
+    assert_structural_equal_ignore_global_symbol(main_reverse_compute_at, sch.mod["main"])
 
 
 def test_reverse_compute_at_with_unit_loop():
@@ -1629,7 +1702,7 @@ def test_reverse_compute_at_with_unit_loop():
     block_d = sch.get_block("D")
     axis = sch.get_loops("B")[2]
     sch.reverse_compute_at(block_d, axis, preserve_unit_loops=True, index=1)
-    tvm.ir.assert_structural_equal(main_reverse_compute_at, sch.mod["main"])
+    assert_structural_equal_ignore_global_symbol(main_reverse_compute_at, sch.mod["main"])
 
 
 def test_reverse_compute_at_layout_trans():
@@ -1668,8 +1741,178 @@ def test_reverse_compute_at_layout_trans():
     trans = sch.get_block("T_layout_trans")
     axis = sch.get_loops("compute")[1]
     sch.reverse_compute_at(trans, axis)
-    tvm.ir.assert_structural_equal(after, sch.mod["main"])
+    assert_structural_equal_ignore_global_symbol(after, sch.mod["main"])
     verify_trace_roundtrip(sch=sch, mod=before)
+
+
+@pytest.mark.parametrize("use_decl_buffer", [True, False])
+@pytest.mark.parametrize("use_reverse_compute_at", [True, False])
+def test_compute_at_allocate_const(use_decl_buffer, use_reverse_compute_at):
+    def apply_decl_buffer(*args, **kwargs):
+        if use_decl_buffer:
+            return T.decl_buffer(*args, **kwargs)
+        else:
+            return T.Buffer(*args, **kwargs)
+
+    @T.prim_func
+    def before(A: T.Buffer([4, 256], "float32"), C: T.Buffer([4, 256], "float32")):
+        B = T.alloc_buffer([4])
+
+        offset_ptr = T.allocate_const([1.0, 2.0, 3.0, 4.0], dtype="float32", extents=[4])
+        offset = apply_decl_buffer([4], data=offset_ptr)
+        for i in range(4):
+            with T.block("compute_B"):
+                vi = T.axis.remap("S", [i])
+                B[vi] = 10.0 * vi + offset[vi]
+
+        for i, j in T.grid(4, 256):
+            with T.block("compute_C"):
+                vi, vj = T.axis.remap("SS", [i, j])
+                C[vi, vj] = B[vi] + 100.0 * vj
+
+    @T.prim_func
+    def expected(A: T.Buffer([4, 256], "float32"), C: T.Buffer([4, 256], "float32")):
+        B = T.alloc_buffer([4])
+
+        offset_ptr = T.allocate_const([1.0, 2.0, 3.0, 4.0], dtype="float32", extents=[4])
+        offset = apply_decl_buffer([4], data=offset_ptr)
+        for i in range(4):
+            with T.block("compute_B"):
+                vi = T.axis.remap("S", [i])
+                B[vi] = 10.0 * vi + offset[vi]
+
+            for j in range(256):
+                with T.block("compute_C"):
+                    vi, vj = T.axis.remap("SS", [i, j])
+                    C[vi, vj] = B[vi] + 100.0 * vj
+
+    sch = tir.Schedule(before, debug_mask="all")
+    if use_reverse_compute_at:
+        block = sch.get_block("compute_C")
+        axis = sch.get_loops("compute_B")[0]
+        sch.reverse_compute_at(block, axis)
+    else:
+        block = sch.get_block("compute_B")
+        axis = sch.get_loops("compute_C")[0]
+        sch.compute_at(block, axis)
+
+    after = sch.mod["main"]
+
+    assert_structural_equal_ignore_global_symbol(expected, after)
+    verify_trace_roundtrip(sch=sch, mod=before)
+
+
+@pytest.mark.parametrize("use_decl_buffer", [True, False])
+def test_compute_inline_allocate_const(use_decl_buffer):
+    def apply_decl_buffer(*args, **kwargs):
+        if use_decl_buffer:
+            return T.decl_buffer(*args, **kwargs)
+        else:
+            return T.Buffer(*args, **kwargs)
+
+    @T.prim_func
+    def before(A: T.Buffer([4, 256], "float32"), C: T.Buffer([4, 256], "float32")):
+        B = T.alloc_buffer([4])
+
+        offset_ptr = T.allocate_const([1.0, 2.0, 3.0, 4.0], dtype="float32", extents=[4])
+        offset = apply_decl_buffer([4], data=offset_ptr)
+        for i in range(4):
+            with T.block("compute_B"):
+                vi = T.axis.remap("S", [i])
+                B[vi] = 10.0 * vi + offset[vi]
+
+        for i, j in T.grid(4, 256):
+            with T.block("compute_C"):
+                vi, vj = T.axis.remap("SS", [i, j])
+                C[vi, vj] = B[vi] + 100.0 * vj
+
+    @T.prim_func
+    def expected(A: T.Buffer([4, 256], "float32"), C: T.Buffer([4, 256], "float32")):
+        offset_ptr = T.allocate_const([1.0, 2.0, 3.0, 4.0], dtype="float32", extents=[4])
+        offset = apply_decl_buffer([4], data=offset_ptr)
+        for i, j in T.grid(4, 256):
+            with T.block("compute_C"):
+                vi, vj = T.axis.remap("SS", [i, j])
+                C[vi, vj] = (10.0 * vi + offset[vi]) + 100.0 * vj
+
+    sch = tir.Schedule(before, debug_mask="all")
+    block = sch.get_block("compute_B")
+    sch.compute_inline(block)
+    after = sch.mod["main"]
+
+    assert_structural_equal_ignore_global_symbol(expected, after)
+    verify_trace_roundtrip(sch=sch, mod=before)
+
+
+def test_shape_var_as_bound():
+    # fmt: off
+    @T.prim_func
+    def before(a: T.handle, b: T.handle, c: T.handle):
+        n = T.int32()
+        A = T.match_buffer(a, (32, 1, 128))
+        B = T.match_buffer(b, (32, n, 128))
+        C = T.match_buffer(c, (32, 1, n))
+        # with T.block("root"):
+        C_rf = T.alloc_buffer((128, 32, 1, n))
+        for ax0_ax1_fused, ax2_fused_1, ax2_fused_0 in T.grid(n * 32, 128, 1):
+            with T.block("NT_matmul_rf"):
+                vax2_fused_1 = T.axis.spatial(128, ax2_fused_1)
+                v0 = T.axis.spatial(32, ax0_ax1_fused // n)
+                v1 = T.axis.spatial(n, ax0_ax1_fused % n)
+                vax2_fused_0 = T.axis.reduce(1, ax2_fused_0)
+                T.reads(A[v0, 0, vax2_fused_0 * 128 + vax2_fused_1], B[v0, v1, vax2_fused_0 * 128 + vax2_fused_1])
+                T.writes(C_rf[vax2_fused_1, v0, 0, v1])
+                with T.init():
+                    C_rf[vax2_fused_1, v0, 0, v1] = T.float32(0)
+                C_rf[vax2_fused_1, v0, 0, v1] = C_rf[vax2_fused_1, v0, 0, v1] + A[v0, 0, vax2_fused_0 * 128 + vax2_fused_1] * B[v0, v1, vax2_fused_0 * 128 + vax2_fused_1]
+        for ax0_ax1_fused, ax2_fused_1 in T.grid(n * 32, 128):
+            with T.block("NT_matmul"):
+                vax2_fused_1 = T.axis.reduce(128, ax2_fused_1)
+                v0 = T.axis.spatial(32, ax0_ax1_fused // n)
+                v1 = T.axis.spatial(n, ax0_ax1_fused % n)
+                T.reads(C_rf[vax2_fused_1, v0, 0, v1])
+                T.writes(C[v0, 0, v1])
+                with T.init():
+                    C[v0, 0, v1] = T.float32(0)
+                C[v0, 0, v1] = C[v0, 0, v1] + C_rf[vax2_fused_1, v0, 0, v1]
+
+    @T.prim_func
+    def expected(A: T.Buffer((32, 1, 128), "float32"), b: T.handle, c: T.handle):
+        n = T.int32()
+        B = T.match_buffer(b, (32, n, 128))
+        C = T.match_buffer(c, (32, 1, n))
+        # with T.block("root"):
+        C_rf = T.alloc_buffer((128, 32, 1, n))
+        for ax0_ax1_fused in range(n * 32):
+            for ax2_fused_1, ax2_fused_0 in T.grid(128, 1):
+                with T.block("NT_matmul_rf"):
+                    vax2_fused_1 = T.axis.spatial(128, ax2_fused_1)
+                    v0 = T.axis.spatial(32, ax0_ax1_fused // n)
+                    v1 = T.axis.spatial(n, ax0_ax1_fused % n)
+                    vax2_fused_0 = T.axis.reduce(1, ax2_fused_0)
+                    T.reads(A[v0, 0, vax2_fused_0 * 128 + vax2_fused_1], B[v0, v1, vax2_fused_0 * 128 + vax2_fused_1])
+                    T.writes(C_rf[vax2_fused_1, v0, 0, v1])
+                    with T.init():
+                        C_rf[vax2_fused_1, v0, 0, v1] = T.float32(0)
+                    C_rf[vax2_fused_1, v0, 0, v1] = C_rf[vax2_fused_1, v0, 0, v1] + A[v0, 0, vax2_fused_0 * 128 + vax2_fused_1] * B[v0, v1, vax2_fused_0 * 128 + vax2_fused_1]
+            for ax0, ax1, ax2 in T.grid(128, 1, 1):
+                with T.block("NT_matmul"):
+                    vax2_fused_1 = T.axis.reduce(128, ax0)
+                    v0 = T.axis.spatial(32, ax0_ax1_fused // n + ax1)
+                    v1 = T.axis.spatial(n, ax0_ax1_fused % n + ax2)
+                    T.reads(C_rf[vax2_fused_1, v0, 0, v1])
+                    T.writes(C[v0, 0, v1])
+                    with T.init():
+                        C[v0, 0, v1] = T.float32(0)
+                    C[v0, 0, v1] = C[v0, 0, v1] + C_rf[vax2_fused_1, v0, 0, v1]
+    # fmt: on
+    sch = tir.Schedule(before.with_attr("global_symbol", "main"), debug_mask="all")
+    block = sch.get_block("NT_matmul")
+    loop, _, _ = sch.get_loops(sch.get_block("NT_matmul_rf"))
+    sch.reverse_compute_at(block, loop, preserve_unit_loops=True)
+    tvm.ir.assert_structural_equal(
+        sch.mod["main"], expected.with_attr("global_symbol", "main"), True
+    )
 
 
 if __name__ == "__main__":

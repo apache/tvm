@@ -21,7 +21,10 @@ import tvm
 import tvm.testing
 from tvm import tir
 from tvm.script import tir as T
-from tvm.tir.schedule.testing import verify_trace_roundtrip
+from tvm.tir.schedule.testing import (
+    assert_structural_equal_ignore_global_symbol,
+    verify_trace_roundtrip,
+)
 
 # fmt: off
 # pylint: disable=no-member,invalid-name,unused-variable,unexpected-keyword-arg
@@ -96,7 +99,7 @@ def test_set_dtype(use_block_name):
     func = element_wise
     sch = tir.Schedule(func, debug_mask="all")
     sch.unsafe_set_dtype("B" if use_block_name else sch.get_block("B"), 0, "float16")
-    tvm.ir.assert_structural_equal(element_wise_set_dtype, sch.mod["main"])
+    assert_structural_equal_ignore_global_symbol(element_wise_set_dtype, sch.mod["main"])
     verify_trace_roundtrip(sch=sch, mod=func)
 
 def test_set_dtype_fail_on_output_buffer(use_block_name):
@@ -117,7 +120,7 @@ def test_set_dtype_subregion():
     func = element_wise_subregion_match
     sch = tir.Schedule(func, debug_mask='all')
     sch.unsafe_set_dtype(sch.get_block("B"), 0, "float16")
-    tvm.ir.assert_structural_equal(element_wise_subregion_match_set_dtype, sch.mod["main"])
+    assert_structural_equal_ignore_global_symbol(element_wise_subregion_match_set_dtype, sch.mod["main"])
     verify_trace_roundtrip(sch=sch, mod=func)
 
 

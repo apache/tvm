@@ -610,7 +610,7 @@ def sparse_conv2d(
                 dense_data, sparse_data, sparse_indices, sparse_indptr
             )
     else:
-        raise ValueError("Unsupport Layout %s" % layout)
+        raise ValueError(f"Unsupport Layout {layout}")
 
 
 @auto_scheduler.register_task_input_check_func

@@ -54,9 +54,10 @@ Buffer BufferDecl(Array<PrimExpr> shape, DataType dtype, String buffer_name, Opt
                 axis_separators.value_or(Array<IntImm>()));
 }
 
-PrimFuncFrame PrimFunc() {
+PrimFuncFrame PrimFunc(bool is_private) {
   ObjectPtr<PrimFuncFrameNode> n = make_object<PrimFuncFrameNode>();
   n->name = NullOpt;
+  n->is_private = is_private;
   n->args.clear();
   n->ret_type = NullOpt;
   n->buffer_map.clear();
@@ -95,6 +96,10 @@ void FuncAttrs(Map<String, ObjectRef> attrs) {
   PrimFuncFrame frame = FindPrimFuncFrame("T.func_attr");
   if (frame->attrs.defined()) {
     LOG(FATAL) << "ValueError: Duplicate prim func annotations, previous one is " << frame->attrs;
+  }
+  if (attrs.count(tvm::attr::kGlobalSymbol) && frame->is_private) {
+    LOG(FATAL) << "ValueError: Specifying the global symbol even though the PrimFunc is annotated "
+                  "as private";
   }
   frame->attrs = attrs;
 }
@@ -314,7 +319,7 @@ Array<Var> Remap(String kinds, Array<PrimExpr> bindings, DataType dtype) {
     PrimExpr extent = arith::Analyzer().Simplify(stop - start);                                   \
     ObjectPtr<ForFrameNode> n = make_object<ForFrameNode>();                                      \
     int bits = std::max(min.dtype().bits(), extent.dtype().bits());                               \
-    n->vars = {Var("v", DataType::Int(bits))};                                                    \
+    n->vars = {Var("v", DataType(min.dtype().code(), bits, 1))};                                  \
     n->doms = {Range::FromMinExtent(min, extent)};                                                \
     n->f_make_for_loop = [annotations](Array<Var> vars, Array<Range> doms, tvm::tir::Stmt body) { \
       ICHECK_EQ(vars.size(), 1);                                                                  \
@@ -339,13 +344,14 @@ ForFrame ThreadBinding(PrimExpr start, PrimExpr stop, String thread,
   PrimExpr extent = arith::Analyzer().Simplify(stop - start);
   ObjectPtr<ForFrameNode> n = make_object<ForFrameNode>();
   int bits = std::max(min.dtype().bits(), extent.dtype().bits());
-  n->vars = {Var("v", DataType::Int(bits))};
+  DataType dtype = DataType(min.dtype().code(), bits, 1);
+  n->vars = {Var("v", dtype)};
   n->doms = {Range::FromMinExtent(min, extent)};
-  n->f_make_for_loop = [annotations, thread](Array<Var> vars, Array<Range> doms, Stmt body) -> For {
+  n->f_make_for_loop = [annotations, thread, dtype](Array<Var> vars, Array<Range> doms,
+                                                    Stmt body) -> For {
     ICHECK_EQ(vars.size(), 1);
     ICHECK_EQ(doms.size(), 1);
-    IterVar iter_var(Range(nullptr), Var("iter", DataType::Int(32)), IterVarType::kThreadIndex,
-                     thread);
+    IterVar iter_var(Range(nullptr), Var("iter", dtype), IterVarType::kThreadIndex, thread);
     return For(vars[0], doms[0]->min, doms[0]->extent, ForKind::kThreadBinding, body, iter_var,
                annotations.value_or(Map<String, ObjectRef>()));
   };

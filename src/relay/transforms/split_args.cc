@@ -31,58 +31,102 @@ namespace relay {
 
 class ArgumentSplitter : public ExprRewriter {
  public:
-  explicit ArgumentSplitter(int max_function_args)
+  explicit ArgumentSplitter(size_t max_function_args)
       : max_function_args_(max_function_args), concat_op_(Op::Get("concatenate")) {}
 
+  Expr ConcatSplitter(const TupleNode* tuple_node, const tvm::Array<relay::Expr>& args, int axis,
+                      size_t limit) {
+    tvm::Array<relay::Expr> new_args;
+    size_t added_args = 0;
+    for (const auto& it : args) {
+      size_t curr_args = 1;
+      if (const auto* ttype = it->checked_type().as<TensorTypeNode>()) {
+        ICHECK(additional_args_cache_.count(ttype));
+        curr_args += additional_args_cache_[ttype];
+      }
+      if (added_args + curr_args > limit) {
+        Tuple new_tuple = WithFields(GetRef<Tuple>(tuple_node), new_args);
+        Expr stop = StopFusion(new_tuple);
+        Expr lastExpr = MakeConcatenate(stop, axis);
+        new_args.clear();
+        new_args.push_back(lastExpr);
+        added_args = curr_args;
+      }
+      added_args += curr_args;
+      new_args.push_back(it);
+    }
+    Tuple new_tuple = WithFields(GetRef<Tuple>(tuple_node), new_args);
+    Expr stop = StopFusion(new_tuple);
+    Expr lastExpr = MakeConcatenate(stop, axis);
+    return lastExpr;
+  }
+
+  // In the case of dynamic shape in tensor, the sizes of any_dims and strides are passed as
+  // function args
+  size_t CalculateNumberOfAdditionalArgs_(const TensorTypeNode* arg, bool isOutput = false) {
+    size_t num = 0;
+    for (const auto& dim : arg->shape) {
+      if (dim.as<AnyNode>()) {
+        num++;
+      }
+    }
+    // In the case of dynamic shape, strides are also passed to a function as arguments. The number
+    // of strides equals the rank of the tensor.
+    if (num > 0 && isOutput)
+      return arg->shape.size();
+    else if (num > 0)
+      num += arg->shape.size();
+    return num;
+  }
+
   Expr Rewrite_(const CallNode* call, const Expr& post) final {
-    if (max_function_args_ < 0) return post;
+    if (max_function_args_ == 0) return post;
     if (call->op == concat_op_) {
       auto tuple_node = call->args[0].as<TupleNode>();
+      if (tuple_node == nullptr) return post;
       const auto param = call->attrs.as<ConcatenateAttrs>();
-      int outputsNum = 1;
+      size_t outputsNum = 1;
       if (const auto* tuple_type = call->checked_type().as<TupleTypeNode>()) {
         outputsNum = tuple_type->fields.size();
-      }
-      const int limit = max_function_args_ - outputsNum;
-      int argsNum = tuple_node->fields.size();
-      if (argsNum < limit) return post;
-      int splitNum = argsNum / limit;
-      splitNum = (argsNum % limit) ? splitNum + 1 : splitNum;
-
-      std::vector<Expr> splitted(splitNum);
-      for (int i = 0; i < splitNum; ++i) {
-        int startIdx = i * limit;
-        int argsCount = std::min(limit, argsNum - startIdx);
-        tvm::Array<Expr> args;
-        args.reserve(argsCount);
-
-        for (int j = 0; j < argsCount; ++j) {
-          args.push_back(tuple_node->fields[j + startIdx]);
+        for (const auto& it : tuple_type->fields) {
+          if (const auto* ttype = it.as<TensorTypeNode>()) {
+            outputsNum += CalculateNumberOfAdditionalArgs_(ttype, true);
+          }
         }
-        Tuple new_tuple = WithFields(GetRef<Tuple>(tuple_node), args);
-        Expr body = MakeConcatenate(new_tuple, param->axis);
-        splitted[i] = StopFusion(body);
+      } else if (const auto* ttype = call->checked_type().as<TensorTypeNode>()) {
+        outputsNum += CalculateNumberOfAdditionalArgs_(ttype, true);
       }
-      tvm::Array<Expr> tuple_args(splitted);
-      Tuple new_tuple = WithFields(GetRef<Tuple>(tuple_node), tuple_args);
-      return MakeConcatenate(new_tuple, param->axis);
+      CHECK_GT(max_function_args_, outputsNum);
+      size_t limit = max_function_args_ - outputsNum;
+
+      size_t argsNum = tuple_node->fields.size();
+      for (const auto& it : tuple_node->fields) {
+        if (const auto* ttype = it->checked_type().as<TensorTypeNode>()) {
+          size_t any_dims = CalculateNumberOfAdditionalArgs_(ttype);
+          argsNum += any_dims;
+          additional_args_cache_[ttype] = any_dims;
+        }
+      }
+      if (argsNum < limit) return post;
+      return ConcatSplitter(tuple_node, tuple_node->fields, param->axis, limit);
     }
     return post;
   }
 
  private:
-  const int max_function_args_;
+  const size_t max_function_args_;
   const Op& concat_op_;
+  std::unordered_map<const TensorTypeNode*, size_t> additional_args_cache_;
 };
 
-Expr SplitArgs(const Expr& expr, int max_function_args) {
+Expr SplitArgs(const Expr& expr, size_t max_function_args) {
   auto rewriter = ArgumentSplitter(max_function_args);
   return PostOrderRewrite(expr, &rewriter);
 }
 
 namespace transform {
 
-Pass SplitArgs(int max_function_args) {
+Pass SplitArgs(uint64_t max_function_args) {
   runtime::TypedPackedFunc<Function(Function, IRModule, PassContext)> pass_func =
       [=](Function f, IRModule m, PassContext pc) {
         auto r = Downcast<Function>(SplitArgs(f, max_function_args));

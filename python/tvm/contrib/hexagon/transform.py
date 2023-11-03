@@ -18,11 +18,21 @@
 """Hexagon-specific IR transformations"""
 
 import functools as ft
+import numpy as np
 
 import tvm
 from tvm import relay
-from tvm.relay.dataflow_pattern import DFPatternCallback, rewrite, wildcard
-from tvm.relay.dataflow_pattern import is_constant, is_op, is_tuple
+from tvm.relay.dataflow_pattern import (
+    DFPatternCallback,
+    is_constant,
+    is_op,
+    is_tuple,
+    rewrite,
+    wildcard,
+)
+from tvm.topi.utils import get_const_tuple
+from tvm.relay.expr import Call
+from tvm.runtime import ndarray as nd
 from ..._ffi.registry import register_func
 
 ### VTCM
@@ -43,7 +53,6 @@ def mem_info_vtcm():
 
 
 def lower_vtcm_(get_alloc, get_free, def_align, func, mod, ctx):  # pylint: disable=unused-argument
-
     """Generic VTCM allocation
 
     Parameters
@@ -310,4 +319,186 @@ class remove_empty_pad_callback(DFPatternCallback):
 def remove_empty_pad(mod):
     """Remove the empty pad operator."""
     mod["main"] = rewrite(remove_empty_pad_callback(), mod["main"])
+    return mod
+
+
+class simplify_qnn_concat_in_func(DFPatternCallback):
+
+    """
+    Propagate qnn.concat's quantization params to its inputs,
+    and try to avoid redundant requantization while doing so.
+
+    Replace
+    def @main(%q1: Tensor[(1, 64, 35, 35), uint8],
+        %q2: Tensor[(1, 64, 35, 35), uint8], %q3: Tensor[(1, 32, 35, 35), uint8]) {
+        %0 = nn.max_pool2d(%q1, pool_size=[3, 3], padding=[1, 1, 1, 1], layout="NHWC");
+        %1 = qnn.requantize(%q2, 0.000109401f, 0, 0.00345f, 0, axis=1, out_dtype="uint8");
+        %2 = (%0, %1, %q3);
+        %3 = (0.0425042f, 0.00345f, 0.0486874f);
+        %4 = (0, 0, 0);
+        qnn.concatenate(%2, %3, %4, 0.0486874f, 0, axis=1)
+    }
+
+    with
+
+    def @main(%q1: Tensor[(1, 64, 35, 35), uint8],
+        %q2: Tensor[(1, 64, 35, 35), uint8], %q3: Tensor[(1, 32, 35, 35), uint8]) {
+        %0 = nn.max_pool2d(%q1, pool_size=[3, 3], padding=[1, 1, 1, 1], layout="NHWC");
+        %1 = qnn.requantize(%0, 0.0425042f, 0, 0.0486874f, 0, axis=1, out_dtype="uint8");
+        %2 = qnn.requantize(%q2, 0.000109401f, 0, 0.0486874f, 0, axis=1, out_dtype="uint8");
+        %3 = (%1, %2, %q3);
+        concatenate(%3, axis=1)
+    }
+    """
+
+    def __init__(self):
+        super(simplify_qnn_concat_in_func, self).__init__()
+        self.qvals = wildcard()
+        self.scales = wildcard()
+        self.zps = wildcard()
+        self.out_scale = wildcard()
+        self.out_zp = wildcard()
+        self.pattern = is_op("qnn.concatenate")(
+            self.qvals, self.scales, self.zps, self.out_scale, self.out_zp
+        )
+
+    def callback(self, pre, post, node_map):
+        in_qvals = node_map[self.qvals][0]
+        in_scales = node_map[self.scales][0]
+        in_zps = node_map[self.zps][0]
+        new_qvals = []
+        for i in range(len(in_qvals)):
+            new_requant_args = []
+            # TODO Generalize for all qnn ops
+            if isinstance(in_qvals[i], Call) and (in_qvals[i].op.name == "qnn.requantize"):
+                # propagate scale/zp of qnn.concat to this requantize op
+                for j in range(3):
+                    new_requant_args.append(in_qvals[i].args[j])
+                new_requant_args += [node_map[self.out_scale][0], node_map[self.out_zp][0]]
+                new_qvals.append(relay.qnn.op.requantize(*new_requant_args, **(in_qvals[i].attrs)))
+            else:
+                # simply create a new requantize op if there is a change in quantization params
+                # if not, just retain the old qval
+                if (in_scales[i] == node_map[self.out_scale][0]) and (
+                    in_zps[i] == node_map[self.out_zp][0]
+                ):
+                    new_qvals.append(in_qvals[i])
+                else:
+                    new_requant_args += [
+                        in_qvals[i],
+                        in_scales[i],
+                        in_zps[i],
+                        node_map[self.out_scale][0],
+                        node_map[self.out_zp][0],
+                    ]
+                    new_qvals.append(
+                        relay.qnn.op.requantize(
+                            *new_requant_args,
+                            axis=post.attrs["axis"],
+                            out_dtype=post.checked_type.dtype,
+                        )
+                    )
+
+        new_op = relay.op.concatenate(
+            new_qvals,
+            node_map[self.pattern][0].attrs["axis"],
+        )
+        return new_op
+
+
+# Right now context is ignored
+@tvm.transform.module_pass(opt_level=1)
+def simplify_qnn_concat(mod, _=None):
+    for global_var in mod.functions.keys():
+        mod[global_var] = rewrite(simplify_qnn_concat_in_func(), mod[global_var])
+    return mod
+
+
+class simplify_conv_pat_in_func(DFPatternCallback):
+
+    """
+    Simplify Mul->Sub->Conv->bias_add to Conv->bias_add->add sequence if
+    one of the inputs to Mul and Sub are constant scalars.
+
+    Replace
+    def @main(%q1: Tensor[(1, 128, 128, 3), float16])
+        %0 = multiply(%q1, c1_const_scalar)  /* ty=Tensor[(1, 128, 128, 3), float16] */;
+        %1 = subtract(%0, c2_const_scalar) /* ty=Tensor[(1, 128, 128, 3), float16] */
+        %2 = transpose(%1, axes=[0,3,1,2])
+            /* ty=Tensor[(1, 3, 128, 128), float16] */
+        %3 = nn.conv2d(%2, weights, ...) .
+        %4 = nn.bias_add(%3, bias)
+    }
+
+    with
+
+    def @main(%q1: Tensor[(1, 128, 128, 3), float16])
+        %0 = transpose(%q1, axes=[0, 3, 1, 2])
+            /* ty=Tensor[(1, 3, 128, 128), float16] */;
+        %1 = multiply(c1, weights) /* ty=Tensor[(64, 3, 3, 3), float16] */;
+        %2 = nn.conv2d(%0, %1, padding=[1, 1, 1, 1],
+            channels=64, kernel_size=[3, 3])
+            /* ty=Tensor[(1, 64, 128, 128), float16] */;
+        %3 = subtract(%0 shaped zero_tensor, c2)
+            /* ty=Tensor[(1, 3, 128, 128), float16] */;
+        %4 = nn.bias_add(%2, bias) /* ty=Tensor[(1, 64, 128, 128), float16] */;
+        %5 = nn.conv2d(%3, weights, padding=[1, 1, 1, 1],
+            channels=64, kernel_size=[3, 3])
+            /* ty=Tensor[(1, 64, 128, 128), float16] */;
+        add(%4, %5) /* ty=Tensor[(1, 64, 128, 128), float16] */
+
+    Why is it legal? Ignore the transpose in the above pattern.
+    res[p,q,r,s] = Conv(a*c1 - c2, W)
+                 = SUM{i=[0,c-1], j=[0,kh-1], k=[0,kw-1]}
+                    {(a[p,i,r+j,s+k] * c1 - c2) * W[q,i,j,k]}
+                 = SUM{i=[0,c-1], j=[0,kh-1], k=[0,kw-1]}
+                    {a[p,i,r+j,s+k] * c1 * W[q,i,j,k]} - c2 * W[q,i,j,k]}
+                 = Conv(a, W*c1) + Conv(0-c2, W)
+
+
+    }
+
+    In the above, %1, %3, %5 are constants and can be folded, so we're
+    left with 4 ops, as opposed to the original 5 ops
+    """
+
+    def __init__(self):
+        super().__init__()
+        self.inp = wildcard()
+        self.mul = is_op("multiply")(self.inp, is_constant().has_shape(()))
+        self.sub = is_op("subtract")(self.mul, is_constant().has_shape(()))
+        self.act = is_op("transpose")(self.sub)
+        self.weights = is_constant()
+        self.conv2d_op = is_op("nn.conv2d")(self.act, self.weights)
+        self.pattern = is_op("nn.bias_add")(self.conv2d_op, is_constant())
+
+    def callback(self, pre, post, node_map):
+        new_transpose = relay.transpose((node_map[self.inp][0]), **((node_map[self.act][0]).attrs))
+        new_weights = relay.multiply((node_map[self.mul][0].args[1]), (node_map[self.weights][0]))
+        new_conv2d = relay.nn.conv2d(
+            new_transpose, new_weights, **((node_map[self.conv2d_op][0]).attrs)
+        )
+        new_bias_add = relay.nn.bias_add(new_conv2d, (node_map[self.pattern][0].args[1]))
+
+        zero_tensor = relay.Constant(
+            nd.array(
+                np.zeros(
+                    get_const_tuple((node_map[self.act][0]).checked_type.shape),
+                    dtype=(node_map[self.act][0]).checked_type.dtype,
+                )
+            )
+        )
+        negated = relay.subtract(zero_tensor, (node_map[self.sub][0].args[1]))
+        const_conv2d = relay.nn.conv2d(
+            negated, (node_map[self.weights][0]), **((node_map[self.conv2d_op][0]).attrs)
+        )
+        return relay.add(new_bias_add, const_conv2d)
+
+
+# Right now context is ignored
+@tvm.transform.module_pass(opt_level=1)
+def simplify_conv_pat(mod, _=None):
+    """top level function for conv pattern simplification"""
+    for global_var in mod.functions.keys():
+        mod[global_var] = rewrite(simplify_conv_pat_in_func(), mod[global_var])
     return mod

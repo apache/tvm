@@ -25,6 +25,7 @@ from .base import (
     Node,
     SourceName,
     Span,
+    SequentialSpan,
     assert_structural_equal,
     load_json,
     save_json,

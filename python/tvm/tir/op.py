@@ -16,7 +16,6 @@
 # under the License.
 # pylint: disable=redefined-builtin, invalid-name
 """Operators used in TIR expression."""
-import warnings
 from typing import Any, Optional
 
 import tvm._ffi
@@ -251,7 +250,7 @@ def call_llvm_intrin(dtype, name, *args, span=None):
        The name of the llvm intrinsic function.
 
     args : list
-       Poistional arguments.
+       Positional arguments.
 
     span : Optional[Span]
         The location of this operator in the source code.
@@ -271,7 +270,7 @@ def call_llvm_intrin(dtype, name, *args, span=None):
     else:
         llvm_id = name
     if llvm_id == 0:
-        warnings.warn(f"Unknown llvm intrinsic function {name}, falling back to 0")
+        raise ValueError(f"Unknown llvm intrinsic function {name}")
     return call_intrin(
         dtype,
         Op.get("tir.call_llvm_intrin"),
@@ -293,7 +292,7 @@ def call_llvm_pure_intrin(dtype, name, *args, span=None):
        The name of the llvm intrinsic function.
 
     args : list
-       Poistional arguments.
+       Positional arguments.
 
     span : Optional[Span]
         The location of this operator in the source code.
@@ -313,7 +312,7 @@ def call_llvm_pure_intrin(dtype, name, *args, span=None):
     else:
         llvm_id = name
     if llvm_id == 0:
-        warnings.warn(f"Unknown llvm intrinsic function {name}, falling back to 0")
+        raise ValueError(f"Unknown llvm intrinsic function {name}")
     return call_intrin(
         dtype,
         Op.get("tir.call_llvm_pure_intrin"),
@@ -434,6 +433,25 @@ def undef():
         The call expression.
     """
     return call_intrin("int32", "tir.undef")
+
+
+def call_tir(global_var: tvm.ir.GlobalVar, *args):
+    """Performs a call into another PrimFunc in the same IRModule
+
+    Returns
+    -------
+    call : PrimExpr
+        The call expression.
+    """
+    assert isinstance(global_var, tvm.ir.GlobalVar)
+
+    dtype = "void"
+    if global_var.checked_type is not None:
+        ret_type = global_var.checked_type.ret_type
+        if hasattr(ret_type, "dtype"):
+            dtype = ret_type.dtype
+
+    return Call(dtype=dtype, op=global_var, args=args)
 
 
 def start_profile_intrinsic(id):
@@ -597,7 +615,7 @@ def tvm_storage_sync(storage_scope):
     call : PrimExpr
         The call expression.
     """
-    return call_intrin("handle", "tir.tvm_storage_sync", storage_scope)
+    return call_intrin("int32", "tir.tvm_storage_sync", storage_scope)
 
 
 def tvm_warp_shuffle(mask, value, warp_id, width, warp_size):
@@ -1316,7 +1334,7 @@ def ptx_ldmatrix(dtype, trans, num, type, local_ptr, local_offset, smem_ptr, sme
 
 
 def ptx_cp_async(dtype, shared_ptr, shared_offset, global_ptr, global_offset, bytes):
-    """TVM intrinsic for ptx async copy from global to shared memory
+    """TVM intrinsic for ptx async copy from global to shared memory using cp.async
     https://docs.nvidia.com/cuda/parallel-thread-execution/index.html#data-movement-and-conversion-instructions-cp-async
 
     Parameters
@@ -1349,6 +1367,52 @@ def ptx_cp_async(dtype, shared_ptr, shared_offset, global_ptr, global_offset, by
     )
 
 
+def ptx_cp_async_bulk(
+    dtype, shared_ptr, shared_offset, global_ptr, global_offset, bytes, barrier_id
+):
+    """TVM intrinsic for ptx async copy from global to shared memory using cp.async.bulk
+    https://docs.nvidia.com/cuda/parallel-thread-execution/index.html#data-movement-and-conversion-instructions-cp-async-bulk
+
+    Parameters
+    ----------
+    dtype : str
+       The data type of the result.
+
+    shared_ptr : Var
+        The shared memory pointer variable.
+
+    shared_offset : Expr
+        The offset of shared memory pointer.
+
+    global_ptr : Var
+        The global memory pointer variable.
+
+    global_offset : Expr
+        The offset of global memory pointer.
+
+    bytes : int
+        The data size to copy.
+
+    barrier_id : int
+        The ID of the barrier shared memory pointer.
+
+    Returns
+    -------
+    call : PrimExpr
+        The call expression.
+    """
+    return call_intrin(
+        dtype,
+        "tir.ptx_cp_async_bulk",
+        shared_ptr,
+        shared_offset,
+        global_ptr,
+        global_offset,
+        bytes,
+        barrier_id,
+    )
+
+
 def ptx_commit_group():
     """TVM intrinsic for ptx async copy commit
     https://docs.nvidia.com/cuda/parallel-thread-execution/index.html#data-movement-and-conversion-instructions-cp-async-commit-group
@@ -1376,6 +1440,115 @@ def ptx_wait_group(num):
         The call expression.
     """
     return call_intrin("", "tir.ptx_wait_group", num)
+
+
+def ptx_cp_async_barrier(barrier_id):
+    """TVM intrinsic for ptx async copy barrier using cp.async.mbarrier.arrive
+    https://docs.nvidia.com/cuda/parallel-thread-execution/index.html#parallel-synchronization-and-communication-instructions-cp-async-mbarrier-arrive
+
+    Parameters
+    ----------
+    barrier_id : int
+        The ID of the barrier shared memory pointer.
+
+    Returns
+    -------
+    call : PrimExpr
+        The call expression.
+    """
+    return call_intrin("", "tir.ptx_cp_async_barrier", barrier_id)
+
+
+def ptx_init_barrier_thread_count(barrier_id, thread_count):
+    """TVM intrinsic for ptx barrier initialization of thread count using mbarrier.init
+    https://docs.nvidia.com/cuda/parallel-thread-execution/index.html#parallel-synchronization-and-communication-instructions-mbarrier-init
+
+    Parameters
+    ----------
+    barrier_id : int
+        The ID of the barrier shared memory pointer.
+
+    thread_count : int
+        Number of threads expected to arrive at the barrier.
+
+    Returns
+    -------
+    call : PrimExpr
+        The call expression.
+    """
+    return call_intrin("", "tir.ptx_init_barrier_thread_count", barrier_id, thread_count)
+
+
+def ptx_arrive_barrier(barrier_id):
+    """TVM intrinsic for ptx barrier arrival using mbarrier.arrive
+    https://docs.nvidia.com/cuda/parallel-thread-execution/index.html#parallel-synchronization-and-communication-instructions-mbarrier-arrive
+
+    Parameters
+    ----------
+    barrier_id : int
+        The ID of the barrier shared memory pointer.
+
+    Returns
+    -------
+    call : PrimExpr
+        The call expression.
+    """
+    return call_intrin("", "tir.ptx_arrive_barrier", barrier_id)
+
+
+def ptx_arrive_barrier_expect_tx(barrier_id, byte_count):
+    """TVM intrinsic for ptx barrier arrival with expect tx using mbarrier.arrive.expect_tx
+    https://docs.nvidia.com/cuda/parallel-thread-execution/index.html#parallel-synchronization-and-communication-instructions-mbarrier-arrive
+    https://docs.nvidia.com/cuda/parallel-thread-execution/index.html#parallel-synchronization-and-communication-instructions-mbarrier-expect-tx-operation
+
+    Parameters
+    ----------
+    barrier_id : int
+        The ID of the barrier shared memory pointer.
+
+    byte_count : int
+        Increases the tx count of the mbarrier object to track completion of
+        addtional async transactions.
+
+    Returns
+    -------
+    call : PrimExpr
+        The call expression.
+    """
+    return call_intrin("", "tir.ptx_arrive_barrier_expect_tx", barrier_id, byte_count)
+
+
+def ptx_wait_barrier(barrier_id):
+    """TVM intrinsic for ptx barrier wait using mbarrier.try_wait
+    https://docs.nvidia.com/cuda/parallel-thread-execution/index.html#parallel-synchronization-and-communication-instructions-mbarrier-test-wait-mbarrier-try-wait
+
+    Parameters
+    ----------
+    barrier_id : int
+        The ID of the barrier shared memory pointer.
+
+    Returns
+    -------
+    call : PrimExpr
+        The call expression.
+    """
+    return call_intrin("", "tir.ptx_wait_barrier", barrier_id)
+
+
+def create_barriers(barrier_count):
+    """TVM intrinsic to create N barriers
+
+    Parameters
+    ----------
+    barrier_count : int
+        The number of barriers to create.
+
+    Returns
+    -------
+    call : PrimExpr
+        The call expression.
+    """
+    return call_intrin("", "tir.create_barriers", barrier_count)
 
 
 def vectorlow(dtype, vec):
@@ -1448,6 +1621,8 @@ def ret(val):
     ret : PrimExpr
         The return expression
     """
+
+    val = convert(val)
     return call_intrin(val.dtype, "tir.ret", val)
 
 
@@ -1633,6 +1808,7 @@ def exp(x):
     y : PrimExpr
         The result.
     """
+    x = convert(x)
     return call_intrin(x.dtype, "tir.exp", x)
 
 
@@ -1649,6 +1825,7 @@ def exp2(x):
     y : PrimExpr
         The result.
     """
+    x = convert(x)
     return call_intrin(x.dtype, "tir.exp2", x)
 
 
@@ -1665,6 +1842,7 @@ def exp10(x):
     y : PrimExpr
         The result.
     """
+    x = convert(x)
     return call_intrin(x.dtype, "tir.exp10", x)
 
 
@@ -1681,6 +1859,7 @@ def erf(x):
     y : PrimExpr
         The result.
     """
+    x = convert(x)
     return call_intrin(x.dtype, "tir.erf", x)
 
 
@@ -1697,6 +1876,7 @@ def tanh(x):
     y : PrimExpr
         The result.
     """
+    x = convert(x)
     return call_intrin(x.dtype, "tir.tanh", x)
 
 
@@ -1713,6 +1893,7 @@ def sigmoid(x):
     y : PrimExpr
         The result.
     """
+    x = convert(x)
     return call_intrin(x.dtype, "tir.sigmoid", x)
 
 
@@ -1729,6 +1910,7 @@ def log(x):
     y : PrimExpr
         The result.
     """
+    x = convert(x)
     return call_intrin(x.dtype, "tir.log", x)
 
 
@@ -1745,6 +1927,7 @@ def log2(x):
     y : PrimExpr
         The result.
     """
+    x = convert(x)
     return call_intrin(x.dtype, "tir.log2", x)
 
 
@@ -1761,6 +1944,7 @@ def log10(x):
     y : PrimExpr
         The result.
     """
+    x = convert(x)
     return call_intrin(x.dtype, "tir.log10", x)
 
 
@@ -1777,6 +1961,7 @@ def log1p(x):
     y : PrimExpr
         The result.
     """
+    x = convert(x)
     return call_intrin(x.dtype, "tir.log1p", x)
 
 
@@ -1793,6 +1978,7 @@ def tan(x):
     y : PrimExpr
         The result.
     """
+    x = convert(x)
     return call_intrin(x.dtype, "tir.tan", x)
 
 
@@ -1809,6 +1995,7 @@ def cos(x):
     y : PrimExpr
         The result.
     """
+    x = convert(x)
     return call_intrin(x.dtype, "tir.cos", x)
 
 
@@ -1825,6 +2012,7 @@ def cosh(x):
     y : PrimExpr
         The result.
     """
+    x = convert(x)
     return call_intrin(x.dtype, "tir.cosh", x)
 
 
@@ -1841,6 +2029,7 @@ def acos(x):
     y : PrimExpr
         The result.
     """
+    x = convert(x)
     return call_intrin(x.dtype, "tir.acos", x)
 
 
@@ -1857,6 +2046,7 @@ def acosh(x):
     y : PrimExpr
         The result.
     """
+    x = convert(x)
     return call_intrin(x.dtype, "tir.acosh", x)
 
 
@@ -1873,6 +2063,7 @@ def sin(x):
     y : PrimExpr
         The result.
     """
+    x = convert(x)
     return call_intrin(x.dtype, "tir.sin", x)
 
 
@@ -1889,6 +2080,7 @@ def sinh(x):
     y : PrimExpr
         The result.
     """
+    x = convert(x)
     return call_intrin(x.dtype, "tir.sinh", x)
 
 
@@ -1905,6 +2097,7 @@ def asin(x):
     y : PrimExpr
         The result.
     """
+    x = convert(x)
     return call_intrin(x.dtype, "tir.asin", x)
 
 
@@ -1921,6 +2114,7 @@ def asinh(x):
     y : PrimExpr
         The result.
     """
+    x = convert(x)
     return call_intrin(x.dtype, "tir.asinh", x)
 
 
@@ -1937,6 +2131,7 @@ def atan(x):
     y : PrimExpr
         The result.
     """
+    x = convert(x)
     return call_intrin(x.dtype, "tir.atan", x)
 
 
@@ -1953,6 +2148,7 @@ def atanh(x):
     y : PrimExpr
         The result.
     """
+    x = convert(x)
     return call_intrin(x.dtype, "tir.atanh", x)
 
 
@@ -1972,6 +2168,8 @@ def atan2(x1, x2):
     y : PrimExpr
         The result.
     """
+    x1 = convert(x1)
+    x2 = convert(x2)
     return call_intrin(x1.dtype, "tir.atan2", x1, x2)
 
 
@@ -1988,6 +2186,7 @@ def sqrt(x):
     y : PrimExpr
         The result.
     """
+    x = convert(x)
     return call_intrin(x.dtype, "tir.sqrt", x)
 
 
@@ -2004,6 +2203,7 @@ def rsqrt(x):
     y : PrimExpr
         The result.
     """
+    x = convert(x)
     return call_intrin(x.dtype, "tir.rsqrt", x)
 
 
@@ -2249,6 +2449,8 @@ def nextafter(x1, x2):
     y : PrimExpr
         The result.
     """
+    x1 = convert(x1)
+    x2 = convert(x2)
     return call_intrin(x1.dtype, "tir.nextafter", x1, x2)  # type: ignore
 
 
@@ -2268,6 +2470,8 @@ def hypot(x1, x2):
     y : PrimExpr
         The result.
     """
+    x1 = convert(x1)
+    x2 = convert(x2)
     return call_intrin(x1.dtype, "tir.hypot", x1, x2)  # type: ignore
 
 
@@ -2287,6 +2491,8 @@ def copysign(x1, x2):
     y : PrimExpr
         The result.
     """
+    x1 = convert(x1)
+    x2 = convert(x2)
     return call_intrin(x1.dtype, "tir.copysign", x1, x2)  # type: ignore
 
 
@@ -2306,6 +2512,8 @@ def ldexp(x1, x2):
     y : PrimExpr
         The result.
     """
+    x1 = convert(x1)
+    x2 = convert(x2)
     return call_intrin(x1.dtype, "tir.ldexp", x1, x2)  # type: ignore
 
 
@@ -2462,6 +2670,7 @@ def popcount(x):
     y : PrimExpr
         The result.
     """
+    x = convert(x)
     return call_intrin(x.dtype, "tir.popcount", x)
 
 
@@ -2593,6 +2802,8 @@ def fmod(x, y):
     z : PrimExpr
         The result.
     """
+    x = convert(x)
+    y = convert(y)
     return call_intrin(x.dtype, "tir.fmod", x, y)
 
 
@@ -2938,10 +3149,16 @@ def comm_reducer(fcombine, fidentity, name="reduce"):
         if isinstance(axis, (tvm.tir.IterVar, list, tuple)):
             assert not args
             return _make_reduce(expr, axis, where, init)
+
         if where is None:
             assert not args
+            assert init is None
             return _reduce_directly(expr, axis)
-        return _reduce_directly(expr, axis, where, *args)
+        elif init is None:
+            assert not args
+            return _reduce_directly(expr, axis, where)
+        else:
+            return _reduce_directly(expr, axis, where, init, *args)
 
     doc_str = """Create a {0} expression over axis.
 

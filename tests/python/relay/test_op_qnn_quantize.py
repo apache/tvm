@@ -28,7 +28,7 @@ def quantize_test_driver(in_dtype, quant_args, axis, out_dtype, in_data, verify_
     input_data = relay.var("input_data", shape=shape, dtype=in_dtype)
     output_zero_point = relay.const(quant_args["out_zero_point"])
     output_scale = relay.const(quant_args["out_scale"])
-    quantized_output = relay.qnn.op.quantize(
+    quantized_output = relay.qnn.quantize(
         input_data,
         output_scale=output_scale,
         output_zero_point=output_zero_point,
@@ -83,6 +83,28 @@ def test_float32_to_int8():
         quant_args=quant_args,
         axis=-1,
         out_dtype="int8",
+        in_data=data,
+        verify_output_data=output,
+    )
+
+
+def test_float32_to_uint16():
+    data = (
+        np.array([-6553, -6552.8, -6552.6, -6552.4, -6552.2, 6553.2, 6553.4, 6553.6, 6553.8, 6554])
+        .astype("float32")
+        .reshape((2, 5))
+    )
+    output = (
+        np.array([0, 1, 2, 3, 4, 65531, 65532, 65533, 65534, 65535])
+        .astype("uint16")
+        .reshape((2, 5))
+    )
+    quant_args = {"out_zero_point": np.int32(32765), "out_scale": np.float32(0.2)}
+    quantize_test_driver(
+        in_dtype="float32",
+        quant_args=quant_args,
+        axis=-1,
+        out_dtype="uint16",
         in_data=data,
         verify_output_data=output,
     )
@@ -153,7 +175,7 @@ def test_dynamic_quantize():
     scale_var = relay.var("scale", shape=(), dtype="float32")
     zp_var = relay.var("zp", shape=(), dtype="int32")
 
-    q_x = relay.qnn.op.quantize(x, scale_var * scale_var, zp_var + zp_var)
+    q_x = relay.qnn.quantize(x, scale_var * scale_var, zp_var + zp_var)
     tt = run_infer_type(q_x)
 
     assert tt.checked_type == relay.TensorType((1, 2, 3, 4), "int8")
@@ -177,6 +199,7 @@ def test_dynamic_quantize():
 if __name__ == "__main__":
     test_float32_to_uint8()
     test_float32_to_int8()
+    test_float32_to_uint16()
     test_scalar_float32_to_int8()
     test_channelwise_axis_0()
     test_channelwise_axis_1()

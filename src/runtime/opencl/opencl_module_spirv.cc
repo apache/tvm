@@ -39,9 +39,9 @@ class OpenCLSPIRVModuleNode : public OpenCLModuleNodeBase {
                                  std::unordered_map<std::string, FunctionInfo> fmap)
       : OpenCLModuleNodeBase(fmap), shaders_(shaders), spirv_text_(spirv_text) {}
 
-  void SaveToFile(const std::string& file_name, const std::string& format) final;
+  void SaveToFile(const String& file_name, const String& format) final;
   void SaveToBinary(dmlc::Stream* stream) final;
-  std::string GetSource(const std::string&) final { return spirv_text_; }
+  String GetSource(const String&) final { return spirv_text_; }
 
   void Init() override;
   cl_kernel InstallKernel(cl::OpenCLWorkspace* w, cl::OpenCLThreadEntry* t,
@@ -52,7 +52,7 @@ class OpenCLSPIRVModuleNode : public OpenCLModuleNodeBase {
   std::string spirv_text_;
 };
 
-void OpenCLSPIRVModuleNode::SaveToFile(const std::string& file_name, const std::string& format) {
+void OpenCLSPIRVModuleNode::SaveToFile(const String& file_name, const String& format) {
   // TODO(masahi): How SPIRV binaries should be save to a file?
   LOG(FATAL) << "Not implemented.";
 }

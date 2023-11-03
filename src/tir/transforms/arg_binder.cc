@@ -206,6 +206,7 @@ void ArgBinder::BindDLTensor(const Buffer& buffer, const PrimExpr& device_type,
   def_handle_dtype_.Set(v_shape, make_const(tvm_shape_type, 0));
   init_nest_.emplace_back(
       LetStmt(buf_shape->data, TVMArrayGet(DataType::Handle(), handle, builtin::kArrShape), nop));
+  init_nest_.emplace_back(DeclBuffer(buf_shape, nop));
   for (size_t k = 0; k < buffer->shape.size(); ++k) {
     if (buffer->dtype == DataType::Int(4) || buffer->dtype == DataType::UInt(4) ||
         buffer->dtype == DataType::Int(1)) {
@@ -221,6 +222,7 @@ void ArgBinder::BindDLTensor(const Buffer& buffer, const PrimExpr& device_type,
   def_handle_dtype_.Set(buf_strides->data, tir::TypeAnnotation(tvm_shape_type));
   init_nest_.emplace_back(LetStmt(
       buf_strides->data, TVMArrayGet(DataType::Handle(), handle, builtin::kArrStrides), nop));
+  init_nest_.emplace_back(DeclBuffer(buf_strides, nop));
   PrimExpr v_strides_is_null = Call(DataType::Bool(1), builtin::isnullptr(), {buf_strides->data});
   if (buffer->strides.size() == 0) {
     // Assert the buffer is compact

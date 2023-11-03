@@ -773,7 +773,7 @@ The input cache grows to hold the vertically adjacent slice:
 
 *Filter Cache*
 
-The filter cache grows to hold the 3x3 filter filter:
+The filter cache grows to hold the 3x3 filter:
 
 ```
   allocate(packed_filter.global: Pointer(global float32), float32, [73728]), storage_scope = global;

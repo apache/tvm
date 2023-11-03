@@ -166,8 +166,10 @@ def compute_conv2d_gemm_without_weight_transform(
     pad_before = (0, 0, 0)
     pad_after = (0, pad_M, pad_K)
 
-    if pad_M != 0 or pad_K != 0:
-        A = nn.pad(A, pad_before=pad_before, pad_after=pad_after, name="A_padded")
+    if pad_K != 0:
+        A = nn.pad(A, pad_before=pad_before, pad_after=pad_after, name="A_padded_K")
+    elif pad_M != 0:
+        A = nn.pad(A, pad_before=pad_before, pad_after=pad_after, name="A_padded_M")
 
     idxm = tvm.tir.indexmod
     k = te.reduce_axis((0, K_padded), "k")
@@ -211,18 +213,45 @@ def compute_conv2d_gemm_without_weight_transform(
                 ),
                 name="C_interleaved",
             )
+            # Ensure the padding needed for tensorize does not get removed during tir passes
+            # by adding a dummy reference to the specific padded area of the result
+            zero = (
+                tvm.tir.const(1, C_interleaved.dtype)
+                * C_interleaved[
+                    batches - 1,
+                    M // tile_rows_A,
+                    N_transformed - 1,
+                    idxm(M, tile_rows_A) // 2,
+                    tile_rows_B // 2 - 1,
+                    1,
+                    1,
+                ]
+                - tvm.tir.const(1, C_interleaved.dtype)
+                * C_interleaved[
+                    batches - 1,
+                    M // tile_rows_A,
+                    N_transformed - 1,
+                    idxm(M, tile_rows_A) // 2,
+                    tile_rows_B // 2 - 1,
+                    1,
+                    1,
+                ]
+            )
             # Unpack the result
             C = te.compute(
                 (batches, M, N),
-                lambda b, x, y: C_interleaved[
-                    b,
-                    x // tile_rows_A,
-                    y // tile_rows_B,
-                    idxm(x, tile_rows_A) // 2,
-                    idxm(y, tile_rows_B) // 2,
-                    idxm(idxm(x, tile_rows_A), 2),
-                    idxm(idxm(y, tile_rows_B), 2),
-                ].astype(out_dtype),
+                lambda b, x, y: (
+                    C_interleaved[
+                        b,
+                        x // tile_rows_A,
+                        y // tile_rows_B,
+                        idxm(x, tile_rows_A) // 2,
+                        idxm(y, tile_rows_B) // 2,
+                        idxm(idxm(x, tile_rows_A), 2),
+                        idxm(idxm(y, tile_rows_B), 2),
+                    ]
+                    + zero
+                ).astype(out_dtype),
                 name="C",
             )
         else:
@@ -289,7 +318,7 @@ def schedule_conv2d_gemm_interleaved(cfg, s, out, final_out):
 
     # Input transform
     A_interleaved_input = A_interleaved.op.input_tensors[0]
-    if A_interleaved_input.op.name == "A_padded":
+    if A_interleaved_input.op.name == "A_padded_K" or A_interleaved_input.op.name == "A_padded_M":
         s[A_interleaved_input].compute_at(s[A_interleaved], A_interleaved.op.axis[3])
         s[A_interleaved_input].vectorize(A_interleaved_input.op.axis[2])
         s[A_interleaved_input].compute_inline()
@@ -299,7 +328,12 @@ def schedule_conv2d_gemm_interleaved(cfg, s, out, final_out):
 
     b, m, n = data_im2col.op.axis
     if data_im2col.op.name == "data_im2col":
-        n_outer, n_inner = s[data_im2col].split(n, 16)
+        n_size = data_im2col.shape[2]
+        if n_size % 16 == 0:
+            split_factor = 16
+        else:
+            split_factor = 8
+        n_outer, n_inner = s[data_im2col].split(n, split_factor)
         s[data_im2col].unroll(n_outer)
         s[data_im2col].vectorize(n_inner)
         b_m_fused = s[data_im2col].fuse(b, m)
@@ -384,7 +418,8 @@ def schedule_conv2d_gemm_native(cfg, s, out, final_out):
     b, x, y = C.op.axis
     (k,) = C.op.reduce_axis
     k_outer, k_inner = s[C].split(k, 16)
-    x_outer, y_outer, x_inner, y_inner = s[C].tile(x, y, x_factor=4, y_factor=16)
+    y_tile_size = 16
+    x_outer, y_outer, x_inner, y_inner = s[C].tile(x, y, x_factor=4, y_factor=y_tile_size)
     s[C].reorder(b, x_outer, y_outer, k_outer, x_inner, y_inner, k_inner)
     gemm_acc = gemm_acc_nx16_int8_int8_int32(in_type, rows=1)
     s[C].unroll(x_inner)
@@ -392,7 +427,7 @@ def schedule_conv2d_gemm_native(cfg, s, out, final_out):
     s[C].parallel(x_outer)
 
     # Input transform
-    if A.op.name == "A_padded":
+    if A.op.name == "A_padded_K" or A.op.name == "A_padded_M":
         padding_A = True
         data_im2col = A.op.input_tensors[0]
     else:
@@ -401,12 +436,32 @@ def schedule_conv2d_gemm_native(cfg, s, out, final_out):
 
     b, m, n = data_im2col.op.axis
     if data_im2col.op.name == "data_im2col":
-        n_outer, n_inner = s[data_im2col].split(n, 16)
+        # Either only pad_K or both pad_K and pad_M applied
+        if A.op.name == "A_padded_K":
+            s[data_im2col].compute_at(s[A], A.op.axis[1])
+            s[A].parallel(A.op.axis[1])
+        # Only pad_M applied
+        elif A.op.name == "A_padded_M":
+            s[data_im2col].parallel(m)
+            s[A].parallel(A.op.axis[1])
+        # No padding
+        else:
+            s[data_im2col].parallel(m)
+
+        split_factor = 16
+        n_size = data_im2col.shape[2]
+        if n_size % split_factor != 0:
+            # Split by kernel area (KH * KW) to ensure proper vectorization
+            ic = data_im2col.op.input_tensors[0].shape[3]
+            split_factor = n_size // ic
+
+        n_outer, n_inner = s[data_im2col].split(n, split_factor)
         s[data_im2col].unroll(n_outer)
         s[data_im2col].vectorize(n_inner)
-        s[data_im2col].parallel(m)
     elif padding_A:
         s[data_im2col].compute_inline()
+        _, n_inner = s[A].split(A.op.axis[2], y_tile_size)
+        s[A].vectorize(n_inner)
         s[A].compute_at(s[C], x_inner)
     else:
         s[data_im2col].compute_at(s[C], x_inner)

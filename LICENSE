@@ -214,7 +214,7 @@ Apache Software Foundation License 2.0
 3rdparty/OpenCL-Headers
 3rdparty/mlperftiny
 3rdparty/nvbench (with LLVM exception)
-
+3rdparty/cutlass_fpA_intB_gemm
 
 BSD 2-clause License
 --------------------
@@ -247,3 +247,4 @@ BSD 3-Clause "New" or "Revised" License
 
 3rdparty/cutlass
 3rdparty/libbacktrace
+3rdparty/libflash_attn

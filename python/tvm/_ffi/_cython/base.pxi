@@ -15,7 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 
-from ..base import get_last_ffi_error
+from ..base import raise_last_ffi_error
 from libcpp.vector cimport vector
 from cpython.version cimport PY_MAJOR_VERSION
 from cpython cimport pycapsule
@@ -113,6 +113,7 @@ ctypedef void (*TVMPackedCFuncFinalizer)(void* resource_handle)
 # We mark the possibly long running function as nogil below.
 cdef extern from "tvm/runtime/c_runtime_api.h":
     void TVMAPISetLastError(const char* msg)
+    void TVMAPISetLastPythonError(void* py_object) except +
     const char *TVMGetLastError()
     int TVMFuncGetGlobal(const char* name,
                          TVMPackedFuncHandle* out)
@@ -178,7 +179,7 @@ cdef inline int CHECK_CALL(int ret) except -2:
     if ret == -2:
         return -2
     if ret != 0:
-        raise get_last_ffi_error()
+        raise_last_ffi_error()
     return 0
 
 

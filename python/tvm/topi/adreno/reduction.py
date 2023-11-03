@@ -51,7 +51,7 @@ def _schedule_reduce_adreno(op, sch, is_idx_reduce=False):
         sch[temp_val_input].set_scope("local")
 
     shape = get_const_tuple(sch_output.shape)
-    latest4 = shape[-1] == 4
+    latest4 = len(shape) > 0 and shape[-1] == 4
     div4 = numpy.prod(shape) % 4 == 0
 
     # Fuse and split the axis

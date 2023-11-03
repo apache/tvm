@@ -210,10 +210,7 @@ class XGBModel(PythonBasedModel):
                 CustomCallback(
                     stopping_rounds=50,
                     metric="tr-p-rmse",
-                    fevals=[
-                        pack_sum_rmse,
-                        pack_sum_average_peak_score(self.plan_size),
-                    ],
+                    fevals=[pack_sum_rmse, pack_sum_average_peak_score(self.plan_size)],
                     evals=[(dtrain, "tr")],
                     maximize=False,
                     verbose_eval=self.verbose_eval,
@@ -302,12 +299,7 @@ class XGBModel(PythonBasedModel):
                 breakdown = np.concatenate((breakdown, np.array(stage_score)))
         else:
             breakdown = np.concatenate(
-                (
-                    np.random.uniform(0, 1, (len(states),)),
-                    np.zeros(
-                        len(states),
-                    ),
-                )
+                (np.random.uniform(0, 1, (len(states),)), np.zeros(len(states)))
             )
 
         # Predict 0 for invalid states that failed to be lowered.
@@ -543,7 +535,7 @@ def pack_sum_average_peak_score(N):
             trial_scores = labels_group[trials]
             curve = max_curve(trial_scores) / np.max(labels_group)
             scores.append(np.mean(curve))
-        return "a-peak@%d" % N, np.mean(scores)
+        return f"a-peak@{N}", np.mean(scores)
 
     return feval
 
@@ -647,11 +639,11 @@ class CustomCallback(XGBoostCallback):
             and self.verbose_eval
             and epoch % self.verbose_eval == 0
         ):
-            infos = ["XGB iter: %3d" % epoch]
+            infos = [f"XGB iter: {epoch:3d}"]
             for item in eval_res:
                 if "null" in item[0]:
                     continue
-                infos.append("%s: %.6f" % (item[0], item[1]))
+                infos.append(f"{item[0]}: {item[1]:.6f}")
 
             logger.debug("\t".join(infos))
             if self.log_file:
@@ -671,7 +663,7 @@ class CustomCallback(XGBoostCallback):
         maximize_score = self.state["maximize_score"]
 
         if (maximize_score and score > best_score) or (not maximize_score and score < best_score):
-            msg = "[%d] %s" % (epoch, "\t".join([_fmt_metric(x) for x in eval_res]))
+            msg = f"[{epoch}] " + "\t".join([_fmt_metric(x) for x in eval_res])
             self.state["best_msg"] = msg
             self.state["best_score"] = score
             self.state["best_iteration"] = epoch

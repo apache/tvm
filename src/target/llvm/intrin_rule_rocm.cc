@@ -22,6 +22,7 @@
  */
 #ifdef TVM_LLVM_VERSION
 
+#include <llvm/IR/Intrinsics.h>
 #include <tvm/runtime/registry.h>
 #include <tvm/tir/builtin.h>
 #include <tvm/tir/expr.h>
@@ -29,6 +30,8 @@
 #include <tvm/tir/op_attr_types.h>
 
 #include <sstream>
+
+#include "intrin_rule_llvm.h"
 
 namespace tvm {
 namespace codegen {
@@ -86,7 +89,7 @@ inline PrimExpr DispatchShuffle(const PrimExpr& e) {
     index = self + delta;
     index = Select((self & (width - 1)) + delta >= width, self, index);
   }
-  PrimExpr res = Call(var.dtype(), builtin::call_pure_extern(),
+  PrimExpr res = Call(DataType::Int(32), builtin::call_pure_extern(),
                       {StringImm("llvm.amdgcn.ds.bpermute"), index << 2, var});
   return res;
 }
@@ -140,8 +143,8 @@ TVM_REGISTER_OP("tir.exp10")
 TVM_REGISTER_OP("tir.erf").set_attr<FLowerIntrinsic>("rocm.FLowerIntrinsic",
                                                      DispatchPureExternOCML);
 
-TVM_REGISTER_OP("tir.fma").set_attr<FLowerIntrinsic>("rocm.FLowerIntrinsic",
-                                                     DispatchPureExternOCML);
+TVM_REGISTER_OP("tir.fma").set_attr<FLowerIntrinsic>(
+    "rocm.FLowerIntrinsic", DispatchLLVMPureIntrin<::llvm::Intrinsic::fmuladd, 3>);
 
 TVM_REGISTER_OP("tir.log").set_attr<FLowerIntrinsic>("rocm.FLowerIntrinsic",
                                                      DispatchPureExternOCML);

@@ -77,7 +77,6 @@ import sys
 import textwrap
 import time
 import shutil
-import subprocess
 
 from pathlib import Path
 from typing import Optional, Callable, Union, List, Tuple
@@ -91,7 +90,8 @@ import tvm.tir
 import tvm.te
 import tvm._ffi
 
-from tvm.contrib import nvcc, cudnn
+from tvm.target import codegen
+from tvm.contrib import nvcc, cudnn, rocm
 import tvm.contrib.hexagon._ci_env_check as hexagon
 from tvm.driver.tvmc.frontends import load_model
 from tvm.error import TVMError
@@ -914,6 +914,14 @@ requires_rocm = Feature(
     parent_features="gpu",
 )
 
+# Mark a test as requiring a matrixcore to run
+requires_matrixcore = Feature(
+    "matrixcore",
+    "AMD Matrix Core",
+    run_time_check=lambda: tvm.rocm().exist and rocm.have_matrixcore(tvm.rocm().compute_version),
+    parent_features="rocm",
+)
+
 # Mark a test as requiring the metal runtime
 requires_metal = Feature(
     "metal",
@@ -955,6 +963,9 @@ requires_rpc = Feature("rpc", "RPC", cmake_flag="USE_RPC")
 # Mark a test as requiring Arm(R) Ethos(TM)-N to run
 requires_ethosn = Feature("ethosn", "Arm(R) Ethos(TM)-N", cmake_flag="USE_ETHOSN")
 
+# Mark a test as requiring Arm(R) Ethos(TM)-U to run
+requires_ethosu = Feature("ethosu", "Arm(R) Ethos(TM)-U", cmake_flag="USE_ETHOSU")
+
 # Mark a test as requiring libtorch to run
 requires_libtorch = Feature("libtorch", "LibTorch", cmake_flag="USE_LIBTORCH")
 
@@ -991,76 +1002,43 @@ requires_corstone300 = Feature(
 requires_vitis_ai = Feature("vitis_ai", "Vitis AI", cmake_flag="USE_VITIS_AI")
 
 
-def _arm_dot_supported():
-    arch = platform.machine()
+# check cpu features
+def _has_cpu_feat(features):
+    cpu = codegen.llvm_get_system_cpu()
+    triple = codegen.llvm_get_system_triple()
+    target = "llvm -mtriple=%s -mcpu=%s" % (triple, cpu)
+    has_feat = codegen.target_has_features(features, tvm.target.Target(target))
 
-    if arch not in ["arm64", "aarch64"]:
-        return False
-
-    if sys.platform.startswith("darwin"):
-        cpu_info = subprocess.check_output("sysctl -a", shell=True).strip().decode()
-        for line in cpu_info.split("\n"):
-            if line.startswith("hw.optional.arm.FEAT_DotProd"):
-                return bool(int(line.split(":", 1)[1]))
-    elif sys.platform.startswith("linux"):
-        return True
-
-    return False
+    return has_feat
 
 
-def _is_intel():
-    # Only linux is supported for now.
-    if sys.platform.startswith("linux"):
-        with open("/proc/cpuinfo", "r") as content:
-            return "Intel" in content.read()
-
-    return False
-
-
-def _has_vnni():
-    arch = platform.machine()
-    # Only linux is supported for now.
-    if arch == "x86_64" and sys.platform.startswith("linux"):
-        with open("/proc/cpuinfo", "r") as content:
-            return "avx512_vnni" in content.read()
-
-    return False
-
-
-# check avx512 intrinsic groups for SkyLake X
-def _has_slavx512():
-    # Check LLVM support
-    llvm_version = tvm.target.codegen.llvm_version_major()
-    is_llvm_support = llvm_version >= 8
-    arch = platform.machine()
-    # Only linux is supported for now.
-    if arch == "x86_64" and sys.platform.startswith("linux"):
-        with open("/proc/cpuinfo", "r") as content:
-            ctx = content.read()
-            check = (
-                "avx512f" in ctx
-                and "avx512cd" in ctx
-                and "avx512bw" in ctx
-                and "avx512dq" in ctx
-                and "avx512vl" in ctx
-            )
-            return check and is_llvm_support
-
-    return False
-
-
-requires_arm_dot = Feature("arm_dot", "ARM dot product", run_time_check=_arm_dot_supported)
-
-
-requires_cascadelake = Feature(
-    "cascadelake", "x86 CascadeLake", run_time_check=lambda: _has_vnni() and _is_intel()
+requires_arm_dot = Feature(
+    "arm_dot",
+    "ARM dot product",
+    run_time_check=lambda: _has_cpu_feat("dotprod"),
 )
 
 
-requires_skylake_avx512 = Feature(
-    "skylake_avx512",
-    "x86 SkyLake AVX512",
-    run_time_check=lambda: _has_slavx512() and _is_intel(),
+requires_x86_vnni = Feature(
+    "x86_vnni",
+    "x86 VNNI Extensions",
+    run_time_check=lambda: (_has_cpu_feat("avx512vnni") or _has_cpu_feat("avxvnni")),
+)
+
+
+requires_x86_avx512 = Feature(
+    "x86_avx512",
+    "x86 AVX512 Extensions",
+    run_time_check=lambda: _has_cpu_feat(
+        ["avx512bw", "avx512cd", "avx512dq", "avx512vl", "avx512f"]
+    ),
+)
+
+
+requires_x86_amx = Feature(
+    "x86_amx",
+    "x86 AMX Extensions",
+    run_time_check=lambda: _has_cpu_feat("amx-int8"),
 )
 
 
@@ -1239,7 +1217,6 @@ def requires_package(*packages):
 
 
 def parametrize_targets(*args):
-
     """Parametrize a test over a specific set of targets.
 
     Use this decorator when you want your test to be run over a
@@ -1503,7 +1480,6 @@ def parameters(*value_sets, ids=None):
 
     outputs = []
     for param_values in zip(*value_sets):
-
         # Optional cls parameter in case a parameter is defined inside a
         # class scope.
         def fixture_func(*_cls, request):
@@ -1881,7 +1857,7 @@ class CompareBeforeAfter:
     input, apply a transformation, then either compare against an
     expected output or assert that the transformation raised an error.
     A test should subclass CompareBeforeAfter, defining class members
-    `before`, `transform`, and `expected`.  CompareBeforeAfter will
+    `before` / `Before`, `transform`, and `expected` / `Expected`.  CompareBeforeAfter will
     then use these members to define a test method and test fixture.
 
     `transform` may be one of the following.
@@ -1892,7 +1868,7 @@ class CompareBeforeAfter:
 
     - A pytest fixture that returns a `tvm.ir.transform.Pass`
 
-    `before` may be any one of the following.
+    `before` / `Before` may be any one of the following.
 
     - An instance of `tvm.tir.PrimFunc`.  This is allowed, but is not
       the preferred method, as any errors in constructing the
@@ -1907,13 +1883,13 @@ class CompareBeforeAfter:
 
     - A pytest fixture that returns a `tvm.tir.PrimFunc`
 
-    `expected` may be any one of the following.  The type of
-    `expected` defines the test being performed.  If `expected`
+    `expected` / `Expected` may be any one of the following.  The type of
+    `expected` / `Expected` defines the test being performed.  If `expected`
     provides a `tvm.tir.PrimFunc`, the result of the transformation
     must match `expected`.  If `expected` is an exception, then the
     transformation must raise that exception type.
 
-    - Any option supported for `before`.
+    - Any option supported for `before` / `Before`.
 
     - The `Exception` class object, or a class object that inherits
       from `Exception`.
@@ -1944,10 +1920,19 @@ class CompareBeforeAfter:
     """
 
     def __init_subclass__(cls):
-        if hasattr(cls, "before"):
-            cls.before = cls._normalize_before(cls.before)
-        if hasattr(cls, "expected"):
-            cls.expected = cls._normalize_expected(cls.expected)
+        assert len([getattr(cls, name) for name in ["before", "Before"] if hasattr(cls, name)]) <= 1
+        assert (
+            len([getattr(cls, name) for name in ["expected", "Expected"] if hasattr(cls, name)])
+            <= 1
+        )
+        for name in ["before", "Before"]:
+            if hasattr(cls, name):
+                cls.before = cls._normalize_before(getattr(cls, name))
+                break
+        for name in ["expected", "Expected"]:
+            if hasattr(cls, name):
+                cls.expected = cls._normalize_expected(getattr(cls, name))
+                break
         if hasattr(cls, "transform"):
             cls.transform = cls._normalize_transform(cls.transform)
 
@@ -1974,11 +1959,11 @@ class CompareBeforeAfter:
                     if name.startswith("_"):
                         pass
                     elif isinstance(method, tvm.ir.function.BaseFunc):
-                        func_dict[name] = method
+                        func_dict[name] = method.with_attr("global_symbol", name)
                     else:
                         source_code = "@T.prim_func\n" + textwrap.dedent(inspect.getsource(method))
                         prim_func = tvm.script.from_source(source_code)
-                        func_dict[name] = prim_func
+                        func_dict[name] = prim_func.with_attr("global_symbol", name)
                 return tvm.IRModule(func_dict)
 
         else:
@@ -2029,7 +2014,6 @@ class CompareBeforeAfter:
             return inner
 
         if hasattr(transform, "_pytestfixturefunction"):
-
             if not hasattr(cls, "_transform_orig"):
                 cls._transform_orig = transform
 
@@ -2050,7 +2034,6 @@ class CompareBeforeAfter:
                 return apply(transform(self))
 
         else:
-
             raise TypeError(
                 "Expected transform to be a tvm.ir.transform.Pass, or a method returning a Pass"
             )
@@ -2086,6 +2069,10 @@ class CompareBeforeAfter:
             after = transform(before)
 
             try:
+                # overwrite global symbol so it doesn't come up in the comparison
+                if isinstance(after, tvm.tir.PrimFunc):
+                    after = after.with_attr("global_symbol", "main")
+                    expected = expected.with_attr("global_symbol", "main")
                 tvm.ir.assert_structural_equal(after, expected)
             except ValueError as err:
                 before_str = before.script(name="before")

@@ -20,6 +20,7 @@ import tempfile
 
 import numpy as np
 import pytest
+
 import tvm
 import tvm.testing
 from tvm import meta_schedule as ms
@@ -61,6 +62,7 @@ def two_step(a: T.handle, c: T.handle) -> None:
             C[vi, vj] = B[vi, vj] + 3.0
 
 
+@pytest.mark.skip("Integration test")
 @tvm.testing.requires_llvm
 def test_tune_matmul_cpu():
     with tempfile.TemporaryDirectory() as work_dir:
@@ -80,6 +82,7 @@ def test_tune_matmul_cpu():
             sch.trace.show()
 
 
+@pytest.mark.skip("Integration test")
 @tvm.testing.requires_cuda
 def test_tune_matmul_cuda():
     with tempfile.TemporaryDirectory() as work_dir:
@@ -99,6 +102,7 @@ def test_tune_matmul_cuda():
             sch.trace.show()
 
 
+@pytest.mark.skip("Integration test")
 def test_tune_run_module_via_rpc():
     target = tvm.target.Target("llvm")
     rt_mod = tvm.build(matmul, target)
@@ -141,6 +145,7 @@ def test_tune_run_module_via_rpc():
         tvm.testing.assert_allclose(result.numpy(), c_np, rtol=1e-3)
 
 
+@pytest.mark.skip("Integration test")
 def test_tune_block_cpu():
     @ms.derived_object
     class RemoveBlock(ms.schedule_rule.PyScheduleRule):

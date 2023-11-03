@@ -160,32 +160,52 @@ class SimplifyConsecutiveCast : public DFPatternRewrite {
   DFPattern cast1_;
 };
 
-bool CheckDataTypeMaxMinValue(DataType dtype, double min_value, double max_value) {
+/*! If mode == 0, return true if the interval [min_value, max_value] contains the range of dtype,
+ * and return false otherwise. If mode == 1, return true if the interval [min_value, max_value] is
+ * contained by the range of dtype, and return false otherwise.*/
+bool CheckDataTypeMaxMinValue(DataType dtype, double min_value, double max_value, int mode = 0) {
+  double lbound{}, ubound{};
   if (dtype.is_int() || dtype.is_uint()) {
-    double ubound = static_cast<double>(Downcast<IntImm>(tvm::max_value(dtype))->value);
-    double lbound = static_cast<double>(Downcast<IntImm>(tvm::min_value(dtype))->value);
-    return ubound == max_value && lbound == min_value;
-  } else if (dtype.is_float()) {
-    double ubound = Downcast<FloatImm>(tvm::max_value(dtype))->value;
-    double lbound = Downcast<FloatImm>(tvm::min_value(dtype))->value;
-    return ubound == max_value && lbound == min_value;
+    ubound = static_cast<double>(Downcast<IntImm>(tvm::max_value(dtype))->value);
+    lbound = static_cast<double>(Downcast<IntImm>(tvm::min_value(dtype))->value);
+  } else if (dtype.is_float() || dtype.is_bfloat16()) {
+    ubound = Downcast<FloatImm>(tvm::max_value(dtype))->value;
+    lbound = Downcast<FloatImm>(tvm::min_value(dtype))->value;
   }
-
-  return false;
+  if (mode == 0) {
+    return max_value >= ubound && min_value <= lbound;
+  } else if (mode == 1) {
+    return max_value <= ubound && min_value >= lbound;
+  } else {
+    LOG(FATAL) << "invalid mode " << mode << " in CheckDataTypeMaxMinValue";
+    return false;
+  }
 }
 
 /*!
- * \brief SimplifyClipAndConsecutiveCast matches the pattern clip->cast->cast and remove redundant
- *   casts.
- * Analysis of "redundancy" is done based on clip min/max values and min/max values of casted data
- * type.
+ * \brief SimplifyClipAndConsecutiveCast matches the pattern clip->cast->...->cast and remove
+ * redundant casts. Analysis of "redundancy" is done based on clip min/max values and min/max values
+ * of casted data type.
+ *
+ * Example:
+ *   %0 == [type=int32]
+ *   %1 = clip(%0, a_min=0f, a_max=255f) [type=int32]
+ *   %2 = cast(%1, dtype="uint8") [type=uint8]
+ *   %3 = cast(%2, dtype="int32") [type=int32]
+ *
+ * Optimized to (both casts can be removed):
+ *   %1 = clip(%0, a_min=0f, a_max=255f) [type=int32]
  */
 class SimplifyClipAndConsecutiveCast : public DFPatternRewrite {
  public:
   SimplifyClipAndConsecutiveCast() {
     clip_ = IsOp("clip")({IsWildcard()});
-    cast1_ = IsOp("cast")({clip_});
-    pattern_ = IsOp("cast")({cast1_});
+    ObjectPtr<CallPatternNode> pattern_ptr = make_object<CallPatternNode>();
+    pattern_ptr->op = IsOp("cast");
+    pattern_ptr->args.clear();
+    pattern_ = CallPattern(pattern_ptr);
+    AltPattern or_pattern{pattern_, clip_};
+    pattern_ptr->args.push_back(or_pattern);
   }
 
   Expr Callback(const Expr& pre, const Expr& post,
@@ -193,39 +213,45 @@ class SimplifyClipAndConsecutiveCast : public DFPatternRewrite {
     auto clip = Downcast<Call>(node_map[clip_][0]);
     const CallNode* clip_node = clip.as<CallNode>();
     const ClipAttrs* clip_attrs = clip_node->attrs.as<ClipAttrs>();
-    DataType clip_dtype = Downcast<TensorType>(clip->checked_type())->dtype;
 
-    auto cast1 = Downcast<Call>(node_map[cast1_][0]);
-    DataType cast1_dtype = Downcast<TensorType>(cast1->checked_type())->dtype;
-
-    auto cast2 = Downcast<Call>(post);
-    DataType cast2_dtype = Downcast<TensorType>(cast2->checked_type())->dtype;
-
-    if (clip_dtype == cast2_dtype &&
-        CheckDataTypeMaxMinValue(cast1_dtype, clip_attrs->a_min, clip_attrs->a_max)) {
-      // Case 1:
-      // Data type of Clip == target data type of second Cast and min/max value of Clip == min/max
-      // value of first Clip target data type. In this case both Clip ops can be removed.
-      // Example:
-      //   %0 == [type=int32]
-      //   %1 = clip(%0, a_min=0f, a_max=255f) [type=int32]
-      //   %2 = cast(%1, dtype="uint8") [type=uint8]
-      //   %3 = cast(%2, dtype="int32") [type=int32]
-      //
-      // Optimized to (both casts can be removed):
-      //   %1 = clip(%0, a_min=0f, a_max=255f) [type=int32]
-      return node_map[clip_][0];
+    std::vector<Expr> remaining_casts{};
+    Expr cast_expr{post};
+    while (cast_expr != clip) {
+      DataType cast_dtype = Downcast<TensorType>(cast_expr->checked_type())->dtype;
+      if (!CheckDataTypeMaxMinValue(cast_dtype, clip_attrs->a_min, clip_attrs->a_max, 1)) {
+        remaining_casts.push_back(cast_expr);
+      }
+      cast_expr = cast_expr.as<CallNode>()->args[0];
     }
-    return post;
+
+    Expr last_op = (remaining_casts.size() == 0) ? clip : remaining_casts[0];
+    DataType last_op_dtype = Downcast<TensorType>(last_op->checked_type())->dtype;
+    bool need_additional_cast{false};
+    if (last_op_dtype != Downcast<TensorType>(post->checked_type())->dtype) {
+      need_additional_cast = true;
+    }
+
+    Expr res{clip};
+    for (size_t i = remaining_casts.size(); i > 0; --i) {
+      auto attrs = make_object<CastAttrs>();
+      attrs->dtype = remaining_casts[i - 1].as<CallNode>()->attrs.as<CastAttrs>()->dtype;
+      res = Call(Op::Get("cast"), {res}, Attrs(attrs), {});
+    }
+    if (need_additional_cast) {
+      auto attrs = make_object<CastAttrs>();
+      attrs->dtype = Downcast<TensorType>(post->checked_type())->dtype;
+      res = Call(Op::Get("cast"), {res}, Attrs(attrs), {});
+    }
+    return res;
   }
 
  protected:
-  DFPattern clip_, cast1_;
+  DFPattern clip_;
 };
 
 /*!
- * \brief SimplifyCastClip matches the pattern cast->clip and remove redundant Cast based on Clip
- *    min/max values and min/max values of Cast target data type.
+ * \brief SimplifyClip removes redundant Clip based on its a_min/a_max values and the min/max values
+ * of the data type.
  *
  * Example:
  *   %1 = cast(%0, dtype="uint8") [type=uint8]
@@ -234,31 +260,71 @@ class SimplifyClipAndConsecutiveCast : public DFPatternRewrite {
  * Optimized to (remove Clip):
  *   %1 = cast(%0, dtype="uint8") [type=uint8]
  */
-class SimplifyCastClip : public DFPatternRewrite {
+class SimplifyClip : public DFPatternRewrite {
  public:
-  SimplifyCastClip() {
-    cast_ = IsOp("cast")({IsWildcard()});
-    pattern_ = IsOp("clip")({cast_});
+  SimplifyClip() {
+    x_ = IsWildcard();
+    pattern_ = IsOp("clip")({x_});
   }
 
   Expr Callback(const Expr& pre, const Expr& post,
                 const Map<DFPattern, Array<Expr>>& node_map) const override {
-    auto cast = Downcast<Call>(node_map[cast_][0]);
-    DataType cast_dtype = Downcast<TensorType>(cast->checked_type())->dtype;
+    DataType cast_dtype = Downcast<TensorType>(pre->checked_type())->dtype;
 
-    auto clip = Downcast<Call>(post);
-    const CallNode* clip_node = clip.as<CallNode>();
+    const CallNode* clip_node = post.as<CallNode>();
     const ClipAttrs* clip_attrs = clip_node->attrs.as<ClipAttrs>();
 
+    // TODO(kfeng123): For now, the arg of "clip" is forced to not be "qnn.requantize" and
+    // "qnn.add". This is to avoid destroying the structure required by LegalizeQnnOpForDnnl
+    auto child{post.as<CallNode>()->args[0].as<CallNode>()};
+    if (child && child->op.as<OpNode>()) {
+      String op_name{child->op.as<OpNode>()->name};
+      if (op_name == "qnn.requantize" || op_name == "qnn.add") {
+        return post;
+      }
+    }
+
     if (CheckDataTypeMaxMinValue(cast_dtype, clip_attrs->a_min, clip_attrs->a_max)) {
-      return node_map[cast_][0];
+      return node_map[x_][0];
     }
     return post;
   }
 
  protected:
-  DFPattern clip_, cast_;
+  DFPattern x_;
 };
+
+/*!
+ * \brief Return the axis order for layout transform and transpose
+ * ops.
+ */
+static std::vector<int> GetTransposeAxisOrder(const Call& call, int ndim) {
+  std::vector<int> attr_axes;
+  if (auto attr = call->attrs.as<TransposeAttrs>()) {
+    if (attr->axes.defined()) {
+      for (int i = 0; i < ndim; ++i) {
+        int64_t axis = attr->axes[i].IntValue();
+        axis += (axis < 0) ? ndim : 0;
+        attr_axes.push_back(axis);
+      }
+    } else {
+      // Empty axes means reverse
+      for (int i = ndim - 1; i >= 0; --i) {
+        attr_axes.push_back(i);
+      }
+    }
+  } else if (auto attr = call->attrs.as<LayoutTransformAttrs>()) {
+    Layout src_layout(attr->src_layout);
+    Layout dst_layout(attr->dst_layout);
+    for (int i = 0; i < ndim; ++i) {
+      attr_axes.push_back(src_layout.IndexOf(dst_layout[i]));
+    }
+  } else {
+    CHECK(false) << "Expected transpose or layout_transform, but got "
+                 << Downcast<Op>(call->op)->name;
+  }
+  return std::move(attr_axes);
+}
 
 /*!
  * \brief SimplifyTranspose matches the pattern of consecutive transpose op,
@@ -316,19 +382,7 @@ class SimplifyTranspose : public DFPatternRewrite {
       it++;
     }
 
-    // Check if the transpose is still required
-    bool need_transpose = false;
-    for (int i = 0; i < ndim; ++i) {
-      if (axes[i] != i) {
-        need_transpose = true;
-        break;
-      }
-    }
-
-    if (need_transpose) {
-      return MakeTranspose(x, axes);
-    }
-    return x;
+    return MakeTranspose(x, axes);
   }
 
   String PermuteLayout(const String& layout, std::vector<int> axes_order) const {
@@ -431,32 +485,50 @@ class SimplifyTranspose : public DFPatternRewrite {
     return Downcast<Call>(output_layout_trans);
   }
 
-  std::vector<int> GetTransposeAxisOrder(const Call& call, int ndim) const {
-    std::vector<int> attr_axes;
-    if (auto attr = call->attrs.as<TransposeAttrs>()) {
-      if (attr->axes.defined()) {
-        for (int i = 0; i < ndim; ++i) {
-          int64_t axis = attr->axes[i].IntValue();
-          axis += (axis < 0) ? ndim : 0;
-          attr_axes.push_back(axis);
-        }
-      } else {
-        // Empty axes means reverse
-        for (int i = ndim - 1; i >= 0; --i) {
-          attr_axes.push_back(i);
-        }
+ private:
+  /*! \brief Pattern input */
+  DFPattern x_;
+};
+
+/*!
+ * \brief SimplifyNoOpTranspose matches the pattern of transpose or
+ *  layout transform ops which do not change the layout or rank and
+ *  removes the op.
+ */
+class SimplifyNoOpTranspose : public DFPatternRewrite {
+ public:
+  SimplifyNoOpTranspose() {
+    x_ = IsWildcard();
+    auto trans1 = IsOp("transpose") || IsOp("layout_transform");
+    pattern_ = trans1({x_});
+  }
+
+  Expr Callback(const Expr& pre, const Expr& post,
+                const Map<DFPattern, Array<Expr>>& node_map) const override {
+    auto x = node_map[x_][0];
+    Call trans_call = Downcast<Call>(post);
+
+    // Do not remove ops which change rank
+    if (auto attr = trans_call->attrs.as<LayoutTransformAttrs>()) {
+      if (attr->src_layout != attr->dst_layout) {
+        return post;
       }
-    } else if (auto attr = call->attrs.as<LayoutTransformAttrs>()) {
-      Layout src_layout(attr->src_layout);
-      Layout dst_layout(attr->dst_layout);
-      for (int i = 0; i < ndim; ++i) {
-        attr_axes.push_back(src_layout.IndexOf(dst_layout[i]));
-      }
-    } else {
-      CHECK(false) << "Expected transpose or layout_transform, but got "
-                   << Downcast<Op>(call->op)->name;
     }
-    return std::move(attr_axes);
+
+    int ndim = Downcast<TensorType>(pre->checked_type())->shape.size();
+    auto axes = GetTransposeAxisOrder(trans_call, ndim);
+
+    bool need_transpose = false;
+    for (int i = 0; i < ndim; ++i) {
+      if (axes[i] != i) {
+        need_transpose = true;
+        break;
+      }
+    }
+
+    if (!need_transpose) return x;
+
+    return post;
   }
 
  private:
@@ -954,7 +1026,7 @@ class SimplifyBinomial : public DFPatternRewrite {
   DFPattern y_;
 };
 
-/*! \brief Simplifying x/sqrt to x*sqrt */
+/*! \brief Simplifying x/sqrt to x*rsqrt */
 class SimplifyRSqrt : public DFPatternRewrite {
  public:
   SimplifyRSqrt() {
@@ -1037,6 +1109,7 @@ Expr SimplifyExpr(const Expr& expr, const IRModule& mod) {
   composer.AddRewrite<EliminateIdentityRewrite>();
   composer.AddRewrite<SimplifyReshape>();
   composer.AddRewrite<SimplifyTranspose>();
+  composer.AddRewrite<SimplifyNoOpTranspose>();
   composer.AddRewrite<SimplifySameCast>();
   composer.AddRewrite<SimplifyConsecutiveCast>();
   composer.AddRewrite<FullElementwise>();
@@ -1046,7 +1119,7 @@ Expr SimplifyExpr(const Expr& expr, const IRModule& mod) {
   composer.AddRewrite<SimplifyDQArgMin>();
   composer.AddRewrite<SimplifyDQArgSort>();
   composer.AddRewrite<SimplifyClipAndConsecutiveCast>();
-  composer.AddRewrite<SimplifyCastClip>();
+  composer.AddRewrite<SimplifyClip>();
   composer.AddRewrite<SimplifyBinomial>();
   return RewritePatterns(composer.MakeCallbacks(), expr, mod);
 }
@@ -1060,7 +1133,7 @@ Expr SimplifyExprPostAlterOp(const Expr& expr, const IRModule& mod) {
   composer.AddRewrite<SimplifySameCast>();
   composer.AddRewrite<SimplifyConsecutiveCast>();
   composer.AddRewrite<SimplifyClipAndConsecutiveCast>();
-  composer.AddRewrite<SimplifyCastClip>();
+  composer.AddRewrite<SimplifyClip>();
   return RewritePatterns(composer.MakeCallbacks(), expr, mod);
 }
 

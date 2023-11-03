@@ -212,6 +212,8 @@ URL_MAP = {
     "https://github.com/tlc-pack/web-data/raw/main/testdata/microTVM/data/image_classification_int8_0.npy": f"{BASE}/tlc-pack/web-data/raw/main/testdata/microTVM/data/image_classification_int8_0.npy",
     "https://github.com/tlc-pack/web-data/raw/main/testdata/microTVM/data/vww_sample_person.jpg": f"{BASE}/tlc-pack/web-data/testdata/microTVM/data/vww_sample_person.jpg",
     "https://github.com/tlc-pack/web-data/raw/main/testdata/microTVM/data/vww_sample_not_person.jpg": f"{BASE}/tlc-pack/web-data/testdata/microTVM/data/vww_sample_not_person.jpg",
+    "https://github.com/tensorflow/tflite-micro/raw/de8f61a074460e1fa5227d875c95aa303be01240/tensorflow/lite/micro/models/keyword_scrambled.tflite": f"{BASE}/models/tflite/keyword_scrambled_8bit.tflite",
+    "https://github.com/Grovety/ModelZoo/raw/52fb82156ae8c8e3f62c7d7caf6867b25261dda4/models/object_detection/ssd_mobilenet_v1/tflite_int8/tflite_graph_with_regular_nms.pb": f"{BASE}/ssd_mobilenet_v1/tflite_int8/tflite_graph_with_regular_nms.pb",
 }
 
 

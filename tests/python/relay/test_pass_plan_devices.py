@@ -761,14 +761,18 @@ def test_shape_of():
 
 
 def test_alloc_storage():
-    metatable = {"VirtualDevice": [HOST, GPU]}
+    shape = np.array([3, 2])
+    metatable = {
+        "VirtualDevice": [HOST, GPU],
+        "relay.Constant": [relay.const(shape, dtype="int64")],
+    }
 
     def input():
         return tvm.relay.parse(
             """
             #[version = "0.0.5"]
             def @main(%size: int64, %alignment: int64) {
-              memory.alloc_storage(%size, %alignment, virtual_device=meta[VirtualDevice][1])
+              memory.alloc_storage(%size, meta[relay.Constant][0], %alignment, virtual_device=meta[VirtualDevice][1])
             }
         """,
             "from_string",
@@ -782,7 +786,8 @@ def test_alloc_storage():
             #[version = "0.0.5"]
             def @main(%size {virtual_device=meta[VirtualDevice][0]}: int64, %alignment {virtual_device=meta[VirtualDevice][0]}: int64,
                       virtual_device=meta[VirtualDevice][1]) {
-              memory.alloc_storage(%size, %alignment, virtual_device=meta[VirtualDevice][1])
+              %0 = on_device(meta[relay.Constant][0], virtual_device=meta[VirtualDevice][0], constrain_result=True);
+              memory.alloc_storage(%size, %0, %alignment, virtual_device=meta[VirtualDevice][1])
             }
         """,
             "from_string",
@@ -1607,7 +1612,7 @@ def test_free_on_device():
               %1 = @on_scope_b(on_device(%b, virtual_device=meta[VirtualDevice][0], constrain_body=False));
               // %c's memory scope is "scopeB", so no copy required.
               %2 = @on_scope_b(on_device(%c, virtual_device=meta[VirtualDevice][0], constrain_body=False));
-              // result's memory scope is is on "scopeA", so will require a "scopeB"->"scopeA" copy.
+              // result's memory scope is on "scopeA", so will require a "scopeB"->"scopeA" copy.
               %3 = add(add(%0, %1), %2);
               on_device(%3, virtual_device=meta[VirtualDevice][0], constrain_body=False)
             }
@@ -1650,7 +1655,7 @@ def test_lowered():
     of device_copies to mediate any scope changes.
     """
 
-    @T.prim_func
+    @T.prim_func(private=True)
     def input_gem(a: T.handle, b: T.handle, c: T.handle, d: T.handle) -> None:
         A = T.match_buffer(a, [128, 128], scope="scopeA")  # will flow out
         B = T.match_buffer(b, [128, 128], scope="")  # will flow in
@@ -1664,7 +1669,7 @@ def test_lowered():
                     D[vi, vj] = C[vi, vj]
                 D[vi, vj] = D[vi, vj] + A[vi, vk] * B[vj, vk]
 
-    @T.prim_func
+    @T.prim_func(private=True)
     def expected_gem(a: T.handle, b: T.handle, c: T.handle, d: T.handle) -> None:
         A = T.match_buffer(a, [128, 128], scope="scopeA")
         B = T.match_buffer(b, [128, 128], scope="scopeB")  # flowed in
@@ -1828,6 +1833,53 @@ def test_primitive():
     # PlanDevices should succeed.
     mod = relay.transform.PlanDevices(config)(mod)
     print(mod)
+
+
+def test_conflicated_inputs():
+    metatable = {"VirtualDevice": [CPU, GPU]}
+
+    def input():
+        return tvm.relay.parse(
+            """
+            #[version = "0.0.5"]
+            def @main(%a: Tensor[(5, 7), float32], %b: Tensor[(5, 7), float32],
+                        %c: Tensor[(5, 7), float32]) {
+                %0 = add(%a, %b);
+                %1 = on_device(%0, virtual_device=meta[VirtualDevice][0]);
+                %2 = add(%b, %c);
+                %3 = on_device(%2, virtual_device=meta[VirtualDevice][1]);
+                subtract(%1, %3)
+            }
+            """,
+            "from_string",
+            None,
+            metatable,
+        )
+
+    def expected():
+        return tvm.relay.parse(
+            """
+            #[version = "0.0.5"]
+            def @main(%a {virtual_device=meta[VirtualDevice][0]}: Tensor[(5, 7), float32],
+                        %b {virtual_device=meta[VirtualDevice][0]}: Tensor[(5, 7), float32],
+                        %c {virtual_device=meta[VirtualDevice][1]}: Tensor[(5, 7), float32]) {
+                %0 = add(%a, %b);
+                %1 = on_device(%0, virtual_device=meta[VirtualDevice][0], constrain_result=True);
+                %2 = device_copy(%b, src_virtual_device=meta[VirtualDevice][0], dst_virtual_device=meta[VirtualDevice][1]);
+                %3 = device_copy(%1, src_virtual_device=meta[VirtualDevice][0], dst_virtual_device=meta[VirtualDevice][1]);
+                %4 = add(%2, %c);
+                subtract(%3, %4)
+            }
+            """,
+            "from_string",
+            None,
+            metatable,
+        )
+
+    def ref(a, b, c):
+        return np.subtract(np.add(a, b), np.add(b, c))
+
+    exercise(input(), expected(), ref, rands((5, 7), 3))
 
 
 if __name__ == "__main__":

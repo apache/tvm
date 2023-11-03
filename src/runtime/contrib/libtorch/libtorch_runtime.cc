@@ -99,7 +99,7 @@ class TorchModuleNode : public ModuleNode {
    * \param sptr_to_self The pointer to the module node.
    * \return The packed function.
    */
-  virtual PackedFunc GetFunction(const std::string& name, const ObjectPtr<Object>& sptr_to_self) {
+  virtual PackedFunc GetFunction(const String& name, const ObjectPtr<Object>& sptr_to_self) {
     if (name == "get_symbol") {
       return PackedFunc(
           [sptr_to_self, this](TVMArgs args, TVMRetValue* rv) { *rv = this->symbol_name_; });
@@ -146,7 +146,7 @@ class TorchModuleNode : public ModuleNode {
    * \param format the format to return.
    * \return A string of JSON.
    */
-  std::string GetSource(const std::string& format = "json") override {
+  String GetSource(const String& format = "json") override {
     return module_.dump_to_str(true, true, true);
   }
 

@@ -30,6 +30,22 @@ namespace tir {
 
 void PrimFuncFrameNode::ExitWithScope() {
   TIRFrameNode::ExitWithScope();
+  // if the prim func is not private and there isn't already a global symbol,
+  // add a global symbol
+  if (!is_private && name.defined()) {
+    if (!attrs.defined()) {
+      attrs = {{tvm::attr::kGlobalSymbol, name.value()}};
+    } else if (!attrs.value().count(tvm::attr::kGlobalSymbol)) {
+      // copy over attributes (can't mutate the dict inside the optional in-place)
+      Map<String, ObjectRef> new_attrs;
+      for (auto kv : attrs.value()) {
+        new_attrs.Set(kv.first, kv.second);
+      }
+      new_attrs.Set(tvm::attr::kGlobalSymbol, name.value());
+      attrs = std::move(new_attrs);
+    }
+  }
+
   tvm::tir::PrimFunc func(
       /*params=*/args,
       /*body=*/AsStmt(stmts),

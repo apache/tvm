@@ -16,8 +16,10 @@
 # under the License.
 import tvm
 import tvm.testing
+from tvm import relay
 from tvm.relay import Function, transform
 from tvm.relay.testing import inception_v3
+import numpy as np
 import pytest
 
 cpu_scope = tvm.target.VirtualDevice(tvm.cpu(), tvm.target.Target("llvm"))
@@ -228,6 +230,11 @@ def test_inline_into_function():
 
 
 def test_impure_op():
+    shape = np.array([64, 2])
+    metatable = {
+        "VirtualDevice": [cpu_scope],
+        "relay.Constant": [relay.const(shape, dtype="int64")],
+    }
     """Don't elide calls to side-effecting operators."""
     before_program = tvm.relay.parse(
         """
@@ -235,7 +242,7 @@ def test_impure_op():
         def @main() {
            let %size: int64 = cast(1024, dtype="int64");
            let %alignment: int64 = cast(64, dtype="int64");
-           let %x = memory.alloc_storage(%size, %alignment, virtual_device=meta[VirtualDevice][0]);
+           let %x = memory.alloc_storage(%size, meta[relay.Constant][0], %alignment, virtual_device=meta[VirtualDevice][0]);
            let %_ = memory.kill(%x);
            0
         }
@@ -250,6 +257,7 @@ def test_impure_op():
         #[version = "0.0.5"]
         def @main() {
            %0 = memory.alloc_storage(cast(1024, dtype="int64"),
+                                     meta[relay.Constant][0],
                                      cast(64, dtype="int64"),
                                      virtual_device=meta[VirtualDevice][0]);
            let %_ = memory.kill(%0);
@@ -267,6 +275,11 @@ def test_impure_op():
 
 
 def test_impure_func():
+    shape = np.array([64, 2])
+    metatable = {
+        "VirtualDevice": [cpu_scope],
+        "relay.Constant": [relay.const(shape, dtype="int64")],
+    }
     """Don't elide calls to side-effecting functions."""
     before_program = tvm.relay.parse(
         """
@@ -274,7 +287,7 @@ def test_impure_func():
         def @f() -> int {
            let %size: int64 = cast(1024, dtype="int64");
            let %alignment: int64 = cast(64, dtype="int64");
-           let %x = memory.alloc_storage(%size, %alignment, virtual_device=meta[VirtualDevice][0]);
+           let %x = memory.alloc_storage(%size, meta[relay.Constant][0], %alignment, virtual_device=meta[VirtualDevice][0]);
            let %_ = memory.kill(%x);
            0
         }
@@ -293,6 +306,7 @@ def test_impure_func():
         #[version = "0.0.5"]
         def @f() -> int {
            %0 = memory.alloc_storage(cast(1024, dtype="int64"),
+                                     meta[relay.Constant][0],
                                      cast(64, dtype="int64"),
                                      virtual_device=meta[VirtualDevice][0]);
            let %_ = memory.kill(%0);

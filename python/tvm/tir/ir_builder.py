@@ -112,7 +112,7 @@ class BufferVar(ObjectGeneric):
         content_element = self._content_type.split("x", maxsplit=1)[0]
         if value_element != content_element:
             raise ValueError(
-                "data type does not match content type %s vs %s" % (value.dtype, self._content_type)
+                f"data type does not match content type {value.dtype} vs {self._content_type}"
             )
 
         self._builder.emit(_stmt.BufferStore(self._buffer, value, index))

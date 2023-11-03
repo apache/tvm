@@ -73,7 +73,7 @@ int component_for_device(Device dev) {
       component_name = "rocm";
       break;
     default:
-      LOG(WARNING) << "PAPI does not support device " << DeviceName(dev.device_type);
+      LOG(WARNING) << "PAPI does not support device " << DLDeviceType2Str(dev.device_type);
       return -1;
   }
   int cidx = PAPI_get_component_index(component_name.c_str());
@@ -170,8 +170,9 @@ struct PAPIMetricCollectorNode final : public MetricCollectorNode {
           default:
             break;
         }
-        LOG(WARNING) << "PAPI could not initialize counters for " << DeviceName(device.device_type)
-                     << ": " << component->disabled_reason << "\n"
+        LOG(WARNING) << "PAPI could not initialize counters for "
+                     << DLDeviceType2Str(device.device_type) << ": " << component->disabled_reason
+                     << "\n"
                      << help_message;
         continue;
       }

@@ -57,13 +57,10 @@ def csrmm_default(data, indices, indptr, weight, bias=None):
     ), "only support 2-dim csrmm"
     assert isinstance(
         weight, te.tensor.Tensor
-    ), "weight matrix is assumed to be tvm.te.Tensor, but weight is `%s`" % (type(weight))
+    ), f"weight matrix is assumed to be tvm.te.Tensor, but weight is `{type(weight)}`"
     assert (
         data.dtype == weight.dtype
-    ), "Data and weight must have the same dtype, but they have %s and %s" % (
-        data.dtype,
-        weight.dtype,
-    )
+    ), f"Data and weight must have the same dtype, but they have {data.dtype} and {weight.dtype}"
     if bias is not None:
         assert len(bias.shape) == 1
     M = simplify(indptr.shape[0] - 1)

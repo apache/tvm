@@ -14,19 +14,21 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+"""Configure pytest"""
+import numpy as np
 import tvm
 import tvm.testing
 from tvm import te
 from tvm.topi.cuda import stable_sort_by_key_thrust
 from tvm.topi.cuda.scan import exclusive_scan, scan_thrust, schedule_scan
 from tvm.contrib.thrust import can_use_thrust, can_use_rocthrust
-import numpy as np
 
 
 thrust_check_func = {"cuda": can_use_thrust, "rocm": can_use_rocthrust}
 
 
 def test_stable_sort_by_key():
+    """Tests function test_stable_sort_by_key"""
     size = 6
     keys = te.placeholder((size,), name="keys", dtype="int32")
     values = te.placeholder((size,), name="values", dtype="int32")
@@ -64,6 +66,7 @@ def test_stable_sort_by_key():
 
 
 def test_exclusive_scan():
+    """Tests function test_exclusive_scan"""
     for target in ["cuda", "rocm"]:
         if not tvm.testing.device_enabled(target):
             print("Skip because %s is not enabled" % target)
@@ -105,6 +108,7 @@ def test_exclusive_scan():
 
 
 def test_inclusive_scan():
+    """Tests function test_inclusive_scan"""
     out_dtype = "int64"
 
     for target in ["cuda", "rocm"]:

@@ -54,7 +54,7 @@ def getitem_helper(obj, elem_getter, length, idx):
         return [elem_getter(obj, i) for i in range(start, stop, step)]
 
     if idx < -length or idx >= length:
-        raise IndexError("Index out of range. size: {}, got index {}".format(length, idx))
+        raise IndexError(f"Index out of range. size: {length}, got index {idx}")
     if idx < 0:
         idx += length
     return elem_getter(obj, idx)
@@ -77,7 +77,7 @@ class ADT(Object):
         for f in fields:
             assert isinstance(
                 f, ObjectTypes
-            ), "Expect object or " "tvm NDArray type, but received : {0}".format(type(f))
+            ), f"Expect object or tvm NDArray type, but received : {type(f)}"
         self.__init_handle_by_constructor__(_ffi_api.ADT, tag, *fields)
 
     @property
@@ -108,7 +108,7 @@ def tuple_object(fields=None):
     for f in fields:
         assert isinstance(
             f, ObjectTypes
-        ), "Expect object or tvm " "NDArray type, but received : {0}".format(type(f))
+        ), f"Expect object or tvm NDArray type, but received : {type(f)}"
     return _ffi_api.Tuple(*fields)
 
 
@@ -149,11 +149,11 @@ class ShapeTuple(Object):
     """
 
     def __init__(self, shape):
-        assert isinstance(shape, (list, tuple)), "Expect list of tuple, but received : {0}".format(
-            type(shape)
-        )
+        assert isinstance(
+            shape, (list, tuple)
+        ), f"Expect list of tuple, but received : {type(shape)}"
         for x in shape:
-            assert isinstance(x, int), "Expect int type, but received : {0}".format(type(x))
+            assert isinstance(x, int), f"Expect int type, but received : {type(x)}"
         self.__init_handle_by_constructor__(_ffi_api.ShapeTuple, *shape)
 
     def __len__(self):

@@ -17,8 +17,12 @@
 # pylint: disable=invalid-name
 """Arithmetic data structure and utility"""
 from enum import IntEnum
+from typing import Union
+
 import tvm._ffi
+from tvm import tir, ir
 from tvm.runtime import Object
+
 from . import _ffi_api
 
 
@@ -227,7 +231,7 @@ class Analyzer:
         """
         return self._can_prove(expr, strength)
 
-    def bind(self, var, expr):
+    def bind(self, var: tir.Var, expr: Union[tir.PrimExpr, ir.Range]):
         """Bind a variable to the expression.
 
         Parameters
@@ -235,8 +239,8 @@ class Analyzer:
         var : tvm.tir.Var
             The variable.
 
-        expr : PrimExpr
-            The expression.
+        expr : Union[tir.PrimExpr, ir.Range]
+            The expression or the range to bind to.
         """
         return self._bind(var, expr)
 

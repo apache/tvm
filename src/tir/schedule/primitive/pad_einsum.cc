@@ -17,12 +17,51 @@
  * under the License.
  */
 
-#include <optional>
+#include <tvm/tir/op.h>
 
 #include "../utils.h"
 
 namespace tvm {
 namespace tir {
+
+/*!
+ * \brief Check if buffer indices are all Vars and expr
+ * \param buffer_access The BufferLoad or BufferStore
+ * \return The indices if the indices are all Vars, otherwise NullOpt
+ */
+Optional<Array<Var>> CheckTrivialBufferIndices(const Array<PrimExpr>& buffer_access) {
+  Array<Var> indices;
+  for (const PrimExpr& index : buffer_access) {
+    if (index->IsInstance<IntImmNode>()) {
+      continue;
+    }
+    const VarNode* var = index.as<VarNode>();
+    if (var == nullptr) {
+      return NullOpt;
+    }
+    indices.push_back(GetRef<Var>(var));
+  }
+  return indices;
+}
+
+Optional<Array<Var>> CheckTrivialBufferAccess(const BufferRegion& buffer_region) {
+  Array<Var> indices;
+  indices.reserve(buffer_region->region.size());
+  for (const Range& range : buffer_region->region) {
+    if (!tir::is_one(range->extent)) {
+      return NullOpt;
+    }
+    if (range->min->IsInstance<IntImmNode>()) {
+      continue;
+    }
+    if (const auto* var = range->min.as<VarNode>()) {
+      indices.push_back(GetRef<Var>(var));
+    } else {
+      return NullOpt;
+    }
+  }
+  return indices;
+}
 
 /*! \brief The schedule error class when the padding size is invalid. */
 class InvalidPaddingError : public ScheduleError {
@@ -37,7 +76,7 @@ class InvalidPaddingError : public ScheduleError {
   String DetailRenderTemplate() const final {
     std::ostringstream os;
     os << "The padding for the block {0} are invalid. It should be a list of "
-       << block_->iter_vars.size() << " non-negative integers. Got " << padding_;
+       << block_->iter_vars.size() << " positive integers. Got " << padding_;
     return os.str();
   }
 
@@ -46,7 +85,7 @@ class InvalidPaddingError : public ScheduleError {
       throw InvalidPaddingError(self->mod, block, padding);
     }
     for (const auto& pad : padding) {
-      if (pad->value < 0) {
+      if (pad->value <= 0) {
         throw InvalidPaddingError(self->mod, block, padding);
       }
     }
@@ -81,116 +120,126 @@ class NonEinsumError : public ScheduleError {
 /*! \brief Data structure that represents a Einsum computation. */
 struct Einsum {
   // The output buffer
-  Buffer output_buffer;
+  Array<Buffer> output_buffers;
   // The indices of the output buffer
-  Array<Var> output_indices;
+  Map<Buffer, Array<Var>> output_indices;
+  // The input buffers
+  Array<Buffer> input_buffers;
   // The indices of the input buffers
   Map<Buffer, Array<Var>> input_indices;
 };
 
-class EinsumExtractor : public ExprVisitor {
- public:
-  EinsumExtractor() = default;
+struct BufferPadding {
+  Buffer buffer;
+  Buffer padded_buffer;
 
-  std::optional<Einsum> Extract(const Block& block) {
-    const BufferStoreNode* update = block->body.as<BufferStoreNode>();
-    // Step 1: Check the body is a BufferStore and the block has the init statement, and the
-    // BufferStore and the init statement store have the same output buffer indices.
-    if (update == nullptr || !block->init.defined()) {
-      return std::nullopt;
+  static BufferPadding FromBufferRegion(const BufferRegion& buffer_region,
+                                        const Map<Var, PrimExpr>& iter_extents) {
+    BufferPadding result;
+    result.buffer = buffer_region->buffer;
+    Array<PrimExpr> shape;
+    shape.reserve(buffer_region->region.size());
+    int ndim = buffer_region->region.size();
+    for (int i = 0; i < ndim; ++i) {
+      PrimExpr pos = buffer_region->region[i]->min;
+      ICHECK(pos->IsInstance<IntImmNode>() || pos->IsInstance<VarNode>());
+      if (pos->IsInstance<IntImmNode>()) {
+        shape.push_back(IntImm(pos->dtype, 1));
+      } else if (Optional<PrimExpr> extent = iter_extents.Get(Downcast<Var>(pos))) {
+        shape.push_back(extent.value());
+      } else {
+        shape.push_back(buffer_region->buffer->shape[i]);
+      }
     }
+    result.padded_buffer = decl_buffer(shape, result.buffer->dtype, result.buffer->name + "_pad",
+                                       result.buffer.scope());
+    return result;
+  }
 
-    if (Optional<Array<Var>> opt_indices = CheckTrivialBufferIndices(update);
-        opt_indices.defined()) {
-      ein_sum_.output_indices = std::move(opt_indices.value());
+  Stmt MakeCopyBlock(bool is_read, Array<Block>* blocks, arith::Analyzer* analyzer) {
+    Array<Var> loop_vars;
+    Array<Range> loop_doms;
+    Array<IterVar> iter_vars;
+    Array<Range> instance_dom;
+    Array<PrimExpr> indices;
+    int ndim = buffer->shape.size();
+    for (int i = 0; i < ndim; ++i) {
+      PrimExpr dim{nullptr};
+      if (is_read) {
+        dim = padded_buffer->shape[i];
+      } else {
+        dim = buffer->shape[i];
+      }
+      Range dom = Range::FromMinExtent(IntImm(dim->dtype, 0), dim);
+      loop_vars.push_back(Var("i" + std::to_string(i), dim->dtype));
+      loop_doms.push_back(dom);
+      IterVar iter_var(dom, Var("v" + std::to_string(i), dim->dtype), kDataPar);
+      instance_dom.push_back(Range::FromMinExtent(iter_var->var, IntImm(dim->dtype, 1)));
+      iter_vars.push_back(iter_var);
+      indices.push_back(iter_var->var);
+    }
+    Stmt body{nullptr};
+    if (is_read) {
+      PrimExpr predicate = Bool(true);
+      for (int i = 0; i < ndim; ++i) {
+        if (!analyzer->CanProveEqual(buffer->shape[i], padded_buffer->shape[i])) {
+          predicate = predicate && (indices[i] < buffer->shape[i]);
+        }
+      }
+      PrimExpr rhs = BufferLoad(buffer, indices);
+      body =
+          BufferStore(padded_buffer, if_then_else(predicate, rhs, make_zero(rhs->dtype)), indices);
     } else {
-      return std::nullopt;
+      body = BufferStore(buffer, BufferLoad(padded_buffer, indices), indices);
     }
-    ein_sum_.output_buffer = update->buffer;
-
-    const BufferStoreNode* init = block->init.value().as<BufferStoreNode>();
-    ICHECK(init != nullptr);
-    if (!CompareBufferIndices(init->indices, ein_sum_.output_indices)) {
-      return std::nullopt;
+    BufferRegion read_region(buffer, instance_dom);
+    BufferRegion write_region(padded_buffer, instance_dom);
+    if (!is_read) {
+      std::swap(read_region, write_region);
     }
-    // Step 2: Check the BufferStore updates the output buffer and the input buffers indices are
-    // block iter variables.
-    CheckStoreValue(update->value);
-    if (fail_) {
-      return std::nullopt;
+    Block new_block(iter_vars, {read_region}, {write_region}, padded_buffer->name, std::move(body));
+    blocks->push_back(new_block);
+    body = BlockRealize(Array<PrimExpr>{loop_vars.begin(), loop_vars.end()}, Bool(true), new_block);
+    for (int i = ndim - 1; i >= 0; --i) {
+      body = For(loop_vars[i], loop_doms[i]->min, loop_doms[i]->extent, ForKind::kSerial,
+                 std::move(body));
     }
-    return std::move(ein_sum_);
+    return body;
   }
-
- private:
-  void CheckStoreValue(const PrimExpr& update) {
-    // Check the update part has the form:
-    //   Output[output_indices] += Input_0[input_indices_0] op_0 Input_1[input_indices_1] op_1 ...
-    // where output_indices and input_indices_i are the indices are arrays whose elements are the
-    // block iter variables instead of composite PrimExpr, and op_i are the binary operations.
-
-    // Check the value is Add and eithe LHS or RHS is the BufferLoad from the output buffer.
-    const AddNode* add = update.as<AddNode>();
-    if (add == nullptr) {
-      fail_ = true;
-      return;
-    }
-    const BufferLoadNode* lhs = add->a.as<BufferLoadNode>();
-    const BufferLoadNode* rhs = add->b.as<BufferLoadNode>();
-    if (lhs == nullptr && rhs != nullptr) {
-      std::swap(lhs, rhs);
-    }
-    if (lhs == nullptr || !lhs->buffer.same_as(ein_sum_.output_buffer) ||
-        !CompareBufferIndices(lhs->indices, ein_sum_.output_indices)) {
-      fail_ = true;
-      return;
-    }
-    VisitExpr(add->b);
-  }
-
-  void VisitExpr(const PrimExpr& n) final {
-    if (n->IsInstance<BufferLoadNode>() || n->IsInstance<MulNode>() || n->IsInstance<CastNode>()) {
-      ExprVisitor::VisitExpr(n);
-    } else {
-      fail_ = true;
-      return;
-    }
-  }
-
-  void VisitExpr_(const BufferLoadNode* op) final {
-    if (auto it = ein_sum_.input_indices.find(op->buffer);
-        it != ein_sum_.input_indices.end() && !CompareBufferIndices(op->indices, (*it).second)) {
-      fail_ = true;
-      return;
-    }
-    if (Optional<Array<Var>> opt_indices = CheckTrivialBufferIndices(op); opt_indices.defined()) {
-      ein_sum_.input_indices.Set(op->buffer, std::move(opt_indices.value()));
-    } else {
-      fail_ = true;
-      return;
-    }
-  }
-
-  void VisitExpr_(const CastNode* op) { VisitExpr(op->value); }
-
-  bool Fail() { return fail_; }
-
-  bool CompareBufferIndices(const Array<PrimExpr>& indices, const Array<Var>& other) {
-    return std::equal(indices.begin(), indices.end(), other.begin(), other.end(),
-                      [](const PrimExpr& a, const Var& b) { return a.same_as(b); });
-  }
-
-  Einsum ein_sum_;
-  bool fail_{false};
 };
 
 Einsum ExtractEinsum(const ScheduleState& self, const Block& block) {
-  EinsumExtractor extractor;
-  std::optional<Einsum> einsum = extractor.Extract(block);
-  if (!einsum.has_value()) {
-    throw NonEinsumError(self->mod, block);
+  Einsum result;
+  std::unordered_set<const BufferNode*> buffer_used;
+  int n_reads = block->reads.size();
+  for (int i = 0; i < n_reads; ++i) {
+    const Buffer& buffer = block->reads[i]->buffer;
+    if (buffer_used.count(buffer.get()) != 0) {
+      throw NonEinsumError(self->mod, block);
+    }
+    buffer_used.insert(buffer.get());
+    if (Optional<Array<Var>> opt_indices = CheckTrivialBufferAccess(block->reads[i])) {
+      result.input_buffers.push_back(buffer);
+      result.input_indices.Set(buffer, opt_indices.value());
+    } else {
+      throw NonEinsumError(self->mod, block);
+    }
   }
-  return einsum.value();
+  int n_writes = block->writes.size();
+  for (int i = 0; i < n_writes; ++i) {
+    const Buffer& buffer = block->writes[i]->buffer;
+    if (buffer_used.count(buffer.get()) != 0) {
+      throw NonEinsumError(self->mod, block);
+    }
+    buffer_used.insert(buffer.get());
+    if (Optional<Array<Var>> opt_indices = CheckTrivialBufferAccess(block->writes[i])) {
+      result.output_buffers.push_back(buffer);
+      result.output_indices.Set(buffer, opt_indices.value());
+    } else {
+      throw NonEinsumError(self->mod, block);
+    }
+  }
+  return result;
 }
 
 class BufferNotAllocatedInScopeError : public ScheduleError {
@@ -216,69 +265,6 @@ class BufferNotAllocatedInScopeError : public ScheduleError {
  private:
   IRModule mod_;
   Buffer buffer_;
-};
-
-class PadEinsumRewriter : public ReplaceBufferMutator {
- public:
-  PadEinsumRewriter(const std::unordered_map<const BlockNode*, PrimExpr> producer_predicate,
-                    Map<Var, PrimExpr> padded_iter_extents, const Map<Buffer, Buffer>& buffer_remap,
-                    Map<Block, Block>* block_sref_reuse, arith::Analyzer* analyzer)
-      : ReplaceBufferMutator(buffer_remap, block_sref_reuse),
-        producer_predicate_(producer_predicate),
-        padded_iter_extents_(padded_iter_extents),
-        analyzer_(analyzer) {}
-  using ReplaceBufferMutator::VisitExpr_;
-  using ReplaceBufferMutator::VisitStmt_;
-
-  Stmt VisitStmt_(const ForNode* op) final {
-    For new_for = Downcast<For>(ReplaceBufferMutator::VisitStmt_(op));
-    if (padded_iter_extents_.count(new_for->loop_var)) {
-      new_for.CopyOnWrite()->extent = padded_iter_extents_.at(new_for->loop_var);
-    }
-    return std::move(new_for);
-  }
-
-  Block PadProducerBlock(Block block, const PrimExpr& predicate) {
-    BufferStore store = Downcast<BufferStore>(block->body);
-    store.CopyOnWrite()->value =
-        analyzer_->Simplify(if_then_else(predicate, store->value, make_zero(store->value.dtype())));
-    block.CopyOnWrite()->body = std::move(store);
-    return block;
-  }
-
-  Stmt VisitStmt_(const BlockNode* op) final {
-    Block old_block = GetRef<Block>(op);
-    Block new_block = Downcast<Block>(ReplaceBufferMutator::VisitStmt_(op));
-    if (auto it = producer_predicate_.find(op); it != producer_predicate_.end()) {
-      new_block = PadProducerBlock(std::move(new_block), (*it).second);
-    }
-
-    // Mutate block iters
-    Array<IterVar> new_iters;
-    bool changed = false;
-    for (const IterVar& iter : new_block->iter_vars) {
-      if (auto it = padded_iter_extents_.find(iter->var); it != padded_iter_extents_.end()) {
-        changed = true;
-        new_iters.push_back(
-            IterVar(Range::FromMinExtent(0, (*it).second), iter->var, iter->iter_type));
-      } else {
-        new_iters.push_back(iter);
-      }
-    }
-    if (changed) {
-      new_block.CopyOnWrite()->iter_vars = std::move(new_iters);
-    }
-    if (!old_block.same_as(new_block)) {
-      block_sref_reuse_->Set(old_block, new_block);
-    }
-    return std::move(new_block);
-  }
-
- private:
-  const std::unordered_set<const BlockNode*> producer_blocks_;
-  const std::unordered_map<const BlockNode*, PrimExpr> producer_predicate_;
-  const Map<Var, PrimExpr> padded_iter_extents_;
-  arith::Analyzer* analyzer_;
 };
 
 /*! \brief The schedule error class when the producer block cannot be padded. */
@@ -307,140 +293,190 @@ class InvalidProducerError : public ScheduleError {
   Block producer_;
 };
 
+class PadEinsumBufferReplacer : public StmtExprMutator {
+ public:
+  Stmt VisitStmt_(const BlockNode* old_block_ptr) final {
+    Block old_block = GetRef<Block>(old_block_ptr);
+    Block block = Downcast<Block>(StmtMutator::VisitStmt_(old_block_ptr));
+    Array<IterVar> iter_vars;
+    iter_vars.reserve(block->iter_vars.size());
+    for (const IterVar& iter_var : block->iter_vars) {
+      if (Optional<PrimExpr> new_dom = iter2padded_extents.Get(iter_var->var)) {
+        ObjectPtr<IterVarNode> new_iter_var = make_object<IterVarNode>(*iter_var.get());
+        new_iter_var->dom = Range::FromMinExtent(iter_var->dom->min, new_dom.value());
+        iter_vars.push_back(IterVar(new_iter_var));
+      } else {
+        iter_vars.push_back(iter_var);
+      }
+    }
+    Array<BufferRegion> reads;
+    reads.reserve(block->reads.size());
+    for (const BufferRegion& read : block->reads) {
+      if (Optional<Buffer> buffer = buffer_map_.Get(read->buffer)) {
+        reads.push_back(BufferRegion(buffer.value(), read->region));
+      } else {
+        reads.push_back(read);
+      }
+    }
+    Array<BufferRegion> writes;
+    writes.reserve(block->writes.size());
+    for (const BufferRegion& write : block->writes) {
+      if (Optional<Buffer> buffer = buffer_map_.Get(write->buffer)) {
+        writes.push_back(BufferRegion(buffer.value(), write->region));
+      } else {
+        writes.push_back(write);
+      }
+    }
+    Block new_block =
+        Block(iter_vars, reads, writes, block->name_hint, block->body, block->init,
+              /*alloc_buffers=*/{}, /*match_buffers=*/{}, /*annotations=*/block->annotations);
+    block_sref_reuse_.Set(old_block, new_block);
+    return new_block;
+  }
+
+  Stmt VisitStmt_(const ForNode* old_for_ptr) final {
+    For old_for = GetRef<For>(old_for_ptr);
+    For new_for = Downcast<For>(StmtMutator::VisitStmt_(old_for_ptr));
+    if (Optional<PrimExpr> new_extent = loop_var2padded_extent.Get(new_for->loop_var)) {
+      ObjectPtr<ForNode> new_for_ptr = make_object<ForNode>(*new_for.get());
+      new_for_ptr->extent = new_extent.value();
+      new_for = For(new_for_ptr);
+    }
+    return new_for;
+  }
+
+  Stmt VisitStmt_(const BufferStoreNode* old_store_ptr) final {
+    BufferStore store = Downcast<BufferStore>(StmtMutator::VisitStmt_(old_store_ptr));
+    if (Optional<Buffer> buffer = buffer_map_.Get(store->buffer)) {
+      return BufferStore(buffer.value(), store->value, store->indices);
+    } else {
+      return store;
+    }
+  }
+
+  PrimExpr VisitExpr_(const BufferLoadNode* old_load_ptr) final {
+    BufferLoad load = Downcast<BufferLoad>(ExprMutator::VisitExpr_(old_load_ptr));
+    if (Optional<Buffer> buffer = buffer_map_.Get(load->buffer)) {
+      return BufferLoad(buffer.value(), load->indices);
+    } else {
+      return load;
+    }
+  }
+
+  Map<Var, PrimExpr> iter2padded_extents;
+  Map<Var, PrimExpr> loop_var2padded_extent;
+  Map<Buffer, Buffer> buffer_map_;
+  Map<Block, Block> block_sref_reuse_;
+};
+
 void PadEinsum(ScheduleState self, const StmtSRef& block_sref, const Array<Integer>& padding) {
   arith::Analyzer analyzer;
   // Step 1: Input checking and error handling
   const BlockNode* block = TVM_SREF_TO_BLOCK(block_sref);
   BlockRealize realize = GetBlockRealize(self, block_sref);
-
-  const StmtSRef& scope_sref = GetScopeRoot(self, block_sref, /*require_stage_pipeline=*/true);
+  StmtSRef scope_sref = GetScopeRoot(self, block_sref, /*require_stage_pipeline=*/true);
+  const BlockNode* scope_block = TVM_SREF_TO_BLOCK(scope_sref);
   InvalidPaddingError::Check(self, GetRef<Block>(block), padding);
-
-  const Array<StmtSRef> producers = GetProducers(self, block_sref);
-  {
-    auto f_check_block_properties = [&](const StmtSRef& block_sref, bool is_producer) {
-      CheckBlockHasTrivialBinding(self, block_sref);
-      if (is_producer) {
-        CheckCompleteBlock(self, block_sref, scope_sref);
-      } else {
-        CheckReductionBlock(self, block_sref, scope_sref);
-      }
-      Array loops = GetLoops(block_sref);
-      ICHECK(!loops.empty());
-      CheckGetSingleChildBlockRealizeOnSRefTree(self, loops.front());
-    };
-
-    // Check block properties of the computation block
-    f_check_block_properties(block_sref, false);
-
-    // Check block properties of the producer block
-    for (const StmtSRef& producer_sref : producers) {
-      f_check_block_properties(producer_sref, true);
-    }
-  }
-
-  Einsum einsum = ExtractEinsum(self, GetRef<Block>(block));
-
-  // Check input and output buffers are all allocated in the current scope.
-  {
-    auto f_check_buffer_allocated = [&](const Buffer& buffer) {
-      auto [defining_site_sref, is_allocate] = GetBufferDefiningSite(block_sref, buffer);
-      if (!defining_site_sref.defined() || !is_allocate) {
-        throw BufferNotAllocatedInScopeError(self->mod, buffer);
-      }
-    };
-    f_check_buffer_allocated(einsum.output_buffer);
-    for (const auto& buffer_indices_pair : einsum.input_indices) {
-      f_check_buffer_allocated(buffer_indices_pair.first);
-    }
-  }
-
-  // Step 2: Prepare buffer and variable remapping. Infer the new shape of the input and the output
-  // buffers. Infer the new extent of the block iters of the computation block and the producer
-  // block.
-
-  Map<Var, PrimExpr> padded_iter_extents;  // The new extents of both the block iters and loop vars
-
-  // Convert the input padding array to a map from variables to the padded extents
+  // Step 2. Extract the Einsum pattern
+  ExtractEinsum(self, GetRef<Block>(block));
+  // Step 3. Figure out the padding needed
+  PadEinsumBufferReplacer replacer;
   for (int i = 0, n = padding.size(); i < n; ++i) {
     const IterVar& iter = block->iter_vars[i];
-    PrimExpr new_extent =
-        IntImm(iter->var->dtype, Downcast<Integer>(iter->dom->extent)->value + padding[i]->value);
-    padded_iter_extents.Set(iter->var, new_extent);
-    padded_iter_extents.Set(Downcast<Var>(realize->iter_values[i]), new_extent);
-  }
-
-  Map<Buffer, Buffer> buffer_remap;  // mapping from buffers to new buffers with padded shapes
-
-  // Utility function to pad a buffer with the new shape
-  auto f_pad_buffer = [&padded_iter_extents](Buffer buffer, const Array<Var>& indices) -> Buffer {
-    Array<PrimExpr> new_shape;
-    for (const Var& index : indices) {
-      new_shape.push_back(padded_iter_extents.at(index));
+    PrimExpr dom = iter->dom->extent;
+    PrimExpr new_dom = analyzer.Simplify(ceildiv(dom, padding[i]) * padding[i]);
+    if (!analyzer.CanProveEqual(new_dom, dom)) {
+      replacer.iter2padded_extents.Set(iter->var, new_dom);
+      if (const auto* loop_var = realize->iter_values[i].as<VarNode>()) {
+        replacer.iter2padded_extents.Set(GetRef<Var>(loop_var), new_dom);
+        replacer.loop_var2padded_extent.Set(GetRef<Var>(loop_var), new_dom);
+      }
     }
-    ICHECK_EQ(buffer->shape.size(), new_shape.size());
-    buffer.CopyOnWrite()->shape = std::move(new_shape);
-    return buffer;
+  }
+  auto f_needs_padding = [&replacer](const Array<Range>& region) {
+    for (const Range& range : region) {
+      if (const auto* var = range->min.as<VarNode>()) {
+        if (replacer.iter2padded_extents.count(GetRef<Var>(var))) {
+          return true;
+        }
+      }
+    }
+    return false;
   };
-
-  buffer_remap.Set(einsum.output_buffer, f_pad_buffer(einsum.output_buffer, einsum.output_indices));
-
-  std::unordered_map<const BlockNode*, PrimExpr> producer_predicate;
-
-  // Different from the output block, the padding for the producer block is not directly specified
-  // as the input argument. Instead, it is inferred from indices of the producer buffer accessed in
-  // the output block.
-  // We will find the indices (which are block iters) in BufferStore to the producer buffer
-  // and infer the new extents of the block iters and the corresponding loop vars.
-  for (const StmtSRef& producer_sref : producers) {
-    const BlockNode* producer_block = TVM_SREF_TO_BLOCK(producer_sref);
-    const BufferStoreNode* buffer_store = producer_block->body.as<BufferStoreNode>();
-    Optional<Array<Var>> producer_store_indices;
-    if (!buffer_store || producer_block->writes.size() != 1 ||
-        !(producer_store_indices = CheckTrivialBufferIndices(buffer_store)).defined()) {
-      throw InvalidProducerError(self->mod, GetRef<Block>(producer_block));
-    }
-    BlockRealize producer_realize = GetBlockRealize(self, producer_sref);
-
-    const Buffer& old_buffer = producer_block->writes[0]->buffer;
-    Buffer new_buffer = f_pad_buffer(old_buffer, einsum.input_indices.at(old_buffer));
-    buffer_remap.Set(old_buffer, new_buffer);
-
-    // The predicate to ensure the producer block is in the original bound before padding
-    PrimExpr predicate = Bool(true);
-    Map<Var, PrimExpr> indices_to_padded_extents;  // buffer indices to padded extents
-    for (int i = 0, n = producer_store_indices.value().size(); i < n; ++i) {
-      const Var& index = producer_store_indices.value()[i];
-      PrimExpr padded_extent = new_buffer->shape[i];
-      if (!analyzer.CanProveEqual(padded_extent, old_buffer->shape[i])) {
-        predicate = predicate && (index < old_buffer->shape[i]);
-      }
-      indices_to_padded_extents.Set(index, padded_extent);
-    }
-
-    for (int i = 0, n = producer_block->iter_vars.size(); i < n; ++i) {
-      const IterVar& iter = producer_block->iter_vars[i];
-      if (auto it = indices_to_padded_extents.find(iter->var);
-          it != indices_to_padded_extents.end()) {
-        const PrimExpr& padded_extent = (*it).second;
-        padded_iter_extents.Set(iter->var, padded_extent);
-        padded_iter_extents.Set(Downcast<Var>(producer_realize->iter_values[i]), padded_extent);
-      } else if (!is_one(iter->dom->extent)) {
-        throw InvalidProducerError(self->mod, GetRef<Block>(producer_block));
-      }
-    }
-    producer_predicate[producer_block] = predicate;
+  // Step 3. Convert the subtree under the scope root
+  Array<Stmt> scope_body;
+  if (const auto* seq_stmt = scope_block->body.as<SeqStmtNode>()) {
+    scope_body = seq_stmt->seq;
+  } else {
+    scope_body.push_back(scope_block->body);
   }
-
-  // Step 3: Mutate the AST subtree with the new buffers and the new block iter extents.
-  Map<Block, Block> block_sref_reuse;
-  PadEinsumRewriter rewriter(producer_predicate, padded_iter_extents, buffer_remap,
-                             &block_sref_reuse, &analyzer);
-  const BlockNode* scope_block = TVM_SREF_TO_BLOCK(scope_sref);
-  Stmt new_scope_block = rewriter(GetRef<Block>(scope_block));
-
-  // Step 4: Do the actual replacement.
-  self->Replace(scope_sref, new_scope_block, block_sref_reuse);
+  // Step 4. Find out the block of our interest
+  int pos = -1;
+  for (int i = 0; i < static_cast<int>(scope_body.size()); ++i) {
+    bool found = false;
+    PostOrderVisit(scope_body[i], [&found, &block](const ObjectRef& node) {
+      if (node.get() == block) {
+        found = true;
+      }
+    });
+    if (found) {
+      pos = i;
+      break;
+    }
+  }
+  ICHECK_NE(pos, -1);
+  // Step 5. For each buffer, if it needs padding, create a new buffer and a new block
+  Array<Stmt> read_blocks;
+  Array<Stmt> write_blocks;
+  Array<Block> new_copy_blocks;
+  Array<Buffer> alloc_buffers;
+  for (const BufferRegion& buffer_region : block->reads) {
+    if (f_needs_padding(buffer_region->region)) {
+      BufferPadding bp =
+          BufferPadding::FromBufferRegion(buffer_region, replacer.iter2padded_extents);
+      replacer.buffer_map_.Set(bp.buffer, bp.padded_buffer);
+      read_blocks.push_back(bp.MakeCopyBlock(true, &new_copy_blocks, &analyzer));
+      alloc_buffers.push_back(bp.padded_buffer);
+    }
+  }
+  for (const BufferRegion& buffer_region : block->writes) {
+    if (f_needs_padding(buffer_region->region)) {
+      BufferPadding bp =
+          BufferPadding::FromBufferRegion(buffer_region, replacer.iter2padded_extents);
+      replacer.buffer_map_.Set(bp.buffer, bp.padded_buffer);
+      write_blocks.push_back(bp.MakeCopyBlock(false, &new_copy_blocks, &analyzer));
+      alloc_buffers.push_back(bp.padded_buffer);
+    }
+  }
+  // Step 6. Create new scope body
+  Array<Stmt> new_scope_body;
+  for (int i = 0; i < static_cast<int>(scope_body.size()); ++i) {
+    if (i != pos) {
+      new_scope_body.push_back(scope_body[i]);
+      continue;
+    }
+    new_scope_body.insert(new_scope_body.end(), read_blocks.begin(), read_blocks.end());
+    new_scope_body.push_back(replacer(scope_body[i]));
+    new_scope_body.insert(new_scope_body.end(), write_blocks.begin(), write_blocks.end());
+  }
+  // Step 7. Create new scope
+  Block new_scope_block{nullptr};
+  {
+    ObjectPtr<BlockNode> n = make_object<BlockNode>(*scope_block);
+    n->body = SeqStmt::Flatten(new_scope_body);
+    n->alloc_buffers.insert(n->alloc_buffers.end(), alloc_buffers.begin(), alloc_buffers.end());
+    new_scope_block = Block(n);
+  }
+  replacer.block_sref_reuse_.Set(GetRef<Block>(scope_block), new_scope_block);
+  // Step 8. Do replacement and update flags
+  self->Replace(scope_sref, new_scope_block, replacer.block_sref_reuse_);
+  for (const Block& block : new_copy_blocks) {
+    StmtSRef block_sref = self->stmt2ref.at(block.get());
+    BlockInfo& block_info = self->block_info[block_sref];
+    block_info.affine_binding = true;
+    block_info.region_cover = true;
+    block_info.stage_pipeline = true;
+  }
 }
 
 /******** Instruction Registration ********/

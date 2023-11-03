@@ -23,7 +23,8 @@ import tvm
 from tvm import autotvm, te
 from tvm.autotvm.task.space import SplitEntity
 from tvm.contrib import cblas, dnnl, mkl
-from tvm.target.x86 import get_simd_32bit_lanes, target_has_amx, target_has_avx512
+from tvm.target.x86 import get_simd_32bit_lanes
+from tvm.target.codegen import target_has_features
 
 from .. import generic, tag
 from ..utils import get_const_tuple, traverse_inline
@@ -298,13 +299,12 @@ def dense_int8(cfg, data, weight, bias=None, out_dtype=None):
 def schedule_dense_int8(cfg, outs):
     """Create a schedule for dense__int8"""
     s = te.create_schedule([x.op for x in outs])
-    mcpu = tvm.target.Target.current().mcpu
 
     def _callback(op):
         if "dense_int8" in op.tag:
-            if target_has_amx(mcpu):
+            if target_has_features("amx-int8"):
                 dense_amx_int8_schedule(cfg, s, op.output(0), outs[0])
-            elif target_has_avx512(mcpu):
+            elif target_has_features(["avx512bw", "avx512f"]):
                 dense_int8_schedule(cfg, s, op.output(0), outs[0])
 
     traverse_inline(s, outs[0].op, _callback)
@@ -316,8 +316,7 @@ def dense_int8_compute(cfg, X, packed_w, bias=None):
     m, k = X.shape
     n_o, _, n_i, _ = packed_w.shape
     ak = te.reduce_axis((0, k), name="k")
-    mcpu = tvm.target.Target.current().mcpu
-    if target_has_avx512(mcpu):
+    if target_has_features(["avx512bw", "avx512f"]):
         target_attr = {"schedule_rule": "meta_schedule.x86.dense_int8"}
     else:
         target_attr = None

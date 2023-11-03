@@ -45,7 +45,7 @@ class Device:
 
     Notes
     -----
-        The test configuration will be loaded once when the the class is created. If the configuration
+        The test configuration will be loaded once when the class is created. If the configuration
         changes between tests, any changes will not be picked up.
 
     Parameters
@@ -111,6 +111,25 @@ def get_cpu_op_count(mod):
 
         def visit_call(self, call):
             if isinstance(call.op, tvm.ir.Op):
+                self.count += 1
+
+            super().visit_call(call)
+
+    c = Counter()
+    c.visit(mod["main"])
+    return c.count
+
+
+def get_non_cpu_op_count(mod):
+    """Traverse graph counting ops not offloaded to TVM."""
+
+    class Counter(tvm.relay.ExprVisitor):
+        def __init__(self):
+            super().__init__()
+            self.count = 0
+
+        def visit_call(self, call):
+            if not isinstance(call.op, tvm.ir.Op):
                 self.count += 1
 
             super().visit_call(call)

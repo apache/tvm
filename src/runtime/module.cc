@@ -61,7 +61,7 @@ void ModuleNode::Import(Module other) {
   this->imports_.emplace_back(std::move(other));
 }
 
-PackedFunc ModuleNode::GetFunction(const std::string& name, bool query_imports) {
+PackedFunc ModuleNode::GetFunction(const String& name, bool query_imports) {
   ModuleNode* self = this;
   PackedFunc pf = self->GetFunction(name, GetObjectPtr<Object>(this));
   if (pf != nullptr) return pf;
@@ -76,7 +76,7 @@ PackedFunc ModuleNode::GetFunction(const std::string& name, bool query_imports) 
   return pf;
 }
 
-Module Module::LoadFromFile(const std::string& file_name, const std::string& format) {
+Module Module::LoadFromFile(const String& file_name, const String& format) {
   std::string fmt = GetFileFormat(file_name, format);
   ICHECK(fmt.length() != 0) << "Cannot deduce format of file " << file_name;
   if (fmt == "dll" || fmt == "dylib" || fmt == "dso") {
@@ -93,7 +93,7 @@ Module Module::LoadFromFile(const std::string& file_name, const std::string& for
   return m;
 }
 
-void ModuleNode::SaveToFile(const std::string& file_name, const std::string& format) {
+void ModuleNode::SaveToFile(const String& file_name, const String& format) {
   LOG(FATAL) << "Module[" << type_key() << "] does not support SaveToFile";
 }
 
@@ -101,11 +101,11 @@ void ModuleNode::SaveToBinary(dmlc::Stream* stream) {
   LOG(FATAL) << "Module[" << type_key() << "] does not support SaveToBinary";
 }
 
-std::string ModuleNode::GetSource(const std::string& format) {
+String ModuleNode::GetSource(const String& format) {
   LOG(FATAL) << "Module[" << type_key() << "] does not support GetSource";
 }
 
-const PackedFunc* ModuleNode::GetFuncFromEnv(const std::string& name) {
+const PackedFunc* ModuleNode::GetFuncFromEnv(const String& name) {
   std::lock_guard<std::mutex> lock(mutex_);
   auto it = import_cache_.find(name);
   if (it != import_cache_.end()) return it->second.get();
@@ -128,7 +128,7 @@ const PackedFunc* ModuleNode::GetFuncFromEnv(const std::string& name) {
   }
 }
 
-std::string ModuleNode::GetFormat() {
+String ModuleNode::GetFormat() {
   LOG(FATAL) << "Module[" << type_key() << "] does not support GetFormat";
 }
 
@@ -136,7 +136,8 @@ bool ModuleNode::ImplementsFunction(const String& name, bool query_imports) {
   return GetFunction(name, query_imports) != nullptr;
 }
 
-bool RuntimeEnabled(const std::string& target) {
+bool RuntimeEnabled(const String& target_str) {
+  std::string target = target_str;
   std::string f_name;
   if (target == "cpu") {
     return true;
@@ -193,6 +194,10 @@ TVM_REGISTER_GLOBAL("runtime.ModuleGetFormat").set_body_typed([](Module mod) {
 });
 
 TVM_REGISTER_GLOBAL("runtime.ModuleLoadFromFile").set_body_typed(Module::LoadFromFile);
+TVM_REGISTER_GLOBAL("runtime.ModuleGetFunction")
+    .set_body_typed([](Module mod, String name, bool query_imports) {
+      return mod->GetFunction(name, query_imports);
+    });
 
 TVM_REGISTER_GLOBAL("runtime.ModuleSaveToFile")
     .set_body_typed([](Module mod, String name, tvm::String fmt) { mod->SaveToFile(name, fmt); });

@@ -111,7 +111,7 @@ def test_external_calls(test_runner):
         main_source.count("TVMBackendAllocWorkspace") == 3
         or main_source.count("TVMBackendAllocWorkspace") == 0
     )
-    assert main_source.count("tvmgen_default_fused_reshape") == 2
+    assert main_source.count("tvmgen_default_fused_reshape") == 3
     assert main_source.count("tvmgen_default_cmsis_nn_main") == 12
     cmsisnn_source = lib_mod.imported_modules[0].get_source()
     assert cmsisnn_source.count("arm_convolve_wrapper") == 1
@@ -160,8 +160,8 @@ def test_internal_calls(interface_api, use_unpacked_api, test_runner):
 
     lib_mod = compiled_models[0].executor_factory.lib.imported_modules[0]
     main_source = lib_mod.get_source()
-    assert main_source.count("int32_t tvmgen_default_fused_nn_contrib_depthwise_conv2d_NCHWc") == 1
-    assert main_source.count("int32_t tvmgen_default_fused_layout_transform") == 3
+    assert main_source.count("int32_t tvmgen_default_fused_nn_contrib_depthwise_conv2d_NCHWc") == 2
+    assert main_source.count("int32_t tvmgen_default_fused_layout_transform") == 6
 
 
 @tvm.testing.requires_corstone300
@@ -243,8 +243,8 @@ def test_tensorized_calls():
 
     lib_mod = compiled_models[0].executor_factory.lib.imported_modules[0]
     main_source = lib_mod.get_source()
-    assert main_source.count("tvmgen_default_fused_nn_conv2d") == 2
-    assert main_source.count("gemm_") == 13
+    assert main_source.count("tvmgen_default_fused_nn_conv2d") == 3
+    assert main_source.count("gemm_") == 15
 
 
 if __name__ == "__main__":

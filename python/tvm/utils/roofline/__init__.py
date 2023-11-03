@@ -51,10 +51,16 @@ def _create_args(mod: IRModule, dev: Device, func_name: str = "main", remote=Non
 
 @pass_instrument
 class SaveLoweredTIR:
-    """Save TIR functions from right before final lowering. Right now this
-    means right before tir.MakePackedAPI."""
+    """Save TIR functions for analysis.
 
-    def __init__(self, before_pass: str = "tir.MakePackedAPI"):
+    We need the TIR function in a form that can be handled by
+    `auto_scheduler.feature.named_features_from_primfunc`, but which
+    is the closest to the final lowered form as possible.  Right now this
+    means right before tir.SplitHostDevice.
+
+    """
+
+    def __init__(self, before_pass: str = "tir.SplitHostDevice"):
         """
         Parameters
         ----------

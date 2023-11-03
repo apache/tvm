@@ -142,5 +142,39 @@ TVM_REGISTER_GLOBAL("rpc.ServerLoop").set_body([](TVMArgs args, TVMRetValue* rv)
   }
 });
 
+class SimpleSockHandler : public dmlc::Stream {
+  // Things that will interface with user directly.
+ public:
+  explicit SimpleSockHandler(int sockfd)
+      : sock_(static_cast<support::TCPSocket::SockType>(sockfd)) {}
+  using dmlc::Stream::Read;
+  using dmlc::Stream::ReadArray;
+  using dmlc::Stream::Write;
+  using dmlc::Stream::WriteArray;
+
+  // Unused here, implemented for microTVM framing layer.
+  void MessageStart(uint64_t packet_nbytes) {}
+  void MessageDone() {}
+
+  // Internal supporting.
+  // Override methods that inherited from dmlc::Stream.
+ private:
+  size_t Read(void* data, size_t size) final {
+    ICHECK_EQ(sock_.RecvAll(data, size), size);
+    return size;
+  }
+  void Write(const void* data, size_t size) final { ICHECK_EQ(sock_.SendAll(data, size), size); }
+
+  // Things of current class.
+ private:
+  support::TCPSocket sock_;
+};
+
+TVM_REGISTER_GLOBAL("rpc.ReturnException").set_body_typed([](int sockfd, String msg) {
+  auto handler = SimpleSockHandler(sockfd);
+  RPCReference::ReturnException(msg.c_str(), &handler);
+  return;
+});
+
 }  // namespace runtime
 }  // namespace tvm

@@ -91,7 +91,7 @@ def register_workload(func_name, f=None, override=False):
     def register(myf):
         """internal register function"""
         if func_name in WORKLOAD_FUNC_REGISTRY and not override:
-            raise RuntimeError("%s has been registered already" % func_name)
+            raise RuntimeError(f"{func_name} has been registered already")
         WORKLOAD_FUNC_REGISTRY[func_name] = myf
         return myf
 
@@ -153,8 +153,8 @@ def make_workload_key(func, args):
 
     if not func_name in WORKLOAD_FUNC_REGISTRY:
         raise ValueError(
-            "%s is not registered. " % func,
-            "Please register it with @auto_scheduler.register_workload",
+            f"{func} is not registered. "
+            f"Please register it with @auto_scheduler.register_workload"
         )
 
     args = serialize_args(args)

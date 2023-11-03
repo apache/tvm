@@ -27,9 +27,9 @@ from tvm.tir.tensor_intrin.hexagon import VRMPY_u8u8i32_INTRIN
 
 def _check(original, transformed):
     func = original
-    mod = tvm.IRModule.from_expr(func)
+    mod = tvm.IRModule.from_expr(func.with_attr("global_symbol", "main"))
     mod = tvm.tir.transform.PlanAndUpdateBufferAllocationLocation()(mod)
-    tvm.ir.assert_structural_equal(mod["main"], transformed)
+    tvm.ir.assert_structural_equal(mod["main"], transformed.with_attr("global_symbol", "main"))
 
 
 @T.prim_func

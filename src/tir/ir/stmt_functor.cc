@@ -675,6 +675,11 @@ class IRSubstitute : public StmtExprMutator {
     return VisitBufferAccess(std::move(node));
   }
 
+  Stmt VisitStmt_(const DeclBufferNode* op) final {
+    auto node = Downcast<DeclBuffer>(StmtExprMutator::VisitStmt_(op));
+    return VisitBufferAccess(std::move(node));
+  }
+
   template <typename Node>
   Node VisitBufferAccess(Node node) {
     Buffer new_buf = GetRemappedBuffer(node->buffer);
@@ -694,10 +699,25 @@ class IRSubstitute : public StmtExprMutator {
       return it->second;
     }
 
-    auto new_buffer_var = vmap_(buf->data);
-    if (new_buffer_var.defined() && !new_buffer_var.value().same_as(buf->data)) {
+    PrimExpr new_buffer_var_expr = VisitExpr(buf->data);
+    CHECK(new_buffer_var_expr->IsInstance<VarNode>())
+        << "Buffer " << buf << " uses backing allocation " << buf->data
+        << ", which was substituted into the expression " << new_buffer_var_expr << ".  "
+        << "However, this expression is of type " << new_buffer_var_expr->GetTypeKey()
+        << " and the backing allocation must be a tir::Var";
+
+    Var buffer_var = Downcast<Var>(new_buffer_var_expr);
+    auto elem_offset = VisitExpr(buf->elem_offset);
+    auto shape = buf->shape.Map([this](const auto& expr) { return VisitExpr(expr); });
+    auto strides = buf->strides.Map([this](const auto& expr) { return VisitExpr(expr); });
+
+    if (!buffer_var.same_as(buf->data) || !elem_offset.same_as(buf->elem_offset) ||
+        !shape.same_as(buf->shape) || !strides.same_as(buf->strides)) {
       auto writer = buf.CopyOnWrite();
-      writer->data = Downcast<Var>(new_buffer_var);
+      writer->data = buffer_var;
+      writer->elem_offset = elem_offset;
+      writer->shape = shape;
+      writer->strides = strides;
     }
 
     buf_remap_[key] = buf;

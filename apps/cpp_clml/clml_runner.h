@@ -178,7 +178,7 @@ class CLMLRunner {
   void MakeDense(std::shared_ptr<cl_ml_tensor_memory_desc_qcom> input_desc,
                  std::shared_ptr<cl_ml_tensor_memory_desc_qcom> weight_desc,
                  std::shared_ptr<cl_ml_tensor_memory_desc_qcom> output_desc,
-                 std::shared_ptr<cl_ml_tensor_memory_desc_qcom> bias_desc, std::string dtype);
+                 std::vector<cl_uint> in_shape, std::vector<cl_uint> wt_shape, std::string dtype);
 
   /*! \brief SoftMax layer implementattion */
   void MakeSoftMax(std::shared_ptr<cl_ml_tensor_memory_desc_qcom> input_desc,

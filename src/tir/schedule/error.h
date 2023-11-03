@@ -69,7 +69,7 @@ class LoopPositionError : public ScheduleError {
   String DetailRenderTemplate() const final {
     std::ostringstream os;
     os << "ScheduleError: The input loop {0} of " << primitive_
-       << " is required to be be an ancestor of block {1}.";
+       << " is required to be an ancestor of block {1}.";
     return os.str();
   }
 

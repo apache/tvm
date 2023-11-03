@@ -57,13 +57,20 @@ def main(args):
         prox = Proxy(
             args.host,
             port=args.port,
+            port_end=args.port_end,
             web_port=args.web_port,
             index_page=index,
             resource_files=js_files,
             tracker_addr=tracker_addr,
         )
     else:
-        prox = Proxy(args.host, port=args.port, web_port=args.web_port, tracker_addr=tracker_addr)
+        prox = Proxy(
+            args.host,
+            port=args.port,
+            port_end=args.port_end,
+            web_port=args.web_port,
+            tracker_addr=tracker_addr,
+        )
     prox.proc.join()
 
 
@@ -71,6 +78,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--host", type=str, default="127.0.0.1", help="the hostname of the server")
     parser.add_argument("--port", type=int, default=9090, help="The port of the RPC")
+    parser.add_argument("--port-end", type=int, default=9199, help="The end search port of the RPC")
     parser.add_argument(
         "--web-port", type=int, default=8888, help="The port of the http/websocket server"
     )

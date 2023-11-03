@@ -216,7 +216,11 @@ class LLVMTargetInfo {
    * \brief Get the LLVM optimization level
    * \return optimization level for this target
    */
+#if TVM_LLVM_VERSION <= 170
   llvm::CodeGenOpt::Level GetOptLevel() const { return opt_level_; }
+#else
+  llvm::CodeGenOptLevel GetOptLevel() const { return opt_level_; }
+#endif
 
   /*!
    * \class Option
@@ -266,6 +270,36 @@ class LLVMTargetInfo {
    */
   bool MatchesGlobalState() const;
 
+  /*!
+   * \brief Get all supported targets from the LLVM backend
+   * \return list with all valid targets
+   */
+  const Array<String> GetAllLLVMTargets() const;
+
+  /*!
+   * \brief Get all CPU arches from target
+   * \return list with all valid cpu architectures
+   * \note The arches are fetched from the LLVM backend using the target `-mtriple`.
+   */
+  const Array<String> GetAllLLVMTargetArches() const;
+
+  /*!
+   * \brief Get all CPU features from target
+   * \return list with all valid cpu features
+   * \note The features are fetched from the LLVM backend using the target `-mtriple`
+   *       and the `-mcpu` architecture, but also consider the `-mattr` attributes.
+   */
+  const Array<String> GetAllLLVMCpuFeatures() const;
+
+  /*!
+   * \brief Check the target if has a specific cpu feature
+   * \param feature string with the feature to check
+   * \return true or false
+   * \note The feature is checked in the LLVM backend for the target `-mtriple`
+   *       and `-mcpu` architecture, but also consider the `-mattr` attributes.
+   */
+  const bool TargetHasCPUFeature(const std::string& feature) const;
+
  protected:
   /*!
    * \brief Get the current value of given LLVM option
@@ -282,7 +316,11 @@ class LLVMTargetInfo {
   std::vector<Option> llvm_options_;
   llvm::TargetOptions target_options_;
   llvm::FastMathFlags fast_math_flags_;
+#if TVM_LLVM_VERSION <= 170
   llvm::CodeGenOpt::Level opt_level_;
+#else
+  llvm::CodeGenOptLevel opt_level_;
+#endif
   llvm::Reloc::Model reloc_model_ = llvm::Reloc::PIC_;
   llvm::CodeModel::Model code_model_ = llvm::CodeModel::Small;
   std::shared_ptr<llvm::TargetMachine> target_machine_;

@@ -886,7 +886,7 @@ def test_alter_layout_depthwise_conv2d():
     from tvm import topi
 
     def alter_conv2d(attrs, inputs, tinfos, out_type):
-        with tvm.target.Target("llvm -mcpu=core-avx2"):
+        with tvm.target.Target("llvm -mtriple=x86_64-linux-gnu -mcpu=core-avx2"):
             return topi.nn.conv2d_alter_layout(attrs, inputs, tinfos, out_type)
 
     def expected():
@@ -1230,7 +1230,7 @@ def test_alter_layout_nhwc_int8_aarch64():
     """Check that AlterOplayout does not alter NHWC data layout."""
     from tvm import autotvm
 
-    expected_workload_shape = (20, 42, 4, 16)
+    expected_workload_shape = (20, 44, 4, 16)
 
     # We use Int8Fallback  to disable the fallback flag
     # and to test the new workload produced during the pass
@@ -1373,7 +1373,7 @@ def test_alter_op_dense():
         y = relay.Function(analysis.free_vars(y), y)
         return y
 
-    target = "llvm -mcpu=core-avx2"
+    target = "llvm -mtriple=x86_64-linux-gnu -mcpu=core-avx2"
     with tvm.target.Target(target):
         with TempOpAttr(
             "nn.dense", "FTVMAlterOpLayout", topi.x86.dense_alter_op._alter_dense_layout
@@ -1441,7 +1441,7 @@ def test_alter_op_dense_packed_data():
         )
         return relay.Function(analysis.free_vars(dense), dense)
 
-    with tvm.target.Target("llvm -mcpu=core-avx2"):
+    with tvm.target.Target("llvm -mtriple=x86_64-linux-gnu -mcpu=core-avx2"):
         with TempOpAttr(
             "nn.dense", "FTVMAlterOpLayout", topi.x86.dense_alter_op._alter_dense_layout
         ):

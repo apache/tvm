@@ -68,15 +68,15 @@ class SourceModuleNode : public runtime::ModuleNode {
   SourceModuleNode(std::string code, std::string fmt) : code_(code), fmt_(fmt) {}
   const char* type_key() const final { return "source"; }
 
-  PackedFunc GetFunction(const std::string& name, const ObjectPtr<Object>& sptr_to_self) final {
+  PackedFunc GetFunction(const String& name, const ObjectPtr<Object>& sptr_to_self) final {
     LOG(FATAL) << "Source module cannot execute, to get executable module"
                << " build TVM with \'" << fmt_ << "\' runtime support";
     return PackedFunc();
   }
 
-  std::string GetSource(const std::string& format) final { return code_; }
+  String GetSource(const String& format) final { return code_; }
 
-  std::string GetFormat() override { return fmt_; }
+  String GetFormat() override { return fmt_; }
 
  protected:
   std::string code_;
@@ -96,7 +96,7 @@ class CSourceModuleNode : public runtime::ModuleNode {
       : code_(code), fmt_(fmt), const_vars_(const_vars), func_names_(func_names) {}
   const char* type_key() const final { return "c"; }
 
-  PackedFunc GetFunction(const std::string& name, const ObjectPtr<Object>& sptr_to_self) final {
+  PackedFunc GetFunction(const String& name, const ObjectPtr<Object>& sptr_to_self) final {
     // Currently c-source module is used as demonstration purposes with binary metadata module
     // that expects get_symbol interface. When c-source module is used as external module, it
     // will only contain one function. However, when its used as an internal module (e.g., target
@@ -115,11 +115,44 @@ class CSourceModuleNode : public runtime::ModuleNode {
     }
   }
 
-  std::string GetSource(const std::string& format) final { return code_; }
+  String GetSource(const String& format) final { return code_; }
 
-  std::string GetFormat() override { return fmt_; }
+  String GetFormat() override { return fmt_; }
 
-  void SaveToFile(const std::string& file_name, const std::string& format) final {
+  void SaveToBinary(dmlc::Stream* stream) final {
+    stream->Write(code_);
+    stream->Write(fmt_);
+
+    std::vector<std::string> func_names;
+    for (const auto func_name : func_names_) func_names.push_back(func_name);
+    std::vector<std::string> const_vars;
+    for (auto const_var : const_vars_) const_vars.push_back(const_var);
+    stream->Write(func_names);
+    stream->Write(const_vars);
+  }
+
+  static runtime::Module LoadFromBinary(void* strm) {
+    dmlc::Stream* stream = static_cast<dmlc::Stream*>(strm);
+
+    std::string code, fmt;
+    ICHECK(stream->Read(&code)) << "Loading code failed";
+    ICHECK(stream->Read(&fmt)) << "Loading format failed";
+
+    std::vector<std::string> tmp_func_names, tmp_const_vars;
+    CHECK(stream->Read(&tmp_func_names)) << "Loading func names failed";
+    CHECK(stream->Read(&tmp_const_vars)) << "Loading const vars failed";
+
+    Array<String> func_names;
+    for (auto func_name : tmp_func_names) func_names.push_back(String(func_name));
+
+    Array<String> const_vars;
+    for (auto const_var : tmp_const_vars) const_vars.push_back(String(const_var));
+
+    auto n = make_object<CSourceModuleNode>(code, fmt, func_names, const_vars);
+    return runtime::Module(n);
+  }
+
+  void SaveToFile(const String& file_name, const String& format) final {
     std::string fmt = GetFileFormat(file_name, format);
     std::string meta_file = GetMetaFilePath(file_name);
     if (fmt == "c" || fmt == "cc" || fmt == "cpp" || fmt == "cu") {
@@ -130,7 +163,10 @@ class CSourceModuleNode : public runtime::ModuleNode {
     }
   }
 
-  int GetPropertyMask() const override { return runtime::ModulePropertyMask::kDSOExportable; }
+  int GetPropertyMask() const override {
+    return runtime::ModulePropertyMask::kBinarySerializable |
+           runtime::ModulePropertyMask::kDSOExportable;
+  }
 
   bool ImplementsFunction(const String& name, bool query_imports) final {
     return std::find(func_names_.begin(), func_names_.end(), name) != func_names_.end();
@@ -150,6 +186,9 @@ runtime::Module CSourceModuleCreate(const String& code, const String& fmt,
                                           func_names, const_vars);
   return runtime::Module(n);
 }
+
+TVM_REGISTER_GLOBAL("runtime.module.loadbinary_c")
+    .set_body_typed(CSourceModuleNode::LoadFromBinary);
 
 /*!
  * \brief A concrete class to get access to base methods of CodegenSourceBase.
@@ -181,14 +220,14 @@ class CSourceCrtMetadataModuleNode : public runtime::ModuleNode {
   }
   const char* type_key() const final { return "c"; }
 
-  std::string GetSource(const std::string& format) final { return code_.str(); }
+  String GetSource(const String& format) final { return code_.str(); }
 
-  std::string GetFormat() override { return fmt_; }
-  PackedFunc GetFunction(const std::string& name, const ObjectPtr<Object>& sptr_to_self) final {
+  String GetFormat() override { return fmt_; }
+  PackedFunc GetFunction(const String& name, const ObjectPtr<Object>& sptr_to_self) final {
     return PackedFunc();
   }
 
-  void SaveToFile(const std::string& file_name, const std::string& format) final {
+  void SaveToFile(const String& file_name, const String& format) final {
     std::string fmt = GetFileFormat(file_name, format);
     std::string meta_file = GetMetaFilePath(file_name);
     if (fmt == "c" || fmt == "cc" || fmt == "cpp") {
@@ -574,12 +613,14 @@ class CSourceCrtMetadataModuleNode : public runtime::ModuleNode {
       }
 
       for (const tir::Var& pool_var : metadata_->pools) {
+        call_args_ss << "((uint8_t*)";
         String pool_name = metadata_->pool_inputs.value()[pool_var]->pool_info->pool_name;
         if (IsInternalWorkspaceBuffer(pool_var)) {
-          call_args_ss << "&" << pool_name << ",";
+          call_args_ss << "&" << pool_name;
         } else {
-          call_args_ss << "workspace_pools->" << tvm::runtime::SanitizeName(pool_name) << ",";
+          call_args_ss << "workspace_pools->" << tvm::runtime::SanitizeName(pool_name);
         }
+        call_args_ss << "),";
       }
       for (const String& device : metadata_->devices) {
         call_args_ss << "devices->" << device << ",";
@@ -994,13 +1035,13 @@ class DeviceSourceModuleNode final : public runtime::ModuleNode {
                          std::function<std::string(const std::string&)> fget_source)
       : data_(data), fmt_(fmt), fmap_(fmap), type_key_(type_key), fget_source_(fget_source) {}
 
-  PackedFunc GetFunction(const std::string& name, const ObjectPtr<Object>& sptr_to_self) final {
+  PackedFunc GetFunction(const String& name, const ObjectPtr<Object>& sptr_to_self) final {
     LOG(FATAL) << "Source module cannot execute, to get executable module"
                << " build TVM with \'" << fmt_ << "\' runtime support";
     return PackedFunc();
   }
 
-  std::string GetSource(const std::string& format) final {
+  String GetSource(const String& format) final {
     if (fget_source_ != nullptr) {
       return fget_source_(format);
     } else {
@@ -1012,7 +1053,7 @@ class DeviceSourceModuleNode final : public runtime::ModuleNode {
   /*! \brief Get the property of the runtime module .*/
   int GetPropertyMask() const final { return runtime::ModulePropertyMask::kBinarySerializable; }
 
-  void SaveToFile(const std::string& file_name, const std::string& format) final {
+  void SaveToFile(const String& file_name, const String& format) final {
     std::string fmt = GetFileFormat(file_name, format);
     ICHECK_EQ(fmt, fmt_) << "Can only save to format=" << fmt_;
     std::string meta_file = GetMetaFilePath(file_name);

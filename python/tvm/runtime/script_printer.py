@@ -15,6 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 """Configuration of TVMScript printer"""
+import os
 from typing import Dict, List, Optional, Sequence
 
 from tvm._ffi import get_global_func, register_object
@@ -40,6 +41,7 @@ class PrinterConfig(Object):
     print_line_numbers: bool
     num_context_lines: int
     syntax_sugar: bool
+    show_object_address: bool
     path_to_underline: Optional[List[ObjectPath]]
     path_to_annotate: Optional[Dict[ObjectPath, str]]
     obj_to_underline: Optional[List[Object]]
@@ -60,6 +62,7 @@ class PrinterConfig(Object):
         print_line_numbers: bool = False,
         num_context_lines: Optional[int] = None,
         syntax_sugar: bool = True,
+        show_object_address: bool = False,
         path_to_underline: Optional[List[ObjectPath]] = None,
         path_to_annotate: Optional[Dict[ObjectPath, str]] = None,
         obj_to_underline: Optional[List[Object]] = None,
@@ -79,6 +82,7 @@ class PrinterConfig(Object):
             "print_line_numbers": print_line_numbers,
             "num_context_lines": num_context_lines,
             "syntax_sugar": syntax_sugar,
+            "show_object_address": show_object_address,
             "path_to_underline": path_to_underline,
             "path_to_annotate": path_to_annotate,
             "obj_to_underline": obj_to_underline,
@@ -119,6 +123,7 @@ class Scriptable:
         print_line_numbers: bool = False,
         num_context_lines: int = -1,
         syntax_sugar: bool = True,
+        show_object_address: bool = False,
         path_to_underline: Optional[List[ObjectPath]] = None,
         path_to_annotate: Optional[Dict[ObjectPath, str]] = None,
         obj_to_underline: Optional[List[Object]] = None,
@@ -153,6 +158,8 @@ class Scriptable:
             The number of lines of context to print before and after the line to underline.
         syntax_sugar: bool = True
              Whether to output with syntax sugar, set false for complete printing.
+        show_object_address: bool = False
+             Whether to include the object's address as part of the TVMScript name
         path_to_underline : Optional[List[ObjectPath]] = None
             Object path to be underlined
         path_to_annotate : Optional[Dict[ObjectPath, str]] = None
@@ -182,6 +189,7 @@ class Scriptable:
                 print_line_numbers=print_line_numbers,
                 num_context_lines=num_context_lines,
                 syntax_sugar=syntax_sugar,
+                show_object_address=show_object_address,
                 path_to_underline=path_to_underline,
                 path_to_annotate=path_to_annotate,
                 obj_to_underline=obj_to_underline,
@@ -192,7 +200,7 @@ class Scriptable:
     def show(
         self,
         style: Optional[str] = None,
-        black_format: bool = True,
+        black_format: Optional[bool] = None,
         *,
         name: Optional[str] = None,
         show_meta: bool = False,
@@ -206,6 +214,7 @@ class Scriptable:
         print_line_numbers: bool = False,
         num_context_lines: int = -1,
         syntax_sugar: bool = True,
+        show_object_address: bool = False,
         path_to_underline: Optional[List[ObjectPath]] = None,
         path_to_annotate: Optional[Dict[ObjectPath, str]] = None,
         obj_to_underline: Optional[List[Object]] = None,
@@ -218,8 +227,26 @@ class Scriptable:
         style : str, optional
             Pygmentize printing style, auto-detected if None.  See
             `tvm.script.highlight.cprint` for more details.
-        black_format: bool
-            If true (default), use the formatter Black to format the TVMScript
+
+        black_format: Optional[bool]
+
+            If true, use the formatter Black to format the TVMScript.
+            If false, do not apply the auto-formatter.
+
+            If None (default), determine the behavior based on the
+            environment variable "TVM_BLACK_FORMAT".  If this
+            environment variable is unset, set to the empty string, or
+            set to the integer zero, black auto-formatting will be
+            disabled.  If the environment variable is set to a
+            non-zero integer, black auto-formatting will be enabled.
+
+            Note that the "TVM_BLACK_FORMAT" environment variable only
+            applies to the `.show()` method, and not the underlying
+            `.script()` method.  The `.show()` method is intended for
+            human-readable output based on individual user
+            preferences, while the `.script()` method is intended to
+            provided a consistent output regardless of environment.
+
         name : Optional[str] = None
             The name of the object
         show_meta : bool = False
@@ -245,6 +272,8 @@ class Scriptable:
             The number of lines of context to print before and after the line to underline.
         syntax_sugar: bool = True
              Whether to output with syntax sugar, set false for complete printing.
+        show_object_address: bool = False
+             Whether to include the object's address as part of the TVMScript name
         path_to_underline : Optional[List[ObjectPath]] = None
             Object path to be underlined
         path_to_annotate : Optional[Dict[ObjectPath, str]] = None
@@ -253,10 +282,15 @@ class Scriptable:
             Object to be underlined
         obj_to_annotate : Optional[Dict[Object, str]] = None
             Object to be annotated
+
         """
         from tvm.script.highlight import (  # pylint: disable=import-outside-toplevel
             cprint,
         )
+
+        if black_format is None:
+            env = os.environ.get("TVM_BLACK_FORMAT")
+            black_format = env and int(env)
 
         cprint(
             self.script(
@@ -272,6 +306,7 @@ class Scriptable:
                 print_line_numbers=print_line_numbers,
                 num_context_lines=num_context_lines,
                 syntax_sugar=syntax_sugar,
+                show_object_address=show_object_address,
                 path_to_underline=path_to_underline,
                 path_to_annotate=path_to_annotate,
                 obj_to_underline=obj_to_underline,

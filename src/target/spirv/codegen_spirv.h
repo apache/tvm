@@ -34,6 +34,7 @@
 #include <memory>
 #include <string>
 #include <unordered_map>
+#include <utility>
 #include <vector>
 
 #include "../../runtime/spirv/spirv_shader.h"
@@ -101,11 +102,13 @@ class CodeGenSPIRV : public ExprFunctor<spirv::Value(const PrimExpr&)>,
   spirv::Value VisitExpr_(const RampNode* op) override;
   spirv::Value VisitExpr_(const BroadcastNode* op) override;
   spirv::Value VisitExpr_(const BufferLoadNode* op) override;
+  spirv::Value VisitExpr_(const ShuffleNode* op) override;
   // stmt
   void VisitStmt_(const BufferStoreNode* op) override;
   void VisitStmt_(const ForNode* op) override;
   void VisitStmt_(const WhileNode* op) override;
   void VisitStmt_(const IfThenElseNode* op) override;
+  void VisitStmt_(const DeclBufferNode* op) override;
   void VisitStmt_(const AllocateNode* op) override;
   void VisitStmt_(const AttrStmtNode* op) override;
   void VisitStmt_(const AssertStmtNode* op) override;
@@ -171,6 +174,14 @@ class CodeGenSPIRV : public ExprFunctor<spirv::Value(const PrimExpr&)>,
       element_type_known = true;
     }
   };
+
+  struct FragmentInfo {
+    std::string shape;
+    std::string scope;
+    spirv::SType stype;
+    spv::StorageClass sclass;
+  };
+
   // Reset the state so it works for a new function.
   void InitFuncState();
   // Get the thread index
@@ -178,6 +189,9 @@ class CodeGenSPIRV : public ExprFunctor<spirv::Value(const PrimExpr&)>,
 
   spirv::Value CreateStorageSync(const CallNode* op);
   void Scalarize(const PrimExpr& e, std::function<void(int i, spirv::Value v)> f);
+
+  spirv::SType GetFragmentSType(const VarNode* buffer, const DataType& dtype);
+  DataType GetElementDataType(const VarNode* buffer);
 
   // SPIRV-related capabilities of the target
   SPIRVSupport spirv_support_;
@@ -218,6 +232,8 @@ class CodeGenSPIRV : public ExprFunctor<spirv::Value(const PrimExpr&)>,
   // Running total of the number of bytes of shared memory used.
   // Checked against the max_shared_memory_per_group
   size_t shared_memory_bytes_used_{0};
+
+  std::unordered_map<const VarNode*, FragmentInfo> fragment_info_;
 };
 
 }  // namespace codegen

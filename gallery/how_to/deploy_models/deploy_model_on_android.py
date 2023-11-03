@@ -281,7 +281,7 @@ with tvm.transform.PassContext(opt_level=3):
 tmp = utils.tempdir()
 lib_fname = tmp.relpath("net.so")
 fcompile = ndk.create_shared if not local_demo else None
-lib.export_library(lib_fname, fcompile)
+lib.export_library(lib_fname, fcompile=fcompile)
 
 ######################################################################
 # Deploy the Model Remotely by RPC

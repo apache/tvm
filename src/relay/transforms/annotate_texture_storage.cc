@@ -174,8 +174,11 @@ class StorageInfo : private transform::DeviceAwareExprVisitor {
             for (const auto& ttype : FlattenTupleType(fn->params[i]->checked_type())) {
               std::string scope = Scope(ttype->shape, GetVirtualDevice(GetRef<Expr>(call)));
               if (expr_attrib.as<Conv2DAttrs>() || expr_attrib.as<Conv2DWinogradAttrs>()) {
+                String kernel_layout = expr_attrib.as<Conv2DAttrs>()
+                                           ? expr_attrib.as<Conv2DAttrs>()->kernel_layout
+                                           : expr_attrib.as<Conv2DWinogradAttrs>()->kernel_layout;
                 if ((i == weights_pos) && !ttype->dtype.is_float16() &&
-                    CanUseBuffers(call->args[i], ttype->shape, fn->attrs)) {
+                    CanUseBuffers(call->args[i], ttype->shape, kernel_layout)) {
                   buffers_params.insert(fn->params[i]);
                   buffers_args.insert(call->args[i]);
                   scope = "global";
@@ -407,6 +410,15 @@ class StorageInfo : private transform::DeviceAwareExprVisitor {
       if (pattern <= kCommReduce) {
         if (const auto* ttype = call->checked_type().as<TensorTypeNode>()) {
           if (ttype->shape.size() == 5) {
+            auto node0 = ttype->shape[0].as<IntImmNode>();
+            auto node1 = ttype->shape[1].as<IntImmNode>();
+            auto node2 = ttype->shape[2].as<IntImmNode>();
+            auto node3 = ttype->shape[3].as<IntImmNode>();
+            auto node4 = ttype->shape[4].as<IntImmNode>();
+            // if tensor has any dimension then textures are not supported
+            if (!node0 || !node1 || !node2 || !node3 || !node4) {
+              return false;
+            }
             supports_texture_storage = true;
           }
         }
@@ -417,10 +429,9 @@ class StorageInfo : private transform::DeviceAwareExprVisitor {
   }
 
   bool CanUseBuffers(const Expr param, const Array<PrimExpr> shape,
-                     const tvm::DictAttrs param_attrs) const {
+                     const String kernel_layout) const {
     bool use_buffer = false;
     if (param.as<ConstantNode>() && shape.size() == 5) {
-      auto kernel_layout = param_attrs.GetAttr<String>("kernel_layout");
       if (kernel_layout == "HWOI4o" || kernel_layout == "HWIO4o") {
         int a0 = shape[0].as<IntImmNode>()->value;
         int a1 = shape[1].as<IntImmNode>()->value;

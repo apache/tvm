@@ -180,7 +180,7 @@ class HexagonPageAllocator {
 class HexagonRPCServer {
  public:
   explicit HexagonRPCServer(uint8_t* receive_buffer, size_t receive_buffer_size_bytes)
-      : io_{receive_buffer, receive_buffer_size_bytes}, rpc_server_{&io_} {};
+      : io_{receive_buffer, receive_buffer_size_bytes}, rpc_server_{&io_} {}
 
   /*!
    * \brief Wrtie to IOHandler.
@@ -191,16 +191,16 @@ class HexagonRPCServer {
    * Otherwise, returns -1;
    */
   int64_t Write(const uint8_t* data, size_t data_size_bytes) {
+    if (!is_running_) {
+      LOG(ERROR) << "ERROR: Write called but server is not running";
+    }
     AEEResult rc = io_.SetReadBuffer(data, data_size_bytes);
     if (rc != AEE_SUCCESS) {
       LOG(ERROR) << "ERROR: SetReadBuffer failed: " << rc;
       return -1;
     }
 
-    if (!rpc_server_.ProcessOnePacket()) {
-      LOG(ERROR) << "ERROR: ProcessOnePacket failed";
-      return -1;
-    }
+    is_running_ = rpc_server_.ProcessOnePacket();
     return (int64_t)data_size_bytes;
   }
 
@@ -212,10 +212,14 @@ class HexagonRPCServer {
    * \return The size of data that is read in bytes.
    */
   int64_t Read(uint8_t* buf, size_t read_size_bytes) {
+    if (!is_running_) {
+      LOG(ERROR) << "ERROR: Read called but server is not running";
+    }
     return io_.ReadFromWriteBuffer(buf, read_size_bytes);
   }
 
  private:
+  bool is_running_ = true;
   HexagonIOHandler io_;
   MinRPCServer<HexagonIOHandler, HexagonPageAllocator> rpc_server_;
 };

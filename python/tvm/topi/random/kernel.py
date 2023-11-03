@@ -517,9 +517,10 @@ def uniform(gen, low, high, out_shape, out_dtype):
         Tensor of random numbers with shape `out_shape` and type `out_dtype`.
     """
     new_gen, random_bits = threefry_generate(gen, out_shape)
-    assert out_dtype in ("float32", "float64"), (
-        "Only support float32 or float64 for now, got %s" % out_dtype
-    )
+    assert out_dtype in (
+        "float32",
+        "float64",
+    ), f"Only support float32 or float64 for now, got {out_dtype}"
     if out_dtype == "float32":
         random_dtype = "uint32"
         nbits = 32
@@ -581,11 +582,7 @@ def normal(gen, mean, scale, out_shape, out_dtype):
     # Box-Muller transform need two pieces of original uniform data
     out_shape.insert(0, 2)
     new_gen, uniform_values = uniform(
-        gen,
-        tvm.tir.const(0.0, out_dtype),
-        tvm.tir.const(1.0, out_dtype),
-        out_shape,
-        out_dtype,
+        gen, tvm.tir.const(0.0, out_dtype), tvm.tir.const(1.0, out_dtype), out_shape, out_dtype
     )
     two_pi = tvm.tir.const(2.0 * math.pi, out_dtype)
     uniform_values_1 = tvm.topi.strided_slice(uniform_values, [0], [1], strides=[1], axes=[0])

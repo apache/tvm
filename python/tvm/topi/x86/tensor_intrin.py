@@ -19,15 +19,15 @@
 import tvm
 from tvm import te
 import tvm.target.codegen
-from tvm.target.x86 import target_has_sse42, target_has_vnni, get_simd_32bit_lanes
+from tvm.target.x86 import target_has_features, get_simd_32bit_lanes
 
 
 def dot_16x1x16_uint8_int8_int32():
     """Dispatch the most optimized intrin depending on the target"""
-    mcpu = tvm.target.Target.current().mcpu
-
-    assert target_has_sse42(mcpu), "An old Intel machine that does not have fast Int8 support."
-    if target_has_vnni(mcpu):
+    assert target_has_features(
+        "sse4.2"
+    ), "An old Intel machine that does not have fast Int8 support."
+    if target_has_features("avx512vnni") or target_has_features("avxvnni"):
         # VNNI capable platform
         return dot_16x1x16_uint8_int8_int32_cascadelake()
     # vpmaddubsw/vpmaddwd fallback

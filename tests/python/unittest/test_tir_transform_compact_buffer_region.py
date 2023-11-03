@@ -34,8 +34,8 @@ class BaseCompactTest:
         is_lower_order_free = getattr(self, "is_lower_order_free", True)
         is_strict = getattr(self, "is_strict_mode", True)
 
-        before = tvm.IRModule.from_expr(self.before)
-        expected = tvm.IRModule.from_expr(self.expected)
+        before = tvm.IRModule.from_expr(self.before.with_attr("global_symbol", "main"))
+        expected = tvm.IRModule.from_expr(self.expected.with_attr("global_symbol", "main"))
         simplify = tvm.transform.Sequential([tir.transform.Simplify(), tir.transform.RemoveNoOp()])
         after = simplify(tir.transform.CompactBufferAllocation(is_strict=is_strict)(before))
         expected = simplify(expected)
@@ -999,7 +999,7 @@ class TestDependentBufferIndicesOfPackedMatmul(BaseCompactTest):
     ) -> None:
         for i0, i1 in T.grid(4, 1):
             with T.block():
-                C_local2 = T.alloc_buffer([1, 1, 15, 1000, 16], dtype="float32", scope="local")
+                C_local2 = T.alloc_buffer([1, 1, 16, 1000, 16], dtype="float32", scope="local")
                 C_local1 = T.alloc_buffer([255, 1000], dtype="float32", scope="local")
                 for ax0, ax1, ax2 in T.grid(255, 1000, 64):
                     with T.block("matmul"):
@@ -1056,7 +1056,7 @@ class TestTileAwareCompaction(BaseCompactTest):
                         C[i_0 * 26 + ax0, j_0 * 26 + ax1] = C_local[ax0, ax1]
 
     # Get partitioned workload to compact
-    before_mod = tvm.IRModule.from_expr(before)
+    before_mod = tvm.IRModule.from_expr(before.with_attr("global_symbol", "main"))
     with tvm.transform.PassContext(config={"tir.LoopPartition": {"partition_const_loop": True}}):
         before_mod = tvm.tir.transform.LowerOpaqueBlock()(before_mod)
         before_mod = tvm.tir.transform.LoopPartition()(before_mod)
@@ -1354,6 +1354,68 @@ class TestCompactSymbolicBound1:
                 with T.block("Y"):
                     for x1 in range(T.int64(32)):
                         Y[i, k_0 * T.int64(32) + x1] = X_global[T.int64(0), x1]
+
+
+class TestSymbolicDiagMaskCase:
+    """Test symbolic allocation not too complex"""
+
+    @T.prim_func
+    def before(p_output0: T.handle, n: T.int32):
+        A = T.match_buffer(p_output0, (1, 1, n, n))
+        B = T.alloc_buffer((n, n))
+        for i in T.thread_binding(256, thread="blockIdx.x"):
+            for j in T.thread_binding(256, thread="threadIdx.x"):
+                for k in range((n * n + 65535) // 65536):
+                    with T.block("make_diag_mask_te"):
+                        T.where((k * 256 + i) * 256 + j < n * n)
+                        T.reads()
+                        T.writes(B[(k * 65536 + i * 256 + j) // n, (k * 65536 + i * 256 + j) % n])
+                        B[(k * 65536 + i * 256 + j) // n, (k * 65536 + i * 256 + j) % n] = T.Select(
+                            (k * 65536 + i * 256 + j) // n < (k * 65536 + i * 256 + j) % n,
+                            T.float32(-3.4028234663852886e38),
+                            T.float32(3.4028234663852886e38),
+                        )
+        for i in T.thread_binding(256, thread="blockIdx.x"):
+            for j in T.thread_binding(256, thread="threadIdx.x"):
+                for k in range((n * n + 65535) // 65536):
+                    with T.block("T_broadcast_to"):
+                        T.where((k * 256 + i) * 256 + j < n * n)
+                        T.reads(B[(k * 65536 + i * 256 + j) // n, (k * 65536 + i * 256 + j) % n])
+                        T.writes(
+                            A[0, 0, (k * 65536 + i * 256 + j) // n, (k * 65536 + i * 256 + j) % n]
+                        )
+                        A[0, 0, (k * 65536 + i * 256 + j) // n, (k * 65536 + i * 256 + j) % n] = B[
+                            (k * 65536 + i * 256 + j) // n, (k * 65536 + i * 256 + j) % n
+                        ]
+
+    @T.prim_func
+    def expected(p_output0: T.handle, n: T.int32):
+        A = T.match_buffer(p_output0, (1, 1, n, n))
+        B = T.alloc_buffer((n, n))
+        for i in T.thread_binding(256, thread="blockIdx.x"):
+            for j in T.thread_binding(256, thread="threadIdx.x"):
+                for k in range((n * n + 65535) // 65536):
+                    with T.block("make_diag_mask_te"):
+                        T.where(k * 65536 + i * 256 + j < n * n)
+                        T.reads()
+                        T.writes(B[(k * 65536 + i * 256 + j) // n, (k * 65536 + i * 256 + j) % n])
+                        B[(k * 65536 + i * 256 + j) // n, (k * 65536 + i * 256 + j) % n] = T.Select(
+                            (k * 65536 + i * 256 + j) // n < (k * 65536 + i * 256 + j) % n,
+                            T.float32(-3.4028234663852886e38),
+                            T.float32(3.4028234663852886e38),
+                        )
+        for i in T.thread_binding(256, thread="blockIdx.x"):
+            for k in T.thread_binding(256, thread="threadIdx.x"):
+                for k in range((n * n + 65535) // 65536):
+                    with T.block("T_broadcast_to"):
+                        T.where(k * 65536 + i * 256 + k < n * n)
+                        T.reads(B[(k * 65536 + i * 256 + k) // n, (k * 65536 + i * 256 + k) % n])
+                        T.writes(
+                            A[0, 0, (k * 65536 + i * 256 + k) // n, (k * 65536 + i * 256 + k) % n]
+                        )
+                        A[0, 0, (k * 65536 + i * 256 + k) // n, (k * 65536 + i * 256 + k) % n] = B[
+                            (k * 65536 + i * 256 + k) // n, (k * 65536 + i * 256 + k) % n
+                        ]
 
 
 if __name__ == "__main__":

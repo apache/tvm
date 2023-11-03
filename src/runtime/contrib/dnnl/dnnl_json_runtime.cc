@@ -99,7 +99,7 @@ class DNNLJSONRuntime : public JSONRuntimeBase {
   }
 
   /* Override GetFunction to reimplement Run method */
-  PackedFunc GetFunction(const std::string& name, const ObjectPtr<Object>& sptr_to_self) override {
+  PackedFunc GetFunction(const String& name, const ObjectPtr<Object>& sptr_to_self) override {
     if (this->symbol_name_ == name) {
       return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
         ICHECK(this->initialized_) << "The module has not been initialized";

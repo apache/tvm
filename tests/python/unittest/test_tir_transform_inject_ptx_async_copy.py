@@ -14,10 +14,13 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-import numpy as np
+
 import tvm
 import tvm.testing
 from tvm.script import tir as T
+
+import pytest
+import numpy as np
 
 
 def count_cp_async(stmt):
@@ -180,7 +183,71 @@ def test_inject_async_copy_shared_dyn():
     tvm.testing.assert_allclose(C_nd.numpy(), A_np + B_np)
 
 
-expected_cuda_script = r"""
+@T.prim_func
+def ptx_global_to_shared_copy_fp32x1_barrier(
+    A: T.Buffer((32, 128), "float32"), B: T.Buffer((32, 128), "float32")
+) -> None:
+    T.func_attr({"global_symbol": "main", "tir.noalias": True})
+    bx = T.env_thread("blockIdx.x")
+    tx = T.env_thread("threadIdx.x")
+    T.launch_thread(bx, 1)
+    T.launch_thread(tx, 32)
+    with T.block():
+        A_shared = T.alloc_buffer([32, 128], "float32", scope="shared")
+
+        T.reads(A[0:32, 0:128])
+        T.writes(B[0:32, 0:128])
+
+        T.evaluate(T.create_barriers(1, dtype=""))
+        T.evaluate(T.ptx_init_barrier_thread_count(0, 32, dtype=""))
+
+        T.attr("default", "async_scope", 1)
+        for i in T.serial(128):
+            A_shared[tx, i] = A[tx, i]
+
+        T.evaluate(T.ptx_cp_async_barrier(0, dtype=""))
+        T.evaluate(T.ptx_arrive_barrier(0, dtype=""))
+        T.evaluate(T.ptx_wait_barrier(0, dtype=""))
+
+        for i in range(128):
+            B[tx, i] = A_shared[tx, i]
+
+
+@tvm.testing.requires_cuda
+def test_inject_async_copy_barrier():
+    dtype = "float32"
+    vec_size = 1
+    f = ptx_global_to_shared_copy_fp32x1_barrier
+
+    mod = tvm.IRModule.from_expr(f)
+    mod = tvm.tir.transform.LowerOpaqueBlock()(mod)
+    mod = tvm.tir.transform.FlattenBuffer()(mod)
+    mod = tvm.tir.transform.InjectPTXAsyncCopy()(mod)
+
+    assert count_cp_async(mod["main"].body) == 1
+
+    if tvm.testing.is_ampere_or_newer():
+        with tvm.transform.PassContext(config={"tir.use_async_copy": 1}):
+            mod = tvm.build(tvm.IRModule.from_expr(f), target="cuda")
+
+        A_np = np.random.rand(32, 128).astype(dtype)
+        B_np = np.zeros((32, 128)).astype(dtype)
+        dev = tvm.cuda(0)
+        A_nd = tvm.nd.array(A_np, device=dev)
+        B_nd = tvm.nd.array(B_np, device=dev)
+        mod(A_nd, B_nd)
+        tvm.testing.assert_allclose(B_nd.numpy(), A_np)
+
+
+expected_cuda_script = r"""__forceinline__ __device__ unsigned int
+cast_smem_ptr_to_int(const void* const smem_ptr)
+{
+  unsigned int smem_int;
+  asm volatile ("{ .reg .u64 smem_int; cvta.to.shared.u64 smem_int, %1; cvt.u32.u64 %0, smem_int; }"
+    : "=r"(smem_int) : "l"(smem_ptr));
+  return smem_int;
+}
+
 #if (((__CUDACC_VER_MAJOR__ == 11) && (__CUDACC_VER_MINOR__ >= 4)) || \
      (__CUDACC_VER_MAJOR__ > 11))
 #define TVM_ENABLE_L2_PREFETCH 1
@@ -201,7 +268,8 @@ expected_cuda_script = r"""
   #define int64_t long long
   #define uint64_t unsigned long long
 #endif
-extern "C" __global__ void __launch_bounds__(16) main_kernel0(float* __restrict__ A, float* __restrict__ B, float* __restrict__ C) {
+extern "C" __global__ void __launch_bounds__(16) main_kernel(float* __restrict__ A, float* __restrict__ B, float* __restrict__ C);
+extern "C" __global__ void __launch_bounds__(16) main_kernel(float* __restrict__ A, float* __restrict__ B, float* __restrict__ C) {
   __shared__ float A_shared[64];
   __shared__ float B_shared[64];
   A_shared[((int)threadIdx.x)] = 0.000000e+00f;
@@ -210,12 +278,7 @@ __asm__ __volatile__("cp.async.commit_group;");
 
 
   {
-    unsigned int addr;
-    __asm__ __volatile__(
-      "{ .reg .u64 addr; cvta.to.shared.u64 addr, %1; cvt.u32.u64 %0, addr; }\n"
-      : "=r"(addr)
-      : "l"((void *)(A_shared + (((int)threadIdx.x) + 16)))
-    );
+    unsigned int addr = cast_smem_ptr_to_int(A_shared + (((int)threadIdx.x) + 16));
     __asm__ __volatile__(
       #if TVM_ENABLE_L2_PREFETCH
         "cp.async.ca.shared.global.L2::128B [%0], [%1], %2;"
@@ -227,12 +290,7 @@ __asm__ __volatile__("cp.async.commit_group;");
   }
 
   {
-    unsigned int addr;
-    __asm__ __volatile__(
-      "{ .reg .u64 addr; cvta.to.shared.u64 addr, %1; cvt.u32.u64 %0, addr; }\n"
-      : "=r"(addr)
-      : "l"((void *)(B_shared + (((int)threadIdx.x) + 16)))
-    );
+    unsigned int addr = cast_smem_ptr_to_int(B_shared + (((int)threadIdx.x) + 16));
     __asm__ __volatile__(
       #if TVM_ENABLE_L2_PREFETCH
         "cp.async.ca.shared.global.L2::128B [%0], [%1], %2;"
@@ -246,12 +304,7 @@ __asm__ __volatile__("cp.async.commit_group;");
 
 
   {
-    unsigned int addr;
-    __asm__ __volatile__(
-      "{ .reg .u64 addr; cvta.to.shared.u64 addr, %1; cvt.u32.u64 %0, addr; }\n"
-      : "=r"(addr)
-      : "l"((void *)(A_shared + (((int)threadIdx.x) + 32)))
-    );
+    unsigned int addr = cast_smem_ptr_to_int(A_shared + (((int)threadIdx.x) + 32));
     __asm__ __volatile__(
       #if TVM_ENABLE_L2_PREFETCH
         "cp.async.ca.shared.global.L2::128B [%0], [%1], %2;"
@@ -263,12 +316,7 @@ __asm__ __volatile__("cp.async.commit_group;");
   }
 
   {
-    unsigned int addr;
-    __asm__ __volatile__(
-      "{ .reg .u64 addr; cvta.to.shared.u64 addr, %1; cvt.u32.u64 %0, addr; }\n"
-      : "=r"(addr)
-      : "l"((void *)(B_shared + (((int)threadIdx.x) + 32)))
-    );
+    unsigned int addr = cast_smem_ptr_to_int(B_shared + (((int)threadIdx.x) + 32));
     __asm__ __volatile__(
       #if TVM_ENABLE_L2_PREFETCH
         "cp.async.ca.shared.global.L2::128B [%0], [%1], %2;"
@@ -284,12 +332,7 @@ __asm__ __volatile__("cp.async.commit_group;");
     bool cse_var_1 = (i < 12);
 
   {
-    unsigned int addr;
-    __asm__ __volatile__(
-      "{ .reg .u64 addr; cvta.to.shared.u64 addr, %1; cvt.u32.u64 %0, addr; }"
-      : "=r"(addr)
-      : "l"((void *)(A_shared + ((((i + 3) & 3) * 16) + ((int)threadIdx.x))))
-    );
+    unsigned int addr = cast_smem_ptr_to_int(A_shared + ((((i + 3) & 3) * 16) + ((int)threadIdx.x)));
     int pred_guard = (int)cse_var_1;
     __asm__ __volatile__(
         "{  .reg .pred p;"
@@ -312,12 +355,7 @@ __asm__ __volatile__("cp.async.wait_group 5;");
     __syncthreads();
 
   {
-    unsigned int addr;
-    __asm__ __volatile__(
-      "{ .reg .u64 addr; cvta.to.shared.u64 addr, %1; cvt.u32.u64 %0, addr; }"
-      : "=r"(addr)
-      : "l"((void *)(B_shared + ((((i + 3) & 3) * 16) + ((int)threadIdx.x))))
-    );
+    unsigned int addr = cast_smem_ptr_to_int(B_shared + ((((i + 3) & 3) * 16) + ((int)threadIdx.x)));
     int pred_guard = (int)cse_var_1;
     __asm__ __volatile__(
         "{  .reg .pred p;"
@@ -351,36 +389,54 @@ __asm__ __volatile__("cp.async.wait_group 0;");
 """
 
 
-generated_code = ""
-support_async = True
+@pytest.fixture
+def postproc_if_missing_async_support():
+    arch = tvm.contrib.nvcc.get_target_compute_version()
+    major, _ = tvm.contrib.nvcc.parse_compute_version(arch)
+    support_async = major >= 8
 
+    func_name = "tvm_callback_cuda_postproc"
+    prev_postproc = tvm.get_global_func(func_name, allow_missing=True)
 
-@tvm.register_func
-def tvm_callback_cuda_postproc(code):
-    global generated_code
-    global support_async
-    generated_code = code
-    # return a dummy code so that device < sm80 could build correctly
-    if not support_async:
-        ret = ""
-        for line in code.split("\n"):
-            ret += line + "\n"
-            if line.startswith('extern "C" __global__'):
-                break
-        ret += "}"
-        return ret
-    return code
+    # Store the generated code prior to the post-processing.  This
+    # way, even though the generated code doesn't compile on platforms
+    # that do not support async, the comparison against an expected
+    # output can still be performed.  We cannot use
+    # `mod.get_source()`, as that contains the source after all
+    # post-processing.
+    original_code = None
+
+    def get_original_code():
+        nonlocal original_code
+        return original_code
+
+    @tvm.register_func(func_name, override=True)
+    def tvm_callback_cuda_postproc(code, _):
+        nonlocal original_code
+        original_code = code
+        if support_async:
+            return code
+        else:
+            ret = []
+            for line in code.split("\n"):
+                ret.append(line)
+                ret.append("\n")
+                if line.startswith('extern "C" __global__') and line.endswith("{"):
+                    break
+            ret.append("}")
+            return "".join(ret)
+
+    yield get_original_code
+
+    # Restore previous postproc func to avoid impacting other tests
+    if prev_postproc is None:
+        tvm._ffi.registry.remove_global_func(func_name)
+    else:
+        tvm.register_func(func_name, prev_postproc, override=True)
 
 
 @tvm.testing.requires_cuda
-def test_cp_async_in_if_then_else():
-    global support_async
-    arch = tvm.contrib.nvcc.get_target_compute_version()
-    major, _ = tvm.contrib.nvcc.parse_compute_version(arch)
-    if major < 8:
-        # At least sm80 is required
-        support_async = False
-
+def test_cp_async_in_if_then_else(postproc_if_missing_async_support):
     @T.prim_func
     def simple_compute(
         A: T.Buffer((16, 14), "float32"),
@@ -422,22 +478,12 @@ def test_cp_async_in_if_then_else():
     mod = tvm.IRModule.from_expr(simple_compute)
     with tvm.transform.PassContext(config={"tir.use_async_copy": 1}):
         tvm.build(mod, target="cuda")
+    generated_code = postproc_if_missing_async_support()
     assert generated_code == expected_cuda_script
-
-    if not support_async:
-        # avoid return dummy code to other tests
-        support_async = True
 
 
 @tvm.testing.requires_cuda
-def test_vectorize_cp_async_in_if_then_else():
-    global support_async
-    arch = tvm.contrib.nvcc.get_target_compute_version()
-    major, _ = tvm.contrib.nvcc.parse_compute_version(arch)
-    if major < 8:
-        # At least sm80 is required
-        support_async = False
-
+def test_vectorize_cp_async_in_if_then_else(postproc_if_missing_async_support):
     @T.prim_func
     def complex_compute(
         A: T.Buffer((2, 16, 16, 1280), "float16"),
@@ -887,16 +933,44 @@ def test_vectorize_cp_async_in_if_then_else():
     mod = tvm.IRModule.from_expr(complex_compute)
     with tvm.transform.PassContext(config={"tir.use_async_copy": 1}):
         tvm.build(mod, target="cuda")
+    generated_code = postproc_if_missing_async_support()
     # generated_code must contain "  setp.ne.b32 p, %0, 0;"
     assert "setp.ne.b32" in generated_code
 
-    if not support_async:
-        # avoid return dummy code to other tests
-        support_async = True
+
+class TestMultiplicationNodesAreInligned(tvm.testing.CompareBeforeAfter):
+    transform = tvm.tir.transform.InjectPTXAsyncCopy()
+
+    def before(A: T.Buffer((32, 128), "float16")):
+        tx = T.launch_thread("threadIdx.x", T.int64(32))
+        A_flattened = T.Buffer((4096,), "float16", data=A.data)
+        A_shared = T.decl_buffer([4096], "float16", scope="shared")
+
+        T.attr("default", "async_scope", 1)
+        for i in range(16):
+            cse_var_1: T.int64 = T.Cast("int64", i)
+            A_shared[
+                T.Ramp(tx * T.int64(128) + cse_var_1 * T.int64(8), T.int64(1), 8)
+            ] = A_flattened[T.Ramp(tx * T.int64(128) + cse_var_1 * T.int64(8), T.int64(1), 8)]
+        T.ptx_commit_group()
+        T.ptx_wait_group(0)
+
+    def expected(A: T.Buffer((32, 128), "float16")):
+        tx = T.launch_thread("threadIdx.x", T.int64(32))
+        A_shared = T.decl_buffer((4096,), "float16", scope="shared")
+        for i in range(16):
+            cse_var_1: T.int64 = T.Cast("int64", i)
+            T.ptx_cp_async(
+                "float16",
+                A_shared.data,
+                T.Cast("int64", tx) * T.int64(128) + cse_var_1 * T.int64(8),
+                A.data,
+                T.Cast("int64", tx) * T.int64(128) + cse_var_1 * T.int64(8),
+                16,
+            )
+        T.ptx_commit_group()
+        T.ptx_wait_group(0)
 
 
 if __name__ == "__main__":
-    test_inject_async_copy()
-    test_inject_async_copy_shared_dyn()
-    test_cp_async_in_if_then_else()
-    test_vectorize_cp_async_in_if_then_else()
+    tvm.testing.main()

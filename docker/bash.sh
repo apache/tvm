@@ -38,9 +38,11 @@ set -euo pipefail
 function show_usage() {
     cat <<EOF
 Usage: docker/bash.sh [-i|--interactive] [--net=host] [-t|--tty]
-         [--mount MOUNT_DIR] [--repo-mount-point REPO_MOUNT_POINT]
-         [--dry-run] [--name NAME]
-         <DOCKER_IMAGE_NAME> [--] [COMMAND]
+          [--cpus NUM_CPUS] [--mount MOUNT_DIR]
+          [--repo-mount-point REPO_MOUNT_POINT]
+          [--dry-run] [--name NAME]
+          <DOCKER_IMAGE_NAME> [--] [COMMAND]
+
 
 -h, --help
 
@@ -53,6 +55,10 @@ Usage: docker/bash.sh [-i|--interactive] [--net=host] [-t|--tty]
 -t, --tty
 
     Start the docker session with a pseudo terminal (tty).
+
+--cpus NUM_CPUS
+
+    Limit the number of CPU cores to be used.
 
 --net=host
 
@@ -182,6 +188,11 @@ while (( $# )); do
         -t*|--tty)
             TTY=true
             eval $break_joined_flag
+            ;;
+
+        --cpus)
+            DOCKER_FLAGS+=(--cpus "$2")
+            shift 2
             ;;
 
         --net=host)

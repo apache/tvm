@@ -59,7 +59,7 @@ class RollingBufferInjector : public StmtExprMutator {
   std::map<Buffer, std::vector<AttrStmt>> buffer_to_attrs{};
   std::map<Buffer, RollingBufferInfo> rolling_buffer_to_info{};
   // The actual key type is Var, ObjectRef has been used because
-  // of the ambiguous overload for ‘operator<’
+  // of the ambiguous overload for 'operator<'
   std::map<ObjectRef, std::vector<BufferRealize>> hoist_buffer_to_for{};
 
  public:

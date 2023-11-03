@@ -74,8 +74,7 @@ def schedule_pool_arm_cpu(attrs, outs, target):
             and layout in ("NWC", "NHWC")
         ):
             return topi.arm_cpu.schedule_pool(outs, layout)
-        logger.warning("pool is not optimized for arm cpu.")
-        return topi.generic.schedule_pool(outs, layout)
+        return topi.x86.schedule_pool(outs, layout)
 
 
 def _get_padding_width(padding):
@@ -180,9 +179,7 @@ def conv2d_strategy_arm_cpu(attrs, inputs, out_type, target):
                     name="conv2d_nchw_spatial_pack.arm_cpu",
                 )
             else:
-                raise RuntimeError(
-                    "Unsupported weight layout {} for conv2d NCHW".format(kernel_layout)
-                )
+                raise RuntimeError(f"Unsupported weight layout {kernel_layout} for conv2d NCHW")
         elif layout == "HWCN":
             assert kernel_layout == "HWIO"
             logger.warning("conv2d_hwcn is not optimized for arm cpu.")
@@ -213,21 +210,39 @@ def conv2d_strategy_arm_cpu(attrs, inputs, out_type, target):
                     name="conv2d_nhwc_dsp.arm_cpu",
                 )
             elif kernel_layout == "HWIO":
+                is_aarch64 = target.features.is_aarch64
                 has_asimd = target.features.has_asimd
                 has_dot_prod = target.features.has_dotprod
-                if has_dot_prod and data.dtype in ["int8", "uint8"]:
-                    strategy.add_implementation(
-                        wrap_compute_conv2d(topi.arm_cpu.compute_conv2d_NHWC_quantized_native),
-                        wrap_topi_schedule(topi.arm_cpu.schedule_conv2d_NHWC_quantized_native),
-                        name="conv2d_NHWC_quantized_native.arm_cpu",
-                    )
-                if has_asimd and data.dtype in ["int8", "uint8"]:
-                    strategy.add_implementation(
-                        wrap_compute_conv2d(topi.arm_cpu.compute_conv2d_NHWC_quantized_interleaved),
-                        wrap_topi_schedule(topi.arm_cpu.schedule_conv2d_NHWC_quantized_interleaved),
-                        name="conv2d_NHWC_quantized_interleaved.arm_cpu",
-                    )
-                if (not has_asimd) or (data.dtype not in ["int8", "uint8"]):
+                has_matmul_i8 = target.features.has_matmul_i8
+
+                if data.dtype in ["int8", "uint8"]:
+                    if has_matmul_i8:
+                        strategy.add_implementation(
+                            wrap_compute_conv2d(
+                                topi.arm_cpu.compute_conv2d_NHWC_quantized_interleaved
+                            ),
+                            wrap_topi_schedule(
+                                topi.arm_cpu.schedule_conv2d_NHWC_quantized_interleaved
+                            ),
+                            name="conv2d_NHWC_quantized_interleaved.arm_cpu",
+                        )
+                    if has_dot_prod:
+                        strategy.add_implementation(
+                            wrap_compute_conv2d(topi.arm_cpu.compute_conv2d_NHWC_quantized_native),
+                            wrap_topi_schedule(topi.arm_cpu.schedule_conv2d_NHWC_quantized_native),
+                            name="conv2d_NHWC_quantized_native.arm_cpu",
+                        )
+                    if is_aarch64 and has_asimd:
+                        strategy.add_implementation(
+                            wrap_compute_conv2d(
+                                topi.arm_cpu.compute_conv2d_NHWC_quantized_interleaved
+                            ),
+                            wrap_topi_schedule(
+                                topi.arm_cpu.schedule_conv2d_NHWC_quantized_interleaved
+                            ),
+                            name="conv2d_NHWC_quantized_interleaved.arm_cpu",
+                        )
+                if (not is_aarch64) or (data.dtype not in ["int8", "uint8"]):
                     # TODO(@giuseros)
                     # This strategy errors out for quantized data types when tuning.
                     # Let's use this only for non-aarch64 or non-quantized cases
@@ -237,12 +252,10 @@ def conv2d_strategy_arm_cpu(attrs, inputs, out_type, target):
                         name="conv2d_nhwc_spatial_pack.arm_cpu",
                     )
             else:
-                raise RuntimeError(
-                    "Unsupported kernel layout {} for conv2d NHWC".format(kernel_layout)
-                )
+                raise RuntimeError(f"Unsupported kernel layout {kernel_layout} for conv2d NHWC")
 
         else:
-            raise RuntimeError("Unsupported conv2d layout {} for arm cpu".format(layout))
+            raise RuntimeError(f"Unsupported conv2d layout {layout} for arm cpu")
     elif is_depthwise_conv2d(data.shape, layout, kernel.shape, kernel_layout, groups):
         if layout == "NCHW":
             assert kernel_layout == "OIHW" or re.match(r"OIHW\d*o", kernel_layout)
@@ -289,7 +302,7 @@ def conv2d_strategy_arm_cpu(attrs, inputs, out_type, target):
                 )
         elif layout == "NHWC":
             assert kernel_layout == "HWOI"
-            if target.features.has_asimd:
+            if target.features.is_aarch64 and target.features.has_asimd:
                 strategy.add_implementation(
                     wrap_compute_conv2d(topi.arm_cpu.compute_depthwise_conv2d_nhwc),
                     wrap_topi_schedule(topi.arm_cpu.schedule_depthwise_conv2d_nhwc),
@@ -302,7 +315,6 @@ def conv2d_strategy_arm_cpu(attrs, inputs, out_type, target):
             # The int8 implementation DOES need the DSP unit (for SXTB16), but it is not
             # possible to use the DSP unit to speed up a NHWC depthwise convolution (though
             # an NCHW convolution would benefit).
-
             elif (
                 dilation_w == dilation_h == 1
                 and kernel.shape[3] == 1  # channel_multiplier == 1
@@ -312,6 +324,7 @@ def conv2d_strategy_arm_cpu(attrs, inputs, out_type, target):
                     or (data.shape[3] % 2 == 0 and data.dtype == "int16")
                 )
                 and (padding != "SAME" or data.shape[1] % stride_h == data.shape[2] % stride_w == 0)
+                and target.kind.name == "c"
                 # Ideally we should check that kernel is a Relay constant, but strategy functions
                 # don't have access to the data needed to check this.
             ):
@@ -329,7 +342,7 @@ def conv2d_strategy_arm_cpu(attrs, inputs, out_type, target):
                     name="depthwise_conv2d_nhwc.generic",
                 )
         else:
-            raise RuntimeError("Unsupported depthwise_conv2d layout {} for arm cpu".format(layout))
+            raise RuntimeError(f"Unsupported depthwise_conv2d layout {layout} for arm cpu")
     else:  # group_conv2d
         if layout == "NCHW":
             assert kernel_layout == "OIHW"
@@ -347,7 +360,7 @@ def conv2d_strategy_arm_cpu(attrs, inputs, out_type, target):
                 name="group_conv2d_nhwc.generic",
             )
         else:
-            raise RuntimeError("Unsupported group_conv2d layout {} for arm cpu".format(layout))
+            raise RuntimeError(f"Unsupported group_conv2d layout {layout} for arm cpu")
     return strategy
 
 
@@ -439,11 +452,9 @@ def conv2d_winograd_without_weight_transform_strategy_arm_cpu(attrs, inputs, out
                 plevel=15,
             )
         else:
-            raise RuntimeError("Unsupported kernel shape: {}".format(kernel.shape))
+            raise RuntimeError(f"Unsupported kernel shape: {kernel.shape}")
     else:
-        raise RuntimeError(
-            "Unsupported conv2d_winograd_without_weight_transform layout {}".format(layout)
-        )
+        raise RuntimeError(f"Unsupported conv2d_winograd_without_weight_transform layout {layout}")
     return strategy
 
 
@@ -473,28 +484,42 @@ def conv2d_gemm_without_weight_transform_strategy_arm_cpu(attrs, inputs, out_typ
     layout = attrs.data_layout
     data = inputs[0]
     strategy = _op.OpStrategy()
+    is_aarch64 = target.features.is_aarch64
+    has_asimd = target.features.has_asimd
+    has_dot_prod = target.features.has_dotprod
+    has_matmul_i8 = target.features.has_matmul_i8
 
     interleaved_compute = topi.arm_cpu.compute_conv2d_NHWC_quantized_interleaved_without_transform
     native_compute = topi.arm_cpu.compute_conv2d_NHWC_quantized_native_without_transform
     if layout == "NHWC" and data.dtype in ["int8", "uint8"]:
-        strategy.add_implementation(
-            wrap_compute_conv2d_gemm(native_compute),
-            wrap_topi_schedule(
-                topi.arm_cpu.schedule_conv2d_NHWC_quantized_native_without_transform
-            ),
-            name="conv2d_NHWC_quantized_native_without_transform.arm_cpu",
-        )
-        strategy.add_implementation(
-            wrap_compute_conv2d_gemm(interleaved_compute),
-            wrap_topi_schedule(
-                topi.arm_cpu.schedule_conv2d_NHWC_quantized_interleaved_without_transform
-            ),
-            name="conv2d_NHWC_quantized_interleaved_without_transform.arm_cpu",
-        )
+        if has_matmul_i8:
+            strategy.add_implementation(
+                wrap_compute_conv2d_gemm(interleaved_compute),
+                wrap_topi_schedule(
+                    topi.arm_cpu.schedule_conv2d_NHWC_quantized_interleaved_without_transform
+                ),
+                name="conv2d_NHWC_quantized_interleaved_without_transform.arm_cpu",
+            )
+        if has_dot_prod:
+            strategy.add_implementation(
+                wrap_compute_conv2d_gemm(native_compute),
+                wrap_topi_schedule(
+                    topi.arm_cpu.schedule_conv2d_NHWC_quantized_native_without_transform
+                ),
+                name="conv2d_NHWC_quantized_native_without_transform.arm_cpu",
+            )
+        if is_aarch64 and has_asimd:
+            strategy.add_implementation(
+                wrap_compute_conv2d_gemm(interleaved_compute),
+                wrap_topi_schedule(
+                    topi.arm_cpu.schedule_conv2d_NHWC_quantized_interleaved_without_transform
+                ),
+                name="conv2d_NHWC_quantized_interleaved_without_transform.arm_cpu",
+            )
     else:
         raise RuntimeError(
-            "Unsupported conv2d_NHWC_quantized_without_transform layout {0}"
-            "with datatype {1}".format(layout, data.dtype)
+            f"Unsupported conv2d_NHWC_quantized_without_transform layout {layout}"
+            f"with datatype {data.dtype}"
         )
     return strategy
 
@@ -535,7 +560,7 @@ def bitserial_conv2d_strategy_arm_cpu(attrs, inputs, out_type, target):
             name="bitserial_conv2d_nhwc.arm_cpu",
         )
     else:
-        raise ValueError("Data layout {} not supported.".format(layout))
+        raise ValueError(f"Data layout {layout} not supported.")
     return strategy
 
 
@@ -563,33 +588,53 @@ def schedule_dense_arm_cpu(attrs, inputs, out_type, target):
             wrap_topi_schedule(topi.arm_cpu.schedule_dense_dsp),
             name="dense_dsp.arm_cpu",
         )
-    else:
-        # For dynamic matrix-vector multiply we use a hand written kernel.
-        if (
-            isinstance(inputs[0].shape[0], (int, tir.IntImm))
-            and inputs[0].shape[0] == 1
-            and (
-                topi.utils.is_dynamic_shape(inputs[0].shape)
-                or topi.utils.is_dynamic_shape(inputs[1].shape)
-            )
-        ):
-            strategy.add_implementation(
-                wrap_compute_dense(topi.x86.dense_dynamic),
-                wrap_topi_schedule(topi.x86.schedule_dense_dynamic),
-                name="dense_dynamic.x86",
-                plevel=20,
-            )
-            return strategy
-        logger.warning("dense is not optimized for arm cpu.")
+        return strategy
+
+    # For dynamic matrix-vector multiply we use a hand written kernel.
+    if (
+        isinstance(inputs[0].shape[0], (int, tir.IntImm))
+        and inputs[0].shape[0] == 1
+        and (
+            topi.utils.is_dynamic_shape(inputs[0].shape)
+            or topi.utils.is_dynamic_shape(inputs[1].shape)
+        )
+    ):
+        strategy.add_implementation(
+            wrap_compute_dense(topi.x86.dense_dynamic),
+            wrap_topi_schedule(topi.x86.schedule_dense_dynamic),
+            name="dense_dynamic.x86",
+            plevel=20,
+        )
+        return strategy
+
+    need_auto_scheduler_layout = is_auto_scheduler_enabled()
+    need_meta_schedule_layout = is_meta_schedule_enabled()
+    if need_auto_scheduler_layout or need_meta_schedule_layout:
         strategy.add_implementation(
             wrap_compute_dense(
                 topi.nn.dense,
-                need_auto_scheduler_layout=is_auto_scheduler_enabled(),
-                need_meta_schedule_layout=is_meta_schedule_enabled(),
+                need_auto_scheduler_layout=need_auto_scheduler_layout,
+                need_meta_schedule_layout=need_meta_schedule_layout,
             ),
-            wrap_topi_schedule(topi.generic.schedule_dense),
+            naive_schedule,
             name="dense.generic",
+            plevel=11,
         )
+
+    # Fallback to x86 schedules as there is currently no arm_cpu schedule for dense
+    strategy.add_implementation(
+        wrap_compute_dense(topi.x86.dense_nopack),
+        wrap_topi_schedule(topi.x86.schedule_dense_nopack),
+        name="dense_nopack.x86",
+        plevel=5,
+    )
+    strategy.add_implementation(
+        wrap_compute_dense(topi.x86.dense_pack),
+        wrap_topi_schedule(topi.x86.schedule_dense_pack),
+        name="dense_pack.x86",
+        plevel=10,
+    )
+
     return strategy
 
 
@@ -612,9 +657,7 @@ def conv1d_strategy_arm_cpu(attrs, inputs, out_type, target):
             )
         else:
             raise RuntimeError(
-                "Unsupported kernel layout {} for conv1d {} for arm cpu.".format(
-                    kernel_layout, layout
-                )
+                f"Unsupported kernel layout {kernel_layout} for conv1d {layout} for arm cpu."
             )
     elif layout == "NCW":
         logger.warning("conv1d with layout %s is not optimized for arm cpu.", layout)
@@ -632,6 +675,6 @@ def conv1d_strategy_arm_cpu(attrs, inputs, out_type, target):
         )
     else:
         raise RuntimeError(
-            "Unsupported kernel layout {} for conv1d {} for arm cpu.".format(kernel_layout, layout)
+            f"Unsupported kernel layout {kernel_layout} for conv1d {layout} for arm cpu."
         )
     return strategy

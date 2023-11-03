@@ -112,5 +112,31 @@ def test_ndarray_container():
     assert isinstance(arr[0], tvm.nd.NDArray)
 
 
+def test_return_variant_type():
+    func = tvm.get_global_func("testing.ReturnsVariant")
+    res_even = func(42)
+    assert isinstance(res_even, tvm.tir.IntImm)
+    assert res_even == 21
+
+    res_odd = func(17)
+    assert isinstance(res_odd, tvm.runtime.String)
+    assert res_odd == "argument was odd"
+
+
+def test_pass_variant_type():
+    func = tvm.get_global_func("testing.AcceptsVariant")
+
+    assert func("string arg") == "runtime.String"
+    assert func(17) == "IntImm"
+
+
+def test_pass_incorrect_variant_type():
+    func = tvm.get_global_func("testing.AcceptsVariant")
+    float_arg = tvm.tir.FloatImm("float32", 0.5)
+
+    with pytest.raises(Exception):
+        func(float_arg)
+
+
 if __name__ == "__main__":
     tvm.testing.main()

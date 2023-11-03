@@ -20,6 +20,7 @@ import ast
 from typing import TYPE_CHECKING, Any, Callable, Dict, List, Optional, Type, Union
 
 from . import dispatch, doc
+from .error import ParserError
 
 if TYPE_CHECKING:
     from .parser import Parser
@@ -57,6 +58,17 @@ DEFAULT_OP: Dict[Type, Callable[..., Any]] = {
 }
 
 
+def _get_builtin_or_none(name: str):
+    builtins = globals().get("__builtins__")
+    if not builtins:
+        return None
+    if not isinstance(builtins, dict) and hasattr(builtins, "__dict__"):
+        builtins = builtins.__dict__
+    if isinstance(builtins, dict):
+        return builtins.get(name)
+    return None
+
+
 class ExprEvaluator:
     """Expression evaluator for TVMScript parser.
 
@@ -69,7 +81,7 @@ class ExprEvaluator:
         The value table for expression evaluation.
 
     new_value_count : int
-        The count for ntermediate result added during evaluation.
+        The count for intermediate result added during evaluation.
     """
 
     parser: "Parser"
@@ -105,9 +117,13 @@ class ExprEvaluator:
         self = ExprEvaluator(parser, value_table)
         result = self._visit(node)  # pylint: disable=protected-access
         if isinstance(result, doc.Name):
-            if result.id not in self.value_table:
-                self.parser.report_error(result, f"Undefined variable: {result.id}")
-            return self.value_table[result.id]
+            if result.id in self.value_table:
+                return self.value_table[result.id]
+            else:
+                builtin = _get_builtin_or_none(result.id)
+                if builtin:
+                    return builtin
+                raise ParserError(result, f"Undefined variable: {result.id}")
         if isinstance(result, doc.Constant):
             return result.value
         raise TypeError(f"Unexpected result type: {type(result)}")
@@ -157,14 +173,52 @@ class ExprEvaluator:
         res : Any
             The evaluation result.
         """
+        args = []
+        if (
+            isinstance(node, doc.Call)
+            and hasattr(node.func, "attr")
+            and node.func.attr not in ["reads", "writes", "match_buffer", "realize"]
+        ) or isinstance(node, (doc.BinOp, doc.UnaryOp, doc.Compare, doc.BoolOp)):
+            if isinstance(node, doc.BinOp):
+                args = [node.left, node.right]
+            elif isinstance(node, doc.UnaryOp):
+                args = [node.operand]
+            elif isinstance(node, doc.Compare):
+                args = [node.left, *node.comparators]
+            else:
+                if isinstance(node, doc.Call):
+                    args = node.args
+                elif isinstance(node, doc.BoolOp):
+                    args = node.values
+        for arg in args:
+            if isinstance(arg, doc.Subscript) and isinstance(arg.slice, (doc.Slice, doc.Tuple)):
+                if isinstance(arg.slice, doc.Slice):
+                    check_slices = [arg.slice]
+                else:
+                    check_slices = []
+                    for p in arg.slice.elts:
+                        if isinstance(p, doc.Slice):
+                            check_slices.append(p)
+                for s in check_slices:
+                    if not s.step and s.upper and s.lower:
+                        s.step = doc.Constant(
+                            1,
+                            None,
+                            1,
+                            1,
+                            s.upper.lineno,
+                            s.upper.end_col_offset + 1,
+                            s.upper.lineno,
+                            s.upper.end_col_offset + 2,
+                        )
         if isinstance(node, list):
             return [self._visit(n) for n in node]
         if isinstance(node, tuple):
             return tuple(self._visit(n) for n in node)
         assert isinstance(node, doc.AST)
         if isinstance(node, doc.Name):
-            if node.id not in self.value_table:
-                self.parser.report_error(node, f"Undefined variable: {node.id}")
+            if node.id not in self.value_table and not _get_builtin_or_none(node.id):
+                raise ParserError(node, f"Undefined variable: {node.id}")
             return node
         if isinstance(
             node,
@@ -182,6 +236,17 @@ class ExprEvaluator:
             return node
         if isinstance(node, doc.Lambda):
             return self._eval_lambda(node)
+        if isinstance(node, doc.Starred):
+            value = self._visit(node.value)
+            return doc.Starred(
+                value=value,
+                ctx=node.ctx,
+                lineno=node.lineno,
+                col_offset=node.col_offset,
+                end_lineno=node.end_lineno,
+                end_col_offset=node.end_col_offset,
+            )
+
         fields = {}
         for field in node.__class__._FIELDS:  # pylint: disable=protected-access
             attr = getattr(node, field)

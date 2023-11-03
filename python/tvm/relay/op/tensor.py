@@ -23,7 +23,7 @@ from tvm.te.hybrid import script
 
 from . import _make
 from .dyn import _make as _dyn_make
-from ..expr import Tuple, Expr, Constant
+from ..expr import Tuple, Expr, Constant, Call
 from . import op as reg
 
 
@@ -32,7 +32,7 @@ def _make_virtual_device(device):
         return target.VirtualDevice(device)
     if isinstance(device, str):
         return target.VirtualDevice(_nd.device(device))
-    raise ValueError("expecting a Device or device name, but received a %s" % (type(device)))
+    raise ValueError(f"expecting a Device or device name, but received a {type(device)}")
 
 
 # We create a wrapper function for each operator in the
@@ -1141,12 +1141,15 @@ def concatenate(data, axis):
     result: relay.Expr
         The concatenated tensor.
     """
-    data = list(data)
+    if not isinstance(data, Call):
+        data = list(data)
     if not data:
         raise ValueError("relay.concatenate requires data to be non-empty.")
+    if not isinstance(data, Call):
+        data = Tuple(data)
     if not isinstance(axis, int):
         raise ValueError("For now, we only support integer axis")
-    return _make.concatenate(Tuple(data), axis)
+    return _make.concatenate(data, axis)
 
 
 def einsum(data, equation):

@@ -201,3 +201,27 @@ def qnn_batch_matmul_strategy_hexagon(attrs, inputs, out_type, target):
         name="qnn_batch_matmul.hexagon",
     )
     return strategy
+
+
+@qnn_avg_pool2d_strategy.register(["hexagon"])
+def qnn_avg_pool2d_strategy_hexagon(attrs, inputs, out_type, target):
+    """qnn.avg_pool2d strategy for Hexagon"""
+    data_layout = attrs.layout
+    if data_layout == "NHWC":
+        strategy = _op.OpStrategy()
+        strategy.add_implementation(
+            wrap_compute_qnn_avg_pool2d(topi.hexagon.qnn.qnn_avg_pool2d_wrapper_compute_NHWC),
+            wrap_topi_schedule(topi.hexagon.qnn.schedule_qnn_avg_pool2d),
+            name="qnn_avg_pool2d.hexagon",
+        )
+        return strategy
+    elif data_layout == "NCHW":
+        strategy = _op.OpStrategy()
+        strategy.add_implementation(
+            wrap_compute_qnn_avg_pool2d(topi.hexagon.qnn.qnn_avg_pool2d_wrapper_compute_NCHW),
+            wrap_topi_schedule(topi.hexagon.qnn.schedule_qnn_avg_pool2d),
+            name="qnn_avg_pool2d.hexagon",
+        )
+        return strategy
+    else:
+        raise RuntimeError("Unsupported strategy for qnn.avg_pool2d")

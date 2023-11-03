@@ -18,5 +18,5 @@
 # pylint: disable=unused-import
 from .core import dispatch, doc, utils
 from .core.dispatch import OpMethod, register_op
-from .core.entry import parse
+from .core.entry import parse, scan_macro
 from .core.parser import Parser

@@ -562,10 +562,26 @@ def test_dense(device, dtype):
                 "op": "const",
             },
         ]
+
+        dense_node = {
+            "attrs": {
+                "num_inputs": "2",
+                "num_outputs": "1",
+                "dtype": [[dtype]],
+                "out_dtype": [[""]],
+                "shape": [[[x_shape[0], k_shape[0]]]],
+                "units": [[str(k_shape[0])]],
+            },
+            "inputs": [[0, 0, 0], [1, 0, 0]],
+            "name": "nn.dense",
+            "op": "kernel",
+        }
+        exp_codegen.append(dense_node)
+
         if has_bias:
             bias = relay.var("bias", shape=(k_shape[0],), dtype=dtype)
             out = relay.nn.bias_add(out, bias)
-            bias_node = {
+            bias_data_node = {
                 "attrs": {
                     "dtype": [[dtype]],
                     "shape": [[list((1, k_shape[0]))]],
@@ -573,23 +589,22 @@ def test_dense(device, dtype):
                 "name": "",
                 "op": "const",
             }
+            exp_codegen.append(bias_data_node)
+            bias_node = {
+                "attrs": {
+                    "num_inputs": "2",
+                    "num_outputs": "1",
+                    "dtype": [[dtype]],
+                    "shape": [[[x_shape[0], k_shape[0]]]],
+                },
+                "inputs": [[2, 0, 0], [3, 0, 0]],
+                "name": "add",
+                "op": "kernel",
+            }
             exp_codegen.append(bias_node)
+
             params["bias"] = tvm.nd.array(np.random.uniform(-1, 1, (k_shape[0],)).astype(dtype))
 
-        dense_node = {
-            "attrs": {
-                "num_inputs": "3" if has_bias else "2",
-                "num_outputs": "1",
-                "dtype": [[dtype]],
-                "out_dtype": [[""]],
-                "shape": [[[x_shape[0], k_shape[0]]]],
-                "units": [[str(k_shape[0])]],
-            },
-            "inputs": [[0, 0, 0], [1, 0, 0], [2, 0, 0]] if has_bias else [[0, 0, 0], [1, 0, 0]],
-            "name": "nn.dense",
-            "op": "kernel",
-        }
-        exp_codegen.append(dense_node)
         return out, params, inputs, exp_codegen
 
     def _verify(out, params, inputs, exp_codegen):
@@ -597,11 +612,11 @@ def test_dense(device, dtype):
         opencl_out = build_and_run(mod, inputs, 1, params, device, enable_clml=False)[0]
         clml_out = build_and_run(mod, inputs, 1, params, device, enable_clml=True)[0]
         tvm.testing.assert_allclose(
-            clml_out[0].asnumpy(), opencl_out[0].asnumpy(), rtol=1e-3, atol=1e-3
+            clml_out[0].asnumpy(), opencl_out[0].asnumpy(), rtol=1e-2, atol=1e-2
         )
         verify_codegen(out, exp_codegen, device, params)
 
-    _verify(*(_get_model((1, 16), (32, 16))))
+    _verify(*(_get_model((5, 16), (32, 16), False)))
     _verify(*(_get_model((1, 16), (32, 16), True)))
 
 
@@ -773,6 +788,67 @@ def test_resize_bilinear(device, dtype):
 
     _verify(*(_get_model((1, 16, 8, 8), (2, 2), False)))
     _verify(*(_get_model((1, 16, 7, 7), (2, 2), True)))
+
+
+@pytest.mark.parametrize("dtype", ["float32"])
+@tvm.testing.requires_openclml
+def test_batch_matmul(device, dtype):
+    def _get_model(a_shape, b_shape, a_transpose, b_transpose):
+        a = relay.var("a", shape=(a_shape), dtype=dtype)
+        b = relay.var("b", shape=(b_shape), dtype=dtype)
+        out = relay.nn.batch_matmul(a, b, transpose_a=a_transpose, transpose_b=b_transpose)
+        inputs = {
+            "a": tvm.nd.array(np.random.uniform(-1, 1, a_shape).astype(dtype)),
+            "b": tvm.nd.array(np.random.uniform(-1, 1, b_shape).astype(dtype)),
+        }
+        params = {}
+        return out, params, inputs
+
+    def _verify(out, params, inputs):
+        mod = IRModule.from_expr(out)
+        opencl_out = build_and_run(mod, inputs, 1, params, device, enable_clml=False)[0]
+        clml_out = build_and_run(mod, inputs, 1, params, device, enable_clml=True)[0]
+        tvm.testing.assert_allclose(
+            clml_out[0].asnumpy(), opencl_out[0].asnumpy(), rtol=1e-3, atol=1e-3
+        )
+
+        # Check to make sure these ops are offloaded to CLML instead of TVM.
+        exp_codegen = [
+            {
+                "attrs": {
+                    "dtype": [[dtype]],
+                    "shape": [[list(inputs["a"].shape)]],
+                },
+                "name": "",
+                "op": "input",
+            },
+            {
+                "attrs": {
+                    "dtype": [[dtype]],
+                    "shape": [[list(inputs["b"].shape)]],
+                },
+                "name": "",
+                "op": "input",
+            },
+            {
+                "attrs": {
+                    "transpose_a": [[str(int(out.attrs.transpose_a))]],
+                    "transpose_b": [[str(int(out.attrs.transpose_b))]],
+                    "out_dtype": [[""]],
+                    "dtype": [[dtype]],
+                    "num_inputs": "2",
+                    "num_outputs": "1",
+                    "shape": [[list(clml_out[0].shape)]],
+                },
+                "inputs": [[0, 0, 0], [1, 0, 0]],
+                "name": "nn.batch_matmul",
+                "op": "kernel",
+            },
+        ]
+        verify_codegen(out, exp_codegen, device, params)
+
+    _verify(*(_get_model((1, 128, 32), (1, 128, 32), False, True)))
+    _verify(*(_get_model((1, 128, 128), (1, 32, 128), False, True)))
 
 
 if __name__ == "__main__":

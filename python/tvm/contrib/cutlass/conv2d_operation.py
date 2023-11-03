@@ -103,7 +103,7 @@ class Conv2dOperation:
         return extended_name
 
     def layout_name(self):
-        return "%s" % (ShortLayoutTypeNames[self.A.layout])
+        return f"{ShortLayoutTypeNames[self.A.layout]}"
 
     def procedural_name(self):
         """
@@ -130,7 +130,7 @@ class Conv2dOperation:
             )
 
         if self.split_k_slices > 1:
-            configuration_name += "_splitk%d" % self.split_k_slices
+            configuration_name += f"_splitk{self.split_k_slices}"
 
         return substitute_template(
             configuration_name,
@@ -139,7 +139,7 @@ class Conv2dOperation:
                 "extended_name": self.extended_name(),
                 "threadblock": threadblock,
                 "layout": self.layout_name(),
-                "alignment": "%d" % self.A.alignment,
+                "alignment": f"{self.A.alignment}",
             },
         )
 
@@ -288,7 +288,7 @@ using ReductionStrideIndex = typename ReductionDevice::StrideIndex;
             "opcode_class": OpcodeClassTag[
                 operation.tile_description.math_instruction.opcode_class
             ],
-            "arch": "cutlass::arch::Sm%d" % operation.arch,
+            "arch": f"cutlass::arch::Sm{operation.arch}",
             "threadblock_shape_m": str(operation.tile_description.threadblock_shape[0]),
             "threadblock_shape_n": str(operation.tile_description.threadblock_shape[1]),
             "threadblock_shape_k": str(operation.tile_description.threadblock_shape[2]),
@@ -535,6 +535,6 @@ def instantiate_conv2d_template(attrs, func_args):
     template = substitute_template(template, aux_map)
 
     for i, arg in enumerate(func_args):
-        attrs["arg{}".format(i)] = arg
+        attrs[f"arg{i}"] = arg
 
     return substitute_template(template, attrs)

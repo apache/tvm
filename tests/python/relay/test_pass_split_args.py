@@ -22,6 +22,10 @@ from tvm.relay.build_module import bind_params_by_name
 from tvm.relay.testing import run_infer_type, create_workload
 
 
+target_name = tvm.testing.parameter("opencl", "metal", "cuda")
+shape_type = tvm.testing.parameter("dynamic", "static")
+
+
 def run_opt_pass(expr, opt_pass):
     assert isinstance(opt_pass, tvm.transform.Pass)
 
@@ -32,65 +36,63 @@ def run_opt_pass(expr, opt_pass):
     return entry if isinstance(expr, relay.Function) else entry.body
 
 
-def test_split_concat_metal():
-    shape = (1, 1, 1, 3)
+def test_split_concat(target_name, shape_type):
+    if shape_type == "dynamic":
+        shape = (tvm.tir.Any(), 1, 1, 3)
+        number_of_any_dims = 1
+    else:
+        shape = (1, 1, 1, 3)
+        number_of_any_dims = 0
+    ndims = len(shape)
     dtype = "float32"
     axis = 1
+    tensors_num = 300
     inputs = []
-    for i in range(100):
+    for i in range(tensors_num):
         inputs.append(relay.var("p{}".format(i), shape=shape, dtype=dtype))
 
     def before():
         inp = relay.Tuple(inputs)
         return relay.op.concatenate(inp, axis)
 
-    def expected():
-        limit = tvm.target.Target("metal").max_function_args - 1  # one buffer with output
-        splitNum = int(len(inputs) / limit)
-        if len(inputs) % limit > 0:
-            splitNum += 1
+    def expected(limit):
+        if limit == 0:
+            return before()
+        limit = limit - 1  # one buffer with output
+        if number_of_any_dims > 0:
+            limit -= ndims
 
-        splitted = []
-        for i in range(splitNum):
-            startIdx = i * limit
-            argsCount = min(limit, len(inputs) - startIdx)
-            args = []
-            for j in range(argsCount):
-                args.append(inputs[j + startIdx])
-            t = relay.Tuple(args)
-            concat = relay.op.concatenate(t, axis)
-            splitted.append(relay.annotation.stop_fusion(concat))
-        inp = relay.Tuple(splitted)
-        return relay.op.concatenate(inp, axis)
+        new_args = []
+        added_args = 0
+        num_inputs = 0
+        for inp in inputs:
+            curr_args = 1 + number_of_any_dims
+            if number_of_any_dims > 0:
+                curr_args += ndims
+            num_inputs += curr_args
+            if added_args + curr_args > limit:
+                t = relay.Tuple(new_args)
+                stop = relay.annotation.stop_fusion(t)
+                concat = relay.op.concatenate(stop, axis)
+                new_args = [concat]
+                added_args = curr_args
+            added_args += curr_args
+            new_args.append(inp)
+        t = relay.Tuple(new_args)
+        stop = relay.annotation.stop_fusion(t)
+        concat = relay.op.concatenate(stop, axis)
 
-    # the fold constant should work on any context.
-    res = run_opt_pass(before(), transform.SplitArgs(tvm.target.Target("metal").max_function_args))
-    exp = run_opt_pass(expected(), transform.InferType())
-    assert tvm.ir.structural_equal(res, exp)
+        if num_inputs < limit:
+            return before()
 
-
-def test_split_concat_cuda():
-    shape = (1, 1, 1, 3)
-    dtype = "float32"
-    axis = 1
-    inputs = []
-    for i in range(100):
-        inputs.append(relay.var("p{}".format(i), shape=shape, dtype=dtype))
-
-    def before():
-        inp = relay.Tuple(inputs)
-        return relay.op.concatenate(inp, axis)
-
-    def expected():
-        inp = relay.Tuple(inputs)
-        return relay.op.concatenate(inp, axis)
+        return concat
 
     # the fold constant should work on any context.
-    res = run_opt_pass(before(), transform.SplitArgs(tvm.target.Target("cuda").max_function_args))
-    exp = run_opt_pass(expected(), transform.InferType())
+    limit = tvm.target.Target(target_name).max_function_args
+    res = run_opt_pass(before(), transform.SplitArgs(limit))
+    exp = run_opt_pass(expected(limit), transform.InferType())
     assert tvm.ir.structural_equal(res, exp)
 
 
 if __name__ == "__main__":
-    test_split_concat_metal()
-    test_split_concat_cuda()
+    tvm.testing.main()

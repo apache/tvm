@@ -75,6 +75,11 @@ Stmt MergeNest(const std::vector<Stmt>& nest, Stmt body) {
       ICHECK(is_no_op(n->body));
       n->body = body;
       body = Stmt(n);
+    } else if (const auto* alloc = s.as<AllocateConstNode>()) {
+      auto n = make_object<AllocateConstNode>(*alloc);
+      ICHECK(is_no_op(n->body));
+      n->body = body;
+      body = Stmt(n);
     } else if (const auto* decl_buffer = s.as<DeclBufferNode>()) {
       auto n = make_object<DeclBufferNode>(*decl_buffer);
       ICHECK(is_no_op(n->body));
@@ -146,6 +151,11 @@ class IRConvertSSA final : public StmtExprMutator {
       bool made_change = false;
       for (const auto& [var, buffer] : func->buffer_map) {
         auto new_var = GetRemappedVar(var);
+        if (defined_.count(buffer->data.get())) {
+          redefines.emplace_back(this, buffer->data);
+        } else {
+          defined_.insert(buffer->data.get());
+        }
         auto new_buf = GetRemappedBuffer(buffer);
 
         made_change = made_change || !var.same_as(new_var) || !buffer.same_as(new_buf);
@@ -159,6 +169,10 @@ class IRConvertSSA final : public StmtExprMutator {
     }();
 
     auto attrs = [&]() -> DictAttrs {
+      if (!func->attrs.defined()) {
+        return DictAttrs();
+      }
+
       Map<String, ObjectRef> dict;
       bool made_change = false;
 
@@ -278,9 +292,14 @@ class IRConvertSSA final : public StmtExprMutator {
     // new buffer, pushing it onto the scoped stack of existing
     // buffers.  This will be popped when the new_buffer_var
     // redefinition is popped.
-    Buffer new_buf(new_buffer_var, buf->dtype, shape, strides, elem_offset, buf->name,
-                   buf->data_alignment, buf->offset_factor, buf->buffer_type, buf->axis_separators,
-                   buf->span);
+    Buffer new_buf = buf;
+    {
+      auto write_ptr = new_buf.CopyOnWrite();
+      write_ptr->data = new_buffer_var;
+      write_ptr->shape = shape;
+      write_ptr->strides = strides;
+      write_ptr->elem_offset = elem_offset;
+    }
     buffers.push_back(new_buf);
     return new_buf;
   }
@@ -316,7 +335,8 @@ class IRConvertSSA final : public StmtExprMutator {
       ScopedRedefine redefine(this, v);
       Stmt stmt = StmtExprMutator::VisitStmt_(op);
       op = stmt.as<AllocateNode>();
-      return Allocate(redefine.new_var, op->dtype, op->extents, op->condition, op->body);
+      return Allocate(redefine.new_var, op->dtype, op->extents, op->condition, op->body,
+                      op->annotations);
     } else {
       defined_.insert(v.get());
       return StmtExprMutator::VisitStmt_(op);
@@ -397,7 +417,8 @@ Array<PrimExpr> GetBufferAllocationShape(const Buffer& buffer) {
   if (buffer->strides.size()) {
     ICHECK_EQ(buffer->shape.size(), buffer->strides.size());
     for (size_t i = buffer->strides.size() - 1; i > 0; --i) {
-      ICHECK(is_zero(floormod(buffer->strides[i - 1], buffer->strides[i])));
+      ICHECK(
+          arith::Analyzer().CanProveEqual(floormod(buffer->strides[i - 1], buffer->strides[i]), 0));
       alloc_shape.Set(i, buffer->strides[i - 1] / buffer->strides[i]);
     }
   }
@@ -527,6 +548,9 @@ Optional<arith::IntConstraints> ConditionalBoundsContext::TrySolveCondition() {
   // solve constraints
   arith::IntConstraints constraint(vars, ranges, equations);
   arith::IntConstraints result = arith::SolveInequalitiesToRange(constraint);
+  if (!result->relations.empty()) {
+    return NullOpt;
+  }
   return std::move(result);
 }
 
@@ -546,10 +570,6 @@ void ConditionalBoundsContext::EnterWithScope() {
     // fail to process the condition, add to unresolved
     pending_conditions_->push_back(condition_);
     return;
-  }
-  for (const PrimExpr& unresolved : constraints.value()->relations) {
-    // add partially unresolved conditions
-    pending_conditions_->push_back(unresolved);
   }
   // update solved var ranges
   for (const auto& kv : constraints.value()->ranges) {
@@ -649,6 +669,46 @@ CollectStorageAlignAnnotation(const Stmt& body) {
   return std::move(collector.storage_align_);
 }
 
+int Stoi(const std::string& str) {
+  try {
+    return std::stoi(str);
+  } catch (std::invalid_argument& e) {
+    LOG(FATAL) << "Cannot convert \"" << str << "\" to int";
+    throw;
+  }
+}
+
+std::pair<int32_t, int32_t> GetWmmaFragmentDimSize(const std::string& shape_str,
+                                                   const std::string& scope) {
+  size_t m, n, k;
+  size_t last_pos = 0, pos = 0;
+  pos = shape_str.find(", ", last_pos);
+  m = Stoi(shape_str.substr(last_pos, pos - last_pos));
+  last_pos = pos + 2;
+  pos = shape_str.find(", ", last_pos);
+  n = Stoi(shape_str.substr(last_pos, pos - last_pos));
+  last_pos = pos + 2;
+  k = Stoi(shape_str.substr(last_pos, shape_str.length() - last_pos));
+  if (scope == "wmma.matrix_a") {
+    return std::pair<int32_t, int32_t>(m, k);
+  } else if (scope == "wmma.matrix_b") {
+    return std::pair<int32_t, int32_t>(k, n);
+  } else if (scope == "wmma.accumulator") {
+    return std::pair<int32_t, int32_t>(m, n);
+  }
+  return std::pair<int32_t, int32_t>(0, 0);
+}
+
+std::optional<bool> IsHostFunc(const PrimFunc& func) {
+  if (func->HasNonzeroAttr(tvm::tir::attr::kIsHostFunc)) {
+    return true;
+  } else if (auto target = func->GetAttr<Target>(tvm::attr::kTarget)) {
+    return target.value()->HasKey("cpu");
+  } else {
+    return std::nullopt;
+  }
+}
+
 namespace transform {
 Pass ConvertSSA() {
   auto pass_func = [](IRModule mod, PassContext ctx) {
@@ -672,6 +732,8 @@ Pass ConvertSSA() {
   };
   return tvm::transform::CreateModulePass(pass_func, 0, "tir.ConvertSSA", {});
 }
+
+TVM_REGISTER_GLOBAL("tir.transform.ConvertSSA").set_body_typed(ConvertSSA);
 
 }  // namespace transform
 }  // namespace tir

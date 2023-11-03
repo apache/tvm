@@ -21,6 +21,7 @@ import pickle
 from pathlib import Path
 import csv
 import sys
+import re
 from collections import defaultdict
 
 REPO_ROOT = Path(__file__).resolve().parent.parent.parent.parent
@@ -36,10 +37,12 @@ TAG_DICT = {
     "tensorrt": "cuda & cutlass & tensorrt",
     "ethosn": "Ethosn",
     "hexagon": "Hexagon",
-    "metal": "metal",
+    "metal": "Metal",
+    "vulkan": "Vulkan",
     "cmsis-nn": "CMSIS-NN",
     "clml": "OpenCL & CLML",
     "opencl": "OpenCL & CLML",
+    "openclml": "OpenCL & CLML",
     "adreno": "Adreno",
     "acl": "ArmComputeLibrary",
     "rocm": "ROCm",
@@ -86,6 +89,8 @@ TAG_DICT = {
     "bug": "BugFix",
     "hotfix": "BugFix",
     "relay": "Relay",
+    "qnn": "Relay",
+    "quantization": "Relay",
     "tvmscript": "TVMScript",
     "tvmscripts": "TVMScript",
     "tvmc": "TVMC",
@@ -156,10 +161,38 @@ def categorize_csv_file(csv_path: str):
 if __name__ == "__main__":
     help = "List out commits with attached PRs since a certain commit"
     parser = argparse.ArgumentParser(description=help)
-    parser.add_argument("--notes-csv", required=True, help="csv file of categorized PRs in order")
+    parser.add_argument(
+        "--notes", required=True, help="csv or markdown file of categorized PRs in order"
+    )
+    parser.add_argument(
+        "--is-pr-with-link",
+        required=False,
+        help="exported pr number with hyper-link for forum format",
+    )
+    parser.add_argument(
+        "--convert-with-link",
+        required=False,
+        help="make PR number in markdown file owning hyper-link",
+    )
     args = parser.parse_args()
     user = "apache"
     repo = "tvm"
+
+    if args.convert_with_link:
+        with open(args.notes, "r") as f:
+            lines = f.readlines()
+        formated = []
+        for line in lines:
+            match = re.search(r"#\d+", line)
+            if match:
+                pr_num_str = match.group()
+                pr_num_int = pr_num_str.replace("#", "")
+                pr_number_str = f"[#{pr_num_int}](https://github.com/apache/tvm/pull/{pr_num_int})"
+                line = line.replace(pr_num_str, pr_number_str)
+            formated.append(line)
+        result = "".join(formated)
+        print(result)
+        exit(0)
 
     # 1. Create PR dict from cache file
     cache = Path("out.pkl")
@@ -169,7 +202,7 @@ if __name__ == "__main__":
     pr_dict = create_pr_dict(cache)
 
     # 2. Categorize csv file as dict by category and subject (sub-category)
-    headings = categorize_csv_file(args.notes_csv)
+    headings = categorize_csv_file(args.notes)
 
     # 3. Summarize and sort all categories
     def sorter(x):
@@ -199,12 +232,16 @@ if __name__ == "__main__":
             continue
         value = dict(value)
         output += f"### {key}\n"
-
         misc = []
         misc += value.get("n/a", [])
         misc += value.get("Misc", [])
         for pr_number in misc:
-            output += f" * #{pr_number} - {pr_title(pr_number, '[' + key + ']')}\n"
+            if args.is_pr_with_link:
+                pr_number_str = f"[#{pr_number}](https://github.com/apache/tvm/pull/{pr_number})"
+            else:
+                pr_number_str = f"#{pr_number}"
+            pr_str = f" * {pr_number_str} - {pr_title(pr_number, '[' + key + ']')}\n"
+            output += pr_str
 
         for subheading, pr_numbers in value.items():
             if subheading == "DO NOT INCLUDE":

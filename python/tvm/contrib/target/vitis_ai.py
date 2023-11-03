@@ -113,7 +113,7 @@ class CodegenVitisAI:
         elif isinstance(expr, TupleGetItem):
             output_relay_ids.append(hash(expr.tuple_value))
         else:
-            raise ValueError("Vitis-AI codegen does not support {} as output".format(type(expr)))
+            raise ValueError(f"Vitis-AI codegen does not support {type(expr)} as output")
         return output_relay_ids
 
 

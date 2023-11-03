@@ -48,6 +48,12 @@
 # - /path/to/cuda: use specific path to cuda toolkit
 set(USE_CUDA OFF)
 
+# Whether to enable NCCL support:
+# - ON: enable NCCL with cmake's auto search
+# - OFF: disable NCCL
+# - /path/to/nccl: use specific path to nccl
+set(USE_NCCL OFF)
+
 # Whether enable ROCM runtime
 #
 # Possible values:
@@ -55,6 +61,12 @@ set(USE_CUDA OFF)
 # - OFF: disable ROCM
 # - /path/to/rocm: use specific path to rocm
 set(USE_ROCM OFF)
+
+# Whether to enable RCCL support:
+# - ON: enable RCCL with cmake's auto search
+# - OFF: disable RCCL
+# - /path/to/rccl: use specific path to rccl
+set(USE_RCCL OFF)
 
 # Whether enable SDAccel runtime
 set(USE_SDACCEL OFF)
@@ -143,6 +155,10 @@ set(USE_MICRO_STANDALONE_RUNTIME OFF)
 #        which is needed for most cases
 # - /path/to/llvm-config: enable specific LLVM when multiple llvm-dev is available.
 set(USE_LLVM OFF)
+
+# Whether use MLIR to help analyze, requires USE_LLVM is enabled
+# Possible values: ON/OFF
+set(USE_MLIR OFF)
 
 #---------------------------------------------
 # Contrib libraries
@@ -331,8 +347,8 @@ set(USE_HEXAGON_RPC OFF)
 # compiling _by_ TVM). This applies to components like the TVM runtime, but is
 # also used to select correct include/library paths from the Hexagon SDK when
 # building runtime for Android.
-# Valid values are v65, v66, v68, v69.
-set(USE_HEXAGON_ARCH "v66")
+# Valid values are v65, v66, v68, v69, v73.
+set(USE_HEXAGON_ARCH "v68")
 
 # Whether to use QHL library
 set(USE_HEXAGON_QHL OFF)
@@ -342,19 +358,6 @@ set(USE_TARGET_ONNX OFF)
 
 # Whether enable BNNS runtime
 set(USE_BNNS OFF)
-
-# Whether to use libbacktrace
-# Libbacktrace provides line and column information on stack traces from errors.
-# It is only supported on linux and macOS.
-# Possible values:
-# - AUTO: auto set according to system information and feasibility
-# - ON: enable libbacktrace
-# - OFF: disable libbacktrace
-set(USE_LIBBACKTRACE AUTO)
-
-# Whether to install a signal handler to print a backtrace on segfault. This
-# may replace existing signal handlers specified by other libraries.
-set(BACKTRACE_ON_SEGFAULT OFF)
 
 # Whether to build static libtvm_runtime.a, the default is to build the dynamic
 # version: libtvm_runtime.so.

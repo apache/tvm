@@ -60,6 +60,11 @@ void IRBuilder::InitHeader() {
   }
 #endif
 
+  if (spirv_support_.supports_cooperative_matrix) {
+    capabilities_used_.insert(spv::CapabilityCooperativeMatrixNV);
+    extensions_used_.insert("SPV_NV_cooperative_matrix");
+  }
+
   // memory model
   ib_.Begin(spv::OpMemoryModel)
       .AddSeq(spv::AddressingModelLogical, spv::MemoryModelGLSL450)
@@ -74,6 +79,7 @@ void IRBuilder::InitPreDefs() {
   t_bool_ = DeclareType(DataType::UInt(1));
   t_fp32_ = DeclareType(DataType::Float(32));
   const_i32_zero_ = IntImm(t_int32_, 0);
+
   // declare void, and void functions
   t_void_.id = id_counter_++;
   ib_.Begin(spv::OpTypeVoid).Add(t_void_).Commit(&global_);
@@ -106,7 +112,7 @@ std::vector<uint32_t> IRBuilder::Finalize() {
   return data;
 }
 
-SType IRBuilder::GetSType(const DataType& dtype) {
+SType IRBuilder::GetSType(const DataType& dtype, uint32_t row, uint32_t col) {
   if (dtype == DataType::Int(32)) {
     return t_int32_;
   } else if (dtype == DataType::UInt(1)) {
@@ -116,15 +122,22 @@ SType IRBuilder::GetSType(const DataType& dtype) {
   } else if (dtype == DataType::UInt(32)) {
     return t_uint32_;
   }
-  uint32_t type_key;
+  uint64_t type_key;
   type_key = static_cast<uint32_t>(dtype.code());
   type_key |= static_cast<uint32_t>(dtype.bits()) << 8U;
-  type_key |= static_cast<uint32_t>(dtype.lanes()) << 16U;
+  if (row * col == 0) {
+    ICHECK((row == 0) && (col == 0));
+    type_key |= static_cast<uint32_t>(dtype.lanes()) << 16U;
+  } else {
+    type_key |= static_cast<uint64_t>(row) << 32U;
+    type_key |= static_cast<uint64_t>(col) << 40U;
+  }
+
   auto it = pod_type_tbl_.find(type_key);
   if (it != pod_type_tbl_.end()) {
     return it->second;
   }
-  SType t = DeclareType(dtype);
+  SType t = DeclareType(dtype, row, col);
   pod_type_tbl_[type_key] = t;
   return t;
 }
@@ -221,7 +234,13 @@ Value IRBuilder::FloatImm(const SType& dtype, double value) {
     return GetConst_(dtype, &data);
   } else {
     ICHECK_EQ(dtype.type.bits(), 16);
-    return Cast(dtype, FloatImm(GetSType(DataType::Float(32)), value));
+    float fvalue = static_cast<float>(value);
+    uint32_t* ptr = reinterpret_cast<uint32_t*>(&fvalue);
+    uint64_t data = ptr[0];
+    if (data == 0)
+      return GetConst_(dtype, &data);
+    else
+      return Cast(dtype, FloatImm(GetSType(DataType::Float(32)), value));
   }
 }
 
@@ -475,7 +494,7 @@ Value IRBuilder::GetConst_(const SType& dtype, const uint64_t* pvalue) {
   return ret;
 }
 
-SType IRBuilder::DeclareType(const DataType& dtype) {
+SType IRBuilder::DeclareType(const DataType& dtype, uint32_t row, uint32_t col) {
   AddCapabilityFor(dtype);
 
   if (dtype.lanes() == 1) {
@@ -500,7 +519,18 @@ SType IRBuilder::DeclareType(const DataType& dtype) {
     t.id = id_counter_++;
     t.type = dtype;
     SType base_type = GetSType(dtype.element_of());
-    ib_.Begin(spv::OpTypeVector).AddSeq(t, base_type, dtype.lanes()).Commit(&global_);
+
+    if (row * col == 0) {
+      ICHECK((row == 0) && (col == 0));
+      ib_.Begin(spv::OpTypeVector).AddSeq(t, base_type, dtype.lanes()).Commit(&global_);
+    } else {
+      Value v_row = GetSpecConst(GetSType(DataType::UInt(32)), row);
+      Value v_col = GetSpecConst(GetSType(DataType::UInt(32)), col);
+      Value scope = UIntImm(GetSType(DataType::UInt(32)), spv::ScopeSubgroup);
+      ib_.Begin(spv::OpTypeCooperativeMatrixNV)
+          .AddSeq(t, base_type, scope, v_row, v_col)
+          .Commit(&global_);
+    }
     return t;
   }
 }
@@ -725,6 +755,30 @@ Value IRBuilder::Cast(const SType& dst_type, spirv::Value value) {
     LOG(FATAL) << "do not support type cast from " << from << " to " << to;
     return Value();
   }
+}
+
+Value IRBuilder::GetCompositeConst(const SType& ele_stype, const SType& composite_stype,
+                                   const double dval) {
+  auto key = std::make_pair(composite_stype.id, dval);
+  auto it = composite_const_tbl_.find(key);
+  if (it != composite_const_tbl_.end()) {
+    return it->second;
+  }
+  spirv::Value const_val = FloatImm(ele_stype, dval);
+  Value new_val = NewValue(composite_stype, kNormal);
+  ib_.Begin(spv::OpConstantComposite).AddSeq(composite_stype, new_val, const_val);
+  ib_.Commit(&global_);
+  composite_const_tbl_[key] = new_val;
+  return new_val;
+}
+
+Value IRBuilder::GetSpecConst(const SType& dtype, uint64_t value) {
+  ICHECK_LE(dtype.type.bits(), 32);
+  Value ret = NewValue(dtype, kSpecConst);
+  ib_.Begin(spv::OpSpecConstant).AddSeq(dtype, ret);
+  ib_.Add(static_cast<uint32_t>(value));
+  ib_.Commit(&global_);
+  return ret;
 }
 
 #define DEFINE_BUILDER_BINARY_USIGN_OP(_OpName, _Op)       \

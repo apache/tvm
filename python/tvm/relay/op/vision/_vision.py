@@ -48,6 +48,9 @@ reg.register_pattern("vision.non_max_suppression", OpPattern.OPAQUE)
 reg.register_strategy("vision.all_class_non_max_suppression", strategy.all_class_nms_strategy)
 reg.register_pattern("vision.all_class_non_max_suppression", OpPattern.OPAQUE)
 
+reg.register_strategy("vision.regular_non_max_suppression", strategy.regular_nms_strategy)
+reg.register_pattern("vision.regular_non_max_suppression", OpPattern.OPAQUE)
+
 
 @script
 def _get_valid_counts_shape_func(data_shape):
@@ -120,6 +123,33 @@ def all_class_nms_shape_func(attrs, inputs, _):
     if attrs.output_format == "onnx":
         return _all_class_nms_shape_func_onnx(inputs[0], inputs[1])
     return _all_class_nms_shape_func_tf(inputs[0], inputs[1])
+
+
+@script
+def _regular_nms_shape_func(boxes_shape, scores_shape, attrs):
+    out_boxes_shape = output_tensor((3,), "int64")
+    out_classes_shape = output_tensor((2,), "int64")
+    out_scores_shape = output_tensor((2,), "int64")
+    out_num_detections_shape = output_tensor((1,), "int64")
+
+    out_boxes_shape[0] = boxes_shape[0]
+    out_boxes_shape[1] = int64(attrs.max_detections)
+    out_boxes_shape[2] = int64(4)
+
+    out_classes_shape[0] = boxes_shape[0]
+    out_classes_shape[1] = int64(attrs.max_detections)
+
+    out_scores_shape[0] = boxes_shape[0]
+    out_scores_shape[1] = int64(attrs.max_detections)
+
+    out_num_detections_shape[0] = boxes_shape[0]
+
+    return out_boxes_shape, out_classes_shape, out_scores_shape, out_num_detections_shape
+
+
+@reg.register_shape_func("vision.regular_non_max_suppression", False)
+def regular_nms_shape_func(attrs, inputs, _):
+    return _regular_nms_shape_func(inputs[0], inputs[1], attrs)
 
 
 @script

@@ -51,7 +51,7 @@ class HybridModule(object):
             temp = utils.tempdir()
             dst = temp.relpath("script.py")
             with open(dst, "w") as f:
-                f.write("import tvm\n@tvm.te.hybrid.script\n%s" % src)
+                f.write(f"import tvm\n@tvm.te.hybrid.script\n{src}")
 
             if name is not None:
                 self.name = name

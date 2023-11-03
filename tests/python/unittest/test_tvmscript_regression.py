@@ -54,7 +54,9 @@ def test_different_dtype_assignment_to_var():
         a = T.alloc_buffer([10, 10], dtype="int8")
         T.evaluate(0)
 
-    tvm.ir.assert_structural_equal(test_case, func_ref)
+    tvm.ir.assert_structural_equal(
+        test_case.with_attr("global_symbol", "main"), func_ref.with_attr("global_symbol", "main")
+    )
 
 
 def test_var_capturing_order():
@@ -69,7 +71,9 @@ def test_var_capturing_order():
         k: T.int32 = 2
         T.evaluate(0)
 
-    tvm.ir.assert_structural_equal(test_case, func_ref)
+    tvm.ir.assert_structural_equal(
+        test_case.with_attr("global_symbol", "main"), func_ref.with_attr("global_symbol", "main")
+    )
 
 
 def test_tir_buffer_region_extent_correct_dtype():

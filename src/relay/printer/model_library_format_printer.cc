@@ -56,7 +56,7 @@ class ModelLibraryFormatPrinter : public ::tvm::runtime::ModuleNode {
     return rv;
   }
 
-  PackedFunc GetFunction(const std::string& name, const ObjectPtr<Object>& sptr_to_self) override {
+  PackedFunc GetFunction(const String& name, const ObjectPtr<Object>& sptr_to_self) override {
     if (name == "print") {
       return TypedPackedFunc<std::string(ObjectRef)>(
           [sptr_to_self, this](ObjectRef node) { return Print(node); });

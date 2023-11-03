@@ -79,7 +79,7 @@ Making your Hardware Accelerator TVM-ready with UMA
 #
 
 ################################################################################
-# uma_cli.py generates these files in the directory ``vanilla_accelerator`` which we are going to revist.
+# uma_cli.py generates these files in the directory ``vanilla_accelerator`` which we are going to revisit.
 #
 # .. code-block:: bash
 #

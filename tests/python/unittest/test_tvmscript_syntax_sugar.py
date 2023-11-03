@@ -16,12 +16,13 @@
 # under the License.
 # pylint: disable=missing-function-docstring,missing-module-docstring,invalid-name,pointless-string-statement
 import sys
+from typing import Any
 
 import pytest
 import tvm.testing
-from tvm.ir import assert_structural_equal
 from tvm.script import from_source
 from tvm.script import tir as T
+from tvm.tir.schedule.testing import assert_structural_equal_ignore_global_symbol
 
 
 @T.prim_func
@@ -61,7 +62,9 @@ def transformed_matmul_syntax_sugar(a: T.handle, b: T.handle, c: T.handle) -> No
 
 
 def test_reads_writes_syntax_sugar():
-    assert_structural_equal(transformed_matmul_no_syntax_sugar, transformed_matmul_syntax_sugar)
+    assert_structural_equal_ignore_global_symbol(
+        transformed_matmul_no_syntax_sugar, transformed_matmul_syntax_sugar
+    )
 
 
 @T.prim_func
@@ -89,7 +92,7 @@ def loop_syntax_sugar(a: T.handle) -> None:
 
 
 def test_loop_syntax_sugar():
-    assert_structural_equal(loop_no_syntax_sugar, loop_syntax_sugar)
+    assert_structural_equal_ignore_global_symbol(loop_no_syntax_sugar, loop_syntax_sugar)
 
 
 # match buffer - use kwargs
@@ -132,9 +135,9 @@ def elementwise_buffer_no_kwargs(
 
 def test_match_buffer_syntax_sugar():
     # with kwargs
-    assert_structural_equal(elementwise_handle, elementwise_buffer_kwargs)
+    assert_structural_equal_ignore_global_symbol(elementwise_handle, elementwise_buffer_kwargs)
     # without kwargs
-    assert_structural_equal(elementwise_handle, elementwise_buffer_no_kwargs)
+    assert_structural_equal_ignore_global_symbol(elementwise_handle, elementwise_buffer_no_kwargs)
 
 
 def test_match_buffer_1d():
@@ -149,7 +152,7 @@ def test_match_buffer_1d():
         for i in T.serial(16):
             A[i] = 0.0
 
-    assert_structural_equal(func_no_sugar, func_with_sugar)
+    assert_structural_equal_ignore_global_symbol(func_no_sugar, func_with_sugar)
 
 
 # dynamic shape gemm
@@ -171,7 +174,7 @@ def gemm_dyn_shape(a: T.handle, b: T.handle, c: T.handle):
 
 def test_dynamic_shape_gemm():
     gemm_dyn_shape_roundtrip = from_source(gemm_dyn_shape.script())
-    assert_structural_equal(gemm_dyn_shape, gemm_dyn_shape_roundtrip)
+    assert_structural_equal_ignore_global_symbol(gemm_dyn_shape, gemm_dyn_shape_roundtrip)
 
 
 @T.prim_func
@@ -208,7 +211,7 @@ def match_buffer_int64_after_roundtrip(
 def test_match_buffer_int64():
     original = match_buffer_int64
     after_roundtrip = match_buffer_int64_after_roundtrip
-    assert_structural_equal(original, after_roundtrip, True)
+    assert_structural_equal_ignore_global_symbol(original, after_roundtrip, True)
 
 
 def test_match_buffer_region_has_implicit_shape_dtype():
@@ -224,7 +227,7 @@ def test_match_buffer_region_has_implicit_shape_dtype():
             B = T.match_buffer(A[8:16, 32:64])
             T.evaluate(0)
 
-    assert_structural_equal(explicit_shape_dtype, implicit_shape_dtype)
+    assert_structural_equal_ignore_global_symbol(explicit_shape_dtype, implicit_shape_dtype)
 
 
 def test_match_buffer_input_requires_shape_arg():
@@ -263,7 +266,7 @@ def test_letstmt_bind_with_constant():
         y = T.meta_var(T.float32(42.0))
         T.evaluate(T.cast(x, "float32") + y)
 
-    assert_structural_equal(constant_binds, constant_binds_wrapped)
+    assert_structural_equal_ignore_global_symbol(constant_binds, constant_binds_wrapped)
 
 
 def test_func_call():
@@ -322,7 +325,9 @@ def test_func_call():
                         * B[k % 8 * 4 + j % 8 // 2, j // 8 * 4 + k // 8 * 2 + j % 2]
                     )
 
-    assert_structural_equal(mma_sync_m16n16k16_desc, mma_sync_m16n16k16_desc_manual)
+    assert_structural_equal_ignore_global_symbol(
+        mma_sync_m16n16k16_desc, mma_sync_m16n16k16_desc_manual
+    )
 
     # The following is an example of an error message from calling an invalid function
 
@@ -370,7 +375,7 @@ def test_int64_loop():
                     vj = T.axis.spatial(T.int64(128), j)
                     B[vi, vj] = A[vi, vj] + 1.0
 
-    assert_structural_equal(int64_grid, int64_grid_expanded)
+    assert_structural_equal_ignore_global_symbol(int64_grid, int64_grid_expanded)
 
 
 def test_implicit_evaluate_assume():
@@ -384,7 +389,7 @@ def test_implicit_evaluate_assume():
         T.assume(A[0] == 5)
         A[0] = 10
 
-    assert_structural_equal(implicit, explicit)
+    assert_structural_equal_ignore_global_symbol(implicit, explicit)
 
 
 def test_implicit_evaluate_call_extern():
@@ -396,7 +401,7 @@ def test_implicit_evaluate_call_extern():
     def implicit(A: T.Buffer(1, "int32")):
         T.call_extern("extern_func", A.data, dtype="int32")
 
-    assert_structural_equal(implicit, explicit)
+    assert_structural_equal_ignore_global_symbol(implicit, explicit)
 
 
 def test_preserve_trivial_let_binding():
@@ -411,7 +416,7 @@ def test_preserve_trivial_let_binding():
         j = i
         T.evaluate(j)
 
-    assert_structural_equal(implicit, explicit)
+    assert_structural_equal_ignore_global_symbol(implicit, explicit)
 
 
 def test_preserve_trivial_let_binding_of_value():
@@ -426,7 +431,7 @@ def test_preserve_trivial_let_binding_of_value():
         j = 42
         T.evaluate(j)
 
-    assert_structural_equal(implicit, explicit)
+    assert_structural_equal_ignore_global_symbol(implicit, explicit)
 
 
 def test_preserve_parameter_name():
@@ -450,6 +455,41 @@ def test_preserve_variable_name():
 
     var_name = func.body.body.var.name
     assert var_name == "j"
+
+
+def test_boolean_constant():
+    """Python booleans should become T.Bool objects"""
+
+    @T.prim_func
+    def explicit():
+        T.evaluate(T.bool(True))
+
+    @T.prim_func
+    def implicit():
+        T.evaluate(True)
+
+    assert_structural_equal_ignore_global_symbol(implicit, explicit)
+
+
+def test_foldable_boolean_in_assert():
+    """Foldable booleans T.Bool objects
+
+    The condition of an assert statement should be a boolean
+    expression.  Previously, this test failed because the FFI does not
+    distinguish between integer primitives and boolean primitives.
+    """
+
+    @T.prim_func
+    def explicit():
+        assert T.bool(False), "Message"
+        T.evaluate(0)
+
+    @T.prim_func
+    def implicit():
+        assert 0 == 1, "Message"
+        T.evaluate(0)
+
+    assert_structural_equal_ignore_global_symbol(implicit, explicit)
 
 
 if __name__ == "__main__":

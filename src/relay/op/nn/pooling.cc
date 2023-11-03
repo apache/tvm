@@ -32,6 +32,7 @@
 #include <vector>
 
 #include "../../transforms/infer_layout_utils.h"
+#include "pooling_common.h"
 
 namespace tvm {
 namespace relay {
@@ -39,43 +40,6 @@ namespace relay {
 // relay.nn.max_pool2d & relay.nn.avg_pool2d
 TVM_REGISTER_NODE_TYPE(MaxPool2DAttrs);
 TVM_REGISTER_NODE_TYPE(AvgPool2DAttrs);
-
-template <typename T>
-InferCorrectLayoutOutput PoolInferCorrectLayout(const Attrs& attrs,
-                                                const Array<Layout>& new_in_layouts,
-                                                const Array<Layout>& old_in_layouts,
-                                                const Array<tvm::relay::Type>& old_in_types) {
-  const auto* attrs_ptr = attrs.as<T>();
-  ICHECK(attrs_ptr);
-  ObjectPtr<T> params = make_object<T>(*attrs_ptr);
-
-  if (params->out_layout != "") {
-    // when users specify the out_layout of pooling, follow user's preference
-    ICHECK_EQ(params->layout, params->out_layout)
-        << "Pooling input/output layouts mismatch: " << params->layout << " vs. "
-        << params->out_layout;
-  } else if (new_in_layouts.defined()) {
-    // the pooling is using an inferred layout (i.e., new_in_layouts[0]) given by relay caller
-    ICHECK_EQ(new_in_layouts.size(), 1);
-    params->layout = new_in_layouts[0].name();
-  }
-
-  return InferCorrectLayoutOutput({params->layout}, {params->layout}, Attrs(params));
-}
-
-IndexExpr calculate_pool_dimension(IndexExpr in_dimension, IndexExpr pad_amount,
-                                   IndexExpr pool_size, IndexExpr dilation, IndexExpr stride_size,
-                                   bool ceil_mode) {
-  IndexExpr numerator = in_dimension + pad_amount - ((pool_size - 1) * dilation + 1);
-  IndexExpr denominator = stride_size;
-
-  // Emulate the behavior of running ceil on numerator / denominator rather than floor
-  if (ceil_mode) {
-    numerator += denominator - 1;
-  }
-
-  return numerator / denominator + 1;
-}
 
 template <typename AttrType>
 bool Pool2DRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,

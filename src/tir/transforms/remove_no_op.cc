@@ -35,6 +35,7 @@
 #include "../../arith/const_fold.h"
 #include "../../arith/ir_mutator_with_analyzer.h"
 #include "../analysis/control_flow_graph.h"
+#include "../analysis/var_use_def_analysis.h"
 #include "ir_utils.h"
 
 namespace tvm {
@@ -237,6 +238,19 @@ class NoOpRemover : public arith::IRMutatorWithAnalyzer {
     }
 
     return std::move(store);
+  }
+
+  Stmt VisitStmt_(const DeclBufferNode* op) final {
+    auto node = Downcast<DeclBuffer>(Parent::VisitStmt_(op));
+
+    VarUseDefAnalyzer var_use({});
+    var_use(node->body);
+
+    if (var_use.buffer_use_count_.count(node->buffer.get())) {
+      return std::move(node);
+    } else {
+      return node->body;
+    }
   }
 
  private:

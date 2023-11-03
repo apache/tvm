@@ -160,6 +160,9 @@ void VulkanDeviceAPI::GetAttr(Device dev, DeviceAttrKind kind, TVMRetValue* rv) 
       *rv = os.str();
       break;
     }
+
+    case kL2CacheSizeBytes:
+      break;
   }
 }
 
@@ -239,6 +242,10 @@ void VulkanDeviceAPI::GetTargetProperty(Device dev, const std::string& property,
 
   if (property == "supports_integer_dot_product") {
     *rv = prop.supports_integer_dot_product;
+  }
+
+  if (property == "supports_cooperative_matrix") {
+    *rv = prop.supports_cooperative_matrix;
   }
 
   if (property == "device_name") {

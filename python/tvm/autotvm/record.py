@@ -279,13 +279,13 @@ def split_workload(in_file, clean=True):
 
             # write to file
             logger.info("Key: %s\tValid: %d\tDup: %d\t", k, len(cleaned), len(v) - len(cleaned))
-            with open(args.i + ".%03d.wkl" % i, "w") as fout:
+            with open(args.i + f".{i:03d}.wkl", "w") as fout:
                 for inp, res in cleaned:
                     fout.write(encode(inp, res) + "\n")
     else:
         for i, (k, v) in enumerate(wkl_dict.items()):
             logger.info("Key: %s\tNum: %d", k, len(v))
-            with open(args.i + ".%03d.wkl" % i, "w") as fout:
+            with open(args.i + f".{i:03d}.wkl", "w") as fout:
                 for inp, res in v:
                     fout.write(encode(inp, res) + "\n")
 

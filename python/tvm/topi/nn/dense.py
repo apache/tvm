@@ -94,9 +94,15 @@ def matmul(
         red_dim, out_dim = tensor_b.shape
 
     # cmp should be done by values
-    assert int(in_dim) == int(
-        red_dim
-    ), "Inner dimensions of dense do not match. {in_dim} vs {red_dim}."
+    condition = True
+    if isinstance(in_dim, tvm.tir.SizeVar):  # "any_dim"
+        condition = False
+    elif isinstance(red_dim, tvm.tir.SizeVar):  # "any_dim"
+        condition = False
+    if condition:
+        assert int(in_dim) == int(
+            red_dim
+        ), "Inner dimensions of dense do not match. {in_dim} vs {red_dim}."
 
     k = te.reduce_axis((0, in_dim), name="k")
     if (transpose_a, transpose_b) == (True, True):

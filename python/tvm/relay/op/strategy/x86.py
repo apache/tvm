@@ -201,7 +201,7 @@ def conv2d_strategy_cpu(attrs, inputs, out_type, target):
                 name="conv2d_hwcn.generic",
             )
         else:
-            raise RuntimeError("Unsupported conv2d layout {} for x86".format(layout))
+            raise RuntimeError(f"Unsupported conv2d layout {layout} for x86")
     elif is_depthwise_conv2d(data.shape, layout, kernel.shape, kernel_layout, groups):
         if layout == "NCHW":
             assert kernel_layout == "OIHW"
@@ -236,7 +236,7 @@ def conv2d_strategy_cpu(attrs, inputs, out_type, target):
                 name="depthwise_conv2d_nhwc.generic",
             )
         else:
-            raise RuntimeError("Unsupported depthwise_conv2d layout {}".format(layout))
+            raise RuntimeError(f"Unsupported depthwise_conv2d layout {layout}")
     else:  # group_conv2d
         if layout == "NCHW":
             assert kernel_layout == "OIHW"
@@ -258,7 +258,7 @@ def conv2d_strategy_cpu(attrs, inputs, out_type, target):
             assert _OIHWio_matcher.match(kernel_layout)  # check if kernel is OIHWio
             return conv2d_NCHWc_strategy_cpu(attrs, inputs, out_type, target)
         else:
-            raise RuntimeError("Unsupported group_conv2d layout {}".format(layout))
+            raise RuntimeError(f"Unsupported group_conv2d layout {layout}")
     return strategy
 
 
@@ -352,9 +352,7 @@ def conv3d_strategy_cpu(attrs, inputs, out_type, target):
         # or packed layouts.
         if layout == "NCDHW":
             strategy.add_implementation(
-                wrap_compute_conv3d(topi.nn.conv3d_ncdhw),
-                naive_schedule,
-                name="conv3d_ncdhw.x86",
+                wrap_compute_conv3d(topi.nn.conv3d_ncdhw), naive_schedule, name="conv3d_ncdhw.x86"
             )
         elif layout == "NDHWC":
             strategy.add_implementation(
@@ -367,7 +365,7 @@ def conv3d_strategy_cpu(attrs, inputs, out_type, target):
                 name="conv3d_ndhwc.x86",
             )
         else:
-            raise ValueError("Not support this layout {} yet".format(layout))
+            raise ValueError(f"Not support this layout {layout} yet")
     else:
         # Use autotvm templates
         if layout == "NCDHW":
@@ -383,7 +381,7 @@ def conv3d_strategy_cpu(attrs, inputs, out_type, target):
                 name="conv3d_ndhwc.x86",
             )
         else:
-            raise ValueError("Not support this layout {} yet".format(layout))
+            raise ValueError(f"Not support this layout {layout} yet")
     return strategy
 
 
@@ -410,7 +408,7 @@ def conv1d_strategy_cpu(attrs, inputs, out_type, target):
                 name="conv1d_nwc.x86",
             )
         else:
-            raise ValueError("Unsupported conv1d layout {}".format(layout))
+            raise ValueError(f"Unsupported conv1d layout {layout}")
     else:
         if layout == "NCW":
             strategy.add_implementation(
@@ -425,7 +423,7 @@ def conv1d_strategy_cpu(attrs, inputs, out_type, target):
                 name="group_conv1d_nwc.x86",
             )
         else:
-            raise ValueError("Unsupported conv1d layout {}".format(layout))
+            raise ValueError(f"Unsupported conv1d layout {layout}")
     return strategy
 
 
@@ -500,9 +498,7 @@ def matmul_strategy_cpu(attrs, inputs, out_type, target):
                 "Recommend to use cblas/mkl/dnnl for better performance."
             )
         strategy.add_implementation(
-            wrap_compute_matmul(topi.nn.matmul),
-            naive_schedule,
-            name="matmul.generic",
+            wrap_compute_matmul(topi.nn.matmul), naive_schedule, name="matmul.generic"
         )
     return strategy
 
@@ -750,7 +746,7 @@ def bitserial_conv2d_strategy_cpu(attrs, inputs, out_type, target):
             name="bitserial_conv2d_nhwc.x86",
         )
     else:
-        raise ValueError("Data layout {} not supported.".format(layout))
+        raise ValueError(f"Data layout {layout} not supported.")
     return strategy
 
 
@@ -816,9 +812,7 @@ def conv2d_winograd_without_weight_transform_strategy_cpu(attrs, inputs, out_typ
         else:
             raise RuntimeError("Both AutoScheduler and MetaSchedule are not enabled")
     else:
-        raise RuntimeError(
-            "Unsupported conv2d_winograd_without_weight_transform layout {}".format(layout)
-        )
+        raise RuntimeError(f"Unsupported conv2d_winograd_without_weight_transform layout {layout}")
     return strategy
 
 

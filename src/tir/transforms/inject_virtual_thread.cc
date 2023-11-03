@@ -457,7 +457,7 @@ class VTInjector : public arith::IRMutatorWithAnalyzer {
   Var var_;
   // the threads/lanes
   int num_threads_;
-  // whethe the loop is already injected.
+  // whether the loop is already injected.
   bool vt_loop_injected_{false};
   // whether current expression get touched.
   bool visit_touched_var_{false};

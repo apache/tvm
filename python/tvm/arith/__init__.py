@@ -19,6 +19,7 @@
 from .int_set import (
     IntSet,
     IntervalSet,
+    PresburgerSet,
     estimate_region_lower_bound,
     estimate_region_strict_bound,
     estimate_region_upper_bound,
@@ -32,6 +33,7 @@ from .iter_affine_map import (
     detect_iter_map,
     iter_map_simplify,
     normalize_iter_map_to_expr,
+    normalize_to_iter_sum,
     subspace_divide,
     inverse_affine_iter_map,
 )

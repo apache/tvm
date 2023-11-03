@@ -384,10 +384,10 @@ def func_associativity_expected(
 
 def _check(original, transformed):
     func = original
-    mod = tvm.IRModule.from_expr(func)
+    mod = tvm.IRModule.from_expr(func.with_attr("global_symbol", "main"))
     body = tvm.tir.transform.CommonSubexprElimTIR(identify_equiv_terms=True)(mod)
     tvm.transform.PrintIR()(body)
-    tvm.ir.assert_structural_equal(body["main"], transformed)
+    tvm.ir.assert_structural_equal(body["main"], transformed.with_attr("global_symbol", "main"))
 
 
 def test_semantic_equiv_distributivity():

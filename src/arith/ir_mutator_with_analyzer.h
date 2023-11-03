@@ -62,6 +62,20 @@ class IRMutatorWithAnalyzer : public tir::StmtExprMutator {
   PrimExpr VisitExpr_(const tir::ReduceNode* op) override;
 
  protected:
+  /*!
+   * \brief Mark the all the buffer shape values in the buffer map as positive value.
+   *
+   * \note call this function before Visit function's body to maximize
+   *       simplification efficiency
+   */
+  void MarkBufferMapShapes(const tir::PrimFunc& func);
+
+  /*!
+   * \brief Use internal bound information to perform inter map simplification of indices.
+   * \note Only do this during layout remapping
+   */
+  Array<PrimExpr> IterMapSimplifyWithContext(const Array<PrimExpr>& indices, bool non_trivial_only);
+
   /*! \brief internal analyzer field. */
   Analyzer* analyzer_;
   // the following two fields are useful in case we want

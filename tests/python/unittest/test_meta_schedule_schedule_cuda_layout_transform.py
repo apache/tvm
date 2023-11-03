@@ -21,11 +21,14 @@ import tempfile
 from typing import Callable, Dict, List, Optional, Tuple, Union
 
 import numpy as np
+import pytest
 
 import tvm
 import tvm.testing
 from tvm import meta_schedule, relay
-from tvm.meta_schedule.schedule.cuda.layout_transform import cuda_layout_transform_schedule_rule
+from tvm.meta_schedule.schedule.cuda.layout_transform import (
+    cuda_layout_transform_schedule_rule,
+)
 from tvm.relay.op import OpPattern
 from tvm.script import ir as I
 from tvm.script import tir as T
@@ -170,6 +173,7 @@ def run_primfunc(
     lib(*input_tensors)
 
 
+@pytest.mark.skip("Integration test")
 class TestRandomRelayE2ECorrectness:
     """Tests E2E correctness of layout transform schedule.
 

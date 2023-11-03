@@ -27,6 +27,7 @@
 
 #include <tvm/ir/expr.h>
 #include <tvm/ir/memory_pools.h>
+#include <tvm/ir/module.h>
 #include <tvm/runtime/device_api.h>
 #include <tvm/target/target.h>
 #include <tvm/tir/stmt.h>

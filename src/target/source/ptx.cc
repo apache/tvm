@@ -603,12 +603,7 @@ std::string PrintLoadMatrixAssembly(bool trans, int num, const std::string& type
   CHECK(data_type == ptx::DataType::kBit16) << "ldmatrix only accept matrix with type .b16.";
   std::string asm_code = R"(
   {
-    unsigned int addr;
-    __asm__ __volatile__(
-      "{ .reg .u64 addr; cvta.to.shared.u64 addr, %1; cvt.u32.u64 %0, addr; }\n"
-      : "=r"(addr)
-      : "l"((void *)({smem_addr}))
-    );
+    unsigned int addr = cast_smem_ptr_to_int({smem_addr});
     __asm__ __volatile__(
       "ldmatrix.sync.aligned{.shape}{.num}{.trans}{.ss}{.type}"
       "{templates};\n"
@@ -638,12 +633,7 @@ std::string PrintCpAsyncAssembly(const std::string& shared_ptr,
                                  const std::string& global_elem_offset, const std::string& bytes) {
   std::string asm_code = R"(
   {
-    unsigned int addr;
-    __asm__ __volatile__(
-      "{ .reg .u64 addr; cvta.to.shared.u64 addr, %1; cvt.u32.u64 %0, addr; }\n"
-      : "=r"(addr)
-      : "l"((void *)({smem_addr}))
-    );
+    unsigned int addr = cast_smem_ptr_to_int({smem_addr});
     __asm__ __volatile__(
       #if TVM_ENABLE_L2_PREFETCH
         "cp.async.{cg_or_ca}.shared.global.L2::128B [%0], [%1], %2;"
@@ -674,12 +664,7 @@ std::string PrintPredicatedCpAsyncAssembly(const std::string& shared_ptr,
       << "Only support 16, 12, 8, 4, 2, 1 bytes for predicated cp.async";
   std::string predicated_asm_code = R"(
   {
-    unsigned int addr;
-    __asm__ __volatile__(
-      "{ .reg .u64 addr; cvta.to.shared.u64 addr, %1; cvt.u32.u64 %0, addr; }"
-      : "=r"(addr)
-      : "l"((void *)({smem_addr}))
-    );
+    unsigned int addr = cast_smem_ptr_to_int({smem_addr});
     int pred_guard = (int){pred_guard};
     __asm__ __volatile__(
         "{  .reg .pred p;"
@@ -720,6 +705,124 @@ std::string PrintPredicatedCpAsyncAssembly(const std::string& shared_ptr,
   replacer.register_rule("{store_shared}", store_shared);
   replacer.register_rule("{nopreg}", nopreg);
   replacer.register_rule("{pred_guard}", predicate_value);
+  predicated_asm_code = replacer.rewrite(predicated_asm_code);
+  return predicated_asm_code;
+}
+
+std::string PrintCpAsyncBulkAsm(const std::string& shared_ptr,
+                                const std::string& shared_elem_offset,
+                                const std::string& global_ptr,
+                                const std::string& global_elem_offset, const std::string& bytes,
+                                const std::string& barrier) {
+  std::string asm_code = R"(
+  {
+    unsigned int smem_addr_int = cast_smem_ptr_to_int({smem_addr});
+    unsigned int barrier_addr_int = cast_smem_ptr_to_int({barrier});
+    __asm__ __volatile__(
+      "cp.async.bulk.shared::cluster.global.mbarrier::complete_tx::bytes [%0], [%1], %2, [%3];"
+      :: "r"(smem_addr_int), "l"({global_ptr}), "r"({bytes}), "r"(barrier_addr_int)
+      : "memory"
+    );
+  }
+)";
+
+  Replacer replacer;
+  replacer.register_rule("{smem_addr}", shared_ptr + " + " + shared_elem_offset);
+  replacer.register_rule("{global_ptr}", global_ptr + " + " + global_elem_offset);
+  replacer.register_rule("{bytes}", bytes);
+  replacer.register_rule("{barrier}", "&" + barrier);
+  asm_code = replacer.rewrite(asm_code);
+  return asm_code;
+}
+
+std::string PrintCpAsyncBarrierAsm(const std::string& barrier) {
+  std::string predicated_asm_code = R"(
+  {
+    unsigned int barrier_addr_int = cast_smem_ptr_to_int({barrier});
+    __asm__ __volatile__(
+      "cp.async.mbarrier.arrive.shared.b64 [%0];"
+      :: "r" (barrier_addr_int)
+    );
+  }
+)";
+
+  Replacer replacer;
+  replacer.register_rule("{barrier}", "&" + barrier);
+  predicated_asm_code = replacer.rewrite(predicated_asm_code);
+  return predicated_asm_code;
+}
+
+std::string PrintInitBarrierThreadCountAsm(const std::string& barrier,
+                                           const std::string& thread_count) {
+  std::string predicated_asm_code = R"(
+  {
+    unsigned int barrier_addr_int = cast_smem_ptr_to_int({barrier});
+    int thread_count = {thread_count};
+    __asm__ __volatile__(
+      "mbarrier.init.shared.b64 [%0], %1;"
+      :: "r"(barrier_addr_int), "r"(thread_count)
+    );
+  }
+)";
+
+  Replacer replacer;
+  replacer.register_rule("{barrier}", "&" + barrier);
+  replacer.register_rule("{thread_count}", thread_count);
+  predicated_asm_code = replacer.rewrite(predicated_asm_code);
+  return predicated_asm_code;
+}
+
+std::string PrintArriveBarrierAsm(const std::string& barrier) {
+  std::string predicated_asm_code = R"(
+  {
+    unsigned int barrier_addr_int = cast_smem_ptr_to_int({barrier});
+    __asm__ __volatile__(
+      "{ .reg .b64 state; mbarrier.arrive.shared.b64 state, [%0]; }"
+      :: "r"(barrier_addr_int)
+    );
+  }
+)";
+
+  Replacer replacer;
+  replacer.register_rule("{barrier}", "&" + barrier);
+  predicated_asm_code = replacer.rewrite(predicated_asm_code);
+  return predicated_asm_code;
+}
+
+std::string PrintArriveBarrierExpectTxAsm(const std::string& barrier,
+                                          const std::string& byte_count) {
+  std::string predicated_asm_code = R"(
+  {
+    unsigned int barrier_addr_int = cast_smem_ptr_to_int({barrier});
+    int byte_count = {byte_count};
+    __asm__ __volatile__(
+      "mbarrier.arrive.expect_tx.shared.b64 _, [%0], %1;"
+      :: "r"(barrier_addr_int), "r"(byte_count)
+    );
+  }
+)";
+
+  Replacer replacer;
+  replacer.register_rule("{barrier}", "&" + barrier);
+  replacer.register_rule("{byte_count}", byte_count);
+  predicated_asm_code = replacer.rewrite(predicated_asm_code);
+  return predicated_asm_code;
+}
+
+std::string PrintWaitBarrierAsm(const std::string& barrier) {
+  std::string predicated_asm_code = R"(
+  {
+    unsigned int barrier_addr_int = cast_smem_ptr_to_int({barrier});
+    constexpr int phase_bit = 0;
+    __asm__ __volatile__(
+      "{ .reg .pred P; WAIT: mbarrier.try_wait.parity.shared.b64 P, [%0], %1; @P bra.uni DONE; bra.uni WAIT; DONE: }"
+      :: "r"(barrier_addr_int), "r"(phase_bit)
+    );
+  }
+)";
+
+  Replacer replacer;
+  replacer.register_rule("{barrier}", "&" + barrier);
   predicated_asm_code = replacer.rewrite(predicated_asm_code);
   return predicated_asm_code;
 }

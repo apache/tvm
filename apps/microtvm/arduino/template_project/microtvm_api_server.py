@@ -586,10 +586,11 @@ class Handler(server.ProjectAPIHandler):
     def _get_board_from_makefile(self, makefile_path: pathlib.Path) -> str:
         """Get Board from generated Makefile."""
         with open(makefile_path) as makefile_f:
-            line = makefile_f.readline()
-            if "BOARD" in line:
-                board = re.sub(r"\s", "", line).split(":=")[1]
-                return board
+            lines = makefile_f.readlines()
+            for line in lines:
+                if "BOARD" in line:
+                    board = re.sub(r"\s", "", line).split(":=")[1]
+                    return board
         raise RuntimeError("Board was not found in Makefile: {}".format(makefile_path))
 
     FLASH_TIMEOUT_SEC = 60

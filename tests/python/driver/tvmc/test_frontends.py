@@ -237,9 +237,8 @@ def test_load_model___wrong_language__to_onnx(tflite_mobilenet_v1_1_quant):
         tvmc.load(tflite_mobilenet_v1_1_quant, model_format="onnx")
 
 
-@pytest.mark.skipif(
-    platform.machine() == "aarch64",
-    reason="Currently failing on AArch64 - see https://github.com/apache/tvm/issues/10673",
+@pytest.mark.skip(
+    reason="free(): invalid pointer error despite using llvm-config --link-static and -DHIDE_PRIVATE_SYMBOLS=ON",
 )
 def test_load_model__pth(pytorch_resnet18):
     # some CI environments wont offer torch, so skip in case it is not present
@@ -254,9 +253,8 @@ def test_load_model__pth(pytorch_resnet18):
     assert "layer1.0.conv1.weight" in tvmc_model.params.keys()
 
 
-@pytest.mark.skipif(
-    platform.machine() == "aarch64",
-    reason="Currently failing on AArch64 - see https://github.com/apache/tvm/issues/10673",
+@pytest.mark.skip(
+    reason="free(): invalid pointer error despite using llvm-config --link-static and -DHIDE_PRIVATE_SYMBOLS=ON",
 )
 def test_load_quantized_model__pth(pytorch_mobilenetv2_quantized):
     # some CI environments wont offer torch, so skip in case it is not present

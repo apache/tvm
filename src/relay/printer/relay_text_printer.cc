@@ -555,7 +555,7 @@ Doc RelayTextPrinter::VisitExpr_(const MatchNode* op) {
     Doc clause_doc;
     clause_doc << PrintPattern(clause->lhs, false) << " => ";
     Doc rhs_doc = PrintScope(clause->rhs);
-    // TODO(@jroesch): This is unsound right now, and we need to revist it.
+    // TODO(@jroesch): This is unsound right now, and we need to revisit it.
     // if (clause->rhs.as<LetNode>()) {
     // only add braces if there are multiple lines on the rhs
     rhs_doc = Doc::Brace("{", rhs_doc, "}");

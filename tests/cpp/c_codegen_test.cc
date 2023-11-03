@@ -121,5 +121,11 @@ TEST(CCodegen, FunctionOrder) {
   auto module = build(inputs, Target());
   Array<String> func_array = module->GetFunction("get_func_names", false)();
   std::vector<std::string> functions{func_array.begin(), func_array.end()};
-  EXPECT_THAT(functions, ElementsAre(StrEq("op_1"), _, StrEq("op_2"), _));
+  // The entry point is handled separately from the other functions.
+  functions.erase(std::remove_if(functions.begin(), functions.end(),
+                                 [](const std::string& name) {
+                                   return name == tvm::runtime::symbol::tvm_module_main;
+                                 }),
+                  functions.end());
+  EXPECT_TRUE(std::is_sorted(functions.begin(), functions.end()));
 }

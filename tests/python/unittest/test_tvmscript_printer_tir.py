@@ -15,6 +15,9 @@
 # specific language governing permissions and limitations
 # under the License.
 # pylint: disable=missing-docstring
+
+import re
+
 import tvm.testing
 from tvm import ir, tir
 from tvm.ir import Range
@@ -37,7 +40,7 @@ def test_prim_func():
             b: tir.decl_buffer(shape=[256, 256], dtype="float32", name="B"),
         },
         body=tir.Evaluate(0),
-    )
+    ).with_attr("global_symbol", "main")
     _assert_print(
         func,
         expected="""
@@ -60,7 +63,7 @@ def test_prim_func_no_sugar_inlined_buffer():
             b: tir.decl_buffer(shape=[256, 256], dtype="float32", name="B"),
         },
         body=tir.Evaluate(a),
-    )
+    ).with_attr("global_symbol", "main")
     _assert_print(
         func,
         expected="""
@@ -86,7 +89,7 @@ def test_prim_func_no_sugar_shared_buffer_data():
             b: tir.decl_buffer(shape=[256, 256], dtype="float32", name="B", data=buffer_data),
         },
         body=tir.Evaluate(0),
-    )
+    ).with_attr("global_symbol", "main")
     _assert_print(
         func,
         expected="""
@@ -277,13 +280,13 @@ with T.attr("pragma", "unroll", 1):
 
 def test_assert_stmt():
     with IRBuilder() as ib:
-        with T.Assert(1, "assertion"):
+        with T.Assert(True, "assertion"):
             T.evaluate(0)
     obj = ib.get()
     _assert_print(
         obj,
         """
-with T.Assert(1, "assertion"):
+with T.Assert(T.bool(True), "assertion"):
     T.evaluate(0)
 """,
     )
@@ -373,7 +376,8 @@ def test_decl_buffer():
     _assert_print(
         obj,
         """
-with T.decl_buffer((10, 10)) as buffer:
+v = T.handle("float32", "global")
+with T.decl_buffer((10, 10), data=v) as buffer:
     T.evaluate(0)
 """,
     )
@@ -498,6 +502,13 @@ a = T.float32()
 T.Cast("float64", a)
 """,
     )
+
+
+def test_llvm_intrin_imm():
+    a = tir.call_llvm_intrin("int32x4", "llvm.donothing", T.uint32(0))
+    _assert_print(a, 'T.call_llvm_intrin("int32x4", "llvm.donothing", T.uint32(0))')
+    a = tir.call_llvm_pure_intrin("int32x4", "llvm.donothing", T.uint32(0))
+    _assert_print(a, 'T.call_llvm_pure_intrin("int32x4", "llvm.donothing", T.uint32(0))')
 
 
 def test_binary_arith():
@@ -758,8 +769,8 @@ def main():
             T.reads()
             T.writes()
             T.evaluate(0)"""
-    _assert_print(block_with_remap_explicitly, expected_output)
-    _assert_print(block_with_remap_implicitly, expected_output)
+    _assert_print(block_with_remap_explicitly.with_attr("global_symbol", "main"), expected_output)
+    _assert_print(block_with_remap_implicitly.with_attr("global_symbol", "main"), expected_output)
 
 
 def test_root_block():
@@ -793,8 +804,89 @@ def main():
             T.writes()
             T.evaluate(0)
     """
-    _assert_print(root_block_implicitly, expected_output)
-    _assert_print(root_block_explicitly, expected_output)
+    _assert_print(root_block_implicitly.with_attr("global_symbol", "main"), expected_output)
+    _assert_print(root_block_explicitly.with_attr("global_symbol", "main"), expected_output)
+
+
+def test_private_primfunc():
+    from tvm.script import tir as T
+
+    a = tir.Var("a", "handle")
+    b = tir.Var("b", "handle")
+    func = tir.PrimFunc(
+        params=[a, b],
+        ret_type=None,
+        buffer_map={
+            a: tir.decl_buffer(shape=[128, 128], dtype="float32", name="A"),
+            b: tir.decl_buffer(shape=[256, 256], dtype="float32", name="B"),
+        },
+        body=tir.Evaluate(0),
+    )
+    _assert_print(
+        func,
+        expected="""
+# from tvm.script import tir as T
+
+@T.prim_func(private=True)
+def main(A: T.Buffer((128, 128), "float32"), B: T.Buffer((256, 256), "float32")):
+    T.evaluate(0)""",
+    )
+
+
+def test_prim_func_different_symbol():
+    from tvm.script import tir as T
+
+    @T.prim_func
+    def main(A: T.Buffer((128, 128), "float32"), B: T.Buffer((256, 256), "float32")):
+        T.func_attr({"global_symbol": "func"})
+        T.evaluate(0)
+
+    expected_output = """
+# from tvm.script import tir as T
+
+@T.prim_func
+def func(A: T.Buffer((128, 128), "float32"), B: T.Buffer((256, 256), "float32")):
+    T.evaluate(0)
+    """
+    _assert_print(main, expected_output)
+
+
+def test_variable_with_cpp_address():
+    """The show_object_address option displays the C++ addressess
+
+    Because the C++ address may vary with each execution, the output
+    produced with this option cannot be compared to a fixed string.
+    Instead, this test uses the normal script output to generate a
+    regular expression against with the test output must match.  The
+    regular expression validates that all names have been appended
+    with "_0x" followed by a hexadecimal number, and that the address
+    is the same for each variable.
+    """
+    from tvm.script import tir as T
+
+    # The test function has all named objects suffixed with "_name",
+    # to avoid spurious replacement when generating the expected
+    # regex.
+    @T.prim_func
+    def func(a_name: T.handle):
+        N_name = T.int64()
+        A_name = T.match_buffer(a_name, N_name, "float32")
+        for i_name in range(N_name):
+            A_name[i_name] = A_name[i_name] + 1.0
+
+    without_address = func.script(show_object_address=False)
+    script = func.script(show_object_address=True)
+
+    expected_regex = re.escape(without_address)
+    for name in ["a_name", "A_name", "N_name", "i_name"]:
+        # Replace all occurrences with a backref to an earlier match
+        expected_regex = expected_regex.replace(name, rf"(?P={name})")
+        # Then replace the first such backref with a capturing group.
+        expected_regex = expected_regex.replace(
+            rf"(?P={name})", rf"(?P<{name}>{name}_0x[A-Fa-f0-9]+)", 1
+        )
+
+    assert re.match(expected_regex, script)
 
 
 if __name__ == "__main__":

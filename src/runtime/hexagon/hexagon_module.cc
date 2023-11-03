@@ -42,12 +42,12 @@ HexagonModuleNode::HexagonModuleNode(std::string data, std::string fmt,
                                      std::string bc_str)
     : data_(data), fmt_(fmt), fmap_(fmap), asm_(asm_str), obj_(obj_str), ir_(ir_str), bc_(bc_str) {}
 
-PackedFunc HexagonModuleNode::GetFunction(const std::string& name,
+PackedFunc HexagonModuleNode::GetFunction(const String& name,
                                           const ObjectPtr<Object>& sptr_to_self) {
   LOG(FATAL) << "HexagonModuleNode::GetFunction is not implemented.";
 }
 
-std::string HexagonModuleNode::GetSource(const std::string& format) {
+String HexagonModuleNode::GetSource(const String& format) {
   if (format == "s" || format == "asm") {
     return asm_;
   }
@@ -57,7 +57,7 @@ std::string HexagonModuleNode::GetSource(const std::string& format) {
   return "";
 }
 
-void HexagonModuleNode::SaveToFile(const std::string& file_name, const std::string& format) {
+void HexagonModuleNode::SaveToFile(const String& file_name, const String& format) {
   std::string fmt = runtime::GetFileFormat(file_name, format);
   if (fmt == "so" || fmt == "dll" || fmt == "hexagon") {
     std::string meta_file = GetMetaFilePath(file_name);

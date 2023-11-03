@@ -27,7 +27,7 @@ The code below will save the compilation output which is required on android tar
 
 .. code:: python
 
-    lib.export_library("deploy_lib.so", ndk.create_shared)
+    lib.export_library("deploy_lib.so", fcompile=ndk.create_shared)
     with open("deploy_graph.json", "w") as fo:
         fo.write(graph.json())
     with open("deploy_param.params", "wb") as fo:

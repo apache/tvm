@@ -83,7 +83,7 @@ def build(pipe_configs):
             mod_name=mod_config["mod_name"],
         )
 
-        pipe_config["dev"] = "{},{}".format(dev.device_type, dev.device_id)
+        pipe_config["dev"] = f"{dev.device_type},{dev.device_id}"
         # Use "mod_idx" as the key to create a "module_connection" map which is not only
         # for the module index but also for the module connection used to build the pipeline.
         module_string_config[mod_idx] = pipe_config
@@ -123,8 +123,8 @@ def export_library(factory, directory_path):
     if not directory_path or not os.path.exists(directory_path):
         raise RuntimeError("The directory {directory_path} does not exist.")
     # Create an load configuration.
-    load_config_file_name = "{}/load_config".format(directory_path)
-    pipeline_config_file_name = "{}/pipeline_config".format(directory_path)
+    load_config_file_name = f"{directory_path}/load_config"
+    pipeline_config_file_name = f"{directory_path}/pipeline_config"
     config = {}
     config["load_config"] = load_config_file_name
     config["pipeline_config"] = pipeline_config_file_name
@@ -134,11 +134,11 @@ def export_library(factory, directory_path):
     for lib_index in factory.pipeline_mods:
         mconfig = {}
         mconfig["mod_idx"] = lib_index
-        mconfig["lib_name"] = "{}/lib{}.so".format(directory_path, lib_index)
-        mconfig["json_name"] = "{}/json{}".format(directory_path, lib_index)
-        mconfig["params_name"] = "{}/params{}".format(directory_path, lib_index)
+        mconfig["lib_name"] = f"{directory_path}/lib{lib_index}.so"
+        mconfig["json_name"] = f"{directory_path}/json{lib_index}"
+        mconfig["params_name"] = f"{directory_path}/params{lib_index}"
         lib_config = factory.pipeline_mods[lib_index]
-        mconfig["dev"] = "{},{}".format(lib_config["dev"].device_type, lib_config["dev"].device_id)
+        mconfig["dev"] = f"{lib_config['dev'].device_type}," f"{lib_config['dev'].device_id}"
         fcompile = lib_config["fcompile"]
         if not fcompile:
             fcompile = False
@@ -146,7 +146,7 @@ def export_library(factory, directory_path):
         # Get the graph, lib, and parameters from GraphExecutorFactoryModule.
         lib = factory.pipeline_mods[lib_index]["lib"]
         # Export the lib, graph, and parameters to disk.
-        lib.export_library(mconfig["lib_name"], fcompile)
+        lib.export_library(mconfig["lib_name"], fcompile=fcompile)
         with open(mconfig["json_name"], "w") as file_handle:
             file_handle.write(lib.graph_json)
         with open(mconfig["params_name"], "wb") as file_handle:
@@ -160,7 +160,7 @@ def export_library(factory, directory_path):
     with open(pipeline_config_file_name, "w") as file_handle:
         json.dump(factory.mods_config, file_handle)
 
-    config_file_name = "{}/config".format(directory_path)
+    config_file_name = f"{directory_path}/config"
     with open(config_file_name, "w") as file_handle:
         json.dump(config, file_handle)
 
@@ -229,10 +229,10 @@ class PipelineConfig(object):
 
         def __repr__(self):
             # Geting the binding information in the form of text.
-            str_format = "  |{}: ".format(self.name)
+            str_format = f"  |{self.name}: "
             for binding in self.bindings:
                 mname, dname = binding.get_name()
-                str_format += "{0}:{1} ".format(mname, dname)
+                str_format += f"{mname}:{dname} "
 
             return str_format
 
@@ -478,7 +478,7 @@ class PipelineConfig(object):
         def set_idx_name(self, idx):
             # Set the index value and generate the module name.
             self.idx = idx
-            self.name = "mod{}".format(str(idx))
+            self.name = f"mod{str(idx)}"
 
         def is_root_mod(self):
             """Check whether this node is the root node in DAG, this function is used

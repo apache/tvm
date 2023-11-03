@@ -16,30 +16,39 @@
 # under the License.
 # pylint: disable=missing-docstring
 from typing import List
+
 import pytest
 import tvm
 import tvm.testing
+from tvm.meta_schedule.testing import te_workload
+from tvm.script import tir as T
+from tvm.te import create_prim_func
+from tvm.tir import (
+    Evaluate,
+    For,
+    ForKind,
+    IndexMap,
+    Schedule,
+    Var,
+    decl_buffer,
+    floordiv,
+    floormod,
+)
+from tvm.tir.analysis import expr_deep_equal
 from tvm.tir.function import TensorIntrin
-from tvm.tir.tensor_intrin.x86 import dot_product_16x4_u8i8i32_desc
+from tvm.tir.schedule.analysis import (
+    TensorizeInfo,
+    get_auto_tensorize_mapping_info,
+    get_tensorize_loop_mapping,
+    is_output_block,
+    suggest_index_map,
+)
+from tvm.tir.stmt_functor import pre_order_visit
 from tvm.tir.tensor_intrin.cuda import (
     WMMA_SYNC_16x16x16_f16f16f16_INTRIN,
     WMMA_SYNC_16x16x16_f16f16f32_INTRIN,
 )
-
-
-from tvm.tir import Evaluate, For, ForKind, IndexMap, Var, decl_buffer, floordiv, floormod, Schedule
-from tvm.tir.analysis import expr_deep_equal
-from tvm.tir.schedule.analysis import (
-    get_auto_tensorize_mapping_info,
-    suggest_index_map,
-    get_tensorize_loop_mapping,
-    TensorizeInfo,
-)
-from tvm.script import tir as T
-from tvm.tir.stmt_functor import pre_order_visit
-from tvm.meta_schedule.testing import te_workload
-from tvm.te import create_prim_func
-from tvm.tir.schedule.analysis import is_output_block
+from tvm.tir.tensor_intrin.x86 import dot_product_16x4_u8i8i32_desc
 
 
 def _make_vars(*args: str) -> List[Var]:
@@ -322,7 +331,7 @@ def test_get_tensorize_loop_mapping_padding_matmul():
     desc = TensorIntrin.get(WMMA_SYNC_16x16x16_f16f16f16_INTRIN).desc
     info = get_tensorize_loop_mapping(s, block, desc, allow_padding=True)
     assert info is not None
-    expected_padding = [1, 0, 15]
+    expected_padding = [16, 1, 16]
     actual_padding = info.block_iter_paddings
     assert actual_padding is not None
     assert len(actual_padding) == len(expected_padding)
@@ -415,6 +424,34 @@ def test_is_output_block():
     sch = tvm.tir.Schedule(two_elementwise)
     block_rv = sch.get_block("C")
     assert is_output_block(sch, block_rv)
+
+
+def test_empty_grid():
+    @T.prim_func
+    def foo(out: T.Buffer((T.int64(1), T.int64(8), T.int64(8)), "int32")):
+        act = T.alloc_buffer((1, 8, 8), "int32")
+        for z2, y2, x2 in T.grid(1, 8, 8):
+            with T.block("b0"):
+                az, ay, ax = T.axis.remap("SSS", [z2, y2, x2])
+                T.writes(act[az, ay, ax])
+                act[az, ay, az] = T.int32(0)
+        # Empty grid:
+        for z1, y1, x1 in T.grid(0, 8, 8):
+            with T.block("b1"):
+                az, ay, ax = T.axis.remap("SSS", [z1, y1, x1])
+                T.reads(act[az + 1, ay, ax])
+                T.writes(out[az, ay, ax])
+                out[az, ay, ax] = act[az + 1, ay, ax]
+        # The block below is not needed to show the bug, but the 'out'
+        # buffer would be undefined without it.
+        for z2, y2, x2 in T.grid(1, 8, 8):
+            with T.block("b2"):
+                az, ay, ax = T.axis.remap("SSS", [z2, y2, x2])
+                T.writes(out[az, ay, ax])
+                out[az, ay, az] = T.int32(0)
+
+    # This caused a crash before.
+    sch = tvm.tir.Schedule(foo)
 
 
 if __name__ == "__main__":

@@ -220,7 +220,7 @@ struct BufferDescriptor;
 class OpenCLWorkspace : public DeviceAPI {
  public:
   // type key
-  std::string type_key;
+  std::string type_key{"opencl"};
   // available platforms
   std::vector<cl_platform_id> platform_ids;
   // map platform to its context
@@ -253,7 +253,7 @@ class OpenCLWorkspace : public DeviceAPI {
   // Initialize the device.
   void Init(const std::string& type_key, const std::string& device_type,
             const std::string& platform_name = "");
-  virtual void Init() { Init("opencl", "gpu"); }
+  virtual void Init() { Init(this->type_key, "gpu"); }
   // Check whether the context is OpenCL or not.
   virtual bool IsOpenCLDevice(Device dev) { return dev.device_type == kDLOpenCL; }
   // get the queue of the device
@@ -434,7 +434,7 @@ class OpenCLModuleNodeBase : public ModuleNode {
     return ModulePropertyMask::kBinarySerializable | ModulePropertyMask::kRunnable;
   }
 
-  PackedFunc GetFunction(const std::string& name, const ObjectPtr<Object>& sptr_to_self) override;
+  PackedFunc GetFunction(const String& name, const ObjectPtr<Object>& sptr_to_self) override;
 
   // Initialize the programs
   virtual void Init() = 0;
@@ -464,12 +464,14 @@ class OpenCLModuleNode : public OpenCLModuleNodeBase {
                             std::unordered_map<std::string, FunctionInfo> fmap, std::string source)
       : OpenCLModuleNodeBase(fmap), data_(data), fmt_(fmt), source_(source) {}
 
-  PackedFunc GetFunction(const std::string& name, const ObjectPtr<Object>& sptr_to_self) final;
-  void SaveToFile(const std::string& file_name, const std::string& format) final;
+  PackedFunc GetFunction(const String& name, const ObjectPtr<Object>& sptr_to_self) final;
+  // Return true if OpenCL program for the requested function and device was created
+  bool IsProgramCreated(const std::string& func_name, int device_id);
+  void SaveToFile(const String& file_name, const String& format) final;
   void SaveToBinary(dmlc::Stream* stream) final;
   void SetPreCompiledPrograms(const std::string& bytes);
   std::string GetPreCompiledPrograms();
-  std::string GetSource(const std::string& format) final;
+  String GetSource(const String& format) final;
 
   // Initialize the programs
   void Init() override;

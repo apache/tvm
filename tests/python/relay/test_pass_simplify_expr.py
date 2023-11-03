@@ -266,6 +266,27 @@ def test_simplify_transpose():
         y = relay.nn.relu(y)
         return relay.Function([x], y)
 
+    def before11():
+        """
+        Remove trivial no op transpose ops
+
+        Input:
+        op1 -> relay.transpose(x, axes=[0, 1, 2, 3]) -> op2
+
+        Simplified:
+        op1 -> op2
+        """
+        x = relay.var("x", shape=(1, 128, 56, 56), dtype="float32")
+        y = relay.transpose(x, axes=[0, 1, 2, 3])
+        y = relay.nn.relu(y)
+        y = relay.layout_transform(y, "NCHW", "NCHW")
+        return relay.Function([x], y)
+
+    def expected11():
+        x = relay.var("x", shape=(1, 128, 56, 56), dtype="float32")
+        y = relay.nn.relu(x)
+        return relay.Function([x], y)
+
     for before, expected in [
         [before1(), expected1()],
         [before2(), expected2()],
@@ -277,6 +298,7 @@ def test_simplify_transpose():
         [before8(), expected8()],
         [before9(), expected9()],
         [before10(), expected10()],
+        [before11(), expected11()],
     ]:
         after = run_opt_pass(before, transform.SimplifyExpr())
         expected = run_opt_pass(expected, transform.InferType())
@@ -700,34 +722,129 @@ def test_simplify_dq_argsort():
 
 
 def test_simplify_clip_cast():
-    x = relay.var("x", shape=(4, 8), dtype="int32")
-
-    def before():
+    def before1():
+        x = relay.var("x", shape=(4, 8), dtype="int32")
         clip = relay.clip(x, a_min=0.0, a_max=255.0)
         cast = relay.cast(clip, "uint8")
-        return relay.cast(cast, "int32")
+        cast = relay.cast(cast, "int32")
+        return relay.Function([x], cast)
 
-    def expected():
-        return relay.clip(x, a_min=0.0, a_max=255.0)
+    def expected1():
+        x = relay.var("x", shape=(4, 8), dtype="int32")
+        clip = relay.clip(x, a_min=0.0, a_max=255.0)
+        return relay.Function([x], clip)
 
-    opt = run_opt_pass(before(), transform.SimplifyExpr())
-    ref = run_infer_type(expected())
-    assert tvm.ir.structural_equal(opt, ref)
+    def before2():
+        x = relay.var("x", shape=(4, 8), dtype="int32")
+        clip = relay.clip(x, a_min=0.0, a_max=255.0)
+        cast = relay.cast(clip, "uint8")
+        cast = relay.cast(cast, "int32")
+        return relay.Function([x], cast)
+
+    def expected2():
+        x = relay.var("x", shape=(4, 8), dtype="int32")
+        clip = relay.clip(x, a_min=0.0, a_max=255.0)
+        return relay.Function([x], clip)
+
+    def before3():
+        x = relay.var("x", shape=(4, 8), dtype="int32")
+        clip = relay.clip(x, a_min=0.0, a_max=255.0)
+        cast = relay.cast(clip, "uint8")
+        cast = relay.cast(cast, "int16")
+        cast = relay.cast(cast, "int32")
+        return relay.Function([x], cast)
+
+    def expected3():
+        x = relay.var("x", shape=(4, 8), dtype="int32")
+        clip = relay.clip(x, a_min=0.0, a_max=255.0)
+        return relay.Function([x], clip)
+
+    def before4():
+        x = relay.var("x", shape=(4, 8), dtype="float32")
+        clip = relay.clip(x, a_min=0.0, a_max=255.0)
+        cast = relay.cast(clip, "uint8")
+        cast = relay.cast(cast, "int16")
+        cast = relay.cast(cast, "int32")
+        return relay.Function([x], cast)
+
+    def expected4():
+        x = relay.var("x", shape=(4, 8), dtype="float32")
+        clip = relay.clip(x, a_min=0.0, a_max=255.0)
+        cast = relay.cast(clip, "int32")
+        return relay.Function([x], cast)
+
+    def before5():
+        x = relay.var("x", shape=(4, 8), dtype="float32")
+        clip = relay.clip(x, a_min=0.0, a_max=255.0)
+        cast = relay.cast(clip, "int8")
+        cast = relay.cast(cast, "int16")
+        cast = relay.cast(cast, "int32")
+        return relay.Function([x], cast)
+
+    def expected5():
+        x = relay.var("x", shape=(4, 8), dtype="float32")
+        clip = relay.clip(x, a_min=0.0, a_max=255.0)
+        cast = relay.cast(clip, "int8")
+        cast = relay.cast(cast, "int32")
+        return relay.Function([x], cast)
+
+    for before, expected in [
+        [before1(), expected1()],
+        [before2(), expected2()],
+        [before3(), expected3()],
+        [before4(), expected4()],
+        [before5(), expected5()],
+    ]:
+        after = run_opt_pass(before, transform.SimplifyExpr())
+        expected = run_opt_pass(expected, transform.InferType())
+        assert tvm.ir.structural_equal(after, expected), "\nafter: {} \nexpected: {}".format(
+            after, expected
+        )
 
 
 def test_simplify_cast_clip():
-    x = relay.var("x", shape=(4, 8), dtype="int32")
-
-    def before():
+    def before1():
+        x = relay.var("x", shape=(4, 8), dtype="int32")
         cast = relay.cast(x, "uint8")
-        return relay.clip(cast, a_min=0.0, a_max=255.0)
+        clip = relay.clip(cast, a_min=0.0, a_max=255.0)
+        return relay.Function([x], clip)
 
-    def expected():
-        return relay.cast(x, "uint8")
+    def expected1():
+        x = relay.var("x", shape=(4, 8), dtype="int32")
+        cast = relay.cast(x, "uint8")
+        return relay.Function([x], cast)
 
-    opt = run_opt_pass(before(), transform.SimplifyExpr())
-    ref = run_infer_type(expected())
-    assert tvm.ir.structural_equal(opt, ref)
+    def before2():
+        x = relay.var("x", shape=(4, 8), dtype="uint8")
+        clip = relay.clip(x, a_min=0.0, a_max=255.0)
+        return relay.Function([x], clip)
+
+    def expected2():
+        x = relay.var("x", shape=(4, 8), dtype="uint8")
+        return relay.Function([x], x)
+
+    def before3():
+        x = relay.var("x", shape=(4, 8), dtype="float32")
+        cast = relay.cast(x, "bfloat16")
+        clip = relay.clip(cast, a_min=-0.2, a_max=0.4)
+        return relay.Function([x], clip)
+
+    def expected3():
+        x = relay.var("x", shape=(4, 8), dtype="float32")
+        cast = relay.cast(x, "bfloat16")
+        clip = relay.clip(cast, a_min=-0.2, a_max=0.4)
+        return relay.Function([x], clip)
+
+    for before, expected in [
+        [before1(), expected1()],
+        [before2(), expected2()],
+        [before3(), expected3()],
+    ]:
+        after = run_opt_pass(before, transform.SimplifyExpr())
+        expected = run_opt_pass(expected, transform.InferType())
+        assert tvm.ir.structural_equal(after, expected), "\nafter: {} \nexpected: {}".format(
+            after, expected
+        )
 
 
 def test_simplify_add():

@@ -22,3 +22,9 @@
 [submodule "3rdparty/cnpy"]
 	path = 3rdparty/cnpy
 	url = https://github.com/rogersce/cnpy.git
+[submodule "3rdparty/cutlass_fpA_intB_gemm"]
+	path = 3rdparty/cutlass_fpA_intB_gemm
+	url = https://github.com/tlc-pack/cutlass_fpA_intB_gemm
+[submodule "3rdparty/libflash_attn"]
+	path = 3rdparty/libflash_attn
+	url = https://github.com/tlc-pack/libflash_attn

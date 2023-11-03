@@ -69,6 +69,15 @@ jobs:
         shell: bash -l {0}
         run: >-
           python -m pytest -v tests/python/all-platform-minimal-test
+      - name: Minimal Metal Compile-Only
+        shell: bash -l {0}
+        run: |
+          python -m pytest -v -s 'tests/python/unittest/test_allreduce.py::test_allreduce_sum_compile'
+          python -m pytest -v -s 'tests/python/unittest/test_target_codegen_metal.py::test_func_with_trailing_pod_params'
+      - name: Minimal Metal Compile-and-Run
+        shell: bash -l {0}
+        run: >-
+          python -m pytest -v -s 'tests/python/unittest/test_allreduce.py::test_allreduce_sum[dims0-metal]'
       - name: Test iOS RPC
         shell: bash -l {0}
         run: >-
@@ -179,24 +188,3 @@ jobs:
         with:
           name: android_deploy-debug.apk
           path: ./apps/android_deploy/app/build/outputs/apk/debug/app-debug.apk
-      - name: Build android_camera
-        working-directory: apps/android_camera
-        run: |
-          export TVM_HOME=~/work/tvm/tvm
-          export PYTHONPATH=$TVM_HOME/python:${PYTHONPATH}
-          set -eux
-          mkdir -p app/src/main/assets/models/
-          export TVM_NDK_CC=${ANDROID_NDK_LATEST_HOME}/toolchains/llvm/prebuilt/linux-x86_64/bin/aarch64-linux-android30-clang++
-          python3 ${TVM_HOME}/python/gen_requirements.py
-          pip3 install -r ${TVM_HOME}/python/requirements/core.txt
-          cd models
-          pip3 install -r requirements.txt
-          python3 prepare_model.py
-          cd ..
-          export PATH="${ANDROID_NDK_LATEST_HOME}:$PATH"
-          gradle clean build
-      - name: Upload android_camera APK
-        uses: actions/upload-artifact@v2
-        with:
-          name: android_camera-debug.apk
-          path: ./apps/android_camera/app/build/outputs/apk/debug/app-debug.apk

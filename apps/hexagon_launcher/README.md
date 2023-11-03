@@ -43,10 +43,10 @@ Create a subdirectory for the build files, and run `cmake` with the
 following variables set:
 
 ```
-cmake -DCMAKE_C_COMPILER=/path/to/hexagon-clang \
+cmake -DCMAKE_C_COMPILER=/path/to/hexagon-clang     \
       -DCMAKE_CXX_COMPILER=/path/to/hexagon-clang++ \
-      -DUSE_HEXAGON_ARCH=v65|v66|v68|v69 \
-      -DUSE_HEXAGON_SDK=/path/to/hexagon/SDK \
+      -DUSE_HEXAGON_ARCH=v65|v66|v68|v69|v73        \
+      -DUSE_HEXAGON_SDK=/path/to/hexagon/SDK        \
       /path/to/apps/hexagon_launcher/cmake/hexagon
 ```
 
@@ -60,10 +60,10 @@ the TVM runtime for Hexagon will be built as a part of the process.
 
 ```
 cmake -DCMAKE_TOOLCHAIN_FILE=/path/to/android-ndk/build/cmake/android.toolchain.cmake \
-      -DANDROID_ABI=arm64-v8a \
-      -DANDROID_PLATFORM=android-28 \
-      -DUSE_HEXAGON_SDK=/p/Hexagon_SDK/4.3.0.0
-      -DUSE_HEXAGON_ARCH=v65|v66|v68|v69
+      -DANDROID_ABI=arm64-v8a                       \
+      -DANDROID_PLATFORM=android-28                 \
+      -DUSE_HEXAGON_SDK=/p/Hexagon_SDK/4.3.0.0      \
+      -DUSE_HEXAGON_ARCH=v65|v66|v68|v69|v73        \
       /path/to/apps/hexagon_launcher/cmake/android
 ```
 
@@ -186,7 +186,7 @@ lowered = tvm.relay.build(
     executor=Executor("aot", {"unpacked-api": False, "interface-api": "packed"}),
 )
 
-lowered.export_library("model-aot.so", tvm.contrib.hexagon.link_shared)
+lowered.export_library("model-aot.so", fcompile=tvm.contrib.hexagon.link_shared)
 ```
 
 

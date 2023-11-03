@@ -45,6 +45,8 @@ echo set\(ANDROID_ABI arm64-v8a\) >> config.cmake
 echo set\(ANDROID_PLATFORM android-28\) >> config.cmake
 echo set\(MACHINE_NAME aarch64-linux-gnu\) >> config.cmake
 
+echo set\(USE_OPENCL_GTEST ON\) >> config.cmake
+
 cmake -DCMAKE_TOOLCHAIN_FILE="${ANDROID_NDK_HOME}/build/cmake/android.toolchain.cmake" \
       -DANDROID_ABI=arm64-v8a \
       -DANDROID_PLATFORM=android-28 \
@@ -56,4 +58,4 @@ cmake -DCMAKE_TOOLCHAIN_FILE="${ANDROID_NDK_HOME}/build/cmake/android.toolchain.
       -DCMAKE_C_COMPILER="${ANDROID_NDK_HOME}/toolchains/llvm/prebuilt/linux-x86_64/bin/aarch64-linux-android28-clang" \
       -DMACHINE_NAME="aarch64-linux-gnu" ..
 
-make -j$(nproc) tvm_rpc rtvm
+make -j$(nproc) tvm_rpc rtvm opencl-cpptest

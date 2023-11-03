@@ -99,6 +99,7 @@ class PoolAllocationToOffsetConverter : public StmtExprMutator {
   PrimExpr VisitExpr_(const VarNode* op) override;
   PrimExpr VisitExpr_(const BufferLoadNode* op) override;
   Stmt VisitStmt_(const BufferStoreNode* op) override;
+  Stmt VisitStmt_(const DeclBufferNode* op) override;
 
   Stmt VisitStmt_(const AllocateConstNode* op) override;
   LetStmt ToLetStmt(const PoolAllocation& pool_allocation, const Var& buffer_var, const Stmt& body);
@@ -240,7 +241,13 @@ PrimFunc PoolAllocationToOffsetConverter::CreatePrimFuncWithPoolParams(
     // We dont need attrs of PrimFunc that might include non printable attrs such as target
     // for unit tests where emit_tvmscript_printable_ is to be used.
     if (emit_tvmscript_printable_) {
-      original_attrs = DictAttrs();
+      // keep global symbol if it's there because it determines if the private attribute is printed
+      if (original_attrs->dict.count(tvm::attr::kGlobalSymbol)) {
+        original_attrs = DictAttrs(
+            {{tvm::attr::kGlobalSymbol, original_attrs->dict.at(tvm::attr::kGlobalSymbol)}});
+      } else {
+        original_attrs = DictAttrs();
+      }
     }
     PrimFunc ret =
         PrimFunc(si.params, new_body, original_primfunc->ret_type, si.buffer_map, original_attrs);
@@ -386,6 +393,16 @@ Stmt PoolAllocationToOffsetConverter::VisitStmt_(const BufferStoreNode* op) {
   return std::move(store);
 }
 
+Stmt PoolAllocationToOffsetConverter::VisitStmt_(const DeclBufferNode* op) {
+  auto decl = Downcast<DeclBuffer>(StmtExprMutator::VisitStmt_(op));
+
+  Buffer remapped = GetRemappedBuffer(decl->buffer);
+  if (!op->buffer.same_as(remapped)) {
+    decl.CopyOnWrite()->buffer = remapped;
+  }
+  return std::move(decl);
+}
+
 PrimExpr PoolAllocationToOffsetConverter::VisitExpr_(const BufferLoadNode* op) {
   BufferLoad load = Downcast<BufferLoad>(StmtExprMutator::VisitExpr_(op));
 
@@ -453,8 +470,12 @@ IRModule PoolAllocationToOffsetConverter::operator()() {
         PrimFunc(si.params, main_func_body, main_func->ret_type, si.buffer_map, main_func->attrs);
     main_func = WithAttr(main_func, tvm::attr::kPoolArgs, si.allocated_pool_params);
   } else {
-    main_func =
-        PrimFunc(si.params, main_func_body, main_func->ret_type, si.buffer_map, DictAttrs());
+    auto new_attrs = DictAttrs();
+    if (main_func->attrs->dict.count(tvm::attr::kGlobalSymbol)) {
+      new_attrs = DictAttrs(
+          {{tvm::attr::kGlobalSymbol, main_func->attrs->dict.at(tvm::attr::kGlobalSymbol)}});
+    }
+    main_func = PrimFunc(si.params, main_func_body, main_func->ret_type, si.buffer_map, new_attrs);
   }
   module_->Update(gv, main_func);
   if (!emit_tvmscript_printable_) {

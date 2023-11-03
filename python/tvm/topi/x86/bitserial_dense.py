@@ -192,7 +192,7 @@ def schedule_bitserial_dense(cfg, outs):
                 data = data.op.input_tensors[0]
             _schedule(cfg, s, data_vec, weight_vec, output)
         else:
-            raise RuntimeError("Unsupported operator: %s" % op.tag)
+            raise RuntimeError(f"Unsupported operator: {op.tag}")
 
     traverse(outs[0].op)
     return s

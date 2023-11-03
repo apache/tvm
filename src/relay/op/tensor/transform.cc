@@ -23,6 +23,7 @@
  */
 #include "transform.h"
 
+#include <tvm/arith/analyzer.h>
 #include <tvm/relay/attrs/transform.h>
 #include <tvm/relay/error.h>
 #include <tvm/relay/expr.h>
@@ -3434,9 +3435,10 @@ Array<te::Tensor> MetaScheduleLayoutTransformCompute(const Attrs& attrs,
 bool MetaScheduleLayoutTransformRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
                                     const TypeReporter& reporter) {
   TensorType data_type = Downcast<TensorType>(types[0]);
+  arith::Analyzer analyzer;
   const MetaScheduleLayoutTransformAttrs* params = attrs.as<MetaScheduleLayoutTransformAttrs>();
   ICHECK(params);
-  Array<PrimExpr> new_shape = params->index_map->MapShape(data_type->shape);
+  Array<PrimExpr> new_shape = params->index_map->MapShape(data_type->shape, &analyzer);
   reporter->Assign(types[1], TensorType(new_shape, data_type->dtype));
   return true;
 }

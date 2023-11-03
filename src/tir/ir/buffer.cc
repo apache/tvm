@@ -387,13 +387,16 @@ Buffer Buffer::GetFlattenedBuffer() const {
     output_axis_separators.push_back(IntImm(dtype, i + 1));
   }
 
-  Buffer output = *this;
-  auto writer = output.CopyOnWrite();
-  writer->shape = output_shape;
-  writer->axis_separators = output_axis_separators;
-  writer->strides = {};
-
-  return output;
+  if (output_shape.size() == self->shape.size() && self->strides.empty()) {
+    return *this;
+  } else {
+    Buffer output = *this;
+    auto writer = output.CopyOnWrite();
+    writer->shape = output_shape;
+    writer->axis_separators = output_axis_separators;
+    writer->strides = {};
+    return output;
+  }
 }
 
 PrimExpr Buffer::vload(Array<PrimExpr> begin, DataType value_dtype) const {

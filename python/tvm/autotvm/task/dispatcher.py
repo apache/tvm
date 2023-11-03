@@ -224,9 +224,7 @@ class ApplyFixedConfig(DispatchContext):
                 break
 
         if not config:
-            raise RuntimeError(
-                "workload: %s does not exist in %s" % (str(workload), str(self._tasks))
-            )
+            raise RuntimeError(f"workload: {str(workload)} does not exist in {str(self._tasks)}")
         # Add low cost to the target schedule and high cost to others.
         if workload[0] in self._schedule_names:
             config.cost = 1e-6
@@ -390,8 +388,8 @@ class FallbackContext(DispatchContext):
 
         if not _env.GLOBAL_SCOPE.silent:
             msg = (
-                "Cannot find config for target=%s, workload=%s. A fallback configuration "
-                "is used, which may bring great performance regression." % (target, workload)
+                f"Cannot find config for target={target}, workload={workload}. A fallback "
+                f"configuration is used, which may bring great performance regression."
             )
             if msg not in DispatchContext.warning_messages:
                 DispatchContext.warning_messages.add(msg)
@@ -510,9 +508,9 @@ class ApplyGraphBest(DispatchContext):
         key = (str(target), workload)
         if key not in self._global_cfg_dict:
             msg = (
-                "Config for target=%s, workload=%s is missing in ApplyGraphBest context. "
-                "A fallback configuration is used, which may bring great performance "
-                "regression." % (target, workload)
+                f"Config for target={target}, workload={workload} is missing in ApplyGraphBest "
+                f"context. A fallback configuration is used, which may bring great performance "
+                f"regression."
             )
             logger.warning(msg)
             cfg = FallbackConfigEntity()

@@ -20,6 +20,7 @@ import os
 
 import numpy as np
 import oneflow as flow
+from packaging import version as package_version
 import tvm
 import tvm.testing
 import tvm.topi.testing
@@ -702,6 +703,15 @@ def test_activation():
             x = x.softmax(dim=-1)
             return x
 
+    class Threshold(flow.nn.Module):
+        def __init__(self):
+            super().__init__()
+            self.active = flow.nn.Threshold(0.5, 0.2)
+
+        def forward(self, x):
+            x = self.active(x)
+            return x
+
     if os.path.exists(MODEL_HOME):
         rmdir(MODEL_HOME)
 
@@ -721,7 +731,7 @@ def test_activation():
 
     for device in ["llvm"]:
         verify_activation(model1, device=device)
-        # verify_activation(model2, device=device) # NO PASS
+        verify_activation(model2, device=device)
         verify_activation(model3, device=device)
         verify_activation(model4, device=device)
         verify_activation(model5, device=device)
@@ -737,6 +747,11 @@ def test_activation():
             device=device,
             inputs=flow.tensor(np.random.rand(1, 12, 197, 197).astype(np.float32)),
         )
+
+    # Threshold was introduced in the version 0.8.0 of oneflow
+    if package_version.parse(flow.__version__) >= package_version.parse("0.8.0"):
+        model14 = Threshold().eval()
+        verify_activation(model14, device="llvm")
 
 
 @tvm.testing.uses_gpu

@@ -227,8 +227,8 @@ def scatter_nd(data, indices, updates, mode):
             fused_shape *= i
 
         max_threads = int(tvm.target.Target.current(allow_none=False).max_num_threads)
-        tdim = min(max_threads, fused_updates_dimension)
 
+        tdim = tvm.tir.min(max_threads, fused_updates_dimension)
         with ib.new_scope():
             bdim = ceil_div(fused_shape, tdim)
             bx = te.thread_axis("blockIdx.x")

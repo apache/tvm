@@ -69,7 +69,7 @@ def lstm_cell(num_hidden, batch_size=1, dtype="float32", name=""):
     i2h = builder.let(
         ("i2h", dense_type),
         layers.dense_add_bias(
-            data=inputs, units=num_hidden * 4, weight=i2h_weight, bias=i2h_bias, name="%si2h" % name
+            data=inputs, units=num_hidden * 4, weight=i2h_weight, bias=i2h_bias, name=f"{name}i2h"
         ),
     )
     h2h = builder.let(
@@ -79,7 +79,7 @@ def lstm_cell(num_hidden, batch_size=1, dtype="float32", name=""):
             units=num_hidden * 4,
             weight=h2h_weight,
             bias=h2h_bias,
-            name="%sh2h" % name,
+            name=f"{name}h2h",
         ),
     )
 
@@ -138,19 +138,19 @@ def get_net(iterations, num_hidden, batch_size=1, dtype="float32"):
 
     for i in range(iterations):
         inputs = relay.Var("data", input_type)
-        i2h_weight = relay.Var("i2h_%s_weight" % i, weight_type)
-        i2h_bias = relay.Var("i2h_%i_bias" % i, bias_type)
-        h2h_weight = relay.Var("h2h_%s_weight" % i, weight_type)
-        h2h_bias = relay.Var("h2h_%s_bias" % i, bias_type)
+        i2h_weight = relay.Var(f"i2h_{i}_weight", weight_type)
+        i2h_bias = relay.Var(f"i2h_{i}_bias", bias_type)
+        h2h_weight = relay.Var(f"h2h_{i}_weight", weight_type)
+        h2h_bias = relay.Var(f"h2h_{i}_bias", bias_type)
 
-        cell_fn = lstm_cell(num_hidden, batch_size, dtype, "lstm_%s" % i)
+        cell_fn = lstm_cell(num_hidden, batch_size, dtype, f"lstm_{i}")
 
         call = builder.let(
-            ("call_%s" % i, cell_type),
+            (f"call_{i}", cell_type),
             relay.Call(cell_fn, [inputs, states, i2h_weight, i2h_bias, h2h_weight, h2h_bias]),
         )
-        new_out = builder.let(("out_%s" % i, input_type), relay.TupleGetItem(call, 0))
-        new_states = builder.let(("states_%s" % i, state_type), relay.TupleGetItem(call, 1))
+        new_out = builder.let((f"out_{i}", input_type), relay.TupleGetItem(call, 0))
+        new_states = builder.let((f"states_{i}", state_type), relay.TupleGetItem(call, 1))
         states = new_states
         out = new_out
 

@@ -135,6 +135,10 @@ class MinRPCSniffer {
     return ReadRawBytes(data, sizeof(T) * count);
   }
 
+  void ReadObject(int* tcode, TVMValue* value) {
+    this->ThrowError(RPCServerStatus::kUnknownTypeCode);
+  }
+
  private:
   bool ReadRawBytes(void* data, size_t size) {
     uint8_t* buf = reinterpret_cast<uint8_t*>(data);

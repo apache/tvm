@@ -29,12 +29,12 @@ def _addone(x):
 
 @tvm.register_func("rpc.test.strcat")
 def _strcat(name, x):
-    return "%s:%d" % (name, x)
+    return f"{name}:{x}"
 
 
 @tvm.register_func("rpc.test.except")
 def _remotethrow(name):
-    raise ValueError("%s" % name)
+    raise ValueError(f"{name}")
 
 
 @tvm.register_func("rpc.test.runtime_str_concat")

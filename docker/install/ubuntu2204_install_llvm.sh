@@ -20,16 +20,6 @@ set -e
 set -u
 set -o pipefail
 
-echo deb http://apt.llvm.org/jammy/ llvm-toolchain-jammy-13 main\
-     >> /etc/apt/sources.list.d/llvm.list
-echo deb-src http://apt.llvm.org/jammy/ llvm-toolchain-jammy-13 main\
-     >> /etc/apt/sources.list.d/llvm.list
-
-echo deb http://apt.llvm.org/jammy/ llvm-toolchain-jammy-14 main\
-     >> /etc/apt/sources.list.d/llvm.list
-echo deb-src http://apt.llvm.org/jammy/ llvm-toolchain-jammy-14 main\
-     >> /etc/apt/sources.list.d/llvm.list
-
 echo deb http://apt.llvm.org/jammy/ llvm-toolchain-jammy-15 main\
      >> /etc/apt/sources.list.d/llvm.list
 echo deb-src http://apt.llvm.org/jammy/ llvm-toolchain-jammy-15 main\
@@ -40,6 +30,11 @@ echo deb http://apt.llvm.org/jammy/ llvm-toolchain-jammy-16 main\
 echo deb-src http://apt.llvm.org/jammy/ llvm-toolchain-jammy-16 main\
      >> /etc/apt/sources.list.d/llvm.list
 
+echo deb http://apt.llvm.org/jammy/ llvm-toolchain-jammy-17 main\
+     >> /etc/apt/sources.list.d/llvm.list
+echo deb-src http://apt.llvm.org/jammy/ llvm-toolchain-jammy-17 main\
+     >> /etc/apt/sources.list.d/llvm.list
+
 echo deb http://apt.llvm.org/jammy/ llvm-toolchain-jammy main\
      >> /etc/apt/sources.list.d/llvm.list
 echo deb-src http://apt.llvm.org/jammy/ llvm-toolchain-jammy main\
@@ -47,8 +42,7 @@ echo deb-src http://apt.llvm.org/jammy/ llvm-toolchain-jammy main\
 
 wget -q -O - http://apt.llvm.org/llvm-snapshot.gpg.key|sudo apt-key add -
 apt-get update && apt-install-and-clear -y \
-     llvm-13 llvm-14 llvm-15 llvm-16 \
-     clang-13 libclang-13-dev \
-     clang-14 libclang-14-dev \
+     llvm-15 llvm-16 llvm-17\
      clang-15 libclang-15-dev \
-     clang-16 libclang-16-dev
+     clang-16 libclang-16-dev libpolly-16-dev \
+     clang-17 libclang-17-dev libpolly-17-dev libzstd-dev

@@ -346,6 +346,78 @@ std::vector<int64_t> SamplePerfectTile(
   return result;
 }
 
+TVM_DLL std::vector<int64_t> SamplePartitionedTile(
+    support::LinearCongruentialEngine::TRandState* rand_state,  //
+    int32_t extent, int32_t n_splits, int32_t partition_pos, int32_t innerpart_factor) {
+  if (partition_pos == 0 && innerpart_factor == 1) {
+    return SamplePerfectTile(rand_state, extent, n_splits);
+  }
+  CHECK_GE(n_splits, 2) << "ValueError: Cannot tile a loop into " << n_splits << " splits";
+  auto judge = [&](const std::vector<int64_t>& tile) {
+    int64_t prod = 1;
+    for (int i = partition_pos; i < n_splits; ++i) {
+      prod *= tile[i];
+    }
+    return prod % innerpart_factor == 0;
+  };
+  while (true) {
+    std::vector<int64_t> result = SamplePerfectTile(rand_state, extent, n_splits);
+    if (judge(result)) {
+      return result;
+    }
+  }
+}
+
+std::vector<int64_t> SamplePartitionedTile(
+    support::LinearCongruentialEngine::TRandState* rand_state,  //
+    const tir::StmtSRef& loop_sref, int32_t n_splits, int32_t partition_pos,
+    int32_t innerpart_factor, Optional<Array<Integer>>* decision) {
+  const ForNode* loop = TVM_SREF_TO_FOR(loop_sref);
+  const int64_t* extent = GetLoopIntExtent(loop);
+  std::vector<int64_t> result;
+  if (extent == nullptr || *extent % innerpart_factor != 0) {
+    // Case 1. Handle loops with non-constant length or non-divisible innerpart_factor
+    result = std::vector<int64_t>(n_splits, 1);
+    result[0] = -1;
+  } else if (decision->defined()) {
+    // Case 2. Use previous decision
+    result = support::AsVector<Integer, int64_t>(decision->value());
+    int n = result.size();
+    ICHECK_GE(n, 2);
+    int innerpart_prod = 1;
+    for (int i = partition_pos; i < n; ++i) {
+      innerpart_prod *= result[i];
+    }
+    if (innerpart_prod % innerpart_factor != 0) {
+      // Case 2.1. Handle loops with non-divisible innerpart_factor
+      // we use a trivial default solution:
+      // (extent // innerpart_factor, 1, ..., 1, innerpart_factor, 1, ..., 1)
+      result = std::vector<int64_t>(n_splits, 1);
+      result[0] = *extent / innerpart_factor;
+      result[partition_pos] = innerpart_factor;
+    } else {
+      // Case 2.2. Use previous decision but fix it to perfect
+      int64_t len = *extent;
+      for (int i = n - 1; i > 0; --i) {
+        int64_t& l = result[i];
+        // A previous decision could become invalid because of the change of outer tiles
+        // To handle this case properly, we check if the tiling strategy is still perfect.
+        // If not, we use a trivial default solution (1, 1, ..., 1, L) for rest of the tiles
+        if (len % l != 0) {
+          l = len;
+        }
+        len /= l;
+      }
+      result[0] = len;
+    }
+  } else {
+    // Case 3. Use fresh new sampling result
+    result = SamplePartitionedTile(rand_state, *extent, n_splits, partition_pos, innerpart_factor);
+  }
+  *decision = support::AsArray<int64_t, Integer>(result);
+  return result;
+}
+
 tir::StmtSRef SampleComputeLocation(tir::ScheduleState self,
                                     support::LinearCongruentialEngine::TRandState* rand_state,
                                     const StmtSRef& block_sref, Optional<Integer>* decision) {
@@ -455,6 +527,39 @@ struct SamplePerfectTileTraits : public UnpackedInstTraits<SamplePerfectTileTrai
   friend struct ::tvm::tir::UnpackedInstTraits;
 };
 
+struct SamplePartitionedTileTraits : public UnpackedInstTraits<SamplePartitionedTileTraits> {
+  static constexpr const char* kName = "SamplePartitionedTile";
+  static constexpr bool kIsPure = true;
+
+ private:
+  static constexpr size_t kNumInputs = 1;
+  static constexpr size_t kNumAttrs = 3;
+  static constexpr size_t kNumDecisions = 1;
+
+  static Array<ExprRV> UnpackedApplyToSchedule(Schedule sch, LoopRV loop_rv, Integer n,
+                                               Integer partition_pos, Integer innerpart_factor,
+                                               Optional<Array<Integer>> decision) {
+    return sch->SamplePartitionedTile(loop_rv, n->value, partition_pos->value,
+                                      innerpart_factor->value, decision);
+  }
+
+  static String UnpackedAsPython(Array<String> outputs, String loop_rv, Integer n,
+                                 Integer partition_pos, Integer innerpart_factor,
+                                 Optional<Array<Integer>> decision) {
+    PythonAPICall py("sample_partitioned_tile");
+    py.Input("loop", loop_rv);
+    py.Input("n", n->value);
+    py.Input("partition_pos", partition_pos->value);
+    py.Input("innerpart_factor", innerpart_factor->value);
+    py.Decision(decision);
+    py.OutputList(outputs);
+    return py.Str();
+  }
+
+  template <typename>
+  friend struct ::tvm::tir::UnpackedInstTraits;
+};
+
 struct SampleComputeLocationTraits : public UnpackedInstTraits<SampleComputeLocationTraits> {
   static constexpr const char* kName = "SampleComputeLocation";
   static constexpr bool kIsPure = true;
@@ -486,6 +591,7 @@ struct SampleComputeLocationTraits : public UnpackedInstTraits<SampleComputeLoca
 
 TVM_REGISTER_INST_KIND_TRAITS(SampleCategoricalTraits);
 TVM_REGISTER_INST_KIND_TRAITS(SamplePerfectTileTraits);
+TVM_REGISTER_INST_KIND_TRAITS(SamplePartitionedTileTraits);
 TVM_REGISTER_INST_KIND_TRAITS(SampleComputeLocationTraits);
 
 }  // namespace tir

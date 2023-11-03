@@ -139,20 +139,26 @@ Array<Array<arith::IterMark>> TrivialSubspaceDivision(const Array<IterVar>& iter
 
 /*!
  * \brief Subspace division. The space is divided into two subspaces:
+ * If loop_sref_as_outer is false:
  *  1. The subspace represented by the outer loops above `loop_sref` (exclusive).
  *  2. The subspace represented by the inner loops below `loop_sref` (inclusive).
+ * else:
+ *  1. The subspace represented by the outer loops above `loop_sref` (inclusive).
+ *  2. The subspace represented by the inner loops below `loop_sref` (exclusive).
  * \param realize The inner block
  * \param block_sref The sref to the inner block
  * \param loop_sref The loop that is the root of the second subspace.
  * \param loops The loops that represents the second part of the subspace.
  * \param analyzer The arithmetic analyzer to use.
  * \param preserve_unit_iters Whether or not to preserve unit iterators in block bindings
+ * \param loop_sref_as_outer Whether loop_sref is divided into outer or inner
  */
 Array<Array<arith::IterMark>> SubspaceDivide(const BlockRealize& realize,
                                              const StmtSRef& block_sref,  //
                                              const StmtSRef& loop_sref,   //
                                              std::vector<const ForNode*>* loops,
-                                             arith::Analyzer* analyzer, bool preserve_unit_iters) {
+                                             arith::Analyzer* analyzer, bool preserve_unit_iters,
+                                             bool loop_sref_as_outer = false) {
   Array<Var> inner_vars;
   Array<Var> outer_vars;
   Map<Var, Range> loop_var_domain;
@@ -168,7 +174,7 @@ Array<Array<arith::IterMark>> SubspaceDivide(const BlockRealize& realize,
       outer_vars.push_back(loop->loop_var);
     }
     loop_var_domain.Set(loop->loop_var, Range::FromMinExtent(loop->min, loop->extent));
-    if (sref == loop_sref.get()) {
+    if ((loop_sref_as_outer && sref->parent == loop_sref.get()) || sref == loop_sref.get()) {
       inner = false;
     }
   }
@@ -201,12 +207,14 @@ Map<Var, PrimExpr> DeriveBlockBinding(const Array<IterVar>& iter_vars,          
                                       Array<IterVar>* outer_iter_vars,                //
                                       Array<PrimExpr>* outer_bindings,                //
                                       Array<IterVar>* inner_iter_vars,                //
-                                      Array<PrimExpr>* inner_bindings, bool preserve_unit_iters) {
+                                      Array<PrimExpr>* inner_bindings,                //
+                                      bool preserve_unit_iters, bool reuse_outer = false) {
   using arith::IterMapExpr;
   using arith::IterMapExprNode;
   using arith::NormalizeIterMapToExpr;
   Map<Var, PrimExpr> block_var_subst;
   ICHECK_EQ(iter_vars.size() + 1, division.size());
+  arith::Analyzer ana;
   for (int i = 0, n = iter_vars.size(); i < n; ++i) {
     const IterVar& iter_var = iter_vars[i];
     arith::IterMark outer_mark = division[i][0];
@@ -219,30 +227,43 @@ Map<Var, PrimExpr> DeriveBlockBinding(const Array<IterVar>& iter_vars,          
     // The inner block will have binding: iter_inner -> inner_binding
     // The iter in the original block will be substituted with base + iter_inner where
     // base == iter_outer * iter_inner_extent
-    if (is_one(inner_mark->extent)) {  // IsOuter
-      // extract this iter var to outer block directly
-      outer_bindings->push_back(NormalizeIterMapToExpr(outer_binding));
-      outer_iter_vars->push_back(iter_var);
-      continue;
-    }
     // create iter var for the outer block
-    IterVar outer_iter(/*dom=*/RangeFromExtent(outer_mark->extent),
-                       /*var=*/iter_var->var.copy_with_suffix("_o"),
-                       /*iter_type=*/iter_var->iter_type);
-    outer_bindings->push_back(NormalizeIterMapToExpr(outer_binding));
-    outer_iter_vars->push_back(outer_iter);
-    // create iter var for the inner block
-    IterVar inner_iter(/*dom=*/RangeFromExtent(inner_mark->extent),
-                       /*var=*/iter_var->var.copy_with_suffix("_i"),
-                       /*iter_type=*/iter_var->iter_type);
-    inner_bindings->push_back(NormalizeIterMapToExpr(inner_binding));
-    inner_iter_vars->push_back(inner_iter);
-    // substitution
-    PrimExpr sub{nullptr};
-    if (is_one(outer_mark->extent)) {
-      sub = inner_iter->var;
+    IterVar outer_iter;
+    if (reuse_outer) {
+      outer_iter = outer_iter_vars->operator[](i);
+      ICHECK(ana.CanProveEqual(outer_iter->dom->extent, outer_mark->extent));
+      ICHECK(
+          ana.CanProveEqual(outer_bindings->operator[](i), NormalizeIterMapToExpr(outer_binding)));
     } else {
-      sub = outer_iter * inner_mark->extent + inner_iter->var;
+      outer_iter = IterVar(/*dom=*/RangeFromExtent(outer_mark->extent),
+                           /*var=*/iter_var->var.copy_with_suffix("_o"),
+                           /*iter_type=*/iter_var->iter_type);
+      outer_bindings->push_back(NormalizeIterMapToExpr(outer_binding));
+      outer_iter_vars->push_back(outer_iter);
+    }
+    PrimExpr sub{nullptr};
+    if (is_one(inner_mark->extent)) {
+      // Skip inner var when extent is 1
+      // substitution
+      if (is_one(outer_mark->extent) && !preserve_unit_iters) {
+        // Simplify outer if not preserve_unit_iters
+        sub = make_zero(outer_mark->extent.dtype());
+      } else {
+        sub = outer_iter;
+      }
+    } else {
+      // create iter var for the inner block
+      IterVar inner_iter(/*dom=*/RangeFromExtent(inner_mark->extent),
+                         /*var=*/iter_var->var.copy_with_suffix("_i"),
+                         /*iter_type=*/iter_var->iter_type);
+      inner_bindings->push_back(NormalizeIterMapToExpr(inner_binding));
+      inner_iter_vars->push_back(inner_iter);
+      // substitution
+      if (is_one(outer_mark->extent)) {
+        sub = inner_iter->var;
+      } else {
+        sub = outer_iter * inner_mark->extent + inner_iter->var;
+      }
     }
     block_var_subst.Set(iter_var->var, sub);
   }
@@ -415,6 +436,37 @@ Array<BufferRegion> EvalSetRegions(const Array<BufferRegion>& regions,
 }
 
 /*!
+ * \brief Get the union of the given regions
+ * \param regions The input regions for the union.
+ * \return The union regions
+ */
+Array<BufferRegion> UnionRegions(const Array<BufferRegion>& regions) {
+  typedef std::vector<Array<arith::IntSet>> ranges_t;
+  std::unordered_map<Buffer, ranges_t, ObjectPtrHash, ObjectPtrEqual> intset_map;
+  for (const BufferRegion& buffer_region : regions) {
+    const Buffer& buffer = buffer_region->buffer;
+    if (intset_map.find(buffer) == intset_map.end()) {
+      intset_map[buffer] = {buffer->shape.size(), Array<arith::IntSet>()};
+    }
+    std::vector<Array<arith::IntSet>> dim_range(buffer->shape.size(), Array<arith::IntSet>());
+    for (size_t dim = 0; dim < buffer->shape.size(); ++dim) {
+      intset_map[buffer][dim].push_back(arith::IntSet::FromRange(buffer_region->region[dim]));
+    }
+  }
+  Array<BufferRegion> results;
+  for (const auto& it : intset_map) {
+    const Buffer& buffer = it.first;
+    Array<Range> regions;
+    for (size_t dim = 0; dim < buffer->shape.size(); ++dim) {
+      const arith::IntSet intset = arith::Union(it.second[dim]);
+      regions.push_back({intset.min(), intset.max() + 1});
+    }
+    results.push_back(BufferRegion(buffer, regions));
+  }
+  return results;
+}
+
+/*!
  * \brief Create the loop nest on top of the given stmt.
  * \param stmt The stmt to be wrapped.
  * \param loops The loop nests
@@ -510,6 +562,179 @@ StmtSRef Blockize(ScheduleState self, const StmtSRef& loop_sref, bool preserve_u
   bool scope_block_affine_binding = self->IsAffineBlockBinding(scope_root);
   self->UpdateScopeBlockInfo(tir::GetBlockRealize(self, scope_root));
   self->block_info[scope_root].affine_binding = scope_block_affine_binding;
+  return result;
+}
+
+BlockRealize BlockizeBlocks(const ScheduleState& self, const Array<StmtSRef>& block_srefs,
+                            const StmtSRef& lca, Map<Block, Block>* block_sref_reuse,
+                            bool preserve_unit_iters) {
+  Array<Stmt> seq_body;
+  PrimExpr outer_predicate{nullptr};
+  Array<IterVar> outer_iter_vars{nullptr};
+  Array<PrimExpr> outer_bindings{nullptr};
+  Array<BufferRegion> read_regions;
+  Array<BufferRegion> write_regions;
+  std::string outer_block_name = "outer_";
+  Map<Var, Var> loop_var_subst;
+  arith::Analyzer analyzer;
+  for (const auto& block_sref : block_srefs) {
+    auto block_realize = GetBlockRealize(self, block_sref);
+    auto block = block_realize->block;
+    // Step 1: Derive subspace division
+    std::vector<const ForNode*> loops;
+    Array<Array<arith::IterMark>> division = SubspaceDivide(block_realize, block_sref, lca, &loops,
+                                                            &analyzer, preserve_unit_iters, true);
+    if (division.empty()) {
+      throw SubspaceNotDivisibleError(self->mod, GetRef<For>(loops.back()), block);
+    }
+    outer_predicate = division.back()[0]->extent;
+    PrimExpr inner_predicate = division.back()[1]->extent;
+    // Step 2. Derive block bindings for both outer and inner block.
+    Array<IterVar> inner_iter_vars;
+    Array<PrimExpr> inner_bindings;
+    Map<Var, PrimExpr> block_var_subst =                       //
+        DeriveBlockBinding(block->iter_vars, division,         //
+                           &outer_iter_vars, &outer_bindings,  //
+                           &inner_iter_vars, &inner_bindings,  //
+                           preserve_unit_iters, outer_iter_vars.defined());
+    // Step 3: Do var substitution to adjust to the new block bindings
+    for (size_t i = 0; i < outer_iter_vars.size(); ++i) {
+      if (outer_bindings[i].as<Var>()) {
+        loop_var_subst.Set(Downcast<Var>(outer_bindings[i]), outer_iter_vars[i]->var);
+      }
+    }
+    Map<Var, arith::IntSet> inner_iter_dom;
+    for (const IterVar& iter : inner_iter_vars) {
+      Range dom = Substitute(iter->dom, loop_var_subst);
+      inner_iter_dom.Set(iter->var, arith::IntSet::FromRange(dom));
+      analyzer.Bind(iter->var, dom);
+    }
+    Block block_subst =
+        Downcast<Block>(Substitute(block, block_var_subst, block_sref_reuse, &analyzer));
+    auto reads = EvalSetRegions(block_subst->reads, inner_iter_dom);
+    auto writes = EvalSetRegions(block_subst->writes, inner_iter_dom);
+    read_regions.insert(read_regions.end(), reads.begin(), reads.end());
+    write_regions.insert(write_regions.end(), writes.begin(), writes.end());
+    outer_block_name += block_subst->name_hint + "_";
+    // Step 4: Generate the inner block. No reduction iter vars allowed for the outer loops.
+    bool has_outer_reduction = false;
+    if (block_subst->init.defined()) {
+      for (const IterVar& iter_var : outer_iter_vars) {
+        if (iter_var->iter_type == kCommReduce) {
+          has_outer_reduction = true;
+          break;
+        }
+      }
+    }
+    ICHECK(has_outer_reduction == false)
+        << "No reduction iter vars allowed for the outer loops when blockize multiple blocks";
+    BlockRealize inner_realize = GenerateInner(/*is_write_reduction=*/has_outer_reduction,
+                                               /*iter_vars=*/inner_iter_vars,
+                                               /*iter_values*/ inner_bindings,
+                                               /*predicate=*/inner_predicate,
+                                               /*block=*/block_subst);
+    block_sref_reuse->Set(block, inner_realize->block);
+    Stmt stmt = inner_realize;
+    for (const ForNode* loop : loops) {
+      ObjectPtr<ForNode> new_loop = make_object<ForNode>(*loop);
+      new_loop->body = std::move(stmt);
+      new_loop->extent = Substitute(new_loop->extent, loop_var_subst);
+      stmt = For(new_loop);
+    }
+    seq_body.push_back(stmt);
+  }
+  // Step 5: Generate the outer block.
+  return BlockRealize(
+      /*iter_values=*/std::move(outer_bindings),
+      /*predicate=*/std::move(outer_predicate),
+      /*block=*/
+      Block(/*iter_vars=*/std::move(outer_iter_vars),
+            /*reads=*/UnionRegions(read_regions),
+            /*writes=*/UnionRegions(write_regions),
+            /*name_hint=*/outer_block_name,
+            /*body=*/SeqStmt(seq_body),
+            /*init=*/Optional<Stmt>(NullOpt)));
+}
+
+class BlockizeRewriter : public StmtMutator {
+ public:
+  static Stmt Rewrite(const StmtSRef& lca, const Array<StmtSRef>& blocks,
+                      const BlockRealize& blockized) {
+    BlockizeRewriter rewriter(lca, blocks, blockized);
+    return rewriter(GetRef<Stmt>(lca->stmt));
+  }
+
+ private:
+  explicit BlockizeRewriter(const StmtSRef& lca, const Array<StmtSRef>& blocks,
+                            const BlockRealize& blockized)
+      : lca_(lca), blocks_(blocks), blockized_(blockized) {}
+
+  Stmt RewriteSeq(const Stmt& stmt) {
+    const SeqStmtNode* seq = stmt.as<SeqStmtNode>();
+    ICHECK(seq) << "Target blocks must not be nested with each other!";
+    int idx_start = -1;
+    int last_found_idx = -1;
+    size_t cur_idx = 0;
+    Array<Stmt> new_seq;
+    for (const Stmt& it : seq->seq) {
+      target_in_ = false;
+      Stmt stmt = StmtMutator::VisitStmt(it);
+      if (target_in_) {
+        if (idx_start == -1) {
+          idx_start = cur_idx;
+          new_seq.push_back(blockized_);
+        } else {
+          ICHECK_EQ(last_found_idx, cur_idx - 1) << "Target blocks must be consecutive!";
+        }
+        last_found_idx = cur_idx;
+      } else {
+        new_seq.push_back(it);
+      }
+      ++cur_idx;
+    }
+    if (new_seq.size() == 1) return new_seq[0];
+    return SeqStmt(new_seq, seq->span);
+  }
+
+  Stmt VisitStmt_(const ForNode* loop) final {
+    if (loop == lca_->stmt) {
+      return For(loop->loop_var, loop->min, loop->extent, loop->kind, RewriteSeq(loop->body),
+                 loop->thread_binding, loop->annotations, loop->span);
+    }
+    return StmtMutator::VisitStmt_(loop);
+  }
+
+  Stmt VisitStmt_(const BlockNode* block) final {
+    if (block == lca_->stmt) {
+      return Block(block->iter_vars, block->reads, block->writes, block->name_hint,
+                   RewriteSeq(block->body), block->init, block->alloc_buffers, block->match_buffers,
+                   block->annotations, block->span);
+    }
+    for (const StmtSRef& block_sref : blocks_) {
+      if (block_sref->stmt == block) {
+        target_in_ = true;
+        break;
+      }
+    }
+    return GetRef<Stmt>(block);
+  }
+
+  StmtSRef lca_;
+  Array<StmtSRef> blocks_;
+  BlockRealize blockized_;
+  bool target_in_ = false;
+};
+
+StmtSRef Blockize(ScheduleState self, const Array<StmtSRef>& blocks, bool preserve_unit_iters) {
+  Map<Block, Block> block_sref_reuse;
+  auto lca = GetSRefLowestCommonAncestor(blocks);
+  BlockRealize blockized =
+      BlockizeBlocks(self, blocks, lca, &block_sref_reuse, preserve_unit_iters);
+  auto new_root = BlockizeRewriter::Rewrite(lca, blocks, blockized);
+  self->Replace(lca, new_root, block_sref_reuse);
+  StmtSRef result = self->stmt2ref.at(blockized->block.get());
+  StmtSRef scope_root = tir::GetScopeRoot(self, result, /*require_stage_pipeline=*/false);
+  self->UpdateScopeBlockInfo(tir::GetBlockRealize(self, scope_root));
   return result;
 }
 
@@ -636,13 +861,19 @@ struct BlockizeTraits : public UnpackedInstTraits<BlockizeTraits> {
   static constexpr size_t kNumAttrs = 1;
   static constexpr size_t kNumDecisions = 0;
 
-  static BlockRV UnpackedApplyToSchedule(Schedule sch, LoopRV loop_rv, Bool preserve_unit_iters) {
-    return sch->Blockize(loop_rv, preserve_unit_iters.operator bool());
+  static BlockRV UnpackedApplyToSchedule(Schedule sch, ObjectRef target, Bool preserve_unit_iters) {
+    if (auto loop = target.as<LoopRV>()) {
+      return sch->Blockize(loop.value(), preserve_unit_iters.operator bool());
+    } else if (auto blocks = target.as<Array<BlockRV>>()) {
+      return sch->Blockize(blocks.value(), preserve_unit_iters.operator bool());
+    }
+    LOG(FATAL) << "TypeError: expect Loop or list of Blocks, but gets:" << target->GetTypeKey();
   }
 
-  static String UnpackedAsPython(Array<String> outputs, String loop_rv, Bool preserve_unit_iters) {
+  static String UnpackedAsPython(Array<String> outputs, ObjectRef target,
+                                 Bool preserve_unit_iters) {
     PythonAPICall py("blockize");
-    py.Input("loop", loop_rv);
+    py.Input("target", target);
     py.Input("preserve_unit_iters", preserve_unit_iters.operator bool());
     py.SingleOutput(outputs);
     return py.Str();

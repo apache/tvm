@@ -27,7 +27,7 @@ from tvm.relay.op.nn.utils import get_pad_tuple2d
 from tvm.runtime import Object
 from tvm.target import Target
 from tvm.topi.nn.qnn import SQNN_DTYPE_TO_CODE
-from tvm.target.x86 import target_has_sse41
+from tvm.target.x86 import target_has_features
 
 from . import _make, _requantize
 
@@ -54,8 +54,9 @@ class RequantizeConfig(Object):
     @staticmethod
     def _get_node_default_compute_dtype():
         target = Target.current(True)
-        if target and str(target.kind) == "llvm" and target_has_sse41(target.mcpu):
-            return "float32"
+        if target and str(target.kind) == "llvm":
+            if target_has_features("sse4.1", target):
+                return "float32"
 
         return "int64"
 
@@ -86,7 +87,7 @@ class RequantizeConfig(Object):
 
     def __setattr__(self, name, value):
         if name in RequantizeConfig._node_defaults:
-            raise AttributeError("'%s' object cannot set attribute '%s'" % (str(type(self)), name))
+            raise AttributeError(f"'{type(self)}' object cannot set attribute '{name}'")
         return super(RequantizeConfig, self).__setattr__(name, value)
 
 
@@ -186,8 +187,8 @@ def requantize(
 
 def quantize(data, output_scale, output_zero_point, axis=-1, out_dtype="int8"):
     r"""Quantize op
-    This operator takes float32 as input and produces quantized int8 or unit8 as output.
-    The input tensor can be of any shape. The output shape is the same as input shape.
+    This operator takes float32 input and produces quantized output. The input
+    tensor can be of any shape. The output shape is the same as input shape.
 
     Q_output = clamp((round(input_tensor/output_scale) + output_zero_point),
                      out_dtype::min,
@@ -206,8 +207,9 @@ def quantize(data, output_scale, output_zero_point, axis=-1, out_dtype="int8"):
 
     axis : int
         The channel axis for quantization. Default value is -1 which corresponds to the last axis.
+
     out_dtype : str, optional
-        The data type of the input tensor. Can be [int8, uint8, int32]
+        The data type of the output tensor. Can be [int8, unit8, int16, uint16, int32].
 
     Returns
     -------
@@ -256,16 +258,15 @@ def simulated_quantize(data, output_scale, output_zero_point, axis=-1, out_dtype
     return _make.simulated_quantize(data, out_dtype, output_scale, output_zero_point, axis)
 
 
-def dequantize(data, input_scale, input_zero_point, axis=-1):
+def dequantize(data, input_scale, input_zero_point, axis=-1, out_dtype="float32"):
     r"""Dequantize op
-    This operator takes quantized int8 and unit8 as input and produces
-    dequantized float32 as output. The output shape is the same as input shape. The input
-    tensor can be of any shape.
+    This operator takes quantized input and produces dequantized float output.
+    The output shape is the same as input shape. The input tensor can be of any shape.
 
     Parameters
     ----------
     data : tvm.relay.Expr
-        The input tensor to be dequantized. Can be of type [int8, uint8, int32].
+        The input tensor to be dequantized. Can be of type [int8, unit8, int16, uint16, int32].
 
     input_scale : tvm.relay.Expr
         The input scale.
@@ -276,13 +277,16 @@ def dequantize(data, input_scale, input_zero_point, axis=-1):
     axis : int
         The channel axis for quantization. Default value is -1 which corresponds to the last axis.
 
+    out_dtype : str, optional
+        The data type of the output tensor. Can be [float16, float32].
+
     Returns
     -------
     result : tvm.relay.Expr
         The computed result.
     """
 
-    return _make.dequantize(data, input_scale, input_zero_point, axis)
+    return _make.dequantize(data, input_scale, input_zero_point, axis, out_dtype)
 
 
 def simulated_dequantize(data, input_scale, input_zero_point, axis=-1, in_dtype="int8"):
@@ -876,13 +880,7 @@ def tanh(x, scale, zero_point, output_scale, output_zero_point):
         The computed result.
 
     """
-    return _make.tanh(
-        x,
-        scale,
-        zero_point,
-        output_scale,
-        output_zero_point,
-    )
+    return _make.tanh(x, scale, zero_point, output_scale, output_zero_point)
 
 
 def exp(x, scale, zero_point, output_scale, output_zero_point):
@@ -911,13 +909,7 @@ def exp(x, scale, zero_point, output_scale, output_zero_point):
         The computed result.
 
     """
-    return _make.exp(
-        x,
-        scale,
-        zero_point,
-        output_scale,
-        output_zero_point,
-    )
+    return _make.exp(x, scale, zero_point, output_scale, output_zero_point)
 
 
 def sqrt(x, scale, zero_point, output_scale, output_zero_point):
@@ -946,13 +938,7 @@ def sqrt(x, scale, zero_point, output_scale, output_zero_point):
         The computed result.
 
     """
-    return _make.sqrt(
-        x,
-        scale,
-        zero_point,
-        output_scale,
-        output_zero_point,
-    )
+    return _make.sqrt(x, scale, zero_point, output_scale, output_zero_point)
 
 
 def rsqrt(x, scale, zero_point, output_scale, output_zero_point):
@@ -981,13 +967,7 @@ def rsqrt(x, scale, zero_point, output_scale, output_zero_point):
         The computed result.
 
     """
-    return _make.rsqrt(
-        x,
-        scale,
-        zero_point,
-        output_scale,
-        output_zero_point,
-    )
+    return _make.rsqrt(x, scale, zero_point, output_scale, output_zero_point)
 
 
 def erf(x, scale, zero_point, output_scale, output_zero_point):
@@ -1016,13 +996,7 @@ def erf(x, scale, zero_point, output_scale, output_zero_point):
         The computed result.
 
     """
-    return _make.erf(
-        x,
-        scale,
-        zero_point,
-        output_scale,
-        output_zero_point,
-    )
+    return _make.erf(x, scale, zero_point, output_scale, output_zero_point)
 
 
 # pylint: disable=redefined-builtin
@@ -1054,13 +1028,7 @@ def abs(x, scale, zero_point, output_scale, output_zero_point):
         The computed result.
 
     """
-    return _make.abs(
-        x,
-        scale,
-        zero_point,
-        output_scale,
-        output_zero_point,
-    )
+    return _make.abs(x, scale, zero_point, output_scale, output_zero_point)
 
 
 def sigmoid(x, scale, zero_point, output_scale, output_zero_point):
@@ -1089,13 +1057,7 @@ def sigmoid(x, scale, zero_point, output_scale, output_zero_point):
         The computed result.
 
     """
-    return _make.sigmoid(
-        x,
-        scale,
-        zero_point,
-        output_scale,
-        output_zero_point,
-    )
+    return _make.sigmoid(x, scale, zero_point, output_scale, output_zero_point)
 
 
 def hardswish(x, scale, zero_point, output_scale, output_zero_point):
@@ -1124,13 +1086,7 @@ def hardswish(x, scale, zero_point, output_scale, output_zero_point):
         The computed result.
 
     """
-    return _make.hardswish(
-        x,
-        scale,
-        zero_point,
-        output_scale,
-        output_zero_point,
-    )
+    return _make.hardswish(x, scale, zero_point, output_scale, output_zero_point)
 
 
 def log(x, scale, zero_point, output_scale, output_zero_point):
@@ -1159,13 +1115,7 @@ def log(x, scale, zero_point, output_scale, output_zero_point):
         The computed result.
 
     """
-    return _make.log(
-        x,
-        scale,
-        zero_point,
-        output_scale,
-        output_zero_point,
-    )
+    return _make.log(x, scale, zero_point, output_scale, output_zero_point)
 
 
 def subtract(
@@ -1297,10 +1247,75 @@ def leaky_relu(x, alpha, input_scale, input_zero_point, output_scale, output_zer
         The computed result.
     """
     return _make.leaky_relu(
-        x,
-        alpha,
+        x, alpha, input_scale, input_zero_point, output_scale, output_zero_point
+    )
+
+
+def softmax(x, scale, zero_point, output_scale, output_zero_point, axis=-1):
+    return _make.softmax(x, axis, scale, zero_point, output_scale, output_zero_point)
+
+
+def avg_pool2d(
+    data,
+    input_scale,
+    input_zero_point,
+    output_scale,
+    output_zero_point,
+    pool_size,
+    strides,
+    padding,
+    dilation,
+    ceil_mode=False,
+    count_include_pad=True,
+    layout="NHWC",
+    out_layout="",
+):
+
+    """Quantized avg_pool2d
+
+    Parameters
+    ----------
+    data : relay.Expr
+        The quantized input tensor.
+    input_scale: float
+        The scale of the input quantized expr.
+    input_zero_point: int
+        The zero point of input quantized expr.
+    output_scale: flaot
+        The scale of the output quantized expr.
+    output_zero_point: int
+       The zero point of output quantized expr.
+    pool_size : relay.Expr
+        The pool_size
+    strides : relay.Expr
+        The strides
+    padding : relay.Expr
+        The padding size
+    dilation : relay.Expr
+        The dilation size
+    ceil_mode : bool, optional
+        Whether to use ceil or floor for calculating the output shape
+    count_include_pad : bool, optional
+        Determines if padding should be taken into account in the computation
+    layout: string, optinal
+    out_layout: string, optional
+    Returns
+    -------
+    result : relay.Expr
+        The computed result.
+    """
+    return _make.avg_pool2d(
+        data,
         input_scale,
         input_zero_point,
         output_scale,
         output_zero_point,
+        pool_size,
+        strides,
+        padding,
+        dilation,
+        ceil_mode,
+        count_include_pad,
+        layout,
+        out_layout,
     )

@@ -67,3 +67,19 @@ class BaseFunc(RelayExpr):
         return _ffi_api.BaseFuncWithAttr(
             res._move(), attr_key_or_dict, tvm.runtime.convert(attr_value)
         )
+
+    def without_attr(self, attr_key: str) -> "BaseFunc":
+        """Create a new copy of the function with an attribute without provided key.
+
+        Parameters
+        ----------
+        attr_key : str
+            The attribute key to delete from the attrubte pairs.
+
+
+        Returns
+        -------
+        func : BaseFunc
+            A new copy of the function
+        """
+        return _ffi_api.BaseFuncWithoutAttr(self, attr_key)

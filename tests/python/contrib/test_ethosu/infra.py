@@ -475,7 +475,9 @@ def get_convolutional_args(call, include_buffers=False, remove_constants=False):
     return conv_args
 
 
-def compute_ofm_shape(ifm_shape, padding, kernel_shape, strides, dilation=[1, 1]):
+def compute_ofm_shape(
+    ifm_shape, padding, kernel_shape, strides, dilation=[1, 1], channel_padding=[0, 0]
+):
     assert len(strides) == 2
     assert len(dilation) == 2
     assert len(kernel_shape) == 2
@@ -492,7 +494,7 @@ def compute_ofm_shape(ifm_shape, padding, kernel_shape, strides, dilation=[1, 1]
     elif padding.lower() == "same":
         h = math.ceil(ifm_shape[1] / strides[0])
         w = math.ceil(ifm_shape[2] / strides[1])
-    ofm_shape = [ifm_shape[0], h, w, ifm_shape[3]]
+    ofm_shape = [ifm_shape[0], h, w, ifm_shape[3] + channel_padding[0] + channel_padding[1]]
     return ofm_shape
 
 

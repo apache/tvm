@@ -21,6 +21,7 @@
  * \file src/target/target.cc
  */
 #include <dmlc/thread_local.h>
+#include <tvm/ir/transform.h>
 #include <tvm/runtime/device_api.h>
 #include <tvm/runtime/logging.h>
 #include <tvm/runtime/registry.h>
@@ -89,16 +90,6 @@ Target Target::WithHost(const Target& target, const Target& host) {
 void CheckAndUpdateHostConsistency(Target* target, Target* host) {
   *target = Target(*target, *host);
   *host = (*target)->GetHost().value_or(Target());
-}
-
-void CheckAndUpdateHostConsistency(Map<Target, IRModule>* targets, Target* host) {
-  Map<Target, IRModule> new_targets;
-  for (auto& it : *targets) {
-    auto target = it.first;
-    CheckAndUpdateHostConsistency(&target, host);
-    new_targets.Set(target, it.second);
-  }
-  *targets = new_targets;
 }
 
 static std::vector<String> DeduplicateKeys(const std::vector<String>& keys) {
@@ -614,8 +605,8 @@ Target::Target(TargetKind kind, Optional<ObjectRef> host, String tag, Array<Stri
 bool Target::IsExternalCodegen() const {
   TargetKindAttrMap<Bool> is_external_codegen_map =
       TargetKind::GetAttrMap<Bool>(tvm::attr::kIsExternalCodegen);
-  TargetKindAttrMap<FTVMRelayToTIR> relay_to_tir_map =
-      TargetKind::GetAttrMap<FTVMRelayToTIR>(tvm::attr::kRelayToTIR);
+  TargetKindAttrMap<tvm::transform::Pass> relay_to_tir_map =
+      TargetKind::GetAttrMap<tvm::transform::Pass>(tvm::attr::kRelayToTIR);
   return is_external_codegen_map.get(get()->kind, Bool(false)) ||
          relay_to_tir_map.count(get()->kind);
 }
@@ -662,11 +653,26 @@ Map<String, ObjectRef> TargetNode::Export() const {
 
 Optional<Target> TargetNode::GetHost() const { return this->host.as<Target>(); }
 
+Target Target::WithoutHost() const {
+  if ((*this)->GetHost()) {
+    auto output = make_object<TargetNode>(*get());
+    output->host = NullOpt;
+    return Target(output);
+  } else {
+    return *this;
+  }
+}
+
 int TargetNode::GetTargetDeviceType() const {
   if (Optional<Integer> device_type = GetAttr<Integer>("target_device_type")) {
     return Downcast<Integer>(device_type)->value;
   }
   return kind->default_device_type;
+}
+
+bool TargetNode::HasKey(const std::string& query_key) const {
+  return std::any_of(keys.begin(), keys.end(),
+                     [&query_key](const auto& key) { return key == query_key; });
 }
 
 String TargetNode::ToDebugString() const {

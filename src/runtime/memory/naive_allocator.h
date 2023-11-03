@@ -18,19 +18,20 @@
  */
 
 /*!
- * \file src/runtime/naive_allocator.h
+ * \file src/runtime/memory/naive_allocator.h
  */
-#ifndef TVM_RUNTIME_VM_NAIVE_ALLOCATOR_H_
-#define TVM_RUNTIME_VM_NAIVE_ALLOCATOR_H_
+#ifndef TVM_RUNTIME_MEMORY_NAIVE_ALLOCATOR_H_
+#define TVM_RUNTIME_MEMORY_NAIVE_ALLOCATOR_H_
 
 #include <tvm/runtime/device_api.h>
-#include <tvm/runtime/vm/memory_manager.h>
+#include <tvm/runtime/memory/memory_manager.h>
 
 #include <atomic>
+#include <string>
 
 namespace tvm {
 namespace runtime {
-namespace vm {
+namespace memory {
 
 class NaiveAllocator final : public Allocator {
  public:
@@ -40,9 +41,35 @@ class NaiveAllocator final : public Allocator {
     Buffer buf;
     buf.device = device_;
     buf.size = nbytes;
+    buf.alloc_type = kNaive;
     buf.data = DeviceAPI::Get(device_)->AllocDataSpace(device_, nbytes, alignment, type_hint);
     used_memory_.fetch_add(nbytes, std::memory_order_relaxed);
     DLOG(INFO) << "allocate " << nbytes << " B, used memory " << used_memory_ << " B";
+    return buf;
+  }
+
+  Buffer Alloc(ShapeTuple shape, DLDataType type_hint, const std::string& mem_scope) override {
+    Buffer buf;
+    size_t nbytes = 1;
+    for (int i = 0; i < static_cast<int>(shape.size()); ++i) {
+      nbytes *= static_cast<size_t>(shape[i]);
+    }
+    nbytes *= (type_hint.bits * type_hint.lanes + 7) / 8;
+    buf.device = device_;
+    if (mem_scope.empty() || mem_scope == "global") {
+      auto tmp_buf = Allocator::Alloc(device_, shape, type_hint, mem_scope);
+      buf.size = tmp_buf.size;
+      buf.data = tmp_buf.data;
+      buf.alloc_type = kNaive;
+      return buf;
+    }
+
+    buf.size = nbytes;
+    buf.data = DeviceAPI::Get(device_)->AllocDataSpace(device_, shape.size(), shape.data(),
+                                                       type_hint, String(mem_scope));
+    used_memory_.fetch_add(nbytes, std::memory_order_relaxed);
+    DLOG(INFO) << "allocate " << nbytes << " B, used memory " << used_memory_ << " B";
+    buf.alloc_type = kNaive;
     return buf;
   }
 
@@ -59,8 +86,8 @@ class NaiveAllocator final : public Allocator {
   Device device_;
 };
 
-}  // namespace vm
+}  // namespace memory
 }  // namespace runtime
 }  // namespace tvm
 
-#endif  // TVM_RUNTIME_VM_NAIVE_ALLOCATOR_H_
+#endif  // TVM_RUNTIME_MEMORY_NAIVE_ALLOCATOR_H_

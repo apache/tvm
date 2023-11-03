@@ -33,6 +33,7 @@
 #include <utility>
 #include <vector>
 
+#include "../../tir/transforms/ir_utils.h"
 #include "literal/cuda_half_t.h"
 #include "ptx.h"
 
@@ -48,7 +49,7 @@ void CodeGenCUDA::Init(bool output_ssa) {
   ICHECK_EQ(vid_global_barrier_state_, runtime::symbol::tvm_global_barrier_state);
 }
 
-void CodeGenCUDA::PrintFuncPrefix(std::ostream& os) { os << "extern \"C\" __global__ void"; }
+void CodeGenCUDA::PrintFuncPrefix(std::ostream& os) { os << "extern \"C\" __global__ "; }
 
 class ThreadIdxExtractor : public tir::StmtVisitor {
  private:
@@ -74,7 +75,7 @@ class ThreadIdxExtractor : public tir::StmtVisitor {
   PrimExpr threadIdx_z_ext = Integer(1);
 };
 
-void CodeGenCUDA::PrintExtraAttrs(const PrimFunc& f) {
+void CodeGenCUDA::PrintExtraAttrs(const PrimFunc& f, std::ostream& os) {
   ThreadIdxExtractor extractor;
   extractor(f->body);
   arith::Analyzer analyzer;
@@ -85,7 +86,7 @@ void CodeGenCUDA::PrintExtraAttrs(const PrimFunc& f) {
       // unable to extract the number of threads per block, hence directly return
       return;
     }
-    stream << " __launch_bounds__(" << threadIdx_ext_int->value << ")";
+    os << " __launch_bounds__(" << threadIdx_ext_int->value << ")";
   }
 }
 
@@ -116,6 +117,12 @@ std::string CodeGenCUDA::Finish() {
     decl_stream << _cuda_bfloat16_util;
   }
 
+  if (enable_fp8_) {
+    decl_stream << "#if defined(__CUDA_ARCH__) && (__CUDA_ARCH__ >= 890)\n";
+    decl_stream << "#include <cuda_fp8.h>\n";
+    decl_stream << "#endif\n\n";
+  }
+
   if (enable_warp_shuffle_) {
     decl_stream << _cuda_warp_intrinsic_util;
   }
@@ -132,6 +139,18 @@ std::string CodeGenCUDA::Finish() {
 
   if (need_mma_h_) {
     decl_stream << "#include <mma.h>\n";
+  }
+
+  if (need_cast_smem_ptr_to_int_) {
+    decl_stream << "__forceinline__ __device__ unsigned int\n";
+    decl_stream << "cast_smem_ptr_to_int(const void* const smem_ptr)\n";
+    decl_stream << "{\n";
+    decl_stream << "  unsigned int smem_int;\n";
+    decl_stream << "  asm volatile (\"{ .reg .u64 smem_int; cvta.to.shared.u64 smem_int, %1; "
+                   "cvt.u32.u64 %0, smem_int; }\"\n";
+    decl_stream << "    : \"=r\"(smem_int) : \"l\"(smem_ptr));\n";
+    decl_stream << "  return smem_int;\n";
+    decl_stream << "}\n";
   }
 
   decl_stream << "\n#if (((__CUDACC_VER_MAJOR__ == 11) && (__CUDACC_VER_MINOR__ >= 4)) || \\\n";
@@ -245,6 +264,17 @@ void CodeGenCUDA::PrintType(DataType t, std::ostream& os) {  // NOLINT(*)
     } else if (lanes <= 8) {
       ICHECK_EQ(lanes % 2, 0) << "only support even lane for half type";
       os << "uint" << lanes / 2;
+    } else {
+      fail = true;
+    }
+    if (!fail) return;
+  } else if (t.is_float8()) {
+    if (t.is_scalar()) {
+      os << "unsigned char";  // __nv_fp8_storage_t is an alias of unsigned char
+    } else if (lanes == 2) {
+      os << "unsigned short int";  // __nv_fp8x2_storage_t is an alias of unsigned short
+    } else if (lanes == 4) {
+      os << "unsigned int";  // __nv_fp8x4_storage_t is an alias of unsigned int
     } else {
       fail = true;
     }
@@ -405,6 +435,11 @@ void CodeGenCUDA::PrintType(DataType t, std::ostream& os) {  // NOLINT(*)
     }
   }
   LOG(FATAL) << "Cannot convert type " << t << " to CUDA type";
+}
+
+void CodeGenCUDA::PrintVecConstructor(DataType t, std::ostream& os) {
+  os << "make_";
+  PrintType(t, os);
 }
 
 void CodeGenCUDA::PrintVecBinaryOp(const std::string& op, DataType t, PrimExpr lhs, PrimExpr rhs,
@@ -855,6 +890,7 @@ void CodeGenCUDA::VisitExpr_(const CallNode* op, std::ostream& os) {
       os << "}\n";
     } else {
       std::string smem_elem_offset = this->PrintExpr(op->args[6]);
+      need_cast_smem_ptr_to_int_ = true;
       this->stream << PrintLoadMatrixAssembly(trans, num, type, local_ptr, local_elem_offset,
                                               smem_ptr, smem_elem_offset);
     }
@@ -880,8 +916,9 @@ void CodeGenCUDA::VisitExpr_(const CallNode* op, std::ostream& os) {
         runtime::Registry::Get("tir.index_map.shared_16x16_to_ldmatrix_32x8_layout");
     ICHECK(index_map_func);
 
+    arith::Analyzer analyzer;
     auto inverse_index_map =
-        IndexMap::FromFunc(2, *index_map_func).Inverse({Range(0, m), Range(0, n)});
+        IndexMap::FromFunc(2, *index_map_func).Inverse({Range(0, m), Range(0, n)}, &analyzer);
     auto indices_16x16 = inverse_index_map->final_indices;
 
     // "//" and "%" in the index map are translated to FloorDiv/Mod, but the plain Div/Mod are fine.
@@ -921,6 +958,7 @@ void CodeGenCUDA::VisitExpr_(const CallNode* op, std::ostream& os) {
     std::string src = this->PrintExpr(op->args[2]);
     std::string src_offset = this->PrintExpr(op->args[3]);
     std::string size = this->PrintExpr(op->args[4]);
+    need_cast_smem_ptr_to_int_ = true;
     // use size of argument list to indicate whether or not to use predicated cp.async
     if (op->args.size() == 5) {
       this->stream << PrintCpAsyncAssembly(dst, dst_offset, src, src_offset, size);
@@ -928,11 +966,68 @@ void CodeGenCUDA::VisitExpr_(const CallNode* op, std::ostream& os) {
       this->stream << PrintPredicatedCpAsyncAssembly(dst, dst_offset, src, src_offset, size,
                                                      this->PrintExpr(op->args[5]));
     }
+  } else if (op->op.same_as(builtin::ptx_cp_async_bulk())) {
+    need_cast_smem_ptr_to_int_ = true;
+    std::string dst = this->PrintExpr(op->args[0]);
+    std::string dst_offset = this->PrintExpr(op->args[1]);
+    std::string src = this->PrintExpr(op->args[2]);
+    std::string src_offset = this->PrintExpr(op->args[3]);
+    std::string size = this->PrintExpr(op->args[4]);
+    int barrier_id = Downcast<IntImm>(op->args[5])->value;
+    CHECK(barrier_id < barrier_count_);
+    std::string barrier = barrier_name_ + "[" + std::to_string(barrier_id) + "]";
+    this->stream << PrintCpAsyncBulkAsm(dst, dst_offset, src, src_offset, size, barrier);
   } else if (op->op.same_as(builtin::ptx_commit_group())) {
     this->stream << "__asm__ __volatile__(\"cp.async.commit_group;\");\n\n";
   } else if (op->op.same_as(builtin::ptx_wait_group())) {
     int n = Downcast<IntImm>(op->args[0])->value;
     this->stream << "__asm__ __volatile__(\"cp.async.wait_group " << n << ";\");\n\n";
+  } else if (op->op.same_as(builtin::ptx_cp_async_barrier())) {
+    need_cast_smem_ptr_to_int_ = true;
+    int barrier_id = Downcast<IntImm>(op->args[0])->value;
+    CHECK(barrier_id < barrier_count_);
+    std::string barrier = barrier_name_ + "[" + std::to_string(barrier_id) + "]";
+    this->stream << PrintCpAsyncBarrierAsm(barrier);
+  } else if (op->op.same_as(builtin::ptx_init_barrier_thread_count())) {
+    need_cast_smem_ptr_to_int_ = true;
+    int barrier_id = Downcast<IntImm>(op->args[0])->value;
+    CHECK(barrier_id < barrier_count_);
+    std::string barrier = barrier_name_ + "[" + std::to_string(barrier_id) + "]";
+    std::string thread_count = this->PrintExpr(op->args[1]);
+    this->stream << PrintInitBarrierThreadCountAsm(barrier, thread_count);
+  } else if (op->op.same_as(builtin::ptx_arrive_barrier())) {
+    need_cast_smem_ptr_to_int_ = true;
+    int barrier_id = Downcast<IntImm>(op->args[0])->value;
+    CHECK(barrier_id < barrier_count_);
+    std::string barrier = barrier_name_ + "[" + std::to_string(barrier_id) + "]";
+    this->stream << PrintArriveBarrierAsm(barrier);
+  } else if (op->op.same_as(builtin::ptx_arrive_barrier_expect_tx())) {
+    need_cast_smem_ptr_to_int_ = true;
+    int barrier_id = Downcast<IntImm>(op->args[0])->value;
+    CHECK(barrier_id < barrier_count_);
+    std::string barrier = barrier_name_ + "[" + std::to_string(barrier_id) + "]";
+    std::string byte_count = this->PrintExpr(op->args[1]);
+    this->stream << PrintArriveBarrierExpectTxAsm(barrier, byte_count);
+  } else if (op->op.same_as(builtin::ptx_wait_barrier())) {
+    need_cast_smem_ptr_to_int_ = true;
+    int barrier_id = Downcast<IntImm>(op->args[0])->value;
+    CHECK(barrier_id < barrier_count_);
+    std::string barrier = barrier_name_ + "[" + std::to_string(barrier_id) + "]";
+    this->stream << PrintWaitBarrierAsm(barrier);
+  } else if (op->op.same_as(builtin::create_barriers())) {
+    CHECK_EQ(barrier_count_, -1);
+    int barrier_count = Downcast<IntImm>(op->args[0])->value;
+    // pad barrier alignment to avoid runtime alignment errors
+    CHECK_EQ(barrier_alignment_bytes_ % sizeof(uint64_t), 0);
+    int barrier_alignment_count = barrier_alignment_bytes_ / sizeof(uint64_t);
+    if (barrier_count % barrier_alignment_count != 0) {
+      barrier_count = ((barrier_count / barrier_alignment_count) + 1) * barrier_alignment_count;
+    }
+    barrier_count_ = barrier_count;
+    this->stream << "__shared__ __align__(" << barrier_alignment_bytes_ << ") uint64_t "
+                 << barrier_name_ << "[" << barrier_count << "];\n";
+    this->stream << "for (int i = 0; i < " << barrier_count << "; ++i) { " << barrier_name_
+                 << "[i] = 0; }\n";
   } else if (op->op.same_as(builtin::ptx_ldg32())) {
     /*
     asm volatile (
@@ -1066,15 +1161,14 @@ void CodeGenCUDA::VisitStmt_(const EvaluateNode* op) {
 
 void CodeGenCUDA::VisitExpr_(const RampNode* op, std::ostream& os) {
   CHECK_LE(op->lanes, 4) << "ValueError: Ramp of more than 4 lanes is not allowed.";
-  os << "(make_";
-  PrintType(op->dtype, os);
+  PrintVecConstructor(op->dtype, os);
   os << "(";
   for (int i = 0; i < op->lanes; i++) {
     os << "(" << PrintExpr(op->base) << ")"
        << "+(" << PrintExpr(op->stride) << "*" << i << ")";
     if (i != op->lanes - 1) os << ", ";
   }
-  os << "))";
+  os << ")";
 }
 
 void CodeGenCUDA::VisitExpr_(const BroadcastNode* op, std::ostream& os) {  // NOLINT(*)
@@ -1094,8 +1188,7 @@ void CodeGenCUDA::VisitExpr_(const BroadcastNode* op, std::ostream& os) {  // NO
 
   if (op->dtype.is_float16()) {
     std::string v = PrintExpr(op->value);
-    os << "make_";
-    PrintType(op->dtype, os);
+    PrintVecConstructor(op->dtype, os);
     os << '(';
     for (int i = 0; i < op->lanes / 2; ++i) {
       if (i != 0) os << ", ";
@@ -1107,8 +1200,7 @@ void CodeGenCUDA::VisitExpr_(const BroadcastNode* op, std::ostream& os) {  // NO
 
   if (op->dtype.is_bfloat16()) {
     std::string v = PrintExpr(op->value);
-    os << "make_";
-    PrintType(op->dtype, os);
+    PrintVecConstructor(op->dtype, os);
     os << '(';
     for (int i = 0; i < op->lanes / 2; ++i) {
       if (i != 0) os << ", ";
@@ -1140,8 +1232,7 @@ void CodeGenCUDA::VisitExpr_(const BroadcastNode* op, std::ostream& os) {  // NO
           os << "(int)" << v;
         }
       } else if (op->lanes == 16 || op->lanes == 32) {
-        os << "make_";
-        PrintType(op->dtype, os);
+        PrintVecConstructor(op->dtype, os);
         os << '(';
         for (int i = 0; i < op->lanes / 8; ++i) {
           if (i != 0) os << ", ";
@@ -1163,30 +1254,11 @@ void CodeGenCUDA::VisitExpr_(const BroadcastNode* op, std::ostream& os) {  // NO
   }
 
   std::string v = PrintExpr(op->value);
-  os << "make_";
-  PrintType(op->dtype, os);
+  PrintVecConstructor(op->dtype, os);
   os << '(';
   for (int i = 0; i < op->lanes; ++i) {
     if (i != 0) os << ", ";
     os << v;
-  }
-  os << ')';
-}
-
-void CodeGenCUDA::VisitExpr_(const ShuffleNode* op, std::ostream& os) {
-  std::vector<std::string> to_shuffle(op->vectors.size());
-  for (int i = 0, e = op->vectors.size(); i < e; ++i) {
-    ICHECK(op->vectors[i].dtype().lanes() == 1) << "Only scalars can be shuffled in CUDA!";
-    to_shuffle[i] = PrintExpr(op->vectors[i]);
-  }
-  os << "make_";
-  PrintType(op->dtype, os);
-  os << '(';
-  for (int i = 0, e = op->indices.size(); i < e; ++i) {
-    const int64_t* val = as_const_int(op->indices[i]);
-    ICHECK(val && *val >= 0 && (int)*val < (int)to_shuffle.size());
-    if (i != 0) os << ", ";
-    os << to_shuffle[*val];
   }
   os << ')';
 }
@@ -1333,23 +1405,11 @@ int32_t CodeGenCUDA::GetWmmaFragmentSize(const std::string& scope, const VarNode
   ICHECK(fragment_shapes.count(variable))
       << "Cannot find shape of the wmma fragment " << variable->name_hint;
   std::string shape_str = fragment_shapes.at(variable);
-  size_t m, n, k;
-  size_t last_pos = 0, pos = 0;
-  pos = shape_str.find(", ", last_pos);
-  m = tvm::codegen::stoi(shape_str.substr(last_pos, pos - last_pos));
-  last_pos = pos + 2;
-  pos = shape_str.find(", ", last_pos);
-  n = tvm::codegen::stoi(shape_str.substr(last_pos, pos - last_pos));
-  last_pos = pos + 2;
-  k = tvm::codegen::stoi(shape_str.substr(last_pos, shape_str.length() - last_pos));
-  if (scope == "wmma.matrix_a") {
-    return size / m / k;
-  } else if (scope == "wmma.matrix_b") {
-    return size / n / k;
-  } else if (scope == "wmma.accumulator") {
-    return size / m / n;
-  }
-  return 0;
+  std::pair<int32_t, int32_t> dim = GetWmmaFragmentDimSize(shape_str, scope);
+  if (dim.first * dim.second != 0)
+    return size / dim.first / dim.second;
+  else
+    return 0;
 }
 
 void CodeGenCUDA::HandleVolatileLoads(const std::string& value, const BufferLoadNode* op,
@@ -1381,8 +1441,7 @@ void CodeGenCUDA::PrintVecElemLoadExpr(DataType t, int i, const std::string& val
 
   if (t.is_float16()) {
     if (i == 0) {
-      os << "make_";
-      PrintType(t, os);
+      PrintVecConstructor(t, os);
       os << '(';
     }
     if (i % 2 == 0) {
@@ -1400,8 +1459,7 @@ void CodeGenCUDA::PrintVecElemLoadExpr(DataType t, int i, const std::string& val
 
   if (t.is_bfloat16()) {
     if (i == 0) {
-      os << "make_";
-      PrintType(t, os);
+      PrintVecConstructor(t, os);
       os << '(';
     }
     if (i % 2 == 0) {
@@ -1418,8 +1476,7 @@ void CodeGenCUDA::PrintVecElemLoadExpr(DataType t, int i, const std::string& val
   }
 
   if (i == 0) {
-    os << "make_";
-    PrintType(t, os);
+    PrintVecConstructor(t, os);
     os << "(";
   }
   os << value;

@@ -56,7 +56,7 @@ Buffer BufferDecl(Array<PrimExpr> shape, DataType dtype, String buffer_name, Opt
  * \brief The primitive function statement.
  * \return The PrimFuncFrame.
  */
-PrimFuncFrame PrimFunc();
+PrimFuncFrame PrimFunc(bool is_private);
 
 /*!
  * \brief The PrimFunc variable arguments adding function.

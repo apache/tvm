@@ -15,7 +15,10 @@
 # specific language governing permissions and limitations
 # under the License.
 import tvm
+import tvm.testing
 from tvm import te
+
+import pytest
 
 
 def check_throws(f):
@@ -213,10 +216,30 @@ def test_if_then_else():
             raise ValueError("Unknown combinations")
 
 
+@pytest.mark.parametrize("num_args", list(range(2, 10)))
+def test_comm_reducer(num_args):
+    """Handle all arguments in tir comm_reducer
+
+    The `tir.comm_reducer` API has two distinct usages.  It can reduce
+    a tensor along a specified axis, similar to numpy.max, or it can
+    reduce several arguments together, simililar to Python's built-in
+    max().  This choice is based on the type of the second argument.
+
+    If the `tir.comm_reducer` is reducing all arguments, then all
+    arguments should be used.  In the past, the introduction of new
+    arguments intended for use when reducing along a tensor axis has
+    failed to forward these arguments when reducing along a list of
+    items.
+    """
+    assert tvm.tir.max(*range(num_args)) == num_args - 1
+
+
+def test_llvm_intrin():
+    with pytest.raises(ValueError, match=r"Unknown llvm intrinsic function llvm.dummy"):
+        a = tvm.tir.call_llvm_intrin("int32x4", "llvm.dummy", 0)
+    with pytest.raises(ValueError, match=r"Unknown llvm intrinsic function llvm.dummy"):
+        a = tvm.tir.call_llvm_pure_intrin("int32x4", "llvm.dummy", 0)
+
+
 if __name__ == "__main__":
-    test_const_fold()
-    test_const_fold2()
-    test_const_fold3()
-    test_const_fold4()
-    test_binary_dtype_match()
-    test_if_then_else()
+    tvm.testing.main()

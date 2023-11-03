@@ -233,7 +233,7 @@ def resnet(
             filter_list[i + 1],
             (1 if i == 0 else 2, 1 if i == 0 else 2, 1 if i == 0 else 2),
             False,
-            name="stage%d_unit%d" % (i + 1, 1),
+            name=f"stage{i + 1}_unit1",
             bottle_neck=bottle_neck,
             data_layout=data_layout,
             kernel_layout=kernel_layout,
@@ -244,7 +244,7 @@ def resnet(
                 filter_list[i + 1],
                 (1, 1, 1),
                 True,
-                name="stage%d_unit%d" % (i + 1, j + 2),
+                name=f"stage{i + 1}_unit{j + 2}",
                 bottle_neck=bottle_neck,
                 data_layout=data_layout,
                 kernel_layout=kernel_layout,
@@ -288,7 +288,7 @@ def get_net(
             filter_list = [16, 16, 32, 64]
             bottle_neck = False
         else:
-            raise ValueError("no experiments done on num_layers {}".format(num_layers))
+            raise ValueError(f"no experiments done on num_layers {num_layers}")
         units = per_unit * num_stages
     else:
         if num_layers >= 50:
@@ -313,7 +313,7 @@ def get_net(
         elif num_layers == 269:
             units = [3, 30, 48, 8]
         else:
-            raise ValueError("no experiments done on num_layers {}".format(num_layers))
+            raise ValueError(f"no experiments done on num_layers {num_layers}")
 
     return resnet(
         units=units,

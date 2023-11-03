@@ -49,7 +49,7 @@ def get_infer_layout(task_name):
         return topi.nn.conv2d_infer_layout
     if task_name.startswith("depthwise_conv2d"):
         return topi.nn.depthwise_conv2d_infer_layout
-    raise ValueError("Cannot find infer layout for task %s" % task_name)
+    raise ValueError(f"Cannot find infer layout for task {task_name}")
 
 
 @autotvm.template("layout_transform")
@@ -168,14 +168,14 @@ class BaseGraphTuner(object):
             graph = bind_inputs(graph, input_shapes, dtype)
             expr2graph(graph, self._target_ops, node_dict, self._node_list, target)
         else:
-            raise RuntimeError("Unsupported graph type: %s" % str(type(graph)))
+            raise RuntimeError(f"Unsupported graph type: {type(graph)}")
 
         self._graph = graph
         self._in_nodes_dict = get_in_nodes(self._node_list, self._target_ops, input_shapes.keys())
         if len(self._in_nodes_dict) == 0:
             raise RuntimeError(
-                "Could not find any input nodes with whose "
-                "operator is one of %s" % self._target_ops
+                f"Could not find any input nodes with whose "
+                f"operator is one of {self._target_ops}"
             )
         self._out_nodes_dict = get_out_nodes(self._in_nodes_dict)
         self._fetch_cfg()
@@ -583,7 +583,7 @@ class BaseGraphTuner(object):
             records = self.get_optimal_records()
             for record in records:
                 out_file.write(encode(record[0], record[1]) + "\n")
-        msg = "Writing optimal schedules to %s successfully." % record_file
+        msg = f"Writing optimal schedules to {record_file} successfully."
         self._logger.info(msg)
 
     @abstractmethod

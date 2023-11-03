@@ -45,6 +45,7 @@
 #include <vector>
 
 #include "../../target/source/codegen_source_base.h"
+#include "../../tir/transforms/ir_utils.h"
 #include "../op/annotation/annotation.h"
 #include "../op/call/call.h"
 #include "../op/memory/device_copy.h"
@@ -453,7 +454,32 @@ class AOTExecutorCodegen : public MixedModeVisitor {
         // call_extern calling convention with optional context
         if (has_c_device_api_context) {
           device_context = device_contexts_.Get(global_var).value();
-          args.push_back(device_context);
+
+          // call_extern has no further legalization steps, and
+          // requires the number of arguments to match exactly.    For
+          // internal calls, conditionally append the device context.
+          bool requires_device_context = [&]() -> bool {
+            Optional<Integer> opt = num_arguments_.Get(global_var);
+            if (!opt.defined()) {
+              // For external calls, we must trust that the user has
+              // supplied a kernel that accepts a device_context
+              // argument.
+              return true;
+            }
+            int num_callee_params = opt.value()->value;
+            int num_args = call_lowered_props.arguments.size();
+            if (num_callee_params == num_args) {
+              return false;
+            } else if (num_callee_params == num_args + 1) {
+              return true;
+            } else {
+              LOG(FATAL) << "Callee " << global_var << " requires " << num_callee_params
+                         << ", but is called with " << num_args << " arguments.";
+            }
+          }();
+          if (requires_device_context) {
+            args.push_back(device_context);
+          }
         }
         func_call = tir::Evaluate(AddCheckReturn(
             tvm::tir::Call(DataType::Int(32), tvm::tir::builtin::call_extern(), args)));
@@ -505,18 +531,34 @@ class AOTExecutorCodegen : public MixedModeVisitor {
    * copy-on-write fashion.
    */
   void CopyToOutput(PrimExpr out, PrimExpr in, bool pack_input, size_t size) {
+    std::vector<tir::Stmt> let_nest;
+
     // Define intermediate DLTensor to load/store the data
     tir::Buffer tmp_read =
         tir::decl_buffer({IntImm(DataType::UInt(64), size)}, DataType::UInt(8), "tmp_read");
     tir::Buffer tmp_write =
         tir::decl_buffer({IntImm(DataType::UInt(64), size)}, DataType::UInt(8), "tmp_write");
-    te::Var loop_idx("i", DataType::Int(32));
-    auto retval_i = tir::BufferLoad(tmp_read, {loop_idx});
+
+    // Re-use in/out as the buffer var, if possible
+    if (auto opt = out.as<tir::Var>()) {
+      tmp_write.CopyOnWrite()->data = opt.value();
+    } else {
+      let_nest.push_back(tir::LetStmt(tmp_write->data, out, tir::Evaluate(0)));
+    }
+    if (auto opt = in.as<tir::Var>()) {
+      tmp_read.CopyOnWrite()->data = opt.value();
+    } else {
+      let_nest.push_back(tir::LetStmt(tmp_read->data, in, tir::Evaluate(0)));
+    }
+
     // Copy the variable from the input to the output
-    tir::Stmt copy = tir::For(
-        loop_idx, 0, tir::make_const(DataType::Int(32, 1), size, Span()), tir::ForKind::kSerial,
-        tir::BufferStore(tmp_write, tir::Let(tmp_read->data, in, retval_i), {loop_idx}));
-    stmts_.push_back(tir::LetStmt(tmp_write->data, out, copy));
+    te::Var loop_idx("i", DataType::Int(32));
+    tir::Stmt copy = tir::BufferStore(tmp_write, tir::BufferLoad(tmp_read, {loop_idx}), {loop_idx});
+    copy = tir::For(loop_idx, 0, tir::make_const(DataType::Int(32, 1), size, Span()),
+                    tir::ForKind::kSerial, copy);
+    copy = tir::MergeNest(let_nest, copy);
+
+    stmts_.push_back(copy);
   }
 
   /*
@@ -990,6 +1032,8 @@ class AOTExecutorCodegen : public MixedModeVisitor {
   Map<String, tir::Var> devices_;
   /*! \brief map of GlobalVars to C Device API contexts */
   Map<GlobalVar, tir::Var> device_contexts_;
+  /*! \brief map of GlobalVars to the number of arguments they require */
+  Map<GlobalVar, Integer> num_arguments_;
   /*! \brief input and output variables belonging to the main function signature */
   Array<tir::Var> main_signature_;
   /*! \brief input and output variables belonging to the main function signature */
@@ -1166,6 +1210,15 @@ class AOTExecutorCodegen : public MixedModeVisitor {
     }
 
     CollectDeviceVariables(lowered_mod->GetAttr<Map<GlobalVar, String>>("device_contexts").value());
+    num_arguments_ = [&]() -> Map<GlobalVar, Integer> {
+      Map<GlobalVar, Integer> arg_count;
+      for (const auto& [gvar, func] : lowered_mod->functions) {
+        if (const auto* prim_func = func.as<tir::PrimFuncNode>()) {
+          arg_count.Set(gvar, prim_func->params.size());
+        }
+      }
+      return arg_count;
+    }();
     VisitExpr(lowered_main_func->body);
 
     // Create the runner function. Please note that the function is not legal yet
@@ -1310,7 +1363,7 @@ class AOTExecutorCodegen : public MixedModeVisitor {
 class AOTExecutorCodegenModule : public runtime::ModuleNode {
  public:
   AOTExecutorCodegenModule() {}
-  virtual PackedFunc GetFunction(const std::string& name, const ObjectPtr<Object>& sptr_to_self) {
+  virtual PackedFunc GetFunction(const String& name, const ObjectPtr<Object>& sptr_to_self) {
     if (name == "init") {
       return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
         ICHECK_EQ(args.num_args, 2) << "The expected of arguments are: "

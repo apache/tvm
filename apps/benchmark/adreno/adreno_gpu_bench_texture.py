@@ -220,7 +220,7 @@ def evaluate_network(network, target, target_host, dtype, repeat):
     tmp = tempdir()
 
     filename = "%s.so" % network
-    lib.export_library(tmp.relpath(filename), ndk.create_shared)
+    lib.export_library(tmp.relpath(filename), fcompile=ndk.create_shared)
 
     # upload library and params
     print_progress("%-20s uploading..." % network)

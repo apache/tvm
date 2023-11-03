@@ -156,6 +156,37 @@ def detect_iter_map(
     )
 
 
+def normalize_to_iter_sum(index, input_iters):
+    """Normalize expr to iter sum.
+
+    The normalized result ensures that
+    each scale is in the form of (symbol_prod) * cscale
+    It will also sort in desc order by cscale then len(symbol_prod).
+
+    Parameters
+    ----------
+    index : PrimExpr
+        The input index
+
+    input_iters : Map[Var, Range]
+        The domain of each input iterators.
+
+    Returns
+    -------
+    iter_sum: IterSumExpr
+        The result iter sum
+
+    Note
+    ----
+    This function does best effort detection, so some undetected
+    part can go into iter_sum.base
+
+    This function is useful to decide the stride multiplier and
+    division factor in buffer access patterns.
+    """
+    return _ffi_api.NormalizeToIterSum(index, input_iters)
+
+
 def iter_map_simplify(
     indices,
     input_iters,

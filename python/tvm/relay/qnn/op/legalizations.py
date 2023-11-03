@@ -23,7 +23,7 @@ from tvm import relay
 from tvm._ffi.base import TVMError
 from tvm.relay.qnn.op.canonicalizations import create_integer_lookup_op
 
-from ....target.x86 import target_has_sse42
+from ....target.x86 import target_has_features
 from ....topi.utils import is_target
 from .. import op as reg
 
@@ -457,8 +457,7 @@ def helper_change_dtypes_to_be_same(attrs, inputs, types, relay_op):
 
 def is_fast_int8_on_intel():
     """Checks whether the hardware has support for fast Int8 arithmetic operations."""
-    target = tvm.target.Target.current(allow_none=False)
-    return target_has_sse42(target.mcpu)
+    return target_has_features("sse4.2")
 
 
 # Helper function to align up given value.

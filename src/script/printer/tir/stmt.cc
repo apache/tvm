@@ -126,16 +126,23 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
       return WhileDoc(cond, (*f)->stmts);
     });
 
+namespace {
+Doc DeclBufferDoc(tir::DeclBuffer stmt, ObjectPath p, IRDocsifier d,
+                  BufferVarDefinition var_definitions) {
+  bool concise = AllowConciseScoping(d);
+  ExprDoc rhs = BufferDecl(stmt->buffer, "decl_buffer", {}, p->Attr("buffer"), d->frames.back(), d,
+                           var_definitions);
+  With<TIRFrame> f(d, stmt);
+  ExprDoc lhs = DefineBuffer(stmt->buffer, *f, d);
+  AsDocBody(stmt->body, p->Attr("body"), f->get(), d);
+  return DoConciseScoping(lhs, rhs, &(*f)->stmts, concise);
+}
+}  // namespace
+
 TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
     .set_dispatch<tir::DeclBuffer>(  //
         "", [](tir::DeclBuffer stmt, ObjectPath p, IRDocsifier d) -> Doc {
-          bool concise = AllowConciseScoping(d);
-          ExprDoc rhs =
-              BufferDecl(stmt->buffer, "decl_buffer", {}, p->Attr("buffer"), d->frames.back(), d);
-          With<TIRFrame> f(d, stmt);
-          ExprDoc lhs = DefineBuffer(stmt->buffer, *f, d);
-          AsDocBody(stmt->body, p->Attr("body"), f->get(), d);
-          return DoConciseScoping(lhs, rhs, &(*f)->stmts, concise);
+          return DeclBufferDoc(stmt, p, d, BufferVarDefinition::None);
         });
 
 TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
@@ -198,7 +205,8 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
         "", [](tir::Allocate stmt, ObjectPath stmt_p, IRDocsifier d) -> Doc {
           bool concise = AllowConciseScoping(d);
           if (d->cfg->syntax_sugar && IsAllocateDeclBufferPattern(stmt.get())) {
-            return d->AsDoc(stmt->body, stmt_p->Attr("body"));
+            return DeclBufferDoc(Downcast<tir::DeclBuffer>(stmt->body), stmt_p->Attr("body"), d,
+                                 BufferVarDefinition::DataPointer);
           }
           Array<ExprDoc> args;
           Array<String> kwargs_keys;

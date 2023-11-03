@@ -45,7 +45,7 @@ GraphExecutorFactory::GraphExecutorFactory(
 }
 
 PackedFunc GraphExecutorFactory::GetFunction(
-    const std::string& name, const tvm::runtime::ObjectPtr<tvm::runtime::Object>& sptr_to_self) {
+    const String& name, const tvm::runtime::ObjectPtr<tvm::runtime::Object>& sptr_to_self) {
   if (name == module_name_) {
     return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
       std::vector<Device> devices;

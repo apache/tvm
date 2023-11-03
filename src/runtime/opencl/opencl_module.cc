@@ -134,7 +134,7 @@ cl::OpenCLWorkspace* OpenCLModuleNodeBase::GetGlobalWorkspace() {
   return cl::OpenCLWorkspace::Global();
 }
 
-PackedFunc OpenCLModuleNodeBase::GetFunction(const std::string& name,
+PackedFunc OpenCLModuleNodeBase::GetFunction(const String& name,
                                              const ObjectPtr<Object>& sptr_to_self) {
   ICHECK_EQ(sptr_to_self.get(), this);
   ICHECK_NE(name, symbol::tvm_module_main) << "Device function do not have main";
@@ -160,7 +160,7 @@ PackedFunc OpenCLModuleNodeBase::GetFunction(const std::string& name,
   return PackFuncVoidAddr(f, info.arg_types);
 }
 
-void OpenCLModuleNode::SaveToFile(const std::string& file_name, const std::string& format) {
+void OpenCLModuleNode::SaveToFile(const String& file_name, const String& format) {
   std::string fmt = GetFileFormat(file_name, format);
   ICHECK_EQ(fmt, fmt_) << "Can only save to format=" << fmt_;
   std::string meta_file = GetMetaFilePath(file_name);
@@ -174,7 +174,7 @@ void OpenCLModuleNode::SaveToBinary(dmlc::Stream* stream) {
   stream->Write(data_);
 }
 
-std::string OpenCLModuleNode::GetSource(const std::string& format) {
+String OpenCLModuleNode::GetSource(const String& format) {
   if (format == fmt_) return data_;
   if (fmt_ == "cl") {
     return data_;
@@ -185,7 +185,6 @@ std::string OpenCLModuleNode::GetSource(const std::string& format) {
 
 void OpenCLModuleNode::Init() {
   workspace_ = GetGlobalWorkspace();
-  workspace_->Init();
   // initialize the kernel id, need to lock global table.
   std::lock_guard<std::mutex> lock(workspace_->mu);
   for (const auto& kv : fmap_) {
@@ -208,10 +207,17 @@ void OpenCLModuleNode::Init() {
                                    << "delimiter was found.";
   ICHECK_EQ(fmap_.size(), parsed_kernels_.size())
       << "The number of parsed kernel sources does not match the number of kernel functions";
+}
+
+bool OpenCLModuleNode::IsProgramCreated(const std::string& func_name, int device_id) {
+  auto size = programs_[func_name].size();
+  if (size > 0 && programs_[func_name][device_id] != nullptr) return true;
+  auto dev_size = GetGlobalWorkspace()->devices.size();
+  ICHECK(device_id < static_cast<int>(dev_size))
+      << "Device id " << device_id << " is bigger than number of available devices";
   // zero initialize cl_program pointers for each device kernel
-  for (auto& kv : parsed_kernels_) {
-    programs_.insert({kv.first, std::vector<cl_program>(workspace_->devices.size(), nullptr)});
-  }
+  if (size == 0) programs_[func_name].resize(dev_size, nullptr);
+  return false;
 }
 
 cl_kernel OpenCLModuleNode::InstallKernel(cl::OpenCLWorkspace* w, cl::OpenCLThreadEntry* t,
@@ -220,7 +226,7 @@ cl_kernel OpenCLModuleNode::InstallKernel(cl::OpenCLWorkspace* w, cl::OpenCLThre
   int device_id = t->device.device_id;
   auto did = w->GetCLDeviceID(device_id);
   auto platform = w->device_to_platform[did];
-  if (programs_[func_name][device_id] == nullptr) {
+  if (!IsProgramCreated(func_name, device_id)) {
     // create program
     if (fmt_ == "cl") {
       const char* s = parsed_kernels_[func_name].c_str();
@@ -252,7 +258,9 @@ cl_kernel OpenCLModuleNode::InstallKernel(cl::OpenCLWorkspace* w, cl::OpenCLThre
       log.resize(len);
       clGetProgramBuildInfo(programs_[func_name][device_id], dev, CL_PROGRAM_BUILD_LOG, len,
                             &log[0], nullptr);
-      LOG(FATAL) << "OpenCL build error for device=" << dev << "\n" << log;
+      LOG(FATAL) << "OpenCL build error for device=" << dev
+                 << "\nError: " << cl::CLGetErrorString(err) << "\n"
+                 << log;
     }
   }
   // build kernel
@@ -266,6 +274,7 @@ cl_kernel OpenCLModuleNode::InstallKernel(cl::OpenCLWorkspace* w, cl::OpenCLThre
 }
 
 void OpenCLModuleNode::SetPreCompiledPrograms(const std::string& bytes) {
+  workspace_->Init();
   std::string data = bytes;
   dmlc::MemoryStringStream reader(&data);
   dmlc::Stream* strm = &reader;
@@ -278,7 +287,7 @@ void OpenCLModuleNode::SetPreCompiledPrograms(const std::string& bytes) {
     std::vector<unsigned char> bin_vector;
     strm->Read(&name);
     strm->Read(&bin_vector);
-    if (programs_[name][device_id] == nullptr) {
+    if (!IsProgramCreated(name, device_id)) {
       cl_int err = 0;
       cl_int binaryStatus;
       size_t binarySize = bin_vector.size();
@@ -308,6 +317,7 @@ void OpenCLModuleNode::SetPreCompiledPrograms(const std::string& bytes) {
 }
 
 std::string OpenCLModuleNode::GetPreCompiledPrograms() {
+  workspace_->Init();
   std::string data;
   dmlc::MemoryStringStream writer(&data);
   dmlc::Stream* strm = &writer;
@@ -317,7 +327,7 @@ std::string OpenCLModuleNode::GetPreCompiledPrograms() {
     cl::OpenCLThreadEntry* t = workspace_->GetThreadEntry();
     int device_id = t->device.device_id;
     t->kernel_table.resize(workspace_->num_registered_kernels);
-    if (programs_[std::string(name)][device_id] == nullptr) {
+    if (!IsProgramCreated(name, device_id)) {
       InstallKernel(workspace_, t, name, kid_map_[name]);
     }
     size_t size;
@@ -335,7 +345,7 @@ std::string OpenCLModuleNode::GetPreCompiledPrograms() {
   return data;
 }
 
-PackedFunc OpenCLModuleNode::GetFunction(const std::string& name,
+PackedFunc OpenCLModuleNode::GetFunction(const String& name,
                                          const ObjectPtr<Object>& sptr_to_self) {
   ICHECK_EQ(sptr_to_self.get(), this);
   if (name == "opencl.GetPreCompiledPrograms") {
@@ -358,7 +368,7 @@ Module OpenCLModuleCreate(std::string data, std::string fmt,
 }
 
 // Load module from module.
-Module OpenCLModuleLoadFile(const std::string& file_name, const std::string& format) {
+Module OpenCLModuleLoadFile(const std::string& file_name, const String& format) {
   std::string data;
   std::unordered_map<std::string, FunctionInfo> fmap;
   std::string fmt = GetFileFormat(file_name, format);

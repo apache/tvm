@@ -145,6 +145,7 @@ class BuiltinLower : public StmtExprMutator {
       if (scope.max_sizes.shape_stack != -1) {
         scope.stack_shape = decl_buffer({IntImm(DataType::Int(64), scope.max_sizes.shape_stack)},
                                         DataType::Int(64), "stack_shape");
+        stmt = DeclBuffer(scope.stack_shape, stmt);
         stmt = LetStmt(scope.stack_shape->data, StackAlloca("shape", scope.max_sizes.shape_stack),
                        stmt);
       }
@@ -159,6 +160,7 @@ class BuiltinLower : public StmtExprMutator {
         stmt =
             LetStmt(scope.stack_value, StackAlloca("arg_value", scope.max_sizes.arg_stack), stmt);
 
+        stmt = DeclBuffer(scope.stack_tcode, stmt);
         stmt = LetStmt(scope.stack_tcode->data, StackAlloca("arg_tcode", scope.max_sizes.arg_stack),
                        stmt);
       }
@@ -247,24 +249,36 @@ class BuiltinLower : public StmtExprMutator {
     ICHECK(device_id_) << "Unknown device id in current IR";
     Stmt throw_last_error = Evaluate(Call(DataType::Int(32), builtin::tvm_throw_last_error(), {}));
 
-    Stmt body = SeqStmt({IfThenElse(Call(DataType::Bool(1), builtin::isnullptr(), {op->buffer_var}),
-                                    throw_last_error),
-                         op->body});
-    Stmt alloca = LetStmt(op->buffer_var,
-                          Call(op->buffer_var.dtype(), Op::Get("tir.TVMBackendAllocWorkspace"),
-                               {cast(DataType::Int(32), device_type_.value()),
-                                cast(DataType::Int(32), device_id_.value()), total_bytes,
-                                IntImm(DataType::Int(32), op->dtype.code()),
-                                IntImm(DataType::Int(32), op->dtype.bits())}),
-                          body);
-
+    Stmt alloc_nullptr_check = IfThenElse(
+        Call(DataType::Bool(1), builtin::isnullptr(), {op->buffer_var}), throw_last_error);
     PrimExpr free_op = Call(DataType::Int(32), Op::Get("tir.TVMBackendFreeWorkspace"),
                             {cast(DataType::Int(32), device_type_.value()),
                              cast(DataType::Int(32), device_id_.value()), op->buffer_var});
     Stmt free_stmt = IfThenElse(free_op != make_zero(DataType::Int(32)), throw_last_error);
-    body = SeqStmt({alloca, free_stmt});
+
+    Stmt body = op->body;
+    std::vector<Stmt> nest;
+    while (auto opt = body.as<DeclBuffer>()) {
+      auto decl = opt.value();
+      body = decl->body;
+      decl.CopyOnWrite()->body = Evaluate(0);
+      nest.push_back(decl);
+    }
+
+    body = SeqStmt::Flatten(body, free_stmt);
+    body = MergeNest(nest, body);
+    body = SeqStmt::Flatten(alloc_nullptr_check, body);
+
     body = AttrStmt(op->buffer_var, attr::storage_alignment,
                     make_const(DataType::Int(32), runtime::kTempAllocaAlignment), body);
+    body = LetStmt(op->buffer_var,
+                   Call(op->buffer_var.dtype(), Op::Get("tir.TVMBackendAllocWorkspace"),
+                        {cast(DataType::Int(32), device_type_.value()),
+                         cast(DataType::Int(32), device_id_.value()), total_bytes,
+                         IntImm(DataType::Int(32), op->dtype.code()),
+                         IntImm(DataType::Int(32), op->dtype.bits())}),
+                   body);
+
     return body;
   }
 
@@ -338,7 +352,7 @@ class BuiltinLower : public StmtExprMutator {
                   << "but was instead the expression " << device_type_ << " with type "
                   << device_type_.value()->GetTypeKey();
 
-    String device_name = runtime::DeviceName(as_int->value);
+    String device_name = runtime::DLDeviceType2Str(as_int->value);
     return StringImm("device_api." + device_name + "." + method_name);
   }
 
@@ -567,15 +581,21 @@ class BuiltinLower : public StmtExprMutator {
     ICHECK(device_id_) << "Unknown device id in current IR";
     Stmt throw_last_error = Evaluate(Call(DataType::Int(32), builtin::tvm_throw_last_error(), {}));
 
+    PrimExpr storage_scope = call->args[0];
+    Call free_op = Call(DataType::Int(32), builtin::tvm_call_packed(),
+                        {GetDeviceMethodName("free_nd"), device_type_.value(), device_id_.value(),
+                         storage_scope, let->var});
+    Stmt free_stmt = IfThenElse(free_op != make_zero(DataType::Int(32)), throw_last_error);
+
     Stmt body = SeqStmt(
         {IfThenElse(Call(DataType::Bool(1), builtin::isnullptr(), {let->var}), throw_last_error),
-         let->body});
+         let->body, free_stmt});
 
     DataType dtype =
         let->var->type_annotation.as<PointerTypeNode>()->element_type.as<PrimTypeNode>()->dtype;
 
     std::string fdevapi_prefix = "device_api.";
-    fdevapi_prefix += runtime::DeviceName(device_type_.as<IntImmNode>()->value);
+    fdevapi_prefix += runtime::DLDeviceType2Str(device_type_.as<IntImmNode>()->value);
 
     Array<PrimExpr> args = {
         GetDeviceMethodName("alloc_nd"),
@@ -591,15 +611,7 @@ class BuiltinLower : public StmtExprMutator {
 
     Call call_packed = Call(let->var.dtype(), builtin::tvm_call_packed(), args);
     Stmt alloca = LetStmt(let->var, call_packed, body);
-
-    PrimExpr storage_scope = call->args[0];
-    Call free_op = Call(DataType::Int(32), builtin::tvm_call_packed(),
-                        {GetDeviceMethodName("free_nd"), device_type_.value(), device_id_.value(),
-                         storage_scope, let->var});
-
-    Stmt free_stmt = IfThenElse(free_op != make_zero(DataType::Int(32)), throw_last_error);
-    body = SeqStmt({alloca, free_stmt});
-    return body;
+    return alloca;
   }
 
  private:
@@ -629,9 +641,11 @@ namespace transform {
 
 Pass LowerTVMBuiltin() {
   auto pass_func = [](PrimFunc f, IRModule m, PassContext ctx) {
-    auto* n = f.CopyOnWrite();
-    n->body = BuiltinLower().Build(n->body);
-    VLOG(2) << "LowerTVMBuiltin: " << f;
+    if (IsHostFunc(f).value_or(false)) {
+      auto global_symbol = f->GetAttr<String>(tvm::attr::kGlobalSymbol);
+      f.CopyOnWrite()->body = BuiltinLower().Build(f->body);
+      VLOG(2) << "LowerTVMBuiltin: " << f;
+    }
     return f;
   };
   return CreatePrimFuncPass(pass_func, 0, "tir.LowerTVMBuiltin", {});

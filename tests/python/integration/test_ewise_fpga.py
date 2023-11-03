@@ -18,7 +18,6 @@
 import os
 
 import numpy as np
-
 import tvm
 import tvm.testing
 from tvm import te
@@ -28,7 +27,7 @@ os.environ["CL_CONTEXT_EMULATOR_DEVICE_INTELFPGA"] = "1"
 
 
 @tvm.register_func
-def tvm_callback_vhls_postproc(code):
+def tvm_callback_vhls_postproc(code, _):
     """Hook to inspect the Vivado HLS code before actually run it"""
     print(code)
     return code

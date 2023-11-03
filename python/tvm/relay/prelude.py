@@ -59,9 +59,9 @@ def get_tensor_array_shape(expr, dtype, prelude):
     checked_type = mod["main"].body.checked_type
     assert isinstance(checked_type, TypeCall), "Input must be a tensor array."
     ta_type_str = checked_type.args[0].func.name_hint
-    static_ta_ty_start = "static_tensor_{}".format(dtype)
+    static_ta_ty_start = f"static_tensor_{dtype}"
     if ta_type_str.startswith(static_ta_ty_start):
-        shape_str = ta_type_str.replace("{}_".format(static_ta_ty_start), "").replace("_t", "")
+        shape_str = ta_type_str.replace(f"{static_ta_ty_start}_", "").replace("_t", "")
         shape = []
         if "scalar" not in shape_str:
             for dim_str in shape_str.split("_"):
@@ -104,18 +104,18 @@ def _get_name_static(canonical, dtype, shape, batch_dim=None, extra_shapes=None)
 
     if extra_shapes is not None:
         for n, s in extra_shapes.items():
-            extra_shape_str = "_{}_{}".format(n, _to_str(s))
+            extra_shape_str = f"_{n}_{_to_str(s)}"
             shape_str += extra_shape_str
 
     if len(shape_str) == 0:
         shape_str = "scalar"
     if canonical == "tensor_t":
-        return "static_tensor_{}_{}_t".format(dtype, shape_str)
+        return f"static_tensor_{dtype}_{shape_str}_t"
     if batch_dim is None or canonical in ["tensor_constructor", "tensor_nil"]:
-        return "{}_{}_{}".format(canonical, dtype, shape_str)
+        return f"{canonical}_{dtype}_{shape_str}"
     if batch_dim != 1:
-        return "{}_{}_{}".format(canonical, dtype, shape_str)
-    return "{}_{}_batch{}_{}".format(canonical, dtype, str(batch_dim), shape_str)
+        return f"{canonical}_{dtype}_{shape_str}"
+    return f"{canonical}_{dtype}_batch{batch_dim}_{shape_str}"
 
 
 def _to_str(shape):
@@ -224,9 +224,7 @@ class StaticTensorArrayOps(object):
 
         origin_tensor_constructor = self.get_ctor("tensor_constructor")
 
-        output_shape = [
-            Any(),
-        ] + list(self.shape[1:])
+        output_shape = [Any()] + list(self.shape[1:])
         tensor_type_var, tensor_constructor, _ = self._get_adt_by_shape(output_shape)
 
         t = Var("tensor", self.tensor_type_var())
@@ -255,9 +253,7 @@ class StaticTensorArrayOps(object):
         if self.is_cached(concat_name):
             return
 
-        output_shape = [
-            Any(),
-        ] + list(self.shape[1:])
+        output_shape = [Any()] + list(self.shape[1:])
         tensor_type_var, tensor_constructor, _ = self._get_adt_by_shape(output_shape)
 
         origin_tensor_constructor = self.get_ctor("tensor_constructor")
@@ -301,10 +297,7 @@ class StaticTensorArrayOps(object):
         # in stack op, we need to recursively concatenate.
         new_axis = Any() if self.batch_dim is None or self.batch_dim != 1 else self.batch_dim
         tensor_type_var, tensor_constructor, _ = self._get_adt_by_shape(
-            [
-                new_axis,
-            ]
-            + list(self.shape)
+            [new_axis] + list(self.shape)
         )
         t = Var("t")
         case = Clause(
@@ -497,9 +490,7 @@ class StaticTensorArrayOps(object):
             tensor_array_split_helper_var = GlobalVar(tensor_array_split_helper_name)
             split_var = GlobalVar(split_name)
 
-        output_shape = [
-            Any(),
-        ] + list(self.shape[1:])
+        output_shape = [Any()] + list(self.shape[1:])
         output_tensor_type_var, _, output_ops = self._get_adt_by_shape(output_shape)
         output_ops.define_tensor_array_write()
         write_var = output_ops.get_global_var("tensor_array_write")
@@ -575,9 +566,7 @@ class StaticTensorArrayOps(object):
 
         concat_var = GlobalVar(concat_name)
 
-        output_shape = [
-            Any(),
-        ] + list(self.shape[1:])
+        output_shape = [Any()] + list(self.shape[1:])
 
         tensor_type_var, _, output_ops = self._get_adt_by_shape(output_shape)
 
@@ -617,9 +606,7 @@ class StaticTensorArrayOps(object):
 
         # Register tensor_concatenate for output_shape
         new_axis = Any() if not self.batch_dim or self.batch_dim != 1 else self.batch_dim
-        output_shape = [
-            new_axis,
-        ] + list(self.shape)
+        output_shape = [new_axis] + list(self.shape)
         _, _, output_ops = self._get_adt_by_shape(output_shape)
         output_ops.define_tensor_concatenate()
         concat_var = output_ops.get_global_var("tensor_concatenate")
@@ -627,9 +614,7 @@ class StaticTensorArrayOps(object):
         tensor_array_expand_dims = self.prelude.map(expand_dims_var, tensor_array)
         if self.batch_dim is not None and self.batch_dim == 1:
             # only one element
-            tensors = self.prelude.id(
-                self.prelude.hd(tensor_array_expand_dims),
-            )
+            tensors = self.prelude.id(self.prelude.hd(tensor_array_expand_dims))
         else:
             tensors = self.prelude.foldl(
                 concat_var,
@@ -650,9 +635,7 @@ class StaticTensorArrayOps(object):
         helper_var = self._create_global_var(helper_name)
 
         new_axis = Any() if self.batch_dim is None or self.batch_dim != 1 else self.batch_dim
-        output_shape = [
-            new_axis,
-        ] + list(self.shape)
+        output_shape = [new_axis] + list(self.shape)
         output_tensor_type_var, _, _ = self._get_adt_by_shape(output_shape)
         stack_var = self.get_global_var("tensor_array_stack")
         read_var = self.get_global_var("tensor_array_read")
@@ -1130,10 +1113,7 @@ class TensorArrayOps(object):
         shape = op.shape_of(tensor2)
         ndim = op.take(shape, const(0))
         self.prelude.mod[tensor_array_unstack_tensor2_var] = Function(
-            [tensor2],
-            helper_var(const(0), ndim, tensor2),
-            self.list(self.tensor_type_var()),
-            [],
+            [tensor2], helper_var(const(0), ndim, tensor2), self.list(self.tensor_type_var()), []
         )
 
     def define_tensor_array_unstack_tensor3(self):
@@ -1167,10 +1147,7 @@ class TensorArrayOps(object):
         shape = op.shape_of(tensor3)
         ndim = op.take(shape, const(0))
         self.prelude.mod[tensor_array_unstack_tensor3_var] = Function(
-            [tensor3],
-            helper_var(const(0), ndim, tensor3),
-            self.list(self.tensor_type_var()),
-            [],
+            [tensor3], helper_var(const(0), ndim, tensor3), self.list(self.tensor_type_var()), []
         )
 
     def define_tensor_array_unstack_tensor4(self):
@@ -1204,10 +1181,7 @@ class TensorArrayOps(object):
         shape = op.shape_of(tensor4)
         ndim = op.take(shape, const(0))
         self.prelude.mod[tensor_array_unstack_tensor4_var] = Function(
-            [tensor4],
-            helper_var(const(0), ndim, tensor4),
-            self.list(self.tensor_type_var()),
-            [],
+            [tensor4], helper_var(const(0), ndim, tensor4), self.list(self.tensor_type_var()), []
         )
 
     def define_tensor_array_unstack_tensor5(self):
@@ -1241,10 +1215,7 @@ class TensorArrayOps(object):
         shape = op.shape_of(tensor5)
         ndim = op.take(shape, const(0))
         self.prelude.mod[tensor_array_unstack_tensor5_var] = Function(
-            [tensor5],
-            helper_var(const(0), ndim, tensor5),
-            self.list(self.tensor_type_var()),
-            [],
+            [tensor5], helper_var(const(0), ndim, tensor5), self.list(self.tensor_type_var()), []
         )
 
     def define_tensor_array_unstack_tensor6(self):
@@ -1278,10 +1249,7 @@ class TensorArrayOps(object):
         shape = op.shape_of(tensor6)
         ndim = op.take(shape, const(0))
         self.prelude.mod[tensor_array_unstack_tensor6_var] = Function(
-            [tensor6],
-            helper_var(const(0), ndim, tensor6),
-            self.list(self.tensor_type_var()),
-            [],
+            [tensor6], helper_var(const(0), ndim, tensor6), self.list(self.tensor_type_var()), []
         )
 
     def define_tensor_array_scatter(self):
@@ -1507,8 +1475,8 @@ class Prelude:
     def get_name(self, canonical, dtype):
         """Get name corresponding to the canonical name"""
         if canonical == "tensor_t":
-            return "tensor_{}_t".format(dtype)
-        return "{}_{}".format(canonical, dtype)
+            return f"tensor_{dtype}_t"
+        return f"{canonical}_{dtype}"
 
     def get_global_var(self, canonical, dtype):
         """Get global var corresponding to the canonical name"""

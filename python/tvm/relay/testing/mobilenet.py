@@ -188,7 +188,7 @@ def mobile_net(
         for i in range(7, 12):
             body = separable_conv_block(
                 body,
-                "separable_conv_block_%d" % i,
+                f"separable_conv_block_{i}",
                 int(512 * alpha),
                 int(512 * alpha),
                 layout=layout,

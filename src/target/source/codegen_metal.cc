@@ -22,9 +22,12 @@
  */
 #include "codegen_metal.h"
 
+#include <tvm/tir/transform.h>
+
 #include <algorithm>
 #include <string>
 #include <unordered_map>
+#include <utility>
 #include <vector>
 
 #include "../../runtime/metal/metal_module.h"
@@ -52,14 +55,28 @@ CodeGenMetal::CodeGenMetal(Target target) : target_(target) {
               << "};\n\n";
 }
 
-void CodeGenMetal::AddFunction(const PrimFunc& f) {
+void CodeGenMetal::AddFunction(const GlobalVar& gvar, const PrimFunc& func) {
+  // NOTE: There is no inter-function calls among Metal kernels.
+  // For now we keep the metal codegen without inter-function call
+  // process.
+  // We can switch to follow the flow with inter-function call process
+  // after the Metal function declaration is properly printed.
+  // In Metal, for PrimFuncs with signature
+  //    def func(A: Buffer, B: Buffer, x: int, y: float) -> None
+  // where there are trailing pod parameters, the codegen emits a struct
+  //    struct func_params{ x: int; y: float; }
+  // for the function. In the flow of inter-function call process,
+  // the struct will be emitted for every time a function is declared.
+  // So consequently there are duplicate appearances of a same struct,
+  // which makes the Metal compiler unable to recognize.
+
   // clear previous generated state.
-  this->InitFuncState(f);
+  this->InitFuncState(func);
   // skip the first underscore, so SSA variable starts from _1
   name_supply_->FreshName("v_");
 
   // add to alloc buffer type.
-  auto global_symbol = f->GetAttr<String>(tvm::attr::kGlobalSymbol);
+  auto global_symbol = func->GetAttr<String>(tvm::attr::kGlobalSymbol);
   ICHECK(global_symbol.defined())
       << "CodeGenC: Expect PrimFunc to have the global_symbol attribute";
 
@@ -68,21 +85,21 @@ void CodeGenMetal::AddFunction(const PrimFunc& f) {
 
   // Buffer arguments
   size_t num_buffer = 0;
-  int limit = target_->GetAttr<Integer>("max_function_args").value().IntValue();
-  if (static_cast<int>(f->params.size()) > limit) {
+  size_t limit = target_->GetAttr<Integer>("max_function_args").value().IntValue();
+  if (func->params.size() > limit) {
     LOG(WARNING) << "Probably you won't be able to execute your kernel due to high number of "
                     "buffers in the kernel";
   }
-  for (size_t i = 0; i < f->params.size(); ++i, ++num_buffer) {
-    Var v = f->params[i];
+  for (size_t i = 0; i < func->params.size(); ++i, ++num_buffer) {
+    Var v = func->params[i];
     if (!v.dtype().is_handle()) break;
-    stream << "  ";
+    this->stream << "  ";
     std::string vid = AllocVarID(v.get());
     auto it = alloc_storage_scope_.find(v.get());
     if (it != alloc_storage_scope_.end()) {
-      PrintStorageScope(it->second, stream);
+      PrintStorageScope(it->second, this->stream);
     }
-    PrintType(GetType(v), stream);
+    PrintType(GetType(v), this->stream);
     // Register handle data type
     // TODO(tvm-team): consider simply keep type info in the
     // type annotation(via a normalizing rewriting).
@@ -91,19 +108,19 @@ void CodeGenMetal::AddFunction(const PrimFunc& f) {
         RegisterHandleType(v.get(), prim->dtype);
       }
     }
-    stream << ' ' << vid << " [[ buffer(" << i << ") ]],\n";
+    this->stream << ' ' << vid << " [[ buffer(" << i << ") ]],\n";
   }
   // Setup normal arguments.
-  size_t nargs = f->params.size() - num_buffer;
+  size_t nargs = func->params.size() - num_buffer;
   std::string varg = name_supply_->FreshName("arg");
   if (nargs != 0) {
     std::string arg_buf_type = static_cast<std::string>(global_symbol.value()) + "_args_t";
-    stream << "  constant " << arg_buf_type << "& " << varg << " [[ buffer(" << num_buffer
-           << ") ]],\n";
+    this->stream << "  constant " << arg_buf_type << "& " << varg << " [[ buffer(" << num_buffer
+                 << ") ]],\n";
     // declare the struct
     decl_stream << "struct " << arg_buf_type << " {\n";
-    for (size_t i = num_buffer; i < f->params.size(); ++i) {
-      Var v = f->params[i];
+    for (size_t i = num_buffer; i < func->params.size(); ++i) {
+      Var v = func->params[i];
       ICHECK(!v.dtype().is_handle());
       std::string vid = AllocVarID(v.get());
       std::ostringstream vref;
@@ -131,7 +148,7 @@ void CodeGenMetal::AddFunction(const PrimFunc& f) {
   ICHECK_EQ(name_supply_->FreshName("threadIdx"), "threadIdx");
   ICHECK_EQ(name_supply_->FreshName("blockIdx"), "blockIdx");
   int work_dim = 0;
-  auto launch_params = f->GetAttr<Array<String>>(tir::attr::kKernelLaunchParams).value();
+  auto launch_params = func->GetAttr<Array<String>>(tir::attr::kKernelLaunchParams).value();
   for (const auto& tag : launch_params) {
     if (tag != runtime::launch_param::kUseDynamicSharedMemoryTag) {
       runtime::ThreadScope scope = runtime::ThreadScope::Create(tag);
@@ -153,7 +170,7 @@ void CodeGenMetal::AddFunction(const PrimFunc& f) {
   // the function scope.
   stream << ") {\n";
   int func_scope = this->BeginScope();
-  this->PrintStmt(f->body);
+  this->PrintStmt(func->body);
   this->EndScope(func_scope);
   this->PrintIndent();
   this->stream << "}\n\n";
@@ -220,11 +237,6 @@ void CodeGenMetal::PrintType(DataType t, std::ostream& os) {  // NOLINT(*)
     if (t.is_uint()) {
       os << 'u';
     }
-    if (t.bits() == 8 && t.lanes() == 4) {
-      // directly 4 8 bit int in integer.
-      os << "int";
-      return;
-    }
     switch (t.bits()) {
       case 8:
         os << "char";
@@ -289,6 +301,11 @@ void CodeGenMetal::PrintStorageScope(const std::string& scope, std::ostream& os)
   }
 }
 
+void CodeGenMetal::VisitExpr_(const SelectNode* op, std::ostream& os) {  // NOLINT(*)
+  os << "select(" << PrintExpr(op->false_value) << ", " << PrintExpr(op->true_value) << ", "
+     << PrintExpr(op->condition) << ")";
+}
+
 void CodeGenMetal::VisitExpr_(const BroadcastNode* op, std::ostream& os) {  // NOLINT(*)
   std::string v = PrintExpr(op->value);
   PrintType(op->dtype, os);
@@ -301,6 +318,9 @@ void CodeGenMetal::VisitExpr_(const BroadcastNode* op, std::ostream& os) {  // N
 }
 
 void CodeGenMetal::VisitExpr_(const CallNode* op, std::ostream& os) {  // NOLINT(*)
+  CHECK(!op->op.as<GlobalVarNode>())
+      << "CodegenMetal does not support inter-function calls, "
+      << "but expression " << GetRef<Call>(op) << " calls PrimFunc " << op->op;
   if (op->op.same_as(builtin::reinterpret())) {
     // generate as_type<TYPE>(ARG)
     os << "(as_type<";
@@ -336,6 +356,7 @@ void CodeGenMetal::VisitExpr_(const FloatImmNode* op, std::ostream& os) {  // NO
 runtime::Module BuildMetal(IRModule mod, Target target) {
   using tvm::runtime::Registry;
   bool output_ssa = false;
+  mod = tir::transform::PointerValueTypeRewrite()(std::move(mod));
 
   std::ostringstream source_maker;
   std::unordered_map<std::string, std::string> smap;
@@ -356,11 +377,12 @@ runtime::Module BuildMetal(IRModule mod, Target target) {
     ICHECK(calling_conv == CallingConv::kDeviceKernelLaunch)
         << "CodeGenMetal: expect calling_conv equals CallingConv::kDeviceKernelLaunch";
 
-    cg.AddFunction(f);
+    cg.AddFunction(kv.first, f);
+
     std::string fsource = cg.Finish();
     source_maker << fsource << "\n";
     if (fmetal_compile) {
-      fsource = (*fmetal_compile)(fsource).operator std::string();
+      fsource = (*fmetal_compile)(fsource, target).operator std::string();
     }
     smap[func_name] = fsource;
   }

@@ -42,7 +42,7 @@ AotExecutorFactory::AotExecutorFactory(
 }
 
 PackedFunc AotExecutorFactory::GetFunction(
-    const std::string& name, const tvm::runtime::ObjectPtr<tvm::runtime::Object>& sptr_to_self) {
+    const String& name, const tvm::runtime::ObjectPtr<tvm::runtime::Object>& sptr_to_self) {
   if (name == module_name_) {
     return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
       ICHECK_GT(args.num_args, 0) << "Must supply at least one device argument";

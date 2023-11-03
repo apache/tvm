@@ -45,11 +45,11 @@ class Pipe : public dmlc::Stream {
  public:
 #ifdef _WIN32
   using PipeHandle = HANDLE;
+  explicit Pipe(int64_t handle) : handle_(reinterpret_cast<PipeHandle>(handle)) {}
 #else
   using PipeHandle = int;
-#endif
-  /*! \brief Construct a pipe from system handle. */
   explicit Pipe(int64_t handle) : handle_(static_cast<PipeHandle>(handle)) {}
+#endif
   /*! \brief destructor */
   ~Pipe() { Flush(); }
   using Stream::Read;
@@ -64,7 +64,7 @@ class Pipe : public dmlc::Stream {
     if (size == 0) return 0;
 #ifdef _WIN32
     DWORD nread;
-    ICHECK(ReadFile(handle_, static_cast<TCHAR*>(ptr), &nread, nullptr))
+    ICHECK(ReadFile(handle_, static_cast<TCHAR*>(ptr), size, &nread, nullptr))
         << "Read Error: " << GetLastError();
 #else
     ssize_t nread;
@@ -83,7 +83,7 @@ class Pipe : public dmlc::Stream {
     if (size == 0) return;
 #ifdef _WIN32
     DWORD nwrite;
-    ICHECK(WriteFile(handle_, static_cast<const TCHAR*>(ptr), &nwrite, nullptr) &&
+    ICHECK(WriteFile(handle_, static_cast<const TCHAR*>(ptr), size, &nwrite, nullptr) &&
            static_cast<size_t>(nwrite) == size)
         << "Write Error: " << GetLastError();
 #else

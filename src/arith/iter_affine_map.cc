@@ -224,6 +224,16 @@ class IterMapRewriter : public ExprMutator {
                                       predicate_induced_max);
   }
 
+  /**
+   * Rewrite expr to iter sum pattern
+   * \param expr The input expression
+   * \return The rewritten iter sum pattern
+   * \note The result base may contain items that is not
+   */
+  IterSumExpr RewriteToNormalizedIterSum(const PrimExpr& expr) {
+    return NormalizeToIterSum(ToIterSumExpr(DirectMutate(expr)));
+  }
+
   /*!
    * \brief If require bijective mapping, this function checks two conditions:
    *   - C0: Each iter mark should be fully covered by non-overlapping splits.
@@ -312,6 +322,7 @@ class IterMapRewriter : public ExprMutator {
       ErrorLogger(this) << "IterMapExpr or subclasses should only result from calls in "
                         << "IterMapRewriter using DirectMutate.  "
                         << "Indirect return occurred in " << input_expr;
+      return input_expr;
     }
     return expr;
   }
@@ -476,7 +487,7 @@ class IterMapRewriter : public ExprMutator {
   bool requires_padding_{false};
 
   // The map for sum that maps flattened form to IterMark with normal form and extent (and possibly
-  // an extra offset)
+  // an extra offset). The normal form always has minimum value of zero.
   // Example(1): expr = i*9 + j*2 + k, i in [0, 4) j in [0, 5) k in [0, 2)
   //          predicate: j*2 + k < 9
   // Then,    flattened form = IterSum(IterSplit(i, scale=9),
@@ -487,6 +498,7 @@ class IterMapRewriter : public ExprMutator {
   //                                                              IterSplit(k, scale=1)),
   //                                                      extent=9)
   //                                             scale=1))
+  //          offset         = 0
   // Example(2): expr = i*8 + j*2 + k, i in [0, 4) j in [0, 5) k in [0, 2)
   //          predicate: 1 <= j*2 + k < 9
   // Then,    flattened form = IterSum(IterSplit(i, scale=8),
@@ -497,9 +509,15 @@ class IterMapRewriter : public ExprMutator {
   //                                                              IterSplit(k, scale=1), base=-1),
   //                                                      extent=9-1)
   //                                             scale=1),
-  //                                   base=1)
+  //                                   base=0)
+  //          offset         = 1
   std::unordered_map<IterSumExpr, IterMarkWithOffset, IterSumHash, IterSumEqual> sum_fuse_map_;
   // The map for sum that maps normal form to flattened form
+  // For sum_fuse_map_ and flattened_map_ the following invariants hold:
+  //     for any IterSumExpr e in the flattened_form, we have
+  //         iter_mark, mark_offset = sum_fuse_map_[e]
+  //         flattened_map_[normal_form] = e where normal_form = iter_mark->args[0] and
+  //         iter_mark->args.size() = 1
   std::unordered_map<IterSumExpr, IterSumExpr, IterSumHash, IterSumEqual> flattened_map_;
   // The flattened forms of constrained iters
   std::vector<IterSumExpr> constrained_iters_flattened_;
@@ -658,7 +676,7 @@ class IterMapRewriter : public ExprMutator {
       if (predicate_induced_max.defined())
         predicate_induced_max = predicate_induced_max.value() - base;
     }
-    Optional<IterSumExpr> opt = TryFuseIters(expr, check_level_);
+    Optional<IterSumExpr> opt = TryFuseIters(expr, check_level_, false);
     ICHECK(!opt.defined() || opt.value()->args.size() == 1);
     // scale should be 1
     if (opt.defined() && is_one(opt.value()->args[0]->scale)) {
@@ -675,7 +693,10 @@ class IterMapRewriter : public ExprMutator {
       PrimExpr mark_offset = it_mark->second.offset;
       PrimExpr iter_min = mark_offset;
       PrimExpr iter_max = iter_min + mark->extent;
+      // the delta of iter_min when it is updated when the lower bound predicate is present
+      PrimExpr iter_min_delta = make_const(iter_min.dtype(), 0);
       if (predicate_induced_min.defined()) {
+        iter_min_delta = predicate_induced_min.value() - iter_min;
         iter_min = max(predicate_induced_min.value(), iter_min);
       }
       if (predicate_induced_max.defined()) {
@@ -694,10 +715,12 @@ class IterMapRewriter : public ExprMutator {
           iter_max = min(predicate_induced_max.value(), iter_max);
         }
       }
-      if (!is_zero(iter_min)) {
+      // When iter_min_delta is present, we need to normalize the structured form to have minimum of
+      // 0, and add the delta to the mark_offset
+      if (!is_zero(iter_min_delta)) {
         // structured form's offset should be updated
         flattened_map_.erase(structured_form);
-        structured_form.CopyOnWrite()->base = -iter_min;
+        structured_form.CopyOnWrite()->base -= iter_min_delta;
         mark.CopyOnWrite()->source = structured_form;
         flattened_map_[structured_form] = flattened_form;
       }
@@ -706,8 +729,9 @@ class IterMapRewriter : public ExprMutator {
       // we need to note down the flattened form of constrained iterators
       // to check the validity of constraints, see also CheckConstraints()
       constrained_iters_flattened_.push_back(flattened_form);
-      expr.CopyOnWrite()->args = Array<IterSplitExpr>({split});
-      expr.CopyOnWrite()->base = base + iter_min;
+      IterSumExprNode* normalized_expr = expr.CopyOnWrite();
+      normalized_expr->args = Array<IterSplitExpr>({split});
+      normalized_expr->base = base;
       return expr;
     }
     ErrorLogger(this) << "Could not normalize iterators using the constraints given.";
@@ -722,13 +746,79 @@ class IterMapRewriter : public ExprMutator {
   IterSumExpr NormalizeToIterWithOffset(IterSumExpr expr) {
     // We are normalizing a regular iter
     if (expr->args.size() < 1) return expr;
-    Optional<IterSumExpr> opt = TryFuseIters(expr, check_level_);
+    Optional<IterSumExpr> opt = TryFuseIters(expr, check_level_, true);
     if (opt.defined()) {
       return opt.value();
     } else {
       ErrorLogger(this) << "Could not normalize iterators";
       return expr;
     }
+  }
+
+  /*!
+   * \brief Normalize expr to iter sum.
+   *
+   * The normalized result ensures that
+   * each scale is in the form of (symbol_prod) * cscale
+   *
+   * It will also sort entries in desc order by cscale then len(symbol_prod).
+   *
+   * This is a best effort sorting since some scale can be symbolic.
+   * We first order them by the constant factors, then the number of symbols
+   * involved in a multiply
+   *
+   * \param expr The input expression.
+   * \return The Normalized expression.
+   */
+  IterSumExpr NormalizeToIterSum(IterSumExpr expr) {
+    // We are normalizing a regular iter
+    if (expr->args.size() < 1) return expr;
+    if (auto opt = TryCombineSplitFromSameSource(expr)) {
+      expr = opt.value();
+      if (expr->args.size() < 1) return expr;
+    }
+    struct Item {
+      int64_t cscale;
+      int64_t symbol_prod_count;
+      IterSplitExpr split;
+    };
+
+    std::vector<Item> items;
+
+    for (IterSplitExpr split : expr->args) {
+      int64_t symbol_prod_count = 0;
+      int64_t cscale = 1;
+      PrimExpr res = tir::make_const(split.dtype(), 1);
+      auto fcollect = [&](PrimExpr val) {
+        if (const auto* intimm = val.as<IntImmNode>()) {
+          cscale *= intimm->value;
+        } else {
+          res = res * val;
+          ++symbol_prod_count;
+        }
+      };
+      UnpackReduction<tir::MulNode>(split->scale, fcollect);
+      if (cscale != 1) {
+        res = res * tir::make_const(res.dtype(), cscale);
+      }
+      split.CopyOnWrite()->scale = res;
+      items.emplace_back(Item{cscale, symbol_prod_count, split});
+    }
+
+    std::stable_sort(items.begin(), items.end(), [](const Item& lhs, const Item& rhs) {
+      if (lhs.cscale > rhs.cscale) return true;
+      if (lhs.cscale < rhs.cscale) return false;
+      return lhs.symbol_prod_count > rhs.symbol_prod_count;
+    });
+
+    Array<IterSplitExpr> args;
+    for (const Item& item : items) {
+      args.push_back(item.split);
+    }
+
+    expr.CopyOnWrite()->args = args;
+    expr.CopyOnWrite()->base = NormalizeIterMapToExpr(expr->base);
+    return expr;
   }
 
   /*!
@@ -992,11 +1082,17 @@ class IterMapRewriter : public ExprMutator {
    *    Try to normalize IterSum into a fused IterMark
    * \param expr The input sum.
    * \param check_level The check level if iter mapping.
-   * \return The sum with the fused IterMark and extra offset if succeed.
+   * \param allow_early_skip Whether do we allow early skip if expr is simple
+   *        (this may cause us to return parameters that are not canonically wrapped as
+   * IterSum(IterMark)) \return The sum with the fused IterMark and extra offset if succeed.
    */
-  Optional<IterSumExpr> TryFuseIters(IterSumExpr expr, IterMapLevel check_level) {
+  Optional<IterSumExpr> TryFuseIters(IterSumExpr expr, IterMapLevel check_level,
+                                     bool allow_early_skip) {
     if (auto opt = TryCombineSplitFromSameSource(expr)) {
       expr = opt.value();
+      if (expr->args.size() <= 1 && allow_early_skip) {
+        return expr;
+      }
     }
     // select the iterators in order
     std::vector<bool> visited(expr->args.size(), false);
@@ -1007,8 +1103,8 @@ class IterMapRewriter : public ExprMutator {
     std::vector<IterSplitExpr> flattened_iters, grouped_iters;
 
     // check if it can be remapped into a fused pattern.
-    PrimExpr expected_extra_base = 0;
-    PrimExpr tail_extent = 0;
+    PrimExpr expected_extra_base = make_const(expr.dtype(), 0);
+    PrimExpr tail_extent = make_const(expr.dtype(), 0);
     PrimExpr expected_scale = base_scale;
     int first_possible_unit_extent_pos = FindFirstPossibleUnitExtentIndex(expr);
 
@@ -1061,8 +1157,9 @@ class IterMapRewriter : public ExprMutator {
           size_t k = 0;
           for (; k < expr->args.size(); ++k) {
             if (!visited[k] && IterSplitEqual(expr->args[k], *it, false)) {
-              if (analyzer_->CanProveEqual((*it)->scale * matched_scale, expr->args[k]->scale))
+              if (analyzer_->CanProveEqual((*it)->scale * matched_scale, expr->args[k]->scale)) {
                 break;
+              }
             }
           }
           if (k == expr->args.size()) {
@@ -1119,7 +1216,7 @@ class IterMapRewriter : public ExprMutator {
     } else {
       // new iter, form a new mark
       IterMark mark = IterMark(structured_form, div(expected_scale, base_scale) + tail_extent);
-      sum_fuse_map_[flattened_form] = IterMarkWithOffset(mark, 0);
+      sum_fuse_map_[flattened_form] = IterMarkWithOffset(mark, expected_extra_base);
       flattened_map_[structured_form] = flattened_form;
       return IterSumExpr({IterSplitExpr(mark, base_scale)}, expr->base + expected_extra_base);
     }
@@ -1425,6 +1522,28 @@ TVM_REGISTER_GLOBAL("arith.DetectIterMap")
                            simplify_trivial_iterators);
     });
 
+IterSumExpr NormalizeToIterSum(PrimExpr index, const Map<Var, Range>& input_iters,
+                               arith::Analyzer* analyzer) {
+  IterMapResult result;
+  ICHECK(IterRangeSanityCheck(input_iters))
+      << "Invalid iterators.  Iterators may not be expressions of each other.";
+
+  // we skip constraint check as the most important thing here is only the pattern
+  std::vector<IterConstraint> constraints;
+  IterMapLevel check_level = IterMapLevel::NoCheck;
+  bool simplify_trivial_iterators = true;
+  IterMapRewriter rewriter(analyzer, input_iters, check_level, simplify_trivial_iterators,
+                           &result->errors);
+
+  return rewriter.RewriteToNormalizedIterSum(index);
+}
+
+TVM_REGISTER_GLOBAL("arith.NormalizeToIterSum")
+    .set_body_typed([](PrimExpr index, const Map<Var, Range>& input_iters) {
+      arith::Analyzer ana;
+      return NormalizeToIterSum(index, input_iters, &ana);
+    });
+
 PrimExpr IterMapRewriter::VisitExpr_(const VarNode* op) {
   auto var = GetRef<Var>(op);
   auto it = var_map_.find(var);
@@ -1554,7 +1673,7 @@ IterSumExpr IterMapRewriter::PreprocessDividend(IterMapExpr dividend, PrimExpr o
     } else if (sum->args.size() == 1) {
       return sum;
     }
-    auto opt_fused = TryFuseIters(sum, check_level_);
+    auto opt_fused = TryFuseIters(sum, check_level_, true);
     if (!opt_fused) {
       ErrorLogger(this) << "Dividend  " << original_dividend
                         << ", can't be written as a single fused IterSum";
@@ -1779,10 +1898,27 @@ PrimExpr IterMapRewriter::SplitFloorDivConst(IterSplitExpr lhs, PrimExpr base, P
   // = floormod(sc2+t, c2)
   // = floormod(floordiv(y, c1), c2)
   // = floormod(floordiv(iter, lower_factor*c1), c2), where c1=rhs, c2=extent/rhs
-  IterSplitExpr new_split(padded->source,
-                          /* lower_factor = */ padded->lower_factor * rhs,
-                          /* extent = */ analyzer_->Simplify(floordiv(padded->extent, rhs)),
-                          /* scale = */ padded->scale);
+  IterSplitExpr new_split;
+  if (CanProveDivisible(padded->extent, rhs)) {
+    new_split = IterSplitExpr(padded->source,
+                              /* lower_factor = */ padded->lower_factor * rhs,
+                              /* extent = */ analyzer_->Simplify(floordiv(padded->extent, rhs)),
+                              /* scale = */ padded->scale);
+  } else if (is_one(padded->lower_factor) &&
+             analyzer_->CanProveEqual(padded->extent, padded->source->extent)) {
+    // floordiv(floormod(floordiv(iter, lower_factor), ext), c)
+    // = floordiv(iter, c)
+    // when lower_factor = 1 and ext = iter.extent
+    new_split = IterSplitExpr(padded->source,
+                              /* lower_factor = */ rhs,
+                              /* extent = */ analyzer_->Simplify(ceildiv(padded->extent, rhs)),
+                              /* scale = */ padded->scale);
+  } else {
+    new_split = IterSplitExpr(IterMark(padded, padded->extent),
+                              /* lower_factor = */ rhs,
+                              /* extent = */ analyzer_->Simplify(ceildiv(padded->extent, rhs)),
+                              /* scale = */ make_const(rhs->dtype, 1));
+  }
 
   auto new_base = analyzer_->Simplify(floordiv(base - left_pad, rhs), 6);
   if (is_zero(new_base)) {
@@ -1957,6 +2093,12 @@ class IterMapToExprNormalizer : public ExprMutator {
     if (analyzer_->CanProve(expr->extent == expr->source->extent) && is_one(expr->lower_factor)) {
       return source * expr->scale;
     } else if (analyzer_->CanProve(expr->source->extent == expr->lower_factor * expr->extent)) {
+      // Simplify if `expr` is always 0. The 2nd condition guarantess that we do not aggressively
+      // simplify trivial iters like `vi \in [0, 1)`, which can be useful for subsequent analysis
+      // like tensorization.
+      if (is_one(expr->extent) && !is_one(expr->source->extent)) {
+        return make_const(expr->extent->dtype, 0);
+      }
       return floordiv(source, expr->lower_factor) * expr->scale;
     } else {
       return floordiv(floormod(source, expr->lower_factor * expr->extent), expr->lower_factor) *

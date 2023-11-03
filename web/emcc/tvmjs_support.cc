@@ -297,7 +297,7 @@ class AsyncLocalSession : public LocalSession {
       CHECK(time_exec != nullptr) << "Cannot find wasm.GetTimer in the global function";
       (*time_exec)(TypedPackedFunc<void(int)>(finvoke), dev, number, repeat, min_repeat_ms,
                    limit_zero_time_iterations, cooldown_interval_ms, repeats_to_cooldown,
-                   on_complete);
+                   /*cache_flush_bytes=*/0, on_complete);
     };
     return PackedFunc(ftimer);
   }

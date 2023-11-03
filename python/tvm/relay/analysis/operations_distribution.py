@@ -17,6 +17,8 @@
 """Utilities that enable analyze Relay and get mappings for
 the unique identifier of the Relay line to the tuple of
 compiler name, composite name and composite/function identifier."""
+import re
+
 import tvm
 from tvm import relay
 from tvm.relay.expr_functor import ExprVisitor
@@ -24,23 +26,23 @@ from tvm.relay.expr_functor import ExprVisitor
 
 class AnalyzeOperationsDistribution(ExprVisitor):
     """A visitor pass that maintains the dictionary unique_op_ids where
-    the tuple (compiler name, composite name, composite/function identifier)
-    corresponds to the unique identifier of the Relay line.
-    TVMC compiler adds a unique Relay line identifier as a suffix
-    to the call span field using the tag_suffixes pass
-    if the --dump-offloads option is specified.
+    the tuple (compiler name, composite name) corresponds to the unique
+    identifier of the Relay line. The identifier will allow us to link
+    the lines of the initial Relay with the information about operators
+    offloading, which is present in the partitioned Relay
+    TVMC compiler adds a unique Relay line identifier as a suffix to the
+    call span field using the tag_suffixes pass if the --dump-offloads
+    option is specified.
 
     Attributes
     ----------
-    unique_op_ids : Dict[str, str, int]
+    unique_op_ids : Dict[str, str]
         Mapping the unique identifier of the Relay line obtained from
         the "span" field of the Call and the tuple of compiler name,
-        composite name and internal composite/function identifier.
+        composite name.
     func_name : str
-        The name of the composite name in the partitioned Relay or
+        The name of the composite in the partitioned Relay or
         'generic' in case the Call has not been included in any composite.
-    func_id : int
-        Internal(inside unique_op_ids) composite/function identifier.
     compiler_name : str
         A name of the compiler (e.g. 'ethos-u' or 'cmsis-nn') or 'generic'
         in case the Call has not been included in any composite.
@@ -49,7 +51,6 @@ class AnalyzeOperationsDistribution(ExprVisitor):
     def __init__(self):
         self.unique_op_ids = {}
         self.func_name = ""
-        self.func_id = 1
         self.compiler_name = ""
         super().__init__()
 
@@ -64,12 +65,12 @@ class AnalyzeOperationsDistribution(ExprVisitor):
         if isinstance(call.op, tvm.ir.Op):
             if call.span:
                 src = call.span.source_name.name
-                self.unique_op_ids[src] = [self.compiler_name, self.func_name, self.func_id]
-                if self.func_name == "generic":
-                    self.func_id += 1
+                suffix = tvm.relay.transform.suffixes.SUFFIX_STRING
+                result = re.search(r"(.*)(" + suffix + r")(.*)", src)
+                res = result.group(1)
+                self.unique_op_ids[res] = [self.compiler_name, self.func_name]
         if isinstance(call.op, relay.Function):
             self.func_name = call.op.attrs["Composite"]
-            self.func_id += 1
         super().visit_call(call)
 
 
@@ -78,7 +79,7 @@ def analyze_operations_distribution(mod):
     of the Relay line from the Call's span field.
     The result is maintained in the dictionary unique_op_ids where
     the unique indicator obtained from the op's span corresponds to
-    the tuple (compiler name, composite name, composite/function identifier).
+    the tuple (compiler name, composite name).
     With this information we can annotate the textual representation
     of the initial Relay by indicating into which target composite
     and function the operators are converted
@@ -91,10 +92,9 @@ def analyze_operations_distribution(mod):
 
     Returns
     -------
-    unique_op_ids : Dict[str, str, int]
+    unique_op_ids : Dict[str, str]
         Mapping from the unique identifier of the Relay line to the tuple of
-        compiler name, composite name, internal composite/function
-        identifier.
+        compiler name, composite name.
     """
     analyze = AnalyzeOperationsDistribution()
     for _, func in mod.functions.items():

@@ -109,7 +109,7 @@ export class Environment implements LibraryProvider {
   }
 
   private environment(initEnv: Record<string, any>): Record<string, any> {
-    // default env can be be overriden by libraries.
+    // default env can be overriden by libraries.
     const defaultEnv = {
       "__cxa_thread_atexit": (): void => {},
       // eslint-disable-next-line @typescript-eslint/no-unused-vars

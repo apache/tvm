@@ -98,7 +98,7 @@ def test_save_dump_offloads_ethosu(tmp_path_factory):
             data_format="NHWC",
             dilations=1,
         )
-        op = tf.math.add(op1, op2)
+        op = tf.concat([op1, op2], 1)
         op = tf.pad(
             op,
             [[0, 0], [padding[0], padding_out[1]], [padding_out[2], padding[3]], [0, 0]],
@@ -163,9 +163,12 @@ def test_save_dump_offloads_ethosu(tmp_path_factory):
         r'ethos-u        <-          %5 = qnn.conv2d(%2, %v_param_5, -128, 0, 0.11364f, meta[relay.Constant][4], padding=[1, 1, 1, 1], channels=3, kernel_size=[3, 3], data_layout="NHWC", kernel_layout="HWIO", out_dtype="int32")',
         r"ethos-u        <-          %6 = nn.bias_add(%5, %v_param_6, axis=3)",
         r'ethos-u        <-          %8 = qnn.requantize(%6, meta[relay.Constant][5], 0, 1.20538f, -128, axis=3, out_dtype="int8")',
-        r"ethos-u        <-     ethos-u.add",
-        r"ethos-u        <-          %9 = qnn.add(%7, %8, 1.56803f, -128, 1.20538f, -128, 2.77341f, -128)",
-        r"generic        <-     nn.pad(%9, -128f, pad_width=[[0, 0], [1, 33], [33, 1], [0, 0]])",
+        r"                      %9 = (%7, %8)",
+        r"                      %10 = (1.59778f, 1.59778f)",
+        r"                      %11 = (-128, -128)",
+        r"ethos-u        <-     ethos-u.concat",
+        r"ethos-u        <-          %12 = qnn.concatenate(%9, %10, %11, 1.59778f, -128, axis=1)",
+        r"generic        <-     nn.pad(%12, -128f, pad_width=[[0, 0], [1, 33], [33, 1], [0, 0]])",
     ]
 
     file_path = os.path.abspath(output_file_name)
@@ -174,7 +177,7 @@ def test_save_dump_offloads_ethosu(tmp_path_factory):
     with open(file_path, "r") as f:
         for i, file_string in enumerate(f):
             r_output = re.search(r"(.*)\(", file_string.strip(), re.DOTALL)
-            r_expected = re.search(r"(.*)\(", expected[i], re.DOTALL)
+            r_expected = re.search(r"(.*)\(", expected[i].strip(), re.DOTALL)
             # check that there is the same sequence of operations and composites,
             # combined with target names
             if r_output and r_expected:
@@ -202,6 +205,9 @@ def test_save_dump_offloads_cmsis(tmp_path_factory):
     def simple_net(x):
         weight_shape = [kernel_shape[0], kernel_shape[1], input_shape[3], 3]
         weights = tf.constant(np.random.uniform(size=weight_shape), dtype=tf.float32)
+        weight_shape[2] = 3
+        weights1 = tf.constant(np.random.uniform(size=weight_shape), dtype=tf.float32)
+        weights2 = tf.constant(np.random.uniform(size=weight_shape), dtype=tf.float32)
         op = tf.nn.conv2d(
             x,
             filters=weights,
@@ -210,22 +216,29 @@ def test_save_dump_offloads_cmsis(tmp_path_factory):
             data_format="NHWC",
             dilations=1,
         )
-        op = tf.nn.relu(op)
+        op1 = tf.nn.conv2d(
+            op,
+            filters=weights1,
+            strides=1,
+            padding="SAME",
+            data_format="NHWC",
+            dilations=1,
+        )
+        op2 = tf.nn.conv2d(
+            op,
+            filters=weights2,
+            strides=1,
+            padding="SAME",
+            data_format="NHWC",
+            dilations=1,
+        )
+        op = tf.concat([op1, op2], 1)
         op = tf.pad(
             op,
-            [[0, 0], [padding[0], padding_out[2]], [padding_out[1], padding[3]], [0, 0]],
+            [[0, 0], [padding[0], padding_out[1]], [padding_out[2], padding[3]], [0, 0]],
             "CONSTANT",
         )
-        op = tf.pad(
-            op,
-            [[0, 0], [padding[0], padding[2]], [padding[1], padding[3]], [0, 0]],
-            "CONSTANT",
-        )
-        return tf.pad(
-            op,
-            [[0, 0], [padding_out[0], padding[2]], [padding[1], padding_out[3]], [0, 0]],
-            "CONSTANT",
-        )
+        return op
 
     from tests.python.contrib.test_ethosu.infra import get_tflite_graph
 
@@ -265,18 +278,27 @@ def test_save_dump_offloads_cmsis(tmp_path_factory):
 
     expected = [
         r"Total number of operators and distribution by targets",
-        r"Total: 7",
-        r"cmsis-nn: 4",
-        r"generic: 3",
+        r"Total: 11",
+        r"cmsis-nn: 9",
+        r"generic: 2",
         r"",
         r"cmsis-nn       <-     cmsis-nn.qnn_conv2d",
         r'cmsis-nn       <-          %0 = qnn.conv2d(%x, %v_param_1, -128, 0, 0.00392157f, meta[relay.Constant][0], padding=[1, 1, 1, 1], channels=3, kernel_size=[3, 3], data_layout="NHWC", kernel_layout="HWIO", out_dtype="int32")',
         r"cmsis-nn       <-          %1 = nn.bias_add(%0, %v_param_2, axis=3)",
-        r'cmsis-nn       <-          %2 = qnn.requantize(%1, meta[relay.Constant][1], 0, 0.113405f, -128, axis=3, out_dtype="int8")',
-        r"cmsis-nn       <-          %3 = clip(%2, a_min=-128f, a_max=127f)",
-        r"generic        <-     %4 = nn.pad(%3, -128f, pad_width=[[0, 0], [1, 33], [33, 1], [0, 0]])",
-        r"generic        <-     %5 = nn.pad(%4, -128f, pad_width=[[0, 0], [1, 1], [1, 1], [0, 0]])",
-        r"generic        <-     nn.pad(%5, -128f, pad_width=[[0, 0], [1, 1], [1, 1], [0, 0]])",
+        r'cmsis-nn       <-          %2 = qnn.requantize(%1, meta[relay.Constant][1], 0, 0.115114f, -128, axis=3, out_dtype="int8")',
+        r"cmsis-nn       <-     cmsis-nn.qnn_conv2d",
+        r'cmsis-nn       <-          %3 = qnn.conv2d(%2, %v_param_3, -128, 0, 0.115114f, meta[relay.Constant][2], padding=[1, 1, 1, 1], channels=3, kernel_size=[3, 3], data_layout="NHWC", kernel_layout="HWIO", out_dtype="int32")',
+        r"cmsis-nn       <-          %4 = nn.bias_add(%3, %v_param_4, axis=3)",
+        r'cmsis-nn       <-          %7 = qnn.requantize(%4, meta[relay.Constant][3], 0, 1.59328f, -128, axis=3, out_dtype="int8")',
+        r"cmsis-nn       <-     cmsis-nn.qnn_conv2d",
+        r'cmsis-nn       <-          %5 = qnn.conv2d(%2, %v_param_5, -128, 0, 0.115114f, meta[relay.Constant][4], padding=[1, 1, 1, 1], channels=3, kernel_size=[3, 3], data_layout="NHWC", kernel_layout="HWIO", out_dtype="int32")',
+        r"cmsis-nn       <-          %6 = nn.bias_add(%5, %v_param_6, axis=3)",
+        r'cmsis-nn       <-          %8 = qnn.requantize(%6, meta[relay.Constant][5], 0, 1.59328f, -128, axis=3, out_dtype="int8")',
+        r"                      %9 = (%7, %8)",
+        r"                      %10 = (1.59328f, 1.59328f)",
+        r"                      %11 = (-128, -128)",
+        r"generic        <-     %12 = qnn.concatenate(%9, %10, %11, 1.59328f, -128, axis=1)",
+        r"generic        <-     nn.pad(%12, -128f, pad_width=[[0, 0], [1, 33], [33, 1], [0, 0]])",
     ]
 
     file_path = os.path.abspath(output_file_name)
@@ -284,14 +306,14 @@ def test_save_dump_offloads_cmsis(tmp_path_factory):
     assert os.path.exists(file_path)
     with open(file_path, "r") as f:
         for i, file_string in enumerate(f):
-            r_output = re.search(r"(.*)\(", file_string.strip(), re.DOTALL)
+            r_output = re.search(r"(.*)\(", file_string.replace("\n", ""), re.DOTALL)
             r_expected = re.search(r"(.*)\(", expected[i], re.DOTALL)
             # check that there is the same sequence of operations and composites,
             # combined with target names
             if r_output and r_expected:
                 assert r_output.group(0) == r_expected.group(0)
             else:
-                assert r_output == r_expected
+                assert file_string.replace("\n", "") == expected[i]
 
 
 def test_save_dump_offloads_generic(tmp_path_factory):
@@ -313,6 +335,9 @@ def test_save_dump_offloads_generic(tmp_path_factory):
     def simple_net(x):
         weight_shape = [kernel_shape[0], kernel_shape[1], input_shape[3], 3]
         weights = tf.constant(np.random.uniform(size=weight_shape), dtype=tf.float32)
+        weight_shape[2] = 3
+        weights1 = tf.constant(np.random.uniform(size=weight_shape), dtype=tf.float32)
+        weights2 = tf.constant(np.random.uniform(size=weight_shape), dtype=tf.float32)
         op = tf.nn.conv2d(
             x,
             filters=weights,
@@ -321,21 +346,29 @@ def test_save_dump_offloads_generic(tmp_path_factory):
             data_format="NHWC",
             dilations=1,
         )
+        op1 = tf.nn.conv2d(
+            op,
+            filters=weights1,
+            strides=1,
+            padding="SAME",
+            data_format="NHWC",
+            dilations=1,
+        )
+        op2 = tf.nn.conv2d(
+            op,
+            filters=weights2,
+            strides=1,
+            padding="SAME",
+            data_format="NHWC",
+            dilations=1,
+        )
+        op = tf.concat([op1, op2], 1)
         op = tf.pad(
             op,
-            [[0, 0], [padding[0], padding_out[2]], [padding_out[1], padding[3]], [0, 0]],
+            [[0, 0], [padding[0], padding_out[1]], [padding_out[2], padding[3]], [0, 0]],
             "CONSTANT",
         )
-        op = tf.pad(
-            op,
-            [[0, 0], [padding[0], padding[2]], [padding[1], padding[3]], [0, 0]],
-            "CONSTANT",
-        )
-        return tf.pad(
-            op,
-            [[0, 0], [padding_out[0], padding[2]], [padding[1], padding_out[3]], [0, 0]],
-            "CONSTANT",
-        )
+        return op
 
     from tests.python.contrib.test_ethosu.infra import get_tflite_graph
 
@@ -374,15 +407,23 @@ def test_save_dump_offloads_generic(tmp_path_factory):
 
     expected = [
         r"Total number of operators and distribution by targets",
-        r"Total: 6",
-        r"generic: 6",
+        r"Total: 11",
+        r"generic: 11",
         r"",
-        r'generic        <-     %0 = qnn.conv2d(%x, %v_param_1, -128, 0, 0.00392156f, meta[relay.Constant][0], padding=[1, 1, 1, 1], channels=3, kernel_size=[3, 3], data_layout="NHWC", kernel_layout="HWIO", out_dtype="int32")',
+        r'generic        <-     %0 = qnn.conv2d(%x, %v_param_1, -128, 0, 0.00392157f, meta[relay.Constant][0], padding=[1, 1, 1, 1], channels=3, kernel_size=[3, 3], data_layout="NHWC", kernel_layout="HWIO", out_dtype="int32")',
         r"generic        <-     %1 = nn.bias_add(%0, %v_param_2, axis=3)",
-        r'generic        <-     %2 = qnn.requantize(%1, meta[relay.Constant][1], 0, 0.103975f, -128, axis=3, out_dtype="int8")',
-        r"generic        <-     %3 = nn.pad(%2, -128f, pad_width=[[0, 0], [1, 33], [33, 1], [0, 0]])",
-        r"generic        <-     %4 = nn.pad(%3, -128f, pad_width=[[0, 0], [1, 1], [1, 1], [0, 0]])",
-        r"generic        <-     nn.pad(%4, -128f, pad_width=[[0, 0], [1, 1], [1, 1], [0, 0]])",
+        r'generic        <-     %2 = qnn.requantize(%1, meta[relay.Constant][1], 0, 0.109484f, -128, axis=3, out_dtype="int8")',
+        r'generic        <-     %3 = qnn.conv2d(%2, %v_param_3, -128, 0, 0.109484f, meta[relay.Constant][2], padding=[1, 1, 1, 1], channels=3, kernel_size=[3, 3], data_layout="NHWC", kernel_layout="HWIO", out_dtype="int32")',
+        r"generic        <-     %4 = nn.bias_add(%3, %v_param_4, axis=3)",
+        r'generic        <-     %5 = qnn.conv2d(%2, %v_param_5, -128, 0, 0.109484f, meta[relay.Constant][4], padding=[1, 1, 1, 1], channels=3, kernel_size=[3, 3], data_layout="NHWC", kernel_layout="HWIO", out_dtype="int32")',
+        r"generic        <-     %6 = nn.bias_add(%5, %v_param_6, axis=3)",
+        r'generic        <-     %7 = qnn.requantize(%4, meta[relay.Constant][3], 0, 1.45572f, -128, axis=3, out_dtype="int8")',
+        r'generic        <-     %8 = qnn.requantize(%6, meta[relay.Constant][5], 0, 1.45572f, -128, axis=3, out_dtype="int8")',
+        r"                      %9 = (%7, %8)",
+        r"                      %10 = (1.45572f, 1.45572f)",
+        r"                      %11 = (-128, -128)",
+        r"generic        <-     %12 = qnn.concatenate(%9, %10, %11, 1.45572f, -128, axis=1)",
+        r"generic        <-     nn.pad(%12, -128f, pad_width=[[0, 0], [1, 33], [33, 1], [0, 0]])",
     ]
 
     file_path = os.path.abspath(output_file_name)
@@ -390,14 +431,14 @@ def test_save_dump_offloads_generic(tmp_path_factory):
     assert os.path.exists(file_path)
     with open(file_path, "r") as f:
         for i, file_string in enumerate(f):
-            r_output = re.search(r"(.*)\(", file_string.strip(), re.DOTALL)
+            r_output = re.search(r"(.*)\(", file_string.replace("\n", ""), re.DOTALL)
             r_expected = re.search(r"(.*)\(", expected[i], re.DOTALL)
             # check that there is the same sequence of operations and composites,
             # combined with target names
             if r_output and r_expected:
                 assert r_output.group(0) == r_expected.group(0)
             else:
-                assert r_output == r_expected
+                assert file_string.replace("\n", "") == expected[i]
 
 
 # End to end tests for compilation
@@ -757,6 +798,7 @@ def test_compile_opencl(tflite_mobilenet_v1_0_25_128):
     assert type(tvmc_package.lib_path) is str
     assert type(tvmc_package.params) is bytearray
     assert os.path.exists(dumps_path)
+    assert path.exists("{}.{}".format(tvmc_package.package_path, "opencl"))
 
 
 @tvm.testing.requires_cmsisnn

@@ -149,10 +149,7 @@ class LocalBuilder(Builder):
                         # instantiation error
                         if isinstance(exception, InstantiationError):
                             res = MeasureResult(
-                                (
-                                    tb,
-                                    exception,
-                                ),
+                                (tb, exception),
                                 MeasureErrorNo.INSTANTIATION_ERROR,
                                 res.time_cost,
                                 time.time(),
@@ -166,10 +163,7 @@ class LocalBuilder(Builder):
                                 except Exception:  # pylint: disable=broad-except
                                     pass
                                 res = MeasureResult(
-                                    (
-                                        tb,
-                                        InstantiationError(msg),
-                                    ),
+                                    (tb, InstantiationError(msg)),
                                     MeasureErrorNo.INSTANTIATION_ERROR,
                                     res.time_cost,
                                     time.time(),
@@ -177,10 +171,7 @@ class LocalBuilder(Builder):
 
                             else:  # tvm error
                                 res = MeasureResult(
-                                    (
-                                        tb,
-                                        res.error,
-                                    ),
+                                    (tb, res.error),
                                     MeasureErrorNo.COMPILE_HOST,
                                     res.time_cost,
                                     time.time(),
@@ -188,24 +179,12 @@ class LocalBuilder(Builder):
                 except TimeoutError as ex:
                     tb = traceback.format_exc()
                     res = MeasureResult(
-                        (
-                            tb,
-                            ex,
-                        ),
-                        MeasureErrorNo.BUILD_TIMEOUT,
-                        self.timeout,
-                        time.time(),
+                        (tb, ex), MeasureErrorNo.BUILD_TIMEOUT, self.timeout, time.time()
                     )
                 except ChildProcessError as ex:
                     tb = traceback.format_exc()
                     res = MeasureResult(
-                        (
-                            tb,
-                            ex,
-                        ),
-                        MeasureErrorNo.RUNTIME_DEVICE,
-                        self.timeout,
-                        time.time(),
+                        (tb, ex), MeasureErrorNo.RUNTIME_DEVICE, self.timeout, time.time()
                     )
 
                 results.append(res)
@@ -395,13 +374,7 @@ class RPCRunner(Runner):
                     tb = traceback.format_exc()
                     results.append(
                         MeasureResult(
-                            (
-                                tb,
-                                ex,
-                            ),
-                            MeasureErrorNo.RUN_TIMEOUT,
-                            self.timeout,
-                            time.time(),
+                            (tb, ex), MeasureErrorNo.RUN_TIMEOUT, self.timeout, time.time()
                         )
                     )
 
@@ -479,7 +452,7 @@ class LocalRunner(RPCRunner):
 
         self.task = task
         tracker = Tracker(port=9000, port_end=10000, silent=True)
-        device_key = "$local$device$%d" % tracker.port
+        device_key = f"$local$device${tracker.port}"
         server = Server(
             port=9000,
             port_end=10000,
@@ -586,7 +559,7 @@ class _WrappedBuildFunc:
         tic = time.time()
         try:
             filename = os.path.join(
-                tmp_dir, "tmp_func_%0x.%s" % (getrandbits(64), self.build_func.output_format)
+                tmp_dir, f"tmp_func_{getrandbits(64):0x}.{self.build_func.output_format}"
             )
             # TODO(tvm-team) consider linline _build_func_common
             func, arg_info = _build_func_common(measure_input, self.runtime, **kwargs)
@@ -598,7 +571,7 @@ class _WrappedBuildFunc:
                     raise ImportError("Requires USE_MICRO")
                 micro.export_model_library_format(func, filename)
             else:
-                func.export_library(filename, self.build_func)
+                func.export_library(filename, fcompile=self.build_func)
         except Exception as e:  # pylint: disable=broad-except
             tb = traceback.format_exc()
             return BuildResult(None, None, (tb, e), time.time() - tic)
@@ -715,10 +688,7 @@ def run_through_rpc(
             msg = msg[: msg.index("Stack trace returned")]
         if "CUDA Source" in msg:
             msg = msg[: msg.index("CUDA Source")]
-        costs = (
-            traceback.format_exc(),
-            RuntimeError(msg[:1024]),
-        )
+        costs = (traceback.format_exc(), RuntimeError(msg[:1024]))
         errno = MeasureErrorNo.RUNTIME_DEVICE
     tstamp = time.time()
     time.sleep(cooldown_interval)
@@ -834,9 +804,7 @@ def check_remote(target, device_key, host=None, port=None, priority=100, timeout
             pass
         logger.debug("device available")
 
-    t = threading.Thread(
-        target=_check,
-    )
+    t = threading.Thread(target=_check)
     t.start()
     t.join(timeout)
 

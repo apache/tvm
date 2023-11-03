@@ -434,14 +434,30 @@ std::string SimulatorRPCChannel::Core_::str() const {
 
 std::string SimulatorRPCChannel::Cpu_::str() const {
   switch (c) {
+#ifdef HEX_CPU_ID_V65A_512
     case HEX_CPU_V65:
       return "v65";
+#endif
+#ifdef HEX_CPU_ID_V66A_512
     case HEX_CPU_V66:
       return "v66";
+#endif
+#ifdef HEX_CPU_ID_V68N_1024
     case HEX_CPU_V68:
       return "v68";
+#endif
+#ifdef HEX_CPU_ID_V69NA
     case HEX_CPU_V69:
       return "v69";
+#endif
+#ifdef HEX_CPU_ID_V71H_MDM_SCA
+    case HEX_CPU_V71:
+      return "v71";
+#endif
+#ifdef HEX_CPU_ID_V73NA_1
+    case HEX_CPU_V73:
+      return "v73";
+#endif
     default:
       break;
   }
@@ -541,10 +557,24 @@ HEX_8u_t SimulatorRPCChannel::PassVirtAddrCallback(void* handle, int threadno, H
 std::optional<HEXAPI_Cpu> SimulatorRPCChannel::GetCPU(const detail::MaybeString& cpu_str) {
   if (!cpu_str) return std::nullopt;
   return detail::StringSwitch<std::optional<HEXAPI_Cpu>>(*cpu_str)
+#ifdef HEX_CPU_ID_V65A_512
       .Case("v65", HEX_CPU_V65)
+#endif
+#ifdef HEX_CPU_ID_V66A_512
       .Case("v66", HEX_CPU_V66)
+#endif
+#ifdef HEX_CPU_ID_V68N_1024
       .Case("v68", HEX_CPU_V68)
+#endif
+#ifdef HEX_CPU_ID_V69NA
       .Case("v69", HEX_CPU_V69)
+#endif
+#ifdef HEX_CPU_ID_V71H_MDM_SCA
+      .Case("v71", HEX_CPU_V71)
+#endif
+#ifdef HEX_CPU_ID_V73NA_1
+      .Case("v73", HEX_CPU_V73)
+#endif
       .Default(std::nullopt);
 }
 

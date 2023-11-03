@@ -34,7 +34,7 @@ namespace contrib {
  */
 TVM_REGISTER_TARGET_KIND("ccompiler", kDLCPU)
     .set_attr<Bool>(tvm::attr::kIsExternalCodegen, Bool(true))
-    .set_attr<FTVMRelayToTIR>(tvm::attr::kRelayToTIR, CCompilerPass())
+    .set_attr<relay::transform::FTVMRelayToTIR>(tvm::attr::kRelayToTIR, CCompilerPass())
     // Value is prepended to every output CModule.
     .add_attr_option<String>("header", String(""));
 

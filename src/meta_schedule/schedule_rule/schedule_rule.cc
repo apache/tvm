@@ -171,7 +171,7 @@ Array<ScheduleRule> ScheduleRule::DefaultCUDA() {
 }
 
 Array<ScheduleRule> ScheduleRule::DefaultCUDATensorCore() {
-  Array<Map<String, String>> intrin_groups = {
+  Array<Map<String, String>> wmma_intrin_groups = {
       // Tensor Cores f32 += f16 * f16
       {
           {"init", "wmma_fill_16x16x16_f32"},
@@ -218,10 +218,27 @@ Array<ScheduleRule> ScheduleRule::DefaultCUDATensorCore() {
           {"store", "wmma_store_16x16x16_s32_shared_dyn"},
       },
   };
+  Array<Map<String, String>> mma_intrin_groups = {
+      // Tensor Core MMA
+      {
+          {"init", "mma_init_m16n8k8_f16"},
+          {"load_a", "mma_load_m16n8k8_f16_A_shared_dyn"},
+          {"load_b", "mma_load_m16n8k8_f16_B_shared_dyn"},
+          {"compute", "mma_sync_m16n8k8_f16f16f16"},
+          {"store", "mma_store_m16n8k8_f16_global"},
+      },
+      {
+          {"init", "mma_init_m16n8k8_f32"},
+          {"load_a", "mma_load_m16n8k8_f16_A_shared_dyn"},
+          {"load_b", "mma_load_m16n8k8_f16_B_shared_dyn"},
+          {"compute", "mma_sync_m16n8k8_f16f16f32"},
+          {"store", "mma_store_m16n8k8_f32_global"},
+      },
+  };
   Array<ScheduleRule> results{
       ScheduleRule::ApplyCustomRule(),
       ScheduleRule::MultiLevelTilingTensorCore(
-          /*intrin_groups=*/intrin_groups,
+          /*intrin_groups=*/wmma_intrin_groups,
           /*structure=*/"SSSRRSRS",
           /*tile_binds=*/Array<String>{"blockIdx.y", "blockIdx.x", "threadIdx.y"},
           /*max_innermost_factor=*/Integer(4),
@@ -234,7 +251,22 @@ Array<ScheduleRule> ScheduleRule::DefaultCUDATensorCore() {
           Map<String, ObjectRef>{{"req", String("must")},
                                  {"levels", Array<Integer>{2}},  //
                                  {"scope", String("shared.dyn")}},
-          /*use_software_pipeline=*/false)  //
+          /*use_software_pipeline=*/false),  //
+      ScheduleRule::MultiLevelTilingTensorCore(
+          /*intrin_groups=*/mma_intrin_groups,
+          /*structure=*/"SSSRRSRS",
+          /*tile_binds=*/Array<String>{"blockIdx.y", "blockIdx.x", "threadIdx.y"},
+          /*max_innermost_factor=*/Integer(4),
+          /*vector_load_lens=*/Array<Integer>{1, 2, 3, 4, 8, 16},
+          /*reuse_read=*/
+          Map<String, ObjectRef>{{"req", String("must")},
+                                 {"levels", Array<Integer>{4}},  //
+                                 {"scope", String("shared.dyn")}},
+          /*reuse_write=*/
+          Map<String, ObjectRef>{{"req", String("no")},
+                                 {"levels", Array<Integer>{2}},  //
+                                 {"scope", String("shared.dyn")}},
+          /*use_software_pipeline=*/true)  //
   };
   Array<ScheduleRule> append = ScheduleRule::DefaultCUDA();
   results.insert(results.end(), append.begin() + 1, append.end());

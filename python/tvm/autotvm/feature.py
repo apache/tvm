@@ -136,7 +136,7 @@ def get_itervar_feature_flatten(sch, args, take_log=True):
     """
     stmt = ana_lower(sch, args, simple_mode=True)
     feas = _get_itervar_feature_flatten(stmt, take_log)
-    feas = struct.unpack("%df" % (len(feas) // 4), feas)
+    feas = struct.unpack(f"{len(feas) // 4}f", feas)
     return feas
 
 
@@ -154,8 +154,7 @@ def get_flatten_name(fea):
     """
 
     feature_name = {
-        "_attr_": ["length", "nest_level", "topdown", "bottomup"]
-        + ["ann_%d" % i for i in range(20)],
+        "_attr_": ["length", "nest_level", "topdown", "bottomup"] + [f"ann_{i}" for i in range(20)],
         "_arith_": ["add", "mul", "div"],
         "buf_touch": ["stride", "mod", "count", "reuse", "T_count", "T_reuse"],
     }
@@ -187,7 +186,7 @@ def get_flatten_name(fea):
                 name_list = feature_name["buf_touch"]
 
             for i in range(len((pair[1:]))):
-                names.append(".".join(["f%d" % ct, var_name, key, name_list[i]]))
+                names.append(".".join([f"f{ct}", var_name, key, name_list[i]]))
                 ct += 1
     return names
 
@@ -211,5 +210,5 @@ def get_buffer_curve_sample_flatten(sch, args, sample_n=30):
     """
     stmt = ana_lower(sch, args, simple_mode=True)
     feas = _get_buffer_curve_sample_flatten(stmt, sample_n, False)
-    feas = struct.unpack("%df" % (len(feas) // 4), feas)
+    feas = struct.unpack(f"{len(feas) // 4}f", feas)
     return feas

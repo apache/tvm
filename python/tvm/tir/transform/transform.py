@@ -40,6 +40,7 @@ def Apply(ftransform):
     fpass : tvm.transform.Pass
         The result pass
     """
+
     # pylint: disable=unused-argument
     def _transform(func, mod, ctx):
         return ftransform(func)
@@ -229,6 +230,20 @@ def StorageRewrite():
     return _ffi_api.StorageRewrite()  # type: ignore
 
 
+def PointerValueTypeRewrite():
+    """
+    Rewrite the pointer content type of arguments, as well as Alloc internal to the function to use
+    the most frequently accessed type for load/store to avoid pointer casting in backend when
+    possible.
+
+    Returns
+    -------
+    fpass : tvm.transform.Pass
+        The result pass
+    """
+    return _ffi_api.PointerValueTypeRewrite()  # type: ignore
+
+
 def UnrollLoop():
     """Unroll the constant loop marked by unroll.
 
@@ -297,6 +312,22 @@ def BF16ComputeLegalize():
     return _ffi_api.BF16ComputeLegalize()  # type: ignore
 
 
+def FP8ComputeLegalize(promote_dtype_str: str = "float32"):
+    """Legalize fp8 compute Ops.
+
+    Parameters
+    ----------
+    promote_dtype : str
+        The data type we promote fp8 to, options: float16/float32.
+
+    Returns
+    -------
+    fpass : tvm.transform.Pass
+        The result pass
+    """
+    return _ffi_api.FP8ComputeLegalize(promote_dtype_str)  # type: ignore
+
+
 def BF16StorageLegalize():
     """Legalize bf16 storage types to u16.
 
@@ -306,6 +337,17 @@ def BF16StorageLegalize():
         The result pass
     """
     return _ffi_api.BF16StorageLegalize()  # type: ignore
+
+
+def FP8StorageLegalize():
+    """Legalize fp8 storage types to u8.
+
+    Returns
+    -------
+    fpass : tvm.transform.Pass
+        The result pass
+    """
+    return _ffi_api.FP8StorageLegalize()  # type: ignore
 
 
 def CommonSubexprElimTIR(enable_cse_tir: bool = True, identify_equiv_terms: bool = False):
@@ -339,6 +381,24 @@ def Simplify():
         The result pass
     """
     return _ffi_api.Simplify()  # type: ignore
+
+
+def ConvertSSA():
+    """Convert an IRModule to be SSA form.
+
+    This pass handles cases where the same `tir.Var` appears in
+    multiple functions within the same module.  For example, after
+    extracting a fragment from one function into another, where the
+    same `tir.Var` may be defined both as within the body of the
+    original function, and as a parameter within the hoisted function.
+
+    Returns
+    -------
+    fpass : tvm.transform.Pass
+        The result pass
+
+    """
+    return _ffi_api.ConvertSSA()  # type: ignore
 
 
 def InstrumentBoundCheckers():
@@ -417,6 +477,22 @@ def MakeUnpackedAPI():
     return _ffi_api.MakeUnpackedAPI()  # type: ignore
 
 
+def AnnotateDeviceRegions():
+    """Annotate locations that should be run on the device
+
+    Insert `AttrStmt` nodes specifying a target on which regions
+    within the PrimFunc should be executed.  Only modifies functions
+    that have a `tvm::attr::kTarget` attribute, and where that target
+    defines a host.
+
+    Returns
+    -------
+    fpass : tvm.transform.Pass
+        The result pass
+    """
+    return _ffi_api.AnnotateDeviceRegions()  # type: ignore
+
+
 def SplitHostDevice():
     """Split the function into a host function and device functions.
 
@@ -426,6 +502,28 @@ def SplitHostDevice():
         The result pass
     """
     return _ffi_api.SplitHostDevice()  # type: ignore
+
+
+def LowerDeviceKernelLaunch():
+    """Lower cross-device function calls.
+
+    Prior to this pass, host to device calls are represented as
+    subroutine calls, with environment parameters (e.g. env_thread)
+    specified internally.  The device function is an internal
+    function, without a `tvm::attr::kGlobalSymbol` attribute.
+
+    After this pass, host to device calls are represented as
+    tvm_call_packed built-in.  The device function is an
+    externally-exposed function, with a non-empty
+    `tvm::attr::kGlobalSymbol` attribute.
+
+
+    Returns
+    -------
+    fpass : tvm.transform.Pass
+        The result pass
+    """
+    return _ffi_api.LowerDeviceKernelLaunch()  # type: ignore
 
 
 def DecorateDeviceScope():
@@ -747,6 +845,17 @@ def ConvertBlocksToOpaque():
     return _ffi_api.ConvertBlocksToOpaque()  # type: ignore
 
 
+def LiftThreadBinding():
+    """Lift the same thread bindings to their LCA loops.
+
+    Returns
+    -------
+    fpass : tvm.transform.Pass
+        The result pass
+    """
+    return _ffi_api.LiftThreadBinding()  # type: ignore
+
+
 def CompactBufferAllocation(is_strict: bool = True):
     """Compact the buffer access region. by removing the buffer regions
     that are not accessed, i.e. narrowing the buffer shape and adjust
@@ -830,6 +939,28 @@ def FlattenBuffer():
         The result pass
     """
     return _ffi_api.FlattenBuffer()  # type: ignore
+
+
+def TransformMmaBufferLayout():
+    """Transform mma buffer layout
+
+    Returns
+    -------
+    fpass : tvm.transform.Pass
+        The result pass
+    """
+    return _ffi_api.TransformMmaBufferLayout()  # type: ignore
+
+
+def InjectPermutedLayout():
+    """Inject permuted layout in mma
+
+    Returns
+    -------
+    fpass : tvm.transform.Pass
+        The result pass
+    """
+    return _ffi_api.InjectPermutedLayout()  # type: ignore
 
 
 def UnifyThreadBinding():

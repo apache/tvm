@@ -34,7 +34,7 @@ def test_same_io_qnn_params():
 
     x = relay.var("x", shape=(1, 64), dtype=data_dtype)
     y = relay.var("y", shape=(1, 64), dtype=data_dtype)
-    z = relay.qnn.op.concatenate(
+    z = relay.qnn.concatenate(
         (x, y),
         input_scales=(x_scale, y_scale),
         input_zero_points=(zero, zero),
@@ -70,7 +70,7 @@ def test_different_io_qnn_params():
 
     x = relay.var("x", shape=(1, 64), dtype=data_dtype)
     y = relay.var("y", shape=(1, 64), dtype=data_dtype)
-    z = relay.qnn.op.concatenate(
+    z = relay.qnn.concatenate(
         (x, y),
         input_scales=(x_scale, y_scale),
         input_zero_points=(x_zero_point, y_zero_point),
@@ -106,7 +106,7 @@ def test_few_same_io_qnn_params():
 
     x = relay.var("x", shape=(1, 64), dtype=data_dtype)
     y = relay.var("y", shape=(1, 64), dtype=data_dtype)
-    z = relay.qnn.op.concatenate(
+    z = relay.qnn.concatenate(
         (x, y),
         input_scales=(x_scale, y_scale),
         input_zero_points=(x_zero_point, y_zero_point),
@@ -142,7 +142,7 @@ def test_same_i_qnn_params():
 
     x = relay.var("x", shape=(1, 64), dtype=data_dtype)
     y = relay.var("y", shape=(1, 64), dtype=data_dtype)
-    z = relay.qnn.op.concatenate(
+    z = relay.qnn.concatenate(
         (x, y),
         input_scales=(x_scale, y_scale),
         input_zero_points=(x_zero_point, y_zero_point),
@@ -177,7 +177,7 @@ def test_call_input():
     y_zero_point = relay.const(0, "int32")
 
     tup = relay.split(x, 2, axis=0)
-    z = relay.qnn.op.concatenate(
+    z = relay.qnn.concatenate(
         tup,
         input_scales=(x_scale, y_scale),
         input_zero_points=(x_zero_point, y_zero_point),

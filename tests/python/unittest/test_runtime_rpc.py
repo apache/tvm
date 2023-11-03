@@ -179,7 +179,7 @@ def test_rpc_large_array():
 @tvm.testing.skip_if_32bit(reason="skipping test for i386.")
 @tvm.testing.requires_rpc
 def test_rpc_echo():
-    def check(remote):
+    def check(remote, local_session):
         fecho = remote.get_function("testing.echo")
         assert fecho(1, 2, 3) == 1
         assert fecho(100, 2, 3) == 100
@@ -191,15 +191,19 @@ def test_rpc_echo():
             raise_err()
 
         remote.cpu().sync()
-        with pytest.raises(AttributeError):
-            f3 = remote.system_lib()["notexist"]
+        # tests around system lib are not threadsafe by design
+        # and do not work well with multithread pytest
+        # skip local session as they are being tested elsewhere
+        if not local_session:
+            with pytest.raises(AttributeError):
+                f3 = remote.system_lib()["notexist"]
 
     temp = rpc.server._server_env([])
     server = rpc.Server()
     client = rpc.connect("127.0.0.1", server.port)
-    check(rpc.LocalSession())
+    check(rpc.LocalSession(), True)
 
-    check(client)
+    check(client, False)
 
     def check_minrpc():
         if tvm.get_global_func("rpc.CreatePipeClient", allow_missing=True) is None:
@@ -208,7 +212,7 @@ def test_rpc_echo():
         temp = utils.tempdir()
         minrpc_exec = temp.relpath("minrpc")
         tvm.rpc.with_minrpc(cc.create_executable)(minrpc_exec, [])
-        check(rpc.PopenSession(minrpc_exec))
+        check(rpc.PopenSession(minrpc_exec), False)
         # minrpc on the remote
         server = rpc.Server()
         client = rpc.connect(
@@ -216,7 +220,7 @@ def test_rpc_echo():
             server.port,
             session_constructor_args=["rpc.PopenSession", open(minrpc_exec, "rb").read()],
         )
-        check(client)
+        check(client, False)
 
     check_minrpc()
 
@@ -290,7 +294,7 @@ def test_rpc_remote_module():
         runtime = Runtime("cpp", {"system-lib": True})
         f = tvm.build(s, [A, B], "llvm", name="myadd", runtime=runtime)
         path_minrpc = temp.relpath("dev_lib.minrpc")
-        f.export_library(path_minrpc, rpc.with_minrpc(cc.create_executable))
+        f.export_library(path_minrpc, fcompile=rpc.with_minrpc(cc.create_executable))
 
         with pytest.raises(RuntimeError):
             rpc.PopenSession("filenotexist")
@@ -602,3 +606,34 @@ def test_rpc_tracker_via_proxy(device_key):
     server1.terminate()
     proxy_server.terminate()
     tracker_server.terminate()
+
+
+@tvm.testing.requires_rpc
+@pytest.mark.parametrize("with_proxy", (True, False))
+def test_rpc_session_timeout_error(with_proxy):
+    port = 9000
+    port_end = 10000
+
+    tracker = Tracker(port=port, port_end=port_end)
+    time.sleep(0.5)
+    tracker_addr = (tracker.host, tracker.port)
+
+    if with_proxy:
+        proxy = Proxy(host="0.0.0.0", port=port, port_end=port_end, tracker_addr=tracker_addr)
+        time.sleep(0.5)
+        server = rpc.Server(host=proxy.host, port=proxy.port, is_proxy=True, key="x1")
+    else:
+        server = rpc.Server(port=port, port_end=port_end, tracker_addr=tracker_addr, key="x1")
+    time.sleep(0.5)
+
+    rpc_sess = rpc.connect_tracker(*tracker_addr).request(key="x1", session_timeout=1)
+
+    with pytest.raises(tvm.error.RPCSessionTimeoutError):
+        f1 = rpc_sess.get_function("rpc.test.addone")
+        time.sleep(2)
+        f1(10)
+
+    server.terminate()
+    if with_proxy:
+        proxy.terminate()
+    tracker.terminate()

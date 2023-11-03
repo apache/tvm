@@ -23,6 +23,7 @@
 #include <tvm/runtime/container/array.h>
 #include <tvm/runtime/container/map.h>
 #include <tvm/runtime/container/string.h>
+#include <tvm/runtime/container/variant.h>
 #include <tvm/tir/function.h>
 #include <tvm/tir/op.h>
 
@@ -852,4 +853,50 @@ TEST(Optional, PackedCall) {
   test_ffi(Optional<String>(s), static_cast<int>(kTVMObjectRValueRefArg));
   test_ffi(s, static_cast<int>(kTVMObjectHandle));
   test_ffi(String(s), static_cast<int>(kTVMObjectRValueRefArg));
+}
+
+TEST(Variant, Construct) {
+  Variant<PrimExpr, String> variant;
+  variant = PrimExpr(1);
+  ICHECK(variant.as<PrimExpr>());
+  ICHECK(!variant.as<String>());
+
+  variant = String("hello");
+  ICHECK(variant.as<String>());
+  ICHECK(!variant.as<PrimExpr>());
+}
+
+TEST(Variant, InvalidTypeThrowsError) {
+  auto expected_to_throw = []() {
+    ObjectPtr<Object> node = make_object<Object>();
+    Variant<PrimExpr, String> variant(node);
+  };
+
+  EXPECT_THROW(expected_to_throw(), InternalError);
+}
+
+TEST(Variant, ReferenceIdentifyPreservedThroughAssignment) {
+  Variant<PrimExpr, String> variant;
+  ICHECK(!variant.defined());
+
+  String string_obj = "dummy_test";
+  variant = string_obj;
+  ICHECK(variant.defined());
+  ICHECK(variant.same_as(string_obj));
+  ICHECK(string_obj.same_as(variant));
+
+  String out_string_obj = Downcast<String>(variant);
+  ICHECK(string_obj.same_as(out_string_obj));
+}
+
+TEST(Variant, ExtractValueFromAssignment) {
+  Variant<PrimExpr, String> variant = String("hello");
+  ICHECK_EQ(variant.as<String>().value(), "hello");
+}
+
+TEST(Variant, AssignmentFromVariant) {
+  Variant<PrimExpr, String> variant = String("hello");
+  auto variant2 = variant;
+  ICHECK(variant2.as<String>());
+  ICHECK_EQ(variant2.as<String>().value(), "hello");
 }

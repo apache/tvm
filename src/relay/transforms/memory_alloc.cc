@@ -260,7 +260,7 @@ class DialectRewriter : public transform::DeviceAwareExprMutator {
     Expr alignment = ComputeAlignment(type->dtype);
     // Run type inference later to get the correct type.
     Var var("storage_" + name_hint, Type(nullptr));
-    Expr value = AllocStorage(size, alignment, virtual_device, type->dtype);
+    Expr value = AllocStorage(size, shape, alignment, virtual_device, type->dtype);
     auto sto = scope->Push(var, MaybeOnDeviceFixed(value, virtual_device));
 
     // TODO(@jroesch): There is a bug with typing based on the constant shape.
@@ -366,7 +366,7 @@ class DialectRewriter : public transform::DeviceAwareExprMutator {
       // Alignment is directly captured in the instruction so don't wrap in "on_device".
       auto alignment = ComputeAlignment(out_type->dtype);
       Var sto_var("storage_" + std::to_string(i), Type(nullptr));
-      auto val = AllocStorage(size, alignment, virtual_device, out_type->dtype);
+      auto val = AllocStorage(size, out_shape, alignment, virtual_device, out_type->dtype);
       storages.push_back(scope->Push(sto_var, MaybeOnDeviceFixed(val, virtual_device)));
     }
 

@@ -1251,7 +1251,7 @@ def AnnotateSpans():
     return _ffi_api.AnnotateSpans()
 
 
-def FakeQuantizationToInteger(hard_fail=False, use_qat=False):
+def FakeQuantizationToInteger(hard_fail=False, use_qat=False, optional_qnn_ops=None):
     # pylint: disable=anomalous-backslash-in-string
     """
     Find regions of the graph of the form
@@ -1298,12 +1298,19 @@ def FakeQuantizationToInteger(hard_fail=False, use_qat=False):
               |
               q
 
+    optional_qnn_ops : List[str]
+        Specify a list of operator names to explicitly enable conversion for
+        specific ops disabled by default.
+        Example: ['nn.softmax']
+
     Returns
     -------
     ret : tvm.transform.Pass
         The registered FakeQuantizationToInteger pass.
     """
-    return _ffi_api.FakeQuantizationToInteger(hard_fail, use_qat)
+    if optional_qnn_ops is None:
+        optional_qnn_ops = []
+    return _ffi_api.FakeQuantizationToInteger(hard_fail, use_qat, optional_qnn_ops)
 
 
 def FlattenAtrousConv():
@@ -1369,10 +1376,17 @@ def ToMixedPrecision(mixed_precision_type="float16", missing_op_mode=1):
 def SplitArgs(max_function_args):
     """Split function with huge number of arguments to smaller pieces.
 
+    Parameters
+    ----------
+    max_function_args: int
+      Maximum number of function arguments. If it equals 0 then SplitArgs
+      shouldn't split the function.
+
+
     Returns
     -------
     ret : tvm.transform.Pass
-        The registered pass for constant folding.
+        The registered pass.
     """
     return _ffi_api.SplitArgs(max_function_args)
 

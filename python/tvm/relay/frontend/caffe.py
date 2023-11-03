@@ -133,7 +133,7 @@ class OperatorConverter(object):
                 out = _op.maximum(out, extra_expr)
         else:
             raise tvm.error.OpNotImplemented(
-                "eltwise_type {} is not supported for frontend Caffe.".format(eltwise_type)
+                f"eltwise_type {eltwise_type} is not supported for frontend Caffe."
             )
 
         return out
@@ -351,7 +351,7 @@ class OperatorConverter(object):
             weight_value = np.asarray(weight.data, np.float32)
             weight_value = np.reshape(weight_value, weight_shape)
         else:
-            raise Exception("No weight value of layer {} in caffemodel".format(op.name))
+            raise Exception(f"No weight value of layer {op.name} in caffemodel")
 
         weight_expr = self.exp_tab.new_const(weight_value, dtype="float32")
         in_expr = self.exp_tab.get_expr(inputs[0])
@@ -416,9 +416,7 @@ class OperatorConverter(object):
                 out = _op.nn.avg_pool2d(in_expr, **params)
         else:
             raise tvm.error.OpNotImplemented(
-                "Operator {} is not supported for frontend Caffe.".format(
-                    pool_type_dict[pool_type] + " pool"
-                )
+                f"Operator {pool_type_dict[pool_type]} pool is not supported for frontend Caffe."
             )
 
         return out
@@ -465,7 +463,7 @@ class OperatorConverter(object):
             weight_value = np.reshape(weight_value, (params["num_output"], -1))
             weight_shape = weight_value.shape
         else:
-            raise Exception("No weight value of layer {} in caffemodel".format(op.name))
+            raise Exception(f"No weight value of layer {op.name} in caffemodel")
 
         weight_expr = self.exp_tab.new_const(weight_value, dtype="float32")
 
@@ -548,9 +546,7 @@ class OperatorConverter(object):
             # weight shape is in relay's IOHW format rn, we need it to be OIHW
             weight_value = np.transpose(weight_value, [1, 0, 2, 3])
         else:
-            raise tvm.error.OpAttributeRequired(
-                "No weight value of layer {} in caffemodel".format(op.name)
-            )
+            raise tvm.error.OpAttributeRequired(f"No weight value of layer {op.name} in caffemodel")
 
         weight_expr = self.exp_tab.new_const(weight_value, dtype="float32")
         in_expr = self.exp_tab.get_expr(inputs[0])
@@ -670,7 +666,7 @@ class OperatorConverter(object):
             out = _op.sum(in_expr, axis=axis)
         else:
             raise tvm.error.OpAttributeInvalid(
-                "reduction method:{} is invalid in Caffe frontend.".format(method)
+                f"reduction method:{method} is invalid in Caffe frontend."
             )
 
         if float(coeff) != 1.0:

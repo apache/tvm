@@ -197,7 +197,7 @@ def conv3d_cudnn(
         tensor_format = 1  # CUDNN_TENSOR_NHWC
         N, D, H, W, _ = get_const_tuple(data.shape)
     else:
-        raise ValueError("Unsupported layout %s in cudnn" % layout)
+        raise ValueError(f"Unsupported layout {layout} in cudnn")
     CO, CI, KD, KH, KW = get_const_tuple(kernel.shape)
 
     assert groups == 1, "conv3d_cudnn does not support groups"

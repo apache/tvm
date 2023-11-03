@@ -40,7 +40,7 @@ def test_basic():
     bounds = tvm.te.schedule.InferBound(s)
     stmt = tvm.te.schedule.ScheduleOps(s, bounds)
 
-    mod = tvm.IRModule.from_expr(tvm.tir.PrimFunc([n], stmt))
+    mod = tvm.IRModule.from_expr(tvm.tir.PrimFunc([n], stmt).with_attr("global_symbol", "main"))
     mod = tvm.tir.transform.LoopPartition()(mod)
     stmt = tvm.tir.transform.Simplify()(mod)["main"]
 
@@ -60,7 +60,7 @@ def test_const_loop():
     bounds = tvm.te.schedule.InferBound(s)
     stmt = tvm.te.schedule.ScheduleOps(s, bounds)
 
-    mod = tvm.IRModule.from_expr(tvm.tir.PrimFunc([], stmt))
+    mod = tvm.IRModule.from_expr(tvm.tir.PrimFunc([], stmt).with_attr("global_symbol", "main"))
     with tvm.transform.PassContext(config={"tir.LoopPartition": {"partition_const_loop": True}}):
         mod = tvm.tir.transform.LoopPartition()(mod)
         stmt = tvm.tir.transform.Simplify()(mod)["main"].body
@@ -80,7 +80,7 @@ def test_no_unroll_loop():
     bounds = tvm.te.schedule.InferBound(s)
     stmt = tvm.te.schedule.ScheduleOps(s, bounds)
 
-    mod = tvm.IRModule.from_expr(tvm.tir.PrimFunc([], stmt))
+    mod = tvm.IRModule.from_expr(tvm.tir.PrimFunc([], stmt).with_attr("global_symbol", "main"))
     with tvm.transform.PassContext(
         config={
             "tir.LoopPartition": {
@@ -109,7 +109,7 @@ def test_multi_loop():
                     ib.emit(tvm.tir.Evaluate(n))
     stmt = ib.get()
 
-    mod = tvm.IRModule.from_expr(tvm.tir.PrimFunc([n, m], stmt))
+    mod = tvm.IRModule.from_expr(tvm.tir.PrimFunc([n, m], stmt).with_attr("global_symbol", "main"))
     mod = tvm.tir.transform.LoopPartition()(mod)
     stmt = tvm.tir.transform.Simplify()(mod)["main"].body
 
@@ -133,7 +133,7 @@ def test_multi_if():
                     ib.emit(tvm.tir.Evaluate(n))
     stmt = ib.get()
 
-    mod = tvm.IRModule.from_expr(tvm.tir.PrimFunc([], stmt))
+    mod = tvm.IRModule.from_expr(tvm.tir.PrimFunc([], stmt).with_attr("global_symbol", "main"))
     mod = tvm.tir.transform.LoopPartition()(mod)
     stmt = tvm.tir.transform.Simplify()(mod)["main"].body
 
@@ -156,7 +156,7 @@ def test_thread_axis():
     bounds = tvm.te.schedule.InferBound(s)
     stmt = tvm.te.schedule.ScheduleOps(s, bounds)
 
-    mod = tvm.IRModule.from_expr(tvm.tir.PrimFunc([], stmt))
+    mod = tvm.IRModule.from_expr(tvm.tir.PrimFunc([], stmt).with_attr("global_symbol", "main"))
     mod = tvm.tir.transform.LoopPartition()(mod)
     stmt = tvm.tir.transform.Simplify()(mod)["main"]
 
@@ -195,7 +195,7 @@ def test_condition():
             ib.emit(tvm.tir.Evaluate(tvm.tir.Select(ib.likely(i * 4 + j < n), m, n)))
     stmt = ib.get()
 
-    mod = tvm.IRModule.from_expr(tvm.tir.PrimFunc([m, n], stmt))
+    mod = tvm.IRModule.from_expr(tvm.tir.PrimFunc([m, n], stmt).with_attr("global_symbol", "main"))
     mod = tvm.tir.transform.LoopPartition()(mod)
     stmt = tvm.tir.transform.Simplify()(mod)["main"].body
 
@@ -210,7 +210,7 @@ def test_condition_EQ():
         ib.emit(tvm.tir.Evaluate(tvm.tir.Select(ib.likely(tvm.tir.EQ(i, 5)), m, n)))
     stmt = ib.get()
 
-    mod = tvm.IRModule.from_expr(tvm.tir.PrimFunc([m, n], stmt))
+    mod = tvm.IRModule.from_expr(tvm.tir.PrimFunc([m, n], stmt).with_attr("global_symbol", "main"))
     with tvm.transform.PassContext(config={"tir.LoopPartition": {"partition_const_loop": True}}):
         mod = tvm.tir.transform.LoopPartition()(mod)
         stmt = tvm.tir.transform.Simplify()(mod)["main"].body
@@ -247,7 +247,7 @@ def test_everything_during_deduction():
                 ib.emit(tvm.tir.Evaluate(m))
     stmt = ib.get()
 
-    mod = tvm.IRModule.from_expr(tvm.tir.PrimFunc([m, n], stmt))
+    mod = tvm.IRModule.from_expr(tvm.tir.PrimFunc([m, n], stmt).with_attr("global_symbol", "main"))
     mod = tvm.tir.transform.LoopPartition()(mod)
     stmt = tvm.tir.transform.Simplify()(mod)["main"].body
 
@@ -267,7 +267,7 @@ def test_single_likely():
     bounds = tvm.te.schedule.InferBound(s)
     stmt = tvm.te.schedule.ScheduleOps(s, bounds)
 
-    mod = tvm.IRModule.from_expr(tvm.tir.PrimFunc([], stmt))
+    mod = tvm.IRModule.from_expr(tvm.tir.PrimFunc([], stmt).with_attr("global_symbol", "main"))
 
     with tvm.transform.PassContext(config={"tir.LoopPartition": {"partition_const_loop": True}}):
         mod = tvm.tir.transform.LoopPartition()(mod)
@@ -294,7 +294,7 @@ def test_multi_likely():
     bounds = tvm.te.schedule.InferBound(s)
     stmt = tvm.te.schedule.ScheduleOps(s, bounds)
 
-    mod = tvm.IRModule.from_expr(tvm.tir.PrimFunc([], stmt))
+    mod = tvm.IRModule.from_expr(tvm.tir.PrimFunc([], stmt).with_attr("global_symbol", "main"))
 
     with tvm.transform.PassContext(config={"tir.LoopPartition": {"partition_const_loop": True}}):
         mod = tvm.tir.transform.LoopPartition()(mod)
@@ -327,7 +327,9 @@ def test_oneD_pool():
 
     stmt = ib.get()
 
-    mod = tvm.IRModule.from_expr(tvm.tir.PrimFunc([m, data, out], stmt))
+    mod = tvm.IRModule.from_expr(
+        tvm.tir.PrimFunc([m, data, out], stmt).with_attr("global_symbol", "main")
+    )
 
     with tvm.transform.PassContext(config={"tir.LoopPartition": {"partition_const_loop": True}}):
         mod = tvm.tir.transform.LoopPartition()(mod)
@@ -356,7 +358,9 @@ def test_cce_loop_1():
                 )
     stmt = ib.get()
 
-    mod = tvm.IRModule.from_expr(tvm.tir.PrimFunc([Ab, Bb], stmt))
+    mod = tvm.IRModule.from_expr(
+        tvm.tir.PrimFunc([Ab, Bb], stmt).with_attr("global_symbol", "main")
+    )
     with tvm.transform.PassContext(config={"tir.LoopPartition": {"partition_const_loop": True}}):
         mod = tvm.tir.transform.LoopPartition()(mod)
         stmt = tvm.tir.transform.Simplify()(mod)["main"].body
@@ -380,7 +384,7 @@ def test_cce_loop_2():
 
     stmt = ib.get()
 
-    mod = tvm.IRModule.from_expr(tvm.tir.PrimFunc([], stmt))
+    mod = tvm.IRModule.from_expr(tvm.tir.PrimFunc([], stmt).with_attr("global_symbol", "main"))
     with tvm.transform.PassContext(config={"tir.LoopPartition": {"partition_const_loop": True}}):
         mod = tvm.tir.transform.LoopPartition()(mod)
         stmt = tvm.tir.transform.Simplify()(mod)["main"].body
@@ -401,7 +405,7 @@ def test_cce_loop_3():
                 ib.emit(tvm.tir.call_extern("float16", "cce_intrisic", head1))
 
     stmt = ib.get()
-    mod = tvm.IRModule.from_expr(tvm.tir.PrimFunc([], stmt))
+    mod = tvm.IRModule.from_expr(tvm.tir.PrimFunc([], stmt).with_attr("global_symbol", "main"))
 
     with tvm.transform.PassContext(config={"tir.LoopPartition": {"partition_const_loop": True}}):
         mod = tvm.tir.transform.LoopPartition()(mod)
@@ -436,7 +440,7 @@ def test_conv_tiling():
     oho, owo, ohi, owi = s[conv].tile(oh, ow, 16, 16)
     bounds = tvm.te.schedule.InferBound(s)
     stmt = tvm.te.schedule.ScheduleOps(s, bounds)
-    mod = tvm.IRModule.from_expr(tvm.tir.PrimFunc([], stmt))
+    mod = tvm.IRModule.from_expr(tvm.tir.PrimFunc([], stmt).with_attr("global_symbol", "main"))
     with tvm.transform.PassContext(config={"tir.LoopPartition": {"partition_const_loop": True}}):
         mod = tvm.tir.transform.LoopPartition()(mod)
         stmt = tvm.tir.transform.Simplify()(mod)["main"].body
@@ -528,7 +532,7 @@ def test_simple_rfactor():
     bounds = tvm.te.schedule.InferBound(s)
     stmt1 = tvm.te.schedule.ScheduleOps(s, bounds)
 
-    mod1 = tvm.IRModule.from_expr(tvm.tir.PrimFunc([], stmt1))
+    mod1 = tvm.IRModule.from_expr(tvm.tir.PrimFunc([], stmt1).with_attr("global_symbol", "main"))
     stmt1 = tvm.tir.transform.Simplify()(mod1)["main"].body
 
     with tvm.transform.PassContext(config={"tir.LoopPartition": {"partition_const_loop": True}}):
@@ -567,7 +571,7 @@ def test_explicit_partition_hint():
 
 def partition_from_scheduled_tir(prim_func, pass_cfg):
     with tvm.transform.PassContext(config=pass_cfg):
-        mod = IRModule.from_expr(prim_func)
+        mod = IRModule.from_expr(prim_func.with_attr("global_symbol", "main"))
         mod = tvm.tir.transform.LowerOpaqueBlock()(mod)
         mod = tvm.tir.transform.FlattenBuffer()(mod)
         mod = tvm.tir.transform.LoopPartition()(mod)
@@ -624,7 +628,9 @@ def test_condition_mutually_exclusive():
     mod = partition_from_scheduled_tir(
         concat_func_3, {"tir.LoopPartition": {"partition_const_loop": True}}
     )
-    assert tvm.ir.structural_equal(mod["main"], partitioned_concat_3)
+    assert tvm.ir.structural_equal(
+        mod["main"], partitioned_concat_3.with_attr("global_symbol", "main")
+    )
 
 
 def test_loop_partition_unroll_hint():
@@ -674,7 +680,7 @@ def test_loop_partition_unroll_hint():
     mod = tvm.tir.transform.UnrollLoop()(mod)
     mod = tvm.tir.transform.RemoveNoOp()(mod)
     mod = tvm.tir.transform.Simplify()(mod)
-    assert tvm.ir.structural_equal(mod["main"], partitioned_main)
+    assert tvm.ir.structural_equal(mod["main"], partitioned_main.with_attr("global_symbol", "main"))
 
 
 def test_loop_partition_recursive_unroll_hint():
@@ -743,7 +749,7 @@ def test_loop_partition_recursive_unroll_hint():
             }
         },
     )
-    assert tvm.ir.structural_equal(mod["main"], partitioned_main)
+    assert tvm.ir.structural_equal(mod["main"], partitioned_main.with_attr("global_symbol", "main"))
 
 
 def test_loop_partition_keep_loop_annotations():
@@ -777,7 +783,7 @@ def test_loop_partition_keep_loop_annotations():
             }
         },
     )
-    assert tvm.ir.structural_equal(mod["main"], after)
+    assert tvm.ir.structural_equal(mod["main"], after.with_attr("global_symbol", "main"))
 
 
 def test_loop_partition_with_unit_loop_in_condition():
@@ -825,7 +831,7 @@ def test_loop_partition_with_unit_loop_in_condition():
             }
         },
     )
-    assert tvm.ir.structural_equal(mod["main"], after)
+    assert tvm.ir.structural_equal(mod["main"], after.with_attr("global_symbol", "main"))
 
 
 if __name__ == "__main__":

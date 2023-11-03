@@ -70,6 +70,32 @@ Type GetType(const PrimExpr& expr) {
       return ptr->type_annotation;
     }
   }
+
+  if (auto* access = expr.as<tir::CallNode>()) {
+    if (access->op.same_as(builtin::tvm_access_ptr())) {
+      ICHECK(access->args.size()) << "Builtin tvm_access_ptr() may not have empty arguments";
+      auto type_annotation = Downcast<Call>(access->args[0]);
+      static auto builtin_op = Op::Get("tir.type_annotation");
+      ICHECK(type_annotation->op.same_as(builtin_op))
+          << "Expected the first argument of builtin tvm_access_ptr() "
+          << "to be a type annotation, but found " << type_annotation->op;
+      return PointerType(PrimType(type_annotation->dtype));
+    }
+  }
+
+  if (auto* address_of = expr.as<tir::CallNode>()) {
+    if (address_of->op.same_as(builtin::address_of())) {
+      ICHECK_EQ(address_of->args.size(), 1)
+          << "Builtin address_of() expects a single argument, but received arguments "
+          << address_of->args;
+      auto* address = address_of->args[0].as<BufferLoadNode>();
+      ICHECK(address)
+          << "Builtin address_of() expects the argument to be a BufferLoad, but received argument "
+          << address_of->args[0];
+
+      return PointerType(PrimType(address->dtype));
+    }
+  }
   // Default: return the type indicated by the dtype.
   runtime::DataType dtype = expr.dtype();
   return GetTypeFromRuntimeDataType(dtype);
@@ -143,6 +169,12 @@ void BinaryOpMatchTypes(PrimExpr& lhs, PrimExpr& rhs, Span span) {  // NOLINT(*)
              !rtype.is_bfloat16()) {
     // Cast int->bfloat16 when the other operand is a bfloat16
     rhs = cast(ltype, rhs);
+  } else if (!ltype.is_float8() && rtype.is_float8()) {
+    // Cast int->float8 for lhs when rhs is a float8
+    lhs = cast(rtype, lhs);
+  } else if (ltype.is_float8() && !rtype.is_float8()) {
+    // Cast int->float8 for rhs when lhs is a float8
+    rhs = cast(ltype, rhs);
   } else if ((ltype.is_int() && rtype.is_int()) || (ltype.is_uint() && rtype.is_uint())) {
     // Promote int to higher bits e.g. int8 + int16 --> int16 + int16
     if (ltype.bits() < rtype.bits()) {
@@ -165,6 +197,7 @@ void BinaryOpMatchTypes(PrimExpr& lhs, PrimExpr& rhs, Span span) {  // NOLINT(*)
       }
     }
   } else {
+    LOG(INFO) << lhs << " " << rhs;
     LOG(FATAL) << "Cannot match type " << ltype << " vs " << rtype;
   }
 }

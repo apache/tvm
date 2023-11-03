@@ -23,13 +23,14 @@ which calculates the following recursion formula
 X[t] = dot(X[t-1], W)
 ```
 """
+import argparse
+import os
+import time
+
+import numpy as np
 import tvm
 from tvm import te
-import time
-import os
-import argparse
 from tvm.contrib import nvcc
-import numpy as np
 
 # Quick knobs
 TASK = "matexp"
@@ -40,7 +41,7 @@ SKIP_CHECK = False
 
 
 @tvm.register_func("tvm_callback_cuda_compile", override=True)
-def tvm_callback_cuda_compile(code):
+def tvm_callback_cuda_compile(code, target):
     """Use nvcc compiler for better perf."""
     ptx = nvcc.compile_cuda(code, target_format="ptx")
     return ptx
@@ -52,7 +53,7 @@ def write_code(code, fname):
 
 
 @tvm.register_func
-def tvm_callback_cuda_postproc(code):
+def tvm_callback_cuda_postproc(code, target):
     if not os.path.exists("perf"):
         os.mkdir("perf")
     write_code(code, "perf/%s_generated.cu" % TASK)

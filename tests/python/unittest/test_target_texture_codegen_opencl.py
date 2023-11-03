@@ -1466,8 +1466,8 @@ class TestSimpleTextureToScalarFP16:
             ["global.texture", (1, 1, 40, 40, 4)],
             ["", (1, 4, 40, 40)],
             [
-                "float4 v_ = READ_IMAGEF(p0_comp, image_sampler, ((int2)((((int)get_local_id(0)) % 40), (((((int)get_group_id(0)) & 1) * 20) + (((int)get_local_id(0)) / 40)))));",
-                "out[((((int)get_group_id(0)) * 800) + ((int)get_local_id(0)))] = ((half)((float*)&v_)[(((int)get_group_id(0)) >> 1)]);",
+                "float4 v_ = READ_IMAGEF(p0_comp, image_sampler, ((int2)(((convert_int(get_local_id(0))) % 40), ((((convert_int(get_group_id(0))) & 1) * 20) + ((convert_int(get_local_id(0))) / 40)))));",
+                "out[(((convert_int(get_group_id(0))) * 800) + (convert_int(get_local_id(0))))] = (convert_half(((float*)&v_)[((convert_int(get_group_id(0))) >> 1)]));",
             ],
         ),
         # 2. Buffer (NCHW4c) -> Cast(FP16) -> Buffer (NCHW)
@@ -1475,7 +1475,7 @@ class TestSimpleTextureToScalarFP16:
             ["", (1, 1, 40, 40, 4)],
             ["", (1, 4, 40, 40)],
             [
-                "out[((((int)get_group_id(0)) * 800) + ((int)get_local_id(0)))] = ((half)p0_comp[((((((int)get_group_id(0)) & 1) * 3200) + (((int)get_local_id(0)) * 4)) + (((int)get_group_id(0)) >> 1))]);"
+                "out[(((convert_int(get_group_id(0))) * 800) + (convert_int(get_local_id(0))))] = (convert_half(p0_comp[(((((convert_int(get_group_id(0))) & 1) * 3200) + ((convert_int(get_local_id(0))) * 4)) + ((convert_int(get_group_id(0))) >> 1))]));"
             ],
         ),
         # 3. Texture (NCHW4c) -> Cast(FP16) -> Texture (NCHW4c)
@@ -1483,8 +1483,8 @@ class TestSimpleTextureToScalarFP16:
             ["global.texture", (1, 1, 40, 40, 4)],
             ["global.texture", (1, 1, 40, 40, 4)],
             [
-                "float4 v_ = READ_IMAGEF(p0_comp, image_sampler, ((int2)((((((int)get_group_id(0)) * 24) + ((int)get_local_id(0))) % 40), (((((int)get_group_id(0)) * 8) + (((int)get_local_id(0)) >> 3)) / 5))));",
-                "write_imageh(out, (int2)((((((int)get_group_id(0)) * 24) + ((int)get_local_id(0))) % 40), (((((int)get_group_id(0)) * 8) + (((int)get_local_id(0)) >> 3)) / 5)), (convert_half4(v_)));",
+                "float4 v_ = READ_IMAGEF(p0_comp, image_sampler, ((int2)(((((convert_int(get_group_id(0))) * 24) + (convert_int(get_local_id(0)))) % 40), ((((convert_int(get_group_id(0))) * 8) + ((convert_int(get_local_id(0))) >> 3)) / 5))));",
+                "write_imageh(out, (int2)(((((convert_int(get_group_id(0))) * 24) + (convert_int(get_local_id(0)))) % 40), ((((convert_int(get_group_id(0))) * 8) + ((convert_int(get_local_id(0))) >> 3)) / 5)), (convert_half4(v_)));",
             ],
         ),
     )
@@ -1507,8 +1507,8 @@ class TestSimpleTextureToScalarFP32:
             ["global.texture", (1, 1, 40, 40, 4)],
             ["", (1, 4, 40, 40)],
             [
-                "float4 v_ = READ_IMAGEF(p0_comp, image_sampler, ((int2)((((int)get_local_id(0)) % 40), (((((int)get_group_id(0)) & 1) * 20) + (((int)get_local_id(0)) / 40)))));",
-                "out[((((int)get_group_id(0)) * 800) + ((int)get_local_id(0)))] = ((float*)&v_)[(((int)get_group_id(0)) >> 1)];",
+                "float4 v_ = READ_IMAGEF(p0_comp, image_sampler, ((int2)(((convert_int(get_local_id(0))) % 40), ((((convert_int(get_group_id(0))) & 1) * 20) + ((convert_int(get_local_id(0))) / 40)))));",
+                "out[(((convert_int(get_group_id(0))) * 800) + (convert_int(get_local_id(0))))] = ((float*)&v_)[((convert_int(get_group_id(0))) >> 1)];",
             ],
         ),
         # 2. Buffer (NCHW4c) -> Buffer (NCHW)
@@ -1516,7 +1516,7 @@ class TestSimpleTextureToScalarFP32:
             ["", (1, 1, 40, 40, 4)],
             ["", (1, 4, 40, 40)],
             [
-                "out[((((int)get_group_id(0)) * 800) + ((int)get_local_id(0)))] = p0_comp[((((((int)get_group_id(0)) & 1) * 3200) + (((int)get_local_id(0)) * 4)) + (((int)get_group_id(0)) >> 1))];"
+                "out[(((convert_int(get_group_id(0))) * 800) + (convert_int(get_local_id(0))))] = p0_comp[(((((convert_int(get_group_id(0))) & 1) * 3200) + ((convert_int(get_local_id(0))) * 4)) + ((convert_int(get_group_id(0))) >> 1))];"
             ],
         ),
     )
@@ -1619,8 +1619,8 @@ class TestTextureToScalarReuseSSAFP16:
             ["global.texture", (1, 1, 40, 40, 4)],
             ["", (1, 4, 40, 40)],
             [
-                "float4 v_ = READ_IMAGEF(p0_comp, image_sampler, ((int2)((((int)get_local_id(0)) % 40), (((((int)get_group_id(0)) & 1) * 20) + (((int)get_local_id(0)) / 40)))));",
-                "out_sum[((((int)get_group_id(0)) * 800) + ((int)get_local_id(0)))] = (((half)((float*)&v_)[(((int)get_group_id(0)) >> 1)]) + (((half)((float*)&v_)[(((int)get_group_id(0)) >> 1)]) + ((half)((float*)&v_)[(((int)get_group_id(0)) >> 1)])));",
+                "float4 v_ = READ_IMAGEF(p0_comp, image_sampler, ((int2)(((convert_int(get_local_id(0))) % 40), ((((convert_int(get_group_id(0))) & 1) * 20) + ((convert_int(get_local_id(0))) / 40)))));",
+                "out_sum[(((convert_int(get_group_id(0))) * 800) + (convert_int(get_local_id(0))))] = ((convert_half(((float*)&v_)[((convert_int(get_group_id(0))) >> 1)])) + ((convert_half(((float*)&v_)[((convert_int(get_group_id(0))) >> 1)])) + (convert_half(((float*)&v_)[((convert_int(get_group_id(0))) >> 1)]))));",
             ],
         ),
         # 2. Buffer (NCHW4c) -> Cast(FP16) -> Buffer (NCHW)
@@ -1628,7 +1628,7 @@ class TestTextureToScalarReuseSSAFP16:
             ["", (1, 1, 40, 40, 4)],
             ["", (1, 4, 40, 40)],
             [
-                "out_sum[((((int)get_group_id(0)) * 800) + ((int)get_local_id(0)))] = (((half)p0_comp[((((((int)get_group_id(0)) & 1) * 3200) + (((int)get_local_id(0)) * 4)) + (((int)get_group_id(0)) >> 1))]) + (((half)p0_comp[((((((int)get_group_id(0)) & 1) * 3200) + (((int)get_local_id(0)) * 4)) + (((int)get_group_id(0)) >> 1))]) + ((half)p0_comp[((((((int)get_group_id(0)) & 1) * 3200) + (((int)get_local_id(0)) * 4)) + (((int)get_group_id(0)) >> 1))])));"
+                " out_sum[(((convert_int(get_group_id(0))) * 800) + (convert_int(get_local_id(0))))] = ((convert_half(p0_comp[(((((convert_int(get_group_id(0))) & 1) * 3200) + ((convert_int(get_local_id(0))) * 4)) + ((convert_int(get_group_id(0))) >> 1))])) + ((convert_half(p0_comp[(((((convert_int(get_group_id(0))) & 1) * 3200) + ((convert_int(get_local_id(0))) * 4)) + ((convert_int(get_group_id(0))) >> 1))])) + (convert_half(p0_comp[(((((convert_int(get_group_id(0))) & 1) * 3200) + ((convert_int(get_local_id(0))) * 4)) + ((convert_int(get_group_id(0))) >> 1))]))));"
             ],
         ),
         # 3. Texture (NCHW4c) -> Cast(FP16) -> Texture (NCHW4c)
@@ -1636,8 +1636,8 @@ class TestTextureToScalarReuseSSAFP16:
             ["global.texture", (1, 1, 40, 40, 4)],
             ["global.texture", (1, 1, 40, 40, 4)],
             [
-                "float4 v_ = READ_IMAGEF(p0_comp, image_sampler, ((int2)((((((int)get_group_id(0)) * 24) + ((int)get_local_id(0))) % 40), (((((int)get_group_id(0)) * 8) + (((int)get_local_id(0)) >> 3)) / 5))));",
-                "write_imageh(out_sum, (int2)((((((int)get_group_id(0)) * 24) + ((int)get_local_id(0))) % 40), (((((int)get_group_id(0)) * 8) + (((int)get_local_id(0)) >> 3)) / 5)), ((convert_half4(v_)) + ((convert_half4(v_)) + (convert_half4(v_)))));",
+                "float4 v_ = READ_IMAGEF(p0_comp, image_sampler, ((int2)(((((convert_int(get_group_id(0))) * 24) + (convert_int(get_local_id(0)))) % 40), ((((convert_int(get_group_id(0))) * 8) + ((convert_int(get_local_id(0))) >> 3)) / 5))));",
+                "write_imageh(out_sum, (int2)(((((convert_int(get_group_id(0))) * 24) + (convert_int(get_local_id(0)))) % 40), ((((convert_int(get_group_id(0))) * 8) + ((convert_int(get_local_id(0))) >> 3)) / 5)), ((convert_half4(v_)) + ((convert_half4(v_)) + (convert_half4(v_)))));",
             ],
         ),
     )
@@ -1660,8 +1660,8 @@ class TestTextureToScalarReuseSSAFP32:
             ["global.texture", (1, 1, 40, 40, 4)],
             ["", (1, 4, 40, 40)],
             [
-                "float4 v_ = READ_IMAGEF(p0_comp, image_sampler, ((int2)((((int)get_local_id(0)) % 40), (((((int)get_group_id(0)) & 1) * 20) + (((int)get_local_id(0)) / 40)))));",
-                "out_sum[((((int)get_group_id(0)) * 800) + ((int)get_local_id(0)))] = (((float*)&v_)[(((int)get_group_id(0)) >> 1)] + (((float*)&v_)[(((int)get_group_id(0)) >> 1)] + ((float*)&v_)[(((int)get_group_id(0)) >> 1)]));",
+                "float4 v_ = READ_IMAGEF(p0_comp, image_sampler, ((int2)(((convert_int(get_local_id(0))) % 40), ((((convert_int(get_group_id(0))) & 1) * 20) + ((convert_int(get_local_id(0))) / 40)))));",
+                "out_sum[(((convert_int(get_group_id(0))) * 800) + (convert_int(get_local_id(0))))] = (((float*)&v_)[((convert_int(get_group_id(0))) >> 1)] + (((float*)&v_)[((convert_int(get_group_id(0))) >> 1)] + ((float*)&v_)[((convert_int(get_group_id(0))) >> 1)]));",
             ],
         ),
         # 2. Buffer (NCHW4c) -> Buffer (NCHW)
@@ -1669,7 +1669,7 @@ class TestTextureToScalarReuseSSAFP32:
             ["", (1, 1, 40, 40, 4)],
             ["", (1, 4, 40, 40)],
             [
-                "out_sum[((((int)get_group_id(0)) * 800) + ((int)get_local_id(0)))] = (p0_comp[((((((int)get_group_id(0)) & 1) * 3200) + (((int)get_local_id(0)) * 4)) + (((int)get_group_id(0)) >> 1))] + (p0_comp[((((((int)get_group_id(0)) & 1) * 3200) + (((int)get_local_id(0)) * 4)) + (((int)get_group_id(0)) >> 1))] + p0_comp[((((((int)get_group_id(0)) & 1) * 3200) + (((int)get_local_id(0)) * 4)) + (((int)get_group_id(0)) >> 1))]));"
+                "out_sum[(((convert_int(get_group_id(0))) * 800) + (convert_int(get_local_id(0))))] = (p0_comp[(((((convert_int(get_group_id(0))) & 1) * 3200) + ((convert_int(get_local_id(0))) * 4)) + ((convert_int(get_group_id(0))) >> 1))] + (p0_comp[(((((convert_int(get_group_id(0))) & 1) * 3200) + ((convert_int(get_local_id(0))) * 4)) + ((convert_int(get_group_id(0))) >> 1))] + p0_comp[(((((convert_int(get_group_id(0))) & 1) * 3200) + ((convert_int(get_local_id(0))) * 4)) + ((convert_int(get_group_id(0))) >> 1))]));"
             ],
         ),
     )
@@ -1693,10 +1693,10 @@ class TestLocalArrayToTexture:
             (1, 2, 38, 38, 4),
             [
                 "float out_local[4];",
-                "float4 v_ = READ_IMAGEF(p1_comp, image_sampler, ((int2)((((((int)get_group_id(0)) * 14) + ((int)get_local_id(0))) % 38), ((((((int)get_group_id(0)) * 64) + (((int)get_local_id(0)) >> 1)) % 722) / 19))));",
-                "float4 v__1 = READ_IMAGEF(p2_comp, image_sampler, ((int2)(rw, ((((((((int)get_group_id(0)) * 32) + (((int)get_local_id(0)) >> 2)) / 361) * 12) + (rcb * 3)) + rh))));",
+                "float4 v_ = READ_IMAGEF(p1_comp, image_sampler, ((int2)(((((convert_int(get_group_id(0))) * 14) + (convert_int(get_local_id(0)))) % 38), (((((convert_int(get_group_id(0))) * 64) + ((convert_int(get_local_id(0))) >> 1)) % 722) / 19))));",
+                "float4 v__1 = READ_IMAGEF(p2_comp, image_sampler, ((int2)(rw, (((((((convert_int(get_group_id(0))) * 32) + ((convert_int(get_local_id(0))) >> 2)) / 361) * 12) + (rcb * 3)) + rh))));",
                 "out_local[cb_c] = (out_local[cb_c] + (((float*)&v_)[rcb] * ((float*)&v__1)[cb_c]));",
-                "write_imagef(out, (int2)((((((int)get_group_id(0)) * 14) + ((int)get_local_id(0))) % 38), (((((int)get_group_id(0)) * 64) + (((int)get_local_id(0)) >> 1)) / 19)), vload4(0, out_local + 0));",
+                "write_imagef(out, (int2)(((((convert_int(get_group_id(0))) * 14) + (convert_int(get_local_id(0)))) % 38), ((((convert_int(get_group_id(0))) * 64) + ((convert_int(get_local_id(0))) >> 1)) / 19)), vload4(0, out_local + 0));",
             ],
         ),
     )

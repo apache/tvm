@@ -15,6 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 """Local Runner"""
+import logging
 from contextlib import contextmanager
 from typing import Callable, List, Optional, Union
 import subprocess
@@ -273,12 +274,16 @@ class LocalRunner(PyRunner):
         self.f_run_evaluator = f_run_evaluator
         self.f_cleanup = f_cleanup
 
+        err_path = subprocess.DEVNULL
+        if logger.root.level <= logging.DEBUG:
+            err_path = subprocess.STDOUT
+
         logger.info("LocalRunner: max_workers = 1")
         self.pool = PopenPoolExecutor(
             max_workers=1,  # one local worker
             timeout=timeout_sec,
             initializer=initializer,
-            stderr=subprocess.DEVNULL,  # suppress the stderr output
+            stderr=err_path,  # suppress the stderr output
         )
         self._sanity_check()
 
