@@ -15,9 +15,6 @@
 # specific language governing permissions and limitations
 # under the License.
 
-import sys
-
-import pytest
 import tvm
 import tvm.testing
 from tvm.script import tir as T
@@ -185,6 +182,25 @@ def test_buffer_map():
     f2 = tvm.tir.stmt_functor.renew_defs(main)
     tvm.ir.assert_structural_equal(f1, f2)
     assert f1.buffer_map[f1.params[1]].shape[0] != f2.buffer_map[f2.params[1]].shape[0]
+
+
+def test_gather():
+    @T.prim_func(private=True)
+    def take(
+        A: T.Buffer((4096, 4096), "float16"),
+        B: T.Buffer((1,), "int32"),
+        T_take: T.Buffer((1, 4096), "float16"),
+    ):
+        for ax0, ax1 in T.grid(1, 4096):
+            with T.block("T_take"):
+                v_ax0, v_ax1 = T.axis.remap("SS", [ax0, ax1])
+                T.reads(A[B[v_ax0], v_ax1], B[v_ax0])
+                T.writes(T_take[v_ax0, v_ax1])
+                T_take[v_ax0, v_ax1] = A[B[v_ax0], v_ax1]
+
+    f1 = take
+    f2 = tvm.tir.stmt_functor.renew_defs(take)
+    tvm.ir.assert_structural_equal(f1, f2)
 
 
 if __name__ == "__main__":

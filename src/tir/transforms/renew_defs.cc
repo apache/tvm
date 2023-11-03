@@ -120,9 +120,11 @@ class RenewDefMutator : public StmtExprMutator {
         std::bind(&RenewDefMutator::VisitMatchBuffer, this, std::placeholders::_1));
 
     // Step 3. Visit body
-    Stmt stmt = StmtExprMutator::VisitStmt_(op);
-    op = stmt.as<BlockNode>();
-    ICHECK(op);
+    Optional<Stmt> init = NullOpt;
+    if (op->init.defined()) {
+      init = this->VisitStmt(op->init.value());
+    }
+    Stmt body = this->VisitStmt(op->body);
 
     // Step 4. Revisit access region
     Array<BufferRegion> reads =
@@ -137,6 +139,8 @@ class RenewDefMutator : public StmtExprMutator {
     n->match_buffers = std::move(match_buffers);
     n->reads = std::move(reads);
     n->writes = std::move(writes);
+    n->body = std::move(body);
+    n->init = std::move(init);
 
     return Stmt(n);
   }
