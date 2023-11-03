@@ -113,9 +113,7 @@ def opt_gemm_lower():
                                 T.ramp((x_c * 32), 1, 32)
                             ] + (
                                 T.broadcast(
-                                    A_1[
-                                        (((x_outer * 32768) + (x_c * 1024)) + (k_outer * 4)),
-                                    ],
+                                    A_1[(((x_outer * 32768) + (x_c * 1024)) + (k_outer * 4)),],
                                     32,
                                 )
                                 * packedB[T.ramp(((y_outer * 32768) + (k_outer * 128)), 1, 32)]
@@ -3331,6 +3329,14 @@ def buffer_ramp_access_as_slice_index():
     return buffer_ramp_access
 
 
+def ramp_int64():
+    @T.prim_func
+    def func() -> None:
+        T.evaluate(T.Ramp(T.int64(0), 1, 3))
+
+    return func
+
+
 def let_expression():
     @T.prim_func
     def func():
@@ -3346,6 +3352,7 @@ def test_void_ptr_vs_handle():
     In the future, perhaps these should be de-duplicated by forbidding
     one of the two C++ representations.
     """
+
     # Generates PointerType(PrimType(DataType::Void()))
     @T.prim_func
     def void_ptr(out_ret_value: T.handle("void")):
@@ -3618,6 +3625,21 @@ def string_stride():
             B2[(blockIdx_x * 64 + threadIdx_x) * B.strides[0]] = A2[
                 (blockIdx_x * 64 + threadIdx_x) * A.strides[0]
             ] * T.float32(2)
+
+    return main
+
+
+def string_stride_int64():
+    @T.prim_func
+    def main(a: T.handle, b: T.handle):
+        T.func_attr({"from_legacy_te_schedule": True, "global_symbol": "main", "tir.noalias": True})
+        n = T.int64()
+        A_s0 = T.int64()
+        B_s0 = T.int64()
+        A = T.match_buffer(a, (n,), strides=(A_s0,), buffer_type="auto")
+        B = T.match_buffer(b, (n,), strides=(B_s0,), buffer_type="auto")
+        for i in range(n):
+            B[i] = A[i]
 
     return main
 
@@ -4013,6 +4035,7 @@ ir_generator = tvm.testing.parameter(
     pointer_type,
     buffer_axis_separator,
     buffer_ramp_access_as_slice_index,
+    ramp_int64,
     let_expression,
     void_ptr,
     decl_buffer,
@@ -4035,6 +4058,7 @@ ir_generator = tvm.testing.parameter(
     let_stmt_var,
     let_stmt_value,
     string_stride,
+    string_stride_int64,
     merge_shape_var_def,
     if_then_else_var,
     tvm_shfl_builtins,
