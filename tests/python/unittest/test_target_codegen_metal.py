@@ -169,5 +169,28 @@ def test_vectorized_uint8():
     np.testing.assert_allclose(b_nd.numpy(), a.astype("float32"), atol=1e-5, rtol=1e-5)
 
 
+@tvm.testing.requires_metal(support_required="compile-only")
+def test_func_with_trailing_pod_params():
+    from tvm.contrib import xcode  # pylint: disable=import-outside-toplevel
+
+    @T.prim_func
+    def func(A: T.Buffer((16), "float32"), B: T.Buffer((16), "float32"), x: T.float32):
+        for i in T.thread_binding(16, thread="threadIdx.x"):
+            with T.block("block"):
+                vi = T.axis.spatial(16, i)
+                B[vi] = A[vi] + x
+
+    @tvm.register_func("tvm_callback_metal_compile")
+    def compile_metal(src, target):
+        return xcode.compile_metal(src)
+
+    mod = tvm.IRModule({"main": func})
+
+    f = tvm.build(mod, target="metal")
+    src: str = f.imported_modules[0].get_source()
+    occurrences = src.count("struct func_kernel_args_t")
+    assert occurrences == 1, occurrences
+
+
 if __name__ == "__main__":
     tvm.testing.main()
