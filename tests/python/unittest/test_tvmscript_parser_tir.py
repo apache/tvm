@@ -325,5 +325,20 @@ def test_tir_builtin_expression():
     tvm.ir.assert_structural_equal(with_builtin, evaluated)
 
 
+def test_thread_binding_dtype():
+    @T.prim_func(private=True)
+    def func(A: T.Buffer((128, 128)), B: T.Buffer((128, 128))):
+        for i in T.thread_binding(T.int64(128), "threadIdx.x"):
+            for j in T.thread_binding(128, "threadIdx.y"):
+                B[i, j] = A[i, j]
+
+    loop_i = func.body
+    loop_j = loop_i.body
+    assert loop_i.loop_var.dtype == "int64"
+    assert loop_i.thread_binding.var.dtype == "int64"
+    assert loop_j.loop_var.dtype == "int32"
+    assert loop_j.thread_binding.var.dtype == "int32"
+
+
 if __name__ == "__main__":
     tvm.testing.main()
