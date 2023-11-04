@@ -66,7 +66,7 @@ def test_uniform():
             return
         dev = tvm.cpu(0)
         f = tvm.build(s, [input_a], target)
-        a = tvm.nd.array(np.zeros((m, n), dtype=A.dtype), dev)
+        a = tvm.nd.array(np.zeros((m, n), dtype=input_a.dtype), dev)
         f(a)
         op_na = a.numpy()
         assert abs(np.mean(op_na) - 0.5) < 1e-1
