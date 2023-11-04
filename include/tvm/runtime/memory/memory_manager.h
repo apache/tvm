@@ -136,7 +136,7 @@ class StorageObj : public Object {
   Buffer buffer;
 
   /*! \brief Allocate an NDArray from a given piece of storage. */
-  NDArray AllocNDArray(size_t offset, ShapeTuple shape, DLDataType dtype);
+  NDArray AllocNDArray(int64_t offset, ShapeTuple shape, DLDataType dtype);
 
   /*! \brief The deleter for an NDArray when allocated from underlying storage. */
   static void Deleter(Object* ptr);

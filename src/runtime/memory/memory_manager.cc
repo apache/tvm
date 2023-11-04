@@ -82,7 +82,7 @@ inline size_t GetDataAlignment(const DLTensor& arr) {
   return align;
 }
 
-NDArray StorageObj::AllocNDArray(size_t offset, ShapeTuple shape, DLDataType dtype) {
+NDArray StorageObj::AllocNDArray(int64_t offset, ShapeTuple shape, DLDataType dtype) {
   VerifyDataType(dtype);
 
   // crtical zone: allocate header, cannot throw
