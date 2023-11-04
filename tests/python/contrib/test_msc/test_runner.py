@@ -70,7 +70,7 @@ def _get_tf_graph():
             # Call the utility to import the graph definition into default graph.
             graph_def = tf_testing.ProcessGraphDefParam(graph_def)
         return tf_graph, graph_def
-    except:
+    except:  # pylint: disable=bare-except
         print("please install tensorflow package")
         return None, None
 
@@ -133,6 +133,8 @@ def test_tensorrt_runner():
 
 
 def test_tensorflow_runner():
+    """Test runner from tf graph"""
+
     tf_graph, graph_def = _get_tf_graph()
     if tf_graph and graph_def:
         workspace = msc_utils.set_workspace()

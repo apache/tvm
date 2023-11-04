@@ -21,7 +21,7 @@ import shutil
 import tempfile
 import types
 from functools import partial
-from typing import List
+from typing import List, Any
 from importlib.machinery import SourceFileLoader
 
 from .namespace import MSCMap, MSCKey, MSCFramework
@@ -109,7 +109,7 @@ class MSCDirectory(object):
             f.write(contains)
         return file_path
 
-    def move_file(self, src_file: str, dst_folder: object, dst_file: str = None):
+    def move_file(self, src_file: str, dst_folder: Any, dst_file: str = None):
         """Move a file to another folder
 
         Parameters
@@ -133,7 +133,7 @@ class MSCDirectory(object):
         os.rename(src_path, dst_path)
         return dst_path
 
-    def copy_file(self, src_file: str, dst_folder: object, dst_file: str = None):
+    def copy_file(self, src_file: str, dst_folder: Any, dst_file: str = None):
         """Copy a file to another folder
 
         Parameters
@@ -157,7 +157,7 @@ class MSCDirectory(object):
         shutil.copy2(src_path, dst_path)
         return dst_path
 
-    def create_dir(self, name: str, keep_history: bool = True, cleanup: bool = False) -> object:
+    def create_dir(self, name: str, keep_history: bool = True, cleanup: bool = False) -> Any:
         """Add a dir under the folder
 
         Parameters

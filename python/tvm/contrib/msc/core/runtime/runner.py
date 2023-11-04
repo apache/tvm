@@ -94,7 +94,7 @@ class BaseRunner(object):
         self._model, self._model_info = None, {}
         self._runnable = None
 
-    def build(self, cache_dir: msc_utils.MSCDirectory = None, build_graph: bool = False) -> object:
+    def build(self, cache_dir: msc_utils.MSCDirectory = None, build_graph: bool = False) -> Any:
         """Build the runnable object
 
         Parameters
@@ -106,7 +106,7 @@ class BaseRunner(object):
 
         Returns
         -------
-        runnable: object
+        runnable: Any
            The runnable object.
         """
 
@@ -319,18 +319,18 @@ class BaseRunner(object):
 
         raise NotImplementedError("_save_graphs is not implemented for " + str(self.__class__))
 
-    def _generate_model(self) -> object:
+    def _generate_model(self) -> Any:
         """Codegen the model according to framework
 
         Returns
         -------
-        model: object
+        model: Any
             The meta model
         """
 
         raise NotImplementedError("_load is not implemented for " + str(self.__class__))
 
-    def _load_model(self, cache_dir: msc_utils.MSCDirectory, cache_info: dict) -> object:
+    def _load_model(self, cache_dir: msc_utils.MSCDirectory, cache_info: dict) -> Any:
         """Load the model from cache
 
         Parameters
@@ -342,7 +342,7 @@ class BaseRunner(object):
 
         Returns
         -------
-        model: object
+        model: Any
             The meta model
         """
 
@@ -365,12 +365,12 @@ class BaseRunner(object):
         # disable save model by default
         return {}
 
-    def _to_runnable(self, model: object, device: str, is_training: bool) -> object:
+    def _to_runnable(self, model: Any, device: str, is_training: bool) -> Any:
         """Build runnable object
 
         Parameters
         -------
-        model: object
+        model: Any
             The meta model.
         device: str
             The device for place model
@@ -379,13 +379,13 @@ class BaseRunner(object):
 
         Returns
         -------
-        runnable: object
+        runnable: Any
             The runnable
         """
 
         raise NotImplementedError("_to_runnable is not implemented for " + str(self.__class__))
 
-    def _load_runnable(self, cache_dir: msc_utils.MSCDirectory, cache_info: dict) -> object:
+    def _load_runnable(self, cache_dir: msc_utils.MSCDirectory, cache_info: dict) -> Any:
         """Load the runnable from cache
 
         Parameters
@@ -397,7 +397,7 @@ class BaseRunner(object):
 
         Returns
         -------
-        runnable: object
+        runnable: Any
             The runnable
         """
 
@@ -432,7 +432,7 @@ class BaseRunner(object):
         raise NotImplementedError("_inspect_model is not implemented for " + str(self.__class__))
 
     def _call_runnable(
-        self, runnable: object, inputs: Dict[str, np.ndarray], device: str
+        self, runnable: Any, inputs: Dict[str, np.ndarray], device: str
     ) -> Union[List[np.ndarray], Dict[str, np.ndarray]]:
         """Call the runnable to get outputs
 
@@ -558,12 +558,12 @@ class ModelRunner(BaseRunner):
                 f_params.write(tvm.runtime.save_param_dict(self._weights[0]))
         return {"main": main_info}
 
-    def _generate_model(self) -> object:
+    def _generate_model(self) -> Any:
         """Codegen the model according to framework
 
         Returns
         -------
-        model: object
+        model: Any
             The runnable model
         """
 
@@ -719,12 +719,12 @@ class BYOCRunner(BaseRunner):
             output_folder=self._load_config.get("output_folder", msc_utils.get_output_dir()),
         )
 
-    def _to_runnable(self, model: object, device: str, is_training: bool) -> object:
+    def _to_runnable(self, model: Any, device: str, is_training: bool) -> Any:
         """Build runnable object
 
         Parameters
         -------
-        model: object
+        model: Any
             The runnable model on cpu.
         device: str
             The device for place model
@@ -733,7 +733,7 @@ class BYOCRunner(BaseRunner):
 
         Returns
         -------
-        runnable: object
+        runnable: Any
             The runnable
         """
 

@@ -19,7 +19,7 @@
 import os
 import json
 import copy
-from typing import List, Tuple, Dict
+from typing import List, Tuple, Dict, Any
 from distutils.version import LooseVersion
 import numpy as np
 
@@ -36,13 +36,13 @@ class MSCArray(object):
         The data object.
     """
 
-    def __init__(self, data: object):
+    def __init__(self, data: Any):
         self._type, self._data = self._analysis(data)
 
     def __str__(self):
         return "<{}>{}".format(self._type, self.abstract())
 
-    def _analysis(self, data: object) -> Tuple[str, np.ndarray]:
+    def _analysis(self, data: Any) -> Tuple[str, np.ndarray]:
         if isinstance(data, np.ndarray):
             return "np", data
         if isinstance(data, tvm.runtime.NDArray):
@@ -76,7 +76,7 @@ class MSCArray(object):
         return self._data
 
 
-def cast_array(data: object):
+def cast_array(data: Any):
     """Cast array like object to np.ndarray
 
     Parameters

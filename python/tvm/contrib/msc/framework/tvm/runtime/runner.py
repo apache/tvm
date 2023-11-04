@@ -16,7 +16,7 @@
 # under the License.
 """tvm.contrib.msc.framework.runtime.tvm.runner"""
 
-from typing import Dict, List, Union
+from typing import Dict, List, Union, Any
 import numpy as np
 
 import tvm
@@ -28,12 +28,12 @@ from tvm.contrib.msc.framework.tvm.codegen import to_relax
 class TVMRunner(ModelRunner):
     """Runner of Relax"""
 
-    def _to_runnable(self, model: object, device: str, is_training: bool) -> object:
+    def _to_runnable(self, model: Any, device: str, is_training: bool) -> Any:
         """Build runnable object
 
         Parameters
         -------
-        model: object
+        model: Any
             The meta model.
         device: str
             The device for place model
@@ -42,7 +42,7 @@ class TVMRunner(ModelRunner):
 
         Returns
         -------
-        runnable: object
+        runnable: Any
             The runnable
         """
 
