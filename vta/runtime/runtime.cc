@@ -77,7 +77,7 @@ class AlignmentAllocator : public std::allocator<T> {
 
   inline pointer allocate(size_type n) {
     pointer mem = nullptr;
-    const int err = posix_memalign((void **) &mem, N, n * sizeof(value_type));
+    const int err = posix_memalign((void**)&mem, N, n * sizeof(value_type));
     ICHECK_EQ(err, 0) << "InternalError: failed to allocate aligned memory. ";
     return mem;
   }
@@ -533,7 +533,7 @@ class UopQueue : public BaseQueue<VTAUop> {
     }
 
     char* lbuf = nullptr;
-    const int err = posix_memalign((void **) &lbuf, ALLOC_ALIGNMENT, total_size);
+    const int err = posix_memalign((void**)&lbuf, ALLOC_ALIGNMENT, total_size);
     ICHECK_EQ(err, 0) << "InternalError: failed to allocate aligned memory for load buffer. ";
     uint32_t offset = 0;
     for (uint32_t i = 0; i < cache_.size(); ++i) {
