@@ -1726,7 +1726,7 @@ export class Instance implements Disposable {
    * @returns The sampled index.
    */
   sampleTopPFromLogits(logits: NDArray, temperature: number, top_p: number): number {
-    return this.ctx.sampleTopPFromLogits(logits, /*unit_offset=*/0, temperature, top_p, Math.random());
+    return this.ctx.sampleTopPFromLogits(logits, temperature, top_p, Math.random());
   }
 
   /**
