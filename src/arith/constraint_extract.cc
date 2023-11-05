@@ -25,14 +25,36 @@
 
 #include <tvm/arith/analyzer.h>
 #include <tvm/tir/expr.h>
+#include <tvm/tir/expr_functor.h>
 
 #include "pattern_match.h"
 
 namespace tvm {
 namespace arith {
 
+// The BufferLoad node cannot be considered as a valid constraint to be provided to analyzer.
+// Because the result of BufferLoad may be modified in the later program.
+// Here we will find if the expr contains BufferLoad node. if so, it is a unclear constraint
+bool IsUnclearConstraint(const PrimExpr& expr) {
+  class UnclearExprFinder : private tir::ExprVisitor {
+   public:
+    void VisitExpr(const PrimExpr& expr) final {
+      if (unclear) return;
+      ExprVisitor::VisitExpr(expr);
+    }
+    void VisitExpr_(const tir::BufferLoadNode* op) final { unclear = true; }
+    bool unclear{false};
+  };
+  UnclearExprFinder finder;
+  finder.VisitExpr(expr);
+  return finder.unclear;
+}
+
 template <typename F>
 void CollectConstraints(PrimExpr expr, F callback, bool keep_composite_constraints) {
+  if (IsUnclearConstraint(expr)) {
+    return;
+  }
   if (keep_composite_constraints) {
     callback(expr);
   }

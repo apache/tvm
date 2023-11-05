@@ -245,7 +245,7 @@ class TestNestedVarCondition(BaseBeforeAfter):
                 A[i] = 0.0
 
 
-class TestAlteredBufferContents(BaseBeforeAfter):
+class TestAlteredBufferContentsConst(BaseBeforeAfter):
     """No simplification of data-dependent conditionals.
 
     A literal constraint must not be propagated if the values
@@ -254,11 +254,39 @@ class TestAlteredBufferContents(BaseBeforeAfter):
     may not.
     """
 
+    def before(A: T.Buffer((1,), "int32")):
+        if A[0] == 1:
+            A[0] = A[0] + 1
+            if A[0] == 1:
+                A[0] = 0
+            else:
+                A[0] = 1
+        else:
+            A[0] = A[0] + 1
+            if A[0] == 1:
+                A[0] = 0
+            else:
+                A[0] = 1
+
+    expected = before
+
+
+class TestAlteredBufferContentsVar(BaseBeforeAfter):
+    """Same as TestAlteredBufferContentsConst, but the condition contains a Var."""
+
     def before(A: T.Buffer((1,), "int32"), n: T.int32):
         if A[0] == n:
             A[0] = A[0] + 1
             if A[0] == n:
                 A[0] = 0
+            else:
+                A[0] = 1
+        else:
+            A[0] = A[0] + 1
+            if A[0] == n:
+                A[0] = 0
+            else:
+                A[0] = 1
 
     expected = before
 
