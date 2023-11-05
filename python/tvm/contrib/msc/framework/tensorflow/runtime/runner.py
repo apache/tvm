@@ -51,7 +51,7 @@ class WrapSession(tf_v1.Session):
         self._inputs = inputs
         self._outputs = outputs
 
-    def run(self, fetches, *args, **kwargs):
+    def run(self, fetches, *args, **kwargs):  # pylint: disable=useless-parent-delegation
         return super().run(fetches, *args, **kwargs)
 
 
