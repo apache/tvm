@@ -16,10 +16,7 @@
 # under the License.
 # pylint: disable=invalid-name,missing-function-docstring
 """Intrinsics for tensorization on NVIDIA GPU."""
-import re
-from typing import Dict, Optional, Tuple
-
-from typing_extensions import Literal
+from typing import Dict, Optional, Tuple, Literal
 
 from tvm._ffi import register_func
 from tvm.runtime import convert
@@ -662,6 +659,17 @@ def get_mma_intrin_group(
 
     trans_b : bool
         Whether the input matrix B is transposed.
+
+    not_use_mma_store_intrinic : bool
+        Whether to not use the mma_store intrinsic. If True, use BufferStore stmts to store the
+        result of mma. Otherwise, use mma_store intrinsic.
+
+        This is because if we use mma_store intrinsic, during swizzling shared memory visits, our
+        rearrangement scheme will involve areas accessed by different mma_store calls. This makes
+        swizzling quite complex. But BufferStore will not face this problem.
+
+    store_to_smem_dtype : Optional[Literal["float16", "float32", "int32"]]
+        The dtype that we use to store from register to shared memory. By default it is out_dtype.
 
     Returns
     -------
