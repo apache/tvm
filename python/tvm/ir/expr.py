@@ -16,6 +16,7 @@
 # under the License.
 """Common expressions data structures in the IR."""
 from numbers import Number
+from typing import Optional
 
 import tvm._ffi
 
@@ -54,7 +55,7 @@ class RelayExpr(BaseExpr):
         return ret
 
     @property
-    def struct_info(self) -> "tvm.relax.StructInfo":
+    def struct_info(self) -> Optional["tvm.relax.StructInfo"]:
         """Get the struct info field
 
         Returns
