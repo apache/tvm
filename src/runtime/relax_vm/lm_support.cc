@@ -379,13 +379,7 @@ int SampleTopPFromLogits(NDArray logits, double temperature, double top_p, doubl
 
 TVM_REGISTER_GLOBAL("vm.builtin.sample_top_p_from_logits").set_body_typed(SampleTopPFromLogits);
 
-int SampleTopPFromProb(NDArray prob, int unit_offset, double top_p, double uniform_sample) {
-  // prob: (*, v)
-  // The prob array may have arbitrary ndim and shape.
-  // The last dimension corresponds to the prob distribution size.
-  // We use the `unit_offset` parameter to determine which slice
-  // of the prob array we sample from.
-
+int SampleTopPFromProb(NDArray prob, double top_p, double uniform_sample) {
   ICHECK(prob.IsContiguous());
   ICHECK(prob.DataType() == DataType::Float(32));
 
@@ -395,12 +389,16 @@ int SampleTopPFromProb(NDArray prob, int unit_offset, double top_p, double unifo
 
   ICHECK(prob->device.device_type == kDLCPU);
 
+  for (int i = 0; i < prob->ndim - 1; ++i) {
+    ICHECK_EQ(prob->shape[i], 1) << "The leading dimensions of logits must be 1";
+  }
+
   // Key observation: when we are doing top_p sampling
   // usually we only need to preserve some of the elements with
-  // high probabilities before we do sort
+  // high probablities before we do sort
   std::vector<std::pair<float, int>> data;
   int64_t ndata = prob->shape[prob->ndim - 1];
-  const float* p_prob = static_cast<float*>(prob->data) + (unit_offset * ndata);
+  const float* p_prob = static_cast<float*>(prob->data);
 
   auto sample_top_p_with_filter = [&](float cuttoff) -> int64_t {
     data.clear();
