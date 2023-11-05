@@ -668,5 +668,34 @@ def test_scatter_parallelize():
     verify_trace_roundtrip(s, mod=scatter_compute)
 
 
+def test_bind_thread_iter_var_dtype():
+    @T.prim_func(private=True)
+    def before(
+        A: T.Buffer((T.int64(128), T.int64(128))),
+        B: T.Buffer((T.int64(128), T.int64(128))),
+    ) -> None:
+        for i, j in T.grid(T.int64(128), T.int64(128)):
+            with T.block("B"):
+                vi, vj = T.axis.remap("SS", [i, j])
+                B[vi, vj] = A[vi, vj] * 2.0
+
+    @T.prim_func(private=True)
+    def expected(
+        A: T.Buffer((T.int64(128), T.int64(128))),
+        B: T.Buffer((T.int64(128), T.int64(128))),
+    ) -> None:
+        for i0 in T.thread_binding(T.int64(128), thread="threadIdx.x"):
+            for i1 in range(T.int64(128)):
+                with T.block("B"):
+                    vi, vj = T.axis.remap("SS", [i0, i1])
+                    B[vi, vj] = A[vi, vj] * 2.0
+
+    s = tir.Schedule(before, debug_mask="all")
+    i, _ = s.get_loops(s.get_block("B"))
+    s.bind(i, "threadIdx.x")
+    assert_structural_equal_ignore_global_symbol(s.mod["main"], expected)
+    verify_trace_roundtrip(s, mod=before)
+
+
 if __name__ == "__main__":
     tvm.testing.main()
