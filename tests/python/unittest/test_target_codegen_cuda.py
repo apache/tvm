@@ -15,6 +15,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+import os
 import re
 
 import tvm
@@ -22,6 +23,7 @@ from tvm import te
 import numpy as np
 from tvm import topi
 from tvm.contrib.nvcc import have_fp16, have_int8, have_bf16
+from tvm.contrib import utils
 import tvm.testing
 import pytest
 
@@ -1042,6 +1044,28 @@ def test_try_unaligned_vector_load():
 
     expected = a_data[2 : C_N + 2]
     assert np.allclose(c, expected), f"expected={expected}\nactual={c}"
+
+
+@tvm.testing.requires_gpu
+@tvm.testing.requires_cuda
+def test_cuda_save_kernels_for_profiling():
+    num_thread = 8
+
+    def check_cuda(n, lanes):
+        dtype = "float32"
+        A = te.placeholder((n,), name="A", dtype="%sx%d" % (dtype, lanes))
+        B = te.compute((n,), lambda i: A[i] + tvm.tir.const(1, A.dtype), name="B")
+        s = te.create_schedule(B.op)
+        xo, xi = s[B].split(B.op.axis[0], factor=num_thread)
+        s[B].bind(xo, bx)
+        s[B].bind(xi, tx)
+        tempdir = utils.tempdir()
+        tmp_path = str(tempdir.path)
+        with tvm.transform.PassContext(opt_level=3, config={"cuda.kernels_output_dir": tmp_path}):
+            _ = tvm.build(s, [A, B], "cuda")
+        assert "tvm_kernels.cu" in os.listdir(tmp_path)
+
+    check_cuda(64, 2)
 
 
 if __name__ == "__main__":
