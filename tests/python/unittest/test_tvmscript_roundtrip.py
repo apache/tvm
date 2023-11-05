@@ -113,7 +113,9 @@ def opt_gemm_lower():
                                 T.ramp((x_c * 32), 1, 32)
                             ] + (
                                 T.broadcast(
-                                    A_1[(((x_outer * 32768) + (x_c * 1024)) + (k_outer * 4)),],
+                                    A_1[
+                                        (((x_outer * 32768) + (x_c * 1024)) + (k_outer * 4)),
+                                    ],
                                     32,
                                 )
                                 * packedB[T.ramp(((y_outer * 32768) + (k_outer * 128)), 1, 32)]
