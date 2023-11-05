@@ -446,9 +446,7 @@ def raise_last_ffi_error():
         for frame in frames:
             if " at " in frame:
                 func_name, frame = frame.split(" at ", 1)
-                # filename, lineno = frame.rsplit(":", 1)
-                filename, *lineno = frame.rsplit(":", 1)
-                lineno = lineno[0] if lineno else "1"
+                filename, lineno = frame.rsplit(":", 1)
                 func_name = func_name.strip()
                 filename = filename.strip()
                 lineno = int(lineno.strip())
