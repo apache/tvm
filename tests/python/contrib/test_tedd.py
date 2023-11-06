@@ -39,9 +39,8 @@ def checkdependency():
 
 
 def test_dfg():
-    """Tests dataflow graph"""
-    input_a = te.placeholder((1024, 4096), dtype="float32", name="input_a")
-    input_b = topi.nn.softmax(input_a)
+    A = te.placeholder((1024, 4096), dtype="float32", name="A")
+    B = topi.nn.softmax(A)
     # confirm lower works
     s = te.create_schedule([input_b.op])
 
