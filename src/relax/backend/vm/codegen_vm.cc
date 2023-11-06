@@ -171,6 +171,8 @@ class CodeGenVM : public ExprFunctor<Instruction::Arg(const Expr&)> {
         EmitAllocTensor(call, dst_reg);
       } else if (call_node->op == kill_object_op_) {
         dst_reg = EmitKillObject(call);
+      } else if (call_node->op == tuple_getitem_op_) {
+        EmitTupleAccess(call, dst_reg);
       } else {
         // every "normal" operator is lowered to a global var in the IRModule. The Attrs for those
         // ops are handled in a pass when lowering them to TIR.
@@ -373,6 +375,12 @@ class CodeGenVM : public ExprFunctor<Instruction::Arg(const Expr&)> {
     return dst_reg;
   }
 
+  void EmitTupleAccess(const Call& call_node, RegName dst_register) {
+    ICHECK_EQ(call_node->args.size(), 2);
+    std::vector<Instruction::Arg> args = VisitArray(call_node->args);
+    builder_->EmitCall("vm.builtin.tuple_getitem", args, dst_register);
+  }
+
   void EmitCallBuiltinWithCtx(const Call& call_node, RegName dst_reg) {
     std::vector<Instruction::Arg> args;
     args.push_back(Instruction::Arg::Register(Instruction::kVMRegister));
@@ -425,6 +433,7 @@ class CodeGenVM : public ExprFunctor<Instruction::Arg(const Expr&)> {
   const Op& kill_object_op_ = Op::Get("relax.vm.kill_object");
   const Op& call_builtin_with_ctx_op_ = Op::Get("relax.call_builtin_with_ctx");
   const Op& null_value_op_ = Op::Get("relax.null_value");
+  const Op& tuple_getitem_op_ = Op::Get("relax.tuple_get_item_dyn");
 };
 
 /*!

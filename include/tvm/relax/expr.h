@@ -287,6 +287,25 @@ If WithFields(If if_expr, Optional<Expr> opt_cond = Optional<Expr>(),
               Optional<Expr> opt_false_branch = Optional<Expr>(),
               Optional<Span> opt_span = Optional<Span>());
 
+/*! \brief Perform tuple access
+ *
+ * Use of this method is recommended, rather than constructing a
+ * `TupleGetItem` directly.
+ *
+ * 1. May resolve to the tuple's contents, avoiding the intermediate
+ *    `TupleGetItem`.
+ *
+ * 2. Handles access of a tuple at a dynamic index, where
+ *    `TupleGetItem` requires a statically-known index.
+ *
+ * \param tuple The tuple to be accessed
+ *
+ * \param index The index at which the access occurs
+ *
+ * \return An expression for the access of the tuple
+ */
+Expr tuple_get_item(Expr tuple, Expr index);
+
 /*! \brief Tuple container */
 class TupleNode : public ExprNode {
  public:
@@ -319,6 +338,20 @@ class Tuple : public Expr {
    * \param span The source span of the expression.
    */
   TVM_DLL explicit Tuple(tvm::Array<Expr> fields, Span span = Span());
+
+  /*! \brief Helper to delegate access to the tuple
+   *
+   * The `tuple_get_item` can be applied to any `relax::Expr`.
+   * However, this helper function is only provided for
+   * `relax::Tuple`, because `relax::Expr` is a typedef for
+   * `RelayExpr`, and we should avoid updating relay classes to
+   * provide relax-specific functionality..
+   *
+   * \param index The index at which the tuple is accessed
+   *
+   * \return The contents of the tuple at the specified index
+   */
+  inline Expr operator[](Expr index) { return tuple_get_item(*this, index); }
 
   TVM_DEFINE_OBJECT_REF_METHODS(Tuple, Expr, TupleNode);
   TVM_DEFINE_OBJECT_REF_COW_METHOD(TupleNode);

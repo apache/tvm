@@ -166,13 +166,14 @@ Tuple WithFields(Tuple tuple, Optional<Array<Expr>> opt_fields, Optional<Span> o
 }
 
 TupleGetItem::TupleGetItem(Expr tuple, int index, Span span) {
-  CHECK_GE(index, 0) << "Index out of bounds: Tuple " << tuple
-                     << " cannot be accessed with negative index " << index;
+  CHECK_GE(index, 0) << "IndexError: "
+                     << "Tuple " << tuple << " cannot be accessed with negative index " << index;
   ObjectPtr<TupleGetItemNode> n = make_object<TupleGetItemNode>();
 
   if (auto* tuple_info = tuple->struct_info_.as<TupleStructInfoNode>()) {
     CHECK_LT(index, tuple_info->fields.size())
-        << "Index out of bounds: Tuple " << tuple << " is of size " << tuple_info->fields.size()
+        << "IndexError: "
+        << "Tuple " << tuple << " is of size " << tuple_info->fields.size()
         << ", and cannot be accessed with index " << index;
     auto sinfo = tuple_info->fields[index];
     n->struct_info_ = sinfo;
