@@ -15,6 +15,9 @@
 # specific language governing permissions and limitations
 # under the License.
 """Common expressions data structures in the IR."""
+from numbers import Number
+from typing import Optional
+
 import tvm._ffi
 
 from ..runtime import Scriptable, const, convert
@@ -48,11 +51,11 @@ class RelayExpr(BaseExpr):
         """
         ret = self._checked_type_
         if ret is None:
-            raise ValueError("The type checker has not populated" " the checked_type for this node")
+            raise ValueError("The type checker has not populated the checked_type for this node")
         return ret
 
     @property
-    def struct_info(self) -> "tvm.relax.StructInfo":
+    def struct_info(self) -> Optional["tvm.relax.StructInfo"]:
         """Get the struct info field
 
         Returns
@@ -104,10 +107,12 @@ class GlobalVar(RelayExpr):
                 from tvm import relay
 
                 return relay.Call(self, args)
+
+        elif all(isinstance(x, (Number, PrimExpr)) for x in args):
+            return tvm.tir.call_tir(self, *args)
+
         arg_types = [type(x) for x in args]
-        raise RuntimeError(
-            "Do not know how to handle GlobalVar.__call__ for types {}".format(arg_types)
-        )
+        raise RuntimeError(f"Do not know how to handle GlobalVar.__call__ for types {arg_types}")
 
     def astext(self, show_meta_data=True, annotate=None):
         """Get the text format of the expression.
@@ -192,6 +197,12 @@ class Range(Node, Scriptable):
             The constructed range.
         """
         return _ffi_api.Range_from_min_extent(min_value, extent, span)
+
+    def __eq__(self, other):
+        return tvm.ir.structural_equal(self, other)
+
+    def __ne__(self, other):
+        return not self.__eq__(other)
 
 
 # TODO(@relax-team): remove when we have a RelaxExpr base class
