@@ -23,7 +23,6 @@ from tvm.runtime.relax_vm import VirtualMachine, VMInstrumentReturnKind
 from .expr import (
     Expr,
     Span,
-    SourceName,
     Id,
     GlobalVar,
     Var,

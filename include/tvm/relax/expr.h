@@ -567,8 +567,9 @@ class Constant : public LeafExpr {
   /*!
    * \brief The constructor
    * \param data The data of the constant tensor.
-   * \param struct_info_annotation The struct info of the constant tensor. If not specified, infer
-   * it from data. \param span The source span of the expression.
+   * \param struct_info_annotation The struct info of the constant tensor.
+   *        If not specified, infer it from data.
+   * \param span The source span of the expression.
    */
   TVM_DLL explicit Constant(runtime::NDArray data,
                             Optional<StructInfo> struct_info_annotation = NullOpt,
