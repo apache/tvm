@@ -43,6 +43,7 @@ def test_conv2d_transpose_adreno(remote, target, executor_type, dtype):
         [7, 7, (3, 3), (2, 2), (1, 1), 64, (3, 100, 100), (True, True), None],
         [3, 3, (1, 1), (1, 1), (1, 1), 3, (16, 8, 8), (True, True), None],
     ]
+    # Tensors memory scope with graph executor build
     ge_texture_scopes = [
         ["", "global.texture", "global.texture-weight", "", ""],
         ["", "global.texture", "global.texture-weight", "", ""],
@@ -53,6 +54,7 @@ def test_conv2d_transpose_adreno(remote, target, executor_type, dtype):
         [],
         [],
     ]
+    # Tensors memory scope with vm executor build
     vm_texture_scopes = [
         """
         VM VirtualDevice[0]: device type 1, id 0 and mem_scope
