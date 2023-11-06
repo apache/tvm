@@ -15,6 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 """Configure pytest"""
+# pylint: disable=invalid-name
 import logging
 import time
 import tvm
@@ -64,8 +65,8 @@ def check_server_drop():
         def check_timeout(timeout, sleeptime):
             def myfunc(remote):
                 time.sleep(sleeptime)
-                test_f1 = remote.get_function("rpc.test2.addone")
-                assert test_f1(10) == 11
+                f1 = remote.get_function("rpc.test2.addone")
+                assert f1(10) == 11
 
             try:
                 tclient.request_and_run("xyz", myfunc, session_timeout=timeout)
@@ -76,19 +77,19 @@ def check_server_drop():
                 remote = tclient.request("xyz", priority=0, session_timeout=timeout)
                 remote2 = tclient.request("xyz", session_timeout=timeout)
                 time.sleep(sleeptime)
-                test_f1 = remote.get_function("rpc.test2.addone")
-                assert test_f1(10) == 11
-                test_f1 = remote2.get_function("rpc.test2.addone")
-                assert test_f1(10) == 11
+                f1 = remote.get_function("rpc.test2.addone")
+                assert f1(10) == 11
+                f1 = remote2.get_function("rpc.test2.addone")
+                assert f1(10) == 11
 
             except tvm.error.TVMError:
                 pass
             remote3 = tclient.request("abc")
-            test_f1 = remote3.get_function("rpc.test2.addone")
-            assert test_f1(10) == 11
+            f1 = remote3.get_function("rpc.test2.addone")
+            assert f1(10) == 11
             remote3 = tclient.request("xyz1")
-            test_f1 = remote3.get_function("rpc.test2.addone")
-            assert test_f1(10) == 11
+            f1 = remote3.get_function("rpc.test2.addone")
+            assert f1(10) == 11
 
         check_timeout(0.01, 0.1)
         check_timeout(2, 0)
