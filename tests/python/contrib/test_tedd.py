@@ -39,10 +39,11 @@ def checkdependency():
 
 
 def test_dfg():
+    """Tests dataflow graph"""
     A = te.placeholder((1024, 4096), dtype="float32", name="A")
     B = topi.nn.softmax(A)
     # confirm lower works
-    s = te.create_schedule([input_b.op])
+    s = te.create_schedule([B.op])
 
     def verify():
         # pylint: disable=import-outside-toplevel
