@@ -221,4 +221,7 @@ external!{
 
     #[name("relay.op._make.transpose")]
     pub fn transpose(data: Expr, axes: Array<PrimExpr>) -> Expr;
+
+    #[name("relay.op._make.cast")]
+    pub fn cast(data: Expr, dtype: DLDataType) -> Expr;
 }
