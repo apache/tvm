@@ -15,6 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 """Configure pytest"""
+# pylint: disable=invalid-name
 import numpy as np
 import tvm
 import tvm.testing
@@ -25,9 +26,9 @@ from tvm.topi.cuda import sort_by_key
 def test_sort():
     """Tests sort function"""
     n = 2
-    lens = 5
+    l = 5
     m = 3
-    data = te.placeholder((n, lens, m), name="data")
+    data = te.placeholder((n, l, m), name="data")
     sort_num = te.placeholder((n, m), name="sort_num", dtype="int32")
     axis = 1
     is_ascend = False
