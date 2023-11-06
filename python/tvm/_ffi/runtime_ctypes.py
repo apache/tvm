@@ -285,6 +285,7 @@ class Device(ctypes.Structure):
         "metal": kDLMetal,
         "vpi": kDLVPI,
         "rocm": kDLROCM,
+        "hip": kDLROCM,
         "ext_dev": kDLExtDev,
         "hexagon": kDLHexagon,
         "webgpu": kDLWebGPU,

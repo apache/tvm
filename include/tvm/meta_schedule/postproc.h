@@ -168,6 +168,8 @@ class Postproc : public runtime::ObjectRef {
   TVM_DLL static Array<Postproc, void> DefaultCUDA();
   /*! \brief Create default postprocessors for CUDA with TensorCore */
   TVM_DLL static Array<Postproc, void> DefaultCUDATensorCore();
+  /*! \brief Create default postprocessors for ROCM with MatrixCore */
+  TVM_DLL static Array<Postproc, void> DefaultROCMMatrixCore();
   /*! \brief Create default postprocessors for Hexagon */
   TVM_DLL static Array<Postproc, void> DefaultHexagon();
   /*! \brief Create default postprocessors for Micro */

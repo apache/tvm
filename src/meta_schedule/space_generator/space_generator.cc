@@ -105,6 +105,10 @@ void SpaceGeneratorNode::InitializeWithTuneContext(const TuneContext& context) {
       default_sch_rules = ScheduleRule::DefaultCUDATensorCore();
       default_postprocs = Postproc::DefaultCUDATensorCore();
       default_mutator_probs = Mutator::DefaultCUDATensorCore();
+    } else if (kind == "rocm-matrixcore") {
+      default_sch_rules = ScheduleRule::DefaultROCMMatrixCore();
+      default_postprocs = Postproc::DefaultROCMMatrixCore();
+      default_mutator_probs = Mutator::DefaultROCMMatrixCore();
     } else if (kind == "hexagon") {
       default_sch_rules = ScheduleRule::DefaultHexagon();
       default_postprocs = Postproc::DefaultHexagon();

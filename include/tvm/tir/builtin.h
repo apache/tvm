@@ -859,6 +859,17 @@ TVM_DLL const Op& start_profile_intrinsic();
  */
 TVM_DLL const Op& end_profile_intrinsic();
 
+/*!
+ * \brief tvm intrinsic for amd matrix core mfma instructions.
+ *
+ *  void tvm_mfma(StringImm shape, StringImm A_layout, StringImm B_layout,
+ *               StringImm A_dtype, StringImm B_dtype, StringImm C_dtype,
+ *               Var multiplicand_a, Expr a_index,
+ *               Var multiplicand_b, Expr b_index,
+ *               Var accumulator, Expr c_index);
+ */
+TVM_DLL const Op& tvm_mfma();
+
 /*! \brief The kind of structure field info used in intrinsic */
 enum TVMStructFieldKind : int {
   // array head address

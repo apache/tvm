@@ -73,7 +73,7 @@ from . import arith
 from . import support
 
 # Contrib initializers
-from .contrib import rocm as _rocm, nvcc as _nvcc, sdaccel as _sdaccel
+from .contrib import rocm as _rocm, nvcc as _nvcc, hipcc as _hipcc, sdaccel as _sdaccel
 
 if not _RUNTIME_ONLY and support.libinfo().get("USE_MICRO", "OFF") == "ON":
     from . import micro

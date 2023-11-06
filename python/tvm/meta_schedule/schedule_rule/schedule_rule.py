@@ -100,6 +100,7 @@ class ScheduleRule(Object):
             "llvm": _ffi_api.ScheduleRuleDefaultLLVM,  # type: ignore
             "cuda": _ffi_api.ScheduleRuleDefaultCUDA,  # type: ignore
             "cuda-tensorcore": _ffi_api.ScheduleRuleDefaultCUDATensorCore,  # type: ignore
+            "rocm-matrixcore": _ffi_api.ScheduleRuleDefaultROCMMatrixCore,  # type: ignore
             "hexagon": _ffi_api.ScheduleRuleDefaultHexagon,  # type: ignore
             # pylint: enable=no-member
         }

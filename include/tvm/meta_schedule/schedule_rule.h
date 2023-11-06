@@ -296,6 +296,8 @@ class ScheduleRule : public runtime::ObjectRef {
   TVM_DLL static Array<ScheduleRule, void> DefaultCUDA();
   /*! \brief Create default postprocessors for CUDA with TensorCore */
   TVM_DLL static Array<ScheduleRule, void> DefaultCUDATensorCore();
+  /*! \brief Create default postprocessors for ROCM with MatrixCore */
+  TVM_DLL static Array<ScheduleRule, void> DefaultROCMMatrixCore();
   /*! \brief Create default schedule rules for Hexagon */
   TVM_DLL static Array<ScheduleRule, void> DefaultHexagon();
   /*! \brief Create default schedule rules for Micro */

@@ -93,6 +93,7 @@ class Postproc(Object):
             "llvm": _ffi_api.PostprocDefaultLLVM,  # type: ignore
             "cuda": _ffi_api.PostprocDefaultCUDA,  # type: ignore
             "cuda-tensorcore": _ffi_api.PostprocDefaultCUDATensorCore,  # type: ignore
+            "rocm-matrixcore": _ffi_api.PostprocDefaultROCMMatrixCore,  # type: ignore
             "hexagon": _ffi_api.PostprocDefaultHexagon,  # type: ignore
             # pylint: enable=no-member
         }

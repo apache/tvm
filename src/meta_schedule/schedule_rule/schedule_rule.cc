@@ -273,6 +273,61 @@ Array<ScheduleRule> ScheduleRule::DefaultCUDATensorCore() {
   return results;
 }
 
+Array<ScheduleRule> ScheduleRule::DefaultROCMMatrixCore() {
+  Array<Map<String, String>> intrin_groups = {
+      // Tensor Cores f32 += f16 * f16
+      {
+          {"init", "rocwmma_fill_16x16x16_f32"},
+          {"load_a", "rocwmma_load_16x16x16_f16_a_shared"},
+          {"load_b", "rocwmma_load_16x16x16_f16_b_shared"},
+          {"compute", "rocwmma_sync_16x16x16_f16f16f32"},
+          {"store", "rocwmma_store_16x16x16_f32_shared"},
+      },
+      {
+          {"init", "rocwmma_fill_32x32x8_f32"},
+          {"load_a", "rocwmma_load_32x32x8_f16_a_shared"},
+          {"load_b", "rocwmma_load_32x32x8_f16_b_shared"},
+          {"compute", "rocwmma_sync_32x32x8_f16f16f32"},
+          {"store", "rocwmma_store_32x32x8_f32_shared"},
+      },
+      {
+          {"init", "rocwmma_fill_16x16x16_i32"},
+          {"load_a", "rocwmma_load_16x16x16_i8_a_shared"},
+          {"load_b", "rocwmma_load_16x16x16_i8_b_shared"},
+          {"compute", "rocwmma_sync_16x16x16_i8i8i32"},
+          {"store", "rocwmma_store_16x16x16_i32_shared"},
+      },
+      {
+          {"init", "rocwmma_fill_32x32x8_i32"},
+          {"load_a", "rocwmma_load_32x32x8_i8_a_shared"},
+          {"load_b", "rocwmma_load_32x32x8_i8_b_shared"},
+          {"compute", "rocwmma_sync_32x32x8_i8i8i32"},
+          {"store", "rocwmma_store_32x32x8_i32_shared"},
+      },
+  };
+  Array<ScheduleRule> results{
+      ScheduleRule::ApplyCustomRule(),
+      ScheduleRule::MultiLevelTilingTensorCore(
+          /*intrin_groups=*/intrin_groups,
+          /*structure=*/"SSSRRSRS",
+          /*tile_binds=*/Array<String>{"blockIdx.y", "blockIdx.x", "threadIdx.y"},
+          /*max_innermost_factor=*/Integer(4),
+          /*vector_load_lens=*/Array<Integer>{1, 2, 3, 4, 8, 16},
+          /*reuse_read=*/
+          Map<String, ObjectRef>{{"req", String("must")},
+                                 {"levels", Array<Integer>{4}},  //
+                                 {"scope", String("shared")}},
+          /*reuse_write=*/
+          Map<String, ObjectRef>{{"req", String("must")},
+                                 {"levels", Array<Integer>{2}},  //
+                                 {"scope", String("shared")}},
+          /*use_software_pipeline=*/true)  //
+  };
+  Array<ScheduleRule> append = ScheduleRule::DefaultCUDA();
+  results.insert(results.end(), append.begin() + 1, append.end());
+  return results;
+}
+
 Array<ScheduleRule> ScheduleRule::DefaultHexagon() {
   return {
       ScheduleRule::ApplyCustomRule(),
@@ -441,6 +496,8 @@ TVM_REGISTER_GLOBAL("meta_schedule.ScheduleRuleDefaultCUDA")
     .set_body_typed(ScheduleRule::DefaultCUDA);
 TVM_REGISTER_GLOBAL("meta_schedule.ScheduleRuleDefaultCUDATensorCore")
     .set_body_typed(ScheduleRule::DefaultCUDATensorCore);
+TVM_REGISTER_GLOBAL("meta_schedule.ScheduleRuleDefaultROCMMatrixCore")
+    .set_body_typed(ScheduleRule::DefaultROCMMatrixCore);
 TVM_REGISTER_GLOBAL("meta_schedule.ScheduleRuleDefaultHexagon")
     .set_body_typed(ScheduleRule::DefaultHexagon);
 TVM_REGISTER_GLOBAL("meta_schedule.ScheduleRuleDefaultMicro")
