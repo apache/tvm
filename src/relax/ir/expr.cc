@@ -165,91 +165,29 @@ Tuple WithFields(Tuple tuple, Optional<Array<Expr>> opt_fields, Optional<Span> o
   return tuple;
 }
 
-TupleGetItem::TupleGetItem(Expr tuple, int arg_index, Span span)
-    : TupleGetItem(tuple, PrimValue::Int64(arg_index), span) {}
-
-TupleGetItem::TupleGetItem(Expr tuple, Expr arg_index, Span span) {
-  auto index_sinfo = arg_index->struct_info_.as<PrimStructInfoNode>();
-  CHECK(index_sinfo && index_sinfo->dtype == DataType::Int(64))
-      << "TupleGetItem requires the index to be a R.Prim('int64'), "
-      << "but received " << arg_index << " with struct info " << arg_index->struct_info_;
-
-  auto known_index = index_sinfo->value.as<IntImmNode>();
-
-  if (known_index) {
-    // If we know the index, we can check against the lower bound of
-    // zero.  Checking the upper bound will require also knowing the
-    // tuple's size.
-    CHECK_GE(known_index->value, 0)
-        << "IndexError: "
-        << "Tuple " << tuple << " cannot be accessed with negative index " << arg_index;
-  }
-
-  auto* tuple_info = tuple->struct_info_.as<TupleStructInfoNode>();
-
-  Optional<StructInfo> item_sinfo = NullOpt;
-
-  if (known_index && tuple_info) {
-    // The exact index used to access the tuple is known.  We can
-    // apply bounds-checking, and can provide the exact StructInfo of
-    // the accessed element.
-    int int_index = known_index->value;
-
-    CHECK_LT(int_index, tuple_info->fields.size())
-        << "IndexError: "
-        << "Tuple " << tuple << " is of size " << tuple_info->fields.size()
-        << ", and cannot be accessed with index " << int_index;
-    item_sinfo = tuple_info->fields[int_index];
-
-  } else if (tuple_info) {
-    // The exact index used to access the tuple is unknown.  We can't
-    // apply bounds checking, but we can check that an index might
-    // exist.  We can't provide an exact StructInfo for the accessed
-    // type, but we can provide the common base type of all items in
-    // the tuple.
-    CHECK_GT(tuple_info->fields.size(), 0)
-        << "IndexError: "
-        << "The exact value of index " << arg_index << " is unknown, "
-        << "but expression " << tuple << " has struct info " << tuple->struct_info_ << ".  "
-        << "This is a tuple of length zero, and there is no index such that 0 <= index < 0.";
-
-    StructInfo reduce_lca = tuple_info->fields[0];
-    for (size_t i = 1; i < tuple_info->fields.size(); i++) {
-      reduce_lca = StructInfoLCA(reduce_lca, tuple_info->fields[1]);
-    }
-    item_sinfo = reduce_lca;
-  }
-
+TupleGetItem::TupleGetItem(Expr tuple, int index, Span span) {
+  CHECK_GE(index, 0) << "Index out of bounds: Tuple " << tuple
+                     << " cannot be accessed with negative index " << index;
   ObjectPtr<TupleGetItemNode> n = make_object<TupleGetItemNode>();
-  n->tuple = std::move(tuple);
-  n->index = arg_index;
-  n->span = std::move(span);
-  if (item_sinfo) {
-    n->struct_info_ = item_sinfo;
-    n->checked_type_ = GetStaticType(item_sinfo.value());
-  }
 
+  if (auto* tuple_info = tuple->struct_info_.as<TupleStructInfoNode>()) {
+    CHECK_LT(index, tuple_info->fields.size())
+        << "Index out of bounds: Tuple " << tuple << " is of size " << tuple_info->fields.size()
+        << ", and cannot be accessed with index " << index;
+    auto sinfo = tuple_info->fields[index];
+    n->struct_info_ = sinfo;
+    n->checked_type_ = GetStaticType(sinfo);
+  }
+  n->tuple = std::move(tuple);
+  n->index = index;
+  n->span = std::move(span);
   data_ = std::move(n);
 }
 
-Optional<Integer> TupleGetItemNode::GetKnownIndex() const {
-  auto prim_sinfo = index->struct_info_.as<PrimStructInfoNode>();
-  CHECK(prim_sinfo->dtype == DataType::Int(64))
-      << "The index of TupleGetItem must be R.Prim('int64'), "
-      << "but expression " << GetRef<Expr>(this) << " has index " << index << " with struct info "
-      << index->struct_info_;
-
-  if (auto int_index = prim_sinfo->value.as<IntImm>()) {
-    return Integer(int_index.value());
-  } else {
-    return NullOpt;
-  }
-}
-
 TupleGetItem WithFields(TupleGetItem tuple_get_item, Optional<Expr> opt_tuple,
-                        Optional<Expr> opt_index, Optional<Span> opt_span) {
+                        Optional<Integer> opt_index, Optional<Span> opt_span) {
   Expr tuple = opt_tuple.value_or(tuple_get_item->tuple);
-  Expr index = opt_index.value_or(tuple_get_item->index);
+  Integer index = opt_index.value_or(tuple_get_item->index);
   Span span = opt_span.value_or(tuple_get_item->span);
 
   bool unchanged = tuple.same_as(tuple_get_item->tuple) && (index == tuple_get_item->index) &&
@@ -257,7 +195,7 @@ TupleGetItem WithFields(TupleGetItem tuple_get_item, Optional<Expr> opt_tuple,
   if (!unchanged) {
     TupleGetItemNode* cow_tuple_get_item_node = tuple_get_item.CopyOnWrite();
     cow_tuple_get_item_node->tuple = tuple;
-    cow_tuple_get_item_node->index = index;
+    cow_tuple_get_item_node->index = index.IntValue();
     cow_tuple_get_item_node->span = span;
   }
   return tuple_get_item;
@@ -265,7 +203,7 @@ TupleGetItem WithFields(TupleGetItem tuple_get_item, Optional<Expr> opt_tuple,
 
 TVM_REGISTER_NODE_TYPE(TupleGetItemNode);
 
-TVM_REGISTER_GLOBAL("relax.TupleGetItem").set_body_typed([](Expr tuple, Expr index, Span span) {
+TVM_REGISTER_GLOBAL("relax.TupleGetItem").set_body_typed([](Expr tuple, int index, Span span) {
   return TupleGetItem(tuple, index, span);
 });
 

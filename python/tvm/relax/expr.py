@@ -370,7 +370,7 @@ class TupleGetItem(ExprWithOp):
     tuple_value: Expr
         The input tuple expression.
 
-    index: Union[int, Expr]
+    index: int
         The index.
 
     span: Optional[Span]
@@ -381,10 +381,7 @@ class TupleGetItem(ExprWithOp):
     index: int
     span: Optional[Span]
 
-    def __init__(self, tuple_value: Expr, index: Union[int, Expr],span: Optional[Span] = None):):
-        if isinstance(index, int):
-            index = PrimValue(index)
-
+    def __init__(self, tuple_value: Expr, index: int, span: Optional[Span] = None):
         self.__init_handle_by_constructor__(
             _ffi_api.TupleGetItem, tuple_value, index, span  # type: ignore
         )

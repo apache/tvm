@@ -145,23 +145,12 @@ class RelaxExprNameSetter : public ExprVisitor {
 
   void VisitBinding_(const VarBindingNode* binding, const TupleGetItemNode* val) {
     ExprVisitor::VisitBinding_(binding, val);
-
-    String unique_name = [&]() {
-      std::stringstream ss;
-      if (expr_names_.count(val->tuple)) {
-        ss << expr_names_[val->tuple];
-      } else if (const auto* v_node = val->tuple.as<VarNode>()) {
-        ss << v_node->name_hint();
-      }
-      ss << ".";
-
-      if (auto known_index = val->GetKnownIndex()) {
-        ss << known_index.value()->value;
-      }
-
-      return ss.str();
-    }();
-
+    String unique_name;
+    if (expr_names_.count(val->tuple)) {
+      unique_name = expr_names_[val->tuple] + "." + std::to_string(val->index);
+    } else if (const auto* v_node = val->tuple.as<VarNode>()) {
+      unique_name = v_node->name_hint() + "." + std::to_string(val->index);
+    }
     if (unique_name != SpanUtils::GetAttr(val->span, "name")) {
       val->span = SpanUtils::SetAttr(val->span, "name", unique_name);
     }

@@ -138,8 +138,7 @@ class CanonicalizePlanner : public ExprVisitor {
       LOG(FATAL) << "Invalid binding type: " << binding->GetTypeKey();
     }
 
-    // Unwrap TupleGetItem, if were know which Tuple is being
-    // accessed, and the index at which is is being accessed.
+    // Unwrap TupleGetItem, if the Tuple being accessed is known.
     if (auto tuple_get_item = value.as<TupleGetItemNode>()) {
       Expr tuple = tuple_get_item->tuple;
       while (auto tuple_var = tuple.as<Var>()) {
@@ -150,10 +149,8 @@ class CanonicalizePlanner : public ExprVisitor {
         }
       }
 
-      auto known_tuple = tuple.as<TupleNode>();
-      auto known_index = tuple_get_item->GetKnownIndex();
-      if (known_tuple && known_index) {
-        value = known_tuple->fields[known_index.value()->value];
+      if (auto ptr = tuple.as<TupleNode>()) {
+        value = ptr->fields[tuple_get_item->index];
       }
     }
 

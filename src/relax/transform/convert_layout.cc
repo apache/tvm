@@ -234,37 +234,10 @@ class LayoutConvertMutator : public ExprMutator {
     NLayout input_layout = binding->var->IsInstance<DataflowVarNode>()
                                ? GetNLayout(var_layout_map_, val->tuple)
                                : InitialNLayout(val->tuple);
-
-    Expr new_tuple = RewriteExpr(val->tuple, input_layout);
-    Expr new_index = RewriteExpr(val->index, input_layout);
-
-    ReEmitBinding(binding, builder_->Normalize(TupleGetItem(new_tuple, new_index)));
-
-    NLayout item_layout = [&]() {
-      if (auto known_index = val->GetKnownIndex()) {
-        // Most common case, we know the index at which the tuple is
-        // being accessed.
-        return input_layout.NestedArray()[known_index.value()->value];
-      }
-
-      std::unordered_set<NLayout, StructuralHash, StructuralEqual> unique_layouts;
-      for (const auto& layout : input_layout.NestedArray()) {
-        unique_layouts.insert(layout);
-      }
-      if (unique_layouts.size() == 1) {
-        // Fallback case.  We don't know where we are accessing the
-        // tuple, but it doesn't matter because all elements in the
-        // tuple are being transformed.
-        return *unique_layouts.begin();
-      }
-
-      LOG(FATAL) << "Cannot determine the layout of " << GetRef<Expr>(val)
-                 << ".  The index is unknown, and the tuple contains more than multiple layouts: "
-                 << Array<NLayout>(unique_layouts.begin(), unique_layouts.end());
-    }();
-
+    ReEmitBinding(binding, builder_->Normalize(
+                               TupleGetItem(RewriteExpr(val->tuple, input_layout), val->index)));
     // update the layout map
-    var_layout_map_[binding->var] = item_layout;
+    var_layout_map_[binding->var] = input_layout.NestedArray()[val->index];
   }
 
   void VisitBinding_(const MatchCastNode* binding) final {

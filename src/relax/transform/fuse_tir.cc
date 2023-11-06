@@ -27,7 +27,6 @@
 
 #include "../../relay/analysis/graph_partitioner.h"
 #include "../../support/arena.h"
-#include "../../support/ordered_set.h"
 #include "../../tir/ir/functor_common.h"
 
 namespace tvm {
@@ -380,15 +379,7 @@ class FusedTIRConstructor : public ExprVisitor {
     PostOrderVisit(func->body, [=, &tuple_param](Expr e) {
       if (auto tup_get = e.as<TupleGetItemNode>();
           tup_get && tuple_param.count(tup_get->tuple.get())) {
-        auto& used_indices = func_info_.used_tuple_field_indices[tup_get->tuple.get()];
-        if (auto known_index = tup_get->GetKnownIndex()) {
-          used_indices.insert(known_index.value()->value);
-        } else {
-          auto num_fields = Downcast<TupleStructInfo>(tup_get->struct_info_)->fields.size();
-          for (size_t i = 0; i < num_fields; i++) {
-            used_indices.insert(i);
-          }
-        }
+        func_info_.used_tuple_field_indices[tup_get->tuple.get()].insert(tup_get->index);
       }
     });
 
@@ -532,18 +523,12 @@ class FusedTIRConstructor : public ExprVisitor {
 
   void VisitExpr_(const TupleGetItemNode* tuple_get_item) final {
     ExprVisitor::VisitExpr_(tuple_get_item);
-
     auto it = func_info_.expr2buffers.find(tuple_get_item->tuple);
     if (it != func_info_.expr2buffers.end()) {
-      auto opt_known_index = tuple_get_item->GetKnownIndex();
-      ICHECK(opt_known_index) << "FuseTIR requires all tuple indices to be known, "
-                              << "but " << GetRef<Expr>(tuple_get_item) << " has a dynamic index";
-      auto tuple_index = opt_known_index.value()->value;
-
       int begin_buf_idx = 0;
       int end_buf_idx = 0;
       const TupleType& tuple_type = Downcast<TupleType>(tuple_get_item->tuple->checked_type());
-      for (int i = 0; i < tuple_index; ++i) {
+      for (int i = 0; i < tuple_get_item->index; ++i) {
         auto it = func_info_.used_tuple_field_indices.find(tuple_get_item->tuple.get());
         // If this tuple is not passed as a parameter, or if the field at the index i is actually
         // used, the corresponding buffer needs to be taken into account by this function.
@@ -551,7 +536,7 @@ class FusedTIRConstructor : public ExprVisitor {
           begin_buf_idx += GetTotalTensorSize(tuple_type->fields[i]);
         }
       }
-      end_buf_idx = begin_buf_idx + GetTotalTensorSize(tuple_type->fields[tuple_index]);
+      end_buf_idx = begin_buf_idx + GetTotalTensorSize(tuple_type->fields[tuple_get_item->index]);
       func_info_.expr2buffers.Set(
           GetRef<Expr>(tuple_get_item),
           {(*it).second.begin() + begin_buf_idx, (*it).second.begin() + end_buf_idx});
@@ -866,20 +851,15 @@ class FusedTIRConstructor : public ExprVisitor {
 
 std::vector<size_t> GetTupleAccessedIndices(const FunctionNode* func, const Var& tuple_var) {
   // Need to be ordered
-  support::OrderedSet<size_t> indices;
+  std::vector<size_t> indices;
   PostOrderVisit(func->body, [&indices, tuple_var](Expr e) {
     if (auto tup_get = e.as<TupleGetItemNode>(); tup_get && tup_get->tuple.same_as(tuple_var)) {
-      if (auto known_index = tup_get->GetKnownIndex()) {
-        indices.insert(known_index.value()->value);
-      } else {
-        auto num_fields = Downcast<TupleStructInfo>(tup_get->struct_info_)->fields.size();
-        for (size_t i = 0; i < num_fields; i++) {
-          indices.insert(i);
-        }
+      if (std::find(indices.begin(), indices.end(), tup_get->index) == indices.end()) {
+        indices.push_back(tup_get->index);
       }
     }
   });
-  return std::vector(indices.begin(), indices.end());
+  return indices;
 }
 
 /*!

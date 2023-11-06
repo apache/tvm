@@ -198,7 +198,8 @@ class LazyInputMutator(PyExprMutator):
             get_item_result = self.builder_.emit(
                 relax.Call(
                     relax.ExternFunc(self.func_creator.fget_item),
-                    self.func_creator.extra_get_item_params + [tuple_get_item.index],
+                    self.func_creator.extra_get_item_params
+                    + [relax.PrimValue(tuple_get_item.index)],
                     None,
                     [relax.ObjectStructInfo()],
                 )

@@ -30,17 +30,8 @@ namespace printer {
 TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
     .set_dispatch<relax::PrimValue>(  //
         "", [](relax::PrimValue n, ObjectPath n_p, IRDocsifier d) -> Doc {
-          auto path = n_p->Attr("value");
-
-          // Special case to print `R.prim_value(0)` as `0`, since it
-          // would be converted back to `R.prim_value` on parsing.
-          if (d->cfg->syntax_sugar && n->value->dtype == DataType::Int(64)) {
-            if (auto as_int = n->value.as<IntImmNode>()) {
-              return LiteralDoc::Int(as_int->value, path);
-            }
-          }
           // TODO(@junrushao): float numbers
-          return Relax(d, "prim_value")->Call({d->AsDoc<ExprDoc>(n->value, path)});
+          return Relax(d, "prim_value")->Call({d->AsDoc<ExprDoc>(n->value, n_p->Attr("value"))});
         });
 
 TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
@@ -73,9 +64,8 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
 TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
     .set_dispatch<relax::TupleGetItem>(  //
         "", [](relax::TupleGetItem n, ObjectPath n_p, IRDocsifier d) -> Doc {
-          auto tuple_doc = d->AsDoc<ExprDoc>(n->tuple, n_p->Attr("tuple"));
-          auto index_doc = d->AsDoc<ExprDoc>(n->index, n_p->Attr("index"));
-          return tuple_doc[{index_doc}];
+          ExprDoc idx = LiteralDoc::Int(n->index, n_p->Attr("index"));
+          return d->AsDoc<ExprDoc>(n->tuple, n_p->Attr("tuple"))[{idx}];
         });
 
 TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)

@@ -270,22 +270,9 @@ class StorageAllocatorBaseVisitor : public ExprVisitor {
     }
     ICHECK(tokens.IsNested());
     Array<Tokens> field_tokens = tokens.NestedArray();
-
-    auto item_tokens = [&]() -> Tokens {
-      if (auto known_index = tuple_item->GetKnownIndex()) {
-        // If the tuple access is at a specific index, the field uses
-        // the token of that index.
-        int index = known_index.value()->value;
-        ICHECK_GT(static_cast<int>(field_tokens.size()), index);
-        ICHECK_GE(index, 0);
-        return field_tokens[index];
-      } else {
-        // If the tuple access is at an unknown index, the field may
-        // require any token from the tuple.
-        return tokens;
-      }
-    }();
-    SetTokens(tuple_item, item_tokens);
+    ICHECK_GT(static_cast<int>(field_tokens.size()), tuple_item->index);
+    ICHECK_GE(tuple_item->index, 0);
+    SetTokens(tuple_item, field_tokens[tuple_item->index]);
   }
 
   /******************** Utilities ********************/

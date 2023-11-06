@@ -64,11 +64,7 @@ void RelaxFuncAttrGetter::VisitExpr_(const relax::CallNode* op) {
 }
 
 void RelaxFuncAttrGetter::VisitExpr_(const relax::TupleGetItemNode* op) {
-  if (auto known_index = op->GetKnownIndex()) {
-    attrs_.Set("index", std::to_string(known_index.value()->value));
-  } else {
-    LOG(FATAL) << "MSC does not support TupleGetItem with dynamic index";
-  }
+  attrs_.Set("index", std::to_string(op->index));
 }
 
 void RelaxFuncValueGetter::VisitExpr_(const relax::CallNode* op) {
@@ -284,9 +280,7 @@ const MSCJoint RelaxGraphBuilder::AddNode(const Expr& expr, const Optional<Expr>
   } else if (const auto* shape_node = expr.as<relax::ShapeExprNode>()) {
     attrs.Set("shape", StringUtils::ToString(shape_node->values));
   } else if (const auto* get_node = expr.as<relax::TupleGetItemNode>()) {
-    auto known_value = get_node->GetKnownIndex();
-    ICHECK(known_value) << "MSC does not support TupleGetItem with dynamic index";
-    attrs.Set("index", std::to_string(known_value.value()->value));
+    attrs.Set("index", std::to_string(get_node->index));
   }
 
   // Get scope

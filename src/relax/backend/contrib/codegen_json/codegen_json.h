@@ -363,11 +363,7 @@ class JSONSerializer : public relax::MemoizedExprTranslator<NodeEntries> {
 
   NodeEntries VisitExpr_(const TupleGetItemNode* gtn) {
     auto vtuple = VisitExpr(gtn->tuple);
-    if (auto known_index = gtn->GetKnownIndex()) {
-      return {vtuple[known_index.value()->value]};
-    } else {
-      return vtuple;
-    }
+    return {vtuple[gtn->index]};
   }
 
   NodeEntries VisitExpr_(const FunctionNode* fn) {

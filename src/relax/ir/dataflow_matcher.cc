@@ -358,19 +358,11 @@ bool DFPatternMatcher::VisitDFPattern_(const FunctionPatternNode* op, const Expr
 
 bool DFPatternMatcher::VisitDFPattern_(const TupleGetItemPatternNode* op, const Expr& expr0) {
   auto expr = TryGetValOfVar(expr0, var2val_);
-  const auto* tuple_get_item_node = expr.as<TupleGetItemNode>();
-  if (!tuple_get_item_node) return false;
-
-  bool is_correct_index = [&]() -> bool {
-    if (op->index == -1) return true;
-
-    auto known_index = tuple_get_item_node->GetKnownIndex();
-    if (!known_index) return false;
-
-    return known_index.value()->value == op->index;
-  }();
-
-  return is_correct_index && VisitDFPattern(op->tuple, tuple_get_item_node->tuple);
+  if (const auto* tuple_get_item_node = expr.as<TupleGetItemNode>()) {
+    return (op->index == -1 || op->index == tuple_get_item_node->index) &&
+           VisitDFPattern(op->tuple, tuple_get_item_node->tuple);
+  }
+  return false;
 }
 
 bool DFPatternMatcher::VisitDFPattern_(const TuplePatternNode* op, const Expr& expr0) {
