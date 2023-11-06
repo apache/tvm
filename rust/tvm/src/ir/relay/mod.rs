@@ -35,6 +35,7 @@ pub mod attrs;
 pub mod nn;
 pub mod tensor;
 pub mod reduce;
+pub mod transform;
 
 #[repr(C)]
 #[derive(Object, Debug)]
