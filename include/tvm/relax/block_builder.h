@@ -243,9 +243,20 @@ class BlockBuilder : public ObjectRef {
    * review.  The explicit default constructor prevents aggregate
    * initialization, ensuring that the full name of the marker struct
    * appears at the callsite.
+   *
+   * This constructor is marked as no-lint to allow a zero-parameter
+   * constructor to be marked as explicit.  The constructor must be
+   * explicit in order to disable aggregate initialization in C++17.
+   * While C++20 disables aggregate initialization when a
+   * user-declared constructor is present, C++17 only disables
+   * aggregate initialization when a user-defined constructor is
+   * present.  Therefore, we need to mark the zero-parameter
+   * constructor as explicit in order to prevent aggregate
+   * initialization, and to ensure that the name appears at all
+   * callsites.
    */
   struct DisableOperatorSpecificNormalizationForTVMScript {
-    explicit DisableOperatorSpecificNormalizationForTVMScript() = default;
+    explicit DisableOperatorSpecificNormalizationForTVMScript() = default;  // NOLINT(*)
   };
   /*!
    * \brief Create a BlockBuilder.
