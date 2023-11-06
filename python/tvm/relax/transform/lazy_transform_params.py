@@ -56,7 +56,9 @@ class ForwardCollector(PyExprVisitor):
         if binding.var == self.out_tuple_var:
             assert isinstance(binding.value, relax.Tuple)
             for i, expr in enumerate(binding.value.fields):
-                self.out_tuple_map[expr] = relax.PrimValue(i)
+                if expr not in self.out_tuple_map:
+                    self.out_tuple_map[expr] = []
+                self.out_tuple_map[expr].append(relax.PrimValue(i))
         else:
             self.is_tuple_get_item_input = False
             super().visit_var_binding_(binding)
@@ -198,17 +200,17 @@ class LazyTransformParamsMutator(PyExprMutator):
             for var in self.memory_free_insertion[binding.var]:
                 if var in self.out_tuple_map:
                     self.killed_vars.add(var)
-                    index = self.out_tuple_map[var]
-                    # rewrite set item
-                    self.builder_.emit(
-                        relax.Call(
-                            relax.ExternFunc("set_item"),
-                            [index, super().visit_var_(var)],
-                            None,
-                            [relax.ObjectStructInfo()],
-                        ),
-                        name_hint="_",
-                    )
+                    for index in self.out_tuple_map[var]:
+                        # rewrite set item
+                        self.builder_.emit(
+                            relax.Call(
+                                relax.ExternFunc("set_item"),
+                                [index, super().visit_var_(var)],
+                                None,
+                                [relax.ObjectStructInfo()],
+                            ),
+                            name_hint="_",
+                        )
 
                 if var in self.input_params_set:
                     self.builder_.emit(
