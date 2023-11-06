@@ -226,7 +226,7 @@ def test_ir_builder_tir_for():
     # the expected for
     thread_binding_expected = tir.For(
         loop_var=tir.Var("", "int32"),
-        min_val=0,
+        min=0,
         extent=8,
         kind=tir.ForKind.THREAD_BINDING,
         body=tir.Evaluate(0),
@@ -236,28 +236,28 @@ def test_ir_builder_tir_for():
     )
     unroll_expected = tir.For(
         loop_var=tir.Var("", "int32"),
-        min_val=0,
+        min=0,
         extent=16,
         kind=tir.ForKind.UNROLLED,
         body=thread_binding_expected,
     )
     vectorized_expected = tir.For(
         loop_var=tir.Var("", "int32"),
-        min_val=0,
+        min=0,
         extent=32,
         kind=tir.ForKind.VECTORIZED,
         body=unroll_expected,
     )
     parallel_expected = tir.For(
         loop_var=tir.Var("", "int32"),
-        min_val=0,
+        min=0,
         extent=64,
         kind=tir.ForKind.PARALLEL,
         body=vectorized_expected,
     )
     for_expected = tir.For(
         loop_var=tir.Var("", "int32"),
-        min_val=0,
+        min=0,
         extent=128,
         kind=tir.ForKind.SERIAL,
         body=parallel_expected,
@@ -277,7 +277,7 @@ def test_ir_builder_tir_for_uint():
 
     for_expected = tir.For(
         loop_var=tir.Var("", "uint32"),
-        min_val=tir.const(0, "uint32"),
+        min=tir.const(0, "uint32"),
         extent=tir.const(128, "uint32"),
         kind=tir.ForKind.SERIAL,
         body=tir.Evaluate(0),
