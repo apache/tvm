@@ -15,6 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 """Configure pytest"""
+# pylint: disable=invalid-name
 import logging
 import time
 import multiprocessing
@@ -52,9 +53,9 @@ def rpc_proxy_check():
             server.deamon = True
             server.start()
             client = rpc.connect(prox.host, prox.port, key="x1")
-            test_f1 = client.get_function("testing.echo")
-            assert test_f1(10) == 10
-            assert test_f1("xyz") == "xyz"
+            f1 = client.get_function("testing.echo")
+            assert f1(10) == 10
+            assert f1("xyz") == "xyz"
 
         check()
     except ImportError:
