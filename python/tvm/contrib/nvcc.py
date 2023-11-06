@@ -67,10 +67,23 @@ def compile_cuda(code, target_format="ptx", arch=None, options=None, path_target
         arch = ["-gencode", f"arch=compute_{compute_version},code=sm_{compute_version}"]
 
     temp = utils.tempdir()
+    file_name = "tvm_kernels"
     if target_format not in ["cubin", "ptx", "fatbin"]:
         raise ValueError("target_format must be in cubin, ptx, fatbin")
-    temp_code = temp.relpath("my_kernel.cu")
-    temp_target = temp.relpath(f"my_kernel.{target_format}")
+    temp_code = temp.relpath(f"{file_name}.cu")
+    temp_target = temp.relpath(f"{file_name}.{target_format}")
+
+    pass_context = tvm.get_global_func("transform.GetCurrentPassContext")()
+    kernels_output_dir = (
+        pass_context.config["cuda.kernels_output_dir"]
+        if "cuda.kernels_output_dir" in pass_context.config
+        else None
+    )
+    if kernels_output_dir is not None:
+        if not os.path.isdir(kernels_output_dir):
+            os.makedirs(kernels_output_dir)
+        temp_code = os.path.join(kernels_output_dir, f"{file_name}.cu")
+        temp_target = os.path.join(kernels_output_dir, f"{file_name}.{target_format}")
 
     with open(temp_code, "w") as out_file:
         out_file.write(code)
@@ -78,6 +91,8 @@ def compile_cuda(code, target_format="ptx", arch=None, options=None, path_target
     file_target = path_target if path_target else temp_target
     cmd = ["nvcc"]
     cmd += [f"--{target_format}", "-O3"]
+    if kernels_output_dir is not None:
+        cmd += ["-lineinfo"]
     if isinstance(arch, list):
         cmd += arch
     elif isinstance(arch, str):

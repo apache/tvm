@@ -17,7 +17,7 @@
 
 import ctypes
 import traceback
-from cpython cimport Py_INCREF, Py_DECREF
+from cpython cimport Py_INCREF, Py_DECREF, PyGILState_Ensure, PyGILState_Release
 from numbers import Number, Integral
 from ..base import string_types, py2cerror
 from ..runtime_ctypes import DataType, Device, TVMByteArray, ObjectRValueRef
@@ -381,5 +381,7 @@ def _init_pythonapi_inc_def_ref():
     register_func = TVMBackendRegisterEnvCAPI
     register_func(c_str("Py_IncRef"), <void*>_py_incref_wrapper)
     register_func(c_str("Py_DecRef"), <void*>_py_decref_wrapper)
+    register_func(c_str("PyGILState_Ensure"), <void*>PyGILState_Ensure)
+    register_func(c_str("PyGILState_Release"), <void*>PyGILState_Release)
 
 _init_pythonapi_inc_def_ref()
