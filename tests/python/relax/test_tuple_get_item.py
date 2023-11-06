@@ -22,6 +22,8 @@ import tvm.testing
 from tvm import relax
 from tvm.script import relax as R, tir as T
 
+import pytest
+
 exec_mode = tvm.testing.parameter("bytecode", "compiled")
 
 tuple_type_annotation = tvm.testing.parameter(
@@ -32,6 +34,8 @@ tuple_type_annotation = tvm.testing.parameter(
 )
 
 tuple_index_type = tvm.testing.parameter("static", "dynamic")
+
+syntax_sugar = tvm.testing.parameter(by_dict={"sugared": True, "unsugared": False})
 
 
 def test_vm_tuple_get_item(exec_mode, tuple_type_annotation, tuple_index_type):
@@ -59,6 +63,36 @@ def test_vm_tuple_get_item(exec_mode, tuple_type_annotation, tuple_index_type):
 
     res = vm["main"]((17, 42.5), 0)
     assert res == 17
+
+
+def test_dynamic_index_printing(syntax_sugar: bool):
+    """Check syntax-sugar for dynamic tuple indices
+
+    The "relax.tuple_get_item_dyn" operator should be printed as
+    `my_tuple[my_index]` by default, which will regenerate the
+    original operator when parsed.  If syntax sugar is disabled, it
+    should display the `R.tuple_get_item_dyn` directly.
+    """
+
+    @R.function(private=True)
+    def func(
+        arg_tuple: R.Tuple([R.Prim("int64"), R.Prim("float32")]),
+        arg_index: R.Prim(value="index_var"),
+    ):
+        return arg_tuple[arg_index]
+
+    script = func.script(syntax_sugar=syntax_sugar)
+
+    if syntax_sugar:
+        assert "arg_tuple[arg_index]" in script
+        assert "tuple_get_item_dyn" not in script
+    else:
+        assert "arg_tuple[arg_index]" not in script
+        assert "tuple_get_item_dyn" in script
+
+    roundtrip = tvm.script.from_source(script)
+
+    tvm.ir.assert_structural_equal(func, roundtrip)
 
 
 if __name__ == "__main__":

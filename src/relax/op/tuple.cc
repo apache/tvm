@@ -157,7 +157,7 @@ Expr tuple_get_item(Expr tuple, Expr index) {
   }
 }
 
-TVM_REGISTER_GLOBAL("relax.tuple_get_item").set_body_typed(tuple_get_item);
+TVM_REGISTER_GLOBAL("relax.op.tuple_get_item").set_body_typed(tuple_get_item);
 
 }  // namespace relax
 }  // namespace tvm

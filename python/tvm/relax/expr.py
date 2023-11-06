@@ -232,10 +232,7 @@ class ExprWithOp(Expr, Scriptable):
         result: ExprWithOp
             The result expression.
         """
-        if not isinstance(index, Expr):
-            index = PrimValue(index)
-
-        return _ffi_api.tuple_get_item(self, index)
+        return tvm.relax.op.tuple_get_item(self, index)
 
 
 @tvm._ffi.register_object("relax.expr.Call")
