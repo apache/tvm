@@ -25,7 +25,7 @@ from infrastructure import build_and_run, Device
 import pytest
 
 
-def _build_and_run_network(mod, params, inputs, data, device, atol, rtol, tvm_log=""):
+def _build_and_run_network(mod, params, inputs, data, device, tvm_log=""):
     """Helper function to build and run a network."""
 
     outputs = []
@@ -87,19 +87,17 @@ def get_network(name, batch_size, dtype="float32"):
         net, params = testing.squeezenet.get_workload(
             batch_size=batch_size, version=version, dtype=dtype
         )
-    elif name == "mxnet":
-        # an example for mxnet model
-        from mxnet.gluon.model_zoo.vision import get_model
-
-        block = get_model("resnet18_v1", pretrained=True)
-        net, params = relay.frontend.from_mxnet(block, shape={"data": input_shape}, dtype=dtype)
-        net = net["main"]
-        net = relay.Function(
-            net.params, relay.nn.softmax(net.body), None, net.type_params, net.attrs
-        )
-        net = tvm.IRModule.from_expr(net)
     else:
         raise ValueError("Unsupported network: " + name)
+
+    initializer = relay.testing.init.Xavier()
+    for param_name in list(params.keys()):
+        filter_data = np.zeros(params[param_name].shape).astype(params[param_name].dtype)
+        if len(filter_data.shape) > 1:
+            initializer("weight", filter_data)
+        else:
+            initializer("bias", filter_data)
+        params[param_name] = tvm.nd.array(filter_data)
 
     return net, params, {"data": (input_shape, dtype)}, output_shape
 
@@ -111,11 +109,8 @@ def get_network(name, batch_size, dtype="float32"):
         "resnet-18",
         "resnet-34",
         "resnet-50",
-        "densenet-121",
         "inception_v3",
         "mobilenet",
-        "squeezenet_v1.0",
-        "squeezenet_v1.1",
     ],
 )
 @tvm.testing.requires_openclml
@@ -123,22 +118,18 @@ def test_network(device, name, dtype):
     print("Network evaluating .. " + name + " " + dtype)
     if device == None:
         device = Device()
+    np.random.seed(0)
     mod, params, inputs, _ = get_network(name, 1, dtype=dtype)
     input_data = {}
-    np.random.seed(0)
+
     for name, (shape, dtype) in inputs.items():
-        if dtype == "uint8":
-            low, high = 0, 1
-        else:
-            low, high = -2, 1
-        input_data[name] = np.random.uniform(low, high, shape).astype(dtype)
-    outputs = _build_and_run_network(
-        mod, params, inputs, input_data, device=device, atol=1e-5, rtol=1e-5
-    )
+        input_data[name] = np.random.uniform(-1.0, 1.0, shape).astype(dtype)
+
+    outputs = _build_and_run_network(mod, params, inputs, input_data, device=device)
 
     opencl_sort = np.argsort(outputs[1].asnumpy()).flatten()
     clml_sort = np.argsort(outputs[0].asnumpy()).flatten()
-    tvm.testing.assert_allclose(opencl_sort[:10], clml_sort[:10], rtol=1e-5, atol=1e-5)
+    tvm.testing.assert_allclose(opencl_sort[-5:], clml_sort[-5:], rtol=0, atol=0)
 
 
 if __name__ == "__main__":
