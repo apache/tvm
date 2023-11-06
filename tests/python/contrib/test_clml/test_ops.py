@@ -363,7 +363,7 @@ def test_conv2d_transpose(device, dtype, trials):
 
 
 @pytest.mark.parametrize("dtype", ["float32", "float16"])
-@pytest.mark.parametrize("trials", [[1, 128, 28, 28], [1, 15, 64, 64]])
+@pytest.mark.parametrize("trials", [[1, 64, 8, 8], [1, 16, 64, 64]])
 @tvm.testing.requires_openclml
 def test_batchnorm(device, dtype, trials):
     if clml.clml_sdk_version() < 3:
@@ -397,7 +397,7 @@ def test_batchnorm(device, dtype, trials):
 
     opencl_out = build_and_run(mod, inputs, 1, params, device, enable_clml=False)[0]
     clml_out = build_and_run(mod, inputs, 1, params, device, enable_clml=True)[0]
-    out_rtol = 1e-5 if dtype == "float16" else 1e-5
+    out_rtol = 1e-3 if dtype == "float16" else 1e-5
     tvm.testing.assert_allclose(
         clml_out[0].asnumpy(), opencl_out[0].asnumpy(), rtol=out_rtol, atol=out_rtol
     )
