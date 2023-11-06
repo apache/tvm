@@ -596,20 +596,12 @@ class Normalizer : public BlockBuilderImpl, private ExprFunctor<Expr(const Expr&
       UpdateStructInfo(call, inferred_sinfo);
     }
 
-    // In the spirit of joy and child-like whimsy, the conditional
-    // statement below is provided in both C++ and tongue-twister
-    // form.  As very few C++ compilers are fluent in tongue-twister,
-    // only the C++ form is uncommented.
-    //
-    // How much opt could an opt op Op if an opt op could op opt?
-    if (auto opt_op = op->op.as<Op>()) {
-      auto op = opt_op.value();
-      if (apply_f_normalize_ && op_map_normalize_.count(op)) {
-        // If the operation has defined a custom normalization
-        // function using the FNormalize attribute, apply it.  If the
-        // normalization modified the expression, re-visit in case it
-        // produced a nested expression.
-        auto func_normalize = op_map_normalize_[op];
+    // If the operation has defined a custom normalization
+    // function using the FNormalize attribute, apply it.  If the
+    // normalization modified the expression, re-visit in case it
+    // produced a nested expression.
+    if (apply_f_normalize_) {
+      if (auto func_normalize = op_map_normalize_.get(op->op, nullptr); func_normalize != nullptr) {
         Expr normalized = func_normalize(GetRef<BlockBuilder>(this), call);
         if (!normalized.same_as(call)) {
           return VisitExpr(normalized);
