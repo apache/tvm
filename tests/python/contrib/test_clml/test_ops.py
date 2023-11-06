@@ -23,7 +23,7 @@ from tvm.relay.op.contrib import clml
 from tvm.relay import testing
 from tvm.ir import IRModule
 from tvm.contrib import utils
-from infrastructure import (
+from test_clml.infrastructure import (
     build_and_run,
     Device,
     skip_codegen_test,
