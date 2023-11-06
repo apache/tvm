@@ -116,15 +116,29 @@ IRModule Extend2DConv(const IRModule& mod) {
         const auto input = Downcast<Var>(origin_conv2d->args[0]);
         const auto weight = Downcast<Var>(origin_conv2d->args[1]);
         //const auto weight_tensor = origin_conv2d->args[1]as<TensorType>();
-        // sum operator has reduction attributes
-        auto reduce_attrs = make_object<ReduceAttrs>();
-        reduce_attrs->axis = {1};       // look in sry/relay/op/tensor/reduce.cc for example
-        reduce_attrs->keepdims = false;  // 4D -> 3D
 
-        /// Implement depth-wise conv with conv2d Operation
-        // y = relay.nn.conv2d(x, w, output_channels=32, kernel_size=(3, 3), (Split data channels in
-        // C seperate blocks)groups=32) auto orig_conv_attr =
-        // Downcast<Conv2DAttrs>(origin_conv2d->attrs);
+      //Filter Checksum and input fmap checksum(Ic) requires 32-bit precision (Hari et. al.) => Cast each input tensor to 32-bit dtype
+        auto cast_attr = make_object<CastAttrs>();
+        cast_attr->dtype = DataType::Int(32);
+        Call input_32bit(Op::Get("cast"), {input}, Attrs(cast_attr));
+        Call weight_32bit(Op::Get("cast"), {weight}, Attrs(cast_attr));
+        // Reduced output fmaps require 64 bit precision
+        cast_attr->dtype = DataType::Int(64);
+        Call origin_conv2d_64bit(Op::Get("cast"), {origin_conv2d}, Attrs(cast_attr));
+
+        //elemwise sum operation
+        auto reduce_elemwise_attrs = make_object<ReduceAttrs>();
+        reduce_elemwise_attrs->axis = {0,1,2,3};  // look in sry/relay/op/tensor/reduce.cc l.451 for example
+        reduce_elemwise_attrs->keepdims = false;  // 4D -> 1D
+        reduce_elemwise_attrs->exclude  = false;        
+        
+        // sum operator has reduction attributes
+        auto reduce_axis_attrs = make_object<ReduceAttrs>();
+        reduce_axis_attrs->axis = {0};       // look in sry/relay/op/tensor/reduce.cc l.451 for example
+        reduce_axis_attrs->keepdims = true;  // 4D -> 4D We want a Conv2D (vec*vec) vec = (C,H,W)
+        reduce_axis_attrs->exclude  = false;
+
+        /// Implement depth-wise conv with conv2d Operation (Group arg splits input into C seperate batches)
         const auto* orig_conv_attr = origin_conv2d->attrs.as<Conv2DAttrs>();
         ICHECK(orig_conv_attr != nullptr);
         auto weight_shape = weight_tensor->shape; // KCSR
@@ -152,42 +166,48 @@ IRModule Extend2DConv(const IRModule& mod) {
 
         // expect most things to be the default case = no padding/ striding=1/
 
-        Call elemwise_sum(Op::Get("sum"), {origin_conv2d} /*standard case reduces every axis into scalar*/);
+        Call elemwise_sum(Op::Get("sum"), {origin_conv2d_64bit}, Attrs(reduce_elemwise_attrs));
 
-        auto depthwise_kernel = Ones({C, One, P, Q}, DataType::Int(8));
-        Call depthwise_conv(Op::Get("nn.conv2d"),{input, depthwise_kernel}, Attrs{depthwise_conv_attr});
-        Call batchwise_sum_input( Op::Get("sum"), {depthwise_conv}, Attrs(reduce_attrs));  // use batch as axis for depthwise sum
+        auto depthwise_kernel = Ones({C, One, P, Q}, DataType::Int(32));
+        Call depthwise_conv(Op::Get("nn.conv2d"),{input_32bit, depthwise_kernel}, Attrs{depthwise_conv_attr});
+        Call batchwise_sum_input( Op::Get("sum"), {depthwise_conv}, Attrs(reduce_axis_attrs));  // use batch as axis for depthwise sum
         
-        Call filterwise_sum_input(Op::Get("sum"), {weight},         Attrs(reduce_attrs));  // add each element of indiv filter
-        
+        Call filterwise_sum_input(Op::Get("sum"), {weight_32bit},         Attrs(reduce_axis_attrs));  // add each element of indiv filter
+        // Checksum dot product(Reduced Output Oc)
+        cast_attr->dtype = DataType::Int(64);
+        Call batchwise_sum_input_64bit(Op::Get("cast"), {batchwise_sum_input}, Attrs(cast_attr));
+        Call filterwise_sum_input_64bit(Op::Get("cast"), {filterwise_sum_input}, Attrs(cast_attr));
+
+
+
         // Simple Vector-Vector dot product of 3D Tensors
-        auto vec_vec_prod_attr = make_object<Conv1DAttrs>();
-        vec_vec_prod_attr->strides = {1};
+        auto vec_vec_prod_attr = make_object<Conv2DAttrs>();
+        vec_vec_prod_attr->strides = {1,1};
         vec_vec_prod_attr->padding = {0, 0};
-        vec_vec_prod_attr->dilation = {1};
+        vec_vec_prod_attr->dilation = {1,1};
         vec_vec_prod_attr->groups = 1;
-        vec_vec_prod_attr->kernel_size = {weight_shape[2], weight_shape[3]};
-        vec_vec_prod_attr->data_layout   = "NCW";
-        vec_vec_prod_attr->kernel_layout = "OIW";
-        vec_vec_prod_attr->out_layout = "NCW";
-        vec_vec_prod_attr->out_dtype = DataType::Int(32);
+        vec_vec_prod_attr->kernel_size = {weight_shape[2], weight_shape[3]}; //SR
+        vec_vec_prod_attr->data_layout   = "NCHW";
+        vec_vec_prod_attr->kernel_layout = "OIHW";
+        vec_vec_prod_attr->out_layout = "NCHW";
+        vec_vec_prod_attr->out_dtype = DataType::Int(64);
         vec_vec_prod_attr->channels = {1};
 
 
 
 
-        Call vec_vec_prod(Op::Get("nn.conv1d"), {batchwise_sum_input, filterwise_sum_input}, Attrs(vec_vec_prod_attr));
-
+        Call vec_vec_prod(Op::Get("nn.conv2d"), {batchwise_sum_input_64bit, filterwise_sum_input_64bit}, Attrs(vec_vec_prod_attr));
+        Call vec_vec_prod_right_dim(Op::Get("sum"), {vec_vec_prod}, Attrs(reduce_elemwise_attrs));
         //Final comparision, which is then on additional output in the output tuple
 
-        Call comp(Op::Get("not_equal"),{vec_vec_prod, elemwise_sum});
+        Call comp(Op::Get("not_equal"),{vec_vec_prod_right_dim, elemwise_sum});
 
         output_expr.push_back(comp);
       }
       Tuple new_func_body(output_expr);
       Array<Type> return_array = {func->ret_type};
       //first elem original element
-      TensorType comp_output({1}, DataType::Int(1));
+      TensorType comp_output({}, DataType::Bool(1)); //boolean type has dim=0
       for(uint i=1; i < output_expr.size(); i++){
         return_array.push_back(comp_output);
       }
