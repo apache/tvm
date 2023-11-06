@@ -34,12 +34,13 @@ dtype = tvm.testing.parameter("float32")
 def test_conv2d_transpose_adreno(remote, target, executor_type, dtype):
     # Conv2d transpose test cases lists
     trials = [
-        [4, 4, (1, 1), (2, 2), (1, 1), 64, (256, 100, 100), (False, False)],
-        [4, 4, (0, 0), (2, 2), (1, 1), 256, (32, 64, 64), (False, False)],
-        [3, 3, (0, 0), (2, 2), (1, 1), 64, (256, 100, 100), (True, True)],
-        [4, 4, (1, 1), (1, 1), (1, 1), 512, (16, 100, 100), (False, False)],
-        [5, 5, (2, 2), (2, 2), (1, 1), 4, (16, 100, 100), (True, False)],
-        [7, 7, (3, 3), (2, 2), (1, 1), 8, (4, 100, 100), (False, True)],
+        [4, 4, (1, 1), (2, 2), (1, 1), 64, (256, 100, 100), (False, False), gpu_preprocess],
+        [4, 4, (0, 0), (2, 2), (1, 1), 256, (32, 64, 64), (False, False), None],
+        [3, 3, (0, 0), (2, 2), (1, 1), 64, (256, 100, 100), (True, True), None],
+        [4, 4, (1, 1), (1, 1), (1, 1), 512, (16, 100, 100), (False, False), gpu_preprocess],
+        [5, 5, (2, 2), (2, 2), (1, 1), 4, (16, 100, 100), (True, False), gpu_preprocess],
+        [7, 7, (3, 3), (2, 2), (1, 1), 8, (4, 100, 100), (False, True), None],
+        [7, 7, (3, 3), (2, 2), (1, 1), 64, (3, 100, 100), (True, True), None],
     ]
     ge_texture_scopes = [
         ["", "global.texture", "global.texture-weight", "", ""],
@@ -48,6 +49,7 @@ def test_conv2d_transpose_adreno(remote, target, executor_type, dtype):
         ["", "global.texture", "global.texture-weight", "", ""],
         ["", "global.texture", "global.texture-weight", "global.texture-weight", "", ""],
         ["", "global.texture", "global.texture-nhwc", "", ""],
+        [],
     ]
     vm_texture_scopes = [
         """
@@ -88,6 +90,7 @@ def test_conv2d_transpose_adreno(remote, target, executor_type, dtype):
         VM VirtualDevice[2]: device type 4, id 0 and mem_scope global.texture
         VM VirtualDevice[3]: device type 4, id 0 and mem_scope global.texture-nhwc
         """,
+        [],
     ]
 
     for i, (
@@ -99,6 +102,7 @@ def test_conv2d_transpose_adreno(remote, target, executor_type, dtype):
         out_channels,
         shape,
         composite,
+        _gpu_preprocess,
     ) in enumerate(trials):
         shape = (1, *shape)
         has_bias = composite[0]
@@ -148,7 +152,7 @@ def test_conv2d_transpose_adreno(remote, target, executor_type, dtype):
                 {"data": dtype},
                 target,
                 ge_texture_scopes[i],
-                gpu_preprocess,
+                _gpu_preprocess,
             )
         else:
             build_run_compare_vm(
@@ -159,7 +163,7 @@ def test_conv2d_transpose_adreno(remote, target, executor_type, dtype):
                 {"data": dtype},
                 target,
                 vm_texture_scopes[i],
-                gpu_preprocess,
+                _gpu_preprocess,
             )
 
 
@@ -168,8 +172,8 @@ def test_conv2d_transpose_adreno(remote, target, executor_type, dtype):
 def test_conv2d_transpose_three_layer_block(remote, target, executor_type, dtype):
     # Conv2d transpose test cases lists
     trials = [
-        [4, 4, (1, 1), (2, 2), (1, 1), 64, (256, 100, 100), (False, False)],
-        [3, 3, (0, 0), (1, 1), (1, 1), 64, (256, 12, 12), (True, True)],
+        [4, 4, (1, 1), (2, 2), (1, 1), 64, (256, 100, 100), (False, False), None],
+        [3, 3, (0, 0), (1, 1), (1, 1), 64, (256, 12, 12), (True, True), gpu_preprocess],
     ]
     ge_texture_scopes = [
         [
@@ -229,6 +233,7 @@ def test_conv2d_transpose_three_layer_block(remote, target, executor_type, dtype
         out_channels,
         shape,
         composite,
+        _gpu_preprocess,
     ) in enumerate(trials):
         shape = (1, *shape)
         has_bias = composite[0]
@@ -296,7 +301,7 @@ def test_conv2d_transpose_three_layer_block(remote, target, executor_type, dtype
                 {"data": dtype},
                 target,
                 ge_texture_scopes[i],
-                gpu_preprocess,
+                _gpu_preprocess,
             )
         else:
             build_run_compare_vm(
@@ -307,7 +312,7 @@ def test_conv2d_transpose_three_layer_block(remote, target, executor_type, dtype
                 {"data": dtype},
                 target,
                 vm_texture_scopes[i],
-                gpu_preprocess,
+                _gpu_preprocess,
             )
 
 
