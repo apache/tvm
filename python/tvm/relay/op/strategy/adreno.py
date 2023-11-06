@@ -232,9 +232,9 @@ def conv2d_transpose_strategy_adreno(attrs, inputs, out_type, target):
         or (data_layout == "NCHW" and kernel_layout == "IOHW4o")
     ):
         if len(kernel.shape) == 4:
-            oc, _, _, _ = get_const_tuple(kernel.shape)
+            _, oc, _, _ = get_const_tuple(kernel.shape)
         else:
-            oc, _, _, _, _ = get_const_tuple(kernel.shape)
+            _, oc, _, _, _ = get_const_tuple(kernel.shape)
         # We cannot use textures for case than number of channels is less than 4.
         # So, we use compute functions from cuda.
         if len(kernel.shape) == 4 and oc < 4:

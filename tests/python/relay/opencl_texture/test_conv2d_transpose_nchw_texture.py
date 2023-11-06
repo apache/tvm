@@ -41,6 +41,7 @@ def test_conv2d_transpose_adreno(remote, target, executor_type, dtype):
         [5, 5, (2, 2), (2, 2), (1, 1), 4, (16, 100, 100), (True, False), gpu_preprocess],
         [7, 7, (3, 3), (2, 2), (1, 1), 8, (4, 100, 100), (False, True), None],
         [7, 7, (3, 3), (2, 2), (1, 1), 64, (3, 100, 100), (True, True), None],
+        [3, 3, (1, 1), (1, 1), (1, 1), 3, (16, 8, 8), (True, True), None],
     ]
     ge_texture_scopes = [
         ["", "global.texture", "global.texture-weight", "", ""],
@@ -49,6 +50,7 @@ def test_conv2d_transpose_adreno(remote, target, executor_type, dtype):
         ["", "global.texture", "global.texture-weight", "", ""],
         ["", "global.texture", "global.texture-weight", "global.texture-weight", "", ""],
         ["", "global.texture", "global.texture-nhwc", "", ""],
+        [],
         [],
     ]
     vm_texture_scopes = [
@@ -90,6 +92,7 @@ def test_conv2d_transpose_adreno(remote, target, executor_type, dtype):
         VM VirtualDevice[2]: device type 4, id 0 and mem_scope global.texture
         VM VirtualDevice[3]: device type 4, id 0 and mem_scope global.texture-nhwc
         """,
+        [],
         [],
     ]
 
