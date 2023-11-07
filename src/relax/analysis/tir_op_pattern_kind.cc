@@ -399,8 +399,10 @@ bool HasReshapePattern(const PrimFunc& func) {
         return;
       }
 
+      Map<tir::Var, Range> var_range;
       for (const IterVar& v : block->iter_vars) {
         ana_.Bind(v->var, Range::FromMinExtent(v->dom->min, v->dom->extent));
+        var_range.Set(v->var, Range::FromMinExtent(v->dom->min, v->dom->extent));
       }
 
       // Step 1. Get the load/store pattern of the block body.
@@ -425,14 +427,21 @@ bool HasReshapePattern(const PrimFunc& func) {
       // This check requires at least one of the src/dst side is a trivial buffer
       // access (e.g., buf[ax0, ax1, ax2]).
 
-      auto f_calc_flattened_idx = [](const Buffer& buffer, const Array<PrimExpr>& indices) {
+      auto f_calc_flattened_idx = [&](const Buffer& buffer, const Array<PrimExpr>& indices) {
         ICHECK_EQ(indices.size(), buffer->shape.size());
         int ndim = indices.size();
         PrimExpr idx = 0;
         for (int i = 0; i < ndim; ++i) {
           idx = idx * buffer->shape[i] + indices[i];
         }
-        return idx;
+        idx = ana_.Simplify(idx);
+        return arith::IterMapSimplify(
+            /*indices=*/{idx},
+            /*input_iters=*/var_range,
+            /*input_pred=*/Bool(true),
+            /*check_level=*/arith::IterMapLevel::Surjective,
+            /*analyzer=*/&ana_,
+            /*simplify_trivial_iterators=*/true)[0];
       };
 
       auto f_is_trivial_indices = [block, this](const Buffer& buffer,
