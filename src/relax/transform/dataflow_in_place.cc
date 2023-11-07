@@ -19,9 +19,11 @@
  */
 
 #include <tvm/relax/analysis.h>
+#include <tvm/relax/attrs/op.h>
 #include <tvm/relax/expr.h>
 #include <tvm/relax/expr_functor.h>
 #include <tvm/relax/transform.h>
+#include <tvm/tir/stmt_functor.h>
 
 #include "utils.h"
 
@@ -584,9 +586,6 @@ std::pair<std::vector<int>, std::vector<int>> find_inplace_opportunities(const D
             remove_candidates.insert(candidate);
           }
         }
-        // bizarre bug: this works,
-        // but candidates.erase(remove_candidates.begin(), remove_candidates.end())
-        // gives a segfault
         for (auto candidate : remove_candidates) {
           candidates.erase(candidate);
         }
@@ -613,13 +612,87 @@ std::pair<std::vector<int>, std::vector<int>> find_inplace_opportunities(const D
         remove.insert(var);
       }
     }
-    // same issue, using the ranged erase causes a segfault
     for (auto var : remove) {
       currently_live.erase(var);
     }
   }
 
   return {size_match_list, exact_match_list};
+}
+
+Call add_inplace_legalization(const BlockBuilder& bb, const Call& call,
+                              const Array<Integer>& inplace_indices) {
+  static const auto& legalize_map = Op::GetAttrMap<FLegalize>("FLegalize");
+  static const auto& call_tir_inplace_op = Op::Get("relax.call_tir_inplace");
+
+  auto op = Downcast<Op>(call->op);
+  auto legalized_call = Downcast<Call>(legalize_map[op](bb, call));
+  auto* legalized_call_cow = legalized_call.CopyOnWrite();
+
+  // The legalized call should be call_tir. We will replace it with call_tir_inplace
+  // and replace the called PrimFunc with an inplace version
+  auto legal_op = Downcast<GlobalVar>(legalized_call->args[0]);
+  auto inline_legal_op_name = legal_op->name_hint + "_inline";
+  auto mod = bb->GetContextIRModule();
+
+  auto legal_primfunc = Downcast<tir::PrimFunc>(mod->Lookup(legal_op));
+  auto* legal_primfunc_cow = legal_primfunc.CopyOnWrite();
+  size_t num_outs = inplace_indices.size();
+  size_t num_params = legal_primfunc->params.size();
+  Map<tir::Var, tir::Var> subst_map;
+  for (size_t i = 0; i < num_outs; i++) {
+    // we will substitute output i with the corresponding param indicated by inplace indices
+    subst_map.Set(legal_primfunc->params[num_params - num_outs + i],
+                  legal_primfunc->params[inplace_indices[i].IntValue()]);
+  }
+  // take off the last num_outputs arguments
+  legal_primfunc_cow->params = Array<tir::Var>(
+      legal_primfunc->params.begin(), legal_primfunc->params.begin() + (num_params - num_outs));
+  // apply substitution
+  legal_primfunc_cow->body =
+      tir::Substitute(legal_primfunc->body, [&subst_map](const tir::Var& v) -> Optional<PrimExpr> {
+        if (subst_map.count(v)) {
+          return subst_map.at(v);
+        } else {
+          return Optional<PrimExpr>();
+        }
+      });
+
+  // remove the now-unused outputs from the buffer map if they're there
+  auto buffer_map = legal_primfunc->buffer_map;
+  for (size_t i = 0; i < num_outs; i++) {
+    auto out_var = legal_primfunc->params[num_params - num_outs + i];
+    if (buffer_map.count(out_var)) {
+      buffer_map.erase(out_var);
+    }
+  }
+  legal_primfunc_cow->buffer_map = buffer_map;
+
+  // set the no alias attribute to false
+  auto legal_primfunc_attrs = legal_primfunc->attrs;
+  auto* legal_primfunc_attrs_cow = legal_primfunc_attrs.CopyOnWrite();
+  auto legal_primfunc_attrs_dict = legal_primfunc_attrs_cow->dict;
+  legal_primfunc_attrs_dict.erase(tir::attr::kNoAlias);
+  legal_primfunc_attrs_dict.Set(tir::attr::kNoAlias, Bool(false));
+  legal_primfunc_attrs_cow->dict = legal_primfunc_attrs_dict;
+  legal_primfunc_cow->attrs = legal_primfunc_attrs;
+
+  mod->Remove(legal_op);
+  bb->AddFunction(legal_primfunc, inline_legal_op_name);
+  auto new_gv = mod->GetGlobalVar(inline_legal_op_name);
+
+  // update the call (change the op, update the argument, change the attrs)
+  legalized_call_cow->op = call_tir_inplace_op;
+
+  Array<Expr> new_args(legalized_call->args.begin(), legalized_call->args.end());
+  new_args.Set(0, new_gv);
+  legalized_call_cow->args = new_args;
+
+  ObjectPtr<CallTIRInplaceAttrs> attrs = make_object<CallTIRInplaceAttrs>();
+  attrs->inplace_indices = inplace_indices;
+  legalized_call_cow->attrs = Attrs(attrs);
+
+  return legalized_call;
 }
 
 // export for testing
@@ -681,6 +754,10 @@ TVM_REGISTER_GLOBAL("relax.analysis.DataflowLivenessAnalysis")
 TVM_REGISTER_GLOBAL("relax.analysis.DataflowAliasAnalysis").set_body_typed(DataflowAliasAnalysis);
 TVM_REGISTER_GLOBAL("relax.analysis.DataflowInPlaceAnalysis")
     .set_body_typed(DataflowInPlaceAnalysis);
+
+// really only for testing
+TVM_REGISTER_GLOBAL("relax.transform.SingleInplaceCall")
+    .set_body_typed(relax::add_inplace_legalization);
 
 }  // namespace transform
 }  // namespace relax
