@@ -14,18 +14,20 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+"""Configure pytest"""
+# pylint: disable=invalid-name
+from collections import namedtuple
+import numpy as np
 import tvm
 import tvm.testing
 from tvm import te
 import tvm.contrib.sparse as tvmsp
 import tvm.runtime.ndarray as _nd
-import numpy as np
-from collections import namedtuple
 
 
 def test_static_tensor():
+    """Tests static tensor"""
     dtype = "float32"
-    stype = "csr"
     target = "llvm"
     dev = tvm.device(target, 0)
     m = te.size_var("m")
@@ -50,8 +52,8 @@ def test_static_tensor():
 
 
 def test_dynamic_tensor():
+    """Tests dynamic tensor"""
     dtype = "float32"
-    stype = "csr"
     target = "llvm"
     dev = tvm.device(target, 0)
     nr, nc, n = te.size_var("nr"), te.size_var("nc"), te.size_var("n")
@@ -77,8 +79,8 @@ def test_dynamic_tensor():
 
 
 def test_sparse_array_tuple():
+    """Tests array when it is sparse"""
     dtype, itype = "float32", "int32"
-    stype = "csr"
     target = "llvm"
     dev = tvm.device(target, 0)
     nr, nc, n = te.size_var("nr"), te.size_var("nc"), te.size_var("n")

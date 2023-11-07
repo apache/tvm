@@ -14,8 +14,9 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+"""Configure pytest of Tensor Expression Debug Display"""
+# pylint: disable=invalid-name
 import re
-
 import tvm
 from tvm import te
 from tvm import topi
@@ -24,27 +25,31 @@ from tvm.relay import testing
 from tvm.relay.backend import Runtime, Executor
 
 
-def findany(pattern, str):
-    matches = re.findall(pattern, str)
-    assert len(matches) > 0, "Pattern not found.\nPattern: " + pattern + "\nString:  " + str
+def findany(pattern, _str):
+    matches = re.findall(pattern, _str)
+    assert len(matches) > 0, "Pattern not found.\nPattern: " + pattern + "\nString:  " + _str
 
 
 def checkdependency():
+    # pylint: disable=import-outside-toplevel
     import pkg_resources
 
+    # pylint: disable=E1133
     return not {"graphviz", "ipython"} - {pkg.key for pkg in pkg_resources.working_set}
 
 
 def test_dfg():
+    """Tests dataflow graph"""
     A = te.placeholder((1024, 4096), dtype="float32", name="A")
     B = topi.nn.softmax(A)
     # confirm lower works
     s = te.create_schedule([B.op])
 
     def verify():
+        # pylint: disable=import-outside-toplevel
         from tvm.contrib import tedd
 
-        str = tedd.viz_dataflow_graph(s, False, "", True)
+        _str = tedd.viz_dataflow_graph(s, False, "", True)
         # Check all edges are available
         findany(r"digraph \"Dataflow Graph\"", str)
         findany(r"Stage_0:O_0 -> Tensor_0_0", str)
@@ -64,6 +69,7 @@ def test_dfg():
 
 
 def test_itervar_relationship_graph():
+    """Tests itervars relationship graph"""
     n = te.var("n")
     m = te.var("m")
     A = te.placeholder((n, m), name="A")
@@ -74,9 +80,10 @@ def test_itervar_relationship_graph():
     s[B].split(B.op.reduce_axis[0], factor=16)
 
     def verify():
+        # pylint: disable=import-outside-toplevel
         from tvm.contrib import tedd
 
-        str = tedd.viz_itervar_relationship_graph(s, False, "", True)
+        _str = tedd.viz_itervar_relationship_graph(s, False, "", True)
         findany(r"digraph \"IterVar Relationship Graph\"", str)
         findany(r"subgraph cluster_legend", str)
         # Check subgraphs for stages
@@ -97,6 +104,7 @@ def test_itervar_relationship_graph():
 
 
 def test_schedule_tree():
+    """Tests schedule tree"""
     block_x = te.thread_axis("blockIdx.x")
     thread_x = te.thread_axis("threadIdx.x")
     n = te.var("n")
@@ -124,9 +132,10 @@ def test_schedule_tree():
     s[C].bind(s[C].op.axis[1], thread_x)
 
     def verify():
+        # pylint: disable=import-outside-toplevel
         from tvm.contrib import tedd
 
-        str = tedd.viz_schedule_tree(s, False, "", True)
+        _str = tedd.viz_schedule_tree(s, False, "", True)
         findany(r"digraph \"Schedule Tree\"", str)
         findany(r"subgraph cluster_legend", str)
         # Check the A_shared stage, including memory scope, itervars,
@@ -153,6 +162,7 @@ def test_tedd_with_schedule_record():
     """Test to build a nn model and check if all schedules could be generated"""
 
     def check_schedule(executor):
+        # pylint: disable=import-outside-toplevel
         from tvm.contrib import tedd
 
         error = {}
@@ -167,12 +177,12 @@ def test_tedd_with_schedule_record():
                         tedd.viz_dataflow_graph(sch, False, "", True)
                         tedd.viz_itervar_relationship_graph(sch, False, "", True)
                         tedd.viz_schedule_tree(sch, False, "", True)
-                    except:
+                    except:  # pylint: disable=W0702
                         if func_name not in error:
                             error[func_name] = []
                         error[func_name].append(index)
 
-        assert error == {}, str(error)
+        assert not error, str(error)
 
     if checkdependency():
         relay_mod, params = testing.mobilenet.get_workload(batch_size=1, dtype="float32")

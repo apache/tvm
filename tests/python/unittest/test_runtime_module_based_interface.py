@@ -680,9 +680,9 @@ def test_num_threads():
     env_threads = os.getenv("TVM_NUM_THREADS")
     omp_env_threads = os.getenv("OMP_NUM_THREADS")
     if env_threads is not None:
-        assert reported == env_threads
+        assert reported == int(env_threads)
     elif omp_env_threads is not None:
-        assert reported == omp_env_threads
+        assert reported == int(omp_env_threads)
     else:
         hardware_threads = os.cpu_count()
         assert reported == hardware_threads or reported == hardware_threads // 2

@@ -73,3 +73,41 @@ def get_tiling_B_interleaved_t(interleave_A):
         tile_cols_B = 16
 
     return tile_rows_B, tile_cols_B
+
+
+def get_conv2d_weights_padding(N, K, tile_rows, tile_cols):
+    """Compute the necessary padding for matrix B', where B'
+    is the transposed and interleaved version of matrix B in C=A*B.
+
+    Parameters
+    ----------
+    N : int
+        Number of rows in B' = OC
+    K : int
+        Number of columns in B' = KW * KH * IC
+    tile_rows : int
+                tile rows of B'
+    tile_cols : int
+                tile columns of B'
+
+    Returns
+    ----------
+    pad_N : padding for N axis
+    pad_K : padding for K axis
+    """
+    pad_N = 0
+    pad_K = 0
+
+    if N % tile_rows != 0:
+        pad_N = tile_rows - (N % tile_rows)
+
+    # Tensorize will later make use of 4 tiles at once across the columns so make sure we pad such
+    # that the columns is multiple of 4
+    column_multiplier = 4
+    tile_cols_multiplied = tile_cols * column_multiplier
+    K_misalignment = K % tile_cols_multiplied
+
+    if K_misalignment != 0:
+        pad_K = tile_cols_multiplied - K_misalignment
+
+    return pad_N, pad_K

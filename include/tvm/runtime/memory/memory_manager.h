@@ -89,6 +89,8 @@ class Allocator {
    *  \param buffer The buffer to free.
    */
   virtual void Free(const Buffer& buffer) = 0;
+  /*! \brief Clear the allocated memory. */
+  virtual void Clear();
   /*! \brief The amount of memory currently allocated.
    *  \return The amount of memory currently allocated.
    */
@@ -119,6 +121,8 @@ class MemoryManager {
    * \return The memory allocator.
    */
   static Allocator* GetAllocator(Device dev, AllocatorType type);
+  /*! \brief Clear the allocators. */
+  static void Clear();
 
  private:
   MemoryManager() {}
