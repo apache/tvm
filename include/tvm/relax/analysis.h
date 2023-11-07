@@ -423,6 +423,40 @@ TVM_DLL Map<Var, Array<Var>> DataflowBlockUseDef(const DataflowBlock& dfb);
  */
 std::pair<Map<Var, Array<Var>>, Array<Var>> FunctionUseDef(const Expr& expr);
 
+/*! \brief A utility struct returned by CollectVarUsage
+ */
+struct VarUsageInfo {
+  /* \brief A map from variables to the bound expression.
+   *
+   * This is equivalent to the output of AnalyzeVar2Value
+   */
+  Map<Var, Expr> bound_values;
+
+  /* \brief The map from variables to downstream usages of the variable
+   *
+   * This is equivalent to the first output of FunctionUseDef.
+   */
+  Map<Var, Array<Var>> downstream_usage;
+
+  /* \brief A list of variables produced as output
+   *
+   * This is equivalent to the second output of FunctionUseDef
+   */
+  Array<Var> outputs;
+};
+
+/*! \brief Collect variable bindings and usage
+ *
+ * This function is equivalent to calling both FunctionUseDef and
+ * AnalyzeVar2Value, but requires only a single traversal of the
+ * expression.
+ *
+ * \param expr The expression to analyze
+ *
+ * \return The collected information
+ */
+VarUsageInfo CollectVarUsage(const Expr& expr);
+
 /*!
  * \brief Remove unused statements inside DataflowBlocks.
  *

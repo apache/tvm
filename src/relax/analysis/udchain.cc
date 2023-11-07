@@ -32,27 +32,59 @@
 #include <utility>
 #include <vector>
 
+#include "../../support/ordered_set.h"
+
 namespace tvm {
 namespace relax {
 
-class UDChain : public relax::ExprVisitor {
+class UDChain : relax::ExprVisitor {
  public:
-  // nullptr users means it is the output of the function.
-  std::map<const VarNode*, std::set<const VarNode*>> to_users;
+  static VarUsageInfo Collect(const Expr& expr) {
+    UDChain visitor;
+    visitor.VisitExpr(expr);
 
-  const VarNode* cur_user_{nullptr};
+    Array<Var> output(visitor.outputs.begin(), visitor.outputs.end());
+
+    Map<Var, Array<Var>> use_def;
+    for (const auto& [var, usage] : visitor.usage_map) {
+      use_def.Set(var, Array<Var>(usage.begin(), usage.end()));
+    }
+
+    return VarUsageInfo{visitor.bound_values, use_def, output};
+  }
+
+ private:
+  Map<Var, Expr> bound_values;
+  std::unordered_map<Var, support::OrderedSet<Var>, ObjectPtrHash, ObjectPtrEqual> usage_map;
+  support::OrderedSet<Var> outputs;
+
+  Optional<Var> cur_user_{nullptr};
 
   void VisitBinding_(const VarBindingNode* binding) override {
-    // init
+    CHECK(!bound_values.count(binding->var))
+        << "Variable " << binding->var << " was defined multiple times";
+    bound_values.Set(binding->var, binding->value);
+
     auto cache = cur_user_;
-    cur_user_ = binding->var.get();
-    this->VisitVarDef(binding->var);
-    this->VisitExpr(binding->value);
+    cur_user_ = binding->var;
+    ExprVisitor::VisitBinding_(binding);
     cur_user_ = cache;
   }
 
-  void VisitExpr_(const VarNode* op) override { to_users[op].insert(cur_user_); }
-  void VisitVarDef(const Var& var) override { to_users[var.get()] = {}; }
+  void VisitVarDef(const Var& var) override {
+    CHECK(!usage_map.count(var)) << "Variable " << var << " was used before its definition";
+    usage_map[var] = {};
+  }
+  void VisitExpr_(const VarNode* op) override {
+    auto var = GetRef<Var>(op);
+
+    if (cur_user_) {
+      usage_map[var].insert(cur_user_.value());
+    } else {
+      outputs.insert(var);
+    }
+  }
+
   void VisitExpr_(const FunctionNode* op) override {
     cur_user_ = nullptr;
     ExprVisitor::VisitExpr_(op);
@@ -61,42 +93,18 @@ class UDChain : public relax::ExprVisitor {
 
 std::pair<runtime::Map<Var, runtime::Array<Var>>, runtime::Array<Var>> FunctionUseDef(
     const Expr& fn) {
-  UDChain udchain;
-  udchain.VisitExpr(fn);
-
-  Map<Var, Array<Var>> user_map;
-  Array<Var> fn_outs;
-
-  for (const auto& [var, users] : udchain.to_users) {
-    Array<Var> uses{};
-    uses.reserve(users.size());
-    for (const auto& v : users) {
-      if (v == nullptr &&
-          std::find(fn_outs.begin(), fn_outs.end(), GetRef<Var>(var)) == fn_outs.end()) {
-        fn_outs.push_back(GetRef<Var>(var));
-      } else {
-        uses.push_back(GetRef<Var>(v));
-      }
-    }
-    user_map.Set(GetRef<Var>(var), std::move(uses));
-  }
-  return std::make_pair(std::move(user_map), std::move(fn_outs));
+  auto usage = UDChain::Collect(fn);
+  return {usage.downstream_usage, usage.outputs};
 }
 
 runtime::Map<Var, Array<Var>> DataflowBlockUseDef(const DataflowBlock& dfb) {
-  UDChain udchain;
-  udchain.VisitBindingBlock(dfb);
-  runtime::Map<Var, Array<Var>> ret;
-  for (const auto& [var, users] : udchain.to_users) {
-    Array<Var> uses{};
-    uses.reserve(users.size());
-    for (const auto& v : users) uses.push_back(GetRef<Var>(v));
-    ret.Set(GetRef<Var>(var), std::move(uses));
-  }
-  return ret;
+  auto usage = UDChain::Collect(SeqExpr({dfb}, Tuple(Array<Expr>())));
+  return usage.downstream_usage;
 }
 
 TVM_REGISTER_GLOBAL("relax.analysis.udchain").set_body_typed(DataflowBlockUseDef);
+
+VarUsageInfo CollectVarUsage(const Expr& expr) { return UDChain::Collect(expr); }
 
 }  // namespace relax
 }  // namespace tvm
