@@ -1062,7 +1062,6 @@ def ptx_mma(
     saturate : bool
         The optional saturation at the output.
 
-
     operator : Optional[Literal["xor", "and"]]
         The 1-bit operator.
 
