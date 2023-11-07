@@ -118,6 +118,7 @@ macro(find_llvm use_llvm)
     if(NOT "${__llvm_exit_code}" STREQUAL "0")
       message(FATAL_ERROR "Fatal error executing: ${LLVM_CONFIG} --cmakedir")
     endif()
+    cmake_path(SET "__llvm_cmakedir" "${__llvm_cmakedir}")
     message(STATUS "LLVM cmakedir: ${__llvm_cmakedir}")
     # map prefix => $
     # to handle the case when the prefix contains space.
