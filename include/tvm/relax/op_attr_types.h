@@ -50,9 +50,30 @@ using FInferStructInfo =
 using FCallPacked = String;
 
 /*!
- * \brief The function type of a legalization function, which takes a
- * BlockBuilder and the Call to be legalized, and outputs the legalization
- * result Expr.
+ * \brief The function type of a normalization function.
+ *
+ * A normalization function is used when a `relax::Call` may be
+ * expressed in multiple syntactically valid and semantically
+ * equivalent forms, to normalize to a single representation.
+ *
+ * \param bb The BlockBuilder context.
+ *
+ * \param call The call to be normalized.  It is provided by-value, to
+ * avoid copies for the common case where the call is already normalized.
+ */
+using FNormalize = runtime::TypedPackedFunc<Expr(const BlockBuilder& bb, Call call)>;
+
+/*! \brief The function type of a legalization function.
+ *
+ * A legalization function is used to replace a `relax::Call` with
+ * more concrete implementations.  For example, the operation
+ * `relax.op.add` may be replaced with a call to a TIR function
+ * implementing addition of two tensors.
+ *
+ * The purpose of `FLegalize` is to remove calls to the operator while
+ * lowering.  Therefore, unlike `FNormalize`, the resulting expression
+ * may *not* contain the original operator.
+ *
  * \param bb The BlockBuilder context.
  * \param call The call to be legalized.
  */

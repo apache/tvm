@@ -463,6 +463,9 @@ class BlockBuilderImpl : public BlockBuilderNode {
 class Normalizer : public BlockBuilderImpl, private ExprFunctor<Expr(const Expr&)> {
  public:
   explicit Normalizer(IRModule context_mod) : BlockBuilderImpl(context_mod) {}
+  explicit Normalizer(IRModule context_mod,
+                      BlockBuilder::DisableOperatorSpecificNormalizationForTVMScript)
+      : BlockBuilderImpl(context_mod), apply_f_normalize_(false) {}
 
   Expr Normalize(const Expr& expr) final {
     Expr normalized = this->VisitExpr(expr);
@@ -578,18 +581,11 @@ class Normalizer : public BlockBuilderImpl, private ExprFunctor<Expr(const Expr&
 
   Expr VisitExpr_(const CallNode* op) final {
     Expr new_op = this->NormalizeArgument(op->op);
-    bool unchanged = new_op.same_as(op->op);
 
-    Array<Expr> new_args;
-
-    for (Expr arg : op->args) {
-      Expr new_arg = this->NormalizeArgument(arg);
-      new_args.push_back(new_arg);
-      unchanged &= new_arg.same_as(arg);
-    }
+    Array<Expr> new_args = op->args.Map([this](const Expr& arg) { return NormalizeArgument(arg); });
 
     Call call;
-    if (unchanged) {
+    if (new_op.same_as(op->op) && new_args.same_as(op->args)) {
       call = GetRef<Call>(op);
     } else {
       call = Call(new_op, new_args, op->attrs, op->sinfo_args);
@@ -598,6 +594,19 @@ class Normalizer : public BlockBuilderImpl, private ExprFunctor<Expr(const Expr&
     if (!call->struct_info_.defined()) {
       auto inferred_sinfo = InferStructInfo(call);
       UpdateStructInfo(call, inferred_sinfo);
+    }
+
+    // If the operation has defined a custom normalization
+    // function using the FNormalize attribute, apply it.  If the
+    // normalization modified the expression, re-visit in case it
+    // produced a nested expression.
+    if (apply_f_normalize_) {
+      if (auto func_normalize = op_map_normalize_.get(op->op, nullptr); func_normalize != nullptr) {
+        Expr normalized = func_normalize(GetRef<BlockBuilder>(this), call);
+        if (!normalized.same_as(call)) {
+          return VisitExpr(normalized);
+        }
+      }
     }
 
     return call;
@@ -917,10 +926,22 @@ class Normalizer : public BlockBuilderImpl, private ExprFunctor<Expr(const Expr&
       Op::GetAttrMap<FInferStructInfo>("FInferStructInfo");
   tvm::OpAttrMap<FInferStructInfo> op_map_dist_infer_struct_info_ =
       Op::GetAttrMap<FInferStructInfo>("dist.FInferStructInfo");
+  /*! \brief Operator normalization function */
+  tvm::OpAttrMap<FNormalize> op_map_normalize_ = Op::GetAttrMap<FNormalize>("FNormalize");
+
+  /*! \brief Whether the FNormalize function should be applied */
+  bool apply_f_normalize_{true};
 };
 
 BlockBuilder BlockBuilder::Create(Optional<IRModule> mod) {
   ObjectPtr<BlockBuilderNode> n = make_object<Normalizer>(mod.value_or(IRModule()));
+  return BlockBuilder(n);
+}
+
+BlockBuilder BlockBuilder::Create(Optional<IRModule> mod,
+                                  BlockBuilder::DisableOperatorSpecificNormalizationForTVMScript) {
+  ObjectPtr<BlockBuilderNode> n = make_object<Normalizer>(
+      mod.value_or(IRModule()), BlockBuilder::DisableOperatorSpecificNormalizationForTVMScript());
   return BlockBuilder(n);
 }
 

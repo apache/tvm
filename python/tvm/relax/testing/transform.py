@@ -17,6 +17,7 @@
 # pylint: disable=unused-argument, invalid-name, no-else-return, abstract-method, arguments-differ
 """Relax transformation passes for testing"""
 
+import tvm
 from tvm import ir, relax
 from tvm.ir import transform
 from tvm.ir.module import IRModule
@@ -122,3 +123,8 @@ class LowerWithRelayOpStrategyPass(transform.Pass):
                 return new_mod
 
         return Lowerer().transform()
+
+
+def ApplyEmptyCppMutator() -> tvm.ir.transform.Pass:
+    packed_func = tvm.get_global_func("relax.testing.transform.ApplyEmptyCppMutator")
+    return packed_func()
