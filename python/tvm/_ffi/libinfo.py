@@ -112,6 +112,7 @@ def find_lib_path(name=None, search_path=None, optional=False):
         else:
             lib_dll_path = [os.path.join(p, name) for p in dll_path]
         runtime_dll_path = []
+        ext_lib_dll_path = []
     else:
         if sys.platform.startswith("win32"):
             lib_dll_names = ["libtvm.dll", "tvm.dll"]
