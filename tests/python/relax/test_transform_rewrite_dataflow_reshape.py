@@ -220,6 +220,7 @@ def test_reshape_pattern_detect():
     mod = relax.transform.RewriteDataflowReshape()(Module)
     tvm.ir.assert_structural_equal(mod, Expected)
 
+
 def test_reshape_dynamic_shape():
     @tvm.script.ir_module
     class Module:
@@ -233,12 +234,23 @@ def test_reshape_dynamic_shape():
             for ax0_ax1_ax2_fused_0 in T.thread_binding(n * 2, thread="blockIdx.x"):
                 for ax0_ax1_ax2_fused_1 in T.thread_binding(1024, thread="threadIdx.x"):
                     with T.block("T_reshape"):
-                        v0 = T.axis.spatial(n, (ax0_ax1_ax2_fused_0 * 1024 + ax0_ax1_ax2_fused_1) // 2048)
-                        v1 = T.axis.spatial(16, (ax0_ax1_ax2_fused_0 * 1024 + ax0_ax1_ax2_fused_1) % 2048 // 128)
-                        v2 = T.axis.spatial(128, (ax0_ax1_ax2_fused_0 * 1024 + ax0_ax1_ax2_fused_1) % 128)
-                        T.reads(A[((v2 // 128 + v1) // 32 + v0) % n, (v2 // 128 + v1) % 32, v2 % 128])
+                        v0 = T.axis.spatial(
+                            n, (ax0_ax1_ax2_fused_0 * 1024 + ax0_ax1_ax2_fused_1) // 2048
+                        )
+                        v1 = T.axis.spatial(
+                            16, (ax0_ax1_ax2_fused_0 * 1024 + ax0_ax1_ax2_fused_1) % 2048 // 128
+                        )
+                        v2 = T.axis.spatial(
+                            128, (ax0_ax1_ax2_fused_0 * 1024 + ax0_ax1_ax2_fused_1) % 128
+                        )
+                        T.reads(
+                            A[((v2 // 128 + v1) // 32 + v0) % n, (v2 // 128 + v1) % 32, v2 % 128]
+                        )
                         T.writes(T_reshape[0, v0, v1, v2])
-                        T_reshape[0, v0, v1, v2] = A[((v2 // 128 + v1) // 32 + v0) % n, (v2 // 128 + v1) % 32, v2 % 128]
+                        T_reshape[0, v0, v1, v2] = A[
+                            ((v2 // 128 + v1) // 32 + v0) % n, (v2 // 128 + v1) % 32, v2 % 128
+                        ]
+
         @R.function
         def main(x: R.Tensor((8, 3), dtype="float32")) -> R.Tensor((2, 4, 3), dtype="float32"):
             cls = Module
@@ -247,9 +259,9 @@ def test_reshape_dynamic_shape():
                 z = R.add(y, R.const(1, "float32"))
                 R.output(z)
             return z
-        
+
     @tvm.script.ir_module
-    class Expected:   
+    class Expected:
         @T.prim_func(private=True)
         def reshape(var_A: T.handle, var_T_reshape: T.handle):
             T.func_attr({"tir.is_scheduled": 1, "tir.noalias": T.bool(True)})
@@ -260,12 +272,22 @@ def test_reshape_dynamic_shape():
             for ax0_ax1_ax2_fused_0 in T.thread_binding(n * 2, thread="blockIdx.x"):
                 for ax0_ax1_ax2_fused_1 in T.thread_binding(1024, thread="threadIdx.x"):
                     with T.block("T_reshape"):
-                        v0 = T.axis.spatial(n, (ax0_ax1_ax2_fused_0 * 1024 + ax0_ax1_ax2_fused_1) // 2048)
-                        v1 = T.axis.spatial(16, (ax0_ax1_ax2_fused_0 * 1024 + ax0_ax1_ax2_fused_1) % 2048 // 128)
-                        v2 = T.axis.spatial(128, (ax0_ax1_ax2_fused_0 * 1024 + ax0_ax1_ax2_fused_1) % 128)
-                        T.reads(A[((v2 // 128 + v1) // 32 + v0) % n, (v2 // 128 + v1) % 32, v2 % 128])
+                        v0 = T.axis.spatial(
+                            n, (ax0_ax1_ax2_fused_0 * 1024 + ax0_ax1_ax2_fused_1) // 2048
+                        )
+                        v1 = T.axis.spatial(
+                            16, (ax0_ax1_ax2_fused_0 * 1024 + ax0_ax1_ax2_fused_1) % 2048 // 128
+                        )
+                        v2 = T.axis.spatial(
+                            128, (ax0_ax1_ax2_fused_0 * 1024 + ax0_ax1_ax2_fused_1) % 128
+                        )
+                        T.reads(
+                            A[((v2 // 128 + v1) // 32 + v0) % n, (v2 // 128 + v1) % 32, v2 % 128]
+                        )
                         T.writes(T_reshape[0, v0, v1, v2])
-                        T_reshape[0, v0, v1, v2] = A[((v2 // 128 + v1) // 32 + v0) % n, (v2 // 128 + v1) % 32, v2 % 128]
+                        T_reshape[0, v0, v1, v2] = A[
+                            ((v2 // 128 + v1) // 32 + v0) % n, (v2 // 128 + v1) % 32, v2 % 128
+                        ]
 
         @R.function
         def main(x: R.Tensor((8, 3), dtype="float32")) -> R.Tensor((2, 4, 3), dtype="float32"):
@@ -274,10 +296,11 @@ def test_reshape_dynamic_shape():
                 z: R.Tensor((2, 4, 3), dtype="float32") = R.add(y, R.const(1, "float32"))
                 R.output(z)
             return z
-        
+
     assert relax.analysis.has_reshape_pattern(Module["reshape"])
     mod = relax.transform.RewriteDataflowReshape()(Module)
     tvm.ir.assert_structural_equal(mod, Expected)
+
 
 def test_reshape_non_dataflow():
     @tvm.script.ir_module
