@@ -360,8 +360,10 @@ pub struct DropoutAttrsNode {
 #[type_key = "relay.attrs.BatchMatmulAttrs"]
 pub struct BatchMatmulAttrsNode {
     pub base: BaseAttrsNode,
-    pub auto_scheduler_rewritten_layout: TString,
     pub out_dtype: DataType,
+    pub transpose_a: bool,
+    pub transpose_b: bool,
+    pub auto_scheduler_rewritten_layout: TString,
 }
 
 #[repr(C)]

@@ -275,7 +275,7 @@ external! {
     pub fn group_norm(data: Expr, gamma: Expr, beta: Expr, num_groups: i32, epsilon: f32, center: bool, scale: bool) -> Expr;
 
     #[name("relay.op.nn._make.batch_matmul")]
-    pub fn batch_matmul(lhs: Expr, rhs: Expr, units: i32, out_dtype: TVMString, transpose_a: bool, transpose_b: bool) -> Expr;
+    pub fn batch_matmul(lhs: Expr, rhs: Expr, out_dtype: TVMString, transpose_a: bool, transpose_b: bool) -> Expr;
 
     // FIXME: sparse_add, sparse_dense
 
