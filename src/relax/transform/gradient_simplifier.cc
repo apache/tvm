@@ -95,7 +95,7 @@ class GradientSimplifier : private ExprMutator {
       return ndim == 2;
     }
     auto axes = call_node->attrs.as<PermuteDimsAttrs>()->axes.value();
-    ICHECK(axes.size() == ndim);
+    ICHECK(static_cast<int>(axes.size()) == ndim);
     for (int i = 0; i < ndim - 2; ++i) {
       if (axes[i] != i) {
         return false;
