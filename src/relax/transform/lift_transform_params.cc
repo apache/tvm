@@ -240,7 +240,7 @@ class LiftTransformParamsPlanner : public ExprVisitor {
         builder_.AddInput(function->params[i]);
         if (function->params[i]->struct_info_.defined()) {
           Array<tir::Var> symbolic_vars =
-              TIRVarsInStructInfo(Downcast<StructInfo>(function->params[i]->struct_info_.value()));
+              DefinableTIRVarsInStructInfo(Downcast<StructInfo>(function->params[i]->struct_info_.value()));
           for (const auto& var : symbolic_vars) {
             param_symbolic_vars_.insert(var);
           }
