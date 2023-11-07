@@ -668,15 +668,6 @@ Call add_inplace_legalization(const BlockBuilder& bb, const Call& call,
   }
   legal_primfunc_cow->buffer_map = buffer_map;
 
-  // set the no alias attribute to false
-  auto legal_primfunc_attrs = legal_primfunc->attrs;
-  auto* legal_primfunc_attrs_cow = legal_primfunc_attrs.CopyOnWrite();
-  auto legal_primfunc_attrs_dict = legal_primfunc_attrs_cow->dict;
-  legal_primfunc_attrs_dict.erase(tir::attr::kNoAlias);
-  legal_primfunc_attrs_dict.Set(tir::attr::kNoAlias, Bool(false));
-  legal_primfunc_attrs_cow->dict = legal_primfunc_attrs_dict;
-  legal_primfunc_cow->attrs = legal_primfunc_attrs;
-
   mod->Remove(legal_op);
   bb->AddFunction(legal_primfunc, inline_legal_op_name);
   auto new_gv = mod->GetGlobalVar(inline_legal_op_name);
