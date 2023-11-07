@@ -24,7 +24,7 @@ from . import _ffi_api
 from ..expr import Expr, PrimValue
 
 
-def tuple_get_item(tuple: Expr, index: Union[int, PrimExpr, Expr]) -> Expr:
+def tuple_get_item(tuple_expr: Expr, index: Union[int, PrimExpr, Expr]) -> Expr:
     """Perform tuple access
 
     Use of this method is recommended, rather than constructing a
@@ -38,7 +38,7 @@ def tuple_get_item(tuple: Expr, index: Union[int, PrimExpr, Expr]) -> Expr:
 
     Parameters
     ----------
-    tuple: Expr
+    tuple_expr: Expr
 
         The tuple to be accessed.  The tuple is not required to be an
         in-line `relax.Tuple`, but must have `TupleStructInfo`
@@ -58,10 +58,10 @@ def tuple_get_item(tuple: Expr, index: Union[int, PrimExpr, Expr]) -> Expr:
     if not isinstance(index, Expr):
         index = PrimValue(index)
 
-    return _ffi_api.tuple_get_item(tuple, index)  # type: ignore
+    return _ffi_api.tuple_get_item(tuple_expr, index)  # type: ignore
 
 
-def tuple_get_item_dyn(tuple: Expr, index: Union[int, PrimExpr, Expr]) -> Expr:
+def tuple_get_item_dyn(tuple_expr: Expr, index: Union[int, PrimExpr, Expr]) -> Expr:
     """Explicitly generate a call to tuple_get_item_dyn
 
     This method is not recommended for general use, and is provided to
@@ -71,7 +71,7 @@ def tuple_get_item_dyn(tuple: Expr, index: Union[int, PrimExpr, Expr]) -> Expr:
 
     Parameters
     ----------
-    tuple: Expr
+    tuple_expr: Expr
 
         The tuple to be accessed.  The tuple is not required to be an
         in-line `relax.Tuple`, but must have `TupleStructInfo`
@@ -90,4 +90,4 @@ def tuple_get_item_dyn(tuple: Expr, index: Union[int, PrimExpr, Expr]) -> Expr:
     """
     if not isinstance(index, Expr):
         index = PrimValue(index)
-    return tvm.relax.Call(tvm.ir.Op.get("relax.tuple_get_item_dyn"), [tuple, index])
+    return tvm.relax.Call(tvm.ir.Op.get("relax.tuple_get_item_dyn"), [tuple_expr, index])
