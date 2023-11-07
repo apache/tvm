@@ -23,27 +23,28 @@
  * \sa tvm/relax/transform/gradient.cc
  *
  * We will simplify these patterns:
- * 1. Forward is: out = matmul(a, permute_dims(b))
+ * (transpose means use permute_dims to transpose the last two dimensions)
+ * 1. Forward is: out = matmul(a, transpose(b))
  *    Then backward is:
- *        grad_a = matmul(grad_out, permute_dims(permute_dims(b)))
- *        grad_b = permute_dims(matmul(permute_dims(a), grad_out))
+ *        grad_a = matmul(grad_out, transpose(transpose(b)))
+ *        grad_b = transpose(matmul(transpose(a), grad_out))
  *    We will simplify it to:
  *        grad_a = matmul(grad_out, b)
- *        grad_b = matmul(permute_dims(grad_out), a)
- * 2. Forward is: out = matmul(permute_dims(a), b)
+ *        grad_b = matmul(transpose(grad_out), a)
+ * 2. Forward is: out = matmul(transpose(a), b)
  *    Then backward is:
- *        grad_a = permute_dims(matmul(grad_out, permute_dims(b)))
- *        grad_b = matmul(permute_dims(permute_dims(a)), grad_out)
+ *        grad_a = transpose(matmul(grad_out, transpose(b)))
+ *        grad_b = matmul(transpose(transpose(a)), grad_out)
  *    We will simplify it to:
- *        grad_a = matmul(b, permute_dims(grad_out))
+ *        grad_a = matmul(b, transpose(grad_out))
  *        grad_b = matmul(a, grad_out)
- * 3. Forward is: out = matmul(permute_dims(a), permute_dims(b))
+ * 3. Forward is: out = matmul(transpose(a), transpose(b))
  *    Then backward is:
- *        grad_a = permute_dims(matmul(grad_out, permute_dims(permute_dims(b))))
- *        grad_b = permute_dims(matmul(permute_dims(permute_dims(a)), grad_out))
+ *        grad_a = transpose(matmul(grad_out, transpose(transpose(b))))
+ *        grad_b = transpose(matmul(transpose(transpose(a)), grad_out))
  *    We will simplify it to:
- *        grad_a = matmul(permute_dims(b), permute_dims(grad_out))
- *        grad_b = matmul(permute_dims(grad_out), permute_dims(a))
+ *        grad_a = matmul(transpose(b), transpose(grad_out))
+ *        grad_b = matmul(transpose(grad_out), transpose(a))
  */
 
 #include "gradient_simplifier.h"
@@ -78,7 +79,7 @@ class GradientSimplifier : private ExprMutator {
   }
 
  private:
-  static bool is_transpose_op(const CallNode* call_node) {
+  static bool IsTransposeOp(const CallNode* call_node) {
     if (call_node->op != Op::Get("relax.permute_dims")) {
       return false;
     }
@@ -104,7 +105,7 @@ class GradientSimplifier : private ExprMutator {
   }
 
   // Return permute_dims(expr). Generate the axes needed.
-  static Expr get_transpose_op(const Expr& expr) {
+  static Expr GetTransposeOf(const Expr& expr) {
     auto sinfo = MatchStructInfo<TensorStructInfo>(expr);
     ICHECK(sinfo);
     auto ndim = sinfo.value()->ndim;
@@ -123,17 +124,17 @@ class GradientSimplifier : private ExprMutator {
   // If expr is already in the form of permute_dims in previous bindings, return the input of the
   // permute_dims op
   // Else, return permute_dims(expr)
-  Expr get_transpose_according_to_ctx(const Expr& expr) {
+  Expr GetTransposeAccordingToCtx(const Expr& expr) {
     if (!expr->IsInstance<VarNode>()) {
-      return get_transpose_op(expr);
+      return GetTransposeOf(expr);
     }
     auto prev_expr = builder_->LookupBinding(Downcast<Var>(expr));
     if (!prev_expr || !prev_expr->IsInstance<CallNode>()) {
-      return get_transpose_op(expr);
+      return GetTransposeOf(expr);
     }
     auto prev_call_node = prev_expr.as<CallNode>();
-    if (!is_transpose_op(prev_call_node)) {
-      return get_transpose_op(expr);
+    if (!IsTransposeOp(prev_call_node)) {
+      return GetTransposeOf(expr);
     }
     return prev_call_node->args[0];
   }
@@ -146,7 +147,7 @@ class GradientSimplifier : private ExprMutator {
       return;
     };
 
-    if (!is_transpose_op(new_call_node)) {
+    if (!IsTransposeOp(new_call_node)) {
       return reemit_and_return();
     }
 
@@ -161,7 +162,7 @@ class GradientSimplifier : private ExprMutator {
     }
 
     auto prev_call_node = prev_expr.as<CallNode>();
-    if (is_transpose_op(prev_call_node)) {
+    if (IsTransposeOp(prev_call_node)) {
       // rewrite rule #1: permute_dims(permute_dims(a)) -> a
       if (prev_call_node->args[0]->IsInstance<VarNode>()) {
         var_remap_[binding->var->vid] = Downcast<Var>(prev_call_node->args[0]);
@@ -181,8 +182,8 @@ class GradientSimplifier : private ExprMutator {
         return reemit_and_return();
       }
 
-      auto a = get_transpose_according_to_ctx(prev_call_node->args[0]);
-      auto b = get_transpose_according_to_ctx(prev_call_node->args[1]);
+      auto a = GetTransposeAccordingToCtx(prev_call_node->args[0]);
+      auto b = GetTransposeAccordingToCtx(prev_call_node->args[1]);
       result =
           ExprMutator::VisitExpr(matmul(b, a, prev_call_node->attrs.as<MatmulAttrs>()->out_dtype));
       ReEmitBinding(binding, result);
