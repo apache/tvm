@@ -37,7 +37,6 @@
 #include <functional>
 #include <limits>
 #include <memory>
-#include <optional>
 #include <string>
 #include <tuple>
 #include <type_traits>
@@ -546,42 +545,6 @@ struct ObjectTypeChecker<Map<K, V>> {
   }
 };
 
-class TVMPODValue_;
-
-/*!
- * \brief Type trait to specify special value conversion rules from
- *     ObjectRef to primitive types.
- *
- *  TVM containers, such as tvm::runtime::Array, require the contained
- *  objects to inherit from ObjectRef.  As a result, the wrapper types
- *  IntImm, FloatImm, and StringImm are often used to hold primitive
- *  types inside a TVM container.  Conversions into this type may be
- *  required when using a container, and may be performed
- *  automatically when passing an object across the FFI.  By also
- *  handling conversions from wrapped to unwrapped types, these
- *  conversions can be transparent to users.
- *
- *  The trait can be specialized to add type specific conversion logic
- *  from the TVMArgvalue and TVMRetValue.
- *
- * \tparam T The type (e.g. int64_t) which may be contained within the
- *     ObjectRef.
- *
- * \tparam (anonymous) An anonymous and unused type parameter, which
- *     may be used for SFINAE.
- */
-template <typename T, typename = void>
-struct PackedFuncObjectRefConverter {
-  /*!
-   * \brief Attempt to convert an ObjectRef from an argument value.
-   *
-   * \param obj The ObjectRef which may be convertible to T
-   *
-   * \return The converted result, or std::nullopt if not convertible.
-   */
-  static std::optional<T> TryFrom(const ObjectRef& obj) { return std::nullopt; }
-};
-
 /*!
  * \brief Internal base class to
  *  handle conversion to POD values.
@@ -594,41 +557,25 @@ class TVMPODValue_ {
     // the frontend while the API expects a float.
     if (type_code_ == kDLInt) {
       return static_cast<double>(value_.v_int64);
-    } else if (auto opt = ThroughObjectRef<double>()) {
-      return opt.value();
-    } else if (auto opt = ThroughObjectRef<int64_t>()) {
-      return opt.value();
     }
     TVM_CHECK_TYPE_CODE(type_code_, kDLFloat);
     return value_.v_float64;
   }
   operator int64_t() const {
-    if (auto opt = ThroughObjectRef<int64_t>()) {
-      return opt.value();
-    }
     TVM_CHECK_TYPE_CODE(type_code_, kDLInt);
     return value_.v_int64;
   }
   operator uint64_t() const {
-    if (auto opt = ThroughObjectRef<uint64_t>()) {
-      return opt.value();
-    }
     TVM_CHECK_TYPE_CODE(type_code_, kDLInt);
     return value_.v_int64;
   }
   operator int() const {
-    if (auto opt = ThroughObjectRef<int>()) {
-      return opt.value();
-    }
     TVM_CHECK_TYPE_CODE(type_code_, kDLInt);
     ICHECK_LE(value_.v_int64, std::numeric_limits<int>::max());
     ICHECK_GE(value_.v_int64, std::numeric_limits<int>::min());
     return static_cast<int>(value_.v_int64);
   }
   operator bool() const {
-    if (auto opt = ThroughObjectRef<bool>()) {
-      return opt.value();
-    }
     TVM_CHECK_TYPE_CODE(type_code_, kDLInt);
     return value_.v_int64 != 0;
   }
@@ -699,27 +646,6 @@ class TVMPODValue_ {
   TVMValue value_;
   /*! \brief the type code */
   int type_code_;
-
- private:
-  /* \brief A utility function to check for conversions through
-   *     PackedFuncObjectRefConverter
-   *
-   * \tparam T The type to attempt to convert into
-   *
-   * \return The converted type, or std::nullopt if the value cannot
-   *     be converted into T.
-   */
-  template <typename T>
-  std::optional<T> ThroughObjectRef() const {
-    if (IsObjectRef<ObjectRef>()) {
-      if (std::optional<T> from_obj =
-              PackedFuncObjectRefConverter<T>::TryFrom(AsObjectRef<ObjectRef>())) {
-        return from_obj.value();
-      }
-    }
-
-    return std::nullopt;
-  }
 };
 
 /*!
