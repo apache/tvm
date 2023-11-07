@@ -279,6 +279,7 @@ class PermutedLayoutInjector : private IRMutatorWithAnalyzer {
   static constexpr size_t VECTORIZE_FACTOR = 8;
   static constexpr size_t BANK_SIZE_BYTES = 128;
 
+  // Mapping from data Var of a Buffer to Buffer, for lookup
   std::unordered_map<Var, Buffer, ObjectPtrHash, ObjectPtrEqual> buffer_map_;
   bool permute_ = false;
 };
