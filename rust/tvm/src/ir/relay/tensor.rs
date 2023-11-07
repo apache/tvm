@@ -222,6 +222,9 @@ external!{
     #[name("relay.op._make.transpose")]
     pub fn transpose(data: Expr, axes: Array<PrimExpr>) -> Expr;
 
-    #[name("relay.op._make.cast")]
+    #[name("relay.ir.cast")]
     pub fn cast(data: Expr, dtype: DLDataType) -> Expr;
+
+    #[name("relay.op._make.split")]
+    pub fn split(data: Expr, indices_or_sections: ObjectRef, axis: i32) -> Expr;
 }

@@ -14,4 +14,6 @@ external! {
     #[name("relay.op._make.take")]
     pub fn take(data: Expr, indices: Expr, batch_dims: IntImm, axis: IntImm, mode: TVMString) -> Expr;
 
+    #[name("relay.op._make.strided_slice")]
+    pub fn strided_slice(data: Expr, begin: Array<PrimExpr>, end: Array<PrimExpr>, strides: Array<PrimExpr>, slice_mode: TVMString, axes: Array<PrimExpr>) -> Expr;
 }
