@@ -119,7 +119,9 @@ class LazyTransformParamsMutator(PyExprMutator):
         The module to be transformed
     """
 
-    def __init__(self, fget_item, fset_item, get_item_param, set_item_param, mod: IRModule = None) -> None:
+    def __init__(
+        self, fget_item, fset_item, get_item_param, set_item_param, mod: IRModule = None
+    ) -> None:
         super().__init__(mod)
         self.mod = mod
         self.fget_item = fget_item
@@ -158,9 +160,9 @@ class LazyTransformParamsMutator(PyExprMutator):
         params = []
         for param in itertools.chain(self.get_item_param, self.set_item_param):
             params.append(param)
-    
+
         # Step 5. Find all shape parameters that should be retained as
-        # parameters.      
+        # parameters.
         symbolic_vars = relax.analysis.defined_symbolic_vars(func)
         if symbolic_vars:
             # direct iterate over the struct info annotation
@@ -214,7 +216,7 @@ class LazyTransformParamsMutator(PyExprMutator):
                         self.builder_.emit(
                             relax.Call(
                                 relax.ExternFunc(self.fset_item),
-                                self.set_item_param+[index, super().visit_var_(var)],
+                                self.set_item_param + [index, super().visit_var_(var)],
                                 None,
                                 [relax.ObjectStructInfo()],
                             ),
@@ -234,7 +236,7 @@ class LazyTransformParams:
     (Load the input to memory on demand, and immediately free it after the last use.)
 
     Note: ToNonDataflow() and RemovePurityTracking() should be invoked before this pass.
-    
+
     Parameters
     ----------
     fget_item: str
@@ -252,16 +254,20 @@ class LazyTransformParams:
         For example, if set_item_param is [param1, param2], then the pass will generate
         call_packed(fset_item, [param1, param2, index, value])
     """
-    
-    def __init__(self, fget_item = "get_item", fset_item = "set_item", get_item_param = [], set_item_param=[]) -> None:
+
+    def __init__(
+        self, fget_item="get_item", fset_item="set_item", get_item_param=[], set_item_param=[]
+    ) -> None:
         self.fget_item = fget_item
         self.get_item_param = get_item_param
         assert self.fget_item is not None, "transforming set_item only is not supported"
-        self.fset_item = fset_item    
+        self.fset_item = fset_item
         self.set_item_param = set_item_param
 
     def transform_module(self, mod: IRModule, ctx: tvm.transform.PassContext) -> IRModule:
-        lazy_mutator = LazyTransformParamsMutator(self.fget_item, self.fset_item, self.get_item_param, self.set_item_param, mod)
+        lazy_mutator = LazyTransformParamsMutator(
+            self.fget_item, self.fset_item, self.get_item_param, self.set_item_param, mod
+        )
         for gv, _ in mod.functions_items():
             if gv.name_hint.endswith("transform_params"):
                 func = mod[gv]
