@@ -17,6 +17,7 @@
 # pylint: disable=invalid-name, unused-argument, missing-function-docstring, abstract-method
 """Relax LazyTransformParams pass."""
 import tvm
+import itertools
 from tvm import IRModule, relax
 from tvm.relax.expr_functor import PyExprMutator, PyExprVisitor, mutator, visitor
 
@@ -118,9 +119,13 @@ class LazyTransformParamsMutator(PyExprMutator):
         The module to be transformed
     """
 
-    def __init__(self, mod: IRModule = None) -> None:
+    def __init__(self, fget_item, fset_item, get_item_param, set_item_param, mod: IRModule = None) -> None:
         super().__init__(mod)
         self.mod = mod
+        self.fget_item = fget_item
+        self.get_item_param = get_item_param
+        self.fset_item = fset_item
+        self.set_item_param = set_item_param
         # the only input param, which should be a Tuple
         self.input_tuple_param = None
         self.input_params_set = None
@@ -149,9 +154,13 @@ class LazyTransformParamsMutator(PyExprMutator):
         # Step 3. rewrite get item and set item
         new_body = self.visit_expr(func.body)
 
-        # Step 4. Find all shape parameters that should be retained as
-        # parameters.
+        # Step 4. Add parameters of get_item and set_item (except index) to the function.
         params = []
+        for param in itertools.chain(self.get_item_param, self.set_item_param):
+            params.append(param)
+    
+        # Step 5. Find all shape parameters that should be retained as
+        # parameters.      
         symbolic_vars = relax.analysis.defined_symbolic_vars(func)
         if symbolic_vars:
             # direct iterate over the struct info annotation
@@ -173,8 +182,8 @@ class LazyTransformParamsMutator(PyExprMutator):
         if tuple_get_item.tuple_value == self.input_tuple_param:
             get_item_result = self.builder_.emit(
                 relax.Call(
-                    relax.ExternFunc("get_item"),
-                    [relax.PrimValue(tuple_get_item.index)],
+                    relax.ExternFunc(self.fget_item),
+                    self.get_item_param + [relax.PrimValue(tuple_get_item.index)],
                     None,
                     [relax.ObjectStructInfo()],
                 )
@@ -188,7 +197,7 @@ class LazyTransformParamsMutator(PyExprMutator):
         return super().visit_var_(var)
 
     def visit_var_binding_(self, binding: relax.VarBinding) -> None:
-        if binding.var == self.out_tuple_var:
+        if self.fset_item is not None and binding.var == self.out_tuple_var:
             # The function after rewriting returns a empty tuple.
             func_output = self.builder_.emit(relax.Tuple([]))
             self.set_var_remap(binding.var.vid, func_output)
@@ -196,7 +205,7 @@ class LazyTransformParamsMutator(PyExprMutator):
 
         super().visit_var_binding_(binding)
 
-        if binding.var in self.memory_free_insertion:
+        if self.fset_item is not None and binding.var in self.memory_free_insertion:
             for var in self.memory_free_insertion[binding.var]:
                 if var in self.out_tuple_map:
                     self.killed_vars.add(var)
@@ -204,8 +213,8 @@ class LazyTransformParamsMutator(PyExprMutator):
                         # rewrite set item
                         self.builder_.emit(
                             relax.Call(
-                                relax.ExternFunc("set_item"),
-                                [index, super().visit_var_(var)],
+                                relax.ExternFunc(self.fset_item),
+                                self.set_item_param+[index, super().visit_var_(var)],
                                 None,
                                 [relax.ObjectStructInfo()],
                             ),
@@ -225,10 +234,34 @@ class LazyTransformParams:
     (Load the input to memory on demand, and immediately free it after the last use.)
 
     Note: ToNonDataflow() and RemovePurityTracking() should be invoked before this pass.
+    
+    Parameters
+    ----------
+    fget_item: str
+        The name of the get_item function.
+    fset_item: str
+        The name of the set_item function.
+    get_item_param: list of relax.Var
+        The parameters of the get_item function except index.
+        The given parameters will be placed before index.
+        For example, if get_item_param is [param1, param2], then the pass will generate
+        call_packed(fget_item, [param1, param2, index])
+    set_item_param: list of relax.Var
+        The parameters of the set_item function except index and value.
+        The given parameters will be placed before index and value.
+        For example, if set_item_param is [param1, param2], then the pass will generate
+        call_packed(fset_item, [param1, param2, index, value])
     """
+    
+    def __init__(self, fget_item = "get_item", fset_item = "set_item", get_item_param = [], set_item_param=[]) -> None:
+        self.fget_item = fget_item
+        self.get_item_param = get_item_param
+        assert self.fget_item is not None, "transforming set_item only is not supported"
+        self.fset_item = fset_item    
+        self.set_item_param = set_item_param
 
     def transform_module(self, mod: IRModule, ctx: tvm.transform.PassContext) -> IRModule:
-        lazy_mutator = LazyTransformParamsMutator(mod)
+        lazy_mutator = LazyTransformParamsMutator(self.fget_item, self.fset_item, self.get_item_param, self.set_item_param, mod)
         for gv, _ in mod.functions_items():
             if gv.name_hint.endswith("transform_params"):
                 func = mod[gv]

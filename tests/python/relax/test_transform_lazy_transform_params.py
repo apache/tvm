@@ -105,6 +105,73 @@ def test_lazy_transform_params():
     after = LazyTransformParams()(Before)
     tvm.ir.assert_structural_equal(after, Expected, map_free_vars=True)
 
+def test_get_item_only():
+    @I.ir_module
+    class Before:
+        @T.prim_func
+        def transform_layout_IOHW_to_OIHW(
+            w1: T.Buffer((3, 16, 3, 3), "float32"), out: T.Buffer((16, 3, 3, 3), "float32")
+        ):
+            for ax0, ax1, ax2, ax3 in T.grid(16, 3, 3, 3):
+                with T.block("layout_transform"):
+                    o, i, h, w = T.axis.remap("SSSS", [ax0, ax1, ax2, ax3])
+                    T.reads(w1[i, o, h, w])
+                    T.writes(out[o, i, h, w])
+                    out[o, i, h, w] = w1[i, o, h, w]
+
+        @R.function
+        def main_transform_params(
+            params: R.Tuple(
+                R.Tensor((3, 16, 3, 3), dtype="float32"), R.Tensor((16, 16, 3, 3), dtype="float32")
+            )
+        ) -> R.Tuple(
+            R.Tensor((16, 16, 3, 3), dtype="float32"), R.Tensor((16, 3, 3, 3), dtype="float32")
+        ):
+            # we expect ToNonDataflow and RemovePurityTracking to be invoked first
+            R.func_attr({"relax.force_pure": True})
+            cls = Before
+            lv: R.Tensor((16, 16, 3, 3), dtype="float32") = params[1]
+            lv1: R.Tensor((3, 16, 3, 3), dtype="float32") = params[0]
+            lv2 = R.call_tir(
+                cls.transform_layout_IOHW_to_OIHW,
+                (lv1,),
+                out_sinfo=R.Tensor((16, 3, 3, 3), dtype="float32"),
+            )
+            lv3 = R.add(lv2, R.const(1, "float32"))
+            gv: R.Tuple(
+                R.Tensor((16, 16, 3, 3), dtype="float32"),
+                R.Tensor((16, 3, 3, 3), dtype="float32"),
+            ) = (lv, lv3)
+            return gv
+
+    @I.ir_module
+    class Expected:
+        @T.prim_func
+        def transform_layout_IOHW_to_OIHW(w1: T.Buffer((3, 16, 3, 3), "float32"), out: T.Buffer((16, 3, 3, 3), "float32")):
+            # with T.block("root"):
+            for ax0, ax1, ax2, ax3 in T.grid(16, 3, 3, 3):
+                with T.block("layout_transform"):
+                    o, i, h, w = T.axis.remap("SSSS", [ax0, ax1, ax2, ax3])
+                    T.reads(w1[i, o, h, w])
+                    T.writes(out[o, i, h, w])
+                    out[o, i, h, w] = w1[i, o, h, w]
+
+        @R.function(pure=False)
+        def main_transform_params() -> R.Tuple(R.Tensor((16, 16, 3, 3), dtype="float32"), R.Tensor((16, 3, 3, 3), dtype="float32")):
+            cls = Expected
+            gv: R.Object = R.call_packed("get_item_0", R.prim_value(1), sinfo_args=(R.Object,))
+            gv1: R.Tensor((16, 16, 3, 3), dtype="float32") = R.match_cast(gv, R.Tensor((16, 16, 3, 3), dtype="float32"))
+            lv: R.Tensor((16, 16, 3, 3), dtype="float32") = gv1
+            gv2: R.Object = R.call_packed("get_item_0", R.prim_value(0), sinfo_args=(R.Object,))
+            gv3: R.Tensor((3, 16, 3, 3), dtype="float32") = R.match_cast(gv2, R.Tensor((3, 16, 3, 3), dtype="float32"))
+            lv1: R.Tensor((3, 16, 3, 3), dtype="float32") = gv3
+            lv2 = R.call_tir(cls.transform_layout_IOHW_to_OIHW, (lv1,), out_sinfo=R.Tensor((16, 3, 3, 3), dtype="float32"))
+            lv3: R.Tensor((16, 3, 3, 3), dtype="float32") = R.add(lv2, R.const(1, "float32"))
+            gv_1: R.Tuple(R.Tensor((16, 16, 3, 3), dtype="float32"), R.Tensor((16, 3, 3, 3), dtype="float32")) = lv, lv3
+            return gv_1
+
+    after = LazyTransformParams(fget_item="get_item_0", fset_item=None)(Before)
+    tvm.ir.assert_structural_equal(after, Expected, map_free_vars=True)
 
 def test_lazy_transform_params_with_symbolic_vars():
     @I.ir_module
