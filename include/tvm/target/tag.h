@@ -104,6 +104,12 @@ class TargetTagRegEntry {
    * \param config The config dict for target creation
    */
   inline TargetTagRegEntry& set_config(Map<String, ObjectRef> config);
+  /*!
+   * \brief Add a key-value pair to the config dict
+   * \param key The attribute name
+   * \param value The attribute value
+   */
+  inline TargetTagRegEntry& with_config(String key, ObjectRef value);
   /*! \brief Set name of the TargetTag to be the same as registry if it is empty */
   inline TargetTagRegEntry& set_name();
   /*!
@@ -128,6 +134,11 @@ class TargetTagRegEntry {
 
 inline TargetTagRegEntry& TargetTagRegEntry::set_config(Map<String, ObjectRef> config) {
   tag_->config = std::move(config);
+  return *this;
+}
+
+inline TargetTagRegEntry& TargetTagRegEntry::with_config(String key, ObjectRef value) {
+  tag_->config.Set(key, value);
   return *this;
 }
 
