@@ -15,6 +15,8 @@
 # specific language governing permissions and limitations
 # under the License.
 
+import pytest
+
 import tvm
 import tvm.testing
 from tvm import relax
@@ -730,6 +732,69 @@ def test_symbolic_var_in_param_shape():
     mod = Before
     after = relax.transform.LiftTransformParams()(mod)
     tvm.ir.assert_structural_equal(after, Expected)
+
+
+# not supported yet
+@pytest.mark.xfail
+def test_symbolic_var_defined_in_params_but_used_in_weights():
+    """A symbolic variable's occurrence in the weights may not define it
+
+    In order to be a source of definition, a symbolic variable in the
+    parameters must occur as a distinct parameter, as a tensor shape
+    `R.Tensor(["var"])`, an explicit `R.Shape(["var"])`, or as a
+    `R.Prim(value="var")`.  A variable that is part of a larger
+    expression, such as `R.Tensor(["m * n"])`, are variable usages,
+    not variable definitions.
+    """
+
+    @tvm.script.ir_module
+    class Before:
+        @R.function
+        def main(
+            x: R.Tensor(["m", "n"], "float32"),
+            weight: R.Tensor(["m * n"], "float32"),
+        ) -> R.Tensor(["m", "n"], "float32"):
+            m = T.int64()
+            n = T.int64()
+            R.func_attr({"num_input": 1})
+            with R.dataflow():
+                weight = R.add(weight, R.const(1, "float32"))
+                weight = R.reshape(weight, [m, n])
+                output = R.multiply(x, weight)
+                R.output(output)
+            return output
+
+    @tvm.script.ir_module
+    class Expected:
+        @R.function
+        def main_transform_params(
+            params: R.Tuple(R.Tensor(("k",), dtype="float32"))
+        ) -> R.Tuple(R.Tensor(dtype="float32", ndim=1)):
+            k = T.int64()
+            with R.dataflow():
+                lv: R.Tensor((k,), dtype="float32") = params[0]
+                gv: R.Tuple(R.Tensor((k,), dtype="float32")) = (lv,)
+                R.output(gv)
+            return gv
+
+        @R.function
+        def main(
+            x: R.Tensor(("m", "n"), dtype="float32"),
+            transformed_param_0: R.Tensor(dtype="float32", ndim=1),
+        ) -> R.Tensor(("m", "n"), dtype="float32"):
+            m = T.int64()
+            n = T.int64()
+            R.func_attr({"num_input": 1})
+            with R.dataflow():
+                lv: R.Tensor(dtype="float32", ndim=1) = transformed_param_0
+                weight: R.Tensor(dtype="float32", ndim=1) = R.add(lv, R.const(1, "float32"))
+                weight_1: R.Tensor((m, n), dtype="float32") = R.reshape(weight, R.shape([m, n]))
+                output: R.Tensor((m, n), dtype="float32") = R.multiply(x, weight_1)
+                R.output(output)
+            return output
+
+    After = relax.transform.LiftTransformParams()(Before)
+    tvm.ir.assert_structural_equal(Expected, After)
 
 
 if __name__ == "__main__":
