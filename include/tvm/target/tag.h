@@ -109,7 +109,7 @@ class TargetTagRegEntry {
    * \param key The attribute name
    * \param value The attribute value
    */
-  inline TargetTagRegEntry& add_config(String key, ObjectRef value);
+  inline TargetTagRegEntry& with_config(String key, ObjectRef value);
   /*! \brief Set name of the TargetTag to be the same as registry if it is empty */
   inline TargetTagRegEntry& set_name();
   /*!
@@ -137,7 +137,7 @@ inline TargetTagRegEntry& TargetTagRegEntry::set_config(Map<String, ObjectRef> c
   return *this;
 }
 
-inline TargetTagRegEntry& TargetTagRegEntry::add_config(String key, ObjectRef value) {
+inline TargetTagRegEntry& TargetTagRegEntry::with_config(String key, ObjectRef value) {
   tag_->config.Set(key, value);
   return *this;
 }
