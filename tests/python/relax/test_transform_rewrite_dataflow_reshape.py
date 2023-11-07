@@ -582,5 +582,4 @@ def test_reshape_scalar():
 
 
 if __name__ == "__main__":
-    # tvm.testing.main()
-    test_reshape_dynamic_shape()
+    tvm.testing.main()
