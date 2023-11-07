@@ -14,7 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-# pylint: disable=invalid-name,missing-function-docstring
+# pylint: disable=invalid-name,missing-function-docstring,unused-variable
 """Intrinsics for tensorization on NVIDIA GPU."""
 from typing import Dict, Optional, Tuple, Literal
 
