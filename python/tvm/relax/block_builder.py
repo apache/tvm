@@ -14,7 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-# pylint: disable=no-else-return, invalid-name, unused-argument
+# pylint: disable=no-else-return, invalid-name, unused-argument, import-outside-toplevel
 """Developer API of constructing Relax AST."""
 
 from typing import Dict, List, Optional, Union, Any, Callable, Sequence
