@@ -19,7 +19,6 @@
 #include <tvm/runtime/data_type.h>
 #include <tvm/runtime/packed_func.h>
 #include <tvm/runtime/registry.h>
-#include <unistd.h>
 
 #include <functional>
 #include <numeric>
