@@ -30,20 +30,25 @@
 namespace tvm {
 namespace relax {
 
+Expr BindingValue(const Binding& b) {
+  Expr value;
+  if (const auto* var_binding = b.as<VarBindingNode>()) {
+    value = var_binding->value;
+  } else if (const auto* match_binding = b.as<MatchCastNode>()) {
+    value = match_binding->value;
+  } else {
+    CHECK(false) << "Invalid binding";  // impossible
+  }
+  return value;
+}
+
 std::unordered_map<Var, std::pair<int, int>, ObjectPtrHash, ObjectPtrEqual> analyze_liveness(
     const DataflowBlock& block) {
   std::unordered_map<Var, std::pair<int, int>, ObjectPtrHash, ObjectPtrEqual> ret;
   for (int i = block->bindings.size() - 1; i >= 0; i--) {
     Binding b = block->bindings[i];
     Var defined_var = b->var;
-    Expr value;
-    if (const auto* var_binding = b.as<VarBindingNode>()) {
-      value = var_binding->value;
-    } else if (const auto* match_binding = b.as<MatchCastNode>()) {
-      value = match_binding->value;
-    } else {
-      CHECK(false) << "Invalid binding";  // impossible
-    }
+    Expr value = BindingValue(b);
     Array<Var> used_vars;
     // for a function literal, we consider only the free vars
     // (those captured from the outer scope)
@@ -104,14 +109,7 @@ class AliasAnalyzer {
 
     for (const Binding& binding : block->bindings) {
       Var current_var = binding->var;
-      Expr value;
-      if (const auto* var_binding = binding.as<VarBindingNode>()) {
-        value = var_binding->value;
-      } else if (const auto* match_binding = binding.as<MatchCastNode>()) {
-        value = match_binding->value;
-      } else {
-        CHECK(false) << "Invalid binding";  // impossible
-      }
+      Expr value = BindingValue(binding);
       alias_map_[current_var] = get_alias_set(value, current_var);
     }
 
@@ -547,14 +545,7 @@ std::pair<std::vector<std::vector<int>>, std::vector<std::vector<int>>> find_inp
     // if we reach a binding check the conditions
     Binding b = block->bindings[i];
     Var defined_var = b->var;
-    Expr value;
-    if (const auto* var_binding = b.as<VarBindingNode>()) {
-      value = var_binding->value;
-    } else if (const auto* match_binding = b.as<MatchCastNode>()) {
-      value = match_binding->value;
-    } else {
-      CHECK(false) << "Invalid binding";  // impossible
-    }
+    Expr value = BindingValue(b);
 
     if (auto* call_node = value.as<CallNode>()) {
       if (auto* op_node = call_node->op.as<OpNode>()) {
@@ -875,6 +866,56 @@ TVM_REGISTER_GLOBAL("relax.analysis.DataflowInPlaceAnalysis")
 // really only for testing (not actually an analysis, will move)
 TVM_REGISTER_GLOBAL("relax.analysis.SingleInplaceCall")
     .set_body_typed(relax::add_inplace_legalization);
+
+// not actually an analysis, will rename
+TVM_REGISTER_GLOBAL("relax.analysis.DataflowInsertInPlaceCalls").set_body_typed([]() -> Pass {
+  return CreateDataflowBlockPass(
+      [](const DataflowBlock& block, const IRModule& mod, const PassContext& ctx) -> DataflowBlock {
+        BlockBuilder bb = BlockBuilder::Create(mod);
+        std::unordered_set<Var, ObjectPtrHash, ObjectPtrEqual> free_var_set;
+        for (auto binding : block->bindings) {
+          auto binding_free_vars = FreeVars(BindingValue(binding));
+          free_var_set.insert(binding_free_vars.begin(), binding_free_vars.end());
+        }
+        Array<Var> free_var_list(free_var_set.begin(), free_var_set.end());
+
+        // for now, only handle exact match cases
+        auto matches_found = find_inplace_opportunities(block, free_var_list);
+        auto exact_matches = matches_found.second;
+
+        Array<Binding> new_bindings;
+        int current_match_index = 0;
+        for (size_t i = 0; i < block->bindings.size(); i++) {
+          int candidate_binding_idx = exact_matches[current_match_index][0];
+          if (candidate_binding_idx != static_cast<int>(i)) {
+            new_bindings.push_back(block->bindings[i]);
+            continue;
+          }
+          auto target_binding = block->bindings[i];
+          auto target_call = Downcast<Call>(BindingValue(target_binding));
+          // can just pick the first index arbitrarily (only using one output for now too)
+          auto new_call =
+              add_inplace_legalization(bb, target_call, {exact_matches[current_match_index][1]});
+          // now replace the binding appropriately
+          if (auto* var_binding_node = target_binding.as<VarBindingNode>()) {
+            auto var_binding = GetRef<VarBinding>(var_binding_node);
+            auto* var_binding_cow = var_binding.CopyOnWrite();
+            var_binding_cow->value = new_call;
+            new_bindings.push_back(var_binding);
+          } else if (auto* match_cast_node = target_binding.as<MatchCastNode>()) {
+            auto match_cast = GetRef<MatchCast>(match_cast_node);
+            auto* match_cast_cow = match_cast.CopyOnWrite();
+            match_cast_cow->value = new_call;
+            new_bindings.push_back(match_cast);
+          } else {
+            CHECK(false) << "Invalid binding type";
+          }
+          current_match_index++;
+        }
+        return DataflowBlock(new_bindings, block->span);
+      },
+      0, "DataflowInsertInPlaceCalls", {});
+});
 
 }  // namespace transform
 }  // namespace relax
