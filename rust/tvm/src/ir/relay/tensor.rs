@@ -224,7 +224,4 @@ external!{
 
     #[name("relay.ir.cast")]
     pub fn cast(data: Expr, dtype: DLDataType) -> Expr;
-
-    #[name("relay.op._make.split")]
-    pub fn split(data: Expr, indices_or_sections: ObjectRef, axis: i32) -> Expr;
 }
