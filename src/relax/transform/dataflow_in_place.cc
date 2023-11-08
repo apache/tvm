@@ -497,21 +497,27 @@ bool df_inplace_conditions_met(
   }
 }
 
+// this is obviously not a complete list
+static std::unordered_set<std::string> SUPPORTED_OPS = {"relax.add",      "relax.subtract",
+                                                        "relax.multiply", "relax.divide",
+                                                        "relax.nn.silu",  "relax.nn.relu"};
+bool op_supports_inplace(const Op& op) { return SUPPORTED_OPS.count(op->name); }
+
 // check for in-place eligibility:
 //  1. see if there's an arg big enough to hold the result
 //  2. see if the arg is live past the call
 //  3. see if the arg has an alias that's live past the call
 //  if conditions are met, we're good to go
-std::pair<std::vector<int>, std::vector<int>> find_inplace_opportunities(const DataflowBlock& block,
-                                                                         const Array<Var>& inputs) {
+std::pair<std::vector<std::vector<int>>, std::vector<std::vector<int>>> find_inplace_opportunities(
+    const DataflowBlock& block, const Array<Var>& inputs) {
   auto live_ranges = analyze_liveness(block);
   AliasAnalyzer analyzer;
   auto alias_info = analyzer.Analyze(block, inputs);
   auto alias_sets = alias_info.first;
   auto tuple_map = alias_info.second;
 
-  std::vector<int> size_match_list;
-  std::vector<int> exact_match_list;
+  std::vector<std::vector<int>> size_match_list;
+  std::vector<std::vector<int>> exact_match_list;
 
   // sort the live ranges by starting index
   std::vector<Var> live_order;
@@ -551,9 +557,13 @@ std::pair<std::vector<int>, std::vector<int>> find_inplace_opportunities(const D
     }
 
     if (auto* call_node = value.as<CallNode>()) {
-      if (call_node->op.as<OpNode>()) {
-        std::unordered_set<Expr, ObjectPtrHash, ObjectPtrEqual> candidates;
-        std::unordered_set<Expr, ObjectPtrHash, ObjectPtrEqual> exact_match_candidates;
+      if (auto* op_node = call_node->op.as<OpNode>()) {
+        if (!op_supports_inplace(GetRef<Op>(op_node))) {
+          continue;
+        }
+
+        std::unordered_set<int> candidates;
+        std::unordered_set<int> exact_match_candidates;
 
         auto target_sinfo = gather_candidate_sinfo(GetStructInfo(defined_var));
         // can't be done in-place, ignore
@@ -562,13 +572,14 @@ std::pair<std::vector<int>, std::vector<int>> find_inplace_opportunities(const D
         }
 
         // Check that at least one argument matches size with the result
-        for (auto arg : call_node->args) {
+        for (size_t j = 0; j < call_node->args.size(); j++) {
+          auto arg = call_node->args[j];
           for (auto target : target_sinfo) {
             std::pair<bool, bool> match = size_matches(target, GetStructInfo(arg));
             if (match.first) {
-              candidates.insert(arg);
+              candidates.insert(static_cast<int>(j));
               if (match.second) {
-                exact_match_candidates.insert(arg);
+                exact_match_candidates.insert(static_cast<int>(j));
               }
             }
           }
@@ -579,26 +590,37 @@ std::pair<std::vector<int>, std::vector<int>> find_inplace_opportunities(const D
 
         // Make sure at least one candidate is not live past this point and does not have an alias
         // live past this point
-        std::unordered_set<Expr, ObjectPtrHash, ObjectPtrEqual> remove_candidates;
+        std::unordered_set<int> remove_candidates;
         for (auto candidate : candidates) {
           if (!df_inplace_conditions_met(live_ranges, alias_sets, tuple_map, currently_live,
-                                         candidate, i)) {
+                                         call_node->args[candidate], i)) {
             remove_candidates.insert(candidate);
           }
         }
+        // (remove now to avoid modifying the list as we iterate on it)
         for (auto candidate : remove_candidates) {
           candidates.erase(candidate);
         }
 
-        // if we have a candidate, then this can be made in-place. Report the result
-        if (candidates.size()) {
-          size_match_list.push_back(i);
+        // if we have a candidate, then this can be made in-place. Report the appropriate candidates
+        if (!candidates.size()) {
+          continue;
         }
+
+        // produce a list of candidates for this index
+        std::vector<int> size_match_indices = {static_cast<int>(i)};
+        size_match_indices.insert(size_match_indices.end(), candidates.begin(), candidates.end());
+        size_match_list.push_back(size_match_indices);
+
+        // also gather up the exact match candidates if there are any
+        std::vector<int> exact_match_indices = {static_cast<int>(i)};
         for (auto candidate : candidates) {
           if (exact_match_candidates.count(candidate)) {
-            exact_match_list.push_back(i);
-            break;
+            exact_match_indices.push_back(candidate);
           }
+        }
+        if (exact_match_indices.size() > 1) {
+          exact_match_list.push_back(exact_match_indices);
         }
       }
     }
@@ -662,10 +684,10 @@ tir::Stmt remap_buffers(const tir::Stmt& stmt, const Map<tir::Buffer, tir::Buffe
       // need the lambdas because class methods are not first-class (how ironic)
       node_cow->alloc_buffers =
           node->alloc_buffers.Map([this](const tir::Buffer& b) { return AttemptRemap(b); });
-      node_cow->reads = node->reads.Map(
-          [this](const tir::BufferRegion& br) { return VisitBufferRegion(br); });
-      node_cow->writes = node->writes.Map(
-          [this](const tir::BufferRegion& br) { return VisitBufferRegion(br); });
+      node_cow->reads =
+          node->reads.Map([this](const tir::BufferRegion& br) { return VisitBufferRegion(br); });
+      node_cow->writes =
+          node->writes.Map([this](const tir::BufferRegion& br) { return VisitBufferRegion(br); });
       node_cow->match_buffers = node->match_buffers.Map(
           [this](const tir::MatchBufferRegion& mbr) { return VisitMatchBufferRegion(mbr); });
       return node;
@@ -822,16 +844,24 @@ Array<ObjectRef> DataflowAliasAnalysis(const DataflowBlock& block, Array<Var> in
   return {new_alias_sets, new_tuple_map};
 }
 
-Array<Array<Integer>> DataflowInPlaceAnalysis(const DataflowBlock& block,
-                                              const Array<Var>& inputs) {
+Array<Array<Array<Integer>>> DataflowInPlaceAnalysis(const DataflowBlock& block,
+                                                     const Array<Var>& inputs) {
   auto index_lists = relax::find_inplace_opportunities(block, inputs);
-  Array<Integer> size_match_array;
-  for (int index : index_lists.first) {
-    size_match_array.push_back(index);
+  Array<Array<Integer>> size_match_array;
+  for (auto indices : index_lists.first) {
+    Array<Integer> index_array;
+    for (auto index : indices) {
+      index_array.push_back(Integer(index));
+    }
+    size_match_array.push_back(index_array);
   }
-  Array<Integer> exact_match_array;
-  for (int index : index_lists.second) {
-    exact_match_array.push_back(index);
+  Array<Array<Integer>> exact_match_array;
+  for (auto indices : index_lists.second) {
+    Array<Integer> index_array;
+    for (auto index : indices) {
+      index_array.push_back(Integer(index));
+    }
+    exact_match_array.push_back(index_array);
   }
   return {size_match_array, exact_match_array};
 }

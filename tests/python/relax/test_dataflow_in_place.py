@@ -15,6 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 
+from typing import List, Set, Tuple
 import tvm
 from tvm import testing
 from tvm.relax import BlockBuilder
@@ -327,19 +328,32 @@ def test_inplace_simple_case():
                 p = R.add(z, q)  # can be done inplace: neither z nor q is used later
                 r = p  # alias of p
                 m = R.multiply(p, p)  # p is not used later but r is, so can't do inplace
-                n = R.add(m, r)  # can be done inplace: neither is used again
-                l = R.reshape(n, (1, 2, 3))  # same size but not not identical shape
-                ret = R.reshape(l, (2, 3))  # same size but not identical shape
+                n = R.add(m, r)  # can be done inplace: r is not used again
+                ret = R.subtract(n, m)  # can be done inplace: neither is used again
                 R.output(ret)
             return ret
 
     block = InplaceBasic["main"].body.blocks[0]
     size_match, exact_match = dataflow_inplace_analysis(block, InplaceBasic["main"].params)
-    assert size_match == [1, 2, 5, 6, 7]
-    assert exact_match == [1, 2, 5]
+
+    # order does not matter for the listing of candidates, so we have to implement as sets
+    def assert_candidate_list(
+        actual: List[List[int]], expected: List[Tuple[int, Set[int]]]
+    ) -> None:
+        assert len(actual) == len(expected)
+        for i in range(len(actual)):
+            assert actual[i][0] == expected[i][0]
+            assert len(expected[i][1]) == len(actual[i]) - 1
+            for j in range(len(expected[i][1])):
+                assert actual[i][j + 1] in expected[i][1]
+
+    assert_candidate_list(size_match, [(1, {0, 1}), (2, {0, 1}), (5, {1}), (6, {0, 1})])
+    # TODO(@slyubomirsky): I couldn't think of an easy example where sizes don't match,
+    # but broadcasting might cause it to happen
+    assert_candidate_list(exact_match, [(1, {0, 1}), (2, {0, 1}), (5, {1}), (6, {0, 1})])
 
 
-def test_inplace_call():
+def test_inplace_single_call():
     @I.ir_module
     class TestModule:
         @R.function
