@@ -55,6 +55,11 @@ def get_lib_path():
                     libs.append(name)
                     break
 
+        # Add byoc shared libraries, if present
+        for name in lib_path:
+            if "3rdparty" in name:
+                libs.append(name)
+
         # Add standalone_crt, if present
         for name in lib_path:
             candidate_path = os.path.join(os.path.dirname(name), "standalone_crt")
