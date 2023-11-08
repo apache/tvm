@@ -284,6 +284,21 @@ def Normalize() -> tvm.ir.transform.Pass:
     return _ffi_api.Normalize()  # type: ignore
 
 
+def NormalizeGlobalVar() -> tvm.ir.transform.Pass:
+    """Possibly rename the GlobalVar in an IRModule to ensure these properties:
+
+    1. (Invariant) First ensure every public function has the same name as its "global_symbol"
+    attribute
+    2. To ensure 1., we may need to rename private functions with conflicting names;
+    3. Finally, the name of every GlobalVar is unique in the IRModule.
+
+    Returns
+    -------
+    ret: tvm.ir.transform.Pass
+    """
+    return _ffi_api.NormalizeGlobalVar()  # type: ignore
+
+
 def CanonicalizeBindings() -> tvm.ir.transform.Pass:
     """
     Canonicalizes variable definitions

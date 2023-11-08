@@ -170,6 +170,99 @@ class NormalizeMutator : public ExprMutatorBase {
 
 Expr Normalize(const Expr& e) { return NormalizeMutator().VisitExpr(e); }
 
+class GlobalVarNormalizer : private ExprMutator {
+ public:
+  static IRModule Normalize(const IRModule& m) {
+    GlobalVarNormalizer renamer(m);
+    return renamer.RenameModule();
+  }
+
+ private:
+  explicit GlobalVarNormalizer(const IRModule& m) : ExprMutator(), module_(m), name_supply_("") {}
+
+  using ExprMutator::VisitExpr_;
+
+  IRModule RenameModule() {
+    // Step 1. Add public functions (functions with global_symbol attributes)
+    auto name_changes = AddPublicFunctions();
+    if (!name_changes) {
+      return module_;
+    }
+
+    // Step 2. Rename private functions
+    AddPrivateFunctions();
+
+    // Step 3. Substitute global vars in functions
+    for (auto [gvar, func] : module_->functions) {
+      if (!func->IsInstance<FunctionNode>()) {
+        continue;
+      }
+      auto new_func = Downcast<BaseFunc>(this->VisitExpr(func));
+      builder_->UpdateFunction(gvar_map_[gvar], new_func);
+    }
+
+    // Step 4. Update the original module (because we do not want to copy all metadata to the new
+    // module)
+    auto after_module = builder_->GetContextIRModule();
+    auto module_node = module_.CopyOnWrite();
+    module_node->functions = after_module->functions;
+    module_node->global_var_map_ = after_module->global_var_map_;
+    return module_;
+  }
+
+  /**
+   * \brief Add public functions to the builder, and update the name supplier.
+   * \return true if any name changes are made.
+   */
+  bool AddPublicFunctions() {
+    bool name_changes = false;
+    for (const auto& [gvar, func] : module_->functions) {
+      auto global_symbol = func->GetAttr<String>("global_symbol");
+      if (!global_symbol) {
+        continue;
+      }
+
+      auto global_symbol_value = global_symbol.value();
+      CHECK(!name_supply_->ContainsName(global_symbol_value))
+          << "IRModule contains duplicate global symbol: " << global_symbol_value;
+      name_supply_->ReserveName(global_symbol_value);
+      auto new_gvar = builder_->AddFunction(func, global_symbol_value);
+      gvar_map_.Set(gvar, new_gvar);
+
+      if (global_symbol.value() != gvar->name_hint) {
+        name_changes = true;
+      }
+    }
+    return name_changes;
+  }
+
+  /**
+   * \brief Add private functions to the builder with names provided by name supplier. Renaming may
+   * happen if the name of any function conflicts with the name of a public function.
+   */
+  void AddPrivateFunctions() {
+    for (auto [gvar, func] : module_->functions) {
+      auto global_symbol = func->GetAttr<String>("global_symbol");
+      if (global_symbol) {
+        continue;
+      }
+
+      auto new_name = name_supply_->FreshName(gvar->name_hint, false, false);
+      auto new_gvar = builder_->AddFunction(func, new_name);
+      gvar_map_.Set(gvar, new_gvar);
+    }
+  }
+
+  Expr VisitExpr_(const GlobalVarNode* op) final {
+    ICHECK(gvar_map_.count(GetRef<GlobalVar>(op)));
+    return gvar_map_[GetRef<GlobalVar>(op)];
+  }
+
+  IRModule module_;
+  NameSupply name_supply_;
+  Map<GlobalVar, GlobalVar> gvar_map_;
+};
+
 namespace transform {
 
 Pass Normalize() {
@@ -179,6 +272,16 @@ Pass Normalize() {
 }
 
 TVM_REGISTER_GLOBAL("relax.transform.Normalize").set_body_typed(Normalize);
+
+Pass NormalizeGlobalVar() {
+  runtime::TypedPackedFunc<IRModule(IRModule, PassContext)> pass_func =
+      [=](IRModule mod, PassContext pc) { return GlobalVarNormalizer::Normalize(mod); };
+  return CreateModulePass(/*pass_function=*/pass_func,
+                          /*opt_level=*/0,
+                          /*pass_name=*/"NormalizeGlobalVar",
+                          /*required=*/{});
+}
+TVM_REGISTER_GLOBAL("relax.transform.NormalizeGlobalVar").set_body_typed(NormalizeGlobalVar);
 
 }  // namespace transform
 

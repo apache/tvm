@@ -661,12 +661,20 @@ class BlockBuilder(Object):
     def get(self) -> tvm.IRModule:
         """Return the IRModule being built.
 
+        Note this call may invalidate global vars previously returned by this builder
+        (see tvm.relax.transform.NormalizeGlobalVar), so it is recommended to call this function
+        once at the end of the build process.
+
         Returns
         -------
         ret : tvm.IRModule
             An IRModule with Relax and TIR functions being built.
         """
-        return _ffi_api.BlockBuilderGetContextIRModule(self)  # type: ignore
+        # avoid circular import
+        from .transform import NormalizeGlobalVar
+
+        mod = _ffi_api.BlockBuilderGetContextIRModule(self)  # type: ignore
+        return NormalizeGlobalVar()(mod)
 
     def get_unique_name(self, name_prefix: str) -> str:
         """Generate a unique name with a specified prefix.
