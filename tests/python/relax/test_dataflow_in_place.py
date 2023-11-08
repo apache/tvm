@@ -17,10 +17,12 @@
 
 import tvm
 from tvm import testing
+from tvm.relax import BlockBuilder
 from tvm.relax.analysis import (
     dataflow_liveness_analysis,
     dataflow_alias_analysis,
     dataflow_inplace_analysis,
+    dataflow_single_inplace_call,
 )
 from tvm.script.parser import ir as I, relax as R, tir as T
 
@@ -335,6 +337,71 @@ def test_inplace_simple_case():
     size_match, exact_match = dataflow_inplace_analysis(block, InplaceBasic["main"].params)
     assert size_match == [1, 2, 5, 6, 7]
     assert exact_match == [1, 2, 5]
+
+
+def test_inplace_call():
+    @I.ir_module
+    class TestModule:
+        @R.function
+        def main(
+            x: R.Tensor((2, 3), dtype="float32"), y: R.Tensor((2, 3), dtype="float32")
+        ) -> R.Tensor((2, 3), dtype="float32"):
+            z = R.add(x, y)
+            q = R.nn.silu(z)
+            return q
+
+    builder = BlockBuilder(mod=TestModule)
+    add_call = TestModule["main"].body.blocks[0].bindings[0].value
+    new_add = dataflow_single_inplace_call(builder, add_call, [0])
+
+    @T.prim_func(private=True)
+    def expected_add(
+        A: T.Buffer((T.int64(2), T.int64(3)), "float32"),
+        B: T.Buffer((T.int64(2), T.int64(3)), "float32"),
+    ):
+        T.func_attr({"tir.noalias": T.bool(True)})
+        for ax0, ax1 in T.grid(T.int64(2), T.int64(3)):
+            with T.block("T_add"):
+                v_ax0, v_ax1 = T.axis.remap("SS", [ax0, ax1])
+                T.reads(A[v_ax0, v_ax1], B[v_ax0, v_ax1])
+                T.writes(A[v_ax0, v_ax1])
+                A[v_ax0, v_ax1] = A[v_ax0, v_ax1] + B[v_ax0, v_ax1]
+
+    new_mod = builder.get()
+    tvm.ir.assert_structural_equal(new_mod["add_inplace"], expected_add)
+    assert new_add.op.name == "relax.call_tir_inplace"
+    assert new_add.args[0].name_hint == "add_inplace"
+    for i, arg in enumerate(new_add.args[1].fields):
+        arg == add_call.args[i]
+    new_add.attrs.inplace_indices == [0]
+
+    @T.prim_func(private=True)
+    def expected_silu(A: T.Buffer((T.int64(2), T.int64(3)), "float32")):
+        T.func_attr({"tir.noalias": T.bool(True)})
+        compute = T.alloc_buffer((T.int64(2), T.int64(3)))
+        for i0, i1 in T.grid(T.int64(2), T.int64(3)):
+            with T.block("compute"):
+                v_i0, v_i1 = T.axis.remap("SS", [i0, i1])
+                T.reads(A[v_i0, v_i1])
+                T.writes(compute[v_i0, v_i1])
+                compute[v_i0, v_i1] = T.sigmoid(A[v_i0, v_i1])
+        for ax0, ax1 in T.grid(T.int64(2), T.int64(3)):
+            with T.block("T_multiply"):
+                v_ax0, v_ax1 = T.axis.remap("SS", [ax0, ax1])
+                T.reads(A[v_ax0, v_ax1], compute[v_ax0, v_ax1])
+                T.writes(A[v_ax0, v_ax1])
+                A[v_ax0, v_ax1] = A[v_ax0, v_ax1] * compute[v_ax0, v_ax1]
+
+    silu_call = TestModule["main"].body.blocks[0].bindings[1].value
+    new_silu = dataflow_single_inplace_call(builder, silu_call, [0])
+
+    new_mod = builder.get()
+    tvm.ir.assert_structural_equal(new_mod["silu_inplace"], expected_silu)
+    assert new_silu.op.name == "relax.call_tir_inplace"
+    assert new_silu.args[0].name_hint == "silu_inplace"
+    for i, arg in enumerate(new_silu.args[1].fields):
+        arg == silu_call.args[i]
+    new_silu.attrs.inplace_indices == [0]
 
 
 if __name__ == "__main__":

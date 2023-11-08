@@ -620,6 +620,85 @@ std::pair<std::vector<int>, std::vector<int>> find_inplace_opportunities(const D
   return {size_match_list, exact_match_list};
 }
 
+tir::Stmt remap_buffers(const tir::Stmt& stmt, const Map<tir::Buffer, tir::Buffer>& buffer_map) {
+  class BufferMapper : public tir::StmtExprMutator {
+   public:
+    explicit BufferMapper(const Map<tir::Buffer, tir::Buffer>& buffer_map)
+        : buffer_map_(buffer_map) {}
+
+    tir::Stmt Remap(const tir::Stmt& stmt) { return VisitStmt(stmt); }
+
+    PrimExpr VisitExpr_(const tir::BufferLoadNode* op) final {
+      auto node = Downcast<tir::BufferLoad>(tir::StmtExprMutator::VisitExpr_(op));
+      auto* node_cow = node.CopyOnWrite();
+      node_cow->buffer = AttemptRemap(node->buffer);
+      return node;
+    }
+
+    tir::Stmt VisitStmt_(const tir::BufferStoreNode* op) final {
+      auto node = Downcast<tir::BufferStore>(tir::StmtExprMutator::VisitStmt_(op));
+      auto* node_cow = node.CopyOnWrite();
+      node_cow->buffer = AttemptRemap(node->buffer);
+      return node;
+    }
+
+    tir::Stmt VisitStmt_(const tir::BufferRealizeNode* op) final {
+      auto node = Downcast<tir::BufferRealize>(tir::StmtExprMutator::VisitStmt_(op));
+      auto* node_cow = node.CopyOnWrite();
+      node_cow->buffer = AttemptRemap(node->buffer);
+      return node;
+    }
+
+    tir::Stmt VisitStmt_(const tir::DeclBufferNode* op) final {
+      auto node = Downcast<tir::DeclBuffer>(tir::StmtExprMutator::VisitStmt_(op));
+      auto* node_cow = node.CopyOnWrite();
+      node_cow->buffer = AttemptRemap(node->buffer);
+      return node;
+    }
+
+    tir::Stmt VisitStmt_(const tir::BlockNode* op) final {
+      auto node = Downcast<tir::Block>(tir::StmtExprMutator::VisitStmt_(op));
+      auto* node_cow = node.CopyOnWrite();
+      // need the lambdas because class methods are not first-class (how ironic)
+      node_cow->alloc_buffers =
+          node->alloc_buffers.Map([this](const tir::Buffer& b) { return AttemptRemap(b); });
+      node_cow->reads = node->reads.Map(
+          [this](const tir::BufferRegion& br) { return VisitBufferRegion(br); });
+      node_cow->writes = node->writes.Map(
+          [this](const tir::BufferRegion& br) { return VisitBufferRegion(br); });
+      node_cow->match_buffers = node->match_buffers.Map(
+          [this](const tir::MatchBufferRegion& mbr) { return VisitMatchBufferRegion(mbr); });
+      return node;
+    }
+
+   private:
+    tir::Buffer AttemptRemap(const tir::Buffer& buffer) {
+      if (buffer_map_.count(buffer)) {
+        return buffer_map_.at(buffer);
+      }
+      return buffer;
+    }
+
+    tir::BufferRegion VisitBufferRegion(tir::BufferRegion region) {
+      auto* region_cow = region.CopyOnWrite();
+      region_cow->buffer = AttemptRemap(region_cow->buffer);
+      return region;
+    }
+
+    tir::MatchBufferRegion VisitMatchBufferRegion(tir::MatchBufferRegion region) {
+      auto* region_cow = region.CopyOnWrite();
+      region_cow->buffer = AttemptRemap(region_cow->buffer);
+      return region;
+    }
+
+    const Map<tir::Buffer, tir::Buffer>& buffer_map_;
+  };
+
+  BufferMapper mapper(buffer_map);
+  auto ret = mapper.Remap(stmt);
+  return ret;
+}
+
 Call add_inplace_legalization(const BlockBuilder& bb, const Call& call,
                               const Array<Integer>& inplace_indices) {
   static const auto& legalize_map = Op::GetAttrMap<FLegalize>("FLegalize");
@@ -632,44 +711,61 @@ Call add_inplace_legalization(const BlockBuilder& bb, const Call& call,
   // The legalized call should be call_tir. We will replace it with call_tir_inplace
   // and replace the called PrimFunc with an inplace version
   auto legal_op = Downcast<GlobalVar>(legalized_call->args[0]);
-  auto inline_legal_op_name = legal_op->name_hint + "_inline";
+  auto inline_legal_op_name = legal_op->name_hint + "_inplace";
   auto mod = bb->GetContextIRModule();
 
   auto legal_primfunc = Downcast<tir::PrimFunc>(mod->Lookup(legal_op));
   auto* legal_primfunc_cow = legal_primfunc.CopyOnWrite();
   size_t num_outs = inplace_indices.size();
   size_t num_params = legal_primfunc->params.size();
-  Map<tir::Var, tir::Var> subst_map;
+
+  // the replacement we must make:
+  // 1. For each output var, replace its corresponding buffers with the corresponding inplace index
+  //    var's buffers
+  // 2. For each output var, replace its instances with the corresponding inplace index var
+  // 3. Do the same for the *buffer vars* corresponding to the output vars
+  // 4. Remove the output vars from the param list and buffer map
+  Map<tir::Buffer, tir::Buffer> buffer_subst_map;
+  Map<tir::Var, tir::Var> var_subst_map;
   for (size_t i = 0; i < num_outs; i++) {
     // we will substitute output i with the corresponding param indicated by inplace indices
-    subst_map.Set(legal_primfunc->params[num_params - num_outs + i],
-                  legal_primfunc->params[inplace_indices[i].IntValue()]);
+    auto output_var = legal_primfunc->params[num_params - num_outs + i];
+    auto inplace_var = legal_primfunc->params[inplace_indices[i].IntValue()];
+    var_subst_map.Set(output_var, inplace_var);
+
+    // also do the same with the buffer vars
+    auto output_buffer = legal_primfunc->buffer_map.at(output_var);
+    auto inplace_buffer = legal_primfunc->buffer_map.at(inplace_var);
+    var_subst_map.Set(output_buffer->data, inplace_buffer->data);
+    buffer_subst_map.Set(output_buffer, inplace_buffer);
   }
-  // take off the last num_outputs arguments
-  legal_primfunc_cow->params = Array<tir::Var>(
-      legal_primfunc->params.begin(), legal_primfunc->params.begin() + (num_params - num_outs));
-  // apply substitution
-  legal_primfunc_cow->body =
-      tir::Substitute(legal_primfunc->body, [&subst_map](const tir::Var& v) -> Optional<PrimExpr> {
-        if (subst_map.count(v)) {
-          return subst_map.at(v);
-        } else {
-          return Optional<PrimExpr>();
+
+  // apply substitutions
+  legal_primfunc_cow->body = remap_buffers(legal_primfunc->body, buffer_subst_map);
+  legal_primfunc_cow->body = tir::Substitute(
+      legal_primfunc->body, [&var_subst_map](const tir::Var& v) -> Optional<PrimExpr> {
+        if (var_subst_map.count(v)) {
+          return var_subst_map.at(v);
         }
+        return Optional<PrimExpr>();
       });
 
-  // remove the now-unused outputs from the buffer map if they're there
+  // remove the now-unused outputs from the buffer map
   auto buffer_map = legal_primfunc->buffer_map;
   for (size_t i = 0; i < num_outs; i++) {
-    auto out_var = legal_primfunc->params[num_params - num_outs + i];
-    if (buffer_map.count(out_var)) {
-      buffer_map.erase(out_var);
-    }
+    buffer_map.erase(legal_primfunc->params[num_params - num_outs + i]);
   }
   legal_primfunc_cow->buffer_map = buffer_map;
 
+  // now get rid of the last num_outputs arguments
+  // (couldn't do earlier or else it would have thrown off the indexing)
+  legal_primfunc_cow->params = Array<tir::Var>(
+      legal_primfunc->params.begin(), legal_primfunc->params.begin() + (num_params - num_outs));
+
   mod->Remove(legal_op);
   bb->AddFunction(legal_primfunc, inline_legal_op_name);
+  // need to update the mod to get the new function
+  mod = std::move(bb->GetContextIRModule());
   auto new_gv = mod->GetGlobalVar(inline_legal_op_name);
 
   // update the call (change the op, update the argument, change the attrs)
@@ -746,8 +842,8 @@ TVM_REGISTER_GLOBAL("relax.analysis.DataflowAliasAnalysis").set_body_typed(Dataf
 TVM_REGISTER_GLOBAL("relax.analysis.DataflowInPlaceAnalysis")
     .set_body_typed(DataflowInPlaceAnalysis);
 
-// really only for testing
-TVM_REGISTER_GLOBAL("relax.transform.SingleInplaceCall")
+// really only for testing (not actually an analysis, will move)
+TVM_REGISTER_GLOBAL("relax.analysis.SingleInplaceCall")
     .set_body_typed(relax::add_inplace_legalization);
 
 }  // namespace transform

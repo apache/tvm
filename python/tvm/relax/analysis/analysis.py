@@ -27,6 +27,7 @@ from enum import IntEnum
 import tvm
 from tvm import tir
 from tvm import IRModule
+from tvm.relax import BlockBuilder
 from tvm.relax.ty import Type
 from tvm.relax.struct_info import StructInfo, FuncStructInfo
 from tvm.relax.expr import DataflowBlock, Var, GlobalVar, Expr, Function, Call, Binding
@@ -534,7 +535,7 @@ def detect_recursion(mod: tvm.IRModule) -> List[List[GlobalVar]]:
 def dataflow_liveness_analysis(block: DataflowBlock) -> Dict[Var, Tuple[int, int]]:
     live_ranges = _ffi_api.DataflowLivenessAnalysis(block)  # type: ignore
     ret = {}
-    for (var, live_range) in live_ranges.items():
+    for var, live_range in live_ranges.items():
         ret[var] = tuple(live_range)
     return ret  # type: ignore
 
@@ -545,9 +546,9 @@ def dataflow_alias_analysis(
     alias_sets, tuple_map = _ffi_api.DataflowAliasAnalysis(block, inputs)  # type: ignore
     res_alias_sets = {}
     res_tuple_map = {}
-    for (var, alias_set) in alias_sets.items():
+    for var, alias_set in alias_sets.items():
         res_alias_sets[var] = set(alias_set)
-    for (idx, elem_alias_sets) in tuple_map.items():
+    for idx, elem_alias_sets in tuple_map.items():
         res_tuple_map[idx] = [set(alias_set) for alias_set in elem_alias_sets]
     return res_alias_sets, res_tuple_map  # type: ignore
 
@@ -557,3 +558,10 @@ def dataflow_inplace_analysis(
 ) -> Tuple[List[int], List[int]]:
     index_lists = _ffi_api.DataflowInPlaceAnalysis(block, inputs)  # type: ignore
     return tuple(map(list, index_lists))  # type: ignore
+
+
+# not actually an analysis but putting it here for testing
+def dataflow_single_inplace_call(
+    builder: BlockBuilder, call: Call, inplace_indices: List[int]
+) -> Call:
+    return _ffi_api.SingleInplaceCall(builder, call, inplace_indices)  # type: ignore
