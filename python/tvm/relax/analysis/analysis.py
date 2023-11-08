@@ -562,6 +562,12 @@ def dataflow_inplace_analysis(
 
 # not actually an analysis but putting it here for testing
 def dataflow_single_inplace_call(
-    builder: BlockBuilder, call: Call, inplace_indices: List[int]
-) -> Call:
-    return _ffi_api.SingleInplaceCall(builder, call, inplace_indices)  # type: ignore
+    mod: IRModule, call: Call, inplace_indices: List[int]
+) -> Tuple[Call, IRModule]:
+    ret = _ffi_api.SingleInplaceCall(mod, call, inplace_indices)  # type: ignore
+    return (ret[0], ret[1])  # type: ignore
+
+
+# also not actually an analysis but putting it here for testing
+def dataflow_insert_inplace_calls() -> tvm.ir.transform.Pass:
+    return _ffi_api.DataflowInsertInPlaceCalls()  # type: ignore

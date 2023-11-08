@@ -24,6 +24,7 @@ from tvm.relax.analysis import (
     dataflow_alias_analysis,
     dataflow_inplace_analysis,
     dataflow_single_inplace_call,
+    dataflow_insert_inplace_calls,
 )
 from tvm.script.parser import ir as I, relax as R, tir as T
 
@@ -364,9 +365,8 @@ def test_inplace_single_call():
             q = R.nn.silu(z)
             return q
 
-    builder = BlockBuilder(mod=TestModule)
     add_call = TestModule["main"].body.blocks[0].bindings[0].value
-    new_add = dataflow_single_inplace_call(builder, add_call, [0])
+    new_add, new_mod = dataflow_single_inplace_call(TestModule, add_call, [0])
 
     @T.prim_func(private=True)
     def expected_add(
@@ -381,7 +381,6 @@ def test_inplace_single_call():
                 T.writes(A[v_ax0, v_ax1])
                 A[v_ax0, v_ax1] = A[v_ax0, v_ax1] + B[v_ax0, v_ax1]
 
-    new_mod = builder.get()
     tvm.ir.assert_structural_equal(new_mod["add_inplace"], expected_add)
     assert new_add.op.name == "relax.call_tir_inplace"
     assert new_add.args[0].name_hint == "add_inplace"
@@ -407,15 +406,35 @@ def test_inplace_single_call():
                 A[v_ax0, v_ax1] = A[v_ax0, v_ax1] * compute[v_ax0, v_ax1]
 
     silu_call = TestModule["main"].body.blocks[0].bindings[1].value
-    new_silu = dataflow_single_inplace_call(builder, silu_call, [0])
+    new_silu, new_mod = dataflow_single_inplace_call(TestModule, silu_call, [0])
 
-    new_mod = builder.get()
     tvm.ir.assert_structural_equal(new_mod["silu_inplace"], expected_silu)
     assert new_silu.op.name == "relax.call_tir_inplace"
     assert new_silu.args[0].name_hint == "silu_inplace"
     for i, arg in enumerate(new_silu.args[1].fields):
         arg == silu_call.args[i]
     new_silu.attrs.inplace_indices == [0]
+
+
+def test_insert_inplace_calls():
+    @I.ir_module
+    class EndToEndTest:
+        @R.function
+        def main(
+            x: R.Tensor((2, 3), dtype="float32"), y: R.Tensor((1, 3), dtype="float32")
+        ) -> R.Tensor((2, 3), dtype="float32"):
+            with R.dataflow():
+                z = R.add(x, y)  # broadcast happens here
+                q = R.multiply(z, y)  # broadcast again
+                r = R.subtract(y, y)  # now can be done inplace
+                m = R.multiply(q, r)  # should give us all zeros
+                R.output(m)
+            return m
+
+    transform_pass = dataflow_insert_inplace_calls()
+    new_mod = transform_pass(EndToEndTest)
+    print(new_mod)
+    assert False
 
 
 if __name__ == "__main__":

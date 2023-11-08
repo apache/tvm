@@ -18,6 +18,7 @@
  * under the License.
  */
 
+#include <tvm/ir/transform.h>
 #include <tvm/relax/analysis.h>
 #include <tvm/relax/attrs/op.h>
 #include <tvm/relax/expr.h>
@@ -712,88 +713,182 @@ tir::Stmt remap_buffers(const tir::Stmt& stmt, const Map<tir::Buffer, tir::Buffe
   return ret;
 }
 
-Call add_inplace_legalization(const BlockBuilder& bb, const Call& call,
-                              const Array<Integer>& inplace_indices) {
-  static const auto& legalize_map = Op::GetAttrMap<FLegalize>("FLegalize");
-  static const auto& call_tir_inplace_op = Op::Get("relax.call_tir_inplace");
-
-  auto op = Downcast<Op>(call->op);
-  auto legalized_call = Downcast<Call>(legalize_map[op](bb, call));
-  auto* legalized_call_cow = legalized_call.CopyOnWrite();
-
-  // The legalized call should be call_tir. We will replace it with call_tir_inplace
-  // and replace the called PrimFunc with an inplace version
-  auto legal_op = Downcast<GlobalVar>(legalized_call->args[0]);
-  auto inline_legal_op_name = legal_op->name_hint + "_inplace";
-  auto mod = bb->GetContextIRModule();
-
-  auto legal_primfunc = Downcast<tir::PrimFunc>(mod->Lookup(legal_op));
-  auto* legal_primfunc_cow = legal_primfunc.CopyOnWrite();
-  size_t num_outs = inplace_indices.size();
-  size_t num_params = legal_primfunc->params.size();
-
-  // the replacement we must make:
-  // 1. For each output var, replace its corresponding buffers with the corresponding inplace index
-  //    var's buffers
-  // 2. For each output var, replace its instances with the corresponding inplace index var
-  // 3. Do the same for the *buffer vars* corresponding to the output vars
-  // 4. Remove the output vars from the param list and buffer map
-  Map<tir::Buffer, tir::Buffer> buffer_subst_map;
-  Map<tir::Var, tir::Var> var_subst_map;
-  for (size_t i = 0; i < num_outs; i++) {
-    // we will substitute output i with the corresponding param indicated by inplace indices
-    auto output_var = legal_primfunc->params[num_params - num_outs + i];
-    auto inplace_var = legal_primfunc->params[inplace_indices[i].IntValue()];
-    var_subst_map.Set(output_var, inplace_var);
-
-    // also do the same with the buffer vars
-    auto output_buffer = legal_primfunc->buffer_map.at(output_var);
-    auto inplace_buffer = legal_primfunc->buffer_map.at(inplace_var);
-    var_subst_map.Set(output_buffer->data, inplace_buffer->data);
-    buffer_subst_map.Set(output_buffer, inplace_buffer);
+class ModuleInplaceTransformer : public ExprMutator {
+ public:
+  explicit ModuleInplaceTransformer(const IRModule& mod) : mod_(mod) {
+    builder_ = BlockBuilder::Create(mod);
   }
 
-  // apply substitutions
-  legal_primfunc_cow->body = remap_buffers(legal_primfunc->body, buffer_subst_map);
-  legal_primfunc_cow->body = tir::Substitute(
-      legal_primfunc->body, [&var_subst_map](const tir::Var& v) -> Optional<PrimExpr> {
-        if (var_subst_map.count(v)) {
-          return var_subst_map.at(v);
-        }
-        return Optional<PrimExpr>();
-      });
+  IRModule Transform() {
+    // visit every Relax function in the module
+    for (auto kv : mod_->functions) {
+      if (auto* func_node = kv.second.as<FunctionNode>()) {
+        auto gv = kv.first;
+        auto func_params = func_node->params;
+        auto function = GetRef<Function>(func_node);
+        auto* function_cow = function.CopyOnWrite();
+        auto new_body = VisitExpr(function->body);
+        function_cow->body = new_body;
+        builder_->UpdateFunction(gv, function);
+      }
+    }
 
-  // remove the now-unused outputs from the buffer map
-  auto buffer_map = legal_primfunc->buffer_map;
-  for (size_t i = 0; i < num_outs; i++) {
-    buffer_map.erase(legal_primfunc->params[num_params - num_outs + i]);
+    auto ret = builder_->GetContextIRModule();
+    // clean up to avoid polluting the IRModule
+    for (auto gv : legalizers_added) {
+      ret->Remove(gv);
+    }
+    return ret;
   }
-  legal_primfunc_cow->buffer_map = buffer_map;
 
-  // now get rid of the last num_outputs arguments
-  // (couldn't do earlier or else it would have thrown off the indexing)
-  legal_primfunc_cow->params = Array<tir::Var>(
-      legal_primfunc->params.begin(), legal_primfunc->params.begin() + (num_params - num_outs));
+  // for handling inner functions
+  Expr VisitExpr_(const FunctionNode* op) override {
+    auto old_func_params = func_params;
+    func_params = op->params;
+    auto ret = ExprMutator::VisitExpr(GetRef<Function>(op));
+    func_params = old_func_params;
+    return ret;
+  }
 
-  mod->Remove(legal_op);
-  bb->AddFunction(legal_primfunc, inline_legal_op_name);
-  // need to update the mod to get the new function
-  mod = std::move(bb->GetContextIRModule());
-  auto new_gv = mod->GetGlobalVar(inline_legal_op_name);
+  // the only case we will override: we will visit all binding blocks
+  // and replace any valid calls in them
+  BindingBlock VisitBindingBlock_(const DataflowBlockNode* op) override {
+    auto block = GetRef<DataflowBlock>(op);
+    std::unordered_set<Var, ObjectPtrHash, ObjectPtrEqual> free_var_set;
+    for (auto binding : block->bindings) {
+      auto binding_free_vars = FreeVars(BindingValue(binding));
+      free_var_set.insert(binding_free_vars.begin(), binding_free_vars.end());
+    }
+    Array<Var> free_var_list(free_var_set.begin(), free_var_set.end());
 
-  // update the call (change the op, update the argument, change the attrs)
-  legalized_call_cow->op = call_tir_inplace_op;
+    // for now, only handle exact match cases
+    auto matches_found = find_inplace_opportunities(block, free_var_list);
+    auto exact_matches = matches_found.second;
 
-  Array<Expr> new_args(legalized_call->args.begin(), legalized_call->args.end());
-  new_args.Set(0, new_gv);
-  legalized_call_cow->args = new_args;
+    Array<Binding> new_bindings;
+    int current_match_index = 0;
+    for (size_t i = 0; i < block->bindings.size(); i++) {
+      int candidate_binding_idx = exact_matches[current_match_index][0];
+      if (candidate_binding_idx != static_cast<int>(i)) {
+        new_bindings.push_back(block->bindings[i]);
+        continue;
+      }
+      auto target_binding = block->bindings[i];
+      auto target_call = Downcast<Call>(BindingValue(target_binding));
+      // can just pick the first index arbitrarily (only using one output for now too)
+      auto new_call = CreateInplaceCall(target_call, {exact_matches[current_match_index][1]});
+      // now replace the binding appropriately
+      if (auto* var_binding_node = target_binding.as<VarBindingNode>()) {
+        auto var_binding = GetRef<VarBinding>(var_binding_node);
+        auto* var_binding_cow = var_binding.CopyOnWrite();
+        var_binding_cow->value = new_call;
+        new_bindings.push_back(var_binding);
+      } else if (auto* match_cast_node = target_binding.as<MatchCastNode>()) {
+        auto match_cast = GetRef<MatchCast>(match_cast_node);
+        auto* match_cast_cow = match_cast.CopyOnWrite();
+        match_cast_cow->value = new_call;
+        new_bindings.push_back(match_cast);
+      } else {
+        CHECK(false) << "Invalid binding type";
+      }
+      current_match_index++;
+    }
+    return DataflowBlock(new_bindings, block->span);
+  }
 
-  ObjectPtr<CallTIRInplaceAttrs> attrs = make_object<CallTIRInplaceAttrs>();
-  attrs->inplace_indices = inplace_indices;
-  legalized_call_cow->attrs = Attrs(attrs);
+  // exposed for testing
+  Call CreateInplaceCall(const Call& call, const Array<Integer>& inplace_indices) {
+    static const auto& legalize_map = Op::GetAttrMap<FLegalize>("FLegalize");
+    static const auto& call_tir_inplace_op = Op::Get("relax.call_tir_inplace");
 
-  return legalized_call;
-}
+    auto op = Downcast<Op>(call->op);
+    auto legalized_call = Downcast<Call>(legalize_map[op](builder_, call));
+    auto* legalized_call_cow = legalized_call.CopyOnWrite();
+
+    // The legalized call should be call_tir. We will replace it with call_tir_inplace
+    // and replace the called PrimFunc with an inplace version
+    auto legal_op = Downcast<GlobalVar>(legalized_call->args[0]);
+    legalizers_added.push_back(legal_op);
+    auto inline_legal_op_name = legal_op->name_hint + "_inplace";
+
+    auto mod = builder_->GetContextIRModule();
+    auto legal_primfunc = Downcast<tir::PrimFunc>(mod->Lookup(legal_op));
+    auto* legal_primfunc_cow = legal_primfunc.CopyOnWrite();
+    size_t num_outs = inplace_indices.size();
+    size_t num_params = legal_primfunc->params.size();
+
+    // the replacement we must make:
+    // 1. For each output var, replace its corresponding buffers with the corresponding inplace
+    // index
+    //    var's buffers
+    // 2. For each output var, replace its instances with the corresponding inplace index var
+    // 3. Do the same for the *buffer vars* corresponding to the output vars
+    // 4. Remove the output vars from the param list and buffer map
+    Map<tir::Buffer, tir::Buffer> buffer_subst_map;
+    Map<tir::Var, tir::Var> var_subst_map;
+    for (size_t i = 0; i < num_outs; i++) {
+      // we will substitute output i with the corresponding param indicated by inplace indices
+      auto output_var = legal_primfunc->params[num_params - num_outs + i];
+      auto inplace_var = legal_primfunc->params[inplace_indices[i].IntValue()];
+      var_subst_map.Set(output_var, inplace_var);
+
+      // also do the same with the buffer vars
+      auto output_buffer = legal_primfunc->buffer_map.at(output_var);
+      auto inplace_buffer = legal_primfunc->buffer_map.at(inplace_var);
+      var_subst_map.Set(output_buffer->data, inplace_buffer->data);
+      buffer_subst_map.Set(output_buffer, inplace_buffer);
+    }
+
+    // apply substitutions
+    legal_primfunc_cow->body = remap_buffers(legal_primfunc->body, buffer_subst_map);
+    legal_primfunc_cow->body = tir::Substitute(
+        legal_primfunc->body, [&var_subst_map](const tir::Var& v) -> Optional<PrimExpr> {
+          if (var_subst_map.count(v)) {
+            return var_subst_map.at(v);
+          }
+          return Optional<PrimExpr>();
+        });
+
+    // remove the now-unused outputs from the buffer map
+    auto buffer_map = legal_primfunc->buffer_map;
+    for (size_t i = 0; i < num_outs; i++) {
+      buffer_map.erase(legal_primfunc->params[num_params - num_outs + i]);
+    }
+    legal_primfunc_cow->buffer_map = buffer_map;
+
+    // now get rid of the last num_outputs arguments
+    // (couldn't do earlier or else it would have thrown off the indexing)
+    legal_primfunc_cow->params = Array<tir::Var>(
+        legal_primfunc->params.begin(), legal_primfunc->params.begin() + (num_params - num_outs));
+
+    // note: this might be a good time to get rid of the old legalized function, but we don't do it
+    // now because later ops might need the same one. Instead, we will clean up at the end
+    auto new_gv = builder_->AddFunction(legal_primfunc, inline_legal_op_name);
+
+    // update the call (change the op, update the argument, change the attrs)
+    legalized_call_cow->op = call_tir_inplace_op;
+
+    Array<Expr> new_args(legalized_call->args.begin(), legalized_call->args.end());
+    new_args.Set(0, new_gv);
+    legalized_call_cow->args = new_args;
+
+    ObjectPtr<CallTIRInplaceAttrs> attrs = make_object<CallTIRInplaceAttrs>();
+    attrs->inplace_indices = inplace_indices;
+    legalized_call_cow->attrs = Attrs(attrs);
+
+    return legalized_call;
+  }
+
+  // exposed for testing
+  IRModule CurrentMod() { return builder_->GetContextIRModule(); }
+
+ private:
+  const IRModule& mod_;
+  Array<GlobalVar>
+      legalizers_added;    // Keep track of legalizers we add so we can clean up at the end.
+  Array<Var> func_params;  // The current function's params will be treated as non-aliased
+                           // (we are assuming good behavior on the user's part).
+};
 
 // export for testing
 namespace transform {
@@ -865,56 +960,21 @@ TVM_REGISTER_GLOBAL("relax.analysis.DataflowInPlaceAnalysis")
 
 // really only for testing (not actually an analysis, will move)
 TVM_REGISTER_GLOBAL("relax.analysis.SingleInplaceCall")
-    .set_body_typed(relax::add_inplace_legalization);
+    .set_body_typed([](const IRModule& mod, const Call& call,
+                       const Array<Integer>& inplace_indices) -> Array<ObjectRef> {
+      ModuleInplaceTransformer transformer(mod);
+      auto ret_call = transformer.CreateInplaceCall(call, inplace_indices);
+      return Array<ObjectRef>{ret_call, transformer.CurrentMod()};
+    });
 
 // not actually an analysis, will rename
 TVM_REGISTER_GLOBAL("relax.analysis.DataflowInsertInPlaceCalls").set_body_typed([]() -> Pass {
-  return CreateDataflowBlockPass(
-      [](const DataflowBlock& block, const IRModule& mod, const PassContext& ctx) -> DataflowBlock {
-        BlockBuilder bb = BlockBuilder::Create(mod);
-        std::unordered_set<Var, ObjectPtrHash, ObjectPtrEqual> free_var_set;
-        for (auto binding : block->bindings) {
-          auto binding_free_vars = FreeVars(BindingValue(binding));
-          free_var_set.insert(binding_free_vars.begin(), binding_free_vars.end());
-        }
-        Array<Var> free_var_list(free_var_set.begin(), free_var_set.end());
-
-        // for now, only handle exact match cases
-        auto matches_found = find_inplace_opportunities(block, free_var_list);
-        auto exact_matches = matches_found.second;
-
-        Array<Binding> new_bindings;
-        int current_match_index = 0;
-        for (size_t i = 0; i < block->bindings.size(); i++) {
-          int candidate_binding_idx = exact_matches[current_match_index][0];
-          if (candidate_binding_idx != static_cast<int>(i)) {
-            new_bindings.push_back(block->bindings[i]);
-            continue;
-          }
-          auto target_binding = block->bindings[i];
-          auto target_call = Downcast<Call>(BindingValue(target_binding));
-          // can just pick the first index arbitrarily (only using one output for now too)
-          auto new_call =
-              add_inplace_legalization(bb, target_call, {exact_matches[current_match_index][1]});
-          // now replace the binding appropriately
-          if (auto* var_binding_node = target_binding.as<VarBindingNode>()) {
-            auto var_binding = GetRef<VarBinding>(var_binding_node);
-            auto* var_binding_cow = var_binding.CopyOnWrite();
-            var_binding_cow->value = new_call;
-            new_bindings.push_back(var_binding);
-          } else if (auto* match_cast_node = target_binding.as<MatchCastNode>()) {
-            auto match_cast = GetRef<MatchCast>(match_cast_node);
-            auto* match_cast_cow = match_cast.CopyOnWrite();
-            match_cast_cow->value = new_call;
-            new_bindings.push_back(match_cast);
-          } else {
-            CHECK(false) << "Invalid binding type";
-          }
-          current_match_index++;
-        }
-        return DataflowBlock(new_bindings, block->span);
+  return tvm::transform::CreateModulePass(
+      [](const IRModule& mod, const PassContext& ctx) -> IRModule {
+        ModuleInplaceTransformer transformer(mod);
+        return transformer.Transform();
       },
-      0, "DataflowInsertInPlaceCalls", {});
+      0, "DataflowInsertInPlaceCalls", {}, false);
 });
 
 }  // namespace transform
