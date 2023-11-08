@@ -801,7 +801,7 @@ class PipelineRewriter : public StmtExprMutator {
 
     auto make_nop = []() { return BlockRealize({}, Bool(true), MakeBlock(Evaluate(0), {})); };
 
-    if (!analyzer_.CanProve(extent > 0)) {
+    if (analyzer_.CanProve(extent <= 0)) {
       return make_nop();
     }
     bool is_unit_loop = analyzer_.CanProveEqual(extent, 1);

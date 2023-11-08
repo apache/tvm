@@ -716,20 +716,7 @@ def conv2d_gemm_weight_transform(kernel, tile_rows, tile_cols):
         (K, N), lambda x, y: kernel[(x // IC) // KW, (x // IC) % KW, x % IC, y], "weight_flatten"
     )
 
-    pad_K = 0
-    pad_N = 0
-
-    if N % tile_rows != 0:
-        pad_N = tile_rows - (N % tile_rows)
-
-    # Tensorize will later make use of 4 tiles at once across the columns so make sure we pad such
-    # that the columns is multiple of 4
-    column_multiplier = 4
-    tile_cols_multiplied = tile_cols * column_multiplier
-    K_misalignment = K % tile_cols_multiplied
-
-    if K_misalignment != 0:
-        pad_K = tile_cols_multiplied - K_misalignment
+    pad_N, pad_K = tvm.topi.arm_cpu.arm_utils.get_conv2d_weights_padding(N, K, tile_rows, tile_cols)
 
     N_padded = N + pad_N
     K_padded = K + pad_K

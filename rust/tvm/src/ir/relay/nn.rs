@@ -246,7 +246,7 @@ external! {
     pub fn prelu(data: Expr, alpha: Expr, axis: i32) -> Expr;
 
     #[name("relay.op.nn._make.pad")]
-    pub fn pad(data: Expr, pad_width: Array<PrimExpr>, pad_value: PrimExpr, pad_mode: TVMString) -> Expr;
+    pub fn pad(data: Expr, pad_width: Array<Array<PrimExpr>>, pad_value: Expr, pad_mode: TVMString) -> Expr;
 
     #[name("relay.op.nn._make.dilate")]
     pub fn dilate(data: Expr, strides: Array<PrimExpr>, dilation_value: Array<PrimExpr>) -> Expr;

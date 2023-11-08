@@ -1145,6 +1145,31 @@ struct PackedFuncValueConverter {
   }                                                                                         \
   }
 
+#define TVM_MODULE_VTABLE_BEGIN(TypeKey)                                              \
+  const char* type_key() const final { return TypeKey; }                              \
+  PackedFunc GetFunction(const String& _name, const ObjectPtr<Object>& _self) final { \
+    using SelfPtr = std::remove_cv_t<decltype(this)>;
+#define TVM_MODULE_VTABLE_END() \
+  return PackedFunc(nullptr);   \
+  }
+#define TVM_MODULE_VTABLE_ENTRY(Name, MemFunc)                                                    \
+  if (_name == Name) {                                                                            \
+    return PackedFunc([_self](TVMArgs args, TVMRetValue* rv) -> void {                            \
+      using Helper = ::tvm::runtime::detail::ModuleVTableEntryHelper<decltype(MemFunc)>;          \
+      SelfPtr self = static_cast<SelfPtr>(_self.get());                                           \
+      CHECK_EQ(args.size(), Helper::LenArgs)                                                      \
+          << "Function `" << self->type_key() << "::" << Name << "` requires " << Helper::LenArgs \
+          << " arguments, but got " << args.size();                                               \
+      Helper::Call(rv, self, MemFunc, args, Helper::IndexSeq{});                                  \
+    });                                                                                           \
+  }
+#define TVM_MODULE_VTABLE_ENTRY_PACKED(Name, Func)                                \
+  if (_name == Name) {                                                            \
+    auto f = (Func);                                                              \
+    using FType = ::tvm::runtime::detail::function_signature<decltype(f)>::FType; \
+    return TypedPackedFunc<FType>(std::move(f)).packed();                         \
+  }
+
 /*!
  * \brief Export typed function as a PackedFunc
  *        that can be loaded by LibraryModule.
@@ -1329,6 +1354,61 @@ template <typename F, typename... Args>
 inline void for_each(const F& f, Args&&... args) {  // NOLINT(*)
   for_each_dispatcher<sizeof...(Args) == 0, 0, F>::run(f, std::forward<Args>(args)...);
 }
+
+template <typename T>
+struct ModuleVTableEntryHelper {};
+
+template <typename T, typename R, typename... Args>
+struct ModuleVTableEntryHelper<R (T::*)(Args...) const> {
+  using MemFnType = R (T::*)(Args...) const;
+  using IndexSeq = std::index_sequence_for<Args...>;
+  static constexpr const std::size_t LenArgs = sizeof...(Args);
+
+  template <std::size_t... Is>
+  static TVM_ALWAYS_INLINE void Call(TVMRetValue* rv, T* self, MemFnType f, TVMArgs args,
+                                     std::index_sequence<Is...>) {
+    *rv = (self->*f)(args[Is]...);
+  }
+};
+
+template <typename T, typename R, typename... Args>
+struct ModuleVTableEntryHelper<R (T::*)(Args...)> {
+  using MemFnType = R (T::*)(Args...);
+  using IndexSeq = std::index_sequence_for<Args...>;
+  static constexpr const std::size_t LenArgs = sizeof...(Args);
+
+  template <std::size_t... Is>
+  static TVM_ALWAYS_INLINE void Call(TVMRetValue* rv, T* self, MemFnType f, TVMArgs args,
+                                     std::index_sequence<Is...>) {
+    *rv = (self->*f)(args[Is]...);
+  }
+};
+
+template <typename T, typename... Args>
+struct ModuleVTableEntryHelper<void (T::*)(Args...) const> {
+  using MemFnType = void (T::*)(Args...) const;
+  using IndexSeq = std::index_sequence_for<Args...>;
+  static constexpr const std::size_t LenArgs = sizeof...(Args);
+
+  template <std::size_t... Is>
+  static TVM_ALWAYS_INLINE void Call(TVMRetValue* rv, T* self, MemFnType f, TVMArgs args,
+                                     std::index_sequence<Is...>) {
+    (self->*f)(args[Is]...);
+  }
+};
+
+template <typename T, typename... Args>
+struct ModuleVTableEntryHelper<void (T::*)(Args...)> {
+  using MemFnType = void (T::*)(Args...);
+  using IndexSeq = std::index_sequence_for<Args...>;
+  static constexpr const std::size_t LenArgs = sizeof...(Args);
+
+  template <std::size_t... Is>
+  static TVM_ALWAYS_INLINE void Call(TVMRetValue* rv, T* self, MemFnType f, TVMArgs args,
+                                     std::index_sequence<Is...>) {
+    (self->*f)(args[Is]...);
+  }
+};
 
 namespace parameter_pack {
 

@@ -16,7 +16,6 @@
 # under the License.
 """iOS RPC Server tests."""
 # pylint: disable=invalid-name, no-value-for-parameter, missing-function-docstring, import-error
-import sys
 import multiprocessing
 import pytest
 import numpy as np
