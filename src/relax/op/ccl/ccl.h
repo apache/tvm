@@ -42,7 +42,7 @@ Expr allgather(Expr data, Expr num_workers);
 Expr broadcast_from_worker0(Expr data);
 
 /*! \brief Perform a scatter operation from worker-0, chunking the given buffer into equal parts. */
-Expr scatter_from_worker0(Expr data, int num_workers);
+Expr scatter_from_worker0(Expr data, int num_workers, int axis);
 
 }  // namespace relax
 }  // namespace tvm

@@ -16,7 +16,7 @@
 # under the License.
 # pylint: disable=invalid-name
 """Default legalization function for ccl operators."""
-from tvm import tir, arith
+from tvm import tir, arith, topi
 from ...block_builder import BlockBuilder
 from ...expr import Call, Expr, ShapeExpr
 from ...op import call_dps_packed
@@ -80,28 +80,45 @@ def _broadcast_from_worker0(_bb: BlockBuilder, call: Call) -> Expr:
     )
 
 
-@register_legalize("relax.ccl.scatter_from_worker0")
-def _scatter_from_worker0(_bb: BlockBuilder, call: Call) -> Expr:
-    output_shape = []
+def transpose_for_ccl(_bb: BlockBuilder, expr: Expr, sharding_dim: int, num_workers: int):
     assert isinstance(
-        call.args[0].struct_info, TensorStructInfo
-    ), "The input struct info of scatter_from_worker0 should be TensorStructInfo."
-    assert isinstance(call.args[0].struct_info.shape.struct_info, ShapeStructInfo)
-    arg_shape = call.args[0].struct_info.shape.struct_info
+        expr.struct_info, TensorStructInfo
+    ), "The input struct info should be TensorStructInfo."
+    assert isinstance(expr.struct_info.shape.struct_info, ShapeStructInfo)
+    arg_shape = expr.struct_info.shape.struct_info
+    new_shape = []
     for i, shape_value in enumerate(arg_shape.values):
-        if i == 0:
-            modulo = arith.Analyzer().simplify(shape_value % call.attrs.num_workers)
+        if i == sharding_dim:
+            modulo = arith.Analyzer().simplify(shape_value % num_workers)
             assert modulo == 0, (
                 "scatter_from_worker0 expects the size of axis 0 of input tensor "
                 "to be divisible by num_workers. However, the axis 0 of input tensor "
-                f"is {shape_value} while num_workers is {call.attrs.num_workers}"
+                f"is {shape_value} while num_workers is {num_workers}"
             )
-            output_shape.append(tir.div(shape_value, call.attrs.num_workers))
+            new_shape.append(num_workers)
+            new_shape.append(tir.div(shape_value, num_workers))
         else:
-            output_shape.append(shape_value)
+            new_shape.append(shape_value)
+    reshape_var = _bb.emit_te(topi.reshape, expr, new_shape)
+    if sharding_dim == 0:
+        return reshape_var
+    permute_order = (
+        [sharding_dim] + list(range(sharding_dim)) + list(range(sharding_dim + 1, len(new_shape)))
+    )
+    transpose_var = _bb.emit_te(topi.transpose, reshape_var, permute_order)
+    return transpose_var
+
+
+@register_legalize("relax.ccl.scatter_from_worker0")
+def _scatter_from_worker0(_bb: BlockBuilder, call: Call) -> Expr:
+    transpose_var = transpose_for_ccl(
+        _bb, call.args[0], call.attrs.axis, call.attrs.num_workers
+    )
+    output_shape = transpose_var.struct_info.shape.struct_info.values
+    output_shape = output_shape[1:]
     return call_dps_packed(
         "runtime.disco.scatter_from_worker0",
-        call.args[0],
+        transpose_var,
         out_sinfo=TensorStructInfo(
             shape=output_shape,
             dtype=call.args[0].struct_info.dtype,

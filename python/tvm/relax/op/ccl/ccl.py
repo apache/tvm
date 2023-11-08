@@ -84,7 +84,7 @@ def broadcast_from_worker0(x: Expr) -> Expr:
     return _ffi_api.broadcast_from_worker0(x)
 
 
-def scatter_from_worker0(x: Expr, num_workers: int) -> Expr:
+def scatter_from_worker0(x: Expr, num_workers: int, axis: int = 0) -> Expr:
     """Perform a scatter operation from worker-0, chunking the given buffer into equal parts.
 
     Parameters
@@ -95,9 +95,12 @@ def scatter_from_worker0(x: Expr, num_workers: int) -> Expr:
     num_worker : int
       The number of workers, i.e. the number of parts the given buffer should be chunked into.
 
+    axis : int
+      The dimension of the tensor to be scattered. Default is 0.
+      
     Returns
     -------
     result : relax.Expr
       Chunked Tensor received by different workers.
     """
-    return _ffi_api.scatter_from_worker0(x, num_workers)
+    return _ffi_api.scatter_from_worker0(x, num_workers, axis)

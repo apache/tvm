@@ -107,11 +107,12 @@ TVM_REGISTER_OP("relax.ccl.broadcast_from_worker0")
     .set_attr<Bool>("FPurity", Bool(true));
 
 /* relax.ccl.scatter_from_worker0 */
-TVM_REGISTER_NODE_TYPE(ScatterFromWorker0Attrs);
+TVM_REGISTER_NODE_TYPE(ScatterAttrs);
 
-Expr scatter_from_worker0(Expr data, int num_workers) {
-  ObjectPtr<ScatterFromWorker0Attrs> attrs = make_object<ScatterFromWorker0Attrs>();
+Expr scatter_from_worker0(Expr data, int num_workers, int axis) {
+  ObjectPtr<ScatterAttrs> attrs = make_object<ScatterAttrs>();
   attrs->num_workers = std::move(num_workers);
+  attrs->axis = std::move(axis);
   static const Op& op = Op::Get("relax.ccl.scatter_from_worker0");
 
   return Call(op, {std::move(data)}, Attrs{attrs}, {});
@@ -119,11 +120,11 @@ Expr scatter_from_worker0(Expr data, int num_workers) {
 
 TVM_REGISTER_GLOBAL("relax.op.ccl.scatter_from_worker0").set_body_typed(scatter_from_worker0);
 
-StructInfo InferStructInfoScatterFromWorker0(const Call& call, const BlockBuilder& ctx) {
+StructInfo InferStructInfoScatter(const Call& call, const BlockBuilder& ctx) {
   TensorStructInfo input_sinfo = GetUnaryInputTensorStructInfo(call, ctx);
   DataType output_dtype = input_sinfo->dtype;
 
-  const auto* attrs = call->attrs.as<ScatterFromWorker0Attrs>();
+  const auto* attrs = call->attrs.as<ScatterAttrs>();
   int num_workers = attrs->num_workers;
 
   arith::Analyzer* analyzer = ctx->GetAnalyzer();
@@ -139,7 +140,7 @@ StructInfo InferStructInfoScatterFromWorker0(const Call& call, const BlockBuilde
   }
 
   Array<PrimExpr> output_shape = input_shape.value();
-  output_shape.Set(0, div(output_shape[0], num_workers));
+  output_shape.Set(attrs->axis, div(output_shape[attrs->axis], num_workers));
   if (input_sinfo->vdevice.defined()) {
     return TensorStructInfo(ShapeExpr(output_shape), output_dtype, input_sinfo->vdevice.value());
   }
@@ -150,8 +151,8 @@ TVM_REGISTER_OP("relax.ccl.scatter_from_worker0")
     .set_num_inputs(1)
     .add_argument("x", "Tensor",
                   "The buffer to be divided into equal parts and sent to each worker accordingly.")
-    .set_attrs_type<ScatterFromWorker0Attrs>()
-    .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoScatterFromWorker0)
+    .set_attrs_type<ScatterAttrs>()
+    .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoScatter)
     .set_attr<Bool>("FPurity", Bool(true));
 
 }  // namespace relax
