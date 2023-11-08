@@ -24,137 +24,39 @@
 #include <tvm/relax/attrs/statistical.h>
 #include <tvm/relax/distributed/axis_group_graph.h>
 #include <tvm/relax/expr.h>
-#include <tvm/tir/stmt_functor.h>
 
 #include <numeric>
 
 namespace tvm {
-
-namespace tir {
-
-class BufferAxisGraphExtractor : public StmtExprVisitor {
- public:
-  using TIRVarAxis = std::pair<Var, int>;
-  using BufferAxis = std::pair<Buffer, int>;
-  static std::vector<std::vector<TIRVarAxis>> GetTIRVarAxisGraph(const PrimFunc& prim_func) {
-    BufferAxisGraphExtractor extractor;
-    extractor(prim_func->body);
-    Map<Buffer, Var> inverse_buffer_map;
-    for (const auto& pr : prim_func->buffer_map) {
-      inverse_buffer_map.Set(pr.second, pr.first);
-    }
-    std::vector<std::vector<TIRVarAxis>> tir_var_axis_group_list;
-    std::unordered_set<BufferAxis, BufferAxisHash> visited;
-    for (const auto& pr : prim_func->buffer_map) {
-      Var param = pr.first;
-      Buffer buffer = pr.second;
-      for (int i = 0; i < static_cast<int>(buffer->shape.size()); i++) {
-        if (extractor.buffer_axis_graph_.count({buffer, i})) {
-          std::vector<BufferAxis> buffer_axis_group;
-          extractor.DFSGraph({buffer, i}, &visited, &buffer_axis_group);
-          if (buffer_axis_group.size() <= 1) {
-            continue;
-          }
-          std::vector<TIRVarAxis> tir_var_axis_group;
-          for (const auto& buffer_axis : buffer_axis_group) {
-            if (!inverse_buffer_map.count(buffer_axis.first)) {
-              continue;
-            }
-            tir_var_axis_group.push_back(
-                {inverse_buffer_map[buffer_axis.first], buffer_axis.second});
-          }
-          tir_var_axis_group_list.push_back(tir_var_axis_group);
-        }
-      }
-    }
-    return tir_var_axis_group_list;
+namespace tir{
+Var GetShardingVarFromIndex(PrimExpr index, Map<Var, Range> var_range, arith::Analyzer* analyzer){
+  if(index.as<VarNode>()){
+    return Downcast<Var>(index);
   }
-
- private:
-  class BufferAxisHash {
-   public:
-    size_t operator()(const BufferAxis& buffer_axis) const {
-      size_t const h1(ObjectPtrHash()(buffer_axis.first));
-      size_t const h2(std::hash<int>()(buffer_axis.second));
-      return h1 ^ (h2 << 1);
-    }
-  };
-
-  void VisitStmt_(const BufferStoreNode* op) final {
-    StmtExprVisitor::VisitStmt_(op);
-    buffer_access_indices_.push_back({op->buffer, op->indices});
+  arith::IterSumExpr iter_sum = arith::NormalizeToIterSum(index, var_range, analyzer);
+  if(!is_zero(iter_sum->base)){
+    return Var();
   }
-
-  void VisitExpr_(const BufferLoadNode* op) final {
-    StmtExprVisitor::VisitExpr_(op);
-    buffer_access_indices_.push_back({op->buffer, op->indices});
+  if(iter_sum->args.empty()){
+    return Var();
   }
-
-  void VisitStmt_(const BlockNode* op) final {
-    if (op->name_hint == "root") {
-      StmtExprVisitor::VisitStmt_(op);
-      return;
-    }
-    buffer_access_indices_.clear();
-    StmtExprVisitor::VisitStmt_(op);
-    std::unordered_set<BufferAxis, BufferAxisHash> mapped_axis_set;
-    arith::Analyzer analyzer;
-    for (const auto& access_pr : buffer_access_indices_) {
-      Buffer buffer = access_pr.first;
-      Array<PrimExpr> indices = access_pr.second;
-      for (int i = 0; i < static_cast<int>(indices.size()); i++) {
-        if (mapped_axis_set.count({buffer, i})) {
-          continue;
-        }
-        mapped_axis_set.insert({buffer, i});
-        for (const auto& another_access_pr : buffer_access_indices_) {
-          if (another_access_pr.first.same_as(buffer)) {
-            continue;
-          }
-          Buffer another_buffer = another_access_pr.first;
-          Array<PrimExpr> another_indices = another_access_pr.second;
-          for (int j = 0; j < static_cast<int>(another_indices.size()); j++) {
-            if (mapped_axis_set.count({another_buffer, j})) {
-              continue;
-            }
-            if (analyzer.CanProveEqual(indices[i], another_indices[j])) {
-              mapped_axis_set.insert({another_buffer, j});
-              JoinBufferAxis({buffer, i}, {another_buffer, j});
-            }
-          }
-        }
-      }
-    }
+  // floormod(floordiv(source, lower_factor), extent) * scale
+  arith::IterSplitExpr highest_iter_split = iter_sum->args[0];
+  const auto* source_var = highest_iter_split->source->source.as<VarNode>();
+  if(!source_var){
+    return Var();
   }
-
-  void JoinBufferAxis(BufferAxis axis1, BufferAxis axis2) {
-    if (!buffer_axis_graph_.count(axis1)) {
-      buffer_axis_graph_[axis1] = {};
-    }
-    if (!buffer_axis_graph_.count(axis2)) {
-      buffer_axis_graph_[axis2] = {};
-    }
-    buffer_axis_graph_[axis1].push_back(axis2);
-    buffer_axis_graph_[axis2].push_back(axis1);
+  // the floormod must take no effect
+  if(!analyzer->CanProve(floordiv(var_range[GetRef<Var>(source_var)]->extent, highest_iter_split->lower_factor) <= highest_iter_split->extent)){
+    return Var();
   }
+  return GetRef<Var>(source_var);
+}
+} // namespace tir
+} // namespace tvm
 
-  void DFSGraph(BufferAxis cur, std::unordered_set<BufferAxis, BufferAxisHash>* visited,
-                std::vector<BufferAxis>* buffer_axis_group) {
-    if (visited->count(cur)) {
-      return;
-    }
-    visited->insert(cur);
-    buffer_axis_group->push_back(cur);
-    for (const auto& next : buffer_axis_graph_[cur]) {
-      DFSGraph(next, visited, buffer_axis_group);
-    }
-  }
 
-  std::vector<std::pair<Buffer, Array<PrimExpr>>> buffer_access_indices_;
-  std::unordered_map<BufferAxis, std::vector<BufferAxis>, BufferAxisHash> buffer_axis_graph_;
-};
-
-}  // namespace tir
+namespace tvm {
 
 namespace relax {
 namespace distributed {
@@ -434,40 +336,54 @@ void BuildAxisGraphReshape(const Var& output_var, const Call& call,
   }
 }
 
+inline int GetNumOutput(Call call) { 
+  StructInfo sinfo = call->sinfo_args[0]; 
+  if(const auto* tuple_sinfo = sinfo.as<TupleStructInfoNode>()){
+    return tuple_sinfo->fields.size();
+  } else {
+    return 1;
+  }
+}
+
 void BuildAxisGraphCallTIR(const Var& output_var, const Call& call, const tir::PrimFunc& func,
                            distributed::AxisGroupGraph* axis_group_graph) {
   auto tir_var_axis_group_list = tir::BufferAxisGraphExtractor::GetTIRVarAxisGraph(func);
-  Map<tir::Var, Expr> tir_var_to_relax_expr;
-  Array<Expr> tensor_list = Downcast<Tuple>(call->args[1])->fields;
-  tensor_list.push_back(output_var);
-  for (int i = 0; i < static_cast<int>(tensor_list.size()); i++) {
+  Map<tir::Var, Expr> input_var_to_relax_expr;
+  Array<Expr> input_list = Downcast<Tuple>(call->args[1])->fields;
+  input_list.push_back(output_var);
+  for (int i = 0; i < static_cast<int>(input_list.size()); i++) {
     if (func->buffer_map.count(func->params[i])) {
-      tir_var_to_relax_expr.Set(func->params[i], tensor_list[i]);
+      input_var_to_relax_expr.Set(func->params[i], input_list[i]);
     }
   }
+  int num_params = func->params.size();
+  int num_outputs = GetNumOutput(call);
   for (const auto& var_axis_group : tir_var_axis_group_list) {
-    int output_idx = -1;
+    std::unordered_map<int, int> output_tensor_indices;
     for (int i = 0; i < static_cast<int>(var_axis_group.size()); i++) {
-      if (tir_var_to_relax_expr[var_axis_group[i].first].same_as(output_var)) {
-        output_idx = i;
-        break;
+      for(int j=num_params-num_outputs; j<num_params; j++){
+        if (func->params[j].same_as(var_axis_group[i].first)) {
+          output_tensor_indices[i] = j - num_params + num_outputs;
+          break;
+        }
       }
     }
-    if (output_idx == -1) {
+    if (output_tensor_indices.empty()) {
       for (int i = 1; i < static_cast<int>(var_axis_group.size()); i++) {
         axis_group_graph->JoinAxis(
-            {tir_var_to_relax_expr[var_axis_group[i].first].get(), var_axis_group[i].second},
-            {tir_var_to_relax_expr[var_axis_group[0].first].get(), var_axis_group[0].second},
+            {input_var_to_relax_expr[var_axis_group[i].first].get(), var_axis_group[i].second},
+            {input_var_to_relax_expr[var_axis_group[0].first].get(), var_axis_group[0].second},
             distributed::AxisGroupGraph::EdgeType::kSimbling);
       }
     } else {
-      for (int i = 0; i < static_cast<int>(var_axis_group.size()); i++) {
-        if (i != output_idx) {
-          axis_group_graph->JoinAxis(
-              {tir_var_to_relax_expr[var_axis_group[i].first].get(), var_axis_group[i].second},
-              {tir_var_to_relax_expr[var_axis_group[output_idx].first].get(),
-               var_axis_group[output_idx].second},
-              distributed::AxisGroupGraph::EdgeType::kDescend);
+      for(const auto& pr: output_tensor_indices){
+        for (int i = 0; i < static_cast<int>(var_axis_group.size()); i++) {
+          if (!output_tensor_indices.count(i)) {
+            axis_group_graph->JoinAxis(
+                {input_var_to_relax_expr[var_axis_group[i].first].get(), var_axis_group[i].second},
+                {output_var.get(), var_axis_group[pr.first].second, pr.second},
+                distributed::AxisGroupGraph::EdgeType::kDescend);
+          }
         }
       }
     }

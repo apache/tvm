@@ -36,8 +36,8 @@ else:
 
 __all__ = (
     _relax.__all__
-    + dist.__all__
     + [
+        "dist",
         "Callable",
         "Object",
         "Prim",

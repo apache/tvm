@@ -72,10 +72,7 @@ StructInfo InferDistStructInfoStatistical(const Call& call, const BlockBuilder& 
   ICHECK_EQ(static_cast<int>(out_shape.size()), out_ndim);
   TensorStructInfo output_tensor_sinfo = TensorStructInfo(ShapeExpr(out_shape), data_sinfo->dtype);
 
-  distributed::ShardingSpec output_sharding_spec =
-      InferShardingSpec(call, ctx, output_tensor_sinfo, distributed::BuildAxisGraphReduce);
-  return distributed::DTensorStructInfo(output_tensor_sinfo, output_sharding_spec.first,
-                                        output_sharding_spec.second);
+  return InferShardingSpec(call, ctx, output_tensor_sinfo, distributed::BuildAxisGraphReduce);
 }
 RELAX_REGISTER_STATISTICAL_DIST_INFER_STRUCT_INFO(max);
 RELAX_REGISTER_STATISTICAL_DIST_INFER_STRUCT_INFO(mean);

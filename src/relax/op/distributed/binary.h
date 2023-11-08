@@ -67,10 +67,7 @@ StructInfo InferDistStructInfoBroadcast(const Call& call, const BlockBuilder& ct
     ctx->ReportFatal(Diagnostic::Error(call)
                      << "Cannot infer shape for binary broadcast operator.");
   }
-  distributed::ShardingSpec output_sharding_spec =
-      InferShardingSpec(call, ctx, output_tensor_sinfo, distributed::BuildAxisGraphBinary);
-  return distributed::DTensorStructInfo(output_tensor_sinfo, output_sharding_spec.first,
-                                        output_sharding_spec.second);
+  return InferShardingSpec(call, ctx, output_tensor_sinfo, distributed::BuildAxisGraphBinary);
 }
 
 StructInfo InferDistStructInfoBroadcastArith(const Call& call, const BlockBuilder& ctx);
