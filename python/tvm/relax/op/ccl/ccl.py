@@ -97,7 +97,7 @@ def scatter_from_worker0(x: Expr, num_workers: int, axis: int = 0) -> Expr:
 
     axis : int
       The dimension of the tensor to be scattered. Default is 0.
-      
+
     Returns
     -------
     result : relax.Expr

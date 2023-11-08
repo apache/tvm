@@ -50,10 +50,9 @@ struct ScatterAttrs : public tvm::AttrsNode<ScatterAttrs> {
         .describe(
             "The number of workers, also the number of parts the given buffer should be chunked "
             "into.");
-    TVM_ATTR_FIELD(axis)
-        .describe(
-            "The axis of the tensor to be scattered. The tensor will be chunked along "
-            "this axis.");
+    TVM_ATTR_FIELD(axis).describe(
+        "The axis of the tensor to be scattered. The tensor will be chunked along "
+        "this axis.");
   }
 };  // struct ScatterAttrs
 

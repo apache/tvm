@@ -80,7 +80,9 @@ def _broadcast_from_worker0(_bb: BlockBuilder, call: Call) -> Expr:
     )
 
 
-def transpose_for_ccl(_bb: BlockBuilder, expr: Expr, sharding_dim: int, num_workers: int):
+# Since collective communication ops are performed on contiguous memory,
+# we need to reshape and transpose the input tensor to make sharding dimension in the highest order
+def transpose_for_ccl(_bb: BlockBuilder, expr: Expr, axis: int, num_workers: int):
     assert isinstance(
         expr.struct_info, TensorStructInfo
     ), "The input struct info should be TensorStructInfo."
@@ -88,10 +90,10 @@ def transpose_for_ccl(_bb: BlockBuilder, expr: Expr, sharding_dim: int, num_work
     arg_shape = expr.struct_info.shape.struct_info
     new_shape = []
     for i, shape_value in enumerate(arg_shape.values):
-        if i == sharding_dim:
+        if i == axis:
             modulo = arith.Analyzer().simplify(shape_value % num_workers)
             assert modulo == 0, (
-                "scatter_from_worker0 expects the size of axis 0 of input tensor "
+                f"scatter_from_worker0 expects the size of axis {axis} of input tensor "
                 "to be divisible by num_workers. However, the axis 0 of input tensor "
                 f"is {shape_value} while num_workers is {num_workers}"
             )
@@ -100,20 +102,16 @@ def transpose_for_ccl(_bb: BlockBuilder, expr: Expr, sharding_dim: int, num_work
         else:
             new_shape.append(shape_value)
     reshape_var = _bb.emit_te(topi.reshape, expr, new_shape)
-    if sharding_dim == 0:
+    if axis == 0:
         return reshape_var
-    permute_order = (
-        [sharding_dim] + list(range(sharding_dim)) + list(range(sharding_dim + 1, len(new_shape)))
-    )
+    permute_order = [axis] + list(range(axis)) + list(range(axis + 1, len(new_shape)))
     transpose_var = _bb.emit_te(topi.transpose, reshape_var, permute_order)
     return transpose_var
 
 
 @register_legalize("relax.ccl.scatter_from_worker0")
 def _scatter_from_worker0(_bb: BlockBuilder, call: Call) -> Expr:
-    transpose_var = transpose_for_ccl(
-        _bb, call.args[0], call.attrs.axis, call.attrs.num_workers
-    )
+    transpose_var = transpose_for_ccl(_bb, call.args[0], call.attrs.axis, call.attrs.num_workers)
     output_shape = transpose_var.struct_info.shape.struct_info.values
     output_shape = output_shape[1:]
     return call_dps_packed(
