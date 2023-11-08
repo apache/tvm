@@ -49,14 +49,12 @@ using namespace tvm::te;
  * \param tag The tag to mark the operation.
  * \return The normalized tensor, with the same shape as data.
  */
-inline Tensor rms_norm(const Tensor& data, const Tensor& weight, const Tensor& bias,
-                       const Array<Integer>& axis, double epsilon, std::string name = "T_rms_norm",
+inline Tensor rms_norm(const Tensor& data, const Tensor& weight, const Array<Integer>& axis,
+                       double epsilon, std::string name = "T_rms_norm",
                        std::string tag = kInjective) {
   const auto& data_type = data->dtype;
   const auto& weight_type = weight.defined() ? weight->dtype : data_type;
   ICHECK(data_type == weight_type) << "rms_norm: data and weight must have the same type";
-  const auto& bias_type = bias.defined() ? bias->dtype : data_type;
-  ICHECK(data_type == bias_type) << "rms_norm: data and bias must have the same type";
 
   const auto& data_fp32 = cast(data, DataType::Float(32));
   const auto& weight_fp32 = cast(weight, DataType::Float(32));
@@ -83,9 +81,6 @@ inline Tensor rms_norm(const Tensor& data, const Tensor& weight, const Tensor& b
     auto output =
         data_fp32(indices) * weight_fp32(reduce_indices) *
         tvm::rsqrt(square_sum(non_reduce_indices) / reduce_extent + make_const(data_type, epsilon));
-    if (bias.defined()) {
-      output += bias(reduce_indices);
-    }
     return output;
   };
   auto rms_norm = tvm::te::compute(data_fp32->shape, rms_norm_func, name, tag);
