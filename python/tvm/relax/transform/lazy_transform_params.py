@@ -16,9 +16,7 @@
 # under the License.
 # pylint: disable=invalid-name, unused-argument, missing-function-docstring, abstract-method
 """Relax LazyTransformParams pass."""
-from typing import Optional
 import tvm
-import itertools
 from tvm import IRModule, relax
 from tvm.relax.expr_functor import PyExprMutator, PyExprVisitor, mutator, visitor
 
