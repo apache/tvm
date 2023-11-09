@@ -41,8 +41,6 @@ using namespace tvm::te;
  * \param data N-D tensor with shape [d_0, d_1, ..., d_{N-1}]
  * \param weight K-D tensor with shape [r_0, r_1, ..., r_{K-1}] where K == len(axis) and
  *               d_{axis_k} == r_k
- * \param bias Optional, K-D tensor with shape [r_0, r_1, ..., r_{K-1}] where
- *             d_{axis_k} == r_k
  * \param axis The axis to normalize over.
  * \param epsilon The epsilon value to avoid division by zero.
  * \param name The name of the operation.
