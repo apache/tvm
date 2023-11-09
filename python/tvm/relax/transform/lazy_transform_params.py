@@ -16,6 +16,8 @@
 # under the License.
 # pylint: disable=invalid-name, unused-argument, missing-function-docstring, abstract-method
 """Relax LazyTransformParams pass."""
+from typing import Optional
+
 import tvm
 from tvm import IRModule, relax
 from tvm.relax.expr_functor import PyExprMutator, PyExprVisitor, mutator, visitor
@@ -185,7 +187,7 @@ class LazyTransformParamsFuncCreator:
 
 @mutator
 class LazyInputMutator(PyExprMutator):
-    def __init__(self, func_creator, mod: IRModule | None = None) -> None:
+    def __init__(self, func_creator, mod: Optional[IRModule] = None) -> None:
         self.func_creator = func_creator
         super().__init__(mod)
 
@@ -209,7 +211,7 @@ class LazyInputMutator(PyExprMutator):
 
 @mutator
 class LazyOutputMutator(PyExprMutator):
-    def __init__(self, func_creator, mod: IRModule | None = None) -> None:
+    def __init__(self, func_creator, mod: Optional[IRModule] = None) -> None:
         self.func_creator = func_creator
         self.killed_vars = set()
         super().__init__(mod)
