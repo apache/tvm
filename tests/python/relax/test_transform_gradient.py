@@ -922,6 +922,57 @@ def test_const():
     assert_structural_equal(After, Expected)
 
 
+def test_simplify_matmul_pattern():
+    # fmt: off
+    @I.ir_module
+    class Before:
+        @R.function
+        def main(x: R.Tensor((3, 3), "float32"), y: R.Tensor((3, 3), "float32")):
+            with R.dataflow():
+                lv1 = R.permute_dims(x)
+                lv2 = R.permute_dims(y)
+                lv3 = R.matmul(lv1, lv2, out_dtype="float32")
+                gv = R.sum(lv3)
+                R.output(gv)
+            return gv
+
+    @I.ir_module
+    class Expected:
+        @R.function
+        def main_adjoint(x: R.Tensor((3, 3), dtype="float32"), y: R.Tensor((3, 3), dtype="float32")) -> R.Tuple(R.Tensor((), dtype="float32"), R.Tuple(R.Tensor((3, 3), dtype="float32"), R.Tensor((3, 3), dtype="float32"))):
+            with R.dataflow():
+                lv1: R.Tensor((3, 3), dtype="float32") = R.permute_dims(x, axes=None)
+                lv2: R.Tensor((3, 3), dtype="float32") = R.permute_dims(y, axes=None)
+                lv3: R.Tensor((3, 3), dtype="float32") = R.matmul(lv1, lv2, out_dtype="float32")
+                gv: R.Tensor((), dtype="float32") = R.sum(lv3, axis=None, keepdims=False)
+                gv_adjoint: R.Tensor((), dtype="float32") = R.ones(R.shape([]), dtype="float32")
+                lv3_adjoint: R.Tensor((3, 3), dtype="float32") = R.broadcast_to(gv_adjoint, R.shape([3, 3]))
+                lv: R.Tensor((3, 3), dtype="float32") = R.permute_dims(lv3_adjoint, axes=[1, 0])
+                lv1_1: R.Tensor((3, 3), dtype="float32") = R.permute_dims(x, axes=[1, 0])
+                y_adjoint: R.Tensor((3, 3), dtype="float32") = R.matmul(lv, lv1_1, out_dtype="void")
+                lv2_1: R.Tensor((3, 3), dtype="float32") = R.permute_dims(y, axes=[1, 0])
+                lv3_1: R.Tensor((3, 3), dtype="float32") = R.permute_dims(lv3_adjoint, axes=[1, 0])
+                x_adjoint: R.Tensor((3, 3), dtype="float32") = R.matmul(lv2_1, lv3_1, out_dtype="void")
+                x_adjoint_out: R.Tensor((3, 3), dtype="float32") = x_adjoint
+                y_adjoint_out: R.Tensor((3, 3), dtype="float32") = y_adjoint
+                R.output(gv, x_adjoint_out, y_adjoint_out)
+            return (gv, (x_adjoint_out, y_adjoint_out))
+        @R.function
+        def main(x: R.Tensor((3, 3), dtype="float32"), y: R.Tensor((3, 3), dtype="float32")) -> R.Tensor((), dtype="float32"):
+            with R.dataflow():
+                lv1: R.Tensor((3, 3), dtype="float32") = R.permute_dims(x, axes=None)
+                lv2: R.Tensor((3, 3), dtype="float32") = R.permute_dims(y, axes=None)
+                lv3: R.Tensor((3, 3), dtype="float32") = R.matmul(lv1, lv2, out_dtype="float32")
+                gv: R.Tensor((), dtype="float32") = R.sum(lv3, axis=None, keepdims=False)
+                R.output(gv)
+            return gv
+
+    # fmt: on
+
+    After = relax.transform.Gradient("main")(Before)
+    assert_structural_equal(After, Expected)
+
+
 def test_shape_expr():
     # fmt: off
     @I.ir_module
