@@ -97,7 +97,7 @@ def verify_fc_int8_acc32(m=1024, n=1024, k=1024, target="llvm -mcpu=cascadelake"
     # t_func.export_library("tensorize_acc32.o")
 
 
-@tvm.testing.requires_cascadelake
+@tvm.testing.requires_x86_vnni
 def test_fc_int8_acc32_vnni():
     # For LLVM < 8.0, it shows "'cascadelake' is not a recognized processor for this target
     # (ignoring processor)" error with the following setting. After LLVM 8.0 is enabled in the
@@ -105,7 +105,7 @@ def test_fc_int8_acc32_vnni():
     verify_fc_int8_acc32()
 
 
-@tvm.testing.requires_skylake_avx512
+@tvm.testing.requires_x86_avx512
 def test_fc_int8_acc32_avx512():
     verify_fc_int8_acc32(target="llvm -mcpu=skylake-avx512")
 

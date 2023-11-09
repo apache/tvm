@@ -63,13 +63,14 @@ bool EthosuIdentityRel(const Array<Type>& types, int num_inputs, const Attrs& at
 }
 
 Expr MakeEthosuIdentity(Expr ifm, Expr lut, double ifm_scale, int ifm_zero_point, double ofm_scale,
-                        int ofm_zero_point, String activation) {
+                        int ofm_zero_point, String activation, String rounding_mode) {
   auto attrs = make_object<EthosuIdentityAttrs>();
   attrs->ifm_scale = ifm_scale;
   attrs->ifm_zero_point = ifm_zero_point;
   attrs->ofm_scale = ofm_scale;
   attrs->ofm_zero_point = ofm_zero_point;
   attrs->activation = std::move(activation);
+  attrs->rounding_mode = std::move(rounding_mode);
   static const Op& op = Op::Get("contrib.ethosu.identity");
   return Call(op, {ifm, lut}, Attrs(attrs), {});
 }

@@ -1,5 +1,3 @@
-#!/bin/bash
-# Licensed to the Apache Software Foundation (ASF) under one
 # or more contributor license agreements.  See the NOTICE file
 # distributed with this work for additional information
 # regarding copyright ownership.  The ASF licenses this file
@@ -15,20 +13,8 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+"""FFI APIs for tvm.script"""
+import tvm._ffi
 
-set -euxo pipefail
 
-BUILD_DIR=$1
-mkdir -p "$BUILD_DIR"
-cd "$BUILD_DIR"
-cp ../cmake/config.cmake .
-
-echo set\(USE_OPENCL_GTEST /googletest\) >> config.cmake
-if [ -f "${ADRENO_OPENCL}/CL/cl_qcom_ml_ops.h" ] ; then
-echo set\(USE_CLML ${ADRENO_OPENCL}\) >> config.cmake
-fi
-echo set\(USE_RPC ON\) >> config.cmake
-echo set\(USE_GRAPH_EXECUTOR ON\) >> config.cmake
-echo set\(USE_LIBBACKTRACE AUTO\) >> config.cmake
-echo set\(USE_LLVM ON\) >> config.cmake
-echo set\(USE_OPENCL ON\) >> config.cmake
+tvm._ffi._init_api("script", __name__)

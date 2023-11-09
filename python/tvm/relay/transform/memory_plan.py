@@ -287,7 +287,7 @@ class StorageCoalesce(ExprMutator):
             dynamic_regions.append(lhs)
         else:
             # A new scope is created when entering a new region with different
-            # device device.
+            # device.
             region = self.current_region(dtype)
             if region.device and region.device.device_type != dev.device_type:
                 self.enter_scope()

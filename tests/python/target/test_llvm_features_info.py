@@ -30,7 +30,13 @@ def test_llvm_targets():
 
     # check blank results
     assert len(codegen.llvm_get_targets())
+    assert len(codegen.llvm_get_system_cpu())
+    assert len(codegen.llvm_get_system_triple())
+    assert len(codegen.llvm_get_system_x86_vendor())
     # check ffi vs python
+    assert codegen.llvm_get_system_cpu() == _ffi_api.llvm_get_system_cpu()
+    assert codegen.llvm_get_system_triple() == _ffi_api.llvm_get_system_triple()
+    assert codegen.llvm_get_system_x86_vendor() == _ffi_api.llvm_get_system_x86_vendor()
     assert str(codegen.llvm_get_targets()) == str(_ffi_api.llvm_get_targets())
 
     # check LLVM target -mcpu legality

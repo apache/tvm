@@ -22,6 +22,7 @@
  * \brief Allocate and manage memory for the runtime.
  */
 #include <tvm/runtime/memory/memory_manager.h>
+#include <tvm/runtime/registry.h>
 
 #include <memory>
 #include <utility>
@@ -173,6 +174,16 @@ Allocator* MemoryManager::GetAllocator(Device dev, AllocatorType type) {
   return it->second.at(type).get();
 }
 
+void MemoryManager::Clear() {
+  MemoryManager* m = MemoryManager::Global();
+  std::lock_guard<std::mutex> lock(m->mu_);
+  for (const auto& [device, allocators] : m->allocators_) {
+    for (const auto& [allocator_type, allocator] : allocators) {
+      allocator->Clear();
+    }
+  }
+}
+
 NDArray Allocator::Empty(ShapeTuple shape, DLDataType dtype, DLDevice dev,
                          Optional<String> mem_scope) {
   ICHECK(dev.device_type == device_.device_type)
@@ -209,6 +220,14 @@ Buffer Allocator::Alloc(ShapeTuple shape, DLDataType type_hint, const std::strin
   DLOG(INFO) << "allocate " << size << " B, used memory " << used_memory_ << " B";
   return buf;
 }
+
+void Allocator::Clear() {
+  // This function by default does nothing.
+  // For naive allocator, no explicit manual clear is needed.
+  // Pooled allocator will override this method.
+}
+
+TVM_REGISTER_GLOBAL("vm.builtin.memory_manager.clear").set_body_typed(MemoryManager::Clear);
 
 }  // namespace memory
 }  // namespace runtime

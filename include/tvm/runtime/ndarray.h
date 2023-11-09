@@ -277,7 +277,7 @@ class NDArray::ContainerBase {
  protected:
   /*!
    * \brief The shape container,
-   *  can be used used for shape data.
+   *  can be used for shape data.
    */
   ShapeTuple shape_;
 };

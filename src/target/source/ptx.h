@@ -146,7 +146,7 @@ std::string PrintArriveBarrierAsm(const std::string& barrier);
 /*!
  * \brief Print ptx barrier arrival with expect tx operation using mbarrier.arrive.expect_tx
  * \param barrier: The name of the barrier in shared memory.
- * \param byte_count: Increases the the tx count of the mbarrier object to track completion of
+ * \param byte_count: Increases the tx count of the mbarrier object to track completion of
  * addtional async transactions.
  */
 std::string PrintArriveBarrierExpectTxAsm(const std::string& barrier,

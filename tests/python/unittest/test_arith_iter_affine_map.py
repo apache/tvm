@@ -1227,11 +1227,29 @@ def test_iter_map_simplify_unit_loop_order():
 
 
 def assert_normalize_to_iter_sum(index, input_iters, args, base):
+    """Assert the result of arith.normalize_to_iter_sum is correct
+
+    Parameters
+    ----------
+    index : tvm.tir.PrimExpr
+        The index to be normalized
+    input_iters : Mapping[Var, Range]
+        The input iterators
+    args : List[Union[tvm.arith.IterSplitExpr, Tuple[PrimExpr, PrimExpr]]]
+        The expected result. Ordered list of args of the expected IterSumExpr. Each arg can be
+        either IterSplitExpr or a tuple of (PrimExpr, PrimExpr) where the first element is the
+        iterator normalized to PrimExpr and the second element is the scale.
+    base : tvm.tir.PrimExpr
+        The expected base
+    """
     res = tvm.arith.normalize_to_iter_sum(index, input_iters)
 
     assert isinstance(res, tvm.arith.IterSumExpr)
     assert len(res.args) == len(args)
     for split, item in zip(res.args, args):
+        if isinstance(item, tvm.arith.IterSplitExpr):
+            tvm.ir.assert_structural_equal(split, item)
+            continue
         tvm.testing.assert_prim_expr_equal(split.scale, item[1])
         tvm.testing.assert_prim_expr_equal(
             tvm.arith.normalize_iter_map_to_expr(split), item[0] * item[1]
@@ -1245,6 +1263,7 @@ def test_normalize_to_iter_sum():
     z = tvm.tir.Var("z", "int64")
     a = tvm.tir.Var("a", "int64")
     n = tvm.tir.Var("n", "int64")
+    flm = tvm.tir.floormod
 
     assert_normalize_to_iter_sum(
         z + ((y + x * 4 + 2) * n) + 3,
@@ -1282,6 +1301,21 @@ def test_normalize_to_iter_sum():
         z + 2 * y * 3 + 4 * (x // 2),
         var_dom([(y, a * n * 4), (x, n * 4), (z, a)]),
         [(y, 6), (x // 2, 4), (z, 1)],
+        0,
+    )
+
+    # non-divisible
+    assert_normalize_to_iter_sum(
+        x // 5,
+        var_dom([(x, 4096)]),
+        [
+            tvm.arith.IterSplitExpr(
+                tvm.arith.IterMark(x, 4096),
+                lower_factor=tvm.tir.const(5, "int64"),
+                extent=tvm.tir.const(820, "int64"),
+                scale=tvm.tir.const(1, "int64"),
+            )
+        ],
         0,
     )
 

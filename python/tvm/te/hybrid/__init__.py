@@ -39,7 +39,7 @@ from .utils import _pruned_source
 
 
 def script(pyfunc):
-    """Decorate a python function function as hybrid script.
+    """Decorate a python function as hybrid script.
 
     The hybrid function support emulation mode and parsing to
     the internal language IR.

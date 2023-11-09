@@ -124,7 +124,7 @@ class Device:
 
 
 def get_low_high_atol_rtol(dtype):
-    """Returns a tuple with boundary values and and tolerance for ACL tests."""
+    """Returns a tuple with boundary values and tolerance for ACL tests."""
 
     if dtype == "float32":
         low, high, atol, rtol = (-127, 128, 0.001, 0.001)

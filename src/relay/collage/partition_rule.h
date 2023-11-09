@@ -375,7 +375,7 @@ class OpCallByKindPartitionRule : public PartitionRule {
  *
  * Kinds are ordered as above from least- to most-constraining w.r.t. possible partition
  * opportunities. When we write a kind abbreviation below we intend it to mean that kind *or less*.
- * And when when write 'kl -> kr' we mean it to match a sub-expression of kind kr or less who's
+ * And when write 'kl -> kr' we mean it to match a sub-expression of kind kr or less who's
  * dataflow inputs are all of kind kl or less.
  *
  * We can then mimic the classic \p FuseOps TVM Pass with the following more primitive combiner

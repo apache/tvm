@@ -14,8 +14,9 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-# pylint: disable=wildcard-import
+# pylint: disable=wildcard-import,redefined-builtin
 """QNN dialect operators and IR passes."""
 from __future__ import absolute_import as _abs
 from . import op
 from . import transform
+from .op.qnn import *

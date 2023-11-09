@@ -163,7 +163,6 @@ class ScriptMacro(abc.ABC):
                 for k, v in local_vars.items():
                     parser.var_table.add(k, v)
 
-                print(parser.var_table.get())
                 parse_result = self.parse_macro(parser)
 
         return parse_result

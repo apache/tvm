@@ -24,7 +24,7 @@ import re
 import sys
 import types
 
-from typing import Callable, Sequence
+from typing import Callable, Sequence, Optional
 
 import numpy as np
 
@@ -340,15 +340,16 @@ def get_last_ffi_error():
     return ERROR_TYPE.get(err_type, TVMError)(py_err_msg)
 
 
-def _append_traceback_frame(tb, func_name, filepath, lineno):
+def _append_traceback_frame(tb, func_name, filepath, lineno: Optional[int]):
     """Append a dummy frame to appear in the Python traceback"""
 
     # Compile a dummy function to Python bytecode, so that with the
     # filepath that we want to appear in the traceback.  Any external
     # debugger (e.g. pdb) that catches the exception will use the
     # filepath to show code snippets from that FFI file.
+    header = "" if lineno is None else "\n" * (lineno - 1)
     code = compile(
-        "{}def dummy_func(): raise NotImplementedError()".format("\n" * (lineno - 1)),
+        f"{header}def dummy_func(): raise NotImplementedError()",
         filepath,
         "exec",
     )
@@ -446,10 +447,14 @@ def raise_last_ffi_error():
         for frame in frames:
             if " at " in frame:
                 func_name, frame = frame.split(" at ", 1)
-                filename, lineno = frame.rsplit(":", 1)
+                if ":" in frame:
+                    filename, lineno = frame.rsplit(":", 1)
+                    lineno = int(lineno.strip())
+                else:
+                    filename = frame
+                    lineno = None
                 func_name = func_name.strip()
                 filename = filename.strip()
-                lineno = int(lineno.strip())
 
                 tb = _append_traceback_frame(tb, func_name, filename, lineno)
 

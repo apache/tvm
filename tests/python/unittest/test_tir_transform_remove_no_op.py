@@ -414,7 +414,7 @@ class TestRemoveSeparatedOverwriteOfPredicatedLoop(BaseBeforeAfter):
     """Remove repeated writes to the same predicated region.
 
     Similar to TestRemoveSeparatedOverwrites, but the independent loop
-    between the first and second writes writes to a different subset
+    between the first and second writes to a different subset
     of the same buffer.
     """
 

@@ -31,6 +31,7 @@ def identity_compute(
     ofm_scale: float,
     ofm_zero_point: int,
     activation: str,
+    rounding_mode: str,
 ) -> te.Tensor:
     """A compute operator for the NPU identity operator.
 
@@ -54,6 +55,11 @@ def identity_compute(
             "TANH" - tanh activation function.
             "SIGMOID" - sigmoid activation function.
             "LUT" - use a look-up table to perform the activation function.
+    rounding_mode : str
+        The rounding mode to apply to the Output Feature Map tensor.
+            "TFL" - Tensorflow Lite rounding scheme.
+            "TRUNCATE" - Truncate towards zero.
+            "NATURAL" - Round to nearest value, with x.5 rounded up towards +infinity.
 
     Returns
     -------
@@ -61,7 +67,7 @@ def identity_compute(
         The Output Feature Map tensor.
     """
     dmaed_ifm = read_compute(ifm, ifm_zero_point, ifm_scale)
-    id_attrs = {"op": "ethosu_identity", "activation": activation}
+    id_attrs = {"op": "ethosu_identity", "activation": activation, "rounding_mode": rounding_mode}
 
     has_lut = activation in ("TANH", "LUT", "SIGMOID")
 

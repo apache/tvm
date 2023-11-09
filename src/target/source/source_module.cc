@@ -613,12 +613,14 @@ class CSourceCrtMetadataModuleNode : public runtime::ModuleNode {
       }
 
       for (const tir::Var& pool_var : metadata_->pools) {
+        call_args_ss << "((uint8_t*)";
         String pool_name = metadata_->pool_inputs.value()[pool_var]->pool_info->pool_name;
         if (IsInternalWorkspaceBuffer(pool_var)) {
-          call_args_ss << "&" << pool_name << ",";
+          call_args_ss << "&" << pool_name;
         } else {
-          call_args_ss << "workspace_pools->" << tvm::runtime::SanitizeName(pool_name) << ",";
+          call_args_ss << "workspace_pools->" << tvm::runtime::SanitizeName(pool_name);
         }
+        call_args_ss << "),";
       }
       for (const String& device : metadata_->devices) {
         call_args_ss << "devices->" << device << ",";

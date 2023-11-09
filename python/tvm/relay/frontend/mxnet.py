@@ -932,7 +932,12 @@ def _mx_repeat(inputs, attrs):
     assert len(inputs) == 1
     new_attrs = {}
     new_attrs["repeats"] = attrs.get_int("repeats")
-    new_attrs["axis"] = attrs.get_int("axis", 0)
+    axis = attrs.get_int("axis", None)
+    if axis is None:
+        inputs[0] = _op.nn.batch_flatten(inputs[0])
+        new_attrs["axis"] = 0
+    else:
+        new_attrs["axis"] = axis
     return _op.repeat(inputs[0], **new_attrs)
 
 

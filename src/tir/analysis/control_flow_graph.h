@@ -129,7 +129,7 @@ struct BufferTouch {
    *  accessed by this touch during this loop iteration or a
    *  subsequent loop iteration.
    *
-   * Used during backward propagation, to track indices that that are
+   * Used during backward propagation, to track indices that are
    * overwritten in the current loop iteration or in a later loop
    * iteration.
    */

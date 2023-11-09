@@ -1612,7 +1612,7 @@ def test_free_on_device():
               %1 = @on_scope_b(on_device(%b, virtual_device=meta[VirtualDevice][0], constrain_body=False));
               // %c's memory scope is "scopeB", so no copy required.
               %2 = @on_scope_b(on_device(%c, virtual_device=meta[VirtualDevice][0], constrain_body=False));
-              // result's memory scope is is on "scopeA", so will require a "scopeB"->"scopeA" copy.
+              // result's memory scope is on "scopeA", so will require a "scopeB"->"scopeA" copy.
               %3 = add(add(%0, %1), %2);
               on_device(%3, virtual_device=meta[VirtualDevice][0], constrain_body=False)
             }

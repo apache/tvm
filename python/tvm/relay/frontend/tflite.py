@@ -1275,8 +1275,6 @@ class OperatorConverter(object):
 
     def convert_elu(self, op):
         """Convert TFLite ELU"""
-        if self.is_quantized(op):
-            raise tvm.error.OpNotImplemented("TFlite quantized ELU operator is not supported yet.")
         input_tensors = self.get_input_tensors(op)
         assert len(input_tensors) == 1, "input tensors length should be 1"
 

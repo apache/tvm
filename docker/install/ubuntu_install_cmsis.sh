@@ -35,21 +35,15 @@ fi
 INSTALLATION_PATH=$1
 shift
 
-# Create installation path directory
-mkdir -p "${INSTALLATION_PATH}"
-
-# Download and extract CMSIS
-CMSIS_SHA="51263182d16c92649a48144ba56c0945f9fce60e"
-CMSIS_SHASUM="d02573e5a8908c741d8558f01be2939aae6e940933ccb58123fa972864947759eefe5d554688db3910c8ed665a248b477b5e4458e12773385c67f8a2136b3b34"
-CMSIS_URL="http://github.com/ARM-software/CMSIS_5/archive/${CMSIS_SHA}.tar.gz"
-DOWNLOAD_PATH="/tmp/${CMSIS_SHA}.tar.gz"
-
-wget ${CMSIS_URL} -O "${DOWNLOAD_PATH}"
-echo "$CMSIS_SHASUM" ${DOWNLOAD_PATH} | sha512sum -c
-tar -xf "${DOWNLOAD_PATH}" -C "${INSTALLATION_PATH}" --strip-components=1
-touch "${INSTALLATION_PATH}"/"${CMSIS_SHA}".sha
-
+CMSIS_TAG="5.9.0"
 CMSIS_NN_TAG="v4.1.0"
+
+CMSIS_URL="https://github.com/ARM-software/CMSIS_5.git"
+git clone ${CMSIS_URL} --branch ${CMSIS_TAG} --single-branch ${INSTALLATION_PATH}
+
 CMSIS_NN_URL="https://github.com/ARM-software/CMSIS-NN.git"
 git clone ${CMSIS_NN_URL} --branch ${CMSIS_NN_TAG} --single-branch ${INSTALLATION_PATH}/CMSIS-NN
+
+touch "${INSTALLATION_PATH}"/"CMSIS_${CMSIS_TAG}".sha
+touch "${INSTALLATION_PATH}"/"CMSIS_NN_${CMSIS_NN_TAG}".sha
 echo "SUCCESS"

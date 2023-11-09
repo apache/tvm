@@ -133,7 +133,7 @@ class ParallelOpBatchCombiner : public ParallelOpCombiner {
 
  private:
   /* \brief name of op to replace combined ops with. for example,
-   *         for combining parallel dense, this will will be set to
+   *         for combining parallel dense, this will be set to
    *         nn.batch_matmul
    */
   std::string batch_op_name_;

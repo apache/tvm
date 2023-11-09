@@ -823,7 +823,9 @@ def test_can_build_keras_to_coreml_to_relay():
         kmodel_fn = path.join(tmpdir, "c1mdl.h5")
         model.save(kmodel_fn)
 
-        mdl = cm.convert(kmodel_fn)
+        mdl = cm.convert(
+            kmodel_fn, convert_to="neuralnetwork", minimum_deployment_target=cm.target.macOS11
+        )
         model_file = path.join(tmpdir, "c1.mlmodel")
         mdl.save(model_file)
 

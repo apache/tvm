@@ -32,7 +32,7 @@ from ..utils import get_const_tuple
 from ..x86.conv2d import _get_default_config as _get_x86_default_config
 from ..x86.conv2d_int8 import _get_default_config_int8
 from .conv2d_int8 import is_int8_hw_support
-from .arm_utils import get_tiling_B_interleaved_t
+from .arm_utils import get_tiling_B_interleaved_t, get_conv2d_weights_padding
 from ..generic.conv2d import conv2d_alter_int8_common
 from .mprofile.dsp.micro_kernel.common import num_simd_lanes_per_word
 
@@ -72,21 +72,7 @@ def interleave_transpose_weights(inputs, data, kernel, interleave_A):
 
     # Get tiling information for the interleaved transposed version of B
     tile_rows_B, tile_cols_B = get_tiling_B_interleaved_t(interleave_A)
-
-    pad_K = 0
-    pad_N = 0
-
-    if N % tile_rows_B != 0:
-        pad_N = tile_rows_B - (N % tile_rows_B)
-
-    # Tensorize will later make use of 4 tiles at once across the columns so make sure we pad such
-    # that the columns is multiple of 4
-    column_multiplier = 4
-    tile_cols_multiplied = tile_cols_B * column_multiplier
-    K_misalignment = K % tile_cols_multiplied
-
-    if K_misalignment != 0:
-        pad_K = tile_cols_multiplied - K_misalignment
+    pad_N, pad_K = get_conv2d_weights_padding(N, K, tile_rows_B, tile_cols_B)
 
     N_padded = N + pad_N
     K_padded = K + pad_K
