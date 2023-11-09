@@ -41,11 +41,11 @@ struct AllReduceAttrs : public tvm::AttrsNode<AllReduceAttrs> {
 };  // struct AllReduceAttrs
 
 /*! \brief Attributes used in scatter operators */
-struct ScatterAttrs : public tvm::AttrsNode<ScatterAttrs> {
+struct ScatterCollectiveAttrs : public tvm::AttrsNode<ScatterCollectiveAttrs> {
   int num_workers;
   int axis;
 
-  TVM_DECLARE_ATTRS(ScatterAttrs, "relax.attrs.ScatterAttrs") {
+  TVM_DECLARE_ATTRS(ScatterCollectiveAttrs, "relax.attrs.ScatterCollectiveAttrs") {
     TVM_ATTR_FIELD(num_workers)
         .describe(
             "The number of workers, also the number of parts the given buffer should be chunked "
@@ -54,7 +54,7 @@ struct ScatterAttrs : public tvm::AttrsNode<ScatterAttrs> {
         "The axis of the tensor to be scattered. The tensor will be chunked along "
         "this axis.");
   }
-};  // struct ScatterAttrs
+};  // struct ScatterCollectiveAttrs
 
 }  // namespace relax
 }  // namespace tvm

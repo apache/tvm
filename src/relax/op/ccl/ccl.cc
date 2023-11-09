@@ -107,10 +107,10 @@ TVM_REGISTER_OP("relax.ccl.broadcast_from_worker0")
     .set_attr<Bool>("FPurity", Bool(true));
 
 /* relax.ccl.scatter_from_worker0 */
-TVM_REGISTER_NODE_TYPE(ScatterAttrs);
+TVM_REGISTER_NODE_TYPE(ScatterCollectiveAttrs);
 
 Expr scatter_from_worker0(Expr data, int num_workers, int axis) {
-  ObjectPtr<ScatterAttrs> attrs = make_object<ScatterAttrs>();
+  ObjectPtr<ScatterCollectiveAttrs> attrs = make_object<ScatterCollectiveAttrs>();
   attrs->num_workers = std::move(num_workers);
   attrs->axis = std::move(axis);
   static const Op& op = Op::Get("relax.ccl.scatter_from_worker0");
@@ -124,7 +124,7 @@ StructInfo InferStructInfoScatter(const Call& call, const BlockBuilder& ctx) {
   TensorStructInfo input_sinfo = GetUnaryInputTensorStructInfo(call, ctx);
   DataType output_dtype = input_sinfo->dtype;
 
-  const auto* attrs = call->attrs.as<ScatterAttrs>();
+  const auto* attrs = call->attrs.as<ScatterCollectiveAttrs>();
   int num_workers = attrs->num_workers;
 
   arith::Analyzer* analyzer = ctx->GetAnalyzer();
@@ -151,7 +151,7 @@ TVM_REGISTER_OP("relax.ccl.scatter_from_worker0")
     .set_num_inputs(1)
     .add_argument("x", "Tensor",
                   "The buffer to be divided into equal parts and sent to each worker accordingly.")
-    .set_attrs_type<ScatterAttrs>()
+    .set_attrs_type<ScatterCollectiveAttrs>()
     .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoScatter)
     .set_attr<Bool>("FPurity", Bool(true));
 
