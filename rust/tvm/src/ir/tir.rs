@@ -56,6 +56,12 @@ impl From<i32> for IntImm {
     }
 }
 
+impl From<i64> for IntImm {
+    fn from(i : i64) -> IntImm {
+        IntImm::new(DataType::int(64, 1), i)
+    }
+}
+
 impl From<i32> for PrimExpr {
     fn from(i: i32) -> PrimExpr {
         IntImm::from(i).upcast()
