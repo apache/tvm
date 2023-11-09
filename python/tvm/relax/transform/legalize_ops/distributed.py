@@ -34,8 +34,8 @@ def _redistribute_replica_to_shard(_bb: BlockBuilder, call: Call) -> Expr:
     )
     _bb.match_cast(worker_id_var, ShapeStructInfo([worker_id_symbol]))
 
-    def te_R_to_S(input, worker_id):
-        output_shape = list(input.shape)
+    def te_R_to_S(tensor, worker_id):
+        output_shape = list(tensor.shape)
         output_shape[axis] = output_shape[axis] // num_workers
 
         def index_func(out_indices):
@@ -48,7 +48,7 @@ def _redistribute_replica_to_shard(_bb: BlockBuilder, call: Call) -> Expr:
             return tuple(in_indices)
 
         return te.compute(
-            output_shape, lambda *idx: input[index_func(idx)], name="redistribute_replica_to_shard"
+            output_shape, lambda *idx: tensor[index_func(idx)], name="redistribute_replica_to_shard"
         )
 
     return _bb.call_te(te_R_to_S, call.args[0], worker_id_symbol)

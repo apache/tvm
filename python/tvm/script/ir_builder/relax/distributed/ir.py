@@ -14,7 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-# pylint: disable=redefined-builtin, wrong-import-order, no-member, invalid-name
+# pylint: disable=redefined-builtin, wrong-import-order, no-member, invalid-name, unused-import
 
 """IRBuilder for distributed Relax dialect"""
 from typing import Union, List, Tuple, Optional
