@@ -82,7 +82,7 @@ def _broadcast_from_worker0(_bb: BlockBuilder, call: Call) -> Expr:
 
 # Since collective communication ops are performed on contiguous memory,
 # we need to reshape and transpose the input tensor to make sharding dimension in the highest order
-def transpose_for_ccl(_bb: BlockBuilder, expr: Expr, axis: int, num_workers: int):
+def _transpose_for_ccl(_bb: BlockBuilder, expr: Expr, axis: int, num_workers: int):
     assert isinstance(
         expr.struct_info, TensorStructInfo
     ), "The input struct info should be TensorStructInfo."
@@ -111,7 +111,7 @@ def transpose_for_ccl(_bb: BlockBuilder, expr: Expr, axis: int, num_workers: int
 
 @register_legalize("relax.ccl.scatter_from_worker0")
 def _scatter_from_worker0(_bb: BlockBuilder, call: Call) -> Expr:
-    transpose_var = transpose_for_ccl(_bb, call.args[0], call.attrs.axis, call.attrs.num_workers)
+    transpose_var = _transpose_for_ccl(_bb, call.args[0], call.attrs.axis, call.attrs.num_workers)
     output_shape = transpose_var.struct_info.shape.struct_info.values
     output_shape = output_shape[1:]
     return call_dps_packed(
