@@ -157,12 +157,52 @@ class TFV1AxisCodeGen : public TFV1OpCode {
   String attr_name_;
 };
 
+class TFV1BatchnormCodeGen : public TFV1OpCode {
+  TFV1_OP_CODEGEN_METHODS(TFV1BatchnormCodeGen)
+
+ protected:
+  void CodeGenBuild() final {
+    stack_.op_call()
+        .op_input_arg()
+        .op_arg<bool>("scale")
+        .op_arg<bool>("center")
+        .op_arg<float>("momentum")
+        .op_arg<float>("epsilon")
+        .call_arg("tf_v1.constant_initializer(weights[\"" + node()->WeightAt("gamma")->name +
+                      "\"].asnumpy())",
+                  "gamma_initializer")
+        .call_arg("tf_v1.constant_initializer(weights[\"" + node()->WeightAt("beta")->name +
+                      "\"].asnumpy())",
+                  "beta_initializer")
+        .call_arg("tf_v1.constant_initializer(weights[\"" + node()->WeightAt("mean")->name +
+                      "\"].asnumpy())",
+                  "moving_mean_initializer")
+        .call_arg("tf_v1.constant_initializer(weights[\"" + node()->WeightAt("var")->name +
+                      "\"].asnumpy())",
+                  "moving_variance_initializer")
+        .op_name_arg();
+  }
+};
+
 class TFV1BroadcastToCodeGen : public TFV1OpCode {
   TFV1_OP_CODEGEN_METHODS(TFV1BroadcastToCodeGen)
 
  protected:
   void CodeGenBuild() final {
     stack_.op_call().op_input_arg().op_list_arg<int>("shape").op_name_arg();
+  }
+};
+
+class TFV1ClipCodeGen : public TFV1OpCode {
+  TFV1_OP_CODEGEN_METHODS(TFV1ClipCodeGen)
+
+ protected:
+  void CodeGenBuild() final {
+    stack_.op_call()
+        .op_input_arg()
+        .op_arg<float>("min", "clip_value_min")
+        .op_arg<float>("max", "clip_value_max")
+        .op_name_arg();
   }
 };
 
@@ -542,6 +582,7 @@ const std::shared_ptr<std::unordered_map<String, std::shared_ptr<TFV1OpCode>>> G
   map->emplace("argmin", std::make_shared<TFV1ArgMaxMinCodeGen>("tf_v1.argmin"));
   map->emplace("astype", std::make_shared<TFV1AstypeCodeGen>("tf_v1.cast"));
   map->emplace("broadcast_to", std::make_shared<TFV1BroadcastToCodeGen>("tf_v1.broadcast_to"));
+  map->emplace("clip", std::make_shared<TFV1ClipCodeGen>("tf_v1.clip_by_value"));
   map->emplace("concat", std::make_shared<TFV1ConcatCodeGen>("ops.array_ops.concat_v2"));
   map->emplace("concatenate", std::make_shared<TFV1ConcatCodeGen>("ops.array_ops.concat_v2"));
   map->emplace("einsum", std::make_shared<TFV1EinsumCodeGen>("tf_v1.einsum"));
@@ -555,6 +596,8 @@ const std::shared_ptr<std::unordered_map<String, std::shared_ptr<TFV1OpCode>>> G
 
   // nn ops
   map->emplace("nn.avg_pool2d", std::make_shared<TFV1Pool2dCodeGen>("ops.nn_ops.pool"));
+  map->emplace("nn.batch_norm",
+               std::make_shared<TFV1BatchnormCodeGen>("tf_v1.layers.batch_normalization"));
   map->emplace("nn.conv2d", std::make_shared<TFV1ConvCodeGen>("ops.nn_ops.conv2d", false));
   map->emplace("nn.max_pool2d", std::make_shared<TFV1Pool2dCodeGen>("ops.nn_ops.pool"));
   map->emplace("nn.pad", std::make_shared<TFV1PadCodeGen>("tf_v1.pad"));
@@ -569,7 +612,8 @@ const std::shared_ptr<std::unordered_map<String, std::shared_ptr<TFV1OpCode>>> G
   map->emplace("tuple", std::make_shared<TFV1TupleCodeGen>("tuple"));
 
   // msc ops
-  map->emplace("msc.conv2d", std::make_shared<TFV1ConvCodeGen>("ops.nn_ops.conv2d", true));
+  map->emplace("msc.conv2d", std::make_shared<TFV1ConvCodeGen>("ops.nn_ops.conv2d", false));
+  map->emplace("msc.conv2d_bias", std::make_shared<TFV1ConvCodeGen>("ops.nn_ops.conv2d", true));
 
   return map;
 }

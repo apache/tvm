@@ -64,6 +64,9 @@ void TensorflowCodeGen::CodeGenGraph() {
   stack_.comment("Define the weights");
   for (const auto& n : graph()->node_names) {
     const auto& node = graph()->FindNode(n);
+    if (node->optype == "nn.batch_norm") {
+      continue;
+    }
     for (const auto& pair : node->weights) {
       stack_.func_call("get_variable", IdxWeightBase(node, pair.first))
           .call_arg(DocUtils::ToStrDoc(pair.second->name))

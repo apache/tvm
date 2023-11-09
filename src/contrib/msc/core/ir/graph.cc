@@ -578,6 +578,9 @@ const String MSCGraphNode::ToPrototxt() const {
     for (const auto& pair : node->weights) {
       param.Set("param_" + pair.first, pair.second);
     }
+    for (const auto& pair : node->attrs) {
+      param.Set(pair.first, pair.second);
+    }
     layer.push_back(std::make_pair("layer_param", PrototxtPrinter::ToDictDoc(param)));
     // Append the layer Map
     printer.Append(Map<String, ObjectRef>{{"layer", PrototxtPrinter::ToDictDoc(layer)}});

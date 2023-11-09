@@ -46,7 +46,7 @@ class TensorRTCodeGenHelper : public BaseCodeGenHelper {
       return "*" + IdxNodeBase(pair.first, prefix, suffix);
     }
     if (pair.first->optype == "tuple" || pair.first->optype == "get_item") {
-      return IdxNodeBase(pair.first, prefix, suffix);
+      return "*" + IdxNodeBase(pair.first, prefix, suffix);
     }
     return "*" + IdxOutputBase(pair.first, prefix, pair.second, suffix);
   }

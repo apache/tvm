@@ -73,12 +73,12 @@ DictDoc PrototxtPrinter::ToDictDoc(const std::vector<std::pair<String, ObjectRef
 
 void PrototxtPrinter::Append(const Map<String, ObjectRef>& dict) {
   DictDoc doc = ToDictDoc(dict);
-  PrintDoc(doc);
+  PrintDoc(doc, false);
 }
 
 void PrototxtPrinter::Append(const std::vector<std::pair<String, ObjectRef>>& dict) {
   DictDoc doc = ToDictDoc(dict);
-  PrintDoc(doc);
+  PrintDoc(doc, false);
 }
 
 void PrototxtPrinter::AppendPair(const String& key, const ObjectRef& value) {
@@ -97,7 +97,7 @@ void PrototxtPrinter::PrintTypedDoc(const DictDoc& doc) {
     if (doc->values[i].as<DictDocNode>()) {
       output_ << " {";
       IncreaseIndent();
-      PrintDoc(doc->values[i]);
+      PrintDoc(doc->values[i], false);
       DecreaseIndent();
       NewLine() << "}";
     } else {
