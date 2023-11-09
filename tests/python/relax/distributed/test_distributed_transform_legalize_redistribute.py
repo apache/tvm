@@ -22,6 +22,7 @@ import tvm
 from tvm import relax
 import tvm.testing
 
+
 def test_simple():
     @I.ir_module
     class Before:
@@ -29,25 +30,40 @@ def test_simple():
         I.module_global_infos({"mesh": [R.device_mesh((2,), I.Range(0, 2))]})
 
         @R.function
-        def foo(x1: R.DTensor((128, 128), "float32", "mesh[0]", "R"), x2: R.DTensor((128, 128), "float32", "mesh[0]", "S[0]")):
+        def foo(
+            x1: R.DTensor((128, 128), "float32", "mesh[0]", "R"),
+            x2: R.DTensor((128, 128), "float32", "mesh[0]", "S[0]"),
+        ):
             R.func_attr({"num_input": 1})
             # scatter
             lv0 = R.dist.redistribute(x1, "mesh[0]", "S[1]")
             # do nothing
             lv1 = R.dist.redistribute(x2, "mesh[0]", "S[0]")
             return (lv0, lv1)
+
     @I.ir_module
     class Expected:
         I.module_attrs({"device_num": 2})
         I.module_global_infos({"mesh": [R.device_mesh((2,), I.Range(0, 2))]})
+
         @R.function
-        def foo(x1: R.DTensor((128, 128), "float32", "mesh[0]", "R"), x2: R.DTensor((128, 128), "float32", "mesh[0]", "S[0]")) -> R.Tuple(R.DTensor((128, 128), "float32", "mesh[0]", "S[1]"), R.DTensor((128, 128), "float32", "mesh[0]", "S[0]")):
+        def foo(
+            x1: R.DTensor((128, 128), "float32", "mesh[0]", "R"),
+            x2: R.DTensor((128, 128), "float32", "mesh[0]", "S[0]"),
+        ) -> R.Tuple(
+            R.DTensor((128, 128), "float32", "mesh[0]", "S[1]"),
+            R.DTensor((128, 128), "float32", "mesh[0]", "S[0]"),
+        ):
             R.func_attr({"num_input": 1})
-            lv0: R.DTensor((128, 64), "float32", "mesh[0]", "S[1]") = R.dist.redistribute_replica_to_shard(x1, num_workers=2, axis=1)
+            lv0: R.DTensor(
+                (128, 64), "float32", "mesh[0]", "S[1]"
+            ) = R.dist.redistribute_replica_to_shard(x1, num_workers=2, axis=1)
             lv1: R.DTensor((128, 128), "float32", "mesh[0]", "S[0]") = x2
             return (lv0, lv1)
+
     after = relax.distributed.transform.LegalizeRedistribute()(Before)
     tvm.ir.assert_structural_equal(after, Expected)
-    
+
+
 if __name__ == "__main__":
     tvm.testing.main()

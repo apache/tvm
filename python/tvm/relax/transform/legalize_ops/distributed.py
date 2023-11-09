@@ -29,11 +29,15 @@ def _redistribute_replica_to_shard(_bb: BlockBuilder, call: Call) -> Expr:
     num_workers = call.attrs.num_workers
     axis = call.attrs.axis
     worker_id_symbol = tir.Var("worker_id", "int64")
-    worker_id_var = _bb.emit(call_pure_packed("runtime.disco.worker_id", sinfo_args=[ShapeStructInfo(None)]))
+    worker_id_var = _bb.emit(
+        call_pure_packed("runtime.disco.worker_id", sinfo_args=[ShapeStructInfo(None)])
+    )
     _bb.match_cast(worker_id_var, ShapeStructInfo([worker_id_symbol]))
+
     def te_R_to_S(input, worker_id):
         output_shape = list(input.shape)
         output_shape[axis] = output_shape[axis] // num_workers
+
         def index_func(out_indices):
             in_indices = []
             for i, idx in enumerate(out_indices):
@@ -42,6 +46,9 @@ def _redistribute_replica_to_shard(_bb: BlockBuilder, call: Call) -> Expr:
                 else:
                     in_indices.append(idx)
             return tuple(in_indices)
-        return te.compute(output_shape, lambda *idx: input[index_func(idx)], name="redistribute_replica_to_shard")
-        
+
+        return te.compute(
+            output_shape, lambda *idx: input[index_func(idx)], name="redistribute_replica_to_shard"
+        )
+
     return _bb.call_te(te_R_to_S, call.args[0], worker_id_symbol)

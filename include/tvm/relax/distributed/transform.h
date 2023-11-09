@@ -55,7 +55,6 @@ TVM_DLL Pass PropagateSharding();
  */
 TVM_DLL Pass LegalizeRedistribute();
 
-
 }  // namespace transform
 }  // namespace distributed
 }  // namespace relax

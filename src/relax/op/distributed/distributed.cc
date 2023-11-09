@@ -24,8 +24,8 @@
 
 #include "distributed.h"
 
-#include <tvm/topi/einsum.h>
 #include <tvm/relax/attrs/ccl.h>
+#include <tvm/topi/einsum.h>
 
 #include <algorithm>
 #include <utility>
@@ -86,7 +86,6 @@ TVM_REGISTER_OP("relax.dist.redistribute")
     .set_attr<FInferStructInfo>("dist.FInferStructInfo", InferDistStructInfoRedistribute)
     .set_attr<Bool>("FPurity", Bool(true));
 
-
 StructInfo InferStructInfoRtoS(const Call& call, const BlockBuilder& ctx) {
   TensorStructInfo input_sinfo = GetUnaryInputTensorStructInfo(call, ctx);
   DataType output_dtype = input_sinfo->dtype;
@@ -139,7 +138,7 @@ StructInfo InferDistStructInfoRtoS(const Call& call, const BlockBuilder& ctx) {
   auto new_tensor_sinfo = make_object<TensorStructInfoNode>(*tensor_sinfo.get());
   new_tensor_sinfo->shape = ShapeExpr(output_shape);
   DeviceMesh device_mesh = input_dtensor_sinfo->device_mesh;
-  //FIXME: this is a hack where there's only 1d mesh
+  // FIXME: this is a hack where there's only 1d mesh
   ICHECK(device_mesh->shape.size() == 1);
   ICHECK(input_dtensor_sinfo->placement->dim_specs[0]->kind == PlacementSpecKind::kReplica);
   return DTensorStructInfo(TensorStructInfo(new_tensor_sinfo), device_mesh,
@@ -155,17 +154,16 @@ Expr redistribute_replica_to_shard(Expr input, int num_workers, int axis) {
   return Call(op, {std::move(input)}, Attrs{attrs}, {});
 }
 
-TVM_REGISTER_GLOBAL("relax.op.dist.redistribute_replica_to_shard").set_body_typed(redistribute_replica_to_shard);
+TVM_REGISTER_GLOBAL("relax.op.dist.redistribute_replica_to_shard")
+    .set_body_typed(redistribute_replica_to_shard);
 
 TVM_REGISTER_OP("relax.dist.redistribute_replica_to_shard")
     .set_num_inputs(1)
-    .add_argument("input", "Tensor",
-                  "The buffer to be sliced.")
+    .add_argument("input", "Tensor", "The buffer to be sliced.")
     .set_attrs_type<ScatterCollectiveAttrs>()
     .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoRtoS)
     .set_attr<FInferStructInfo>("dist.FInferStructInfo", InferDistStructInfoRtoS)
     .set_attr<Bool>("FPurity", Bool(true));
-
 
 }  // namespace relax
 }  // namespace tvm

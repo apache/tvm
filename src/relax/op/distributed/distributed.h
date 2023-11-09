@@ -25,8 +25,9 @@
 #define TVM_RELAX_OP_DISTRIBUTED_DISTRIBUTED_H_
 
 #include <tvm/relax/attrs/distributed.h>
-#include "utils.h"
+
 #include "../op_common.h"
+#include "utils.h"
 
 namespace tvm {
 namespace relax {
