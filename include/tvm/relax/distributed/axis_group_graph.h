@@ -36,7 +36,9 @@
 
 namespace tvm {
 namespace tir {
+// (var, axis)
 using TIRVarAxis = std::pair<Var, int>;
+// (buffer, axis)
 using BufferAxis = std::pair<Buffer, int>;
 class BufferAxisHash {
  public:
@@ -46,9 +48,21 @@ class BufferAxisHash {
     return h1 ^ (h2 << 1);
   }
 };
-
+/*!
+ * \brief Suppose we want to shard a buffer along a specific dimension, we need to know how
+ * to rewrite the access index of the buffer. To make it simple, we only support the case that
+ * the access can be rewritten by changing the extent of an iter var.
+ * \param index The access index
+ * \param var_range The range of each iter var
+ * \param analyzer The analyzer
+ * \return The iter var whose extent to be changed
+ */
 Var GetShardingVarFromIndex(PrimExpr index, Map<Var, Range> var_range, arith::Analyzer* analyzer);
 
+/*!
+ * \brief Construct an axis group graph from a PrimFunc. Two buffer axis are connected if they
+ * are accessed by the same index.
+ */
 class BufferAxisGraphExtractor : public StmtExprVisitor {
  public:
   static std::vector<std::vector<TIRVarAxis>> GetTIRVarAxisGraph(const PrimFunc& prim_func) {
@@ -453,7 +467,6 @@ void BuildAxisGraphPermuteDims(const Var& output_var, const Call& call,
                                distributed::AxisGroupGraph* axis_group_graph);
 void BuildAxisGraphReshape(const Var& output_var, const Call& call,
                            distributed::AxisGroupGraph* axis_group_graph);
-// assume output must be a tensor/dtensor (not tuple)
 void BuildAxisGraphCallTIR(const Var& output_var, const Call& call, const tir::PrimFunc& func,
                            distributed::AxisGroupGraph* axis_group_graph);
 

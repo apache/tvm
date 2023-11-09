@@ -42,11 +42,22 @@ inline Optional<tir::PrimFunc> MatchPrimFunc(const IRModule& mod_, const Expr& o
   }
   return NullOpt;
 }
-
+/*!
+ * \brief Check whether the given struct infos can appear in DistIR
+ * \return Whether the given struct infos can appear in DistIR
+ */
 bool SinfoCompatibleWithDistIR(Array<StructInfo> sinfos);
 
+/*!
+ * \brief Check whether the given function is a DistIR function
+ * \return Whether the given function is a DistIR function
+ */
 bool IsDistIRFunc(Function func);
 
+/*!
+ * \brief Check whether the given function contains relax.dist.annotate_sharding
+ * \return Whether the given function contains relax.dist.annotate_sharding
+ */
 bool IsShardingAnnotatedFunc(Function func);
 
 }  // namespace distributed
