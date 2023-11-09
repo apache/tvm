@@ -25,7 +25,7 @@
 #define TVM_RELAX_OP_DISTRIBUTED_DISTRIBUTED_H_
 
 #include <tvm/relax/attrs/distributed.h>
-
+#include "utils.h"
 #include "../op_common.h"
 
 namespace tvm {
@@ -51,6 +51,17 @@ Expr annotate_sharding(Expr input, distributed::DeviceMesh device_mesh,
 Expr redistribute(Expr input, distributed::DeviceMesh device_mesh,
                   distributed::Placement placement);
 
+/*!
+ * \brief slice tensor into several parts along one axis,
+          and each worker takes one part.
+          Assumes input is already broadcasted.
+          This is a specialized version of redistribute op.
+ * \param input The input tensor.
+ * \param num_workers The number of workers.
+ * \param axis The tensor axis to slice.
+ * \return The result.
+ */
+Expr redistribute_replica_to_shard(Expr input, int num_workers, int axis);
 }  // namespace relax
 }  // namespace tvm
 

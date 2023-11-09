@@ -32,6 +32,7 @@ from tvm.runtime import ndarray as _nd
 from tvm.relax.op.distributed import (
     redistribute as _redistribute,
     annotate_sharding as _annotate_sharding,
+    redistribute_replica_to_shard,
 )
 from tvm.relax.distributed import DeviceMesh, Placement
 from . import _ffi_api

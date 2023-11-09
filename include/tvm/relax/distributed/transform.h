@@ -48,6 +48,14 @@ using DataflowBlock = tvm::relax::DataflowBlock;
  */
 TVM_DLL Pass PropagateSharding();
 
+/*!
+ * \brief Legalize redistribute op to ccl op.
+ *
+ * \return The Pass.
+ */
+TVM_DLL Pass LegalizeRedistribute();
+
+
 }  // namespace transform
 }  // namespace distributed
 }  // namespace relax

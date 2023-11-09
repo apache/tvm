@@ -19,6 +19,7 @@ from . import binary
 from . import ccl
 from . import create
 from . import datatype
+from . import distributed
 from . import grad
 from . import image
 from . import index
