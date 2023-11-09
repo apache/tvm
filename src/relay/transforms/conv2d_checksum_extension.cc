@@ -52,12 +52,35 @@ class Conv2dVisitor : private ExprVisitor {
   }
 
  private:
+  bool supportedInputTensorType(const TensorTypeNode* arg){
+    return ((arg->dtype == DataType::Int(8))  ||
+            (arg->dtype == DataType::Int(16)) ||
+            (arg->dtype == DataType::UInt(8)) ||
+            (arg->dtype == DataType::UInt(16)));
+  }
+
+    bool supportedOutputTensorType(const Conv2DAttrs* arg){
+    return ((arg->out_dtype == DataType::Int(32))  ||
+            (arg->out_dtype == DataType::Int(64))  ||
+            (arg->out_dtype == DataType::UInt(32)) ||
+            (arg->out_dtype == DataType::UInt(64)));
+  }
+
+
   void VisitExpr_(const CallNode* n) final {
     if (n->op == conv2d_op) {
-      // TODO filter conv attr type for uint8
-      // save all visited conv2d operations
-      // convert const pointer into according reference class
-      memo_.push_back(GetRef<Call>(n));
+      // detect (u)int8/16 * (u)int8/16 * -> (u)int32/64 conv2d
+      auto attr = n->attrs.as<Conv2DAttrs>();
+      auto input  = n->args[0]->type_as<TensorTypeNode>();
+      auto weight = n->args[1]->type_as<TensorTypeNode>();
+      ICHECK(attr);
+      ICHECK(input);
+      ICHECK(weight);
+        if(supportedInputTensorType(input)  && 
+           supportedInputTensorType(weight) &&
+          (supportedOutputTensorType(attr))){
+          memo_.push_back(GetRef<Call>(n));
+        }
     }
     // iterate deeper levels
     for (const auto& arg : n->args) {
@@ -188,37 +211,33 @@ IRModule Extend2DConv(const IRModule& mod) {
         PrimExpr One{1};
 
 
+
         auto depthwise_conv_attr = create_depthwise_conv_attr(orig_conv_attr, P, Q, C);
+        auto depthwise_kernel = Ones({C, One, P, Q}, DataType::Int(8));
 
-        // expect most things to be the default case = no padding/ striding=1/
-
-        auto depthwise_kernel = Ones({C, One, P, Q}, DataType::Int(32));
-        Call depthwise_conv(conv2d_op, {input_32bit, depthwise_kernel}, Attrs{depthwise_conv_attr});
+        Call depthwise_conv(conv2d_op, {input, depthwise_kernel}, Attrs{depthwise_conv_attr});
         Call batchwise_sum_input(sum_op, {depthwise_conv}, Attrs(reduce_axis_attrs));  // use batch as axis for depthwise sum
         
-        Call filterwise_sum_input(sum_op, {weight_32bit},         Attrs(reduce_axis_attrs));  // add each element of indiv filter
-        // Checksum dot product(Reduced Output Oc)
-        Call batchwise_sum_input_64bit(cast_op, {batchwise_sum_input}, Attrs(cast_attr_64bit));
-        Call filterwise_sum_input_64bit(cast_op, {filterwise_sum_input}, Attrs(cast_attr_64bit));
+        Call filterwise_sum_input(sum_op, {weight_32bit},  Attrs(reduce_axis_attrs));  // add each element of indiv filter
+  
 
-
-        // Simple Vector-Vector dot product of 3D Tensors
+        // Simple Vector-Vector dot product of 3D Tensors (Checksum dot product)
         auto vec_vec_prod_attr = create_vec_vec_prod_attr(weight_shape);
-        Call vec_vec_prod(conv2d_op, {batchwise_sum_input_64bit, filterwise_sum_input_64bit}, Attrs(vec_vec_prod_attr));
+        Call vec_vec_prod(conv2d_op, {batchwise_sum_input, filterwise_sum_input}, Attrs(vec_vec_prod_attr));
         
-        //Final comparision, which is then on additional output in the output tuple
+        
         //elemwise sum operation
         auto reduce_elemwise_attrs = make_object<ReduceAttrs>();
         reduce_elemwise_attrs->axis = {0,1,2,3};  // look in sry/relay/op/tensor/reduce.cc l.451 for example
         reduce_elemwise_attrs->keepdims = false;  // 4D -> 1D
         reduce_elemwise_attrs->exclude  = false;
 
-
-        Call elemwise_sum(sum_op, {origin_conv2d_64bit}, Attrs(reduce_elemwise_attrs));
+        //Reduce 4D Tensor into 64-bit scalar 
+        Call output_checksum(sum_op, {origin_conv2d_64bit}, Attrs(reduce_elemwise_attrs));
         Call vec_vec_prod_right_dim(sum_op, {vec_vec_prod}, Attrs(reduce_elemwise_attrs));
 
-
-        Call comp(neq_op, {vec_vec_prod_right_dim, elemwise_sum});
+        //Final comparision, which is then one additional output in the output tuple
+        Call comp(neq_op, {vec_vec_prod_right_dim, output_checksum});
 
         output_expr.push_back(comp);
       }
