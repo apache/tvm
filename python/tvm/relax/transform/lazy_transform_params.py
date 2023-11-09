@@ -14,7 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-# pylint: disable=invalid-name, unused-argument, missing-function-docstring, abstract-method
+# pylint: disable=invalid-name, unused-argument, missing-function-docstring, abstract-method, missing-class-docstring
 """Relax LazyTransformParams pass."""
 from typing import Optional
 
