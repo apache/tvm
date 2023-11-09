@@ -510,6 +510,67 @@ def test_kv_cache():
     assert_structural_equal(tvm_mod, Module, True)
 
 
+def test_rolling_kv_cache():
+    @I.ir_module
+    class Module:
+        @R.function
+        def _initialize_effect() -> R.Tuple(R.Object, R.Object):
+            with R.dataflow():
+                _io: R.Object = R.null_value()
+                lv: R.Tensor((8, 2, 4), dtype="float32") = R.zeros(
+                    R.shape([8, 2, 4]), dtype="float32"
+                )
+                cache: R.Object = R.call_packed(
+                    "vm.builtin.attention_kv_cache_create",
+                    lv,
+                    R.shape([8, 2, 4]),
+                    R.prim_value(0),
+                    sinfo_args=(R.Object,),
+                )
+                lv1: R.Tuple(R.Object, R.Object) = _io, cache
+                gv: R.Tuple(R.Object, R.Object) = lv1
+                R.output(gv)
+            return gv
+
+        @R.function
+        def forward(
+            x: R.Tensor((3, 2, 4), dtype="float32"), _io: R.Object, cache: R.Object
+        ) -> R.Tuple(R.Tensor((8, 2, 4), dtype="float32"), R.Tuple(R.Object, R.Object)):
+            R.func_attr({"num_input": 3})
+            with R.dataflow():
+                lv2: R.Object = R.call_packed(
+                    "vm.builtin.attention_kv_cache_window_override",
+                    cache,
+                    x,
+                    8,
+                    sinfo_args=(R.Object,),
+                )
+                lv3: R.Tensor((8, 2, 4), dtype="float32") = R.call_packed(
+                    "vm.builtin.attention_kv_cache_view",
+                    lv2,
+                    R.shape([8, 2, 4]),
+                    sinfo_args=(R.Tensor((8, 2, 4), dtype="float32"),),
+                )
+                gv1: R.Tuple(
+                    R.Tensor((8, 2, 4), dtype="float32"), R.Tuple(R.Object, R.Object)
+                ) = lv3, (_io, lv2)
+                R.output(gv1)
+            return gv1
+
+    class RollingKVCacheTest(modules.Module):
+        def __init__(self) -> None:
+            self.cache = modules.KVCache(8, [2, 4])
+
+        def forward(self, x: core.Tensor) -> core.Tensor:
+            self.cache.override(x, 8)
+            return self.cache.view(8)
+
+    tvm_mod, _ = RollingKVCacheTest().export_tvm(
+        spec={"forward": {"x": spec.Tensor((3, 2, 4), "float32")}}, debug=True
+    )
+    assert_structural_equal(tvm_mod, Module, True)
+
+
 def test_attention():
     @R.function
     def forward(

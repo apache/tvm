@@ -670,6 +670,28 @@ class KVCache(Effect):
             )
         )
 
+    def override(self, new_element: Tensor, max_cache_size: int) -> None:
+        """
+        Override a new element in KVCache.
+
+        Parameters
+        ----------
+        new_element : Tensor
+            The new tensor to append.
+        """
+        if new_element.dtype != self.dtype:
+            raise TypeError(
+                f'KVCache has been set to use dtype "{self.dtype}", '
+                f'but got "{new_element.dtype}"'
+            )
+        self.cache = rx.BlockBuilder.current().emit(
+            rx.Call(
+                rx.extern("vm.builtin.attention_kv_cache_window_override"),
+                args=[self.cache, new_element._expr, rx.PrimValue(max_cache_size)],
+                sinfo_args=[rx.ObjectStructInfo()],
+            )
+        )
+
 
 class Embedding(Module):
     """
