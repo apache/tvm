@@ -57,7 +57,7 @@ Guidelines
     .. code:: bash
 
       # Run clang-format check for all the files that changed since upstream/main
-      docker/bash.sh ci_lint ./tests/lint/git-clang-format.sh upstream/main
+      docker/bash.sh ci_lint ./tests/lint/git-clang-format.sh --rev upstream/main
 
 - Add test-cases to cover the new features or bugfix the patch introduces.
 - Document the code you wrote, see more at :ref:`doc_guide`
