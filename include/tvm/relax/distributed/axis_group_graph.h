@@ -20,11 +20,11 @@
 #ifndef TVM_RELAX_DISTRIBUTED_AXIS_GROUP_GRAPH_H_
 #define TVM_RELAX_DISTRIBUTED_AXIS_GROUP_GRAPH_H_
 
+#include <tvm/arith/iter_affine_map.h>
 #include <tvm/relax/distributed/struct_info.h>
 #include <tvm/relax/expr.h>
 #include <tvm/tir/function.h>
 #include <tvm/tir/stmt_functor.h>
-#include <tvm/arith/iter_affine_map.h>
 
 #include <algorithm>
 #include <limits>
@@ -35,11 +35,11 @@
 #include <vector>
 
 namespace tvm {
-namespace tir{
+namespace tir {
 using TIRVarAxis = std::pair<Var, int>;
 using BufferAxis = std::pair<Buffer, int>;
 class BufferAxisHash {
-  public:
+ public:
   size_t operator()(const BufferAxis& buffer_axis) const {
     size_t const h1(ObjectPtrHash()(buffer_axis.first));
     size_t const h2(std::hash<int>()(buffer_axis.second));
@@ -51,7 +51,6 @@ Var GetShardingVarFromIndex(PrimExpr index, Map<Var, Range> var_range, arith::An
 
 class BufferAxisGraphExtractor : public StmtExprVisitor {
  public:
-
   static std::vector<std::vector<TIRVarAxis>> GetTIRVarAxisGraph(const PrimFunc& prim_func) {
     BufferAxisGraphExtractor extractor;
     extractor(prim_func->body);
@@ -87,7 +86,7 @@ class BufferAxisGraphExtractor : public StmtExprVisitor {
   }
 
   void DFSGraph(BufferAxis cur, std::unordered_set<BufferAxis, BufferAxisHash>* visited,
-              std::vector<BufferAxis>* buffer_axis_group) {
+                std::vector<BufferAxis>* buffer_axis_group) {
     if (visited->count(cur)) {
       return;
     }
@@ -98,11 +97,7 @@ class BufferAxisGraphExtractor : public StmtExprVisitor {
     }
   }
 
-  
-
  private:
-
-
   void VisitStmt_(const BufferStoreNode* op) final {
     StmtExprVisitor::VisitStmt_(op);
     buffer_access_indices_.push_back({op->buffer, op->indices});
@@ -113,12 +108,13 @@ class BufferAxisGraphExtractor : public StmtExprVisitor {
     buffer_access_indices_.push_back({op->buffer, op->indices});
   }
 
-  bool Match(PrimExpr a, PrimExpr buffer_shape_a, PrimExpr b, PrimExpr buffer_shape_b, arith::Analyzer* analyzer){
-    if(b.as<VarNode>()){
+  bool Match(PrimExpr a, PrimExpr buffer_shape_a, PrimExpr b, PrimExpr buffer_shape_b,
+             arith::Analyzer* analyzer) {
+    if (b.as<VarNode>()) {
       std::swap(a, b);
       std::swap(buffer_shape_a, buffer_shape_b);
     }
-    if(!a.as<VarNode>()){
+    if (!a.as<VarNode>()) {
       return false;
     }
     Var var = Downcast<Var>(a);
@@ -131,7 +127,7 @@ class BufferAxisGraphExtractor : public StmtExprVisitor {
       return false;
     }
     Var matched_var = GetShardingVarFromIndex(b, iter_var_range_, analyzer);
-    if(!matched_var.same_as(var)){
+    if (!matched_var.same_as(var)) {
       return false;
     }
     return true;
@@ -160,7 +156,8 @@ class BufferAxisGraphExtractor : public StmtExprVisitor {
           Buffer another_buffer = another_access_pr.first;
           Array<PrimExpr> another_indices = another_access_pr.second;
           for (int j = 0; j < static_cast<int>(another_indices.size()); j++) {
-            if (Match(indices[i], buffer->shape[i], another_indices[j], another_buffer->shape[j], &analyzer)) {
+            if (Match(indices[i], buffer->shape[i], another_indices[j], another_buffer->shape[j],
+                      &analyzer)) {
               JoinBufferAxis({buffer, i}, {another_buffer, j});
             }
           }
@@ -185,8 +182,8 @@ class BufferAxisGraphExtractor : public StmtExprVisitor {
   Map<Var, Range> iter_var_range_;
   std::string func_name;
 };
-} // namespace tir
-} // namespace tvm
+}  // namespace tir
+}  // namespace tvm
 
 namespace tvm {
 namespace relax {
@@ -198,11 +195,14 @@ struct Axis {
   int dim = 0;
   int tuple_index = 0;
 
-  Axis(const ExprNode* tensor, int dim, int tuple_index=0) : tensor(tensor), dim(dim), tuple_index(tuple_index) {
+  Axis(const ExprNode* tensor, int dim, int tuple_index = 0)
+      : tensor(tensor), dim(dim), tuple_index(tuple_index) {
     ICHECK(tensor->IsInstance<ConstantNode>() || tensor->IsInstance<VarNode>());
   }
 
-  bool operator==(const Axis& other) const { return tensor == other.tensor && dim == other.dim && tuple_index == other.tuple_index; }
+  bool operator==(const Axis& other) const {
+    return tensor == other.tensor && dim == other.dim && tuple_index == other.tuple_index;
+  }
 };
 
 class AxisHash {

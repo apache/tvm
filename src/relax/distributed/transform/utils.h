@@ -20,14 +20,14 @@
 #ifndef RELAX_DISTRIBUTED_TRANSFORM_UTILS_H
 #define RELAX_DISTRIBUTED_TRANSFORM_UTILS_H
 
-#include <tvm/ir/module.h>
 #include <tvm/ir/function.h>
+#include <tvm/ir/module.h>
 #include <tvm/relax/analysis.h>
-#include <tvm/relax/expr_functor.h>
 #include <tvm/relax/distributed/struct_info.h>
-namespace tvm{
-namespace relax{
-namespace distributed{
+#include <tvm/relax/expr_functor.h>
+namespace tvm {
+namespace relax {
+namespace distributed {
 
 /*!
  * \brief Pattern match op to a TIR function and look it up.
@@ -49,10 +49,8 @@ bool IsDistIRFunc(Function func);
 
 bool IsShardingAnnotatedFunc(Function func);
 
-} // namespace distributed
-} // namespace relax
-} // namespace tvm
+}  // namespace distributed
+}  // namespace relax
+}  // namespace tvm
 
-
-
-#endif // RELAX_DISTRIBUTED_TRANSFORM_UTILS_H
+#endif  // RELAX_DISTRIBUTED_TRANSFORM_UTILS_H

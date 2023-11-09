@@ -40,8 +40,8 @@ Array<distributed::DTensorStructInfo> GetInputDTensorStructInfo(const Call& call
 }
 
 StructInfo InferShardingSpec(const Call& call, const BlockBuilder& ctx,
-                                            const StructInfo& orig_output_sinfo,
-                                            distributed::FBuildAxisGraph f_build_graph) {
+                             const StructInfo& orig_output_sinfo,
+                             distributed::FBuildAxisGraph f_build_graph) {
   Array<distributed::DTensorStructInfo> input_dtensor_sinfos = GetInputDTensorStructInfo(call, ctx);
   for (int i = 1; i < static_cast<int>(input_dtensor_sinfos.size()); i++) {
     ICHECK(StructuralEqual()(input_dtensor_sinfos[0]->device_mesh,
@@ -72,7 +72,7 @@ StructInfo InferShardingSpec(const Call& call, const BlockBuilder& ctx,
   } else {
     const auto* tuple_sinfo = orig_output_sinfo.as<TupleStructInfoNode>();
     ICHECK(tuple_sinfo);
-    for(const auto& sinfo: tuple_sinfo->fields) {
+    for (const auto& sinfo : tuple_sinfo->fields) {
       orig_output_tensor_sinfos.push_back(Downcast<TensorStructInfo>(sinfo));
     }
   }
@@ -91,7 +91,8 @@ StructInfo InferShardingSpec(const Call& call, const BlockBuilder& ctx,
       }
     }
     new_output_dtensor_sinfos.push_back(
-        DTensorStructInfo(orig_output_tensor_sinfos[idx], device_mesh, distributed::Placement(output_placement_specs)));
+        DTensorStructInfo(orig_output_tensor_sinfos[idx], device_mesh,
+                          distributed::Placement(output_placement_specs)));
   }
 
   return new_output_dtensor_sinfos.size() == 1 ? new_output_dtensor_sinfos[0]

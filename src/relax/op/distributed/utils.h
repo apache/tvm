@@ -48,18 +48,18 @@ Array<distributed::DTensorStructInfo> GetInputDTensorStructInfo(const Call& call
                                                                 const BlockBuilder& ctx);
 
 /*!
- * \brief Perform a local sharding spec propagation to infer the output dtensor 
+ * \brief Perform a local sharding spec propagation to infer the output dtensor
           struct info or tuple of dtensor struct info.
  *
  * \param call The context Call to the operator.
  * \param ctx The error reporting context.
  * \param output_sinfo The original output struct info
  * \param f_build_graph The function to build axis graph
- * \return The inferred output struct info 
+ * \return The inferred output struct info
  */
 StructInfo InferShardingSpec(const Call& call, const BlockBuilder& ctx,
-                                            const StructInfo& orig_output_sinfo,
-                                            distributed::FBuildAxisGraph f_build_graph);
+                             const StructInfo& orig_output_sinfo,
+                             distributed::FBuildAxisGraph f_build_graph);
 
 }  // namespace distributed
 }  // namespace relax

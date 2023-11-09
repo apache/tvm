@@ -28,33 +28,34 @@
 #include <numeric>
 
 namespace tvm {
-namespace tir{
-Var GetShardingVarFromIndex(PrimExpr index, Map<Var, Range> var_range, arith::Analyzer* analyzer){
-  if(index.as<VarNode>()){
+namespace tir {
+Var GetShardingVarFromIndex(PrimExpr index, Map<Var, Range> var_range, arith::Analyzer* analyzer) {
+  if (index.as<VarNode>()) {
     return Downcast<Var>(index);
   }
   arith::IterSumExpr iter_sum = arith::NormalizeToIterSum(index, var_range, analyzer);
-  if(!is_zero(iter_sum->base)){
+  if (!is_zero(iter_sum->base)) {
     return Var();
   }
-  if(iter_sum->args.empty()){
+  if (iter_sum->args.empty()) {
     return Var();
   }
   // floormod(floordiv(source, lower_factor), extent) * scale
   arith::IterSplitExpr highest_iter_split = iter_sum->args[0];
   const auto* source_var = highest_iter_split->source->source.as<VarNode>();
-  if(!source_var){
+  if (!source_var) {
     return Var();
   }
   // the floormod must take no effect
-  if(!analyzer->CanProve(floordiv(var_range[GetRef<Var>(source_var)]->extent, highest_iter_split->lower_factor) <= highest_iter_split->extent)){
+  if (!analyzer->CanProve(
+          floordiv(var_range[GetRef<Var>(source_var)]->extent, highest_iter_split->lower_factor) <=
+          highest_iter_split->extent)) {
     return Var();
   }
   return GetRef<Var>(source_var);
 }
-} // namespace tir
-} // namespace tvm
-
+}  // namespace tir
+}  // namespace tvm
 
 namespace tvm {
 
@@ -336,9 +337,9 @@ void BuildAxisGraphReshape(const Var& output_var, const Call& call,
   }
 }
 
-inline int GetNumOutput(Call call) { 
-  StructInfo sinfo = call->sinfo_args[0]; 
-  if(const auto* tuple_sinfo = sinfo.as<TupleStructInfoNode>()){
+inline int GetNumOutput(Call call) {
+  StructInfo sinfo = call->sinfo_args[0];
+  if (const auto* tuple_sinfo = sinfo.as<TupleStructInfoNode>()) {
     return tuple_sinfo->fields.size();
   } else {
     return 1;
@@ -361,7 +362,7 @@ void BuildAxisGraphCallTIR(const Var& output_var, const Call& call, const tir::P
   for (const auto& var_axis_group : tir_var_axis_group_list) {
     std::unordered_map<int, int> output_tensor_indices;
     for (int i = 0; i < static_cast<int>(var_axis_group.size()); i++) {
-      for(int j=num_params-num_outputs; j<num_params; j++){
+      for (int j = num_params - num_outputs; j < num_params; j++) {
         if (func->params[j].same_as(var_axis_group[i].first)) {
           output_tensor_indices[i] = j - num_params + num_outputs;
           break;
@@ -376,7 +377,7 @@ void BuildAxisGraphCallTIR(const Var& output_var, const Call& call, const tir::P
             distributed::AxisGroupGraph::EdgeType::kSimbling);
       }
     } else {
-      for(const auto& pr: output_tensor_indices){
+      for (const auto& pr : output_tensor_indices) {
         for (int i = 0; i < static_cast<int>(var_axis_group.size()); i++) {
           if (!output_tensor_indices.count(i)) {
             axis_group_graph->JoinAxis(
