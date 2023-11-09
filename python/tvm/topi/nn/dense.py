@@ -66,6 +66,7 @@ def matmul(
         2-D with shape [batch, out_dim]
     """
     # TODO(yixin): support cases for 1-dim input
+    # TODO(yixin): adding support and further check for >2-dim input in autotvm template
     assert (
         len(tensor_a.shape) >= 2 and len(tensor_b.shape) >= 2
     ), "1-dim matmul is not supported yet."
@@ -74,34 +75,34 @@ def matmul(
     if out_dtype is None:
         out_dtype = tensor_a.dtype
     if transpose_a:
-        red_dim_a, in_dim = tensor_a.shape[-2:]
+        reduce_dim_a, in_dim = tensor_a.shape[-2:]
     else:
-        in_dim, red_dim_a = tensor_a.shape[-2:]
+        in_dim, reduce_dim_a = tensor_a.shape[-2:]
     batch_dims_a = tensor_a.shape[:-2]
 
     if auto_scheduler_rewritten_layout:
         # Infer shape for the rewritten layout
         assert len(tensor_b).shape == 2, "only support 2-dim matmul when using auto-scheduler"
-        out_dim, red_dim_b = auto_scheduler.get_shape_from_rewritten_layout(
+        out_dim, reduce_dim_b = auto_scheduler.get_shape_from_rewritten_layout(
             auto_scheduler_rewritten_layout, ["j", "k"]
         )
         auto_scheduler.remove_index_check(tensor_b)
     elif meta_schedule_original_shape:
         auto_scheduler.rewrite_tensor_shape(tensor_b, meta_schedule_original_shape)
         if transpose_b:
-            out_dim, red_dim_b = tensor_b.shape[-2:]
+            out_dim, reduce_dim_b = tensor_b.shape[-2:]
         else:
-            red_dim_b, out_dim = tensor_b.shape[-2:]
+            reduce_dim_b, out_dim = tensor_b.shape[-2:]
     elif transpose_b:
-        out_dim, red_dim_b = tensor_b.shape[-2:]
+        out_dim, reduce_dim_b = tensor_b.shape[-2:]
     else:
-        red_dim_b, out_dim = tensor_b.shape[-2:]
+        reduce_dim_b, out_dim = tensor_b.shape[-2:]
     batch_dims_b = tensor_b.shape[:-2]
 
-    if not isinstance(red_dim_a, tvm.tir.Var) and not isinstance(red_dim_b, tvm.tir.Var):
-        assert int(red_dim_a) == int(
-            red_dim_b
-        ), f"Reduction dimensions of dense do not match. {red_dim_a} vs {red_dim_b}."
+    if not isinstance(reduce_dim_a, tvm.tir.Var) and not isinstance(reduce_dim_b, tvm.tir.Var):
+        assert int(reduce_dim_a) == int(
+            reduce_dim_b
+        ), f"Reduction dimensions of dense do not match. {reduce_dim_a} vs {reduce_dim_b}."
 
     result_ndim = max(len(batch_dims_a), len(batch_dims_b))
     batch_dims_a = [1] * (result_ndim - len(batch_dims_a)) + batch_dims_a
@@ -121,7 +122,7 @@ def matmul(
         if not isinstance(l, tvm.tir.Var) and int(l) == 1:
             batch_dims_a[idx] = batch_dims_b[idx]
 
-    k = te.reduce_axis((0, red_dim_a), name="k")
+    k = te.reduce_axis((0, reduce_dim_a), name="k")
 
     def compute(*indices):
         batch_indices_a = indices[-len(tensor_a.shape) : -2]
