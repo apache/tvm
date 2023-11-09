@@ -31,6 +31,8 @@
 #include <utility>
 #include <vector>
 
+#include "../ccl/ccl.h"
+
 namespace tvm {
 namespace relax {
 
@@ -85,6 +87,59 @@ TVM_REGISTER_OP("relax.dist.redistribute")
     .add_argument("input", "Tensor", "The input tensor.")
     .set_attr<FInferStructInfo>("dist.FInferStructInfo", InferDistStructInfoRedistribute)
     .set_attr<Bool>("FPurity", Bool(true));
+
+StructInfo InferStructInfoCallTIRLocalView(const Call& call, const BlockBuilder& ctx) {
+  if (call->sinfo_args.size() != 1) {
+    ctx->ReportFatal(Diagnostic::Error(call)
+                     << "sinfo_args should have exactly 1 output struct info.");
+  }
+  CHECK(call->args[0]->IsInstance<GlobalVarNode>())
+      << "call_tir_local_view expects the first argument to be a GlobalVar referring to a TIR "
+         "PrimFunc. "
+      << "However, gets " << call->args[0];
+  return call->sinfo_args[0];
+}
+
+RELAY_REGISTER_OP("relax.dist.call_tir_local_view")
+    .set_num_inputs(3)
+    .add_argument("func", "Expr", "The destination-passing-style function.")
+    .add_argument("args", "Tuple", "The input arguments.")
+    .add_argument("packed_ints", "Expr",
+                  "ShapeExpr representing a tuple of ints to unpack during runtime. Omitted from "
+                  "args if unused")
+    .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoCallTIRLocalView)
+    .set_attr<Bool>("FPurity", Bool(true));
+
+Expr MakeCallTIRLocalView(Expr func, Tuple args,
+                          Array<distributed::DTensorStructInfo> out_sinfo_list,
+                          Optional<Expr> packed_ints) {
+  for (const distributed::DTensorStructInfo& sinfo : out_sinfo_list) {
+    const auto* shape = sinfo->tensor_sinfo->shape.as<ShapeExprNode>();
+    CHECK(shape != nullptr)
+        << "out_sinfo of call_tir_local_view should have defined ShapeExpr as shape. "
+           "However, one given structure info is "
+        << sinfo;
+  }
+
+  StructInfo out_sinfo{nullptr};
+  if (out_sinfo_list.size() == 1) {
+    out_sinfo = out_sinfo_list[0];
+  } else {
+    out_sinfo = TupleStructInfo({out_sinfo_list.begin(), out_sinfo_list.end()});
+  }
+
+  static const Op& op = Op::Get("relax.dist.call_tir_local_view");
+  Call call;
+  if (!packed_ints) {
+    // don't use additional optional argument
+    call = Call(op, {func, args}, {}, {out_sinfo});
+  } else {
+    call = Call(op, {func, args, packed_ints.value()}, {}, {out_sinfo});
+  }
+  return call;
+}
+
+TVM_REGISTER_GLOBAL("relax.op.dist.call_tir_local_view").set_body_typed(MakeCallTIRLocalView);
 
 StructInfo InferStructInfoRtoS(const Call& call, const BlockBuilder& ctx) {
   TensorStructInfo input_sinfo = GetUnaryInputTensorStructInfo(call, ctx);

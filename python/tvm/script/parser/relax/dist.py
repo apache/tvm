@@ -31,6 +31,7 @@ from tvm.script.ir_builder.relax.distributed import (
     annotate_sharding,
     redistribute,
     redistribute_replica_to_shard,
+    call_tir_local_view,
 )
 from .entry import StructInfoProxy, TensorProxy
 

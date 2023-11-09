@@ -67,6 +67,19 @@ Array<BufferRegion> ReplaceBuffer(Array<BufferRegion> regions, const Buffer& sou
   return regions;
 }
 
+Array<BufferRegion> ReplaceBuffer(Array<BufferRegion> regions,
+                                  const Map<Buffer, Buffer>& buffer_map) {
+  regions.MutateByApply([&buffer_map](BufferRegion region) -> BufferRegion {
+    if (buffer_map.count(region->buffer)) {
+      ObjectPtr<BufferRegionNode> n = make_object<BufferRegionNode>(*region.get());
+      n->buffer = buffer_map[region->buffer];
+      return BufferRegion(n);
+    }
+    return region;
+  });
+  return regions;
+}
+
 Array<MatchBufferRegion> ReplaceBuffer(Array<MatchBufferRegion> match_buffers, const Buffer& source,
                                        const Buffer& target) {
   match_buffers.MutateByApply([&source,
