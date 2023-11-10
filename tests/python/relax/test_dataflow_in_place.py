@@ -17,8 +17,7 @@
 
 from typing import List, Set, Tuple
 import tvm
-from tvm import testing
-from tvm.relax import BlockBuilder
+from tvm import relax, testing
 from tvm.relax.analysis import (
     dataflow_liveness_analysis,
     dataflow_alias_analysis,
@@ -27,6 +26,8 @@ from tvm.relax.analysis import (
     dataflow_insert_inplace_calls,
 )
 from tvm.script.parser import ir as I, relax as R, tir as T
+
+import numpy as np
 
 
 def test_liveness_analysis():
@@ -433,8 +434,28 @@ def test_insert_inplace_calls():
 
     transform_pass = dataflow_insert_inplace_calls()
     new_mod = transform_pass(EndToEndTest)
-    print(new_mod)
-    assert False
+
+    # check that all operations are done in-place
+    assert new_mod["add_inplace"]
+    assert new_mod["subtract_inplace"]
+    assert new_mod["multiply_inplace"]
+    expected_ops = ["add_inplace", "multiply_inplace", "subtract_inplace", "multiply_inplace"]
+    for i, binding in enumerate(new_mod["main"].body.blocks[0].bindings):
+        assert binding.value.op.name == "relax.call_tir_inplace"
+        assert binding.value.args[0].name_hint == expected_ops[i]
+
+    x = tvm.nd.array(np.random.rand(2, 3).astype("float32"))
+    y = tvm.nd.array(np.random.rand(1, 3).astype("float32"))
+    expected = np.zeros((2, 3), dtype="float32")
+
+    target = tvm.target.Target("llvm")
+    ex = relax.build(new_mod, target)
+    vm = relax.VirtualMachine(ex, tvm.cpu())
+    res = vm["main"](x, y)
+    # due to reuse of buffers, the result is actually reference equal to argument x
+    # (we can disable this by setting the arguments to "unknown value" in the alias analysis)
+    assert res == x
+    assert (expected == res.numpy()).all()
 
 
 if __name__ == "__main__":
