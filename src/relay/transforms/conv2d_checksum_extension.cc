@@ -25,6 +25,7 @@
  * \brief Extend each conv2d with a checksum generation (Hari et. al.)
  */
 #include <tvm/ir/expr.h>
+#include <tvm/tir/data_layout.h>
 #include <tvm/relay/analysis.h>
 #include <tvm/relay/attrs/nn.h>
 #include <tvm/relay/attrs/reduce.h>
@@ -35,8 +36,67 @@
 
 #include <unordered_map>
 #include <unordered_set>
+#include <tuple>
 
 #include "pattern_utils.h"
+
+
+/* Description of Conv2d_checksum_extension
+ *
+ * The purpose of this pass is to find quantized conv2D operators, which use only integers as in/output. These Operators are then extended 
+ * with multiple Checksum Calculations after Hari. et. Al. to find soft fault during convolution and return each Checksum result for 
+ * each Conv2D operator
+ *
+ *   x      w
+ *   |      |
+ *  op1   op2
+ *    \   /
+ *     conv2D
+ *      |
+ *     op4
+ *      |
+ *      y
+ *
+ * and convert them into subgraphs with actual integer operations on x and w
+ *
+ * The pass does this via a 2 level approach:
+ *
+ * The recursive search function fills 2 arrays for quantized "normal" Conv2D and depthwise_conv2d. 
+ *
+ * After that, a new Call Node is attached to the the top level of the function for each found operator, forming a Top level output tuple.
+ * For Readability reasons x,w is copied. x,w,ones is u(int)8/16 
+ * Filter Checksum and input fmap checksum(Ic) requires 32-bit precision (Hari et. al.) => Cast each input tensor to 32-bit dtype
+ * Reduced output fmaps require 64 bit precision
+ * Normal Conv2D:
+ * 
+ *      x(N,C,H,W)   w(K,C,S,R)   ones(C,1,P,Q)    x(N,C,H,W)     w(K,C,S,R)
+ *            |          |            \                /               |
+ *            |          |             \              /                |
+ *            |          |              \            /                 |
+ *            |          |               \          /                  |
+ *           op1        op2            depthwise_conv2d           cast("32bit")
+ *            \         /                    |                         |
+ *             \       /                     |                         |
+ *              \     /                   sum(Axis={0},           sum(Axis={0},
+ *               \   /                    keepdims=true)          keepdims=true)                         
+ *               conv2D                         \                /
+ *               /  \                            \              /
+ *              /    \                            \            /
+ *             /      \                            \          /
+ *            /     cast("64bit")                     conv2D       
+ *           /          \                             /       
+ *          /            \                           /
+ *         op4            \                         /
+ *          |           sum(Axis=            sum(Axis=
+ *          |          {0,1,2,3})           {0,1,2,3}) //Solely 4D->1D
+ *          |                \               /
+ *          |                 \             /
+ *      y(N,K,P,Q)               not_equal
+ *
+ *
+ */
+
+
 
 namespace tvm {
 namespace relay {
@@ -46,9 +106,9 @@ class Conv2dVisitor : private ExprVisitor {
  public:
   Conv2dVisitor() : conv2d_op(Op::Get("nn.conv2d")) {}
 
-  Array<ObjectRef> Search(const Expr& expr) {
+  std::pair<Array<ObjectRef>, Array<ObjectRef>> Search(const Expr& expr) {
     VisitExpr(expr);
-    return memo_;
+    return std::make_pair(conv, depthwise_conv);
   }
 
  private:
@@ -76,10 +136,15 @@ class Conv2dVisitor : private ExprVisitor {
       ICHECK(attr);
       ICHECK(input);
       ICHECK(weight);
+      bool depth = IsDepthwiseConv(GetRef<Call>(n), attr, attr->kernel_layout);
         if(supportedInputTensorType(input)  && 
            supportedInputTensorType(weight) &&
           (supportedOutputTensorType(attr))){
-          memo_.push_back(GetRef<Call>(n));
+            if(!depth){
+              conv.push_back(GetRef<Call>(n));
+            }else{
+              depthwise_conv.push_back(GetRef<Call>(n));
+            }
         }
     }
     // iterate deeper levels
@@ -89,10 +154,11 @@ class Conv2dVisitor : private ExprVisitor {
   }
 
   const Op& conv2d_op;
-  Array<ObjectRef> memo_;  // Array for all already existing conv2d operation
+  Array<ObjectRef> conv;            // Array for all already existing conv2d operation
+  Array<ObjectRef> depthwise_conv;  // Array for all already existing depthwise conv2d operation
 };
 
-Array<ObjectRef> SearchConv2d(const Expr& e) { return Conv2dVisitor().Search(e); }
+Array<ObjectRef> SearchConv2d(const Expr& e) { return Conv2dVisitor().Search(e).first; }
 
 TVM_REGISTER_GLOBAL("relay.analysis.search_conv2d").set_body_typed(SearchConv2d);
 
@@ -135,6 +201,7 @@ ObjectPtr<Conv2DAttrs> create_vec_vec_prod_attr(Shape weight_shape){
 
 
 
+
 IRModule Extend2DConv(const IRModule& mod) {
   // required for Add function for module
   tvm::Map<GlobalVar, Function> updates;
@@ -145,7 +212,7 @@ IRModule Extend2DConv(const IRModule& mod) {
     if (const auto* n = ele.second.as<FunctionNode>()) {
       if (n->GetAttr<String>(attr::kCompiler).defined()) continue;
       Function func = GetRef<Function>(n);
-      Array<ObjectRef> conv_array = SearchConv2d(func->body);
+      Array<ObjectRef> conv2D_array = SearchConv2d(func->body);
       auto first_exp = func->body;
       Array<tvm::relay::Expr> output_expr;
       
@@ -165,8 +232,29 @@ IRModule Extend2DConv(const IRModule& mod) {
       const Op& sum_op = Op::Get("sum");
       const Op& neq_op = Op::Get("not_equal");
 
-      // Add Checksum calc for each conv2d op in conv_array
-      for (const auto& it : conv_array) {
+
+        //////////////STATIC ATTR:
+        //Cast Attr
+        auto cast_attr_32bit = make_object<CastAttrs>();
+        cast_attr_32bit->dtype = DataType::Int(32);
+        
+        auto cast_attr_64bit = make_object<CastAttrs>();
+        cast_attr_64bit->dtype = DataType::Int(64);
+        ///SUM Attr
+        // sum up elements Kernel/batchwise
+        auto reduce_axis_attrs = make_object<ReduceAttrs>();
+        reduce_axis_attrs->axis = {0};       // look in sry/relay/op/tensor/reduce.cc l.451 for example
+        reduce_axis_attrs->keepdims = true;  // 4D -> 4D We want a Conv2D (tensor*tensor) tensor = (1,C,H,W)
+        reduce_axis_attrs->exclude  = false;
+        //elemwise sum operation
+        auto reduce_elemwise_attrs = make_object<ReduceAttrs>();
+        reduce_elemwise_attrs->axis = {0,1,2,3};  // look in sry/relay/op/tensor/reduce.cc l.451 for example
+        reduce_elemwise_attrs->keepdims = false;  // 4D -> 1D
+        reduce_elemwise_attrs->exclude  = false;
+
+
+      // Add Checksum calc for each conv2d op in conv2D_array
+      for (const auto& it : conv2D_array) {
         Call origin_conv2d = Downcast<Call>(it);
         const auto* input_tensor  = origin_conv2d->args[0]->type_as<TensorTypeNode>();
         const auto* weight_tensor = origin_conv2d->args[1]->type_as<TensorTypeNode>();
@@ -174,28 +262,25 @@ IRModule Extend2DConv(const IRModule& mod) {
         ICHECK(input_tensor != nullptr);
         ICHECK(weight_tensor != nullptr);
 
+
         const auto input = Downcast<Var>(origin_conv2d->args[0]);
         const auto weight = Downcast<Var>(origin_conv2d->args[1]);
 
-        //Filter Checksum and input fmap checksum(Ic) requires 32-bit precision (Hari et. al.) => Cast each input tensor to 32-bit dtype
-        auto cast_attr_32bit = make_object<CastAttrs>();
-        cast_attr_32bit->dtype = DataType::Int(32);
-        Call input_32bit(cast_op, {input}, Attrs(cast_attr_32bit));
-        Call weight_32bit(cast_op, {weight}, Attrs(cast_attr_32bit));
-        // Reduced output fmaps require 64 bit precision
-
-        auto cast_attr_64bit = make_object<CastAttrs>();
-        cast_attr_64bit->dtype = DataType::Int(64);
-        Call origin_conv2d_64bit(cast_op, {origin_conv2d}, Attrs(cast_attr_64bit));
-
-
-        
-        // sum operator has reduction attributes
-        auto reduce_axis_attrs = make_object<ReduceAttrs>();
-        reduce_axis_attrs->axis = {0};       // look in sry/relay/op/tensor/reduce.cc l.451 for example
-        reduce_axis_attrs->keepdims = true;  // 4D -> 4D We want a Conv2D (vec*vec) vec = (C,H,W)
-        reduce_axis_attrs->exclude  = false;
-
+/*
+*    ones(C,1,P,Q)    x(N,C,H,W) 
+ *        \                / 
+ *         \              /  
+ *          \            /   
+ *           \          /    
+ *         depthwise_conv2d         
+ *               |  
+ *               |
+ *            sum(Axis={0},
+ *            keepdims=true)       
+ *                  \  
+ *                   \
+*/
+       
         /// Implement depth-wise conv with conv2d Operation (Group arg splits input into C seperate batches)
         const auto* orig_conv_attr = origin_conv2d->attrs.as<Conv2DAttrs>();
         ICHECK(orig_conv_attr != nullptr);
@@ -216,8 +301,33 @@ IRModule Extend2DConv(const IRModule& mod) {
         auto depthwise_kernel = Ones({C, One, P, Q}, DataType::Int(8));
 
         Call depthwise_conv(conv2d_op, {input, depthwise_kernel}, Attrs{depthwise_conv_attr});
+        
+/*
+*                              w(K,C,S,R)
+ *                                 |
+ *                                 |
+ *                                 |
+ *                                 |
+ *                                 |
+ *                            cast("32bit")
+ *                                 |
+ *                                 |
+ *       |                         |
+ *    sum(Axis={0},           sum(Axis={0},
+ *    keepdims=true)          keepdims=true)                         
+ *          \                /
+ *           \              /
+ *            \            /
+ *             \          /
+ *                conv2D       
+ *                /       
+ *               /       
+*/      
+       
         Call batchwise_sum_input(sum_op, {depthwise_conv}, Attrs(reduce_axis_attrs));  // use batch as axis for depthwise sum
         
+        
+        Call weight_32bit(cast_op, {weight}, Attrs(cast_attr_32bit));
         Call filterwise_sum_input(sum_op, {weight_32bit},  Attrs(reduce_axis_attrs));  // add each element of indiv filter
   
 
@@ -225,14 +335,22 @@ IRModule Extend2DConv(const IRModule& mod) {
         auto vec_vec_prod_attr = create_vec_vec_prod_attr(weight_shape);
         Call vec_vec_prod(conv2d_op, {batchwise_sum_input, filterwise_sum_input}, Attrs(vec_vec_prod_attr));
         
-        
-        //elemwise sum operation
-        auto reduce_elemwise_attrs = make_object<ReduceAttrs>();
-        reduce_elemwise_attrs->axis = {0,1,2,3};  // look in sry/relay/op/tensor/reduce.cc l.451 for example
-        reduce_elemwise_attrs->keepdims = false;  // 4D -> 1D
-        reduce_elemwise_attrs->exclude  = false;
 
+
+/*
+*
+ *  cast("64bit")
+ *       \                       /
+ *        \                     /
+ *         \                   /
+ *      sum(Axis=         sum(Axis=
+ *     {0,1,2,3})        {0,1,2,3}) //Solely 4D->1D
+ *           \               /
+ *            \             /
+ *               not_equal
+*/
         //Reduce 4D Tensor into 64-bit scalar 
+        Call origin_conv2d_64bit(cast_op, {origin_conv2d}, Attrs(cast_attr_64bit));
         Call output_checksum(sum_op, {origin_conv2d_64bit}, Attrs(reduce_elemwise_attrs));
         Call vec_vec_prod_right_dim(sum_op, {vec_vec_prod}, Attrs(reduce_elemwise_attrs));
 
@@ -241,6 +359,8 @@ IRModule Extend2DConv(const IRModule& mod) {
 
         output_expr.push_back(comp);
       }
+
+
       Tuple new_func_body(output_expr);
       Array<Type> return_array = {func->ret_type};
       //first elem==original element
@@ -254,7 +374,7 @@ IRModule Extend2DConv(const IRModule& mod) {
       updates.Set(ele.first, Downcast<Function>(extended_func));
 
       VLOG(1) << "Print out all conv2d which need a treatment:" << std::endl
-              << PrettyPrint(conv_array) << std::endl
+              << PrettyPrint(conv2D_array) << std::endl
               << "Print out return type of new function:" << std::endl
               << PrettyPrint(func->ret_type) << std::endl
               << "and the function:" << std::endl
