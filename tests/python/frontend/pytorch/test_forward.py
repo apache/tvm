@@ -3695,6 +3695,33 @@ def test_forward_bitwise_xor():
     verify_model(BitwiseXor2().float().eval(), input_data=[lhs])
 
 
+def test_forward_bitwise_and():
+    """test_forward_bitwise_and"""
+    torch.set_grad_enabled(False)
+
+    class BitwiseAnd1(Module):
+        def forward(self, *args):
+            return torch.bitwise_and(args[0], args[1])
+
+    class BitwiseAnd2(Module):
+        def forward(self, *args):
+            rhs = torch.tensor([1, 0, 3], dtype=torch.int8)
+            if torch.cuda.is_available():
+                rhs = rhs.cuda()
+            return torch.bitwise_and(args[0], rhs)
+
+    lhs = torch.tensor([-1, -2, 3], dtype=torch.int8)
+    rhs = torch.tensor([1, 0, 3], dtype=torch.int8)
+    verify_model(BitwiseAnd1().float().eval(), input_data=[lhs, rhs])
+
+    lhs = torch.tensor([True, True, False])
+    rhs = torch.tensor([False, True, False])
+    verify_model(BitwiseAnd1().float().eval(), input_data=[lhs, rhs])
+
+    lhs = torch.tensor([-1, -2, 3], dtype=torch.int8)
+    verify_model(BitwiseAnd2().float().eval(), input_data=[lhs])
+
+
 @tvm.testing.uses_gpu
 def test_forward_logical_xor():
     """test_forward_logical_xor"""
