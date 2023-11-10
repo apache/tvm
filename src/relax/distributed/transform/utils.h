@@ -17,8 +17,8 @@
  * under the License.
  */
 
-#ifndef RELAX_DISTRIBUTED_TRANSFORM_UTILS_H
-#define RELAX_DISTRIBUTED_TRANSFORM_UTILS_H
+#ifndef TVM_RELAX_DISTRIBUTED_TRANSFORM_UTILS_H_
+#define TVM_RELAX_DISTRIBUTED_TRANSFORM_UTILS_H_
 
 #include <tvm/ir/function.h>
 #include <tvm/ir/module.h>
@@ -64,4 +64,4 @@ bool IsShardingAnnotatedFunc(Function func);
 }  // namespace relax
 }  // namespace tvm
 
-#endif  // RELAX_DISTRIBUTED_TRANSFORM_UTILS_H
+#endif  // TVM_RELAX_DISTRIBUTED_TRANSFORM_UTILS_H_
