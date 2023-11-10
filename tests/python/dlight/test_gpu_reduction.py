@@ -713,7 +713,6 @@ def test_reduction_inner_no_broadcasting():
 
 
 def test_reduction_inner_no_broadcasting2():
-
     # fmt: off
     @I.ir_module
     class Module:
@@ -788,6 +787,73 @@ def test_reduction_inner_no_broadcasting2():
                             T.reads(var_matmul_intermediate_local[0, v0])
                             T.writes(p_output0_intermediate[0, v0])
                             p_output0_intermediate[0, v0] = T.Cast("float32", var_matmul_intermediate_local[0, v0])
+    # fmt: on
+
+    with Target("nvidia/geforce-rtx-3090-ti"):
+        mod = dl.ApplyDefaultSchedule(dl.gpu.Reduction())(Module)  # pylint: disable=not-callable
+    assert_structural_equal(mod, Expected)
+
+
+def test_reduction_inner_spatial_choose_perfect_factor():
+    # fmt: off
+    @I.ir_module
+    class Module:
+        @T.prim_func
+        def main(var_A: T.handle, var_B: T.handle, matmul: T.Buffer((T.int64(1), T.int64(32), T.int64(1), T.int64(100)), "float16")):
+            T.func_attr({"tir.noalias": T.bool(True)})
+            n = T.int64()
+            A = T.match_buffer(var_A, (T.int64(1), T.int64(32), T.int64(1), n), "float16")
+            B = T.match_buffer(var_B, (T.int64(1), T.int64(32), n, T.int64(100)), "float16")
+            # with T.block("root"):
+            for i0, i1, i2, i3, k in T.grid(T.int64(1), T.int64(32), T.int64(1), T.int64(100), n):
+                with T.block("matmul"):
+                    v_i0, v_i1, v_i2, v_i3, v_k = T.axis.remap("SSSSR", [i0, i1, i2, i3, k])
+                    T.reads(A[v_i0, v_i1, v_i2, v_k], B[v_i0, v_i1, v_k, v_i3])
+                    T.writes(matmul[v_i0, v_i1, v_i2, v_i3])
+                    with T.init():
+                        matmul[v_i0, v_i1, v_i2, v_i3] = T.float16(0)
+                    matmul[v_i0, v_i1, v_i2, v_i3] = matmul[v_i0, v_i1, v_i2, v_i3] + A[v_i0, v_i1, v_i2, v_k] * B[v_i0, v_i1, v_k, v_i3]
+    @I.ir_module
+    class Expected:
+        @T.prim_func
+        def main(var_A: T.handle, var_B: T.handle, matmul: T.Buffer((T.int64(1), T.int64(32), T.int64(1), T.int64(100)), "float16")):
+            T.func_attr({"tir.is_scheduled": 1, "tir.noalias": T.bool(True)})
+            n = T.int64()
+            A = T.match_buffer(var_A, (T.int64(1), T.int64(32), T.int64(1), n), "float16")
+            B = T.match_buffer(var_B, (T.int64(1), T.int64(32), n, T.int64(100)), "float16")
+            # with T.block("root"):
+            matmul_rf_local = T.alloc_buffer((T.int64(16), T.int64(1), T.int64(32), T.int64(1), T.int64(100)), "float16", scope="local")
+            for ax0_ax1_fused_0 in T.thread_binding(T.int64(320), thread="blockIdx.x"):
+                for ax0_ax1_fused_1 in T.thread_binding(T.int64(10), thread="threadIdx.x"):
+                    for ax2_fused_1 in T.thread_binding(T.int64(16), thread="threadIdx.y"):
+                        with T.block("matmul_rf_init"):
+                            vax2_fused_1 = T.axis.spatial(T.int64(16), ax2_fused_1)
+                            v0 = T.axis.spatial(T.int64(32), (ax0_ax1_fused_0 * T.int64(10) + ax0_ax1_fused_1) // T.int64(100))
+                            v1 = T.axis.spatial(T.int64(100), (ax0_ax1_fused_0 * T.int64(10) + ax0_ax1_fused_1) % T.int64(100))
+                            T.reads()
+                            T.writes(matmul_rf_local[vax2_fused_1, T.int64(0), v0, T.int64(0), v1])
+                            matmul_rf_local[vax2_fused_1, T.int64(0), v0, T.int64(0), v1] = T.float16(0)
+                        for ax2_fused_0, u in T.grid((n + T.int64(15)) // T.int64(16), 1):
+                            with T.block("matmul_rf_update"):
+                                vax2_fused_1 = T.axis.spatial(T.int64(16), ax2_fused_1)
+                                v0 = T.axis.spatial(T.int64(32), (ax0_ax1_fused_0 * T.int64(10) + ax0_ax1_fused_1) // T.int64(100))
+                                v1 = T.axis.spatial(T.int64(100), (ax0_ax1_fused_0 * T.int64(10) + ax0_ax1_fused_1) % T.int64(100))
+                                vax2_fused_0 = T.axis.reduce((n + T.int64(15)) // T.int64(16), ax2_fused_0)
+                                T.where(ax2_fused_0 * T.int64(16) + ax2_fused_1 < n)
+                                T.reads(matmul_rf_local[vax2_fused_1, T.int64(0), v0, T.int64(0), v1], A[T.int64(0), v0, T.int64(0), vax2_fused_0 * T.int64(16) + vax2_fused_1], B[T.int64(0), v0, vax2_fused_0 * T.int64(16) + vax2_fused_1, v1])
+                                T.writes(matmul_rf_local[vax2_fused_1, T.int64(0), v0, T.int64(0), v1])
+                                matmul_rf_local[vax2_fused_1, T.int64(0), v0, T.int64(0), v1] = matmul_rf_local[vax2_fused_1, T.int64(0), v0, T.int64(0), v1] + A[T.int64(0), v0, T.int64(0), vax2_fused_0 * T.int64(16) + vax2_fused_1] * B[T.int64(0), v0, vax2_fused_0 * T.int64(16) + vax2_fused_1, v1]
+                for ax1_ax2_fused in T.thread_binding(T.int64(10), thread="threadIdx.x"):
+                    for ax0 in T.thread_binding(T.int64(16), thread="threadIdx.y"):
+                        with T.block("matmul"):
+                            vax2_fused_1 = T.axis.reduce(T.int64(16), ax0)
+                            v0 = T.axis.spatial(T.int64(32), ax0_ax1_fused_0 // T.int64(10))
+                            v1 = T.axis.spatial(T.int64(100), ax0_ax1_fused_0 % T.int64(10) * T.int64(10) + ax1_ax2_fused)
+                            T.reads(matmul_rf_local[vax2_fused_1, T.int64(0), v0, T.int64(0), v1])
+                            T.writes(matmul[T.int64(0), v0, T.int64(0), v1])
+                            with T.init():
+                                matmul[T.int64(0), v0, T.int64(0), v1] = T.float16(0)
+                            matmul[T.int64(0), v0, T.int64(0), v1] = matmul[T.int64(0), v0, T.int64(0), v1] + matmul_rf_local[vax2_fused_1, T.int64(0), v0, T.int64(0), v1]
     # fmt: on
 
     with Target("nvidia/geforce-rtx-3090-ti"):
