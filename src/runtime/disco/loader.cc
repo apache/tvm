@@ -48,6 +48,8 @@ class ShardLoaderObj : public Object {
   /*! \brief Load the i-th parameter */
   NDArray Load(int weight_index) const;
 
+  NDArray LoadParamOnWorker0(int weight_index) const;
+
   /*! \brief Load all the parameters */
   Array<NDArray> LoadAll() const;
 
@@ -162,6 +164,35 @@ std::string GetSiblingPath(const std::string& path, const std::string& filename)
     return path.substr(0, found + 1) + filename;
   }
   LOG(FATAL) << "ValueError: Cannot find the parent directory: " << path;
+}
+
+NDArray ShardLoaderObj::LoadParamOnWorker0(int weight_index) const {
+  DiscoWorker* worker = DiscoWorker::ThreadLocal();
+  int worker_id = worker->worker_id;
+  Device device = worker->default_device;
+  int param_index = param_name_to_index_.at("param_" + std::to_string(weight_index));
+  const ParamInfo& param_info = param_info_.at(param_index);
+  const ParamRecord* param = param_info.param;
+  const FileRecord* file = param_info.file;
+
+  auto load = [this, param, device, file]() {
+    if (file != current_file_) {
+      current_file_ = file;
+      std::string file_name = GetSiblingPath(this->metadata_.path, file->data_path);
+      LoadBinaryFromFile(file_name, &this->current_file_stream_);
+    }
+    return param->Load(
+        device, &this->current_file_stream_,
+        [](NDArray param, const void* data, size_t nbytes) { param.CopyFromBytes(data, nbytes); });
+  };
+
+  if (worker_id == 0) {
+    NDArray w = load();
+    return w;
+  } else {
+    NDArray w = NDArray::Empty(param->shape, param->dtype, device);
+    return w;
+  }
 }
 
 std::tuple<int, int> ParseParamShardingInfo(const ParamRecord* param) {
@@ -335,6 +366,14 @@ TVM_REGISTER_GLOBAL("runtime.disco.ShardLoaderLoadAllPresharded")
       CHECK(loader != nullptr) << "TypeError: Expected ShardLoaderObj, but gets: "
                                << loader_obj->GetTypeKey();
       return loader->LoadAllPresharded();
+    });
+
+TVM_REGISTER_GLOBAL("runtime.disco.ShardLoaderLoadParamOnWorker0")
+    .set_body_typed([](ObjectRef loader_obj, int param_index) {
+      const auto* loader = loader_obj.as<ShardLoaderObj>();
+      CHECK(loader != nullptr) << "TypeError: Expected ShardLoaderObj, but gets: "
+                               << loader_obj->GetTypeKey();
+      return loader->LoadParamOnWorker0(param_index);
     });
 
 }  // namespace runtime
