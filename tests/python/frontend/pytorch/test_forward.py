@@ -5381,6 +5381,30 @@ def test_inplace_copy():
     verify_model(PartialDimensionInplaceCopy(), [inputs])
 
 
+@tvm.testing.uses_gpu
+def test_swapaxes():
+    """test_swapaxes"""
+    torch.set_grad_enabled(False)
+    input_shape = [2, 3, 10, 5]
+
+    class Swapaxes1(Module):
+        def forward(self, *args):
+            return args[0].swapaxes(2, 3)
+
+    class Swapaxes2(Module):
+        def forward(self, *args):
+            return args[0].swapaxes(-2, -1)
+
+    class Swapaxes3(Module):
+        def forward(self, *args):
+            return args[0].swapaxes(1, 1)
+
+    input_data = torch.rand(input_shape).float()
+    verify_model(Swapaxes1().float().eval(), input_data=input_data)
+    verify_model(Swapaxes2().float().eval(), input_data=input_data)
+    verify_model(Swapaxes3().float().eval(), input_data=input_data)
+
+
 class TestSetSpan:
     """test structural equal between translated / hand-crafted relay IR with span tagged."""
 

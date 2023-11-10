@@ -4108,6 +4108,7 @@ class PyTorchOpConverter:
             "aten::multinomial": self.multinomial,
             "aten::_weight_norm": self.weight_norm,
             "aten::copy_": self.inplace_copy,
+            "aten::swapaxes": self.transpose,
         }
 
     def update_convert_map(self, custom_map):
