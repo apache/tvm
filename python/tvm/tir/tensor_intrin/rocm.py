@@ -948,6 +948,38 @@ TensorIntrin.register(
     WMMA_STORE_32x32x8_I32_GLOBAL_INTRIN, *get_wmma_store_intrin(32, 32, 8, "int32", "global")
 )
 
+# f32f32f32, BlockM=16, BlockN=16, BlockK=4
+WMMA_SYNC_16x16x4_F32F32F32_INTRIN = "rocwmma_sync_16x16x4_f32f32f32"
+TensorIntrin.register(
+    WMMA_SYNC_16x16x4_F32F32F32_INTRIN,
+    *get_wmma_sync_intrin(16, 16, 4, "float32", "float32", False),
+)
+
+WMMA_LOAD_16x16x4_F32_A_INTRIN = "rocwmma_load_16x16x4_f32_a_shared"
+TensorIntrin.register(
+    WMMA_LOAD_16x16x4_F32_A_INTRIN,
+    *get_wmma_load_intrin(16, 16, 4, "float32", "shared", False, False),
+)
+
+WMMA_LOAD_16x16x4_F32_B_INTRIN = "rocwmma_load_16x16x4_f32_b_shared"
+TensorIntrin.register(
+    WMMA_LOAD_16x16x4_F32_B_INTRIN,
+    *get_wmma_load_intrin(16, 16, 4, "float32", "shared", True, False),
+)
+
+WMMA_FILL_16x16x4_F32_INTRIN = "rocwmma_fill_16x16x4_f32"
+TensorIntrin.register(WMMA_FILL_16x16x4_F32_INTRIN, *get_wmma_fill_intrin(16, 16, 4, "float32"))
+
+WMMA_STORE_16x16x4_F32_SHARED_INTRIN = "rocwmma_store_16x16x4_f32_shared"
+TensorIntrin.register(
+    WMMA_STORE_16x16x4_F32_SHARED_INTRIN, *get_wmma_store_intrin(16, 16, 4, "float32", "shared")
+)
+
+WMMA_STORE_16x16x4_F32_GLOBAL_INTRIN = "rocwmma_store_16x16x4_f32_global"
+TensorIntrin.register(
+    WMMA_STORE_16x16x4_F32_GLOBAL_INTRIN, *get_wmma_store_intrin(16, 16, 4, "float32", "global")
+)
+
 
 def get_rocwmma_intrin_group(
     load_scope: Literal["shared", "shared.dyn"],

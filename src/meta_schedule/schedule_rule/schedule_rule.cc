@@ -284,6 +284,13 @@ Array<ScheduleRule> ScheduleRule::DefaultROCMMatrixCore() {
           {"store", "rocwmma_store_16x16x16_f32_shared"},
       },
       {
+          {"init", "rocwmma_fill_16x16x4_f32"},
+          {"load_a", "rocwmma_load_16x16x4_f32_a_shared"},
+          {"load_b", "rocwmma_load_16x16x4_f32_b_shared"},
+          {"compute", "rocwmma_sync_16x16x4_f32f32f32"},
+          {"store", "rocwmma_store_16x16x4_f32_shared"},
+      },
+      {
           {"init", "rocwmma_fill_32x32x8_f32"},
           {"load_a", "rocwmma_load_32x32x8_f16_a_shared"},
           {"load_b", "rocwmma_load_32x32x8_f16_b_shared"},
@@ -321,10 +328,10 @@ Array<ScheduleRule> ScheduleRule::DefaultROCMMatrixCore() {
           Map<String, ObjectRef>{{"req", String("must")},
                                  {"levels", Array<Integer>{2}},  //
                                  {"scope", String("shared")}},
-          /*use_software_pipeline=*/true)  //
+          /*use_software_pipeline=*/false)  //
   };
-  Array<ScheduleRule> append = ScheduleRule::DefaultCUDA();
-  results.insert(results.end(), append.begin() + 1, append.end());
+  //Array<ScheduleRule> append = ScheduleRule::DefaultCUDA();
+  //results.insert(results.end(), append.begin() + 1, append.end());
   return results;
 }
 

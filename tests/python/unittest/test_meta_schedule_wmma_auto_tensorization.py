@@ -65,9 +65,14 @@ def initializer():
 
 
 @tvm.testing.requires_matrixcore
-def test_wmma_tune():
-    M, N, K = 1024, 1024, 1024
+def test_wmma_tune(tune_idx):
+    M_list = [8192, 8192, 14336, 8192, 8192, 4864]
+    K_list = [14336, 9728, 8192, 4864, 14336, 8192]
+    N_list = [9728, 14336, 8192, 4864, 14336, 14336]
 
+    M, N, K = M_list[tune_idx], N_list[tune_idx], K_list[tune_idx]
+
+    print("============= Tuning Matrix Dim is M: %d, N: %d, K: %d: ==========" % (M, N, K))
     def tune(in_dtype, out_dtype):
         target = Target("hip")
         func = te.create_prim_func(
@@ -81,20 +86,22 @@ def test_wmma_tune():
         )
 
         mod = tvm.IRModule({"main": func})
-        with tempfile.TemporaryDirectory() as work_dir:
-            db = ms.tir_integration.tune_tir(
-                mod=mod,
-                target=target,
-                work_dir=work_dir,
-                max_trials_global=256,
-                builder=LocalBuilder(
-                    f_build="meta_schedule.builder.async_build", initializer=initializer
-                ),
-                space=space,
-            )
-            sch = db.query_schedule(mod, target=target, workload_name="main")
-            with tvm.transform.PassContext(config={"tir.use_async_copy": 1}):
-                rt_mod = tvm.build(sch.mod, target=target)
+        work_dir = "./matrix_core_text"
+        #with tempfile.TemporaryDirectory() as work_dir:
+        db = ms.tir_integration.tune_tir(
+            mod=mod,
+            target=target,
+            work_dir=work_dir,
+            max_trials_global=128,
+            builder=LocalBuilder(
+                f_build="meta_schedule.builder.async_build", initializer=initializer
+            ),
+            space=space,
+        )
+        sch = db.query_schedule(mod, target=target, workload_name="main")
+        with tvm.transform.PassContext(config={"tir.use_async_copy": 1}):
+            rt_mod = tvm.build(sch.mod, target=target)
+            print(rt_mod.imported_modules[0].get_source())
         a_np = np.random.uniform(0, 1, size=(M, K)).astype(in_dtype)
         b_np = np.random.uniform(0, 1, size=(K, N)).astype(in_dtype)
         dev = tvm.rocm(0)
@@ -107,8 +114,11 @@ def test_wmma_tune():
             tvm.testing.assert_allclose(golden, c_tvm.numpy(), atol=1e-3, rtol=1e-3)
 
     # tune("int8", "int32")
-    tune("float16", "float32")
+    #tune("float16", "float32")
+    tune("float32", "float32")
 
 
 if __name__ == "__main__":
-    test_wmma_tune()
+    #for tune_idx in range(0, 6):
+    #    test_wmma_tune(tune_idx)
+    test_wmma_tune(0)

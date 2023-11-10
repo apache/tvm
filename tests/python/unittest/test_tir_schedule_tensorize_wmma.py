@@ -38,6 +38,11 @@ from tvm.tir.tensor_intrin.rocm import (
     WMMA_LOAD_32x32x8_I8_B_INTRIN,
     WMMA_SYNC_32x32x8_I8I8I32_INTRIN,
     WMMA_STORE_32x32x8_I32_GLOBAL_INTRIN,
+    WMMA_SYNC_16x16x4_F32F32F32_INTRIN,
+    WMMA_LOAD_16x16x4_F32_A_INTRIN,
+    WMMA_LOAD_16x16x4_F32_B_INTRIN,
+    WMMA_FILL_16x16x4_F32_INTRIN,
+    WMMA_STORE_16x16x4_F32_GLOBAL_INTRIN,
 )
 import tvm.testing
 import numpy as np
@@ -272,6 +277,33 @@ def test_wmma_i8i8i32_m32n32k8():
     if measure_perf and timer:
         print("i8i8i32_m32n32k8: %f GFLOPS" % (gflops / (timer().mean)))
 
+@tvm.testing.requires_matrixcore
+def test_wmma_f32f32f32_m16n16k4():
+    k_inner = 4
+    in_dtype = "float32"
+    out_dtype = "float32"
+    i_factors, j_factors, k_factors = [1, 8, 2, 4, 1], [1, 16, 2, 1, 2], [64, 4, 1]
+    timer = run_wmma_test(
+        k_inner,
+        in_dtype,
+        out_dtype,
+        False,  # b_transposed
+        i_factors,
+        j_factors,
+        k_factors,
+        16,
+        16,
+        4,
+        WMMA_LOAD_16x16x4_F32_A_INTRIN,
+        WMMA_LOAD_16x16x4_F32_B_INTRIN,
+        WMMA_SYNC_16x16x4_F32F32F32_INTRIN,
+        WMMA_FILL_16x16x4_F32_INTRIN,
+        WMMA_STORE_16x16x4_F32_GLOBAL_INTRIN,
+    )
+
+    if measure_perf and timer:
+        print("f32f32f32_m16n16k4: %f GFLOPS" % (gflops / (timer().mean)))
+
 
 if __name__ == "__main__":
-    test_wmma_f16f16f32_m16n16k16()
+    test_wmma_f32f32f32_m16n16k4()

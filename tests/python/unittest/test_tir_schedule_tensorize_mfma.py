@@ -129,7 +129,7 @@ def run_test(
         mma_store_intrin,
     )
 
-    f = tvm.build(sch.mod["main"], target="rocm", name="dense")
+    f = tvm.build(sch.mod["main"], target="hip", name="dense")
 
     dev = tvm.device("rocm", 0)
     if in_dtype == "float32":
@@ -532,3 +532,4 @@ def test_wmma_i8i8i32_m32n32k8():
 
 if __name__ == "__main__":
     tvm.testing.main()
+    #test_f16f16f32_m16n16k16()

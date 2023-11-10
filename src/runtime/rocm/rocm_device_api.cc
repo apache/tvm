@@ -203,7 +203,33 @@ class ROCMDeviceAPI final : public DeviceAPI {
 
 typedef dmlc::ThreadLocalStore<ROCMThreadEntry> ROCMThreadStore;
 
-ROCMThreadEntry::ROCMThreadEntry() : pool(kDLROCM, ROCMDeviceAPI::Global()) {}
+ROCMThreadEntry::ROCMThreadEntry() : pool(kDLROCM, ROCMDeviceAPI::Global()) {
+  char *isDStream = getenv("DStream");
+  hipStream_t retval;
+  if ( isDStream == 0x0) {
+    char *cuMask0_str, *cuMask1_str, *cuMask2_str, *cuMask3_str;
+    cuMask0_str = getenv("CUMASK0");
+    cuMask1_str = getenv("CUMASK1");
+    cuMask2_str = getenv("CUMASK2");
+    cuMask3_str = getenv("CUMASK3");
+    LOG(INFO)<<cuMask0_str<<", "<<cuMask1_str<<", "<<cuMask2_str<<", "<<cuMask3_str;
+    uint32_t cuMask[4];
+    // MI100 has 120 CUs, so mask_size = 120 / 32
+    cuMask[0] = 0xffffffff;
+    cuMask[1] = 0xffffffff;
+    cuMask[2] = 0xffffffff;
+    cuMask[3] = 0xffffffff;
+    int mask_size = 4;
+    if (cuMask0_str != 0x0 || cuMask1_str != 0x0 || cuMask2_str != 0x0 || cuMask3_str != 0x0) {
+      cuMask[0] = (uint32_t)strtol(cuMask0_str, NULL, 0);
+      cuMask[1] = (uint32_t)strtol(cuMask1_str, NULL, 0);
+      cuMask[2] = (uint32_t)strtol(cuMask2_str, NULL, 0);
+      cuMask[3] = (uint32_t)strtol(cuMask3_str, NULL, 0);
+    }
+    ROCM_CALL(hipExtStreamCreateWithCUMask(&retval, mask_size, cuMask));
+    this->stream = retval;
+  }
+}
 
 ROCMThreadEntry* ROCMThreadEntry::ThreadLocal() { return ROCMThreadStore::Get(); }
 

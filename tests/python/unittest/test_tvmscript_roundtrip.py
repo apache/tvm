@@ -858,7 +858,7 @@ def opt_conv_tensorcore_normalize():
                                     ),
                                 )
                                 T.evaluate(
-                                    T.tvm_mma_sync(
+                                    
                                         BC.data,
                                         T.floordiv(BC.elem_offset, 256),
                                         BA.data,
@@ -1915,7 +1915,7 @@ def opt_conv_tensorcore_lower():
                             )
                         )
                         T.evaluate(
-                            T.tvm_mma_sync(
+                            
                                 Conv_wmma_accumulator.data,
                                 0,
                                 Apad_shared_wmma_matrix_a.data,
@@ -1928,7 +1928,7 @@ def opt_conv_tensorcore_lower():
                             )
                         )
                         T.evaluate(
-                            T.tvm_mma_sync(
+                            
                                 Conv_wmma_accumulator.data,
                                 1,
                                 Apad_shared_wmma_matrix_a.data,
@@ -1941,7 +1941,7 @@ def opt_conv_tensorcore_lower():
                             )
                         )
                         T.evaluate(
-                            T.tvm_mma_sync(
+                            
                                 Conv_wmma_accumulator.data,
                                 2,
                                 Apad_shared_wmma_matrix_a.data,
@@ -1954,7 +1954,7 @@ def opt_conv_tensorcore_lower():
                             )
                         )
                         T.evaluate(
-                            T.tvm_mma_sync(
+                            
                                 Conv_wmma_accumulator.data,
                                 3,
                                 Apad_shared_wmma_matrix_a.data,
@@ -1967,7 +1967,7 @@ def opt_conv_tensorcore_lower():
                             )
                         )
                         T.evaluate(
-                            T.tvm_mma_sync(
+                            
                                 Conv_wmma_accumulator.data,
                                 4,
                                 Apad_shared_wmma_matrix_a.data,
@@ -1980,7 +1980,7 @@ def opt_conv_tensorcore_lower():
                             )
                         )
                         T.evaluate(
-                            T.tvm_mma_sync(
+                            
                                 Conv_wmma_accumulator.data,
                                 5,
                                 Apad_shared_wmma_matrix_a.data,
@@ -1993,7 +1993,7 @@ def opt_conv_tensorcore_lower():
                             )
                         )
                         T.evaluate(
-                            T.tvm_mma_sync(
+                            
                                 Conv_wmma_accumulator.data,
                                 6,
                                 Apad_shared_wmma_matrix_a.data,
@@ -2006,7 +2006,7 @@ def opt_conv_tensorcore_lower():
                             )
                         )
                         T.evaluate(
-                            T.tvm_mma_sync(
+                            
                                 Conv_wmma_accumulator.data,
                                 7,
                                 Apad_shared_wmma_matrix_a.data,
