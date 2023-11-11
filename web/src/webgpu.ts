@@ -63,20 +63,15 @@ export async function detectGPUDevice(): Promise<GPUDeviceDetectOutput | undefin
         `Requested maxStorageBufferBindingSize exceeds limit. \n` +
         `requested=${computeMB(requiredMaxStorageBufferBindingSize)}, \n` +
         `limit=${computeMB(adapter.limits.maxStorageBufferBindingSize)}. \n` +
-        `Falling back to ${computeMB(backupRequiredMaxStorageBufferBindingSize)}...`
+        `WARNING: Falling back to ${computeMB(backupRequiredMaxStorageBufferBindingSize)}...`
       );
+      requiredMaxStorageBufferBindingSize = backupRequiredMaxStorageBufferBindingSize;
       if (backupRequiredMaxStorageBufferBindingSize > adapter.limits.maxStorageBufferBindingSize) {
         // Fail if 128MB is still too big
         throw Error(
           `Cannot initialize runtime because of requested maxStorageBufferBindingSize ` +
           `exceeds limit. requested=${computeMB(backupRequiredMaxStorageBufferBindingSize)}, ` +
           `limit=${computeMB(adapter.limits.maxStorageBufferBindingSize)}. `
-        );
-      } else {
-        requiredMaxStorageBufferBindingSize = backupRequiredMaxStorageBufferBindingSize;
-        console.log(
-          `WARNING: this buffer size only works for a limited number of models ` + 
-          `(e.g. Llama2 7B with 1024 context length).`
         );
       }
     }
