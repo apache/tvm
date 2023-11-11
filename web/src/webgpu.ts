@@ -55,13 +55,30 @@ export async function detectGPUDevice(): Promise<GPUDeviceDetectOutput | undefin
       );
     }
 
-    const requiredMaxStorageBufferBindingSize = 1 << 30;
+    let requiredMaxStorageBufferBindingSize = 1 << 30;  // 1GB
     if (requiredMaxStorageBufferBindingSize > adapter.limits.maxStorageBufferBindingSize) {
-      throw Error(
-        `Cannot initialize runtime because of requested maxStorageBufferBindingSize ` +
-        `exceeds limit. requested=${computeMB(requiredMaxStorageBufferBindingSize)}, ` +
-        `limit=${computeMB(adapter.limits.maxStorageBufferBindingSize)}. `
+      // If 1GB is too large, try 128MB (default size for Android)
+      const backupRequiredMaxStorageBufferBindingSize = 1 << 27;  // 128MB
+      console.log(
+        `Requested maxStorageBufferBindingSize exceeds limit. \n` +
+        `requested=${computeMB(requiredMaxStorageBufferBindingSize)}, \n` +
+        `limit=${computeMB(adapter.limits.maxStorageBufferBindingSize)}. \n` +
+        `Falling back to ${computeMB(backupRequiredMaxStorageBufferBindingSize)}...`
       );
+      if (backupRequiredMaxStorageBufferBindingSize > adapter.limits.maxStorageBufferBindingSize) {
+        // Fail if 128MB is still too big
+        throw Error(
+          `Cannot initialize runtime because of requested maxStorageBufferBindingSize ` +
+          `exceeds limit. requested=${computeMB(backupRequiredMaxStorageBufferBindingSize)}, ` +
+          `limit=${computeMB(adapter.limits.maxStorageBufferBindingSize)}. `
+        );
+      } else {
+        requiredMaxStorageBufferBindingSize = backupRequiredMaxStorageBufferBindingSize;
+        console.log(
+          `WARNING: this buffer size only works for a limited number of models ` + 
+          `(e.g. Llama2 7B with 1024 context length).`
+        );
+      }
     }
 
     const requiredMaxComputeWorkgroupStorageSize = 32 << 10;
