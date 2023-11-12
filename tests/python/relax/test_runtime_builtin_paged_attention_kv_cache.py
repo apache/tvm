@@ -160,6 +160,7 @@ def test_paged_attention_kv_cache_append_prefill():
         nhead,
         nfeat,
         tvm.nd.empty((), dtype),
+        True,
     )
 
     operation_seq = [[(0, 6)], [(1, 8)], [(2, 11)], [(3, 16)], [(4, 19), (5, 20)]]
@@ -207,6 +208,7 @@ def test_paged_attention_kv_cache_append_decode():
         nhead,
         nfeat,
         tvm.nd.empty((), dtype),
+        True,
     )
 
     cached_values = []
@@ -260,6 +262,7 @@ def test_paged_attention_kv_cache_remove():
         nhead,
         nfeat,
         tvm.nd.empty((), dtype),
+        True,
     )
 
     cached_values = []
@@ -319,6 +322,7 @@ def test_paged_attention_kv_cache_popn():
         nhead,
         nfeat,
         tvm.nd.empty((), dtype),
+        True,
     )
 
     cached_values = []
@@ -381,6 +385,7 @@ def test_paged_attention_kv_cache_clear():
         nhead,
         nfeat,
         tvm.nd.empty((), dtype),
+        True,
     )
 
     cached_values = []
