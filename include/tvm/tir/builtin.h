@@ -51,6 +51,21 @@ TVM_DLL const Op& ret();
 TVM_DLL const Op& reinterpret();
 
 /*!
+ * \brief Zero extend the value using the target type.
+ */
+TVM_DLL const Op& zextend();
+
+/*!
+ * \brief Sign extend the value using the target type.
+ */
+TVM_DLL const Op& sextend();
+
+/*!
+ * \brief Truncate the value using the target type.
+ */
+TVM_DLL const Op& truncate();
+
+/*!
  * \brief Marks a condition is likely going to happen.
  */
 TVM_DLL const Op& likely();
@@ -769,9 +784,10 @@ TVM_DLL const Op& vectorlow();
 TVM_DLL const Op& vectorcombine();
 
 /*!
- * \brief atomic add instruction, corresponding e.g. to atomicAdd in CUDA
+ * \brief Atomic add instruction.
  */
 TVM_DLL const Op& atomic_add();
+
 /*!
  * \brief Create an Nd memory allocation with storage scope
  */

@@ -1607,6 +1607,28 @@ def vectorcombine(dtype, vec1, vec2):
     return call_intrin(dtype, "tir.vectorcombine", vec1, vec2)
 
 
+def atomic_add(dtype, vec0, vec1):
+    """Atomic add instruction.
+
+    Parameters
+    ----------
+    vec0 : list
+       The input vector.
+
+    Parameters
+    ----------
+    vec1 : list
+       The input vector.
+
+    Returns
+    -------
+    call : PrimExpr
+        The call expression.
+    """
+    assert vec0.dtype == vec1.dtype == dtype
+    return call_intrin(dtype, "tir.atomic_add", vec0, vec1)
+
+
 def ret(val):
     """Create a tir return expression
 
@@ -1773,7 +1795,7 @@ def infinity(dtype: str, span: Optional[Span] = None) -> Any:
 
 
 def reinterpret(dtype, value) -> Any:
-    """infinity value of dtype
+    """Reinterpret of the value
 
     Parameters
     ----------
@@ -1792,6 +1814,72 @@ def reinterpret(dtype, value) -> Any:
         The reinterpret cast value of dtype.
     """
     return call_intrin(dtype, "tir.reinterpret", value)
+
+
+def zextend(dtype, value) -> Any:
+    """Zero extend the value
+
+    Parameters
+    ----------
+    dtype : str
+        The target data type.
+
+    value : PrimExpr
+        The input value.
+
+    span : Optional[Span]
+        The location of this operator in the source code.
+
+    Returns
+    -------
+    value : tvm.Expr
+        The zero extended value of dtype.
+    """
+    return call_intrin(dtype, "tir.zextend", value)
+
+
+def sextend(dtype, value) -> Any:
+    """Sign extend the value
+
+    Parameters
+    ----------
+    dtype : str
+        The target data type.
+
+    value : PrimExpr
+        The input value.
+
+    span : Optional[Span]
+        The location of this operator in the source code.
+
+    Returns
+    -------
+    value : tvm.Expr
+        The sign extended value of dtype.
+    """
+    return call_intrin(dtype, "tir.sextend", value)
+
+
+def truncate(dtype, value) -> Any:
+    """Truncate the value
+
+    Parameters
+    ----------
+    dtype : str
+        The target data type.
+
+    value : PrimExpr
+        The input value.
+
+    span : Optional[Span]
+        The location of this operator in the source code.
+
+    Returns
+    -------
+    value : tvm.Expr
+        The truncated value of dtype.
+    """
+    return call_intrin(dtype, "tir.truncate", value)
 
 
 def exp(x):

@@ -1870,6 +1870,9 @@ def _dtype_forward(func):
 
 
 reinterpret = _dtype_forward(_tir_op.reinterpret)
+sextend = _dtype_forward(_tir_op.sextend)
+zextend = _dtype_forward(_tir_op.zextend)
+truncate = _dtype_forward(_tir_op.truncate)
 call_extern = _dtype_forward(_tir_op.call_extern)
 call_intrin = _dtype_forward(_tir_op.call_intrin)
 call_llvm_intrin = _dtype_forward(_tir_op.call_llvm_intrin)
@@ -2073,6 +2076,9 @@ __all__ = [
     "q_multiply_shift_per_axis",
     "ret",
     "reinterpret",
+    "sextend",
+    "zextend",
+    "truncate",
     "round",
     "rsqrt",
     "shift_left",

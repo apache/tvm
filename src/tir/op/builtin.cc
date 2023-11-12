@@ -44,6 +44,24 @@ TIR_DEFINE_BUILTIN_FUNC(reinterpret)
                                          Integer(ScriptDtypePrintLocation::kFirst))
     .set_num_inputs(1);
 
+TIR_DEFINE_BUILTIN_FUNC(zextend)
+    .set_attr<TCallEffectKind>("TCallEffectKind", Integer(CallEffectKind::kPure))
+    .set_attr<TScriptDtypePrintLocation>("TScriptDtypePrintLocation",
+                                         Integer(ScriptDtypePrintLocation::kFirst))
+    .set_num_inputs(1);
+
+TIR_DEFINE_BUILTIN_FUNC(sextend)
+    .set_attr<TCallEffectKind>("TCallEffectKind", Integer(CallEffectKind::kPure))
+    .set_attr<TScriptDtypePrintLocation>("TScriptDtypePrintLocation",
+                                         Integer(ScriptDtypePrintLocation::kFirst))
+    .set_num_inputs(1);
+
+TIR_DEFINE_BUILTIN_FUNC(truncate)
+    .set_attr<TCallEffectKind>("TCallEffectKind", Integer(CallEffectKind::kPure))
+    .set_attr<TScriptDtypePrintLocation>("TScriptDtypePrintLocation",
+                                         Integer(ScriptDtypePrintLocation::kFirst))
+    .set_num_inputs(1);
+
 TIR_DEFINE_BUILTIN_FUNC(ret)
     .set_attr<TCallEffectKind>("TCallEffectKind", Integer(CallEffectKind::kControlJump))
     .set_num_inputs(1);

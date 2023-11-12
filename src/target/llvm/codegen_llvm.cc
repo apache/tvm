@@ -1441,6 +1441,15 @@ llvm::Value* CodeGenLLVM::CreateIntrinsic(const CallNode* op) {
   } else if (op->op.same_as(builtin::reinterpret())) {
     llvm::Type* target = DTypeToLLVMType(op->dtype);
     return builder_->CreateBitCast(MakeValue(op->args[0]), target);
+  } else if (op->op.same_as(builtin::zextend())) {
+    llvm::Type* target = DTypeToLLVMType(op->dtype);
+    return builder_->CreateZExt(MakeValue(op->args[0]), target);
+  } else if (op->op.same_as(builtin::sextend())) {
+    llvm::Type* target = DTypeToLLVMType(op->dtype);
+    return builder_->CreateSExt(MakeValue(op->args[0]), target);
+  } else if (op->op.same_as(builtin::truncate())) {
+    llvm::Type* target = DTypeToLLVMType(op->dtype);
+    return builder_->CreateTrunc(MakeValue(op->args[0]), target);
   } else if (op->op.same_as(builtin::isnan())) {
     // TODO(hgt312): set fast math flag
     llvm::Value* a = MakeValue(op->args[0]);
@@ -1467,8 +1476,9 @@ llvm::Value* CodeGenLLVM::CreateIntrinsic(const CallNode* op) {
     }
     return builder_->CreateShuffleVector(v0, v1, indices);
   } else if (op->op.same_as(builtin::atomic_add())) {
-    // TODO(masahi): Support atomic for CPU backend
-    LOG(FATAL) << "CPU backend does not support atomic add yet.";
+    llvm::Value* v0 = MakeValue(op->args[0]);
+    llvm::Value* v1 = MakeValue(op->args[1]);
+    return builder_->CreateAdd(v0, v1);
   } else if (op->op.same_as(builtin::start_profile_intrinsic()) ||
              op->op.same_as(builtin::end_profile_intrinsic())) {
     LOG(INFO) << "Ignoring profile_intrinsic ... " << op->op;

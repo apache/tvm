@@ -57,6 +57,27 @@ def test_tir_op_reinterpret():
     assert expr.op.name == "tir.reinterpret"
 
 
+def test_tir_op_zextend():
+    buffer = tir.decl_buffer((4, 4), "uint8", offset_factor=1)
+    vec = buffer.vload([0, 0], dtype="uint8x16")
+    expr = tir.zextend("uint16x8", vec)
+    assert expr.op.name == "tir.zextend"
+
+
+def test_tir_op_sextend():
+    buffer = tir.decl_buffer((4, 4), "uint8", offset_factor=1)
+    vec = buffer.vload([0, 0], dtype="uint8x16")
+    expr = tir.sextend("int16x8", vec)
+    assert expr.op.name == "tir.sextend"
+
+
+def test_tir_op_truncate():
+    buffer = tir.decl_buffer((4, 4), "uint16", offset_factor=1)
+    vec = buffer.vload([0, 0], dtype="uint16x16")
+    expr = tir.truncate("uint8x32", vec)
+    assert expr.op.name == "tir.truncate"
+
+
 def test_tir_op_isnullptr():
     x = tir.Var("x", dtype="int32")
     expr = tir.isnullptr(x)
@@ -300,6 +321,15 @@ def test_tir_op_vectorcombine():
     vec = buffer.vload([0, 0], dtype="int8x16")
     expr = tir.vectorcombine("int8x8", vec, vec)
     assert expr.op.name == "tir.vectorcombine"
+
+
+def test_tir_op_atomic_add():
+    buffer0 = tir.decl_buffer((2, 2), "uint32", offset_factor=1)
+    buffer1 = tir.decl_buffer((2, 2), "uint32", offset_factor=1)
+    vec0 = buffer0.vload([0, 0], dtype="uint32x4")
+    vec1 = buffer1.vload([0, 0], dtype="uint32x4")
+    expr = tir.atomic_add("uint32x4", vec0, vec1)
+    assert expr.op.name == "tir.atomic_add"
 
 
 def test_tir_op_shift_left():
