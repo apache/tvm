@@ -60,14 +60,27 @@ def _return_object(x):
     tindex = ctypes.c_uint()
     check_call(_LIB.TVMObjectGetTypeIndex(handle, ctypes.byref(tindex)))
     cls = OBJECT_TYPE.get(tindex.value, _CLASS_OBJECT)
+
+    # Handle return values that subclass from both TVM objects and
+    # python native objects (e.g. runtime.String, a subclass of str).
     if issubclass(cls, PyNativeObject):
         obj = _CLASS_OBJECT.__new__(_CLASS_OBJECT)
         obj.handle = handle
         return cls.__from_tvm_object__(cls, obj)
+
     # Avoid calling __init__ of cls, instead directly call __new__
     # This allows child class to implement their own __init__
     obj = cls.__new__(cls)
     obj.handle = handle
+
+    # Handle return values that must be converted from the TVM object
+    # to a python native object.  This should be used in cases where
+    # subclassing the python native object is forbidden.  For example,
+    # `runtime.BoxBool` cannot be a subclass of `bool`, as `bool` does
+    # not allow any subclasses.
+    if hasattr(obj, '__into_pynative_object__'):
+        return obj.__into_pynative_object__()
+
     return obj
 
 

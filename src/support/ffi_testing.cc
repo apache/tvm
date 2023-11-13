@@ -189,4 +189,23 @@ TVM_REGISTER_GLOBAL("testing.ReturnsVariant").set_body_typed([](int x) -> Varian
 TVM_REGISTER_GLOBAL("testing.AcceptsVariant")
     .set_body_typed([](Variant<String, Integer> arg) -> String { return arg->GetTypeKey(); });
 
+TVM_REGISTER_GLOBAL("testing.AcceptsBool").set_body_typed([](bool arg) -> bool { return arg; });
+
+TVM_REGISTER_GLOBAL("testing.AcceptsInt").set_body_typed([](int arg) -> int { return arg; });
+
+TVM_REGISTER_GLOBAL("testing.AcceptsObjectRef").set_body_typed([](ObjectRef arg) -> ObjectRef {
+  return arg;
+});
+
+TVM_REGISTER_GLOBAL("testing.AcceptsObjectRefArray")
+    .set_body_typed([](Array<ObjectRef> arg) -> ObjectRef { return arg[0]; });
+
+TVM_REGISTER_GLOBAL("testing.AcceptsMapReturnsValue")
+    .set_body_typed([](Map<ObjectRef, ObjectRef> map, ObjectRef key) -> ObjectRef {
+      return map[key];
+    });
+
+TVM_REGISTER_GLOBAL("testing.AcceptsMapReturnsMap")
+    .set_body_typed([](Map<ObjectRef, ObjectRef> map) -> ObjectRef { return map; });
+
 }  // namespace tvm

@@ -60,6 +60,15 @@ cdef inline object make_ret_object(void* chandle):
         obj = _CLASS_OBJECT.__new__(_CLASS_OBJECT)
 
     (<ObjectBase>obj).chandle = chandle
+
+    # Handle return values that must be converted from the TVM object
+    # to a python native object.  This should be used in cases where
+    # subclassing the python native object is forbidden.  For example,
+    # `runtime.BoxBool` cannot be a subclass of `bool`, as `bool` does
+    # not allow any subclasses.
+    if hasattr(obj, '__into_pynative_object__'):
+        return obj.__into_pynative_object__()
+
     return obj
 
 

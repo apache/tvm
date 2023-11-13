@@ -41,6 +41,14 @@ ObjectTypes = (ObjectBase, NDArrayBase, Module, ObjectRValueRef, PackedFuncBase,
 def convert_to_object(value, span=None):
     """Convert a Python value to corresponding object type.
 
+    Type conversions performed by this function must *only* produce
+    types that are supported by `libtvm_runtime.so`.  This function
+    must be usable in environments where only TVM runtime support is
+    present.  Automatic conversions to compile-time representations
+    (e.g. `tir.IntImm` or `relax.PrimValue`) should not be done as
+    part of this conversion, as these types are not available in
+    `libtvm_runtime.so`.
+
     Parameters
     ----------
     value : str
@@ -53,38 +61,46 @@ def convert_to_object(value, span=None):
     -------
     obj : Object
         The corresponding object value.
+
     """
+
+    # Import inside function call to avoid circular import from
+    # uninitialized tvm.runtime module.
+    from .container import BoxBool  # pylint: disable=import-outside-toplevel
+
     if isinstance(value, ObjectTypes):
         return value
-    if isinstance(value, bool):
-        return const(value, "uint1x1", span=span)
-    if isinstance(value, Number):
-        return const(value, span=span)
-    if isinstance(value, string_types):
-        return _ffi_api.String(value)
-    if isinstance(value, (list, tuple)):
-        value = [convert_to_object(x) for x in value]
-        return _ffi_api.Array(*value)
-    if isinstance(value, dict):
-        vlist = []
-        for item in value.items():
-            if (
-                not isinstance(item[0], ObjectTypes)
-                and not isinstance(item[0], string_types)
-                and not isinstance(item[0], Number)
-            ):
-                raise ValueError("key of map must already been a container type")
-            vlist.append(convert_to_object(item[0]))
-            vlist.append(convert_to_object(item[1]))
-        return _ffi_api.Map(*vlist)
-    if isinstance(value, ObjectGeneric):
-        return value.asobject()
-    if callable(value):
-        return convert_to_tvm_func(value)
-    if value is None:
-        return None
 
-    raise ValueError(f"don't know how to convert type {type(value)} to object")
+    elif isinstance(value, bool):
+        # Python types int and float will be converted to C++ types
+        # Box<i64> and Box<double> using kDLInt.  Boolean types need
+        # to be explicitly converted to Box<bool> to avoid ambiguous
+        # representation.  This allows `bool(True)` and `int(1)` to be
+        # unambiguously passed to the C++ implementations.
+        return BoxBool(value)
+
+    elif isinstance(value, Number):
+        return const(value, span=span)
+    elif isinstance(value, string_types):
+        return _ffi_api.String(value)
+    elif isinstance(value, (list, tuple)):
+        # The call to _ffi_api.Array will convert its own arguments,
+        # so we don't need to apply any explicit conversions here.
+        return _ffi_api.Array(*value)
+    elif isinstance(value, dict):
+        if any(not isinstance(key, (ObjectTypes, string_types, Number)) for key in value):
+            raise ValueError("key of map must already been a container type")
+
+        vlist = [kv for item in value.items() for kv in item]
+        return _ffi_api.Map(*vlist)
+    elif isinstance(value, ObjectGeneric):
+        return value.asobject()
+    elif callable(value):
+        return convert_to_tvm_func(value)
+    elif value is None:
+        return None
+    else:
+        raise TypeError(f"don't know how to convert type {type(value)} to object")
 
 
 def convert(value, span=None):
@@ -107,29 +123,29 @@ def convert(value, span=None):
     This function is redirected to `convert_to_object` as it is widely used in
     the codebase. We can choose one to keep and discard the other one later.
     """
+
     return convert_to_object(value, span=span)
 
 
 def _scalar_type_inference(value):
     if hasattr(value, "dtype"):
-        dtype = str(value.dtype)
+        return str(value.dtype)
     elif isinstance(value, bool):
-        dtype = "bool"
+        return "bool"
     elif isinstance(value, float):
         # We intentionally prefer convert the float to float32 since it's more common in DL.
         if -3.40282347e38 <= value <= 3.40282347e38:
-            dtype = "float32"
+            return "float32"
         else:
-            dtype = "float64"
+            return "float64"
     elif isinstance(value, int):
         # We intentionally prefer convert the python int to int32 since it's more common in DL.
         if -2147483648 <= value <= 2147483647:
-            dtype = "int32"
+            return "int32"
         else:
-            dtype = "int64"
+            return "int64"
     else:
         raise NotImplementedError(f"Cannot automatically inference the type. value={value}")
-    return dtype
 
 
 def const(value, dtype=None, span=None):
