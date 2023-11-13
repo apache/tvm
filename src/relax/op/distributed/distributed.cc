@@ -95,14 +95,17 @@ StructInfo InferStructInfoRtoS(const Call& call, const BlockBuilder& ctx) {
 
   arith::Analyzer* analyzer = ctx->GetAnalyzer();
   auto input_shape = input_sinfo->GetShape();
-  CHECK(input_shape.defined()) << "input tensor of scatter_from_worker0 should have defined shape.";
+  CHECK(input_shape.defined())
+      << "input tensor of redistribute_replica_to_shard should have defined shape.";
 
-  if (analyzer->CanProve(floormod(input_shape.value()[0], PrimExpr(num_workers))) != 0) {
+  if (analyzer->CanProve(floormod(input_shape.value()[attrs->axis], PrimExpr(num_workers))) != 0) {
     ctx->ReportFatal(Diagnostic::Error(call)
-                     << "scatter_from_worker0 expects the size of axis 0 of input tensor to be "
+                     << "redistribute_replica_to_shard expects the size of axis " << attrs->axis
+                     << " of input tensor to be "
                         "divisible by the "
-                        "num_workers. However, the axis 0 of input tensor is "
-                     << input_shape.value() << " while num_workers is " << num_workers);
+                        "num_workers. However, the axis "
+                     << attrs->axis << " of input tensor is " << input_shape.value()[attrs->axis]
+                     << " while num_workers is " << num_workers);
   }
 
   Array<PrimExpr> output_shape = input_shape.value();
@@ -123,25 +126,24 @@ StructInfo InferDistStructInfoRtoS(const Call& call, const BlockBuilder& ctx) {
   int num_workers = attrs->num_workers;
   arith::Analyzer* analyzer = ctx->GetAnalyzer();
   auto input_shape = tensor_sinfo->GetShape();
-  CHECK(input_shape.defined()) << "input tensor of scatter_from_worker0 should have defined shape.";
+  CHECK(input_shape.defined())
+      << "input tensor of redistribute_replica_to_shard should have defined shape.";
 
-  if (analyzer->CanProve(floormod(input_shape.value()[0], PrimExpr(num_workers))) != 0) {
+  if (analyzer->CanProve(floormod(input_shape.value()[attrs->axis], PrimExpr(num_workers))) != 0) {
     ctx->ReportFatal(Diagnostic::Error(call)
-                     << "scatter_from_worker0 expects the size of axis 0 of input tensor to be "
+                     << "redistribute_replica_to_shard expects the size of axis " << attrs->axis
+                     << " of input tensor to be "
                         "divisible by the "
-                        "num_workers. However, the axis 0 of input tensor is "
-                     << input_shape.value() << " while num_workers is " << num_workers);
+                        "num_workers. However, the axis "
+                     << attrs->axis << " of input tensor is " << input_shape.value()[attrs->axis]
+                     << " while num_workers is " << num_workers);
   }
 
-  Array<PrimExpr> output_shape = input_shape.value();
-  output_shape.Set(attrs->axis, div(output_shape[attrs->axis], num_workers));
-  auto new_tensor_sinfo = make_object<TensorStructInfoNode>(*tensor_sinfo.get());
-  new_tensor_sinfo->shape = ShapeExpr(output_shape);
   DeviceMesh device_mesh = input_dtensor_sinfo->device_mesh;
   // FIXME: this is a hack where there's only 1d mesh
   ICHECK(device_mesh->shape.size() == 1);
   ICHECK(input_dtensor_sinfo->placement->dim_specs[0]->kind == PlacementSpecKind::kReplica);
-  return DTensorStructInfo(TensorStructInfo(new_tensor_sinfo), device_mesh,
+  return DTensorStructInfo(tensor_sinfo, device_mesh,
                            Placement::FromText("S[" + std::to_string(attrs->axis) + "]"));
 }
 
