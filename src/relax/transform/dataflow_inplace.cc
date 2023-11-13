@@ -919,7 +919,7 @@ Array<ObjectRef> DataflowAliasAnalysis(const DataflowBlock& block, Array<Var> in
   return {new_alias_sets, new_tuple_map};
 }
 
-Array<Array<Array<Integer>>> DataflowInPlaceAnalysis(const DataflowBlock& block,
+Array<Array<Array<Integer>>> DataflowInplaceAnalysis(const DataflowBlock& block,
                                                      const Array<Var>& inputs) {
   auto index_lists = relax::find_inplace_opportunities(block, inputs);
   Array<Array<Integer>> size_match_array;
@@ -944,8 +944,8 @@ Array<Array<Array<Integer>>> DataflowInPlaceAnalysis(const DataflowBlock& block,
 TVM_REGISTER_GLOBAL("relax.analysis.DataflowLivenessAnalysis")
     .set_body_typed(DataflowLivenessAnalysis);
 TVM_REGISTER_GLOBAL("relax.analysis.DataflowAliasAnalysis").set_body_typed(DataflowAliasAnalysis);
-TVM_REGISTER_GLOBAL("relax.analysis.DataflowInPlaceAnalysis")
-    .set_body_typed(DataflowInPlaceAnalysis);
+TVM_REGISTER_GLOBAL("relax.analysis.DataflowInplaceAnalysis")
+    .set_body_typed(DataflowInplaceAnalysis);
 
 // really only for testing (not actually an analysis, will move)
 TVM_REGISTER_GLOBAL("relax.analysis.SingleInplaceCall")
@@ -957,7 +957,7 @@ TVM_REGISTER_GLOBAL("relax.analysis.SingleInplaceCall")
     });
 
 // not actually an analysis, will rename
-TVM_REGISTER_GLOBAL("relax.analysis.DataflowInsertInPlaceCalls").set_body_typed([]() -> Pass {
+TVM_REGISTER_GLOBAL("relax.analysis.DataflowInsertInplaceCalls").set_body_typed([]() -> Pass {
   return tvm::transform::CreateModulePass(
       [](const IRModule& mod, const PassContext& ctx) -> IRModule {
         ModuleInplaceTransformer transformer(mod);

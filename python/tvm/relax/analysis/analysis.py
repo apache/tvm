@@ -556,7 +556,7 @@ def dataflow_alias_analysis(
 def dataflow_inplace_analysis(
     block: DataflowBlock, inputs: List[Var]
 ) -> Tuple[List[int], List[int]]:
-    index_lists = _ffi_api.DataflowInPlaceAnalysis(block, inputs)  # type: ignore
+    index_lists = _ffi_api.DataflowInplaceAnalysis(block, inputs)  # type: ignore
     return tuple(map(list, index_lists))  # type: ignore
 
 
@@ -570,4 +570,4 @@ def dataflow_single_inplace_call(
 
 # also not actually an analysis but putting it here for testing
 def dataflow_insert_inplace_calls() -> tvm.ir.transform.Pass:
-    return _ffi_api.DataflowInsertInPlaceCalls()  # type: ignore
+    return _ffi_api.DataflowInsertInplaceCalls()  # type: ignore
