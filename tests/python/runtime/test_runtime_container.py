@@ -15,12 +15,13 @@
 # specific language governing permissions and limitations
 # under the License.
 
-import numpy as np
+import pickle
 import random
+
+import numpy as np
+
 import tvm
 import tvm.testing
-import pickle
-from tvm import te
 from tvm import nd, relay
 from tvm.runtime import container as _container
 
@@ -96,8 +97,66 @@ def test_shape_tuple():
     assert stuple == z
 
 
+def test_bool_argument():
+    """Boolean objects are currently stored as int"""
+    func = tvm.get_global_func("testing.AcceptsBool")
+
+    assert isinstance(func(True), bool)
+    assert isinstance(func(1), bool)
+    assert isinstance(func(0), bool)
+
+
+def test_int_argument():
+    func = tvm.get_global_func("testing.AcceptsInt")
+
+    assert isinstance(func(True), int)
+    assert isinstance(func(1), int)
+    assert isinstance(func(0), int)
+
+
+def test_object_ref_argument():
+    func = tvm.get_global_func("testing.AcceptsObjectRef")
+
+    assert isinstance(func(True), bool)
+    assert isinstance(func(1), int)
+    assert isinstance(func(3.5), float)
+    assert func(3.5) == 3.5
+
+
+def test_object_ref_array_argument():
+    func = tvm.get_global_func("testing.AcceptsObjectRefArray")
+
+    assert isinstance(func([True, 17, "hello"]), bool)
+    assert isinstance(func([True]), bool)
+    assert isinstance(func([17]), int)
+    assert isinstance(func(["hello"]), str)
+
+
+def test_map_argument_returns_value():
+    func = tvm.get_global_func("testing.AcceptsMapReturnsValue")
+
+    res = func({"a": 1, "b": 2}, "a")
+    assert isinstance(res, int)
+    assert res == 1
+
+    res = func({"a": True, "b": False}, "a")
+    assert isinstance(res, bool)
+    assert res == True
+
+
+def test_map_argument_returns_map():
+    func = tvm.get_global_func("testing.AcceptsMapReturnsMap")
+
+    res = func({"a": 1, "b": 2})
+    for key, value in res.items():
+        assert isinstance(key, str)
+        assert isinstance(value, int)
+
+    res = func({"a": False, "b": True})
+    for key, value in res.items():
+        assert isinstance(key, str)
+        assert isinstance(value, bool)
+
+
 if __name__ == "__main__":
-    test_string()
-    test_adt_constructor()
-    test_tuple_object()
-    test_shape_tuple()
+    tvm.testing.main()

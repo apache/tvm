@@ -773,49 +773,47 @@ namespace runtime {
 template <>
 struct PackedFuncValueConverter<PrimExpr> {
   static PrimExpr From(const TVMPODValue_& val) {
-    if (val.type_code() == kTVMNullptr) {
-      return PrimExpr(ObjectPtr<Object>(nullptr));
+    if (auto opt = val.TryAsBool()) {
+      return Bool(opt.value());
+    } else if (auto opt = val.TryAsInt()) {
+      int64_t value = opt.value();
+      auto dtype =
+          (value > std::numeric_limits<int>::max() || value < std::numeric_limits<int>::min())
+              ? DataType::Int(64)
+              : DataType::Int(32);
+      return IntImm(dtype, value);
+    } else if (auto opt = val.TryAsFloat()) {
+      return FloatImm(runtime::DataType::Float(32), opt.value());
+    } else {
+      return val.AsObjectRef<PrimExpr>();
     }
-    if (val.type_code() == kDLInt) {
-      int64_t value = val.operator int64_t();
-      if (value > std::numeric_limits<int>::max() || value < std::numeric_limits<int>::min()) {
-        return IntImm(runtime::DataType::Int(64), value);
-      }
-      return IntImm(runtime::DataType::Int(32), val.operator int());
-    }
-    if (val.type_code() == kDLFloat) {
-      return FloatImm(runtime::DataType::Float(32), val.operator double());
-    }
-
-    return PrimExpr::FromObject_(val.AsObjectRef<ObjectRef>());
   }
 };
 
 template <>
 struct PackedFuncValueConverter<tvm::Integer> {
   static tvm::Integer From(const TVMPODValue_& val) {
-    if (val.type_code() == kTVMNullptr) {
-      return Integer(ObjectPtr<Object>(nullptr));
+    if (auto opt = val.TryAsInt()) {
+      return Integer(opt.value());
+    } else {
+      return val.AsObjectRef<tvm::Integer>();
     }
-    if (val.type_code() == kTVMArgInt) {
-      return Integer(val.operator int());
-    }
-    return val.AsObjectRef<tvm::Integer>();
   }
 };
 
 template <>
 struct PackedFuncValueConverter<tvm::Bool> {
   static tvm::Bool From(const TVMPODValue_& val) {
-    if (val.type_code() == kTVMNullptr) {
-      return Bool(ObjectPtr<Object>(nullptr));
+    if (auto opt = val.TryAsBool()) {
+      return Bool(opt.value());
+    } else if (auto opt = val.TryAsInt()) {
+      int value = opt.value();
+      ICHECK(value == 0 || value == 1)
+          << "ValueError: boolean value can only be 0 or 1, but get " << value;
+      return Bool(static_cast<bool>(value));
+    } else {
+      return val.AsObjectRef<tvm::Bool>();
     }
-    if (val.type_code() == kTVMArgInt) {
-      int v = val.operator int();
-      ICHECK(v == 0 || v == 1) << "ValueError: boolean value can only be 0 or 1, but get " << v;
-      return Bool(static_cast<bool>(v));
-    }
-    return val.AsObjectRef<tvm::Bool>();
   }
 };
 
