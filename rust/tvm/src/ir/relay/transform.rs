@@ -19,4 +19,7 @@ external! {
 
     #[name("relay.op._make.strided_slice")]
     pub fn strided_slice(data: Expr, begin: Array<PrimExpr>, end: Array<PrimExpr>, strides: Array<PrimExpr>, slice_mode: TVMString, axes: Array<PrimExpr>) -> Expr;
+
+    #[name("relay.op._make.expand_dims")]
+    pub fn expand_dims(data: Expr, axis: i32, num_newaxis: i32) -> Expr;
 }
