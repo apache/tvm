@@ -24,6 +24,7 @@
 #include <tvm/relax/expr.h>
 #include <tvm/relax/expr_functor.h>
 #include <tvm/relax/transform.h>
+#include <tvm/relax/utils.h>
 #include <tvm/tir/stmt_functor.h>
 
 #include "utils.h"
@@ -31,25 +32,13 @@
 namespace tvm {
 namespace relax {
 
-Expr BindingValue(const Binding& b) {
-  Expr value;
-  if (const auto* var_binding = b.as<VarBindingNode>()) {
-    value = var_binding->value;
-  } else if (const auto* match_binding = b.as<MatchCastNode>()) {
-    value = match_binding->value;
-  } else {
-    CHECK(false) << "Invalid binding";  // impossible
-  }
-  return value;
-}
-
 std::unordered_map<Var, std::pair<int, int>, ObjectPtrHash, ObjectPtrEqual> analyze_liveness(
     const DataflowBlock& block) {
   std::unordered_map<Var, std::pair<int, int>, ObjectPtrHash, ObjectPtrEqual> ret;
   for (int i = block->bindings.size() - 1; i >= 0; i--) {
     Binding b = block->bindings[i];
     Var defined_var = b->var;
-    Expr value = BindingValue(b);
+    Expr value = GetBoundValue(b);
     Array<Var> used_vars;
     // for a function literal, we consider only the free vars
     // (those captured from the outer scope)
@@ -110,7 +99,7 @@ class AliasAnalyzer {
 
     for (const Binding& binding : block->bindings) {
       Var current_var = binding->var;
-      Expr value = BindingValue(binding);
+      Expr value = GetBoundValue(binding);
       alias_map_[current_var] = get_alias_set(value, current_var);
     }
 
@@ -546,7 +535,7 @@ std::pair<std::vector<std::vector<int>>, std::vector<std::vector<int>>> find_inp
     // if we reach a binding check the conditions
     Binding b = block->bindings[i];
     Var defined_var = b->var;
-    Expr value = BindingValue(b);
+    Expr value = GetBoundValue(b);
 
     if (auto* call_node = value.as<CallNode>()) {
       if (auto* op_node = call_node->op.as<OpNode>()) {
@@ -756,7 +745,7 @@ class ModuleInplaceTransformer : public ExprMutator {
     auto block = GetRef<DataflowBlock>(op);
     std::unordered_set<Var, ObjectPtrHash, ObjectPtrEqual> free_var_set;
     for (auto binding : block->bindings) {
-      auto binding_free_vars = FreeVars(BindingValue(binding));
+      auto binding_free_vars = FreeVars(GetBoundValue(binding));
       free_var_set.insert(binding_free_vars.begin(), binding_free_vars.end());
     }
     Array<Var> free_var_list(free_var_set.begin(), free_var_set.end());
@@ -774,7 +763,7 @@ class ModuleInplaceTransformer : public ExprMutator {
         continue;
       }
       auto target_binding = block->bindings[i];
-      auto target_call = Downcast<Call>(BindingValue(target_binding));
+      auto target_call = Downcast<Call>(GetBoundValue(target_binding));
       // can just pick the first index arbitrarily (only using one output for now too)
       auto new_call = CreateInplaceCall(target_call, {exact_matches[current_match_index][1]});
       // now replace the binding appropriately
