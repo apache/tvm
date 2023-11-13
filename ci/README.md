@@ -27,7 +27,7 @@ TVM project in a healthy state and preventing breakages. CI in TVM is broken int
  - Definitions of test suites, with each suite defined as a separate `task_` script in
    [`tests/scripts`](../tests/scripts).
  - Scripts and automation [`ci/scripts`](../ci/scripts).
- - The linux test sequence (in [`Jenkinsfile`](../Jenkinsfile)), which lints and builds TVM and runs test
+ - The linux test sequence (in [`Jenkinsfile`](../ci/jenkins/templates/)), which lints and builds TVM and runs test
    suites using Docker on Linux.
  - The Windows and Mac test sequences (in [`.github/actions`](../.github/actions)).
  - GitHub Actions that support the code review process (in [`.github/actions`](../.github/actions)).
@@ -66,21 +66,21 @@ https://github.com/apache/tvm/actions has the logs for each of these workflows. 
 
 Each CI job runs most of its work inside a Docker container, built from files
 in the [`docker/`](../docker) folder. These
-files are built nightly in Jenkins via the [docker-images-ci](https://ci.tlcpack.ai/job/docker-images-ci/>) job.
-The images for these containers are hosted in the [tlcpack Docker Hub](https://hub.docker.com/u/tlcpack>)
-and referenced in the [`Jenkinsfile.j2`](Jenkinsfile.j2). These can be inspected and run
+files are built nightly in Jenkins via the [docker-images-ci](https://ci.tlcpack.ai/job/docker-images-ci/) job.
+The images for these containers are hosted in the [tlcpack Docker Hub](https://hub.docker.com/u/tlcpack)
+and referenced in the [`jenkins/templates`](/ci/jenkins/templates/). These can be inspected and run
 locally via standard Docker commands.
 
 ### `ci-docker-staging`
 
-The [ci-docker-staging](https://github.com/apache/tvm/tree/ci-docker-staging>)
+The [ci-docker-staging](https://github.com/apache/tvm/tree/ci-docker-staging)
 branch is used to test updates to Docker images and `Jenkinsfile` changes. When
 running a build for a normal PR from a forked repository, Jenkins uses the code
 from the PR except for the `Jenkinsfile` itself, which comes from the base branch.
 When branches are built, the `Jenkinsfile` in the branch is used, so a committer
 with write access must push PRs to a branch in apache/tvm to properly test
 `Jenkinsfile` changes. If your PR makes changes to the `Jenkinsfile`, make sure
-to @ a [committer](../CONTRIBUTORS.md>)
+to @ a [committer](/CONTRIBUTORS.md)
 and ask them to push your PR as a branch to test the changes.
 
 # Jenkins CI
@@ -88,11 +88,11 @@ and ask them to push your PR as a branch to test the changes.
 TVM uses Jenkins for running Linux continuous integration (CI) tests on
 [branches](https://ci.tlcpack.ai/job/tvm/) and
 [pull requests](https://ci.tlcpack.ai/job/tvm/view/change-requests/) through a
-build configuration specified in a [`Jenkinsfile`](../Jenkinsfile).
+build configuration specified in a [`Jenkinsfile`](/ci/jenkins/templates/).
 Other jobs run in GitHub Actions for Windows and MacOS jobs.
 
 ## `Jenkinsfile`
 
-The template files in this directory are used to generate the [`Jenkinsfile`](../Jenkinsfile) used by Jenkins to run CI jobs for each commit to PRs and branches.
+The template files in this directory are used to generate the [`Jenkinsfile`](/ci/jenkins/templates/) used by Jenkins to run CI jobs for each commit to PRs and branches.
 
 To regenerate the `Jenkinsfile`, run `make` in the `ci/jenkins` dir.
