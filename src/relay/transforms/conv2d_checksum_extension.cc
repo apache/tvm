@@ -44,16 +44,15 @@
 /* Description of Conv2d_checksum_extension
  *
  * The purpose of this pass is to find quantized conv2D operators, which use only integers as in/output. These Operators are then extended 
- * with multiple Checksum Calculations after Hari. et. Al. to find soft fault during convolution and return each Checksum result for 
- * each Conv2D operator
+ * with multiple Checksum Calculations after Hari. et. Al.(FIC/conv2D) and Uzair. et. Al.(FICwd/depthwise_conv2D) to find soft fault during 
+ * convolution and return each Checksum result for each Conv2D operator
  *
- *   x      w
- *   |      |
- *  op1   op2
+ *  x       w
+ *   \     /
  *    \   /
- *     conv2D
+ *    conv2D
+ *   depth_conv2d
  *      |
- *     op4
  *      |
  *      y
  *
@@ -61,41 +60,67 @@
  *
  * The pass does this via a 2 level approach:
  *
- * The recursive search function fills 2 arrays for quantized "normal" Conv2D and depthwise_conv2d. 
+ * The recursive search function fills an array with quantized "normal" Conv2D and depthwise_conv2d relay nodes.
  *
  * After that, a new Call Node is attached to the the top level of the function for each found operator, forming a Top level output tuple.
  * For Readability reasons x,w is copied. x,w,ones is u(int)8/16 
- * Filter Checksum and input fmap checksum(Ic) requires 32-bit precision (Hari et. al.) => Cast each input tensor to 32-bit dtype
- * Reduced output fmaps require 64 bit precision
+ * Filter Checksum and input fmap checksum(Ic) requires 32-bit precision (Hari et. al.)
+ * Reduced output fmaps and vector-vector dot product require 64 bit precision.
  * Normal Conv2D:
  * 
  *      x(N,C,H,W)   w(K,C,S,R)   ones(C,1,P,Q)    x(N,C,H,W)     w(K,C,S,R)
- *            |          |            \                /               |
- *            |          |             \              /                |
- *            |          |              \            /                 |
- *            |          |               \          /                  |
- *           op1        op2            depthwise_conv2d           cast("32bit")
+ *           |           |              \            /                 |
+ *           |           |               \          /                  |
+ *           |           |            depthwise_conv2d           cast("32bit")
  *            \         /                    |                         |
  *             \       /                     |                         |
  *              \     /                   sum(Axis={0},           sum(Axis={0},
  *               \   /                    keepdims=true)          keepdims=true)                         
- *               conv2D                         \                /
+ *               conv2D                     (1,C,S,R)            /
  *               /  \                            \              /
  *              /    \                            \            /
  *             /      \                            \          /
- *            /     cast("64bit")                     conv2D       
- *           /          \                             /       
+ *            /     cast("64bit")                     conv2D((1,C,S,R)*(1,C,S,R))
+ *           /          \                             /
  *          /            \                           /
- *         op4            \                         /
- *          |           sum(Axis=            sum(Axis=
- *          |          {0,1,2,3})           {0,1,2,3}) //Solely 4D->1D
- *          |                \               /
- *          |                 \             /
+ *         |              \                         /
+ *         |            sum(Axis=            sum(Axis=
+ *         |           {0,1,2,3})           {0,1,2,3}) //Solely 4D->1D
+ *         |                 \               /
+ *         |                  \             /
  *      y(N,K,P,Q)               not_equal
  *
  *
  */
 
+/*
+*
+ * Depthwise Conv2D
+ *
+ *      x(N,C,H,W)   w(C,1,S,R)   ones(C,1,P,Q)    x(N,C,H,W)   w(C,1,S,R)
+ *           |           |              \            /                 |
+ *           |           |               \          /                  |
+ *           |           |            depthwise_conv2d          reshape(w(C,1,S,R)->w(1,C,S,R))
+ *            \         /                 (N,C,S,R)                   |
+ *             \       /                     |                        |
+ *              \     /                      |                       /
+ *               \   /                       \                      /
+ *          depth_conv2D                 sum(Axis={0},             /
+ *               /  \                     keepdims=true)          /
+ *              /    \                           \               /
+ *             /      \                           \             /
+ *            /     cast("64bit")              conv2D(1,C,S,R)*(1,C,S,R)
+ *           /          \                             /
+ *          /            \                           /
+ *         |              \                         /
+ *         |            sum(Axis=            sum(Axis=
+ *         |           {0,1,2,3})           {0,1,2,3}) //Solely 4D->1D
+ *         |                 \               /
+ *         |                  \             /
+ *      y(N,C,P,Q)               not_equal
+ *
+ *
+ */
 
 
 namespace tvm {
@@ -106,9 +131,9 @@ class Conv2dVisitor : private ExprVisitor {
  public:
   Conv2dVisitor() : conv2d_op(Op::Get("nn.conv2d")) {}
 
-  std::pair<Array<ObjectRef>, Array<ObjectRef>> Search(const Expr& expr) {
+   Array<ObjectRef> Search(const Expr& expr) {
     VisitExpr(expr);
-    return std::make_pair(conv, depthwise_conv);
+    return conv;
   }
 
  private:
@@ -136,29 +161,22 @@ class Conv2dVisitor : private ExprVisitor {
       ICHECK(attr);
       ICHECK(input);
       ICHECK(weight);
-      bool depth = IsDepthwiseConv(GetRef<Call>(n), attr, attr->kernel_layout);
-        if(supportedInputTensorType(input)  && 
-           supportedInputTensorType(weight) &&
-          (supportedOutputTensorType(attr))){
-            if(!depth){
-              conv.push_back(GetRef<Call>(n));
-            }else{
-              depthwise_conv.push_back(GetRef<Call>(n));
-            }
-        }
-    }
+      if(supportedInputTensorType(input)  &&
+         supportedInputTensorType(weight) &&
+        (supportedOutputTensorType(attr))){
+            conv.push_back(GetRef<Call>(n));
+      }
     // iterate deeper levels
     for (const auto& arg : n->args) {
       VisitExpr(arg);
     }
+   }
   }
-
   const Op& conv2d_op;
-  Array<ObjectRef> conv;            // Array for all already existing conv2d operation
-  Array<ObjectRef> depthwise_conv;  // Array for all already existing depthwise conv2d operation
+  Array<ObjectRef> conv;            // Array for all already existing conv2d operation/including depthwise
 };
 
-Array<ObjectRef> SearchConv2d(const Expr& e) { return Conv2dVisitor().Search(e).first; }
+Array<ObjectRef> SearchConv2d(const Expr& e) { return Conv2dVisitor().Search(e); }
 
 TVM_REGISTER_GLOBAL("relay.analysis.search_conv2d").set_body_typed(SearchConv2d);
 
@@ -198,6 +216,26 @@ ObjectPtr<Conv2DAttrs> create_vec_vec_prod_attr(Shape weight_shape){
 }
 
 
+Shape infer_output_shape_conv2d(const Call origin_conv2d){
+        const auto* input_tensor  = origin_conv2d->args[0]->type_as<TensorTypeNode>();
+        const auto* weight_tensor = origin_conv2d->args[1]->type_as<TensorTypeNode>();
+
+        ICHECK(input_tensor != nullptr);
+        ICHECK(weight_tensor != nullptr);
+
+        auto weight_shape = weight_tensor->shape; // KCSR
+        auto input_shape = input_tensor->shape;   // NCHW
+
+        // calculate output shape for the according Matrix(P,Q and C inferred from input shape)
+        //  (Input Size – ((Filter Size – 1)Dilation Factor + 1) + 2Padding)/Stride + 1
+        PrimExpr P = input_shape[2] - weight_shape[2] + 1;
+        PrimExpr Q = input_shape[3] - weight_shape[3] + 1;
+        IntImm C = Downcast<IntImm>(input_shape[1]); //need to do this as no conv frim PrimExpr to int exists ffs
+        PrimExpr One{1};
+
+        return Shape({C, One, P, Q});
+
+}
 
 
 
@@ -231,6 +269,7 @@ IRModule Extend2DConv(const IRModule& mod) {
       const Op& cast_op = Op::Get("cast");
       const Op& sum_op = Op::Get("sum");
       const Op& neq_op = Op::Get("not_equal");
+      const Op& reshape = Op::Get("reshape");
 
 
         //////////////STATIC ATTR:
@@ -267,71 +306,74 @@ IRModule Extend2DConv(const IRModule& mod) {
         const auto weight = Downcast<Var>(origin_conv2d->args[1]);
 
 /*
-*    ones(C,1,P,Q)    x(N,C,H,W) 
- *        \                / 
- *         \              /  
- *          \            /   
- *           \          /    
- *         depthwise_conv2d         
- *               |  
+*    ones(C,1,P,Q)    x(N,C,H,W)
+ *        \                /
+ *         \              /
+ *          \            /
+ *           \          /
+ *         depthwise_conv2d
+ *               |
  *               |
  *            sum(Axis={0},
- *            keepdims=true)       
- *                  \  
+ *            keepdims=true)
+ *                  \
  *                   \
 */
        
         /// Implement depth-wise conv with conv2d Operation (Group arg splits input into C seperate batches)
         const auto* orig_conv_attr = origin_conv2d->attrs.as<Conv2DAttrs>();
         ICHECK(orig_conv_attr != nullptr);
-        //bool is_depthwise_conv = IsDepthwiseConv(origin_conv2d,orig_conv_attr,orig_conv_attr->kernel_layout);
-        auto weight_shape = weight_tensor->shape; // KCSR
-        auto input_shape = input_tensor->shape;   // NCHW
-
-        // calculate output shape for the according Matrix(P,Q and C inferred from input shape)
-        //  (Input Size – ((Filter Size – 1)Dilation Factor + 1) + 2Padding)/Stride + 1
-        PrimExpr P = input_shape[2] - weight_shape[2] + 1;
-        PrimExpr Q = input_shape[3] - weight_shape[3] + 1;
-        IntImm C = Downcast<IntImm>(input_shape[1]); //need to do this as no conv frim PrimExpr to int exists ffs
-        PrimExpr One{1};
+        Shape one_tensor = infer_output_shape_conv2d(origin_conv2d); //C1PQ
 
 
-
-        auto depthwise_conv_attr = create_depthwise_conv_attr(orig_conv_attr, P, Q, C);
-        auto depthwise_kernel = Ones({C, One, P, Q}, DataType::Int(8));
+        auto depthwise_conv_attr = create_depthwise_conv_attr(orig_conv_attr, one_tensor[2], one_tensor[3], Downcast<IntImm>(one_tensor[0]));
+        auto depthwise_kernel = Ones(infer_output_shape_conv2d(origin_conv2d), DataType::Int(8));
 
         Call depthwise_conv(conv2d_op, {input, depthwise_kernel}, Attrs{depthwise_conv_attr});
-        
+
+
 /*
-*                              w(K,C,S,R)
- *                                 |
- *                                 |
- *                                 |
- *                                 |
- *                                 |
- *                            cast("32bit")
- *                                 |
- *                                 |
- *       |                         |
- *    sum(Axis={0},           sum(Axis={0},
- *    keepdims=true)          keepdims=true)                         
- *          \                /
- *           \              /
- *            \            /
- *             \          /
- *                conv2D       
- *                /       
- *               /       
+*                     standard conv2D:                                   depthwise conv2D:
+ *                             w(K,C,S,R)                                      w(C,1,S,R)
+ *                                 |                                               |
+ *                                 |                                               |
+ *                                 |                                               |
+ *                                 |                                               |
+ *                                 |                                               |
+ *                            cast("32bit")                           reshape(w(C,1,S,R)->w(1,C,S,R))
+ *                                 |                                              |
+ *                                 |                                              |
+ *       |                         |                            |                /
+ *    sum(Axis={0},           sum(Axis={0},                     \               /
+ *    keepdims=true)          keepdims=true)      vs.       sum(Axis={0},      /
+ *          \                /                              keepdims=true)    /
+ *           \              /                                    \           /
+ *            \            /                                      \         /
+ *             \          /                                   conv2D(1,C,S,R)*(1,C,S,R)
+ *                conv2D                                            /
+ *                /                                                /
+ *               /                                                /
 */      
        
         Call batchwise_sum_input(sum_op, {depthwise_conv}, Attrs(reduce_axis_attrs));  // use batch as axis for depthwise sum
         
-        
-        Call weight_32bit(cast_op, {weight}, Attrs(cast_attr_32bit));
-        Call filterwise_sum_input(sum_op, {weight_32bit},  Attrs(reduce_axis_attrs));  // add each element of indiv filter
-  
 
+        Call filterwise_sum_input;
+        bool depth = IsDepthwiseConv(origin_conv2d, orig_conv_attr, orig_conv_attr->kernel_layout);
+
+        if(!depth){
+          // normal Conv
+          Call weight_32bit(cast_op, {weight}, Attrs(cast_attr_32bit));
+          filterwise_sum_input = Call(sum_op, {weight_32bit},  Attrs(reduce_axis_attrs));  // add each element of indiv filter
+        }else{
+          //depthwise Conv
+          auto reshape_attrs = make_object<ReshapeAttrs>();  // reshape(w(C,1,S,R)->w(1,C,S,R))
+          Array<IntImm> new_shape = Downcast<Array<IntImm>>(weight_tensor->shape);
+          reshape_attrs->newshape = {static_cast<int32_t>(new_shape[1]->value), static_cast<int32_t>(new_shape[0]->value), static_cast<int32_t>(new_shape[2]->value), static_cast<int32_t>(new_shape[3]->value)};  // switch dimensions to enable simple vector vector dot product
+          filterwise_sum_input = Call(reshape, {weight},  Attrs(reshape_attrs));
+        }
         // Simple Vector-Vector dot product of 3D Tensors (Checksum dot product)
+        auto weight_shape = origin_conv2d->args[1]->type_as<TensorTypeNode>()->shape;
         auto vec_vec_prod_attr = create_vec_vec_prod_attr(weight_shape);
         Call vec_vec_prod(conv2d_op, {batchwise_sum_input, filterwise_sum_input}, Attrs(vec_vec_prod_attr));
         
