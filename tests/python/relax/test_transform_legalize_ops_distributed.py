@@ -36,7 +36,7 @@ def test_redistribute_replica_to_shard():
     @I.ir_module
     class Expected:
         @T.prim_func(private=True)
-        def te_R_to_S(A: T.Buffer((T.int64(10), T.int64(10)), "float32"), redistribute_replica_to_shard: T.Buffer((T.int64(10), T.int64(5)), "float32"), worker_id: T.int64):
+        def strided_slice(A: T.Buffer((T.int64(10), T.int64(10)), "float32"), redistribute_replica_to_shard: T.Buffer((T.int64(10), T.int64(5)), "float32"), worker_id: T.int64):
             T.func_attr({"tir.noalias": T.bool(True)})
             # with T.block("root"):
             for i0, i1 in T.grid(T.int64(10), T.int64(5)):
@@ -52,7 +52,7 @@ def test_redistribute_replica_to_shard():
             cls = Expected
             gv: R.Shape(ndim=-1) = R.call_pure_packed("runtime.disco.worker_id", sinfo_args=(R.Shape(ndim=-1),))
             gv1: R.Shape([worker_id]) = R.match_cast(gv, R.Shape([worker_id]))
-            gv0 = R.call_tir(cls.te_R_to_S, (x,), out_sinfo=R.Tensor((10, 5), dtype="float32"), tir_vars=R.shape([worker_id]))
+            gv0 = R.call_tir(cls.strided_slice, (x,), out_sinfo=R.Tensor((10, 5), dtype="float32"), tir_vars=R.shape([worker_id]))
             return gv0
     # fmt: on
 

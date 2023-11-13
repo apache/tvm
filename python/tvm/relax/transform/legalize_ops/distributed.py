@@ -16,7 +16,7 @@
 # under the License.
 # pylint: disable=invalid-name
 """Default legalization function for distir-related operators."""
-from tvm import tir, te
+from tvm import tir, te, relax
 from ...block_builder import BlockBuilder
 from ...expr import Call, Expr
 from ...op import call_pure_packed
@@ -34,21 +34,10 @@ def _redistribute_replica_to_shard(_bb: BlockBuilder, call: Call) -> Expr:
     )
     _bb.match_cast(worker_id_var, ShapeStructInfo([worker_id_symbol]))
 
-    def te_R_to_S(tensor, worker_id):
-        output_shape = list(tensor.shape)
-        output_shape[axis] = output_shape[axis] // num_workers
-
-        def index_func(out_indices):
-            in_indices = []
-            for i, idx in enumerate(out_indices):
-                if i == axis:
-                    in_indices.append(idx + worker_id * output_shape[axis])
-                else:
-                    in_indices.append(idx)
-            return tuple(in_indices)
-
-        return te.compute(
-            output_shape, lambda *idx: tensor[index_func(idx)], name="redistribute_replica_to_shard"
-        )
-
-    return _bb.call_te(te_R_to_S, call.args[0], worker_id_symbol)
+    split_axis_size = call.args[0].struct_info.shape[axis]
+    return relax.op.strided_slice(
+        call.args[0],
+        axes=[axis],
+        begin=[worker_id_symbol * split_axis_size // num_workers],
+        end=[(worker_id_symbol + 1) * split_axis_size // num_workers],
+    )

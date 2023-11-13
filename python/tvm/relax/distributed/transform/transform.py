@@ -34,6 +34,8 @@ def PropagateSharding() -> tvm.ir.transform.Pass:
 
 def LegalizeRedistribute() -> tvm.ir.transform.Pass:
     """Legalize redistribute op to ccl op.
+    S->R: R.ccl.allgather
+    R->S: R.dist.redistribute_replica_to_shard
 
     Returns
     -------
