@@ -294,16 +294,27 @@ Expr NormalizeCallTIR(const BlockBuilder& ctx, Call call) {
     arg_expr = unwrapped.value();
   }
 
-  CHECK(arg_expr.as<TupleNode>()) << "Operation " << call->op
-                                  << " must hold its arguments as an in-line tuple.  "
-                                  << "However, " << call << " has argument tuple " << call->args[1]
-                                  << ".  "
-                                  << "Unwrapping known variable bindings results in " << arg_expr
-                                  << ", which is not a tuple and so the " << call->op
-                                  << " cannot be normalized to have arguments as an in-line tuple.";
+  Tuple new_arg_expr = [&]() {
+    // Preferred replacement.  The argument tuple is provided as a
+    // variable, but we know the value bound to that variable.
+    if (auto opt = arg_expr.as<Tuple>()) {
+      return opt.value();
+    }
+
+    // Fallback case.  The argument tuple is provided as a variable,
+    // and we don't know the value bound to that variable.  For
+    // example, if a relax function accepted a tuple as an parameter,
+    // then provided that same tuple as an argument to call_tir.
+    Array<Expr> tuple_elements;
+    size_t num_fields = Downcast<TupleStructInfo>(arg_expr->struct_info_)->fields.size();
+    for (size_t i = 0; i < num_fields; i++) {
+      tuple_elements.push_back(TupleGetItem(arg_expr, i));
+    }
+    return Tuple(tuple_elements);
+  }();
 
   auto new_args = call->args;
-  new_args.Set(1, arg_expr);
+  new_args.Set(1, new_arg_expr);
   call.CopyOnWrite()->args = new_args;
 
   return std::move(call);

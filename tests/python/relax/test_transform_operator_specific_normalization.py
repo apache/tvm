@@ -212,6 +212,52 @@ def test_normalize_to_inline_tuple_for_call_tir(custom_op):
 
 
 @pytest.mark.skip_well_formed_check_before_transform
+def test_normalize_argument_to_inline_tuple_for_call_tir(custom_op):
+    """FNormalize in-lines the argument tuple for R.call_tir
+
+    Like `test_normalize_to_inline_tuple_for_call_tir`, but the
+    argument tuple is provided as a relax function argument.
+    """
+
+    @I.ir_module
+    class Before:
+        @R.function
+        def main(args: R.Tuple([R.Tensor([16], "float32")])):
+            cls = Before
+            return relax.Call(
+                tvm.ir.Op.get("relax.call_tir"),
+                [cls.multiply_by_two, args],
+                sinfo_args=[args[0].struct_info],
+            )
+
+        @T.prim_func(private=True)
+        def multiply_by_two(A: T.Buffer(16, "float32"), B: T.Buffer(16, "float32")):
+            for i in range(16):
+                B[i] = A[i] * 2.0
+
+    @I.ir_module
+    class Expected:
+        @R.function
+        def main(args: R.Tuple([R.Tensor([16], "float32")])):
+            cls = Expected
+            return relax.Call(
+                tvm.ir.Op.get("relax.call_tir"),
+                [cls.multiply_by_two, relax.Tuple([args[0]])],
+                sinfo_args=[args[0].struct_info],
+            )
+
+        @T.prim_func(private=True)
+        def multiply_by_two(A: T.Buffer(16, "float32"), B: T.Buffer(16, "float32")):
+            for i in range(16):
+                B[i] = A[i] * 2.0
+
+    After = tvm.relax.testing.transform.ApplyEmptyCppMutator()(Before)
+
+    assert not tvm.ir.structural_equal(Before, After)
+    tvm.ir.assert_structural_equal(Expected, After)
+
+
+@pytest.mark.skip_well_formed_check_before_transform
 def test_normalize_to_inline_tuple_for_call_tir_inplace(custom_op):
     """FNormalize in-lines the argument tuple for R.call_tir_inplace"""
 
