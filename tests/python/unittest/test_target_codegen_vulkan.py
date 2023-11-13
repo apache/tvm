@@ -26,7 +26,8 @@ import pytest
 
 import tvm
 import tvm.testing
-from tvm import relay, te
+import tvm.topi.testing
+from tvm import relay, te, topi
 from tvm.topi.math import cast
 from tvm.script import tir as T, ir as I
 from tvm.tir import TensorIntrin, IntImm, Cast, Schedule
@@ -743,6 +744,38 @@ def test_codegen_decl_buffer():
     target = tvm.target.Target("vulkan")
     vulkan_codegen = tvm.get_global_func("target.build.vulkan")
     vulkan_codegen(mod, target)
+
+
+reduce_len = tvm.testing.parameter(32, 128, 129)
+
+
+@tvm.testing.requires_vulkan
+def test_reduce_shuffle(reduce_len):
+    target = "vulkan -from_device=0 -thread_warp_size=32"
+    # target = "opencl -thread_warp_size=32"
+
+    dev = tvm.device(target, 0)
+    shape = (reduce_len,)
+    dtype = "float32"
+    A = te.placeholder(shape=shape, name="A", dtype=dtype)
+    B = topi.sum(A)
+
+    with tvm.target.Target(target):
+        s = tvm.topi.testing.get_reduce_schedule(target)(B)
+
+    f = tvm.build(s, [A, B], target)
+    assert "OpGroupNonUniformShuffleDown" in f.imported_modules[0].get_source()
+
+    inp_np = np.random.randn(*shape).astype(dtype)
+
+    ref = np.sum(inp_np)
+
+    inp = tvm.nd.array(inp_np, dev)
+    out = tvm.nd.array(ref, dev)
+
+    f(inp, out)
+
+    assert out.numpy() - ref < 1e-4
 
 
 if __name__ == "__main__":

@@ -26,6 +26,7 @@
 #include <tvm/tir/builtin.h>
 #include <tvm/tir/expr.h>
 #include <tvm/tir/op.h>
+#include <vulkan/vulkan_core.h>
 
 #include <string>
 
@@ -509,6 +510,30 @@ spirv::Value CodeGenSPIRV::VisitExpr_(const CallNode* op) {
     spirv::SType ptr_type = builder_->GetPointerType(ele_stype, buffer_val.stype.storage_class);
     ICHECK(var_map_.count(buffer_node));
     return builder_->StructArrayAccess(ptr_type, var_map_[buffer_node], MakeValue(index));
+  } else if (op->op.same_as(builtin::tvm_warp_shuffle())) {
+    ICHECK(spirv_support_.supported_subgroup_operations &
+           VkSubgroupFeatureFlagBits::VK_SUBGROUP_FEATURE_SHUFFLE_BIT)
+        << "The target does not support subgroup shuffle.";
+    auto value = VisitExpr(op->args[1]);
+    auto id = VisitExpr(op->args[2]);
+    auto scope = builder_->UIntImm(builder_->GetSType(DataType::UInt(32)), spv::ScopeSubgroup);
+    return builder_->MakeValue(spv::OpGroupNonUniformShuffle, value.stype, scope, value, id);
+  } else if (op->op.same_as(builtin::tvm_warp_shuffle_down())) {
+    ICHECK(spirv_support_.supported_subgroup_operations &
+           VkSubgroupFeatureFlagBits::VK_SUBGROUP_FEATURE_SHUFFLE_RELATIVE_BIT)
+        << "The target does not support subgroup shuffle relative.";
+    auto value = VisitExpr(op->args[1]);
+    auto delta = VisitExpr(op->args[2]);
+    auto scope = builder_->UIntImm(builder_->GetSType(DataType::UInt(32)), spv::ScopeSubgroup);
+    return builder_->MakeValue(spv::OpGroupNonUniformShuffleDown, value.stype, scope, value, delta);
+  } else if (op->op.same_as(builtin::tvm_warp_shuffle_up())) {
+    ICHECK(spirv_support_.supported_subgroup_operations &
+           VkSubgroupFeatureFlagBits::VK_SUBGROUP_FEATURE_SHUFFLE_RELATIVE_BIT)
+        << "The target does not support subgroup shuffle relative.";
+    auto value = VisitExpr(op->args[1]);
+    auto delta = VisitExpr(op->args[2]);
+    auto scope = builder_->UIntImm(builder_->GetSType(DataType::UInt(32)), spv::ScopeSubgroup);
+    return builder_->MakeValue(spv::OpGroupNonUniformShuffleUp, value.stype, scope, value, delta);
   } else {
     LOG(FATAL) << "Unresolved call  " << op->op;
   }
