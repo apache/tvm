@@ -22,7 +22,7 @@ import tvm.testing
 import tvm.relax.testing.transform
 
 from tvm import relax
-from tvm.script.parser import ir as I, relax as R
+from tvm.script.parser import ir as I, relax as R, tir as T
 
 import pytest
 
@@ -165,6 +165,166 @@ def test_un_normalized_call_node_is_ill_formed(custom_op, define_normalization):
         assert not relax.analysis.well_formed(Module)
     else:
         assert relax.analysis.well_formed(Module)
+
+
+@pytest.mark.skip_well_formed_check_before_transform
+def test_normalize_to_inline_tuple_for_call_tir(custom_op):
+    """FNormalize in-lines the argument tuple for R.call_tir"""
+
+    @I.ir_module
+    class Before:
+        @R.function
+        def main(A: R.Tensor([16], "float32")):
+            cls = Before
+            args = (A,)
+            return relax.Call(
+                tvm.ir.Op.get("relax.call_tir"),
+                [cls.multiply_by_two, args],
+                sinfo_args=[A.struct_info],
+            )
+
+        @T.prim_func(private=True)
+        def multiply_by_two(A: T.Buffer(16, "float32"), B: T.Buffer(16, "float32")):
+            for i in range(16):
+                B[i] = A[i] * 2.0
+
+    @I.ir_module
+    class Expected:
+        @R.function
+        def main(A: R.Tensor([16], "float32")):
+            cls = Expected
+            args = (A,)
+            return relax.Call(
+                tvm.ir.Op.get("relax.call_tir"),
+                [cls.multiply_by_two, relax.Tuple([A])],
+                sinfo_args=[A.struct_info],
+            )
+
+        @T.prim_func(private=True)
+        def multiply_by_two(A: T.Buffer(16, "float32"), B: T.Buffer(16, "float32")):
+            for i in range(16):
+                B[i] = A[i] * 2.0
+
+    After = tvm.relax.testing.transform.ApplyEmptyCppMutator()(Before)
+
+    assert not tvm.ir.structural_equal(Before, After)
+    tvm.ir.assert_structural_equal(Expected, After)
+
+
+@pytest.mark.skip_well_formed_check_before_transform
+def test_normalize_to_inline_tuple_for_call_tir_inplace(custom_op):
+    """FNormalize in-lines the argument tuple for R.call_tir_inplace"""
+
+    # The CallTIRInplaceAttrs cannot be constructed from the Python
+    # API.  Therefore, declaring the Expected output first, so that
+    # the attributes can be used for the non-normalized Before.
+    @I.ir_module
+    class Expected:
+        @R.function
+        def main(A: R.Tensor([16], "float32")):
+            cls = Expected
+            args = (A,)
+            return R.call_tir_inplace(
+                cls.multiply_by_two,
+                A,
+                inplace_indices=[0],
+                out_sinfo=[A.struct_info],
+            )
+
+        @T.prim_func(private=True)
+        def multiply_by_two(A: T.Buffer(16, "float32")):
+            for i in range(16):
+                A[i] = A[i] * 2.0
+
+    inplace_attrs = Expected["main"].body.blocks[0].bindings[1].value.attrs
+
+    @I.ir_module
+    class Before:
+        @R.function
+        def main(A: R.Tensor([16], "float32")):
+            cls = Before
+            args = (A,)
+            return relax.Call(
+                tvm.ir.Op.get("relax.call_tir_inplace"),
+                [cls.multiply_by_two, args],
+                attrs=inplace_attrs,
+                sinfo_args=[A.struct_info],
+            )
+
+        @T.prim_func(private=True)
+        def multiply_by_two(A: T.Buffer(16, "float32")):
+            for i in range(16):
+                A[i] = A[i] * 2.0
+
+    After = tvm.relax.testing.transform.ApplyEmptyCppMutator()(Before)
+
+    assert not tvm.ir.structural_equal(Before, After)
+    tvm.ir.assert_structural_equal(Expected, After)
+
+
+@pytest.mark.skip_well_formed_check_before_transform
+def test_normalize_to_inline_tuple_for_call_tir_with_grad(custom_op):
+    """FNormalize in-lines the argument tuple for R.call_tir_with_grad"""
+
+    # The CallTIRWithGradAttrs cannot be constructed from the Python
+    # API.  Therefore, declaring the Expected output first, so that
+    # the attributes can be used for the non-normalized Before.
+    @I.ir_module
+    class Expected:
+        @R.function
+        def main(A: R.Tensor([16], "float32")):
+            cls = Expected
+            args = (A,)
+            return R.call_tir_with_grad(
+                cls.multiply_by_two,
+                A,
+                out_sinfo=[A.struct_info],
+                te_grad_name="f_grad",
+            )
+
+        @T.prim_func(private=True)
+        def multiply_by_two(A: T.Buffer(16, "float32"), B: T.Buffer(16, "float32")):
+            for i in range(16):
+                B[i] = A[i] * 2.0
+
+        @T.prim_func(private=True)
+        def f_grad(
+            A: T.Buffer(16, "float32"), B: T.Buffer(16, "float32"), Grad: T.Buffer(16, "float32")
+        ):
+            for i in range(16):
+                Grad[i] = 2.0
+
+    with_grad_attrs = Expected["main"].body.blocks[0].bindings[1].value.attrs
+
+    @I.ir_module
+    class Before:
+        @R.function
+        def main(A: R.Tensor([16], "float32")):
+            cls = Before
+            args = (A,)
+            return relax.Call(
+                tvm.ir.Op.get("relax.call_tir_with_grad"),
+                [cls.multiply_by_two, args],
+                attrs=with_grad_attrs,
+                sinfo_args=[A.struct_info],
+            )
+
+        @T.prim_func(private=True)
+        def multiply_by_two(A: T.Buffer(16, "float32"), B: T.Buffer(16, "float32")):
+            for i in range(16):
+                B[i] = A[i] * 2.0
+
+        @T.prim_func(private=True)
+        def f_grad(
+            A: T.Buffer(16, "float32"), B: T.Buffer(16, "float32"), Grad: T.Buffer(16, "float32")
+        ):
+            for i in range(16):
+                Grad[i] = 2.0
+
+    After = tvm.relax.testing.transform.ApplyEmptyCppMutator()(Before)
+
+    assert not tvm.ir.structural_equal(Before, After)
+    tvm.ir.assert_structural_equal(Expected, After)
 
 
 if __name__ == "__main__":
