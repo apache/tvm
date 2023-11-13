@@ -187,7 +187,7 @@ namespace transform {
 ObjectPtr<Conv2DAttrs> create_depthwise_conv_attr(const Conv2DAttrs* orig_conv_attr,  PrimExpr P, PrimExpr Q, IntImm C){
   auto depthwise_conv_attr = make_object<Conv2DAttrs>();
   depthwise_conv_attr->strides = orig_conv_attr->strides;
-  depthwise_conv_attr->padding = orig_conv_attr->padding;
+  depthwise_conv_attr->padding = {0, 0, 0, 0};
   depthwise_conv_attr->dilation = orig_conv_attr->dilation;
   depthwise_conv_attr->groups = C->value;
   depthwise_conv_attr->kernel_size = {P, Q};
@@ -203,7 +203,7 @@ ObjectPtr<Conv2DAttrs> create_depthwise_conv_attr(const Conv2DAttrs* orig_conv_a
 ObjectPtr<Conv2DAttrs> create_vec_vec_prod_attr(Shape weight_shape){
   auto vec_vec_prod_attr = make_object<Conv2DAttrs>();
   vec_vec_prod_attr->strides = {1,1};
-  vec_vec_prod_attr->padding = {0, 0};
+  vec_vec_prod_attr->padding = {0, 0, 0, 0};
   vec_vec_prod_attr->dilation = {1,1};
   vec_vec_prod_attr->groups = 1;
   vec_vec_prod_attr->kernel_size = {weight_shape[2], weight_shape[3]}; //SR
