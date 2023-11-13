@@ -219,7 +219,7 @@ each time (e.g. you can test a change in CPU and i386 while retaining incrementa
     python tests/scripts/ci.py cpu --unittest
 
     # quickly iterate by running a specific test and skipping the rebuild each time
-    python tests/scripts/ci.py cpu --skip-build --tests tests/python/unittest/test_tir_transform_inject_rolling_buffer.py::test_upscale
+    python tests/scripts/ci.py cpu --skip-build --tests tests/python/tir-transform/test_tir_transform_inject_rolling_buffer.py::test_upscale
 
     # run the CPU build and drop into a shell in the container
     python tests/scripts/ci.py cpu --interactive
