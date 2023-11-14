@@ -688,7 +688,8 @@ class Normalizer : public BlockBuilderImpl, private ExprFunctor<Expr(const Expr&
 
     if (!node->struct_info_.defined()) {
       auto opt = MatchStructInfo<TupleStructInfo>(node->tuple);
-      ICHECK(opt) << "The struct info of Tuple must be TupleStructInfo.";
+      ICHECK(opt) << "The struct info of Tuple must be TupleStructInfo, "
+                  << "but expression " << node << " has struct info " << node->struct_info_;
       UpdateStructInfo(node, opt.value()->fields[node->index]);
     }
 
