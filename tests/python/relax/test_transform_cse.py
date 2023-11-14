@@ -78,9 +78,11 @@ def test_constants():
         def foo() -> R.Tuple(R.Tensor((), dtype="int32"), R.Tensor((2, 2), dtype="int32")):
             with R.dataflow():
                 lv0 = R.add(R.const(1, dtype="int32"), R.const(1, dtype="int32"))
-                lv1 = R.const(tvm.nd.array(np.zeros((2, 2), dtype="int32")))
-                lv2 = R.add(lv1, lv1)
-                gv = (lv0, lv2)
+                lv1 = R.add(
+                    R.const(tvm.nd.array(np.zeros((2, 2), dtype="int32"))),
+                    R.const(tvm.nd.array(np.zeros((2, 2), dtype="int32"))),
+                )
+                gv = (lv0, lv1)
                 R.output(gv)
             return gv
 
