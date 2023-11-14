@@ -140,16 +140,33 @@ class PrimFuncSpecializer : public StmtExprMutator {
     }
   }
 
+  Stmt VisitStmt_(const DeclBufferNode* op) final {
+    auto new_buf = MutateAllocBuffer(op->buffer);
+
+    Stmt stmt = StmtExprMutator::VisitStmt_(op);
+    op = stmt.as<DeclBufferNode>();
+    ICHECK(op != nullptr);
+
+    if (new_buf.same_as(op->buffer)) {
+      return GetRef<DeclBuffer>(op);
+    } else {
+      auto n = CopyOnWrite(op);
+      n->buffer = new_buf;
+      return Stmt(n);
+    }
+  }
+
   Stmt VisitStmt_(const BufferStoreNode* op) final {
     Stmt stmt = StmtExprMutator::VisitStmt_(op);
     op = stmt.as<BufferStoreNode>();
     ICHECK(op != nullptr);
-    auto it = buffer_map_.find(op->buffer);
-    if (it == buffer_map_.end()) {
+
+    auto new_buf = GetNewBuffer(op->buffer);
+    if (new_buf.same_as(op->buffer)) {
       return GetRef<BufferStore>(op);
     } else {
       auto n = CopyOnWrite(op);
-      n->buffer = it->second;
+      n->buffer = new_buf;
       return Stmt(n);
     }
   }
@@ -158,12 +175,13 @@ class PrimFuncSpecializer : public StmtExprMutator {
     PrimExpr expr = StmtExprMutator::VisitExpr_(op);
     op = expr.as<BufferLoadNode>();
     ICHECK(op != nullptr);
-    auto it = buffer_map_.find(op->buffer);
-    if (it == buffer_map_.end()) {
+
+    auto new_buf = GetNewBuffer(op->buffer);
+    if (new_buf.same_as(op->buffer)) {
       return GetRef<BufferLoad>(op);
     } else {
       auto n = make_object<BufferLoadNode>(*op);
-      n->buffer = it->second;
+      n->buffer = new_buf;
       return PrimExpr(n);
     }
   }
@@ -227,14 +245,33 @@ class PrimFuncSpecializer : public StmtExprMutator {
   }
 
   Buffer MutateAllocBuffer(const Buffer& alloc_buf) {
+    ICHECK(!buffer_map_.count(alloc_buf))
+        << "Multiple points of definition found for buffer " << alloc_buf;
+
     Buffer buf = MutateBuffer(alloc_buf);
-    if (buf.same_as(alloc_buf)) {
-      return alloc_buf;
-    } else {
-      ICHECK(buffer_map_.find(alloc_buf) == buffer_map_.end());
-      buffer_map_[alloc_buf] = buf;
-      return buf;
+    buffer_map_[alloc_buf] = buf;
+    return buf;
+  }
+
+  Buffer GetNewBuffer(const Buffer& old_buffer) {
+    if (auto it = buffer_map_.find(old_buffer); it != buffer_map_.end()) {
+      return it->second;
     }
+
+    auto mutated = MutateBuffer(old_buffer);
+    ICHECK(mutated.same_as(old_buffer))
+        << "Buffer " << old_buffer << " (shape = " << old_buffer->shape << ")"
+        << " was used without a declaration, "
+        << "and would be specialized into " << mutated << " (shape = " << mutated->shape << ").  "
+        << "While usage of an undeclared buffer is currently allowed in TIR, "
+        << "mutation must occur at the buffer's point of definition "
+        << "(see discussion on https://github.com/apache/tvm/pull/14565 for more details).  "
+        << "Please add a definition for this buffer, "
+        << "either in the PrimFunc's buffer_map, "
+        << "in a tir::Block's alloc_buffer, "
+        << "or in a DeclBuffer statement.";
+
+    return old_buffer;
   }
 
   BufferRegion MutateBufferRegion(const BufferRegion& buffer_region) {

@@ -243,10 +243,26 @@ def test_specialize_with_const_folding():
     assert_structural_equal_ignore_global_symbol(func, param_in_arith_exprs_n_16)
 
 
+def test_specialize_decl_buffer():
+    """Buffers occurring in a DeclBuffer statement should be updated"""
+
+    @T.prim_func(private=True)
+    def before(A_data: T.handle("float32"), A_size: T.int32):
+        A_buf = T.decl_buffer(A_size, "float32", data=A_data)
+        for i in range(A_size):
+            A_buf[i] = A_buf[i] * 2.0
+
+    @T.prim_func(private=True)
+    def expected(A_data: T.handle("float32")):
+        A_buf = T.decl_buffer(16, "float32", data=A_data)
+        for i in range(16):
+            A_buf[i] = A_buf[i] * 2.0
+
+    param_map = {before.params[1]: T.int32(16)}
+    after = before.specialize(param_map)
+
+    tvm.ir.assert_structural_equal(expected, after)
+
+
 if __name__ == "__main__":
-    test_specialize_nothing()
-    test_specialize_matmul()
-    test_specialize_elemwise()
-    test_specialize_mem_copy()
-    test_specialize_recursive_load()
-    test_specialize_with_const_folding()
+    tvm.testing.main()
