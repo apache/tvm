@@ -5432,6 +5432,39 @@ def test_swapaxes():
     verify_model(Swapaxes3().float().eval(), input_data=input_data)
 
 
+def test_linalg_vector_norm():
+    """test_linalg_vector_norm"""
+    torch.set_grad_enabled(False)
+    input_shape = [3, 3]
+
+    class VectorNorm1(torch.nn.Module):
+        def forward(self, x):
+            return torch.linalg.vector_norm(x)
+
+    class VectorNorm2(torch.nn.Module):
+        def forward(self, x):
+            return torch.linalg.vector_norm(x, ord=3.5)
+
+    class VectorNorm3(torch.nn.Module):
+        def forward(self, x):
+            return torch.linalg.vector_norm(x, ord=np.inf)
+
+    class VectorNorm4(torch.nn.Module):
+        def forward(self, x):
+            return torch.linalg.vector_norm(x, ord=-np.NINF)
+
+    class VectorNorm5(torch.nn.Module):
+        def forward(self, x):
+            return torch.linalg.vector_norm(x, ord=0)
+
+    input_data = torch.rand(input_shape).float()
+    verify_model(VectorNorm1().float().eval(), input_data=input_data)
+    verify_model(VectorNorm2().float().eval(), input_data=input_data)
+    verify_model(VectorNorm3().float().eval(), input_data=input_data)
+    verify_model(VectorNorm4().float().eval(), input_data=input_data)
+    verify_model(VectorNorm5().float().eval(), input_data=input_data)
+
+
 class TestSetSpan:
     """test structural equal between translated / hand-crafted relay IR with span tagged."""
 
