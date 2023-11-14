@@ -15,17 +15,20 @@
 # specific language governing permissions and limitations
 # under the License.
 """Namespace to store utilities for building web runtime."""
+import hashlib
+import json
+import os
+import shutil
+
 # pylint: disable=unused-import
 import sys
-import os
-import json
-import shutil
 from typing import Mapping, Union
 
 import numpy as np
 
 import tvm
 from tvm._ffi.libinfo import find_lib_path
+
 from .emcc import create_tvmjs_wasm
 
 
@@ -50,6 +53,14 @@ def _convert_f32_to_bf16(value):
 def _convert_bf16_to_f32(value):
     data = value.view("uint16")
     return (data.astype("uint32") << 16).view("float32")
+
+
+def _calculate_md5(filename):
+    hash_md5 = hashlib.md5()
+    with open(filename, "rb") as file:
+        for chunk in iter(lambda: file.read(8192), b""):
+            hash_md5.update(chunk)
+    return hash_md5.hexdigest()
 
 
 class NDArrayCacheShardingManager:
@@ -117,14 +128,17 @@ class NDArrayCacheShardingManager:
 
     def _commit_internal(self, data, records):
         data_path = f"{self.prefix}_{self.counter}.bin"
+        full_path = os.path.join(self.cache_dir, data_path)
         self.counter += 1
-        with open(os.path.join(self.cache_dir, data_path), "wb") as outfile:
+        with open(full_path, "wb") as outfile:
             outfile.write(data)
+
         shard_record = {
             "dataPath": data_path,
             "format": "raw-shard",
             "nbytes": len(data),
             "records": records,
+            "md5sum": _calculate_md5(full_path),
         }
         self.shard_records.append(shard_record)
 
