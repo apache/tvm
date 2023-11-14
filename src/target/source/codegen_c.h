@@ -138,7 +138,7 @@ class CodeGenC : public ExprFunctor<void(const PrimExpr&, std::ostream&)>,
    * \brief Print the function header before the argument list
    * \param os The output stream
    *
-   *  Example: stream << "void";
+   *  Example: os << "extern \"C\"";
    */
   virtual void PrintFuncPrefix(std::ostream& os);  // NOLINT(*)
   /*!

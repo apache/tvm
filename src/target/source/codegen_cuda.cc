@@ -49,7 +49,7 @@ void CodeGenCUDA::Init(bool output_ssa) {
   ICHECK_EQ(vid_global_barrier_state_, runtime::symbol::tvm_global_barrier_state);
 }
 
-void CodeGenCUDA::PrintFuncPrefix(std::ostream& os) { os << "extern \"C\" __global__ "; }
+void CodeGenCUDA::PrintFuncPrefix(std::ostream& os) { os << "extern \"C\" "; }
 
 class ThreadIdxExtractor : public tir::StmtVisitor {
  private:
@@ -76,6 +76,12 @@ class ThreadIdxExtractor : public tir::StmtVisitor {
 };
 
 void CodeGenCUDA::PrintExtraAttrs(const PrimFunc& f, std::ostream& os) {
+  if (f->GetAttr<String>(tvm::attr::kGlobalSymbol)) {
+    os << " __global__";
+  } else {
+    os << " __device__";
+  }
+
   ThreadIdxExtractor extractor;
   extractor(f->body);
   arith::Analyzer analyzer;

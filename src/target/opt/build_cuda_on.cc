@@ -136,8 +136,14 @@ runtime::Module BuildCUDA(IRModule mod, Target target) {
     ICHECK(base_func->IsInstance<PrimFuncNode>()) << "CodeGenCUDA: Can only take PrimFunc";
     auto prim_func = Downcast<PrimFunc>(base_func);
     auto calling_conv = prim_func->GetAttr<Integer>(tvm::attr::kCallingConv);
-    ICHECK(calling_conv == CallingConv::kDeviceKernelLaunch)
-        << "CodeGenCUDA: expect calling_conv equals CallingConv::kDeviceKernelLaunch";
+    bool is_device_kernel_launch = calling_conv == CallingConv::kDeviceKernelLaunch;
+    auto global_symbol = prim_func->GetAttr<String>(tvm::attr::kGlobalSymbol);
+    bool is_internal_function = !global_symbol.defined();
+    ICHECK(is_device_kernel_launch || is_internal_function)
+        << "CodeGenCUDA: expect calling_conv equals CallingConv::kDeviceKernelLaunch "
+        << "for externally exposed functions, "
+        << "but function " << gvar << " has calling_conv " << calling_conv << " and global symbol "
+        << global_symbol;
     functions.Set(gvar, prim_func);
   }
 
