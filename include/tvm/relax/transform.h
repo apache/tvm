@@ -572,8 +572,14 @@ TVM_DLL Pass ConvertToDataflow(int min_size = 2);
  */
 TVM_DLL Pass DeadCodeElimination(Array<runtime::String> entry_functions);
 
-
-
+/*!
+ * \brief Pass that changes calls to supported operators in dataflow blocks into in-place
+ * implementations. Supported operators will be replaced by calls to `call_tir_inplace` that invoke
+ * in-place PrimFunc implementations of those operators (which are based on the legalizations of
+ * those operators). 
+ * \return The pass.
+ */
+TVM_DLL Pass DataflowUseInplaceCalls();
 
 /*!
  * \brief Automatic mixed precision pass. Currently the pass assumes the input module to be fp32

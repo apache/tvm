@@ -18,12 +18,12 @@
 from typing import List, Set, Tuple
 import tvm
 from tvm import relax, testing
-from tvm.relax.analysis import (
+from tvm.relax.transform import DataflowUseInplaceCalls
+from tvm.relax.testing.transform import (
     dataflow_liveness_analysis,
     dataflow_alias_analysis,
     dataflow_inplace_analysis,
     dataflow_single_inplace_call,
-    dataflow_insert_inplace_calls,
 )
 from tvm.script.parser import ir as I, relax as R, tir as T
 
@@ -432,7 +432,7 @@ def test_insert_inplace_calls():
                 R.output(m)
             return m
 
-    transform_pass = dataflow_insert_inplace_calls()
+    transform_pass = DataflowUseInplaceCalls()
     new_mod = transform_pass(EndToEndTest)
 
     # check that all operations are done in-place

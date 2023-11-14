@@ -17,6 +17,11 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+/*!
+ * \file src/relax/transform/dataflow_inplace.cc
+ * \brief Pass that converts eligible operator calls in dataflow blocks
+ *   into in-place versions.
+ */
 
 #include <tvm/ir/transform.h>
 #include <tvm/relax/analysis.h>
@@ -32,7 +37,11 @@
 namespace tvm {
 namespace relax {
 
-std::unordered_map<Var, std::pair<int, int>, ObjectPtrHash, ObjectPtrEqual> analyze_liveness(
+// Perform liveness analysis on a dataflow block, returning a map of vars to
+// pairs of indices (the liveness interval, from the starting index to the end index).
+// A starting index of -1 means the var is defined before the block starts and an end index
+// of block->bindings.size() (one past the last index) means it is live after the block ends.
+std::unordered_map<Var, std::pair<int, int>, ObjectPtrHash, ObjectPtrEqual> AnalyzeLiveness(
     const DataflowBlock& block) {
   std::unordered_map<Var, std::pair<int, int>, ObjectPtrHash, ObjectPtrEqual> ret;
   for (int i = block->bindings.size() - 1; i >= 0; i--) {
@@ -84,8 +93,9 @@ class AliasAnalyzer {
  public:
   explicit AliasAnalyzer() : alias_map_(), tuple_map_(), mem_idx_(0) {}
 
-  // alias: map of var to memory locations (we will call these indices and use -1 as an index for
-  // "unknown")
+  // The analysis returns a map of vars to memory locations that it *could* map to
+  // (any unique allocation = one memory location), plus a map of memory locations
+  // that correspond to tuples (this maps to sets of memory locations for each tuple element)
   std::pair<std::unordered_map<Var, std::unordered_set<int>, ObjectPtrHash, ObjectPtrEqual>,
             std::unordered_map<int, std::vector<std::unordered_set<int>>>>
   Analyze(const DataflowBlock& block, const Array<Var>& inputs) {
@@ -93,14 +103,14 @@ class AliasAnalyzer {
       int curr_idx = get_fresh_idx();
       alias_map_[input] = {curr_idx};
       if (auto* tup_info = GetStructInfoAs<TupleStructInfoNode>(input)) {
-        insert_fresh_tuple(curr_idx, tup_info);
+        InsertFreshTuple(curr_idx, tup_info);
       }
     }
 
     for (const Binding& binding : block->bindings) {
       Var current_var = binding->var;
       Expr value = GetBoundValue(binding);
-      alias_map_[current_var] = get_alias_set(value, current_var);
+      alias_map_[current_var] = GetAliasSet(value, current_var);
     }
 
     return {alias_map_, tuple_map_};
@@ -113,19 +123,22 @@ class AliasAnalyzer {
     return ret;
   }
 
-  void insert_fresh_tuple(int tup_idx, const TupleStructInfoNode* tup_info) {
+  // Fresh tuple = each element is assumed to be a unique allocation
+  void InsertFreshTuple(int tup_idx, const TupleStructInfoNode* tup_info) {
     std::vector<std::unordered_set<int>> tuple_set;
     for (int i = 0; i < static_cast<int>(tup_info->fields.size()); i++) {
       int curr_field = get_fresh_idx();
       tuple_set.push_back({curr_field});
       if (auto* nested_tup_info = tup_info->fields[i].as<TupleStructInfoNode>()) {
-        insert_fresh_tuple(curr_field, nested_tup_info);
+        InsertFreshTuple(curr_field, nested_tup_info);
       }
     }
     tuple_map_[tup_idx] = tuple_set;
   }
 
-  void update_tuple_components(int tup_idx, const std::unordered_set<int>& insert_idxs) {
+  // given a tuple index, add the given memory location indices to each component's
+  // alias set
+  void UpdateTupleComponents(int tup_idx, const std::unordered_set<int>& insert_idxs) {
     if (tuple_map_.count(tup_idx)) {
       auto tuple_comps = tuple_map_[tup_idx];
       for (size_t i = 0; i < tuple_comps.size(); i++) {
@@ -134,7 +147,7 @@ class AliasAnalyzer {
         // if a member is a tuple, update its components as well
         for (int member : comp_set) {
           if (tuple_map_.count(member)) {
-            update_tuple_components(member, insert_idxs);
+            UpdateTupleComponents(member, insert_idxs);
           }
         }
 
@@ -146,12 +159,12 @@ class AliasAnalyzer {
 
   // capture the given index and also its tuple components (including recursively)
   // if they exist
-  void add_captured_indices(std::unordered_set<int>* captured_set, int idx) {
+  void AddCapturedIndices(std::unordered_set<int>* captured_set, int idx) {
     captured_set->insert(idx);
     if (tuple_map_.count(idx)) {
       for (auto comp_set : tuple_map_[idx]) {
         for (auto tup_comp_idx : comp_set) {
-          add_captured_indices(captured_set, tup_comp_idx);
+          AddCapturedIndices(captured_set, tup_comp_idx);
         }
       }
     }
@@ -163,31 +176,33 @@ class AliasAnalyzer {
   // For tuples, assume all members are aliased. Yeah, it's bad.
   // (Skip first arg is for handling call_pure_packed, where the first arg is an ExternFunc that we
   // should ignore)
-  std::unordered_set<int> handle_mystery_call(const CallNode* call_node, const Var& bound_var,
-                                              bool skip_first_arg = false) {
+  std::unordered_set<int> HandleMysteryCall(const CallNode* call_node, const Var& bound_var,
+                                            bool skip_first_arg = false) {
     // the result may or may not be newly allocated
     std::unordered_set<int> ret;
     int res_idx = get_fresh_idx();
     // the result may be a tuple
     if (auto* tup_info_node = GetStructInfoAs<TupleStructInfoNode>(bound_var)) {
-      insert_fresh_tuple(res_idx, tup_info_node);
+      InsertFreshTuple(res_idx, tup_info_node);
     }
-    add_captured_indices(&ret, res_idx);
+    AddCapturedIndices(&ret, res_idx);
 
     for (size_t i = (skip_first_arg) ? 1 : 0; i < call_node->args.size(); i++) {
       auto arg = call_node->args[i];
-      auto arg_alias_set = get_alias_set(arg, bound_var);
+      auto arg_alias_set = GetAliasSet(arg, bound_var);
       for (int alias_idx : arg_alias_set) {
-        add_captured_indices(&ret, alias_idx);
+        AddCapturedIndices(&ret, alias_idx);
       }
     }
     // if the result is a tuple, the components can also potentially be aliased to any arg
     // or, in fact, to each other
-    update_tuple_components(res_idx, ret);
+    UpdateTupleComponents(res_idx, ret);
     return ret;
   }
 
-  std::unordered_set<int> get_alias_set(const Expr& value, const Var& bound_var) {
+  // given the expression value, return the set of memory locations corresponding to it
+  // (the var the expression is being bound to is needed for struct info)
+  std::unordered_set<int> GetAliasSet(const Expr& value, const Var& bound_var) {
     std::unordered_set<int> ret;
 
     // cases for value:
@@ -217,11 +232,11 @@ class AliasAnalyzer {
       ret.insert(tup_idx);
       std::vector<std::unordered_set<int>> new_tuple_map;
       for (auto field : target_tuple->fields) {
-        new_tuple_map.push_back(get_alias_set(field, bound_var));
+        new_tuple_map.push_back(GetAliasSet(field, bound_var));
       }
       tuple_map_[tup_idx] = new_tuple_map;
     } else if (auto* target_tgi = value.as<TupleGetItemNode>()) {
-      std::unordered_set<int> tuple_set = get_alias_set(target_tgi->tuple, bound_var);
+      std::unordered_set<int> tuple_set = GetAliasSet(target_tgi->tuple, bound_var);
       // if -1 is a member of the tuple set, then we have to assume the result is -1
       if (tuple_set.count(-1)) {
         ret.insert(-1);
@@ -241,7 +256,7 @@ class AliasAnalyzer {
       if (auto* op_node = call_node->op.as<OpNode>()) {
         // call_pure_packed: treat as non-op call
         if (op_node->name == "relax.call_pure_packed") {
-          return handle_mystery_call(call_node, bound_var, true);
+          return HandleMysteryCall(call_node, bound_var, true);
         }
         // split: Returns a tuple, treat as allocation
         else if (op_node->name == "relax.split") {
@@ -249,14 +264,14 @@ class AliasAnalyzer {
           int tup_idx = get_fresh_idx();
           ret.insert(tup_idx);
           // the LHS (the bound var) will definitely have a tuple struct info
-          insert_fresh_tuple(tup_idx, GetStructInfoAs<TupleStructInfoNode>(bound_var));
+          InsertFreshTuple(tup_idx, GetStructInfoAs<TupleStructInfoNode>(bound_var));
         }
         // call_tir: can potentially return a tuple
         else if (op_node->name == "relax.call_tir") {
           if (auto* tuple_struct_info = call_node->sinfo_args[0].as<TupleStructInfoNode>()) {
             int tup_idx = get_fresh_idx();
             ret.insert(tup_idx);
-            insert_fresh_tuple(tup_idx, tuple_struct_info);
+            InsertFreshTuple(tup_idx, tuple_struct_info);
           } else {
             ret.insert(get_fresh_idx());
           }
@@ -268,7 +283,7 @@ class AliasAnalyzer {
         }
       } else {
         // assume any non-op call can be extremely dangerous and do anything
-        return handle_mystery_call(call_node, bound_var);
+        return HandleMysteryCall(call_node, bound_var);
       }
     }
 
@@ -280,7 +295,8 @@ class AliasAnalyzer {
   int mem_idx_;
 };
 
-int shape_size(const ShapeExpr& shape) {
+// given a shape, return the allocation size corresponding to it (product of elements)
+int ShapeSize(const ShapeExpr& shape) {
   int ret = 1;
   for (auto dim : shape->values) {
     if (auto int_dim = dim.as<IntImmNode>()) {
@@ -292,7 +308,11 @@ int shape_size(const ShapeExpr& shape) {
   return ret;
 }
 
-std::unordered_set<StructInfo, ObjectPtrHash, ObjectPtrEqual> gather_candidate_sinfo(
+// Given the struct info of the result, return any struct info nested in it
+// that is eleigible to be used for in-place computations (tensors are eligible
+// only if all their dimensions are integer constants, tuples are eligible if
+// all members are eligible though we can consider only individual members separately)
+std::unordered_set<StructInfo, ObjectPtrHash, ObjectPtrEqual> GatherCandidateSinfo(
     const StructInfo& result_sinfo) {
   if (auto* tensor_info = result_sinfo.as<TensorStructInfoNode>()) {
     // don't consider void dtype (don't know the size at compile time)
@@ -315,7 +335,7 @@ std::unordered_set<StructInfo, ObjectPtrHash, ObjectPtrEqual> gather_candidate_s
     // we can see if the whole tuple matches or go for any of the components
     std::unordered_set<StructInfo, ObjectPtrHash, ObjectPtrEqual> ret;
     for (auto field : tuple_info->fields) {
-      auto field_candidates = gather_candidate_sinfo(field);
+      auto field_candidates = GatherCandidateSinfo(field);
       ret.insert(field_candidates.begin(), field_candidates.end());
     }
     // at least one field should be eligible to be done in-place
@@ -329,7 +349,12 @@ std::unordered_set<StructInfo, ObjectPtrHash, ObjectPtrEqual> gather_candidate_s
   }
 }
 
-std::pair<bool, bool> size_matches(const StructInfo& target_info, const StructInfo& arg_info) {
+// Given the two struct info, return a pair of bools where the first element is true if
+// the two struct info are the same _size_ in memory and the second element is true
+// if the shapes match _exactly_. Performs this check recursively and ensures the
+// stated condition is true for all tensor members of the struct info (return false
+// if a single pair of corresponding tensors does not meet the condition).
+std::pair<bool, bool> SizeMatches(const StructInfo& target_info, const StructInfo& arg_info) {
   if (target_info.as<TensorStructInfoNode>() && arg_info.as<TensorStructInfoNode>()) {
     auto target_tensor = Downcast<TensorStructInfo>(target_info);
     auto arg_tensor = Downcast<TensorStructInfo>(arg_info);
@@ -340,8 +365,8 @@ std::pair<bool, bool> size_matches(const StructInfo& target_info, const StructIn
       }
       auto target_shape = Downcast<ShapeExpr>(target_tensor->shape);
       auto arg_shape = Downcast<ShapeExpr>(arg_tensor->shape);
-      int target_size = shape_size(target_shape);
-      int arg_size = shape_size(arg_shape);
+      int target_size = ShapeSize(target_shape);
+      int arg_size = ShapeSize(arg_shape);
       if (target_size == -1 || arg_size == -1 || target_size < arg_size) {
         return {false, false};
       }
@@ -370,7 +395,7 @@ std::pair<bool, bool> size_matches(const StructInfo& target_info, const StructIn
     }
     bool all_exact = true;
     for (size_t i = 0; i < target_tup->fields.size(); i++) {
-      auto element_match = size_matches(target_tup->fields[i], arg_tup->fields[i]);
+      auto element_match = SizeMatches(target_tup->fields[i], arg_tup->fields[i]);
       if (!element_match.first) {
         return {false, false};
       }
@@ -390,7 +415,7 @@ std::pair<bool, bool> size_matches(const StructInfo& target_info, const StructIn
 // members if so (apply recursively if any of those members are tuples).
 // Return false if the alias set contains -1, meaning a reference to an unknown or
 // possibly dangerous value (no checking we can do for that).
-bool gather_sets_to_check_for_liveness(
+bool GatherSetsToCheckForLiveness(
     const std::unordered_map<Var, std::unordered_set<int>, ObjectPtrHash, ObjectPtrEqual>&
         alias_sets,
     const std::unordered_map<int, std::vector<std::unordered_set<int>>>& tuple_map,
@@ -406,7 +431,7 @@ bool gather_sets_to_check_for_liveness(
       // if a member can be a tuple, check it recursively
       for (int member : member_set) {
         if (tuple_map.count(member)) {
-          if (!gather_sets_to_check_for_liveness(alias_sets, tuple_map, sets_to_check, member)) {
+          if (!GatherSetsToCheckForLiveness(alias_sets, tuple_map, sets_to_check, member)) {
             return false;
           }
         }
@@ -416,9 +441,9 @@ bool gather_sets_to_check_for_liveness(
   return true;
 }
 
-// check that the target is not live past the index and that no alias of it is live past the
+// Check that the target is not live past the index and that no alias of it is live past the
 // binding index (if the target is a tuple, check the conditions recursively for the members)
-bool df_inplace_conditions_met(
+bool InplaceConditionsMet(
     const std::unordered_map<Var, std::pair<int, int>, ObjectPtrHash, ObjectPtrEqual>& live_ranges,
     const std::unordered_map<Var, std::unordered_set<int>, ObjectPtrHash, ObjectPtrEqual>&
         alias_sets,
@@ -449,7 +474,7 @@ bool df_inplace_conditions_met(
     // If a possible alias is a tuple, we will also check for aliases of the members
     // (possibly recursively)
     for (int alias_idx : alias_set) {
-      if (!gather_sets_to_check_for_liveness(alias_sets, tuple_map, &sets_to_check, alias_idx)) {
+      if (!GatherSetsToCheckForLiveness(alias_sets, tuple_map, &sets_to_check, alias_idx)) {
         return false;
       }
     }
@@ -474,8 +499,7 @@ bool df_inplace_conditions_met(
     return true;
   } else if (auto* tup_node = target.as<TupleNode>()) {
     for (auto field : tup_node->fields) {
-      if (!df_inplace_conditions_met(live_ranges, alias_sets, tuple_map, currently_live, field,
-                                     idx)) {
+      if (!InplaceConditionsMet(live_ranges, alias_sets, tuple_map, currently_live, field, idx)) {
         return false;
       }
     }
@@ -489,16 +513,24 @@ bool df_inplace_conditions_met(
 static std::unordered_set<std::string> SUPPORTED_OPS = {"relax.add",      "relax.subtract",
                                                         "relax.multiply", "relax.divide",
                                                         "relax.nn.silu",  "relax.nn.relu"};
-bool op_supports_inplace(const Op& op) { return SUPPORTED_OPS.count(op->name); }
+bool OpSupportsInplace(const Op& op) { return SUPPORTED_OPS.count(op->name); }
 
-// check for in-place eligibility:
+// Check for in-place eligibility:
 //  1. see if there's an arg big enough to hold the result
 //  2. see if the arg is live past the call
 //  3. see if the arg has an alias that's live past the call
-//  if conditions are met, we're good to go
-std::pair<std::vector<std::vector<int>>, std::vector<std::vector<int>>> find_inplace_opportunities(
+// If the conditions are met, record the index of that binding.
+// Returns two lists of lists:
+// 1. A list of bindings where at least one argument meets the in-place conditions and the *size*
+//    matches the size of the result.
+// 2. A list of bindings where at least one argument meets the in-place conditions
+//    and *exactly* matches the shape of the result.
+// For both lists, each element is a list of ints of the following format:
+//   The first element is the index of the *binding* in the block.
+//   All remaining elements are the indices of *eligible arguments* in that call.
+std::pair<std::vector<std::vector<int>>, std::vector<std::vector<int>>> FindInplaceOpportunities(
     const DataflowBlock& block, const Array<Var>& inputs) {
-  auto live_ranges = analyze_liveness(block);
+  auto live_ranges = AnalyzeLiveness(block);
   AliasAnalyzer analyzer;
   auto alias_info = analyzer.Analyze(block, inputs);
   auto alias_sets = alias_info.first;
@@ -539,14 +571,14 @@ std::pair<std::vector<std::vector<int>>, std::vector<std::vector<int>>> find_inp
 
     if (auto* call_node = value.as<CallNode>()) {
       if (auto* op_node = call_node->op.as<OpNode>()) {
-        if (!op_supports_inplace(GetRef<Op>(op_node))) {
+        if (!OpSupportsInplace(GetRef<Op>(op_node))) {
           continue;
         }
 
         std::unordered_set<int> candidates;
         std::unordered_set<int> exact_match_candidates;
 
-        auto target_sinfo = gather_candidate_sinfo(GetStructInfo(defined_var));
+        auto target_sinfo = GatherCandidateSinfo(GetStructInfo(defined_var));
         // can't be done in-place, ignore
         if (target_sinfo.empty()) {
           continue;
@@ -556,7 +588,7 @@ std::pair<std::vector<std::vector<int>>, std::vector<std::vector<int>>> find_inp
         for (size_t j = 0; j < call_node->args.size(); j++) {
           auto arg = call_node->args[j];
           for (auto target : target_sinfo) {
-            std::pair<bool, bool> match = size_matches(target, GetStructInfo(arg));
+            std::pair<bool, bool> match = SizeMatches(target, GetStructInfo(arg));
             if (match.first) {
               candidates.insert(static_cast<int>(j));
               if (match.second) {
@@ -573,8 +605,8 @@ std::pair<std::vector<std::vector<int>>, std::vector<std::vector<int>>> find_inp
         // live past this point
         std::unordered_set<int> remove_candidates;
         for (auto candidate : candidates) {
-          if (!df_inplace_conditions_met(live_ranges, alias_sets, tuple_map, currently_live,
-                                         call_node->args[candidate], i)) {
+          if (!InplaceConditionsMet(live_ranges, alias_sets, tuple_map, currently_live,
+                                    call_node->args[candidate], i)) {
             remove_candidates.insert(candidate);
           }
         }
@@ -623,7 +655,8 @@ std::pair<std::vector<std::vector<int>>, std::vector<std::vector<int>>> find_inp
   return {size_match_list, exact_match_list};
 }
 
-tir::Stmt remap_buffers(const tir::Stmt& stmt, const Map<tir::Buffer, tir::Buffer>& buffer_map) {
+// Replace buffers in a PrimFunc according to the mapping.
+tir::Stmt RemapBuffers(const tir::Stmt& stmt, const Map<tir::Buffer, tir::Buffer>& buffer_map) {
   class BufferMapper : public tir::StmtExprMutator {
    public:
     explicit BufferMapper(const Map<tir::Buffer, tir::Buffer>& buffer_map)
@@ -751,7 +784,7 @@ class ModuleInplaceTransformer : public ExprMutator {
     Array<Var> free_var_list(free_var_set.begin(), free_var_set.end());
 
     // for now, only handle exact match cases
-    auto matches_found = find_inplace_opportunities(block, free_var_list);
+    auto matches_found = FindInplaceOpportunities(block, free_var_list);
     auto exact_matches = matches_found.second;
 
     Array<Binding> new_bindings;
@@ -785,7 +818,9 @@ class ModuleInplaceTransformer : public ExprMutator {
     return DataflowBlock(new_bindings, block->span);
   }
 
-  // exposed for testing
+  // Given the call and indices of arguments that could be done in-place,
+  // replace the call with a call to an in-place PrimFunc.
+  // (Made public for testing.)
   Call CreateInplaceCall(const Call& call, const Array<Integer>& inplace_indices) {
     static const auto& legalize_map = Op::GetAttrMap<FLegalize>("FLegalize");
     static const auto& call_tir_inplace_op = Op::Get("relax.call_tir_inplace");
@@ -829,7 +864,7 @@ class ModuleInplaceTransformer : public ExprMutator {
     }
 
     // apply substitutions
-    legal_primfunc_cow->body = remap_buffers(legal_primfunc->body, buffer_subst_map);
+    legal_primfunc_cow->body = RemapBuffers(legal_primfunc->body, buffer_subst_map);
     legal_primfunc_cow->body = tir::Substitute(
         legal_primfunc->body, [&var_subst_map](const tir::Var& v) -> Optional<PrimExpr> {
           if (var_subst_map.count(v)) {
@@ -868,7 +903,7 @@ class ModuleInplaceTransformer : public ExprMutator {
     return legalized_call;
   }
 
-  // exposed for testing
+  // Made public for testing.
   IRModule CurrentMod() { return builder_->GetContextIRModule(); }
 
  private:
@@ -879,11 +914,10 @@ class ModuleInplaceTransformer : public ExprMutator {
                            // (we are assuming good behavior on the user's part).
 };
 
-// export for testing
 namespace transform {
 
 Map<Var, Array<Integer>> DataflowLivenessAnalysis(const DataflowBlock& block) {
-  auto liveness_ranges = analyze_liveness(block);
+  auto liveness_ranges = AnalyzeLiveness(block);
   Map<Var, Array<Integer>> ret;
   for (auto kv : liveness_ranges) {
     ret.Set(kv.first, {kv.second.first, kv.second.second});
@@ -919,9 +953,20 @@ Array<ObjectRef> DataflowAliasAnalysis(const DataflowBlock& block, Array<Var> in
   return {new_alias_sets, new_tuple_map};
 }
 
+// this would be preferable to do as a dataflow block pass,
+// but the transformation adds new PrimFuncs, so it affects the module
+tvm::transform::Pass DataflowUseInplaceCalls() {
+  return tvm::transform::CreateModulePass(
+      [](const IRModule& mod, const PassContext& ctx) -> IRModule {
+        ModuleInplaceTransformer transformer(mod);
+        return transformer.Transform();
+      },
+      0, "DataflowInsertInPlaceCalls", {}, false);
+}
+
 Array<Array<Array<Integer>>> DataflowInplaceAnalysis(const DataflowBlock& block,
                                                      const Array<Var>& inputs) {
-  auto index_lists = relax::find_inplace_opportunities(block, inputs);
+  auto index_lists = relax::FindInplaceOpportunities(block, inputs);
   Array<Array<Integer>> size_match_array;
   for (auto indices : index_lists.first) {
     Array<Integer> index_array;
@@ -941,14 +986,14 @@ Array<Array<Array<Integer>>> DataflowInplaceAnalysis(const DataflowBlock& block,
   return {size_match_array, exact_match_array};
 }
 
-TVM_REGISTER_GLOBAL("relax.analysis.DataflowLivenessAnalysis")
+// these are exposed only for testing
+TVM_REGISTER_GLOBAL("relax.testing.transform.DataflowLivenessAnalysis")
     .set_body_typed(DataflowLivenessAnalysis);
-TVM_REGISTER_GLOBAL("relax.analysis.DataflowAliasAnalysis").set_body_typed(DataflowAliasAnalysis);
-TVM_REGISTER_GLOBAL("relax.analysis.DataflowInplaceAnalysis")
+TVM_REGISTER_GLOBAL("relax.testing.transform.DataflowAliasAnalysis")
+    .set_body_typed(DataflowAliasAnalysis);
+TVM_REGISTER_GLOBAL("relax.testing.transform.DataflowInplaceAnalysis")
     .set_body_typed(DataflowInplaceAnalysis);
-
-// really only for testing (not actually an analysis, will move)
-TVM_REGISTER_GLOBAL("relax.analysis.SingleInplaceCall")
+TVM_REGISTER_GLOBAL("relax.testing.transform.SingleInplaceCall")
     .set_body_typed([](const IRModule& mod, const Call& call,
                        const Array<Integer>& inplace_indices) -> Array<ObjectRef> {
       ModuleInplaceTransformer transformer(mod);
@@ -956,15 +1001,9 @@ TVM_REGISTER_GLOBAL("relax.analysis.SingleInplaceCall")
       return Array<ObjectRef>{ret_call, transformer.CurrentMod()};
     });
 
-// not actually an analysis, will rename
-TVM_REGISTER_GLOBAL("relax.analysis.DataflowInsertInplaceCalls").set_body_typed([]() -> Pass {
-  return tvm::transform::CreateModulePass(
-      [](const IRModule& mod, const PassContext& ctx) -> IRModule {
-        ModuleInplaceTransformer transformer(mod);
-        return transformer.Transform();
-      },
-      0, "DataflowInsertInPlaceCalls", {}, false);
-});
+// actually exposed
+TVM_REGISTER_GLOBAL("relax.transform.DataflowUseInplaceCalls")
+    .set_body_typed(DataflowUseInplaceCalls);
 
 }  // namespace transform
 }  // namespace relax

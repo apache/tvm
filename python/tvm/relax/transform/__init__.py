@@ -30,6 +30,7 @@ from .transform import (
     ConvertLayout,
     ConvertToDataflow,
     DataflowBlockPass,
+    DataflowUseInplaceCalls,
     DeadCodeElimination,
     DecomposeOpsForInference,
     DecomposeOpsForTraining,

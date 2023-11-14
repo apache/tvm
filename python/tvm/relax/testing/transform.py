@@ -17,13 +17,14 @@
 # pylint: disable=unused-argument, invalid-name, no-else-return, abstract-method, arguments-differ
 """Relax transformation passes for testing"""
 
+from typing import Dict, List, Set, Tuple
 import tvm
 from tvm import ir, relax
 from tvm.ir import transform
 from tvm.ir.module import IRModule
 from tvm.ir.transform import PassContext
 from tvm.relax import PyExprMutator
-from tvm.relax.expr import Call
+from tvm.relax.expr import Call, DataflowBlock, Var
 from tvm.relay.backend.te_compiler import select_implementation
 from tvm.target import Target
 
@@ -128,3 +129,51 @@ class LowerWithRelayOpStrategyPass(transform.Pass):
 def ApplyEmptyCppMutator() -> tvm.ir.transform.Pass:
     packed_func = tvm.get_global_func("relax.testing.transform.ApplyEmptyCppMutator")
     return packed_func()
+
+
+# inner functions for the dataflow inplace transformation exposed for testing
+def dataflow_liveness_analysis(block: DataflowBlock) -> Dict[Var, Tuple[int, int]]:
+    live_ranges = tvm.get_global_func("relax.testing.transform.DataflowLivenessAnalysis")(
+        block
+    )  # type: ignore
+    ret = {}
+    for var, live_range in live_ranges.items():
+        ret[var] = tuple(live_range)
+    return ret  # type: ignore
+
+
+def dataflow_alias_analysis(
+    block: DataflowBlock, inputs: List[Var]
+) -> Tuple[Dict[Var, Set[int]], Dict[int, List[Set[int]]]]:
+    alias_sets, tuple_map = tvm.get_global_func("relax.testing.transform.DataflowAliasAnalysis")(
+        block,
+        inputs,
+    )  # type: ignore
+    res_alias_sets = {}
+    res_tuple_map = {}
+    for var, alias_set in alias_sets.items():
+        res_alias_sets[var] = set(alias_set)
+    for idx, elem_alias_sets in tuple_map.items():
+        res_tuple_map[idx] = [set(alias_set) for alias_set in elem_alias_sets]
+    return res_alias_sets, res_tuple_map  # type: ignore
+
+
+def dataflow_inplace_analysis(
+    block: DataflowBlock, inputs: List[Var]
+) -> Tuple[List[int], List[int]]:
+    index_lists = tvm.get_global_func("relax.testing.transform.DataflowInplaceAnalysis")(
+        block,
+        inputs,
+    )  # type: ignore
+    return tuple(map(list, index_lists))  # type: ignore
+
+
+def dataflow_single_inplace_call(
+    mod: IRModule, call: Call, inplace_indices: List[int]
+) -> Tuple[Call, IRModule]:
+    ret = tvm.get_global_func("relax.testing.transform.SingleInplaceCall")(
+        mod,
+        call,
+        inplace_indices,
+    )  # type: ignore
+    return (ret[0], ret[1])  # type: ignore

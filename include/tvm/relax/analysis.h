@@ -533,10 +533,6 @@ TVM_DLL bool WellFormed(IRModule m, bool check_struct_info = true);
 TVM_DLL Map<tir::Block, Map<ObjectRef, tir::IndexMap>> SuggestLayoutTransforms(
     const Function& fn, Array<tir::IndexMap> write_buffer_transformations);
 
-// included for testing purposes
-TVM_DLL Map<Var, Array<Integer>> DataflowLivenessAnalysis(const DataflowBlock& block);
-TVM_DLL Map<Var, Array<Integer>> DataflowAliasAnalysis(const DataflowBlock& block,
-                                                       Array<Var> inputs);
 }  // namespace relax
 }  // namespace tvm
 
