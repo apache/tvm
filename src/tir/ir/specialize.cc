@@ -29,6 +29,7 @@
 
 #include <functional>
 
+#include "../transforms/ir_utils.h"
 #include "functor_common.h"
 
 namespace tvm {
@@ -115,18 +116,18 @@ class PrimFuncSpecializer : public StmtExprMutator {
  private:
   Stmt VisitStmt_(const BlockNode* op) final {
     // Step.0. Define buffer mappings which is allocated inside the block
-    Array<Buffer> alloc_buffers = op->alloc_buffers.Map(
-        std::bind(&PrimFuncSpecializer::MutateAllocBuffer, this, std::placeholders::_1));
+    Array<Buffer> alloc_buffers =
+        op->alloc_buffers.Map([this](const auto& buf) { return MutateAllocBuffer(buf); });
 
     // Step.1. Recursively visit block body
     Stmt stmt = StmtExprMutator::VisitStmt_(op);
     op = stmt.as<BlockNode>();
     ICHECK(op != nullptr);
 
-    Array<BufferRegion> reads = op->reads.Map(
-        std::bind(&PrimFuncSpecializer::MutateBufferRegion, this, std::placeholders::_1));
-    Array<BufferRegion> writes = op->writes.Map(
-        std::bind(&PrimFuncSpecializer::MutateBufferRegion, this, std::placeholders::_1));
+    Array<BufferRegion> reads =
+        op->reads.Map([this](const auto& region) { return MutateBufferRegion(region); });
+    Array<BufferRegion> writes =
+        op->writes.Map([this](const auto& region) { return MutateBufferRegion(region); });
 
     if (alloc_buffers.same_as(op->alloc_buffers) && reads.same_as(op->reads) &&
         writes.same_as(op->writes)) {
@@ -141,19 +142,40 @@ class PrimFuncSpecializer : public StmtExprMutator {
   }
 
   Stmt VisitStmt_(const DeclBufferNode* op) final {
-    auto new_buf = MutateAllocBuffer(op->buffer);
+    // Visit the buffer before delegating to StmtExprMutator, so the
+    // buffer's replacement will be defined before the point of use.
+    Var old_buffer_var = op->buffer->data;
+    Buffer new_buf = MutateAllocBuffer(op->buffer);
 
-    Stmt stmt = StmtExprMutator::VisitStmt_(op);
-    op = stmt.as<DeclBufferNode>();
-    ICHECK(op != nullptr);
+    auto node = Downcast<DeclBuffer>(StmtExprMutator::VisitStmt_(op));
 
-    if (new_buf.same_as(op->buffer)) {
-      return GetRef<DeclBuffer>(op);
-    } else {
-      auto n = CopyOnWrite(op);
-      n->buffer = new_buf;
-      return Stmt(n);
+    if (!new_buf.same_as(node->buffer)) {
+      node.CopyOnWrite()->buffer = new_buf;
     }
+
+    // If the buffer variable is begin remapped to an expression, we
+    // still need a tir::Var to be used as a the buffer variable.
+    // Therefore, generate a LetStmt that will provide a tir::Var for
+    // the buffer to use.
+    //
+    // This step is only required when a buffer definition is using a
+    // previously-defined buffer variable, which is therefore eligible
+    // for specialization.  An allocation in the
+    // `BlockNode::alloc_buffers` defines both the buffer variable and
+    // the buffer, this check is unnecessary there.  In addition, if
+    // the buffer var has been remapped to another variable, it has already
+    // been handled as part of the buffer mutation.
+    Var new_buffer_var = node->buffer->data;
+    Stmt stmt = std::move(node);
+
+    if (new_buffer_var.same_as(old_buffer_var)) {
+      auto remapped_data = VisitExpr(old_buffer_var);
+      if (!remapped_data.same_as(old_buffer_var)) {
+        stmt = LetStmt(old_buffer_var, remapped_data, stmt);
+      }
+    }
+
+    return stmt;
   }
 
   Stmt VisitStmt_(const BufferStoreNode* op) final {
@@ -216,7 +238,11 @@ class PrimFuncSpecializer : public StmtExprMutator {
 
  private:
   Buffer MutateBuffer(const Buffer& buffer) {
+    // For the data variable, only Var-to-Var remapping can be handled
+    // in MutateBuffer.  See the DeclBuffer visitor for the handling
+    // of Var-to-PrimExpr remapping.
     Var data = VisitExpr(buffer->data).as<Var>().value_or(buffer->data);
+
     Array<PrimExpr> shape = buffer->shape.Map([this](const PrimExpr& e) { return VisitExpr(e); });
     Array<PrimExpr> strides =
         buffer->strides.Map([this](const PrimExpr& e) { return VisitExpr(e); });
