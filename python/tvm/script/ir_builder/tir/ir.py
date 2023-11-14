@@ -316,7 +316,8 @@ def match_buffer(
             raise ValueError("Shape must be specified when binding input param")
     shape = (shape,) if isinstance(shape, (PrimExpr, Integral)) else shape
     if strides is not None:
-        strides = [Var(s, "int32") if isinstance(s, str) else s for s in strides]
+        idx_dtype = shape[0].dtype if isinstance(shape[0], PrimExpr) else "int32"
+        strides = [Var(s, idx_dtype) if isinstance(s, str) else s for s in strides]
     else:
         strides = []
     return _ffi_api.MatchBuffer(  # type: ignore[attr-defined] # pylint: disable=no-member

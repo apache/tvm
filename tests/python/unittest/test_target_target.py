@@ -478,6 +478,13 @@ def test_target_attr_bool_value():
     assert target3.attrs["supports_float16"] == 0
 
 
+def test_target_attr_l2_cache_size_bytes():
+    target0 = Target("nvidia/nvidia-a100")
+    assert target0.l2_cache_size_bytes == 41943040
+    target1 = Target("nvidia/geforce-rtx-4090")
+    assert target1.l2_cache_size_bytes == 75497472
+
+
 def test_target_features():
     target_no_features = Target("cuda")
     assert target_no_features.features

@@ -26,8 +26,8 @@ from tvm.meta_schedule.testing import te_workload
 from tvm.script import tir as T
 from tvm.testing.tir import mma_schedule
 from tvm.tir.tensor_intrin.cuda import (
-    LDMATRIX_16x16_A_DYN_INTRIN,
-    LDMATRIX_16x16_B_DYN_INTRIN,
+    LDMATRIX_f16_A_DYN_INTRIN,
+    LDMATRIX_f16_B_DYN_INTRIN,
     MMA_f16f16f32_INTRIN,
     MMA_fill_16x16_f32_INTRIN,
     MMA_store_16x16_f32_global_INTRIN,
@@ -1520,8 +1520,8 @@ def get_mma_schedule():
         index_map,
         index_map,
         index_map,
-        LDMATRIX_16x16_A_DYN_INTRIN,
-        LDMATRIX_16x16_B_DYN_INTRIN,
+        LDMATRIX_f16_A_DYN_INTRIN,
+        LDMATRIX_f16_B_DYN_INTRIN,
         MMA_f16f16f32_INTRIN,
         MMA_fill_16x16_f32_INTRIN,
         MMA_store_16x16_f32_global_INTRIN,

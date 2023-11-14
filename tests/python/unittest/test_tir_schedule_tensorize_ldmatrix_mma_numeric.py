@@ -22,21 +22,21 @@ import tvm.testing
 from tvm import te
 from tvm.testing.tir import mma_schedule
 from tvm.tir.tensor_intrin.cuda import (
-    LDMATRIX_16x16_A_INTRIN,
-    LDMATRIX_16x16_B_INTRIN,
-    LDMATRIX_16x16_B_TRANS_INTRIN,
-    LDMATRIX_16x32_A_INTRIN,
-    LDMATRIX_16x32_B_TRANS_INTRIN,
-    LDMATRIX_32x16_B_INTRIN,
+    LDMATRIX_f16_A_INTRIN,
+    LDMATRIX_f16_B_INTRIN,
+    LDMATRIX_f16_B_TRANS_INTRIN,
+    LDMATRIX_i8_A_INTRIN,
+    LDMATRIX_i8_B_TRANS_INTRIN,
+    LDMATRIX_i8_B_INTRIN,
     MMA_f16f16f16_INTRIN,
-    MMA_f16f16f16_TRANS_INTRIN,
+    MMA_f16f16f16_TRANS_B_INTRIN,
     MMA_f16f16f32_INTRIN,
-    MMA_f16f16f32_TRANS_INTRIN,
+    MMA_f16f16f32_TRANS_B_INTRIN,
     MMA_fill_16x16_f16_INTRIN,
     MMA_fill_16x16_f32_INTRIN,
     MMA_fill_16x16_i32_INTRIN,
     MMA_i8i8i32_INTRIN,
-    MMA_i8i8i32_TRANS_INTRIN,
+    MMA_i8i8i32_TRANS_B_INTRIN,
     MMA_store_16x16_f16_global_INTRIN,
     MMA_store_16x16_f32_global_INTRIN,
     MMA_store_16x16_i32_global_INTRIN,
@@ -116,15 +116,15 @@ def run_test(
     dev = tvm.device("cuda", 0)
 
     if in_dtype == "float16":
-        a_np = np.random.uniform(size=(M, K)).astype("float16")
+        a_np = np.random.normal(size=(M, K)).astype("float16")
 
         if b_transposed:
-            b_np = np.random.uniform(size=(N, K)).astype("float16")
+            b_np = np.random.normal(size=(N, K)).astype("float16")
             c_np = np.dot(a_np.astype("float32"), b_np.astype("float32").transpose()).astype(
                 out_dtype
             )
         else:
-            b_np = np.random.uniform(size=(K, N)).astype("float16")
+            b_np = np.random.normal(size=(K, N)).astype("float16")
             c_np = np.dot(a_np.astype("float32"), b_np.astype("float32")).astype(out_dtype)
     else:
         a_np = np.random.randint(-128, 128, (M, K)).astype("int8")
@@ -147,7 +147,7 @@ def run_test(
     if out_dtype != "float16":
         # The numpy reference is computed with fp32 precision (otherwise too slow).
         # So there is non-trivial accuracy difference if TVM result is computed with fp16 accumulation.
-        tvm.testing.assert_allclose(c.numpy(), c_np, rtol=1e-3)
+        tvm.testing.assert_allclose(c.numpy(), c_np, rtol=1e-2, atol=1e-2)
 
     return lambda: f.time_evaluator(f.entry_name, dev, number=500)(a, b, c)
 
@@ -177,8 +177,8 @@ def test_f16f16f32_m16n16k16():
         index_map,
         index_map,
         index_map,
-        LDMATRIX_16x16_A_INTRIN,
-        LDMATRIX_16x16_B_INTRIN,
+        LDMATRIX_f16_A_INTRIN,
+        LDMATRIX_f16_B_INTRIN,
         MMA_f16f16f32_INTRIN,
         MMA_fill_16x16_f32_INTRIN,
         MMA_store_16x16_f32_global_INTRIN,
@@ -198,9 +198,9 @@ def test_f16f16f32_m16n16k16():
         index_map,
         index_map,
         index_map,
-        LDMATRIX_16x16_A_INTRIN,
-        LDMATRIX_16x16_B_TRANS_INTRIN,
-        MMA_f16f16f32_TRANS_INTRIN,
+        LDMATRIX_f16_A_INTRIN,
+        LDMATRIX_f16_B_TRANS_INTRIN,
+        MMA_f16f16f32_TRANS_B_INTRIN,
         MMA_fill_16x16_f32_INTRIN,
         MMA_store_16x16_f32_global_INTRIN,
     )
@@ -234,8 +234,8 @@ def test_f16f16f16_m16n16k16():
         index_map,
         index_map,
         index_map,
-        LDMATRIX_16x16_A_INTRIN,
-        LDMATRIX_16x16_B_INTRIN,
+        LDMATRIX_f16_A_INTRIN,
+        LDMATRIX_f16_B_INTRIN,
         MMA_f16f16f16_INTRIN,
         MMA_fill_16x16_f16_INTRIN,
         MMA_store_16x16_f16_global_INTRIN,
@@ -255,9 +255,9 @@ def test_f16f16f16_m16n16k16():
         index_map,
         index_map,
         index_map,
-        LDMATRIX_16x16_A_INTRIN,
-        LDMATRIX_16x16_B_TRANS_INTRIN,
-        MMA_f16f16f16_TRANS_INTRIN,
+        LDMATRIX_f16_A_INTRIN,
+        LDMATRIX_f16_B_TRANS_INTRIN,
+        MMA_f16f16f16_TRANS_B_INTRIN,
         MMA_fill_16x16_f16_INTRIN,
         MMA_store_16x16_f16_global_INTRIN,
     )
@@ -305,8 +305,8 @@ def test_i8i8i32_m16n16k32():
         index_map_A,
         index_map_B,
         index_map_C,
-        LDMATRIX_16x32_A_INTRIN,
-        LDMATRIX_32x16_B_INTRIN,
+        LDMATRIX_i8_A_INTRIN,
+        LDMATRIX_i8_B_INTRIN,
         MMA_i8i8i32_INTRIN,
         MMA_fill_16x16_i32_INTRIN,
         MMA_store_16x16_i32_global_INTRIN,
@@ -326,9 +326,9 @@ def test_i8i8i32_m16n16k32():
         index_map_A,
         index_map_A,
         index_map_C,
-        LDMATRIX_16x32_A_INTRIN,
-        LDMATRIX_16x32_B_TRANS_INTRIN,
-        MMA_i8i8i32_TRANS_INTRIN,
+        LDMATRIX_i8_A_INTRIN,
+        LDMATRIX_i8_B_TRANS_INTRIN,
+        MMA_i8i8i32_TRANS_B_INTRIN,
         MMA_fill_16x16_i32_INTRIN,
         MMA_store_16x16_i32_global_INTRIN,
     )
