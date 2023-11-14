@@ -20,6 +20,7 @@
 import tvm
 from tvm import relay
 from tvm.relay import transform
+import numpy as np
 
 
 def run_opt_pass(expr, opt_pass):
@@ -83,9 +84,155 @@ def test_single_standard_conv2d():
 #C = x.type_annotation.shape[1]  ones = (C,1,P,Q)
 
     check((1, 4, 20, 20),(1, 4, 16, 16), (4,1,5,5))
-    check((1, 831, 16, 16),(1, 831, 16, 16), (831,1,1,1))
-    check((5, 20, 17, 17),(2, 20, 16, 16), (20,1,2,2))
-    check((5, 8, 17, 17),(2, 8, 12, 11), (8,1,6,7))
+    check((1, 831, 16, 16),(1, 831, 6, 6), (831,1,11,11))
+    check((5, 20, 17, 17),(2, 20, 12, 12), (20,1,6,6))
+    check((5, 8, 13, 17),(2, 8, 12, 11), (8,1,2,7))
+
+
+def test_multiple_standard_conv2d():
+    """More complex testcase."""
+
+    def before(x, w1, w2):
+        args = [x, w1, w2]
+        x1 = relay.multiply(x, relay.const(2,dtype="int8"))
+        conv = relay.nn.conv2d(x1, w1, out_dtype="int32")
+        conv2 = relay.nn.conv2d(x, w2, out_dtype="int32")
+        y = relay.sum(conv,axis=[0])
+        mult_out = relay.Tuple([y,conv2])
+        return relay.Function(args, mult_out)
+
+    def expected(x, w1, w1_ones_shape, w2,w2_ones_shape):
+        # use a fixed order of args so alpha equal check can pass
+        args = [x, w1, w2]
+        x1 = relay.multiply(x, relay.const(2,dtype="int8"))
+        conv = relay.nn.conv2d(x1, w1, out_dtype="int32")
+        y = relay.sum(conv,axis=[0])
+        y0 = relay.ones(shape=w1_ones_shape, dtype="int8")
+        y1 = relay.nn.conv2d(x1, y0, padding=(0,0), groups=int(w1_ones_shape[0]), channels=w1_ones_shape[0], kernel_size=[w1_ones_shape[2], w1_ones_shape[3]], out_dtype="int32")
+        y2 = relay.cast(w1, dtype="int32")
+        y3 = relay.sum(y1, axis=[0], keepdims=True)
+        y4 = relay.sum(y2, axis=[0], keepdims=True)
+        y5 = relay.nn.conv2d(y3, y4, padding=(0,0), channels=1, groups=1, kernel_size=[w1.type_annotation.shape[2], w1.type_annotation.shape[3]], out_layout="NCHW", out_dtype="int64") 
+        y7 = relay.cast(conv, dtype="int64")
+        y8 = relay.sum(y5, axis=[0, 1, 2, 3])
+        y9 = relay.sum(y7, axis=[0, 1, 2, 3])
+        y10 = relay.not_equal(y8, y9)
+
+        conv2 = relay.nn.conv2d(x, w2, out_dtype="int32")
+        convy0 = relay.ones(shape=w2_ones_shape, dtype="int8")
+        convy1 = relay.nn.conv2d(x, convy0, padding=(0,0), groups=int(w2_ones_shape[0]), channels=w2_ones_shape[0], kernel_size=[w2_ones_shape[2], w2_ones_shape[3]], out_dtype="int32")
+        convy2 = relay.cast(w2, dtype="int32")
+        convy3 = relay.sum(convy1, axis=[0], keepdims=True)
+        convy4 = relay.sum(convy2, axis=[0], keepdims=True)
+        convy5 = relay.nn.conv2d(convy3, convy4, padding=(0,0), channels=1, groups=1, kernel_size=[w2.type_annotation.shape[2], w2.type_annotation.shape[3]], out_layout="NCHW", out_dtype="int64") 
+        convy7 = relay.cast(conv2, dtype="int64")
+        convy8 = relay.sum(convy5, axis=[0, 1, 2, 3])
+        convy9 = relay.sum(convy7, axis=[0, 1, 2, 3])
+        convy10 = relay.not_equal(convy8, convy9)
+
+        mult_out = relay.Tuple([y,conv2])
+        comp_output = relay.Tuple([mult_out, y10, convy10])
+        return relay.Function(args, comp_output)
+
+
+    def check(x_shape, w1_shape, w1_ones_shape, w2_shape, w2_ones_shape):
+        x = relay.var("x", shape=x_shape, dtype="int8")
+        w1 = relay.var("w1", shape=w1_shape, dtype="int8")
+        w2 = relay.var("w2", shape=w2_shape, dtype="int8")
+
+        y_before = before(x, w1, w2)
+        y = run_opt_pass(y_before, transform.Extend2DConv())
+        y = run_opt_pass(y, transform.InferType())
+        y_expected = expected(x, w1, w1_ones_shape, w2, w2_ones_shape)
+        y_expected = run_opt_pass(y_expected, transform.InferType())
+        print(tvm.ir.base.get_first_structural_mismatch(y, y_expected))
+        assert tvm.ir.structural_equal(y, y_expected, map_free_vars=True)
+
+#Calculate dimension of ones tensor for Input checksum calc
+# Use ones tensor to reduce input tensor to reduced weight dimension
+#P = x.type_annotation.shape[2] - w1.type_annotation.shape[2] + 1
+#Q = x.type_annotation.shape[3] - w1.type_annotation.shape[3] + 1
+#C = x.type_annotation.shape[1]  ones = (C,1,P,Q)
+
+    check((1, 64, 56, 56), (1, 64, 3, 3),    (64,1,54,54),  (1, 64, 8, 8),     (64,1,49,49))
+    check((1, 831, 16, 16),(1, 831, 6, 6),   (831,1,11,11), (1, 831, 10, 10),  (831,1,7,7))
+    check((5, 20, 17, 17), (2, 20, 12, 12),  (20,1,6,6),    (45, 20, 5, 5),    (20,1,13,13))
+    check((5, 8, 13, 17),  (2, 8, 12, 11),   (8,1,2,7),     (2, 8, 12, 11),    (8,1,2,7))
+
+
+
+def test_mixed_conv2d():
+    """Combine depthwise and standard Conv2D."""
+
+    def before(x, w1, w2):
+        args = [x, w1, w2]
+        x1 = relay.multiply(x, relay.const(2,dtype="int8"))
+        conv = relay.nn.conv2d(x1, w1, out_dtype="int32",groups=int(w1.type_annotation.shape[0]),channels=w1.type_annotation.shape[0])
+        conv2 = relay.nn.conv2d(x, w2, out_dtype="int32")
+        y = relay.sum(conv,axis=[0])
+        mult_out = relay.Tuple([y,conv2])
+        return relay.Function(args, mult_out)
+
+    def expected(x, w1, w1_ones_shape, w2,w2_ones_shape):
+        # use a fixed order of args so alpha equal check can pass
+        args = [x, w1, w2]
+        x1 = relay.multiply(x, relay.const(2,dtype="int8"))
+        conv = relay.nn.conv2d(x1, w1, out_dtype="int32",groups=int(w1.type_annotation.shape[0]),channels=w1.type_annotation.shape[0])
+        y = relay.sum(conv,axis=[0])
+
+        #depthwise conv
+        y0 = relay.ones(shape=w1_ones_shape, dtype="int8")
+        y1 = relay.nn.conv2d(x1, y0, padding=(0,0), groups=int(w1_ones_shape[0]), channels=w1_ones_shape[0], kernel_size=[w1_ones_shape[2], w1_ones_shape[3]], out_dtype="int32")
+        y2 = relay.reshape(w1, newshape=(w1.type_annotation.shape[1],w1.type_annotation.shape[0],w1.type_annotation.shape[2],w1.type_annotation.shape[3]))
+        y3 = relay.sum(y1, axis=[0], keepdims=True)
+        y5 = relay.nn.conv2d(y3, y2, padding=(0,0), channels=1, groups=1, kernel_size=[w1.type_annotation.shape[2], w1.type_annotation.shape[3]], out_layout="NCHW", out_dtype="int64")
+        y7 = relay.cast(conv, dtype="int64")
+        y8 = relay.sum(y5, axis=[0, 1, 2, 3])
+        y9 = relay.sum(y7, axis=[0, 1, 2, 3])
+        y10 = relay.not_equal(y8, y9)
+
+        conv2 = relay.nn.conv2d(x, w2, out_dtype="int32")
+        convy0 = relay.ones(shape=w2_ones_shape, dtype="int8")
+        convy1 = relay.nn.conv2d(x, convy0, padding=(0,0), groups=int(w2_ones_shape[0]), channels=w2_ones_shape[0], kernel_size=[w2_ones_shape[2], w2_ones_shape[3]], out_dtype="int32")
+        convy2 = relay.cast(w2, dtype="int32")
+        convy3 = relay.sum(convy1, axis=[0], keepdims=True)
+        convy4 = relay.sum(convy2, axis=[0], keepdims=True)
+        convy5 = relay.nn.conv2d(convy3, convy4, padding=(0,0), channels=1, groups=1, kernel_size=[w2.type_annotation.shape[2], w2.type_annotation.shape[3]], out_layout="NCHW", out_dtype="int64")
+        convy7 = relay.cast(conv2, dtype="int64")
+        convy8 = relay.sum(convy5, axis=[0, 1, 2, 3])
+        convy9 = relay.sum(convy7, axis=[0, 1, 2, 3])
+        convy10 = relay.not_equal(convy8, convy9)
+
+        mult_out = relay.Tuple([y,conv2])
+        comp_output = relay.Tuple([mult_out, y10, convy10])
+        return relay.Function(args, comp_output)
+
+
+    def check(x_shape, w1_shape, w1_ones_shape, w2_shape, w2_ones_shape):
+        x = relay.var("x", shape=x_shape, dtype="int8")
+        w1 = relay.var("w1", shape=w1_shape, dtype="int8")
+        w2 = relay.var("w2", shape=w2_shape, dtype="int8")
+
+        y_before = before(x, w1, w2)
+        y = run_opt_pass(y_before, transform.Extend2DConv())
+        y = run_opt_pass(y, transform.InferType())
+        y_expected = expected(x, w1, w1_ones_shape, w2, w2_ones_shape)
+        y_expected = run_opt_pass(y_expected, transform.InferType())
+        print(tvm.ir.base.get_first_structural_mismatch(y, y_expected))
+        assert tvm.ir.structural_equal(y, y_expected, map_free_vars=True)
+
+#Calculate dimension of ones tensor for Input checksum calc
+# Use ones tensor to reduce input tensor to reduced weight dimension
+#P = x.type_annotation.shape[2] - w1.type_annotation.shape[2] + 1
+#Q = x.type_annotation.shape[3] - w1.type_annotation.shape[3] + 1
+#C = x.type_annotation.shape[1]  ones = (C,1,P,Q)
+# w1=depthwise w2=standard conv2D
+    #Check(    x_shape,       w1_shape,         w1_ones,       w2_shape,        w2_ones)
+    check((1, 64, 56, 56), (64, 1, 3, 3),    (64,1,54,54),  (1, 64, 8, 8),     (64,1,49,49))
+    check((1, 831, 16, 16),(831,1, 6, 6),    (831,1,11,11), (1, 831, 10, 10),  (831,1,7,7))
+    check((1, 20, 17, 17), (20, 1, 12, 12),  (20,1,6,6),    (45, 20, 5, 5),    (20,1,13,13))
+    check((1, 8, 13, 17),  (8, 1, 12, 11),   (8,1,2,7),     (2, 8, 12, 11),    (8,1,2,7))
+
 
 
 def test_single_depthwise_conv2d():
@@ -99,9 +246,6 @@ def test_single_depthwise_conv2d():
     def expected(x, w1,ones_shape):
         # use a fixed order of args so alpha equal check can pass
         args = [x, w1]
-        
-        
-        
         y0 = relay.ones(shape=ones_shape, dtype="int8") 
         y1 = relay.nn.conv2d(x, y0, padding=(0,0), groups=int(ones_shape[0]), channels=ones_shape[0], kernel_size=[ones_shape[2], ones_shape[3]], out_dtype="int32")
         y2 = relay.reshape(w1, newshape=(w1.type_annotation.shape[1],w1.type_annotation.shape[0],w1.type_annotation.shape[2],w1.type_annotation.shape[3]))
@@ -147,6 +291,10 @@ def test_single_depthwise_conv2d():
     check((1, 37, 56, 56),(37, 1, 11, 11), (37,1,46,46))
 
 
+
+
 if __name__ == "__main__":
     test_single_standard_conv2d()
     test_single_depthwise_conv2d()
+    test_multiple_standard_conv2d()
+    test_mixed_conv2d()
