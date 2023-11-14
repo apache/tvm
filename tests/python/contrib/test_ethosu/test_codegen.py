@@ -1081,10 +1081,11 @@ def test_ethosu_section_name():
         '__attribute__((section(".rodata.tvm"), aligned(16))) static int8_t tvmgen_default_ethos_u_main_0_cms_data_data'
         in source
     )
-    assert (
-        '__attribute__((section(".rodata.tvm"), aligned(16))) static int8_t tvmgen_default_ethos_u_main_0_weights'
-        in source
-    )
+    # The weights are now encoded by TVM in the AllocateConst node.
+    # assert (
+    #     '__attribute__((section(".rodata.tvm"), aligned(16))) static int8_t tvmgen_default_ethos_u_main_0_weights'
+    #     in source
+    # )
 
 
 @pytest.mark.parametrize("accel_type", ACCEL_TYPES)

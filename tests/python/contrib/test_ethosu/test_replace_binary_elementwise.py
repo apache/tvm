@@ -71,7 +71,7 @@ def test_binary_elementwise_single(
     )
     func = relay.Function(relay.analysis.free_vars(binary_elementwise), binary_elementwise)
     func = run_opt_pass(func, relay.transform.InferType())
-    mod, _ = _lower_to_tir(func)
+    mod = _lower_to_tir(func)
     data = []
 
     def _visit(stmt):
@@ -229,7 +229,7 @@ def test_shift_binary_elementwise_single(
     )
     func = relay.Function(relay.analysis.free_vars(binary_elementwise), binary_elementwise)
     func = run_opt_pass(func, relay.transform.InferType())
-    mod, _ = _lower_to_tir(func)
+    mod = _lower_to_tir(func)
     data = []
 
     def _visit(stmt):

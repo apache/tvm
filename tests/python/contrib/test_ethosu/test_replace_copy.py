@@ -27,7 +27,7 @@ from tvm.relay.backend.contrib.ethosu.tir.scheduler import (
 from tvm.relay.testing import run_opt_pass
 from tvm.script import tir as T
 
-from .infra import make_ethosu_conv2d
+from .infra import make_ethosu_conv2d, copy_allocate_const_data
 
 
 # fmt: off
@@ -37,7 +37,10 @@ class ReferenceModule:
     def main(input_placeholder_3: T.Buffer((1, 16, 16, 32), "int8"), input_ethosu_write_1: T.Buffer((1, 16, 16, 8), "int8")) -> None:
         # function attr dict
         T.func_attr({"from_legacy_te_schedule": True, "global_symbol": "main", "tir.noalias": True})
-        buffer_1 = T.Buffer([384], "uint8")
+
+        data_1 = T.allocate_const([0]*384,'uint8',[384])
+        buffer_1 = T.Buffer([384], "uint8",data=data_1)
+
         placeholder_3 = T.Buffer([8192], dtype="int8", data=input_placeholder_3.data)
         ethosu_write_1 = T.Buffer([2048], dtype="int8", data=input_ethosu_write_1.data)
         # body
@@ -66,11 +69,12 @@ def test_copy():
         return func
 
     func = _get_func()
-    mod, _ = _lower_to_tir(func, cascader=copy_constants())
+    mod = _lower_to_tir(func, cascader=copy_constants())
 
     script = mod.script()
     test_mod = tvm.script.from_source(script)
     reference_mod = ReferenceModule
+    reference_mod = copy_allocate_const_data(test_mod, reference_mod)
     tvm.ir.assert_structural_equal(test_mod["main"], reference_mod["main"], True)
 
 
@@ -81,8 +85,12 @@ class WeightStream:
     def main(input_placeholder_5: T.Buffer((1, 16, 16, 32), "int8"), input_ethosu_write_1: T.Buffer((1, 16, 16, 16), "int8")) -> None:
         # function attr dict
         T.func_attr({"from_legacy_te_schedule": True, "global_symbol": "main", "tir.noalias": True})
-        buffer = T.Buffer([528], "uint8")
-        buffer_2 = T.Buffer([336], "uint8")
+
+        data_2 = T.allocate_const([0]*336, 'uint8',[336])
+        buffer_2 = T.Buffer([336], "uint8",data=data_2)
+        data = T.allocate_const([0]*528, 'uint8',[528])
+        buffer = T.Buffer([528], "uint8",data=data)
+
         placeholder_5 = T.Buffer([8192], dtype="int8", data=input_placeholder_5.data)
         ethosu_write_1 = T.Buffer([4096], dtype="int8", data=input_ethosu_write_1.data)
         # body
@@ -126,11 +134,12 @@ def test_weight_stream():
         return func
 
     func = _get_func()
-    mod, _ = _lower_to_tir(func, cascader=_cascader)
+    mod = _lower_to_tir(func, cascader=_cascader)
 
     script = mod.script()
     test_mod = tvm.script.from_source(script)
     reference_mod = WeightStream
+    reference_mod = copy_allocate_const_data(test_mod, reference_mod)
     tvm.ir.assert_structural_equal(test_mod["main"], reference_mod["main"], True)
 
 

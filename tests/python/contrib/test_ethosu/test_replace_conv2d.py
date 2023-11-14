@@ -24,7 +24,7 @@ from tvm.relay.backend.contrib.ethosu.tir.scheduler import total_cascader
 from tvm.relay.testing import run_opt_pass
 from tvm.script import tir as T
 
-from .infra import make_ethosu_conv2d
+from .infra import make_ethosu_conv2d, copy_allocate_const_data
 
 
 def _create_serial_conv2d_params(
@@ -350,7 +350,7 @@ def test_conv2d_single(trial):
         [(1, 2, 12, 9, 16), 182, 67, (1, 3), (6, 3), (2, 2), (1, 1), "CLIP", "NHCWB16", "NHCWB16"],
     ]
     func = _get_func(*trial)
-    mod, _ = _lower_to_tir(func)
+    mod = _lower_to_tir(func)
     data = []
 
     def _visit(stmt):
@@ -370,10 +370,14 @@ class Conv2dDoubleCascade1:
     def main(input_placeholder_5: T.Buffer((1, 8, 8, 3), "int8"), input_ethosu_write_1: T.Buffer((1, 8, 8, 8), "int8")) -> None:
         # function attr dict
         T.func_attr({"from_legacy_te_schedule": True, "global_symbol": "main", "tir.noalias": True})
-        buffer = T.Buffer([304], "uint8")
-        buffer_1 = T.Buffer([80], "uint8")
-        buffer_2 = T.Buffer([320], "uint8")
-        buffer_3 = T.Buffer([160], "uint8")
+        data_1 = T.allocate_const([0]*80, "uint8", [80])
+        buffer_1 = T.Buffer([80], "uint8", data=data_1)
+        data = T.allocate_const([0]*304, "uint8", [304])
+        buffer = T.Buffer([304], "uint8", data=data)
+        data_2 = T.allocate_const([0]*320, "uint8", [320])
+        buffer_2 = T.Buffer([320], "uint8", data=data_2)
+        data_3 = T.allocate_const([0]*160, "uint8", [160])
+        buffer_3 = T.Buffer([160], "uint8", data=data_3)
         placeholder_5 = T.Buffer([192], 'int8', data=input_placeholder_5.data)
         ethosu_write_1 = T.Buffer([512], 'int8', data=input_ethosu_write_1.data)
         # body
@@ -392,10 +396,14 @@ class Conv2dDoubleCascade2:
     def main(input_placeholder_5: T.Buffer((1, 8, 8, 3), "int8"), input_ethosu_write_1: T.Buffer((1, 8, 8, 8), "int8")) -> None:
         # function attr dict
         T.func_attr({"from_legacy_te_schedule": True, "global_symbol": "main", "tir.noalias": True})
-        buffer = T.Buffer([80], "uint8")
-        buffer_1 = T.Buffer([320], "uint8")
-        buffer_2 = T.Buffer([1312], "uint8")
-        buffer_3 = T.Buffer([2608], "uint8")
+        data = T.allocate_const([0]*80, "uint8", [80])
+        buffer = T.Buffer([80], "uint8",data=data)
+        data_3 = T.allocate_const([0]*2608, "uint8", [2608])
+        buffer_3 = T.Buffer([2608], "uint8",data=data_3)
+        data_1 = T.allocate_const([0]*320, "uint8", [320])
+        buffer_1 = T.Buffer([320], "uint8", data=data_1)
+        data_2 = T.allocate_const([0]*1312, "uint8", [1312])
+        buffer_2 = T.Buffer([1312], "uint8", data=data_2)
         placeholder_5 = T.Buffer([192], 'int8', data=input_placeholder_5.data)
         ethosu_write_1 = T.Buffer([512], 'int8', data=input_ethosu_write_1.data)
         # body
@@ -414,10 +422,14 @@ class Conv2dDoubleCascade3:
     def main(input_placeholder_5: T.Buffer((1, 16, 16, 3), "int8"), input_ethosu_write_1: T.Buffer((1, 20, 4, 8), "int8")) -> None:
         # function attr dict
         T.func_attr({"from_legacy_te_schedule": True, "global_symbol": "main", "tir.noalias": True})
-        buffer = T.Buffer([1744], "uint8")
-        buffer_1 = T.Buffer([80], "uint8")
-        buffer_2 = T.Buffer([320], "uint8")
-        buffer_3 = T.Buffer([880], "uint8")
+        data_1 = T.allocate_const([0]*80, "uint8", [80])
+        buffer_1 = T.Buffer([80], "uint8", data=data_1)
+        data = T.allocate_const([0]*1744, "uint8", [1744])
+        buffer = T.Buffer([1744], "uint8",data=data)
+        data_2 = T.allocate_const([0]*320, "uint8", [320])
+        buffer_2 = T.Buffer([320], "uint8", data=data_2)
+        data_3 = T.allocate_const([0]*880, "uint8", [880])
+        buffer_3 = T.Buffer([880], "uint8",data=data_3)
         placeholder_5 = T.Buffer([768], 'int8', data=input_placeholder_5.data)
         ethosu_write_1 = T.Buffer([640], 'int8', data=input_ethosu_write_1.data)
 
@@ -439,10 +451,14 @@ class Conv2dDoubleCascade4:
     def main(input_placeholder_5: T.Buffer((1, 8, 1, 8, 16), "int8"), input_ethosu_write_1: T.Buffer((1, 8, 2, 8, 16), "int8")) -> None:
         # function attr dict
         T.func_attr({"from_legacy_te_schedule": True, "global_symbol": "main", "tir.noalias": True})
-        buffer = T.Buffer([1456], "uint8")
-        buffer_1 = T.Buffer([352], "uint8")
-        buffer_2 = T.Buffer([272], "uint8")
-        buffer_3 = T.Buffer([11040], "uint8")
+        data_2 = T.allocate_const([0]*272, "uint8", [272])
+        buffer_2 = T.Buffer([272], "uint8"  ,data=data_2)
+        data_3 = T.allocate_const([0]*11040, "uint8", [11040])
+        buffer_3 = T.Buffer([11040], "uint8",data=data_3)
+        data_1 = T.allocate_const([0]*352, "uint8", [352])
+        buffer_1 = T.Buffer([352], "uint8"  ,data=data_1)
+        data = T.allocate_const([0]*1456, "uint8", [1456])
+        buffer = T.Buffer([1456], "uint8",data=data)
         placeholder_5 = T.Buffer([1024], 'int8', data=input_placeholder_5.data)
         ethosu_write_1 = T.Buffer([2048], 'int8', data=input_ethosu_write_1.data)
         # body
@@ -461,10 +477,14 @@ class Conv2dDoubleCascade5:
     def main(input_placeholder: T.Buffer((1, 8, 8, 3), "int8"), input_ethosu_write: T.Buffer((1, 32, 32, 8), "int8")) -> None:
         # function attr dict
         T.func_attr({"from_legacy_te_schedule": True, "global_symbol": "main", "tir.noalias": True})
-        buffer = T.Buffer([160], "uint8")
-        buffer_1 = T.Buffer([320], "uint8")
-        buffer_2 = T.Buffer([304], "uint8")
-        buffer_3 = T.Buffer([80], "uint8")
+        data_3 = T.allocate_const([0]*80, "uint8", [80])
+        buffer_3 = T.Buffer([80], "uint8",data=data_3)
+        data_2 = T.allocate_const([0]*304, "uint8", [304])
+        buffer_2 = T.Buffer([304], "uint8",data=data_2)
+        data_1 = T.allocate_const([0]*320, "uint8", [320])
+        buffer_1 = T.Buffer([320], "uint8",data=data_1)
+        data = T.allocate_const([0]*160, "uint8", [160])
+        buffer = T.Buffer([160], "uint8",data=data)
         placeholder = T.Buffer([192], 'int8', data=input_placeholder.data)
         ethosu_write = T.Buffer([8192], 'int8', data=input_ethosu_write.data)
         # body
@@ -483,10 +503,14 @@ class Conv2dDoubleCascade6:
     def main(input_placeholder: T.Buffer((1, 8, 1, 8, 16), "int8"), input_ethosu_write: T.Buffer((1, 32, 2, 32, 16), "int8")) -> None:
         # function attr dict
         T.func_attr({"from_legacy_te_schedule": True, "global_symbol": "main", "tir.noalias": True})
-        buffer = T.Buffer([1456], "uint8")
-        buffer_1 = T.Buffer([352], "uint8")
-        buffer_2 = T.Buffer([11040], "uint8")
-        buffer_3 = T.Buffer([272], "uint8")
+        data_3 = T.allocate_const([0]*272, "uint8", [272])
+        buffer_3 = T.Buffer([272], "uint8",data=data_3)
+        data_2 = T.allocate_const([0]*11040, "uint8", [11040])
+        buffer_2 = T.Buffer([11040], "uint8",data=data_2)
+        data_1 = T.allocate_const([0]*352, "uint8", [352])
+        buffer_1 = T.Buffer([352], "uint8",data=data_1)
+        data = T.allocate_const([0]*1456, "uint8", [1456])
+        buffer = T.Buffer([1456], "uint8",data=data)
         placeholder = T.Buffer([1024], 'int8', data=input_placeholder.data)
         ethosu_write = T.Buffer([32768], 'int8', data=input_ethosu_write.data)
         # body
@@ -638,9 +662,10 @@ def test_conv2d_double_cascade(trial):
     }
     with tvm.transform.PassContext(opt_level=3, config={"relay.ext.ethos-u.options": config}):
         func = _get_func(*params[:-1])
-        mod, _ = _lower_to_tir(func, cascader=total_cascader(params[-1]))
+        mod = _lower_to_tir(func, cascader=total_cascader(params[-1]))
         script = mod.script()
         mod = tvm.script.from_source(script)
+        reference_mod = copy_allocate_const_data(mod, reference_mod)
         tvm.ir.assert_structural_equal(mod["main"], reference_mod["main"], True)
 
 
@@ -651,8 +676,13 @@ class Conv2dInlineCopy1:
     def main(input_placeholder_3: T.Buffer((1, 10, 12, 8), "int8"), input_ethosu_write_1: T.Buffer((1, 8, 8, 16), "int8")) -> None:
         # function attr dict
         T.func_attr({"from_legacy_te_schedule": True, "global_symbol": "main", "tir.noalias": True})
-        buffer = T.Buffer([848], "uint8")
-        buffer_1 = T.Buffer([160], "uint8")
+
+        data_1 = T.allocate_const([0]*160, 'uint8', [160])
+        buffer_1 = T.Buffer([160], "uint8", data=data_1)
+        data = T.allocate_const([0]*848, 'uint8', [848])
+        buffer = T.Buffer([848], "uint8", data=data)
+
+
         placeholder_3 = T.Buffer([960], 'int8', data=input_placeholder_3.data)
         ethosu_write_1 = T.Buffer([1024], 'int8', data=input_ethosu_write_1.data)
         # body
@@ -666,8 +696,13 @@ class Conv2dInlineCopy2:
     def main(input_placeholder_3: T.Buffer((1, 7, 9, 5), "int8"), input_ethosu_write_1: T.Buffer((1, 3, 5, 16), "int8")) -> None:
         # function attr dict
         T.func_attr({"from_legacy_te_schedule": True, "global_symbol": "main", "tir.noalias": True})
-        buffer = T.Buffer([160], "uint8")
-        buffer_1 = T.Buffer([656], "uint8")
+
+        data_1 = T.allocate_const([0]*656, 'uint8', [656])
+        buffer_1 = T.Buffer([656], "uint8", data=data_1)
+        data = T.allocate_const([0]*160, 'uint8', [160])
+        buffer = T.Buffer([160], "uint8", data=data)
+
+
         placeholder_3 = T.Buffer([315], 'int8', data=input_placeholder_3.data)
         ethosu_write_1 = T.Buffer([240], 'int8', data=input_ethosu_write_1.data)
         # body
@@ -697,7 +732,7 @@ def test_conv2d_inline_copy(trial):
     reference_mod = trial[0]
     params = trial[1:]
     func = _get_func(*params)
-    mod, _ = _lower_to_tir(func)
+    mod = _lower_to_tir(func)
     script = mod.script()
     mod = tvm.script.from_source(script)
     tvm.ir.assert_structural_equal(mod["main"], reference_mod["main"], True)
@@ -710,8 +745,11 @@ class Conv2dInlineReshape1:
     def main(input_placeholder_3: T.Buffer((4, 6, 8, 1), "int8"), input_ethosu_write_1: T.Buffer((1, 8, 6, 16), "int8")) -> None:
         # function attr dict
         T.func_attr({"from_legacy_te_schedule": True, "global_symbol": "main", "tir.noalias": True})
-        buffer = T.Buffer([160], "uint8")
-        buffer_1 = T.Buffer([848], "uint8")
+
+        data = T.allocate_const([0]*192, 'uint8', [160])
+        buffer = T.Buffer([160], "uint8", data=data)
+        data_1 = T.allocate_const([0]*848, 'uint8', [848])
+        buffer_1 = T.Buffer([848], "uint8", data=data_1)
         placeholder_3 = T.Buffer([192], 'int8', data=input_placeholder_3.data)
         ethosu_write_1 = T.Buffer([768], 'int8', data=input_ethosu_write_1.data)
         # body
@@ -726,8 +764,10 @@ class Conv2dInlineReshape2:
     def main(input_placeholder_3: T.Buffer((1, 24, 8), "int8"), input_ethosu_write_1: T.Buffer((1, 8, 6, 16), "int8")) -> None:
         # function attr dict
         T.func_attr({"from_legacy_te_schedule": True, "global_symbol": "main", "tir.noalias": True})
-        buffer = T.Buffer([160], "uint8")
-        buffer_1 = T.Buffer([848], "uint8")
+        data = T.allocate_const([0]*192, 'uint8', [160])
+        buffer = T.Buffer([160], "uint8", data=data)
+        data_1 = T.allocate_const([0]*848, 'uint8', [848])
+        buffer_1 = T.Buffer([848], "uint8", data=data_1)
         placeholder_3 = T.Buffer([192], 'int8', data=input_placeholder_3.data)
         ethosu_write_1 = T.Buffer([768], 'int8', data=input_ethosu_write_1.data)
         # body
@@ -742,8 +782,10 @@ class Conv2dInlineReshape3:
     def main(input_placeholder_3: T.Buffer((192, 1), "int8"), input_ethosu_write_1: T.Buffer((1, 8, 6, 16), "int8")) -> None:
         # function attr dict
         T.func_attr({"from_legacy_te_schedule": True, "global_symbol": "main", "tir.noalias": True})
-        buffer = T.Buffer([160], "uint8")
-        buffer_1 = T.Buffer([848], "uint8")
+        data = T.allocate_const([0]*192, 'uint8', [160])
+        buffer = T.Buffer([160], "uint8", data=data)
+        data_1 = T.allocate_const([0]*848, 'uint8', [848])
+        buffer_1 = T.Buffer([848], "uint8", data=data_1)
         placeholder_3 = T.Buffer([192], 'int8', data=input_placeholder_3.data)
         ethosu_write_1 = T.Buffer([768], 'int8', data=input_ethosu_write_1.data)
         # body
@@ -758,8 +800,10 @@ class Conv2dInlineReshape4:
     def main(placeholder_3: T.Buffer((192,), "int8"), input_ethosu_write_1: T.Buffer((1, 8, 6, 16), "int8")) -> None:
         # function attr dict
         T.func_attr({"from_legacy_te_schedule": True, "global_symbol": "main", "tir.noalias": True})
-        buffer = T.Buffer([160], "uint8")
-        buffer_1 = T.Buffer([848], "uint8")
+        data = T.allocate_const([0]*192, 'uint8', [160])
+        buffer = T.Buffer([160], "uint8", data=data)
+        data_1 = T.allocate_const([0]*848, 'uint8', [848])
+        buffer_1 = T.Buffer([848], "uint8", data=data_1)
         ethosu_write_1 = T.Buffer([768], 'int8', data=input_ethosu_write_1.data)
         # body
         T.evaluate(T.call_extern("ethosu_conv2d", "int8", 5, 6, 4, 5, 0, 6, placeholder_3[0], 0, 0, 0, T.float32(0.5), 10, "NHWC", 24, 4, 1, "int8", 4, 6, 16, 4, 0, 6, ethosu_write_1[0], 0, 0, 0, T.float32(0.25), 14, "NHWC", 96, 16, 1, 3, 3, 1, 1, 1, 1, buffer_1[0], 848, T.int8(-1), T.int8(-1), 12, buffer[0], 160, T.int8(-1), T.int8(-1), 1, 1, 0, 1, "NONE", 0, 0, "TFL", "NONE", 0, 0, 0, dtype="handle"))
@@ -799,7 +843,8 @@ def test_conv2d_inline_reshape(trial):
     reference_mod = trial[0]
     params = trial[1:]
     func = _get_func(*params)
-    mod, _ = _lower_to_tir(func, cascader=total_cascader((1, 4, 6, 16)))
+    mod = _lower_to_tir(func, cascader=total_cascader((1, 4, 6, 16)))
+    reference_mod = copy_allocate_const_data(mod, reference_mod)
     script = mod.script()
     mod = tvm.script.from_source(script)
     tvm.ir.assert_structural_equal(mod["main"], reference_mod["main"], True)
@@ -819,7 +864,7 @@ def test_conv2d_big_pad():
         return func
 
     func = _get_func()
-    mod, _ = _lower_to_tir(func, cascader=total_cascader((1, 4, 4, 16)))
+    mod = _lower_to_tir(func, cascader=total_cascader((1, 4, 4, 16)))
 
 
 if __name__ == "__main__":

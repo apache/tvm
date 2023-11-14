@@ -57,7 +57,7 @@ def test_lower_to_tir_arg_count(relay_function, arg_count):
     mod = tvm.IRModule()
     mod["main"] = relay_function()
     mod = relay.transform.InferType()(mod)
-    tir_mod = _lower_to_tir(mod["main"])[0]
+    tir_mod = _lower_to_tir(mod["main"])
     primfunc = tir_mod["main"]
     assert len(primfunc.params) == arg_count
 

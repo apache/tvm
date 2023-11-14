@@ -16,7 +16,7 @@
 # under the License.
 """Codegen for Arm(R) Ethos(TM)-U NPU"""
 from collections import defaultdict
-from typing import List, Callable
+from typing import List, Callable, Dict
 
 from ethosu.vela import api as vapi
 import tvm
@@ -720,6 +720,34 @@ def relay_to_tir(mod: tvm.ir.IRModule) -> tvm.ir.IRModule:
     return tir_mod
 
 
+def collect_consts(mod: tvm.IRModule) -> Dict[tvm.tir.Var, tvm.nd.NDArray]:
+    """Collect any AllocateConst
+
+    Parameters
+    ----------
+    mod: tvm.IRModule
+
+        The module to inspect.
+
+    Returns
+    -------
+    const_dict: Dict[tvm.tir.Var, tvm.nd.NDArray]
+
+        A map from buffer var to NDArray, from AllocateConst nodes in
+        the module
+    """
+    constants = {}
+
+    def _visit(stmt):
+        if isinstance(stmt, tvm.tir.AllocateConst):
+            constants[stmt.buffer_var] = stmt.data
+
+    for func in mod.functions.values():
+        tvm.tir.stmt_functor.post_order_visit(func.body, _visit)
+
+    return constants
+
+
 @tvm._ffi.register_func("relay.ext.ethos-u.primfunc_to_artifact")
 def primfunc_to_artifact(primfunc: tvm.tir.PrimFunc) -> util.CompilationArtifact:
     """
@@ -739,13 +767,12 @@ def primfunc_to_artifact(primfunc: tvm.tir.PrimFunc) -> util.CompilationArtifact
         for the microNPU
     """
     symbol = str(primfunc.attrs["global_symbol"])
-    const_dict = primfunc.attrs["ethos-u.constants"]
     tir_mod = tvm.IRModule()
     tir_mod[symbol] = primfunc
 
-    const_dict_np = dict()
-    for buffer_var in const_dict.keys():
-        const_dict_np[buffer_var] = const_dict[buffer_var].numpy()
+    const_dict_np = {
+        buffer_var: ndarray.numpy() for buffer_var, ndarray in collect_consts(tir_mod).items()
+    }
 
     cmms, encoded_constants, base_addresses = tir_to_cs_translator.translate(tir_mod, const_dict_np)
     return util.CompilationArtifact(symbol, cmms, encoded_constants, base_addresses)

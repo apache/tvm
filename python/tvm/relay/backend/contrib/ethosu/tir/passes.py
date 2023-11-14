@@ -911,8 +911,7 @@ def RemoveConcatenates():
 def CreatePrimFuncWithoutConstants(const_dict):
     """
     This pass will remove arguments that are constants
-    from PrimFunc Args. These should be replaced properly
-    with tir.allocate_const when it becomes available.
+    from PrimFunc Args, replacing them with tir.allocate_const.
 
     It also modifies the constant dictionary to
     rewrite the keys as the actual tir.Vars that are params
@@ -920,22 +919,27 @@ def CreatePrimFuncWithoutConstants(const_dict):
     arguments that represent constants.
     """
 
-    new_const_dict = dict()
-
     def _ftransform(f, mod, ctx):
         new_params = list()
         new_buffer_map = dict()
-        for param_idx in const_dict.keys():
-            # We are using buffer_var to key the constants as
-            # PrimFunc params of constants will be removed.
-            new_const_dict[f.buffer_map[f.params[param_idx]].data] = const_dict[param_idx]
+
+        new_body = f.body
+
         for i, param in enumerate(f.params):
-            if i not in const_dict.keys():
+            if i in const_dict:
+                const_np = const_dict[i]
+                const_ndarray = tvm.nd.array(const_np, device=tvm.cpu())
+                buf = f.buffer_map[param]
+                new_body = tvm.tir.AllocateConst(
+                    buf.data, buf.dtype, buf.shape, const_ndarray, new_body
+                )
+            else:
                 new_params.append(param)
                 new_buffer_map[param] = f.buffer_map[param]
+
         return tvm.tir.PrimFunc(
             new_params,
-            f.body,
+            new_body,
             f.ret_type,
             new_buffer_map,
             f.attrs,
@@ -947,7 +951,7 @@ def CreatePrimFuncWithoutConstants(const_dict):
             _ftransform, opt_level=0, name="tir.contrib.ethos-u.CreatePrimFuncWithoutConstants"
         )
         mod = transform_func(mod)
-        return mod, new_const_dict
+        return mod
 
     return _create_primfunc_without_constants
 

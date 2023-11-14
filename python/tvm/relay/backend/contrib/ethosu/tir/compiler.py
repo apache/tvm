@@ -49,9 +49,6 @@ def lower_ethosu(sch, args, const_dict, name="main"):
     -------
     mod : tvm.IRModule
         The lowered TIR module.
-    const_dict : dict of int to numpy.ndarray
-        The modified constant dictionary.
-
     """
     if not isinstance(args, list):
         args = list(args.inputs) + list(args.outputs)
@@ -101,8 +98,8 @@ def lower_ethosu(sch, args, const_dict, name="main"):
 
         mod = tvm.tir.transform.RemoveNoOp()(mod)
         mod = ethosu_passes.AnnotateAllocates()(mod)
-        mod, const_dict = ethosu_passes.CreatePrimFuncWithoutConstants(const_dict)(mod)
-    return mod, const_dict
+        mod = ethosu_passes.CreatePrimFuncWithoutConstants(const_dict)(mod)
+    return mod
 
 
 def lower_to_te(prim_func):
@@ -200,15 +197,11 @@ class LowerToTIR:
     def transform_npu_function(self, _, func: relay.Function) -> relay.Function:
         """Lower NPU functions to TIR."""
 
-        tir_mod, const_dict = _lower_to_tir(func, self.scheduler)
-
-        for param in const_dict.keys():
-            const_dict[param] = tvm.nd.array(const_dict[param])
+        tir_mod = _lower_to_tir(func, self.scheduler)
 
         compiler_name = "ethos-u"
         primfunc = tir_mod["main"]
         primfunc = primfunc.with_attr("global_symbol", func.attrs["global_symbol"])
-        primfunc = primfunc.with_attr("ethos-u.constants", const_dict)
         primfunc = primfunc.with_attr("target", tvm.target.Target(compiler_name))
         return primfunc
 
@@ -233,14 +226,11 @@ def _lower_to_tir(func, cascader=None):
     -------
     mod : tvm.IRModule
         The lowered TIR module.
-    consts : dict of int to numpy.ndarray
-        A dict of the extracted constants keyed by their param index.
-
     """
     func, consts = extract_constants(func)
     mod = tvm.IRModule.from_expr(func)
     func = relay.transform.InferType()(mod)["main"]
     cached_func = lower_to_te(func)
     s = schedule(cached_func, consts, cascader)
-    mod, consts = lower_ethosu(s, cached_func, consts)
-    return mod, consts
+    mod = lower_ethosu(s, cached_func, consts)
+    return mod

@@ -111,7 +111,7 @@ def test_depthwise_conv2d_single(request, trial):
         return func
 
     func = _get_func(*trial)
-    mod, _ = _lower_to_tir(func)
+    mod = _lower_to_tir(func)
     data = []
 
     def _visit(stmt):
