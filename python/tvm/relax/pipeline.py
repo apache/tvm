@@ -74,8 +74,38 @@ def zero_pipeline(*, enable_warning: bool = False):
     return f_zero_pipeline
 
 
+def default_build_pipeline():
+    """The default compilation pipeline used in relax.build"""
+
+    @tvm.transform.module_pass(opt_level=0)
+    def _pipeline(mod: tvm.ir.IRModule, _ctx: tvm.transform.PassContext) -> tvm.ir.IRModule:
+        seq = tvm.transform.Sequential(
+            [
+                transform.LegalizeOps(),
+                transform.RewriteDataflowReshape(),
+                transform.ToNonDataflow(),
+                transform.RemovePurityChecking(),
+                transform.CallTIRRewrite(),
+                transform.StaticPlanBlockMemory(),
+                transform.RewriteCUDAGraph(),
+                transform.LowerAllocTensor(),
+                transform.KillAfterLastUse(),
+                transform.VMBuiltinLower(),
+                transform.VMShapeLower(),
+                transform.AttachGlobalSymbol(),
+            ],
+        )
+        mod = seq(mod._move())  # pylint: disable=protected-access
+        return mod
+
+    return _pipeline
+
+
 # global map of pre-built pipelines
-PIPELINE_MAP = {"zero": zero_pipeline}
+PIPELINE_MAP = {
+    "zero": zero_pipeline,
+    "default_build": default_build_pipeline,
+}
 
 
 def get_pipeline(name: str = "zero", **kwargs) -> tvm.transform.Pass:
