@@ -133,7 +133,7 @@ class Conv2dVisitor : private ExprVisitor {
 
    Array<ObjectRef> Search(const Expr& expr) {
     VisitExpr(expr);
-    return conv;
+    return memo_;
   }
 
  private:
@@ -161,19 +161,17 @@ class Conv2dVisitor : private ExprVisitor {
       ICHECK(attr);
       ICHECK(input);
       ICHECK(weight);
-      if(supportedInputTensorType(input)  &&
-         supportedInputTensorType(weight) &&
-        (supportedOutputTensorType(attr))){
-            conv.push_back(GetRef<Call>(n));
+      if(supportedInputTensorType(input)  && supportedInputTensorType(weight) && supportedOutputTensorType(attr)){
+        memo_.push_back(GetRef<Call>(n));
       }
+   }
     // iterate deeper levels
     for (const auto& arg : n->args) {
       VisitExpr(arg);
     }
-   }
   }
   const Op& conv2d_op;
-  Array<ObjectRef> conv;            // Array for all already existing conv2d operation/including depthwise
+  Array<ObjectRef> memo_;            // Array for all already existing conv2d operation/including depthwise
 };
 
 Array<ObjectRef> SearchConv2d(const Expr& e) { return Conv2dVisitor().Search(e); }
@@ -253,10 +251,10 @@ IRModule Extend2DConv(const IRModule& mod) {
       Array<ObjectRef> conv2D_array = SearchConv2d(func->body);
       auto first_exp = func->body;
       Array<tvm::relay::Expr> output_expr;
-      
+
       // get existing expression tree
       if (func->body.as<Tuple>()) {
-        first_exp = Downcast<Tuple>(func->body); 
+        first_exp = Downcast<Tuple>(func->body);
       } else if (func->body.as<Call>()) {
         first_exp = Downcast<Call>(func->body);
       } else {
@@ -302,8 +300,8 @@ IRModule Extend2DConv(const IRModule& mod) {
         ICHECK(weight_tensor != nullptr);
 
 
-        const auto input = Downcast<Var>(origin_conv2d->args[0]);
-        const auto weight = Downcast<Var>(origin_conv2d->args[1]);
+        const auto input  = origin_conv2d->args[0];
+        const auto weight = origin_conv2d->args[1];
 
 /*
 *    ones(C,1,P,Q)    x(N,C,H,W)
