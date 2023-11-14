@@ -264,5 +264,35 @@ def test_specialize_decl_buffer():
     tvm.ir.assert_structural_equal(expected, after)
 
 
+def test_specialize_buffer_var_to_var():
+    """A buffer var may be remapped by specialization
+
+    If a buffer variable is replaced by a specialization, then other
+    buffers using the same buffer var should also be updated.
+    """
+
+    @T.prim_func(private=True)
+    def before(A: T.Buffer([16, 16], "float32"), B: T.Buffer([16, 16], "float32")):
+        A_flat = T.decl_buffer([256], "float32", data=A.data)
+        B_flat = T.decl_buffer([256], "float32", data=B.data)
+        for i in range(256):
+            B_flat[i] = A_flat[i] * 2.0
+
+    @T.prim_func(private=True)
+    def expected(A: T.Buffer([16, 16], "float32"), B_handle: T.handle):
+        B = T.match_buffer(B_handle, [16, 16], "float32", data=A.data)
+        A_flat = T.decl_buffer([256], "float32", data=A.data)
+        B_flat = T.decl_buffer([256], "float32", data=A.data)
+        for i in range(256):
+            B_flat[i] = A_flat[i] * 2.0
+
+    A = before.buffer_map[before.params[0]]
+    B_handle = before.params[1]
+    param_map = {B_handle: A}
+    after = before.specialize(param_map)
+
+    tvm.ir.assert_structural_equal(expected, after)
+
+
 if __name__ == "__main__":
     tvm.testing.main()

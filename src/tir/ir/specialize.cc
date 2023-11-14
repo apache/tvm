@@ -216,17 +216,19 @@ class PrimFuncSpecializer : public StmtExprMutator {
 
  private:
   Buffer MutateBuffer(const Buffer& buffer) {
+    Var data = VisitExpr(buffer->data).as<Var>().value_or(buffer->data);
     Array<PrimExpr> shape = buffer->shape.Map([this](const PrimExpr& e) { return VisitExpr(e); });
     Array<PrimExpr> strides =
         buffer->strides.Map([this](const PrimExpr& e) { return VisitExpr(e); });
 
     PrimExpr elem_offset = VisitExpr(buffer->elem_offset);
 
-    if (buffer->elem_offset.same_as(elem_offset) && buffer->shape.same_as(shape) &&
-        buffer->strides.same_as(strides)) {
+    if (buffer->data.same_as(data) && buffer->elem_offset.same_as(elem_offset) &&
+        buffer->shape.same_as(shape) && buffer->strides.same_as(strides)) {
       return buffer;
     } else {
       auto n = make_object<BufferNode>(*buffer.get());
+      n->data = std::move(data);
       n->elem_offset = std::move(elem_offset);
       n->shape = std::move(shape);
       n->strides = std::move(strides);
@@ -348,6 +350,7 @@ void UpdateSpecializeVarMap(const PrimFunc& func, const Var& param, const Buffer
       << " vs. " << specific_buf->strides.size() << ".";
 
   // Updating var mapping using specific_expr
+  build_var_mapping(specific_buf->data, buf_to_specialize->data);
   for (size_t i = 0; i < specific_buf->shape.size(); ++i) {
     build_var_mapping(specific_buf->shape[i], buf_to_specialize->shape[i]);
   }
