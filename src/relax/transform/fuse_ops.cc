@@ -1033,23 +1033,27 @@ class PatternBasedPartitioner : ExprVisitor {
   using PatternCheckContext = transform::PatternCheckContext;
   using ExprVisitor::VisitExpr_;
   using FCheckMatch = runtime::TypedPackedFunc<bool(const transform::PatternCheckContext&)>;
+  using FAttrsGetter =
+      runtime::TypedPackedFunc<Map<String, String>(const transform::PatternCheckContext&)>;
 
   static GroupMap Run(String pattern_name, DFPattern pattern,
                       Map<String, DFPattern> annotation_patterns, FCheckMatch check, Expr expr,
-                      support::Arena* arena) {
-    PatternBasedPartitioner part(pattern_name, pattern, annotation_patterns, check, arena);
+                      support::Arena* arena, FAttrsGetter attrs_getter) {
+    PatternBasedPartitioner part(pattern_name, pattern, annotation_patterns, check, arena,
+                                 attrs_getter);
     part.VisitExpr(expr);
     return part.group_map_;
   }
 
   PatternBasedPartitioner(String pattern_name, DFPattern pattern,
                           Map<String, DFPattern> annotation_patterns, FCheckMatch check,
-                          support::Arena* arena)
+                          support::Arena* arena, FAttrsGetter attrs_getter)
       : pat_name_(pattern_name),
         pat_(pattern),
         annotation_pat_(annotation_patterns),
         check_(check),
-        arena_(arena) {}
+        arena_(arena),
+        attrs_getter_(attrs_getter) {}
 
   void VisitBindingBlock_(const DataflowBlockNode* block) final {
     current_block_use_def_ = DataflowBlockUseDef(GetRef<DataflowBlock>(block));
@@ -1102,6 +1106,13 @@ class PatternBasedPartitioner : ExprVisitor {
       auto parent_group = GetGroupForBoundVar(binding->var);
       ICHECK(parent_group);
       parent_group->attrs.Set(attr::kComposite, pat_name_);
+      if (attrs_getter_ != nullptr) {
+        const auto& custom_attrs =
+            attrs_getter_(CreatePatternCheckContext(call, matches_opt.value()));
+        for (const auto& pair : custom_attrs) {
+          parent_group->attrs.Set(pair.first, pair.second);
+        }
+      }
       for (const auto& [pat, match] : matches_opt.value()) {
         // Put all matching expressions into the parent group. But we need to be careful not to
         // merge expressions matched by a wildcard pattern, since a wildcard can match an output of
@@ -1163,6 +1174,7 @@ class PatternBasedPartitioner : ExprVisitor {
   Map<String, DFPattern> annotation_pat_;
   FCheckMatch check_;
   support::Arena* arena_;
+  FAttrsGetter attrs_getter_;
   Map<Var, Expr> bindings_;
   Map<Expr, Var> value_to_bound_var_;
   Map<Var, Array<Var>> current_block_use_def_;
@@ -1255,9 +1267,10 @@ IRModule FuseOpsByPattern(const tvm::Array<transform::FusionPattern>& patterns, 
       if (entry.second->IsInstance<tir::PrimFuncNode>()) {
         continue;
       }
-      auto map = PatternBasedPartitioner::Run(
-          pattern->name, pattern->pattern, pattern->annotation_patterns,
-          pattern->check.value_or(nullptr), entry.second, &arena);
+      auto map = PatternBasedPartitioner::Run(pattern->name, pattern->pattern,
+                                              pattern->annotation_patterns,
+                                              pattern->check.value_or(nullptr), entry.second,
+                                              &arena, pattern->attrs_getter.value_or(nullptr));
       group_map.insert(map.begin(), map.end());
     }
     mod = MakeGroupedFunctions(mod, group_map, /*lift_constants*/ !bind_constants);
@@ -1271,21 +1284,22 @@ IRModule FuseOpsByPattern(const tvm::Array<transform::FusionPattern>& patterns, 
 namespace transform {
 
 FusionPattern::FusionPattern(String name, DFPattern pattern,
-                             Map<String, DFPattern> annotation_patterns,
-                             Optional<PackedFunc> check) {
+                             Map<String, DFPattern> annotation_patterns, Optional<PackedFunc> check,
+                             Optional<PackedFunc> attrs_getter) {
   ObjectPtr<FusionPatternNode> n = make_object<FusionPatternNode>();
   n->name = std::move(name);
   n->pattern = std::move(pattern);
   n->annotation_patterns = std::move(annotation_patterns);
   n->check = check;
+  n->attrs_getter = attrs_getter;
   data_ = std::move(n);
 }
 
 TVM_REGISTER_NODE_TYPE(FusionPatternNode);
 TVM_REGISTER_GLOBAL("relax.transform.FusionPattern")
     .set_body_typed([](String name, DFPattern pattern, Map<String, DFPattern> annotation_patterns,
-                       Optional<PackedFunc> check) {
-      return FusionPattern(name, pattern, annotation_patterns, check);
+                       Optional<PackedFunc> check, Optional<PackedFunc> attrs_getter) {
+      return FusionPattern(name, pattern, annotation_patterns, check, attrs_getter);
     });
 
 PatternCheckContext::PatternCheckContext(Expr matched_expr, Map<String, Expr> annotated_expr,

@@ -647,6 +647,7 @@ class FusionPattern(Object):
     pattern: DFPattern
     annotation_patterns: Mapping[str, DFPattern]
     check: Callable[[PatternCheckContext], bool]
+    attrs_getter: Callable[[PatternCheckContext], Dict[str, str]]
 
     def __init__(
         self,
@@ -654,12 +655,13 @@ class FusionPattern(Object):
         pattern: DFPattern,
         annotation_patterns: Optional[Mapping[str, DFPattern]] = None,
         check: Optional[Callable[[Mapping[str, Expr]], bool]] = None,
+        attrs_getter: Optional[Callable[[Mapping[str, Expr]], Dict[str, str]]] = None,
     ):
         if annotation_patterns is None:
             annotation_patterns = {}
         self.__init_handle_by_constructor__(
-            _ffi_api.FusionPattern, name, pattern, annotation_patterns, check  # type: ignore
-        )
+            _ffi_api.FusionPattern, name, pattern, annotation_patterns, check, attrs_getter
+        )  # type: ignore
 
 
 def FuseOpsByPattern(
