@@ -124,7 +124,7 @@ IRModule DeadCodeElimination(const IRModule& arg_mod, Array<runtime::String> ent
     entry_functions.insert(mod->GetGlobalVar(name));
   }
   for (const auto& [gv, func] : mod->functions) {
-    if (func->GetLinkageType() == LinkageType::kExternal) {
+    if (func.as<ExternFuncNode>() || func->GetLinkageType() == LinkageType::kExternal) {
       entry_functions.insert(gv);
     }
   }
