@@ -65,6 +65,8 @@ def serialize_args(args):
             return x
         if isinstance(x, (expr.StringImm, expr.IntImm, expr.FloatImm)):
             return x.value
+        if isinstance(x, expr.ArrayIntImm):
+            return x.data
         if isinstance(x, runtime.container.String):
             return str(x)
         if x is None:

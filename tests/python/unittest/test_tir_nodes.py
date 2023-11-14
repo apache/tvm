@@ -338,6 +338,13 @@ def test_equality_string_imm():
     x == y
 
 
+def test_equality_array_imm():
+    x = [1, 2, 3]
+    y = tvm.tir.ArrayIntImm(x)
+    x == y.data
+    x == y
+
+
 def test_prim_func():
     x = te.var("x")
     y = te.var("y")

@@ -493,6 +493,11 @@ def test_string_imm():
     _assert_print(s, '"str"')
 
 
+def test_array_imm():
+    a = tir.ArrayIntImm([1, 2, 3])
+    _assert_print(a, "[1, 2, 3]")
+
+
 def test_cast():
     obj = tir.Cast("float64", tir.Var("a", "float32"))
     _assert_print(

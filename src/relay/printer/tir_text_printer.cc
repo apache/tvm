@@ -296,6 +296,19 @@ Doc TIRTextPrinter::VisitExpr_(const FloatImmNode* op) {
 
 Doc TIRTextPrinter::VisitExpr_(const StringImmNode* op) { return Doc::StrLiteral(op->value); }
 
+Doc TIRTextPrinter::VisitExpr_(const ArrayIntImmNode* op) {
+  Doc doc;
+  doc << "[";
+  for (size_t i = 0; i < op->data.size(); ++i) {
+    doc << Print(op->data[i]);
+    if (i < op->data.size() - 1) {
+      doc << ", ";
+    }
+  }
+  doc << "]";
+  return doc;
+}
+
 Doc TIRTextPrinter::VisitExpr_(const CastNode* op) {
   Doc doc;
   doc << "cast(" << PrintDType(op->dtype) << ", " << Print(op->value) << ")";

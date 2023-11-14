@@ -116,6 +116,14 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
     });
 
 TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
+    .set_dispatch<tir::ArrayIntImm>("", [](tir::ArrayIntImm a, ObjectPath p, IRDocsifier d) -> Doc {
+      return TIR(d, "ArrayIntImm")
+          ->Call({
+              d->AsDoc<ExprDoc>(a->data, p->Attr("data")),
+          });
+    });
+
+TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
     .set_dispatch<tir::Cast>("", [](tir::Cast cast, ObjectPath p, IRDocsifier d) -> Doc {
       ExprDoc dtype = LiteralDoc::DataType(cast->dtype, p->Attr("dtype"));
       ExprDoc value = d->AsDoc<ExprDoc>(cast->value, p->Attr("value"));

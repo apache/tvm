@@ -473,42 +473,50 @@ def test_batch_matmul(executor_kind):
     verify_batch_matmul_with_inputs(executor_kind, x, x, x_np, x_np, (10, 27, 27))
 
 
-def batch_matmul_x86_test(b, m, n, k, target="llvm -mcpu=cascadelake", intrins=["vpdpbusd"]):
-    x_shape = (b, m, k)
-    y_shape = (b, n, k)
-    z_shape = (b, m, n)
+def batch_matmul_x86_test(b, m, n, k, target, intrins):
+    d_shape = (b, m, k)
+    w_shape = (b, n, k)
+    b_shape = (b, m, n)
 
-    for lhs_dtype in ["uint8", "int8"]:
-        x = relay.var("x", shape=x_shape, dtype=lhs_dtype)
-        y = relay.var("y", shape=y_shape, dtype="int8")
-        z = relay.var("z", shape=z_shape, dtype="int32")
-        bmm = relay.nn.batch_matmul(x, y, out_dtype="int32")
-        out = bmm + z
+    for data_dtype in ["uint8", "int8"]:
+        d = relay.var("data", shape=d_shape, dtype=data_dtype)
+        w = relay.var("weight", shape=w_shape, dtype="int8")
+        b = relay.var("bias", shape=b_shape, dtype="int32")
+        bmm = relay.nn.batch_matmul(d, w, out_dtype="int32")
+        out = bmm + b
         mod = tvm.IRModule.from_expr(out)
 
         with tvm.transform.PassContext(opt_level=3):
             lib = relay.build(mod, target=target)
 
-        # TODO(vvchernov): needs for avx512 arch, can be extended
-        if n % 16 == 0 and k % 4 == 0:
-            asm = lib.lib.get_source("asm")
-            for intrin in intrins:
-                assert intrin in asm
+        irllvm = lib.lib.get_source()
+        for intrin in intrins:
+            assert intrin in irllvm
 
         dev = tvm.device(target, 0)
         runtime = tvm.contrib.graph_executor.GraphModule(lib["default"](dev))
 
-        x_np = np.random.uniform(1, 10, size=x_shape).astype(lhs_dtype)
-        y_np = np.random.uniform(1, 10, size=y_shape).astype("int8")
-        z_np = np.random.uniform(1, 10, size=z_shape).astype("int32")
+        if "fast-math" in target:
+            if data_dtype == "int8":
+                d_np = np.random.randint(low=0, high=127, size=d_shape).astype(data_dtype)
+            else:
+                d_np = np.random.randint(low=-63, high=63, size=d_shape).astype(data_dtype)
+            w_np = np.random.randint(low=-63, high=63, size=w_shape).astype("int8")
+        else:
+            if data_dtype == "int8":
+                d_np = np.random.randint(low=-128, high=-127, size=d_shape).astype(data_dtype)
+            else:
+                d_np = np.random.randint(low=0, high=255, size=d_shape).astype(data_dtype)
+            w_np = np.random.randint(low=-128, high=127, size=w_shape).astype("int8")
+        b_np = np.random.randint(low=-65535, high=65535, size=(b_shape)).astype("int32")
 
-        runtime.set_input("x", x_np)
-        runtime.set_input("y", y_np)
-        runtime.set_input("z", z_np)
+        runtime.set_input("data", d_np)
+        runtime.set_input("weight", w_np)
+        runtime.set_input("bias", b_np)
         runtime.run()
 
         out = runtime.get_output(0).numpy()
-        ref = tvm.topi.testing.batch_matmul(x_np, y_np, out_dtype="int32") + z_np
+        ref = tvm.topi.testing.batch_matmul(d_np, w_np, out_dtype="int32") + b_np
 
         np.testing.assert_equal(out, ref)
 
@@ -522,7 +530,7 @@ def batch_matmul_x86_test(b, m, n, k, target="llvm -mcpu=cascadelake", intrins=[
         (16, 32, 31, 128),
     ],
 )
-def test_batch_matmul_amx(b, m, n, k):
+def test_batch_matmul_int8_x86_amx(b, m, n, k):
     amx_init = tvm.get_global_func("runtime.amx_init")
     amx_tileconfig = tvm.get_global_func("runtime.amx_tileconfig")
     assert amx_init()
@@ -577,8 +585,9 @@ def test_batch_matmul_amx(b, m, n, k):
         (16, 32, 129, 96),
     ],
 )
-def test_batch_matmul_vnni(b, m, n, k):
-    batch_matmul_x86_test(b, m, n, k)
+def test_batch_matmul_int8_x86_vnni(b, m, n, k):
+    target = "llvm -mcpu=cascadelake"
+    batch_matmul_x86_test(b, m, n, k, target, ["avx512.vpdpbusd"])
 
 
 @tvm.testing.requires_x86_avx512
@@ -590,8 +599,43 @@ def test_batch_matmul_vnni(b, m, n, k):
         (16, 32, 129, 96),
     ],
 )
-def test_batch_matmul_skylake_avx512(b, m, n, k):
-    batch_matmul_x86_test(b, m, n, k, "llvm -mcpu=skylake-avx512", ["pmaddubs", "pmaddw", "vpaddd"])
+def test_batch_matmul_int8_x86_avx512(b, m, n, k):
+    target = "llvm -mcpu=skylake-avx512"
+    fast = " -keys=cpu,fast-math"
+    batch_matmul_x86_test(b, m, n, k, target, ["avx512.pmaddw.d"])
+    batch_matmul_x86_test(b, m, n, k, target + fast, ["avx512.pmaddubs.w", "avx512.pmaddw.d"])
+
+
+@tvm.testing.requires_x86
+@pytest.mark.parametrize(
+    "b,m,n,k",
+    [
+        (16, 32, 128, 96),
+        (16, 32, 128, 97),
+        (16, 32, 129, 96),
+    ],
+)
+def test_batch_matmul_int8_x86_avx2(b, m, n, k):
+    target = "llvm -mcpu=haswell"
+    fast = " -keys=cpu,fast-math"
+    batch_matmul_x86_test(b, m, n, k, target, ["avx2.pmadd.wd", "avx2.phadd.d"])
+    batch_matmul_x86_test(b, m, n, k, target + fast, ["avx2.pmadd.ub.sw", "avx2.pmadd.wd"])
+
+
+@tvm.testing.requires_x86
+@pytest.mark.parametrize(
+    "b,m,n,k",
+    [
+        (16, 32, 128, 96),
+        (16, 32, 128, 97),
+        (16, 32, 129, 96),
+    ],
+)
+def test_batch_matmul_int8_x86_ssse3(b, m, n, k):
+    target = "llvm -mcpu=ivybridge"
+    fast = " -keys=cpu,fast-math"
+    batch_matmul_x86_test(b, m, n, k, target, ["sse2.pmadd", "ssse3.phadd.d"])
+    batch_matmul_x86_test(b, m, n, k, target + fast, ["ssse3.pmadd.ub.sw", "sse2.pmadd"])
 
 
 @pytest.mark.skip("Requires GFX10 AMDGPU")

@@ -20,7 +20,7 @@
 
 import tvm
 from tvm import autotvm, te
-from tvm.target.x86 import target_has_features
+from tvm.target.x86 import target_has_features, get_x86_simd_32bit_lanes
 
 from .. import nn, tag
 from ..generic import conv2d as conv2d_generic
@@ -153,8 +153,12 @@ def conv2d_NCHWc_int8(cfg, data, kernel, strides, padding, dilation, layout, out
     oh = (ih - dilated_kernel_h + pt + pb) // sh + 1
     ow = (iw - dilated_kernel_w + pl + pr) // sw + 1
 
+    vec_width = get_x86_simd_32bit_lanes() if get_x86_simd_32bit_lanes() else 16
+
     cfg.define_split("tile_ic", in_channel, num_outputs=2, filter=lambda y: y.size[-1] % 4 == 0)
-    cfg.define_split("tile_oc", num_filter, num_outputs=2, filter=lambda y: y.size[-1] % 16 == 0)
+    cfg.define_split(
+        "tile_oc", num_filter, num_outputs=2, filter=lambda y: y.size[-1] % vec_width == 0
+    )
     cfg.define_split("tile_ow", ow, num_outputs=2, filter=lambda y: y.size[-1] <= 64)
     if is_kernel_1x1:
         cfg.define_knob("tile_oh", [1, 2] if oh > 1 else [1])
@@ -173,7 +177,7 @@ def conv2d_NCHWc_int8(cfg, data, kernel, strides, padding, dilation, layout, out
             padding,
             dilation,
             out_dtype,
-            int32_lanes=16,
+            int32_lanes=vec_width,
         )
 
     # Pack data if raw 4-D data is provided.

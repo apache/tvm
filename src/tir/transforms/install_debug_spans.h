@@ -64,7 +64,8 @@
   X(Shuffle)                                                   \
   X(IntImm)                                                    \
   X(FloatImm)                                                  \
-  X(StringImm)
+  X(StringImm)                                                 \
+  X(ArrayIntImm)
 
 #define TVM_TIR_TRANSFORMS_INSTALL_DEBUG_SPANS_SUPPORTED_STMTS \
   X(AttrStmt)                                                  \

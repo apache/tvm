@@ -271,6 +271,19 @@ TVM_STATIC_IR_FUNCTOR(ReprLegacyPrinter, vtable)
     });
 
 TVM_STATIC_IR_FUNCTOR(ReprLegacyPrinter, vtable)
+    .set_dispatch<ArrayIntImmNode>([](const ObjectRef& node, ReprLegacyPrinter* p) {
+      auto* op = static_cast<const ArrayIntImmNode*>(node.get());
+      (*p) << '[';
+      for (size_t i = 0; i < op->data.size(); ++i) {
+        p->Print(op->data[i]);
+        if (i < op->data.size() - 1) {
+          (*p) << ", ";
+        }
+      }
+      (*p) << ']';
+    });
+
+TVM_STATIC_IR_FUNCTOR(ReprLegacyPrinter, vtable)
     .set_dispatch<CastNode>([](const ObjectRef& node, ReprLegacyPrinter* p) {
       auto* op = static_cast<const CastNode*>(node.get());
       (*p) << op->dtype << '(';

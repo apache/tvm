@@ -191,6 +191,7 @@ def create_updater_06_to_07():
         "Variable": [_update_tir_var("tir.Var"), _update_from_std_str("name")],
         "SizeVar": [_update_tir_var("tir.SizeVar"), _update_from_std_str("name")],
         "StringImm": [_rename("tir.StringImm"), _update_from_std_str("value")],
+        "ArrayIntImm": [_rename("tir.ArrayIntImm"), _update_from_std_str("data")],
         "Cast": _rename("tir.Cast"),
         "Add": _rename("tir.Add"),
         "Sub": _rename("tir.Sub"),

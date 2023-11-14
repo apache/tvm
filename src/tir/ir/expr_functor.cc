@@ -78,6 +78,7 @@ DEFINE_BINOP_VISIT_(OrNode);
 void ExprVisitor::VisitExpr_(const IntImmNode* op) {}
 void ExprVisitor::VisitExpr_(const FloatImmNode* op) {}
 void ExprVisitor::VisitExpr_(const StringImmNode* op) {}
+void ExprVisitor::VisitExpr_(const ArrayIntImmNode* op) {}
 
 void ExprVisitor::VisitExpr_(const ReduceNode* op) {
   VisitArray(op->axis, [this](const IterVar& r) {
@@ -168,6 +169,7 @@ PrimExpr ExprMutator::VisitExpr_(const CallNode* op) {
 DEFINE_OP_RETURN_SELF_EXPR_MUTATE_(IntImmNode)
 DEFINE_OP_RETURN_SELF_EXPR_MUTATE_(FloatImmNode)
 DEFINE_OP_RETURN_SELF_EXPR_MUTATE_(StringImmNode)
+DEFINE_OP_RETURN_SELF_EXPR_MUTATE_(ArrayIntImmNode)
 
 #define DEFINE_BIOP_EXPR_MUTATE_(OP)                     \
   PrimExpr ExprMutator::VisitExpr_(const OP##Node* op) { \

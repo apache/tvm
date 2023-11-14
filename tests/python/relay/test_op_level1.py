@@ -760,7 +760,7 @@ def test_bitserial_dense():
     assert yy.checked_type == relay.TensorType((m, 32), "int16")
 
 
-def dense_x86_test(m, n, k, target="llvm -mcpu=cascadelake", intrins=["vpdpbusd"]):
+def dense_x86_test(m, n, k, target, intrins):
     data_shape = (m, k)
     weight_shape = (n, k)
 
@@ -775,33 +775,41 @@ def dense_x86_test(m, n, k, target="llvm -mcpu=cascadelake", intrins=["vpdpbusd"
         with tvm.transform.PassContext(opt_level=3):
             lib = relay.build(mod, target=target)
 
-        # TODO(vvchernov): needs for avx512 arch, can be extended
-        if n % 16 == 0 and k % 4 == 0:
-            asm = lib.lib.get_source("asm")
-            for intrin in intrins:
-                assert intrin in asm
+        irllvm = lib.lib.get_source()
+        for intrin in intrins:
+            assert intrin in irllvm
 
         dev = tvm.device(target, 0)
         runtime = tvm.contrib.graph_executor.GraphModule(lib["default"](dev))
 
-        a = np.random.uniform(1, 10, size=data_shape).astype(data_dtype)
-        b = np.random.uniform(1, 10, size=weight_shape).astype("int8")
-        c = np.random.uniform(1, 10, size=(weight_shape[0],)).astype("int32")
+        if "fast-math" in target:
+            if data_dtype == "int8":
+                d_np = np.random.randint(low=0, high=127, size=data_shape).astype(data_dtype)
+            else:
+                d_np = np.random.randint(low=-63, high=63, size=data_shape).astype(data_dtype)
+            w_np = np.random.randint(low=-63, high=63, size=weight_shape).astype("int8")
+        else:
+            if data_dtype == "int8":
+                d_np = np.random.randint(low=-128, high=-127, size=data_shape).astype(data_dtype)
+            else:
+                d_np = np.random.randint(low=0, high=255, size=data_shape).astype(data_dtype)
+            w_np = np.random.randint(low=-128, high=127, size=weight_shape).astype("int8")
+        b_np = np.random.randint(low=-65535, high=65535, size=(weight_shape[0],)).astype("int32")
 
-        runtime.set_input("data", a)
-        runtime.set_input("weight", b)
-        runtime.set_input("bias", c)
+        runtime.set_input("data", d_np)
+        runtime.set_input("weight", w_np)
+        runtime.set_input("bias", b_np)
         runtime.run()
 
         out = runtime.get_output(0).numpy()
-        ref = np.dot(a.astype("int32"), b.transpose().astype("int32")) + c
+        ref = np.dot(d_np.astype("int32"), w_np.transpose().astype("int32")) + b_np
 
         np.testing.assert_equal(out, ref)
 
 
 @tvm.testing.requires_llvm
 @pytest.mark.skip("skip due to AMX feature not avaliable yet")
-def test_dense_amx_int8():
+def test_dense_int8_x86_amx():
     data_shape = (32, 128)
     weight_shape = (32, 128)
 
@@ -847,15 +855,37 @@ def test_dense_amx_int8():
 
 
 @tvm.testing.requires_x86_vnni
-@pytest.mark.parametrize("m,n,k", [(32, 128, 96), (32, 128, 97)])
-def test_dense_vnni(m, n, k):
-    dense_x86_test(m, n, k)
+@pytest.mark.parametrize("m,n,k", [(4, 4, 4), (32, 128, 96), (32, 128, 97)])
+def test_dense_int8_x86_vnni(m, n, k):
+    target = "llvm -mcpu=cascadelake"
+    dense_x86_test(m, n, k, target, ["avx512.vpdpbusd"])
 
 
 @tvm.testing.requires_x86_avx512
-@pytest.mark.parametrize("m,n,k", [(32, 128, 96), (32, 128, 97)])
-def test_dense_skylake_avx512(m, n, k):
-    dense_x86_test(m, n, k, "llvm -mcpu=skylake-avx512", ["pmaddubs", "pmaddw", "vpaddd"])
+@pytest.mark.parametrize("m,n,k", [(4, 4, 4), (32, 128, 96), (32, 128, 97)])
+def test_dense_int8_x86_avx512(m, n, k):
+    target = "llvm -mcpu=skylake-avx512"
+    fast = " -keys=cpu,fast-math"
+    dense_x86_test(m, n, k, target, ["avx512.pmaddw.d"])
+    dense_x86_test(m, n, k, target + fast, ["avx512.pmaddubs.w", "avx512.pmaddw.d"])
+
+
+@tvm.testing.requires_x86
+@pytest.mark.parametrize("m,n,k", [(4, 4, 4), (32, 128, 96), (32, 128, 97)])
+def test_dense_int8_x86_avx2(m, n, k):
+    target = "llvm -mcpu=haswell"
+    fast = " -keys=cpu,fast-math"
+    dense_x86_test(m, n, k, target, ["avx2.pmadd.wd", "avx2.phadd.d"])
+    dense_x86_test(m, n, k, target + fast, ["avx2.pmadd.ub.sw", "avx2.pmadd.wd"])
+
+
+@tvm.testing.requires_x86
+@pytest.mark.parametrize("m,n,k", [(4, 4, 4), (32, 128, 96), (32, 128, 97)])
+def test_dense_int8_x86_ssse3(m, n, k):
+    target = "llvm -mcpu=ivybridge"
+    fast = " -keys=cpu,fast-math"
+    dense_x86_test(m, n, k, target, ["sse2.pmadd", "ssse3.phadd.d"])
+    dense_x86_test(m, n, k, target + fast, ["ssse3.pmadd.ub.sw", "sse2.pmadd"])
 
 
 @pytest.mark.skip("Requires GFX10 AMDGPU")

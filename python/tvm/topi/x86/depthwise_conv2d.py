@@ -20,7 +20,7 @@
 import tvm
 from tvm import autotvm, te
 from tvm.autotvm.task.space import OtherOptionEntity, SplitEntity
-from tvm.target.x86 import get_simd_32bit_lanes
+from tvm.target.x86 import get_x86_simd_32bit_lanes
 
 from ..nn.conv2d import unpack_NCHWc_to_nchw
 from ..nn.depthwise_conv2d import _get_workload, depthwise_conv2d_infer_layout
@@ -39,7 +39,7 @@ def _fallback_schedule(cfg, wkl):
     wkl : topi.nn.depthwise_conv2d.Workload
         Convolution workload
     """
-    simd_width = get_simd_32bit_lanes()
+    simd_width = get_x86_simd_32bit_lanes() if get_x86_simd_32bit_lanes() else 4
 
     pt, pl, pb, pr = wkl.padt, wkl.padl, wkl.padb, wkl.padr
     HSTR, WSTR = wkl.stride_h, wkl.stride_w

@@ -24,6 +24,7 @@ from tvm.auto_scheduler import is_auto_scheduler_enabled
 from tvm.meta_schedule import is_meta_schedule_enabled
 from tvm.relay.ty import is_dynamic
 from tvm.te import SpecializedCondition
+from tvm.target.x86 import get_x86_simd_32bit_lanes
 
 from .. import op as _op
 from .generic import *
@@ -588,11 +589,12 @@ def dense_strategy_cpu(attrs, inputs, out_type, target):
 def dense_pack_strategy_cpu(attrs, inputs, out_type, target):
     """dense_pack x86 strategy"""
     strategy = _op.OpStrategy()
+    vec_width = get_x86_simd_32bit_lanes() if get_x86_simd_32bit_lanes() else 16
     if (
-        inputs[0].dtype == "uint8"
-        and inputs[1].dtype == "int8"
+        inputs[0].dtype in ("uint8", "int8")
+        and inputs[1].dtype in ("int8", "uint8")
         and out_type.dtype == "int32"
-        and attrs["weight_layout"] == "NC16n4c"
+        and attrs["weight_layout"] == f"NC{vec_width}n4c"
     ):
         strategy.add_implementation(
             wrap_compute_dense(topi.x86.dense_int8),
@@ -622,10 +624,14 @@ def batch_matmul_strategy_cpu(attrs, inputs, out_type, target):
     if (
         not attrs.transpose_a
         and attrs.transpose_b
-        and inputs[0].dtype == "uint8"
-        and inputs[1].dtype == "int8"
-        and inputs[1].shape[-2] % 16 == 0
-        and inputs[1].shape[-1] % 4 == 0
+        and inputs[0].dtype in ("uint8", "int8")
+        and inputs[1].dtype in ("int8", "uint8")
+        and (
+            # legalized SIMD
+            get_x86_simd_32bit_lanes()
+            # unknown SIMD
+            or (inputs[1].shape[-2] % 16 == 0 and inputs[1].shape[-1] % 4 == 0)
+        )
     ):
         strategy.add_implementation(
             wrap_compute_batch_matmul(topi.x86.batch_matmul_int8_compute, need_out_dtype=True),

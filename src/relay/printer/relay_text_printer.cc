@@ -799,6 +799,18 @@ Doc RelayTextPrinter::VisitAttr_(const tir::StringImmNode* op) {
   return Doc::StrLiteral(op->value);
 }
 
+Doc RelayTextPrinter::VisitAttr_(const tir::ArrayIntImmNode* op) {
+  Doc doc;
+  doc << "[";
+  std::vector<Doc> arr_vals;
+  for (const auto& val : op->data) {
+    arr_vals.push_back(PrintAttributeValue(val));
+  }
+  doc << Doc::Concat(arr_vals);
+  doc << "]";
+  return doc;
+}
+
 /*!
  * \brief Attribute printer which prints the attributes in the call.
  */

@@ -21,7 +21,7 @@
 import tvm
 from tvm import autotvm, te
 from tvm.autotvm.task.space import OtherOptionEntity, SplitEntity
-from tvm.target.x86 import get_simd_32bit_lanes
+from tvm.target.x86 import get_x86_simd_32bit_lanes
 
 from .. import tag
 from ..nn.conv2d import _get_workload as _get_conv2d_workload
@@ -60,7 +60,8 @@ def _get_default_config(
 
 
 def _fallback_schedule(cfg, wkl):
-    simd_width = get_simd_32bit_lanes()
+    simd_width = get_x86_simd_32bit_lanes() if get_x86_simd_32bit_lanes() else 4
+
     pad_left, pad_right = wkl.padl, wkl.padr
     stride_w = wkl.stride_w
     out_width = (wkl.width + pad_left + pad_right - wkl.kernel_w) // stride_w + 1

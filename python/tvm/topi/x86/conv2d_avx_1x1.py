@@ -21,7 +21,7 @@ from __future__ import absolute_import as _abs
 import tvm
 from tvm import te
 from tvm.autotvm.task.space import OtherOptionEntity, SplitEntity
-from tvm.target.x86 import get_simd_32bit_lanes
+from tvm.target.x86 import get_x86_simd_32bit_lanes
 
 from ..generic import conv2d as conv2d_generic
 from ..nn.pad import pad
@@ -31,7 +31,7 @@ from .tensor_intrin import dot_16x1x16_uint8_int8_int32
 
 
 def _fallback_schedule(cfg, wkl):
-    simd_width = get_simd_32bit_lanes()
+    simd_width = get_x86_simd_32bit_lanes() if get_x86_simd_32bit_lanes() else 4
     pt, pl, pb, pr = wkl.padt, wkl.padl, wkl.padb, wkl.padr
     HSTR, WSTR = wkl.stride_h, wkl.stride_w
     dilated_kernel_h = (wkl.kernel_h - 1) * wkl.dilation_h + 1
@@ -158,7 +158,7 @@ def _schedule_conv_NCHWc_int8(s, cfg, data_vec, kernel_vec, conv_out, last):
         kernel_vec,
         conv_out,
         last,
-        int32_lanes=get_simd_32bit_lanes(),
+        int32_lanes=get_x86_simd_32bit_lanes() if get_x86_simd_32bit_lanes() else 4,
         intrin=dot_16x1x16_uint8_int8_int32(),
     )
 
@@ -199,10 +199,14 @@ def _declaration_conv_nhwc_pack(cfg, Input, Filter, stride, padding, dilation, o
     idxd = tvm.tir.indexdiv
     idxm = tvm.tir.indexmod
 
-    packw_shape = (kernel_h, kernel_w, idxd(num_filter, 16), 16 * idxd(channel, 4), 4)
+    vec_width = get_x86_simd_32bit_lanes() if get_x86_simd_32bit_lanes() else 16
+
+    packw_shape = (kernel_h, kernel_w, idxd(num_filter, vec_width), vec_width * idxd(channel, 4), 4)
     PackW = te.compute(
         packw_shape,
-        lambda a, b, c, d, e: Filter[a, b, c * 16 + idxm(d, 16), idxd(d, 16) * 4 + e],
+        lambda a, b, c, d, e: Filter[
+            a, b, c * vec_width + idxm(d, vec_width), idxd(d, vec_width) * 4 + e
+        ],
         name="packed_filter",
     )
 
@@ -215,9 +219,13 @@ def _declaration_conv_nhwc_pack(cfg, Input, Filter, stride, padding, dilation, o
             PaddedInput[
                 nn, yy * stride_h + ry * dilation_h, xx * stride_w + rx * dilation_w, rc
             ].astype(out_dtype)
-            * PackW[ry, rx, idxd(ff, 16), idxd(rc, 4) * 16 + idxm(ff, 16), idxm(rc, 4)].astype(
-                out_dtype
-            ),
+            * PackW[
+                ry,
+                rx,
+                idxd(ff, vec_width),
+                idxd(rc, 4) * vec_width + idxm(ff, vec_width),
+                idxm(rc, 4),
+            ].astype(out_dtype),
             axis=[ry, rx, rc],
         ),
         name="Conv2d_1x1_Output_int8",
@@ -237,13 +245,13 @@ def _schedule_conv_nhwc_pack_int8(s, cfg, data, conv_out, last):
     # pylint: disable=unreachable
     return s
 
-    int32_lanes = 16
+    int32_lanes = get_x86_simd_32bit_lanes() if get_x86_simd_32bit_lanes() else 16
 
     # assertion to fail the unhandled case
     _, _, _, ic_num = get_const_tuple(data.shape)
     _, _, _, oc_num = get_const_tuple(conv_out.shape)
     assert ic_num % 4 == 0
-    assert oc_num % 16 == 0
+    assert oc_num % int32_lanes == 0
 
     ic_factor, oc_factor = cfg["tile_ic"].size[-1], cfg["tile_oc"].size[-1]
     # schedule data
@@ -269,7 +277,7 @@ def _schedule_conv_nhwc_pack_int8(s, cfg, data, conv_out, last):
 
     if C != O:
         batch, last_oh, last_ow, last_oc = s[O].op.axis
-        oc_chunk, oc_block = s[O].split(ochannel, 16)
+        oc_chunk, oc_block = s[O].split(ochannel, int32_lanes)
         # not saw perf improvement to split oh/ow here
         s[O].vectorize(oc_block)
 

@@ -21,7 +21,7 @@ from tvm.runtime import const
 
 from .buffer import Buffer, decl_buffer, DataProducer
 from .data_layout import Layout, BijectiveLayout, bijective_layout, layout
-from .expr import Var, SizeVar, Reduce, FloatImm, IntImm, StringImm, Cast
+from .expr import Var, SizeVar, Reduce, FloatImm, IntImm, StringImm, ArrayIntImm, Cast
 from .expr import Add, Sub, Mul, Div, Mod, FloorDiv, FloorMod
 from .expr import Min, Max, EQ, NE, LT, LE, GT, GE, And, Or, Not
 from .expr import Select, BufferLoad, ProducerLoad, Ramp, Broadcast, Shuffle
@@ -73,8 +73,8 @@ from .op import (
     ptx_wait_barrier,
     create_barriers,
 )
-from .op import vectorlow, vectorhigh, vectorcombine
-from .op import infinity, reinterpret
+from .op import vectorlow, vectorhigh, vectorcombine, vectorpermute, vectorshuffle
+from .op import infinity, reinterpret, zextend, sextend, truncate
 from .op import exp, exp2, exp10, log, log2, log10, log1p, ldexp, clz
 from .op import sin, sinh, asin, asinh
 from .op import cos, cosh, acos, acosh
@@ -88,6 +88,7 @@ from .op import comm_reducer, min, max, sum
 from .op import q_multiply_shift, q_multiply_shift_per_axis, shift_left, shift_right
 from .op import TVMBackendAllocWorkspace, TVMBackendFreeWorkspace
 from .op import start_profile_intrinsic, end_profile_intrinsic
+from .op import atomic_add
 from .generic import add, subtract, multiply
 
 from .schedule import StmtSRef, BlockScope, ScheduleState, Schedule, ScheduleError

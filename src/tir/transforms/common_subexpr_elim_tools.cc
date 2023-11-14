@@ -269,7 +269,8 @@ ComputationTable ComputationsDoneBy::GetComputationsDoneBy(
   // (We don't want to use a "line of cache" of that, as that would cost an empty table of
   // computations in memory for absolutely no gain)
   if (expr.as<IntImmNode>() != nullptr || expr.as<FloatImmNode>() != nullptr ||
-      expr.as<StringImmNode>() != nullptr || expr.as<VarNode>() != nullptr) {
+      expr.as<StringImmNode>() != nullptr || expr.as<ArrayIntImmNode>() != nullptr ||
+      expr.as<VarNode>() != nullptr) {
     // Return an empty table
     return {};
   }
@@ -346,7 +347,8 @@ void ComputationsDoneBy::VisitExpr(const PrimExpr& expr) {
   // (We don't want to use a "line of cache" of that, as that would cost an empty table of
   // computations in memory for absolutely no gain)
   if (expr.as<IntImmNode>() != nullptr || expr.as<FloatImmNode>() != nullptr ||
-      expr.as<StringImmNode>() != nullptr || expr.as<VarNode>() != nullptr) {
+      expr.as<StringImmNode>() != nullptr || expr.as<VarNode>() != nullptr ||
+      expr.as<ArrayIntImmNode>() != nullptr) {
     return;
   }
 

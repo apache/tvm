@@ -44,6 +44,13 @@ def test_expr_constructor():
     assert isinstance(x, tvm.tir.StringImm)
     assert x.value == "xyza"
 
+    x = tvm.tir.ArrayIntImm([1, 2, 3])
+    assert isinstance(x, tvm.tir.ArrayIntImm)
+    assert x == [1, 2, 3]
+    assert x.data[-1] == 3
+    assert len(x.data) == 3
+    assert str(x.data) == str([1, 2, 3])
+
     x = tvm.tir.Cast("float32", tvm.tir.IntImm("uint32", 1))
     assert isinstance(x, tvm.tir.Cast)
     assert x.dtype == "float32"

@@ -20,6 +20,7 @@
 import tvm
 from tvm import autotvm, relay, te
 from tvm.target.codegen import target_has_features
+from tvm.target.x86 import get_x86_simd_32bit_lanes
 
 from .. import nn
 from ..nn import dense_alter_layout
@@ -28,14 +29,24 @@ from .dense import _default_dense_pack_config
 
 
 def check_int8_applicable(x, y, allow_padding=False):
+    """Check (u)int8 SIMD elegibility."""
+    # x86 SIMD
     simd_avai = target_has_features(["avx512bw", "avx512f"])
     simd_avai |= target_has_features("amx-int8")
-    # TODO(vvchernov): may be also target_has_features("avx2") or lower?
+    simd_avai |= target_has_features("avx512vnni")
+    simd_avai |= target_has_features("avxvnni")
+    simd_avai |= target_has_features("avx2")
+    simd_avai |= target_has_features("ssse3")
+    # arm SIMD
+    simd_avai |= target_has_features("dotprod")
+
+    vec_width = get_x86_simd_32bit_lanes() if get_x86_simd_32bit_lanes() else 16
+
     return (
         simd_avai
-        and "int8" in x.dtype
-        and "int8" in y.dtype
-        and (allow_padding or (y.shape[-2] % 16 == 0 and y.shape[-1] % 4 == 0))
+        and x.dtype in ("int8", "uint8")
+        and y.dtype in ("int8", "uint8")
+        and (allow_padding or y.shape[-2] % vec_width == 0)
     )
 
 
@@ -48,8 +59,13 @@ def _alter_dense_layout(attrs, inputs, tinfos, out_type):
     M, K = get_const_tuple(data_tensor.shape)
     N, _ = get_const_tuple(weight_tensor.shape)
 
-    if check_int8_applicable(data_tensor, weight_tensor) and data_tensor.dtype == "uint8":
-        weight_layout = "NC16n4c"
+    if (
+        check_int8_applicable(data_tensor, weight_tensor, allow_padding=True)
+        and data_tensor.dtype in ("uint8", "int8")
+        and weight_tensor.dtype in ("uint8", "int8")
+    ):
+        vec_width = get_x86_simd_32bit_lanes() if get_x86_simd_32bit_lanes() else 16
+        weight_layout = f"NC{vec_width}n4c"
         return relay.nn.contrib_dense_pack(inputs[0], inputs[1], weight_layout, None, out_dtype)
 
     _, outs = relay.backend.te_compiler.select_implementation(
@@ -77,26 +93,43 @@ def _alter_dense_layout(attrs, inputs, tinfos, out_type):
 
 
 def int8_int8_legalize(inputs, arg_types, op, attrs, need_expand=False):
-    """Legalizes s8, s8 -> s32 GEMM op for VNNI."""
-    if (
-        check_int8_applicable(arg_types[0], arg_types[1], allow_padding=True)
-        and arg_types[0].dtype == "int8"
-    ):
+    """Legalizes s8, s8 -> s32 GEMM op for SIMD."""
+    if check_int8_applicable(arg_types[0], arg_types[1], allow_padding=True):
+
         x, y = inputs
-        x = relay.cast(x, "int32")
-        x = relay.add(x, relay.const(128, "int32"))
-        x = relay.cast(x, "uint8")
 
-        adjust_shift = relay.const(128, "int32") * relay.sum(relay.cast(y, "int32"), axis=[-1])
+        # x{data} int8 -> uint8
+        if arg_types[0].dtype == "int8":
+            x = relay.cast(x, "int32")
+            x = relay.add(x, relay.const(128, "int32"))
+            x = relay.cast(x, "uint8")
 
-        if need_expand:
-            adjust_shift = relay.expand_dims(adjust_shift, axis=1)
+            x_adjust_shift = relay.const(128, "int32") * relay.sum(
+                relay.cast(y, "int32"), axis=[-1]
+            )
+
+            if need_expand:
+                x_adjust_shift = relay.expand_dims(x_adjust_shift, axis=1)
+
+        # y{weight} uint8 -> int8
+        if arg_types[1].dtype == "uint8":
+            y = relay.cast(y, "int32")
+            y = relay.subtract(y, relay.const(128, "int32"))
+            y = relay.cast(y, "int8")
+
+            y_adjust_shift = relay.const(128, "int32") * relay.sum(
+                relay.cast(x, "int32"), axis=[-1]
+            )
+
+            if need_expand:
+                y_adjust_shift = relay.expand_dims(y_adjust_shift, axis=1)
 
         analyzer = tvm.arith.Analyzer()
         x_shape = arg_types[0].shape
         y_shape = arg_types[1].shape
-        inst_n = 16
-        inst_k = 4
+
+        inst_n = get_x86_simd_32bit_lanes() if get_x86_simd_32bit_lanes() else 16
+        inst_k = get_x86_simd_32bit_lanes() if get_x86_simd_32bit_lanes() else 4
         pad_n = analyzer.simplify((inst_n - y_shape[-2] % inst_n) % inst_n)
         pad_k = analyzer.simplify((inst_k - y_shape[-1] % inst_k) % inst_k)
         if pad_k != 0 or pad_n != 0:
@@ -117,20 +150,27 @@ def int8_int8_legalize(inputs, arg_types, op, attrs, need_expand=False):
         else:
             out = op(x, y, **attrs)
 
-        return relay.subtract(out, adjust_shift)
+        if arg_types[0].dtype == "int8":
+            # int8->uint8 +adjust +padding
+            out = relay.subtract(out, x_adjust_shift)
+        if arg_types[1].dtype == "uint8":
+            # uint8->int8 +adjust +padding
+            out = relay.add(out, y_adjust_shift)
+
+        return out
 
     return None
 
 
 @nn.dense_legalize.register("cpu")
 def _dense_legalize(attrs, inputs, arg_types):
-    """Legalizes s8, s8 -> s32 dense for VNNI."""
+    """Legalizes s8, s8 -> s32 dense for SIMD."""
     return int8_int8_legalize(inputs, arg_types, relay.nn.dense, attrs)
 
 
 @nn.batch_matmul_legalize.register("cpu")
 def _batch_matmul_legalize(attrs, inputs, arg_types):
-    """Legalizes s8, s8 -> s32 batch_matmul for VNNI."""
+    """Legalizes s8, s8 -> s32 batch_matmul for SIMD."""
     if attrs["transpose_a"] or not attrs["transpose_b"]:
         return None
     return int8_int8_legalize(inputs, arg_types, relay.nn.batch_matmul, attrs, need_expand=True)

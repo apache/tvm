@@ -18,7 +18,7 @@
 """Conv2D schedule on for Intel CPU"""
 import tvm
 from tvm.autotvm.task.space import OtherOptionEntity, SplitEntity
-from tvm.target.x86 import get_simd_32bit_lanes
+from tvm.target.x86 import get_x86_simd_32bit_lanes
 
 from ..generic import conv2d as conv2d_generic
 from ..utils import get_const_tuple
@@ -26,7 +26,7 @@ from .tensor_intrin import dot_16x1x16_uint8_int8_int32
 
 
 def _fallback_schedule(cfg, wkl):
-    simd_width = get_simd_32bit_lanes()
+    simd_width = get_x86_simd_32bit_lanes() if get_x86_simd_32bit_lanes() else 4
     pt, pl, pb, pr = wkl.padt, wkl.padl, wkl.padb, wkl.padr
     HSTR, WSTR = wkl.stride_h, wkl.stride_w
     dilated_kernel_w = (wkl.kernel_w - 1) * wkl.dilation_w + 1
@@ -62,7 +62,9 @@ def _fallback_schedule_int8(cfg, wkl):
     HSTR, WSTR = wkl.stride_h, wkl.stride_w
     out_width = (wkl.width + pl + pr - wkl.kernel_w) // WSTR + 1
 
-    oc_bn = 16
+    vec_width = get_x86_simd_32bit_lanes() if get_x86_simd_32bit_lanes() else 16
+
+    oc_bn = vec_width
     assert wkl.out_filter % oc_bn == 0
 
     ic_bn = 1
@@ -174,7 +176,7 @@ def _schedule_conv_NCHWc_int8(s, cfg, data_vec, kernel_vec, conv_out, last):
         kernel_vec,
         conv_out,
         last,
-        int32_lanes=get_simd_32bit_lanes(),
+        int32_lanes=get_x86_simd_32bit_lanes() if get_x86_simd_32bit_lanes() else 4,
         intrin=dot_16x1x16_uint8_int8_int32(),
         inline_fused=True,
     )

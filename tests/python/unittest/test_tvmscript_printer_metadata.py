@@ -43,5 +43,23 @@ def test_str_metadata():
     )
 
 
+def test_array_metadata():
+    arr_imm = T.ArrayIntImm([1, 2, 3])
+
+    @I.ir_module
+    class Module:
+        @T.prim_func
+        def foo() -> None:
+            A = arr_imm
+            B = arr_imm
+
+        @T.prim_func
+        def foo1() -> None:
+            A = arr_imm
+
+    printed_str = Module.script(verbose_expr=True)
+    assert printed_str.count("T.ArrayIntImm([1, 2, 3])") == 3
+
+
 if __name__ == "__main__":
     tvm.testing.main()
