@@ -512,7 +512,7 @@ class CLMLRuntime : public JSONRuntimeBase {
   /*!
    * \brief Create an CLML tensor from JSON node entry. Lookup storage map before creation.
    *
-   * \param tensor The tensor as Node Entry .
+   * \param nid The node index of graph JSON.
    * \param shape shape information of tensor
    * \param layout the tensor layout to be used
    * \param dtype tensor data type
@@ -553,6 +553,8 @@ class CLMLRuntime : public JSONRuntimeBase {
    */
   void BuildEngine() {
     size_t nid;
+    // Create tensors for the operators which has distinct layout format
+    // other than CL_TENSOR_LAYOUT_OPTIMAL_QCOM.
     for (nid = 0; nid < nodes_.size(); ++nid) {
       const auto& node = nodes_[nid];
       if ("nn.dense" == node.GetOpName()) CreateDenseLayerTensor(&layer_, node, nid);
@@ -572,9 +574,9 @@ class CLMLRuntime : public JSONRuntimeBase {
         else if ("nn.conv2d_transpose" == op_name)
           CreateConvolution2DLayer(&layer_, node, CL_CONVOLUTION_MODE_TRANSPOSE_QCOM, nid);
         else if ("nn.relu6" == op_name)
-          CreateReLULayer(&layer_, node, CL_ACTIVATION_RELU6, nid);
+          CreateReLULayer(&layer_, node, nid, CL_ACTIVATION_RELU6);
         else if ("nn.relu" == op_name)
-          CreateReLULayer(&layer_, node, CL_ACTIVATION_RELU, nid);
+          CreateReLULayer(&layer_, node, nid, CL_ACTIVATION_RELU);
         else if ("nn.batch_norm" == op_name)
           CreateBatchNormLayer(&layer_, node, nid);
         else if ("nn.max_pool2d" == op_name || "nn.avg_pool2d" == op_name ||
@@ -762,6 +764,10 @@ class CLMLRuntime : public JSONRuntimeBase {
    *
    * \param layer The CLML layer to build. Containing inputs, outputs and the CLML function.
    * \param node The JSON representation of the operator.
+   * \param mode The conv2d mode type - CL_CONVOLUTION_MODE_CONVOLUTION_QCOM
+   *                                    or CL_CONVOLUTION_MODE_DEPTHWISE_QCOM
+   *                                    or CL_CONVOLUTION_MODE_TRANSPOSE_QCOM.
+   * \param nid The node index of JSON graph node, which points to this operator.
    */
   void CreateConvolution2DLayer(CachedLayer* layer, const JSONGraphNode& node,
                                 cl_convolution_mode_qcom mode, size_t nid) {
@@ -905,10 +911,10 @@ class CLMLRuntime : public JSONRuntimeBase {
    *
    * \param layer The CLML layer to build. Containing inputs, outputs and the CLML output.
    * \param node The JSON representation of the operator.
+   * \param nid The node index of JSON graph node, which points to this operator.
    */
-  void CreateReLULayer(CachedLayer* layer, const JSONGraphNode& node,
-                       cl_activation_function_qcom clml_act_type = CL_ACTIVATION_RELU,
-                       size_t nid = 0) {
+  void CreateReLULayer(CachedLayer* layer, const JSONGraphNode& node, size_t nid,
+                       cl_activation_function_qcom clml_act_type = CL_ACTIVATION_RELU) {
     cl_int result = 0;
     cl_ml_op_qcom op = nullptr;
     DLDataType tvm_dtype = node.GetOpDataType()[0];
@@ -941,6 +947,7 @@ class CLMLRuntime : public JSONRuntimeBase {
    *
    * \param layer The CLML layer to build. Containing inputs, outputs and the CLML function.
    * \param node The JSON representation of the operator.
+   * \param nid The node index of JSON graph node, which points to this operator.
    */
   void CreateBatchNormLayer(CachedLayer* layer, const JSONGraphNode& node, size_t nid) {
     cl_int result = 0;
@@ -994,6 +1001,7 @@ class CLMLRuntime : public JSONRuntimeBase {
    *
    * \param layer The CLML layer to build. Containing inputs, outputs and the CLML function.
    * \param node The JSON representation of the operator.
+   * \param nid The node index of JSON graph node, which points to this operator.
    */
   void CreatePoolingLayer(CachedLayer* layer, const JSONGraphNode& node, size_t nid) {
     cl_int result = 0;
@@ -1046,6 +1054,7 @@ class CLMLRuntime : public JSONRuntimeBase {
    *
    * \param layer The CLML layer to build. Containing inputs, outputs and the CLML function.
    * \param node The JSON representation of the operator.
+   * \param nid The node index of JSON graph node, which points to this operator.
    */
   void CreateGlobalPoolingLayer(CachedLayer* layer, const JSONGraphNode& node, size_t nid) {
     cl_int result = 0;
@@ -1088,6 +1097,7 @@ class CLMLRuntime : public JSONRuntimeBase {
    *
    * \param layer The CLML layer to build. Containing inputs, outputs and the CLML output.
    * \param node The JSON representation of the operator.
+   * \param nid The node index of JSON graph node, which points to this operator.
    */
   void CreateSoftMaxLayer(CachedLayer* layer, const JSONGraphNode& node, size_t nid) {
     cl_int result = 0;
@@ -1117,6 +1127,7 @@ class CLMLRuntime : public JSONRuntimeBase {
    *
    * \param layer The CLML layer to build. Containing inputs, outputs and the CLML output.
    * \param node The JSON representation of the operator.
+   * \param nid The node index of JSON graph node, which points to this operator.
    */
   void CreatePadLayer(CachedLayer* layer, const JSONGraphNode& node, size_t nid) {
     cl_int result = 0;
@@ -1161,6 +1172,7 @@ class CLMLRuntime : public JSONRuntimeBase {
    *
    * \param layer The CLML layer to build. Containing inputs, outputs and the CLML output.
    * \param node The JSON representation of the operator.
+   * \param nid The node index of JSON graph node, which points to this operator.
    */
   void CreateBatchFlattenLayer(CachedLayer* layer, const JSONGraphNode& node, size_t nid) {
     cl_int result = 0;
@@ -1184,6 +1196,7 @@ class CLMLRuntime : public JSONRuntimeBase {
    *
    * \param layer The CLML layer to build. Containing inputs, outputs and the CLML output.
    * \param node The JSON representation of the operator.
+   * \param nid The node index of JSON graph node, which points to this operator.
    */
   void CreateReshapeLayer(CachedLayer* layer, const JSONGraphNode& node, size_t nid) {
     cl_int result = 0;
@@ -1208,6 +1221,7 @@ class CLMLRuntime : public JSONRuntimeBase {
    *
    * \param layer The CLML layer to build. Containing inputs, outputs and the CLML function.
    * \param node The JSON representation of the operator.
+   * \param nid The node index of JSON graph node, which points to this operator.
    */
   void CreateConcatLayer(CachedLayer* layer, const JSONGraphNode& node, size_t nid) {
     cl_int result = 0;
@@ -1243,6 +1257,7 @@ class CLMLRuntime : public JSONRuntimeBase {
    *
    * \param layer The CLML layer to build. Containing inputs, outputs and the CLML function.
    * \param node The JSON representation of the operator.
+   * \param nid The node index of JSON graph node, which points to this operator.
    */
   void CreateDenseLayer(CachedLayer* layer, const JSONGraphNode& node, size_t nid) {
     cl_int result = 0;
@@ -1322,11 +1337,12 @@ class CLMLRuntime : public JSONRuntimeBase {
   }
 
   /*!
-   * \brief Create a dense layer.
+   * \brief Create a dense layer Tensors with supported layout.
    *
    *
    * \param layer The CLML layer to build. Containing inputs, outputs and the CLML function.
    * \param node The JSON representation of the operator.
+   * \param nid The node index of JSON graph node, which points to this operator.
    */
   void CreateDenseLayerTensor(CachedLayer* layer, const JSONGraphNode& node, size_t nid) {
     cl_int result = 0;
@@ -1355,6 +1371,7 @@ class CLMLRuntime : public JSONRuntimeBase {
    *
    * \param layer The CLML layer to build. Containing inputs, outputs and the CLML function.
    * \param node The JSON representation of the operator.
+   * \param nid The node index of JSON graph node, which points to this operator.
    */
   void CreateBatchMatmulLayer(CachedLayer* layer, const JSONGraphNode& node, size_t nid) {
     cl_int result = 0;
@@ -1402,11 +1419,12 @@ class CLMLRuntime : public JSONRuntimeBase {
   }
 
   /*!
-   * \brief Create a batch_matmul tensor layer.
+   * \brief Create a Batch matmul layer(batch_size=1 supported) Tensors with supported layout.
    *
    *
    * \param layer The CLML layer to build. Containing inputs, outputs and the CLML function.
    * \param node The JSON representation of the operator.
+   * \param nid The node index of JSON graph node, which points to this operator.
    */
   void CreateBatchMatmulLayerTensor(CachedLayer* layer, const JSONGraphNode& node, size_t nid) {
     cl_int result = 0;
@@ -1438,6 +1456,7 @@ class CLMLRuntime : public JSONRuntimeBase {
    *
    * \param layer The CLML layer to build. Containing inputs, outputs and the CLML output.
    * \param node The JSON representation of the operator.
+   * \param nid The node index of JSON graph node, which points to this operator.
    */
   void CreateClipLayer(CachedLayer* layer, const JSONGraphNode& node, size_t nid) {
     cl_int result = 0;
@@ -1467,6 +1486,7 @@ class CLMLRuntime : public JSONRuntimeBase {
    *
    * \param layer The CLML layer to build. Containing inputs, outputs and the CLML output.
    * \param node The JSON representation of the operator.
+   * \param nid The node index of JSON graph node, which points to this operator.
    */
   void CreateBinaryLayer(CachedLayer* layer, const JSONGraphNode& node, size_t nid) {
     cl_int result = 0;
@@ -1508,6 +1528,7 @@ class CLMLRuntime : public JSONRuntimeBase {
    *
    * \param layer The CLML layer to build. Containing inputs, outputs and the CLML output.
    * \param node The JSON representation of the operator.
+   * \param nid The node index of JSON graph node, which points to this operator.
    */
   void CreateDepthToSpaceLayer(CachedLayer* layer, const JSONGraphNode& node, size_t nid) {
     cl_int result = 0;
@@ -1534,6 +1555,7 @@ class CLMLRuntime : public JSONRuntimeBase {
    *
    * \param layer The CLML layer to build. Containing inputs, outputs and the CLML output.
    * \param node The JSON representation of the operator.
+   * \param nid The node index of JSON graph node, which points to this operator.
    */
   void CreateResizeLayer(CachedLayer* layer, const JSONGraphNode& node, size_t nid) {
     cl_int result = 0;

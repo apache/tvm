@@ -21,18 +21,39 @@ import numpy as np
 from tvm import relay
 from tvm.relay import testing
 from tvm.contrib import utils
-from test_clml.infrastructure import build_and_run, Device
+from infrastructure import build_and_run, build_and_run_vm
 import pytest
 
 
-def _build_and_run_network(mod, params, inputs, data, device, tvm_log=""):
+def _build_and_run_network(remote, mod, params, input_data, target, executor_type, tvm_log=""):
     """Helper function to build and run a network."""
 
     outputs = []
     for clml in [True, False]:
-        outputs.append(
-            build_and_run(mod, data, 1, params, device, enable_clml=clml, tune_log=tvm_log)[0][0]
-        )
+        if executor_type == "ge":
+            outputs.append(
+                build_and_run(
+                    remote,
+                    mod,
+                    params,
+                    input_data,
+                    target,
+                    enable_clml=clml,
+                    stat_file=tvm_log,
+                )
+            )
+        else:
+            outputs.append(
+                build_and_run_vm(
+                    remote,
+                    mod,
+                    params,
+                    input_data,
+                    target,
+                    enable_clml=clml,
+                    stat_file=tvm_log,
+                )
+            )
     return outputs
 
 
@@ -102,6 +123,9 @@ def get_network(name, batch_size, dtype="float32"):
     return net, params, {"data": (input_shape, dtype)}, output_shape
 
 
+executor_type = tvm.testing.parameter("ge", "vm")
+
+
 @pytest.mark.parametrize("dtype", ["float32", "float16"])
 @pytest.mark.parametrize(
     "name",
@@ -114,10 +138,9 @@ def get_network(name, batch_size, dtype="float32"):
     ],
 )
 @tvm.testing.requires_openclml
-def test_network(device, name, dtype):
+@tvm.testing.parametrize_targets("opencl -device=adreno")
+def test_network(remote, name, dtype, target, executor_type):
     print("Network evaluating .. " + name + " " + dtype)
-    if device == None:
-        device = Device()
     np.random.seed(0)
     mod, params, inputs, _ = get_network(name, 1, dtype=dtype)
     input_data = {}
@@ -125,8 +148,7 @@ def test_network(device, name, dtype):
     for name, (shape, dtype) in inputs.items():
         input_data[name] = np.random.uniform(-1.0, 1.0, shape).astype(dtype)
 
-    outputs = _build_and_run_network(mod, params, inputs, input_data, device=device)
-
+    outputs = _build_and_run_network(remote, mod, params, input_data, target, executor_type)
     opencl_sort = np.argsort(outputs[1].asnumpy()).flatten()
     clml_sort = np.argsort(outputs[0].asnumpy()).flatten()
     tvm.testing.assert_allclose(opencl_sort[-5:], clml_sort[-5:], rtol=0, atol=0)
