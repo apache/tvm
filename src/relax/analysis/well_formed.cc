@@ -319,9 +319,19 @@ class WellFormedChecker : public relax::ExprVisitor,
 
     if (auto func_normalize = op_map_normalize_.get(call->op, nullptr); func_normalize != nullptr) {
       auto dummy_builder = tvm::relax::BlockBuilder::Create(mod_);
-      auto before_normalize = GetRef<Call>(call);
-      auto after_normalize = func_normalize(dummy_builder, before_normalize);
-      if (!before_normalize.same_as(after_normalize)) {
+      Call before_normalize = GetRef<Call>(call);
+      Optional<Expr> after_normalize = NullOpt;
+      try {
+        after_normalize = func_normalize(dummy_builder, before_normalize);
+      } catch (std::exception& err) {
+        Malformed(
+            Diagnostic::Error(call)
+            << "If an operator defines an operator-specific normalization function (FNormalize), "
+            << "calls to that operator must be normalized with it.  "
+            << "However, normalization of " << before_normalize << " resulted in the error: \n"
+            << err.what());
+      }
+      if (after_normalize && !before_normalize.same_as(after_normalize)) {
         Malformed(
             Diagnostic::Error(call)
             << "If an operator defines an operator-specific normalization function (FNormalize), "

@@ -292,5 +292,52 @@ def test_do_not_eliminate_extern_func():
     verify(Before, Expected)
 
 
+def test_call_tir_tuple_arg():
+    @I.ir_module
+    class Before:
+        @R.function
+        def main(A: R.Tensor([16, 16], "int32"), B: R.Tensor([16, 16], "int32")):
+            cls = Before
+            Prod = R.call_tir(cls.product, [A, B], out_sinfo=R.Tensor([16, 16], "int32"))
+            Sum = R.call_tir(cls.sum, [A, B], out_sinfo=R.Tensor([16, 16], "int32"))
+            return (Prod, Sum)
+
+        @T.prim_func(private=True)
+        def product(
+            A: T.Buffer([16, 16], "int32"),
+            B: T.Buffer([16, 16], "int32"),
+            C: T.Buffer([16, 16], "int32"),
+        ):
+            for iters in T.grid(*A.shape):
+                with T.block("compute"):
+                    i, j = T.axis.remap("SS", iters)
+                    C[i, j] = A[i, j] * B[i, j]
+
+        @T.prim_func(private=True)
+        def sum(
+            A: T.Buffer([16, 16], "int32"),
+            B: T.Buffer([16, 16], "int32"),
+            C: T.Buffer([16, 16], "int32"),
+        ):
+            for iters in T.grid(*A.shape):
+                with T.block("compute"):
+                    i, j = T.axis.remap("SS", iters)
+                    C[i, j] = A[i, j] + B[i, j]
+
+    Expected = Before
+
+    # If EliminateCommonSubexpr produces unnormalized expressions,
+    # normalization of those expressions may produce additional
+    # variables bindings.  This test case should be agnostic to those
+    # additional bindings, so DCE is applied after CSE.
+    After = tvm.ir.transform.Sequential(
+        [
+            EliminateCommonSubexpr(),
+            tvm.relax.transform.DeadCodeElimination(),
+        ]
+    )(Before)
+    tvm.ir.assert_structural_equal(Expected, After)
+
+
 if __name__ == "__main__":
     tvm.testing.main()
