@@ -14,7 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-# pylint: disable=redefined-builtin, wrong-import-order, no-member, invalid-name
+# pylint: disable=redefined-builtin, wrong-import-order, no-member, invalid-name, unused-import
 
 """IRBuilder for distributed Relax dialect"""
 from typing import Union, List, Tuple, Optional
@@ -32,6 +32,7 @@ from tvm.runtime import ndarray as _nd
 from tvm.relax.op.distributed import (
     redistribute as _redistribute,
     annotate_sharding as _annotate_sharding,
+    redistribute_replica_to_shard,
 )
 from tvm.relax.distributed import DeviceMesh, Placement
 from . import _ffi_api

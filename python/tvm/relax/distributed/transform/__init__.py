@@ -16,4 +16,4 @@
 # under the License.
 """Relax distributed-related transformations. """
 
-from .transform import PropagateSharding
+from .transform import PropagateSharding, LegalizeRedistribute

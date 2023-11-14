@@ -24,6 +24,7 @@
 
 #include "distributed.h"
 
+#include <tvm/relax/attrs/ccl.h>
 #include <tvm/topi/einsum.h>
 
 #include <algorithm>
@@ -83,6 +84,87 @@ TVM_REGISTER_OP("relax.dist.redistribute")
     .set_num_inputs(1)
     .add_argument("input", "Tensor", "The input tensor.")
     .set_attr<FInferStructInfo>("dist.FInferStructInfo", InferDistStructInfoRedistribute)
+    .set_attr<Bool>("FPurity", Bool(true));
+
+StructInfo InferStructInfoRtoS(const Call& call, const BlockBuilder& ctx) {
+  TensorStructInfo input_sinfo = GetUnaryInputTensorStructInfo(call, ctx);
+  DataType output_dtype = input_sinfo->dtype;
+
+  const auto* attrs = call->attrs.as<ScatterCollectiveAttrs>();
+  int num_workers = attrs->num_workers;
+
+  arith::Analyzer* analyzer = ctx->GetAnalyzer();
+  auto input_shape = input_sinfo->GetShape();
+  CHECK(input_shape.defined())
+      << "input tensor of redistribute_replica_to_shard should have defined shape.";
+
+  if (analyzer->CanProve(floormod(input_shape.value()[attrs->axis], PrimExpr(num_workers))) != 0) {
+    ctx->ReportFatal(Diagnostic::Error(call)
+                     << "redistribute_replica_to_shard expects the size of axis " << attrs->axis
+                     << " of input tensor to be "
+                        "divisible by the "
+                        "num_workers. However, the axis "
+                     << attrs->axis << " of input tensor is " << input_shape.value()[attrs->axis]
+                     << " while num_workers is " << num_workers);
+  }
+
+  Array<PrimExpr> output_shape = input_shape.value();
+  output_shape.Set(attrs->axis, div(output_shape[attrs->axis], num_workers));
+  if (input_sinfo->vdevice.defined()) {
+    return TensorStructInfo(ShapeExpr(output_shape), output_dtype, input_sinfo->vdevice.value());
+  }
+  return TensorStructInfo(ShapeExpr(output_shape), output_dtype);
+}
+
+StructInfo InferDistStructInfoRtoS(const Call& call, const BlockBuilder& ctx) {
+  using namespace distributed;
+  Array<DTensorStructInfo> input_dtensor_sinfos = GetInputDTensorStructInfo(call, ctx);
+  ICHECK(input_dtensor_sinfos.size() == 1);
+  DTensorStructInfo input_dtensor_sinfo = input_dtensor_sinfos[0];
+  TensorStructInfo tensor_sinfo = input_dtensor_sinfo->tensor_sinfo;
+  const auto* attrs = call->attrs.as<ScatterCollectiveAttrs>();
+  int num_workers = attrs->num_workers;
+  arith::Analyzer* analyzer = ctx->GetAnalyzer();
+  auto input_shape = tensor_sinfo->GetShape();
+  CHECK(input_shape.defined())
+      << "input tensor of redistribute_replica_to_shard should have defined shape.";
+
+  if (analyzer->CanProve(floormod(input_shape.value()[attrs->axis], PrimExpr(num_workers))) != 0) {
+    ctx->ReportFatal(Diagnostic::Error(call)
+                     << "redistribute_replica_to_shard expects the size of axis " << attrs->axis
+                     << " of input tensor to be "
+                        "divisible by the "
+                        "num_workers. However, the axis "
+                     << attrs->axis << " of input tensor is " << input_shape.value()[attrs->axis]
+                     << " while num_workers is " << num_workers);
+  }
+
+  DeviceMesh device_mesh = input_dtensor_sinfo->device_mesh;
+  // FIXME: this is a hack where there's only 1d mesh
+  ICHECK(device_mesh->shape.size() == 1);
+  ICHECK(input_dtensor_sinfo->placement->dim_specs[0]->kind == PlacementSpecKind::kReplica);
+  return DTensorStructInfo(tensor_sinfo, device_mesh,
+                           Placement::FromText("S[" + std::to_string(attrs->axis) + "]"));
+}
+
+Expr redistribute_replica_to_shard(Expr input, int num_workers, int axis) {
+  ObjectPtr<ScatterCollectiveAttrs> attrs = make_object<ScatterCollectiveAttrs>();
+  attrs->num_workers = std::move(num_workers);
+  attrs->axis = std::move(axis);
+  static const Op& op = Op::Get("relax.dist.redistribute_replica_to_shard");
+
+  return Call(op, {std::move(input)}, Attrs{attrs}, {});
+}
+
+TVM_REGISTER_GLOBAL("relax.op.dist.redistribute_replica_to_shard")
+    .set_body_typed(redistribute_replica_to_shard);
+
+TVM_REGISTER_OP("relax.dist.redistribute_replica_to_shard")
+    .set_num_inputs(1)
+    .add_argument("input", "Tensor", "The buffer to be sliced.")
+    .set_attrs_type<ScatterCollectiveAttrs>()
+    .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoRtoS)
+    .set_attr<FInferStructInfo>("dist.FInferStructInfo", InferDistStructInfoRtoS)
     .set_attr<Bool>("FPurity", Bool(true));
 
 }  // namespace relax
