@@ -168,7 +168,7 @@ def create_header_file(
     header_file.write("#include <stddef.h>\n")
     header_file.write("#include <stdint.h>\n")
     header_file.write("#include <dlpack/dlpack.h>\n")
-    header_file.write(f"const size_t {tensor_name}_len = {npy_data.size};\n")
+    header_file.write(f"#define {tensor_name.upper()}_LEN {npy_data.size}\n")
     header_file.write(f"{_npy_dtype_to_ctype(npy_data)} {tensor_name}[] =")
 
     header_file.write("{")

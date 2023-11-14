@@ -229,7 +229,8 @@ runtime::Module CreateMetadataModule(
     // TODO(@manupa-arm) : we should be able to use csource_metadata
     // if the variables are empty when all the runtime modules implement get_func_names
     if (symbol_const_vars.empty() && is_targeting_crt && mod->IsDSOExportable() &&
-        (target->kind->name == "c" || target->kind->name == "llvm")) {
+        (target->kind->name == "c" || target->kind->name == "llvm" ||
+         target->kind->name == "gemmini")) {
       crt_exportable_modules.push_back(mod);
     } else {
       non_crt_exportable_modules.push_back(mod);

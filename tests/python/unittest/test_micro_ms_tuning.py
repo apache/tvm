@@ -27,9 +27,39 @@ from tvm.contrib import graph_executor, utils
 from tvm import meta_schedule as ms
 
 
+def create_relay_module():
+    data_shape = (1, 3, 16, 16)
+    weight_shape = (8, 3, 5, 5)
+    data = relay.var("data", relay.TensorType(data_shape, "float32"))
+    weight = relay.var("weight", relay.TensorType(weight_shape, "float32"))
+    y = relay.nn.conv2d(
+        data,
+        weight,
+        padding=(2, 2),
+        kernel_size=(5, 5),
+        kernel_layout="OIHW",
+        out_dtype="float32",
+    )
+    f = relay.Function([data, weight], y)
+    mod = tvm.IRModule.from_expr(f)
+    mod = relay.transform.InferType()(mod)
+
+    weight_sample = np.random.rand(
+        weight_shape[0], weight_shape[1], weight_shape[2], weight_shape[3]
+    ).astype("float32")
+    params = {mod["main"].params[1].name_hint: weight_sample}
+
+    model_info = {
+        "in_tensor": "data",
+        "in_shape": data_shape,
+        "in_dtype": "float32",
+    }
+
+    return mod, params, model_info
+
+
 @tvm.testing.requires_micro
 def test_micro_tuning_with_meta_schedule():
-    from tests.micro.zephyr.test_ms_tuning import create_relay_module
     from tvm.contrib.micro.meta_schedule.local_builder_micro import get_local_builder_micro
     from tvm.contrib.micro.meta_schedule.rpc_runner_micro import get_rpc_runner_micro
 

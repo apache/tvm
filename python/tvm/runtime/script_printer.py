@@ -141,7 +141,6 @@ class Scriptable:
             The prefix of AST nodes from tvm.ir
         tir_prefix : str = "T"
             The prefix of AST nodes from tvm.tir
-
         buffer_dtype : str = "float32"
             The default data type of buffer
         int_dtype : str = "int32"
@@ -255,7 +254,6 @@ class Scriptable:
             The prefix of AST nodes from tvm.ir
         tir_prefix : str = "T"
             The prefix of AST nodes from tvm.tir
-
         buffer_dtype : str = "float32"
             The default data type of buffer
         int_dtype : str = "int32"
