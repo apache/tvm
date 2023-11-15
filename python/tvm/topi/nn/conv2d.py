@@ -144,6 +144,29 @@ def conv2d_alter_layout(attrs, inputs, tinfos, out_type):
 
 
 @tvm.target.generic_func
+def conv2d_transpose_alter_layout(attrs, inputs, tinfos, out_type):
+    """Change Conv2D_Transpose layout.
+
+    Parameters
+    ----------
+    attrs : tvm.ir.Attrs
+        Attributes of current convolution
+    inputs : tvm.relay.Expr
+        Grouped input symbols
+    tinfos : list
+        Input shape and dtype
+    out_type: type
+        The output type
+
+    Note
+    ----
+    Unlike other TOPI functions, this function operates on both graph level and operator level.
+    """
+    # not to change by default
+    return None
+
+
+@tvm.target.generic_func
 def conv2d_infer_layout(workload, cfg):
     """Infer input/output shapes and layouts from a workload and cfg.
 
