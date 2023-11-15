@@ -790,11 +790,12 @@ class ModuleInplaceTransformer : public ExprMutator {
     Array<Binding> new_bindings;
     int current_match_index = 0;
     for (size_t i = 0; i < block->bindings.size(); i++) {
-      int candidate_binding_idx = exact_matches[current_match_index][0];
-      if (candidate_binding_idx != static_cast<int>(i)) {
+      if (current_match_index >= static_cast<int>(exact_matches.size()) ||
+          exact_matches[current_match_index][0] != static_cast<int>(i)) {
         new_bindings.push_back(block->bindings[i]);
         continue;
       }
+
       auto target_binding = block->bindings[i];
       auto target_call = Downcast<Call>(GetBoundValue(target_binding));
       // can just pick the first index arbitrarily (only using one output for now too)
