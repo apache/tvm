@@ -1780,7 +1780,6 @@ def test_forward_logsoftmax():
     verify_model(LogSoftmax1().float().eval(), input_data=input_data)
 
 
-@pytest.mark.skip(reason="unsupported op aten::linalg_vector_norm")
 @tvm.testing.uses_gpu
 def test_forward_norm():
     """test_forward_norm"""
@@ -1840,7 +1839,6 @@ def test_forward_norm():
     verify_model(Norm10().float().eval(), input_data=input_data)
 
 
-@pytest.mark.skip(reason="unsupported op aten::linalg_vector_norm")
 @tvm.testing.uses_gpu
 def test_forward_frobenius_norm():
     """test_forward_frobenius_norm"""
