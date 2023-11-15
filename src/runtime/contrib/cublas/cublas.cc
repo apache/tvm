@@ -151,19 +151,29 @@ void CallCublasLt(cublasLtHandle_t hdl, cudaStream_t stream, const DLTensor* A, 
   float zero_fp32 = 0.0;
   auto one_fp16 = __truncXfYf2__<float, uint32_t, 23, uint16_t, uint16_t, 10>(1.0);
   auto zero_fp16 = __truncXfYf2__<float, uint32_t, 23, uint16_t, uint16_t, 10>(0.0);
+  int32_t one_i32 = 1;
+  int32_t zero_i32 = 0;
   void* alpha = &one_fp32;
   void* beta = &zero_fp32;
 
-  if (A->dtype.bits == 16 && A->dtype.code == kDLFloat) {
+  if (TypeMatch(A->dtype, kDLFloat, 16)) {
     ab_type = CUDA_R_16F;
+  } else if (TypeMatch(A->dtype, kDLInt, 8)) {
+    ab_type = CUDA_R_8I;
   }
 
-  if (C->dtype.bits == 16 && C->dtype.code == kDLFloat) {
+  if (TypeMatch(C->dtype, kDLFloat, 16)) {
     c_type = CUDA_R_16F;
     compute_type = CUBLAS_COMPUTE_16F;
     scale_type = CUDA_R_16F;
     alpha = &one_fp16;
     beta = &zero_fp16;
+  } else if (TypeMatch(C->dtype, kDLInt, 32)) {
+    c_type = CUDA_R_32I;
+    compute_type = CUBLAS_COMPUTE_32I;
+    scale_type = CUDA_R_32I;
+    alpha = &one_i32;
+    beta = &zero_i32;
   }
 
   cublasLtMatmulDesc_t op_desc;
@@ -172,9 +182,9 @@ void CallCublasLt(cublasLtHandle_t hdl, cudaStream_t stream, const DLTensor* A, 
 
   CHECK_CUBLAS_ERROR(cublasLtMatmulDescCreate(&op_desc, compute_type, scale_type));
   CHECK_CUBLAS_ERROR(cublasLtMatmulDescSetAttribute(op_desc, CUBLASLT_MATMUL_DESC_TRANSA,
-                                                    &op_transb, sizeof(op_transa)));
+                                                    &op_transb, sizeof(op_transb)));
   CHECK_CUBLAS_ERROR(cublasLtMatmulDescSetAttribute(op_desc, CUBLASLT_MATMUL_DESC_TRANSB,
-                                                    &op_transa, sizeof(op_transb)));
+                                                    &op_transa, sizeof(op_transa)));
 
   if (bias != nullptr) {
     CHECK_CUBLAS_ERROR(cublasLtMatmulDescSetAttribute(op_desc, CUBLASLT_MATMUL_DESC_BIAS_POINTER,

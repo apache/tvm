@@ -29,8 +29,10 @@ from ..patterns import make_matmul_pattern
 
 def _is_supported_dtype(lhs_dtype, rhs_dtype):
     """Check if dtypes in the given workload are supported by cuBLAS BYOC."""
-    return (lhs_dtype == "float16" and rhs_dtype == "float16") or (
-        lhs_dtype == "float32" and rhs_dtype == "float32"
+    return (
+        (lhs_dtype == "float16" and rhs_dtype == "float16")
+        or (lhs_dtype == "float32" and rhs_dtype == "float32")
+        or (lhs_dtype == "int8" and rhs_dtype == "int8")
     )
 
 
@@ -50,10 +52,21 @@ def _check_matmul(context: PatternCheckContext) -> bool:
         # Reduction axis must be constant
         return False
 
+    if lhs_dtype == "int8" and rhs_dtype == "int8":
+        if lhs_shape[-1] % 4 != 0:
+            # Reduction axis must be multiples of 4 for IGEMM
+            return False
+        if not isinstance(rhs_shape[-1], (tvm.tir.expr.IntImm, int)) or rhs_shape[-1] % 4 != 0:
+            # Rows number must be multiples of 4 for IGEMM
+            return False
+
     lhs_batches = reduce(operator.mul, lhs_shape[:-2], 1)
     rhs_batches = reduce(operator.mul, rhs_shape[:-2], 1)
 
     if "bias" in context.annotated_expr:
+        if lhs_dtype == "int8" and rhs_dtype == "int8":
+            # Non-default epilogue not supported for IGEMM
+            return False
         bias = context.annotated_expr["bias"]
         bias_shape = bias.struct_info.shape.values
         bias_batches = reduce(operator.mul, bias_shape[:-1], 1)
