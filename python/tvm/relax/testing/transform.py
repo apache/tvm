@@ -131,7 +131,7 @@ def ApplyEmptyCppMutator() -> tvm.ir.transform.Pass:
     return packed_func()
 
 
-# inner functions for the dataflow inplace transformation exposed for testing
+# inner function for the dataflow inplace transformation exposed for testing
 def dataflow_liveness_analysis(block: DataflowBlock) -> Dict[Var, Tuple[int, int]]:
     live_ranges = tvm.get_global_func("relax.testing.transform.DataflowLivenessAnalysis")(
         block
@@ -142,6 +142,7 @@ def dataflow_liveness_analysis(block: DataflowBlock) -> Dict[Var, Tuple[int, int
     return ret  # type: ignore
 
 
+# inner function for the dataflow inplace transformation exposed for testing
 def dataflow_alias_analysis(
     block: DataflowBlock, inputs: List[Var]
 ) -> Tuple[Dict[Var, Set[int]], Dict[int, List[Set[int]]]]:
@@ -158,6 +159,7 @@ def dataflow_alias_analysis(
     return res_alias_sets, res_tuple_map  # type: ignore
 
 
+# inner function for the dataflow inplace transformation exposed for testing
 def dataflow_inplace_analysis(
     block: DataflowBlock, inputs: List[Var]
 ) -> Tuple[List[int], List[int]]:
@@ -168,6 +170,7 @@ def dataflow_inplace_analysis(
     return tuple(map(list, index_lists))  # type: ignore
 
 
+# inner function for the dataflow inplace transformation exposed for testing
 def dataflow_single_inplace_call(
     mod: IRModule, call: Call, inplace_indices: List[int]
 ) -> Tuple[Call, IRModule]:
