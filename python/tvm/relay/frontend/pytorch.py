@@ -3851,6 +3851,8 @@ class PyTorchOpConverter:
         dim = inputs[2]
         keepdim = inputs[3]
 
+        assert dtype == "float32" or dtype == "float64"
+
         if ord == 0:
             return _op.reduce.sum(
                 _op.cast(_op.not_equal(data, _expr.const(0, dtype=dtype)), dtype=dtype),
