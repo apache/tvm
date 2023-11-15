@@ -105,7 +105,7 @@
  *             \       /                     |                        |
  *              \     /                      |                       /
  *               \   /                       \                      /
- *          depth_conv2D                 sum(Axis={0},             /
+ *          depth_conv2D                 sum(Axis={0},          cast("32bit")
  *               /  \                     keepdims=true)          /
  *              /    \                           \               /
  *             /      \                           \             /
@@ -343,7 +343,7 @@ IRModule Extend2DConv(const IRModule& mod) {
  *                                 |                                              |
  *       |                         |                            |                /
  *    sum(Axis={0},           sum(Axis={0},                     \               /
- *    keepdims=true)          keepdims=true)      vs.       sum(Axis={0},      /
+ *    keepdims=true)          keepdims=true)      vs.       sum(Axis={0},     cast(32bit)
  *          \                /                              keepdims=true)    /
  *           \              /                                    \           /
  *            \            /                                      \         /
@@ -368,7 +368,8 @@ IRModule Extend2DConv(const IRModule& mod) {
           auto reshape_attrs = make_object<ReshapeAttrs>();  // reshape(w(C,1,S,R)->w(1,C,S,R))
           Array<IntImm> new_shape = Downcast<Array<IntImm>>(weight_tensor->shape);
           reshape_attrs->newshape = {static_cast<int32_t>(new_shape[1]->value), static_cast<int32_t>(new_shape[0]->value), static_cast<int32_t>(new_shape[2]->value), static_cast<int32_t>(new_shape[3]->value)};  // switch dimensions to enable simple vector vector dot product
-          filterwise_sum_input = Call(reshape, {weight},  Attrs(reshape_attrs));
+          auto filterwise_sum_8bit = Call(reshape, {weight},  Attrs(reshape_attrs));
+          filterwise_sum_input = Call(cast_op, {filterwise_sum_8bit}, Attrs(cast_attr_32bit));
         }
         // Simple Vector-Vector dot product of 3D Tensors (Checksum dot product)
         auto weight_shape = origin_conv2d->args[1]->type_as<TensorTypeNode>()->shape;

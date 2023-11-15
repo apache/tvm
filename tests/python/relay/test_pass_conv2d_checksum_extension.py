@@ -21,6 +21,7 @@ import tvm
 from tvm import relay
 from tvm.relay import transform
 import numpy as np
+from tvm.contrib import graph_executor
 
 
 def run_opt_pass(expr, opt_pass):
@@ -184,6 +185,7 @@ def test_mixed_conv2d():
         y0 = relay.ones(shape=w1_ones_shape, dtype="int8")
         y1 = relay.nn.conv2d(x1, y0, padding=(0,0), groups=int(w1_ones_shape[0]), channels=w1_ones_shape[0], kernel_size=[w1_ones_shape[2], w1_ones_shape[3]], out_dtype="int32")
         y2 = relay.reshape(w1, newshape=(w1.type_annotation.shape[1],w1.type_annotation.shape[0],w1.type_annotation.shape[2],w1.type_annotation.shape[3]))
+        y2 = relay.cast(y2, dtype="int32")
         y3 = relay.sum(y1, axis=[0], keepdims=True)
         y5 = relay.nn.conv2d(y3, y2, padding=(0,0), channels=1, groups=1, kernel_size=[w1.type_annotation.shape[2], w1.type_annotation.shape[3]], out_layout="NCHW", out_dtype="int64")
         y7 = relay.cast(conv, dtype="int64")
@@ -249,6 +251,7 @@ def test_single_depthwise_conv2d():
         y0 = relay.ones(shape=ones_shape, dtype="int8") 
         y1 = relay.nn.conv2d(x, y0, padding=(0,0), groups=int(ones_shape[0]), channels=ones_shape[0], kernel_size=[ones_shape[2], ones_shape[3]], out_dtype="int32")
         y2 = relay.reshape(w1, newshape=(w1.type_annotation.shape[1],w1.type_annotation.shape[0],w1.type_annotation.shape[2],w1.type_annotation.shape[3]))
+        y2 = relay.cast(y2, dtype="int32")
         y3 = relay.sum(y1, axis=[0], keepdims=True) 
         y5 = relay.nn.conv2d(y3, y2, padding=(0,0), channels=1, groups=1, kernel_size=[w1.type_annotation.shape[2], w1.type_annotation.shape[3]], out_layout="NCHW", out_dtype="int64") 
         y6 = relay.nn.conv2d(x, w1, out_dtype="int32",groups=int(w1.type_annotation.shape[0]),channels=w1.type_annotation.shape[0])
@@ -291,6 +294,62 @@ def test_single_depthwise_conv2d():
     check((1, 37, 56, 56),(37, 1, 11, 11), (37,1,46,46))
 
 
+def test_output():
+
+    def before():
+        x = relay.var("data", shape=(1, 37, 56, 56), dtype="int8")
+        w1 = relay.var("kernel", shape=(37, 1, 11, 11), dtype="int8")
+        y = relay.nn.conv2d(x, w1, out_dtype="int32",groups=int(w1.type_annotation.shape[0]),channels=w1.type_annotation.shape[0])
+        return relay.Function([x,w1], y)
+    
+    func = before()
+    func = run_opt_pass(func,transform.Extend2DConv())
+    verify(func,(1, 37, 56, 56),"int8",(37, 1, 11, 11),"int8")
+
+
+
+
+
+
+def verify(ref_func, data_shape, data_dtype, kernel_shape, kernel_dtype):
+    def get_inputs(data_shape, data_dtype, kernel_shape, kernel_dtype):
+        # Keeping inputs multiple of 4 because of a bug in Average Pool2d
+        # https://discuss.tvm.apache.org/t/pool2d-gives-bad-output-for-integer-inputs/3377
+        low = -128
+        high = 127
+        if data_dtype == "uint8":
+            low = 0
+            high = 255
+        golden_data = np.random.randint(low=low, high=high, size=data_shape).astype(data_dtype)
+        low = -128
+        high = 127
+        if kernel_dtype == "uint8":
+            low = 0
+            high = 255
+        golden_weight = np.random.randint(low=low, high=high, size=kernel_shape).astype(
+            kernel_dtype
+        )
+        return (golden_data, golden_weight)
+
+    def get_output(func, golden_inputs):
+        with tvm.transform.PassContext(opt_level=2):
+            golden_data, golden_weight = golden_inputs
+            params = {"kernel": golden_weight}
+            graph, lib, params = relay.build(func, "llvm", params=params)
+            mod = graph_executor.create(graph, lib, device=tvm.cpu(0))
+            mod.set_input("data", golden_data)
+            mod.set_input(**params)
+            mod.run()
+            res = mod.get_output(0).numpy()
+            return res
+
+    golden_inputs = get_inputs(data_shape, data_dtype, kernel_shape, kernel_dtype)
+    golden_output = get_output(ref_func, golden_inputs)
+    print(golden_output)
+    #qnn_output = get_output(qnn_func, golden_inputs)
+    #np.testing.assert_equal(qnn_output, golden_output)
+
+
 
 
 if __name__ == "__main__":
@@ -298,3 +357,4 @@ if __name__ == "__main__":
     test_single_depthwise_conv2d()
     test_multiple_standard_conv2d()
     test_mixed_conv2d()
+    test_output()
