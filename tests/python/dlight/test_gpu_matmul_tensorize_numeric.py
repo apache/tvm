@@ -87,6 +87,38 @@ def test_nt_matmul_mixed_precision(rule_name):
     do_numeric_test(before, inputs, np_compute, Target("cuda"), tvm.cuda(), rule_name)
 
 
+@pytest.mark.parametrize("rule_name", ["mma", "wmma"])
+def test_batched_nt_matmul_mixed_precision(rule_name):
+    @T.prim_func
+    def before(p_A: T.handle, p_B: T.handle, p_O: T.handle):
+        b = T.int64()
+        A = T.match_buffer(p_A, (b, T.int64(256), T.int64(256)), "float16")
+        B = T.match_buffer(p_B, (b, T.int64(256), T.int64(256)), "float16")
+        O = T.match_buffer(p_O, (b, T.int64(256), T.int64(256)), "float16")
+        var_matmul_intermediate = T.alloc_buffer((b, T.int64(256), T.int64(256)))
+        for i0, i1, i2, k in T.grid(b, T.int64(256), T.int64(256), T.int64(256)):
+            with T.block("matmul"):
+                v_i0, v_i1, v_i2, v_k = T.axis.remap("SSSR", [i0, i1, i2, k])
+                with T.init():
+                    var_matmul_intermediate[v_i0, v_i1, v_i2] = T.float32(0)
+                var_matmul_intermediate[v_i0, v_i1, v_i2] = var_matmul_intermediate[
+                    v_i0, v_i1, v_i2
+                ] + T.Cast("float32", A[v_i0, v_i1, v_k]) * T.Cast("float32", B[v_i0, v_i2, v_k])
+        for i0, i1, i2 in T.grid(b, T.int64(256), T.int64(256)):
+            with T.block("compute"):
+                v_i0, v_i1, v_i2 = T.axis.remap("SSS", [i0, i1, i2])
+                O[v_i0, v_i1, v_i2] = T.Cast("float16", var_matmul_intermediate[v_i0, v_i1, v_i2])
+
+    b = 2
+    inputs = [
+        np.random.normal(size=(b, 256, 256)).astype(np.float16),
+        np.random.normal(size=(b, 256, 256)).astype(np.float16),
+        np.zeros((b, 256, 256), dtype=np.float16),
+    ]
+    np_compute = lambda x, y: np.matmul(x, y.transpose(0, 2, 1))
+    do_numeric_test(before, inputs, np_compute, Target("cuda"), tvm.cuda(), rule_name)
+
+
 @pytest.mark.parametrize("rule_name", ["mma"])
 def test_nn_matmul_mixed_precision(rule_name):
     @T.prim_func

@@ -130,7 +130,7 @@ class ThreadBindingLifter : public StmtExprMutator {
       for (const auto& [iter_var, annotation] : it->second) {
         body = For(iter_var->var, iter_var->dom->min, iter_var->dom->extent,
                    ForKind::kThreadBinding, std::move(body),
-                   IterVar(Range(nullptr), Var(iter_var->thread_tag, iter_var->var->dtype),
+                   IterVar(iter_var->dom, Var(iter_var->thread_tag, iter_var->var->dtype),
                            kThreadIndex, iter_var->thread_tag),
                    annotation);
       }

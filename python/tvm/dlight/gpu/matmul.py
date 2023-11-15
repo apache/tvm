@@ -33,7 +33,7 @@ from .matmul_analysis import (
     get_reduction_blocks,
 )
 from .matmul_mma import MatmulTensorizationMMA
-from .matmul_wmma import MatmulInt8Tensorization, MatmulTensorizationWMMA
+from .matmul_wmma import MatmulInt8Tensorization, MatmulTensorizationWMMA, MatmulTensorizationLegacy
 
 
 class Matmul(ScheduleRule):

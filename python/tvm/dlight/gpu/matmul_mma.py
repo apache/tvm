@@ -192,7 +192,7 @@ class MatmulTensorizationMMA(ScheduleRule):
             sch.vectorize(f4)
 
             # swizzling
-            sch.annotate(block_read_smem, ann_key="permuted_layout", ann_val=f"g2s_{tensor_name}")
+            sch.annotate(block_read_smem, ann_key="permuted_layout", ann_val=1)
 
             # 2) Read to register
             block_read_reg = sch.cache_read(block_outer, read_buffer_idx, "warp")
@@ -223,7 +223,7 @@ class MatmulTensorizationMMA(ScheduleRule):
 
             # swizzling
             mma_read_block = sch.blockize(sch.get_loops(block_read_reg)[-2])
-            sch.annotate(mma_read_block, ann_key="permuted_layout", ann_val=f"s2l_{tensor_name}")
+            sch.annotate(mma_read_block, ann_key="permuted_layout", ann_val=1)
 
             return block_read_smem, block_read_reg
 
@@ -246,7 +246,7 @@ class MatmulTensorizationMMA(ScheduleRule):
             sch.vectorize(f4)
 
             # swizzling
-            sch.annotate(block_write_smem, ann_key="permuted_layout", ann_val=f"s2g_C")
+            sch.annotate(block_write_smem, ann_key="permuted_layout", ann_val=1)
 
             # 2) Write to register
             block_write_reg = sch.cache_write(block_outer, write_buffer_idx, "warp")
@@ -273,15 +273,15 @@ class MatmulTensorizationMMA(ScheduleRule):
 
             # swizzling
             mma_read_block = sch.blockize(sch.get_loops(block_write_reg)[-2])
-            sch.annotate(mma_read_block, ann_key="permuted_layout", ann_val=f"l2s_C")
+            sch.annotate(mma_read_block, ann_key="permuted_layout", ann_val=1)
 
             return block_write_smem, block_write_reg
 
         block_write_smem, block_write_reg = store_output(block_outer, 0)
 
         # Step 5. Schedule tensor core computation
-        block_init_c = sch.decompose_reduction(block_outer, k0)
-        block_init_c_inner = sch.get_child_blocks(block_init_c)[0]
+        block_init = sch.decompose_reduction(block_outer, k0)
+        block_init_inner = sch.get_child_blocks(block_init)[0]
 
         # unroll k
         # Profiling result shows unrolling k0 is not helpful on A100
@@ -298,7 +298,7 @@ class MatmulTensorizationMMA(ScheduleRule):
             trans_b=is_transpose_b,
         )
 
-        sch.tensorize(sch.get_loops(block_init_c_inner)[-2], intrin_group["init"])
+        sch.tensorize(sch.get_loops(block_init_inner)[-2], intrin_group["init"])
         sch.tensorize(sch.get_loops(block_read_reg_a)[-2], intrin_group["load_a"])
         sch.tensorize(sch.get_loops(block_read_reg_b)[-2], intrin_group["load_b"])
         sch.tensorize(sch.get_loops(block_inner)[-3], intrin_group["compute"])

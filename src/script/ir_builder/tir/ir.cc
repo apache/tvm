@@ -347,11 +347,12 @@ ForFrame ThreadBinding(PrimExpr start, PrimExpr stop, String thread,
   DataType dtype = DataType(min.dtype().code(), bits, 1);
   n->vars = {Var("v", dtype)};
   n->doms = {Range::FromMinExtent(min, extent)};
-  n->f_make_for_loop = [annotations, thread, dtype](Array<Var> vars, Array<Range> doms,
-                                                    Stmt body) -> For {
+  n->f_make_for_loop = [annotations, thread, dtype, min, extent](Array<Var> vars, Array<Range> doms,
+                                                                 Stmt body) -> For {
     ICHECK_EQ(vars.size(), 1);
     ICHECK_EQ(doms.size(), 1);
-    IterVar iter_var(Range(nullptr), Var("iter", dtype), IterVarType::kThreadIndex, thread);
+    IterVar iter_var(Range::FromMinExtent(min, extent), Var("iter", dtype),
+                     IterVarType::kThreadIndex, thread);
     return For(vars[0], doms[0]->min, doms[0]->extent, ForKind::kThreadBinding, body, iter_var,
                annotations.value_or(Map<String, ObjectRef>()));
   };

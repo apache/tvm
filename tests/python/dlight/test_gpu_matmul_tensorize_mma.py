@@ -96,7 +96,7 @@ class TestNTMatmulMixedPrecision(BaseBeforeAfter):
                                         v2 = T.axis.spatial(T.int64(128), ax3_0_0 * T.int64(32) + (ax0_ax1_fused_0 * T.int64(1024) + ax0_ax1_fused_1 * T.int64(512) + ax0_ax1_fused_2 * T.int64(256) + ax0_ax1_fused_3 * T.int64(8) + ax0_ax1_fused_4) % T.int64(32))
                                         T.reads(A[v1 // T.int64(128), v1 % T.int64(128), v2])
                                         T.writes(A_reindex_shared_dyn[v0, v1, v2])
-                                        T.block_attr({"permuted_layout": "g2s_A"})
+                                        T.block_attr({"permuted_layout": 1})
                                         A_reindex_shared_dyn[v0, v1, v2] = A[v1 // T.int64(128), v1 % T.int64(128), v2]
                 for ax0_ax1_fused_0 in range(T.int64(4)):
                     for ax0_ax1_fused_1 in T.thread_binding(T.int64(2), thread="threadIdx.z"):
@@ -109,7 +109,7 @@ class TestNTMatmulMixedPrecision(BaseBeforeAfter):
                                         v2 = T.axis.spatial(T.int64(128), ax3_0_0 * T.int64(32) + (ax0_ax1_fused_0 * T.int64(1024) + ax0_ax1_fused_1 * T.int64(512) + ax0_ax1_fused_2 * T.int64(256) + ax0_ax1_fused_3 * T.int64(8) + ax0_ax1_fused_4) % T.int64(32))
                                         T.reads(B[v1, v2])
                                         T.writes(B_reindex_shared_dyn[v0, v1, v2])
-                                        T.block_attr({"permuted_layout": "g2s_B"})
+                                        T.block_attr({"permuted_layout": 1})
                                         B_reindex_shared_dyn[v0, v1, v2] = B[v1, v2]
                 for ax1_0_2 in T.thread_binding(T.int64(2), thread="threadIdx.z"):
                     for ax2_0_2 in T.thread_binding(T.int64(2), thread="threadIdx.y"):
@@ -121,7 +121,7 @@ class TestNTMatmulMixedPrecision(BaseBeforeAfter):
                                     v2_o = T.axis.spatial(T.int64(8), ax3_0_0 * T.int64(2) + ax3_0_1 + ax1_0)
                                     T.reads(A_reindex_shared_dyn[v0_o, v1_o * T.int64(16):v1_o * T.int64(16) + T.int64(16), v2_o * T.int64(16):v2_o * T.int64(16) + T.int64(16)])
                                     T.writes(A_reindex_shared_dyn_warp[v0_o, v1_o, v2_o, T.int64(0):T.int64(32), T.int64(0):T.int64(8)])
-                                    T.block_attr({"permuted_layout": "s2l_A"})
+                                    T.block_attr({"permuted_layout": 1})
                                     with T.block("A_reindex_shared.dyn_warp_o"):
                                         v1_i_o = T.axis.spatial(T.int64(1), T.int64(0))
                                         v2_i_o = T.axis.spatial(T.int64(1), T.int64(0))
@@ -138,7 +138,7 @@ class TestNTMatmulMixedPrecision(BaseBeforeAfter):
                                     v2_o = T.axis.spatial(T.int64(8), ax3_0_0 * T.int64(2) + ax3_0_1 + ax1_0)
                                     T.reads(B_reindex_shared_dyn[v0_o, v1_o * T.int64(16):v1_o * T.int64(16) + T.int64(16), v2_o * T.int64(16):v2_o * T.int64(16) + T.int64(16)])
                                     T.writes(B_reindex_shared_dyn_warp[v0_o, v1_o, v2_o, T.int64(0):T.int64(32), T.int64(0):T.int64(8)])
-                                    T.block_attr({"permuted_layout": "s2l_B"})
+                                    T.block_attr({"permuted_layout": 1})
                                     with T.block("B_reindex_shared.dyn_warp_o"):
                                         v1_i_o = T.axis.spatial(T.int64(1), T.int64(0))
                                         v2_i_o = T.axis.spatial(T.int64(1), T.int64(0))
@@ -178,7 +178,7 @@ class TestNTMatmulMixedPrecision(BaseBeforeAfter):
                                 v2_o = T.axis.spatial(T.int64(8), ax2_0 * T.int64(4) + ax2_1)
                                 T.reads(var_matmul_intermediate_reindex_shared_dyn_warp[v0_o, v1_o, v2_o, T.int64(0):T.int64(32), T.int64(0):T.int64(8)])
                                 T.writes(var_matmul_intermediate_reindex_shared_dyn[v0_o, v1_o * T.int64(16):v1_o * T.int64(16) + T.int64(16), v2_o * T.int64(16):v2_o * T.int64(16) + T.int64(16)])
-                                T.block_attr({"permuted_layout": "l2s_C"})
+                                T.block_attr({"permuted_layout": 1})
                                 with T.block("var_matmul_intermediate_reindex_shared.dyn_warp_o"):
                                     v1_i_o = T.axis.spatial(T.int64(1), T.int64(0))
                                     v2_i_o = T.axis.spatial(T.int64(1), T.int64(0))
@@ -200,7 +200,7 @@ class TestNTMatmulMixedPrecision(BaseBeforeAfter):
                                     v2 = T.axis.spatial(T.int64(128), (ax0_ax1_fused_0 * T.int64(1024) + ax0_ax1_fused_1 * T.int64(512) + ax0_ax1_fused_2 * T.int64(256) + ax0_ax1_fused_3 * T.int64(8) + ax0_ax1_fused_4) % T.int64(128))
                                     T.reads(var_matmul_intermediate_reindex_shared_dyn[v0, v1, v2])
                                     T.writes(O[v1 // T.int64(128), v1 % T.int64(128), v2])
-                                    T.block_attr({"permuted_layout": "s2g_C"})
+                                    T.block_attr({"permuted_layout": 1})
                                     if v1 // T.int64(128) < b:
                                         O[v1 // T.int64(128), v1 % T.int64(128), v2] = T.Cast("float16", var_matmul_intermediate_reindex_shared_dyn[v0, v1, v2])
     # fmt: on
@@ -268,7 +268,7 @@ class TestTNMatmulMixedPrecision(BaseBeforeAfter):
                                         v2 = T.axis.spatial(T.int64(128), ax3_0_0 * T.int64(32) + (ax1_ax0_fused_0 * T.int64(1024) + ax1_ax0_fused_1 * T.int64(512) + ax1_ax0_fused_2 * T.int64(256) + ax1_ax0_fused_3 * T.int64(8) + ax1_ax0_fused_4) // T.int64(128))
                                         T.reads(A[v1 // T.int64(128), v2, v1 % T.int64(128)])
                                         T.writes(A_reindex_shared_dyn[v0, v2, v1])
-                                        T.block_attr({"permuted_layout": "g2s_A"})
+                                        T.block_attr({"permuted_layout": 1})
                                         A_reindex_shared_dyn[v0, v2, v1] = A[v1 // T.int64(128), v2, v1 % T.int64(128)]
                 for ax1_ax0_fused_0 in range(T.int64(4)):
                     for ax1_ax0_fused_1 in T.thread_binding(T.int64(2), thread="threadIdx.z"):
@@ -281,7 +281,7 @@ class TestTNMatmulMixedPrecision(BaseBeforeAfter):
                                         v2 = T.axis.spatial(T.int64(128), ax3_0_0 * T.int64(32) + (ax1_ax0_fused_0 * T.int64(1024) + ax1_ax0_fused_1 * T.int64(512) + ax1_ax0_fused_2 * T.int64(256) + ax1_ax0_fused_3 * T.int64(8) + ax1_ax0_fused_4) // T.int64(128))
                                         T.reads(B[v2, v1])
                                         T.writes(B_reindex_shared_dyn[v0, v2, v1])
-                                        T.block_attr({"permuted_layout": "g2s_B"})
+                                        T.block_attr({"permuted_layout": 1})
                                         B_reindex_shared_dyn[v0, v2, v1] = B[v2, v1]
                 for ax1_0_2 in T.thread_binding(T.int64(2), thread="threadIdx.z"):
                     for ax2_0_2 in T.thread_binding(T.int64(2), thread="threadIdx.y"):
@@ -293,7 +293,7 @@ class TestTNMatmulMixedPrecision(BaseBeforeAfter):
                                     v2_o = T.axis.spatial(T.int64(8) * b, ax0_ax1_0_0_ax2_0_0_ax1_0_1_ax2_0_1_fused * T.int64(8) + ax1_0_2 * T.int64(4) + ax1_0)
                                     T.reads(A_reindex_shared_dyn[v0_o, v1_o * T.int64(16):v1_o * T.int64(16) + T.int64(16), v2_o * T.int64(16):v2_o * T.int64(16) + T.int64(16)])
                                     T.writes(A_reindex_shared_dyn_warp[v0_o, v1_o, v2_o, T.int64(0):T.int64(32), T.int64(0):T.int64(8)])
-                                    T.block_attr({"permuted_layout": "s2l_A"})
+                                    T.block_attr({"permuted_layout": 1})
                                     with T.block("A_reindex_shared.dyn_warp_o"):
                                         v1_i_o = T.axis.spatial(T.int64(1), T.int64(0))
                                         v2_i_o = T.axis.spatial(T.int64(1), T.int64(0))
@@ -310,7 +310,7 @@ class TestTNMatmulMixedPrecision(BaseBeforeAfter):
                                     v2_o = T.axis.spatial(T.int64(8), ax2_0_2 * T.int64(4) + ax1_0)
                                     T.reads(B_reindex_shared_dyn[v0_o, v1_o * T.int64(16):v1_o * T.int64(16) + T.int64(16), v2_o * T.int64(16):v2_o * T.int64(16) + T.int64(16)])
                                     T.writes(B_reindex_shared_dyn_warp[v0_o, v1_o, v2_o, T.int64(0):T.int64(32), T.int64(0):T.int64(8)])
-                                    T.block_attr({"permuted_layout": "s2l_B"})
+                                    T.block_attr({"permuted_layout": 1})
                                     with T.block("B_reindex_shared.dyn_warp_o"):
                                         v1_i_o = T.axis.spatial(T.int64(1), T.int64(0))
                                         v2_i_o = T.axis.spatial(T.int64(1), T.int64(0))
@@ -350,7 +350,7 @@ class TestTNMatmulMixedPrecision(BaseBeforeAfter):
                                 v2_o = T.axis.spatial(T.int64(8), ax2_0 * T.int64(4) + ax2_1)
                                 T.reads(var_matmul_intermediate_reindex_shared_dyn_warp[v0_o, v1_o, v2_o, T.int64(0):T.int64(32), T.int64(0):T.int64(8)])
                                 T.writes(var_matmul_intermediate_reindex_shared_dyn[v0_o, v1_o * T.int64(16):v1_o * T.int64(16) + T.int64(16), v2_o * T.int64(16):v2_o * T.int64(16) + T.int64(16)])
-                                T.block_attr({"permuted_layout": "l2s_C"})
+                                T.block_attr({"permuted_layout": 1})
                                 with T.block("var_matmul_intermediate_reindex_shared.dyn_warp_o"):
                                     v1_i_o = T.axis.spatial(T.int64(1), T.int64(0))
                                     v2_i_o = T.axis.spatial(T.int64(1), T.int64(0))
@@ -372,7 +372,7 @@ class TestTNMatmulMixedPrecision(BaseBeforeAfter):
                                     v2 = T.axis.spatial(T.int64(128), (ax0_ax1_fused_0 * T.int64(1024) + ax0_ax1_fused_1 * T.int64(512) + ax0_ax1_fused_2 * T.int64(256) + ax0_ax1_fused_3 * T.int64(8) + ax0_ax1_fused_4) % T.int64(128))
                                     T.reads(var_matmul_intermediate_reindex_shared_dyn[v0, v1, v2])
                                     T.writes(O[v1 // T.int64(128), v1 % T.int64(128), v2])
-                                    T.block_attr({"permuted_layout": "s2g_C"})
+                                    T.block_attr({"permuted_layout": 1})
                                     if v1 // T.int64(128) < b:
                                         O[v1 // T.int64(128), v1 % T.int64(128), v2] = T.Cast("float16", var_matmul_intermediate_reindex_shared_dyn[v0, v1, v2])
     # fmt: on
@@ -467,7 +467,7 @@ class TestMatmulDecode(BaseBeforeAfter):
                                         v2 = T.axis.spatial(T.int64(4096), ax3_0_0 * T.int64(32) + (ax0_ax1_fused_0 * T.int64(1024) + ax0_ax1_fused_1 * T.int64(512) + ax0_ax1_fused_2 * T.int64(256) + ax0_ax1_fused_3 * T.int64(8) + ax0_ax1_fused_4) % T.int64(32))
                                         T.reads(A[v1 // T.int64(512), v1 % T.int64(512), v2])
                                         T.writes(A_reindex_shared_dyn[v0, v1, v2])
-                                        T.block_attr({"permuted_layout": "g2s_A"})
+                                        T.block_attr({"permuted_layout": 1})
                                         A_reindex_shared_dyn[v0, v1, v2] = A[v1 // T.int64(512), v1 % T.int64(512), v2]
                 for ax0_ax1_fused_0 in range(T.int64(4)):
                     for ax0_ax1_fused_1 in T.thread_binding(T.int64(2), thread="threadIdx.z"):
@@ -480,7 +480,7 @@ class TestMatmulDecode(BaseBeforeAfter):
                                         v2 = T.axis.spatial(T.int64(4096), ax3_0_0 * T.int64(32) + (ax0_ax1_fused_0 * T.int64(1024) + ax0_ax1_fused_1 * T.int64(512) + ax0_ax1_fused_2 * T.int64(256) + ax0_ax1_fused_3 * T.int64(8) + ax0_ax1_fused_4) % T.int64(32))
                                         T.reads(B_intermediate[v1, v2])
                                         T.writes(B_intermediate_reindex_shared_dyn[v0, v1, v2])
-                                        T.block_attr({"permuted_layout": "g2s_B"})
+                                        T.block_attr({"permuted_layout": 1})
                                         B_intermediate_reindex_shared_dyn[v0, v1, v2] = B_intermediate[v1, v2]
                 for ax1_0_2 in T.thread_binding(T.int64(2), thread="threadIdx.z"):
                     for ax2_0_2 in T.thread_binding(T.int64(2), thread="threadIdx.y"):
@@ -492,7 +492,7 @@ class TestMatmulDecode(BaseBeforeAfter):
                                     v2_o = T.axis.spatial(T.int64(256), ax3_0_0 * T.int64(2) + ax3_0_1 + ax1_0)
                                     T.reads(A_reindex_shared_dyn[v0_o, v1_o * T.int64(16):v1_o * T.int64(16) + T.int64(16), v2_o * T.int64(16):v2_o * T.int64(16) + T.int64(16)])
                                     T.writes(A_reindex_shared_dyn_warp[v0_o, v1_o, v2_o, T.int64(0):T.int64(32), T.int64(0):T.int64(8)])
-                                    T.block_attr({"permuted_layout": "s2l_A"})
+                                    T.block_attr({"permuted_layout": 1})
                                     with T.block("A_reindex_shared.dyn_warp_o"):
                                         v1_i_o = T.axis.spatial(T.int64(1), T.int64(0))
                                         v2_i_o = T.axis.spatial(T.int64(1), T.int64(0))
@@ -509,7 +509,7 @@ class TestMatmulDecode(BaseBeforeAfter):
                                     v2_o = T.axis.spatial(T.int64(256), ax3_0_0 * T.int64(2) + ax3_0_1 + ax1_0)
                                     T.reads(B_intermediate_reindex_shared_dyn[v0_o, v1_o * T.int64(16):v1_o * T.int64(16) + T.int64(16), v2_o * T.int64(16):v2_o * T.int64(16) + T.int64(16)])
                                     T.writes(B_intermediate_reindex_shared_dyn_warp[v0_o, v1_o, v2_o, T.int64(0):T.int64(32), T.int64(0):T.int64(8)])
-                                    T.block_attr({"permuted_layout": "s2l_B"})
+                                    T.block_attr({"permuted_layout": 1})
                                     with T.block("B_intermediate_reindex_shared.dyn_warp_o"):
                                         v1_i_o = T.axis.spatial(T.int64(1), T.int64(0))
                                         v2_i_o = T.axis.spatial(T.int64(1), T.int64(0))
@@ -549,7 +549,7 @@ class TestMatmulDecode(BaseBeforeAfter):
                                 v2_o = T.axis.spatial(T.int64(256), ax0_ax1_0_0_ax2_0_0_ax1_0_1_ax2_0_1_fused % T.int64(32) * T.int64(8) + ax2_0 * T.int64(4) + ax2_1)
                                 T.reads(O_intermediate_reindex_shared_dyn_warp[v0_o, v1_o, v2_o, T.int64(0):T.int64(32), T.int64(0):T.int64(8)])
                                 T.writes(O_intermediate_reindex_shared_dyn[v0_o, v1_o * T.int64(16):v1_o * T.int64(16) + T.int64(16), v2_o * T.int64(16):v2_o * T.int64(16) + T.int64(16)])
-                                T.block_attr({"permuted_layout": "l2s_C"})
+                                T.block_attr({"permuted_layout": 1})
                                 with T.block("O_intermediate_reindex_shared.dyn_warp_o"):
                                     v1_i_o = T.axis.spatial(T.int64(1), T.int64(0))
                                     v2_i_o = T.axis.spatial(T.int64(1), T.int64(0))
@@ -571,7 +571,7 @@ class TestMatmulDecode(BaseBeforeAfter):
                                     v2 = T.axis.spatial(T.int64(4096), ax0_ax1_0_0_ax2_0_0_ax1_0_1_ax2_0_1_fused % T.int64(32) * T.int64(128) + (ax0_ax1_fused_0 * T.int64(1024) + ax0_ax1_fused_1 * T.int64(512) + ax0_ax1_fused_2 * T.int64(256) + ax0_ax1_fused_3 * T.int64(8) + ax0_ax1_fused_4) % T.int64(128))
                                     T.reads(O_intermediate_reindex_shared_dyn[v0, v1, v2])
                                     T.writes(O[v1 // T.int64(512), v1 % T.int64(512), v2])
-                                    T.block_attr({"permuted_layout": "s2g_C"})
+                                    T.block_attr({"permuted_layout": 1})
                                     if v1 // T.int64(512) < b:
                                         O[v1 // T.int64(512), v1 % T.int64(512), v2] = T.Cast("float16", O_intermediate_reindex_shared_dyn[v0, v1, v2])
     # fmt: on
@@ -665,7 +665,7 @@ class TestMatmulEpilogue(BaseBeforeAfter):
                                         v2 = T.axis.spatial(T.int64(4096), ax3_0_0 * T.int64(32) + (ax0_ax1_fused_0 * T.int64(1024) + ax0_ax1_fused_1 * T.int64(512) + ax0_ax1_fused_2 * T.int64(256) + ax0_ax1_fused_3 * T.int64(8) + ax0_ax1_fused_4) % T.int64(32))
                                         T.reads(A[v1, v2])
                                         T.writes(A_reindex_pad_shared_dyn[v0, v1, v2])
-                                        T.block_attr({"permuted_layout": "g2s_A"})
+                                        T.block_attr({"permuted_layout": 1})
                                         A_reindex_pad_shared_dyn[v0, v1, v2] = T.if_then_else(v1 < n, A[v1, v2], T.float16(0))
                 for ax0_ax1_fused_0 in range(T.int64(4)):
                     for ax0_ax1_fused_1 in T.thread_binding(T.int64(2), thread="threadIdx.z"):
@@ -678,7 +678,7 @@ class TestMatmulEpilogue(BaseBeforeAfter):
                                         v2 = T.axis.spatial(T.int64(4096), ax3_0_0 * T.int64(32) + (ax0_ax1_fused_0 * T.int64(1024) + ax0_ax1_fused_1 * T.int64(512) + ax0_ax1_fused_2 * T.int64(256) + ax0_ax1_fused_3 * T.int64(8) + ax0_ax1_fused_4) % T.int64(32))
                                         T.reads(B[v1, v2])
                                         T.writes(B_reindex_shared_dyn[v0, v1, v2])
-                                        T.block_attr({"permuted_layout": "g2s_B"})
+                                        T.block_attr({"permuted_layout": 1})
                                         B_reindex_shared_dyn[v0, v1, v2] = B[v1, v2]
                 for ax1_0_2 in T.thread_binding(T.int64(2), thread="threadIdx.z"):
                     for ax2_0_2 in T.thread_binding(T.int64(2), thread="threadIdx.y"):
@@ -690,7 +690,7 @@ class TestMatmulEpilogue(BaseBeforeAfter):
                                     v2_o = T.axis.spatial(T.int64(256), ax3_0_0 * T.int64(2) + ax3_0_1 + ax1_0)
                                     T.reads(A_reindex_pad_shared_dyn[v0_o, v1_o * T.int64(16):v1_o * T.int64(16) + T.int64(16), v2_o * T.int64(16):v2_o * T.int64(16) + T.int64(16)])
                                     T.writes(A_reindex_pad_shared_dyn_warp[v0_o, v1_o, v2_o, T.int64(0):T.int64(32), T.int64(0):T.int64(8)])
-                                    T.block_attr({"permuted_layout": "s2l_A"})
+                                    T.block_attr({"permuted_layout": 1})
                                     with T.block("A_reindex_pad_shared.dyn_warp_o"):
                                         v1_i_o = T.axis.spatial(T.int64(1), T.int64(0))
                                         v2_i_o = T.axis.spatial(T.int64(1), T.int64(0))
@@ -707,7 +707,7 @@ class TestMatmulEpilogue(BaseBeforeAfter):
                                     v2_o = T.axis.spatial(T.int64(256), ax3_0_0 * T.int64(2) + ax3_0_1 + ax1_0)
                                     T.reads(B_reindex_shared_dyn[v0_o, v1_o * T.int64(16):v1_o * T.int64(16) + T.int64(16), v2_o * T.int64(16):v2_o * T.int64(16) + T.int64(16)])
                                     T.writes(B_reindex_shared_dyn_warp[v0_o, v1_o, v2_o, T.int64(0):T.int64(32), T.int64(0):T.int64(8)])
-                                    T.block_attr({"permuted_layout": "s2l_B"})
+                                    T.block_attr({"permuted_layout": 1})
                                     with T.block("B_reindex_shared.dyn_warp_o"):
                                         v1_i_o = T.axis.spatial(T.int64(1), T.int64(0))
                                         v2_i_o = T.axis.spatial(T.int64(1), T.int64(0))
@@ -747,7 +747,7 @@ class TestMatmulEpilogue(BaseBeforeAfter):
                                 v2_o = T.axis.spatial(T.int64(256), ax0_ax1_0_0_ax2_0_0_ax1_0_1_ax2_0_1_fused % T.int64(32) * T.int64(8) + ax2_0 * T.int64(4) + ax2_1)
                                 T.reads(O_intermediate_reindex_pad_shared_dyn_warp[v0_o, v1_o, v2_o, T.int64(0):T.int64(32), T.int64(0):T.int64(8)])
                                 T.writes(O_intermediate_reindex_pad_shared_dyn[v0_o, v1_o * T.int64(16):v1_o * T.int64(16) + T.int64(16), v2_o * T.int64(16):v2_o * T.int64(16) + T.int64(16)])
-                                T.block_attr({"permuted_layout": "l2s_C"})
+                                T.block_attr({"permuted_layout": 1})
                                 with T.block("O_intermediate_reindex_pad_shared.dyn_warp_o"):
                                     v1_i_o = T.axis.spatial(T.int64(1), T.int64(0))
                                     v2_i_o = T.axis.spatial(T.int64(1), T.int64(0))
@@ -769,7 +769,7 @@ class TestMatmulEpilogue(BaseBeforeAfter):
                                     v2 = T.axis.spatial(T.int64(4096), ax0_ax1_0_0_ax2_0_0_ax1_0_1_ax2_0_1_fused % T.int64(32) * T.int64(128) + (ax0_ax1_fused_0 * T.int64(1024) + ax0_ax1_fused_1 * T.int64(512) + ax0_ax1_fused_2 * T.int64(256) + ax0_ax1_fused_3 * T.int64(8) + ax0_ax1_fused_4) % T.int64(128))
                                     T.reads(add1[v1, v2], O_intermediate_reindex_pad_shared_dyn[v0, v1, v2], add[v1, v2])
                                     T.writes(O[v1, v2])
-                                    T.block_attr({"permuted_layout": "s2g_C"})
+                                    T.block_attr({"permuted_layout": 1})
                                     if v1 < n:
                                         O[v1, v2] = T.Cast("float32", add1[v1, v2] + (T.Cast("float16", O_intermediate_reindex_pad_shared_dyn[v0, v1, v2]) + add[v1, v2]))
     # fmt: on
