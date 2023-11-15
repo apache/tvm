@@ -5464,6 +5464,13 @@ def test_linalg_vector_norm():
     verify_model(VectorNorm4().float().eval(), input_data=input_data)
     verify_model(VectorNorm5().float().eval(), input_data=input_data)
 
+    input_data = torch.rand(input_shape).double()
+    verify_model(VectorNorm1().double().eval(), input_data=input_data)
+    verify_model(VectorNorm2().double().eval(), input_data=input_data)
+    verify_model(VectorNorm3().double().eval(), input_data=input_data)
+    verify_model(VectorNorm4().double().eval(), input_data=input_data)
+    verify_model(VectorNorm5().double().eval(), input_data=input_data)
+
 
 class TestSetSpan:
     """test structural equal between translated / hand-crafted relay IR with span tagged."""
