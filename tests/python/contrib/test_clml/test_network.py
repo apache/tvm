@@ -21,7 +21,7 @@ import numpy as np
 from tvm import relay
 from tvm.relay import testing
 from tvm.contrib import utils
-from infrastructure import build_and_run, build_and_run_vm
+from test_clml.infrastructure import build_and_run, build_and_run_vm
 import pytest
 
 
