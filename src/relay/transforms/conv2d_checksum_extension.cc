@@ -137,11 +137,10 @@ class Conv2dVisitor : private ExprVisitor {
   }
 
  private:
+  //only supports 8bit dtypes as 16 bit is too big to be supported for accurate checksums
   bool supportedInputTensorType(const TensorTypeNode* arg){
     return ((arg->dtype == DataType::Int(8))  ||
-            (arg->dtype == DataType::Int(16)) ||
-            (arg->dtype == DataType::UInt(8)) ||
-            (arg->dtype == DataType::UInt(16)));
+            (arg->dtype == DataType::UInt(8)));
   }
 
     bool supportedOutputTensorType(const Conv2DAttrs* arg){
@@ -273,7 +272,6 @@ IRModule Extend2DConv(const IRModule& mod) {
         //////////////STATIC ATTR:
         //Cast Attr
         auto cast_attr_32bit = make_object<CastAttrs>();
-        cast_attr_32bit->dtype = DataType::Int(32);
         
         auto cast_attr_64bit = make_object<CastAttrs>();
         cast_attr_64bit->dtype = DataType::Int(64);
@@ -325,7 +323,7 @@ IRModule Extend2DConv(const IRModule& mod) {
 
 
         auto depthwise_conv_attr = create_depthwise_conv_attr(orig_conv_attr, one_tensor[2], one_tensor[3], Downcast<IntImm>(one_tensor[0]));
-        auto depthwise_kernel = Ones(infer_output_shape_conv2d(origin_conv2d), DataType::Int(8));
+        auto depthwise_kernel = Ones(infer_output_shape_conv2d(origin_conv2d), input_tensor->dtype);
 
         Call depthwise_conv(conv2d_op, {input, depthwise_kernel}, Attrs{depthwise_conv_attr});
 
@@ -358,6 +356,12 @@ IRModule Extend2DConv(const IRModule& mod) {
 
         Call filterwise_sum_input;
         bool depth = IsDepthwiseConv(origin_conv2d, orig_conv_attr, orig_conv_attr->kernel_layout);
+
+        if(weight_tensor->dtype.is_int()){
+          cast_attr_32bit->dtype = DataType::Int(32);
+        }else{
+          cast_attr_32bit->dtype = DataType::UInt(32);
+        }
 
         if(!depth){
           // normal Conv
