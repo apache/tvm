@@ -294,41 +294,22 @@ def test_single_depthwise_conv2d():
     check((1, 37, 56, 56),(37, 1, 11, 11), (37,1,46,46))
 
 
-def test_output():
-
-    def before():
-        x = relay.var("data", shape=(1, 37, 56, 56), dtype="int8")
-        w1 = relay.var("kernel", shape=(37, 1, 11, 11), dtype="int8")
-        y = relay.nn.conv2d(x, w1, out_dtype="int32",groups=int(w1.type_annotation.shape[0]),channels=w1.type_annotation.shape[0])
-        return relay.Function([x,w1], y)
-    
-    func = before()
-    func = run_opt_pass(func,transform.Extend2DConv())
-    verify(func,(1, 37, 56, 56),"int8",(37, 1, 11, 11),"int8")
 
 
 
 
-
-
-def verify(ref_func, data_shape, data_dtype, kernel_shape, kernel_dtype):
+def verify(data_shape, data_dtype, kernel_shape, kernel_dtype,out_dtype):
     def get_inputs(data_shape, data_dtype, kernel_shape, kernel_dtype):
         # Keeping inputs multiple of 4 because of a bug in Average Pool2d
         # https://discuss.tvm.apache.org/t/pool2d-gives-bad-output-for-integer-inputs/3377
-        low = -128
-        high = 127
-        if data_dtype == "uint8":
-            low = 0
-            high = 255
-        golden_data = np.random.randint(low=low, high=high, size=data_shape).astype(data_dtype)
-        low = -128
-        high = 127
-        if kernel_dtype == "uint8":
-            low = 0
-            high = 255
-        golden_weight = np.random.randint(low=low, high=high, size=kernel_shape).astype(
-            kernel_dtype
-        )
+
+        low_dict  = {"int8": -128,"uint8": 0, "int16": -32768, "uint16":0}
+        high_dict = {"int8": 127,"uint8": 255, "int16": 32767, "uint16":65535}
+        golden_data = np.random.randint(low=low_dict[data_dtype],
+                            high=high_dict[data_dtype], size=data_shape).astype(data_dtype)
+        golden_weight = np.random.randint(low=low_dict[kernel_dtype],
+                            high=high_dict[kernel_dtype], size=kernel_shape).astype(kernel_dtype)
+
         return (golden_data, golden_weight)
 
     def get_output(func, golden_inputs):
@@ -340,16 +321,34 @@ def verify(ref_func, data_shape, data_dtype, kernel_shape, kernel_dtype):
             mod.set_input("data", golden_data)
             mod.set_input(**params)
             mod.run()
-            res = mod.get_output(0).numpy()
+            res = mod
             return res
 
+    def create_conv(data_shape, data_dtype, kernel_shape, kernel_dtype):
+        x  = relay.var("data", shape=data_shape, dtype=data_dtype)
+        w1 = relay.var("kernel", shape=kernel_shape, dtype=kernel_dtype)
+        args = [x,w1]
+        y = relay.nn.conv2d(x, w1, padding=(0,0), out_dtype=out_dtype)
+        return relay.Function(args, y)
+
     golden_inputs = get_inputs(data_shape, data_dtype, kernel_shape, kernel_dtype)
+    ref_func = create_conv(data_shape, data_dtype, kernel_shape, kernel_dtype)
+    ref_func = run_opt_pass(ref_func, transform.Extend2DConv())
+    ref_func = run_opt_pass(ref_func, transform.InferType())
     golden_output = get_output(ref_func, golden_inputs)
-    print(golden_output)
-    #qnn_output = get_output(qnn_func, golden_inputs)
-    #np.testing.assert_equal(qnn_output, golden_output)
+    # Test if checksum unequivalence is wrong = intended
+    np.testing.assert_equal(golden_output.get_output(1).numpy(), np.array(False))
 
-
+def test_output():
+    verify((1, 37, 56, 56),"int8",(1, 37, 11, 11),"int8", "int32")
+    verify((2, 17, 20, 20),"int8",(1, 17, 11, 11),"int8", "int32")
+    verify((3, 44, 123, 321),"int8",(3, 44, 123, 44),"int8", "int32")
+    verify((5, 373, 20, 20),"int8",(12, 373, 11, 11),"int8", "int32")
+    verify((1, 23, 201, 20),"int8",(1, 23, 11, 11),"int8", "int32")
+    verify((83, 69, 12, 12),"uint8",(1, 69, 11, 11),"uint8", "uint32")
+    verify((5, 373, 20, 20),"uint8",(12, 373, 11, 11),"uint8", "uint32")
+    verify((132, 16, 23, 132),"uint8",(1, 16, 11, 11),"uint8", "uint32")
+    verify((5, 66, 123, 321),"uint8",(12, 66, 11, 11),"uint8", "uint32")
 
 
 if __name__ == "__main__":
