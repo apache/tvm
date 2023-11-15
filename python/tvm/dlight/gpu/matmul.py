@@ -99,6 +99,7 @@ def auto_inline_consumer_chain(
         for c in remaining_consumers:
             for p in sch.get_producers(c):
                 if sch.get(p) != sch.get(block):
+                    auto_inline_producers(sch, p)
                     sch.compute_inline(p)
 
         # Try inlining into the cache-write stage again, this time it should succeed.
