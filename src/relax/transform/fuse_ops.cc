@@ -1074,7 +1074,8 @@ class PatternBasedPartitioner : ExprVisitor {
   void VisitBinding_(const VarBindingNode* binding, const CallNode* call) final {
     VisitVarDef(binding->var);
     if (auto matches_opt = ExtractMatchedExpr(pat_, GetRef<Call>(call), bindings_)) {
-      if (check_ != nullptr && !check_(CreatePatternCheckContext(call, matches_opt.value()))) {
+      const auto& context = CreatePatternCheckContext(call, matches_opt.value());
+      if (check_ != nullptr && !check_(context)) {
         return;
       }
 
@@ -1107,8 +1108,7 @@ class PatternBasedPartitioner : ExprVisitor {
       ICHECK(parent_group);
       parent_group->attrs.Set(attr::kComposite, pat_name_);
       if (attrs_getter_ != nullptr) {
-        const auto& custom_attrs =
-            attrs_getter_(CreatePatternCheckContext(call, matches_opt.value()));
+        const auto& custom_attrs = attrs_getter_(context);
         for (const auto& pair : custom_attrs) {
           parent_group->attrs.Set(pair.first, pair.second);
         }

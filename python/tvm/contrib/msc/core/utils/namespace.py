@@ -60,6 +60,8 @@ class MSCKey:
     MSC_STAGE = "msc_stage"
     TIME_STAMPS = "time_stamps"
 
+    FUSED_CNT = "fused_cnt"
+
 
 class MSCFramework:
     """Framework type for the MSC"""

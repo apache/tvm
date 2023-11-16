@@ -654,8 +654,8 @@ class FusionPattern(Object):
         name: str,
         pattern: DFPattern,
         annotation_patterns: Optional[Mapping[str, DFPattern]] = None,
-        check: Optional[Callable[[Mapping[str, Expr]], bool]] = None,
-        attrs_getter: Optional[Callable[[Mapping[str, Expr]], Dict[str, str]]] = None,
+        check: Optional[Callable[[PatternCheckContext], bool]] = None,
+        attrs_getter: Optional[Callable[[PatternCheckContext], Dict[str, str]]] = None,
     ):
         if annotation_patterns is None:
             annotation_patterns = {}

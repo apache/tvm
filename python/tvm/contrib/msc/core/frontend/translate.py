@@ -114,6 +114,7 @@ def from_relax(
         )(mod)
     patterns = get_patterns_with_prefix("msc.")
     passes = [
+        msc_transform.SetExprName(),
         tvm.relax.transform.FuseOpsByPattern(
             patterns, bind_constants=False, annotate_codegen=False
         ),
@@ -306,20 +307,16 @@ def byoc_partition(
 
     def _partition_mod(mod, as_msc=True):
         patterns = get_patterns_with_prefix(target)
-        if as_msc:
-            passes = [tvm.relax.transform.FuseOpsByPattern(patterns, bind_constants=False)]
-        else:
-            passes = [tvm.relax.transform.FuseOpsByPattern(patterns, bind_constants=True)]
-        passes.extend(
-            [
-                msc_transform.BindShape(),
-                msc_transform.FuseTuple(target),
-                tvm.relax.transform.MergeCompositeFunctions(),
-                msc_transform.SetBYOCAttrs(target),
-                msc_transform.SetExprName(target=target),
-                msc_transform.SetExprLayout(trans_config.get("allow_layout_missing", True)),
-            ]
-        )
+        passes = [
+            msc_transform.SetExprName(),
+            tvm.relax.transform.FuseOpsByPattern(patterns, bind_constants=not as_msc),
+            msc_transform.BindShape(),
+            msc_transform.FuseTuple(target),
+            tvm.relax.transform.MergeCompositeFunctions(),
+            msc_transform.SetBYOCAttrs(target),
+            msc_transform.SetExprName(target=target),
+            msc_transform.SetExprLayout(trans_config.get("allow_layout_missing", True)),
+        ]
         return tvm.transform.Sequential(passes)(mod)
 
     def _is_target_func(func):
