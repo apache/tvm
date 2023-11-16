@@ -17,8 +17,8 @@
 # pylint: disable=unused-argument
 """tvm.contrib.msc.framework.tensorrt.transform.pattern"""
 
-from typing import Mapping, Tuple, List, Union, Callable
-from functools import wraps
+from typing import Mapping, Tuple, List, Union, Callable, Dict
+from functools import wraps, partial
 
 from tvm import relax
 from tvm.relax.dpl import pattern
@@ -255,11 +255,13 @@ def wrap_basic_check(
 
 
 CheckFunc = Callable[[Mapping[pattern.DFPattern, relax.Expr], relax.Expr], bool]
+GetterFunc = Callable[[Mapping[pattern.DFPattern, relax.Expr], relax.Expr], Dict[str, str]]
 Pattern = Union[
     FusionPattern,
     Tuple[str, pattern.DFPattern],
     Tuple[str, pattern.DFPattern, Mapping[str, pattern.DFPattern]],
     Tuple[str, pattern.DFPattern, Mapping[str, pattern.DFPattern], CheckFunc],
+    Tuple[str, pattern.DFPattern, Mapping[str, pattern.DFPattern], CheckFunc, GetterFunc],
 ]
 
 
@@ -306,33 +308,91 @@ def get_patterns(target) -> List[Pattern]:
     patterns = []
     # basic ops
     for op, in_types in basic_ops.items():
-        patterns.append((target + "." + op, *basic_pattern("relax." + op, in_types), _basic_check))
+        patterns.append(
+            (
+                target + "." + op,
+                *basic_pattern("relax." + op, in_types),
+                _basic_check,
+                partial(msc_pattern.msc_attrs_getter, anchor="out"),
+            )
+        )
     # activation ops
     for op in activation_ops:
-        patterns.append((target + "." + op, *basic_pattern("relax." + op, ["input"]), _basic_check))
+        patterns.append(
+            (
+                target + "." + op,
+                *basic_pattern("relax." + op, ["input"]),
+                _basic_check,
+                partial(msc_pattern.msc_attrs_getter, anchor="out"),
+            )
+        )
     # reduce ops
     for op in reduce_ops:
-        patterns.append((target + "." + op, *basic_pattern("relax." + op, ["input"]), _basic_check))
+        patterns.append(
+            (
+                target + "." + op,
+                *basic_pattern("relax." + op, ["input"]),
+                _basic_check,
+                partial(msc_pattern.msc_attrs_getter, anchor="out"),
+            )
+        )
     # unary ops
     for op in unary_ops:
-        patterns.append((target + "." + op, *basic_pattern("relax." + op, ["input"]), _basic_check))
+        patterns.append(
+            (
+                target + "." + op,
+                *basic_pattern("relax." + op, ["input"]),
+                _basic_check,
+                partial(msc_pattern.msc_attrs_getter, anchor="out"),
+            )
+        )
     # elemwise ops
     for op in elemwise_ops:
-        patterns.append((target + "." + op, *elemwise_pattern("relax." + op), _elemwise_check))
+        patterns.append(
+            (
+                target + "." + op,
+                *elemwise_pattern("relax." + op),
+                _elemwise_check,
+                partial(msc_pattern.msc_attrs_getter, anchor="out"),
+            )
+        )
     # compare ops
     for op in compare_ops:
-        patterns.append((target + "." + op, *elemwise_pattern("relax." + op), _compare_check))
+        patterns.append(
+            (
+                target + "." + op,
+                *elemwise_pattern("relax." + op),
+                _compare_check,
+                partial(msc_pattern.msc_attrs_getter, anchor="out"),
+            )
+        )
 
     # special ops
     patterns.extend(
         [
-            (target + ".take", *basic_pattern("relax.take", ["input", "input"]), _take_check),
-            (target + ".argmax", *argmaxmin_pattern("relax.argmax"), _argmaxmin_check),
-            (target + ".argmin", *argmaxmin_pattern("relax.argmin"), _argmaxmin_check),
+            (
+                target + ".take",
+                *basic_pattern("relax.take", ["input", "input"]),
+                _take_check,
+                partial(msc_pattern.msc_attrs_getter, anchor="out"),
+            ),
+            (
+                target + ".argmax",
+                *argmaxmin_pattern("relax.argmax"),
+                _argmaxmin_check,
+                partial(msc_pattern.msc_attrs_getter, anchor="out"),
+            ),
+            (
+                target + ".argmin",
+                *argmaxmin_pattern("relax.argmin"),
+                _argmaxmin_check,
+                partial(msc_pattern.msc_attrs_getter, anchor="out"),
+            ),
             (
                 target + ".reshape",
                 *basic_pattern("relax.reshape", ["input", "input"]),
                 _reshape_check,
+                partial(msc_pattern.msc_attrs_getter, anchor="out"),
             ),
         ]
     )
@@ -343,6 +403,7 @@ def get_patterns(target) -> List[Pattern]:
                 target + ".msc.conv2d_bias",
                 *msc_pattern.make_opt_relax_conv_bias_pattern("relax.nn.conv2d"),
                 wrap_basic_check(msc_pattern._check_opt_relax_conv_bias),
+                partial(msc_pattern.msc_attrs_getter, anchor="conv"),
             ),
         ]
     )
