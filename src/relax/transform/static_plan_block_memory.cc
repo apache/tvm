@@ -38,16 +38,19 @@
  * alloc_tensor.
  *
  * The third stage is IR rewrite. Based on the decision made in the second
- * stage, we insert memory alloc_storage, alloc_tensor, kill_tensor, and
- * kill_storage accordingly. Specifically, we
- * - insert alloc_storage before the site that each storage token is firstly
- * used,
- * - insert memory alloc_tensor for each builtin alloc_tensor,
- * - insert kill_tensor after the site that a tensor created by alloc_tensor
- * is last referenced, and
- * - insert kill_storage at the end of each binding block, for all the storage
- * tokens that are allocated inside the binding block, as the memory planning
- * only works on block level.
+ * stage, we insert memory alloc_storage, alloc_tensor.
+ *
+ * - Insert `memory.alloc_storage` before first usage site of each
+ *   storage token.
+ *
+ * - Insert `memory.alloc_tensor` at the site of the
+ *   `builtin.alloc_tensor` that it replaces.
+ *
+ * We do not insert `memory.kill_storage` or `memory.kill_tensor`, as
+ * these are handled in the later `KillAfterLastUse` lowering pass.
+ * This ensures that all tensors are killed after their last use,
+ * including dynamically-sized tensors, without requiring that
+ * `StaticPlanBlockMemory` track these dynamic-sized tensors.
  *
  * The memory planning pass "supports" dynamic shape in the way of TIR variable
  * upper bound annotation. To be more specific, we can annotate the attribute
@@ -549,14 +552,10 @@ class StorageAllocatorInit : public StorageAllocatorBaseVisitor {
  * token in the token pool we maintain.
  * - For each VM builtin reshape, we reuse the input's tokens.
  *
- * After the allocation planning, we
- * - know the token that each builtin alloc_tensor plans to use. Compared
- * with the initialization, here the token is possibly a reuse of some
- * previous token, rather than we having one token for each alloc_tensor.
- * - know the last referenced site for each builtin alloc_tensor. This
- * information is used for inserting kill_tensor in the rewrite stage.
- * - know the tokens allocated in each binding block. This information
- * is used for inserting kill_storage in the rewrite stage.
+ * After the allocation planning, we know the token that each builtin
+ * alloc_tensor plans to use. Compared with the initialization, here
+ * the token is possibly a reuse of some previous token, rather than
+ * we having one token for each alloc_tensor.
  */
 class StorageAllocator : public StorageAllocatorBaseVisitor {
  public:
@@ -579,8 +578,6 @@ class StorageAllocator : public StorageAllocatorBaseVisitor {
    * underlying storage token that it is using.
    */
   std::unordered_map<const ExprNode*, StorageToken> alloc_tensor2token;
-  /*! \brief The mapping from each Expr to the tensors that need to be killed after it. */
-  std::unordered_map<const ExprNode*, std::vector<Var>> expr2killed_tensors;
   /*! \brief The mapping from each binding block to the storage tokens that are create inside. */
   std::unordered_map<const BindingBlockNode*, std::vector<const StorageTokenNode*>> block2tokens;
 
@@ -641,10 +638,10 @@ class StorageAllocator : public StorageAllocatorBaseVisitor {
     // And release it if so.
     for (const Expr& arg : call->args) {
       Tokens tokens = GetTokens(arg);
-      ForEachLeaf(tokens, [this, call](StorageToken token) {
+      ForEachLeaf(tokens, [this](StorageToken token) {
         ICHECK_GT(token->ref_counter, 0);
         token->ref_counter -= 1;
-        this->CheckForRelease(token, call);
+        this->CheckForRelease(token);
       });
     }
   }
@@ -662,11 +659,8 @@ class StorageAllocator : public StorageAllocatorBaseVisitor {
   /*!
    * \brief Check if a token has no reference and thus can be released. And release it if so.
    * \param token The token to be checked.
-   * \param release_site The CallNode where the input token is send for release.
-   * If the token is checked to release here, we keep record of the release site so that
-   * kill_tensor can be inserted here at the rewrite stage.
    */
-  void CheckForRelease(StorageToken token, const CallNode* release_site) {
+  void CheckForRelease(StorageToken token) {
     // Sanity check: the token was allocated before and has non-negative reference.
     ICHECK_GE(token->storage_id, 0);
     ICHECK_GE(token->ref_counter, 0);
@@ -675,10 +669,6 @@ class StorageAllocator : public StorageAllocatorBaseVisitor {
       allocator_.Release(token);
       auto it = token2cur_tensor_.find(token.get());
       ICHECK(it != token2cur_tensor_.end());
-      // Record that the tensors that are using this token will be killed
-      // immediately after the release site.
-      std::vector<Var>& killed_tensors = expr2killed_tensors[release_site];
-      killed_tensors.insert(killed_tensors.end(), it->second.begin(), it->second.end());
       token2cur_tensor_.erase(it);
     }
   }
@@ -696,19 +686,15 @@ class StorageAllocator : public StorageAllocatorBaseVisitor {
  * \details
  * - For each builtin alloc_tensor that was planned, substitute it with a memory
  * alloc_tensor. If no memory alloc_storage was created for it before, create one.
- * - Insert memory kill_tensor at the release site of each tensor.
- * - Insert memory kill_storage at the end of each binding block, for the tokens allocated in it.
  */
 class StorageAllocationRewriter : public ExprMutator {
  public:
   explicit StorageAllocationRewriter(
       IRModule mod, std::unordered_map<const ExprNode*, StorageToken> alloc_tensor2token,
-      std::unordered_map<const ExprNode*, std::vector<Var>> expr2killed_tensors,
       std::unordered_map<const BindingBlockNode*, std::vector<const StorageTokenNode*>>
           block2tokens)
       : ExprMutator(std::move(mod)),
         alloc_tensor2token_(std::move(alloc_tensor2token)),
-        expr2killed_tensors_(std::move(expr2killed_tensors)),
         block2tokens_(std::move(block2tokens)) {}
 
   IRModule Rewrite() {
@@ -727,38 +713,6 @@ class StorageAllocationRewriter : public ExprMutator {
 
  private:
   using ExprMutator::VisitExpr_;
-
-  BindingBlock VisitBindingBlock_(const BindingBlockNode* block) final {
-    builder_->BeginBindingBlock();
-    for (Binding binding : block->bindings) {
-      this->VisitBinding(binding);
-    }
-
-    // Insert `memory.kill_storage` for the storage tokens allocated inside this block.
-    for (const StorageTokenNode* token : block2tokens_[block]) {
-      auto it_token = token2storage_var_.find(token);
-      ICHECK(it_token != token2storage_var_.end());
-      static const Op& mem_kill_storage = Op::Get("relax.memory.kill_storage");
-      this->builder_->Emit(Call(mem_kill_storage, {it_token->second}), /*name_hint=*/"_");
-    }
-
-    BindingBlock new_block = builder_->EndBlock();
-    return new_block;
-  }
-
-  void VisitBinding_(const VarBindingNode* binding) final {
-    ExprMutator::VisitBinding_(binding);
-
-    // Insert `memory.kill_tensor` for the tensors that need to be killed after this binding.
-    auto it = expr2killed_tensors_.find(binding->value.get());
-    if (it != expr2killed_tensors_.end()) {
-      for (const Var& var : it->second) {
-        static const Op& mem_kill_tensor = Op::Get("relax.memory.kill_tensor");
-        this->builder_->Emit(Call(mem_kill_tensor, {Downcast<Var>(this->VisitExpr(var))}),
-                             /*name_hint=*/"_");
-      }
-    }
-  }
 
   Expr VisitExpr_(const CallNode* call) final {
     auto it = alloc_tensor2token_.find(call);
@@ -805,8 +759,6 @@ class StorageAllocationRewriter : public ExprMutator {
    its corresponding underlying storage token that it is using.
    */
   std::unordered_map<const ExprNode*, StorageToken> alloc_tensor2token_;
-  /*! \brief The mapping from each Expr to the tensors that need to be killed after it. */
-  std::unordered_map<const ExprNode*, std::vector<Var>> expr2killed_tensors_;
   /*! \brief The mapping from each binding block to the storage tokens that are create inside. */
   std::unordered_map<const BindingBlockNode*, std::vector<const StorageTokenNode*>> block2tokens_;
   /*! \brief The mapping from each token to its corresponding storage var in each function. */
@@ -822,7 +774,6 @@ IRModule StaticPlanBlockMemory(IRModule mod) {
   // Step 3. Rewrite the function.
   StorageAllocationRewriter rewriter(std::move(mod),  //
                                      std::move(allocator.alloc_tensor2token),
-                                     std::move(allocator.expr2killed_tensors),
                                      std::move(allocator.block2tokens));
   return rewriter.Rewrite();
 }

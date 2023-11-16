@@ -97,6 +97,7 @@ def test_dataflow_var_pattern():
 
 def test_global_var_pattern():
     assert is_gv("x").match(rx.GlobalVar("x"))
+    assert is_gv("x.*").match(rx.GlobalVar("x_2"))
     assert is_gv().match(rx.GlobalVar("x"))
     assert not is_gv("x").match(rx.GlobalVar("y"))
     assert not is_gv("x").match(rx.Var("x"))
@@ -1181,7 +1182,6 @@ def test_combine_matmul_emit_order():
         # make sure it builds
         mod = tvm.IRModule()
         mod["main"] = rewritten
-        mod = rx.transform.LegalizeOps()(mod)
 
         rx.build(mod, target="llvm")
 
@@ -1279,7 +1279,6 @@ def test_combine_transposed_matmul_twice():
         # make sure it builds
         mod = tvm.IRModule()
         mod["main"] = rewritten
-        mod = rx.transform.LegalizeOps()(mod)
 
         rx.build(mod, target="llvm")
 
@@ -1403,8 +1402,7 @@ def test_rewrite_without_trivial_binding(bind_to_dataflow_var):
         @R.function(private=True)
         def expected(x: R.Tensor((1024,))):
             with R.dataflow():
-                a = R.add(x, x)
-                b = a
+                b = R.add(x, x)
                 R.output(b)
             return b
 

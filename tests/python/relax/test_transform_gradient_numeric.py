@@ -22,12 +22,10 @@ from tvm.relay.testing import rand
 from tvm.testing import assert_allclose
 from tvm.testing.utils import check_numerical_grads
 from tvm.script.parser import ir as I, relax as R
-from tvm.relax.transform import LegalizeOps
 
 
 def _legalize_and_build(mod, target, dev):
-    lowered_mod = LegalizeOps()(mod)
-    ex = relax.build(lowered_mod, target)
+    ex = relax.build(mod, target)
     vm = relax.VirtualMachine(ex, dev)
     return vm
 
@@ -168,6 +166,43 @@ def test_complex(target, dev):
                 lv24 = R.add(lv19, lv23)
                 lv25 = R.nn.log_softmax(lv24)
                 gv = R.nn.nll_loss(lv25, cst1)
+                R.output(gv)
+            return gv
+
+    After = relax.transform.Gradient("main")(Before)
+    args = []
+    for arg in After["main_adjoint"].params:
+        shape = [int(l) for l in arg.struct_info.shape]
+        args.append(rand("float32", *shape))
+
+    vm_before = _legalize_and_build(Before, target, dev)
+    vm_after = _legalize_and_build(After, target, dev)
+    _, grad = vm_after["main_adjoint"](*args)
+
+    def func(*inputs):
+        loss = vm_before["main"](*[tvm.nd.array(i) for i in inputs])
+        return loss.numpy()
+
+    check_numerical_grads(func, [i.numpy() for i in args], [i.numpy() for i in grad])
+
+
+@tvm.testing.parametrize_targets("llvm")
+def test_matmul(target, dev):
+    @tvm.script.ir_module
+    class Before:
+        @R.function
+        def main(x: R.Tensor((3, 3), "float32"), y: R.Tensor((3, 3), "float32")):
+            with R.dataflow():
+                lv1 = R.matmul(x, y)
+                lv2 = R.permute_dims(x)
+                lv3 = R.matmul(lv2, y)
+                lv4 = R.permute_dims(y)
+                lv5 = R.matmul(x, lv4)
+                lv6 = R.permute_dims(x)
+                lv7 = R.permute_dims(y)
+                lv8 = R.matmul(lv6, lv7)
+                lv9 = lv1 + lv3 + lv5 + lv8
+                gv = R.sum(lv9)
                 R.output(gv)
             return gv
 

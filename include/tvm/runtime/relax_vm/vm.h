@@ -31,12 +31,19 @@
 #include <string>
 #include <vector>
 
+#include "../memory/memory_manager.h"
 #include "./bytecode.h"
 #include "./executable.h"
-#include "./memory_manager.h"
 
 namespace tvm {
 namespace runtime {
+
+using memory::Allocator;
+using memory::AllocatorType;
+using memory::MemoryManager;
+using memory::Storage;
+using memory::StorageObj;
+
 namespace relax_vm {
 
 /*!

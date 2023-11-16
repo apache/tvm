@@ -68,7 +68,7 @@ void BcastSessionObj::Shutdown() {
   BcastSessionObj::Internal::BroadcastUnpacked(this, DiscoAction::kShutDown, 0);
 }
 
-void BcastSessionObj::InitCCL(String ccl, ShapeTuple device_ids) {
+void BcastSessionObj::InitCCL(String ccl, IntTuple device_ids) {
   const auto* pf = runtime::Registry::Get("runtime.disco." + ccl + ".init_ccl");
   CHECK(pf) << "ValueError: Cannot initialize CCL `" << ccl
             << "`, because cannot find function: runtime.disco." << ccl << ".init_ccl";

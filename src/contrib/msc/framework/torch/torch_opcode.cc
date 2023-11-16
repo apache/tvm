@@ -396,23 +396,42 @@ class TorchPermuteDimsCodeGen : public TorchOpCode {
 };
 
 class TorchReduceAxisCodeGen : public TorchOpCode {
- public:
-  TorchReduceAxisCodeGen(const String& module_name, const String& func_name, bool as_list)
-      : TorchOpCode(module_name, func_name), as_list_(as_list) {}
+  TORCH_OP_CODEGEN_METHODS(TorchReduceAxisCodeGen);
 
  protected:
   void CodeGenForward() final {
     stack_.op_call().op_input_arg();
-    if (as_list_) {
-      stack_.op_list_arg<int>("axis", "dim");
-    } else {
-      stack_.op_arg<int>("axis", "dim");
+    int axis;
+    std::vector<int> axes;
+    bool has_axis = false;
+    if (node()->GetAttr("axis", &axis)) {
+      has_axis = true;
+    } else if (node()->GetAttr("axis", &axes)) {
+      axis = axes[0];
+      has_axis = true;
+    }
+    if (has_axis) {
+      stack_.call_arg(axis, "dim");
     }
     stack_.op_arg<bool>("keepdims", "keepdim");
   }
+};
 
- private:
-  bool as_list_;
+class TorchReduceAxesCodeGen : public TorchOpCode {
+  TORCH_OP_CODEGEN_METHODS(TorchReduceAxesCodeGen);
+
+ protected:
+  void CodeGenForward() final {
+    stack_.op_call().op_input_arg();
+    std::vector<int> axes;
+    bool has_axes = false;
+    if (node()->GetAttr("axis", &axes) || node()->GetAttr("axes", &axes)) {
+      has_axes = true;
+    }
+    if (has_axes) {
+      stack_.call_arg(DocUtils::ToListDoc(axes), "dim").op_arg<bool>("keepdims", "keepdim");
+    }
+  }
 };
 
 class TorchRepeatCodeGen : public TorchOpCode {
@@ -441,12 +460,12 @@ class TorchReshapeCodeGen : public TorchOpCode {
 
  protected:
   void CodeGenForward() final {
-    std::vector<int> shape = node()->GetTypeArrayAttr<int>("shape");
+    Array<Integer> shape = node()->OutputAt(0)->shape;
     const auto& out_layout = node()->OutputAt(0)->layout;
     if (out_layout.defined()) {
       int32_t batch_dim = out_layout.IndexOf(tvm::tir::LayoutAxis::Get("N"));
       if (batch_dim > 0) {
-        shape[batch_dim] = -1;
+        shape.Set(batch_dim, Integer(-1));
       }
     }
     stack_.op_call().op_input_arg().call_arg(DocUtils::ToListDoc(shape));
@@ -596,15 +615,15 @@ const std::shared_ptr<std::unordered_map<String, std::shared_ptr<TorchOpCode>>> 
   map->emplace("tan", std::make_shared<TorchSimpleCodeGen>("", "torch.tan"));
   map->emplace("tanh", std::make_shared<TorchSimpleCodeGen>("", "torch.tanh"));
 
-  // reduce axis ops
-  map->emplace("argmax", std::make_shared<TorchReduceAxisCodeGen>("", "torch.argmax", false));
-  map->emplace("argmin", std::make_shared<TorchReduceAxisCodeGen>("", "torch.argmin", false));
-  map->emplace("max", std::make_shared<TorchReduceAxisCodeGen>("", "torch.max", false));
-  map->emplace("min", std::make_shared<TorchReduceAxisCodeGen>("", "torch.min", false));
-  map->emplace("mean", std::make_shared<TorchReduceAxisCodeGen>("", "torch.mean", true));
-  map->emplace("sum", std::make_shared<TorchReduceAxisCodeGen>("", "torch.sum", true));
-  map->emplace("prod", std::make_shared<TorchReduceAxisCodeGen>("", "torch.prod", false));
-  map->emplace("std", std::make_shared<TorchReduceAxisCodeGen>("", "torch.std", true));
+  // reduce ops
+  map->emplace("max", std::make_shared<TorchReduceAxesCodeGen>("", "torch.max"));
+  map->emplace("min", std::make_shared<TorchReduceAxesCodeGen>("", "torch.min"));
+  map->emplace("mean", std::make_shared<TorchReduceAxesCodeGen>("", "torch.mean"));
+  map->emplace("sum", std::make_shared<TorchReduceAxesCodeGen>("", "torch.sum"));
+  map->emplace("argmax", std::make_shared<TorchReduceAxisCodeGen>("", "torch.argmax"));
+  map->emplace("argmin", std::make_shared<TorchReduceAxisCodeGen>("", "torch.argmin"));
+  map->emplace("prod", std::make_shared<TorchReduceAxisCodeGen>("", "torch.prod"));
+  map->emplace("std", std::make_shared<TorchReduceAxisCodeGen>("", "torch.std"));
 
   // axis && axes ops
   map->emplace("nn.log_softmax",

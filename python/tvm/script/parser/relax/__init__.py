@@ -34,18 +34,15 @@ if TYPE_CHECKING:
 else:
     from .entry import function, macro
 
-__all__ = (
-    _relax.__all__
-    + dist.__all__
-    + [
-        "Callable",
-        "Object",
-        "Prim",
-        "Shape",
-        "Tensor",
-        "Tuple",
-        "function",
-        "macro",
-        "match_cast",
-    ]
-)
+__all__ = _relax.__all__ + [
+    "dist",
+    "Callable",
+    "Object",
+    "Prim",
+    "Shape",
+    "Tensor",
+    "Tuple",
+    "function",
+    "macro",
+    "match_cast",
+]

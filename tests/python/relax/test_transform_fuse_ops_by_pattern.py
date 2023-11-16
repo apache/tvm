@@ -539,7 +539,7 @@ def test_compare_with_merge_composite_path():
             gv = bb.emit_output(lv0)
         bb.emit_func_output(gv)
     mod = bb.get()
-    mod = relax.transform.FoldDataflowBlockOutput()(mod)
+    mod = relax.transform.CanonicalizeBindings()(mod)
 
     # Currently, we have two paths for BYOC.
     # Path1. [FuseOpsByPattern(patterns, annotate_codegen=True), RunCodegen()]

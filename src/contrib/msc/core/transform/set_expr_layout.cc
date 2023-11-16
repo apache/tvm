@@ -50,6 +50,9 @@ LayoutDecision InferLayoutDecision(const Expr& expr, const VarLayoutMap& var_lay
 LayoutDecision InferLayoutDecisionAt(const Expr& expr, const VarLayoutMap& var_layout_map,
                                      size_t index = 0) {
   const auto& nlayouts = InferNLayout(expr, var_layout_map);
+  if (nlayouts.IsLeaf()) {
+    return index == 0 ? nlayouts.LeafValue() : LayoutDecision("");
+  }
   const auto& nlayout = nlayouts.NestedArray()[0];
   ICHECK(nlayout.IsLeaf()) << "Cannot get output layout for " << expr;
   return nlayout.LeafValue();
@@ -207,6 +210,15 @@ InferLayoutOutput MSCInferLayoutPool2d(const Call& call,
     out_layout = LayoutDecision(attrs->out_layout);
   }
   return InferLayoutOutput({layout}, {out_layout}, Attrs());
+}
+
+InferLayoutOutput MSCInferLayoutResize2d(const Call& call,
+                                         const Map<String, Array<String>>& desired_layouts,
+                                         const VarLayoutMap& var_layout_map) {
+  const auto* attrs = call->attrs.as<Resize2DAttrs>();
+  const auto& data_layout = LayoutDecision(attrs->layout);
+  const auto& shape_layout = LayoutDecision("O");
+  return InferLayoutOutput({data_layout, shape_layout}, {data_layout}, Attrs());
 }
 
 // Forward Infer
@@ -531,6 +543,9 @@ TVM_REGISTER_OP("relax.nn.avg_pool2d")
     .set_attr<FRelaxInferLayout>("FMSCForwardInferLayout", MSCInferLayoutPool2d);
 TVM_REGISTER_OP("relax.nn.adaptive_avg_pool2d")
     .set_attr<FRelaxInferLayout>("FMSCForwardInferLayout", MSCInferLayoutPool2d);
+TVM_REGISTER_OP("relax.image.resize2d")
+    .set_attr<FRelaxInferLayout>("FMSCForwardInferLayout", MSCInferLayoutResize2d);
+
 // reduce axis ops
 TVM_REGISTER_OP("relax.argmax")
     .set_attr<FRelaxInferLayout>("FMSCForwardInferLayout", ForwardInferLayoutArgMaxMin);
@@ -589,6 +604,7 @@ TVM_REGISTER_OP("relax.bitwise_or")
     .set_attr<FRelaxInferLayout>("FMSCForwardInferLayout", ForwardInferLayoutBinary);
 TVM_REGISTER_OP("relax.bitwise_xor")
     .set_attr<FRelaxInferLayout>("FMSCForwardInferLayout", ForwardInferLayoutBinary);
+
 // math ops
 TVM_REGISTER_OP("relax.expand_dims")
     .set_attr<FRelaxInferLayout>("FMSCForwardInferLayout", ForkwardInferLayoutExpandDims);
@@ -602,6 +618,7 @@ TVM_REGISTER_OP("relax.squeeze")
     .set_attr<FRelaxInferLayout>("FMSCForwardInferLayout", ForwardInferLayoutSqueeze);
 TVM_REGISTER_OP("relax.take")
     .set_attr<FRelaxInferLayout>("FMSCForwardInferLayout", ForwardInferLayoutTake);
+
 // nn ops
 TVM_REGISTER_OP("relax.nn.batch_norm")
     .set_attr<FRelaxInferLayout>("FMSCForwardInferLayout", ForwardInferLayoutBatchNorm);
@@ -895,6 +912,23 @@ InferLayoutOutput BackwardInferLayoutTake(const Call& call,
   LayoutDecision input_layout = LayoutUtils::ReduceLayout(output_layout, std::vector<size_t>{0});
   return InferLayoutOutput({LayoutDecision("WE"), input_layout}, {output_layout}, Attrs());
 }
+InferLayoutOutput BackwardInferLayoutTupleInputs(const Call& call,
+                                                 const Map<String, Array<String>>& desired_layouts,
+                                                 const VarLayoutMap& var_layout_map) {
+  LayoutDecision output_layout = InferLayoutDecision(call, var_layout_map);
+  if (!output_layout->layout.defined()) {
+    return InferLayoutOutput();
+  }
+  std::vector<NLayout> input_layouts;
+  if (const auto* t_node = GetStructInfo(call->args[0]).as<TupleStructInfoNode>()) {
+    for (size_t i = 0; i < t_node->fields.size(); i++) {
+      input_layouts.push_back(output_layout);
+    }
+  } else {
+    LOG_FATAL << "Expected input as tuple, get " << call->args[0];
+  }
+  return InferLayoutOutput(input_layouts, {output_layout}, Attrs());
+}
 
 TVM_REGISTER_OP("relax.nn.conv1d")
     .set_attr<FRelaxInferLayout>("FMSCBackwardInferLayout", MSCInferLayoutConv);
@@ -906,6 +940,9 @@ TVM_REGISTER_OP("relax.nn.avg_pool2d")
     .set_attr<FRelaxInferLayout>("FMSCBackwardInferLayout", MSCInferLayoutPool2d);
 TVM_REGISTER_OP("relax.nn.adaptive_avg_pool2d")
     .set_attr<FRelaxInferLayout>("FMSCBackwardInferLayout", MSCInferLayoutPool2d);
+TVM_REGISTER_OP("relax.image.resize2d")
+    .set_attr<FRelaxInferLayout>("FMSCBackwardInferLayout", MSCInferLayoutResize2d);
+
 // reduce axis ops
 TVM_REGISTER_OP("relax.argmax")
     .set_attr<FRelaxInferLayout>("FMSCBackwardInferLayout", BackwardInferLayoutArgMaxMin);
@@ -923,6 +960,7 @@ TVM_REGISTER_OP("relax.prod")
     .set_attr<FRelaxInferLayout>("FMSCBackwardInferLayout", BackwardInferLayoutReduceAxis);
 TVM_REGISTER_OP("relax.std")
     .set_attr<FRelaxInferLayout>("FMSCBackwardInferLayout", BackwardInferLayoutReduceAxis);
+
 // binary ops
 TVM_REGISTER_OP("relax.add")
     .set_attr<FRelaxInferLayout>("FMSCBackwardInferLayout", BackwardInferLayoutBinary);
@@ -964,7 +1002,10 @@ TVM_REGISTER_OP("relax.bitwise_or")
     .set_attr<FRelaxInferLayout>("FMSCBackwardInferLayout", BackwardInferLayoutBinary);
 TVM_REGISTER_OP("relax.bitwise_xor")
     .set_attr<FRelaxInferLayout>("FMSCBackwardInferLayout", BackwardInferLayoutBinary);
+
 // math ops
+TVM_REGISTER_OP("relax.concat")
+    .set_attr<FRelaxInferLayout>("FMSCBackwardInferLayout", BackwardInferLayoutTupleInputs);
 TVM_REGISTER_OP("relax.expand_dims")
     .set_attr<FRelaxInferLayout>("FMSCBackwardInferLayout", BackwardInferLayoutExpandDims);
 TVM_REGISTER_OP("relax.matmul")
@@ -977,6 +1018,7 @@ TVM_REGISTER_OP("relax.squeeze")
     .set_attr<FRelaxInferLayout>("FMSCBackwardInferLayout", BackwardInferLayoutSqueeze);
 TVM_REGISTER_OP("relax.take")
     .set_attr<FRelaxInferLayout>("FMSCBackwardInferLayout", BackwardInferLayoutTake);
+
 // nn ops
 TVM_REGISTER_OP("relax.nn.batch_norm")
     .set_attr<FRelaxInferLayout>("FMSCBackwardInferLayout", BackwardInferLayoutBatchNorm);

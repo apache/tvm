@@ -222,14 +222,13 @@ class CUDAGraphRewritePlanner : public ExprVisitor {
 
   void VisitBinding_(const VarBindingNode* binding, const CallNode* call) final {
     static const auto& mem_alloc_storage_op = Op::Get("relax.memory.alloc_storage");
-    static const auto& mem_kill_storage_op = Op::Get("relax.memory.kill_storage");
     static const auto& builtin_alloc_tensor_op = Op::Get("relax.builtin.alloc_tensor");
     static const auto& call_builtin_with_ctx_op = Op::Get("relax.call_builtin_with_ctx");
 
     if (call->op.same_as(mem_alloc_storage_op) && IsStaticAllocStorage(binding)) {
       AddStaticBinding(binding, /*is_alloc_storage=*/true);
       return;
-    } else if (call->op.same_as(mem_kill_storage_op) || call->op.same_as(builtin_alloc_tensor_op)) {
+    } else if (call->op.same_as(builtin_alloc_tensor_op)) {
       return;
     }
 

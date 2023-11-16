@@ -47,10 +47,22 @@ class ShardLoaderObj : public Object {
                           std::string shard_info, Module mod);
   /*! \brief Load the i-th parameter */
   NDArray Load(int weight_index) const;
+
+  NDArray LoadParamOnWorker0(int weight_index) const;
+
   /*! \brief Load all the parameters */
   Array<NDArray> LoadAll() const;
 
   NDArray ApplyShardFunc(const ShardInfo::ShardFunc& shard_func, const NDArray& param) const;
+
+  /*! \brief Load all the pre-sharded parameters */
+  Array<NDArray> LoadAllPresharded() const;
+
+  /*! \brief Load the i-th parameter from presharded binaries */
+  NDArray LoadPresharded(int weight_index) const;
+
+  /*! \brief Slice the given tensor at a specific dimension */
+  NDArray Shard(NDArray source, int dim, int num_slices) const;
 
   static constexpr const char* _type_key = "runtime.disco.ShardLoader";
   TVM_DECLARE_FINAL_OBJECT_INFO(ShardLoaderObj, Object);
@@ -74,6 +86,19 @@ class ShardLoaderObj : public Object {
   mutable const FileRecord* current_file_;
   /*! \brief The context of the current file to be loaded from */
   mutable std::string current_file_stream_;
+
+ private:
+  /*! \brief Load the i-th parameter without post-processing
+   *
+   * This function should not be called externally, as it does not
+   * check for post-processing that may be required.  Instead, the
+   * public function `Load` or `LoadPresharded` should be called.
+   *
+   * \param weight_index The index of NDArray tensor to load
+   *
+   * \returns The full tensor at the specified index
+   */
+  NDArray LoadDirect(int weight_index) const;
 };
 
 TVM_REGISTER_OBJECT_TYPE(ShardLoaderObj);
@@ -141,12 +166,12 @@ std::string GetSiblingPath(const std::string& path, const std::string& filename)
   LOG(FATAL) << "ValueError: Cannot find the parent directory: " << path;
 }
 
-NDArray ShardLoaderObj::Load(int weight_index) const {
+NDArray ShardLoaderObj::LoadParamOnWorker0(int weight_index) const {
   DiscoWorker* worker = DiscoWorker::ThreadLocal();
   int worker_id = worker->worker_id;
-  int num_shards = worker->num_workers;
   Device device = worker->default_device;
-  const ParamInfo& param_info = param_info_.at(weight_index);
+  int param_index = param_name_to_index_.at("param_" + std::to_string(weight_index));
+  const ParamInfo& param_info = param_info_.at(param_index);
   const ParamRecord* param = param_info.param;
   const FileRecord* file = param_info.file;
 
@@ -161,6 +186,63 @@ NDArray ShardLoaderObj::Load(int weight_index) const {
         [](NDArray param, const void* data, size_t nbytes) { param.CopyFromBytes(data, nbytes); });
   };
 
+  if (worker_id == 0) {
+    NDArray w = load();
+    return w;
+  } else {
+    NDArray w = NDArray::Empty(param->shape, param->dtype, device);
+    return w;
+  }
+}
+
+std::tuple<int, int> ParseParamShardingInfo(const ParamRecord* param) {
+  // Given a name "param_shard-X-of-Y", return the integer values
+  // rank=(X-1) and world_size=Y.
+
+  std::string name = param->name;
+  size_t pos1 = name.rfind("-of-");
+  CHECK(pos1 != std::string::npos)
+      << "Attempt to read num_shards from unexpected param name: " << name;
+  size_t pos2 = name.rfind("_shard-", pos1 - 1);
+  CHECK(pos2 != std::string::npos)
+      << "Attempt to read sharded worker_id from unexpected param name: " << name;
+
+  int num_shards = std::stoi(name.substr(pos1 + 4));
+  int worker_id = std::stoi(name.substr(pos2 + 7, pos1 - pos2 - 7)) - 1;
+
+  CHECK_GT(num_shards, 1);
+  CHECK_GE(worker_id, 0);
+  CHECK_LT(worker_id, num_shards);
+
+  return {num_shards, worker_id};
+}
+
+NDArray ShardLoaderObj::LoadDirect(int weight_index) const {
+  const ParamInfo& param_info = param_info_.at(weight_index);
+  const ParamRecord* param = param_info.param;
+  const FileRecord* file = param_info.file;
+
+  DiscoWorker* worker = DiscoWorker::ThreadLocal();
+  Device device = worker->default_device;
+
+  if (file != current_file_) {
+    current_file_ = file;
+    std::string file_name = GetSiblingPath(this->metadata_.path, file->data_path);
+    LoadBinaryFromFile(file_name, &this->current_file_stream_);
+  }
+  return param->Load(
+      device, &this->current_file_stream_,
+      [](NDArray param, const void* data, size_t nbytes) { param.CopyFromBytes(data, nbytes); });
+}
+
+NDArray ShardLoaderObj::Load(int weight_index) const {
+  DiscoWorker* worker = DiscoWorker::ThreadLocal();
+  int worker_id = worker->worker_id;
+  int num_shards = worker->num_workers;
+  Device device = worker->default_device;
+  const ParamInfo& param_info = param_info_.at(weight_index);
+  const ParamRecord* param = param_info.param;
+
   bool needs_sharding = !param_info.shard_info.funcs.empty();
   if (needs_sharding) {
     ShapeTuple shape = param_info.shard_info.funcs.back().output_info.shape;
@@ -171,7 +253,7 @@ NDArray ShardLoaderObj::Load(int weight_index) const {
         << "number of shards, but got: " << shape << " and num_shards = " << num_shards;
     NDArray recv = NDArray::Empty(ShapeTuple(shape.begin() + 1, shape.end()), dtype, device);
     if (worker_id == 0) {
-      NDArray w = load();
+      NDArray w = LoadDirect(weight_index);
       for (const ShardInfo::ShardFunc& shard_func : param_info.shard_info.funcs) {
         w = this->ApplyShardFunc(shard_func, w);
       }
@@ -182,7 +264,7 @@ NDArray ShardLoaderObj::Load(int weight_index) const {
     return recv;
   } else {
     if (worker_id == 0) {
-      NDArray w = load();
+      NDArray w = LoadDirect(weight_index);
       BroadcastFromWorker0(w, w);
       return w;
     } else {
@@ -206,6 +288,55 @@ Array<NDArray> ShardLoaderObj::LoadAll() const {
   return shards;
 }
 
+NDArray ShardLoaderObj::LoadPresharded(int weight_index) const {
+  DiscoWorker* worker = DiscoWorker::ThreadLocal();
+  int worker_id = worker->worker_id;
+  int num_shards = worker->num_workers;
+  size_t num_weights = param_info_.size() / num_shards;
+  size_t index = worker_id * num_weights + weight_index;
+  CHECK(index < param_info_.size())
+      << "Loading param " << weight_index << " for shard " << worker_id << " at position " << index
+      << " is out of bounds for the provided ndarray chace.";
+
+  const auto& shard_info = param_info_[index];
+  const ParamRecord* param = shard_info.param;
+  const FileRecord* file = shard_info.file;
+
+  auto [p_num_shards, p_worker_id] = ParseParamShardingInfo(param);
+  CHECK_EQ(num_shards, p_num_shards)
+      << "Runtime number of shards (" << num_shards
+      << ") does not match number of compiled shards (" << p_num_shards << "): " << param->name
+      << " loaded from " << file->data_path;
+  CHECK_EQ(worker_id, p_worker_id)
+      << "Runtime worker_id (" << worker_id << ") does not match worker_id of compiled shard ("
+      << p_worker_id << "): " << param->name << " loaded from " << file->data_path;
+
+  return LoadDirect(index);
+}
+
+Array<NDArray> ShardLoaderObj::LoadAllPresharded() const {
+  DiscoWorker* worker = DiscoWorker::ThreadLocal();
+  size_t worker_id = static_cast<size_t>(worker->worker_id);
+  size_t num_workers = static_cast<size_t>(worker->num_workers);
+  size_t num_params = param_info_.size() / num_workers;
+
+  Array<NDArray> params;
+  params.reserve(num_params);
+  for (size_t i_param = 0; i_param < num_params; ++i_param) {
+    std::string param_name = static_cast<const std::stringstream&>(
+                                 std::stringstream() << "param_" << i_param << "_shard-"
+                                                     << (worker_id + 1) << "-of-" << num_workers)
+                                 .str();
+
+    auto it = param_name_to_index_.find(param_name);
+    CHECK(it != param_name_to_index_.end())
+        << "Parameter " << param_name << " was not found in the parameter set";
+    int param_id = this->param_name_to_index_.at(param_name);
+    params.push_back(this->LoadDirect(param_id));
+  }
+  return params;
+}
+
 TVM_REGISTER_GLOBAL("runtime.disco.ShardLoader").set_body_typed(ShardLoaderObj::Create);
 TVM_REGISTER_GLOBAL("runtime.disco.ShardLoaderLoad")
     .set_body_typed([](ObjectRef loader_obj, ShapeTuple weight_index) {
@@ -214,6 +345,13 @@ TVM_REGISTER_GLOBAL("runtime.disco.ShardLoaderLoad")
                                << loader_obj->GetTypeKey();
       return loader->Load(IntegerFromShapeTuple(weight_index));
     });
+TVM_REGISTER_GLOBAL("runtime.disco.ShardLoaderLoadPresharded")
+    .set_body_typed([](ObjectRef loader_obj, ShapeTuple weight_index) {
+      const auto* loader = loader_obj.as<ShardLoaderObj>();
+      CHECK(loader != nullptr) << "TypeError: Expected ShardLoaderObj, but gets: "
+                               << loader_obj->GetTypeKey();
+      return loader->LoadPresharded(IntegerFromShapeTuple(weight_index));
+    });
 
 TVM_REGISTER_GLOBAL("runtime.disco.ShardLoaderLoadAll").set_body_typed([](ObjectRef loader_obj) {
   const auto* loader = loader_obj.as<ShardLoaderObj>();
@@ -221,6 +359,22 @@ TVM_REGISTER_GLOBAL("runtime.disco.ShardLoaderLoadAll").set_body_typed([](Object
                            << loader_obj->GetTypeKey();
   return loader->LoadAll();
 });
+
+TVM_REGISTER_GLOBAL("runtime.disco.ShardLoaderLoadAllPresharded")
+    .set_body_typed([](ObjectRef loader_obj) {
+      const auto* loader = loader_obj.as<ShardLoaderObj>();
+      CHECK(loader != nullptr) << "TypeError: Expected ShardLoaderObj, but gets: "
+                               << loader_obj->GetTypeKey();
+      return loader->LoadAllPresharded();
+    });
+
+TVM_REGISTER_GLOBAL("runtime.disco.ShardLoaderLoadParamOnWorker0")
+    .set_body_typed([](ObjectRef loader_obj, int param_index) {
+      const auto* loader = loader_obj.as<ShardLoaderObj>();
+      CHECK(loader != nullptr) << "TypeError: Expected ShardLoaderObj, but gets: "
+                               << loader_obj->GetTypeKey();
+      return loader->LoadParamOnWorker0(param_index);
+    });
 
 }  // namespace runtime
 }  // namespace tvm

@@ -165,13 +165,13 @@ def schedule_16x4_dense_fn_database(target, intrin, m=1024, n=1024, k=1024):
     f_check(lib, dev)
 
 
-@tvm.testing.requires_cascadelake
+@tvm.testing.requires_x86_vnni
 def test_vnni_schedule_fn_database():
     target = tvm.target.Target("llvm -keys=x86,cpu -mcpu=cascadelake -num-cores=4")
     schedule_16x4_dense_fn_database(target, VNNI_INTRIN)
 
 
-@tvm.testing.requires_skylake_avx512
+@tvm.testing.requires_x86_avx512
 def test_avx512_schedule_fn_database():
     target = tvm.target.Target("llvm -keys=x86,cpu -mcpu=skylake-avx512 -num-cores=4")
     schedule_16x4_dense_fn_database(target, AVX512_INTRIN, 16, 16, 16)
@@ -255,13 +255,13 @@ def schedule_16x4_dense_fn_tune(target, intrin, m=1024, n=1024, k=1024):
     f_check(lib, dev)
 
 
-@tvm.testing.requires_cascadelake
+@tvm.testing.requires_x86_vnni
 def test_vnni_schedule_fn_tune():
     target = tvm.target.Target("llvm -keys=x86,cpu -mcpu=cascadelake -num-cores=4")
     schedule_16x4_dense_fn_tune(target, VNNI_INTRIN)
 
 
-@tvm.testing.requires_skylake_avx512
+@tvm.testing.requires_x86_avx512
 def test_avx512_schedule_fn_tune():
     target = tvm.target.Target("llvm -keys=x86,cpu -mcpu=skylake-avx512 -num-cores=4")
     schedule_16x4_dense_fn_tune(target, AVX512_INTRIN, 16, 16, 16)

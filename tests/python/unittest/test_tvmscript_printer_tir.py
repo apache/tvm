@@ -504,6 +504,13 @@ T.Cast("float64", a)
     )
 
 
+def test_llvm_intrin_imm():
+    a = tir.call_llvm_intrin("int32x4", "llvm.donothing", T.uint32(0))
+    _assert_print(a, 'T.call_llvm_intrin("int32x4", "llvm.donothing", T.uint32(0))')
+    a = tir.call_llvm_pure_intrin("int32x4", "llvm.donothing", T.uint32(0))
+    _assert_print(a, 'T.call_llvm_pure_intrin("int32x4", "llvm.donothing", T.uint32(0))')
+
+
 def test_binary_arith():
     a = tir.Var("a", "int32")
     b = tir.Var("b", "int32")

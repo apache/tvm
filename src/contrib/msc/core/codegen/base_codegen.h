@@ -45,7 +45,7 @@ using namespace tvm::script::printer;
 /*!
  * \brief CodeGen for MSCJoint op
  */
-template <typename ConfigType>
+template <typename ConfigType, typename HelperType>
 class BaseOpCode {
  public:
   /*!
@@ -108,7 +108,7 @@ class BaseOpCode {
 /*!
  * \brief CodeGen for MSCGraph
  */
-template <typename ConfigType>
+template <typename ConfigType, typename HelperType>
 class BaseCodeGen {
  public:
   /*!
@@ -176,19 +176,7 @@ class BaseCodeGen {
    * 0 for same version, 1 for greater version, -1 for less version
    */
   int CompareVersion(size_t major, size_t minor, size_t patch) {
-    if (config_->version.size() == 0) {
-      return 0;
-    }
-    ICHECK_EQ(config_->version.size(), 3) << "Version should be in format major,minor,patch";
-    std::vector<size_t> given_version{major, minor, patch};
-    for (size_t i = 0; i < 3; i++) {
-      if (given_version[i] > config_->version[i]) {
-        return 1;
-      } else if (given_version[i] < config_->version[i]) {
-        return -1;
-      }
-    }
-    return 0;
+    return CommonUtils::CompareVersion({major, minor, patch}, config_->version);
   }
 
   /*! \brief Get the docs for the op*/

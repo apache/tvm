@@ -168,30 +168,6 @@ def test_attention_kv_cache():
         assert res[i][1] == i
 
 
-def test_attention_kv_cache_create_multiple():
-    fcreate = tvm.get_global_func("vm.builtin.attention_kv_cache_create_multiple")
-    fappend = tvm.get_global_func("vm.builtin.attention_kv_cache_append")
-    fview = tvm.get_global_func("vm.builtin.attention_kv_cache_view")
-
-    num_caches = 4
-    cache_group = fcreate(
-        tvm.nd.empty((1, 2), dtype="int32"), tvm.runtime.ShapeTuple([7, 2]), 0, num_caches
-    )
-
-    num_steps = 7
-    for i in range(num_steps):
-        for cache_index in range(num_caches):
-            fappend(
-                cache_group[cache_index],
-                tvm.nd.array(i * cache_index * np.ones((1, 2)).astype("int32")),
-            )
-            res = fview(cache_group[cache_index], tvm.runtime.ShapeTuple((i + 1, 2))).numpy()
-            # Also verify that the old values aren't corrupted
-            for j in range(i):
-                assert res[j][0] == j * cache_index
-                assert res[j][1] == j * cache_index
-
-
 def test_ndarray_cache():
     fload = tvm.get_global_func("vm.builtin.ndarray_cache.load")
     fget_params = tvm.get_global_func("vm.builtin.param_array_from_cache")
@@ -210,6 +186,35 @@ def test_ndarray_cache():
         if v_np.dtype == "float32":
             v_np = tvmjs._convert_bf16_to_f32(tvmjs._convert_f32_to_bf16(v_np))
         np.testing.assert_allclose(v.numpy(), v_np, atol=1e-6, rtol=1e-6)
+
+
+def test_attention_kv_cache_window_override():
+    fcreate = tvm.get_global_func("vm.builtin.attention_kv_cache_create")
+    foverride = tvm.get_global_func("vm.builtin.attention_kv_cache_window_override")
+    fview = tvm.get_global_func("vm.builtin.attention_kv_cache_view")
+
+    current_pos = 4
+    cache = fcreate(
+        tvm.nd.array(np.full((16, 2), -1).astype("int32")),
+        tvm.runtime.ShapeTuple([16, 2]),
+        current_pos,
+    )
+    np_all_arrays = np.zeros((0, 2)).astype("int32")
+
+    num_steps = 10
+    for i in range(1, num_steps):
+        np_array = i * np.ones((i, 2)).astype("int32")
+        np_all_arrays = np.concatenate((np_all_arrays, np_array), axis=0)
+        cache = foverride(cache, tvm.nd.array(np_array), 16)
+        current_pos = (current_pos + i) % 16
+
+    res = fview(cache, tvm.runtime.ShapeTuple((16, 2))).numpy()
+
+    # unrotate cache and assert cache matches last 16 elements
+    assert (
+        np_all_arrays[np_all_arrays.shape[0] - 16 :, :]
+        == np.concatenate((res[current_pos:], res[:current_pos]))
+    ).all()
 
 
 if __name__ == "__main__":

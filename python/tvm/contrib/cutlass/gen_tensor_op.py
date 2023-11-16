@@ -32,6 +32,7 @@ from . import _ffi_api as ffi
 from .attention_operation import (
     instantiate_attention_template,
     instantiate_flash_attention_template,
+    instantiate_flash_attention_var_len_template,
 )
 from .conv2d_operation import instantiate_conv2d_template
 from .gemm_operation import instantiate_gemm_template, emit_fp16A_intB_matmul
@@ -770,21 +771,41 @@ def instantiate_template(func_name, annotations, func_args):
             # For the causal case (custom mask = "BottomRight"), only use flash for multi-query
             # attention workloads. Otherwise, CUTLASS fMHA seems faster for causal attention
             # with a single query.
+            # In addition, sliding-window attention is only supported by flash.
             and (
                 int(annotations["custom_mask_type"]) == 0
                 or (int(annotations["custom_mask_type"]) == 2 and is_mqa)
+                or (int(annotations["custom_mask_type"]) == 2 and "window_size" in annotations)
             )
             # Flash v2 is currently not supported for sm < 80
             and int(annotations["arch"]) >= 80
-            and not is_var_len
         )
+
+        if "window_size" in annotations:
+            assert use_flash, "Sliding-window attention is supported only by Flash Attention."
+            assert (
+                int(annotations["custom_mask_type"]) == 2
+            ), "Sliding-window attention is only supported for causal with bottom right mask."
+            attrs["window_size_left"] = int(annotations["window_size"]) - 1
+            attrs["window_size_right"] = 0
+        else:
+            if int(annotations["custom_mask_type"]) == 2:
+                attrs["window_size_left"] = attrs["num_keys"]
+                attrs["window_size_right"] = 0
+            else:
+                attrs["window_size_left"] = -1
+                attrs["window_size_right"] = -1
 
         if use_flash:
             headers.append("flash.h")
             attrs["is_causal"] = int(annotations["custom_mask_type"]) == 2
             attrs["num_q_heads"] = annotations["num_q_heads"]
             attrs["num_kv_heads"] = annotations["num_kv_heads"]
-            code = instantiate_flash_attention_template(attrs)
+
+            if is_var_len:
+                code = instantiate_flash_attention_var_len_template(attrs)
+            else:
+                code = instantiate_flash_attention_template(attrs)
         else:
             headers.append("kernel_forward.h")
 

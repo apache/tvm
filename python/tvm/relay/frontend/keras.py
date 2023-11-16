@@ -1426,9 +1426,9 @@ def from_keras(model, shape=None, layout="NCHW"):
         Input shapes of the model, optional
 
     layout: str
-        One of 'NCHW' or 'NHWC', indicates how data should be arranged in
-        the output model. Default layout is 'NCHW' as it in general
-        performs better across TVM.
+        One of 'NWC', 'NCHW', 'NHWC', 'NDHWC' indicates how data should
+        be arranged in the output model. Default layout is 'NCHW' as it
+        in general performs better across TVM.
 
     Returns
     -------

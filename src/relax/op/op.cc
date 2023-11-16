@@ -253,6 +253,73 @@ StructInfo InferStructInfoCallTIR(const Call& call, const BlockBuilder& ctx) {
   return call->sinfo_args[0];
 }
 
+Expr NormalizeCallTIR(const BlockBuilder& ctx, Call call) {
+  // This function is used for normalization of `relax.call_tir`,
+  // along with the variants `relax.call_tir_with_grad` and
+  // `relax.call_tir_inplace`.  Therefore, all error messages should
+  // be written in terms of `call->op`, and should not explicitly
+  // reference the `relax.call_tir` operator.`
+  CHECK(call->args.size() == 2 || call->args.size() == 3)
+      << "Operation " << call->op << " expects either two arguments [callee, arg_tuple], "
+      << "or three arguments [callee, arg_tuple, tir_args], "
+      << "but " << call << " has " << call->args.size() << " arguments.";
+
+  Expr arg_expr = call->args[1];
+
+  CHECK(arg_expr->struct_info_.as<TupleStructInfoNode>())
+      << "Operation " << call->op << " expects the second argument to be a tuple of relax Expr.  "
+      << "However, the second argument " << arg_expr << " has struct info "
+      << arg_expr->struct_info_ << ".";
+
+  if (arg_expr.as<TupleNode>()) {
+    return std::move(call);
+  }
+
+  CHECK(arg_expr.as<VarNode>())
+      << "Operation " << call->op << " must hold its arguments as an in-line tuple.  "
+      << "However, " << call << " has arguments " << arg_expr
+      << ", which is neither an in-line tuple, "
+      << "nor a variable binding that may be normalized to an in-line tuple.";
+
+  auto unwrap_binding = [&ctx](Expr expr) -> Optional<Expr> {
+    if (auto var = expr.as<Var>()) {
+      if (auto bound_value = ctx->LookupBinding(var.value())) {
+        return bound_value.value();
+      }
+    }
+    return NullOpt;
+  };
+
+  while (auto unwrapped = unwrap_binding(arg_expr)) {
+    arg_expr = unwrapped.value();
+  }
+
+  Tuple new_arg_expr = [&]() {
+    // Preferred replacement.  The argument tuple is provided as a
+    // variable, but we know the value bound to that variable.
+    if (auto opt = arg_expr.as<Tuple>()) {
+      return opt.value();
+    }
+
+    // Fallback case.  The argument tuple is provided as a variable,
+    // and we don't know the value bound to that variable.  For
+    // example, if a relax function accepted a tuple as an parameter,
+    // then provided that same tuple as an argument to call_tir.
+    Array<Expr> tuple_elements;
+    size_t num_fields = Downcast<TupleStructInfo>(arg_expr->struct_info_)->fields.size();
+    for (size_t i = 0; i < num_fields; i++) {
+      tuple_elements.push_back(TupleGetItem(arg_expr, i));
+    }
+    return Tuple(tuple_elements);
+  }();
+
+  auto new_args = call->args;
+  new_args.Set(1, new_arg_expr);
+  call.CopyOnWrite()->args = new_args;
+
+  return std::move(call);
+}
+
 RELAY_REGISTER_OP("relax.call_tir")
     .set_num_inputs(3)
     .add_argument("func", "Expr", "The destination-passing-style function.")
@@ -261,6 +328,7 @@ RELAY_REGISTER_OP("relax.call_tir")
                   "ShapeExpr representing a tuple of ints to unpack during runtime. Omitted from "
                   "args if unused")
     .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoCallTIR)
+    .set_attr<FNormalize>("FNormalize", NormalizeCallTIR)
     .set_attr<Bool>("FPurity", Bool(true));
 
 Expr MakeCallTIR(Expr func, Tuple args, Array<TensorStructInfo> out_sinfo_list,
@@ -305,6 +373,7 @@ RELAY_REGISTER_OP("relax.call_tir_with_grad")
                   "ShapeExpr representing a tuple of ints to unpack during runtime. Omitted from "
                   "args if unused")
     .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoCallTIR)
+    .set_attr<FNormalize>("FNormalize", NormalizeCallTIR)
     .set_attr<Bool>("FPurity", Bool(true));
 
 Expr MakeCallTIRWithGrad(Expr func, Tuple args, Array<TensorStructInfo> out_sinfo_list,
@@ -344,14 +413,12 @@ TVM_REGISTER_GLOBAL("relax.op.call_tir_with_grad").set_body_typed(MakeCallTIRWit
 
 // call_tir_inplace
 
-StructInfo InferStructInfoCallTIRInplace(const Call& call, const BlockBuilder& ctx) {
-  if (call->sinfo_args.size() != 1) {
-    ctx->ReportFatal(Diagnostic::Error(call)
-                     << "sinfo_args should have exactly 1 output struct info.");
-  }
-  CHECK(call->args[0]->IsInstance<GlobalVarNode>())
-      << "call_tir expects the first argument to be a GlobalVar referring to a TIR PrimFunc. "
-      << "However, gets " << call->args[0];
+Expr NormalizeCallTIRInPlace(const BlockBuilder& ctx, Call call) {
+  // Apply normalization before error checks.  This allows the error
+  // checks to safely apply `Downcast<Tuple>(call->args[1])`, which
+  // may result in an error if performed before normalization.
+  call = Downcast<Call>(NormalizeCallTIR(ctx, std::move(call)));
+
   // there must be an inplace index for each output
   const auto* attrs = call->attrs.as<CallTIRInplaceAttrs>();
   size_t num_outputs = 1U;
@@ -434,7 +501,7 @@ StructInfo InferStructInfoCallTIRInplace(const Call& call, const BlockBuilder& c
     }
   }
 
-  return call->sinfo_args[0];
+  return std::move(call);
 }
 
 TVM_REGISTER_NODE_TYPE(CallTIRInplaceAttrs);
@@ -447,7 +514,8 @@ RELAY_REGISTER_OP("relax.call_tir_inplace")
     .add_argument("packed_ints", "Expr",
                   "ShapeExpr representing a tuple of ints to unpack during runtime. Omitted from "
                   "args if unused")
-    .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoCallTIRInplace)
+    .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoCallTIR)
+    .set_attr<FNormalize>("FNormalize", NormalizeCallTIRInPlace)
     // Warning: considered pure, but it has the potential to create visible effects!
     // This should only be used if it has been *checked* that it is safe (no aliases, in-place
     // arguments will no longer be live)

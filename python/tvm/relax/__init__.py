@@ -23,7 +23,6 @@ from tvm.runtime.relax_vm import VirtualMachine, VMInstrumentReturnKind
 from .expr import (
     Expr,
     Span,
-    SourceName,
     Id,
     GlobalVar,
     Var,
@@ -85,6 +84,7 @@ from .struct_info import (
 
 # pipeline
 from .pipeline import get_pipeline
+from .pipeline import register_pipeline
 
 # Import submodules in the last to avoid dependency
 from . import exec_builder

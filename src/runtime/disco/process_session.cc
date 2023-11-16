@@ -97,7 +97,7 @@ class ProcessSessionObj final : public BcastSessionObj {
     read_fds.reserve(num_workers - 1);
     write_fds.reserve(num_workers - 1);
     for (int i = 1; i < num_workers; ++i) {
-      ShapeTuple fds = process_pool(i);
+      IntTuple fds = process_pool(i);
       CHECK_EQ(fds.size(), 2) << "ValueError: process_pool(" << i << ") should return a tuple of "
                               << "size 2, but got a tuple of size " << fds.size() << ".";
       read_fds.push_back(fds[0]);

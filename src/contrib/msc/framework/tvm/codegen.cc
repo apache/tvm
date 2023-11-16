@@ -27,7 +27,7 @@ namespace contrib {
 namespace msc {
 
 void RelaxCodeGen::CodeGenHeader() {
-  PyCodeGen<RelaxCodeGenConfig>::CodeGenHeader();
+  PyCodeGen<RelaxCodeGenConfig, RelaxCodeGenHelper>::CodeGenHeader();
   stack_.line("from tvm import relax");
 }
 
@@ -42,7 +42,7 @@ void RelaxCodeGen::CodeGenGraph() {
   }
   stack_.func_start().assign("inputs", DocUtils::ToListDoc(idx_inputs, true));
   // define weights
-  stack_.comment("Define the weights and constant");
+  stack_.comment("Define the weights");
   for (const auto& n : graph()->node_names) {
     const auto& node = graph()->FindNode(n);
     for (const auto& pair : node->weights) {
@@ -56,17 +56,13 @@ void RelaxCodeGen::CodeGenGraph() {
           .func_call("inputs.append")
           .call_arg(idx_weight);
     }
-    if (node->optype == "constant") {
-      CodeGenNode(node);
-      stack_.func_call("inputs.append").call_arg(IdxNodeBase(node));
-    }
   }
   stack_.comment("Define the module");
   stack_.assign("block_builder", "relax.BlockBuilder()")
       .scope_start("block_builder.function(name=\"" + graph()->name + "\", params=inputs.copy())");
   for (const auto& n : graph()->node_names) {
     const auto& node = graph()->FindNode(n);
-    if (node->optype == "input" || node->optype == "constant") {
+    if (node->optype == "input") {
       continue;
     }
     int scope_level = CompareScope(node);

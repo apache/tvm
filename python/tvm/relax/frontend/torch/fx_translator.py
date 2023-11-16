@@ -296,7 +296,7 @@ class TorchFXImporter:
         start_end_step = [
             self.env[x] if isinstance(x, torch.fx.node.Node) else x for x in start_end_step
         ]
-        return relax.op.arange(*start_end_step, dtype=dtype)
+        return self.block_builder.emit(relax.op.arange(*start_end_step, dtype=dtype))
 
     def _empty(self, node: fx.node.Node) -> relax.Var:
         dtype = TorchFXImporter._convert_data_type(str(node.kwargs["dtype"]), self.env)
@@ -1094,7 +1094,7 @@ class TorchFXImporter:
         method = (
             node.args[3]
             if len(node.args) > 3
-            else (node.kwargs["method"] if "method" in node.kwargs else "nearest")
+            else (node.kwargs["mode"] if "mode" in node.kwargs else "nearest")
         )
         align_corners = (
             node.args[4]
@@ -1122,7 +1122,13 @@ class TorchFXImporter:
         if size is None:
             shape = self.shape_of(data)
             assert isinstance(shape, relax.ShapeExpr)
-            size = tuple(int(shape[i].value * scale_factor) for i in range(2, len(shape)))
+            if isinstance(scale_factor, tuple):
+                assert len(scale_factor) == len(shape) - 2
+                size = tuple(
+                    int(shape[i].value * scale_factor[i - 2]) for i in range(2, len(shape))
+                )
+            else:
+                size = tuple(int(shape[i].value * scale_factor) for i in range(2, len(shape)))
 
         if method.startswith("nearest"):
             method = "nearest_neighbor"
@@ -1478,6 +1484,10 @@ class TorchFXImporter:
                 for node in graph.nodes:
                     if node.op == "placeholder":
                         assert len(inputs) > 0, "Provided inputs is less than actual inputs"
+                        if "grapharg" in node.meta and node.meta["grapharg"].fake_tensor is None:
+                            # Ignore sym input
+                            continue
+
                         self.env[node] = inputs.pop(0)
                     elif node.op == "output":
                         args = self.retrieve_args(node)

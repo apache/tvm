@@ -35,7 +35,6 @@ from .transform import (
     EliminateCommonSubexpr,
     FewShotTuning,
     FoldConstant,
-    FoldDataflowBlockOutput,
     FunctionPass,
     FuseOps,
     FuseOpsByPattern,

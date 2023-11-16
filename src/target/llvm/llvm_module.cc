@@ -41,6 +41,7 @@
 #include <llvm/IR/Module.h>
 #include <llvm/IRReader/IRReader.h>
 #include <llvm/Support/FileSystem.h>
+#include <llvm/Support/Host.h>
 #include <llvm/Support/SourceMgr.h>
 #include <llvm/Support/raw_ostream.h>
 #include <llvm/Target/TargetMachine.h>
@@ -196,9 +197,12 @@ std::unique_ptr<llvm::Module> CloneLLVMModule(llvm::Module* mod) { return llvm::
 #if TVM_LLVM_VERSION <= 90
 constexpr auto llvm_object_file_target = llvm::TargetMachine::CGFT_ObjectFile;
 constexpr auto llvm_assembly_file_target = llvm::TargetMachine::CGFT_AssemblyFile;
-#else
+#elif TVM_LLVM_VERSION <= 170
 constexpr auto llvm_object_file_target = llvm::CGFT_ObjectFile;
 constexpr auto llvm_assembly_file_target = llvm::CGFT_AssemblyFile;
+#else
+constexpr auto llvm_object_file_target = llvm::CodeGenFileType::ObjectFile;
+constexpr auto llvm_assembly_file_target = llvm::CodeGenFileType::AssemblyFile;
 #endif
 
 bool LLVMAddPassesToEmitFile(llvm::TargetMachine* tm, llvm::legacy::PassManager* pm,
@@ -273,9 +277,12 @@ String LLVMModuleNode::GetSource(const String& format) {
 #elif TVM_LLVM_VERSION <= 90
     ICHECK(tm->addPassesToEmitFile(pass, rso, nullptr, llvm::TargetMachine::CGFT_AssemblyFile) == 0)
         << "Cannot emit target CGFT_AssemblyFile";
-#else
+#elif TVM_LLVM_VERSION <= 170
     ICHECK(tm->addPassesToEmitFile(pass, rso, nullptr, llvm::CGFT_AssemblyFile) == 0)
         << "Cannot emit target CGFT_AssemblyFile";
+#else
+    ICHECK(tm->addPassesToEmitFile(pass, rso, nullptr, llvm::CodeGenFileType::AssemblyFile) == 0)
+        << "Cannot emit target CodeGenFileType::AssemblyFile";
 #endif
     pass.run(*m);
     return rso.str().str();
@@ -382,7 +389,11 @@ void LLVMModuleNode::LazyInitJIT() {
   With<LLVMTarget> llvm_target(*llvm_instance_, LLVMTarget::GetTargetMetadata(*module_));
   llvm::EngineBuilder builder(std::move(module_owning_ptr_));
   builder.setEngineKind(llvm::EngineKind::JIT);
+#if TVM_LLVM_VERSION <= 170
   builder.setOptLevel(llvm::CodeGenOpt::Aggressive);
+#else
+  builder.setOptLevel(llvm::CodeGenOptLevel::Aggressive);
+#endif
   builder.setMCPU(llvm_target->GetCPU());
   builder.setMAttrs(llvm_target->GetTargetFeatures());
   builder.setTargetOptions(llvm_target->GetTargetOptions());
@@ -483,6 +494,30 @@ TVM_REGISTER_GLOBAL("target.llvm_get_intrinsic_name").set_body_typed([](int64_t 
   // Nothing to do, just return the intrinsic id number
   return std::to_string(id);
 #endif
+});
+
+TVM_REGISTER_GLOBAL("target.llvm_get_system_x86_vendor").set_body_typed([]() -> String {
+#if TVM_LLVM_VERSION >= 120
+#if defined(__i386__) || defined(_M_IX86) || defined(__x86_64__) || defined(_M_X64)
+  using namespace llvm::sys::detail::x86;
+  const auto x86_sign = getVendorSignature();
+  if (x86_sign == VendorSignatures::GENUINE_INTEL)
+    return "intel";
+  else if (x86_sign == VendorSignatures::AUTHENTIC_AMD)
+    return "amd";
+  else if (x86_sign == VendorSignatures::UNKNOWN)
+    return "unknown";
+#endif
+#endif
+  return "unimplemented";
+});
+
+TVM_REGISTER_GLOBAL("target.llvm_get_system_triple").set_body_typed([]() -> String {
+  return llvm::sys::getDefaultTargetTriple();
+});
+
+TVM_REGISTER_GLOBAL("target.llvm_get_system_cpu").set_body_typed([]() -> String {
+  return llvm::sys::getHostCPUName().str();
 });
 
 TVM_REGISTER_GLOBAL("target.llvm_get_targets").set_body_typed([]() -> Array<String> {

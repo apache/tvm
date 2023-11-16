@@ -86,10 +86,12 @@ pytestmark = [cutlass_enabled]
 
 
 def build_and_run(mod, inputs_np, target, legalize=True, cuda_graph=False):
-    if legalize:
-        mod = relax.transform.LegalizeOps()(mod)  # For cpu reference, nop for cutlass.
-
-    with tvm.transform.PassContext(config={"relax.backend.use_cuda_graph": cuda_graph}):
+    with tvm.transform.PassContext(
+        config={
+            "relax.backend.use_cuda_graph": cuda_graph,
+            "relax.transform.apply_legalize_ops": legalize,
+        }
+    ):
         ex = relax.build(mod, target)
 
     dev = tvm.device(target, 0)
@@ -571,7 +573,15 @@ def attention_size(request):
 
 
 def get_relax_attention_module(
-    q_shape, k_shape, v_shape, *, dtype, bias_shape=None, qk_scale=None, causal_mask=None
+    q_shape,
+    k_shape,
+    v_shape,
+    *,
+    dtype,
+    bias_shape=None,
+    qk_scale=None,
+    causal_mask=None,
+    window_size=None,
 ):
     from tvm.script.ir_builder import IRBuilder
     from tvm.script.ir_builder import relax as relax_builder
@@ -579,6 +589,9 @@ def get_relax_attention_module(
 
     if qk_scale is not None:
         qk_scale = T.FloatImm("float32", qk_scale)
+
+    if window_size is not None:
+        window_size = T.IntImm("int32", window_size)
 
     with IRBuilder() as builder:
         with relax_builder.function():
@@ -591,7 +604,7 @@ def get_relax_attention_module(
                 bias = R.arg("bias", R.Tensor(bias_shape, dtype))
 
             with R.dataflow() as frame:
-                result = R.emit(R.nn.attention(q, k, v, bias, qk_scale, causal_mask))
+                result = R.emit(R.nn.attention(q, k, v, bias, qk_scale, causal_mask, window_size))
                 R.output(result)
 
             R.func_ret_value(frame.output_vars[0])
@@ -600,11 +613,35 @@ def get_relax_attention_module(
     return tvm.IRModule({"main": func})
 
 
-@memoize("topi.tests.test_codegen_cutlass.test_attention_offload")
-def get_numpy_attention_ref(b, s, s_kv, n, h, h_v, bias_shape, qk_scale, causal, dtype):
+def get_numpy_attention_ref(
+    b,
+    s,
+    s_kv,
+    n,
+    h,
+    h_v,
+    bias_shape,
+    qk_scale,
+    causal,
+    dtype,
+    window_size=None,
+    num_kv_head=None,
+):
+    if num_kv_head is None:
+        num_kv_head = n
+
     q = np.random.randn(b, s, n, h).astype(dtype)
-    k = np.random.randn(b, s_kv, n, h).astype(dtype)
-    v = np.random.randn(b, s_kv, n, h_v).astype(dtype)
+    k_orig = np.random.randn(b, s_kv, num_kv_head, h).astype(dtype)
+    v_orig = np.random.randn(b, s_kv, num_kv_head, h_v).astype(dtype)
+
+    if num_kv_head is None:
+        k = k_orig
+        v = v_orig
+    else:
+        factor = n // num_kv_head
+        k = np.repeat(k_orig, factor, axis=2)
+        v = np.repeat(v_orig, factor, axis=2)
+
     qt = q.transpose(0, 2, 1, 3)  # b, n, s, h
     kt = k.transpose(0, 2, 3, 1)  # b, n, h, s_kv
     if not qk_scale == "none":
@@ -626,14 +663,23 @@ def get_numpy_attention_ref(b, s, s_kv, n, h, h_v, bias_shape, qk_scale, causal,
         else:
             raise NotImplementedError()
         score_masked = np.tril(score, k=offset)
+
+        if window_size:
+            score_masked = np.triu(score_masked, -window_size + 1)
+
         score_masked_exp = np.tril(
             np.exp(score_masked - np.max(score_masked, axis=-1, keepdims=True)), k=offset
         )
+
+        if window_size:
+            score_masked_exp = np.triu(score_masked_exp, -window_size + 1)
+
         score_masked_sum = np.sum(score_masked_exp, axis=-1, keepdims=True)
         attn = np.divide(score_masked_exp, score_masked_sum)
+
     vt = v.transpose(0, 2, 1, 3)  # b, n, s_kv, h_v
     ref = attn @ vt  # b, n, s, h_v
-    return q, k, v, bias, ref.transpose(0, 2, 1, 3)  # b, s, n, h_v
+    return q, k_orig, v_orig, bias, ref.transpose(0, 2, 1, 3)  # b, s, n, h_v
 
 
 def test_attention_offload(attention_size, attention_dtype):
@@ -1169,6 +1215,7 @@ def test_attention_rewrite_fp16():
             v: R.Tensor((4, 8, 32, 16), dtype="float16"),
             bias: R.Tensor((4, 32, 16, 8), dtype="float16"),
         ) -> R.Tensor((4, 16, 32, 16), dtype="float16"):
+            R.func_attr({"num_input": 4})
             with R.dataflow():
                 lv = R.permute_dims(q, axes=[0, 2, 1, 3])
                 lv1 = R.reshape(lv, R.shape([128, 16, 8]))
@@ -1240,7 +1287,8 @@ def test_attention_rewrite_fp16():
             k: R.Tensor((4, 8, 32, 8), dtype="float16"),
             v: R.Tensor((4, 8, 32, 16), dtype="float16"),
             bias: R.Tensor((4, 32, 16, 8), dtype="float16"),
-        ) -> R.Tensor((4, 16, 32, 16), dtype="float16"):
+        ) -> R.Tensor((4, 16, 32, 16), dtype="float32"):
+            R.func_attr({"num_input": 4})
             cls = Expected
             with R.dataflow():
                 lv = R.vm.alloc_storage(R.shape([65536]), R.prim_value(0), R.dtype("uint8"))
@@ -1994,12 +2042,88 @@ def test_attention_rewrite_multi_query():
     tvm.testing.assert_allclose(out, ref, rtol=1e-2, atol=1e-2)
 
 
-def test_batched_var_len_attention():
+def _test_batched_var_len_attention(mod, seq_lens, num_head, num_kv_head, head_size):
     if not tvm.get_global_func("tvm.contrib.thrust.sum_scan", True):
         return
 
+    hidden_size = num_head * head_size
+
+    batched_queries = []
+    batched_keys = []
+    batched_values = []
+    batched_refs = []
+
+    for s in seq_lens:
+        q, k, v, _, ref = get_numpy_attention_ref(
+            1,
+            s,
+            s,
+            num_head,
+            head_size,
+            head_size,
+            "none",
+            "none",
+            "BottomRight",
+            "float16",
+            num_kv_head=num_kv_head,
+        )
+        batched_queries.append(np.reshape(q, [-1, hidden_size]))
+        batched_keys.append(np.reshape(k, [-1, num_kv_head * head_size]))
+        batched_values.append(np.reshape(v, [-1, num_kv_head * head_size]))
+        batched_refs.append(np.reshape(ref, [-1, hidden_size]))
+
+    batched_queries = np.vstack(batched_queries)
+    batched_keys = np.vstack(batched_keys)
+    batched_values = np.vstack(batched_values)
+    ref = np.vstack(batched_refs)
+
+    mod = partition_for_cutlass(mod)
+    codegen_pass = relax.transform.RunCodegen({"cutlass": {"sm": 80}})
+    mod = codegen_pass(mod)
+
+    with tvm.target.Target("cuda"):
+        mod = relax.transform.LegalizeOps()(mod)
+        mod = tvm.tir.transform.DefaultGPUSchedule()(mod)
+
+    out = build_and_run(
+        mod,
+        [
+            batched_queries,
+            batched_keys,
+            batched_values,
+            np.array(seq_lens, dtype="int32"),
+        ],
+        "cuda",
+    )
+
+    ############# xformer reference for verification #############
+
+    # attn_bias = BlockDiagonalCausalMask.from_seqlens(seq_lens)
+
+    # queries = torch.from_numpy(np.reshape(batched_queries, [1, -1, num_head, head_size])).to("cuda")
+    # keys = torch.from_numpy(np.reshape(batched_keys, [1, -1, num_head, head_size])).to("cuda")
+    # values = torch.from_numpy(np.reshape(batched_values, [1, -1, num_head, head_size])).to("cuda")
+
+    # out = xops.memory_efficient_attention_forward(
+    #     queries, keys, values,
+    #     attn_bias=attn_bias,
+    # ).cpu().numpy()[0]
+    # out = np.reshape(out, [-1, hidden_size])
+
+    tvm.testing.assert_allclose(out, ref, rtol=1e-2, atol=1e-2)
+
+
+def test_batched_var_len_attention():
     @I.ir_module
     class Module:
+        I.module_global_infos(
+            {
+                "vdevice": [
+                    I.vdevice("llvm"),
+                ]
+            }
+        )
+
         @R.function
         def main(
             queries: R.Tensor(("num_tokens", 4096), dtype="float16"),
@@ -2007,6 +2131,7 @@ def test_batched_var_len_attention():
             values: R.Tensor(("num_tokens", 4096), dtype="float16"),
             seq_lens: R.Tensor(("num_seq",), dtype="int32"),
         ) -> R.Tensor(("num_tokens", 4096), dtype="float16"):
+            R.func_attr({"num_input": 4})
             cls = Module
             num_tokens = T.int64()
             num_seq = T.int64()
@@ -2017,7 +2142,7 @@ def test_batched_var_len_attention():
                 cumsum = R.call_dps_packed(
                     "tvm.contrib.thrust.sum_scan", seq_lens, out_sinfo=seq_lens.struct_info
                 )
-                max_seqlen_q = R.max(seq_lens)
+                max_seqlen_q = R.to_vdevice(R.max(seq_lens), "llvm:0")
                 seqstart_q = R.concat([R.zeros((1,), "int32"), cumsum])
                 q = R.reshape(queries, R.shape([1, num_tokens, 128, 32]))
                 k = R.reshape(keys, R.shape([1, num_tokens, 128, 32]))
@@ -2037,61 +2162,101 @@ def test_batched_var_len_attention():
     seq_lens = [5, 3, 8]
     num_head = 128
     head_size = 32
-    hidden_size = num_head * head_size
 
-    batched_queries = []
-    batched_keys = []
-    batched_values = []
-    batched_refs = []
+    _test_batched_var_len_attention(Module, seq_lens, num_head, num_head, head_size)
 
-    for s in seq_lens:
-        q, k, v, _, ref = get_numpy_attention_ref(
-            1, s, s, num_head, head_size, head_size, "none", "none", "BottomRight", "float16"
+
+def test_batched_var_len_multi_query_attention():
+    @I.ir_module
+    class Module:
+        I.module_global_infos(
+            {
+                "vdevice": [
+                    I.vdevice("llvm"),
+                ]
+            }
         )
-        batched_queries.append(np.reshape(q, [-1, hidden_size]))
-        batched_keys.append(np.reshape(k, [-1, hidden_size]))
-        batched_values.append(np.reshape(v, [-1, hidden_size]))
-        batched_refs.append(np.reshape(ref, [-1, hidden_size]))
 
-    batched_queries = np.vstack(batched_queries)
-    batched_keys = np.vstack(batched_keys)
-    batched_values = np.vstack(batched_values)
-    ref = np.vstack(batched_refs)
+        @R.function
+        def main(
+            queries: R.Tensor(("num_tokens", 4096), dtype="float16"),
+            keys: R.Tensor(("num_tokens", 512), dtype="float16"),
+            values: R.Tensor(("num_tokens", 512), dtype="float16"),
+            seq_lens: R.Tensor(("num_seq",), dtype="int32"),
+        ) -> R.Tensor(("num_tokens", 4096), dtype="float16"):
+            R.func_attr({"num_input": 4})
+            cls = Module
+            num_tokens = T.int64()
+            num_seq = T.int64()
 
-    mod = partition_for_cutlass(Module)
-    codegen_pass = relax.transform.RunCodegen({"cutlass": {"sm": 80}})
-    mod = codegen_pass(mod)
+            with R.dataflow():
+                # TODO(masahi): Workaround for the broken Relax cumsum op on GPU.
+                # https://github.com/apache/tvm/issues/15851
+                cumsum = R.call_dps_packed(
+                    "tvm.contrib.thrust.sum_scan", seq_lens, out_sinfo=seq_lens.struct_info
+                )
+                max_seqlen_q = R.to_vdevice(R.max(seq_lens), "llvm:0")
+                seqstart_q = R.concat([R.zeros((1,), "int32"), cumsum])
+                q = R.reshape(queries, R.shape([1, num_tokens, 128, 32]))
+                k = R.reshape(keys, R.shape([1, num_tokens, 16, 32]))
+                v = R.reshape(values, R.shape([1, num_tokens, 16, 32]))
+                attn_out = R.nn.attention_var_len(
+                    q,
+                    k,
+                    v,
+                    seqstart_q,
+                    max_seqlen_q,
+                    causal_mask="BottomRight",
+                )
+                out = R.reshape(attn_out, R.shape([num_tokens, 4096]))
+                R.output(out)
+            return out
 
-    with tvm.target.Target("cuda"):
-        mod = relax.transform.LegalizeOps()(mod)
-        mod = tvm.tir.transform.DefaultGPUSchedule()(mod)
+    seq_lens = [5, 3, 8]
+    num_head = 128
+    num_kv_head = 16
+    head_size = 32
 
-    out = build_and_run(
-        mod,
-        [
-            batched_queries,
-            batched_keys,
-            batched_values,
-            np.array(seq_lens, dtype="int32"),
-        ],
-        "cuda",
+    _test_batched_var_len_attention(Module, seq_lens, num_head, num_kv_head, head_size)
+
+
+def test_sliding_window():
+    q_shape = (1, 64, 16, 8)
+    k_shape = v_shape = q_shape
+    window_size = 8
+    causal = "BottomRight"
+
+    mod = get_relax_attention_module(
+        q_shape,
+        k_shape,
+        v_shape,
+        dtype="float16",
+        causal_mask=causal,
+        window_size=window_size,
     )
+
+    q, k, v, _, ref = get_numpy_attention_ref(
+        1, 64, 64, 16, 8, 8, "none", "none", causal, "float16", window_size=window_size
+    )
+
+    out = get_result_with_relax_cutlass_offload(mod, q, k, v, num_final_bindings=3)
 
     tvm.testing.assert_allclose(out, ref, rtol=1e-2, atol=1e-2)
 
     ############# xformer reference for verification #############
 
-    # attn_bias = BlockDiagonalCausalMask.from_seqlens(seq_lens)
+    # attn_bias = BlockDiagonalCausalMask.from_seqlens([64])
 
-    # queries = torch.from_numpy(np.reshape(batched_queries, [1, -1, num_head, head_size])).to("cuda")
-    # keys = torch.from_numpy(np.reshape(batched_keys, [1, -1, num_head, head_size])).to("cuda")
-    # values = torch.from_numpy(np.reshape(batched_values, [1, -1, num_head, head_size])).to("cuda")
+    # if window_size > 0:
+    #     attn_bias = attn_bias.make_local_attention(window_size)
 
-    # out = xops.memory_efficient_attention_forward(
-    #     queries, keys, values,
-    #     attn_bias=attn_bias,
-    # ).cpu().numpy()[0]
-    # out = np.reshape(out, [-1, hidden_size])
+    # query = torch.from_numpy(q).to("cuda")
+    # key = torch.from_numpy(k).to("cuda")
+    # value = torch.from_numpy(v).to("cuda")
+
+    # ref = xops.memory_efficient_attention_forward(
+    #     query, key, value, attn_bias=attn_bias,
+    # ).cpu().numpy()
 
     # tvm.testing.assert_allclose(out, ref, rtol=1e-2, atol=1e-2)
 

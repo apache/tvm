@@ -27,8 +27,13 @@ import numpy as np
 import pytest
 
 
-@tvm.testing.requires_llvm
-@pytest.mark.skip("skip due to AMX feature not avaliable yet")
+has_amx_runtime = pytest.mark.skipif(
+    not tvm.get_global_func("runtime.amx_init", True), reason="AMX runtime not available"
+)
+
+
+@has_amx_runtime
+@tvm.testing.requires_x86_amx
 def test_amx_u8s8s32_matmul_tensorize():
     m = 1024
     k = 1024
@@ -113,8 +118,8 @@ def test_amx_u8s8s32_matmul_tensorize():
     tvm.testing.assert_allclose(y.numpy(), np.dot(a.astype("int32"), b.T.astype("int32")), rtol=0)
 
 
-@tvm.testing.requires_llvm
-@pytest.mark.skip("skip due to AMX feature not avaliable yet")
+@has_amx_runtime
+@tvm.testing.requires_x86_amx
 def test_amx_check_support():
     amx_init = tvm.get_global_func("runtime.amx_init")
     amx_tileconfig = tvm.get_global_func("runtime.amx_tileconfig")

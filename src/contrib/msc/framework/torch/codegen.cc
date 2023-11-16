@@ -27,7 +27,7 @@ namespace contrib {
 namespace msc {
 
 void TorchCodeGen::CodeGenHeader() {
-  PyCodeGen<TorchCodeGenConfig>::CodeGenHeader();
+  PyCodeGen<TorchCodeGenConfig, TorchCodeGenHelper>::CodeGenHeader();
   stack_.line("import torch");
   stack_.line("from torch import nn");
   stack_.line("from torch.nn import functional");

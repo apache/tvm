@@ -55,75 +55,16 @@ VMInstructionSerializer SerializeInstruction(const Instruction& instr);
 // Helper to deserialize a serialized vm instruction.
 Instruction DeserializeInstruction(const VMInstructionSerializer& instr);
 
-PackedFunc Executable::GetFunction(const String& name, const ObjectPtr<Object>& sptr_to_self) {
-  if (name == "get_lib") {
-    return PackedFunc(
-        [sptr_to_self, this](TVMArgs args, TVMRetValue* rv) { *rv = this->GetLib(); });
-  } else if (name == "get_bytecode") {
-    return PackedFunc(
-        [sptr_to_self, this](TVMArgs args, TVMRetValue* rv) { *rv = this->GetBytecode(); });
-  } else if (name == "get_constants") {
-    return PackedFunc([this](TVMArgs args, TVMRetValue* rv) { *rv = this->GetConstants(); });
-  } else if (name == "get_virtual_devices") {
-    return PackedFunc([this](TVMArgs args, TVMRetValue* rv) { *rv = this->GetVirtualDevices(); });
-  } else if (name == "get_primitives") {
-    return PackedFunc([this](TVMArgs args, TVMRetValue* rv) { *rv = this->GetPrimitives(); });
-  } else if (name == "get_stats") {
-    return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) { *rv = this->Stats(); });
-  } else if (name == "save") {
-    return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) { *rv = this->Save(); });
-  } else if (name == "get_function_arity") {
-    return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
-      std::string func_name = args[0];
-      *rv = this->GetFunctionArity(func_name);
-    });
-  } else if (name == "get_function_param_name") {
-    return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
-      std::string func_name = args[0];
-      int index = args[1];
-      *rv = this->GetFunctionParameterName(func_name, index);
-    });
-  } else if (name == "vm_load_executable") {
-    return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
-      auto vm = make_object<VirtualMachine>();
-      ICHECK(sptr_to_self.get() == this);
-      vm->LoadExecutable(GetObjectPtr<Executable>(this));
-      *rv = Module(vm);
-    });
-  } else if (name == "move_late_bound_consts") {
-    return PackedFunc([this](TVMArgs args, TVMRetValue* rv) {
-      CHECK_EQ(args.size(), 2);
-      std::string path = args[0];
-      uint64_t byte_limit = args[1];
-      MoveLateBoundConstantsToFile(path, static_cast<size_t>(byte_limit));
-    });
-  } else if (name == "get_late_bound_consts") {
-    return PackedFunc([this](TVMArgs args, TVMRetValue* rv) {
-      CHECK_EQ(args.size(), 1);
-      uint64_t byte_limit = args[0];
-      Map<String, NDArray> consts = GetLateBoundConstants(static_cast<size_t>(byte_limit));
-      *rv = consts;
-    });
-  } else if (name == "load_late_bound_consts") {
-    return PackedFunc([this](TVMArgs args, TVMRetValue* rv) {
-      CHECK_EQ(args.size(), 1);
-      std::string path = args[0];
-      LoadLateBoundConstantsFromFile(path);
-    });
-  } else if (name == "load_late_bound_consts_from_map") {
-    return PackedFunc([this](TVMArgs args, TVMRetValue* rv) {
-      CHECK_EQ(args.size(), 1);
-      Map<String, NDArray> map = args[0];
-      LoadLateBoundConstantsFromMap(map);
-    });
-  }
-  return nullptr;
-}
-
 const VMFunction& Executable::GetVMFunctionWithName(const std::string& func_name) const {
   auto it = global_map.find(func_name);
   ICHECK(it != global_map.end()) << "Cannot find function " << func_name << " in executable";
   return functions[it->second];
+}
+
+Module Executable::VMLoadExecutable() {
+  auto vm = make_object<VirtualMachine>();
+  vm->LoadExecutable(GetObjectPtr<Executable>(this));
+  return Module(vm);
 }
 
 int Executable::GetFunctionArity(std::string func_name) const {
@@ -131,7 +72,7 @@ int Executable::GetFunctionArity(std::string func_name) const {
   return func.params.size();
 }
 
-std::string Executable::GetFunctionParameterName(std::string func_name, uint32_t index) const {
+std::string Executable::GetFunctionParameterName(std::string func_name, int index) const {
   const auto& func = GetVMFunctionWithName(func_name);
   ICHECK_LT(index, func.params.size()) << "Invalid parameter index";
   return func.params[index];
@@ -311,7 +252,7 @@ void Executable::SaveVirtualDevicesSection(dmlc::Stream* strm) {
   strm->Write(host_device_index);
 }
 
-Map<String, NDArray> Executable::GetLateBoundConstants(size_t byte_limit) {
+Map<String, NDArray> Executable::GetLateBoundConstants(int64_t byte_limit) {
   ICHECK(late_bound_constant_names.empty());
   late_bound_constant_names.reserve(constants.size());
   Map<String, NDArray> map;
@@ -319,7 +260,7 @@ Map<String, NDArray> Executable::GetLateBoundConstants(size_t byte_limit) {
   for (size_t const_index = 0; const_index < constants.size(); ++const_index) {
     const auto ndarray = Downcast<NDArray>(constants[const_index]);
     ICHECK(ndarray.defined()) << "Undefined constant at index " << const_index;
-    size_t num_bytes = runtime::GetDataSize(*ndarray.operator->());
+    int64_t num_bytes = runtime::GetDataSize(*ndarray.operator->());
     if (num_bytes < byte_limit) {
       // Leave as immediate.
       late_bound_constant_names.emplace_back(nullptr);
@@ -337,12 +278,12 @@ Map<String, NDArray> Executable::GetLateBoundConstants(size_t byte_limit) {
   return map;
 }
 
-void Executable::MoveLateBoundConstantsToStream(dmlc::Stream* stream, size_t byte_limit) {
+void Executable::MoveLateBoundConstantsToStream(dmlc::Stream* stream, int64_t byte_limit) {
   Map<String, NDArray> map = GetLateBoundConstants(byte_limit);
   runtime::SaveParams(stream, map);
 }
 
-void Executable::MoveLateBoundConstantsToFile(const std::string& path, size_t byte_limit) {
+void Executable::MoveLateBoundConstantsToFile(const std::string& path, int64_t byte_limit) {
   tvm::runtime::SimpleBinaryFileStream stream(path, "wb");
   MoveLateBoundConstantsToStream(&stream, byte_limit);
 }

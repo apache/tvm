@@ -99,7 +99,7 @@ class Reduction(ScheduleRule):
         if is_inner_reduction:
             self._sch_inner_reduction(sch, target, block, c_factor, epilogue)
         else:
-            self._sch_inner_spatial(sch, target, block, c_factor, epilogue)
+            self._sch_inner_spatial(sch, target, block, block_info, c_factor, epilogue)
         return sch
 
     def _normalize(  # pylint: disable=too-many-branches
@@ -198,12 +198,20 @@ class Reduction(ScheduleRule):
         sch: tir.Schedule,
         _: Target,
         block: tir.schedule.BlockRV,
+        block_info: BlockInfo,
         unroll_spatial_factor: Optional[int],
         epilogue_info: Optional[BlockInfo],
     ):
         # pylint: disable=invalid-name
         s, r, _ = sch.get_loops(block)
         len_tx, len_ty = 16, 16
+        s_factor = [i.dom for i in block_info.iters if i.kind == "S"][-1]
+        # get perfect spatial factor, spatial factor should be divide the innermost spatial loop so
+        # that the block after r_factor and be reversed compute at the original scope
+        while len_tx > 1:
+            if s_factor % len_tx == 0:
+                break
+            len_tx -= 1
         _, _ = sch.split(s, factors=[None, len_tx])
         _, ty = sch.split(r, factors=[None, len_ty])
         # Schedule the RF block

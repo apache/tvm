@@ -21,3 +21,6 @@ from .info import *
 from .file import *
 from .namespace import *
 from .register import *
+from .dataset import *
+from .log import *
+from .message import *

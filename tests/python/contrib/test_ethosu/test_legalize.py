@@ -3806,5 +3806,122 @@ def test_tflite_shared_pad_legalize(
         assert mod["tvmgen_default_ethos_u_main_1"].body.op.name == "contrib.ethosu.conv2d"
 
 
+def test_tflite_matmul():
+    ifm_shape = [1, 4]
+    ifm2_shape = [2, 4]
+    ifm_shapes = [ifm_shape, ifm2_shape]
+    ofm_shape = [ifm_shape[0], ifm2_shape[0]]
+    dtype = "int8"
+
+    def create_tflite_graph():
+        class Model(tf.Module):
+            @tf.function
+            def matmul(self, x, y):
+                res = tf.matmul(x, y, transpose_b=True)
+                return res
+
+        model = Model()
+        concrete_func = model.matmul.get_concrete_function(
+            *[tf.TensorSpec(shape, tf.float32) for shape in ifm_shapes]
+        )
+        # Convert the model
+        def representative_dataset():
+            for _ in range(100):
+                datas = [np.random.rand(*shape) for shape in ifm_shapes]
+                yield [data.astype(np.float32) for data in datas]
+
+        converter = tf.lite.TFLiteConverter.from_concrete_functions([concrete_func])
+        converter.optimizations = [tf.lite.Optimize.DEFAULT]
+        converter.representative_dataset = representative_dataset
+        converter.target_spec.supported_ops = [tf.lite.OpsSet.TFLITE_BUILTINS_INT8]
+        converter.inference_input_type = tf.int8
+        converter.inference_output_type = tf.int8
+        tflite_model = converter.convert()
+        return tflite_model
+
+    def verify(ext_func):
+        ofm = ext_func.body
+        ops = []
+
+        def _visit(stmt):
+            if isinstance(stmt, relay.expr.Call):
+                ops.append(stmt)
+
+        relay.analysis.post_order_visit(ofm, _visit)
+        ofm_checked_type = ofm.checked_type
+        ofm_channels = ofm_shape[-1]
+
+        # check IFM
+        ifm = ops[1].checked_type
+        assert list(ifm.shape) == ifm_shape
+        assert str(ifm.dtype) == dtype
+
+        # check IFM2
+        ifm2 = ops[3].checked_type
+        assert list(ifm2.shape) == ifm2_shape
+        assert str(ifm2.dtype) == dtype
+
+        # check split
+        split = ops[4]
+        split_checked_types = list(split.checked_type.fields)
+        assert split.op.name == "split"
+        assert split.attrs.axis == 0
+        assert int(split.attrs.indices_or_sections) == ofm_channels
+        for split_checked_type in split_checked_types:
+            assert list(split_checked_type.shape) == ifm_shape
+            assert str(split_checked_type.dtype) == dtype
+
+        # check MUL
+        mul_ops = [ops[6], ops[10]]
+        for mul_op in mul_ops:
+            assert mul_op.op.name == "contrib.ethosu.binary_elementwise"
+            assert mul_op.attrs.operator_type == "MUL"
+            assert mul_op.attrs.ofm_dtype == "int32"
+
+        # check reduce sum
+        reduce_sum_ops = [ops[7], ops[11]]
+        for reduce_sum_op in reduce_sum_ops:
+            assert reduce_sum_op.op.name == "contrib.ethosu.pooling"
+            assert reduce_sum_op.attrs.pooling_type == "SUM"
+            assert list(reduce_sum_op.checked_type.shape) == [1, 1, 1, 1]
+
+        # check concatenation
+        concatenation = ofm.args[0]
+        concatenation_shape = concatenation.checked_type.shape
+        assert concatenation.op.name == "concatenate"
+        assert list(concatenation_shape) == [1, 1, 1, ofm_channels]
+
+        # check OFM
+        assert ofm.op.name == "reshape"
+        assert list(ofm_checked_type.shape) == ofm_shape
+        assert str(ofm_checked_type.dtype) == dtype
+
+    matmul_pattern_table = [
+        (
+            ethosu.MatMulParams.composite_name,
+            ethosu.matmul_pattern(),
+            lambda pat: ethosu.MatMulParams(pat).is_valid(),
+        )
+    ]
+
+    tflite_graph = create_tflite_graph()
+    tflite_model = tflite.Model.Model.GetRootAsModel(tflite_graph, 0)
+
+    mod, params = relay.frontend.from_tflite(
+        tflite_model,
+        shape_dict={("ifm" + str(i)): shape for i, shape in enumerate(ifm_shapes)},
+        dtype_dict={("ifm" + str(i)): dtype for i, _ in enumerate(ifm_shapes)},
+    )
+
+    mod["main"] = bind_params_by_name(mod["main"], params)
+    mod = partition_ethosu_by_table(mod, matmul_pattern_table)
+
+    mod["tvmgen_default_ethos_u_main_0"] = dataflow_pattern.rewrite(
+        legalize.MatMulRewriter(), mod["tvmgen_default_ethos_u_main_0"]
+    )
+
+    verify(mod["tvmgen_default_ethos_u_main_0"])
+
+
 if __name__ == "__main__":
     tvm.testing.main()

@@ -89,6 +89,8 @@ class Allocator {
    *  \param buffer The buffer to free.
    */
   virtual void Free(const Buffer& buffer) = 0;
+  /*! \brief Clear the allocated memory. */
+  virtual void Clear();
   /*! \brief The amount of memory currently allocated.
    *  \return The amount of memory currently allocated.
    */
@@ -119,6 +121,8 @@ class MemoryManager {
    * \return The memory allocator.
    */
   static Allocator* GetAllocator(Device dev, AllocatorType type);
+  /*! \brief Clear the allocators. */
+  static void Clear();
 
  private:
   MemoryManager() {}
@@ -136,7 +140,7 @@ class StorageObj : public Object {
   Buffer buffer;
 
   /*! \brief Allocate an NDArray from a given piece of storage. */
-  NDArray AllocNDArray(size_t offset, ShapeTuple shape, DLDataType dtype);
+  NDArray AllocNDArray(int64_t offset, ShapeTuple shape, DLDataType dtype);
 
   /*! \brief The deleter for an NDArray when allocated from underlying storage. */
   static void Deleter(Object* ptr);

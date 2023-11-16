@@ -43,11 +43,11 @@ def get_test_module():
         ceil_mode=False,
         layout="NHWC",
     )
-    r2 = relay.qnn.op.requantize(q2, s2, z1, s5, z1, axis=1, out_dtype="uint8")
+    r2 = relay.qnn.requantize(q2, s2, z1, s5, z1, axis=1, out_dtype="uint8")
     q_tuple = relay.expr.Tuple([r1, r2, q3])
     s_tuple = relay.expr.Tuple([s4, s5, s3])
     z_tuple = relay.expr.Tuple([z1, z1, z1])
-    graph = relay.qnn.op.concatenate(q_tuple, s_tuple, z_tuple, s3, z1, axis=1)
+    graph = relay.qnn.concatenate(q_tuple, s_tuple, z_tuple, s3, z1, axis=1)
 
     func = relay.Function(relay.analysis.free_vars(graph), graph)
     mod = tvm.IRModule.from_expr(func)
@@ -72,12 +72,10 @@ def get_expected_output_module():
         ceil_mode=False,
         layout="NHWC",
     )
-    out_r1 = relay.qnn.op.requantize(
+    out_r1 = relay.qnn.requantize(
         nn_max_pool, out_s4, out_z1, out_s3, out_z1, axis=1, out_dtype="uint8"
     )
-    out_r2 = relay.qnn.op.requantize(
-        out_q2, out_s2, out_z1, out_s3, out_z1, axis=1, out_dtype="uint8"
-    )
+    out_r2 = relay.qnn.requantize(out_q2, out_s2, out_z1, out_s3, out_z1, axis=1, out_dtype="uint8")
     out_q_tuple = relay.expr.Tuple([out_r1, out_r2, out_q3])
     out_graph = relay.op.concatenate(out_q_tuple, axis=1)
 

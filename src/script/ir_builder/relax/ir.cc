@@ -59,7 +59,8 @@ FunctionFrame Function(const Bool& is_pure, const Bool& is_private) {
   if (const Optional<ir::IRModuleFrame> mod_frame = ir_builder->GetLastFrame<ir::IRModuleFrame>()) {
     mod = tvm::IRModule(mod_frame.value()->functions);
   }
-  n->block_builder = tvm::relax::BlockBuilder::Create(/*mod=*/mod);
+  n->block_builder = tvm::relax::BlockBuilder::Create(
+      /*mod=*/mod, tvm::relax::BlockBuilder::DisableOperatorSpecificNormalizationForTVMScript());
   n->is_pure = is_pure;
   n->is_private = is_private;
   return FunctionFrame(n);

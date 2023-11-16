@@ -137,6 +137,21 @@ def test_relax_dynamo_dynamic():
         opt_model(inp).detach().numpy(), model(inp).detach().numpy(), rtol=1e-5, atol=1e-5
     )
 
+    def Func1(x, y):
+        z = torch.cat([x, y])
+        if z.size(0) > 5:
+            return z.mul(2)
+        else:
+            return z.add(2)
+
+    opt_func = torch.compile(Func1, backend=relax_dynamo(), dynamic=True)
+
+    for s in (2, 4):
+        x = torch.randn(s, 100)
+        y = torch.randn(s, 100)
+        with torch.no_grad():
+            tvm.testing.assert_allclose(opt_func(x, y), opt_func(x, y))
+
 
 def test_subgraph_capture():
     import torch
@@ -507,6 +522,33 @@ def test_getitem():
         Select1(), [([1, 77, 1280], "float32"), ([1, 77], "float32")], {}, Expected1
     )
     verify_dynamo_model(Select2(), [([1, 77, 1280], "float32")], {}, Expected2)
+
+
+@tvm.testing.requires_gpu
+def test_arange():
+    import torch
+    from torch.nn import Module
+
+    class Arange1(Module):
+        def forward(self, input0):
+            mask_cond = torch.arange(input0.size(-1))
+            result = mask_cond + 1
+            return result
+
+    @I.ir_module
+    class Expected1:
+        @R.function
+        def main(inp_0: R.Tensor((1, 77), dtype="float32")) -> R.Tensor((77,), dtype="int64"):
+            with R.dataflow():
+                lv: R.Tensor((77,), dtype="int64") = R.arange(
+                    R.prim_value(0), R.prim_value(77), R.prim_value(1), dtype="int64"
+                )
+                lv1: R.Tensor((77,), dtype="int64") = R.add(lv, R.const(1, "int64"))
+                gv: R.Tensor((77,), dtype="int64") = lv1
+                R.output(gv)
+            return gv
+
+    verify_dynamo_model(Arange1(), [([1, 77], "float32")], {}, Expected1)
 
 
 if __name__ == "__main__":

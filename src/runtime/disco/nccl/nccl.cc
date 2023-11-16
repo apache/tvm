@@ -160,9 +160,9 @@ struct CCLThreadLocalContext {
   }
 };
 
-void InitCCL(Session sess, ShapeTuple device_ids) {
+void InitCCL(Session sess, IntTuple device_ids) {
   DRef func = sess->GetGlobalFunc("runtime.disco." TVM_DISCO_CCL_NAME ".init_ccl_per_worker");
-  LOG(INFO) << "Initializing " TVM_DISCO_CCL_NAME " with devices: " << device_ids;
+  DLOG(INFO) << "Initializing " TVM_DISCO_CCL_NAME " with devices: " << device_ids;
   ncclUniqueId id;
   TVMByteArray array;
   NCCL_CALL(ncclGetUniqueId(&id));
@@ -171,7 +171,7 @@ void InitCCL(Session sess, ShapeTuple device_ids) {
   sess->CallPacked(func, device_ids, array);
 }
 
-void InitCCLPerWorker(ShapeTuple device_ids, std::string unique_id_bytes) {
+void InitCCLPerWorker(IntTuple device_ids, std::string unique_id_bytes) {
   CCLThreadLocalContext* ctx = CCLThreadLocalContext::Get();
   DiscoWorker* worker = DiscoWorker::ThreadLocal();
   ICHECK(worker != nullptr);

@@ -54,7 +54,7 @@ def to_torch(
         The torch.nn.Module.
     """
 
-    def _bind_weights(model: torch.nn.Module, folder: msc_utils.MSCDirectory) -> torch.nn.Module:
+    def _save_weights(folder: msc_utils.MSCDirectory):
         if weights:
             state_dict = {}
             for name, data in weights.items():
@@ -64,9 +64,13 @@ def to_torch(
                 w_tensor = graph.find_tensor(name)
                 w_name = w_tensor.alias or name
                 state_dict[w_name] = torch.from_numpy(data.asnumpy())
-            model.load_state_dict(state_dict)
             torch.save(state_dict, folder.relpath(graph.name + ".pth"))
+
+    def _bind_weights(model: torch.nn.Module, folder: msc_utils.MSCDirectory) -> torch.nn.Module:
+        if weights:
+            state_dict = torch.load(folder.relpath(graph.name + ".pth"))
+            model.load_state_dict(state_dict)
         return model
 
     codegen = CodeGen(graph, _ffi_api.GetTorchSources, codegen_config, print_config, build_folder)
-    return codegen.load([], post_load=_bind_weights)
+    return codegen.load([], pre_load=_save_weights, post_load=_bind_weights)

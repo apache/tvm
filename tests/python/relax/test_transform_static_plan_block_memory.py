@@ -104,29 +104,22 @@ def test_basic():
             cls = Expected
             storage: R.Object = R.memory.alloc_storage(R.shape([32]), virtual_device_index=0, storage_scope="global", dtype="float32")
             alloc: R.Tensor((2, 4), dtype="float32") = R.memory.alloc_tensor(storage, 0, R.shape([2, 4]), dtype="float32")
-            _: R.Tuple() = cls.exp(x, alloc)
+            _ = cls.exp(x, alloc)
             lv: R.Tensor((2, 4), dtype="float32") = alloc
             lv1: R.Tensor((8,), dtype="float32") = R.reshape(lv, (8,))
             storage1: R.Object = R.memory.alloc_storage(R.shape([40]), virtual_device_index=0, storage_scope="global", dtype="float32")
             alloc1: R.Tensor((8,), dtype="float32") = R.memory.alloc_tensor(storage1, 0, R.shape([8]), dtype="float32")
-            _1: R.Tuple() = cls.relu(lv1, alloc1)
-            _2: R.Tuple() = R.memory.kill_tensor(alloc)
-            _3: R.Tuple() = R.memory.kill_tensor(lv1)
+            _ = cls.relu(lv1, alloc1)
             lv2: R.Tensor((8,), dtype="float32") = alloc1
             alloc2: R.Tensor((8,), dtype="float32") = R.memory.alloc_tensor(storage, 0, R.shape([8]), dtype="float32")
-            _4: R.Tuple() = cls.add(lv2, R.const(1, "float32"), alloc2)
-            _5: R.Tuple() = R.memory.kill_tensor(alloc1)
+            _ = cls.add(lv2, R.const(1, "float32"), alloc2)
             lv3: R.Tensor((8,), dtype="float32") = alloc2
             alloc3: R.Tensor((10,), dtype="float32") = R.memory.alloc_tensor(storage1, 0, R.shape([10]), dtype="float32")
-            _6: R.Tuple() = cls.pad(lv3, alloc3)
-            _7: R.Tuple() = R.memory.kill_tensor(alloc2)
+            _ = cls.pad(lv3, alloc3)
             lv4: R.Tensor((10,), dtype="float32") = alloc3
             alloc4: R.Tensor((10,), dtype="float32") = R.builtin.alloc_tensor(R.shape([10]), dtype="float32", runtime_device_index=0)
-            _8: R.Tuple() = cls.log(lv4, alloc4)
-            _9: R.Tuple() = R.memory.kill_tensor(alloc3)
+            _ = cls.log(lv4, alloc4)
             gv5: R.Tensor((10,), dtype="float32") = alloc4
-            _11: R.Tuple() = R.memory.kill_storage(storage)
-            _10: R.Tuple() = R.memory.kill_storage(storage1)
             return gv5
 
     @I.ir_module
@@ -162,35 +155,32 @@ def test_basic():
             storage: R.Object = R.vm.alloc_storage(R.shape([32]), R.prim_value(0), R.dtype("uint8"))
             alloc: R.Tensor((2, 4), dtype="float32") = R.vm.alloc_tensor(storage, R.prim_value(0), R.shape([2, 4]), R.dtype("float32"))
             _: R.Tuple = cls.exp(x, alloc)
-            lv: R.Tensor((2, 4), dtype="float32") = alloc
-            lv1: R.Tensor((8,), dtype="float32") = R.call_packed("vm.builtin.reshape", lv, R.shape([8]), sinfo_args=(R.Tensor((8,), dtype="float32"),))
+            lv1: R.Tensor((8,), dtype="float32") = R.call_packed("vm.builtin.reshape", alloc, R.shape([8]), sinfo_args=(R.Tensor((8,), dtype="float32"),))
+            _ = R.vm.kill_object(alloc)
             storage1: R.Object = R.vm.alloc_storage(R.shape([40]), R.prim_value(0), R.dtype("uint8"))
             alloc1: R.Tensor((8,), dtype="float32") = R.vm.alloc_tensor(storage1, R.prim_value(0), R.shape([8]), R.dtype("float32"))
-            _1: R.Tuple = cls.relu(lv1, alloc1)
-            __1: R.Tuple = R.vm.kill_object(alloc)
-            _1_1: R.Tuple = R.vm.kill_object(lv1)
-            lv2: R.Tensor((8,), dtype="float32") = alloc1
+            _ = cls.relu(lv1, alloc1)
+            _ = R.vm.kill_object(lv1)
             alloc2: R.Tensor((8,), dtype="float32") = R.vm.alloc_tensor(storage, R.prim_value(0), R.shape([8]), R.dtype("float32"))
-            _2: R.Tuple = cls.add(lv2, R.const(1, "float32"), alloc2)
-            _2_1: R.Tuple = R.vm.kill_object(alloc1)
-            lv3: R.Tensor((8,), dtype="float32") = alloc2
+            _ = R.vm.kill_object(storage)
+            _ = cls.add(alloc1, R.const(1, "float32"), alloc2)
+            _ = R.vm.kill_object(alloc1)
             alloc3: R.Tensor((10,), dtype="float32") = R.vm.alloc_tensor(storage1, R.prim_value(0), R.shape([10]), R.dtype("float32"))
-            _3: R.Tuple = cls.pad(lv3, alloc3)
-            _3_1: R.Tuple = R.vm.kill_object(alloc2)
-            lv4: R.Tensor((10,), dtype="float32") = alloc3
-            storage_1: R.Object = R.vm.alloc_storage(R.shape([40]), R.prim_value(0), R.dtype("uint8"))
-            alloc4: R.Tensor((10,), dtype="float32") = R.vm.alloc_tensor(storage_1, R.prim_value(0), R.shape([10]), R.dtype("float32"))
-            _4: R.Tuple = cls.log(lv4, alloc4)
-            _4_1: R.Tuple = R.vm.kill_object(alloc3)
-            gv: R.Tensor((10,), dtype="float32") = alloc4
-            _5: R.Tuple = R.vm.kill_object(storage)
-            _6: R.Tuple = R.vm.kill_object(storage1)
-            return gv
+            _ = R.vm.kill_object(storage1)
+            _ = cls.pad(alloc2, alloc3)
+            _ = R.vm.kill_object(alloc2)
+            storage2: R.Object = R.vm.alloc_storage(R.shape([40]), R.prim_value(0), R.dtype("uint8"))
+            alloc4: R.Tensor((10,), dtype="float32") = R.vm.alloc_tensor(storage2, R.prim_value(0), R.shape([10]), R.dtype("float32"))
+            _ = R.vm.kill_object(storage2)
+            _ = cls.log(alloc3, alloc4)
+            _ = R.vm.kill_object(alloc3)
+            return alloc4
     # fmt: on
 
     mod = relax.transform.StaticPlanBlockMemory()(Module)
     tvm.ir.assert_structural_equal(mod, Expected)
     mod = relax.transform.LowerAllocTensor()(mod)
+    mod = relax.transform.KillAfterLastUse()(mod)
     mod = relax.transform.VMBuiltinLower()(mod)
     tvm.ir.assert_structural_equal(mod, ExpectedLowered)
 
@@ -263,7 +253,6 @@ def test_different_dtype():
                 storage, 0, R.shape([2, 3]), dtype="float32"
             )
             _: R.Tuple() = cls.add(x, x, alloc)
-            _1: R.Tuple() = R.memory.kill_tensor(alloc)
             gv1: R.Tensor((2, 3), dtype="float32") = alloc
             storage1: R.Object = R.memory.alloc_storage(
                 R.shape([24]), virtual_device_index=0, storage_scope="global", dtype="int32"
@@ -272,10 +261,7 @@ def test_different_dtype():
                 storage1, 0, R.shape([2, 3]), dtype="int32"
             )
             _2: R.Tuple() = cls.add1(y, y, alloc1)
-            _3: R.Tuple() = R.memory.kill_tensor(alloc1)
             gv12: R.Tensor((2, 3), dtype="int32") = alloc1
-            _5: R.Tuple() = R.memory.kill_storage(storage)
-            _4: R.Tuple() = R.memory.kill_storage(storage1)
             return x
 
     mod = relax.transform.StaticPlanBlockMemory()(Module)
@@ -325,9 +311,7 @@ def test_dtype_bool():
                 storage, 0, R.shape([2, 3]), dtype="bool"
             )
             _2: R.Tuple() = cls.add1(y, y, alloc)
-            _3: R.Tuple() = R.memory.kill_tensor(alloc)
             gv12: R.Tensor((2, 3), dtype="bool") = alloc
-            _4: R.Tuple() = R.memory.kill_storage(storage)
             return y
 
     mod = relax.transform.StaticPlanBlockMemory()(Module)
@@ -386,15 +370,12 @@ def test_same_dtype():
                 storage, 0, R.shape([2, 3]), dtype="float32"
             )
             _: R.Tuple() = cls.add(x, x, alloc)
-            _1: R.Tuple() = R.memory.kill_tensor(alloc)
             gv1: R.Tensor((2, 3), dtype="float32") = alloc
             alloc1: R.Tensor((2, 3), dtype="float32") = R.memory.alloc_tensor(
                 storage, 0, R.shape([2, 3]), dtype="float32"
             )
             _2: R.Tuple() = cls.add(y, y, alloc1)
-            _3: R.Tuple() = R.memory.kill_tensor(alloc1)
             gv12: R.Tensor((2, 3), dtype="float32") = alloc1
-            _4: R.Tuple() = R.memory.kill_storage(storage)
             return x
 
     mod = relax.transform.StaticPlanBlockMemory()(Module)
@@ -617,27 +598,17 @@ def test_nested_tuple():
                 storage3, 0, R.shape([2, 3]), dtype="float32"
             )
             _3: R.Tuple() = cls.exp(y1_, alloc3)
-            _4: R.Tuple() = R.memory.kill_tensor(alloc)
-            _11: R.Tuple() = R.memory.kill_tensor(alloc3)
             z1: R.Tensor((2, 3), dtype="float32") = alloc3
             alloc4: R.Tensor((2, 3), dtype="float32") = R.memory.alloc_tensor(
                 storage, 0, R.shape([2, 3]), dtype="float32"
             )
             _41: R.Tuple() = cls.exp(y2_, alloc4)
-            _21: R.Tuple() = R.memory.kill_tensor(alloc1)
-            _31: R.Tuple() = R.memory.kill_tensor(alloc4)
             z2: R.Tensor((2, 3), dtype="float32") = alloc4
             alloc5: R.Tensor((2, 3), dtype="float32") = R.memory.alloc_tensor(
                 storage3, 0, R.shape([2, 3]), dtype="float32"
             )
             _5: R.Tuple() = cls.exp(y3_, alloc5)
-            _42: R.Tuple() = R.memory.kill_tensor(alloc2)
-            _51: R.Tuple() = R.memory.kill_tensor(alloc5)
             z3: R.Tensor((2, 3), dtype="float32") = alloc5
-            _9: R.Tuple() = R.memory.kill_storage(storage)
-            _7: R.Tuple() = R.memory.kill_storage(storage1)
-            _8: R.Tuple() = R.memory.kill_storage(storage2)
-            _6: R.Tuple() = R.memory.kill_storage(storage3)
             return x
 
     mod = relax.transform.StaticPlanBlockMemory()(Module)
@@ -696,9 +667,7 @@ def test_call_packed_external_func():
                 R.shape([2, 3]), R.dtype("float32"), R.prim_value(0)
             )
             _1: R.Tuple = R.call_packed("extern_func", y, alloc1, sinfo_args=(R.Tuple(),))
-            _2: R.Tuple = R.memory.kill_tensor(alloc)
             z: R.Tensor((2, 3), dtype="float32") = alloc1
-            _3: R.Tuple = R.memory.kill_storage(storage)
             return z
 
     mod = relax.transform.StaticPlanBlockMemory()(Module)
@@ -755,7 +724,6 @@ def test_zero_reference():
             alloc: R.Tensor((2, 3), dtype="float32") = R.memory.alloc_tensor(
                 storage, 0, R.shape([2, 3]), dtype="float32"
             )
-            _: R.Tuple() = R.memory.kill_storage(storage)
             return x
 
     mod = relax.transform.StaticPlanBlockMemory()(Module)
@@ -878,7 +846,6 @@ def test_multiple_functions():
                 storage, 0, R.shape([2, 3]), dtype="float32"
             )
             _: R.Tuple() = cls.add(x, x, alloc)
-            _1: R.Tuple() = R.memory.kill_tensor(alloc)
             gv1: R.Tensor((2, 3), dtype="float32") = alloc
             storage1: R.Object = R.memory.alloc_storage(
                 R.shape([24]), virtual_device_index=0, storage_scope="global", dtype="int32"
@@ -887,10 +854,7 @@ def test_multiple_functions():
                 storage1, 0, R.shape([2, 3]), dtype="int32"
             )
             _2: R.Tuple() = cls.add1(y, y, alloc1)
-            _3: R.Tuple() = R.memory.kill_tensor(alloc1)
             gv12: R.Tensor((2, 3), dtype="int32") = alloc1
-            _5: R.Tuple() = R.memory.kill_storage(storage)
-            _4: R.Tuple() = R.memory.kill_storage(storage1)
             return x
 
         @R.function
@@ -906,15 +870,12 @@ def test_multiple_functions():
                 storage, 0, R.shape([2, 3]), dtype="float32"
             )
             _: R.Tuple() = cls.add(x, x, alloc)
-            _1: R.Tuple() = R.memory.kill_tensor(alloc)
             gv1: R.Tensor((2, 3), dtype="float32") = alloc
             alloc1: R.Tensor((2, 3), dtype="float32") = R.memory.alloc_tensor(
                 storage, 0, R.shape([2, 3]), dtype="float32"
             )
             _2: R.Tuple() = cls.add(y, y, alloc1)
-            _3: R.Tuple() = R.memory.kill_tensor(alloc1)
             gv12: R.Tensor((2, 3), dtype="float32") = alloc1
-            _4: R.Tuple() = R.memory.kill_storage(storage)
             return x
 
     mod = relax.transform.StaticPlanBlockMemory()(Module)
@@ -1011,23 +972,16 @@ def test_tir_var_upper_bound():
             storage1: R.Object = R.memory.alloc_storage(R.shape([40]), R.prim_value(0), R.str("global"), R.dtype("float32"))
             alloc1: R.Tensor((2 * n,), dtype="float32") = R.memory.alloc_tensor(storage1, R.prim_value(0), R.shape([2 * n]), R.dtype("float32"))
             _1: R.Tuple = cls.relu(lv1, alloc1)
-            __1: R.Tuple = R.memory.kill_tensor(alloc)
-            _1_1: R.Tuple = R.memory.kill_tensor(lv1)
             lv2: R.Tensor((2 * n,), dtype="float32") = alloc1
             alloc2: R.Tensor((2 * n,), dtype="float32") = R.memory.alloc_tensor(storage, R.prim_value(0), R.shape([2 * n]), R.dtype("float32"))
             _2: R.Tuple = cls.add(lv2, R.const(1, "float32"), alloc2)
-            _2_1: R.Tuple = R.memory.kill_tensor(alloc1)
             lv3: R.Tensor((2 * n,), dtype="float32") = alloc2
             alloc3: R.Tensor((2 * n + 2,), dtype="float32") = R.memory.alloc_tensor(storage1, R.prim_value(0), R.shape([2 * n + 2]), R.dtype("float32"))
             _3: R.Tuple = cls.pad(lv3, alloc3)
-            _3_1: R.Tuple = R.memory.kill_tensor(alloc2)
             lv4: R.Tensor((2 * n + 2,), dtype="float32") = alloc3
             alloc4: R.Tensor((2 * n + 2,), dtype="float32") = R.builtin.alloc_tensor(R.shape([10]), R.dtype("float32"), R.prim_value(0))
             _4: R.Tuple = cls.log(lv4, alloc4)
-            _4_1: R.Tuple = R.memory.kill_tensor(alloc3)
             gv: R.Tensor((2 * n + 2,), dtype="float32") = alloc4
-            _5: R.Tuple = R.memory.kill_storage(storage)
-            _6: R.Tuple = R.memory.kill_storage(storage1)
             return gv
     # fmt: on
 
@@ -1079,14 +1033,10 @@ def test_tir_var_decreasing_monotone():
             storage1: R.Object = R.memory.alloc_storage(R.shape([8000]), R.prim_value(0), R.str("global"), R.dtype("float32"))
             alloc1: R.Tensor((n, m, T.max(n - m, 1)), dtype="float32") = R.memory.alloc_tensor(storage1, R.prim_value(0), R.shape([n, m, T.max(n - m, 1)]), R.dtype("float32"))
             _1: R.Tuple = cls.tir_exp(y, alloc1)
-            __1: R.Tuple = R.memory.kill_tensor(alloc)
             z: R.Tensor((n, m, T.max(n - m, 1)), dtype="float32") = alloc1
             alloc2: R.Tensor((n, m, T.max(n - m, 1)), dtype="float32") = R.builtin.alloc_tensor(R.shape([n, m, T.max(n - m, 1)]), R.dtype("float32"), R.prim_value(0))
             _2: R.Tuple = cls.tir_exp(z, alloc2)
-            _1_1: R.Tuple = R.memory.kill_tensor(alloc1)
             r: R.Tensor((n, m, T.max(n - m, 1)), dtype="float32") = alloc2
-            _2_1: R.Tuple = R.memory.kill_storage(storage)
-            _3: R.Tuple = R.memory.kill_storage(storage1)
             return r
     # fmt: on
 
@@ -1144,14 +1094,10 @@ def test_call_tir_dyn():
             storage1: R.Object = R.memory.alloc_storage(R.shape([80]), R.prim_value(0), R.str("global"), R.dtype("float32"))
             alloc1: R.Tensor((n,), dtype="float32") = R.memory.alloc_tensor(storage1, R.prim_value(0), R.shape([n]), R.dtype("float32"))
             _1: R.Tuple = cls.tir_exp(full, alloc1)
-            __1: R.Tuple = R.memory.kill_tensor(alloc)
             lv2: R.Tensor((n,), dtype="float32") = alloc1
             alloc2: R.Tensor((n,), dtype="float32") = R.builtin.alloc_tensor(R.shape([n]), R.dtype("float32"), R.prim_value(0))
             _2: R.Tuple = cls.tir_exp(lv2, alloc2)
-            _1_1: R.Tuple = R.memory.kill_tensor(alloc1)
             lv3: R.Tensor((n,), dtype="float32") = alloc2
-            _2_1: R.Tuple = R.memory.kill_storage(storage)
-            _3: R.Tuple = R.memory.kill_storage(storage1)
             return lv3
     # fmt: on
 

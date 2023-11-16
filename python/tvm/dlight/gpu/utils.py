@@ -53,6 +53,8 @@ def suggest_threads_per_block(
         threads = 256
     elif target.kind.name == "rocm":
         threads = 256
+    elif target.kind.name == "metal":
+        threads = 256
     else:
         threads = 64
     results: List[Optional[int]] = []

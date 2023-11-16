@@ -42,11 +42,13 @@ pytestmark = [cublas_enabled]
 
 
 def build_and_run(mod, inputs_np, target, legalize=False, cuda_graph=False):
-    if legalize:
-        mod = relax.transform.LegalizeOps()(mod)
-
     dev = tvm.device(target, 0)
-    with tvm.transform.PassContext(config={"relax.backend.use_cuda_graph": cuda_graph}):
+    with tvm.transform.PassContext(
+        config={
+            "relax.backend.use_cuda_graph": cuda_graph,
+            "relax.transform.apply_legalize_ops": legalize,
+        }
+    ):
         ex = relax.build(mod, target)
     vm = relax.VirtualMachine(ex, dev)
     f = vm["main"]
@@ -115,10 +117,10 @@ _epilogue_table = {
     ],
 )
 @pytest.mark.parametrize(
-    "dtype",
+    "in_dtype, out_dtype",
     [
-        "float16",
-        "float32",
+        ("float16", "float16"),
+        ("float32", "float32"),
     ],
 )
 def test_matmul_offload(
@@ -126,21 +128,22 @@ def test_matmul_offload(
     y_shape,
     transpose_y,
     epilogue,
-    dtype,
+    in_dtype,
+    out_dtype,
 ):
     with_bias, activation = _epilogue_table[epilogue]
     var_table = {}
     concrete_x_shape = _to_concrete_shape(x_shape, var_table)
     concrete_y_shape = _to_concrete_shape(y_shape, var_table)
-    x = np.random.randn(*concrete_x_shape).astype(dtype)
-    y = np.random.randn(*concrete_y_shape).astype(dtype)
+    x = np.random.randn(*concrete_x_shape).astype(in_dtype)
+    y = np.random.randn(*concrete_y_shape).astype(in_dtype)
 
     if transpose_y:
         y = np.swapaxes(y, -2, -1)
         y_shape = (*y_shape[:-2], y_shape[-1], y_shape[-2])
 
     if with_bias:
-        bias = np.random.randn(concrete_y_shape[-1]).astype(dtype)
+        bias = np.random.randn(concrete_y_shape[-1]).astype(out_dtype)
         args = (x, y, bias)
     else:
         bias = None
@@ -149,7 +152,69 @@ def test_matmul_offload(
     mod = get_relax_matmul_module(
         x_shape,
         y_shape,
-        dtype,
+        in_dtype,
+        out_dtype,
+        bias_shape=bias.shape if with_bias else None,
+        transposed_y=transpose_y,
+        activation=activation,
+    )
+
+    out = get_result_with_relax_cublas_offload(mod, args)
+    ref = build_and_run(mod, args, "llvm", legalize=True)
+
+    tvm.testing.assert_allclose(out, ref, rtol=1e-2, atol=1e-2)
+
+
+@pytest.mark.parametrize(
+    "x_shape, y_shape, transpose_y, epilogue",
+    [
+        # Regular
+        ((8, 8), (8, 8), False, "none"),
+        ((_vars["a"], 8), (8, 16), False, "none"),
+        # Transposed
+        ((4, 16), (16, 128), True, "none"),
+        ((35, 16), (16, 128), False, "none"),
+        # # 3D x 3D
+        ((6, 32, 8), (6, 8, 12), False, "none"),
+        ((6, 32, 8), (6, 8, 10), True, "none"),
+        ((_vars["a"], 32, 8), (_vars["a"], 8, 10), True, "none"),
+        # ND x ND
+        ((5, 3, 32, 8), (5, 3, 8, 12), False, "none"),
+        # ND x 2D
+        ((5, 3, 32, 8), (8, 12), False, "none"),
+    ],
+)
+def test_matmul_igemm_offload(
+    x_shape,
+    y_shape,
+    transpose_y,
+    epilogue,
+):
+    in_dtype = "int8"
+    out_dtype = "int32"
+    with_bias, activation = _epilogue_table[epilogue]
+    var_table = {}
+    concrete_x_shape = _to_concrete_shape(x_shape, var_table)
+    concrete_y_shape = _to_concrete_shape(y_shape, var_table)
+    x = np.random.randn(*concrete_x_shape).astype(in_dtype)
+    y = np.random.randn(*concrete_y_shape).astype(in_dtype)
+
+    if transpose_y:
+        y = np.swapaxes(y, -2, -1)
+        y_shape = (*y_shape[:-2], y_shape[-1], y_shape[-2])
+
+    if with_bias:
+        bias = np.random.randn(concrete_y_shape[-1]).astype(out_dtype)
+        args = (x, y, bias)
+    else:
+        bias = None
+        args = (x, y)
+
+    mod = get_relax_matmul_module(
+        x_shape,
+        y_shape,
+        in_dtype,
+        out_dtype,
         bias_shape=bias.shape if with_bias else None,
         transposed_y=transpose_y,
         activation=activation,
@@ -163,11 +228,28 @@ def test_matmul_offload(
 
 def test_cublas_partition_matmul_without_bias():
     # cuBLAS does not handle 2D bias (residual input)
-    mod = get_relax_matmul_module((16, 32), (32, 32), "float16", bias_shape=(16, 32))
+    mod = get_relax_matmul_module((16, 32), (32, 32), "float16", "float16", bias_shape=(16, 32))
     mod = partition_for_cublas(mod)
 
     # R.add is still in the main function
     assert len(mod["main"].body.blocks[0].bindings) == 2
+
+
+@pytest.mark.parametrize(
+    "M, N, K, was_partitioned", [(16, 8, 32, True), (16, 8, 33, False), (16, 9, 32, False)]
+)
+def test_cublas_partition_igemm(M, N, K, was_partitioned):
+    mod = get_relax_matmul_module((M, K), (K, N), "int8", "int32")
+    mod = partition_for_cublas(mod)
+    func_name = "fused_relax_matmul_cublas" if was_partitioned else "R.matmul"
+    assert func_name in mod["main"].script()
+
+
+def test_cublas_partition_igemm_with_bias():
+    mod = get_relax_matmul_module((16, 32), (32, 8), "int8", "int32", bias_shape=(8,))
+    mod = partition_for_cublas(mod)
+    func = mod["main"].script()
+    assert "fused_relax_matmul_cublas" in func and "R.add" in func
 
 
 def test_cublas_matmul_cuda_graph():

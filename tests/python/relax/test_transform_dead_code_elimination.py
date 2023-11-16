@@ -497,5 +497,15 @@ def test_unused_dfb2():
     verify(Input, Expected)
 
 
+def test_extern_func():
+    """DeadCodeElimination should retain the ExternFunc in the IRModule."""
+
+    builder = tvm.relax.BlockBuilder()
+    builder.add_func(tvm.relax.extern("extern_func"), "extern_func")
+    before = builder.get()
+
+    verify(before, before)
+
+
 if __name__ == "__main__":
     tvm.testing.main()

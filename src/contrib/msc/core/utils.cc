@@ -47,6 +47,36 @@ std::vector<size_t> CommonUtils::GetIndices(const std::vector<int>& indices, siz
   return v_indices;
 }
 
+int CommonUtils::CompareVersion(const std::vector<size_t>& given_version,
+                                const std::vector<size_t>& target_version) {
+  if (given_version.size() == 0 || target_version.size() == 0) {
+    return 0;
+  }
+  ICHECK_EQ(given_version.size(), 3) << "Version should be in format major,minor,patch";
+  ICHECK_EQ(target_version.size(), 3) << "Target version should be in format major,minor,patch";
+  for (size_t i = 0; i < 3; i++) {
+    if (given_version[i] > target_version[i]) {
+      return -1;
+    } else if (given_version[i] < target_version[i]) {
+      return 1;
+    }
+  }
+  return 0;
+}
+
+int CommonUtils::CompareVersion(const Array<Integer>& given_version,
+                                const Array<Integer>& target_version) {
+  std::vector<size_t> int_given_version;
+  std::vector<size_t> int_target_version;
+  for (const auto& v : given_version) {
+    int_given_version.push_back(static_cast<size_t>(v->value));
+  }
+  for (const auto& v : target_version) {
+    int_target_version.push_back(static_cast<size_t>(v->value));
+  }
+  return CompareVersion(int_given_version, int_target_version);
+}
+
 bool StringUtils::Contains(const String& src_string, const String& sub_string) {
   if (src_string.size() == 0) {
     return false;
@@ -272,50 +302,68 @@ const Array<String> ExprUtils::GetInputTypes(const String& optype, size_t inputs
   Array<String> input_types;
   if (as_relax && (optype == "broadcast_to" || optype == "reshape")) {
     input_types.push_back("input");
-    input_types.push_back("shape");
+    if (inputs_num > 1) {
+      input_types.push_back("shape");
+    }
   } else if (optype == "clip" && as_relax) {
     input_types.push_back("input");
-    input_types.push_back("min");
-    input_types.push_back("max");
+    if (inputs_num > 1) {
+      input_types.push_back("min");
+      input_types.push_back("max");
+    }
   } else if (optype == "full" && as_relax) {
     input_types.push_back("shape");
     input_types.push_back("input");
   } else if (optype == "triu") {
     input_types.push_back("input");
     input_types.push_back("k");
-  } else if (optype == "tril") {
+  } else if (optype == "tril" || optype == "trilu") {
     input_types.push_back("input");
     input_types.push_back("k");
   } else if (optype == "image.resize2d" && as_relax) {
     input_types.push_back("input");
-    input_types.push_back("size");
+    if (inputs_num > 1) {
+      input_types.push_back("size");
+    }
   } else if (optype == "nn.conv1d" || optype == "nn.conv2d" || optype == "nn.conv3d") {
     input_types.push_back("input");
-    input_types.push_back("weight");
+    if (inputs_num > 1) {
+      input_types.push_back("weight");
+    }
   } else if (optype == "nn.batch_norm") {
     input_types.push_back("input");
-    input_types.push_back("gamma");
-    input_types.push_back("beta");
-    input_types.push_back("mean");
-    input_types.push_back("var");
+    if (inputs_num > 1) {
+      input_types.push_back("gamma");
+      input_types.push_back("beta");
+      input_types.push_back("mean");
+      input_types.push_back("var");
+    }
   } else if (optype == "nn.layer_norm" || optype == "nn.group_norm") {
     input_types.push_back("input");
-    input_types.push_back("gamma");
-    input_types.push_back("beta");
+    if (inputs_num > 1) {
+      input_types.push_back("gamma");
+      input_types.push_back("beta");
+    }
   } else if (optype == "msc.linear") {
     input_types.push_back("input");
-    input_types.push_back("weight");
+    if (inputs_num > 1) {
+      input_types.push_back("weight");
+    }
   } else if (optype == "msc.conv1d_bias" || optype == "msc.conv2d_bias") {
     input_types.push_back("input");
-    input_types.push_back("weight");
-    input_types.push_back("bias");
+    if (inputs_num > 1) {
+      input_types.push_back("weight");
+      input_types.push_back("bias");
+    }
     if (as_relax && inputs_num > 3) {
       input_types.push_back("expand_bias");
     }
   } else if (optype == "msc.linear_bias") {
     input_types.push_back("input");
-    input_types.push_back("weight");
-    input_types.push_back("bias");
+    if (inputs_num > 1) {
+      input_types.push_back("weight");
+      input_types.push_back("bias");
+    }
   } else if (optype == "msc.embedding" && inputs_num == 2) {
     input_types.push_back("input");
     input_types.push_back("weight");

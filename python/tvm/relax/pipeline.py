@@ -23,6 +23,7 @@ as it is or serves as a basis to do further composition.
 # pylint: disable=unused-argument
 import tvm
 from tvm import meta_schedule as ms
+
 from . import transform
 
 
@@ -73,8 +74,38 @@ def zero_pipeline(*, enable_warning: bool = False):
     return f_zero_pipeline
 
 
+def default_build_pipeline():
+    """The default compilation pipeline used in relax.build"""
+
+    @tvm.transform.module_pass(opt_level=0)
+    def _pipeline(mod: tvm.ir.IRModule, _ctx: tvm.transform.PassContext) -> tvm.ir.IRModule:
+        seq = tvm.transform.Sequential(
+            [
+                transform.LegalizeOps(),
+                transform.RewriteDataflowReshape(),
+                transform.ToNonDataflow(),
+                transform.RemovePurityChecking(),
+                transform.CallTIRRewrite(),
+                transform.StaticPlanBlockMemory(),
+                transform.RewriteCUDAGraph(),
+                transform.LowerAllocTensor(),
+                transform.KillAfterLastUse(),
+                transform.VMBuiltinLower(),
+                transform.VMShapeLower(),
+                transform.AttachGlobalSymbol(),
+            ],
+        )
+        mod = seq(mod._move())  # pylint: disable=protected-access
+        return mod
+
+    return _pipeline
+
+
 # global map of pre-built pipelines
-PIPELINE_MAP = {"zero": zero_pipeline}
+PIPELINE_MAP = {
+    "zero": zero_pipeline,
+    "default_build": default_build_pipeline,
+}
 
 
 def get_pipeline(name: str = "zero", **kwargs) -> tvm.transform.Pass:
@@ -93,9 +124,26 @@ def get_pipeline(name: str = "zero", **kwargs) -> tvm.transform.Pass:
        The transformation pipeline.
     """
 
-    if name in PIPELINE_MAP:
-        return PIPELINE_MAP[name](**kwargs)
-    else:
+    if name not in PIPELINE_MAP:
         raise ValueError(
             f"Unknown pre-built pipeline {name}," f"candidates are {list(PIPELINE_MAP.keys())}"
         )
+    return PIPELINE_MAP[name](**kwargs)
+
+
+def register_pipeline(name: str):
+    """Register a new pipeline
+
+    Parameters
+    ----------
+    name : str
+        Name of the pipeline
+    """
+    if name in PIPELINE_MAP:
+        raise ValueError(f"Pipeline {name} has already been registered")
+
+    def _register(func):
+        PIPELINE_MAP[name] = func
+        return func
+
+    return _register

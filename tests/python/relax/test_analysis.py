@@ -169,6 +169,36 @@ def test_binding_block_keep_impure_without_dataflow():
     tvm.ir.assert_structural_equal(expected, after)
 
 
+def test_binding_block_keep_pure_func_used_only_for_impure():
+    """Keep bindings that are used for impure functions
+
+    Removal of unused bindings may not result in use of undefined
+    variables.  Unused bindings whose value is an impure operation
+    (e.g. `R.call_packed`) may not be removed, nor may any of their
+    inputs.
+
+    This is a regression test to catch an earlier failure mode, in
+    which tracking of unused variables only back-propagated from the
+    return value of functions, and did not consider variables that
+    were required to execute impure function calls.  In that failure
+    mode, the binding of `y` would be removed as unused, even though
+    it was required to evaluate the packed function.
+    """
+
+    @R.function(private=True)
+    def before(x: R.Tensor((32, 32), "int32")):
+        y = x * R.const(2)
+        z = R.call_packed(
+            "function_maybe_with_side_effects", y, sinfo_args=(R.Tensor((32, 32), "int32"))
+        )
+        return R.tuple()
+
+    expected = before
+
+    after = remove_all_unused(before)
+    tvm.ir.assert_structural_equal(expected, after)
+
+
 def test_binding_block_remove_all_unused_func_without_dataflow():
     @tvm.script.ir_module
     class IdentityUnused:

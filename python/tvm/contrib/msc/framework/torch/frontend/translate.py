@@ -16,7 +16,7 @@
 # under the License.
 """tvm.contrib.msc.framework.torch.frontend.translate"""
 
-from typing import Dict, Optional, Tuple, List
+from typing import Dict, Optional, Tuple, List, Union
 import numpy as np
 
 import torch
@@ -24,8 +24,41 @@ import tvm
 from tvm.relax.frontend.torch import from_fx
 
 from tvm.contrib.msc.core.ir.graph import MSCGraph
-from tvm.contrib.msc.core.ir.translate import from_relax
+from tvm.contrib.msc.core.frontend import from_relax
 from tvm.contrib.msc.core.codegen import relay_to_relax
+
+
+def set_weight_alias(graph: MSCGraph) -> MSCGraph:
+    """Set weight with alias in MSCGraph.
+
+    Parameters
+    ----------
+    graph: MSCGraph
+        The graph.
+
+    Returns
+    -------
+    graph: MSCGraph
+        The graph with weight alias.
+    """
+
+    for node in graph.get_nodes():
+        for ref, weight in node.get_weights().items():
+            if node.optype == "constant":
+                alias = node.name.replace(".", "_")
+            elif node.optype in ("nn.batch_norm", "nn.layer_norm", "nn.group_norm"):
+                if ref == "gamma":
+                    alias = node.name.replace(".", "_") + ".weight"
+                elif ref == "beta":
+                    alias = node.name.replace(".", "_") + ".bias"
+                elif ref == "mean":
+                    alias = node.name.replace(".", "_") + ".running_mean"
+                elif ref == "var":
+                    alias = node.name.replace(".", "_") + ".running_var"
+            else:
+                alias = node.name.replace(".", "_") + "." + ref
+            weight.set_alias(alias)
+    return graph
 
 
 def from_torch(
@@ -36,7 +69,8 @@ def from_torch(
     trans_config: Optional[Dict[str, str]] = None,
     build_config: Optional[Dict[str, str]] = None,
     opt_config: Optional[Dict[str, str]] = None,
-) -> Tuple[MSCGraph, Dict[str, tvm.nd.array]]:
+    as_msc: bool = True,
+) -> Tuple[Union[MSCGraph, tvm.IRModule], Dict[str, tvm.nd.array]]:
     """Change torch nn.Module to MSCGraph.
 
     Parameters
@@ -50,16 +84,18 @@ def from_torch(
     via_relax: bool
         Whether translate torch to relax.
     trans_config: dict
-        The config for transfrorm IRModule.
+        The config for transform IRModule.
     build_config: dict
         The config for build MSCGraph.
     opt_config: dict
         The config for optimize the relay before translate.
+    as_msc: bool
+        Set to to return msc graph, otherwise relax mod
 
     Returns
     -------
-    graph: tvm.contrib.msc.core.ir.MSCGraph
-        The translated graph.
+    graph/mod: tvm.contrib.msc.core.ir.MSCGraph/tvm.IRModule
+        The translated graph/IRModule.
     weights: dict of <string:tvm.ndarray>
         The weights from the IRModule.
     """
@@ -82,22 +118,7 @@ def from_torch(
             shape_list = [("input" + str(idx), i_info) for idx, i_info in enumerate(input_info)]
         relay_mod, params = tvm.relay.frontend.from_pytorch(scripted_model, shape_list)
         relax_mod = relay_to_relax(relay_mod, params, trans_config, build_config, opt_config)
+    if not as_msc:
+        return relax_mod, params
     graph, weights = from_relax(relax_mod, trans_config=trans_config, build_config=build_config)
-    # set alias for weights
-    for node in graph.get_nodes():
-        for ref, weight in node.get_weights().items():
-            if node.optype == "constant":
-                alias = node.name.replace(".", "_")
-            elif node.optype in ("nn.batch_norm", "nn.layer_norm", "nn.group_norm"):
-                if ref == "gamma":
-                    alias = node.name.replace(".", "_") + ".weight"
-                elif ref == "beta":
-                    alias = node.name.replace(".", "_") + ".bias"
-                elif ref == "mean":
-                    alias = node.name.replace(".", "_") + ".running_mean"
-                elif ref == "var":
-                    alias = node.name.replace(".", "_") + ".running_var"
-            else:
-                alias = node.name.replace(".", "_") + "." + ref
-            weight.set_alias(alias)
-    return graph, weights
+    return set_weight_alias(graph), weights

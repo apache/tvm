@@ -54,15 +54,18 @@ inline Tensor rms_norm(const Tensor& data, const Tensor& weight, const Array<Int
   const auto& weight_type = weight.defined() ? weight->dtype : data_type;
   ICHECK(data_type == weight_type) << "rms_norm: data and weight must have the same type";
 
-  auto square = multiply(data, data);
+  const auto& data_fp32 = cast(data, DataType::Float(32));
+  const auto& weight_fp32 = cast(weight, DataType::Float(32));
+
+  auto square = multiply(data_fp32, data_fp32);
   auto square_sum = sum(square, axis, /*keepdims=*/false, /*atleast1d=*/true);
 
-  auto ndim = data->shape.size();
+  auto ndim = data_fp32->shape.size();
   ICHECK_NE(ndim, 0) << "Cannot reduce a 0 dim Tensor";
   auto real_axis = GetRealAxis(static_cast<int>(ndim), axis);
-  auto reduce_extent = make_const(data->dtype, 1);
+  auto reduce_extent = make_const(data_fp32->dtype, 1);
   for (int i : real_axis) {
-    reduce_extent *= data->shape[i];
+    reduce_extent *= data_fp32->shape[i];
   }
   auto rms_norm_func = [&](const Array<Var>& indices) {
     Array<Var> reduce_indices, non_reduce_indices;
@@ -74,12 +77,12 @@ inline Tensor rms_norm(const Tensor& data, const Tensor& weight, const Array<Int
       }
     }
     auto output =
-        data(indices) * weight(reduce_indices) *
+        data_fp32(indices) * weight_fp32(reduce_indices) *
         tvm::rsqrt(square_sum(non_reduce_indices) / reduce_extent + make_const(data_type, epsilon));
     return output;
   };
-  auto rms_norm = tvm::te::compute(data->shape, rms_norm_func, name, tag);
-  return rms_norm;
+  auto rms_norm = tvm::te::compute(data_fp32->shape, rms_norm_func, name, tag);
+  return cast(rms_norm, data_type);
 }
 
 }  // namespace nn

@@ -950,6 +950,9 @@ class CutlassRelaxFunctionAnnotator(relax.PyExprMutator):
                 if arg in arg_idx:
                     attrs[arg + "_idx"] = arg_idx[arg]
 
+        if op_attrs.window_size:
+            attrs["window_size"] = op_attrs.window_size
+
         return f.with_attrs(attrs)
 
     def handle_norm(self, f, op_type):

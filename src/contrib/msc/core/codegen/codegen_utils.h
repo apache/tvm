@@ -91,25 +91,23 @@ using namespace tvm::script::printer;
     const String& suffix = as_raw && config()->need_process ? "_raw" : "";                        \
     return suffix;                                                                                \
   }                                                                                               \
-  virtual const String IdxNodeBase(const MSCJoint& node, bool as_raw = true) {                    \
-    return CodeGenUtils::IdxNode(node, config()->prefix, GetSuffix(as_raw));                      \
+  const String IdxNodeBase(const MSCJoint& node, bool as_raw = true) {                            \
+    return helper_.IdxNodeBase(node, config()->prefix, GetSuffix(as_raw));                        \
   }                                                                                               \
-  virtual const String IdxInputBase(const MSCJoint& node, int idx = 0, bool as_raw = false) {     \
-    return CodeGenUtils::IdxInput(node, config()->prefix, idx, GetSuffix(as_raw));                \
+  const String IdxInputBase(const MSCJoint& node, int idx = 0, bool as_raw = false) {             \
+    return helper_.IdxInputBase(node, config()->prefix, idx, GetSuffix(as_raw));                  \
   }                                                                                               \
-  virtual const String IdxOutputBase(const MSCJoint& node, int idx = 0, bool as_raw = false) {    \
-    return CodeGenUtils::IdxOutput(node, config()->prefix, idx, GetSuffix(as_raw));               \
+  const String IdxOutputBase(const MSCJoint& node, int idx = 0, bool as_raw = false) {            \
+    return helper_.IdxOutputBase(node, config()->prefix, idx, GetSuffix(as_raw));                 \
   }                                                                                               \
-  virtual const String IdxWeightBase(const MSCJoint& node, const String& wtype,                   \
-                                     bool as_raw = false) {                                       \
-    return CodeGenUtils::IdxWeight(node, wtype, GetSuffix(as_raw));                               \
+  const String IdxWeightBase(const MSCJoint& node, const String& wtype, bool as_raw = false) {    \
+    return helper_.IdxWeightBase(node, wtype, GetSuffix(as_raw));                                 \
   }                                                                                               \
-  virtual const String Comment(const MSCJoint& node) {                                            \
-    return CodeGenUtils::CommentNode(node, config()->prefix);                                     \
-  }                                                                                               \
+  const String Comment(const MSCJoint& node) { return helper_.Comment(node, config()->prefix); }  \
                                                                                                   \
  private:                                                                                         \
-  std::shared_ptr<ConfigType> config_;
+  std::shared_ptr<ConfigType> config_;                                                            \
+  HelperType helper_;
 
 /*!
  * \brief Utils for CodeGen.
@@ -149,6 +147,32 @@ class CodeGenUtils {
    * \return The String.
    */
   TVM_DLL static const String CommentNode(const MSCJoint& node, const String& prefix);
+};
+
+/*!
+ * \brief Basic CodeGenHelper
+ */
+class BaseCodeGenHelper {
+ public:
+  virtual const String IdxNodeBase(const MSCJoint& node, const String& prefix = "",
+                                   const String& suffix = "") {
+    return CodeGenUtils::IdxNode(node, prefix, suffix);
+  }
+  virtual const String IdxInputBase(const MSCJoint& node, const String& prefix = "", int idx = 0,
+                                    const String& suffix = "") {
+    return CodeGenUtils::IdxInput(node, prefix, idx, suffix);
+  }
+  virtual const String IdxOutputBase(const MSCJoint& node, const String& prefix = "", int idx = 0,
+                                     const String& suffix = "") {
+    return CodeGenUtils::IdxOutput(node, prefix, idx, suffix);
+  }
+  virtual const String IdxWeightBase(const MSCJoint& node, const String& wtype,
+                                     const String& suffix = "") {
+    return CodeGenUtils::IdxWeight(node, wtype, suffix);
+  }
+  virtual const String Comment(const MSCJoint& node, const String& prefix = "") {
+    return CodeGenUtils::CommentNode(node, prefix);
+  }
 };
 
 }  // namespace msc

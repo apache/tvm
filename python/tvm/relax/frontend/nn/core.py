@@ -23,6 +23,9 @@
 - Effect, a non-user-facing class that encloses potential side effects, for example, IO,
   impure external function callings, inplace mutation, etc.
 """
+import os
+import sys
+import tempfile
 from collections import OrderedDict
 from typing import (
     TYPE_CHECKING,
@@ -40,8 +43,10 @@ from typing import (
 import numpy as np
 
 from tvm import tir
+from tvm._ffi.libinfo import find_include_path
+from tvm.contrib import cc as _cc
 from tvm.ir import IRModule
-from tvm.runtime import Device, NDArray, ndarray
+from tvm.runtime import Device, NDArray, load_static_library, ndarray
 from tvm.runtime.relax_vm import VirtualMachine
 from tvm.target import Target
 
@@ -52,6 +57,8 @@ from ._tensor_op import _TensorOp
 from .subroutine import SubroutineMixin
 
 if TYPE_CHECKING:
+    import torch
+
     from . import spec as _spec
 
 
@@ -169,13 +176,17 @@ class Parameter(Tensor):
 
     _data: Optional[NDArray]
 
-    def __init__(self, shape: List[Union[int, tir.PrimExpr]], dtype: Optional[str] = None) -> None:
+    def __init__(
+        self,
+        shape: Sequence[Union[int, tir.PrimExpr]],
+        dtype: Optional[str] = None,
+    ) -> None:
         """Create a parameter with given shape and dtype. The parameter is not bound to any
         concrete values.
 
         Parameters
         ----------
-        shape : List[Union[int, tir.PrimExpr]]
+        shape : Sequence[Union[int, tir.PrimExpr]]
             The shape of the parameter
         dtype : Optional[str]
             The data type of the parameter. If not specified, the default dtype will be used.
@@ -243,6 +254,10 @@ class Effect:
 
     def create(self, name_hint: str) -> List[rx.Var]:
         """Create the implicit inputs to a relax.Function that represents the side effect"""
+        raise NotImplementedError
+
+    def set_state(self, state_vars: List[rx.Var]) -> None:
+        """Set the variables that represents the effect"""
         raise NotImplementedError
 
     def finalize(self) -> List[rx.Var]:
@@ -356,6 +371,8 @@ class Module(SubroutineMixin):
         for _, item in self.__dict__.items():
             if hasattr(item, "to") and callable(item.to):
                 item.to(dtype=dtype)
+        if dtype is not None and isinstance(getattr(self, "dtype", None), str):
+            self.dtype = dtype  # pylint: disable=attribute-defined-outside-init
 
     def export_tvm(
         self,
@@ -389,13 +406,13 @@ class Module(SubroutineMixin):
 
     def jit(  # pylint: disable=too-many-arguments
         self,
-        spec: "_spec.Module",
+        spec: "_spec.ModuleSpec",
         target: Union[str, Target] = "llvm",
-        device: str = "cpu",
+        device: Union[str, Device] = "cpu",
         pipeline: str = "zero",
         out_format: str = "torch",
         debug: bool = False,
-    ) -> Callable:
+    ) -> Any:
         """Just-in-time compilation of a nn.model to an executable"""
         from tvm import relax  # pylint: disable=import-outside-toplevel
 
@@ -407,17 +424,19 @@ class Module(SubroutineMixin):
 
         # Convert parameters
         device = _str_to_device(device)
-        params = _param_to_ndarray(params, device)
+        params_ndarray = _param_to_ndarray(params, device)
 
         # Compile mod and feed it to VM
         mod = relax.pipeline.get_pipeline(pipeline)(mod)  # pylint: disable=no-value-for-parameter
-        mod = relax.build(mod, target=target)
-        vm = VirtualMachine(mod, device)  # pylint: disable=invalid-name
+        vm = VirtualMachine(  # pylint: disable=invalid-name
+            relax.build(mod, target=target),
+            device,
+        )
 
         if out_format == "torch":
             from . import torch  # pylint: disable=import-outside-toplevel
 
-            return torch.TorchModule(spec=spec, params=params, vm=vm)
+            return torch.TorchModule(spec=spec, params=params_ndarray, vm=vm)
 
         raise ValueError(f"Unknown out_format: {out_format}")
 
@@ -449,8 +468,11 @@ class ExternModule(Module):
         for function_spec in self.module_spec.functions:
             if function_spec.symbol == func_name:
                 # pylint: disable=cell-var-from-loop, import-outside-toplevel, protected-access
+                from tvm.relax import Tuple as RxTuple
+                from tvm.relax import call_dps_packed
+
+                from . import spec as _spec
                 from .op import _wrap_nested
-                from tvm.relax import call_dps_packed, Tuple as RxTuple
 
                 def extern_func(*args: Tensor) -> Tensor:
                     spec2var = {}
@@ -466,15 +488,22 @@ class ExternModule(Module):
                                             f"for {value_spec} in {function_spec}"
                                         )
                     out_shape = []
-                    for value_spec in function_spec.ret.shape:
+                    func_spec_ret = function_spec.ret
+                    assert isinstance(
+                        func_spec_ret, _spec.Tensor
+                    ), "Only single return value is supported for now"
+                    for value_spec in func_spec_ret.shape:
                         if isinstance(value_spec, int):
                             out_shape.append(value_spec)
                         elif isinstance(value_spec, str):
                             if not value_spec in spec2var:
                                 raise ValueError(f"Undefined var {value_spec} in {function_spec}")
                             out_shape.append(spec2var[value_spec])
-                    out_sinfo = TensorStructInfo(out_shape, function_spec.ret.dtype)
-                    return _wrap_nested(
+                    out_sinfo = TensorStructInfo(
+                        out_shape,  # type: ignore[arg-type]
+                        func_spec_ret.dtype,
+                    )
+                    ret_tensor = _wrap_nested(
                         call_dps_packed(
                             func_name,
                             args=RxTuple([tensor._expr for tensor in args]),
@@ -482,10 +511,84 @@ class ExternModule(Module):
                         ),
                         func_name,
                     )
+                    assert isinstance(ret_tensor, Tensor)
+                    return ret_tensor
+
+                # pylint: enable=cell-var-from-loop, import-outside-toplevel, protected-access
 
                 return extern_func
+        raise ValueError(f"Unknown function {func_name} in the external module:{self.module_spec}")
 
-        raise ValueError(f"Unknown function {func_name} in {self.module_spec.filename}")
+
+class SourceModule(ExternModule):
+    """Base class for source module. Subclass it to import your source models.
+
+    See PR #16006 (https://github.com/apache/tvm/pull/16006) for a detailed example.
+    """
+
+    def __init__(  # pylint: disable=too-many-arguments,too-many-locals
+        self,
+        source_code: str,
+        source_format: str,  # "cpp", "cu"
+        functions: Dict[str, "_spec.ExternFunctionSpec"],
+        compile_options: Optional[List[str]] = None,
+        compiler: Optional[str] = None,
+        output_format: str = "obj",  # "obj", "wasm"
+    ):
+        from . import spec as _spec  # pylint: disable=import-outside-toplevel
+
+        def _detect_input_suffix(source_format: str) -> str:
+            if source_format == "cpp":
+                return ".cpp"
+            if source_format == "cu":
+                return ".cu"
+            raise ValueError(f"Invalid source format: {source_format}")
+
+        def _detect_output_suffix(output_format: str) -> str:
+            if output_format == "obj":
+                if _cc._is_linux_like():  # pylint: disable=protected-access
+                    return ".o"
+                if _cc._is_windows_like():  # pylint: disable=protected-access
+                    return ".obj"
+                raise ValueError(f"Unsupported platform: {sys.platform}")
+            if output_format == "wasm":
+                return ".wasm"
+            raise ValueError(f"Invalid output format: {output_format}")
+
+        source_suffix = _detect_input_suffix(source_format)
+        output_suffix = _detect_output_suffix(output_format)
+        if compile_options is None:
+            compile_options = []
+            for include_path in find_include_path():
+                compile_options.append("-I")
+                compile_options.append(include_path)
+            compile_options.append("-c")
+            compile_options.append("-DDMLC_USE_FOPEN64=0")
+            compile_options.append("-DDMLC_USE_LOGGING_LIBRARY=<tvm/runtime/logging.h>")
+        with tempfile.TemporaryDirectory() as temp_dir:
+            source_file = os.path.join(temp_dir, f"main{source_suffix}")
+            with open(source_file, "w", encoding="utf-8") as file:
+                file.write(source_code)
+            output_file = os.path.join(temp_dir, f"main{output_suffix}")
+            _cc.create_shared(
+                output=output_file,
+                objects=[source_file],
+                options=compile_options,
+                cc=compiler,
+            )
+            func_names: List[str] = []
+            func_specs: List[_spec.ExternFunctionSpec] = []
+            for func_name, func_spec in functions.items():
+                func_names.append(func_name)
+                func_specs.append(func_spec)
+                if func_spec.symbol is None:
+                    func_spec.symbol = func_name
+            library = load_static_library(output_file, func_names=func_names)
+        module_spec = _spec.ExternModuleSpec(
+            library=library,
+            functions=func_specs,
+        )
+        super().__init__(module_spec=module_spec)
 
 
 class ModuleList(Module):
@@ -507,6 +610,7 @@ class ModuleList(Module):
         return len(self.modules)
 
     def append(self, module):
+        """Add a module to the end of the ModuleList"""
         self.modules.append(module)
 
     def to(self, dtype: Optional[str] = None) -> None:  # pylint: disable=invalid-name
@@ -558,7 +662,7 @@ def _tensor_placeholder(
         _expr=rx.Var(
             name_hint=name,
             struct_info=TensorStructInfo(
-                shape=new_shape,
+                shape=new_shape,  # type: ignore[arg-type]
                 dtype=dtype,
             ),
         )
@@ -582,7 +686,9 @@ def _from_dlpack(tensor) -> NDArray:
     )
 
 
-def _str_to_device(device: str) -> Device:
+def _str_to_device(device: Union[str, Device]) -> Device:
+    if isinstance(device, Device):
+        return device
     split = device.split(":")
     if len(split) > 2:
         raise ValueError(f"Invalid device: {device}")

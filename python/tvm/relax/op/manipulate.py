@@ -170,7 +170,7 @@ def permute_dims(x: Expr, axes: Optional[List[int]] = None) -> Expr:
         The input data to the operator.
 
     axes : Optional[List[int]]
-        The target axes order, reverse order if not specified.
+        The target axes order. If not specified, permute_dims will reverse the order of all axes.
 
     Returns
     -------

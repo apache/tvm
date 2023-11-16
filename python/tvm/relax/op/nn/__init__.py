@@ -18,6 +18,7 @@
 from .nn import (
     adaptive_avg_pool2d,
     attention,
+    attention_var_len,
     avg_pool2d,
     batch_norm,
     conv1d,

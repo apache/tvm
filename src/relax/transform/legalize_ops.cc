@@ -31,6 +31,8 @@
 namespace tvm {
 namespace relax {
 
+TVM_REGISTER_PASS_CONFIG_OPTION("relax.transform.apply_legalize_ops", Bool);
+
 /*!
  * \brief Check if a given Tensor/Shape/TupleStructInfo contains shapes whose
  * values are all known.
@@ -57,10 +59,11 @@ class LegalizeMutator : public ExprMutator {
  public:
   explicit LegalizeMutator(const IRModule& mod, const Optional<Map<String, PackedFunc>>& cmap,
                            bool enable_warning)
-      : ExprMutator(mod),
-        mod_(std::move(mod)),
-        cmap_(std::move(cmap)),
-        enable_warning_(enable_warning) {}
+      : ExprMutator(mod), mod_(std::move(mod)), enable_warning_(enable_warning) {
+    if (cmap) {
+      cmap_ = std::move(cmap.value());
+    }
+  }
 
   IRModule Transform() {
     for (const auto& [gv, func] : mod_->functions) {
@@ -132,36 +135,67 @@ class LegalizeMutator : public ExprMutator {
       return visited_call;
     }
 
-    // Priority: customize > default.
-    // Check if it has customize legalization registered.
-    if (cmap_.defined() && cmap_.value().count(op->name)) {
-      auto ret = cmap_.value()[op->name](this->builder_, visited_call);
-      if (ret.IsObjectRef<Expr>() && WrapPureCondition(op, ret.AsObjectRef<Expr>())) {
-        return WrapPureCall(Downcast<Call>(ret.AsObjectRef<Expr>()));
+    FLegalize legalization_func;
+
+    if (auto opt_custom_legalize = cmap_.Get(op->name)) {
+      // First choice, use a custom legalization function
+      legalization_func = opt_custom_legalize.value();
+    } else if (legalize_map.count(op)) {
+      // Second choice, use a default legalization
+      legalization_func = legalize_map[op];
+    } else {
+      // No legalization.
+      if (enable_warning_ && op != call_tir_op && op != call_dps_packed_op &&
+          op != call_pure_packed_op) {
+        LOG(WARNING) << "No legalization func for " << op->name << " is found.";
       }
-      return ret;
-    }
-    // Check if it has default legalization registered.
-    if (legalize_map.count(op)) {
-      auto ret = legalize_map[op](this->builder_, visited_call);
-      if (WrapPureCondition(op, ret)) {
-        return WrapPureCall(Downcast<Call>(ret));
-      }
-      return ret;
+      return visited_call;
     }
 
-    // No legalization.
-    if (enable_warning_ && op != call_tir_op && op != call_dps_packed_op &&
-        op != call_pure_packed_op) {
-      LOG(WARNING) << "No legalization func for " << op->name << " is found.";
+    // The legalization function may call `builder_->Emit()` as part
+    // of its implementation.  In that case, any operations it emits
+    // must be caught such that they be checked for recursive
+    // legalization.  This is done by wrapping the legalized value in
+    // a SeqExpr, which can first be visited, then unwrapped by the
+    // normalization.
+    if (builder_->CurrentBlockIsDataFlow()) {
+      builder_->BeginDataflowBlock();
+    } else {
+      builder_->BeginBindingBlock();
     }
-    return visited_call;
+    Expr legalized = legalization_func(builder_, visited_call);
+    legalized = builder_->Normalize(legalized);
+
+    BindingBlock prologue = builder_->EndBlock();
+    for (const auto& binding : prologue->bindings) {
+      VisitBinding(binding);
+    }
+
+    if (WrapPureCondition(op, legalized)) {
+      legalized = WrapPureCall(Downcast<Call>(legalized));
+    }
+
+    // Legalization may have introduced additional operations that
+    // must be legalized as well.  For example, a user-custom
+    // intrinsic whose legalization is implemented in terms of relax
+    // intrinsics.  The base case of the recursion occurs when no
+    // additional legalization steps are found.
+    //
+    // Only perform recursive legalization when the legalization
+    // function returned a modified expression, as some legalizations
+    // return the original expression if they are unable to produce a
+    // legalized version.
+    if (!legalized.same_as(visited_call)) {
+      legalized = VisitExpr(legalized);
+    }
+
+    return legalized;
   }
 
   /*! \brief The context IRModule. */
   IRModule mod_;
   /*! \brief The customized legalization function map. */
-  Optional<Map<String, PackedFunc>> cmap_;
+  Map<String, PackedFunc> cmap_;
   /*!
    * \brief A boolean value indicating if to print warnings for CallNode whose op's
    * legalization function is not registered.
@@ -174,7 +208,12 @@ namespace transform {
 Pass LegalizeOps(Optional<Map<String, PackedFunc>> cmap, bool enable_warning) {
   runtime::TypedPackedFunc<IRModule(IRModule, PassContext)> pass_func = [=](IRModule mod,
                                                                             PassContext pc) {
-    return LegalizeMutator(mod, cmap, enable_warning).Transform();
+    bool apply_legalize_ops =
+        pc->GetConfig<Bool>("relax.transform.apply_legalize_ops").value_or(Bool(true))->value;
+    if (apply_legalize_ops) {
+      mod = LegalizeMutator(mod, cmap, enable_warning).Transform();
+    }
+    return mod;
   };
   return CreateModulePass(/*pass_function=*/pass_func,
                           /*opt_level=*/0,

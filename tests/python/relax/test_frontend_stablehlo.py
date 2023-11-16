@@ -115,9 +115,6 @@ def check_correctness(
     # Run the jax jitted model with the input jax numpy data
     jax_output = jax_jit_mod(*inputs_jnp)
 
-    # Legalize the Relax Operators into TensorIR
-    # TODO (relax-team): add LegalizeOps in default seq in vm_build
-    ir_mod = relax.transform.LegalizeOps()(ir_mod)
     # TODO (yongwww): support multiple targets,
     # "llvm" should be good for this check
     target = tvm.target.Target("llvm", host="llvm")
@@ -157,7 +154,6 @@ def get_vm_res(
     out: Union[tvm.nd.NDArray, List[tvm.nd.NDArray]]
         inference result
     """
-    ir_mod = relax.transform.LegalizeOps()(ir_mod)
     target = tvm.target.Target("llvm", host="llvm")
     # Compile and run
     ex = relax.build(ir_mod, target)

@@ -25,7 +25,7 @@ def test_tflite_same_io_qnn_params():
 
     x = relay.var("x", shape=(1, 4), dtype=data_dtype)
     y = relay.var("y", shape=(1, 4), dtype=data_dtype)
-    z = relay.qnn.op.add(
+    z = relay.qnn.add(
         lhs=x,
         rhs=y,
         lhs_scale=relay.const(0.00784314, "float32"),
@@ -74,7 +74,7 @@ def test_tflite_different_io_qnn_params():
 
     x = relay.var("x", shape=(1, 4), dtype=data_dtype)
     y = relay.var("y", shape=(1, 4), dtype=data_dtype)
-    z = relay.qnn.op.add(
+    z = relay.qnn.add(
         lhs=x,
         rhs=y,
         lhs_scale=relay.const(0.0156863, "float32"),
@@ -123,7 +123,7 @@ def test_saturation():
     data_dtype = "uint8"
     x = relay.var("x", shape=(1, 4), dtype=data_dtype)
     y = relay.var("y", shape=(1, 4), dtype=data_dtype)
-    z = relay.qnn.op.add(
+    z = relay.qnn.add(
         lhs=x,
         rhs=y,
         lhs_scale=relay.const(0.125, "float32"),
@@ -151,7 +151,7 @@ def test_saturation():
     np.testing.assert_equal(op_res.numpy(), golden_output)
 
     # Same params, different scale
-    z = relay.qnn.op.add(
+    z = relay.qnn.add(
         lhs=x,
         rhs=y,
         lhs_scale=relay.const(0.125, "float32"),
@@ -178,7 +178,7 @@ def test_saturation():
     np.testing.assert_equal(op_res.numpy(), golden_output)
 
     # Same io params, different output scale
-    z = relay.qnn.op.add(
+    z = relay.qnn.add(
         lhs=x,
         rhs=y,
         lhs_scale=relay.const(0.125, "float32"),
@@ -205,7 +205,7 @@ def test_saturation():
     np.testing.assert_equal(op_res.numpy(), golden_output)
 
     # All params different
-    z = relay.qnn.op.add(
+    z = relay.qnn.add(
         lhs=x,
         rhs=y,
         lhs_scale=relay.const(0.5, "float32"),
@@ -237,7 +237,7 @@ def test_ignore_channel_axis():
 
     x = relay.var("x", shape=(4,), dtype=data_dtype)
     y = relay.var("y", shape=(4,), dtype=data_dtype)
-    z = relay.qnn.op.add(
+    z = relay.qnn.add(
         lhs=x,
         rhs=y,
         lhs_scale=relay.const(0.00784314, "float32"),

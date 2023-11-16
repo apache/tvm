@@ -578,11 +578,18 @@ const String MSCGraphNode::ToPrototxt() const {
     for (const auto& pair : node->weights) {
       param.Set("param_" + pair.first, pair.second);
     }
+    for (const auto& pair : node->attrs) {
+      param.Set(pair.first, pair.second);
+    }
     layer.push_back(std::make_pair("layer_param", PrototxtPrinter::ToDictDoc(param)));
     // Append the layer Map
     printer.Append(Map<String, ObjectRef>{{"layer", PrototxtPrinter::ToDictDoc(layer)}});
   }
   return printer.GetString();
+}
+
+const bool MSCGraphNode::HasNode(const String& name) const {
+  return nodes.count(name) ? true : false;
 }
 
 const MSCJoint MSCGraphNode::FindNode(const String& name) const {
@@ -1003,7 +1010,7 @@ TVM_REGISTER_GLOBAL("msc.core.WeightGraph")
 // Graph APIS
 TVM_REGISTER_GLOBAL("msc.core.MSCGraphHasNode")
     .set_body_typed([](const MSCGraph& graph, const String& name) -> Bool {
-      return Bool(graph->nodes.count(name));
+      return Bool(graph->HasNode(name));
     });
 
 TVM_REGISTER_GLOBAL("msc.core.MSCGraphFindNode")

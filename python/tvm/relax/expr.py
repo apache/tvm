@@ -14,8 +14,6 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-# pylint: disable=invalid-name, unused-import, super-init-not-called
-# pylint: disable=redefined-builtin
 """The expression nodes of Relax."""
 import typing
 from numbers import Number
@@ -32,7 +30,7 @@ from tvm._ffi import base as _base
 from tvm.runtime import Object
 from tvm.runtime import ndarray as _nd
 
-from ..ir import BaseFunc, Node, SourceName, Span
+from ..ir import BaseFunc, Node, Span
 from ..runtime import Scriptable, String
 from ..tir import PrimExpr
 from . import _ffi_api
@@ -50,6 +48,8 @@ class Id(Object):
     """Unique identifier(name) used in Var.
     Guaranteed to be stable across all passes.
     """
+
+    name_hint: str
 
     def __init__(self):
         raise RuntimeError("Cannot directly construct Id")
@@ -92,7 +92,7 @@ class StructInfo(Node, Scriptable):
 
 
 # will be registered afterwards in python/tvm/relax/op/init.py
-_op_ffi_api = None
+_op_ffi_api = None  # pylint: disable=invalid-name
 
 
 def _binary_op_helper(lhs: "ExprWithOp", rhs: "ExprWithOp", op: Callable) -> "ExprWithOp":
@@ -273,6 +273,12 @@ class Call(ExprWithOp):
         Span that points to original source code
     """
 
+    op: Expr
+    args: List[Expr]
+    attrs: tvm.ir.Attrs
+    sinfo_args: List[StructInfo]
+    span: Optional[Span]
+
     def __init__(
         self,
         op: Union[Expr, tvm.ir.Op],
@@ -302,9 +308,19 @@ class If(ExprWithOp):
 
     false_branch: Expr
         The expression evaluated when condition is false.
+
+    span: Optional[Span]
+        Span that points to original source code
     """
 
-    def __init__(self, cond: Expr, true_branch: Expr, false_branch: Expr, span: Span = None):
+    cond: Expr
+    true_branch: Expr
+    false_branch: Expr
+    span: Optional[Span]
+
+    def __init__(
+        self, cond: Expr, true_branch: Expr, false_branch: Expr, span: Optional[Span] = None
+    ):
         self.__init_handle_by_constructor__(
             _ffi_api.If, cond, true_branch, false_branch, span  # type: ignore
         )
@@ -323,7 +339,12 @@ class Tuple(ExprWithOp):
         Span that points to original source code
     """
 
-    def __init__(self, fields: Union[List[Expr], typing.Tuple[Expr, ...]], span: Span = None):
+    fields: List[Expr]
+    span: Optional[Span]
+
+    def __init__(
+        self, fields: Union[List[Expr], typing.Tuple[Expr, ...]], span: Optional[Span] = None
+    ):
         if isinstance(fields, tvm.relax.Tuple):
             fields = fields.fields
         elif isinstance(getattr(fields, "struct_info_", None), tvm.relax.TupleStructInfo):
@@ -351,24 +372,41 @@ class TupleGetItem(ExprWithOp):
 
     index: int
         The index.
+
+    span: Optional[Span]
+        Span that points to original source code
     """
 
-    def __init__(self, tuple_value: Expr, index: int):
+    tuple_value: Expr
+    index: int
+    span: Optional[Span]
+
+    def __init__(self, tuple_value: Expr, index: int, span: Optional[Span] = None):
         self.__init_handle_by_constructor__(
-            _ffi_api.TupleGetItem, tuple_value, index  # type: ignore
+            _ffi_api.TupleGetItem, tuple_value, index, span  # type: ignore
         )
 
 
 @tvm._ffi.register_object("relax.expr.ShapeExpr")
 class ShapeExpr(ExprWithOp):
-    """A shape expression which allows users to construct a shape containing PrimExpr."""
+    """A shape expression which allows users to construct a shape containing PrimExpr.
+
+    Parameters
+    ----------
+    values: Union[List[PrimExpr], typing.Tuple[PrimExpr, ...], tvm.ir.Array]
+        The values of the shape expression.
+
+    span: Optional[Span]
+        Span that points to original source code
+    """
 
     values: List[PrimExpr]
+    span: Optional[Span]
 
     def __init__(
         self,
         values: Union[List[PrimExpr], typing.Tuple[PrimExpr, ...], tvm.ir.Array],
-        span: Span = None,
+        span: Optional[Span] = None,
     ) -> None:
         self.__init_handle_by_constructor__(_ffi_api.ShapeExpr, values, span)  # type: ignore
 
@@ -389,26 +427,62 @@ def make_shape(shape: Union[List[Any], typing.Tuple[Any, ...]]) -> ShapeExpr:
 
 @tvm._ffi.register_object("relax.expr.Constant")
 class Constant(ExprWithOp):
+    """Constant Tensor
+
+    Parameters
+    ----------
+    data: tvm.nd.NDArray
+        The data of the constant tensor.
+
+    struct_info: Optional[StructInfo]
+        The struct info of the constant tensor. If not specified, infer it from data.
+
+    span: Optional[Span]
+        Span that points to original source code
+
+    Note
+    ----
+    Scalar constants are represented by ndim-0 constant tensors.
+    """
+
+    data: tvm.nd.NDArray
+    span: Optional[Span]
+
     def __init__(
-        self, data: tvm.nd.NDArray, struct_info: Optional[StructInfo] = None, span: Span = None
+        self,
+        data: tvm.nd.NDArray,
+        struct_info: Optional[StructInfo] = None,
+        span: Optional[Span] = None,
     ) -> None:
         self.__init_handle_by_constructor__(
-            _ffi_api.Constant, data, struct_info, span
-        )  # type: ignore
+            _ffi_api.Constant, data, struct_info, span  # type: ignore
+        )
 
 
 @tvm._ffi.register_object("relax.expr.Var")
 class Var(ExprWithOp):
-    """The variable class for all Relax bindings."""
+    """The variable class for all Relax bindings.
+
+    Parameters
+    ----------
+    name_hint: Union[str, Id]
+        The name hint of the variable.
+
+    struct_info: Optional[StructInfo]
+        The struct info annotation of the variable.
+
+    span: Optional[Span]
+        Span that points to original source code
+    """
 
     vid: Id
-    struct_info: Optional[StructInfo]
+    span: Optional[Span]
 
     def __init__(
         self,
         name_hint: Union[str, Id],
         struct_info: Optional[StructInfo] = None,
-        span: Span = None,
+        span: Optional[Span] = None,
     ) -> None:
         if struct_info is not None:
             struct_info = tvm.runtime.convert_to_object(struct_info)
@@ -435,17 +509,31 @@ class Var(ExprWithOp):
 @tvm._ffi.register_object("relax.expr.DataflowVar")
 class DataflowVar(Var):
     """A sub-type of the variable node used to mark dataflow variables from
-    normal visible "function local" bindings."""
+    normal visible "function local" bindings.
+
+
+    Parameters
+    ----------
+    name_hint: Union[str, Id]
+        The name hint of the variable.
+
+    struct_info: Optional[StructInfo]
+        The struct info annotation of the variable.
+
+    span: Optional[Span]
+        Span that points to original source code
+    """
 
     vid: Id
-    struct_info: Optional[StructInfo]
+    span: Optional[Span]
 
     def __init__(
         self,
         name_hint: Union[str, Id],
         struct_info: Optional[StructInfo] = None,
-        span: Span = None,
+        span: Optional[Span] = None,
     ) -> None:
+        # pylint: disable=super-init-not-called
         if struct_info is not None:
             struct_info = tvm.runtime.convert_to_object(struct_info)
             if not isinstance(struct_info, StructInfo):
@@ -471,7 +559,7 @@ class PrimValue(Expr, Scriptable):
 
     value: PrimExpr
 
-    def __init__(self, value: Union[PrimExpr, int], span: Span = None) -> None:
+    def __init__(self, value: Union[PrimExpr, int], span: Optional[Span] = None) -> None:
         if isinstance(value, int):
             value = tvm.tir.IntImm("int64", value)
         self.__init_handle_by_constructor__(_ffi_api.PrimValue, value, span)  # type: ignore
@@ -482,8 +570,9 @@ class StringImm(Expr, Scriptable):
     """Represent a string literal constant."""
 
     value: str
+    span: Optional[Span]
 
-    def __init__(self, value: str, span: Span = None) -> None:
+    def __init__(self, value: str, span: Optional[Span] = None) -> None:
         self.__init_handle_by_constructor__(_ffi_api.StringImm, value, span)  # type: ignore
 
 
@@ -492,14 +581,18 @@ class DataTypeImm(Expr, Scriptable):
     """Represent a data type constant."""
 
     value: DataType
+    span: Optional[Span]
 
-    def __init__(self, value: Union[DataType, str], span: Span = None) -> None:
+    def __init__(self, value: Union[DataType, str], span: Optional[Span] = None) -> None:
         self.__init_handle_by_constructor__(_ffi_api.DataTypeImm, value, span)  # type: ignore
 
 
 @tvm._ffi.register_object("relax.expr.Binding")
 class Binding(Node, Scriptable):
     """The base class of a binding in Relax."""
+
+    var: Var
+    span: Optional[Span]
 
 
 @tvm._ffi.register_object("relax.expr.MatchCast")
@@ -522,12 +615,12 @@ class MatchCast(Binding):
         The struct info to match cast to.
     """
 
-    var: Var
-    struct_info: "tvm.relax.StructInfo"
+    struct_info: StructInfo
     value: Expr
+    span: Optional[Span]
 
     def __init__(
-        self, var: Var, value: Expr, struct_info: "tvm.relax.StructInfo", span: Span = None
+        self, var: Var, value: Expr, struct_info: StructInfo, span: Optional[Span] = None
     ) -> None:
         self.__init_handle_by_constructor__(
             _ffi_api.MatchCast, var, value, struct_info, span  # type: ignore
@@ -536,12 +629,23 @@ class MatchCast(Binding):
 
 @tvm._ffi.register_object("relax.expr.VarBinding")
 class VarBinding(Binding):
-    """Variable binding, bind he variable of the lhs with the rhs."""
+    """Variable binding, bind he variable of the lhs with the rhs.
+
+    Parameters
+    ----------
+    var: Var
+        The return variable that the match cast bind to.
+
+    value: Expr
+        The input value expression.
+
+    """
 
     var: Var
     value: Expr
+    span: Optional[Span]
 
-    def __init__(self, var: Var, value: Expr, span: Span = None) -> None:
+    def __init__(self, var: Var, value: Expr, span: Optional[Span] = None) -> None:
         self.__init_handle_by_constructor__(_ffi_api.VarBinding, var, value, span)  # type: ignore
 
 
@@ -551,8 +655,9 @@ class BindingBlock(Node, Scriptable):
     (with side effect or control flow)"""
 
     bindings: List[Binding]
+    span: Optional[Span]
 
-    def __init__(self, bindings: List[Binding], span: Span = None) -> None:
+    def __init__(self, bindings: List[Binding], span: Optional[Span] = None) -> None:
         self.__init_handle_by_constructor__(_ffi_api.BindingBlock, bindings, span)  # type: ignore
 
 
@@ -560,7 +665,11 @@ class BindingBlock(Node, Scriptable):
 class DataflowBlock(BindingBlock):
     """dataflow block, bindings inside are pure (no side effect and no control flow)"""
 
-    def __init__(self, bindings: List[Binding], span: Span = None) -> None:
+    bindings: List[Binding]
+    span: Optional[Span]
+
+    def __init__(self, bindings: List[Binding], span: Optional[Span] = None) -> None:
+        # pylint: disable=super-init-not-called
         self.__init_handle_by_constructor__(_ffi_api.DataflowBlock, bindings, span)  # type: ignore
 
 
@@ -570,8 +679,9 @@ class SeqExpr(ExprWithOp):
 
     blocks: List[BindingBlock]
     body: Expr
+    span: Optional[Span]
 
-    def __init__(self, blocks: List[BindingBlock], body: Expr, span: Span = None) -> None:
+    def __init__(self, blocks: List[BindingBlock], body: Expr, span: Optional[Span] = None) -> None:
         self.__init_handle_by_constructor__(_ffi_api.SeqExpr, blocks, body, span)  # type: ignore
 
 
@@ -583,7 +693,8 @@ class Function(BaseFunc, Scriptable):
     body: Expr
     ret_struct_info: StructInfo
     is_pure: bool
-    attrs: Optional[tvm.ir.DictAttrs]
+    attrs: tvm.ir.DictAttrs
+    span: Optional[Span]
 
     def __init__(
         self,
@@ -601,7 +712,7 @@ class Function(BaseFunc, Scriptable):
             ret_struct_info,
             is_pure,
             attrs,
-            span,  # type: ignore
+            span,
         )  # type: ignore
 
     @staticmethod
@@ -713,14 +824,15 @@ class ExternFunc(BaseFunc):
     """extern function, which represents a PackedFunc."""
 
     global_symbol: String
+    span: Optional[Span]
 
-    def __init__(self, global_symbol: String, span: Span = None) -> None:
+    def __init__(self, global_symbol: String, span: Optional[Span] = None) -> None:
         self.__init_handle_by_constructor__(
             _ffi_api.ExternFunc, global_symbol, span  # type: ignore
         )
 
 
-def extern(name: str, span: Span = None):
+def extern(name: str, span: Optional[Span] = None):
     """Create extern function."""
     return ExternFunc(name, span)
 

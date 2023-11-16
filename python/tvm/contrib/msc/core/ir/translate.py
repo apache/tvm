@@ -85,7 +85,7 @@ def from_relax(
     params: dict of <string:tvm.ndarray>
         The parameters of the IRModule.
     trans_config: dict
-        The config for transfrorm IRModule.
+        The config for transform IRModule.
     build_config: dict
         The config for build MSCGraph.
     opt_config: dict
@@ -112,7 +112,7 @@ def from_relax(
                 tvm.relax.transform.FoldConstant(),
             ]
         )(mod)
-    patterns = get_patterns_with_prefix("msc")
+    patterns = get_patterns_with_prefix("msc.")
     passes = [
         tvm.relax.transform.FuseOpsByPattern(
             patterns, bind_constants=False, annotate_codegen=False
@@ -196,7 +196,7 @@ def from_relay(
     params: dict of <string:tvm.ndarray>
         The parameters of the IRModule.
     trans_config: dict
-        The config for transfrorm IRModule.
+        The config for transform IRModule.
     build_config: dict
         The config for build MSCGraph.
     opt_config: dict
@@ -250,9 +250,7 @@ class BYOCChecker(PyExprVisitor):
             self.visit_expr(expr)
         elif isinstance(expr, tvm.relax.BindingBlock):
             self.visit_binding_block(expr)
-        assert len(self._non_target_exprs) == 0, "Exprs not on target {}".format(
-            self._non_target_exprs
-        )
+        assert len(self._non_target_exprs) == 0, "Some exprs not on target {}".format(expr)
 
     def visit_var_binding_(self, binding) -> None:
         super().visit_var_binding_(binding)
@@ -262,6 +260,8 @@ class BYOCChecker(PyExprVisitor):
                     self._non_target_exprs.append(binding.value)
             else:
                 self._non_target_exprs.append(binding.value)
+        elif not isinstance(binding.value, tvm.relax.DataflowVar):
+            self._non_target_exprs.append(binding.value)
 
 
 def byoc_partition(
@@ -281,7 +281,7 @@ def byoc_partition(
     mod: IRModule
         The IRModule of relax.
     trans_config: dict
-        The config for transfrorm IRModule.
+        The config for transform IRModule.
     params: dict of <string:tvm.ndarray>
         The parameters of the IRModule.
     build_config: dict
@@ -305,31 +305,38 @@ def byoc_partition(
     if params:
         mod = BindParams("main", params)(mod)
 
-    patterns = get_patterns_with_prefix(target)
-    mod = tvm.transform.Sequential(
-        [
-            tvm.relax.transform.FuseOpsByPattern(
-                patterns, bind_constants=False, annotate_codegen=False
-            ),
-            tvm.relax.transform.MergeCompositeFunctions(),
-            msc_transform.SetExprName(target=target),
-            msc_transform.SetExprLayout(trans_config.get("allow_layout_missing", True)),
-        ]
-    )(mod)
+    def _partition_mod(mod, as_msc=True):
+        patterns = get_patterns_with_prefix(target)
+        if as_msc:
+            passes = [tvm.relax.transform.FuseOpsByPattern(patterns, bind_constants=False)]
+        else:
+            passes = [tvm.relax.transform.FuseOpsByPattern(patterns, bind_constants=True)]
+        passes.extend(
+            [
+                msc_transform.BindShape(),
+                msc_transform.FuseTuple(target),
+                tvm.relax.transform.MergeCompositeFunctions(),
+                msc_transform.SetExprName(target=target),
+                msc_transform.SetExprLayout(trans_config.get("allow_layout_missing", True)),
+            ]
+        )
+        return tvm.transform.Sequential(passes)(mod)
 
     def _is_target_func(func):
         if "Codegen" not in func.attrs:
             return False
         return func.attrs["Codegen"] == target
 
-    func_names = [var.name_hint for var, func in mod.functions.items() if _is_target_func(func)]
+    msc_mod = _partition_mod(mod)
+    func_names = [var.name_hint for var, func in msc_mod.functions.items() if _is_target_func(func)]
 
     if not allow_incomplete:
-        BYOCChecker().check(func_names, mod[entry])
+        assert len(func_names) == 1, "More than 1 target func is found: " + str(msc_mod)
+        BYOCChecker().check(func_names, msc_mod[entry])
 
-    graphs_info, all_weights = [], _ffi_api.GetRelaxWeights(mod, entry)
+    graphs_info, all_weights = [], _ffi_api.GetRelaxWeights(msc_mod, entry)
     for idx, name in enumerate(func_names):
-        build_config["graph_name"] = target + "_" + str(idx)
-        graph = _ffi_api.BuildFromRelax(mod, name, msc_utils.dump_dict(build_config))
+        build_config.update({"graph_name": target + "_" + str(idx), "byoc_entry": name})
+        graph = _ffi_api.BuildFromRelax(msc_mod, entry, msc_utils.dump_dict(build_config))
         graphs_info.append((name, graph, normalize_weights(all_weights, graph)))
-    return mod, graphs_info
+    return _partition_mod(mod, False), graphs_info

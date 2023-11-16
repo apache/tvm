@@ -16,13 +16,11 @@
 # under the License.
 # pylint: disable=invalid-name, no-member
 """VM build logics"""
-from typing import List, Optional, Union, Dict, Any
+from typing import Any, Dict, List, Optional, Union
 
 import tvm
 from tvm import relax
-
 from tvm.contrib import utils as _utils
-
 from tvm.ir.module import IRModule
 from tvm.tir.function import PrimFunc
 
@@ -80,6 +78,7 @@ class Executable:
             rt_mod = ex.jit()
             vm = tvm.relax.VirtualMachine(rt_mod, tvm.cuda())
         """
+
         # TODO(tvm-team): Update runtime.Module interfac
         # to query these properties as bitmask.
         def _not_runnable(x):
@@ -249,6 +248,7 @@ def build(
     mod: tvm.IRModule,
     target: Union[str, tvm.target.Target],
     params: Optional[Dict[str, list]] = None,
+    pipeline: str = "default_build",
     exec_mode: str = "bytecode",
     *,
     system_lib: Optional[bool] = None,
@@ -273,6 +273,9 @@ def build(
 
     params: Optional[Dict[str, list]]
         Parameters for the input IRModule that will be bound.
+
+    pipeline : str = "default_build"
+        The compilation pipeline to use.
 
     exec_mode: {"bytecode", "compiled"}
         The execution mode.
@@ -305,25 +308,7 @@ def build(
     if isinstance(target, str):
         target = tvm.target.Target(target)
 
-    lowering_passes = tvm.transform.Sequential(
-        [
-            relax.transform.RewriteDataflowReshape(),
-            relax.transform.ToNonDataflow(),
-            relax.transform.RemovePurityChecking(),
-            relax.transform.CallTIRRewrite(),
-            relax.transform.StaticPlanBlockMemory(),
-            relax.transform.RewriteCUDAGraph(),
-            relax.transform.LowerAllocTensor(),
-            relax.transform.KillAfterLastUse(),
-            relax.transform.VMBuiltinLower(),
-            relax.transform.VMShapeLower(),
-            relax.transform.AttachGlobalSymbol(),
-        ],
-        name="relax.lower",
-    )
-
-    new_mod = lowering_passes(mod)
-
+    new_mod = relax.get_pipeline(pipeline)(mod)
     # Extract external runtime modules if exist.
     attrs = dict(mod.attrs) if mod.attrs else {}
 

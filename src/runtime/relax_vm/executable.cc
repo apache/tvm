@@ -124,7 +124,7 @@ std::string Executable::Stats() const {
       oss << ", ";
     } else {
       try {
-        DLDataType dtype = it.operator DLDataType();
+        DataType dtype(it.operator DLDataType());
         oss << dtype;
         oss << ", ";
       } catch (std::exception& exc) {

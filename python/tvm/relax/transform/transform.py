@@ -288,8 +288,14 @@ def CanonicalizeBindings() -> tvm.ir.transform.Pass:
     """
     Canonicalizes variable definitions
     (e.g., if there is y = x and z = y, it replaces uses of y and z with x).
+    Also simplifies match cast nodes (eliminating redundant checks)
+    and tuple indices.
 
     Best combined with constant folding and the elimination of unused definitions.
+
+    Note: If a dataflow var is used only in a binding to the dataflow block
+    output var (i.e., a non-dataflow var), this pass will also remove the dataflow var
+    and replaces the output var's binding with the dataflow var's direct definition.
 
     Returns
     -------
@@ -535,21 +541,6 @@ def FoldConstant() -> tvm.ir.transform.Pass:
     ret: tvm.ir.transform.Pass
     """
     return _ffi_api.FoldConstant()  # type: ignore
-
-
-def FoldDataflowBlockOutput() -> tvm.ir.transform.Pass:
-    """If a dataflow var is used only in a binding to the dataflow block
-    output var (i.e., a non-dataflow var), this removes the dataflow var
-    and replaces the output var's binding with the dataflow var's direct definition.
-
-    This "cleans up" a situation that commonly arises when using `CanonicalizeBindings`
-    and `DeadCodeElimination`.
-
-    Returns
-    -------
-    ret: tvm.ir.transform.Pass
-    """
-    return _ffi_api.FoldDataflowBlockOutput()  # type: ignore
 
 
 def AnnotateTIROpPattern() -> tvm.ir.transform.Pass:

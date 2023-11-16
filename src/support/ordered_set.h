@@ -54,6 +54,13 @@ class OrderedSet {
  public:
   OrderedSet() = default;
 
+  template <typename Iter>
+  OrderedSet(Iter begin, Iter end) {
+    for (auto it = begin; it != end; it++) {
+      push_back(*it);
+    }
+  }
+
   void push_back(const T& t) {
     if (!elem_to_iter_.count(t)) {
       elements_.push_back(t);

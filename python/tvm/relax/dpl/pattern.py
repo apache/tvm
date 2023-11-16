@@ -466,7 +466,7 @@ class TuplePattern(DFPattern):
         The fields in the tuple.
     """
 
-    def __init__(self, fields: Array):
+    def __init__(self, fields: list):
         self.__init_handle_by_constructor__(ffi.TuplePattern, fields)  # type: ignore
 
     def __getitem__(self, index: Optional[int]) -> "TupleGetItemPattern":
@@ -1041,7 +1041,6 @@ class PatternSeq(Node):
         return _used_by(self, other, index)
 
     def only_used_by(self, other: Union[DFPattern, "PatternSeq"], index=-1) -> "PatternSeq":
-
         """
         Assuming the right-most pattern must be **ONLY** used by the `other` pattern as a producer
 

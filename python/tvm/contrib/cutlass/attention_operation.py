@@ -35,9 +35,7 @@ def instantiate_attention_template(attrs):
     var_len_template = """
   p.seqstart_q_ptr = (int32_t*)${seqstart_q}->data;
   p.seqstart_k_ptr = (int32_t*)${seqstart_k}->data;
-  // TODO(masahi): Pass max_seqlen_q as an integer
-  cudaMemcpy(&p.num_queries, (int32_t*)${max_seqlen_q}->data, sizeof(int32_t),
-             cudaMemcpyDeviceToHost);
+  p.num_queries = ((int32_t*)${max_seqlen_q}->data)[0];
   p.num_batches = ${seqstart_q}->shape[0] - 1;
 """
 
@@ -218,6 +216,8 @@ def instantiate_flash_attention_template(attrs):
     			    o_row_stride,
     			    ${scale},
     			    ${is_causal},
+                            ${window_size_left},
+                            ${window_size_right},
     			    stream);
     """
 
@@ -268,10 +268,65 @@ def instantiate_flash_attention_template(attrs):
     			    o_row_stride,
     			    ${scale},
     			    ${is_causal},
+                            ${window_size_left},
+                            ${window_size_right},
     			    stream);
     """
 
     if "qkv" in attrs:
         return substitute_template(template_stacked, attrs)
+
+    return substitute_template(template, attrs)
+
+
+def instantiate_flash_attention_var_len_template(attrs):
+    """Return host code for flash attention with variable sequence lengths."""
+
+    template = """
+    int _max_seqlen_q = ((int32_t*)${max_seqlen_q}->data)[0];
+    int _max_seqlen_k = ((int32_t*)${max_seqlen_k}->data)[0];
+
+    int batch_size = ${seqstart_q}->shape[0] - 1;
+
+    int q_head_stride = ${head_dim};
+    int k_head_stride = ${head_dim};
+    int v_head_stride = ${head_dim};
+    int o_head_stride = ${head_dim};
+    int q_row_stride = q_head_stride * ${num_q_heads};
+    int k_row_stride = k_head_stride * ${num_kv_heads};
+    int v_row_stride = v_head_stride * ${num_kv_heads};
+    int o_row_stride = o_head_stride * ${num_q_heads};
+
+    auto func = tvm::runtime::Registry::Get("runtime.get_cuda_stream");
+    ICHECK(func != nullptr);
+    cudaStream_t stream = static_cast<cudaStream_t>((*func)().operator void*());
+
+    flash_attn::flash_attention_var_len_forward(
+                            static_cast<const cutlass::half_t*>(${query}->data),
+    			    static_cast<const cutlass::half_t*>(${key}->data),
+    			    static_cast<const cutlass::half_t*>(${value}->data),
+                            static_cast<const int*>(${seqstart_q}->data),
+                            static_cast<const int*>(${seqstart_k}->data),
+    			    static_cast<cutlass::half_t*>(out0->data),
+    			    batch_size,
+    			    _max_seqlen_q,
+    			    _max_seqlen_k,
+    			    ${num_q_heads},
+    			    ${num_kv_heads},
+    			    ${head_dim},
+    			    q_head_stride,
+    			    k_head_stride,
+    			    v_head_stride,
+    			    o_head_stride,
+    			    q_row_stride,
+    			    k_row_stride,
+    			    v_row_stride,
+    			    o_row_stride,
+    			    ${scale},
+    			    ${is_causal},
+                            ${is_causal} ? _max_seqlen_k : -1,
+                            ${window_size_right},
+    			    stream);
+    """
 
     return substitute_template(template, attrs)

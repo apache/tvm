@@ -17,10 +17,11 @@
 # pylint: disable=invalid-name, unused-argument, missing-function-docstring, abstract-method
 """Relax Remove Redundant Reshape ops"""
 from tvm import IRModule, relax
-from tvm.ir.transform import PassContext
 from tvm.ir import structural_equal
+from tvm.ir.transform import PassContext
 from tvm.relax import Expr, Function
 from tvm.relax.dpl import is_op, rewrite_call, wildcard
+
 from . import function_pass
 
 
@@ -57,7 +58,7 @@ class RemoveRedundantReshape:
         """
 
         updated_func = func
-        for _, funct in mod.functions.items():
+        for _, funct in mod.functions_items():
             # Skip non-relax functions
             if not isinstance(funct, Function):
                 continue

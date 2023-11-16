@@ -19,7 +19,7 @@
 import tvm
 from tvm import topi
 from tvm.ir.module import IRModule
-from tvm.relax import Expr, Call, expr_functor, PyExprMutator
+from tvm.relax import Call, Expr, PyExprMutator, expr_functor
 
 
 @expr_functor.mutator
@@ -57,11 +57,8 @@ class FastMathTransform:
 
     def transform_module(self, mod: IRModule, ctx: tvm.transform.PassContext) -> IRModule:
         fast_math_codegen = FastMathCodeGenerator(mod)
-        for gv in mod.functions:
-            func = mod[gv]
-            if not isinstance(func, tvm.relax.Function):
-                continue
-            func = fast_math_codegen.visit_expr(func)
-            fast_math_codegen.builder_.update_func(gv, func)
-
+        for gv, func in mod.functions_items():
+            if isinstance(func, tvm.relax.Function):
+                func = fast_math_codegen.visit_expr(func)
+                fast_math_codegen.builder_.update_func(gv, func)
         return fast_math_codegen.builder_.get()

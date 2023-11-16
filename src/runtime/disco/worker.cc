@@ -62,8 +62,6 @@ void DiscoWorker::SetRegister(int reg_id, TVMArgValue value) {
 struct DiscoWorker::Impl {
   static void MainLoop(DiscoWorker* self) {
     ThreadLocalDiscoWorker::Get()->worker = self;
-    LOG(INFO) << "[Worker #" << self->worker_id << "] " << support::GetProcessIdAndThreadIdHeader()
-              << " started";
     while (true) {
       TVMArgs args = self->channel->Recv();
       DiscoAction action = static_cast<DiscoAction>(args[0].operator int());

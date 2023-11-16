@@ -24,12 +24,12 @@
 #include <tvm/runtime/device_api.h>
 #include <tvm/runtime/logging.h>
 #include <tvm/runtime/memory.h>
+#include <tvm/runtime/memory/memory_manager.h>
 #include <tvm/runtime/ndarray.h>
 #include <tvm/runtime/packed_func.h>
 #include <tvm/runtime/registry.h>
 #include <tvm/runtime/relax_vm/builtin.h>
 #include <tvm/runtime/relax_vm/bytecode.h>
-#include <tvm/runtime/relax_vm/memory_manager.h>
 #include <tvm/runtime/relax_vm/vm.h>
 
 #include "../runtime_base.h"
@@ -65,6 +65,46 @@ NDArray AllocShapeHeap(void* ctx_ptr, int64_t size) {
 }
 
 TVM_REGISTER_GLOBAL("vm.builtin.alloc_shape_heap").set_body_typed(AllocShapeHeap);
+
+/*!
+ * \brief Builtin match R.Prim function.
+ *
+ * \param input_value The runtime value provided by the user
+ *
+ * \param heap The VM storage for symbolic shapes
+ *
+ * \param code_value The op code, defined in MatchShapeCode,
+ *     indicating how this value should be interpreted.
+ *
+ * \param reg The register, if using kStoreToHeap or
+ *     kAssertEqualToLoad, or a literal value if using kAssertEqualToImm
+ *
+ * \param err_ctx An optional string used in error messages, providing
+ *     additional context
+ *
+ * \sa MatchShape
+ */
+void MatchPrimValue(int64_t input_value, DLTensor* heap, int code_value, int64_t reg,
+                    Optional<String> err_ctx) {
+  int64_t* heap_data = heap == nullptr ? nullptr : static_cast<int64_t*>(heap->data);
+  MatchShapeCode code = static_cast<MatchShapeCode>(code_value);
+
+  if (code == MatchShapeCode::kAssertEqualToImm) {
+    CHECK_EQ(input_value, reg) << "RuntimeError: " << err_ctx.value_or("") << " match_cast error, "
+                               << " PrimValue mismatch to specified constant.";
+  } else if (code == MatchShapeCode::kStoreToHeap) {
+    heap_data[reg] = input_value;
+  } else if (code == MatchShapeCode::kNoOp) {
+  } else if (code == MatchShapeCode::kAssertEqualToLoad) {
+    CHECK_EQ(input_value, heap_data[reg])
+        << "RuntimeError: " << err_ctx.value_or("") << " match_cast error, "
+        << " PrimValue mismatch to a previous populated value.";
+  } else {
+    LOG(FATAL) << "Unknown match shape code: " << static_cast<int>(code);
+  }
+}
+
+TVM_REGISTER_GLOBAL("vm.builtin.match_prim_value").set_body_typed(MatchPrimValue);
 
 /*!
  * \brief Builtin match shape function.
@@ -116,6 +156,30 @@ void MatchShape(TVMArgs args, TVMRetValue* rv) {
 }
 
 TVM_REGISTER_GLOBAL("vm.builtin.match_shape").set_body(MatchShape);
+
+/*!
+ * \brief Builtin make prim value function.
+ * \param heap The shape heap to use
+ * \param shape_code The shape code of the value
+ * \param rv The return value.
+ *
+ * \sa MakeShape
+ */
+int64_t MakePrimValue(DLTensor* heap, int shape_code, int64_t reg) {
+  // NOTE: heap can be nullptr
+  int64_t* heap_data = heap == nullptr ? nullptr : static_cast<int64_t*>(heap->data);
+
+  MakeShapeCode code = static_cast<MakeShapeCode>(shape_code);
+  if (code == MakeShapeCode::kUseImm) {
+    return reg;
+  } else if (code == MakeShapeCode::kLoadShape) {
+    return heap_data[reg];
+  } else {
+    LOG(FATAL) << "Invalid shape code: " << shape_code;
+  }
+}
+
+TVM_REGISTER_GLOBAL("vm.builtin.make_prim_value").set_body_typed(MakePrimValue);
 
 /*!
  * \brief Builtin make shape function.
@@ -182,7 +246,7 @@ void CheckTensorInfo(TVMArgs args, TVMRetValue* rv) {
   if (dtype != DataType::Void()) {
     CHECK(DataType(ptr->dl_tensor.dtype) == dtype)
         << "ValueError: " << err_ctx.value_or("") << " expect Tensor with dtype " << dtype
-        << " but get " << ptr->dl_tensor.dtype;
+        << " but get " << DataType(ptr->dl_tensor.dtype);
   }
 }
 
@@ -207,6 +271,30 @@ void CheckShapeInfo(ObjectRef arg, int ndim, Optional<String> err_ctx) {
 }
 
 TVM_REGISTER_GLOBAL("vm.builtin.check_shape_info").set_body_typed(CheckShapeInfo);
+
+/*!
+ * \brief Builtin function to check if arg is PrimValue(dtype)
+ * \param arg The input argument.
+ * \param dtype Expected dtype of the PrimValue.  Can be DataType::Void() for unknown dtype.
+ * \param err_ctx Additional context if error occurs.
+ */
+void CheckPrimValueInfo(TVMArgValue arg, DataType dtype, Optional<String> err_ctx) {
+  if (dtype.is_bool()) {
+    arg.operator bool();
+  } else if (dtype.is_int()) {
+    arg.operator int64_t();
+  } else if (dtype.is_uint()) {
+    arg.operator uint64_t();
+  } else if (dtype.is_float()) {
+    arg.operator double();
+  } else if (dtype.is_handle()) {
+    arg.operator void*();
+  } else {
+    LOG(FATAL) << "TypeError: " << err_ctx.value_or("") << ", unsupported dtype " << dtype;
+  }
+}
+
+TVM_REGISTER_GLOBAL("vm.builtin.check_prim_value_info").set_body_typed(CheckPrimValueInfo);
 
 /*!
  * \brief Builtin function to check if arg is Tuple with size elements.

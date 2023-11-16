@@ -256,8 +256,8 @@ def maximum_grad(
     y = orig_call.args[1]
     zero = relax.const(0, _get_dtype(x))
     return [
-        where(less(x, y), zero, output_grad),
-        where(greater_equal(x, y), zero, output_grad),
+        _fit_shape(ctx, where(less(x, y), zero, output_grad), x),
+        _fit_shape(ctx, where(greater_equal(x, y), zero, output_grad), y),
     ]
 
 
@@ -280,8 +280,8 @@ def minimum_grad(
     y = orig_call.args[1]
     zero = relax.const(0, _get_dtype(x))
     return [
-        where(greater_equal(x, y), zero, output_grad),
-        where(less(x, y), zero, output_grad),
+        _fit_shape(ctx, where(greater_equal(x, y), zero, output_grad), x),
+        _fit_shape(ctx, where(less(x, y), zero, output_grad), y),
     ]
 
 

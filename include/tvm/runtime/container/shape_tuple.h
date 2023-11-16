@@ -194,9 +194,14 @@ inline std::ostream& operator<<(std::ostream& os, const ShapeTuple& shape) {
   return os;
 }
 
+using IntTuple = ShapeTuple;
+using IntTupleObj = ShapeTupleObj;
+
 }  // namespace runtime
 
 // expose the functions to the root namespace.
+using runtime::IntTuple;
+using runtime::IntTupleObj;
 using runtime::ShapeTuple;
 using runtime::ShapeTupleObj;
 }  // namespace tvm

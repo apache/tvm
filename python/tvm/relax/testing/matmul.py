@@ -24,7 +24,8 @@ from tvm.script.ir_builder import relax as relax_builder
 def get_relax_matmul_module(
     x_shape,
     y_shape,
-    dtype,
+    in_dtype,
+    out_dtype,
     transposed_y=False,
     bias_shape=None,
     activation=None,
@@ -35,16 +36,16 @@ def get_relax_matmul_module(
     with IRBuilder() as builder:
         with relax_builder.function():
             R.func_name("main")
-            x = R.arg("x", R.Tensor(x_shape, dtype))
-            y = R.arg("y", R.Tensor(y_shape, dtype))
+            x = R.arg("x", R.Tensor(x_shape, in_dtype))
+            y = R.arg("y", R.Tensor(y_shape, in_dtype))
             if bias_shape is not None:
-                bias = R.arg("bias", R.Tensor(bias_shape, dtype))
+                bias = R.arg("bias", R.Tensor(bias_shape, out_dtype))
 
             with R.dataflow() as frame:
                 if transposed_y:
                     axes = list(range(len(y_shape) - 2)) + [-1, -2]
                     y = R.emit(R.permute_dims(y, axes=axes))
-                result = R.emit(R.matmul(x, y, out_dtype=dtype))
+                result = R.emit(R.matmul(x, y, out_dtype=out_dtype))
                 if bias_shape is not None:
                     result = R.emit(result + bias)
                 if activation is not None:

@@ -268,6 +268,7 @@ cast_smem_ptr_to_int(const void* const smem_ptr)
   #define int64_t long long
   #define uint64_t unsigned long long
 #endif
+extern "C" __global__ void __launch_bounds__(16) main_kernel(float* __restrict__ A, float* __restrict__ B, float* __restrict__ C);
 extern "C" __global__ void __launch_bounds__(16) main_kernel(float* __restrict__ A, float* __restrict__ B, float* __restrict__ C) {
   __shared__ float A_shared[64];
   __shared__ float B_shared[64];
@@ -935,6 +936,40 @@ def test_vectorize_cp_async_in_if_then_else(postproc_if_missing_async_support):
     generated_code = postproc_if_missing_async_support()
     # generated_code must contain "  setp.ne.b32 p, %0, 0;"
     assert "setp.ne.b32" in generated_code
+
+
+class TestMultiplicationNodesAreInligned(tvm.testing.CompareBeforeAfter):
+    transform = tvm.tir.transform.InjectPTXAsyncCopy()
+
+    def before(A: T.Buffer((32, 128), "float16")):
+        tx = T.launch_thread("threadIdx.x", T.int64(32))
+        A_flattened = T.Buffer((4096,), "float16", data=A.data)
+        A_shared = T.decl_buffer([4096], "float16", scope="shared")
+
+        T.attr("default", "async_scope", 1)
+        for i in range(16):
+            cse_var_1: T.int64 = T.Cast("int64", i)
+            A_shared[
+                T.Ramp(tx * T.int64(128) + cse_var_1 * T.int64(8), T.int64(1), 8)
+            ] = A_flattened[T.Ramp(tx * T.int64(128) + cse_var_1 * T.int64(8), T.int64(1), 8)]
+        T.ptx_commit_group()
+        T.ptx_wait_group(0)
+
+    def expected(A: T.Buffer((32, 128), "float16")):
+        tx = T.launch_thread("threadIdx.x", T.int64(32))
+        A_shared = T.decl_buffer((4096,), "float16", scope="shared")
+        for i in range(16):
+            cse_var_1: T.int64 = T.Cast("int64", i)
+            T.ptx_cp_async(
+                "float16",
+                A_shared.data,
+                T.Cast("int64", tx) * T.int64(128) + cse_var_1 * T.int64(8),
+                A.data,
+                T.Cast("int64", tx) * T.int64(128) + cse_var_1 * T.int64(8),
+                16,
+            )
+        T.ptx_commit_group()
+        T.ptx_wait_group(0)
 
 
 if __name__ == "__main__":

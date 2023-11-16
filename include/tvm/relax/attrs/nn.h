@@ -379,12 +379,14 @@ struct DropoutAttrs : public tvm::AttrsNode<DropoutAttrs> {
 struct AttentionAttrs : public tvm::AttrsNode<AttentionAttrs> {
   Optional<FloatImm> scale;
   Optional<String> causal_mask;
+  Optional<IntImm> window_size;
 
   TVM_DECLARE_ATTRS(AttentionAttrs, "relax.attrs.AttentionAttrs") {
     TVM_ATTR_FIELD(scale).describe(
         "The custom scale applied before the softmax. The default value is 1 / sqrt(head_dim).");
     TVM_ATTR_FIELD(causal_mask)
         .describe("The type of the causal mask, i.e. 'TopLeft' and 'BottomRight'.");
+    TVM_ATTR_FIELD(window_size).describe("The size of the window for sliding-window attention.");
   }
 };  // struct AttentionAttrs
 

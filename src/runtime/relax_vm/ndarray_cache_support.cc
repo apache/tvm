@@ -308,6 +308,19 @@ class ParamModuleNode : public runtime::ModuleNode {
     return params;
   }
 
+  static Array<NDArray> GetParamByName(const Array<String>& names) {
+    Array<NDArray> result;
+    result.reserve(names.size());
+    for (const String& name : names) {
+      if (Optional<NDArray> opt = NDArrayCache::Get(name)) {
+        result.push_back(opt.value());
+      } else {
+        LOG(FATAL) << "ValueError: Cannot find parameter in cache: " << name;
+      }
+    }
+    return result;
+  }
+
   static Module Create(const std::string& prefix, int num_params) {
     auto n = make_object<ParamModuleNode>();
     n->params_ = GetParams(prefix, num_params);
@@ -320,6 +333,8 @@ class ParamModuleNode : public runtime::ModuleNode {
 
 TVM_REGISTER_GLOBAL("vm.builtin.param_module_from_cache").set_body_typed(ParamModuleNode::Create);
 TVM_REGISTER_GLOBAL("vm.builtin.param_array_from_cache").set_body_typed(ParamModuleNode::GetParams);
+TVM_REGISTER_GLOBAL("vm.builtin.param_array_from_cache_by_name")
+    .set_body_typed(ParamModuleNode::GetParamByName);
 
 }  // namespace relax_vm
 }  // namespace runtime

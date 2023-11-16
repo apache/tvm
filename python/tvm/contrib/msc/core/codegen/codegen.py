@@ -23,7 +23,7 @@ from typing import Dict, List, Optional, Any, Callable
 import tvm
 from tvm.relax.transform import BindParams
 from tvm.contrib.msc.core.ir import MSCGraph
-from tvm.contrib.msc.core.ir.translate import from_relay
+from tvm.contrib.msc.core.frontend import from_relay
 from tvm.contrib.msc.core import utils as msc_utils
 
 
@@ -100,9 +100,14 @@ class CodeGen(object):
                 if self._code_format == "cpp":
                     with folder.create_dir("build"):
                         command = "cmake ../ && make && mv {} ../".format(self._graph.name)
-                        process = subprocess.Popen(command, shell=True)
+                        with open("codegen.log", "w") as log_f:
+                            process = subprocess.Popen(
+                                command, stdout=log_f, stderr=log_f, shell=True
+                            )
                         process.wait()
-                        assert process.returncode == 0, "Failed to build {} under {}".format(
+                        assert (
+                            process.returncode == 0
+                        ), "Failed to build {} under {}, check codegen.log for detail".format(
                             self._graph.name, os.getcwd()
                         )
                     obj = self._graph.name
@@ -137,7 +142,7 @@ def relay_to_relax(
     params: dict of <string:tvm.ndarray>
         The parameters of the IRModule.
     trans_config: dict
-        The config for transfrorm IRModule.
+        The config for transform IRModule.
     build_config: dict
         The config for build MSCGraph.
     opt_config: dict
