@@ -592,8 +592,9 @@ def _resize_2d(
     height_use_int_div = False
     width_use_int_div = False
     if method == "nearest_neighbor" and coordinate_transformation_mode == "asymmetric":
-        height_use_int_div = can_convert_multiply_to_intdiv(image_height, target_height)
-        width_use_int_div = can_convert_multiply_to_intdiv(image_width, target_width)
+        if rounding_method == "floor" or rounding_method == "":
+            height_use_int_div = can_convert_multiply_to_intdiv(image_height, target_height)
+            width_use_int_div = can_convert_multiply_to_intdiv(image_width, target_width)
 
     n, c, y, x, cc, inum, ic = get_2d_indices(indices, layout)
     box_idx = box_indices(n) if box_indices is not None else n
