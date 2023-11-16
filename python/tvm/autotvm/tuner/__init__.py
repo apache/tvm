@@ -22,10 +22,7 @@ This tuning loop is repeated.
 """
 
 from . import callback
-
-from .tuner import Tuner
-
-from .index_based_tuner import GridSearchTuner, RandomTuner
 from .ga_tuner import GATuner
+from .index_based_tuner import GridSearchTuner, RandomTuner
+from .tuner import Tuner
 from .xgboost_tuner import XGBTuner
-from .droplet_turner import DropletTuner
