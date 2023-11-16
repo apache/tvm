@@ -87,7 +87,9 @@ class ConstInt:  # pylint: disable=too-few-public-methods
         self.dtype = dtype
 
     def __repr__(self) -> str:
-        return "const.int"
+        if self.dtype is None:
+            return "const.int"
+        return f"const.int({self.dtype})"
 
 
 class ConstFloat:  # pylint: disable=too-few-public-methods
@@ -99,7 +101,9 @@ class ConstFloat:  # pylint: disable=too-few-public-methods
         self.dtype = dtype
 
     def __repr__(self) -> str:
-        return "const.float"
+        if self.dtype is None:
+            return "const.float"
+        return f"const.float({self.dtype})"
 
 
 class ConstString:  # pylint: disable=too-few-public-methods
