@@ -1545,6 +1545,34 @@ def test_flatten():
 
 
 @tvm.testing.uses_gpu
+def test_unflatten():
+    """test_unflatten"""
+
+    def _test_unflatten(dim, unflattened_size):
+        return lambda inp: torch.unflatten(inp, dim, unflattened_size)
+
+    inp = torch.rand(60)
+
+    # [60] -> [3, 5, 2, 2]
+    verify_model(_test_unflatten(0, (3, 5, 2, 2)), inp)
+    verify_model(_test_unflatten(0, (-1, 5, 2, 2)), inp)
+    verify_model(_test_unflatten(0, (3, -1, 2, 2)), inp)
+    verify_model(_test_unflatten(0, (3, 5, -1, 2)), inp)
+    verify_model(_test_unflatten(0, (3, 5, 2, -1)), inp)
+
+    inp = torch.rand(3, 4, 1)
+
+    # [3, 4, 1] -> [3, 2, 2, 1]
+    verify_model(_test_unflatten(1, (2, 2)), inp)
+    verify_model(_test_unflatten(1, (-1, 2)), inp)
+
+    inp = torch.rand(5, 12, 3)
+
+    # [5, 12, 3] -> [5, 2, 2, 3, 1, 1, 3]
+    verify_model(_test_unflatten(-2, (2, 2, 3, 1, 1)), inp)
+
+
+@tvm.testing.uses_gpu
 def test_forward_transpose():
     """test_forward_transpose"""
     torch.set_grad_enabled(False)
@@ -4744,7 +4772,7 @@ def test_masked_fill():
     verify_model(test_fn, [inp.to(torch.float64), inp > 0.5])
 
 
-@pytest.mark.skip(reason="unsupported op: 'aten::scaled_dot_product_attention', 'aten::unflatten'")
+@pytest.mark.skip(reason="unsupported op: 'aten::scaled_dot_product_attention'")
 def test_transformer():
     """test_transformer"""
     model = torch.nn.Transformer(d_model=256, nhead=8, num_encoder_layers=6, num_decoder_layers=6)

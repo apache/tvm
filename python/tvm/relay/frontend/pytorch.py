@@ -1546,6 +1546,16 @@ class PyTorchOpConverter:
             out = _op.squeeze(out, axis=squeeze_axes)
         return out
 
+    def unflatten(self, inputs, input_types):
+        data = inputs[0]
+        dim = int(inputs[1])
+        unflattened_size = tuple(inputs[2])
+        dshape = get_const_tuple(self.infer_shape_with_prelude(data))
+        assert len(dshape) > dim
+        new_shape = dshape[:dim] + unflattened_size + dshape[dim + 1 :]
+        out = _op.reshape(data, new_shape)
+        return out
+
     def addmm(self, inputs, input_types):
         input_mat = inputs[0]
         mat1 = inputs[1]
@@ -3945,6 +3955,7 @@ class PyTorchOpConverter:
             "aten::t": self.transpose,
             "aten::numpy_T": self.numpy_T,
             "aten::flatten": self.flatten,
+            "aten::unflatten": self.unflatten,
             "aten::addmm": self.addmm,
             "aten::size": self.size,
             "aten::view": self.view,
