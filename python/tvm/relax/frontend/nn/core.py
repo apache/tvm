@@ -474,9 +474,15 @@ class ExternModule(Module):
                 from . import spec as _spec
                 from .op import _wrap_nested
 
-                def extern_func(*args: Tensor) -> Tensor:
+                def extern_func(
+                    *args: List[
+                        Union[_spec.Tensor, _spec.ConstInt, _spec.ConstFloat, _spec.ConstString]
+                    ]
+                ) -> Tensor:
                     spec2var = {}
                     for arg, arg_spec in zip(args, function_spec.args):
+                        if not isinstance(arg_spec, _spec.Tensor):
+                            continue
                         for value, value_spec in zip(arg.shape, arg_spec.shape):
                             if isinstance(value_spec, str):
                                 if not value_spec in spec2var:
@@ -503,10 +509,27 @@ class ExternModule(Module):
                         out_shape,  # type: ignore[arg-type]
                         func_spec_ret.dtype,
                     )
+                    relax_args = []
+                    for arg, arg_spec in zip(args, function_spec.args):
+                        if isinstance(arg_spec, _spec.Tensor):
+                            relax_args.append(arg._expr)
+                        elif isinstance(arg_spec, _spec.ConstInt):
+                            if arg_spec.dtype is None:
+                                relax_args.append(rx.PrimValue(int(arg)))
+                            else:
+                                relax_args.append(rx.PrimValue(tir.IntImm(arg_spec.dtype, arg)))
+                        elif isinstance(arg_spec, _spec.ConstFloat):
+                            if arg_spec.dtype is None:
+                                relax_args.append(rx.PrimValue(float(arg)))
+                            else:
+                                relax_args.append(rx.PrimValue(tir.FloatImm(arg_spec.dtype, arg)))
+                        elif isinstance(arg_spec, _spec.ConstString):
+                            relax_args.append(rx.StringImm(arg))
+
                     ret_tensor = _wrap_nested(
                         call_dps_packed(
                             func_name,
-                            args=RxTuple([tensor._expr for tensor in args]),
+                            args=RxTuple(relax_args),
                             out_sinfo=out_sinfo,
                         ),
                         func_name,
