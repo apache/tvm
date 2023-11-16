@@ -59,7 +59,6 @@ std::unordered_map<Var, std::pair<int, int>, ObjectPtrHash, ObjectPtrEqual> Anal
       // create tuples to be done in-place (otherwise, any index of the tuple
       // would be considered a use and so the tuple would be live later).
       // Hence we keep the array empty.
-      ;
     } else {
       used_vars = AllVars(value);
     }
@@ -91,7 +90,7 @@ std::unordered_map<Var, std::pair<int, int>, ObjectPtrHash, ObjectPtrEqual> Anal
 
 class AliasAnalyzer {
  public:
-  explicit AliasAnalyzer() : alias_map_(), tuple_map_(), mem_idx_(0) {}
+  AliasAnalyzer() : alias_map_(), tuple_map_(), mem_idx_(0) {}
 
   // The analysis returns a map of vars to memory locations that it *could* map to
   // (any unique allocation = one memory location), plus a map of memory locations
@@ -257,17 +256,16 @@ class AliasAnalyzer {
         // call_pure_packed: treat as non-op call
         if (op_node->name == "relax.call_pure_packed") {
           return HandleMysteryCall(call_node, bound_var, true);
-        }
-        // split: Returns a tuple, treat as allocation
-        else if (op_node->name == "relax.split") {
+        } else if (op_node->name == "relax.split") {
+          // split: Returns a tuple, treat as allocation
+
           // tuple is freshly allocated, but also add components to the tuple map
           int tup_idx = get_fresh_idx();
           ret.insert(tup_idx);
           // the LHS (the bound var) will definitely have a tuple struct info
           InsertFreshTuple(tup_idx, GetStructInfoAs<TupleStructInfoNode>(bound_var));
-        }
-        // call_tir: can potentially return a tuple
-        else if (op_node->name == "relax.call_tir") {
+        } else if (op_node->name == "relax.call_tir") {
+          // call_tir: can potentially return a tuple
           if (auto* tuple_struct_info = call_node->sinfo_args[0].as<TupleStructInfoNode>()) {
             int tup_idx = get_fresh_idx();
             ret.insert(tup_idx);
@@ -275,10 +273,9 @@ class AliasAnalyzer {
           } else {
             ret.insert(get_fresh_idx());
           }
-        }
-        // We are assuming most op calls return a single fresh allocation.
-        // We may have to track more exceptions
-        else {
+        } else {
+          // We are assuming most op calls return a single fresh allocation.
+          // We may have to track more exceptions
           ret.insert(get_fresh_idx());
         }
       } else {
