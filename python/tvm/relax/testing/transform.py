@@ -131,8 +131,10 @@ def ApplyEmptyCppMutator() -> tvm.ir.transform.Pass:
     return packed_func()
 
 
-# inner function for the dataflow inplace transformation exposed for testing
 def dataflow_liveness_analysis(block: DataflowBlock) -> Dict[Var, Tuple[int, int]]:
+    """
+    Inner function for the dataflow inplace transformation exposed for testing.
+    """
     live_ranges = tvm.get_global_func("relax.testing.transform.DataflowLivenessAnalysis")(
         block
     )  # type: ignore
@@ -142,10 +144,12 @@ def dataflow_liveness_analysis(block: DataflowBlock) -> Dict[Var, Tuple[int, int
     return ret  # type: ignore
 
 
-# inner function for the dataflow inplace transformation exposed for testing
 def dataflow_alias_analysis(
     block: DataflowBlock, inputs: List[Var]
 ) -> Tuple[Dict[Var, Set[int]], Dict[int, List[Set[int]]]]:
+    """
+    Inner function for the dataflow inplace transformation exposed for testing.
+    """
     alias_sets, tuple_map = tvm.get_global_func("relax.testing.transform.DataflowAliasAnalysis")(
         block,
         inputs,
@@ -159,10 +163,12 @@ def dataflow_alias_analysis(
     return res_alias_sets, res_tuple_map  # type: ignore
 
 
-# inner function for the dataflow inplace transformation exposed for testing
 def dataflow_inplace_analysis(
     block: DataflowBlock, inputs: List[Var]
 ) -> Tuple[List[int], List[int]]:
+    """
+    Inner function for the dataflow inplace transformation exposed for testing.
+    """
     index_lists = tvm.get_global_func("relax.testing.transform.DataflowInplaceAnalysis")(
         block,
         inputs,
@@ -170,10 +176,12 @@ def dataflow_inplace_analysis(
     return tuple(map(list, index_lists))  # type: ignore
 
 
-# inner function for the dataflow inplace transformation exposed for testing
 def dataflow_single_inplace_call(
     mod: IRModule, call: Call, inplace_indices: List[int]
 ) -> Tuple[Call, IRModule]:
+    """
+    Inner function for the dataflow inplace transformation exposed for testing.
+    """
     ret = tvm.get_global_func("relax.testing.transform.SingleInplaceCall")(
         mod,
         call,
