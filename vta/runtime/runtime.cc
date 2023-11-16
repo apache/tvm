@@ -27,7 +27,6 @@
 #include "runtime.h"
 
 #include <dmlc/logging.h>
-#include <malloc.h>
 #include <stdlib.h>
 #include <tvm/runtime/c_runtime_api.h>
 #include <vta/driver.h>
@@ -76,7 +75,12 @@ class AlignmentAllocator : public std::allocator<T> {
 
   inline const_pointer address(const_reference r) const { return &r; }
 
-  inline pointer allocate(size_type n) { return (pointer)memalign(N, n * sizeof(value_type)); }
+  inline pointer allocate(size_type n) {
+    pointer mem = nullptr;
+    const int err = posix_memalign((void**)&mem, N, n * sizeof(value_type));
+    ICHECK_EQ(err, 0) << "InternalError: failed to allocate aligned memory. ";
+    return mem;
+  }
 
   inline void deallocate(pointer p, size_type) { free(p); }
 
@@ -528,7 +532,9 @@ class UopQueue : public BaseQueue<VTAUop> {
       total_size += ksize;
     }
 
-    char* lbuf = (char*)memalign(ALLOC_ALIGNMENT, total_size);
+    char* lbuf = nullptr;
+    const int err = posix_memalign((void**)&lbuf, ALLOC_ALIGNMENT, total_size);
+    ICHECK_EQ(err, 0) << "InternalError: failed to allocate aligned memory for load buffer. ";
     uint32_t offset = 0;
     for (uint32_t i = 0; i < cache_.size(); ++i) {
       uint32_t ksize = cache_[i]->size() * kElemBytes;

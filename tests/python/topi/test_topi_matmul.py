@@ -41,15 +41,40 @@ def with_tvm(lam, *args):
     return out_nd.numpy()
 
 
-def verify_nn_matmul(sa, sb, transp_a, transp_b):
+def verify_nn_matmul(sa, sb, transp_a, transp_b, bias=False):
     a = np.random.uniform(low=-1.0, high=1.0, size=sa).astype(np.float32)
     b = np.random.uniform(low=-1.0, high=1.0, size=sb).astype(np.float32)
-    c1 = np.matmul(np.transpose(a) if transp_a else a, np.transpose(b) if transp_b else b)
-    c2 = with_tvm(
-        lambda A, B: topi.nn.matmul(A, B, transpose_a=transp_a, transpose_b=transp_b),
-        a,
-        b,
-    )
+    if bias:
+        bias_shape = sb[-2] if transp_b else sb[-1]
+        bias_np = np.random.uniform(low=-1.0, high=1.0, size=(bias_shape,)).astype(np.float32)
+
+    a_np = a
+    if transp_a:
+        axes = list(range(len(sa)))
+        axes[-2], axes[-1] = axes[-1], axes[-2]
+        a_np = np.transpose(a_np, axes)
+    b_np = b
+    if transp_b:
+        axes = list(range(len(sb)))
+        axes[-2], axes[-1] = axes[-1], axes[-2]
+        b_np = np.transpose(b_np, axes)
+
+    if bias:
+        c1 = np.matmul(a_np, b_np) + bias_np
+        c2 = with_tvm(
+            lambda A, B, bias: topi.nn.matmul(
+                A, B, transpose_a=transp_a, transpose_b=transp_b, bias=bias
+            ),
+            a,
+            b,
+            bias_np,
+        )
+    else:
+        c1 = np.matmul(a_np, b_np)
+        c2 = with_tvm(
+            lambda A, B: topi.nn.matmul(A, B, transpose_a=transp_a, transpose_b=transp_b), a, b
+        )
+
     tvm.testing.assert_allclose(c1, c2, rtol=1e-5, atol=1e-5)
 
 
@@ -60,10 +85,30 @@ def test_nn_matmul():
     verify_nn_matmul((2, 2), (2, 2), True, True)
     verify_nn_matmul((2, 3), (3, 5), False, False)
     verify_nn_matmul((5, 3), (3, 2), False, False)
-    verify_nn_matmul((3, 5), (3, 2), True, False)
     verify_nn_matmul((3, 5), (2, 3), True, True)
     verify_nn_matmul((3, 5), (3, 2), True, False)
     verify_nn_matmul((5, 3), (2, 3), False, True)
+    # matmul with bias
+    verify_nn_matmul((5, 3), (3, 2), False, False, True)
+    verify_nn_matmul((3, 5), (2, 3), True, True, True)
+    verify_nn_matmul((3, 5), (3, 2), True, False, True)
+    verify_nn_matmul((5, 3), (2, 3), False, True, True)
+    # batched matmul
+    verify_nn_matmul((4, 5, 3), (4, 3, 2), False, False)
+    verify_nn_matmul((4, 3, 5), (4, 2, 3), True, True)
+    verify_nn_matmul((4, 3, 5), (4, 3, 2), True, False)
+    verify_nn_matmul((4, 5, 3), (4, 2, 3), False, True)
+    # batched matmul with broadcast
+    verify_nn_matmul((4, 5, 3), (1, 2, 3), False, True)
+    verify_nn_matmul((1, 5, 3), (4, 2, 3), False, True)
+    verify_nn_matmul((5, 3), (4, 2, 3), False, True)
+    verify_nn_matmul((4, 5, 3), (2, 3), False, True)
+    verify_nn_matmul((2, 4, 5, 3), (1, 2, 3), False, True)
+    # batched matmul with bias
+    verify_nn_matmul((4, 5, 3), (4, 3, 2), False, False, True)
+    verify_nn_matmul((4, 3, 5), (4, 2, 3), True, True, True)
+    verify_nn_matmul((4, 3, 5), (4, 3, 2), True, False, True)
+    verify_nn_matmul((4, 5, 3), (4, 2, 3), False, True, True)
 
 
 def verify_matmul(sa, sb, transp_a, transp_b):

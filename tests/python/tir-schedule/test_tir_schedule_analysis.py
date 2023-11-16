@@ -60,7 +60,7 @@ def _make_loops(loop_vars: List[Var], extents: List[int]) -> List[For]:
     return [
         For(
             loop_var=loop_var,
-            min_val=0,
+            min=0,
             extent=extent,
             kind=ForKind.SERIAL,
             body=Evaluate(0),

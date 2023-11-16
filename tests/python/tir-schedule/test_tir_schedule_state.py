@@ -323,7 +323,7 @@ def test_replace_block_in_opaque_block():
     sref = s.get_sref(for_loop)
     new_for_loop = tir.For(
         loop_var=for_loop.loop_var,
-        min_val=0,
+        min=0,
         extent=128,
         kind=tir.ForKind.SERIAL,
         body=tir.Evaluate(0),

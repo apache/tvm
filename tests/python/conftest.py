@@ -31,12 +31,12 @@ if sys.platform.startswith("win"):
     COLLECT_IGNORE.append("frontend/tflite")
     COLLECT_IGNORE.append("frontend/onnx")
     COLLECT_IGNORE.append("driver/tvmc/test_autoscheduler.py")
-    COLLECT_IGNORE.append("unittest/test_auto_scheduler_cost_model.py")  # stack overflow
-    # COLLECT_IGNORE.append("unittest/test_auto_scheduler_measure.py") # exception ignored
-    COLLECT_IGNORE.append("unittest/test_auto_scheduler_search_policy.py")  # stack overflow
-    # COLLECT_IGNORE.append("unittest/test_auto_scheduler_measure.py") # exception ignored
+    COLLECT_IGNORE.append("auto_scheduler/test_auto_scheduler_cost_model.py")  # stack overflow
+    # COLLECT_IGNORE.append("auto_scheduler/test_auto_scheduler_measure.py") # exception ignored
+    COLLECT_IGNORE.append("auto_scheduler/test_auto_scheduler_search_policy.py")  # stack overflow
+    # COLLECT_IGNORE.append("auto_scheduler/test_auto_scheduler_measure.py") # exception ignored
 
-    COLLECT_IGNORE.append("unittest/test_tir_intrin.py")
+    COLLECT_IGNORE.append("tir_base/test_tir_intrin.py")
 
 
 def pytest_addoption(parser):

@@ -179,7 +179,7 @@ TVM_REGISTER_GLOBAL("topi.nn.instance_norm").set_body([](TVMArgs args, TVMRetVal
 
 /* Ops from nn/rms_norm.h */
 TVM_REGISTER_GLOBAL("topi.nn.rms_norm").set_body([](TVMArgs args, TVMRetValue* rv) {
-  *rv = nn::rms_norm(args[0], args[1], args[2], args[3].operator double());
+  *rv = nn::rms_norm(args[0], args[1], args[2], static_cast<double>(args[3]));
 });
 
 }  // namespace topi

@@ -14,17 +14,19 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+"""Configure pytest"""
+# pylint: disable=invalid-name
+import numpy as np
 import tvm
 import tvm.testing
 from tvm import te
-import numpy as np
 import tvm.topi.testing
-import tvm.testing
 from tvm.contrib import rocblas
 
 
 @tvm.testing.requires_rocm
 def test_matmul():
+    """Tests matmul operation using roc"""
     n = 1024
     l = 128
     m = 235
@@ -49,6 +51,7 @@ def test_matmul():
 
 
 def verify_batch_matmul(batch, m, k, n, lib, transa=False, transb=False, dtype="float32"):
+    """Tests matmul operation in batch using roc"""
     ashape = (batch, k, m) if transa else (batch, m, k)
     bshape = (batch, n, k) if transb else (batch, k, n)
     A = te.placeholder(ashape, name="A", dtype=dtype)
@@ -85,6 +88,7 @@ def verify_batch_matmul(batch, m, k, n, lib, transa=False, transb=False, dtype="
 
 @tvm.testing.requires_rocm
 def test_batch_matmul():
+    """Tests of matmul operation in batch using roc"""
     verify_batch_matmul(128, 64, 512, 512, rocblas, transa=False, transb=False)
     verify_batch_matmul(128, 64, 512, 512, rocblas, transa=False, transb=True)
     verify_batch_matmul(128, 64, 512, 512, rocblas, transa=True, transb=False)

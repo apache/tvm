@@ -2327,6 +2327,14 @@ class PyTorchOpConverter:
 
         return _op.bitwise_xor(lhs, rhs)
 
+    def bitwise_and(self, inputs, input_types):
+        lhs = inputs[0]
+        rhs = inputs[1]
+        lhs = _op.cast(lhs, "bool") if input_types[0] == "bool" else _op.cast(lhs, "int")
+        rhs = _op.cast(rhs, "bool") if input_types[1] == "bool" else _op.cast(rhs, "int")
+
+        return _op.bitwise_and(lhs, rhs)
+
     def logical_not(self, inputs, input_types):
         data = _wrap_const(inputs[0])
         return _op.logical_not(_op.cast(data, "bool"))
@@ -4033,6 +4041,7 @@ class PyTorchOpConverter:
             "aten::logical_xor": self.logical_xor,
             "aten::bitwise_not": self.bitwise_not,
             "aten::bitwise_xor": self.bitwise_xor,
+            "aten::bitwise_and": self.bitwise_and,
             "aten::Bool": self.Bool,
             "aten::Float": self.Float,
             "aten::rsub": self.rsub,
@@ -4108,6 +4117,7 @@ class PyTorchOpConverter:
             "aten::multinomial": self.multinomial,
             "aten::_weight_norm": self.weight_norm,
             "aten::copy_": self.inplace_copy,
+            "aten::swapaxes": self.transpose,
         }
 
     def update_convert_map(self, custom_map):

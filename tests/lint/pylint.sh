@@ -19,8 +19,8 @@ set -euxo pipefail
 
 python3 -m pylint python/tvm --rcfile="$(dirname "$0")"/pylintrc
 python3 -m pylint vta/python/vta --rcfile="$(dirname "$0")"/pylintrc
-python3 -m pylint tests/python/unittest/test_crt.py --rcfile="$(dirname "$0")"/pylintrc
-python3 -m pylint tests/python/unittest/test_tvmscript_type.py --rcfile="$(dirname "$0")"/pylintrc
+python3 -m pylint tests/python/micro/test_crt.py --rcfile="$(dirname "$0")"/pylintrc
+python3 -m pylint tests/python/tvmscript/test_tvmscript_type.py --rcfile="$(dirname "$0")"/pylintrc
 python3 -m pylint tests/python/contrib/test_cmsisnn --rcfile="$(dirname "$0")"/pylintrc
 python3 -m pylint tests/python/contrib/test_ethosn --rcfile="$(dirname "$0")"/pylintrc
 python3 -m pylint tests/python/relay/aot/*.py --rcfile="$(dirname "$0")"/pylintrc
@@ -31,6 +31,14 @@ python3 -m pylint tests/python/contrib/test_cblas.py --rcfile="$(dirname "$0")"/
 python3 -m pylint tests/python/contrib/test_tflite_runtime.py --rcfile="$(dirname "$0")"/pylintrc
 python3 -m pylint tests/python/contrib/test_thrust.py --rcfile="$(dirname "$0")"/pylintrc
 python3 -m pylint tests/python/contrib/test_util.py --rcfile="$(dirname "$0")"/pylintrc
+python3 -m pylint tests/python/contrib/test_sort.py --rcfile="$(dirname "$0")"/pylintrc
+python3 -m pylint tests/python/contrib/test_sparse.py --rcfile="$(dirname "$0")"/pylintrc
+python3 -m pylint tests/python/contrib/test_tedd.py --rcfile="$(dirname "$0")"/pylintrc
+python3 -m pylint tests/python/contrib/test_rpc_tracker.py --rcfile="$(dirname "$0")"/pylintrc
+python3 -m pylint tests/python/contrib/test_rpc_server_device.py --rcfile="$(dirname "$0")"/pylintrc
+python3 -m pylint tests/python/contrib/test_rpc_proxy.py --rcfile="$(dirname "$0")"/pylintrc
+python3 -m pylint tests/python/contrib/test_rocblas.py --rcfile="$(dirname "$0")"/pylintrc
+python3 -m pylint tests/python/contrib/test_random.py --rcfile="$(dirname "$0")"/pylintrc
 
 # tests/python/contrib/test_hexagon tests
 python3 -m pylint tests/python/contrib/test_hexagon/*.py --rcfile="$(dirname "$0")"/pylintrc

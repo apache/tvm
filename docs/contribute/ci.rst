@@ -26,7 +26,7 @@ Using TVM's CI
 TVM primarily uses Jenkins for running Linux continuous integration (CI) tests on
 `branches <https://ci.tlcpack.ai/job/tvm/>`_
 `pull requests <https://ci.tlcpack.ai/job/tvm/view/change-requests/>`_ through a
-build configuration specified in a `Jenkinsfile <https://github.com/apache/tvm/blob/main/Jenkinsfile>`_.
+build configuration specified in a `Jenkinsfile <https://github.com/apache/tvm/blob/main/ci/jenkins/templates/>`_.
 Jenkins is the only CI step that is codified to block merging. TVM is also tested minimally
 against Windows and MacOS using GitHub Actions.
 
