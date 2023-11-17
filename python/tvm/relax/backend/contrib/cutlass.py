@@ -270,7 +270,7 @@ def _check_decode_matmul(ctx):
         return False
 
     # scale shape needs to be (N,)
-    if len(scales.struct_info.shape) != 1 or scales.struct_info.shape[0] != N:
+    if len(scales.struct_info.shape) > 2 or scales.struct_info.shape[-1] != N:
         return False
 
     if "bias" in ctx.annotated_expr:

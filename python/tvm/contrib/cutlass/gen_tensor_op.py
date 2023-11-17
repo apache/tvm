@@ -534,6 +534,7 @@ def instantiate_template(func_name, annotations, func_args):
         attrs["activation"] = annotations.get("activation", "identity")
         attrs["bias_stride"] = annotations["bias_stride"]
         attrs["M"] = annotations["M"]
+        attrs["group_size"] = annotations["group_size"]
 
         if not isinstance(attrs["M"], tvm.tir.IntImm):
             attrs["M"] = get_flattened_batch_dim(
