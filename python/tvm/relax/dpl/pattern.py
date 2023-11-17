@@ -26,7 +26,7 @@ import tvm
 import tvm._ffi as tvm_ffi
 from tvm.ir.container import Array
 from tvm.ir.expr import PrimExpr
-from tvm.relay.op import get
+from tvm.ir.op import Op
 
 from ...ir import make_node
 from ...ir.base import Node
@@ -756,7 +756,7 @@ def is_op(op_name: str) -> ExprPattern:
     result: tvm.relax.dpl.ExprPattern
         The resulting ExprPattern
     """
-    op = get(op_name)
+    op = Op.get(op_name)
     return ExprPattern(op)
 
 
