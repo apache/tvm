@@ -1559,6 +1559,11 @@ def test_unflatten():
     verify_model(_test_unflatten(0, (3, -1, 2, 2)), inp)
     verify_model(_test_unflatten(0, (3, 5, -1, 2)), inp)
     verify_model(_test_unflatten(0, (3, 5, 2, -1)), inp)
+    verify_model(_test_unflatten(-1, (3, 5, 2, 2)), inp)
+    verify_model(_test_unflatten(-1, (-1, 5, 2, 2)), inp)
+    verify_model(_test_unflatten(-1, (3, -1, 2, 2)), inp)
+    verify_model(_test_unflatten(-1, (3, 5, -1, 2)), inp)
+    verify_model(_test_unflatten(-1, (3, 5, 2, -1)), inp)
 
     inp = torch.rand(3, 4, 1)
 
@@ -1569,6 +1574,7 @@ def test_unflatten():
     inp = torch.rand(5, 12, 3)
 
     # [5, 12, 3] -> [5, 2, 2, 3, 1, 1, 3]
+    verify_model(_test_unflatten(1, (2, 2, 3, 1, 1)), inp)
     verify_model(_test_unflatten(-2, (2, 2, 3, 1, 1)), inp)
 
 
