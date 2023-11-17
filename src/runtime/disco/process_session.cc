@@ -16,6 +16,8 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+#include <tvm/runtime/c_runtime_api.h>
+#include <tvm/runtime/disco/disco_worker.h>
 #include <tvm/runtime/object.h>
 #include <tvm/runtime/packed_func.h>
 #include <tvm/runtime/registry.h>
@@ -28,9 +30,8 @@
 #include "../../support/pipe.h"
 #include "../minrpc/rpc_reference.h"
 #include "./bcast_session.h"
+#include "./disco_worker_thread.h"
 #include "./protocol.h"
-#include "./worker.h"
-#include "tvm/runtime/c_runtime_api.h"
 
 namespace tvm {
 namespace runtime {
@@ -191,11 +192,11 @@ class ProcessSessionObj final : public BcastSessionObj {
 TVM_REGISTER_OBJECT_TYPE(DiscoDebugObject);
 TVM_REGISTER_OBJECT_TYPE(ProcessSessionObj);
 
-Session Session::ProcessSession(int num_workers, String process_pool_creator) {
+Session Session::ProcessSession(int num_workers, String process_pool_creator, String entrypoint) {
   const PackedFunc* pf = Registry::Get(process_pool_creator);
   CHECK(pf) << "ValueError: Cannot find function " << process_pool_creator
             << " in the registry. Please check if it is registered.";
-  PackedFunc process_pool = (*pf)(num_workers);
+  PackedFunc process_pool = (*pf)(num_workers, entrypoint);
   auto n = make_object<ProcessSessionObj>(num_workers, process_pool);
   return Session(n);
 }

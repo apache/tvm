@@ -16,10 +16,10 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-#include "./builtin.h"
-
 #include <dlpack/dlpack.h>
 #include <tvm/runtime/container/shape_tuple.h>
+#include <tvm/runtime/disco/builtin.h>
+#include <tvm/runtime/disco/disco_worker.h>
 #include <tvm/runtime/disco/session.h>
 #include <tvm/runtime/packed_func.h>
 #include <tvm/runtime/registry.h>
@@ -28,7 +28,6 @@
 #include <sstream>
 
 #include "./utils.h"
-#include "./worker.h"
 
 namespace tvm {
 namespace runtime {

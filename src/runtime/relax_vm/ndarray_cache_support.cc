@@ -38,11 +38,10 @@
 #ifndef __STDC_FORMAT_MACROS
 #define __STDC_FORMAT_MACROS
 #endif
-#include "./ndarray_cache_support.h"
-
 #include <picojson.h>
 #include <tvm/runtime/ndarray.h>
 #include <tvm/runtime/registry.h>
+#include <tvm/runtime/relax_vm/ndarray_cache_support.h>
 
 #include <string>
 #include <vector>
@@ -55,13 +54,13 @@ namespace runtime {
 namespace relax_vm {
 
 template <typename ExpectedType>
-ExpectedType AsType(const picojson::value& json) {
+inline ExpectedType AsType(const picojson::value& json) {
   ICHECK(json.is<ExpectedType>());
   return json.get<ExpectedType>();
 }
 
 template <typename ValueType>
-ValueType GetValue(const picojson::object& json, const std::string& key) {
+inline ValueType GetValue(const picojson::object& json, const std::string& key) {
   return AsType<ValueType>(json.at(key));
 }
 
@@ -111,59 +110,63 @@ NDArrayCacheMetadata JSONAsNDArrayCacheMetadata(const picojson::object& json) {
 NDArrayCacheMetadata NDArrayCacheMetadata::LoadFromStr(const std::string& json_str,
                                                        const std::string& path) {
   picojson::value json_info;
-  picojson::parse(json_info, json_str);
+  {
+    std::string err = picojson::parse(json_info, json_str);
+    if (!err.empty()) {
+      LOG(FATAL) << "Failed to parse JSON: err. The JSON string is:" << json_str;
+    }
+    CHECK(json_info.is<picojson::object>())
+        << "ValueError: The given string is not a JSON object: " << json_str;
+  }
   NDArrayCacheMetadata result = JSONAsNDArrayCacheMetadata(AsType<picojson::object>(json_info));
   result.path = path;
   return result;
 }
 
-ShardInfo::TensorInfo LoadTensorInfoFromJSON(const picojson::array& json_tensor_info) {
-  CHECK_EQ(json_tensor_info.size(), 2) << "ValueError: Invalid tensor info JSON";
-  picojson::array shape_json = AsType<picojson::array>(json_tensor_info[0]);
-  int ndim = shape_json.size();
-  std::vector<int64_t> shape;
-  shape.reserve(ndim);
-  for (int i = 0; i < ndim; ++i) {
-    shape.push_back(AsType<int64_t>(shape_json[i]));
-  }
-  std::string dtype = AsType<std::string>(json_tensor_info[1]);
-  return ShardInfo::TensorInfo{ShapeTuple(std::move(shape)), DataType(String2DLDataType(dtype))};
-}
-
-ShardInfo::ShardFunc LoadShardFuncFromJSON(const picojson::array& json_shard_func) {
-  int n = json_shard_func.size();
-  ShardInfo::ShardFunc shard_info;
-  shard_info.name = AsType<std::string>(json_shard_func[0]);
-  shard_info.output_info = LoadTensorInfoFromJSON(AsType<picojson::array>(json_shard_func[1]));
-  shard_info.params.reserve(n - 2);
-  for (int i = 2; i < n; ++i) {
-    shard_info.params.push_back(AsType<int64_t>(json_shard_func[i]));
-  }
-  return shard_info;
-}
-
-std::unordered_map<std::string, ShardInfo> LoadShardInfoFromStr(const std::string& json_str) {
+NDArrayCacheMetadata NDArrayCacheMetadata::Load(const std::string& path) {
   picojson::value json_info;
-  picojson::parse(json_info, json_str);
-  picojson::object json_obj = AsType<picojson::object>(json_info);
-  std::unordered_map<std::string, ShardInfo> result;
-  for (auto kv : json_obj) {
-    std::string name = kv.first;
-    picojson::array json_shard_funcs = AsType<picojson::array>(kv.second);
-    ShardInfo info;
-    std::vector<ShardInfo::ShardFunc>& shard_funcs = info.funcs;
-    shard_funcs.reserve(json_shard_funcs.size());
-    for (const picojson::value& json_shard_func : json_shard_funcs) {
-      shard_funcs.push_back(LoadShardFuncFromJSON(AsType<picojson::array>(json_shard_func)));
+  {
+    std::string json_str;
+    LoadBinaryFromFile(path + "/ndarray-cache.json", &json_str);
+    std::string err = picojson::parse(json_info, json_str);
+    if (!err.empty()) {
+      LOG(FATAL) << "Failed to parse JSON: err. The JSON string is:" << json_str;
     }
-    result[name] = info;
+    CHECK(json_info.is<picojson::object>())
+        << "ValueError: The given string is not a JSON object: " << json_str;
   }
+  NDArrayCacheMetadata result = JSONAsNDArrayCacheMetadata(AsType<picojson::object>(json_info));
+  result.path = path;
   return result;
 }
 
+void CopyNDArrayFromBytes(NDArray param, const void* data, size_t nbytes,
+                          Optional<NDArray>* staging_buffer) {
+  Device device = param->device;
+  if (device.device_type != kDLOpenCL || staging_buffer == nullptr) {
+    param.CopyFromBytes(data, nbytes);
+    return;
+  }
+  // Special handle for OpenCL runtime.
+  // It creates a host side memory mirror, for every cl_mem that tries to copy data from host
+  // which can cause memory issue. Her we use a large staging buffer to postpone deallocation
+  if (staging_buffer->defined()) {
+    size_t curr_size = runtime::GetDataSize(*(staging_buffer->value().operator->()));
+    if (curr_size < nbytes) {
+      *staging_buffer = NullOpt;
+    }
+  }
+  if (!staging_buffer->defined()) {
+    *staging_buffer = NDArray::Empty(param.Shape(), param->dtype, param->device);
+  }
+  NDArray staging_view = staging_buffer->value().CreateView(param.Shape(), param->dtype);
+  staging_view.CopyFromBytes(data, nbytes);
+  param.CopyFrom(staging_view);
+  TVMSynchronize(device.device_type, device.device_id, nullptr);
+}
+
 NDArray NDArrayCacheMetadata::FileRecord::ParamRecord::Load(
-    Device device, const std::string* raw_data,
-    std::function<void(NDArray, const void*, int64_t)> f_load) const {
+    Device device, const std::string* raw_data, Optional<NDArray>* staging_buffer) const {
   NDArray arr = NDArray::Empty(shape, dtype, device);
   if (dtype == DataType::Float(32) && format == "f32-to-bf16") {
     // decode bf16 to f32
@@ -173,11 +176,28 @@ NDArray NDArrayCacheMetadata::FileRecord::ParamRecord::Load(
     for (size_t i = 0; i < buffer.size(); ++i) {
       decoded[i] = static_cast<uint32_t>(buffer[i]) << 16;
     }
-    f_load(arr, decoded.data(), decoded.size() * sizeof(uint32_t));
+    CopyNDArrayFromBytes(arr, decoded.data(), decoded.size() * sizeof(uint32_t), staging_buffer);
   } else {
-    f_load(arr, raw_data->data() + byte_offset, nbytes);
+    CopyNDArrayFromBytes(arr, raw_data->data() + byte_offset, nbytes, staging_buffer);
   }
   return arr;
+}
+
+Array<NDArray> NDArrayCacheMetadata::FileRecord::Load(Device device,
+                                                      const std::string& path_prefix,  //
+                                                      std::string* raw_data_buffer,    //
+                                                      Optional<NDArray>* staging_buffer) const {
+  LoadBinaryFromFile(path_prefix + "/" + this->data_path, raw_data_buffer);
+  CHECK_EQ(this->format, "raw-shard") << "ValueError: Only `raw-shard` format is supported";
+  CHECK_EQ(this->nbytes, raw_data_buffer->length())
+      << "ValueError: Encountered an corrupted parameter shard. It means it is not downloaded "
+         "completely or downloading is interrupted. Please try to download again.";
+  Array<NDArray> result;
+  result.reserve(this->records.size());
+  for (const ParamRecord& nd_rec : this->records) {
+    result.push_back(nd_rec.Load(device, raw_data_buffer, staging_buffer));
+  }
+  return result;
 }
 
 /*!
@@ -217,53 +237,26 @@ class NDArrayCache {
 
   /*!
    * \brief Load parameters from path and append them.
-   *
    * \param cache_path The cache to path.
    * \param device_type The type of device to be loaded.
    * \param device_id The device id.
    */
   static void Load(const std::string& cache_path, int device_type, int device_id) {
     DLDevice device{static_cast<DLDeviceType>(device_type), device_id};
-    std::string json_str;
-    LoadBinaryFromFile(cache_path + "/ndarray-cache.json", &json_str);
-    NDArrayCacheMetadata metadata = NDArrayCacheMetadata::LoadFromStr(json_str, cache_path);
+    NDArrayCacheMetadata metadata = NDArrayCacheMetadata::Load(cache_path);
     Optional<NDArray> staging_buffer;
-    auto fcopy_param_from_bytes = [&](NDArray param, const void* data, size_t nbytes) {
-      if (device_type != kDLOpenCL) {
-        param.CopyFromBytes(data, nbytes);
-        return;
-      }
-      // special handle OpenCL
-      // OpenCL runtime can create a host side memory mirror
-      // for every cl_mem that tries to copy data from host
-      // which can cause memory issue.
-      // We use a single staging buffer here
-      // that get de-allocated later
-      if (staging_buffer.defined()) {
-        size_t curr_size = runtime::GetDataSize(*(staging_buffer.value().operator->()));
-        if (curr_size < nbytes) {
-          staging_buffer = NullOpt;
-        }
-      }
-      if (!staging_buffer.defined()) {
-        staging_buffer = NDArray::Empty(param.Shape(), param->dtype, param->device);
-      }
-      NDArray staging_view = staging_buffer.value().CreateView(param.Shape(), param->dtype);
-      staging_view.CopyFromBytes(data, nbytes);
-      param.CopyFrom(staging_view);
-      TVMSynchronize(device_type, device_id, nullptr);
-    };
-
-    Map<String, NDArray> result;
     std::string raw_data;
-    for (const auto& shard_rec : metadata.records) {
-      LoadBinaryFromFile(cache_path + "/" + shard_rec.data_path, &raw_data);
-      CHECK_EQ(shard_rec.format, "raw-shard") << "ValueError: Only `raw-shard` format is supported";
-      CHECK_EQ(shard_rec.nbytes, raw_data.length())
-          << "ValueError: Parameters are not loaded properly. Please check your parameter shards "
-             "and git lfs installation";
-      for (const auto& nd_rec : shard_rec.records) {
-        Update(nd_rec.name, nd_rec.Load(device, &raw_data, fcopy_param_from_bytes), true);
+    Array<NDArray> params;
+    for (const NDArrayCacheMetadata::FileRecord& shard_rec : metadata.records) {
+      try {
+        params = shard_rec.Load(device, cache_path, &raw_data, &staging_buffer);
+      } catch (const dmlc::Error& e) {
+        LOG(FATAL) << "ValueError: Error when loading parameters from " << shard_rec.data_path
+                   << ": " << e.what();
+      }
+      int num_params = params.size();
+      for (int i = 0; i < num_params; ++i) {
+        Update(shard_rec.records[i].name, params[i], true);
       }
     }
   }

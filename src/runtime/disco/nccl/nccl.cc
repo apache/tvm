@@ -19,6 +19,7 @@
 
 #include <dlpack/dlpack.h>
 #include <tvm/runtime/c_runtime_api.h>
+#include <tvm/runtime/disco/builtin.h>
 #include <tvm/runtime/disco/session.h>
 #include <tvm/runtime/registry.h>
 
@@ -336,10 +337,10 @@ TVM_REGISTER_GLOBAL("runtime.disco." TVM_DISCO_CCL_NAME ".init_ccl_per_worker")
 TVM_REGISTER_GLOBAL("runtime.disco." TVM_DISCO_CCL_NAME ".allreduce")
     .set_body_typed([](NDArray send, int kind, NDArray recv) {
       CHECK(0 <= kind && kind <= 4) << "ValueError: Unknown ReduceKind: " << kind;
-      AllReduce(send, static_cast<ReduceKind>(kind), recv);
+      nccl::AllReduce(send, static_cast<ReduceKind>(kind), recv);
     });
 TVM_REGISTER_GLOBAL("runtime.disco." TVM_DISCO_CCL_NAME ".allgather")
-    .set_body_typed([](NDArray send, NDArray recv) { AllGather(send, recv); });
+    .set_body_typed([](NDArray send, NDArray recv) { nccl::AllGather(send, recv); });
 TVM_REGISTER_GLOBAL("runtime.disco." TVM_DISCO_CCL_NAME ".broadcast_from_worker0")
     .set_body_typed(BroadcastFromWorker0);
 TVM_REGISTER_GLOBAL("runtime.disco." TVM_DISCO_CCL_NAME ".scatter_from_worker0")

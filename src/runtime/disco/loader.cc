@@ -16,9 +16,16 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+#define PICOJSON_USE_INT64
+#ifndef __STDC_FORMAT_MACROS
+#define __STDC_FORMAT_MACROS
+#endif
+#include <picojson.h>
 #include <tvm/runtime/data_type.h>
+#include <tvm/runtime/disco/builtin.h>
 #include <tvm/runtime/packed_func.h>
 #include <tvm/runtime/registry.h>
+#include <tvm/runtime/relax_vm/ndarray_cache_support.h>
 
 #include <functional>
 #include <numeric>
@@ -27,8 +34,6 @@
 #include <vector>
 
 #include "../file_utils.h"
-#include "../relax_vm/ndarray_cache_support.h"
-#include "./builtin.h"
 #include "./utils.h"
 
 namespace tvm {
@@ -37,7 +42,75 @@ namespace runtime {
 using relax_vm::NDArrayCacheMetadata;
 using FileRecord = NDArrayCacheMetadata::FileRecord;
 using ParamRecord = NDArrayCacheMetadata::FileRecord::ParamRecord;
-using relax_vm::ShardInfo;
+
+struct ShardInfo {
+  struct TensorInfo {
+    ShapeTuple shape;
+    DataType dtype;
+  };
+  struct ShardFunc {
+    std::string name;
+    TensorInfo output_info;
+    std::vector<int64_t> params;
+  };
+  std::vector<ShardFunc> funcs;
+};
+
+template <typename ExpectedType>
+inline ExpectedType AsType(const picojson::value& json) {
+  ICHECK(json.is<ExpectedType>());
+  return json.get<ExpectedType>();
+}
+
+template <typename ValueType>
+inline ValueType GetValue(const picojson::object& json, const std::string& key) {
+  return AsType<ValueType>(json.at(key));
+}
+
+std::unordered_map<std::string, ShardInfo> LoadShardInfoFromStr(const std::string& json_str);
+ShardInfo::TensorInfo LoadTensorInfoFromJSON(const picojson::array& json_tensor_info) {
+  CHECK_EQ(json_tensor_info.size(), 2) << "ValueError: Invalid tensor info JSON";
+  picojson::array shape_json = AsType<picojson::array>(json_tensor_info[0]);
+  int ndim = shape_json.size();
+  std::vector<int64_t> shape;
+  shape.reserve(ndim);
+  for (int i = 0; i < ndim; ++i) {
+    shape.push_back(AsType<int64_t>(shape_json[i]));
+  }
+  std::string dtype = AsType<std::string>(json_tensor_info[1]);
+  return ShardInfo::TensorInfo{ShapeTuple(std::move(shape)), DataType(String2DLDataType(dtype))};
+}
+
+ShardInfo::ShardFunc LoadShardFuncFromJSON(const picojson::array& json_shard_func) {
+  int n = json_shard_func.size();
+  ShardInfo::ShardFunc shard_info;
+  shard_info.name = AsType<std::string>(json_shard_func[0]);
+  shard_info.output_info = LoadTensorInfoFromJSON(AsType<picojson::array>(json_shard_func[1]));
+  shard_info.params.reserve(n - 2);
+  for (int i = 2; i < n; ++i) {
+    shard_info.params.push_back(AsType<int64_t>(json_shard_func[i]));
+  }
+  return shard_info;
+}
+
+std::unordered_map<std::string, ShardInfo> LoadShardInfoFromStr(const std::string& json_str) {
+  picojson::value json_info;
+  picojson::parse(json_info, json_str);
+  picojson::object json_obj = AsType<picojson::object>(json_info);
+  std::unordered_map<std::string, ShardInfo> result;
+  for (auto kv : json_obj) {
+    std::string name = kv.first;
+    picojson::array json_shard_funcs = AsType<picojson::array>(kv.second);
+    ShardInfo info;
+    std::vector<ShardInfo::ShardFunc>& shard_funcs = info.funcs;
+    shard_funcs.reserve(json_shard_funcs.size());
+    for (const picojson::value& json_shard_func : json_shard_funcs) {
+      shard_funcs.push_back(LoadShardFuncFromJSON(AsType<picojson::array>(json_shard_func)));
+    }
+    result[name] = info;
+  }
+  return result;
+}
 
 /*! \brief An object that helps to load parameters in shards. */
 class ShardLoaderObj : public Object {
@@ -114,7 +187,7 @@ ObjectRef ShardLoaderObj::Create(const std::string& path_to_metadata, const std:
   n->metadata_ = NDArrayCacheMetadata::LoadFromStr(metadata, path_to_metadata);
   n->current_file_ = nullptr;
   n->param_info_.clear();
-  std::unordered_map<std::string, ShardInfo> shards = relax_vm::LoadShardInfoFromStr(shard_info);
+  std::unordered_map<std::string, ShardInfo> shards = LoadShardInfoFromStr(shard_info);
   for (const FileRecord& file_record : n->metadata_.records) {
     for (const ParamRecord& param_record : file_record.records) {
       const std::string& name = param_record.name;
@@ -181,9 +254,7 @@ NDArray ShardLoaderObj::LoadParamOnWorker0(int weight_index) const {
       std::string file_name = GetSiblingPath(this->metadata_.path, file->data_path);
       LoadBinaryFromFile(file_name, &this->current_file_stream_);
     }
-    return param->Load(
-        device, &this->current_file_stream_,
-        [](NDArray param, const void* data, size_t nbytes) { param.CopyFromBytes(data, nbytes); });
+    return param->Load(device, &this->current_file_stream_);
   };
 
   if (worker_id == 0) {
@@ -230,9 +301,7 @@ NDArray ShardLoaderObj::LoadDirect(int weight_index) const {
     std::string file_name = GetSiblingPath(this->metadata_.path, file->data_path);
     LoadBinaryFromFile(file_name, &this->current_file_stream_);
   }
-  return param->Load(
-      device, &this->current_file_stream_,
-      [](NDArray param, const void* data, size_t nbytes) { param.CopyFromBytes(data, nbytes); });
+  return param->Load(device, &this->current_file_stream_);
 }
 
 NDArray ShardLoaderObj::Load(int weight_index) const {

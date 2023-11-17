@@ -20,11 +20,9 @@
 #define TVM_RUNTIME_DISCO_UTILS_H_
 
 #include <dlpack/dlpack.h>
-#include <tvm/runtime/disco/session.h>
+#include <tvm/runtime/disco/disco_worker.h>
 
 #include <string>
-
-#include "./worker.h"
 
 namespace tvm {
 namespace runtime {
@@ -34,34 +32,6 @@ inline Device UseDefaultDeviceIfNone(Device device) {
     return DiscoWorker::ThreadLocal()->default_device;
   }
   return device;
-}
-
-/*!
- * \brief Possible kinds of reduction operations.
- */
-enum class ReduceKind : int32_t {
-  kSum = 0,
-  kProd = 1,
-  kMin = 2,
-  kMax = 3,
-  kAvg = 4,
-};
-
-/*! \brief Converts `ReduceKind` to string */
-inline std::string ReduceKind2String(ReduceKind kind) {
-  switch (kind) {
-    case ReduceKind::kSum:
-      return "kSum";
-    case ReduceKind::kProd:
-      return "kProd";
-    case ReduceKind::kMin:
-      return "kMin";
-    case ReduceKind::kMax:
-      return "kMax";
-    case ReduceKind::kAvg:
-      return "kAvg";
-  }
-  LOG(FATAL) << "ValueError: Unknown ReduceKind: " << static_cast<int>(kind);
 }
 
 /*!

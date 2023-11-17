@@ -76,6 +76,7 @@
 #include <tvm/runtime/object.h>
 #include <tvm/runtime/packed_func.h>
 
+#include <queue>
 #include <string>
 #include <utility>
 
@@ -270,10 +271,12 @@ class Session : public ObjectRef {
    * and returns a PackedFunc, which takes an integer `worker_id` as the input and returns None.
    * When `worker-id` is 0, it shuts down the process pool; Otherwise, it retursn a tuple
    * (read_fd, writefd) used to communicate with the corresponding worker.
+   * \param entrypoint The entrypoint of DiscoWorker main worker function.
    * \note Worker-0 is always co-located with the controler as a separate thread, and therefore
    * worker-0 does not exist in the process pool.
    */
-  TVM_DLL static Session ProcessSession(int num_workers, String process_pool_creator);
+  TVM_DLL static Session ProcessSession(int num_workers, String process_pool_creator,
+                                        String entrypoint);
   TVM_DEFINE_MUTABLE_NOTNULLABLE_OBJECT_REF_METHODS(Session, ObjectRef, SessionObj);
 };
 
@@ -292,6 +295,21 @@ class DiscoChannel {
   virtual void Reply(const TVMArgs& args) = 0;
   /*! \brief Receive a reply from the worker */
   virtual TVMArgs RecvReply() = 0;
+};
+
+/*!
+ * \brief A special communication channel between controler and worker-0,
+ * assuming they are always collocated in the same process.
+ */
+class WorkerZeroData {
+ public:
+  /*!
+   * \brief The host-side arrays to passed to worker-0 for special uses, for example,
+   * copy-to-worker0 and copy-from-worker0
+   */
+  std::queue<NDArray> host_arrays;
+  /*! \brief The mutex that guards `host_arrays` */
+  std::mutex queue_mutex_;
 };
 
 // Implementation details
