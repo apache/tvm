@@ -452,6 +452,10 @@ int SampleTopPFromProb(NDArray prob, double top_p, double uniform_sample) {
     return data[data.size() - 1].second;
   };
 
+  auto is_all_nan = [&]() -> bool {
+    return std::all_of(p_prob, p_prob + ndata, [](float x) { return std::isnan(x); });
+  };
+
   if (top_p < 1) {
     // sample through cutoff by a number
     // by pigeonhole principle we will get at most 1024 elements
@@ -463,7 +467,11 @@ int SampleTopPFromProb(NDArray prob, double top_p, double uniform_sample) {
   // fallback via full prob, rare case
   data.reserve(ndata);
   int64_t sampled_index = sample_top_p_with_filter(0.0f);
-  ICHECK_GE(sampled_index, 0);
+  if (sampled_index < 0 && is_all_nan()) {
+    LOG(FATAL) << "The output probabilities are all NaNs, can not sample from it";
+  } else if (sampled_index < 0) {
+    LOG(FATAL) << "Cannot sample from the given probability distribution due to unknown reason";
+  }
   return sampled_index;
 }
 
