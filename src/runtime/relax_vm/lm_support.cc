@@ -89,7 +89,10 @@ class AttentionKVCacheObj : public Object {
   }
 
   /** Clear the cache */
-  void Clear() { this->fill_count = 0; }
+  void Clear() {
+    this->fill_count = 0;
+    this->window_attention_current_pos = 0;
+  }
 
   /** pop n entries */
   void PopN(size_t n) {
