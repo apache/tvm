@@ -1553,11 +1553,13 @@ class PyTorchOpConverter:
         dshape = get_const_tuple(self.infer_shape_with_prelude(data))
         assert len(dshape) > dim
 
-        mult = 1
-        for s in unflattened_size:
-            if s is not -1:
-                mult *= s
-        assert dshape[dim] % mult == 0
+        assert unflattened_size.count(-1) <= 1
+
+        mult = np.multiply.reduce(unflattened_size)
+        if mult < 0:
+            assert dshape[dim] % mult == 0
+        else:
+            assert dshape[dim] == mult
 
         new_shape = dshape[:dim] + unflattened_size + dshape[dim + 1 :]
         out = _op.reshape(data, new_shape)
