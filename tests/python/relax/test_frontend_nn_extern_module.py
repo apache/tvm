@@ -253,6 +253,4 @@ def test_extern_spec():
 
 
 if __name__ == "__main__":
-    test_extern_module()
-    test_extern_spec()
-    # tvm.testing.main()
+    tvm.testing.main()
