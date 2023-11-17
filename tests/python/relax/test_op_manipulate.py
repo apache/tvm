@@ -42,6 +42,7 @@ def test_op_correctness():
     y = relax.Var("x", R.Tensor((4, 5), "float32"))
     assert relax.op.collapse_sum_like(x, y).op == Op.get("relax.collapse_sum_like")
     assert relax.op.cumsum(x, axis=1, dtype="int32").op == Op.get("relax.cumsum")
+    assert relax.op.sort(x, axis=1).op == Op.get("relax.sort")
     assert relax.op.einsum(x, subscripts="ii").op == Op.get("relax.einsum")
     assert relax.op.flip(x, axis=1).op == Op.get("relax.flip")
     assert relax.op.scatter_elements(x, x, x).op == Op.get("relax.scatter_elements")
@@ -3239,6 +3240,69 @@ def test_scatter_elements_infer_struct_info_rank_shape_mismatch():
         bb.normalize(relax.op.scatter_elements(d0, i2, u3))
     with pytest.raises(TVMError):
         bb.normalize(relax.op.scatter_elements(d0, i0, u4))
+
+
+def test_sort_infer_struct_info():
+    bb = relax.BlockBuilder()
+    vdev0 = VDevice("llvm")
+    x0 = relax.Var("x", R.Tensor((2, 10, 4), "float32"))
+    x1 = relax.Var("x", R.Tensor("float32", ndim=3))
+    x2 = relax.Var("x", R.Tensor("float32"))
+    x3 = relax.Var("x", R.Tensor((2, 10, 4)))
+    x4 = relax.Var("x", R.Tensor(ndim=3))
+    x5 = relax.Var("x", R.Tensor())
+    x6 = relax.Var("x", R.Tensor((2, 10, 4), "float32", vdev0))
+
+    _check_inference(bb, relax.op.sort(x0, axis=1), relax.TensorStructInfo((2, 10, 4), "float32"))
+    _check_inference(
+        bb, relax.op.sort(x6, axis=1), relax.TensorStructInfo((2, 10, 4), "float32", vdev0)
+    )
+    _check_inference(bb, relax.op.sort(x1, axis=1), relax.TensorStructInfo(dtype="float32", ndim=3))
+    _check_inference(bb, relax.op.sort(x2, axis=1), relax.TensorStructInfo(dtype="float32"))
+    _check_inference(bb, relax.op.sort(x3, axis=1), relax.TensorStructInfo((2, 10, 4), dtype=""))
+    _check_inference(bb, relax.op.sort(x4, axis=1), relax.TensorStructInfo(dtype="", ndim=3))
+    _check_inference(bb, relax.op.sort(x5, axis=1), relax.TensorStructInfo(dtype=""))
+    _check_inference(bb, relax.op.sort(x0), relax.TensorStructInfo((80,), "float32"))
+    _check_inference(
+        bb, relax.op.sort(x0, axis=1, is_ascend=True), relax.TensorStructInfo((2, 10, 4), "float32")
+    )
+
+
+def test_sort_infer_struct_info_shape_symbolic():
+    bb = relax.BlockBuilder()
+    a = tir.Var("a", "int64")
+    b = tir.Var("b", "int64")
+    c = tir.Var("c", "int64")
+    x = relax.Var("x", R.Tensor((a, b, c), "float32"))
+
+    _check_inference(bb, relax.op.sort(x, axis=1), relax.TensorStructInfo((a, b, c), "float32"))
+    _check_inference(bb, relax.op.sort(x), relax.TensorStructInfo((a * b * c,), "float32"))
+
+
+def test_sort_infer_struct_info_more_input_dtype():
+    bb = relax.BlockBuilder()
+    x0 = relax.Var("x", R.Tensor((2, 3, 4), "float16"))
+    x1 = relax.Var("x", R.Tensor((2, 3, 4), "int8"))
+
+    _check_inference(bb, relax.op.sort(x0, axis=1), relax.TensorStructInfo((2, 3, 4), "float16"))
+    _check_inference(bb, relax.op.sort(x1, axis=1), relax.TensorStructInfo((2, 3, 4), "int8"))
+
+
+def test_sort_wrong_input():
+    bb = relax.BlockBuilder()
+    x0 = relax.Var("x", relax.ShapeStructInfo((2, 3, 4, 5)))
+    x1 = relax.Var("x", relax.FuncStructInfo([], R.Tensor((2, 3, 4, 5), "float32")))
+    x = relax.Var("x", R.Tensor((3, 4, 5), "float32"))
+    y = relax.Var("y", R.Tensor((2, 3, 4), "float32"))
+
+    with pytest.raises(TVMError):
+        relax.op.sort(x, y)
+
+    with pytest.raises(TVMError):
+        bb.normalize(relax.op.sort(x0, axis=1))
+
+    with pytest.raises(TVMError):
+        bb.normalize(relax.op.sort(x1, axis=1))
 
 
 if __name__ == "__main__":

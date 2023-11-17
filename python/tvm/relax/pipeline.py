@@ -85,6 +85,7 @@ def default_build_pipeline():
                 transform.RewriteDataflowReshape(),
                 transform.ToNonDataflow(),
                 transform.RemovePurityChecking(),
+                # backend.DispatchOps(),
                 transform.CallTIRRewrite(),
                 transform.StaticPlanBlockMemory(),
                 transform.RewriteCUDAGraph(),
