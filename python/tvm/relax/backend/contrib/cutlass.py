@@ -269,7 +269,7 @@ def _check_decode_matmul(ctx):
     if scales.struct_info.dtype != "float16":
         return False
 
-    # scale shape needs to be (N,)
+    # scale shape needs to be (N,) or (1, N) or (K // group_size, N)
     if len(scales.struct_info.shape) > 2 or scales.struct_info.shape[-1] != N:
         return False
 
