@@ -153,6 +153,8 @@ class TupleFuser : public ExprMutator {
     Map<String, ObjectRef> func_attrs;
     func_attrs.Set(tvm::relax::attr::kComposite, target_ + func_name);
     func_attrs.Set(tvm::relax::attr::kPrimitive, Integer(1));
+    func_attrs.Set("unique_name", SpanUtils::GetAttr(expr->span, "name"));
+
     Function function = Function(/*params=*/params,            //
                                  /*body=*/body,                //
                                  /*ret_struct_info=*/NullOpt,  //
