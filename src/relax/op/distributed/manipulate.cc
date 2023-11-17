@@ -74,10 +74,7 @@ StructInfo InferDistStructInfoPermuteDims(const Call& call, const BlockBuilder& 
     new_shape.push_back(data_shape->values[axes[i]]);
   }
   TensorStructInfo output_tensor_sinfo(ShapeExpr(new_shape), data_sinfo->dtype);
-  distributed::ShardingSpec output_sharding_spec =
-      InferShardingSpec(call, ctx, output_tensor_sinfo, distributed::BuildAxisGraphPermuteDims);
-  return distributed::DTensorStructInfo(output_tensor_sinfo, output_sharding_spec.first,
-                                        output_sharding_spec.second);
+  return InferShardingSpec(call, ctx, output_tensor_sinfo, distributed::BuildAxisGraphPermuteDims);
 }
 
 TVM_REGISTER_OP("relax.permute_dims")
@@ -131,10 +128,7 @@ StructInfo InferDistStructInfoReshape(const Call& call, const BlockBuilder& ctx)
   } else {
     output_tensor_sinfo = TensorStructInfo(target_shape, data_sinfo->dtype);
   }
-  distributed::ShardingSpec output_sharding_spec =
-      InferShardingSpec(call, ctx, output_tensor_sinfo, distributed::BuildAxisGraphReshape);
-  return distributed::DTensorStructInfo(output_tensor_sinfo, output_sharding_spec.first,
-                                        output_sharding_spec.second);
+  return InferShardingSpec(call, ctx, output_tensor_sinfo, distributed::BuildAxisGraphReshape);
 }
 
 TVM_REGISTER_OP("relax.reshape")

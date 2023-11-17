@@ -93,10 +93,7 @@ StructInfo InferDistStructInfoMatmul(const Call& call, const BlockBuilder& ctx) 
   }
   ICHECK_EQ(static_cast<int>(output_shape.size()), output_ndim);
   TensorStructInfo output_tensor_sinfo(ShapeExpr(output_shape), out_dtype);
-  distributed::ShardingSpec output_sharding_spec =
-      InferShardingSpec(call, ctx, output_tensor_sinfo, distributed::BuildAxisGraphMatmul);
-  return distributed::DTensorStructInfo(output_tensor_sinfo, output_sharding_spec.first,
-                                        output_sharding_spec.second);
+  return InferShardingSpec(call, ctx, output_tensor_sinfo, distributed::BuildAxisGraphMatmul);
 }
 TVM_REGISTER_OP("relax.matmul")
     .set_attr<FInferStructInfo>("dist.FInferStructInfo", InferDistStructInfoMatmul);

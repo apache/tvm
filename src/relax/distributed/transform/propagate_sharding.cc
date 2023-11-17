@@ -34,7 +34,7 @@
 
 #include "../../op/distributed/distributed.h"
 #include "../../op/distributed/utils.h"
-
+#include "utils.h"
 namespace tvm {
 namespace relax {
 namespace distributed {
@@ -56,12 +56,17 @@ void CollectAxisGraphBinary(const VarBindingNode* binding, const CallNode* call,
 void CollectAxisGraphUnary(const VarBindingNode* binding, const CallNode* call,
                            AxisGroupGraph* axis_group_graph) {
   const std::vector<std::string> unary_op_names = {
-      "abs",   "acos",     "acosh",    "asin",   "asinh", "atan",
-      "atanh", "ceil",     "cos",      "cosh",   "exp",   "floor",
-      "log",   "negative", "nn.relu",  "round",  "rsqrt", "sigmoid",
-      "sign",  "sin",      "sinh",     "square", "sqrt",  "tan",
-      "tanh",  "clip",     "isfinite", "isinf",  "isnan", "dist.annotate_sharding",
-      "erf",   "nn.gelu"};
+      "abs",    "acos",     "acosh",
+      "asin",   "asinh",    "atan",
+      "atanh",  "ceil",     "cos",
+      "cosh",   "exp",      "floor",
+      "log",    "negative", "nn.relu",
+      "round",  "rsqrt",    "sigmoid",
+      "sign",   "sin",      "sinh",
+      "square", "sqrt",     "tan",
+      "tanh",   "clip",     "isfinite",
+      "isinf",  "isnan",    "dist.annotate_sharding",
+      "erf",    "nn.gelu",  "builtin.stop_lift_params"};
   for (const auto& op_name : unary_op_names) {
     const Op& unary_op = Op::Get("relax." + op_name);
     if (call->op.same_as(unary_op)) {
@@ -127,19 +132,6 @@ void CollectAxisGraphForDeviceMesh(const VarBindingNode* binding, const CallNode
                                distributed::AxisGroupGraph::EdgeType::kDescend);
   }
 }
-/*!
- * \brief Pattern match op to a TIR function and look it up.
- * \return The TIR function, or nullopt if pattern match fails.
- */
-Optional<tir::PrimFunc> MatchPrimFunc(const IRModule& mod_, const Expr& op) {
-  const GlobalVar& global_var = Downcast<GlobalVar>(op);
-  // NOTE: as check works for nullptr(returns null)
-  Optional<BaseFunc> base_func = mod_->functions.Get(global_var);
-  if (auto* pfunc = base_func.as<tir::PrimFuncNode>()) {
-    return GetRef<tir::PrimFunc>(pfunc);
-  }
-  return NullOpt;
-}
 
 /*!
  * \brief Build an axis group graph for propagation.
@@ -172,6 +164,46 @@ class AxisGroupGraphBuilder : public ExprVisitor {
     CollectAxisGraphForDeviceMesh(binding, val, axis_group_graph_);
     ExprVisitor::VisitBinding_(binding, val);
   }
+
+  void VisitBinding_(const VarBindingNode* binding, const TupleGetItemNode* val) {
+    axis_group_graph_->JoinAxis(Axis(val->tuple.get(), -1, val->index), {binding->var.get(), -1},
+                                distributed::AxisGroupGraph::EdgeType::kDescend);
+    const auto* tensor_sinfo = GetStructInfoAs<TensorStructInfoNode>(binding->var);
+    if (!tensor_sinfo) {
+      ExprVisitor::VisitBinding_(binding, val);
+      return;
+    }
+    int ndim = tensor_sinfo->ndim;
+    for (int i = 0; i < ndim; i++) {
+      axis_group_graph_->JoinAxis(Axis(val->tuple.get(), i, val->index), {binding->var.get(), i},
+                                  distributed::AxisGroupGraph::EdgeType::kDescend);
+    }
+    ExprVisitor::VisitBinding_(binding, val);
+  }
+
+  void VisitBinding_(const VarBindingNode* binding, const VarNode* val) {
+    Array<TensorStructInfo> tensor_sinfos;
+    if (const auto* tensor_sinfo = binding->var->struct_info_.as<TensorStructInfoNode>()) {
+      tensor_sinfos.push_back(GetRef<TensorStructInfo>(tensor_sinfo));
+    } else if (const auto* tuple_sinfo = binding->var->struct_info_.as<TupleStructInfoNode>()) {
+      ICHECK(tuple_sinfo);
+      for (const auto& sinfo : tuple_sinfo->fields) {
+        tensor_sinfos.push_back(Downcast<TensorStructInfo>(sinfo));
+      }
+    } else {
+      ExprVisitor::VisitBinding_(binding, val);
+      return;
+    }
+    for (int idx = 0; idx < static_cast<int>(tensor_sinfos.size()); idx++) {
+      int ndim = tensor_sinfos[idx]->ndim;
+      for (int i = -1; i < ndim; i++) {
+        axis_group_graph_->JoinAxis({val, i, idx}, {binding->var.get(), i, idx},
+                                    distributed::AxisGroupGraph::EdgeType::kDescend);
+      }
+    }
+    ExprVisitor::VisitBinding_(binding, val);
+  }
+
   AxisGroupGraph* axis_group_graph_;
   IRModule mod_;
 };
@@ -315,7 +347,7 @@ class DistributedIRBuilder : public ExprMutator {
     auto mod = builder_->GetContextIRModule();
     for (const auto& [gv, base_func] : mod->functions) {
       const auto* func_ = base_func.as<FunctionNode>();
-      if (func_ == nullptr) {
+      if (func_ == nullptr || !IsShardingAnnotatedFunc(GetRef<Function>(func_))) {
         continue;
       }
       Function func = RewriteFunction(GetRef<Function>(func_), mod);
@@ -327,32 +359,50 @@ class DistributedIRBuilder : public ExprMutator {
  private:
   using ExprMutator::VisitExpr_;
 
-  Expr RewriteInputTensorAndConstant(Expr tensor) {
-    const auto* sinfo = GetStructInfoAs<TensorStructInfoNode>(tensor);
+  DTensorStructInfo ConvertToDTensorStructInfo(TensorStructInfo sinfo, Expr expr,
+                                               int tuple_idx = 0) {
     int ndim = sinfo->ndim;
     DeviceMesh device_mesh =
-        std::get<0>(axis_group_graph_.GetAxisShardingSpec({tensor.get(), -1})).first;
-    ICHECK(device_mesh.defined()) << tensor << " is not assigned device mesh";
+        std::get<0>(axis_group_graph_.GetAxisShardingSpec({expr.get(), -1, tuple_idx})).first;
+    ICHECK(device_mesh.defined()) << expr << "[" << tuple_idx << "] is not assigned device mesh";
     Array<PlacementSpec> placement_specs(
         std::vector<PlacementSpec>(device_mesh->shape.size(), PlacementSpec::Replica()));
     for (int i = 0; i < ndim; i++) {
       AxisShardingSpec sharding_spec;
       bool has_sharding_spec;
       std::tie(sharding_spec, has_sharding_spec) =
-          axis_group_graph_.GetAxisShardingSpec({tensor.get(), i});
+          axis_group_graph_.GetAxisShardingSpec({expr.get(), i, tuple_idx});
       if (has_sharding_spec) {
         int sharding_dim = sharding_spec.second;
         placement_specs.Set(sharding_dim, PlacementSpec::Sharding(i));
       }
     }
+    return DTensorStructInfo(sinfo, device_mesh, Placement(placement_specs));
+  }
+
+  Expr RewriteInputTensorAndConstant(Expr tensor) {
+    StructInfo new_sinfo;
+    if (tensor->struct_info_.as<TensorStructInfoNode>()) {
+      new_sinfo =
+          ConvertToDTensorStructInfo(Downcast<TensorStructInfo>(tensor->struct_info_), tensor);
+    } else if (const auto* tuple = tensor->struct_info_.as<TupleStructInfoNode>()) {
+      Array<StructInfo> tuple_sinfo_fields;
+      for (int i = 0; i < static_cast<int>(tuple->fields.size()); i++) {
+        if (tuple->fields[i].as<TensorStructInfoNode>()) {
+          tuple_sinfo_fields.push_back(
+              ConvertToDTensorStructInfo(Downcast<TensorStructInfo>(tuple->fields[i]), tensor, i));
+        } else {
+          tuple_sinfo_fields.push_back(tuple->fields[i]);
+        }
+      }
+      new_sinfo = TupleStructInfo(tuple_sinfo_fields);
+    }
+
     if (const auto* var = tensor.as<VarNode>()) {
-      Var new_param(var->name_hint(), DTensorStructInfo(GetRef<TensorStructInfo>(sinfo),
-                                                        device_mesh, Placement(placement_specs)));
+      Var new_param(var->name_hint(), new_sinfo);
       return new_param;
     } else if (const auto* constant = tensor.as<ConstantNode>()) {
-      Constant new_constant(constant->data,
-                            DTensorStructInfo(GetRef<TensorStructInfo>(sinfo), device_mesh,
-                                              Placement(placement_specs)));
+      Constant new_constant(constant->data, new_sinfo);
       return new_constant;
     } else {
       LOG(FATAL) << "Cannot rewrite tensor which is not a Var or Constant";
@@ -370,7 +420,7 @@ class DistributedIRBuilder : public ExprMutator {
     // Step 4. Rewrite Function
     Array<Var> new_params;
     for (const Var& var : func->params) {
-      if (GetStructInfoAs<TensorStructInfoNode>(var)) {
+      if (GetStructInfoAs<TensorStructInfoNode>(var) || GetStructInfoAs<TupleStructInfoNode>(var)) {
         Var new_param = Downcast<Var>(RewriteInputTensorAndConstant(var));
         input_tensor_remap_.Set(var, new_param);
         new_params.push_back(new_param);
@@ -401,12 +451,11 @@ class DistributedIRBuilder : public ExprMutator {
 
     ObjectPtr<CallNode> n = make_object<CallNode>(*new_call.get());
     if (new_call->op.same_as(call_tir_op)) {
-      n->args.Set(1, Tuple(args));
-      ICHECK(new_call->sinfo_args[0]->IsInstance<TensorStructInfoNode>());
-      ShardingSpec sharding_spec = InferShardingSpec(
-          Call(n), this->builder_, Downcast<TensorStructInfo>(new_call->sinfo_args[0]), f);
-      n->sinfo_args = {DTensorStructInfo(Downcast<TensorStructInfo>(new_call->sinfo_args[0]),
-                                         sharding_spec.first, sharding_spec.second)};
+      // do not infer output sinfo when arg size is 0
+      if (!args.empty()) {
+        n->args.Set(1, Tuple(args));
+        n->sinfo_args = {InferShardingSpec(Call(n), this->builder_, new_call->sinfo_args[0], f)};
+      }
     } else {
       n->args = args;
     }
@@ -421,81 +470,141 @@ class DistributedIRBuilder : public ExprMutator {
     return Call(n);
   }
 
-  void VisitBinding_(const VarBindingNode* binding, const CallNode* val) {
-    const auto* sinfo = GetStructInfoAs<TensorStructInfoNode>(binding->var);
-    if (!sinfo) {
-      ExprMutator::VisitBinding_(binding, val);
-      return;
+  Expr RemoveAnnotateSharding(Call call) {
+    static const Op& annotate_sharding_op = Op::Get("relax.dist.annotate_sharding");
+    if (call->op.same_as(annotate_sharding_op)) {
+      return call->args[0];
+    } else {
+      return call;
     }
-    int ndim = sinfo->ndim;
-    bool insert_redistribute = false;
-    // get DTensorStuctInfo from axis group graph
-    DeviceMesh device_mesh =
-        std::get<0>(axis_group_graph_.GetAxisShardingSpec({binding->var.get(), -1})).first;
-    Array<PlacementSpec> placement_specs(
-        std::vector<PlacementSpec>(device_mesh->shape.size(), PlacementSpec::Replica()));
+  }
 
-    for (int i = 0; i < ndim; i++) {
-      AxisShardingSpec sharding_spec;
-      bool has_sharding_spec;
-      std::tie(sharding_spec, has_sharding_spec) =
-          axis_group_graph_.GetAxisShardingSpec({binding->var.get(), i});
-      if (has_sharding_spec) {
-        placement_specs.Set(sharding_spec.second, PlacementSpec::Sharding(i));
-      }
-    }
-    // get DTensorStuctInfo from struct info deduction
-    Call new_call = Downcast<Call>(this->VisitExpr(binding->value));
-    if (const auto* extern_func = new_call->op.as<ExternFuncNode>()) {
+  Expr InsertRedistribute(Expr expr, DeviceMesh device_mesh, Placement placement) {
+    return redistribute(expr, device_mesh, placement);
+  }
+
+  Call RewriteOutSinfo(Call call, DeviceMesh device_mesh, Array<Placement> placements) {
+    // in cases when infer fails (like arg size is 0), we use propagated sinfo for output
+    Call new_call = call;
+    static Op call_tir_op = Op::Get("relax.call_tir");
+    if (const auto* extern_func = call->op.as<ExternFuncNode>()) {
       if (extern_func->global_symbol == "vm.builtin.distributed.attention_kv_cache_view") {
-        ObjectPtr<CallNode> new_call_node = make_object<CallNode>(*new_call.get());
-        StructInfo new_dtensor_sinfo =
-            DTensorStructInfo(Downcast<TensorStructInfo>(new_call->sinfo_args[0]), device_mesh,
-                              Placement(placement_specs));
+        ObjectPtr<CallNode> new_call_node = make_object<CallNode>(*call.get());
+        StructInfo new_dtensor_sinfo = DTensorStructInfo(
+            Downcast<TensorStructInfo>(call->sinfo_args[0]), device_mesh, placements[0]);
         new_call_node->sinfo_args = {new_dtensor_sinfo};
         new_call = Call(new_call_node);
         new_call->struct_info_ = new_dtensor_sinfo;
       }
+    } else if (call->op.same_as(call_tir_op)) {
+      ICHECK(call->sinfo_args.size() == 1);
+      if (!SinfoCompatibleWithDistIR(call->sinfo_args)) {
+        ObjectPtr<CallNode> new_call_node = make_object<CallNode>(*call.get());
+        if (placements.size() == 1) {
+          new_call_node->sinfo_args = {DTensorStructInfo(
+              Downcast<TensorStructInfo>(call->sinfo_args[0]), device_mesh, placements[0])};
+        } else {
+          const auto* tuple_sinfo = call->sinfo_args[0].as<TupleStructInfoNode>();
+          ICHECK(placements.size() == tuple_sinfo->fields.size());
+          Array<StructInfo> new_tuple_sinfo_fields;
+          for (int i = 0; i < static_cast<int>(placements.size()); i++) {
+            new_tuple_sinfo_fields.push_back(DTensorStructInfo(
+                Downcast<TensorStructInfo>(tuple_sinfo->fields[i]), device_mesh, placements[i]));
+          }
+          new_call_node->sinfo_args = {TupleStructInfo(new_tuple_sinfo_fields)};
+        }
+        new_call = Call(new_call_node);
+        new_call->struct_info_ = new_call_node->sinfo_args[0];
+      }
     }
-    Expr new_value = builder_->Normalize(new_call);
-    const auto* inferred_dtensor_sinfo = GetStructInfoAs<DTensorStructInfoNode>(new_value);
-    ICHECK(inferred_dtensor_sinfo);
-    if (!StructuralEqual()(DTensorStructInfo(inferred_dtensor_sinfo->tensor_sinfo, device_mesh,
-                                             Placement(placement_specs)),
-                           GetRef<DTensorStructInfo>(inferred_dtensor_sinfo))) {
-      insert_redistribute = true;
-    }
+    return new_call;
+  }
 
-    static const Op& annotate_sharding_op = Op::Get("relax.dist.annotate_sharding");
-    if (val->op.same_as(annotate_sharding_op)) {
-      if (insert_redistribute) {
-        Expr redistribute_call =
-            redistribute(new_call->args[0], device_mesh, Placement(placement_specs));
-        redistribute_call = builder_->Normalize(redistribute_call);
-        ReEmitBinding(binding, redistribute_call);
-      } else {
-        ReEmitBinding(binding, new_call->args[0]);
+  void VisitBinding_(const VarBindingNode* binding, const CallNode* val) {
+    Array<TensorStructInfo> orig_output_tensor_sinfos;
+    if (const auto* tensor_sinfo = GetStructInfoAs<TensorStructInfoNode>(binding->var)) {
+      orig_output_tensor_sinfos.push_back(GetRef<TensorStructInfo>(tensor_sinfo));
+    } else if (const auto* tuple_sinfo = GetStructInfoAs<TupleStructInfoNode>(binding->var)) {
+      for (const auto& sinfo : tuple_sinfo->fields) {
+        orig_output_tensor_sinfos.push_back(Downcast<TensorStructInfo>(sinfo));
       }
     } else {
-      if (insert_redistribute) {
-        Expr redistribute_call = redistribute(new_call, device_mesh, Placement(placement_specs));
-        redistribute_call = builder_->Normalize(redistribute_call);
-        ReEmitBinding(binding, redistribute_call);
-      } else {
-        ReEmitBinding(binding, new_call);
+      ExprMutator::VisitBinding_(binding, val);
+      return;
+    }
+    // get annotated sinfo from axis group graph
+    DeviceMesh device_mesh =
+        std::get<0>(axis_group_graph_.GetAxisShardingSpec({binding->var.get(), -1})).first;
+    ICHECK(device_mesh.defined());
+    Array<Placement> placements;  // every tuple element has a placement
+    for (int idx = 0; idx < static_cast<int>(orig_output_tensor_sinfos.size()); idx++) {
+      Array<PlacementSpec> placement_specs(
+          std::vector<PlacementSpec>(device_mesh->shape.size(), PlacementSpec::Replica()));
+      for (int i = 0; i < orig_output_tensor_sinfos[idx]->ndim; i++) {
+        AxisShardingSpec sharding_spec;
+        bool has_sharding_spec;
+        std::tie(sharding_spec, has_sharding_spec) =
+            axis_group_graph_.GetAxisShardingSpec({binding->var.get(), i, idx});
+        if (has_sharding_spec) {
+          placement_specs.Set(sharding_spec.second, PlacementSpec::Sharding(i));
+        }
       }
+      placements.push_back(Placement(placement_specs));
+    }
+    // get inferred sinfo from struct info deduction
+    Call new_call = Downcast<Call>(this->VisitExpr(binding->value));
+    new_call =
+        Downcast<Call>(builder_->Normalize(RewriteOutSinfo(new_call, device_mesh, placements)));
+
+    if (const auto* inferred_dtensor_sinfo = new_call->struct_info_.as<DTensorStructInfoNode>()) {
+      Expr new_value = RemoveAnnotateSharding(new_call);
+      if (!StructuralEqual()(
+              DTensorStructInfo(inferred_dtensor_sinfo->tensor_sinfo, device_mesh, placements[0]),
+              new_call->struct_info_)) {
+        new_value = InsertRedistribute(new_value, device_mesh, placements[0]);
+      }
+      if (const auto* var = new_value.as<VarNode>()) {
+        var_remap_[binding->var->vid] = GetRef<Var>(var);
+      } else {
+        ReEmitBinding(binding, builder_->Normalize(new_value));
+      }
+    } else {
+      const auto* inferred_tuple_sinfo = new_call->struct_info_.as<TupleStructInfoNode>();
+      ICHECK(inferred_tuple_sinfo) << new_call;
+      Var new_var = builder_->Emit(new_call);
+      var_remap_[binding->var->vid] = new_var;
+      for (int i = 0; i < static_cast<int>(inferred_tuple_sinfo->fields.size()); i++) {
+        if (!StructuralEqual()(
+                DTensorStructInfo(
+                    Downcast<DTensorStructInfo>(inferred_tuple_sinfo->fields[i])->tensor_sinfo,
+                    device_mesh, placements[i]),
+                inferred_tuple_sinfo->fields[i])) {
+          Var redistribute_var = builder_->Emit(
+              InsertRedistribute(TupleGetItem(new_var, i), device_mesh, placements[i]));
+          tuple_getitem_remap_[TupleGetItem(binding->var, i)] = redistribute_var;
+        }
+      }
+    }
+  }
+
+  void VisitBinding_(const VarBindingNode* binding, const TupleGetItemNode* val) {
+    if (tuple_getitem_remap_.count(GetRef<TupleGetItem>(val))) {
+      var_remap_[binding->var->vid] = tuple_getitem_remap_[GetRef<TupleGetItem>(val)];
+    } else {
+      ExprMutator::VisitBinding_(binding, val);
     }
   }
 
   Expr VisitExpr_(const VarNode* var) final {
     auto it = input_tensor_remap_.find(GetRef<Var>(var));
     if (it != input_tensor_remap_.end()) {
-      return (*it).second;
+      var_remap_[var->vid] = (*it).second;
     }
     return ExprMutator::VisitExpr_(var);
   }
 
   Map<Var, Var> input_tensor_remap_;
+  std::unordered_map<TupleGetItem, Var, StructuralHash, StructuralEqual> tuple_getitem_remap_;
   AxisGroupGraph axis_group_graph_;
 };
 namespace transform {

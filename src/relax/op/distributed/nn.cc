@@ -40,10 +40,7 @@ StructInfo InferDistStructInfoSoftmax(const Call& call, const BlockBuilder& ctx)
   const auto* attrs = call->attrs.as<SoftmaxAttrs>();
   NormalizeAxis(call, ctx, input_tensor_sinfo->ndim, attrs->axis);
 
-  distributed::ShardingSpec output_sharding_spec =
-      InferShardingSpec(call, ctx, input_tensor_sinfo, distributed::BuildAxisGraphReduce);
-  return distributed::DTensorStructInfo(input_tensor_sinfo, output_sharding_spec.first,
-                                        output_sharding_spec.second);
+  return InferShardingSpec(call, ctx, input_tensor_sinfo, distributed::BuildAxisGraphReduce);
 }
 
 TVM_REGISTER_OP("relax.nn.softmax")

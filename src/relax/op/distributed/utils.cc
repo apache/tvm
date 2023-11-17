@@ -39,16 +39,16 @@ Array<distributed::DTensorStructInfo> GetInputDTensorStructInfo(const Call& call
   return input_tensor_sinfo;
 }
 
-distributed::ShardingSpec InferShardingSpec(const Call& call, const BlockBuilder& ctx,
-                                            const TensorStructInfo& output_tensor_sinfo,
-                                            distributed::FBuildAxisGraph f_build_graph) {
+StructInfo InferShardingSpec(const Call& call, const BlockBuilder& ctx,
+                             const StructInfo& orig_output_sinfo,
+                             distributed::FBuildAxisGraph f_build_graph) {
   Array<distributed::DTensorStructInfo> input_dtensor_sinfos = GetInputDTensorStructInfo(call, ctx);
   for (int i = 1; i < static_cast<int>(input_dtensor_sinfos.size()); i++) {
     ICHECK(StructuralEqual()(input_dtensor_sinfos[0]->device_mesh,
                              input_dtensor_sinfos[i]->device_mesh));
   }
   distributed::DeviceMesh device_mesh = input_dtensor_sinfos[0]->device_mesh;
-  Var output_var("output", output_tensor_sinfo);
+  Var output_var("output", orig_output_sinfo);
   distributed::AxisGroupGraph axis_group_graph;
   f_build_graph(output_var, call, &axis_group_graph);
   Array<Expr> args = GetCallArgs(call);
@@ -66,18 +66,37 @@ distributed::ShardingSpec InferShardingSpec(const Call& call, const BlockBuilder
     }
   }
   axis_group_graph.PropagateShardingSpec();
-  Array<distributed::PlacementSpec> output_placement_specs(std::vector<distributed::PlacementSpec>(
-      device_mesh->shape.size(), distributed::PlacementSpec::Replica()));
-  for (int i = 0; i < output_tensor_sinfo->ndim; i++) {
-    distributed::AxisShardingSpec sharding_spec;
-    bool has_sharding_spec;
-    std::tie(sharding_spec, has_sharding_spec) =
-        axis_group_graph.GetAxisShardingSpec({output_var.get(), i});
-    if (has_sharding_spec) {
-      output_placement_specs.Set(sharding_spec.second, distributed::PlacementSpec::Sharding(i));
+  Array<TensorStructInfo> orig_output_tensor_sinfos;
+  if (const auto* tensor_sinfo = orig_output_sinfo.as<TensorStructInfoNode>()) {
+    orig_output_tensor_sinfos.push_back(GetRef<TensorStructInfo>(tensor_sinfo));
+  } else {
+    const auto* tuple_sinfo = orig_output_sinfo.as<TupleStructInfoNode>();
+    ICHECK(tuple_sinfo);
+    for (const auto& sinfo : tuple_sinfo->fields) {
+      orig_output_tensor_sinfos.push_back(Downcast<TensorStructInfo>(sinfo));
     }
   }
-  return {input_dtensor_sinfos[0]->device_mesh, distributed::Placement(output_placement_specs)};
+  Array<StructInfo> new_output_dtensor_sinfos;
+  for (int idx = 0; idx < static_cast<int>(orig_output_tensor_sinfos.size()); idx++) {
+    Array<distributed::PlacementSpec> output_placement_specs(
+        std::vector<distributed::PlacementSpec>(device_mesh->shape.size(),
+                                                distributed::PlacementSpec::Replica()));
+    for (int i = 0; i < orig_output_tensor_sinfos[idx]->ndim; i++) {
+      distributed::AxisShardingSpec sharding_spec;
+      bool has_sharding_spec;
+      std::tie(sharding_spec, has_sharding_spec) =
+          axis_group_graph.GetAxisShardingSpec({output_var.get(), i, idx});
+      if (has_sharding_spec) {
+        output_placement_specs.Set(sharding_spec.second, distributed::PlacementSpec::Sharding(i));
+      }
+    }
+    new_output_dtensor_sinfos.push_back(
+        DTensorStructInfo(orig_output_tensor_sinfos[idx], device_mesh,
+                          distributed::Placement(output_placement_specs)));
+  }
+
+  return new_output_dtensor_sinfos.size() == 1 ? new_output_dtensor_sinfos[0]
+                                               : TupleStructInfo(new_output_dtensor_sinfos);
 }
 
 }  // namespace distributed
