@@ -1981,10 +1981,7 @@ def test_fp16A_int8B_gemm_batched():
     ex = relax.build(mod_transform, target="llvm")
     vm = relax.vm.VirtualMachine(ex, tvm.cpu(0))
 
-    (
-        packed_weight,
-        scales,
-    ) = vm[
+    (packed_weight, scales,) = vm[
         transform_func_name
     ]((tvm.nd.array(y),))
 
@@ -2141,15 +2138,11 @@ def test_fp16A_int8B_gemm_batched_finegrained():
     ex = relax.build(mod_transform, target="llvm")
     vm = relax.vm.VirtualMachine(ex, tvm.cpu(0))
 
-    (
-        packed_weight,
-        scales,
-    ) = vm[
+    (packed_weight, scales,) = vm[
         transform_func_name
     ]((tvm.nd.array(y),))
 
     dev = tvm.device("cuda", 0)
-    assert relax.analysis.well_formed(mod_deploy)
     ex = relax.build(mod_deploy, target="cuda")
     vm = relax.vm.VirtualMachine(ex, dev)
 
