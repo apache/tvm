@@ -82,6 +82,8 @@ class NotInSameScopeError : public ScheduleError {
                                      arith::Analyzer* analyzer) {
     for (const StmtSRefNode* p = loop_sref.get();; p = p->parent) {
       if (const ForNode* loop = p->StmtAs<ForNode>()) {
+        VLOG(0) << "Bind " << loop->loop_var << " to min=" << loop->min
+                << ", max=" << loop->extent;
         analyzer->Bind(loop->loop_var, Range::FromMinExtent(loop->min, loop->extent));
       } else if (p != scope_root_sref.get()) {
         throw NotInSameScopeError(self->mod, block_sref, loop_sref);
@@ -258,6 +260,7 @@ class ScopeReconstructor : private StmtMutator {
     iter_values.reserve(n_iters);
     PrimExpr predicate = const_true();
     for (int i = 0; i < n_iters; ++i) {
+      VLOG(0) << "visiting: " << i << " " << iter_doms[i].dom << " " << iter_doms[i].bound;
       Range iter_dom = iter_doms[i].dom.CoverRange(block_->iter_vars[i]->dom);
       if (preserve_unit_loops || !is_one(iter_dom->extent)) {
         int bits = std::max(iter_dom->min.dtype().bits(), iter_dom->extent.dtype().bits());
@@ -265,22 +268,32 @@ class ScopeReconstructor : private StmtMutator {
         loop_vars.push_back(var);
         loop_extents.push_back(analyzer->Simplify(iter_dom->extent));
         iter_values.push_back(iter_dom->min + var);
-        analyzer->Bind(var, Range::FromMinExtent(IntImm(var.dtype(), 0), iter_dom->extent));
+        auto range = Range::FromMinExtent(IntImm(var.dtype(), 0), iter_dom->extent);
+        VLOG(0) << "Bind: " << var << " to " << range;
+        analyzer->Bind(var, range);
       } else {
         iter_values.push_back(iter_dom->min);
       }
       const arith::IntSet& pred_bound = iter_doms[i].bound;
       if (!pred_bound.IsNothing()) {
         // NOTE: Apply strong analyzer proofs to get rid of symbolic bound
+        VLOG(0) << iter_values[i];
         if (pred_bound.HasLowerBound()) {
           PrimExpr lower_bound = iter_values[i] >= pred_bound.min();
-          if (!analyzer->CanProve(lower_bound, arith::ProofStrength::kSymbolicBound)) {
+          VLOG(0) << lower_bound;
+          auto res = analyzer->CanProve(lower_bound, arith::ProofStrength::kSymbolicBound);
+          VLOG(0) << res;
+          if (!res) {
             predicate = predicate && lower_bound;
           }
         }
         if (pred_bound.HasUpperBound()) {
           PrimExpr upper_bound = iter_values[i] < pred_bound.max() + 1;
-          if (!analyzer->CanProve(upper_bound, arith::ProofStrength::kSymbolicBound)) {
+          VLOG(0) << upper_bound;
+          VLOG(0) << analyzer->int_set(analyzer->Simplify(iter_values[i]));
+          auto res = analyzer->CanProve(upper_bound, arith::ProofStrength::kSymbolicBound);
+          VLOG(0) << res;
+          if (!res) {
             predicate = predicate && upper_bound;
           }
         }
@@ -738,6 +751,10 @@ void ComputeAtOrReverseComputeAtImpl(ScheduleState self, const StmtSRef& block_s
                               /*required_regions=*/std::move(required_regions),
                               /*analyzer=*/analyzer);
   // Step 6. Create the new scope according to the iteration domain
+  VLOG(0) << block->iter_vars;
+  for (const BlockVarDomainInfo& info : iter_doms) {
+    VLOG(0) << info.dom << " " << info.bound;
+  }
   reconstructor.MakeNewLoop(/*insert_position=*/insert_position, /*iter_doms=*/std::move(iter_doms),
                             /*analyzer=*/analyzer, /*preserve_unit_loops=*/preserve_unit_loops);
   Block new_scope_root = Downcast<Block>(reconstructor(scope_root));

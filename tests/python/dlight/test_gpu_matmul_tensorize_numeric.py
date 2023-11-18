@@ -120,7 +120,7 @@ def test_batched_nt_matmul_mixed_precision(rule_name):
 
 
 @pytest.mark.parametrize("rule_name", ["mma"])
-def test_nn_matmul_mixed_precision(rule_name):
+def test_nn_matmul_mixed_precision(rule_name: Literal['mma']):
     @T.prim_func
     def before(p_A: T.handle, p_B: T.handle, p_O: T.handle):
         b = T.int64()
