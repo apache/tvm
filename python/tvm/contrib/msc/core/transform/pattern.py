@@ -31,8 +31,17 @@ from tvm.contrib.msc.core.utils.namespace import MSCMap, MSCKey
 from tvm.contrib.msc.core import utils as msc_utils
 
 
-def msc_attrs_getter(context: PatternCheckContext, anchor: str = "out") -> Dict[str, str]:
+def msc_attrs_getter(
+    annotated_expr: Dict[str, tvm.relax.Expr], anchor: str = "out"
+) -> Dict[str, str]:
     """Get attributes for fused pattern
+
+    Parameters
+    ----------
+    annotated_expr: dict<str,Expr>
+        The annotated exprs during fus pattern
+    anchor: str
+        The anchor key of expr
 
     Returns
     -------
@@ -42,8 +51,8 @@ def msc_attrs_getter(context: PatternCheckContext, anchor: str = "out") -> Dict[
 
     fused_cnt = MSCMap.get(MSCKey.FUSED_CNT, 0)
     unique_name = "msc_fused_" + str(fused_cnt)
-    if anchor in context.annotated_expr:
-        name = msc_utils.get_expr_name(context.annotated_expr[anchor])
+    if anchor in annotated_expr:
+        name = msc_utils.get_expr_name(annotated_expr[anchor])
         if name:
             unique_name = name
     MSCMap.set(MSCKey.FUSED_CNT, fused_cnt + 1)

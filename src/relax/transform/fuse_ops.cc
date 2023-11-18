@@ -1033,8 +1033,7 @@ class PatternBasedPartitioner : ExprVisitor {
   using PatternCheckContext = transform::PatternCheckContext;
   using ExprVisitor::VisitExpr_;
   using FCheckMatch = runtime::TypedPackedFunc<bool(const transform::PatternCheckContext&)>;
-  using FAttrsGetter =
-      runtime::TypedPackedFunc<Map<String, String>(const transform::PatternCheckContext&)>;
+  using FAttrsGetter = runtime::TypedPackedFunc<Map<String, String>(const Map<String, Expr>&)>;
 
   static GroupMap Run(String pattern_name, DFPattern pattern,
                       Map<String, DFPattern> annotation_patterns, FCheckMatch check, Expr expr,
@@ -1108,7 +1107,7 @@ class PatternBasedPartitioner : ExprVisitor {
       ICHECK(parent_group);
       parent_group->attrs.Set(attr::kComposite, pat_name_);
       if (attrs_getter_ != nullptr) {
-        const auto& custom_attrs = attrs_getter_(context);
+        const auto& custom_attrs = attrs_getter_(context->annotated_expr);
         for (const auto& pair : custom_attrs) {
           parent_group->attrs.Set(pair.first, pair.second);
         }

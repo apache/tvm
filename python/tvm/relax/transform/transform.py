@@ -647,7 +647,7 @@ class FusionPattern(Object):
     pattern: DFPattern
     annotation_patterns: Mapping[str, DFPattern]
     check: Callable[[PatternCheckContext], bool]
-    attrs_getter: Callable[[PatternCheckContext], Dict[str, str]]
+    attrs_getter: Callable[[Dict[str, Expr]], Dict[str, str]]
 
     def __init__(
         self,
@@ -655,7 +655,7 @@ class FusionPattern(Object):
         pattern: DFPattern,
         annotation_patterns: Optional[Mapping[str, DFPattern]] = None,
         check: Optional[Callable[[PatternCheckContext], bool]] = None,
-        attrs_getter: Optional[Callable[[PatternCheckContext], Dict[str, str]]] = None,
+        attrs_getter: Optional[Callable[[Dict[str, Expr]], Dict[str, str]]] = None,
     ):
         if annotation_patterns is None:
             annotation_patterns = {}
