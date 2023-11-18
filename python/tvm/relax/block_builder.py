@@ -17,23 +17,19 @@
 # pylint: disable=no-else-return, invalid-name, unused-argument, import-outside-toplevel
 """Developer API of constructing Relax AST."""
 
-from typing import Dict, List, Optional, Union, Any, Callable, Sequence
+from typing import Any, Callable, Dict, List, Optional, Sequence, Union
+
+import tvm
+from tvm import relax as rx
+from tvm import tir
+from tvm.ir.base import deprecated
 from tvm.ir.module import IRModule
 from tvm.runtime import Object
-from tvm import relax as rx, tir
-import tvm
-from .expr import (
-    Expr,
-    Var,
-    GlobalVar,
-    BindingBlock,
-    Tuple,
-    BaseFunc,
-    Binding,
-)
-from .struct_info import StructInfo
-from .op.base import call_tir, call_tir_with_grad
+
 from . import _ffi_api
+from .expr import BaseFunc, Binding, BindingBlock, Expr, GlobalVar, Tuple, Var
+from .op.base import call_tir, call_tir_with_grad
+from .struct_info import StructInfo
 from .utils import gen_call_tir_inputs
 
 
@@ -658,23 +654,33 @@ class BlockBuilder(Object):
         """
         return _ffi_api.BlockBuilderNormalize(self, expr)  # type: ignore
 
+    @deprecated("tvm.relax.BlockBuilder.get", "tvm.relax.BlockBuilder.finalize")
     def get(self) -> tvm.IRModule:
         """Return the IRModule being built.
-
-        Note this call may invalidate global vars previously returned by this builder
-        (see tvm.relax.transform.NormalizeGlobalVar), so it is recommended to call this function
-        once at the end of the build process.
 
         Returns
         -------
         ret : tvm.IRModule
             An IRModule with Relax and TIR functions being built.
         """
-        # avoid circular import
-        from .transform import NormalizeGlobalVar
+        return self.finalize()
 
-        mod = _ffi_api.BlockBuilderGetContextIRModule(self)  # type: ignore
-        return NormalizeGlobalVar()(mod)
+    def finalize(self) -> tvm.IRModule:
+        """Finalize the building process and return the result IRModule.
+
+        Possibly rename GlobalVars in the IRModule to ensure name uniqueness and the invariant:
+        every public function has the same name as its "global_symbol" attribute.
+
+        Note this call may invalidate global vars previously returned by this builder
+        (see tvm.relax.transform.NormalizeGlobalVar), so it can only be called once at the end of
+        the building process.
+
+        Returns
+        -------
+        ret : tvm.IRModule
+            An IRModule with Relax and TIR functions being built.
+        """
+        return _ffi_api.BlockBuilderFinalize(self)  # type: ignore
 
     def get_unique_name(self, name_prefix: str) -> str:
         """Generate a unique name with a specified prefix.
