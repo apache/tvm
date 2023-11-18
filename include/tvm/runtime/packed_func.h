@@ -1163,11 +1163,11 @@ struct PackedFuncValueConverter {
       Helper::Call(rv, self, MemFunc, args, Helper::IndexSeq{});                                  \
     });                                                                                           \
   }
-#define TVM_MODULE_VTABLE_ENTRY_PACKED(Name, Func)                                \
-  if (_name == Name) {                                                            \
-    auto f = (Func);                                                              \
-    using FType = ::tvm::runtime::detail::function_signature<decltype(f)>::FType; \
-    return TypedPackedFunc<FType>(std::move(f)).packed();                         \
+#define TVM_MODULE_VTABLE_ENTRY_PACKED(Name, MemFunc)                  \
+  if (_name == Name) {                                                 \
+    return PackedFunc([_self](TVMArgs args, TVMRetValue* rv) -> void { \
+      (static_cast<SelfPtr>(_self.get())->*(MemFunc))(args, rv);       \
+    });                                                                \
   }
 
 /*!
