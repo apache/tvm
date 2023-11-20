@@ -242,7 +242,13 @@ def conv2d_strategy_arm_cpu(attrs, inputs, out_type, target):
                             ),
                             name="conv2d_NHWC_quantized_interleaved.arm_cpu",
                         )
-                if (not is_aarch64) or (data.dtype not in ["int8", "uint8"]):
+                if is_aarch64 and data.dtype not in ["int8", "uint8"]:
+                    strategy.add_implementation(
+                        wrap_compute_conv2d(topi.arm_cpu.compute_conv2d_NHWC_fp32_hybrid),
+                        wrap_topi_schedule(topi.arm_cpu.schedule_conv2d_NHWC_fp32_hybrid),
+                        name="conv2d_NHWC_fp32_hybrid.arm_cpu",
+                    )
+                else:
                     # TODO(@giuseros)
                     # This strategy errors out for quantized data types when tuning.
                     # Let's use this only for non-aarch64 or non-quantized cases
@@ -517,9 +523,12 @@ def conv2d_gemm_without_weight_transform_strategy_arm_cpu(attrs, inputs, out_typ
                 name="conv2d_NHWC_quantized_interleaved_without_transform.arm_cpu",
             )
     else:
-        raise RuntimeError(
-            f"Unsupported conv2d_NHWC_quantized_without_transform layout {layout}"
-            f"with datatype {data.dtype}"
+        strategy.add_implementation(
+            wrap_compute_conv2d_gemm(
+                topi.arm_cpu.compute_conv2d_NHWC_fp32_hybrid_without_transform
+            ),
+            wrap_topi_schedule(topi.arm_cpu.schedule_conv2d_NHWC_fp32_hybrid_without_transform),
+            name="conv2d_NHWC_fp32_hybrid_without_transform.arm_cpu",
         )
     return strategy
 

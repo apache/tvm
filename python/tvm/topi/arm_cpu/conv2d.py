@@ -27,11 +27,17 @@ from ..utils import traverse_inline, get_const_tuple
 from .. import nn
 from ..nn.utils import get_const_int, get_pad_tuple
 from ..nn.winograd_util import winograd_transform_matrices
+from .arm_utils import get_tiling_B_transformed
 from .conv2d_spatial_pack import (
     conv2d_spatial_pack_nchw,
     conv2d_spatial_pack_nhwc,
     schedule_conv2d_spatial_pack_nchw,
     schedule_conv2d_spatial_pack_nhwc,
+)
+from .conv2d_gemm import (
+    compute_conv2d_gemm_without_weight_transform,
+    schedule_conv2d_gemm_interleaved,
+    schedule_conv2d_gemm_native,
 )
 from .mprofile.dsp.conv2d import conv2d_nhwc_dsp_compute, conv2d_nhwc_dsp_schedule
 
@@ -509,3 +515,108 @@ def conv2d_nhwc_dsp(cfg, data, kernel, strides, padding, dilation, out_dtype):
 def schedule_conv2d_nhwc_dsp(cfg, outs):
     """Create schedule for conv2d_nhwc_dsp"""
     return conv2d_nhwc_dsp_schedule(cfg, outs)
+
+
+def compute_conv2d_NHWC(cfg, data, kernel, strides, padding, dilation, out_dtype, interleave_A):
+    N, IH, IW, IC = get_const_tuple(data.shape)
+    KH, KW, _, OC = get_const_tuple(kernel.shape)
+    tile_N, tile_K = get_tiling_B_transformed(interleave_A, data.dtype)
+
+    kernel = nn.conv2d_gemm_weight_transform(kernel, tile_N, tile_K)
+    return compute_conv2d_gemm_without_weight_transform(
+        cfg, data, kernel, strides, padding, dilation, out_dtype, (KH, KW), OC, interleave_A
+    )
+
+
+def compute_conv2d_NHWC_without_transform(
+    cfg,
+    data,
+    B,
+    strides,
+    padding,
+    dilation,
+    out_dtype,
+    kernel_size=None,
+    output_channels=None,
+    interleave_A=False,
+):
+    """Compute conv2d NHWC without weight transform"""
+    return compute_conv2d_gemm_without_weight_transform(
+        cfg,
+        data,
+        B,
+        strides,
+        padding,
+        dilation,
+        out_dtype,
+        kernel_size,
+        output_channels,
+        interleave_A,
+    )
+
+
+def schedule_conv2d_NHWC(cfg, outs, interleave_A):
+    """Create schedule for tensors"""
+    s = te.create_schedule([x.op for x in outs])
+    # Vectorize the output and then inline all the rest
+    out = outs[0]
+    n, h, w, c = out.op.axis
+    n_h_fused = s[out].fuse(n, h)
+    _, inner = s[out].split(c, 4)
+    s[out].vectorize(inner)
+    s[out].parallel(n_h_fused)
+
+    def _callback(op):
+        """Traverse operators from computation graph"""
+        if op.name == "conv2d_gemm_output":
+            conv_out = op.output(0)
+            if interleave_A:
+                schedule_conv2d_gemm_interleaved(cfg, s, conv_out, out)
+            else:
+                schedule_conv2d_gemm_native(cfg, s, conv_out, out)
+            if out != conv_out:
+                s[conv_out].compute_at(s[out], inner)
+            else:
+                C = conv_out.op.input_tensors[0]
+                if interleave_A:
+                    s[C].compute_at(s[out], inner)
+
+    traverse_inline(s, outs[0].op, _callback)
+    return s
+
+
+@autotvm.register_topi_compute("conv2d_NHWC_fp32_hybrid.arm_cpu")
+def compute_conv2d_NHWC_fp32_hybrid(cfg, data, kernel, strides, padding, dilation, out_dtype):
+    """Interface for hybrid compute_conv2d_NHWC_fp32_hybrid"""
+    return compute_conv2d_NHWC(cfg, data, kernel, strides, padding, dilation, out_dtype, False)
+
+
+@autotvm.register_topi_compute("conv2d_NHWC_fp32_hybrid_without_transform.arm_cpu")
+def compute_conv2d_NHWC_fp32_hybrid_without_transform(
+    cfg, data, kernel, strides, padding, dilation, out_dtype, kernel_size, output_channels
+):
+    """Interface for hybrid compute_conv2d_NHWC_fp32_hybrid_without_transform"""
+    return compute_conv2d_NHWC_without_transform(
+        cfg,
+        data,
+        kernel,
+        strides,
+        padding,
+        dilation,
+        out_dtype,
+        kernel_size,
+        output_channels,
+        False,
+    )
+
+
+@autotvm.register_topi_schedule("conv2d_NHWC_fp32_hybrid.arm_cpu")
+def schedule_conv2d_NHWC_fp32_hybrid(cfg, outs):
+    """Interface for hybrid schedule_conv2d_NHWC_fp32_hybrid"""
+    return schedule_conv2d_NHWC(cfg, outs, False)
+
+
+@autotvm.register_topi_schedule("conv2d_NHWC_fp32_hybrid_without_transform.arm_cpu")
+def schedule_conv2d_NHWC_fp32_hybrid_without_transform(cfg, outs):
+    """Interface for hybrid schedule_conv2d_NHWC_fp32_hybrid"""
+    return schedule_conv2d_NHWC(cfg, outs, False)

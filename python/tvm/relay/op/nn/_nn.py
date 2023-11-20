@@ -798,7 +798,7 @@ reg.register_strategy(
 @reg.register_compute("nn.contrib_conv2d_gemm_weight_transform")
 def compute_contrib_conv2d_gemm_weight_transform(attrs, inputs, out_dtype):
     """Compute definition of contrib_conv2d_gemm_weight_transform"""
-    out = topi.nn.conv2d_gemm_weight_transform(inputs[0], attrs.tile_rows, attrs.tile_cols)
+    out = topi.nn.conv2d_gemm_weight_transform(inputs[0], attrs.tile_N, attrs.tile_K)
     return [out]
 
 

@@ -43,10 +43,10 @@ Expr MakeConvWinogradWeightTransform(Expr weight, int tile_size, std::string op_
   return Call(op, {weight}, Attrs(attrs), {});
 }
 
-Expr MakeConvGemmWeightTransform(Expr weight, int tile_rows, int tile_cols, std::string op_name) {
+Expr MakeConvGemmWeightTransform(Expr weight, int tile_N, int tile_K, std::string op_name) {
   auto attrs = make_object<ConvGemmWeightTransformAttrs>();
-  attrs->tile_rows = tile_rows;
-  attrs->tile_cols = tile_cols;
+  attrs->tile_N = tile_N;
+  attrs->tile_K = tile_K;
   const Op& op = Op::Get(op_name);
   return Call(op, {weight}, Attrs(attrs), {});
 }
@@ -1472,13 +1472,14 @@ RELAY_REGISTER_OP("nn.contrib_conv2d_gemm_without_weight_transform")
 TVM_REGISTER_NODE_TYPE(ConvGemmWeightTransformAttrs);
 
 // Gemm convolution shape relations
-// In order to run GEMM we need to block-transpose and interleave the K x N weights matrix W.
-// The high level idea is to subdivide W in tiles of tile_cols x tile_rows, and transpose and
-// interleave them. The final output is a [N//tile_rows, K//tile_cols, tile_rows, tile_cols]
+// In order to run GEMM we need to transform the K x N weights matrix W.
+//
+// For integer datatypes, the high level idea is to subdivide W in tiles of tile_K x tile_N, and
+// transpose and interleave them. The final output is a [N//tile_N, K//tile_K, tile_N, tile_K]
 // matrix that we call W_interleaved_t.
 //
-// In the following picture, we show how the first [tile_cols,tile_rows] block of W is transformed
-// for tile_rows = 4 and tile_cols = 16
+// In the following picture, we show how the first [tile_K,tile_N] block of W is transformed
+// for tile_N = 4 and tile_K = 16
 //
 //              W[0,0,:,:]                        W_interleaved_t[0,0,:,:]
 //  +-------------------------------+     +----------------------------------- +
@@ -1490,9 +1491,31 @@ TVM_REGISTER_NODE_TYPE(ConvGemmWeightTransformAttrs);
 //  |W[15,0] W[15,1] W[15,2] W[15,3]|
 //  +-------------------------------+
 //
-// Tile columns is usually the direction of the reduction. So, if our target can reduce k elements
-// at the time, we should set tile_cols = k.
-// Tile rows is connected with the number of registers available for the given target.
+// Alternatively, for floating point datatypes, we subdivide W in tiles of tile_K x tile_N size,
+// then interleave these tiles, without transposing. The final output is a [N//tile_N, K//tile_K,
+// tile_K, tile_N] matrix called W_interleaved.
+//
+// In the following illustration, we show how the tiles are interleaved.
+// Note that the inside of each tile is kept unchanged during this tranformation.
+//
+//           W[:,:,:,:]               W_interleaved[:,:,:,:]
+//  +--------+--------+--------+       +--------+--------+
+//  |        |        |        |       |        |        |
+//  | tile_1 | tile_2 | tile_3 |       | tile_1 | tile_4 |
+//  |        |        |        |  --\  |        |        |
+//  +--------+--------+--------+  --/  +--------+--------+
+//  |        |        |        |       |        |        |
+//  | tile_4 | tile_5 | tile_6 |       | tile_2 | tile_5 |
+//  |        |        |        |       |        |        |
+//  +--------+--------+--------+       +--------+--------+
+//                                     |        |        |
+//                                     | tile_3 | tile_6 |
+//                                     |        |        |
+//                                     +--------+--------+
+//
+// Tile K is the direction of the reduction in both cases. So, if our target can reduce k elements
+// at the time, we should set tile_K = k.
+// Tile N is connected with the number of registers available for the given target.
 //
 bool Conv2DGemmWeightTransformRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
                                   const TypeReporter& reporter) {
@@ -1502,8 +1525,8 @@ bool Conv2DGemmWeightTransformRel(const Array<Type>& types, int num_inputs, cons
 
   const ConvGemmWeightTransformAttrs* param = attrs.as<ConvGemmWeightTransformAttrs>();
   ICHECK(param != nullptr);
-  int n = param->tile_rows;
-  int k = param->tile_cols;
+  int n = param->tile_N;
+  int k = param->tile_K;
 
   ICHECK_EQ(weight->shape.size(), 4) << "Only support HWIO kernel layout";
 
@@ -1519,12 +1542,21 @@ bool Conv2DGemmWeightTransformRel(const Array<Type>& types, int num_inputs, cons
   const auto N_padded = N + pad_N;
   const auto K_padded = K + pad_K;
 
-  Array<IndexExpr> oshape{
-      indexdiv(N_padded, n),
-      indexdiv(K_padded, k),
-      n,
-      k,
-  };
+  Array<IndexExpr> oshape;
+  if (weight->dtype.is_int() || weight->dtype.is_uint())
+    oshape = {
+        indexdiv(N_padded, n),
+        indexdiv(K_padded, k),
+        n,
+        k,
+    };
+  else
+    oshape = {
+        indexdiv(N_padded, n),
+        indexdiv(K_padded, k),
+        k,
+        n,
+    };
 
   reporter->Assign(types[1], TensorType(oshape, weight->dtype));
   return true;
