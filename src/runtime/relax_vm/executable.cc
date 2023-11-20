@@ -52,37 +52,6 @@ enum ConstantType : int {
   ICHECK(val) << "Invalid VM file format in the " << section << " section." \
               << "\n";
 
-PackedFunc Executable::GetFunction(const String& name, const ObjectPtr<Object>& sptr_to_self) {
-  if (name == "stats") {
-    return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) { *rv = this->Stats(); });
-  } else if (name == "as_text") {
-    return PackedFunc(
-        [sptr_to_self, this](TVMArgs args, TVMRetValue* rv) { *rv = this->AsText(); });
-  } else if (name == "as_python") {
-    return PackedFunc(
-        [sptr_to_self, this](TVMArgs args, TVMRetValue* rv) { *rv = this->AsPython(); });
-  } else if (name == "vm_load_executable") {
-    return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
-      ObjectPtr<VirtualMachine> vm = VirtualMachine::Create();
-      ICHECK(sptr_to_self.get() == this);
-      vm->LoadExecutable(GetObjectPtr<Executable>(this));
-      *rv = Module(vm);
-    });
-  } else if (name == "vm_profiler_load_executable") {
-    return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
-      ObjectPtr<VirtualMachine> vm = VirtualMachine::CreateProfiler();
-      ICHECK(sptr_to_self.get() == this);
-      vm->LoadExecutable(GetObjectPtr<Executable>(this));
-      *rv = Module(vm);
-    });
-  } else if (name == "has_function") {
-    return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
-      *rv = static_cast<bool>(this->func_map.count(args[0]));
-    });
-  }
-  return nullptr;
-}
-
 std::string Executable::Stats() const {
   std::ostringstream oss;
   oss << "Relax VM executable statistics:" << std::endl;
@@ -434,6 +403,20 @@ std::string RegNameToStr(RegName reg) {
   }
   return "%" + std::to_string(reg);
 }
+
+Module Executable::VMLoadExecutable() const {
+  ObjectPtr<VirtualMachine> vm = VirtualMachine::Create();
+  vm->LoadExecutable(GetObjectPtr<Executable>(const_cast<Executable*>(this)));
+  return Module(vm);
+}
+
+Module Executable::VMProfilerLoadExecutable() const {
+  ObjectPtr<VirtualMachine> vm = VirtualMachine::CreateProfiler();
+  vm->LoadExecutable(GetObjectPtr<Executable>(const_cast<Executable*>(this)));
+  return Module(vm);
+}
+
+bool Executable::HasFunction(const String& name) const { return func_map.count(name); }
 
 String Executable::AsText() const {
   auto get_func_name = [&](Index index) -> std::string {

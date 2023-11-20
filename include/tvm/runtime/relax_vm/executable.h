@@ -25,6 +25,7 @@
 
 #include <tvm/runtime/container/closure.h>
 #include <tvm/runtime/object.h>
+#include <tvm/runtime/packed_func.h>
 #include <tvm/runtime/registry.h>
 
 #include <string>
@@ -87,14 +88,6 @@ struct VMFuncInfo {
  */
 class Executable : public runtime::ModuleNode {
  public:
-  /*!
-   * \brief Get a PackedFunc from the executable module.
-   * \param name the name of the function.
-   * \param sptr_to_self The shared_ptr that points to this module node.
-   * \return PackedFunc or nullptr when it is not available.
-   */
-  PackedFunc GetFunction(const String& name, const ObjectPtr<Object>& sptr_to_self) final;
-
   /*! \brief Get the property of the runtime module .*/
   int GetPropertyMask() const final { return ModulePropertyMask::kBinarySerializable; };
 
@@ -144,6 +137,12 @@ class Executable : public runtime::ModuleNode {
    * \param format The target format of the saved file.
    */
   void SaveToFile(const String& file_name, const String& format) final;
+  /*! \brief Create a Relax virtual machine and load `this` as the executable. */
+  Module VMLoadExecutable() const;
+  /*! \brief Create a Relax virtual machine with profiler and load `this` as the executable. */
+  Module VMProfilerLoadExecutable() const;
+  /*! \brief Check if the Executable contains a specific function. */
+  bool HasFunction(const String& name) const;
   /*!
    * \brief Load Executable from the file.
    * \param file_name The path of the file that load the executable from.
@@ -164,7 +163,14 @@ class Executable : public runtime::ModuleNode {
 
   virtual ~Executable() {}
 
-  const char* type_key() const final { return "relax.Executable"; }
+  TVM_MODULE_VTABLE_BEGIN("relax.Executable");
+  TVM_MODULE_VTABLE_ENTRY("stats", &Executable::Stats);
+  TVM_MODULE_VTABLE_ENTRY("as_text", &Executable::AsText);
+  TVM_MODULE_VTABLE_ENTRY("as_python", &Executable::AsPython);
+  TVM_MODULE_VTABLE_ENTRY("vm_load_executable", &Executable::VMLoadExecutable);
+  TVM_MODULE_VTABLE_ENTRY("vm_profiler_load_executable", &Executable::VMProfilerLoadExecutable);
+  TVM_MODULE_VTABLE_ENTRY("has_function", &Executable::HasFunction);
+  TVM_MODULE_VTABLE_END();
 
  private:
   /*!

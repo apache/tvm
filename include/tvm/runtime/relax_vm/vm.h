@@ -176,8 +176,6 @@ class VirtualMachine : public runtime::ModuleNode {
 
   ~VirtualMachine() {}
 
-  const char* type_key() const final { return "relax.VirtualMachine"; }
-
   //--------------------------------------------------------------------------
   // The following section contains states that other builtin can depend on
   //--------------------------------------------------------------------------

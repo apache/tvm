@@ -1153,13 +1153,19 @@ struct PackedFuncValueConverter {
   }                                                                                         \
   }
 
-#define TVM_MODULE_VTABLE_BEGIN(TypeKey)                                              \
-  const char* type_key() const final { return TypeKey; }                              \
-  PackedFunc GetFunction(const String& _name, const ObjectPtr<Object>& _self) final { \
+#define TVM_MODULE_VTABLE_BEGIN(TypeKey)                                                 \
+  const char* type_key() const final { return TypeKey; }                                 \
+  PackedFunc GetFunction(const String& _name, const ObjectPtr<Object>& _self) override { \
     using SelfPtr = std::remove_cv_t<decltype(this)>;
 #define TVM_MODULE_VTABLE_END() \
   return PackedFunc(nullptr);   \
   }
+#define TVM_MODULE_VTABLE_END_WITH_DEFAULT(MemFunc) \
+  {                                                 \
+    auto f = (MemFunc);                             \
+    return (this->*f)(_name);                       \
+  }                                                 \
+  }  // NOLINT(*)
 #define TVM_MODULE_VTABLE_ENTRY(Name, MemFunc)                                                    \
   if (_name == Name) {                                                                            \
     return PackedFunc([_self](TVMArgs args, TVMRetValue* rv) -> void {                            \
@@ -2234,6 +2240,6 @@ inline TVMArgValue::operator DLDataType() const {
 
 inline TVMArgValue::operator DataType() const { return DataType(operator DLDataType()); }
 
-}  // namespace runtime
-}  // namespace tvm
+}  // namespace runtime // NOLINT(*)
+}  // namespace tvm // NOLINT(*)
 #endif  // TVM_RUNTIME_PACKED_FUNC_H_
