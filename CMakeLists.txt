@@ -906,3 +906,23 @@ if(USE_ROCM AND USE_RCCL)
   target_link_libraries(tvm PRIVATE rccl)
   target_link_libraries(tvm_runtime PRIVATE rccl)
 endif()
+
+
+option(USE_FLASHINFER "Build TVM with FlashInfer" OFF)
+if (USE_FLASHINFER STREQUAL "ON")
+  message(STATUS "Build with FlashInfer")
+  set(FLASHINFER_TVM_BINDING ON)
+  set(FLASHINFER_ENABLE_FP8 OFF)
+  set(FLASHINFER_PREFILL OFF)
+  set(FLASHINFER_DECODE OFF)
+  set(FLASHINFER_PAGE OFF)
+  add_subdirectory(3rdparty/flashinfer)
+else ()
+  message(STATUS "Build without FlashInfer")
+endif ()
+
+
+if (USE_FLASHINFER STREQUAL "ON")
+  target_link_libraries(tvm PRIVATE flashinfer_tvm)
+  target_link_libraries(tvm_runtime PRIVATE flashinfer_tvm)
+endif ()
