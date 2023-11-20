@@ -148,10 +148,10 @@ def _alter_conv2d_layout(attrs, inputs, tinfos, out_type):
             inputs[0], relay.Constant(tvm.nd.array(reshaped_new_kernel)), **new_attrs
         )
 
-    if topi_tmpl == "conv2d_NHWC_fp32_hybrid.arm_cpu":
+    if topi_tmpl == "conv2d_NHWC_float_hybrid.arm_cpu":
         assert data_layout == "NHWC" and kernel_layout == "HWIO"
         KH, KW, _, OC = get_const_tuple(kernel.shape)
-        new_workload_name = "conv2d_NHWC_fp32_hybrid_without_transform.arm_cpu"
+        new_workload_name = "conv2d_NHWC_float_hybrid_without_transform.arm_cpu"
         new_kernel, new_kernel_expr = transform_weights(inputs, data, kernel, interleave_A=False)
         new_workload = autotvm.task.args_to_workload(
             [data, new_kernel, strides, padding, dilation, out_dtype, (KH, KW), OC],

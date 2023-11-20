@@ -585,17 +585,17 @@ def schedule_conv2d_NHWC(cfg, outs, interleave_A):
     return s
 
 
-@autotvm.register_topi_compute("conv2d_NHWC_fp32_hybrid.arm_cpu")
-def compute_conv2d_NHWC_fp32_hybrid(cfg, data, kernel, strides, padding, dilation, out_dtype):
-    """Interface for hybrid compute_conv2d_NHWC_fp32_hybrid"""
+@autotvm.register_topi_compute("conv2d_NHWC_float_hybrid.arm_cpu")
+def compute_conv2d_NHWC_float_hybrid(cfg, data, kernel, strides, padding, dilation, out_dtype):
+    """Interface for hybrid compute_conv2d_NHWC_float_hybrid"""
     return compute_conv2d_NHWC(cfg, data, kernel, strides, padding, dilation, out_dtype, False)
 
 
-@autotvm.register_topi_compute("conv2d_NHWC_fp32_hybrid_without_transform.arm_cpu")
-def compute_conv2d_NHWC_fp32_hybrid_without_transform(
+@autotvm.register_topi_compute("conv2d_NHWC_float_hybrid_without_transform.arm_cpu")
+def compute_conv2d_NHWC_float_hybrid_without_transform(
     cfg, data, kernel, strides, padding, dilation, out_dtype, kernel_size, output_channels
 ):
-    """Interface for hybrid compute_conv2d_NHWC_fp32_hybrid_without_transform"""
+    """Interface for hybrid compute_conv2d_NHWC_float_hybrid_without_transform"""
     return compute_conv2d_NHWC_without_transform(
         cfg,
         data,
@@ -610,13 +610,13 @@ def compute_conv2d_NHWC_fp32_hybrid_without_transform(
     )
 
 
-@autotvm.register_topi_schedule("conv2d_NHWC_fp32_hybrid.arm_cpu")
-def schedule_conv2d_NHWC_fp32_hybrid(cfg, outs):
-    """Interface for hybrid schedule_conv2d_NHWC_fp32_hybrid"""
+@autotvm.register_topi_schedule("conv2d_NHWC_float_hybrid.arm_cpu")
+def schedule_conv2d_NHWC_float_hybrid(cfg, outs):
+    """Interface for hybrid schedule_conv2d_NHWC_float_hybrid"""
     return schedule_conv2d_NHWC(cfg, outs, False)
 
 
-@autotvm.register_topi_schedule("conv2d_NHWC_fp32_hybrid_without_transform.arm_cpu")
-def schedule_conv2d_NHWC_fp32_hybrid_without_transform(cfg, outs):
-    """Interface for hybrid schedule_conv2d_NHWC_fp32_hybrid"""
+@autotvm.register_topi_schedule("conv2d_NHWC_float_hybrid_without_transform.arm_cpu")
+def schedule_conv2d_NHWC_float_hybrid_without_transform(cfg, outs):
+    """Interface for hybrid schedule_conv2d_NHWC_float_hybrid"""
     return schedule_conv2d_NHWC(cfg, outs, False)

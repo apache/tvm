@@ -16,6 +16,7 @@
 # under the License.
 """Example code to do convolution."""
 import os
+import platform
 import numpy as np
 import tvm
 from tvm import te
@@ -53,8 +54,8 @@ device = tvm.testing.parameter(
     ),
     (
         "llvm --device arm_cpu --mtriple aarch64-linux-gnu -mattr=+v8.2a",
-        topi.arm_cpu.compute_conv2d_NHWC_fp32_hybrid,
-        topi.arm_cpu.schedule_conv2d_NHWC_fp32_hybrid,
+        topi.arm_cpu.compute_conv2d_NHWC_float_hybrid,
+        topi.arm_cpu.schedule_conv2d_NHWC_float_hybrid,
     ),
 )
 
@@ -106,6 +107,11 @@ def test_conv2d_nhwc_gemm_fp32(device, ref_data, dtype, stride, padding, dilatio
     w = tvm.nd.array(w_np, dev)
     b = tvm.nd.array(np.zeros(get_const_tuple(B.shape), dtype=B.dtype), dev)
     func = tvm.build(s, [A, W, B], target)
+
+    build_only = platform.machine() != "aarch64"
+    if build_only:
+        return
+
     func(a, w, b)
     tvm.testing.assert_allclose(b.numpy(), b_np, rtol=1e-5)
 

@@ -36,10 +36,10 @@ def get_tiling_B_transformed(interleave_A, in_dtype):
 
     Parameters
     ----------
-    interleave_A :  bool
-                    determines if A is expected to be interleaved
-    in_dtype :  str
-                input datatype
+    interleave_A : bool
+        determines if A is expected to be interleaved
+    in_dtype : str
+        input datatype
 
 
     Returns
