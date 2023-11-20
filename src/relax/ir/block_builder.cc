@@ -1003,7 +1003,7 @@ TVM_REGISTER_GLOBAL("relax.BlockBuilderUpdateFunction")
 
 TVM_REGISTER_GLOBAL("relax.BlockBuilderGetContextIRModule")
     .set_body_method<BlockBuilder>(&BlockBuilderNode::GetContextIRModule);
-    
+
 TVM_REGISTER_GLOBAL("relax.BlockBuilderFinalize")
     .set_body_method<BlockBuilder>(&BlockBuilderNode::Finalize);
 
