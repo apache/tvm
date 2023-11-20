@@ -1543,7 +1543,7 @@ bool Conv2DGemmWeightTransformRel(const Array<Type>& types, int num_inputs, cons
   const auto K_padded = K + pad_K;
 
   Array<IndexExpr> oshape;
-  if (weight->dtype.is_int() || weight->dtype.is_uint())
+  if (weight->dtype.bits() == 8 && (weight->dtype.is_int() || weight->dtype.is_uint()))
     oshape = {
         indexdiv(N_padded, n),
         indexdiv(K_padded, k),

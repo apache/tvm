@@ -328,13 +328,13 @@ def compute_conv2d_gemm_without_weight_transform(
         C = te.compute(
             (batches, M_padded, N_padded),
             lambda b, x, y: te.sum(
-                A[b, x, k].astype("float32")
+                A[b, x, k].astype(in_dtype)
                 * B_interleaved_t[
                     y // tile_N,
                     k // tile_K_B,
                     idxm(k, tile_K_B),
                     idxm(y, tile_N),
-                ].astype("float32"),
+                ].astype(in_dtype),
                 axis=k,
             ),
             name="C",

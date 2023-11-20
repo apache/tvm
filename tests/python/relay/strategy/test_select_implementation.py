@@ -142,19 +142,19 @@ def test_int8_conv2d(target, expected_impl):
         ),
         (
             "llvm -device=arm_cpu -mtriple=aarch64-linux-gnu",
-            "conv2d_NHWC_float_hybrid_without_transform.arm_cpu",
+            "conv2d_NHWC_hybrid_without_transform.arm_cpu",
         ),
         (
             "llvm -device=arm_cpu -mtriple=aarch64-linux-gnu -mattr=+neon",
-            "conv2d_NHWC_float_hybrid_without_transform.arm_cpu",
+            "conv2d_NHWC_hybrid_without_transform.arm_cpu",
         ),
         (
             "llvm --device=arm_cpu --mtriple=aarch64-linux-gnu -mattr=+v8.2a,+neon",
-            "conv2d_NHWC_float_hybrid_without_transform.arm_cpu",
+            "conv2d_NHWC_hybrid_without_transform.arm_cpu",
         ),
         (
             "llvm --device=arm_cpu --mtriple=aarch64-linux-gnu -mattr=+v9a",
-            "conv2d_NHWC_float_hybrid_without_transform.arm_cpu",
+            "conv2d_NHWC_hybrid_without_transform.arm_cpu",
         ),
     ],
 )
@@ -176,19 +176,19 @@ def test_fp32_conv2d(target, expected_impl):
         ),
         (
             "llvm -device=arm_cpu -mtriple=aarch64-linux-gnu",
-            "conv2d_NHWC_float_hybrid_without_transform.arm_cpu",
+            "conv2d_NHWC_hybrid_without_transform.arm_cpu",
         ),
         (
             "llvm -device=arm_cpu -mtriple=aarch64-linux-gnu -mattr=+neon",
-            "conv2d_NHWC_float_hybrid_without_transform.arm_cpu",
+            "conv2d_NHWC_hybrid_without_transform.arm_cpu",
         ),
         (
             "llvm --device=arm_cpu --mtriple=aarch64-linux-gnu -mattr=+v8.2a,+neon",
-            "conv2d_NHWC_float_hybrid_without_transform.arm_cpu",
+            "conv2d_NHWC_hybrid_without_transform.arm_cpu",
         ),
         (
             "llvm --device=arm_cpu --mtriple=aarch64-linux-gnu -mattr=+v9a",
-            "conv2d_NHWC_float_hybrid_without_transform.arm_cpu",
+            "conv2d_NHWC_hybrid_without_transform.arm_cpu",
         ),
     ],
 )

@@ -54,8 +54,8 @@ device = tvm.testing.parameter(
     ),
     (
         "llvm --device arm_cpu --mtriple aarch64-linux-gnu -mattr=+v8.2a",
-        topi.arm_cpu.compute_conv2d_NHWC_float_hybrid,
-        topi.arm_cpu.schedule_conv2d_NHWC_float_hybrid,
+        topi.arm_cpu.compute_conv2d_NHWC_hybrid,
+        topi.arm_cpu.schedule_conv2d_NHWC_hybrid,
     ),
 )
 
