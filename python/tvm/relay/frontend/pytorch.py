@@ -1553,7 +1553,7 @@ class PyTorchOpConverter:
         dshape = get_const_tuple(self.infer_shape_with_prelude(data))
 
         dim = dim if dim >= 0 else len(dshape) + dim
-        assert len(dshape) > dim and dim >= 0
+        assert len(dshape) > dim >= 0
 
         assert unflattened_size.count(-1) <= 1
 
