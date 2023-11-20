@@ -322,11 +322,20 @@ class FusionPatternNode : public Object {
    */
   Optional<PackedFunc> check;
 
+  /*!
+   * \brief The function to get attributes for fused function
+   *
+   * It should have signature
+   * Map<String, String>(const Map<String, Expr>& context)
+   */
+  Optional<PackedFunc> attrs_getter;
+
   void VisitAttrs(tvm::AttrVisitor* v) {
     v->Visit("name", &name);
     v->Visit("pattern", &pattern);
     v->Visit("annotation_patterns", &annotation_patterns);
     v->Visit("check", &check);
+    v->Visit("attrs_getter", &attrs_getter);
   }
 
   static constexpr const char* _type_key = "relax.transform.FusionPattern";
@@ -336,9 +345,10 @@ class FusionPatternNode : public Object {
 class FusionPattern : public ObjectRef {
  public:
   FusionPattern(String name, DFPattern pattern, Map<String, DFPattern> annotation_patterns,
-                Optional<PackedFunc> check);
+                Optional<PackedFunc> check, Optional<PackedFunc> attrs_getter);
 
-  FusionPattern(String name, DFPattern pattern) : FusionPattern(name, pattern, {}, NullOpt) {}
+  FusionPattern(String name, DFPattern pattern)
+      : FusionPattern(name, pattern, {}, NullOpt, NullOpt) {}
 
   TVM_DEFINE_NOTNULLABLE_OBJECT_REF_METHODS(FusionPattern, ObjectRef, FusionPatternNode);
 };

@@ -17,7 +17,8 @@
 # pylint: disable=unused-argument
 """tvm.contrib.msc.core.transform.pattern"""
 
-from typing import Mapping, Tuple
+from typing import Mapping, Tuple, Dict
+from functools import partial
 
 import tvm
 from tvm.relax.dpl import pattern as relax_pattern
@@ -26,6 +27,36 @@ from tvm.relay import dataflow_pattern as relay_pattern
 from tvm.relax.transform import PatternCheckContext
 from tvm.relax.backend.pattern_registry import register_patterns
 from tvm.relay.op.contrib.register import register_pattern_table
+from tvm.contrib.msc.core.utils.namespace import MSCMap, MSCKey
+from tvm.contrib.msc.core import utils as msc_utils
+
+
+def msc_attrs_getter(
+    annotated_expr: Dict[str, tvm.relax.Expr], anchor: str = "out"
+) -> Dict[str, str]:
+    """Get attributes for fused pattern
+
+    Parameters
+    ----------
+    annotated_expr: dict<str,Expr>
+        The annotated exprs during fus pattern
+    anchor: str
+        The anchor key of expr
+
+    Returns
+    -------
+    attrs: dict<str,str>
+        The extra attributes for msc.
+    """
+
+    fused_cnt = MSCMap.get(MSCKey.FUSED_CNT, 0)
+    unique_name = "msc_fused_" + str(fused_cnt)
+    if anchor in annotated_expr:
+        name = msc_utils.get_expr_name(annotated_expr[anchor])
+        if name:
+            unique_name = name
+    MSCMap.set(MSCKey.FUSED_CNT, fused_cnt + 1)
+    return {"unique_name": unique_name}
 
 
 def make_relax_conv_bias_pattern(
@@ -56,7 +87,7 @@ def make_relax_conv_bias_pattern(
     shape = relax_pattern.wildcard()
     reshape = relax_pattern.is_op("relax.reshape")(bias, shape)
     out = relax_pattern.is_op("relax.add")(conv, reshape)
-    annotations = {"bias": bias, "reshape": reshape}
+    annotations = {"conv": conv, "bias": bias, "reshape": reshape, "out": out}
     return out, annotations
 
 
@@ -75,9 +106,9 @@ def _check_relax_conv_bias(context: PatternCheckContext) -> bool:
     return non_one_dims <= 1 and bias.struct_info.ndim == 1
 
 
-def make_relax_linear_pattern() -> Tuple[
-    relax_pattern.DFPattern, Mapping[str, relax_pattern.DFPattern]
-]:
+def make_relax_linear_pattern() -> (
+    Tuple[relax_pattern.DFPattern, Mapping[str, relax_pattern.DFPattern]]
+):
     """A simple utility to create patterns for linear.
 
     Returns
@@ -95,7 +126,7 @@ def make_relax_linear_pattern() -> Tuple[
     weight = relax_pattern.is_const()
     permute = relax_pattern.is_op("relax.permute_dims")(weight)
     out = relax_pattern.is_op("relax.matmul")(data, permute)
-    annotations = {"weight": weight, "permute": permute}
+    annotations = {"weight": weight, "permute": permute, "linear": out}
     return out, annotations
 
 
@@ -113,9 +144,9 @@ def _check_relax_linear(context: PatternCheckContext) -> bool:
     return weight.struct_info.ndim == 2 and not permute.attrs["axes"]
 
 
-def make_relax_linear_bias_pattern() -> Tuple[
-    relax_pattern.DFPattern, Mapping[str, relax_pattern.DFPattern]
-]:
+def make_relax_linear_bias_pattern() -> (
+    Tuple[relax_pattern.DFPattern, Mapping[str, relax_pattern.DFPattern]]
+):
     """A simple utility to create patterns for linear with bias.
 
     Returns
@@ -133,7 +164,7 @@ def make_relax_linear_bias_pattern() -> Tuple[
     linear, annotations = make_relax_linear_pattern()
     bias = relax_pattern.is_const()
     out = relax_pattern.is_op("relax.add")(linear, bias)
-    annotations.update({"bias": bias, "out": out})
+    annotations.update({"bias": bias, "bias_add": out})
     return out, annotations
 
 
@@ -152,9 +183,9 @@ def _check_relax_linear_bias(context: PatternCheckContext) -> bool:
     return bias.struct_info.ndim == 1
 
 
-def make_relax_embedding_pattern() -> Tuple[
-    relax_pattern.DFPattern, Mapping[str, relax_pattern.DFPattern]
-]:
+def make_relax_embedding_pattern() -> (
+    Tuple[relax_pattern.DFPattern, Mapping[str, relax_pattern.DFPattern]]
+):
     """A simple utility to create patterns for embedding.
 
     Returns
@@ -172,7 +203,7 @@ def make_relax_embedding_pattern() -> Tuple[
     data = relax_pattern.wildcard()
     astype = relax_pattern.is_op("relax.astype")(data)
     out = relax_pattern.is_op("relax.take")(weight, astype)
-    annotations = {"weight": weight, "astype": astype}
+    annotations = {"weight": weight, "astype": astype, "take": out}
     return out, annotations
 
 
@@ -194,9 +225,9 @@ def _check_relax_embedding(context: PatternCheckContext) -> bool:
     )
 
 
-def make_relax_reshape_embedding_pattern() -> Tuple[
-    relax_pattern.DFPattern, Mapping[str, relax_pattern.DFPattern]
-]:
+def make_relax_reshape_embedding_pattern() -> (
+    Tuple[relax_pattern.DFPattern, Mapping[str, relax_pattern.DFPattern]]
+):
     """A simple utility to create patterns for reshaped embedding.
 
     Returns
@@ -218,7 +249,13 @@ def make_relax_reshape_embedding_pattern() -> Tuple[
     take = relax_pattern.is_op("relax.take")(weight, reduce_in)
     expand_shape = relax_pattern.wildcard()
     out = relax_pattern.is_op("relax.reshape")(take, expand_shape)
-    annotations = {"weight": weight, "astype": astype, "reduce_in": reduce_in}
+    annotations = {
+        "weight": weight,
+        "astype": astype,
+        "reduce_in": reduce_in,
+        "take": take,
+        "out": out,
+    }
     return out, annotations
 
 
@@ -241,9 +278,9 @@ def _check_relax_reshape_embedding(context: PatternCheckContext) -> bool:
     return True
 
 
-def make_relax_attention_pattern() -> Tuple[
-    relax_pattern.DFPattern, Mapping[str, relax_pattern.DFPattern]
-]:
+def make_relax_attention_pattern() -> (
+    Tuple[relax_pattern.DFPattern, Mapping[str, relax_pattern.DFPattern]]
+):
     """A simple utility to create patterns for attention.
 
     Returns
@@ -264,7 +301,7 @@ def make_relax_attention_pattern() -> Tuple[
     k_trans = relax_pattern.is_op("relax.permute_dims")(weight_k)
     v_trans = relax_pattern.is_op("relax.permute_dims")(weight_v)
     out = relax_pattern.is_op("relax.nn.attention")(q_trans, k_trans, v_trans)
-    annotations = {"q_trans": q_trans, "k_trans": k_trans, "v_trans": v_trans}
+    annotations = {"q_trans": q_trans, "k_trans": k_trans, "v_trans": v_trans, "attention": out}
     return out, annotations
 
 
@@ -280,9 +317,9 @@ def _check_relax_attention(context: PatternCheckContext) -> bool:
     return True
 
 
-def make_relax_mask_attention_pattern() -> Tuple[
-    relax_pattern.DFPattern, Mapping[str, relax_pattern.DFPattern]
-]:
+def make_relax_mask_attention_pattern() -> (
+    Tuple[relax_pattern.DFPattern, Mapping[str, relax_pattern.DFPattern]]
+):
     """A simple utility to create patterns for mask_attention.
 
     Returns
@@ -304,7 +341,7 @@ def make_relax_mask_attention_pattern() -> Tuple[
     k_trans = relax_pattern.is_op("relax.permute_dims")(weight_k)
     v_trans = relax_pattern.is_op("relax.permute_dims")(weight_v)
     out = relax_pattern.is_op("relax.nn.attention_bias")(q_trans, k_trans, v_trans, mask)
-    annotations = {"q_trans": q_trans, "k_trans": k_trans, "v_trans": v_trans}
+    annotations = {"q_trans": q_trans, "k_trans": k_trans, "v_trans": v_trans, "attention": out}
     return out, annotations
 
 
@@ -365,9 +402,9 @@ def _check_opt_relax_conv_bias(context: PatternCheckContext) -> bool:
     return ndim_conv == ndim_bias and ndim_bias == ndim_out
 
 
-def make_opt_relax_linear_pattern() -> Tuple[
-    relax_pattern.DFPattern, Mapping[str, relax_pattern.DFPattern]
-]:
+def make_opt_relax_linear_pattern() -> (
+    Tuple[relax_pattern.DFPattern, Mapping[str, relax_pattern.DFPattern]]
+):
     """Create patterns for an linear, for mod after optimize.
 
     Returns
@@ -384,7 +421,7 @@ def make_opt_relax_linear_pattern() -> Tuple[
     data = relax_pattern.wildcard()
     weight = relax_pattern.is_const()
     out = relax_pattern.is_op("relax.matmul")(data, weight)
-    annotations = {"weight": weight}
+    annotations = {"weight": weight, "linear": out}
     return out, annotations
 
 
@@ -401,9 +438,9 @@ def _check_opt_relax_linear(context: PatternCheckContext) -> bool:
     return ndim_weight == 2
 
 
-def make_opt_relax_linear_bias_pattern() -> Tuple[
-    relax_pattern.DFPattern, Mapping[str, relax_pattern.DFPattern]
-]:
+def make_opt_relax_linear_bias_pattern() -> (
+    Tuple[relax_pattern.DFPattern, Mapping[str, relax_pattern.DFPattern]]
+):
     """Create patterns for an linear_bias, for mod after optimize.
 
     Returns
@@ -451,6 +488,7 @@ register_patterns(
                 "relax.nn.conv1d",
             ),
             _check_opt_relax_conv_bias,
+            partial(msc_attrs_getter, anchor="conv"),
         ),
         (
             "msc.conv2d_bias",
@@ -458,16 +496,19 @@ register_patterns(
                 "relax.nn.conv2d",
             ),
             _check_opt_relax_conv_bias,
+            partial(msc_attrs_getter, anchor="conv"),
         ),
         (
             "msc.linear",
             *make_opt_relax_linear_pattern(),
             _check_opt_relax_linear,
+            partial(msc_attrs_getter, anchor="linear"),
         ),
         (
             "msc.linear_bias",
             *make_opt_relax_linear_bias_pattern(),
             _check_opt_relax_linear_bias,
+            partial(msc_attrs_getter, anchor="linear"),
         ),
         (
             "msc.conv1d_bias",
@@ -475,6 +516,7 @@ register_patterns(
                 "relax.nn.conv1d",
             ),
             _check_relax_conv_bias,
+            partial(msc_attrs_getter, anchor="conv"),
         ),
         (
             "msc.conv2d_bias",
@@ -482,36 +524,43 @@ register_patterns(
                 "relax.nn.conv2d",
             ),
             _check_relax_conv_bias,
+            partial(msc_attrs_getter, anchor="conv"),
         ),
         (
             "msc.linear",
             *make_relax_linear_pattern(),
             _check_relax_linear,
+            partial(msc_attrs_getter, anchor="linear"),
         ),
         (
             "msc.linear_bias",
             *make_relax_linear_bias_pattern(),
             _check_relax_linear_bias,
+            partial(msc_attrs_getter, anchor="linear"),
         ),
         (
             "msc.embedding",
             *make_relax_embedding_pattern(),
             _check_relax_embedding,
+            partial(msc_attrs_getter, anchor="take"),
         ),
         (
             "msc.embedding",
             *make_relax_reshape_embedding_pattern(),
             _check_relax_reshape_embedding,
+            partial(msc_attrs_getter, anchor="take"),
         ),
         (
             "msc.attention",
             *make_relax_attention_pattern(),
             _check_relax_attention,
+            partial(msc_attrs_getter, anchor="attention"),
         ),
         (
             "msc.attention",
             *make_relax_mask_attention_pattern(),
             _check_relax_mask_attention,
+            partial(msc_attrs_getter, anchor="attention"),
         ),
     ]
 )

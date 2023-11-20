@@ -25,6 +25,7 @@ from torch import fx
 from torch.nn import Module
 
 import tvm.testing
+from tvm.relax import PyExprVisitor
 from tvm.relax.frontend.torch import from_fx
 from tvm.contrib.msc.framework.tensorrt.frontend import translate
 from tvm.contrib.msc.framework.tensorrt import codegen
@@ -52,6 +53,40 @@ def build_and_run(mod, inputs):
     return [e.asnumpy() for e in res]
 
 
+def check_names(mod):
+    """Check the byoc name and unique_name"""
+
+    @tvm.relax.expr_functor.visitor
+    class NameChecker(PyExprVisitor):
+        """Checker to check if any non-target ops exist"""
+
+        def check(self, expr):
+            self._recorded_names = set()
+            if isinstance(expr, tvm.relax.Expr):
+                self.visit_expr(expr)
+            elif isinstance(expr, tvm.relax.BindingBlock):
+                self.visit_binding_block(expr)
+
+        def visit_function_(self, op: tvm.relax.Function) -> None:
+            if "Composite" in op.attrs:
+                assert "unique_name" in op.attrs, "Can not find unique_name for func " + str(op)
+                name = str(op.attrs["unique_name"])
+                assert name not in self._recorded_names, "Name {} is already in use".format(name)
+                self._recorded_names.add(name)
+            super().visit_function_(op)
+
+    def _is_target_func(func):
+        if "Codegen" not in func.attrs:
+            return False
+        return func.attrs["Codegen"] == "msc_tensorrt"
+
+    for _, func in mod.functions.items():
+        if not _is_target_func(func):
+            continue
+        assert "byoc_name" in func.attrs, "Can not find byoc_name from function attributes"
+        NameChecker().check(func)
+
+
 def verify_model(torch_model, input_info, allow_incomplete=False):
     """Build model and verify results"""
 
@@ -68,6 +103,7 @@ def verify_model(torch_model, input_info, allow_incomplete=False):
     mod, graph_infos = translate.partition_for_tensorrt(
         mod, trans_config={"allow_incomplete": allow_incomplete}
     )
+    check_names(mod)
     output_folder = msc_utils.msc_dir()
     # tranalte to tensorrt
     mod = codegen.to_tensorrt(mod, graph_infos, output_folder=output_folder)
