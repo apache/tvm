@@ -120,7 +120,12 @@ def compute_conv2d_gemm_without_weight_transform(
 
     #  Pad if necessary
     N_transformed = B_interleaved_t.shape[0]
-    tile_N = B_interleaved_t.shape[2] if in_dtype in ["int8", "uint8"] else B_interleaved_t.shape[3]
+    if in_dtype in ["int8", "uint8"]:
+        tile_N = B_interleaved_t.shape[2]
+        tile_K_B = B_interleaved_t.shape[3]
+    else:
+        tile_N = B_interleaved_t.shape[3]
+        tile_K_B = B_interleaved_t.shape[2]
 
     # Select the tiling strategy for A.
     # The tiling information is chosen to maximize register usage during
@@ -139,23 +144,23 @@ def compute_conv2d_gemm_without_weight_transform(
             # If smmla/ummla is enabled, we are loading 8 rows from A. Each row
             # will contain 8 elements
             tile_M = 8
-            tile_K = 8
+            tile_K_A = 8
         elif target.features.has_dotprod and interleave_A:
             # If dot product has been enabled, and we are interleaving A
             # tile size should be 8x4
             tile_M = 8
-            tile_K = 4
+            tile_K_A = 4
         else:
             # If either there is no dot product or if we are using a native strategy
             # tile size should be 4x16
             tile_M = 4
-            tile_K = 16
+            tile_K_A = 16
     else:
         # In non-quantized cases, A is not interleaved.
         # We are loading 4 rows from A.
         # Each row will contain 4 elements, along the dimension of reduction
         tile_M = 4
-        tile_K = 4
+        tile_K_A = 4
 
     pad_M = 0
     pad_K = 0
@@ -163,8 +168,8 @@ def compute_conv2d_gemm_without_weight_transform(
     if M % tile_M != 0:
         pad_M = tile_M - (M % tile_M)
 
-    if K % tile_K != 0:
-        pad_K = tile_K - (K % tile_K)
+    if K % tile_K_A != 0:
+        pad_K = tile_K_A - (K % tile_K_A)
 
     M_padded = M + pad_M
     K_padded = K + pad_K
@@ -191,11 +196,11 @@ def compute_conv2d_gemm_without_weight_transform(
                 (
                     batches,
                     M_padded // tile_M,
-                    K_padded // tile_K,
+                    K_padded // tile_K_A,
                     tile_M,
-                    tile_K,
+                    tile_K_A,
                 ),
-                lambda b, x, y, z, w: A[b, z + tile_M * x, w + tile_K * y],
+                lambda b, x, y, z, w: A[b, z + tile_M * x, w + tile_K_A * y],
                 name="A_interleaved",
             )
             target = Target.current(allow_none=False)
@@ -217,8 +222,10 @@ def compute_conv2d_gemm_without_weight_transform(
                         2,
                     ),
                     lambda b, x, y, w, z, s, t: te.sum(
-                        A_interleaved[b, x, k // tile_K, 2 * w + s, idxm(k, tile_K)].astype("int32")
-                        * B_interleaved_t[y, k // tile_K, 2 * z + t, idxm(k, tile_K)].astype(
+                        A_interleaved[b, x, k // tile_K_A, 2 * w + s, idxm(k, tile_K_A)].astype(
+                            "int32"
+                        )
+                        * B_interleaved_t[y, k // tile_K_B, 2 * z + t, idxm(k, tile_K_B)].astype(
                             "int32"
                         ),
                         axis=k,
@@ -271,8 +278,8 @@ def compute_conv2d_gemm_without_weight_transform(
                 C_interleaved = te.compute(
                     (batches, M_padded // tile_M, N_transformed, tile_M, tile_N),
                     lambda b, x, y, w, z: te.sum(
-                        A_interleaved[b, x, k // tile_K, w, idxm(k, tile_K)].astype("int32")
-                        * B_interleaved_t[y, k // tile_K, z, idxm(k, tile_K)].astype("int32"),
+                        A_interleaved[b, x, k // tile_K_A, w, idxm(k, tile_K_A)].astype("int32")
+                        * B_interleaved_t[y, k // tile_K_B, z, idxm(k, tile_K_B)].astype("int32"),
                         axis=k,
                     ),
                     name="C_interleaved",
@@ -298,9 +305,9 @@ def compute_conv2d_gemm_without_weight_transform(
                     A[b, x, k].astype("int32")
                     * B_interleaved_t[
                         y // tile_N,
-                        k // tile_K,
+                        k // tile_K_B,
                         idxm(y, tile_N),
-                        idxm(k, tile_K),
+                        idxm(k, tile_K_B),
                     ].astype("int32"),
                     axis=k,
                 ),
@@ -324,8 +331,8 @@ def compute_conv2d_gemm_without_weight_transform(
                 A[b, x, k].astype("float32")
                 * B_interleaved_t[
                     y // tile_N,
-                    k // tile_K,
-                    idxm(k, tile_K),
+                    k // tile_K_B,
+                    idxm(k, tile_K_B),
                     idxm(y, tile_N),
                 ].astype("float32"),
                 axis=k,
