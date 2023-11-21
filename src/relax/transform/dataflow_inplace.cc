@@ -94,7 +94,9 @@ class AliasAnalyzer {
 
   // The analysis returns a map of vars to memory locations that it *could* map to
   // (any unique allocation = one memory location), plus a map of memory locations
-  // that correspond to tuples (this maps to sets of memory locations for each tuple element)
+  // that correspond to tuples (this maps to sets of memory locations for each tuple element).
+  // Note: inputs are values that should be assumed not to be aliased and are therefore
+  // (in the case of in-place ops) safe to overwrite. This may not be true of function args.
   std::pair<std::unordered_map<Var, std::unordered_set<int>, ObjectPtrHash, ObjectPtrEqual>,
             std::unordered_map<int, std::vector<std::unordered_set<int>>>>
   Analyze(const DataflowBlock& block, const Array<Var>& inputs) {
@@ -209,7 +211,7 @@ class AliasAnalyzer {
     // var: look up in alias map (-1 if not present)
     // op call: assume it's fresh (may need to make list of exceptions)
     // tuple: fresh entry in tuple index, recurse to determine indices for values
-    // function/packed call: chaos reigns, alias with everything ever passed or returned from func
+    // function/packed call: chaos reigns, alias with any other argument
     //   (if tuple is passed, assume also aliased with all members of the tuple)
     // tuple index: -1 if tuple is not in tuple map, otherwise look up corresponding entry
     // function constant: give them a fresh index (TODO: we can handle in more detail if this is a
@@ -446,13 +448,13 @@ bool InplaceConditionsMet(
         alias_sets,
     const std::unordered_map<int, std::vector<std::unordered_set<int>>>& tuple_map,
     const std::unordered_set<Var, ObjectPtrHash, ObjectPtrEqual>& currently_live,
-    const Expr& target, int idx) {
+    const Expr& target, int binding_idx) {
   if (auto* var_node = target.as<VarNode>()) {
     auto current_var = GetRef<Var>(var_node);
     // if the var is live past this point, we can't use it for in-place computations anyway
     if (live_ranges.count(current_var)) {
       auto live_range = live_ranges.at(current_var);
-      if (live_range.second > idx) {
+      if (live_range.second > binding_idx) {
         return false;
       }
     }
@@ -477,11 +479,15 @@ bool InplaceConditionsMet(
     }
 
     for (Var other_var : currently_live) {
+      if (other_var.same_as(target)) {
+        continue;
+      }
+      // not represented = spooky unknown value that should be modeled by -1
       if (!alias_sets.count(other_var) || !live_ranges.count(other_var)) {
-        return false;
+        continue;
       }
       // var is not live past this point => don't need to worry
-      if (live_ranges.at(other_var).second <= idx) {
+      if (live_ranges.at(other_var).second <= binding_idx) {
         continue;
       }
       auto other_alias_set = alias_sets.at(other_var);
@@ -496,7 +502,8 @@ bool InplaceConditionsMet(
     return true;
   } else if (auto* tup_node = target.as<TupleNode>()) {
     for (auto field : tup_node->fields) {
-      if (!InplaceConditionsMet(live_ranges, alias_sets, tuple_map, currently_live, field, idx)) {
+      if (!InplaceConditionsMet(live_ranges, alias_sets, tuple_map, currently_live, field,
+                                binding_idx)) {
         return false;
       }
     }
@@ -773,15 +780,17 @@ class ModuleInplaceTransformer : public ExprMutator {
   // and replace any valid calls in them
   BindingBlock VisitBindingBlock_(const DataflowBlockNode* op) override {
     auto block = GetRef<DataflowBlock>(op);
-    std::unordered_set<Var, ObjectPtrHash, ObjectPtrEqual> free_var_set;
-    for (auto binding : block->bindings) {
-      auto binding_free_vars = FreeVars(GetBoundValue(binding));
-      free_var_set.insert(binding_free_vars.begin(), binding_free_vars.end());
-    }
-    Array<Var> free_var_list(free_var_set.begin(), free_var_set.end());
+    // std::unordered_set<Var, ObjectPtrHash, ObjectPtrEqual> free_var_set;
+    // for (auto binding : block->bindings) {
+    //   auto binding_free_vars = FreeVars(GetBoundValue(binding));
+    //   free_var_set.insert(binding_free_vars.begin(), binding_free_vars.end());
+    // }
+    // Array<Var> free_var_list(free_var_set.begin(), free_var_set.end());
 
-    // for now, only handle exact match cases
-    auto matches_found = FindInplaceOpportunities(block, free_var_list);
+    // For now, only handle exact match cases.
+    // Note: Not passing any input values for now, as we can't make any assumptions
+    // about them.
+    auto matches_found = FindInplaceOpportunities(block, {});
     auto exact_matches = matches_found.second;
 
     Array<Binding> new_bindings;

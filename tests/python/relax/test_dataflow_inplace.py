@@ -426,9 +426,12 @@ def test_insert_inplace_calls():
         ) -> R.Tensor((2, 3), dtype="float32"):
             with R.dataflow():
                 z = R.add(x, y)  # broadcast happens here
-                q = R.multiply(z, y)  # broadcast again
-                r = R.subtract(y, y)  # now can be done inplace
-                m = R.multiply(q, r)  # should give us all zeros
+                                 # Cannot be done in-place because x is an argument.
+                a = R.add(z, y) # this one can be done in-place
+                q = R.multiply(a, y)  # broadcast again, a is eligible
+                r = R.subtract(y, y)  # cannot be done in-place because y is an argument
+                s = R.subtract(r, r) # No broadcast. Can be done in-place
+                m = R.multiply(q, s)  # should give us all zeros
                 R.output(m)
             return m
 
@@ -440,7 +443,9 @@ def test_insert_inplace_calls():
     assert new_mod["subtract_inplace"]
     assert new_mod["multiply_inplace"]
     expected_ops = ["add_inplace", "multiply_inplace", "subtract_inplace", "multiply_inplace"]
-    for i, binding in enumerate(new_mod["main"].body.blocks[0].bindings):
+    inplace_binding_idxs = [1, 2, 4, 5]
+    for i, idx in enumerate(inplace_binding_idxs):
+        binding = new_mod["main"].body.blocks[0].bindings[idx]
         assert binding.value.op.name == "relax.call_tir_inplace"
         assert binding.value.args[0].name_hint == expected_ops[i]
 
@@ -452,9 +457,6 @@ def test_insert_inplace_calls():
     ex = relax.build(new_mod, target)
     vm = relax.VirtualMachine(ex, tvm.cpu())
     res = vm["main"](x, y)
-    # due to reuse of buffers, the result is actually reference equal to argument x
-    # (we can disable this by setting the arguments to "unknown value" in the alias analysis)
-    assert res == x
     assert (expected == res.numpy()).all()
 
 
