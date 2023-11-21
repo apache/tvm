@@ -707,6 +707,8 @@ class CutlassRelaxFunctionAnnotator(relax.PyExprMutator):
         lhs_shape = signature[f"{lhs_arg}_shape"]
         rhs_shape = signature[f"{rhs_arg}_shape"]
         ret_shape = signature["ret_shape"]
+        scale_arg = f"arg{arg_idx['scales']}"
+        scale_shape = signature[f"{scale_arg}_shape"]
         N = ret_shape[-1]
 
         attrs = {
@@ -717,6 +719,8 @@ class CutlassRelaxFunctionAnnotator(relax.PyExprMutator):
             "bias_arg_idx": arg_idx.get("bias"),
             "activation": "identity",
         }
+        # TODO(wuwei): find a better way to get group size
+        attrs["group_size"] = 64 if len(scale_shape) == 2 and scale_shape[0] != 1 else -1
 
         attrs["batch_rank"] = len(lhs_shape[:-1])
         attrs["M"] = reduce(operator.mul, lhs_shape[:-1], 1)

@@ -414,9 +414,17 @@ def instantiate_gemm_template(attrs):
 
 def emit_fp16A_intB_matmul(attrs):
     """Return CUTLASS host code for fp16 A and int4 or int8 B GEMM."""
+    if attrs["group_size"] > 0:
+        attrs["quant_op"] = "cutlass::WeightOnlyQuantOp::FINEGRAINED_SCALE_ONLY"
+    else:
+        attrs["quant_op"] = "cutlass::WeightOnlyQuantOp::PER_COLUMN_SCALE_ONLY"
+        attrs["group_size"] = "k"
+
     attrs["template_common"] = substitute_template(
         """
   using namespace fastertransformer;
+  constexpr auto QuantOp = ${quant_op};
+
   int m = ${M};
   int n = ${B_arg}->shape[1] * ${float_per_int};
   int k = ${B_arg}->shape[0];
@@ -430,24 +438,24 @@ def emit_fp16A_intB_matmul(attrs):
 
     template = """
   ${template_common}
-  gemm_fp16_int_bias_act(static_cast<cutlass::half_t*>(${A_arg}->data),
+  gemm_fp16_int_bias_act<${weight_dtype}, QuantOp>(static_cast<cutlass::half_t*>(${A_arg}->data),
                 static_cast<${weight_dtype}*>(${B_arg}->data),
                 static_cast<cutlass::half_t*>(${scales_arg}->data),
                 ${bias},
                 static_cast<cutlass::half_t*>(out0->data),
                 "${activation}",
-                m, n, k, ${bias_stride}, nullptr, 0, stream);
+                m, n, k, ${group_size}, ${bias_stride}, nullptr, 0, stream);
 """
 
     template_residual = """
   ${template_common}
-  gemm_fp16_int_bias_act_residual(static_cast<cutlass::half_t*>(${A_arg}->data),
+  gemm_fp16_int_bias_act_residual<${weight_dtype}, QuantOp>(static_cast<cutlass::half_t*>(${A_arg}->data),
                 static_cast<${weight_dtype}*>(${B_arg}->data),
                 static_cast<cutlass::half_t*>(${scales_arg}->data),
                 ${bias},
                 static_cast<cutlass::half_t*>(${residual_arg}->data),
                 static_cast<cutlass::half_t*>(out0->data), "${activation}", "${binary_op}", "${unary_op}",
-                m, n, k, nullptr, 0, stream);
+                m, n, k, ${group_size}, nullptr, 0, stream);
 """
 
     if "residual_arg" in attrs:
