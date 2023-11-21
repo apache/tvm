@@ -480,10 +480,11 @@ bool Conv3DRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
     Array<IndexExpr> wshape;
     if (is_depthwise) {
       auto channel_multiplier = indexdiv(param->channels, dshape_ncdhw[1]);
-      wshape = {dshape_ncdhw[1], channel_multiplier, param->kernel_size[0], param->kernel_size[1], param->kernel_size[2]};
+      wshape = {dshape_ncdhw[1], channel_multiplier,
+                param->kernel_size[0], param->kernel_size[1], param->kernel_size[2]};
     } else {
       wshape = {param->channels, indexdiv(dshape_ncdhw[1], param->groups),
-                             param->kernel_size[0], param->kernel_size[1], param->kernel_size[2]};
+                param->kernel_size[0], param->kernel_size[1], param->kernel_size[2]};
     }
 
     wshape = trans_kernel_layout.BackwardShape(wshape);
