@@ -426,11 +426,11 @@ def test_insert_inplace_calls():
         ) -> R.Tensor((2, 3), dtype="float32"):
             with R.dataflow():
                 z = R.add(x, y)  # broadcast happens here
-                                 # Cannot be done in-place because x is an argument.
-                a = R.add(z, y) # this one can be done in-place
+                # Cannot be done in-place because x is an argument.
+                a = R.add(z, y)  # this one can be done in-place
                 q = R.multiply(a, y)  # broadcast again, a is eligible
                 r = R.subtract(y, y)  # cannot be done in-place because y is an argument
-                s = R.subtract(r, r) # No broadcast. Can be done in-place
+                s = R.subtract(r, r)  # No broadcast. Can be done in-place
                 m = R.multiply(q, s)  # should give us all zeros
                 R.output(m)
             return m
