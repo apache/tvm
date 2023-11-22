@@ -78,6 +78,44 @@ class Tuple:  # pylint: disable=too-few-public-methods
         return self.elements.__repr__()
 
 
+class ConstInt:  # pylint: disable=too-few-public-methods
+    """An integer constant"""
+
+    dtype: typing.Optional[str]
+
+    def __init__(self, dtype: str = None) -> None:
+        self.dtype = dtype
+
+    def __repr__(self) -> str:
+        if self.dtype is None:
+            return "const.int"
+        return f"const.int({self.dtype})"
+
+
+class ConstFloat:  # pylint: disable=too-few-public-methods
+    """A float constant"""
+
+    dtype: typing.Optional[str]
+
+    def __init__(self, dtype: str = None) -> None:
+        self.dtype = dtype
+
+    def __repr__(self) -> str:
+        if self.dtype is None:
+            return "const.float"
+        return f"const.float({self.dtype})"
+
+
+class ConstString:  # pylint: disable=too-few-public-methods
+    """A string constant"""
+
+    def __init__(self) -> None:
+        pass
+
+    def __repr__(self) -> str:
+        return "const.string"
+
+
 class MethodSpec:
     """A spec for a compiled method"""
 
@@ -298,13 +336,13 @@ class ModuleSpec:
 class ExternFunctionSpec:  # pylint: disable=too-few-public-methods
     """A spec for a compiled external function."""
 
-    args: typing.List[Tensor]
+    args: typing.List[typing.Union[Tensor, ConstInt, ConstFloat, ConstString]]
     ret: typing.Union[Tensor, typing.List[Tensor]]
     symbol: typing.Optional[str]
 
     def __init__(
         self,
-        args: typing.List[Tensor],
+        args: typing.List[typing.Union[Tensor, ConstInt, ConstFloat, ConstString]],
         ret: typing.Union[Tensor, typing.List[Tensor]],
         symbol: typing.Optional[str] = None,
     ) -> None:

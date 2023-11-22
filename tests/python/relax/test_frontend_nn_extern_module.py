@@ -191,6 +191,66 @@ def test_extern_module():
         scalar_c = compiled["scalar_add"](scalar_a, scalar_b)
 
 
+def test_extern_spec():
+    class TestModule(nn.Module):
+        def __init__(self) -> None:
+            self.ext_mod = nn.ExternModule(
+                spec.ExternModuleSpec(
+                    library=tvm.runtime.Module(None),
+                    functions=[
+                        spec.ExternFunctionSpec(
+                            args=[
+                                spec.Tensor((2, 4), "float16"),
+                                spec.ConstInt(),
+                                spec.ConstInt("int32"),
+                                spec.ConstFloat(),
+                                spec.ConstFloat("float16"),
+                                spec.ConstString(),
+                            ],
+                            ret=spec.Tensor((2, 4), "float16"),
+                            symbol="test",
+                        )
+                    ],
+                )
+            )
+
+        def forward(self, x: nn.Tensor):
+            return self.ext_mod.get_extern_func("test")(x, 1, 2, 3.0, 4.0, "123")
+
+    @I.ir_module
+    class ExpectedModule:
+        I.module_attrs({"external_mods": [None]})
+
+        @R.function
+        def forward(x: R.Tensor((2, 4), dtype="float16")) -> R.Tensor((2, 4), dtype="float16"):
+            R.func_attr({"num_input": 1})
+            with R.dataflow():
+                test = R.call_dps_packed(
+                    "test",
+                    (
+                        x,
+                        R.prim_value(1),
+                        R.prim_value(T.int32(2)),
+                        R.prim_value(T.float32(3)),
+                        R.prim_value(T.float16(4)),
+                        R.str("123"),
+                    ),
+                    out_sinfo=R.Tensor((2, 4), dtype="float16"),
+                )
+                gv: R.Tensor((2, 4), dtype="float16") = test
+                R.output(gv)
+            return gv
+
+    model = TestModule()
+    ir_module, _ = model.export_tvm(
+        spec={
+            "forward": {
+                "x": spec.Tensor((2, 4), "float16"),
+            },
+        }
+    )
+    tvm.ir.assert_structural_equal(ir_module, ExpectedModule)
+
+
 if __name__ == "__main__":
-    test_extern_module()
-    # tvm.testing.main()
+    tvm.testing.main()
