@@ -844,11 +844,8 @@ def test_compile_depthwise_conv3d():
     mod = tvm.IRModule.from_expr(func)
 
     target = "llvm"
-    _ = relay.build(
-        mod,
-        tvm.target.Target(target, host=target)
-    )
-    
+    _ = relay.build(mod, tvm.target.Target(target, host=target))
+
 
 @tvm.testing.uses_gpu
 def test_conv2d_transpose_infer_type():
