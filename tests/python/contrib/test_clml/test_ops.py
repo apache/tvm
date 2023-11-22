@@ -1114,20 +1114,36 @@ def test_reshape(remote, dtype, target, executor_type, trials):
     def _verify(shape, newshape):
         np.random.seed(0)
         x = relay.var("x", shape=(shape), dtype=dtype)
-        out = relay.reshape(x, newshape)
+        # Defined the test case with unary operator
+        # Single reshape op is failing in native OpenCL with vm executor type
+        # Empty TVM mod in VM doesn't pick appropriate cross compiler
+        out = relay.nn.relu(x)
+        out = relay.reshape(out, newshape)
 
         inputs = {"x": tvm.nd.array(np.random.uniform(-1, 1, shape).astype(dtype))}
         params = {}
         mod = IRModule.from_expr(out)
         outputs = _build_and_run_network(remote, mod, params, inputs, target, executor_type)
+        out_rtol = 1e-3 if dtype == "float16" else 1e-5
         tvm.testing.assert_allclose(
-            outputs[0].asnumpy(), outputs[1].asnumpy(), rtol=1e-5, atol=1e-5
+            outputs[0].asnumpy(), outputs[1].asnumpy(), rtol=out_rtol, atol=out_rtol
         )
         exp_codegen = [
             {
                 "attrs": {"dtype": [[dtype]], "shape": [[list(inputs["x"].shape)]]},
                 "name": "",
                 "op": "input",
+            },
+            {
+                "attrs": {
+                    "dtype": [[dtype]],
+                    "num_inputs": "1",
+                    "num_outputs": "1",
+                    "shape": [[list(inputs["x"].shape)]],
+                },
+                "inputs": [[0, 0, 0]],
+                "name": "nn.relu",
+                "op": "kernel",
             },
             {
                 "attrs": {
@@ -1138,7 +1154,7 @@ def test_reshape(remote, dtype, target, executor_type, trials):
                     "num_outputs": "1",
                     "shape": [[list(outputs[0].shape)]],
                 },
-                "inputs": [[0, 0, 0]],
+                "inputs": [[1, 0, 0]],
                 "name": "reshape",
                 "op": "kernel",
             },
@@ -1222,7 +1238,11 @@ def test_pool_global(remote, dtype, target, executor_type, trials):
 def test_batch_flatten(remote, dtype, target, executor_type):
     def _get_model(a_shape):
         a = relay.var("a", shape=(a_shape), dtype=dtype)
-        out = relay.nn.batch_flatten(a)
+        # Defined the test case with unary operator
+        # Single batch_flatten op is failing in native OpenCL
+        # Empty TVM mod in VM doesn't pick appropriate cross compiler
+        out = relay.nn.relu(a)
+        out = relay.nn.batch_flatten(out)
         inputs = {"a": tvm.nd.array(np.random.uniform(-1, 1, a_shape).astype(dtype))}
         params = {}
         return out, params, inputs
@@ -1230,8 +1250,9 @@ def test_batch_flatten(remote, dtype, target, executor_type):
     def _verify(out, params, inputs):
         mod = IRModule.from_expr(out)
         outputs = _build_and_run_network(remote, mod, params, inputs, target, executor_type)
+        out_rtol = 1e-3 if dtype == "float16" else 1e-5
         tvm.testing.assert_allclose(
-            outputs[0].asnumpy(), outputs[1].asnumpy(), rtol=1e-5, atol=1e-5
+            outputs[0].asnumpy(), outputs[1].asnumpy(), rtol=out_rtol, atol=out_rtol
         )
         exp_codegen = [
             {
@@ -1244,9 +1265,20 @@ def test_batch_flatten(remote, dtype, target, executor_type):
                     "dtype": [[dtype]],
                     "num_inputs": "1",
                     "num_outputs": "1",
-                    "shape": [[list(outputs[0].shape)]],
+                    "shape": [[list(inputs["a"].shape)]],
                 },
                 "inputs": [[0, 0, 0]],
+                "name": "nn.relu",
+                "op": "kernel",
+            },
+            {
+                "attrs": {
+                    "dtype": [[dtype]],
+                    "num_inputs": "1",
+                    "num_outputs": "1",
+                    "shape": [[list(outputs[0].shape)]],
+                },
+                "inputs": [[1, 0, 0]],
                 "name": "nn.batch_flatten",
                 "op": "kernel",
             },
