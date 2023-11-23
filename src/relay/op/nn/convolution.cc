@@ -460,8 +460,33 @@ bool Conv3DRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
   if (param->kernel_size.defined() && param->channels.defined()) {
     ICHECK_EQ(param->kernel_size.size(), 3);
     ICHECK_EQ(param->dilation.size(), 3);
-    Array<IndexExpr> wshape({param->channels, indexdiv(dshape_ncdhw[1], param->groups),
-                             param->kernel_size[0], param->kernel_size[1], param->kernel_size[2]});
+
+    bool is_depthwise = false;
+    if (param->groups > 1) {
+      if (!(weight && weight->shape.defined())) {
+        reporter->GetDiagCtx().Emit(
+            Diagnostic::Error(reporter->GetSpan())
+            << "Weight shape must be specified when groups is greater than 1.");
+        return false;
+      }
+
+      Array<IndexExpr> wshape_oidhw = trans_kernel_layout.ForwardShape(weight->shape);
+      if (tvm::tir::ExprDeepEqual()(param->groups, dshape_ncdhw[1]) &&
+          tvm::tir::ExprDeepEqual()(param->groups, wshape_oidhw[0])) {
+        is_depthwise = true;
+      }
+    }
+
+    Array<IndexExpr> wshape;
+    if (is_depthwise) {
+      auto channel_multiplier = indexdiv(param->channels, dshape_ncdhw[1]);
+      wshape = {dshape_ncdhw[1], channel_multiplier, param->kernel_size[0], param->kernel_size[1],
+                param->kernel_size[2]};
+    } else {
+      wshape = {param->channels, indexdiv(dshape_ncdhw[1], param->groups), param->kernel_size[0],
+                param->kernel_size[1], param->kernel_size[2]};
+    }
+
     wshape = trans_kernel_layout.BackwardShape(wshape);
     channels = param->channels;
     dilated_ksize_z = 1 + (param->kernel_size[0] - 1) * param->dilation[0];
