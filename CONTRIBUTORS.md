@@ -89,6 +89,7 @@ We do encourage everyone to work anything they are interested in.
 - [Eddie Yan](https://github.com/eqy) (PMC): @eqy - runtime, autotvm, rpc, topi
 - [Zihao Ye](https://github.com/yzh119): @yzh119 - tir
 - [Hao Yu](https://github.com/comaniac): @comaniac (PMC) - relay, byoc, auto_scheduler
+- [Shuai Yuan](https://github.com/ysh329): @ysh329 - ci
 - [Lianmin Zheng](https://github.com/merrymercy) (PMC): @merrymercy - autotvm, auto_scheduler, topi, relay
 - [Xiyou Zhou](https://github.com/zxybazh): @zxybazh - relay
 - [wrongtest](https://github.com/wrongtest-intellif) (PMC): @wrongtest-intellif - tir, tvm-script, arith
@@ -211,6 +212,7 @@ We do encourage everyone to work anything they are interested in.
 - [Aleksei Yazev](https://github.com/Aleksei-grovety): @Aleksei-grovety
 - [Zihao Ye](https://github.com/yzh119): @yzh119
 - [Hao Yu](https://github.com/comaniac): @comaniac
+- [Shuai Yuan](https://github.com/ysh329): @ysh329
 - [Joshua Z. Zhang](https://github.com/zhreshold): @zhreshold
 - [Lianmin Zheng](https://github.com/merrymercy): @merrymercy
 - [Min Chen](https://github.com/multiverstack-intellif): @multiverstack-intellif
