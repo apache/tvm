@@ -5433,41 +5433,26 @@ def test_swapaxes():
 def test_linalg_vector_norm():
     """test_linalg_vector_norm"""
     torch.set_grad_enabled(False)
+
+    def test_fn(ord):
+        return lambda x: torch.linalg.vector_norm(x, ord)
+
     input_shape = [3, 3]
 
-    class VectorNorm1(torch.nn.Module):
-        def forward(self, x):
-            return torch.linalg.vector_norm(x)
-
-    class VectorNorm2(torch.nn.Module):
-        def forward(self, x):
-            return torch.linalg.vector_norm(x, ord=3.5)
-
-    class VectorNorm3(torch.nn.Module):
-        def forward(self, x):
-            return torch.linalg.vector_norm(x, ord=np.inf)
-
-    class VectorNorm4(torch.nn.Module):
-        def forward(self, x):
-            return torch.linalg.vector_norm(x, ord=-np.NINF)
-
-    class VectorNorm5(torch.nn.Module):
-        def forward(self, x):
-            return torch.linalg.vector_norm(x, ord=0)
-
     input_data = torch.rand(input_shape).float()
-    verify_model(VectorNorm1().float().eval(), input_data=input_data)
-    verify_model(VectorNorm2().float().eval(), input_data=input_data)
-    verify_model(VectorNorm3().float().eval(), input_data=input_data)
-    verify_model(VectorNorm4().float().eval(), input_data=input_data)
-    verify_model(VectorNorm5().float().eval(), input_data=input_data)
+    verify_model(test_fn(ord=2.0), input_data=input_data)
+    verify_model(test_fn(ord=3.5), input_data=input_data)
+    verify_model(test_fn(ord=np.inf), input_data=input_data)
+    verify_model(test_fn(ord=np.NINF), input_data=input_data)
+    verify_model(test_fn(ord=0), input_data=input_data)
 
+    # Also test on double
     input_data = torch.rand(input_shape).double()
-    verify_model(VectorNorm1().double().eval(), input_data=input_data)
-    verify_model(VectorNorm2().double().eval(), input_data=input_data)
-    verify_model(VectorNorm3().double().eval(), input_data=input_data)
-    verify_model(VectorNorm4().double().eval(), input_data=input_data)
-    verify_model(VectorNorm5().double().eval(), input_data=input_data)
+    verify_model(test_fn(ord=2.0), input_data=input_data)
+    verify_model(test_fn(ord=3.5), input_data=input_data)
+    verify_model(test_fn(ord=np.inf), input_data=input_data)
+    verify_model(test_fn(ord=np.NINF), input_data=input_data)
+    verify_model(test_fn(ord=0), input_data=input_data)
 
 
 class TestSetSpan:
