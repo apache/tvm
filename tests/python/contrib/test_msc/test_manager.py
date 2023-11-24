@@ -83,7 +83,7 @@ def _get_tf_graph():
             # Call the utility to import the graph definition into default graph.
             graph_def = tf_testing.ProcessGraphDefParam(graph_def)
         return graph_def
-    except:
+    except:  # pylint: disable=bare-except
         print("please install tensorflow package")
         return None
 

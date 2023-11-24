@@ -59,6 +59,7 @@ def _get_torch_model(name, is_training=False):
 def _get_tf_graph():
     """Get tensorflow graphdef"""
 
+    # pylint: disable=import-outside-toplevel
     try:
         import tvm.relay.testing.tf as tf_testing
 
