@@ -61,7 +61,7 @@ class TensorRTOpCode : public BaseOpCode<TensorRTCodeGenConfig, TensorRTCodeGenH
   }
 
   /*! \brief Get valid return name for the default node*/
-  const String ret_name() final { return "auto " + IdxNode(true); }
+  const String ret_name() final { return "auto " + IdxNode(); }
 
   /*! \brief Get the dtype from the datatype*/
   const String DType(const DataType& dtype) final;

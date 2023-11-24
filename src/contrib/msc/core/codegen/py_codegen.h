@@ -27,6 +27,7 @@
 #include <dmlc/json.h>
 #include <tvm/script/printer/doc.h>
 
+#include <set>
 #include <string>
 
 #include "../printer/python_printer.h"
@@ -49,7 +50,11 @@ class PyCodeGen : public BaseCodeGen<ConfigType, HelperType> {
    * \param config the options for codegen.
    */
   explicit PyCodeGen(const MSCGraph& graph, const std::string& config = "")
-      : BaseCodeGen<ConfigType, HelperType>(graph, config) {}
+      : BaseCodeGen<ConfigType, HelperType>(graph, config) {
+    for (const auto& output : graph->GetOutputs()) {
+      graph_outputs_.insert(output);
+    }
+  }
 
   /*! \brief Stack the docs for the script*/
   virtual void CodeGenScript() {
@@ -82,18 +87,15 @@ class PyCodeGen : public BaseCodeGen<ConfigType, HelperType> {
     this->stack_.line("import os")
         .line("import numpy as np")
         .line("from typing import List, Dict")
-        .line("import tvm")
-        .line("from tvm.contrib.msc.core import utils as msc_utils");
+        .line("import tvm");
+    if (this->config()->use_tools) {
+      this->stack_.line("from tvm.contrib.msc.core import tools as msc_tools");
+    }
+    this->stack_.line("from tvm.contrib.msc.core import utils as msc_utils");
   }
 
   /*! \brief Stack the docs for the helpers*/
   virtual void CodeGenHelper() {
-    this->stack_.func_def("process_tensor", TensorType())
-        .func_arg("tensor", TensorType())
-        .func_arg("name", "str")
-        .func_arg("consumer", "str")
-        .func_start()
-        .func_end("tensor");
     if (this->config()->need_test) {
       this->stack_.func_def("load_data", "np.ndarray")
           .func_arg("name", "str")
@@ -145,25 +147,45 @@ class PyCodeGen : public BaseCodeGen<ConfigType, HelperType> {
   }
 
   /*! \brief Stack the docs for the node*/
-  virtual void CodeGenNode(const MSCJoint& node) {
+  virtual void CodeGenNode(const MSCJoint& node, bool use_tools) {
     this->stack_.comment(this->Comment(node));
-    if (this->config()->need_process) {
+    // process inputs and weights by tools
+    if (use_tools) {
       for (size_t i = 0; i < node->inputs.size(); i++) {
         const auto& input = node->InputAt(i);
-        this->stack_.func_call("process_tensor", this->IdxInputBase(node, i, false))
-            .call_arg(this->IdxInputBase(node, i, true))
+        this->stack_.func_call("msc_tools.process_tensor", this->IdxInputBase(node, i, true))
+            .call_arg(this->IdxInputBase(node, i, false))
             .call_arg(DocUtils::ToStrDoc(input->name))
-            .call_arg(DocUtils::ToStrDoc(node->name));
+            .call_arg(DocUtils::ToStrDoc(node->name))
+            .call_arg(DocUtils::ToStrDoc(this->config()->tools_scope))
+            .call_arg(DocUtils::ToStrDoc(this->config()->tools_tag));
       }
       for (const auto& pair : node->weights) {
-        this->stack_.func_call("process_tensor", this->IdxWeightBase(node, pair.first, false))
-            .call_arg(this->IdxWeightBase(node, pair.first, true))
+        this->stack_
+            .func_call("msc_tools.process_tensor", this->IdxWeightBase(node, pair.first, true))
+            .call_arg(this->IdxWeightBase(node, pair.first, false))
             .call_arg(DocUtils::ToStrDoc(pair.second->name))
-            .call_arg(DocUtils::ToStrDoc(node->name));
+            .call_arg(DocUtils::ToStrDoc(node->name))
+            .call_arg(DocUtils::ToStrDoc(this->config()->tools_scope))
+            .call_arg(DocUtils::ToStrDoc(this->config()->tools_tag));
       }
     }
     for (const auto& d : this->GetOpCodes(node)) {
       this->stack_.line(d);
+    }
+    // process graph outputs by tools
+    if (use_tools) {
+      for (size_t i = 0; i < node->outputs.size(); i++) {
+        int index = static_cast<int>(i);
+        if (graph_outputs_.count(node->OutputAt(index))) {
+          this->stack_.func_call("msc_tools.process_tensor", this->IdxOutputBase(node, index, true))
+              .call_arg(this->IdxOutputBase(node, index, false))
+              .call_arg(DocUtils::ToStrDoc(node->OutputAt(index)->name))
+              .call_arg(DocUtils::ToStrDoc("exit"))
+              .call_arg(DocUtils::ToStrDoc(this->config()->tools_scope))
+              .call_arg(DocUtils::ToStrDoc(this->config()->tools_tag));
+        }
+      }
     }
   }
 
@@ -175,6 +197,9 @@ class PyCodeGen : public BaseCodeGen<ConfigType, HelperType> {
 
   /*! \brief Get tensor type of the framework*/
   virtual const String TensorType() const { return "np.ndarray"; }
+
+ private:
+  std::set<MSCTensor> graph_outputs_;
 };
 
 }  // namespace msc

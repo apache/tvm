@@ -40,12 +40,12 @@ class TorchCodeGenHelper : public BaseCodeGenHelper {
  public:
   /*! \brief Get describe for default node input*/
   const String IdxOutputBase(const MSCJoint& node, const String& prefix = "", int idx = 0,
-                             const String& suffix = "") final {
+                             const String& suffix = "", bool mark_exit = false) final {
     if ((node->optype == "max" || node->optype == "min") && node->OutputAt(0)->Ndim() > 0) {
       ICHECK(idx == 0) << "max and min op only support 1 outputs, get " << node;
       return IdxNodeBase(node, prefix, suffix) + ".values";
     }
-    return BaseCodeGenHelper::IdxOutputBase(node, prefix, idx, suffix);
+    return BaseCodeGenHelper::IdxOutputBase(node, prefix, idx, suffix, mark_exit);
   }
 };
 

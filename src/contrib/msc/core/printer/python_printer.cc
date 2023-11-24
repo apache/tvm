@@ -196,7 +196,7 @@ void PythonPrinter::PrintIndentedBlock(const Array<StmtDoc>& docs) {
 void PythonPrinter::PrintDecorators(const Array<ExprDoc>& decorators) {
   for (const ExprDoc& decorator : decorators) {
     output_ << "@";
-    PrintDoc(decorator);
+    PrintDoc(decorator, false);
     NewLine();
   }
 }

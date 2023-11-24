@@ -41,12 +41,10 @@ using namespace tvm::script::printer;
 
 #define CODEGEN_CONFIG_MEMBERS             \
   bool is_train{false};                    \
-  bool need_prune{false};                  \
-  bool need_quantize{false};               \
-  bool need_collect{false};                \
-  bool need_distill{false};                \
-  bool need_process{false};                \
+  bool use_tools{false};                   \
   bool need_test{true};                    \
+  std::string tools_scope{""};             \
+  std::string tools_tag{"main"};           \
   std::string test_device{"cpu"};          \
   std::string prefix{"res_"};              \
   std::string baseline_folder{"baseline"}; \
@@ -55,20 +53,14 @@ using namespace tvm::script::printer;
 #define CODEGEN_CONFIG_PARSE                    \
   if (key == "is_train") {                      \
     reader->Read(&is_train);                    \
-  } else if (key == "need_prune") {             \
-    reader->Read(&need_prune);                  \
-    need_process |= need_prune;                 \
-  } else if (key == "need_quantize") {          \
-    reader->Read(&need_quantize);               \
-    need_process |= need_quantize;              \
-  } else if (key == "need_collect") {           \
-    reader->Read(&need_collect);                \
-    need_process |= need_collect;               \
-  } else if (key == "need_distill") {           \
-    reader->Read(&need_distill);                \
-    need_process |= need_distill;               \
+  } else if (key == "use_tools") {              \
+    reader->Read(&use_tools);                   \
   } else if (key == "need_test") {              \
     reader->Read(&need_test);                   \
+  } else if (key == "tools_scope") {            \
+    reader->Read(&tools_scope);                 \
+  } else if (key == "tools_tag") {              \
+    reader->Read(&tools_tag);                   \
   } else if (key == "test_device") {            \
     reader->Read(&test_device);                 \
   } else if (key == "prefix") {                 \
@@ -87,21 +79,18 @@ using namespace tvm::script::printer;
                                                                                                   \
  protected:                                                                                       \
   const std::shared_ptr<ConfigType> config() { return config_; }                                  \
-  const String GetSuffix(bool as_raw = false) {                                                   \
-    const String& suffix = as_raw && config()->need_process ? "_raw" : "";                        \
-    return suffix;                                                                                \
+  const String IdxNodeBase(const MSCJoint& node) {                                                \
+    return helper_.IdxNodeBase(node, config()->prefix, "");                                       \
   }                                                                                               \
-  const String IdxNodeBase(const MSCJoint& node, bool as_raw = true) {                            \
-    return helper_.IdxNodeBase(node, config()->prefix, GetSuffix(as_raw));                        \
+  const String IdxInputBase(const MSCJoint& node, int idx = 0, bool process = true) {             \
+    return helper_.IdxInputBase(node, config()->prefix, idx, "", process && config()->use_tools); \
   }                                                                                               \
-  const String IdxInputBase(const MSCJoint& node, int idx = 0, bool as_raw = false) {             \
-    return helper_.IdxInputBase(node, config()->prefix, idx, GetSuffix(as_raw));                  \
+  const String IdxOutputBase(const MSCJoint& node, int idx = 0, bool mark_exit = false) {         \
+    return helper_.IdxOutputBase(node, config()->prefix, idx, "",                                 \
+                                 mark_exit && config()->use_tools);                               \
   }                                                                                               \
-  const String IdxOutputBase(const MSCJoint& node, int idx = 0, bool as_raw = false) {            \
-    return helper_.IdxOutputBase(node, config()->prefix, idx, GetSuffix(as_raw));                 \
-  }                                                                                               \
-  const String IdxWeightBase(const MSCJoint& node, const String& wtype, bool as_raw = false) {    \
-    return helper_.IdxWeightBase(node, wtype, GetSuffix(as_raw));                                 \
+  const String IdxWeightBase(const MSCJoint& node, const String& wtype, bool process = true) {    \
+    return helper_.IdxWeightBase(node, wtype, "", process && config()->use_tools);                \
   }                                                                                               \
   const String Comment(const MSCJoint& node) { return helper_.Comment(node, config()->prefix); }  \
                                                                                                   \
@@ -154,21 +143,36 @@ class CodeGenUtils {
  */
 class BaseCodeGenHelper {
  public:
+  const String GetSuffix(const MSCJoint& node, bool process = false) {
+    return process ? "c" + std::to_string(node->index) : "";
+  }
+
   virtual const String IdxNodeBase(const MSCJoint& node, const String& prefix = "",
                                    const String& suffix = "") {
     return CodeGenUtils::IdxNode(node, prefix, suffix);
   }
   virtual const String IdxInputBase(const MSCJoint& node, const String& prefix = "", int idx = 0,
-                                    const String& suffix = "") {
-    return CodeGenUtils::IdxInput(node, prefix, idx, suffix);
+                                    const String& suffix = "", bool process = false) {
+    const auto& pair = node->ProducerAndIdxOf(idx);
+    size_t output_size = pair.first->outputs.size();
+    if (process && (output_size > 1 || pair.first->optype == "tuple")) {
+      return CodeGenUtils::IdxNode(pair.first, prefix, suffix) + "_" + std::to_string(pair.second);
+    }
+    return CodeGenUtils::IdxInput(node, prefix, idx, suffix + GetSuffix(node, process));
   }
   virtual const String IdxOutputBase(const MSCJoint& node, const String& prefix = "", int idx = 0,
-                                     const String& suffix = "") {
+                                     const String& suffix = "", bool mark_exit = false) {
+    if (mark_exit) {
+      if (node->outputs.size() > 1 || node->optype == "tuple") {
+        return CodeGenUtils::IdxNode(node, prefix, suffix) + "_" + std::to_string(idx) + "_exit";
+      }
+      return CodeGenUtils::IdxOutput(node, prefix, idx, suffix + "_exit");
+    }
     return CodeGenUtils::IdxOutput(node, prefix, idx, suffix);
   }
   virtual const String IdxWeightBase(const MSCJoint& node, const String& wtype,
-                                     const String& suffix = "") {
-    return CodeGenUtils::IdxWeight(node, wtype, suffix);
+                                     const String& suffix = "", bool process = false) {
+    return CodeGenUtils::IdxWeight(node, wtype, suffix + GetSuffix(node, process));
   }
   virtual const String Comment(const MSCJoint& node, const String& prefix = "") {
     return CodeGenUtils::CommentNode(node, prefix);

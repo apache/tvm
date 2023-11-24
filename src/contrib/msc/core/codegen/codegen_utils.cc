@@ -36,7 +36,7 @@ const String CodeGenUtils::IdxOutput(const MSCJoint& node, const String& prefix,
                                      const String& suffix) {
   const auto& idx_node = IdxNode(node, prefix, suffix);
   size_t output_size = node->outputs.size();
-  if (output_size == 1) {
+  if (output_size == 1 && node->optype != "tuple") {
     return idx_node;
   }
   size_t v_index = CommonUtils::GetIndex(idx, output_size);

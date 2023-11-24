@@ -211,6 +211,8 @@ class MSCDirectory(object):
             The content of directory
         """
 
+        if not os.path.isdir(self._path):
+            return []
         return os.listdir(self._path)
 
     def destory(self):
@@ -285,13 +287,19 @@ def get_workspace() -> MSCDirectory:
     return workspace
 
 
-def get_workspace_subdir(name: str = None) -> MSCDirectory:
+def get_workspace_subdir(
+    name: str = None, keep_history: bool = True, cleanup: bool = False
+) -> MSCDirectory:
     """Create sub dir for workspace
 
     Parameters
     ----------
     name: str
         The sub dir name under workspace.
+    keep_history: bool
+        Whether to remove files before start.
+    cleanup: bool
+        Whether to clean up before exit.
 
     Returns
     -------
@@ -299,11 +307,36 @@ def get_workspace_subdir(name: str = None) -> MSCDirectory:
         The created dir.
     """
 
-    return get_workspace().create_dir(name)
+    return get_workspace().create_dir(name, keep_history, cleanup)
+
+
+def to_abs_path(path: str, root_dir: MSCDirectory = None, keep_history: bool = True) -> str:
+    """Change path to abs path
+
+    Parameters
+    ----------
+    path: str
+        The path of the file.
+    root_dir: MSCDirectory
+        Root dir to save the file.
+    keep_history: bool
+        Whether to remove files before start.
+
+    Returns
+    -------
+    abs_path: str
+        The abspath.
+    """
+
+    root_dir = root_dir or get_workspace()
+    if os.path.abspath(path) == path:
+        return path
+    return root_dir.relpath(path, keep_history)
 
 
 get_build_dir = partial(get_workspace_subdir, name="Build")
-get_output_dir = partial(get_workspace_subdir, name="Output")
-get_dataset_dir = partial(get_workspace_subdir, name="Dataset")
-get_debug_dir = partial(get_workspace_subdir, name="Debug")
 get_cache_dir = partial(get_workspace_subdir, name="Cache")
+get_config_dir = partial(get_workspace_subdir, name="Config")
+get_dataset_dir = partial(get_workspace_subdir, name="Dataset")
+get_output_dir = partial(get_workspace_subdir, name="Output")
+get_visual_dir = partial(get_workspace_subdir, name="Visual")

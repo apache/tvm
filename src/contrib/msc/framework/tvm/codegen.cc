@@ -46,7 +46,7 @@ void RelaxCodeGen::CodeGenGraph() {
   for (const auto& n : graph()->node_names) {
     const auto& node = graph()->FindNode(n);
     for (const auto& pair : node->weights) {
-      const auto& idx_weight = IdxWeightBase(node, pair.first);
+      const auto& idx_weight = IdxWeightBase(node, pair.first, false);
       stack_.func_call("relax.Var", idx_weight)
           .call_arg(DocUtils::ToStrDoc(pair.second->name))
           .func_call("relax.TensorStructInfo")
@@ -60,6 +60,11 @@ void RelaxCodeGen::CodeGenGraph() {
   stack_.comment("Define the module");
   stack_.assign("block_builder", "relax.BlockBuilder()")
       .scope_start("block_builder.function(name=\"" + graph()->name + "\", params=inputs.copy())");
+  if (config()->use_tools) {
+    stack_.func_call("msc_tools.execute_step")
+        .call_arg(DocUtils::ToStrDoc("before_build"))
+        .call_arg("block_builder");
+  }
   for (const auto& n : graph()->node_names) {
     const auto& node = graph()->FindNode(n);
     if (node->optype == "input") {
@@ -71,7 +76,7 @@ void RelaxCodeGen::CodeGenGraph() {
     } else if (scope_level == -1) {
       stack_.scope_end();
     }
-    CodeGenNode(node);
+    CodeGenNode(node, config()->use_tools);
   }
   if (scopes().size() > 1) {
     // end left scopes
@@ -86,16 +91,41 @@ void RelaxCodeGen::CodeGenGraph() {
   stack_.comment("Emit the outputs");
   Array<String> idx_exits;
   for (const auto& e : graph()->GetExits()) {
-    const auto& idx_exit = IdxNodeBase(e, false);
+    const auto& idx_exit = IdxNodeBase(e) + (config()->use_tools ? "_exit" : "");
+    if (config()->use_tools) {
+      if (e->outputs.size() > 1) {
+        Array<String> tuple_outputs;
+        for (size_t o_idx = 0; o_idx < e->outputs.size(); o_idx++) {
+          const auto& t_output = IdxOutputBase(e, o_idx, true);
+          tuple_outputs.push_back(t_output);
+        }
+        stack_.func_call("relax.Tuple", idx_exit).call_arg(DocUtils::ToListDoc(tuple_outputs));
+        stack_.func_call("block_builder.emit", idx_exit).call_arg(idx_exit);
+        stack_.call_arg(DocUtils::ToStrDoc(e->name + "_exit"), "name_hint");
+      }
+    }
     stack_.func_call("block_builder.emit_output", idx_exit).call_arg(idx_exit);
     idx_exits.push_back(idx_exit);
   }
-  stack_.scope_end().func_call("block_builder.emit_func_output");
-  if (idx_exits.size() == 1) {
+  stack_.scope_end();
+  if (config()->use_tools) {
+    stack_.func_call("msc_tools.execute_step", "output")
+        .call_arg(DocUtils::ToStrDoc("after_build"));
+    if (idx_exits.size() == 1) {
+      stack_.call_arg(idx_exits[0]);
+    } else {
+      stack_.call_arg(DocUtils::ToListDoc(idx_exits));
+    }
+  }
+  stack_.func_call("block_builder.emit_func_output");
+  if (config()->use_tools) {
+    stack_.call_arg("output");
+  } else if (idx_exits.size() == 1) {
     stack_.call_arg(idx_exits[0]);
   } else {
     stack_.call_arg(DocUtils::ToListDoc(idx_exits));
   }
+
   stack_.scope_end().assign("mod", "block_builder.get()").func_end("mod");
 }
 

@@ -166,6 +166,22 @@ class TorchBatchNormCodeGen : public TorchOpCode {
     const auto& gamma = node()->WeightAt("gamma");
     stack_.op_call().call_arg(gamma->DimAt(0), "num_features").op_arg<float>("epsilon", "eps");
   }
+
+  void CodeGenForward() final {
+    if (config()->use_tools) {
+      stack_.op_call(func_name())
+          .op_input_arg()
+          .op_weight_arg("mean")
+          .op_weight_arg("var")
+          .op_weight_arg("gamma")
+          .op_weight_arg("beta")
+          .call_arg(DocUtils::ToAttrAccessDoc(module_ref(), "training"))
+          .call_arg(DocUtils::ToAttrAccessDoc(module_ref(), "momentum"))
+          .call_arg(DocUtils::ToAttrAccessDoc(module_ref(), "eps"));
+    } else {
+      TorchOpCode::CodeGenForward();
+    }
+  }
 };
 
 class TorchBroadcastToCodeGen : public TorchOpCode {
@@ -234,6 +250,23 @@ class TorchConvCodeGen : public TorchOpCode {
         .op_list_arg<int>("dilation")
         .op_arg<int>("groups")
         .call_arg(use_bias_, "bias");
+  }
+
+  void CodeGenForward() final {
+    if (config()->use_tools) {
+      stack_.op_call(func_name()).op_input_arg().op_weight_arg("weight");
+      if (use_bias_) {
+        stack_.op_weight_arg("bias");
+      } else {
+        stack_.call_arg("None");
+      }
+      stack_.call_arg(DocUtils::ToAttrAccessDoc(module_ref(), "stride"))
+          .call_arg(DocUtils::ToAttrAccessDoc(module_ref(), "padding"))
+          .call_arg(DocUtils::ToAttrAccessDoc(module_ref(), "dilation"))
+          .call_arg(DocUtils::ToAttrAccessDoc(module_ref(), "groups"));
+    } else {
+      TorchOpCode::CodeGenForward();
+    }
   }
 
  private:
@@ -349,6 +382,19 @@ class TorchLinearCodeGen : public TorchOpCode {
         .call_arg(weight->DimAt("I"), "in_features")
         .call_arg(weight->DimAt("O"), "out_features")
         .call_arg(use_bias_, "bias");
+  }
+
+  void CodeGenForward() final {
+    if (config()->use_tools) {
+      stack_.op_call(func_name()).op_input_arg().op_weight_arg("weight");
+      if (use_bias_) {
+        stack_.op_weight_arg("bias");
+      } else {
+        stack_.call_arg("None");
+      }
+    } else {
+      TorchOpCode::CodeGenForward();
+    }
   }
 
  private:

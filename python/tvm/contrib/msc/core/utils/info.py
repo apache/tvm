@@ -27,6 +27,29 @@ import tvm
 from .namespace import MSCFramework
 
 
+def inspect_array(data: np.ndarray) -> Dict[str, Any]:
+    """Inspect the array
+
+    Parameters
+    ----------
+    data: np.ndarray
+        The data to inspect
+
+    Returns
+    -------
+    info: dict
+        The data info.
+    """
+
+    return {
+        "shape": list(data.shape),
+        "dtype": data.dtype.name,
+        "max": float(data.max()),
+        "min": float(data.min()),
+        "avg": float(data.sum() / data.size),
+    }
+
+
 class MSCArray(object):
     """MSC wrapper for array like object
 
@@ -43,6 +66,8 @@ class MSCArray(object):
         return "<{}>{}".format(self._type, self.abstract())
 
     def _analysis(self, data: Any) -> Tuple[str, np.ndarray]:
+        if isinstance(data, (list, tuple)) and all(isinstance(d, (int, float)) for d in data):
+            return "np", np.array(data)
         if isinstance(data, np.ndarray):
             return "np", data
         if isinstance(data, tvm.runtime.NDArray):
@@ -76,7 +101,7 @@ class MSCArray(object):
         return self._data
 
 
-def cast_array(data: Any):
+def cast_array(data: Any) -> np.ndarray:
     """Cast array like object to np.ndarray
 
     Parameters
@@ -190,22 +215,28 @@ def dump_dict(dict_obj: dict, flavor: str = "dmlc") -> str:
         return ""
     if flavor == "dmlc":
         return json.dumps({k: int(v) if isinstance(v, bool) else v for k, v in dict_obj.items()})
-    if flavor == "table":
+    if flavor.startswith("table:"):
 
-        def _get_lines(value, indent=0):
+        def _get_lines(value, indent=2):
+            max_size = int(flavor.split(":")[1]) - indent - 2
             lines = []
             for k, v in value.items():
-                if isinstance(v, dict):
+                if isinstance(v, (dict, tuple, list)) and not v:
+                    continue
+                if isinstance(v, dict) and len(str(k) + str(v)) > max_size:
                     lines.append("{}{}:".format(indent * " ", k))
                     lines.extend(_get_lines(v, indent + 2))
-                elif isinstance(v, (tuple, list)) and len(str(v)) > 100:
-                    lines.append("{}{}:".format(indent * " ", k))
-                    lines.extend(
-                        [
-                            "{}<{}>{}".format((indent + 2) * " ", idx, ele)
-                            for idx, ele in enumerate(v)
-                        ]
-                    )
+                elif isinstance(v, (tuple, list)) and len(str(k) + str(v)) > max_size:
+                    if all(isinstance(e, (int, float)) for e in v):
+                        lines.append("{}{}: {}".format(indent * " ", k, MSCArray(v).abstract()))
+                    else:
+                        lines.append("{}{}:".format(indent * " ", k))
+                        lines.extend(
+                            [
+                                "{}<{}>{}".format((indent + 2) * " ", idx, ele)
+                                for idx, ele in enumerate(v)
+                            ]
+                        )
                 elif isinstance(v, bool):
                     lines.append("{}{}: {}".format(indent * " ", k, "true" if v else "false"))
                 elif isinstance(v, np.ndarray):

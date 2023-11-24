@@ -110,9 +110,12 @@ void TensorRTCodeGen::CodeGenClassDefine() {
   // build layers
   for (const auto& n : graph()->node_names) {
     const auto& node = graph()->FindNode(n);
+    CodeGenNode(node, config()->use_tools);
+    /*
     for (const auto& d : GetOpCodes(node)) {
       stack_.line(d);
     }
+    */
   }
   // mark outputs
   stack_.comment("Mark outputs");

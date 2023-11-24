@@ -24,6 +24,8 @@ import numpy as np
 from tensorflow.python.client import device_lib
 from tensorflow.python.ops import variables
 
+import tvm
+from tvm.contrib.msc.core.ir import MSCGraph
 from tvm.contrib.msc.core.runtime import ModelRunner
 from tvm.contrib.msc.core.utils.namespace import MSCFramework
 from tvm.contrib.msc.framework.tensorflow.codegen import to_tensorflow
@@ -58,25 +60,40 @@ class WrapSession(tf_v1.Session):
 class TensorflowRunner(ModelRunner):
     """Runner of Tensorflow"""
 
-    def setup(self):
-        """Setup the runner"""
+    def setup(self) -> dict:
+        """Setup the runner
 
-        super().setup()
+        Returns
+        -------
+        info: dict
+            The setup info.
+        """
+
         self._tf_graph = None
         self._tf_outputs = None
         self._session = None
+        return super().setup()
 
     def destory(self):
         """Destory runner"""
 
         self._session.close()
-        del self._tf_graph
-        del self._tf_outputs
-        del self._session
+        self._tf_graph = None
+        self._tf_outputs = None
+        self._session = None
         super().destory()
 
-    def _generate_model(self) -> Any:
+    def _generate_model(
+        self, graphs: List[MSCGraph] = None, weights: List[Dict[str, tvm.nd.array]] = None
+    ) -> Any:
         """Codegen the model according to framework
+
+        Parameters
+        -------
+        graphs: list<MSCgraph>
+            The msc graphs.
+        weights: list<dic<str, tvm.nd.array>>
+            The weights
 
         Returns
         -------
@@ -88,7 +105,7 @@ class TensorflowRunner(ModelRunner):
             del self._tf_graph
         self._tf_graph = tf_v1.Graph()
         with self._tf_graph.as_default():
-            self._tf_outputs = super()._generate_model()
+            self._tf_outputs = super()._generate_model(graphs, weights)
         return self._tf_graph
 
     def _to_runnable(self, model: Any, device: str, is_training: bool) -> Any:

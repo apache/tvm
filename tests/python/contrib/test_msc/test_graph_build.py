@@ -23,7 +23,7 @@ from torch.nn import Module
 
 import tvm.testing
 from tvm.relax.frontend.torch import from_fx
-from tvm.contrib.msc.core.ir import translate
+from tvm.contrib.msc.core.frontend import translate
 from tvm.contrib.msc.core import utils as msc_utils
 
 
@@ -51,9 +51,7 @@ def test_conv1d():
 
     expected1 = {
         "inputs": [{"name": "inp_0", "shape": [1, 3, 10], "dtype": "float32", "layout": "NCW"}],
-        "outputs": [
-            {"name": "msc.conv1d_bias", "shape": [1, 6, 4], "dtype": "float32", "layout": "NCW"}
-        ],
+        "outputs": [{"name": "conv1d", "shape": [1, 6, 4], "dtype": "float32", "layout": "NCW"}],
         "nodes": {"total": 2, "input": 1, "msc.conv1d_bias": 1},
     }
 
@@ -93,7 +91,7 @@ def test_conv2d():
         ],
         "outputs": [
             {
-                "name": "msc.conv2d_bias",
+                "name": "conv2d",
                 "shape": [1, 6, 4, 4],
                 "dtype": "float32",
                 "layout": "NCHW",
@@ -141,7 +139,7 @@ def test_linear():
         ],
         "outputs": [
             {
-                "name": "msc.linear_bias",
+                "name": "matmul",
                 "shape": [1, 3, 10, 7],
                 "dtype": "float32",
                 "layout": "NCHW",
@@ -163,7 +161,7 @@ def test_linear():
             {"name": "inp_0", "shape": [1, 3, 10, 10], "dtype": "float32", "layout": "NCHW"}
         ],
         "outputs": [
-            {"name": "msc.linear", "shape": [1, 3, 10, 7], "dtype": "float32", "layout": "NCHW"}
+            {"name": "matmul", "shape": [1, 3, 10, 7], "dtype": "float32", "layout": "NCHW"}
         ],
         "nodes": {"total": 2, "input": 1, "msc.linear": 1},
     }
@@ -499,15 +497,13 @@ def test_embedding():
 
     expected1 = {
         "inputs": [{"name": "inp_0", "shape": [4], "dtype": "int64", "layout": "A"}],
-        "outputs": [{"name": "msc.embedding", "shape": [4, 3], "dtype": "float32", "layout": "NA"}],
+        "outputs": [{"name": "take", "shape": [4, 3], "dtype": "float32", "layout": "NA"}],
         "nodes": {"total": 2, "input": 1, "msc.embedding": 1},
     }
 
     expected2 = {
         "inputs": [{"name": "inp_0", "shape": [4, 5], "dtype": "int64", "layout": "AB"}],
-        "outputs": [
-            {"name": "msc.embedding", "shape": [4, 5, 3], "dtype": "float32", "layout": "CNB"}
-        ],
+        "outputs": [{"name": "take", "shape": [4, 5, 3], "dtype": "float32", "layout": "CNB"}],
         "nodes": {"total": 2, "input": 1, "msc.embedding": 1},
     }
 
@@ -1750,7 +1746,7 @@ def test_keep_params():
         ],
         "outputs": [
             {
-                "name": "msc.conv2d_bias",
+                "name": "conv2d",
                 "shape": [1, 6, 4, 4],
                 "dtype": "float32",
                 "layout": "NCHW",
@@ -1982,7 +1978,7 @@ def test_attention():
         ],
         "outputs": [
             {
-                "name": "msc.attention",
+                "name": "attention",
                 "shape": [32, 128, 8, 64],
                 "dtype": "float32",
                 "layout": "ABCD",
@@ -2012,7 +2008,7 @@ def test_attention():
         ],
         "outputs": [
             {
-                "name": "msc.attention",
+                "name": "attention_bias",
                 "shape": [32, 128, 8, 64],
                 "dtype": "float32",
                 "layout": "ABCD",
@@ -2020,7 +2016,6 @@ def test_attention():
         ],
         "nodes": {"total": 5, "input": 4, "msc.attention": 1},
     }
-
     verify_model(
         Attention3(),
         [

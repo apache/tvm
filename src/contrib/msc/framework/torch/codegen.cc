@@ -40,6 +40,9 @@ void TorchCodeGen::CodeGenGraph() {
   // Write init
   is_init_ = true;
   stack_.func_def("__init__", "torch.nn.Module");
+  if (config()->use_tools) {
+    stack_.func_decorator("msc_tools.wrap_step(\"build\",\"" + config()->tools_tag + "\")");
+  }
   stack_.func_arg("self", "torch.nn.Module");
   stack_.func_start();
   stack_.func_call("super").call_arg(graph()->name).call_arg("self").method_call("__init__");
@@ -48,30 +51,43 @@ void TorchCodeGen::CodeGenGraph() {
     if (node->optype == "input") {
       continue;
     }
-    CodeGenNode(node);
+    CodeGenNode(node, false);
   }
   stack_.func_end();
 
   // Write forward
   is_init_ = false;
   stack_.func_def("forward", "List[torch.Tensor]");
+  if (config()->use_tools) {
+    stack_.func_decorator("msc_tools.wrap_step(\"forward\",\"" + config()->tools_tag + "\")");
+  }
   stack_.func_arg("self", "torch.nn.Module");
   for (const auto& i : graph()->GetInputs()) {
     const auto& pair = graph()->FindProducerAndIdx(i);
     stack_.func_arg(IdxOutputBase(pair.first, pair.second), "torch.Tensor");
   }
   stack_.func_start();
+  if (config()->use_tools) {
+    stack_.comment("Define all weights");
+    for (const auto& n : graph()->node_names) {
+      const auto& node = graph()->FindNode(n);
+      for (const auto& pair : node->weights) {
+        stack_.assign(IdxWeightBase(node, pair.first, false), "self." + pair.second->alias);
+      }
+    }
+    stack_.comment("End of define all weights").line();
+  }
   for (const auto& n : graph()->node_names) {
     const auto& node = graph()->FindNode(n);
     if (node->optype == "input") {
       continue;
     }
-    CodeGenNode(node);
+    CodeGenNode(node, config()->use_tools);
   }
   Array<String> idx_outputs;
   for (const auto& o : graph()->GetOutputs()) {
     const auto& pair = graph()->FindProducerAndIdx(o);
-    idx_outputs.push_back(IdxOutputBase(pair.first, pair.second));
+    idx_outputs.push_back(IdxOutputBase(pair.first, pair.second, true));
   }
   if (idx_outputs.size() == 1) {
     stack_.assign("outputs", idx_outputs[0]);

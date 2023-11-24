@@ -26,6 +26,35 @@ from tvm.contrib.msc.core.frontend import byoc_partition
 from tvm.contrib.msc.framework.tensorrt import transform as trt_transform
 
 
+def transform_for_tensorrt(
+    mod: tvm.IRModule,
+    trans_config: Optional[Dict[str, str]] = None,
+) -> tvm.IRModule:
+    """Transform module to tensorrt.
+
+    Parameters
+    ----------
+    mod: IRModule
+        The IRModule of relax.
+    trans_config: dict
+        The config for transform IRModule.
+
+    Returns
+    -------
+    mod: IRModule
+        The transformed IRModule of relax.
+    """
+
+    trans_config = trans_config or {}
+    return tvm.transform.Sequential(
+        [
+            msc_transform.SetExprName(),
+            trt_transform.TransformTensorRT(trans_config.get("version")),
+            relax.transform.FoldConstant(),
+        ]
+    )(mod)
+
+
 def partition_for_tensorrt(
     mod: tvm.IRModule,
     params: Optional[Dict[str, tvm.nd.array]] = None,
@@ -53,12 +82,5 @@ def partition_for_tensorrt(
         The func <MSCGraph and weights> list, each element for a sub graph.
     """
 
-    trans_config = trans_config or {}
-    mod = tvm.transform.Sequential(
-        [
-            msc_transform.SetExprName(),
-            trt_transform.TransformTensorRT(trans_config.get("version")),
-            relax.transform.FoldConstant(),
-        ]
-    )(mod)
+    mod = transform_for_tensorrt(mod, trans_config)
     return byoc_partition("msc_tensorrt", mod, params, trans_config, build_config)
