@@ -84,7 +84,7 @@ class RemoveDropoutPass:
 
 class OptimizeBatchnorm(ExprMutator):
     """
-    Fuse Conv+Batchnorm and constant folder to generate Conv+Add
+    Fuse Conv+Batchnorm and constant folder to generate Conv+Add.
     """
 
     def visit_call(self, call) -> relay.expr.Expr:
