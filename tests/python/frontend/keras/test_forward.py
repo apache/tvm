@@ -177,6 +177,14 @@ class TestKeras:
         keras_model = keras_mod.models.Model([data1, data2], out)
         verify_keras_frontend(keras_model, layout="NHWC")
         verify_keras_frontend(keras_model, layout="NCHW")
+        # test axis at last dimension
+        data1 = keras_mod.layers.Input(shape=(1, 2, 2))
+        data2 = keras_mod.layers.Input(shape=(1, 2, 3))
+        merge_func = keras_mod.layers.Concatenate(axis=3)
+        out = merge_func([data1, data2])
+        keras_model = keras_mod.models.Model([data1, data2], out)
+        verify_keras_frontend(keras_model, layout="NHWC")
+        verify_keras_frontend(keras_model, layout="NCHW")
 
     def test_forward_merge_dot(self, keras_mod):
         """test_forward_merge_dot"""
@@ -643,6 +651,20 @@ class TestKeras:
         )
         verify_keras_frontend(keras_model, layout=layout)
 
+    def test_forward_inception_v3(self, keras_mod, layout="NCHW"):
+        """test_forward_inception_v3"""
+        if hasattr(keras_mod.applications, "InceptionV3"):
+            # Keras 2.4.x and older
+            inceptionV3_mod = keras_mod.applications.InceptionV3
+        else:
+            # Keras 2.6.x and newer
+            inceptionV3_mod = keras_mod.applications.inception_v3.InceptionV3
+
+        keras_model = inceptionV3_mod(
+            include_top=True, weights="imagenet", input_shape=(299, 299, 3), classes=1000
+        )
+        verify_keras_frontend(keras_model, layout=layout)
+
     def test_forward_mobilenet(self, keras_mod, layout="NCHW"):
         mobilenet_mod = get_mobilenet(keras_mod)
 
@@ -877,6 +899,8 @@ if __name__ == "__main__":
         sut.test_forward_xception(keras_mod=k)
         sut.test_forward_resnet50(keras_mod=k)
         sut.test_forward_resnet50(keras_mod=k, layout="NHWC")
+        sut.test_forward_inception_v3(keras_mod=k)
+        sut.test_forward_inception_v3(keras_mod=k, layout="NHWC")
         sut.test_forward_mobilenet(keras_mod=k)
         sut.test_forward_mobilenet(keras_mod=k, layout="NHWC")
         sut.test_forward_conv3d(keras_mod=k)
