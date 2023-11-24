@@ -5434,25 +5434,25 @@ def test_linalg_vector_norm():
     """test_linalg_vector_norm"""
     torch.set_grad_enabled(False)
 
-    def test_fn(ord):
-        return lambda x: torch.linalg.vector_norm(x, ord)
+    def test_fn(order):
+        return lambda x: torch.linalg.vector_norm(x, ord=order)
 
     input_shape = [3, 3]
 
     input_data = torch.rand(input_shape).float()
-    verify_model(test_fn(ord=2.0), input_data=input_data)
-    verify_model(test_fn(ord=3.5), input_data=input_data)
-    verify_model(test_fn(ord=np.inf), input_data=input_data)
-    verify_model(test_fn(ord=np.NINF), input_data=input_data)
-    verify_model(test_fn(ord=0), input_data=input_data)
+    verify_model(test_fn(order=2), input_data=input_data)
+    verify_model(test_fn(order=3.5), input_data=input_data)
+    verify_model(test_fn(order=np.inf), input_data=input_data)
+    verify_model(test_fn(order=np.NINF), input_data=input_data)
+    verify_model(test_fn(order=0), input_data=input_data)
 
     # Also test on double
     input_data = torch.rand(input_shape).double()
-    verify_model(test_fn(ord=2.0), input_data=input_data)
-    verify_model(test_fn(ord=3.5), input_data=input_data)
-    verify_model(test_fn(ord=np.inf), input_data=input_data)
-    verify_model(test_fn(ord=np.NINF), input_data=input_data)
-    verify_model(test_fn(ord=0), input_data=input_data)
+    verify_model(test_fn(order=2), input_data=input_data)
+    verify_model(test_fn(order=3.5), input_data=input_data)
+    verify_model(test_fn(order=np.inf), input_data=input_data)
+    verify_model(test_fn(order=np.NINF), input_data=input_data)
+    verify_model(test_fn(order=0), input_data=input_data)
 
 
 class TestSetSpan:
