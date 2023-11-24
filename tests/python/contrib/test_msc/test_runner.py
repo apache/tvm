@@ -25,7 +25,6 @@ from torch import fx
 from tvm.contrib.msc.framework.tensorflow import tf_v1
 
 import tvm.testing
-import tvm.relay.testing.tf as tf_testing
 from tvm.relax.frontend.torch import from_fx
 from tvm.contrib.msc.framework.tvm.runtime import TVMRunner
 from tvm.contrib.msc.framework.torch.runtime import TorchRunner
@@ -61,6 +60,8 @@ def _get_tf_graph():
     """Get tensorflow graphdef"""
 
     try:
+        import tvm.relay.testing.tf as tf_testing
+
         tf_graph = tf_v1.Graph()
         with tf_graph.as_default():
             graph_def = tf_testing.get_workload(
