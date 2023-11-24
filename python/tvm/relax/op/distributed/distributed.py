@@ -71,9 +71,35 @@ def redistribute(input: Expr, device_mesh: DeviceMesh, placement: Placement) -> 
 def call_tir_local_view(
     gvar: GlobalVar,
     args: Expr,
-    out_sinfo: DTensorStructInfo,
+    out_sinfo: Union[DTensorStructInfo, List[DTensorStructInfo]],
     tir_vars: Optional[Union[ShapeExpr, Tuple[PrimExpr], List[PrimExpr]]] = None,
 ) -> Call:
+    """
+    Call a tir.prim_func and return the output. The prim_func should be a worker-local function
+    that is actually executed on each worker, instead of the unpartitioned function.
+    The output of this operator is DTensor or a tuple of DTensors.
+
+    Parameters
+    ----------
+    gvar : GlobalVar
+        The GlobalVar referring to a tir PrimFunc.
+
+    args : Expr
+        The input arguments.
+
+    out_sinfo : Union[DTensorStructInfo, List[DTensorStructInfo]]
+        The structure info of the call_tir output.
+        It should be a single or a list of DTensorStructInfo. Each one denotes the
+        structure info of a returned tensor.
+
+    tir_vars : Optional[Union[ShapeExpr, Tuple[PrimExpr], List[PrimExpr]]]
+        ShapeExpr representing a tuple of integers to unpack when calling func. Is null if not used
+
+    Returns
+    -------
+    ret: Call
+        A call node for the call_tir_local_view operator.
+    """
     if isinstance(args, Expr) and not isinstance(args, RxTuple):  # type: ignore
         args = RxTuple((args,))
 
