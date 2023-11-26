@@ -99,8 +99,9 @@ Optional<ExprDoc> PrintCallTIRDPSPacked(const relax::Call& n, const ObjectPath& 
   static const Op& call_tir_op = Op::Get("relax.call_tir");
   static const Op& call_dps_packed_op = Op::Get("relax.call_dps_packed");
   static const Op& call_tir_with_grad_op = Op::Get("relax.call_tir_with_grad");
+  static const Op& call_tir_local_view = Op::Get("relax.dist.call_tir_local_view");
   if (!n->op.same_as(call_tir_op) && !n->op.same_as(call_dps_packed_op) &&
-      !n->op.same_as(call_tir_with_grad_op)) {
+      !n->op.same_as(call_tir_with_grad_op) && !n->op.same_as(call_tir_local_view)) {
     return NullOpt;
   }
   ICHECK(n->args.size() == 2 || n->args.size() == 3);
@@ -158,7 +159,9 @@ Optional<ExprDoc> PrintCallTIRDPSPacked(const relax::Call& n, const ObjectPath& 
     kwargs_keys.push_back("tir_vars");
     kwargs_values.push_back(d->AsDoc<ExprDoc>(n->args[2], n_p->Attr("args")->ArrayIndex(2)));
   }
-  if (is_dtensor) {
+  if (n->op.same_as(call_tir_local_view)) {
+    return Relax(d, "dist.call_tir_local_view")->Call(args, kwargs_keys, kwargs_values);
+  } else if (is_dtensor) {
     return Relax(d, "dist.call_tir")->Call(args, kwargs_keys, kwargs_values);
   } else {
     return Relax(d, "call_tir")->Call(args, kwargs_keys, kwargs_values);

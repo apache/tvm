@@ -16,4 +16,9 @@
 # under the License.
 """Operators serving for distributed Relax."""
 
-from .distributed import annotate_sharding, redistribute, redistribute_replica_to_shard
+from .distributed import (
+    annotate_sharding,
+    redistribute,
+    call_tir_local_view,
+    redistribute_replica_to_shard,
+)
