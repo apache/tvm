@@ -177,7 +177,7 @@ class DistributedBufferCompactor : StmtExprMutator {
   void PropagateShardingSpecOnBlock(PrimFunc prim_func) {
     extractor_(prim_func->body);
     std::unordered_set<BufferAxis, BufferAxisHash> visited;
-    for (int i = 0, j = 0; i < prim_func->params.size(); i++) {
+    for (int i = 0, j = 0; i < static_cast<int>(prim_func->params.size()); i++) {
       Var param_var = prim_func->params[i];
       if (!prim_func->buffer_map.count(param_var)) {
         continue;
