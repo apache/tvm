@@ -1814,7 +1814,6 @@ def test_forward_logsoftmax():
     verify_model(LogSoftmax1().float().eval(), input_data=input_data)
 
 
-@pytest.mark.skip(reason="unsupported op aten::linalg_vector_norm")
 @tvm.testing.uses_gpu
 def test_forward_norm():
     """test_forward_norm"""
@@ -1874,7 +1873,6 @@ def test_forward_norm():
     verify_model(Norm10().float().eval(), input_data=input_data)
 
 
-@pytest.mark.skip(reason="unsupported op aten::linalg_vector_norm")
 @tvm.testing.uses_gpu
 def test_forward_frobenius_norm():
     """test_forward_frobenius_norm"""
@@ -5464,6 +5462,31 @@ def test_swapaxes():
     verify_model(Swapaxes1().float().eval(), input_data=input_data)
     verify_model(Swapaxes2().float().eval(), input_data=input_data)
     verify_model(Swapaxes3().float().eval(), input_data=input_data)
+
+
+def test_linalg_vector_norm():
+    """test_linalg_vector_norm"""
+    torch.set_grad_enabled(False)
+
+    def test_fn(order):
+        return lambda x: torch.linalg.vector_norm(x, ord=order)
+
+    input_shape = [3, 3]
+
+    input_data = torch.rand(input_shape).float()
+    verify_model(test_fn(order=2), input_data=input_data)
+    verify_model(test_fn(order=3.5), input_data=input_data)
+    verify_model(test_fn(order=np.inf), input_data=input_data)
+    verify_model(test_fn(order=np.NINF), input_data=input_data)
+    verify_model(test_fn(order=0), input_data=input_data)
+
+    # Also test on double
+    input_data = torch.rand(input_shape).double()
+    verify_model(test_fn(order=2), input_data=input_data)
+    verify_model(test_fn(order=3.5), input_data=input_data)
+    verify_model(test_fn(order=np.inf), input_data=input_data)
+    verify_model(test_fn(order=np.NINF), input_data=input_data)
+    verify_model(test_fn(order=0), input_data=input_data)
 
 
 class TestSetSpan:

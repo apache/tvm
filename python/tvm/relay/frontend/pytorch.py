@@ -3865,6 +3865,32 @@ class PyTorchOpConverter:
         # Return
         return _op.scatter_nd(source, indices, values, mode)
 
+    def linalg_vector_norm(self, inputs, input_types):
+        data = inputs[0]
+        dtype = input_types[0]
+        ord = inputs[1]
+        dim = inputs[2]
+        keepdim = inputs[3]
+
+        assert dtype == "float32" or dtype == "float64"
+
+        if ord == 0:
+            return _op.reduce.sum(
+                _op.cast(_op.not_equal(data, _expr.const(0, dtype=dtype)), dtype=dtype),
+                axis=dim,
+                keepdims=keepdim,
+            )
+        elif ord == np.inf:
+            return _op.reduce.max(_op.abs(data), axis=dim, keepdims=keepdim)
+        elif ord == np.NINF:
+            return _op.reduce.min(_op.abs(data), axis=dim, keepdims=keepdim)
+        reci_ord = _expr.const(1.0 / ord, dtype=dtype)
+        ord = _expr.const(ord, dtype=dtype)
+        return _op.power(
+            _op.reduce.sum(_op.power(_op.abs(data), ord), axis=dim, keepdims=keepdim),
+            reci_ord,
+        )
+
     # Operator mappings
     def create_convert_map(self):
         self.convert_map = {
@@ -4140,6 +4166,7 @@ class PyTorchOpConverter:
             "aten::_weight_norm": self.weight_norm,
             "aten::copy_": self.inplace_copy,
             "aten::swapaxes": self.transpose,
+            "aten::linalg_vector_norm": self.linalg_vector_norm,
         }
 
     def update_convert_map(self, custom_map):
