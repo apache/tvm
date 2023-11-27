@@ -52,7 +52,7 @@ We do encourage everyone to work anything they are interested in.
 - [Elen Kalda](https://github.com/ekalda): @ekalda - ethos-u, arm
 - [Marisa Kirisame](https://github.com/MarisaKirisame): @MarisaKirisame - relay
 - [Tristan Konolige](https://github.com/tkonolige): @tkonolige - profiling, relay, tir, runtime
-- [Ruihang Lai](https://github.com/MasterJH5574): @MasterJH5574 - tir, tvm-script
+- [Ruihang Lai](https://github.com/MasterJH5574) (PMC): @MasterJH5574 - tir, tvm-script
 - [Wuwei Lin](https://github.com/vinx13) (PMC): @vinx13 - relay, topi, tir, meta_schedule
 - [Yizhi Liu](https://github.com/yzhliu) (PMC): @yzhliu - jvm, topi, relay
 - [Hao Lu](https://github.com/hlu1): @hlu1 - nnpack, frontends
