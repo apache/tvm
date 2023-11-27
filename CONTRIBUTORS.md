@@ -113,6 +113,7 @@ We do encourage everyone to work anything they are interested in.
 - [Balint Cristian](https://github.com/cbalint13): @cbalint13
 - [Egor Churaev](https://github.com/echuraev): @echuraev
 - [Xiaoqiang Dan](https://github.com/xqdan): @xqdan
+- [Yixin Dong](https://github.com/Ubospica) @Ubospica
 - [Haozheng Fan](https://github.com/hzfan): @hzfan
 - [Siyuan Feng](https://github.com/Hzfengsy): @Hzfengsy
 - [Josh Fromm](https://github.com/jwfromm): @jwfromm
