@@ -19,7 +19,7 @@
 from tvm import IRModule, relax
 from tvm.ir import structural_equal
 from tvm.ir.transform import PassContext
-from tvm.relax import Expr, Function
+from tvm.relax import Expr
 from tvm.relax.dpl import is_op, rewrite_call, wildcard
 
 from . import function_pass
@@ -58,29 +58,24 @@ class RemoveRedundantReshape:
         """
 
         updated_func = func
-        for _, funct in mod.functions_items():
-            # Skip non-relax functions
-            if not isinstance(funct, Function):
-                continue
-            # Skip primitive functions
-            if "Primitive" in funct.attrs.keys() and funct.attrs["Primitive"] != 0:
-                continue
 
-            def rewriter(expr, matches):
-                arg = matches[self.input1]
+        # Skip primitive functions
+        if "Primitive" in func.attrs.keys() and func.attrs["Primitive"] != 0:
+            return updated_func
 
-                if self.repeated_reshape in matches:
-                    output_shape = matches[self.repeated_reshape].args[1]
-                    return relax.op.reshape(arg, output_shape)
+        def rewriter(expr, matches):
+            arg = matches[self.input1]
 
-                elif self.no_op_reshape in matches:
-                    output_shape = matches[self.no_op_reshape].args[1]
-                    if arg.struct_info.shape and structural_equal(
-                        arg.struct_info.shape, output_shape
-                    ):
-                        return arg
-                return expr
+            if self.repeated_reshape in matches:
+                output_shape = matches[self.repeated_reshape].args[1]
+                return relax.op.reshape(arg, output_shape)
 
-            updated_func = rewrite_call(self.pattern, rewriter, funct)
+            elif self.no_op_reshape in matches:
+                output_shape = matches[self.no_op_reshape].args[1]
+                if arg.struct_info.shape and structural_equal(arg.struct_info.shape, output_shape):
+                    return arg
+            return expr
+
+        updated_func = rewrite_call(self.pattern, rewriter, func)
 
         return updated_func

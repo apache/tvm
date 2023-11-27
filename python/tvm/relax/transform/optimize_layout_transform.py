@@ -19,7 +19,7 @@
 from tvm.ir import structural_equal
 from tvm.ir.module import IRModule
 from tvm.ir.transform import PassContext
-from tvm.relax import Expr, Function
+from tvm.relax import Expr
 from tvm.relax.dpl import TuplePattern, is_op, rewrite_call, wildcard
 
 from . import function_pass
@@ -63,27 +63,24 @@ class OptimizeLayoutTransform:
 
         self.mod = mod
         updated_func = func
-        for _, func in mod.functions_items():
-            # Skip non-relax functions
-            if not isinstance(func, Function):
-                continue
-            # Skip primitive functions
-            if "Primitive" in func.attrs.keys() and func.attrs["Primitive"] != 0:
-                continue
 
-            def rewriter(expr, matches):
-                arg1 = matches[self.pattern]
-                if self.pattern_2 not in matches.keys():
+        # Skip primitive functions
+        if "Primitive" in func.attrs.keys() and func.attrs["Primitive"] != 0:
+            return updated_func
+
+        def rewriter(expr, matches):
+            arg1 = matches[self.pattern]
+            if self.pattern_2 not in matches.keys():
+                arg2 = matches[self.input]
+            else:
+                arg2 = matches[self.gv_]
+                if "remove_pad" == self.mod[arg2].attrs["operator_name"]:
                     arg2 = matches[self.input]
-                else:
-                    arg2 = matches[self.gv_]
-                    if "remove_pad" == self.mod[arg2].attrs["operator_name"]:
-                        arg2 = matches[self.input]
-                if hasattr(arg1.struct_info, "shape") and hasattr(arg2.struct_info, "shape"):
-                    if structural_equal(arg1.struct_info.shape, arg2.struct_info.shape):
-                        return arg2
-                return expr
+            if hasattr(arg1.struct_info, "shape") and hasattr(arg2.struct_info, "shape"):
+                if structural_equal(arg1.struct_info.shape, arg2.struct_info.shape):
+                    return arg2
+            return expr
 
-            updated_func = rewrite_call(self.pattern, rewriter, func)
+        updated_func = rewrite_call(self.pattern, rewriter, func)
 
         return updated_func
