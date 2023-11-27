@@ -55,6 +55,7 @@ def LegalizeRedistribute() -> tvm.ir.transform.Pass:
     """
     return _ffi_api.LegalizeRedistribute()  # type: ignore
 
+
 def LowerDistIR() -> tvm.ir.transform.Pass:
     """Lower DistIR to Relax
 

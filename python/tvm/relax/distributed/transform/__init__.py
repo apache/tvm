@@ -16,4 +16,9 @@
 # under the License.
 """Relax distributed-related transformations. """
 
-from .transform import PropagateSharding, LowerGlobalViewToLocalView, LegalizeRedistribute, LowerDistIR
+from .transform import (
+    PropagateSharding,
+    LowerGlobalViewToLocalView,
+    LegalizeRedistribute,
+    LowerDistIR,
+)
