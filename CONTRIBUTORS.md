@@ -40,7 +40,7 @@ We do encourage everyone to work anything they are interested in.
 - [Siyuan Feng](https://github.com/Hzfengsy) (PMC): @Hzfengsy - tir
 - [Josh Fromm](https://github.com/jwfromm) (PMC): @jwfromm - frontends, quantization, topi
 - [Mehrdad Hessar](https://github.com/mehrdadh): @mehrdadh - microTVM, hexagon
-- [Bohan Hou](https://github.com/spectrometerHBH): @spectrometerHBH - tir, arith, tvm-script
+- [Bohan Hou](https://github.com/spectrometerHBH) (PMC): @spectrometerHBH - tir, arith, tvm-script
 - [Yuwei Hu](https://github.com/Huyuwei): @Huyuwei - topi, frontends
 - [Luke Hutton](https://github.com/lhutton1): @lhutton1 - ethos-u, arm
 - [Nick Hynes](https://github.com/nhynes): @nhynes: - sgx, rust
