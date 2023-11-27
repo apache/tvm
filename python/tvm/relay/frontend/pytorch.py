@@ -21,7 +21,7 @@
 """PT: PyTorch frontend."""
 import functools
 import itertools
-from typing import ABC
+from abc import ABC
 import math
 import re
 import sys
