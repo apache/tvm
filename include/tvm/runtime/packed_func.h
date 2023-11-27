@@ -2367,7 +2367,15 @@ struct PackedFuncValueConverter<Array<T>> {
       return PackedFuncValueConverter<T>::From(arg);
     });
   }
-  static Array<T> From(const TVMRetValue& val) { return val.AsObjectRef<Array<T>>(); }
+  static Array<T> From(const TVMRetValue& val) {
+    auto untyped_array = val.AsObjectRef<Array<ObjectRef>>();
+
+    return untyped_array.Map([](ObjectRef item) {
+      TVMRetValue item_val;
+      item_val = std::move(item);
+      return PackedFuncValueConverter<T>::From(item_val);
+    });
+  }
 };
 
 template <typename T>
