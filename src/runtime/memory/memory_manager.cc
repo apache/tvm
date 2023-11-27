@@ -89,7 +89,6 @@ NDArray StorageObj::AllocNDArray(size_t offset, ShapeTuple shape, DLDataType dty
   // crtical zone: allocate header, cannot throw
   NDArray::Container* container =
       new NDArray::Container(this->buffer.data, shape, dtype, this->buffer.device);
-  container->dl_tensor.byte_offset = offset;
 
   container->SetDeleter(StorageObj::Deleter);
   size_t needed_size = DeviceAPI::Get(this->buffer.device)->GetDataSize(container->dl_tensor);
@@ -101,6 +100,11 @@ NDArray StorageObj::AllocNDArray(size_t offset, ShapeTuple shape, DLDataType dty
   // reference count, then destroy the container, but leave the underlying
   // buffer intact.
   container->manager_ctx = reinterpret_cast<void*>(this);
+
+  // The only change we make w.r.t offset is modifying the data pointer
+  // of the backing tensor to point into the buffer instead of its start.
+  auto offset_ptr = reinterpret_cast<uint8_t*>(this->buffer.data) + offset;
+  container->dl_tensor.data = reinterpret_cast<void*>(offset_ptr);
 
   NDArray ret(GetObjectPtr<Object>(container));
   // RAII in effect, now run the check.
