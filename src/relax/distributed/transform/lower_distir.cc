@@ -21,7 +21,8 @@
  * \file tvm/relax/distributed/transform/lower_distir.cc
  * \brief Pass for lowering DistIR into Relax
  *  This pass assumes all the TensorIR functions are in local view,
- *  so the pass only handles sharding tensor shape.
+ *  so the pass only handles sharding relax tensor shape and
+ *  inserting necessary broadcast and scatter for inputs.
  */
 
 #include <tvm/relax/attrs/ccl.h>
@@ -253,12 +254,6 @@ class DistIRSharder : public ExprMutator {
   Function func_;
   Array<Var> new_params_;
   std::unordered_map<TupleGetItem, Var, StructuralHash, StructuralEqual> tuple_getitem_remap_;
-  // todo: broadcast every "R" input
-  // todo: for every "S" input, insert shard and scatter directly in the beginning
-  // todo: postpone broadcast
-  //      if the operands are "R" on the device mesh dim of the broadcast, then broadcast be moved
-  //      across this operator broadcast can be fused with local scatter(slice) and become
-  //      scatter_from_worker0
 };
 
 namespace transform {
