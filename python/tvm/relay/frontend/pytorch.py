@@ -138,7 +138,9 @@ def _is_int_seq(seq):
 class PyTorchOpConverter:
     """A helper class for holding PyTorch op converters."""
 
-    def __init__(self, prelude, default_dtype, use_parser_friendly_name=False, preserve_pytorch_scopes=False):
+    def __init__(
+        self, prelude, default_dtype, use_parser_friendly_name=False, preserve_pytorch_scopes=False
+    ):
         self.prelude = prelude
         self.default_dtype = default_dtype
         self.create_convert_map()
@@ -4206,7 +4208,11 @@ class PyTorchOpConverter:
     def convert_block(self, block, outputs):
         """Translate Torch "Block", used for prim::If and prim::Loop"""
         ops = _get_operator_nodes(
-            block.nodes(), self.source_map, self.op_type_dict, self.use_parser_friendly_name, self.preserve_pytorch_scopes
+            block.nodes(),
+            self.source_map,
+            self.op_type_dict,
+            self.use_parser_friendly_name,
+            self.preserve_pytorch_scopes,
         )
         ret_names = _get_input_names(block.returnNode())
         return self.convert_operators(ops, outputs, ret_names)
@@ -4674,11 +4680,7 @@ def _get_input_names(node_or_graph):
 
 
 def _get_op_inputs(op_node, outputs):
-    try:
-        return [outputs[name] for name in _get_input_names(op_node)]
-    except:
-        import pdb
-        pdb.set_trace()
+    return [outputs[name] for name in _get_input_names(op_node)]
 
 
 def _get_node_type(node):
@@ -4778,17 +4780,16 @@ def _get_constant(node):
 
 
 class NodeNamer(ABC):
-    def __init__(self, op_type_dict):
-        self._op_type_dict = op_type_dict
-    
-    def increment_op_type_idx(self, node):
-        op_type = node.kind()
+    def __init__(self, op_counter_dict):
+        self.op_counter_dict = op_counter_dict
+
+    def increment_counter(self, identifier):
         op_idx = 0
-        if op_type in self._op_type_dict:
-            op_idx = self._op_type_dict[op_type] + 1
-        self._op_type_dict[op_type] = op_idx
+        if identifier in self.op_counter_dict:
+            op_idx = self.op_counter_dict[identifier] + 1
+        self.op_counter_dict[identifier] = op_idx
         return op_idx
-    
+
     def get_node_source_name(self, node):
         raise NotImplementedError()
 
@@ -4803,8 +4804,9 @@ class DefaultNodeKindNamer(NodeNamer):
     # output_1 -> aten::adaptive_max_pool2d_x_0
     # output_2 -> aten::adaptive_max_pool2d_x_1
     """
+
     def get_node_source_name(self, node):
-        op_idx = self.increment_op_type_idx(node)
+        op_idx = self.increment_counter(node.kind())
         return "_".join([node.kind(), str(op_idx)])
 
     def get_node_output_name(self, node, node_src_name, index):
@@ -4817,19 +4819,21 @@ class PytorchScopePreservingNamer(NodeNamer):
     def get_node_source_name(self, node):
         node_src_name = node.scopeName().split("/")[-1]
         if node_src_name.startswith(self.MODULE_PREFIX):
-            node_src_name = node_src_name[len(self.MODULE_PREFIX):]
+            node_src_name = node_src_name[len(self.MODULE_PREFIX) :]
         return node_src_name
 
     def get_node_output_name(self, node, node_src_name, index):
-        op_idx = self.increment_op_type_idx(node)
+        op_idx = self.increment_counter(node_src_name)
         return "_".join([node_src_name, str(op_idx), str(index)])
 
 
-def _rename_outputs(node, source_map, op_type_dict, use_parser_friendly_name, preserve_pytorch_scopes):
+def _rename_outputs(
+    node, source_map, op_type_dict, use_parser_friendly_name, preserve_pytorch_scopes
+):
     """Rewrite debug name of node outputs with its operator type"""
     namer = (
-        PytorchScopePreservingNamer(op_type_dict) 
-        if preserve_pytorch_scopes 
+        PytorchScopePreservingNamer(op_type_dict)
+        if preserve_pytorch_scopes
         else DefaultNodeKindNamer(op_type_dict)
     )
     # get source name of operator and rename all of its outputs
@@ -4857,13 +4861,21 @@ def _debug_rename(graph, use_parser_friendly_name, preserve_pytorch_scopes):
             if node.kind() in prim_with_blocks:
                 for block in node.blocks():
                     _traverse_graph(block.nodes())
-            _rename_outputs(node, source_map, op_type_dict, use_parser_friendly_name, preserve_pytorch_scopes)
+            _rename_outputs(
+                node, source_map, op_type_dict, use_parser_friendly_name, preserve_pytorch_scopes
+            )
 
     _traverse_graph(graph.nodes())
     return source_map
 
 
-def _get_operator_nodes(nodes, source_map=None, op_type_dict=None, use_parser_friendly_name=False, preserve_pytorch_scopes=False):
+def _get_operator_nodes(
+    nodes,
+    source_map=None,
+    op_type_dict=None,
+    use_parser_friendly_name=False,
+    preserve_pytorch_scopes=False,
+):
     """Returns torch IR nodes that need conversion to Relay"""
     ops, should_rename_graph = [], all([source_map, op_type_dict]) is not None
 
@@ -4873,7 +4885,9 @@ def _get_operator_nodes(nodes, source_map=None, op_type_dict=None, use_parser_fr
             continue
 
         if should_rename_graph:
-            _rename_outputs(node, source_map, op_type_dict, use_parser_friendly_name, preserve_pytorch_scopes)
+            _rename_outputs(
+                node, source_map, op_type_dict, use_parser_friendly_name, preserve_pytorch_scopes
+            )
 
         if node.outputsSize() > 1:
             node_name = "_".join(_get_output_names(node))
@@ -5128,7 +5142,7 @@ def from_pytorch(
     use_parser_friendly_name=False,
     keep_quantized_weight=False,
     export_renamed_c_graph_path=None,
-    preserve_pytorch_scopes=False
+    preserve_pytorch_scopes=False,
 ):
     """Load PyTorch model in the form of a scripted PyTorch model and convert into relay.
     The companion parameters will be handled automatically.
@@ -5175,7 +5189,7 @@ def from_pytorch(
         Export the renamed torch._C.Graph to the path.
         During the conversion, variable names in torch._C.Graph will be assigned based on their op
         types. The exported text file can be the reference to spans.
-    
+
     preserve_pytorch_scopes : bool
         When naming the different nodes in the TVM graph, use the "scope name" from the Pytorch graph.
         If false, a default namer is used that does not preserve the Pytorch scope names.
@@ -5194,7 +5208,9 @@ def from_pytorch(
     prelude = Prelude(mod)
     enable_lower_all_tuples = True
 
-    converter = PyTorchOpConverter(prelude, default_dtype, use_parser_friendly_name, preserve_pytorch_scopes)
+    converter = PyTorchOpConverter(
+        prelude, default_dtype, use_parser_friendly_name, preserve_pytorch_scopes
+    )
 
     graph = script_module.graph.copy()
 
@@ -5254,7 +5270,11 @@ def from_pytorch(
         converter.update_convert_map(qnn_torch.convert_map)
 
     operator_nodes = _get_operator_nodes(
-        graph.nodes(), converter.source_map, converter.op_type_dict, use_parser_friendly_name, preserve_pytorch_scopes
+        graph.nodes(),
+        converter.source_map,
+        converter.op_type_dict,
+        use_parser_friendly_name,
+        preserve_pytorch_scopes,
     )
     ret_name = _get_input_names(graph.return_node())
     outputs = converter.convert_operators(operator_nodes, outputs, ret_name)
