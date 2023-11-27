@@ -655,12 +655,12 @@ class TestKeras:
         """test_forward_inception_v3"""
         if hasattr(keras_mod.applications, "InceptionV3"):
             # Keras 2.4.x and older
-            inceptionV3_mod = keras_mod.applications.InceptionV3
+            inception_v3_mod = keras_mod.applications.InceptionV3
         else:
             # Keras 2.6.x and newer
-            inceptionV3_mod = keras_mod.applications.inception_v3.InceptionV3
+            inception_v3_mod = keras_mod.applications.inception_v3.InceptionV3
 
-        keras_model = inceptionV3_mod(
+        keras_model = inception_v3_mod(
             include_top=True, weights="imagenet", input_shape=(299, 299, 3), classes=1000
         )
         verify_keras_frontend(keras_model, layout=layout)
