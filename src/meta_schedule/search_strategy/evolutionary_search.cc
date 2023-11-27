@@ -521,7 +521,6 @@ std::vector<Schedule> EvolutionarySearchNode::State::SampleInitPopulation(int nu
         result = sch.value();
       }
     };
-    LOG(INFO)<<"===== Smaple Init Popluation config is: "<<num<<" "<<self->ctx_->num_threads;
     support::parallel_for_dynamic(0, num, self->ctx_->num_threads, f_proc_unmeasured);
     bool found_new = false;
     for (int i = 0; i < num; i++) {

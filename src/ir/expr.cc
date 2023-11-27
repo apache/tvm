@@ -68,7 +68,6 @@ PrimExpr PrimExpr::FromObject_(ObjectRef ref) {
 }
 
 IntImm::IntImm(DataType dtype, int64_t value, Span span) {
-  /*
   ICHECK(dtype.is_scalar()) << "ValueError: IntImm can only take scalar, but " << dtype
                             << " was supplied.";
   ICHECK(dtype.is_int() || dtype.is_uint())
@@ -89,7 +88,6 @@ IntImm::IntImm(DataType dtype, int64_t value, Span span) {
     ICHECK_LT(value, 1LL << (dtype.bits() - 1))
         << "ValueError: Literal value " << value << " exceeds maximum of " << dtype;
   }
-  */
   ObjectPtr<IntImmNode> node = make_object<IntImmNode>();
   node->dtype = dtype;
   node->value = value;

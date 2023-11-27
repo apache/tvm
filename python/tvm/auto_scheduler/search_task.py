@@ -547,7 +547,7 @@ class SearchTask(Object):
         if print_mode == "schedule":
             return self.compute_dag.print_python_code_from_state(inp.state)
         if print_mode == "cuda" or print_mode == "hip":
-            #assert self.target.kind.name == "cuda" or self.target.kind.name == "hip"
+            assert self.target.kind.name == "cuda" or self.target.kind.name == "hip"
             sch, args = self.compute_dag.apply_steps_from_state(inp.state)
             func = build(sch, args, print_mode)
             return func.imported_modules[0].get_source()
