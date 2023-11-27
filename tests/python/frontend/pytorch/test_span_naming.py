@@ -39,7 +39,7 @@ def traced_model_and_inputs():
     sample_input = torch.zeros((1, 3, 64, 64), dtype=torch.float32)
     with torch.no_grad():
         traced_torch_model = torch.jit.trace(model, sample_input)
-    import_input = ["model_input", (1, 3, 64, 64)]
+    import_input = [("model_input", (1, 3, 64, 64))]
     return traced_torch_model, import_input
 
 

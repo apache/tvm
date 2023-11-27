@@ -4674,7 +4674,11 @@ def _get_input_names(node_or_graph):
 
 
 def _get_op_inputs(op_node, outputs):
-    return [outputs[name] for name in _get_input_names(op_node)]
+    try:
+        return [outputs[name] for name in _get_input_names(op_node)]
+    except:
+        import pdb
+        pdb.set_trace()
 
 
 def _get_node_type(node):
@@ -4777,12 +4781,12 @@ class NodeNamer(ABC):
     def __init__(self, op_type_dict):
         self._op_type_dict = op_type_dict
     
-    def increment_op_type_idx(node):
+    def increment_op_type_idx(self, node):
         op_type = node.kind()
         op_idx = 0
-        if op_type in op_type_dict:
-            op_idx = op_type_dict[op_type] + 1
-        op_type_dict[op_type] = op_idx
+        if op_type in self._op_type_dict:
+            op_idx = self._op_type_dict[op_type] + 1
+        self._op_type_dict[op_type] = op_idx
         return op_idx
     
     def get_node_source_name(self, node):
@@ -4801,7 +4805,7 @@ class DefaultNodeKindNamer(NodeNamer):
     """
     def get_node_source_name(self, node):
         op_idx = self.increment_op_type_idx(node)
-        return "_".join([op_type, str(op_idx)])
+        return "_".join([node.kind(), str(op_idx)])
 
     def get_node_output_name(self, node, node_src_name, index):
         return "_".join([node_src_name, str(index)])
@@ -4832,7 +4836,7 @@ def _rename_outputs(node, source_map, op_type_dict, use_parser_friendly_name, pr
     if node.kind() != "prim::GetAttr":
         node_src_name = namer.get_node_source_name(node)
         for index, output in enumerate(node.outputs()):
-            name = node.get_node_output_name(node, node_src_name, index)
+            name = namer.get_node_output_name(node, node_src_name, index)
             output.setDebugName(name)
         # update source map
         # if use_parser_friendly_name is True: e.g. prim::Constant_0 -> prim__Constant_0
