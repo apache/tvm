@@ -54,3 +54,13 @@ def LegalizeRedistribute() -> tvm.ir.transform.Pass:
         The registered pass
     """
     return _ffi_api.LegalizeRedistribute()  # type: ignore
+
+def LowerDistIR() -> tvm.ir.transform.Pass:
+    """Lower DistIR to Relax
+
+    Returns
+    -------
+    ret : tvm.transform.Pass
+        The registered pass
+    """
+    return _ffi_api.LowerDistIR()  # type: ignore
