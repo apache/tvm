@@ -58,7 +58,7 @@ def get_cc():
     return None
 
 
-def create_shared(output, objects, options=None, cc=None):
+def create_shared(output, objects, options=None, cc=None, ccache_env=None):
     """Create shared library.
 
     Parameters
@@ -74,13 +74,16 @@ def create_shared(output, objects, options=None, cc=None):
 
     cc : Optional[str]
         The compiler command.
+
+    ccache_env : Optional[Dict[str, str]]
+        The environment variable for ccache. Set `None` to disable ccache by default.
     """
     cc = cc or get_cc()
 
     if _is_linux_like():
-        _linux_compile(output, objects, options, cc, compile_shared=True)
+        _linux_compile(output, objects, options, cc, ccache_env, compile_shared=True)
     elif sys.platform == "win32":
-        _windows_compile(output, objects, options)
+        _windows_compile(output, objects, options, ccache_env)
     else:
         raise ValueError("Unsupported platform")
 
@@ -133,7 +136,7 @@ def create_staticlib(output, inputs, ar=None):
         raise ValueError("Unsupported platform")
 
 
-def create_executable(output, objects, options=None, cc=None):
+def create_executable(output, objects, options=None, cc=None, ccache_env=None):
     """Create executable binary.
 
     Parameters
@@ -149,13 +152,16 @@ def create_executable(output, objects, options=None, cc=None):
 
     cc : Optional[str]
         The compiler command.
+
+    ccache_env : Optional[Dict[str, str]]
+        The environment variable for ccache. Set `None` to disable ccache by default.
     """
     cc = cc or get_cc()
 
     if _is_linux_like():
-        _linux_compile(output, objects, options, cc)
+        _linux_compile(output, objects, options, cc, ccache_env)
     elif sys.platform == "win32":
-        _windows_compile(output, objects, options)
+        _windows_compile(output, objects, options, ccache_env)
     else:
         raise ValueError("Unsupported platform")
 
@@ -269,7 +275,7 @@ def cross_compiler(
     return _fcompile
 
 
-def _linux_compile(output, objects, options, compile_cmd, compile_shared=False):
+def _linux_compile(output, objects, options, compile_cmd, ccache_env=None, compile_shared=False):
     cmd = [compile_cmd]
     if compile_cmd != "nvcc":
         if compile_shared or output.endswith(".so") or output.endswith(".dylib"):
@@ -288,7 +294,13 @@ def _linux_compile(output, objects, options, compile_cmd, compile_shared=False):
         cmd += objects
     if options:
         cmd += options
-    proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+    if ccache_env is not None:
+        if shutil.which("ccache"):
+            cmd.insert(0, "ccache")
+            ccache_env = os.environ.copy().update(ccache_env)
+        else:
+            raise ValueError("ccache not found")
+    proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, env=ccache_env)
     (out, _) = proc.communicate()
     if proc.returncode != 0:
         msg = "Compilation error:\n"
@@ -297,7 +309,7 @@ def _linux_compile(output, objects, options, compile_cmd, compile_shared=False):
         raise RuntimeError(msg)
 
 
-def _windows_compile(output, objects, options):
+def _windows_compile(output, objects, options, ccache_env=None):
     cmd = ["clang"]
     cmd += ["-O2"]
 
@@ -312,9 +324,17 @@ def _windows_compile(output, objects, options):
     cmd += objects
     if options:
         cmd += options
+    if ccache_env is not None:
+        if shutil.which("ccache"):
+            cmd.insert(0, "ccache")
+            ccache_env = os.environ.copy().update(ccache_env)
+        else:
+            raise ValueError("ccache not found")
 
     try:
-        proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+        proc = subprocess.Popen(
+            cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, env=ccache_env
+        )
         (out, _) = proc.communicate()
     except FileNotFoundError:
         raise RuntimeError(
