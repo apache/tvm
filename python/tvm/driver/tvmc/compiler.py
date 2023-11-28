@@ -378,6 +378,13 @@ def compile_model(
         transform_args = parse_graph_transform_args(locals())
         mod = apply_graph_transforms(mod, transform_args)
 
+        # Make each int8->int32 conv secure
+        mod = relay.transform.InferType()(mod)
+        mod = relay.qnn.transform.CanonicalizeOps()(mod)
+        mod = relay.transform.InferType()(mod)
+        mod = relay.transform.Extend2DConv()(mod)
+        mod = relay.transform.FoldConstant()(mod)
+
         for partition_function, opts in zip(partition_functions, partition_opts):
             mod = partition_function(mod, params, mod_name=mod_name, **opts)
 
