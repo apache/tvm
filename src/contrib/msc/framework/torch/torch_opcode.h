@@ -63,9 +63,8 @@ class TorchOpCode : public BaseOpCode<TorchCodeGenConfig, TorchCodeGenHelper> {
   }
 
   /*! \brief Get return describe for default node*/
-  const String IdxNode(bool as_raw = true) final {
-    return is_init_ ? module_ref_
-                    : BaseOpCode<TorchCodeGenConfig, TorchCodeGenHelper>::IdxNode(as_raw);
+  const String IdxNode() final {
+    return is_init_ ? module_ref_ : BaseOpCode<TorchCodeGenConfig, TorchCodeGenHelper>::IdxNode();
   };
 
   /*! \brief Get dtype string*/

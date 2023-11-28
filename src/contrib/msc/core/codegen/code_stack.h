@@ -447,14 +447,14 @@ class OpCodeStack : public BaseStack {
 
   /*! \brief Cache input as argument*/
   OpCodeStack<OpCodeGenType>& op_input_arg(int idx = 0, const String& key = "") {
-    return call_arg(codegen_->IdxInput(idx, false), key);
+    return call_arg(codegen_->IdxInput(idx, true), key);
   }
 
   /*! \brief Cache inputs as argument*/
   OpCodeStack<OpCodeGenType>& op_inputs_arg(bool as_list = true, const String& key = "") {
     Array<String> inputs;
     for (size_t i = 0; i < codegen_->node()->inputs.size(); i++) {
-      inputs.push_back(codegen_->IdxInput(i, false));
+      inputs.push_back(codegen_->IdxInput(i, true));
     }
     if (as_list) {
       return call_arg(DocUtils::ToListDoc(inputs), key);
@@ -465,13 +465,13 @@ class OpCodeStack : public BaseStack {
 
   /*! \brief Cache output as argument*/
   OpCodeStack<OpCodeGenType>& op_output_arg(int idx = 0, const String& key = "") {
-    return call_arg(codegen_->IdxOutput(idx, false), key);
+    return call_arg(codegen_->IdxOutput(idx), key);
   }
 
   /*! \brief Cache weight as argument*/
   OpCodeStack<OpCodeGenType>& op_weight_arg(const String& wtype, const String& key = "") {
     if (codegen_->node()->weights.count(wtype)) {
-      return call_arg(codegen_->IdxWeight(wtype, false), key);
+      return call_arg(codegen_->IdxWeight(wtype, true), key);
     }
     return *this;
   }

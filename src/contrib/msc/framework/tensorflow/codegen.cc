@@ -68,7 +68,7 @@ void TensorflowCodeGen::CodeGenGraph() {
       continue;
     }
     for (const auto& pair : node->weights) {
-      stack_.func_call("get_variable", IdxWeightBase(node, pair.first))
+      stack_.func_call("get_variable", IdxWeightBase(node, pair.first, false))
           .call_arg(DocUtils::ToStrDoc(pair.second->name))
           .call_arg(DocUtils::ToListDoc(pair.second->shape, true))
           .call_arg(DocUtils::ToStrDoc(pair.second->DTypeName()))
@@ -82,7 +82,7 @@ void TensorflowCodeGen::CodeGenGraph() {
     if (node->optype == "input") {
       continue;
     }
-    CodeGenNode(node);
+    CodeGenNode(node, config()->use_tools);
   }
   Array<String> idx_outputs;
   for (const auto& o : graph()->GetOutputs()) {

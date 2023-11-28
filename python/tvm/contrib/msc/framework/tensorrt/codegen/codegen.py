@@ -113,6 +113,7 @@ def to_sub_tensorrt(
     engine_file = codegen.load([], pre_load=_create_depends, post_load=_build_engine)
     return {
         "graph_json": graph.to_json(),
+        "graph_name": graph.name,
         "engine": engine_file,
     }
 
@@ -122,6 +123,7 @@ def to_tensorrt(
     graph_infos: List[Tuple[str, MSCGraph, Dict[str, tvm.nd.array]]],
     codegen_config: Optional[Dict[str, str]] = None,
     print_config: Optional[Dict[str, str]] = None,
+    extra_option: Optional[Dict[str, str]] = None,
     build_folder: msc_utils.MSCDirectory = None,
     output_folder: msc_utils.MSCDirectory = None,
 ) -> Dict[str, str]:
@@ -137,6 +139,8 @@ def to_tensorrt(
         The config for codegen.
     print_config: dict
         The config for print.
+    extra_option: dict
+        The extra option for sub engine.
     build_folder: MSCDirectory
         The folder for saving sources and datas.
     export_folder: MSCDirectory
@@ -153,6 +157,8 @@ def to_tensorrt(
         options = to_sub_tensorrt(
             graph, weights, codegen_config, print_config, build_folder, output_folder
         )
+        if extra_option:
+            options.update(extra_option)
         target_options[graph.name] = msc_utils.dump_dict(options)
     mod = tvm.transform.Sequential(
         [

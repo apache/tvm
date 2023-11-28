@@ -23,7 +23,7 @@ from torch.nn import Module
 
 import tvm.testing
 from tvm.relax.frontend.torch import from_fx
-from tvm.contrib.msc.core.ir import translate
+from tvm.contrib.msc.core.frontend import translate
 from tvm.contrib.msc.framework.tvm import codegen as tvm_codegen
 
 
