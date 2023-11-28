@@ -359,24 +359,31 @@ const TargetKindNode::ValueTypeInfo& TargetInternal::FindTypeInfo(const TargetKi
 ObjectRef TargetInternal::ParseType(const std::string& str,
                                     const TargetKindNode::ValueTypeInfo& info) {
   std::string interp_str = Interpret(str);
-  if (info.type_index == Integer::ContainerType::_GetOrAllocRuntimeTypeIndex()) {
-    // Parsing integer
+  if (info.type_index == runtime::BoxInt::ContainerType::_GetOrAllocRuntimeTypeIndex() ||
+      info.type_index == runtime::BoxBool::ContainerType::_GetOrAllocRuntimeTypeIndex()) {
+    // Parsing integer or boolean
     std::istringstream is(interp_str);
     int v;
     if (!(is >> v)) {
       std::string lower(interp_str.size(), '\x0');
       std::transform(interp_str.begin(), interp_str.end(), lower.begin(),
                      [](unsigned char c) { return std::tolower(c); });
-      // Bool is a subclass of IntImm, so allow textual boolean values.
+      // Mimic C++ automatic conversions, allowing bool to be used for
+      // integer parameters.
       if (lower == "true") {
         v = 1;
       } else if (lower == "false") {
         v = 0;
       } else {
-        throw Error(": Cannot parse into type \"Integer\" from string: " + interp_str);
+        throw Error(": Cannot parse integer from string: " + interp_str);
       }
     }
-    return Integer(v);
+
+    if (info.type_index == runtime::BoxInt::ContainerType::_GetOrAllocRuntimeTypeIndex()) {
+      return runtime::BoxInt(v);
+    } else {
+      return runtime::BoxBool(v);
+    }
   } else if (info.type_index == String::ContainerType::_GetOrAllocRuntimeTypeIndex()) {
     // Parsing string, strip leading/trailing spaces, and enclosing quotes if any
     auto start = interp_str.find_first_not_of(' ');
@@ -410,13 +417,14 @@ ObjectRef TargetInternal::ParseType(const std::string& str,
 
 ObjectRef TargetInternal::ParseType(const ObjectRef& obj,
                                     const TargetKindNode::ValueTypeInfo& info) {
-  if (info.type_index == Integer::ContainerType::_GetOrAllocRuntimeTypeIndex()) {
+  if (info.type_index == runtime::BoxInt::ContainerType::_GetOrAllocRuntimeTypeIndex()) {
     // Parsing integer
-    return GetRef<Integer>(ObjTypeCheck<IntImmNode>(obj, "Integer"));
-  } else if (info.type_index == String::ContainerType::_GetOrAllocRuntimeTypeIndex()) {
+    return GetRef<runtime::BoxInt>(
+        ObjTypeCheck<runtime::BoxInt::ContainerType>(obj, "runtime.BoxInt"));
+  } else if (info.type_index == String::ContainerType::RuntimeTypeIndex()) {
     // Parsing string
     return GetRef<String>(ObjTypeCheck<StringObj>(obj, "String"));
-  } else if (info.type_index == Target::ContainerType::_GetOrAllocRuntimeTypeIndex()) {
+  } else if (info.type_index == Target::ContainerType::RuntimeTypeIndex()) {
     // Parsing target
     if (auto opt = obj.as<Target>()) {
       return opt.value();
@@ -483,7 +491,9 @@ ObjectRef TargetInternal::ParseType(const ObjectRef& obj,
 /**********  Stringifying  **********/
 
 std::string TargetInternal::StringifyAtomicType(const ObjectRef& obj) {
-  if (const auto* p = obj.as<IntImmNode>()) {
+  if (const auto* p = obj.as<runtime::BoxNode<int64_t>>()) {
+    return std::to_string(p->value);
+  } else if (const auto* p = obj.as<runtime::BoxNode<bool>>()) {
     return std::to_string(p->value);
   }
   if (auto tvm_str = obj.as<String>()) {
@@ -953,7 +963,7 @@ ObjectPtr<Object> TargetInternal::FromConfig(Map<String, ObjectRef> config) {
   // If requested, query attributes from the device.  User-specified
   // parameters take precedence over queried parameters.
   if (attrs.count("from_device")) {
-    int device_id = Downcast<Integer>(attrs.at("from_device")).IntValue();
+    int device_id = Downcast<runtime::BoxInt>(attrs.at("from_device"))->value;
     attrs.erase("from_device");
     auto device_params = QueryDevice(device_id, target.get());
 
@@ -1006,38 +1016,13 @@ std::unordered_map<String, ObjectRef> TargetInternal::QueryDevice(int device_id,
 
   for (const auto& kv : target->kind->key2vtype_) {
     const String& key = kv.first;
-    const TargetKindNode::ValueTypeInfo& type_info = kv.second;
 
     TVMRetValue ret;
     api->GetTargetProperty(device, key, &ret);
 
-    switch (ret.type_code()) {
-      case kTVMNullptr:
-        // Nothing returned for this parameter, move on to the next one.
-        continue;
-
-      case kTVMArgInt:
-        if (type_info.type_index == Integer::ContainerType::_GetOrAllocRuntimeTypeIndex()) {
-          output[key] = Integer(static_cast<int64_t>(ret));
-        } else if (type_info.type_index == Bool::ContainerType::_GetOrAllocRuntimeTypeIndex()) {
-          output[key] = Bool(static_cast<bool>(ret));
-        } else {
-          LOG(FATAL) << "Expected " << type_info.type_key << " parameter for attribute '" << key
-                     << "', but received integer from device api";
-        }
-        break;
-
-      case kTVMStr:
-        ICHECK_EQ(type_info.type_index, String::ContainerType::_GetOrAllocRuntimeTypeIndex())
-            << "Expected " << type_info.type_key << " parameter for attribute '" << key
-            << "', but received string from device api";
-        output[key] = String(ret.operator std::string());
-        break;
-
-      default:
-        LOG(FATAL) << "Expected " << type_info.type_key << " parameter for attribute '" << key
-                   << "', but received TVMArgTypeCode(" << ret.type_code() << ") from device api";
-        break;
+    // Delegate conversion from TVMRetValue to the FFI's default conversions.
+    if (Optional<ObjectRef> opt = ret) {
+      output[key] = opt.value();
     }
   }
 
