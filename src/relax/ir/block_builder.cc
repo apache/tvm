@@ -27,6 +27,7 @@
 #include <tvm/relax/op_attr_types.h>
 #include <tvm/relax/struct_info.h>
 #include <tvm/relax/struct_info_functor.h>
+#include <tvm/relax/transform.h>
 #include <tvm/relax/type.h>
 #include <tvm/relay/op.h>
 #include <tvm/runtime/registry.h>
@@ -71,6 +72,8 @@ class BlockBuilderImpl : public BlockBuilderNode {
   NameSupply name_supply() final { return name_supply_; }
 
   IRModule GetContextIRModule() const final { return context_mod_; }
+
+  IRModule Finalize() final { return transform::NormalizeGlobalVar()(context_mod_); }
 
   GlobalVar AddFunction(const BaseFunc& func, String func_name_hint) final {
     LazyInitCtxFuncDedupMap();
@@ -1001,6 +1004,9 @@ TVM_REGISTER_GLOBAL("relax.BlockBuilderUpdateFunction")
 
 TVM_REGISTER_GLOBAL("relax.BlockBuilderGetContextIRModule")
     .set_body_method<BlockBuilder>(&BlockBuilderNode::GetContextIRModule);
+
+TVM_REGISTER_GLOBAL("relax.BlockBuilderFinalize")
+    .set_body_method<BlockBuilder>(&BlockBuilderNode::Finalize);
 
 TVM_REGISTER_GLOBAL("relax.BlockBuilderCurrentBlockIsDataFlow")
     .set_body_method<BlockBuilder>(&BlockBuilderNode::CurrentBlockIsDataFlow);

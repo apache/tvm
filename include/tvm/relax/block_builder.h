@@ -83,6 +83,15 @@ class BlockBuilderNode : public Object {
   virtual IRModule GetContextIRModule() const = 0;
 
   /*!
+   * \brief Finalize the building process and return the result IRModule. Possibly rename
+   * GlobalVars in the IRModule to ensure name uniqueness and the invariant:
+   * every public function has the same name as its "global_symbol" attribute.
+   *
+   * \return The IRModule in this BlockBuilder.
+   */
+  virtual IRModule Finalize() = 0;
+
+  /*!
    * \brief Add a Relax function or a TIR PrimFunc to internal context module.
    * \param func The function to be added.
    * \param func_name_hint The name hint of the function to be added.

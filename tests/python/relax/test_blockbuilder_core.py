@@ -28,9 +28,11 @@ from tvm.script import relax as R, tir as T
 from tvm.tir.function import PrimFunc
 
 
-@tvm.register_func("test.blockbuilder.nop")
-def nop():
-    pass
+@pytest.fixture(scope="module")
+def register_nop():
+    @tvm.register_func("test.blockbuilder.nop")
+    def nop():
+        pass
 
 
 def test_block_builder():
@@ -91,7 +93,7 @@ def test_function_single_block():
         assert gv0.name_hint == "gv"
         bb.emit_func_output(gv0)
 
-    func = bb.get()["func"]
+    func = bb.finalize()["func"]
     assert func.params[0] == x
     assert func.params[1] == y
     assert func.body.body == gv0
@@ -121,7 +123,7 @@ def test_function_multi_blocks():
             gv2 = bb.emit_output(gv1)
         bb.emit_func_output(gv2)
 
-    func = bb.get()["func"]
+    func = bb.finalize()["func"]
 
     assert_structural_equal(gv2.struct_info, rx.TensorStructInfo([m, n], "float16"))
     assert func.params[0] == x
@@ -134,35 +136,41 @@ def test_function_multi_blocks():
 
 
 def test_multi_functions():
-    m = tir.Var("m", "int64")
-    n = tir.Var("n", "int64")
-    x = rx.Var("x", rx.TensorStructInfo([m, n], "float16"))
-    y = rx.Var("y", rx.TensorStructInfo([n], "float16"))
     bb = rx.BlockBuilder()
 
-    with bb.function("func1", [x, y]):
+    m_1 = tir.Var("m", "int64")
+    n_1 = tir.Var("n", "int64")
+    x_1 = rx.Var("x", rx.TensorStructInfo([m_1, n_1], "float16"))
+    y_1 = rx.Var("y", rx.TensorStructInfo([n_1], "float16"))
+
+    with bb.function("func1", [x_1, y_1]):
         with bb.dataflow():
-            lv0 = bb.emit(rx.op.add(x, y))
+            lv0 = bb.emit(rx.op.add(x_1, y_1))
             assert lv0.name_hint == "lv"
             gv0 = bb.emit_output(lv0)
         bb.emit_func_output(gv0)
 
-    with bb.function("func2", [x, y]):
+    m_2 = tir.Var("m", "int64")
+    n_2 = tir.Var("n", "int64")
+    x_2 = rx.Var("x", rx.TensorStructInfo([m_2, n_2], "float16"))
+    y_2 = rx.Var("y", rx.TensorStructInfo([n_2], "float16"))
+
+    with bb.function("func2", [x_2, y_2]):
         with bb.dataflow():
-            lv0 = bb.emit(rx.op.add(y, x))
+            lv0 = bb.emit(rx.op.add(y_2, x_2))
             # TODO(@yuchen): enable block builder to reset local var unique name map
             assert lv0.name_hint == "lv1"
             gv0 = bb.emit_output(lv0)
         bb.emit_func_output(gv0)
 
-    mod = bb.get()
+    mod = bb.finalize()
     func1 = mod["func1"]
-    assert func1.params[0] == x
-    assert func1.params[1] == y
+    assert func1.params[0] == x_1
+    assert func1.params[1] == y_1
     assert len(func1.body.blocks) == 1
     func2 = mod["func2"]
-    assert func2.params[0] == x
-    assert func2.params[1] == y
+    assert func2.params[0] == x_2
+    assert func2.params[1] == y_2
     assert len(func2.body.blocks) == 1
 
 
@@ -223,7 +231,7 @@ def test_emit_match_cast():
             gv0 = bb.emit_output(lv1)
 
         bb.emit_func_output(gv0)
-    func = bb.get()["func"]
+    func = bb.finalize()["func"]
     block = func.body.blocks[0]
     b0, b1 = block.bindings[:2]
     assert isinstance(b0, rx.MatchCast)
@@ -252,7 +260,7 @@ def test_emit_match_cast_binding_in_dataflow_block():
             bb.emit_output(gv)
         bb.emit_func_output(x)
 
-    func = bb.get()["main"]
+    func = bb.finalize()["main"]
     block = func.body.blocks[0]
     b0 = block.bindings[0]
     assert isinstance(b0, rx.MatchCast)
@@ -353,7 +361,7 @@ def test_call_te():
             out = bb.emit_output(bb.call_te(te_func, [x, y], {"C": z}, msg="hello"))
         bb.emit_func_output(out)
 
-    mod = bb.get()
+    mod = bb.finalize()
     rx_func = mod["rx_func"]
 
     assert rx_func.params[0] == x
@@ -372,7 +380,7 @@ def test_call_te_unique_tensor_name():
         gv = bb.emit_te(topi.nn.matmul, x, y)
         bb.emit_func_output(gv)
 
-    f_matmul = bb.get()["matmul"]
+    f_matmul = bb.finalize()["matmul"]
     param_A = f_matmul.params[0]
     param_B = f_matmul.params[1]
     buffer_A = f_matmul.buffer_map[param_A]
@@ -411,7 +419,7 @@ def test_emit_te():
         out = bb.emit_te(te_func, [x, y], {"C": z}, msg="hello")
         bb.emit_func_output(out)
 
-    mod = bb.get()
+    mod = bb.finalize()
     rx_func = mod["rx_func"]
 
     def get_tir_func():
@@ -453,13 +461,13 @@ def test_emit_te_multiple():
         B = te.compute((128, 128), lambda i, j: A[i, j] + 1)
         return B
 
-    with bb.function("rx_func", [x, y]):
+    with bb.function("rx_func", [x, y, z]):
         x1 = bb.emit_te(te_func, x)
         y1 = bb.emit_te(te_func, y)
         z1 = bb.emit_te(te_func, z)
         bb.emit_func_output(z1)
 
-    mod = bb.get()
+    mod = bb.finalize()
     rx_func = mod["rx_func"]
 
     prim_func = []
@@ -488,7 +496,7 @@ def test_emit_te_multiple_output():
         z = rx.TupleGetItem(y, 0)
         bb.emit_func_output([y, z])
 
-    rx_func = bb.get()["rx_func"]
+    rx_func = bb.finalize()["rx_func"]
 
     # check call tir output shape is a Tuple of ShapeExpr
     assert rx_func.params[0] == x
@@ -511,7 +519,7 @@ def test_emit_te_extern():
         out = bb.emit_te(tvm.contrib.cblas.matmul, x, y, transa=False, transb=False)
         bb.emit_func_output(out)
 
-    mod = bb.get()
+    mod = bb.finalize()
     rx_func = mod["rx_cblas_matmul"]
 
     # check Relax function calls TIR function with call_tir call
@@ -540,7 +548,7 @@ def test_emit_te_prim_value():
         out = bb.emit_te(topi.clip, x, a_min, a_max)
         bb.emit_func_output(out)
 
-    rx_func = bb.get()["rx_clip"]
+    rx_func = bb.finalize()["rx_clip"]
 
     # check Relax function calls TIR function with call_tir call
     assert rx_func.params[0] == x
@@ -649,7 +657,7 @@ def test_emit_nested_tuple(emit_nested_tuple):
             output = (scalars, x, y)
             bb.emit_func_output(output)
 
-        return bb.get()["func"]
+        return bb.finalize()["func"]
 
     def make_expected(emit_nested_tuple: bool):
         if emit_nested_tuple:
@@ -681,6 +689,43 @@ def test_emit_nested_tuple(emit_nested_tuple):
     actual = make_function(emit_nested_tuple)
 
     tvm.ir.assert_structural_equal(expected, actual)
+
+
+@pytest.mark.skip_well_formed_check_before_transform
+def test_finalize_public_private_name_conflict():
+    # tir call
+    bb = rx.BlockBuilder()
+
+    def te_zero():
+        return topi.full((), "int64", tir.IntImm("int64", 0))
+
+    def te_one():
+        return topi.full((), "int64", tir.IntImm("int64", 1))
+
+    with bb.function("func", []):
+        gv0 = bb.emit_te(te_zero, primfunc_name_hint="func")
+        gv1 = bb.emit_te(te_one, primfunc_name_hint="func")
+        bb.emit_func_output((gv0, gv1))
+
+    mod = bb.finalize()
+    assert rx.analysis.well_formed(mod)
+
+    # relax function call
+    bb = rx.BlockBuilder()
+
+    with bb.function("func", [], private=True):
+        gvar = bb.emit_func_output(rx.const(0, "int64"))
+
+    with bb.function("func", [], private=True):
+        gv0 = bb.emit(rx.Call(gvar, []))
+        gvar1 = bb.emit_func_output(gv0)
+
+    with bb.function("func", []):
+        gv0 = bb.emit(rx.Call(gvar1, []))
+        bb.emit_func_output(gv0)
+
+    mod = bb.finalize()
+    assert rx.analysis.well_formed(mod)
 
 
 if __name__ == "__main__":

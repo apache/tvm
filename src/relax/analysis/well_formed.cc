@@ -26,7 +26,7 @@
  * This pass will check:
  *    1. Each Expr should have `struct_info_` field already populated, when
  *      `check_struct_info` is true.
- *    2. GlobalVars are defined before use.
+ *    2. GlobalVars are defined before use. And all GlobalVars have different names.
  *    3. When a Function has a corresponding GlobalVar and a `global_symbol`
  *       attribute, the name of the GlobalVar must equal the value of the
  *       `global_symbol` attribute value.
@@ -126,6 +126,9 @@ class WellFormedChecker : public relax::ExprVisitor,
   }
 
   void CheckGlobalVarAndGsymbolConsistency(GlobalVar var, Function func) {
+    // the uniqueness of all global vars are ensured by IRModule->global_var_map_, so do not need
+    // to check again
+
     // check name in global var and gsymbol
     Optional<String> gsymbol = func->GetAttr<String>(tvm::attr::kGlobalSymbol);
     if (gsymbol.defined() && gsymbol != var->name_hint) {

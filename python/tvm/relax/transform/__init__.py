@@ -51,6 +51,7 @@ from .transform import (
     MetaScheduleTuneIRMod,
     MetaScheduleTuneTIR,
     Normalize,
+    NormalizeGlobalVar,
     PatternCheckContext,
     RealizeVDevice,
     RemovePurityChecking,

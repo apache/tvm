@@ -39,7 +39,7 @@ class WellFormedInstrument:
     """
 
     def __init__(self, check_struct_info: bool = True, validate_before_transform: bool = True):
-        self.skip_pass_name = ["Normalize", "ResolveGlobals"]
+        self.skip_pass_name = ["Normalize", "NormalizeGlobalVar", "ResolveGlobals"]
         self.check_struct_info = check_struct_info
         self.validate_before_transform = validate_before_transform
 
