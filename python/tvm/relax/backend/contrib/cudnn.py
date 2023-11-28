@@ -21,6 +21,7 @@ from tvm.relax.transform import PatternCheckContext
 
 from ..pattern_registry import get_patterns_with_prefix, register_patterns
 from ..patterns import make_conv2d_pattern
+from ..utils import has_leaking_intermediate_variables
 
 
 def _is_supported_dtype(lhs_dtype, rhs_dtype):
@@ -38,6 +39,8 @@ def _is_supported_format(data_layout, kernel_layout):
 
 
 def _check_conv2d(context: PatternCheckContext) -> bool:
+    if has_leaking_intermediate_variables(context):
+        return False
     # Retrieve the annotated expression from context
     conv2d_call = context.annotated_expr["root"]
     input_expr = context.annotated_expr["input"]

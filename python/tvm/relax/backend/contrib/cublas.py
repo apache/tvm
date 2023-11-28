@@ -25,6 +25,7 @@ from tvm.relax.transform import PatternCheckContext
 
 from ..pattern_registry import get_patterns_with_prefix, register_patterns
 from ..patterns import make_matmul_pattern
+from ..utils import has_leaking_intermediate_variables
 
 
 def _is_supported_dtype(lhs_dtype, rhs_dtype):
@@ -37,6 +38,8 @@ def _is_supported_dtype(lhs_dtype, rhs_dtype):
 
 
 def _check_matmul(context: PatternCheckContext) -> bool:
+    if has_leaking_intermediate_variables(context):
+        return False
     lhs = context.annotated_expr["lhs"]
     rhs = context.annotated_expr["rhs"]
 

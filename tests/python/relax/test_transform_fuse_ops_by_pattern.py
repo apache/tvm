@@ -27,6 +27,7 @@ from tvm.relax.dpl.pattern import (
 )
 from tvm.relax.transform import PatternCheckContext
 from tvm.relax.backend.contrib.cutlass import partition_for_cutlass
+from tvm.relax.backend.contrib.cublas import partition_for_cublas
 from tvm.script import ir as I
 from tvm.script import relax as R
 from tvm.script import tir as T
@@ -1021,6 +1022,28 @@ def test_matmul_add3():
     mod = partition_for_cutlass(Module)
     func_names = [name.name_hint for (name, _) in mod.functions.items()]
     assert "fused_relax_matmul_relax_add_relax_add_cutlass" in func_names
+
+
+def test_intermediate_var_to_var_binding():
+    """test the intermediate binding y1 will break the fusion"""
+
+    @I.ir_module
+    class Module:
+        @R.function
+        def main(
+            x: R.Tensor((1, 16), dtype="float16"), w: R.Tensor((16, 16), dtype="float16")
+        ) -> R.Tensor((1, 16), dtype="float16"):
+            with R.dataflow():
+                w1: R.Tensor((16, 16), dtype="float16") = R.permute_dims(w, axes=None)
+                y: R.Tensor((1, 16), dtype="float16") = R.matmul(x, w1)
+                y1: R.Tensor((1, 16), dtype="float16") = y
+                out: R.Tensor((1, 16), dtype="float16") = R.add(x, y1)
+                R.output(out)
+            return out
+
+    mod = partition_for_cublas(Module)
+    func_names = [name.name_hint for (name, _) in mod.functions.items()]
+    assert "fused_relax_permute_dims_relax_matmul_cublas" in func_names  # add is not fused
 
 
 if __name__ == "__main__":
