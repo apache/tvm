@@ -4776,7 +4776,6 @@ def test_masked_fill():
     verify_model(test_fn, [inp.to(torch.float64), inp > 0.5])
 
 
-@pytest.mark.skip(reason="unsupported op: 'aten::scaled_dot_product_attention'")
 def test_transformer():
     """test_transformer"""
     model = torch.nn.Transformer(d_model=256, nhead=8, num_encoder_layers=6, num_decoder_layers=6)
