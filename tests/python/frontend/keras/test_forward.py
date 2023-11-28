@@ -661,7 +661,7 @@ class TestKeras:
             inception_v3_mod = keras_mod.applications.inception_v3.InceptionV3
 
         keras_model = inception_v3_mod(
-            include_top=True, weights="imagenet", input_shape=(299, 299, 3), classes=1000
+            include_top=True, weights=None, input_shape=(299, 299, 3), classes=1000
         )
         verify_keras_frontend(keras_model, layout=layout)
 
