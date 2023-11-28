@@ -37,6 +37,16 @@ StructInfo InferDistStructInfoCallTIR(const Call& call, const BlockBuilder& ctx)
 TVM_REGISTER_OP("relax.call_tir")
     .set_attr<FInferStructInfo>("dist.FInferStructInfo", InferDistStructInfoCallTIR);
 
+StructInfo InferDistStructInfoStopLiftParams(const Call& call, const BlockBuilder& ctx) {
+  if (call->args.size() != 1) {
+    ctx->ReportFatal(Diagnostic::Error(call) << "stop_lift_params should have exact 1 arg.");
+  }
+  return Downcast<StructInfo>(call->args[0]->struct_info_.value());
+}
+
+TVM_REGISTER_OP("relax.builtin.stop_lift_params")
+    .set_attr<FInferStructInfo>("dist.FInferStructInfo", InferDistStructInfoStopLiftParams);
+
 }  // namespace distributed
 }  // namespace relax
 }  // namespace tvm
