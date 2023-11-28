@@ -1555,15 +1555,21 @@ class PyTorchOpConverter:
         dim = dim if dim >= 0 else len(dshape) + dim
         assert len(dshape) > dim >= 0
 
-        assert unflattened_size.count(-1) <= 1
+        new_unflattened_size = []
+        for s in unflattened_size:
+            if isinstance(s, _expr.Constant):
+                s = s.data.numpy().item()
+            new_unflattened_size.append(s)
 
-        mult = np.multiply.reduce(unflattened_size)
+        assert new_unflattened_size.count(-1) <= 1
+
+        mult = np.multiply.reduce(new_unflattened_size)
         if mult < 0:
             assert dshape[dim] % mult == 0
         else:
             assert dshape[dim] == mult
 
-        new_shape = dshape[:dim] + unflattened_size + dshape[dim + 1 :]
+        new_shape = dshape[:dim] + tuple(new_unflattened_size) + dshape[dim + 1 :]
         out = _op.reshape(data, new_shape)
         return out
 
