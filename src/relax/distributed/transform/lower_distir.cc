@@ -45,7 +45,7 @@ class DistIRSharder : public ExprMutator {
   static IRModule LowerDistIR(IRModule mod) { return DistIRSharder(mod).Lower(); }
 
  private:
-  DistIRSharder(IRModule mod) : ExprMutator(mod) {}
+  explicit DistIRSharder(IRModule mod) : ExprMutator(mod) {}
 
   IRModule Lower() {
     auto mod = builder_->GetContextIRModule();
