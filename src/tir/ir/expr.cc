@@ -510,7 +510,9 @@ Call::Call(DataType dtype, RelayExpr op, Array<PrimExpr> args, Span span) {
 }
 
 TVM_REGISTER_GLOBAL("tir.Call")
-    .set_body_typed([](DataType type, RelayExpr op, Array<ObjectRef> args, Span span) {
+    .set_body_typed([](DataType type, RelayExpr op,
+                       Array<Variant<runtime::String, IterVar, BufferRegion, PrimExpr>> args,
+                       Span span) {
       Array<PrimExpr> prim_expr_args;
       for (const auto& it : args) {
         ICHECK(it->IsInstance<runtime::StringObj>() || it->IsInstance<PrimExprNode>() ||

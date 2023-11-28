@@ -4157,11 +4157,13 @@ bool ScanopRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
   return true;
 }
 
-Expr MakeCumsum(Expr data, Integer axis, DataType dtype, Bool exclusive) {
+Expr MakeCumsum(Expr data, Integer axis, DataType dtype, Optional<Bool> exclusive) {
   auto attrs = make_object<ScanopAttrs>();
   attrs->dtype = dtype;
   attrs->axis = axis;
-  attrs->exclusive = exclusive;
+  if (exclusive.defined()) {
+    attrs->exclusive = exclusive.value();
+  }
   static const Op& op = Op::Get("cumsum");
   return Call(op, {data}, Attrs(attrs), {});
 }
