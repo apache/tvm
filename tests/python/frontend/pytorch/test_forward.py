@@ -5493,9 +5493,9 @@ def test_scaled_dot_product_attention():
     """test_scaled_dot_product_attention"""
     torch.set_grad_enabled(False)
 
-    def test_fn(attn_mask=None, is_causal=False, scale=None):
+    def test_fn(attn_mask=None, is_causal=False):
         return lambda query, key, value: torch.nn.functional.scaled_dot_product_attention(
-            query, key, value, attn_mask=attn_mask, is_causal=is_causal, scale=scale
+            query, key, value, attn_mask=attn_mask, is_causal=is_causal
         )
 
     L, S, E, Ev = 5, 7, 11, 13
@@ -5534,16 +5534,6 @@ def test_scaled_dot_product_attention():
     verify_model(test_fn(attn_mask=attn_mask), [query_3d, key_4d, value_3d])
     verify_model(test_fn(attn_mask=attn_mask), [query_3d, key_3d, value_4d])
     verify_model(test_fn(attn_mask=attn_mask), [query_3d, key_3d, value_3d])
-
-    scale = 0.5
-    verify_model(test_fn(scale=scale), [query_4d, key_4d, value_4d])
-    verify_model(test_fn(scale=scale), [query_4d, key_4d, value_3d])
-    verify_model(test_fn(scale=scale), [query_4d, key_3d, value_4d])
-    verify_model(test_fn(scale=scale), [query_4d, key_3d, value_3d])
-    verify_model(test_fn(scale=scale), [query_3d, key_4d, value_4d])
-    verify_model(test_fn(scale=scale), [query_3d, key_4d, value_3d])
-    verify_model(test_fn(scale=scale), [query_3d, key_3d, value_4d])
-    verify_model(test_fn(scale=scale), [query_3d, key_3d, value_3d])
 
     # Test with float64
     query_4d = torch.randn(2, 3, L, E, dtype=torch.float64)

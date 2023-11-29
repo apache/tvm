@@ -3904,7 +3904,12 @@ class PyTorchOpConverter:
         attn_mask = inputs[3]
         dropout_p = inputs[4]
         is_causal = inputs[5]
-        scale = inputs[6]
+
+        # Explicit scale can be used from torch>=2.1.0
+        if len(inputs) == 7:
+            scale = inputs[6]
+        else:
+            scale = None
 
         assert (
             input_types[0] == input_types[1] == input_types[2]
