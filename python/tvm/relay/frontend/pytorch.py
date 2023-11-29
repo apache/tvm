@@ -22,6 +22,7 @@
 import functools
 import itertools
 from abc import ABC
+from typing import Dict
 import math
 import re
 import sys
@@ -4780,49 +4781,57 @@ def _get_constant(node):
 
 
 class NodeNamer(ABC):
-    def __init__(self, op_counter_dict):
+    """Name each node and output edge in the relay graph"""
+
+    def __init__(self, op_counter_dict: Dict[str, int]):
         self.op_counter_dict = op_counter_dict
 
-    def increment_counter(self, identifier):
+    def increment_counter(self, identifier: str) -> int:
         op_idx = 0
         if identifier in self.op_counter_dict:
             op_idx = self.op_counter_dict[identifier] + 1
         self.op_counter_dict[identifier] = op_idx
         return op_idx
 
-    def get_node_source_name(self, node):
+    def get_node_source_name(self, node) -> str:
         raise NotImplementedError()
 
-    def get_node_output_name(self, node, node_source_name, index):
+    def get_node_output_name(self, node_source_name: str, index: int) -> str:
         raise NotImplementedError()
 
 
 class DefaultNodeKindNamer(NodeNamer):
     """
+    Namer that uses a default naming based on the "type"/kind of node
     # e.g. node.kind(): aten::adaptive_max_pool2d
     # node_src_name -> aten::adaptive_max_pool2d_x
     # output_1 -> aten::adaptive_max_pool2d_x_0
     # output_2 -> aten::adaptive_max_pool2d_x_1
     """
 
-    def get_node_source_name(self, node):
+    def get_node_source_name(self, node) -> str:
         op_idx = self.increment_counter(node.kind())
         return "_".join([node.kind(), str(op_idx)])
 
-    def get_node_output_name(self, node, node_src_name, index):
+    def get_node_output_name(self, node_src_name: str, index: int) -> str:
         return "_".join([node_src_name, str(index)])
 
 
 class PytorchScopePreservingNamer(NodeNamer):
+    """
+    Namer that uses the Pytorch scope to name nodes.
+    eg. node could be called "bert.encoder.layer.11.output.dense"
+    """
+
     MODULE_PREFIX = "__module."
 
-    def get_node_source_name(self, node):
+    def get_node_source_name(self, node) -> str:
         node_src_name = node.scopeName().split("/")[-1]
         if node_src_name.startswith(self.MODULE_PREFIX):
             node_src_name = node_src_name[len(self.MODULE_PREFIX) :]
         return node_src_name
 
-    def get_node_output_name(self, node, node_src_name, index):
+    def get_node_output_name(self, node_src_name: str, index: int) -> str:
         op_idx = self.increment_counter(node_src_name)
         return "_".join([node_src_name, str(op_idx), str(index)])
 
@@ -4840,7 +4849,7 @@ def _rename_outputs(
     if node.kind() != "prim::GetAttr":
         node_src_name = namer.get_node_source_name(node)
         for index, output in enumerate(node.outputs()):
-            name = namer.get_node_output_name(node, node_src_name, index)
+            name = namer.get_node_output_name(node_src_name, index)
             output.setDebugName(name)
         # update source map
         # if use_parser_friendly_name is True: e.g. prim::Constant_0 -> prim__Constant_0
@@ -5191,7 +5200,7 @@ def from_pytorch(
         types. The exported text file can be the reference to spans.
 
     preserve_pytorch_scopes : bool
-        When naming the different nodes in the TVM graph, use the "scope name" from the Pytorch graph.
+        When naming the different nodes in the Relay graph, use the "scope name" from the Pytorch graph.
         If false, a default namer is used that does not preserve the Pytorch scope names.
 
     Returns
