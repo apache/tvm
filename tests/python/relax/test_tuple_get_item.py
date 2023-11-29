@@ -95,5 +95,22 @@ def test_dynamic_index_printing(syntax_sugar: bool):
     tvm.ir.assert_structural_equal(func, roundtrip)
 
 
+def test_tuple_get_item_simple():
+    exec_mode = "bytecode"
+
+    @R.function(private=True)
+    def func(arg: R.Tuple([R.Prim("int64"), R.Prim("float32")])):
+        return arg[0]
+
+    mod = tvm.IRModule({"main": func})
+
+    target = tvm.target.Target("llvm", host="llvm")
+    ex = tvm.relax.build(mod, target, exec_mode=exec_mode)
+    vm = tvm.relax.VirtualMachine(ex, tvm.cpu())
+
+    res = vm["main"]((17, 42.5))
+    assert res == 17
+
+
 if __name__ == "__main__":
     tvm.testing.main()
