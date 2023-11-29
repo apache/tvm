@@ -2246,50 +2246,53 @@ inline TVMRetValue& TVMRetValue::operator=(TObjectRef other) {
   using ContainerType = typename TObjectRef::ContainerType;
   const Object* ptr = other.get();
 
+  // All type-specific checks require non-null object pointers, so
+  // it can be pulled out into an early return.
+  if (ptr == nullptr) {
+    SwitchToPOD(kTVMNullptr);
+    value_.v_handle = nullptr;
+    return *this;
+  }
+
   if constexpr (std::is_base_of_v<ContainerType, NDArray::ContainerType> ||
                 std::is_base_of_v<NDArray::ContainerType, ContainerType>) {
-    if (ptr && (std::is_base_of_v<NDArray::ContainerType, ContainerType> ||
-                ptr->IsInstance<NDArray::ContainerType>())) {
+    if (std::is_base_of_v<NDArray::ContainerType, ContainerType> ||
+        ptr->IsInstance<NDArray::ContainerType>()) {
       return operator=(NDArray(std::move(other.data_)));
     }
   }
 
   if constexpr (std::is_base_of_v<ContainerType, Module::ContainerType> ||
                 std::is_base_of_v<Module::ContainerType, ContainerType>) {
-    if (ptr && (std::is_base_of_v<Module::ContainerType, ContainerType> ||
-                ptr->IsInstance<Module::ContainerType>())) {
+    if (std::is_base_of_v<Module::ContainerType, ContainerType> ||
+        ptr->IsInstance<Module::ContainerType>()) {
       return operator=(Module(std::move(other.data_)));
     }
   }
 
   if constexpr (std::is_base_of_v<ContainerType, PackedFunc::ContainerType> ||
                 std::is_base_of_v<PackedFunc::ContainerType, ContainerType>) {
-    if (ptr && (std::is_base_of_v<PackedFunc::ContainerType, ContainerType> ||
-                ptr->IsInstance<PackedFunc::ContainerType>())) {
+    if (std::is_base_of_v<PackedFunc::ContainerType, ContainerType> ||
+        ptr->IsInstance<PackedFunc::ContainerType>()) {
       return operator=(PackedFunc(std::move(other.data_)));
     }
   }
 
   if constexpr (std::is_base_of_v<Int, TObjectRef> || std::is_base_of_v<TObjectRef, Int>) {
-    if (ptr && (std::is_base_of_v<Int, TObjectRef> || ptr->IsInstance<Int::ContainerType>())) {
+    if (std::is_base_of_v<Int, TObjectRef> || ptr->IsInstance<Int::ContainerType>()) {
       int64_t value = static_cast<const Int::ContainerType*>(ptr)->value;
       return operator=(value);
     }
   }
 
   if constexpr (std::is_base_of_v<Float, TObjectRef> || std::is_base_of_v<TObjectRef, Float>) {
-    if (ptr && (std::is_base_of_v<Float, TObjectRef> || ptr->IsInstance<Float::ContainerType>())) {
+    if (std::is_base_of_v<Float, TObjectRef> || ptr->IsInstance<Float::ContainerType>()) {
       double value = static_cast<const Float::ContainerType*>(ptr)->value;
       return operator=(value);
     }
   }
 
-  if (ptr) {
-    SwitchToObject(kTVMObjectHandle, std::move(other.data_));
-  } else {
-    SwitchToPOD(kTVMNullptr);
-    value_.v_handle = nullptr;
-  }
+  SwitchToObject(kTVMObjectHandle, std::move(other.data_));
   return *this;
 }
 
