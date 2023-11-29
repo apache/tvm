@@ -103,8 +103,7 @@ Array<Array<Var>> LivenessAnalysis(const Function& func) {
   // The map is done for safety, since directly doing Downcast<Array<Domain>>(results.first)
   // would *not* check the contents of results.first.
   Array<ObjectRef> res_objs = Downcast<Array<ObjectRef>>(results.first);
-  Array<Domain> in_map =
-      res_objs.Map([](const ObjectRef& obj) { return Downcast<Domain>(obj); });
+  Array<Domain> in_map = res_objs.Map([](const ObjectRef& obj) { return Downcast<Domain>(obj); });
 
   Array<Array<Var>> ret;
   for (const Domain& d : in_map) {
