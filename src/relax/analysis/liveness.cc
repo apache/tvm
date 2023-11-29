@@ -67,9 +67,7 @@ Domain transfer_func(const GraphBinding& binding, const ObjectRef& input) {
   }
 
   for (auto var : vars_used) {
-    if (!new_domain.count(var)) {
-      new_domain.Set(var, Bool(true));
-    }
+    new_domain.Set(var, Bool(true));
   }
 
   // the var bound is killed
