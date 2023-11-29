@@ -657,9 +657,7 @@ class TVMPODValue_ {
     // Helper function to reduce duplication in the variable integer
     // conversions.  This is publicly exposed, as it can be useful in
     // specializations of PackedFuncValueConverter.
-    if (auto opt = FromBoxed<int64_t>()) {
-      return opt.value();
-    } else if (type_code_ == kDLInt) {
+    if (type_code_ == kDLInt) {
       return value_.v_int64;
     } else {
       return std::nullopt;
@@ -670,9 +668,7 @@ class TVMPODValue_ {
     // Helper function to reduce duplication in the variable integer
     // conversions.  This is publicly exposed, as it can be useful in
     // specializations of PackedFuncValueConverter.
-    if (auto opt = FromBoxed<double>()) {
-      return opt.value();
-    } else if (type_code_ == kDLFloat) {
+    if (type_code_ == kDLFloat) {
       return value_.v_float64;
     } else {
       return std::nullopt;
@@ -682,7 +678,11 @@ class TVMPODValue_ {
   std::optional<bool> TryAsBool() const {
     // Booleans may be kept distinct from Int by using Box<bool> and
     // Box<int64_t>.
-    return FromBoxed<bool>();
+    if (IsObjectRef<runtime::Bool>()) {
+      return AsObjectRef<runtime::Bool>()->value;
+    } else {
+      return std::nullopt;
+    }
   }
 
  protected:
@@ -691,15 +691,6 @@ class TVMPODValue_ {
   friend class TVMMovableArgValue_;
   TVMPODValue_() : type_code_(kTVMNullptr) {}
   TVMPODValue_(TVMValue value, int type_code) : value_(value), type_code_(type_code) {}
-
-  template <typename T>
-  std::optional<T> FromBoxed() const {
-    if (IsObjectRef<Box<T>>()) {
-      return AsObjectRef<Box<T>>()->value;
-    } else {
-      return std::nullopt;
-    }
-  }
 
   /*! \brief The value */
   TVMValue value_;
