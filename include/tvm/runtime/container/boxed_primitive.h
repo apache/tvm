@@ -31,40 +31,33 @@ namespace tvm {
 namespace runtime {
 
 namespace detail {
-/* \brief Provide the BoxNode<T> type key in templated contexts
+/* \brief Provide the BoxNode<T> type traits in templated contexts
  *
  * The Box<T> class is used in many templated contexts, and is easier
- * to have templated over the primitive type.  However, much of the
- * TVM type system depends on classes having a unique name.  For
- * example, the use of `Object::IsInstance` depends on
- * `Object::GetOrAllocRuntimeTypeIndex`.  Any duplicate names will
- * result in duplicate indices, and invalid downcasting.
+ * to have templated over the primitive type.
  *
- * Furthermore, the name must be specified in the Python FFI using
+ * However, much of the TVM type system depends on classes having a
+ * unique name.  For example, the use of `Object::IsInstance` depends
+ * on `Object::GetOrAllocRuntimeTypeIndex`.  Any duplicate names will
+ * result in duplicate indices, and invalid downcasting.  Furthermore,
+ * the name must be specified in the Python FFI using
  * `tvm._ffi.register_object`.  This prevents use of
  * `typeid(T)::name()` to build a unique name, as the name is not
  * required to be human-readable or consistent across compilers.
  *
- * This utility struct exists to bridge that gap, providing a unique
- * name where required.
+ * This utility struct should be specialized over the primitive type
+ * held by the box, to allow explicit listing of the `_type_key` and
+ * other similar tratis.
+ *
+ * Note: This should only contain traits that are required at runtime,
+ * and should *not* contain extensions for features that are only
+ * available at compile-time.  For integration with compile-time-only
+ * functionality (e.g. StructuralHash, StructuralEqual), see
+ * `BoxNodeCompileTimeTraits` in `src/node/boxed_primitive.cc`.
  */
 template <typename Prim>
-struct BoxNodeTypeKey;
+struct BoxNodeRuntimeTraits;
 
-template <>
-struct BoxNodeTypeKey<int64_t> {
-  static constexpr const char* _type_key = "runtime.BoxInt";
-};
-
-template <>
-struct BoxNodeTypeKey<double> {
-  static constexpr const char* _type_key = "runtime.BoxFloat";
-};
-
-template <>
-struct BoxNodeTypeKey<bool> {
-  static constexpr const char* _type_key = "runtime.BoxBool";
-};
 }  // namespace detail
 
 template <typename Prim>
@@ -79,7 +72,7 @@ class BoxNode : public Object {
   /*! \brief The boxed value */
   Prim value;
 
-  static constexpr const char* _type_key = detail::BoxNodeTypeKey<Prim>::_type_key;
+  static constexpr const char* _type_key = detail::BoxNodeRuntimeTraits<Prim>::_type_key;
   static constexpr bool _type_has_method_visit_attrs = false;
   TVM_DECLARE_FINAL_OBJECT_INFO(BoxNode, Object);
 };
@@ -114,6 +107,23 @@ using BoxFloat = Box<double>;
  * the distinction between bool and int.
  */
 using BoxBool = Box<bool>;
+
+namespace detail {
+template <>
+struct BoxNodeRuntimeTraits<int64_t> {
+  static constexpr const char* _type_key = "runtime.BoxInt";
+};
+
+template <>
+struct BoxNodeRuntimeTraits<double> {
+  static constexpr const char* _type_key = "runtime.BoxFloat";
+};
+
+template <>
+struct BoxNodeRuntimeTraits<bool> {
+  static constexpr const char* _type_key = "runtime.BoxBool";
+};
+}  // namespace detail
 
 }  // namespace runtime
 }  // namespace tvm

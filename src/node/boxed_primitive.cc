@@ -45,8 +45,17 @@ namespace runtime_ext {
 using runtime::Box;
 using runtime::BoxNode;
 
+/* \brief An tra
+ *
+ * Extends the use of boxed primitive during TVM's compilation step.
+ *
+ * Most TVM classes define these functions as part of the class
+ * definition.  However, the boxed primitives must be usable at
+ * runtime, and so the class definition may only refer to types that
+ * are present in `libtvm_runtime.so`.
+ */
 template <typename Prim>
-struct BoxNodeTrait {
+struct BoxNodeCompileTimeTraits {
   static constexpr const std::nullptr_t VisitAttrs = nullptr;
 
   static void SHashReduce(const BoxNode<Prim>* node, SHashReducer hash_reduce) {
@@ -59,7 +68,7 @@ struct BoxNodeTrait {
   }
 };
 
-TVM_REGISTER_REFLECTION_VTABLE(BoxNode<int64_t>, BoxNodeTrait<int64_t>)
+TVM_REGISTER_REFLECTION_VTABLE(BoxNode<int64_t>, BoxNodeCompileTimeTraits<int64_t>)
     .set_creator([](const std::string& blob) -> ObjectPtr<Object> {
       int64_t value = std::atoll(blob.c_str());
       return make_object<BoxNode<int64_t>>(value);
@@ -77,7 +86,7 @@ TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
       p->stream << box->GetTypeKey() << "(" << box->value << ")";
     });
 
-TVM_REGISTER_REFLECTION_VTABLE(BoxNode<bool>, BoxNodeTrait<bool>)
+TVM_REGISTER_REFLECTION_VTABLE(BoxNode<bool>, BoxNodeCompileTimeTraits<bool>)
     .set_creator([](const std::string& blob) -> ObjectPtr<Object> {
       if (blob == "true") {
         return make_object<BoxNode<bool>>(true);
@@ -102,7 +111,7 @@ TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
       p->stream << box->GetTypeKey() << "(" << (box->value ? "true" : "false") << ")";
     });
 
-TVM_REGISTER_REFLECTION_VTABLE(BoxNode<double>, BoxNodeTrait<double>)
+TVM_REGISTER_REFLECTION_VTABLE(BoxNode<double>, BoxNodeCompileTimeTraits<double>)
     .set_creator([](const std::string& blob) -> ObjectPtr<Object> {
       double value = std::atof(blob.c_str());
       return make_object<BoxNode<double>>(value);
