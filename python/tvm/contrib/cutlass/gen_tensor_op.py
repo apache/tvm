@@ -782,7 +782,8 @@ def instantiate_template(func_name, annotations, func_args):
             and int(annotations["arch"]) >= 80
         )
 
-        # See https://github.com/Dao-AILab/flash-attention/blob/main/csrc/flash_attn/flash_api.cpp#L111-L116
+        # See https://github.com/Dao-AILab/flash-attention/blob/
+        # 92dd5703ecdb99aa4a4aee9817f28557907403a2/csrc/flash_attn/flash_api.cpp#L111-L116
         if "window_size" in annotations:
             assert use_flash, "Sliding-window attention is supported only by Flash Attention."
             assert (
