@@ -24,7 +24,6 @@ import tvm
 from tvm.contrib.cutlass.build import is_shape_valid_for_cutlass_matmul
 from tvm.relax import (
     Call,
-    DataflowVar,
     ExternFunc,
     Function,
     PyExprMutator,
@@ -47,6 +46,7 @@ from ..patterns import (
     make_rms_norm_pattern,
     make_stacked_attention_pattern,
 )
+from ..utils import has_leaking_intermediate_variables
 
 
 def _is_supported_dtype(lhs_dtype, rhs_dtype):
@@ -60,28 +60,6 @@ def _is_supported_dtype(lhs_dtype, rhs_dtype):
 
 def _shape_1d(shape):
     return reduce(operator.mul, shape, 1)
-
-
-def _has_leaking_intermediate_variables(context: PatternCheckContext) -> bool:
-    """
-    Check whether intermediate variables in the region to be fused are used outside
-    the fused region.
-    """
-    defined_vars = set(context.matched_bindings.keys())
-    output_var = context.value_to_bound_var[context.matched_expr]
-    intermediate_vars = {v for v in context.matched_bindings if v != output_var}
-
-    if any(not isinstance(v, DataflowVar) for v in intermediate_vars):
-        # If intermediate variable is not a DataflowVar, it can be accessed and potentially
-        # used outside the DataflowBlock.
-        return True
-
-    # Check whether all users of an intermediate variable are inside the fused region.
-    for var in intermediate_vars:
-        if any(var_user not in defined_vars for var_user in context.var_usages[var]):
-            return True
-
-    return False
 
 
 def _has_dependency(from_var: Var, to_var: Var, var_usages: Mapping[Var, Sequence[Var]]):
@@ -137,7 +115,7 @@ def _check_residual(root_call: Call, context: PatternCheckContext) -> bool:
 
 def _check_conv2d(context: PatternCheckContext) -> bool:
     """Check if the given conv2d workload can be offloaded to CUTLASS."""
-    if _has_leaking_intermediate_variables(context):
+    if has_leaking_intermediate_variables(context):
         return False
 
     conv2d_call = context.annotated_expr["root"]
@@ -163,7 +141,7 @@ def _check_conv2d(context: PatternCheckContext) -> bool:
 
 def _check_matmul(context: PatternCheckContext) -> bool:
     """Check if the given matmul workload can be offloaded to CUTLASS."""
-    if _has_leaking_intermediate_variables(context):
+    if has_leaking_intermediate_variables(context):
         return False
 
     lhs = context.annotated_expr["lhs"]
@@ -229,7 +207,7 @@ def matmul_patterns():
 
 def _check_decode_matmul(ctx):
     """Check if the given decode -> matmul workload can be offloaded to CUTLASS."""
-    if _has_leaking_intermediate_variables(ctx):
+    if has_leaking_intermediate_variables(ctx):
         return False
 
     root = ctx.annotated_expr["root"]
@@ -391,7 +369,7 @@ def residual_block_patterns():
 
 def _check_stacked_attention(context: PatternCheckContext) -> bool:
     """Check if the given stacked attention workload can be offloaded to CUTLASS."""
-    if _has_leaking_intermediate_variables(context):
+    if has_leaking_intermediate_variables(context):
         return False
     if not context.annotated_expr["stacked_qkv"].struct_info.ndim == 3:
         return False
