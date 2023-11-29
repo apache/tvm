@@ -16,7 +16,10 @@
 # under the License.
 """Test contrib.cc with ccache"""
 import os
+import pytest
+import shutil
 import tempfile
+import tvm
 from tvm.contrib.cc import create_shared, create_executable, _is_linux_like, _is_windows_like
 
 
@@ -48,6 +51,7 @@ def _compile(f_create, text, output):
         return log
 
 
+@pytest.mark.skipif(shutil.which("ccache") is None, reason="ccache not installed")
 def test_shared():
     if _is_linux_like():
         _ = _compile(create_shared, "shared", "main.o")
@@ -59,6 +63,7 @@ def test_shared():
         assert "Succeeded getting cached result" in log
 
 
+@pytest.mark.skipif(shutil.which("ccache") is None, reason="ccache not installed")
 def test_executable():
     if _is_linux_like():
         _ = _compile(create_executable, "executable", "main")
@@ -71,5 +76,4 @@ def test_executable():
 
 
 if __name__ == "__main__":
-    test_shared()
-    test_executable()
+    tvm.testing.main()
