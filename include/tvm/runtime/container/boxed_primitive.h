@@ -91,13 +91,25 @@ class Box : public ObjectRef {
   TVM_DEFINE_NOTNULLABLE_OBJECT_REF_METHODS(Box, ObjectRef, BoxNode<Prim>);
 };
 
-/*! \brief Runtime equivalent of IntImm */
+/*! \brief Boxed version of C++ int64_t
+ *
+ * Can be used to store POD integer values as a TVM ObjectRef.  Used
+ * for FFI handling, and for storing POD types inside TVM containers.
+ */
 using BoxInt = Box<int64_t>;
 
-/*! \brief Runtime equivalent of FloatImm */
+/*! \brief Boxed version of C++ double
+ *
+ * Can be used to store POD floating-point values as a TVM ObjectRef.
+ * Used for FFI handling, and for storing POD types inside TVM
+ * containers.
+ */
 using BoxFloat = Box<double>;
 
-/*! \brief Runtime equivalent of IntImm with DataType::Bool()
+/*! \brief Boxed version of C++ bool
+ *
+ * Can be used to store POD boolean values as a TVM ObjectRef.  Used
+ * for FFI handling, and for storing POD types inside TVM containers.
  *
  * When passing from Python to C++, TVM PackedFunc conversion follow
  * C++ conversion rules, and allow bool->int and int->bool
