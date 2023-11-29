@@ -31,27 +31,27 @@ namespace relax {
 
 TVM_REGISTER_NODE_TYPE(GraphBindingNode);
 
-GraphBinding GraphBinding::Create(const SeqExpr& seq, const Array<Var>& args, size_t block_idx,
-                                  size_t binding_idx, BindingNodeKind kind) {
+GraphBinding::GraphBinding(const SeqExpr& seq, const Array<Var>& args, size_t block_idx,
+                           size_t binding_idx, BindingNodeKind kind) {
   ObjectPtr<GraphBindingNode> n = make_object<GraphBindingNode>();
   n->seq = seq;
   n->args = args;
   n->block_idx = block_idx;
   n->binding_idx = binding_idx;
   n->kind = kind;
-  return GraphBinding(n);
+  data_ = std::move(n);
 }
 
 TVM_REGISTER_NODE_TYPE(ControlFlowGraphNode);
 
-ControlFlowGraph ControlFlowGraph::Create(const Array<GraphBinding>& bindings,
-                                          const Array<Array<Integer>>& preds,
-                                          const Array<Array<Integer>>& succs) {
+ControlFlowGraph::ControlFlowGraph(const Array<GraphBinding>& bindings,
+                                   const Array<Array<Integer>>& preds,
+                                   const Array<Array<Integer>>& succs) {
   ObjectPtr<ControlFlowGraphNode> n = make_object<ControlFlowGraphNode>();
   n->bindings = bindings;
   n->preds = preds;
   n->succs = succs;
-  return ControlFlowGraph(n);
+  data_ = std::move(n);
 }
 
 // Extracts a basic block and updates the running lists bindings, preds, and succs.
@@ -64,7 +64,7 @@ size_t ExtractCFGHelper(const SeqExpr& seq, const Array<Var>& args, size_t block
                         std::vector<std::vector<size_t>>* succs) {
   // case 1: We're past the end -> this is the block body (base case)
   if (block_idx == seq->blocks.size()) {
-    bindings->push_back(GraphBinding::Create(seq, args, block_idx, 0U, BindingNodeKind::kSeqBody));
+    bindings->push_back(GraphBinding(seq, args, block_idx, 0U, BindingNodeKind::kSeqBody));
     preds->push_back(current_preds);
     // the final binding has no successors
     succs->push_back({});
@@ -76,8 +76,7 @@ size_t ExtractCFGHelper(const SeqExpr& seq, const Array<Var>& args, size_t block
 
   // case 2: Ordinary binding
   if (!binding_value.as<IfNode>()) {
-    bindings->push_back(
-        GraphBinding::Create(seq, args, block_idx, binding_idx, BindingNodeKind::kBinding));
+    bindings->push_back(GraphBinding(seq, args, block_idx, binding_idx, BindingNodeKind::kBinding));
     size_t idx = bindings->size() - 1;
     preds->push_back(current_preds);
     // successor: the next binding (there will always be at least one binding after this,
@@ -87,8 +86,7 @@ size_t ExtractCFGHelper(const SeqExpr& seq, const Array<Var>& args, size_t block
     // case 3: dealing with a branch
     auto if_node = Downcast<If>(binding_value);
     // start with the cond node
-    bindings->push_back(
-        GraphBinding::Create(seq, args, block_idx, binding_idx, BindingNodeKind::kIfCond));
+    bindings->push_back(GraphBinding(seq, args, block_idx, binding_idx, BindingNodeKind::kIfCond));
     size_t idx = bindings->size() - 1;
     preds->push_back(current_preds);
     // there will be another successor, which we will add after recursing down the branches
@@ -99,8 +97,7 @@ size_t ExtractCFGHelper(const SeqExpr& seq, const Array<Var>& args, size_t block
     size_t final_false_idx = ExtractCFGHelper(Downcast<SeqExpr>(if_node->false_branch), {}, 0U, 0U,
                                               {idx}, bindings, preds, succs);
     // now create the merge
-    bindings->push_back(
-        GraphBinding::Create(seq, {}, block_idx, binding_idx, BindingNodeKind::kIfMerge));
+    bindings->push_back(GraphBinding(seq, {}, block_idx, binding_idx, BindingNodeKind::kIfMerge));
     size_t merge_idx = bindings->size() - 1;
     preds->push_back({final_true_idx, final_false_idx});
     succs->push_back({merge_idx + 1});
@@ -142,7 +139,7 @@ ControlFlowGraph ExtractCFG(const Function& func) {
     }
     succ_arr.push_back(succ_ints);
   }
-  return ControlFlowGraph::Create(Array<GraphBinding>(bindings), pred_arr, succ_arr);
+  return ControlFlowGraph(Array<GraphBinding>(bindings), pred_arr, succ_arr);
 }
 
 std::pair<Array<ObjectRef>, Array<ObjectRef>> DataflowAnalysis(
@@ -219,14 +216,13 @@ size_t GetBindingIndex(const ControlFlowGraph& cfg, const SeqExpr& seq, size_t b
 TVM_REGISTER_GLOBAL("relax.analysis.GraphBinding")
     .set_body_typed([](const SeqExpr& seq, const Array<Var>& args, size_t block_idx,
                        size_t binding_idx, int kind) {
-      return GraphBinding::Create(seq, args, block_idx, binding_idx,
-                                  static_cast<BindingNodeKind>(kind));
+      return GraphBinding(seq, args, block_idx, binding_idx, static_cast<BindingNodeKind>(kind));
     });
 
 TVM_REGISTER_GLOBAL("relax.analysis.ControlFlowGraph")
     .set_body_typed([](const Array<GraphBinding>& blocks, const Array<Array<Integer>>& preds,
                        const Array<Array<Integer>>& succs) {
-      return ControlFlowGraph::Create(blocks, preds, succs);
+      return ControlFlowGraph(blocks, preds, succs);
     });
 
 TVM_REGISTER_GLOBAL("relax.analysis.ExtractCFG").set_body_typed(ExtractCFG);

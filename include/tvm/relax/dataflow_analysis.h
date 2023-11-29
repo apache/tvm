@@ -99,8 +99,8 @@ class GraphBinding : public ObjectRef {
    * \param kind: The kind of binding this is. (Used especially to distinguish If node conditions
    * from the merge after the If)
    */
-  TVM_DLL static GraphBinding Create(const SeqExpr& seq, const Array<Var>& args, size_t block_idx,
-                                     size_t binding_idx, BindingNodeKind kind);
+  TVM_DLL GraphBinding(const SeqExpr& seq, const Array<Var>& args, size_t block_idx,
+                       size_t binding_idx, BindingNodeKind kind);
 
   TVM_DEFINE_NOTNULLABLE_OBJECT_REF_METHODS(GraphBinding, ObjectRef, GraphBindingNode);
 };
@@ -136,9 +136,8 @@ class ControlFlowGraph : public ObjectRef {
    * \param preds: List of lists of predecessors to each binding.
    * \param succs: List of lists of successors to each binding.
    */
-  TVM_DLL static ControlFlowGraph Create(const Array<GraphBinding>& bindings,
-                                         const Array<Array<Integer>>& preds,
-                                         const Array<Array<Integer>>& succs);
+  TVM_DLL ControlFlowGraph(const Array<GraphBinding>& bindings, const Array<Array<Integer>>& preds,
+                           const Array<Array<Integer>>& succs);
 
   TVM_DEFINE_NOTNULLABLE_OBJECT_REF_METHODS(ControlFlowGraph, ObjectRef, ControlFlowGraphNode);
 };
