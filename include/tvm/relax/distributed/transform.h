@@ -62,6 +62,12 @@ TVM_DLL Pass LowerGlobalViewToLocalView();
  */
 TVM_DLL Pass LegalizeRedistribute();
 
+/*!
+ * \brief Lower DistIR to Relax
+ *
+ * \return The Pass.
+ */
+TVM_DLL Pass LowerDistIR();
 }  // namespace transform
 }  // namespace distributed
 }  // namespace relax
