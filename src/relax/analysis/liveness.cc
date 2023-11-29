@@ -56,13 +56,11 @@ Domain transfer_func(const GraphBinding& binding, const ObjectRef& input) {
     // the ordinary binding case
     Binding b = binding->seq->blocks[binding->block_idx]->bindings[binding->binding_idx];
     Expr bound_value = GetBoundValue(b);
-    // special case: if the RHS is a function literal, we only care about the free vars
-    // (those captured by the closure)
-    if (bound_value.as<FunctionNode>()) {
-      vars_used = FreeVars(bound_value);
-    } else {
-      vars_used = AllVars(bound_value);
-    }
+    // For a function literal, we only care about the free vars
+    // (those captured by the closure).
+    // In all other cases, we want any var, but since the RHS would not contain
+    // any bindings of its own, that turns out to be the same as the free vars.
+    vars_used = FreeVars(bound_value);
     var_bound = b->var;
   }
 
