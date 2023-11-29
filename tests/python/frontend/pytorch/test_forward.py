@@ -4776,7 +4776,6 @@ def test_masked_fill():
     verify_model(test_fn, [inp.to(torch.float64), inp > 0.5])
 
 
-@pytest.mark.skip(reason="unsupported op: 'aten::scaled_dot_product_attention'")
 def test_transformer():
     """test_transformer"""
     model = torch.nn.Transformer(d_model=256, nhead=8, num_encoder_layers=6, num_decoder_layers=6)
@@ -5487,6 +5486,89 @@ def test_linalg_vector_norm():
     verify_model(test_fn(order=np.inf), input_data=input_data)
     verify_model(test_fn(order=np.NINF), input_data=input_data)
     verify_model(test_fn(order=0), input_data=input_data)
+
+
+@tvm.testing.uses_gpu
+def test_scaled_dot_product_attention():
+    """test_scaled_dot_product_attention"""
+    torch.set_grad_enabled(False)
+
+    def test_fn(attn_mask=None, is_causal=False):
+        return lambda query, key, value: torch.nn.functional.scaled_dot_product_attention(
+            query, key, value, attn_mask=attn_mask, is_causal=is_causal
+        )
+
+    L, S, E, Ev = 5, 7, 11, 13
+    query_4d = torch.randn(2, 3, L, E)
+    query_3d = torch.randn(3, L, E)
+    key_4d = torch.randn(2, 3, S, E)
+    key_3d = torch.randn(3, S, E)
+    value_4d = torch.randn(2, 3, S, Ev)
+    value_3d = torch.randn(3, S, Ev)
+
+    verify_model(test_fn(), [query_4d, key_4d, value_4d])
+    verify_model(test_fn(), [query_4d, key_4d, value_3d])
+    verify_model(test_fn(), [query_4d, key_3d, value_4d])
+    verify_model(test_fn(), [query_4d, key_3d, value_3d])
+    verify_model(test_fn(), [query_3d, key_4d, value_4d])
+    verify_model(test_fn(), [query_3d, key_4d, value_3d])
+    verify_model(test_fn(), [query_3d, key_3d, value_4d])
+    verify_model(test_fn(), [query_3d, key_3d, value_3d])
+
+    verify_model(test_fn(is_causal=True), [query_4d, key_4d, value_4d])
+    verify_model(test_fn(is_causal=True), [query_4d, key_4d, value_3d])
+    verify_model(test_fn(is_causal=True), [query_4d, key_3d, value_4d])
+    verify_model(test_fn(is_causal=True), [query_4d, key_3d, value_3d])
+    verify_model(test_fn(is_causal=True), [query_3d, key_4d, value_4d])
+    verify_model(test_fn(is_causal=True), [query_3d, key_4d, value_3d])
+    verify_model(test_fn(is_causal=True), [query_3d, key_3d, value_4d])
+    verify_model(test_fn(is_causal=True), [query_3d, key_3d, value_3d])
+
+    # Test with explicit attn_mask
+    attn_mask = torch.ones((L, S), dtype=torch.bool).tril(diagonal=0)
+    if torch.cuda.is_available():
+        attn_mask = attn_mask.cuda()
+    verify_model(test_fn(attn_mask=attn_mask), [query_4d, key_4d, value_4d])
+    verify_model(test_fn(attn_mask=attn_mask), [query_4d, key_4d, value_3d])
+    verify_model(test_fn(attn_mask=attn_mask), [query_4d, key_3d, value_4d])
+    verify_model(test_fn(attn_mask=attn_mask), [query_4d, key_3d, value_3d])
+    verify_model(test_fn(attn_mask=attn_mask), [query_3d, key_4d, value_4d])
+    verify_model(test_fn(attn_mask=attn_mask), [query_3d, key_4d, value_3d])
+    verify_model(test_fn(attn_mask=attn_mask), [query_3d, key_3d, value_4d])
+    verify_model(test_fn(attn_mask=attn_mask), [query_3d, key_3d, value_3d])
+
+    # Test with float64
+    query_4d = torch.randn(2, 3, L, E, dtype=torch.float64)
+    query_3d = torch.randn(3, L, E, dtype=torch.float64)
+    key_4d = torch.randn(2, 3, S, E, dtype=torch.float64)
+    key_3d = torch.randn(3, S, E, dtype=torch.float64)
+    value_4d = torch.randn(2, 3, S, Ev, dtype=torch.float64)
+    value_3d = torch.randn(3, S, Ev, dtype=torch.float64)
+    verify_model(test_fn(), [query_4d, key_4d, value_4d])
+    verify_model(test_fn(), [query_4d, key_4d, value_3d])
+    verify_model(test_fn(), [query_4d, key_3d, value_4d])
+    verify_model(test_fn(), [query_4d, key_3d, value_3d])
+    verify_model(test_fn(), [query_3d, key_4d, value_4d])
+    verify_model(test_fn(), [query_3d, key_4d, value_3d])
+    verify_model(test_fn(), [query_3d, key_3d, value_4d])
+    verify_model(test_fn(), [query_3d, key_3d, value_3d])
+
+    # Test with larger tensors
+    L, S, E, Ev = 128, 128, 64, 64
+    query_4d = torch.randn(32, 8, L, E)
+    query_3d = torch.randn(8, L, E)
+    key_4d = torch.randn(32, 8, S, E)
+    key_3d = torch.randn(8, S, E)
+    value_4d = torch.randn(32, 8, S, Ev)
+    value_3d = torch.randn(8, S, Ev)
+    verify_model(test_fn(), [query_4d, key_4d, value_4d])
+    verify_model(test_fn(), [query_4d, key_4d, value_3d])
+    verify_model(test_fn(), [query_4d, key_3d, value_4d])
+    verify_model(test_fn(), [query_4d, key_3d, value_3d])
+    verify_model(test_fn(), [query_3d, key_4d, value_4d])
+    verify_model(test_fn(), [query_3d, key_4d, value_3d])
+    verify_model(test_fn(), [query_3d, key_3d, value_4d])
+    verify_model(test_fn(), [query_3d, key_3d, value_3d])
 
 
 class TestSetSpan:
