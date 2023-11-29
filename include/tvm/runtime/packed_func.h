@@ -559,20 +559,20 @@ class TVMPODValue_ {
     // Allow automatic conversion from int to float
     // This avoids errors when user pass in int from
     // the frontend while the API expects a float.
-    if (auto opt = TryAsBool()) {
+    if (auto opt = TryAsFloat()) {
       return opt.value();
     } else if (auto opt = TryAsInt()) {
       return opt.value();
-    } else if (auto opt = TryAsFloat()) {
+    } else if (auto opt = TryAsBool()) {
       return opt.value();
     } else {
       LOG(FATAL) << TVM_LOG_INCORRECT_TYPE_CODE(type_code_, kDLFloat);
     }
   }
   operator int64_t() const {
-    if (auto opt = TryAsBool()) {
+    if (auto opt = TryAsInt()) {
       return opt.value();
-    } else if (auto opt = TryAsInt()) {
+    } else if (auto opt = TryAsBool()) {
       return opt.value();
     } else if (IsObjectRef<ObjectRef>()) {
       auto obj = AsObjectRef<ObjectRef>();
