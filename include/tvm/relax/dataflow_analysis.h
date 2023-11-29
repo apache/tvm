@@ -48,7 +48,7 @@ namespace relax {
  *     the SeqExprs in the true and false branches)
  *  4. The body expression in a SeqExpr (not actually bound)
  */
-enum BindingNodeKind : int { kBinding = 0, kIfCond = 1, kIfMerge = 2, kSeqBody = 3 };
+enum class BindingNodeKind { kBinding = 0, kIfCond = 1, kIfMerge = 2, kSeqBody = 3 };
 
 class GraphBindingNode : public Object {
  public:
