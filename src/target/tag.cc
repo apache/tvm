@@ -75,36 +75,36 @@ TVM_REGISTER_TARGET_TAG("raspberry-pi/4b-aarch64")
                  {"mtriple", String("aarch64-linux-gnu")},
                  {"mcpu", String("cortex-a72")},
                  {"mattr", Array<String>{"+neon"}},
-                 {"num-cores", runtime::BoxInt(4)},
+                 {"num-cores", runtime::Int(4)},
                  {"host", Map<String, ObjectRef>{{"kind", String("llvm")},
                                                  {"mtriple", String("aarch64-linux-gnu")},
                                                  {"mcpu", String("cortex-a72")},
                                                  {"mattr", Array<String>{"+neon"}},
-                                                 {"num-cores", runtime::BoxInt(4)}}}});
+                                                 {"num-cores", runtime::Int(4)}}}});
 
 TVM_REGISTER_TARGET_TAG("nvidia/jetson-agx-xavier")
     .set_config({{"kind", String("cuda")},
                  {"arch", String("sm_72")},
-                 {"max_shared_memory_per_block", runtime::BoxInt(49152)},
-                 {"max_threads_per_block", runtime::BoxInt(1024)},
-                 {"thread_warp_size", runtime::BoxInt(32)},
-                 {"registers_per_block", runtime::BoxInt(65536)},
+                 {"max_shared_memory_per_block", runtime::Int(49152)},
+                 {"max_threads_per_block", runtime::Int(1024)},
+                 {"thread_warp_size", runtime::Int(32)},
+                 {"registers_per_block", runtime::Int(65536)},
                  {"host", Map<String, ObjectRef>{{"kind", String("llvm")},
                                                  {"mtriple", String("aarch64-linux-gnu")},
                                                  {"mcpu", String("carmel")},
-                                                 {"num-cores", runtime::BoxInt(8)}}}});
+                                                 {"num-cores", runtime::Int(8)}}}});
 
 TVM_REGISTER_TARGET_TAG("nvidia/jetson-orin-nano")
     .set_config({{"kind", String("cuda")},
                  {"arch", String("sm_87")},
-                 {"max_shared_memory_per_block", runtime::BoxInt(49152)},
-                 {"max_threads_per_block", runtime::BoxInt(1024)},
-                 {"thread_warp_size", runtime::BoxInt(32)},
-                 {"registers_per_block", runtime::BoxInt(65536)},
+                 {"max_shared_memory_per_block", runtime::Int(49152)},
+                 {"max_threads_per_block", runtime::Int(1024)},
+                 {"thread_warp_size", runtime::Int(32)},
+                 {"registers_per_block", runtime::Int(65536)},
                  {"host", Map<String, ObjectRef>{{"kind", String("llvm")},
                                                  {"mtriple", String("aarch64-linux-gnu")},
                                                  {"mcpu", String("carmel")},
-                                                 {"num-cores", runtime::BoxInt(6)}}}});
+                                                 {"num-cores", runtime::Int(6)}}}});
 
 TVM_REGISTER_TARGET_TAG("nvidia/jetson-agx-orin-32gb")
     .set_config({{"kind", String("cuda")},

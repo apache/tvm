@@ -96,7 +96,7 @@ class Box : public ObjectRef {
  * Can be used to store POD integer values as a TVM ObjectRef.  Used
  * for FFI handling, and for storing POD types inside TVM containers.
  */
-using BoxInt = Box<int64_t>;
+using Int = Box<int64_t>;
 
 /*! \brief Boxed version of C++ double
  *
@@ -104,7 +104,7 @@ using BoxInt = Box<int64_t>;
  * Used for FFI handling, and for storing POD types inside TVM
  * containers.
  */
-using BoxFloat = Box<double>;
+using Float = Box<double>;
 
 /*! \brief Boxed version of C++ bool
  *
@@ -118,7 +118,7 @@ using BoxFloat = Box<double>;
  * hold the object, a Python to C++ to Python round trip will preserve
  * the distinction between bool and int.
  */
-using BoxBool = Box<bool>;
+using Bool = Box<bool>;
 
 namespace detail {
 template <>

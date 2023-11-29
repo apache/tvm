@@ -1191,7 +1191,7 @@ struct PackedFuncValueConverter<PrimExpr> {
     if (auto opt = val.TryAsBool()) {
       // Check against val.TryAsBool directly, to avoid the
       // bounds-checking in PackedFuncValueConverter<Bool>::TryFrom.
-      return Bool(opt.value());
+      return tvm::Bool(opt.value());
     } else if (auto opt = PackedFuncValueConverter<IntImm>::TryFrom(val)) {
       return opt.value();
     } else if (auto opt = PackedFuncValueConverter<FloatImm>::TryFrom(val)) {

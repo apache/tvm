@@ -822,12 +822,12 @@ template <>
 struct PackedFuncValueConverter<tvm::Bool> {
   static Optional<tvm::Bool> TryFrom(const TVMPODValue_& val) {
     if (auto opt = val.TryAsBool()) {
-      return Bool(opt.value());
+      return tvm::Bool(opt.value());
     } else if (auto opt = val.TryAsInt()) {
       int value = opt.value();
       ICHECK(value == 0 || value == 1)
           << "ValueError: boolean value can only be 0 or 1, but get " << value;
-      return Bool(static_cast<bool>(value));
+      return tvm::Bool(static_cast<bool>(value));
     } else {
       return NullOpt;
     }

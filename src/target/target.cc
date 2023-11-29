@@ -359,8 +359,8 @@ const TargetKindNode::ValueTypeInfo& TargetInternal::FindTypeInfo(const TargetKi
 ObjectRef TargetInternal::ParseType(const std::string& str,
                                     const TargetKindNode::ValueTypeInfo& info) {
   std::string interp_str = Interpret(str);
-  if (info.type_index == runtime::BoxInt::ContainerType::_GetOrAllocRuntimeTypeIndex() ||
-      info.type_index == runtime::BoxBool::ContainerType::_GetOrAllocRuntimeTypeIndex()) {
+  if (info.type_index == runtime::Int::ContainerType::_GetOrAllocRuntimeTypeIndex() ||
+      info.type_index == runtime::Bool::ContainerType::_GetOrAllocRuntimeTypeIndex()) {
     // Parsing integer or boolean
     std::istringstream is(interp_str);
     int v;
@@ -379,10 +379,10 @@ ObjectRef TargetInternal::ParseType(const std::string& str,
       }
     }
 
-    if (info.type_index == runtime::BoxInt::ContainerType::_GetOrAllocRuntimeTypeIndex()) {
-      return runtime::BoxInt(v);
+    if (info.type_index == runtime::Int::ContainerType::_GetOrAllocRuntimeTypeIndex()) {
+      return runtime::Int(v);
     } else {
-      return runtime::BoxBool(v);
+      return runtime::Bool(v);
     }
   } else if (info.type_index == String::ContainerType::_GetOrAllocRuntimeTypeIndex()) {
     // Parsing string, strip leading/trailing spaces, and enclosing quotes if any
@@ -417,10 +417,9 @@ ObjectRef TargetInternal::ParseType(const std::string& str,
 
 ObjectRef TargetInternal::ParseType(const ObjectRef& obj,
                                     const TargetKindNode::ValueTypeInfo& info) {
-  if (info.type_index == runtime::BoxInt::ContainerType::_GetOrAllocRuntimeTypeIndex()) {
+  if (info.type_index == runtime::Int::ContainerType::_GetOrAllocRuntimeTypeIndex()) {
     // Parsing integer
-    return GetRef<runtime::BoxInt>(
-        ObjTypeCheck<runtime::BoxInt::ContainerType>(obj, "runtime.BoxInt"));
+    return GetRef<runtime::Int>(ObjTypeCheck<runtime::Int::ContainerType>(obj, "runtime.BoxInt"));
   } else if (info.type_index == String::ContainerType::RuntimeTypeIndex()) {
     // Parsing string
     return GetRef<String>(ObjTypeCheck<StringObj>(obj, "String"));
@@ -491,9 +490,9 @@ ObjectRef TargetInternal::ParseType(const ObjectRef& obj,
 /**********  Stringifying  **********/
 
 std::string TargetInternal::StringifyAtomicType(const ObjectRef& obj) {
-  if (const auto* p = obj.as<runtime::BoxNode<int64_t>>()) {
+  if (const auto* p = obj.as<runtime::Int::ContainerType>()) {
     return std::to_string(p->value);
-  } else if (const auto* p = obj.as<runtime::BoxNode<bool>>()) {
+  } else if (const auto* p = obj.as<runtime::Bool::ContainerType>()) {
     return std::to_string(p->value);
   }
   if (auto tvm_str = obj.as<String>()) {
@@ -963,7 +962,7 @@ ObjectPtr<Object> TargetInternal::FromConfig(Map<String, ObjectRef> config) {
   // If requested, query attributes from the device.  User-specified
   // parameters take precedence over queried parameters.
   if (attrs.count("from_device")) {
-    int device_id = Downcast<runtime::BoxInt>(attrs.at("from_device"))->value;
+    int device_id = Downcast<runtime::Int>(attrs.at("from_device"))->value;
     attrs.erase("from_device");
     auto device_params = QueryDevice(device_id, target.get());
 

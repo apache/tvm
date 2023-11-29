@@ -2071,11 +2071,11 @@ inline void TVMArgsSetter::SetObject(size_t i, T&& value) const {
   // `TVMRetValue`.  Instead, this conversion is checked in the FFI
   // return value, to ensure that boxing/unboxing is applied
   // consistently.
-  if constexpr (std::is_base_of_v<BoxInt::ContainerType, ContainerType> ||
-                std::is_base_of_v<ContainerType, BoxInt::ContainerType>) {
-    if (std::is_base_of_v<BoxInt::ContainerType, ContainerType> ||
-        ptr->IsInstance<BoxInt::ContainerType>()) {
-      values_[i].v_int64 = static_cast<BoxInt::ContainerType*>(ptr)->value;
+  if constexpr (std::is_base_of_v<Int::ContainerType, ContainerType> ||
+                std::is_base_of_v<ContainerType, Int::ContainerType>) {
+    if (std::is_base_of_v<Int::ContainerType, ContainerType> ||
+        ptr->IsInstance<Int::ContainerType>()) {
+      values_[i].v_int64 = static_cast<Int::ContainerType*>(ptr)->value;
       type_codes_[i] = kTVMArgInt;
       return;
     }
@@ -2083,11 +2083,11 @@ inline void TVMArgsSetter::SetObject(size_t i, T&& value) const {
 
   // Like with BoxInt, unwrap any BoxFloat instances.  See the BoxInt
   // explanation for more detail.
-  if constexpr (std::is_base_of_v<BoxFloat::ContainerType, ContainerType> ||
-                std::is_base_of_v<ContainerType, BoxFloat::ContainerType>) {
-    if (std::is_base_of_v<BoxFloat::ContainerType, ContainerType> ||
-        ptr->IsInstance<BoxFloat::ContainerType>()) {
-      values_[i].v_float64 = static_cast<BoxFloat::ContainerType*>(ptr)->value;
+  if constexpr (std::is_base_of_v<Float::ContainerType, ContainerType> ||
+                std::is_base_of_v<ContainerType, Float::ContainerType>) {
+    if (std::is_base_of_v<Float::ContainerType, ContainerType> ||
+        ptr->IsInstance<Float::ContainerType>()) {
+      values_[i].v_float64 = static_cast<Float::ContainerType*>(ptr)->value;
       type_codes_[i] = kTVMArgFloat;
       return;
     }
@@ -2219,15 +2219,15 @@ inline TObjectRef TVMPODValue_::AsObjectRef() const {
     }
   }
 
-  if constexpr (std::is_base_of_v<TObjectRef, BoxInt>) {
+  if constexpr (std::is_base_of_v<TObjectRef, Int>) {
     if (type_code_ == kTVMArgInt) {
-      return BoxInt(value_.v_int64);
+      return Int(value_.v_int64);
     }
   }
 
-  if constexpr (std::is_base_of_v<TObjectRef, BoxFloat>) {
+  if constexpr (std::is_base_of_v<TObjectRef, Float>) {
     if (type_code_ == kTVMArgFloat) {
-      return BoxFloat(value_.v_float64);
+      return Float(value_.v_float64);
     }
   }
 
@@ -2270,19 +2270,16 @@ inline TVMRetValue& TVMRetValue::operator=(TObjectRef other) {
     }
   }
 
-  if constexpr (std::is_base_of_v<BoxInt, TObjectRef> || std::is_base_of_v<TObjectRef, BoxInt>) {
-    if (ptr &&
-        (std::is_base_of_v<BoxInt, TObjectRef> || ptr->IsInstance<BoxInt::ContainerType>())) {
-      int64_t value = static_cast<const BoxInt::ContainerType*>(ptr)->value;
+  if constexpr (std::is_base_of_v<Int, TObjectRef> || std::is_base_of_v<TObjectRef, Int>) {
+    if (ptr && (std::is_base_of_v<Int, TObjectRef> || ptr->IsInstance<Int::ContainerType>())) {
+      int64_t value = static_cast<const Int::ContainerType*>(ptr)->value;
       return operator=(value);
     }
   }
 
-  if constexpr (std::is_base_of_v<BoxFloat, TObjectRef> ||
-                std::is_base_of_v<TObjectRef, BoxFloat>) {
-    if (ptr &&
-        (std::is_base_of_v<BoxFloat, TObjectRef> || ptr->IsInstance<BoxFloat::ContainerType>())) {
-      double value = static_cast<const BoxFloat::ContainerType*>(ptr)->value;
+  if constexpr (std::is_base_of_v<Float, TObjectRef> || std::is_base_of_v<TObjectRef, Float>) {
+    if (ptr && (std::is_base_of_v<Float, TObjectRef> || ptr->IsInstance<Float::ContainerType>())) {
+      double value = static_cast<const Float::ContainerType*>(ptr)->value;
       return operator=(value);
     }
   }
