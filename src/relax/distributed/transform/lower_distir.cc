@@ -63,7 +63,7 @@ class DistIRSharder : public ExprMutator {
   ShapeExpr ShardShape(ShapeExpr orig_shape, DeviceMesh device_mesh, Placement placement) {
     ShapeTuple device_mesh_shape = device_mesh->shape;
     Array<PrimExpr> new_tensor_shape_value = orig_shape->values;
-    for (int i = 0; i < device_mesh_shape.size(); i++) {
+    for (int i = 0; i < static_cast<int>(device_mesh_shape.size()); i++) {
       if (placement->dim_specs[i]->kind == PlacementSpecKind::kSharding) {
         int shard_size = device_mesh_shape[i];
         int axis = placement->dim_specs[i]->axis;
