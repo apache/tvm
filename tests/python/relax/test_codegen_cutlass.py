@@ -2199,7 +2199,9 @@ def test_attention_rewrite_multi_query():
     tvm.testing.assert_allclose(out, ref, rtol=1e-2, atol=1e-2)
 
 
-def _test_batched_var_len_attention(mod, seq_lens, num_head, num_kv_head, head_size, window_size=None):
+def _test_batched_var_len_attention(
+    mod, seq_lens, num_head, num_kv_head, head_size, window_size=None
+):
     if not tvm.get_global_func("tvm.contrib.thrust.sum_scan", True):
         return
 
@@ -2476,5 +2478,4 @@ def test_batched_var_len_sliding_window():
 
 
 if __name__ == "__main__":
-    # tvm.testing.main()
-    test_batched_var_len_sliding_window()
+    tvm.testing.main()
