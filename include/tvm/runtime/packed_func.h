@@ -2367,14 +2367,28 @@ struct PackedFuncValueConverter<Array<T>> {
     // type.  If the items do not require a conversion, no copies are
     // made.
     return untyped_array.Map([](ObjectRef item) {
-      // The TVMArgValue is intentionally defined through
-      // `TVMArgsSetter`, rather than defining it with
-      // `value.data_ = item.get();` and type code
-      // `kTVMObjectHandle`.  `TVMArgsSetter::operator()` includes
-      // special handling for unwrapping boxed primitives,
-      // PackedFunc, runtime::Module, etc, which should be checked
-      // before delegating to the array element's
-      // PackedFuncValueConverter implementation.
+      // Recursively apply any conversions that have been registered
+      // with TVM's FFI.
+      //
+      // For example, a function that accepts `Array<PrimExpr>` may
+      // be called from python with argument `[1,2]`.  By the time
+      // `PackedFuncValueConverter::From` is called, the python list
+      // has been converted to `Array<ObjectRef>`, with contents
+      // converted into `runtime::Int`.  Converting the `ObjectRef`
+      // to `TVMArgValue` unboxes the `runtime::Int` back into a
+      // primitive with type code `kTVMArgInt`.  This primitive can
+      // then be converted to a PrimExpr using
+      // `PackedFuncValueConverter<PrimExpr>::From`.
+      //
+      // The use of two conversions, first from python `int` to
+      // `runtime::Int` and then from `runtime::Int` to `PrimExpr`,
+      // is a result of the split between `libtvm_runtime.so` and
+      // `libtvm.so`.  The FFI must function correctly in both
+      // cases, and so conversions applied by default in the Python
+      // FFI implementation may only produce types that are
+      // available in both libraries.  In the C++ FFI implementation
+      // (i.e. this file), libtvm.so may apply additional
+      // conversions that are not present in libtvm_runtime.so.
       TVMValue value;
       int type_code;
       TVMArgsSetter setter(&value, &type_code);
