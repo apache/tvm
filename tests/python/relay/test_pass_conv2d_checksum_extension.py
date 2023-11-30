@@ -184,8 +184,9 @@ def test_mixed_conv2d():
         #depthwise conv
         y0 = relay.ones(shape=w1_ones_shape, dtype="int8")
         y1 = relay.nn.conv2d(x1, y0, padding=(0,0), groups=int(w1_ones_shape[0]), channels=w1_ones_shape[0], kernel_size=[w1_ones_shape[2], w1_ones_shape[3]], out_dtype="int32")
-        y2 = relay.reshape(w1, newshape=(w1.type_annotation.shape[1],w1.type_annotation.shape[0],w1.type_annotation.shape[2],w1.type_annotation.shape[3]))
-        y2 = relay.cast(y2, dtype="int32")
+        y2 = relay.cast(w1, dtype="int32")
+        y2 = relay.sum(y2, axis=[1], keepdims=True)
+        y2 = relay.reshape(y2, newshape=(1, w1.type_annotation.shape[0] ,w1.type_annotation.shape[2],w1.type_annotation.shape[3]))
         y3 = relay.sum(y1, axis=[0], keepdims=True)
         y5 = relay.nn.conv2d(y3, y2, padding=(0,0), channels=1, groups=1, kernel_size=[w1.type_annotation.shape[2], w1.type_annotation.shape[3]], out_dtype="int64")
         y7 = relay.cast(conv, dtype="int64")
@@ -250,8 +251,9 @@ def test_single_depthwise_conv2d():
         args = [x, w1]
         y0 = relay.ones(shape=ones_shape, dtype="int8")
         y1 = relay.nn.conv2d(x, y0, padding=(0,0), groups=int(ones_shape[0]), channels=ones_shape[0], kernel_size=[ones_shape[2], ones_shape[3]], out_dtype="int32")
-        y2 = relay.reshape(w1, newshape=(w1.type_annotation.shape[1],w1.type_annotation.shape[0],w1.type_annotation.shape[2],w1.type_annotation.shape[3]))
-        y2 = relay.cast(y2, dtype="int32")
+        y2 = relay.cast(w1, dtype="int32")
+        y2 = relay.sum(y2, axis=[1], keepdims=True)
+        y2 = relay.reshape(y2, newshape=(1, w1.type_annotation.shape[0] ,w1.type_annotation.shape[2],w1.type_annotation.shape[3]))
         y3 = relay.sum(y1, axis=[0], keepdims=True)
         y5 = relay.nn.conv2d(y3, y2, padding=(0,0), channels=1, groups=1, kernel_size=[w1.type_annotation.shape[2], w1.type_annotation.shape[3]], out_dtype="int64")
         y6 = relay.nn.conv2d(x, w1, out_dtype="int32",groups=int(w1.type_annotation.shape[0]),channels=w1.type_annotation.shape[0])

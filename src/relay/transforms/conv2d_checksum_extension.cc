@@ -37,6 +37,7 @@
 #include <unordered_map>
 #include <unordered_set>
 #include <tuple>
+#include <utility>
 
 #include "pattern_utils.h"
 
@@ -98,16 +99,16 @@
 *
  * Depthwise Conv2D
  *
- *      x(N,C,H,W)   w(C,1,S,R)   ones(C,1,P,Q)    x(N,C,H,W)   w(C,1,S,R)
+ *      x(N,C,H,W)   w(C,1,S,R)   ones(C,1,P,Q)    x(N,C,H,W)   w(C,K,S,R)
  *           |           |              \            /                 |
  *           |           |               \          /                  |
- *           |           |            depthwise_conv2d          reshape(w(C,1,S,R)->w(1,C,S,R))
+ *           |           |            depthwise_conv2d             cast("32bit")
  *            \         /                 (N,C,S,R)                   |
- *             \       /                     |                        |
- *              \     /                      |                       /
+ *             \       /                     |                   sum(Axis={1},
+ *              \     /                      |                   keepdims=true)
  *               \   /                       \                      /
- *          depth_conv2D                 sum(Axis={0},          cast("32bit")
- *               /  \                     keepdims=true)          /
+ *          depth_conv2D                 sum(Axis={0},             /
+ *               /  \                     keepdims=true)     reshape(w(C,1,S,R)->w(1,C,S,R))
  *              /    \                           \               /
  *             /      \                           \             /
  *            /     cast("64bit")              conv2D(1,C,S,R)*(1,C,S,R)
@@ -262,8 +263,8 @@ tvm::relay::TShapeDataDependent infer_weight_for_tensor_tensor_dot(const Call or
 
         new_shape[dim_pos.pos_H] =  Downcast<IntImm>(weight_shape[dim_pos.pos_H]);
         new_shape[dim_pos.pos_W] =  Downcast<IntImm>(weight_shape[dim_pos.pos_W]);
-        new_shape[dim_pos.pos_O] =  Downcast<IntImm>(weight_shape[dim_pos.pos_I]); //switch between C and K for same dimensions
-        new_shape[dim_pos.pos_I] =  Downcast<IntImm>(weight_shape[dim_pos.pos_O]);
+        new_shape[dim_pos.pos_O] =  Downcast<IntImm>(PrimExpr(1)); //required to be 1 after summation of depth_multiplier axis in kernel
+        new_shape[dim_pos.pos_I] =  Downcast<IntImm>(weight_shape[dim_pos.pos_O]); //switch between C and K for same dimensions
 
         return {static_cast<int32_t>(new_shape[0]->value), static_cast<int32_t>(new_shape[1]->value),
                 static_cast<int32_t>(new_shape[2]->value), static_cast<int32_t>(new_shape[3]->value)};
@@ -353,11 +354,6 @@ IRModule Extend2DConv(const IRModule& mod) {
         
         auto cast_attr_64bit = make_object<CastAttrs>();
         cast_attr_64bit->dtype = DataType::Int(64);
-        ///SUM Attr
-        // sum up elements Kernel/batchwise
-        auto reduce_axis_attrs = make_object<ReduceAttrs>();
-        reduce_axis_attrs->keepdims = true;  // 4D -> 4D We want a Conv2D (tensor*tensor) tensor = (1,C,H,W)
-        reduce_axis_attrs->exclude  = false;
         //elemwise sum operation
         auto reduce_elemwise_attrs = make_object<ReduceAttrs>();
         reduce_elemwise_attrs->axis = {0,1,2,3};  // look in sry/relay/op/tensor/reduce.cc l.451 for example
@@ -379,7 +375,6 @@ IRModule Extend2DConv(const IRModule& mod) {
         //search layout string for position of N,C,H,W in data layout
         tensor_data_dim_pos data_dim_pos = infer_data_tensor_dim_pos(orig_conv_attr);
         tensor_weight_dim_pos weight_dim_pos = infer_weight_tensor_dim_pos(orig_conv_attr);
-        reduce_axis_attrs->axis = {data_dim_pos.pos_N}; //Get the N-th dimension in input layout
 
         const auto input  = origin_conv2d->args[0];
         const auto weight = origin_conv2d->args[1];
@@ -411,18 +406,18 @@ IRModule Extend2DConv(const IRModule& mod) {
 
 /*
 *                     standard conv2D:                                   depthwise conv2D:
- *                             w(K,C,S,R)                                      w(C,1,S,R)
- *                                 |                                               |
- *                                 |                                               |
- *                                 |                                               |
- *                                 |                                               |
- *                                 |                                               |
- *                            cast("32bit")                           reshape(w(C,1,S,R)->w(1,C,S,R))
+ *                             w(K,C,S,R)                                      w(C,K,S,R)
+ *                                 |                                              |
+ *                                 |                                              |
+ *                                 |                                          cast("32bit")
+ *                                 |                                              |
+ *                                 |                                          sum(Axis={1},
+ *                            cast("32bit")                                    keepdims=true)
  *                                 |                                              |
  *                                 |                                              |
  *       |                         |                            |                /
  *    sum(Axis={0},           sum(Axis={0},                     \               /
- *    keepdims=true)          keepdims=true)      vs.       sum(Axis={0},     cast(32bit)
+ *    keepdims=true)          keepdims=true)      vs.       sum(Axis={0},   reshape(w(C,1,S,R)->w(1,C,S,R))
  *          \                /                              keepdims=true)    /
  *           \              /                                    \           /
  *            \            /                                      \         /
@@ -431,8 +426,11 @@ IRModule Extend2DConv(const IRModule& mod) {
  *                /                                                /
  *               /                                                /
 */      
-       
-        Call batchwise_sum_input(sum_op, {depthwise_conv}, Attrs(reduce_axis_attrs));  // use batch as axis for depthwise sum
+        auto reduce_batch_axis_attrs = make_object<ReduceAttrs>();
+        reduce_batch_axis_attrs->keepdims = true;  // 4D -> 4D We want a Conv2D (tensor*tensor) tensor = (1,C,S,R)
+        reduce_batch_axis_attrs->exclude  = false;
+        reduce_batch_axis_attrs->axis = {data_dim_pos.pos_N}; //Get the N-th dimension in input layout
+        Call batchwise_sum_input(sum_op, {depthwise_conv}, Attrs(reduce_batch_axis_attrs));  // use batch as axis for depthwise sum
         Call filterwise_sum_input;
         bool depth = IsDepthwiseConv(origin_conv2d, orig_conv_attr, orig_conv_attr->kernel_layout);
 
@@ -441,22 +439,28 @@ IRModule Extend2DConv(const IRModule& mod) {
         }else{
           cast_attr_32bit->dtype = DataType::UInt(32);
         }
-
+        //Cast required for both convolutions
+        Call weight_32bit(cast_op, {weight}, Attrs(cast_attr_32bit));
         if(!depth){
           // normal Conv
-          Call weight_32bit(cast_op, {weight}, Attrs(cast_attr_32bit));
-          reduce_axis_attrs->axis = {weight_dim_pos.pos_O}; //Get the K-th dimension in data layout
-          filterwise_sum_input = Call(sum_op, {weight_32bit},  Attrs(reduce_axis_attrs));  // add each element of indiv filter
+          auto reduce_filter_axis_attrs = make_object<ReduceAttrs>();
+          reduce_filter_axis_attrs->keepdims = true;
+          reduce_filter_axis_attrs->exclude  = false;
+          reduce_filter_axis_attrs->axis = {weight_dim_pos.pos_O}; //Get the N-th dimension in data layout
+          filterwise_sum_input = Call(sum_op, {weight_32bit},  Attrs(reduce_filter_axis_attrs));  // add each element of indiv filter
         }else{
           //depthwise Conv
-          ///TODO: depth-multiplier feature implemented in TVM with multiple filter channel size in TVM
+          auto reduce_filter_depth_axis_attrs = make_object<ReduceAttrs>();
+          reduce_filter_depth_axis_attrs->keepdims = true;
+          reduce_filter_depth_axis_attrs->exclude  = false;
+          reduce_filter_depth_axis_attrs->axis = {weight_dim_pos.pos_I}; //Get the K-th dimension in kernel layout = depth_multiplier
+          Call filterwise_sum_input_wrong_dim = Call(sum_op, {weight_32bit},  Attrs(reduce_filter_depth_axis_attrs));  // add each element of indiv filter
           auto reshape_attrs = make_object<ReshapeAttrs>();  // reshape(w(C,1,S,R)->w(1,C,S,R)) for NCHW
           reshape_attrs->newshape = infer_weight_for_tensor_tensor_dot(origin_conv2d, weight_dim_pos);
-          auto filterwise_sum_8bit = Call(reshape, {weight},  Attrs(reshape_attrs));
-          filterwise_sum_input = Call(cast_op, {filterwise_sum_8bit}, Attrs(cast_attr_32bit));
+          filterwise_sum_input = Call(reshape, {filterwise_sum_input_wrong_dim},  Attrs(reshape_attrs));
         }
         // Simple Vector-Vector dot product of 3D Tensors (Checksum dot product)
-        auto weight_shape = origin_conv2d->args[1]->type_as<TensorTypeNode>()->shape;
+        Shape weight_shape = origin_conv2d->args[1]->type_as<TensorTypeNode>()->shape;
         auto ten_ten_prod_attr = create_ten_ten_prod_attr(weight_shape, orig_conv_attr, weight_dim_pos);
         Call ten_ten_prod(conv2d_op, {batchwise_sum_input, filterwise_sum_input}, Attrs(ten_ten_prod_attr));
         
