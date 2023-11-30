@@ -5200,7 +5200,7 @@ def from_pytorch(
         types. The exported text file can be the reference to spans.
 
     preserve_pytorch_scopes : bool
-        When naming the different nodes in the Relay graph, use the "scope name" from the Pytorch graph.
+        When naming the nodes in the Relay graph, use the "scope name" from the Pytorch model.
         If false, a default namer is used that does not preserve the Pytorch scope names.
 
     Returns
