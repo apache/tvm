@@ -21,7 +21,7 @@ import shutil
 import tempfile
 import types
 from functools import partial
-from typing import List, Any
+from typing import List, Any, Union
 from importlib.machinery import SourceFileLoader
 
 from .namespace import MSCMap, MSCKey, MSCFramework
@@ -257,7 +257,7 @@ def msc_dir(path: str = None, keep_history: bool = True, cleanup: bool = False) 
 
 
 def set_workspace(
-    path: str = None, keep_history: bool = True, cleanup: bool = False
+    path: Union[str, MSCDirectory] = None, keep_history: bool = True, cleanup: bool = False
 ) -> MSCDirectory:
     """Create MSCDirectory as worksapce and set to map
 
@@ -276,6 +276,9 @@ def set_workspace(
         The created dir.
     """
 
+    if isinstance(path, MSCDirectory):
+        MSCMap.set(MSCKey.WORKSPACE, path)
+        return path
     path = path or "msc_workspace"
     workspace = MSCDirectory(path, keep_history, cleanup)
     MSCMap.set(MSCKey.WORKSPACE, workspace)

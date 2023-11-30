@@ -841,11 +841,11 @@ void MSCGraphNode::AnalysisGraph() {
   }
 }
 
-WeightGraph::WeightGraph(const MSCGraph& graph, const Map<String, Array<String>>& prunable_types,
-                         const Map<String, String>& relation_types) {
+WeightGraph::WeightGraph(const MSCGraph& graph, const Map<String, Array<String>>& main_wtypes,
+                         const Map<String, String>& relation_wtypes) {
   ObjectPtr<WeightGraphNode> n = make_object<WeightGraphNode>();
   n->name = graph->name + "_weights";
-  n->Build(graph, prunable_types, relation_types);
+  n->Build(graph, main_wtypes, relation_wtypes);
   data_ = std::move(n);
 }
 
@@ -861,13 +861,13 @@ WeightGraph::WeightGraph(const std::string& json_str) {
   data_ = std::move(n);
 }
 
-void WeightGraphNode::Build(const MSCGraph& graph, const Map<String, Array<String>>& prunable_types,
-                            const Map<String, String>& relation_types) {
+void WeightGraphNode::Build(const MSCGraph& graph, const Map<String, Array<String>>& main_wtypes,
+                            const Map<String, String>& relation_wtypes) {
   auto sort_nodes = [&graph](const BaseJoint& node_a, const BaseJoint& node_b) {
     return graph->FindProducer(node_a->name)->index < graph->FindProducer(node_b->name)->index;
   };
 
-  auto find_parents = [this, &prunable_types, &relation_types, &sort_nodes](const MSCJoint& node) {
+  auto find_parents = [this, &main_wtypes, &relation_wtypes, &sort_nodes](const MSCJoint& node) {
     std::vector<BaseJoint> parents;
     std::queue<MSCJoint> frontier;
     std::set<MSCJoint> explored;
@@ -881,13 +881,13 @@ void WeightGraphNode::Build(const MSCGraph& graph, const Map<String, Array<Strin
         continue;
       }
       explored.insert(current);
-      if (prunable_types.count(current->optype)) {
-        for (const auto& t_type : prunable_types[current->optype]) {
+      if (main_wtypes.count(current->optype)) {
+        for (const auto& t_type : main_wtypes[current->optype]) {
           if (current->weights.count(t_type)) {
             parents.push_back(FindNode(current->WeightAt(t_type)->name));
           }
         }
-      } else if (relation_types.count(current->optype)) {
+      } else if (relation_wtypes.count(current->optype)) {
         parents.push_back(FindNode(current->OutputAt(0)->name));
       } else {
         for (const auto& p : current->parents) {
@@ -914,11 +914,11 @@ void WeightGraphNode::Build(const MSCGraph& graph, const Map<String, Array<Strin
     if (node->shared_ref.size() > 0) {
       continue;
     }
-    if (prunable_types.count(node->optype) || relation_types.count(node->optype) ||
+    if (main_wtypes.count(node->optype) || relation_wtypes.count(node->optype) ||
         node->weights.size() > 0) {
       const auto& w_parents = find_parents(node);
       bool bind_friends = true;
-      if (relation_types.count(node->optype) && relation_types[node->optype] == "multi_inputs") {
+      if (relation_wtypes.count(node->optype) && relation_wtypes[node->optype] == "multi_inputs") {
         bind_friends = false;
       }
       if (w_parents.size() > 1 && bind_friends) {
@@ -926,13 +926,13 @@ void WeightGraphNode::Build(const MSCGraph& graph, const Map<String, Array<Strin
           Downcast<WeightJoint>(p)->friends = w_parents;
         }
       }
-      if (prunable_types.count(node->optype)) {
-        for (const auto& wtype : prunable_types[node->optype]) {
+      if (main_wtypes.count(node->optype)) {
+        for (const auto& wtype : main_wtypes[node->optype]) {
           if (node->weights.count(wtype)) {
             const auto& weight = node->WeightAt(wtype);
             Map<String, String> attrs;
             attrs.Set("producer_type", node->optype);
-            attrs.Set("prune_strategy", "prune");
+            attrs.Set("weight_strategy", "main");
             const auto& w_node =
                 WeightJoint(node_names.size(), weight->name, "", wtype, weight, w_parents, attrs);
             for (const auto& p : w_parents) {
@@ -947,7 +947,7 @@ void WeightGraphNode::Build(const MSCGraph& graph, const Map<String, Array<Strin
           if (!nodes.count(pair.second->name)) {
             Map<String, String> attrs;
             attrs.Set("producer_type", node->optype);
-            attrs.Set("prune_strategy", "follow");
+            attrs.Set("weight_strategy", "follow");
             const auto& w_node = WeightJoint(node_names.size(), pair.second->name, "", pair.first,
                                              pair.second, {head}, attrs);
             head->AddChild(w_node);
@@ -955,16 +955,16 @@ void WeightGraphNode::Build(const MSCGraph& graph, const Map<String, Array<Strin
             node_names.push_back(pair.second->name);
           }
         }
-      } else if (relation_types.count(node->optype)) {
+      } else if (relation_wtypes.count(node->optype)) {
         const auto& tensor = node->OutputAt(0);
         Map<String, String> attrs;
         attrs.Set("producer_type", node->optype);
         if (node->optype == "reshape" && node->InputAt(0)->LayoutOf("C") >= 0 &&
             node->OutputAt(0)->LayoutOf("C") >= 0 &&
             node->InputAt(0)->DimAt("C")->value == node->OutputAt(0)->DimAt("C")->value) {
-          attrs.Set("prune_strategy", "passby");
+          attrs.Set("weight_strategy", "passby");
         } else {
-          attrs.Set("prune_strategy", relation_types[node->optype]);
+          attrs.Set("weight_strategy", relation_wtypes[node->optype]);
         }
         const auto& t_node =
             WeightJoint(node_names.size(), tensor->name, "", "output", tensor, w_parents, attrs);
@@ -978,7 +978,7 @@ void WeightGraphNode::Build(const MSCGraph& graph, const Map<String, Array<Strin
           if (!nodes.count(pair.second->name)) {
             Map<String, String> attrs;
             attrs.Set("producer_type", node->optype);
-            attrs.Set("prune_strategy", "follow");
+            attrs.Set("weight_strategy", "follow");
             const auto& w_node = WeightJoint(node_names.size(), pair.second->name, "", pair.first,
                                              pair.second, w_parents, attrs);
             for (const auto& p : w_parents) {
@@ -1294,9 +1294,9 @@ TVM_REGISTER_GLOBAL("msc.core.MSCGraph")
     });
 
 TVM_REGISTER_GLOBAL("msc.core.WeightGraph")
-    .set_body_typed([](const MSCGraph& graph, const Map<String, Array<String>>& prunable_types,
-                       const Map<String, String>& relation_types) -> WeightGraph {
-      return WeightGraph(graph, prunable_types, relation_types);
+    .set_body_typed([](const MSCGraph& graph, const Map<String, Array<String>>& main_wtypes,
+                       const Map<String, String>& relation_wtypes) -> WeightGraph {
+      return WeightGraph(graph, main_wtypes, relation_wtypes);
     });
 
 // MSC Graph APIS

@@ -25,15 +25,17 @@ from typing import List, Iterable, Any, Tuple, Dict
 import numpy as np
 
 import tvm
-from tvm.contrib.msc.core.ir import MSCGraph, MSCJoint, MSCTensor
+from tvm.contrib.msc.core.ir import MSCGraph, WeightGraph, MSCJoint, WeightJoint, MSCTensor
 from tvm.contrib.msc.core.utils.namespace import MSCFramework
 from tvm.contrib.msc.core import utils as msc_utils
+from tvm.contrib.msc.core import _ffi_api
 
 
 class ToolType(object):
     """Enum all msc tool types"""
 
     BASE = "base"
+    WEIGHT = "weight"
     PRUNER = "pruner"
     QUANTIZER = "quantizer"
     DISTILLER = "distiller"
@@ -346,6 +348,61 @@ class BaseTool(object):
             "debug_level": self._debug_level,
         }
 
+    def _parse_strategys(self, strategy_list: dict) -> Dict[str, Strategy]:
+        """Parse the strategy to get valid strategy
+
+        Parameters
+        -------
+        strategy_list: dict
+            The given strategy
+
+        Returns
+        -------
+        strategys: dict<str, Strategy>
+            The parsed strategy.
+        """
+
+        strategys = {}
+        assert isinstance(strategy_list, list) and all(
+            isinstance(s, dict) for s in strategy_list
+        ), "Strategy should be given as list of dict"
+        for stra in strategy_list:
+            method_cls_name = stra.pop("method_cls") if "method_cls" in stra else "default"
+            method_cls = msc_utils.get_registered_tool_method(
+                self.framework(), self.tool_type(), method_cls_name
+            )
+            method_name = stra.pop("method") if "method" in stra else "default"
+            if hasattr(method_cls, method_name):
+                method = getattr(method_cls, method_name)
+            else:
+                default_cls = msc_utils.get_registered_tool_method(
+                    MSCFramework.MSC, self.tool_type(), method_cls_name
+                )
+                assert hasattr(
+                    default_cls, method_name
+                ), "Can not find method {} from neighter {} nor {}".format(
+                    method_name, method_cls, default_cls
+                )
+                method = getattr(default_cls, method_name)
+            tensor_types = stra.pop("tensor_types") if "tensor_types" in stra else ["all"]
+            if "op_types" in stra:
+                op_types = stra.pop("op_types")
+                marks = [("{}.{}".format(s, t), t) for s, t in product(op_types, tensor_types)]
+            elif "op_names" in stra:
+                op_names = stra.pop("op_names")
+                marks = [("{}.{}".format(s, t), t) for s, t in product(op_names, tensor_types)]
+            else:
+                marks = [("default", "all")]
+            stages = stra.pop("stages") if "stages" in stra else ["default"]
+            for mark, t_type in marks:
+                if mark not in strategys:
+                    strategys[mark] = Strategy(mark, t_type, self._stage)
+                for stage in stages:
+                    strategys[mark].add_executor(
+                        stage, Executor(method_name, method, copy.deepcopy(stra))
+                    )
+        return strategys
+
     def reset(
         self,
         graphs: List[MSCGraph],
@@ -358,7 +415,7 @@ class BaseTool(object):
         ----------
         graphs: list<MSCgraph>
             The msc graphs.
-        weights: list<dic<str, tvm.nd.array>>
+        weights: list<dict<str, tvm.nd.array>>
             The weights
         cache_dir: MSCDirectory
             cache path for save/load info
@@ -367,7 +424,7 @@ class BaseTool(object):
         -------
         graphs: list<MSCgraph>
             The msc graphs.
-        weights: list<dic<str, tvm.nd.array>>
+        weights: list<dict<str, tvm.nd.array>>
             The weights
         """
 
@@ -410,14 +467,14 @@ class BaseTool(object):
         ----------
         graphs: list<MSCgraph>
             The msc graphs.
-        weights: list<dic<str, tvm.nd.array>>
+        weights: list<dict<str, tvm.nd.array>>
             The weights
 
         Returns
         -------
         graphs: list<MSCgraph>
             The msc graphs.
-        weights: list<dic<str, tvm.nd.array>>
+        weights: list<dict<str, tvm.nd.array>>
             The weights
         """
 
@@ -612,10 +669,12 @@ class BaseTool(object):
         if not self._support_scope(scope):
             return tensor
         strategys = self._get_tensor_strategys(name, consumer)
-        strategy_mark = ".".join([s.get_executor().name for s in strategys])
-        cached_tensor = self._get_processed(name, consumer, strategy_mark)
+        t_mark = ".".join([s.get_executor().name for s in strategys])
+        if scope:
+            t_mark += "." + scope
+        cached_tensor = self._get_processed(name, consumer, t_mark)
         if cached_tensor is not None:
-            self.debug_tensor(cached_tensor, name, consumer, "cached({})".format(strategy_mark))
+            self.debug_tensor(cached_tensor, name, consumer, "cached({})".format(t_mark))
             return cached_tensor
         process = self._get_tensor_cache(name, consumer, "process")
         if process is None:
@@ -625,9 +684,9 @@ class BaseTool(object):
                 self._logger.debug("%sprocess tensor %s-%s", self.msg_mark(), name, consumer)
         if not process:
             return tensor
-        tensor = self._process_tensor(tensor, name, consumer, strategys)
-        self._save_processed(name, consumer, tensor, strategy_mark)
-        self.debug_tensor(tensor, name, consumer, "processed({})".format(strategy_mark))
+        tensor = self._process_tensor(tensor, name, consumer, scope, strategys)
+        self._save_processed(name, consumer, tensor, t_mark)
+        self.debug_tensor(tensor, name, consumer, "processed({})".format(t_mark))
         return tensor
 
     def _support_scope(self, scope: str) -> bool:
@@ -710,7 +769,7 @@ class BaseTool(object):
         return len(strategys) > 0
 
     def _process_tensor(
-        self, tensor: Any, name: str, consumer: str, strategys: List[Strategy]
+        self, tensor: Any, name: str, consumer: str, scope: str, strategys: List[Strategy]
     ) -> Any:
         """Process tensor
 
@@ -722,6 +781,8 @@ class BaseTool(object):
             The name of the tensor.
         consumer: str
             The name of the consumer.
+        scope: str
+            The scope mark teacher| student| null.
         strategys: list<Strategy>
             The strategys for the tensor.
 
@@ -732,6 +793,22 @@ class BaseTool(object):
         """
 
         return tensor
+
+    def config_generate(self, generate_config: Dict[str, Any]) -> Dict[str, Any]:
+        """Update the generate configs
+
+        Parameters
+        ----------
+        generate_config: dict<str, Any>
+            The generate_config.
+
+        Returns
+        -------
+        generate_config: dict<str, Any>
+            The updated generate_config.
+        """
+
+        return generate_config
 
     def visualize(self, visual_dir: msc_utils.MSCDirectory):
         """Visualize MSCGraphs
@@ -1039,61 +1116,6 @@ class BaseTool(object):
             return msc_utils.cast_array(self._weights[name])
         raise Exception("Can not find data {} from {} weights".format(name, len(self._weights)))
 
-    def _parse_strategys(self, strategy_list: dict) -> Dict[str, Strategy]:
-        """Parse the strategy to get valid strategy
-
-        Parameters
-        -------
-        strategy_list: dict
-            The given strategy
-
-        Returns
-        -------
-        strategys: dict<str, Strategy>
-            The parsed strategy.
-        """
-
-        strategys = {}
-        assert isinstance(strategy_list, list) and all(
-            isinstance(s, dict) for s in strategy_list
-        ), "Strategy should be given as list of dict"
-        for stra in strategy_list:
-            method_cls_name = stra.pop("method_cls") if "method_cls" in stra else "default"
-            method_cls = msc_utils.get_registered_tool_method(
-                self.framework(), self.tool_type(), method_cls_name
-            )
-            method_name = stra.pop("method") if "method" in stra else "default"
-            if hasattr(method_cls, method_name):
-                method = getattr(method_cls, method_name)
-            else:
-                default_cls = msc_utils.get_registered_tool_method(
-                    MSCFramework.MSC, self.tool_type(), method_cls_name
-                )
-                assert hasattr(
-                    default_cls, method_name
-                ), "Can not find method {} from neighter {} nor {}".format(
-                    method_name, method_cls, default_cls
-                )
-                method = getattr(default_cls, method_name)
-            tensor_types = stra.pop("tensor_types") if "tensor_types" in stra else ["all"]
-            if "op_types" in stra:
-                op_types = stra.pop("op_types")
-                marks = [("{}.{}".format(s, t), t) for s, t in product(op_types, tensor_types)]
-            elif "op_names" in stra:
-                op_names = stra.pop("op_names")
-                marks = [("{}.{}".format(s, t), t) for s, t in product(op_names, tensor_types)]
-            else:
-                marks = [("default", "all")]
-            stages = stra.pop("stages") if "stages" in stra else ["default"]
-            for mark, t_type in marks:
-                if mark not in strategys:
-                    strategys[mark] = Strategy(mark, t_type, self._stage)
-                for stage in stages:
-                    strategys[mark].add_executor(
-                        stage, Executor(method_name, method, copy.deepcopy(stra))
-                    )
-        return strategys
-
     def _save_tensor_cache(self, name: str, consumer: str, key: str, value: Any):
         """Save the data to tensor cache
 
@@ -1229,3 +1251,217 @@ class BaseTool(object):
     @classmethod
     def tool_style(cls):
         return "base"
+
+
+class WeightTool(BaseTool):
+    """Basic tool with weight graphs"""
+
+    def reset(
+        self,
+        graphs: List[MSCGraph],
+        weights: List[Dict[str, tvm.nd.array]],
+        cache_dir: msc_utils.MSCDirectory = None,
+    ) -> Tuple[List[MSCGraph], List[Dict[str, tvm.nd.array]]]:
+        """Reset the tool with graphs and weights
+
+        Parameters
+        ----------
+        graphs: list<MSCgraph>
+            The msc graphs.
+        weights: list<dict<str, tvm.nd.array>>
+            The weights
+        cache_dir: MSCDirectory
+            cache path for save/load info
+
+        Returns
+        -------
+        graphs: list<MSCgraph>
+            The msc graphs.
+        weights: list<dict<str, tvm.nd.array>>
+            The weights
+        """
+
+        graphs, weights = super().reset(graphs, weights, cache_dir)
+        assert len(graphs) == len(
+            self._weight_graphs
+        ), "Graphs {} mismatch with weight graphs {}".format(len(graphs), len(self._weight_graphs))
+        if self.on_debug(3):
+            for idx, graph in enumerate(self._weight_graphs):
+                self._logger.debug(
+                    msc_utils.msg_block("PRUNER.WEIGHT_GRAPH[{}].INFO".format(idx), graph.inspect())
+                )
+        return graphs, weights
+
+    def load_graphs(
+        self, graphs: List[MSCGraph], weights: List[Dict[str, tvm.nd.array]]
+    ) -> Tuple[List[MSCGraph], List[Dict[str, tvm.nd.array]]]:
+        """Load the graphs and weights
+
+        Parameters
+        ----------
+        graphs: list<MSCgraph>
+            The msc graphs.
+        weights: list<dict<str, tvm.nd.array>>
+            The weights
+        as_cache: bool
+            Whether the graphs and weights are loaded from cache
+
+        Returns
+        -------
+        graphs: list<MSCgraph>
+            The msc graphs.
+        weights: list<dict<str, tvm.nd.array>>
+            The weights
+        """
+
+        graphs, weights = super().load_graphs(graphs, weights)
+        main_wtypes, relation_wtypes = self._get_wtypes()
+        assert main_wtypes, "main_wtypes should be given to build weight graphs"
+        self._weight_graphs = [
+            _ffi_api.WeightGraph(graph, main_wtypes, relation_wtypes) for graph in graphs
+        ]
+        return graphs, weights
+
+    def _get_wtypes(self) -> Tuple[Dict[str, List[str]], Dict[str, str]]:
+        """Get the weight types from options
+
+        Returns
+        -------
+        main_wtypes: dict<str,list<str>>
+            The main weight types.
+        relation_wtypes: dict<str, str>
+            The relation weight types
+        """
+
+        raise NotImplementedError("_get_wtypes is not implemented in WeightTool")
+
+    def load_cache(self, cache_dir: msc_utils.MSCDirectory, cache_info: dict):
+        """Save runner to cache
+
+        Parameters
+        -------
+        cache_dir: MSCDirectory
+            cache path for save/load info
+        cache_info: dict
+            The cache_info
+        """
+
+        assert (
+            "weight_graphs" in cache_info
+        ), "weight_graphs should be given in cache_info, get " + str(cache_info)
+        self._weight_graphs = [
+            WeightGraph.from_json(cache_dir.relpath(f)) for f in cache_info["weight_graphs"]
+        ]
+
+    def save_cache(self, cache_dir: msc_utils.MSCDirectory) -> dict:
+        """Save runner to cache
+
+        Parameters
+        -------
+        cache_dir: MSCDirectory
+            cache path for save/load info
+
+        Returns
+        -------
+        cache_info: dict
+            The cache_info.
+        """
+
+        cache_info = {"weight_graphs": [g.name + "_graph.json" for g in self._weight_graphs]}
+        with cache_dir:
+            for graph, f_path in zip(self._weight_graphs, cache_info["weight_graphs"]):
+                with open(f_path, "w") as f_graph:
+                    f_graph.write(graph.to_json())
+        return cache_info
+
+    def visualize(self, visual_dir: msc_utils.MSCDirectory):
+        """Visualize MSCGraphs
+
+        Parameters
+        -------
+        visual_dir: MSCDirectory
+            Visualize path for saving graph
+        """
+
+        for w_graph in self._weight_graphs:
+            w_graph.visualize(visual_dir.relpath(w_graph.name + ".prototxt"))
+
+    def get_w_nodes(self) -> Iterable[WeightJoint]:
+        """Get all the weight nodes in the weight_graphs.
+
+        Returns
+        -------
+        nodes: generator<WeightJoint>
+            The generator of weight nodes.
+        """
+
+        for g in self._weight_graphs:
+            for n in g.get_nodes():
+                yield n
+
+    def has_w_node(self, name: str) -> bool:
+        """Check if name in weight_graphs.
+
+        Parameters
+        ----------
+        name: string
+            The name of the node.
+
+        Returns
+        -------
+        has_node: bool
+            Whether node in weight_graphs.
+        """
+
+        for g in self._weight_graphs:
+            if g.has_node(name):
+                return True
+        return False
+
+    def find_w_node(self, name: str) -> WeightJoint:
+        """Find weight node by name.
+
+        Parameters
+        ----------
+        name: string
+            The name of the node.
+
+        Returns
+        -------
+        node: WeightJoint
+            The found node.
+        """
+
+        for g in self._weight_graphs:
+            if g.has_node(name):
+                return g.find_node(name)
+        raise Exception("Can not find node {} from graphs".format(name))
+
+    def _get_io_axes(self, w_node: WeightJoint) -> Tuple[int, int]:
+        """Get the input output axes
+
+        Parameters
+        ----------
+        w_node: WeightJoint
+            The weight node.
+
+        Returns
+        -------
+        axes: (int, int)
+            The input output axis.
+        """
+
+        if w_node.weight.ndim == 1:
+            return 0, 0
+        if w_node.has_attr("in_axis") and w_node.has_attr("out_axis"):
+            return int(w_node.get_attr("in_axis")), int(w_node.get_attr("out_axis"))
+        in_axis, out_axis = w_node.weight.layout_of("I"), w_node.weight.layout_of("O")
+        if in_axis >= 0 and out_axis >= 0:
+            return in_axis, out_axis
+        if w_node.weight.layout_of("C") >= 0:
+            return w_node.weight.layout_of("C"), w_node.weight.layout_of("C")
+        raise Exception("Can not infer in_axis/out_axis from " + str(w_node))
+
+    @classmethod
+    def tool_type(cls):
+        return ToolType.WEIGHT

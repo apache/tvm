@@ -25,7 +25,20 @@ from tvm.contrib.msc.core import utils as msc_utils
 class TVMPrunerFactory(object):
     """Pruner factory for tvm"""
 
-    def create(self, base_cls: BasePruner):
+    def create(self, base_cls: BasePruner) -> BasePruner:
+        """Create adaptive pruner
+
+        Parameters
+        ----------
+        base_cls: BasePruner
+            The base pruner class
+
+        Returns
+        -------
+        pruner_cls: BasePruner
+            The pruner class.
+        """
+
         class Pruner(base_cls):
             """Adaptive pruner for tvm"""
 

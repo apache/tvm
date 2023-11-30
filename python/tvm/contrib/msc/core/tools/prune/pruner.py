@@ -16,33 +16,34 @@
 # under the License.
 """tvm.contrib.msc.core.tools.prune.pruner"""
 
-from typing import List, Dict, Iterable, Tuple, Any
+from typing import List, Dict, Tuple, Any
 
 import tvm
-from tvm.contrib.msc.core.ir import MSCGraph, WeightGraph, WeightJoint, MSCTensor
-from tvm.contrib.msc.core.tools.tool import ToolType, BaseTool, Strategy
+from tvm.contrib.msc.core.ir import MSCGraph, WeightJoint, MSCTensor
+from tvm.contrib.msc.core.tools.tool import ToolType, WeightTool, Strategy
 from tvm.contrib.msc.core import _ffi_api
 from tvm.contrib.msc.core import utils as msc_utils
 from .method import PruneMethod
 
 
-class BasePruner(BaseTool):
+class BasePruner(WeightTool):
     """Base pruner for all"""
 
-    def setup(self) -> dict:
-        """Setup the tool
+    def _get_wtypes(self) -> Tuple[Dict[str, List[str]], Dict[str, str]]:
+        """Get the weight types from options
 
         Returns
         -------
-        info: dict
-            The setup info.
+        main_wtypes: dict<str,list<str>>
+            The main weight types.
+        relation_wtypes: dict<str, str>
+            The relation weight types
         """
 
-        # Build weight graphs
-        if "prunable_types" in self._options:
-            self._prunable_types = self._options["prunable_types"]
+        if "main_wtypes" in self._options:
+            main_wtypes = self._options["main_wtypes"]
         else:
-            self._prunable_types = {
+            main_wtypes = {
                 "constant": ["const"],
                 "nn.conv2d": ["weight"],
                 "msc.conv2d_bias": ["weight"],
@@ -50,10 +51,10 @@ class BasePruner(BaseTool):
                 "msc.linear_bias": ["weight"],
             }
 
-        if "relation_types" in self._options:
-            self._relation_types = self._options["relation_types"]
+        if "relation_wtypes" in self._options:
+            relation_wtypes = self._options["relation_wtypes"]
         else:
-            self._relation_types = {
+            relation_wtypes = {
                 "concatenate": "multi_inputs",
                 "reshape": "reshape",
                 "add": "passby",
@@ -61,112 +62,7 @@ class BasePruner(BaseTool):
                 "multiply": "passby",
                 "divide": "passby",
             }
-
-        return super().setup()
-
-    def reset(
-        self,
-        graphs: List[MSCGraph],
-        weights: List[Dict[str, tvm.nd.array]],
-        cache_dir: msc_utils.MSCDirectory = None,
-    ) -> Tuple[List[MSCGraph], List[Dict[str, tvm.nd.array]]]:
-        """Reset the tool with graphs and weights
-
-        Parameters
-        ----------
-        graphs: list<MSCgraph>
-            The msc graphs.
-        weights: list<dic<str, tvm.nd.array>>
-            The weights
-        cache_dir: MSCDirectory
-            cache path for save/load info
-
-        Returns
-        -------
-        graphs: list<MSCgraph>
-            The msc graphs.
-        weights: list<dic<str, tvm.nd.array>>
-            The weights
-        """
-
-        self._unpruned_tensors = {}
-        res = super().reset(graphs, weights, cache_dir)
-        if self.on_debug(3):
-            for idx, graph in enumerate(self._weight_graphs):
-                self._logger.debug(
-                    msc_utils.msg_block("PRUNER.WEIGHT_GRAPH[{}].INFO".format(idx), graph.inspect())
-                )
-        return res
-
-    def load_graphs(
-        self, graphs: List[MSCGraph], weights: List[Dict[str, tvm.nd.array]]
-    ) -> Tuple[List[MSCGraph], List[Dict[str, tvm.nd.array]]]:
-        """Load the graphs and weights
-
-        Parameters
-        ----------
-        graphs: list<MSCgraph>
-            The msc graphs.
-        weights: list<dic<str, tvm.nd.array>>
-            The weights
-        as_cache: bool
-            Whether the graphs and weights are loaded from cache
-
-
-        Returns
-        -------
-        graphs: list<MSCgraph>
-            The msc graphs.
-        weights: list<dic<str, tvm.nd.array>>
-            The weights
-        """
-
-        self._weight_graphs = [
-            _ffi_api.WeightGraph(graph, self._prunable_types, self._relation_types)
-            for graph in graphs
-        ]
-        if not self._plan:
-            return graphs, weights
-        return self.prune_graphs(graphs, weights)
-
-    def load_cache(self, cache_dir: msc_utils.MSCDirectory, cache_info: dict):
-        """Save runner to cache
-
-        Parameters
-        -------
-        cache_dir: MSCDirectory
-            cache path for save/load info
-        cache_info: dict
-            The cache_info
-        """
-
-        assert (
-            "weight_graphs" in cache_info
-        ), "weight_graphs should be given in cache_info, get " + str(cache_info)
-        self._weight_graphs = [
-            WeightGraph.from_json(cache_dir.relpath(f)) for f in cache_info["weight_graphs"]
-        ]
-
-    def save_cache(self, cache_dir: msc_utils.MSCDirectory) -> dict:
-        """Save runner to cache
-
-        Parameters
-        -------
-        cache_dir: MSCDirectory
-            cache path for save/load info
-
-        Returns
-        -------
-        cache_info: dict
-            The cache_info.
-        """
-
-        cache_info = {"weight_graphs": [g.name + "_graph.json" for g in self._weight_graphs]}
-        with cache_dir:
-            for graph, f_path in zip(self._weight_graphs, cache_info["weight_graphs"]):
-                with open(f_path, "w") as f_graph:
-                    f_graph.write(graph.to_json())
-        return cache_info
+        return main_wtypes, relation_wtypes
 
     def _parse_strategys(self, strategy_list: dict) -> Dict[str, Strategy]:
         """Parse the strategy to get valid strategy
@@ -188,6 +84,64 @@ class BasePruner(BaseTool):
             return strategy
 
         return super()._parse_strategys([_update_stages(s) for s in strategy_list])
+
+    def load_graphs(
+        self, graphs: List[MSCGraph], weights: List[Dict[str, tvm.nd.array]]
+    ) -> Tuple[List[MSCGraph], List[Dict[str, tvm.nd.array]]]:
+        """Load the graphs and weights
+
+        Parameters
+        ----------
+        graphs: list<MSCgraph>
+            The msc graphs.
+        weights: list<dict<str, tvm.nd.array>>
+            The weights
+
+        Returns
+        -------
+        graphs: list<MSCgraph>
+            The msc graphs.
+        weights: list<dict<str, tvm.nd.array>>
+            The weights
+        """
+
+        graphs, weights = super().load_graphs(graphs, weights)
+        if not self._plan:
+            return graphs, weights
+        return self.prune_graphs(graphs, weights)
+
+    def _execute_before_build(self, *args, **kwargs):
+        """Execute before model build
+
+        Parameters
+        ----------
+        args: list<Any>
+            The arguments for model build.
+        kwargs: dict<Any>
+            The key word arguments for model build.
+        """
+
+        self._unpruned_tensors = {}
+        super()._execute_before_build(*args, **kwargs)
+
+    def _execute_after_build(self, output: Any) -> Any:
+        """Execute after model build
+
+        Parameters
+        ----------
+        output: Any
+            The output reference of the model.
+
+        Returns
+        -------
+        output: Any
+           The modified output reference.
+        """
+
+        assert not self._unpruned_tensors, "Some tensors are not pruned " + str(
+            self._unpruned_tensors
+        )
+        return super()._execute_after_build(output)
 
     def _check_tensor(self, name: str, consumer: str) -> bool:
         """Check if the tensor should be processed
@@ -215,7 +169,7 @@ class BasePruner(BaseTool):
         return True
 
     def _process_tensor(
-        self, tensor: Any, name: str, consumer: str, strategys: List[Strategy]
+        self, tensor: Any, name: str, consumer: str, scope: str, strategys: List[Strategy]
     ) -> Any:
         """Process tensor
 
@@ -227,6 +181,8 @@ class BasePruner(BaseTool):
             The name of the tensor.
         consumer: str
             The name of the consumer.
+        scope: str
+            The scope mark teacher| student| null.
         strategys: list<Strategy>
             The strategys for the tensor.
 
@@ -238,6 +194,41 @@ class BasePruner(BaseTool):
 
         if name in self._plan:
             return tensor
+
+        self._prune_tensor(name, consumer, strategys)
+        lazy_pruned = set()
+        for lazy_name, info in self._unpruned_tensors.items():
+            if info["lead_name"] in self._plan:
+                strategys = self._get_tensor_strategys(lazy_name, info["consumer"])
+                self._prune_tensor(lazy_name, info["consumer"], strategys)
+                t_mark = ".".join([s.get_executor().name for s in strategys])
+                self.debug_tensor(
+                    self.find_tensor(lazy_name),
+                    lazy_name,
+                    consumer,
+                    "lazy processed({})".format(t_mark),
+                )
+                lazy_pruned.add(lazy_name)
+        if lazy_pruned:
+            self._unpruned_tensors = {
+                k: v for k, v in self._unpruned_tensors.items() if k not in lazy_pruned
+            }
+        return tensor
+
+    def _prune_tensor(self, name: str, consumer: str, strategys: List[Strategy]) -> Any:
+        """Prune tensor
+
+        Parameters
+        -------
+        name: str
+            The name of the tensor.
+        consumer: str
+            The name of the consumer.
+        scope: str
+            The scope mark teacher| student| null.
+        strategys: list<Strategy>
+            The strategys for the tensor.
+        """
 
         assert len(strategys) == 1, "pruner should only has 1 strategy, get " + str(strategys)
         strategy = strategys[0]
@@ -259,15 +250,15 @@ class BasePruner(BaseTool):
 
         def _prunable(w_node: WeightJoint) -> bool:
             """Check if weight node is prunable"""
-            if w_node.get_attr("prune_strategy") != "prune":
+            if w_node.get_attr("weight_strategy") != "main":
                 return False
             if not w_node.children:
                 return False
             childrens = list(w_node.children)
             while childrens:
                 current = childrens.pop(0)
-                prune_strategy = current.get_attr("prune_strategy")
-                if prune_strategy == "prune":
+                weight_strategy = current.get_attr("weight_strategy")
+                if weight_strategy == "main":
                     return True
                 childrens.extend(list(current.children))
             return False
@@ -284,11 +275,10 @@ class BasePruner(BaseTool):
             if lead_name not in self._plan:
                 self._unpruned_tensors[name] = {
                     "lead_name": lead_name,
-                    "tensor": tensor,
                     "consumer": consumer,
                 }
                 self._plan.pop(w_node.name)
-                return tensor
+                return None
             self._plan[w_node.name]["out_indices"] = self._plan[lead_name]["out_indices"]
         elif _prunable(w_node):
             self._plan[w_node.name] = strategy(
@@ -300,29 +290,12 @@ class BasePruner(BaseTool):
                 out_axis=out_axis,
                 in_indices=in_indices,
             )
-        elif w_node.get_attr("prune_strategy") == "follow":
+        elif w_node.get_attr("weight_strategy") == "follow":
             self._plan[w_node.name]["out_indices"] = []
-        elif w_node.get_attr("prune_strategy") == "passby":
+        elif w_node.get_attr("weight_strategy") == "passby":
             self._plan[w_node.name]["out_indices"] = in_indices
         else:
             self._plan[w_node.name]["out_indices"] = []
-        lazy_pruned = set()
-        for lazy_name, info in self._unpruned_tensors.items():
-            if info["lead_name"] in self._plan:
-                strategys = self._get_tensor_strategys(lazy_name, info["consumer"])
-                lazy_tensor = self._process_tensor(
-                    info["tensor"], lazy_name, info["consumer"], strategys
-                )
-                strategy_mark = ".".join([s.get_executor().name for s in strategys])
-                self.debug_tensor(
-                    lazy_tensor, lazy_name, consumer, "lazy processed({})".format(strategy_mark)
-                )
-                lazy_pruned.add(lazy_name)
-        if lazy_pruned:
-            self._unpruned_tensors = {
-                k: v for k, v in self._unpruned_tensors.items() if k not in lazy_pruned
-            }
-        return tensor
 
     def prune_graphs(
         self, graphs: List[MSCGraph], weights: List[Dict[str, tvm.nd.array]]
@@ -333,14 +306,14 @@ class BasePruner(BaseTool):
         ----------
         graphs: list<MSCgraph>
             The msc graphs.
-        weights: list<dic<str, tvm.nd.array>>
+        weights: list<dict<str, tvm.nd.array>>
             The weights
 
         Returns
         -------
         graphs: list<MSCgraph>
             The msc graphs.
-        weights: list<dic<str, tvm.nd.array>>
+        weights: list<dict<str, tvm.nd.array>>
             The weights
         """
 
@@ -361,7 +334,7 @@ class BasePruner(BaseTool):
             for node in graph.get_nodes():
                 for weight in node.get_weights().values():
                     w_name = weight.name
-                    if w_name in self._plan:
+                    if w_name in self._plan and not self._plan[w_name].get("pruned", False):
                         data = msc_utils.cast_array(sub_weights[w_name])
                         in_axis, out_axis = self._get_io_axes(self.find_w_node(w_name))
                         w_config = self._plan[w_name]
@@ -371,6 +344,7 @@ class BasePruner(BaseTool):
                             data = PruneMethod.prune_axis(data, out_axis, w_config["out_indices"])
                         pruned_tensors[w_name] = _prune_by_shape(weight, data.shape)
                         pruned_weights[w_name] = tvm.nd.array(data)
+                        self._plan[w_name]["pruned"] = True
                         pruned_weights_cnt += 1
                     else:
                         pruned_weights[w_name] = sub_weights[w_name]
@@ -399,10 +373,11 @@ class BasePruner(BaseTool):
                     )
                 else:
                     for out in node.get_outputs():
-                        if out.name in self._plan:
+                        if out.name in self._plan and not self._plan[out.name].get("pruned", False):
                             pruned_tensors[out.name] = _prune_by_channel(
                                 out, len(self._plan[out.name]["out_indices"])
                             )
+                            self._plan[out.name]["pruned"] = True
                         elif (
                             node.get_inputs()
                             and node.input_at(0).name in pruned_tensors
@@ -429,108 +404,20 @@ class BasePruner(BaseTool):
         raw_size = _flatten_size(weights)
         new_size = _flatten_size(new_weights)
         self._logger.info(
-            "{} weights pruned, compress to {:g}%".format(
-                pruned_weights_cnt, new_size * 100 / raw_size
+            "{} weights pruned, compress to {:g}% ({:g} M->{:g} M)".format(
+                pruned_weights_cnt,
+                new_size * 100 / raw_size,
+                raw_size / 2**20,
+                new_size / 2**20,
             )
         )
         return new_graphs, new_weights
 
-    def visualize(self, visual_dir: msc_utils.MSCDirectory):
-        """Visualize MSCGraphs
-
-        Parameters
-        -------
-        visual_dir: MSCDirectory
-            Visualize path for saving graph
-        """
-
-        for w_graph in self._weight_graphs:
-            w_graph.visualize(visual_dir.relpath(w_graph.name + ".prototxt"))
-
     def finalize(self) -> dict:
         """Get the plan"""
 
-        assert not self._unpruned_tensors, "Some tensors are not pruned " + str(
-            self._unpruned_tensors
-        )
         self._plan = {n: c for n, c in self._plan.items() if c["in_indices"] or c["out_indices"]}
         return super().finalize()
-
-    def get_w_nodes(self) -> Iterable[WeightJoint]:
-        """Get all the weight nodes in the weight_graphs.
-
-        Returns
-        -------
-        nodes: generator<WeightJoint>
-            The generator of weight nodes.
-        """
-
-        for g in self._weight_graphs:
-            for n in g.get_nodes():
-                yield n
-
-    def has_w_node(self, name: str) -> bool:
-        """Check if name in weight_graphs.
-
-        Parameters
-        ----------
-        name: string
-            The name of the node.
-
-        Returns
-        -------
-        has_node: bool
-            Whether node in weight_graphs.
-        """
-
-        for g in self._weight_graphs:
-            if g.has_node(name):
-                return True
-        return False
-
-    def find_w_node(self, name: str) -> WeightJoint:
-        """Find weight node by name.
-
-        Parameters
-        ----------
-        name: string
-            The name of the node.
-
-        Returns
-        -------
-        node: WeightJoint
-            The found node.
-        """
-
-        for g in self._weight_graphs:
-            if g.has_node(name):
-                return g.find_node(name)
-        raise Exception("Can not find node {} from graphs".format(name))
-
-    def _get_io_axes(self, w_node: WeightJoint) -> Tuple[int, int]:
-        """Get the input output axes
-
-        Parameters
-        ----------
-        w_node: WeightJoint
-            The weight node.
-
-        Returns
-        -------
-        axes: (int, int)
-            The input output axis.
-        """
-
-        if w_node.weight.ndim == 1:
-            return 0, 0
-        if w_node.has_attr("in_axis") and w_node.has_attr("out_axis"):
-            return int(w_node.get_attr("in_axis")), int(w_node.get_attr("out_axis"))
-        in_axis, out_axis = w_node.weight.layout_of("I"), w_node.weight.layout_of("O")
-        if in_axis >= 0 and out_axis >= 0:
-            return in_axis, out_axis
-        if w_node.weight.layout_of("C") >= 0:
-            return w_node.weight.layout_of("C"), w_node.weight.layout_of("C")
-        raise Exception("Can not infer in_axis/out_axis from " + str(w_node))
 
     @classmethod
     def tool_type(cls):
