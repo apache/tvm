@@ -320,7 +320,7 @@ def test_multiple_outputs():
     @tvm.script.ir_module
     class Input:
         @R.function
-        def main() -> R.Tensor((), "int32"):
+        def main():
             with R.dataflow():
                 x = R.const(1)
                 y = R.const(1)
@@ -329,18 +329,18 @@ def test_multiple_outputs():
                 m = y
                 n = z
                 R.output(l, m, n)
-            return n
+            return (l, m, n)
 
     @tvm.script.ir_module
     class Expected:
         @R.function
-        def main() -> R.Tensor((), "int32"):
+        def main():
             with R.dataflow():
                 l = R.const(1)
                 m = R.const(1)
                 n = R.const(1)
                 R.output(l, m, n)
-            return n
+            return (l, m, n)
 
     verify(Input, Expected)
 
@@ -460,6 +460,128 @@ def test_update_dataflow_computations_if_var_replacement_occurs_after_usage():
                 # occurred in this position.
                 R.output(gv1, gv2)
             return (gv1, gv2)
+
+    after = relax.transform.CanonicalizeBindings()(Before)
+    assert_structural_equal(Expected, after)
+
+
+def test_replace_var_with_dataflow_if_all_usage_within_dataflow_block():
+    """Canonicalize Var to DataflowVar inside DataflowBlock
+
+    Like `test_update_dataflow_computations_if_var_replacement_occurs`,
+    except that `gv1` is not part of the function's return value.  When
+    deciding which variable to replace, the following logic is applied:
+
+    1. Normally, when encountering `x = y`, replace usage of `x` with `y`.
+
+    2. Unless the trivial binding is a `var_x = dataflow_y`, in which case
+       replace `dataflow_y` with `var_x` at the point of definition.  This
+       prevents usage of `dataflow_y` from escaping the dataflow block.
+
+    3. Unless `var_x` has no usage outside the dataflow block, in which
+       case we replace usage of `var_x` with `dataflow_y`.
+
+    The third rule ensures that canonicalization can occur in a single
+    step.  Otherwise, the output of this test case would contain a
+    non-dataflow var defined within a dataflow block, and only used within
+    that dataflow block.  (Equivalent to the input for the test case
+    `test_canonicalize_var_to_dataflow_var_if_legal`.)
+    """
+
+    @tvm.script.ir_module
+    class Before:
+        @R.function
+        def main(x: R.Tensor):
+            with R.dataflow():
+                lv1 = R.add(x, R.const(1))
+                gv1 = lv1
+                gv2 = R.add(lv1, R.const(1))
+                R.output(gv1, gv2)
+            return gv2
+
+    @tvm.script.ir_module
+    class Expected:
+        @R.function
+        def main(x: R.Tensor):
+            with R.dataflow():
+                gv1 = R.add(x, R.const(1))
+                gv2 = R.add(gv1, R.const(1))
+                R.output(gv2)
+            return gv2
+
+    after = relax.transform.CanonicalizeBindings()(Before)
+    assert_structural_equal(Expected, after)
+
+
+def test_canonicalize_var_to_dataflow_with_trivial_binding():
+    """Canonicalize Var to DataflowVar inside DataflowBlock
+
+    Like
+    `test_replace_var_with_dataflow_if_all_usage_within_dataflow_block`,
+    except the non-DataflowVar is on the right-hand side of the trivial
+    binding.
+    """
+
+    @tvm.script.ir_module
+    class Before:
+        @R.function
+        def main(x: R.Tensor):
+            with R.dataflow():
+                gv1 = R.add(x, R.const(1))
+                lv1 = gv1
+                gv2 = R.add(lv1, R.const(1))
+                R.output(gv1, gv2)
+            return gv2
+
+    @tvm.script.ir_module
+    class Expected:
+        @R.function
+        def main(x: R.Tensor):
+            with R.dataflow():
+                gv1 = R.add(x, R.const(1))
+                gv2 = R.add(gv1, R.const(1))
+                R.output(gv2)
+            return gv2
+
+    after = relax.transform.CanonicalizeBindings()(Before)
+    assert_structural_equal(Expected, after)
+
+
+def test_canonicalize_with_updated_struct_info():
+    """CanonicalizeBindings and Normalizer may both replace a Var
+
+    If the CanonicalizeBindings pass has no replacements to make for a
+    variable, it must still delegate to the ExprMutator.  This is because
+    a variable replacement may have occurred as part of the IRNormalizer,
+    in order to provide better struct info.
+    """
+
+    @tvm.script.ir_module
+    class Before:
+        @R.function(private=True)
+        def main(A: R.Tensor(("n", 16), dtype="int32")) -> R.Tensor(("n", 16), dtype="int32"):
+            # CanonicalizeBindings recognizes this trivial binding, and
+            # replaces `B` with `A`.
+            B = A
+            # The value is updated from `R.add(B,B)` to `R.add(A,A)`.
+            # Changing the value triggers struct inference, allowing the
+            # shape to be updated to `[n,16]`.  This requires a variable
+            # replacement, which is tracked by the `ExprMutator`.
+            C: R.Tensor(dtype="int32", ndim=2) = R.add(B, B)
+            # Replacement of `C` is not explicitly tracked by
+            # CanonicalizeBindings.  However, if CanonicalizeBindings just
+            # returns `GetRef<Var>(var)`, `ExprMutator` cannot apply the
+            # replacement, and this will try to return the old
+            # version of `C` with `ndim=2`.
+            return C
+
+    @tvm.script.ir_module
+    class Expected:
+        @R.function(private=True)
+        def main(A: R.Tensor(("n", 16), dtype="int32")) -> R.Tensor(("n", 16), dtype="int32"):
+            n = T.int64()
+            C: R.Tensor([n, 16], "int32") = R.add(A, A)
+            return C
 
     after = relax.transform.CanonicalizeBindings()(Before)
     assert_structural_equal(Expected, after)
