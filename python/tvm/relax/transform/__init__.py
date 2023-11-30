@@ -55,6 +55,7 @@ from .transform import (
     PatternCheckContext,
     RealizeVDevice,
     RemovePurityChecking,
+    RemoveUnusedOutputs,
     RewriteCUDAGraph,
     RewriteDataflowReshape,
     RunCodegen,

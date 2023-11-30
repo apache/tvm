@@ -558,6 +558,16 @@ def FoldConstant() -> tvm.ir.transform.Pass:
     return _ffi_api.FoldConstant()  # type: ignore
 
 
+def RemoveUnusedOutputs() -> tvm.ir.transform.Pass:
+    """Remove unused outputs from internal functions
+
+    Returns
+    -------
+    ret: tvm.ir.transform.Pass
+    """
+    return _ffi_api.RemoveUnusedOutputs()  # type: ignore
+
+
 def AnnotateTIROpPattern() -> tvm.ir.transform.Pass:
     """Annotate Op Pattern Kind for TIR functions
 
