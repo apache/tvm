@@ -1,9 +1,32 @@
-import torch.nn as nn
+# Licensed to the Apache Software Foundation (ASF) under one
+# or more contributor license agreements.  See the NOTICE file
+# distributed with this work for additional information
+# regarding copyright ownership.  The ASF licenses this file
+# to you under the Apache License, Version 2.0 (the
+# "License"); you may not use this file except in compliance
+# with the License.  You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing,
+# software distributed under the License is distributed on an
+# "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+# KIND, either express or implied.  See the License for the
+# specific language governing permissions and limitations
+# under the License.
+# pylint: disable=import-self, too-many-lines, len-as-condition, no-else-return, unused-variable, too-many-nested-blocks
+# pylint: disable=consider-iterating-dictionary, invalid-name, unused-argument, unused-variable, broad-except
+# pylint: disable=import-outside-toplevel, simplifiable-if-expression, cell-var-from-loop, unnecessary-lambda
+# pylint: disable=missing-function-docstring, redefined-builtin, use-implicit-booleaness-not-comparison
+"""Tests to ensure span names are correctly populated when importing Pytorch"""
+from torch import nn
 import torch
 import tvm
 
 
 class NestedConvModule(nn.Module):
+    """Module that performs Conv2d and relu activation"""
+
     def __init__(self, in_channels, out_channels):
         super().__init__()
         self.conv = nn.Conv2d(in_channels, out_channels, kernel_size=3, stride=1, padding=1)
@@ -15,11 +38,18 @@ class NestedConvModule(nn.Module):
 
 
 class NestedFinalModule(nn.Module):
+    """Simple module that adds 2 inputs"""
+
     def forward(self, x, y):
         return x + y
 
 
 class SimpleTwoConvModule(nn.Module):
+    """
+    ML model that performs 2 convolutions and adds them together.
+    All operations are inside nested modules to make scope names interesting.
+    """
+
     def __init__(self):
         super().__init__()
         # First convolutional module
