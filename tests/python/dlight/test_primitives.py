@@ -19,22 +19,36 @@
 import tvm
 import tvm.testing
 from tvm import relay
+from tvm.script import tir as T
+
+
+@T.prim_func
+def main(p0: T.Buffer((), "int32"), T_stack: T.Buffer((T.int64(3),), "int32")):
+    T.func_attr({"tir.noalias": T.bool(True)})
+    # with T.block("root"):
+    compile_engine_const = T.alloc_buffer((), "int32")
+    compile_engine_const_1 = T.alloc_buffer((), "int32")
+    with T.block("compile_engine_const"):
+        vi = T.axis.spatial(1, T.int64(0))
+        T.reads()
+        T.writes(compile_engine_const[()])
+        compile_engine_const[()] = 16
+    with T.block("compile_engine_const_1"):
+        vi = T.axis.spatial(1, T.int64(0))
+        T.reads()
+        T.writes(compile_engine_const_1[()])
+        compile_engine_const_1[()] = 20
+    for ax0 in range(T.int64(3)):
+        with T.block("T_stack"):
+            v_ax0 = T.axis.spatial(T.int64(3), ax0)
+            T.reads(compile_engine_const[()], p0[()], compile_engine_const_1[()])
+            T.writes(T_stack[v_ax0])
+            T_stack[v_ax0] = T.if_then_else(v_ax0 == T.int64(2), compile_engine_const[()], T.if_then_else(v_ax0 == T.int64(1), p0[()], compile_engine_const_1[()]))
 
 
 @tvm.testing.requires_cuda
 def test_normalize_primfunc_with_scalar():
-    relay_text = """
-    #[version = "0.0.5"]
-    def @main(%p0: int32, Primitive=1) -> Tensor[(3), int32] {
-    %0 = (20, %p0, 16);
-    stack(%0)
-    }
-    """
-    relay_graph = relay.fromtext(relay_text)
-
-    f = tvm.get_global_func("relay.backend.LowerToPrimFunc")
-    prim_func= f(relay_graph["main"],tvm.target.Target("cuda"))
-    sch = tvm.tir.Schedule(prim_func)
+    sch = tvm.tir.Schedule(main)
     f_normalize_prim_func = tvm.get_global_func("tir.schedule.NormalizePrimFunc")
     assert f_normalize_prim_func(sch)
 
