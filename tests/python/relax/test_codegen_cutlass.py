@@ -2199,7 +2199,9 @@ def test_attention_rewrite_multi_query():
     tvm.testing.assert_allclose(out, ref, rtol=1e-2, atol=1e-2)
 
 
-def _test_batched_var_len_attention(mod, seq_lens, num_head, num_kv_head, head_size):
+def _test_batched_var_len_attention(
+    mod, seq_lens, num_head, num_kv_head, head_size, window_size=None
+):
     if not tvm.get_global_func("tvm.contrib.thrust.sum_scan", True):
         return
 
@@ -2223,6 +2225,7 @@ def _test_batched_var_len_attention(mod, seq_lens, num_head, num_kv_head, head_s
             "BottomRight",
             "float16",
             num_kv_head=num_kv_head,
+            window_size=window_size,
         )
         batched_queries.append(np.reshape(q, [-1, hidden_size]))
         batched_keys.append(np.reshape(k, [-1, num_kv_head * head_size]))
@@ -2416,6 +2419,62 @@ def test_sliding_window():
     # ).cpu().numpy()
 
     # tvm.testing.assert_allclose(out, ref, rtol=1e-2, atol=1e-2)
+
+
+def test_batched_var_len_sliding_window():
+    @I.ir_module
+    class Module:
+        I.module_global_infos(
+            {
+                "vdevice": [
+                    I.vdevice("llvm"),
+                ]
+            }
+        )
+
+        @R.function
+        def main(
+            queries: R.Tensor(("num_tokens", 4096), dtype="float16"),
+            keys: R.Tensor(("num_tokens", 4096), dtype="float16"),
+            values: R.Tensor(("num_tokens", 4096), dtype="float16"),
+            seq_lens: R.Tensor(("num_seq",), dtype="int32"),
+        ) -> R.Tensor(("num_tokens", 4096), dtype="float16"):
+            R.func_attr({"num_input": 4})
+            cls = Module
+            num_tokens = T.int64()
+            num_seq = T.int64()
+
+            with R.dataflow():
+                # TODO(masahi): Workaround for the broken Relax cumsum op on GPU.
+                # https://github.com/apache/tvm/issues/15851
+                cumsum = R.call_dps_packed(
+                    "tvm.contrib.thrust.sum_scan", seq_lens, out_sinfo=seq_lens.struct_info
+                )
+                max_seqlen_q = R.to_vdevice(R.max(seq_lens), "llvm:0")
+                seqstart_q = R.concat([R.zeros((1,), "int32"), cumsum])
+                q = R.reshape(queries, R.shape([1, num_tokens, 128, 32]))
+                k = R.reshape(keys, R.shape([1, num_tokens, 128, 32]))
+                v = R.reshape(values, R.shape([1, num_tokens, 128, 32]))
+                attn_out = R.nn.attention_var_len(
+                    q,
+                    k,
+                    v,
+                    seqstart_q,
+                    max_seqlen_q,
+                    causal_mask="BottomRight",
+                    window_size=T.IntImm("int32", 8),
+                )
+                out = R.reshape(attn_out, R.shape([num_tokens, 4096]))
+                R.output(out)
+            return out
+
+    seq_lens = [64, 64, 64]
+    num_head = 128
+    num_kv_head = 128
+    head_size = 32
+    window_size = 8
+
+    _test_batched_var_len_attention(Module, seq_lens, num_head, num_kv_head, head_size, window_size)
 
 
 if __name__ == "__main__":
