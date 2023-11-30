@@ -78,7 +78,7 @@ def _return_object(x):
     # subclassing the python native object is forbidden.  For example,
     # `runtime.BoxBool` cannot be a subclass of `bool`, as `bool` does
     # not allow any subclasses.
-    if hasattr(obj, '__into_pynative_object__'):
+    if hasattr(obj, "__into_pynative_object__"):
         return obj.__into_pynative_object__()
 
     return obj
