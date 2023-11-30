@@ -14,6 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+# pylint: disable=unused-import
 """tvm.contrib.msc.framework.torch.runtime.runner"""
 
 import time
@@ -28,6 +29,7 @@ from tvm.contrib.msc.core.utils.namespace import MSCFramework
 from tvm.contrib.msc.framework.torch.codegen import to_torch
 from tvm.contrib.msc.framework.torch.frontend import set_weight_alias
 from tvm.contrib.msc.core import utils as msc_utils
+from tvm.contrib.msc.framework.torch import tools
 
 
 class TorchRunner(ModelRunner):

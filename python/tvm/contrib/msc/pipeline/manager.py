@@ -25,7 +25,8 @@ import numpy as np
 
 import tvm
 from tvm.contrib.msc.core.runtime import BaseRunner
-from tvm.contrib.msc.core.utils.namespace import MSCFramework, MSCMap, MSCKey
+from tvm.contrib.msc.core.tools import ToolType
+from tvm.contrib.msc.core.utils.namespace import MSCFramework, MSCMap
 from tvm.contrib.msc.core.utils.message import MSCStage
 from tvm.contrib.msc.core import utils as msc_utils
 
@@ -45,10 +46,11 @@ class BaseManager(object):
         # check config
         for stage in ["inputs", "outputs", "dataset", "prepare", "compile"]:
             assert stage in config, "{} should be given to run the pipeline".format(stage)
+        MSCMap.reset()
         self._model = model
         self._workspace = msc_utils.set_workspace(config.get("workspace"))
         log_path = config.get("log_path") or self._workspace.relpath("MSC_LOG", keep_history=False)
-        if config.get("debug", False) and "verbose" not in config:
+        if config.get("debug_level", 0) > 0 and "verbose" not in config:
             verbose = "debug"
         else:
             verbose = config.get("verbose", "info")
@@ -70,7 +72,7 @@ class BaseManager(object):
             The setup info.
         """
 
-        self._config, self._debug_config = self.update_config(config)
+        self._config, self._debug_levels = self.update_config(config)
         self._tools_config = {}
         self._relax_mod, self._runner = None, None
         self._data_loader, self._sample_inputs = None, None
@@ -102,7 +104,7 @@ class BaseManager(object):
         # update prepare and parse
         assert "inputs" in config, "inputs should be given to run manager"
         assert "outputs" in config, "outputs should be given to run manager"
-        config = msc_utils.copy_dict(config)
+        config, debug_levels = msc_utils.copy_dict(config), {}
         for stage in ["prepare", "parse"]:
             if stage not in config:
                 config[stage] = {}
@@ -111,25 +113,36 @@ class BaseManager(object):
         for stage in ["baseline", "optimize", "compile"]:
             config = self._update_runner_config(config, stage)
         config = self._update_tool_config(config)
-        debug_config = {}
 
-        def _set_debug(stage, stage_config, default=None):
-            if "debug" in stage_config:
-                debug_config[stage] = stage_config.pop("debug")
+        def _get_tool_stage(tool_type: str) -> str:
+            if tool_type == ToolType.PRUNER:
+                return MSCStage.PRUNE
+            if tool_type == ToolType.QUANTIZER:
+                return MSCStage.QUANTIZE
+            if tool_type == ToolType.DISTILLER:
+                return MSCStage.DISTILL
+            return tool_type
+
+        def _set_debug_level(stage: str, stage_config: dict, default: int = None) -> dict:
+            if "debug_level" in stage_config:
+                debug_levels[stage] = stage_config["debug_level"]
             elif default is not None:
-                debug_config[stage] = default
-            return debug_config
+                debug_levels[stage] = default
+                stage_config["debug_level"] = default
+            return debug_levels
 
-        if "debug" in config:
-            for stage in ["baseline", "optimize", "compile"]:
-                if stage not in config:
+        debug_level = config.get("debug_level")
+        for stage in ["baseline", "optimize", "compile"]:
+            if stage not in config:
+                continue
+            debug_levels = _set_debug_level(stage, config[stage]["run_config"], debug_level)
+        if "optimize" in config:
+            for t_type in ToolType.all_types():
+                if t_type not in config["optimize"]:
                     continue
-                debug_config = _set_debug(stage, config[stage], config["debug"])
-        else:
-            for stage in ["baseline", "optimize", "compile"]:
-                if stage not in config:
-                    continue
-                debug_config = _set_debug(stage, config[stage])
+                debug_levels = _set_debug_level(
+                    _get_tool_stage(t_type), config["optimize"][t_type], debug_level
+                )
         ordered_keys = [
             "model_type",
             "inputs",
@@ -141,7 +154,7 @@ class BaseManager(object):
             "optimize",
             "compile",
         ]
-        return {k: config[k] for k in ordered_keys if k in config}, debug_config
+        return {k: config[k] for k in ordered_keys if k in config}, debug_levels
 
     def run_pipe(self) -> dict:
         """Run the pipeline and return object.
@@ -365,6 +378,17 @@ class BaseManager(object):
             The runner.
         """
 
+        # run prune
+        if ToolType.PRUNER in stage_config:
+            self._tools_config[ToolType.PRUNER] = stage_config[ToolType.PRUNER]
+            plan_file = stage_config[ToolType.PRUNER]["plan_file"]
+            if os.path.isfile(plan_file):
+                self._logger.info("Skip %s with plan_file %s", ToolType.PRUNER, plan_file)
+            else:
+                msc_utils.time_stamp(MSCStage.PRUNE)
+                runner = self._create_tool_runner(MSCStage.PRUNE, stage_config)
+                runner.apply_tool(ToolType.PRUNER, self._data_loader)
+
         # optimize and get the runner
         msc_utils.time_stamp(MSCStage.OPTIMIZE)
         return self._create_runner(
@@ -425,7 +449,6 @@ class BaseManager(object):
             Whether to keep workspace.
         """
 
-        MSCMap.delete(MSCKey.TIME_STAMPS)
         if self._runner:
             self._runner.destory()
         if not keep_workspace:
@@ -465,7 +488,7 @@ class BaseManager(object):
 
         if self._runner:
             self._runner.destory()
-        on_debug = self._debug_config.get(stage, False)
+        debug_level = self._debug_levels.get(stage, 0)
         cache_dir = msc_utils.get_cache_dir().create_dir(stage) if use_cache else None
         tools_config = tools_config or {}
         msc_utils.time_stamp(stage + ".build", False)
@@ -475,7 +498,9 @@ class BaseManager(object):
             run_config["generate_config"] = {}
         run_config["generate_config"].update(
             {
-                "build_folder": msc_utils.get_build_dir().create_dir(stage, cleanup=not on_debug),
+                "build_folder": msc_utils.get_build_dir().create_dir(
+                    stage, cleanup=(debug_level == 0)
+                ),
             }
         )
         self._logger.debug("Create runner(%s) by %s(%s)", stage, runner_cls.__name__, run_config)
@@ -550,10 +575,15 @@ class BaseManager(object):
         if check_config:
             loader = msc_utils.IODataLoader(msc_utils.get_dataset_dir().relpath("Golden"))
             total, passed = 0, 0
-            acc_report = {}
+            acc_report = {"config": check_config}
             for idx, (inputs, outputs) in enumerate(loader):
                 results = runner.run(inputs)
-                iter_report = msc_utils.compare_arrays(outputs, results)
+                iter_report = msc_utils.compare_arrays(
+                    outputs,
+                    results,
+                    atol=check_config.get("atol", 1e-2),
+                    rtol=check_config.get("rtol", 1e-2),
+                )
                 total += iter_report["total"]
                 passed += iter_report["passed"]
                 acc_report["iter_" + str(idx)] = iter_report["info"]
@@ -562,15 +592,17 @@ class BaseManager(object):
             title = "Check({}) pass {}".format(stage, report["accuracy"])
             self._logger.debug(msc_utils.msg_block(title, acc_report))
             msg += " acc {} iters -> {}".format(len(loader), report["accuracy"])
-            required_err, err_rate = check_config.get("err_rate", 0), (1 - pass_rate)
-            if err_rate > required_err >= 0:
-                raise Exception(
-                    "Failed to profile the runner({}), err_rate {} > required {}".format(
-                        stage, err_rate, required_err
+            if runner.get_tool(ToolType.PRUNER) or runner.get_tool(ToolType.QUANTIZER):
+                self._logger.debug("Disable accuracy check(%s) by tools", stage)
+            else:
+                required_err, err_rate = check_config.get("err_rate", 0), (1 - pass_rate)
+                if err_rate > required_err >= 0:
+                    raise Exception(
+                        "Failed to profile the runner({}), err_rate {} > required {}".format(
+                            stage, err_rate, required_err
+                        )
                     )
-                )
 
-        # benchmark model
         benchmark_config = profile_config.get("benchmark", {})
         if benchmark_config:
             for _ in range(benchmark_config.get("warm_up", 10)):
@@ -721,6 +753,15 @@ class BaseManager(object):
 
         if "optimize" not in config:
             return config
+        for tool_type in ToolType.all_types():
+            if tool_type not in config["optimize"]:
+                continue
+            tool_config = config["optimize"][tool_type]
+            if "plan_file" not in tool_config:
+                tool_config["plan_file"] = "msc_{}.json".format(tool_type)
+            tool_config["plan_file"] = msc_utils.to_abs_path(
+                tool_config["plan_file"], msc_utils.get_config_dir()
+            )
         return config
 
     def get_runnable(self, ret_type: str = "runner") -> Any:

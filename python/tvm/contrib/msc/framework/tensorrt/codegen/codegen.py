@@ -18,7 +18,7 @@
 
 import os
 import subprocess
-from typing import Dict, Optional, Tuple, List
+from typing import Dict, Optional, Tuple, List, Union
 import numpy as np
 
 import tvm
@@ -68,6 +68,11 @@ def to_sub_tensorrt(
         codegen_config["tensorrt_root"] = _ffi_api.GetTensorRTRoot()
     build_folder = build_folder or msc_utils.msc_dir(keep_history=False, cleanup=True)
     output_folder = output_folder or msc_utils.msc_dir("msc_output")
+    depends = {}
+    if "range_file" in codegen_config:
+        range_file = codegen_config["range_file"]
+        codegen_config["range_file"] = os.path.basename(range_file)
+        depends[codegen_config["range_file"]] = {"src": range_file, "copy_back": True}
 
     def _create_depends(folder: msc_utils.MSCDirectory) -> str:
         if weights:
@@ -90,6 +95,10 @@ def to_sub_tensorrt(
         with folder.create_dir("utils") as utils_folder:
             for name, source in get_trt_sources().items():
                 utils_folder.add_file(name, source)
+        # copy depends
+        for path, info in depends.items():
+            if os.path.exists(info["src"]):
+                folder.copy(info["src"], path)
 
     def _build_engine(engine_name: str, folder: msc_utils.MSCDirectory) -> str:
         with open("engine.log", "w") as log_f:
@@ -100,7 +109,10 @@ def to_sub_tensorrt(
         ), "Failed to test engine {} under {}, check engine.log for detail".format(
             engine_name, os.getcwd()
         )
-        return folder.move_file(engine_name + ".trt", output_folder.create_dir(graph.name))
+        for path, info in depends.items():
+            if info.get("copy_back", False) and os.path.exists(path):
+                folder.copy(path, info["src"])
+        return folder.move(engine_name + ".trt", output_folder.relpath(engine_name + ".trt"))
 
     codegen = CodeGen(
         graph,
@@ -121,9 +133,9 @@ def to_sub_tensorrt(
 def to_tensorrt(
     mod: tvm.IRModule,
     graph_infos: List[Tuple[str, MSCGraph, Dict[str, tvm.nd.array]]],
-    codegen_config: Optional[Dict[str, str]] = None,
-    print_config: Optional[Dict[str, str]] = None,
-    extra_option: Optional[Dict[str, str]] = None,
+    codegen_configs: Optional[Union[Dict[str, str], List[Dict[str, str]]]] = None,
+    print_configs: Optional[Union[Dict[str, str], List[Dict[str, str]]]] = None,
+    extra_options: Optional[Union[Dict[str, str], List[Dict[str, str]]]] = None,
     build_folder: msc_utils.MSCDirectory = None,
     output_folder: msc_utils.MSCDirectory = None,
 ) -> Dict[str, str]:
@@ -135,9 +147,9 @@ def to_tensorrt(
         The IRModule of relax.
     graph_infos: list<name, graph, name>
         The translated graph.
-    codegen_config: dict
+    codegen_configs: dict or list<dict>
         The config for codegen.
-    print_config: dict
+    print_configs: dict ot list<dict>
         The config for print.
     extra_option: dict
         The extra option for sub engine.
@@ -153,12 +165,18 @@ def to_tensorrt(
     """
 
     target_options = {}
-    for graph, weights in graph_infos:
+    if not isinstance(codegen_configs, (list, tuple)):
+        codegen_configs = [codegen_configs] * len(graph_infos)
+    if not isinstance(print_configs, (list, tuple)):
+        print_configs = [print_configs] * len(graph_infos)
+    if not isinstance(extra_options, (list, tuple)):
+        extra_options = [extra_options] * len(graph_infos)
+    for idx, (graph, weights) in enumerate(graph_infos):
         options = to_sub_tensorrt(
-            graph, weights, codegen_config, print_config, build_folder, output_folder
+            graph, weights, codegen_configs[idx], print_configs[idx], build_folder, output_folder
         )
-        if extra_option:
-            options.update(extra_option)
+        if extra_options[idx]:
+            options.update(extra_options[idx])
         target_options[graph.name] = msc_utils.dump_dict(options)
     mod = tvm.transform.Sequential(
         [

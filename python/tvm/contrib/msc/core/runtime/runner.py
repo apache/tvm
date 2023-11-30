@@ -26,7 +26,9 @@ import numpy as np
 import tvm
 from tvm.contrib.msc.core.ir import MSCGraph
 from tvm.contrib.msc.core.frontend import from_relax
+from tvm.contrib.msc.core.tools import BaseTool, ToolType, create_tool
 from tvm.contrib.msc.core.utils.namespace import MSCFramework
+from tvm.contrib.msc.core.utils.message import MSCStage
 from tvm.contrib.msc.core import utils as msc_utils
 from tvm.contrib.msc.core import _ffi_api
 
@@ -54,6 +56,8 @@ class BaseRunner(object):
         The device of the model, cpu| cuda| cuda:0|...
     is_training: bool
         Whether use model in training
+    debug_level: int
+        The debug level.
     logger: logging.Logger
         The logger
     """
@@ -68,6 +72,7 @@ class BaseRunner(object):
         name: str = "main",
         device: str = "cpu",
         is_training: bool = False,
+        debug_level: int = 0,
         logger: logging.Logger = None,
     ):
         self._mod = mod
@@ -78,6 +83,7 @@ class BaseRunner(object):
         self._name = name
         self._device = device if self._device_enabled(device) else "cpu"
         self._is_training = is_training
+        self._debug_level = debug_level
         self._logger = logger or msc_utils.get_global_logger()
         self._logger.info(
             msc_utils.msg_block(
@@ -111,6 +117,7 @@ class BaseRunner(object):
             "name": self._name,
             "device": self._device,
             "is_training": self._is_training,
+            "debug_level": self._debug_level,
         }
 
     def change_stage(self, stage: str):
@@ -143,7 +150,10 @@ class BaseRunner(object):
 
         # Create tools
         if self._tools_config:
-            raise NotImplementedError("Tools is not supported")
+            for t_type, config in self._tools_config.items():
+                self._tools[t_type] = create_tool(
+                    self.framework, t_type, self._name, stage=self._stage, **config
+                )
 
         # Load graphs from cache
         if cache_info.get("graphs"):
@@ -156,6 +166,12 @@ class BaseRunner(object):
         if build_graph or not self._graphs:
             self._graphs, self._weights = self._translate()
             self._logger.debug("Translate {} graphs from module".format(len(self._graphs)))
+
+        # reset graph for tools
+        for tool in self._tools.values():
+            self._graphs, self._weights = tool.reset(
+                self._graphs, self._weights, cache_dir=cache_dir
+            )
 
         if cache_info.get("model") and not build_graph:
             # Load model from cache
@@ -172,7 +188,8 @@ class BaseRunner(object):
                     )
                 )
         self._model_info = self._inspect_model()
-        self._logger.debug(msc_utils.msg_block("MODEL_INFO", self._model_info))
+        if self._debug_level >= 3:
+            self._logger.debug(msc_utils.msg_block("RUNNER.MODEL_INFO", self._model_info))
 
         if cache_info.get("runnable") and not build_graph:
             # Load runnable from cache
@@ -201,11 +218,14 @@ class BaseRunner(object):
             "model": self._save_model(cache_dir),
             "runnable": self._save_runnable(cache_dir),
         }
+        for tool in self._tools.values():
+            cache_info.update(tool.save_cache(cache_dir))
         with open(cache_dir.relpath("cache_info.json"), "w") as f:
             f.write(json.dumps(cache_info, indent=2))
-        self._logger.debug(
-            msc_utils.msg_block("CACHE_INFO", {"folder": cache_dir, "info": cache_info})
-        )
+        if self._debug_level >= 3:
+            self._logger.debug(
+                msc_utils.msg_block("RUNNER.CACHE_INFO", {"folder": cache_dir, "info": cache_info})
+            )
 
     def run(
         self, inputs: Union[List[np.ndarray], Dict[str, np.ndarray]], ret_type="dict"
@@ -262,6 +282,51 @@ class BaseRunner(object):
                 outputs = [outputs]
             outputs = [msc_utils.cast_array(data) for data in outputs]
         return outputs
+
+    def get_tool(self, tool_type: str) -> BaseTool:
+        """Get tool by type
+
+        Parameters
+        -------
+        tool_type: str
+            The type of the tool prune| quantize| distill...
+
+        Returns
+        -------
+        tool: BaseTool
+            The saved tool.
+        """
+
+        return self._tools.get(tool_type)
+
+    def apply_tool(self, tool_type: str, data_loader: Any = None) -> dict:
+        """Execute tool and get plan
+
+        Parameters
+        -------
+        tool_type: str
+            The tool type, should be in ToolType
+        data_loader:
+            The data loader
+        """
+
+        assert tool_type in self._tools, "Can not find tool " + str(tool_type)
+        if tool_type == ToolType.PRUNER:
+            pruner = self.get_tool(ToolType.PRUNER)
+            if not pruner.finalize():
+                assert data_loader, "data_loader should be given to plan prune"
+                for inputs in data_loader():
+                    self.run(inputs)
+                    break
+            plan = pruner.finalize()
+        else:
+            plan = self.get_tool(tool_type).finalize()
+        assert plan, "Failed to create plan for {}".format(tool_type)
+        plan_file = self._tools_config[tool_type]["plan_file"]
+        with open(plan_file, "w") as f:
+            f.write(json.dumps(plan, indent=2))
+        self._logger.info("Save %s plan -> %s", tool_type, plan_file)
+        return plan
 
     def visualize(self, visual_dir: msc_utils.MSCDirectory):
         """Visualize MSCGraphs
@@ -638,7 +703,7 @@ class ModelRunner(BaseRunner):
             graphs or self._graphs[0],
             weights or self._weights[0],
             codegen_config=self._generate_config.get("codegen"),
-            print_config=self._generate_config.get("build"),
+            print_config=self._generate_config.get("print"),
             build_folder=self._generate_config["build_folder"],
         )
 
@@ -799,13 +864,16 @@ class BYOCRunner(BaseRunner):
 
         graph_infos = list(zip(graphs or self._graphs, weights or self._weights))
         extra_option = self._generate_config.get("extra_option", {})
-        extra_option["tool_tag"] = self._name
+        if self._stage == MSCStage.COMPILE and not self.get_tool(ToolType.TRACKER):
+            extra_option["tool_tag"] = ""
+        else:
+            extra_option["tool_tag"] = self._name
         return self.codegen_func(
             self._byoc_mod,
             graph_infos,
-            codegen_config=self._generate_config.get("codegen"),
-            print_config=self._generate_config.get("build"),
-            extra_option=extra_option,
+            codegen_configs=self._generate_config.get("codegen"),
+            print_configs=self._generate_config.get("print"),
+            extra_options=extra_option,
             build_folder=self._generate_config["build_folder"],
             output_folder=self._generate_config.get("output_folder", msc_utils.get_output_dir()),
         )
@@ -886,6 +954,11 @@ class BYOCRunner(BaseRunner):
             The inspected model info
         """
 
+        if self._debug_level >= 3:
+            for idx, graph in enumerate(self._graphs):
+                self._logger.debug(
+                    msc_utils.msg_block("RUNNER.GRAPH[{}].INFO".format(idx), graph.inspect())
+                )
         return self._byoc_graph.inspect()
 
     def _device_enabled(self, device: str) -> bool:

@@ -85,6 +85,9 @@ struct TensorRTCodeGenConfig {
   size_t max_workspace{1 << 20};
   std::string cmake_version{"3.5"};
   std::string dataset{"Dataset"};
+  std::string range_file{""};
+  std::string precision{"float32"};
+  std::string precision_mode{"strict"};
   std::string tensorrt_root{"/usr/local/cuda"};
   CODEGEN_CONFIG_MEMBERS
   void Load(dmlc::JSONReader* reader) {
@@ -103,6 +106,12 @@ struct TensorRTCodeGenConfig {
         reader->Read(&cmake_version);
       } else if (key == "dataset") {
         reader->Read(&dataset);
+      } else if (key == "range_file") {
+        reader->Read(&range_file);
+      } else if (key == "precision") {
+        reader->Read(&precision);
+      } else if (key == "precision_mode") {
+        reader->Read(&precision_mode);
       } else if (key == "tensorrt_root") {
         reader->Read(&tensorrt_root);
       } else {

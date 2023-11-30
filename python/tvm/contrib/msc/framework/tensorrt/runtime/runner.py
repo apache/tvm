@@ -14,6 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+# pylint: disable=unused-import
 """tvm.contrib.msc.framework.tensorrt.runtime.runner"""
 
 import tvm
@@ -24,6 +25,7 @@ from tvm.contrib.msc.framework.tensorrt.frontend import (
     transform_for_tensorrt,
 )
 from tvm.contrib.msc.framework.tensorrt.codegen import to_tensorrt
+from tvm.contrib.msc.framework.tensorrt import tools
 
 
 class TensorRTRunner(BYOCRunner):

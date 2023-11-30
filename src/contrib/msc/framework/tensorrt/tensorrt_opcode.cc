@@ -230,11 +230,12 @@ class TensorRTAdaptivePool2dCodeGen : public TensorRTOpCode {
       stride.push_back(in_sizes[i] / out_sizes[i]);
       kernel.push_back((in_sizes[i] - (out_sizes[i] - 1) * stride[i]));
     }
+    const String& suffix = CompareVersion(8, 0, 0) >= 0 ? "Nd" : "";
     stack_.op_call()
         .op_input_arg()
         .call_arg("PoolingType::k" + symbol_)
         .call_arg(ToDims(kernel, false));
-    SetLayerByDimsValue("Stride", stride, false);
+    SetLayerByDimsValue("Stride" + suffix, stride, false);
   }
 };
 
@@ -339,8 +340,9 @@ class TensorRTConvCodeGen : public TensorRTOpCode {
     } else {
       stack_.call_arg("mWeights[\"" + node()->name + ".bias\"]");
     }
-    SetLayerByDimsAttr("Stride", "strides", false);
-    SetLayerByDimsAttr("Dilation", "dilation", false);
+    const String& suffix = CompareVersion(8, 0, 0) >= 0 ? "Nd" : "";
+    SetLayerByDimsAttr("Stride" + suffix, "strides", false);
+    SetLayerByDimsAttr("Dilation" + suffix, "dilation", false);
     SetLayerByAttr<int>("NbGroups", "groups");
     SetPadding();
   }
@@ -472,7 +474,7 @@ class TensorRTPermuteDimsCodeGen : public TensorRTOpCode {
 
 class TensorRTPool2dCodeGen : public TensorRTOpCode {
  public:
-  explicit TensorRTPool2dCodeGen(const String& symbol) : TensorRTOpCode("Pooling") {
+  explicit TensorRTPool2dCodeGen(const String& symbol) : TensorRTOpCode("PoolingNd") {
     symbol_ = symbol;
   }
 
@@ -482,7 +484,8 @@ class TensorRTPool2dCodeGen : public TensorRTOpCode {
         .op_input_arg()
         .call_arg("PoolingType::k" + symbol_)
         .call_arg(AttrToDims("pool_size", false));
-    SetLayerByDimsAttr("Stride", "strides", false);
+    const String& suffix = CompareVersion(8, 0, 0) >= 0 ? "Nd" : "";
+    SetLayerByDimsAttr("Stride" + suffix, "strides", false);
     if (node()->GetTypeAttr<bool>("ceil_mode")) {
       SetLayerByValue("PaddingMode", "PaddingMode::kEXPLICIT_ROUND_UP");
     }
@@ -777,7 +780,7 @@ GetTensorRTOpCodes() {
 
   // nn ops
   map->emplace("nn.adaptive_avg_pool2d",
-               std::make_shared<TensorRTAdaptivePool2dCodeGen>("Pooling", "AVERAGE"));
+               std::make_shared<TensorRTAdaptivePool2dCodeGen>("PoolingNd", "AVERAGE"));
   map->emplace("nn.avg_pool2d", std::make_shared<TensorRTPool2dCodeGen>("AVERAGE"));
   map->emplace("nn.batch_matmul", std::make_shared<TensorRTBatchMatmulCodeGen>("MatrixMultiply"));
   map->emplace("nn.conv2d", std::make_shared<TensorRTConvCodeGen>("ConvolutionNd", false));
