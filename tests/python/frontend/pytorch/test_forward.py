@@ -5571,6 +5571,25 @@ def test_scaled_dot_product_attention():
     verify_model(test_fn(), [query_3d, key_3d, value_3d])
 
 
+def test_parameterlist():
+    """test_parameterlist"""
+    torch.set_grad_enabled(False)
+
+    class ParamListModel(torch.nn.Module):
+        def __init__(self, num_layer=2):
+            super().__init__()
+            self.biases = torch.nn.ParameterList([torch.randn(10)] * num_layer)
+            self.weights = torch.nn.ParameterList([torch.randn(10, 10)] * num_layer)
+
+        def forward(self, x):
+            for i in range(len(self.weights) - 1):
+                x = torch.addmm(self.biases[i], x, self.weights[i])
+            return torch.addmm(self.biases[-1], x, self.weights[-1])
+
+    input_data = torch.randn(20, 10)
+    verify_model(ParamListModel().float().eval(), input_data=input_data)
+
+
 class TestSetSpan:
     """test structural equal between translated / hand-crafted relay IR with span tagged."""
 
