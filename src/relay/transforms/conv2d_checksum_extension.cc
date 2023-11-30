@@ -151,6 +151,12 @@ class Conv2dVisitor : private ExprVisitor {
             (arg->out_dtype == DataType::UInt(64)));
   }
 
+    bool supportedConv2Dparam(const Conv2DAttrs* arg){
+    return ((Downcast<IntImm>(arg->strides[0])->value  == 1) && (Downcast<IntImm>(arg->strides[1])->value  == 1) &&
+            (Downcast<IntImm>(arg->dilation[0])->value == 1) && (Downcast<IntImm>(arg->dilation[1])->value == 1) &&
+            (Downcast<IntImm>(arg->padding[0])->value  == 0) && (Downcast<IntImm>(arg->padding[1])->value  == 0));
+  }
+
 
   void VisitExpr_(const CallNode* n) final {
     if (n->op == conv2d_op) {
@@ -161,7 +167,7 @@ class Conv2dVisitor : private ExprVisitor {
       ICHECK(attr);
       ICHECK(input);
       ICHECK(weight);
-      if(supportedInputTensorType(input)  && supportedInputTensorType(weight) && supportedOutputTensorType(attr)){
+      if(supportedInputTensorType(input)  && supportedInputTensorType(weight) && supportedOutputTensorType(attr) && supportedConv2Dparam(attr)){
         memo_.push_back(GetRef<Call>(n));
       }
    }
@@ -183,9 +189,18 @@ TVM_REGISTER_GLOBAL("relay.analysis.search_conv2d").set_body_typed(SearchConv2d)
 namespace transform {
 
 ///searches in data layout at which position each tensor dimension is: returns in ({pos_N, pos_C, pos_H, pos_W};)  form
-struct tensor_dim_pos
+struct tensor_data_dim_pos
 {
   int pos_N, pos_C, pos_H, pos_W;
+  tensor_data_dim_pos(int N, int C, int H, int W): pos_N(N), pos_C(C), pos_H(H), pos_W(W){};
+};
+
+
+
+struct tensor_weight_dim_pos
+{
+  int pos_O, pos_I, pos_H, pos_W;
+  tensor_weight_dim_pos(int O, int I, int H, int W): pos_O(O), pos_I(I), pos_H(H), pos_W(W){};
 };
 
 
@@ -205,26 +220,12 @@ ObjectPtr<Conv2DAttrs> create_depthwise_conv_attr(const Conv2DAttrs* orig_conv_a
   return depthwise_conv_attr;
 }
 
-/// @brief create attributes for a tensor/tensor product with a generic 4D layout (data and kernel layout has to be corresponding)
-/// @param weight_shape
-/// @return
-ObjectPtr<Conv2DAttrs> create_ten_ten_prod_attr(Shape weight_shape, const Conv2DAttrs* orig_conv_attr,tensor_dim_pos dim_pos ){
-  auto vec_vec_prod_attr = make_object<Conv2DAttrs>();
-  vec_vec_prod_attr->strides = {1,1};
-  vec_vec_prod_attr->padding = {0, 0, 0, 0};
-  vec_vec_prod_attr->dilation = {1,1};
-  vec_vec_prod_attr->groups = 1;
-  vec_vec_prod_attr->kernel_size = {weight_shape[dim_pos.pos_H], weight_shape[dim_pos.pos_W]}; //SR
-  vec_vec_prod_attr->data_layout   = orig_conv_attr->data_layout;
-  vec_vec_prod_attr->kernel_layout = orig_conv_attr->kernel_layout;
-  vec_vec_prod_attr->out_layout = orig_conv_attr->out_layout;
-  vec_vec_prod_attr->out_dtype = DataType::Int(64);
-  vec_vec_prod_attr->channels = {1};
-  return vec_vec_prod_attr;
-}
-
-
-Shape infer_output_shape_conv2d(const Call origin_conv2d, tensor_dim_pos dim_pos){
+/// @brief Infers the output shape of the original conv2D to build a corresponding ones tensor to reduce input shape -> weight shape
+/// @param origin_conv2d
+/// @param data_dim_pos
+/// @param weight_dim_pos
+/// @return shape of ones tensor
+Shape infer_output_shape_conv2d(const Call origin_conv2d, tensor_data_dim_pos data_dim_pos, tensor_weight_dim_pos weight_dim_pos){
         const auto* input_tensor  = origin_conv2d->args[0]->type_as<TensorTypeNode>();
         const auto* weight_tensor = origin_conv2d->args[1]->type_as<TensorTypeNode>();
 
@@ -238,43 +239,79 @@ Shape infer_output_shape_conv2d(const Call origin_conv2d, tensor_dim_pos dim_pos
         std::array<PrimExpr,4> one_array;
         // calculate output shape for the according Matrix(P,Q and C inferred from input shape)
         //  (Input Size – ((Filter Size – 1)Dilation Factor + 1) + 2Padding)/Stride + 1
-        one_array[dim_pos.pos_H] = input_shape[dim_pos.pos_H] - weight_shape[dim_pos.pos_H] + 1;
-        one_array[dim_pos.pos_W] = input_shape[dim_pos.pos_W] - weight_shape[dim_pos.pos_W] + 1;
-        one_array[dim_pos.pos_N] = input_shape[dim_pos.pos_C]; //switch between C and N for depthwise Conv
-        one_array[dim_pos.pos_C] = PrimExpr(1);   //channel needs to be one
+        one_array[weight_dim_pos.pos_H] =  input_shape[data_dim_pos.pos_H] - weight_shape[weight_dim_pos.pos_H] + 1;
+        one_array[weight_dim_pos.pos_W] =  input_shape[data_dim_pos.pos_W] - weight_shape[weight_dim_pos.pos_W] + 1;
+        //switch between C and N
+        one_array[weight_dim_pos.pos_O] = input_shape[data_dim_pos.pos_C];
+        one_array[weight_dim_pos.pos_I] = PrimExpr(1);   //channel needs to be one
 
-        return Shape(one_array.begin(), one_array.end());
+        return Shape({one_array[0], one_array[1], one_array[2], one_array[3]});
 
 }
 
-
-tvm::relay::TShapeDataDependent infer_weight_for_tensor_tensor_dot(const Call origin_conv2d, tensor_dim_pos dim_pos){
+/// @brief Reshapes weight tensor to corresponding reduced input checksum (only required in original depthwise conv2d case)
+/// @param origin_conv2d
+/// @param dim_pos
+/// @return Reshaped Weight Array<Integer>
+tvm::relay::TShapeDataDependent infer_weight_for_tensor_tensor_dot(const Call origin_conv2d, tensor_weight_dim_pos dim_pos){
         const auto* weight_tensor = origin_conv2d->args[1]->type_as<TensorTypeNode>();
         ICHECK(weight_tensor != nullptr);
 
-        auto weight_shape = weight_tensor->shape;
+        Shape weight_shape = weight_tensor->shape;
         std::array<IntImm,4> new_shape;
 
         new_shape[dim_pos.pos_H] =  Downcast<IntImm>(weight_shape[dim_pos.pos_H]);
         new_shape[dim_pos.pos_W] =  Downcast<IntImm>(weight_shape[dim_pos.pos_W]);
-        new_shape[dim_pos.pos_N] =  Downcast<IntImm>(weight_shape[dim_pos.pos_C]); //switch between C and N for same dimensions
-        new_shape[dim_pos.pos_C] =  Downcast<IntImm>(weight_shape[dim_pos.pos_N]);
+        new_shape[dim_pos.pos_O] =  Downcast<IntImm>(weight_shape[dim_pos.pos_I]); //switch between C and K for same dimensions
+        new_shape[dim_pos.pos_I] =  Downcast<IntImm>(weight_shape[dim_pos.pos_O]);
 
         return {static_cast<int32_t>(new_shape[0]->value), static_cast<int32_t>(new_shape[1]->value),
                 static_cast<int32_t>(new_shape[2]->value), static_cast<int32_t>(new_shape[3]->value)};
 }
 
 
+/// @brief create attributes for a tensor/tensor product with a generic 4D layout (data and kernel layout has to be corresponding)
+/// @param weight_shape
+/// @return
+ObjectPtr<Conv2DAttrs> create_ten_ten_prod_attr(Shape weight_shape, const Conv2DAttrs* orig_conv_attr,tensor_weight_dim_pos dim_pos ){
+  auto ten_ten_prod_attr = make_object<Conv2DAttrs>();
+  ten_ten_prod_attr->strides = {1,1};
+  ten_ten_prod_attr->padding = {0, 0, 0, 0};
+  ten_ten_prod_attr->dilation = {1,1};
+  ten_ten_prod_attr->groups = 1;
+  ten_ten_prod_attr->kernel_size = {weight_shape[dim_pos.pos_H], weight_shape[dim_pos.pos_W]}; //SR
+  ten_ten_prod_attr->data_layout   = orig_conv_attr->data_layout;
+  ten_ten_prod_attr->kernel_layout = orig_conv_attr->kernel_layout;
+  ten_ten_prod_attr->out_layout = orig_conv_attr->out_layout;
+  ten_ten_prod_attr->out_dtype = DataType::Int(64);
+  ten_ten_prod_attr->channels = {1};
+  return ten_ten_prod_attr;
+}
+
+
+
 //searches data_layout for position of each Dimension position
-tensor_dim_pos infer_tensor_dim_pos(const Conv2DAttrs* orig_conv_attr){
+tensor_data_dim_pos infer_data_tensor_dim_pos(const Conv2DAttrs* orig_conv_attr){
   ICHECK_EQ(orig_conv_attr->data_layout.length(), 4) <<  "data layout needs to be 4-dimensional";
    //String is a ref to std::string like string_view?
   int pos_N = static_cast<std::string>(orig_conv_attr->data_layout).find("N");
   int pos_C = static_cast<std::string>(orig_conv_attr->data_layout).find("C");
   int pos_H = static_cast<std::string>(orig_conv_attr->data_layout).find("H");
   int pos_W = static_cast<std::string>(orig_conv_attr->data_layout).find("W");
-  return tensor_dim_pos{pos_N, pos_C, pos_H, pos_W};
+  return tensor_data_dim_pos(pos_N, pos_C, pos_H, pos_W);
 }
+
+//searches data_layout for position of each Dimension position
+tensor_weight_dim_pos infer_weight_tensor_dim_pos(const Conv2DAttrs* orig_conv_attr){
+  ICHECK_EQ(orig_conv_attr->data_layout.length(), 4) <<  "data layout needs to be 4-dimensional";
+   //String is a ref to std::string like string_view?
+  int pos_O = static_cast<std::string>(orig_conv_attr->kernel_layout).find("O");
+  int pos_I = static_cast<std::string>(orig_conv_attr->kernel_layout).find("I");
+  int pos_H = static_cast<std::string>(orig_conv_attr->kernel_layout).find("H");
+  int pos_W = static_cast<std::string>(orig_conv_attr->kernel_layout).find("W");
+  return tensor_weight_dim_pos(pos_O, pos_I, pos_H, pos_W);
+}
+
 
 
 
@@ -340,8 +377,9 @@ IRModule Extend2DConv(const IRModule& mod) {
         const auto* orig_conv_attr = origin_conv2d->attrs.as<Conv2DAttrs>();
         ICHECK(orig_conv_attr != nullptr);
         //search layout string for position of N,C,H,W in data layout
-        auto dim_pos = infer_tensor_dim_pos(orig_conv_attr);
-        reduce_axis_attrs->axis = {dim_pos.pos_N}; //Get the N-th dimension in any layout
+        tensor_data_dim_pos data_dim_pos = infer_data_tensor_dim_pos(orig_conv_attr);
+        tensor_weight_dim_pos weight_dim_pos = infer_weight_tensor_dim_pos(orig_conv_attr);
+        reduce_axis_attrs->axis = {data_dim_pos.pos_N}; //Get the N-th dimension in input layout
 
         const auto input  = origin_conv2d->args[0];
         const auto weight = origin_conv2d->args[1];
@@ -362,10 +400,10 @@ IRModule Extend2DConv(const IRModule& mod) {
 */
        
         /// Implement depth-wise conv with conv2d Operation (Group arg splits input into C seperate batches)
-        Shape one_tensor = infer_output_shape_conv2d(origin_conv2d, dim_pos); //C1PQ for NCHW, but supports also other layouts
+        Shape one_tensor = infer_output_shape_conv2d(origin_conv2d, data_dim_pos, weight_dim_pos); //C1PQ for NCHW, but supports also other layouts
 
 
-        auto depthwise_conv_attr = create_depthwise_conv_attr(orig_conv_attr, one_tensor[dim_pos.pos_H], one_tensor[dim_pos.pos_W], Downcast<IntImm>(one_tensor[dim_pos.pos_N]));
+        auto depthwise_conv_attr = create_depthwise_conv_attr(orig_conv_attr, one_tensor[weight_dim_pos.pos_H], one_tensor[weight_dim_pos.pos_W], Downcast<IntImm>(one_tensor[weight_dim_pos.pos_O]));
         auto depthwise_kernel = Ones(one_tensor, input_tensor->dtype);
 
         Call depthwise_conv(conv2d_op, {input, depthwise_kernel}, Attrs{depthwise_conv_attr});
@@ -407,18 +445,20 @@ IRModule Extend2DConv(const IRModule& mod) {
         if(!depth){
           // normal Conv
           Call weight_32bit(cast_op, {weight}, Attrs(cast_attr_32bit));
+          reduce_axis_attrs->axis = {weight_dim_pos.pos_O}; //Get the K-th dimension in data layout
           filterwise_sum_input = Call(sum_op, {weight_32bit},  Attrs(reduce_axis_attrs));  // add each element of indiv filter
         }else{
           //depthwise Conv
+          ///TODO: depth-multiplier feature implemented in TVM with multiple filter channel size in TVM
           auto reshape_attrs = make_object<ReshapeAttrs>();  // reshape(w(C,1,S,R)->w(1,C,S,R)) for NCHW
-          reshape_attrs->newshape = infer_weight_for_tensor_tensor_dot(origin_conv2d, dim_pos);
+          reshape_attrs->newshape = infer_weight_for_tensor_tensor_dot(origin_conv2d, weight_dim_pos);
           auto filterwise_sum_8bit = Call(reshape, {weight},  Attrs(reshape_attrs));
           filterwise_sum_input = Call(cast_op, {filterwise_sum_8bit}, Attrs(cast_attr_32bit));
         }
         // Simple Vector-Vector dot product of 3D Tensors (Checksum dot product)
         auto weight_shape = origin_conv2d->args[1]->type_as<TensorTypeNode>()->shape;
-        auto vec_vec_prod_attr = create_ten_ten_prod_attr(weight_shape, orig_conv_attr, dim_pos);
-        Call vec_vec_prod(conv2d_op, {batchwise_sum_input, filterwise_sum_input}, Attrs(vec_vec_prod_attr));
+        auto ten_ten_prod_attr = create_ten_ten_prod_attr(weight_shape, orig_conv_attr, weight_dim_pos);
+        Call ten_ten_prod(conv2d_op, {batchwise_sum_input, filterwise_sum_input}, Attrs(ten_ten_prod_attr));
         
 
 
@@ -437,10 +477,10 @@ IRModule Extend2DConv(const IRModule& mod) {
         //Reduce 4D Tensor into 64-bit scalar 
         Call origin_conv2d_64bit(cast_op, {origin_conv2d}, Attrs(cast_attr_64bit));
         Call output_checksum(sum_op, {origin_conv2d_64bit}, Attrs(reduce_elemwise_attrs));
-        Call vec_vec_prod_right_dim(sum_op, {vec_vec_prod}, Attrs(reduce_elemwise_attrs));
+        Call ten_ten_prod_right_dim(sum_op, {ten_ten_prod}, Attrs(reduce_elemwise_attrs));
 
         //Final comparision, which is then one additional output in the output tuple
-        Call comp(neq_op, {vec_vec_prod_right_dim, output_checksum});
+        Call comp(neq_op, {ten_ten_prod_right_dim, output_checksum});
 
         output_expr.push_back(comp);
       }
