@@ -2237,53 +2237,78 @@ inline TVMRetValue& TVMRetValue::operator=(TObjectRef other) {
   using ContainerType = typename TObjectRef::ContainerType;
   const Object* ptr = other.get();
 
-  // All type-specific checks require non-null object pointers, so
-  // it can be pulled out into an early return.
-  if (ptr == nullptr) {
+  if (ptr) {
+    // Check for special cases of ObjectRef that have explicit
+    // representation within the TVMRetValue structure.
+    // (e.g. Unboxing of `runtime::Int` into a primitive integer
+    // with type code kTVMArgInt.)  The checks below are written to
+    // handle three distinct cases.
+    //
+    // 1. If TObjectRef is a subclass of TSpecialCase, the special
+    //    case applies, and can be handled without a runtime check.
+    //    No runtime checks should be performed.
+    //
+    // 2. If TSpecialCase is a subclass of TObjectRef, the special
+    //    case might apply, and requires a runtime check.
+    //
+    // 3. If neither TObjectRef nor TSpecialCase is a subclass of
+    //    the other, then the special case does not apply.  No
+    //    runtime checks should be performed.
+    //
+    // Use of `if constexpr` ensures that the C++ subclass checks
+    // are applied when compiling TVM, and runtime overhead are only
+    // present when they may be applicable.
+
+    if constexpr (std::is_base_of_v<ContainerType, NDArray::ContainerType> ||
+                  std::is_base_of_v<NDArray::ContainerType, ContainerType>) {
+      if (std::is_base_of_v<NDArray::ContainerType, ContainerType> ||
+          ptr->IsInstance<NDArray::ContainerType>()) {
+        return operator=(NDArray(std::move(other.data_)));
+      }
+    }
+
+    if constexpr (std::is_base_of_v<ContainerType, Module::ContainerType> ||
+                  std::is_base_of_v<Module::ContainerType, ContainerType>) {
+      if (std::is_base_of_v<Module::ContainerType, ContainerType> ||
+          ptr->IsInstance<Module::ContainerType>()) {
+        return operator=(Module(std::move(other.data_)));
+      }
+    }
+
+    if constexpr (std::is_base_of_v<ContainerType, PackedFunc::ContainerType> ||
+                  std::is_base_of_v<PackedFunc::ContainerType, ContainerType>) {
+      if (std::is_base_of_v<PackedFunc::ContainerType, ContainerType> ||
+          ptr->IsInstance<PackedFunc::ContainerType>()) {
+        return operator=(PackedFunc(std::move(other.data_)));
+      }
+    }
+
+    if constexpr (std::is_base_of_v<Int, TObjectRef> || std::is_base_of_v<TObjectRef, Int>) {
+      if (std::is_base_of_v<Int, TObjectRef> || ptr->IsInstance<Int::ContainerType>()) {
+        int64_t value = static_cast<const Int::ContainerType*>(ptr)->value;
+        return operator=(value);
+      }
+    }
+
+    if constexpr (std::is_base_of_v<Float, TObjectRef> || std::is_base_of_v<TObjectRef, Float>) {
+      if (std::is_base_of_v<Float, TObjectRef> || ptr->IsInstance<Float::ContainerType>()) {
+        double value = static_cast<const Float::ContainerType*>(ptr)->value;
+        return operator=(value);
+      }
+    }
+
+    // If the object being stored is not one of the special cases,
+    // it is stored as an ObjectRef.
+    SwitchToObject(kTVMObjectHandle, std::move(other.data_));
+
+  } else {
+    // No object is present, set to an explicitly null handle.  When
+    // returning to a Python callee, this will be converted to
+    // `None`.
     SwitchToPOD(kTVMNullptr);
     value_.v_handle = nullptr;
-    return *this;
   }
 
-  if constexpr (std::is_base_of_v<ContainerType, NDArray::ContainerType> ||
-                std::is_base_of_v<NDArray::ContainerType, ContainerType>) {
-    if (std::is_base_of_v<NDArray::ContainerType, ContainerType> ||
-        ptr->IsInstance<NDArray::ContainerType>()) {
-      return operator=(NDArray(std::move(other.data_)));
-    }
-  }
-
-  if constexpr (std::is_base_of_v<ContainerType, Module::ContainerType> ||
-                std::is_base_of_v<Module::ContainerType, ContainerType>) {
-    if (std::is_base_of_v<Module::ContainerType, ContainerType> ||
-        ptr->IsInstance<Module::ContainerType>()) {
-      return operator=(Module(std::move(other.data_)));
-    }
-  }
-
-  if constexpr (std::is_base_of_v<ContainerType, PackedFunc::ContainerType> ||
-                std::is_base_of_v<PackedFunc::ContainerType, ContainerType>) {
-    if (std::is_base_of_v<PackedFunc::ContainerType, ContainerType> ||
-        ptr->IsInstance<PackedFunc::ContainerType>()) {
-      return operator=(PackedFunc(std::move(other.data_)));
-    }
-  }
-
-  if constexpr (std::is_base_of_v<Int, TObjectRef> || std::is_base_of_v<TObjectRef, Int>) {
-    if (std::is_base_of_v<Int, TObjectRef> || ptr->IsInstance<Int::ContainerType>()) {
-      int64_t value = static_cast<const Int::ContainerType*>(ptr)->value;
-      return operator=(value);
-    }
-  }
-
-  if constexpr (std::is_base_of_v<Float, TObjectRef> || std::is_base_of_v<TObjectRef, Float>) {
-    if (std::is_base_of_v<Float, TObjectRef> || ptr->IsInstance<Float::ContainerType>()) {
-      double value = static_cast<const Float::ContainerType*>(ptr)->value;
-      return operator=(value);
-    }
-  }
-
-  SwitchToObject(kTVMObjectHandle, std::move(other.data_));
   return *this;
 }
 
