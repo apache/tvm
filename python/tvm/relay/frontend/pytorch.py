@@ -5134,11 +5134,18 @@ def convert_params(graph, state_dict, source_map, use_parser_friendly_name=False
 
             full_attr = _getattr_full_name(getattrs, attr_name_sep)
             full_attr_node_name = _get_output_name(getattrs[-1])
-            # set variable name by concatenating first consumer's name with full attribute
+
+            # check if the node is a torch.nn.ParameterList, and if so, include the index in
+            # the attribute name as well
+            # e.g. "weights.1"
+            if re.search(attr_name_sep + r"\d+$", full_attr):
+                attr_name = full_attr.split(attr_name_sep)[-2:]
+            else:
+                attr_name = [full_attr.split(attr_name_sep)[-1]]
+
+            # set variable name by concatenating first consumer's name with attribute name
             # e.g. "aten::batch_norm_5.running_mean"
-            var_name = attr_name_sep.join(
-                [source_map[_get_users(getattrs[-1])[0]], full_attr.split(attr_name_sep)[-1]]
-            )
+            var_name = attr_name_sep.join([source_map[_get_users(getattrs[-1])[0]]] + attr_name)
 
             if full_attr.endswith("_packed_params"):  # for quantized models
                 packed_param_map[full_attr_node_name] = full_attr
