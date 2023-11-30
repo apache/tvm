@@ -4796,7 +4796,7 @@ class NodeNamer(ABC):
     def get_node_source_name(self, node) -> str:
         raise NotImplementedError()
 
-    def get_node_output_name(self, node_source_name: str, index: int) -> str:
+    def get_node_output_name(self, node_src_name: str, index: int) -> str:
         raise NotImplementedError()
 
 
