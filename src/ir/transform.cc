@@ -118,8 +118,6 @@ class PassConfigManager {
   // Trying to validate and legalize a config.
   void Legalize(Map<String, ObjectRef>* config) {
     std::vector<std::pair<std::string, ObjectRef>> update;
-    auto* reflection = ReflectionVTable::Global();
-
     for (auto [key, obj] : *config) {
       auto it = key2vtype_.find(key);
       if (it == key2vtype_.end()) {
