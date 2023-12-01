@@ -865,9 +865,36 @@ class Normalizer : public BlockBuilderImpl, private ExprFunctor<Expr(const Expr&
           // and thus flattened the inner SeqExprs already
           for (const BindingBlock& block : seq->blocks) {
             if (is_dataflow && !block->IsInstance<DataflowBlockNode>()) {
-              LOG(WARNING) << "Malformed AST: Seq expr nested inside a dataflow block contains a "
-                              "non-dataflow block! "
-                           << seq;
+              // A DataflowBlock occurring within a non-DataflowBlock
+              // usually is an error, resulting from return of a
+              // `BindingBlock`.  However, it may still be well-formed
+              // if there are no relax::DataflowVar instances used by
+              // the non-DataflowBlock.  This would result in multiple
+              // dataflow sections, split by non-dataflow portions,
+              // but would still be valid.
+              //
+              // Since the most common occurrence is due to mis-use,
+              // explicitly check for it here rather than waiting for a
+              // WellFormed check later on.
+
+              auto free_vars = FreeVars(SeqExpr({block}, Tuple(Array<Expr>{})));
+              Array<DataflowVar> free_dataflow_vars;
+              for (const auto& var : free_vars) {
+                if (auto opt = var.as<DataflowVar>()) {
+                  free_dataflow_vars.push_back(opt.value());
+                }
+              }
+
+              if (free_dataflow_vars.size()) {
+                LOG(FATAL)
+                    << "Malformed AST: "
+                    << "A DataflowVar may only be used within a DataflowBlock.  "
+                    << "The variable " << binding->var << " is defined within a DataflowBlock, "
+                    << "but is bound to a SeqExpr that contains non-dataflow BindingBlocks.  "
+                    << "These non-dataflow BindingBlocks use the DataflowVars "
+                    << free_dataflow_vars << ", which is invalid.\n"
+                    << binding;
+              }
             }
             ret.push_back(block);
           }
