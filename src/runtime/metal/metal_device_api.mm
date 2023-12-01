@@ -55,7 +55,6 @@ void MetalWorkspace::GetAttr(Device dev, DeviceAttrKind kind, TVMRetValue* rv) {
         break;
       }
       case kWarpSize: {
-// Set warp size to be 1 for safty reason.
 #if defined(__x86_64__)
         *rv = 1;
 #elif defined(__aarch64__)
