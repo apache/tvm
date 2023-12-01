@@ -281,6 +281,12 @@ TVM_DLL Pass UpdateVDevice(VDevice new_vdevice, int64_t index);
  */
 TVM_DLL Pass ExpandTupleArguments();
 
+/*! \brief Remove unused parameters to internal functions
+ *
+ * \return The Pass
+ */
+TVM_DLL Pass RemoveUnusedParameters();
+
 /*! \brief Remove unused outputs from internal functions
  *
  * \return The Pass
