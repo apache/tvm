@@ -33,6 +33,7 @@ from .transform import (
     DecomposeOpsForInference,
     DecomposeOpsForTraining,
     EliminateCommonSubexpr,
+    ExpandTupleArguments,
     FewShotTuning,
     FoldConstant,
     FunctionPass,

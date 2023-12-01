@@ -302,11 +302,15 @@ def _nn_gelu(bb: BlockBuilder, call: Call) -> Expr:
 def _nn_gelu_tanh(bb: BlockBuilder, call: Call) -> Expr:
     def te_gelu_tanh(x: te.Tensor):
         dtype = x.dtype
-        return tir.const(0.5, dtype) * (
-            tir.const(1.0, dtype)
-            + topi.tanh(
-                tir.const(math.sqrt(2.0 / math.pi), dtype)
-                * (x + tir.const(0.044715, dtype) * topi.power(x, 3))
+        return (
+            tir.const(0.5, dtype)
+            * x
+            * (
+                tir.const(1.0, dtype)
+                + topi.tanh(
+                    tir.const(math.sqrt(2.0 / math.pi), dtype)
+                    * (x + tir.const(0.044715, dtype) * topi.power(x, 3))
+                )
             )
         )
 

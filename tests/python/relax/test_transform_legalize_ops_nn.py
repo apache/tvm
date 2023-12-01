@@ -1258,12 +1258,19 @@ def test_gelu_tanh():
         @T.prim_func(private=True)
         def gelu_tanh(A: T.Buffer((T.int64(2), T.int64(3)), "float32"), T_multiply: T.Buffer((T.int64(2), T.int64(3)), "float32")):
             T.func_attr({"tir.noalias": T.bool(True)})
-            T_power = T.alloc_buffer((T.int64(2), T.int64(3)))
             T_multiply_1 = T.alloc_buffer((T.int64(2), T.int64(3)))
-            T_add = T.alloc_buffer((T.int64(2), T.int64(3)))
+            T_power = T.alloc_buffer((T.int64(2), T.int64(3)))
             T_multiply_2 = T.alloc_buffer((T.int64(2), T.int64(3)))
+            T_add = T.alloc_buffer((T.int64(2), T.int64(3)))
+            T_multiply_3 = T.alloc_buffer((T.int64(2), T.int64(3)))
             compute = T.alloc_buffer((T.int64(2), T.int64(3)))
             T_add_1 = T.alloc_buffer((T.int64(2), T.int64(3)))
+            for ax0, ax1 in T.grid(T.int64(2), T.int64(3)):
+                with T.block("T_multiply"):
+                    v_ax0, v_ax1 = T.axis.remap("SS", [ax0, ax1])
+                    T.reads(A[v_ax0, v_ax1])
+                    T.writes(T_multiply_1[v_ax0, v_ax1])
+                    T_multiply_1[v_ax0, v_ax1] = T.float32(0.5) * A[v_ax0, v_ax1]
             for ax0, ax1 in T.grid(T.int64(2), T.int64(3)):
                 with T.block("T_power"):
                     v_ax0, v_ax1 = T.axis.remap("SS", [ax0, ax1])
@@ -1271,29 +1278,29 @@ def test_gelu_tanh():
                     T.writes(T_power[v_ax0, v_ax1])
                     T_power[v_ax0, v_ax1] = T.pow(A[v_ax0, v_ax1], T.float32(3))
             for ax0, ax1 in T.grid(T.int64(2), T.int64(3)):
-                with T.block("T_multiply"):
+                with T.block("T_multiply_1"):
                     v_ax0, v_ax1 = T.axis.remap("SS", [ax0, ax1])
                     T.reads(T_power[v_ax0, v_ax1])
-                    T.writes(T_multiply_1[v_ax0, v_ax1])
-                    T_multiply_1[v_ax0, v_ax1] = T.float32(0.044714999999999998) * T_power[v_ax0, v_ax1]
+                    T.writes(T_multiply_2[v_ax0, v_ax1])
+                    T_multiply_2[v_ax0, v_ax1] = T.float32(0.044714999999999998) * T_power[v_ax0, v_ax1]
             for ax0, ax1 in T.grid(T.int64(2), T.int64(3)):
                 with T.block("T_add"):
                     v_ax0, v_ax1 = T.axis.remap("SS", [ax0, ax1])
-                    T.reads(A[v_ax0, v_ax1], T_multiply_1[v_ax0, v_ax1])
+                    T.reads(A[v_ax0, v_ax1], T_multiply_2[v_ax0, v_ax1])
                     T.writes(T_add[v_ax0, v_ax1])
-                    T_add[v_ax0, v_ax1] = A[v_ax0, v_ax1] + T_multiply_1[v_ax0, v_ax1]
+                    T_add[v_ax0, v_ax1] = A[v_ax0, v_ax1] + T_multiply_2[v_ax0, v_ax1]
             for ax0, ax1 in T.grid(T.int64(2), T.int64(3)):
-                with T.block("T_multiply_1"):
+                with T.block("T_multiply_2"):
                     v_ax0, v_ax1 = T.axis.remap("SS", [ax0, ax1])
                     T.reads(T_add[v_ax0, v_ax1])
-                    T.writes(T_multiply_2[v_ax0, v_ax1])
-                    T_multiply_2[v_ax0, v_ax1] = T.float32(0.79788456080286541) * T_add[v_ax0, v_ax1]
+                    T.writes(T_multiply_3[v_ax0, v_ax1])
+                    T_multiply_3[v_ax0, v_ax1] = T.float32(0.79788456080286541) * T_add[v_ax0, v_ax1]
             for i0, i1 in T.grid(T.int64(2), T.int64(3)):
                 with T.block("compute"):
                     v_i0, v_i1 = T.axis.remap("SS", [i0, i1])
-                    T.reads(T_multiply_2[v_i0, v_i1])
+                    T.reads(T_multiply_3[v_i0, v_i1])
                     T.writes(compute[v_i0, v_i1])
-                    compute[v_i0, v_i1] = T.tanh(T_multiply_2[v_i0, v_i1])
+                    compute[v_i0, v_i1] = T.tanh(T_multiply_3[v_i0, v_i1])
             for ax0, ax1 in T.grid(T.int64(2), T.int64(3)):
                 with T.block("T_add_1"):
                     v_ax0, v_ax1 = T.axis.remap("SS", [ax0, ax1])
@@ -1301,12 +1308,11 @@ def test_gelu_tanh():
                     T.writes(T_add_1[v_ax0, v_ax1])
                     T_add_1[v_ax0, v_ax1] = T.float32(1) + compute[v_ax0, v_ax1]
             for ax0, ax1 in T.grid(T.int64(2), T.int64(3)):
-                with T.block("T_multiply_2"):
+                with T.block("T_multiply_3"):
                     v_ax0, v_ax1 = T.axis.remap("SS", [ax0, ax1])
-                    T.reads(T_add_1[v_ax0, v_ax1])
+                    T.reads(T_multiply_1[v_ax0, v_ax1], T_add_1[v_ax0, v_ax1])
                     T.writes(T_multiply[v_ax0, v_ax1])
-                    T_multiply[v_ax0, v_ax1] = T.float32(0.5) * T_add_1[v_ax0, v_ax1]
-
+                    T_multiply[v_ax0, v_ax1] = T_multiply_1[v_ax0, v_ax1] * T_add_1[v_ax0, v_ax1]
 
     mod = LegalizeOps()(GeluTanh)
     tvm.ir.assert_structural_equal(mod, Expected)
@@ -1338,12 +1344,19 @@ def test_gelu_tanh_symbolic():
             m, n = T.int64(), T.int64()
             A = T.match_buffer(var_A, (m, n))
             T_multiply = T.match_buffer(var_T_multiply, (m, n))
-            T_power = T.alloc_buffer((m, n))
             T_multiply_1 = T.alloc_buffer((m, n))
-            T_add = T.alloc_buffer((m, n))
+            T_power = T.alloc_buffer((m, n))
             T_multiply_2 = T.alloc_buffer((m, n))
+            T_add = T.alloc_buffer((m, n))
+            T_multiply_3 = T.alloc_buffer((m, n))
             compute = T.alloc_buffer((m, n))
             T_add_1 = T.alloc_buffer((m, n))
+            for ax0, ax1 in T.grid(m, n):
+                with T.block("T_multiply"):
+                    v_ax0, v_ax1 = T.axis.remap("SS", [ax0, ax1])
+                    T.reads(A[v_ax0, v_ax1])
+                    T.writes(T_multiply_1[v_ax0, v_ax1])
+                    T_multiply_1[v_ax0, v_ax1] = T.float32(0.5) * A[v_ax0, v_ax1]
             for ax0, ax1 in T.grid(m, n):
                 with T.block("T_power"):
                     v_ax0, v_ax1 = T.axis.remap("SS", [ax0, ax1])
@@ -1351,29 +1364,29 @@ def test_gelu_tanh_symbolic():
                     T.writes(T_power[v_ax0, v_ax1])
                     T_power[v_ax0, v_ax1] = T.pow(A[v_ax0, v_ax1], T.float32(3))
             for ax0, ax1 in T.grid(m, n):
-                with T.block("T_multiply"):
+                with T.block("T_multiply_1"):
                     v_ax0, v_ax1 = T.axis.remap("SS", [ax0, ax1])
                     T.reads(T_power[v_ax0, v_ax1])
-                    T.writes(T_multiply_1[v_ax0, v_ax1])
-                    T_multiply_1[v_ax0, v_ax1] = T.float32(0.044714999999999998) * T_power[v_ax0, v_ax1]
+                    T.writes(T_multiply_2[v_ax0, v_ax1])
+                    T_multiply_2[v_ax0, v_ax1] = T.float32(0.044714999999999998) * T_power[v_ax0, v_ax1]
             for ax0, ax1 in T.grid(m, n):
                 with T.block("T_add"):
                     v_ax0, v_ax1 = T.axis.remap("SS", [ax0, ax1])
-                    T.reads(A[v_ax0, v_ax1], T_multiply_1[v_ax0, v_ax1])
+                    T.reads(A[v_ax0, v_ax1], T_multiply_2[v_ax0, v_ax1])
                     T.writes(T_add[v_ax0, v_ax1])
-                    T_add[v_ax0, v_ax1] = A[v_ax0, v_ax1] + T_multiply_1[v_ax0, v_ax1]
+                    T_add[v_ax0, v_ax1] = A[v_ax0, v_ax1] + T_multiply_2[v_ax0, v_ax1]
             for ax0, ax1 in T.grid(m, n):
-                with T.block("T_multiply_1"):
+                with T.block("T_multiply_2"):
                     v_ax0, v_ax1 = T.axis.remap("SS", [ax0, ax1])
                     T.reads(T_add[v_ax0, v_ax1])
-                    T.writes(T_multiply_2[v_ax0, v_ax1])
-                    T_multiply_2[v_ax0, v_ax1] = T.float32(0.79788456080286541) * T_add[v_ax0, v_ax1]
+                    T.writes(T_multiply_3[v_ax0, v_ax1])
+                    T_multiply_3[v_ax0, v_ax1] = T.float32(0.79788456080286541) * T_add[v_ax0, v_ax1]
             for i0, i1 in T.grid(m, n):
                 with T.block("compute"):
                     v_i0, v_i1 = T.axis.remap("SS", [i0, i1])
-                    T.reads(T_multiply_2[v_i0, v_i1])
+                    T.reads(T_multiply_3[v_i0, v_i1])
                     T.writes(compute[v_i0, v_i1])
-                    compute[v_i0, v_i1] = T.tanh(T_multiply_2[v_i0, v_i1])
+                    compute[v_i0, v_i1] = T.tanh(T_multiply_3[v_i0, v_i1])
             for ax0, ax1 in T.grid(m, n):
                 with T.block("T_add_1"):
                     v_ax0, v_ax1 = T.axis.remap("SS", [ax0, ax1])
@@ -1381,11 +1394,11 @@ def test_gelu_tanh_symbolic():
                     T.writes(T_add_1[v_ax0, v_ax1])
                     T_add_1[v_ax0, v_ax1] = T.float32(1) + compute[v_ax0, v_ax1]
             for ax0, ax1 in T.grid(m, n):
-                with T.block("T_multiply_2"):
+                with T.block("T_multiply_3"):
                     v_ax0, v_ax1 = T.axis.remap("SS", [ax0, ax1])
-                    T.reads(T_add_1[v_ax0, v_ax1])
+                    T.reads(T_multiply_1[v_ax0, v_ax1], T_add_1[v_ax0, v_ax1])
                     T.writes(T_multiply[v_ax0, v_ax1])
-                    T_multiply[v_ax0, v_ax1] = T.float32(0.5) * T_add_1[v_ax0, v_ax1]
+                    T_multiply[v_ax0, v_ax1] = T_multiply_1[v_ax0, v_ax1] * T_add_1[v_ax0, v_ax1]
 
 
     mod = LegalizeOps()(GeluTanh)

@@ -827,17 +827,8 @@ def gelu(x: Tensor, approximate: Optional[str] = None, name: str = "gelu") -> Te
     ----
     The input tensor is required to have float dtype
     """
-    dtype = x._expr.struct_info.dtype
     if approximate == "tanh":
-        tanh_const = rx.const(1 + np.tanh(np.sqrt(2 / np.pi)), dtype=dtype)
-        gelu_out = (
-            rx.const(0.5, dtype)
-            * x._expr
-            * (
-                tanh_const
-                * (x._expr + (rx.const(0.044715, dtype) * _op.power(x._expr, rx.const(3, "int32"))))
-            )
-        )
+        gelu_out = _op.nn.gelu_tanh(x._expr)
     else:
         gelu_out = _op.nn.gelu(x._expr)
     return _wrap_nested(gelu_out, name)

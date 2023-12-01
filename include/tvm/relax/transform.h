@@ -275,6 +275,12 @@ TVM_DLL Pass LiftTransformParams();
  */
 TVM_DLL Pass UpdateVDevice(VDevice new_vdevice, int64_t index);
 
+/*! \brief Expand tuple arguments to internal functions
+ *
+ * \return The Pass
+ */
+TVM_DLL Pass ExpandTupleArguments();
+
 /*! \brief Remove unused parameters to internal functions
  *
  * \return The Pass
