@@ -60,7 +60,8 @@ void MetalWorkspace::GetAttr(Device dev, DeviceAttrKind kind, TVMRetValue* rv) {
 #elif defined(__aarch64__)
         *rv = 32;
 #else
-        LOG(FATAL) << "Unknown architecture";
+        LOG(WARNING) << "The CPU architecture is neither x86 nor aarch64. Fallback to warp size 1.";
+        *rv = 1;
 #endif
         break;
       }
