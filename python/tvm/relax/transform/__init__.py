@@ -42,6 +42,7 @@ from .transform import (
     FuseTIR,
     FusionPattern,
     Gradient,
+    InlinePrivateFunctions,
     KillAfterLastUse,
     LambdaLift,
     LegalizeOps,

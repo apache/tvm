@@ -588,6 +588,16 @@ def RemoveUnusedOutputs() -> tvm.ir.transform.Pass:
     return _ffi_api.RemoveUnusedOutputs()  # type: ignore
 
 
+def InlinePrivateFunctions() -> tvm.ir.transform.Pass:
+    """Inline all private relax functions
+
+    Returns
+    -------
+    ret: tvm.ir.transform.Pass
+    """
+    return _ffi_api.InlinePrivateFunctions()  # type: ignore
+
+
 def AnnotateTIROpPattern() -> tvm.ir.transform.Pass:
     """Annotate Op Pattern Kind for TIR functions
 
