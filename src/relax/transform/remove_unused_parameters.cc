@@ -26,6 +26,8 @@
 #include <optional>
 #include <tuple>
 
+#include "utils.h"
+
 namespace tvm {
 namespace relax {
 
@@ -37,11 +39,17 @@ using PSet = std::unordered_set<T, ObjectPtrHash, ObjectPtrEqual>;
 template <typename T, typename U>
 using PMap = std::unordered_map<T, U, ObjectPtrHash, ObjectPtrEqual>;
 
+/* \brief Describes the modifications to be made for a function */
 struct CalleeAnalysis {
-  // The updated function
+  /* \brief The updated private function */
   Function func;
 
-  // A mutator that updates calls at the call site.
+  /* \brief A function that updates the callsite arguments
+   *
+   * \param The arguments used to call the original function
+   *
+   * \return The arguments to be used for the modified function
+   */
   std::function<Array<Expr>(Array<Expr>)> arg_updater;
 };
 
@@ -143,6 +151,19 @@ class CallSiteMutator : public ExprMutator {
 
   using ExprMutator::VisitExpr_;
 
+  Expr VisitExpr_(const FunctionNode* op) override {
+    auto node = ExprMutator::VisitExpr_(op);
+
+    // If a function was modified, that means it called into a private
+    // function that now takes a reduced number of arguments.  Some
+    // bindings in the calling scope, previously used to define those
+    // unused arguments, may be able to be removed as a result.
+    if (node.get() != op) {
+      node = RemoveAllUnused(node);
+    }
+    return node;
+  }
+
   Expr VisitExpr_(const CallNode* op) override {
     auto node = Downcast<Call>(ExprMutator::VisitExpr_(op));
 
@@ -196,6 +217,13 @@ Pass RemoveUnusedParameters() {
         return mod;
       }
       auto write_ptr = mod.CopyOnWrite();
+
+      // Remove any private subroutines that have unused parameters,
+      // then add the updated versions.  The new private functions
+      // have the same name, but require a new GlobalVar to hold the
+      // updated StructInfo.  As a result, calling `Update()` without
+      // first calling `Remove()` introduce a duplicate name and
+      // produce an error.
       for (const auto& it : callsite_updaters) {
         write_ptr->Remove(it.first);
       }
@@ -220,14 +248,7 @@ Pass RemoveUnusedParameters() {
     }
     return mod;
   };
-  auto inner_pass = CreateModulePass(pass_func, 0, "RemoveUnusedParametersInner", {});
-  return tvm::transform::Sequential(
-      {
-          inner_pass,
-          CanonicalizeBindings(),
-          DeadCodeElimination({}),
-      },
-      "RemoveUnusedParameters");
+  return CreateModulePass(pass_func, 0, "RemoveUnusedParameters", {});
 }
 
 TVM_REGISTER_GLOBAL("relax.transform.RemoveUnusedParameters")
