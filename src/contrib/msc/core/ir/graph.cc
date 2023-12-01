@@ -708,20 +708,21 @@ const Array<MSCJoint> MSCGraphNode::GetExits() const {
 }
 
 const bool MSCGraphNode::HasTensor(const String& name) const {
-  if (weight_holders.count(name)) {
+  const String& tensor_name = tensor_alias.count(name) ? tensor_alias[name] : name;
+  if (weight_holders.count(tensor_name)) {
     return true;
   }
-  const String& tensor_name = tensor_alias.count(name) ? tensor_alias[name] : name;
   String host, index;
   std::tie(host, index) = StringUtils::SplitOnce(tensor_name, ":");
   return nodes.count(host) > 0 ? true : false;
 }
 
 const MSCTensor MSCGraphNode::FindTensor(const String& name) const {
-  if (weight_holders.count(name)) {
-    const auto& node = FindNode(weight_holders[name][0]);
+  const String& tensor_name = tensor_alias.count(name) ? tensor_alias[name] : name;
+  if (weight_holders.count(tensor_name)) {
+    const auto& node = FindNode(weight_holders[tensor_name][0]);
     for (const auto& pair : node->weights) {
-      if (pair.second->name == name) {
+      if (pair.second->name == tensor_name) {
         return pair.second;
       }
     }
@@ -732,8 +733,9 @@ const MSCTensor MSCGraphNode::FindTensor(const String& name) const {
 }
 
 const MSCJoint MSCGraphNode::FindProducer(const String& name) const {
-  if (weight_holders.count(name)) {
-    return FindNode(weight_holders[name][0]);
+  const String& tensor_name = tensor_alias.count(name) ? tensor_alias[name] : name;
+  if (weight_holders.count(tensor_name)) {
+    return FindNode(weight_holders[tensor_name][0]);
   }
   const auto& pair = FindProducerAndIdx(name);
   return pair.first;
@@ -744,8 +746,8 @@ const MSCJoint MSCGraphNode::FindProducer(const MSCTensor& tensor) const {
 }
 
 const std::pair<MSCJoint, size_t> MSCGraphNode::FindProducerAndIdx(const String& name) const {
-  ICHECK(!weight_holders.count(name)) << "Weight " << name << " has no producer with index";
   const String& tensor_name = tensor_alias.count(name) ? tensor_alias[name] : name;
+  ICHECK(!weight_holders.count(tensor_name)) << "Weight " << name << " has no producer with index";
   String host, index;
   std::tie(host, index) = StringUtils::SplitOnce(tensor_name, ":");
   if (index.size() == 0) {
@@ -762,8 +764,9 @@ const std::pair<MSCJoint, size_t> MSCGraphNode::FindProducerAndIdx(const MSCTens
 
 const Array<MSCJoint> MSCGraphNode::FindConsumers(const String& name) const {
   Array<MSCJoint> consumers;
-  if (weight_holders.count(name)) {
-    for (const auto& h : weight_holders[name]) {
+  const String& tensor_name = tensor_alias.count(name) ? tensor_alias[name] : name;
+  if (weight_holders.count(tensor_name)) {
+    for (const auto& h : weight_holders[tensor_name]) {
       consumers.push_back(FindNode(h));
     }
   } else {
@@ -781,7 +784,8 @@ const Array<MSCJoint> MSCGraphNode::FindConsumers(const MSCTensor& tensor) const
 
 const std::vector<std::pair<MSCJoint, size_t>> MSCGraphNode::FindConsumersAndIndices(
     const String& name) const {
-  ICHECK(!weight_holders.count(name)) << "Weight has no index";
+  const String& tensor_name = tensor_alias.count(name) ? tensor_alias[name] : name;
+  ICHECK(!weight_holders.count(tensor_name)) << "Weight has no index";
   std::vector<std::pair<MSCJoint, size_t>> consumers;
   for (const auto& c : FindConsumers(name)) {
     bool find_tensor = false;
@@ -836,6 +840,9 @@ void MSCGraphNode::AnalysisGraph() {
         weight_holders.Set(w_name, holders);
       } else {
         weight_holders.Set(w_name, Array<String>({n}));
+        if (pair.second->alias.size() > 0) {
+          tensor_alias.Set(pair.second->alias, pair.second->name);
+        }
       }
     }
   }
@@ -1318,6 +1325,12 @@ TVM_REGISTER_GLOBAL("msc.core.MSCGraphHasTensor")
 TVM_REGISTER_GLOBAL("msc.core.MSCGraphFindTensor")
     .set_body_typed([](const MSCGraph& graph, const String& name) -> MSCTensor {
       return graph->FindTensor(name);
+    });
+
+TVM_REGISTER_GLOBAL("msc.core.MSCGraphSetTensorAlias")
+    .set_body_typed([](const MSCGraph& graph, const MSCTensor& tensor, const String& alias) {
+      tensor->alias = alias;
+      graph->tensor_alias.Set(alias, tensor->name);
     });
 
 TVM_REGISTER_GLOBAL("msc.core.MSCGraphFindProducer")

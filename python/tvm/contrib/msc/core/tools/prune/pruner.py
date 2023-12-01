@@ -387,7 +387,7 @@ class BasePruner(WeightTool):
                             pruned_tensors[out.name] = _prune_by_channel(
                                 out, pruned_tensors[node.input_at(0).name].dim_at("C")
                             )
-            if self.on_debug(3):
+            if self.on_debug(3, in_forward=False):
                 self._logger.debug(msc_utils.msg_block("Pruned Tensors", pruned_tensors))
             pruned_graph = _ffi_api.PruneWeights(graph, pruned_tensors)
             new_graphs.append(pruned_graph)
@@ -404,7 +404,7 @@ class BasePruner(WeightTool):
         raw_size = _flatten_size(weights)
         new_size = _flatten_size(new_weights)
         self._logger.info(
-            "{} weights pruned, compress to {:g}% ({:g} M->{:g} M)".format(
+            "Prune {} weights, compress to {:g}% ({:g} M->{:g} M)".format(
                 pruned_weights_cnt,
                 new_size * 100 / raw_size,
                 raw_size / 2**20,

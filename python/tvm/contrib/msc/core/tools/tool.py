@@ -432,7 +432,10 @@ class BaseTool(object):
         self._tensor_cache = {}
         if cache_dir and os.path.isfile(cache_dir.relpath("cache_info.json")):
             cache_info = msc_utils.load_dict(cache_dir.relpath("cache_info.json"))
-            self.load_cache(cache_dir, cache_info)
+        else:
+            cache_info = {}
+        if self.tool_type() in cache_info:
+            self.load_cache(cache_dir, cache_info[self.tool_type()])
         else:
             graphs, weights = self.load_graphs(graphs, weights)
         self._graphs, self._weights = graphs, {}
@@ -440,11 +443,17 @@ class BaseTool(object):
             self._weights.update(sub_weights)
         self._logger.debug(
             "%s load %d graphs and %d weights",
-            self.tool_type().upper(),
+            self.tool_type(),
             len(self._graphs),
             len(self._weights),
         )
+        self._reset()
         return self._graphs, weights
+
+    def _reset(self):
+        """Extra reset for tool"""
+
+        return None
 
     def change_stage(self, stage: str):
         """Change the stage of tools and strategy"""
@@ -523,7 +532,8 @@ class BaseTool(object):
         if self._enabled:
             self._graph_id = self._infer_graph_id(kwargs)
             self._processed_tensor = {}
-            self._logger.debug("%sStart Build", self.msg_mark(in_forward=False))
+            if self.on_debug(3, in_forward=False):
+                self._logger.debug("%sStart Build", self.msg_mark(in_forward=False))
             self._execute_before_build(*args, **kwargs)
 
     def _execute_before_build(self, *args, **kwargs):
@@ -555,7 +565,8 @@ class BaseTool(object):
 
         if self._enabled:
             output = self._execute_after_build(output)
-            self._logger.debug("%sEnd Build", self.msg_mark(in_forward=False))
+            if self.on_debug(3, in_forward=False):
+                self._logger.debug("%sEnd Build", self.msg_mark(in_forward=False))
         return output
 
     def _execute_after_build(self, output: Any) -> Any:
@@ -588,7 +599,7 @@ class BaseTool(object):
         if self._enabled:
             self._graph_id = self._infer_graph_id(kwargs)
             self._processed_tensor = {}
-            if self.on_debug(2):
+            if self.on_debug(3):
                 self._logger.debug("%sStart Forward", self.msg_mark())
             self._execute_before_forward(*args, **kwargs)
 
@@ -621,7 +632,7 @@ class BaseTool(object):
 
         if self._enabled:
             output = self._execute_after_forward(output)
-            if self.on_debug(2):
+            if self.on_debug(3):
                 self._logger.debug(
                     "%sEnd Forward, process %d tensors",
                     self.msg_mark(),
@@ -925,13 +936,15 @@ class BaseTool(object):
 
         return name in self._weights
 
-    def on_debug(self, debug_level: int = 1) -> bool:
+    def on_debug(self, debug_level: int = 1, in_forward: bool = True) -> bool:
         """Check if should log
 
         Parameters
         -------
         debug_level: int
            The given debug_level.
+        in_forward: bool
+            Whether to check forward_cnt.
 
         Returns
         -------
@@ -939,12 +952,17 @@ class BaseTool(object):
             Whether to log debug info.
         """
 
-        if self._forward_cnt % self._verbose_step != 0:
+        if in_forward and self._forward_cnt % self._verbose_step != 0:
             return False
         return self._debug_level >= debug_level
 
-    def msg_mark(self, in_forward=True) -> str:
+    def msg_mark(self, in_forward: bool = True) -> str:
         """Get the debug title
+
+        Parameters
+        -------
+        in_forward: bool
+            Whether to add forward mark.
 
         Returns
         -------
@@ -959,7 +977,7 @@ class BaseTool(object):
         return title
 
     def debug_tensor(
-        self, tensor: Any, name: str, consumer: str, t_mark: str, debug_level: int = 2
+        self, tensor: Any, name: str, consumer: str, t_mark: str, debug_level: int = 3
     ) -> str:
         """Get the debug tensor info
 
@@ -1256,41 +1274,21 @@ class BaseTool(object):
 class WeightTool(BaseTool):
     """Basic tool with weight graphs"""
 
-    def reset(
-        self,
-        graphs: List[MSCGraph],
-        weights: List[Dict[str, tvm.nd.array]],
-        cache_dir: msc_utils.MSCDirectory = None,
-    ) -> Tuple[List[MSCGraph], List[Dict[str, tvm.nd.array]]]:
-        """Reset the tool with graphs and weights
+    def _reset(self):
+        """Extra reset for tool"""
 
-        Parameters
-        ----------
-        graphs: list<MSCgraph>
-            The msc graphs.
-        weights: list<dict<str, tvm.nd.array>>
-            The weights
-        cache_dir: MSCDirectory
-            cache path for save/load info
-
-        Returns
-        -------
-        graphs: list<MSCgraph>
-            The msc graphs.
-        weights: list<dict<str, tvm.nd.array>>
-            The weights
-        """
-
-        graphs, weights = super().reset(graphs, weights, cache_dir)
-        assert len(graphs) == len(
+        super()._reset()
+        assert len(self._graphs) == len(
             self._weight_graphs
-        ), "Graphs {} mismatch with weight graphs {}".format(len(graphs), len(self._weight_graphs))
-        if self.on_debug(3):
+        ), "Graphs {} mismatch with weight graphs {}".format(
+            len(self._graphs), len(self._weight_graphs)
+        )
+        self._logger.debug("%s load %d weight graphs", self.tool_type(), len(self._weight_graphs))
+        if self.on_debug(2, in_forward=False):
             for idx, graph in enumerate(self._weight_graphs):
                 self._logger.debug(
-                    msc_utils.msg_block("PRUNER.WEIGHT_GRAPH[{}].INFO".format(idx), graph.inspect())
+                    msc_utils.msg_block("WEIGHT_GRAPH[{}].INFO".format(idx), graph.inspect())
                 )
-        return graphs, weights
 
     def load_graphs(
         self, graphs: List[MSCGraph], weights: List[Dict[str, tvm.nd.array]]

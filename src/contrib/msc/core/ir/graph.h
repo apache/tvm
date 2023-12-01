@@ -716,7 +716,7 @@ class MSCGraphNode : public BaseGraphNode {
   /*! \brief The output names of graph. */
   Array<String> output_names;
   /*! \brief The tensor alias in graph, get by AnalysisGraph. */
-  Map<String, String> tensor_alias;
+  mutable Map<String, String> tensor_alias;
   /*! \brief The weights in graph, get by AnalysisGraph. */
   Map<String, Array<String>> weight_holders;
   /*! \brief Export graph to json. */
