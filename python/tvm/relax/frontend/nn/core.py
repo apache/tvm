@@ -24,6 +24,7 @@
   impure external function callings, inplace mutation, etc.
 """
 import os
+import shutil
 import sys
 import tempfile
 from collections import OrderedDict
@@ -589,15 +590,23 @@ class SourceModule(ExternModule):
             compile_options.append("-DDMLC_USE_FOPEN64=0")
             compile_options.append("-DDMLC_USE_LOGGING_LIBRARY=<tvm/runtime/logging.h>")
         with tempfile.TemporaryDirectory() as temp_dir:
-            source_file = os.path.join(temp_dir, f"main{source_suffix}")
-            with open(source_file, "w", encoding="utf-8") as file:
+            source_file = f"main{source_suffix}"
+            with open(
+                os.path.join(temp_dir, f"main{source_suffix}"), "w", encoding="utf-8"
+            ) as file:
                 file.write(source_code)
-            output_file = os.path.join(temp_dir, f"main{output_suffix}")
+            output_file = f"main{output_suffix}"
+            if shutil.which("ccache"):
+                ccache_env = {"CCACHE_COMPILERCHECK": "content"}
+            else:
+                ccache_env = None
             _cc.create_shared(
                 output=output_file,
                 objects=[source_file],
                 options=compile_options,
                 cc=compiler,
+                cwd=temp_dir,
+                ccache_env=ccache_env,
             )
             func_names: List[str] = []
             func_specs: List[_spec.ExternFunctionSpec] = []
@@ -606,7 +615,9 @@ class SourceModule(ExternModule):
                 func_specs.append(func_spec)
                 if func_spec.symbol is None:
                     func_spec.symbol = func_name
-            library = load_static_library(output_file, func_names=func_names)
+            library = load_static_library(
+                os.path.join(temp_dir, f"main{output_suffix}"), func_names=func_names
+            )
         module_spec = _spec.ExternModuleSpec(
             library=library,
             functions=func_specs,
