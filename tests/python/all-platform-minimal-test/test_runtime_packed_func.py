@@ -15,6 +15,8 @@
 # specific language governing permissions and limitations
 # under the License.
 """Test packed function FFI."""
+import gc
+
 import tvm
 from tvm import te
 import tvm.testing
@@ -113,6 +115,14 @@ def test_device():
 
 def test_rvalue_ref():
     def callback(x, expected_count):
+        # The use count of TVM objects is decremented as part of
+        # `ObjectRef.__del__`, which runs when the Python object is
+        # destructed.  However, Python object destruction is not
+        # deterministic, and even CPython's reference-counting is
+        # considered an implementation detail.  Therefore, to ensure
+        # correct results from this test, `gc.collect()` must be
+        # explicitly called.
+        gc.collect()
         assert expected_count == tvm.testing.object_use_count(x)
         return x
 
