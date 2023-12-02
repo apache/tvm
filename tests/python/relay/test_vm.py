@@ -14,26 +14,24 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-import numpy as np
-import pytest
-import time
 from unittest.mock import patch
 
+import numpy as np
+import pytest
+
 import tvm
-from tvm import runtime
-from tvm import relay, IRModule
-from tvm.relay.backend import vm
-from tvm.relay.scope_builder import ScopeBuilder
-from tvm.relay.prelude import Prelude
-from tvm.relay.loops import while_loop
-from tvm.relay import testing
-from tvm.contrib import utils
-from tvm import rpc
 import tvm.testing
-from tvm.relay.transform import InferType
-from tvm.relay.testing import mlp
-from tvm.relay.dataflow_pattern import wildcard, is_op
+from tvm import IRModule, relay, rpc, runtime
+from tvm.contrib import utils
+from tvm.relay import testing
+from tvm.relay.backend import vm
 from tvm.relay.backend.vm import VMCompiler
+from tvm.relay.dataflow_pattern import is_op, wildcard
+from tvm.relay.loops import while_loop
+from tvm.relay.prelude import Prelude
+from tvm.relay.scope_builder import ScopeBuilder
+from tvm.relay.testing import mlp
+from tvm.relay.transform import InferType
 
 
 def check_result(target, dev, args, expected_result, mod):
@@ -862,7 +860,7 @@ def prepare_vm_model(path, tensor_shape):
     vm_exec = vm.compile(mod, target=target)
 
     # Export to Disk
-    vm_exec.export_library(path)
+    vm_exec.mod.export_library(path)
 
 
 def test_vm_rpc():
@@ -1393,7 +1391,7 @@ def test_large_constants():
     path_consts = temp.relpath("consts")
     vm_exec.move_late_bound_consts(path_consts, byte_limit=256)
     path_dso = temp.relpath("lib.so")
-    vm_exec.export_library(path_dso)
+    vm_exec.mod.export_library(path_dso)
 
     # Load library files and constants
     mod = runtime.load_module(path_dso)
@@ -1442,7 +1440,7 @@ def test_load_late_bound_consts_with_no_late_bound_consts():
     # Ensure const_data is below the byte threshold for a late-bound const.
     byte_limit = len(const_data.tobytes()) + 1
     vm_exec.move_late_bound_consts(path_consts, byte_limit=byte_limit)
-    vm_exec.export_library(path_dso)
+    vm_exec.mod.export_library(path_dso)
 
     mod = runtime.load_module(path_dso)
     mod["load_late_bound_consts"](path_consts)
@@ -1503,7 +1501,7 @@ def test_load_and_save_constants_via_map():
     # Save to constants and library files
     temp = utils.tempdir()
     path_dso = temp.relpath("lib.so")
-    vm_exec.export_library(path_dso)
+    vm_exec.mod.export_library(path_dso)
 
     # Load library files and constants
     mod = runtime.load_module(path_dso)
@@ -1551,7 +1549,7 @@ def test_load_late_bound_consts_via_map_with_no_late_bound_consts():
     # Ensure const_data is below the byte threshold for a late-bound const.
     byte_limit = len(const_data.tobytes()) + 1
     consts_map = vm_exec.get_late_bound_consts(byte_limit=byte_limit)
-    vm_exec.export_library(path_dso)
+    vm_exec.mod.export_library(path_dso)
 
     mod = runtime.load_module(path_dso)
     mod["load_late_bound_consts_from_map"](consts_map)
