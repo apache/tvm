@@ -686,11 +686,12 @@ export class WebGPUContext {
 
     const shaderModule = this.device.createShaderModule({
       code: code,
-      hints: {
-        main: {
+      compilationHints: [
+        {
+          entryPoint: "main",
           layout: pipelineLayout
         }
-      }
+      ]
     });
 
     if (asyncMode) {
