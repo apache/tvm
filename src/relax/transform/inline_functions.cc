@@ -114,7 +114,7 @@ std::unordered_set<GlobalVar, ObjectPtrHash, ObjectPtrEqual> FindRecursiveFuncti
 
 class FunctionInliner : public ExprMutator {
  public:
-  FunctionInliner(const Map<Variant<String, GlobalVar>, Function>& replacements)
+  explicit FunctionInliner(const Map<Variant<String, GlobalVar>, Function>& replacements)
       : replacements_(replacements) {}
 
   using ExprMutator::VisitExpr_;
