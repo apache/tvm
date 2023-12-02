@@ -15,8 +15,6 @@
 # specific language governing permissions and limitations
 # under the License.
 """Runtime container structures."""
-from typing import Union
-
 import tvm._ffi
 from .object import Object, PyNativeObject
 from .object_generic import ObjectTypes
