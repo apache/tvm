@@ -56,9 +56,9 @@ int CommonUtils::CompareVersion(const std::vector<size_t>& given_version,
   ICHECK_EQ(target_version.size(), 3) << "Target version should be in format major,minor,patch";
   for (size_t i = 0; i < 3; i++) {
     if (given_version[i] > target_version[i]) {
-      return -1;
-    } else if (given_version[i] < target_version[i]) {
       return 1;
+    } else if (given_version[i] < target_version[i]) {
+      return -1;
     }
   }
   return 0;
@@ -401,6 +401,22 @@ const Array<String> ExprUtils::GetInputTypes(const RelayCall& call) {
 TVM_REGISTER_GLOBAL("msc.core.SpanGetAttr").set_body_typed(SpanUtils::GetAttr);
 
 TVM_REGISTER_GLOBAL("msc.core.SpanGetAttrs").set_body_typed(SpanUtils::GetAttrs);
+
+TVM_REGISTER_GLOBAL("msc.core.SpanCreateWithAttr")
+    .set_body_typed([](const String& key, const String& value) -> Span {
+      return SpanUtils::SetAttr(Span(), key, value);
+    });
+
+TVM_REGISTER_GLOBAL("msc.core.SpanSetAttr")
+    .set_body_typed([](const Span& span, const String& key, const String& value) -> Span {
+      return SpanUtils::SetAttr(span, key, value);
+    });
+
+TVM_REGISTER_GLOBAL("msc.core.CompareVersion")
+    .set_body_typed([](const Array<Integer>& given_version,
+                       const Array<Integer>& target_version) -> Integer {
+      return Integer(CommonUtils::CompareVersion(given_version, target_version));
+    });
 
 }  // namespace msc
 }  // namespace contrib

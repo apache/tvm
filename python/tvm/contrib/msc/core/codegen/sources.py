@@ -34,6 +34,7 @@ def get_base_h_code() -> str:
 #include <cassert>
 #include <fstream>
 #include <string>
+#include <unordered_map>
 #include <utility>
 #include <vector>
 
@@ -78,11 +79,19 @@ class DatasetReader {
 
   bool ReadNext(void* buffers[], int num_datas = -1);
 
+  const std::vector<std::string> GetTensorNames() { return tensor_names_; }
+
+  size_t GetTensorSize(const std::string& name);
+
+  const std::string GetSaveName(const std::string& name);
+
  private:
   std::string folder_;
   size_t max_size_;
   size_t cur_cnt_;
-  std::vector<std::pair<std::string, size_t>> tensor_info_;
+  std::vector<std::string> tensor_names_;
+  std::unordered_map<std::string, std::string> save_names_;
+  std::unordered_map<std::string, size_t> tensor_sizes_;
 };
 
 }  // namespace msc
@@ -102,10 +111,10 @@ def get_base_cc_code() -> str:
         The base cc source.
     """
 
-    return """#include <algorithm>
-#include <fstream>
+    return """#include "base.h"
 
-#include "base.h"
+#include <algorithm>
+#include <fstream>
 
 namespace tvm {
 namespace contrib {
@@ -122,23 +131,31 @@ bool FileUtils::FileExist(const std::string& file) {
 
 DatasetReader::DatasetReader(const std::string& folder, int max_size) {
   folder_ = folder;
-  const std::string info_file = folder_ + "/tensor_info";
+  const std::string info_file = folder_ + "/datas_info.txt";
   std::ifstream input(info_file, std::ios::binary);
   assert(input.is_open() && ("Failed to open file " + info_file).c_str());
   std::string line;
   while (getline(input, line)) {
+    // define name
     int pos = line.find(" ");
     assert(pos > 0 && ("Can not find space in line " + line).c_str());
     const auto& name = line.substr(0, pos);
-    const auto& byte_size = line.substr(pos + 1, line.size());
-    tensor_info_.push_back(std::make_pair(name, static_cast<size_t>(std::stoi(byte_size))));
+    tensor_names_.push_back(name);
+    const auto& left = line.substr(pos + 1, line.size());
+    // define save_name
+    pos = left.find(" ");
+    assert(pos > 0 && ("Can not find space in left " + left).c_str());
+    save_names_[name] = left.substr(0, pos);
+    // define size
+    const auto& byte_size = left.substr(pos + 1, left.size());
+    tensor_sizes_[name] = static_cast<size_t>(std::stoi(byte_size));
   }
   size_t file_cnt = 0;
   while (true) {
     bool all_exists = true;
-    for (const auto& pair : tensor_info_) {
+    for (const auto& pair : save_names_) {
       const auto& d_file =
-          folder_ + "/" + pair.first + "/batch_" + std::to_string(file_cnt) + ".bin";
+          folder_ + "/" + pair.second + "/batch_" + std::to_string(file_cnt) + ".bin";
       if (!FileUtils::FileExist(d_file)) {
         all_exists = false;
         break;
@@ -160,17 +177,28 @@ bool DatasetReader::ReadNext(void* buffers[], int num_datas) {
   if (cur_cnt_ >= max_size_) {
     return false;
   }
-  size_t max_num = num_datas > 0 ? static_cast<size_t>(num_datas) : tensor_info_.size();
-  max_num = std::min(max_num, tensor_info_.size());
+  size_t max_num = num_datas > 0 ? static_cast<size_t>(num_datas) : tensor_names_.size();
+  max_num = std::min(max_num, tensor_names_.size());
   for (size_t i = 0; i < max_num; i++) {
-    const auto& pair = tensor_info_[i];
-    const auto& d_file = folder_ + "/" + pair.first + "/batch_" + std::to_string(cur_cnt_) + ".bin";
-    if (!FileUtils::ReadToBuffer(d_file, (char*)buffers[i], pair.second)) {
+    const auto& name = tensor_names_[i];
+    const auto& d_file =
+        folder_ + "/" + GetSaveName(name) + "/batch_" + std::to_string(cur_cnt_) + ".bin";
+    if (!FileUtils::ReadToBuffer(d_file, (char*)buffers[i], GetTensorSize(name))) {
       return false;
     }
   }
   cur_cnt_++;
   return true;
+}
+
+size_t DatasetReader::GetTensorSize(const std::string& name) {
+  assert(tensor_sizes_.count(name));
+  return tensor_sizes_[name];
+}
+
+const std::string DatasetReader::GetSaveName(const std::string& name) {
+  assert(save_names_.count(name));
+  return save_names_[name];
 }
 
 }  // namespace msc

@@ -21,7 +21,7 @@ import shutil
 import tempfile
 import types
 from functools import partial
-from typing import List, Any
+from typing import List, Any, Union
 from importlib.machinery import SourceFileLoader
 
 from .namespace import MSCMap, MSCKey, MSCFramework
@@ -109,17 +109,15 @@ class MSCDirectory(object):
             f.write(contains)
         return file_path
 
-    def move_file(self, src_file: str, dst_folder: Any, dst_file: str = None):
-        """Move a file to another folder
+    def move(self, src_path: str, dst_path: str = None):
+        """Move a file or folder to another folder
 
         Parameters
         ----------
-        src_file: str
-            The name of the source file.
-        dst_folder: MSCDirectory
-            The target folder.
-        dst_file: str
-            The target file name.
+        src_path: str
+            The name of the source file or folder.
+        dst_path: str
+            The target file name or folder path.
 
         Returns
         -------
@@ -127,23 +125,25 @@ class MSCDirectory(object):
             The abs file path.
         """
 
-        src_path = os.path.join(self.relpath(src_file))
-        assert os.path.isfile(src_path), "Source file {} not exist".format(src_path)
-        dst_path = dst_folder.relpath(dst_file or src_file)
+        if src_path != os.path.abspath(src_path):
+            src_path = os.path.join(self.relpath(src_path))
+        assert os.path.isfile(src_path), "Source path {} not exist".format(src_path)
+        if not dst_path:
+            dst_path = self.relpath(os.path.basename(src_path))
+        if dst_path != os.path.abspath(dst_path):
+            dst_path = self.relpath(dst_path)
         os.rename(src_path, dst_path)
         return dst_path
 
-    def copy_file(self, src_file: str, dst_folder: Any, dst_file: str = None):
+    def copy(self, src_path: str, dst_path: str = None):
         """Copy a file to another folder
 
         Parameters
         ----------
-        src_file: str
-            The name of the source file.
-        dst_folder: MSCDirectory
-            The target folder.
-        dst_file: str
-            The target file name.
+        src_path: str
+            The name of the source file or folder.
+        dst_path: str
+            The target file name or folder path.
 
         Returns
         -------
@@ -151,10 +151,19 @@ class MSCDirectory(object):
             The abs file path.
         """
 
-        src_path = os.path.join(self.relpath(src_file))
-        assert os.path.isfile(src_path), "Source file {} not exist".format(src_path)
-        dst_path = dst_folder.relpath(dst_file or src_file)
-        shutil.copy2(src_path, dst_path)
+        if src_path != os.path.abspath(src_path):
+            src_path = os.path.join(self.relpath(src_path))
+        assert os.path.exists(src_path), "Source path {} not exist".format(src_path)
+        if not dst_path:
+            dst_path = self.relpath(os.path.basename(src_path))
+        if dst_path != os.path.abspath(dst_path):
+            dst_path = self.relpath(dst_path)
+        if os.path.isfile(src_path):
+            shutil.copy2(src_path, dst_path)
+        else:
+            if os.path.isdir(dst_path):
+                os.remove(dst_path)
+            shutil.copytree(src_path, dst_path)
         return dst_path
 
     def create_dir(self, name: str, keep_history: bool = True, cleanup: bool = False) -> Any:
@@ -248,7 +257,7 @@ def msc_dir(path: str = None, keep_history: bool = True, cleanup: bool = False) 
 
 
 def set_workspace(
-    path: str = None, keep_history: bool = True, cleanup: bool = False
+    path: Union[str, MSCDirectory] = None, keep_history: bool = True, cleanup: bool = False
 ) -> MSCDirectory:
     """Create MSCDirectory as worksapce and set to map
 
@@ -267,6 +276,9 @@ def set_workspace(
         The created dir.
     """
 
+    if isinstance(path, MSCDirectory):
+        MSCMap.set(MSCKey.WORKSPACE, path)
+        return path
     path = path or "msc_workspace"
     workspace = MSCDirectory(path, keep_history, cleanup)
     MSCMap.set(MSCKey.WORKSPACE, workspace)
@@ -340,3 +352,4 @@ get_config_dir = partial(get_workspace_subdir, name="Config")
 get_dataset_dir = partial(get_workspace_subdir, name="Dataset")
 get_output_dir = partial(get_workspace_subdir, name="Output")
 get_visual_dir = partial(get_workspace_subdir, name="Visual")
+get_weights_dir = partial(get_workspace_subdir, name="Weights")

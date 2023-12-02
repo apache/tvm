@@ -65,7 +65,7 @@ class RelaxOpCode : public BaseOpCode<RelaxCodeGenConfig, RelaxCodeGenHelper> {
   void BuilderEmit(const String& ret, const String& name = "");
 
   /*! \brief Get the out_dtype attribute*/
-  const ExprDoc GetOutDtype(const String& key = "out_dtype");
+  const ExprDoc GetOutDtype(const String& key = "out_dtype", int input_idx = 0);
 
   /*! \brief Get the axes attribute*/
   const std::vector<int> GetAxes(const String& key = "axes");

@@ -93,6 +93,9 @@ using namespace tvm::script::printer;
     return helper_.IdxWeightBase(node, wtype, "", process && config()->use_tools);                \
   }                                                                                               \
   const String Comment(const MSCJoint& node) { return helper_.Comment(node, config()->prefix); }  \
+  int CompareVersion(size_t major, size_t minor, size_t patch) {                                  \
+    return CommonUtils::CompareVersion(config()->version, {major, minor, patch});                 \
+  }                                                                                               \
                                                                                                   \
  private:                                                                                         \
   std::shared_ptr<ConfigType> config_;                                                            \

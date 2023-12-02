@@ -31,7 +31,7 @@ requires_tensorrt = pytest.mark.skipif(
 )
 
 
-def _get_config(model_type, deploy_type, inputs, outputs, atol=1e-2, rtol=1e-2):
+def _get_config(model_type, compile_type, inputs, outputs, atol=1e-2, rtol=1e-2):
     """Get msc config"""
     return {
         "model_type": model_type,
@@ -44,7 +44,7 @@ def _get_config(model_type, deploy_type, inputs, outputs, atol=1e-2, rtol=1e-2):
             "profile": {"check": {"atol": atol, "rtol": rtol}, "benchmark": {"repeat": 10}},
         },
         "compile": {
-            "run_type": deploy_type,
+            "run_type": compile_type,
             "profile": {"check": {"atol": atol, "rtol": rtol}, "benchmark": {"repeat": 10}},
         },
     }
@@ -88,14 +88,14 @@ def _get_tf_graph():
         return None
 
 
-def _test_from_torch(deploy_type, expected_info, is_training=False, atol=1e-2, rtol=1e-2):
+def _test_from_torch(compile_type, expected_info, is_training=False, atol=1e-2, rtol=1e-2):
     torch_model = _get_torch_model("resnet50", is_training)
     if torch_model:
         if torch.cuda.is_available():
             torch_model = torch_model.to(torch.device("cuda:0"))
         config = _get_config(
             MSCFramework.TORCH,
-            deploy_type,
+            compile_type,
             inputs=[["input_0", [1, 3, 224, 224], "float32"]],
             outputs=["output"],
             atol=atol,
@@ -103,7 +103,7 @@ def _test_from_torch(deploy_type, expected_info, is_training=False, atol=1e-2, r
         )
         manager = MSCManager(torch_model, config)
         report = manager.run_pipe()
-        assert report["success"], "Failed to run pipe for torch -> {}".format(deploy_type)
+        assert report["success"], "Failed to run pipe for torch -> {}".format(compile_type)
         model_info = manager.runner.model_info
         assert msc_utils.dict_equal(
             model_info, expected_info
@@ -111,12 +111,12 @@ def _test_from_torch(deploy_type, expected_info, is_training=False, atol=1e-2, r
         manager.destory()
 
 
-def _test_from_tf(deploy_type, expected_info, atol=1e-2, rtol=1e-2):
+def _test_from_tf(compile_type, expected_info, atol=1e-2, rtol=1e-2):
     graphdef = _get_tf_graph()
     if graphdef:
         config = _get_config(
             MSCFramework.TENSORFLOW,
-            deploy_type,
+            compile_type,
             inputs=[["input", [1, 224, 224, 3], "float32"]],
             outputs=["MobilenetV2/Predictions/Reshape_1:0"],
             atol=atol,
@@ -125,7 +125,7 @@ def _test_from_tf(deploy_type, expected_info, atol=1e-2, rtol=1e-2):
         config["compile"]["profile"]["check"]["err_rate"] = -1
         manager = MSCManager(graphdef, config)
         report = manager.run_pipe()
-        assert report["success"], "Failed to run pipe for tensorflow -> {}".format(deploy_type)
+        assert report["success"], "Failed to run pipe for tensorflow -> {}".format(compile_type)
         model_info = manager.runner.model_info
         assert msc_utils.dict_equal(
             model_info, expected_info

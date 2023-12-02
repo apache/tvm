@@ -14,6 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+# pylint: disable=unused-import
 """tvm.contrib.msc.framework.runtime.tvm.runner"""
 
 from typing import Dict, List, Union, Any
@@ -21,8 +22,10 @@ import numpy as np
 
 import tvm
 from tvm.contrib.msc.core.runtime import ModelRunner
+from tvm.contrib.msc.core.tools import execute_step
 from tvm.contrib.msc.core.utils.namespace import MSCFramework
 from tvm.contrib.msc.framework.tvm.codegen import to_relax
+from tvm.contrib.msc.framework.tvm import tools
 
 
 class WrapRunnable(object):
@@ -41,7 +44,9 @@ class WrapRunnable(object):
         self._entry = entry
 
     def __call__(self, *inputs) -> List[tvm.nd.array]:
-        return self._runnable[self._entry](*inputs)
+        execute_step("before_forward", *inputs)
+        output = self._runnable[self._entry](*inputs)
+        return execute_step("after_forward", output)
 
 
 class TVMRunner(ModelRunner):

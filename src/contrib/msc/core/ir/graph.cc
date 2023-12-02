@@ -23,6 +23,9 @@
 
 #include "graph.h"
 
+#include <algorithm>
+#include <map>
+#include <queue>
 #include <set>
 
 #include "../printer/prototxt_printer.h"
@@ -98,6 +101,10 @@ const Integer MSCTensorNode::DimAt(int index) const {
 const Integer MSCTensorNode::DimAt(const String& axis) const {
   auto index = layout.IndexOf(tvm::tir::LayoutAxis::Get(axis));
   return DimAt(index);
+}
+
+int32_t MSCTensorNode::LayoutOf(const String& axis) const {
+  return layout.IndexOf(tvm::tir::LayoutAxis::Get(axis));
 }
 
 const Integer MSCTensorNode::GetSize() const {
@@ -454,15 +461,14 @@ const std::pair<MSCJoint, size_t> MSCJointNode::ProducerAndIdxOf(const MSCTensor
 }
 
 WeightJoint::WeightJoint(int index, const String& name, const String& shared_ref,
-                         const String& optype, const String& wtype,
-                         const Map<String, String>& attrs, const MSCTensor& weight,
-                         const Array<BaseJoint> parents, const Array<BaseJoint>& friends) {
+                         const String& weight_type, const MSCTensor& weight,
+                         const Array<BaseJoint> parents, const Map<String, String>& attrs,
+                         const Array<BaseJoint>& friends) {
   ObjectPtr<WeightJointNode> n = make_object<WeightJointNode>();
   n->index = index;
   n->name = std::move(name);
   n->shared_ref = std::move(shared_ref);
-  n->optype = std::move(optype);
-  n->wtype = std::move(wtype);
+  n->weight_type = std::move(weight_type);
   n->attrs = std::move(attrs);
   n->weight = std::move(weight);
   for (const auto& p : parents) {
@@ -470,6 +476,62 @@ WeightJoint::WeightJoint(int index, const String& name, const String& shared_ref
   }
   n->friends = std::move(friends);
   data_ = std::move(n);
+}
+
+WeightJoint::WeightJoint(const JsonWeightJoint& j_joint, const Map<String, BaseJoint>& nodes) {
+  ObjectPtr<WeightJointNode> n = make_object<WeightJointNode>();
+  n->FromJson(j_joint, nodes);
+  data_ = std::move(n);
+}
+
+WeightJoint::WeightJoint(const std::string& json_str, const Map<String, BaseJoint>& nodes) {
+  ObjectPtr<WeightJointNode> n = make_object<WeightJointNode>();
+  n->FromJson(json_str, nodes);
+  data_ = std::move(n);
+}
+
+const JsonWeightJoint WeightJointNode::ToJson() const {
+  JsonWeightJoint j_joint;
+  j_joint.index = index;
+  j_joint.name = name;
+  j_joint.shared_ref = shared_ref;
+  j_joint.weight_type = weight_type;
+  j_joint.weight = weight->ToJson();
+  for (const auto& pair : attrs) {
+    j_joint.attrs[pair.first] = pair.second;
+  }
+  for (const auto& p : parents) {
+    j_joint.parents.push_back(Downcast<BaseJoint>(p)->name);
+  }
+  for (const auto& f : friends) {
+    j_joint.friends.push_back(Downcast<BaseJoint>(f)->name);
+  }
+
+  return j_joint;
+}
+
+void WeightJointNode::FromJson(const JsonWeightJoint& j_joint,
+                               const Map<String, BaseJoint>& nodes) {
+  index = j_joint.index;
+  name = j_joint.name;
+  shared_ref = j_joint.shared_ref;
+  weight_type = j_joint.weight_type;
+  weight = MSCTensor(j_joint.weight);
+  for (const auto& pair : j_joint.attrs) {
+    attrs.Set(pair.first, pair.second);
+  }
+  for (const auto& p_name : j_joint.parents) {
+    ICHECK(nodes.count(p_name)) << "Can not find parent " << p_name;
+    parents.push_back(nodes[p_name]);
+  }
+}
+
+void WeightJointNode::FromJson(const std::string& json_str, const Map<String, BaseJoint>& nodes) {
+  std::istringstream is(json_str);
+  dmlc::JSONReader reader(&is);
+  JsonWeightJoint j_joint;
+  reader.Read(&j_joint);
+  FromJson(j_joint, nodes);
 }
 
 const WeightJoint WeightJointNode::ParentAt(int index) const {
@@ -480,6 +542,10 @@ const WeightJoint WeightJointNode::ParentAt(int index) const {
 const WeightJoint WeightJointNode::ChildAt(int index) const {
   size_t v_index = CommonUtils::GetIndex(index, children.size());
   return Downcast<WeightJoint>(children[v_index]);
+}
+
+const bool BaseGraphNode::HasNode(const String& name) const {
+  return nodes.count(name) ? true : false;
 }
 
 MSCGraph::MSCGraph(const String& name, const Array<MSCJoint>& nodes,
@@ -588,10 +654,6 @@ const String MSCGraphNode::ToPrototxt() const {
   return printer.GetString();
 }
 
-const bool MSCGraphNode::HasNode(const String& name) const {
-  return nodes.count(name) ? true : false;
-}
-
 const MSCJoint MSCGraphNode::FindNode(const String& name) const {
   ICHECK(nodes.count(name)) << "Can not find node " << name;
   return Downcast<MSCJoint>(nodes[name]);
@@ -646,20 +708,21 @@ const Array<MSCJoint> MSCGraphNode::GetExits() const {
 }
 
 const bool MSCGraphNode::HasTensor(const String& name) const {
-  if (weight_holders.count(name)) {
+  const String& tensor_name = tensor_alias.count(name) ? tensor_alias[name] : name;
+  if (weight_holders.count(tensor_name)) {
     return true;
   }
-  const String& tensor_name = tensor_alias.count(name) ? tensor_alias[name] : name;
   String host, index;
   std::tie(host, index) = StringUtils::SplitOnce(tensor_name, ":");
   return nodes.count(host) > 0 ? true : false;
 }
 
 const MSCTensor MSCGraphNode::FindTensor(const String& name) const {
-  if (weight_holders.count(name)) {
-    const auto& node = FindNode(weight_holders[name][0]);
+  const String& tensor_name = tensor_alias.count(name) ? tensor_alias[name] : name;
+  if (weight_holders.count(tensor_name)) {
+    const auto& node = FindNode(weight_holders[tensor_name][0]);
     for (const auto& pair : node->weights) {
-      if (pair.second->name == name) {
+      if (pair.second->name == tensor_name) {
         return pair.second;
       }
     }
@@ -670,8 +733,9 @@ const MSCTensor MSCGraphNode::FindTensor(const String& name) const {
 }
 
 const MSCJoint MSCGraphNode::FindProducer(const String& name) const {
-  if (weight_holders.count(name)) {
-    return FindNode(weight_holders[name][0]);
+  const String& tensor_name = tensor_alias.count(name) ? tensor_alias[name] : name;
+  if (weight_holders.count(tensor_name)) {
+    return FindNode(weight_holders[tensor_name][0]);
   }
   const auto& pair = FindProducerAndIdx(name);
   return pair.first;
@@ -682,8 +746,8 @@ const MSCJoint MSCGraphNode::FindProducer(const MSCTensor& tensor) const {
 }
 
 const std::pair<MSCJoint, size_t> MSCGraphNode::FindProducerAndIdx(const String& name) const {
-  ICHECK(!weight_holders.count(name)) << "Weight " << name << " has no producer with index";
   const String& tensor_name = tensor_alias.count(name) ? tensor_alias[name] : name;
+  ICHECK(!weight_holders.count(tensor_name)) << "Weight " << name << " has no producer with index";
   String host, index;
   std::tie(host, index) = StringUtils::SplitOnce(tensor_name, ":");
   if (index.size() == 0) {
@@ -700,8 +764,9 @@ const std::pair<MSCJoint, size_t> MSCGraphNode::FindProducerAndIdx(const MSCTens
 
 const Array<MSCJoint> MSCGraphNode::FindConsumers(const String& name) const {
   Array<MSCJoint> consumers;
-  if (weight_holders.count(name)) {
-    for (const auto& h : weight_holders[name]) {
+  const String& tensor_name = tensor_alias.count(name) ? tensor_alias[name] : name;
+  if (weight_holders.count(tensor_name)) {
+    for (const auto& h : weight_holders[tensor_name]) {
       consumers.push_back(FindNode(h));
     }
   } else {
@@ -719,7 +784,8 @@ const Array<MSCJoint> MSCGraphNode::FindConsumers(const MSCTensor& tensor) const
 
 const std::vector<std::pair<MSCJoint, size_t>> MSCGraphNode::FindConsumersAndIndices(
     const String& name) const {
-  ICHECK(!weight_holders.count(name)) << "Weight has no index";
+  const String& tensor_name = tensor_alias.count(name) ? tensor_alias[name] : name;
+  ICHECK(!weight_holders.count(tensor_name)) << "Weight has no index";
   std::vector<std::pair<MSCJoint, size_t>> consumers;
   for (const auto& c : FindConsumers(name)) {
     bool find_tensor = false;
@@ -774,19 +840,210 @@ void MSCGraphNode::AnalysisGraph() {
         weight_holders.Set(w_name, holders);
       } else {
         weight_holders.Set(w_name, Array<String>({n}));
+        if (pair.second->alias.size() > 0) {
+          tensor_alias.Set(pair.second->alias, pair.second->name);
+        }
       }
     }
   }
 }
 
-WeightGraph::WeightGraph(const String& name, const Array<WeightJoint>& nodes) {
+WeightGraph::WeightGraph(const MSCGraph& graph, const Map<String, Array<String>>& main_wtypes,
+                         const Map<String, String>& relation_wtypes) {
   ObjectPtr<WeightGraphNode> n = make_object<WeightGraphNode>();
-  n->name = std::move(name);
-  for (const auto& node : nodes) {
-    n->node_names.push_back(node->name);
-    n->nodes.Set(node->name, node);
-  }
+  n->name = graph->name + "_weights";
+  n->Build(graph, main_wtypes, relation_wtypes);
   data_ = std::move(n);
+}
+
+WeightGraph::WeightGraph(const JsonWeightGraph& j_graph) {
+  ObjectPtr<WeightGraphNode> n = make_object<WeightGraphNode>();
+  n->FromJson(j_graph);
+  data_ = std::move(n);
+}
+
+WeightGraph::WeightGraph(const std::string& json_str) {
+  ObjectPtr<WeightGraphNode> n = make_object<WeightGraphNode>();
+  n->FromJson(json_str);
+  data_ = std::move(n);
+}
+
+void WeightGraphNode::Build(const MSCGraph& graph, const Map<String, Array<String>>& main_wtypes,
+                            const Map<String, String>& relation_wtypes) {
+  auto sort_nodes = [&graph](const BaseJoint& node_a, const BaseJoint& node_b) {
+    return graph->FindProducer(node_a->name)->index < graph->FindProducer(node_b->name)->index;
+  };
+
+  auto find_parents = [this, &main_wtypes, &relation_wtypes, &sort_nodes](const MSCJoint& node) {
+    std::vector<BaseJoint> parents;
+    std::queue<MSCJoint> frontier;
+    std::set<MSCJoint> explored;
+    for (const auto& p : node->parents) {
+      frontier.push(Downcast<MSCJoint>(p));
+    }
+    while (!frontier.empty()) {
+      const auto& current = frontier.front();
+      if (explored.count(current)) {
+        frontier.pop();
+        continue;
+      }
+      explored.insert(current);
+      if (main_wtypes.count(current->optype)) {
+        for (const auto& t_type : main_wtypes[current->optype]) {
+          if (current->weights.count(t_type)) {
+            parents.push_back(FindNode(current->WeightAt(t_type)->name));
+          }
+        }
+      } else if (relation_wtypes.count(current->optype)) {
+        parents.push_back(FindNode(current->OutputAt(0)->name));
+      } else {
+        for (const auto& p : current->parents) {
+          const auto& new_parent = Downcast<MSCJoint>(p);
+          if (!explored.count(new_parent)) {
+            frontier.push(new_parent);
+          }
+        }
+      }
+      frontier.pop();
+    }
+    Array<BaseJoint> parents_array;
+    if (parents.size() > 1) {
+      std::sort(parents.begin(), parents.end(), sort_nodes);
+    }
+    for (const auto& p : parents) {
+      parents_array.push_back(p);
+    }
+    return parents_array;
+  };
+
+  for (const auto& n : graph->node_names) {
+    const auto& node = graph->FindNode(n);
+    if (node->shared_ref.size() > 0) {
+      continue;
+    }
+    if (main_wtypes.count(node->optype) || relation_wtypes.count(node->optype) ||
+        node->weights.size() > 0) {
+      const auto& w_parents = find_parents(node);
+      bool bind_friends = true;
+      if (relation_wtypes.count(node->optype) && relation_wtypes[node->optype] == "multi_inputs") {
+        bind_friends = false;
+      }
+      if (w_parents.size() > 1 && bind_friends) {
+        for (const auto& p : w_parents) {
+          Downcast<WeightJoint>(p)->friends = w_parents;
+        }
+      }
+      if (main_wtypes.count(node->optype)) {
+        for (const auto& wtype : main_wtypes[node->optype]) {
+          if (node->weights.count(wtype)) {
+            const auto& weight = node->WeightAt(wtype);
+            Map<String, String> attrs;
+            attrs.Set("producer_type", node->optype);
+            attrs.Set("weight_strategy", "main");
+            const auto& w_node =
+                WeightJoint(node_names.size(), weight->name, "", wtype, weight, w_parents, attrs);
+            for (const auto& p : w_parents) {
+              p->AddChild(w_node);
+            }
+            nodes.Set(weight->name, w_node);
+            node_names.push_back(weight->name);
+          }
+        }
+        const BaseJoint& head = FindNode(node_names[node_names.size() - 1]);
+        for (const auto& pair : node->weights) {
+          if (!nodes.count(pair.second->name)) {
+            Map<String, String> attrs;
+            attrs.Set("producer_type", node->optype);
+            attrs.Set("weight_strategy", "follow");
+            const auto& w_node = WeightJoint(node_names.size(), pair.second->name, "", pair.first,
+                                             pair.second, {head}, attrs);
+            head->AddChild(w_node);
+            nodes.Set(pair.second->name, w_node);
+            node_names.push_back(pair.second->name);
+          }
+        }
+      } else if (relation_wtypes.count(node->optype)) {
+        const auto& tensor = node->OutputAt(0);
+        Map<String, String> attrs;
+        attrs.Set("producer_type", node->optype);
+        if (node->optype == "reshape" && node->InputAt(0)->LayoutOf("C") >= 0 &&
+            node->OutputAt(0)->LayoutOf("C") >= 0 &&
+            node->InputAt(0)->DimAt("C")->value == node->OutputAt(0)->DimAt("C")->value) {
+          attrs.Set("weight_strategy", "passby");
+        } else {
+          attrs.Set("weight_strategy", relation_wtypes[node->optype]);
+        }
+        const auto& t_node =
+            WeightJoint(node_names.size(), tensor->name, "", "output", tensor, w_parents, attrs);
+        for (const auto& p : w_parents) {
+          p->AddChild(t_node);
+        }
+        nodes.Set(tensor->name, t_node);
+        node_names.push_back(tensor->name);
+      } else if (node->weights.size() > 0) {
+        for (const auto& pair : node->weights) {
+          if (!nodes.count(pair.second->name)) {
+            Map<String, String> attrs;
+            attrs.Set("producer_type", node->optype);
+            attrs.Set("weight_strategy", "follow");
+            const auto& w_node = WeightJoint(node_names.size(), pair.second->name, "", pair.first,
+                                             pair.second, w_parents, attrs);
+            for (const auto& p : w_parents) {
+              p->AddChild(w_node);
+            }
+            nodes.Set(pair.second->name, w_node);
+            node_names.push_back(pair.second->name);
+          }
+        }
+      }
+    }
+  }
+}
+
+const WeightJoint WeightGraphNode::FindNode(const String& name) const {
+  ICHECK(nodes.count(name)) << "Can not find node " << name;
+  return Downcast<WeightJoint>(nodes[name]);
+}
+
+const JsonWeightGraph WeightGraphNode::ToJson() const {
+  JsonWeightGraph j_graph;
+  j_graph.name = name;
+  for (const auto& n : node_names) {
+    const auto& node = FindNode(n);
+    j_graph.nodes.push_back(node->ToJson());
+  }
+  return j_graph;
+}
+
+void WeightGraphNode::FromJson(const JsonWeightGraph& j_graph) {
+  name = j_graph.name;
+  Map<String, BaseJoint> loaded_nodes;
+  for (const auto& n : j_graph.nodes) {
+    const auto& node = WeightJoint(n, loaded_nodes);
+    loaded_nodes.Set(node->name, node);
+    for (const auto& p : node->parents) {
+      Downcast<BaseJoint>(p)->AddChild(node);
+    }
+    node_names.push_back(node->name);
+    nodes.Set(node->name, node);
+  }
+  // set friends
+  for (const auto& j_joint : j_graph.nodes) {
+    name = j_joint.name;
+    const auto& node = Downcast<WeightJoint>(nodes[name]);
+    for (const auto& f_name : j_joint.friends) {
+      ICHECK(nodes.count(f_name)) << "Can not find friend " << f_name;
+      node->friends.push_back(nodes[f_name]);
+    }
+  }
+}
+
+void WeightGraphNode::FromJson(const std::string& json_str) {
+  std::istringstream is(json_str);
+  dmlc::JSONReader reader(&is);
+  JsonWeightGraph j_graph;
+  reader.Read(&j_graph);
+  FromJson(j_graph);
 }
 
 const String WeightGraphNode::ToPrototxt() const {
@@ -797,8 +1054,7 @@ const String WeightGraphNode::ToPrototxt() const {
     // define layer
     std::vector<std::pair<String, ObjectRef>> layer;
     layer.push_back(std::make_pair("name", node->name));
-    layer.push_back(
-        std::make_pair("type", StringUtils::Replace(node->optype, ".", "_") + "_" + node->wtype));
+    layer.push_back(std::make_pair("type", node->weight_type));
     layer.push_back(std::make_pair("top", node->name));
     for (const auto& p : node->parents) {
       layer.push_back(std::make_pair("bottom", Downcast<BaseJoint>(p)->name));
@@ -808,7 +1064,10 @@ const String WeightGraphNode::ToPrototxt() const {
     param.Set("idx", Integer(node->index));
     param.Set("weight", node->weight);
     for (size_t i = 0; i < node->friends.size(); i++) {
-      param.Set("friend_" + std::to_string(i), Downcast<MSCJoint>(node->friends[i]));
+      param.Set("friend_" + std::to_string(i), Downcast<WeightJoint>(node->friends[i]));
+    }
+    for (const auto& pair : node->attrs) {
+      param.Set(pair.first, pair.second);
     }
     layer.push_back(std::make_pair("layer_param", PrototxtPrinter::ToDictDoc(param)));
     // Append the layer Map
@@ -817,9 +1076,49 @@ const String WeightGraphNode::ToPrototxt() const {
   return printer.GetString();
 }
 
-const WeightJoint WeightGraphNode::FindNode(const String& name) const {
-  ICHECK(nodes.count(name)) << "Can not find node " << name;
-  return Downcast<WeightJoint>(nodes[name]);
+MSCGraph PruneWeights(const MSCGraph& graph, const Map<String, MSCTensor>& pruned_tensors) {
+  Array<MSCJoint> nodes;
+  std::unordered_map<String, std::pair<BaseJoint, size_t>> inputs_map;
+  for (const auto& name : graph->node_names) {
+    const auto& node = graph->FindNode(name);
+    // define inputs
+    std::vector<std::pair<BaseJoint, size_t>> inputs;
+    for (const auto& input : node->GetInputs()) {
+      ICHECK(inputs_map.count(input->name)) << "Can not find input " << input;
+      inputs.push_back(inputs_map[input->name]);
+    }
+    // define outputs
+    Array<MSCTensor> outputs;
+    for (const auto& out : node->outputs) {
+      const auto& output = pruned_tensors.count(out->name) ? pruned_tensors[out->name] : out;
+      outputs.push_back(output);
+    }
+    // define weights
+    Map<String, MSCTensor> weights;
+    for (const auto& pair : node->weights) {
+      const auto& weight =
+          pruned_tensors.count(pair.second->name) ? pruned_tensors[pair.second->name] : pair.second;
+      weights.Set(pair.first, weight);
+    }
+    // define attributes
+    Map<String, String> attrs = node->attrs;
+    if (node->optype == "reshape" && attrs.count("shape") &&
+        pruned_tensors.count(node->OutputAt(0)->name)) {
+      const auto& new_shape = pruned_tensors[node->OutputAt(0)->name]->shape;
+      attrs.Set("shape", StringUtils::ToString(new_shape));
+    }
+    // create new node
+    const auto& new_node = MSCJoint(static_cast<int>(nodes.size()), node->name, node->shared_ref,
+                                    node->optype, attrs, node->scope, inputs, outputs, weights);
+    nodes.push_back(new_node);
+    for (size_t i = 0; i < new_node->outputs.size(); i++) {
+      inputs_map[new_node->OutputAt(i)->name] = std::make_pair(new_node, i);
+    }
+    for (const auto& p : new_node->parents) {
+      Downcast<BaseJoint>(p)->AddChild(new_node);
+    }
+  }
+  return MSCGraph(graph->name, nodes, graph->input_names, graph->output_names);
 }
 
 TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
@@ -910,13 +1209,12 @@ TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
                     << (i == joint->friends.size() - 1 ? "\n" : ",");
         }
       }
-      p->stream << "  OPTYPE: " << joint->optype;
-      p->stream << "\n  WEIGHT_TYPE: " << joint->wtype;
+      p->stream << "  WEIGHT_TYPE: " << joint->weight_type;
       p->stream << "\n  WEIGHT: " << joint->weight;
       if (joint->attrs.size() > 0) {
         p->stream << "\n  ATTRS: ";
         for (const auto& pair : joint->attrs) {
-          p->stream << pair.first << " = " << pair.second << " ";
+          p->stream << pair.first << "=" << pair.second << " ";
         }
       }
       p->stream << "\n";
@@ -981,9 +1279,9 @@ TVM_REGISTER_GLOBAL("msc.core.MSCJoint")
 
 TVM_REGISTER_GLOBAL("msc.core.WeightJoint")
     .set_body_typed([](Integer index, const String& name, const String& shared_ref,
-                       const String& optype, const String& wtype, const Map<String, String>& attrs,
-                       const MSCTensor& weight, const Array<WeightJoint> parents,
-                       const Array<WeightJoint>& friends) -> WeightJoint {
+                       const String& weight_type, const MSCTensor& weight,
+                       const Array<BaseJoint> parents, const Map<String, String>& attrs,
+                       const Array<BaseJoint>& friends) -> WeightJoint {
       Array<BaseJoint> b_parents, b_friends;
       for (const auto& p : parents) {
         b_parents.push_back(p);
@@ -991,7 +1289,7 @@ TVM_REGISTER_GLOBAL("msc.core.WeightJoint")
       for (const auto& f : friends) {
         b_friends.push_back(f);
       }
-      return WeightJoint(index->value, name, shared_ref, optype, wtype, attrs, weight, b_parents,
+      return WeightJoint(index->value, name, shared_ref, weight_type, weight, b_parents, attrs,
                          b_friends);
     });
 
@@ -1003,11 +1301,12 @@ TVM_REGISTER_GLOBAL("msc.core.MSCGraph")
     });
 
 TVM_REGISTER_GLOBAL("msc.core.WeightGraph")
-    .set_body_typed([](const String& name, const Array<WeightJoint>& nodes) -> WeightGraph {
-      return WeightGraph(name, nodes);
+    .set_body_typed([](const MSCGraph& graph, const Map<String, Array<String>>& main_wtypes,
+                       const Map<String, String>& relation_wtypes) -> WeightGraph {
+      return WeightGraph(graph, main_wtypes, relation_wtypes);
     });
 
-// Graph APIS
+// MSC Graph APIS
 TVM_REGISTER_GLOBAL("msc.core.MSCGraphHasNode")
     .set_body_typed([](const MSCGraph& graph, const String& name) -> Bool {
       return Bool(graph->HasNode(name));
@@ -1026,6 +1325,12 @@ TVM_REGISTER_GLOBAL("msc.core.MSCGraphHasTensor")
 TVM_REGISTER_GLOBAL("msc.core.MSCGraphFindTensor")
     .set_body_typed([](const MSCGraph& graph, const String& name) -> MSCTensor {
       return graph->FindTensor(name);
+    });
+
+TVM_REGISTER_GLOBAL("msc.core.MSCGraphSetTensorAlias")
+    .set_body_typed([](const MSCGraph& graph, const MSCTensor& tensor, const String& alias) {
+      tensor->alias = alias;
+      graph->tensor_alias.Set(alias, tensor->name);
     });
 
 TVM_REGISTER_GLOBAL("msc.core.MSCGraphFindProducer")
@@ -1068,6 +1373,31 @@ TVM_REGISTER_GLOBAL("msc.core.MSCGraphFromJson")
 TVM_REGISTER_GLOBAL("msc.core.MSCGraphToPrototxt")
     .set_body_typed([](const MSCGraph& graph) -> String { return graph->ToPrototxt(); });
 
+// Weight Graph APIS
+TVM_REGISTER_GLOBAL("msc.core.WeightGraphHasNode")
+    .set_body_typed([](const WeightGraph& graph, const String& name) -> Bool {
+      return Bool(graph->HasNode(name));
+    });
+
+TVM_REGISTER_GLOBAL("msc.core.WeightGraphFindNode")
+    .set_body_typed([](const WeightGraph& graph, const String& name) -> WeightJoint {
+      return graph->FindNode(name);
+    });
+
+TVM_REGISTER_GLOBAL("msc.core.WeightGraphToJson")
+    .set_body_typed([](const WeightGraph& graph) -> String {
+      const auto& graph_json = graph->ToJson();
+      std::ostringstream os;
+      dmlc::JSONWriter writer(&os);
+      graph_json.Save(&writer);
+      return os.str();
+    });
+
+TVM_REGISTER_GLOBAL("msc.core.WeightGraphFromJson")
+    .set_body_typed([](const String& graph_json) -> WeightGraph {
+      return WeightGraph(graph_json);
+    });
+
 TVM_REGISTER_GLOBAL("msc.core.WeightGraphToPrototxt")
     .set_body_typed([](const WeightGraph& graph) -> String { return graph->ToPrototxt(); });
 
@@ -1103,6 +1433,14 @@ TVM_REGISTER_GLOBAL("msc.core.MSCJointHasAttr")
 TVM_REGISTER_GLOBAL("msc.core.MSCJointGetAttrs")
     .set_body_typed([](const MSCJoint& node) -> Map<String, String> { return node->attrs; });
 
+TVM_REGISTER_GLOBAL("msc.core.WeightJointHasAttr")
+    .set_body_typed([](const WeightJoint& node, const String& key) -> Bool {
+      return Bool(node->HasAttr(key));
+    });
+
+TVM_REGISTER_GLOBAL("msc.core.WeightJointGetAttrs")
+    .set_body_typed([](const WeightJoint& node) -> Map<String, String> { return node->attrs; });
+
 TVM_REGISTER_GLOBAL("msc.core.MSCTensorDTypeName")
     .set_body_typed([](const MSCTensor& tensor) -> String { return tensor->DTypeName(); });
 
@@ -1115,8 +1453,12 @@ TVM_REGISTER_GLOBAL("msc.core.MSCTensorGetSize")
     .set_body_typed([](const MSCTensor& tensor) -> Integer { return tensor->GetSize(); });
 
 TVM_REGISTER_GLOBAL("msc.core.MSCTensorSetAlias")
-    .set_body_typed([](const MSCTensor& tensor, const String& alias) {
-      return tensor->alias = alias;
+    .set_body_typed([](const MSCTensor& tensor, const String& alias) { tensor->alias = alias; });
+
+TVM_REGISTER_GLOBAL("msc.core.PruneWeights")
+    .set_body_typed([](const MSCGraph& graph,
+                       const Map<String, MSCTensor>& pruned_tensors) -> MSCGraph {
+      return PruneWeights(graph, pruned_tensors);
     });
 
 }  // namespace msc

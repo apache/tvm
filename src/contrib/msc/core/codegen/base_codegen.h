@@ -169,14 +169,6 @@ class BaseCodeGen {
     }
   }
 
-  /*!
-   * \brief Compare version with version in config
-   * 0 for same version, 1 for greater version, -1 for less version
-   */
-  int CompareVersion(size_t major, size_t minor, size_t patch) {
-    return CommonUtils::CompareVersion({major, minor, patch}, config_->version);
-  }
-
   /*! \brief Get the docs for the op*/
   virtual const Array<Doc> GetOpCodes(const MSCJoint& node) = 0;
 
