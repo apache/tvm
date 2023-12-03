@@ -327,11 +327,19 @@ class ParamModuleNode : public runtime::ModuleNode {
     return Module(n);
   }
 
+  static Module CreateByName(const Array<String>& names) {
+    auto n = make_object<ParamModuleNode>();
+    n->params_ = GetParamByName(names);
+    return Module(n);
+  }
+
  private:
   Array<NDArray> params_;
 };
 
 TVM_REGISTER_GLOBAL("vm.builtin.param_module_from_cache").set_body_typed(ParamModuleNode::Create);
+TVM_REGISTER_GLOBAL("vm.builtin.param_module_from_cache_by_name")
+    .set_body_typed(ParamModuleNode::CreateByName);
 TVM_REGISTER_GLOBAL("vm.builtin.param_array_from_cache").set_body_typed(ParamModuleNode::GetParams);
 TVM_REGISTER_GLOBAL("vm.builtin.param_array_from_cache_by_name")
     .set_body_typed(ParamModuleNode::GetParamByName);

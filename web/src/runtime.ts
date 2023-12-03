@@ -152,6 +152,7 @@ class RuntimeContext implements Disposable {
   arrayCacheClear: PackedFunc;
   arrayDecodeStorage: PackedFunc;
   paramModuleFromCache: PackedFunc;
+  paramModuleFromCacheByName: PackedFunc;
   makeShapeTuple: PackedFunc;
   ndarrayCreateView: PackedFunc;
   sampleTopPFromLogits: PackedFunc;
@@ -173,6 +174,7 @@ class RuntimeContext implements Disposable {
     this.arrayCacheClear = getGlobalFunc("vm.builtin.ndarray_cache.clear");
     this.arrayDecodeStorage = getGlobalFunc("tvmjs.array.decode_storage");
     this.paramModuleFromCache = getGlobalFunc("vm.builtin.param_module_from_cache");
+    this.paramModuleFromCacheByName = getGlobalFunc("vm.builtin.param_module_from_cache_by_name");
     this.makeShapeTuple = getGlobalFunc("runtime.ShapeTuple");
     this.ndarrayCreateView = getGlobalFunc("runtime.TVMArrayCreateView");
     this.sampleTopPFromLogits = getGlobalFunc("vm.builtin.sample_top_p_from_logits");
@@ -194,6 +196,7 @@ class RuntimeContext implements Disposable {
     this.arrayCacheClear.dispose();
     this.arrayDecodeStorage.dispose();
     this.paramModuleFromCache.dispose();
+    this.paramModuleFromCacheByName.dispose();
     this.makeShapeTuple.dispose();
     this.ndarrayCreateView.dispose();
     this.sampleTopPFromLogits.dispose();
@@ -1394,6 +1397,20 @@ export class Instance implements Disposable {
   getParamsFromCache(prefix: string, numParams: number): TVMObject {
     return (this.ctx.paramModuleFromCache(
       prefix, new Scalar(numParams, "int32")) as Module).getFunction("get_params")();
+  }
+
+  /**
+   * Get parameters based on parameter names provided
+   *
+   * @param paramNames Names of the parameters.
+   * @returns Parameters read.
+   */
+  getParamsFromCacheByName(paramNames: Array<string>): TVMObject {
+    // Convert Array<string> to Array<TVMString>
+    const paramNamesTVM: TVMString[] = [];
+    paramNames.forEach(paramName => { paramNamesTVM.push(this.makeString(paramName)) });
+    return (this.ctx.paramModuleFromCacheByName(
+      this.makeTVMArray(paramNamesTVM)) as Module).getFunction("get_params")();
   }
 
   /**
