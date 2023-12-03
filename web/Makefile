@@ -49,6 +49,6 @@ src/tvmjs_runtime_wasi.js: dist/wasm/tvmjs_runtime.wasm emcc/decorate_as_wasi.py
 	python3 emcc/decorate_as_wasi.py dist/wasm/tvmjs_runtime.js $@ es
 
 clean:
-	@rm -rf dist/wasm
+	@rm -rf dist/wasm lib src/tvmjs_runtime_wasi.js
 
 -include dist/wasm/*.d
