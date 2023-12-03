@@ -7,17 +7,49 @@
 
 using cutlass::gemm::GemmShape;
 
+template<typename A_type, typename B_type, typename C_type>
+class DispatchInstruction;
+
+template<>
+class DispatchInstruction<half_t, half_t, half_t> {
+ public:
+  using Shape = GemmShape<16, 8, 16>;
+};
+
+template<>
+class DispatchInstruction<half_t, half_t, float> {
+ public:
+  using Shape = GemmShape<16, 8, 16>;
+};
+
+template<>
+class DispatchInstruction<bfloat16_t, bfloat16_t, float> {
+ public:
+  using Shape = GemmShape<16, 8, 16>;
+};
+
+template<>
+class DispatchInstruction<tfloat32_t, tfloat32_t, float> {
+ public:
+  using Shape = GemmShape<16, 8, 8>;
+};
+
 template <
   typename Shape,
   bool trans_A,
   bool trans_B,
-  typename A_type,
-  typename B_type,
+  typename A_type_raw,
+  typename B_type_raw,
   typename C_type
 >
 class GemmTensorOp {
 public:
-  using InstructionShape = GemmShape<16, 8, 16>;
+  using A_type = typename std::conditional<
+    std::is_same<A_type_raw, float>::value, tfloat32_t, A_type_raw>::type;
+  using B_type = typename std::conditional<
+    std::is_same<B_type_raw, float>::value, tfloat32_t, A_type_raw>::type;
+
+  using InstructionShape = typename DispatchInstruction<A_type, B_type, C_type>::Shape;
 
   using SMemLayoutA = typename std::conditional<
     trans_A,
@@ -27,8 +59,8 @@ public:
 
   using SMemLayoutB = typename std::conditional<
     trans_B,
-    cutlass::layout::ColumnMajorTensorOpMultiplicandCrosswise<8 * sizeof(B_type), 64 / sizeof(A_type)>,
-    cutlass::layout::RowMajorTensorOpMultiplicandCongruous<8 * sizeof(B_type), 128 / sizeof(A_type)>
+    cutlass::layout::ColumnMajorTensorOpMultiplicandCrosswise<8 * sizeof(B_type), 64 / sizeof(B_type)>,
+    cutlass::layout::RowMajorTensorOpMultiplicandCongruous<8 * sizeof(B_type), 128 / sizeof(B_type)>
   >::type;
 
   using Policy = cutlass::gemm::warp::MmaTensorOpPolicy<

@@ -401,7 +401,27 @@ PrimExpr xor4x4(const PrimExpr& i, const PrimExpr& j) {
   return 2 * xor2x2(i1, j1) + xor2x2(i0, j0);
 }
 
+Layout makeGemmABLayoutF32Congruous(int stride, int continuous) {
+  //   int tc = coord.contiguous() / 32;
+  //   int ts = coord.strided() / 4;
+  //   int c = (coord.contiguous() % 32) / kElementsPerAccess;
+  //   int s = coord.strided() % 4;
+  //   LongIndex offset = (c ^ (2 * s)) * kElementsPerAccess + s * stride_[0] +
+  //                      tc * 32 + ts * stride_[0] * 4 + coord.contiguous() % 4;
+  IterVar i = make_itervar("i", stride);
+  IterVar j = make_itervar("j", continuous);
+
+  PrimExpr ts = FloorDiv(i, 4);
+  PrimExpr tc = FloorDiv(j, 32);
+  PrimExpr c = FloorDiv(FloorMod(j, 32), 4);
+  PrimExpr s = FloorMod(i, 4);
+  PrimExpr x = FloorMod(c, 2) + 2 * xor4x4(FloorDiv(c, 2), s);
+  PrimExpr final_offset = x * 4 + s * continuous + tc * 32 + ts * continuous * 4 + FloorMod(j, 4);
+  return Layout({ i, j }, { final_offset });
+}
+
 Layout makeGemmABLayout(int stride, int continuous, int element_size, int kfactor) {
+  if (element_size == 32 && kfactor == 1) return makeGemmABLayoutF32Congruous(stride, continuous);
   int access_elements = 128 / element_size;
   ICHECK(kfactor == 1 || kfactor == 2);
   int tile_shape[2] = { 8 / kfactor, std::max(8 / kfactor, 4) };

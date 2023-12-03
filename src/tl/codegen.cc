@@ -179,7 +179,7 @@ void CodeGenTL::PrintType(DataType t, std::ostream& os) {  // NOLINT(*)
   } else if (t.is_bfloat16()) {
     enable_bf16_ = true;
     if (t.is_scalar()) {
-      os << "nv_bfloat16";
+      os << "bfloat16_t";
     } else if (lanes <= 8) {
       ICHECK_EQ(lanes % 2, 0) << "only support even lane for half type";
       os << "uint" << lanes / 2;

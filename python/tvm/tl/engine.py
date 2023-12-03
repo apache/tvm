@@ -41,8 +41,9 @@ def compile(fn):
     mod = tl.transform.PipelinePlanning()(mod)
     mod = tl.transform.InjectSoftwarePipeline()(mod)
     mod = tir.transform.LowerOpaqueBlock()(mod)
-    mod = tir.transform.Simplify()(mod)
     mod = tir.transform.FlattenBuffer()(mod)
+    mod = tir.transform.NarrowDataType(32)(mod)
+    mod = tir.transform.Simplify()(mod)
 
     mod = tir.transform.VectorizeLoop()(mod)
     mod = tir.transform.StorageRewrite()(mod)
@@ -50,10 +51,8 @@ def compile(fn):
     mod = tir.transform.RenormalizeSplitPattern()(mod)
     mod = tir.transform.Simplify()(mod)
     mod = tir.transform.RemoveNoOp()(mod)
-
     mod = tir.transform.RewriteUnsafeSelect()(mod)
     mod = tir.transform.HoistIfThenElse()(mod)
-    # mod = tir.transform.CommonSubexprElimTIR()(mod)
 
     mod = tir.transform.BindTarget(target)(mod)
     mod = tir.transform.VerifyMemory()(mod)
@@ -70,6 +69,8 @@ def compile(fn):
 
     host_mod = tir.transform.Filter(is_host_call)(mod)
     host_mod = tir.transform.BindTarget(target_host)(host_mod)
+    host_mod = tir.transform.FP8StorageLegalize()(host_mod)
+    host_mod = tir.transform.BF16StorageLegalize()(host_mod)
     host_mod = tir.transform.LowerTVMBuiltin()(host_mod)
     host_mod = tir.transform.LowerCustomDatatypes()(host_mod)
     host_mod = tir.transform.LowerIntrin()(host_mod)
@@ -81,6 +82,8 @@ def compile(fn):
     device_mod = tir.transform.LowerDeviceStorageAccessInfo()(device_mod)
     device_mod = tir.transform.LowerIntrin()(device_mod)
     device_mod = tir.transform.Simplify()(device_mod)
+    # code = tvm._ffi.get_global_func("target.build.tl_debug_codegen")(device_mod, target)
+    # print(code)
     device_mod = tvm._ffi.get_global_func("target.build.tl")(device_mod, target)
 
     host_mod.import_module(device_mod)

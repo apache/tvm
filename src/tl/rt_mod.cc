@@ -25,26 +25,25 @@
 namespace tvm {
 namespace codegen {
 
-runtime::Module BuildTLDebug(IRModule mod, Target target) {
+runtime::Module BuildTL(IRModule mod, Target target) {
   using tvm::runtime::Registry;
   bool output_ssa = false;
   CodeGenTL cg;
   cg.Init(output_ssa);
-  ICHECK(mod->functions.size() == 1) << "Currently support one kernel.";
 
-  auto kv = *mod->functions.begin();
-  ICHECK(kv.second->IsInstance<PrimFuncNode>()) << "CodeGenTL: Can only take PrimFunc";
-  auto f = Downcast<PrimFunc>(kv.second);
-  auto global_symbol = f->GetAttr<String>(tvm::attr::kGlobalSymbol);
-  cg.AddFunction(f);
-  String code = cg.Finish();
+  for (auto kv : mod->functions) {
+    ICHECK(kv.second->IsInstance<PrimFuncNode>()) << "CodeGenTL: Can only take PrimFunc";
+    auto f = Downcast<PrimFunc>(kv.second);
+    auto calling_conv = f->GetAttr<Integer>(tvm::attr::kCallingConv);
+    ICHECK(calling_conv == CallingConv::kDeviceKernelLaunch);
+    cg.AddFunction(f);
+  }
 
+  std::string code = cg.Finish();
   std::string fmt = "ptx";
   std::string ptx;
   if (const auto* f = Registry::Get("tvm_tl_cuda_compile")) {
     ptx = (*f)(code, target).operator std::string();
-    // Dirty matching to check PTX vs cubin.
-    // TODO(tqchen) more reliable checks
     if (ptx[0] != '/') fmt = "cubin";
   } else {
     ICHECK(0);
@@ -52,7 +51,27 @@ runtime::Module BuildTLDebug(IRModule mod, Target target) {
   return runtime::CUDAModuleCreate(ptx, fmt, ExtractFuncInfo(mod), code);
 }
 
-TVM_REGISTER_GLOBAL("target.build.tl").set_body_typed(BuildTLDebug);
+String BuildTLDebug(IRModule mod, Target target) {
+  using tvm::runtime::Registry;
+  bool output_ssa = false;
+  CodeGenTL cg;
+  cg.Init(output_ssa);
+
+  for (auto kv : mod->functions) {
+    ICHECK(kv.second->IsInstance<PrimFuncNode>()) << "CodeGenTL: Can only take PrimFunc";
+    auto f = Downcast<PrimFunc>(kv.second);
+    auto calling_conv = f->GetAttr<Integer>(tvm::attr::kCallingConv);
+    ICHECK(calling_conv == CallingConv::kDeviceKernelLaunch);
+    cg.AddFunction(f);
+  }
+
+  std::string code = cg.Finish();
+
+  return String(code);
+}
+
+TVM_REGISTER_GLOBAL("target.build.tl").set_body_typed(BuildTL);
+TVM_REGISTER_GLOBAL("target.build.tl_debug_codegen").set_body_typed(BuildTLDebug);
 
 }  // namespace codegen
 }  // namespace tvm
