@@ -15,13 +15,15 @@
 # specific language governing permissions and limitations
 # under the License.
 import numpy as np
+
 import tvm
-from tvm import te
+import tvm.testing
 from tvm import relay
-from tvm.relay.testing import run_as_python
+from tvm.relay.backend.interpreter import ConstructorValue, RefValue
 from tvm.relay.prelude import Prelude
+from tvm.relay.testing import run_as_python
 from tvm.runtime.container import ADT
-from tvm.relay.backend.interpreter import RefValue, ConstructorValue
+
 
 # helper: uses a dummy let binding to sequence a list
 # of expressions: expr1; expr2; expr3, etc.
@@ -668,7 +670,13 @@ def test_compiling_with_main():
     mod = tvm.IRModule()
     mod["unit"] = unit
     mod["main"] = identity
+    gv_main = mod.get_global_var("main")
+    gv_unit = mod.get_global_var("unit")
 
-    res = run_as_python(mod.get_global_var("main")(mod.get_global_var("unit")()), mod=mod)
+    res = run_as_python(gv_main(relay.Call(gv_unit, ())), mod=mod)
     assert isinstance(res, ADT)
     assert len(res) == 0
+
+
+if __name__ == "__main__":
+    tvm.testing.main()
