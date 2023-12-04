@@ -171,7 +171,7 @@ class PipelinePlanner : public StmtExprMutator {
       if (copy_order_min > non_copy_order_max) return copy_stage_cnt;
       return -1;
     }();
-    if (copy_stage_at_end > 0) {
+    if (copy_stage_at_end > 0 && num_stages >= 2) {
       for (auto &pinfo: pipeline_stage_infos) { // move copy to the begining
         pinfo.order = (pinfo.order + copy_stage_at_end) % pipeline_stage_infos.size();
         if (!pinfo.copy_stage) pinfo.stage--;

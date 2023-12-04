@@ -23,32 +23,51 @@ template<> struct DispatchInstruction<tfloat32_t, tfloat32_t, float> {
 template<> struct DispatchInstruction<double, double, double> {
   using Shape = GemmShape<8, 8, 4>;
 };
+template<> struct DispatchInstruction<int8_t, int8_t, int> {
+  using Shape = GemmShape<16, 8, 32>;
+};
 
-template<typename T, bool transpose> struct DispatchSharedMemoryLayoutA;
-template<typename T, bool transpose> struct DispatchSharedMemoryLayoutB;
-template<> struct DispatchSharedMemoryLayoutA<double, true> {
+template<typename T, bool transpose, int M, int K> struct DispatchSharedMemoryLayoutA;
+template<typename T, bool transpose, int N, int K> struct DispatchSharedMemoryLayoutB;
+template<int M, int K> struct DispatchSharedMemoryLayoutA<double, true, M, K> {
   using Layout = cutlass::layout::ColumnMajorTensorOpMultiplicandCongruous64b;
+  static int constexpr Stride = M;
 };
-template<> struct DispatchSharedMemoryLayoutA<double, false> {
+template<int M, int K> struct DispatchSharedMemoryLayoutA<double, false, M, K> {
   using Layout = cutlass::layout::RowMajorTensorOpMultiplicand64bCrosswise;
+  static int constexpr Stride = M; // special case
 };
-template<> struct DispatchSharedMemoryLayoutB<double, true> {
+template<int N, int K> struct DispatchSharedMemoryLayoutB<double, true, N, K> {
   using Layout = cutlass::layout::ColumnMajorTensorOpMultiplicand64bCrosswise;
+  static int constexpr Stride = N; // special case
 };
-template<> struct DispatchSharedMemoryLayoutB<double, false> {
+template<int N, int K> struct DispatchSharedMemoryLayoutB<double, false, N, K> {
   using Layout = cutlass::layout::RowMajorTensorOpMultiplicandCongruous64b;
+  static int constexpr Stride = N;
 };
-template<typename T> struct DispatchSharedMemoryLayoutA<T, true> {
+template<int M, int K> struct DispatchSharedMemoryLayoutA<int8_t, true, M, K> {
+  using Layout = cutlass::layout::ColumnMajor;
+  static int constexpr Stride = M + 16; // padded
+};
+template<int N, int K> struct DispatchSharedMemoryLayoutB<int8_t, false, N, K> {
+  using Layout = cutlass::layout::RowMajor;
+  static int constexpr Stride = N + 16; // padded
+};
+template<typename T, int M, int K> struct DispatchSharedMemoryLayoutA<T, true, M, K> {
   using Layout = cutlass::layout::ColumnMajorTensorOpMultiplicandCongruous<8 * sizeof(T), 128 / sizeof(T)>;
+  static int constexpr Stride = M;
 };
-template<typename T> struct DispatchSharedMemoryLayoutA<T, false> {
+template<typename T, int M, int K> struct DispatchSharedMemoryLayoutA<T, false, M, K> {
   using Layout = cutlass::layout::RowMajorTensorOpMultiplicandCrosswise<8 * sizeof(T), 64 / sizeof(T)>;
+  static int constexpr Stride = K;
 };
-template<typename T> struct DispatchSharedMemoryLayoutB<T, true> {
+template<typename T, int N, int K> struct DispatchSharedMemoryLayoutB<T, true, N, K> {
   using Layout = cutlass::layout::ColumnMajorTensorOpMultiplicandCrosswise<8 * sizeof(T), 64 / sizeof(T)>;
+  static int constexpr Stride = K;
 };
-template<typename T> struct DispatchSharedMemoryLayoutB<T, false> {
+template<typename T, int N, int K> struct DispatchSharedMemoryLayoutB<T, false, N, K> {
   using Layout = cutlass::layout::RowMajorTensorOpMultiplicandCongruous<8 * sizeof(T), 128 / sizeof(T)>;
+  static int constexpr Stride = N;
 };
 
 template <
@@ -67,8 +86,10 @@ public:
   using B_type = typename std::conditional<std::is_same<B_type_raw, float>::value, tfloat32_t, A_type_raw>::type;
   using C_type = C_type_raw;
   using InstructionShape = typename DispatchInstruction<A_type, B_type, C_type>::Shape;
-  using SMemLayoutA = typename DispatchSharedMemoryLayoutA<A_type, trans_A>::Layout;
-  using SMemLayoutB = typename DispatchSharedMemoryLayoutB<B_type, trans_B>::Layout;
+  using SMemLayoutA = typename DispatchSharedMemoryLayoutA<A_type, trans_A, Shape::kM, Shape::kK>::Layout;
+  using SMemLayoutB = typename DispatchSharedMemoryLayoutB<B_type, trans_B, Shape::kN, Shape::kK>::Layout;
+  static constexpr int stride_A = DispatchSharedMemoryLayoutA<A_type, trans_A, Shape::kM, Shape::kK>::Stride;
+  static constexpr int stride_B = DispatchSharedMemoryLayoutB<B_type, trans_B, Shape::kN, Shape::kK>::Stride;
 
   using Policy = cutlass::gemm::warp::MmaTensorOpPolicy<
     cutlass::arch::Mma<
@@ -109,12 +130,6 @@ public:
 
   static_assert(Shape::kK % InstructionShape::kK == 0);
   static int constexpr kKgroups = Shape::kK / InstructionShape::kK;
-
-  static int constexpr _stride_A = trans_A ? Shape::kM : Shape::kK;
-  static int constexpr _stride_B = trans_B ? Shape::kK : Shape::kN;
-  // not sure if it is a bug of cutlass, but we need to specially handle the stride for fp64 case.
-  static int constexpr stride_A = std::is_same<A_type, double>::value ? Shape::kM : _stride_A;
-  static int constexpr stride_B = std::is_same<B_type, double>::value ? Shape::kN : _stride_B;
 
   static CUTLASS_DEVICE
   void body(A_type_raw* pA, B_type_raw* pB, FragmentC &accum,

@@ -469,10 +469,20 @@ Layout makeGemmABLayoutF64Crosswise(int stride, int continuous) {
   return Layout({ i, j }, { offset });
 }
 
+Layout makeGemmABLayoutLinear(int stride, int continuous, int pad=0) {
+  // the traditional layout, no padding is added
+  IterVar i = make_itervar("i", stride);
+  IterVar j = make_itervar("j", continuous);
+  return Layout({ i, j }, { i * (continuous + pad) + j });
+}
+
 Layout makeGemmABLayout(int stride, int continuous, int element_size, int kfactor) {
+  // some special cases
   if (element_size == 64 && kfactor == 1) return makeGemmABLayoutF64Congruous(stride, continuous);
   if (element_size == 64 && kfactor == 2) return makeGemmABLayoutF64Crosswise(stride, continuous);
   if (element_size == 32 && kfactor == 1) return makeGemmABLayoutF32Congruous(stride, continuous);
+  if (element_size == 8 && kfactor == 1) return makeGemmABLayoutLinear(stride, continuous, 16);
+
   int access_elements = 128 / element_size;
   ICHECK(kfactor == 1 || kfactor == 2);
   int tile_shape[2] = { 8 / kfactor, std::max(8 / kfactor, 4) };
