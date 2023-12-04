@@ -29,8 +29,7 @@ def compile(fn):
     target_host = tvm.target.Target("llvm -keys=cpu")
     target = tvm.target.Target("cuda", target_host)
 
-    fn = fn.with_attr("global_symbol", "main")
-    mod = tvm.IRModule({"main": fn})
+    mod = tvm.IRModule({fn.attrs["global_symbol"]: fn})
 
     mod = tl.transform.FrontendLegalize()(mod)
     mod = tir.transform.Simplify()(mod)

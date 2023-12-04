@@ -411,8 +411,8 @@ Layout makeGemmABLayoutF32Congruous(int stride, int continuous) {
   IterVar i = make_itervar("i", stride);
   IterVar j = make_itervar("j", continuous);
 
-  PrimExpr ts = FloorDiv(i, 4);
   PrimExpr tc = FloorDiv(j, 32);
+  PrimExpr ts = FloorDiv(i, 4);
   PrimExpr c = FloorDiv(FloorMod(j, 32), 4);
   PrimExpr s = FloorMod(i, 4);
   PrimExpr x = FloorMod(c, 2) + 2 * xor4x4(FloorDiv(c, 2), s);
@@ -420,7 +420,58 @@ Layout makeGemmABLayoutF32Congruous(int stride, int continuous) {
   return Layout({ i, j }, { final_offset });
 }
 
+Layout makeGemmABLayoutF64Congruous(int stride, int continuous) {
+  // int tc = coord.contiguous() / 16;
+  // int ts = coord.strided() / 4;
+  // int c = coord.contiguous() % 16;
+  // int s = coord.strided() % 4;
+  // int bank = ((((c & 1) * 4 + (c & 6) / 2)) ^ (s & 1)) * 2 + (c / 8);
+  // int row = (c & 6) / 2;
+  // bank ^= ((s & 2) * 2);
+  // LongIndex offset = tc * 16 + bank + (ts * 4 + row) * stride_[0];
+  IterVar i = make_itervar("i", stride);
+  IterVar j = make_itervar("j", continuous);
+  PrimExpr tc = FloorDiv(j, 16);
+  PrimExpr ts = FloorDiv(i, 4);
+  PrimExpr c = FloorMod(j, 16);
+  PrimExpr s = FloorMod(i, 4);
+  PrimExpr row = FloorMod(FloorDiv(c, 2), 4);
+  PrimExpr bank =  FloorMod(c, 2) * 8 + xor4x4(row, s) * 2  + FloorDiv(c, 8);
+  PrimExpr offset = tc * 16 + bank + (ts * 4 + row) * continuous;
+  return Layout({ i, j }, { offset });
+}
+
+Layout makeGemmABLayoutF64Crosswise(int stride, int continuous) {
+  // int tc = coord.contiguous() / 16;
+  // int ts = coord.strided() / 16;
+  // int c = coord.contiguous() % 16;
+  // int s = coord.strided() % 16;
+  // int k_group = c / 4;
+  // int access_s = s / 2;
+  // int row = access_s % 4;
+  // int bank = ((k_group & 2) << 2) ^ ((s % 2) << 3) + (c % 4) * 2 + (access_s / 4) ^ (k_group & 1);
+  // int smem_row = (k_group * 4 + row) + tc * 16;
+  // int smem_col = ts * 16 + bank;
+  // LongIndex offset = smem_row * stride_[0] + smem_col;
+  IterVar i = make_itervar("i", stride);
+  IterVar j = make_itervar("j", continuous);
+  PrimExpr tc = FloorDiv(j, 16);
+  PrimExpr ts = FloorDiv(i, 16);
+  PrimExpr c = FloorMod(j, 16);
+  PrimExpr s = FloorMod(i, 16);
+  PrimExpr k_group = FloorDiv(c, 4);
+  PrimExpr access_s = FloorDiv(s, 2);
+  PrimExpr row = FloorMod(access_s, 4);
+  PrimExpr bank = xor2x2(FloorDiv(k_group, 2), FloorMod(s, 2)) * 8 + FloorMod(c, 4) * 2 + xor2x2(FloorDiv(access_s, 4), FloorMod(k_group, 2));
+  PrimExpr smem_row = (k_group * 4 + row) + tc * 16;
+  PrimExpr smem_col = ts * 16 + bank;
+  PrimExpr offset = smem_row * stride + smem_col;
+  return Layout({ i, j }, { offset });
+}
+
 Layout makeGemmABLayout(int stride, int continuous, int element_size, int kfactor) {
+  if (element_size == 64 && kfactor == 1) return makeGemmABLayoutF64Congruous(stride, continuous);
+  if (element_size == 64 && kfactor == 2) return makeGemmABLayoutF64Crosswise(stride, continuous);
   if (element_size == 32 && kfactor == 1) return makeGemmABLayoutF32Congruous(stride, continuous);
   int access_elements = 128 / element_size;
   ICHECK(kfactor == 1 || kfactor == 2);

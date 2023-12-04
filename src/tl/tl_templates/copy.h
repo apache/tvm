@@ -21,46 +21,68 @@ void cp_async_wait()
   }
 }
 
+__forceinline__ __device__ unsigned int
+cast_smem_ptr_to_int(const void* const smem_ptr)
+{
+  unsigned int smem_int;
+  asm volatile ("{ .reg .u64 smem_int; cvta.to.shared.u64 smem_int, %1; cvt.u32.u64 %0, smem_int; }"
+    : "=r"(smem_int) : "l"(smem_ptr));
+  return smem_int;
+}
+
 template <int N>
 __forceinline__ __device__
 void cp_async_gs(void const* const smem_addr, void* global_ptr)
 {
-  uint32_t addr;
-  __asm__ __volatile__(
-    "{ .reg .u64 addr; cvta.to.shared.u64 addr, %1; cvt.u32.u64 %0, addr; }\n"
-    : "=r"(addr)
-    : "l"((void*)(smem_addr))
-  );
-  __asm__ __volatile__(
+  static_assert(N == 16 || N == 8 || N == 4);
+  unsigned int addr = cast_smem_ptr_to_int(smem_addr);
+  if constexpr (N == 16) {
+    __asm__ __volatile__(
 #if TL_ENABLE_L2_PREFETCH
-    "cp.async.cg.shared.global.L2::128B [%0], [%1], %2;"
+      "cp.async.cg.shared.global.L2::128B [%0], [%1], %2;"
 #else
-    "cp.async.cg.shared.global [%0], [%1], %2;"
+      "cp.async.cg.shared.global [%0], [%1], %2;"
 #endif
-    :: "r"(addr), "l"((void*)(global_ptr)), "n"(N)
-  );
+      :: "r"(addr), "l"((void*)(global_ptr)), "n"(N)
+    );
+  } else {
+    __asm__ __volatile__(
+#if TL_ENABLE_L2_PREFETCH
+      "cp.async.ca.shared.global.L2::128B [%0], [%1], %2;"
+#else
+      "cp.async.ca.shared.global [%0], [%1], %2;"
+#endif
+      :: "r"(addr), "l"((void*)(global_ptr)), "n"(N)
+    );
+  }
 }
 
 template <int N>
 __forceinline__ __device__
 void cp_async_gs_conditional(void const* const smem_addr, void* global_ptr, bool cond)
 {
-  uint32_t addr;
-  __asm__ __volatile__(
-    "{ .reg .u64 addr; cvta.to.shared.u64 addr, %1; cvt.u32.u64 %0, addr; }\n"
-    : "=r"(addr)
-    : "l"((void*)(smem_addr))
-  );
+  static_assert(N == 16 || N == 8 || N == 4);
   int bytes = cond ? N : 0;
-  __asm__ __volatile__(
+  unsigned int addr = cast_smem_ptr_to_int(smem_addr);
+  if constexpr (N == 16) {
+    __asm__ __volatile__(
 #if TL_ENABLE_L2_PREFETCH
-    "cp.async.cg.shared.global.L2::128B [%0], [%1], %2, %3;"
+      "cp.async.cg.shared.global.L2::128B [%0], [%1], %2, %3;"
 #else
-    "cp.async.cg.shared.global [%0], [%1], %2, %3;"
+      "cp.async.cg.shared.global [%0], [%1], %2, %3;"
 #endif
-    :: "r"(addr), "l"((void*)(global_ptr)), "n"(N), "r"(bytes)
-  );
-
+      :: "r"(addr), "l"((void*)(global_ptr)), "n"(N), "r"(bytes)
+    );
+  } else {
+    __asm__ __volatile__(
+#if TL_ENABLE_L2_PREFETCH
+      "cp.async.ca.shared.global.L2::128B [%0], [%1], %2, %3;"
+#else
+      "cp.async.ca.shared.global [%0], [%1], %2, %3;"
+#endif
+      :: "r"(addr), "l"((void*)(global_ptr)), "n"(N), "r"(bytes)
+    );
+  }
 }
 
 } // namespace tl
