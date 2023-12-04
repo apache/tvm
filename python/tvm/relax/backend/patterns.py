@@ -335,6 +335,7 @@ def make_rms_norm_pattern():
     annotations = {"gv": gv, "inp": inp, "rms_norm": out}
     return out, annotations
 
+
 def make_relax_op_rms_norm_pattern():
     """Create a layer norm pattern."""
     inp = wildcard()
@@ -342,6 +343,7 @@ def make_relax_op_rms_norm_pattern():
     out = is_op("relax.nn.rms_norm")(inp, weight)
     annotations = {"inp": inp, "rms_norm": out}
     return out, annotations
+
 
 def make_attention_rewrite_pattern(
     qkv_layout: str, out_layout: str, with_bias: bool, with_cast: bool, with_kv_repeat: bool = False
