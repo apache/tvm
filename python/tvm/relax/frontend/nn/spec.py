@@ -487,7 +487,7 @@ class SpecBuilder:
         external_mods = []
         for extern_module in extern_modules:
             external_mods.append(extern_module.module_spec.load_library())
-        mod = self.builder.get()
+        mod = self.builder.finalize()
         if extern_modules:
             original_external_mods = mod.get_attr("external_mods")
             if original_external_mods is not None:
