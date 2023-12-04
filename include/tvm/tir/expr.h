@@ -1198,11 +1198,8 @@ struct PackedFuncValueConverter<PrimExpr> {
       return opt.value();
     } else if (auto opt = PackedFuncValueConverter<tvm::tir::StringImm>::TryFrom(val)) {
       return opt.value();
-    } else if (val.template IsObjectRef<tir::IterVar>()) {
-      // Delegate to the implicit conversion from IterVar to PrimExpr
-      return val.template AsObjectRef<tir::IterVar>();
     } else {
-      return val.template AsObjectRef<PrimExpr>();
+      return PrimExpr::FromObject_(val.template AsObjectRef<ObjectRef>());
     }
   }
 };
