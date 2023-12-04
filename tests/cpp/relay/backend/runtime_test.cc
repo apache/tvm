@@ -64,7 +64,7 @@ TEST(RuntimeRegistry, ListRuntimeOptions) {
   Map<String, String> attrs = Runtime::ListRuntimeOptions("TestRuntime");
 
   ICHECK_EQ(attrs.empty(), false);
-  ICHECK_EQ(attrs["my_bool"], "runtime.Bool");
+  ICHECK_EQ(attrs["my_bool"], "runtime.BoxBool");
   ICHECK_EQ(attrs["your_names"], "Array");
   ICHECK_EQ(attrs["another_option"], "runtime.String");
 }
