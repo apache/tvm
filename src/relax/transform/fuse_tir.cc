@@ -150,8 +150,6 @@ class FuseTIRBufferSubstitutor : private StmtExprMutator {
  public:
   explicit FuseTIRBufferSubstitutor(const Map<Buffer, Buffer>& buffer_map,
                                     const Map<Var, PrimExpr>& var_map) {
-    LOG(DEBUG) << "Substituting using buffer map " << buffer_map;
-    LOG(DEBUG) << "Substituting using var map " << var_map;
     buffer_remap_ = buffer_map;
     var_remap_ = var_map;
     for (const auto& [src, tgt] : buffer_map) {
