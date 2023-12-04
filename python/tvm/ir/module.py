@@ -63,7 +63,6 @@ class IRModule(Node, Scriptable):
 
         attrs = None if not attrs else attrs
         if attrs is not None:
-            attrs = ast.literal_eval(str(attrs))
             attrs = tvm.ir.make_node("DictAttrs", **attrs)
         self.__init_handle_by_constructor__(
             _ffi_api.IRModule,
