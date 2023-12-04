@@ -18,6 +18,7 @@
 from __future__ import annotations
 
 from typing import Dict, Union
+import ast
 
 import tvm._ffi
 from tvm._ffi.base import string_types
@@ -69,7 +70,6 @@ class IRModule(Node, Scriptable):
 
         attrs = None if not attrs else attrs
         if attrs is not None:
-            attrs = ast.literal_eval(str(attrs))
             attrs = tvm.ir.make_node("DictAttrs", **attrs)
         if global_infos is None:
             global_infos = {}

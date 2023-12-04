@@ -44,6 +44,7 @@ from ..patterns import (
     make_matmul_pattern,
     make_residual_block_pattern,
     make_rms_norm_pattern,
+    make_relax_op_rms_norm_pattern,
     make_stacked_attention_pattern,
 )
 from ..utils import has_leaking_intermediate_variables
@@ -479,6 +480,11 @@ def rms_norm_pattern():
             "cutlass.rms_norm",
             *make_rms_norm_pattern(),
             _check_rms_norm,
+        ),
+        (
+            "cutlass.rms_norm",
+            *make_relax_op_rms_norm_pattern(),
+            lambda ctx: True,
         ),
     ]
 
