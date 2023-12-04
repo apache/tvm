@@ -186,7 +186,7 @@ def test_mixed_conv2d():
         y1 = relay.nn.conv2d(x1, y0, padding=(0,0), groups=int(w1_ones_shape[0]), channels=w1_ones_shape[0], kernel_size=[w1_ones_shape[2], w1_ones_shape[3]], out_dtype="int32")
         y2 = relay.cast(w1, dtype="int32")
         y2 = relay.sum(y2, axis=[1], keepdims=True)
-        y2 = relay.reshape(y2, newshape=(1, w1.type_annotation.shape[0] ,w1.type_annotation.shape[2],w1.type_annotation.shape[3]))
+        y2 = relay.transpose(y2, axes=[1,0,2,3])
         y3 = relay.sum(y1, axis=[0], keepdims=True)
         y5 = relay.nn.conv2d(y3, y2, padding=(0,0), channels=1, groups=1, kernel_size=[w1.type_annotation.shape[2], w1.type_annotation.shape[3]], out_dtype="int64")
         y7 = relay.cast(conv, dtype="int64")
@@ -253,7 +253,7 @@ def test_single_depthwise_conv2d():
         y1 = relay.nn.conv2d(x, y0, padding=(0,0), groups=int(ones_shape[0]), channels=ones_shape[0], kernel_size=[ones_shape[2], ones_shape[3]], out_dtype="int32")
         y2 = relay.cast(w1, dtype="int32")
         y2 = relay.sum(y2, axis=[1], keepdims=True)
-        y2 = relay.reshape(y2, newshape=(1, w1.type_annotation.shape[0] ,w1.type_annotation.shape[2],w1.type_annotation.shape[3]))
+        y2 = relay.transpose(y2, axes=[1,0,2,3])
         y3 = relay.sum(y1, axis=[0], keepdims=True)
         y5 = relay.nn.conv2d(y3, y2, padding=(0,0), channels=1, groups=1, kernel_size=[w1.type_annotation.shape[2], w1.type_annotation.shape[3]], out_dtype="int64")
         y6 = relay.nn.conv2d(x, w1, out_dtype="int32",groups=int(w1.type_annotation.shape[0]),channels=w1.type_annotation.shape[0])
@@ -263,8 +263,35 @@ def test_single_depthwise_conv2d():
         y10 = relay.not_equal(y8, y9)
         y = relay.Tuple([y6, y10])
         return relay.Function(args, y)
-        
-        
+
+
+
+#required for TFLITE frontend translation to x86 execution
+def test_single_depthwise_conv2d_nhwc():
+    """Simple testcase."""
+
+    def before(x, w1):
+        args = [x, w1]
+        y = relay.nn.conv2d(x, w1, out_dtype="int32",groups=int(w1.type_annotation.shape[2]),channels=w1.type_annotation.shape[2],data_layout="NHWC", kernel_layout="HWOI")
+        return relay.Function(args, y)
+
+    def expected(x, w1,ones_shape):
+        # use a fixed order of args so alpha equal check can pass
+        args = [x, w1]
+        y0 = relay.ones(shape=ones_shape, dtype="int8")
+        y1 = relay.nn.conv2d(x, y0, padding=(0,0), groups=int(ones_shape[3]), channels=ones_shape[3], kernel_size=[ones_shape[0], ones_shape[1]], out_dtype="int32", data_layout="NHWC", kernel_layout="HWIO")
+        y2 = relay.cast(w1, dtype="int32")
+        y2 = relay.sum(y2, axis=[3], keepdims=True)
+        y2 = relay.transpose(y2, axes=[0,1,2,3])
+        y3 = relay.sum(y1, axis=[0], keepdims=True)
+        y5 = relay.nn.conv2d(y3, y2, padding=(0,0), channels=1, groups=1, kernel_size=[w1.type_annotation.shape[0], w1.type_annotation.shape[1]], out_dtype="int64", data_layout="NHWC", kernel_layout="HWIO")
+        y6 = relay.nn.conv2d(x, w1, out_dtype="int32",groups=int(w1.type_annotation.shape[2]),channels=w1.type_annotation.shape[2],data_layout="NHWC", kernel_layout="HWOI")
+        y7 = relay.cast(y6, dtype="int64")
+        y8 = relay.sum(y5, axis=[0, 1, 2, 3])
+        y9 = relay.sum(y7, axis=[0, 1, 2, 3])
+        y10 = relay.not_equal(y8, y9)
+        y = relay.Tuple([y6, y10])
+        return relay.Function(args, y)
 
     
 
@@ -283,17 +310,13 @@ def test_single_depthwise_conv2d():
         print(tvm.ir.base.get_first_structural_mismatch(y, y_expected))
         assert tvm.ir.structural_equal(y, y_expected, map_free_vars=True)
 
-#Calculate dimension of ones tensor for Input checksum calc 
-# Use ones tensor to reduce input tensor to reduced weight dimension
-#P = x.type_annotation.shape[2] - w1.type_annotation.shape[2] + 1
-#Q = x.type_annotation.shape[3] - w1.type_annotation.shape[3] + 1
-#C = x.type_annotation.shape[1]  ones = (C,1,P,Q)
+# x1,w1,ones (NWHC),HWOI, HWIO
 
-    check((1, 64, 56, 56),(64, 1, 3, 3), (64,1,54,54))
-    check((1, 831, 16, 16),(831, 1, 16, 16), (831,1,1,1))
-    check((5, 20, 17, 17),(20, 1, 16, 16), (20,1,2,2))
-    check((5, 8, 17, 17),(8, 1, 12, 11), (8,1,6,7))
-    check((1, 37, 56, 56),(37, 1, 11, 11), (37,1,46,46))
+    check((1, 56, 56, 64), (3, 3, 64, 1),     (54, 54, 1, 64))
+    check((1, 16, 16, 831),(16, 16, 831, 1,), (1,1,1,831))
+    check((5, 17, 17, 20), (16, 16, 20, 1),   (2,2,1,20))
+    check((5, 17, 17, 8),  (12, 11, 8, 1),    (6,7,1,8))
+    check((1, 56, 56, 37), (11, 11, 37, 1),   (46,46,1,37))
 
 
 

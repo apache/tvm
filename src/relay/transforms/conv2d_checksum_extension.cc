@@ -37,7 +37,6 @@
 #include <unordered_map>
 #include <unordered_set>
 #include <tuple>
-#include <utility>
 
 #include "pattern_utils.h"
 
@@ -67,8 +66,12 @@
  * For Readability reasons x,w is copied. x,w,ones is u(int)8/16 
  * Filter Checksum and input fmap checksum(Ic) requires 32-bit precision (Hari et. al.)
  * Reduced output fmaps and vector-vector dot product require 64 bit precision.
+ * TFLite uses with datalayout=NHWC for regular Conv2D for kernel_layout=HWOI and dwconv2D=HWIO
  * The used Algorithm is showed examplaraly for the data_layout = NCHW, kernel_layout = OIHW, dilitation/striding/padding = default
  * Normal Conv2D:
+ *    Requires for x.data_layout=NCHW => kernel_layout=OIHW
+ *   (Requires for x.data_layout=NHWC => kernel_layout=HWIO)
+ *   (Requires for x.data_layout=HWCN => kernel_layout=HWIO)
  * 
  *      x(N,C,H,W)   w(K,C,S,R)   ones(C,1,P,Q)    x(N,C,H,W)     w(K,C,S,R)
  *           |           |              \            /                 |
@@ -77,7 +80,7 @@
  *            \         /                    |                         |
  *             \       /                     |                         |
  *              \     /                   sum(Axis={0},           sum(Axis={0},
- *               \   /                    keepdims=true)          keepdims=true)                         
+ *               \   /                    keepdims=true)          keepdims=true)
  *               conv2D                     (1,C,S,R)            /
  *               /  \                            \              /
  *              /    \                            \            /
@@ -98,10 +101,14 @@
 /*
 *
  * Depthwise Conv2D
+ *  Requires for x.data_layout=NCHW =>kernel_layout=OIHW
+ *  (Requires for x.data_layout=NHWC =>kernel_layout=HWIO) => X(N,H,W,C) -> X(H,W,C,N) for depthwise_conv2d
  *
- *      x(N,C,H,W)   w(C,1,S,R)   ones(C,1,P,Q)    x(N,C,H,W)   w(C,K,S,R)
+ *      x(N,C,H,W)   w(C,K,S,R)     x(N,C,H,W)   ones(C,1,P,Q)     w(C,K,S,R)
+ *           |           |             \              /                |
  *           |           |              \            /                 |
  *           |           |               \          /                  |
+ *           |           |                \        /                   |
  *           |           |            depthwise_conv2d             cast("32bit")
  *            \         /                 (N,C,S,R)                   |
  *             \       /                     |                   sum(Axis={1},
@@ -189,6 +196,22 @@ TVM_REGISTER_GLOBAL("relay.analysis.search_conv2d").set_body_typed(SearchConv2d)
 
 namespace transform {
 
+//Relationship between data and kernel layout for scheduling strategies
+std::unordered_map<std::string, std::string> data_weight_layout_reg_conv2d =
+{
+    {"NCHW", "OIHW"}, //x86 + ARM
+    {"NHWC", "HWIO"}, //x86 HWIO || ARM HWOI+OHWI(with spec. constraints)+HWIO(int8 optim)
+    {"HWCN", "HWIO"} //ARM HWIO
+};
+std::unordered_map<std::string, std::string> data_weight_layout_dw_conv2d =
+{
+    {"NCHW", "OIHW"}, //x86 + ARM
+    {"NHWC", "HWIO"}, //x86->generic + ARM HWOI
+};
+
+
+
+
 ///searches in data layout at which position each tensor dimension is: returns in ({pos_N, pos_C, pos_H, pos_W};)  form
 struct tensor_data_dim_pos
 {
@@ -214,7 +237,7 @@ ObjectPtr<Conv2DAttrs> create_depthwise_conv_attr(const Conv2DAttrs* orig_conv_a
   depthwise_conv_attr->groups = C->value;
   depthwise_conv_attr->kernel_size = {P, Q};
   depthwise_conv_attr->data_layout = orig_conv_attr->data_layout;
-  depthwise_conv_attr->kernel_layout = orig_conv_attr->kernel_layout;
+  depthwise_conv_attr->kernel_layout = data_weight_layout_dw_conv2d[static_cast<std::string>(depthwise_conv_attr->data_layout)];
   depthwise_conv_attr->out_layout = orig_conv_attr->out_layout;
   depthwise_conv_attr->out_dtype = orig_conv_attr->out_dtype;
   depthwise_conv_attr->channels = C;
@@ -226,7 +249,7 @@ ObjectPtr<Conv2DAttrs> create_depthwise_conv_attr(const Conv2DAttrs* orig_conv_a
 /// @param data_dim_pos
 /// @param weight_dim_pos
 /// @return shape of ones tensor
-Shape infer_output_shape_conv2d(const Call origin_conv2d, tensor_data_dim_pos data_dim_pos, tensor_weight_dim_pos weight_dim_pos){
+Shape infer_output_shape_conv2d(const Call origin_conv2d, const Conv2DAttrs* orig_conv_attr, tensor_data_dim_pos data_dim_pos, tensor_weight_dim_pos weight_dim_pos){
         const auto* input_tensor  = origin_conv2d->args[0]->type_as<TensorTypeNode>();
         const auto* weight_tensor = origin_conv2d->args[1]->type_as<TensorTypeNode>();
 
@@ -240,11 +263,20 @@ Shape infer_output_shape_conv2d(const Call origin_conv2d, tensor_data_dim_pos da
         std::array<PrimExpr,4> one_array;
         // calculate output shape for the according Matrix(P,Q and C inferred from input shape)
         //  (Input Size – ((Filter Size – 1)Dilation Factor + 1) + 2Padding)/Stride + 1
-        one_array[weight_dim_pos.pos_H] =  input_shape[data_dim_pos.pos_H] - weight_shape[weight_dim_pos.pos_H] + 1;
-        one_array[weight_dim_pos.pos_W] =  input_shape[data_dim_pos.pos_W] - weight_shape[weight_dim_pos.pos_W] + 1;
-        //switch between C and N
-        one_array[weight_dim_pos.pos_O] = input_shape[data_dim_pos.pos_C];
-        one_array[weight_dim_pos.pos_I] = PrimExpr(1);   //channel needs to be one
+
+        if(static_cast<std::string>(orig_conv_attr->data_layout) == "NCHW"){ //NCHW case -> OIHW
+          one_array[2] =  input_shape[data_dim_pos.pos_H] - weight_shape[weight_dim_pos.pos_H] + 1;
+          one_array[3] =  input_shape[data_dim_pos.pos_W] - weight_shape[weight_dim_pos.pos_W] + 1;
+          //switch between C and N
+          one_array[0] = input_shape[data_dim_pos.pos_C];
+          one_array[1] = PrimExpr(1);   //channel needs to be one
+        }else if(static_cast<std::string>(orig_conv_attr->data_layout) == "NHWC"){ //depthwise conv reqiures for NCHW HWIO weight
+          one_array[0] =  input_shape[data_dim_pos.pos_H] - weight_shape[weight_dim_pos.pos_H] + 1;
+          one_array[1] =  input_shape[data_dim_pos.pos_W] - weight_shape[weight_dim_pos.pos_W] + 1;
+          one_array[2] = PrimExpr(1);
+          one_array[3] = input_shape[data_dim_pos.pos_C];
+        }
+
 
         return Shape({one_array[0], one_array[1], one_array[2], one_array[3]});
 
@@ -270,6 +302,20 @@ tvm::relay::TShapeDataDependent infer_weight_for_tensor_tensor_dot(const Call or
                 static_cast<int32_t>(new_shape[2]->value), static_cast<int32_t>(new_shape[3]->value)};
 }
 
+tvm::runtime::ObjectPtr<tvm::relay::TransposeAttrs> infer_axis_transpose_from_kernel_layout(const Conv2DAttrs* orig_conv_attr){
+   ICHECK_EQ(orig_conv_attr->kernel_layout.length(), 4) <<  "kernel layout needs to be 4-dimensional";
+  // reshape(w(C,1,S,R)->w(1,C,S,R)) for OIHW
+  // reshape IOHW(w(1,C,S,R)->OIHW  w(1,C,S,R)) = nothing
+
+  auto trans_attr = make_object<TransposeAttrs>();
+  if(static_cast<std::string>(orig_conv_attr->kernel_layout) == "OIHW"){
+    trans_attr->axes = {Integer(1),Integer(0),Integer(2),Integer(3)};
+  }else{ //if(orig_conv_attr->kernel_layout == "IOHW"){
+    trans_attr->axes = {Integer(0),Integer(1),Integer(2),Integer(3)};
+  }
+  return trans_attr;
+}
+
 
 /// @brief create attributes for a tensor/tensor product with a generic 4D layout (data and kernel layout has to be corresponding)
 /// @param weight_shape
@@ -282,7 +328,7 @@ ObjectPtr<Conv2DAttrs> create_ten_ten_prod_attr(Shape weight_shape, const Conv2D
   ten_ten_prod_attr->groups = 1;
   ten_ten_prod_attr->kernel_size = {weight_shape[dim_pos.pos_H], weight_shape[dim_pos.pos_W]}; //SR
   ten_ten_prod_attr->data_layout   = orig_conv_attr->data_layout;
-  ten_ten_prod_attr->kernel_layout = orig_conv_attr->kernel_layout;
+  ten_ten_prod_attr->kernel_layout = data_weight_layout_reg_conv2d[static_cast<std::string>(orig_conv_attr->data_layout)];
   ten_ten_prod_attr->out_layout = orig_conv_attr->out_layout;
   ten_ten_prod_attr->out_dtype = DataType::Int(64);
   ten_ten_prod_attr->channels = {1};
@@ -303,8 +349,9 @@ tensor_data_dim_pos infer_data_tensor_dim_pos(const Conv2DAttrs* orig_conv_attr)
 }
 
 //searches data_layout for position of each Dimension position
+//Change HWOI and HWIO THUS position differs from original conv2D
 tensor_weight_dim_pos infer_weight_tensor_dim_pos(const Conv2DAttrs* orig_conv_attr){
-  ICHECK_EQ(orig_conv_attr->data_layout.length(), 4) <<  "data layout needs to be 4-dimensional";
+  ICHECK_EQ(orig_conv_attr->kernel_layout.length(), 4) <<  "data layout needs to be 4-dimensional";
    //String is a ref to std::string like string_view?
   int pos_O = static_cast<std::string>(orig_conv_attr->kernel_layout).find("O");
   int pos_I = static_cast<std::string>(orig_conv_attr->kernel_layout).find("I");
@@ -320,7 +367,7 @@ IRModule Extend2DConv(const IRModule& mod) {
   // required for Add function for module
   tvm::Map<GlobalVar, Function> updates;
 
-  auto funcs = mod->functions;  // unorderd_map with global var(function name) and function
+  auto funcs = mod->functions;  // unorderd_map with global var(function name) and function body
   for (const auto& ele : funcs) {
     ICHECK_EQ(FreeVars(ele.second).size(), 0);
     if (const auto* n = ele.second.as<FunctionNode>()) {
@@ -345,7 +392,8 @@ IRModule Extend2DConv(const IRModule& mod) {
       const Op& cast_op = Op::Get("cast");
       const Op& sum_op = Op::Get("sum");
       const Op& neq_op = Op::Get("not_equal");
-      const Op& reshape = Op::Get("reshape");
+      const Op& transpose = Op::Get("transpose");
+
 
 
         //////////////STATIC ATTR:
@@ -380,7 +428,7 @@ IRModule Extend2DConv(const IRModule& mod) {
         const auto weight = origin_conv2d->args[1];
 
 /*
-*    ones(C,1,P,Q)    x(N,C,H,W)
+*      x(N,C,H,W)    ones(C,1,P,Q)
  *        \                /
  *         \              /
  *          \            /
@@ -395,10 +443,14 @@ IRModule Extend2DConv(const IRModule& mod) {
 */
        
         /// Implement depth-wise conv with conv2d Operation (Group arg splits input into C seperate batches)
-        Shape one_tensor = infer_output_shape_conv2d(origin_conv2d, data_dim_pos, weight_dim_pos); //C1PQ for NCHW, but supports also other layouts
+        Shape one_tensor = infer_output_shape_conv2d(origin_conv2d, orig_conv_attr, data_dim_pos, weight_dim_pos); //C1PQ for NCHW, but supports also other layouts
 
-
-        auto depthwise_conv_attr = create_depthwise_conv_attr(orig_conv_attr, one_tensor[weight_dim_pos.pos_H], one_tensor[weight_dim_pos.pos_W], Downcast<IntImm>(one_tensor[weight_dim_pos.pos_O]));
+        tvm::runtime::ObjectPtr<tvm::relay::Conv2DAttrs> depthwise_conv_attr;
+        if(static_cast<std::string>(orig_conv_attr->data_layout) == "NCHW"){ //->OIHW
+          depthwise_conv_attr = create_depthwise_conv_attr(orig_conv_attr, one_tensor[2], one_tensor[3], Downcast<IntImm>(one_tensor[0]));
+        }else if(static_cast<std::string>(orig_conv_attr->data_layout) == "NHWC"){ //->HWIO
+          depthwise_conv_attr = create_depthwise_conv_attr(orig_conv_attr, one_tensor[0], one_tensor[1], Downcast<IntImm>(one_tensor[3]));
+        }
         auto depthwise_kernel = Ones(one_tensor, input_tensor->dtype);
 
         Call depthwise_conv(conv2d_op, {input, depthwise_kernel}, Attrs{depthwise_conv_attr});
@@ -455,9 +507,9 @@ IRModule Extend2DConv(const IRModule& mod) {
           reduce_filter_depth_axis_attrs->exclude  = false;
           reduce_filter_depth_axis_attrs->axis = {weight_dim_pos.pos_I}; //Get the K-th dimension in kernel layout = depth_multiplier
           Call filterwise_sum_input_wrong_dim = Call(sum_op, {weight_32bit},  Attrs(reduce_filter_depth_axis_attrs));  // add each element of indiv filter
-          auto reshape_attrs = make_object<ReshapeAttrs>();  // reshape(w(C,1,S,R)->w(1,C,S,R)) for NCHW
-          reshape_attrs->newshape = infer_weight_for_tensor_tensor_dot(origin_conv2d, weight_dim_pos);
-          filterwise_sum_input = Call(reshape, {filterwise_sum_input_wrong_dim},  Attrs(reshape_attrs));
+          //Transpose filter for tensor-tensor dot product
+          auto transpose_attrs = infer_axis_transpose_from_kernel_layout(orig_conv_attr);
+          filterwise_sum_input = Call(transpose, {filterwise_sum_input_wrong_dim},  Attrs(transpose_attrs));
         }
         // Simple Vector-Vector dot product of 3D Tensors (Checksum dot product)
         Shape weight_shape = origin_conv2d->args[1]->type_as<TensorTypeNode>()->shape;
@@ -502,11 +554,11 @@ IRModule Extend2DConv(const IRModule& mod) {
       
       updates.Set(ele.first, Downcast<Function>(extended_func));
 
-      VLOG(1) << "Print out all conv2d which need a treatment:" << std::endl
-              << PrettyPrint(conv2D_array) << std::endl
-              << "Print out return type of new function:" << std::endl
-              << PrettyPrint(func->ret_type) << std::endl
-              << "and the function:" << std::endl
+      VLOG(1) << "Print out all conv2d which need a treatment: \n"
+              << PrettyPrint(conv2D_array)
+              << "Print out return type of new function: \n"
+              << PrettyPrint(func->ret_type)
+              << "and the function: \n"
               << PrettyPrint(extended_func) << std::endl;
     }
     // Use implemented function to update each global var/ func pair
