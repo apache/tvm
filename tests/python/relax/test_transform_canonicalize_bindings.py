@@ -345,6 +345,41 @@ def test_multiple_outputs():
     verify(Input, Expected)
 
 
+def test_single_output_multiple_nondataflow():
+    """Non-dataflow vars being updated may also be part trivial bindings
+
+    Like `test_multiple_outputs`, but only `n` is used in the return
+    statement.
+    """
+
+    @tvm.script.ir_module
+    class Input:
+        @R.function
+        def main():
+            with R.dataflow():
+                x = R.const(1)
+                y = R.const(1)
+                z = R.const(1)
+                l = x
+                m = y
+                n = z
+                R.output(l, m, n)
+            return n
+
+    @tvm.script.ir_module
+    class Expected:
+        @R.function
+        def main():
+            with R.dataflow():
+                l = R.const(1)
+                m = R.const(1)
+                n = R.const(1)
+                R.output(n)
+            return n
+
+    verify(Input, Expected)
+
+
 def test_multiply_used_in_outputs():
     # cannot fold output in this case
     @tvm.script.ir_module
