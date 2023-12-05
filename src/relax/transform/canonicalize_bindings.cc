@@ -57,7 +57,17 @@ class CanonicalizePlanner : public ExprVisitor {
 
     CanonicalizationPlan plan;
 
-    std::unordered_set<Var, ObjectPtrHash, ObjectPtrEqual> handled;
+    // If a Var has been defined inside a DataflowBlock, is only used
+    // within a DataflowBlock, and is not already handled by removal
+    // of trivial bindings, then we can replace it with a DataflowVar.
+    for (auto var : visitor.defined_inside_dataflow_) {
+      if (!var.as<DataflowVarNode>() && !visitor.used_outside_dataflow_.count(var)) {
+        DataflowVar new_var(var->name_hint(), GetStructInfo(var));
+
+        plan.replace_binding.Set(var->vid, new_var);
+        plan.replace_usage.Set(var->vid, new_var);
+      }
+    }
 
     for (const auto& binding_iter : visitor.trivial_bindings_) {
       Var bound_var = binding_iter.first;
@@ -69,7 +79,6 @@ class CanonicalizePlanner : public ExprVisitor {
         // non-trivial binding.
         bound_to = opt.value();
       }
-
       while (auto opt = plan.replace_binding.Get(bound_to->vid)) {
         // The variable we are binding to may have already been
         // replaced, if it fell into Case 4 (Var = DataflowVar).  In
@@ -87,7 +96,6 @@ class CanonicalizePlanner : public ExprVisitor {
         // of use.
         plan.replace_usage.Set(bound_var->vid, bound_to);
         plan.bindings_to_remove.insert(bound_var->vid);
-        handled.insert(bound_to);
       } else {
         // Case 4: Var = DataflowVar
         //
@@ -98,19 +106,6 @@ class CanonicalizePlanner : public ExprVisitor {
         plan.replace_binding.Set(bound_to->vid, bound_var);
         plan.replace_usage.Set(bound_to->vid, bound_var);
         plan.bindings_to_remove.insert(bound_var->vid);
-        handled.insert(bound_var);
-      }
-    }
-
-    // If a Var has been defined inside a DataflowBlock, is only used
-    // within a DataflowBlock, and is not already handled by removal
-    // of trivial bindings, then we can replace it with a DataflowVar.
-    for (const auto& var : visitor.defined_inside_dataflow_) {
-      if (!var.as<DataflowVarNode>() && !visitor.used_outside_dataflow_.count(var) &&
-          !handled.count(var)) {
-        DataflowVar new_var(var->name_hint(), GetStructInfo(var));
-        plan.replace_binding.Set(var->vid, new_var);
-        plan.replace_usage.Set(var->vid, new_var);
       }
     }
 
@@ -202,19 +197,21 @@ class BindingCanonicalizer : public ExprMutator {
   }
 
   Var VisitVarDef(const Var& var) override {
-    if (auto opt = plan_.replace_binding.Get(var->vid)) {
-      return ExprMutator::VisitVarDef(opt.value());
-    } else {
-      return ExprMutator::VisitVarDef(var);
+    Var new_var = var;
+    while (auto opt = plan_.replace_binding.Get(new_var->vid)) {
+      new_var = opt.value();
     }
+
+    return ExprMutator::VisitVarDef(new_var);
   }
 
   Expr VisitExpr_(const VarNode* var) override {
-    if (auto opt = plan_.replace_usage.Get(var->vid)) {
-      return ExprMutator::VisitExpr(opt.value());
-    } else {
-      return ExprMutator::VisitExpr_(var);
+    Var new_var = GetRef<Var>(var);
+    while (auto opt = plan_.replace_usage.Get(new_var->vid)) {
+      new_var = opt.value();
     }
+
+    return ExprMutator::VisitExpr_(new_var.get());
   }
 
   // Special case: for dataflow blocks, we will check for dataflow vars that solely exist
