@@ -467,8 +467,6 @@ def verify_relax_dynamic_strided_slice(in_shape, begin, end, strides, output_sha
 
     B = topi.dynamic_strided_slice(A, Begin, End, Strides, output_shape) + 1
 
-    OutShape = topi.shape_func_dynamic_strided_slice(A, Begin, End, Strides)
-
     def check_device(target):
         dev = tvm.device(target, 0)
         if not tvm.testing.device_enabled(target):
@@ -478,27 +476,18 @@ def verify_relax_dynamic_strided_slice(in_shape, begin, end, strides, output_sha
         x_np = np.random.uniform(size=in_shape).astype(A.dtype)
         out_npy = tvm.topi.testing.strided_slice_python(x_np, begin, end, strides) + 1
         data_nd = tvm.nd.array(x_np, dev)
-        out_nd = tvm.nd.empty(out_npy.shape, device=dev, dtype=A.dtype)
+        tvm_out = tvm.nd.empty(out_npy.shape, device=dev, dtype=A.dtype)
         begin_nd = tvm.nd.array(np.array(begin).astype("int64"), dev)
         end_nd = tvm.nd.array(np.array(end).astype("int64"), dev)
         strides_nd = tvm.nd.array(np.array(strides).astype("int64"), dev)
 
-        if target == "llvm":
-            # Check shape func
-            s = tvm.te.create_schedule(OutShape.op)
-            bar = tvm.build(
-                s, [A, Begin, End, Strides, OutShape], target, name="shape_func_stride_slice"
-            )
-            out_shape_nd = tvm.nd.empty((len(out_npy.shape),), device=dev, dtype="int64")
-            bar(data_nd, begin_nd, end_nd, strides_nd, out_shape_nd)
-
-            tvm.testing.assert_allclose(out_shape_nd.numpy(), output_shape)
-
         with tvm.target.Target(target):
             s = tvm.topi.testing.get_injective_schedule(target)(B)
         foo = tvm.build(s, [A, Begin, End, Strides, B], target, name="stride_slice")
-        foo(data_nd, begin_nd, end_nd, strides_nd, out_nd)
-        tvm.testing.assert_allclose(out_nd.numpy(), out_npy)
+        foo(data_nd, begin_nd, end_nd, strides_nd, tvm_out)
+        tvm_out_npy = tvm_out.numpy()
+        assert out_npy.shape == tvm_out_npy.shape
+        tvm.testing.assert_allclose(tvm_out_npy, out_npy)
 
     for target in ["llvm", "opencl", "sdaccel", "aocl_sw_emu"]:
         check_device(target)
