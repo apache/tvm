@@ -137,8 +137,8 @@ public:
     MmaWarp mma_op;
     FragmentA frag_A;
     FragmentB frag_B;
-    const TensorRefA ref_A(pA, stride_A);
-    const TensorRefB ref_B(pB, stride_B);
+    const TensorRefA ref_A((A_type*)pA, stride_A);
+    const TensorRefB ref_B((B_type*)pB, stride_B);
     IteratorA iter_A(ref_A, lane_id);
     IteratorB iter_B(ref_B, lane_id);
     iter_A.add_tile_offset({warp_idx_m, 0});
@@ -158,7 +158,7 @@ public:
                const int warp_idx_n, const int lane_id) {
     MmaWarp mma_op;
     FragmentB frag_B;
-    const TensorRefB ref_B(pB, stride_B);
+    const TensorRefB ref_B((B_type*)pB, stride_B);
     IteratorB iter_B(ref_B, lane_id);
     iter_B.add_tile_offset({0, warp_idx_n});
     #pragma unroll
