@@ -262,8 +262,9 @@ def LambdaLift() -> tvm.ir.transform.Pass:
     return _ffi_api.LambdaLift()
 
 
-def ExtractDataflowBlocks(min_size: int = 3) -> tvm.ir.transform.Pass:
-    """A pass that extracts dataflow blocks from binding blocks.
+def ConvertToDataflow(min_size: int = 2) -> tvm.ir.transform.Pass:
+    """A pass that converts consecutive dataflow operations
+    inside binding blocks into dataflow blocks.
 
     Params
     ------
@@ -276,7 +277,7 @@ def ExtractDataflowBlocks(min_size: int = 3) -> tvm.ir.transform.Pass:
     ret: tvm.ir.transform.Pass
         The pass.
     """
-    return _ffi_api.ExtractDataflowBlocks(min_size)
+    return _ffi_api.ConvertToDataflow(min_size)
 
 
 def CallTIRRewrite() -> tvm.ir.transform.Pass:

@@ -22,7 +22,7 @@ from tvm.script import relax as R
 
 
 class ExtractCompare(tvm.testing.CompareBeforeAfter):
-    transform = relax.transform.ExtractDataflowBlocks()
+    transform = relax.transform.ConvertToDataflow()
 
 
 # functions that will not change
@@ -45,8 +45,7 @@ class TestTrivial(ExtractCompare):
         @R.function
         def func(A: R.Tensor, B: R.Tensor) -> R.Tensor:
             x = R.add(A, B)
-            y = R.subtract(x, B)
-            return y
+            return x
 
         # too few pure ops between non-dataflow ops
         @R.function(pure=False)

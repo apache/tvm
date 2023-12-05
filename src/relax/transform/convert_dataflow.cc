@@ -18,7 +18,7 @@
  */
 
 /*!
- * \file tvm/relax/transform/extract_dataflow_blocks.cc
+ * \file tvm/relax/transform/convert_dataflow.cc
  * \brief Pass for extracting groups of pure operations without
  *   dataflow into dataflow blocks.
  */
@@ -113,26 +113,26 @@ class DataflowBlockExtractor : public ExprMutator {
   size_t min_size_;
 };
 
-Expr ExtractDataflowBlocks(const Expr& input, size_t min_size) {
+Expr ConvertToDataflow(const Expr& input, size_t min_size) {
   DataflowBlockExtractor extractor(min_size);
   return extractor.VisitExpr(input);
 }
 
 namespace transform {
 
-Pass ExtractDataflowBlocks(int min_size) {
+Pass ConvertToDataflow(int min_size) {
   runtime::TypedPackedFunc<Function(Function, IRModule, PassContext)> pass_func =
       [=](Function f, IRModule m, PassContext pc) {
-        return Downcast<Function>(ExtractDataflowBlocks(f, min_size));
+        return Downcast<Function>(ConvertToDataflow(f, min_size));
       };
-  auto pass = CreateFunctionPass(pass_func, 0, "ExtractDataflowBlocks", {});
+  auto pass = CreateFunctionPass(pass_func, 0, "ConvertToDataflow", {});
   // Canonicalize bindings is included afterwards in order to transform any
   // normal vars in DF blocks that are not used outside the DF block into
   // dataflow vars. This allows us to avoid reimplementing that functionality.
   return tvm::transform::Sequential({pass, CanonicalizeBindings()});
 }
 
-TVM_REGISTER_GLOBAL("relax.transform.ExtractDataflowBlocks").set_body_typed(ExtractDataflowBlocks);
+TVM_REGISTER_GLOBAL("relax.transform.ConvertToDataflow").set_body_typed(ConvertToDataflow);
 
 }  // namespace transform
 
