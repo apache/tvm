@@ -88,6 +88,9 @@ def launch_program(*grid_size: List[int], num_threads: int):
     bz = T.launch_thread("blockIdx.z", grid_size[2])
     return bx, by, bz, tx
 
+def use_swizzle(panel_size: int):
+    return T.attr(None, "threadblock_swizzle_pattern", f"tl::rasterization2DRow<{panel_size}>")
+
 def region(buffer: tir.Buffer, access_type: str, *args: tir.PrimExpr):
     access_type = {"r" : 1, "w" : 2, "rw": 3}[access_type]
     return tir.call_intrin(

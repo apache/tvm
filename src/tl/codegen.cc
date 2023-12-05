@@ -92,6 +92,7 @@ std::string CodeGenTL::Finish() {
   decl_stream << "#include <tl_templates/gemm.h>\n";
   decl_stream << "#include <tl_templates/copy.h>\n";
   decl_stream << "#include <tl_templates/reduce.h>\n";
+  decl_stream << "#include <tl_templates/threadblock_swizzle.h>\n";
   decl_stream << "\n";
   return CodeGenC::Finish();
 }
@@ -598,6 +599,13 @@ void CodeGenTL::VisitStmt_(const AttrStmtNode* op) {
     auto inner = op->body.as<AttrStmtNode>();
     ICHECK(inner);
     this->VisitStmt(inner->body);
+    return;
+  } else if (op->attr_key == "threadblock_swizzle_pattern") {
+    this->PrintIndent();
+    const StringImmNode* pattern = op->value.as<StringImmNode>();
+    ICHECK(pattern);
+    this->stream << "const dim3 blockIdx = "<< pattern->value << "();\n";
+    this->VisitStmt(op->body);
     return;
   }
   CodeGenC::VisitStmt_(op);
