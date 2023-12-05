@@ -48,7 +48,7 @@ pub struct ModuleNode {
 
 crate::external! {
     #[name("runtime.RuntimeEnabled")]
-    fn runtime_enabled(target: CString) -> i32;
+    fn runtime_enabled(target: CString) -> bool;
 
     #[name("runtime.ModuleLoadFromFile")]
     fn load_from_file(file_name: CString, format: CString) -> Module;
