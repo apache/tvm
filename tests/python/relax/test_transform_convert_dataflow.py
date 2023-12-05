@@ -263,5 +263,64 @@ class TestInnerFunction(ExtractCompare):
             return c
 
 
+class TestMergeWithPrecedingDataflowBlock(ExtractCompare):
+    @I.ir_module
+    class Before:
+        @R.function
+        def main(x: R.Tensor, y: R.Tensor) -> R.Tensor:
+            with R.dataflow():
+                z = R.add(x, y)
+                w = R.multiply(z, y)
+                R.output(w)
+
+            # The single binding of `v = R.add` would normally not be
+            # enough to make a dataflow block, as `1 < min_size == 2`.
+            v = R.add(w, x)
+            return v
+
+    @I.ir_module
+    class Expected:
+        @R.function
+        def main(x: R.Tensor, y: R.Tensor) -> R.Tensor:
+            with R.dataflow():
+                z = R.add(x, y)
+                w = R.multiply(z, y)
+                # However, it occurs just after an existing dataflow
+                # block, and can be merged into it.
+                v = R.add(w, x)
+                R.output(v)
+            return v
+
+
+class TestMergeWithNextDataflowBlock(ExtractCompare):
+    @I.ir_module
+    class Before:
+        @R.function
+        def main(x: R.Tensor, y: R.Tensor) -> R.Tensor:
+            # The single binding of `z = R.add` would normally not be
+            # enough to make a dataflow block, as `1 < min_size == 2`.
+            z = R.add(x, y)
+
+            # However, it occurs just before an existing dataflow
+            # block, and can be merged into it.
+
+            with R.dataflow():
+                w = R.multiply(z, y)
+                v = R.add(w, x)
+                R.output(v)
+            return v
+
+    @I.ir_module
+    class Expected:
+        @R.function
+        def main(x: R.Tensor, y: R.Tensor) -> R.Tensor:
+            with R.dataflow():
+                z = R.add(x, y)
+                w = R.multiply(z, y)
+                v = R.add(w, x)
+                R.output(v)
+            return v
+
+
 if __name__ == "__main__":
     tvm.testing.main()
