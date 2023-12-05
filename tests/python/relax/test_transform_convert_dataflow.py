@@ -184,6 +184,27 @@ class TestTreatNonCallAsPure(ExtractCompare):
     @I.ir_module
     class Before:
         @R.function
+        def tuples_and_const(x: R.Tensor, y: R.Tensor) -> R.Tensor:
+            t1 = (x, y, x)
+            t2 = (y, y, x)
+            c = R.const([1, 2, 3], dtype="int32")
+            return c
+
+        @R.function
+        def shapes() -> R.Shape:
+            s1 = R.shape((1, 2, 3))
+            s2 = R.shape((4, 5, 6))
+            s3 = R.shape((7, 8, 9))
+            return s3
+
+        @R.function
+        def prim_values():
+            x = R.prim_value(1)
+            y = R.prim_value(2)
+            z = R.prim_value(3)
+            return z
+
+        @R.function
         def main(t: R.Tuple(R.Tensor, R.Tensor)) -> R.Tensor:
             x = t[0]
             y = t[1]
@@ -193,6 +214,33 @@ class TestTreatNonCallAsPure(ExtractCompare):
 
     @I.ir_module
     class Expected:
+        @R.function
+        def tuples_and_const(x: R.Tensor, y: R.Tensor) -> R.Tensor:
+            with R.dataflow():
+                t1 = (x, y, x)
+                t2 = (y, y, x)
+                c = R.const([1, 2, 3], dtype="int32")
+                R.output(c)
+            return c
+
+        @R.function
+        def shapes() -> R.Shape:
+            with R.dataflow():
+                s1 = R.shape((1, 2, 3))
+                s2 = R.shape((4, 5, 6))
+                s3 = R.shape((7, 8, 9))
+                R.output(s3)
+            return s3
+
+        @R.function
+        def prim_values():
+            with R.dataflow():
+                x = R.prim_value(1)
+                y = R.prim_value(2)
+                z = R.prim_value(3)
+                R.output(z)
+            return z
+
         @R.function
         def main(t: R.Tuple(R.Tensor, R.Tensor)) -> R.Tensor:
             with R.dataflow():
