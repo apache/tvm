@@ -848,5 +848,53 @@ def test_inner_function():
     assert_structural_equal(Expected, after)
 
 
+def test_canonicalize_inside_branches():
+    @tvm.script.ir_module
+    class Before:
+        @R.function
+        def main(x: R.Tensor, y: R.Tensor) -> R.Tensor:
+            with R.dataflow():
+                z = R.add(x, y)
+                R.output(z)
+            if R.const(True):
+                with R.dataflow():
+                    w = R.add(z, z)
+                    v = R.multiply(w, w)
+                    # w does not need to be output
+                    R.output(w, v)
+                q = v
+            else:
+                with R.dataflow():
+                    w = R.multiply(z, z)
+                    v = R.add(w, w)
+                    R.output(w, v)
+                q = v
+            return q
+
+    @tvm.script.ir_module
+    class Expected:
+        @R.function
+        def main(x: R.Tensor, y: R.Tensor) -> R.Tensor:
+            with R.dataflow():
+                z = R.add(x, y)
+                R.output(z)
+            if R.const(True):
+                with R.dataflow():
+                    w = R.add(z, z)
+                    v = R.multiply(w, w)
+                    R.output(v)
+                q = v
+            else:
+                with R.dataflow():
+                    w = R.multiply(z, z)
+                    v = R.add(w, w)
+                    R.output(v)
+                q = v
+            return q
+
+    after = relax.transform.CanonicalizeBindings()(Before)
+    assert_structural_equal(Expected, after)
+
+
 if __name__ == "__main__":
     tvm.testing.main()

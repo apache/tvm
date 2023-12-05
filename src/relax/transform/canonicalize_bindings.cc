@@ -125,6 +125,14 @@ class CanonicalizePlanner : public ExprVisitor {
     current_block_ = cache;
   }
 
+  void VisitExpr_(const SeqExprNode* seq) override {
+    // need to reset current_block_ for nested seq exprs (such as in If nodes)
+    auto cache = current_block_;
+    current_block_ = Optional<BindingBlock>();
+    ExprVisitor::VisitExpr_(seq);
+    current_block_ = cache;
+  }
+
   void VisitBindingBlock_(const BindingBlockNode* block) override {
     CHECK(!current_block_.defined()) << "Forgetting to unset current block";
     current_block_ = GetRef<BindingBlock>(block);
