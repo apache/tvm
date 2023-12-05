@@ -1,5 +1,6 @@
 /*
- * Adapted from https://github.com/NVIDIA/FasterTransformer/blob/release/v5.3_tag/src/fastertransformer/kernels/decoder_masked_multihead_attention/decoder_masked_multihead_attention_template.hpp
+ * Adapted from
+ * https://github.com/NVIDIA/FasterTransformer/blob/release/v5.3_tag/src/fastertransformer/kernels/decoder_masked_multihead_attention/decoder_masked_multihead_attention_template.hpp
  * Copyright (c) 2023, The vLLM team.
  * Copyright (c) 2020-2023, NVIDIA CORPORATION.  All rights reserved.
  *
@@ -17,7 +18,6 @@
  */
 
 #include <float.h>
-
 #include <tvm/runtime/ndarray.h>
 #include <tvm/runtime/packed_func.h>
 #include <tvm/runtime/registry.h>
@@ -25,44 +25,18 @@
 #include <algorithm>
 #include <type_traits>
 
+#include "attention_utils.cuh"
 #include "dtype_float16.h"
 
 #define WARP_SIZE 32
 #define MAX(a, b) ((a) > (b) ? (a) : (b))
 #define MIN(a, b) ((a) < (b) ? (a) : (b))
+#define DIVIDE_ROUND_UP(a, b) (((a) + (b)-1) / (b))
 
 namespace vllm {
 
-// Q*K^T operation.
-template<int THREAD_GROUP_SIZE, typename Vec, int N>
-inline __device__ float qk_dot_(const Vec (&q)[N], const Vec (&k)[N]) {
-  using A_vec = typename FloatVec<Vec>::Type;
-  // Compute the parallel products for Q*K^T (treat vector lanes separately).
-  A_vec qk_vec = mul<A_vec, Vec, Vec>(q[0], k[0]);
-#pragma unroll
-  for (int ii = 1; ii < N; ++ii) {
-    qk_vec = fma(q[ii], k[ii], qk_vec);
-  }
-
-  // Finalize the reduction across lanes.
-  float qk = sum(qk_vec);
-#pragma unroll
-  for (int mask = THREAD_GROUP_SIZE / 2; mask >= 1; mask /= 2) {
-    qk += __shfl_xor_sync(uint32_t(-1), qk, mask);
-  }
-  return qk;
-}
-
-template<typename T, int THREAD_GROUP_SIZE>
-struct Qk_dot {
-  template<typename Vec, int N>
-  static inline __device__ float dot(const Vec (&q)[N], const Vec (&k)[N]) {
-    return qk_dot_<THREAD_GROUP_SIZE>(q, k);
-  }
-};
-
 // Utility function for attention softmax.
-template<int NUM_WARPS>
+template <int NUM_WARPS>
 inline __device__ float block_sum(float* red_smem, float sum) {
   // Decompose the thread index into warp / lane.
   int warp = threadIdx.x / WARP_SIZE;
@@ -97,31 +71,53 @@ inline __device__ float block_sum(float* red_smem, float sum) {
   return __shfl_sync(uint32_t(-1), sum, 0);
 }
 
-// Grid: (num_heads, num_seqs).
-template<
-  typename scalar_t,
-  int HEAD_SIZE,
-  int BLOCK_SIZE,
-  int NUM_THREADS>
-__global__ void single_query_cached_kv_attention_kernel(
-  scalar_t* __restrict__ out,             // [num_seqs, num_heads, head_size]
-  const scalar_t* __restrict__ q,         // [num_seqs, num_heads, head_size]
-  const scalar_t* __restrict__ k_cache,   // [num_blocks, num_kv_heads, head_size/x, block_size, x]
-  const scalar_t* __restrict__ v_cache,   // [num_blocks, num_kv_heads, head_size, block_size]
-  const int* __restrict__ head_mapping,   // [num_heads]
-  const float scale,
-  const int* __restrict__ block_tables,   // [num_seqs, max_num_blocks_per_seq]
-  const int* __restrict__ context_lens,   // [num_seqs]
-  const int max_num_blocks_per_seq,
-  const float* __restrict__ alibi_slopes,  // [num_heads]
-  const int q_stride,
-  const int kv_block_stride,
-  const int kv_head_stride) {
+// TODO(woosuk): Merge the last two dimensions of the grid.
+// Grid: (num_heads, num_seqs, max_num_partitions).
+template <typename scalar_t, int HEAD_SIZE, int BLOCK_SIZE, int NUM_THREADS,
+          int PARTITION_SIZE = 0>  // Zero means no partitioning.
+__device__ void paged_attention_kernel(
+    float* __restrict__ exp_sums,          // [num_seqs, num_heads, max_num_partitions]
+    float* __restrict__ max_logits,        // [num_seqs, num_heads, max_num_partitions]
+    scalar_t* __restrict__ out,            // [num_seqs, num_heads, max_num_partitions, head_size]
+    const scalar_t* __restrict__ q,        // [num_seqs, num_heads, head_size]
+    const scalar_t* __restrict__ k_cache,  // [num_blocks, num_kv_heads, head_size/x, block_size, x]
+    const scalar_t* __restrict__ v_cache,  // [num_blocks, num_kv_heads, head_size, block_size]
+    const int* __restrict__ head_mapping,  // [num_heads]
+    const float scale,
+    const int* __restrict__ block_tables,  // [num_seqs, max_num_blocks_per_seq]
+    const int* __restrict__ context_lens,  // [num_seqs]
+    const int max_num_blocks_per_seq,
+    const float* __restrict__ alibi_slopes,  // [num_heads]
+    const int q_stride, const int kv_block_stride, const int kv_head_stride) {
+  const int seq_idx = blockIdx.y;
+  const int partition_idx = blockIdx.z;
+  const int max_num_partitions = gridDim.z;
+  constexpr bool USE_PARTITIONING = PARTITION_SIZE > 0;
+  const int context_len = context_lens[seq_idx];
+  if (USE_PARTITIONING && partition_idx * PARTITION_SIZE >= context_len) {
+    // No work to do. Terminate the thread block.
+    return;
+  }
+
+  const int num_context_blocks = DIVIDE_ROUND_UP(context_len, BLOCK_SIZE);
+  const int num_blocks_per_partition =
+      USE_PARTITIONING ? PARTITION_SIZE / BLOCK_SIZE : num_context_blocks;
+
+  // [start_block_idx, end_block_idx) is the range of blocks to process.
+  const int start_block_idx = USE_PARTITIONING ? partition_idx * num_blocks_per_partition : 0;
+  const int end_block_idx = MIN(start_block_idx + num_blocks_per_partition, num_context_blocks);
+  const int num_blocks = end_block_idx - start_block_idx;
+
+  // [start_token_idx, end_token_idx) is the range of tokens to process.
+  const int start_token_idx = start_block_idx * BLOCK_SIZE;
+  const int end_token_idx = MIN(start_token_idx + num_blocks * BLOCK_SIZE, context_len);
+  const int num_tokens = end_token_idx - start_token_idx;
+
   constexpr int THREAD_GROUP_SIZE = MAX(WARP_SIZE / BLOCK_SIZE, 1);
-  // Note: This assumes THREAD_GROUP_SIZE divides NUM_THREADS
-  constexpr int NUM_THREAD_GROUPS = NUM_THREADS / THREAD_GROUP_SIZE;
+  constexpr int NUM_THREAD_GROUPS =
+      NUM_THREADS / THREAD_GROUP_SIZE;  // Note: This assumes THREAD_GROUP_SIZE divides NUM_THREADS
   assert(NUM_THREADS % THREAD_GROUP_SIZE == 0);
-  constexpr int NUM_TOKENS_PER_THREAD_GROUP = (BLOCK_SIZE + WARP_SIZE - 1) / WARP_SIZE;
+  constexpr int NUM_TOKENS_PER_THREAD_GROUP = DIVIDE_ROUND_UP(BLOCK_SIZE, WARP_SIZE);
   constexpr int NUM_WARPS = NUM_THREADS / WARP_SIZE;
   const int thread_idx = threadIdx.x;
   const int warp_idx = thread_idx / WARP_SIZE;
@@ -130,7 +126,6 @@ __global__ void single_query_cached_kv_attention_kernel(
   const int head_idx = blockIdx.x;
   const int num_heads = gridDim.x;
   const int kv_head_idx = head_mapping[head_idx];
-  const int seq_idx = blockIdx.y;
   const float alibi_slope = alibi_slopes == nullptr ? 0.f : alibi_slopes[head_idx];
 
   // A vector type to store a part of a key or a query.
@@ -161,7 +156,8 @@ __global__ void single_query_cached_kv_attention_kernel(
     const int vec_idx = thread_group_offset + i * THREAD_GROUP_SIZE;
     q_vecs[thread_group_offset][i] = *reinterpret_cast<const Q_vec*>(q_ptr + vec_idx * VEC_SIZE);
   }
-  __syncthreads();
+  __syncthreads();  // TODO(naed90): possible speedup if this is replaced with a memory wall right
+                    // before we use q_vecs
 
   // Memory planning.
   extern __shared__ char shared_mem[];
@@ -175,16 +171,17 @@ __global__ void single_query_cached_kv_attention_kernel(
   constexpr int x = 16 / sizeof(scalar_t);
   float qk_max = -FLT_MAX;
 
-  const int* block_table = block_tables + seq_idx * max_num_blocks_per_seq;
-  const int context_len = context_lens[seq_idx];
-  const int num_blocks = (context_len + BLOCK_SIZE - 1) / BLOCK_SIZE;
-
   // Iterate over the key blocks.
   // Each warp fetches a block of keys for each iteration.
   // Each thread group in a warp fetches a key from the block, and computes
   // dot product with the query.
-  for (int block_idx = warp_idx; block_idx < num_blocks; block_idx += NUM_WARPS) {
-    const int physical_block_number = block_table[block_idx];
+  const int* block_table = block_tables + seq_idx * max_num_blocks_per_seq;
+  for (int block_idx = start_block_idx + warp_idx; block_idx < end_block_idx;
+       block_idx += NUM_WARPS) {
+    // NOTE(woosuk): The block number is stored in int32. However, we cast it to int64
+    // because int32 can lead to overflow when this variable is multiplied by large numbers
+    // (e.g., kv_block_stride).
+    const int64_t physical_block_number = static_cast<int64_t>(block_table[block_idx]);
 
     // Load a key to registers.
     // Each thread in a thread group has a different part of the key.
@@ -198,9 +195,8 @@ __global__ void single_query_cached_kv_attention_kernel(
 
 #pragma unroll
       for (int j = 0; j < NUM_VECS_PER_THREAD; j++) {
-        const scalar_t* k_ptr = k_cache + physical_block_number * kv_block_stride
-                                        + kv_head_idx * kv_head_stride
-                                        + physical_block_offset * x;
+        const scalar_t* k_ptr = k_cache + physical_block_number * kv_block_stride +
+                                kv_head_idx * kv_head_stride + physical_block_offset * x;
         const int vec_idx = thread_group_offset + j * THREAD_GROUP_SIZE;
         const int offset1 = (vec_idx * VEC_SIZE) / x;
         const int offset2 = (vec_idx * VEC_SIZE) % x;
@@ -209,8 +205,8 @@ __global__ void single_query_cached_kv_attention_kernel(
 
       // Compute dot product.
       // This includes a reduction across the threads in the same thread group.
-      float qk = scale * Qk_dot<scalar_t, THREAD_GROUP_SIZE>::dot(q_vecs[thread_group_offset],
-                                                                  k_vecs);
+      float qk =
+          scale * Qk_dot<scalar_t, THREAD_GROUP_SIZE>::dot(q_vecs[thread_group_offset], k_vecs);
       // Add the ALiBi bias if slopes are given.
       qk += (alibi_slope != 0) ? alibi_slope * (token_idx - context_len + 1) : 0;
 
@@ -218,7 +214,7 @@ __global__ void single_query_cached_kv_attention_kernel(
         // Store the partial reductions to shared memory.
         // NOTE(woosuk): It is required to zero out the masked logits.
         const bool mask = token_idx >= context_len;
-        logits[token_idx] = mask ? 0.f : qk;
+        logits[token_idx - start_token_idx] = mask ? 0.f : qk;
         // Update the max value.
         qk_max = mask ? qk_max : fmaxf(qk_max, qk);
       }
@@ -249,7 +245,7 @@ __global__ void single_query_cached_kv_attention_kernel(
 
   // Get the sum of the exp values.
   float exp_sum = 0.f;
-  for (int i = thread_idx; i < context_len; i += NUM_THREADS) {
+  for (int i = thread_idx; i < num_tokens; i += NUM_THREADS) {
     float val = __expf(logits[i] - qk_max);
     logits[i] = val;
     exp_sum += val;
@@ -258,10 +254,20 @@ __global__ void single_query_cached_kv_attention_kernel(
 
   // Compute softmax.
   const float inv_sum = __fdividef(1.f, exp_sum + 1e-6f);
-  for (int i = thread_idx; i < context_len; i += NUM_THREADS) {
+  for (int i = thread_idx; i < num_tokens; i += NUM_THREADS) {
     logits[i] *= inv_sum;
   }
   __syncthreads();
+
+  // If partitioning is enabled, store the max logit and exp_sum.
+  if (USE_PARTITIONING && thread_idx == 0) {
+    float* max_logits_ptr = max_logits + seq_idx * num_heads * max_num_partitions +
+                            head_idx * max_num_partitions + partition_idx;
+    *max_logits_ptr = qk_max;
+    float* exp_sums_ptr = exp_sums + seq_idx * num_heads * max_num_partitions +
+                          head_idx * max_num_partitions + partition_idx;
+    *exp_sums_ptr = exp_sum;
+  }
 
   // Each thread will fetch 16 bytes from the value cache at a time.
   constexpr int V_VEC_SIZE = MIN(16 / sizeof(scalar_t), BLOCK_SIZE);
@@ -271,7 +277,7 @@ __global__ void single_query_cached_kv_attention_kernel(
 
   constexpr int NUM_V_VECS_PER_ROW = BLOCK_SIZE / V_VEC_SIZE;
   constexpr int NUM_ROWS_PER_ITER = WARP_SIZE / NUM_V_VECS_PER_ROW;
-  constexpr int NUM_ROWS_PER_THREAD = (HEAD_SIZE + NUM_ROWS_PER_ITER - 1) / NUM_ROWS_PER_ITER;
+  constexpr int NUM_ROWS_PER_THREAD = DIVIDE_ROUND_UP(HEAD_SIZE, NUM_ROWS_PER_ITER);
 
   // NOTE(woosuk): We use FP32 for the accumulator for better accuracy.
   float accs[NUM_ROWS_PER_THREAD];
@@ -282,28 +288,32 @@ __global__ void single_query_cached_kv_attention_kernel(
 
   scalar_t zero_value;
   zero(zero_value);
-  for (int block_idx = warp_idx; block_idx < num_blocks; block_idx += NUM_WARPS) {
-    const int physical_block_number = block_table[block_idx];
+  for (int block_idx = start_block_idx + warp_idx; block_idx < end_block_idx;
+       block_idx += NUM_WARPS) {
+    // NOTE(woosuk): The block number is stored in int32. However, we cast it to int64
+    // because int32 can lead to overflow when this variable is multiplied by large numbers
+    // (e.g., kv_block_stride).
+    const int64_t physical_block_number = static_cast<int64_t>(block_table[block_idx]);
     const int physical_block_offset = (lane % NUM_V_VECS_PER_ROW) * V_VEC_SIZE;
     const int token_idx = block_idx * BLOCK_SIZE + physical_block_offset;
     L_vec logits_vec;
-    from_float(logits_vec, *reinterpret_cast<Float_L_vec*>(logits + token_idx));
+    from_float(logits_vec, *reinterpret_cast<Float_L_vec*>(logits + token_idx - start_token_idx));
 
-    const scalar_t* v_ptr = v_cache + physical_block_number * kv_block_stride
-                                    + kv_head_idx * kv_head_stride;
+    const scalar_t* v_ptr =
+        v_cache + physical_block_number * kv_block_stride + kv_head_idx * kv_head_stride;
 #pragma unroll
     for (int i = 0; i < NUM_ROWS_PER_THREAD; i++) {
       const int row_idx = lane / NUM_V_VECS_PER_ROW + i * NUM_ROWS_PER_ITER;
       if (row_idx < HEAD_SIZE) {
         const int offset = row_idx * BLOCK_SIZE + physical_block_offset;
         V_vec v_vec = *reinterpret_cast<const V_vec*>(v_ptr + offset);
-        if (block_idx == num_blocks - 1) {
+        if (block_idx == num_context_blocks - 1) {
           // NOTE(woosuk): When v_vec contains the tokens that are out of the context,
           // we should explicitly zero out the values since they may contain NaNs.
           // See https://github.com/vllm-project/vllm/issues/641#issuecomment-1682544472
           scalar_t* v_vec_ptr = reinterpret_cast<scalar_t*>(&v_vec);
 #pragma unroll
-          for (int j = 0; j <= V_VEC_SIZE; j++) {
+          for (int j = 0; j < V_VEC_SIZE; j++) {
             v_vec_ptr[j] = token_idx + j < context_len ? v_vec_ptr[j] : zero_value;
           }
         }
@@ -361,7 +371,8 @@ __global__ void single_query_cached_kv_attention_kernel(
 
   // Write the final output.
   if (warp_idx == 0) {
-    scalar_t* out_ptr = out + seq_idx * num_heads * HEAD_SIZE + head_idx * HEAD_SIZE;
+    scalar_t* out_ptr = out + seq_idx * num_heads * max_num_partitions * HEAD_SIZE +
+                        head_idx * max_num_partitions * HEAD_SIZE + partition_idx * HEAD_SIZE;
 #pragma unroll
     for (int i = 0; i < NUM_ROWS_PER_THREAD; i++) {
       const int row_idx = lane / NUM_V_VECS_PER_ROW + i * NUM_ROWS_PER_ITER;
@@ -372,46 +383,166 @@ __global__ void single_query_cached_kv_attention_kernel(
   }
 }
 
+// Grid: (num_heads, num_seqs, 1).
+template <typename scalar_t, int HEAD_SIZE, int BLOCK_SIZE,
+          int NUM_THREADS>
+__global__ void paged_attention_v1_kernel(
+    scalar_t* __restrict__ out,            // [num_seqs, num_heads, head_size]
+    const scalar_t* __restrict__ q,        // [num_seqs, num_heads, head_size]
+    const scalar_t* __restrict__ k_cache,  // [num_blocks, num_kv_heads, head_size/x, block_size, x]
+    const scalar_t* __restrict__ v_cache,  // [num_blocks, num_kv_heads, head_size, block_size]
+    const int* __restrict__ head_mapping,  // [num_heads]
+    const float scale,
+    const int* __restrict__ block_tables,  // [num_seqs, max_num_blocks_per_seq]
+    const int* __restrict__ context_lens,  // [num_seqs]
+    const int max_num_blocks_per_seq,
+    const float* __restrict__ alibi_slopes,  // [num_heads]
+    const int q_stride, const int kv_block_stride, const int kv_head_stride) {
+  paged_attention_kernel<scalar_t, HEAD_SIZE, BLOCK_SIZE, NUM_THREADS>(
+      /* exp_sums */ nullptr, /* max_logits */ nullptr, out, q, k_cache, v_cache, head_mapping,
+      scale, block_tables, context_lens, max_num_blocks_per_seq, alibi_slopes, q_stride,
+      kv_block_stride, kv_head_stride);
+}
+
+// Grid: (num_heads, num_seqs, max_num_partitions).
+template <typename scalar_t, int HEAD_SIZE, int BLOCK_SIZE, int NUM_THREADS,
+          int PARTITION_SIZE>
+__global__ void paged_attention_v2_kernel(
+    float* __restrict__ exp_sums,          // [num_seqs, num_heads, max_num_partitions]
+    float* __restrict__ max_logits,        // [num_seqs, num_heads, max_num_partitions]
+    scalar_t* __restrict__ tmp_out,        // [num_seqs, num_heads, max_num_partitions, head_size]
+    const scalar_t* __restrict__ q,        // [num_seqs, num_heads, head_size]
+    const scalar_t* __restrict__ k_cache,  // [num_blocks, num_kv_heads, head_size/x, block_size, x]
+    const scalar_t* __restrict__ v_cache,  // [num_blocks, num_kv_heads, head_size, block_size]
+    const int* __restrict__ head_mapping,  // [num_heads]
+    const float scale,
+    const int* __restrict__ block_tables,  // [num_seqs, max_num_blocks_per_seq]
+    const int* __restrict__ context_lens,  // [num_seqs]
+    const int max_num_blocks_per_seq,
+    const float* __restrict__ alibi_slopes,  // [num_heads]
+    const int q_stride, const int kv_block_stride, const int kv_head_stride) {
+  paged_attention_kernel<scalar_t, HEAD_SIZE, BLOCK_SIZE, NUM_THREADS, PARTITION_SIZE>(
+      exp_sums, max_logits, tmp_out, q, k_cache, v_cache, head_mapping, scale, block_tables,
+      context_lens, max_num_blocks_per_seq, alibi_slopes, q_stride, kv_block_stride,
+      kv_head_stride);
+}
+
+// Grid: (num_heads, num_seqs).
+template <typename scalar_t, int HEAD_SIZE, int NUM_THREADS,
+          int PARTITION_SIZE>
+__global__ void paged_attention_v2_reduce_kernel(
+    scalar_t* __restrict__ out,            // [num_seqs, num_heads, head_size]
+    const float* __restrict__ exp_sums,    // [num_seqs, num_heads, max_num_partitions]
+    const float* __restrict__ max_logits,  // [num_seqs, num_heads, max_num_partitions]
+    const scalar_t* __restrict__ tmp_out,  // [num_seqs, num_heads, max_num_partitions, head_size]
+    const int* __restrict__ context_lens,  // [num_seqs]
+    const int max_num_partitions) {
+  const int num_heads = gridDim.x;
+  const int head_idx = blockIdx.x;
+  const int seq_idx = blockIdx.y;
+  const int context_len = context_lens[seq_idx];
+  const int num_partitions = DIVIDE_ROUND_UP(context_len, PARTITION_SIZE);
+  if (num_partitions == 1) {
+    // No need to reduce. Only copy tmp_out to out.
+    scalar_t* out_ptr = out + seq_idx * num_heads * HEAD_SIZE + head_idx * HEAD_SIZE;
+    const scalar_t* tmp_out_ptr = tmp_out + seq_idx * num_heads * max_num_partitions * HEAD_SIZE +
+                                  head_idx * max_num_partitions * HEAD_SIZE;
+    for (int i = threadIdx.x; i < HEAD_SIZE; i += blockDim.x) {
+      out_ptr[i] = tmp_out_ptr[i];
+    }
+    // Terminate the thread block.
+    return;
+  }
+
+  constexpr int NUM_WARPS = NUM_THREADS / WARP_SIZE;
+  const int warp_idx = threadIdx.x / WARP_SIZE;
+  const int lane = threadIdx.x % WARP_SIZE;
+
+  // Size: 2 * num_partitions.
+  extern __shared__ char shared_mem[];
+  // Workspace for reduction.
+  __shared__ float red_smem[2 * NUM_WARPS];
+
+  // Load max logits to shared memory.
+  float* shared_max_logits = reinterpret_cast<float*>(shared_mem);
+  const float* max_logits_ptr =
+      max_logits + seq_idx * num_heads * max_num_partitions + head_idx * max_num_partitions;
+  float max_logit = -FLT_MAX;
+  for (int i = threadIdx.x; i < num_partitions; i += blockDim.x) {
+    const float l = max_logits_ptr[i];
+    shared_max_logits[i] = l;
+    max_logit = fmaxf(max_logit, l);
+  }
+  __syncthreads();
+
+  // Get the global max logit.
+  // Reduce within the warp.
+#pragma unroll
+  for (int mask = WARP_SIZE / 2; mask >= 1; mask /= 2) {
+    max_logit = fmaxf(max_logit, __shfl_xor_sync(uint32_t(-1), max_logit, mask));
+  }
+  if (lane == 0) {
+    red_smem[warp_idx] = max_logit;
+  }
+  __syncthreads();
+  // Reduce across warps.
+  max_logit = lane < NUM_WARPS ? red_smem[lane] : -FLT_MAX;
+#pragma unroll
+  for (int mask = NUM_WARPS / 2; mask >= 1; mask /= 2) {
+    max_logit = fmaxf(max_logit, __shfl_xor_sync(uint32_t(-1), max_logit, mask));
+  }
+  // Broadcast the max value to all threads.
+  max_logit = __shfl_sync(uint32_t(-1), max_logit, 0);
+
+  // Load rescaled exp sums to shared memory.
+  float* shared_exp_sums = reinterpret_cast<float*>(shared_mem + sizeof(float) * num_partitions);
+  const float* exp_sums_ptr =
+      exp_sums + seq_idx * num_heads * max_num_partitions + head_idx * max_num_partitions;
+  float global_exp_sum = 0.0f;
+  for (int i = threadIdx.x; i < num_partitions; i += blockDim.x) {
+    float l = shared_max_logits[i];
+    float rescaled_exp_sum = exp_sums_ptr[i] * expf(l - max_logit);
+    global_exp_sum += rescaled_exp_sum;
+    shared_exp_sums[i] = rescaled_exp_sum;
+  }
+  __syncthreads();
+  global_exp_sum = block_sum<NUM_WARPS>(&red_smem[NUM_WARPS], global_exp_sum);
+  const float inv_global_exp_sum = __fdividef(1.0f, global_exp_sum + 1e-6f);
+
+  // Aggregate tmp_out to out.
+  const scalar_t* tmp_out_ptr = tmp_out + seq_idx * num_heads * max_num_partitions * HEAD_SIZE +
+                                head_idx * max_num_partitions * HEAD_SIZE;
+  scalar_t* out_ptr = out + seq_idx * num_heads * HEAD_SIZE + head_idx * HEAD_SIZE;
+#pragma unroll
+  for (int i = threadIdx.x; i < HEAD_SIZE; i += NUM_THREADS) {
+    float acc = 0.0f;
+    for (int j = 0; j < num_partitions; ++j) {
+      acc += to_float(tmp_out_ptr[j * HEAD_SIZE + i]) * shared_exp_sums[j] * inv_global_exp_sum;
+    }
+    from_float(out_ptr[i], acc);
+  }
+}
+
 }  // namespace vllm
 
 namespace tvm {
 namespace runtime {
 
-#define LAUNCH_ATTENTION_KERNEL(T, HEAD_SIZE, BLOCK_SIZE, NUM_THREADS)                        \
-  cudaFuncSetAttribute(                                                                       \
-      vllm::single_query_cached_kv_attention_kernel<T, HEAD_SIZE, BLOCK_SIZE, NUM_THREADS>,   \
-      cudaFuncAttributeMaxDynamicSharedMemorySize, shared_mem_size);                          \
-  vllm::single_query_cached_kv_attention_kernel<T, HEAD_SIZE, BLOCK_SIZE, NUM_THREADS>        \
-  <<<grid, block, shared_mem_size>>>(                                                 \
-    out_ptr,                                                                                  \
-    query_ptr,                                                                                \
-    key_cache_ptr,                                                                            \
-    value_cache_ptr,                                                                          \
-    head_mapping_ptr,                                                                         \
-    scale,                                                                                    \
-    block_tables_ptr,                                                                         \
-    context_lens_ptr,                                                                         \
-    max_num_blocks_per_seq,                                                                   \
-    alibi_slopes_ptr,                                                                         \
-    q_stride,                                                                                 \
-    kv_block_stride,                                                                          \
-    kv_head_stride);
+#define LAUNCH_PAGED_ATTENTION_V1(HEAD_SIZE)                                                      \
+  cudaFuncSetAttribute(vllm::paged_attention_v1_kernel<T, HEAD_SIZE, BLOCK_SIZE, NUM_THREADS>,    \
+                       cudaFuncAttributeMaxDynamicSharedMemorySize, shared_mem_size);             \
+  vllm::paged_attention_v1_kernel<T, HEAD_SIZE, BLOCK_SIZE, NUM_THREADS>                          \
+      <<<grid, block, shared_mem_size, stream>>>(                                                 \
+          out_ptr, query_ptr, key_cache_ptr, value_cache_ptr, head_mapping_ptr, scale,            \
+          block_tables_ptr, context_lens_ptr, max_num_blocks_per_seq, alibi_slopes_ptr, q_stride, \
+          kv_block_stride, kv_head_stride);
 
-
-template<
-  typename T,
-  int BLOCK_SIZE,
-  int NUM_THREADS = 128>
-void single_query_cached_kv_attention_launcher(
-                       DLTensor* out,
-                       const DLTensor* query,
-                       const DLTensor* key_cache,
-                       const DLTensor* value_cache,
-                       const DLTensor* head_mapping,
-                       float scale,
-                       const DLTensor* block_tables,
-                       const DLTensor* context_lens,
-                       int max_context_len) {
+// TODO(woosuk): Tune NUM_THREADS.
+template <typename T, int BLOCK_SIZE, int NUM_THREADS = 128>
+void paged_attention_v1_launcher(DLTensor* out, const DLTensor* query, const DLTensor* key_cache,
+                                 const DLTensor* value_cache, const DLTensor* head_mapping,
+                                 float scale, const DLTensor* block_tables,
+                                 const DLTensor* context_lens, int max_context_len) {
   int num_seqs = query->shape[0];
   int num_heads = query->shape[1];
   int head_size = query->shape[2];
@@ -423,6 +554,7 @@ void single_query_cached_kv_attention_launcher(
 
   // int thread_group_size = MAX(WARP_SIZE / BLOCK_SIZE, 1);
   // assert(head_size % thread_group_size == 0);
+  // NOTE: alibi_slopes is optional.
   const float* alibi_slopes_ptr = nullptr;
 
   T* out_ptr = static_cast<T*>(out->data);
@@ -434,31 +566,37 @@ void single_query_cached_kv_attention_launcher(
   int* context_lens_ptr = static_cast<int*>(context_lens->data);
 
   constexpr int NUM_WARPS = NUM_THREADS / WARP_SIZE;
-  int padded_max_context_len = ((max_context_len + BLOCK_SIZE - 1) / BLOCK_SIZE) * BLOCK_SIZE;
+  int padded_max_context_len = DIVIDE_ROUND_UP(max_context_len, BLOCK_SIZE) * BLOCK_SIZE;
   int logits_size = padded_max_context_len * sizeof(float);
   int outputs_size = (NUM_WARPS / 2) * head_size * sizeof(float);
+  // Python-side check in vllm.worker.worker._check_if_can_support_max_seq_len
+  // Keep that in sync with the logic here!
   int shared_mem_size = std::max(logits_size, outputs_size);
 
-  dim3 grid(num_heads, num_seqs);
+  dim3 grid(num_heads, num_seqs, 1);
   dim3 block(NUM_THREADS);
+  const cudaStream_t stream = nullptr;
   switch (head_size) {
+    // NOTE(woosuk): To reduce the compilation time, we only compile for the
+    // head sizes that we use in the model. However, we can easily extend this
+    // to support any head size which is a multiple of 16.
     case 64:
-      LAUNCH_ATTENTION_KERNEL(T, 64, BLOCK_SIZE, NUM_THREADS);
+      LAUNCH_PAGED_ATTENTION_V1(64);
       break;
     case 80:
-      LAUNCH_ATTENTION_KERNEL(T, 80, BLOCK_SIZE, NUM_THREADS);
+      LAUNCH_PAGED_ATTENTION_V1(80);
       break;
     case 96:
-      LAUNCH_ATTENTION_KERNEL(T, 96, BLOCK_SIZE, NUM_THREADS);
+      LAUNCH_PAGED_ATTENTION_V1(96);
       break;
     case 112:
-      LAUNCH_ATTENTION_KERNEL(T, 112, BLOCK_SIZE, NUM_THREADS);
+      LAUNCH_PAGED_ATTENTION_V1(112);
       break;
     case 128:
-      LAUNCH_ATTENTION_KERNEL(T, 128, BLOCK_SIZE, NUM_THREADS);
+      LAUNCH_PAGED_ATTENTION_V1(128);
       break;
     case 256:
-      LAUNCH_ATTENTION_KERNEL(T, 256, BLOCK_SIZE, NUM_THREADS);
+      LAUNCH_PAGED_ATTENTION_V1(256);
       break;
     default:
       // TORCH_CHECK(false, "Unsupported head size: ", head_size);
@@ -466,44 +604,177 @@ void single_query_cached_kv_attention_launcher(
   }
 }
 
-#define CALL_KERNEL_LAUNCHER(BLOCK_SIZE)                           \
-  single_query_cached_kv_attention_launcher<uint16_t, BLOCK_SIZE>( \
-    out,                                                            \
-    query,                                                          \
-    key_cache,                                                      \
-    value_cache,                                                    \
-    head_mapping,                                                   \
-    scale,                                                          \
-    block_tables,                                                   \
-    context_lens,                                                   \
-    max_context_len);
+#define CALL_V1_LAUNCHER(T, BLOCK_SIZE)                                                        \
+  paged_attention_v1_launcher<T, BLOCK_SIZE>(out, query, key_cache, value_cache, head_mapping, \
+                                             scale, block_tables, context_lens, max_context_len);
+
+#define LAUNCH_PAGED_ATTENTION_V2(HEAD_SIZE)                                                    \
+  vllm::paged_attention_v2_kernel<T, HEAD_SIZE, BLOCK_SIZE, NUM_THREADS, PARTITION_SIZE>        \
+      <<<grid, block, shared_mem_size, stream>>>(                                               \
+          exp_sums_ptr, max_logits_ptr, tmp_out_ptr, query_ptr, key_cache_ptr, value_cache_ptr, \
+          head_mapping_ptr, scale, block_tables_ptr, context_lens_ptr, max_num_blocks_per_seq,  \
+          alibi_slopes_ptr, q_stride, kv_block_stride, kv_head_stride);                         \
+  vllm::paged_attention_v2_reduce_kernel<T, HEAD_SIZE, NUM_THREADS, PARTITION_SIZE>             \
+      <<<reduce_grid, block, reduce_shared_mem_size, stream>>>(                                 \
+          out_ptr, exp_sums_ptr, max_logits_ptr, tmp_out_ptr, context_lens_ptr,                 \
+          max_num_partitions);
+
+template <typename T, int BLOCK_SIZE, int NUM_THREADS = 128, int PARTITION_SIZE = 512>
+void paged_attention_v2_launcher(
+
+    DLTensor* out, DLTensor* exp_sums, DLTensor* max_logits, DLTensor* tmp_out,
+    const DLTensor* query, const DLTensor* key_cache, const DLTensor* value_cache,
+    const DLTensor* head_mapping, float scale, const DLTensor* block_tables,
+    const DLTensor* context_lens, int max_context_len) {
+  int num_seqs = query->shape[0];
+  int num_heads = query->shape[1];
+  int head_size = query->shape[2];
+  int max_num_blocks_per_seq = block_tables->shape[1];
+  int q_stride = query->shape[1] * query->shape[2];
+
+  int kv_head_stride = key_cache->shape[2] * key_cache->shape[3] * key_cache->shape[4];
+  int kv_block_stride = kv_head_stride * key_cache->shape[1];
+
+  // int thread_group_size = MAX(WARP_SIZE / BLOCK_SIZE, 1);
+  // assert(head_size % thread_group_size == 0);
+  // NOTE: alibi_slopes is optional.
+  const float* alibi_slopes_ptr = nullptr;
+
+  T* out_ptr = static_cast<T*>(out->data);
+  float* exp_sums_ptr = static_cast<float*>(exp_sums->data);
+  float* max_logits_ptr = static_cast<float*>(max_logits->data);
+  T* tmp_out_ptr = static_cast<T*>(tmp_out->data);
+  T* query_ptr = static_cast<T*>(query->data);
+  T* key_cache_ptr = static_cast<T*>(key_cache->data);
+  T* value_cache_ptr = static_cast<T*>(value_cache->data);
+  int* head_mapping_ptr = static_cast<int*>(head_mapping->data);
+  int* block_tables_ptr = static_cast<int*>(block_tables->data);
+  int* context_lens_ptr = static_cast<int*>(context_lens->data);
+
+  constexpr int NUM_WARPS = NUM_THREADS / WARP_SIZE;
+  int max_num_partitions = DIVIDE_ROUND_UP(max_context_len, PARTITION_SIZE);
+  int logits_size = PARTITION_SIZE * sizeof(float);
+  int outputs_size = (NUM_WARPS / 2) * head_size * sizeof(float);
+
+  // For paged attention v2 kernel.
+  dim3 grid(num_heads, num_seqs, max_num_partitions);
+  int shared_mem_size = std::max(logits_size, outputs_size);
+  // For paged attention v2 reduce kernel.
+  dim3 reduce_grid(num_heads, num_seqs);
+  int reduce_shared_mem_size = 2 * max_num_partitions * sizeof(float);
+
+  dim3 block(NUM_THREADS);
+  const cudaStream_t stream = nullptr;
+  switch (head_size) {
+    // NOTE(woosuk): To reduce the compilation time, we only compile for the
+    // head sizes that we use in the model. However, we can easily extend this
+    // to support any head size which is a multiple of 16.
+    case 64:
+      LAUNCH_PAGED_ATTENTION_V2(64);
+      break;
+    case 80:
+      LAUNCH_PAGED_ATTENTION_V2(80);
+      break;
+    case 96:
+      LAUNCH_PAGED_ATTENTION_V2(96);
+      break;
+    case 112:
+      LAUNCH_PAGED_ATTENTION_V2(112);
+      break;
+    case 128:
+      LAUNCH_PAGED_ATTENTION_V2(128);
+      break;
+    case 256:
+      LAUNCH_PAGED_ATTENTION_V2(256);
+      break;
+    default:
+      // TORCH_CHECK(false, "Unsupported head size: ", head_size);
+      break;
+  }
+}
+
+#define CALL_V2_LAUNCHER(T, BLOCK_SIZE)                                                            \
+  paged_attention_v2_launcher<T, BLOCK_SIZE>(out, exp_sums, max_logits, tmp_out, query, key_cache, \
+                                             value_cache, head_mapping, scale, block_tables,       \
+                                             context_lens, max_context_len);
+
+void single_query_cached_kv_attention_v1(
+    const DLTensor* query, const DLTensor* key_cache, const DLTensor* value_cache,
+    const DLTensor* head_mapping, const DLTensor* block_tables, const DLTensor* context_lens,
+    int block_size,
+    const DLTensor* max_context_len_tensor,  // TODO(masahi): pass integer
+    DLTensor* out) {
+  float scale = 1.0 / sqrt(query->shape[2]);
+  int max_context_len = static_cast<int*>(max_context_len_tensor->data)[0];
+
+  using T = uint16_t;  // for half precision
+  if (block_size == 8) {
+    CALL_V1_LAUNCHER(T, 8);
+  } else if (block_size == 16) {
+    CALL_V1_LAUNCHER(T, 16);
+  } else if (block_size == 32) {
+    CALL_V1_LAUNCHER(T, 32);
+  } else {
+    LOG(FATAL) << "Unsupported block size: " << block_size;
+  }
+}
+
+void single_query_cached_kv_attention_v2(
+    const DLTensor* query, const DLTensor* key_cache, const DLTensor* value_cache,
+    const DLTensor* head_mapping, const DLTensor* block_tables, const DLTensor* context_lens,
+    int block_size,
+    const DLTensor* max_context_len_tensor,  // TODO(masahi): pass integer
+    DLTensor* exp_sums, DLTensor* max_logits, DLTensor* tmp_out, DLTensor* out) {
+  float scale = 1.0 / sqrt(query->shape[2]);
+  int max_context_len = static_cast<int*>(max_context_len_tensor->data)[0];
+
+  using T = uint16_t;  // for half precision
+  if (block_size == 8) {
+    CALL_V2_LAUNCHER(T, 8);
+  } else if (block_size == 16) {
+    CALL_V2_LAUNCHER(T, 16);
+  } else if (block_size == 32) {
+    CALL_V2_LAUNCHER(T, 32);
+  } else {
+    LOG(FATAL) << "Unsupported block size: " << block_size;
+  }
+}
 
 TVM_REGISTER_GLOBAL("tvm.contrib.vllm.single_query_cached_kv_attention")
-    .set_body_typed([](const DLTensor* query,
-                       const DLTensor* key_cache,
-                       const DLTensor* value_cache,
-                       const DLTensor* head_mapping,
-                       const DLTensor* block_tables,
-                       const DLTensor* context_lens,
-                       int block_size,
+    .set_body_typed([](const DLTensor* query, const DLTensor* key_cache,
+                       const DLTensor* value_cache, const DLTensor* head_mapping,
+                       const DLTensor* block_tables, const DLTensor* context_lens, int block_size,
                        const DLTensor* max_context_len_tensor,  // TODO(masahi): pass integer
-                       DLTensor* out) {
-        float scale = 1.0 / sqrt(query->shape[2]);
-        int max_context_len = static_cast<int*>(max_context_len_tensor->data)[0];
-
-        if (block_size == 8) {
-          CALL_KERNEL_LAUNCHER(8);
-        } else if (block_size == 16) {
-          CALL_KERNEL_LAUNCHER(16);
-        } else if (block_size == 32) {
-          CALL_KERNEL_LAUNCHER(32);
-        } else {
-          LOG(FATAL) << "Unsupported block size: " << block_size;
-        }
+                       DLTensor* exp_sums, DLTensor* max_logits, DLTensor* tmp_out, DLTensor* out) {
+      int num_seqs = query->shape[0];
+      int num_heads = query->shape[1];
+      int max_context_len = static_cast<int*>(max_context_len_tensor->data)[0];
+      const int PARTITION_SIZE = 512;
+      int max_num_partitions = DIVIDE_ROUND_UP(max_context_len, PARTITION_SIZE);
+      bool use_v1 =
+          max_context_len <= 8192 && (max_num_partitions == 1 || num_seqs * num_heads > 512);
+      if (use_v1) {
+        single_query_cached_kv_attention_v1(query, key_cache, value_cache, head_mapping,
+                                            block_tables, context_lens, block_size,
+                                            max_context_len_tensor, out);
+      } else {
+        single_query_cached_kv_attention_v2(
+            query, key_cache, value_cache, head_mapping, block_tables, context_lens, block_size,
+            max_context_len_tensor, exp_sums, max_logits, tmp_out, out);
+      }
     });
+
+// Expose for testing
+TVM_REGISTER_GLOBAL("tvm.contrib.vllm.single_query_cached_kv_attention_v1")
+    .set_body_typed(single_query_cached_kv_attention_v1);
+
+TVM_REGISTER_GLOBAL("tvm.contrib.vllm.single_query_cached_kv_attention_v2")
+    .set_body_typed(single_query_cached_kv_attention_v2);
+
 }  // namespace runtime
 }  // namespace tvm
 
 #undef WARP_SIZE
 #undef MAX
 #undef MIN
+#undef DIVIDE_ROUND_UP
