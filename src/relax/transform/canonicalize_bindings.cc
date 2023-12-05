@@ -126,12 +126,14 @@ class CanonicalizePlanner : public ExprVisitor {
   }
 
   void VisitBindingBlock_(const BindingBlockNode* block) override {
+    CHECK(!current_block_.defined()) << "Forgetting to unset current block";
     current_block_ = GetRef<BindingBlock>(block);
     ExprVisitor::VisitBindingBlock_(block);
     current_block_ = Optional<BindingBlock>();
   }
 
   void VisitBindingBlock_(const DataflowBlockNode* block) override {
+    CHECK(!current_block_.defined()) << "Forgetting to unset current block";
     current_block_ = GetRef<DataflowBlock>(block);
     ExprVisitor::VisitBindingBlock_(block);
     current_block_ = Optional<BindingBlock>();
