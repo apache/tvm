@@ -748,5 +748,105 @@ def test_canonicalize_across_non_dataflow_tuple():
     assert_structural_equal(Expected, after)
 
 
+def test_var_used_in_distinct_df_blocks():
+    """If a var is used only in dataflow blocks,
+    but outside of the one where it was originally defined,
+    it should be exposed as an output."""
+
+    @tvm.script.ir_module
+    class Before:
+        @R.function(pure=False)
+        def main(x: R.Tensor, y: R.Tensor) -> R.Tensor:
+            with R.dataflow():
+                z = R.add(x, y)
+                w = R.multiply(z, y)
+                v = R.add(w, x)
+                # v must remain exposed!
+                R.output(v)
+            _ = R.print(format="Hi mom!")
+            with R.dataflow():
+                a = R.multiply(v, v)
+                b = R.add(a, a)
+                c = R.subtract(b, a)
+                d = R.add(c, c)
+                R.output(d)
+            return d
+
+    after = relax.transform.CanonicalizeBindings()(Before)
+    assert_structural_equal(Before, after)
+
+
+def test_inner_function():
+    @tvm.script.ir_module
+    class Before:
+        @R.function(pure=False)
+        def main(x: R.Tensor, y: R.Tensor) -> R.Tensor:
+            with R.dataflow():
+
+                @R.function(pure=False)
+                def inner_func(x: R.Tensor, y: R.Tensor) -> R.Tensor:
+                    with R.dataflow():
+                        z = R.add(x, y)
+                        w = R.multiply(x, z)
+                        v = R.add(y, w)
+                        R.output(z, w, v)
+                    _ = R.print(format="oops")
+                    with R.dataflow():
+                        a = R.multiply(v, v)
+                        b = R.add(a, a)
+                        c = R.multiply(a, b)
+                        R.output(a, b, c)
+                    return c
+
+                z = R.add(x, y)
+                w = R.multiply(z, z)
+                v = R.divide(w, z)
+                R.output(inner_func, z, v, w)
+            q = inner_func(w, v)
+            with R.dataflow():
+                a = R.multiply(q, q)
+                b = R.add(a, a)
+                c = R.multiply(b, a)
+                R.output(a, b, c)
+            return c
+
+    # expected: we do not need to expose all the outputs
+    @tvm.script.ir_module
+    class Expected:
+        @R.function(pure=False)
+        def main(x: R.Tensor, y: R.Tensor) -> R.Tensor:
+            with R.dataflow():
+
+                @R.function(pure=False)
+                def inner_func(x: R.Tensor, y: R.Tensor) -> R.Tensor:
+                    with R.dataflow():
+                        z = R.add(x, y)
+                        w = R.multiply(x, z)
+                        v = R.add(y, w)
+                        R.output(v)
+                    _ = R.print(format="oops")
+                    with R.dataflow():
+                        a = R.multiply(v, v)
+                        b = R.add(a, a)
+                        c = R.multiply(a, b)
+                        R.output(c)
+                    return c
+
+                z = R.add(x, y)
+                w = R.multiply(z, z)
+                v = R.divide(w, z)
+                R.output(inner_func, v, w)
+            q = inner_func(w, v)
+            with R.dataflow():
+                a = R.multiply(q, q)
+                b = R.add(a, a)
+                c = R.multiply(b, a)
+                R.output(c)
+            return c
+
+    after = relax.transform.CanonicalizeBindings()(Before)
+    assert_structural_equal(Expected, after)
+
+
 if __name__ == "__main__":
     tvm.testing.main()

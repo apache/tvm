@@ -113,9 +113,28 @@ class CanonicalizePlanner : public ExprVisitor {
   }
 
  private:
+  void VisitExpr_(const FunctionNode* func) override {
+    // for functions, treat any free vars as used outside their home DF block
+    bool cache = inside_dataflow_;
+    inside_dataflow_ = false;
+    auto free_vars = FreeVars(GetRef<Function>(func));
+    for (auto var : free_vars) {
+      used_outside_home_dataflow_.insert(var);
+    }
+    ExprVisitor::VisitExpr_(func);
+    inside_dataflow_ = cache;
+  }
+
+
+  void VisitBindingBlock_(const BindingBlockNode* block) override {
+    current_block_ = GetRef<BindingBlock>(block);
+    ExprVisitor::VisitBindingBlock_(block);
+  }
+
   void VisitBindingBlock_(const DataflowBlockNode* block) override {
     bool cache = inside_dataflow_;
     inside_dataflow_ = true;
+    current_block_ = GetRef<DataflowBlock>(block);
     ExprVisitor::VisitBindingBlock_(block);
     inside_dataflow_ = cache;
   }
@@ -154,6 +173,7 @@ class CanonicalizePlanner : public ExprVisitor {
     }
 
     known_bindings_.Set(binding->var, value);
+    def_blocks_.Set(binding->var, current_block_);
 
     ExprVisitor::VisitBinding(binding);
   }
@@ -165,17 +185,26 @@ class CanonicalizePlanner : public ExprVisitor {
   }
 
   void VisitExpr_(const VarNode* var) override {
-    if (!inside_dataflow_) {
-      used_outside_dataflow_.insert(GetRef<Var>(var));
+    auto var_ref = GetRef<Var>(var);
+    // if a var is used in a dataflow block but *not* the one
+    // where it was defined, it also needs to be exposed, so also we treat that as
+    // used outside of a dataflow block
+    if (!inside_dataflow_ ||
+        (def_blocks_.count(var_ref) && !current_block_.same_as(def_blocks_.at(var_ref)))) {
+      used_outside_home_dataflow_.insert(GetRef<Var>(var));
     }
   }
 
   bool inside_dataflow_{false};
+  BindingBlock current_block_;
+  Map<Var, BindingBlock> def_blocks_;
 
   Map<Var, Var> trivial_bindings_;
   Map<Var, Expr> known_bindings_;
   std::unordered_set<Var, ObjectPtrHash, ObjectPtrEqual> defined_inside_dataflow_;
-  std::unordered_set<Var, ObjectPtrHash, ObjectPtrEqual> used_outside_dataflow_;
+  // Set of vars either used outside a dataflow block altogether or outside their
+  // home dataflow block (the one where they were defined)
+  std::unordered_set<Var, ObjectPtrHash, ObjectPtrEqual> used_outside_home_dataflow_;
 };
 
 /*! \brief The mutator class to apply a CanonicalizationPlan */

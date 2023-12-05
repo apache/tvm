@@ -34,6 +34,7 @@ from .transform import (
     DecomposeOpsForTraining,
     EliminateCommonSubexpr,
     ExpandTupleArguments,
+    ExtractDataflowBlocks,
     FewShotTuning,
     FoldConstant,
     FunctionPass,

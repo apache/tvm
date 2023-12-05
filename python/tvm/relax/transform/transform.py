@@ -262,6 +262,23 @@ def LambdaLift() -> tvm.ir.transform.Pass:
     return _ffi_api.LambdaLift()
 
 
+def ExtractDataflowBlocks(min_size: int = 3) -> tvm.ir.transform.Pass:
+    """A pass that extracts dataflow blocks from binding blocks.
+
+    Params
+    ------
+    min_size: int
+        The minimum number of consecutive dataflow bindings
+        the pass needs to extract a new block.
+
+    Returns
+    -------
+    ret: tvm.ir.transform.Pass
+        The pass.
+    """
+    return _ffi_api.ExtractDataflowBlocks(min_size)
+
+
 def CallTIRRewrite() -> tvm.ir.transform.Pass:
     """Perform explicit tensor allocation for call_tir and call_dps_packed.
 
