@@ -50,7 +50,7 @@ def suggest_threads_per_block(
     max_threads_for_dynamic_loop: int = 32,
 ) -> List[int]:
     if target.kind.name == "cuda":
-        threads = 256
+        threads = 1024
     elif target.kind.name == "rocm":
         threads = 256
     elif target.kind.name == "metal":
