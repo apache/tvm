@@ -17,16 +17,11 @@
  * under the License.
  */
 
-#include <tvm/driver/driver_api.h>
-#include <tvm/ir/function.h>
 #include <tvm/relax/analysis.h>
 #include <tvm/relax/expr.h>
 #include <tvm/relax/expr_functor.h>
 #include <tvm/relax/transform.h>
-#include <tvm/relax/type.h>
-#include <tvm/tir/op.h>
 
-#include <tuple>
 #include <utility>
 
 #include "../../support/ordered_set.h"
@@ -36,81 +31,6 @@ namespace tvm {
 namespace relax {
 
 namespace {
-
-using GlobalVarMap =
-    std::unordered_map<GlobalVar, std::unordered_set<GlobalVar, ObjectPtrHash, ObjectPtrEqual>,
-                       ObjectPtrHash, ObjectPtrEqual>;
-
-/*! \brief Utility to collect the map of callee to callers
- *
- * Used to identify functions that require recursion, either directly
- * or indirectly.
- */
-class CallMapCollector : ExprVisitor {
- public:
-  static GlobalVarMap Collect(const IRModule& mod) {
-    CallMapCollector visitor;
-    for (const auto& [gvar, base_func] : mod->functions) {
-      if (auto func = base_func.as<Function>()) {
-        visitor.current_caller_ = gvar;
-        visitor(func.value());
-        visitor.current_caller_ = NullOpt;
-      }
-    }
-    return visitor.callee_to_caller_;
-  }
-
- private:
-  void VisitExpr_(const CallNode* op) override {
-    ExprVisitor::VisitExpr_(op);
-
-    if (auto callee = op->op.as<GlobalVar>()) {
-      callee_to_caller_[callee.value()].insert(current_caller_.value());
-    }
-  }
-
-  Optional<GlobalVar> current_caller_ = NullOpt;
-  GlobalVarMap callee_to_caller_;
-};
-
-std::unordered_set<GlobalVar, ObjectPtrHash, ObjectPtrEqual> FindRecursiveFunctions(
-    const IRModule& mod) {
-  // Collect all direct callers
-  auto call_map = CallMapCollector::Collect(mod);
-
-  if (call_map.empty()) {
-    return {};
-  }
-
-  // Propagate to find all indirect callers
-  while (true) {
-    bool made_change = false;
-
-    for (auto& [callee, callers] : call_map) {
-      for (const auto& caller : callers) {
-        if (auto it = call_map.find(caller); it != call_map.end()) {
-          auto& indirect_callers = it->second;
-          auto res = indirect_callers.insert(callee);
-          made_change = made_change || res.second;
-        }
-      }
-    }
-
-    if (!made_change) {
-      break;
-    }
-  }
-
-  // Propagate all GlobalVars that can be called by themselves, either
-  // directly or indirectly.
-  std::unordered_set<GlobalVar, ObjectPtrHash, ObjectPtrEqual> output;
-  for (auto& [callee, callers] : call_map) {
-    if (callers.count(callee)) {
-      output.insert(callee);
-    }
-  }
-  return output;
-}
 
 class FunctionInliner : public ExprMutator {
  public:
@@ -266,8 +186,10 @@ Pass InlinePrivateFunctions() {
       return mod;
     }
 
-    for (const auto& recursive_function : FindRecursiveFunctions(mod)) {
-      replacements.erase(recursive_function);
+    for (const auto& recursive_set : DetectRecursion(mod)) {
+      for (const auto& recursive_func : recursive_set) {
+        replacements.erase(recursive_func);
+      }
     }
 
     if (replacements.empty()) {
