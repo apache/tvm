@@ -39,25 +39,34 @@ class DataflowBlockExtractor : public ExprMutator {
     Array<BindingBlock> new_blocks;
     Expr new_body = VisitExpr(seq->body);
     bool changed = !new_body.same_as(seq->body);
+    bool dataflow_streak = false;
+    Array<Binding> dataflow_bindings;
+    Array<Binding> non_dataflow_bindings;
+
     for (auto block : seq->blocks) {
       BindingBlock new_block = this->VisitBindingBlock(block);
       changed = changed || !new_block.same_as(block);
+
+      // For an existing dataflow block, we add to the current streak
+      // or start a new streak in case there will be more dataflow operations
+      // coming up
       if (new_block.as<DataflowBlock>()) {
-        new_blocks.push_back(new_block);
+        if (!dataflow_streak) {
+          dataflow_streak = true;
+        }
+        dataflow_bindings.insert(dataflow_bindings.end(), new_block->bindings.begin(),
+                                 new_block->bindings.end());
         continue;
       }
 
       // for a binding block, attempt to extract dataflow blocks inside
       auto binding_block = Downcast<BindingBlock>(new_block);
-      bool dataflow_streak = false;
-      Array<Binding> dataflow_bindings;
-      Array<Binding> non_dataflow_bindings;
       for (size_t i = 0; i < binding_block->bindings.size(); i++) {
         auto binding = binding_block->bindings[i];
         Expr value = GetBoundValue(binding);
         // dataflow values: not an if node and not an impure call
-        bool is_dataflow =
-            (!value.as<IfNode>()) && (!(value.as<CallNode>() && IsImpureCall(Downcast<Call>(value))));
+        bool is_dataflow = (!value.as<IfNode>()) &&
+                           (!(value.as<CallNode>() && IsImpureCall(Downcast<Call>(value))));
         if (!dataflow_streak) {
           // we can start a dataflow streak
           if (is_dataflow) {
@@ -92,15 +101,17 @@ class DataflowBlockExtractor : public ExprMutator {
           }
         }
       }
-      if (dataflow_bindings.size() < min_size_) {
-        non_dataflow_bindings.insert(non_dataflow_bindings.end(), dataflow_bindings.begin(),
-                                     dataflow_bindings.end());
-        new_blocks.push_back(BindingBlock(non_dataflow_bindings));
-      } else {
-        changed = true;
-        new_blocks.push_back(BindingBlock(non_dataflow_bindings));
-        new_blocks.push_back(DataflowBlock(dataflow_bindings));
-      }
+    }
+
+    // handle any remaining bindings
+    if (dataflow_bindings.size() < min_size_) {
+      non_dataflow_bindings.insert(non_dataflow_bindings.end(), dataflow_bindings.begin(),
+                                   dataflow_bindings.end());
+      new_blocks.push_back(BindingBlock(non_dataflow_bindings));
+    } else {
+      changed = true;
+      new_blocks.push_back(BindingBlock(non_dataflow_bindings));
+      new_blocks.push_back(DataflowBlock(dataflow_bindings));
     }
 
     if (!changed) {
