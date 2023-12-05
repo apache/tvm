@@ -61,7 +61,7 @@ class CanonicalizePlanner : public ExprVisitor {
     // within a DataflowBlock, and is not already handled by removal
     // of trivial bindings, then we can replace it with a DataflowVar.
     for (auto var : visitor.defined_inside_dataflow_) {
-      if (!var.as<DataflowVarNode>() && !visitor.used_outside_dataflow_.count(var)) {
+      if (!var.as<DataflowVarNode>() && !visitor.used_outside_home_dataflow_.count(var)) {
         DataflowVar new_var(var->name_hint(), GetStructInfo(var));
 
         plan.replace_binding.Set(var->vid, new_var);
@@ -223,8 +223,8 @@ class CanonicalizePlanner : public ExprVisitor {
 class BindingCanonicalizer : public ExprMutator {
  public:
   static Expr Apply(Expr expr) {
-    auto used_outside_dataflow = CanonicalizePlanner::Collect(expr);
-    BindingCanonicalizer mutator(std::move(used_outside_dataflow));
+    auto used_outside_home_dataflow = CanonicalizePlanner::Collect(expr);
+    BindingCanonicalizer mutator(std::move(used_outside_home_dataflow));
     return mutator.VisitExpr(expr);
   }
 
