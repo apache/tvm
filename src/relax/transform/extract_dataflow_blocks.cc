@@ -126,7 +126,7 @@ Pass ExtractDataflowBlocks(int min_size) {
         return Downcast<Function>(ExtractDataflowBlocks(f, min_size));
       };
   auto pass = CreateFunctionPass(pass_func, 0, "ExtractDataflowBlocks", {});
-  // Canonicalize bindings is included afterwards in order to transform any 
+  // Canonicalize bindings is included afterwards in order to transform any
   // normal vars in DF blocks that are not used outside the DF block into
   // dataflow vars. This allows us to avoid reimplementing that functionality.
   return tvm::transform::Sequential({pass, CanonicalizeBindings()});
