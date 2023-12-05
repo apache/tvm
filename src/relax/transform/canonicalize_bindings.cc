@@ -115,28 +115,26 @@ class CanonicalizePlanner : public ExprVisitor {
  private:
   void VisitExpr_(const FunctionNode* func) override {
     // for functions, treat any free vars as used outside their home DF block
-    bool cache = inside_dataflow_;
-    inside_dataflow_ = false;
+    auto cache = current_block_;
+    current_block_ = Optional<BindingBlock>();
     auto free_vars = FreeVars(GetRef<Function>(func));
     for (auto var : free_vars) {
       used_outside_home_dataflow_.insert(var);
     }
     ExprVisitor::VisitExpr_(func);
-    inside_dataflow_ = cache;
+    current_block_ = cache;
   }
-
 
   void VisitBindingBlock_(const BindingBlockNode* block) override {
     current_block_ = GetRef<BindingBlock>(block);
     ExprVisitor::VisitBindingBlock_(block);
+    current_block_ = Optional<BindingBlock>();
   }
 
   void VisitBindingBlock_(const DataflowBlockNode* block) override {
-    bool cache = inside_dataflow_;
-    inside_dataflow_ = true;
     current_block_ = GetRef<DataflowBlock>(block);
     ExprVisitor::VisitBindingBlock_(block);
-    inside_dataflow_ = cache;
+    current_block_ = Optional<BindingBlock>();
   }
 
   void VisitBinding(const Binding& binding) override {
@@ -173,13 +171,13 @@ class CanonicalizePlanner : public ExprVisitor {
     }
 
     known_bindings_.Set(binding->var, value);
-    def_blocks_.Set(binding->var, current_block_);
+    def_blocks_.Set(binding->var, current_block_.value());
 
     ExprVisitor::VisitBinding(binding);
   }
 
   void VisitVarDef(const Var& var) override {
-    if (inside_dataflow_) {
+    if (inside_dataflow()) {
       defined_inside_dataflow_.insert(var);
     }
   }
@@ -189,14 +187,18 @@ class CanonicalizePlanner : public ExprVisitor {
     // if a var is used in a dataflow block but *not* the one
     // where it was defined, it also needs to be exposed, so also we treat that as
     // used outside of a dataflow block
-    if (!inside_dataflow_ ||
-        (def_blocks_.count(var_ref) && !current_block_.same_as(def_blocks_.at(var_ref)))) {
+    if (!inside_dataflow() ||
+        (def_blocks_.count(var_ref) &&
+         (current_block_.defined() && !current_block_.value().same_as(def_blocks_.at(var_ref))))) {
       used_outside_home_dataflow_.insert(GetRef<Var>(var));
     }
   }
 
-  bool inside_dataflow_{false};
-  BindingBlock current_block_;
+  inline bool inside_dataflow() {
+    return current_block_.defined() && current_block_.value().as<DataflowBlockNode>();
+  }
+
+  Optional<BindingBlock> current_block_;
   Map<Var, BindingBlock> def_blocks_;
 
   Map<Var, Var> trivial_bindings_;
