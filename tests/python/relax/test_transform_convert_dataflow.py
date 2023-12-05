@@ -204,7 +204,7 @@ class TestTreatNonCallAsPure(ExtractCompare):
             return w
 
 
-class TestInnerFunction(ExtractCompare):
+class TestImpureInnerFunction(ExtractCompare):
     @I.ir_module
     class Before:
         @R.function(pure=False)
@@ -261,6 +261,125 @@ class TestInnerFunction(ExtractCompare):
                 c = R.multiply(b, a)
                 R.output(c)
             return c
+
+
+class TestPureInnerFunction(ExtractCompare):
+    @I.ir_module
+    class Before:
+        @R.function
+        def main(x: R.Tensor, y: R.Tensor) -> R.Tensor:
+            @R.function
+            def inner_func(x: R.Tensor, y: R.Tensor) -> R.Tensor:
+                z = R.add(x, y)
+                w = R.multiply(x, z)
+                v = R.add(y, w)
+                return v
+
+            z = R.add(x, y)
+            w = R.multiply(z, z)
+            v = R.divide(w, z)
+            q = inner_func(w, v)
+            return q
+
+    @I.ir_module
+    class Expected:
+        @R.function
+        def main(x: R.Tensor, y: R.Tensor) -> R.Tensor:
+            with R.dataflow():
+
+                @R.function
+                def inner_func(x: R.Tensor, y: R.Tensor) -> R.Tensor:
+                    with R.dataflow():
+                        z = R.add(x, y)
+                        w = R.multiply(x, z)
+                        v = R.add(y, w)
+                        R.output(v)
+                    return v
+
+                z = R.add(x, y)
+                w = R.multiply(z, z)
+                v = R.divide(w, z)
+                q = inner_func(w, v)
+                R.output(q)
+            return q
+
+
+class TestImpureExternalFunction(ExtractCompare):
+    @I.ir_module
+    class Before:
+        @R.function(pure=False)
+        def extra(x: R.Tensor, y: R.Tensor) -> R.Tensor:
+            z = R.add(x, y)
+            q = R.matmul(z, x)
+            w = R.nn.relu(q)
+            _ = R.print(format="Whoa")
+            return w
+
+        @R.function(pure=False)
+        def main(x: R.Tensor, y: R.Tensor) -> R.Tensor:
+            z = R.add(x, y)
+            w = R.multiply(z, z)
+            q = Before.extra(z, w)
+            return q
+
+    @I.ir_module
+    class Expected:
+        @R.function(pure=False)
+        def extra(x: R.Tensor, y: R.Tensor) -> R.Tensor:
+            with R.dataflow():
+                z = R.add(x, y)
+                q = R.matmul(z, x)
+                w = R.nn.relu(q)
+                R.output(w)
+            _ = R.print(format="Whoa")
+            return w
+
+        @R.function(pure=False)
+        def main(x: R.Tensor, y: R.Tensor) -> R.Tensor:
+            with R.dataflow():
+                z = R.add(x, y)
+                w = R.multiply(z, z)
+                R.output(z, w)
+            q = Expected.extra(z, w)
+            return q
+
+
+class TestPureExternalFunction(ExtractCompare):
+    @I.ir_module
+    class Before:
+        @R.function
+        def extra(x: R.Tensor, y: R.Tensor) -> R.Tensor:
+            z = R.add(x, y)
+            q = R.matmul(z, x)
+            w = R.nn.relu(q)
+            return w
+
+        @R.function
+        def main(x: R.Tensor, y: R.Tensor) -> R.Tensor:
+            z = R.add(x, y)
+            w = R.multiply(z, z)
+            q = Before.extra(z, w)
+            return q
+
+    @I.ir_module
+    class Expected:
+        @R.function
+        def extra(x: R.Tensor, y: R.Tensor) -> R.Tensor:
+            with R.dataflow():
+                z = R.add(x, y)
+                q = R.matmul(z, x)
+                w = R.nn.relu(q)
+                R.output(w)
+            return w
+
+        @R.function
+        def main(x: R.Tensor, y: R.Tensor) -> R.Tensor:
+            with R.dataflow():
+                z = R.add(x, y)
+                w = R.multiply(z, z)
+                q = Expected.extra(z, w)
+                R.output(q)
+            return q
 
 
 class TestMergeWithPrecedingDataflowBlock(ExtractCompare):
