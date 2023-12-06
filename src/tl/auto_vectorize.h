@@ -32,6 +32,7 @@ namespace tl {
 
 using namespace tir;
 
+int GetVectorizeSize(const For& loop);
 For VectorizeLoop(const For &loop, int vectorize_hint = -1);
 
 

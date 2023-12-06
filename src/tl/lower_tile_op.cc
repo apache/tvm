@@ -26,7 +26,6 @@
 #include <tvm/tir/stmt_functor.h>
 #include <tvm/tir/transform.h>
 
-#include "auto_vectorize.h"
 #include "layout.h"
 #include "loop_partition.h"
 #include "op.h"
@@ -69,89 +68,13 @@ private:
 
   Stmt VisitStmt_(const EvaluateNode* node) final {
     if (auto call = node->value.as<CallNode>()) {
-      if (call->op.same_as(tl::fill())) {
-        return LowerFill(call->args);
-      } else if (call->op.same_as(tl::copy())) {
-        return LowerCopy(call->args);
-      } else if (call->op.same_as(tl::gemm())) {
+      if (call->op.same_as(tl::gemm())) {
         return LowerGemm(call->args);
       } else if (call->op.same_as(tl::reduce())) {
         return LowerReduce(call->args);
       }
     }
     return GetRef<Evaluate>(node);
-  }
-
-  Stmt LowerFill(const Array<PrimExpr>& clear_args) {
-    FillArgs args = FillArgs::Parse(clear_args, buffer_data_to_buffer_);
-    int ndim = args.dst->shape.size();
-    Array<IterVar> loop_vars;
-    Array<PrimExpr> dst_indices;
-    for (int i = 0; i < ndim; i++) {
-      Var var = Var(std::string{ char('i' + i) });
-      loop_vars.push_back({ Range(0, args.dst->shape[i]), var, IterVarType::kDataPar });
-      dst_indices.push_back(var);
-    }
-    Stmt body = BufferStore(args.dst, args.value, dst_indices);
-    if (args.dst.scope() == "local") {
-      for (int i = ndim - 1; i >= 0; i--) {
-        Map<String, ObjectRef> anno;
-        anno.Set("pragma_unroll_explicit", Bool(false));
-        body = For(loop_vars[i]->var, 0, loop_vars[i]->dom->extent, ForKind::kUnrolled, body,
-          NullOpt, anno);
-      }
-    } else {
-      for (int i = ndim - 1; i >= 0; i--) {
-        body = For(loop_vars[i]->var, 0, loop_vars[i]->dom->extent, ForKind::kParallel, body);
-      }
-      body = VectorizeLoop(body.as<For>().value());
-      body = PartitionLoop(body.as<ForNode>(), thread_var_, analyzer_, thread_block_size_);
-    }
-    return body;
-  }
-
-  Stmt LowerCopy(const Array<PrimExpr>& call_args) {
-    CopyArgs args = CopyArgs::Parse(call_args, buffer_data_to_buffer_);
-    Array<IterVar> loop_vars = args.MakeIterVars();
-    for (const auto& iv: loop_vars) analyzer_->Bind(iv->var, iv->dom);
-
-    bool src_has_layout = layout_map_.count(args.src);
-    bool dst_has_layout = layout_map_.count(args.dst);
-
-    Array<PrimExpr> src_indices = args.MakeIndices(loop_vars, 0);
-    Array<PrimExpr> dst_indices = args.MakeIndices(loop_vars, 1);
-    if (src_has_layout) src_indices = layout_map_[args.src]->Forward(src_indices);
-    if (dst_has_layout) dst_indices = layout_map_[args.dst]->Forward(dst_indices);
-
-    PrimExpr src_predicate = args.MakePredicate(analyzer_, loop_vars, src_has_layout ? layout_map_[args.src]->InputShape() : args.src->shape, 0);
-    PrimExpr dst_predicate = args.MakePredicate(analyzer_, loop_vars, dst_has_layout ? layout_map_[args.dst]->InputShape() : args.dst->shape, 1);
-
-    PrimExpr value = BufferLoad(args.src, src_indices);
-    if (args.src->dtype != args.dst->dtype) value = Cast(args.dst->dtype, value);
-    if (src_predicate.defined()) value = if_then_else(src_predicate, value, make_zero(args.dst->dtype));
-
-    Stmt body = BufferStore(args.dst, value, dst_indices);
-    if (dst_predicate.defined()) body = IfThenElse(dst_predicate, body);
-
-    for (int i = loop_vars.size() - 1; i >= 0; i--) {
-      body = For(loop_vars[i]->var, 0, loop_vars[i]->dom->extent, ForKind::kParallel, body);
-    }
-
-    Fragment fragment;
-    bool src_local = args.src.scope() == "local", dst_local = args.dst.scope() == "local";
-    if (src_local || dst_local) {
-      Fragment src, dst;
-      if (dst_local) dst = layout_map_[args.dst].as<Fragment>().value();
-      if (src_local) src = layout_map_[args.src].as<Fragment>().value();
-      if (src_local && dst_local) ICHECK(FragmentThreadEqual(src, dst));
-      body = PartitionLoop(body.as<ForNode>(), thread_var_, analyzer_, dst_local ? dst : src);
-      body = VectorizeLoop(body.as<For>().value());
-      return body;
-    } else {
-      body = VectorizeLoop(body.as<For>().value());
-      body = PartitionLoop(body.as<ForNode>(), thread_var_, analyzer_, thread_block_size_);
-      return body;
-    }
   }
 
   Stmt LowerReduce(const Array<PrimExpr>& call_args) {

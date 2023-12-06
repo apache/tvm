@@ -112,7 +112,7 @@ class LoopPartitioner : public StmtExprVisitor {
  public:
   LoopPartitioner() = default;
 
-  Fragment Partition(const ForNode* op, int num_thread) {
+  Fragment Partition(const ForNode* op, int num_thread, int vectorize_size) {
     this->VisitStmt_(op);
     int loop_size_full = 1;
     PrimExpr flattened = 0;
@@ -123,10 +123,12 @@ class LoopPartitioner : public StmtExprVisitor {
       loop_size_full *= extent;
       flattened = flattened * extent + loop_vars_[i]->var;
     }
-    if (loop_size_full % num_thread != 0) {
-      ICHECK("Not Implemented case.");
+    if (loop_size_full % (num_thread * vectorize_size) != 0) {
+      ICHECK("Not Implemented");
     }
-    return Fragment(loop_vars_, { FloorDiv(flattened, num_thread) }, { FloorMod(flattened, num_thread) }, {});
+    PrimExpr access_idx = FloorDiv(flattened, vectorize_size);
+    PrimExpr thd = FloorMod(access_idx, num_thread);
+    return Fragment(loop_vars_, { }, { thd }, { });
   }
 
 private:
@@ -143,10 +145,9 @@ private:
   Array<IterVar> loop_vars_;
 };
 
-For PartitionLoop(const ForNode* op, const Var& thread, arith::Analyzer* analyzer, size_t num_thread) {
+Fragment PlanLoopPartition(const ForNode* op, size_t num_thread, int vectorize_size) {
   LoopPartitioner partitioner;
-  Fragment fragment = partitioner.Partition(op, num_thread);
-  return PartitionLoop(op, thread, analyzer, fragment);
+  return partitioner.Partition(op, num_thread, vectorize_size);
 }
 
 Stmt LoopPragmaUnroll(Stmt stmt){

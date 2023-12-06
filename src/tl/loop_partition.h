@@ -36,7 +36,7 @@ using namespace tir;
 
 For PartitionLoop(const ForNode* op, const Var& thread, arith::Analyzer *analyzer, const Fragment& loop_layout);
 
-For PartitionLoop(const ForNode* op, const Var& thread, arith::Analyzer *analyzer, size_t num_thread);
+Fragment PlanLoopPartition(const ForNode* op, size_t num_thread, int vectorize_size);
 
 Stmt LoopPragmaUnroll(Stmt stmt);
 

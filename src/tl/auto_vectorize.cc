@@ -174,9 +174,13 @@ class VectorizeRewriter: public StmtExprMutator {
   const int vector_size_;
 };
 
+int GetVectorizeSize(const For& loop) {
+  return VectorizePlanner().Plan(loop);
+}
+
 For VectorizeLoop(const For &loop, int vectorize_hint) {
   if (vectorize_hint <= 0) {
-    vectorize_hint = VectorizePlanner().Plan(loop);
+    vectorize_hint = GetVectorizeSize(loop);
   }
   if (vectorize_hint == 1) return loop;
   auto rewriter = VectorizeRewriter(vectorize_hint);
