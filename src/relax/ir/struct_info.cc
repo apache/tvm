@@ -105,7 +105,8 @@ TVM_REGISTER_GLOBAL("relax.ShapeStructInfo")
     });
 
 // Tensor
-TensorStructInfo::TensorStructInfo(Expr shape, DataType dtype, VDevice vdevice, Span span) {
+TensorStructInfo::TensorStructInfo(Expr shape, DataType dtype, Optional<VDevice> vdevice,
+                                   Span span) {
   ObjectPtr<TensorStructInfoNode> n = make_object<TensorStructInfoNode>();
   // assign ndim before move
   Optional<ShapeStructInfo> sinfo = MatchStructInfo<ShapeStructInfo>(shape);
@@ -122,7 +123,7 @@ TensorStructInfo::TensorStructInfo(Expr shape, DataType dtype, VDevice vdevice, 
   data_ = std::move(n);
 }
 
-TensorStructInfo::TensorStructInfo(DataType dtype, int ndim, VDevice vdevice, Span span) {
+TensorStructInfo::TensorStructInfo(DataType dtype, int ndim, Optional<VDevice> vdevice, Span span) {
   ObjectPtr<TensorStructInfoNode> n = make_object<TensorStructInfoNode>();
   CHECK_GE(ndim, -1) << "ndim of TensorStructInfo must be >= -1, but got " << ndim;
   n->ndim = ndim;
