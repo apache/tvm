@@ -4823,12 +4823,11 @@ class PytorchScopePreservingNamer(NodeNamer):
     eg. node could be called "bert.encoder.layer.11.output.dense"
     """
 
-    MODULE_PREFIX = "__module."
-
     def get_node_source_name(self, node) -> str:
-        node_src_name = node.scopeName().split("/")[-1]
-        if node_src_name.startswith(self.MODULE_PREFIX):
-            node_src_name = node_src_name[len(self.MODULE_PREFIX) :]
+        # This works per the scope naming in Pytorch 2.0 and beyond.
+        scope_name_parts = node.scopeName().split("/")
+        imp_parts = [part.split("::")[-1] for part in scope_name_parts]
+        node_src_name = ".".join([part for part in imp_parts if part])
         return node_src_name
 
     def get_node_output_name(self, node_src_name: str, index: int) -> str:
