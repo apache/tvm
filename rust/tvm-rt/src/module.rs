@@ -121,8 +121,7 @@ impl Module {
     /// Checks if a target device is enabled for a module.
     pub fn enabled(&self, target: &str) -> bool {
         let target = CString::new(target).unwrap();
-        let enabled = runtime_enabled(target).unwrap();
-        enabled != 0
+        runtime_enabled(target).unwrap()
     }
 
     /// Returns the underlying module handle.
