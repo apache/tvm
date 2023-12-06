@@ -719,7 +719,7 @@ def test_forward_concatenate():
             b = (args[0][:, :, 1] + 3) * 11
             c = (args[0][:, :, 2] + 5) * 13
             return torch.cat([t.unsqueeze(2) for t in [a, b, c]], 2)
-    
+
     class Concatenate3(Module):
         def __init__(self):
             super().__init__()
