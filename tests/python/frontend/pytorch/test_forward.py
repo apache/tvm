@@ -721,6 +721,7 @@ def test_forward_concatenate():
             return torch.cat([t.unsqueeze(2) for t in [a, b, c]], 2)
 
     class Concatenate3(Module):
+        # pylint: disable=missing-class-docstring
         def __init__(self):
             super().__init__()
 
