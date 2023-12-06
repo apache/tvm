@@ -99,9 +99,9 @@ class PruneMethod(object):
             return config
         if len(in_indices) > 0:
             data = cls.prune_axis(data, in_axis, in_indices)
-        weight = pruner.find_tensor(name)
-        left_num = int(((density * weight.dim_at(out_axis) + stride) // stride) * stride)
-        axis_sum = [np.abs(d).sum() for d in np.split(data, data.shape[out_axis], out_axis)]
+        out_dim = data.shape[out_axis]
+        left_num = int(((density * out_dim + stride) // stride) * stride)
+        axis_sum = [np.abs(d).sum() for d in np.split(data, out_dim, out_axis)]
         rank = np.argsort(np.array(axis_sum))
         config["out_indices"] = rank[-left_num:].tolist()
         return config

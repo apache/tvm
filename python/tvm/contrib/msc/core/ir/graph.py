@@ -104,6 +104,17 @@ class MSCTensor(Object):
             return False
         return True
 
+    def to_json(self) -> str:
+        """Dump the tensor to json.
+
+        Returns
+        -------
+        tensor_json: string
+            The tensor in json format.
+        """
+
+        return _ffi_api.MSCTensorToJson(self)
+
     def inspect(self) -> dict:
         """Extract important info of the tensor.
 
@@ -116,6 +127,45 @@ class MSCTensor(Object):
         tensor_des = {"name": self.alias, "shape": self.get_shape(), "dtype": self.dtype_name}
         tensor_des["layout"] = self.layout.name if self.layout else ""
         return tensor_des
+
+    @classmethod
+    def from_json(cls, json_str: str, **options) -> object:
+        """Load the tensor from json.
+
+        Parameters
+        ----------
+        json_str: string
+            The file_path or json string.
+        options: dict
+            The items to be changed.
+
+        Returns
+        -------
+        tensor: MSCTensor
+            The tensor.
+        """
+
+        dict_obj = msc_utils.load_dict(json_str)
+        dict_obj.update(options)
+        return _ffi_api.MSCTensorFromJson(msc_utils.dump_dict(dict_obj))
+
+    def clone(self, **options) -> object:
+        """Clone the tensor.
+
+        Parameters
+        ----------
+        json_str: string
+            The file_path or json string.
+        options: dict
+            The items to be changed.
+
+        Returns
+        -------
+        new_tensor: MSCTensor
+            The cloned tensor.
+        """
+
+        return MSCTensor.from_json(self.to_json(), **options)
 
     @property
     def dtype_name(self) -> str:
@@ -391,6 +441,19 @@ class WeightJoint(BaseJoint):
             friends,
         )
 
+    def set_attr(self, key: str, value: str):
+        """Set attribute to node
+
+        Parameters
+        -------
+        key: str
+            The key of the attribute.
+        value: str
+            The value.
+        """
+
+        _ffi_api.WeightJointSetAttr(self, key, value)
+
     def get_attrs(self) -> Dict[str, str]:
         """Get all the attributes from node
 
@@ -535,6 +598,19 @@ class MSCGraph(BaseGraph):
         """
 
         return _ffi_api.MSCGraphFindTensor(self, name)
+
+    def set_tensor_alias(self, tensor: MSCTensor, alias: str):
+        """Set alis for the tensor
+
+        Parameters
+        -------
+        tensor: MSCTensor
+            The tensor.
+        alias: str
+            The alias.
+        """
+
+        _ffi_api.MSCGraphSetTensorAlias(self, tensor, alias)
 
     def find_producer(self, ref: Union[str, MSCTensor]) -> MSCJoint:
         """Find producer by tensor_name or tensor.

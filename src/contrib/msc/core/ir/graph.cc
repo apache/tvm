@@ -1263,6 +1263,18 @@ TVM_REGISTER_GLOBAL("msc.core.MSCTensor")
       return MSCTensor(name, dtype, layout, shape, alias);
     });
 
+TVM_REGISTER_GLOBAL("msc.core.MSCTensorToJson")
+    .set_body_typed([](const MSCTensor& tensor) -> String {
+      const auto& tensor_json = tensor->ToJson();
+      std::ostringstream os;
+      dmlc::JSONWriter writer(&os);
+      tensor_json.Save(&writer);
+      return os.str();
+    });
+
+TVM_REGISTER_GLOBAL("msc.core.MSCTensorFromJson")
+    .set_body_typed([](const String& tensor_json) -> MSCTensor { return MSCTensor(tensor_json); });
+
 TVM_REGISTER_GLOBAL("msc.core.MSCJoint")
     .set_body_typed([](Integer index, const String& name, const String& shared_ref,
                        const String& optype, const Map<String, String>& attrs,
@@ -1291,6 +1303,11 @@ TVM_REGISTER_GLOBAL("msc.core.WeightJoint")
       }
       return WeightJoint(index->value, name, shared_ref, weight_type, weight, b_parents, attrs,
                          b_friends);
+    });
+
+TVM_REGISTER_GLOBAL("msc.core.WeightJointSetAttr")
+    .set_body_typed([](const WeightJoint& node, const String& key, const String& value) {
+      node->attrs.Set(key, value);
     });
 
 TVM_REGISTER_GLOBAL("msc.core.MSCGraph")

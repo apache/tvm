@@ -17,3 +17,4 @@
 """tvm.contrib.msc.framework.tensorflow.tools"""
 
 from .prune import *
+from .track import *

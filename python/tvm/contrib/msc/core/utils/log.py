@@ -52,7 +52,7 @@ class IOLogger(object):
         raise Exception(msg)
 
 
-def create_file_logger(level=logging.INFO, path: str = None) -> logging.Logger:
+def create_file_logger(level: Union[str, int] = logging.INFO, path: str = None) -> logging.Logger:
     """Create file logger
 
     Parameters
@@ -67,6 +67,16 @@ def create_file_logger(level=logging.INFO, path: str = None) -> logging.Logger:
     logger: logging.Logger
         The logger.
     """
+
+    if isinstance(level, str):
+        if level == "debug":
+            level = logging.DEBUG
+        elif level == "info":
+            level = logging.INFO
+        elif level == "warn":
+            level = logging.WARN
+        else:
+            raise Exception("Unexcept verbose {}, should be debug| info| warn")
 
     path = path or os.path.join(get_workspace(), "MSC_LOG")
     log_name = os.path.basename(path)
@@ -104,15 +114,6 @@ def set_global_logger(level: Union[str, int] = logging.INFO, path: str = None) -
         The logger.
     """
 
-    if isinstance(level, str):
-        if level == "debug":
-            level = logging.DEBUG
-        elif level == "info":
-            level = logging.INFO
-        elif level == "warn":
-            level = logging.WARN
-        else:
-            raise Exception("Unexcept verbose {}, should be debug| info| warn")
     logger = create_file_logger(level, path)
     MSCMap.set(MSCKey.GLOBALE_LOGGER, logger)
     return logger

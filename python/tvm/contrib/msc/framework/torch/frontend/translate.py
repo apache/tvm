@@ -57,7 +57,7 @@ def set_weight_alias(graph: MSCGraph) -> MSCGraph:
                     alias = node.name.replace(".", "_") + ".running_var"
             else:
                 alias = node.name.replace(".", "_") + "." + ref
-            weight.set_alias(alias)
+            graph.set_tensor_alias(weight, alias)
     return graph
 
 

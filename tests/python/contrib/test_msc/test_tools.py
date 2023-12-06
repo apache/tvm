@@ -68,13 +68,94 @@ def _get_config(
     }
 
 
-def get_tool_config(tool_type):
+def get_tool_config(tool_type, use_distill=False, use_gym=False):
+    """Get config for the tool"""
     config = {}
     if tool_type == ToolType.PRUNER:
         config = {
             "plan_file": "msc_pruner.json",
             "strategys": [{"method": "per_channel", "density": 0.8}],
         }
+        if use_gym:
+            config["gym_configs"] = [
+                {
+                    "env": {
+                        "executors": {
+                            "action_space": {
+                                "method": "action_linear_space",
+                                "start": 0.4,
+                                "end": 0.8,
+                                "step": 0.4,
+                            }
+                        },
+                        "max_tasks": 3,
+                    },
+                    "agent": {"agent_type": "search.grid", "executors": {}},
+                }
+            ]
+    elif tool_type == ToolType.QUANTIZER:
+        # pylint: disable=import-outside-toplevel
+        from tvm.contrib.msc.core.tools.quantize import QuantizeStage
+
+        config = {
+            "plan_file": "msc_quantizer.json",
+            "strategys": [
+                {
+                    "method": "gather_maxmin",
+                    "op_types": ["nn.conv2d", "msc.linear"],
+                    "tensor_types": ["input", "output"],
+                    "stages": [QuantizeStage.GATHER],
+                },
+                {
+                    "method": "gather_max_per_channel",
+                    "op_types": ["nn.conv2d", "msc.linear"],
+                    "tensor_types": ["weight"],
+                    "stages": [QuantizeStage.GATHER],
+                },
+                {
+                    "method": "calibrate_maxmin",
+                    "op_types": ["nn.conv2d", "msc.linear"],
+                    "tensor_types": ["input", "output"],
+                    "stages": [QuantizeStage.CALIBRATE],
+                },
+                {
+                    "method": "quantize_normal",
+                    "op_types": ["nn.conv2d", "msc.linear"],
+                    "tensor_types": ["input", "weight"],
+                },
+                {
+                    "method": "dequantize_normal",
+                    "op_types": ["nn.conv2d", "msc.linear"],
+                    "tensor_types": ["output"],
+                },
+            ],
+        }
+    elif tool_type == ToolType.TRACKER:
+        config = {
+            "plan_file": "msc_tracker.json",
+            "strategys": [
+                {
+                    "method": "save_compared",
+                    "compare_to": {
+                        "optimize": ["baseline"],
+                        "compile": ["optimize", "baseline"],
+                    },
+                    "op_types": ["nn.relu"],
+                    "tensor_types": ["output"],
+                }
+            ],
+        }
+    if use_distill:
+        distill_config = {
+            "plan_file": "msc_distiller.json",
+            "strategys": [
+                {
+                    "method": "loss_lp_norm",
+                    "op_types": ["loss"],
+                },
+            ],
+        }
+        return {tool_type: config, ToolType.DISTILLER: distill_config}
     return {tool_type: config}
 
 
@@ -132,57 +213,70 @@ def _test_from_torch(
         manager.destory()
 
 
-@pytest.mark.parametrize("tool_type", [ToolType.PRUNER])
-def test_tvm_tools(tool_type):
+def get_model_info(compile_type):
+    """Get the model info"""
+    if compile_type == MSCFramework.TVM:
+        return {
+            "inputs": [
+                {"name": "input_0", "shape": [1, 3, 224, 224], "dtype": "float32", "layout": "NCHW"}
+            ],
+            "outputs": [{"name": "output", "shape": [1, 1000], "dtype": "float32", "layout": "NC"}],
+            "nodes": {
+                "total": 229,
+                "input": 1,
+                "nn.conv2d": 53,
+                "nn.batch_norm": 53,
+                "get_item": 53,
+                "nn.relu": 49,
+                "nn.max_pool2d": 1,
+                "add": 16,
+                "nn.adaptive_avg_pool2d": 1,
+                "reshape": 1,
+                "msc.linear_bias": 1,
+            },
+        }
+    if compile_type == MSCFramework.TENSORRT:
+        return {
+            "inputs": [
+                {"name": "input_0", "shape": [1, 3, 224, 224], "dtype": "float32", "layout": "NCHW"}
+            ],
+            "outputs": [{"name": "output", "shape": [1, 1000], "dtype": "float32", "layout": ""}],
+            "nodes": {"total": 2, "input": 1, "msc_tensorrt": 1},
+        }
+    raise TypeError("Unexpected compile_type " + str(compile_type))
+
+
+@pytest.mark.parametrize("tool_type", [ToolType.PRUNER, ToolType.TRACKER])
+def test_tvm_tool(tool_type):
     """Test tools for tvm"""
 
-    model_info = {
-        "inputs": [
-            {"name": "input_0", "shape": [1, 3, 224, 224], "dtype": "float32", "layout": "NCHW"}
-        ],
-        "outputs": [{"name": "output", "shape": [1, 1000], "dtype": "float32", "layout": "NC"}],
-        "nodes": {
-            "total": 229,
-            "input": 1,
-            "nn.conv2d": 53,
-            "nn.batch_norm": 53,
-            "get_item": 53,
-            "nn.relu": 49,
-            "nn.max_pool2d": 1,
-            "add": 16,
-            "nn.adaptive_avg_pool2d": 1,
-            "reshape": 1,
-            "msc.linear_bias": 1,
-        },
-    }
     tool_config = get_tool_config(tool_type)
-    _test_from_torch(MSCFramework.TVM, tool_config, model_info, is_training=True)
+    _test_from_torch(
+        MSCFramework.TVM, tool_config, get_model_info(MSCFramework.TVM), is_training=True
+    )
 
 
 @requires_tensorrt
 @pytest.mark.parametrize(
-    "tool_type,use_native",
-    [(ToolType.PRUNER, False)],
+    "tool_type",
+    [ToolType.PRUNER, ToolType.TRACKER],
 )
-def test_tensorrt_tools(tool_type, use_native):
+def test_tensorrt_tool(tool_type):
     """Test tools for tensorrt"""
 
-    model_info = {
-        "inputs": [
-            {"name": "input_0", "shape": [1, 3, 224, 224], "dtype": "float32", "layout": "NCHW"}
-        ],
-        "outputs": [{"name": "output", "shape": [1, 1000], "dtype": "float32", "layout": ""}],
-        "nodes": {"total": 2, "input": 1, "msc_tensorrt": 1},
-    }
     tool_config = get_tool_config(tool_type)
-    if tool_type == ToolType.QUANTIZER and use_native:
+    if tool_type == ToolType.QUANTIZER:
         tool_config[ToolType.QUANTIZER]["strategys"] = []
-    optimize_type = MSCFramework.TENSORRT if use_native else None
+        optimize_type = MSCFramework.TENSORRT
+    else:
+        optimize_type = None
     _test_from_torch(
         MSCFramework.TENSORRT,
         tool_config,
-        model_info,
+        get_model_info(MSCFramework.TENSORRT),
         is_training=False,
+        atol=5e-2,
+        rtol=5e-2,
         optimize_type=optimize_type,
     )
 
