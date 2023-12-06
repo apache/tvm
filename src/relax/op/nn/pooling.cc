@@ -86,10 +86,7 @@ StructInfo InferStructInfoPool2D(const Call& call, const BlockBuilder& ctx) {
   Optional<ShapeExpr> data_shape =
       CheckNdimPerLayoutAndGetShape(call, ctx, data_sinfo, data_layout);
   if (!data_shape.defined()) {
-    if (data_sinfo->vdevice.defined()) {
-      return TensorStructInfo(data_sinfo->dtype, out_layout.ndim(), data_sinfo->vdevice.value());
-    }
-    return TensorStructInfo(data_sinfo->dtype, out_layout.ndim());
+    return TensorStructInfo(data_sinfo->dtype, out_layout.ndim(), data_sinfo->vdevice);
   }
 
   Array<PrimExpr> data_NCHW_shape = data2NCHW.ForwardShape(data_shape.value()->values);
@@ -117,10 +114,7 @@ StructInfo InferStructInfoPool2D(const Call& call, const BlockBuilder& ctx) {
   out_NCHW_shape[3] = analyzer->Simplify(floordiv(numerator_w, attrs->strides[1]) + 1);
 
   Array<PrimExpr> out_shape = out2NCHW.BackwardShape(out_NCHW_shape);
-  if (data_sinfo->vdevice.defined()) {
-    return TensorStructInfo(ShapeExpr(out_shape), data_sinfo->dtype, data_sinfo->vdevice.value());
-  }
-  return TensorStructInfo(ShapeExpr(out_shape), data_sinfo->dtype);
+  return TensorStructInfo(ShapeExpr(out_shape), data_sinfo->dtype, data_sinfo->vdevice);
 }
 
 InferLayoutOutput InferLayoutPool2d(const Call& call,
@@ -210,10 +204,7 @@ StructInfo InferStructInfoAdaptiveAvgPool2D(const Call& call, const BlockBuilder
         !attrs->output_size.defined()) {
       return data_sinfo;
     } else {
-      if (data_sinfo->vdevice.defined()) {
-        return TensorStructInfo(data_sinfo->dtype, out_layout.ndim(), data_sinfo->vdevice.value());
-      }
-      return TensorStructInfo(data_sinfo->dtype, out_layout.ndim());
+      return TensorStructInfo(data_sinfo->dtype, out_layout.ndim(), data_sinfo->vdevice);
     }
   }
 
@@ -225,10 +216,7 @@ StructInfo InferStructInfoAdaptiveAvgPool2D(const Call& call, const BlockBuilder
   }
 
   Array<PrimExpr> out_shape = out2NCHW.BackwardShape(out_NCHW_shape);
-  if (data_sinfo->vdevice.defined()) {
-    return TensorStructInfo(ShapeExpr(out_shape), data_sinfo->dtype, data_sinfo->vdevice.value());
-  }
-  return TensorStructInfo(ShapeExpr(out_shape), data_sinfo->dtype);
+  return TensorStructInfo(ShapeExpr(out_shape), data_sinfo->dtype, data_sinfo->vdevice);
 }
 
 InferLayoutOutput InferLayoutAdaptiveAvgPool2D(const Call& call,
