@@ -310,5 +310,13 @@ TVM_REGISTER_GLOBAL("runtime.get_cuda_stream").set_body_typed([]() {
   return static_cast<void*>(CUDAThreadEntry::ThreadLocal()->stream);
 });
 
+TVM_DLL int GetCudaDeviceCount() {
+  int count;
+  CUDA_CALL(cudaGetDeviceCount(&count));
+  return count;
+}
+
+TVM_REGISTER_GLOBAL("runtime.GetCudaDeviceCount").set_body_typed(GetCudaDeviceCount);
+
 }  // namespace runtime
 }  // namespace tvm
