@@ -112,7 +112,8 @@ private:
     Stmt reduce_local = BufferStore(args.dst, args.MakeReduce(
       BufferLoad(args.dst, dst_indices), BufferLoad(args.src, src_indice_compressed)), dst_indices);
     for (int i = src->OutputDim() - 1; i >= 0; i--) {
-      reduce_local = For(src_var_compressed[i]->var, 0, src_var_compressed[i]->dom->extent, ForKind::kSerial, reduce_local);
+      reduce_local = For(src_var_compressed[i]->var, 0, src_var_compressed[i]->dom->extent, ForKind::kUnrolled, reduce_local,
+        NullOpt, {{tir::attr::pragma_unroll_explicit, Bool(false)}});
     }
     stmts.push_back(reduce_local);
 

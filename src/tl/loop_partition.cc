@@ -100,7 +100,7 @@ class LoopPramaUnroller : public StmtExprMutator {
     if (node->kind == ForKind::kSerial) {
       For new_for = GetRef<For>(node);
       auto for_ptr = new_for.CopyOnWrite();
-      for_ptr->annotations.Set("pragma_unroll_explicit", Bool(false));
+      for_ptr->annotations.Set(tir::attr::pragma_unroll_explicit, Bool(false));
       for_ptr->kind = ForKind::kUnrolled;
       return new_for;
     }
@@ -128,7 +128,8 @@ class LoopPartitioner : public StmtExprVisitor {
     }
     PrimExpr access_idx = FloorDiv(flattened, vectorize_size);
     PrimExpr thd = FloorMod(access_idx, num_thread);
-    return Fragment(loop_vars_, { }, { thd }, { });
+    PrimExpr idx = FloorDiv(access_idx, num_thread) * vectorize_size + FloorMod(flattened, vectorize_size);
+    return Fragment(loop_vars_, { idx }, { thd }, { });
   }
 
 private:

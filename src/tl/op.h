@@ -66,12 +66,12 @@ struct CopyArgs {
 
   static CopyArgs Parse(const Array<PrimExpr>& args);
 
-  Array<IterVar> MakeIterVars();
+  Array<IterVar> MakeIterVars() const;
   // ivs: itervars returned by MakeIterVars()
   // src_dst: 0 for src_indices, 1 for dst_indices
-  Array<PrimExpr> MakeIndices(const Array<IterVar>& ivs, int src_dst);
-  PrimExpr MakePredicate(arith::Analyzer* analyzer, const Array<IterVar>& ivs, Array<PrimExpr> extents, int src_dst);
-  bool CheckRangeEqual();
+  Array<PrimExpr> MakeIndices(const Array<IterVar>& ivs, int src_dst) const;
+  PrimExpr MakePredicate(arith::Analyzer* analyzer, const Array<IterVar>& ivs, Array<PrimExpr> extents, int src_dst) const;
+  bool CheckRangeEqual() const;
 };
 
 struct FillArgs {

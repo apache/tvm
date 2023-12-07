@@ -28,6 +28,7 @@
 
 #include "../arith/ir_mutator_with_analyzer.h"
 #include "op.h"
+#include "layout.h"
 
 namespace tvm {
 namespace tl {
@@ -116,6 +117,12 @@ private:
     Stmt body = BufferStore(args.dst, args.value, dst_indices);
     for (int i = ndim - 1; i >= 0; i--) {
       body = For(loop_vars[i]->var, 0, loop_vars[i]->dom->extent, ForKind::kParallel, body);
+    }
+    // it is not good to use the fill op to infer the fragment's layout
+    if (args.dst.scope() == "local.fragment") {
+      auto as_for = body.as<For>().value();
+      as_for.CopyOnWrite()->annotations.Set(attr::kSkipLayoutInfer, PrimExpr(1));
+      return as_for;
     }
     return body;
   }

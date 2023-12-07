@@ -130,12 +130,8 @@ private:
       access_regions.insert({ args.A, args.B, args.C });
     } else if (op->op.same_as(reduce())) {
       ReduceArgs args = ReduceArgs::Parse(op->args, buffer_data_to_buffer_);
-      p = std::make_shared<LayoutInferBase>();
+      p = std::make_shared<ReduceOpLayoutInfer>(args, thread_block_size_);
       access_regions.insert({ args.src, args.dst });
-    } else if (op->op.same_as(copy())) {
-      ICHECK(0) << "Copy should have been lowered.";
-    } else if (op->op.same_as(fill())) {
-      ICHECK(0) << "Fill should have been lowered.";
     }
     if (p) {
       infer_list_.push_back(p);

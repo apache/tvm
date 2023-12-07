@@ -82,6 +82,15 @@ class GemmOpLayoutInfer : public LayoutInferBase {
   bool completed_ = false;
 };
 
+class ReduceOpLayoutInfer : public LayoutInferBase {
+ public:
+  ReduceOpLayoutInfer(const ReduceArgs &reduce_args, size_t block_size);
+  LayoutMap Inference(const LayoutMap& layout_map, InferLevel level) final;
+ private:
+  const ReduceArgs args;
+  const size_t block_size_;
+};
+
 } // namespace tl
 } // namespace tvm
 

@@ -85,15 +85,18 @@ void ForNodeLayoutInfer::VisitExpr_(const BufferLoadNode* op) {
 
 LayoutMap ForNodeLayoutInfer::Inference(const LayoutMap& layout_map, InferLevel level) {
   if (loop_layout_.defined()) return {};
-  if (level >= InferLevel::kStrict) return {};
+  if (level == InferLevel::kStrict) return {};
+  if (level == InferLevel::kFree && root_->annotations.count(attr::kSkipLayoutInfer)) return {};
 
   // Step 1: try to infer loop's partition from a source fragment
-  Buffer source_buffer;
+  Buffer source_buffer, rep_source_buffer;
   for (const auto& [buffer, _] : indice_map_) {
     if (layout_map.count(buffer)) {
       auto frag = layout_map[buffer].as<Fragment>().value();
       if (is_one(frag->ReplicateExtent()) || buffer_is_write_.count(buffer))
         source_buffer = buffer;
+      else
+        rep_source_buffer = buffer;
     }
   }
   if (source_buffer.defined()) {
@@ -105,17 +108,21 @@ LayoutMap ForNodeLayoutInfer::Inference(const LayoutMap& layout_map, InferLevel 
       loop_layout_ = Fragment(loop_vars_, {}, loop_var_to_thread, src_layout->thread_replicate_);
     }
   } else if (level == InferLevel::kFree) {
-    // TODO: take existing fragment constraint into consideration
-    int vector_size = GetVectorizeSize(GetRef<For>(root_));
-    loop_layout_ = PlanLoopPartition(root_, block_size_, vector_size);
+    if (rep_source_buffer.defined()) {
+      source_buffer = rep_source_buffer;
+      auto src_layout = layout_map[source_buffer].as<Fragment>().value();
+      if (IsCommonAccessIndice(source_buffer)) {
+        loop_layout_ = src_layout;
+      } else {
+        PrimExpr loop_var_to_thread = src_layout->ForwardThread(indice_map_[source_buffer], {});
+        loop_layout_ = Fragment(loop_vars_, {}, loop_var_to_thread, src_layout->thread_replicate_);
+      }
+    } else {
+      int vector_size = GetVectorizeSize(GetRef<For>(root_));
+      loop_layout_ = PlanLoopPartition(root_, block_size_, vector_size);
+    }
   } else {
     return {};
-  }
-
-  // Make sure the loop_layout_ infered is correct.
-  for (const auto& [buffer, _] : indice_map_) {
-    if (layout_map.count(buffer))
-      ICHECK(FragmentThreadEqual(loop_layout_, layout_map[buffer].as<Fragment>().value()));
   }
 
   // Step 2: Infer other fragment's layout from the loop's partition
@@ -188,6 +195,39 @@ LayoutMap GemmOpLayoutInfer::Inference(const LayoutMap& layout_map, InferLevel l
   }
   completed_ = true;
   return results;
+}
+
+ReduceOpLayoutInfer::ReduceOpLayoutInfer(const ReduceArgs& reduce_args, size_t block_size) :
+  args(reduce_args), block_size_(block_size) {}
+
+LayoutMap ReduceOpLayoutInfer::Inference(const LayoutMap& layout_map, InferLevel level) {
+  if (level >= InferLevel::kStrict) return {};
+  if (args.src.scope() == "local.fragment" && args.dst.scope() == "local.fragment" &&
+    layout_map.count(args.src) && !layout_map.count(args.dst)) {
+    auto src_layout = layout_map[args.src].as<Fragment>().value();
+
+    PrimExpr indice_rep_extent = args.src->shape[args.dim];
+    PrimExpr src_rep_extent = src_layout->ReplicateExtent();
+    PrimExpr dest_buffer_rep_extent = indice_rep_extent * src_rep_extent;
+    IterVar rep = IterVar(Range(0, dest_buffer_rep_extent), Var("rep"), IterVarType::kDataPar);
+
+    Array<IterVar> iter_vars;
+    Array<PrimExpr> fwd;
+    for (size_t i = 0; i < src_layout->InputDim(); i++) {
+      if (int(i) == args.dim) {
+        fwd.push_back(FloorMod(rep, indice_rep_extent));
+      } else {
+        auto var = Var("i" + std::to_string(i));
+        iter_vars.push_back(
+          IterVar(Range(0, src_layout->InputShape()[i]), var, IterVarType::kDataPar));
+        fwd.push_back(var);
+      }
+    }
+    auto thd = src_layout->ForwardThread(fwd, FloorDiv(rep, indice_rep_extent));
+    Fragment dst_layout = Fragment(iter_vars, {}, thd, rep)->CondenseReplicateVar();
+    return { {args.dst, dst_layout} };
+  }
+  return {};
 }
 
 } // namespace tl

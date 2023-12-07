@@ -91,6 +91,12 @@ def launch_program(*grid_size: List[int], num_threads: int):
 def use_swizzle(panel_size: int):
     return T.attr(None, "threadblock_swizzle_pattern", f"tl::rasterization2DRow<{panel_size}>")
 
+def alloc_shared(shape, dtype):
+    return T.alloc_buffer(shape, dtype, scope="shared.dyn")
+
+def alloc_fragment(shape, dtype):
+    return T.alloc_buffer(shape, dtype, scope="local.fragment")
+
 def region(buffer: tir.BufferLoad, access_type: str, *args: tir.PrimExpr):
     access_type = {"r" : 1, "w" : 2, "rw": 3}[access_type]
     return tir.call_intrin(
@@ -202,5 +208,5 @@ def reduce_max(buffer: tir.Buffer, out: tir.Buffer, dim: int, clear: bool=True):
     """
     return reduce(buffer, out, "max", dim, clear)
 
-def reduce_sum(buffer: tir.Buffer, out: tir.Buffer, dim: int, clear: bool=True):
-    return reduce(buffer, out, "sum", dim, clear)
+def reduce_sum(buffer: tir.Buffer, out: tir.Buffer, dim: int):
+    return reduce(buffer, out, "sum", dim, True)

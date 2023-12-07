@@ -178,14 +178,14 @@ CopyArgs CopyArgs::Parse(const Array<PrimExpr>& args) {
   return copy_args;
 }
 
-bool CopyArgs::CheckRangeEqual() {
+bool CopyArgs::CheckRangeEqual() const {
   Array<Range> lhs, rhs;
   for (const auto &rg: src_range) if (!is_one(rg->extent)) lhs.push_back(rg);
   for (const auto &rg: dst_range) if (!is_one(rg->extent)) rhs.push_back(rg);
   return StructuralEqual()(lhs, rhs);
 }
 
-Array<IterVar> CopyArgs::MakeIterVars() {
+Array<IterVar> CopyArgs::MakeIterVars() const {
   Array<IterVar> loop_vars;
   size_t idx = 0;
   for (size_t i = 0; i < src_range.size(); i++) {
@@ -197,7 +197,7 @@ Array<IterVar> CopyArgs::MakeIterVars() {
   return loop_vars;
 }
 
-Array<PrimExpr> CopyArgs::MakeIndices(const Array<IterVar>& ivs, int src_dst) {
+Array<PrimExpr> CopyArgs::MakeIndices(const Array<IterVar>& ivs, int src_dst) const {
   Array<PrimExpr> indices;
   Array<Range> ranges = src_dst == 0 ? src_range : dst_range;
   size_t idx = 0;
@@ -213,7 +213,7 @@ Array<PrimExpr> CopyArgs::MakeIndices(const Array<IterVar>& ivs, int src_dst) {
   return indices;
 }
 
-PrimExpr CopyArgs::MakePredicate(arith::Analyzer* analyzer, const Array<IterVar>& ivs, Array<PrimExpr> extents, int src_dst) {
+PrimExpr CopyArgs::MakePredicate(arith::Analyzer* analyzer, const Array<IterVar>& ivs, Array<PrimExpr> extents, int src_dst) const {
   Array<Range> ranges = src_dst == 0 ? src_range : dst_range;
   Array<PrimExpr> cond_list;
   ICHECK(extents.size() == ranges.size()) << extents << " " << ranges;
