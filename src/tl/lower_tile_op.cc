@@ -63,7 +63,15 @@ private:
       buffer_data_to_buffer_.Set(buffer->data, buffer);
       if (vmap.count(buffer->data)) layout_map_.Set(buffer, vmap[buffer->data]);
     }
-    return arith::IRMutatorWithAnalyzer::VisitStmt_(op);
+    auto ret = arith::IRMutatorWithAnalyzer::VisitStmt_(op);
+    auto block = ret.as<Block>().value();
+    if (!workspaces_.empty()) {
+      auto block_ptr = block.CopyOnWrite();
+      for (const auto& buffer: workspaces_)
+        block_ptr->alloc_buffers.push_back(buffer);
+      workspaces_.clear();
+    }
+    return block;
   }
 
   Stmt VisitStmt_(const EvaluateNode* node) final {
@@ -75,6 +83,13 @@ private:
       }
     }
     return GetRef<Evaluate>(node);
+  }
+
+  PrimExpr GetWorkspace(int num_elem, DataType dtype) {
+    // TODO: fix merge dyn shared memory pass
+    auto workspace = decl_buffer({PrimExpr(num_elem)}, dtype, "workspace", "shared.dyn");
+    workspaces_.push_back(workspace);
+    return workspace.access_ptr(2); // write
   }
 
   Stmt LowerReduce(const Array<PrimExpr>& call_args) {
@@ -129,10 +144,13 @@ private:
         ICHECK(scale != nullptr && extent != nullptr);
         if (*extent == 1) continue;
         int reducing_threads = (*extent) * (*scale);
-        ICHECK(reducing_threads <= 32) << "Inter warp not supported for now.";
         std::stringstream ss;
         ss << "tl::AllReduce<" << args.MakeCodegenReducer() << ", " << reducing_threads << ", " << (*scale) << ">::run";
         Array<PrimExpr> thread_reduce_args = { StringImm(ss.str()), BufferLoad(args.dst, dst_indices) };
+        if (reducing_threads >= 32) {
+          PrimExpr workspace = GetWorkspace(thread_block_size_, args.src->dtype);
+          thread_reduce_args.push_back(workspace);
+        }
         auto call = Call(args.dst->dtype, builtin::call_extern(), thread_reduce_args);
         stmts.push_back(BufferStore(args.dst, call, dst_indices));
       }
@@ -189,6 +207,7 @@ private:
   Map<Buffer, Layout> layout_map_;
   Var thread_var_;
   size_t thread_block_size_ = 0;
+  Array<Buffer> workspaces_;
 };
 
 namespace transform {
