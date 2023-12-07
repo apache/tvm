@@ -19,7 +19,7 @@ import tvm
 import tvm.testing
 from tvm import relax
 import tvm.script
-from tvm.script import relax as R, tir as T
+from tvm.script import relax as R, tir as T, ir as I
 from tvm.relax import transform
 from tvm.ir.base import assert_structural_equal
 
@@ -39,11 +39,13 @@ def _check_save_roundtrip(x):
 
 
 def test_basic():
+    """Functions can be listed from local bindings to the IRModule"""
+
     # the target IRModule
     @tvm.script.ir_module
     class Expected:
         @R.function(private=True)
-        def lifted_func_0(
+        def main_inner(
             x2: R.Tensor((10, 5), "float32"), y2: R.Tensor((10, 5), "float32")
         ) -> R.Tensor((10, 5), "float32"):
             s: R.Tensor((10, 5), "float32") = R.add(x2, y2)
@@ -53,7 +55,7 @@ def test_basic():
         def main(
             x1: R.Tensor((10, 5), "float32"), y1: R.Tensor((10, 5), "float32")
         ) -> R.Tensor((10, 5), "float32"):
-            inner = Expected.lifted_func_0
+            inner = Expected.main_inner
             gv1: R.Tensor((10, 5), "float32") = inner(x1, y1)
             return gv1
 
@@ -83,6 +85,8 @@ def test_basic():
 
 
 def test_closure():
+    """Lifting functions may require producing closures"""
+
     # the expected IRModule
     @tvm.script.ir_module
     class Expected:
@@ -90,7 +94,7 @@ def test_closure():
         def main(
             x: R.Tensor((2, 3), "float32"), y: R.Tensor((2, 3), "float32")
         ) -> R.Tensor((2, 3), "float32"):
-            outer_func = Expected.lifted_func_0
+            outer_func = Expected.main_outer_func
             in_call = outer_func(x)
             res = R.invoke_pure_closure(
                 in_call, (y,), sinfo_args=(R.Tensor((2, 3), dtype="float32"))
@@ -98,13 +102,13 @@ def test_closure():
             return res
 
         @R.function(private=True)
-        def lifted_func_1(x1: R.Tensor((2, 3), "float32"), c1: R.Tensor((2, 3), "float32")):
+        def main_inner_func(x1: R.Tensor((2, 3), "float32"), c1: R.Tensor((2, 3), "float32")):
             r_1: R.Tensor((2, 3), "float32") = R.add(x1, c1)
             return r_1
 
         @R.function(private=True)
-        def lifted_func_0(y: R.Tensor((2, 3), "float32")) -> R.Object:
-            inner_func = R.make_closure(Expected.lifted_func_1, (y,))
+        def main_outer_func(y: R.Tensor((2, 3), "float32")) -> R.Object:
+            inner_func = R.make_closure(Expected.main_inner_func, (y,))
             return inner_func
 
     # IRModule to perform Lambda Lifting
@@ -137,11 +141,13 @@ def test_closure():
 
 
 def test_recursive():
+    """The lifted function may be recursively defined"""
+
     # the expected IRModule
     @tvm.script.ir_module
     class Expected:
         @R.function(private=True)
-        def lifted_func_0(
+        def main_while_loop(
             i: R.Tensor((), "int32"), s: R.Tensor((2, 3), "float32"), x: R.Tensor((2, 3), "float32")
         ) -> R.Tensor((2, 3), "float32"):
             cond: R.Tensor((), "bool") = R.call_pure_packed(
@@ -151,7 +157,7 @@ def test_recursive():
             if cond:
                 new_i: R.Tensor((), "int32") = R.add(i, c)
                 new_s: R.Tensor((2, 3), "float32") = R.add(s, x)
-                new_r = Expected.lifted_func_0(new_i, new_s, x)
+                new_r = Expected.main_while_loop(new_i, new_s, x)
                 r = new_r
             else:
                 r = s
@@ -159,7 +165,7 @@ def test_recursive():
 
         @R.function
         def main(x: R.Tensor((2, 3), "float32")) -> R.Tensor((2, 3), dtype="float32"):
-            while_loop = R.make_closure(Expected.lifted_func_0, (x,))
+            while_loop = R.make_closure(Expected.main_while_loop, (x,))
             gv: R.Tensor((2, 3), dtype="float32") = R.invoke_pure_closure(
                 while_loop,
                 (R.const(0), x),
@@ -205,6 +211,12 @@ def test_recursive():
 
 
 def test_multi_func():
+    """Lifting may be required for multiple top-level functions
+
+    De-duplication of GlobalVar names at the IRModule is done by
+    appending the name of the function from which they were lifted.
+    """
+
     # expected IRModule
     @tvm.script.ir_module
     class Expected:
@@ -212,7 +224,7 @@ def test_multi_func():
         def glob_func_1(
             x1: R.Tensor((10, 5), "float32"), y1: R.Tensor((10, 5), "float32")
         ) -> R.Tensor(None, "float32", ndim=2):
-            inner = Expected.lifted_func_0
+            inner = Expected.glob_func_1_inner
             gv1: R.Tensor((10, 5), "float32") = inner(x1, y1)
             return gv1
 
@@ -220,19 +232,19 @@ def test_multi_func():
         def glob_func_2(
             x11: R.Tensor((10, 5), "float32"), y11: R.Tensor((10, 5), "float32")
         ) -> R.Tensor(None, "float32", ndim=2):
-            inner = Expected.lifted_func_1
+            inner = Expected.glob_func_2_inner
             gv11: R.Tensor((10, 5), "float32") = inner(x11, y11)
             return gv11
 
         @R.function(private=True)
-        def lifted_func_0(
+        def glob_func_1_inner(
             x2: R.Tensor((10, 5), "float32"), y2: R.Tensor((10, 5), "float32")
         ) -> R.Tensor((10, 5), "float32"):
             s: R.Tensor((10, 5), "float32") = R.add(x2, y2)
             return s
 
         @R.function(private=True)
-        def lifted_func_1(
+        def glob_func_2_inner(
             x21: R.Tensor((10, 5), "float32"), y21: R.Tensor((10, 5), "float32")
         ) -> R.Tensor((10, 5), "float32"):
             s1: R.Tensor((10, 5), "float32") = R.add(x21, y21)
@@ -309,13 +321,13 @@ def test_impure_function():
     @tvm.script.ir_module
     class Expected:
         @R.function(pure=False, private=True)
-        def lifted_func_0() -> R.Tuple:
+        def main_inner() -> R.Tuple:
             y = R.print(format="Wow!")
             return y
 
         @R.function(pure=False)
         def main(x: R.Tensor((), "int32")) -> R.Tensor((), "int32"):
-            inner = Expected.lifted_func_0
+            inner = Expected.main_inner
             gv1 = inner()
             return x
 
