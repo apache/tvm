@@ -37,7 +37,7 @@ from tvm import relay
 from tvm.contrib import graph_executor, utils
 from tvm.relay.frontend.common import infer_type
 from tvm.relay.build_module import bind_params_by_name
-from relay.utils.tag_span import _create_span, _set_span, _verify_structural_equal_with_span
+#from relay.utils.tag_span import _create_span, _set_span, _verify_structural_equal_with_span
 
 import onnx
 import onnxruntime.backend
@@ -321,8 +321,8 @@ def make_constant_node(name, data_type, dims, vals):
 
 
 def is_version_greater_than(ver):
-    return "".join(re.findall(r"(\d+\.)(\d+\.)(\d)", onnx.__version__)[0]) > "".join(
-        re.findall(r"(\d+\.)(\d+\.)(\d)", ver)[0]
+    return tuple(map(int, re.match(r"(\d+)\.(\d+)\.(\d+)", onnx.__version__).groups())) > tuple(
+        map(int, re.match(r"(\d+)\.(\d+)\.(\d+)", ver).groups())
     )
 
 
