@@ -31,20 +31,6 @@ namespace tl {
 
 using namespace tir;
 
-Array<Range> ParseRegionArgs(const CallNode* call) {
-  Array<Range> results;
-  CHECK(call->op.same_as(region()));
-  size_t n = call->args.size();
-  CHECK(n % 2 == 0);
-  size_t ndim = (n - 2) / 2;
-  for (size_t i = 0; i < ndim; i++) {
-    PrimExpr min = call->args[2 + i];
-    PrimExpr extent = call->args[2 + i + ndim];
-    results.push_back(Range::FromMinExtent(min, extent));
-  }
-  return results;
-}
-
 Array<IterVar> ToIterVars(const Map<Var, Range> &vmap) {
   Array<IterVar> result;
   for (const auto &[var, range]: vmap) {

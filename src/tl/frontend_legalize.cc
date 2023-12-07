@@ -80,7 +80,7 @@ private:
   }
 
   Stmt LowerCopy(const Array<PrimExpr>& call_args) {
-    CopyArgs args = CopyArgs::Parse(call_args, buffer_data_to_buffer_);
+    CopyArgs args = CopyArgs::Parse(call_args);
     Array<IterVar> loop_vars = args.MakeIterVars();
     for (const auto& iv : loop_vars) analyzer_->Bind(iv->var, iv->dom);
 

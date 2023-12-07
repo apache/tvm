@@ -10,22 +10,26 @@ def convolution(N, C, H, W, INC, KW, KH, P, S, D):
     INW = (W - 1) * S + (KW - 1) * D + 1 - 2 * P
 
     dtype = "float16"
+    accum_dtype = "float"
     block_M = 128
     block_N = 128
     block_K = 32
 
     @T.prim_func
-    def main(data: T.Buffer((N, INH, INW, INC), dtype), kernel: T.Buffer((KH * KW * INC, C), dtype),
-             out: T.Buffer((N * H * W, C), dtype)):
+    def main(data: T.Buffer((N, INH, INW, INC), dtype), kernel: T.Buffer((KH, KW, INC, C), dtype),
+             out: T.Buffer((N, H, W, C), dtype)):
 
         bx, by, _ = T.launch_program(T.ceildiv(C, block_N), T.ceildiv(N*H*W, block_M), num_threads=128)
 
         with T.block():
             data_shared = T.alloc_buffer((block_M, block_K), dtype, scope="shared.dyn")
             kernel_shared = T.alloc_buffer((block_K, block_N), dtype, scope="shared.dyn")
-            out_local = T.alloc_buffer((block_M, block_N), "float", scope="local.fragment")
-            T.clear(out_local)
+            out_local = T.alloc_buffer((block_M, block_N), accum_dtype, scope="local.fragment")
 
+            kernel_flat = T.Buffer((KH * KW * INC, C), dtype, kernel.data)
+            out_flat = T.Buffer((N * H * W, C), dtype, out.data)
+
+            T.clear(out_local)
             for k_iter in T.Pipelined(T.ceildiv(KH*KW*INC, block_K), num_stages=3):
                 for i, j in T.Parallel(block_M, block_K):
                     k = k_iter * block_K + j
@@ -34,24 +38,18 @@ def convolution(N, C, H, W, INC, KW, KH, P, S, D):
                     access_w = m % W * S + k // INC % KW * D - P
                     in_bound = (access_h >= 0) and (access_w >= 0) and (access_h < INH) and (access_w < INW)
                     data_shared[i, j] = T.if_then_else(in_bound, data[m//(H*W), access_h, access_w, k%INC], 0)
-                T.copy(kernel[k_iter*block_K, bx*block_N], kernel_shared)
+                T.copy(kernel_flat[k_iter*block_K, bx*block_N], kernel_shared)
                 T.gemm(data_shared, kernel_shared, out_local)
 
-            T.copy(out_local, out[by*block_M, bx*block_N])
+            T.copy(out_local, out_flat[by*block_M, bx*block_N])
 
     return main
 
-def conv_nhwc_ref(A: torch.Tensor, B: torch.Tensor, stride, padding, dilation):
+def ref_program(A, B, stride, padding, dilation):
     A = A.permute(0, 3, 1, 2) # N, H, W, C -> N, C, H, W
     B = B.permute(3, 2, 0, 1) # H, W, C, F -> F, C, H, W
     C = torch.conv2d(A, B, stride=stride, padding=padding, dilation=dilation)
     C = C.permute(0, 2, 3, 1) # N, C, H, W -> N, H, W, C
-    return C
-
-def ref_program(A, B, stride, padding, dilation):
-    B = B.reshape(3, 3, A.shape[-1], -1)
-    C = conv_nhwc_ref(A, B, stride, padding, dilation)
-    C = C.reshape(-1, C.shape[-1])
     return [C]
 
 if __name__ == "__main__":

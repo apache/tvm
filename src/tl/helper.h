@@ -35,8 +35,6 @@ namespace tl {
 
 using namespace tir;
 
-Array<Range> ParseRegionArgs(const tir::CallNode* call);
-
 Map<Var, Range> ToVMap(const Array<IterVar> &ivs);
 
 Array<IterVar> ToIterVars(const Map<Var, Range> &vmap);

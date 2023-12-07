@@ -26,7 +26,6 @@
 #include <tvm/tir/op.h>
 #include <tvm/tir/stmt_functor.h>
 
-#include "../../tl/helper.h"
 #include "../../tl/op.h"
 
 #include "../transforms/ir_utils.h"
@@ -209,25 +208,23 @@ void BlockReadWriteDetector::VisitExpr_(const CallNode* op) {
     return;
   }
   if (op->op.same_as(tl::region())) {
-    const VarNode* buffer_var = op->args[0].as<VarNode>();
+    const BufferLoadNode* load = op->args[0].as<BufferLoadNode>();
     const IntImmNode* access_mask = op->args[1].as<IntImmNode>();
-    CHECK(buffer_var && access_mask);
-    auto it = buffer_var_map_.find(GetRef<Var>(buffer_var));
-    if (it != buffer_var_map_.end()) {
-      const Buffer& buffer = (*it).second;
-      std::vector<arith::IntSet> int_set;
-      Array<Range> region = tl::ParseRegionArgs(op);
-      int_set.reserve(region.size());
-      for (const Range& range : region) {
-        int_set.push_back(arith::EvalSet(range, dom_map_));
-      }
-      if ((access_mask->value & 1) && (access_mask->value & 2)) {
-        Update(&opaque_buffers_, &opaque_regions_, buffer, int_set);
-      } else if (access_mask->value & 1) {
-        Update(&read_buffers_, &read_regions_, buffer, int_set);
-      } else if (access_mask->value & 2) {
-        Update(&writes_buffers_, &write_regions_, buffer, int_set);
-      }
+    CHECK(load && access_mask);
+
+    const Buffer& buffer = load->buffer;
+    std::vector<arith::IntSet> int_set;
+    Array<Range> region = tl::ParseRegionArgs(op);
+    int_set.reserve(region.size());
+    for (const Range& range : region) {
+      int_set.push_back(arith::EvalSet(range, dom_map_));
+    }
+    if ((access_mask->value & 1) && (access_mask->value & 2)) {
+      Update(&opaque_buffers_, &opaque_regions_, buffer, int_set);
+    } else if (access_mask->value & 1) {
+      Update(&read_buffers_, &read_regions_, buffer, int_set);
+    } else if (access_mask->value & 2) {
+      Update(&writes_buffers_, &write_regions_, buffer, int_set);
     }
     return;
   }

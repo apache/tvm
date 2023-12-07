@@ -91,26 +91,25 @@ def launch_program(*grid_size: List[int], num_threads: int):
 def use_swizzle(panel_size: int):
     return T.attr(None, "threadblock_swizzle_pattern", f"tl::rasterization2DRow<{panel_size}>")
 
-def region(buffer: tir.Buffer, access_type: str, *args: tir.PrimExpr):
+def region(buffer: tir.BufferLoad, access_type: str, *args: tir.PrimExpr):
     access_type = {"r" : 1, "w" : 2, "rw": 3}[access_type]
     return tir.call_intrin(
         "handle", tir.op.Op.get("tl.region"),
-        buffer.data, access_type, *args
+        buffer, access_type, *args
     )
 
 def buffer_to_tile_region(buffer: tir.Buffer, access_type: str):
     mins = [0 for _ in buffer.shape]
     extents = [x for x in buffer.shape]
-    return region(buffer, access_type, *mins, *extents)
+    return region(T.BufferLoad(buffer, mins), access_type, *extents)
 
 def buffer_load_to_tile_region(load: tir.BufferLoad, access_type: str, extents: List[tir.PrimExpr]):
-    mins = [x for x in load.indices]
-    return region(load.buffer, access_type, *mins, *extents)
+    return region(load, access_type, *extents)
 
 def buffer_region_to_tile_region(buffer_region: tir.BufferRegion, access_type: str):
     mins = [x.min for x in buffer_region.region]
     extents = [x.extent for x in buffer_region.region]
-    return region(buffer_region.buffer, access_type, *mins, *extents)
+    return region(T.BufferLoad(buffer_region.buffer, mins), access_type, *extents)
 
 def copy(src: Union[tir.Buffer, tir.BufferLoad, tir.BufferRegion],
          dst: Union[tir.Buffer, tir.BufferLoad],

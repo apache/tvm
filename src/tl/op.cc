@@ -70,6 +70,31 @@ static Var GetVarFromAccessPtr(const PrimExpr& expr) {
   return GetRef<Var>(var);
 }
 
+static Buffer GetBufferFromRegion(const PrimExpr& expr) {
+  auto call = expr.as<CallNode>();
+  ICHECK(call);
+  ICHECK(call->op.same_as(region()));
+  auto load = call->args[0].as<BufferLoadNode>();
+  ICHECK(load);
+  return load->buffer;
+}
+
+Array<Range> ParseRegionArgs(const CallNode* call) {
+  Array<Range> results;
+  ICHECK(call->op.same_as(region()));
+  size_t n = call->args.size();
+  size_t ndim = n - 2;
+  auto load = call->args[0].as<BufferLoadNode>();
+  ICHECK(load);
+  ICHECK(load->indices.size() == ndim);
+  for (size_t i = 0; i < ndim; i++) {
+    PrimExpr min = load->indices[i];
+    PrimExpr extent = call->args[2 + i];
+    results.push_back(Range::FromMinExtent(min, extent));
+  }
+  return results;
+}
+
 GemmArgs GemmArgs::Parse(const Array<PrimExpr>& args, const Map<Var, Buffer>& vmap) {
   GemmArgs gemm_args;
   gemm_args.A = vmap[GetVarFromAccessPtr(args[0])];
@@ -135,24 +160,15 @@ std::pair<int, int> GemmArgs::ComputeWarpPartition(int num_warps) const {
   return {m_warp, n_warp};
 }
 
-CopyArgs CopyArgs::Parse(const Array<PrimExpr>& args, const Map<Var, Buffer>& vmap) {
+CopyArgs CopyArgs::Parse(const Array<PrimExpr>& args) {
   Array<Range> rgs[2];
   Buffer bf[2];
   for (int i = 0; i < 2; i++) {
     auto expr = args[i];
     auto call = expr.as<CallNode>();
     ICHECK(call);
-    if (call->op.same_as(tl::region())) {
-      rgs[i] = ParseRegionArgs(call);
-      auto var = call->args[0].as<VarNode>();
-      ICHECK(var) << GetRef<Var>(var);
-      bf[i] = vmap[GetRef<Var>(var)];
-    } else if (call->op.same_as(builtin::tvm_access_ptr())) {
-      auto var = call->args[1].as<VarNode>();
-      ICHECK(var) << GetRef<Var>(var);
-      bf[i] = vmap[GetRef<Var>(var)];
-      for (auto ext : bf[i]->shape) rgs[i].push_back(Range::FromMinExtent(0, ext));
-    }
+    rgs[i] = ParseRegionArgs(call);
+    bf[i] = GetBufferFromRegion(expr);
   }
   CopyArgs copy_args;
   std::tie(copy_args.src, copy_args.dst) = std::tie(bf[0], bf[1]);

@@ -64,7 +64,7 @@ struct CopyArgs {
   tir::Buffer src, dst;
   Array<Range> src_range, dst_range;
 
-  static CopyArgs Parse(const Array<PrimExpr>& args, const Map<Var, Buffer>& vmap);
+  static CopyArgs Parse(const Array<PrimExpr>& args);
 
   Array<IterVar> MakeIterVars();
   // ivs: itervars returned by MakeIterVars()
@@ -95,6 +95,8 @@ struct ReduceArgs {
   PrimExpr MakeReduce(const PrimExpr& a, const PrimExpr& b) const;
   std::string MakeCodegenReducer() const;
 };
+
+Array<Range> ParseRegionArgs(const tir::CallNode* call);
 
 }  // namespace tl
 }  // namespace tvm
