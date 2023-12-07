@@ -181,19 +181,8 @@ class BaseRunner(object):
         # Generate model
         if not self._model:
             distiller = self.get_tool(ToolType.DISTILLER)
-            if distiller and not distiller.distilled:
-                build_root = self._generate_config["build_folder"]
-
-                def _build_scope_model(scope: str):
-                    self._update_codegen({"tools_scope": scope})
-                    self._generate_config["build_folder"] = build_root.create_dir(scope)
-                    return self._generate_model()
-
-                # Generate distill model
-                teacher_model = _build_scope_model(ToolScope.TEACHER)
-                self._graphs, self._weights = self.reset_tools(cache_dir=cache_dir)
-                student_model = _build_scope_model(ToolScope.STUDENT)
-                self._model = distiller.build_model(teacher_model, student_model)
+            if distiller:
+                raise NotImplementedError("Distiller is not supported")
             else:
                 # Generate normal model
                 self._graphs, self._weights = self.reset_tools(cache_dir=cache_dir)

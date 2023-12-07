@@ -814,49 +814,6 @@ class BaseTool(object):
 
         return tensor
 
-    def create_tasks(self) -> List[dict]:
-        """Create tasks for gym
-
-        Returns
-        -------
-        tasks: list<dict>
-            The tasks.
-        """
-
-        return []
-
-    def apply_strategys(self, strategys: List[dict]) -> dict:
-        """Apply the startegys and get plan
-
-        Parameters
-        -------
-        strategys: list<dict>
-            The given strategys
-
-        Returns
-        -------
-        plan: dict
-            The plan after new strategy applied.
-        """
-
-        self._tensor_cache, self._processed_tensor = {}, {}
-        self._strategys = self._parse_strategys(msc_utils.copy_dict(strategys))
-        info = {k: v.inspect() for k, v in self._strategys.items()}
-        title = "{}.UPDATE_STRATEGYS".format(self.tool_type().upper())
-        self._logger.debug(msc_utils.msg_block(title, info, width=0))
-        return self._apply_strategys()
-
-    def _apply_strategys(self) -> dict:
-        """Apply the startegys and get plan
-
-        Returns
-        -------
-        plan: dict
-            The plan after new strategy applied.
-        """
-
-        raise NotImplementedError("_apply_strategys is not supported in BaseTool")
-
     def config_generate(self, generate_config: Dict[str, Any]) -> Dict[str, Any]:
         """Update the generate configs
 
@@ -884,21 +841,19 @@ class BaseTool(object):
 
         return None
 
-    def get_plan(self, name: str) -> dict:
-        """Get the plan for name
+    def set_plan(self, plan: dict):
+        """Set the plan
 
         Parameters
         ----------
-        name: str
-            The plan name.
-
-        Returns
-        -------
         plan: dict
-            The plan of the name.
+            The new plan.
         """
 
-        return self._plan.get(name, {})
+        if self._plan:
+            self._plan = msc_utils.update_dict(self._plan, plan)
+        else:
+            self._plan = plan
 
     def finalize(self) -> dict:
         """Get the plan"""

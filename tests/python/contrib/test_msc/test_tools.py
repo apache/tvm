@@ -68,7 +68,7 @@ def _get_config(
     }
 
 
-def get_tool_config(tool_type, use_distill=False, use_gym=False):
+def get_tool_config(tool_type):
     """Get config for the tool"""
     config = {}
     if tool_type == ToolType.PRUNER:
@@ -76,60 +76,8 @@ def get_tool_config(tool_type, use_distill=False, use_gym=False):
             "plan_file": "msc_pruner.json",
             "strategys": [{"method": "per_channel", "density": 0.8}],
         }
-        if use_gym:
-            config["gym_configs"] = [
-                {
-                    "env": {
-                        "executors": {
-                            "action_space": {
-                                "method": "action_linear_space",
-                                "start": 0.4,
-                                "end": 0.8,
-                                "step": 0.4,
-                            }
-                        },
-                        "max_tasks": 3,
-                    },
-                    "agent": {"agent_type": "search.grid", "executors": {}},
-                }
-            ]
     elif tool_type == ToolType.QUANTIZER:
-        # pylint: disable=import-outside-toplevel
-        from tvm.contrib.msc.core.tools.quantize import QuantizeStage
-
-        config = {
-            "plan_file": "msc_quantizer.json",
-            "strategys": [
-                {
-                    "method": "gather_maxmin",
-                    "op_types": ["nn.conv2d", "msc.linear"],
-                    "tensor_types": ["input", "output"],
-                    "stages": [QuantizeStage.GATHER],
-                },
-                {
-                    "method": "gather_max_per_channel",
-                    "op_types": ["nn.conv2d", "msc.linear"],
-                    "tensor_types": ["weight"],
-                    "stages": [QuantizeStage.GATHER],
-                },
-                {
-                    "method": "calibrate_maxmin",
-                    "op_types": ["nn.conv2d", "msc.linear"],
-                    "tensor_types": ["input", "output"],
-                    "stages": [QuantizeStage.CALIBRATE],
-                },
-                {
-                    "method": "quantize_normal",
-                    "op_types": ["nn.conv2d", "msc.linear"],
-                    "tensor_types": ["input", "weight"],
-                },
-                {
-                    "method": "dequantize_normal",
-                    "op_types": ["nn.conv2d", "msc.linear"],
-                    "tensor_types": ["output"],
-                },
-            ],
-        }
+        raise NotImplementedError("Quantizer is not supported")
     elif tool_type == ToolType.TRACKER:
         config = {
             "plan_file": "msc_tracker.json",
@@ -145,17 +93,6 @@ def get_tool_config(tool_type, use_distill=False, use_gym=False):
                 }
             ],
         }
-    if use_distill:
-        distill_config = {
-            "plan_file": "msc_distiller.json",
-            "strategys": [
-                {
-                    "method": "loss_lp_norm",
-                    "op_types": ["loss"],
-                },
-            ],
-        }
-        return {tool_type: config, ToolType.DISTILLER: distill_config}
     return {tool_type: config}
 
 
@@ -257,10 +194,7 @@ def test_tvm_tool(tool_type):
 
 
 @requires_tensorrt
-@pytest.mark.parametrize(
-    "tool_type",
-    [ToolType.PRUNER, ToolType.TRACKER],
-)
+@pytest.mark.parametrize("tool_type", [ToolType.PRUNER, ToolType.TRACKER])
 def test_tensorrt_tool(tool_type):
     """Test tools for tensorrt"""
 

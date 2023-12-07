@@ -448,38 +448,6 @@ class BasePruner(WeightTool):
             "Can not find data {} from {} weights".format(name, len(self._meta_weights))
         )
 
-    def create_tasks(self) -> List[dict]:
-        """Create tasks for gym
-
-        Returns
-        -------
-        tasks: list<dict>
-            The tasks.
-        """
-
-        tasks = []
-        for w_node in self.get_w_nodes():
-            if w_node.get_attr("weight_strategy") != "main":
-                continue
-            tasks.append({"name": w_node.name, "consumer": self.find_producer(w_node.name).name})
-        return tasks
-
-    def _apply_strategys(self) -> dict:
-        """Apply the startegys and get plan
-
-        Returns
-        -------
-        plan: dict
-            The plan after new strategy applied.
-        """
-
-        self._plan = {}
-        for w_node in self.get_w_nodes():
-            consumer = self.find_consumers(w_node.name)[0]
-            self.process_tensor(w_node.weight, w_node.name, consumer.name, "")
-        self._plan = {n: c for n, c in self._plan.items() if c["in_indices"] or c["out_indices"]}
-        return self._plan
-
     def finalize(self) -> dict:
         """Get the plan"""
 
