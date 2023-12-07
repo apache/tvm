@@ -334,7 +334,7 @@ def test_decode_gemv_sigmoid():
                     T.reads(C[v_i0, v_i1, v_i2])
                     T.writes(D[v_i0, v_i1, v_i2])
                     D[v_i0, v_i1, v_i2] = T.sigmoid(C[v_i0, v_i1, v_i2])
-                        
+
     @I.ir_module
     class After:
         @T.prim_func
