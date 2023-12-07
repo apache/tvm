@@ -26,7 +26,7 @@ import numpy as np
 import tvm
 from tvm.contrib.msc.core.ir import MSCGraph
 from tvm.contrib.msc.core.frontend import from_relax
-from tvm.contrib.msc.core.tools import BaseTool, ToolType, ToolScope, create_tool, remove_tools
+from tvm.contrib.msc.core.tools import BaseTool, ToolType, create_tool, remove_tools
 from tvm.contrib.msc.core.utils.namespace import MSCFramework
 from tvm.contrib.msc.core.utils.message import MSCStage
 from tvm.contrib.msc.core import utils as msc_utils
@@ -180,13 +180,9 @@ class BaseRunner(object):
 
         # Generate model
         if not self._model:
-            distiller = self.get_tool(ToolType.DISTILLER)
-            if distiller:
-                raise NotImplementedError("Distiller is not supported")
-            else:
-                # Generate normal model
-                self._graphs, self._weights = self.reset_tools(cache_dir=cache_dir)
-                self._model = self._generate_model()
+            # Generate normal model
+            self._graphs, self._weights = self.reset_tools(cache_dir=cache_dir)
+            self._model = self._generate_model()
 
             # Log generate info
             generate_msg = "Generate model({})".format(self.framework)
