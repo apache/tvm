@@ -399,7 +399,9 @@ IRModule Extend2DConv(const IRModule& mod) {
         //////////////STATIC ATTR:
         //Cast Attr
         auto cast_attr_32bit = make_object<CastAttrs>();
-        
+        //used to cast bool to aot compatible memory planner
+        auto cast_attr_8bit = make_object<CastAttrs>();
+        cast_attr_8bit->dtype = DataType::Int(8);
         auto cast_attr_64bit = make_object<CastAttrs>();
         cast_attr_64bit->dtype = DataType::Int(64);
         //elemwise sum operation
@@ -537,15 +539,16 @@ IRModule Extend2DConv(const IRModule& mod) {
 
         //Final comparision, which is then one additional output in the output tuple
         Call comp(neq_op, {ten_ten_prod_right_dim, output_checksum});
+        Call comp_8bit(cast_op, {comp}, Attrs(cast_attr_8bit));
 
-        output_expr.push_back(comp);
+        output_expr.push_back(comp_8bit);
       }
 
 
       Tuple new_func_body(output_expr);
       Array<Type> return_array = {func->ret_type};
       //first elem==original element
-      TensorType comp_output({}, DataType::Bool(1)); //boolean type has dim=0
+      TensorType comp_output({}, DataType::Int(8)); //boolean type has dim=0
       for(uint i=1; i < output_expr.size(); i++){
         return_array.push_back(comp_output);
       }
