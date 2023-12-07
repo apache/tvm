@@ -359,5 +359,46 @@ def test_error_when_inlining_recursive_function():
         Before["main"].inline_functions({"subroutine": Before["subroutine"]})
 
 
+def test_error_when_inlining_mutually_recursive_functions():
+    """Inlining a recursive function call should raise an error"""
+
+    @I.ir_module
+    class Before:
+        @R.function(private=True)
+        def main():
+            B = Before.subroutine_a()
+            return B
+
+        @R.function(private=True)
+        def subroutine_a() -> R.Tensor([], "int64"):
+            R.func_attr({"relax.force_pure": True})
+            cond = R.call_packed("dummy_function", sinfo_args=R.Tensor([], "bool"))
+            if cond:
+                Out = Before.subroutine_b()
+            else:
+                Out = R.const(0, "int64")
+
+            return Out
+
+        @R.function(private=True)
+        def subroutine_b() -> R.Tensor([], "int64"):
+            R.func_attr({"relax.force_pure": True})
+            cond = R.call_packed("dummy_function", sinfo_args=R.Tensor([], "bool"))
+            if cond:
+                Out = Before.subroutine_a()
+            else:
+                Out = R.const(0, "int64")
+
+            return Out
+
+    with pytest.raises(Exception):
+        Before["main"].inline_functions(
+            {
+                "subroutine_a": Before["subroutine_a"],
+                "subroutine_b": Before["subroutine_b"],
+            }
+        )
+
+
 if __name__ == "__main__":
     tvm.testing.main()
