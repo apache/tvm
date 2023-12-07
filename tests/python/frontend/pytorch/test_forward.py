@@ -721,7 +721,11 @@ def test_forward_concatenate():
             return torch.cat([t.unsqueeze(2) for t in [a, b, c]], 2)
 
     class Concatenate3(Module):
-        # pylint: disable=missing-class-docstring
+        """
+        torch.concat is preserved as aten::concat only when in a nested module.
+        (In the most cases, It is converted to aten::cat instead of aten::concat.)
+        """
+
         def __init__(self):
             super().__init__()
 
