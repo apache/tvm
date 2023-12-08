@@ -376,7 +376,6 @@ class TestMatmul(tvm.testing.CompareBeforeAfter):
 
             C_local[0] = T.float32(0)
             for i in range(64):
-
                 A_sh[threadIdx_y * 16 + threadIdx_x] = A_flat[
                     blockIdx_y * 16384 + threadIdx_y * 1024 + i * 16 + threadIdx_x
                 ]
@@ -453,6 +452,7 @@ class TestMatmul(tvm.testing.CompareBeforeAfter):
 
         return func
 
+
 class TestLeafAllocFree(tvm.testing.CompareBeforeAfter):
     transform = tvm.tir.transform.MergeDynamicSharedMemoryAllocations()
 
@@ -465,6 +465,7 @@ class TestLeafAllocFree(tvm.testing.CompareBeforeAfter):
             A_sh = T.decl_buffer([128], "float32", data=A_sh_data, scope="shared.dyn")
             B_sh = T.decl_buffer([128], "float32", data=B_sh_data, scope="shared.dyn")
             B_sh[threadIdx_x] = A_sh[threadIdx_x]
+
         return func
 
     def expected(self):
@@ -475,6 +476,7 @@ class TestLeafAllocFree(tvm.testing.CompareBeforeAfter):
             A_sh = T.decl_buffer((128,), data=buf_dyn_shmem, scope="shared.dyn")
             B_sh = T.decl_buffer((128,), data=buf_dyn_shmem, scope="shared.dyn")
             B_sh[threadIdx_x + 128] = A_sh[threadIdx_x]
+
         return func
 
 
