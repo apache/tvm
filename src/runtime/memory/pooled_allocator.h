@@ -90,6 +90,8 @@ class PooledAllocator final : public Allocator {
     VLOG(1) << "reclaim buffer " << buffer.size;
   }
 
+  void Clear() override { ReleaseAll(); }
+
   size_t UsedMemory() const override { return used_memory_.load(std::memory_order_relaxed); }
 
  private:

@@ -14,28 +14,29 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+"""Configure pytest"""
 import pytest
-
-import tvm
-from tvm import te
 import numpy as np
+import tvm
 from tvm import rpc
 from tvm.contrib import utils, tflite_runtime
 
 
 def _create_tflite_model():
+    """Functions of creating a tflite model"""
     if not tvm.runtime.enabled("tflite"):
         print("skip because tflite runtime is not enabled...")
-        return
+        return None
     if not tvm.get_global_func("tvm.tflite_runtime.create", True):
         print("skip because tflite runtime is not enabled...")
-        return
+        return None
 
     try:
+        # pylint: disable=import-outside-toplevel
         import tensorflow as tf
     except ImportError:
         print("skip because tensorflow not installed...")
-        return
+        return None
 
     root = tf.Module()
     root.const = tf.constant([1.0, 2.0], tf.float32)
@@ -55,6 +56,7 @@ def _create_tflite_model():
 
 @pytest.mark.skip("skip because accessing output tensor is flakey")
 def test_local():
+    """Local tests of tflite model"""
     if not tvm.runtime.enabled("tflite"):
         print("skip because tflite runtime is not enabled...")
         return
@@ -63,6 +65,7 @@ def test_local():
         return
 
     try:
+        # pylint: disable=import-outside-toplevel
         import tensorflow as tf
     except ImportError:
         print("skip because tensorflow not installed...")
@@ -96,6 +99,7 @@ def test_local():
 
 
 def test_remote():
+    """Remote tests of tflite model"""
     if not tvm.runtime.enabled("tflite"):
         print("skip because tflite runtime is not enabled...")
         return
@@ -104,6 +108,7 @@ def test_remote():
         return
 
     try:
+        # pylint: disable=import-outside-toplevel
         import tensorflow as tf
     except ImportError:
         print("skip because tensorflow not installed...")
@@ -130,7 +135,6 @@ def test_remote():
     # inference via remote tvm tflite runtime
     def check_remote(server):
         remote = rpc.connect(server.host, server.port)
-        a = remote.upload(tflite_model_path)
 
         with open(tflite_model_path, "rb") as model_fin:
             runtime = tflite_runtime.create(model_fin.read(), remote.cpu(0))

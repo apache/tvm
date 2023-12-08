@@ -39,12 +39,12 @@ https://github.com/apache/tvm/actions has the logs for each of these workflows. 
 TVM uses Jenkins for running Linux continuous integration (CI) tests on
 [branches](https://ci.tlcpack.ai/job/tvm/) and
 [pull requests](https://ci.tlcpack.ai/job/tvm/view/change-requests/) through a
-build configuration specified in a [`Jenkinsfile`](../../Jenkinsfile).
+build configuration specified in a [`Jenkinsfile`](/ci/jenkins/templates/).
 Other jobs run in GitHub Actions for Windows and MacOS jobs.
 
 ## `Jenkinsfile`
 
-The template files in this directory are used to generate the [`Jenkinsfile`](../../Jenkinsfile) used by Jenkins to run CI jobs for each commit to PRs and branches.
+The template files in this directory are used to generate the [`Jenkinsfile`](/ci/jenkins/templates/) used by Jenkins to run CI jobs for each commit to PRs and branches.
 
 To regenerate the `Jenkinsfile`, run
 

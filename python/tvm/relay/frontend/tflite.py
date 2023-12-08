@@ -1298,11 +1298,6 @@ class OperatorConverter(object):
         assert len(output_tensors) == 1, "output tensors length should be 1"
         output_tensor = output_tensors[0]
 
-        if self.is_quantized(op):
-            raise tvm.error.OpNotImplemented(
-                "TFlite quantized SQUARE operator is not supported yet."
-            )
-
         exp_type = self.get_tensor_type_str(output_tensor.tensor.Type())
         out = _op.power(in_expr, relay.const(2, exp_type))
 

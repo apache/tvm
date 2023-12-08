@@ -49,6 +49,7 @@ def test_conv2d(dtype):
         invar,
         weight,
         kernel_size=kernel_size,
+        channels=2,
         strides=(1, 1),
         padding=(0, 0),
         dilation=(1, 1),
