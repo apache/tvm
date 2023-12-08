@@ -447,9 +447,9 @@ class DynamicSharedMemoryRewriter : public StmtExprMutator {
       // - leaf stmt(offset = 0)
       // - end of scope(offset < 0)
       // In both cases, we need to handle the kill event correctly
-      auto is_leaf_alloc = [&] (const VarNode* var) {
+      auto is_leaf_alloc = [&](const VarNode* var) {
         return seq[i].scope_pair_offset == 0 &&
-          std::find(it->second.gen.begin(), it->second.gen.end(), var) != it->second.gen.end();
+               std::find(it->second.gen.begin(), it->second.gen.end(), var) != it->second.gen.end();
       };
       if (it != event_map_.end() && seq[i].scope_pair_offset <= 0) {
         for (const VarNode* var : it->second.kill) {
