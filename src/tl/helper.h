@@ -26,8 +26,8 @@
 #ifndef TVM_TL_HELPER_H_
 #define TVM_TL_HELPER_H_
 
-#include <tvm/runtime/container/array.h>
 #include <tvm/ir/expr.h>
+#include <tvm/runtime/container/array.h>
 #include <tvm/tir/expr.h>
 
 namespace tvm {
@@ -35,11 +35,11 @@ namespace tl {
 
 using namespace tir;
 
-Map<Var, Range> ToVMap(const Array<IterVar> &ivs);
+Map<Var, Range> ToVMap(const Array<IterVar>& ivs);
 
-Array<IterVar> ToIterVars(const Map<Var, Range> &vmap);
+Array<IterVar> ToIterVars(const Map<Var, Range>& vmap);
 
-} // namespace tl
-} // namespace tvm
+}  // namespace tl
+}  // namespace tvm
 
 #endif  // TVM_TL_HELPER_H_

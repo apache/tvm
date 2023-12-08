@@ -17,10 +17,10 @@
  * under the License.
  */
 
- /*!
-  * \file loop_partition.h
-  * \brief Partition parallel loops onto threads
-  */
+/*!
+ * \file loop_partition.h
+ * \brief Partition parallel loops onto threads
+ */
 
 #ifndef TVM_TL_LOOP_PARTITION_H_
 #define TVM_TL_LOOP_PARTITION_H_
@@ -34,14 +34,14 @@ namespace tl {
 
 using namespace tir;
 
-For PartitionLoop(const ForNode* op, const Var& thread, arith::Analyzer *analyzer, const Fragment& loop_layout);
+For PartitionLoop(const ForNode* op, const Var& thread, arith::Analyzer* analyzer,
+                  const Fragment& loop_layout);
 
 Fragment PlanLoopPartition(const ForNode* op, size_t num_thread, int vectorize_size);
 
 Stmt LoopPragmaUnroll(Stmt stmt);
 
-} // namespace tl
-} // namespace tvm
+}  // namespace tl
+}  // namespace tvm
 
-
-#endif // TVM_TL_LOOP_PARTITION_H_
+#endif  // TVM_TL_LOOP_PARTITION_H_

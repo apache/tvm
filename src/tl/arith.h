@@ -17,11 +17,11 @@
  * under the License.
  */
 
- /*!
-  * \file arith.h
-  * \brief Some arith tools for layout & fragment inference
-  *
-  */
+/*!
+ * \file arith.h
+ * \brief Some arith tools for layout & fragment inference
+ *
+ */
 
 #ifndef TVM_TL_ARITH_H_
 #define TVM_TL_ARITH_H_
@@ -39,16 +39,18 @@ using namespace tir;
  *  If the expr is (x // 2) and x is in Range(4),
  *  than the result should be (x % 2)
  */
-Array<arith::IterSplitExpr> DivideUnusedIterators(const Array<PrimExpr> &exprs, const Array<IterVar> input_iters,
-          arith::Analyzer *analyzer);
+Array<arith::IterSplitExpr> DivideUnusedIterators(const Array<PrimExpr>& exprs,
+                                                  const Array<IterVar> input_iters,
+                                                  arith::Analyzer* analyzer);
 
 /*!
  * \brief Conpress the iterator, remove the unused part of the iterator not present in the expr
  *
  *  Returns the compressed IterVar as well as the Updated iter sum expression.
  */
-std::pair<PrimExpr, IterVar> CompressIterator(const PrimExpr &expr, const Array<IterVar> input_iters, const IterVar &iv,
-          arith::Analyzer *analyzer);
+std::pair<PrimExpr, IterVar> CompressIterator(const PrimExpr& expr,
+                                              const Array<IterVar> input_iters, const IterVar& iv,
+                                              arith::Analyzer* analyzer);
 
 /*!
  * \brief Convert the iter splits returned by DivideUnusedIterators into flattened expression
@@ -56,7 +58,7 @@ std::pair<PrimExpr, IterVar> CompressIterator(const PrimExpr &expr, const Array<
  */
 PrimExpr MakeFlattenedExpression(const Array<arith::IterSplitExpr>& splits);
 
-} // namespace tl
-} // namespace tvm
+}  // namespace tl
+}  // namespace tvm
 
 #endif  // TVM_TL_ARITH_H_

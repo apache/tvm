@@ -23,9 +23,9 @@
  */
 
 #include <tvm/arith/analyzer.h>
+#include <tvm/tir/analysis.h>
 #include <tvm/tir/stmt_functor.h>
 #include <tvm/tir/transform.h>
-#include <tvm/tir/analysis.h>
 
 namespace tvm {
 namespace tir {
@@ -33,11 +33,11 @@ namespace tir {
 namespace {
 
 /*!
-  * \brief Check whether two regions have intersections.
-  * \param region1 The first region.
-  * \param region2 The second region.
-  * \return Whether region1 and region2 have intersections.
-  */
+ * \brief Check whether two regions have intersections.
+ * \param region1 The first region.
+ * \param region2 The second region.
+ * \return Whether region1 and region2 have intersections.
+ */
 bool MayConflict(Region region1, Region region2) {
   ICHECK(region1.size() == region2.size());
   for (size_t i = 0; i < region1.size(); i++) {
@@ -52,7 +52,7 @@ bool MayConflict(Region region1, Region region2) {
   return true;
 }
 
-}
+}  // namespace
 
 class PipelinePlanner : public StmtExprMutator {
  public:
@@ -82,9 +82,9 @@ class PipelinePlanner : public StmtExprMutator {
     pinfo.reads = std::move(access[0]);
     pinfo.writes = std::move(access[1]);
     pinfo.original_order = idx;
-    for (auto region: pinfo.reads)
+    for (auto region : pinfo.reads)
       if (region->buffer.scope() == "global") pinfo.copy_stage = true;
-    for (auto region: pinfo.writes)
+    for (auto region : pinfo.writes)
       if (region->buffer.scope() == "global") pinfo.copy_stage = true;
     return std::move(pinfo);
   }
@@ -118,21 +118,22 @@ class PipelinePlanner : public StmtExprMutator {
     }
 
     // analysis use-def chain
-    for (auto &pinfo: pipeline_stage_infos) {
+    for (auto& pinfo : pipeline_stage_infos) {
       for (int i = pinfo.original_order + 1; i < static_cast<int>(pipeline_body_seq->size()); i++) {
         if (!pinfo.copy_stage) continue;
         for (const BufferRegion& read : pipeline_stage_infos[i].reads) {
           if (std::find_if(pinfo.writes.begin(), pinfo.writes.end(), [&](const BufferRegion& r) {
-            return r->buffer == read->buffer && MayConflict(r->region, read->region);
-          }) != pinfo.writes.end()) {
+                return r->buffer == read->buffer && MayConflict(r->region, read->region);
+              }) != pinfo.writes.end()) {
             pinfo.last_use_stage = std::max(pinfo.last_use_stage, i);
           }
         }
-        for (const BufferRegion& write: pipeline_stage_infos[i].writes) {
+        for (const BufferRegion& write : pipeline_stage_infos[i].writes) {
           if (std::find_if(pinfo.writes.begin(), pinfo.writes.end(), [&](const BufferRegion& r) {
-            return r->buffer == write->buffer && MayConflict(r->region, write->region);
-          }) != pinfo.writes.end()) {
-            CHECK(false) << "Can't handle multiple write on overlap buffer region in the pipeline planning pass: "
+                return r->buffer == write->buffer && MayConflict(r->region, write->region);
+              }) != pinfo.writes.end()) {
+            CHECK(false) << "Can't handle multiple write on overlap buffer region in the pipeline "
+                            "planning pass: "
                          << pipeline_body_seq->seq[pinfo.original_order];
           }
         }
@@ -141,11 +142,11 @@ class PipelinePlanner : public StmtExprMutator {
 
     // Making stages and orders
     int order_idx = 0;
-    for (auto &pinfo: pipeline_stage_infos) {
+    for (auto& pinfo : pipeline_stage_infos) {
       if (pinfo.copy_stage && pinfo.last_use_stage != -1) continue;
       pinfo.order = order_idx++;
       pinfo.stage = num_stages;
-      for (auto &pinfo_1: pipeline_stage_infos) {
+      for (auto& pinfo_1 : pipeline_stage_infos) {
         if (pinfo_1.copy_stage && pinfo_1.last_use_stage == pinfo.original_order) {
           pinfo_1.order = order_idx++;
           pinfo_1.stage = 0;
@@ -154,13 +155,13 @@ class PipelinePlanner : public StmtExprMutator {
     }
     ICHECK(size_t(order_idx) == pipeline_stage_infos.size());
 
-    // if all the copy is at the end of the order, we can move these copy to the begining of the order
-    // and shrink the stage offset by 1.
-    int copy_stage_at_end = [&] () {
+    // if all the copy is at the end of the order, we can move these copy to the begining of the
+    // order and shrink the stage offset by 1.
+    int copy_stage_at_end = [&]() {
       int copy_stage_cnt = 0;
       int copy_order_min = pipeline_stage_infos.size();
       int non_copy_order_max = 0;
-      for (auto &pinfo: pipeline_stage_infos) {
+      for (auto& pinfo : pipeline_stage_infos) {
         if (pinfo.copy_stage) {
           copy_stage_cnt++;
           copy_order_min = std::min(copy_order_min, pinfo.order);
@@ -172,7 +173,7 @@ class PipelinePlanner : public StmtExprMutator {
       return -1;
     }();
     if (copy_stage_at_end > 0 && num_stages >= 2) {
-      for (auto &pinfo: pipeline_stage_infos) { // move copy to the begining
+      for (auto& pinfo : pipeline_stage_infos) {  // move copy to the begining
         pinfo.order = (pinfo.order + copy_stage_at_end) % pipeline_stage_infos.size();
         if (!pinfo.copy_stage) pinfo.stage--;
       }
@@ -189,7 +190,7 @@ class PipelinePlanner : public StmtExprMutator {
     std::vector<Integer> orders, stages;
     orders.reserve(pipeline_stage_infos.size());
     stages.reserve(pipeline_stage_infos.size());
-    for (auto &pinfo: pipeline_stage_infos) {
+    for (auto& pinfo : pipeline_stage_infos) {
       orders.push_back(pinfo.order);
       stages.push_back(pinfo.stage);
     }
@@ -198,7 +199,8 @@ class PipelinePlanner : public StmtExprMutator {
     annotations.Set(attr::software_pipeline_order, Array<Integer>(orders));
     annotations.Set(attr::software_pipeline_async_stages, Array<Integer>{0});
 
-    return For(loop->loop_var, loop->min, loop->extent, loop->kind, loop->body, loop->thread_binding, annotations);
+    return For(loop->loop_var, loop->min, loop->extent, loop->kind, loop->body,
+               loop->thread_binding, annotations);
   }
 
   Stmt VisitStmt_(const BlockNode* op) final {

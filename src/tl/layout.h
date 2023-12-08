@@ -17,11 +17,11 @@
  * under the License.
  */
 
- /*!
-  * \file Layout.h
-  * \brief Define Layout used in MMA and other operations.
-  *
-  */
+/*!
+ * \file Layout.h
+ * \brief Define Layout used in MMA and other operations.
+ *
+ */
 
 #ifndef TVM_TL_LAYOUT_H_
 #define TVM_TL_LAYOUT_H_
@@ -37,8 +37,7 @@ class Layout;
 class Fragment;
 
 class LayoutNode : public Object {
-public:
-
+ public:
   bool Valid() const { return forward_index_.size() != 0; }
 
   size_t InputDim() const { return forward_var_.size(); }
@@ -75,14 +74,14 @@ public:
  * \brief Layout reference class.
  */
 class Layout : public ObjectRef {
-public:
+ public:
   TVM_DLL Layout(Array<IterVar> forward_var, Array<PrimExpr> forward_index);
 
   TVM_DEFINE_OBJECT_REF_METHODS(Layout, ObjectRef, LayoutNode);
 };
 
 class FragmentNode : public LayoutNode {
-public:
+ public:
   FragmentNode() = default;
 
   Layout Inverse() const final;
@@ -95,7 +94,8 @@ public:
 
   PrimExpr ForwardThread(const Array<PrimExpr>& vars, const Optional<PrimExpr>& rep_var) const;
 
-  Fragment Repeat(const Array<PrimExpr>& repeats, bool repeat_on_thread, bool lower_dim_first = true) const;
+  Fragment Repeat(const Array<PrimExpr>& repeats, bool repeat_on_thread,
+                  bool lower_dim_first = true) const;
 
   Fragment Replicate(int repeats) const;
 
@@ -116,17 +116,19 @@ public:
  * \brief Fragment reference class.
  */
 class Fragment : public Layout {
-public:
+ public:
   TVM_DLL Fragment(Array<IterVar> forward_var, Array<PrimExpr> forward_index,
-    PrimExpr forward_thread, IterVar thread_replicate);
+                   PrimExpr forward_thread, IterVar thread_replicate);
 
   TVM_DEFINE_OBJECT_REF_METHODS(Fragment, Layout, FragmentNode);
 };
 
 bool FragmentThreadEqual(const Fragment& a, const Fragment& b);
 
-Fragment makeGemmFragmentC(const int block_m, const int block_n, const int warp_m, const int warp_n);
-Fragment makeGemmFragmentA(const int block_m, const int block_n, const int block_k, const int warp_m, const int warp_n);
+Fragment makeGemmFragmentC(const int block_m, const int block_n, const int warp_m,
+                           const int warp_n);
+Fragment makeGemmFragmentA(const int block_m, const int block_n, const int block_k,
+                           const int warp_m, const int warp_n);
 Layout makeGemmABLayout(int stride, int continuous, int element_size, int kfactor);
 
 namespace attr {
@@ -134,9 +136,9 @@ namespace attr {
 // Disable a for loop to infer under InferLevel kFree
 constexpr const char* kSkipLayoutInfer = "skip_layout_infer";
 
-} // namespace attr
+}  // namespace attr
 
-} // namespace tl
-} // namespace tvm
+}  // namespace tl
+}  // namespace tvm
 
 #endif  // TVM_TL_LAYOUT_H_

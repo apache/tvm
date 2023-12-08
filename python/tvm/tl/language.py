@@ -14,13 +14,14 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+"""The language interface for tl programs."""
 
-from . import _ffi_api
-from tvm import tir, ir
 from typing import Union, List
-
+from tvm import tir
 from tvm.script import tir as T
 from tvm.script.parser.tir import *
+from . import _ffi_api
+
 
 def Parallel(*extents: tir.PrimExpr):
     """Tools to construct nested parallel for loop.
@@ -37,6 +38,7 @@ def Parallel(*extents: tir.PrimExpr):
         The ForFrame.
     """
     return _ffi_api.Parallel(extents)  # type: ignore[attr-defined] # pylint: disable=no-member
+
 
 def Pipelined(start: tir.PrimExpr, stop: tir.PrimExpr = None, num_stages: int = 0):
     """Tools to construct pipelined for loop.
@@ -61,7 +63,9 @@ def Pipelined(start: tir.PrimExpr, stop: tir.PrimExpr = None, num_stages: int = 
             start = IntImm(start.dtype, 0)
         else:
             start = 0
-    return _ffi_api.Pipelined(start, stop, num_stages)  # type: ignore[attr-defined] # pylint: disable=no-member
+    # type: ignore[attr-defined] # pylint: disable=no-member
+    return _ffi_api.Pipelined(start, stop, num_stages)
+
 
 def launch_program(*grid_size: List[int], num_threads: int):
     """Tools to quickly construct a GPU kernel launch frame.
@@ -88,38 +92,44 @@ def launch_program(*grid_size: List[int], num_threads: int):
     bz = T.launch_thread("blockIdx.z", grid_size[2])
     return bx, by, bz, tx
 
+
 def use_swizzle(panel_size: int):
     return T.attr(None, "threadblock_swizzle_pattern", f"tl::rasterization2DRow<{panel_size}>")
+
 
 def alloc_shared(shape, dtype):
     return T.alloc_buffer(shape, dtype, scope="shared.dyn")
 
+
 def alloc_fragment(shape, dtype):
     return T.alloc_buffer(shape, dtype, scope="local.fragment")
 
+
 def region(buffer: tir.BufferLoad, access_type: str, *args: tir.PrimExpr):
-    access_type = {"r" : 1, "w" : 2, "rw": 3}[access_type]
-    return tir.call_intrin(
-        "handle", tir.op.Op.get("tl.region"),
-        buffer, access_type, *args
-    )
+    access_type = {"r": 1, "w": 2, "rw": 3}[access_type]
+    return tir.call_intrin("handle", tir.op.Op.get("tl.region"), buffer, access_type, *args)
+
 
 def buffer_to_tile_region(buffer: tir.Buffer, access_type: str):
     mins = [0 for _ in buffer.shape]
     extents = [x for x in buffer.shape]
     return region(T.BufferLoad(buffer, mins), access_type, *extents)
 
+
 def buffer_load_to_tile_region(load: tir.BufferLoad, access_type: str, extents: List[tir.PrimExpr]):
     return region(load, access_type, *extents)
+
 
 def buffer_region_to_tile_region(buffer_region: tir.BufferRegion, access_type: str):
     mins = [x.min for x in buffer_region.region]
     extents = [x.extent for x in buffer_region.region]
     return region(T.BufferLoad(buffer_region.buffer, mins), access_type, *extents)
 
-def copy(src: Union[tir.Buffer, tir.BufferLoad, tir.BufferRegion],
-         dst: Union[tir.Buffer, tir.BufferLoad],
-        ):
+
+def copy(
+    src: Union[tir.Buffer, tir.BufferLoad, tir.BufferRegion],
+    dst: Union[tir.Buffer, tir.BufferLoad],
+):
     def get_extent(data):
         if isinstance(data, tir.Buffer):
             return data.shape
@@ -150,18 +160,23 @@ def copy(src: Union[tir.Buffer, tir.BufferLoad, tir.BufferRegion],
     src = _to_region(src, "r")
     dst = _to_region(dst, "w")
 
-    return tir.call_intrin(
-        "handle", tir.op.Op.get("tl.copy"),
-        src, dst
-    )
+    return tir.call_intrin("handle", tir.op.Op.get("tl.copy"), src, dst)
 
-class GemmWarpPolicy():
+
+class GemmWarpPolicy:
     Square = 0
     FullRow = 1
     FullCol = 2
 
-def gemm(A: tir.Buffer, B: tir.Buffer, C: tir.Buffer,
-         transpose_A: bool=False, transpose_B: bool=False, policy: GemmWarpPolicy=GemmWarpPolicy.Square):
+
+def gemm(
+    A: tir.Buffer,
+    B: tir.Buffer,
+    C: tir.Buffer,
+    transpose_A: bool = False,
+    transpose_B: bool = False,
+    policy: GemmWarpPolicy = GemmWarpPolicy.Square,
+):
     M = C.shape[0]
     N = C.shape[1]
     K = A.shape[0] if transpose_A else A.shape[1]
@@ -171,25 +186,38 @@ def gemm(A: tir.Buffer, B: tir.Buffer, C: tir.Buffer,
     Bptr = B.access_ptr("r")
     Cptr = C.access_ptr("rw")
     return tir.call_intrin(
-        "handle", tir.op.Op.get("tl.gemm"),
-        Aptr, Bptr, Cptr, transpose_A, transpose_B, M, N, K, policy
+        "handle",
+        tir.op.Op.get("tl.gemm"),
+        Aptr,
+        Bptr,
+        Cptr,
+        transpose_A,
+        transpose_B,
+        M,
+        N,
+        K,
+        policy,
     )
+
 
 def fill(buffer: tir.Buffer, value: tir.PrimExpr):
     buffer = buffer.access_ptr("w")
-    return tir.call_intrin("handle", tir.op.Op.get("tl.fill"),
-                           buffer, value)
+    return tir.call_intrin("handle", tir.op.Op.get("tl.fill"), buffer, value)
+
 
 def clear(buffer: tir.Buffer):
     return fill(buffer, 0)
 
+
 def reduce(buffer: tir.Buffer, out: tir.Buffer, reduce_type: str, dim: int, clear: bool):
     buffer = buffer.access_ptr("r")
-    out = out.access_ptr('w')
-    return tir.call_intrin("handle", tir.op.Op.get("tl.reduce"),
-                           buffer, out, reduce_type, dim, clear)
+    out = out.access_ptr("w")
+    return tir.call_intrin(
+        "handle", tir.op.Op.get("tl.reduce"), buffer, out, reduce_type, dim, clear
+    )
 
-def reduce_max(buffer: tir.Buffer, out: tir.Buffer, dim: int, clear: bool=True):
+
+def reduce_max(buffer: tir.Buffer, out: tir.Buffer, dim: int, clear: bool = True):
     """Perform reduce max on input buffer, store the result to output buffer
 
     Parameters
@@ -207,6 +235,7 @@ def reduce_max(buffer: tir.Buffer, out: tir.Buffer, dim: int, clear: bool=True):
     handle : PrimExpr
     """
     return reduce(buffer, out, "max", dim, clear)
+
 
 def reduce_sum(buffer: tir.Buffer, out: tir.Buffer, dim: int):
     return reduce(buffer, out, "sum", dim, True)

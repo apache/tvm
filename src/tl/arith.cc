@@ -17,11 +17,11 @@
  * under the License.
  */
 
- /*!
-  * \file arith.cc
-  * \brief Some arith tools for layout & fragment inference
-  *
-  */
+/*!
+ * \file arith.cc
+ * \brief Some arith tools for layout & fragment inference
+ *
+ */
 
 #include "arith.h"
 
@@ -54,12 +54,12 @@ bool CanProveDivisible(const PrimExpr& lhs, const PrimExpr& rhs) {
  *  These out-going splits can then be used to check if the iterators are independent.
  */
 class IterMarkSplitCollector {
-public:
+ public:
   // mark all IterMarks that are visited.
   std::unordered_set<IterMark, ObjectPtrHash, ObjectPtrEqual> visited_;
   // each iter mark to its outgoing splits that are referenced.
   std::unordered_map<IterMark, std::vector<IterSplitExpr>, ObjectPtrHash, ObjectPtrEqual>
-    mark2splits_;
+      mark2splits_;
   /*!
    * \brief Collect all mark2splits recursively from indices.
    * \param indices The iterator of interest.
@@ -86,12 +86,13 @@ public:
 };
 
 Array<IterSplitExpr> get_unused_iters(const IterMark& mark,
-  const std::vector<IterSplitExpr>& splits, Analyzer* analyzer) {
+                                      const std::vector<IterSplitExpr>& splits,
+                                      Analyzer* analyzer) {
   PrimExpr expected_lower_factor = make_const(mark->source->dtype, 1);
   std::vector<bool> used(splits.size(), false);
   std::vector<IterSplitExpr> results;
   size_t i = 0;
-  for (; i < splits.size(); ) {
+  for (; i < splits.size();) {
     size_t j = 0;
     size_t lowest = splits.size();
     for (; j < splits.size(); ++j) {
@@ -99,16 +100,16 @@ Array<IterSplitExpr> get_unused_iters(const IterMark& mark,
       if (!used[j] && analyzer->CanProveEqual(splits[j]->lower_factor, expected_lower_factor)) {
         break;
       }
-      if (lowest == splits.size() || CanProveDivisible(splits[lowest]->lower_factor, splits[j]->lower_factor)) {
+      if (lowest == splits.size() ||
+          CanProveDivisible(splits[lowest]->lower_factor, splits[j]->lower_factor)) {
         lowest = j;
       }
     }
     if (j == splits.size()) {
       ICHECK(lowest != splits.size());
       ICHECK(CanProveDivisible(splits[lowest]->lower_factor, expected_lower_factor));
-      results.emplace_back(mark,
-        expected_lower_factor,
-        FloorDiv(splits[lowest]->lower_factor, expected_lower_factor), 1);
+      results.emplace_back(mark, expected_lower_factor,
+                           FloorDiv(splits[lowest]->lower_factor, expected_lower_factor), 1);
       expected_lower_factor = splits[lowest]->lower_factor;
     } else {
       used[j] = true;
@@ -118,15 +119,16 @@ Array<IterSplitExpr> get_unused_iters(const IterMark& mark,
   }
   bool match_full_iter = analyzer->CanProveEqual(expected_lower_factor, mark->extent);
   if (!match_full_iter) {
-    results.emplace_back(mark,
-      expected_lower_factor,
-      FloorDiv(mark->extent, expected_lower_factor), 1);
+    results.emplace_back(mark, expected_lower_factor, FloorDiv(mark->extent, expected_lower_factor),
+                         1);
   }
   return results;
 }
 
-Array<IterSplitExpr> DivideUnusedIterators(const Array<PrimExpr>& exprs, const Array<IterVar> input_iters, Analyzer* analyzer) {
-  auto iter_sum = exprs.Map([&](const auto& e) { return NormalizeToIterSum(e, ToVMap(input_iters), analyzer); });
+Array<IterSplitExpr> DivideUnusedIterators(const Array<PrimExpr>& exprs,
+                                           const Array<IterVar> input_iters, Analyzer* analyzer) {
+  auto iter_sum = exprs.Map(
+      [&](const auto& e) { return NormalizeToIterSum(e, ToVMap(input_iters), analyzer); });
   IterMarkSplitCollector collector;
   collector.Collect(iter_sum);
   Array<IterSplitExpr> results;
@@ -160,8 +162,8 @@ PrimExpr MakeFlattenedExpression(const Array<arith::IterSplitExpr>& splits) {
   Array<arith::IterSplitExpr> lists;
   PrimExpr scale = 1;
   for (int i = splits.size() - 1; i >= 0; i--) {
-    auto scaled_split = arith::IterSplitExpr(
-      splits[i]->source, splits[i]->lower_factor, splits[i]->extent, scale);
+    auto scaled_split =
+        arith::IterSplitExpr(splits[i]->source, splits[i]->lower_factor, splits[i]->extent, scale);
     lists.push_back(scaled_split);
     scale *= splits[i]->extent;
   }
@@ -169,9 +171,9 @@ PrimExpr MakeFlattenedExpression(const Array<arith::IterSplitExpr>& splits) {
 }
 
 class IterSumMutator {
-public:
+ public:
   IterSumMutator(const Map<IterSplitExpr, IterSplitExpr>& replace_map)
-    : replace_map_(replace_map) {}
+      : replace_map_(replace_map) {}
 
   // override the original mutate function.
   IterSumExpr Mutate(const IterSumExpr& iter_sum) {
@@ -180,7 +182,8 @@ public:
       if (replace_map_.count(split)) {
         args.push_back(replace_map_[split]);
       } else {
-        auto split_ = IterSplitExpr(Mutate(split->source), split->lower_factor, split->extent, split->scale);
+        auto split_ =
+            IterSplitExpr(Mutate(split->source), split->lower_factor, split->extent, split->scale);
         args.push_back(split_);
       }
     }
@@ -195,15 +198,16 @@ public:
     }
   }
 
-private:
+ private:
   Map<IterSplitExpr, IterSplitExpr> replace_map_;
 };
 
-std::pair<PrimExpr, IterVar> CompressIterator(const PrimExpr& expr, const Array<IterVar> input_iters,
-  const IterVar& iv, arith::Analyzer* analyzer) {
+std::pair<PrimExpr, IterVar> CompressIterator(const PrimExpr& expr,
+                                              const Array<IterVar> input_iters, const IterVar& iv,
+                                              arith::Analyzer* analyzer) {
   auto iter_sum = arith::NormalizeToIterSum(expr, ToVMap(input_iters), analyzer);
   IterMarkSplitCollector collector;
-  collector.Collect({ iter_sum });
+  collector.Collect({iter_sum});
   IterMark mark;
   for (const IterMark& m : collector.visited_) {
     ICHECK(m->source.as<Var>()) << "Not a normalized iterator: " << mark;
@@ -229,8 +233,7 @@ std::pair<PrimExpr, IterVar> CompressIterator(const PrimExpr& expr, const Array<
   PrimExpr scale = 1;
   Map<IterSplitExpr, IterSplitExpr> replace_map;
   for (const auto& split : splits) {
-    auto rescaled = arith::IterSplitExpr(
-      new_mark, scale, split->extent, split->scale);
+    auto rescaled = arith::IterSplitExpr(new_mark, scale, split->extent, split->scale);
     replace_map.Set(split, rescaled);
     scale *= split->extent;
   }
@@ -238,8 +241,8 @@ std::pair<PrimExpr, IterVar> CompressIterator(const PrimExpr& expr, const Array<
   IterSumMutator mutator(replace_map);
   PrimExpr reaplced = analyzer->Simplify(NormalizeIterMapToExpr(mutator.Mutate(iter_sum)));
 
-  return { reaplced, new_iter_var };
+  return {reaplced, new_iter_var};
 }
 
-} // namespace tl
-} // namespace tvm
+}  // namespace tl
+}  // namespace tvm

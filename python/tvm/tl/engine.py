@@ -1,35 +1,57 @@
+# Licensed to the Apache Software Foundation (ASF) under one
+# or more contributor license agreements.  See the NOTICE file
+# distributed with this work for additional information
+# regarding copyright ownership.  The ASF licenses this file
+# to you under the Apache License, Version 2.0 (the
+# "License"); you may not use this file except in compliance
+# with the License.  You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing,
+# software distributed under the License is distributed on an
+# "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+# KIND, either express or implied.  See the License for the
+# specific language governing permissions and limitations
+# under the License.
+"""The compiler for TL programs."""
+
+import os.path as osp
 import tvm
 from tvm import tir, tl, relay
 from tvm.contrib import nvcc
-import os.path as osp
 
-def is_device_call(fn: tir.PrimFunc):
-    if fn.attrs and "calling_conv" in fn.attrs and fn.attrs["calling_conv"] == 2:
-        return True
-    else:
-        return False
 
-def is_host_call(fn: tir.PrimFunc):
-    return not is_device_call(fn)
+def is_device_call(func: tir.PrimFunc):
+    return bool(func.attrs and "calling_conv" in func.attrs and func.attrs["calling_conv"] == 2)
+
+
+def is_host_call(func: tir.PrimFunc):
+    return not is_device_call(func)
+
 
 @tvm.register_func("tvm_tl_cuda_compile", override=True)
 def tvm_callback_cuda_compile(code, target):
     tvm_root = osp.join(osp.dirname(__file__), "../../..")
     tl_template_path = osp.abspath(osp.join(tvm_root, "src/tl"))
-    ptx = nvcc.compile_cuda(code, target_format="ptx", options=["-std=c++17", "-I"+tl_template_path])
+    ptx = nvcc.compile_cuda(
+        code, target_format="ptx", options=["-std=c++17", "-I" + tl_template_path]
+    )
     return ptx
 
-def extrac_params(fn: tir.PrimFunc):
-    buffers = [fn.buffer_map[var] for var in fn.params]
+
+def extrac_params(func: tir.PrimFunc):
+    buffers = [func.buffer_map[var] for var in func.params]
     tensor_types = [relay.TensorType(buffer.shape, buffer.dtype) for buffer in buffers]
     return tensor_types
 
-def compile(fn):
-    params = extrac_params(fn)
+
+def lower(func):
+    params = extrac_params(func)
     target_host = tvm.target.Target("llvm -keys=cpu")
     target = tvm.target.Target("cuda", target_host)
 
-    mod = tvm.IRModule({fn.attrs["global_symbol"]: fn})
+    mod = tvm.IRModule({func.attrs["global_symbol"]: func})
 
     mod = tl.transform.FrontendLegalize()(mod)
     mod = tir.transform.Simplify()(mod)

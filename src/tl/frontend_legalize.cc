@@ -17,18 +17,18 @@
  * under the License.
  */
 
- /*!
-  * \file frontend_legalize.cc
-  * \brief Legalize the program from frontend
-  */
+/*!
+ * \file frontend_legalize.cc
+ * \brief Legalize the program from frontend
+ */
 
+#include <tvm/tir/op.h>
 #include <tvm/tir/stmt_functor.h>
 #include <tvm/tir/transform.h>
-#include <tvm/tir/op.h>
 
 #include "../arith/ir_mutator_with_analyzer.h"
-#include "op.h"
 #include "layout.h"
+#include "op.h"
 
 namespace tvm {
 namespace tl {
@@ -36,7 +36,7 @@ namespace tl {
 using namespace tir;
 
 class FrontendLegalizer : public arith::IRMutatorWithAnalyzer {
-public:
+ public:
   static PrimFunc Substitute(PrimFunc f) {
     arith::Analyzer analyzer;
     FrontendLegalizer substituter(&analyzer);
@@ -48,7 +48,7 @@ public:
     return f;
   }
 
-private:
+ private:
   using arith::IRMutatorWithAnalyzer::IRMutatorWithAnalyzer;
 
   Stmt VisitStmt_(const BlockNode* op) final {
@@ -93,7 +93,8 @@ private:
 
     PrimExpr value = BufferLoad(args.src, src_indices);
     if (args.src->dtype != args.dst->dtype) value = Cast(args.dst->dtype, value);
-    if (src_predicate.defined()) value = if_then_else(src_predicate, value, make_zero(args.dst->dtype));
+    if (src_predicate.defined())
+      value = if_then_else(src_predicate, value, make_zero(args.dst->dtype));
 
     Stmt body = BufferStore(args.dst, value, dst_indices);
     if (dst_predicate.defined()) body = IfThenElse(dst_predicate, body);
@@ -110,8 +111,8 @@ private:
     Array<IterVar> loop_vars;
     Array<PrimExpr> dst_indices;
     for (int i = 0; i < ndim; i++) {
-      Var var = Var(std::string{ char('i' + i) });
-      loop_vars.push_back({ Range(0, args.dst->shape[i]), var, IterVarType::kDataPar });
+      Var var = Var(std::string{char('i' + i)});
+      loop_vars.push_back({Range(0, args.dst->shape[i]), var, IterVarType::kDataPar});
       dst_indices.push_back(var);
     }
     Stmt body = BufferStore(args.dst, args.value, dst_indices);
@@ -161,11 +162,11 @@ using namespace tir::transform;
 Pass FrontendLegalize() {
   auto pass_func = [=](PrimFunc f, IRModule m, PassContext ctx) {
     return FrontendLegalizer::Substitute(std::move(f));
-    };
+  };
   return CreatePrimFuncPass(pass_func, 0, "tl.FrontendLegalize", {});
 }
 
 TVM_REGISTER_GLOBAL("tl.FrontendLegalize").set_body_typed(FrontendLegalize);
 
-} // namespace tl
-} // namespace tvm
+}  // namespace tl
+}  // namespace tvm

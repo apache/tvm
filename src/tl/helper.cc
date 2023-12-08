@@ -20,10 +20,10 @@
 /*!
  * \file tl/helper.cc
  * \brief helper functions for tile library.
- *
  */
 
 #include "helper.h"
+
 #include "op.h"
 
 namespace tvm {
@@ -31,22 +31,21 @@ namespace tl {
 
 using namespace tir;
 
-Array<IterVar> ToIterVars(const Map<Var, Range> &vmap) {
+Array<IterVar> ToIterVars(const Map<Var, Range>& vmap) {
   Array<IterVar> result;
-  for (const auto &[var, range]: vmap) {
+  for (const auto& [var, range] : vmap) {
     result.push_back(IterVar(range, var, IterVarType::kDataPar));
   }
   return result;
 }
 
-Map<Var, Range> ToVMap(const Array<IterVar> &ivs) {
+Map<Var, Range> ToVMap(const Array<IterVar>& ivs) {
   Map<Var, Range> result;
-  for (const auto &iv: ivs) {
+  for (const auto& iv : ivs) {
     result.Set(iv->var, iv->dom);
   }
   return result;
 }
 
-} // namespace tl
-} // namespace tvm
-
+}  // namespace tl
+}  // namespace tvm

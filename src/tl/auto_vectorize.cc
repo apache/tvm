@@ -17,31 +17,31 @@
  * under the License.
  */
 
- /*!
-  * \file auto_vectorize.cc
-  * \brief A tool to automatically vectorize a for loop
-  */
+/*!
+ * \file auto_vectorize.cc
+ * \brief A tool to automatically vectorize a for loop
+ */
 
 #include "auto_vectorize.h"
 
-#include <tvm/tir/stmt_functor.h>
-#include <tvm/tir/builtin.h>
 #include <tvm/arith/iter_affine_map.h>
+#include <tvm/tir/builtin.h>
+#include <tvm/tir/stmt_functor.h>
+
 #include <numeric>
 
-#include "layout.h"
-#include "helper.h"
-#include "../arith/ir_visitor_with_analyzer.h"
 #include "../arith/int_operator.h"
+#include "../arith/ir_visitor_with_analyzer.h"
+#include "helper.h"
+#include "layout.h"
 
 namespace tvm {
 namespace tl {
 
 using namespace tir;
 
-class VectorizePlanner: public arith::IRVisitorWithAnalyzer {
+class VectorizePlanner : public arith::IRVisitorWithAnalyzer {
  public:
-
   VectorizePlanner() = default;
 
   int Plan(const For& node) {
@@ -49,8 +49,8 @@ class VectorizePlanner: public arith::IRVisitorWithAnalyzer {
     if (!has_nonlocal_memory_access_) return 1;
     return vector_size_;
   }
- private:
 
+ private:
   void VisitStmt_(const ForNode* node) final {
     inner_for_ = node;
     iter_map_.Set(node->loop_var, Range(node->min, node->extent));
@@ -58,14 +58,16 @@ class VectorizePlanner: public arith::IRVisitorWithAnalyzer {
   }
 
   void VisitExpr_(const BufferLoadNode* node) final {
-    if (node->buffer.scope() == "shared" || node->buffer.scope() == "global" || node->buffer.scope() == "shared.dyn")
+    if (node->buffer.scope() == "shared" || node->buffer.scope() == "global" ||
+        node->buffer.scope() == "shared.dyn")
       has_nonlocal_memory_access_ = true;
     UpdateVectorSize(node->indices, node->buffer);
     return arith::IRVisitorWithAnalyzer::VisitExpr_(node);
   }
 
   void VisitStmt_(const BufferStoreNode* node) final {
-    if (node->buffer.scope() == "shared" || node->buffer.scope() == "global" || node->buffer.scope() == "shared.dyn")
+    if (node->buffer.scope() == "shared" || node->buffer.scope() == "global" ||
+        node->buffer.scope() == "shared.dyn")
       has_nonlocal_memory_access_ = true;
     UpdateVectorSize(node->indices, node->buffer);
     return arith::IRVisitorWithAnalyzer::VisitStmt_(node);
@@ -83,20 +85,21 @@ class VectorizePlanner: public arith::IRVisitorWithAnalyzer {
     return arith::IRVisitorWithAnalyzer::VisitExpr_(node);
   }
 
-  void CheckConditionVectorized(const PrimExpr &cond) {
+  void CheckConditionVectorized(const PrimExpr& cond) {
     // TODO: perform some checks here
   }
 
-  void UpdateVectorSize(const Array<PrimExpr> indices, const Buffer &buffer) {
+  void UpdateVectorSize(const Array<PrimExpr> indices, const Buffer& buffer) {
     if (!inner_for_) return;
     auto extent_ptr = inner_for_->extent.as<IntImmNode>();
     if (!extent_ptr) return;
 
-    const DataType &access_type = buffer->dtype;
+    const DataType& access_type = buffer->dtype;
     int max_vector_size = arith::ZeroAwareGCD(128 / access_type.bits(), extent_ptr->value);
 
     auto buffer_last_dim_size = as_const_int(buffer->shape.back());
-    ICHECK(buffer_last_dim_size != nullptr) << "dyn shape currently not supported " << buffer->shape;
+    ICHECK(buffer_last_dim_size != nullptr)
+        << "dyn shape currently not supported " << buffer->shape;
     max_vector_size = arith::ZeroAwareGCD(max_vector_size, *buffer_last_dim_size);
 
     PrimExpr lsi = indices.back();
@@ -110,9 +113,10 @@ class VectorizePlanner: public arith::IRVisitorWithAnalyzer {
     int vector_size = 2;
     while ((max_vector_size % vector_size) == 0) {
       bool can_vector_load = true;
-      if (!analyzer_.CanProveEqual(FloorMod(iter_sum->base, vector_size), 0)) can_vector_load = false;
+      if (!analyzer_.CanProveEqual(FloorMod(iter_sum->base, vector_size), 0))
+        can_vector_load = false;
 
-      for (const auto &split: iter_sum->args) {
+      for (const auto& split : iter_sum->args) {
         int scale = split->scale.as<IntImm>().value()->value;
         int lower_factor = split->lower_factor.as<IntImm>().value()->value;
         if (split->source->source.same_as(last_var) && lower_factor % vector_size != 0) {
@@ -142,7 +146,7 @@ class VectorizePlanner: public arith::IRVisitorWithAnalyzer {
   int vector_size_ = 128;
 };
 
-class VectorizeRewriter: public StmtExprMutator {
+class VectorizeRewriter : public StmtExprMutator {
  public:
   VectorizeRewriter(int vector_size) : vector_size_(vector_size) {}
 
@@ -150,7 +154,7 @@ class VectorizeRewriter: public StmtExprMutator {
   Stmt VisitStmt_(const ForNode* node) final {
     inner_for_ = node;
     auto f = StmtExprMutator::VisitStmt_(node);
-    if (inner_for_ == node) { // rewrite the innermost loop
+    if (inner_for_ == node) {  // rewrite the innermost loop
       auto old_var = node->loop_var;
       auto extent_ptr = as_const_int(node->extent);
       ICHECK(extent_ptr) << node->extent;
@@ -163,7 +167,8 @@ class VectorizeRewriter: public StmtExprMutator {
       vmap.Set(node->loop_var, outer_var * vector_size_ + inner_var);
       Stmt body = Substitute(node->body, vmap);
       body = For(inner_var, 0, vector_size_, ForKind::kVectorized, body);
-      body = For(outer_var, 0, extent / vector_size_, node->kind, body, node->thread_binding, node->annotations, node->span);
+      body = For(outer_var, 0, extent / vector_size_, node->kind, body, node->thread_binding,
+                 node->annotations, node->span);
       return body;
     } else {
       return f;
@@ -174,11 +179,9 @@ class VectorizeRewriter: public StmtExprMutator {
   const int vector_size_;
 };
 
-int GetVectorizeSize(const For& loop) {
-  return VectorizePlanner().Plan(loop);
-}
+int GetVectorizeSize(const For& loop) { return VectorizePlanner().Plan(loop); }
 
-For VectorizeLoop(const For &loop, int vectorize_hint) {
+For VectorizeLoop(const For& loop, int vectorize_hint) {
   if (vectorize_hint <= 0) {
     vectorize_hint = GetVectorizeSize(loop);
   }
@@ -188,5 +191,5 @@ For VectorizeLoop(const For &loop, int vectorize_hint) {
   return loop;
 }
 
-} // namespace tl
-} // namespace tvm
+}  // namespace tl
+}  // namespace tvm

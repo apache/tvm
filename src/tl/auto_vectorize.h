@@ -17,10 +17,10 @@
  * under the License.
  */
 
- /*!
-  * \file auto_vectorize.h
-  * \brief A tool to automatically vectorize a for loop
-  */
+/*!
+ * \file auto_vectorize.h
+ * \brief A tool to automatically vectorize a for loop
+ */
 
 #ifndef TVM_TL_AUTO_VECTORIZE_H_
 #define TVM_TL_AUTO_VECTORIZE_H_
@@ -33,11 +33,9 @@ namespace tl {
 using namespace tir;
 
 int GetVectorizeSize(const For& loop);
-For VectorizeLoop(const For &loop, int vectorize_hint = -1);
+For VectorizeLoop(const For& loop, int vectorize_hint = -1);
 
+}  // namespace tl
+}  // namespace tvm
 
-} // namespace tl
-} // namespace tvm
-
-
-#endif // TVM_TL_AUTO_VECTORIZE_H_
+#endif  // TVM_TL_AUTO_VECTORIZE_H_

@@ -17,10 +17,10 @@
  * under the License.
  */
 
- /*!
-  * \file loop_partition.cc
-  * \brief Partition parallel loops onto threads
-  */
+/*!
+ * \file loop_partition.cc
+ * \brief Partition parallel loops onto threads
+ */
 
 #include "loop_partition.h"
 
@@ -33,27 +33,29 @@ using namespace tir;
 
 class BufferIndiceSimplify : public StmtExprMutator {
  public:
-  BufferIndiceSimplify(arith::Analyzer *analyzer) : analyzer_(analyzer) {}
+  BufferIndiceSimplify(arith::Analyzer* analyzer) : analyzer_(analyzer) {}
+
  private:
   PrimExpr VisitExpr_(const BufferLoadNode* node) final {
     auto visited = StmtExprMutator::VisitExpr_(node);
     auto n = visited.as<BufferLoad>().value();
     auto nptr = n.CopyOnWrite();
-    nptr->indices = nptr->indices.Map([&] (const auto& e) { return analyzer_->Simplify(e); });
+    nptr->indices = nptr->indices.Map([&](const auto& e) { return analyzer_->Simplify(e); });
     return n;
   }
   Stmt VisitStmt_(const BufferStoreNode* node) final {
     auto visited = StmtExprMutator::VisitStmt_(node);
     auto n = visited.as<BufferStore>().value();
     auto nptr = n.CopyOnWrite();
-    nptr->indices = nptr->indices.Map([&] (const auto& e) { return analyzer_->Simplify(e); });
+    nptr->indices = nptr->indices.Map([&](const auto& e) { return analyzer_->Simplify(e); });
     return n;
   }
-  arith::Analyzer *analyzer_;
+  arith::Analyzer* analyzer_;
 };
 
 // Rewrite the parallel loop into a common loop, which is mapped to threads
-For PartitionLoop(const ForNode* op, const Var& thread, arith::Analyzer* analyzer, const Fragment& loop_layout) {
+For PartitionLoop(const ForNode* op, const Var& thread, arith::Analyzer* analyzer,
+                  const Fragment& loop_layout) {
   ICHECK(loop_layout.defined());
   ICHECK(thread.defined());
   int old_loop_depth = loop_layout->InputDim();
@@ -62,7 +64,7 @@ For PartitionLoop(const ForNode* op, const Var& thread, arith::Analyzer* analyze
   // Create the new loop iter var
   Array<Var> vars;
   for (int i = 0; i < new_loop_depth; i++) {
-    Var var = Var(std::string{ char('i' + i) });
+    Var var = Var(std::string{char('i' + i)});
     vars.push_back(var);
   }
   vars.push_back(thread);
@@ -81,7 +83,8 @@ For PartitionLoop(const ForNode* op, const Var& thread, arith::Analyzer* analyze
   // substitute and re-construct the serial loop
   body = Substitute(body, vmap);
   for (int i = new_loop_depth - 1; i >= 0; i--) {
-    body = For(vars[i], make_zero(vars[i]->dtype), inv_loop->InputShape()[i], ForKind::kSerial, body);
+    body =
+        For(vars[i], make_zero(vars[i]->dtype), inv_loop->InputShape()[i], ForKind::kSerial, body);
     analyzer->Bind(vars[i], Range(0, inv_loop->InputShape()[i]));
   }
 
@@ -95,6 +98,7 @@ For PartitionLoop(const ForNode* op, const Var& thread, arith::Analyzer* analyze
 class LoopPramaUnroller : public StmtExprMutator {
  public:
   LoopPramaUnroller() = default;
+
  private:
   Stmt VisitStmt_(const ForNode* node) final {
     if (node->kind == ForKind::kSerial) {
@@ -128,15 +132,17 @@ class LoopPartitioner : public StmtExprVisitor {
     }
     PrimExpr access_idx = FloorDiv(flattened, vectorize_size);
     PrimExpr thd = FloorMod(access_idx, num_thread);
-    PrimExpr idx = FloorDiv(access_idx, num_thread) * vectorize_size + FloorMod(flattened, vectorize_size);
-    return Fragment(loop_vars_, { idx }, { thd }, { });
+    PrimExpr idx =
+        FloorDiv(access_idx, num_thread) * vectorize_size + FloorMod(flattened, vectorize_size);
+    return Fragment(loop_vars_, {idx}, {thd}, {});
   }
 
-private:
+ private:
   void VisitStmt_(const ForNode* node) final {
     if (node->kind == ForKind::kParallel) {
       body_ = node->body;
-      loop_vars_.push_back(IterVar(Range::FromMinExtent(node->min, node->extent), node->loop_var, IterVarType::kDataPar));
+      loop_vars_.push_back(IterVar(Range::FromMinExtent(node->min, node->extent), node->loop_var,
+                                   IterVarType::kDataPar));
     }
     StmtExprVisitor::VisitStmt_(node);
   }
@@ -151,10 +157,10 @@ Fragment PlanLoopPartition(const ForNode* op, size_t num_thread, int vectorize_s
   return partitioner.Partition(op, num_thread, vectorize_size);
 }
 
-Stmt LoopPragmaUnroll(Stmt stmt){
+Stmt LoopPragmaUnroll(Stmt stmt) {
   LoopPramaUnroller unroller;
   return unroller(stmt);
 }
 
-} // namespace tl
-} // namespace tvm
+}  // namespace tl
+}  // namespace tvm

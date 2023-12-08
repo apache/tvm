@@ -17,10 +17,10 @@
  * under the License.
  */
 
- /*!
-  * \file tl/layout_infer.cc
-  * \brief Infer layout from ops and parallel for
-  */
+/*!
+ * \file tl/layout_infer.cc
+ * \brief Infer layout from ops and parallel for
+ */
 
 #include "layout_infer.h"
 
@@ -36,14 +36,14 @@ namespace tl {
 using namespace tir;
 
 ForNodeLayoutInfer::ForNodeLayoutInfer(const ForNode* root, size_t block_size)
-  : root_(root), block_size_(block_size) {
+    : root_(root), block_size_(block_size) {
   VisitStmt_(root);
   // Check if the buffer indice matches full range
   for (const auto& [buffer, indices] : indice_map_) {
     Layout layout(loop_vars_, indices);
     ICHECK(StructuralEqual()(buffer->shape, layout->OutputShape()))
-      << "Parallel for over fragment does not match full region, " << buffer->shape << " "
-      << layout->OutputShape();
+        << "Parallel for over fragment does not match full region, " << buffer->shape << " "
+        << layout->OutputShape();
   }
 }
 
@@ -55,6 +55,7 @@ bool ForNodeLayoutInfer::IsCommonAccessIndice(const Buffer& buffer) const {
 void ForNodeLayoutInfer::VisitStmt_(const ForNode* op) {
   ICHECK(op->kind == ForKind::kParallel);
   loop_vars_.push_back(IterVar(Range(op->min, op->extent), op->loop_var, IterVarType::kDataPar));
+  analyzer_.Bind(op->loop_var, Range::FromMinExtent(op->min, op->extent));
   StmtExprVisitor::VisitStmt_(op);
 }
 
@@ -62,7 +63,7 @@ void ForNodeLayoutInfer::VisitStmt_(const BufferStoreNode* op) {
   if (op->buffer.scope() == "local.fragment") {
     if (indice_map_.find(op->buffer) != indice_map_.end()) {
       ICHECK(StructuralEqual()(indice_map_.at(op->buffer), op->indices))
-        << op->buffer << ": " << op->indices << " and " << indice_map_.at(op->buffer);
+          << op->buffer << ": " << op->indices << " and " << indice_map_.at(op->buffer);
     } else {
       indice_map_.Set(op->buffer, op->indices);
     }
@@ -75,7 +76,7 @@ void ForNodeLayoutInfer::VisitExpr_(const BufferLoadNode* op) {
   if (op->buffer.scope() == "local.fragment") {
     if (indice_map_.find(op->buffer) != indice_map_.end()) {
       ICHECK(StructuralEqual()(indice_map_.at(op->buffer), op->indices))
-        << op->buffer << ": " << op->indices << " and " << indice_map_.at(op->buffer);
+          << op->buffer << ": " << op->indices << " and " << indice_map_.at(op->buffer);
     } else {
       indice_map_.Set(op->buffer, op->indices);
     }
@@ -128,21 +129,17 @@ LayoutMap ForNodeLayoutInfer::Inference(const LayoutMap& layout_map, InferLevel 
   // Step 2: Infer other fragment's layout from the loop's partition
   LayoutMap results;
   for (const auto& [buffer, _] : indice_map_) {
-    if (!layout_map.count(buffer))
-      results.Set(buffer, CompleteBufferFragment(buffer));
+    if (!layout_map.count(buffer)) results.Set(buffer, CompleteBufferFragment(buffer));
   }
   return results;
 }
 
-Fragment ForNodeLayoutInfer::CompleteBufferFragment(const Buffer& buffer) const {
+Fragment ForNodeLayoutInfer::CompleteBufferFragment(const Buffer& buffer) {
   ICHECK(loop_layout_.defined());
   if (IsCommonAccessIndice(buffer)) return loop_layout_;
 
-  arith::Analyzer analyzer;
-  loop_layout_->UpdateAnalyzer(&analyzer);
-
-  PrimExpr rep_b = MakeFlattenedExpression(
-    DivideUnusedIterators(indice_map_[buffer], loop_vars_, &analyzer));
+  PrimExpr rep_b =
+      MakeFlattenedExpression(DivideUnusedIterators(indice_map_[buffer], loop_vars_, &analyzer_));
 
   auto bijective_indice = indice_map_[buffer];
   bijective_indice.push_back(rep_b);
@@ -157,19 +154,18 @@ Fragment ForNodeLayoutInfer::CompleteBufferFragment(const Buffer& buffer) const 
   Array<PrimExpr> fwd;
   for (size_t i = 0; i + 1 < ind_inv->InputDim(); i++) {
     auto var = Var("i" + std::to_string(i));
-    iter_vars.push_back(
-      IterVar(Range(0, ind_inv->InputShape()[i]), var, IterVarType::kDataPar));
+    iter_vars.push_back(IterVar(Range(0, ind_inv->InputShape()[i]), var, IterVarType::kDataPar));
     fwd.push_back(var);
   }
   fwd.push_back(FloorMod(rep, indice_rep_extent));
   PrimExpr thd_b =
-    loop_layout_->ForwardThread(ind_inv->Forward(fwd), FloorDiv(rep, indice_rep_extent));
+      loop_layout_->ForwardThread(ind_inv->Forward(fwd), FloorDiv(rep, indice_rep_extent));
 
   return Fragment(iter_vars, {}, thd_b, rep)->CondenseReplicateVar();
 }
 
-GemmOpLayoutInfer::GemmOpLayoutInfer(const GemmArgs& gemm_args, size_t block_size) :
-  args(gemm_args), block_size_(block_size) {}
+GemmOpLayoutInfer::GemmOpLayoutInfer(const GemmArgs& gemm_args, size_t block_size)
+    : args(gemm_args), block_size_(block_size) {}
 
 LayoutMap GemmOpLayoutInfer::Inference(const LayoutMap& layout_map, InferLevel level) {
   if (completed_) return {};
@@ -182,28 +178,29 @@ LayoutMap GemmOpLayoutInfer::Inference(const LayoutMap& layout_map, InferLevel l
 
   if (args.A.scope() == "shared" || args.A.scope() == "shared.dyn") {
     results.Set(args.A,
-      makeGemmABLayout(*as_const_int(args.A->shape[0]),
-        *as_const_int(args.A->shape[1]), args.A->dtype.bits(), args.trans_A ? 1 : 2));
+                makeGemmABLayout(*as_const_int(args.A->shape[0]), *as_const_int(args.A->shape[1]),
+                                 args.A->dtype.bits(), args.trans_A ? 1 : 2));
   }
   if (args.B.scope() == "shared" || args.B.scope() == "shared.dyn") {
     results.Set(args.B,
-      makeGemmABLayout(*as_const_int(args.B->shape[0]),
-        *as_const_int(args.B->shape[1]), args.B->dtype.bits(), args.trans_B ? 2 : 1));
+                makeGemmABLayout(*as_const_int(args.B->shape[0]), *as_const_int(args.B->shape[1]),
+                                 args.B->dtype.bits(), args.trans_B ? 2 : 1));
   }
   if (args.A.scope() == "local.fragment") {
-    results.Set(args.A, makeGemmFragmentA(args.M, args.N, args.K, args.M / warp_m, args.N / warp_n));
+    results.Set(args.A,
+                makeGemmFragmentA(args.M, args.N, args.K, args.M / warp_m, args.N / warp_n));
   }
   completed_ = true;
   return results;
 }
 
-ReduceOpLayoutInfer::ReduceOpLayoutInfer(const ReduceArgs& reduce_args, size_t block_size) :
-  args(reduce_args), block_size_(block_size) {}
+ReduceOpLayoutInfer::ReduceOpLayoutInfer(const ReduceArgs& reduce_args, size_t block_size)
+    : args(reduce_args), block_size_(block_size) {}
 
 LayoutMap ReduceOpLayoutInfer::Inference(const LayoutMap& layout_map, InferLevel level) {
   if (level >= InferLevel::kStrict) return {};
   if (args.src.scope() == "local.fragment" && args.dst.scope() == "local.fragment" &&
-    layout_map.count(args.src) && !layout_map.count(args.dst)) {
+      layout_map.count(args.src) && !layout_map.count(args.dst)) {
     auto src_layout = layout_map[args.src].as<Fragment>().value();
 
     PrimExpr indice_rep_extent = args.src->shape[args.dim];
@@ -219,16 +216,16 @@ LayoutMap ReduceOpLayoutInfer::Inference(const LayoutMap& layout_map, InferLevel
       } else {
         auto var = Var("i" + std::to_string(i));
         iter_vars.push_back(
-          IterVar(Range(0, src_layout->InputShape()[i]), var, IterVarType::kDataPar));
+            IterVar(Range(0, src_layout->InputShape()[i]), var, IterVarType::kDataPar));
         fwd.push_back(var);
       }
     }
     auto thd = src_layout->ForwardThread(fwd, FloorDiv(rep, indice_rep_extent));
     Fragment dst_layout = Fragment(iter_vars, {}, thd, rep)->CondenseReplicateVar();
-    return { {args.dst, dst_layout} };
+    return {{args.dst, dst_layout}};
   }
   return {};
 }
 
-} // namespace tl
-} // namespace tvm
+}  // namespace tl
+}  // namespace tvm

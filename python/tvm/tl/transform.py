@@ -19,6 +19,7 @@
 
 from . import _ffi_api
 
+
 def ClusterPlanning():
     """ClusterPlanning
 
@@ -28,6 +29,7 @@ def ClusterPlanning():
         The result pass
     """
     return _ffi_api.ClusterPlanning()  # type: ignore
+
 
 def PipelinePlanning():
     """infer the fragment/shared memory layout
@@ -39,6 +41,7 @@ def PipelinePlanning():
     """
     return _ffi_api.PipelinePlanning()  # type: ignore
 
+
 def LayoutInference():
     """LayoutInference
 
@@ -48,6 +51,7 @@ def LayoutInference():
         The result pass
     """
     return _ffi_api.LayoutInference()  # type: ignore
+
 
 def LowerTileOp():
     """LowerTileOp
@@ -59,6 +63,7 @@ def LowerTileOp():
     """
     return _ffi_api.LowerTileOp()  # type: ignore
 
+
 def InjectSoftwarePipeline():
     """InjectSoftwarePipeline
 
@@ -68,6 +73,7 @@ def InjectSoftwarePipeline():
         The result pass
     """
     return _ffi_api.InjectSoftwarePipeline()  # type: ignore
+
 
 def FrontendLegalize():
     """FrontendLegalize

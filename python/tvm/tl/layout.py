@@ -17,10 +17,10 @@
 """Wrapping Layouts."""
 # pylint: disable=invalid-name, unsupported-binary-operation
 
-from . import _ffi_api
 import tvm
 from tvm.ir import Node
-from tvm.runtime import Scriptable
+from . import _ffi_api
+
 
 @tvm._ffi.register_object("tl.Layout")
 class Layout(Node):
@@ -44,10 +44,14 @@ class Layout(Node):
     def inverse(self) -> "Layout":
         return _ffi_api.Layout_inverse(self)
 
+
 @tvm._ffi.register_object("tl.Fragment")
 class Fragment(Layout):
+    # pylint: disable=super-init-not-called
     def __init__(self, forward_var, forward_index, forward_thread, thread_replicate):
-        self.__init_handle_by_constructor__(_ffi_api.Fragment, forward_var, forward_index, forward_thread, thread_replicate)
+        self.__init_handle_by_constructor__(
+            _ffi_api.Fragment, forward_var, forward_index, forward_thread, thread_replicate
+        )
 
     @property
     def thread(self):
@@ -60,7 +64,7 @@ class Fragment(Layout):
     def get_thread_size(self):
         return _ffi_api.Fragment_thread_size(self)
 
-    def repeat(self, repeats, repeat_on_thread: bool=False) -> "Fragment":
+    def repeat(self, repeats, repeat_on_thread: bool = False) -> "Fragment":
         return _ffi_api.Fragment_repeat(self, repeats, repeat_on_thread)
 
     def condense_rep_var(self) -> "Fragment":

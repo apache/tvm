@@ -17,10 +17,10 @@
  * under the License.
  */
 
- /*!
-  * \file inject_software_pipeline.cc
-  * \brief Transform annotated loops into pipelined one that parallelize producers and consumers
-  */
+/*!
+ * \file inject_software_pipeline.cc
+ * \brief Transform annotated loops into pipelined one that parallelize producers and consumers
+ */
 #include <tvm/target/target.h>
 #include <tvm/tir/builtin.h>
 #include <tvm/tir/transform.h>
@@ -80,7 +80,7 @@ struct BufferAccessInfo {
  * of the remapped buffer to select the version corresponding to the pipeline stage.
  */
 class PipelineBodyRewriter : public StmtExprMutator {
-public:
+ public:
   /*!
    * \brief Constructor of PipelineBodyRewriter.
    * \param buffer_data_to_buffer The map from buffer data to buffer.
@@ -92,14 +92,14 @@ public:
    *        of a two-stage software pipeline, only one version of these buffers are accessed.
    */
   PipelineBodyRewriter(const Map<Var, Buffer>& buffer_data_to_buffer,
-    const Map<Buffer, Buffer>& buffer_remap, For pipeline_loop,
-    bool access_all_versions)
-    : buffer_data_to_buffer_(buffer_data_to_buffer),
-    buffer_remap_(buffer_remap),
-    pipeline_loop_(pipeline_loop),
-    access_all_versions_(access_all_versions) {}
+                       const Map<Buffer, Buffer>& buffer_remap, For pipeline_loop,
+                       bool access_all_versions)
+      : buffer_data_to_buffer_(buffer_data_to_buffer),
+        buffer_remap_(buffer_remap),
+        pipeline_loop_(pipeline_loop),
+        access_all_versions_(access_all_versions) {}
 
-private:
+ private:
   BufferRegion RewritePipelineBufferRegion(const BufferRegion& buffer_region) const {
     auto it = buffer_remap_.find(buffer_region->buffer);
     if (it != buffer_remap_.end()) {
@@ -108,11 +108,11 @@ private:
       // For pipeline buffers, relax the access region of the first dimension to full extent
       // if access_all_versions == true
       Range accessed_version =
-        access_all_versions_
-        ? Range::FromMinExtent(0, new_buffer->shape[0])
-        : Range::FromMinExtent(floormod((pipeline_loop_->loop_var - pipeline_loop_->min),
-          new_buffer->shape[0]),
-          Integer(1));
+          access_all_versions_
+              ? Range::FromMinExtent(0, new_buffer->shape[0])
+              : Range::FromMinExtent(floormod((pipeline_loop_->loop_var - pipeline_loop_->min),
+                                              new_buffer->shape[0]),
+                                     Integer(1));
       new_region.insert(new_region.begin(), accessed_version);
       return BufferRegion(new_buffer, new_region);
     }
@@ -122,8 +122,8 @@ private:
   PrimExpr RewriteBufferAccess(const Call& call, const std::vector<int> arg_indices) {
     auto product = [](const Array<PrimExpr>& input) {
       return foldl([](PrimExpr a, PrimExpr b, Span span) { return mul(a, b, span); },
-        make_const(DataType::Int(32), 1), input);
-      };
+                   make_const(DataType::Int(32), 1), input);
+    };
     Array<PrimExpr> new_args = call->args;
     for (int i : arg_indices) {
       const Buffer& buffer = buffer_data_to_buffer_.at(Downcast<Var>(call->args[i]));
@@ -138,7 +138,7 @@ private:
           offset = new_buffer->strides[0];
         }
         PrimExpr new_index =
-          old_index + floormod(pipeline_loop_->loop_var, new_buffer->shape[0]) * offset;
+            old_index + floormod(pipeline_loop_->loop_var, new_buffer->shape[0]) * offset;
         new_args.Set(i + 1, new_index);
       }
     }
@@ -153,10 +153,10 @@ private:
     BlockNode* n = block.CopyOnWrite();
     n->reads.MutateByApply([this](const BufferRegion& buffer_region) {
       return RewritePipelineBufferRegion(buffer_region);
-      });
+    });
     n->writes.MutateByApply([this](const BufferRegion& buffer_region) {
       return RewritePipelineBufferRegion(buffer_region);
-      });
+    });
     for (const Buffer& alloc_buffer : op->alloc_buffers) {
       buffer_data_to_buffer_.erase(alloc_buffer->data);
     }
@@ -173,7 +173,7 @@ private:
     auto* n = store.CopyOnWrite();
     n->buffer = new_buffer;
     PrimExpr version =
-      floormod((pipeline_loop_->loop_var - pipeline_loop_->min), new_buffer->shape[0]);
+        floormod((pipeline_loop_->loop_var - pipeline_loop_->min), new_buffer->shape[0]);
     n->indices.insert(n->indices.begin(), version);
     return std::move(store);
   }
@@ -188,7 +188,7 @@ private:
     auto* n = load.CopyOnWrite();
     n->buffer = new_buffer;
     PrimExpr version =
-      floormod((pipeline_loop_->loop_var - pipeline_loop_->min), new_buffer->shape[0]);
+        floormod((pipeline_loop_->loop_var - pipeline_loop_->min), new_buffer->shape[0]);
     n->indices.insert(n->indices.begin(), version);
     return std::move(load);
   }
@@ -196,7 +196,7 @@ private:
   PrimExpr VisitExpr_(const CallNode* op) final {
     Call call = Downcast<Call>(StmtExprMutator::VisitExpr_(op));
     if (call->op.same_as(builtin::tvm_access_ptr())) {
-      return RewriteBufferAccess(call, { 1 });
+      return RewriteBufferAccess(call, {1});
     }
     return call;
   }
@@ -211,21 +211,20 @@ private:
  * \brief Rewriter for the software pipeline that rewrite a loop into a pipelined one.
  */
 class PipelineRewriter : public StmtExprMutator {
-public:
-  PipelineRewriter(Map<Var, Buffer> buffer_data_to_buffer,
-    const Array<Buffer>& pipeline_allocs, const For& pipeline_loop,
-    const PipelineInfo& pipeline_info)
+ public:
+  PipelineRewriter(Map<Var, Buffer> buffer_data_to_buffer, const Array<Buffer>& pipeline_allocs,
+                   const For& pipeline_loop, const PipelineInfo& pipeline_info)
 
-    : buffer_data_to_buffer_(std::move(buffer_data_to_buffer)),
-    pipeline_allocs_(pipeline_allocs),
-    pipeline_loop_(pipeline_loop),
-    pipeline_info_(pipeline_info) {}
+      : buffer_data_to_buffer_(std::move(buffer_data_to_buffer)),
+        pipeline_allocs_(pipeline_allocs),
+        pipeline_loop_(pipeline_loop),
+        pipeline_info_(pipeline_info) {}
 
   Stmt BuildPipeline() {
     // Step 1: Analyze accesses to the buffers in the pipeline and compute the number of versions
     // need to maintain for each buffer.
     std::unordered_map<Buffer, BufferAccessInfo, ObjectPtrHash, ObjectPtrEqual> infos =
-      GetBufferAccessInfo();
+        GetBufferAccessInfo();
     for (const Buffer& buffer : pipeline_allocs_) {
       int num_versions = ComputeBufferVersions(buffer, infos.at(buffer));
       if (num_versions > 1) {
@@ -245,8 +244,7 @@ public:
         for (auto write_region : block->writes) {
           auto buffer = write_region->buffer;
           state.dst_buffers.insert(buffer.get());
-          if (buffer_remap_.count(buffer))
-            state.dst_buffers.insert(buffer_remap_[buffer].get());
+          if (buffer_remap_.count(buffer)) state.dst_buffers.insert(buffer_remap_[buffer].get());
         }
       }
     }
@@ -261,7 +259,9 @@ public:
         state.commit_groups.back().push_back(pipeline_info_[block].order);
         consumed.erase(stage);
         for (auto write_region : block->writes) {
-          auto buffer = buffer_remap_.count(write_region->buffer) ? buffer_remap_[write_region->buffer] : write_region->buffer;
+          auto buffer = buffer_remap_.count(write_region->buffer)
+                            ? buffer_remap_[write_region->buffer]
+                            : write_region->buffer;
           state.buffer_to_commit_group_[buffer.get()] = state.commit_groups.size() - 1;
         }
       }
@@ -278,11 +278,11 @@ public:
     // Step 2: Emit the pipeline prologue, body and epilogue.
     Stmt prologue = EmitImpl(pipeline_loop_->min, pipeline_loop_->min + max_stage_, true);
     Stmt body = EmitImpl(pipeline_loop_->min + max_stage_,
-      pipeline_loop_->min + pipeline_loop_->extent, false);
+                         pipeline_loop_->min + pipeline_loop_->extent, false);
     Stmt epilogue = EmitImpl(pipeline_loop_->min + pipeline_loop_->extent,
-      pipeline_loop_->min + pipeline_loop_->extent + max_stage_, true);
+                             pipeline_loop_->min + pipeline_loop_->extent + max_stage_, true);
 
-    SeqStmt stmt = SeqStmt({ prologue, body, epilogue });
+    SeqStmt stmt = SeqStmt({prologue, body, epilogue});
 
     // Step 3: Make a new block that contains new buffer allocations after pipeline rewriting.
     Array<Buffer> alloc_buffers;
@@ -295,7 +295,7 @@ public:
     return BlockRealize({}, Bool(true), block);
   }
 
-private:
+ private:
   /*!
    * \brief Analyze accesses to the buffers in the software pipeline.
    *
@@ -303,7 +303,7 @@ private:
    * can be used to compute the number of versions needed to maintain after rewriting.
    */
   std::unordered_map<Buffer, BufferAccessInfo, ObjectPtrHash, ObjectPtrEqual>
-    GetBufferAccessInfo() {
+  GetBufferAccessInfo() {
     std::unordered_map<Buffer, BufferAccessInfo, ObjectPtrHash, ObjectPtrEqual> infos;
     for (const auto& pair : pipeline_info_) {
       const Block& block = pair.first;
@@ -346,7 +346,7 @@ private:
       Range dim2 = region2[i];
       auto int_set1 = arith::IntSet::FromRange(dim1);
       auto int_set2 = arith::IntSet::FromRange(dim2);
-      if (arith::Intersect({ int_set1, int_set2 }).IsNothing()) {
+      if (arith::Intersect({int_set1, int_set2}).IsNothing()) {
         return false;
       }
     }
@@ -388,9 +388,9 @@ private:
         const auto& writer_info = pair1.second;
 
         auto it1 = std::find_if(writer_block->writes.begin(), writer_block->writes.end(),
-          [&](const BufferRegion& buffer_region) {
-            return buffer_region->buffer.same_as(buffer);
-          });
+                                [&](const BufferRegion& buffer_region) {
+                                  return buffer_region->buffer.same_as(buffer);
+                                });
         if (it1 == writer_block->writes.end()) {
           continue;
         }
@@ -399,14 +399,14 @@ private:
           const Block& reader_block = pair2.first;
           const auto& reader_info = pair2.second;
           auto it2 = std::find_if(reader_block->reads.begin(), reader_block->reads.end(),
-            [&](const BufferRegion& buffer_region) {
-              return buffer_region->buffer.same_as(buffer);
-            });
+                                  [&](const BufferRegion& buffer_region) {
+                                    return buffer_region->buffer.same_as(buffer);
+                                  });
           if (it2 == reader_block->reads.end()) {
             continue;
           }
           if (writer_info.order < reader_info.order && writer_info.stage < reader_info.stage &&
-            MayConflict((*it1)->region, (*it2)->region)) {
+              MayConflict((*it1)->region, (*it2)->region)) {
             need_multi_version = true;
             break;
           }
@@ -446,12 +446,11 @@ private:
     // async invocations exactly. When it is valid, it is the "sum of extents of loops that have
     // been executed" - 1, e.g. for epilogue it is prologue extent + body extent - 1. This
     // is only needed to compute wait count for epilogue without async producers.
-    Optional<PrimExpr> producer_head{ PrimExpr(-1) };
+    Optional<PrimExpr> producer_head{PrimExpr(-1)};
     std::vector<std::vector<int>> commit_groups;
     std::unordered_map<const BufferNode*, int> buffer_to_commit_group_;
     bool writes(Buffer buf) const { return dst_buffers.count(buf.get()) > 0; }
   };
-
 
   // Per-stage states that are local to each of pipeline prologue, body, and epilogue.
   struct AsyncStateLocal {
@@ -461,7 +460,7 @@ private:
       int insert_before;
       // in_flight_count would be a more precise name, but the implementation uses wait_count for
       // brevity.
-      PrimExpr wait_count{ nullptr };
+      PrimExpr wait_count{nullptr};
 
       bool valid() const { return wait_count.defined(); }
     };
@@ -484,7 +483,7 @@ private:
   };
 
   void PopulateWaitCounts(const std::vector<RewrittenBlockInfo>& new_blocks,
-    std::map<int, AsyncStateLocal>* async_states_local) {
+                          std::map<int, AsyncStateLocal>* async_states_local) {
     for (size_t i = 0; i < new_blocks.size(); ++i) {
       int producer_stage_idx = -1;
       for (auto read_region : new_blocks[i].block->reads) {
@@ -492,7 +491,7 @@ private:
           if (stage <= new_blocks[i].stage && state.writes(read_region->buffer)) {
             // Found an earlier stage where read_region->buffer was asynchronously written
             ICHECK(producer_stage_idx == -1 || producer_stage_idx == stage)
-              << "A dependency on multiple async stages is not supported";
+                << "A dependency on multiple async stages is not supported";
             producer_stage_idx = stage;
           }
         }
@@ -516,24 +515,26 @@ private:
 
       // We can relax the in-flight-count by the number of independent commit.
       std::unordered_set<int> dependent_groups;
-      for (const auto& read_region: new_blocks[i].block->reads) {
+      for (const auto& read_region : new_blocks[i].block->reads) {
         if (state.buffer_to_commit_group_.count(read_region->buffer.get()))
           dependent_groups.insert(state.buffer_to_commit_group_.at(read_region->buffer.get()));
       }
       for (int i = int(state.commit_groups.size()) - 1; i >= 0; i--) {
-        if (dependent_groups.count(i) == 0) in_flight_cnt += 1;
-        else break; // stop relaxing
+        if (dependent_groups.count(i) == 0)
+          in_flight_cnt += 1;
+        else
+          break;  // stop relaxing
       }
       in_flight_cnt = analyzer_.Simplify(in_flight_cnt);
-      dep_local_state.pending_waits.push_back({ static_cast<int>(i), in_flight_cnt });
+      dep_local_state.pending_waits.push_back({static_cast<int>(i), in_flight_cnt});
     }
   }
 
   // Given pipelined blocks and async-related information, generate final loop statements with async
   // scopes (if any).
   Array<Stmt> CompletePipelineLoopStatements(
-    const std::vector<RewrittenBlockInfo>& blocks,
-    const std::map<int, AsyncStateLocal>& async_states_local) const {
+      const std::vector<RewrittenBlockInfo>& blocks,
+      const std::map<int, AsyncStateLocal>& async_states_local) const {
     std::vector<RewrittenBlockInfo> new_blocks = blocks;
     for (const auto& [stage_id, state] : async_states_local) {
       for (const auto& pw : state.pending_waits) {
@@ -541,8 +542,8 @@ private:
         BlockNode* n = block.CopyOnWrite();
         auto zero = make_zero(DataType::Int(32));
         n->body =
-          AttrStmt(zero, tir::attr::async_wait_queue_scope, stage_id,
-            AttrStmt(zero, tir::attr::async_wait_inflight_count, pw.wait_count, n->body));
+            AttrStmt(zero, tir::attr::async_wait_queue_scope, stage_id,
+                     AttrStmt(zero, tir::attr::async_wait_inflight_count, pw.wait_count, n->body));
       }
     }
 
@@ -559,8 +560,9 @@ private:
     for (size_t i = 0; i < new_blocks.size(); i++) {
       Block block = new_blocks[i].block;
       if (commit_group_indices.count(new_blocks[i].order)) {
-        auto commit_queue_scope = AttrStmt(make_zero(DataType::Int(32)),
-          tir::attr::async_commit_queue_scope, new_blocks[i].stage, block->body);
+        auto commit_queue_scope =
+            AttrStmt(make_zero(DataType::Int(32)), tir::attr::async_commit_queue_scope,
+                     new_blocks[i].stage, block->body);
         block = MakeBlock(commit_queue_scope, buffer_data_to_buffer_);
       }
       stmts.push_back(BlockRealize({}, new_blocks[i].predicate, block));
@@ -600,12 +602,12 @@ private:
       int order = pipeline_info_.at(block).order;
       PrimExpr skewed_loop_var = new_loop_var - stage;
       PrimExpr inbound = analyzer_.Simplify(pipeline_loop_->min <= skewed_loop_var) &&
-        (skewed_loop_var < pipeline_loop_->min + pipeline_loop_->extent);
+                         (skewed_loop_var < pipeline_loop_->min + pipeline_loop_->extent);
       if (analyzer_.CanProve(!inbound)) {
         continue;
       }
-      Block new_block = Downcast<Block>(PipelineBodyRewriter(buffer_data_to_buffer_, buffer_remap_,
-        pipeline_loop_, max_stage_ != 1)(block));
+      Block new_block = Downcast<Block>(PipelineBodyRewriter(
+          buffer_data_to_buffer_, buffer_remap_, pipeline_loop_, max_stage_ != 1)(block));
 
       PrimExpr delta = start - pipeline_loop_->min;
       // This variable corresponds to
@@ -617,11 +619,11 @@ private:
       //  [pipeline_loop_->min, extent).
       if (!is_unit_loop) {
         Var loop_iter = Downcast<Var>(new_loop_var);
-        inbound = Substitute(inbound, { {loop_iter, loop_iter + delta} });
+        inbound = Substitute(inbound, {{loop_iter, loop_iter + delta}});
       }
 
       new_block = Downcast<Block>(
-        Substitute(new_block, { {pipeline_loop_->loop_var, normalized_access_index} }));
+          Substitute(new_block, {{pipeline_loop_->loop_var, normalized_access_index}}));
 
       if (pipeline_info_[block].async) {
         auto& local_state = async_states_local[stage];
@@ -631,13 +633,13 @@ private:
       }
 
       new_blocks.push_back(
-        { stage, order, inbound, new_block, normalized_access_index, pipeline_info_[block].async });
+          {stage, order, inbound, new_block, normalized_access_index, pipeline_info_[block].async});
     }
 
     PopulateWaitCounts(new_blocks, &async_states_local);
     auto stmts = CompletePipelineLoopStatements(new_blocks, async_states_local);
 
-    Stmt new_loop{ nullptr };
+    Stmt new_loop{nullptr};
 
     if (stmts.empty()) {
       return make_nop();
@@ -652,14 +654,15 @@ private:
       Map<String, ObjectRef> preserved_annotations;
       for (const auto& kv : pipeline_loop_->annotations) {
         const String& key = kv.first;
-        if (kv.first != tir::attr::software_pipeline_stage && kv.first != tir::attr::software_pipeline_order &&
-          kv.first != tir::attr::software_pipeline_async_stages) {
+        if (kv.first != tir::attr::software_pipeline_stage &&
+            kv.first != tir::attr::software_pipeline_order &&
+            kv.first != tir::attr::software_pipeline_async_stages) {
           preserved_annotations.Set(key, kv.second);
         }
       }
       new_loop = For(Downcast<Var>(new_loop_var), pipeline_loop_->min, extent,
-        unroll_loop ? ForKind::kUnrolled : pipeline_loop_->kind, std::move(new_loop),
-        NullOpt, preserved_annotations);
+                     unroll_loop ? ForKind::kUnrolled : pipeline_loop_->kind, std::move(new_loop),
+                     NullOpt, preserved_annotations);
     }
 
     // Update producer heads in the global async states.
@@ -690,9 +693,9 @@ private:
  * destination to the source.
  */
 void BuildDependencyGraph(
-  const Array<Block>& blocks,
-  std::unordered_map<Block, Array<Block>, ObjectPtrHash, ObjectPtrEqual>* dep_src2dst,
-  std::unordered_map<Block, Array<Block>, ObjectPtrHash, ObjectPtrEqual>* dep_dst2src) {
+    const Array<Block>& blocks,
+    std::unordered_map<Block, Array<Block>, ObjectPtrHash, ObjectPtrEqual>* dep_src2dst,
+    std::unordered_map<Block, Array<Block>, ObjectPtrHash, ObjectPtrEqual>* dep_dst2src) {
   std::unordered_map<Var, Array<Block>, ObjectPtrHash, ObjectPtrEqual> buffer_writers;
 
   for (const Block& block : blocks) {
@@ -716,7 +719,7 @@ void BuildDependencyGraph(
 }
 
 class PipelineInjector : private StmtExprMutator {
-public:
+ public:
   static Stmt Inject(const PrimFunc& func) {
     auto global_symbol = func->GetAttr<String>(tvm::attr::kGlobalSymbol);
     PipelineInjector injector(global_symbol);
@@ -727,7 +730,7 @@ public:
     return injector(func->body);
   }
 
-private:
+ private:
   explicit PipelineInjector(Optional<String> global_symbol) : global_symbol_(global_symbol) {}
 
   /*!
@@ -747,7 +750,7 @@ private:
       const auto& stmt_info = pipeline_info.at(block);
       int order = stmt_info.order;
       CHECK(!used_orders.count(order))
-        << "ValueError: Two statements in the software pipeline cannot have the same order";
+          << "ValueError: Two statements in the software pipeline cannot have the same order";
       used_orders.insert(order);
     }
 
@@ -761,12 +764,12 @@ private:
       for (const Block& dst : dsts) {
         const auto& dst_info = pipeline_info.at(dst);
         CHECK_LE(src_info.stage, dst_info.stage)
-          << "ValueError: statement " << dst << " in stage " << dst_info.stage
-          << " cannot depends on statement " << src << " in a later stage " << src_info.stage;
+            << "ValueError: statement " << dst << " in stage " << dst_info.stage
+            << " cannot depends on statement " << src << " in a later stage " << src_info.stage;
         if (src_info.stage == dst_info.stage) {
           CHECK_LT(src_info.order, dst_info.order) << "ValueError: two statements with buffer "
-            "access dependency in the same stage of the "
-            "software pipeline cannot be reordered";
+                                                      "access dependency in the same stage of the "
+                                                      "software pipeline cannot be reordered";
         }
       }
     }
@@ -781,7 +784,7 @@ private:
     // Step 2: Find the body and buffer allocations of the pipeline. The body can be direct child of
     // the for-loop. If the for-loop has BlockRealize as its child, the pipeline body will be the
     // child of the block.
-    Stmt pipeline_body{ nullptr };
+    Stmt pipeline_body{nullptr};
     Array<Buffer> pipeline_allocs;
     if (const auto* realize = for_node->body.as<BlockRealizeNode>()) {
       const auto& block = realize->block;
@@ -797,8 +800,8 @@ private:
 
     const SeqStmtNode* pipeline_body_seq = pipeline_body.as<SeqStmtNode>();
     CHECK(pipeline_body_seq)
-      << "ValueError: The body of the software pipeline should be SeqStmt, got "
-      << pipeline_body->GetTypeKey();
+        << "ValueError: The body of the software pipeline should be SeqStmt, got "
+        << pipeline_body->GetTypeKey();
 
     // Step 3: Blockize the components of the pipeline. Each child of the pipelined loop will be
     // converted into a block.
@@ -807,14 +810,14 @@ private:
 
     auto f_add_child = [&](const Stmt& child) {
       original_order.push_back(MakeBlock(child, buffer_data_to_buffer_));
-      };
+    };
     for (size_t i = 0; i < pipeline_body_seq->seq.size(); i++) {
       const auto* nested_block_realize = pipeline_body_seq->seq[i].as<BlockRealizeNode>();
       if (nested_block_realize && is_one(nested_block_realize->predicate) &&
-        nested_block_realize->block->body->IsInstance<SeqStmtNode>()) {
+          nested_block_realize->block->body->IsInstance<SeqStmtNode>()) {
         const Block& nested_pipeline_block = nested_block_realize->block;
         ICHECK(
-          nested_pipeline_block->match_buffers.empty());  // match_buffer should have been lowered
+            nested_pipeline_block->match_buffers.empty());  // match_buffer should have been lowered
         for (const auto& buffer : nested_pipeline_block->alloc_buffers) {
           pipeline_allocs.push_back(buffer);
           buffer_data_to_buffer_.Set(buffer->data, buffer);
@@ -829,17 +832,17 @@ private:
     }
 
     auto pipeline_stages =
-      Downcast<Array<Integer>>(op->annotations.at(tir::attr::software_pipeline_stage));
+        Downcast<Array<Integer>>(op->annotations.at(tir::attr::software_pipeline_stage));
     auto pipeline_orders =
-      Downcast<Array<Integer>>(op->annotations.at(tir::attr::software_pipeline_order));
+        Downcast<Array<Integer>>(op->annotations.at(tir::attr::software_pipeline_order));
     CHECK_EQ(pipeline_stages.size(), original_order.size())
-      << "PrimFunc " << global_symbol_ << " has original order "
-      << original_order.Map([](const auto& block) { return block->name_hint; })
-      << ", but pipeline annotation is " << pipeline_stages << " with different size";
+        << "PrimFunc " << global_symbol_ << " has original order "
+        << original_order.Map([](const auto& block) { return block->name_hint; })
+        << ", but pipeline annotation is " << pipeline_stages << " with different size";
     CHECK_EQ(pipeline_orders.size(), original_order.size())
-      << "PrimFunc " << global_symbol_ << " has original order "
-      << original_order.Map([](const auto& block) { return block->name_hint; })
-      << ", but pipeline annotation is " << pipeline_orders << " with different size";
+        << "PrimFunc " << global_symbol_ << " has original order "
+        << original_order.Map([](const auto& block) { return block->name_hint; })
+        << ", but pipeline annotation is " << pipeline_orders << " with different size";
 
     std::unordered_set<int> pipeline_async_stages;
     if (auto annot = op->annotations.Get(tir::attr::software_pipeline_async_stages)) {
@@ -851,17 +854,18 @@ private:
     for (size_t i = 0; i < pipeline_stages.size(); i++) {
       int stage = static_cast<int>(pipeline_stages[i]->value);
       bool is_async = pipeline_async_stages.find(stage) != pipeline_async_stages.end();
-      PipelineAnnotation stage_order{ stage,
-        /*order=*/static_cast<int>(pipeline_orders[i]->value),
-        is_async };
+      PipelineAnnotation stage_order{stage,
+                                     /*order=*/static_cast<int>(pipeline_orders[i]->value),
+                                     is_async};
       pipeline_info.emplace(original_order[i], stage_order);
     }
 
     ValidatePipelineBody(pipeline_info, original_order);
 
     // Step 4: Rewrite the pipeline body.
-    Stmt pipeline = PipelineRewriter(buffer_data_to_buffer_,
-      pipeline_allocs, GetRef<For>(op), pipeline_info).BuildPipeline();
+    Stmt pipeline =
+        PipelineRewriter(buffer_data_to_buffer_, pipeline_allocs, GetRef<For>(op), pipeline_info)
+            .BuildPipeline();
 
     if (const auto* realize = op->body.as<BlockRealizeNode>()) {
       const auto& block = realize->block;
@@ -917,7 +921,7 @@ tir::transform::Pass InjectSoftwarePipeline() {
     fptr->body = PipelineInjector::Inject(f);
     fptr->body = ConvertSSA(std::move(fptr->body));
     return f;
-    };
+  };
   return CreatePrimFuncPass(pass_func, 0, "tl.InjectSoftwarePipeline", {});
 }
 

@@ -17,21 +17,21 @@
  * under the License.
  */
 
- /*!
-  * \file clasuter_planning.cc
-  * \brief Plan the cluster for GPU(sm90+) blocks
-  */
+/*!
+ * \file clasuter_planning.cc
+ * \brief Plan the cluster for GPU(sm90+) blocks
+ */
 
 #include <tvm/arith/analyzer.h>
+#include <tvm/tir/analysis.h>
 #include <tvm/tir/stmt_functor.h>
 #include <tvm/tir/transform.h>
-#include <tvm/tir/analysis.h>
 
 namespace tvm {
 namespace tir {
 
 class ClusterPlanner {
-public:
+ public:
   static PrimFunc Substitute(PrimFunc& f) {
     // Step 1: Collect the read region of the function
     Map<Var, Buffer> buffer_data_to_buffer_;
@@ -60,8 +60,7 @@ public:
       size = arith::Analyzer().Simplify(size);
       if (auto imm = size.as<IntImmNode>()) {
         for (auto iv : dom_map) {
-          if (visitor.seen_.count(iv->var.get()) == 0)
-            mem_reuse_count[iv] += imm->value;
+          if (visitor.seen_.count(iv->var.get()) == 0) mem_reuse_count[iv] += imm->value;
         }
       }
     }
@@ -86,21 +85,19 @@ public:
     }
   }
 
-private:
+ private:
   ClusterPlanner() = default;
 
   class RegionVisitor : public ExprVisitor {
    public:
-    RegionVisitor() {};
-    void VisitExpr_(const VarNode* var) {
-      seen_.insert(var);
-    }
+    RegionVisitor(){};
+    void VisitExpr_(const VarNode* var) { seen_.insert(var); }
     std::unordered_set<const VarNode*> seen_;
   };
 
   class BlockIdxVisitor : public StmtVisitor {
    public:
-    BlockIdxVisitor() {};
+    BlockIdxVisitor(){};
     void VisitStmt_(const AttrStmtNode* attr) final {
       if (attr->attr_key == attr::thread_extent) {
         IterVar iv = Downcast<IterVar>(attr->node);
@@ -118,16 +115,14 @@ private:
   const static int cluster_size_ = 2;
 };
 
-PrimFunc ClusterPlanning(PrimFunc f) {
-  return ClusterPlanner::Substitute(f);
-}
+PrimFunc ClusterPlanning(PrimFunc f) { return ClusterPlanner::Substitute(f); }
 
 namespace transform {
 
 tvm::transform::Pass ClusterPlanning() {
   auto pass_func = [=](PrimFunc f, IRModule m, PassContext ctx) {
     return ClusterPlanning(std::move(f));
-    };
+  };
   return CreatePrimFuncPass(pass_func, 0, "tl.ClusterPlanning", {});
 }
 

@@ -75,8 +75,8 @@ void CodeGenTL::PrintExtraAttrs(const PrimFunc& f) {
   LaunchConfigExtractor extractor;
   extractor(f->body);
   arith::Analyzer analyzer;
-  block_size_ = { extractor.threadIdx_x_ext, extractor.threadIdx_y_ext, extractor.threadIdx_z_ext };
-  grid_size_ = { extractor.blockIdx_x_ext, extractor.blockIdx_y_ext, extractor.blockIdx_z_ext };
+  block_size_ = {extractor.threadIdx_x_ext, extractor.threadIdx_y_ext, extractor.threadIdx_z_ext};
+  grid_size_ = {extractor.blockIdx_x_ext, extractor.blockIdx_y_ext, extractor.blockIdx_z_ext};
   PrimExpr threadIdx_ext = analyzer.Simplify(extractor.threadIdx_x_ext * extractor.threadIdx_y_ext *
                                              extractor.threadIdx_z_ext);
   if (const IntImmNode* const threadIdx_ext_int = threadIdx_ext.as<IntImmNode>()) {
@@ -358,7 +358,7 @@ void CodeGenTL::PrintType(DataType t, std::ostream& os) {  // NOLINT(*)
 }
 
 void CodeGenTL::PrintVecBinaryOp(const std::string& op, DataType t, PrimExpr lhs, PrimExpr rhs,
-                                   std::ostream& os) {  // NOLINT(*)
+                                 std::ostream& os) {  // NOLINT(*)
   // Delcare the result.
   std::string sret = name_supply_->FreshName("_");
   this->PrintIndent();
@@ -393,7 +393,7 @@ void CodeGenTL::PrintVecBinaryOp(const std::string& op, DataType t, PrimExpr lhs
 }
 
 void CodeGenTL::PrintVecElemLoad(const std::string& vec, DataType t, int i,
-                                   std::ostream& os) {  // NOLINT(*)
+                                 std::ostream& os) {  // NOLINT(*)
   if (t.is_scalar()) {
     os << vec;
     return;
@@ -438,7 +438,7 @@ void CodeGenTL::PrintVecElemLoad(const std::string& vec, DataType t, int i,
 }
 
 void CodeGenTL::PrintVecElemStore(const std::string& vec, DataType t, int i,
-                                    const std::string& value) {
+                                  const std::string& value) {
   this->PrintIndent();
   static const char access[] = {'x', 'y', 'z', 'w'};
   ICHECK(i >= 0 && i < (t.bits() == 8 ? 16 : (t.bits() == 16 || t.bits() == 32) ? 8 : 4));
@@ -562,12 +562,13 @@ void CodeGenTL::VisitExpr_(const CallNode* op, std::ostream& os) {
     // use size of argument list to indicate whether or not to use predicated cp.async
     if (op->args.size() == 5) {
       this->PrintIndent();
-      this->stream << "tl::cp_async_gs<" << size << ">(" << dst << "+" << dst_offset << ", " << src << "+" << src_offset << ");\n";
+      this->stream << "tl::cp_async_gs<" << size << ">(" << dst << "+" << dst_offset << ", " << src
+                   << "+" << src_offset << ");\n";
     } else {
       std::string condition = this->PrintExpr(op->args[5]);
       this->PrintIndent();
-      this->stream << "tl::cp_async_gs_conditional<" << size << ">(" << dst << "+" << dst_offset << ", " << src << "+" << src_offset
-                   << ", " << condition << ");\n";
+      this->stream << "tl::cp_async_gs_conditional<" << size << ">(" << dst << "+" << dst_offset
+                   << ", " << src << "+" << src_offset << ", " << condition << ");\n";
     }
   } else if (op->op.same_as(builtin::ptx_commit_group())) {
     this->PrintIndent();
@@ -604,7 +605,7 @@ void CodeGenTL::VisitStmt_(const AttrStmtNode* op) {
     this->PrintIndent();
     const StringImmNode* pattern = op->value.as<StringImmNode>();
     ICHECK(pattern);
-    this->stream << "const dim3 blockIdx = "<< pattern->value << "();\n";
+    this->stream << "const dim3 blockIdx = " << pattern->value << "();\n";
     this->VisitStmt(op->body);
     return;
   }
@@ -794,7 +795,7 @@ void CodeGenTL::VisitExpr_(const FloatImmNode* op, std::ostream& os) {  // NOLIN
 }
 
 void CodeGenTL::HandleVolatileLoads(const std::string& value, const BufferLoadNode* op,
-                                      std::ostream& os) {
+                                    std::ostream& os) {
   // Cast away volatile qualifier for fp16 types. That is, only loads and
   // stores are volatile. The loaded objects are not marked as volatile.
   //
@@ -808,7 +809,7 @@ void CodeGenTL::HandleVolatileLoads(const std::string& value, const BufferLoadNo
 }
 
 void CodeGenTL::PrintVecElemLoadExpr(DataType t, int i, const std::string& value,
-                                       std::ostream& os) {
+                                     std::ostream& os) {
   ICHECK_GT(t.lanes(), 1);
   if (t.bits() == 8 && (t.is_int() || t.is_uint())) {
     if (!(t.lanes() == 2 || t.lanes() == 3)) {

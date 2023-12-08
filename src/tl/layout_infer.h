@@ -58,7 +58,7 @@ class ForNodeLayoutInfer : public LayoutInferBase, StmtExprVisitor {
   Map<Buffer, Array<PrimExpr>> GetIndiceMap() const { return indice_map_; }
 
  private:
-  Fragment CompleteBufferFragment(const Buffer& buffer) const;
+  Fragment CompleteBufferFragment(const Buffer& buffer);
   bool IsCommonAccessIndice(const Buffer& buffer) const;
   void VisitStmt_(const ForNode* op) final;
   void VisitStmt_(const BufferStoreNode* op) final;
@@ -70,12 +70,14 @@ class ForNodeLayoutInfer : public LayoutInferBase, StmtExprVisitor {
   std::unordered_set<Buffer, ObjectPtrHash, ObjectPtrEqual> buffer_is_write_;
   Array<IterVar> loop_vars_;
   Fragment loop_layout_;
+  arith::Analyzer analyzer_;
 };
 
 class GemmOpLayoutInfer : public LayoutInferBase {
  public:
-  GemmOpLayoutInfer(const GemmArgs &gemm_args, size_t block_size);
+  GemmOpLayoutInfer(const GemmArgs& gemm_args, size_t block_size);
   LayoutMap Inference(const LayoutMap& layout_map, InferLevel level) final;
+
  private:
   const GemmArgs args;
   const size_t block_size_;
@@ -84,14 +86,15 @@ class GemmOpLayoutInfer : public LayoutInferBase {
 
 class ReduceOpLayoutInfer : public LayoutInferBase {
  public:
-  ReduceOpLayoutInfer(const ReduceArgs &reduce_args, size_t block_size);
+  ReduceOpLayoutInfer(const ReduceArgs& reduce_args, size_t block_size);
   LayoutMap Inference(const LayoutMap& layout_map, InferLevel level) final;
+
  private:
   const ReduceArgs args;
   const size_t block_size_;
 };
 
-} // namespace tl
-} // namespace tvm
+}  // namespace tl
+}  // namespace tvm
 
 #endif  // TVM_TL_LAYOUT_INFER_H_

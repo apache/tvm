@@ -17,21 +17,21 @@
  * under the License.
  */
 
- /*!
-  * \file lower_tile_op.cc
-  * \brief Lower the tile op for further codegen.
-  */
+/*!
+ * \file lower_tile_op.cc
+ * \brief Lower the tile op for further codegen.
+ */
 
 #include <tvm/tir/builtin.h>
 #include <tvm/tir/stmt_functor.h>
 #include <tvm/tir/transform.h>
 
+#include "../arith/ir_mutator_with_analyzer.h"
+#include "arith.h"
+#include "helper.h"
 #include "layout.h"
 #include "loop_partition.h"
 #include "op.h"
-#include "arith.h"
-#include "helper.h"
-#include "../arith/ir_mutator_with_analyzer.h"
 
 namespace tvm {
 namespace tl {
@@ -39,7 +39,7 @@ namespace tl {
 using namespace tir;
 
 class LowerTileOpPass : arith::IRMutatorWithAnalyzer {
-public:
+ public:
   static PrimFunc Substitute(PrimFunc f) {
     arith::Analyzer analyzer;
     LowerTileOpPass substituter(&analyzer);
@@ -51,7 +51,7 @@ public:
     return f;
   }
 
-private:
+ private:
   using arith::IRMutatorWithAnalyzer::IRMutatorWithAnalyzer;
 
   Stmt VisitStmt_(const BlockNode* op) final {
@@ -67,8 +67,7 @@ private:
     auto block = ret.as<Block>().value();
     if (!workspaces_.empty()) {
       auto block_ptr = block.CopyOnWrite();
-      for (const auto& buffer: workspaces_)
-        block_ptr->alloc_buffers.push_back(buffer);
+      for (const auto& buffer : workspaces_) block_ptr->alloc_buffers.push_back(buffer);
       workspaces_.clear();
     }
     return block;
@@ -89,30 +88,33 @@ private:
     // TODO: fix merge dyn shared memory pass
     auto workspace = decl_buffer({PrimExpr(num_elem)}, dtype, "workspace", "shared.dyn");
     workspaces_.push_back(workspace);
-    return workspace.access_ptr(2); // write
+    return workspace.access_ptr(2);  // write
   }
 
   Stmt LowerReduce(const Array<PrimExpr>& call_args) {
     ReduceArgs args = ReduceArgs::Parse(call_args, buffer_data_to_buffer_);
-    ICHECK(args.src.scope() == "local" && args.dst.scope() == "local") << "Reduce for shared memory not implemented.";
+    ICHECK(args.src.scope() == "local" && args.dst.scope() == "local")
+        << "Reduce for shared memory not implemented.";
     Fragment src = layout_map_[args.src].as<Fragment>().value();
     Fragment dst = layout_map_[args.dst].as<Fragment>().value();
     ICHECK(src->InputDim() == dst->InputDim() + 1);
     Array<IterVar> dst_vars;
     for (size_t i = 0; i < dst->InputDim(); i++) {
-      Var var = Var(std::string{ char('i' + i) });
+      Var var = Var(std::string{char('i' + i)});
       dst_vars.push_back(IterVar(Range(0, dst->InputShape()[i]), var, IterVarType::kDataPar));
     }
     Array<IterVar> src_vars = dst_vars;
-    src_vars.insert(src_vars.begin() + args.dim, { Range(0, src->InputShape()[args.dim]), Var("rv"), IterVarType::kDataPar });
-    Array<PrimExpr> src_indices = src->Forward(src_vars.Map([](const auto& iv) { return PrimExpr(iv->var); }));
-    Array<PrimExpr> dst_indices = dst->Forward(dst_vars.Map([](const auto& iv) { return PrimExpr(iv->var); }));
+    src_vars.insert(src_vars.begin() + args.dim,
+                    {Range(0, src->InputShape()[args.dim]), Var("rv"), IterVarType::kDataPar});
+    Array<PrimExpr> src_indices =
+        src->Forward(src_vars.Map([](const auto& iv) { return PrimExpr(iv->var); }));
+    Array<PrimExpr> dst_indices =
+        dst->Forward(dst_vars.Map([](const auto& iv) { return PrimExpr(iv->var); }));
 
     Array<Stmt> stmts;
 
     // make reduce-init stmt
-    if (args.clear)
-      stmts.push_back(BufferStore(args.dst, args.MakeInitValue(), dst_indices));
+    if (args.clear) stmts.push_back(BufferStore(args.dst, args.MakeInitValue(), dst_indices));
 
     // make thread-local reduce
     Array<PrimExpr> src_indice_compressed;
@@ -120,20 +122,25 @@ private:
     for (size_t i = 0; i < src->OutputDim(); i++) {
       PrimExpr expr;
       IterVar var;
-      std::tie(expr, var) = CompressIterator(src_indices[i], src_vars, src_vars[args.dim], analyzer_);
+      std::tie(expr, var) =
+          CompressIterator(src_indices[i], src_vars, src_vars[args.dim], analyzer_);
       src_indice_compressed.push_back(expr);
       src_var_compressed.push_back(var);
     }
-    Stmt reduce_local = BufferStore(args.dst, args.MakeReduce(
-      BufferLoad(args.dst, dst_indices), BufferLoad(args.src, src_indice_compressed)), dst_indices);
+    Stmt reduce_local = BufferStore(args.dst,
+                                    args.MakeReduce(BufferLoad(args.dst, dst_indices),
+                                                    BufferLoad(args.src, src_indice_compressed)),
+                                    dst_indices);
     for (int i = src->OutputDim() - 1; i >= 0; i--) {
-      reduce_local = For(src_var_compressed[i]->var, 0, src_var_compressed[i]->dom->extent, ForKind::kUnrolled, reduce_local,
-        NullOpt, {{tir::attr::pragma_unroll_explicit, Bool(false)}});
+      reduce_local =
+          For(src_var_compressed[i]->var, 0, src_var_compressed[i]->dom->extent, ForKind::kUnrolled,
+              reduce_local, NullOpt, {{tir::attr::pragma_unroll_explicit, Bool(false)}});
     }
     stmts.push_back(reduce_local);
 
     // make inter-thread reduce
-    PrimExpr src_thread = src->ForwardThread(src_vars.Map([](const auto& iv) { return PrimExpr(iv->var); }), {});
+    PrimExpr src_thread =
+        src->ForwardThread(src_vars.Map([](const auto& iv) { return PrimExpr(iv->var); }), {});
     auto iter_sum = arith::NormalizeToIterSum(src_thread, ToVMap(src_vars), analyzer_);
     for (const auto& iter_split : iter_sum->args) {
       auto mark = iter_split->source->source.as<Var>();
@@ -145,8 +152,10 @@ private:
         if (*extent == 1) continue;
         int reducing_threads = (*extent) * (*scale);
         std::stringstream ss;
-        ss << "tl::AllReduce<" << args.MakeCodegenReducer() << ", " << reducing_threads << ", " << (*scale) << ">::run";
-        Array<PrimExpr> thread_reduce_args = { StringImm(ss.str()), BufferLoad(args.dst, dst_indices) };
+        ss << "tl::AllReduce<" << args.MakeCodegenReducer() << ", " << reducing_threads << ", "
+           << (*scale) << ">::run";
+        Array<PrimExpr> thread_reduce_args = {StringImm(ss.str()),
+                                              BufferLoad(args.dst, dst_indices)};
         if (reducing_threads >= 32) {
           PrimExpr workspace = GetWorkspace(thread_block_size_, args.src->dtype);
           thread_reduce_args.push_back(workspace);
@@ -217,7 +226,7 @@ using namespace tir::transform;
 tvm::transform::Pass LowerTileOp() {
   auto pass_func = [=](PrimFunc f, IRModule m, PassContext ctx) {
     return LowerTileOpPass::Substitute(std::move(f));
-    };
+  };
   return CreatePrimFuncPass(pass_func, 0, "tl.LowerTileOp", {});
 }
 

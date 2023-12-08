@@ -17,10 +17,10 @@
  * under the License.
  */
 
- /*!
-  * \file layout_inference.cc
-  * \brief infer the fragment/shared memory layout
-  */
+/*!
+ * \file layout_inference.cc
+ * \brief infer the fragment/shared memory layout
+ */
 
 #include <tvm/tir/op.h>
 #include <tvm/tir/stmt_functor.h>
@@ -30,9 +30,9 @@
 #include <queue>
 
 #include "../arith/ir_mutator_with_analyzer.h"
-#include "loop_partition.h"
 #include "auto_vectorize.h"
 #include "layout_infer.h"
+#include "loop_partition.h"
 
 namespace tvm {
 namespace tir {
@@ -41,7 +41,7 @@ using namespace tl;
 using arith::IRMutatorWithAnalyzer;
 
 class BufferUseDefCollector : public StmtExprVisitor {
-public:
+ public:
   BufferUseDefCollector() = default;
 
   auto Run() -> std::pair<Map<Buffer, Layout>, Map<For, Fragment>> {
@@ -58,7 +58,8 @@ public:
       auto updates = next->Inference(layout_map, level);
       for (const auto& [buffer, layout] : updates) {
         if (layout_map.count(buffer)) {
-          ICHECK(StructuralEqual()(layout, layout_map[buffer])) << "Get different layout for " << buffer;
+          ICHECK(StructuralEqual()(layout, layout_map[buffer]))
+              << "Get different layout for " << buffer;
         } else {
           layout_map.Set(buffer, layout);
           if (!update_queue) continue;
@@ -70,7 +71,7 @@ public:
           }
         }
       }
-      };
+    };
     auto finish_infer_queue = [&]() {
       while (!q.empty()) {
         int cur_infer_id = q.front();
@@ -78,7 +79,7 @@ public:
         in_queue[cur_infer_id] = false;
         run_infer_step(cur_infer_id, InferLevel::kCommon, true);
       }
-      };
+    };
 
     // step 1, infer strict layout
     for (int i = 0; i < num_infer; i++) {
@@ -95,7 +96,7 @@ public:
     }
 
     // Check that all fragments have been inferred
-    for (const auto& [buffer, _]: use_list_) {
+    for (const auto& [buffer, _] : use_list_) {
       if (buffer.scope() == "local.fragment" && layout_map.count(buffer) == 0)
         LOG_ERROR << "The layout for fragment " << buffer << " can not be inferred correctly.";
     }
@@ -104,12 +105,13 @@ public:
     Map<For, Fragment> for_map;
     for (auto& base_infer : infer_list_) {
       if (auto for_infer = std::dynamic_pointer_cast<ForNodeLayoutInfer>(base_infer)) {
-        ICHECK(for_infer->GetLoopLayout().defined()) << "The Layout for Parallel for can not be infered correctly : \n"
-          << GetRef<For>(for_infer->GetRoot());
+        ICHECK(for_infer->GetLoopLayout().defined())
+            << "The Layout for Parallel for can not be infered correctly : \n"
+            << GetRef<For>(for_infer->GetRoot());
         for_map.Set(GetRef<For>(for_infer->GetRoot()), for_infer->GetLoopLayout());
       }
     }
-    return { layout_map, for_map };
+    return {layout_map, for_map};
   }
 
   void Collect(const PrimFunc& f) {
@@ -119,7 +121,7 @@ public:
     this->operator()(f->body);
   }
 
-private:
+ private:
   void VisitExpr_(const CallNode* op) final {
     StmtExprVisitor::VisitExpr_(op);
     std::unordered_set<Buffer, ObjectPtrHash, ObjectPtrEqual> access_regions;
@@ -127,11 +129,11 @@ private:
     if (op->op.same_as(gemm())) {
       GemmArgs args = GemmArgs::Parse(op->args, buffer_data_to_buffer_);
       p = std::make_shared<GemmOpLayoutInfer>(args, thread_block_size_);
-      access_regions.insert({ args.A, args.B, args.C });
+      access_regions.insert({args.A, args.B, args.C});
     } else if (op->op.same_as(reduce())) {
       ReduceArgs args = ReduceArgs::Parse(op->args, buffer_data_to_buffer_);
       p = std::make_shared<ReduceOpLayoutInfer>(args, thread_block_size_);
-      access_regions.insert({ args.src, args.dst });
+      access_regions.insert({args.src, args.dst});
     }
     if (p) {
       infer_list_.push_back(p);
@@ -187,7 +189,7 @@ private:
 };
 
 class LayoutInferencer : public IRMutatorWithAnalyzer {
-public:
+ public:
   static PrimFunc Substitute(PrimFunc f) {
     BufferUseDefCollector collector;
     collector.Collect(f);
@@ -201,10 +203,10 @@ public:
     return f;
   }
 
-private:
+ private:
   LayoutInferencer(const Map<Buffer, Layout>& layout_map, const Map<For, Fragment> for_map,
-    arith::Analyzer* analyzer)
-    : arith::IRMutatorWithAnalyzer(analyzer), layout_map_(layout_map), for_map_(for_map) {};
+                   arith::Analyzer* analyzer)
+      : arith::IRMutatorWithAnalyzer(analyzer), layout_map_(layout_map), for_map_(for_map){};
 
   Stmt VisitStmt_(const BlockNode* op) final {
     for (const auto& buffer : op->alloc_buffers) {
@@ -219,12 +221,12 @@ private:
         }
         Var new_var = Var(buffer->data->name_hint, new_type);
         new_alloc_.Set(buffer->data,
-          Buffer(new_var, buffer->dtype, layout->OutputShape(), {},
-            buffer->elem_offset, buffer->name, buffer->data_alignment,
-            buffer->offset_factor, buffer->buffer_type));
+                       Buffer(new_var, buffer->dtype, layout->OutputShape(), {},
+                              buffer->elem_offset, buffer->name, buffer->data_alignment,
+                              buffer->offset_factor, buffer->buffer_type));
       } else {
         ICHECK(buffer.scope() != "local.fragment")
-          << "Cannot inference fragment layout for " << buffer;
+            << "Cannot inference fragment layout for " << buffer;
       }
     }
     Block block = Downcast<Block>(IRMutatorWithAnalyzer::VisitStmt_(op));
@@ -271,7 +273,8 @@ private:
     Stmt body = IRMutatorWithAnalyzer::VisitStmt_(op);
     if (for_map_.find(GetRef<For>(op)) != for_map_.end()) {
       auto loop_layout = for_map_[GetRef<For>(op)];
-      auto new_for = PartitionLoop(body.as<ForNode>(), thread_var_, analyzer_, for_map_[GetRef<For>(op)]);
+      auto new_for =
+          PartitionLoop(body.as<ForNode>(), thread_var_, analyzer_, for_map_[GetRef<For>(op)]);
       new_for = VectorizeLoop(new_for);
       return new_for;
     }
@@ -291,7 +294,7 @@ private:
     return IRMutatorWithAnalyzer::VisitStmt_(op);
   }
 
-private:
+ private:
   Map<Buffer, Layout> layout_map_;
   Map<For, Fragment> for_map_;
   Map<Var, Buffer> new_alloc_;
@@ -304,7 +307,7 @@ namespace transform {
 tvm::transform::Pass LayoutInference() {
   auto pass_func = [=](PrimFunc f, IRModule m, PassContext ctx) {
     return LayoutInferencer::Substitute(std::move(f));
-    };
+  };
   return CreatePrimFuncPass(pass_func, 0, "tl.LayoutInference", {});
 }
 

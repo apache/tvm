@@ -60,14 +60,14 @@ ForFrame PipelinedFor(PrimExpr start, PrimExpr stop, int num_stages) {
   DataType dtype = stop.dtype();
   n->vars.push_back(Var("v", dtype));
   n->doms.push_back(Range(make_const(dtype, 0), stop));
-  n->f_make_for_loop = [=] (Array<Var> vars, Array<Range> doms, Stmt body) -> Stmt {
+  n->f_make_for_loop = [=](Array<Var> vars, Array<Range> doms, Stmt body) -> Stmt {
     ICHECK_EQ(vars.size(), doms.size());
     int n = vars.size();
     ICHECK(n == 1);
     Map<String, ObjectRef> anno;
     if (num_stages > 0) anno.Set("num_stages", PrimExpr(num_stages));
     body = For(vars[0], doms[0]->min, doms[0]->extent, ForKind::kSerial, std::move(body),
-                /*thread_binding=*/NullOpt, /*annotations=*/anno);
+               /*thread_binding=*/NullOpt, /*annotations=*/anno);
     return body;
   };
   return ForFrame(n);
@@ -76,7 +76,7 @@ ForFrame PipelinedFor(PrimExpr start, PrimExpr stop, int num_stages) {
 TVM_REGISTER_GLOBAL("tl.Parallel").set_body_typed(ParallelFor);
 TVM_REGISTER_GLOBAL("tl.Pipelined").set_body_typed(PipelinedFor);
 
-}
-}
-}
-}
+}  // namespace tir
+}  // namespace ir_builder
+}  // namespace script
+}  // namespace tvm

@@ -14,6 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+"""The profiler and convert to torch utils"""
 
 from typing import Any, List
 from enum import Enum
@@ -23,6 +24,7 @@ import torch
 from tvm.relay import TensorType
 from tvm.contrib.dlpack import to_pytorch_func
 
+
 class TensorSupplyType(Enum):
     Integer = 1
     Uniform = 2
@@ -30,6 +32,7 @@ class TensorSupplyType(Enum):
     Randn = 4
     Zero = 5
     One = 6
+
 
 def get_tensor_supply(supply_type: TensorSupplyType):
     def get_tensor(tensor: TensorType) -> torch.Tensor:
@@ -50,11 +53,20 @@ def get_tensor_supply(supply_type: TensorSupplyType):
             return torch.zeros(*shape, device=device, dtype=dtype)
         elif supply_type == TensorSupplyType.One:
             return torch.ones(*shape, device=device, dtype=dtype)
+        else:
+            raise NotImplementedError(supply_type)
 
     return get_tensor
 
-class ConvertTorch():
-    def __init__(self, mod, params: List[TensorType], result_idx: List[int], supply_type: TensorSupplyType=TensorSupplyType.Normal) -> None:
+
+class ConvertTorch:
+    def __init__(
+        self,
+        mod,
+        params: List[TensorType],
+        result_idx: List[int],
+        supply_type: TensorSupplyType = TensorSupplyType.Normal,
+    ) -> None:
         self.mod = mod
         self.params = params
         self.result_idx = result_idx
@@ -63,6 +75,7 @@ class ConvertTorch():
 
     def _convert_torch_func(self) -> callable:
         torch_func = to_pytorch_func(self.mod)
+
         def func(*ins: List[torch.Tensor]):
             assert len(ins) + len(self.result_idx) == len(self.params)
             ins_idx = 0
@@ -79,12 +92,13 @@ class ConvertTorch():
                 args.append(tensor)
             torch_func(*args)
             return [args[i] for i in self.result_idx]
+
         return func
 
     def __call__(self, *args: Any, **kwds: Any) -> Any:
         return self.func(*args, **kwds)
 
-    def assert_allclose(self, reference_program: callable, atol: float=1e-8, rtol: float=1e-5):
+    def assert_allclose(self, reference_program: callable, atol: float = 1e-8, rtol: float = 1e-5):
         ins = self._get_inputs()
         ref_outs = reference_program(*ins)
         torch.cuda.synchronize()
@@ -108,12 +122,10 @@ class ConvertTorch():
     def get_kernel_source(self) -> str:
         return self.mod.imported_modules[0].get_source()
 
-def do_bench(fn, warmup=25, rep=100, grad_to_none=None,
-             quantiles=None,
-             fast_flush=True,
-             return_mode="mean"):
-    assert return_mode in ["min", "max", "mean", "median"]
-    import torch
+
+def do_bench(
+    fn, warmup=25, rep=100, grad_to_none=None, quantiles=None, fast_flush=True, return_mode="mean"
+):
     """
     Benchmark the runtime of the provided function. By default, return the median runtime of :code:`fn` along with
     the 20-th and 80-th performance percentile.
@@ -131,7 +143,7 @@ def do_bench(fn, warmup=25, rep=100, grad_to_none=None,
     :param fast_flush: Use faster kernel to flush L2 between measurements
     :type fast_flush: bool
     """
-
+    assert return_mode in ["min", "max", "mean", "median"]
     fn()
     torch.cuda.synchronize()
 
@@ -139,9 +151,9 @@ def do_bench(fn, warmup=25, rep=100, grad_to_none=None,
     # before each kernel call to make sure that the L2
     # doesn't contain any input data before the run
     if fast_flush:
-        cache = torch.empty(int(256e6 // 4), dtype=torch.int, device='cuda')
+        cache = torch.empty(int(256e6 // 4), dtype=torch.int, device="cuda")
     else:
-        cache = torch.empty(int(256e6), dtype=torch.int8, device='cuda')
+        cache = torch.empty(int(256e6), dtype=torch.int8, device="cuda")
 
     # Estimate the runtime of the function
     start_event = torch.cuda.Event(enable_timing=True)
@@ -178,7 +190,9 @@ def do_bench(fn, warmup=25, rep=100, grad_to_none=None,
         end_event[i].record()
     # Record clocks
     torch.cuda.synchronize()
-    times = torch.tensor([s.elapsed_time(e) for s, e in zip(start_event, end_event)], dtype=torch.float)
+    times = torch.tensor(
+        [s.elapsed_time(e) for s, e in zip(start_event, end_event)], dtype=torch.float
+    )
     if quantiles is not None:
         ret = torch.quantile(times, torch.tensor(quantiles, dtype=torch.float)).tolist()
         if len(ret) == 1:

@@ -26,9 +26,9 @@
 #ifndef TVM_TL_OP_H_
 #define TVM_TL_OP_H_
 
+#include <tvm/arith/analyzer.h>
 #include <tvm/ir/op.h>
 #include <tvm/tir/buffer.h>
-#include <tvm/arith/analyzer.h>
 
 namespace tvm {
 namespace tl {
@@ -70,7 +70,8 @@ struct CopyArgs {
   // ivs: itervars returned by MakeIterVars()
   // src_dst: 0 for src_indices, 1 for dst_indices
   Array<PrimExpr> MakeIndices(const Array<IterVar>& ivs, int src_dst) const;
-  PrimExpr MakePredicate(arith::Analyzer* analyzer, const Array<IterVar>& ivs, Array<PrimExpr> extents, int src_dst) const;
+  PrimExpr MakePredicate(arith::Analyzer* analyzer, const Array<IterVar>& ivs,
+                         Array<PrimExpr> extents, int src_dst) const;
   bool CheckRangeEqual() const;
 };
 
