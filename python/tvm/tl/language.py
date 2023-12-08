@@ -67,7 +67,7 @@ def Pipelined(start: tir.PrimExpr, stop: tir.PrimExpr = None, num_stages: int = 
     return _ffi_api.Pipelined(start, stop, num_stages)
 
 
-def launch_program(*grid_size: List[int], num_threads: int):
+def launch_program(*grid_size: List[int], num_threads: int = 128):
     """Tools to quickly construct a GPU kernel launch frame.
 
     Parameters
