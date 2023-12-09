@@ -14,13 +14,9 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-
+# pylint: disable=invalid-name，unused-variable
 """Relay to ONNX serialization test cases"""
 import pytest
-
-pytest.importorskip("onnx")
-pytest.importorskip("onnxruntime")
-
 import numpy as np
 import onnxruntime as rt
 
@@ -29,8 +25,12 @@ from tvm import relay
 from tvm.contrib.target.onnx import to_onnx
 from tvm.relay.testing import run_infer_type
 
+pytest.importorskip("onnx")
+pytest.importorskip("onnxruntime")
+
 
 def func_to_onnx(func, name):
+    """Converts a Relay function to an ONNX model and serializes it."""
     mod = tvm.IRModule()
     mod["main"] = func
     onnx_model = to_onnx(mod, {}, name, path=None)
@@ -38,16 +38,20 @@ def func_to_onnx(func, name):
 
 
 def run_onnx(onnx_model, input_data):
+    """Runs an ONNX model with input data using ONNX Runtime."""
+
     sess = rt.InferenceSession(onnx_model)
     input_names = {}
-    for input, data in zip(sess.get_inputs(), input_data):
-        input_names[input.name] = data
+    for _input, data in zip(sess.get_inputs(), input_data):
+        input_names[_input.name] = data
     output_names = [out.name for out in sess.get_outputs()]
     res = sess.run(output_names, input_names)
     return res
 
 
 def run_relay(func, data_tuple, is_dyn=False):
+    """Runs a Relay function with input data on the TVM backend."""
+
     target = "llvm"
     dev = tvm.device("llvm", 0)
     kind = "graph" if not is_dyn else "vm"
@@ -62,6 +66,8 @@ def run_relay(func, data_tuple, is_dyn=False):
 
 
 def verify_results(relay_func, indata, test_name, rtol=1e-7, atol=0, is_dyn=False):
+    """Compares the results of running a Relay function against the equivalent ONNX model."""
+
     relay_results = run_relay(relay_func, indata, is_dyn)
     onnx_results = run_onnx(func_to_onnx(relay_func, test_name), indata)
 
@@ -70,6 +76,8 @@ def verify_results(relay_func, indata, test_name, rtol=1e-7, atol=0, is_dyn=Fals
 
 
 def test_add():
+    """Tests the addition operation ."""
+
     dtype = "float32"
     t1 = relay.TensorType((5, 10, 5))
     t2 = relay.TensorType((5, 10, 5))
@@ -85,6 +93,8 @@ def test_add():
 
 
 def test_bias_add():
+    """Tests the bias addition operation."""
+
     for dtype in ["float16", "float32"]:
         xshape = (10, 2, 3, 4)
         bshape = (2,)
@@ -101,6 +111,8 @@ def test_bias_add():
 
 
 def test_conv2d():
+    """Conv2d unit tests."""
+
     def verify_conv2d(
         dtype, scale, dshape, kshape, padding=(1, 1), groups=1, dilation=(1, 1), **attrs
     ):
@@ -230,6 +242,8 @@ def test_conv2d_transpose():
 
 
 def test_reshape():
+    """Tests the reshape operation"""
+
     def verify_reshape(shape, newshape):
         x = relay.var("x", relay.TensorType(shape, "float32"))
         z = relay.reshape(x, newshape=newshape)
@@ -245,6 +259,8 @@ def test_reshape():
 
 
 def test_transpose():
+    """Tests the transpose operation"""
+
     def verify_reshape(shape, newshape):
         x = relay.var("x", relay.TensorType(shape, "float32"))
         z = relay.transpose(x, newshape)
@@ -257,6 +273,8 @@ def test_transpose():
 
 
 def test_dense():
+    """Tests the dense layer operation."""
+
     def verify_dense(d_shape, w_shape):
         data = relay.var("data", relay.TensorType(d_shape, "float32"))
         weight = relay.var("weight", relay.TensorType(w_shape, "float32"))
@@ -270,6 +288,8 @@ def test_dense():
 
 
 def test_max_pool():
+    """Tests the max pooling operation"""
+
     def verify_max_pool(x_shape, pool_size, strides, padding, ceil_mode):
         x = relay.var("x", relay.TensorType(x_shape, "float32"))
         y = tvm.relay.nn.max_pool2d(
@@ -285,6 +305,8 @@ def test_max_pool():
 
 
 def test_batch_flatten():
+    """Tests the batch flattening operation with random input data."""
+
     def verify_test_batch_flatten(d_shape):
         data = relay.var("data", relay.TensorType(d_shape, "float32"))
         func = relay.Function([data], relay.nn.batch_flatten(data))
@@ -296,6 +318,8 @@ def test_batch_flatten():
 
 
 def test_batch_norm():
+    """Tests the batch normalization operation"""
+
     def verify_batch_norm(axis=1):
         for dtype in ["float16", "float32"]:
             data = relay.var("data", relay.TensorType((2, 4, 4, 1), dtype))
@@ -340,6 +364,8 @@ def test_pad():
 
 
 def test_sofmax():
+    """Tests the softmax operation"""
+
     def verify_sofmax():
         for dtype in ["float32"]:
             shape = (10, 4)
@@ -353,6 +379,8 @@ def test_sofmax():
 
 
 def test_squeeze():
+    """Tests the squeeze operation"""
+
     def verify_squeeze(shape, dtype, axis):
         x = relay.var("x", relay.TensorType(shape, dtype))
         z = relay.squeeze(x, axis=axis)
@@ -372,6 +400,8 @@ def test_squeeze():
 
 
 def test_mean():
+    """Tests the mean operation"""
+
     def verify_mean(data_shape, axis, exclude, keepdims):
         dtype = "float32"
         x = relay.var("x", shape=data_shape, dtype=dtype)
@@ -388,6 +418,8 @@ def test_mean():
 
 
 def test_split():
+    """Tests the split operation"""
+
     def verify_split(dshape, indices_or_sections, axis=None):
         dtype = "float32"
         x = relay.var("x", relay.ty.TensorType(dshape, "float32"))
@@ -404,6 +436,8 @@ def test_split():
 
 
 def test_concatenate():
+    """Tests the concatenate operation"""
+
     def verify_concatenate(shapes, axis, dtype="float32"):
         in_vars = []
         in_data = []
@@ -423,6 +457,8 @@ def test_concatenate():
 
 
 def test_strided_slice():
+    """Tests the strided slice operation"""
+
     def verify_strided_slice(dshape, begin, end, strides, mode):
         x = relay.var("x", relay.TensorType(dshape, "float32"))
         if mode == "size":
@@ -457,6 +493,8 @@ def test_strided_slice():
 
 
 def test_cmp_type():
+    """Tests comparison operations (greater, less, equal) with random input data."""
+
     for op, ref in ((relay.greater, np.greater), (relay.less, np.less), (relay.equal, np.equal)):
         x_shape = (10, 4)
         y_shape = (5, 10, 1)
@@ -472,6 +510,8 @@ def test_cmp_type():
 
 
 def test_unary_identity():
+    """Tests unary identity operations with random input data."""
+
     for dtype in ["int16", "float32", "float64"]:
         for op, ref in [(relay.zeros_like, np.zeros_like), (relay.ones_like, np.ones_like)]:
             shape = (8, 9, 4)
@@ -488,6 +528,8 @@ def test_unary_identity():
 
 
 def test_binary_op():
+    """Tests binary operations with random input data."""
+
     def check_binary_op(opfunc, dtype):
         t1 = relay.TensorType((5, 10, 5))
         t2 = relay.TensorType((5, 10, 5))
@@ -510,6 +552,8 @@ def test_binary_op():
 
 
 def test_tuple_types():
+    """Tests tuple operations"""
+
     def verify_tuple_types(dshape, indices_or_sections, axis=None, dtype="float32"):
         x = relay.var("x", relay.ty.TensorType(dshape, dtype))
         y = relay.split(x, indices_or_sections, axis=axis)
@@ -537,6 +581,8 @@ def test_tuple_types():
 
 
 def test_layout_transform():
+    """Tests layout transformation operations"""
+
     def verify_layout_transform(dshape, src_layout, dst_layout, dtype="float32"):
         x = relay.var("x", relay.ty.TensorType(dshape, dtype))
         y = relay.layout_transform(x, src_layout, dst_layout)
@@ -549,6 +595,8 @@ def test_layout_transform():
 
 
 def test_clip():
+    """Tests the clip operation"""
+
     def verify_clip(dshape, a_min, a_max, dtype="float32"):
         x = relay.var("x", relay.ty.TensorType(dshape, dtype))
         y = relay.clip(x, a_min, a_max)
@@ -561,6 +609,8 @@ def test_clip():
 
 
 def test_expand_dims():
+    """Tests the expand_dims operation"""
+
     def verify_expand_dims(dshape, axis, num_newaxis, dtype="float32"):
         x = relay.var("x", relay.ty.TensorType(dshape, dtype))
         y = relay.expand_dims(x, axis, num_newaxis)
