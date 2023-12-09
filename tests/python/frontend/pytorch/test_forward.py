@@ -720,9 +720,31 @@ def test_forward_concatenate():
             c = (args[0][:, :, 2] + 5) * 13
             return torch.cat([t.unsqueeze(2) for t in [a, b, c]], 2)
 
+    class Concatenate3(Module):
+        """
+        torch.concat is preserved as aten::concat only when in a nested module.
+        (In the most cases, It is converted to aten::cat instead of aten::concat.)
+        """
+
+        def __init__(self):
+            super().__init__()
+
+            class _Concatenate(Module):
+                def forward(self, *args):
+                    a = (args[0][:, :, 0] + 2) * 7
+                    b = (args[0][:, :, 1] + 3) * 11
+                    c = (args[0][:, :, 2] + 5) * 13
+                    return torch.concat([t.unsqueeze(2) for t in [a, b, c]], 2)
+
+            self.mod = _Concatenate()
+
+        def forward(self, *args):
+            return self.mod(*args)
+
     input_data = torch.rand(input_shape).float()
     verify_model(Concatenate1().float().eval(), input_data=input_data)
     verify_model(Concatenate2().float().eval(), input_data=input_data)
+    verify_model(Concatenate3().float().eval(), input_data=input_data)
 
 
 @tvm.testing.uses_gpu
