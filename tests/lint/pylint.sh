@@ -39,6 +39,9 @@ python3 -m pylint tests/python/contrib/test_rpc_server_device.py --rcfile="$(dir
 python3 -m pylint tests/python/contrib/test_rpc_proxy.py --rcfile="$(dirname "$0")"/pylintrc
 python3 -m pylint tests/python/contrib/test_rocblas.py --rcfile="$(dirname "$0")"/pylintrc
 python3 -m pylint tests/python/contrib/test_random.py --rcfile="$(dirname "$0")"/pylintrc
+python3 -m pylint tests/python/contrib/test_onnx.py --rcfile="$(dirname "$0")"/pylintrc
+python3 -m pylint tests/python/contrib/test_onnx_model.py --rcfile="$(dirname "$0")"/pylintrc
+python3 -m pylint tests/python/contrib/test_popen_pool.py --rcfile="$(dirname "$0")"/pylintrc
 
 # tests/python/contrib/test_hexagon tests
 python3 -m pylint tests/python/contrib/test_hexagon/*.py --rcfile="$(dirname "$0")"/pylintrc
