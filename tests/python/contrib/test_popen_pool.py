@@ -15,10 +15,10 @@
 # specific language governing permissions and limitations
 # under the License.
 """Test PopenPoolExecutor."""
-import pytest
+# pylint: disable=invalid-name
 import os
+import pytest
 import psutil
-import time
 from tvm.contrib.popen_pool import PopenWorker, PopenPoolExecutor
 from tvm.testing import (
     identity_after,
@@ -29,13 +29,12 @@ from tvm.testing import (
     call_py_ffi,
     call_cpp_ffi,
     call_cpp_py_ffi,
-    fast_summation,
-    slow_summation,
     timeout_job,
 )
 
 
 def test_popen_worker():
+    """Tests PopenWorker, including sending tasks, receiving results, and process termination."""
     proc = PopenWorker()
 
     with pytest.raises(TimeoutError):
@@ -54,6 +53,7 @@ def test_popen_worker():
 
 
 def test_popen_worker_reuses():
+    """Tests a PopenWorker instance reuses the same process for multiple tasks."""
     proc = PopenWorker(maximum_uses=None)
 
     proc.send(os.getpid)
@@ -64,6 +64,7 @@ def test_popen_worker_reuses():
 
 
 def test_popen_worker_recycles():
+    """Checks that PopenWorker correctly recycles"""
     proc = PopenWorker(maximum_uses=2)
 
     proc.send(os.getpid)
@@ -80,6 +81,8 @@ def test_popen_worker_recycles():
 
 
 def test_popen_pool_executor():
+    """Tests the PopenPoolExecutor for task submission, result retrieval, and process errors."""
+    # pylint: disable=import-outside-toplevel
     import tvm
 
     pool = PopenPoolExecutor(max_workers=2, timeout=0.01)
@@ -107,6 +110,7 @@ def test_popen_pool_executor():
 
 
 def test_popen_initializer():
+    """Ensures that a PopenWorker properly initializes with given arguments."""
     initargs = [1, 2, 3]
     proc = PopenWorker(initializer=initializer, initargs=initargs)
     proc.send(after_initializer)
@@ -117,6 +121,7 @@ def test_popen_initializer():
 
 
 def test_popen_worker_recycles_with_initializer():
+    """Confirms that a PopenWorker with an initializer correctly recycles and re-initializes."""
     initargs = [1, 2, 3]
     proc = PopenWorker(initializer=initializer, initargs=initargs, maximum_uses=3)
 
@@ -139,6 +144,7 @@ def test_popen_worker_recycles_with_initializer():
 
 
 def test_popen_ffi():
+    """valuates the ability of PopenWorker to call functions through FFI."""
     proc = PopenWorker(register_ffi)
 
     # call python function via ffi
@@ -158,6 +164,7 @@ def test_popen_ffi():
 
 
 def test_popen_pool_executor_timeout():
+    """Tests the PopenPoolExecutor's functionality to handle task timeouts correctly."""
     timeout = 0.5
 
     pool = PopenPoolExecutor(timeout=timeout)
@@ -166,12 +173,14 @@ def test_popen_pool_executor_timeout():
     while not f1.done():
         pass
     try:
+        # pylint: disable=unused-variable，broad-exception-caught
         res = f1.result()
     except Exception as ex:
         assert isinstance(ex, TimeoutError)
 
 
 def test_popen_pool_executor_recycles():
+    """Assesses whether PopenPoolExecutor properly recycles worker processes."""
     pool = PopenPoolExecutor(max_workers=1, timeout=None, maximum_process_uses=2)
 
     initial_pid = pool.submit(os.getpid).result()
