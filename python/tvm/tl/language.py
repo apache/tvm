@@ -20,6 +20,8 @@ from typing import Union, List
 from tvm import tir
 from tvm.script import tir as T
 from tvm.script.parser.tir import *
+from tvm.script.ir_builder.tir.frame import TIRFrame
+from tvm._ffi import register_object
 from . import _ffi_api
 
 
@@ -67,30 +69,30 @@ def Pipelined(start: tir.PrimExpr, stop: tir.PrimExpr = None, num_stages: int = 
     return _ffi_api.Pipelined(start, stop, num_stages)
 
 
-def launch_program(*grid_size: List[int], num_threads: int = 128):
+@register_object("tl.KernelLaunchFrame")
+class KernelLaunchFrame(TIRFrame):
+    def __enter__(self) -> Union[Var, List[Var]]:  # type: ignore[override]
+        super().__enter__()
+        if len(self.frames) == 3:
+            return self.frames[0].iter_var.var
+        return [frame.iter_var.var for frame in self.frames[0:-2]]
+
+
+def Kernel(*blocks: List[tir.PrimExpr], threads: int = 128):
     """Tools to quickly construct a GPU kernel launch frame.
 
     Parameters
     ----------
-    grid_size : List[int]
+    blocks : List[int]
         A list of extent, can be 1-3 dimension, representing gridDim.(x|y|z)
-    num_threads : int
+    threads : int
         A integer representing blockDim.x
     Returns
     -------
     res : Tuple[frame.LaunchThreadFrame]
         The result LaunchThreadFrame.
     """
-    assert len(grid_size) >= 1 and len(grid_size) <= 3
-    tx = T.launch_thread("threadIdx.x", num_threads)
-    bx = T.launch_thread("blockIdx.x", grid_size[0])
-    if len(grid_size) == 1:
-        return bx, tx
-    by = T.launch_thread("blockIdx.y", grid_size[1])
-    if len(grid_size) == 2:
-        return bx, by, tx
-    bz = T.launch_thread("blockIdx.z", grid_size[2])
-    return bx, by, bz, tx
+    return _ffi_api.KernelLaunch(blocks, threads)
 
 
 def use_swizzle(panel_size: int):

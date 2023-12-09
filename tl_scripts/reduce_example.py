@@ -10,9 +10,7 @@ def reduce_sum(M, N, block_M, block_N):
 
     @T.prim_func
     def main(A: T.Buffer((M, N), dtype), B: T.Buffer([M], dtype)):
-        bx, _ = T.launch_program(T.ceildiv(M, block_M), num_threads=128)
-
-        with T.block():
+        with T.Kernel(T.ceildiv(M, block_M), threads=128) as bx:
             A_shared = T.alloc_shared((block_M, block_N), dtype)
             A_local = T.alloc_fragment((block_M, block_N), dtype)
             B_local = T.alloc_fragment((block_M,), dtype)

@@ -34,7 +34,7 @@ def matmul(
     dtypeC,
     accum_dtype,
     num_stages,
-    num_threads,
+    threads,
 ):
     A_shape = (K, M) if trans_A else (M, K)
     B_shape = (N, K) if trans_B else (K, N)
@@ -47,11 +47,7 @@ def matmul(
     def main(
         A: T.Buffer(A_shape, dtypeAB), B: T.Buffer(B_shape, dtypeAB), C: T.Buffer((M, N), dtypeC)
     ):
-        bx, by, _ = T.launch_program(
-            T.ceildiv(N, block_N), T.ceildiv(M, block_M), num_threads=num_threads
-        )
-
-        with T.block():
+        with T.Kernel(T.ceildiv(N, block_N), T.ceildiv(M, block_M), threads=threads) as (bx, by):
             A_shared = T.alloc_shared(A_shared_shape, dtypeAB)
             B_shared = T.alloc_shared(B_shared_shape, dtypeAB)
             C_local = T.alloc_fragment((block_M, block_N), accum_dtype)

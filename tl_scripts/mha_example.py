@@ -6,9 +6,9 @@ from tvm.tl.utils import ConvertTorch, TensorSupplyType
 from functools import partial
 
 
-def flashattn(batch_size, num_head, seq_len, dim, is_casual, block_M, block_N):
+def flashattn(batch, heads, seq_len, dim, is_casual, block_M, block_N):
     scale = (1.0 / dim) ** 0.5 * 1.44269504  # log2(e)
-    shape = [batch_size, seq_len, num_head, dim]
+    shape = [batch, seq_len, heads, dim]
     dtype = "float16"
     accum_dtype = "float"
 
@@ -19,11 +19,7 @@ def flashattn(batch_size, num_head, seq_len, dim, is_casual, block_M, block_N):
         V: T.Buffer(shape, dtype),
         Output: T.Buffer(shape, dtype),
     ):
-        bx, by, bz, _ = T.launch_program(
-            num_head, T.ceildiv(seq_len, block_M), batch_size, num_threads=128
-        )
-
-        with T.block():
+        with T.Kernel(heads, T.ceildiv(seq_len, block_M), batch, threads=128) as (bx, by, bz):
             Q_local = T.alloc_fragment([block_M, dim], dtype)
             K_shared = T.alloc_shared([block_N, dim], dtype)
             V_shared = T.alloc_shared([block_N, dim], dtype)

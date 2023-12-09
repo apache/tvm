@@ -26,9 +26,9 @@
 #include <tvm/script/ir_builder/tir/ir.h>
 
 namespace tvm {
-namespace script {
-namespace ir_builder {
-namespace tir {
+namespace tl {
+
+using namespace script::ir_builder::tir;
 
 ForFrame ParallelFor(Array<PrimExpr> extents) {
   using namespace tvm::tir;
@@ -73,10 +73,63 @@ ForFrame PipelinedFor(PrimExpr start, PrimExpr stop, int num_stages) {
   return ForFrame(n);
 }
 
+/*!
+ * \brief A frame that represents a kernel launch.
+ *
+ * \sa KernelLaunchFrameNode
+ */
+class KernelLaunchFrameNode : public TIRFrameNode {
+ public:
+  Array<TIRFrame> frames;
+
+  void VisitAttrs(tvm::AttrVisitor* v) {
+    TIRFrameNode::VisitAttrs(v);
+    v->Visit("frames", &frames);
+  }
+
+  static constexpr const char* _type_key = "tl.KernelLaunchFrame";
+  TVM_DECLARE_FINAL_OBJECT_INFO(KernelLaunchFrameNode, TIRFrameNode);
+
+ public:
+  TVM_DLL void EnterWithScope() final {
+    for (auto frame = frames.begin(); frame != frames.end(); ++frame) (*frame)->EnterWithScope();
+  }
+  /*!
+   * \brief The method called when exiting RAII scope.
+   * \sa tvm::support::With
+   */
+  TVM_DLL void ExitWithScope() final {
+    for (auto frame = frames.rbegin(); frame != frames.rend(); ++frame) (*frame)->ExitWithScope();
+  }
+};
+
+/*!
+ * \brief Managed reference to KernelLaunchFrameNode.
+ *
+ * \sa KernelLaunchFrameNode
+ */
+class KernelLaunchFrame : public TIRFrame {
+ public:
+  TVM_DEFINE_MUTABLE_NOTNULLABLE_OBJECT_REF_METHODS(KernelLaunchFrame, TIRFrame,
+                                                    KernelLaunchFrameNode);
+};
+
+KernelLaunchFrame KernelLaunch(Array<PrimExpr> grid_size, PrimExpr extent) {
+  ObjectPtr<KernelLaunchFrameNode> n = make_object<KernelLaunchFrameNode>();
+  ICHECK(grid_size.size() <= 3);
+  if (grid_size.size() > 0) n->frames.push_back(LaunchThread("blockIdx.x", grid_size[0]));
+  if (grid_size.size() > 1) n->frames.push_back(LaunchThread("blockIdx.y", grid_size[1]));
+  if (grid_size.size() > 2) n->frames.push_back(LaunchThread("blockIdx.z", grid_size[2]));
+  n->frames.push_back(LaunchThread("threadIdx.x", extent));
+  n->frames.push_back(Block(""));
+  return KernelLaunchFrame(n);
+}
+
+TVM_REGISTER_NODE_TYPE(KernelLaunchFrameNode);
+
 TVM_REGISTER_GLOBAL("tl.Parallel").set_body_typed(ParallelFor);
 TVM_REGISTER_GLOBAL("tl.Pipelined").set_body_typed(PipelinedFor);
+TVM_REGISTER_GLOBAL("tl.KernelLaunch").set_body_typed(KernelLaunch);
 
-}  // namespace tir
-}  // namespace ir_builder
-}  // namespace script
+}  // namespace tl
 }  // namespace tvm

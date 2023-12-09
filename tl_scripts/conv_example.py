@@ -22,11 +22,10 @@ def convolution(N, C, H, W, INC, KW, KH, P, S, D):
         kernel: T.Buffer((KH, KW, INC, C), dtype),
         out: T.Buffer((N, H, W, C), dtype),
     ):
-        bx, by, _ = T.launch_program(
-            T.ceildiv(C, block_N), T.ceildiv(N * H * W, block_M), num_threads=128
-        )
-
-        with T.block():
+        with T.Kernel(T.ceildiv(C, block_N), T.ceildiv(N * H * W, block_M), threads=128) as (
+            bx,
+            by,
+        ):
             data_shared = T.alloc_shared((block_M, block_K), dtype)
             kernel_shared = T.alloc_shared((block_K, block_N), dtype)
             out_local = T.alloc_fragment((block_M, block_N), accum_dtype)
