@@ -16,12 +16,9 @@
 # under the License.
 
 """Relay to ONNX target test cases"""
-import pytest
-
-pytest.importorskip("onnx")
-pytest.importorskip("onnxruntime")
-
+# pylint: disable=invalid-name，unused-variable
 from collections import OrderedDict
+import pytest
 import numpy as np
 import onnxruntime as rt
 import tvm
@@ -31,6 +28,9 @@ import tvm.relay.testing
 from tvm.relay.op.annotation import compiler_begin, compiler_end
 from tvm.ir import IRModule
 from tvm.relay import transform
+
+pytest.importorskip("onnx")
+pytest.importorskip("onnxruntime")
 
 
 def func_to_onnx(mod, params, name):
@@ -42,8 +42,8 @@ def run_onnx(mod, params, name, input_data):
     onnx_model = func_to_onnx(mod, params, name)
     sess = rt.InferenceSession(onnx_model)
     input_names = {}
-    for input, data in zip(sess.get_inputs(), input_data):
-        input_names[input.name] = data
+    for _input, data in zip(sess.get_inputs(), input_data):
+        input_names[_input.name] = data
     output_names = [output.name for output in sess.get_outputs()]
     res = sess.run(output_names, input_names)
     return res[0]
@@ -92,6 +92,7 @@ def test_squeezenet():
 
 @pytest.mark.skip("USE_TARGET_ONNX should be ON")
 def test_partition():
+    """Tests partition operation"""
     in_1 = relay.var("in_1", shape=(10, 10), dtype="float32")
     in_2 = relay.var("in_2", shape=(10, 10), dtype="float32")
     in_3 = relay.var("in_3", shape=(10, 10), dtype="float32")
