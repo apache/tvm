@@ -375,13 +375,18 @@ class SizeVar(Var):
     dtype : int
         The data type
 
+    min_value : Optional[int]
+        The minimum value of the SizeVar. Used to assist subsequent analysis.
+
     span : Optional[Span]
         The location of this itervar in the source code.
     """
 
     # pylint: disable=super-init-not-called
-    def __init__(self, name, dtype, span=None):
-        self.__init_handle_by_constructor__(_ffi_api.SizeVar, name, dtype, span)  # type: ignore
+    def __init__(self, name, dtype, min_value=0, span=None):
+        self.__init_handle_by_constructor__(
+            _ffi_api.SizeVar, name, dtype, min_value, span  # type: ignore
+        )
 
 
 @tvm._ffi.register_object("tir.IterVar")

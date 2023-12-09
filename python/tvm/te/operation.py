@@ -507,7 +507,7 @@ def size_var(name="size", dtype="int32", span=None):
     var : SizeVar
         The result symbolic shape variable.
     """
-    return tvm.tir.SizeVar(name, dtype, span)
+    return tvm.tir.SizeVar(name, dtype, span=span)
 
 
 def thread_axis(dom=None, tag="", name="", span=None):

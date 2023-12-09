@@ -1349,10 +1349,18 @@ def func_gen(name: str):
         ] = None,
         *,
         is_size_var: bool = False,
+        min_value: Optional[int] = None,
     ) -> PrimExpr:
         if isinstance(expr, str):
             expr = float(expr)
-        return getattr(_ffi_api, name)(expr, is_size_var)
+
+        if min_value is not None:
+            assert is_size_var, "min_value is only valid for SizeVar"
+        else:
+            # set the default min_value for SizeVar
+            min_value = 0
+
+        return getattr(_ffi_api, name)(expr, is_size_var, min_value)
 
     return func
 
