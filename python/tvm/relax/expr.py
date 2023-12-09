@@ -818,6 +818,11 @@ class Function(BaseFunc, Scriptable):
 
         return _ffi_api.FunctionBindParams(self, binding_map)  # type: ignore
 
+    def inline_functions(
+        self, function_map: Mapping[Union[str, tvm.ir.GlobalVar], "Function"]
+    ) -> "Function":
+        return _ffi_api.FunctionInlineFunctions(self, function_map)  # type: ignore
+
 
 @tvm._ffi.register_object("relax.expr.ExternFunc")
 class ExternFunc(BaseFunc):
