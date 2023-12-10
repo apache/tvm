@@ -30,7 +30,6 @@ from tvm.ir import IRModule
 from tvm.relay import transform
 
 pytest.importorskip("onnx")
-pytest.importorskip("onnxruntime")
 
 
 def func_to_onnx(mod, params, name):
