@@ -84,6 +84,10 @@ class TensorRTCodeGen : public CppCodeGen<TensorRTCodeGenConfig, TensorRTCodeGen
   template <typename T>
   const String ToDims(const std::vector<T>& dims, bool use_ndim = true);
   const String ToDims(const Array<Integer>& dims, bool use_ndim = true);
+
+ private:
+  Array<String> before_build_codes_;
+  Array<String> after_build_codes_;
 };
 
 }  // namespace msc

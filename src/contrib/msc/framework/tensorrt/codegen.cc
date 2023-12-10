@@ -94,7 +94,6 @@ void TensorRTCodeGen::CodeGenClassDefine() {
         .func_call("malloc", "cpu_buffers[" + idx_var + "]")
         .call_arg(GetTensorBytes(tensor));
   };
-
   stack_.line("#include \"" + graph()->name + ".h\"").line();
   StartNamespace();
   // start define build method
@@ -105,6 +104,12 @@ void TensorRTCodeGen::CodeGenClassDefine() {
     stack_.func_arg("config", "TRTPtr<IBuilderConfig>&");
   }
   stack_.func_arg("logger", "TRTLogger&").func_start();
+  // save codegen before build
+  if (config()->use_tools) {
+    const auto* pf = runtime::Registry::Get("msc_tool.codegen_step");
+    ICHECK(pf != nullptr) << "Cannot find msc_tool.codegen_step func.";
+    before_build_codes_ = (*pf)(GetStepCtx(), "before_build", graph()->name, config()->tools_tag);
+  }
   if (graph()->weight_holders.size() > 0) {
     stack_.assign("mWeights", "TRTUtils::LoadWeights(\"" + graph()->name + ".wts\")");
   }
@@ -183,6 +188,12 @@ void TensorRTCodeGen::CodeGenClassDefine() {
         .call_arg("ILogger::Severity::kINFO")
         .call_arg(DocUtils::ToStrDoc("use int8 to build the engine"))
         .cond_end();
+  }
+  // save codegen after build
+  if (config()->use_tools) {
+    const auto* pf = runtime::Registry::Get("msc_tool.codegen_step");
+    ICHECK(pf != nullptr) << "Cannot find msc_tool.codegen_step func.";
+    after_build_codes_ = (*pf)(GetStepCtx(), "after_build", graph()->name, config()->tools_tag);
   }
   // end define build method
   stack_.func_end("true");
@@ -339,15 +350,9 @@ void TensorRTCodeGen::CodeGenMain() {
       .func_call("createBuilderConfig", NullOpt, DocUtils::ToPtrDoc("builder"))
       .pop_nest();
   ReturnOnFail("config", "Failed to create config");
-  // codegen before build
-  if (config()->use_tools) {
-    const auto* pf = runtime::Registry::Get("msc_tool.codegen_step");
-    ICHECK(pf != nullptr) << "Cannot find msc_tool.codegen_step func.";
-    const Array<String>& lines =
-        (*pf)(GetStepCtx(), "before_build", graph()->name, config()->tools_tag);
-    for (const auto& l : lines) {
-      stack_.line(l);
-    }
+  // add codegen before build
+  for (const auto& l : before_build_codes_) {
+    stack_.line(l);
   }
   // build model
   stack_.comment("Build model")
@@ -360,15 +365,9 @@ void TensorRTCodeGen::CodeGenMain() {
   }
   stack_.call_arg("logger");
   ReturnOnFail("pass", "Failed to build model");
-  // codegen after build
-  if (config()->use_tools) {
-    const auto* pf = runtime::Registry::Get("msc_tool.codegen_step");
-    ICHECK(pf != nullptr) << "Cannot find msc_tool.codegen_step func.";
-    const Array<String>& lines =
-        (*pf)(GetStepCtx(), "after_build", graph()->name, config()->tools_tag);
-    for (const auto& l : lines) {
-      stack_.line(l);
-    }
+  // add codegen after build
+  for (const auto& l : after_build_codes_) {
+    stack_.line(l);
   }
   // Set profile flag
   stack_.comment("Set profile flag")

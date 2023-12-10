@@ -238,6 +238,40 @@ def load_dict(str_dict: str, flavor: str = "json") -> dict:
     return dict_obj
 
 
+def update_dict(
+    src_dict: dict, new_dict: dict, recursive: bool = True, soft_update: bool = True
+) -> dict:
+    """Update src_dict with new_dict.
+
+    Parameters
+    ----------
+    src_dict: dict
+        The source dict.
+    new_dict: dict
+        The new dict.
+    recursive: bool
+        Whether to update the dict recursive.
+    soft_update: bool
+        Whether to update the source dict, False to force update.
+
+    Returns
+    -------
+    dict_obj: dict
+        The updated dict.
+    """
+
+    assert isinstance(src_dict, dict) and isinstance(
+        new_dict, dict
+    ), "update_dict only support dict, get src {} and new {}".format(type(src_dict), type(new_dict))
+    for k, v in new_dict.items():
+        if isinstance(v, dict):
+            v = update_dict(src_dict.get(k, {}), v, recursive, soft_update)
+            src_dict[k] = v
+        elif not soft_update or k not in src_dict:
+            src_dict[k] = v
+    return src_dict
+
+
 def dump_dict(dict_obj: dict, flavor: str = "dmlc") -> str:
     """Dump the config to string.
 
@@ -288,7 +322,8 @@ def dump_dict(dict_obj: dict, flavor: str = "dmlc") -> str:
                     lines.append("{}{}: {}".format(indent * " ", k, v))
             return lines
 
-        return "\n".join(_get_lines(dict_obj))
+        lines = _get_lines(dict_obj) or ["  {}: {}".format(k, v) for k, v in dict_obj.items()]
+        return "\n".join(lines)
     return json.dumps(dict_obj)
 
 

@@ -385,7 +385,7 @@ class BaseJointNode : public Object {
   /*! \brief The shared_ref of node, can be changed. */
   String shared_ref;
   /*! \brief The attributes of node. */
-  Map<String, String> attrs;
+  mutable Map<String, String> attrs;
   /*! \brief The parents of node. */
   Array<ObjectRef> parents;
   /*! \brief The children of node. */

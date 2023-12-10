@@ -14,9 +14,6 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-"""tvm.contrib.msc.core.tools"""
+"""tvm.contrib.msc.framework.tensorrt.tools.track"""
 
-from .tool import *
-from .execute import *
-from .prune import *
-from .track import *
+from .tracker import *

@@ -17,3 +17,4 @@
 """tvm.contrib.msc.framework.tensorrt.tools"""
 
 from .prune import *
+from .track import *

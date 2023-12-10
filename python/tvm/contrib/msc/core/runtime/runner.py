@@ -20,13 +20,13 @@
 import os
 import json
 import logging
-from typing import Dict, Optional, Any, List, Tuple, Union
+from typing import Dict, Optional, Any, List, Tuple, Union, Iterable
 import numpy as np
 
 import tvm
 from tvm.contrib.msc.core.ir import MSCGraph
 from tvm.contrib.msc.core.frontend import from_relax
-from tvm.contrib.msc.core.tools import BaseTool, ToolType, create_tool
+from tvm.contrib.msc.core.tools import BaseTool, ToolType, create_tool, remove_tools
 from tvm.contrib.msc.core.utils.namespace import MSCFramework
 from tvm.contrib.msc.core.utils.message import MSCStage
 from tvm.contrib.msc.core import utils as msc_utils
@@ -76,9 +76,9 @@ class BaseRunner(object):
         logger: logging.Logger = None,
     ):
         self._mod = mod
-        self._tools_config = tools_config or {}
-        self._translate_config = translate_config or {}
-        self._generate_config = generate_config or {}
+        self._tools_config = msc_utils.copy_dict(tools_config)
+        self._translate_config = msc_utils.copy_dict(translate_config)
+        self._generate_config = msc_utils.copy_dict(generate_config)
         self._stage = stage
         self._name = name
         self._device = device if self._device_enabled(device) else "cpu"
@@ -102,16 +102,19 @@ class BaseRunner(object):
 
         if "build_folder" not in self._generate_config:
             self._generate_config["build_folder"] = msc_utils.get_build_dir()
-        if self._tools_config:
-            if "codegen" not in self._generate_config:
-                self._generate_config["codegen"] = {}
-            self._generate_config["codegen"].update({"use_tools": True, "tools_tag": self._name})
         self._graphs, self._weights = [], []
         self._model, self._model_info = None, {}
         self._runnable = None
+        # Setup tools
         self._tools = {}
+        if self._tools_config:
+            self._update_codegen({"use_tools": True, "tools_tag": self._name})
+            for t_type, config in self._tools_config.items():
+                self._tools[t_type] = create_tool(
+                    self.framework, t_type, self._name, stage=self._stage, **config
+                )
         return {
-            "tools_config": self._tools_config,
+            "tools": {k: v.tool_style() for k, v in self._tools.items()},
             "translate_config": self._translate_config,
             "generate_config": self._generate_config,
             "name": self._name,
@@ -121,21 +124,28 @@ class BaseRunner(object):
         }
 
     def change_stage(self, stage: str):
-        """Change the stage of tools and strategy"""
+        """Change the stage of runner and tools"""
 
         self._stage = stage
         for tool in self._tools.values():
             tool.change_stage(stage)
 
-    def build(self, cache_dir: msc_utils.MSCDirectory = None, build_graph: bool = False) -> Any:
+    def change_logger(self, logger: logging.Logger):
+        """Change the logger of runner and tools"""
+
+        self._logger = logger
+        for tool in self._tools.values():
+            tool.change_logger(logger)
+
+    def build(self, cache_dir: msc_utils.MSCDirectory = None, force_build: bool = False) -> Any:
         """Build the runnable object
 
         Parameters
         -------
         cache_dir: MSCDirectory
             cache path for save/load info
-        build_graph: bool
-            Whether to build the MSCGraphs.
+        force_build: bool
+            Whether to force build the runner.
 
         Returns
         -------
@@ -143,89 +153,137 @@ class BaseRunner(object):
            The runnable object.
         """
 
+        if force_build:
+            self._graphs, self._weights = [], []
+            self._model, self._model_info = None, {}
+            self._runnable = None
         if cache_dir and os.path.isfile(cache_dir.relpath("cache_info.json")):
             cache_info = msc_utils.load_dict(cache_dir.relpath("cache_info.json"))
         else:
             cache_info = {}
 
-        # Create tools
-        if self._tools_config:
-            for t_type, config in self._tools_config.items():
-                self._tools[t_type] = create_tool(
-                    self.framework, t_type, self._name, stage=self._stage, **config
-                )
-
         # Load graphs from cache
-        if cache_info.get("graphs"):
+        if not self._graphs and cache_info.get("graphs"):
             self._graphs, self._weights = self._load_graphs(cache_dir, cache_info["graphs"])
-            self._logger.debug(
-                "Load {} graphs from cache @ {}".format(len(self._graphs), cache_dir)
-            )
+            self._logger.info("Load %d graphs from %s", len(self._graphs), cache_dir)
 
-        # Get or rebuild graphs
-        if build_graph or not self._graphs:
+        # Translate graphs from module
+        if not self._graphs:
             self._graphs, self._weights = self._translate()
-            self._logger.debug("Translate {} graphs from module".format(len(self._graphs)))
+            self._logger.info("Translate %d graphs from module", len(self._graphs))
 
-        # reset graph for tools
-        for tool in self._tools.values():
-            self._graphs, self._weights = tool.reset(
-                self._graphs, self._weights, cache_dir=cache_dir
-            )
-
-        if cache_info.get("model") and not build_graph:
-            # Load model from cache
+        # Load model from cache
+        if not self._model and cache_info.get("model"):
+            self._graphs, self._weights = self.reset_tools(cache_dir=cache_dir)
             self._model = self._load_model(cache_dir, cache_info["model"])
-        else:
-            # Generate model
+            self._logger.info("Load model(%s) from %s", self.framework, cache_dir)
+
+        # Generate model
+        if not self._model:
+            # Generate normal model
+            self._graphs, self._weights = self.reset_tools(cache_dir=cache_dir)
             self._model = self._generate_model()
-            if "loader" in self._generate_config:
-                loader, generate_config = self._generate_config["loader"]
-                self._model = loader(self._model, **generate_config)
-                self._logger.info(
-                    "Model({}) processed by customize loader {}({})".format(
-                        self.framework, loader, generate_config
-                    )
-                )
+
+            # Log generate info
+            generate_msg = "Generate model({})".format(self.framework)
+            if self._tools:
+                self._logger.info("%s with tools: %s", generate_msg, ",".join(self._tools.keys()))
+            else:
+                self._logger.info("%s without tools", generate_msg)
+            if "generator" in self._generate_config:
+                generator, generate_config = self._generate_config["generator"]
+                self._model = generator(self._model, **generate_config)
+                self._logger.info("%s by %s(%s)", generate_msg, generator, generate_config)
+
+        # Inspect model
         self._model_info = self._inspect_model()
-        if self._debug_level >= 3:
+        if self._debug_level >= 2:
             self._logger.debug(msc_utils.msg_block("RUNNER.MODEL_INFO", self._model_info))
 
-        if cache_info.get("runnable") and not build_graph:
-            # Load runnable from cache
-            self._runnable = self._load_runnable(cache_dir, cache_info["runnable"])
-        else:
-            # Build runnable on device
-            self._runnable = self._to_runnable(self._model, self._device, self._is_training)
-        self._logger.info(
-            "Runnable({}, {}) loaded on device {}".format(
-                self.framework, "train" if self._is_training else "eval", self._device
-            )
+        runnable_msg = "runnable({}, {}) @ {}".format(
+            self.framework, "train" if self._is_training else "eval", self._device
         )
+
+        # Load runnable from cache
+        if not self._runnable and cache_info.get("runnable"):
+            self._runnable = self._load_runnable(cache_dir, cache_info["runnable"])
+            self._logger.info("Load %s from %s", runnable_msg, cache_dir)
+
+        # Build runnable
+        if not self._runnable:
+            self._runnable = self._to_runnable(self._model, self._device, self._is_training)
+            self._logger.info("Build %s", runnable_msg)
         return self._runnable
 
-    def save_cache(self, cache_dir: msc_utils.MSCDirectory):
+    def save_cache(
+        self,
+        cache_dir: msc_utils.MSCDirectory,
+        save_model: bool = True,
+        save_runnable: bool = True,
+        save_tools: bool = True,
+    ):
         """Save runner to cache
 
         Parameters
         -------
         cache_dir: MSCDirectory
             cache path for save/load info
+        save_model: bool
+            Whether to save model.
+        save_runnable: bool
+            Whether to save runnable.
+        save_tools: bool
+            Whether to save tools.
         """
 
-        cache_info = {
-            "graphs": self._save_graphs(cache_dir),
-            "model": self._save_model(cache_dir),
-            "runnable": self._save_runnable(cache_dir),
-        }
-        for tool in self._tools.values():
-            cache_info.update(tool.save_cache(cache_dir))
+        cache_info = {"graphs": self._save_graphs(cache_dir)}
+        if save_model:
+            cache_info["model"] = self._save_model(cache_dir)
+        if save_runnable:
+            cache_info["runnable"] = self._save_runnable(cache_dir)
+        if save_tools:
+            for t_type, tool in self._tools.items():
+                cache_info[t_type] = tool.save_cache(cache_dir)
         with open(cache_dir.relpath("cache_info.json"), "w") as f:
             f.write(json.dumps(cache_info, indent=2))
-        if self._debug_level >= 3:
-            self._logger.debug(
-                msc_utils.msg_block("RUNNER.CACHE_INFO", {"folder": cache_dir, "info": cache_info})
-            )
+        self._logger.debug(
+            msc_utils.msg_block("RUNNER.SAVE_CACHE", {"folder": cache_dir, "info": cache_info})
+        )
+
+    def reset_tools(
+        self,
+        graphs: List[MSCGraph] = None,
+        weights: List[Dict[str, tvm.nd.array]] = None,
+        tools: List[BaseTool] = None,
+        cache_dir: msc_utils.MSCDirectory = None,
+    ):
+        """Reset the tools
+
+        Parameters
+        -------
+        graphs: list<MSCgraph>
+            The msc graphs.
+        weights: list<dict<str, tvm.nd.array>>
+            The weights.
+        tools: list<BaseTool>
+            The tools.
+        cache_dir: MSCDirectory
+            cache path for save/load info.
+
+        Returns
+        -------
+        graphs: list<MSCgraph>
+            The msc graphs.
+        weights: list<dict<str, tvm.nd.array>>
+            The weights.
+        """
+
+        graphs = graphs or self._graphs
+        weights = weights or self._weights
+        tools = tools or self._tools.values()
+        for tool in tools:
+            graphs, weights = tool.reset(graphs, weights, cache_dir)
+        return graphs, weights
 
     def run(
         self, inputs: Union[List[np.ndarray], Dict[str, np.ndarray]], ret_type="dict"
@@ -260,6 +318,8 @@ class BaseRunner(object):
         ), "Expected all inputs as np.ndarray"
         inputs = {i["name"]: inputs[i["name"]] for i in model_inputs}
         outputs = self._call_runnable(self._runnable, inputs, self._device)
+        if ret_type == "native":
+            return outputs
         if ret_type == "dict":
             if isinstance(outputs, (list, tuple)):
                 assert len(outputs) == len(
@@ -283,6 +343,22 @@ class BaseRunner(object):
             outputs = [msc_utils.cast_array(data) for data in outputs]
         return outputs
 
+    def get_tool_config(self, tool_type: str) -> dict:
+        """Get tool by type
+
+        Parameters
+        -------
+        tool_type: str
+            The type of the tool prune| quantize| distill...
+
+        Returns
+        -------
+        config: dict
+            The tool config.
+        """
+
+        return self._tools_config.get(tool_type)
+
     def get_tool(self, tool_type: str) -> BaseTool:
         """Get tool by type
 
@@ -299,7 +375,21 @@ class BaseRunner(object):
 
         return self._tools.get(tool_type)
 
-    def apply_tool(self, tool_type: str, data_loader: Any = None) -> dict:
+    def get_tools(self) -> Iterable[BaseTool]:
+        """Get all saved tools by tag
+
+        Returns
+        -------
+        tools: iterable<BaseTool>
+            The saved tools.
+        """
+
+        for t_type in ToolType.all_types():
+            tool = self.get_tool(t_type)
+            if tool:
+                yield tool
+
+    def apply_tool(self, tool_type: str, data_loader: Any = None) -> str:
         """Execute tool and get plan
 
         Parameters
@@ -308,6 +398,11 @@ class BaseRunner(object):
             The tool type, should be in ToolType
         data_loader:
             The data loader
+
+        Returns
+        -------
+        plan_file: str
+            The saved plan file.
         """
 
         assert tool_type in self._tools, "Can not find tool " + str(tool_type)
@@ -316,7 +411,7 @@ class BaseRunner(object):
             if not pruner.finalize():
                 assert data_loader, "data_loader should be given to plan prune"
                 for inputs in data_loader():
-                    self.run(inputs)
+                    self.run(inputs, ret_type="native")
                     break
             plan = pruner.finalize()
         else:
@@ -325,8 +420,28 @@ class BaseRunner(object):
         plan_file = self._tools_config[tool_type]["plan_file"]
         with open(plan_file, "w") as f:
             f.write(json.dumps(plan, indent=2))
-        self._logger.info("Save %s plan -> %s", tool_type, plan_file)
-        return plan
+        self._logger.info("Save %d plan(%s) -> %s", len(plan), tool_type, plan_file)
+        return plan_file
+
+    def _update_codegen(self, config: Dict[str, Any]):
+        """Update the codegen in generate_config
+
+        Parameters
+        -------
+        config: dict
+            The extra config for codegen.
+        """
+
+        if "codegen" not in self._generate_config:
+            self._generate_config["codegen"] = {}
+        codegen = self._generate_config["codegen"]
+        if isinstance(codegen, dict):
+            codegen.update(config)
+        elif isinstance(codegen, (list, tuple)):
+            for c in codegen:
+                c.update(config)
+        else:
+            raise TypeError("Unexpecet codegen config " + str(codegen))
 
     def visualize(self, visual_dir: msc_utils.MSCDirectory):
         """Visualize MSCGraphs
@@ -371,8 +486,9 @@ class BaseRunner(object):
             self._model = None
         if self._runnable:
             self._runnable = None
-        for tool in self._tools.values():
+        for tool in self.get_tools():
             tool.destory()
+        remove_tools(self._name)
 
     def _translate(self) -> Tuple[List[MSCGraph], Dict[str, tvm.nd.array]]:
         """Translate IRModule to MSCgraphs
@@ -434,7 +550,7 @@ class BaseRunner(object):
         -------
         graphs: list<MSCgraph>
             The msc graphs.
-        weights: list<dic<str, tvm.nd.array>>
+        weights: list<dict<str, tvm.nd.array>>
             The weights
 
         Returns
@@ -579,9 +695,17 @@ class BaseRunner(object):
 
         return True
 
+    @classmethod
+    def support_tool(cls, tool_type: str) -> bool:
+        return True
+
     @property
     def stage(self):
         return self._stage
+
+    @property
+    def debug_level(self):
+        return self._debug_level
 
     @property
     def model(self):
@@ -690,7 +814,7 @@ class ModelRunner(BaseRunner):
         -------
         graphs: list<MSCgraph>
             The msc graphs.
-        weights: list<dic<str, tvm.nd.array>>
+        weights: list<dict<str, tvm.nd.array>>
             The weights
 
         Returns
@@ -699,9 +823,11 @@ class ModelRunner(BaseRunner):
             The runnable model
         """
 
+        graph = graphs[0] if graphs else self._graphs[0]
+        weight = weights[0] if weights else self._weights[0]
         return self.codegen_func(
-            graphs or self._graphs[0],
-            weights or self._weights[0],
+            graph,
+            weight,
             codegen_config=self._generate_config.get("codegen"),
             print_config=self._generate_config.get("print"),
             build_folder=self._generate_config["build_folder"],
@@ -853,7 +979,7 @@ class BYOCRunner(BaseRunner):
         -------
         graphs: list<MSCgraph>
             The msc graphs.
-        weights: list<dic<str, tvm.nd.array>>
+        weights: list<dict<str, tvm.nd.array>>
             The weights
 
         Returns
@@ -954,10 +1080,10 @@ class BYOCRunner(BaseRunner):
             The inspected model info
         """
 
-        if self._debug_level >= 3:
+        if self._debug_level >= 2:
             for idx, graph in enumerate(self._graphs):
                 self._logger.debug(
-                    msc_utils.msg_block("RUNNER.GRAPH[{}].INFO".format(idx), graph.inspect())
+                    msc_utils.msg_block("GRAPH[{}].INFO".format(idx), graph.inspect())
                 )
         return self._byoc_graph.inspect()
 

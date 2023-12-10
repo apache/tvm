@@ -54,7 +54,7 @@ class ToolScope(object):
     STUDENT = "student"
 
 
-class Executor(object):
+class ToolExecutor(object):
     """Executor for process the tensor
 
     Parameters
@@ -94,11 +94,6 @@ class Executor(object):
         kwargs.update({k: v for k, v in self._config.items() if k not in kwargs})
         return self._method(*args, **kwargs)
 
-    def get_config(self, key: str, default: Any) -> Any:
-        """Get the value in config"""
-
-        return self._config.get(key, default)
-
     def copy(self, name: str = None, method: callable = None, config: dict = None):
         """Copy a executor
 
@@ -113,20 +108,24 @@ class Executor(object):
 
         Returns
         -------
-        new_strategy: Strategy
-           The copied strategy
+        new_executor: ToolExecutor
+           The copied executor
         """
 
         new_config = config or {}
         new_config.update({k: v for k, v in self._config.items() if k not in new_config})
-        return Executor(name or self._name, method or self._method, new_config)
+        return ToolExecutor(name or self._name, method or self._method, new_config)
 
     @property
     def name(self):
         return self._name
 
+    @property
+    def config(self):
+        return self._config
 
-class Strategy(object):
+
+class ToolStrategy(object):
     """Strategy for process tensor
 
     Parameters
@@ -137,13 +136,16 @@ class Strategy(object):
         The tensor type.
     stage: str
         The init stage
+    meta: dict:
+        The meta strategy config.
     """
 
-    def __init__(self, name: str, tensor_type: str, stage: str = "default"):
+    def __init__(self, name: str, tensor_type: str, stage: str = "default", meta: dict = None):
         self._name = name
         self._tensor_type = tensor_type
         self._stage = stage
         self._executors = {}
+        self._meta = meta
 
     def __str__(self):
         return "{}({} @ {}) ".format(self._name, self._tensor_type, self._stage) + "; ".join(
@@ -187,14 +189,14 @@ class Strategy(object):
 
         self._stage = stage
 
-    def add_executor(self, stage: str, executor: Executor):
+    def add_executor(self, stage: str, executor: ToolExecutor):
         """Add a executor to strategy
 
         Parameters
         ----------
         stage: str
             The mark of the executor.
-        executor: Executor
+        executor: ToolExecutor
             The executor to process tensor.
         """
 
@@ -215,10 +217,10 @@ class Strategy(object):
             return self._executors[self._stage]
         return self._executors["default"]
 
-    def get_config(self, key: str, default: Any) -> Any:
-        """Get the value in config"""
+    def get_config(self) -> dict:
+        """Get the config of current executor"""
 
-        return self.get_executor().get_config(key, default)
+        return self.get_executor().config
 
     def support_stage(self, stage: str) -> bool:
         """Check if the strategy support a stage
@@ -258,18 +260,22 @@ class Strategy(object):
 
         Returns
         -------
-        new_strategy: Strategy
+        new_strategy: ToolStrategy
            The copied strategy
         """
 
         configs = configs or {}
-        strategy = Strategy(
+        strategy = ToolStrategy(
             name or self._name, tensor_type or self._tensor_type, stage or self._stage
         )
         for st_name, executor in self._executors.items():
             new_executor = executor.copy(config=configs.get(st_name, {}))
             strategy.add_executor(st_name, new_executor)
         return strategy
+
+    @property
+    def meta(self):
+        return self._meta
 
 
 class BaseTool(object):
@@ -299,7 +305,7 @@ class BaseTool(object):
         self,
         stage: str,
         plan_file: str,
-        strategys: dict,
+        strategys: List[dict],
         cache_processed: bool = True,
         options: dict = None,
         debug_level: int = 0,
@@ -320,9 +326,8 @@ class BaseTool(object):
         title = "{}.SETUP({} @ {})".format(self.tool_type().upper(), self._stage, self.framework())
         self._logger.info(msc_utils.msg_block(title, self.setup(), width=0))
         if self._debug_level >= 3 and self._plan:
-            self._logger.debug(
-                msc_utils.msg_block("{}.PLAN".format(self.tool_type().upper()), self._plan)
-            )
+            title = "{}.PLAN".format(self.tool_type().upper())
+            self._logger.debug(msc_utils.msg_block(title, self._plan))
 
     def setup(self) -> dict:
         """Setup the tool
@@ -348,58 +353,62 @@ class BaseTool(object):
             "debug_level": self._debug_level,
         }
 
-    def _parse_strategys(self, strategy_list: dict) -> Dict[str, Strategy]:
+    def _parse_strategys(self, strategy_list: List[dict]) -> Dict[str, ToolStrategy]:
         """Parse the strategy to get valid strategy
 
         Parameters
         -------
-        strategy_list: dict
-            The given strategy
+        strategy_list: list<dict>
+            The given strategys
 
         Returns
         -------
-        strategys: dict<str, Strategy>
+        strategys: dict<str, ToolStrategy>
             The parsed strategy.
         """
 
         strategys = {}
         assert isinstance(strategy_list, list) and all(
             isinstance(s, dict) for s in strategy_list
-        ), "Strategy should be given as list of dict"
-        for stra in strategy_list:
-            method_cls_name = stra.pop("method_cls") if "method_cls" in stra else "default"
+        ), "ToolStrategy should be given as list of dict"
+        for strategy in strategy_list:
+            meta_strategy = msc_utils.copy_dict(strategy)
+            method_cls_name = strategy.pop("method_cls") if "method_cls" in strategy else "default"
             method_cls = msc_utils.get_registered_tool_method(
                 self.framework(), self.tool_type(), method_cls_name
             )
-            method_name = stra.pop("method") if "method" in stra else "default"
+            method_name = strategy.pop("method") if "method" in strategy else "default"
+            method = None
             if hasattr(method_cls, method_name):
                 method = getattr(method_cls, method_name)
-            else:
+            if not method:
                 default_cls = msc_utils.get_registered_tool_method(
                     MSCFramework.MSC, self.tool_type(), method_cls_name
                 )
-                assert hasattr(
-                    default_cls, method_name
-                ), "Can not find method {} from neighter {} nor {}".format(
-                    method_name, method_cls, default_cls
-                )
-                method = getattr(default_cls, method_name)
-            tensor_types = stra.pop("tensor_types") if "tensor_types" in stra else ["all"]
-            if "op_types" in stra:
-                op_types = stra.pop("op_types")
+                if hasattr(default_cls, method_name):
+                    method = getattr(default_cls, method_name)
+            if not method:
+                method = msc_utils.get_registered_func(method_name)
+            assert method, "Can not find method with " + str(method_name)
+            tensor_types = strategy.pop("tensor_types") if "tensor_types" in strategy else ["all"]
+            if "op_types" in strategy:
+                op_types = strategy.pop("op_types")
                 marks = [("{}.{}".format(s, t), t) for s, t in product(op_types, tensor_types)]
-            elif "op_names" in stra:
-                op_names = stra.pop("op_names")
+            elif "op_names" in strategy:
+                op_names = strategy.pop("op_names")
                 marks = [("{}.{}".format(s, t), t) for s, t in product(op_names, tensor_types)]
+            elif "tensor_names" in strategy:
+                tensor_names = strategy.pop("tensor_names")
+                marks = [(n, "all") for n in tensor_names]
             else:
                 marks = [("default", "all")]
-            stages = stra.pop("stages") if "stages" in stra else ["default"]
+            stages = strategy.pop("stages") if "stages" in strategy else ["default"]
             for mark, t_type in marks:
                 if mark not in strategys:
-                    strategys[mark] = Strategy(mark, t_type, self._stage)
+                    strategys[mark] = ToolStrategy(mark, t_type, self._stage, meta_strategy)
                 for stage in stages:
                     strategys[mark].add_executor(
-                        stage, Executor(method_name, method, copy.deepcopy(stra))
+                        stage, ToolExecutor(method_name, method, copy.deepcopy(strategy))
                     )
         return strategys
 
@@ -436,41 +445,22 @@ class BaseTool(object):
             cache_info = {}
         if self.tool_type() in cache_info:
             self.load_cache(cache_dir, cache_info[self.tool_type()])
-        else:
-            graphs, weights = self.load_graphs(graphs, weights)
-        self._graphs, self._weights = graphs, {}
+        self._graphs, weights = self._reset(graphs, weights)
+        self._weights = {}
         for sub_weights in weights:
             self._weights.update(sub_weights)
         self._logger.debug(
-            "%s load %d graphs and %d weights",
+            "%s reset %d graphs, %d weights",
             self.tool_type(),
             len(self._graphs),
             len(self._weights),
         )
-        self._reset()
         return self._graphs, weights
 
-    def _reset(self):
-        """Extra reset for tool"""
-
-        return None
-
-    def change_stage(self, stage: str):
-        """Change the stage of tools and strategy"""
-
-        self._stage = stage
-        for strategy in self._strategys.values():
-            strategy.change_stage(stage)
-
-    def destory(self):
-        """Destory tool"""
-
-        self._graphs, self._weights = [], {}
-
-    def load_graphs(
+    def _reset(
         self, graphs: List[MSCGraph], weights: List[Dict[str, tvm.nd.array]]
     ) -> Tuple[List[MSCGraph], List[Dict[str, tvm.nd.array]]]:
-        """Load the graphs and weights
+        """Reset the tool
 
         Parameters
         ----------
@@ -488,6 +478,23 @@ class BaseTool(object):
         """
 
         return graphs, weights
+
+    def change_stage(self, stage: str):
+        """Change the stage of tool and strategy"""
+
+        self._stage = stage
+        for strategy in self._strategys.values():
+            strategy.change_stage(stage)
+
+    def change_logger(self, logger: logging.Logger):
+        """Change the logger of tool"""
+
+        self._logger = logger
+
+    def destory(self):
+        """Destory tool"""
+
+        self._graphs, self._weights = [], {}
 
     def load_cache(self, cache_dir: msc_utils.MSCDirectory, cache_info: dict):
         """Save runner to cache
@@ -677,6 +684,8 @@ class BaseTool(object):
             The processed tensor.
         """
 
+        if not self._enabled:
+            return tensor
         if not self._support_scope(scope):
             return tensor
         strategys = self._get_tensor_strategys(name, consumer)
@@ -780,7 +789,7 @@ class BaseTool(object):
         return len(strategys) > 0
 
     def _process_tensor(
-        self, tensor: Any, name: str, consumer: str, scope: str, strategys: List[Strategy]
+        self, tensor: Any, name: str, consumer: str, scope: str, strategys: List[ToolStrategy]
     ) -> Any:
         """Process tensor
 
@@ -794,7 +803,7 @@ class BaseTool(object):
             The name of the consumer.
         scope: str
             The scope mark teacher| student| null.
-        strategys: list<Strategy>
+        strategys: list<ToolStrategy>
             The strategys for the tensor.
 
         Returns
@@ -832,8 +841,8 @@ class BaseTool(object):
 
         return None
 
-    def update_plan(self, plan: dict):
-        """Update the plan
+    def set_plan(self, plan: dict):
+        """Set the plan
 
         Parameters
         ----------
@@ -841,23 +850,10 @@ class BaseTool(object):
             The new plan.
         """
 
-        self._plan.update(plan)
-
-    def get_plan(self, name: str) -> dict:
-        """Get the plan for name
-
-        Parameters
-        ----------
-        name: str
-            The plan name.
-
-        Returns
-        -------
-        plan: dict
-            The plan of the name.
-        """
-
-        return self._plan.get(name, {})
+        if self._plan:
+            self._plan = msc_utils.update_dict(self._plan, plan)
+        else:
+            self._plan = plan
 
     def finalize(self) -> dict:
         """Get the plan"""
@@ -1177,7 +1173,7 @@ class BaseTool(object):
             return None
         return self._tensor_cache[tensor_id].get(key)
 
-    def _get_tensor_strategys(self, name: str, consumer: str) -> List[Strategy]:
+    def _get_tensor_strategys(self, name: str, consumer: str) -> List[ToolStrategy]:
         """Get the strategys by name and consumer
 
         Parameters
@@ -1189,7 +1185,7 @@ class BaseTool(object):
 
         Returns
         -------
-        strategys: list<Strategy>
+        strategys: list<ToolStrategy>
             The strategys for the tensor.
         """
 
@@ -1222,16 +1218,20 @@ class BaseTool(object):
                     consumer.optype + ".all",
                 ]
             strategys = []
-            for n in name_refs:
-                if n in self._strategys and self._strategys[n].support_stage(self._stage):
-                    strategys.append(self._strategys[n])
+            tensor_strategy = self._strategys.get(tensor_id)
+            if tensor_strategy and tensor_strategy.support_stage(self._stage):
+                strategys.append(tensor_strategy)
+            if not strategys:
+                for n in name_refs:
+                    if n in self._strategys and self._strategys[n].support_stage(self._stage):
+                        strategys.append(self._strategys[n])
             d_strategy = self._strategys.get("default")
             if not strategys and d_strategy and d_strategy.support_stage(self._stage):
                 strategys.append(d_strategy)
             self._save_tensor_cache(name, consumer, mark, strategys)
         return self._get_tensor_cache(name, consumer, mark)
 
-    def _get_tensor_strategy(self, name: str, consumer: str) -> Strategy:
+    def _get_tensor_strategy(self, name: str, consumer: str) -> ToolStrategy:
         """Get the unique strategy by name and consumer
 
         Parameters
@@ -1243,7 +1243,7 @@ class BaseTool(object):
 
         Returns
         -------
-        strategy: Strategy
+        strategy: ToolStrategy
             The unique strategy for the tensor.
         """
 
@@ -1274,26 +1274,22 @@ class BaseTool(object):
 class WeightTool(BaseTool):
     """Basic tool with weight graphs"""
 
-    def _reset(self):
-        """Extra reset for tool"""
+    def setup(self) -> dict:
+        """Setup the tool
 
-        super()._reset()
-        assert len(self._graphs) == len(
-            self._weight_graphs
-        ), "Graphs {} mismatch with weight graphs {}".format(
-            len(self._graphs), len(self._weight_graphs)
-        )
-        self._logger.debug("%s load %d weight graphs", self.tool_type(), len(self._weight_graphs))
-        if self.on_debug(2, in_forward=False):
-            for idx, graph in enumerate(self._weight_graphs):
-                self._logger.debug(
-                    msc_utils.msg_block("WEIGHT_GRAPH[{}].INFO".format(idx), graph.inspect())
-                )
+        Returns
+        -------
+        info: dict
+            The setup info.
+        """
 
-    def load_graphs(
+        self._weight_graphs = []
+        return super().setup()
+
+    def _reset(
         self, graphs: List[MSCGraph], weights: List[Dict[str, tvm.nd.array]]
     ) -> Tuple[List[MSCGraph], List[Dict[str, tvm.nd.array]]]:
-        """Load the graphs and weights
+        """Reset the tool
 
         Parameters
         ----------
@@ -1312,12 +1308,28 @@ class WeightTool(BaseTool):
             The weights
         """
 
-        graphs, weights = super().load_graphs(graphs, weights)
-        main_wtypes, relation_wtypes = self._get_wtypes()
-        assert main_wtypes, "main_wtypes should be given to build weight graphs"
-        self._weight_graphs = [
-            _ffi_api.WeightGraph(graph, main_wtypes, relation_wtypes) for graph in graphs
-        ]
+        graphs, weights = super()._reset(graphs, weights)
+        self._main_wtypes, self._relation_wtypes = self._get_wtypes()
+        assert self._main_wtypes, "main_wtypes should be given to build weight graphs"
+        if self._weight_graphs:
+            assert len(graphs) == len(
+                self._weight_graphs
+            ), "Graphs {} mismatch with weight graphs {}".format(
+                len(graphs), len(self._weight_graphs)
+            )
+        else:
+            self._weight_graphs = [
+                _ffi_api.WeightGraph(graph, self._main_wtypes, self._relation_wtypes)
+                for graph in graphs
+            ]
+            self._logger.debug(
+                "%s reset %d weight graphs", self.tool_type(), len(self._weight_graphs)
+            )
+        if self.on_debug(2, in_forward=False):
+            for idx, graph in enumerate(self._weight_graphs):
+                self._logger.debug(
+                    msc_utils.msg_block("WEIGHT_GRAPH[{}].INFO".format(idx), graph.inspect())
+                )
         return graphs, weights
 
     def _get_wtypes(self) -> Tuple[Dict[str, List[str]], Dict[str, str]]:
@@ -1350,6 +1362,12 @@ class WeightTool(BaseTool):
         self._weight_graphs = [
             WeightGraph.from_json(cache_dir.relpath(f)) for f in cache_info["weight_graphs"]
         ]
+        self._logger.debug(
+            "%s load %d weight graphs from %s",
+            self.tool_type(),
+            len(self._weight_graphs),
+            cache_dir,
+        )
 
     def save_cache(self, cache_dir: msc_utils.MSCDirectory) -> dict:
         """Save runner to cache
