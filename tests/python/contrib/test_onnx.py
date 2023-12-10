@@ -18,7 +18,6 @@
 """Relay to ONNX serialization test cases"""
 import pytest
 import numpy as np
-import onnxruntime as rt
 
 import tvm
 from tvm import relay
