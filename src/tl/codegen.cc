@@ -51,12 +51,6 @@ class LaunchConfigExtractor : public tir::StmtVisitor {
         threadIdx_y_ext = op->value;
       } else if (iv->var->name_hint == "threadIdx.z" || iv->thread_tag == "threadIdx.z") {
         threadIdx_z_ext = op->value;
-      } else if (iv->var->name_hint == "blockIdx.x" || iv->thread_tag == "blockIdx.x") {
-        blockIdx_x_ext = op->value;
-      } else if (iv->var->name_hint == "blockIdx.y" || iv->thread_tag == "blockIdx.y") {
-        blockIdx_y_ext = op->value;
-      } else if (iv->var->name_hint == "blockIdx.z" || iv->thread_tag == "blockIdx.z") {
-        blockIdx_z_ext = op->value;
       }
     }
     StmtVisitor::VisitStmt_(op);
@@ -66,17 +60,12 @@ class LaunchConfigExtractor : public tir::StmtVisitor {
   PrimExpr threadIdx_x_ext = Integer(1);
   PrimExpr threadIdx_y_ext = Integer(1);
   PrimExpr threadIdx_z_ext = Integer(1);
-  PrimExpr blockIdx_x_ext = Integer(1);
-  PrimExpr blockIdx_y_ext = Integer(1);
-  PrimExpr blockIdx_z_ext = Integer(1);
 };
 
 void CodeGenTL::PrintExtraAttrs(const PrimFunc& f) {
   LaunchConfigExtractor extractor;
   extractor(f->body);
   arith::Analyzer analyzer;
-  block_size_ = {extractor.threadIdx_x_ext, extractor.threadIdx_y_ext, extractor.threadIdx_z_ext};
-  grid_size_ = {extractor.blockIdx_x_ext, extractor.blockIdx_y_ext, extractor.blockIdx_z_ext};
   PrimExpr threadIdx_ext = analyzer.Simplify(extractor.threadIdx_x_ext * extractor.threadIdx_y_ext *
                                              extractor.threadIdx_z_ext);
   if (const IntImmNode* const threadIdx_ext_int = threadIdx_ext.as<IntImmNode>()) {
@@ -128,7 +117,6 @@ void CodeGenTL::PrintType(DataType t, std::ostream& os) {  // NOLINT(*)
   if (t.is_float()) {
     switch (t.bits()) {
       case 16:
-        enable_fp16_ = true;
         if (t.is_scalar()) {
           os << "half_t";
         } else if (lanes <= 8) {
@@ -178,7 +166,6 @@ void CodeGenTL::PrintType(DataType t, std::ostream& os) {  // NOLINT(*)
       return;
     }
   } else if (t.is_bfloat16()) {
-    enable_bf16_ = true;
     if (t.is_scalar()) {
       os << "bfloat16_t";
     } else if (lanes <= 8) {
@@ -259,7 +246,6 @@ void CodeGenTL::PrintType(DataType t, std::ostream& os) {  // NOLINT(*)
       case 8: {
         if (t.lanes() == 4) {
           // directly 4 8 bit int in integer.
-          enable_int8_ = true;
 
           // We use int for int8x4 instead of char4 because using char4 is
           // likely to produce extra instructions to pack four int8 elements
@@ -267,11 +253,9 @@ void CodeGenTL::PrintType(DataType t, std::ostream& os) {  // NOLINT(*)
           os << "int";
           return;
         } else if (t.lanes() == 8) {
-          enable_int8_ = true;
           os << "int2";
           return;
         } else if (t.lanes() == 16) {
-          enable_int8_ = true;
           os << "int4";
           return;
         } else if (!t.is_uint() && t.is_scalar()) {
@@ -623,7 +607,6 @@ void CodeGenTL::VisitStmt_(const AllocateNode* op) {
 
   if (scope == "shared.dyn") {
     stream << ' ' << vid << "[];\n";
-    dyn_shared_bytes_ = op->ConstantAllocationSize() * op->dtype.bytes();
   } else {
     size_t constant_size = op->ConstantAllocationSize();
     ICHECK_GT(constant_size, 0) << "Can only handle constant size stack allocation for now";
@@ -766,10 +749,8 @@ inline void PrintConst(const FloatImmNode* op, std::ostream& os, CodeGenTL* p) {
           temp << "-";
         }
         temp << ((op->dtype.bits() == 32) ? "CUDART_INF_F" : "CUDART_INF");
-        p->need_math_constants_h_ = true;
       } else if (std::isnan(op->value)) {
         temp << ((op->dtype.bits() == 32) ? "CUDART_NAN_F" : "CUDART_NAN");
-        p->need_math_constants_h_ = true;
       } else {
         temp << std::scientific << op->value;
         if (op->dtype.bits() == 32) temp << 'f';

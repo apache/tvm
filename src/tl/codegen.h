@@ -40,9 +40,6 @@ class CodeGenTL final : public CodeGenC {
  public:
   CodeGenTL();
   std::string Finish();
-  Array<PrimExpr> GetBlockSize() { return block_size_; };
-  Array<PrimExpr> GetGridSize() { return grid_size_; };
-  size_t GetDynSharedBytes() { return dyn_shared_bytes_; }
   // override behavior
   void PrintFuncPrefix(std::ostream& os) final;
   void PrintExtraAttrs(const PrimFunc& f) final;
@@ -74,20 +71,6 @@ class CodeGenTL final : public CodeGenC {
 
   // Whether scope such as "__shared__" or "__constant__"  is part of type.
   bool IsScopePartOfType() const final { return false; }
-
-  // whether enable fp16
-  bool enable_fp16_{false};
-  // whether enable bf16
-  bool enable_bf16_{false};
-  // whether enable fp8
-  bool enable_fp8_{false};
-  // whether enable int8
-  bool enable_int8_{false};
-  // whether need math_constants.h
-  bool need_math_constants_h_{false};
-
-  Array<PrimExpr> block_size_, grid_size_;
-  size_t dyn_shared_bytes_ = 0;
 
   friend void PrintConst(const FloatImmNode* op, std::ostream& os, CodeGenTL* p);
 };

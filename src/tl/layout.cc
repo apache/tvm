@@ -153,6 +153,19 @@ Fragment FragmentNode::Replicate(int repeats) const {
   return Fragment(forward_var_, forward_index_, new_forward_thread, new_rep);
 }
 
+Fragment FragmentNode::DeReplicate() const {
+  ICHECK(OutputDim() == 1);
+  arith::Analyzer analyzer;
+  UpdateAnalyzer(&analyzer);
+  ICHECK(analyzer.CanProveEqual(FloorMod(OutputShape()[0], ReplicateExtent()), 0));
+
+  Map<Var, PrimExpr> vmap;
+  vmap.Set(thread_replicate_->var, FloorMod(forward_index_[0], ReplicateExtent()));
+  PrimExpr new_forward_thread = Substitute(forward_thread_, vmap);
+  Array<PrimExpr> new_forward_index = {FloorDiv(forward_index_[0], ReplicateExtent())};
+  return Fragment(forward_var_, new_forward_index, new_forward_thread, {});
+}
+
 Layout LayoutNode::Inverse() const {
   Map<Var, Range> input_iters;
   arith::Analyzer analyzer;

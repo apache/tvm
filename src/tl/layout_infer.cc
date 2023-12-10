@@ -90,14 +90,14 @@ LayoutMap ForNodeLayoutInfer::Inference(const LayoutMap& layout_map, InferLevel 
   if (level == InferLevel::kFree && root_->annotations.count(attr::kSkipLayoutInfer)) return {};
 
   // Step 1: try to infer loop's partition from a source fragment
-  Buffer source_buffer, rep_source_buffer;
+  Buffer source_buffer, read_source_buffer;
   for (const auto& [buffer, _] : indice_map_) {
     if (layout_map.count(buffer)) {
       auto frag = layout_map[buffer].as<Fragment>().value();
-      if (is_one(frag->ReplicateExtent()) || buffer_is_write_.count(buffer))
+      if (buffer_is_write_.count(buffer))
         source_buffer = buffer;
       else
-        rep_source_buffer = buffer;
+        read_source_buffer = buffer;
     }
   }
   if (source_buffer.defined()) {
@@ -109,8 +109,8 @@ LayoutMap ForNodeLayoutInfer::Inference(const LayoutMap& layout_map, InferLevel 
       loop_layout_ = Fragment(loop_vars_, {}, loop_var_to_thread, src_layout->thread_replicate_);
     }
   } else if (level == InferLevel::kFree) {
-    if (rep_source_buffer.defined()) {
-      source_buffer = rep_source_buffer;
+    if (read_source_buffer.defined()) {
+      source_buffer = read_source_buffer;
       auto src_layout = layout_map[source_buffer].as<Fragment>().value();
       if (IsCommonAccessIndice(source_buffer)) {
         loop_layout_ = src_layout;
@@ -118,6 +118,8 @@ LayoutMap ForNodeLayoutInfer::Inference(const LayoutMap& layout_map, InferLevel 
         PrimExpr loop_var_to_thread = src_layout->ForwardThread(indice_map_[source_buffer], {});
         loop_layout_ = Fragment(loop_vars_, {}, loop_var_to_thread, src_layout->thread_replicate_);
       }
+      // Loop don't need to be replicated.
+      if (!is_one(loop_layout_->ReplicateExtent())) loop_layout_ = loop_layout_->DeReplicate();
     } else {
       int vector_size = GetVectorizeSize(GetRef<For>(root_));
       loop_layout_ = PlanLoopPartition(root_, block_size_, vector_size);

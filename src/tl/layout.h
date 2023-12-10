@@ -99,6 +99,8 @@ class FragmentNode : public LayoutNode {
 
   Fragment Replicate(int repeats) const;
 
+  Fragment DeReplicate() const;
+
   Fragment CondenseReplicateVar() const;
 
   void DebugOutput() const final;
