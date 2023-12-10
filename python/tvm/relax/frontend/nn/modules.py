@@ -192,7 +192,9 @@ class MultiLinear(Module):
         self.out_dtype = out_dtype
         self.weight = Parameter((total_out_features, in_features), dtype)
         if bias:
-            self.bias = Parameter((total_out_features,), dtype)
+            self.bias = Parameter(
+                (total_out_features,), dtype=dtype if out_dtype is None else out_dtype
+            )
         else:
             self.bias = None
 
@@ -220,6 +222,18 @@ class MultiLinear(Module):
             x = x + self.bias
         results = op.split(x, sections, axis=-1)
         return results
+
+    def to(self, dtype: Optional[str] = None) -> None:
+        """
+        Override to() such that we do not convert bias if there is `out_dtype`.
+        Otherwise, we might run into dtype mismatch when computing `x + self.bias`
+        since x is of type `out_dtype` and bias may become `dtype`.
+        """
+        self.weight.to(dtype=dtype)
+        if self.bias is not None and self.out_dtype is None:
+            self.bias.to(dtype=dtype)
+        if dtype is not None and isinstance(getattr(self, "dtype", None), str):
+            self.dtype = dtype  # pylint: disable=attribute-defined-outside-init
 
 
 class Conv1D(Module):
