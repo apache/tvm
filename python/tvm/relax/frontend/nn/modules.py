@@ -163,7 +163,7 @@ class Linear(Module):
         """
         Override to() such that we do not convert bias if there is `out_dtype`.
         Otherwise, we might run into dtype mismatch when computing `x + self.bias`
-        since x is of type `out_dtype` and bias may become `dtype`.
+        since x is of type `out_dtype` and bias becomes `dtype`, potentially different.
         """
         self.weight.to(dtype=dtype)
         if self.bias is not None and self.out_dtype is None:
@@ -227,7 +227,7 @@ class MultiLinear(Module):
         """
         Override to() such that we do not convert bias if there is `out_dtype`.
         Otherwise, we might run into dtype mismatch when computing `x + self.bias`
-        since x is of type `out_dtype` and bias may become `dtype`.
+        since x is of type `out_dtype` and bias becomes `dtype`, potentially different.
         """
         self.weight.to(dtype=dtype)
         if self.bias is not None and self.out_dtype is None:
