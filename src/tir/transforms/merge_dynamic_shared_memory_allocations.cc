@@ -519,6 +519,7 @@ class DynamicSharedMemoryRewriter : public StmtExprMutator {
         StorageEntry* e = it->second;
         e->const_nbits = std::max(const_nbits, e->const_nbits);
         const_free_map_.erase(it);
+        it->second->allocs.push_back({op->buffer_var.get()});
         return e;
       }
       // Then start looking at smaller buffers.
