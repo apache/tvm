@@ -183,11 +183,12 @@ class GlobalVarNormalizer : private ExprMutator {
   using ExprMutator::VisitExpr_;
 
   IRModule RenameModule() {
-    // Step 1. Add public functions (functions with global_symbol attributes)
-    auto name_changes = AddPublicFunctions();
-    if (!name_changes) {
+    if (!NeedRename()) {
       return module_;
     }
+
+    // Step 1. Add public functions (functions with global_symbol attributes)
+    AddPublicFunctions();
 
     // Step 2. Rename private functions
     AddPrivateFunctions();
@@ -210,12 +211,19 @@ class GlobalVarNormalizer : private ExprMutator {
     return module_;
   }
 
-  /**
-   * \brief Add public functions to the builder, and update the name supplier.
-   * \return true if any name changes are made.
-   */
-  bool AddPublicFunctions() {
-    bool name_changes = false;
+  /*! \brief Check if any function needs to be renamed. */
+  bool NeedRename() {
+    for (const auto& [gvar, func] : module_->functions) {
+      auto global_symbol = func->GetAttr<String>("global_symbol");
+      if (global_symbol && global_symbol.value() != gvar->name_hint) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  /*! \brief Add public functions to the builder, and update the name supplier. */
+  void AddPublicFunctions() {
     for (const auto& [gvar, func] : module_->functions) {
       auto global_symbol = func->GetAttr<String>("global_symbol");
       if (!global_symbol) {
@@ -228,15 +236,10 @@ class GlobalVarNormalizer : private ExprMutator {
       name_supply_->ReserveName(global_symbol_value);
       auto new_gvar = builder_->AddFunction(func, global_symbol_value);
       gvar_map_.Set(gvar, new_gvar);
-
-      if (global_symbol.value() != gvar->name_hint) {
-        name_changes = true;
-      }
     }
-    return name_changes;
   }
 
-  /**
+  /*!
    * \brief Add private functions to the builder with names provided by name supplier. Renaming may
    * happen if the name of any function conflicts with the name of a public function.
    */
