@@ -26,7 +26,6 @@ from tvm.contrib.target.onnx import to_onnx
 from tvm.relay.testing import run_infer_type
 
 pytest.importorskip("onnx")
-pytest.importorskip("onnxruntime")
 
 
 def func_to_onnx(func, name):
