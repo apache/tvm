@@ -20,7 +20,6 @@
 from collections import OrderedDict
 import pytest
 import numpy as np
-import onnxruntime as rt
 import tvm
 from tvm import relay
 from tvm.contrib.target.onnx import to_onnx
