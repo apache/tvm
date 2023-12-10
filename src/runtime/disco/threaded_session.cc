@@ -18,6 +18,7 @@
  */
 #include <dmlc/io.h>
 #include <tvm/runtime/c_runtime_api.h>
+#include <tvm/runtime/disco/disco_worker.h>
 #include <tvm/runtime/object.h>
 
 #include <condition_variable>
@@ -30,8 +31,8 @@
 #include "../../support/ring_buffer.h"
 #include "../minrpc/rpc_reference.h"
 #include "./bcast_session.h"
+#include "./disco_worker_thread.h"
 #include "./protocol.h"
-#include "./worker.h"
 
 namespace tvm {
 namespace runtime {

@@ -360,10 +360,11 @@ class ThreadedSession(Session):
 class ProcessSession(Session):
     """A Disco session backed by pipe-based multi-processing."""
 
-    def __init__(self, num_workers: int) -> None:
+    def __init__(self, num_workers: int, entrypoint: str) -> None:
         self.__init_handle_by_constructor__(
             _ffi_api.SessionProcess,  # type: ignore # pylint: disable=no-member
             num_workers,
+            entrypoint,
             "runtime.disco.create_process_pool",
         )
 

@@ -16,17 +16,13 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-#include "./worker.h"
-
-#include <tvm/runtime/c_runtime_api.h>
+#include <tvm/runtime/disco/builtin.h>
+#include <tvm/runtime/disco/disco_worker.h>
 #include <tvm/runtime/disco/session.h>
 #include <tvm/runtime/packed_func.h>
 #include <tvm/runtime/registry.h>
 
-#include <thread>
-
 #include "../../support/process_id.h"
-#include "./builtin.h"
 #include "./protocol.h"
 
 namespace tvm {

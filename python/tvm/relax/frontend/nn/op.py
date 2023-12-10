@@ -1372,6 +1372,45 @@ def interpolate(
     )
 
 
+def ccl_allreduce(x: Tensor, op_type: str = "sum", name="ccl_allreduce"):
+    """CCL Allreduce operator
+
+    Parameters
+    ----------
+    x : Tensor
+      The input tensor.
+    op_type: str
+      The type of reduction operation to be applied to the input data.
+      Now "sum", "prod", "min", "max" and "avg" are supported.
+    name : str
+        Name hint for this operation.
+
+    Returns
+    -------
+    result : Tensor
+      The result tensor of allreduce.
+    """
+    return _wrap_nested(_op.ccl.allreduce(x._expr, op_type), name)
+
+
+def ccl_broadcast_from_worker0(x: Tensor, name="broadcast_from_worker"):
+    """Broadcast data from worker-0 to all other workers.
+
+    Parameters
+    ----------
+    x : Tensor
+      The tensor to be broadcast.
+    name : str
+        Name hint for this operation.
+
+    Returns
+    -------
+    result : Tensor
+      The same tensor, which has been broadcast to all other workers.
+    """
+    return _wrap_nested(_op.ccl.broadcast_from_worker0(x._expr), name)
+
+
 def tensor_expr_op(
     tensor_expr_func: Callable,
     name_hint: str,
