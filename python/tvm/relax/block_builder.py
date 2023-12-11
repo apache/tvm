@@ -152,7 +152,7 @@ class BlockBuilder(Object):
     _stack = []
 
     @staticmethod
-    def current():
+    def current() -> Optional["BlockBuilder"]:
         """Returns the current BlockBuilder."""
         if BlockBuilder._stack:
             return BlockBuilder._stack[-1]

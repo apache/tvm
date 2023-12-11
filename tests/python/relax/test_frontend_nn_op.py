@@ -14,15 +14,9 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-import io
-import sys
-
-import pytest
-import torch
-
 import tvm
 import tvm.testing
-from tvm import relax, te, tir
+from tvm import tir
 from tvm.relax.frontend.nn import Module, Tensor, op, spec
 from tvm.script import ir as I
 from tvm.script import relax as R
@@ -62,6 +56,30 @@ def test_binary():
     irmodule, _ = m.export_tvm(
         spec={"test": {"x": spec.Tensor([1, 10], "float32"), "y": spec.Tensor([10, 1], "float32")}},
         debug=True,
+    )
+    tvm.ir.assert_structural_equal(irmodule["test"], test)
+
+
+def test_sum():
+    class Model(Module):
+        def test(self, x: Tensor):
+            z0 = op.sum(x, axis=[1, 2], keepdims=True)
+            return z0
+
+    # fmt: off
+    @R.function
+    def test(x: R.Tensor((3, 5, 2, 4), dtype="float32"), _io: R.Object) -> R.Tuple(R.Tensor((3, 1, 1, 4), dtype="float32"), R.Tuple(R.Object)):
+        R.func_attr({"num_input": 2})
+        with R.dataflow():
+            sum: R.Tensor((3, 1, 1, 4), dtype="float32") = R.sum(x, axis=[1, 2], keepdims=True)
+            gv1: R.Tuple(R.Tensor((3, 1, 1, 4), dtype="float32"), R.Tuple(R.Object)) = sum, (_io,)
+            R.output(gv1)
+        return gv1
+    # fmt: on
+
+    m = Model()
+    irmodule, _ = m.export_tvm(
+        spec={"test": {"x": spec.Tensor([3, 5, 2, 4], "float32")}}, debug=True
     )
     tvm.ir.assert_structural_equal(irmodule["test"], test)
 

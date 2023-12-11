@@ -241,6 +241,40 @@ def chunk(x: Tensor, chunks: int, dim: int = 0, name: str = "chunk") -> Tensor:
     return _wrap_nested(_op.split(x._expr, chunks, dim), name)
 
 
+def sum(
+    x: Tensor,
+    axis: Optional[Union[int, List[int]]] = None,
+    keepdims: bool = False,
+    name: str = "sum",
+) -> Tensor:
+    """Computes the sum of tensor elements over given axes.
+
+    Parameters
+    ----------
+    x : Tensor
+        The input data tensor
+
+    axis : Optional[Union[int, List[int]]]
+        Axis or axes along which a sum is performed.
+        The default, axis=None, will sum all of the elements of the input tensor.
+        Negative indexing is supported.
+
+    keepdims : bool
+        If this is set to True, the axes which are reduced are left in the result as
+        dimensions with size one.
+        With this option, the result will broadcast correctly against the input tensor.
+
+    name : str
+        Name hint for this operation.
+
+    Returns
+    -------
+    result : Tensor
+        The computed result.
+    """
+    return _wrap_nested(_op.sum(x._expr, axis, keepdims), name)
+
+
 def matmul(a: Tensor, b: Tensor, out_dtype: Optional[str] = None, name: str = "matmul") -> Tensor:
     """General matrix multiplication of two tensors, with broadcasting on batched dimensions.
 
