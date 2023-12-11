@@ -462,7 +462,7 @@ def compile_model(
 
         # Write dumps to file.
         if dumps:
-            save_dumps(package_path, dumps)
+            save_dumps(str(package_path), dumps)
 
         # Print compilation times per pass
         if print_pass_times:
