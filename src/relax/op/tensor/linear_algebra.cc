@@ -48,6 +48,8 @@ TVM_REGISTER_GLOBAL("relax.op.matmul").set_body_typed(matmul);
 
 StructInfo InferStructInfoMatmul(const Call& call, const BlockBuilder& ctx) {
   Array<TensorStructInfo> input_sinfo = GetInputTensorStructInfo(call, ctx);
+  Expr lhs = call->args[0];
+  Expr rhs = call->args[1];
   TensorStructInfo x1_sinfo = input_sinfo[0];
   TensorStructInfo x2_sinfo = input_sinfo[1];
 
@@ -75,10 +77,19 @@ StructInfo InferStructInfoMatmul(const Call& call, const BlockBuilder& ctx) {
   }
   int x1_ndim = x1_sinfo->ndim;
   int x2_ndim = x2_sinfo->ndim;
-  if (x1_ndim == 0 || x2_ndim == 0) {
+  if (x1_ndim == 0) {
     ctx->ReportFatal(Diagnostic::Error(call)
-                     << "Matmul requires both inputs to have at least 1 dimension. However, "
-                     << (x1_ndim == 0 ? "x1" : "x2") << " is a 0-rank tensor.");
+                     << "Matmul operands must not be scalar.  "
+                     << "However, the expression " << call << " has a LHS of " << lhs
+                     << " with struct info " << x1_sinfo
+                     << ", which is scalar (zero-dimensional) tensor.");
+  }
+  if (x2_ndim == 0) {
+    ctx->ReportFatal(Diagnostic::Error(call)
+                     << "Matmul operands must not be scalar.  "
+                     << "However, the expression " << call << " has a RHS of " << rhs
+                     << " with struct info " << x2_sinfo
+                     << ", which is scalar (zero-dimensional) tensor.");
   }
 
   int x1_prepended = 0;
@@ -120,9 +131,11 @@ StructInfo InferStructInfoMatmul(const Call& call, const BlockBuilder& ctx) {
   PrimExpr x2_reduction_length = x2_shape->values[x2_ndim - 2];
   if (analyzer->CanProve(x1_reduction_length != x2_reduction_length)) {
     ctx->ReportFatal(Diagnostic::Error(call)
-                     << "Matmul requires the reduction length of x1 and x2 to be equal. However, "
-                        "the reduction lengths of x1 and x2 are "
-                     << x1_reduction_length << " and " << x2_reduction_length << " respectively.");
+                     << "Matmul requires the reduction length of the operands to be equal.  "
+                     << "However, the LHS " << lhs << " has shape " << x1_sinfo->shape
+                     << ", while the RHS " << rhs << " has shape " << x2_sinfo->shape
+                     << ".  The reduction dimensions of " << x1_reduction_length << " and "
+                     << x2_reduction_length << " are not equal.");
   }
 
   Array<PrimExpr> output_shape = output_shape_prefix.value();
