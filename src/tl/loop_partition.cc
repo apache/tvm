@@ -54,8 +54,8 @@ class BufferIndiceSimplify : public StmtExprMutator {
 };
 
 // Rewrite the parallel loop into a common loop, which is mapped to threads
-For PartitionLoop(const ForNode* op, const Var& thread, arith::Analyzer* analyzer,
-                  const Fragment& loop_layout) {
+Stmt PartitionLoop(const ForNode* op, const Var& thread, arith::Analyzer* analyzer,
+                   const Fragment& loop_layout) {
   ICHECK(loop_layout.defined());
   ICHECK(thread.defined());
   int old_loop_depth = loop_layout->InputDim();
@@ -83,16 +83,21 @@ For PartitionLoop(const ForNode* op, const Var& thread, arith::Analyzer* analyze
   // substitute and re-construct the serial loop
   body = Substitute(body, vmap);
   for (int i = new_loop_depth - 1; i >= 0; i--) {
-    body =
-        For(vars[i], make_zero(vars[i]->dtype), inv_loop->InputShape()[i], ForKind::kSerial, body);
-    analyzer->Bind(vars[i], Range(0, inv_loop->InputShape()[i]));
+    if (is_one(inv_loop->InputShape()[i])) {
+      // handle unit loop
+      body = Substitute(body, {{vars[i], 0}});
+    } else {
+      body = For(vars[i], make_zero(vars[i]->dtype), inv_loop->InputShape()[i], ForKind::kSerial,
+                 body);
+      analyzer->Bind(vars[i], Range(0, inv_loop->InputShape()[i]));
+    }
   }
 
   body = BufferIndiceSimplify(analyzer)(body);
 
   body = LoopPragmaUnroll(body);
 
-  return body.as<For>().value();
+  return body;
 }
 
 class LoopPramaUnroller : public StmtExprMutator {

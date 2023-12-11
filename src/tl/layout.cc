@@ -38,6 +38,11 @@ namespace tl {
 
 using namespace tir;
 
+IterVar make_itervar(std::string name, PrimExpr dom) {
+  Var var = Var(name);
+  return IterVar(Range(0, dom), var, IterVarType::kDataPar);
+}
+
 Layout::Layout(Array<IterVar> forward_var, Array<PrimExpr> forward_index) {
   auto n = make_object<LayoutNode>();
   n->forward_var_ = std::move(forward_var);
@@ -144,8 +149,7 @@ Fragment FragmentNode::Repeat(const Array<PrimExpr>& repeats, bool repeat_on_thr
 
 Fragment FragmentNode::Replicate(int repeats) const {
   ICHECK(repeats >= 1);
-  IterVar new_rep =
-      IterVar(Range(0, ReplicateExtent() * repeats), Var("rep"), IterVarType::kDataPar);
+  IterVar new_rep = make_itervar("rep", ReplicateExtent() * repeats);
   Map<Var, PrimExpr> vmap;
   vmap.Set(thread_replicate_->var, FloorMod(new_rep->var, ReplicateExtent()));
   PrimExpr new_forward_thread = Substitute(forward_thread_, vmap) +
@@ -157,13 +161,20 @@ Fragment FragmentNode::DeReplicate() const {
   ICHECK(OutputDim() == 1);
   arith::Analyzer analyzer;
   UpdateAnalyzer(&analyzer);
-  ICHECK(analyzer.CanProveEqual(FloorMod(OutputShape()[0], ReplicateExtent()), 0));
+  int factor = 1;
+  auto rep_size = as_const_int(ReplicateExtent());
+  auto idx_size = as_const_int(OutputShape()[0]);
+  if (rep_size && idx_size) {
+    factor = arith::ZeroAwareGCD(*rep_size, *idx_size);
+  }
+  if (factor == 1) return GetRef<Fragment>(this);
 
+  IterVar rep = make_itervar("rep", int(*rep_size) / factor);
   Map<Var, PrimExpr> vmap;
-  vmap.Set(thread_replicate_->var, FloorMod(forward_index_[0], ReplicateExtent()));
+  vmap.Set(thread_replicate_->var, rep * factor + FloorMod(forward_index_[0], factor));
   PrimExpr new_forward_thread = Substitute(forward_thread_, vmap);
-  Array<PrimExpr> new_forward_index = {FloorDiv(forward_index_[0], ReplicateExtent())};
-  return Fragment(forward_var_, new_forward_index, new_forward_thread, {});
+  Array<PrimExpr> new_forward_index = {FloorDiv(forward_index_[0], factor)};
+  return Fragment(forward_var_, new_forward_index, new_forward_thread, rep);
 }
 
 Layout LayoutNode::Inverse() const {
@@ -180,8 +191,7 @@ Layout LayoutNode::Inverse() const {
   auto outputs_shape = OutputShape();
   Array<PrimExpr> outputs;
   for (size_t i = 0; i < OutputDim(); i++) {
-    IterVar iv = IterVar(Range(0, outputs_shape[i]),
-                         Var("v" + std::to_string(i), DataType::Int(32)), IterVarType::kDataPar);
+    IterVar iv = make_itervar("v" + std::to_string(i), outputs_shape[i]);
     inverse_iter_var.push_back(iv);
     outputs.push_back(iv->var);
   }
@@ -251,8 +261,7 @@ PrimExpr infer_fragment_index(const Array<IterVar>& forward_var, const IterVar& 
 
 Fragment::Fragment(Array<IterVar> forward_var, Array<PrimExpr> forward_index,
                    PrimExpr forward_thread, IterVar thread_replicate) {
-  if (!thread_replicate.defined())
-    thread_replicate = IterVar(Range(0, 1), Var("unused"), IterVarType::kDataPar);
+  if (!thread_replicate.defined()) thread_replicate = make_itervar("unused", 1);
   ICHECK(is_zero(thread_replicate->dom->min));
 
   auto n = make_object<FragmentNode>();
@@ -370,11 +379,6 @@ bool FragmentThreadEqual(const Fragment& a, const Fragment& b) {
   for (size_t i = 0; i < a->InputDim(); i++) vars.push_back(Var());
   if (!StructuralEqual()(a->ForwardThread(vars, rep), b->ForwardThread(vars, rep))) return false;
   return true;
-}
-
-IterVar make_itervar(std::string name, PrimExpr dom) {
-  Var var = Var(name);
-  return IterVar(Range(0, dom), var, IterVarType::kDataPar);
 }
 
 Fragment makeGemmFragment8x8() {

@@ -273,10 +273,12 @@ class LayoutInferencer : public IRMutatorWithAnalyzer {
     Stmt body = IRMutatorWithAnalyzer::VisitStmt_(op);
     if (for_map_.find(GetRef<For>(op)) != for_map_.end()) {
       auto loop_layout = for_map_[GetRef<For>(op)];
-      auto new_for =
+      auto stmt =
           PartitionLoop(body.as<ForNode>(), thread_var_, analyzer_, for_map_[GetRef<For>(op)]);
-      new_for = VectorizeLoop(new_for);
-      return new_for;
+      if (stmt.as<For>()) {
+        stmt = VectorizeLoop(stmt.as<For>().value());
+      }
+      return stmt;
     }
     return body;
   }

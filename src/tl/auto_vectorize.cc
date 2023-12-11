@@ -153,25 +153,31 @@ class VectorizeRewriter : public StmtExprMutator {
  private:
   Stmt VisitStmt_(const ForNode* node) final {
     inner_for_ = node;
-    auto f = StmtExprMutator::VisitStmt_(node);
+    auto ret = StmtExprMutator::VisitStmt_(node);
     if (inner_for_ == node) {  // rewrite the innermost loop
-      auto old_var = node->loop_var;
-      auto extent_ptr = as_const_int(node->extent);
-      ICHECK(extent_ptr) << node->extent;
+      For fnode = ret.as<For>().value();
+      auto old_var = fnode->loop_var;
+      auto extent_ptr = as_const_int(fnode->extent);
+      ICHECK(extent_ptr) << fnode->extent;
       int extent = *extent_ptr;
       ICHECK(extent % vector_size_ == 0);
-      ICHECK(is_zero(node->min));
-      Var inner_var = Var("vec");
-      Var outer_var = Var(old_var->name_hint);
-      Map<Var, PrimExpr> vmap;
-      vmap.Set(node->loop_var, outer_var * vector_size_ + inner_var);
-      Stmt body = Substitute(node->body, vmap);
-      body = For(inner_var, 0, vector_size_, ForKind::kVectorized, body);
-      body = For(outer_var, 0, extent / vector_size_, node->kind, body, node->thread_binding,
-                 node->annotations, node->span);
-      return body;
+      ICHECK(is_zero(fnode->min));
+      if (extent == vector_size_) {
+        fnode.CopyOnWrite()->kind = ForKind::kVectorized;
+        return fnode;
+      } else {
+        Var inner_var = Var("vec");
+        Var outer_var = Var(old_var->name_hint);
+        Map<Var, PrimExpr> vmap;
+        vmap.Set(fnode->loop_var, outer_var * vector_size_ + inner_var);
+        Stmt body = Substitute(fnode->body, vmap);
+        body = For(inner_var, 0, vector_size_, ForKind::kVectorized, body);
+        body = For(outer_var, 0, extent / vector_size_, fnode->kind, body, fnode->thread_binding,
+                   fnode->annotations, fnode->span);
+        return body;
+      }
     } else {
-      return f;
+      return ret;
     }
   }
 
@@ -181,14 +187,13 @@ class VectorizeRewriter : public StmtExprMutator {
 
 int GetVectorizeSize(const For& loop) { return VectorizePlanner().Plan(loop); }
 
-For VectorizeLoop(const For& loop, int vectorize_hint) {
+Stmt VectorizeLoop(const For& loop, int vectorize_hint) {
   if (vectorize_hint <= 0) {
     vectorize_hint = GetVectorizeSize(loop);
   }
   if (vectorize_hint == 1) return loop;
   auto rewriter = VectorizeRewriter(vectorize_hint);
-  return rewriter(loop).as<For>().value();
-  return loop;
+  return rewriter(loop);
 }
 
 }  // namespace tl

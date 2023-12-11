@@ -34,7 +34,7 @@ namespace tl {
 
 using namespace tir;
 
-For PartitionLoop(const ForNode* op, const Var& thread, arith::Analyzer* analyzer,
+Stmt PartitionLoop(const ForNode* op, const Var& thread, arith::Analyzer* analyzer,
                   const Fragment& loop_layout);
 
 Fragment PlanLoopPartition(const ForNode* op, size_t num_thread, int vectorize_size);
