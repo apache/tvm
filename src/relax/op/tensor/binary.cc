@@ -58,28 +58,16 @@ StructInfo InferStructInfoBroadcast(const Call& call, const BlockBuilder& ctx,
     Optional<Array<PrimExpr>> output_shape =
         InferBinaryBroadcastShape(call, ctx, x1_shape->values, x2_shape->values);
     if (!output_shape.defined()) {
-      if (vdevice.defined()) {
-        return TensorStructInfo(output_dtype, /*ndim=*/output_ndim, vdevice.value());
-      }
-      return TensorStructInfo(output_dtype, /*ndim=*/output_ndim);
+      return TensorStructInfo(output_dtype, /*ndim=*/output_ndim, vdevice);
 
     } else {
       ICHECK_EQ(static_cast<int>(output_shape.value().size()), output_ndim);
-      if (vdevice.defined()) {
-        return TensorStructInfo(ShapeExpr(output_shape.value()), output_dtype, vdevice.value());
-      }
-      return TensorStructInfo(ShapeExpr(output_shape.value()), output_dtype);
+      return TensorStructInfo(ShapeExpr(output_shape.value()), output_dtype, vdevice);
     }
   } else if (x1_sinfo->shape.defined() && x1_sinfo->shape.same_as(x2_sinfo->shape)) {
-    if (vdevice.defined()) {
-      return TensorStructInfo(x1_sinfo->shape.value(), output_dtype, vdevice.value());
-    }
-    return TensorStructInfo(x1_sinfo->shape.value(), output_dtype);
+    return TensorStructInfo(x1_sinfo->shape.value(), output_dtype, vdevice);
   } else {
-    if (vdevice.defined()) {
-      return TensorStructInfo(output_dtype, /*ndim=*/output_ndim, vdevice.value());
-    }
-    return TensorStructInfo(output_dtype, /*ndim=*/output_ndim);
+    return TensorStructInfo(output_dtype, /*ndim=*/output_ndim, vdevice);
   }
 }
 

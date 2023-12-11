@@ -61,23 +61,13 @@ StructInfo InferStructInfoStatistical(const Call& call, const BlockBuilder& ctx)
   const auto* data_shape = data_sinfo->shape.as<ShapeExprNode>();
   if (data_shape == nullptr) {
     if (!attrs->axis.defined() && attrs->keepdims && out_ndim != kUnknownNDim) {
-      if (data_sinfo->vdevice.defined()) {
-        return TensorStructInfo(
-            ShapeExpr(Array<PrimExpr>(out_ndim, IntImm(DataType::Int(64), /*value=*/1))),
-            data_sinfo->dtype, data_sinfo->vdevice.value());
-      }
       return TensorStructInfo(
           ShapeExpr(Array<PrimExpr>(out_ndim, IntImm(DataType::Int(64), /*value=*/1))),
-          data_sinfo->dtype);
+          data_sinfo->dtype, data_sinfo->vdevice);
     } else {
-      if (data_sinfo->vdevice.defined()) {
-        return out_ndim == 0
-                   ? TensorStructInfo(ShapeExpr(Array<PrimExpr>()), data_sinfo->dtype,
-                                      data_sinfo->vdevice.value())
-                   : TensorStructInfo(data_sinfo->dtype, out_ndim, data_sinfo->vdevice.value());
-      }
-      return out_ndim == 0 ? TensorStructInfo(ShapeExpr(Array<PrimExpr>()), data_sinfo->dtype)
-                           : TensorStructInfo(data_sinfo->dtype, out_ndim);
+      return out_ndim == 0 ? TensorStructInfo(ShapeExpr(Array<PrimExpr>()), data_sinfo->dtype,
+                                              data_sinfo->vdevice)
+                           : TensorStructInfo(data_sinfo->dtype, out_ndim, data_sinfo->vdevice);
     }
   }
 
@@ -91,10 +81,7 @@ StructInfo InferStructInfoStatistical(const Call& call, const BlockBuilder& ctx)
     }
   }
   ICHECK_EQ(static_cast<int>(out_shape.size()), out_ndim);
-  if (data_sinfo->vdevice.defined()) {
-    return TensorStructInfo(ShapeExpr(out_shape), data_sinfo->dtype, data_sinfo->vdevice.value());
-  }
-  return TensorStructInfo(ShapeExpr(out_shape), data_sinfo->dtype);
+  return TensorStructInfo(ShapeExpr(out_shape), data_sinfo->dtype, data_sinfo->vdevice);
 }
 
 InferLayoutOutput InferLayoutStatistical(const Call& call,
@@ -172,33 +159,21 @@ StructInfo InferStructInfoCumsum(const Call& call, const BlockBuilder& ctx) {
     // flattened
     const auto* data_shape = data_sinfo->shape.as<ShapeExprNode>();
     if (data_shape == nullptr) {
-      if (data_sinfo->vdevice.defined()) {
-        return TensorStructInfo(out_type, data_sinfo->ndim, data_sinfo->vdevice.value());
-      }
-      return TensorStructInfo(out_type, data_sinfo->ndim);
+      return TensorStructInfo(out_type, data_sinfo->ndim, data_sinfo->vdevice);
     } else {
       PrimExpr flattened_d = 1;
       for (const auto v : data_shape->values) {
         flattened_d *= v;
       }
-      if (data_sinfo->vdevice.defined()) {
-        return TensorStructInfo(ShapeExpr(Array<PrimExpr>({flattened_d})), out_type,
-                                data_sinfo->vdevice.value());
-      }
-      return TensorStructInfo(ShapeExpr(Array<PrimExpr>({flattened_d})), out_type);
+      return TensorStructInfo(ShapeExpr(Array<PrimExpr>({flattened_d})), out_type,
+                              data_sinfo->vdevice);
     }
   }
 
   if (data_sinfo->shape.defined()) {
-    if (data_sinfo->vdevice.defined()) {
-      return TensorStructInfo(data_sinfo->shape.value(), out_type, data_sinfo->vdevice.value());
-    }
-    return TensorStructInfo(data_sinfo->shape.value(), out_type);
+    return TensorStructInfo(data_sinfo->shape.value(), out_type, data_sinfo->vdevice);
   } else {
-    if (data_sinfo->vdevice.defined()) {
-      return TensorStructInfo(out_type, data_sinfo->ndim, data_sinfo->vdevice.value());
-    }
-    return TensorStructInfo(out_type, data_sinfo->ndim);
+    return TensorStructInfo(out_type, data_sinfo->ndim, data_sinfo->vdevice);
   }
 }
 

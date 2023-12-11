@@ -72,11 +72,7 @@ StructInfo InferStructInfoAllGather(const Call& call, const BlockBuilder& ctx) {
   }
   Array<PrimExpr> output_shape = input_shape.value();
   output_shape.Set(0, floor(output_shape[0] * num_workers.value()));
-  VDevice vdevice;
-  if (input_sinfo->vdevice.defined()) {
-    vdevice = input_sinfo->vdevice.value();
-  }
-  return TensorStructInfo(ShapeExpr(output_shape), output_dtype, vdevice);
+  return TensorStructInfo(ShapeExpr(output_shape), output_dtype, input_sinfo->vdevice);
 }
 
 TVM_REGISTER_OP("relax.ccl.allgather")
@@ -141,10 +137,7 @@ StructInfo InferStructInfoScatter(const Call& call, const BlockBuilder& ctx) {
 
   Array<PrimExpr> output_shape = input_shape.value();
   output_shape.Set(attrs->axis, div(output_shape[attrs->axis], num_workers));
-  if (input_sinfo->vdevice.defined()) {
-    return TensorStructInfo(ShapeExpr(output_shape), output_dtype, input_sinfo->vdevice.value());
-  }
-  return TensorStructInfo(ShapeExpr(output_shape), output_dtype);
+  return TensorStructInfo(ShapeExpr(output_shape), output_dtype, input_sinfo->vdevice);
 }
 
 TVM_REGISTER_OP("relax.ccl.scatter_from_worker0")

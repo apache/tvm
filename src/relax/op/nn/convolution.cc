@@ -79,10 +79,7 @@ StructInfo InferStructInfoConv1d(const Call& call, const BlockBuilder& ctx) {
                            : attrs->out_dtype;
   Optional<VDevice> vdevice = InferBinaryArithOpOutVDevice(call, ctx, data_sinfo, weight_sinfo);
   if (!data_shape.defined() || !weight_shape.defined()) {
-    if (vdevice.defined()) {
-      return TensorStructInfo(out_dtype, out_layout.ndim(), vdevice.value());
-    }
-    return TensorStructInfo(out_dtype, out_layout.ndim());
+    return TensorStructInfo(out_dtype, out_layout.ndim(), vdevice);
   }
 
   Array<PrimExpr> data_NCW_shape = data2NCW.ForwardShape(data_shape.value()->values);
@@ -125,10 +122,7 @@ StructInfo InferStructInfoConv1d(const Call& call, const BlockBuilder& ctx) {
   out_NCW_shape[2] = analyzer->Simplify(floordiv(numerator_w, attrs->strides[0]) + 1);
 
   Array<PrimExpr> out_shape = out2NCW.BackwardShape(out_NCW_shape);
-  if (vdevice.defined()) {
-    return TensorStructInfo(ShapeExpr(out_shape), out_dtype, vdevice.value());
-  }
-  return TensorStructInfo(ShapeExpr(out_shape), out_dtype);
+  return TensorStructInfo(ShapeExpr(out_shape), out_dtype, vdevice);
 }
 
 InferLayoutOutput InferLayoutConv1d(const Call& call,
@@ -248,10 +242,7 @@ StructInfo InferStructInfoConv2d(const Call& call, const BlockBuilder& ctx) {
                            : attrs->out_dtype;
   Optional<VDevice> vdevice = InferBinaryArithOpOutVDevice(call, ctx, data_sinfo, weight_sinfo);
   if (!data_shape.defined() || !weight_shape.defined()) {
-    if (vdevice.defined()) {
-      return TensorStructInfo(out_dtype, out_layout.ndim(), vdevice.value());
-    }
-    return TensorStructInfo(out_dtype, out_layout.ndim());
+    return TensorStructInfo(out_dtype, out_layout.ndim(), vdevice);
   }
 
   Array<PrimExpr> data_NCHW_shape = data2NCHW.ForwardShape(data_shape.value()->values);
@@ -299,10 +290,7 @@ StructInfo InferStructInfoConv2d(const Call& call, const BlockBuilder& ctx) {
   out_NCHW_shape[3] = analyzer->Simplify(floordiv(numerator_w, attrs->strides[1]) + 1);
 
   Array<PrimExpr> out_shape = out2NCHW.BackwardShape(out_NCHW_shape);
-  if (vdevice.defined()) {
-    return TensorStructInfo(ShapeExpr(out_shape), out_dtype, vdevice.value());
-  }
-  return TensorStructInfo(ShapeExpr(out_shape), out_dtype);
+  return TensorStructInfo(ShapeExpr(out_shape), out_dtype, vdevice);
 }
 
 InferLayoutOutput InferLayoutConv2d(const Call& call,
@@ -427,10 +415,7 @@ StructInfo InferStructInfoConv1dTranspose(const Call& call, const BlockBuilder& 
                            : attrs->out_dtype;
   Optional<VDevice> vdevice = InferBinaryArithOpOutVDevice(call, ctx, data_sinfo, weight_sinfo);
   if (!data_shape.defined() || !weight_shape.defined()) {
-    if (vdevice.defined()) {
-      return TensorStructInfo(out_dtype, out_layout.ndim(), vdevice.value());
-    }
-    return TensorStructInfo(out_dtype, out_layout.ndim());
+    return TensorStructInfo(out_dtype, out_layout.ndim(), vdevice);
   }
 
   Array<PrimExpr> data_NCW_shape = data2NCW.ForwardShape(data_shape.value()->values);
@@ -483,10 +468,7 @@ StructInfo InferStructInfoConv1dTranspose(const Call& call, const BlockBuilder& 
   out_NCW_shape[2] = analyzer->Simplify(out_w);
 
   Array<PrimExpr> out_shape = out2NCW.BackwardShape(out_NCW_shape);
-  if (vdevice.defined()) {
-    return TensorStructInfo(ShapeExpr(out_shape), out_dtype, vdevice.value());
-  }
-  return TensorStructInfo(ShapeExpr(out_shape), out_dtype);
+  return TensorStructInfo(ShapeExpr(out_shape), out_dtype, vdevice);
 }
 
 // TODO(relax-team): implement FInferMixedPrecision and FRelaxInferLayout for conv1d_transpose
@@ -571,10 +553,7 @@ StructInfo InferStructInfoConv2dTranspose(const Call& call, const BlockBuilder& 
                            : attrs->out_dtype;
   Optional<VDevice> vdevice = InferBinaryArithOpOutVDevice(call, ctx, data_sinfo, weight_sinfo);
   if (!data_shape.defined() || !weight_shape.defined()) {
-    if (vdevice.defined()) {
-      return TensorStructInfo(out_dtype, out_layout.ndim(), vdevice.value());
-    }
-    return TensorStructInfo(out_dtype, out_layout.ndim());
+    return TensorStructInfo(out_dtype, out_layout.ndim(), vdevice);
   }
 
   Array<PrimExpr> data_NCHW_shape = data2NCHW.ForwardShape(data_shape.value()->values);
@@ -635,10 +614,7 @@ StructInfo InferStructInfoConv2dTranspose(const Call& call, const BlockBuilder& 
   out_NCHW_shape[3] = analyzer->Simplify(out_w);
 
   Array<PrimExpr> out_shape = out2NCHW.BackwardShape(out_NCHW_shape);
-  if (vdevice.defined()) {
-    return TensorStructInfo(ShapeExpr(out_shape), out_dtype, vdevice.value());
-  }
-  return TensorStructInfo(ShapeExpr(out_shape), out_dtype);
+  return TensorStructInfo(ShapeExpr(out_shape), out_dtype, vdevice);
 }
 
 // TODO(relax-team): implement FInferMixedPrecision and FRelaxInferLayout for conv2d_transpose

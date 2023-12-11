@@ -266,15 +266,10 @@ StructInfo InferStructInfoBatchNorm(const Call& call, const BlockBuilder& ctx) {
 
   DataType dtype = input_sinfo[0]->dtype;
   if (unknown_shape) {
-    if (input_sinfo[0]->vdevice.defined()) {
-      VDevice vdev = input_sinfo[0]->vdevice.value();
-      return TupleStructInfo({TensorStructInfo(dtype, input_sinfo[0]->ndim, vdev),
-                              TensorStructInfo(dtype, /*ndim=*/1, vdev),
-                              TensorStructInfo(dtype, /*ndim=*/1, vdev)});
-    }
-    return TupleStructInfo({TensorStructInfo(dtype, input_sinfo[0]->ndim),
-                            TensorStructInfo(dtype, /*ndim=*/1),
-                            TensorStructInfo(dtype, /*ndim=*/1)});
+    auto vdev = input_sinfo[0]->vdevice;
+    return TupleStructInfo({TensorStructInfo(dtype, input_sinfo[0]->ndim, vdev),
+                            TensorStructInfo(dtype, /*ndim=*/1, vdev),
+                            TensorStructInfo(dtype, /*ndim=*/1, vdev)});
   } else {
     return TupleStructInfo({input_sinfo[0], input_sinfo[3], input_sinfo[4]});
   }
@@ -337,12 +332,8 @@ StructInfo InferStructInfoLayerNorm(const Call& call, const BlockBuilder& ctx) {
   const auto* attrs = call->attrs.as<LayerNormAttrs>();
   bool unknown_shape = NormCheckDtypeAndShape(call, ctx, input_sinfo, attrs->axes);
 
-  if (input_sinfo[0]->vdevice.defined()) {
-    return unknown_shape ? TensorStructInfo(input_sinfo[0]->dtype, input_sinfo[0]->ndim,
-                                            input_sinfo[0]->vdevice.value())
-                         : input_sinfo[0];
-  }
-  return unknown_shape ? TensorStructInfo(input_sinfo[0]->dtype, input_sinfo[0]->ndim)
+  return unknown_shape ? TensorStructInfo(input_sinfo[0]->dtype, input_sinfo[0]->ndim,
+                                          input_sinfo[0]->vdevice)
                        : input_sinfo[0];
 }
 
@@ -514,12 +505,8 @@ StructInfo InferStructInfoRMSNorm(const Call& call, const BlockBuilder& ctx) {
   const auto* attrs = call->attrs.as<RMSNormAttrs>();
   bool unknown_shape = NormCheckDtypeAndShape(call, ctx, input_sinfo, attrs->axes);
 
-  if (input_sinfo[0]->vdevice.defined()) {
-    return unknown_shape ? TensorStructInfo(input_sinfo[0]->dtype, input_sinfo[0]->ndim,
-                                            input_sinfo[0]->vdevice.value())
-                         : input_sinfo[0];
-  }
-  return unknown_shape ? TensorStructInfo(input_sinfo[0]->dtype, input_sinfo[0]->ndim)
+  return unknown_shape ? TensorStructInfo(input_sinfo[0]->dtype, input_sinfo[0]->ndim,
+                                          input_sinfo[0]->vdevice)
                        : input_sinfo[0];
 }
 
@@ -629,10 +616,7 @@ StructInfo InferStructInfoCrossEntropy(const Call& call, const BlockBuilder& ctx
       }
     }
   }
-  if (vdevice.defined()) {
-    return TensorStructInfo(ShapeExpr(Array<PrimExpr>()), dtype, vdevice.value());
-  }
-  return TensorStructInfo(ShapeExpr(Array<PrimExpr>()), dtype);
+  return TensorStructInfo(ShapeExpr(Array<PrimExpr>()), dtype, vdevice);
 }
 
 Expr cross_entropy_with_logits(Expr predictions, Expr labels) {
@@ -860,24 +844,14 @@ StructInfo InferStructInfoNLLLoss(const Call& call, const BlockBuilder& ctx) {
   if (reduction == "none") {
     // () or (N,) or (N, d1, d2, ..., dk)
     if (pred_sinfo->shape.as<ShapeExprNode>()) {
-      if (vdevice.defined()) {
-        return TensorStructInfo(ShapeExpr(output_shape), output_dtype, vdevice.value());
-      }
-      return TensorStructInfo(ShapeExpr(output_shape), output_dtype);
+      return TensorStructInfo(ShapeExpr(output_shape), output_dtype, vdevice);
     } else {
       int output_ndim = pred_sinfo->ndim == kUnknownNDim ? kUnknownNDim : pred_sinfo->ndim - 1;
-      if (vdevice.defined()) {
-        return TensorStructInfo(output_dtype, /*ndim=*/output_ndim, vdevice.value());
-      }
-      return TensorStructInfo(output_dtype, /*ndim=*/output_ndim);
+      return TensorStructInfo(output_dtype, /*ndim=*/output_ndim, vdevice);
     }
   } else {
     // sum or mean. output is scalar
-    if (vdevice.defined()) {
-      return TensorStructInfo(/*shape=*/ShapeExpr(Array<PrimExpr>()), output_dtype,
-                              vdevice.value());
-    }
-    return TensorStructInfo(/*shape=*/ShapeExpr(Array<PrimExpr>()), output_dtype);
+    return TensorStructInfo(/*shape=*/ShapeExpr(Array<PrimExpr>()), output_dtype, vdevice);
   }
 }
 

@@ -66,10 +66,7 @@ StructInfo InferStructInfoTake(const Call& call, const BlockBuilder& ctx) {
                      << data_sinfo->ndim);
   }
   if (data_sinfo->IsUnknownNdim() || indices_sinfo->IsUnknownNdim()) {
-    if (data_sinfo->vdevice.defined()) {
-      return TensorStructInfo(data_sinfo->dtype, kUnknownNDim, data_sinfo->vdevice.value());
-    }
-    return TensorStructInfo(data_sinfo->dtype, kUnknownNDim);
+    return TensorStructInfo(data_sinfo->dtype, kUnknownNDim, data_sinfo->vdevice);
   }
 
   int axis = attrs->axis.defined()
@@ -78,11 +75,8 @@ StructInfo InferStructInfoTake(const Call& call, const BlockBuilder& ctx) {
   const auto* data_shape = data_sinfo->shape.as<ShapeExprNode>();
   const auto* indices_shape = indices_sinfo->shape.as<ShapeExprNode>();
   if (data_shape == nullptr || indices_shape == nullptr) {
-    if (data_sinfo->vdevice.defined()) {
-      return TensorStructInfo(data_sinfo->dtype, indices_sinfo->ndim + data_sinfo->ndim - 1,
-                              data_sinfo->vdevice.value());
-    }
-    return TensorStructInfo(data_sinfo->dtype, indices_sinfo->ndim + data_sinfo->ndim - 1);
+    return TensorStructInfo(data_sinfo->dtype, indices_sinfo->ndim + data_sinfo->ndim - 1,
+                            data_sinfo->vdevice);
   }
 
   Array<PrimExpr> output_shape;
@@ -94,11 +88,7 @@ StructInfo InferStructInfoTake(const Call& call, const BlockBuilder& ctx) {
       output_shape.push_back(data_shape->values[i]);
     }
   }
-  if (data_sinfo->vdevice.defined()) {
-    return TensorStructInfo(ShapeExpr(output_shape), data_sinfo->dtype,
-                            data_sinfo->vdevice.value());
-  }
-  return TensorStructInfo(ShapeExpr(output_shape), data_sinfo->dtype);
+  return TensorStructInfo(ShapeExpr(output_shape), data_sinfo->dtype, data_sinfo->vdevice);
 }
 
 TVM_REGISTER_OP("relax.take")
@@ -191,19 +181,13 @@ StructInfo InferStructInfoStridedSlice(const Call& call, const BlockBuilder& ctx
   }
 
   if (data_sinfo->IsUnknownNdim()) {
-    if (data_sinfo->vdevice.defined()) {
-      return TensorStructInfo(data_sinfo->dtype, kUnknownNDim, data_sinfo->vdevice.value());
-    }
-    return TensorStructInfo(data_sinfo->dtype, kUnknownNDim);
+    return TensorStructInfo(data_sinfo->dtype, kUnknownNDim, data_sinfo->vdevice);
   }
 
   std::vector<int> axes = NormalizeAxes(call, ctx, data_sinfo->ndim, attrs->axes);
   const auto* data_shape = data_sinfo->shape.as<ShapeExprNode>();
   if (data_shape == nullptr) {
-    if (data_sinfo->vdevice.defined()) {
-      return TensorStructInfo(data_sinfo->dtype, data_sinfo->ndim, data_sinfo->vdevice.value());
-    }
-    return TensorStructInfo(data_sinfo->dtype, data_sinfo->ndim);
+    return TensorStructInfo(data_sinfo->dtype, data_sinfo->ndim, data_sinfo->vdevice);
   }
 
   int n_axis = axes.size();
@@ -216,10 +200,7 @@ StructInfo InferStructInfoStridedSlice(const Call& call, const BlockBuilder& ctx
   for (int i = 0; i < n_axis; ++i) {
     const auto* int_stride = strides[i].as<IntImmNode>();
     if (!int_stride) {
-      if (data_sinfo->vdevice.defined()) {
-        return TensorStructInfo(data_sinfo->dtype, data_sinfo->ndim, data_sinfo->vdevice.value());
-      }
-      return TensorStructInfo(data_sinfo->dtype, data_sinfo->ndim);
+      return TensorStructInfo(data_sinfo->dtype, data_sinfo->ndim, data_sinfo->vdevice);
     }
     int_strides.push_back(int_stride->value);
   }
@@ -231,11 +212,7 @@ StructInfo InferStructInfoStridedSlice(const Call& call, const BlockBuilder& ctx
     output_shape.Set(axes[i], GetLength(attrs->begin[i], attrs->end[i], int_strides[i],
                                         data_shape->values[axes[i]], attrs->assume_inbound));
   }
-  if (data_sinfo->vdevice.defined()) {
-    return TensorStructInfo(ShapeExpr(output_shape), data_sinfo->dtype,
-                            data_sinfo->vdevice.value());
-  }
-  return TensorStructInfo(ShapeExpr(output_shape), data_sinfo->dtype);
+  return TensorStructInfo(ShapeExpr(output_shape), data_sinfo->dtype, data_sinfo->vdevice);
 }
 
 InferLayoutOutput InferLayoutStridedSlice(const Call& call,
@@ -289,10 +266,7 @@ StructInfo InferStructInfoDynStridedSlice(const Call& call, const BlockBuilder& 
     LOG(WARNING) << "When data rank is unknown, dynamic strided slice assumes begin/end/strides "
                     "tensors are well-formed. It could produce runtime error when this assumption "
                     "turns out to be wrong.";
-    if (data_sinfo->vdevice.defined()) {
-      return TensorStructInfo(data_sinfo->dtype, kUnknownNDim, data_sinfo->vdevice.value());
-    }
-    return TensorStructInfo(data_sinfo->dtype, kUnknownNDim);
+    return TensorStructInfo(data_sinfo->dtype, kUnknownNDim, data_sinfo->vdevice);
   }
   if (data_sinfo->IsUnknownDtype()) {
     LOG(WARNING) << "When data type is unknown, dynamic strided slice assumes to have a valid "
@@ -332,10 +306,7 @@ StructInfo InferStructInfoDynStridedSlice(const Call& call, const BlockBuilder& 
   // The output shape will depend on the runtime value in begin/end/strides tensors.
   // TODO(tvm-team): Currently, it is unable to express partially-static shape. Revisit when
   // PrimValue lands.
-  if (data_sinfo->vdevice.defined()) {
-    return TensorStructInfo(data_sinfo->dtype, n_axis, data_sinfo->vdevice.value());
-  }
-  return TensorStructInfo(data_sinfo->dtype, n_axis);
+  return TensorStructInfo(data_sinfo->dtype, n_axis, data_sinfo->vdevice);
 }  // namespace relax
 
 // TODO(tvm-team): Register FRelaxInferLayout, TMixedPrecisionPolicy
