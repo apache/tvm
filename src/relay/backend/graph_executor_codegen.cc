@@ -44,6 +44,8 @@
 #include "./te_compiler.h"
 #include "./utils.h"
 
+char reshapenumber = '0';
+
 namespace tvm {
 namespace relay {
 
@@ -444,7 +446,9 @@ class GraphExecutorCodegen : public backend::MemoizedExprTranslator<std::vector<
       // TODO(mbs): "reshape" cleanup.
       if (IsReshapeOnly(call_lowered_props) &&
           ShareSameStorage(GetRef<Expr>(call_node), call_lowered_props.arguments[0])) {
-        auto node = GraphOpNode::make_node_ptr("reshape_nop", GraphAttrs(), "__nop", inputs, attrs);
+        std::string  ssreshape{reshapenumber};
+        auto node = GraphOpNode::make_node_ptr("reshape_nop_"+ ssreshape, GraphAttrs(), "__nop", inputs, attrs);
+        reshapenumber += 1;
         return AddNode(node, call);
       }
     } else if (!call_node->attrs.defined()) {  // Call is an extern function
