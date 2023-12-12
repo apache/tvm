@@ -15,6 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 # pylint: disable=too-many-lines,invalid-name,protected-access,redefined-outer-name
+# pylint: disable=redefined-builtin
 """nn.Tensor operators."""
 import math
 from typing import Any, Callable, Dict, List, Optional, Sequence, Tuple, Union
