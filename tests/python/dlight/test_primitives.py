@@ -18,7 +18,6 @@
 
 import tvm
 import tvm.testing
-from tvm import relay
 from tvm.script import tir as T
 
 
@@ -43,7 +42,11 @@ def main(p0: T.Buffer((), "int32"), T_stack: T.Buffer((T.int64(3),), "int32")):
             v_ax0 = T.axis.spatial(T.int64(3), ax0)
             T.reads(compile_engine_const[()], p0[()], compile_engine_const_1[()])
             T.writes(T_stack[v_ax0])
-            T_stack[v_ax0] = T.if_then_else(v_ax0 == T.int64(2), compile_engine_const[()], T.if_then_else(v_ax0 == T.int64(1), p0[()], compile_engine_const_1[()]))
+            T_stack[v_ax0] = T.if_then_else(
+                v_ax0 == T.int64(2),
+                compile_engine_const[()],
+                T.if_then_else(v_ax0 == T.int64(1), p0[()], compile_engine_const_1[()]),
+            )
 
 
 @tvm.testing.requires_cuda
@@ -51,6 +54,7 @@ def test_normalize_primfunc_with_scalar():
     sch = tvm.tir.Schedule(main)
     f_normalize_prim_func = tvm.get_global_func("tir.schedule.NormalizePrimFunc")
     assert f_normalize_prim_func(sch)
+
 
 if __name__ == "__main__":
     tvm.testing.main()
