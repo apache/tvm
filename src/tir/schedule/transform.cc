@@ -451,6 +451,7 @@ Optional<ObjectRef> NormalizePrimFunc(Schedule sch) {
     StmtSRef block_sref = sch->GetSRef(block);
     Array<StmtSRef> loops = GetLoops(block_sref);
     Array<PrimExpr> binds = GetBlockRealize(sch->state(), block_sref)->iter_values;
+    if (loops.size() == 0) continue;
     if (loops.size() != binds.size()) {
       return NullOpt;
     }
