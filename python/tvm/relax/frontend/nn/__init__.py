@@ -15,6 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 """A PyTorch-like API to build IRModules."""
+# pylint: disable=redefined-builtin
 from . import op, spec
 from .core import (
     Effect,
