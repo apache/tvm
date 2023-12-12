@@ -610,7 +610,7 @@ bool IndexDataTypeNormalizer::CanRewriteDType(DataType dtype) const {
 }
 
 PrimExpr IndexDataTypeNormalizer::VisitExpr_(const IntImmNode* op) {
-  if (is_enabled_) {
+  if (is_enabled_ && CanRewriteDType(op->dtype)) {
     ICHECK_LE(op->value, Downcast<Integer>(max_value(target_data_type_))->value);
     return cast(target_data_type_, GetRef<IntImm>(op));
   }
