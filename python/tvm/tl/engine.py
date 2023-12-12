@@ -16,6 +16,7 @@
 # under the License.
 """The compiler for TL programs."""
 
+import os
 import os.path as osp
 import tvm
 from tvm import tir, tl, relay
@@ -34,8 +35,14 @@ def is_host_call(func: tir.PrimFunc):
 def tvm_callback_cuda_compile(code, target):
     tvm_root = osp.join(osp.dirname(__file__), "../../..")
     tl_template_path = osp.abspath(osp.join(tvm_root, "src/tl"))
+    if "TL_CUTLASS_PATH" in os.environ:
+        cutlass_path = os.environ["TL_CUTLASS_PATH"]
+    else:
+        cutlass_path = osp.abspath(osp.join(tvm_root, "3rdparty/cutlass/include"))
     ptx = nvcc.compile_cuda(
-        code, target_format="ptx", options=["-std=c++17", "-I" + tl_template_path]
+        code,
+        target_format="ptx",
+        options=["-std=c++17", "-I" + tl_template_path, "-I" + cutlass_path],
     )
     return ptx
 
