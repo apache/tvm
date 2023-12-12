@@ -20,7 +20,7 @@ import tvm.testing
 from tvm import relax, tir
 from tvm import TVMError
 from tvm.ir import Op, VDevice
-from tvm.script import relax as R
+from tvm.script import relax as R, tir as T
 
 
 def test_op_correctness():
@@ -1832,9 +1832,9 @@ def test_split_infer_struct_info_by_indices_shape_symbolic():
         relax.op.split(x, [10, 20], axis=1),
         relax.TupleStructInfo(
             [
-                relax.TensorStructInfo(dtype="float32", ndim=2),
-                relax.TensorStructInfo(dtype="float32", ndim=2),
-                relax.TensorStructInfo(dtype="float32", ndim=2),
+                relax.TensorStructInfo([a, T.max(T.min(10, b) - T.min(0, b), 0)], dtype="float32"),
+                relax.TensorStructInfo([a, T.max(T.min(20, b) - T.min(10, b), 0)], dtype="float32"),
+                relax.TensorStructInfo([a, T.max(b - 20, 0)], dtype="float32"),
             ]
         ),
     )
@@ -1987,9 +1987,9 @@ def test_split_infer_struct_info_by_n_section_shape_symbolic():
         relax.op.split(x, 3, axis=1),
         relax.TupleStructInfo(
             [
-                relax.TensorStructInfo((a, tir.ceildiv(b, 3)), "float32"),
-                relax.TensorStructInfo((a, tir.ceildiv(b, 3)), "float32"),
-                relax.TensorStructInfo((a, b - tir.ceildiv(b, 3) * 2), "float32"),
+                relax.TensorStructInfo((a, (b + 2) // 3), "float32"),
+                relax.TensorStructInfo((a, (b + 2) // 3), "float32"),
+                relax.TensorStructInfo((a, b - (b + 2) // 3 * 2), "float32"),
             ]
         ),
     )
@@ -2174,6 +2174,110 @@ def test_split_indices_or_sections_int64():
     assert split0.attrs.indices_or_sections[0].dtype == "int64"
     assert split0.attrs.indices_or_sections[1].dtype == "int64"
     assert split1.attrs.indices_or_sections.dtype == "int64"
+
+
+def test_split_infer_struct_info():
+    bb = relax.BlockBuilder()
+    n = tir.Var("n", "int64")
+    x = relax.Var("x", R.Tensor((16, 4)))
+    y = relax.Var("y", R.Tensor((16, 4), "float32"))
+    z = relax.Var("z", R.Tensor((n, 16)))
+    w = relax.Var("w", R.Tensor((n + 5, 16)))
+
+    _check_inference(
+        bb,
+        relax.op.split(x, 1),
+        R.Tuple(
+            R.Tensor([16, 4]),
+        ),
+    )
+    _check_inference(
+        bb,
+        relax.op.split(x, 2),
+        R.Tuple(
+            R.Tensor([8, 4]),
+            R.Tensor([8, 4]),
+        ),
+    )
+    # Uneven splits are allowed, with the last split being smaller than the others.
+    _check_inference(
+        bb,
+        relax.op.split(x, 3),
+        R.Tuple(
+            R.Tensor([6, 4]),
+            R.Tensor([6, 4]),
+            R.Tensor([4, 4]),
+        ),
+    )
+
+    # Dtype of result is inherited from the tensor
+    _check_inference(
+        bb,
+        relax.op.split(y, 2),
+        R.Tuple(
+            R.Tensor([8, 4], "float32"),
+            R.Tensor([8, 4], "float32"),
+        ),
+    )
+
+    # Axis can be explicitly specified.  Otherwise, defaults to axis=0.
+    _check_inference(
+        bb, relax.op.split(x, [2], axis=1), R.Tuple(R.Tensor([16, 2]), R.Tensor([16, 2]))
+    )
+
+    # Split points can be explicitly specified
+    _check_inference(
+        bb,
+        relax.op.split(x, [2]),
+        R.Tuple(
+            R.Tensor([2, 4]),
+            R.Tensor([14, 4]),
+        ),
+    )
+    _check_inference(
+        bb,
+        relax.op.split(x, [2, 5]),
+        R.Tuple(
+            R.Tensor([2, 4]),
+            R.Tensor([3, 4]),
+            R.Tensor([11, 4]),
+        ),
+    )
+
+    # Splitting a dynamic axis is allowed, and propagates the shape to the output
+    _check_inference(
+        bb,
+        relax.op.split(z, 2),
+        R.Tuple(
+            R.Tensor([(n + 1) // 2, 16]),
+            R.Tensor([n - (n + 1) // 2, 16]),
+        ),
+    )
+    _check_inference(
+        bb,
+        relax.op.split(z, 3),
+        R.Tuple(
+            R.Tensor([(n + 2) // 3, 16]),
+            R.Tensor([(n + 2) // 3, 16]),
+            R.Tensor([n - (n + 2) // 3 * 2, 16]),
+        ),
+    )
+
+    # Spliting a dynamic axis at specific indices is allowed.  The
+    # algebraic form here isn't the cleanest, primarily because the
+    # test case doesn't know that `n` is a shape variable.  When
+    # occurring in a relax function, `n` would be marked with
+    # `analyzer_.MarkGlobalNonNegValue`, which would make the shapes
+    # simplify to `[(2,16), (3,16), (n,16)]`.
+    _check_inference(
+        bb,
+        relax.op.split(w, [2, 5]),
+        R.Tuple(
+            R.Tensor((T.max(T.min(2, n + 5) - T.min(0, n + 5), 0), 16)),
+            R.Tensor((T.max(T.min(5, n + 5) - T.min(2, n + 5), 0), 16)),
+            R.Tensor((T.max(n, 0), 16)),
+        ),
+    )
 
 
 def test_split_infer_struct_info_non_integer_indices():

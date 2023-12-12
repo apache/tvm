@@ -846,41 +846,48 @@ StructInfo InferStructInfoSplit(const Call& call, const BlockBuilder& ctx) {
   int axis =
       data_sinfo->IsUnknownNdim() ? -1 : NormalizeAxis(call, ctx, data_sinfo->ndim, attrs->axis);
 
-  if (const auto* p_indices = attrs->indices_or_sections.as<ArrayNode>()) {
+  if (auto opt_indices = attrs->indices_or_sections.as<Array<IntImm>>()) {
+    auto p_indices = opt_indices.value();
     // When there is not index, return the input tensor's struct info.
-    if (p_indices->size() == 0) {
+    if (p_indices.size() == 0) {
       return TupleStructInfo({data_sinfo});
     }
     // Fall back to unknown shape when the input tensor doesn't have ShapeExpr as shape.
     if (data_shape == nullptr) {
       return TupleStructInfo(Array<StructInfo>(
-          p_indices->size() + 1,
+          p_indices.size() + 1,
           TensorStructInfo(data_sinfo->dtype, data_sinfo->ndim, data_sinfo->vdevice)));
     }
 
     ICHECK_NE(axis, -1);
-    const auto* axis_length = data_shape->values[axis].as<IntImmNode>();
-    // Fall back to unknown shape when the input tensor shape at the given axis is symbolic.
-    if (axis_length == nullptr) {
-      return TupleStructInfo(Array<StructInfo>(
-          p_indices->size() + 1,
-          TensorStructInfo(data_sinfo->dtype, data_sinfo->ndim, data_sinfo->vdevice)));
-    }
 
-    // Only do output shape inference when all the indices and the total length are integers.
-    Array<IntImm> indices = GetRef<Array<IntImm>>(p_indices);
     IntImm zero(DataType::Int(64), /*value=*/0);
-    indices.insert(indices.begin(), zero);
-    indices.insert(indices.end(), Downcast<IntImm>(data_shape->values[axis]));
 
     std::vector<StructInfo> output_sinfo;
-    output_sinfo.reserve(indices.size() - 1);
-    for (int i = 0; i + 1 < static_cast<int>(indices.size()); ++i) {
-      PrimExpr l = tvm::max(zero, indices[i]);
-      PrimExpr r = tvm::min(data_shape->values[axis], indices[i + 1]);
+    for (size_t i = 0; i < p_indices.size() + 1; i++) {
+      PrimExpr left;
+      if (i == 0) {
+        left = zero;
+      } else {
+        left = p_indices[i - 1];
+      }
+
+      PrimExpr right;
+      if (i < p_indices.size()) {
+        right = p_indices[i];
+      } else {
+        right = data_shape->values[axis];
+      }
+
+      left = tvm::min(tvm::max(left, 0), data_shape->values[axis]);
+      right = tvm::min(tvm::max(right, 0), data_shape->values[axis]);
+
+      PrimExpr split_dim = right - left;
+      split_dim = tvm::max(split_dim, 0);
+      split_dim = ctx->GetAnalyzer()->Simplify(split_dim);
 
       Array<PrimExpr> shape = data_shape->values;
-      shape.Set(axis, tvm::max(zero, r - l));
+      shape.Set(axis, split_dim);
       output_sinfo.push_back(
           TensorStructInfo(ShapeExpr(shape), data_sinfo->dtype, data_sinfo->vdevice));
     }
@@ -899,6 +906,7 @@ StructInfo InferStructInfoSplit(const Call& call, const BlockBuilder& ctx) {
     }
     ICHECK_NE(axis, -1);
     PrimExpr split_len = ceildiv(data_shape->values[axis], n_section);
+    split_len = ctx->GetAnalyzer()->Simplify(split_len);
 
     // Construct struct info for tensors except the last one.
     Array<PrimExpr> shape = data_shape->values;
@@ -907,7 +915,9 @@ StructInfo InferStructInfoSplit(const Call& call, const BlockBuilder& ctx) {
         n_section - 1, TensorStructInfo(ShapeExpr(shape), data_sinfo->dtype, data_sinfo->vdevice));
 
     // Construct struct info for the last tensor.
-    shape.Set(axis, data_shape->values[axis] - split_len * (n_section - 1));
+    PrimExpr last_split_len = data_shape->values[axis] - split_len * (n_section - 1);
+    last_split_len = ctx->GetAnalyzer()->Simplify(last_split_len);
+    shape.Set(axis, last_split_len);
     output_sinfo.push_back(
         TensorStructInfo(ShapeExpr(shape), data_sinfo->dtype, data_sinfo->vdevice));
     return TupleStructInfo(output_sinfo);
