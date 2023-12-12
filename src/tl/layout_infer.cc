@@ -35,8 +35,8 @@ namespace tl {
 
 using namespace tir;
 
-ForNodeLayoutInfer::ForNodeLayoutInfer(const ForNode* root, size_t block_size)
-    : root_(root), block_size_(block_size) {
+ForNodeLayoutInfer::ForNodeLayoutInfer(const ForNode* root, IterVar thread_var)
+    : root_(root), thread_var_(thread_var) {
   VisitStmt_(root);
   // Check if the buffer indice matches full range
   for (const auto& [buffer, indices] : indice_map_) {
@@ -120,9 +120,23 @@ LayoutMap ForNodeLayoutInfer::Inference(const LayoutMap& layout_map, InferLevel 
       }
       // Loop don't need to be replicated.
       if (!is_one(loop_layout_->ReplicateExtent())) loop_layout_ = loop_layout_->DeReplicate();
+      // if still has replication, add a condition
+      if (!is_one(loop_layout_->ReplicateExtent())) {
+        auto inv = loop_layout_->Inverse();
+        Array<PrimExpr> fwd;
+        for (size_t i = 0; i < loop_layout_->OutputDim(); i++) fwd.push_back(0);
+        fwd.push_back(thread_var_->var);
+        auto rep = inv->Forward(fwd).back();
+        predicate_ = EQ(rep, 0);
+      }
     } else {
       int vector_size = GetVectorizeSize(GetRef<For>(root_));
-      loop_layout_ = PlanLoopPartition(root_, block_size_, vector_size);
+      auto num_thread = as_const_int(thread_var_->dom->extent);
+      ICHECK(num_thread != nullptr);
+      loop_layout_ = PlanLoopPartition(root_, *num_thread, vector_size);
+      PrimExpr loop_thread_extent = loop_layout_->ThreadExtent();
+      if (!analyzer_.CanProveEqual(loop_thread_extent, thread_var_->dom->extent))
+        predicate_ = LT(thread_var_->var, loop_thread_extent);
     }
   } else {
     return {};

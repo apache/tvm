@@ -132,9 +132,7 @@ class LoopPartitioner : public StmtExprVisitor {
       loop_size_full *= extent;
       flattened = flattened * extent + loop_vars_[i]->var;
     }
-    if (loop_size_full % (num_thread * vectorize_size) != 0) {
-      ICHECK(0) << "Not implemented";
-    }
+    ICHECK(loop_size_full % vectorize_size == 0);
     PrimExpr access_idx = FloorDiv(flattened, vectorize_size);
     PrimExpr thd = FloorMod(access_idx, num_thread);
     PrimExpr idx =

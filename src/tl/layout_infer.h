@@ -50,12 +50,13 @@ class LayoutInferBase {
 
 class ForNodeLayoutInfer : public LayoutInferBase, StmtExprVisitor {
  public:
-  ForNodeLayoutInfer(const ForNode* root, size_t block_size);
+  ForNodeLayoutInfer(const ForNode* root, IterVar thread_var);
   Map<Buffer, Layout> Inference(const Map<Buffer, Layout>& layout_map, InferLevel level) final;
 
   Fragment GetLoopLayout() const { return loop_layout_; }
   const ForNode* GetRoot() const { return root_; }
   Map<Buffer, Array<PrimExpr>> GetIndiceMap() const { return indice_map_; }
+  PrimExpr GetPredicate() const { return predicate_; }
 
  private:
   Fragment CompleteBufferFragment(const Buffer& buffer);
@@ -64,13 +65,14 @@ class ForNodeLayoutInfer : public LayoutInferBase, StmtExprVisitor {
   void VisitStmt_(const BufferStoreNode* op) final;
   void VisitExpr_(const BufferLoadNode* op) final;
   const ForNode* root_;
-  const size_t block_size_;
+  IterVar thread_var_;
 
   Map<Buffer, Array<PrimExpr>> indice_map_;
   std::unordered_set<Buffer, ObjectPtrHash, ObjectPtrEqual> buffer_is_write_;
   Array<IterVar> loop_vars_;
   Fragment loop_layout_;
   arith::Analyzer analyzer_;
+  PrimExpr predicate_;
 };
 
 class GemmOpLayoutInfer : public LayoutInferBase {

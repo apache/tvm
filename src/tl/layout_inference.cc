@@ -40,11 +40,17 @@ namespace tir {
 using namespace tl;
 using arith::IRMutatorWithAnalyzer;
 
+struct LayoutInferenceResult {
+  Map<Buffer, Layout> layout_map;
+  Map<For, Fragment> for_map;
+  Map<For, PrimExpr> predicate_map;
+};
+
 class BufferUseDefCollector : public StmtExprVisitor {
  public:
   BufferUseDefCollector() = default;
 
-  auto Run() -> std::pair<Map<Buffer, Layout>, Map<For, Fragment>> {
+  LayoutInferenceResult Run() {
     Map<Buffer, Layout> layout_map;
     int num_infer = infer_list_.size();
 
@@ -103,15 +109,19 @@ class BufferUseDefCollector : public StmtExprVisitor {
 
     // Collect the layout for for nodes
     Map<For, Fragment> for_map;
+    Map<For, PrimExpr> predicate_map;
     for (auto& base_infer : infer_list_) {
       if (auto for_infer = std::dynamic_pointer_cast<ForNodeLayoutInfer>(base_infer)) {
         ICHECK(for_infer->GetLoopLayout().defined())
             << "The Layout for Parallel for can not be infered correctly : \n"
             << GetRef<For>(for_infer->GetRoot());
         for_map.Set(GetRef<For>(for_infer->GetRoot()), for_infer->GetLoopLayout());
+        if (for_infer->GetPredicate().defined())
+          predicate_map.Set(GetRef<For>(for_infer->GetRoot()), for_infer->GetPredicate());
       }
     }
-    return {layout_map, for_map};
+
+    return {layout_map, for_map, predicate_map};
   }
 
   void Collect(const PrimFunc& f) {
@@ -126,13 +136,16 @@ class BufferUseDefCollector : public StmtExprVisitor {
     StmtExprVisitor::VisitExpr_(op);
     std::unordered_set<Buffer, ObjectPtrHash, ObjectPtrEqual> access_regions;
     std::shared_ptr<LayoutInferBase> p;
+    ICHECK(thread_var_.defined());
+    auto thread_block_size = as_const_int(thread_var_->dom->extent);
+    ICHECK(thread_block_size);
     if (op->op.same_as(gemm())) {
       GemmArgs args = GemmArgs::Parse(op->args, buffer_data_to_buffer_);
-      p = std::make_shared<GemmOpLayoutInfer>(args, thread_block_size_);
+      p = std::make_shared<GemmOpLayoutInfer>(args, *thread_block_size);
       access_regions.insert({args.A, args.B, args.C});
     } else if (op->op.same_as(reduce())) {
       ReduceArgs args = ReduceArgs::Parse(op->args, buffer_data_to_buffer_);
-      p = std::make_shared<ReduceOpLayoutInfer>(args, thread_block_size_);
+      p = std::make_shared<ReduceOpLayoutInfer>(args, *thread_block_size);
       access_regions.insert({args.src, args.dst});
     }
     if (p) {
@@ -153,7 +166,8 @@ class BufferUseDefCollector : public StmtExprVisitor {
 
   void VisitStmt_(const ForNode* op) final {
     if (op->kind == ForKind::kParallel) {
-      auto infer = std::make_shared<ForNodeLayoutInfer>(op, thread_block_size_);
+      ICHECK(thread_var_.defined());
+      auto infer = std::make_shared<ForNodeLayoutInfer>(op, thread_var_);
       infer_list_.push_back(infer);
       for (const auto& [buffer, _] : infer->GetIndiceMap()) {
         addToUseList(buffer);
@@ -175,8 +189,7 @@ class BufferUseDefCollector : public StmtExprVisitor {
       IterVar iv = Downcast<IterVar>(op->node);
       if (iv->thread_tag == "threadIdx.x") {
         ICHECK(iv->dom->extent.as<IntImmNode>());
-        thread_block_size_ = iv->dom->extent.as<IntImmNode>()->value;
-        ICHECK(thread_block_size_ % 32 == 0);
+        thread_var_ = iv;
       }
     }
     StmtExprVisitor::VisitStmt_(op);
@@ -185,7 +198,7 @@ class BufferUseDefCollector : public StmtExprVisitor {
   Map<Var, Buffer> buffer_data_to_buffer_;
   std::vector<std::shared_ptr<LayoutInferBase>> infer_list_;
   std::unordered_map<Buffer, std::vector<int>, ObjectPtrHash, ObjectPtrEqual> use_list_;
-  size_t thread_block_size_ = 0;
+  IterVar thread_var_;
 };
 
 class LayoutInferencer : public IRMutatorWithAnalyzer {
@@ -193,25 +206,22 @@ class LayoutInferencer : public IRMutatorWithAnalyzer {
   static PrimFunc Substitute(PrimFunc f) {
     BufferUseDefCollector collector;
     collector.Collect(f);
-    Map<Buffer, Layout> layout_map;
-    Map<For, Fragment> for_map;
-    std::tie(layout_map, for_map) = collector.Run();
+    auto result = collector.Run();
     arith::Analyzer analyzer;
-    LayoutInferencer substituter(layout_map, for_map, &analyzer);
+    LayoutInferencer substituter(result, &analyzer);
     PrimFuncNode* fptr = f.CopyOnWrite();
     fptr->body = substituter.VisitStmt(f->body);
     return f;
   }
 
  private:
-  LayoutInferencer(const Map<Buffer, Layout>& layout_map, const Map<For, Fragment> for_map,
-                   arith::Analyzer* analyzer)
-      : arith::IRMutatorWithAnalyzer(analyzer), layout_map_(layout_map), for_map_(for_map){};
+  LayoutInferencer(const LayoutInferenceResult result, arith::Analyzer* analyzer)
+      : arith::IRMutatorWithAnalyzer(analyzer), result_(result){};
 
   Stmt VisitStmt_(const BlockNode* op) final {
     for (const auto& buffer : op->alloc_buffers) {
-      if (layout_map_.find(buffer) != layout_map_.end()) {
-        Layout layout = layout_map_[buffer];
+      if (result_.layout_map.count(buffer)) {
+        Layout layout = result_.layout_map[buffer];
         const auto* ptr_type = TVM_TYPE_AS(buffer->data->type_annotation, PointerTypeNode);
         Type new_type;
         if (ptr_type->storage_scope == "local.fragment") {
@@ -236,7 +246,7 @@ class LayoutInferencer : public IRMutatorWithAnalyzer {
       const auto& buffer = block_ptr->alloc_buffers[i];
       if (new_alloc_.find(buffer->data) != new_alloc_.end()) {
         block_ptr->alloc_buffers.Set(i, new_alloc_[buffer->data]);
-        new_layout_map.Set(new_alloc_[buffer->data]->data, layout_map_[buffer]);
+        new_layout_map.Set(new_alloc_[buffer->data]->data, result_.layout_map[buffer]);
       }
     }
     block_ptr->annotations.Set("layout_map", new_layout_map);
@@ -252,7 +262,7 @@ class LayoutInferencer : public IRMutatorWithAnalyzer {
 
   PrimExpr VisitExpr_(const BufferLoadNode* op) final {
     if (new_alloc_.count(op->buffer->data)) {
-      auto new_indices = layout_map_[op->buffer]->Forward(op->indices);
+      auto new_indices = result_.layout_map[op->buffer]->Forward(op->indices);
       auto new_buffer = new_alloc_[op->buffer->data];
       return BufferLoad(new_buffer, new_indices);
     }
@@ -261,7 +271,7 @@ class LayoutInferencer : public IRMutatorWithAnalyzer {
 
   Stmt VisitStmt_(const BufferStoreNode* op) final {
     if (new_alloc_.count(op->buffer->data)) {
-      auto new_indices = layout_map_[op->buffer]->Forward(op->indices);
+      auto new_indices = result_.layout_map[op->buffer]->Forward(op->indices);
       auto new_buffer = new_alloc_[op->buffer->data];
       auto new_value = VisitExpr(op->value);
       return BufferStore(new_buffer, new_value, new_indices);
@@ -271,12 +281,15 @@ class LayoutInferencer : public IRMutatorWithAnalyzer {
 
   Stmt VisitStmt_(const ForNode* op) final {
     Stmt body = IRMutatorWithAnalyzer::VisitStmt_(op);
-    if (for_map_.find(GetRef<For>(op)) != for_map_.end()) {
-      auto loop_layout = for_map_[GetRef<For>(op)];
-      auto stmt =
-          PartitionLoop(body.as<ForNode>(), thread_var_, analyzer_, for_map_[GetRef<For>(op)]);
+    if (result_.for_map.count(GetRef<For>(op))) {
+      auto loop_layout = result_.for_map[GetRef<For>(op)];
+      auto stmt = PartitionLoop(body.as<ForNode>(), thread_var_->var, analyzer_,
+                                result_.for_map[GetRef<For>(op)]);
       if (stmt.as<For>()) {
         stmt = VectorizeLoop(stmt.as<For>().value());
+      }
+      if (result_.predicate_map.count(GetRef<For>(op))) {
+        stmt = IfThenElse(result_.predicate_map[GetRef<For>(op)], stmt);
       }
       return stmt;
     }
@@ -288,20 +301,16 @@ class LayoutInferencer : public IRMutatorWithAnalyzer {
       IterVar iv = Downcast<IterVar>(op->node);
       ICHECK_NE(iv->thread_tag.length(), 0U);
       if (iv->thread_tag == "threadIdx.x") {
-        thread_var_ = iv->var;
-        thread_block_size_ = iv->dom->extent.as<IntImmNode>()->value;
-        ICHECK(thread_block_size_ % 32 == 0);
+        thread_var_ = iv;
       }
     }
     return IRMutatorWithAnalyzer::VisitStmt_(op);
   }
 
  private:
-  Map<Buffer, Layout> layout_map_;
-  Map<For, Fragment> for_map_;
+  const LayoutInferenceResult result_;
   Map<Var, Buffer> new_alloc_;
-  Var thread_var_;
-  size_t thread_block_size_ = 0;
+  IterVar thread_var_;
 };
 
 namespace transform {
