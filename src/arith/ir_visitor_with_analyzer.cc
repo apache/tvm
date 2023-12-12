@@ -68,7 +68,7 @@ void IRVisitorWithAnalyzer::VisitStmt_(const AttrStmtNode* op) {
   if (op->attr_key == tir::attr::thread_extent || op->attr_key == tir::attr::virtual_thread) {
     IterVar iv = Downcast<IterVar>(op->node);
     ICHECK_NE(iv->thread_tag.length(), 0U);
-    analyzer_.Bind(iv->var, Range::FromMinExtent(0, op->value));
+    analyzer_.Bind(iv->var, Range::FromMinExtent(IntImm(op->value->dtype, 0), op->value));
   }
   StmtExprVisitor::VisitStmt_(op);
 }
