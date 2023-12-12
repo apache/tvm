@@ -43,6 +43,8 @@
 #include <unordered_set>
 #include <vector>
 
+#include "tvm/tir/expr.h"
+
 namespace tvm {
 namespace topi {
 
@@ -716,8 +718,13 @@ inline Tensor dynamic_strided_slice(const Tensor& x, const Array<PrimExpr>& begi
 
   arith::Analyzer analyzer;
   for (size_t i = 0; i < num_slice_axes; ++i) {
-    auto d = analyzer.Simplify(indexdiv(end[i] - begin[i], strides[i]));
-    out_shape.push_back(d);
+    // Check ProducerLoad to keep backward compatibility for Relay.
+    if (!begin[i]->IsInstance<ProducerLoadNode>() && !end[i]->IsInstance<ProducerLoadNode>() &&
+        !strides[i]->IsInstance<ProducerLoadNode>()) {
+      out_shape.push_back(analyzer.Simplify(indexdiv(end[i] - begin[i], strides[i])));
+    } else {
+      out_shape.push_back(tvm::tir::Var("dim"));
+    }
   }
 
   for (size_t i = num_slice_axes; i < src_tensor_dim; ++i) {
@@ -1584,16 +1591,20 @@ inline Tensor tensordot(const Tensor& A, const tvm::te::Tensor& B, Array<PrimExp
 
 inline Tensor arange(const PrimExpr& start, const PrimExpr& stop, const PrimExpr& step,
                      DataType dtype, std::string name = "T_arange", std::string tag = kInjective) {
+  arith::Analyzer analyzer;
   PrimExpr num_elem;
-  if (start.dtype().is_int() && stop.dtype().is_int() && step.dtype().is_int()) {
-    // fast path for integer arange
+  bool is_all_int = start.dtype().is_int() && stop.dtype().is_int() && step.dtype().is_int();
+  if (is_all_int && analyzer.CanProveGreaterEqual(step, 1)) {
+    // fast path for integer arange when step is positive
     num_elem = tvm::floordiv((stop - start + step - 1), step);
+  } else if (is_all_int && analyzer.CanProveLess(step, 0)) {
+    // fast path for integer arange when step is negative
+    num_elem = tvm::floordiv((start - stop - step - 1), -step);
   } else {
+    // fallback path for non-integer or step of unknown sign
     num_elem = tvm::cast(DefaultIndexType(),
                          tvm::ceil(tvm::cast(tvm::DataType::Float(32), stop - start) / step));
   }
-
-  arith::Analyzer analyzer;
   num_elem = analyzer.Simplify(num_elem);
 
   return compute(
