@@ -302,6 +302,171 @@ bool TRTUtils::DeserializeEngineFromFile(const std::string& file,
 """
 
 
+def get_trt_quantize_h_code():
+    """Create trt_quantize header file codes
+
+    Returns
+    -------
+    source: str
+        The trt_quantize header source.
+    """
+
+    return """#ifndef TVM_CONTRIB_MSC_UTILS_TRT_QUANTIZE_H_
+#define TVM_CONTRIB_MSC_UTILS_TRT_QUANTIZE_H_
+
+#include <cassert>
+#include <fstream>
+#include <iterator>
+#include <memory>
+#include <string>
+#include <unordered_map>
+#include <vector>
+
+#include "NvInfer.h"
+#include "base.h"
+#include "trt_common.h"
+
+namespace tvm {
+namespace contrib {
+namespace msc {
+
+using namespace nvinfer1;
+
+class CalibrateHelper {
+ public:
+  CalibrateHelper(const std::string& range_file, const std::string& folder, int max_size = -1);
+
+  ~CalibrateHelper() {
+    for (const auto& buffer : cpu_buffers_) {
+      free(buffer);
+    }
+    for (const auto& buffer : gpu_buffers_) {
+      CHECK(cudaFree(buffer));
+    }
+  }
+
+  bool GetBatch(void* bindings[], const char* names[], int nbBindings);
+
+  const void* ReadCache(size_t& length);
+
+  void WriteCache(const void* cache, size_t length);
+
+ private:
+  std::unique_ptr<DatasetReader> reader_;
+  std::string range_file_;
+  std::vector<char> cache_;
+  std::vector<void*> cpu_buffers_;
+  std::vector<void*> gpu_buffers_;
+};
+
+#define CALIBRATE_MEMBERS(Calibrator)                                                       \\
+ public:                                                                                    \\
+  Calibrator(const std::string& range_file, const std::string& folder, int max_size = -1) { \\
+    helper_.reset(new CalibrateHelper(range_file, folder, max_size));                       \\
+  }                                                                                         \\
+                                                                                            \\
+  virtual ~Calibrator() {}                                                                  \\
+                                                                                            \\
+  int getBatchSize() const noexcept override { return 1; }                                  \\
+                                                                                            \\
+  bool getBatch(void* bindings[], const char* names[], int nbBindings) noexcept override {  \\
+    return helper_->GetBatch(bindings, names, nbBindings);                                  \\
+  }                                                                                         \\
+                                                                                            \\
+  const void* readCalibrationCache(size_t& length) noexcept override {                      \\
+    return helper_->ReadCache(length);                                                      \\
+  }                                                                                         \\
+                                                                                            \\
+  void writeCalibrationCache(const void* cache, size_t length) noexcept override {          \\
+    return helper_->WriteCache(cache, length);                                              \\
+  }                                                                                         \\
+                                                                                            \\
+ private:                                                                                   \\
+  std::unique_ptr<CalibrateHelper> helper_;
+
+class MSCInt8EntropyCalibrator : public IInt8EntropyCalibrator {
+  CALIBRATE_MEMBERS(MSCInt8EntropyCalibrator)
+};
+
+class MSCInt8EntropyCalibrator2 : public IInt8EntropyCalibrator2 {
+  CALIBRATE_MEMBERS(MSCInt8EntropyCalibrator2)
+};
+
+}  // namespace msc
+}  // namespace contrib
+}  // namespace tvm
+
+#endif  // TVM_CONTRIB_MSC_UTILS_TRT_QUANTIZE_H_
+"""
+
+
+def get_trt_quantize_cc_code():
+    """Create trt_quantize cc file codes
+
+    Returns
+    -------
+    source: str
+        The trt_quantize cc source.
+    """
+
+    return """#include "trt_quantize.h"
+
+namespace tvm {
+namespace contrib {
+namespace msc {
+
+using namespace nvinfer1;
+
+CalibrateHelper::CalibrateHelper(const std::string& range_file, const std::string& folder,
+                                 int max_size) {
+  range_file_ = range_file;
+  reader_.reset(new DatasetReader(folder, max_size));
+  const auto& tensor_names = reader_->GetTensorNames();
+  cpu_buffers_.resize(tensor_names.size());
+  gpu_buffers_.resize(tensor_names.size());
+  for (size_t i = 0; i < tensor_names.size(); i++) {
+    size_t tensor_size = reader_->GetTensorSize(tensor_names[i]);
+    cpu_buffers_[i] = malloc(tensor_size);
+    CHECK(cudaMalloc(&gpu_buffers_[i], tensor_size));
+  }
+}
+
+bool CalibrateHelper::GetBatch(void* bindings[], const char* names[], int nbBindings) {
+  if (!reader_->ReadNext(cpu_buffers_.data())) {
+    return false;
+  }
+  for (size_t i = 0; i < nbBindings; i++) {
+    CHECK(cudaMemcpy(gpu_buffers_[i], cpu_buffers_[i], reader_->GetTensorSize(names[i]),
+                     cudaMemcpyHostToDevice));
+    bindings[i] = gpu_buffers_[i];
+  }
+  return true;
+}
+
+const void* CalibrateHelper::ReadCache(size_t& length) {
+  cache_.clear();
+  std::ifstream in_file(range_file_, std::ifstream::binary);
+  if (!in_file.is_open()) {
+    return nullptr;
+  }
+  in_file >> std::noskipws;
+  std::copy(std::istream_iterator<char>(in_file), std::istream_iterator<char>(),
+            std::back_inserter(cache_));
+  length = cache_.size();
+  return length > 0 ? &cache_[0] : nullptr;
+}
+
+void CalibrateHelper::WriteCache(const void* cache, size_t length) {
+  std::ofstream output(range_file_, std::ios::binary);
+  output.write(reinterpret_cast<const char*>(cache), length);
+}
+
+}  // namespace msc
+}  // namespace contrib
+}  // namespace tvm
+"""
+
+
 def get_trt_sources() -> Dict[str, str]:
     """Create trt sources for cpp codegen
 
@@ -313,6 +478,11 @@ def get_trt_sources() -> Dict[str, str]:
 
     sources = get_base_sources()
     sources.update(
-        {"trt_common.h": get_trt_common_h_code(), "trt_common.cc": get_trt_common_cc_code()}
+        {
+            "trt_common.h": get_trt_common_h_code(),
+            "trt_common.cc": get_trt_common_cc_code(),
+            "trt_quantize.h": get_trt_quantize_h_code(),
+            "trt_quantize.cc": get_trt_quantize_cc_code(),
+        }
     )
     return sources

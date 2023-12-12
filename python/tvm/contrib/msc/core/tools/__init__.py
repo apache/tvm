@@ -19,4 +19,5 @@
 from .tool import *
 from .execute import *
 from .prune import *
+from .quantize import *
 from .track import *

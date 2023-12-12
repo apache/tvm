@@ -14,8 +14,6 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-"""tvm.contrib.msc.framework.tensorrt.tools"""
+"""tvm.contrib.msc.framework.tensorflow.tools.quantize"""
 
-from .prune import *
-from .quantize import *
-from .track import *
+from .quantizer import *

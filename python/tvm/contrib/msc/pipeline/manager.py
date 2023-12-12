@@ -378,6 +378,10 @@ class BaseManager(object):
         if _tool_enabled(ToolType.PRUNER):
             self._apply_tool(ToolType.PRUNER, stage_config)
 
+        # run quantize
+        if _tool_enabled(ToolType.QUANTIZER):
+            self._apply_tool(ToolType.QUANTIZER, stage_config)
+
         # optimize and get the runner
         msc_utils.time_stamp(MSCStage.OPTIMIZE)
         return self._create_runner(
