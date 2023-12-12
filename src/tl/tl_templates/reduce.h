@@ -28,6 +28,7 @@ struct AllReduce {
   static __device__ inline T run(T x, T* red_buf = nullptr) {
     constexpr int offset = threads / 2;
     if constexpr (offset >= 32) {
+      __syncthreads();
       red_buf[threadIdx.x] = x;
       __syncthreads();
       x = Reducer()(x, red_buf[threadIdx.x ^ offset]);
