@@ -63,7 +63,7 @@ class Fallback(ScheduleRule):
                 {"S": s_loops, "R": r_loops, "O": o_loops}[iter_type].append(loop)
 
             if not s_loops:
-                s_loops.append(sch.add_unit_loop(block.block))
+                s_loops.append(sch.add_unit_loop(block))
             sch.reorder(*s_loops, *r_loops, *o_loops)
             bx, tx = sch.split(  # pylint: disable=invalid-name
                 sch.fuse(*s_loops),
