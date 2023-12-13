@@ -69,6 +69,49 @@ __global__ void reshape_and_cache_kernel(
   }
 }
 
+template<typename scalar_t>
+__global__ void reconstruct_from_cache_kernel(
+  const scalar_t* __restrict__ key_cache,      // [num_blocks, num_heads, head_size/x, block_size, x]
+  const scalar_t* __restrict__ value_cache,    // [num_blocks, num_heads, head_size, block_size]
+  const int* __restrict__ slot_mapping,        // [num_tokens]
+  scalar_t* __restrict__ key,                  // [num_tokens, num_heads, head_size]
+  scalar_t* __restrict__ value,                // [num_tokens, num_heads, head_size]
+  const int key_stride,
+  const int value_stride,
+  const int num_heads,
+  const int head_size,
+  const int block_size,
+  const int x) {
+  const int token_idx = blockIdx.x;
+  const int slot_idx = slot_mapping[token_idx];
+  const int block_idx = slot_idx / block_size;
+  const int block_offset = slot_idx % block_size;
+
+  const int n = num_heads * head_size;
+  for (int i = threadIdx.x; i < n; i += blockDim.x) {
+    const int tgt_key_idx = token_idx * key_stride + i;
+    const int tgt_value_idx = token_idx * value_stride + i;
+
+    const int head_idx = i / head_size;
+    const int head_offset = i % head_size;
+    const int x_idx = head_offset / x;
+    const int x_offset = head_offset % x;
+
+    const int src_key_idx = block_idx * num_heads * (head_size / x) * block_size * x
+                            + head_idx * (head_size / x) * block_size * x
+                            + x_idx * block_size * x
+                            + block_offset * x
+                            + x_offset;
+    const int src_value_idx = block_idx * num_heads * head_size * block_size
+                              + head_idx * head_size * block_size
+                              + head_offset * block_size
+                              + block_offset;
+
+    key[tgt_key_idx] = __ldg(&key_cache[src_key_idx]);
+    value[src_value_idx] =  __ldg(&value_cache[tgt_value_idx]);
+  }
+}
+
 // Grid: (num_layers, num_pairs)
 template<typename scalar_t>
 __global__ void copy_blocks_kernel(
@@ -133,6 +176,43 @@ TVM_REGISTER_GLOBAL("tvm.contrib.vllm.reshape_and_cache")
         vec_size);
 
       return Array{key_cache, value_cache};
+    });
+
+TVM_REGISTER_GLOBAL("tvm.contrib.vllm.reconstruct_from_cache")
+    .set_body_typed([](NDArray key_cache,
+                       NDArray value_cache,
+		       NDArray slot_mapping) {
+      int num_tokens = slot_mapping->shape[0];
+      int num_heads = value_cache->shape[1];
+      int head_size = value_cache->shape[2];
+      int block_size = value_cache->shape[3];
+      int vec_size = key_cache->shape[4];
+
+      DLDevice dev = key_cache->device;
+      auto key = NDArray::Empty({num_tokens, num_heads, head_size}, key_cache->dtype, dev);
+      auto value = NDArray::Empty({num_tokens, num_heads, head_size}, key_cache->dtype, dev);
+
+      int key_stride = key->shape[1] * key->shape[2];
+      int value_stride = value->shape[1] * value->shape[2];
+
+      dim3 grid(num_tokens);
+      dim3 block(std::min(num_heads * head_size, 512));
+
+      using scalar_t = uint16_t;
+      vllm::reconstruct_from_cache_kernel<scalar_t><<<grid, block>>>(
+        static_cast<const scalar_t*>(key_cache->data),
+        static_cast<const scalar_t*>(value_cache->data),
+        static_cast<const int*>(slot_mapping->data),
+        static_cast<scalar_t*>(key->data),
+        static_cast<scalar_t*>(value->data),
+        key_stride,
+        value_stride,
+        num_heads,
+        head_size,
+        block_size,
+        vec_size);
+
+      return Array{key, value};
     });
 
 TVM_REGISTER_GLOBAL("tvm.contrib.vllm.copy_blocks")
