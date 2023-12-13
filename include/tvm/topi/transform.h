@@ -669,7 +669,7 @@ inline Tensor dynamic_strided_slice_with_axes(
   Array<PrimExpr> out_shape = x->shape;
   for (size_t i = 0; i < begin.size(); i++) {
     int axis = axes[i]->value;
-    PrimExpr new_shape = analyzer.Simplify(indexdiv(end[i] - begin[i], strides[i]));
+    PrimExpr new_shape = analyzer.Simplify(ceildiv(end[i] - begin[i], strides[i]));
     out_shape.Set(axis, new_shape);
   }
 
@@ -721,7 +721,7 @@ inline Tensor dynamic_strided_slice(const Tensor& x, const Array<PrimExpr>& begi
     // Check ProducerLoad to keep backward compatibility for Relay.
     if (!begin[i]->IsInstance<ProducerLoadNode>() && !end[i]->IsInstance<ProducerLoadNode>() &&
         !strides[i]->IsInstance<ProducerLoadNode>()) {
-      out_shape.push_back(analyzer.Simplify(indexdiv(end[i] - begin[i], strides[i])));
+      out_shape.push_back(analyzer.Simplify(ceildiv(end[i] - begin[i], strides[i])));
     } else {
       out_shape.push_back(tvm::tir::Var("dim"));
     }
