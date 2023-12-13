@@ -536,6 +536,60 @@ void CodeGenTL::VisitExpr_(const CastNode* op, std::ostream& os) {
   os << sret;
 }
 
+void CodeGenTL::PrintCallExtern(Type ret_type, String global_symbol, const Array<PrimExpr>& args,
+                                bool skip_first_arg, std::ostream& os) {  // NOLINT(*)
+  DataType ret_dtype = GetRuntimeDataType(ret_type);
+  if (ret_dtype.is_vector()) {
+    //
+    // Emit an unsupported vector call
+    //
+    // v = intrin_f((float4*)A[0], (float4*)B[0])
+    //
+    // as
+    //
+    // float4 __ret;
+    // {
+    //   float4 __arg0 = ((float4*)A)[0];
+    //   float4 __arg1 = ((float4*)B)[0];
+    //   __ret.x = intrin_f(__arg0.x, __arg1.x);
+    //   __ret.y = intrin_f(__arg0.y, __arg1.y);
+    //   __ret.z = intrin_f(__arg0.z, __arg1.z);
+    //   __ret.w = intrin_f(__arg0.w, __arg1.w);
+    // }
+    // v = __ret;
+    //
+    // Declare the result vector.
+    std::string sret = name_supply_->FreshName("_");
+    this->PrintIndent();
+    this->PrintType(ret_dtype, stream);
+    stream << ' ' << sret << ";\n";
+    {
+      // Load arguments.
+      std::vector<std::string> sargs;
+      size_t arg_begin = static_cast<size_t>(skip_first_arg);
+      for (size_t i = arg_begin; i < args.size(); ++i) {
+        std::string val = SSAGetID(PrintExpr(args[i]), args[i].dtype());
+        sargs.push_back(std::move(val));
+      }
+
+      // Emit a scalar call for each lane.
+      for (int i = 0; i < ret_dtype.lanes(); ++i) {
+        std::ostringstream scall;
+        scall << global_symbol << "(";
+        for (size_t j = 0; j < sargs.size(); ++j) {
+          if (j > 0) scall << ", ";
+          PrintVecElemLoad(sargs[j], args[arg_begin + j].dtype(), i, scall);
+        }
+        scall << ")";
+        PrintVecElemStore(sret, ret_dtype, i, scall.str());
+      }
+    }
+    os << sret;
+  } else {
+    CodeGenC::PrintCallExtern(ret_type, global_symbol, args, skip_first_arg, os);
+  }
+}
+
 void CodeGenTL::VisitExpr_(const CallNode* op, std::ostream& os) {
   if (op->op.same_as(builtin::ptx_cp_async())) {
     std::string dst = this->PrintExpr(op->args[0]);

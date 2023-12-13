@@ -47,7 +47,7 @@ def rms_norm(M, N, blk_m):
 
             T.copy(A[bx * blk_m : (bx + 1) * blk_m, :], A_shared)
             for i, j in T.Parallel(blk_m, N):
-                A_local[i, j] = A_shared[i, j] * A_shared[i, j]
+                A_local[i, j] = T.pow(A_shared[i, j], 2)
             T.reduce_sum(A_local, A_powsum, dim=1)
             for i in T.Parallel(blk_m):
                 A_powsum[i] = T.rsqrt(A_powsum[i] / N) + 1e-12

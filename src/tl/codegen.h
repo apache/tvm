@@ -64,6 +64,10 @@ class CodeGenTL final : public CodeGenC {
   void VisitStmt_(const AllocateNode* op) final;
   void VisitStmt_(const AttrStmtNode* op) final;
 
+ protected:
+  void PrintCallExtern(Type ret_type, String global_symbol, const Array<PrimExpr>& args,
+                       bool skip_first_arg, std::ostream& os) final;  // NOLINT(*)
+
  private:
   // Handle volatile loads
   void HandleVolatileLoads(const std::string& value, const BufferLoadNode* op,
