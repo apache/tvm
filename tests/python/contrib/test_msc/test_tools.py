@@ -77,7 +77,42 @@ def get_tool_config(tool_type):
             "strategys": [{"method": "per_channel", "density": 0.8}],
         }
     elif tool_type == ToolType.QUANTIZER:
-        raise NotImplementedError("Quantizer is not supported")
+        # pylint: disable=import-outside-toplevel
+        from tvm.contrib.msc.core.tools.quantize import QuantizeStage
+
+        config = {
+            "plan_file": "msc_quantizer.json",
+            "strategys": [
+                {
+                    "method": "gather_maxmin",
+                    "op_types": ["nn.conv2d", "msc.linear"],
+                    "tensor_types": ["input", "output"],
+                    "stages": [QuantizeStage.GATHER],
+                },
+                {
+                    "method": "gather_max_per_channel",
+                    "op_types": ["nn.conv2d", "msc.linear"],
+                    "tensor_types": ["weight"],
+                    "stages": [QuantizeStage.GATHER],
+                },
+                {
+                    "method": "calibrate_maxmin",
+                    "op_types": ["nn.conv2d", "msc.linear"],
+                    "tensor_types": ["input", "output"],
+                    "stages": [QuantizeStage.CALIBRATE],
+                },
+                {
+                    "method": "quantize_normal",
+                    "op_types": ["nn.conv2d", "msc.linear"],
+                    "tensor_types": ["input", "weight"],
+                },
+                {
+                    "method": "dequantize_normal",
+                    "op_types": ["nn.conv2d", "msc.linear"],
+                    "tensor_types": ["output"],
+                },
+            ],
+        }
     elif tool_type == ToolType.TRACKER:
         config = {
             "plan_file": "msc_tracker.json",
@@ -183,7 +218,7 @@ def get_model_info(compile_type):
     raise TypeError("Unexpected compile_type " + str(compile_type))
 
 
-@pytest.mark.parametrize("tool_type", [ToolType.PRUNER, ToolType.TRACKER])
+@pytest.mark.parametrize("tool_type", [ToolType.PRUNER, ToolType.QUANTIZER, ToolType.TRACKER])
 def test_tvm_tool(tool_type):
     """Test tools for tvm"""
 
@@ -194,7 +229,10 @@ def test_tvm_tool(tool_type):
 
 
 @requires_tensorrt
-@pytest.mark.parametrize("tool_type", [ToolType.PRUNER, ToolType.TRACKER])
+@pytest.mark.parametrize(
+    "tool_type",
+    [ToolType.PRUNER, ToolType.QUANTIZER, ToolType.TRACKER],
+)
 def test_tensorrt_tool(tool_type):
     """Test tools for tensorrt"""
 
