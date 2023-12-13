@@ -310,7 +310,7 @@ class Socket {
   /*!
    * \return last error of socket operation
    */
-  static int GetLastError() {
+  static int GetLastErrorCode() {
 #ifdef _WIN32
     return WSAGetLastError();
 #else
@@ -319,7 +319,7 @@ class Socket {
   }
   /*! \return whether last error was would block */
   static bool LastErrorWouldBlock() {
-    int errsv = GetLastError();
+    int errsv = GetLastErrorCode();
 #ifdef _WIN32
     return errsv == WSAEWOULDBLOCK;
 #else
@@ -355,7 +355,7 @@ class Socket {
    * \param msg The error message.
    */
   static void Error(const char* msg) {
-    int errsv = GetLastError();
+    int errsv = GetLastErrorCode();
 #ifdef _WIN32
     LOG(FATAL) << "Socket " << msg << " Error:WSAError-code=" << errsv;
 #else
@@ -384,7 +384,7 @@ class Socket {
     if (ret != -1) return ret;
     // less common path
     do {
-      if (GetLastError() == EINTR) {
+      if (GetLastErrorCode() == EINTR) {
         // Call into env check signals to see if there are
         // environment specific(e.g. python) signal exceptions.
         // This function will throw an exception if there is

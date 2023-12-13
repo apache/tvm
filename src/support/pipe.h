@@ -40,6 +40,14 @@
 namespace tvm {
 namespace support {
 
+static int GetLastErrorCode() {
+#ifdef _WIN32
+    return WSAGetLastError();
+#else
+    return errno;
+#endif
+  }
+
 /*! \brief Platform independent pipe */
 class Pipe : public dmlc::Stream {
  public:
@@ -52,6 +60,43 @@ class Pipe : public dmlc::Stream {
 #endif
   /*! \brief destructor */
   ~Pipe() { Flush(); }
+
+  /*!
+   * \brief Call a function and retry if an EINTR error is encountered.
+   *
+   *  Socket operations can return EINTR when the interrupt handler
+   *  is registered by the execution environment(e.g. python).
+   *  We should retry if there is no KeyboardInterrupt recorded in
+   *  the environment.
+   *
+   * \note This function is needed to avoid rare interrupt event
+   *       in long running server code.
+   *
+   * \param func The function to retry.
+   * \return The return code returned by function f or error_value on retry failure.
+   */
+  template <typename FuncType>
+  ssize_t RetryCallOnEINTR(FuncType func) {
+    ssize_t ret = func();
+    // common path
+    if (ret != -1) return ret;
+    // less common path
+    do {
+      if (GetLastErrorCode() == EINTR) {
+        // Call into env check signals to see if there are
+        // environment specific(e.g. python) signal exceptions.
+        // This function will throw an exception if there is
+        // if the process received a signal that requires TVM to return immediately (e.g. SIGINT).
+        runtime::EnvCheckSignals();
+      } else {
+        // other errors
+        return ret;
+      }
+      ret = func();
+    } while (ret == -1);
+    return ret;
+  }
+
   using Stream::Read;
   using Stream::Write;
   /*!
@@ -68,7 +113,10 @@ class Pipe : public dmlc::Stream {
         << "Read Error: " << GetLastError();
 #else
     ssize_t nread;
-    nread = read(handle_, ptr, size);
+    //nread = read(handle_, ptr, size);
+
+    nread = RetryCallOnEINTR(
+          [&]() { return read(handle_, ptr, size); });
     ICHECK_GE(nread, 0) << "Write Error: " << strerror(errno);
 #endif
     return static_cast<size_t>(nread);
@@ -88,7 +136,8 @@ class Pipe : public dmlc::Stream {
         << "Write Error: " << GetLastError();
 #else
     ssize_t nwrite;
-    nwrite = write(handle_, ptr, size);
+    nwrite = RetryCallOnEINTR(
+          [&]() { return write(handle_, ptr, size); });
     ICHECK_EQ(static_cast<size_t>(nwrite), size) << "Write Error: " << strerror(errno);
 #endif
   }
