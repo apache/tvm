@@ -157,6 +157,9 @@ class IndexDataTypeNormalizer : public IndexDataTypeRewriter {
   virtual bool CanRewriteDType(DataType dtype) const;
 
   DataType target_data_type_ = DataType::Int(64);
+
+ private:
+  int iter_ = 0;
 };
 
 }  // namespace tir

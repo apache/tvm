@@ -618,10 +618,15 @@ PrimExpr IndexDataTypeNormalizer::VisitExpr_(const IntImmNode* op) {
 }
 
 PrimExpr IndexDataTypeNormalizer::VisitExpr_(const VarNode* op) {
-  if (is_enabled_ && CanRewriteDType(op->dtype) && op->dtype != target_data_type_ &&
-      !var_remap_.count(op)) {
-    var_remap_[op] = GetRef<Var>(op).copy_with_dtype(target_data_type_);
+  // In the first iteration, collect var_remap_
+  if (iter_ == 0) {
+    if (is_enabled_ && CanRewriteDType(op->dtype) && op->dtype != target_data_type_ &&
+        !var_remap_.count(op)) {
+      var_remap_[op] = GetRef<Var>(op).copy_with_dtype(target_data_type_);
+    }
+    return GetRef<Var>(op);
   }
+  // In the second iteration, rewrite the var
   return DataTypeLegalizer::VisitExpr_(op);
 }
 
