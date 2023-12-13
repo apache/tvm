@@ -89,6 +89,9 @@ Stmt DataTypeLegalizer::VisitStmt_(const AttrStmtNode* op) {
     ICHECK(iv != nullptr) << "Expected type to be IterVarNode"
                           << ", but get " << op->node->GetTypeKey();
     PrimExpr e = VisitExpr(iv->var);
+    if (iter_ == 0) {
+      return GetRef<AttrStmt>(op);
+    }
     Var var = Downcast<Var>(e);
     if (ivmap_.find(iv) == ivmap_.end()) {
       Range dom = iv->dom;
@@ -393,6 +396,9 @@ IterVar IndexDataTypeRewriter::VisitIterVar(const IterVar& iter_var) {
 }
 
 Buffer IndexDataTypeRewriter::VisitBuffer(const Buffer& buffer) {
+  if (iter_ == 0) {
+    return buffer;
+  }
   bool is_enabled = is_enabled_;
 
   is_enabled_ = true;
@@ -582,6 +588,10 @@ IndexDataTypeNormalizer::IndexDataTypeNormalizer(DataType target_data_type)
     : target_data_type_(std::move(target_data_type)) {}
 
 PrimFunc IndexDataTypeNormalizer::Rewrite(PrimFunc func) {
+  // collect var remap
+  VisitStmt(std::move(func->body));
+  iter_++;
+  // start rewrite
   Map<Var, Buffer> new_buffer_map = func->buffer_map;
   for (const auto& [var, buffer] : func->buffer_map) {
     new_buffer_map.Set(var, VisitBuffer(buffer));
