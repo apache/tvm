@@ -731,6 +731,17 @@ void CodeGenTL::VisitExpr_(const BroadcastNode* op, std::ostream& os) {  // NOLI
     return;
   }
 
+  if (op->dtype.is_float() && op->dtype.bits() == 32 && op->dtype.lanes() == 8) {
+    std::string v = PrintExpr(op->value);
+    os << "make_ulonglong4(";
+    for (int i = 0; i < 4; ++i) {
+      if (i != 0) os << ", ";
+      os << "*(unsigned long long*)&make_float2(" << v << ", " << v << ")";
+    }
+    os << ')';
+    return;
+  }
+
   if ((op->dtype.is_int() || op->dtype.is_uint()) && op->dtype.bits() == 4) {
     bool fail = false;
     const int64_t* p = as_const_int(op->value);
