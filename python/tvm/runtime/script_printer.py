@@ -44,6 +44,7 @@ class PrinterConfig(Object):
     num_context_lines: int
     syntax_sugar: bool
     show_object_address: bool
+    show_inferable_type_annotations: bool
     path_to_underline: Optional[List[ObjectPath]]
     path_to_annotate: Optional[Dict[ObjectPath, str]]
     obj_to_underline: Optional[List[Object]]
@@ -67,6 +68,7 @@ class PrinterConfig(Object):
         num_context_lines: Optional[int] = None,
         syntax_sugar: bool = True,
         show_object_address: bool = False,
+        show_inferable_type_annotations: bool = True,
         path_to_underline: Optional[List[ObjectPath]] = None,
         path_to_annotate: Optional[Dict[ObjectPath, str]] = None,
         obj_to_underline: Optional[List[Object]] = None,
@@ -89,6 +91,7 @@ class PrinterConfig(Object):
             "num_context_lines": num_context_lines,
             "syntax_sugar": syntax_sugar,
             "show_object_address": show_object_address,
+            "show_inferable_type_annotations": show_inferable_type_annotations,
             "path_to_underline": path_to_underline,
             "path_to_annotate": path_to_annotate,
             "obj_to_underline": obj_to_underline,
@@ -132,6 +135,7 @@ class Scriptable:
         num_context_lines: int = -1,
         syntax_sugar: bool = True,
         show_object_address: bool = False,
+        show_inferable_type_annotations: bool = True,
         path_to_underline: Optional[List[ObjectPath]] = None,
         path_to_annotate: Optional[Dict[ObjectPath, str]] = None,
         obj_to_underline: Optional[List[Object]] = None,
@@ -169,9 +173,12 @@ class Scriptable:
         num_context_lines : int = -1
             The number of lines of context to print before and after the line to underline.
         syntax_sugar: bool = True
-             Whether to output with syntax sugar, set false for complete printing.
+            Whether to output with syntax sugar, set false for complete printing.
         show_object_address: bool = False
-             Whether to include the object's address as part of the TVMScript name
+            Whether to include the object's address as part of the TVMScript name
+        show_inferable_type_annotations: bool = True
+            Whether to show type annotations that can be inferred from previous
+            annotations.
         path_to_underline : Optional[List[ObjectPath]] = None
             Object path to be underlined
         path_to_annotate : Optional[Dict[ObjectPath, str]] = None
@@ -204,6 +211,7 @@ class Scriptable:
                 num_context_lines=num_context_lines,
                 syntax_sugar=syntax_sugar,
                 show_object_address=show_object_address,
+                show_inferable_type_annotations=show_inferable_type_annotations,
                 path_to_underline=path_to_underline,
                 path_to_annotate=path_to_annotate,
                 obj_to_underline=obj_to_underline,
@@ -279,6 +287,7 @@ class Scriptable:
         num_context_lines: int = -1,
         syntax_sugar: bool = True,
         show_object_address: bool = False,
+        show_inferable_type_annotations: bool = True,
         path_to_underline: Optional[List[ObjectPath]] = None,
         path_to_annotate: Optional[Dict[ObjectPath, str]] = None,
         obj_to_underline: Optional[List[Object]] = None,
@@ -339,9 +348,12 @@ class Scriptable:
         num_context_lines : int = -1
             The number of lines of context to print before and after the line to underline.
         syntax_sugar: bool = True
-             Whether to output with syntax sugar, set false for complete printing.
+            Whether to output with syntax sugar, set false for complete printing.
         show_object_address: bool = False
-             Whether to include the object's address as part of the TVMScript name
+            Whether to include the object's address as part of the TVMScript name
+        show_inferable_type_annotations: bool = True
+            Whether to show type annotations that can be inferred from previous
+            annotations.
         path_to_underline : Optional[List[ObjectPath]] = None
             Object path to be underlined
         path_to_annotate : Optional[Dict[ObjectPath, str]] = None
@@ -377,6 +389,7 @@ class Scriptable:
                 num_context_lines=num_context_lines,
                 syntax_sugar=syntax_sugar,
                 show_object_address=show_object_address,
+                show_inferable_type_annotations=show_inferable_type_annotations,
                 path_to_underline=path_to_underline,
                 path_to_annotate=path_to_annotate,
                 obj_to_underline=obj_to_underline,

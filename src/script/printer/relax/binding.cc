@@ -44,7 +44,10 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
         "", [](relax::MatchCast n, ObjectPath n_p, IRDocsifier d) -> Doc {
           using relax::StructInfo;
           using relax::MatchStructInfo;
-          Optional<ExprDoc> ann = StructInfoAsAnn(n->var, n_p->Attr("var"), d, n->value);
+          Optional<ExprDoc> ann = NullOpt;
+          if (d->cfg->show_inferable_type_annotations) {
+            ann = StructInfoAsAnn(n->var, n_p->Attr("var"), d, n->value);
+          }
           ExprDoc rhs = Relax(d, "match_cast")
                             ->Call({d->AsDoc<ExprDoc>(n->value, n_p->Attr("value")),
                                     d->AsDoc<ExprDoc>(n->struct_info, n_p->Attr("struct_info_"))});
