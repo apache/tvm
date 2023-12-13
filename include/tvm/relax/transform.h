@@ -552,6 +552,15 @@ TVM_DLL Pass AlterOpImpl(const Map<String, tir::PrimFunc>& op_impl_map,
 TVM_DLL Pass ConvertLayout(Map<String, Array<String>> desired_layouts);
 
 /*!
+ * \brief A pass that converts consecutive dataflow operations
+ *   inside binding blocks into dataflow blocks.
+ * \param min_size The minimum number of consecutive dataflow bindings
+ *   required for the pass to create a new dataflow block
+ * \return The Pass.
+ */
+TVM_DLL Pass ConvertToDataflow(int min_size = 2);
+
+/*!
  * \brief Dead code elimination.
  * \sa RemoveAllUnused
  * Currently it removes:

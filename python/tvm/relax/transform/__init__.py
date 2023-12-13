@@ -28,6 +28,7 @@ from .transform import (
     CanonicalizeBindings,
     CombineParallelMatmul,
     ConvertLayout,
+    ConvertToDataflow,
     DataflowBlockPass,
     DeadCodeElimination,
     DecomposeOpsForInference,

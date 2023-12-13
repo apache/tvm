@@ -61,7 +61,7 @@ class CanonicalizePlanner : public ExprVisitor {
     // within a DataflowBlock, and is not already handled by removal
     // of trivial bindings, then we can replace it with a DataflowVar.
     for (auto var : visitor.defined_inside_dataflow_) {
-      if (!var.as<DataflowVarNode>() && !visitor.used_outside_dataflow_.count(var)) {
+      if (!var.as<DataflowVarNode>() && !visitor.used_outside_home_dataflow_.count(var)) {
         DataflowVar new_var(var->name_hint(), GetStructInfo(var));
 
         plan.replace_binding.Set(var->vid, new_var);
@@ -113,11 +113,38 @@ class CanonicalizePlanner : public ExprVisitor {
   }
 
  private:
-  void VisitBindingBlock_(const DataflowBlockNode* block) override {
-    bool cache = inside_dataflow_;
-    inside_dataflow_ = true;
+  void VisitExpr_(const FunctionNode* func) override {
+    // for functions, treat any free vars as used outside their home DF block
+    auto cache = current_block_;
+    current_block_ = Optional<BindingBlock>();
+    auto free_vars = FreeVars(GetRef<Function>(func));
+    for (auto var : free_vars) {
+      used_outside_home_dataflow_.insert(var);
+    }
+    ExprVisitor::VisitExpr_(func);
+    current_block_ = cache;
+  }
+
+  void VisitExpr_(const SeqExprNode* seq) override {
+    // need to reset current_block_ for nested seq exprs (such as in If nodes)
+    auto cache = current_block_;
+    current_block_ = Optional<BindingBlock>();
+    ExprVisitor::VisitExpr_(seq);
+    current_block_ = cache;
+  }
+
+  void VisitBindingBlock_(const BindingBlockNode* block) override {
+    CHECK(!current_block_.defined()) << "Forgetting to unset current block";
+    current_block_ = GetRef<BindingBlock>(block);
     ExprVisitor::VisitBindingBlock_(block);
-    inside_dataflow_ = cache;
+    current_block_ = Optional<BindingBlock>();
+  }
+
+  void VisitBindingBlock_(const DataflowBlockNode* block) override {
+    CHECK(!current_block_.defined()) << "Forgetting to unset current block";
+    current_block_ = GetRef<DataflowBlock>(block);
+    ExprVisitor::VisitBindingBlock_(block);
+    current_block_ = Optional<BindingBlock>();
   }
 
   void VisitBinding(const Binding& binding) override {
@@ -154,36 +181,50 @@ class CanonicalizePlanner : public ExprVisitor {
     }
 
     known_bindings_.Set(binding->var, value);
+    def_blocks_.Set(binding->var, current_block_.value());
 
     ExprVisitor::VisitBinding(binding);
   }
 
   void VisitVarDef(const Var& var) override {
-    if (inside_dataflow_) {
+    if (inside_dataflow()) {
       defined_inside_dataflow_.insert(var);
     }
   }
 
   void VisitExpr_(const VarNode* var) override {
-    if (!inside_dataflow_) {
-      used_outside_dataflow_.insert(GetRef<Var>(var));
+    auto var_ref = GetRef<Var>(var);
+    // if a var is used in a dataflow block but *not* the one
+    // where it was defined, it also needs to be exposed, so also we treat that as
+    // used outside of a dataflow block
+    if (!inside_dataflow() ||
+        (def_blocks_.count(var_ref) &&
+         (current_block_.defined() && !current_block_.value().same_as(def_blocks_.at(var_ref))))) {
+      used_outside_home_dataflow_.insert(GetRef<Var>(var));
     }
   }
 
-  bool inside_dataflow_{false};
+  inline bool inside_dataflow() {
+    return current_block_.defined() && current_block_.value().as<DataflowBlockNode>();
+  }
+
+  Optional<BindingBlock> current_block_;
+  Map<Var, BindingBlock> def_blocks_;
 
   Map<Var, Var> trivial_bindings_;
   Map<Var, Expr> known_bindings_;
   std::unordered_set<Var, ObjectPtrHash, ObjectPtrEqual> defined_inside_dataflow_;
-  std::unordered_set<Var, ObjectPtrHash, ObjectPtrEqual> used_outside_dataflow_;
+  // Set of vars either used outside a dataflow block altogether or outside their
+  // home dataflow block (the one where they were defined)
+  std::unordered_set<Var, ObjectPtrHash, ObjectPtrEqual> used_outside_home_dataflow_;
 };
 
 /*! \brief The mutator class to apply a CanonicalizationPlan */
 class BindingCanonicalizer : public ExprMutator {
  public:
   static Expr Apply(Expr expr) {
-    auto used_outside_dataflow = CanonicalizePlanner::Collect(expr);
-    BindingCanonicalizer mutator(std::move(used_outside_dataflow));
+    auto used_outside_home_dataflow = CanonicalizePlanner::Collect(expr);
+    BindingCanonicalizer mutator(std::move(used_outside_home_dataflow));
     return mutator.VisitExpr(expr);
   }
 
