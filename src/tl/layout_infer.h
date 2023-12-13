@@ -64,6 +64,9 @@ class ForNodeLayoutInfer : public LayoutInferBase, StmtExprVisitor {
   void VisitStmt_(const ForNode* op) final;
   void VisitStmt_(const BufferStoreNode* op) final;
   void VisitExpr_(const BufferLoadNode* op) final;
+  void AddPredicate(PrimExpr expr) {
+    predicate_ = predicate_.defined() ? And(expr, predicate_) : expr;
+  }
   const ForNode* root_;
   IterVar thread_var_;
 

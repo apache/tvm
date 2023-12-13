@@ -127,17 +127,17 @@ LayoutMap ForNodeLayoutInfer::Inference(const LayoutMap& layout_map, InferLevel 
         for (size_t i = 0; i < loop_layout_->OutputDim(); i++) fwd.push_back(0);
         fwd.push_back(thread_var_->var);
         auto rep = inv->Forward(fwd).back();
-        predicate_ = EQ(rep, 0);
+        AddPredicate(EQ(rep, 0));
       }
     } else {
       int vector_size = GetVectorizeSize(GetRef<For>(root_));
       auto num_thread = as_const_int(thread_var_->dom->extent);
       ICHECK(num_thread != nullptr);
       loop_layout_ = PlanLoopPartition(root_, *num_thread, vector_size);
-      PrimExpr loop_thread_extent = loop_layout_->ThreadExtent();
-      if (!analyzer_.CanProveEqual(loop_thread_extent, thread_var_->dom->extent))
-        predicate_ = LT(thread_var_->var, loop_thread_extent);
     }
+    PrimExpr loop_thread_extent = loop_layout_->ThreadExtent();
+    if (!analyzer_.CanProveEqual(loop_thread_extent, thread_var_->dom->extent))
+      AddPredicate(LT(thread_var_->var, loop_thread_extent));
   } else {
     return {};
   }
