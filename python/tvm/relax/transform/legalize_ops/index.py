@@ -16,8 +16,6 @@
 # under the License.
 # pylint: disable=invalid-name
 """Default legalization function for index operators."""
-import logging
-
 from tvm import topi, tir, te
 from ...op import call_pure_packed
 from ...block_builder import BlockBuilder
