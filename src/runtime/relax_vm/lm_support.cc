@@ -150,19 +150,21 @@ class AttentionKVCacheObj : public Object {
       shape.push_back(data->shape[i]);
     }
     int64_t num_filled_elements = window_attention_current_pos * num_elements_p_entry;
-
-    DLTensor copy_dst = *(data.operator->());
-    copy_dst.byte_offset = num_filled_elements * ((data->dtype.bits * data->dtype.lanes + 7) / 8);
-    copy_dst.shape = &shape[0];
-
-    DLTensor copy_src = *(value.operator->());
-    copy_src.byte_offset = 0;
-    copy_src.shape = &shape[0];
-
-    NDArray::CopyFromTo(&copy_src, &copy_dst);
     this->fill_count = std::min(this->fill_count + value->shape[0], max_cache_size);
     this->window_attention_current_pos =
         std::min(this->window_attention_current_pos + value->shape[0], max_cache_size);
+
+    if (num_elements_to_copy > 0) {
+      DLTensor copy_dst = *(data.operator->());
+      copy_dst.byte_offset = num_filled_elements * ((data->dtype.bits * data->dtype.lanes + 7) / 8);
+      copy_dst.shape = &shape[0];
+
+      DLTensor copy_src = *(value.operator->());
+      copy_src.byte_offset = 0;
+      copy_src.shape = &shape[0];
+
+      NDArray::CopyFromTo(&copy_src, &copy_dst);
+    }
 
     // copy the remainder to the beginning of the cache
     if (num_elements_to_copy < value->shape[0]) {
