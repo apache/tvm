@@ -892,8 +892,7 @@ class Normalizer : public BlockBuilderImpl, private ExprFunctor<Expr(const Expr&
                     << "The variable " << binding->var << " is defined within a DataflowBlock, "
                     << "but is bound to a SeqExpr that contains non-dataflow BindingBlocks.  "
                     << "These non-dataflow BindingBlocks use the DataflowVars "
-                    << free_dataflow_vars << ", which is invalid.\n"
-                    << binding;
+                    << free_dataflow_vars << ", which is invalid.";
               }
             }
             ret.push_back(block);
