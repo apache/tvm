@@ -717,6 +717,9 @@ Pass ConvertSSA() {
     bool made_change = false;
     for (auto [gvar, base_func] : mod->functions) {
       if (auto* ptr = base_func.as<tir::PrimFuncNode>()) {
+        if (!ptr->HasNonzeroAttr(tir::attr::kIsEntryFunc)) {
+          continue;
+        }
         auto updated = converter.VisitPrimFunc(GetRef<tir::PrimFunc>(ptr));
         if (!updated.same_as(base_func)) {
           made_change = true;
@@ -724,6 +727,19 @@ Pass ConvertSSA() {
         }
       }
       functions.Set(gvar, base_func);
+    }
+    for (auto [gvar, base_func] : mod->functions) {
+      if (auto* ptr = base_func.as<tir::PrimFuncNode>()) {
+        if (ptr->HasNonzeroAttr(tir::attr::kIsEntryFunc)) {
+          continue;
+        }
+        auto updated = converter.VisitPrimFunc(GetRef<tir::PrimFunc>(ptr));
+        if (!updated.same_as(base_func)) {
+          made_change = true;
+          base_func = updated;
+        }
+        functions.Set(gvar, base_func);
+      }
     }
     if (made_change) {
       mod.CopyOnWrite()->functions = std::move(functions);
