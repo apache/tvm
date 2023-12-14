@@ -99,7 +99,7 @@ void ArrayCopyToBytes(const DLTensor* handle, void* data, size_t nbytes) {
 TVM_REGISTER_GLOBAL("mlc.show_dltensor").set_body_typed([](NDArray arr) {
   auto handle = arr.operator->();
   LOG(INFO) << "data: " << handle->data;
-  LOG(INFO) << "device:" <<  handle->device.device_type << " " << handle->device.device_id;
+  LOG(INFO) << "device:" << handle->device.device_type << " " << handle->device.device_id;
   LOG(INFO) << "ndim: " << handle->ndim;
   LOG(INFO) << DLDataType2String(handle->dtype);
   LOG(INFO) << "shape:";
