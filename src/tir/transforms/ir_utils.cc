@@ -715,6 +715,8 @@ Pass ConvertSSA() {
     tir::IRConvertSSA converter;
     Map<GlobalVar, BaseFunc> functions;
     bool made_change = false;
+    // FIXME: This is just a temporal workaround to ensure free vars
+    // in device function have the same pointer as the host function
     for (auto [gvar, base_func] : mod->functions) {
       if (auto* ptr = base_func.as<tir::PrimFuncNode>()) {
         if (!ptr->HasNonzeroAttr(tir::attr::kIsEntryFunc)) {
