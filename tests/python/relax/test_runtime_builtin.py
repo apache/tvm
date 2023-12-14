@@ -217,5 +217,46 @@ def test_attention_kv_cache_window_override():
     ).all()
 
 
+def test_attention_kv_cache_window_override_with_sinks():
+    fcreate = tvm.get_global_func("vm.builtin.attention_kv_cache_create")
+    foverride = tvm.get_global_func("vm.builtin.attention_kv_cache_window_override_with_sinks")
+    fview = tvm.get_global_func("vm.builtin.attention_kv_cache_view")
+
+    num_attention_sinks = 2
+    has_sink = False
+    current_pos = 0
+
+    cache = fcreate(
+        tvm.nd.array(np.full((16, 2), -1).astype("int32")),
+        tvm.runtime.ShapeTuple([16, 2]),
+        current_pos,
+    )
+    np_all_arrays = np.zeros((0, 2)).astype("int32")
+
+    num_steps = 40
+    for i in range(num_steps):
+        np_array = i * np.ones((1, 2)).astype("int32")
+        np_all_arrays = np.concatenate((np_all_arrays, np_array), axis=0)
+        cache = foverride(cache, tvm.nd.array(np_array), 16, num_attention_sinks)
+
+        if has_sink:
+            current_pos = max((current_pos + 1) % 16, num_attention_sinks)
+        else:
+            current_pos += 1
+            has_sink = current_pos >= num_attention_sinks
+
+    res = fview(cache, tvm.runtime.ShapeTuple((16, 2))).numpy()
+
+    # unrotate cache and assert cache matches last 16 elements
+    assert (
+        np.concatenate(
+            (np_all_arrays[:num_attention_sinks, :], np_all_arrays[-16 + num_attention_sinks :, :])
+        )
+        == np.concatenate(
+            (res[:num_attention_sinks], res[current_pos:], res[num_attention_sinks:current_pos])
+        )
+    ).all()
+
+
 if __name__ == "__main__":
     tvm.testing.main()

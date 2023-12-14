@@ -116,10 +116,12 @@ class AttentionKVCacheObj : public Object {
   /*!
    * \brief Append value to the cache, overrides if full.
    * \param value The value to override previous elements.
+   * \param max_cache_size max size of the cache.
+   * \param num_attention_sinks number of sinks to store (https://arxiv.org/abs/2309.17453).
    */
-  void WindowOverride(NDArray value, int64_t max_cache_size) {
+  void WindowOverride(NDArray value, int64_t max_cache_size, int64_t num_attention_sinks = 0) {
     CHECK(data.DataType() == value.DataType()) << "dtype mismatch";
-    CHECK_LE(value->shape[0], max_cache_size) << "dim 0 of value too large";
+    CHECK_LE(value->shape[0], max_cache_size - num_attention_sinks) << "dim 0 of value too large";
     // reallocate cache
     if (fill_count + value->shape[0] <= max_cache_size) {
       int64_t reserved_slots = data->shape[0];
@@ -171,7 +173,8 @@ class AttentionKVCacheObj : public Object {
       num_filled_elements = num_elements_to_copy * num_elements_p_entry;
 
       DLTensor copy_dst = *(data.operator->());
-      copy_dst.byte_offset = 0;
+      copy_dst.byte_offset = (num_attention_sinks * num_elements_p_entry) *
+                             ((data->dtype.bits * data->dtype.lanes + 7) / 8);
       copy_dst.shape = &shape[0];
 
       DLTensor copy_src = *(value.operator->());
@@ -180,7 +183,8 @@ class AttentionKVCacheObj : public Object {
       copy_src.shape = &shape[0];
 
       NDArray::CopyFromTo(&copy_src, &copy_dst);
-      this->window_attention_current_pos = value->shape[0] - num_elements_to_copy;
+      this->window_attention_current_pos =
+          value->shape[0] - num_elements_to_copy + num_attention_sinks;
     }
   }
 
@@ -276,6 +280,16 @@ AttentionKVCache AttentionKVCacheWindowOverride(AttentionKVCache cache, NDArray 
 
 TVM_REGISTER_GLOBAL("vm.builtin.attention_kv_cache_window_override")
     .set_body_typed(AttentionKVCacheWindowOverride);
+
+AttentionKVCache AttentionKVCacheWindowOverrideWithSinks(AttentionKVCache cache, NDArray value,
+                                                         int64_t max_cache_size,
+                                                         int64_t num_attention_sinks) {
+  cache->WindowOverride(value, max_cache_size, num_attention_sinks);
+  return cache;
+}
+
+TVM_REGISTER_GLOBAL("vm.builtin.attention_kv_cache_window_override_with_sinks")
+    .set_body_typed(AttentionKVCacheWindowOverrideWithSinks);
 
 NDArray AttentionKVCacheView(AttentionKVCache cache, ShapeTuple shape) {
   return cache->View(shape);
