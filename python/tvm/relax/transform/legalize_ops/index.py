@@ -16,8 +16,6 @@
 # under the License.
 # pylint: disable=invalid-name
 """Default legalization function for index operators."""
-import logging
-
 from tvm import topi, tir, te
 from ...op import call_pure_packed
 from ...block_builder import BlockBuilder
@@ -37,16 +35,6 @@ def _take(bb: BlockBuilder, call: Call) -> Expr:
 
 @register_legalize("relax.strided_slice")
 def _strided_slice(bb: BlockBuilder, call: Call) -> Expr:
-    if not all(
-        isinstance(call.args[0].struct_info.shape.values[i.value], tir.IntImm)
-        for i in call.attrs.axes
-    ):
-        logging.info(
-            "Cases where an axis with symbolic length is sliced are not able "
-            "to be legalized through TOPI"
-        )
-        return call
-
     strides = (
         [tir.IntImm("int64", 1)] * len(call.attrs.axes)
         if call.attrs.strides is None

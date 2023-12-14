@@ -168,10 +168,34 @@ def test_strided_slice_symbolic_sliced_axis():
             n = T.int64()
             gv: R.Tensor((2, n), "float32") = R.strided_slice(x, axes=[0], begin=[1], end=[8], strides=[3])
             return gv
+
+    @I.ir_module
+    class Expected:
+        @T.prim_func(private=True)
+        def strided_slice(var_A: T.handle, var_T_dynamic_strided_slice_with_axes: T.handle):
+            T.func_attr({"tir.noalias": T.bool(True)})
+            m, n = T.int64(), T.int64()
+            A = T.match_buffer(var_A, (m, n))
+            T_dynamic_strided_slice_with_axes = T.match_buffer(var_T_dynamic_strided_slice_with_axes, (T.int64(3), n))
+            # with T.block("root"):
+            for ax0, ax1 in T.grid(T.int64(3), n):
+                with T.block("T_dynamic_strided_slice_with_axes"):
+                    v_ax0, v_ax1 = T.axis.remap("SS", [ax0, ax1])
+                    T.reads(A[v_ax0 * T.int64(3) + T.int64(1), v_ax1])
+                    T.writes(T_dynamic_strided_slice_with_axes[v_ax0, v_ax1])
+                    T_dynamic_strided_slice_with_axes[v_ax0, v_ax1] = A[v_ax0 * T.int64(3) + T.int64(1), v_ax1]
+
+        @R.function
+        def main(x: R.Tensor(("m", "n"), dtype="float32")) -> R.Tensor((3, "n"), dtype="float32"):
+            n = T.int64()
+            m = T.int64()
+            cls = Expected
+            gv = R.call_tir(cls.strided_slice, (x,), out_sinfo=R.Tensor((3, n), dtype="float32"))
+            return gv
     # fmt: on
 
     mod = LegalizeOps()(StridedSlice)
-    tvm.ir.assert_structural_equal(mod, StridedSlice)
+    tvm.ir.assert_structural_equal(mod, Expected)
 
 
 def test_strided_slice_symbolic():
@@ -208,6 +232,70 @@ def test_strided_slice_symbolic():
 
     mod = LegalizeOps()(StridedSlice)
     tvm.ir.assert_structural_equal(mod, Expected)
+
+
+def test_strided_slice_symbolic_bound():
+    # fmt: off
+    @tvm.script.ir_module
+    class StridedSlice:
+        @R.function
+        def main(x: R.Tensor((10, "n"), "float32")) -> R.Tensor((3, "n"), "float32"):
+            n = T.int64(is_size_var=True)
+            gv: R.Tensor((3, n), "float32") = R.strided_slice(x, axes=[0, 1], begin=[1, 0], end=[8, n], strides=[3, 1])
+            return gv
+
+    @tvm.script.ir_module
+    class Expected:
+        @R.function
+        def main(x: R.Tensor((10, "n"), dtype="float32")) -> R.Tensor((3, "n"), dtype="float32"):
+            n = T.int64(is_size_var=True)
+            gv = R.call_tir(Expected.strided_slice, (x,), R.Tensor((3, n), dtype="float32"))
+            return gv
+
+        @T.prim_func(private=True)
+        def strided_slice(var_rxplaceholder: T.handle, var_T_strided_slice_with_axes: T.handle):
+            T.func_attr({"tir.noalias": True})
+            n = T.int64()
+            rxplaceholder = T.match_buffer(var_rxplaceholder, [T.int64(10), n], dtype="float32")
+            T_strided_slice_with_axes = T.match_buffer(var_T_strided_slice_with_axes, [T.int64(3), n], dtype="float32")
+            for i0, i1 in T.grid(T.int64(3), n):
+                with T.block("T_strided_slice_with_axes"):
+                    ax0, ax1 = T.axis.remap("SS", [i0, i1])
+                    T.reads(rxplaceholder[ax0 * T.int64(3) + T.int64(1), ax1])
+                    T.writes(T_strided_slice_with_axes[ax0, ax1])
+                    T_strided_slice_with_axes[ax0, ax1] = rxplaceholder[ax0 * T.int64(3) + T.int64(1), ax1]
+
+
+def test_strided_slice_non_unit_stride():
+    # fmt: off
+    @tvm.script.ir_module
+    class StridedSlice:
+        @R.function
+        def main(x: R.Tensor((10, "n"), "float32")) -> R.Tensor((3, "n"), "float32"):
+            n = T.int64(is_size_var=True)
+            gv: R.Tensor((3, n), "float32") = R.strided_slice(x, axes=[0, 1], begin=[1, 0], end=[8, n], strides=[3, 1])
+            return gv
+
+    @tvm.script.ir_module
+    class Expected:
+        @R.function
+        def main(x: R.Tensor((10, "n"), dtype="float32")) -> R.Tensor((3, "n"), dtype="float32"):
+            n = T.int64(is_size_var=True)
+            gv = R.call_tir(Expected.strided_slice, (x,), R.Tensor((3, n), dtype="float32"))
+            return gv
+
+        @T.prim_func(private=True)
+        def strided_slice(var_rxplaceholder: T.handle, var_T_strided_slice_with_axes: T.handle):
+            T.func_attr({"tir.noalias": True})
+            n = T.int64()
+            rxplaceholder = T.match_buffer(var_rxplaceholder, [T.int64(10), n], dtype="float32")
+            T_strided_slice_with_axes = T.match_buffer(var_T_strided_slice_with_axes, [T.int64(3), n], dtype="float32")
+            for i0, i1 in T.grid(T.int64(3), n):
+                with T.block("T_strided_slice_with_axes"):
+                    ax0, ax1 = T.axis.remap("SS", [i0, i1])
+                    T.reads(rxplaceholder[ax0 * T.int64(3) + T.int64(1), ax1])
+                    T.writes(T_strided_slice_with_axes[ax0, ax1])
+                    T_strided_slice_with_axes[ax0, ax1] = rxplaceholder[ax0 * T.int64(3) + T.int64(1), ax1]
 
 
 def test_dynamic_strided_slice():
