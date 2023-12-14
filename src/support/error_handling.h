@@ -21,57 +21,57 @@
  * \file err_handling.h
  * \brief Common error handling functions for socket.h and pipe.h
  */
-#ifndef TVM_SUPPORT_ERR_HANDLING_H_
-#define TVM_SUPPORT_ERR_HANDLING_H_
+#ifndef TVM_SUPPORT_ERROR_HANDLING_H_
+#define TVM_SUPPORT_ERROR_HANDLING_H_
 #include <errno.h>
 
 namespace tvm {
 namespace support {
-   /*!
-   * \return last error of socket operation
-   */
-  static int GetLastErrorCode() {
+/*!
+ * \return last error of socket operation
+ */
+static int GetLastErrorCode() {
 #ifdef _WIN32
-    return WSAGetLastError();
+  return WSAGetLastError();
 #else
-    return errno;
+  return errno;
 #endif
-  }
-  /*!
-   * \brief Call a function and retry if an EINTR error is encountered.
-   *
-   *  Socket operations can return EINTR when the interrupt handler
-   *  is registered by the execution environment(e.g. python).
-   *  We should retry if there is no KeyboardInterrupt recorded in
-   *  the environment.
-   *
-   * \note This function is needed to avoid rare interrupt event
-   *       in long running server code.
-   *
-   * \param func The function to retry.
-   * \return The return code returned by function f or error_value on retry failure.
-   */
-  template <typename FuncType>
-  inline ssize_t RetryCallOnEINTR(FuncType func) {
-    ssize_t ret = func();
-    // common path
-    if (ret != -1) return ret;
-    // less common path
-    do {
-      if (GetLastErrorCode() == EINTR) {
-        // Call into env check signals to see if there are
-        // environment specific(e.g. python) signal exceptions.
-        // This function will throw an exception if there is
-        // if the process received a signal that requires TVM to return immediately (e.g. SIGINT).
-        runtime::EnvCheckSignals();
-      } else {
-        // other errors
-        return ret;
-      }
-      ret = func();
-    } while (ret == -1);
-    return ret;
-  }
+}
+/*!
+ * \brief Call a function and retry if an EINTR error is encountered.
+ *
+ *  Socket operations can return EINTR when the interrupt handler
+ *  is registered by the execution environment(e.g. python).
+ *  We should retry if there is no KeyboardInterrupt recorded in
+ *  the environment.
+ *
+ * \note This function is needed to avoid rare interrupt event
+ *       in long running server code.
+ *
+ * \param func The function to retry.
+ * \return The return code returned by function f or error_value on retry failure.
+ */
+template <typename FuncType>
+inline ssize_t RetryCallOnEINTR(FuncType func) {
+  ssize_t ret = func();
+  // common path
+  if (ret != -1) return ret;
+  // less common path
+  do {
+    if (GetLastErrorCode() == EINTR) {
+      // Call into env check signals to see if there are
+      // environment specific(e.g. python) signal exceptions.
+      // This function will throw an exception if there is
+      // if the process received a signal that requires TVM to return immediately (e.g. SIGINT).
+      runtime::EnvCheckSignals();
+    } else {
+      // other errors
+      return ret;
+    }
+    ret = func();
+  } while (ret == -1);
+  return ret;
+}
 }  // namespace support
 }  // namespace tvm
-#endif  // TVM_SUPPORT_ERR_HANDLING_H_
+#endif  // TVM_SUPPORT_ERROR_HANDLING_H_
