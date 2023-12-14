@@ -84,9 +84,6 @@ class DataTypeLegalizer : public StmtExprMutator {
   std::unordered_map<const IterVarNode*, IterVar> ivmap_;
   // a map from original vars to ones with new dtype
   std::unordered_map<const VarNode*, Var> var_remap_;
-  // number of iterations. The first iteration collects var_remap_,
-  // and the second iteration performs rewrite
-  int iter_ = 0;
 };
 
 /*!
