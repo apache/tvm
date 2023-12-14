@@ -451,11 +451,9 @@ class PyTorchOpConverter:
         stride = inputs[4]
 
         target_begin, is_begin_const = try_infer_value(
-            inputs[2], lambda ret: ret.astype(np.int).item(0)
+            inputs[2], lambda ret: ret.astype(int).item(0)
         )
-        target_end, is_end_const = try_infer_value(
-            inputs[3], lambda ret: ret.astype(np.int).item(0)
-        )
+        target_end, is_end_const = try_infer_value(inputs[3], lambda ret: ret.astype(int).item(0))
 
         # A fast path when slicing is nop.
         if (
