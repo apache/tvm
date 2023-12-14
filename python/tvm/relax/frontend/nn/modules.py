@@ -22,8 +22,6 @@ import numpy as np
 
 from tvm import relax as rx
 from tvm import tir
-from tvm._ffi import register_func
-from tvm.runtime import NDArray
 
 from . import op
 from .core import Effect, Module, ModuleList, Parameter, Tensor, get_default_dtype
@@ -55,23 +53,6 @@ class IOEffect(Effect):
         result = self.effect
         self.effect = None
         return [result]
-
-    def print_(self, tensor: Tensor) -> None:
-        """Encloses the side effect of NDArray printing"""
-        self.effect = rx.BlockBuilder.current().emit(
-            rx.call_pure_packed(
-                rx.extern("effect.print"),
-                self.effect,
-                tensor._expr,  # pylint: disable=protected-access
-                sinfo_args=[rx.ObjectStructInfo()],
-            ),
-            name_hint=self.effect.name_hint,
-        )
-
-
-@register_func("effect.print")
-def _print(_, array: NDArray) -> None:
-    print(f"effect.print: shape = {array.shape}, dtype = {array.dtype}, data =\n{array}")
 
 
 class ReLU(Module):

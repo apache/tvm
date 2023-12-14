@@ -465,6 +465,35 @@ bool ReadIfCond(TVMArgValue cond) {
 TVM_REGISTER_GLOBAL("vm.builtin.read_if_cond").set_body_typed(ReadIfCond);
 
 //-------------------------------------
+//  Debugging API
+//-------------------------------------
+
+TVM_REGISTER_GLOBAL("vm.builtin.invoke_debug_func")
+    .set_body([](TVMArgs args, TVMRetValue* rv) -> void {
+      ICHECK_GE(args.size(), 3);
+      int num_args = args.size() - 3;
+      ObjectRef io_effect = args[0];
+      ICHECK(!io_effect.defined()) << "ValueError: IOEffect is expected to be lowered to None.";
+      String debug_func_name = args[1];
+      const PackedFunc* debug_func = runtime::Registry::Get(debug_func_name);
+      CHECK(debug_func) << "ValueError: " << debug_func_name << " is not found. "
+                        << "Use the decorator `@tvm.register_func(\"" << debug_func_name
+                        << "\")` to register it.";
+      String line_info = args[2];
+      std::vector<TVMValue> call_args(num_args + 1);
+      std::vector<int> call_type_codes(num_args + 1);
+      {
+        TVMArgsSetter setter(call_args.data(), call_type_codes.data());
+        setter(0, line_info);
+        for (int i = 0; i < num_args; ++i) {
+          setter(i + 1, args[i + 3]);
+        }
+      }
+      debug_func->CallPacked(TVMArgs(call_args.data(), call_type_codes.data(), num_args + 1), rv);
+      *rv = io_effect;
+    });
+
+//-------------------------------------
 //  Data structure API
 //-------------------------------------
 TVM_REGISTER_GLOBAL("vm.builtin.tuple_getitem")

@@ -17,6 +17,7 @@
 # pylint: disable=too-many-lines,invalid-name,protected-access,redefined-outer-name
 # pylint: disable=redefined-builtin
 """nn.Tensor operators."""
+import inspect
 import math
 from typing import Any, Callable, Dict, List, Optional, Sequence, Tuple, Union
 
@@ -1491,7 +1492,73 @@ def tensor_expr_op(
     )
 
 
-def print_(array: Tensor):
+def debug_func(
+    name: str,
+    *args: Union[Tensor, _tir.PrimExpr, int, float, str],
+    _line_info: Optional[str] = None,
+):
+    """Call a debug function during runtime. The debug function must be registered with the
+    following type signature:
+
+    .. code-block:: python
+
+        @tvm.register_func(name_of_debug_func)
+        def debug_func(lineno: str, arg_0, arg_1, ...) -> None:
+            ...
+
+    Parameters
+    ----------
+    name : str
+        The name of the debug function to call.
+
+    *args : Union[Tensor, _tir.PrimExpr, int, float, str]
+        The arguments to pass to the debug function.
+    """
+    # pylint: disable=import-outside-toplevel
+    from tvm import relax as rx
+
+    from .modules import IOEffect
+
+    # pylint: enable=import-outside-toplevel
+
     if SpecBuilder.current().io_effect is None:
-        raise RuntimeError("Printing is only supported when debug mode is on.")
-    SpecBuilder.current().io_effect.print_(array)
+        raise RuntimeError("Debugging is only supported when debug mode is on.")
+    io: IOEffect = SpecBuilder.current().io_effect  # type: ignore
+
+    if _line_info is None:
+        filename, line_number = inspect.getframeinfo(inspect.currentframe().f_back)[:2]
+        _line_info = f"{filename}:{line_number}"
+
+    converted_args = []
+    for arg in args:
+        if isinstance(arg, Tensor):
+            converted_args.append(arg._expr)  # pylint: disable=protected-access
+        elif isinstance(arg, int):
+            converted_args.append(rx.PrimValue(_tir.IntImm("int64", arg)))
+        elif isinstance(arg, float):
+            converted_args.append(rx.PrimValue(_tir.FloatImm("float32", arg)))
+        elif isinstance(arg, _tir.PrimExpr):
+            converted_args.append(rx.PrimValue(arg))
+        elif isinstance(arg, str):
+            converted_args.append(rx.StringImm(arg))
+        else:
+            raise TypeError(f"Unsupported type {type(arg)}")
+
+    io.effect = BlockBuilder.current().emit(
+        rx.call_pure_packed(
+            "vm.builtin.invoke_debug_func",
+            io.effect,
+            rx.StringImm(name),
+            rx.StringImm(_line_info),
+            *converted_args,
+            sinfo_args=[rx.ObjectStructInfo()],
+        ),
+        name_hint=io.effect.name_hint,
+    )
+
+
+def print_(tensor: Tensor):
+    """Debug printing a Tensor during runtime."""
+    filename, line_number = inspect.getframeinfo(inspect.currentframe().f_back)[:2]
+    line_info = f"{filename}:{line_number}"
+    debug_func("vm.builtin.debug_print", tensor, _line_info=line_info)
