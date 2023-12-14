@@ -16,14 +16,15 @@
 # under the License.
 # pylint: disable=invalid-name, redefined-builtin, no-else-return, consider-using-dict-items
 """The Relax virtual machine."""
-from typing import Callable, List, Optional, Union, Dict, Tuple, Any
 from enum import IntEnum
+from typing import Any, Callable, Dict, List, Optional, Tuple, Union
+
 import numpy as np  # type: ignore
 
 import tvm
 from tvm._ffi import base as _base
-
-from tvm.runtime import Device, PackedFunc, Object
+from tvm._ffi import register_func
+from tvm.runtime import Device, Object, PackedFunc
 from tvm.runtime.profiling import Report
 
 from ..rpc.base import RPC_SESS_MASK
@@ -510,3 +511,8 @@ class VirtualMachine(object):
 
         report_json = self.module["profile"](func_name, *cargs)
         return Report.from_json(report_json)
+
+
+@register_func("vm.builtin.debug_print")
+def _print(lineo: str, array) -> None:
+    print(f"{lineo}: shape = {array.shape}, dtype = {array.dtype}, data =\n{array}")
