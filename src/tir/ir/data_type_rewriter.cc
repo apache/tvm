@@ -582,6 +582,11 @@ IndexDataTypeNormalizer::IndexDataTypeNormalizer(DataType target_data_type)
     : target_data_type_(std::move(target_data_type)) {}
 
 PrimFunc IndexDataTypeNormalizer::Rewrite(PrimFunc func) {
+  // collect var remap
+  VisitStmt(std::move(func->body));
+  buffer_remap_.clear();
+  ivmap_.clear();
+  // start rewrite
   Map<Var, Buffer> new_buffer_map = func->buffer_map;
   for (const auto& [var, buffer] : func->buffer_map) {
     new_buffer_map.Set(var, VisitBuffer(buffer));
