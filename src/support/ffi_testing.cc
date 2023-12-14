@@ -208,4 +208,37 @@ TVM_REGISTER_GLOBAL("testing.AcceptsMapReturnsValue")
 TVM_REGISTER_GLOBAL("testing.AcceptsMapReturnsMap")
     .set_body_typed([](Map<ObjectRef, ObjectRef> map) -> ObjectRef { return map; });
 
+TVM_REGISTER_GLOBAL("testing.AcceptsPrimExpr").set_body_typed([](PrimExpr expr) -> ObjectRef {
+  return expr;
+});
+
+TVM_REGISTER_GLOBAL("testing.AcceptsArrayOfPrimExpr")
+    .set_body_typed([](Array<PrimExpr> arr) -> ObjectRef {
+      for (ObjectRef item : arr) {
+        CHECK(item->IsInstance<PrimExprNode>())
+            << "Array contained " << item->GetTypeKey() << " when it should contain PrimExpr";
+      }
+      return arr;
+    });
+
+TVM_REGISTER_GLOBAL("testing.AcceptsArrayOfVariant")
+    .set_body_typed([](Array<Variant<PackedFunc, PrimExpr>> arr) -> ObjectRef {
+      for (ObjectRef item : arr) {
+        CHECK(item->IsInstance<PrimExprNode>() || item->IsInstance<runtime::PackedFuncObj>())
+            << "Array contained " << item->GetTypeKey()
+            << " when it should contain either PrimExpr or PackedFunc";
+      }
+      return arr;
+    });
+
+TVM_REGISTER_GLOBAL("testing.AcceptsMapOfPrimExpr")
+    .set_body_typed([](Map<ObjectRef, PrimExpr> map) -> ObjectRef {
+      for (const auto& kv : map) {
+        ObjectRef value = kv.second;
+        CHECK(value->IsInstance<PrimExprNode>())
+            << "Map contained " << value->GetTypeKey() << " when it should contain PrimExpr";
+      }
+      return map;
+    });
+
 }  // namespace tvm

@@ -494,6 +494,8 @@ std::string TargetInternal::StringifyAtomicType(const ObjectRef& obj) {
     return std::to_string(p->value);
   } else if (const auto* p = obj.as<runtime::Bool::ContainerType>()) {
     return std::to_string(p->value);
+  } else if (const auto* p = obj.as<IntImmNode>()) {
+    return std::to_string(p->value);
   }
   if (auto tvm_str = obj.as<String>()) {
     std::string s = tvm_str.value();
@@ -503,7 +505,7 @@ std::string TargetInternal::StringifyAtomicType(const ObjectRef& obj) {
     }
     return u;
   }
-  LOG(FATAL) << "Cannot stringify this object";
+  LOG(FATAL) << "Cannot stringify object of type " << obj->GetTypeKey();
 }
 
 std::string TargetInternal::StringifyArray(const ArrayNode& array) {

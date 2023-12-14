@@ -101,7 +101,7 @@ inline int OperationToStage(const te::Operation& op, const State& state) {
 /*! \brief Get an integer from a tvm str Map. */
 inline int GetIntParam(const Map<String, ObjectRef>& attr_dict, const std::string& key) {
   ICHECK_GT(attr_dict.count(key), 0) << "Cannot find key: \"" << key << "\" in " << attr_dict;
-  auto pint = attr_dict[key].as<IntImmNode>();
+  auto pint = attr_dict[key].as<runtime::Int::ContainerType>();
   ICHECK(pint != nullptr);
   return pint->value;
 }
@@ -109,7 +109,7 @@ inline int GetIntParam(const Map<String, ObjectRef>& attr_dict, const std::strin
 /*! \brief Get a double from a tvm str Map. */
 inline double GetDoubleParam(const Map<String, ObjectRef>& attr_dict, const std::string& key) {
   ICHECK_GT(attr_dict.count(key), 0) << "Cannot find key: \"" << key << "\" in " << attr_dict;
-  auto pdouble = attr_dict[key].as<FloatImmNode>();
+  auto pdouble = attr_dict[key].as<runtime::Float::ContainerType>();
   ICHECK(pdouble != nullptr);
   return pdouble->value;
 }
@@ -120,10 +120,12 @@ inline std::string GetStringParam(const Map<String, ObjectRef>& attr_dict, const
   const auto& target = attr_dict[key];
   if (auto pstr = target.as<StringImmNode>()) {
     return pstr->value;
+  } else if (auto pstr = target.as<StringObj>()) {
+    return pstr->data;
+  } else {
+    LOG(FATAL) << "Could not convert object " << target << " of type " << target->GetTypeKey()
+               << " to string";
   }
-  auto pstr = target.as<StringObj>();
-  ICHECK(pstr != nullptr);
-  return pstr->data;
 }
 
 /*! \brief Get a iterator name set from a tvm str Map. */

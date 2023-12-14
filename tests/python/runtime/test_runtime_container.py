@@ -158,5 +158,62 @@ def test_map_argument_returns_map():
         assert isinstance(value, bool)
 
 
+def test_conversion_of_arg():
+    """Arguments may be converted
+
+    The calling side of the FFI converts to types that are available
+    at runtime.  However, there may be additional type conversions
+    required, that must be performed on the callee-side of the FFI.
+    """
+
+    func = tvm.get_global_func("testing.AcceptsPrimExpr")
+
+    res = func(1)
+    assert isinstance(res, tvm.tir.IntImm)
+    assert res.dtype == "int32"
+
+    res = func(True)
+    assert isinstance(res, tvm.tir.IntImm)
+    assert res.dtype == "bool"
+
+
+def test_conversion_of_array_elements():
+    """Elements of an array may require conversion from FFI to param type
+
+    Like `test_conversion_of_arg`, but conversions must be applied
+    recursively to array elements.  Here, the Python-side of the FFI
+    converts the array `[1,2]` to `Array{runtime::Int(1),
+    runtime::Int(2)}`, and the C++ side of the FFI converts to
+    `Array{IntImm(1), IntImm(2)}`.
+    """
+
+    func = tvm.get_global_func("testing.AcceptsArrayOfPrimExpr")
+
+    res = func([1, False])
+    assert isinstance(res[0], tvm.tir.IntImm)
+    assert res[0].dtype == "int32"
+    assert isinstance(res[1], tvm.tir.IntImm)
+    assert res[1].dtype == "bool"
+
+
+def test_conversion_of_map_values():
+    """Elements of a map may require conversion from FFI to param type
+
+    Like `test_conversion_of_arg`, but conversions must be applied
+    recursively to map elements.  Here, the Python-side of the FFI
+    converts the map `{'a':1, 'b':2}` to `Map{{"a", runtime::Int(1)},
+    {"b", runtime::Int(2)}}`, and the C++ side of the FFI converts to
+    `Map{{"a", IntImm(1)}, {"b", IntImm(2)}}`.
+    """
+
+    func = tvm.get_global_func("testing.AcceptsMapOfPrimExpr")
+
+    res = func({"a": 1, "b": False})
+    assert isinstance(res["a"], tvm.tir.IntImm)
+    assert res["a"].dtype == "int32"
+    assert isinstance(res["b"], tvm.tir.IntImm)
+    assert res["b"].dtype == "bool"
+
+
 if __name__ == "__main__":
     tvm.testing.main()

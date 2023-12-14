@@ -35,7 +35,7 @@ from tvm.te.tensor import Tensor
 # pylint: disable=invalid-name
 np_arg_types = (numpy.ndarray, *numeric_types)
 tvm_arg_types = (Tensor, Array, _expr.Var, _expr.ConstExpr, *numeric_types, list, tuple, str)
-halide_imm_types = (_expr.IntImm, _expr.FloatImm)
+halide_imm_types = (_expr.IntImm, _expr.FloatImm, *numeric_types)
 
 
 def _internal_assert(cond, err):
