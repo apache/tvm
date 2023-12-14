@@ -514,6 +514,7 @@ struct ObjectTypeChecker<Array<T>> {
   }
   static std::string TypeName() { return "Array[" + ObjectTypeChecker<T>::TypeName() + "]"; }
 };
+
 template <typename K, typename V>
 struct ObjectTypeChecker<Map<K, V>> {
   static Optional<String> CheckAndGetMismatch(const Object* ptr) {
@@ -546,6 +547,37 @@ struct ObjectTypeChecker<Map<K, V>> {
   static std::string TypeName() {
     return "Map[" + ObjectTypeChecker<K>::TypeName() + ", " + ObjectTypeChecker<V>::TypeName() +
            ']';
+  }
+};
+
+template <typename OnlyVariant>
+struct ObjectTypeChecker<Variant<OnlyVariant>> {
+  static Optional<String> CheckAndGetMismatch(const Object* ptr) {
+    return ObjectTypeChecker<OnlyVariant>::CheckAndGetMismatch(ptr);
+  }
+  static bool Check(const Object* ptr) { return ObjectTypeChecker<OnlyVariant>::Check(ptr); }
+  static std::string TypeName() { return "Variant[" + VariantNames() + "]"; }
+  static std::string VariantNames() { return ObjectTypeChecker<OnlyVariant>::TypeName(); }
+};
+
+template <typename FirstVariant, typename... RemainingVariants>
+struct ObjectTypeChecker<Variant<FirstVariant, RemainingVariants...>> {
+  static Optional<String> CheckAndGetMismatch(const Object* ptr) {
+    auto try_first = ObjectTypeChecker<FirstVariant>::CheckAndGetMismatch(ptr);
+    if (!try_first.defined()) {
+      return try_first;
+    }
+
+    return ObjectTypeChecker<Variant<RemainingVariants...>>::CheckAndGetMismatch(ptr);
+  }
+  static bool Check(const Object* ptr) {
+    return ObjectTypeChecker<FirstVariant>::Check(ptr) ||
+           ObjectTypeChecker<Variant<RemainingVariants...>>::Check(ptr);
+  }
+  static std::string TypeName() { return "Variant[" + VariantNames() + "]"; }
+  static std::string VariantNames() {
+    return ObjectTypeChecker<FirstVariant>::TypeName() + ", " +
+           ObjectTypeChecker<Variant<RemainingVariants...>>::VariantNames();
   }
 };
 
@@ -2405,6 +2437,66 @@ struct PackedFuncValueConverter<Array<T>> {
       item_val = std::move(item);
       return PackedFuncValueConverter<T>::From(item_val);
     });
+  }
+};
+
+template <typename T, typename U>
+struct PackedFuncValueConverter<Map<T, U>> {
+  static Map<T, U> From(const TVMArgValue& val) {
+    auto untyped_map = val.AsObjectRef<Map<ObjectRef, ObjectRef>>();
+
+    if (ObjectTypeChecker<Map<T, U>>::Check(untyped_map.get())) {
+      // Early bail-out for common case where no type conversions are
+      // required.
+      return Downcast<Map<T, U>>(untyped_map);
+    }
+
+    Map<T, U> output;
+    for (const auto& kv : untyped_map) {
+      T new_key = [&]() {
+        TVMValue pod_value;
+        int type_code;
+        TVMArgsSetter setter(&pod_value, &type_code);
+        setter(0, kv.first);
+        TVMArgValue pod_arg(pod_value, type_code);
+        return PackedFuncValueConverter<T>::From(pod_arg);
+      }();
+      U new_value = [&]() {
+        TVMValue pod_value;
+        int type_code;
+        TVMArgsSetter setter(&pod_value, &type_code);
+        setter(0, kv.second);
+        TVMArgValue key_arg(pod_value, type_code);
+        return PackedFuncValueConverter<U>::From(key_arg);
+      }();
+      output.Set(new_key, new_value);
+    }
+    return output;
+  }
+  static Map<T, U> From(const TVMRetValue& val) {
+    auto untyped_map = val.AsObjectRef<Map<ObjectRef, ObjectRef>>();
+
+    if (ObjectTypeChecker<Map<T, U>>::Check(untyped_map.get())) {
+      // Early bail-out for common case where no type conversions are
+      // required.
+      return Downcast<Map<T, U>>(untyped_map);
+    }
+
+    Map<T, U> output;
+    for (const auto& kv : untyped_map) {
+      T new_key = [&]() {
+        TVMRetValue pod;
+        pod = kv.first;
+        return PackedFuncValueConverter<T>::From(pod);
+      }();
+      U new_value = [&]() {
+        TVMRetValue pod;
+        pod = kv.second;
+        return PackedFuncValueConverter<U>::From(pod);
+      }();
+      output.Set(new_key, new_value);
+    }
+    return output;
   }
 };
 
