@@ -728,5 +728,197 @@ def test_finalize_public_private_name_conflict():
     assert rx.analysis.well_formed(mod)
 
 
+def test_emit_nested_seqexpr_in_binding_block():
+    """May emit a SeqExpr inside a BindingBlock"""
+
+    bb = rx.BlockBuilder()
+
+    with bb.function("func", []):
+        lhs = bb.emit(rx.const(1, "int64"), "a")
+        rhs = bb.emit(rx.const(2, "int64"), "b")
+        out = bb.emit(rx.op.add(lhs, rhs), "c")
+        bb.emit_func_output(out)
+
+    seq_expr = bb.finalize()["func"].body
+
+    bb = rx.BlockBuilder()
+    with bb.function("func", [], private=True):
+        lhs = bb.emit(rx.const(3, "int64"), "d")
+        rhs = bb.emit(seq_expr, "e")
+        out = bb.emit(rx.op.add(lhs, rhs), "f")
+        bb.emit_func_output(out)
+
+    output = bb.finalize()["func"]
+
+    @R.function(private=True)
+    def expected():
+        d = R.const(3, "int64")
+        a = R.const(1, "int64")
+        b = R.const(2, "int64")
+        c = R.add(a, b)
+        e = c
+        f = R.add(d, e)
+        return f
+
+    tvm.ir.assert_structural_equal(expected, output)
+
+
+def test_emit_nested_dataflow_seqexpr_in_dataflow_block():
+    """May emit a SeqExpr with dataflow inside a DataflowBlock"""
+    bb = rx.BlockBuilder()
+
+    with bb.function("func", []):
+        with bb.dataflow():
+            lhs = bb.emit(rx.const(1, "int64"), "a")
+            rhs = bb.emit(rx.const(2, "int64"), "b")
+            out = bb.emit_output(rx.op.add(lhs, rhs), "c")
+        bb.emit_func_output(out)
+
+    seq_expr = bb.finalize()["func"].body
+
+    bb = rx.BlockBuilder()
+    with bb.function("func", [], private=True):
+        with bb.dataflow():
+            lhs = bb.emit(rx.const(3, "int64"), "d")
+            rhs = bb.emit(seq_expr, "e")
+            out = bb.emit_output(rx.op.add(lhs, rhs), "f")
+        bb.emit_func_output(out)
+
+    output = bb.finalize()["func"]
+
+    @R.function(private=True)
+    def expected():
+        with R.dataflow():
+            d = R.const(3, "int64")
+            a = R.const(1, "int64")
+            b = R.const(2, "int64")
+            c = R.add(a, b)
+            e = c
+            f = R.add(d, e)
+            R.output(c, f)
+        return f
+
+    tvm.ir.assert_structural_equal(expected, output)
+
+
+def test_emit_ill_formed_nested_seqexpr_in_dataflow_block():
+    """May emit a SeqExpr inside a DataflowBlock
+
+    This produces ill-formed code, but cannot be caught at the
+    normalizer.  See also
+    test_emit_well_formed_nested_seqexpr_in_dataflow_block.
+
+    """
+    bb = rx.BlockBuilder()
+
+    with bb.function("func", []):
+        lhs = bb.emit(rx.const(1, "int64"), "a")
+        rhs = bb.emit(rx.const(2, "int64"), "b")
+        out = bb.emit(rx.op.add(lhs, rhs), "c")
+        bb.emit_func_output(out)
+
+    seq_expr = bb.finalize()["func"].body
+
+    bb = rx.BlockBuilder()
+    with bb.function("func", [], private=True):
+        with bb.dataflow():
+            lhs = bb.emit(rx.const(3, "int64"), "d")
+            # This would be ill-formed, as it requires breaking up the
+            # DataflowBlock with a BindingBlock.
+            rhs = bb.emit(seq_expr, "e")
+
+            # We cannot throw an error at that point, because it is
+            # only the later usage of "d" that results in use of a
+            # DataflowVar outside of its home DataflowBlock.
+            out = bb.emit_output(rx.op.add(lhs, rhs), "f")
+        bb.emit_func_output(out)
+
+    output = bb.finalize()["func"]
+
+    assert not rx.analysis.well_formed(tvm.ir.IRModule.from_expr(output))
+
+
+def test_emit_well_formed_nested_seqexpr_in_dataflow_block():
+    """May emit a SeqExpr inside a DataflowBlock
+
+    This produces well-formed code, and should not have any output
+    produced by the normalizer.  See also
+    test_emit_ill_formed_nested_seqexpr_in_dataflow_block.
+    """
+    bb = rx.BlockBuilder()
+
+    with bb.function("func", []):
+        lhs = bb.emit(rx.const(1, "int64"), "a")
+        rhs = bb.emit(rx.const(2, "int64"), "b")
+        out = bb.emit(rx.op.add(lhs, rhs), "c")
+        bb.emit_func_output(out)
+
+    seq_expr = bb.finalize()["func"].body
+
+    bb = rx.BlockBuilder()
+    with bb.function("func", [], private=True):
+        with bb.dataflow():
+            lhs = bb.emit(rx.const(3, "int64"), "d")
+            # This similarly breaks up the DataflowBlock, with
+            # identical steps as the previous test up until this
+            # point.
+            rhs = bb.emit(seq_expr, "e")
+
+            # But the "d" variable isn't used, and so there aren't any
+            # usages of DataflowVar outside of their home
+            # DataflowBlock.
+            out = bb.emit_output(rhs, "f")
+        bb.emit_func_output(out)
+
+    output = bb.finalize()["func"]
+
+    assert rx.analysis.well_formed(tvm.ir.IRModule.from_expr(output))
+
+    @R.function(private=True)
+    def expected() -> R.Tensor((), dtype="int64"):
+        with R.dataflow():
+            d = R.const(3, "int64")
+            R.output()
+        a = R.const(1, "int64")
+        b = R.const(2, "int64")
+        c = R.add(a, b)
+        with R.dataflow():
+            e = c
+            f = e
+            R.output(f)
+        return f
+
+    tvm.ir.assert_structural_equal(expected, output)
+
+
+def test_error_when_unwrapping_dataflowvar():
+    """Checks for ill-formed use of DataflowVar at normalization
+
+    We can check for some illegal unwrapping of SeqExpr, though.  If
+    the inlined non-dataflow SeqExpr uses a DataflowVar, that should
+    trigger an error when the SeqExpr is being unwrapped.
+    """
+    bb = rx.BlockBuilder()
+
+    lhs = rx.Var("a", rx.TensorStructInfo(shape=[], dtype="int64"))
+
+    with bb.function("func", [lhs]):
+        rhs = rx.const(2, "int64")
+        out = bb.emit(rx.op.add(lhs, rhs))
+        bb.emit_func_output(out)
+
+    func = bb.finalize()["func"]
+
+    bb = rx.BlockBuilder()
+    with bb.function("func", [], private=True):
+        with bb.dataflow():
+            local_lhs = bb.emit(rx.const(3, "int64"), "local_a")
+            rhs = bb.emit(func.bind_params({lhs: local_lhs}).body, "f")
+            out = bb.emit_output(rhs, "f")
+
+        with pytest.raises(tvm.TVMError, match="Malformed AST"):
+            bb.emit_func_output(out)
+
+
 if __name__ == "__main__":
     tvm.testing.main()
