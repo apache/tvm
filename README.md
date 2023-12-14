@@ -15,39 +15,62 @@
 <!--- specific language governing permissions and limitations -->
 <!--- under the License. -->
 
-<img src=https://raw.githubusercontent.com/apache/tvm-site/main/images/logo/tvm-logo-small.png width=128/> Open Deep Learning Compiler Stack
+TVM.TL
 ==============================================
-[Documentation](https://tvm.apache.org/docs) |
-[Contributors](CONTRIBUTORS.md) |
-[Community](https://tvm.apache.org/community) |
-[Release Notes](NEWS.md)
+TVM.TL is an extention of TVMScript to write simple and high performance GPU kernels with tensorcores. TVM.TL is currently supported on CUDA deivces with Ampere arch (e.g. 3090, 4090, A100), we plan to extend the support to other archs soon.
 
-[![Build Status](https://ci.tlcpack.ai/buildStatus/icon?job=tvm/main)](https://ci.tlcpack.ai/job/tvm/job/main/)
-[![WinMacBuild](https://github.com/apache/tvm/workflows/WinMacBuild/badge.svg)](https://github.com/apache/tvm/actions?query=workflow%3AWinMacBuild)
+Let's get started with a simple GEMM example.
+```python
+import tvm.tl.language as T
+def matmul(M, N, K, block_M, block_N, block_K, dtype="float16", accum_dtype = "float"):
+    @T.prim_func
+    def main(
+        A: T.Buffer((M, K), dtype),
+        B: T.Buffer((K, N), dtype),
+        C: T.Buffer((M, N), dtype),
+        bias: T.Buffer([N], dtype),
+    ):
+        with T.Kernel(T.ceildiv(N, block_N), T.ceildiv(M, block_M), threads=128) as (bx, by):
+            A_shared = T.alloc_shared((block_M, block_K), dtype)
+            B_shared = T.alloc_shared((block_K, block_N), dtype)
+            C_local = T.alloc_fragment((block_M, block_N), accum_dtype)
+            bias_local = T.alloc_fragment((block_N,), dtype)
+            T.clear(C_local)
+            for k in T.Pipelined(T.ceildiv(K, block_K), num_stages=3):
+                T.copy(A[by * block_M, k * block_K], A_shared)
+                T.copy(B[k * block_K, bx * block_N], B_shared)
+                T.gemm(A_shared, B_shared, C_local)
+            T.copy(bias[bx * block_N], bias_local)
+            for i, j in T.Parallel(block_M, block_N):
+                C_local[i, j] += bias_local[j]
+            T.copy(C_local, C[by * block_M, bx * block_N])
 
-Apache TVM is a compiler stack for deep learning systems. It is designed to close the gap between the
-productivity-focused deep learning frameworks, and the performance- and efficiency-focused hardware backends.
-TVM works with deep learning frameworks to provide end to end compilation to different backends.
+    return main
+```
+Despite this simple examples, tvm.tl can be used to write more complicated examples including convolutions, flash-attention-v2, normalizations, these examples can be found under folder tl_scripts.
 
-License
--------
-TVM is licensed under the [Apache-2.0](LICENSE) license.
+ The performance of our flash-attention is comparable to the manually implementation. (see tl_doc/flash_perf.md).
 
-Getting Started
----------------
-Check out the [TVM Documentation](https://tvm.apache.org/docs/) site for installation instructions, tutorials, examples, and more.
-The [Getting Started with TVM](https://tvm.apache.org/docs/tutorial/introduction.html) tutorial is a great
-place to start.
+## Install
 
-Contribute to TVM
------------------
-TVM adopts apache committer model, we aim to create an open source project that is maintained and owned by the community.
-Check out the [Contributor Guide](https://tvm.apache.org/docs/contribute/).
+Install is similar to tvm. First, fill in USE_CUDA and USE_LLVM in cmake/config.cmake, like this:
+```bash
+set(USE_LLVM "/path/to/llvm-config --link-static")
+set(HIDE_PRIVATE_SYMBOLS ON)
+set(USE_CUDA /usr/local/cuda)
+```
+Then build tvm
+```bash
+mkdir -p build && cd build && cp ../cmake/config.cmake . && cmake .. && make -j && cd -
+export PYTHONPATH="$PYTHONPATH:$PWD/python"
+# some python package required by tvm
+pip install torch attrs cloudpickle decorator psutil synr tornado xgboost
+```
+Note 1: It is recommeneded to use the latest cuda toolkit, because we requires nvcc to jit compile the generated CUDA code.
 
-Acknowledgement
----------------
-We learned a lot from the following projects when building TVM.
-- [Halide](https://github.com/halide/Halide): Part of TVM's TIR and arithmetic simplification module
-  originates from Halide. We also learned and adapted some part of lowering pipeline from Halide.
-- [Loopy](https://github.com/inducer/loopy): use of integer set analysis and its loop transformation primitives.
-- [Theano](https://github.com/Theano/Theano): the design inspiration of symbolic scan operator for recurrence.
+Note 2: Don't forget to clone the submodules.
+
+## Language refernce
+Currently not very detailed.
+
+See tl_doc/language_ref.md
