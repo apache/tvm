@@ -179,7 +179,8 @@ TVM_REGISTER_GLOBAL("topi.strided_slice").set_body([](TVMArgs args, TVMRetValue*
   Array<PrimExpr> end = args[2];
   Array<PrimExpr> strides = args[3];
   Array<Integer> axes = args[4];
-  if (IsConstIntArray(begin) && IsConstIntArray(end) && IsConstIntArray(strides)) {
+  if (IsConstIntArray(begin) && IsConstIntArray(end) && IsConstIntArray(strides) &&
+      IsConstIntArray(x->shape)) {
     Array<Integer> begin_static = args[1];
     Array<Integer> end_static = args[2];
     Array<Integer> strides_static = args[3];
