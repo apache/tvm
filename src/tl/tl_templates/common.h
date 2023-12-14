@@ -13,6 +13,9 @@ using cutlass::tfloat32_t;
 
 #define hexp cutlass::fast_exp
 #define hlog cutlass::fast_log
+#define hsqrt cutlass::fast_sqrt
+#define htanh cutlass::fast_tanh
+#define hpow powf
 
 #define uint unsigned int
 #define uchar unsigned char

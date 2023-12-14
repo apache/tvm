@@ -263,6 +263,8 @@ ReduceArgs ReduceArgs::Parse(const Array<PrimExpr>& args, const Map<Var, Buffer>
     reduce_args.type = ReduceType::kSum;
   else if (reduce_type == "max")
     reduce_args.type = ReduceType::kMax;
+  else if (reduce_type == "min")
+    reduce_args.type = ReduceType::kMin;
   else
     ICHECK(0) << "Unknown reduce type: " << reduce_type;
   reduce_args.clear = args[4].as<Bool>().value();
@@ -270,12 +272,15 @@ ReduceArgs ReduceArgs::Parse(const Array<PrimExpr>& args, const Map<Var, Buffer>
 }
 
 PrimExpr ReduceArgs::MakeInitValue() const {
-  if (type == ReduceType::kSum) {
-    return make_zero(dst->dtype);
-  } else if (type == ReduceType::kMax) {
-    return make_const(dst->dtype, -INFINITY);
-  } else {
-    ICHECK(0);
+  switch (type) {
+    case ReduceType::kSum:
+      return make_zero(dst->dtype);
+    case ReduceType::kMax:
+      return make_const(dst->dtype, -INFINITY);
+    case ReduceType::kMin:
+      return make_const(dst->dtype, INFINITY);
+    default:
+      ICHECK(0);
   }
 }
 
@@ -284,23 +289,30 @@ PrimExpr ReduceArgs::MakeReduce(const PrimExpr& a, const PrimExpr& b) const {
   if (lhs->dtype != rhs->dtype) {
     rhs = Cast(lhs->dtype, rhs);
   }
-
-  if (type == ReduceType::kSum) {
-    return lhs + rhs;
-  } else if (type == ReduceType::kMax) {
-    return Max(lhs, rhs);
-  } else {
-    ICHECK(0);
+  switch (type) {
+    case ReduceType::kSum:
+      return lhs + rhs;
+    case ReduceType::kMax:
+      return Max(lhs, rhs);
+    case ReduceType::kMin:
+      return Min(lhs, rhs);
+    default:
+      ICHECK(0);
+      return PrimExpr(0);
   }
 }
 
 std::string ReduceArgs::MakeCodegenReducer() const {
-  if (type == ReduceType::kSum) {
-    return "tl::SumOp";
-  } else if (type == ReduceType::kMax) {
-    return "tl::MaxOp";
-  } else {
-    ICHECK(0);
+  switch (type) {
+    case ReduceType::kSum:
+      return "tl::SumOp";
+    case ReduceType::kMax:
+      return "tl::MaxOp";
+    case ReduceType::kMin:
+      return "tl::MinOp";
+    default:
+      ICHECK(0);
+      return "";
   }
 }
 

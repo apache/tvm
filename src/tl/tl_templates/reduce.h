@@ -18,6 +18,13 @@ struct MaxOp {
   }
 };
 
+struct MinOp {
+  template <typename T>
+  __device__ inline T operator()(T const& x, T const& y) {
+    return cutlass::fast_min(x, y);
+  }
+};
+
 template <class Reducer, int threads, int scale>
 struct AllReduce {
   static_assert(threads == 1024 or threads == 512 or threads == 256 or threads == 128 or

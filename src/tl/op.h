@@ -88,6 +88,7 @@ struct ReduceArgs {
   enum class ReduceType {
     kSum,
     kMax,
+    kMin,
   } type;
   bool clear;
   static ReduceArgs Parse(const Array<PrimExpr>& args, const Map<Var, Buffer>& vmap);
