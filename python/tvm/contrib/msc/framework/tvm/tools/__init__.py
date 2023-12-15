@@ -17,4 +17,5 @@
 """tvm.contrib.msc.framework.tvm.tools"""
 
 from .prune import *
+from .quantize import *
 from .track import *

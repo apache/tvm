@@ -414,6 +414,14 @@ class BaseRunner(object):
                     self.run(inputs, ret_type="native")
                     break
             plan = pruner.finalize()
+        elif tool_type == ToolType.QUANTIZER:
+            quantizer = self.get_tool(ToolType.QUANTIZER)
+            while not quantizer.calibrated:
+                assert data_loader, "data_loader should be given to plan prune"
+                for inputs in data_loader():
+                    self.run(inputs, ret_type="native")
+                quantizer.calibrate()
+            plan = quantizer.finalize()
         else:
             plan = self.get_tool(tool_type).finalize()
         assert plan, "Failed to create plan for {}".format(tool_type)

@@ -234,6 +234,10 @@ def load_dict(str_dict: str, flavor: str = "json") -> dict:
             dict_obj = json.load(f)
     elif isinstance(str_dict, str):
         dict_obj = json.loads(str_dict)
+    elif isinstance(str_dict, dict):
+        dict_obj = copy_dict(str_dict)
+    else:
+        raise Exception("Unexpected str_dict {}({})".format(str_dict, type(str_dict)))
     assert flavor == "json", "Unexpected flavor for load_dict: " + str(flavor)
     return dict_obj
 
