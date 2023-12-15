@@ -55,9 +55,9 @@
 #include <unordered_map>
 #include <vector>
 
+#include "error_handling.h"
 #include "ssize.h"
 #include "utils.h"
-#include "error_handling.h"
 
 #if defined(_WIN32)
 static inline int poll(struct pollfd* pfd, int nfds, int timeout) {
@@ -307,7 +307,16 @@ class Socket {
       Error("Socket::Close double close the socket or close without create");
     }
   }
-
+  /*!
+   * \return last error of socket operation
+   */
+  static int GetLastErrorCode() {
+#ifdef _WIN32
+    return WSAGetLastError();
+#else
+    return errno;
+#endif
+  }
   /*! \return whether last error was would block */
   static bool LastErrorWouldBlock() {
     int errsv = GetLastErrorCode();
@@ -400,7 +409,8 @@ class TCPSocket : public Socket {
    * \return The accepted socket connection.
    */
   TCPSocket Accept() {
-    SockType newfd = RetryCallOnEINTR([&]() { return accept(sockfd, nullptr, nullptr); });
+    SockType newfd =
+        RetryCallOnEINTR([&]() { return accept(sockfd, nullptr, nullptr); }, GetLastErrorCode);
     if (newfd == INVALID_SOCKET) {
       Socket::Error("Accept");
     }
@@ -414,7 +424,8 @@ class TCPSocket : public Socket {
   TCPSocket Accept(SockAddr* addr) {
     socklen_t addrlen = sizeof(addr->addr);
     SockType newfd = RetryCallOnEINTR(
-        [&]() { return accept(sockfd, reinterpret_cast<sockaddr*>(&addr->addr), &addrlen); });
+        [&]() { return accept(sockfd, reinterpret_cast<sockaddr*>(&addr->addr), &addrlen); },
+        GetLastErrorCode);
     if (newfd == INVALID_SOCKET) {
       Socket::Error("Accept");
     }
@@ -455,7 +466,7 @@ class TCPSocket : public Socket {
   ssize_t Send(const void* buf_, size_t len, int flag = 0) {
     const char* buf = reinterpret_cast<const char*>(buf_);
     return RetryCallOnEINTR(
-        [&]() { return send(sockfd, buf, static_cast<sock_size_t>(len), flag); });
+        [&]() { return send(sockfd, buf, static_cast<sock_size_t>(len), flag); }, GetLastErrorCode);
   }
   /*!
    * \brief receive data using the socket
@@ -468,7 +479,8 @@ class TCPSocket : public Socket {
   ssize_t Recv(void* buf_, size_t len, int flags = 0) {
     char* buf = reinterpret_cast<char*>(buf_);
     return RetryCallOnEINTR(
-        [&]() { return recv(sockfd, buf, static_cast<sock_size_t>(len), flags); });
+        [&]() { return recv(sockfd, buf, static_cast<sock_size_t>(len), flags); },
+        GetLastErrorCode);
   }
   /*!
    * \brief perform block write that will attempt to send all data out
@@ -482,7 +494,8 @@ class TCPSocket : public Socket {
     size_t ndone = 0;
     while (ndone < len) {
       ssize_t ret = RetryCallOnEINTR(
-          [&]() { return send(sockfd, buf, static_cast<ssize_t>(len - ndone), 0); });
+          [&]() { return send(sockfd, buf, static_cast<ssize_t>(len - ndone), 0); },
+          GetLastErrorCode);
       if (ret == -1) {
         if (LastErrorWouldBlock()) return ndone;
         Socket::Error("SendAll");
@@ -504,7 +517,8 @@ class TCPSocket : public Socket {
     size_t ndone = 0;
     while (ndone < len) {
       ssize_t ret = RetryCallOnEINTR(
-          [&]() { return recv(sockfd, buf, static_cast<sock_size_t>(len - ndone), MSG_WAITALL); });
+          [&]() { return recv(sockfd, buf, static_cast<sock_size_t>(len - ndone), MSG_WAITALL); },
+          GetLastErrorCode);
       if (ret == -1) {
         if (LastErrorWouldBlock()) {
           LOG(FATAL) << "would block";

@@ -28,16 +28,6 @@
 namespace tvm {
 namespace support {
 /*!
- * \return last error of socket operation
- */
-static int GetLastErrorCode() {
-#ifdef _WIN32
-  return WSAGetLastError();
-#else
-  return errno;
-#endif
-}
-/*!
  * \brief Call a function and retry if an EINTR error is encountered.
  *
  *  Socket operations can return EINTR when the interrupt handler
@@ -51,14 +41,14 @@ static int GetLastErrorCode() {
  * \param func The function to retry.
  * \return The return code returned by function f or error_value on retry failure.
  */
-template <typename FuncType>
-inline ssize_t RetryCallOnEINTR(FuncType func) {
+template <typename FuncType, typename GetErrorCodeFuncType>
+inline ssize_t RetryCallOnEINTR(FuncType func, GetErrorCodeFuncType fgeterrorcode) {
   ssize_t ret = func();
   // common path
   if (ret != -1) return ret;
   // less common path
   do {
-    if (GetLastErrorCode() == EINTR) {
+    if (fgeterrorcode() == EINTR) {
       // Call into env check signals to see if there are
       // environment specific(e.g. python) signal exceptions.
       // This function will throw an exception if there is

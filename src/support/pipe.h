@@ -56,6 +56,18 @@ class Pipe : public dmlc::Stream {
 
   using Stream::Read;
   using Stream::Write;
+
+  /*!
+   * \return last error of pipe operation
+   */
+  static int GetLastErrorCode() {
+#ifdef _WIN32
+    return GetLastError();
+#else
+    return errno;
+#endif
+  }
+
   /*!
    * \brief reads data from a file descriptor
    * \param ptr pointer to a memory buffer
@@ -65,12 +77,15 @@ class Pipe : public dmlc::Stream {
   size_t Read(void* ptr, size_t size) final {
     if (size == 0) return 0;
 #ifdef _WIN32
-    DWORD nread;
-    ICHECK(ReadFile(handle_, static_cast<TCHAR*>(ptr), size, &nread, nullptr))
-        << "Read Error: " << GetLastError();
+    auto fread = [&]() {
+      DWORD nread;
+      if (!ReadFile(handle_, static_cast<TCHAR*>(ptr), size, &nread, nullptr)) return -1;
+      return nread;
+    };
+    DWORD nread = RetryCallOnEINTR(fread, GetLastErrorCode);
+    ICHECK_EQ(static_cast<size_t>(nread), size) << "Read Error: " << GetLastError();
 #else
-    ssize_t nread = RetryCallOnEINTR(
-          [&]() { return read(handle_, ptr, size); });
+    ssize_t nread = RetryCallOnEINTR([&]() { return read(handle_, ptr, size); }, GetLastErrorCode);
     ICHECK_GE(nread, 0) << "Write Error: " << strerror(errno);
 #endif
     return static_cast<size_t>(nread);
@@ -84,13 +99,16 @@ class Pipe : public dmlc::Stream {
   void Write(const void* ptr, size_t size) final {
     if (size == 0) return;
 #ifdef _WIN32
-    DWORD nwrite;
-    ICHECK(WriteFile(handle_, static_cast<const TCHAR*>(ptr), size, &nwrite, nullptr) &&
-           static_cast<size_t>(nwrite) == size)
-        << "Write Error: " << GetLastError();
+    auto fwrite = [&]() {
+      DWORD nwrite;
+      if (!WriteFile(handle_, static_cast<const TCHAR*>(ptr), size, &nwrite, nullptr)) return -1;
+      return nwrite;
+    };
+    DWORD nwrite = RetryCallOnEINTR(fwrite, GetLastErrorCode);
+    ICHECK_EQ(static_cast<size_t>(nwrite), size) << "Write Error: " << GetLastError();
 #else
-    ssize_t nwrite = RetryCallOnEINTR(
-          [&]() { return write(handle_, ptr, size); });
+    ssize_t nwrite =
+        RetryCallOnEINTR([&]() { return write(handle_, ptr, size); }, GetLastErrorCode);
     ICHECK_EQ(static_cast<size_t>(nwrite), size) << "Write Error: " << strerror(errno);
 #endif
   }
