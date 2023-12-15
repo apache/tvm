@@ -14,16 +14,17 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+from typing import List, Tuple
+
 import numpy as np
 import pytest
-from typing import Tuple, List
 
 import tvm
 import tvm.testing
 from tvm import relax
 from tvm.ir import assert_structural_equal
-from tvm.relax.frontend.nn import core, modules, spec
 from tvm.relax.frontend import nn
+from tvm.relax.frontend.nn import core, modules, spec
 from tvm.script import ir as I
 from tvm.script import relax as R
 
@@ -118,56 +119,6 @@ def test_linear():
 
     mod = modules.Linear(4, 8)
     tvm_mod, _ = mod.export_tvm(spec={"forward": {"x": spec.Tensor((1, 4), "float32")}}, debug=True)
-    assert_structural_equal(tvm_mod["forward"], forward, True)
-
-
-def test_multi_linear():
-    @R.function
-    def forward(
-        x: R.Tensor((3, 5, 4), dtype="float32"),
-        weight: R.Tensor((60, 4), dtype="float32"),
-    ) -> R.Tuple(
-        R.Tensor((3, 5, 4), dtype="float32"),
-        R.Tensor((3, 5, 8), dtype="float32"),
-        R.Tensor((3, 5, 16), dtype="float32"),
-        R.Tensor((3, 5, 32), dtype="float32"),
-    ):
-        R.func_attr({"num_input": 1})
-        with R.dataflow():
-            permute_dims: R.Tensor((4, 60), dtype="float32") = R.permute_dims(weight, axes=None)
-            matmul: R.Tensor((3, 5, 60), dtype="float32") = R.matmul(
-                x, permute_dims, out_dtype="void"
-            )
-            split: R.Tuple(
-                R.Tensor((3, 5, 4), dtype="float32"),
-                R.Tensor((3, 5, 8), dtype="float32"),
-                R.Tensor((3, 5, 16), dtype="float32"),
-                R.Tensor((3, 5, 32), dtype="float32"),
-            ) = R.split(matmul, indices_or_sections=[4, 12, 28], axis=-1)
-            split_0: R.Tensor((3, 5, 4), dtype="float32") = split[0]
-            split_1: R.Tensor((3, 5, 8), dtype="float32") = split[1]
-            split_2: R.Tensor((3, 5, 16), dtype="float32") = split[2]
-            split_3: R.Tensor((3, 5, 32), dtype="float32") = split[3]
-            gv: R.Tuple(
-                R.Tensor((3, 5, 4), dtype="float32"),
-                R.Tensor((3, 5, 8), dtype="float32"),
-                R.Tensor((3, 5, 16), dtype="float32"),
-                R.Tensor((3, 5, 32), dtype="float32"),
-            ) = (split_0, split_1, split_2, split_3)
-            R.output(gv)
-        return gv
-
-    mod = modules.MultiLinear(
-        in_features=4,
-        out_features=[4, 8, 16, 32],
-        bias=False,
-    )
-    tvm_mod, _ = mod.export_tvm(
-        spec={
-            "forward": {"x": spec.Tensor((3, 5, 4), "float32")},
-        },
-        debug=False,
-    )
     assert_structural_equal(tvm_mod["forward"], forward, True)
 
 

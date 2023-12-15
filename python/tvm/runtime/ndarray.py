@@ -18,6 +18,7 @@
 """Runtime NDArray API"""
 import ctypes
 import warnings
+
 import numpy as np
 
 try:
@@ -25,24 +26,38 @@ try:
 except ImportError:
     ml_dtypes = None
 import tvm._ffi
+from tvm._ffi.base import _FFI_MODE, _LIB, c_array, check_call, string_types
+from tvm._ffi.runtime_ctypes import (
+    DataType,
+    DataTypeCode,
+    Device,
+    TVMArray,
+    TVMArrayHandle,
+    tvm_shape_index_t,
+)
 
-from tvm._ffi.base import _LIB, check_call, c_array, string_types, _FFI_MODE
-from tvm._ffi.runtime_ctypes import DataType, Device, TVMArray, TVMArrayHandle
-from tvm._ffi.runtime_ctypes import DataTypeCode, tvm_shape_index_t
 from . import _ffi_api
 
 try:
     # pylint: disable=wrong-import-position
     if _FFI_MODE == "ctypes":
         raise ImportError()
-    from tvm._ffi._cy3.core import _set_class_ndarray, _make_array, _from_dlpack
-    from tvm._ffi._cy3.core import NDArrayBase
+    from tvm._ffi._cy3.core import (
+        NDArrayBase,
+        _from_dlpack,
+        _make_array,
+        _set_class_ndarray,
+    )
 except (RuntimeError, ImportError) as error:
     # pylint: disable=wrong-import-position
     if _FFI_MODE == "cython":
         raise error
-    from tvm._ffi._ctypes.ndarray import _set_class_ndarray, _make_array, _from_dlpack
-    from tvm._ffi._ctypes.ndarray import NDArrayBase
+    from tvm._ffi._ctypes.ndarray import (
+        NDArrayBase,
+        _from_dlpack,
+        _make_array,
+        _set_class_ndarray,
+    )
 
 
 @tvm._ffi.register_object("runtime.NDArray")
@@ -324,6 +339,8 @@ def device(dev_type, dev_id=0):
       assert tvm.device("cpu", 1) == tvm.cpu(1)
       assert tvm.device("cuda", 0) == tvm.cuda(0)
     """
+    if isinstance(dev_type, Device):
+        return dev_type
     if not isinstance(dev_id, int):
         raise ValueError(f"Invalid device id: {dev_id}")
 

@@ -317,13 +317,12 @@ def build(
     if not params:
         params = {}
 
-    ext_libs, constants = _extract_attrs(mod)
-    params.update(dict(constants))
-
     if pipeline is not None:
         if isinstance(pipeline, str):
             pipeline = relax.get_pipeline(pipeline)
         mod = pipeline(mod)
+    ext_libs, constants = _extract_attrs(mod)
+    params.update(dict(constants))
     builder = relax.ExecBuilder()
     mod = _vmcodegen(builder, mod, exec_mode)
     return _vmlink(

@@ -17,10 +17,10 @@
 """Detect target."""
 from typing import Union
 
-from . import Target
 from .._ffi import get_global_func
 from .._ffi.runtime_ctypes import Device
 from ..runtime.ndarray import device
+from . import Target
 
 
 def _detect_metal(dev: Device) -> Target:
@@ -74,6 +74,23 @@ def _detect_vulkan(dev: Device) -> Target:
     )
 
 
+def _detect_cpu(dev: Device) -> Target:  # pylint: disable=unused-argument
+    """Detect the host CPU architecture."""
+    return Target(
+        {
+            "kind": "llvm",
+            "mtriple": get_global_func(
+                "tvm.codegen.llvm.GetDefaultTargetTriple",
+                allow_missing=False,
+            )(),
+            "mcpu": get_global_func(
+                "tvm.codegen.llvm.GetHostCPUName",
+                allow_missing=False,
+            )(),
+        }
+    )
+
+
 def detect_target_from_device(dev: Union[str, Device]) -> Target:
     """Detects Target associated with the given device. If the device does not exist,
     there will be an Error.
@@ -102,11 +119,11 @@ def detect_target_from_device(dev: Union[str, Device]) -> Target:
             f"Cannot detect device `{dev}`. Please make sure the device and its driver "
             "is installed properly, and TVM is compiled with the driver"
         )
-    target = SUPPORT_DEVICE[device_type](dev)
-    return target
+    return SUPPORT_DEVICE[device_type](dev)
 
 
 SUPPORT_DEVICE = {
+    "cpu": _detect_cpu,
     "cuda": _detect_cuda,
     "metal": _detect_metal,
     "vulkan": _detect_vulkan,
