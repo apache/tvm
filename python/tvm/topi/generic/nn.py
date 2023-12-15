@@ -395,6 +395,22 @@ def schedule_conv1d_transpose_ncw(outs):
     """
     return _default_schedule(outs, False)
 
+def schedule_group_conv1d_transpose_ncw(outs):
+    """Schedule for group_conv1d_transpose_ncw
+
+    Parameters
+    ----------
+    outs: Array of Tensor
+        The computation graph description of group conv1d_transpose_ncw
+        in the format of an array of tensors.
+
+    Returns
+    -------
+    s: Schedule
+        The computation schedule for the op.
+    """
+    return _default_schedule(outs, False)
+
 
 def schedule_depthwise_conv2d_nchw(outs):
     """Schedule for depthwise_conv2d_nchw

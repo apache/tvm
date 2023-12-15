@@ -91,3 +91,98 @@ def conv1d_transpose_ncw(data, kernel, stride, padding, out_dtype, output_paddin
     )
 
     return output
+
+
+def group_conv1d_transpose_ncw(data, kernel, stride, padding, out_dtype, output_padding, groups):
+    """Transposed 1D group convolution ncw forward operator.
+
+    Parameters
+    ----------
+    data : tvm.te.Tensor
+        3-D with shape [batch, in_channel, in_width]
+
+    kernel : tvm.te.Tensor
+        3-D with shape [in_channel, num_filter, filter_width]
+
+    stride : ints
+        The spatial stride along width
+
+    padding : int or str
+        Padding size, or ['VALID', 'SAME']
+
+    out_dtype : str
+        The output data type. This is used for mixed precision.
+
+    output_padding : ints
+        Used to recover the actual output shape in case there are more
+        than one possible shape.  Must be smaller than stride.
+
+     groups : int
+        number of groups
+
+    Returns
+    -------
+    output : tvm.te.Tensor
+        3-D with shape [batch, out_channel, out_width]
+
+    """
+    if groups == 1:
+        return conv1d_transpose_ncw(data, kernel, stride, padding, out_dtype, output_padding)
+
+    # some pre-processing and prelimnary checks
+    if out_dtype is None:
+        out_dtype = data.dtype
+
+    # dilate and pad
+    if isinstance(stride, (tuple, list)):
+        stride = stride[0]
+    if isinstance(output_padding, (tuple, list)):
+        output_padding = output_padding[0]
+
+    batch, in_channels, in_w = data.shape
+    _, out_c, filter_w = kernel.shape
+    assert in_channels % groups == 0, f"input channels {in_channels} must divide group size {groups}"
+
+    batch, channels_in, data_width = data.shape
+    _, channels_out, kernel_width = kernel.shape
+    assert output_padding < stride
+    channels_out = simplify(channels_out)
+    data_dilate = dilate(data, [1, 1, stride], name="data_dilate")
+    pad_left, pad_right = get_pad_tuple1d(padding, (kernel_width,))
+    pad_left = kernel_width - 1 - pad_left
+    pad_right = kernel_width - 1 - pad_right + output_padding
+    data_pad = pad(data_dilate, [0, 0, pad_left], [0, 0, pad_right], name="data_pad")
+
+    # transform kernel layout from IOHW to OIHW, and rotate kernel by 180 degrees
+    kernel = te.compute(
+        (channels_out, channels_in, kernel_width),
+        lambda o, i, w: kernel[i][o][kernel_width - 1 - w],
+        name="kernel",
+    )
+
+    batch, in_channels, in_w = data_pad.shape
+    out_c, _, filter_w = kernel.shape
+
+    # convolution stage
+    out_channels = simplify(out_c * groups)
+    out_w = simplify(in_w - filter_w + 1)
+    dc = te.reduce_axis((0, in_channels // groups), name="dc")
+    dw = te.reduce_axis((0, filter_w), name="dw")
+
+    # data: batch, in_channels, out_w
+    # weight: out_channels // G, in_channels, out_w
+    return te.compute(
+        (batch, out_channels, out_w),
+        lambda b, c, w: te.sum(
+            data_pad[b, c // (out_channels // groups) * (in_channels // groups) + dc, w + dw].astype(
+                out_dtype
+            )
+            * kernel[
+                c % (out_channels // groups),
+                c // (out_channels // groups) * (in_channels // groups) + dc,
+                dw,
+            ].astype(out_dtype),
+            axis=[dc, dw],
+        ),
+        tag="group_conv1d_transpose_ncw",
+    )
