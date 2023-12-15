@@ -500,15 +500,11 @@ Layout makeGemmABLayoutLinear(int stride, int continuous, int pad = 0) {
   return Layout({i, j}, {i * (continuous + pad) + j});
 }
 
-Layout makeGemmABLayout(int stride, int continuous, int element_size, int kfactor) {
-  // some special cases
-  if (element_size == 64 && kfactor == 1) return makeGemmABLayoutF64Congruous(stride, continuous);
-  if (element_size == 64 && kfactor == 2) return makeGemmABLayoutF64Crosswise(stride, continuous);
-  if (element_size == 32 && kfactor == 1) return makeGemmABLayoutF32Congruous(stride, continuous);
-  if (element_size == 8 && kfactor == 1) return makeGemmABLayoutLinear(stride, continuous, 16);
-
+Layout makeGemmABLayoutCommon(int stride, int continuous, int element_size, int kfactor) {
   int access_elements = 128 / element_size;
   ICHECK(kfactor == 1 || kfactor == 2);
+  // can satisfy 8 x 128bits access
+  ICHECK(continuous * element_size * kfactor % 1024 == 0);
   int tile_shape[2] = {8 / kfactor, std::max(8 / kfactor, 4)};
   int partition_shape[2] = {4, 4};
   IterVar i = make_itervar("i", stride);
@@ -538,6 +534,15 @@ Layout makeGemmABLayout(int stride, int continuous, int element_size, int kfacto
 
   PrimExpr final_offset = vec_strided_idx * continuous * kfactor + element_contiguous;
   return Layout({i, j}, {final_offset});
+}
+
+Layout makeGemmABLayout(int stride, int continuous, int element_size, int kfactor) {
+  // some special cases
+  if (element_size == 64 && kfactor == 1) return makeGemmABLayoutF64Congruous(stride, continuous);
+  if (element_size == 64 && kfactor == 2) return makeGemmABLayoutF64Crosswise(stride, continuous);
+  if (element_size == 32 && kfactor == 1) return makeGemmABLayoutF32Congruous(stride, continuous);
+  if (element_size == 8 && kfactor == 1) return makeGemmABLayoutLinear(stride, continuous, 16);
+  return makeGemmABLayoutCommon(stride, continuous, element_size, kfactor);
 }
 
 TVM_REGISTER_NODE_TYPE(LayoutNode);
