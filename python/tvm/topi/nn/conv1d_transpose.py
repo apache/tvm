@@ -141,7 +141,9 @@ def group_conv1d_transpose_ncw(data, kernel, stride, padding, out_dtype, output_
 
     batch, in_channels, in_w = data.shape
     _, out_c, filter_w = kernel.shape
-    assert in_channels % groups == 0, f"input channels {in_channels} must divide group size {groups}"
+    assert (
+        in_channels % groups == 0
+    ), f"input channels {in_channels} must divide group size {groups}"
 
     batch, channels_in, data_width = data.shape
     _, channels_out, kernel_width = kernel.shape
@@ -174,9 +176,9 @@ def group_conv1d_transpose_ncw(data, kernel, stride, padding, out_dtype, output_
     return te.compute(
         (batch, out_channels, out_w),
         lambda b, c, w: te.sum(
-            data_pad[b, c // (out_channels // groups) * (in_channels // groups) + dc, w + dw].astype(
-                out_dtype
-            )
+            data_pad[
+                b, c // (out_channels // groups) * (in_channels // groups) + dc, w + dw
+            ].astype(out_dtype)
             * kernel[
                 c % (out_channels // groups),
                 c // (out_channels // groups) * (in_channels // groups) + dc,
