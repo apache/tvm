@@ -14,9 +14,12 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+
+import pytest
+
 import tvm
 import tvm.testing
-from tvm.script import tir as T
+from tvm.script import ir as I, tir as T
 
 
 def test_pass_simple():
@@ -52,6 +55,72 @@ def test_fail_use_out_loop_var():
                 B[vi, vj] = A[i, vj] * 2.0
 
     assert not tvm.tir.analysis.verify_well_formed(element_wise, assert_mode=False)
+
+
+def test_error_for_out_of_scope_usage():
+    """A variable may not be used after its scope ends"""
+
+    @T.prim_func
+    def func():
+        i = T.int32()
+        with T.LetStmt(42, var=i):
+            T.evaluate(i)
+        T.evaluate(i)
+
+    with pytest.raises(ValueError, match="Invalid use of variable i at .* no longer in-scope."):
+        tvm.tir.analysis.verify_well_formed(func)
+
+
+def test_error_for_nested_rebind_usage():
+    """A variable may not be re-defined within the initial scope"""
+
+    @T.prim_func
+    def func():
+        i = T.int32()
+        with T.LetStmt(42, var=i):
+            with T.LetStmt(42, var=i):
+                T.evaluate(i)
+
+    with pytest.raises(
+        ValueError, match="ill-formed, due to multiple nested definitions of variable i"
+    ):
+        tvm.tir.analysis.verify_well_formed(func)
+
+
+def test_error_for_repeated_binding():
+    """A variable may not be re-defined after the scope ends"""
+
+    @T.prim_func
+    def func():
+        i = T.int32()
+        with T.LetStmt(42, var=i):
+            T.evaluate(i)
+        with T.LetStmt(17, var=i):
+            T.evaluate(i)
+
+    with pytest.raises(ValueError, match="multiple definitions of variable i"):
+        tvm.tir.analysis.verify_well_formed(func)
+
+
+def test_error_for_cross_function_reuse():
+    """A variable may not be re-defined in another function"""
+
+    i = tvm.tir.Var("i", "int32")
+
+    @I.ir_module
+    class mod:
+        @T.prim_func
+        def func1():
+            with T.LetStmt(42, var=i):
+                T.evaluate(i)
+
+        @T.prim_func
+        def func2():
+            with T.LetStmt(42, var=i):
+                T.evaluate(i)
+
+    with pytest.raises(ValueError, match="multiple definitions of variable i"):
+        tvm.tir.analysis.verify_well_formed(mod)
 
 
 if __name__ == "__main__":
