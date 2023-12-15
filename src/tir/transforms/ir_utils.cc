@@ -750,13 +750,8 @@ Pass ConvertSSA() {
     tir::IRConvertSSA converter;
     Map<GlobalVar, BaseFunc> functions;
     bool made_change = false;
-    // FIXME: This is just a temporal workaround to ensure free vars
-    // in device function have the same pointer as the host function
     for (auto [gvar, base_func] : mod->functions) {
       if (auto* ptr = base_func.as<tir::PrimFuncNode>()) {
-        if (!ptr->HasNonzeroAttr(tir::attr::kIsEntryFunc)) {
-          continue;
-        }
         auto updated = converter.VisitPrimFunc(GetRef<tir::PrimFunc>(ptr));
         if (!updated.same_as(base_func)) {
           made_change = true;
@@ -764,19 +759,6 @@ Pass ConvertSSA() {
         }
       }
       functions.Set(gvar, base_func);
-    }
-    for (auto [gvar, base_func] : mod->functions) {
-      if (auto* ptr = base_func.as<tir::PrimFuncNode>()) {
-        if (ptr->HasNonzeroAttr(tir::attr::kIsEntryFunc)) {
-          continue;
-        }
-        auto updated = converter.VisitPrimFunc(GetRef<tir::PrimFunc>(ptr));
-        if (!updated.same_as(base_func)) {
-          made_change = true;
-          base_func = updated;
-        }
-        functions.Set(gvar, base_func);
-      }
     }
     if (made_change) {
       mod.CopyOnWrite()->functions = std::move(functions);
