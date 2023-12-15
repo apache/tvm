@@ -176,7 +176,7 @@ def _vmcodegen(
         return _ffi_api.VMCodeGen(builder, mod)  # type:ignore
     if exec_mode == "compiled":
         return _ffi_api.VMTIRCodeGen(builder, mod)  # type: ignore
-    raise ValueError("Unknown exec_mode %s" % exec_mode)
+    raise ValueError(f"Unknown exec_mode {exec_mode}")
 
 
 def _autodetect_system_lib_req(target: tvm.target.Target, system_lib):
@@ -248,7 +248,7 @@ def build(
     mod: tvm.IRModule,
     target: Union[str, tvm.target.Target],
     params: Optional[Dict[str, list]] = None,
-    pipeline: str = "default_build",
+    pipeline: Union[None, str, tvm.transform.Pass] = "default_build",
     exec_mode: str = "bytecode",
     *,
     system_lib: Optional[bool] = None,
@@ -305,26 +305,35 @@ def build(
         target = tvm.target.Target("llvm", host="llvm")
         ex = relax.build(mod, target)
     """
+
+    def _extract_attrs(mod: tvm.IRModule):
+        attrs = dict(mod.attrs) if mod.attrs else {}
+        ext_libs = attrs.get("external_mods", [])
+        constants = attrs.get("const_name_to_constant", {})
+        return ext_libs, constants
+
     if isinstance(target, str):
         target = tvm.target.Target(target)
+    if not params:
+        params = {}
 
-    new_mod = relax.get_pipeline(pipeline)(mod)
-    # Extract external runtime modules if exist.
-    attrs = dict(mod.attrs) if mod.attrs else {}
+    ext_libs, constants = _extract_attrs(mod)
+    params.update(dict(constants))
 
-    ext_libs = attrs.get("external_mods", [])
-    constants = attrs.get("const_name_to_constant", {})
-
-    if params is not None:
-        params.update(dict(constants))
-    else:
-        params = constants
-
-    # builder collects the executable
+    if pipeline is not None:
+        if isinstance(pipeline, str):
+            pipeline = relax.get_pipeline(pipeline)
+        mod = pipeline(mod)
     builder = relax.ExecBuilder()
-    leftover_mod = _vmcodegen(builder, new_mod, exec_mode=exec_mode)
-    tir_mod = _filter_tir(leftover_mod)
-    return _vmlink(builder, target, tir_mod, ext_libs, params, system_lib=system_lib)
+    mod = _vmcodegen(builder, mod, exec_mode)
+    return _vmlink(
+        builder=builder,
+        target=target,
+        tir_mod=_filter_tir(mod),
+        ext_libs=ext_libs,
+        params=params,
+        system_lib=system_lib,
+    )
 
 
 def _filter_tir(mod: tvm.IRModule) -> tvm.IRModule:

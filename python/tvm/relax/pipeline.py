@@ -95,7 +95,7 @@ def default_build_pipeline():
                 transform.AttachGlobalSymbol(),
             ],
         )
-        mod = seq(mod._move())  # pylint: disable=protected-access
+        mod = seq(mod)
         return mod
 
     return _pipeline
