@@ -36,7 +36,7 @@
 #include <cstdlib>
 #include <cstring>
 #endif
-#include "error_handling.h"
+#include "errno_handling.h"
 
 namespace tvm {
 namespace support {
