@@ -255,3 +255,25 @@ class PassTimingInstrument(tvm.runtime.Object):
                 profiles = timing_inst.render()
         """
         return _ffi_instrument_api.RenderTimePassProfiles()
+
+
+@pass_instrument
+class PassPrintBefore:
+    def __init__(self, print_pass_name):
+        self.print_pass_name = print_pass_name
+
+    def run_before_pass(self, mod, pass_info):
+        if pass_info.name in self.print_pass_name:
+            print("Print ir before:")
+            print(str(pass_info.name) + "\n" + str(mod) + "\n\n")
+
+
+@pass_instrument
+class PassPrintAfter:
+    def __init__(self, print_pass_name):
+        self.print_pass_name = print_pass_name
+
+    def run_after_pass(self, mod, pass_info):
+        if pass_info.name in self.print_pass_name:
+            print("Print ir after:")
+            print(str(pass_info.name) + "\n" + str(mod) + "\n\n")

@@ -201,7 +201,6 @@ def paddle_model(paddle_resnet50):
 @mock.patch.object(compiler, "compile_model")
 # @mock.patch.object(compiler, "compile_model")
 def test_tvmc_compile_input_model(mock_compile_model, tmpdir_factory, model):
-
     output_dir = tmpdir_factory.mktemp("output")
     output_file = output_dir / "model.tar"
 
@@ -288,4 +287,38 @@ def test_tvmc_print_pass_times(capsys, keras_simple, tmpdir_factory):
     # Check for timing results output
     captured_out = capsys.readouterr().out
     for exp_str in ("Compilation time breakdown by pass:", "sequential:", "us]"):
+        assert exp_str in captured_out
+
+
+def test_tvmc_print_ir_before(capsys, keras_simple, tmpdir_factory):
+    pytest.importorskip("tensorflow")
+    tmpdir = tmpdir_factory.mktemp("out")
+    print_cmd = "--print-ir-before=[tir.SplitHostDevice]"
+
+    # Compile model
+    module_file = os.path.join(tmpdir, "keras-tvm.tar")
+    compile_cmd = f"tvmc compile --target 'llvm' {keras_simple} --output {module_file} {print_cmd}"
+    compile_args = compile_cmd.split(" ")[1:]
+    _main(compile_args)
+
+    # Check for timing results output
+    captured_out = capsys.readouterr().out
+    for exp_str in ("Print ir before:\n", "tir.SplitHostDevice\n"):
+        assert exp_str in captured_out
+
+
+def test_tvmc_print_ir_after(capsys, keras_simple, tmpdir_factory):
+    pytest.importorskip("tensorflow")
+    tmpdir = tmpdir_factory.mktemp("out")
+    print_cmd = "--print-ir-after=[tir.SplitHostDevice]"
+
+    # Compile model
+    module_file = os.path.join(tmpdir, "keras-tvm.tar")
+    compile_cmd = f"tvmc compile --target 'llvm' {keras_simple} --output {module_file} {print_cmd}"
+    compile_args = compile_cmd.split(" ")[1:]
+    _main(compile_args)
+
+    # Check for timing results output
+    captured_out = capsys.readouterr().out
+    for exp_str in ("Print ir after:\n", "tir.SplitHostDevice\n"):
         assert exp_str in captured_out
