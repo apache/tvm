@@ -50,8 +50,8 @@ TVM_REGISTER_GLOBAL("cutlass.ft_preprocess_weight")
       if (is_int4) {
         cols *= 2;
       }
-      fastertransformer::preprocess_weights(output_cpu.data(), input_cpu.data(),
-                                            is_2d ? -1 : num_experts, rows, cols, is_int4, sm);
+      fastertransformer::preprocess_weights(output_cpu.data(), input_cpu.data(), num_experts, rows,
+                                            cols, is_int4, sm);
       auto out = NDArray::Empty(packed_weight.Shape(), packed_weight->dtype, packed_weight->device);
       out.CopyFromBytes(output_cpu.data(), output_cpu.size());
       return out;
