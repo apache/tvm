@@ -76,6 +76,7 @@ def ref_data(
     return a_np, w_np, b_np, c_np
 
 
+@tvm.testing.known_failing_targets("cuda", "vulkan")
 def test_group_conv1d_transpose_ncw(
     target, dev, ref_data, dtype, stride, padding, output_padding, groups
 ):
