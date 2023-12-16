@@ -34,7 +34,7 @@ namespace tl {
 bool TargetIsCuda(const TargetNode* target);
 
 bool TargetIsVolta(const TargetNode* target);
-
+bool TargetIsTuring(const TargetNode* target);
 bool TargetIsAmpere(const TargetNode* target);
 
 bool TargetHasAsyncCopy(const TargetNode* target);

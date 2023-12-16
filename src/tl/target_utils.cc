@@ -45,6 +45,12 @@ bool TargetIsVolta(const TargetNode* target) {
   return arch >= 70 && arch < 75;
 }
 
+bool TargetIsTuring(const TargetNode* target) {
+  if (!TargetIsCuda(target)) return false;
+  int arch = GetArchInt(target);
+  return arch >= 75 && arch < 80;
+}
+
 bool TargetIsAmpere(const TargetNode* target) {
   if (!TargetIsCuda(target)) return false;
   int arch = GetArchInt(target);

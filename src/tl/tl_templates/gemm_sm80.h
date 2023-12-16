@@ -9,6 +9,8 @@ using cutlass::gemm::GemmShape;
 
 template <typename A_type, typename B_type, typename C_type>
 struct DispatchInstruction;
+
+#if (defined(__CUDA_ARCH__) && (__CUDA_ARCH__ >= 800))
 template <>
 struct DispatchInstruction<half_t, half_t, half_t> {
   using Shape = GemmShape<16, 8, 16>;
@@ -33,6 +35,20 @@ template <>
 struct DispatchInstruction<int8_t, int8_t, int> {
   using Shape = GemmShape<16, 8, 32>;
 };
+#elif (defined(__CUDA_ARCH__) && (__CUDA_ARCH__ >= 750))
+template <>
+struct DispatchInstruction<half_t, half_t, half_t> {
+  using Shape = GemmShape<16, 8, 8>;
+};
+template <>
+struct DispatchInstruction<half_t, half_t, float> {
+  using Shape = GemmShape<16, 8, 8>;
+};
+template <>
+struct DispatchInstruction<int8_t, int8_t, int> {
+  using Shape = GemmShape<8, 8, 16>;
+};
+#endif
 
 template <typename T, bool transpose, int M, int K>
 struct DispatchSharedMemoryLayoutA;

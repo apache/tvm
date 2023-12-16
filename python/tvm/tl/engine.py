@@ -39,9 +39,12 @@ def tvm_callback_cuda_compile(code, target):
         cutlass_path = os.environ["TL_CUTLASS_PATH"]
     else:
         cutlass_path = osp.abspath(osp.join(tvm_root, "3rdparty/cutlass/include"))
+    compute_version = "".join(nvcc.get_target_compute_version(target).split("."))
+    arch = [f"-arch=sm_{compute_version}"]
     ptx = nvcc.compile_cuda(
         code,
-        target_format="ptx",
+        "ptx",
+        arch,
         options=["-std=c++17", "-I" + tl_template_path, "-I" + cutlass_path],
     )
     return ptx

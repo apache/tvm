@@ -205,7 +205,7 @@ LayoutMap GemmOpLayoutInfer::Inference(const LayoutMap& layout_map, InferLevel l
     results.Set(args.B, makeGemmVoltaABLayout(*as_const_int(args.B->shape[0]),
                                               *as_const_int(args.B->shape[1]), false,
                                               args.trans_B ? 2 : 1));
-  } else if (TargetIsAmpere(target_)) {
+  } else if (TargetIsAmpere(target_) || TargetIsTuring(target_)) {
     auto fragment = makeGemmFragmentC(args.M, args.N, args.M / warp_m, args.N / warp_n);
     results.Set(args.C, fragment);
 

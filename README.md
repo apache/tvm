@@ -17,7 +17,7 @@
 
 TVM.TL
 ==============================================
-TVM.TL is an extention of TVMScript to write simple and high performance GPU kernels with tensorcores. TVM.TL is currently supported on CUDA deivces with Ampere arch (e.g. 3090, 4090, A100), we plan to extend the support to other archs soon.
+TVM.TL is an extention of TVMScript to write simple and high performance GPU kernels with tensorcores. TVM.TL is currently supported on CUDA deivces with Ampere (sm_80+), Turing (sm_75) and Volta(sm_70 partly supported).
 
 Let's get started with a simple GEMM example.
 ```python
