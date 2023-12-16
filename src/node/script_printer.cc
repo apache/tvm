@@ -21,7 +21,7 @@
 #include <tvm/node/script_printer.h>
 #include <tvm/runtime/registry.h>
 
-#include <regex>
+#include <algorithm>
 
 namespace tvm {
 
@@ -38,8 +38,17 @@ std::string TVMScriptPrinter::Script(const ObjectRef& node, const Optional<Print
 }
 
 bool IsIdentifier(const std::string& name) {
-  static const std::regex kValidIdentifier("^[a-zA-Z_][a-zA-Z0-9_]*$");
-  return std::regex_match(name, kValidIdentifier);
+  // Python identifiers follow the regex: "^[a-zA-Z_][a-zA-Z0-9_]*$"
+  // `std::regex` would cause a symbol conflict with PyTorch, we avoids to use it in the codebase.
+  //
+  // We convert the regex into following conditions:
+  // 1. The name is not empty.
+  // 2. The first character is either an alphabet or an underscore.
+  // 3. The rest of the characters are either an alphabet, a digit or an underscore.
+  return name.size() > 0 &&                            //
+         (std::isalpha(name[0]) || name[0] == '_') &&  //
+         std::all_of(name.begin() + 1, name.end(),
+                     [](char c) { return std::isalnum(c) || c == '_'; });
 }
 
 PrinterConfig::PrinterConfig(Map<String, ObjectRef> config_dict) {

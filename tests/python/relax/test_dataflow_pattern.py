@@ -97,7 +97,9 @@ def test_dataflow_var_pattern():
 
 def test_global_var_pattern():
     assert is_gv("x").match(rx.GlobalVar("x"))
-    assert is_gv("x.*").match(rx.GlobalVar("x_2"))
+    # TODO: disabled as regex is not supported due to
+    # symbol conflict with PyTorch
+    # assert is_gv("x.*").match(rx.GlobalVar("x_2"))
     assert is_gv().match(rx.GlobalVar("x"))
     assert not is_gv("x").match(rx.GlobalVar("y"))
     assert not is_gv("x").match(rx.Var("x"))

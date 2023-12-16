@@ -26,7 +26,6 @@
 #include <tvm/runtime/registry.h>
 
 #include <cstddef>
-#include <regex>
 #include <string>
 #include <vector>
 
@@ -54,7 +53,7 @@ class cuDNNJSONRuntime : public JSONRuntimeBase {
     stream = static_cast<cudaStream_t>((*func)().operator void*());
 
     auto attr_in_name = [](const std::string& op_name, const std::string& attr_name) {
-      return std::regex_search(op_name, std::regex(attr_name));
+      return op_name.find(attr_name) != std::string::npos;
     };
 
     auto vstr2vint = [](const JSONGraphNode& node, const std::string& attrStr) {
