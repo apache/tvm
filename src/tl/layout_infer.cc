@@ -196,10 +196,15 @@ LayoutMap GemmOpLayoutInfer::Inference(const LayoutMap& layout_map, InferLevel l
     auto fragment = makeGemmVoltaFragmentC(args.M, args.N, args.M / warp_m, args.N / warp_n,
                                            args.C->dtype.bits());
     results.Set(args.C, fragment);
-    ICHECK(args.A.scope() == "shared" || args.A.scope() == "shared.dyn");
-    results.Set(args.A,
-                makeGemmVoltaABLayout(*as_const_int(args.A->shape[0]),
-                                      *as_const_int(args.A->shape[1]), true, args.trans_A ? 1 : 2));
+    if (args.A.scope() == "shared" || args.A.scope() == "shared.dyn") {
+      results.Set(args.A, makeGemmVoltaABLayout(*as_const_int(args.A->shape[0]),
+                                                *as_const_int(args.A->shape[1]), true,
+                                                args.trans_A ? 1 : 2));
+    } else if (args.A.scope() == "local.fragment") {
+      ICHECK(args.trans_A == false);
+      results.Set(args.A,
+                  makeGemmVoltaFragmentA(args.M, args.N, args.K, args.M / warp_m, args.N / warp_n));
+    }
 
     ICHECK(args.B.scope() == "shared" || args.B.scope() == "shared.dyn");
     results.Set(args.B, makeGemmVoltaABLayout(*as_const_int(args.B->shape[0]),

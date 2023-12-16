@@ -435,6 +435,25 @@ Fragment makeGemmVoltaFragmentC(const int block_m, const int block_n, const int 
   return block_layout;
 }
 
+Fragment makeGemmVoltaFragmentA(const int block_m, const int block_n, const int block_k,
+                                const int warp_m, const int warp_n) {
+  // assume not transposed
+  ICHECK(block_m % warp_m == 0);
+  ICHECK(block_n % warp_n == 0);
+  ICHECK(warp_m % 32 == 0);
+  ICHECK(block_k % 4 == 0);
+  // this is a special case
+  IterVar i = make_itervar("i", 32);
+  IterVar j = make_itervar("j", 4);
+  IterVar rep = make_itervar("rep", 2);
+  PrimExpr thd = FloorDiv(FloorMod(i, 16), 8) * 4 + 16 * FloorDiv(i, 16) + FloorMod(i, 4) + 8 * rep;
+  PrimExpr idx = j + FloorDiv(FloorMod(i, 8), 4) * 4;
+  Fragment base_layout = Fragment({i, j}, {idx}, thd, rep);
+  auto warp_layout = base_layout->Repeat({warp_m / 32, block_k / 4}, false, false);
+  auto block_layout = warp_layout->Replicate(block_n / warp_n)->Repeat({block_m / warp_m, 1}, true);
+  return block_layout;
+}
+
 Fragment makeGemmFragmentA(const int block_m, const int block_n, const int block_k,
                            const int warp_m, const int warp_n) {
   // assume not transposed

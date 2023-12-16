@@ -101,6 +101,21 @@ class GemmTensorOp {
       mma_op(accum, frag_A, frag_B, accum);
     }
   }
+
+  static CUTLASS_DEVICE void body_rs(const FragmentA* frag_A, B_type_raw* pB, FragmentC& accum,
+                                     const int warp_idx_n, const int lane_id) {
+    MmaWarp mma_op;
+    FragmentB frag_B;
+    const TensorRefB ref_B((B_type*)pB, stride_B);
+    IteratorB iter_B(ref_B, lane_id);
+    iter_B.add_tile_offset({0, warp_idx_n});
+    CUTLASS_PRAGMA_UNROLL
+    for (int k = 0; k < kKgroups; ++k) {
+      iter_B.load(frag_B);
+      ++iter_B;
+      mma_op(accum, frag_A[k], frag_B, accum);
+    }
+  }
 };
 
 namespace tl {
@@ -114,6 +129,18 @@ CUTLASS_DEVICE void gemm_ss(A_type* pA, B_type* pB, C_type* accum) {
   int warp_id = threadIdx.x / 32;
   int lane_id = threadIdx.x % 32;
   MMA::body(pA, pB, *(FragmentC*)(accum), warp_id / num_warp_n, warp_id % num_warp_n, lane_id);
+}
+
+template <int M, int N, int K, int num_warp_m, int num_warp_n, bool trans_A, bool trans_B,
+          typename A_type, typename B_type, typename C_type>
+CUTLASS_DEVICE void gemm_rs(A_type* pA, B_type* pB, C_type* accum) {
+  using MMA = GemmTensorOp<GemmShape<M, N, K>, num_warp_m, num_warp_n, trans_A, trans_B, A_type,
+                           B_type, C_type>;
+  using FragmentA = typename MMA::FragmentA;
+  using FragmentC = typename MMA::FragmentC;
+  int warp_id = threadIdx.x / 32;
+  int lane_id = threadIdx.x % 32;
+  MMA::body_rs((const FragmentA*)(pA), pB, *(FragmentC*)(accum), warp_id % num_warp_n, lane_id);
 }
 
 };  // namespace tl
