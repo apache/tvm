@@ -82,7 +82,7 @@ def create_shared(output, objects, options=None, cc=None, cwd=None, ccache_env=N
         The compiler command.
 
     cwd : Optional[str]
-        The urrent working directory.
+        The current working directory.
 
     ccache_env : Optional[Dict[str, str]]
         The environment variable for ccache. Set `None` to disable ccache by default.
