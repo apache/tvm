@@ -18,3 +18,4 @@
 
 from . import contrib
 from .pattern_registry import get_pattern, get_patterns_with_prefix
+from .dispatch_ops import DispatchOps

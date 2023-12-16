@@ -315,6 +315,21 @@ RELAX_PATTERN_PRINTER_DEF(DataTypePatternNode, [](auto p, auto node) {
   p->stream << "DataTypePattern(" << node->pattern << " has dtype " << node->dtype << ")";
 });
 
+TVM_REGISTER_NODE_TYPE(TargetPatternNode);
+TargetPattern::TargetPattern(DFPattern pattern, Target target) {
+  ObjectPtr<TargetPatternNode> n = make_object<TargetPatternNode>();
+  n->pattern = std::move(pattern);
+  n->target = std::move(target);
+  data_ = std::move(n);
+}
+TVM_REGISTER_GLOBAL("relax.dpl.TargetPattern")
+    .set_body_typed([](DFPattern pattern, Target target) {
+      return TargetPattern(pattern, target);
+    });
+RELAX_PATTERN_PRINTER_DEF(TargetPatternNode, [](auto p, auto node) {
+  p->stream << "TargetPattern(" << node->pattern << " has target " << node->target << ")";
+});
+
 TVM_REGISTER_NODE_TYPE(AttrPatternNode);
 AttrPattern::AttrPattern(DFPattern pattern, DictAttrs attrs) {
   ObjectPtr<AttrPatternNode> n = make_object<AttrPatternNode>();
@@ -367,6 +382,9 @@ class DFPatternDuplicator : public DFPatternFunctor<DFPattern(const DFPattern&)>
   DFPattern VisitDFPattern_(const DataTypePatternNode* op) override {
     return DataTypePattern(op->pattern, op->dtype);
   }
+  DFPattern VisitDFPattern_(const TargetPatternNode* op) override {
+    return TargetPattern(op->pattern, op->target);
+  }
   DFPattern VisitDFPattern_(const FunctionPatternNode* op) override {
     return FunctionPattern(op->params, op->body);
   }
@@ -409,6 +427,9 @@ DataTypePattern DFPattern::HasDtype(const std::string& dtype) const {
 }
 ShapePattern DFPattern::HasShape(const Array<PrimExpr>& shape) const {
   return ShapePattern(*this, shape);
+}
+TargetPattern DFPattern::HasTarget(const Target& target) const {
+  return TargetPattern(*this, target);
 }
 
 DFPattern::operator PatternSeq() const { return PatternSeq{{*this}}; }

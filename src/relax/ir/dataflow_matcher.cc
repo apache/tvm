@@ -525,6 +525,15 @@ bool DFPatternMatcher::VisitDFPattern_(const DataTypePatternNode* op, const Expr
   return false;
 }
 
+bool DFPatternMatcher::VisitDFPattern_(const TargetPatternNode* op, const Expr& expr) {
+  const auto* sinfo = GetStructInfoAs<TensorStructInfoNode>(expr);
+  if (sinfo->vdevice.defined()) {
+    VDevice vdev = sinfo->vdevice.value();
+    return vdev->target->kind == op->target->kind;
+  }
+  return false;
+}
+
 bool DFPatternMatcher::VisitDFPattern_(const VarPatternNode* op, const Expr& expr) {
   // We don't jump for var pattern, as there's no need to access its value to judge it.
   if (const auto* var_node = expr.as<VarNode>()) {
