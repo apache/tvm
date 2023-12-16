@@ -23,10 +23,6 @@
 - Effect, a non-user-facing class that encloses potential side effects, for example, IO,
   impure external function callings, inplace mutation, etc.
 """
-import os
-import shutil
-import sys
-import tempfile
 from collections import OrderedDict
 from typing import (
     TYPE_CHECKING,
@@ -41,26 +37,28 @@ from typing import (
     Union,
 )
 
-import numpy as np
+import numpy as np  # type: ignore
 
 from tvm import tir
-from tvm._ffi.libinfo import find_include_path
-from tvm.contrib import cc as _cc
 from tvm.ir import IRModule
-from tvm.runtime import Device, NDArray, load_static_library, ndarray
+from tvm.ir.transform import Pass
+from tvm.runtime import Device, NDArray
+from tvm.runtime import device as as_device
+from tvm.runtime import ndarray
 from tvm.runtime.relax_vm import VirtualMachine
 from tvm.target import Target
 
 from ... import expr as rx
 from ...block_builder import BlockBuilder
-from ...struct_info import ShapeStructInfo, TensorStructInfo
+from ...struct_info import ShapeStructInfo, TensorStructInfo, TupleStructInfo
 from ._tensor_op import _TensorOp
 from .subroutine import SubroutineMixin
 
 if TYPE_CHECKING:
-    import torch
+    import torch  # type: ignore
 
     from . import spec as _spec
+    from .extern import ExternModule
 
 
 _DEFAULT_DTYPE = "float32"
@@ -122,6 +120,37 @@ class Tensor(_TensorOp):
     def from_scalar(data: Union[int, float], dtype: str) -> "Tensor":
         """Construct a tensor from a scalar with dtype specified."""
         return Tensor(_expr=rx.const(data, dtype=dtype))
+
+    @staticmethod
+    def placeholder(
+        shape: Sequence[Union[int, tir.PrimExpr]],
+        dtype: str,
+        name: str = "tensor",
+    ) -> "Tensor":
+        """Create a placeholder tensor with given shape and dtype. A placeholder tensor should
+        never be created directly by users in usual cases, and the only exception is to indicate
+        the shape/dtype of return values of an external function.
+        """
+        new_shape = []
+        for expr in shape:
+            if isinstance(expr, (int, tir.IntImm)):
+                expr = int(expr)
+                assert expr >= 0
+                new_shape.append(expr)
+                continue
+            if not isinstance(expr, tir.PrimExpr):
+                raise TypeError(f"Invalid shape: {shape}")
+            assert expr.dtype == "int64"
+            new_shape.append(expr)
+        return Tensor(
+            _expr=rx.Var(
+                name_hint=name,
+                struct_info=TensorStructInfo(
+                    shape=new_shape,  # type: ignore[arg-type]
+                    dtype=dtype,
+                ),
+            )
+        )
 
     @property
     def shape(self) -> List[Union[int, tir.PrimExpr]]:
@@ -195,7 +224,7 @@ class Parameter(Tensor):
         """
         if dtype is None:
             dtype = get_default_dtype()
-        super().__init__(_expr=_tensor_placeholder("param", shape, dtype=dtype)._expr)
+        super().__init__(_expr=Tensor.placeholder(shape, dtype=dtype, name="param")._expr)
         self._data = None
         self.attrs = OrderedDict()
 
@@ -240,8 +269,8 @@ class Parameter(Tensor):
                     "data is not recommended. It might lead to potential precision loss "
                     "or other unexpected behaviors"
                 )
-            self._expr = _tensor_placeholder(  # pylint: disable=protected-access
-                "param", self.shape, dtype=dtype
+            self._expr = Tensor.placeholder(  # pylint: disable=protected-access
+                self.shape, dtype=dtype, name="param"
             )._expr
 
 
@@ -381,7 +410,18 @@ class Module(SubroutineMixin):
         self,
         spec: "_spec.ModuleSpecType",
         debug: bool = False,
-    ) -> Tuple[IRModule, List[Tuple[str, Parameter]]]:
+        allow_extern: bool = False,
+    ) -> Union[
+        Tuple[
+            IRModule,
+            List[Tuple[str, Parameter]],
+        ],
+        Tuple[
+            IRModule,
+            List[Tuple[str, Parameter]],
+            List["ExternModule"],
+        ],
+    ]:
         """Export the module to TVM IRModule and parameters
 
         Parameters
@@ -400,231 +440,66 @@ class Module(SubroutineMixin):
         params : Dict[str, tvm.nd.array]
             A dictionary of parameters corresponding to the weights of
             the model.
+        ext_mods : List[nn.ExternModule]
         """
-        from . import spec as _spec  # pylint: disable=import-outside-toplevel
+        # pylint: disable=import-outside-toplevel
+        from . import spec as _spec
+        from .exporter import Exporter
 
+        # pylint: enable=import-outside-toplevel
         spec = _spec.ModuleSpec.from_raw(spec, self)
-        mod, params = _spec.SpecBuilder().build(spec, debug=debug)
+        mod, params, ext_mods = Exporter(debug=debug).build(spec)
+        if allow_extern:
+            return mod, params, ext_mods
+        if ext_mods:
+            raise ValueError(
+                "`ExternModule`(s) exist when they are not allowed. "
+                "Turn on flag `allow_extern` to allow."
+            )
         return mod, params
 
     def jit(  # pylint: disable=too-many-arguments
         self,
         spec: "_spec.ModuleSpec",
-        target: Union[str, Target] = "llvm",
         device: Union[str, Device] = "cpu",
-        pipeline: str = "zero",
+        pipeline: Union[None, str, Pass] = "default_build",
         out_format: str = "torch",
         debug: bool = False,
     ) -> Any:
         """Just-in-time compilation of a nn.model to an executable"""
-        from tvm import relax  # pylint: disable=import-outside-toplevel
 
-        from . import spec as _spec  # pylint: disable=import-outside-toplevel
+        def _compile(spec, device, pipeline, debug):
+            # pylint: disable=import-outside-toplevel
+            from ...transform import AttachExternModules
+            from ...vm_build import build as relax_build
+            from . import spec as _spec
+            from .exporter import Exporter
 
-        # Convert nn.Module to IRModule
-        spec = _spec.ModuleSpec.from_raw(spec, self)
-        mod, params = _spec.SpecBuilder().build(spec, debug=debug)
+            # pylint: enable=import-outside-toplevel
 
-        # Convert parameters
-        device = _str_to_device(device)
-        params_ndarray = _param_to_ndarray(params, device)
+            spec = _spec.ModuleSpec.from_raw(spec, self)
+            mod, params, ext_mods = Exporter(debug=debug).build(spec)
+            mod = AttachExternModules(ext_mods)(mod)  # pylint: disable=not-callable
+            vm = VirtualMachine(  # pylint: disable=invalid-name
+                relax_build(
+                    mod,
+                    target=Target.from_device(device),
+                    pipeline=pipeline,
+                ),
+                device,
+            )
+            params = _param_to_ndarray(params, device)
+            return spec, vm, params
 
-        # Compile mod and feed it to VM
-        mod = relax.pipeline.get_pipeline(pipeline)(mod)  # pylint: disable=no-value-for-parameter
-        vm = VirtualMachine(  # pylint: disable=invalid-name
-            relax.build(mod, target=target),
-            device,
-        )
+        device = as_device(device)
+        spec, vm, params = _compile(spec, device, pipeline, debug)  # pylint: disable=invalid-name
 
         if out_format == "torch":
             from . import torch  # pylint: disable=import-outside-toplevel
 
-            return torch.TorchModule(spec=spec, params=params_ndarray, vm=vm)
+            return torch.TorchModule(spec=spec, params=params, vm=vm)
 
         raise ValueError(f"Unknown out_format: {out_format}")
-
-
-class ExternModule(Module):
-    """Base class for external module. Subclass it to import your external models.
-    Modules can nest within each other in a tree structure using regular attribute assignment."""
-
-    module_spec: "_spec.ExternModuleSpec"
-
-    def __init__(self, module_spec: "_spec.ExternModuleSpec") -> None:
-        super().__init__()
-        self.module_spec = module_spec
-
-    def get_extern_func(self, func_name: str) -> Callable:
-        """This method helps get the external funciton in external module by function name.
-        It will wrap the functions as other prebuilt operators.
-
-        Parameters
-        ----------
-        func_name : str
-            The name of the function to get.
-
-        Returns
-        ------
-        ret_func: Callable
-            The callable function to call.
-        """
-        for function_spec in self.module_spec.functions:
-            if function_spec.symbol == func_name:
-                # pylint: disable=cell-var-from-loop, import-outside-toplevel, protected-access
-                from tvm.relax import Tuple as RxTuple
-                from tvm.relax import call_dps_packed
-
-                from . import spec as _spec
-                from .op import _wrap_nested
-
-                def extern_func(
-                    *args: List[
-                        Union[_spec.Tensor, _spec.ConstInt, _spec.ConstFloat, _spec.ConstString]
-                    ]
-                ) -> Tensor:
-                    spec2var = {}
-                    for arg, arg_spec in zip(args, function_spec.args):
-                        if not isinstance(arg_spec, _spec.Tensor):
-                            continue
-                        for value, value_spec in zip(arg.shape, arg_spec.shape):
-                            if isinstance(value_spec, str):
-                                if not value_spec in spec2var:
-                                    spec2var[value_spec] = value
-                                else:
-                                    if not spec2var[value_spec] == value:
-                                        raise ValueError(
-                                            f"Confilict vars {spec2var[value_spec]} and {value} "
-                                            f"for {value_spec} in {function_spec}"
-                                        )
-                    out_shape = []
-                    func_spec_ret = function_spec.ret
-                    assert isinstance(
-                        func_spec_ret, _spec.Tensor
-                    ), "Only single return value is supported for now"
-                    for value_spec in func_spec_ret.shape:
-                        if isinstance(value_spec, int):
-                            out_shape.append(value_spec)
-                        elif isinstance(value_spec, str):
-                            if not value_spec in spec2var:
-                                raise ValueError(f"Undefined var {value_spec} in {function_spec}")
-                            out_shape.append(spec2var[value_spec])
-                    out_sinfo = TensorStructInfo(
-                        out_shape,  # type: ignore[arg-type]
-                        func_spec_ret.dtype,
-                    )
-                    relax_args = []
-                    for arg, arg_spec in zip(args, function_spec.args):
-                        if isinstance(arg_spec, _spec.Tensor):
-                            relax_args.append(arg._expr)
-                        elif isinstance(arg_spec, _spec.ConstInt):
-                            if arg_spec.dtype is None:
-                                relax_args.append(rx.PrimValue(int(arg)))
-                            else:
-                                relax_args.append(rx.PrimValue(tir.IntImm(arg_spec.dtype, arg)))
-                        elif isinstance(arg_spec, _spec.ConstFloat):
-                            if arg_spec.dtype is None:
-                                relax_args.append(rx.PrimValue(float(arg)))
-                            else:
-                                relax_args.append(rx.PrimValue(tir.FloatImm(arg_spec.dtype, arg)))
-                        elif isinstance(arg_spec, _spec.ConstString):
-                            relax_args.append(rx.StringImm(arg))
-
-                    ret_tensor = _wrap_nested(
-                        call_dps_packed(
-                            func_name,
-                            args=RxTuple(relax_args),
-                            out_sinfo=out_sinfo,
-                        ),
-                        func_name,
-                    )
-                    assert isinstance(ret_tensor, Tensor)
-                    return ret_tensor
-
-                # pylint: enable=cell-var-from-loop, import-outside-toplevel, protected-access
-
-                return extern_func
-        raise ValueError(f"Unknown function {func_name} in the external module:{self.module_spec}")
-
-
-class SourceModule(ExternModule):
-    """Base class for source module. Subclass it to import your source models.
-
-    See PR #16006 (https://github.com/apache/tvm/pull/16006) for a detailed example.
-    """
-
-    def __init__(  # pylint: disable=too-many-arguments,too-many-locals
-        self,
-        source_code: str,
-        source_format: str,  # "cpp", "cu"
-        functions: Dict[str, "_spec.ExternFunctionSpec"],
-        compile_options: Optional[List[str]] = None,
-        compiler: Optional[str] = None,
-        output_format: str = "obj",  # "obj", "wasm"
-    ):
-        from . import spec as _spec  # pylint: disable=import-outside-toplevel
-
-        def _detect_input_suffix(source_format: str) -> str:
-            if source_format == "cpp":
-                return ".cpp"
-            if source_format == "cu":
-                return ".cu"
-            raise ValueError(f"Invalid source format: {source_format}")
-
-        def _detect_output_suffix(output_format: str) -> str:
-            if output_format == "obj":
-                if _cc._is_linux_like():  # pylint: disable=protected-access
-                    return ".o"
-                if _cc._is_windows_like():  # pylint: disable=protected-access
-                    return ".obj"
-                raise ValueError(f"Unsupported platform: {sys.platform}")
-            if output_format == "wasm":
-                return ".wasm"
-            raise ValueError(f"Invalid output format: {output_format}")
-
-        source_suffix = _detect_input_suffix(source_format)
-        output_suffix = _detect_output_suffix(output_format)
-        if compile_options is None:
-            compile_options = []
-            for include_path in find_include_path():
-                compile_options.append("-I")
-                compile_options.append(include_path)
-            compile_options.append("-c")
-            compile_options.append("-DDMLC_USE_FOPEN64=0")
-            compile_options.append("-DDMLC_USE_LOGGING_LIBRARY=<tvm/runtime/logging.h>")
-        with tempfile.TemporaryDirectory() as temp_dir:
-            source_file = f"main{source_suffix}"
-            with open(
-                os.path.join(temp_dir, f"main{source_suffix}"), "w", encoding="utf-8"
-            ) as file:
-                file.write(source_code)
-            output_file = f"main{output_suffix}"
-            if shutil.which("ccache"):
-                ccache_env = {"CCACHE_COMPILERCHECK": "content"}
-            else:
-                ccache_env = None
-            _cc.create_shared(
-                output=output_file,
-                objects=[source_file],
-                options=compile_options,
-                cc=compiler,
-                cwd=temp_dir,
-                ccache_env=ccache_env,
-            )
-            func_names: List[str] = []
-            func_specs: List[_spec.ExternFunctionSpec] = []
-            for func_name, func_spec in functions.items():
-                func_names.append(func_name)
-                func_specs.append(func_spec)
-                if func_spec.symbol is None:
-                    func_spec.symbol = func_name
-            library = load_static_library(
-                os.path.join(temp_dir, f"main{output_suffix}"), func_names=func_names
-            )
-        module_spec = _spec.ExternModuleSpec(
-            library=library,
-            functions=func_specs,
-        )
-        super().__init__(module_spec=module_spec)
 
 
 class ModuleList(Module):
@@ -660,6 +535,38 @@ class ModuleList(Module):
         return x
 
 
+def wrap_nested(expr: rx.Expr, name: str) -> Union[Tensor, Sequence[Tensor]]:
+    """Wrap the given relax.Expr, emit it using the current BlockBuilder,
+    and automatically handle nested cases if the expr represents a Tuple.
+
+    Parameters
+    ----------
+    expr : relax.Expr
+        The Expr to be wrapped.
+
+    name : str
+        Name hint.
+
+    Returns
+    -------
+    result : Union[Tensor, Tuple[Tensor]]
+        The computed result.
+    """
+    if not isinstance(expr, rx.DataflowVar):
+        expr = BlockBuilder.current().emit(expr, name)
+    if isinstance(expr.struct_info_, TensorStructInfo):
+        return Tensor(_expr=expr)
+    if isinstance(expr.struct_info_, TupleStructInfo):
+        return tuple(
+            wrap_nested(  # type: ignore
+                rx.TupleGetItem(expr, i),
+                name=f"{name}.{i}",
+            )
+            for i in range(len(expr.struct_info_.fields))
+        )
+    raise TypeError(f"Unsupported return type: {expr.struct_info_}")
+
+
 def _attribute_finder(root: Module, prefix: str, condition_yield: Callable[[Any], bool]):
     """Find attributes that satisfy the condition recursively"""
     for name, item in root.__dict__.items():
@@ -680,31 +587,6 @@ def _attribute_finder(root: Module, prefix: str, condition_yield: Callable[[Any]
             )
 
 
-def _tensor_placeholder(
-    name: str, shape: Sequence[Union[int, tir.PrimExpr]], dtype: str
-) -> "Tensor":
-    new_shape = []
-    for expr in shape:
-        if isinstance(expr, (int, tir.IntImm)):
-            expr = int(expr)
-            assert expr >= 0
-            new_shape.append(expr)
-            continue
-        if not isinstance(expr, tir.PrimExpr):
-            raise TypeError(f"Invalid shape: {shape}")
-        assert expr.dtype == "int64"
-        new_shape.append(expr)
-    return Tensor(
-        _expr=rx.Var(
-            name_hint=name,
-            struct_info=TensorStructInfo(
-                shape=new_shape,  # type: ignore[arg-type]
-                dtype=dtype,
-            ),
-        )
-    )
-
-
 def _from_dlpack(tensor) -> NDArray:
     try:
         return ndarray.from_dlpack(tensor)
@@ -720,19 +602,6 @@ def _from_dlpack(tensor) -> NDArray:
             device_id,
         ),
     )
-
-
-def _str_to_device(device: Union[str, Device]) -> Device:
-    if isinstance(device, Device):
-        return device
-    split = device.split(":")
-    if len(split) > 2:
-        raise ValueError(f"Invalid device: {device}")
-    device_type = split[0]
-    device_id = 0 if len(split) == 1 else int(split[1])
-    if device_type not in Device.STR2MASK:
-        raise ValueError(f"Unsupported device type: {device_type}")
-    return Device(Device.STR2MASK[device_type], device_id)
 
 
 def _param_to_ndarray(params: List[Tuple[str, Parameter]], device: Device) -> List[NDArray]:

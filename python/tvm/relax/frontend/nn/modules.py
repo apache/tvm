@@ -18,8 +18,6 @@
 """Builtin Modules."""
 from typing import List, Optional, Sequence, Union
 
-import numpy as np
-
 from tvm import relax as rx
 from tvm import tir
 
@@ -139,70 +137,6 @@ class Linear(Module):
         if self.bias is not None:
             x = x + self.bias
         return x
-
-    def to(self, dtype: Optional[str] = None) -> None:
-        """
-        Override to() such that we do not convert bias if there is `out_dtype`.
-        Otherwise, we might run into dtype mismatch when computing `x + self.bias`
-        since x is of type `out_dtype` and bias becomes `dtype`, potentially different.
-        """
-        self.weight.to(dtype=dtype)
-        if self.bias is not None and self.out_dtype is None:
-            self.bias.to(dtype=dtype)
-        if dtype is not None and isinstance(getattr(self, "dtype", None), str):
-            self.dtype = dtype  # pylint: disable=attribute-defined-outside-init
-
-
-class MultiLinear(Module):
-    """A layer that applies multiple linear transformations to the input."""
-
-    def __init__(
-        self,
-        in_features: int,
-        out_features: Sequence[int],
-        bias: bool = True,
-        dtype: Optional[str] = None,
-        out_dtype: Optional[str] = None,
-    ):
-        assert len(out_features) > 0
-        total_out_features = sum(out_features)
-
-        super().__init__()
-        self.in_features = in_features
-        self.out_features = out_features
-        self.out_dtype = out_dtype
-        self.weight = Parameter((total_out_features, in_features), dtype)
-        if bias:
-            self.bias = Parameter(
-                (total_out_features,), dtype=dtype if out_dtype is None else out_dtype
-            )
-        else:
-            self.bias = None
-
-    def forward(self, x: Tensor) -> Tensor:
-        """
-        Forward method for linear layer.
-
-        Parameters
-        ----------
-        x : Tensor
-            The input tensor.
-
-        Returns
-        -------
-        ret : Tensor
-            The output tensor for the linear layer.
-        """
-        sections = list(np.cumsum(self.out_features)[:-1])
-        # x: [*B, in_features]
-        # w: [in_features, out_features]
-        w = op.permute_dims(self.weight)
-        # x: [*B, out_features]
-        x = op.matmul(x, w, out_dtype=self.out_dtype)
-        if self.bias is not None:
-            x = x + self.bias
-        results = op.split(x, sections, axis=-1)
-        return results
 
     def to(self, dtype: Optional[str] = None) -> None:
         """

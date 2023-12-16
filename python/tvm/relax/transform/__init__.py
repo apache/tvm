@@ -78,6 +78,7 @@ from .lazy_transform_params import LazyTransformParams
 from .optimize_layout_transform import OptimizeLayoutTransform
 from .remove_redundant_reshape import RemoveRedundantReshape
 from .fast_math import FastMathTransform
+from .attach_external_modules import AttachExternModules
 
 # Import to register the legalization functions.
 from . import legalize_ops, tuning_api
