@@ -427,8 +427,8 @@ Fragment makeGemmVoltaFragmentC(const int block_m, const int block_n, const int 
                                 const int warp_n, int element_size) {
   ICHECK(block_m % warp_m == 0);
   ICHECK(block_n % warp_n == 0);
-  ICHECK(warp_m % 8 == 0);
-  ICHECK(warp_n % 8 == 0);
+  ICHECK(warp_m % 32 == 0);
+  ICHECK(warp_n % 32 == 0);
   auto base_layout = makeGemmFragment32x32(element_size);
   auto warp_layout = base_layout->Repeat({warp_m / 32, warp_n / 32}, false, false);
   auto block_layout = warp_layout->Repeat({block_m / warp_m, block_n / warp_n}, true);
@@ -442,7 +442,7 @@ Fragment makeGemmFragmentA(const int block_m, const int block_n, const int block
   ICHECK(block_n % warp_n == 0);
   ICHECK(warp_m % 16 == 0);
   ICHECK(block_k % 16 == 0);
-  auto base_layout = makeGemmFragment8x8()->Repeat({2, 2}, false, false);  // to 16x16
+  auto base_layout = makeGemmFragment8x8()->Repeat({2, 2}, false, false);
   auto warp_layout = base_layout->Repeat({warp_m / 16, block_k / 16}, false, false);
   auto block_layout = warp_layout->Replicate(block_n / warp_n)->Repeat({block_m / warp_m, 1}, true);
   return block_layout;

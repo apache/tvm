@@ -200,6 +200,7 @@ LayoutMap GemmOpLayoutInfer::Inference(const LayoutMap& layout_map, InferLevel l
     results.Set(args.A,
                 makeGemmVoltaABLayout(*as_const_int(args.A->shape[0]),
                                       *as_const_int(args.A->shape[1]), true, args.trans_A ? 1 : 2));
+
     ICHECK(args.B.scope() == "shared" || args.B.scope() == "shared.dyn");
     results.Set(args.B, makeGemmVoltaABLayout(*as_const_int(args.B->shape[0]),
                                               *as_const_int(args.B->shape[1]), false,
@@ -219,6 +220,7 @@ LayoutMap GemmOpLayoutInfer::Inference(const LayoutMap& layout_map, InferLevel l
                                    args.B->dtype.bits(), args.trans_B ? 2 : 1));
     }
     if (args.A.scope() == "local.fragment") {
+      ICHECK(args.trans_A == false);
       results.Set(args.A,
                   makeGemmFragmentA(args.M, args.N, args.K, args.M / warp_m, args.N / warp_n));
     }
