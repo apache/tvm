@@ -402,6 +402,39 @@ Fragment makeGemmFragmentC(const int block_m, const int block_n, const int warp_
   return block_layout;
 }
 
+Fragment makeGemmFragment32x32(int element_size) {
+  IterVar i = make_itervar("i", 32);
+  IterVar j = make_itervar("j", 32);
+  IterVar rep = make_itervar("rep", 1);
+  ICHECK(element_size == 16 || element_size == 32);
+  if (element_size == 16) {
+    PrimExpr thd = FloorMod(i, 4) + FloorDiv(FloorMod(i, 16), 8) * 4 +
+                   FloorDiv(FloorMod(j, 16), 8) * 8 + FloorDiv(i, 16) * 16;
+    PrimExpr idx = FloorMod(j, 4) + FloorDiv(j, 16) * 4 + FloorDiv(FloorMod(i, 8), 4) * 8 +
+                   FloorDiv(FloorMod(j, 8), 4) * 16;
+    return Fragment({i, j}, {idx}, thd, rep);
+  } else {
+    PrimExpr thd = FloorMod(i, 2) + 2 * FloorDiv(FloorMod(j, 4), 2) +
+                   FloorDiv(FloorMod(i, 16), 8) * 4 + FloorDiv(FloorMod(j, 16), 8) * 8 +
+                   FloorDiv(i, 16) * 16;
+    PrimExpr idx = FloorMod(j, 2) + 2 * FloorDiv(FloorMod(i, 4), 2) + FloorDiv(j, 16) * 4 +
+                   FloorDiv(FloorMod(i, 8), 4) * 8 + FloorDiv(FloorMod(j, 8), 4) * 16;
+    return Fragment({i, j}, {idx}, thd, rep);
+  }
+}
+
+Fragment makeGemmVoltaFragmentC(const int block_m, const int block_n, const int warp_m,
+                                const int warp_n, int element_size) {
+  ICHECK(block_m % warp_m == 0);
+  ICHECK(block_n % warp_n == 0);
+  ICHECK(warp_m % 8 == 0);
+  ICHECK(warp_n % 8 == 0);
+  auto base_layout = makeGemmFragment32x32(element_size);
+  auto warp_layout = base_layout->Repeat({warp_m / 32, warp_n / 32}, false, false);
+  auto block_layout = warp_layout->Repeat({block_m / warp_m, block_n / warp_n}, true);
+  return block_layout;
+}
+
 Fragment makeGemmFragmentA(const int block_m, const int block_n, const int block_k,
                            const int warp_m, const int warp_n) {
   // assume not transposed
@@ -534,6 +567,80 @@ Layout makeGemmABLayoutCommon(int stride, int continuous, int element_size, int 
 
   PrimExpr final_offset = vec_strided_idx * continuous * kfactor + element_contiguous;
   return Layout({i, j}, {final_offset});
+}
+
+Layout MakeGemmVoltaABLayoutCrosswise(int stride, int continuous) {
+  ICHECK(stride % 32 == 0 && continuous % 32 == 0);
+  IterVar i = make_itervar("i", stride);
+  IterVar j = make_itervar("j", continuous);
+  PrimExpr vec_contiguous_idx = FloorDiv(j, 4);
+  PrimExpr vec_strided_within_tile = FloorMod(vec_contiguous_idx, 8);
+
+  PrimExpr bit2 = FloorMod(FloorDiv(FloorMod(i, 32), 16) + FloorDiv(FloorMod(i, 16), 8) +
+                               FloorDiv(vec_strided_within_tile, 4),
+                           2);
+  PrimExpr bit1 =
+      xor2x2(FloorDiv(FloorMod(i, 8), 4), FloorDiv(FloorMod(vec_strided_within_tile, 4), 2));
+  PrimExpr permuted_vec_contiguous = FloorDiv(i, 16) * 16 + FloorMod(i, 4) * 4 + bit2 * 2 + bit1;
+
+  PrimExpr offset = FloorMod(j, 4) + permuted_vec_contiguous * 4 + vec_contiguous_idx * stride * 4;
+  return Layout({i, j}, {offset});
+}
+
+Layout MakeGemmVoltaALayoutCongruous(int stride, int continuous) {
+  ICHECK(stride % 4 == 0 && continuous % 64 == 0);
+  IterVar i = make_itervar("i", stride);
+  IterVar j = make_itervar("j", continuous);
+  PrimExpr vec_contiguous_idx = FloorDiv(j, 8);
+  PrimExpr vec_strided_idx = i;
+  PrimExpr tile_contiguous_idx = FloorDiv(vec_contiguous_idx, 8);
+  PrimExpr tile_strided_idx = FloorDiv(vec_strided_idx, 4);
+  PrimExpr tile_contiguous_residual = FloorMod(vec_contiguous_idx, 8);
+  PrimExpr tile_strided_residual = FloorMod(vec_strided_idx, 4);
+
+  PrimExpr permuted_strided_within_tile = FloorDiv(tile_contiguous_residual, 2);
+  PrimExpr permuted_contiguous_within_tile =
+      FloorMod(tile_contiguous_residual, 2) * 4 +
+      xor4x4(tile_strided_residual, permuted_strided_within_tile);
+
+  PrimExpr element_strided = permuted_strided_within_tile + tile_strided_idx * 4;
+  PrimExpr element_contiguous =
+      FloorMod(j, 8) + (permuted_contiguous_within_tile + tile_contiguous_idx * 8) * 8;
+  PrimExpr offset = element_strided * continuous + element_contiguous;
+  return Layout({i, j}, {offset});
+}
+
+Layout MakeGemmVoltaBLayoutCongruous(int stride, int continuous) {
+  ICHECK(stride % 4 == 0 && continuous % 64 == 0);
+  IterVar i = make_itervar("i", stride);
+  IterVar j = make_itervar("j", continuous);
+  PrimExpr vec_contiguous_idx = FloorDiv(j, 8);
+  PrimExpr vec_strided_idx = i;
+  PrimExpr tile_contiguous_idx = FloorDiv(vec_contiguous_idx, 8);
+  PrimExpr tile_strided_idx = FloorDiv(vec_strided_idx, 4);
+  PrimExpr tile_contiguous_residual = FloorMod(vec_contiguous_idx, 8);
+  PrimExpr tile_strided_residual = FloorMod(vec_strided_idx, 4);
+
+  PrimExpr permuted_strided_within_tile = FloorMod(tile_contiguous_residual, 4);
+  PrimExpr permuted_contiguous_within_tile =
+      FloorDiv(tile_contiguous_residual, 4) * 4 +
+      xor4x4(tile_strided_residual, permuted_strided_within_tile);
+
+  PrimExpr element_strided = permuted_strided_within_tile + tile_strided_idx * 4;
+  PrimExpr element_contiguous =
+      FloorMod(j, 8) + (permuted_contiguous_within_tile + tile_contiguous_idx * 8) * 8;
+  PrimExpr offset = element_strided * continuous + element_contiguous;
+  return Layout({i, j}, {offset});
+}
+
+Layout makeGemmVoltaABLayout(int stride, int continuous, bool is_a, int kfactor) {
+  if (kfactor == 2) {
+    return MakeGemmVoltaABLayoutCrosswise(stride, continuous);
+  } else if (is_a) {
+    return MakeGemmVoltaALayoutCongruous(stride, continuous);
+  } else {
+    return MakeGemmVoltaBLayoutCongruous(stride, continuous);
+  }
 }
 
 Layout makeGemmABLayout(int stride, int continuous, int element_size, int kfactor) {

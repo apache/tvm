@@ -55,10 +55,11 @@ def extrac_params(func: tir.PrimFunc):
 
 def lower(func):
     params = extrac_params(func)
+    mod = tvm.IRModule({func.attrs["global_symbol"]: func})
+
     target_host = tvm.target.Target("llvm -keys=cpu")
     target = tvm.target.Target("cuda", target_host)
-
-    mod = tvm.IRModule({func.attrs["global_symbol"]: func})
+    mod = tir.transform.BindTarget(target)(mod)
 
     mod = tl.transform.FrontendLegalize()(mod)
     mod = tir.transform.Simplify()(mod)
@@ -82,7 +83,6 @@ def lower(func):
     mod = tir.transform.RewriteUnsafeSelect()(mod)
     mod = tir.transform.HoistIfThenElse()(mod)
 
-    mod = tir.transform.BindTarget(target)(mod)
     mod = tir.transform.VerifyMemory()(mod)
     mod = tir.transform.AnnotateEntryFunc()(mod)
     mod = tir.transform.ThreadSync("shared")(mod)

@@ -29,6 +29,7 @@
 #include "arith.h"
 #include "auto_vectorize.h"
 #include "loop_partition.h"
+#include "target_utils.h"
 
 namespace tvm {
 namespace tl {
@@ -180,8 +181,9 @@ Fragment ForNodeLayoutInfer::CompleteBufferFragment(const Buffer& buffer) {
   return Fragment(iter_vars, {}, thd_b, rep)->CondenseReplicateVar();
 }
 
-GemmOpLayoutInfer::GemmOpLayoutInfer(const GemmArgs& gemm_args, size_t block_size)
-    : args(gemm_args), block_size_(block_size) {}
+GemmOpLayoutInfer::GemmOpLayoutInfer(const GemmArgs& gemm_args, size_t block_size,
+                                     const TargetNode* target)
+    : args(gemm_args), block_size_(block_size), target_(target) {}
 
 LayoutMap GemmOpLayoutInfer::Inference(const LayoutMap& layout_map, InferLevel level) {
   if (completed_) return {};
@@ -189,22 +191,39 @@ LayoutMap GemmOpLayoutInfer::Inference(const LayoutMap& layout_map, InferLevel l
   LayoutMap results;
   ICHECK(args.C.scope() == "local.fragment");
   auto [warp_m, warp_n] = args.ComputeWarpPartition(block_size_ / 32);
-  auto fragment = makeGemmFragmentC(args.M, args.N, args.M / warp_m, args.N / warp_n);
-  results.Set(args.C, fragment);
 
-  if (args.A.scope() == "shared" || args.A.scope() == "shared.dyn") {
+  if (TargetIsVolta(target_)) {
+    auto fragment = makeGemmVoltaFragmentC(args.M, args.N, args.M / warp_m, args.N / warp_n,
+                                           args.C->dtype.bits());
+    results.Set(args.C, fragment);
+    ICHECK(args.A.scope() == "shared" || args.A.scope() == "shared.dyn");
     results.Set(args.A,
-                makeGemmABLayout(*as_const_int(args.A->shape[0]), *as_const_int(args.A->shape[1]),
-                                 args.A->dtype.bits(), args.trans_A ? 1 : 2));
-  }
-  if (args.B.scope() == "shared" || args.B.scope() == "shared.dyn") {
-    results.Set(args.B,
-                makeGemmABLayout(*as_const_int(args.B->shape[0]), *as_const_int(args.B->shape[1]),
-                                 args.B->dtype.bits(), args.trans_B ? 2 : 1));
-  }
-  if (args.A.scope() == "local.fragment") {
-    results.Set(args.A,
-                makeGemmFragmentA(args.M, args.N, args.K, args.M / warp_m, args.N / warp_n));
+                makeGemmVoltaABLayout(*as_const_int(args.A->shape[0]),
+                                      *as_const_int(args.A->shape[1]), true, args.trans_A ? 1 : 2));
+    ICHECK(args.B.scope() == "shared" || args.B.scope() == "shared.dyn");
+    results.Set(args.B, makeGemmVoltaABLayout(*as_const_int(args.B->shape[0]),
+                                              *as_const_int(args.B->shape[1]), false,
+                                              args.trans_B ? 2 : 1));
+  } else if (TargetIsAmpere(target_)) {
+    auto fragment = makeGemmFragmentC(args.M, args.N, args.M / warp_m, args.N / warp_n);
+    results.Set(args.C, fragment);
+
+    if (args.A.scope() == "shared" || args.A.scope() == "shared.dyn") {
+      results.Set(args.A,
+                  makeGemmABLayout(*as_const_int(args.A->shape[0]), *as_const_int(args.A->shape[1]),
+                                   args.A->dtype.bits(), args.trans_A ? 1 : 2));
+    }
+    if (args.B.scope() == "shared" || args.B.scope() == "shared.dyn") {
+      results.Set(args.B,
+                  makeGemmABLayout(*as_const_int(args.B->shape[0]), *as_const_int(args.B->shape[1]),
+                                   args.B->dtype.bits(), args.trans_B ? 2 : 1));
+    }
+    if (args.A.scope() == "local.fragment") {
+      results.Set(args.A,
+                  makeGemmFragmentA(args.M, args.N, args.K, args.M / warp_m, args.N / warp_n));
+    }
+  } else {
+    ICHECK(0) << "Not supported " << target_->str();
   }
   completed_ = true;
   return results;

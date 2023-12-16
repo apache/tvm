@@ -128,6 +128,9 @@ class BufferUseDefCollector : public StmtExprVisitor {
     for (const auto& [_, buffer] : f->buffer_map) {
       buffer_data_to_buffer_.Set(buffer->data, buffer);
     }
+    auto target = f->GetAttr<Target>(tvm::attr::kTarget);
+    ICHECK(target.defined()) << "Layout_Inference: Require the target attribute";
+    target_ = target.as<TargetNode>();
     this->operator()(f->body);
   }
 
@@ -141,7 +144,7 @@ class BufferUseDefCollector : public StmtExprVisitor {
     ICHECK(thread_block_size);
     if (op->op.same_as(gemm())) {
       GemmArgs args = GemmArgs::Parse(op->args, buffer_data_to_buffer_);
-      p = std::make_shared<GemmOpLayoutInfer>(args, *thread_block_size);
+      p = std::make_shared<GemmOpLayoutInfer>(args, *thread_block_size, target_);
       access_regions.insert({args.A, args.B, args.C});
     } else if (op->op.same_as(reduce())) {
       ReduceArgs args = ReduceArgs::Parse(op->args, buffer_data_to_buffer_);
@@ -199,6 +202,7 @@ class BufferUseDefCollector : public StmtExprVisitor {
   std::vector<std::shared_ptr<LayoutInferBase>> infer_list_;
   std::unordered_map<Buffer, std::vector<int>, ObjectPtrHash, ObjectPtrEqual> use_list_;
   IterVar thread_var_;
+  const TargetNode* target_;
 };
 
 class LayoutInferencer : public IRMutatorWithAnalyzer {

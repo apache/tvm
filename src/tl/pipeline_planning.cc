@@ -27,8 +27,12 @@
 #include <tvm/tir/stmt_functor.h>
 #include <tvm/tir/transform.h>
 
+#include "target_utils.h"
+
 namespace tvm {
-namespace tir {
+namespace tl {
+
+using namespace tir;
 
 namespace {
 
@@ -61,6 +65,9 @@ class PipelinePlanner : public StmtExprMutator {
     for (const auto& [_, buffer] : f->buffer_map) {
       substituter.buffer_data_to_buffer_.Set(buffer->data, buffer);
     }
+    auto target = f->GetAttr<Target>(tvm::attr::kTarget);
+    ICHECK(target.defined()) << "Layout_Inference: Require the target attribute";
+    substituter.target_ = target.as<TargetNode>();
     return substituter.VisitStmt(f->body);
   }
 
@@ -195,9 +202,10 @@ class PipelinePlanner : public StmtExprMutator {
       stages.push_back(pinfo.stage);
     }
 
-    annotations.Set(attr::software_pipeline_stage, Array<Integer>(stages));
-    annotations.Set(attr::software_pipeline_order, Array<Integer>(orders));
-    annotations.Set(attr::software_pipeline_async_stages, Array<Integer>{0});
+    annotations.Set(tir::attr::software_pipeline_stage, Array<Integer>(stages));
+    annotations.Set(tir::attr::software_pipeline_order, Array<Integer>(orders));
+    if (TargetHasAsyncCopy(target_))
+      annotations.Set(tir::attr::software_pipeline_async_stages, Array<Integer>{0});
 
     return For(loop->loop_var, loop->min, loop->extent, loop->kind, loop->body,
                loop->thread_binding, annotations);
@@ -215,25 +223,20 @@ class PipelinePlanner : public StmtExprMutator {
   }
 
   Map<Var, Buffer> buffer_data_to_buffer_;
+  const TargetNode* target_;
 };
 
-PrimFunc PipelinePlanning(PrimFunc f) {
-  PrimFuncNode* fptr = f.CopyOnWrite();
-  fptr->body = PipelinePlanner::Substitute(f);
-  return f;
-}
-
-namespace transform {
-
 tvm::transform::Pass PipelinePlanning() {
+  using namespace tir::transform;
   auto pass_func = [=](PrimFunc f, IRModule m, PassContext ctx) {
-    return PipelinePlanning(std::move(f));
+    PrimFuncNode* fptr = f.CopyOnWrite();
+    fptr->body = PipelinePlanner::Substitute(f);
+    return f;
   };
   return CreatePrimFuncPass(pass_func, 0, "tl.PipelinePlanning", {});
 }
 
 TVM_REGISTER_GLOBAL("tl.PipelinePlanning").set_body_typed(PipelinePlanning);
-}  // namespace transform
 
-}  // namespace tir
+}  // namespace tl
 }  // namespace tvm

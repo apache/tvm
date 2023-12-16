@@ -25,6 +25,7 @@
 #ifndef TVM_TL_LAYOUT_INFER_H_
 #define TVM_TL_LAYOUT_INFER_H_
 
+#include <tvm/target/target.h>
 #include <tvm/tir/stmt_functor.h>
 
 #include "layout.h"
@@ -80,13 +81,14 @@ class ForNodeLayoutInfer : public LayoutInferBase, StmtExprVisitor {
 
 class GemmOpLayoutInfer : public LayoutInferBase {
  public:
-  GemmOpLayoutInfer(const GemmArgs& gemm_args, size_t block_size);
+  GemmOpLayoutInfer(const GemmArgs& gemm_args, size_t block_size, const TargetNode* target);
   LayoutMap Inference(const LayoutMap& layout_map, InferLevel level) final;
 
  private:
   const GemmArgs args;
   const size_t block_size_;
   bool completed_ = false;
+  const TargetNode* target_;
 };
 
 class ReduceOpLayoutInfer : public LayoutInferBase {
