@@ -562,7 +562,8 @@ def instantiate_template(func_name, annotations, func_args):
 
     elif "dense" in func_name or "matmul" in func_name:
         batched = "batch" in annotations
-        transposed = "transposed" in func_name
+        # dense is equal to transposed_matmul
+        transposed = "transposed" in func_name or "dense" in func_name
         lhs_arg_idx = _get_optional_int_annotation(annotations, "lhs_arg_idx", 0)
         rhs_arg_idx = _get_optional_int_annotation(annotations, "rhs_arg_idx", 1)
         bias_arg_idx = _get_optional_int_annotation(annotations, "bias_arg_idx", None)
