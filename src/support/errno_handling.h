@@ -21,8 +21,8 @@
  * \file errno_handling.h
  * \brief Common error number handling functions for socket.h and pipe.h
  */
-#ifndef TVM_SUPPORT_ERROR_NUMBER_HANDLING_H_
-#define TVM_SUPPORT_ERROR_NUMBER_HANDLING_H_
+#ifndef TVM_SUPPORT_ERRNO_HANDLING_H_
+#define TVM_SUPPORT_ERRNO_HANDLING_H_
 #include <errno.h>
 
 namespace tvm {
@@ -64,4 +64,4 @@ inline ssize_t RetryCallOnEINTR(FuncType func, GetErrorCodeFuncType fgeterrorcod
 }
 }  // namespace support
 }  // namespace tvm
-#endif  // TVM_SUPPORT_ERROR_NUMBER_HANDLING_H_
+#endif  // TVM_SUPPORT_ERRNO_HANDLING_H_
