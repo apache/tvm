@@ -24,19 +24,13 @@
 
 #include "sort.h"
 
-#include <algorithm>
-#include <numeric>
-#include <string>
-#include <utility>
-#include <vector>
-
 namespace tvm {
 namespace relax {
 
 /* relax.sort */
 TVM_REGISTER_NODE_TYPE(SortAttrs);
 
-Expr sort(Expr data, Optional<Integer> axis, Optional<Bool> descending) {
+Expr sort(Expr data, int axis, bool descending) {
   auto attrs = make_object<SortAttrs>();
   attrs->axis = std::move(axis);
   attrs->descending = std::move(descending);
@@ -48,23 +42,7 @@ Expr sort(Expr data, Optional<Integer> axis, Optional<Bool> descending) {
 TVM_REGISTER_GLOBAL("relax.op.sort").set_body_typed(sort);
 
 StructInfo InferStructInfoSort(const Call& call, const BlockBuilder& ctx) {
-  TensorStructInfo data_sinfo = GetUnaryInputTensorStructInfo(call, ctx);
-  const auto* attrs = call->attrs.as<SortAttrs>();
-
-  if (attrs->axis.defined()) return data_sinfo;
-
-  // flattened
-  const auto* data_shape = data_sinfo->shape.as<ShapeExprNode>();
-  if (data_shape == nullptr) {
-    return TensorStructInfo(data_sinfo->dtype, data_sinfo->ndim, data_sinfo->vdevice);
-  } else {
-    PrimExpr flattened_d = 1;
-    for (const auto v : data_shape->values) {
-      flattened_d *= v;
-    }
-    return TensorStructInfo(ShapeExpr(Array<PrimExpr>({flattened_d})), data_sinfo->dtype,
-                            data_sinfo->vdevice);
-  }
+  return GetUnaryInputTensorStructInfo(call, ctx);
 }
 
 TVM_REGISTER_OP("relax.sort")

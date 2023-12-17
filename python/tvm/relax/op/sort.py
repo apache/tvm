@@ -21,7 +21,7 @@ from . import _ffi_api
 from ..expr import Expr
 
 
-def sort(x: Expr, axis: Optional[int] = None, descending: Optional[bool] = None):
+def sort(x: Expr, axis: int = -1, descending: bool = False):
     """Performs sorting along the given axis and returns an array
     in sorted order.
 
@@ -32,7 +32,7 @@ def sort(x: Expr, axis: Optional[int] = None, descending: Optional[bool] = None)
 
     axis : Optional[int]
         Axis along which to sort the input tensor.
-        By default the flattened array is used.
+        By default the last axis of the input is used.
 
     descending : Optional[bool]
         Whether to sort in descending order, the default is False

@@ -439,20 +439,5 @@ def test_hint_on_device():
     _check(foo, bb.get()["foo"])
 
 
-def test_sort():
-    @R.function
-    def foo(x: R.Tensor((2, 3), "int32")) -> R.Tensor((6,), "int32"):
-        r = R.sort(x)
-        return r
-
-    x = relax.Var("x", R.Tensor((2, 3), "int32"))
-    bb = relax.BlockBuilder()
-    with bb.function("foo", (x,)):
-        tensor = bb.emit(relax.op.sort(x))
-        bb.emit_func_output(tensor)
-
-    _check(foo, bb.get()["foo"])
-
-
 if __name__ == "__main__":
     tvm.testing.main()

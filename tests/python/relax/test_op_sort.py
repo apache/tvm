@@ -53,7 +53,7 @@ def test_sort_infer_struct_info():
     _check_inference(bb, relax.op.sort(x3, axis=1), relax.TensorStructInfo((2, 10, 4), dtype=""))
     _check_inference(bb, relax.op.sort(x4, axis=1), relax.TensorStructInfo(dtype="", ndim=3))
     _check_inference(bb, relax.op.sort(x5, axis=1), relax.TensorStructInfo(dtype=""))
-    _check_inference(bb, relax.op.sort(x0), relax.TensorStructInfo((80,), "float32"))
+    _check_inference(bb, relax.op.sort(x0), relax.TensorStructInfo((2, 10, 4), "float32"))
     _check_inference(
         bb,
         relax.op.sort(x0, axis=1, descending=False),
@@ -69,7 +69,7 @@ def test_sort_infer_struct_info_shape_symbolic():
     x = relax.Var("x", R.Tensor((a, b, c), "float32"))
 
     _check_inference(bb, relax.op.sort(x, axis=1), relax.TensorStructInfo((a, b, c), "float32"))
-    _check_inference(bb, relax.op.sort(x), relax.TensorStructInfo((a * b * c,), "float32"))
+    _check_inference(bb, relax.op.sort(x), relax.TensorStructInfo((a, b, c), "float32"))
 
 
 def test_sort_infer_struct_info_more_input_dtype():

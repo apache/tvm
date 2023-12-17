@@ -32,14 +32,14 @@ namespace relax {
 
 /*! \brief Attributes used in sort operator */
 struct SortAttrs : public tvm::AttrsNode<SortAttrs> {
-  Optional<Integer> axis;
-  Optional<Bool> descending;
+  int axis;
+  bool descending;
 
   TVM_DECLARE_ATTRS(SortAttrs, "relax.attrs.SortAttrs") {
-    TVM_ATTR_FIELD(axis).describe(
+    TVM_ATTR_FIELD(axis).set_default(-1).describe(
         "Axis along which the sort is computed."
-        "The default (None) is to compute the sort over the flattened array.");
-    TVM_ATTR_FIELD(descending).describe(
+        "The default the last axis is used.");
+    TVM_ATTR_FIELD(descending).set_default(false).describe(
         "Whether to sort in descending order."
         "If it is not specified, it defaults to the ascending order.");
   }

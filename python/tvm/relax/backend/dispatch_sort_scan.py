@@ -17,24 +17,18 @@
 # pylint: disable=invalid-name, unused-argument, redefined-argument-from-local
 """Dispatch sort and scan operators to platform dependent implementation."""
 
+from tvm import topi
 from tvm.ir.module import IRModule
 from tvm.ir.transform import PassContext, module_pass
-from tvm import relax, topi
-from tvm.relax import Expr, Function, Call, PyExprMutator, expr_functor
 from tvm.target import Target
-
-from tvm.topi.utils import prod, swap
+from tvm.relax import Expr, Function, Call, PyExprMutator, expr_functor, TensorStructInfo
 
 
 @expr_functor.mutator
 class SortScanDispatcher(PyExprMutator):
     """
-    Converts the expensive non linear functions to their fast but approximate counterparts.
+    Dispatcher to dispatch sort and scan.
 
-    Parameters
-    ----------
-    mod: IRModule
-        The module to be transformed
     """
 
     def __init__(self, mod):
@@ -43,7 +37,7 @@ class SortScanDispatcher(PyExprMutator):
     def _get_target(self, expr: Expr) -> Target:
         sinfo = expr.struct_info
         # Get target information from TensorStructInfo
-        if isinstance(sinfo, relax.TensorStructInfo):
+        if isinstance(sinfo, TensorStructInfo):
             vdevice = sinfo.vdevice
             if vdevice is not None:
                 return vdevice.target
@@ -58,24 +52,23 @@ class SortScanDispatcher(PyExprMutator):
 
     def visit_call_(self, call: Call) -> Expr:
         if call.op.name == "relax.sort":
-            relax.op.sort
             tgt = self._get_target(call)
-            axis = call.attrs.axis
             with tgt:
                 return self.builder_.call_te(
                     topi.cuda.sort if tgt.kind.name == "cuda" else topi.sort,
                     call.args[0],
-                    int(axis) if axis is not None else axis,
-                    int(not call.attrs.descending),
+                    call.attrs.axis,
+                    not call.attrs.descending,
                 )
 
         if call.op.name == "relax.cumsum":
             tgt = self._get_target(call)
+            axis = int(call.attrs.axis) if call.attrs.axis is not None else call.attrs.axis
             with tgt:
                 return self.builder_.call_te(
                     topi.cuda.cumsum if tgt.kind.name == "cuda" else topi.cumsum,
                     call.args[0],
-                    int(call.attrs.axis),
+                    axis,
                     call.attrs.dtype,
                 )
 
@@ -91,7 +84,7 @@ class DispatchSortScan:
     def transform_module(self, mod: IRModule, ctx: PassContext) -> IRModule:
         sort_scan_dispater = SortScanDispatcher(mod)
         for gv, func in mod.functions_items():
-            if isinstance(func, relax.Function):
+            if isinstance(func, Function):
                 func = sort_scan_dispater.visit_expr(func)
                 sort_scan_dispater.builder_.update_func(gv, func)
         return sort_scan_dispater.builder_.get()

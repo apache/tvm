@@ -38,7 +38,7 @@ namespace relax {
  * \param descending Whether to sort in descending order.
  * \return The computed result.
  */
-Expr sort(Expr data, Optional<Integer> axis, Optional<Bool> descending);
+Expr sort(Expr data, int axis, bool descending);
 
 }  // namespace relax
 }  // namespace tvm
