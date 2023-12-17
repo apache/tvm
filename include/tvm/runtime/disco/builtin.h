@@ -89,14 +89,14 @@ void AllGather(NDArray send, NDArray recv);
  * \param send The buffer to be broadcasted
  * \param recv The buffer receives the broadcasted array
  */
-void BroadcastFromWorker0(NDArray send, NDArray recv);
+TVM_DLL void BroadcastFromWorker0(NDArray send, NDArray recv);
 /*!
  * \brief Perform a scatter operation from worker-0, chunking the given buffer into equal parts.
  * \param send For worker-0, it must be provided, and otherwise, the buffer must be None.
  * The buffer will be divided into equal parts and sent to each worker accordingly.
  * \param recv The receiving buffer, which must not be None.
  */
-void ScatterFromWorker0(Optional<NDArray> send, NDArray recv);
+TVM_DLL void ScatterFromWorker0(Optional<NDArray> send, NDArray recv);
 /*!
  * \brief Perform a gather operation to worker-0.
  * \param send The sending buffer, which must not be None.
