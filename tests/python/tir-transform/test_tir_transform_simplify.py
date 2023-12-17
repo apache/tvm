@@ -1757,5 +1757,17 @@ class TestBufferShapeConstraintWithOffset(BaseBeforeAfter):
         A[T.int64(1)] = T.float32(0)
 
 
+class TestNestedIfElimination(BaseBeforeAfter):
+    def before(a: T.Buffer((2, 8), "int32"), b: T.Buffer((2, 8), "int32")):
+        for i0, j0 in T.grid(2, 8):
+            b[i0, j0] = T.if_then_else(
+                i0 == 1 and 6 <= j0, 0, T.max(0, T.if_then_else(i0 == 1 and 6 <= j0, 0, a[i0, j0]))
+            )
+
+    def expected(a: T.Buffer((2, 8), "int32"), b: T.Buffer((2, 8), "int32")):
+        for i0, j0 in T.grid(2, 8):
+            b[i0, j0] = T.if_then_else(i0 == 1 and 6 <= j0, 0, T.max(0, a[i0, j0]))
+
+
 if __name__ == "__main__":
     tvm.testing.main()
