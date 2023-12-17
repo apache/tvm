@@ -18,9 +18,11 @@
 """Dispatch sort and scan operators to platform dependent implementation."""
 
 from tvm import topi
+from tvm.ir import Op
 from tvm.ir.module import IRModule
 from tvm.ir.transform import PassContext, module_pass
 from tvm.target import Target
+from tvm.contrib.thrust import can_use_thrust
 from tvm.relax import Expr, Function, Call, PyExprMutator, expr_functor, TensorStructInfo
 
 
@@ -51,9 +53,19 @@ class SortScanDispatcher(PyExprMutator):
         return target
 
     def visit_call_(self, call: Call) -> Expr:
+        if not isinstance(call.op, Op):
+            return super().visit_call_(call)
+
         if call.op.name == "relax.sort":
             tgt = self._get_target(call)
             with tgt:
+                if can_use_thrust(tgt, "tvm.contrib.thrust.sort"):
+                    return self.builder_.call_te(
+                        topi.cuda.sort_thrust,
+                        call.args[0],
+                        call.attrs.axis,
+                        not call.attrs.descending,
+                    )
                 return self.builder_.call_te(
                     topi.cuda.sort if tgt.kind.name == "cuda" else topi.sort,
                     call.args[0],
