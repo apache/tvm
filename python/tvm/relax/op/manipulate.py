@@ -215,31 +215,6 @@ def reshape(x: Expr, shape: Union[Tuple[PrimExprLike], Expr]) -> Expr:
     return _ffi_api.reshape(x, shape)  # type: ignore
 
 
-def sort(x: Expr, axis: Optional[int] = None, is_ascend: Optional[bool] = None):
-    """Performs sorting along the given axis and returns an array
-    in sorted order.
-
-    Parameters
-    ----------
-    x : relax.Expr
-        The input tensor.
-
-    axis : Optional[int]
-        Axis along which to sort the input tensor.
-        By default the flattened array is used.
-
-    is_ascend : Optional[bool]
-        Whether to sort in ascending or descending order.
-
-    Returns
-    -------
-    out : relax.Expr
-        Sorted tensor.
-
-    """
-    return _ffi_api.sort(x, axis, is_ascend)  # type: ignore
-
-
 def split(
     x: Expr,
     indices_or_sections: Union[int, List[PrimExprLike]],

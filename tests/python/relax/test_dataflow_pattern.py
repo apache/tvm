@@ -27,19 +27,10 @@ from tvm.relax.analysis import get_var2val
 from tvm.relax.dpl import *
 from tvm.script import relax as R
 from tvm.script import tir as T
-from tvm.script import ir as I
 
 
 @tvm.script.ir_module
 class Module:
-    I.module_global_infos(
-        {
-            "vdevice": [
-                I.vdevice("llvm"),
-            ]
-        }
-    )
-
     @T.prim_func
     def tir_matmul(x: T.handle, y: T.handle, z: T.handle) -> None:
         T.func_attr({"global_symbol": "tir_matmul"})
@@ -66,13 +57,11 @@ class Module:
                 B[vi, vj] = T.max(A[vi, vj], 0.0)
 
     @R.function
-    def main(
-        x: R.Tensor((32, 32), "float32", "llvm"), w: R.Tensor((32, 32), "float32", "llvm")
-    ) -> R.Tensor:
+    def main(x: R.Tensor((32, 32), "float32"), w: R.Tensor((32, 32), "float32")) -> R.Tensor:
         cls = Module
         with R.dataflow():
-            lv0 = R.call_tir(cls.tir_matmul, (x, w), R.Tensor((32, 32), "float32", "llvm"))
-            lv1 = R.call_tir(cls.tir_relu, (lv0), R.Tensor((32, 32), "float32", "llvm"))
+            lv0 = R.call_tir(cls.tir_matmul, (x, w), R.Tensor((32, 32), dtype="float32"))
+            lv1 = R.call_tir(cls.tir_relu, (lv0), R.Tensor((32, 32), dtype="float32"))
             R.output(lv1)
         return lv1
 
@@ -234,15 +223,6 @@ def test_dtype_pattern():
     assert isinstance(pattern, DataTypePattern)
     assert pattern.dtype == dtype
     assert has_dtype("float32").match(bindings[0].var)
-
-
-def test_target_pattern():
-    target = tvm.target.Target("llvm")
-    pattern = has_target(target)
-    assert isinstance(pattern, TargetPattern)
-    assert pattern.target == target
-    assert has_target("llvm").match(bindings[0].var)
-    assert not has_target("cuda").match(bindings[0].var)
 
 
 def test_shape_pattern():

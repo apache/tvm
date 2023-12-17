@@ -177,22 +177,6 @@ class DFPattern(Node):
             raise ValueError("has_shape takes a list or tuple as input.")
         return ShapePattern(pattern=self, shape=shape)
 
-    def has_target(self, target: tvm.target.Target) -> "TargetPattern":
-        """
-        Add a target constraint to this pattern
-
-        Parameters
-        ----------
-        target: Target
-            The target to match
-
-        Returns
-        -------
-        result: TargetPattern
-            The resulting TargetPattern
-        """
-        return has_target(target, self)
-
     def match(self, expr, var2val: Optional[Dict[Var, Expr]] = None) -> bool:
         """
         Match a relax.Expr syntactically
@@ -643,23 +627,6 @@ class ShapePattern(DFPattern):
 
 
 @register_df_node
-class TargetPattern(DFPattern):
-    """A pattern that matches another pattern with a certain target
-
-    Parameters
-    ----------
-    pattern: tvm.relax.dpl.DFPattern
-        The input pattern that needs type annotation.
-
-    target:
-        The target to match.
-    """
-
-    def __init__(self, pattern: "DFPattern", target: tvm.target.Target):
-        self.__init_handle_by_constructor__(ffi.TargetPattern, pattern, target)  # type: ignore
-
-
-@register_df_node
 class SameShapeConstraint(DFConstraint):
     """A pattern that requires a set of patterns to have the same shape
 
@@ -868,30 +835,6 @@ def has_dtype(dtype: str, pattern: DFPattern = None) -> DataTypePattern:
     if pattern is None:
         pattern = wildcard()
     return DataTypePattern(pattern, dtype)
-
-
-def has_target(target: tvm.target.Target, pattern: DFPattern = None) -> TargetPattern:
-    """
-    Syntatic sugar for creating a TargetPattern
-
-    Parameters
-    ----------
-    target: Target
-        The target to match
-
-    pattern: tvm.relax.dpl.DFPattern
-        The pattern that needs type annotation
-
-    Returns
-    -------
-    result: tvm.relax.dpl.TargetPattern
-        The resulting TargetPattern
-    """
-    if pattern is None:
-        pattern = wildcard()
-    if isinstance(target, (dict, str)):
-        target = tvm.target.Target(tvm.runtime.convert(target))
-    return TargetPattern(pattern, target)
 
 
 def is_shape(shape: List[tvm.ir.PrimExpr]) -> "PrimArrPattern":

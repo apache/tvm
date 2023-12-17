@@ -91,7 +91,6 @@ class DFPatternFunctor<R(const DFPattern& n, Args...)> {
   virtual R VisitDFPattern_(const ExprPatternNode* op, Args... args) DFPATTERN_FUNCTOR_DEFAULT;
   virtual R VisitDFPattern_(const FunctionPatternNode* op, Args... args) DFPATTERN_FUNCTOR_DEFAULT;
   virtual R VisitDFPattern_(const ShapePatternNode* op, Args... args) DFPATTERN_FUNCTOR_DEFAULT;
-  virtual R VisitDFPattern_(const TargetPatternNode* op, Args... args) DFPATTERN_FUNCTOR_DEFAULT;
   virtual R VisitDFPattern_(const TupleGetItemPatternNode* op,
                             Args... args) DFPATTERN_FUNCTOR_DEFAULT;
   virtual R VisitDFPattern_(const TuplePatternNode* op, Args... args) DFPATTERN_FUNCTOR_DEFAULT;
@@ -128,7 +127,6 @@ class DFPatternFunctor<R(const DFPattern& n, Args...)> {
     RELAX_DFPATTERN_FUNCTOR_DISPATCH(ExprPatternNode);
     RELAX_DFPATTERN_FUNCTOR_DISPATCH(FunctionPatternNode);
     RELAX_DFPATTERN_FUNCTOR_DISPATCH(ShapePatternNode);
-    RELAX_DFPATTERN_FUNCTOR_DISPATCH(TargetPatternNode);
     RELAX_DFPATTERN_FUNCTOR_DISPATCH(TupleGetItemPatternNode);
     RELAX_DFPATTERN_FUNCTOR_DISPATCH(TuplePatternNode);
     RELAX_DFPATTERN_FUNCTOR_DISPATCH(TypePatternNode);
@@ -163,7 +161,6 @@ class DFPatternVisitor : public DFPatternFunctor<void(const DFPattern&)> {
   void VisitDFPattern_(const ExprPatternNode* op) override;
   void VisitDFPattern_(const FunctionPatternNode* op) override;
   void VisitDFPattern_(const ShapePatternNode* op) override;
-  void VisitDFPattern_(const TargetPatternNode* op) override;
   void VisitDFPattern_(const TupleGetItemPatternNode* op) override;
   void VisitDFPattern_(const TuplePatternNode* op) override;
   void VisitDFPattern_(const TypePatternNode* op) override;

@@ -56,7 +56,6 @@ class NotPattern;
 class ShapePattern;
 class TypePattern;
 class DataTypePattern;
-class TargetPattern;
 class AttrPattern;
 class SameShapeConstraint;
 
@@ -121,8 +120,6 @@ class DFPattern : public ObjectRef {
   TVM_DLL DataTypePattern HasDtype(const std::string& dtype) const;
   /*! \brief Syntatic Sugar for creating a ShapePattern */
   TVM_DLL ShapePattern HasShape(const Array<PrimExpr>& shape) const;
-    /*! \brief Syntatic Sugar for creating a TargetPattern with a target */
-  TVM_DLL TargetPattern HasTarget(const Target& target) const;
   /*! \brief Syntatic Sugar for creating a ShapePattern */
   TVM_DLL SameShapeConstraint HasSameShapeAs(const DFPattern& other) const;
   /*! \brief Syntatic Sugar for duplicating the current pattern */
@@ -844,34 +841,6 @@ class DataTypePattern : public DFPattern {
  public:
   TVM_DLL DataTypePattern(DFPattern pattern, DataType dtype);
   TVM_DEFINE_OBJECT_REF_METHODS(DataTypePattern, DFPattern, DataTypePatternNode);
-};
-
-/*!
- * \brief A pattern that asserting a root pattern has a certain target.
- * \sa TargetPattern
- */
-class TargetPatternNode : public DFPatternNode {
- public:
-  DFPattern pattern; /*!< The root pattern to match */
-  Target target;    /*!< The target to match */
-
-  void VisitAttrs(tvm::AttrVisitor* v) {
-    v->Visit("pattern", &pattern);
-    v->Visit("target", &target);
-  }
-
-  static constexpr const char* _type_key = "relax.dpl.TargetPattern";
-  TVM_DECLARE_FINAL_OBJECT_INFO(TargetPatternNode, DFPatternNode);
-};
-
-/*!
- * \brief Managed reference to TargetPatternNode.
- * \sa TargetPatternNode
- */
-class TargetPattern : public DFPattern {
- public:
-  TVM_DLL TargetPattern(DFPattern pattern, Target target);
-  TVM_DEFINE_OBJECT_REF_METHODS(TargetPattern, DFPattern, TargetPatternNode);
 };
 
 /*!

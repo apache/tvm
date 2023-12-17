@@ -156,21 +156,6 @@ struct ScatterElementsAttrs : public tvm::AttrsNode<ScatterElementsAttrs> {
         "either \"update\", \"add\", \"mul\", \"mean\", \"min\" or \"max\".");
   }
 };  // struct ScatterElementsAttrs
-
-/*! \brief Attributes used in sort operator */
-struct SortAttrs : public tvm::AttrsNode<SortAttrs> {
-  Optional<Integer> axis;
-  Optional<Bool> is_ascend;
-
-  TVM_DECLARE_ATTRS(SortAttrs, "relax.attrs.SortAttrs") {
-    TVM_ATTR_FIELD(axis).describe(
-        "Axis along which the sort is computed."
-        "The default (None) is to compute the sort over the flattened array.");
-    TVM_ATTR_FIELD(is_ascend).describe(
-        "Whether to sort in ascending or descending order."
-        "If it is not specified, it defaults to the ascending order.");
-  }
-};  // struct SortAttrs
 }  // namespace relax
 }  // namespace tvm
 

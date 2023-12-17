@@ -1519,46 +1519,5 @@ TVM_REGISTER_OP("relax.scatter_elements")
     .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoScatterElements)
     .set_attr<Bool>("FPurity", Bool(true));
 
-/* relax.sort */
-TVM_REGISTER_NODE_TYPE(SortAttrs);
-
-Expr sort(Expr data, Optional<Integer> axis, Optional<Bool> is_ascend) {
-  auto attrs = make_object<SortAttrs>();
-  attrs->axis = std::move(axis);
-  attrs->is_ascend = std::move(is_ascend);
-
-  static const Op& op = Op::Get("relax.sort");
-  return Call(op, {std::move(data)}, Attrs{attrs}, {});
-}
-
-TVM_REGISTER_GLOBAL("relax.op.sort").set_body_typed(sort);
-
-StructInfo InferStructInfoSort(const Call& call, const BlockBuilder& ctx) {
-  TensorStructInfo data_sinfo = GetUnaryInputTensorStructInfo(call, ctx);
-  const auto* attrs = call->attrs.as<SortAttrs>();
-
-  if (attrs->axis.defined()) return data_sinfo;
-
-  // flattened
-  const auto* data_shape = data_sinfo->shape.as<ShapeExprNode>();
-  if (data_shape == nullptr) {
-    return TensorStructInfo(data_sinfo->dtype, data_sinfo->ndim, data_sinfo->vdevice);
-  } else {
-    PrimExpr flattened_d = 1;
-    for (const auto v : data_shape->values) {
-      flattened_d *= v;
-    }
-    return TensorStructInfo(ShapeExpr(Array<PrimExpr>({flattened_d})), data_sinfo->dtype,
-                            data_sinfo->vdevice);
-  }
-}
-
-TVM_REGISTER_OP("relax.sort")
-    .set_attrs_type<SortAttrs>()
-    .set_num_inputs(1)
-    .add_argument("data", "Tensor", "The input tensor.")
-    .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoSort)
-    .set_attr<Bool>("FPurity", Bool(true));
-
 }  // namespace relax
 }  // namespace tvm

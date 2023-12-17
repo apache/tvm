@@ -20,7 +20,7 @@ import tvm.script
 import tvm.testing
 from tvm.script import relax as R, tir as T, ir as I
 
-from tvm.relax.backend import DispatchOps
+from tvm.relax.backend import DispatchSortScan
 from tvm.ir.base import assert_structural_equal
 
 
@@ -94,8 +94,8 @@ def test_dispatch_cumsum():
                 R.output(gv)
             return gv
 
-    mod = DispatchOps()(Cumsum)
-    mod_gpu = DispatchOps()(CumsumGPU)
+    mod = DispatchSortScan()(Cumsum)
+    mod_gpu = DispatchSortScan()(CumsumGPU)
 
     assert_structural_equal(mod, CumsumAfter, map_free_vars=True)
     assert_structural_equal(mod_gpu, CumsumGPUAfter, map_free_vars=True)
@@ -110,7 +110,7 @@ def test_dispatch_sort():
         def sort(x: R.Tensor((3, 2, 3), "float32", "llvm")):
             with R.dataflow():
                 lv = R.add(x, x)
-                gv = R.sort(lv, axis=1, is_ascend=True)  # R.cumsum(lv1, axis=1, dtype="int32")
+                gv = R.sort(lv, axis=1, descending=False)  # R.cumsum(lv1, axis=1, dtype="int32")
                 R.output(gv)
             return gv
 
@@ -122,7 +122,7 @@ def test_dispatch_sort():
         def sort_gpu(x: R.Tensor((3, 2, 3), "float32", "cuda")):
             with R.dataflow():
                 lv0 = R.add(x, x)
-                lv1 = R.sort(lv0, axis=1, is_ascend=True)  # R.cumsum(lv1, axis=1, dtype="int32")
+                lv1 = R.sort(lv0, axis=1, descending=False)  # R.cumsum(lv1, axis=1, dtype="int32")
                 gv = R.sort(lv1)
                 R.output(gv)
             return gv
@@ -174,8 +174,8 @@ def test_dispatch_sort():
                 R.output(gv)
             return gv
 
-    mod = DispatchOps()(Sort)
-    mod_gpu = DispatchOps()(SortGPU)
+    mod = DispatchSortScan()(Sort)
+    mod_gpu = DispatchSortScan()(SortGPU)
 
     assert_structural_equal(mod, SortAfter, map_free_vars=True)
     assert_structural_equal(mod_gpu, SortGPUAfter, map_free_vars=True)
