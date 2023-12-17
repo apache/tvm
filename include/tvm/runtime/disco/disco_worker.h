@@ -60,7 +60,7 @@ class DiscoWorker {
   /*! \brief Main loop of the worker */
   void MainLoop();
   /*! \brief Get the worker instance on the current thread */
-  static DiscoWorker* ThreadLocal();
+  TVM_DLL static DiscoWorker* ThreadLocal();
   /*! \brief Set the specific register to a specific value */
   void SetRegister(int reg_id, TVMArgValue value);
 
