@@ -264,6 +264,24 @@ def test_single_depthwise_conv2d():
         y = relay.Tuple([y6, y10])
         return relay.Function(args, y)
 
+    def check(x_shape, w_shape, ones_shape):
+        x = relay.var("x", shape=x_shape, dtype="int8")
+        w1 = relay.var("w1", shape=w_shape, dtype="int8")
+        y_before = before(x, w1)
+        y = run_opt_pass(y_before, transform.Extend2DConv())
+        y = run_opt_pass(y, transform.InferType())
+        y_expected = expected(x, w1, ones_shape)
+        y_expected = run_opt_pass(y_expected, transform.InferType())
+        print(y)
+        print(y_expected)
+        print(tvm.ir.base.get_first_structural_mismatch(y, y_expected))
+        assert tvm.ir.structural_equal(y, y_expected, map_free_vars=True)
+
+    check((1, 64, 56, 56),(64, 1, 3, 3), (64,1,54,54))
+    check((1, 831, 16, 16),(831, 1, 16, 16), (831,1,1,1))
+    check((5, 20, 17, 17),(20, 1, 16, 16), (20,1,2,2))
+    check((5, 8, 17, 17),(8, 1, 12, 11), (8,1,6,7))
+    check((1, 37, 56, 56),(37, 1, 11, 11), (37,1,46,46))
 
 
 #required for TFLITE frontend translation to x86 execution
