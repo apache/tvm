@@ -223,7 +223,6 @@ get_meta_schedule_original_shape = _ffi.get_global_func(
     "relay.attrs.get_meta_schedule_original_shape"
 )
 
-
 # conv2d
 def wrap_compute_conv2d(
     topi_compute,
