@@ -23,8 +23,9 @@ from ..utils import simplify
 from .utils import get_pad_tuple1d
 
 
-def _conv1d_transpose_ncw_prepare(data, kernel, stride, padding, out_dtype, output_padding):
-    """Prepare for transposed 1D convolution ncw forward operator.
+def _conv1d_transpose_ncw_preprocess(data, kernel, stride, padding, out_dtype, output_padding):
+    """Preprocess data and kernel to make the compute pattern
+    of conv1d_transpose the same as conv1d.
 
     Parameters
     ----------
@@ -118,7 +119,7 @@ def conv1d_transpose_ncw(data, kernel, stride, padding, out_dtype, output_paddin
     batch, channels_in, _ = data.shape
     _, channels_out, kernel_width = kernel.shape
 
-    data_pad, transformed_kernel = _conv1d_transpose_ncw_prepare(
+    data_pad, transformed_kernel = _conv1d_transpose_ncw_preprocess(
         data, kernel, stride, padding, out_dtype, output_padding
     )
 
@@ -177,15 +178,12 @@ def group_conv1d_transpose_ncw(data, kernel, stride, padding, out_dtype, output_
         return conv1d_transpose_ncw(data, kernel, stride, padding, out_dtype, output_padding)
 
     _, in_channels, _ = data.shape
-    assert (
-        in_channels % groups == 0
-    ), f"input channels {in_channels} must divide group size {groups}"
 
     assert (
         in_channels % groups == 0
     ), f"input channels {in_channels} must divide group size {groups}"
 
-    data_pad, transformed_kernel = _conv1d_transpose_ncw_prepare(
+    data_pad, transformed_kernel = _conv1d_transpose_ncw_preprocess(
         data, kernel, stride, padding, out_dtype, output_padding
     )
 
