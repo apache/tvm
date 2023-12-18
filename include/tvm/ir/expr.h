@@ -861,6 +861,28 @@ struct PackedFuncValueConverter<tvm::FloatImm> {
   }
 };
 
+/* \brief Backwards compatibility wrapper for IntImm arguments
+ *
+ * In previous versions of TVM, IntImm was the default FFI type for
+ * integer arguments, instead of runtime::Int.  For backwards
+ * compatibility where the callee has been updated to expected a
+ * runtime::Int, the caller has not been updated to provide a
+ * runtime::Int (e.g. relay script parsing), and the auto-unboxing of
+ * runtime::Int does not apply (e.g. making an `Array<runtime::Int>`),
+ * allow the IntImm to be generated.
+ */
+template <>
+struct PackedFuncValueConverter<runtime::Int> {
+  template <typename PODType>
+  static runtime::Int From(const PODType& val) {
+    if (val.template IsObjectRef<tvm::IntImm>()) {
+      return runtime::Int(val.template AsObjectRef<tvm::IntImm>()->value);
+    } else {
+      return val.template AsObjectRef<runtime::Int>();
+    }
+  }
+};
+
 }  // namespace runtime
 }  // namespace tvm
 #endif  // TVM_IR_EXPR_H_

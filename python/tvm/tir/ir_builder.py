@@ -107,7 +107,9 @@ class BufferVar(ObjectGeneric):
     def __setitem__(self, index, value):
         index = self._normalize_index(index)
 
-        value = convert(value)
+        if isinstance(value, (int, bool, float)):
+            value = tvm.tir.const(value)
+
         value_element = value.dtype.split("x", maxsplit=1)[0]
         content_element = self._content_type.split("x", maxsplit=1)[0]
         if value_element != content_element:
