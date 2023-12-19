@@ -123,5 +123,80 @@ def test_error_for_cross_function_reuse():
         tvm.tir.analysis.verify_well_formed(mod)
 
 
+def test_reuse_of_env_thread_in_function_is_well_formed():
+    """An env thread may be reused within a PrimFunc
+
+    The `T.env_thread` has unique semantics, and may be defined at
+    multiple locations without the TIR being considered ill-formed.
+    """
+
+    @T.prim_func
+    def func(A: T.Buffer([256], "float32")):
+        threadIdx_x = T.env_thread("threadIdx.x")
+        with T.launch_thread(threadIdx_x, 256):
+            A[threadIdx_x] = A[threadIdx_x] + 1.0
+
+        with T.launch_thread(threadIdx_x, 256):
+            A[threadIdx_x] = A[threadIdx_x] + 2.0
+
+    tvm.tir.analysis.verify_well_formed(func)
+
+
+def test_reuse_of_env_thread_in_function_is_mandatory():
+    """An env thread may be reused within a PrimFunc
+
+    Not only are environment threads allowed to have multiple
+    definition sites, it is mandatory for them to have multiple
+    definition sites.  If a PrimFunc contains more than one
+    `"thread_extent"` with the same name, but with different `tir.Var`
+    instances, it is ill-formed.
+    """
+
+    @T.prim_func
+    def func(A: T.Buffer([256], "float32")):
+        with T.launch_thread("threadIdx.x", 256) as threadIdx_x:
+            A[threadIdx_x] = A[threadIdx_x] + 1.0
+
+        with T.launch_thread("threadIdx.x", 256) as threadIdx_x:
+            A[threadIdx_x] = A[threadIdx_x] + 2.0
+
+    with pytest.raises(ValueError):
+        tvm.tir.analysis.verify_well_formed(func)
+
+
+def test_reuse_of_env_thread_across_functions_is_ill_formed():
+    """An env thread may not be reused across PrimFunc
+
+    However, each function must have its own `tir.Var` representing
+    the environment thread, and may not share these variables across
+    PrimFuncs.
+    """
+
+    threadIdx_x = tvm.tir.Var("threadIdx_x", "int32")
+
+    @I.ir_module
+    class mod:
+        @T.prim_func
+        def kernel_1(A: T.Buffer([256], "float32")):
+            T.attr(
+                T.iter_var(threadIdx_x, T.Range(0, 256), "ThreadIndex", "threadIdx.x"),
+                "thread_extent",
+                256,
+            )
+            A[threadIdx_x] = A[threadIdx_x] + T.float32(1)
+
+        @T.prim_func
+        def kernel_2(A: T.Buffer([256], "float32")):
+            T.attr(
+                T.iter_var(threadIdx_x, T.Range(0, 256), "ThreadIndex", "threadIdx.x"),
+                "thread_extent",
+                256,
+            )
+            A[threadIdx_x] = A[threadIdx_x] + T.float32(1)
+
+    with pytest.raises(ValueError, match="multiple definitions of variable threadIdx_x"):
+        tvm.tir.analysis.verify_well_formed(mod)
+
+
 if __name__ == "__main__":
     tvm.testing.main()

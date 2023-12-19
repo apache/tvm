@@ -200,12 +200,12 @@ void TIRVisitorWithPath::VisitStmt_(const LetStmtNode* op, ObjectPath path) {
 void TIRVisitorWithPath::VisitStmt_(const AttrStmtNode* op, ObjectPath path) {
   Visit(op->value, path->Attr("value"));
 
-  std::optional<DefContext<Var>> context = std::nullopt;
-  if (auto ptr = op->node.as<IterVarNode>(); ptr && op->attr_key == attr::thread_extent) {
+  std::optional<DefContext<IterVar>> context = std::nullopt;
+  if (auto iter_var = op->node.as<IterVar>();
+      iter_var && (op->attr_key == attr::thread_extent || op->attr_key == attr::virtual_thread)) {
     // Some attributes serve as a source of definition for the
     // tir::Var they annotate.
-    Visit(ptr->dom, path->Attr("node")->Attr("dom"));
-    context = WithDef(ptr->var, path->Attr("node")->Attr("var"));
+    context = WithDef(iter_var.value(), path->Attr("node"));
   } else if (auto expr = op->node.as<PrimExpr>()) {
     Visit(expr.value(), path->Attr("node"));
   }
