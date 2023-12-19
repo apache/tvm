@@ -207,6 +207,7 @@ class IRConvertSSA final : public StmtExprMutator {
     while (redefines.size()) {
       redefines.pop_back();
     }
+    function_scope_var_remap_.clear();
     return func;
   }
 
@@ -259,6 +260,9 @@ class IRConvertSSA final : public StmtExprMutator {
   Var GetRemappedVar(Var var) {
     if (auto it = scope_.find(var.get()); it != scope_.end() && it->second.size()) {
       return it->second.back();
+    } else if (auto it = function_scope_var_remap_.find(var.get());
+               it != function_scope_var_remap_.end()) {
+      return it->second;
     } else {
       return var;
     }
@@ -353,12 +357,23 @@ class IRConvertSSA final : public StmtExprMutator {
         }
       }
 
-      std::optional<ScopedRedefine> context = std::nullopt;
-      auto var = iter_var->var;
-      if (defined_.count(var.get())) {
-        context.emplace(this, var);
-        var = context->new_var;
+      Var var = iter_var->var;
+      if (auto it = function_scope_var_remap_.find(var.get());
+          it != function_scope_var_remap_.end()) {
+        var = it->second;
+      } else if (defined_.count(var.get())) {
+        Var new_var = [&]() {
+          if (var->type_annotation.defined()) {
+            return Var(var->name_hint, var->type_annotation);
+          } else {
+            return Var(var->name_hint, var->dtype);
+          }
+        }();
+
+        function_scope_var_remap_.insert({var.get(), new_var});
+        var = new_var;
       } else {
+        function_scope_var_remap_.insert({var.get(), var});
         defined_.insert(var.get());
       }
 
@@ -437,6 +452,8 @@ class IRConvertSSA final : public StmtExprMutator {
   std::unordered_map<const VarNode*, std::vector<Var>> scope_;
   std::unordered_set<const VarNode*> defined_;
   std::unordered_map<const BufferNode*, std::vector<Buffer>> buf_remap_;
+
+  std::unordered_map<const VarNode*, Var> function_scope_var_remap_;
 };
 
 Stmt ConvertSSA(Stmt stmt) { return IRConvertSSA()(std::move(stmt)); }

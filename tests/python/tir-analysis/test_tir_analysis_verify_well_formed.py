@@ -67,7 +67,9 @@ def test_error_for_out_of_scope_usage():
             T.evaluate(i)
         T.evaluate(i)
 
-    with pytest.raises(ValueError, match="Invalid use of variable i at .* no longer in-scope."):
+    with pytest.raises(
+        ValueError, match="Invalid use of undefined variable i at .* no longer in-scope."
+    ):
         tvm.tir.analysis.verify_well_formed(func)
 
 
