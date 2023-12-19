@@ -17,6 +17,7 @@
 """IRModule that holds the functions and type definitions."""
 from __future__ import annotations
 
+import ast
 from typing import Dict, Union
 
 import tvm._ffi
@@ -29,8 +30,6 @@ from . import expr as _expr
 from . import type as _ty
 from .attrs import DictAttrs
 from .base import Node
-
-import ast
 
 
 @tvm._ffi.register_object("IRModule")
