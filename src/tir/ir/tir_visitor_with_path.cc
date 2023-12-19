@@ -24,8 +24,12 @@
 
 #include "tir_visitor_with_path.h"
 
+#include <algorithm>
 #include <optional>
+#include <unordered_set>
+#include <utility>
 #include <variant>
+#include <vector>
 
 namespace tvm {
 namespace tir {

@@ -50,7 +50,7 @@ class Verifier : protected TIRVisitorWithPath {
   }
 
  protected:
-  Verifier(bool assert_on_error) : assert_on_error_(assert_on_error) {}
+  explicit Verifier(bool assert_on_error) : assert_on_error_(assert_on_error) {}
 
   /* \brief Helper class to handle the bool-or-assert handles
    *
@@ -72,7 +72,7 @@ class Verifier : protected TIRVisitorWithPath {
    */
   class VerifyStream {
    public:
-    VerifyStream(bool log_fatal) {
+    explicit VerifyStream(bool log_fatal) {
       if (log_fatal) {
         log_.emplace();
       }
