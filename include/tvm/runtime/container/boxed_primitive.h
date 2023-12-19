@@ -67,7 +67,7 @@ class BoxNode : public Object {
    *
    * \param value The value to be boxed
    */
-  BoxNode(Prim value) : value(value) {}
+  explicit BoxNode(Prim value) : value(value) {}
 
   /*! \brief The boxed value */
   Prim value;
@@ -84,7 +84,7 @@ class Box : public ObjectRef {
    *
    * \param value The value to be boxed
    */
-  Box(Prim value) : ObjectRef(make_object<BoxNode<Prim>>(value)) {}
+  explicit Box(Prim value) : ObjectRef(make_object<BoxNode<Prim>>(value)) {}
 
   operator Prim() const { return (*this)->value; }
 
