@@ -526,7 +526,7 @@ TVM_DLL Pass CreateModulePass(
     String name, Array<runtime::String> required, bool traceable = false);
 
 /*
- * \brief Utility to apply a pass to a specific function in a module
+ * \brief Utility to apply a pass to specific functions in an IRModule
  *
  * TVM uses IRModule to IRModule transformations at all stages of
  * lowering.  These transformations may be useful when hand-writing an
@@ -536,17 +536,19 @@ TVM_DLL Pass CreateModulePass(
  *
  * \param pass The IRModule to IRModule pass to be applied.
  *
- * \param func_name The name of the function
+ * \param func_name_regex A regex used to select the functions to be
+ * updated.  The pass will be applied to all functions whose name
+ * matches the regex.
  *
- * \param error_if_function_missing Specifies the behavior if an
- *     IRModule does not contain func_name.  If true, an error will be
- *     raised.  If false (default), the IRModule will be returned
- *     unmodified.
+ * \param error_if_no_function_matches_regex Specifies the behavior if
+ *     an IRModule does not contain any function matching the provided
+ *     regex.  If true, an error will be raised.  If false (default),
+ *     the IRModule will be returned unmodified.
  *
  * \return The modified IRModule to IRModule pass.
  */
-TVM_DLL Pass ApplyPassToFunction(Pass pass, String func_name,
-                                 bool error_if_function_missing = false);
+TVM_DLL Pass ApplyPassToFunction(Pass pass, String func_name_regex,
+                                 bool error_if_no_function_matches_regex = false);
 
 /*!
  * \brief A special trace pass that prints the header and IR to LOG(INFO).

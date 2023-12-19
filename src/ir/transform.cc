@@ -31,6 +31,7 @@
 
 #include <chrono>
 #include <iomanip>
+#include <regex>
 #include <stack>
 #include <unordered_set>
 
@@ -531,17 +532,30 @@ Pass CreateModulePass(const runtime::TypedPackedFunc<IRModule(IRModule, PassCont
   return ModulePass(pass_func, pass_info);
 }
 
-Pass ApplyPassToFunction(Pass pass, String func_name, bool error_if_function_missing) {
+Pass ApplyPassToFunction(Pass pass, String func_name_regex,
+                         bool error_if_no_function_matches_regex) {
   auto pass_name =
-      static_cast<const std::stringstream&>(std::stringstream() << "ApplyPassTo" << func_name)
+      static_cast<const std::stringstream&>(std::stringstream() << "ApplyPassTo" << func_name_regex)
           .str();
+  std::regex regex(func_name_regex.operator std::string());
 
-  auto pass_func = [pass, func_name](IRModule mod, PassContext) -> IRModule {
-    auto gvar = mod->GetGlobalVar(func_name);
-    auto func = mod->Lookup(gvar);
-    auto mutated = pass(IRModule({{gvar, func}}));
+  auto pass_func = [pass, regex](IRModule mod, PassContext) -> IRModule {
+    IRModule subset;
 
-    mod.CopyOnWrite()->Update(mutated);
+    for (const auto& [gvar, func] : mod->functions) {
+      std::string name = gvar->name_hint;
+      if (std::regex_match(name, regex)) {
+        subset->Add(gvar, func);
+      }
+    }
+
+    if (subset->functions.size()) {
+      IRModule new_subset = pass(subset);
+      if (!new_subset.same_as(subset)) {
+        mod.CopyOnWrite()->Update(new_subset);
+      }
+    }
+
     return mod;
   };
 
