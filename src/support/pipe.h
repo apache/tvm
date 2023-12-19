@@ -82,7 +82,7 @@ class Pipe : public dmlc::Stream {
       if (!ReadFile(handle_, static_cast<TCHAR*>(ptr), size, &nread, nullptr)) return -1;
       return nread;
     };
-    DWORD nread = RetryCallOnEINTR(fread, GetLastErrorCode);
+    DWORD nread = static_cast<DWORD>(RetryCallOnEINTR(fread, GetLastErrorCode));
     ICHECK_EQ(static_cast<size_t>(nread), size) << "Read Error: " << GetLastError();
 #else
     ssize_t nread = RetryCallOnEINTR([&]() { return read(handle_, ptr, size); }, GetLastErrorCode);
@@ -104,7 +104,7 @@ class Pipe : public dmlc::Stream {
       if (!WriteFile(handle_, static_cast<const TCHAR*>(ptr), size, &nwrite, nullptr)) return -1;
       return nwrite;
     };
-    DWORD nwrite = RetryCallOnEINTR(fwrite, GetLastErrorCode);
+    DWORD nwrite = static_cast<DWORD>(RetryCallOnEINTR(fwrite, GetLastErrorCode));
     ICHECK_EQ(static_cast<size_t>(nwrite), size) << "Write Error: " << GetLastError();
 #else
     ssize_t nwrite =

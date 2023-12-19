@@ -25,6 +25,8 @@
 #define TVM_SUPPORT_ERRNO_HANDLING_H_
 #include <errno.h>
 
+#include "ssize.h"
+
 namespace tvm {
 namespace support {
 /*!
