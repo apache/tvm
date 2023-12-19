@@ -29,6 +29,7 @@
 #include <tvm/tir/stmt_functor.h>
 
 #include <exception>
+#include <utility>
 
 namespace tvm {
 namespace tir {
