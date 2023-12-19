@@ -318,10 +318,12 @@ Optional<LoopRV> TileWithTensorIntrin(const tir::Schedule& sch, const tir::Block
     auto producers = sch->GetProducers(block_rv);
     for (const auto& producer : producers) {
       auto original_producers = sch->GetProducers(producer);
-      ICHECK_EQ(original_producers.size(), 1u);
+      // NOTICE: there may not all producers padded.
       // Inline the original producer into the padding block. This ensures that the new producer
       // has the padded shape.
-      sch->ComputeInline(original_producers[0]);
+      if (original_producers.size() == 1u) {
+        sch->ComputeInline(original_producers[0]);
+      }
     }
     auto consumers = sch->GetConsumers(block_rv);
     for (const auto& consumer : consumers) {
