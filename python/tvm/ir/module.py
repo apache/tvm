@@ -30,6 +30,8 @@ from . import type as _ty
 from .attrs import DictAttrs
 from .base import Node
 
+import ast
+
 
 @tvm._ffi.register_object("IRModule")
 class IRModule(Node, Scriptable):
