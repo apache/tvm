@@ -19,6 +19,7 @@
 
 import os
 import time
+import json
 from typing import Dict, Any
 import traceback
 import numpy as np
@@ -381,6 +382,10 @@ class BaseManager(object):
         # run quantize
         if _tool_enabled(ToolType.QUANTIZER):
             self._apply_tool(ToolType.QUANTIZER, stage_config)
+
+        # run distill
+        if _tool_enabled(ToolType.DISTILLER):
+            self._apply_tool(ToolType.DISTILLER, stage_config)
 
         # optimize and get the runner
         msc_utils.time_stamp(MSCStage.OPTIMIZE)
