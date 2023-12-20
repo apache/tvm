@@ -79,7 +79,7 @@ class Executable:
             vm = tvm.relax.VirtualMachine(rt_mod, tvm.cuda())
         """
 
-        # TODO(tvm-team): Update runtime.Module interfac
+        # TODO(tvm-team): Update runtime.Module interface
         # to query these properties as bitmask.
         def _not_runnable(x):
             return x.type_key in ("c", "static_library")
@@ -179,13 +179,17 @@ def _vmcodegen(
     raise ValueError(f"Unknown exec_mode {exec_mode}")
 
 
-def _autodetect_system_lib_req(target: tvm.target.Target, system_lib):
+def _autodetect_system_lib_req(
+    target: Optional[tvm.target.Target] = None, system_lib: Optional[bool] = None
+):
     """Automatically detect system lib requirement"""
-    host = target if target.host is None else target.host
-    if system_lib is None:
-        system_lib = False
-        if "wasm" in host.attrs.get("mtriple", ""):
-            system_lib = True
+    if target is not None:
+        host = target if target.host is None else target.host
+        if system_lib is None:
+            system_lib = False
+            if "wasm" in host.attrs.get("mtriple", ""):
+                system_lib = True
+
     if system_lib:
         # use packed-func to avoid relay dep.
         return tvm.get_global_func("relay.backend.CreateRuntime")("cpp", {"system-lib": system_lib})
@@ -194,7 +198,7 @@ def _autodetect_system_lib_req(target: tvm.target.Target, system_lib):
 
 def _vmlink(
     builder: "relax.ExecBuilder",
-    target: Union[str, tvm.target.Target],
+    target: Optional[Union[str, tvm.target.Target]],
     tir_mod: Optional[tvm.IRModule] = None,
     ext_libs: List[tvm.runtime.Module] = None,
     params: Optional[Dict[str, list]] = None,
@@ -213,8 +217,10 @@ def _vmlink(
     builder: relax.ExecBuilder
         Builder used to collect executables.
 
-    target : Union[str, tvm.target.Target]
+    target : Optional[Union[str, tvm.target.Target]]
         A build target which can have optional host side compilation target.
+        If the target is not specified, the target in the vdevice list will be used.
+        For multi-target compilation, the vdevice should be annotated.
 
     tir_mod: IRModule
         The input TIR IRModule to be linked together.
@@ -239,14 +245,16 @@ def _vmlink(
     lib = None
     if tir_mod is not None:
         lib = tvm.build(
-            tir_mod, target=target, runtime=_autodetect_system_lib_req(target, system_lib)
+            tir_mod,
+            target=target,
+            runtime=_autodetect_system_lib_req(target, system_lib),
         )
     return Executable(_ffi_api.VMLink(builder, target, lib, ext_libs, params))  # type: ignore
 
 
 def build(
     mod: tvm.IRModule,
-    target: Union[str, tvm.target.Target],
+    target: Optional[Union[str, tvm.target.Target]] = None,
     params: Optional[Dict[str, list]] = None,
     pipeline: Union[None, str, tvm.transform.Pass] = "default_build",
     exec_mode: str = "bytecode",
@@ -261,7 +269,7 @@ def build(
     mod: IRModule
         The input IRModule to be built.
 
-    target : Union[str, tvm.target.Target]
+    target : Optional[Union[str, tvm.target.Target]]
         A build target which can have optional host side compilation target.
 
         When TVM compiles device specific program such as CUDA,

@@ -440,9 +440,6 @@ void VirtualMachineImpl::LoadExecutable(ObjectPtr<Executable> exec) {
 
 void VirtualMachineImpl::Init(const std::vector<Device>& devices,
                               const std::vector<AllocatorType>& alloc_types) {
-  // TODO(@yuchen): support multi-device heterogeneous execution
-  ICHECK_LT(devices.size(), 3)
-      << "Currently relax vm only supports at most 2 devices (host + device)";
   ICHECK_EQ(devices.size(), alloc_types.size());
 
   this->devices.reserve(devices.size());

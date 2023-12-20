@@ -26,6 +26,7 @@
 #include <tvm/relax/analysis.h>
 #include <tvm/relax/expr_functor.h>
 #include <tvm/relax/op_attr_types.h>
+#include <tvm/relax/struct_info.h>
 #include <tvm/relax/transform.h>
 
 namespace tvm {
@@ -72,6 +73,14 @@ class LegalizeMutator : public ExprMutator {
         builder_->UpdateFunction(gv, Downcast<BaseFunc>(updated_func));
       }
     }
+    // Fill the "kTarget" attribute of PrimFunc
+    for (const auto& [gv, func] : builder_->GetContextIRModule()->functions) {
+      const tir::PrimFuncNode* prim_func;
+      if (tmap_.count(gv) && (prim_func = func.as<tir::PrimFuncNode>())) {
+        auto f = WithAttr(GetRef<tir::PrimFunc>(prim_func), tvm::attr::kTarget, tmap_[gv]);
+        builder_->UpdateFunction(gv, f);
+      }
+    }
     return builder_->GetContextIRModule();
   }
 
@@ -107,6 +116,33 @@ class LegalizeMutator : public ExprMutator {
       ret_args.push_back(arg);
     }
     return Call(call_pure_packed_op, ret_args, ret->attrs, ret->sinfo_args);
+  }
+
+  Target GetTarget(const Array<StructInfo>& sinfos) {
+    for (auto sinfo : sinfos) {
+      if (const auto* tinfo = sinfo.as<TensorStructInfoNode>()) {
+        if (tinfo->vdevice.defined()) {
+          auto vdevice = tinfo->vdevice.value();
+          if (vdevice->target.defined()) {
+            return vdevice->target;
+          }
+        }
+      } else if (const auto* tup_sinfo = sinfo.as<TupleStructInfoNode>()) {
+        return GetTarget(tup_sinfo->fields);
+      }
+    }
+    return Target();
+  }
+
+  void SaveTarget(const Expr& expr) {
+    if (expr->IsInstance<CallNode>()) {
+      auto call = Downcast<Call>(expr);
+      auto target = GetTarget(call->sinfo_args);
+      const GlobalVarNode* gvar_node;
+      if (target.defined() && (gvar_node = call->args[0].as<GlobalVarNode>())) {
+        this->tmap_.Set(GetRef<GlobalVar>(gvar_node), target);
+      }
+    }
   }
 
   Expr VisitExpr_(const CallNode* call) final {
@@ -164,6 +200,10 @@ class LegalizeMutator : public ExprMutator {
       builder_->BeginBindingBlock();
     }
     Expr legalized = legalization_func(builder_, visited_call);
+
+    // Save the expected target info. into tmap_
+    SaveTarget(legalized);
+
     legalized = builder_->Normalize(legalized);
 
     BindingBlock prologue = builder_->EndBlock();
@@ -196,6 +236,8 @@ class LegalizeMutator : public ExprMutator {
   IRModule mod_;
   /*! \brief The customized legalization function map. */
   Map<String, PackedFunc> cmap_;
+  /*! \brief The map from GlobalVar of PrimFunc to compilation Target. */
+  Map<GlobalVar, Target> tmap_;
   /*!
    * \brief A boolean value indicating if to print warnings for CallNode whose op's
    * legalization function is not registered.
