@@ -97,6 +97,36 @@ PSet<GlobalVar> CollectRecursiveFunctions(const IRModule& mod) {
   return recursive_funcs;
 }
 
+bool IsInlinablePrimFunc(const GlobalVar& gvar, const PrimFunc& prim_func,
+                         const PSet<GlobalVar>& recursive_functions) {
+  // Only inline private functions.  Externally-exposed functions
+  // must be preserved so to avoid breaking callsites outside of
+  // the IRModule.
+  bool is_exposed = prim_func->GetAttr<String>(tvm::attr::kGlobalSymbol).defined();
+  if (is_exposed) return false;
+
+  // We do not currently implement any analysis for termination of
+  // a function.  If a recursive function requires runtime checks
+  // in order to terminate, we would keep inlining until the
+  // recursive visits segfault.
+  bool is_recursive = recursive_functions.count(gvar);
+  if (is_recursive) return false;
+
+  // We do not currently support inlining of functions that accept
+  // buffer arguments.
+  bool has_buffer_arguments = prim_func->buffer_map.size();
+  if (has_buffer_arguments) return false;
+
+  // We do not currently support inlining of schedulable TIR
+  // functions.  To support this use case, repeated names in
+  // `tir::Block` nodes resulting from multiple calls to the same
+  // inlined function will need to be de-duplicated.
+  bool has_block_node = prim_func->body.as<BlockRealizeNode>();
+  if (has_block_node) return false;
+
+  return true;
+}
+
 Map<GlobalVar, PrimFunc> CollectInlinablePrimFuncs(const IRModule& mod) {
   auto recursive_functions = CollectRecursiveFunctions(mod);
 
@@ -104,29 +134,7 @@ Map<GlobalVar, PrimFunc> CollectInlinablePrimFuncs(const IRModule& mod) {
   for (const auto& [gvar, base_func] : mod->functions) {
     if (auto opt = base_func.as<PrimFunc>()) {
       auto prim_func = opt.value();
-
-      // Only inline private functions.  Externally-exposed functions
-      // must be preserved so to avoid breaking callsites outside of
-      // the IRModule.
-      bool is_exposed = prim_func->GetAttr<String>(tvm::attr::kGlobalSymbol).defined();
-
-      // We do not currently implement any analysis for termination of
-      // a function.  If a recursive function requires runtime checks
-      // in order to terminate, we would keep inlining until the
-      // recursive visits segfault.
-      bool is_recursive = recursive_functions.count(gvar);
-
-      // We do not currently support inlining of functions that accept
-      // buffer arguments.
-      bool has_buffer_arguments = prim_func->buffer_map.size();
-
-      // We do not currently support inlining of schedulable TIR
-      // functions.  To support this use case, repeated names in
-      // `tir::Block` nodes resulting from multiple calls to the same
-      // inlined function will need to be de-duplicated.
-      bool has_block_node = prim_func->body.as<BlockRealizeNode>();
-
-      if (!is_exposed && !is_recursive && !has_buffer_arguments && !has_block_node) {
+      if (IsInlinablePrimFunc(gvar, prim_func, recursive_functions)) {
         output.Set(gvar, prim_func);
       }
     }
@@ -160,32 +168,51 @@ class PrimFuncInliner : StmtExprMutator {
 
  private:
   Stmt VisitStmt_(const EvaluateNode* eval) override {
-    if (auto call = eval->value.as<CallNode>()) {
-      if (auto gvar = call->op.as<GlobalVar>()) {
-        if (auto opt_callee = inlinable_funcs_.Get(gvar.value())) {
-          auto callee = opt_callee.value();
-
-          bool is_same_target = [&]() -> bool {
-            auto callee_target = callee->GetAttr<Target>(tvm::attr::kTarget);
-            if (current_target_ && callee_target) {
-              return callee_target.value()->str() == current_target_.value()->str();
-            } else {
-              return true;
-            }
-          }();
-
-          if (is_same_target) {
-            Stmt inlined = InlineArguments(gvar.value(), callee, call->args);
-            return VisitStmt(inlined);
-          }
-        }
-      }
+    if (auto inlined = GetInlinedFunction(eval)) {
+      return inlined.value();
+    } else {
+      return StmtExprMutator::VisitStmt_(eval);
     }
+  }
 
-    return StmtExprMutator::VisitStmt_(eval);
+  Optional<Stmt> GetInlinedFunction(const EvaluateNode* eval) {
+    auto call = eval->value.as<CallNode>();
+    if (!call) return NullOpt;
+
+    auto gvar = call->op.as<GlobalVar>();
+    if (!gvar) return NullOpt;
+
+    auto opt_callee = inlinable_funcs_.Get(gvar.value());
+    if (!opt_callee) return NullOpt;
+    auto callee = opt_callee.value();
+
+    bool is_same_target = [&]() -> bool {
+      auto callee_target = callee->GetAttr<Target>(tvm::attr::kTarget);
+      if (current_target_ && callee_target) {
+        return callee_target.value()->str() == current_target_.value()->str();
+      } else {
+        return true;
+      }
+    }();
+    if (!is_same_target) return NullOpt;
+
+    Stmt inlined = InlineArguments(gvar.value(), callee, call->args);
+    return VisitStmt(inlined);
   }
 
   PrimExpr VisitExpr_(const CallNode* call) override {
+    // Because the current implementation inlines a subroutine inserts
+    // the `tir::Stmt` body at the point of use, replacement must
+    // occur in a context where a `tir::Stmt` can be returned. Support
+    // of subroutines that are called within an expression
+    // (e.g. Replacing func in `Buf[0] = func(1) + func(2)`) would
+    // require hoisting preprocessing done in the subroutine to the
+    // parent `tir::Stmt`.
+    //
+    // See `TestInlineCallOccurringInExpression` in
+    // `test_tir_inline_private_functions.py` for a test of this
+    // behavior, currently marked with `pytest.mark.xfail`.
+    //
     // Any callee that hasn't been inlined at this point must be kept
     // in the output IRModule.
     if (auto gvar = call->op.as<GlobalVar>()) {
