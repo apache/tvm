@@ -31,6 +31,7 @@ from tvm.relay.dataflow_pattern import (  # type: ignore
     is_tuple,
     wildcard,
 )
+from tvm.relay.backend.contrib.ethosu import util
 from tvm.relay.expr import Call, Constant  # type: ignore
 from tvm.relay.op.contrib.register import register_pattern_table  # type: ignore
 
@@ -1229,29 +1230,46 @@ class LutActivationParams:
 
         layout = "NHWC"
 
-        quantize = func_body
-        activation = quantize.args[0]
-        dequantize = activation.args[0]
-        in_var = dequantize.args[0]
+        if util.is_fixed_point_enabled():
+            fract_part_for_16_bits = float(1 / 2**15)
+            in_var = func_body.args[0]
 
-        self.ifm = TensorParams(
-            in_var,
-            layout=layout,
-            scale=dequantize.args[DequantizeArgs.IFM_SCALE.value],
-            zero_point=dequantize.args[DequantizeArgs.IFM_ZERO_POINT.value],
-        )
-        self.ofm = TensorParams(
-            quantize,
-            layout=layout,
-            scale=quantize.args[QuantizeArgs.OFM_SCALE.value],
-            zero_point=quantize.args[QuantizeArgs.OFM_ZERO_POINT.value],
-        )
+            self.ifm = TensorParams(
+                in_var,
+                layout=layout,
+                scale=tvm.relay.Constant(tvm.nd.array(np.array(fract_part_for_16_bits))),
+                zero_point=tvm.relay.Constant(tvm.nd.array(np.array(0, dtype="int32"))),
+            )
+            self.ofm = TensorParams(
+                func_body,
+                layout=layout,
+                scale=tvm.relay.Constant(tvm.nd.array(np.array(fract_part_for_16_bits))),
+                zero_point=tvm.relay.Constant(tvm.nd.array(np.array(0, dtype="int32"))),
+            )
+        else:
+            quantize = func_body
+            activation = quantize.args[0]
+            dequantize = activation.args[0]
+            in_var = dequantize.args[0]
+
+            self.ifm = TensorParams(
+                in_var,
+                layout=layout,
+                scale=dequantize.args[DequantizeArgs.IFM_SCALE.value],
+                zero_point=dequantize.args[DequantizeArgs.IFM_ZERO_POINT.value],
+            )
+            self.ofm = TensorParams(
+                quantize,
+                layout=layout,
+                scale=quantize.args[QuantizeArgs.OFM_SCALE.value],
+                zero_point=quantize.args[QuantizeArgs.OFM_ZERO_POINT.value],
+            )
 
     def is_valid(self):
         """
         This function checks whether activation has compatible attributes with the NPU
         """
-        if not check_valid_dtypes([self.ifm, self.ofm], supported_dtypes=[np.int8]):
+        if not check_valid_dtypes([self.ifm, self.ofm], supported_dtypes=[np.int8, np.int16]):
             return False
         return True
 
@@ -1266,7 +1284,7 @@ def tanh_pattern():
     dequant = is_op("qnn.dequantize")(wildcard(), is_constant(), is_constant())
     tanh = is_op("tanh")(dequant)
     quant = is_op("qnn.quantize")(tanh, is_constant(), is_constant())
-    return quant
+    return quant | is_op("tanh")(wildcard())
 
 
 class SigmoidParams(LutActivationParams):

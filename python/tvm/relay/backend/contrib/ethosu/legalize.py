@@ -135,21 +135,67 @@ def get_lut_from_func(
     ofm_scale: float,
     ofm_zp: int,
     func: Callable[[float], float],
+    dtype,
 ) -> List[int]:
     """Calculates the values of the lookup table based on the calculation function"""
 
-    lut_values = list()
-    # Only int8 is currently supported
-    dtype = np.int8
-    qmin, qmax = np.iinfo(dtype).min, np.iinfo(dtype).max
-    for x in range(qmin, qmax + 1):
-        x_real = ifm_scale * (x - ifm_zp)
-        out_real = func(x_real)
-        lut_result = int(util.round_away_zero(ofm_zp + out_real / ofm_scale))
-        lut_result = min(qmax, max(qmin, lut_result))
-        lut_values.append(lut_result)
+    if dtype == np.int8:
+        lut_values = list()
+        qmin, qmax = np.iinfo(dtype).min, np.iinfo(dtype).max
+        for x in range(qmin, qmax + 1):
+            x_real = ifm_scale * (x - ifm_zp)
+            out_real = func(x_real)
+            lut_result = int(util.round_away_zero(ofm_zp + out_real / ofm_scale))
+            lut_result = min(qmax, max(qmin, lut_result))
+            lut_values.append(lut_result)
 
-    return lut_values
+        return lut_values
+    elif dtype == np.int16:
+        input_min = ifm_scale * (np.iinfo(np.int16).min - ifm_zp)
+        input_max = ifm_scale * (np.iinfo(np.int16).max - ifm_zp)
+
+        output_min = ofm_scale * (np.iinfo(np.int16).min - ofm_zp)
+        output_max = ofm_scale * (np.iinfo(np.int16).max - ofm_zp)
+        # Create 16 bit lut following the reference
+        nbr_steps = 512
+        step = (input_max - input_min) / nbr_steps
+        half_step = step / 2
+        output_scaling_inv = (np.iinfo(np.int16).max - np.iinfo(np.int16).min + 1) / (
+            output_max - output_min
+        )
+        table_min = np.iinfo(np.int16).min
+        table_max = np.iinfo(np.int16).max
+
+        values = []
+        for i in range(nbr_steps):
+            val = func(input_min + i * step)
+            val_midpoint = func(input_min + i * step + half_step)
+            val_next = func(input_min + (i + 1) * step)
+
+            sample_val = util.round_away_zero(val * output_scaling_inv)
+            midpoint_interp_val = util.round_away_zero(
+                (val_next * output_scaling_inv + util.round_away_zero(val * output_scaling_inv)) / 2
+            )
+            midpoint_val = util.round_away_zero(val_midpoint * output_scaling_inv)
+            midpoint_err = midpoint_interp_val - midpoint_val
+            bias = util.round_away_zero(midpoint_err / 2)
+
+            lut_result = min(max(sample_val - bias, table_min), table_max)
+            values.append(lut_result)
+
+        val = util.round_away_zero(func(input_max) * output_scaling_inv)
+        lut_result = min(max(val, table_min), table_max)
+        values.append(lut_result)
+        # Convert to hardware 16bit lut with base and slope
+        lut = [0] * nbr_steps
+        for i in range(nbr_steps):
+            slope = (int(values[i + 1]) - int(values[i])) << 16
+            base = int(values[i])
+            lut[i] = slope + base
+
+        return lut
+    else:
+        assert f"Unsupported 'dtype = {dtype}' !"
 
 
 class LutActivationRewriter(DFPatternCallback):
@@ -176,27 +222,39 @@ class LutActivationRewriter(DFPatternCallback):
         output_scale = float(params.ofm.q_params.scale_f32)
         output_zp = int(params.ofm.q_params.zero_point)
 
-        lut_values = get_lut_from_func(
-            input_scale,
-            input_zp,
-            output_scale,
-            output_zp,
-            self.calc_func,
-        )
-        lut = relay.const(lut_values, dtype=params.ifm.dtype)
+        if params.ifm.dtype == "int8":
+            lut_values = get_lut_from_func(
+                input_scale, input_zp, output_scale, output_zp, self.calc_func, np.int8
+            )
+            lut = relay.const(lut_values, dtype=params.ifm.dtype)
 
-        # We baked the requantization into the LUT, so we don't requantize the identity operator
-        identity = ethosu_ops.ethosu_identity(
-            ifm=params.ifm.tensor,
-            lut=lut,
-            ifm_scale=input_scale,
-            ifm_zero_point=input_zp,
-            ofm_scale=input_scale,
-            ofm_zero_point=input_zp,
-            activation=self.activation_type,
-        )
+            # We baked the requantization into the LUT, so we don't requantize the identity operator
+            identity = ethosu_ops.ethosu_identity(
+                ifm=params.ifm.tensor,
+                lut=lut,
+                ifm_scale=input_scale,
+                ifm_zero_point=input_zp,
+                ofm_scale=input_scale,
+                ofm_zero_point=input_zp,
+                activation=self.activation_type,
+            )
 
-        return identity
+            return identity
+        elif params.ifm.dtype == "int16":
+            lut_tanh = relay.const([], "int16")
+            tanh_identity = ethosu_ops.ethosu_identity(
+                ifm=params.ifm.tensor,
+                lut=lut_tanh,
+                ifm_scale=input_scale,
+                ifm_zero_point=0,
+                ofm_scale=output_scale,
+                ofm_zero_point=0,
+                activation=self.activation_type,
+            )
+
+            return tanh_identity
+        else:
+            assert f"Unsupported 'ifm.dtype = {params.ifm.dtype}' !"
 
 
 class TanhRewriter(LutActivationRewriter):

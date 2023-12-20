@@ -124,6 +124,7 @@ def create_test_runner(
     enable_cascader=False,
     enable_striping=False,
     workspace_pools=None,
+    enable_fixed_point=False,
 ):
 
     file_dir = os.path.dirname(os.path.abspath(__file__))
@@ -168,6 +169,7 @@ def create_test_runner(
                 "accelerator_config": accel,
                 "enable_cascader": enable_cascader,
                 "enable_striping": enable_striping,
+                "enable_fixed_point": enable_fixed_point,
             },
             "tir.usmp.enable": enable_usmp,
             "tir.usmp.algorithm": "hill_climb",
@@ -333,6 +335,7 @@ def compare_ethosu_with_reference(
     output_tolerance=0,
     print_cmm=False,
     enable_cascader=None,
+    enable_fixed_point=False,
 ):
     if enable_cascader is None:
         enable_cascader = "u65" not in accel_type
@@ -359,6 +362,7 @@ def compare_ethosu_with_reference(
         enable_cascader=enable_cascader,
         enable_striping=False,
         workspace_pools=workspace_pools,
+        enable_fixed_point=enable_fixed_point,
     )
     compiled_models = build_source(
         mod,

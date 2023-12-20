@@ -1675,5 +1675,49 @@ def test_ethosu_matmul_fixed_point(accel_type, ifm_shape, ofm_channels, fract_si
     )
 
 
+@pytest.mark.parametrize("accel_type", ["ethos-u55-256", "ethos-u65-256"])
+@pytest.mark.parametrize(
+    "ifm_shape,fract_size,tolerance",
+    [[(1, 2, 8, 4), 15, 0.001], [(1, 8), 12, 0.15], [(1, 1, 4, 8), 10, 0.25]],
+)
+def test_ethosu_tanh_fixed_point(accel_type, ifm_shape, fract_size, tolerance):
+    np.random.seed(0)
+    dtype = "int16"
+
+    def create_model():
+        ifm = relay.var("ifm", shape=ifm_shape, dtype=dtype)
+        tanh = relay.tanh(ifm)
+        return tvm.IRModule.from_expr(relay.Function([ifm], tanh))
+
+    def generate_ref(input_data):
+        return np.tanh(input_data)
+
+    def convert_to_fixed_point(arr, fract_size):
+        fract_fact = 0b1 << fract_size
+        return np.array(arr * fract_fact, dtype=np.int16)
+
+    cpu_mod = create_model()
+    input_data = {"ifm": np.random.uniform(-1, 1, size=ifm_shape)}
+    output_data = generate_ref(input_data["ifm"])
+
+    input_data = {"ifm": convert_to_fixed_point(input_data["ifm"], fract_size)}
+    output_data = {"output": convert_to_fixed_point(output_data, fract_size)}
+    tolerance = convert_to_fixed_point(tolerance, fract_size)
+
+    config = {"enable_fixed_point": True}
+    with tvm.transform.PassContext(config={"relay.ext.ethos-u.options": config}):
+        ethosu_mod = partition_for_ethosu(cpu_mod)
+
+    infra.compare_ethosu_with_reference(
+        ethosu_mod,
+        input_data,
+        output_data,
+        accel_type,
+        enable_cascader=is_u55_accel_type(accel_type),
+        output_tolerance=tolerance,
+        enable_fixed_point=True,
+    )
+
+
 if __name__ == "__main__":
     tvm.testing.main()

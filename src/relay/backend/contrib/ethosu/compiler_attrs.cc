@@ -42,6 +42,7 @@ struct EthosUCompilerConfigNode : public tvm::AttrsNode<EthosUCompilerConfigNode
   Bool enable_cascader = Bool(false);
   Bool enable_striping = Bool(false);
   Bool disable_copying_constants = Bool(false);
+  Bool enable_fixed_point = Bool(false);
   String dev_force_block_config;
   String dev_max_open_plans;
   String dev_max_closed_plans;
@@ -70,6 +71,13 @@ struct EthosUCompilerConfigNode : public tvm::AttrsNode<EthosUCompilerConfigNode
             "enabled, it is assumed that the constants should be located in SRAM (user determines "
             "in "
             "the linker script for section \".rodata.tvm\" that the constants are located in SRAM)")
+        .set_default(Bool(false));
+    TVM_ATTR_FIELD(enable_fixed_point)
+        .describe(
+            "Whether calculation with fixed point is enabled. When this option "
+            "is "
+            "enabled, it is assumed that input data should be converted to fixed point "
+            "representation")
         .set_default(Bool(false));
     String dev_warning = "Option is intended for development and debugging purposes only. ";
     TVM_ATTR_FIELD(dev_force_block_config)
