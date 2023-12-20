@@ -17,6 +17,7 @@
 """IRModule that holds the functions and type definitions."""
 from __future__ import annotations
 
+import ast
 from typing import Dict, Union
 
 import tvm._ffi
