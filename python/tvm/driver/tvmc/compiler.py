@@ -383,7 +383,10 @@ def compile_model(
         mod = relay.qnn.transform.CanonicalizeOps()(mod)
         mod = relay.transform.InferType()(mod)
         mod = relay.transform.Extend2DConv()(mod)
+        mod = relay.transform.InferType()(mod)
         mod = relay.transform.FoldConstant()(mod)
+        mod = relay.transform.InferType()(mod)
+        mod = relay.transform.EliminateCommonSubexpr()(mod)
 
         for partition_function, opts in zip(partition_functions, partition_opts):
             mod = partition_function(mod, params, mod_name=mod_name, **opts)
