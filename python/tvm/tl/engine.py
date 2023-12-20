@@ -45,7 +45,12 @@ def tvm_callback_cuda_compile(code, target):
         code,
         "ptx",
         arch,
-        options=["-std=c++17", "-I" + tl_template_path, "-I" + cutlass_path],
+        options=[
+            "-std=c++17",
+            "--use_fast_math",
+            "-I" + tl_template_path,
+            "-I" + cutlass_path,
+        ],
     )
     return ptx
 
