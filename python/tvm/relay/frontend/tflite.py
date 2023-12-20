@@ -4211,5 +4211,6 @@ def from_tflite(model, shape_dict=None, dtype_dict=None, op_converter=OperatorCo
         },
     )
     func = _function.Function(analysis.free_vars(outputs), outputs, attrs=attrs)
+    func = relay.build_module.bind_params_by_name(func, params)
     mod = IRModule.from_expr(func)
     return mod, params
