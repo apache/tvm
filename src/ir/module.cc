@@ -324,7 +324,7 @@ void IRModuleNode::Update(const IRModule& mod) {
 
 IRModule IRModuleNode::ShallowCopy() {
   return IRModule(this->functions, this->type_definitions, this->Imports(), this->source_map,
-                  this->attrs);
+                  this->attrs, this->global_infos);
 }
 
 std::pair<IRModule, GlobalVar> IRModule::FromExprInContext(
