@@ -403,7 +403,9 @@ class FusedTIRConstructor : public ExprVisitor {
       func_info_.expr2buffers.Set(relax_param, param_buffers);
     }
 
-    // Move all scalar params after buffer params.
+    // Move all scalar params after buffer params.  To ensure that the
+    // order is deterministic and predictable for testing purposes,
+    // std::stable_sort is used instead of std::sort.
     std::stable_sort(prim_func_params.begin(), prim_func_params.end(),
                      [](const auto& a, const auto& b) {
                        bool a_is_var = a.template as<tir::VarNode>();
@@ -733,9 +735,10 @@ class FusedTIRConstructor : public ExprVisitor {
         out->push_back(Downcast<tir::Var>(var));
       }
     } else {
-      ICHECK(false) << "TypeError: The param type of PrimFunc is expected to be Tensor, Tuple or "
-                       "ShapeExpr, but got "
-                    << struct_info->GetTypeKey();
+      LOG(FATAL) << "TypeError: "
+                 << "The param type of PrimFunc is expected to be "
+                 << "Tensor, PrimValue, or ShapeExpr, "
+                 << "but got " << struct_info->GetTypeKey();
     }
   }
 
