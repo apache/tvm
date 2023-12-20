@@ -47,8 +47,8 @@ class SortScanDispatcher(PyExprMutator):
         target = Target.current()
         if target is None:
             raise ValueError(
-                "Target not found. Please ensure that the target is annotated within the module, \
-                or alternatively, execute this within a specified target context."
+                "Target not found. Please ensure that the target is annotated within the module, "
+                "or alternatively, execute this within a specified target context."
             )
         return target
 
@@ -65,12 +65,14 @@ class SortScanDispatcher(PyExprMutator):
                         call.args[0],
                         call.attrs.axis,
                         not call.attrs.descending,
+                        primfunc_attrs={"tir.is_scheduled": 1},
                     )
                 return self.builder_.call_te(
                     topi.cuda.sort if tgt.kind.name == "cuda" else topi.sort,
                     call.args[0],
                     call.attrs.axis,
                     not call.attrs.descending,
+                    primfunc_attrs={"tir.is_scheduled": 1},
                 )
 
         if call.op.name == "relax.cumsum":
@@ -82,6 +84,7 @@ class SortScanDispatcher(PyExprMutator):
                     call.args[0],
                     axis,
                     call.attrs.dtype,
+                    primfunc_attrs={"tir.is_scheduled": 1},
                 )
 
         return super().visit_call_(call)

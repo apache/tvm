@@ -15,7 +15,6 @@
 # specific language governing permissions and limitations
 # under the License.
 """Sortings operators."""
-from typing import List, Optional
 
 from . import _ffi_api
 from ..expr import Expr
@@ -30,11 +29,11 @@ def sort(x: Expr, axis: int = -1, descending: bool = False):
     x : relax.Expr
         The input tensor.
 
-    axis : Optional[int]
+    axis : int
         Axis along which to sort the input tensor.
         By default the last axis of the input is used.
 
-    descending : Optional[bool]
+    descending : bool
         Whether to sort in descending order, the default is False
 
     Returns
