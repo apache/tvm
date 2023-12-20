@@ -57,13 +57,22 @@ PrimExpr ::=
 PrimFunc ::= PrimFunc(params: [tir::Var], body: tir::Stmt, ret_type: tir::Type?,
                       buffer_map: {tir::Var: tir::Buffer}, attrs: Attrs)
 
+
+# VDevice is used to indicate target devices for heterogeneous computing
+Target ::= Target() # null target
+         | Target(tag: string)
+         | Target(config: {String, ObjectRef})
+
+VDevice ::= VDevice(tgt: Target, int: dev_id, mem_scope: string)
+
 # Also from TIR
 DataType ::= Int(bits: int, lanes: int)
            | UInt(bits: int, lanes: int)
            | Float(bits: int, lanes: int)
            | Handle(bits: int, lanes: int)
 
-StructInfo ::= TensorStructInfo(shape: Expr?, dtype: DataType, ndim: int)
+
+StructInfo ::= TensorStructInfo(shape: Expr?, dtype: DataType, vdevice: VDevice?, ndim: int)
              | ShapeStructInfo(values: [PrimExpr]?, ndim: int)
              | PrimStructInfo(dtype: DataType, value: PrimExpr?)
              | ObjectStructInfo()
@@ -103,7 +112,12 @@ Binding ::=
 # Relax programs are IRModules. Modules may bind global variables either to
 # Relax functions or TIR PrimFuncs.
 # The Relax compiler may analyze and modify the TIR PrimFuncs as well.
-Program ::= IRModule(funcs: {GlobalVar: Function|PrimFunc})
+# Note that there can be global info other than VDevices, but only VDevice
+# is used by Relax at present.
+Program ::= IRModule(
+              funcs: {GlobalVar: Function|PrimFunc}
+              global_info: {string: VDevice}
+            )
 ```
 
 ### Notes on `derive_func`
@@ -181,7 +195,7 @@ Exiting with an error and infinitely looping are traditionally considered "[dive
 ## Structural Information (`StructInfo`) System Survey
 
 Analogously to a type system in most languages, Relax tracks structural information (referred to as `StructInfo` in the implementation) related to the categories of values in Relax:
-1. `TensorStructInfo` corresponds to tensor values, giving the scalar data type, the number of dimensions (rank), and an expression that computes the tensor's shape (either a `ShapeExpr` or a `Var`), all of which are optional.
+1. `TensorStructInfo` corresponds to tensor values, giving the scalar data type, the number of dimensions (rank), and an expression that computes the tensor's shape (either a `ShapeExpr` or a `Var`), all of which are optional. The optional `vdevice` ("virtual device") field, if present, indicates which device a tensor is located on. Tensor operators must be implemented on the appropriate device.
 2. `TupleStructInfo` corresponds to tuple values, giving the `StructInfo` for each member of the tuple.
 3. `PrimStructInfo` corresponds to `PrimValue`s (immutable scalar values), giving their TIR datatype.
 4. `ShapeStructInfo` corresponds to shape values, optionally giving the number of dimensions in the shape and an expression that computes the shape's dimensions (either a `ShapeExpr` or a `Var`).
@@ -204,7 +218,7 @@ Oftentimes, compiler passes operate only on particular functions or add new func
 
 Here are the classes of values that Relax operates over, meaning that they can be assigned to variables or be the result of evaluating expressions.
 
-- *Tensors* are n-dimensional arrays of scalar values (which can be signed or unsigned integers of fixed bitwidths, floats of fixed bitwidths, or Boolean values). A tensor's *shape* is a tuple of the size of each dimension; the number of dimensions is a tensor's *rank*. For example, a vector (1, 2, 3) is a rank-1 tensor of shape `(3,)`. Note that scalars are tensor values with a rank of 0, meaning that their shape is `()`.
+- *Tensors* are n-dimensional arrays of scalar values (which can be signed or unsigned integers of fixed bitwidths, floats of fixed bitwidths, or Boolean values). A tensor's *shape* is a tuple of the size of each dimension; the number of dimensions is a tensor's *rank*. For example, a vector (1, 2, 3) is a rank-1 tensor of shape `(3,)`. Note that scalars are tensor values with a rank of 0, meaning that their shape is `()`. Tensors can be _located_ on different devices in the program, namely one of the `VDevice`s listed in the `IRModule`'s `global_info` map; if tensors are located on different devices, it may be necessary to insert operators like `to_vdevice` in order to transfer them so that they can be used together in an operator call.
 - *Tuples* represent a fixed-size immutable grouping of other Relax values (tensors, closures, shapes, objects, or other tuples, to an arbitrary degree of nesting). Note that an empty tuple, i.e., `()`, also called "unit" in functional programming, is commonly used as the return value for operations not intended to return a value (as may be the case in some `PackedFunc` or operator calls that have side effects).
 - *Closures* are the values resulting from evaluating Relax function expressions; closures can be passed around like other values, ensuring that functions are first-class in Relax. Functions defined in Relax can capture variables from outer scopes. A [closure](https://en.wikipedia.org/wiki/Closure_(computer_programming)) consists of a function and a mapping of any variables "captured" (those are *free variables* in the function body, variables from an outer scope that are neither arguments nor defined within the function but are used in the function) to their values. Closures capture both Relax-level local variables and shape variables from outer scopes. A closure also stores a name for itself when the body contains recursive calls. «Closures additionally carry some *run-time structural information* (RTSI) indicating their argument and result structures, in order to facilitate dynamic structural checks (since it is not otherwise possible to introspect the function contained within a closure); the precise form of the RTSI is left up to the compiler implementation to determine so long as `MatchCast` can verify the structure of a closure, including whether it is pure. Closures can be evaluated in a call node, which results in calling the function with the call's arguments and the captured values.»
 - *Tensor shapes* (shape values) are immutable tuples of integers describing a tensor shape, obtained by evaluating `ShapeExpr`s.
@@ -312,6 +326,7 @@ The following criteria apply to all programs (including before normalization):
 21. If a `Function` `f` has an `attrs` field that includes the attribute `relax.force_pure`, `f`'s `is_pure` field must be set to `True`.
 22. For `PrimStructInfo`, if the `value` field is defined, the TIR `dtype` for the `PrimExpr` must match the `PrimStructInfo`'s `dtype` field (i.e., the datatypes must be consistent).
 23. For any `Call` node where the callee (`op` field) is an `Op` node, if the `Op` has a custom normalization rule, the call must conform to that rule. In particular, applying to the normalization rule to the `Call` should not require any further changes.
+24. «All `VDevice`s reference in `StructInfo` annotations _must_ appear in the `IRModule`'s `global_info` map. (Corollary: If no `VDevice` is given in `global_info`, then _all_ `vdevice` fields in `TensorStructInfo` annotations must remain undefined.)»
 
 Additionally, the criteria for normal form listed in [the previous section](#normal-form) must apply to any program that has been normalized.
 
@@ -324,7 +339,7 @@ Tensor shapes are the primary motivation for including structural information in
 ## Defining Structural Information
 
 The structural information in Relax corresponds to the values in the language:
-* `TensorStructInfo` describes tensor values. The `dtype` field gives the datatype (with `Void` indicating a statically unknown datatype), the `ndim` field gives the rank (with -1 indicating a statically unknown rank). Unlike `DynTensorType`, there is an optional `shape` field which, if defined, describes the shape of the tensor using either a `ShapeExpr` or a `Var` (with `ShapeStructInfo`). If `shape` is a `ShapeExpr`, the `PrimExpr`s in the `ShapeExpr`'s dimensions describe how to compute each dimension of the shape (or are constants). If `shape` is a `Var`, the `Var` can assign the result of an arbitrary computation that returns a shape value, which can be useful for memory planning.
+* `TensorStructInfo` describes tensor values. The `dtype` field gives the datatype (with `Void` indicating a statically unknown datatype), the `ndim` field gives the rank (with -1 indicating a statically unknown rank). Unlike `DynTensorType`, there is an optional `shape` field which, if defined, describes the shape of the tensor using either a `ShapeExpr` or a `Var` (with `ShapeStructInfo`). If `shape` is a `ShapeExpr`, the `PrimExpr`s in the `ShapeExpr`'s dimensions describe how to compute each dimension of the shape (or are constants). If `shape` is a `Var`, the `Var` can assign the result of an arbitrary computation that returns a shape value, which can be useful for memory planning. The `vdevice` field, if present, indicates on which device the tensor value is located, since `NDArray`s can be allocated on different devices (if absent, then that means that the device is unspecified).
 * `ShapeStructInfo` describes shape values. It has an `ndim` field that gives the number of dimensions in the shape (with -1 indicating that it is statically unknown). It additionally has an optional `values` field. If defined, `values` gives a list of `PrimExpr`s that indicate how to compute the dimensions of the shape, potentially providing further information for static analyses.
 * `PrimStructInfo` describes `PrimValue`s, giving their TIR datatype.
 * `TupleStructInfo` describes tuple values, namely by giving the `StructInfo` for each of the tuple's members via `fields`.
@@ -355,7 +370,7 @@ Because structural information is checked in a "best-effort" fashion, it is not 
 This section describes the run-time checking performed by `MatchCast(var, value, struct_info)`, for each combination of value and structural annotation (if `var` is defined, then `value` will be bound to `var` as discussed in the [general section on semantics](#detailed-semantics)). If any check given below fails, an error is raised by the `MatchCast`.
 
 1. If `struct_info` is `ObjectStructInfo`, then no additional check is performed. All values in Relax are objects.
-2. If `struct_info` is `TensorStructInfo(ndim, dtype, shape)`, then check that `value` is a tensor value, that it has a rank of `ndim` (if `ndim` is not -1), a datatype of `dtype` (if `dtype` is not `Void`). If `shape` is defined, consider the following cases:
+2. If `struct_info` is `TensorStructInfo(shape, dtype, vdevice, ndim)`, then check that `value` is a tensor value, that it has a rank of `ndim` (if `ndim` is not -1) and a datatype of `dtype` (if `dtype` is not `Void`), and is located on the device denoted by `vdevice` (if defined). If `shape` is defined, consider the following cases:
     1. If `shape` is a `Var`, then check that the concrete shape of `value` matches the value bound to the `Var`.
     2. If `shape` is a `ShapeExpr`, then compare the fields of the `ShapeExpr` to the concrete shape of `value`, dimension by dimension (comparing the `i`th field of the `ShapeExpr` to the `i`th dimension of the shape of `value`). Give an error if the number of the dimensions does not match the number of fields in the `ShapeExpr`.
         1. If a field of the `ShapeExpr` consists of only an unbound shape variable, then bind that variable to the value of the dimension.
@@ -369,7 +384,7 @@ This section describes the run-time checking performed by `MatchCast(var, value,
 
 ### Checking Structural Information at the Start and End of a Function
 
-«Shape variables are bound at the start and end of a function or in `MatchCast` bindings. This checking is done similarly to `MatchCast`, though with a slight difference: per rule #6 in under the [well-formedness criteria](#well-formedness-criteria), we allow shape variables to appear in arguments in any order so long as shape variables appear in a binding position at least once. This requires us to check the shapes of arguments dimension by dimension in a specific order.
+Shape variables are bound at the start and end of a function or in `MatchCast` bindings. This checking is done similarly to `MatchCast`, though with a slight difference: per rule #6 in under the [well-formedness criteria](#well-formedness-criteria), we allow shape variables to appear in arguments in any order so long as shape variables appear in a binding position at least once. This requires us to check the shapes of arguments dimension by dimension in a specific order.
 
 Suppose a function has the following signature, where the `Si` are structural annotations:
 
@@ -401,7 +416,6 @@ def f(arg1, arg2, ..., argn):
 For a concrete example, suppose that the function has a signature
 `def f(x: R.Tensor([M * N]), y: R.Tensor([M, N])) -> R.Tensor([N * N, M * M]): ...`.
 In this case, `M` would first be bound by checking dimension 0 of the value of `y`, `N` would then be bound by checking dimension 1 of the value of `y`. Next, the shape of `x` would then be compared against `M * N` using the bound values, then the shape of `y` would be compared against `(M, N)` using the bound values. At the end of the function, the shape of the return value would be compared against `(N * M, M * M)` using the bound values.
-»
 
 ### Invariants for `TensorStructInfo`
 
@@ -426,10 +440,11 @@ Note that judging subtyping requires potentially reasoning about arbitrary `Shap
 2. Transitivity: For all `S1`, `S2`, and `S3`, if `S1 <: S2` and `S2 <: S3`, then `S1 <: S3`.
 3. For all `S1`, `S1 <: ObjectStructInfo()`.
 4. For `TensorStructInfo`:
-    1. Given any datatype `d`, an arbitrary `ndim` `n`, and an arbitrary expression `s` (possibly undefined), `TensorStructInfo(ndim=n, dtype=d, shape=s) <: TensorStructInfo(ndim=-1, dtype=d)`.
-    2. Given any datatype `d`, an arbitrary `ndim` `n`, and an arbitrary expression `s` (possibly undefined), `TensorStructInfo(ndim=n, dtype=d, shape=s) <: TensorStructInfo(ndim=n, dtype=Void(), shape=s)`.
-    3. Given any datatype `d`, an arbitrary `ndim` `n`, and an arbitrary expression `s`, `TensorStructInfo(ndim=n, dtype=d, shape=s) <: TensorStructInfo(ndim=n, dtype=d, shape=undefined)`.
-    4. Given any datatype `d`, an arbitrary `ndim` `n`, and arbitrary expressions `s1` and `s2` (both defined), then `TensorStructInfo(ndim=n, dtype=d, shape=s1) <: TensorStructInfo(ndim=n, dtype=d, shape=s2)` if `s1` and `s2` are _definitely_ statically equal. We say that `TensorStructInfo(ndim=n, dtype=d, shape=s1) <: TensorStructInfo(ndim=n, dtype=d, shape=s2)` _possibly_ holds if `s1` and `s2` are _possibly_ statically equal.
+    1. Given any datatype `d`, an arbitrary `ndim` `n`, an arbitrary expression `s` (possibly undefined), and an arbitrary `VDevice` `v` (possibly undefined), `TensorStructInfo(ndim=n, dtype=d, shape=s, vdevice=v) <: TensorStructInfo(ndim=-1, dtype=d, vdevice=v)`.
+    2. Given any datatype `d`, an arbitrary `ndim` `n`, an arbitrary expression `s` (possibly undefined), and an arbitrary `VDevice` `v` (possibly undefined), `TensorStructInfo(ndim=n, dtype=d, shape=s, vdevice=v) <: TensorStructInfo(ndim=n, dtype=Void(), shape=s, vdevice=v)`.
+    3. Given any datatype `d`, an arbitrary `ndim` `n`, an arbitrary `VDevice` `v` (possibly undefined), and an arbitrary expression `s`, `TensorStructInfo(ndim=n, dtype=d, vdevice=v, shape=s) <: TensorStructInfo(ndim=n, dtype=d, vdevice=v, shape=undefined)`.
+    4. Given any datatype `d`, an arbitrary `ndim` `n`, an arbitrary `VDevice` `v` (possibly undefined), and arbitrary expressions `s1` and `s2` (both defined), then `TensorStructInfo(ndim=n, dtype=d, vdevice=v, shape=s1) <: TensorStructInfo(ndim=n, dtype=d, vdevice=v, shape=s2)` if `s1` and `s2` are _definitely_ statically equal. We say that `TensorStructInfo(ndim=n, dtype=d, vdevice=v, shape=s1) <: TensorStructInfo(ndim=n, dtype=d, vdevice=v, shape=s2)` _possibly_ holds if `s1` and `s2` are _possibly_ statically equal.
+    5. Given any `VDevice` `v` (that is defined), any datatype `d`, an arbitrary `ndim` `n`, and an arbitrary expression `s` (possibly undefined), then `TensorStructInfo(ndim=n, dtype=d, vdevice=v, shape=s) <: TensorStructInfo(ndim=n, dtype=d, vdevice=undefined, shape=s)`.
 5. For `ShapeStructInfo`:
     1. Given an arbitrary `ndim` `n` and an arbitrary set of values `v` (possibly undefined), `ShapeStructInfo(ndim=n, values=v) <: ShapeStructInfo(ndim=-1)`.
     2. Given an arbitrary `ndim` `n` and an arbitrary set of values `v` (not undefined), `ShapeStructInfo(ndim=n, values=v) <: ShapeStructInfo(ndim=n, values=undefined)`.
@@ -485,6 +500,7 @@ def unify_struct_info(S1: StructInfo, S2: StructInfo) -> StructInfo:
     if S1 and S2 are both TensorStructInfo:
         ndim = S1.ndim if S1.ndim == S2.ndim else -1
         dtype = S1.dtype if S1.dtype == S2.dtype else Void
+        vdev = S1.vdevice if S1.vdevice == S2.vdevice else undefined
         if (
                 S1.ndim == -1 or S2.ndim == -1 or S1.ndim != S2.ndim 
                 or S1.shape is undefined or S2.shape is undefined
@@ -494,7 +510,7 @@ def unify_struct_info(S1: StructInfo, S2: StructInfo) -> StructInfo:
         if S1.shape can be proven to equal S2.shape:
             return S1
         # either proven to be unequal or cannot be concluded whether they are equal
-        return TensorStructInfo(ndim=ndim, dtype=dtype) # leave shape undefined
+        return TensorStructInfo(ndim=ndim, dtype=dtype, vdevice=vdev, shape=undefined)
     if S1 and S2 are both TupleStructInfo:
         if S1.fields and S2.fields are of different lengths:
             return ObjectStructInfo()
@@ -691,12 +707,14 @@ We can check if some structural information `S1` is accepted where structural in
     3. If `value` is defined for `S2` but not for `S1`, then they are possibly compatible.
     4. If `value` is defined for both `S1` and `S2`, then they are compatible if `S1.value` can be statically proven to be equal to `S2.value`. They are possibly compatible if `S1.value` is possibly statically equal to `S2.value` but it cannot be proven. They are incompatible if `S1.value` can be proven to _not_ be statically equal to `S2.value`.
 6. If `S1` and `S2` are both `TensorStructInfo`:
-    1. If `S2.dtype` is not `Void` and does not match `S1.dtype`, then they are incompatible.
-    2. If  `S2.ndim` is not -1 and does not match `S1.ndim`, then they are incompatible.
-    3. If `S2.shape` is not defined, then they are compatible.
-    4. If `S2.shape` is defined and `S1.shape` is not defined, then they are possibly compatible.
-    5. Otherwise, if both `shape` fields are given and either is a `Var`, then consider `S1` and `S2` compatible if the compiler can statically prove that the `Var` holds the same value as the other `shape` field, consider them possibly compatible if the compiler cannot draw a conclusion one way or the other, and consider them incompatible if the `Var` definitely has a different value from the other `shape`.
-    6. If both `shape` fields are given and they are both `ShapeExpr` nodes, then `S1` and `S2` are incompatible if the compiler can prove that some dimension of `S1.shape` is _not_ equal to the corresponding dimension of `S2.shape`. Otherwise, if the all dimensions can be proven to be equal, then consider them compatible. If at least one pair of dimensions cannot be proven to be equal or unequal, consider them possibly compatible.
+    1. If `S2.dtype` is not `Void`, `S1.dtype` is not `Void`, and `S1.dtype` and `S2.dtype` do not match, then they are incompatible.
+    2. If `S2.ndim` is not -1, `S1.ndim` is not -1, and `S1.ndim` and `S2.ndim` do not match, then they are incompatible.
+    3. If `S2.vdevice` is defined and does not match `S1.vdevice`, then they are incompatible.
+    4. If `S2.shape` is not defined, then they are compatible pending step 8.
+    5. If `S2.shape` is defined and `S1.shape` is not defined, then they are possibly compatible.
+    6. Otherwise, if both `shape` fields are given and either is a `Var`, then consider `S1` and `S2` compatible (pending step 8) if the compiler can statically prove that the `Var` holds the same value as the other `shape` field, consider them possibly compatible if the compiler cannot draw a conclusion one way or the other, and consider them incompatible if the `Var` definitely has a different value from the other `shape`.
+    7. If both `shape` fields are given and they are both `ShapeExpr` nodes, then `S1` and `S2` are incompatible if the compiler can prove that some dimension of `S1.shape` is _not_ equal to the corresponding dimension of `S2.shape`. Otherwise, if the all dimensions can be proven to be equal, then consider them compatible pending step 8. If at least one pair of dimensions cannot be proven to be equal or unequal, consider them possibly compatible.
+    8. If we have concluded `S1.shape` and `S2.shape` to match in step 4, 6, or 7, then consider `S1` and `S2` possibly compatible if `S1.dtype` is `Void` while `S2.dtype` is not `Void` or if `S1.vdevice` is undefined but `S2.vdevice` is defined. Otherwise, consider `S1` and `S2` compatible.
 7. If `S1` and `S2` are both `FuncStructInfo`:
     1. If `S1` and `S2` don't both have defined `params` or both have undefined `params`, consider them incompatible.
     2. If both `S1` and `S2` have undefined `params`, consider them compatible if they have an identical `derive_func` and consider them possibly compatible if they have different `derive_func`s (as they is no further way to introspect the `derive_func` and draw static conslusions about `PackedFunc`s).
@@ -712,7 +730,7 @@ Let `Γ` be the `StructInfo` context for Relax variables and let `Σ` track whic
 
 1. «Prepopulate `Γ` with the annotated types of all global functions (see the rule for `Function` nodes) that are called mutually recursively. Afterwards check the structural information of the global functions one at a time and populate the entry of `Γ` corresponding to that `GlobalVar`.»
 2. For a variable (`Var`, `DataflowVar`, or `GlobalVar`) `v`, look up `Γ[v]` for the structural information.
-3. For `Constant(value)`, the resulting structural information is `TensorStructInfo(ndim, dtype, shape)` where `ndim` is the concrete rank of `value`, `dtype` is the concrete datatype used in `value`, and `shape` is a `ShapeExpr` giving the concrete shape of `value`. For example, for `Constant(1)`, `shape` is `ShapeExpr([])` and for `Constant([1, 2])`, `shape` is `ShapeExpr([IntImm(2, "int64")])`.
+3. For `Constant(value)`, the resulting structural information is `TensorStructInfo(ndim, dtype, shape, vdevice=undefined)` where `ndim` is the concrete rank of `value`, `dtype` is the concrete datatype used in `value`, and `shape` is a `ShapeExpr` giving the concrete shape of `value`. For example, for `Constant(1)`, `shape` is `ShapeExpr([])` and for `Constant([1, 2])`, `shape` is `ShapeExpr([IntImm(2, "int64")])`.
 4. For `PrimValue(prim_expr)`, the resulting `StructInfo` is `PrimStructInfo(dt)`, where `dt` is the datatype of `prim_expr`, derived according to the type-checking rules for TIR.
 5. For `StringImm(s)`, the resulting `StructInfo` is `ObjectStructInfo()`.
 6. For `DataTypeImm(dt)`, the resulting `StructInfo` is `ObjectStructInfo()`.
@@ -770,8 +788,43 @@ Let `Γ` be the `StructInfo` context for Relax variables and let `Σ` track whic
 16. For `PrimFunc(params, body, ret_type, buffer_map, attrs)` at the module level, which is bound to a `GlobalVar`:
     1. Suppose there are `n` members of `params`. For the `i`th member of `params` (let us call it `v`), let `si` be a corresponding `StructInfo` defined as follows:
         1. If `v` is not in `buffer_map`, then `si` is `PrimType(d)`, where `d` is the `dtype` field of `v`.
-        2. If `v` is in `buffer_map`, then let `b` be `buffer_map[v]`. Then, `si` is `TensorStructInfo(d, ShapeExpr(s))`, where `d` is the `dtype` field of `b` and `s` is the `shape` field of `b`.
+        2. If `v` is in `buffer_map`, then let `b` be `buffer_map[v]`. Then, `si` is `TensorStructInfo(dtype=d, shape=ShapeExpr(s), ndim=len(s), vdevice=undefined)`, where `d` is the `dtype` field of `b`, `s` is the `shape` field of `b`.
     2. The `StructInfo` for the `PrimFunc` (namely, for the `GlobalVar` to which the `PrimFunc` is bound) is `FuncStructInfo([s0, s1, ..., sn-1], TupleStructInfo([]), purity=False)`. (`PrimFunc`s work by mutating their arguments, so direct calls to `PrimFunc`s are treated as impure; in order to call a `PrimFunc` from within a `DataflowBlock`, use `call_tir`, which allocates fresh tensors for the outputs.)
+
+### Propagating Virtual Device Information
+
+If the `IRModule` contains `VDevice`s in its global information map, then we additionally propagate virtual device information to `TensorStructInfo` after deriving the `StructInfo` by the above rules. If no `VDevice`s are given in the global information map, then this step is omitted. (Implementation note: This is implemented in the pass `RealizeVDevice`.) Note that this propagation can only succeed if at least some `VDevice`s are manually provided, either through `StructInfo` annotations or calls to related operators like `to_vdevice`.
+
+We use the following auxiliary procedure, in pseudocode, to set the `vdevice` field in `StructInfo`:
+
+```python
+def update_struct_info(S: StructInfo, v: VDevice) -> StructInfo:
+    if S is TensorStructInfo:
+        if S.vdevice is defined and S.vdevice != v:
+            # this is a compile-time inconsistency
+            raise error
+        return TensorStructInfo(ndim=S.ndim, shape=S.shape, dtype=S.dtype, vdevice=v)
+    «if S is TupleStructInfo:
+        return TupleStructInfo(fields=[update_struct_info(s, v) for s in S.fields])»
+    «if S is FuncStructInfo:
+        if S has a defined derive_func:
+            return S
+        return FuncStructInfo(params=S.params, ret=update_struct_info(S.ret, v), purity=S.purity)»
+    return S
+```
+
+For each Relax function in the `IRModule`, we will update the `VDevice`s in the "backward" direction by proceeding recursively:
+1. For a `Function` node with return `StructInfo` `finfo` and body `body`, suppose its `StructInfo` is `finfo` (which must be `FuncStructInfo`). If the return `StructInfo` (`finfo->ret`) is `TensorStructInfo` with a defined `vdevice` field, then set the `StructInfo` of `body` to `update_struct_info(finfo, v)`. Visit `body` recursively.
+2. For a `Call` node with callee `op` (with `StructInfo` `finfo`) and arguments `args` (for which the `i`th member has `StructInfo` `Si`), suppose its `StructInfo` is `S`. If `S` is a `TensorStructInfo` with a defined `vdevice` `v`, set the `StructInfo` of `op` to `update_struct_info(finfo, v)` and for the `i`th member of `args`, set the `StructInfo` to `update_struct_info(Si, v)`. Visit `op` and each member of `args` recursively.
+3. For `SeqExpr(blocks=blocks, body=body)`, suppose the `StructInfo` of the entire node is `S`. If `S` is a `TensorStructInfo` with a defined `vdevice` `v`, set the `StructInfo` of `body` to `S`. Recuse down each binding block in `blocks` and each binding in each binding block.
+    1. For each `VarBinding(var=var, value=value)`, let the `StructInfo` of `var` be `Svar` and the `StructInfo` of `value` be `Svalue`. If `Svar` is `TensorStructInfo` with a defined `vdevice` `v`, update the `StructInfo` of `value` to `update_struct_info(Svalue, v)`. If `Svalue` is `TensorStructInfo` with a defined `vdevice` `v`, update the `StructInfo` of `var` to `update_struct_info(Svar, v)`. Recurse down `value`.
+    2. For each `MatchCast(var=var, value=value, struct_info=S)`, let the `StructInfo` of `var` be `Svar` and the `StructInfo` of `value` be `Svalue`. If `Svar` is `TensorStructInfo` with a defined `vdevice` `v`, update `S` to `update_struct_info(S, v)` and update the `StructInfo` of `value` to `update_struct_info(Svalue, v)`. If `S` is `TensorStructInfo` with a defined `vdevice` `v`, update the `StructInfo` of `var` to `update_struct_info(Svar, v)`. Recurse down `value`.
+    3. Finally, recurse down `body`.
+4. For all other expressions, recurse down to all child `Expr` nodes, making any changes specified in the above steps.
+
+The type-checking procedure (the derivation rules) will have to be run again to propagate the `VDevice`s in the "forward" direction and ensure consistency after the `VDevice`s are filled in.
+
+«After the second run of type-checking, consider it a compilation error if there are any `Call` nodes to `Op`s or `PrimFunc`s remaining where an argument has an undefined `vdevice`.»
 
 ### Note on Proving Shapes Equivalent and Eliminating Dynamic Checks
 
@@ -834,6 +887,10 @@ In the `IRModule`, every mapping of a `GlobalVar` to a `Function` node or a TIR 
 
 The rules for evaluating `Function` nodes into closures are given below. TIR `PrimFunc`s evaluate into objects that are opaque to Relax, but are also assigned `FuncStructInfo` and can be called like closures. None of the values in global scope is mutable. Execution of a Relax function in an IR module thus begins by evaluating all globally visible functions into a form in which they can be accessed.
 
+## Destination Devices
+
+«If the `global_info` table in the `IRModule` contains any `VDevice`s, then execution will be distributed across the devices listed. The `to_vdevice` operator is responsible for transferring data (tensors) from one device to another and operators involving these tensors will be implemented on the appropriate device. If no `VDevice`s are listed in the `global_info`, then all (tensor) computations will take place on a single "target" device specified in compilation (if the target is a GPU, then some computations may still take place on a CPU host, but only those concerning metadata or data structures that are not tensors).»
+
 ## Evaluating Expressions
 
 For each expression, we define how it affects the program's visible state and the order in which they are evaluated. Below, all evaluation results are passed by reference (and hence possibly alias) unless it is explicitly specified that they allocate new values.
@@ -853,7 +910,7 @@ For each expression, we define how it affects the program's visible state and th
     3. If `r` is false, evaluate the `false_branch` and return its result.
 11. The node `ExternFunc(global_symbol)` is evaluated by looking up the global symbol name and returning the `PackedFunc` if it exists (it is an error if it does not). Note that if a TIR `PrimFunc` in the `IRModule` has a global symbol attribute registered, it can be called as an `ExternFunc` using that global symbol as well.
 12. The node `Call(op, [arg1, arg2, ..., argn])` is evaluated as follows:
-    1. If `op` is an `Op` node, then evaluate `arg1`, `arg2`, …, `argn` in that order and call the results `a1`, `a2`, …, `an`. It is up to the compiler implementation to decide how operators should be implemented (some may have an associated `PackedFunc` and others may be built into the executor implementation). The operator may mutate its arguments. It is also up to the operator implementation as to whether the result is newly allocated or aliases another value. «(TODO: Once we have operators for logical and AND and OR, we should also define short-circuiting semantics for those.)»
+    1. If `op` is an `Op` node, then evaluate `arg1`, `arg2`, …, `argn` in that order and call the results `a1`, `a2`, …, `an`. If there are `VDevice`s defined, then (per the `StructInfo` rules for propagating `VDevice` information), all tensor arguments must have a `VDevice` specified in their `StructInfo`; the operator must be implemented on the `VDevice` specified. In all other respects, it is up to the compiler implementation to decide how operators should be implemented (some may have an associated `PackedFunc` and others may be built into language runtime). The operator may mutate its arguments. It is also up to the operator implementation as to whether the result is newly allocated or aliases another value. «(TODO: Once we have operators for logical and AND and OR, we should also define short-circuiting semantics for those.)»
     2. Otherwise, first evaluate `op` (it must evaluate to a closure or `PackedFunc`). Next, we evaluate  `arg1`, `arg2`, …, `argn` in that order and call the results `a1`, `a2`, …, `an`. 
         1. If `op` evaluated to a closure, push a new scope onto the stack where arguments `v1`, `v2`, …, `vn` in the closure are bound to `a1`, `a2`, …, and `an`, respectively, and all variables saved in the closure are added to the scope. Evaluate the closure body in this new scope; this will be the return value of the call. Pop the scope before returning the value. (Note that the checking of the structural information of the argument result values and the body values should be done as described in the previous section.)
         2. If `op` evaluated to a `PackedFunc`, simply invoke it. `PackedFunc`s may have arbitrary side effect and are responsible for whether the result is a newly allocated value or aliases another value.
@@ -898,6 +955,7 @@ The above evaluation rules are general, but leave much room for implementations 
     - `f` will be called in destination-passing style, like so: `f(arg1, arg2, ..., argn, shape1, shape2, ..., shapem, r1, r2, ..., rk)`, omitting the `shapei` if `packed_ints` is not given. `f` is expected to mutate *only* the `ri` to give the output of the function, hence `call_tir` is considered pure.
     - «If the shape or data type of the actual result do not correspond to the `aSi`, an error is issued.» 
     - After the call, the `ri` will be returned (returning `r1` directly if there is only a single result, otherwise returning `Tuple(fields=[r1, r2, ..., rk])`).
+- `call_tir_inplace(prim_func, args, inplace_indices, packed_ints, sinfo_args=[aS1, aS2, ..., aSk])`: Behaves similarly to `call_tir`, except the computation will mutate some members of `args` instead of allocating new tensors for all outputs. For each intended output, there must be a corresponding index given in `inplace_indices`: if the index is -1, then that output will be freshly allocated and the `PrimFunc` will take an "output argument" in destination-passing style corresponding to that output; otherwise, the `PrimFunc` will mutate the member of `args` with that index in-place. `prim_func` must be implemented in such a way as to mutate the appropriate arguments directly instead of taking output arguments in destination-passing style.
 - `call_dps_packed(packed_func, args, sinfo_args=[aS1])`:
     - `packed_func` must evaluate to a `PackedFunc` object.
     - `args` must be a tuple; we will call its elements `arg1`, `arg2`, ..., `argn`.
@@ -913,5 +971,8 @@ The above evaluation rules are general, but leave much room for implementations 
     - `sinfo_args` must be a non-empty list of `StructInfo`.
     - The returned value will have the semantics of `Call(func, args, sinfo_args=sinfo_args)`. However, this call will be assumed to be pure (`call_pure_packed`'s `FPurity` is set to `True`), thus allowing the call to appear inside a `DataflowBlock` or a function whose `is_pure` is set to `True`.
     - Note: This operator is intended to be be used for cases where  the user knows that calling the packed function will _in reality_ not cause any side effects. If it is used for a call that _does_ result in side effects, then the compiler may end up removing, reordering, or repeating that call; the specification makes no guarantees about the side effects in the callee in that case.
+- `call_inplace_packed(func, args, inplace_indices, sinfo_args)`: Behaves identically to `call_pure_packed`, but `inplace_indices` denote that certain arguments (those with the corresponding indices) are mutated in-place. This is used to indicate intent, so that the compiler can verified that the arguments or any alias of those arguments will not be used after being mutated (this is what allows the operator to be considered pure and used within `DataflowBlock`s even though the `PackedFunc` might have side effects).
 - `shape_of(t)`: Given a tensor argument `t`, it returns its shape. The return value is a shape object.
 - `null_value()`: Returns a null object (treated as `ObjectStructInfo`). This is used for indicating to operators that an optional argument has been omitted.
+- `hint_on_device(data, device)`: This operator acts as a "hint" to the compiler that `data` should be located on `device`. `device` is not a `VDevice` but is rather a device id (the `dev_id` field on a `VDevice`). This operator is de-sugared into calls to `to_vdevice` if `data` does not have a specified `vdevice` or it differs from `device` (if `data` already matches `device`, then the call is removed entirely).
+- `to_vdevice(data, vdevice)`: Move `data` to the `VDevice` corresponding to `vdevice`. If `data` is a tensor, the tensor is copied over to `vdevice`. If `data` is a tuple, all members of the tuple (proceeding recursively for any members that are in turn tuples) are copied over to `vdevice`.
