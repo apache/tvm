@@ -1,8 +1,6 @@
 import torch
+from tvm import tl
 import tvm.tl.language as T
-
-from tvm.tl.engine import lower
-from tvm.tl.utils import ConvertTorch, TensorSupplyType
 from functools import partial
 
 
@@ -75,8 +73,7 @@ def flashattn(batch, heads, seq_len, dim, is_casual, block_M, block_N):
 def ref_program(Q, K, V, casual):
     from flash_attn.flash_attn_interface import flash_attn_func
 
-    out = flash_attn_func(Q, K, V, causal=casual)
-    return [out]
+    return flash_attn_func(Q, K, V, causal=casual)
 
 
 if __name__ == "__main__":
@@ -88,9 +85,8 @@ if __name__ == "__main__":
         total_flops *= 0.5
     program = flashattn(BATCH, H, N_CTX, D_HEAD, casual, 64, 32)
     ref_program = partial(ref_program, casual=casual)
-    mod, params = lower(program)
-    supply_type = TensorSupplyType.Normal
-    mod = ConvertTorch(mod, params, [3], supply_type)
+    mod, params = tl.lower(program)
+    mod = tl.Profiler(mod, params, [3], tl.TensorSupplyType.Normal)
     mod.assert_allclose(ref_program, rtol=0.01, atol=0.01)
 
     latency = mod.do_bench(ref_program, warmup=500)

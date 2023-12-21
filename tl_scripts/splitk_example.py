@@ -1,8 +1,6 @@
 import torch
+from tvm import tl
 import tvm.tl.language as T
-
-from tvm.tl.engine import lower
-from tvm.tl.utils import ConvertTorch, TensorSupplyType
 
 
 def matmul_splitk(M, N, K, blk_m, blk_n, block_K, split):
@@ -42,19 +40,15 @@ def matmul_splitk(M, N, K, blk_m, blk_n, block_K, split):
 
 
 def ref_program(A, B):
-    C = torch.matmul(A, B)
-    return [C]
+    return A @ B
 
 
 if __name__ == "__main__":
     M, N, K, blk_m, blk_n, block_K, split = 8192, 8192, 8192, 128, 128, 32, 4
     total_flops = 2 * M * N * K
     program = matmul_splitk(M, N, K, blk_m, blk_n, block_K, split)
-    mod, params = lower(program)
-
-    supply_type = TensorSupplyType.Integer
-    mod = ConvertTorch(mod, params, [2], supply_type)
-    print(mod.get_kernel_source())
+    mod, params = tl.lower(program)
+    mod = tl.Profiler(mod, params, [2], tl.TensorSupplyType.Integer)
     mod.assert_allclose(ref_program)
 
     latency = mod.do_bench(ref_program, warmup=500)

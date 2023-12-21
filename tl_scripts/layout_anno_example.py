@@ -1,8 +1,6 @@
 import torch
+from tvm import tl
 import tvm.tl.language as T
-
-from tvm.tl.engine import lower
-from tvm.tl.utils import ConvertTorch, TensorSupplyType
 
 
 def transpose(M, N):
@@ -34,18 +32,14 @@ def transpose(M, N):
 
 
 def ref_program(A):
-    B = A.T.contiguous()
-    return [B]
+    return A.T.contiguous()
 
 
 if __name__ == "__main__":
     M, N = 8192, 8192
     program = transpose(M, N)
-    mod, params = lower(program)
-
-    supply_type = TensorSupplyType.Integer
-    mod = ConvertTorch(mod, params, [1], supply_type)
-    print(mod.get_kernel_source())
+    mod, params = tl.lower(program)
+    mod = tl.Profiler(mod, params, [1], tl.TensorSupplyType.Integer)
     mod.assert_allclose(ref_program)
 
     latency = mod.do_bench(ref_program, warmup=500)

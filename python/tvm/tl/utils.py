@@ -24,6 +24,8 @@ import torch
 from tvm.relay import TensorType
 from tvm.contrib.dlpack import to_pytorch_func
 
+from .engine import lower
+
 
 class TensorSupplyType(Enum):
     Integer = 1
@@ -60,18 +62,11 @@ def get_tensor_supply(supply_type: TensorSupplyType):
 
 
 class ConvertTorch:
-    def __init__(
-        self,
-        mod,
-        params: List[TensorType],
-        result_idx: List[int],
-        supply_type: TensorSupplyType = TensorSupplyType.Normal,
-    ) -> None:
+    def __init__(self, mod, params: List[TensorType], result_idx: List[int]) -> None:
         self.mod = mod
         self.params = params
         self.result_idx = result_idx
         self.func = self._convert_torch_func()
-        self.supply = get_tensor_supply(supply_type)
 
     def _convert_torch_func(self) -> callable:
         torch_func = to_pytorch_func(self.mod)
@@ -91,26 +86,30 @@ class ConvertTorch:
                     ins_idx += 1
                 args.append(tensor)
             torch_func(*args)
-            return [args[i] for i in self.result_idx]
+            if len(self.result_idx) == 1:
+                return args[self.result_idx[0]]
+            else:
+                return [args[i] for i in self.result_idx]
 
         return func
 
     def __call__(self, *args: Any, **kwds: Any) -> Any:
         return self.func(*args, **kwds)
 
-    def assert_allclose(self, reference_program: callable, atol: float = 1e-8, rtol: float = 1e-5):
-        ins = self._get_inputs()
-        ref_outs = reference_program(*ins)
-        torch.cuda.synchronize()
-        lib_outs = self.func(*ins)
-        torch.cuda.synchronize()
-        for lhs, rhs in zip(lib_outs, ref_outs):
-            assert torch.allclose(lhs, rhs, rtol=rtol, atol=atol), (lhs, rhs)
+    def get_kernel_source(self) -> str:
+        return self.mod.imported_modules[0].get_source()
 
-    def do_bench(self, func: callable, warmup=25, rep=100):
-        ins = self._get_inputs()
-        bench_func = partial(func, *ins)
-        return do_bench(bench_func, warmup=warmup, rep=rep)
+
+class Profiler(ConvertTorch):
+    def __init__(
+        self,
+        mod,
+        params: List[TensorType],
+        result_idx: List[int],
+        supply_type: TensorSupplyType = TensorSupplyType.Normal,
+    ):
+        super().__init__(mod, params, result_idx)
+        self.supply = get_tensor_supply(supply_type)
 
     def _get_inputs(self):
         ins = []
@@ -119,8 +118,25 @@ class ConvertTorch:
                 ins.append(self.supply(self.params[i]))
         return ins
 
-    def get_kernel_source(self) -> str:
-        return self.mod.imported_modules[0].get_source()
+    def assert_allclose(self, reference_program: callable, atol: float = 1e-8, rtol: float = 1e-5):
+        ins = self._get_inputs()
+        ref_outs = reference_program(*ins)
+        torch.cuda.synchronize()
+        lib_outs = self.func(*ins)
+        torch.cuda.synchronize()
+
+        if isinstance(lib_outs, torch.Tensor):
+            lib_outs = [lib_outs]
+        if isinstance(ref_outs, torch.Tensor):
+            ref_outs = [ref_outs]
+        assert len(lib_outs) == len(ref_outs)
+        for lhs, rhs in zip(lib_outs, ref_outs):
+            assert torch.allclose(lhs, rhs, rtol=rtol, atol=atol), (lhs, rhs)
+
+    def do_bench(self, func: callable, warmup=25, rep=100):
+        ins = self._get_inputs()
+        bench_func = partial(func, *ins)
+        return do_bench(bench_func, warmup=warmup, rep=rep)
 
 
 def do_bench(
@@ -199,3 +215,17 @@ def do_bench(
             ret = ret[0]
         return ret
     return getattr(torch, return_mode)(times).item()
+
+
+_cached = {}
+
+
+def cached(func, result_idx: List[int], *args):
+    global _cached
+    key = (func, tuple(result_idx), *args)
+    if key not in _cached:
+        program = func(*args)
+        mod, params = lower(program)
+        mod = ConvertTorch(mod, params, result_idx)
+        _cached[key] = mod
+    return _cached[key]

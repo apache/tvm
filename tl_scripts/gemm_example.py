@@ -1,8 +1,6 @@
 import torch
+from tvm import tl
 import tvm.tl.language as T
-
-from tvm.tl.engine import lower
-from tvm.tl.utils import ConvertTorch, TensorSupplyType
 
 
 def matmul(M, N, K, block_M, block_N, block_K):
@@ -26,18 +24,16 @@ def matmul(M, N, K, block_M, block_N, block_K):
 
 
 def ref_program(A, B):
-    C = torch.matmul(A, B)
-    return [C]
+    return A @ B
 
 
 if __name__ == "__main__":
     M, N, K, block_M, block_N, block_K = 8192, 8192, 8192, 128, 128, 32
     total_flops = 2 * M * N * K
     program = matmul(M, N, K, block_M, block_N, block_K)
-    mod, params = lower(program)
+    mod, params = tl.lower(program)
 
-    supply_type = TensorSupplyType.Integer
-    mod = ConvertTorch(mod, params, [2], supply_type)
+    mod = tl.Profiler(mod, params, [2], tl.TensorSupplyType.Integer)
     mod.assert_allclose(ref_program)
 
     latency = mod.do_bench(ref_program, warmup=500)

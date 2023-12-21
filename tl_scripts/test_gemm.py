@@ -17,8 +17,7 @@
 
 import tvm
 import tvm.testing
-from tvm.tl.engine import lower
-from tvm.tl.utils import ConvertTorch, TensorSupplyType
+from tvm import tl
 
 
 def matmul(
@@ -97,8 +96,8 @@ def run_gemm(
         num_stages,
         num_threads,
     )
-    mod, params = lower(program)
-    mod = ConvertTorch(mod, params, [2], TensorSupplyType.Integer)
+    mod, params = tl.lower(program)
+    mod = tl.Profiler(mod, params, [2], tl.TensorSupplyType.Integer)
 
     def ref_program(A, B):
         import torch
@@ -109,7 +108,7 @@ def run_gemm(
             B = B.T
         C = torch.matmul(A.to(torch.float), B.to(torch.float))
         C = C.to(torch.__getattribute__(dtypeC))
-        return [C]
+        return C
 
     mod.assert_allclose(ref_program)
 

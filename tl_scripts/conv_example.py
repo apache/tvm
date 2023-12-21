@@ -1,8 +1,7 @@
 import torch
+from tvm import tl
 import tvm.tl.language as T
 
-from tvm.tl.engine import lower
-from tvm.tl.utils import ConvertTorch, TensorSupplyType
 from functools import partial
 
 
@@ -62,16 +61,15 @@ def ref_program(A, B, stride, padding, dilation):
     B = B.permute(3, 2, 0, 1)  # H, W, C, F -> F, C, H, W
     C = torch.conv2d(A, B, stride=stride, padding=padding, dilation=dilation)
     C = C.permute(0, 2, 3, 1)  # N, C, H, W -> N, H, W, C
-    return [C]
+    return C
 
 
 if __name__ == "__main__":
     N, C, H, W, INC, KW, KH, P, S, D = 8, 256, 128, 128, 256, 3, 3, 1, 1, 1
     program = convolution(N, C, H, W, INC, KW, KH, P, S, D)
     ref_program = partial(ref_program, stride=S, padding=P, dilation=D)
-    mod, params = lower(program)
-    supply_type = TensorSupplyType.Integer
-    mod = ConvertTorch(mod, params, [2], supply_type)
+    mod, params = tl.lower(program)
+    mod = tl.Profiler(mod, params, [2], tl.TensorSupplyType.Integer)
     mod.assert_allclose(ref_program)
 
     total_flops = 2 * N * C * H * W * INC * KH * KW
