@@ -141,9 +141,11 @@ Layout makeGemmVoltaABLayout(int stride, int continuous, bool is_a, int kfactor)
 
 namespace attr {
 
-// Disable a for loop to infer under InferLevel kFree
+// LoopAttr, Disable a for loop to infer under InferLevel kFree
 constexpr const char* kSkipLayoutInfer = "skip_layout_infer";
 
+// BlockAttr, Containing the layout for all the buffers in the block
+constexpr const char* kLayoutMap = "layout_map";
 }  // namespace attr
 
 }  // namespace tl

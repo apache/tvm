@@ -18,14 +18,22 @@
 # pylint: disable=invalid-name, unsupported-binary-operation
 
 import tvm
-from tvm.ir import Node
+from tvm.ir import Node, Range
+from tvm.tir import IterVar, Var, PrimExpr
 from . import _ffi_api
 
 
 @tvm._ffi.register_object("tl.Layout")
 class Layout(Node):
-    def __init__(self, forward_var, forward_index):
-        self.__init_handle_by_constructor__(_ffi_api.Layout, forward_var, forward_index)
+    def __init__(self, shape, forward_fn):
+        forward_vars = []
+        for idx, size in enumerate(shape):
+            iv = IterVar(Range(0, size), Var(f"i{idx}", "int32"), 0)
+            forward_vars.append(iv)
+        forward_index = forward_fn(*forward_vars)
+        if isinstance(forward_index, PrimExpr):
+            forward_index = [forward_index]
+        self.__init_handle_by_constructor__(_ffi_api.Layout, forward_vars, forward_index)
 
     @property
     def var(self):
@@ -48,9 +56,23 @@ class Layout(Node):
 @tvm._ffi.register_object("tl.Fragment")
 class Fragment(Layout):
     # pylint: disable=super-init-not-called
-    def __init__(self, forward_var, forward_index, forward_thread, thread_replicate):
+    def __init__(self, shape, forward_thread_fn, replicate=1, forward_fn=None):
+        forward_vars = []
+        for idx, size in enumerate(shape):
+            iv = IterVar(Range(0, size), Var(f"i{idx}", "int32"), 0)
+            forward_vars.append(iv)
+        if forward_fn:
+            forward_index = forward_fn(forward_vars)
+        else:
+            forward_index = None
+        if replicate == 1:
+            thread_replicate = IterVar(Range(0, replicate), Var("rep", "int32"), 0)
+            forward_thread = forward_thread_fn(*forward_vars, thread_replicate)
+        else:
+            thread_replicate = None
+            forward_thread = forward_thread_fn(*forward_vars)
         self.__init_handle_by_constructor__(
-            _ffi_api.Fragment, forward_var, forward_index, forward_thread, thread_replicate
+            _ffi_api.Fragment, forward_vars, forward_index, forward_thread, thread_replicate
         )
 
     @property

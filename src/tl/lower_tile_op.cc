@@ -56,8 +56,8 @@ class LowerTileOpPass : arith::IRMutatorWithAnalyzer {
 
   Stmt VisitStmt_(const BlockNode* op) final {
     Map<Var, Layout> vmap;
-    if (op->annotations.count("layout_map")) {
-      vmap = op->annotations.at("layout_map").as<Map<Var, Layout>>().value();
+    if (op->annotations.count(attr::kLayoutMap)) {
+      vmap = op->annotations.at(attr::kLayoutMap).as<Map<Var, Layout>>().value();
     }
     for (auto buffer : op->alloc_buffers) {
       buffer_data_to_buffer_.Set(buffer->data, buffer);

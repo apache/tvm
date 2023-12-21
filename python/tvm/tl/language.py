@@ -23,6 +23,7 @@ from tvm.script.parser.tir import *
 from tvm.script.ir_builder.tir.frame import TIRFrame
 from tvm._ffi import register_object
 from . import _ffi_api
+from .layout import Layout, Fragment
 
 
 def Parallel(*extents: tir.PrimExpr):
@@ -105,6 +106,11 @@ def alloc_shared(shape, dtype):
 
 def alloc_fragment(shape, dtype):
     return T.alloc_buffer(shape, dtype, scope="local.fragment")
+
+
+def annotate_layout(layout_map):
+    layout_map = {buffer.data: layout for buffer, layout in layout_map.items()}
+    return T.block_attr({"layout_map": layout_map})
 
 
 def region(buffer: tir.BufferLoad, access_type: str, *args: tir.PrimExpr):

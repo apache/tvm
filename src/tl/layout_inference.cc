@@ -35,9 +35,9 @@
 #include "loop_partition.h"
 
 namespace tvm {
-namespace tir {
+namespace tl {
 
-using namespace tl;
+using namespace tir;
 using arith::IRMutatorWithAnalyzer;
 
 struct LayoutInferenceResult {
@@ -51,7 +51,7 @@ class BufferUseDefCollector : public StmtExprVisitor {
   BufferUseDefCollector() = default;
 
   LayoutInferenceResult Run() {
-    Map<Buffer, Layout> layout_map;
+    Map<Buffer, Layout> layout_map = annotated_layout_map_;
     int num_infer = infer_list_.size();
 
     // maintain a bfs queue and infer common layout
@@ -184,6 +184,14 @@ class BufferUseDefCollector : public StmtExprVisitor {
     for (auto buffer : op->alloc_buffers) {
       buffer_data_to_buffer_.Set(buffer->data, buffer);
     }
+    if (op->annotations.count(attr::kLayoutMap)) {
+      auto map = op->annotations.Get(attr::kLayoutMap).as<Map<Var, Layout>>().value();
+      for (const auto& [var, layout] : map) {
+        auto buffer = buffer_data_to_buffer_[var];
+        ICHECK(StructuralEqual()(layout->InputShape(), buffer->shape));
+        annotated_layout_map_.Set(buffer, layout);
+      }
+    }
     StmtExprVisitor::VisitStmt_(op);
   }
 
@@ -203,6 +211,7 @@ class BufferUseDefCollector : public StmtExprVisitor {
   std::unordered_map<Buffer, std::vector<int>, ObjectPtrHash, ObjectPtrEqual> use_list_;
   IterVar thread_var_;
   const TargetNode* target_;
+  LayoutMap annotated_layout_map_;
 };
 
 class LayoutInferencer : public IRMutatorWithAnalyzer {
@@ -253,7 +262,7 @@ class LayoutInferencer : public IRMutatorWithAnalyzer {
         new_layout_map.Set(new_alloc_[buffer->data]->data, result_.layout_map[buffer]);
       }
     }
-    block_ptr->annotations.Set("layout_map", new_layout_map);
+    block_ptr->annotations.Set(attr::kLayoutMap, new_layout_map);
     return block;
   }
 
@@ -317,9 +326,8 @@ class LayoutInferencer : public IRMutatorWithAnalyzer {
   IterVar thread_var_;
 };
 
-namespace transform {
-
 tvm::transform::Pass LayoutInference() {
+  using namespace tir::transform;
   auto pass_func = [=](PrimFunc f, IRModule m, PassContext ctx) {
     return LayoutInferencer::Substitute(std::move(f));
   };
@@ -327,7 +335,6 @@ tvm::transform::Pass LayoutInference() {
 }
 
 TVM_REGISTER_GLOBAL("tl.LayoutInference").set_body_typed(LayoutInference);
-}  // namespace transform
 
-}  // namespace tir
+}  // namespace tl
 }  // namespace tvm
