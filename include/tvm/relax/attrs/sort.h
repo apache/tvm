@@ -39,9 +39,11 @@ struct SortAttrs : public tvm::AttrsNode<SortAttrs> {
     TVM_ATTR_FIELD(axis).set_default(-1).describe(
         "Axis along which the sort is computed."
         "The default the last axis is used.");
-    TVM_ATTR_FIELD(descending).set_default(false).describe(
-        "Whether to sort in descending order."
-        "If it is not specified, it defaults to the ascending order.");
+    TVM_ATTR_FIELD(descending)
+        .set_default(false)
+        .describe(
+            "Whether to sort in descending order."
+            "If it is not specified, it defaults to the ascending order.");
   }
 };  // struct SortAttrs
 }  // namespace relax

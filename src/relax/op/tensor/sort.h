@@ -26,6 +26,9 @@
 
 #include <tvm/relax/attrs/sort.h>
 
+#include <algorithm>
+#include <utility>
+
 #include "../op_common.h"
 
 namespace tvm {
