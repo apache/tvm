@@ -7,13 +7,26 @@
 
 using cutlass::gemm::GemmShape;
 
-template <typename T, bool transpose, int M, int K>
-struct DispatchSharedMemoryLayoutA;
-template <typename T, bool transpose, int N, int K>
-struct DispatchSharedMemoryLayoutB;
+// Primary template
+// Add 128 bits padding when the last dim is a multiple of 256 bits
+template <typename T, bool transpose, int M, int K, typename Enable = void>
+struct DispatchSharedMemoryLayoutA {
+  using Layout = typename std::conditional<transpose, cutlass::layout::ColumnMajor,
+                                           cutlass::layout::RowMajor>::type;
+  static int constexpr Dim = transpose ? M : K;
+  static int constexpr Stride = (Dim * sizeof(T) % 32 == 0) ? Dim + 16 / sizeof(T) : Dim;
+};
+template <typename T, bool transpose, int N, int K, typename Enable = void>
+struct DispatchSharedMemoryLayoutB {
+  using Layout = typename std::conditional<transpose, cutlass::layout::ColumnMajor,
+                                           cutlass::layout::RowMajor>::type;
+  static int constexpr Dim = transpose ? K : N;
+  static int constexpr Stride = (Dim * sizeof(T) % 32 == 0) ? Dim + 16 / sizeof(T) : Dim;
+};
 
+// Partial specialization for half_t
 template <int M, int K>
-struct DispatchSharedMemoryLayoutA<half_t, true, M, K> {
+struct DispatchSharedMemoryLayoutA<half_t, true, M, K, typename std::enable_if<M % 64 == 0>::type> {
   using Layout = cutlass::layout::ColumnMajorVoltaTensorOpMultiplicandCongruous<16>;
   static int constexpr Stride = M;
 };
@@ -31,7 +44,8 @@ struct DispatchSharedMemoryLayoutB<half_t, true, N, K> {
 };
 
 template <int N, int K>
-struct DispatchSharedMemoryLayoutB<half_t, false, N, K> {
+struct DispatchSharedMemoryLayoutB<half_t, false, N, K,
+                                   typename std::enable_if<N % 64 == 0>::type> {
   using Layout = cutlass::layout::RowMajorVoltaTensorOpMultiplicandBCongruous<16>;
   static int constexpr Stride = N;
 };

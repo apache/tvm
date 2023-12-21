@@ -50,60 +50,75 @@ struct DispatchInstruction<int8_t, int8_t, int> {
 };
 #endif
 
-template <typename T, bool transpose, int M, int K>
-struct DispatchSharedMemoryLayoutA;
-template <typename T, bool transpose, int N, int K>
-struct DispatchSharedMemoryLayoutB;
+// Primary template
+// Add 128 bits padding when the last dim is a multiple of 256 bits
+template <typename T, bool transpose, int M, int K, typename Enable = void>
+struct DispatchSharedMemoryLayoutA {
+  using Layout = typename std::conditional<transpose, cutlass::layout::ColumnMajor,
+                                           cutlass::layout::RowMajor>::type;
+  static int constexpr Dim = transpose ? M : K;
+  static int constexpr Stride = (Dim * sizeof(T) % 32 == 0) ? Dim + 16 / sizeof(T) : Dim;
+};
+template <typename T, bool transpose, int N, int K, typename Enable = void>
+struct DispatchSharedMemoryLayoutB {
+  using Layout = typename std::conditional<transpose, cutlass::layout::ColumnMajor,
+                                           cutlass::layout::RowMajor>::type;
+  static int constexpr Dim = transpose ? K : N;
+  static int constexpr Stride = (Dim * sizeof(T) % 32 == 0) ? Dim + 16 / sizeof(T) : Dim;
+};
+
+// Partial specialization for double
 template <int M, int K>
-struct DispatchSharedMemoryLayoutA<double, true, M, K> {
+struct DispatchSharedMemoryLayoutA<double, true, M, K, typename std::enable_if<M % 16 == 0>::type> {
   using Layout = cutlass::layout::ColumnMajorTensorOpMultiplicandCongruous64b;
   static int constexpr Stride = M;
 };
 template <int M, int K>
-struct DispatchSharedMemoryLayoutA<double, false, M, K> {
+struct DispatchSharedMemoryLayoutA<double, false, M, K,
+                                   typename std::enable_if<M % 16 == 0 && K % 16 == 0>::type> {
   using Layout = cutlass::layout::RowMajorTensorOpMultiplicand64bCrosswise;
   static int constexpr Stride = M;  // special case
 };
 template <int N, int K>
-struct DispatchSharedMemoryLayoutB<double, true, N, K> {
+struct DispatchSharedMemoryLayoutB<double, true, N, K,
+                                   typename std::enable_if<N % 16 == 0 && K % 16 == 0>::type> {
   using Layout = cutlass::layout::ColumnMajorTensorOpMultiplicand64bCrosswise;
   static int constexpr Stride = N;  // special case
 };
 template <int N, int K>
-struct DispatchSharedMemoryLayoutB<double, false, N, K> {
+struct DispatchSharedMemoryLayoutB<double, false, N, K,
+                                   typename std::enable_if<N % 16 == 0>::type> {
   using Layout = cutlass::layout::RowMajorTensorOpMultiplicandCongruous64b;
   static int constexpr Stride = N;
 };
-template <int M, int K>
-struct DispatchSharedMemoryLayoutA<int8_t, true, M, K> {
-  using Layout = cutlass::layout::ColumnMajor;
-  static int constexpr Stride = M + 16;  // padded
-};
-template <int N, int K>
-struct DispatchSharedMemoryLayoutB<int8_t, false, N, K> {
-  using Layout = cutlass::layout::RowMajor;
-  static int constexpr Stride = N + 16;  // padded
-};
+
+// Partial specialization for tf32, fp16, bf16 and int8(only N*K case)
 template <typename T, int M, int K>
-struct DispatchSharedMemoryLayoutA<T, true, M, K> {
+struct DispatchSharedMemoryLayoutA<
+    T, true, M, K,
+    typename std::enable_if<sizeof(T) >= 2 and sizeof(T) <= 4 and M * sizeof(T) % 128 == 0>::type> {
   using Layout =
       cutlass::layout::ColumnMajorTensorOpMultiplicandCongruous<8 * sizeof(T), 128 / sizeof(T)>;
   static int constexpr Stride = M;
 };
 template <typename T, int M, int K>
-struct DispatchSharedMemoryLayoutA<T, false, M, K> {
+struct DispatchSharedMemoryLayoutA<
+    T, false, M, K, typename std::enable_if<sizeof(T) <= 4 and K * sizeof(T) % 64 == 0>::type> {
   using Layout =
       cutlass::layout::RowMajorTensorOpMultiplicandCrosswise<8 * sizeof(T), 64 / sizeof(T)>;
   static int constexpr Stride = K;
 };
 template <typename T, int N, int K>
-struct DispatchSharedMemoryLayoutB<T, true, N, K> {
+struct DispatchSharedMemoryLayoutB<
+    T, true, N, K, typename std::enable_if<sizeof(T) <= 4 and K * sizeof(T) % 64 == 0>::type> {
   using Layout =
       cutlass::layout::ColumnMajorTensorOpMultiplicandCrosswise<8 * sizeof(T), 64 / sizeof(T)>;
   static int constexpr Stride = K;
 };
 template <typename T, int N, int K>
-struct DispatchSharedMemoryLayoutB<T, false, N, K> {
+struct DispatchSharedMemoryLayoutB<
+    T, false, N, K,
+    typename std::enable_if<sizeof(T) >= 2 and sizeof(T) <= 4 and N * sizeof(T) % 128 == 0>::type> {
   using Layout =
       cutlass::layout::RowMajorTensorOpMultiplicandCongruous<8 * sizeof(T), 128 / sizeof(T)>;
   static int constexpr Stride = N;

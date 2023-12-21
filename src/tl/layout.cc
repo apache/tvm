@@ -545,11 +545,13 @@ Layout makeGemmABLayoutF64Crosswise(int stride, int continuous) {
   return Layout({i, j}, {offset});
 }
 
-Layout makeGemmABLayoutLinear(int stride, int continuous, int pad = 0) {
-  // the traditional layout, no padding is added
+Layout makeGemmABLayoutPadded(int stride, int continuous, int element_size) {
   IterVar i = make_itervar("i", stride);
   IterVar j = make_itervar("j", continuous);
-  return Layout({i, j}, {i * (continuous + pad) + j});
+  int padded = continuous;
+  // Add 128 bits padding when the last dim is a multiple of 256 bits
+  if ((element_size * continuous) % 256 == 0) padded += 128 / element_size;
+  return Layout({i, j}, {i * padded + j});
 }
 
 Layout makeGemmABLayoutCommon(int stride, int continuous, int element_size, int kfactor) {
@@ -653,22 +655,24 @@ Layout MakeGemmVoltaBLayoutCongruous(int stride, int continuous) {
 }
 
 Layout makeGemmVoltaABLayout(int stride, int continuous, bool is_a, int kfactor) {
-  if (kfactor == 2) {
-    return MakeGemmVoltaABLayoutCrosswise(stride, continuous);
-  } else if (is_a) {
-    return MakeGemmVoltaALayoutCongruous(stride, continuous);
-  } else {
-    return MakeGemmVoltaBLayoutCongruous(stride, continuous);
-  }
+  if (kfactor == 2) return MakeGemmVoltaABLayoutCrosswise(stride, continuous);
+  if (is_a && continuous % 64 == 0) return MakeGemmVoltaALayoutCongruous(stride, continuous);
+  if (!is_a && continuous % 64 == 0) return MakeGemmVoltaBLayoutCongruous(stride, continuous);
+  return makeGemmABLayoutPadded(stride, continuous, 16);
 }
 
 Layout makeGemmABLayout(int stride, int continuous, int element_size, int kfactor) {
-  // some special cases
-  if (element_size == 64 && kfactor == 1) return makeGemmABLayoutF64Congruous(stride, continuous);
-  if (element_size == 64 && kfactor == 2) return makeGemmABLayoutF64Crosswise(stride, continuous);
-  if (element_size == 32 && kfactor == 1) return makeGemmABLayoutF32Congruous(stride, continuous);
-  if (element_size == 8 && kfactor == 1) return makeGemmABLayoutLinear(stride, continuous, 16);
-  return makeGemmABLayoutCommon(stride, continuous, element_size, kfactor);
+  if (element_size == 64 && kfactor == 1 && continuous % 16 == 0)
+    return makeGemmABLayoutF64Congruous(stride, continuous);
+  if (element_size == 64 && kfactor == 2 && stride % 16 == 0 && continuous % 16 == 0)
+    return makeGemmABLayoutF64Crosswise(stride, continuous);
+  if (element_size == 32 && kfactor == 1 && continuous % 32 == 0)
+    return makeGemmABLayoutF32Congruous(stride, continuous);
+  if (element_size == 8 && kfactor == 1)
+    return makeGemmABLayoutPadded(stride, continuous, element_size);
+  if (continuous * element_size * kfactor % 1024 == 0)
+    return makeGemmABLayoutCommon(stride, continuous, element_size, kfactor);
+  return makeGemmABLayoutPadded(stride, continuous, element_size);
 }
 
 TVM_REGISTER_NODE_TYPE(LayoutNode);

@@ -65,7 +65,7 @@ class Fragment(Layout):
             forward_index = forward_fn(forward_vars)
         else:
             forward_index = None
-        if replicate == 1:
+        if replicate > 1:
             thread_replicate = IterVar(Range(0, replicate), Var("rep", "int32"), 0)
             forward_thread = forward_thread_fn(*forward_vars, thread_replicate)
         else:
