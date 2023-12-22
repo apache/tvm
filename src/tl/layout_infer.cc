@@ -204,6 +204,8 @@ LayoutMap GemmOpLayoutInfer::Inference(const LayoutMap& layout_map, InferLevel l
       ICHECK(args.trans_A == false);
       results.Set(args.A,
                   makeGemmVoltaFragmentA(args.M, args.N, args.K, args.M / warp_m, args.N / warp_n));
+    } else {
+      ICHECK(0);
     }
 
     ICHECK(args.B.scope() == "shared" || args.B.scope() == "shared.dyn");
@@ -218,17 +220,17 @@ LayoutMap GemmOpLayoutInfer::Inference(const LayoutMap& layout_map, InferLevel l
       results.Set(args.A,
                   makeGemmABLayout(*as_const_int(args.A->shape[0]), *as_const_int(args.A->shape[1]),
                                    args.A->dtype.bits(), args.trans_A ? 1 : 2));
-    }
-    if (args.B.scope() == "shared" || args.B.scope() == "shared.dyn") {
-      results.Set(args.B,
-                  makeGemmABLayout(*as_const_int(args.B->shape[0]), *as_const_int(args.B->shape[1]),
-                                   args.B->dtype.bits(), args.trans_B ? 2 : 1));
-    }
-    if (args.A.scope() == "local.fragment") {
+    } else if (args.A.scope() == "local.fragment") {
       ICHECK(args.trans_A == false);
       results.Set(args.A,
                   makeGemmFragmentA(args.M, args.N, args.K, args.M / warp_m, args.N / warp_n));
+    } else {
+      ICHECK(0);
     }
+    ICHECK(args.B.scope() == "shared" || args.B.scope() == "shared.dyn");
+    results.Set(args.B,
+                makeGemmABLayout(*as_const_int(args.B->shape[0]), *as_const_int(args.B->shape[1]),
+                                 args.B->dtype.bits(), args.trans_B ? 2 : 1));
   } else {
     ICHECK(0) << "Not supported " << target_->str();
   }

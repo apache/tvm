@@ -133,6 +133,10 @@ class Profiler(ConvertTorch):
         for lhs, rhs in zip(lib_outs, ref_outs):
             assert torch.allclose(lhs, rhs, rtol=rtol, atol=atol), (lhs, rhs)
 
+    def run_once(self):
+        ins = self._get_inputs()
+        return self.__call__(*ins)
+
     def do_bench(self, func: callable, warmup=25, rep=100):
         ins = self._get_inputs()
         bench_func = partial(func, *ins)

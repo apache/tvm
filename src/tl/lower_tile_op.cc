@@ -157,7 +157,7 @@ class LowerTileOpPass : arith::IRMutatorWithAnalyzer {
         Array<PrimExpr> thread_reduce_args = {StringImm(ss.str()),
                                               BufferLoad(args.dst, dst_indices)};
         if (reducing_threads >= 32) {
-          PrimExpr workspace = GetWorkspace(thread_block_size_, args.src->dtype);
+          PrimExpr workspace = GetWorkspace(thread_block_size_, args.dst->dtype);
           thread_reduce_args.push_back(workspace);
         }
         auto call = Call(args.dst->dtype, builtin::call_extern(), thread_reduce_args);

@@ -251,3 +251,7 @@ def reduce_min(buffer: tir.Buffer, out: tir.Buffer, dim: int, clear: bool = True
 
 def reduce_sum(buffer: tir.Buffer, out: tir.Buffer, dim: int):
     return reduce(buffer, out, "sum", dim, True)
+
+
+def atomic_add(dst, value):
+    return T.call_extern("handle", "atomicAdd", T.address_of(dst), value)

@@ -81,6 +81,9 @@ class VectorizePlanner : public arith::IRVisitorWithAnalyzer {
   void VisitExpr_(const CallNode* node) final {
     if (node->op == builtin::if_then_else()) {
       CheckConditionVectorized(node->args[0]);
+    } else if (node->op == builtin::call_extern()) {
+      // do not vectorize extern calls
+      vector_size_ = 1;
     }
     return arith::IRVisitorWithAnalyzer::VisitExpr_(node);
   }
