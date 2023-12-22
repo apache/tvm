@@ -518,7 +518,7 @@ def conv2d_transpose_strategy(attrs, inputs, out_type, target):
 
 
 # conv3d_transpose
-def wrap_compute_conv3d_transpose(topi_compute):
+def wrap_compute_conv3d_transpose(topi_compute, has_groups=False):
     """wrap conv3d_transpose topi compute"""
 
     def compute_conv3d_transpose(attrs, inputs, out_dtype):
@@ -528,7 +528,10 @@ def wrap_compute_conv3d_transpose(topi_compute):
         output_padding = get_const_tuple(attrs.output_padding)
         out_dtype = attrs.out_dtype
         out_dtype = inputs[0].dtype if out_dtype in ("same", "") else out_dtype
-        out = topi_compute(inputs[0], inputs[1], strides, padding, out_dtype, output_padding)
+        args = [inputs[0], inputs[1], strides, padding, out_dtype, output_padding]
+        if has_groups:
+            args.append(attrs.group)
+        out = topi_compute(*args)
         return [out]
 
     return compute_conv3d_transpose
@@ -543,13 +546,20 @@ def conv3d_transpose_strategy(attrs, inputs, out_type, target):
     groups = attrs.groups
     assert layout == "NCDHW", "only support ncdhw for now"
     assert dilation == (1, 1, 1), "not support dilate now"
-    assert groups == 1, "only support groups == 1 for now"
+
     strategy = _op.OpStrategy()
-    strategy.add_implementation(
-        wrap_compute_conv3d_transpose(topi.nn.conv3d_transpose_ncdhw),
-        wrap_topi_schedule(topi.generic.schedule_conv3d_transpose_ncdhw),
-        name="conv3d_transpose_ncdhw.generic",
-    )
+    if groups == 1:
+        strategy.add_implementation(
+            wrap_compute_conv3d_transpose(topi.nn.conv3d_transpose_ncdhw),
+            wrap_topi_schedule(topi.generic.schedule_conv3d_transpose_ncdhw),
+            name="conv3d_transpose_ncdhw.generic",
+        )
+    else:
+        strategy.add_implementation(
+            wrap_compute_conv3d_transpose(topi.nn.group_conv3d_transpose_ncdhw, has_groups=True),
+            wrap_topi_schedule(topi.generic.schedule_group_conv3d_transpose_ncdhw),
+            name="group_conv3d_transpose_ncdhw.generic",
+        )
     return strategy
 
 
