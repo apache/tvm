@@ -343,7 +343,20 @@ class IRConvertSSA final : public StmtExprMutator {
     }
   }
   Stmt VisitStmt_(const AttrStmtNode* op) final {
-    if (const VarNode* v = op->node.as<VarNode>()) {
+    if (op->attr_key == attr::thread_extent || op->attr_key == attr::virtual_thread) {
+      IterVar iter_var = Downcast<IterVar>(op->node);
+      const Var& v = iter_var->var;
+      if (defined_.count(v.get())) {
+        ScopedRedefine redefine(this, v);
+        AttrStmt stmt = Downcast<AttrStmt>(StmtExprMutator::VisitStmt_(op));
+        iter_var.CopyOnWrite()->var = redefine.new_var;
+        stmt.CopyOnWrite()->node = iter_var;
+        return stmt;
+      } else {
+        defined_.insert(v.get());
+        return StmtExprMutator::VisitStmt_(op);
+      }
+    } else if (const VarNode* v = op->node.as<VarNode>()) {
       Stmt stmt = StmtExprMutator::VisitStmt_(op);
       op = stmt.as<AttrStmtNode>();
       if (scope_.count(v) && scope_[v].size() != 0) {
