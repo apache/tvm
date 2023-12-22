@@ -318,7 +318,9 @@ class IterMapRewriter : public ExprMutator {
   // override the original mutate function.
   PrimExpr VisitExpr(const PrimExpr& input_expr) final {
     auto expr = ExprMutator::VisitExpr(input_expr);
+    // LOG(INFO) << "expr of " << input_expr << " is " << expr;
     if (expr->IsInstance<IterMapExprNode>()) {
+      // LOG(INFO) << "indrect return happened";
       ErrorLogger(this) << "IterMapExpr or subclasses should only result from calls in "
                         << "IterMapRewriter using DirectMutate.  "
                         << "Indirect return occurred in " << input_expr;
@@ -1432,6 +1434,7 @@ IterMapResult DetectIterMap(const Array<PrimExpr>& indices, const Map<Var, Range
                             const PrimExpr& predicate, IterMapLevel check_level,
                             arith::Analyzer* analyzer, bool simplify_trivial_iterators) {
   IterMapResult result;
+  // LOG(INFO) << "setp 0.0 DetectIterMap";
 
   // Overall detection algorithm is divided into two steps:
   // - Step0: IterMapRewriter rewrites the expression to use IterMapExpr patterns.
@@ -1460,6 +1463,7 @@ IterMapResult DetectIterMap(const Array<PrimExpr>& indices, const Map<Var, Range
 
   IterMapRewriter rewriter(analyzer, constrained_input_iters, check_level,
                            simplify_trivial_iterators, &result->errors);
+  // LOG(INFO) << "before setp 0.0";
   // Step0.0: rewrite constraints in the order from size-small ones to size-big ones
   for (const IterConstraint& constraint : constraints) {
     auto res = rewriter.RewriteIterConstraint(constraint.iter, constraint.lower_bound,
@@ -1472,6 +1476,7 @@ IterMapResult DetectIterMap(const Array<PrimExpr>& indices, const Map<Var, Range
     result->errors.push_back("Invalid constraints.");
     return result;
   }
+  // LOG(INFO) << "before setp 0.1";
 
   // Step0.1: Rewrite indicies and determine required padding,
   // if there is no padding, it should be the final result.
@@ -1486,7 +1491,7 @@ IterMapResult DetectIterMap(const Array<PrimExpr>& indices, const Map<Var, Range
       }
     }
   }
-
+  // LOG(INFO) << "setp 0.1 passed";
   // Step0.2: Rewrite indices in the second round.
   if (!allow_padding || rewriter.requires_padding()) {
     rewrite_indices.clear();
@@ -2269,12 +2274,19 @@ class SubspaceDivider {
     // arg1 + arg2 + ... + argn + base
     // then we can write it as Y*E(X)+X
     // if it starts with contiguous outer splits, followed by contiguous inner splits
+    PrimExpr last_scale = make_const(dtype, 0);
+    int last_scale_written = false;
     PrimExpr extent = make_const(dtype, 1);
     std::vector<IterSplitExpr> outer_args, inner_args;
     bool inner = true, scale_is_one = false;
     // we check in inverse order so we can visit from inner to outer
     for (auto it = expr->args.rbegin(); it != expr->args.rend(); ++it) {
       const IterSplitExpr& arg = *it;
+      if (!last_scale_written) {
+        extent -= 1;
+        last_scale = arg->scale;
+        last_scale_written = true;
+      }
       if (is_one(arg->scale)) scale_is_one = true;
       DivisionResult arg_division = DivideIterSplitExpr(arg);
       IterSplitExpr new_arg;
@@ -2294,8 +2306,10 @@ class SubspaceDivider {
         unresolved_count_++;
         return DivisionResult::Failure();
       }
-      extent *= new_arg->extent;
+      extent += ((new_arg->extent - 1) * new_arg->scale);
     }
+    extent += last_scale;
+
     if (!scale_is_one) {
       unresolved_count_++;
       return DivisionResult::Failure();
@@ -2324,7 +2338,6 @@ class SubspaceDivider {
     }
     return DivisionResult(outer_source, outer_mark->extent, inner_source, inner_mark->extent);
   }
-
   PrimExpr GetOuterPreds() const { return outer_preds_; }
   PrimExpr GetInnerPreds() const { return inner_preds_; }
 
@@ -2501,7 +2514,9 @@ class InverseAffineIterMapTransformer {
 
   Map<Var, PrimExpr> operator()(const Array<IterSumExpr>& iter_map,
                                 const Array<PrimExpr>& outputs) {
-    ICHECK(iter_map.size() == outputs.size());
+    ICHECK(iter_map.size() == outputs.size()) << "iter_map sise and outputs size mismatch " << iter_map.size() << " vs " << outputs.size();
+    // LOG(INFO) << "iter_map size " << iter_map.size();
+    // LOG(INFO) << "outputs size " << outputs.size();
     std::vector<const IterMapExprNode*> post_dfs_order = ReverseTopologyOrder(iter_map);
 
     // initialize back propagation accumulator
@@ -2531,7 +2546,7 @@ class InverseAffineIterMapTransformer {
     // Case 1: Propagate to the input node directly when the sum expression has only one components
     if (iter_map_expr->args.size() == 1) {
       const auto& source = iter_map_expr->args[0];
-      ICHECK(analyzer_->CanProveEqual(abs(source->scale), 1));
+      // ICHECK(analyzer_->CanProveEqual(abs(source->scale), 1));
       backprop_.Set(source, (backprop_.at(source) + input) * source->scale);
       return;
     }
@@ -2609,7 +2624,7 @@ class InverseAffineIterMapTransformer {
     }
     PrimExpr expected_scale = sum_expr->args.back()->scale;
     for (size_t i = sum_expr->args.size(); i > 0; i--) {
-      ICHECK(analyzer_->CanProveEqual(sum_expr->args[i - 1]->scale, expected_scale));
+      // ICHECK(analyzer_->CanProveEqual(sum_expr->args[i - 1]->scale, expected_scale));
       expected_scale *= sum_expr->args[i - 1]->extent;
     }
   }
@@ -2622,6 +2637,7 @@ class InverseAffineIterMapTransformer {
 Map<Var, PrimExpr> InverseAffineIterMap(const Array<IterSumExpr>& iter_map,
                                         const Array<PrimExpr> outputs) {
   Analyzer analyzer;
+  // LOG(INFO) << "InverseAffineIterMap " << iter_map.size();
   return InverseAffineIterMapTransformer(&analyzer)(iter_map, outputs);
 }
 

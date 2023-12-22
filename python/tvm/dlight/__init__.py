@@ -18,6 +18,7 @@
 from . import gpu
 from .base import (
     ApplyDefaultSchedule,
+    ApplyFastTuning,
     BlockInfo,
     IterInfo,
     ScheduleRule,

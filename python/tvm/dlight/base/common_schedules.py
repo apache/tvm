@@ -22,6 +22,39 @@ from tvm import tir
 from .analysis import BlockInfo
 
 
+def get_output_blocks(
+    sch: tir.Schedule,
+    blocks: List[BlockInfo],
+):
+    """Get the output blocks of a schedule.
+
+    Parameters
+    ----------
+    sch : tir.Schedule
+        The TIR schedule used to get output blocks.
+    blocks : List[BlockInfo]
+        The blocks to be analyzed.
+
+    Returns
+    -------
+    output_blocks : List[BlockInfo]
+        The output blocks.
+    """
+
+    # collect arguments buffer
+    func = sch.mod["main"]
+    args = func.buffer_map.values()
+
+    output_blocks = []
+    for block_info in blocks:
+        block = block_info.block_rv
+        for write in sch.get_sref(block).stmt.writes:
+            if write.buffer in args:
+                output_blocks.append(block)
+    
+    return output_blocks
+
+
 def try_inline(
     sch: tir.Schedule,
     blocks: List[BlockInfo],

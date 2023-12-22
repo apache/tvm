@@ -943,6 +943,7 @@ class PatternRewriter : ExprMutator {
   }
 
   Expr VisitExpr_(const SeqExprNode* seq) override {
+    // LOG(INFO) << "VisitExpr_ SeqExprNode ";
     if (ctx_) {
       return ExprMutator::VisitExpr_(seq);
     }
@@ -1001,10 +1002,12 @@ class PatternRewriter : ExprMutator {
   }
 
   Expr VisitExpr(const Expr& expr) override {
+    // LOG(INFO) << "VisitExpr_ expr " << expr;
     auto node = ExprMutator::VisitExpr(expr);
 
     if (pattern_) {
       if (auto matches_opt = ExtractMatchedExpr(pattern_.value(), node, bindings_)) {
+        // LOG(INFO) << "VisitExpr_ matches_opt " << matches_opt.value();
         Expr rewritten_expr = rewriter_func_(node, matches_opt.value());
         if (!rewritten_expr.same_as(node)) {
           return builder_->Normalize(rewritten_expr);

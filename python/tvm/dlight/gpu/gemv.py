@@ -18,7 +18,7 @@
 import re
 from functools import reduce
 from typing import List, Optional, Union
-
+from ..base.roller.config import Stride
 from tvm import DataType, arith, ir, tir
 from tvm.target import Target
 
@@ -30,6 +30,7 @@ from ..base import (
     is_broadcast_epilogue,
     normalize_prim_func,
     try_inline_contiguous_spatial,
+    get_output_blocks,
 )
 
 
@@ -548,3 +549,197 @@ class GEMV(ScheduleRule):
         sch.decompose_reduction(block, r0)
 
         return sch
+
+    def sch_outer_reduction_with_config(    # pylint: disable=too-many-locals,too-many-branches,too-many-return-statements
+        self,
+        func: tir.PrimFunc,
+        config,
+    ):
+        
+        sch = tir.Schedule(func)
+        block_infos = normalize_prim_func(sch)
+        
+        if block_infos is None:
+            return None
+        
+        reduction_block: tir.schedule.BlockRV = None
+        for block in block_infos:
+            s_loops: List[tir.schedule.LoopRV] = []
+            r_loops: List[tir.schedule.LoopRV] = []
+            o_loops: List[tir.schedule.LoopRV] = []
+            dom_kind = block.dom_kind()
+            block = block.block_rv
+
+            if (
+                any(
+                    [
+                        sch.get(loop_rv).thread_binding is not None
+                        for loop_rv in sch.get_loops(block)
+                    ]
+                )
+                or len(sch.get_loops(block)) == 0
+            ):
+                continue
+
+            for loop, iter_type in zip(sch.get_loops(block), dom_kind):
+                {"S": s_loops, "R": r_loops, "O": o_loops}[iter_type].append(loop)
+
+            if not s_loops:
+                s_loops.append(sch.add_unit_loop(block))
+            if len(r_loops) > 0:
+                reduction_block = block
+
+        C = reduction_block
+        CL = sch.cache_write(reduction_block, 0, "local")
+
+        blck_axis = []
+        vthd_axis = []
+        thrd_axis = []
+        tile_axis = []
+        for i, loop in enumerate(s_loops):
+            if sch.get_sref(loop).stmt.extent % config.block[i]:
+                raise NotImplementedError("Undivisible block in TIR schedule is still buggy.")
+            bx, _t = sch.split(loop, factors=[None, config.block[i]])
+            blck_axis.append(bx)
+            if config.step[i] > 1:
+                _t, tn = sch.split(_t, factors=[None, config.step[i]])
+                tile_axis.append(tn)
+            if config.block[i] <= config.thread[i] * config.step[i]:
+                tx = _t
+            else:
+                vx, tx = sch.split(_t, factors=[None, config.thread[i]])
+                vthd_axis.append(vx)
+            thrd_axis.append(tx)
+
+        reduce_outer_axis, reduce_inner_axis = [], []
+        for i in config.raxis_order:
+            loop = r_loops[i]
+            ro, ri = sch.split(loop, factors=[None, config.rstep[i]])
+            reduce_outer_axis.append(ro)
+            reduce_inner_axis.append(ri)
+
+        vthd_axis = list(reversed(vthd_axis)) # inner virtual thread first
+        axis_order = blck_axis + vthd_axis + thrd_axis + reduce_outer_axis + reduce_inner_axis + tile_axis
+
+        sch.reorder(*axis_order)
+        blck_fused = sch.fuse(*blck_axis)
+        thrd_fused = sch.fuse(*thrd_axis)
+        sch.bind(blck_fused, "blockIdx.x")
+        sch.bind(thrd_fused, "threadIdx.x")
+        if len(vthd_axis) > 3:
+            vthd_axis = vthd_axis[0:2] + [sch.fuse(*vthd_axis[2:])]
+        for i, ax in enumerate(vthd_axis):
+            sch.bind(ax, "vthread" + ['.x', '.y', '.z'][i])
+        for ax in tile_axis:
+            sch.unroll(ax)
+
+        sch.reverse_compute_at(CL, thrd_fused)
+        if len(tile_axis) > 0:
+            for ax in sch.get_loops(CL)[-len(tile_axis):]:
+                sch.unroll(ax)
+        
+        sch.decompose_reduction(C, reduce_outer_axis[0])
+
+        try_inline_contiguous_spatial(sch, block_infos)
+        
+        return sch
+        
+    def sch_inner_reduction_with_config(    # pylint: disable=too-many-locals,too-many-branches,too-many-return-statements
+        self,
+        func: tir.PrimFunc,
+        config,
+    ):
+        
+        sch = tir.Schedule(func)
+        
+        block_infos = normalize_prim_func(sch)
+        
+        if block_infos is None:
+            return None
+        
+        reduction_block: tir.schedule.BlockRV = None
+        for block in block_infos:
+            s_loops: List[tir.schedule.LoopRV] = []
+            r_loops: List[tir.schedule.LoopRV] = []
+            o_loops: List[tir.schedule.LoopRV] = []
+            dom_kind = block.dom_kind()
+            block = block.block_rv
+
+            if (
+                any(
+                    [
+                        sch.get(loop_rv).thread_binding is not None
+                        for loop_rv in sch.get_loops(block)
+                    ]
+                )
+                or len(sch.get_loops(block)) == 0
+            ):
+                continue
+
+            for loop, iter_type in zip(sch.get_loops(block), dom_kind):
+                {"S": s_loops, "R": r_loops, "O": o_loops}[iter_type].append(loop)
+
+            if not s_loops:
+                s_loops.append(sch.add_unit_loop(block))
+            if len(r_loops) > 0:
+                reduction_block = block
+
+        def prod(iterable):
+            return reduce(lambda x, y: x * y, iterable, 1)
+        
+        vec = list(config.vectorize.values())[-1]
+        
+        num_warps = int(prod(config.thread))
+        warp_size = int(prod(config.reduce_thread))
+
+
+        block_b = reduction_block
+        output_blocks = get_output_blocks(sch, block_infos)
+        # compute inline
+        for block_info in reversed(block_infos):
+            block = block_info.block_rv
+            if block not in (reduction_block, *output_blocks):
+                sch.compute_inline(block)
+        try:
+            i, j, k = sch.get_loops(block_b)    
+        except:
+            j, k = sch.get_loops(block_b)
+        block_shared_local_A = sch.cache_read(block_b, 0, "local")
+        block_shared_local_B = sch.cache_read(block_b, 1, "local")
+        block_local_C = sch.cache_write(block_b, 0, "local")
+        # reverse inline
+        if reduction_block != None and reduction_block != output_blocks[0]:
+            sch.reverse_compute_inline(output_blocks[0])
+
+        bx, j = sch.split(j, factors=[None, num_warps])
+        k, tx, vk = sch.split(k, factors=[None, warp_size, vec])
+        sch.reorder(bx, j, k, tx)
+
+        sch.bind(bx, "blockIdx.x")
+        sch.bind(tx, "threadIdx.x")
+        sch.bind(j, "threadIdx.y")
+        
+        self.block_size = [sch.get_sref(tx).stmt.extent, sch.get_sref(j).stmt.extent, 1]
+        self.grid_size = [sch.get_sref(bx).stmt.extent, 1, 1]
+        
+        
+        sch.compute_at(block_shared_local_A, tx, preserve_unit_loops=True)
+        sch.compute_at(block_shared_local_B, tx, preserve_unit_loops=True)
+        sch.reverse_compute_at(block_local_C, j, preserve_unit_loops=True)
+
+        block_local_a_v = sch.get_loops(block_shared_local_A)[-1]
+        sch.vectorize(block_local_a_v)
+        block_local_b_v = sch.get_loops(block_shared_local_B)[-1]
+        sch.vectorize(block_local_b_v)
+
+        return sch
+
+    def apply_config(  # pylint: disable=too-many-locals,missing-docstring
+        self,
+        func: tir.PrimFunc,
+        config,
+    ) -> tir.Schedule:
+        if any([t > 1 for t in config.reduce_thread]):
+            return self.sch_inner_reduction_with_config(func, config)
+
+        return self.sch_outer_reduction_with_config(func, config)

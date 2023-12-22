@@ -24,32 +24,51 @@ from tvm.script import tir as T
 from tvm.tir.function import PrimFunc
 from tvm.tir import Cast, IntImm, TensorIntrin
 
+def shared_to_mma_16b_smoothlayout(i, j):
+    return (i * 2 + j // 8, j % 8)
 
-def shared_16x16_to_ldmatrix_32x8_layout(i, j):
+
+def shared_to_mma_8b_smoothlayout(i, j):
+    return (i * 2 + j // 16, j % 16)
+
+
+def ldmatrix_32x8_to_shared_16x16_layout(thread_id, local_id):
+    row = (thread_id % 16)
+    col = 8 * (thread_id // 16) + local_id % 8
+    return row, col
+
+
+def ldmatrix_trans_32x8_to_shared_16x16_layout(thread_id, local_id):
+    row = 8 * (thread_id // 16) + (thread_id % 8)
+    col = 8 * ((thread_id % 16) // 8) + local_id % 8
+    return row, col
+
+
+def shared_16x16_to_mma_32x8_layout(i, j):
     thread_id = 4 * (i % 8) + (j % 8) // 2
     return thread_id, 4 * (j // 8) + (i // 8) * 2 + (j % 2)
 
 
-def shared_16x32_to_ldmatrix_32x16_layout(i, j):
+def shared_16x32_to_mma_32x16_layout(i, j):
     thread_id = 4 * (i % 8) + (j % 16) // 4
     return thread_id, 8 * (j // 16) + (i // 8) * 4 + j % 4
 
 
-def shared_32x16_to_ldmatrix_32x16_layout(i, j):
+def shared_32x16_to_mma_32x16_layout(i, j):
     thread_id = (i % 16) // 4 + 4 * (j % 8)
     return thread_id, 8 * (j // 8) + (i // 16) * 4 + i % 4
 
 
-def ldmatrix_32x8_to_shared_16x16_layout(thread_id, local_id):
+def mma_32x8_to_shared_16x16_layout(thread_id, local_id):
     row = 8 * (local_id % 4 // 2) + (thread_id // 4)
     col = 8 * (local_id // 4) + (thread_id % 4) * 2 + (local_id % 2)
     return row, col
 
 
-@register_func("tir.index_map.shared_16x16_to_ldmatrix_32x8_layout")
-def index_map_shared_16x16_to_ldmatrix_32x8_layout(ind):
+@register_func("tir.index_map.shared_16x16_to_mma_32x8_layout")
+def index_map_shared_16x16_to_mma_32x8_layout(ind):
     i, j = ind[0], ind[1]
-    thread_id, local_id = shared_16x16_to_ldmatrix_32x8_layout(i, j)
+    thread_id, local_id = shared_16x16_to_mma_32x8_layout(i, j)
     return convert([thread_id, local_id])
 
 
@@ -105,7 +124,7 @@ def get_ldmatrix_intrin(
     if k_dim == 16:
         assert dtype == "float16"
 
-        index_map = shared_16x16_to_ldmatrix_32x8_layout
+        index_map = shared_16x16_to_mma_32x8_layout
 
         if transpose_layout_for_ldmatrix_input:
             smem_offset = (
@@ -127,20 +146,20 @@ def get_ldmatrix_intrin(
         ), "Only k_dim == 16 (float16) or k_dim == 32 (int8) supported for now"
 
         if matrix_name == "B" and not transposed:
-            index_map = shared_32x16_to_ldmatrix_32x16_layout
+            index_map = shared_32x16_to_mma_32x16_layout
             # A dummy offset, ldmatrix cannot be used for int8 + trans case.
             # We still use the ldmatrix intrinsic, but lower it to a manual loop in the codegen.
             # Only the stride information is required.
             smem_offset = lambda _, stride: stride
         elif matrix_name == "B" and transposed:
-            index_map = shared_16x32_to_ldmatrix_32x16_layout
+            index_map = shared_16x32_to_mma_32x16_layout
             smem_offset = (
                 lambda tx, stride: stride * 8 * (tx // HALF_WARP_expr)
                 + (tx % 8) * stride
                 + 16 * ((tx % HALF_WARP_expr) // 8)
             )
         else:  # A, not transposed
-            index_map = shared_16x32_to_ldmatrix_32x16_layout
+            index_map = shared_16x32_to_mma_32x16_layout
             smem_offset = lambda tx, stride: stride * (tx % 16) + 16 * (tx // 16)
 
     offset_factor = smem_tile_col
@@ -265,18 +284,18 @@ def get_mma_intrin(k_dim, out_dtype, a_transposed, b_transposed):
     local_size = (M_DIM * k_dim) // WARP_SIZE
     local_size_out = (M_DIM * N_DIM) // 32
 
-    index_map_C = shared_16x16_to_ldmatrix_32x8_layout
+    index_map_C = shared_16x16_to_mma_32x8_layout
 
     if k_dim == 16:
-        index_map_A = shared_16x16_to_ldmatrix_32x8_layout
-        index_map_B = shared_16x16_to_ldmatrix_32x8_layout
+        index_map_A = shared_16x16_to_mma_32x8_layout
+        index_map_B = shared_16x16_to_mma_32x8_layout
         mma_prefix = "m16n8k16"
     elif k_dim == 32 and b_transposed:
-        index_map_A = index_map_B = shared_16x32_to_ldmatrix_32x16_layout
+        index_map_A = index_map_B = shared_16x32_to_mma_32x16_layout
         mma_prefix = "m16n8k32"
     elif k_dim == 32 and not b_transposed:
-        index_map_A = shared_16x32_to_ldmatrix_32x16_layout
-        index_map_B = shared_32x16_to_ldmatrix_32x16_layout
+        index_map_A = shared_16x32_to_mma_32x16_layout
+        index_map_B = shared_32x16_to_mma_32x16_layout
         mma_prefix = "m16n8k32"
     else:
         assert False
@@ -474,7 +493,7 @@ def get_mma_fill_intrin(dtype, local_size):
     zero = IntImm("int32", 0).astype(dtype)
 
     # Assume M = N = 16
-    index_map = shared_16x16_to_ldmatrix_32x8_layout
+    index_map = shared_16x16_to_mma_32x8_layout
 
     @T.prim_func
     def mma_fill_desc(a: T.handle) -> None:
@@ -519,8 +538,8 @@ TensorIntrin.register(MMA_fill_16x16_i32_INTRIN, *get_mma_fill_intrin("int32", 8
 
 def get_mma_store_intrin(dtype, local_size, scope="global", use_mma_store_intrinic=True):
     # Assume M = N = 16
-    index_map = shared_16x16_to_ldmatrix_32x8_layout
-    index_map_rev = ldmatrix_32x8_to_shared_16x16_layout
+    index_map = shared_16x16_to_mma_32x8_layout
+    index_map_rev = mma_32x8_to_shared_16x16_layout
 
     @T.prim_func
     def mma_store_desc(a: T.handle, c: T.handle) -> None:
@@ -622,6 +641,11 @@ TensorIntrin.register(
     MMA_store_16x16_f16_global_INTRIN, *get_mma_store_intrin("float16", 8, "global", True)
 )
 
+MMA_store_16x16_f16_shared_INTRIN = "mma_store_16x16_f16_shared_"
+TensorIntrin.register(
+    MMA_store_16x16_f16_shared_INTRIN, *get_mma_store_intrin("float16", 8, "shared", False)
+)
+
 MMA_store_16x16_i32_global_INTRIN = "mma_store_16x16_i32_global_"
 TensorIntrin.register(
     MMA_store_16x16_i32_global_INTRIN, *get_mma_store_intrin("int32", 8, "global", True)
@@ -635,6 +659,8 @@ def get_mma_intrin_group(
     out_dtype: Literal["float16", "float32", "int32"],
     trans_a: bool,
     trans_b: bool,
+    intra_propagate_a: bool = False,
+    intra_propagate_b: bool = False,
     not_use_mma_store_intrinic: bool = True,
     store_to_smem_dtype: Optional[Literal["float16", "float32", "int32"]] = None,
 ) -> Dict[str, str]:
@@ -696,7 +722,7 @@ def get_mma_intrin_group(
     load_scope = "_dyn" if load_scope == "shared.dyn" else ""
     load_a_intrin = f"mma_ldmatrix_{in_dtype}_a{trans_a}{load_scope}"
     load_b_intrin = f"mma_ldmatrix_{in_dtype}_b{trans_b}{load_scope}"
-
+    indexmap_a = shared_16x16_to_mma_32x8_layout if in_dtype == "float16" else shared_32x16_to_mma_32x16_layout  
     # e.g. mma_f16f16f32_trans_a_trans_b
     trans_a_str = trans_a + "_a" if trans_a != "" else ""
     trans_b_str = trans_b + "_b" if trans_b != "" else ""
@@ -711,6 +737,7 @@ def get_mma_intrin_group(
     return {
         "init": init_intrin,
         "load_a": load_a_intrin,
+        
         "load_b": load_b_intrin,
         "compute": compute_intrin,
         "store": store_intrin,

@@ -57,6 +57,29 @@ class ScheduleRule:  # pylint: disable=too-few-public-methods
         """
         raise NotImplementedError
 
+    def apply_config(
+        self,
+        func: tir.PrimFunc,
+        config,
+    ):
+        """Apply the ScheduleRule to the given PrimFunc.
+
+        Parameters
+        ----------
+        func : tir.PrimFunc
+            The PrimFunc to apply the ScheduleRule to.
+        target : Target
+            The compilation target the schedule is supposed to be built for.
+        configs : 
+            # todo: Discribe the configs 
+        Returns
+        -------
+        results : Union[None, tir.Schedule, List[tir.Schedule]]
+            Either a Schedule, a list of Schedules, or None, where None means that the rule
+            is not applicable to the given PrimFunc.
+        """
+        raise NotImplementedError
+        
     @staticmethod
     def from_callable(
         name,

@@ -25,20 +25,19 @@ from ..base import ScheduleRule, normalize_prim_func, try_inline
 from . import utils
 
 
-class Fallback(ScheduleRule):
+class ElementWise(ScheduleRule):
     """
-    A fallback schedule rule for all GPU operators. It will try to inline all the blocks first,
-    and then apply a simple block/grid mapping to the spatial loops on top of the remaining blocks.
+    An elementwise schedule rule for GPU operators.
     """
-
-    def apply(  # pylint: disable=too-many-locals,missing-docstring
+    def apply_config(  # pylint: disable=too-many-locals,missing-docstring
         self,
         func: tir.PrimFunc,
-        target: Target,
-        _: bool,
+        config,
     ) -> tir.Schedule:
-        max_threads_per_block = utils.max_threads_per_block(target)
-
+        block_factors = config.block
+        thread_factors = config.thread
+        step_factors = config.step
+        
         sch = tir.Schedule(func)
         block_infos = normalize_prim_func(sch)
 
@@ -46,7 +45,7 @@ class Fallback(ScheduleRule):
             return None
 
         block_infos = try_inline(sch, block_infos)
-        reduction_blocks: List[Tuple[tir.schedule.BlockRV, tir.schedule.LoopRV]] = []
+
         for block in block_infos:
             s_loops: List[tir.schedule.LoopRV] = []
             r_loops: List[tir.schedule.LoopRV] = []
@@ -71,18 +70,27 @@ class Fallback(ScheduleRule):
             if not s_loops:
                 s_loops.append(sch.add_unit_loop(block))
             sch.reorder(*s_loops, *r_loops, *o_loops)
-            bx, tx = sch.split(  # pylint: disable=invalid-name
-                sch.fuse(*s_loops),
-                factors=[None, max_threads_per_block],
-            )
-            sch.bind(bx, "blockIdx.x")
-            sch.bind(tx, "threadIdx.x")
 
-            if len(r_loops) > 0:
-                reduction_blocks.append((block, r_loops[0]))
-
-        for block, r_loop in reduction_blocks:
-            sch.decompose_reduction(block, r_loop)
+            block_loops = []
+            vthread_loops = []
+            thread_loops = []
+            inner_loops = []
+            for s_loop, block_factor, step_factor, thread_factor in zip(s_loops, block_factors, step_factors, thread_factors):
+                block_loop, inner_loop = sch.split(s_loop, factors=[None, block_factor])
+                vthread_loop, inner_loop = sch.split(
+                inner_loop, factors=[None, thread_factor * step_factor])
+                thread_loop, inner_loop = sch.split(inner_loop, factors=[None, step_factor])
+                block_loops.append(block_loop)
+                vthread_loops.append(vthread_loop)
+                thread_loops.append(thread_loop)
+                inner_loops.append(inner_loop)
+                
+            # inner virtual thread first
+            vthread_loops = list(reversed(vthread_loops))
+            sch.reorder(*block_loops, *vthread_loops, *thread_loops, *inner_loops, *r_loops, *o_loops)
+            sch.bind(sch.fuse(*block_loops), "blockIdx.x")
+            sch.bind(sch.fuse(*thread_loops), "threadIdx.x")
+            for i, ax in enumerate(vthread_loops):
+                sch.bind(ax, "vthread" + ['.x', '.y', '.z'][i])
 
         return sch
-    
