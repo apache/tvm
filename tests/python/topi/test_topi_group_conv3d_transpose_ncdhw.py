@@ -75,7 +75,7 @@ def ref_data(
     return a_np, w_np, b_np, c_np
 
 
-@tvm.testing.known_failing_targets("cuda", "vulkan")
+@tvm.testing.parametrize_targets("llvm")
 def test_group_conv3d_transpose_ncdhw(
     target, dev, ref_data, dtype, stride, padding, output_padding, groups
 ):
