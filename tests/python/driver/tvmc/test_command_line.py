@@ -290,10 +290,33 @@ def test_tvmc_print_pass_times(capsys, keras_simple, tmpdir_factory):
         assert exp_str in captured_out
 
 
-def test_tvmc_print_ir_before(capsys, keras_simple, tmpdir_factory):
+@pytest.mark.parametrize(
+    "print_cmd, out_str",
+    [
+        (
+            "--print-ir-after=[tir.SplitHostDevice]",
+            (
+                "Print IR after:\ntir.SplitHostDevice\n# from tvm.script import ir as I\n",
+                "@I.ir_module",
+            ),
+        ),
+        (
+            "--print-ir-before=[tir.SplitHostDevice]",
+            ("Print IR before:\ntir.SplitHostDevice\n# from tvm.script import ir as I\n"),
+        ),
+        (
+            "--print-ir-after=[tir.ThreadSync,tir.SplitHostDevice]",
+            ("tir.ThreadSync\n,tir.SplitHostDevice\n"),
+        ),
+        (
+            "--print-ir-before=[tir.SplitHostDevice] --print-ir-after=[tir.SplitHostDevice]",
+            ("Print IR before:\ntir.SplitHostDevice\n", "Print IR after:\ntir.SplitHostDevice\n"),
+        ),
+    ],
+)
+def test_tvmc_print_ir_before_after(capsys, keras_simple, tmpdir_factory, print_cmd, out_str):
     pytest.importorskip("tensorflow")
     tmpdir = tmpdir_factory.mktemp("out")
-    print_cmd = "--print-ir-before=[tir.SplitHostDevice]"
 
     # Compile model
     module_file = os.path.join(tmpdir, "keras-tvm.tar")
@@ -301,24 +324,7 @@ def test_tvmc_print_ir_before(capsys, keras_simple, tmpdir_factory):
     compile_args = compile_cmd.split(" ")[1:]
     _main(compile_args)
 
-    # Check for timing results output
+    # Check for printing IR before or IR after
     captured_out = capsys.readouterr().out
-    for exp_str in ("Print ir before:\n", "tir.SplitHostDevice\n"):
-        assert exp_str in captured_out
-
-
-def test_tvmc_print_ir_after(capsys, keras_simple, tmpdir_factory):
-    pytest.importorskip("tensorflow")
-    tmpdir = tmpdir_factory.mktemp("out")
-    print_cmd = "--print-ir-after=[tir.SplitHostDevice]"
-
-    # Compile model
-    module_file = os.path.join(tmpdir, "keras-tvm.tar")
-    compile_cmd = f"tvmc compile --target 'llvm' {keras_simple} --output {module_file} {print_cmd}"
-    compile_args = compile_cmd.split(" ")[1:]
-    _main(compile_args)
-
-    # Check for timing results output
-    captured_out = capsys.readouterr().out
-    for exp_str in ("Print ir after:\n", "tir.SplitHostDevice\n"):
+    for exp_str in out_str:
         assert exp_str in captured_out

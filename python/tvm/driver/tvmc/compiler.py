@@ -31,7 +31,7 @@ import tvm
 from tvm import autotvm, auto_scheduler
 from tvm import relay
 from tvm.driver.tvmc.registry import generate_registry_args, reconstruct_registry_entity
-from tvm.ir.instrument import PassInstrument, PassTimingInstrument, PassPrintBefore, PassPrintAfter
+from tvm.ir.instrument import PassInstrument, PassTimingInstrument, PassPrintingInstrument
 from tvm.ir.memory_pools import WorkspaceMemoryPools
 from tvm.target import Target
 from tvm.relay.backend import Executor, Runtime
@@ -327,9 +327,9 @@ def compile_model(
     print_pass_times: bool
         To enable printing a breakdown of compilation times by pass. Disabled by default.
     print_ir_before: list[str]
-        To print ir before each named pass of a comma-separated list of passes.
+        To print IR before each named pass of a comma-separated list of passes.
     print_ir_after: list[str]
-        To print ir after each named pass of a comma-separated list of passes.
+        To print IR after each named pass of a comma-separated list of passes.
     instruments: Optional[Sequence[PassInstrument]]
         The list of pass instrument implementations.
     desired_layout: str, optional
@@ -390,7 +390,7 @@ def compile_model(
         instruments = [timing_inst] if instruments is None else [timing_inst] + instruments
 
     if print_ir_before:
-        print_ir_before_instr = PassPrintBefore(print_ir_before)
+        print_ir_before_instr = PassPrintingInstrument("before", print_ir_before)
         instruments = (
             [print_ir_before_instr]
             if instruments is None
@@ -398,7 +398,7 @@ def compile_model(
         )
 
     if print_ir_after:
-        print_ir_after_instr = PassPrintAfter(print_ir_after)
+        print_ir_after_instr = PassPrintingInstrument("after", print_ir_after)
         instruments = (
             [print_ir_after_instr] if instruments is None else [print_ir_after_instr] + instruments
         )

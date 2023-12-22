@@ -258,22 +258,15 @@ class PassTimingInstrument(tvm.runtime.Object):
 
 
 @pass_instrument
-class PassPrintBefore:
-    def __init__(self, print_pass_name):
+class PassPrintingInstrument:
+    def __init__(self, before_after, print_pass_name):
+        self.before_after = before_after
         self.print_pass_name = print_pass_name
 
     def run_before_pass(self, mod, pass_info):
-        if pass_info.name in self.print_pass_name:
-            print("Print ir before:")
-            print(str(pass_info.name) + "\n" + str(mod) + "\n\n")
-
-
-@pass_instrument
-class PassPrintAfter:
-    def __init__(self, print_pass_name):
-        self.print_pass_name = print_pass_name
+        if self.before_after == "before" and pass_info.name in self.print_pass_name:
+            print(f"Print IR before:\n{pass_info.name}\n{mod}\n\n")
 
     def run_after_pass(self, mod, pass_info):
-        if pass_info.name in self.print_pass_name:
-            print("Print ir after:")
-            print(str(pass_info.name) + "\n" + str(mod) + "\n\n")
+        if self.before_after == "after" and pass_info.name in self.print_pass_name:
+            print(f"Print IR after:\n{pass_info.name}\n{mod}\n\n")
