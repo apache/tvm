@@ -1,58 +1,38 @@
 import numpy as np
 import tvm
-import time
 from tvm.script import tir as T
-from tvm.dlight.base.roller.policy import DefaultPolicy
+from tvm.dlight.base.roller.policy import TensorCorePolicy
 from tvm.dlight.base.roller.arch import CUDA
-from tvm.dlight.gpu import ElementWise
-from tvm.dlight.gpu import Fallback
+from tvm.dlight.gpu import Matmul
 from tvm.dlight.base.utils import apply_and_build, apply_and_build_parallel
+import time
 
-M = N = 16384
-
-def elementwise_copy(
-    M, N, dtype="float16"
+def matmul_nt(
+    M, N, K, in_dtype="float16", out_dtype="float16"
 ):
     @tvm.script.ir_module
-    class ElementWiseCopy:
-        @T.prim_func
-        def main(a: T.handle, b: T.handle):
-            T.func_attr({"global_symbol": "main", "tir.noalias": True})
-            A = T.match_buffer(a, [M, N], dtype=dtype)
-            B = T.match_buffer(b, [M, N], dtype=dtype)
-            
-            for i, j in T.grid(M, N):
-                with T.block("B"):
-                    vi, vj = T.axis.remap("SS", [i, j])
-                    T.reads(A[vi, vj])
-                    T.writes(B[vi, vj])
-                    B[vi, vj] = A[vi, vj]
-    return ElementWiseCopy
-
-def elementwise_add(
-    M, N, dtype="float16"
-):
-    @tvm.script.ir_module
-    class ElementWiseAdd:
+    class MatmulNT:
         @T.prim_func
         def main(a: T.handle, b: T.handle, c: T.handle):
             T.func_attr({"global_symbol": "main", "tir.noalias": True})
-            A = T.match_buffer(a, [M, N], dtype=dtype)
-            B = T.match_buffer(b, [M, N], dtype=dtype)
-            C = T.match_buffer(c, [M, N], dtype=dtype)
+            A = T.match_buffer(a, [M, K], dtype=in_dtype)
+            B = T.match_buffer(b, [N, K], dtype=in_dtype)
+            C = T.match_buffer(c, [M, N], dtype=out_dtype)
             
-            for i, j in T.grid(M, N):
+            for i, j, k in T.grid(M, N, K):
                 with T.block("B"):
-                    vi, vj = T.axis.remap("SS", [i, j])
-                    T.reads(A[vi, vj], B[vi, vj])
-                    T.writes(C[vi, vj])
-                    C[vi, vj] = A[vi, vj] + B[vi, vj]
-    return ElementWiseAdd
+                    vi, vj, vk = T.axis.remap("SSR", [i, j, k])
+                    with T.init():
+                        C[vi, vj] = 0.0
+                    C[vi, vj] = C[vi, vj] + \
+                        A[vi, vk].astype(out_dtype) * B[vj, vk].astype(out_dtype)
+    return MatmulNT
 
 benchmark_sets = [
     # (prim_func, input_args, fast_dlight_schedule, default_dlight_schedule),
-    (elementwise_copy, (M, N, "float16"), ElementWise, Fallback),
-    (elementwise_add, (M, N, "float16"), ElementWise, Fallback),
+    (matmul_nt, (1024, 1024, 1024, "float16", "float16"), Matmul, Matmul),
+    (matmul_nt, (8192, 8192, 8192, "float16", "float16"), Matmul, Matmul),
+    (matmul_nt, (16384, 16384, 16384, "float16", "float16"), Matmul, Matmul),
 ]
 benchmark_results = {}
 for get_prim_func, input_args, f_schedule, d_schedule in benchmark_sets:
@@ -60,7 +40,11 @@ for get_prim_func, input_args, f_schedule, d_schedule in benchmark_sets:
     func = ir_module["main"]
     target = tvm.target.Target("nvidia/nvidia-a100")
     arch = CUDA(target)
-    policy = DefaultPolicy(func=func, arch=arch)
+    policy = TensorCorePolicy(func=func, arch=arch, tags={
+                                                "tensorcore_config": [0, 1],
+                                                "pipeline_stage": 2,
+                                                "use_async_copy": 1,
+                                                })
     configs = policy.emit_config(20)
     rule = f_schedule()
     

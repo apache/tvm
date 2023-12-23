@@ -2,12 +2,13 @@ import tvm
 import os
 from concurrent.futures import ThreadPoolExecutor, as_completed
 import numpy as np
-
+import time
 class CompileResult:
     def __init__(self, config, sch, mod):
         self.config = config
         self.sch = sch
         self.mod = mod
+        self.code = mod.imported_modules[0].get_source()
         self.latency = None
         self.profile_tensors = []
         self.time_evaluator = None
@@ -15,14 +16,16 @@ class CompileResult:
     def profile(self):
         return self.time_evaluator(*self.profile_tensors).mean
 
-def apply_and_build(
+def _apply_and_build(
     func,
     rule,
     config,
     arch,
 ):
+    print("[FastDlight] Applying with config ", config)
     sch = rule.apply_config(func, config)
-    mod = tvm.build(sch.mod["main"], target=arch.target)
+    with tvm.transform.PassContext(config={"tir.use_async_copy": 1}):
+        mod = tvm.build(sch.mod["main"], target=arch.target)
     return config, sch, mod
 
 def apply_and_build_parallel(
@@ -30,34 +33,37 @@ def apply_and_build_parallel(
     rule,
     configs,
     arch,
-):
+    num_repeats=3,
+) -> CompileResult:
     cpresults = []
+    
+    args = func.buffer_map.values()
+    profile_tensors = []
+    for arg in args:
+        profile_tensors.append(tvm.nd.array(
+            np.random.uniform(0, 1, [int(i) for i in arg.shape]).astype(arg.dtype), device=arch.device)
+        )
+    
     with ThreadPoolExecutor(max_workers=os.cpu_count()) as executor:
-        future_to_config = {executor.submit(apply_and_build, func, rule, config, arch): config for config in configs}
-        
-        for future in as_completed(future_to_config):
-            config, sch, mod = future.result()
-            cpresult = CompileResult(config, sch, mod)
-            args = func.buffer_map.values()
-        
-            profile_tensors = []
-            for arg in args:
-                profile_tensors.append(tvm.nd.array(
-                    np.random.uniform(0, 1, [int(i) for i in arg.shape]).astype(arg.dtype), device=arch.device)
-                )
-            timer_cuda_mod = mod.time_evaluator(
-            mod.entry_name, arch.device, number=5)
-            cpresult.profile_tensors = profile_tensors
-            cpresult.time_evaluator = timer_cuda_mod
-            cpresults.append(cpresult)
+        future_to_configs = executor.map(_apply_and_build, [func for _ in configs], [rule for _ in configs], configs, [arch for _ in configs])
+ 
+    for config, sch, mod in future_to_configs:
+        cpresult = CompileResult(config, sch, mod)
 
+        timer_cuda_mod = mod.time_evaluator(
+        mod.entry_name, arch.device, number=num_repeats)
+        cpresult.profile_tensors = profile_tensors
+        cpresult.time_evaluator = timer_cuda_mod
+        cpresults.append(cpresult)
+    
+    
     best = None
     best_latency = 1e9
     for cpresult in cpresults:
         config = cpresult.config        
         
         latency = cpresult.profile()
-        print("[FastDlight] Applying with config ", config)
+        print("[FastDlight] Evaluation with config ", config)
         print("[FastDlight] Time cost of this config: {:.3f} ms".format(latency * 1e3))
 
         cpresult.latency = latency
@@ -65,4 +71,42 @@ def apply_and_build_parallel(
             best_latency = latency
             best = cpresult
             
-    return best
+    return cpresults, best
+
+def apply_and_build(
+    func,
+    rule,
+    configs,
+    arch,
+) -> CompileResult:
+    cpresults = []
+    for config in configs:
+        config, sch, mod = _apply_and_build(func, rule, config, arch)
+
+        cpresult = CompileResult(config, sch, mod)
+        args = func.buffer_map.values()
+    
+        profile_tensors = []
+        for arg in args:
+            profile_tensors.append(tvm.nd.array(
+                np.random.uniform(0, 1, [int(i) for i in arg.shape]).astype(arg.dtype), device=arch.device)
+            )
+        timer_cuda_mod = mod.time_evaluator(
+        mod.entry_name, arch.device, number=5)
+        cpresult.profile_tensors = profile_tensors
+        cpresult.time_evaluator = timer_cuda_mod
+        cpresults.append(cpresult)
+
+    best = None
+    best_latency = 1e9
+    for cpresult in cpresults:
+        config = cpresult.config        
+        latency = cpresult.profile()
+        print("[FastDlight] Evaluation with config ", config)
+        print("[FastDlight] Time cost of this config: {:.3f} ms".format(latency * 1e3))
+        cpresult.latency = latency
+        if latency < best_latency:
+            best_latency = latency
+            best = cpresult
+            
+    return cpresults, best

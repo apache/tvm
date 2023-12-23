@@ -3,56 +3,38 @@ import tvm
 import time
 from tvm.script import tir as T
 from tvm.dlight.base.roller.policy import DefaultPolicy
+from tvm.dlight.base.roller.policy.default import PrimFuncNode
 from tvm.dlight.base.roller.arch import CUDA
-from tvm.dlight.gpu import ElementWise
+from tvm.dlight.gpu import ElementWise, GeneralReduction, GEMV
 from tvm.dlight.gpu import Fallback
-from tvm.dlight.base.utils import apply_and_build, apply_and_build_parallel
+from tvm.dlight.base.utils import apply_and_build_parallel
 
-M = N = 16384
-
-def elementwise_copy(
-    M, N, dtype="float16"
+def gemv(
+    M, N, K, dtype="float16"
 ):
     @tvm.script.ir_module
-    class ElementWiseCopy:
-        @T.prim_func
-        def main(a: T.handle, b: T.handle):
-            T.func_attr({"global_symbol": "main", "tir.noalias": True})
-            A = T.match_buffer(a, [M, N], dtype=dtype)
-            B = T.match_buffer(b, [M, N], dtype=dtype)
-            
-            for i, j in T.grid(M, N):
-                with T.block("B"):
-                    vi, vj = T.axis.remap("SS", [i, j])
-                    T.reads(A[vi, vj])
-                    T.writes(B[vi, vj])
-                    B[vi, vj] = A[vi, vj]
-    return ElementWiseCopy
-
-def elementwise_add(
-    M, N, dtype="float16"
-):
-    @tvm.script.ir_module
-    class ElementWiseAdd:
+    class GEMV:
         @T.prim_func
         def main(a: T.handle, b: T.handle, c: T.handle):
             T.func_attr({"global_symbol": "main", "tir.noalias": True})
-            A = T.match_buffer(a, [M, N], dtype=dtype)
-            B = T.match_buffer(b, [M, N], dtype=dtype)
+            A = T.match_buffer(a, [M, K], dtype=dtype)
+            B = T.match_buffer(b, [N, K], dtype=dtype)
             C = T.match_buffer(c, [M, N], dtype=dtype)
             
-            for i, j in T.grid(M, N):
+            for i, j, k in T.grid(M, N, K):
                 with T.block("B"):
-                    vi, vj = T.axis.remap("SS", [i, j])
-                    T.reads(A[vi, vj], B[vi, vj])
-                    T.writes(C[vi, vj])
-                    C[vi, vj] = A[vi, vj] + B[vi, vj]
-    return ElementWiseAdd
+                    vi, vj, vk = T.axis.remap("SSR", [i, j, k])
+                    with T.init():
+                        C[vi, vj] = 0.0
+                    C[vi, vj] = C[vi, vj] + \
+                        A[vi, vk] * B[vj, vk]
+    return GEMV
 
 benchmark_sets = [
     # (prim_func, input_args, fast_dlight_schedule, default_dlight_schedule),
-    (elementwise_copy, (M, N, "float16"), ElementWise, Fallback),
-    (elementwise_add, (M, N, "float16"), ElementWise, Fallback),
+    (gemv, (1, 1024, 1024, "float16"), GEMV, GEMV),
+    (gemv, (1, 8192, 8192, "float16"), GEMV, GEMV),
+    (gemv, (1, 16384, 16384, "float16"), GEMV, GEMV),
 ]
 benchmark_results = {}
 for get_prim_func, input_args, f_schedule, d_schedule in benchmark_sets:

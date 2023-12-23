@@ -85,10 +85,8 @@ class Config:
     def __init__(self) -> None:
         self.arch = None
         self.use_tc = None
-        self.fast_decoding = False
-        self.ladder_compute_type = None
         self.compute_capability = None
-        self.use_ladder = None
+
         # spacial axes tiling info
         self.block = []
         self.thread = []
@@ -109,8 +107,8 @@ class Config:
         self._raxis_order = []
         self._step = []
         self.vectorize : Dict[str, int] = {}
-        self.use_cutlass = False
         self.pipeline_stage = 1
+        self.use_async = False
 
     def to_dict(self) -> Dict:
         dic = {}
@@ -118,7 +116,6 @@ class Config:
         if self.use_tc:
             dic["warp"] = self.warp
             dic["wmma"] = self.wmma
-            dic["use_cutlass"] = self.use_cutlass
         else:
             dic["thread"] = self.thread
         dic["rstep"] = self.rstep

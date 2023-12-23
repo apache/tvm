@@ -5,291 +5,22 @@ from typing import Iterable, Dict, List
 
 import numpy as np
 import tvm
-from tvm import tir
-from tvm.tir import IterVar, PrimExpr, Var, PrimFunc
-from tvm.tir.schedule.schedule import BlockRV
-from ...analysis import BlockInfo
-from ... import analysis
+
+
 from ..arch import Arch
 from ..bestfit import BestFit
 from ..config import Config, Stride, TileDict
-from ... import normalize_prim_func
 from .common import coalesced_factor, coalesced_tensor_shape, factorize, get_all_factors
-from ..shape_inference import get_analyzer_by_tir
-
+from ..node import PrimFuncNode
 import logging
 
 logger = logging.getLogger(__name__)
 
 
-def pre_order_traverse(block_analyzer, blocks, func):
-    visited = set()
-
-    def _traverse(block):
-        if block in visited:
-            return
-        visited.add(block)
-        for input_blocks in block_analyzer.get_producer_blocks(block):
-            _traverse(input_blocks)
-        func(block)
-
-    for block in blocks:
-        _traverse(block)
-
-
-class BlockAnalyzer(object):
-    def __init__(self, sch) -> None:
-        self.sch: tir.Schedule = sch
-        self.block_infos: List[BlockInfo] = normalize_prim_func(self.sch)
-
-    def get_reduction_blocks(self, sch, blocks) -> bool:
-        # Get the main computation block
-        def is_reduction(block: BlockRV) -> bool:
-            block_stmt = sch.get(block)
-            iter_types = {iter_var.iter_type for iter_var in block_stmt.iter_vars}
-            return iter_types == {IterVar.CommReduce, IterVar.DataPar}
-
-        def is_spatial(block: BlockRV) -> bool:
-            block_stmt = sch.get(block)
-            iter_types = {iter_var.iter_type for iter_var in block_stmt.iter_vars}
-            return iter_types == {IterVar.DataPar}
-
-        # NOTE: We assume there is only one reduction block in the function
-        # all blocks are required to be spatial or reduction
-        if not all([is_reduction(block) or is_spatial(block) for block in blocks]):
-            return None
-
-        # There is only one reduction block
-        reduction_blocks = [block for block in blocks if is_reduction(block)]
-        if len(reduction_blocks) == 0:
-            return None
-        return reduction_blocks
-
-    def get_block_name(self, block: BlockRV) -> str:
-        return self.sch.get_sref(block).stmt.name_hint
-
-    def get_block_info(self, block: BlockRV) -> BlockInfo:
-        for block_info in self.block_infos:
-            if self.get_block_name(block) == block_info.name:
-                return block_info
-        return None
-
-    def get_spatial_axis(self, block: BlockRV) -> List[IterVar]:
-        block_info = self.get_block_info(block)
-        axis = []
-        for iter in block_info.iters:
-            if iter.kind == "S":
-                axis.append(iter)
-        return axis
-
-    def get_reduce_axis(self, block: BlockRV) -> List[IterVar]:
-        block_info = self.get_block_info(block)
-        raxis = []
-        for iter in block_info.iters:
-            if iter.kind == "R":
-                raxis.append(iter)
-        return raxis
-
-    def get_input_buffers(self, block: BlockRV) -> List[tir.Buffer]:
-        buffers = []
-        for read in self.sch.get_sref(block).stmt.reads:
-            buffers.append(read.buffer)
-        return buffers
-
-    def get_output_buffers(self, block: BlockRV) -> List[tir.Buffer]:
-        buffers = []
-        for write in self.sch.get_sref(block).stmt.writes:
-            buffers.append(write.buffer)
-        return buffers
-
-    def get_buffers(self, block: BlockRV) -> List[tir.Buffer]:
-        return self.get_input_buffers(block) + self.get_output_buffers(block)
-
-    def get_producer_blocks(self, block: BlockRV) -> List[BlockRV]:
-        return self.sch.get_producers(block)
-
-
-class Node(object):
-    def __init__(self) -> None:
-        self._dtypes = []
-
-
-class PrimFuncNode(Node):
-    def __init__(self, prim_func: PrimFunc) -> None:
-        super().__init__()
-        self.prim_func = prim_func
-        self.sch: tir.Schedule = tir.Schedule(self.prim_func)
-        self.block_analyzer: BlockAnalyzer = BlockAnalyzer(self.sch)
-        self.schedule_block = None
-        self.blocks: List[BlockRV] = []
-        self.output_blocks: List[BlockRV] = None
-        self.reduction_block: BlockRV = None
-        self.raxis = []
-        self.input_buffers = []
-        self.output_buffers = []
-        self.buffers = []
-        self.args = []
-        self._analysis_funcinfo()
-        self.ana = get_analyzer_by_tir(self.block_analyzer, self.blocks)
-
-    def _analysis_funcinfo(self):
-        root_block = analysis.get_root_block(self.sch)
-        blocks = self.sch.get_child_blocks(root_block)
-        self.blocks = blocks
-
-        self.output_blocks = self.sch.get_output_blocks(root_block)
-        reduction_blocks = self.block_analyzer.get_reduction_blocks(self.sch, blocks)
-        if reduction_blocks is None:
-            self.reduction_block = None
-            # analysis base on the first output block
-            self.schedule_block = self.output_blocks[0]
-        else:
-            # analysis on the last reduction block
-            self.reduction_block = reduction_blocks[-1]
-            # set raxis
-            reduce_block_info = self.block_analyzer.get_block_info(self.reduction_block)
-            for iter in reduce_block_info.iters:
-                if iter.kind == "R":
-                    self.raxis.append(iter)
-            self.schedule_block = self.reduction_block
-
-        # collect output buffers
-        for output_block in self.output_blocks:
-            for write in self.sch.get_sref(output_block).stmt.writes:
-                if write not in self.output_buffers:
-                    self.output_buffers.append(write.buffer)
-
-        for buffer in self.prim_func.buffer_map.values():
-            if buffer not in self.output_buffers:
-                self.input_buffers.append(buffer)
-
-        self.args = self.input_buffers + self.output_buffers
-        self.buffers = [buffer for buffer in self.prim_func.buffer_map.values()]
-
-        # set dtype
-        self.set_dtype(tvm.DataType(self.output_buffers[0].dtype))
-
-    @functools.lru_cache()
-    def get_space_dim(self) -> List[int]:
-        dim_size = []
-        if self.reduction_block:
-            block_info = self.block_analyzer.get_block_info(self.reduction_block)
-            for iter in block_info.iters:
-                if iter.kind == "S":
-                    dim_size.append(int(iter.dom))
-        else:
-            loops = self.sch.get_loops(self.schedule_block)
-            for loop in loops:
-                sref = self.sch.get_sref(loop)
-                dim_size.append(int(sref.stmt.extent))
-        return [int(x) for x in dim_size]
-
-    def set_dtype(self, dtype: tvm.DataType, id=0) -> None:
-        assert isinstance(dtype, tvm.DataType), type(dtype)
-        if dtype == tvm.DataType("bool"):
-            dtype = tvm.DataType("int8")
-        if len(self._dtypes) <= id:
-            self._dtypes.extend([None for _ in range(id - len(self._dtypes) + 1)])
-        elif self._dtypes[id] is not None:
-            assert self._dtypes[id] == dtype, (self._dtypes, dtype)
-        self._dtypes[id] = dtype
-
-    def get_dtype(self, id=0) -> tvm.DataType:
-        return self._dtypes[id]
-
-    def get_buffer_dtype(self, buffer: tir.Buffer) -> tvm.DataType:
-        return tvm.DataType(buffer.dtype)
-
-    def propogate(self, tile, rstep={}, targets=None):
-        shape = {
-            buffer.name: [tvm.arith.ConstIntBound(0, val - 1) for val in tile]
-            for buffer in self.output_buffers
-        }
-        return self.ana.infer(shape, rstep, targets)
-
-    def propogate_inputs(self, tile, rstep={}) -> List[List[int]]:
-        read_idx_offset = len(self.input_buffers)
-        targets = [t.name for t in self.args[:read_idx_offset]]
-        shapes, intermediate_bind = self.propogate(tile, rstep, targets)
-        results = []
-        for i, arg in enumerate(self.args[:read_idx_offset]):
-            if arg.name in intermediate_bind:
-                results.append(shapes[arg.name])
-                continue
-            # should not exceed original shape
-            trimmed_shape = list(map(min, zip(shapes[arg.name], self.input_buffers[i].shape)))
-            results.append(trimmed_shape)
-        return results
-
-    def propogate_reduction_inputs(self, shape, rstep={}) -> Dict[str, List[int]]:
-        if self.reduction_block is None:
-            return {}
-        targets = [b.name for b in self.block_analyzer.get_input_buffers(self.reduction_block)]
-        results, _ = self.propogate(shape, rstep, targets)
-        return results
-
-    def get_reduce_inputs_dtype(self):
-        if self.reduction_block is None:
-            return {}
-        return {
-            b.name: tvm.DataType(b.dtype)
-            for b in self.block_analyzer.get_input_buffers(self.reduction_block)
-        }
-
-    def footprint(self, shape, rstep, stride_map={}) -> int:
-        result = 0
-        shapes, _ = self.propogate(shape, rstep)
-
-        def is_broadcast_pattern(buffer, output_buffer):
-            return len(shapes[output_buffer.name]) > len(shapes[buffer.name]) and np.prod(
-                shapes[output_buffer.name]
-            ) > np.prod(shapes[buffer.name])
-
-        def is_after_reduce_stage(block):
-            if not self.reduction_block:
-                return False
-            reduce_dependent_blocks = getattr(self, "reduce_dependent_blocks", None)
-            if reduce_dependent_blocks is None:
-                reduce_dependent_blocks = set()
-                pre_order_traverse(
-                    self.block_analyzer,
-                    [*self.output_blocks],
-                    lambda block: reduce_dependent_blocks.add(block),
-                )
-                self.reduce_dependent_blocks = reduce_dependent_blocks
-            return block not in reduce_dependent_blocks
-
-        # compute cached stages
-        cached_tensor = []
-        for block in self.output_blocks:
-            output_buffer = self.block_analyzer.get_output_buffers(block)[0]
-            for buffer in self.block_analyzer.get_input_buffers(block):
-                cache = buffer.name not in cached_tensor and (
-                    is_broadcast_pattern(buffer, output_buffer)
-                    or self.block_analyzer.get_block_info(block).is_reduction
-                )
-                if not cache:
-                    continue
-                cached_tensor.append(buffer.name)
-                if is_after_reduce_stage(block):
-                    continue  # cache after reduce op can often reuse buffer in reduce stage
-
-                if buffer.name in stride_map:
-                    num_elem = stride_map[buffer.name].compute_elements_from_shape(
-                        shapes[buffer.name]
-                    )
-                else:
-                    num_elem = np.prod(shapes[buffer.name])
-                buffer_len = num_elem * int((tvm.DataType(buffer.dtype).bits + 7) // 8)
-                buffer_len = (buffer_len + 31) // 32 * 32
-                result += buffer_len
-        return result, cached_tensor
-
-
 class DefaultPolicy:
-    def __init__(self, func: tvm.tir.PrimFunc, arch: Arch) -> None:
+    def __init__(self, func: tvm.tir.PrimFunc, arch: Arch, tags:Dict = {}) -> None:
         self.arch = arch
-        self.prim_func_node = PrimFuncNode(func)
+        self.prim_func_node = PrimFuncNode(func, tags)
         self.ordered_nodes = [self.prim_func_node]
         self.output_nodes = [self.prim_func_node]
 
@@ -404,7 +135,7 @@ class DefaultPolicy:
 
     def _assign_reduce_step(self, node: PrimFuncNode):
         if node.reduction_block is None:
-            return None
+            return {}
 
         raxis = node.raxis
         tile = [1] * len(node.get_space_dim())
