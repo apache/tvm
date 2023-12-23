@@ -37,7 +37,13 @@ Doc DoConciseScoping(const Optional<ExprDoc>& lhs, const ExprDoc& rhs, Array<Stm
   }
 }
 
-bool AllowConciseScoping(const IRDocsifier& d) {
+bool AllowConciseScoping(const IRDocsifier& d, const ObjectRef& obj) {
+  if (d->cfg.defined()) {
+    if (d->cfg->obj_to_annotate.count(obj)) {
+      // if the object requires annotation, do not fold this frame
+      return false;
+    }
+  }
   ICHECK(!d->frames.empty());
   if (const auto* f = d->frames.back().as<TIRFrameNode>()) {
     return f->allow_concise_scoping;
@@ -69,7 +75,7 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
 
 TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
     .set_dispatch<tir::LetStmt>("", [](tir::LetStmt stmt, ObjectPath p, IRDocsifier d) -> Doc {
-      bool concise = AllowConciseScoping(d);
+      bool concise = AllowConciseScoping(d, stmt);
       // Step 1. Type annotation
       Optional<ExprDoc> type_doc = d->AsDoc<ExprDoc>(stmt->var->type_annotation,  //
                                                      p->Attr("var")->Attr("type_annotation"));
@@ -105,7 +111,7 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
 TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
     .set_dispatch<tir::AssertStmt>(
         "", [](tir::AssertStmt stmt, ObjectPath p, IRDocsifier d) -> Doc {
-          bool concise = AllowConciseScoping(d);
+          bool concise = AllowConciseScoping(d, stmt);
           ExprDoc cond = d->AsDoc<ExprDoc>(stmt->condition, p->Attr("condition"));
           ExprDoc msg = d->AsDoc<ExprDoc>(stmt->message, p->Attr("message"));
           With<TIRFrame> f(d, stmt);
@@ -129,7 +135,7 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
 namespace {
 Doc DeclBufferDoc(tir::DeclBuffer stmt, ObjectPath p, IRDocsifier d,
                   BufferVarDefinition var_definitions) {
-  bool concise = AllowConciseScoping(d);
+  bool concise = AllowConciseScoping(d, stmt);
   ExprDoc rhs = BufferDecl(stmt->buffer, "decl_buffer", {}, p->Attr("buffer"), d->frames.back(), d,
                            var_definitions);
   With<TIRFrame> f(d, stmt);
@@ -203,7 +209,7 @@ bool IsAllocateDeclBufferPattern(const tir::AllocateNode* allocate) {
 TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
     .set_dispatch<tir::Allocate>(  //
         "", [](tir::Allocate stmt, ObjectPath stmt_p, IRDocsifier d) -> Doc {
-          bool concise = AllowConciseScoping(d);
+          bool concise = AllowConciseScoping(d, stmt_p);
           if (d->cfg->syntax_sugar && IsAllocateDeclBufferPattern(stmt.get())) {
             return DeclBufferDoc(Downcast<tir::DeclBuffer>(stmt->body), stmt_p->Attr("body"), d,
                                  BufferVarDefinition::DataPointer);
@@ -261,7 +267,7 @@ ExprDoc PrintNDArray(::tvm::runtime::NDArray arr) {
 TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
     .set_dispatch<tir::AllocateConst>(
         "", [](tir::AllocateConst stmt, ObjectPath stmt_p, IRDocsifier d) -> Doc {
-          bool concise = AllowConciseScoping(d);
+          bool concise = AllowConciseScoping(d, stmt);
           String storage_scope = tir::GetPtrStorageScope(stmt->buffer_var);
           Array<ExprDoc> args;
           Array<String> kwargs_keys;
@@ -379,7 +385,7 @@ ExprDoc DocsifyLaunchThread(const tir::AttrStmt& attr_stmt, const ObjectPath& at
 TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
     .set_dispatch<tir::BufferRealize>(  //
         "", [](tir::BufferRealize stmt, ObjectPath p, IRDocsifier d) -> Doc {
-          bool concise = AllowConciseScoping(d);
+          bool concise = AllowConciseScoping(d, stmt);
           ExprDoc rhs = DocsifyBufferRealize(stmt.get(), NullOpt, p, d);
           With<TIRFrame> f(d, stmt);
           AsDocBody(stmt->body, p->Attr("body"), f->get(), d);
@@ -389,7 +395,7 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
 TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
     .set_dispatch<tir::AttrStmt>(  //
         "", [](tir::AttrStmt stmt, ObjectPath stmt_p, IRDocsifier d) -> Doc {
-          bool concise = AllowConciseScoping(d);
+          bool concise = AllowConciseScoping(d, stmt);
           Optional<ExprDoc> lhs = NullOpt;
           Optional<ExprDoc> rhs = NullOpt;
           Optional<tir::Var> define_var = NullOpt;
