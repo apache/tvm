@@ -25,7 +25,7 @@ from tvm.relay import op as _op
 from tvm.relay.frontend.common import infer_shape
 
 from .common import logger
-from .pytorch_utils import is_version_greater_than, getattr_attr_name
+from .pytorch_utils import is_version_greater_than
 
 
 class QNNParam(object):
