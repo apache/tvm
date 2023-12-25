@@ -19,7 +19,7 @@
 """nn.Tensor operators."""
 import inspect
 import math
-from typing import Any, Callable, Dict, List, Optional, Sequence, Tuple, Union
+from typing import Any, Callable, Dict, List, Optional, Sequence, Tuple, TypeVar, Union
 
 import numpy as np
 
@@ -1456,6 +1456,45 @@ def tensor_expr_op(
         ),
         name=name_hint,
     )
+
+
+OutType = TypeVar("OutType", bound=Union[Tensor, Sequence[Tensor]])
+
+
+def extern(
+    name: str,
+    args: Sequence[Union[Tensor, _tir.PrimExpr, int, float, str]],
+    out: OutType,
+) -> OutType:
+    """Invoke an extern function during runtime. The extern function must be registered with the "
+    TVM runtime using `TVM_REGISTER_GLOBAL` (C++), or `tvm.register_func` (Python)."""
+    from tvm import relax as rx  # pylint: disable=import-outside-toplevel
+
+    def _convert(arg, name: str):
+        if isinstance(arg, Tensor):
+            return arg._expr  # pylint: disable=protected-access
+        if isinstance(arg, int):
+            return rx.PrimValue(_tir.IntImm("int64", arg))
+        if isinstance(arg, float):
+            return rx.PrimValue(_tir.FloatImm("float64", arg))
+        if isinstance(arg, str):
+            return rx.StringImm(arg)
+        if isinstance(arg, _tir.PrimExpr):
+            return rx.PrimValue(arg)
+        if isinstance(arg, (tuple, list)):
+            return rx.Tuple([_convert(e, f"{name}_{i}") for i, e in enumerate(arg)])
+        raise TypeError(f"Unsupported input type: {type(arg)}")
+
+    rx_inputs = _convert(args, "input")
+    rx_outputs_sinfo = _convert(out, "dummy").struct_info
+    return wrap_nested(
+        _op.call_dps_packed(
+            name,
+            args=rx_inputs,
+            out_sinfo=rx_outputs_sinfo,
+        ),
+        name,
+    )  # type: ignore
 
 
 def debug_func(
