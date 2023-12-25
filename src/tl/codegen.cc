@@ -91,7 +91,19 @@ void CodeGenTL::VisitStmt_(const tir::ForNode* op) {
     PrintIndent();
     stream << "#pragma unroll\n";
   }
-  CodeGenC::VisitStmt_(op);
+  std::string extent = PrintExpr(arith::Analyzer().Simplify(op->extent + op->min));
+  PrintIndent();
+  std::string vid = AllocVarID(op->loop_var.get());
+  std::string start = PrintExpr(op->min);
+  stream << "for (";
+  PrintType(op->loop_var.dtype(), stream);
+  stream << ' ' << vid << " = " << start << "; " << vid << " < " << extent << "; ++" << vid
+         << ") {\n";
+  int for_scope = BeginScope();
+  PrintStmt(op->body);
+  this->EndScope(for_scope);
+  PrintIndent();
+  stream << "}\n";
 }
 
 void CodeGenTL::BindThreadIndex(const IterVar& iv) {
