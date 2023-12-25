@@ -390,6 +390,15 @@ Fragment makeGemmFragment8x8() {
   return Fragment({i, j}, {index}, forward_thread, rep);
 }
 
+Fragment makeGemmFragment8x8Transposed() {
+  IterVar i = make_itervar("i", 8);
+  IterVar j = make_itervar("j", 8);
+  IterVar rep = make_itervar("rep", 1);
+  PrimExpr forward_thread = FloorDiv(i->var, 2) + 4 * j;
+  PrimExpr index = FloorMod(i->var, 2);
+  return Fragment({i, j}, {index}, forward_thread, rep);
+}
+
 Fragment makeGemmFragmentC(const int block_m, const int block_n, const int warp_m,
                            const int warp_n) {
   ICHECK(block_m % warp_m == 0);
@@ -410,9 +419,19 @@ Fragment makeGemmFragmentA(const int block_m, const int block_n, const int block
   ICHECK(warp_m % 16 == 0);
   ICHECK(block_k % 16 == 0);
   auto base_layout = makeGemmFragment8x8()->Repeat({2, 2}, false, false);
-  auto warp_layout = base_layout->Repeat({block_m / warp_m, 1}, true);
-  auto block_layout =
-      warp_layout->Replicate(block_n / warp_n)->Repeat({warp_m / 16, block_k / 16}, false, false);
+  auto warp_layout = base_layout->Repeat({block_m / warp_m, 1}, true)->Replicate(block_n / warp_n);
+  auto block_layout = warp_layout->Repeat({warp_m / 16, block_k / 16}, false, false);
+  return block_layout;
+}
+
+Fragment makeGemmFragmentB(const int block_m, const int block_n, const int block_k,
+                           const int warp_m, const int warp_n) {
+  // transposed
+  ICHECK(warp_n % 8 == 0);
+  ICHECK(block_k % 16 == 0);
+  auto base_layout = makeGemmFragment8x8Transposed()->Repeat({2, 1}, false, false);
+  auto warp_layout = base_layout->Replicate(block_m / warp_m)->Repeat({1, block_n / warp_n}, true);
+  auto block_layout = warp_layout->Repeat({block_k / 16, warp_n / 8}, false, true);
   return block_layout;
 }
 

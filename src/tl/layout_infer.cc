@@ -227,10 +227,18 @@ LayoutMap GemmOpLayoutInfer::Inference(const LayoutMap& layout_map, InferLevel l
     } else {
       ICHECK(0);
     }
-    ICHECK(args.B.scope() == "shared" || args.B.scope() == "shared.dyn");
-    results.Set(args.B,
-                makeGemmABLayout(*as_const_int(args.B->shape[0]), *as_const_int(args.B->shape[1]),
-                                 args.B->dtype.bits(), args.trans_B ? 2 : 1));
+    if (args.B.scope() == "shared" || args.B.scope() == "shared.dyn") {
+      results.Set(args.B,
+                  makeGemmABLayout(*as_const_int(args.B->shape[0]), *as_const_int(args.B->shape[1]),
+                                   args.B->dtype.bits(), args.trans_B ? 2 : 1));
+    } else if (args.B.scope() == "local.fragment") {
+      ICHECK(args.trans_B == false);
+      results.Set(args.B,
+                  makeGemmFragmentB(args.M, args.N, args.K, args.M / warp_m, args.N / warp_n));
+    } else {
+      ICHECK(0);
+    }
+
   } else {
     ICHECK(0) << "Not supported " << target_->str();
   }

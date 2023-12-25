@@ -131,6 +131,8 @@ Fragment makeGemmFragmentC(const int block_m, const int block_n, const int warp_
                            const int warp_n);
 Fragment makeGemmFragmentA(const int block_m, const int block_n, const int block_k,
                            const int warp_m, const int warp_n);
+Fragment makeGemmFragmentB(const int block_m, const int block_n, const int block_k,
+                           const int warp_m, const int warp_n);
 Layout makeGemmABLayout(int stride, int continuous, int element_size, int kfactor);
 
 Fragment makeGemmVoltaFragmentC(const int block_m, const int block_n, const int warp_m,

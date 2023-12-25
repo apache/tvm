@@ -59,7 +59,7 @@ ForFrame PipelinedFor(PrimExpr start, PrimExpr stop, int num_stages) {
   ObjectPtr<ForFrameNode> n = make_object<ForFrameNode>();
   DataType dtype = stop.dtype();
   n->vars.push_back(Var("v", dtype));
-  n->doms.push_back(Range(make_const(dtype, 0), stop));
+  n->doms.push_back(Range(start, stop));
   n->f_make_for_loop = [=](Array<Var> vars, Array<Range> doms, Stmt body) -> Stmt {
     ICHECK_EQ(vars.size(), doms.size());
     int n = vars.size();

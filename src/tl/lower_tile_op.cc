@@ -181,15 +181,17 @@ class LowerTileOpPass : arith::IRMutatorWithAnalyzer {
     ICHECK(thread_block_size_ % 32 == 0);
     auto [warp_m, warp_n] = args.ComputeWarpPartition(thread_block_size_ / 32);
     std::stringstream ss;
+    std::string op_name = "tl::gemm_ss";
     if (args.A.scope() == "local") {
-      ss << "tl::gemm_rs<" << args.M << ", " << args.N << ", " << args.K << ", ";
-      ss << warp_m << ", " << warp_n << ", ";
-      ss << args.trans_A << ", " << args.trans_B << ">";
-    } else {
-      ss << "tl::gemm_ss<" << args.M << ", " << args.N << ", " << args.K << ", ";
-      ss << warp_m << ", " << warp_n << ", ";
-      ss << args.trans_A << ", " << args.trans_B << ">";
+      ICHECK(args.B.scope() != "local");
+      op_name = "tl::gemm_rs";
+    } else if (args.B.scope() == "local") {
+      op_name = "tl::gemm_sr";
     }
+    ss << op_name << "<" << args.M << ", " << args.N << ", " << args.K << ", ";
+    ss << warp_m << ", " << warp_n << ", ";
+    ss << args.trans_A << ", " << args.trans_B << ">";
+
     Array<PrimExpr> new_args;
     new_args.push_back(StringImm(ss.str()));
     new_args.push_back(call_args[0]);
