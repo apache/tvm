@@ -795,5 +795,10 @@ TVM_REGISTER_GLOBAL("tl.Fragment_condense_rep_var").set_body_typed([](Fragment f
   return fragment->CondenseReplicateVar();
 });
 
+TVM_REGISTER_GLOBAL("tl.make_swizzled_layout")
+    .set_body_typed([](int stride, int continuous, int element_size) {
+      return makeGemmABLayout(stride, continuous, element_size, 0);
+    });
+
 }  // namespace tl
 }  // namespace tvm

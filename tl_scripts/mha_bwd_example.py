@@ -137,6 +137,13 @@ def flashattn_bwd(batch, heads, seq_len, dim, is_casual, block_M, block_N):
             dq = T.alloc_fragment([block_N, dim], accum_dtype)
             dq_shared = T.alloc_shared([block_N, dim], accum_dtype)
 
+            T.annotate_layout(
+                {
+                    dq_shared: tl.layout.make_swizzled_layout(dq_shared),
+                    K_shared: tl.layout.make_swizzled_layout(K_shared),
+                }
+            )
+
             T.copy(K[bz, by * block_M : (by + 1) * block_M, bx, :], K_shared)
             T.copy(K_shared, K_local)
             T.copy(K_shared, K_local_T)
@@ -202,7 +209,7 @@ class _attention(torch.autograd.Function):
         maybe_contiguous = lambda x: x.contiguous() if x.stride(-1) != 1 else x
         do, q, k, v, o = [maybe_contiguous(x) for x in (do, q, k, v, o)]
         block_M = 64
-        block_N = 64
+        block_N = 64 if D_HEAD <= 64 else 32
         mod_prep = tl.cached(flashattn_bwd_preprocess, [2], BATCH, H, N_CTX, D_HEAD)
         delta = mod_prep(o, do)
         mod = tl.cached(

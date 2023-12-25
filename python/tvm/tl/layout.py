@@ -91,3 +91,10 @@ class Fragment(Layout):
 
     def condense_rep_var(self) -> "Fragment":
         return _ffi_api.Fragment_condense_rep_var(self)
+
+
+def make_swizzled_layout(buffer: tvm.tir.Buffer):
+    assert len(buffer.shape) == 2
+    return _ffi_api.make_swizzled_layout(
+        int(buffer.shape[0]), int(buffer.shape[1]), int(tvm.DataType(buffer.dtype).bits)
+    )
