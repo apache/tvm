@@ -14,6 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+# pylint: disable=missing-docstring, invalid-name
 import tvm
 import tvm.testing
 from tvm import tir
@@ -505,6 +506,135 @@ def test_tensor_expr_op():
     m = Model()
     irmodule, _ = m.export_tvm(spec={"test": {"x": spec.Tensor([10, 10], "float32")}}, debug=True)
 
+    tvm.ir.assert_structural_equal(irmodule, Expected)
+
+
+def test_tensor_ir_op():
+    num_q_heads, num_kv_heads, head_dim = 8, 8, 16
+    fused_heads = num_q_heads + num_kv_heads * 2
+    dtype = "float16"
+
+    @T.prim_func(private=True)
+    def fused_rope(  # pylint: disable=too-many-locals
+        var_qkv: T.handle,
+        offset: T.int64,
+        var_q: T.handle,
+        var_k: T.handle,
+        var_v: T.handle,
+    ):
+        batch_size = T.int64()
+        seq_len = T.int64()
+        qkv = T.match_buffer(var_qkv, (batch_size, seq_len, fused_heads, head_dim), dtype)
+        q = T.match_buffer(var_q, (batch_size, seq_len, num_q_heads, head_dim), dtype)
+        k = T.match_buffer(var_k, (batch_size, seq_len, num_kv_heads, head_dim), dtype)
+        v = T.match_buffer(var_v, (batch_size, seq_len, num_kv_heads, head_dim), dtype)
+        T.evaluate(offset)
+
+    class Model(Module):
+        def test(self, qkv: Tensor, offset: tir.Var):
+            tensor_expr_op_out = op.tensor_ir_op(
+                fused_rope,
+                "llama_fused_rope",
+                args=[qkv, offset],
+                out=[
+                    Tensor.placeholder((1, 1, num_q_heads, head_dim), dtype),
+                    Tensor.placeholder((1, 1, num_kv_heads, head_dim), dtype),
+                    Tensor.placeholder((1, 1, num_kv_heads, head_dim), dtype),
+                ],
+            )
+            return tensor_expr_op_out
+
+    # fmt: off
+    @I.ir_module
+    class Expected:
+        @T.prim_func(private=True)
+        def llama_fused_rope(var_qkv: T.handle, offset: T.int64, var_q: T.handle, var_k: T.handle, var_v: T.handle):
+            batch_size, seq_len = T.int64(), T.int64()
+            qkv = T.match_buffer(var_qkv, (batch_size, seq_len, 24, 16), "float16")
+            q = T.match_buffer(var_q, (batch_size, seq_len, 8, 16), "float16")
+            k = T.match_buffer(var_k, (batch_size, seq_len, 8, 16), "float16")
+            v = T.match_buffer(var_v, (batch_size, seq_len, 8, 16), "float16")
+            T.evaluate(offset)
+
+        @R.function
+        def _initialize_effect() -> R.Tuple(R.Object):
+            with R.dataflow():
+                _io: R.Object = R.null_value()
+                lv: R.Tuple(R.Object) = (_io,)
+                gv: R.Tuple(R.Object) = lv
+                R.output(gv)
+            return gv
+
+        @R.function
+        def test(qkv: R.Tensor((1, 1, 24, 16), dtype="float16"), offset: R.Shape(["offset_1"]), _io: R.Object) -> R.Tuple(R.Tuple(R.Tensor((1, 1, 8, 16), dtype="float16"), R.Tensor((1, 1, 8, 16), dtype="float16"), R.Tensor((1, 1, 8, 16), dtype="float16")), R.Tuple(R.Object)):
+            offset_1 = T.int64()
+            R.func_attr({"num_input": 3})
+            cls = Expected
+            with R.dataflow():
+                lv1 = R.call_tir(cls.llama_fused_rope, (qkv,), out_sinfo=[R.Tensor((1, 1, 8, 16), dtype="float16"), R.Tensor((1, 1, 8, 16), dtype="float16"), R.Tensor((1, 1, 8, 16), dtype="float16")], tir_vars=R.shape([offset_1]))
+                llama_fused_rope_0: R.Tensor((1, 1, 8, 16), dtype="float16") = lv1[0]
+                llama_fused_rope_1: R.Tensor((1, 1, 8, 16), dtype="float16") = lv1[1]
+                llama_fused_rope_2: R.Tensor((1, 1, 8, 16), dtype="float16") = lv1[2]
+                gv1: R.Tuple(R.Tuple(R.Tensor((1, 1, 8, 16), dtype="float16"), R.Tensor((1, 1, 8, 16), dtype="float16"), R.Tensor((1, 1, 8, 16), dtype="float16")), R.Tuple(R.Object)) = (llama_fused_rope_0, llama_fused_rope_1, llama_fused_rope_2), (_io,)
+                R.output(gv1)
+            return gv1
+    # fmt: on
+
+    m = Model()
+    irmodule, _ = m.export_tvm(
+        spec={
+            "test": {"qkv": spec.Tensor([1, 1, fused_heads, head_dim], "float16"), "offset": int}
+        },
+        debug=True,
+    )
+    tvm.ir.assert_structural_equal(irmodule, Expected)
+
+
+def test_extern():
+    class Model(Module):
+        def test(self, q: Tensor, k: Tensor, v: Tensor):
+            b, s, h_q, d = q.shape
+            tensor_expr_op_out = op.extern(
+                name="flashinfer.single_decode",
+                args=[q, k, v, 0, 0, 1.0, 10000.0],
+                out=Tensor.placeholder((b, s, h_q * d), dtype="float16"),
+            )
+            return tensor_expr_op_out
+
+    # fmt: off
+    @I.ir_module
+    class Expected:
+        @R.function
+        def _initialize_effect() -> R.Tuple(R.Object):
+            with R.dataflow():
+                _io: R.Object = R.null_value()
+                lv: R.Tuple(R.Object) = (_io,)
+                gv: R.Tuple(R.Object) = lv
+                R.output(gv)
+            return gv
+
+        @R.function
+        def test(q: R.Tensor((1, 1, 16, 8), dtype="float32"), k: R.Tensor((64, 16, 8), dtype="float32"), v: R.Tensor((64, 16, 8), dtype="float32"), _io: R.Object) -> R.Tuple(R.Tensor((1, 1, 128), dtype="float16"), R.Tuple(R.Object)):
+            R.func_attr({"num_input": 4})
+            with R.dataflow():
+                flashinfer_single_decode = R.call_dps_packed("flashinfer.single_decode", (q, k, v, R.prim_value(0), R.prim_value(0), R.prim_value(T.float64(1)), R.prim_value(T.float64(10000))), out_sinfo=R.Tensor((1, 1, 128), dtype="float16"))
+                gv1: R.Tuple(R.Tensor((1, 1, 128), dtype="float16"), R.Tuple(R.Object)) = flashinfer_single_decode, (_io,)
+                R.output(gv1)
+            return gv1
+    # fmt: on
+
+    batch, seq, t, d, h_q, h_kv = 1, 1, 64, 8, 16, 16
+    m = Model()
+    irmodule, _ = m.export_tvm(
+        spec={
+            "test": {
+                "q": spec.Tensor([batch, seq, h_q, d], "float32"),
+                "k": spec.Tensor([t, h_kv, d], "float32"),
+                "v": spec.Tensor([t, h_kv, d], "float32"),
+            }
+        },
+        debug=True,
+    )
     tvm.ir.assert_structural_equal(irmodule, Expected)
 
 

@@ -1461,13 +1461,87 @@ def tensor_expr_op(
 OutType = TypeVar("OutType", bound=Union[Tensor, Sequence[Tensor]])
 
 
+def tensor_ir_op(
+    func: _tir.PrimFunc,
+    name_hint: str,
+    args: Union[Tensor, Sequence[Union[Tensor, _tir.Var]]],
+    out: OutType,
+) -> OutType:
+    """Create a `call_tir` binding with given PrimFunc
+
+    Parameters
+    ----------
+    func : _tir.PrimFunc
+        The PrimFunc to call.
+
+    name_hint : str
+        Name hint.
+
+    args : Union[Tensor, Sequence[Union[Tensor, _tir.Var]]]
+        The arguments to pass to the PrimFunc.
+
+    out : Union[Tensor, List[Tensor]]
+        The output tensors.
+
+    Returns
+    -------
+    result : Tensor
+        The result tensor
+    """
+    from tvm import relax as rx  # pylint: disable=import-outside-toplevel
+
+    call_tir_args, tir_vars = [], []
+    if not isinstance(args, (tuple, list)):
+        args = [args]
+
+    for arg in args:
+        if isinstance(arg, Tensor):
+            call_tir_args.append(arg._expr)
+        elif isinstance(arg, _tir.Var):
+            tir_vars.append(arg)
+        else:
+            raise TypeError(
+                f"Unsupported type: tensor_ir_op args expect Tensor or tir.Var, but got {type(arg)}"
+            )
+
+    if isinstance(out, Tensor):
+        out_sinfo = [out._expr.struct_info]
+    else:
+        out_sinfo = [x._expr.struct_info for x in out]
+
+    bb = BlockBuilder.current()
+    global_var = bb.add_func(func, name_hint)
+
+    return wrap_nested(
+        bb.emit(rx.call_tir(global_var, call_tir_args, out_sinfo, tir_vars=tir_vars)),
+        name=name_hint,
+    )
+
+
 def extern(
     name: str,
     args: Sequence[Union[Tensor, _tir.PrimExpr, int, float, str]],
     out: OutType,
 ) -> OutType:
     """Invoke an extern function during runtime. The extern function must be registered with the "
-    TVM runtime using `TVM_REGISTER_GLOBAL` (C++), or `tvm.register_func` (Python)."""
+    TVM runtime using `TVM_REGISTER_GLOBAL` (C++), or `tvm.register_func` (Python).
+
+    Parameters
+    ----------
+    name : str
+        The name of the extern function to call.
+
+    args : Sequence[Union[Tensor, _tir.PrimExpr, int, float, str]]
+        The arguments to pass to the extern function.
+
+    out : Union[Tensor, List[Tensor]]
+        The output tensors, only
+
+    Returns
+    -------
+    result : Tensor
+        The result
+    """
     from tvm import relax as rx  # pylint: disable=import-outside-toplevel
 
     def _convert(arg, name: str):

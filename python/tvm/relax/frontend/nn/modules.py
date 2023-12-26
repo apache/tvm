@@ -311,7 +311,7 @@ class ConvTranspose1D(Module):
 
     def forward(self, x: Tensor) -> Tensor:
         """
-        Forward method for convtranspose1d layer.
+        Forward method for conv transpose 1d layer.
 
         Parameters
         ----------
@@ -321,7 +321,7 @@ class ConvTranspose1D(Module):
         Returns
         -------
         ret : Tensor
-            The output tensor for the convtranspose1d layer.
+            The output tensor for the conv transpose 1d layer.
         """
         return op.conv1d_transpose(
             x,
