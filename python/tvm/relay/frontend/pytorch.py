@@ -2756,7 +2756,7 @@ class PyTorchOpConverter:
             for i in [0, 1]:
                 size, _ = try_infer_value(
                     inputs[1][i],
-                    lambda ret: ret.astype(np.int),
+                    lambda ret: ret.astype(int),
                     lambda: _op.expand_dims(inputs[1][i], axis=0),
                 )
                 out_size.append(size)
