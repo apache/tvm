@@ -47,7 +47,19 @@ class _TensorOp:
         other = _convert_scalar(other, self)
         return _op().add(self, other)
 
+    def __sub__(self, other):
+        other = _convert_scalar(other, self)
+        return _op().subtract(self, other)
+
+    def __rsub__(self, other):
+        other = _convert_scalar(other, self)
+        return _op().subtract(other, self)
+
     def __mul__(self, other):
+        other = _convert_scalar(other, self)
+        return _op().multiply(self, other)
+
+    def __rmul__(self, other):
         other = _convert_scalar(other, self)
         return _op().multiply(self, other)
 
