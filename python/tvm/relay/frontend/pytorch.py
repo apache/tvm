@@ -595,9 +595,7 @@ class PyTorchOpConverter:
             )
             raise AssertionError(msg)
 
-        if isinstance(inputs[1], torch.Tensor) and not (
-            list(inputs[1].shape) == [] or list(inputs[1].shape) == 1
-        ):
+        if isinstance(inputs[1], torch.Tensor) and len(inputs[1].shape) not in [0, 1]:
             msg = "indices_or_sections must be a zero-dimensional or one-dimensional long tensor"
             raise AssertionError(msg)
 
