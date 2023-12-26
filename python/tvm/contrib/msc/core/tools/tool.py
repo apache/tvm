@@ -814,6 +814,22 @@ class BaseTool(object):
 
         return tensor
 
+    def create_tasks(self, **kwargs) -> List[dict]:
+        """Create tasks for gym
+
+        Parameters
+        ----------
+        kwargs: dict
+           The kwargs for create tasks.
+
+        Returns
+        -------
+        tasks: list<dict>
+            The tasks.
+        """
+
+        return []
+
     def config_generate(self, generate_config: Dict[str, Any]) -> Dict[str, Any]:
         """Update the generate configs
 
