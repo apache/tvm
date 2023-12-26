@@ -382,6 +382,10 @@ class BaseManager(object):
         if _tool_enabled(ToolType.QUANTIZER):
             self._apply_tool(ToolType.QUANTIZER, stage_config)
 
+        # run distill
+        if _tool_enabled(ToolType.DISTILLER):
+            self._apply_tool(ToolType.DISTILLER, stage_config)
+
         # optimize and get the runner
         msc_utils.time_stamp(MSCStage.OPTIMIZE)
         return self._create_runner(

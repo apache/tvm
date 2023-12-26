@@ -26,7 +26,7 @@ import numpy as np
 import tvm
 from tvm.contrib.msc.core.ir import MSCGraph
 from tvm.contrib.msc.core.frontend import from_relax
-from tvm.contrib.msc.core.tools import BaseTool, ToolType, create_tool, remove_tools
+from tvm.contrib.msc.core.tools import BaseTool, ToolType, ToolScope, create_tool, remove_tools
 from tvm.contrib.msc.core.utils.namespace import MSCFramework
 from tvm.contrib.msc.core.utils.message import MSCStage
 from tvm.contrib.msc.core import utils as msc_utils
@@ -180,9 +180,24 @@ class BaseRunner(object):
 
         # Generate model
         if not self._model:
-            # Generate normal model
-            self._graphs, self._weights = self.reset_tools(cache_dir=cache_dir)
-            self._model = self._generate_model()
+            distiller = self.get_tool(ToolType.DISTILLER)
+            if distiller and not distiller.distilled:
+                build_root = self._generate_config["build_folder"]
+
+                def _build_scope_model(scope: str):
+                    self._update_codegen({"tools_scope": scope})
+                    self._generate_config["build_folder"] = build_root.create_dir(scope)
+                    return self._generate_model()
+
+                # Generate distill model
+                teacher_model = _build_scope_model(ToolScope.TEACHER)
+                self._graphs, self._weights = self.reset_tools(cache_dir=cache_dir)
+                student_model = _build_scope_model(ToolScope.STUDENT)
+                self._model = distiller.build_model(teacher_model, student_model)
+            else:
+                # Generate normal model
+                self._graphs, self._weights = self.reset_tools(cache_dir=cache_dir)
+                self._model = self._generate_model()
 
             # Log generate info
             generate_msg = "Generate model({})".format(self.framework)
@@ -422,6 +437,15 @@ class BaseRunner(object):
                     self.run(inputs, ret_type="native")
                 quantizer.calibrate()
             plan = quantizer.finalize()
+        elif tool_type == ToolType.DISTILLER:
+            distiller = self.get_tool(ToolType.DISTILLER)
+            while not distiller.distilled:
+                assert data_loader, "data_loader should be given to plan prune"
+                for inputs in data_loader():
+                    loss = self.run(inputs, ret_type="native")
+                    distiller.learn(loss)
+                distiller.distill()
+            plan = distiller.finalize()
         else:
             plan = self.get_tool(tool_type).finalize()
         assert plan, "Failed to create plan for {}".format(tool_type)

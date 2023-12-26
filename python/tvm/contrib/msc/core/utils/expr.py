@@ -44,6 +44,26 @@ def get_expr_name(expr: relax.Expr) -> str:
     return name
 
 
+def set_expr_name(expr: relax.Expr, name: str):
+    """Set the name for expr
+
+    Parameters
+    ----------
+    expr: Expr
+        The Expr of relax.
+    name: str
+        The name.
+
+    Returns
+    -------
+    expr: Expr
+        The expr with name.
+    """
+
+    expr.span = _ffi_api.SpanSetAttr(expr.span, "name", name)
+    return expr
+
+
 def get_span_attrs(mod: tvm.IRModule) -> dict:
     """Extract the span attributes from relax.Function.
 
