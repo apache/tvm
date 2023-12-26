@@ -340,6 +340,8 @@ def _init_pythonapi_inc_def_ref():
     register_func = _LIB.TVMBackendRegisterEnvCAPI
     register_func(c_str("Py_IncRef"), ctypes.pythonapi.Py_IncRef)
     register_func(c_str("Py_DecRef"), ctypes.pythonapi.Py_DecRef)
+    register_func(c_str("PyGILState_Ensure"), ctypes.pythonapi.PyGILState_Ensure)
+    register_func(c_str("PyGILState_Release"), ctypes.pythonapi.PyGILState_Release)
 
 
 _init_pythonapi_inc_def_ref()

@@ -568,7 +568,7 @@ def test_batch_matmul_amx(b, m, n, k):
         np.testing.assert_equal(out, ref)
 
 
-@tvm.testing.requires_cascadelake
+@tvm.testing.requires_x86_vnni
 @pytest.mark.parametrize(
     "b,m,n,k",
     [
@@ -581,7 +581,7 @@ def test_batch_matmul_vnni(b, m, n, k):
     batch_matmul_x86_test(b, m, n, k)
 
 
-@tvm.testing.requires_skylake_avx512
+@tvm.testing.requires_x86_avx512
 @pytest.mark.parametrize(
     "b,m,n,k",
     [

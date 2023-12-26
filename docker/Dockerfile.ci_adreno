@@ -16,7 +16,7 @@
 # under the License.
 
 # CI docker GPU env
-FROM tlcpack/ci-gpu:20220908-060034-62bdc91b1
+FROM tlcpack/ci-gpu
 
 COPY utils/apt-install-and-clear.sh /usr/local/bin/apt-install-and-clear
 
@@ -26,4 +26,8 @@ RUN bash /install/ubuntu_install_androidsdk.sh 25.2.9519653 3.22.1 33.0.2 33
 ENV PATH /opt/android-sdk-linux/platform-tools:$PATH
 
 # Clang tool for CLML source codegen
-RUN apt-get update && apt-install-and-clear -y clang-format-10
+RUN apt-get update && apt-install-and-clear -y clang-format-15
+
+#Google Test
+COPY install/ubuntu_install_googletest.sh /install/ubuntu_install_googletest.sh
+RUN bash install/ubuntu_install_googletest.sh

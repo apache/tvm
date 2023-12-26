@@ -418,7 +418,7 @@ const char* TVMGetLastError() {
   }
 }
 
-extern "C" void* TVMGetLastPythonError() {
+void* TVMGetLastPythonError() {
   auto& last_error = TVMAPIRuntimeStore::Get()->last_error;
   if (auto* wrapped = std::get_if<WrappedPythonError>(&last_error)) {
     return wrapped->obj.raw_pointer();
@@ -427,7 +427,7 @@ extern "C" void* TVMGetLastPythonError() {
   }
 }
 
-extern "C" const char* TVMGetLastBacktrace() {
+const char* TVMGetLastBacktrace() {
   const auto& last_error = TVMAPIRuntimeStore::Get()->last_error;
   if (const auto* wrapped = std::get_if<WrappedPythonError>(&last_error)) {
     return wrapped->cpp_backtrace.data();
@@ -438,7 +438,7 @@ extern "C" const char* TVMGetLastBacktrace() {
   }
 }
 
-extern "C" void TVMDropLastPythonError() {
+void TVMDropLastPythonError() {
   auto& last_error = TVMAPIRuntimeStore::Get()->last_error;
   if (std::get_if<WrappedPythonError>(&last_error)) {
     last_error = "";
@@ -458,12 +458,12 @@ int TVMAPIHandleException(const std::exception& e) {
   return -1;
 }
 
-extern "C" void TVMAPISetLastPythonError(void* obj) {
+void TVMAPISetLastPythonError(void* obj) {
   auto& last_error = TVMAPIRuntimeStore::Get()->last_error;
   last_error = WrappedPythonError(WrappedPythonObject(obj));
 }
 
-void ThrowLastError() {
+void TVMThrowLastError() {
   auto& last_error = TVMAPIRuntimeStore::Get()->last_error;
   if (auto* wrapped = std::get_if<WrappedPythonError>(&last_error)) {
     WrappedPythonError wrapped_err;
@@ -611,7 +611,7 @@ int TVMFuncCreateFromCFunc(TVMPackedCFunc func, void* resource_handle, TVMPacked
       int ret = func(const_cast<TVMValue*>(args.values), const_cast<int*>(args.type_codes),
                      args.num_args, rv, resource_handle);
       if (ret != 0) {
-        ThrowLastError();
+        TVMThrowLastError();
       }
     });
     TVMValue val;
@@ -627,7 +627,7 @@ int TVMFuncCreateFromCFunc(TVMPackedCFunc func, void* resource_handle, TVMPacked
       int ret = func(const_cast<TVMValue*>(args.values), const_cast<int*>(args.type_codes),
                      args.num_args, rv, rpack.get());
       if (ret != 0) {
-        ThrowLastError();
+        TVMThrowLastError();
       }
     });
     TVMValue val;

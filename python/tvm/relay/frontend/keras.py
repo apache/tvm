@@ -967,7 +967,7 @@ def _convert_concat(
         if axis == -1:
             axis = 1
         else:
-            axis = axis + 1 if axis < dims else 1
+            axis = axis + 1 if axis < (dims - 1) else 1
     return _op.concatenate(_as_list(inexpr), axis=axis)
 
 
@@ -1426,9 +1426,9 @@ def from_keras(model, shape=None, layout="NCHW"):
         Input shapes of the model, optional
 
     layout: str
-        One of 'NCHW' or 'NHWC', indicates how data should be arranged in
-        the output model. Default layout is 'NCHW' as it in general
-        performs better across TVM.
+        One of 'NWC', 'NCHW', 'NHWC', 'NDHWC' indicates how data should
+        be arranged in the output model. Default layout is 'NCHW' as it
+        in general performs better across TVM.
 
     Returns
     -------

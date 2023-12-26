@@ -38,7 +38,7 @@ class CodeGenMetal final : public CodeGenC {
   explicit CodeGenMetal(Target target);
   // override print thread tag.
   void PrintArgUnionDecl();
-  void AddFunction(const PrimFunc& f);  // NOLINT(*)
+  void AddFunction(const GlobalVar& gvar, const PrimFunc& func) final;
   void InitFuncState(const PrimFunc& f) final;
   void PrintStorageScope(const std::string& scope, std::ostream& os) final;  // NOLINT(*)
   void PrintStorageSync(const CallNode* op) final;                           // NOLINT(*)

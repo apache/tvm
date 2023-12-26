@@ -42,6 +42,7 @@ void CodeGenC::InitFuncState(const PrimFunc& f) {
   alloc_storage_scope_.clear();
   handle_data_type_.clear();
   CodeGenSourceBase::ClearFuncState();
+  ReserveKeywordsAsUnique();
 }
 
 void CodeGenC::ReserveKeywordsAsUnique() {
@@ -75,51 +76,92 @@ void CodeGenC::ReserveKeywordsAsUnique() {
   name_supply_->ReserveName("return");
 }
 
-void CodeGenC::AddFunction(const PrimFunc& f) {
-  // clear previous generated state.
-  this->InitFuncState(f);
-  // reserve keywords
-  ReserveKeywordsAsUnique();
+void CodeGenC::PrintFunctionSignature(const String& function_name, const PrimFunc& func,
+                                      std::ostream& os) {
+  PrintFuncPrefix(os);
+  PrintType(func->ret_type, os);
+  PrintExtraAttrs(func, os);
+  os << " " << function_name << "(";
+  for (size_t i = 0; i < func->params.size(); ++i) {
+    tir::Var v = func->params[i];
 
-  auto global_symbol = f->GetAttr<String>(tvm::attr::kGlobalSymbol);
-  ICHECK(global_symbol.defined())
-      << "CodeGenC: Expect PrimFunc to have the global_symbol attribute";
-  bool no_alias = f->HasNonzeroAttr(tir::attr::kNoAlias);
-
-  this->PrintFuncPrefix(stream);
-  PrintType(f->ret_type, stream);
-  this->PrintExtraAttrs(f);
-  this->stream << " " << static_cast<std::string>(global_symbol.value()) << "(";
-
-  for (size_t i = 0; i < f->params.size(); ++i) {
-    tir::Var v = f->params[i];
-    std::string vid = AllocVarID(v.get());
-    if (i != 0) stream << ", ";
-    if (v.dtype().is_handle()) {
-      auto it = alloc_storage_scope_.find(v.get());
-      if (it != alloc_storage_scope_.end()) {
-        PrintStorageScope(it->second, stream);
-      }
-
-      PrintType(GetType(v), stream);
-      // Register handle data type
-      // TODO(tvm-team): consider simply keep type info in the
-      // type annotation(via a normalizing rewriting).
-      if (auto* ptr = v->type_annotation.as<PointerTypeNode>()) {
-        if (auto* prim = ptr->element_type.as<PrimTypeNode>()) {
-          RegisterHandleType(v.get(), prim->dtype);
-        }
-      }
-
-      if (no_alias) {
-        PrintRestrict(v, stream);
-      }
-    } else {
-      PrintType(GetType(v), stream);
+    if (i > 0) {
+      os << ", ";
     }
-    stream << ' ' << vid;
+
+    if (auto it = alloc_storage_scope_.find(v.get()); it != alloc_storage_scope_.end()) {
+      PrintStorageScope(it->second, os);
+    }
+
+    PrintType(GetType(v), os);
+
+    bool no_alias = func->HasNonzeroAttr(tir::attr::kNoAlias);
+    bool is_handle = v.dtype().is_handle();
+    if (no_alias && is_handle) {
+      PrintRestrict(v, os);
+    }
+
+    os << " " << AllocVarID(v.get());
   }
-  stream << ") {\n";
+  os << ")";
+
+  // Register handle data type
+  // TODO(tvm-team): consider simply keep type info in the
+  // type annotation(via a normalizing rewriting).
+  for (const auto& param : func->params) {
+    if (auto* ptr = param->type_annotation.as<PointerTypeNode>()) {
+      if (auto* prim = ptr->element_type.as<PrimTypeNode>()) {
+        RegisterHandleType(param.get(), prim->dtype);
+      }
+    }
+  }
+}
+
+void CodeGenC::DeclareFunction(const GlobalVar& gvar, const PrimFunc& func) {
+  if (internal_functions_.count(gvar)) {
+    return;
+  }
+
+  auto function_name = [&]() -> String {
+    if (auto global_symbol = func->GetAttr<String>(tvm::attr::kGlobalSymbol)) {
+      auto name = global_symbol.value();
+      ICHECK(!func_name_supply_->ContainsName(name))
+          << "Function " << gvar << " must use global symbol " << name
+          << ", but this name has already been used.";
+      func_name_supply_->ReserveName(name);
+      return name;
+    } else {
+      func_name_supply_->ReserveName(gvar->name_hint);
+      return gvar->name_hint;
+    }
+  }();
+
+  internal_functions_.insert({gvar, function_name});
+
+  InitFuncState(func);
+  PrintFunctionSignature(function_name, func, fwd_decl_stream);
+  fwd_decl_stream << ";\n";
+}
+
+String CodeGenC::GetFunctionName(const GlobalVar& gvar) {
+  auto it = internal_functions_.find(gvar);
+  ICHECK(it != internal_functions_.end())
+      << "Attempted to find name of " << gvar
+      << ", but no function with this GlobalVar has been declared";
+  return it->second;
+}
+
+void CodeGenC::AddFunction(const GlobalVar& gvar, const PrimFunc& f) {
+  // If the function has already been forward-declared, this is a
+  // no-op.
+  DeclareFunction(gvar, f);
+  auto function_name = GetFunctionName(gvar);
+
+  // clear previous generated state.
+  InitFuncState(f);
+
+  PrintFunctionSignature(function_name, f, stream);
+  stream << " {\n";
   this->PreFunctionBody(f);
   int func_scope = this->BeginScope();
   this->PrintStmt(f->body);
@@ -130,9 +172,15 @@ void CodeGenC::AddFunction(const PrimFunc& f) {
 
 void CodeGenC::PrintFuncPrefix(std::ostream& os) {}
 
-void CodeGenC::PrintExtraAttrs(const PrimFunc& f) {}
+void CodeGenC::PrintExtraAttrs(const PrimFunc& f, std::ostream& os) {}
 
-std::string CodeGenC::Finish() { return decl_stream.str() + stream.str(); }
+std::string CodeGenC::Finish() {
+  std::ostringstream code;
+  code << decl_stream.str();
+  code << fwd_decl_stream.str();
+  code << stream.str();
+  return code.str();
+}
 
 void CodeGenC::PrintExpr(const PrimExpr& n, std::ostream& os) {  // NOLINT(*)
   if (print_ssa_form_) {
@@ -322,6 +370,10 @@ void CodeGenC::PrintVecStore(const BufferNode* buffer, DataType t, PrimExpr base
   std::string ref = GetBufferRef(t, buffer, base);
   this->PrintIndent();
   stream << ref << " = " << value << ";\n";
+}
+
+void CodeGenC::PrintVecConstructor(DataType t, std::ostream& os) {  // NOLINT(*)
+  PrintType(t, os);
 }
 
 std::string CodeGenC::CastFromTo(std::string value, DataType from, DataType target) {
@@ -542,12 +594,17 @@ void CodeGenC::VisitExpr_(const CallNode* op, std::ostream& os) {  // NOLINT(*)
       ICHECK_GE(op->args.size(), 1U);
       auto func = Downcast<StringImm>(op->args[0]);
       this->PrintCallExtern(GetType(GetRef<PrimExpr>(op)), func->value, op->args, true, os);
-      Array<Type> arg_types;
-      for (size_t i = 1; i < op->args.size(); i++) {
-        arg_types.push_back(GetType(op->args[i]));
+
+      // If the call_extern refers to an function within the IRModule, then
+      // the forward declaration is already provided from DeclareFunction.
+      if (!func_name_supply_->ContainsName(func->value)) {
+        Array<Type> arg_types;
+        for (size_t i = 1; i < op->args.size(); i++) {
+          arg_types.push_back(GetType(op->args[i]));
+        }
+        Type ret_type = GetTypeFromRuntimeDataType(op->dtype);
+        this->GenerateForwardFunctionDeclarations(func->value, arg_types, ret_type);
       }
-      Type ret_type = GetTypeFromRuntimeDataType(op->dtype);
-      this->GenerateForwardFunctionDeclarations(func->value, arg_types, ret_type);
     } else if (op_attr_global_symbol_.count(call_op)) {
       // call extern if the op itself have a global symbol.
       this->PrintCallExtern(GetType(GetRef<PrimExpr>(op)), op_attr_global_symbol_[call_op],
@@ -615,9 +672,13 @@ void CodeGenC::VisitExpr_(const CallNode* op, std::ostream& os) {  // NOLINT(*)
     } else {
       LOG(FATAL) << "Unresolved call " << op->op;
     }
+  } else if (auto opt = op->op.as<GlobalVar>()) {
+    auto gvar = opt.value();
+    auto callee_name = GetFunctionName(gvar);
+    PrintCallExtern(GetType(GetRef<PrimExpr>(op)), callee_name, op->args, false, os);
   } else {
-    ICHECK(op->op.as<GlobalVarNode>());
-    LOG(FATAL) << "Do not yet support cross function call";
+    LOG(FATAL) << "CodeGenC: Unknown operation " << op->op << " is neither a recognized built-in, "
+               << "nor a GlobalVar reference to another function in the IRModule";
   }
 }
 
@@ -812,8 +873,47 @@ void CodeGenC::VisitExpr_(const RampNode* op, std::ostream& os) {  // NOLINT(*)
   os << ")";
 }
 
-void CodeGenC::VisitExpr_(const ShuffleNode* op, std::ostream& os) {
-  LOG(FATAL) << "Shuffle: not supported ";
+void CodeGenC::VisitExpr_(const ShuffleNode* op, std::ostream& os) {  // NOLINT(*)
+  // Shuffle support
+  // vec = concat(vectors)
+  // result = (vec[indices[0]], vec[indices[1]], ...)
+  //
+  // print shuffle as:
+  // target_dtype(e0, e1, e2, .. en)
+
+  // construct the concat
+  std::vector<std::string> concat_vec;
+  // NOTE: important to print expr first
+  // in case each expr have their own nested expressions
+  // print each elements
+  for (const PrimExpr& vec : op->vectors) {
+    std::string vec_value = this->PrintExpr(vec);
+    if (vec.dtype().lanes() == 1) {
+      concat_vec.push_back(vec_value);
+    } else {
+      // print out each element
+      for (int i = 0; i < vec.dtype().lanes(); ++i) {
+        // access i-th element of each vector
+        std::ostringstream vec_elem_strm;
+        vec_elem_strm << vec_value << "[" << i << "]";
+        concat_vec.push_back(vec_elem_strm.str());
+      }
+    }
+  }
+  if (op->indices.size() == 1) {
+    // This is an extract element
+    os << concat_vec[Downcast<IntImm>(op->indices[0])->value];
+  } else {
+    // Print the shuffle as vector constructor
+    // vec(e0, e1, e2, .. en)
+    PrintVecConstructor(op->dtype, os);
+    os << '(';
+    for (size_t i = 0; i < op->indices.size(); ++i) {
+      if (i != 0) os << ", ";
+      os << concat_vec[Downcast<IntImm>(op->indices[i])->value];
+    }
+    os << ')';
+  }
 }
 
 void CodeGenC::VisitExpr_(const BroadcastNode* op, std::ostream& os) {  // NOLINT(*)

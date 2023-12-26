@@ -417,7 +417,8 @@ Array<PrimExpr> GetBufferAllocationShape(const Buffer& buffer) {
   if (buffer->strides.size()) {
     ICHECK_EQ(buffer->shape.size(), buffer->strides.size());
     for (size_t i = buffer->strides.size() - 1; i > 0; --i) {
-      ICHECK(is_zero(floormod(buffer->strides[i - 1], buffer->strides[i])));
+      ICHECK(
+          arith::Analyzer().CanProveEqual(floormod(buffer->strides[i - 1], buffer->strides[i]), 0));
       alloc_shape.Set(i, buffer->strides[i - 1] / buffer->strides[i]);
     }
   }
@@ -714,8 +715,13 @@ Pass ConvertSSA() {
     tir::IRConvertSSA converter;
     Map<GlobalVar, BaseFunc> functions;
     bool made_change = false;
+    // FIXME: This is just a temporal workaround to ensure free vars
+    // in device function have the same pointer as the host function
     for (auto [gvar, base_func] : mod->functions) {
       if (auto* ptr = base_func.as<tir::PrimFuncNode>()) {
+        if (!ptr->HasNonzeroAttr(tir::attr::kIsEntryFunc)) {
+          continue;
+        }
         auto updated = converter.VisitPrimFunc(GetRef<tir::PrimFunc>(ptr));
         if (!updated.same_as(base_func)) {
           made_change = true;
@@ -723,6 +729,19 @@ Pass ConvertSSA() {
         }
       }
       functions.Set(gvar, base_func);
+    }
+    for (auto [gvar, base_func] : mod->functions) {
+      if (auto* ptr = base_func.as<tir::PrimFuncNode>()) {
+        if (ptr->HasNonzeroAttr(tir::attr::kIsEntryFunc)) {
+          continue;
+        }
+        auto updated = converter.VisitPrimFunc(GetRef<tir::PrimFunc>(ptr));
+        if (!updated.same_as(base_func)) {
+          made_change = true;
+          base_func = updated;
+        }
+        functions.Set(gvar, base_func);
+      }
     }
     if (made_change) {
       mod.CopyOnWrite()->functions = std::move(functions);

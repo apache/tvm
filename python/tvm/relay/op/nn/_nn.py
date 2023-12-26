@@ -335,6 +335,12 @@ def legalize_conv2d_transpose(attrs, inputs, types):
     return topi.nn.conv2d_transpose_legalize(attrs, inputs, types)
 
 
+@reg.register_alter_op_layout("nn.conv2d_transpose")
+def alter_op_layout_conv2d_transpose(attrs, inputs, tinfos, out_type):
+    """Alternate the layout of conv2d_transpose"""
+    return topi.nn.conv2d_transpose_alter_layout(attrs, inputs, tinfos, out_type)
+
+
 @reg.register_convert_op_layout("nn.conv2d_transpose")
 def convert_conv2d_transpose(attrs, inputs, tinfos, desired_layouts):
     """Convert Layout pass registration for conv2d_transpose op.
@@ -792,7 +798,7 @@ reg.register_strategy(
 @reg.register_compute("nn.contrib_conv2d_gemm_weight_transform")
 def compute_contrib_conv2d_gemm_weight_transform(attrs, inputs, out_dtype):
     """Compute definition of contrib_conv2d_gemm_weight_transform"""
-    out = topi.nn.conv2d_gemm_weight_transform(inputs[0], attrs.tile_rows, attrs.tile_cols)
+    out = topi.nn.conv2d_gemm_weight_transform(inputs[0], attrs.tile_N, attrs.tile_K)
     return [out]
 
 

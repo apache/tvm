@@ -15,12 +15,25 @@
 # specific language governing permissions and limitations
 # under the License.
 
-import sys
+import os
 import tvm
+from tvm import rpc
 import pytest
-from test_clml.infrastructure import Device
 
 
 @pytest.fixture(scope="session")
-def device():
-    return Device()
+def remote():
+    if (
+        "TVM_TRACKER_HOST" in os.environ
+        and "TVM_TRACKER_PORT" in os.environ
+        and "RPC_DEVICE_KEY" in os.environ
+    ):
+
+        rpc_tracker_host = os.environ["TVM_TRACKER_HOST"]
+        rpc_tracker_port = int(os.environ["TVM_TRACKER_PORT"])
+        rpc_device_key = os.environ["RPC_DEVICE_KEY"]
+        tracker = rpc.connect_tracker(rpc_tracker_host, rpc_tracker_port)
+        remote = tracker.request(rpc_device_key, priority=0, session_timeout=600)
+        return remote
+    else:
+        return None

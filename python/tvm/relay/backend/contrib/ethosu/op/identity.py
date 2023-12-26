@@ -36,8 +36,16 @@ def create_ethosu_identity_compute(attrs, args, out_type):
     ofm_scale = attrs.ofm_scale
     ofm_zero_point = attrs.ofm_zero_point
     activation = attrs.activation
+    rounding_mode = attrs.rounding_mode
     op = identity_compute(
-        ifm, lut, ifm_scale, ifm_zero_point, ofm_scale, ofm_zero_point, activation
+        ifm,
+        lut,
+        ifm_scale,
+        ifm_zero_point,
+        ofm_scale,
+        ofm_zero_point,
+        activation,
+        rounding_mode,
     )
     return [op]
 
@@ -61,6 +69,7 @@ def ethosu_identity(
     ofm_scale: float = 1,
     ofm_zero_point: int = 0,
     activation: str = "NONE",
+    rounding_mode: str = "TFL",
 ) -> tvm.relay.Call:
     """The Identity operator that runs on the NPU.
 
@@ -87,6 +96,11 @@ def ethosu_identity(
             "TANH" - tanh activation function.
             "SIGMOID" - sigmoid activation function.
             "LUT" - use a look-up table to perform the activation function.
+    rounding_mode : str, optional
+        The rounding mode to apply to the Output Feature Map tensor.
+            "TFL" - Tensorflow Lite rounding scheme.
+            "TRUNCATE" - Truncate towards zero.
+            "NATURAL" - Round to nearest value, with x.5 rounded up towards +infinity.
 
     Returns
     -------
@@ -94,5 +108,5 @@ def ethosu_identity(
         A call to the ethosu_identity op.
     """
     return _make.ethosu_identity(
-        ifm, lut, ifm_scale, ifm_zero_point, ofm_scale, ofm_zero_point, activation
+        ifm, lut, ifm_scale, ifm_zero_point, ofm_scale, ofm_zero_point, activation, rounding_mode
     )

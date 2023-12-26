@@ -1275,8 +1275,6 @@ class OperatorConverter(object):
 
     def convert_elu(self, op):
         """Convert TFLite ELU"""
-        if self.is_quantized(op):
-            raise tvm.error.OpNotImplemented("TFlite quantized ELU operator is not supported yet.")
         input_tensors = self.get_input_tensors(op)
         assert len(input_tensors) == 1, "input tensors length should be 1"
 
@@ -1299,11 +1297,6 @@ class OperatorConverter(object):
         output_tensors = self.get_output_tensors(op)
         assert len(output_tensors) == 1, "output tensors length should be 1"
         output_tensor = output_tensors[0]
-
-        if self.is_quantized(op):
-            raise tvm.error.OpNotImplemented(
-                "TFlite quantized SQUARE operator is not supported yet."
-            )
 
         exp_type = self.get_tensor_type_str(output_tensor.tensor.Type())
         out = _op.power(in_expr, relay.const(2, exp_type))
@@ -2683,12 +2676,6 @@ class OperatorConverter(object):
             from tflite.MirrorPadOptions import MirrorPadOptions
         except ImportError:
             raise ImportError("The tflite package must be installed")
-
-        # the quantized form MirrorPad is not yet implemented in TFLite.
-        if self.is_quantized(op):
-            raise tvm.error.OpNotImplemented(
-                "TFlite quantized MIRROR_PAD operator is not supported yet."
-            )
 
         input_tensors = self.get_input_tensors(op)
         assert len(input_tensors) == 2, "input tensors length should be 2"

@@ -35,8 +35,8 @@ from .infrastructure import quantize_np
 def test_disable_qnn_legalize_pass():
     """No QNN pass test."""
     x = relay.var("x", shape=(4, 8), dtype="float32")
-    op0 = relay.qnn.op.quantize(x, relay.const(2.0), relay.const(10), out_dtype="uint8")
-    op1 = relay.qnn.op.dequantize(op0, relay.const(0.5), relay.const(5))
+    op0 = relay.qnn.quantize(x, relay.const(2.0), relay.const(10), out_dtype="uint8")
+    op1 = relay.qnn.dequantize(op0, relay.const(0.5), relay.const(5))
     relay_mod = tvm.IRModule.from_expr(op1)
 
     target_hexagon = tvm.target.hexagon("v68")
@@ -133,7 +133,7 @@ class TestQnnQuantize:
 
         def gen_relay_expr_qnn(output_scale, output_zero_point):
             data = relay.var("data", shape=input_shape, dtype="float32")
-            qnn_quantize = relay.qnn.op.quantize(
+            qnn_quantize = relay.qnn.quantize(
                 data,
                 output_scale=relay.const(output_scale),
                 output_zero_point=relay.const(output_zero_point),
@@ -167,7 +167,7 @@ class TestQnnDequantize:
 
         def gen_relay_expr_qnn(dtype, input_scale, input_zero_point):
             data = relay.var("data", shape=input_shape, dtype=dtype)
-            qnn_dequantize = relay.qnn.op.dequantize(
+            qnn_dequantize = relay.qnn.dequantize(
                 data,
                 input_scale=relay.const(input_scale),
                 input_zero_point=relay.const(input_zero_point),
@@ -199,7 +199,7 @@ class TestQnnRequantize:
         data_shape = [256]
         data = relay.var("data", shape=data_shape, dtype="int32")
 
-        op = relay.qnn.op.requantize(
+        op = relay.qnn.requantize(
             data,
             input_scale=relay.const(0.156),
             input_zero_point=relay.const(2),
@@ -256,7 +256,7 @@ class TestQnnAvgPool2d:
             dtype, input_scale, input_zero_point, output_scale, output_zero_point
         ):
             data = relay.var("data", shape=input_shape, dtype=dtype)
-            qnn_avg_pool = relay.qnn.op.avg_pool2d(
+            qnn_avg_pool = relay.qnn.avg_pool2d(
                 data,
                 input_scale=relay.const(input_scale),
                 input_zero_point=relay.const(input_zero_point),
@@ -305,7 +305,7 @@ class TestQnnAvgPool2d:
 class TestQnnBinaryOp:
     """QNN binary op test class"""
 
-    operation = tvm.testing.parameter(relay.qnn.op.add, relay.qnn.op.subtract, relay.qnn.op.mul)
+    operation = tvm.testing.parameter(relay.qnn.add, relay.qnn.subtract, relay.qnn.mul)
     dtype = tvm.testing.parameter("uint8", "int8")
     input_shape = tvm.testing.parameter([256], [4, 256])
 
@@ -375,7 +375,7 @@ class TestQnnConcatenate:
         input_y = relay.var("y", shape=y_shape, dtype="uint8")
         input_z = relay.var("z", shape=z_shape, dtype="uint8")
 
-        op = relay.qnn.op.concatenate(
+        op = relay.qnn.concatenate(
             (input_x, input_y, input_z),
             input_scales=(relay.const(0.3), relay.const(0.7), relay.const(1.3)),
             input_zero_points=(relay.const(0), relay.const(1), relay.const(2)),
@@ -404,9 +404,9 @@ class TestQnnConv2D:
         weight_shape = [16, 8, 3, 3]
         data = relay.var("data", shape=data_shape, dtype="float32")
         weight = relay.var("weight", shape=weight_shape, dtype="float32")
-        op0 = relay.qnn.op.quantize(data, relay.const(0.078), relay.const(0), out_dtype="uint8")
-        op1 = relay.qnn.op.quantize(weight, relay.const(0.07), relay.const(0), out_dtype="int8")
-        op2 = relay.qnn.op.conv2d(
+        op0 = relay.qnn.quantize(data, relay.const(0.078), relay.const(0), out_dtype="uint8")
+        op1 = relay.qnn.quantize(weight, relay.const(0.07), relay.const(0), out_dtype="int8")
+        op2 = relay.qnn.conv2d(
             op0,
             op1,
             input_zero_point=relay.const(0),
@@ -417,7 +417,7 @@ class TestQnnConv2D:
             channels=16,
             kernel_size=[3, 3],
         )
-        op5 = relay.qnn.op.requantize(
+        op5 = relay.qnn.requantize(
             op2,
             input_scale=relay.const(0.05),
             input_zero_point=relay.const(0),
@@ -448,11 +448,11 @@ class TestQnnDense:
         wscale = relay.const(0.37)
 
         def before():
-            return relay.qnn.op.dense(data, weight, zero, zero, iscale, wscale, units=None)
+            return relay.qnn.dense(data, weight, zero, zero, iscale, wscale, units=None)
 
         def expected():
             op0 = relay.layout_transform(weight, src_layout="NC", dst_layout="NC32n4c")
-            return relay.qnn.op.contrib_dense_pack(data, op0, zero, zero, iscale, wscale, "NC32n4c")
+            return relay.qnn.contrib_dense_pack(data, op0, zero, zero, iscale, wscale, "NC32n4c")
 
         target = tvm.target.hexagon("v68")
         with tvm.target.Target(target):
@@ -478,7 +478,7 @@ class TestQnnDense:
         weight = relay.var("weight", shape=weight_shape, dtype=dtype)
         bias = relay.var("bias", shape=bias_shape, dtype="int32")
 
-        op0 = relay.qnn.op.dense(
+        op0 = relay.qnn.dense(
             data,
             weight,
             input_zero_point=relay.const(2),
@@ -488,7 +488,7 @@ class TestQnnDense:
             units=None,
         )
         op1 = relay.nn.bias_add(op0, bias)
-        op2 = relay.qnn.op.requantize(
+        op2 = relay.qnn.requantize(
             op1,
             input_scale=relay.const(1.3),
             input_zero_point=relay.const(4),
@@ -520,7 +520,7 @@ class TestQnnDense:
         data = relay.var("data", shape=data_shape, dtype="uint8")
         weight = relay.var("weight", shape=weight_shape, dtype="int8")
 
-        op0 = relay.qnn.op.dense(
+        op0 = relay.qnn.dense(
             data,
             weight,
             input_zero_point=relay.const(0),
@@ -529,7 +529,7 @@ class TestQnnDense:
             kernel_scale=relay.const(0.19),
             units=64,
         )
-        op1 = relay.qnn.op.requantize(
+        op1 = relay.qnn.requantize(
             op0,
             input_scale=relay.const(0.1),
             input_zero_point=relay.const(0),
@@ -558,7 +558,7 @@ class TestQnnTanh:
         data_shape = [256]
         data = relay.var("data", shape=data_shape, dtype="uint8")
 
-        op = relay.qnn.op.tanh(
+        op = relay.qnn.tanh(
             data,
             scale=relay.const(0.518),
             zero_point=relay.const(137),

@@ -361,7 +361,7 @@ if HAVE_XDIST:
                 # serialized
                 items = {
                     "test_tvm_testing_features": "functional-tests",
-                    "tests/python/unittest/test_crt": "crt-tests",
+                    "tests/python/micro/test_crt": "crt-tests",
                     "tests/python/driver/tvmc": "tvmc-tests",
                 }
 

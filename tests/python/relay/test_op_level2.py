@@ -823,6 +823,30 @@ def test_conv3d_transpose_ncdhw_run():
         tvm.testing.assert_allclose(op_res1.numpy(), ref_res, rtol=1e-5, atol=1e-5)
 
 
+def test_compile_depthwise_conv3d():
+    dshape = [1, 16, 10, 10, 10]
+    wshape = [16, 2, 1, 1, 1]
+    params = {}
+    data = relay.var("data", shape=dshape, dtype="float32")
+    kernel = relay.const(tvm.nd.array(np.ones(shape=wshape).astype(dtype="float32")))
+    mod = tvm.IRModule()
+    res = relay.nn.conv3d(
+        data,
+        kernel,
+        kernel_size=[1, 1, 1],
+        padding=[0] * 3,
+        channels=32,
+        groups=16,
+        data_layout="NCDHW",
+        kernel_layout="OIDHW",
+    )
+    func = relay.Function([data], res)
+    mod = tvm.IRModule.from_expr(func)
+
+    target = "llvm"
+    _ = relay.build(mod, tvm.target.Target(target, host=target))
+
+
 @tvm.testing.uses_gpu
 def test_conv2d_transpose_infer_type():
     # symbolic in batch dimension
@@ -2237,12 +2261,12 @@ def test_conv2d_int8_alter_dtype_arm():
     )
 
 
-@tvm.testing.requires_cascadelake
+@tvm.testing.requires_x86_vnni
 def test_conv2d_int8_alter_dtype_vnni():
     _test_conv2d_int8_alter_dtype("int8", "llvm -mcpu=cascadelake", ["vpdpbusd"])
 
 
-@tvm.testing.requires_skylake_avx512
+@tvm.testing.requires_x86_avx512
 def test_conv2d_int8_alter_dtype_avx512():
     _test_conv2d_int8_alter_dtype(
         "int8", "llvm -mcpu=skylake-avx512", ["pmaddubs", "pmaddw", "vpaddd"]

@@ -44,7 +44,7 @@ only when `instr_siblings` is disabled. By default, it is set to 0.
 By default, it is set to 1.
 
 For additional usage information on various config flags, please refer to the tests in
-`tests/python/unittest/test_tir_transform_profiling_instr.py`
+`tests/python/tir-transform/test_tir_transform_profiling_instr.py`
 
 
 ## How to use lightweight profiling with RPC Launcher:

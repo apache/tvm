@@ -2414,7 +2414,7 @@ def test_all_unary_elemwise():
     _test_forward_unary_elemwise(_test_floor)
     _test_forward_unary_elemwise(_test_exp)
     _test_forward_unary_elemwise(_test_log, negative=False)
-    _test_forward_unary_elemwise(_test_square)
+    _test_forward_unary_elemwise(_test_square, int_quant_dtype=tf.int8)
     _test_forward_unary_elemwise(_test_sin)
     _test_forward_unary_elemwise(_test_neg)
     _test_forward_unary_elemwise(_test_sqrt, negative=False)
@@ -2436,7 +2436,7 @@ def test_all_unary_elemwise():
         # from the converter that we need to provide a custom Tan operator
         # implementation.
         # _test_forward_unary_elemwise(_test_tan)
-        _test_forward_unary_elemwise(_test_elu, quantized=False)
+        _test_forward_unary_elemwise(_test_elu)
 
 
 #######################################################################
@@ -2452,6 +2452,7 @@ def _test_elemwise(
     qnn_op=None,
     same_qnn_params=False,
     comparison_op=False,
+    exclude_zero_point=False,
 ):
     """One iteration of elemwise"""
 
@@ -2479,6 +2480,16 @@ def _test_elemwise(
             if same_qnn_params:
                 inq0_min, inq0_max = (out_min, out_max)
                 inq1_min, inq1_max = (out_min, out_max)
+
+            if exclude_zero_point:
+                if inq1_max == inq1_min:
+                    raise ZeroDivisionError("Input range is 0.")
+
+                # only compute for rhs.
+                quant_scale = 255 / (inq1_max - inq1_min)
+                zero_point = int(round(-inq1_min * quant_scale))
+                data[1][data[1] == zero_point] += 1
+                data[1][data[1] == 0] += 1
 
             # fake_quant will keep the tensors in float32 until the conversion in the session
             inq_data = [
@@ -2619,6 +2630,7 @@ def _test_div(data, fused_activation_function=None, quantized=False, qnn_op=None
         quantized,
         qnn_op,
         same_qnn_params=True,
+        exclude_zero_point=True,
     )
 
 
@@ -2802,6 +2814,7 @@ def _test_floor_divide(data, fused_activation_function=None, quantized=False, qn
         quantized,
         qnn_op,
         same_qnn_params=True,
+        exclude_zero_point=True,
     )
 
 
@@ -2882,7 +2895,7 @@ def _test_elemwise_qnn_out_range(qnn_op):
 
 
 def test_all_elemwise():
-    """All_elewise"""
+    """All_elemwise"""
     _test_forward_elemwise(_test_add)
     _test_forward_elemwise_quantized(_test_add)
     _test_forward_elemwise(partial(_test_add, fused_activation_function="RELU"))
@@ -3423,7 +3436,13 @@ def _test_pad(data, mode="CONSTANT", quantized=False):
                 inq_data[0], ops.convert_to_tensor(data[1], dtype=data[1].dtype), mode=mode
             )
             compare_tflite_with_tvm(
-                [data[0]], ["inq_0:0"], inq_data, [out], quantized=True, input_range=input_range
+                [data[0]],
+                ["inq_0:0"],
+                inq_data,
+                [out],
+                quantized=True,
+                input_range=input_range,
+                experimental_new_converter=True,
             )
         else:
             out = array_ops.pad(
@@ -3492,6 +3511,22 @@ def test_forward_pad():
             np.array([[1, 1], [2, 2]], dtype=np.int32),
         ],
         quantized=True,
+    )
+    _test_pad(
+        [
+            np.arange(0, 256, dtype=np.uint8).reshape((1, 256)),
+            np.array([[1, 1], [2, 2]], dtype=np.int32),
+        ],
+        quantized=True,
+        mode="SYMMETRIC",
+    )
+    _test_pad(
+        [
+            np.arange(0, 256, dtype=np.uint8).reshape((1, 256)),
+            np.array([[0, 0], [2, 2]], dtype=np.int32),
+        ],
+        quantized=True,
+        mode="REFLECT",
     )
 
 

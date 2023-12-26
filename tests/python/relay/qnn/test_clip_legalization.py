@@ -52,7 +52,7 @@ def test_removes_redundant_requantize_clip_ops(dtype, min_val, max_val, is_redun
     the clip operator match the min and max values of the data type."""
 
     input_var = relay.var("input", shape=(1, 3, 3, 4), dtype="int32")
-    out = relay.qnn.op.requantize(
+    out = relay.qnn.requantize(
         input_var,
         tvm_const(np.float32(1.0)),
         tvm_const(np.int32(0)),

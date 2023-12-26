@@ -189,6 +189,8 @@ def docker(
         env["SCCACHE_CACHE_SIZE"] = os.getenv("SCCACHE_CACHE_SIZE", "50G")
         env["SCCACHE_SERVER_PORT"] = os.getenv("SCCACHE_SERVER_PORT", "4226")
 
+    env["PLATFORM"] = name
+
     docker_bash = REPO_ROOT / "docker" / "bash.sh"
 
     command = [docker_bash]
@@ -593,7 +595,7 @@ generated = [
                 "run unit tests",
                 [
                     "./tests/scripts/task_java_unittest.sh",
-                    "./tests/scripts/task_opencl_cpp_unittest.sh",
+                    "./tests/scripts/task_opencl_cpp_unittest.sh {build_dir}",
                     "./tests/scripts/task_python_unittest_gpuonly.sh",
                     "./tests/scripts/task_python_integration_gpuonly.sh",
                 ],

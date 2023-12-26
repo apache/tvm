@@ -1184,7 +1184,7 @@ class ConcatRewriter(DFPatternCallback):
         # Find the tensors that are inputs to the concat and the scales and zero points
         concat_args = list()
         for arg in post.args:
-            if isinstance(arg, tvm.relay.expr.Call):
+            if isinstance(arg, (tvm.relay.expr.Call, tvm.relay.expr.TupleGetItem)):
                 concat_args.append(arg)
 
         axis = post.op.body.attrs.axis
@@ -1216,6 +1216,7 @@ class RequantizeRewriter(DFPatternCallback):
             ifm_zero_point=int(params.ifm.q_params.zero_point),
             ofm_scale=float(params.ofm.q_params.scale_f32),
             ofm_zero_point=int(params.ofm.q_params.zero_point),
+            rounding_mode="NATURAL",
         )
 
 
@@ -1401,6 +1402,101 @@ class FullyConnectedRewriter(DFPatternCallback):
         return ethosu_fc
 
 
+class MatMulRewriter(DFPatternCallback):
+    """Legalize matrix multiplication to an NPU operator"""
+
+    def __init__(self):
+        super().__init__(require_type=True)
+        self.pattern = (
+            wildcard().has_attr({"Composite": ethosu_patterns.MatMulParams.composite_name})
+        )(wildcard(), wildcard())
+
+    def callback(self, pre, post, node_map):
+        params = ethosu_patterns.MatMulParams(post.op.body)
+        ifm = post.args[0]
+        ifm2 = post.args[1]
+        lut = relay.const([], dtype="int8")
+        activation_map = {"clip": "CLIP"}
+        if params.activation:
+            activation = activation_map[params.activation.op.name]
+            clip_min = int(params.activation.attrs.a_min)
+            clip_max = int(params.activation.attrs.a_max)
+        else:
+            activation = "NONE"
+            clip_min = 0
+            clip_max = 0
+
+        # Reshape ifm to NHWC
+        ifm = relay.reshape(ifm, (1, 1, *params.ifm.shape))
+        # Split the second matrix to get columns
+        columns = list(relay.op.split(ifm2, params.ofm.shape[-1], axis=0))
+
+        res_columns = []
+        for column in columns:
+            ifm2 = relay.reshape(column, (1, 1, 1, params.ifm.shape[-1]))
+            # Multiplying the first matrix by a column
+            ethosu_binary_elementwise = ethosu_ops.ethosu_binary_elementwise(
+                ifm=ifm,
+                ifm2=ifm2,
+                lut=lut,
+                operator_type="MUL",
+                ifm_zero_point=int(params.ifm.q_params.zero_point),
+                ifm_scale=0.0,
+                ifm2_zero_point=int(params.weights.q_params.zero_point),
+                ifm2_scale=0.0,
+                ofm_scale=0.0,
+                ofm_zero_point=0,
+                ifm_channels=params.ifm.shape[-1],
+                ifm2_channels=params.ifm.shape[-1],
+                reversed_operands=False,
+                ofm_dtype="int32",
+            )
+
+            # Use reduce sum to get result column
+            reduce_sum = ethosu_ops.ethosu_pooling(
+                ifm=ethosu_binary_elementwise,
+                lut=lut,
+                pooling_type="SUM",
+                ifm_zero_point=0,
+                ifm_scale=float(params.weights.q_params.scale_f32)
+                * float(params.ifm.q_params.scale_f32),
+                ofm_scale=float(params.ofm.q_params.scale_f32),
+                ofm_zero_point=0,
+                pool_shape=(1, 1),
+                ofm_channels=1,
+                ofm_dtype="int32",
+                activation=activation,
+                clip_min=clip_min,
+                clip_max=clip_max,
+                rounding_mode="NATURAL",
+            )
+
+            # Convert tensor dtype from int32 to int8
+            scalar_tensor = relay.const(np.ones([1, 1, 1, 1], dtype="int32"), dtype="int32")
+            reduce_sum = ethosu_ops.ethosu_binary_elementwise(
+                ifm=reduce_sum,
+                ifm2=scalar_tensor,
+                lut=lut,
+                operator_type="MUL",
+                ifm_scale=0.0,
+                ifm_zero_point=0,
+                ifm2_scale=0.0,
+                ifm2_zero_point=0,
+                ofm_scale=0.0,
+                ofm_zero_point=int(params.ofm.q_params.zero_point),
+                ifm_channels=1,
+                ifm2_channels=1,
+                reversed_operands=False,
+                ofm_dtype="int8",
+            )
+
+            res_columns.append(reduce_sum)
+
+        # Concatenate result columns
+        concat = relay.op.concatenate(relay.Tuple(res_columns), axis=3)
+        return relay.reshape(concat, params.ofm.shape)
+
+
 class PadRewriter(DFPatternCallback):
     """Convert ethos-u.pad2d composite function to ethosu_depthwise_conv2d
     operator"""
@@ -1546,12 +1642,13 @@ class LegalizeEthosU:
         """
         rewriters = [
             PartitionedSplitRewriter(),
+            FullyConnectedRewriter(),
+            MatMulRewriter(),
             SplitRewriter(),
             ChannelPadRewriter(),
             Conv2DRewriter(),
             Conv2DTransposeRewriter(),
             DepthwiseConv2DRewriter(),
-            FullyConnectedRewriter(),
             MaxPoolingRewriter(),
             AvgPoolingRewriter(),
             PadRewriter(),

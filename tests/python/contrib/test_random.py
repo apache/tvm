@@ -14,16 +14,19 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+"""Configure pytest"""
+# pylint: disable=invalid-name
+import threading
+import numpy as np
 import tvm
 from tvm import te
-import numpy as np
 from tvm.contrib import random
 from tvm import rpc
 import tvm.testing
-import threading
 
 
 def test_randint():
+    """Tests randint function"""
     m = 10240
     n = 10240
     A = random.randint(-127, 128, size=(m, n), dtype="int32")
@@ -49,6 +52,7 @@ def test_randint():
 
 
 def test_uniform():
+    """Tests uniform function"""
     m = 10240
     n = 10240
     A = random.uniform(0, 1, size=(m, n))
@@ -74,6 +78,7 @@ def test_uniform():
 
 
 def test_normal():
+    """Tests normal function"""
     m = 10240
     n = 10240
     A = random.normal(3, 4, size=(m, n))
@@ -99,6 +104,8 @@ def test_normal():
 
 @tvm.testing.uses_gpu
 def test_random_fill():
+    """Tests random_fill function"""
+
     def test_local(dev, dtype):
         if not tvm.get_global_func("tvm.contrib.random.random_fill", True):
             print("skip because extern function is not available")
@@ -119,8 +126,6 @@ def test_random_fill():
             return
         if not tvm.testing.device_enabled("rpc") or not tvm.runtime.enabled("llvm"):
             return
-
-        np_ones = np.ones((512, 512), dtype=dtype)
 
         def check_remote(server):
             remote = rpc.connect(server.host, server.port)
@@ -171,7 +176,7 @@ def test_random_fill_mt():
             test_input = tvm.runtime.ndarray.empty((10, 10))
             random_fill = tvm.get_global_func("tvm.contrib.random.random_fill_for_measure")
             random_fill(test_input)
-        except:
+        except:  # pylint: disable=bare-except
             nonlocal no_exception_happened
             no_exception_happened = False
 

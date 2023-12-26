@@ -61,7 +61,7 @@ def get_mod(
     else:
         input_zero_point_expr = relay.const(np.array(input_zero_point).astype("int32"))
 
-    mod = relay.qnn.op.requantize(
+    mod = relay.qnn.requantize(
         input_data,
         input_scale=input_scale_expr,
         input_zero_point=input_zero_point_expr,
@@ -568,7 +568,7 @@ def test_default_cfg_and_no_args():
 def test_non_default_cfg_and_no_args():
     for rounding_cfg in roundings:
         for qnn_out_dtype in out_dtypes:
-            with relay.qnn.op.requantize_config(rounding=rounding_cfg):
+            with relay.qnn.requantize_config(rounding=rounding_cfg):
                 mod = get_mod(
                     data_shape=(32,),
                     data_dtype="int32",
@@ -589,7 +589,7 @@ def test_non_default_cfg_and_no_args():
 def test_default_cfg_and_args():
     for rounding in roundings:
         for qnn_out_dtype in out_dtypes:
-            with relay.qnn.op.requantize_config(rounding="UPWARD"):
+            with relay.qnn.requantize_config(rounding="UPWARD"):
                 mod = get_mod(
                     data_shape=(32,),
                     data_dtype="int32",
@@ -612,7 +612,7 @@ def test_non_default_cfg_and_args():
     for rounding_arg in roundings:
         for rounding_cfg in roundings:
             for qnn_out_dtype in out_dtypes:
-                with relay.qnn.op.requantize_config(rounding=rounding_cfg):
+                with relay.qnn.requantize_config(rounding=rounding_cfg):
                     mod = get_mod(
                         data_shape=(32,),
                         data_dtype="int32",
