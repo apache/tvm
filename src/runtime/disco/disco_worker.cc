@@ -37,7 +37,7 @@ struct ThreadLocalDiscoWorker {
   }
 };
 
-DiscoWorker* DiscoWorker::ThreadLocal() {
+TVM_DLL DiscoWorker* DiscoWorker::ThreadLocal() {
   DiscoWorker* ret = ThreadLocalDiscoWorker::Get()->worker;
   CHECK(ret) << "ValueError: The current thread is not a DiscoWorker thread";
   return ret;

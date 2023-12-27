@@ -54,7 +54,7 @@ class VirtualMachine(object):
 
         Parameters
         ----------
-        mod: Union[tvm.runtime.Module, tvm.relax.Executable]
+        rt_mod: Union[tvm.runtime.Module, tvm.relax.Executable]
             Runtime module exported by the result of build.
 
         device : Union[Device, List[Device]]
@@ -106,11 +106,6 @@ class VirtualMachine(object):
                                 List[Device]"
                 )
             devs = [dev]
-
-        if any(dev.device_type % RPC_SESS_MASK == tvm.cpu().device_type for dev in devs[:-1]):
-            raise RuntimeError(
-                "CPU host is required to be the last element of the device list if provided."
-            )
 
         # CPU is required for executing shape functions
         if devs[-1].device_type % RPC_SESS_MASK != tvm.cpu().device_type:

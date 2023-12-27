@@ -18,7 +18,8 @@
  */
 /*!
  * \file src/relax/transform/call_tir_rewrite.cc
- * \brief Perform explicit tensor allocation for call_tir.
+ * \brief Perform explicit tensor allocation for call_tir,
+ *        call_tir_inplace, and call_dps_packed.
  */
 #include <tvm/relax/attrs/op.h>
 #include <tvm/relax/expr_functor.h>
@@ -28,6 +29,7 @@
 #include <tvm/tir/op.h>
 
 #include "../../relay/transforms/pattern_utils.h"
+#include "utils.h"
 
 namespace tvm {
 namespace relax {
@@ -43,6 +45,19 @@ namespace relax {
 
 class CallTIRMutator : public ExprMutator {
  public:
+  explicit CallTIRMutator(const IRModule& mod) : ExprMutator(mod), mod_(std::move(mod)) {}
+
+  IRModule Run() {
+    for (const auto& [gv, func] : mod_->functions) {
+      if (func->IsInstance<FunctionNode>()) {
+        auto updated_func = Downcast<Function>(this->VisitExpr(func));
+        builder_->UpdateFunction(gv, Downcast<BaseFunc>(updated_func));
+      }
+    }
+    return builder_->GetContextIRModule();
+  }
+
+ private:
   using ExprMutator::VisitExpr_;
   Expr VisitExpr_(const CallNode* call) override {
     // post-order mutation
@@ -65,11 +80,15 @@ class CallTIRMutator : public ExprMutator {
         const TensorStructInfo& tensor_sinfo = _tensor_sinfo.value();
         ICHECK(tensor_sinfo->shape.defined())
             << "the TensorStructInfo shape of call_tir has not populated";
+        int dev_index = 0;
+        if (tensor_sinfo->vdevice.defined()) {
+          dev_index = GetDeviceIndex(mod_, tensor_sinfo->vdevice.value());
+        }
         if (!is_inplace) {
           outs.push_back(
-              builder_->Emit(Call(alloc_tensor_op,  //
+              builder_->Emit(Call(alloc_tensor_op,
                                   {Downcast<ShapeExpr>(tensor_sinfo->shape.value()),
-                                   DataTypeImm(tensor_sinfo->dtype), PrimValue::Int64(0)},  //
+                                   DataTypeImm(tensor_sinfo->dtype), PrimValue::Int64(dev_index)},
                                   Attrs()),
                              "alloc"));
         } else {
@@ -150,16 +169,20 @@ class CallTIRMutator : public ExprMutator {
 
     return GetRef<Expr>(call);
   }
-};
 
-Expr CallTIRRewrite(const Expr& e) { return CallTIRMutator().VisitExpr(e); }
+  /*! \brief The context IRModule. */
+  IRModule mod_;
+};
 
 namespace transform {
 
 Pass CallTIRRewrite() {
-  runtime::TypedPackedFunc<Function(Function, IRModule, PassContext)> pass_func =
-      [=](Function f, IRModule m, PassContext pc) { return Downcast<Function>(CallTIRRewrite(f)); };
-  return CreateFunctionPass(pass_func, 0, "CallTIRRewrite", {});
+  runtime::TypedPackedFunc<IRModule(IRModule, PassContext)> pass_func =
+      [=](IRModule mod, PassContext pc) { return CallTIRMutator(mod).Run(); };
+  return CreateModulePass(/*pass_function=*/pass_func,
+                          /*opt_level=*/0,
+                          /*pass_name=*/"CallTIRRewrite",
+                          /*required=*/{});
 }
 
 TVM_REGISTER_GLOBAL("relax.transform.CallTIRRewrite").set_body_typed(CallTIRRewrite);

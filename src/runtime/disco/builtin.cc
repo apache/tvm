@@ -85,11 +85,11 @@ void AllReduce(NDArray send, ReduceKind reduce_kind, NDArray recv) {
 
 void AllGather(NDArray send, NDArray recv) { GetCCLFunc("allgather")(send, recv); }
 
-void BroadcastFromWorker0(NDArray send, NDArray recv) {
+TVM_DLL void BroadcastFromWorker0(NDArray send, NDArray recv) {
   GetCCLFunc("broadcast_from_worker0")(send, recv);
 }
 
-void ScatterFromWorker0(Optional<NDArray> send, NDArray recv) {
+TVM_DLL void ScatterFromWorker0(Optional<NDArray> send, NDArray recv) {
   GetCCLFunc("scatter_from_worker0")(send, recv);
 }
 

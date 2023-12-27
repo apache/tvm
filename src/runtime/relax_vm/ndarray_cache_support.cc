@@ -123,7 +123,7 @@ NDArrayCacheMetadata NDArrayCacheMetadata::LoadFromStr(const std::string& json_s
   return result;
 }
 
-NDArrayCacheMetadata NDArrayCacheMetadata::Load(const std::string& path) {
+TVM_DLL NDArrayCacheMetadata NDArrayCacheMetadata::Load(const std::string& path) {
   picojson::value json_info;
   {
     std::string json_str;
@@ -183,10 +183,11 @@ NDArray NDArrayCacheMetadata::FileRecord::ParamRecord::Load(
   return arr;
 }
 
-Array<NDArray> NDArrayCacheMetadata::FileRecord::Load(Device device,
-                                                      const std::string& path_prefix,  //
-                                                      std::string* raw_data_buffer,    //
-                                                      Optional<NDArray>* staging_buffer) const {
+TVM_DLL Array<NDArray> NDArrayCacheMetadata::FileRecord::Load(
+    Device device,
+    const std::string& path_prefix,  //
+    std::string* raw_data_buffer,    //
+    Optional<NDArray>* staging_buffer) const {
   LoadBinaryFromFile(path_prefix + "/" + this->data_path, raw_data_buffer);
   CHECK_EQ(this->format, "raw-shard") << "ValueError: Only `raw-shard` format is supported";
   CHECK_EQ(this->nbytes, raw_data_buffer->length())

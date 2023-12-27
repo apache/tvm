@@ -383,6 +383,17 @@ inline String GetCodegenName(const std::string& composite_name) {
   return composite_name.substr(0, delim_pos);
 }
 
+inline int GetDeviceIndex(const IRModule& mod, const VDevice& vdevice) {
+  Array<GlobalInfo> vdevices = mod->global_infos["vdevice"];
+  for (int i = 0; i < static_cast<int>(vdevices.size()); ++i) {
+    if (vdevices[i] == vdevice) {
+      return i;
+    }
+  }
+  LOG(FATAL) << "The vdevice is not in the ir_module.";
+  return -1;
+}
+
 /* \brief Eliminate common subexpressions
  *
  * Utility for simplifying relax expressions by removing common

@@ -63,10 +63,10 @@ struct NDArrayCacheMetadata {
     };
 
     /*! \brief Load a FileRecord into memory */
-    Array<NDArray> Load(Device device,                   //
-                        const std::string& path_prefix,  //
-                        std::string* raw_data_buffer,    //
-                        Optional<NDArray>* staging_buffer = nullptr) const;
+    TVM_DLL Array<NDArray> Load(Device device,                   //
+                                const std::string& path_prefix,  //
+                                std::string* raw_data_buffer,    //
+                                Optional<NDArray>* staging_buffer = nullptr) const;
 
     /*! \brief Relative path to the bin file */
     std::string data_path;
@@ -83,7 +83,7 @@ struct NDArrayCacheMetadata {
   std::string path;
 
   /*! \brief Load the metadata from a specific directory */
-  static NDArrayCacheMetadata Load(const std::string& path);
+  TVM_DLL static NDArrayCacheMetadata Load(const std::string& path);
   /*! \brief Load the metadata from a given JSON string */
   static NDArrayCacheMetadata LoadFromStr(const std::string& json_str, const std::string& path);
 };

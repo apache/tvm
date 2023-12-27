@@ -68,7 +68,7 @@ def _get_config(
     }
 
 
-def get_tool_config(tool_type):
+def get_tool_config(tool_type, use_distill=False):
     """Get config for the tool"""
     config = {}
     if tool_type == ToolType.PRUNER:
@@ -128,6 +128,17 @@ def get_tool_config(tool_type):
                 }
             ],
         }
+    if use_distill:
+        distill_config = {
+            "plan_file": "msc_distiller.json",
+            "strategys": [
+                {
+                    "method": "loss_lp_norm",
+                    "op_types": ["loss"],
+                },
+            ],
+        }
+        return {tool_type: config, ToolType.DISTILLER: distill_config}
     return {tool_type: config}
 
 
@@ -228,6 +239,16 @@ def test_tvm_tool(tool_type):
     )
 
 
+@pytest.mark.parametrize("tool_type", [ToolType.PRUNER, ToolType.QUANTIZER])
+def test_tvm_distill(tool_type):
+    """Test tools for tvm with distiller"""
+
+    tool_config = get_tool_config(tool_type, use_distill=True)
+    _test_from_torch(
+        MSCFramework.TVM, tool_config, get_model_info(MSCFramework.TVM), is_training=True
+    )
+
+
 @requires_tensorrt
 @pytest.mark.parametrize(
     "tool_type",
@@ -250,6 +271,17 @@ def test_tensorrt_tool(tool_type):
         atol=5e-2,
         rtol=5e-2,
         optimize_type=optimize_type,
+    )
+
+
+@requires_tensorrt
+@pytest.mark.parametrize("tool_type", [ToolType.PRUNER])
+def test_tensorrt_distill(tool_type):
+    """Test tools for tensorrt with distiller"""
+
+    tool_config = get_tool_config(tool_type, use_distill=True)
+    _test_from_torch(
+        MSCFramework.TENSORRT, tool_config, get_model_info(MSCFramework.TENSORRT), is_training=False
     )
 
 

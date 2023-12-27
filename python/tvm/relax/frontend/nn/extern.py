@@ -371,17 +371,24 @@ class SourceModule(ExternModule):  # pylint: disable=too-few-public-methods
         """Compiles the source code in a provided directory and returns the compiled artifact."""
         with tempfile.TemporaryDirectory() as temp_dir_str:
             temp_dir = Path(temp_dir_str)
-            source_path = temp_dir / f"main{self.source_suffix}"
-            object_path = temp_dir / f"main{self.output_suffix}"
+            source_filename = f"main{self.source_suffix}"
+            object_filename = f"main{self.output_suffix}"
+            source_path = temp_dir / source_filename
+            object_path = temp_dir / object_filename
             with source_path.open("w", encoding="utf-8") as file:
                 file.write(self.source_code)
             _cc.create_shared(
-                output=str(object_path),
-                objects=[str(source_path)],
+                output=object_filename,
+                objects=[source_filename],
                 options=self.compile_options,
                 cc=self.compiler,
                 cwd=temp_dir,
-                ccache_env={"CCACHE_COMPILERCHECK": "content"} if shutil.which("ccache") else None,
+                ccache_env={
+                    "CCACHE_COMPILERCHECK": "content",
+                    "CCACHE_NOHASHDIR": "1",
+                }
+                if shutil.which("ccache")
+                else None,
             )
             shutil.move(str(object_path), str(output_path))
 
