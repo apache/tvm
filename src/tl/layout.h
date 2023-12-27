@@ -127,8 +127,8 @@ class Fragment : public Layout {
 
 bool FragmentThreadEqual(const Fragment& a, const Fragment& b);
 
-Fragment makeGemmFragmentC(const int block_m, const int block_n, const int warp_m,
-                           const int warp_n);
+Fragment makeGemmFragmentC(const int block_m, const int block_n, const int warp_m, const int warp_n,
+                           const int element_size);
 Fragment makeGemmFragmentA(const int block_m, const int block_n, const int block_k,
                            const int warp_m, const int warp_n);
 Fragment makeGemmFragmentB(const int block_m, const int block_n, const int block_k,

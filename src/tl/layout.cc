@@ -399,12 +399,25 @@ Fragment makeGemmFragment8x8Transposed() {
   return Fragment({i, j}, {index}, forward_thread, rep);
 }
 
-Fragment makeGemmFragmentC(const int block_m, const int block_n, const int warp_m,
-                           const int warp_n) {
+Fragment makeGemmFragmentC_F64(const int block_m, const int block_n, const int warp_m,
+                               const int warp_n) {
   ICHECK(block_m % warp_m == 0);
   ICHECK(block_n % warp_n == 0);
   ICHECK(warp_m % 16 == 0);
-  ICHECK(warp_n % 8 == 0);
+  ICHECK(warp_n % 16 == 0);
+  auto base_layout = makeGemmFragment8x8();
+  auto warp_layout = base_layout->Repeat({block_m / warp_m, block_n / warp_n}, true, false);
+  auto block_layout = warp_layout->Repeat({warp_m / 8, warp_n / 8}, false, false);
+  return block_layout;
+}
+
+Fragment makeGemmFragmentC(const int block_m, const int block_n, const int warp_m, const int warp_n,
+                           const int element_size) {
+  if (element_size == 64) return makeGemmFragmentC_F64(block_m, block_n, warp_m, warp_n);
+  ICHECK(block_m % warp_m == 0);
+  ICHECK(block_n % warp_n == 0);
+  ICHECK(warp_m % 16 == 0);
+  ICHECK(warp_n % 16 == 0);
   auto base_layout = makeGemmFragment8x8()->Repeat({2, 1}, false);
   auto warp_layout = base_layout->Repeat({block_m / warp_m, block_n / warp_n}, true, false);
   auto block_layout = warp_layout->Repeat({warp_m / 16, warp_n / 8}, false, false);
@@ -539,72 +552,30 @@ Layout makeGemmABLayoutFullBank(int stride, int continuous, int element_size) {
   return Layout({i, j}, {tc, ts, index});
 }
 
-Layout makeGemmABLayoutF32Congruous(int stride, int continuous) {
-  //   int tc = coord.contiguous() / 32;
-  //   int ts = coord.strided() / 4;
-  //   int c = (coord.contiguous() % 32) / kElementsPerAccess;
-  //   int s = coord.strided() % 4;
-  //   LongIndex offset = (c ^ (2 * s)) * kElementsPerAccess + s * stride_[0] +
-  //                      tc * 32 + ts * stride_[0] * 4 + coord.contiguous() % 4;
-  IterVar i = make_itervar("i", stride);
-  IterVar j = make_itervar("j", continuous);
-
-  PrimExpr tc = FloorDiv(j, 32);
-  PrimExpr ts = FloorDiv(i, 4);
-  PrimExpr c = FloorDiv(FloorMod(j, 32), 4);
-  PrimExpr s = FloorMod(i, 4);
-  PrimExpr x = FloorMod(c, 2) + 2 * xor4x4(FloorDiv(c, 2), s);
-  PrimExpr final_offset = x * 4 + s * continuous + tc * 32 + ts * continuous * 4 + FloorMod(j, 4);
-  return Layout({i, j}, {final_offset});
-}
-
-Layout makeGemmABLayoutF64Congruous(int stride, int continuous) {
-  // int tc = coord.contiguous() / 16;
-  // int ts = coord.strided() / 4;
-  // int c = coord.contiguous() % 16;
-  // int s = coord.strided() % 4;
-  // int bank = ((((c & 1) * 4 + (c & 6) / 2)) ^ (s & 1)) * 2 + (c / 8);
-  // int row = (c & 6) / 2;
-  // bank ^= ((s & 2) * 2);
-  // LongIndex offset = tc * 16 + bank + (ts * 4 + row) * stride_[0];
+Layout makeGemmABLayoutF64_Kinner(int stride, int continuous) {
+  // Swizzle<2, 0, 4>
   IterVar i = make_itervar("i", stride);
   IterVar j = make_itervar("j", continuous);
   PrimExpr tc = FloorDiv(j, 16);
   PrimExpr ts = FloorDiv(i, 4);
   PrimExpr c = FloorMod(j, 16);
   PrimExpr s = FloorMod(i, 4);
-  PrimExpr row = FloorMod(FloorDiv(c, 2), 4);
-  PrimExpr bank = FloorMod(c, 2) * 8 + xor4x4(row, s) * 2 + FloorDiv(c, 8);
-  PrimExpr offset = tc * 16 + bank + (ts * 4 + row) * continuous;
-  return Layout({i, j}, {offset});
+  PrimExpr swizzled_c = FloorDiv(c, 4) * 4 + xor4x4(FloorMod(c, 4), s);
+  PrimExpr index = swizzled_c + s * 16;
+  return Layout({i, j}, {tc, ts, index});
 }
 
-Layout makeGemmABLayoutF64Crosswise(int stride, int continuous) {
-  // int tc = coord.contiguous() / 16;
-  // int ts = coord.strided() / 16;
-  // int c = coord.contiguous() % 16;
-  // int s = coord.strided() % 16;
-  // int k_group = c / 4;
-  // int access_s = s / 2;
-  // int row = access_s % 4;
-  // int bank = ((k_group & 2) << 2) ^ ((s % 2) << 3) + (c % 4) * 2 + (access_s / 4) ^ (k_group &
-  // 1); int smem_row = (k_group * 4 + row) + tc * 16; int smem_col = ts * 16 + bank; LongIndex
-  // offset = smem_row * stride_[0] + smem_col;
+Layout makeGemmABLayoutF64_Kouter(int stride, int continuous) {
+  // Swizzle<2, 2, 2>
   IterVar i = make_itervar("i", stride);
   IterVar j = make_itervar("j", continuous);
   PrimExpr tc = FloorDiv(j, 16);
-  PrimExpr ts = FloorDiv(i, 16);
+  PrimExpr ts = FloorDiv(i, 4);
   PrimExpr c = FloorMod(j, 16);
-  PrimExpr s = FloorMod(i, 16);
-  PrimExpr k_group = FloorDiv(c, 4);
-  PrimExpr access_s = FloorDiv(s, 2);
-  PrimExpr row = FloorMod(access_s, 4);
-  PrimExpr bank = xor2x2(FloorDiv(k_group, 2), FloorMod(s, 2)) * 8 + FloorMod(c, 4) * 2 +
-                  xor2x2(FloorDiv(access_s, 4), FloorMod(k_group, 2));
-  PrimExpr smem_row = (k_group * 4 + row) + tc * 16;
-  PrimExpr smem_col = ts * 16 + bank;
-  PrimExpr offset = smem_row * stride + smem_col;
-  return Layout({i, j}, {offset});
+  PrimExpr s = FloorMod(i, 4);
+  PrimExpr swizzled_c = FloorMod(c, 4) + xor4x4(FloorDiv(c, 4), s) * 4;
+  PrimExpr index = swizzled_c + s * 16;
+  return Layout({i, j}, {tc, ts, index});
 }
 
 Layout makeGemmABLayoutPadded(int stride, int continuous, int element_size) {
@@ -612,44 +583,8 @@ Layout makeGemmABLayoutPadded(int stride, int continuous, int element_size) {
   IterVar j = make_itervar("j", continuous);
   int padded = continuous;
   // Add 128 bits padding when the last dim is a multiple of 256 bits
-  // if ((element_size * continuous) % 256 == 0) padded += 128 / element_size;
+  if ((element_size * continuous) % 256 == 0) padded += 128 / element_size;
   return Layout({i, j}, {i * padded + j});
-}
-
-Layout makeGemmABLayoutCommon(int stride, int continuous, int element_size, int kfactor) {
-  int access_elements = 128 / element_size;
-  ICHECK(kfactor == 1 || kfactor == 2);
-  // can satisfy 8 x 128bits access
-  ICHECK(continuous * element_size * kfactor % 1024 == 0);
-  int tile_shape[2] = {8 / kfactor, std::max(8 / kfactor, 4)};
-  int partition_shape[2] = {4, 4};
-  IterVar i = make_itervar("i", stride);
-  IterVar j = make_itervar("j", continuous);
-  PrimExpr vec_contiguous_idx = FloorDiv(j, access_elements);
-  PrimExpr vec_strided_idx = FloorDiv(i, kfactor);
-  PrimExpr tile_contiguous_idx = FloorDiv(vec_contiguous_idx, tile_shape[1]);
-  PrimExpr tile_contiguous_residual =
-      FloorMod(vec_contiguous_idx, tile_shape[1]) + FloorMod(i, kfactor) * tile_shape[1];
-  PrimExpr tile_strided_residual = FloorMod(vec_strided_idx, tile_shape[0]);
-
-  PrimExpr partition_contiguous_idx = FloorDiv(tile_contiguous_residual, partition_shape[1]);
-  PrimExpr partition_strided_idx = FloorDiv(tile_strided_residual, partition_shape[0]);
-  PrimExpr partition_contiguous_residual = FloorMod(tile_contiguous_residual, partition_shape[1]);
-  PrimExpr partition_strided_residual = FloorMod(tile_strided_residual, partition_shape[0]);
-
-  PrimExpr permuted_vec_contiguous_within_partition =
-      xor4x4(partition_contiguous_residual, partition_strided_residual);
-  PrimExpr permuted_partition_contiguous_within_tile =
-      xor2x2(partition_contiguous_idx, partition_strided_idx);
-
-  PrimExpr element_contiguous =
-      (permuted_vec_contiguous_within_partition + tile_contiguous_idx * tile_shape[1] * kfactor +
-       permuted_partition_contiguous_within_tile * partition_shape[1]) *
-          access_elements +
-      FloorMod(j, access_elements);
-
-  PrimExpr final_offset = vec_strided_idx * continuous * kfactor + element_contiguous;
-  return Layout({i, j}, {final_offset});
 }
 
 Layout MakeGemmVoltaABLayoutCrosswise(int stride, int continuous) {
@@ -724,13 +659,22 @@ Layout makeGemmVoltaABLayout(int stride, int continuous, bool is_a, int kfactor)
 }
 
 Layout makeGemmABLayout(int stride, int continuous, int element_size, int kfactor) {
+  if (element_size == 64) {
+    if (kfactor == 1 && continuous % 16 == 0)  // float64 KxN
+      return makeGemmABLayoutF64_Kouter(stride, continuous);
+    if (kfactor == 2 && continuous % 16 == 0)  // float64 NxK
+      return makeGemmABLayoutF64_Kinner(stride, continuous);
+    return makeGemmABLayoutPadded(stride, continuous, element_size);
+  }
   int vector_size = 128 / element_size;
-  if (continuous % (vector_size * 8) == 0)
+  if (kfactor == 1 && element_size == 8)  // int8 KxN
+    return makeGemmABLayoutPadded(stride, continuous, element_size);
+  else if (continuous % (vector_size * 8) == 0)
     return makeGemmABLayoutFullBank(stride, continuous, element_size);
   else if (continuous % (vector_size * 4) == 0)
     return makeGemmABLayoutHalfBank(stride, continuous, element_size);
   else {
-    ICHECK(0);
+    return makeGemmABLayoutPadded(stride, continuous, element_size);
   }
 }
 

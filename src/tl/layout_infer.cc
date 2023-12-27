@@ -213,7 +213,8 @@ LayoutMap GemmOpLayoutInfer::Inference(const LayoutMap& layout_map, InferLevel l
                                               *as_const_int(args.B->shape[1]), false,
                                               args.trans_B ? 2 : 1));
   } else if (TargetIsAmpere(target_) || TargetIsTuring(target_)) {
-    auto fragment = makeGemmFragmentC(args.M, args.N, args.M / warp_m, args.N / warp_n);
+    auto fragment =
+        makeGemmFragmentC(args.M, args.N, args.M / warp_m, args.N / warp_n, args.C->dtype.bits());
     results.Set(args.C, fragment);
 
     if (args.A.scope() == "shared" || args.A.scope() == "shared.dyn") {

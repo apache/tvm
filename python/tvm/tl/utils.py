@@ -41,8 +41,6 @@ def get_tensor_supply(supply_type: TensorSupplyType):
         dtype = torch.__getattribute__(str(tensor.dtype))
         device = torch.cuda.current_device()
         shape = list(map(int, tensor.shape))
-        if not dtype.is_floating_point:
-            return torch.ones(*shape, device=device, dtype=dtype)
         if supply_type == TensorSupplyType.Integer:
             return torch.randint(low=-2, high=3, size=shape, device=device, dtype=dtype)
         elif supply_type == TensorSupplyType.Uniform:
