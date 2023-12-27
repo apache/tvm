@@ -7,8 +7,55 @@ from tvm.dlight.base.roller.policy.default import PrimFuncNode
 from tvm.dlight.base.roller.arch import CUDA
 from tvm.dlight.gpu import ElementWise, GeneralReduction, GEMV
 from tvm.dlight.gpu import Fallback
-from tvm.dlight.base.utils import apply_and_build_parallel
+from tvm.dlight.base.utils import apply_and_build_parallel, apply_and_build
+from tvm import te
 
+
+def gemv_i4(M, N, K, dtype="float16"):
+    bit = 4
+    n_float_per_i8 = 8 // bit
+
+    def _tir_u8_to_int_to_float(nbit: int, val: tvm.tir.PrimExpr, pos: tvm.tir.PrimExpr, dtype: str):
+        assert val.dtype == "int8"
+        mask = tvm.tir.const((1 << nbit) - 1, "int8")
+        return ((val >> (pos * nbit).astype("int8")) & mask).astype(dtype)
+    
+    A = te.placeholder((M, K), name='A', dtype=dtype)
+    B = te.placeholder((N, K // 8 * bit), name='B', dtype='int8')
+    
+    def decode_func(n, k):
+        w = _tir_u8_to_int_to_float(bit, B[n, k // n_float_per_i8], k % n_float_per_i8, dtype=dtype)
+        return w
+
+    B_decode = te.compute(
+        (N, K),
+        decode_func,
+        name='B_decode'
+    )
+
+    # Describe the matrix multiplication in TE
+    k = te.reduce_axis((0, K), name='k')
+    C = te.compute(
+        (M, N),
+        lambda i, j: te.sum(A[i, k] * B_decode[j, k], axis=k),
+        name='C'
+    )
+    func = te.create_prim_func([A, B, C]).with_attr("inconsistent", {
+        'B': {
+            'decode_block': 'B_decode',
+            'fast_decoding': True,
+            'source_format':{
+                'bits': 4,
+                'format': 'int',
+            },
+            'target_format':{
+                'bits': 16,
+                'format': 'float',
+            }
+        }
+    })
+    return tvm.IRModule.from_expr(func)
+    
 def gemv(
     M, N, K, dtype="float16"
 ):
@@ -32,9 +79,10 @@ def gemv(
 
 benchmark_sets = [
     # (prim_func, input_args, fast_dlight_schedule, default_dlight_schedule),
-    (gemv, (1, 1024, 1024, "float16"), GEMV, GEMV),
-    (gemv, (1, 8192, 8192, "float16"), GEMV, GEMV),
-    (gemv, (1, 16384, 16384, "float16"), GEMV, GEMV),
+    # (gemv, (1, 1024, 1024, "float16"), GEMV, GEMV),
+    # (gemv, (1, 8192, 8192, "float16"), GEMV, GEMV),
+    # (gemv, (1, 16384, 16384, "float16"), GEMV, GEMV),
+    (gemv_i4, (1, 16384, 16384, "float16"), GEMV, GEMV),
 ]
 benchmark_results = {}
 for get_prim_func, input_args, f_schedule, d_schedule in benchmark_sets:
@@ -43,11 +91,11 @@ for get_prim_func, input_args, f_schedule, d_schedule in benchmark_sets:
     target = tvm.target.Target("nvidia/nvidia-a100")
     arch = CUDA(target)
     policy = DefaultPolicy(func=func, arch=arch)
-    configs = policy.emit_config(20)
+    configs = policy.emit_config(1)
     rule = f_schedule()
     
     tune_start = time.time()
-    cpresults, best = apply_and_build_parallel(func, rule, configs, arch)
+    cpresults, best = apply_and_build(func, rule, configs, arch, parallel_build=False)
     fast_tune_time = time.time() - tune_start
     print("[FastDlight] The best latency of top 1 is {:.3f} ms".format(cpresults[0].latency * 1e3))
     print("[FastDlight] The best latency of top 20 is {:.3f} ms".format(best.latency * 1e3))
@@ -72,7 +120,8 @@ for get_prim_func, input_args, f_schedule, d_schedule in benchmark_sets:
         mod_default.entry_name, arch.device, number=5)
     t = timer_cuda_mod(*profile_tensors).mean
 
-
+    print(best.code)
+    print(best.mod)
     print("Time cost of Dlight default schedule: {:.3f} ms".format(t * 1e3))
     
     profile_config = {
@@ -103,10 +152,10 @@ for config, values in benchmark_results.items():
     row = [
         func_name,
         input_args,
-        f" {str(values['fast_dlight_top20_tune_time'])} s",
+        f"{values['fast_dlight_top20_tune_time']:.3f} s",
         f"{values['fast_dlight_top1_latency']:.3f} ms",
         f"{values['fast_dlight_top20_latency']:.3f} ms",
-        str(values['default_dlight_tune_time']),
+        f"{values['default_dlight_tune_time']:.3f} s",
         f"{values['default_dlight_latency']:.3f} ms",
     ]
     print("".join(word.ljust(col_width) for word in row))            

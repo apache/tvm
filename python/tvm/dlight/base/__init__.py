@@ -23,7 +23,7 @@ from .analysis import (
     is_broadcast_epilogue,
     normalize_prim_func,
 )
-from .common_schedules import get_output_blocks, try_inline, try_inline_contiguous_spatial
+from .common_schedules import get_block, get_output_blocks, try_inline, try_inline_contiguous_spatial
 from .schedule_rule import ScheduleRule
 from .transform import ApplyDefaultSchedule
 from .fast_tune import ApplyFastTuning

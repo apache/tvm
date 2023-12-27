@@ -21,6 +21,32 @@ from tvm import tir
 
 from .analysis import BlockInfo
 
+def get_block(
+    sch: tir.Schedule,
+    blocks: List[BlockInfo],
+    name: str,
+):
+    """Get the target block from a schedule.
+
+    Parameters
+    ----------
+    sch : tir.Schedule
+        The TIR schedule used to get target block.
+    name : str
+        The name of the target block.
+
+    Returns
+    -------
+    target_block : BlockRV
+        The target block.
+    """
+
+    target_block : tir.BlockRV = None
+    for block_info in blocks:
+        block = block_info.block_rv
+        if sch.get_sref(block).stmt.name_hint == name:
+            target_block = block
+    return target_block
 
 def get_output_blocks(
     sch: tir.Schedule,
@@ -43,7 +69,7 @@ def get_output_blocks(
 
     # collect arguments buffer
     func = sch.mod["main"]
-    args = func.buffer_map.values()
+    args = list(func.buffer_map.values())
 
     output_blocks = []
     for block_info in blocks:
