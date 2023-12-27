@@ -261,8 +261,8 @@ def compile_model(
     mod_name: Optional[str] = "default",
     workspace_pools: Optional[WorkspaceMemoryPools] = None,
     print_pass_times: bool = False,
-    print_ir_before: List[str] = "",
-    print_ir_after: List[str] = "",
+    print_ir_before: List[str] = [],
+    print_ir_after: List[str] = [],
     instruments: Optional[Sequence[PassInstrument]] = None,
     desired_layout: Optional[str] = None,
     desired_layout_ops: Optional[List[str]] = None,
@@ -389,19 +389,11 @@ def compile_model(
         timing_inst = PassTimingInstrument()
         instruments = [timing_inst] if instruments is None else [timing_inst] + instruments
 
-    if print_ir_before:
-        print_ir_before_instr = PassPrintingInstrument("before", print_ir_before)
-        instruments = (
-            [print_ir_before_instr]
-            if instruments is None
-            else [print_ir_before_instr] + instruments
+    if print_ir_before or print_ir_after:
+        print_ir_instr = PassPrintingInstrument(
+            print_before_pass_names=print_ir_before, print_after_pass_names=print_ir_after
         )
-
-    if print_ir_after:
-        print_ir_after_instr = PassPrintingInstrument("after", print_ir_after)
-        instruments = (
-            [print_ir_after_instr] if instruments is None else [print_ir_after_instr] + instruments
-        )
+        instruments = [print_ir_instr] if instruments is None else [print_ir_instr] + instruments
 
     with tvm.transform.PassContext(
         opt_level=opt_level,
