@@ -18,6 +18,7 @@ def flashattn(batch, heads, seq_len, dim, is_casual, block_M, block_N):
         Output: T.Buffer(shape, dtype),
     ):
         with T.Kernel(heads, T.ceildiv(seq_len, block_M), batch, threads=128) as (bx, by, bz):
+            Q_shared = T.alloc_shared([block_M, dim], dtype)
             Q_local = T.alloc_fragment([block_M, dim], dtype)
             K_shared = T.alloc_shared([block_N, dim], dtype)
             V_shared = T.alloc_shared([block_N, dim], dtype)
@@ -30,10 +31,12 @@ def flashattn(batch, heads, seq_len, dim, is_casual, block_M, block_N):
             scores_sum = T.alloc_fragment([block_M], accum_dtype)
             logsum = T.alloc_fragment([block_M], accum_dtype)
 
-            T.copy(Q[bz, by * block_M : (by + 1) * block_M, bx, :], Q_local)
+            T.annotate_layout({Q_shared: tl.layout.make_swizzled_layout(Q_shared)})
+            T.copy(Q[bz, by * block_M : (by + 1) * block_M, bx, :], Q_shared)
             T.fill(acc_o, 0)
             T.fill(logsum, 0)
             T.fill(scores_max, -T.infinity(accum_dtype))
+            T.copy(Q_shared, Q_local)
             for i, j in T.Parallel(block_M, dim):
                 Q_local[i, j] *= scale
             loop_range = (
