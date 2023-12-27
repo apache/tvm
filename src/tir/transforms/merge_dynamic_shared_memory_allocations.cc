@@ -264,7 +264,7 @@ class DynamicSharedMemoryRewriter : public StmtExprMutator {
         for (int i = 0; i < static_cast<int>(e->allocs.size()); i++) {
           for (const VarNode* buffer : e->allocs[i]) {
             const AllocateNode* alloc = dyn_shmem_allocs_[buffer];
-            align[i] = std::max(align[i], alloc->dtype.bytes());
+            align[i] = std::max(align[i], alloc->dtype.bytes() * alloc->dtype.lanes());
           }
         }
       }
@@ -276,7 +276,7 @@ class DynamicSharedMemoryRewriter : public StmtExprMutator {
           for (const VarNode* buffer : e->allocs[i]) {
             const AllocateNode* alloc = dyn_shmem_allocs_[buffer];
             buffer_byte_offsets_[buffer] = merged_alloc_size_ + inner_offset;
-            inner_offset += alloc->extents[0] * alloc->dtype.bytes();
+            inner_offset += alloc->extents[0] * alloc->dtype.bytes() * alloc->dtype.lanes();
             inner_offset += indexmod(align[i] - indexmod(inner_offset, align[i]), align[i]);
           }
           max_inner_offset = max(max_inner_offset, inner_offset);
@@ -378,7 +378,7 @@ class DynamicSharedMemoryRewriter : public StmtExprMutator {
   PrimExpr GetBufferOffset(Var buffer_var, DataType dtype) {
     auto it = buffer_byte_offsets_.find(buffer_var.get());
     ICHECK(it != buffer_byte_offsets_.end());
-    return indexdiv(it->second, dtype.bytes());
+    return indexdiv(it->second, dtype.bytes() * dtype.lanes());
   }
 
   using StmtEntry = DynSharedMemLinearAccessPatternFinder::StmtEntry;
