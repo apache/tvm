@@ -812,7 +812,7 @@ std::string GetOrigLayout(std::set<std::string>* placeholder_axis_names, const t
       }
 
       placeholder_axis_names->insert(axis_name);
-      os << placeholder->shape[i++] << axis_name;
+      os << placeholder->shape[i++] << " " << axis_name << " ";
     }
   }
 
@@ -884,7 +884,7 @@ std::string GetNewLayout(const State& state, const int stage_id, const Stage& st
         // This iter is simplified by InferBound, so it must have a length of one.
         extent = 1;
       }
-      os << extent << ori_iter_name;
+      os << extent << " " << ori_iter_name << " ";
       new_names.push_back(ori_iter_name);
     }
   }

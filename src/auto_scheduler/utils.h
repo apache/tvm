@@ -272,21 +272,25 @@ inline void ParseKernelLayout(const String& layout, Array<PrimExpr>* shape,
                               std::vector<std::string>* axes) {
   int32_t factor = 0;
   std::string axis = "";
-  for (char c : std::string(layout)) {
-    if (c >= 'A' && c <= 'z') {
-      axis += c;
+  std::vector<std::string> layout_parts;
+  // Split the layout string by space
+  layout_parts = dmlc::Split(std::string(layout), ' ');
+  for (auto part : layout_parts) {
+    // If the part contains A-Z or a-z, it is an axis
+    if (part.find_first_of("ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz") !=
+        std::string::npos) {
+      axis = part;
       if (factor != 0) {
         shape->push_back(factor);
         factor = 0;
       }
-    } else if (c >= '0' && c <= '9') {
-      factor = factor * 10 + c - '0';
+    } else {
+      // ...or it is a factor
+      factor = std::stoi(part);
       if (!axis.empty()) {
         axes->push_back(axis);
         axis = "";
       }
-    } else {
-      LOG(FATAL) << "Invalid layout " << layout;
     }
   }
   if (!axis.empty()) {
