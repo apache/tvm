@@ -1,15 +1,25 @@
 The flash-attention performance on RTX-4090 GPU, with cuda toolkit 12.2
 
-Use fp16->fp32 mma, value in TFlops, higher is better.
+SEQ_LEN is fixed to 2k, All matmul use fp16->fp32 mma, value in TFlops, higher is better.
 
-| N_CTX,DIM | Flash_attn | Tvm.tl |
-| --------- | ---------- | ------ |
-| 512, 64   | 155.64     | 155.09 |
-| 1024, 64  | 166.98     | 163.69 |
-| 2048, 64  | 168.06     | 163.45 |
-| 512, 128  | 153.14     | 155.6  |
-| 1024, 128 | 166.15     | 163.64 |
-| 2048, 128 | 169.28     | 166.79 |
-| 512, 256  | 143.92     | 146.25 |
-| 1024, 256 | 152.3      | 157.62 |
-| 2048, 256 | 156.15     | 163.48 |
+Flash-Forward
+| CASUAL,DIM | Flash_attn | Tvm.tl |
+| ---------  | ---------- | ------ |
+| False, 32  | 159.79     | 156.82 |
+| False, 64  | 168.91     | 166.84 |
+| False, 128 | 169.28     | 166.51 |
+| False, 256 | 156.15     | 166.77 |
+| True, 32   | 126.78     | 142.59 |
+| True, 64   | 142.23     | 152.43 |
+| True, 128  | 151.19     | 156.30 |
+| True, 256  | 144.12     | 151.54 |
+
+Flash-backward
+| CASUAL,DIM | Flash_attn | Tvm.tl |
+| ---------  | ---------- | ------ |
+| False, 32  | 115.12     | 115.15 |
+| False, 64  | 124.81     | 124.06 |
+| False, 128 | 124.57     | 117.55 |
+| True, 32   | 126.78     | 142.59 |
+| True, 64   | 96.53     | 99.80 |
+| True, 128  | 99.23     | 100.08 |

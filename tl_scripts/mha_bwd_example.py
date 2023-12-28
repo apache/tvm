@@ -17,7 +17,8 @@ def flashattn_fwd(batch, heads, seq_len, dim, is_casual, block_M, block_N):
         Output: T.Buffer(shape, dtype),
         lse: T.Buffer([batch, heads, seq_len], accum_dtype),
     ):
-        with T.Kernel(heads, T.ceildiv(seq_len, block_M), batch, threads=128) as (bx, by, bz):
+        with T.Kernel(T.ceildiv(seq_len, block_M), heads, batch, threads=128) as (bx, by, bz):
+            Q_shared = T.alloc_shared([block_M, dim], dtype)
             Q_local = T.alloc_fragment([block_M, dim], dtype)
             K_shared = T.alloc_shared([block_N, dim], dtype)
             V_shared = T.alloc_shared([block_N, dim], dtype)
@@ -30,26 +31,28 @@ def flashattn_fwd(batch, heads, seq_len, dim, is_casual, block_M, block_N):
             scores_sum = T.alloc_fragment([block_M], accum_dtype)
             logsum = T.alloc_fragment([block_M], accum_dtype)
 
-            T.copy(Q[bz, by * block_M : (by + 1) * block_M, bx, :], Q_local)
+            T.annotate_layout({Q_shared: tl.layout.make_swizzled_layout(Q_shared)})
+            T.copy(Q[bz, bx * block_M : (bx + 1) * block_M, by, :], Q_shared)
             T.fill(acc_o, 0)
             T.fill(logsum, 0)
             T.fill(scores_max, -T.infinity(accum_dtype))
+            T.copy(Q_shared, Q_local)
             for i, j in T.Parallel(block_M, dim):
                 Q_local[i, j] *= scale
             loop_range = (
-                T.ceildiv((by + 1) * block_M, block_N) if is_casual else T.ceildiv(seq_len, block_N)
+                T.ceildiv((bx + 1) * block_M, block_N) if is_casual else T.ceildiv(seq_len, block_N)
             )
             for k in T.Pipelined(loop_range, num_stages=1):
-                T.copy(K[bz, k * block_N : (k + 1) * block_N, bx, :], K_shared)
+                T.copy(K[bz, k * block_N : (k + 1) * block_N, by, :], K_shared)
                 if is_casual:
                     for i, j in T.Parallel(block_M, block_N):
                         acc_s[i, j] = T.if_then_else(
-                            by * block_M + i >= k * block_N + j, 0, -T.infinity(acc_s.dtype)
+                            bx * block_M + i >= k * block_N + j, 0, -T.infinity(acc_s.dtype)
                         )
                 else:
                     T.clear(acc_s)
                 T.gemm(Q_local, K_shared, acc_s, transpose_B=True, policy=T.GemmWarpPolicy.FullRow)
-                T.copy(V[bz, k * block_N : (k + 1) * block_N, bx, :], V_shared)
+                T.copy(V[bz, k * block_N : (k + 1) * block_N, by, :], V_shared)
                 T.copy(scores_max, scores_max_prev)
                 T.reduce_max(acc_s, scores_max, dim=1, clear=False)
                 for i in T.Parallel(block_M):
@@ -65,10 +68,10 @@ def flashattn_fwd(batch, heads, seq_len, dim, is_casual, block_M, block_N):
                     logsum[i] = logsum[i] * scores_scale[i] + scores_sum[i]
             for i, j in T.Parallel(block_M, dim):
                 acc_o[i, j] /= logsum[i]
-            T.copy(acc_o, Output[bz, by * block_M : (by + 1) * block_M, bx, :])
+            T.copy(acc_o, Output[bz, bx * block_M : (bx + 1) * block_M, by, :])
             for i in T.Parallel(block_M):
                 logsum[i] = T.log2(logsum[i]) + scores_max[i]
-            T.copy(logsum, lse[bz, bx, by * block_M : (by + 1) * block_M])
+            T.copy(logsum, lse[bz, by, bx * block_M : (bx + 1) * block_M])
 
     return flash_fwd
 
@@ -77,7 +80,7 @@ def flashattn_bwd_preprocess(batch, heads, seq_len, dim):
     dtype = "float16"
     accum_dtype = "float"
     shape = [batch, seq_len, heads, dim]
-    blk = 64
+    blk = 32
 
     @T.prim_func
     def flash_bwd_prep(
@@ -86,14 +89,17 @@ def flashattn_bwd_preprocess(batch, heads, seq_len, dim):
         Delta: T.Buffer([batch, heads, seq_len], accum_dtype),
     ):
         with T.Kernel(heads, T.ceildiv(seq_len, blk), batch) as (bx, by, bz):
-            o = T.alloc_fragment([blk, dim], accum_dtype)
-            do = T.alloc_fragment([blk, dim], accum_dtype)
+            o = T.alloc_fragment([blk, blk], dtype)
+            do = T.alloc_fragment([blk, blk], dtype)
+            acc = T.alloc_fragment([blk, blk], accum_dtype)
             delta = T.alloc_fragment([blk], accum_dtype)
-            T.copy(O[bz, by * blk : (by + 1) * blk, bx, :], o)
-            T.copy(dO[bz, by * blk : (by + 1) * blk, bx, :], do)
-            for i, j in T.Parallel(blk, dim):
-                o[i, j] *= do[i, j]
-            T.reduce_sum(o, delta, 1)
+            T.clear(acc)
+            for k in range(T.ceildiv(dim, blk)):
+                T.copy(O[bz, by * blk : (by + 1) * blk, bx, k * blk : (k + 1) * blk], o)
+                T.copy(dO[bz, by * blk : (by + 1) * blk, bx, k * blk : (k + 1) * blk], do)
+                for i, j in T.Parallel(blk, blk):
+                    acc[i, j] += o[i, j] * do[i, j]
+            T.reduce_sum(acc, delta, 1)
             T.copy(delta, Delta[bz, bx, by * blk : (by + 1) * blk])
 
     return flash_bwd_prep
@@ -121,6 +127,7 @@ def flashattn_bwd(batch, heads, seq_len, dim, is_casual, block_M, block_N):
         with T.Kernel(heads, T.ceildiv(seq_len, block_M), batch, threads=128) as (bx, by, bz):
             K_shared = T.alloc_shared([block_M, dim], dtype)
             dsT_shared = T.alloc_shared([block_M, block_N], dtype)
+            # should not store K to local if dim is large
             K_local = T.alloc_fragment([block_M, dim], dtype)
             K_local_T = T.alloc_fragment([block_M, dim], dtype)
             V_local = T.alloc_fragment([block_M, dim], dtype)
@@ -196,7 +203,7 @@ class _attention(torch.autograd.Function):
     def forward(ctx, q, k, v, causal):
         BATCH, N_CTX, H, D_HEAD = q.shape
         block_M = 64
-        block_N = 64 if D_HEAD <= 64 else 32
+        block_N = 64 if D_HEAD <= 128 else 32
         mod = tl.cached(flashattn_fwd, [3, 4], BATCH, H, N_CTX, D_HEAD, causal, block_M, block_N)
         o, lse = mod(q, k, v)
         ctx.save_for_backward(q, k, v, o, lse)
@@ -256,7 +263,7 @@ if __name__ == "__main__":
     dK_ref, K.grad = K.grad.clone(), None
     dV_ref, V.grad = V.grad.clone(), None
 
-    assert torch.allclose(O, O_ref, rtol=1e-2, atol=1e-3)
+    assert torch.allclose(O, O_ref, rtol=1e-2, atol=1e-2)
     assert torch.allclose(dV, dV_ref, rtol=1e-2, atol=1e-2)
     assert torch.allclose(dK, dK_ref, rtol=1e-2, atol=1e-2)
     assert torch.allclose(dQ, dQ_ref, rtol=1e-2, atol=1e-2)

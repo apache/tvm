@@ -47,9 +47,9 @@ def matmul(M, N, K, block_M, block_N, block_K, dtype="float16", accum_dtype = "f
 
     return main
 ```
-Despite this simple examples, tvm.tl can be used to write more complicated examples including convolutions, flash-attention-v2, normalizations, these examples can be found under folder tl_scripts.
+Despite this simple examples, tvm.tl can be used to write more complicated examples including convolutions, flash-attention-v2 (fwd & bwd), normalizations, these examples can be found under folder tl_scripts.
 
- The performance of our flash-attention is comparable to the manually implementation. (see tl_doc/flash_perf.md).
+ The performance of our flash-attention is comparable to the manually implementation. (see [Link](https://github.com/nox-410/tvm.tl/blob/tl/tl_doc/flash_perf.md)).
 
 ## Install
 
@@ -70,7 +70,7 @@ Note 1: It is recommeneded to use the latest cuda toolkit, because we requires n
 
 Note 2: Don't forget to clone the submodules.
 
-## Language refernce
-Currently not very detailed.
+## Language reference
+Still in progress.
 
 See tl_doc/language_ref.md

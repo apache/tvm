@@ -70,14 +70,16 @@ class FrontendLegalizer : public arith::IRMutatorWithAnalyzer {
   }
 
   Stmt VisitStmt_(const EvaluateNode* node) final {
-    if (auto call = node->value.as<CallNode>()) {
+    Stmt new_node = arith::IRMutatorWithAnalyzer::VisitStmt_(node);
+    ICHECK(new_node.as<EvaluateNode>());
+    if (auto call = new_node.as<EvaluateNode>()->value.as<CallNode>()) {
       if (call->op.same_as(tl::fill())) {
         return LowerFill(call->args);
       } else if (call->op.same_as(tl::copy())) {
         return LowerCopy(call->args);
       }
     }
-    return arith::IRMutatorWithAnalyzer::VisitStmt_(node);
+    return new_node;
   }
 
   Stmt LowerCopy(const Array<PrimExpr>& call_args) {
@@ -137,19 +139,13 @@ class FrontendLegalizer : public arith::IRMutatorWithAnalyzer {
   }
 
   Stmt VisitStmt_(const LetStmtNode* node) final {
-    if (parallel_for_scope_ > 0) {
-      let_bindings_[node->var.get()] = node->value;
-      return arith::IRMutatorWithAnalyzer::VisitStmt(node->body);
-    }
-    return arith::IRMutatorWithAnalyzer::VisitStmt_(node);
+    let_bindings_[node->var.get()] = node->value;
+    return arith::IRMutatorWithAnalyzer::VisitStmt(node->body);
   }
 
   PrimExpr VisitExpr_(const LetNode* node) final {
-    if (parallel_for_scope_ > 0) {
-      let_bindings_[node->var.get()] = node->value;
-      return arith::IRMutatorWithAnalyzer::VisitExpr(node->body);
-    }
-    return arith::IRMutatorWithAnalyzer::VisitExpr_(node);
+    let_bindings_[node->var.get()] = node->value;
+    return arith::IRMutatorWithAnalyzer::VisitExpr(node->body);
   }
 
   int parallel_for_scope_ = 0;

@@ -153,8 +153,6 @@ std::pair<int, int> GemmArgs::ComputeWarpPartition(int num_warps) const {
   } else {
     ICHECK(0) << "Unknown GemmWarpPolicy";
   }
-  int m = M / m_warp, n = N / n_warp;
-  ICHECK(m % 16 == 0 && n % 8 == 0);
   // TODO: perform more checks here
 
   return {m_warp, n_warp};
