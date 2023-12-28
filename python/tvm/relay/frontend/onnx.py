@@ -3409,7 +3409,7 @@ class OneHot(OnnxOpConverter):
             attr["axis"] = -1
         axis = attr["axis"]
         if axis < 0:
-            axis += ndim + 1
+            axis += ndim
 
         return _op.one_hot(indices, on_value, off_value, depth, axis, dtype=dtype)
 
