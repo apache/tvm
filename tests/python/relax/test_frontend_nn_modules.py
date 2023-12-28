@@ -498,6 +498,61 @@ def test_kv_cache():
     assert_structural_equal(tvm_mod, Module, True)
 
 
+def test_state_cache():
+    @I.ir_module
+    class Module:
+        @R.function
+        def _initialize_effect() -> R.Tuple(R.Object, R.Object):
+            with R.dataflow():
+                _io: R.Object = R.null_value()
+                lv: R.Tensor((1, 8), dtype="float32") = R.zeros(R.shape([1, 8]), dtype="float32")
+                cache: R.Object = R.call_packed(
+                    "vm.builtin.attention_kv_cache_create",
+                    lv,
+                    R.shape([1, 8]),
+                    R.prim_value(1),
+                    sinfo_args=(R.Object,),
+                )
+                lv1: R.Tuple(R.Object, R.Object) = _io, cache
+                gv: R.Tuple(R.Object, R.Object) = lv1
+                R.output(gv)
+            return gv
+
+        @R.function
+        def forward(
+            x: R.Tensor((1, 8), dtype="float32"), _io: R.Object, cache: R.Object
+        ) -> R.Tuple(R.Tensor((1, 8), dtype="float32"), R.Tuple(R.Object, R.Object)):
+            R.func_attr({"num_input": 3})
+            with R.dataflow():
+                lv2: R.Object = R.call_packed(
+                    "vm.builtin.attention_kv_cache_update", cache, x, sinfo_args=(R.Object,)
+                )
+                lv3: R.Tensor((1, 8), dtype="float32") = R.call_packed(
+                    "vm.builtin.attention_kv_cache_view",
+                    lv2,
+                    R.shape([1, 8]),
+                    sinfo_args=(R.Tensor((1, 8), dtype="float32"),),
+                )
+                gv1: R.Tuple(
+                    R.Tensor((1, 8), dtype="float32"), R.Tuple(R.Object, R.Object)
+                ) = lv3, (_io, lv2)
+                R.output(gv1)
+            return gv1
+
+    class StructuredStateTest(modules.Module):
+        def __init__(self) -> None:
+            self.cache = modules.StructuredState(relax.op.zeros((1, 8), "float32"))
+
+        def forward(self, x: core.Tensor) -> core.Tensor:
+            self.cache.update(x)
+            return self.cache.view()
+
+    tvm_mod, _ = StructuredStateTest().export_tvm(
+        spec={"forward": {"x": spec.Tensor((1, 8), "float32")}}, debug=True
+    )
+    assert_structural_equal(tvm_mod, Module, True)
+
+
 def test_attention():
     @R.function
     def forward(

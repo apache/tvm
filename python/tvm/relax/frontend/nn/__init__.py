@@ -32,6 +32,7 @@ from .modules import (
     ReLU,
     RMSNorm,
     SiLU,
+    StructuredState,
 )
 from .op import *
 from .subroutine import SubroutineMixin

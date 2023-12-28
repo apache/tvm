@@ -477,31 +477,21 @@ class GroupNorm(Module):
         )
 
 
-class KVCache(Effect):
-    """
-    Effect to implement KVCache.
-    """
+class BaseStorage(Effect):
+    """Effect to implement BaseStorage, which is base class for KVCache and Structured State."""
 
-    init_seq_len: int
-    unit_shape: List[int]
     dtype: str
     cache: Optional[rx.Var]
+    unit_shape: Optional[List[int]]
 
-    def __init__(
-        self,
-        init_seq_len: int,
-        unit_shape: Sequence[int],
-        dtype: Optional[str] = None,
-    ):
+    def __init__(self, dtype: Optional[str] = None):
         if dtype is None:
             dtype = get_default_dtype()
-        # Usually the shape is: [init_seq_len, num_heads, head_dim]
-        # and unit_shape = [num_heads, head_dim]
-        self.init_seq_len = init_seq_len
-        self.unit_shape = [int(i) for i in unit_shape]
         self.dtype = dtype
 
-    def emit_init(self, name_hint: str, bb: rx.BlockBuilder):  # pylint: disable=arguments-renamed
+    def emit_init(  # pylint: disable=unused-argument
+        self, name_hint: str, builder: rx.BlockBuilder
+    ):
         """
         Emit the initialization of the KVCache effect.
 
@@ -510,20 +500,11 @@ class KVCache(Effect):
         name_hint : str
             The name hint of the initialization binding Var.
 
-        bb : relax.BlockBuilder
+        builder : relax.BlockBuilder
             The relax BlockBuilder to emit.
         """
-        init_shape = rx.ShapeExpr([self.init_seq_len] + self.unit_shape)
-        return [
-            bb.emit(
-                rx.Call(
-                    rx.extern("vm.builtin.attention_kv_cache_create"),
-                    args=[rx.op.zeros(init_shape, self.dtype), init_shape, rx.PrimValue(0)],
-                    sinfo_args=[rx.ObjectStructInfo()],
-                ),
-                name_hint=name_hint,
-            )
-        ]
+
+        raise NotImplementedError()
 
     def create(self, name_hint: str) -> List[rx.Var]:
         """
@@ -558,25 +539,13 @@ class KVCache(Effect):
         self.cache = None
         return [result]
 
-    def to(self, dtype: Optional[str] = None) -> None:
-        """
-        Convert the KVCache effect to specific dtype.
-
-        Parameters
-        ----------
-        dtype : Optional[str]
-            The target data type to convert.
-        """
-        if dtype is not None:
-            self.dtype = dtype
-
-    def view(self, seq_len: tir.Var) -> Tensor:
+    def view(self, seq_len: tir.PrimExpr) -> Tensor:
         """
         View the last elements in KVCache.
 
         Parameters
         ----------
-        seq_len : tir.Var
+        seq_len : tir.PrimExpr
             The number of last elements to view.
 
         Returns
@@ -584,6 +553,8 @@ class KVCache(Effect):
         ret : Tensor
             The last tensor to view.
         """
+        if self.unit_shape is None:
+            raise RuntimeError("Expected unit_shape to be set before calling view()")
         shape = rx.ShapeExpr([seq_len] + self.unit_shape)
         return Tensor(
             _expr=rx.BlockBuilder.current().emit(
@@ -594,6 +565,52 @@ class KVCache(Effect):
                 )
             )
         )
+
+    def to(self, dtype: Optional[str] = None) -> None:
+        if dtype is not None:
+            self.dtype = dtype
+
+
+class KVCache(BaseStorage):
+    """Effect to implement KVCache."""
+
+    init_seq_len: int
+
+    def __init__(
+        self,
+        init_seq_len: int,
+        unit_shape: Sequence[int],
+        dtype: Optional[str] = None,
+    ):
+        super().__init__(dtype)
+        self.init_seq_len = init_seq_len
+        # Usually the shape is: [init_seq_len, num_heads, head_dim]
+        # and unit_shape = [num_heads, head_dim]
+        self.unit_shape = [int(i) for i in unit_shape]
+
+    def emit_init(self, name_hint: str, builder: rx.BlockBuilder):
+        """
+        Emit the initialization of the KVCache effect.
+
+        Parameters
+        ----------
+        name_hint : str
+            The name hint of the initialization binding Var.
+
+        builder : relax.BlockBuilder
+            The relax BlockBuilder to emit.
+        """
+        init_shape = rx.ShapeExpr([self.init_seq_len] + self.unit_shape)
+        return [
+            builder.emit(
+                rx.Call(
+                    rx.extern("vm.builtin.attention_kv_cache_create"),
+                    args=[rx.op.zeros(init_shape, self.dtype), init_shape, rx.PrimValue(0)],
+                    sinfo_args=[rx.ObjectStructInfo()],
+                ),
+                name_hint=name_hint,
+            )
+        ]
 
     def append(self, new_element: Tensor) -> None:
         """
@@ -616,6 +633,92 @@ class KVCache(Effect):
                 sinfo_args=[rx.ObjectStructInfo()],
             )
         )
+
+
+class StructuredState(BaseStorage):
+    """Implementation StructuredState based on BaseStorage."""
+
+    init_value: rx.Expr
+    fill_count: int
+
+    def __init__(
+        self,
+        init_value: rx.Expr,
+        dtype: Optional[str] = None,
+    ):
+        super().__init__(dtype)
+        self.init_value = init_value
+
+    def emit_init(self, name_hint: str, builder: rx.BlockBuilder) -> List[rx.Var]:
+        """
+        Emit the initialization of the StructuredState effect.
+
+        Parameters
+        ----------
+        name_hint : str
+            The name hint of the initialization binding Var.
+
+        builder : relax.BlockBuilder
+            The relax BlockBuilder to emit.
+
+        Returns
+        -------
+        ret : List[relax.Var]
+            The output relax.Var as StructuredState.
+        """
+        # Reuse KVCache support to implement StructuredState
+        normalized_value = builder.normalize(self.init_value)
+        if not isinstance(normalized_value.struct_info, rx.TensorStructInfo):
+            raise TypeError(
+                f"StructuredState init value should be a Tensor, got {normalized_value}"
+            )
+        shape = normalized_value.struct_info.shape
+        if shape is None or any([not isinstance(x, (int, tir.IntImm)) for x in shape]):
+            raise TypeError(
+                "StructuredState init value should be a Tensor with concrete shape, but got "
+                f"shape {shape}"
+            )
+        if len(shape) < 2:
+            raise ValueError(
+                "StructuredState init value should be a Tensor with rank >= 2, the"
+                "first dimension is reserved for sequence length"
+            )
+        self.fill_count, *unit_shape = shape
+        self.unit_shape = unit_shape
+        return [
+            builder.emit(
+                rx.Call(
+                    rx.extern("vm.builtin.attention_kv_cache_create"),
+                    args=[self.init_value, shape, rx.PrimValue(self.fill_count)],
+                    sinfo_args=[rx.ObjectStructInfo()],
+                ),
+                name_hint=name_hint,
+            )
+        ]
+
+    def update(self, new_value: Tensor) -> None:
+        """
+        Append a new element in KVCache.
+
+        Parameters
+        ----------
+        new_value : Tensor
+            The new value to update.
+        """
+        if new_value.dtype != self.dtype:
+            raise TypeError(
+                f'KVCache has been set to use dtype "{self.dtype}", but got "{new_value.dtype}"'
+            )
+        self.cache = rx.BlockBuilder.current().emit(
+            rx.Call(
+                rx.extern("vm.builtin.attention_kv_cache_update"),
+                args=[self.cache, new_value._expr],
+                sinfo_args=[rx.ObjectStructInfo()],
+            )
+        )
+
+    def view(self) -> Tensor:  # pylint: disable=arguments-differ
+        return super().view(self.fill_count)
 
 
 class Embedding(Module):
