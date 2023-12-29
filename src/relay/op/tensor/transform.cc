@@ -3002,7 +3002,7 @@ InferCorrectLayoutOutput SplitInferCorrectLayout(const Attrs& attrs,
         auto ios = Downcast<Array<runtime::Int>>(param->indices_or_sections);
         Array<runtime::Int> new_ios;
         for (const auto& v : ios) {
-          new_ios.push_back(v->value / factor);
+          new_ios.push_back(runtime::Int(v->value / factor));
           if (v->value % factor) {
             divisible = false;
           }
