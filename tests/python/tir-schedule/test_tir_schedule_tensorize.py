@@ -690,7 +690,7 @@ def test_tensorize_vdmpy():
     verify_trace_roundtrip(sch=sch, mod=func)
 
 
-def test_tensorize_dpa4():
+def test_tensorize_dp4a():
     # pylint: disable=too-many-locals
     def _test_intrin(dtype_a, dtype_b, dtype_c, intrin):
         m, n, k = 128, 128, 128
@@ -719,7 +719,6 @@ def test_tensorize_dpa4():
         ko, kt = sch.split(ko, factors=sch.sample_perfect_tile(ko, n=2))
 
         sch.reorder(by, bx, ty, tx, yi, xi)
-
         CC = sch.cache_write(block, 0, "local")
         sch.reverse_compute_at(CC, tx)
 
@@ -737,7 +736,7 @@ def test_tensorize_dpa4():
         verify_trace_roundtrip(sch=sch, mod=func)
 
     for args in [
-        # ("int8", "int8", "int32", AMDGPU_SDOT4_INTRIN),
+        ("int8", "int8", "int32", AMDGPU_SDOT4_INTRIN),
         ("int8", "int8", "int32", DP4A_S8S8S32_INTRIN),
         ("int8", "uint8", "int32", DP4A_S8U8S32_INTRIN),
         ("uint8", "int8", "int32", DP4A_U8S8S32_INTRIN),
@@ -839,4 +838,4 @@ def test_tensorize_matmul_mixed_dtype():
 
 
 if __name__ == "__main__":
-    test_tensorize_dpa4()
+    tvm.testing.main()
