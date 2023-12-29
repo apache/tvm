@@ -141,6 +141,30 @@ TVM_DLL bool UsesVar(const Stmt& stmt, std::function<bool(const VarNode*)> vset_
 TVM_DLL bool UsesVar(const PrimExpr& expr, std::function<bool(const VarNode*)> vset_contains);
 
 /*!
+ * \brief Whether the given Stmt reads any var in the given variable set.
+ * \param stmt The Stmt to be checked.
+ * \param vset_contains The check function to see if a var is in the variable set.
+ * \return Whether `stmt` uses any var in the given variable set.
+ */
+TVM_DLL bool ReadsVar(const Stmt& stmt, std::function<bool(const VarNode*)> vset_contains);
+
+/*!
+ * \brief Whether the given Stmt writes any var in the given variable set.
+ * \param stmt The Stmt to be checked.
+ * \param vset_contains The check function to see if a var is in the variable set.
+ * \return Whether `stmt` uses any var in the given variable set.
+ */
+TVM_DLL bool WritesVar(const Stmt& stmt, std::function<bool(const VarNode*)> vset_contains);
+
+/*!
+ * \brief Whether the given condition preserve the same value under the given scope.
+ * \param condition The condition expression to be checked.
+ * \param body The stmt scope to be checked.
+ * \return Whether `stmt` uses any var in the given variable set.
+ */
+TVM_DLL bool IsPureCondition(const PrimExpr& condition, const Stmt& body);
+
+/*!
  * \brief Verifies whether the IR stmt or Expr is in SSA form.
  *  That is: each Var is defined and assigned once(in Let/For)
  *

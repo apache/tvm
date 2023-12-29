@@ -27,6 +27,32 @@
 #include <tvm/tir/op.h>
 
 namespace tvm {
+namespace tir {
+
+bool IsPureCondition(const PrimExpr& condition, const Stmt& scope) {
+  CallEffectKind side_effect = SideEffect(condition);
+  if (side_effect > CallEffectKind::kReadState) {
+    return false;
+  } else if (side_effect == CallEffectKind::kReadState) {
+    // when the condition maybe stateful, enter into the slow path
+    // to visit the subtree one more time and ensure the state is not mutated.
+    std::vector<const VarNode*> read_vars;
+    UsesVar(condition, [&read_vars](const VarNode* v) {
+      read_vars.push_back(v);
+      return true;
+    });
+    auto has_war_hazard = [&read_vars](const VarNode* v) {
+      return std::find(read_vars.begin(), read_vars.end(), v) != read_vars.end();
+    };
+    if (WritesVar(scope, has_war_hazard)) {
+      return false;
+    }
+  }
+  return true;
+}
+
+}  // namespace tir
+
 namespace arith {
 
 using namespace tir;
@@ -96,6 +122,11 @@ Stmt IRMutatorWithAnalyzer::VisitStmt_(const LetStmtNode* op) {
 Stmt IRMutatorWithAnalyzer::VisitStmt_(const IfThenElseNode* op) {
   PrimExpr condition = this->VisitExpr(op->condition);
   PrimExpr real_condition = condition;
+
+  if (!IsPureCondition(real_condition, GetRef<Stmt>(op))) {
+    return StmtExprMutator::VisitStmt_(op);
+  }
+
   static auto op_likely = Op::Get("tir.likely");
 
   if (auto call = condition.as<CallNode>()) {

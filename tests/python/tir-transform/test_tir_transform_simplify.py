@@ -1769,5 +1769,39 @@ class TestNestedIfElimination(BaseBeforeAfter):
             b[i0, j0] = T.if_then_else(i0 == 1 and 6 <= j0, 0, T.max(0, a[i0, j0]))
 
 
+class TestConditionOnMutatedBuffer(BaseBeforeAfter):
+    """The condition is not const under scope if there are WAR dependency on
+    condition touched buffers."""
+
+    @T.prim_func
+    def before(A: T.Buffer((1), "int32")):
+        for i in range(10):
+            if 3 < A[0]:
+                for j in range(128):
+                    if 3 < A[0]:
+                        A[0] = A[0] + T.call_extern("some_update", dtype="int32")
+
+    expected = before
+
+
+class TestConditionOnConstBuffer(BaseBeforeAfter):
+    """The condition is const under scope thus could be simplified"""
+
+    @T.prim_func
+    def before(A: T.Buffer((1), "int32"), B: T.Buffer((1), "int32")):
+        for i in range(10):
+            if 3 < A[0]:
+                for j in range(128):
+                    if 3 < A[0]:
+                        B[0] = B[0] + T.call_extern("some_update", dtype="int32")
+
+    @T.prim_func
+    def expected(A: T.Buffer((1), "int32"), B: T.Buffer((1), "int32")):
+        for i in range(10):
+            if 3 < A[0]:
+                for j in range(128):
+                    B[0] = B[0] + T.call_extern("some_update", dtype="int32")
+
+
 if __name__ == "__main__":
     tvm.testing.main()
