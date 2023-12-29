@@ -166,7 +166,7 @@ void TIRVisitorWithPath::Visit(const Buffer& buffer, ObjectPath path) {
 }
 
 void TIRVisitorWithPath::Visit(const BufferRegion& region, ObjectPath path) {
-  Visit(region->buffer, path->Attr("path"));
+  Visit(region->buffer, path->Attr("buffer"));
   Visit(region->region, path->Attr("region"));
 }
 
