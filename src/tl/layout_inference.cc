@@ -229,29 +229,13 @@ class LayoutInferencer : public IRMutatorWithAnalyzer {
 
  private:
   LayoutInferencer(const LayoutInferenceResult result, arith::Analyzer* analyzer)
-      : arith::IRMutatorWithAnalyzer(analyzer), result_(result){};
+      : arith::IRMutatorWithAnalyzer(analyzer), result_(result) {
+    for (const auto& [buffer, layout] : result_.layout_map) {
+      new_alloc_.Set(buffer->data, makeBufferWithLayout(buffer, layout));
+    }
+  };
 
   Stmt VisitStmt_(const BlockNode* op) final {
-    for (const auto& buffer : op->alloc_buffers) {
-      if (result_.layout_map.count(buffer)) {
-        Layout layout = result_.layout_map[buffer];
-        const auto* ptr_type = TVM_TYPE_AS(buffer->data->type_annotation, PointerTypeNode);
-        Type new_type;
-        if (ptr_type->storage_scope == "local.fragment") {
-          new_type = PointerType(ptr_type->element_type, "local");
-        } else {
-          new_type = buffer->data->type_annotation;
-        }
-        Var new_var = Var(buffer->data->name_hint, new_type);
-        new_alloc_.Set(buffer->data,
-                       Buffer(new_var, buffer->dtype, layout->OutputShape(), {},
-                              buffer->elem_offset, buffer->name, buffer->data_alignment,
-                              buffer->offset_factor, buffer->buffer_type));
-      } else {
-        ICHECK(buffer.scope() != "local.fragment")
-            << "Cannot inference fragment layout for " << buffer;
-      }
-    }
     Block block = Downcast<Block>(IRMutatorWithAnalyzer::VisitStmt_(op));
     auto block_ptr = block.CopyOnWrite();
     Map<Var, Layout> new_layout_map;
@@ -260,10 +244,32 @@ class LayoutInferencer : public IRMutatorWithAnalyzer {
       if (new_alloc_.find(buffer->data) != new_alloc_.end()) {
         block_ptr->alloc_buffers.Set(i, new_alloc_[buffer->data]);
         new_layout_map.Set(new_alloc_[buffer->data]->data, result_.layout_map[buffer]);
+      } else {
+        ICHECK(buffer.scope() != "local.fragment")
+            << "Cannot inference fragment layout for " << buffer;
       }
     }
     block_ptr->annotations.Set(attr::kLayoutMap, new_layout_map);
     return block;
+  }
+
+  Buffer makeBufferWithLayout(const Buffer& buffer, const Layout& layout) {
+    const auto* ptr_type = TVM_TYPE_AS(buffer->data->type_annotation, PointerTypeNode);
+    Type new_type;
+    // convert fragments to normal local buffer
+    if (ptr_type->storage_scope == "local.fragment") {
+      new_type = PointerType(ptr_type->element_type, "local");
+    } else {
+      new_type = buffer->data->type_annotation;
+    }
+    Var new_var;
+    if (ptr_type->storage_scope == "global") {
+      new_var = buffer->data;
+    } else {
+      new_var = Var(buffer->data->name_hint, new_type);
+    }
+    return Buffer(new_var, buffer->dtype, layout->OutputShape(), {}, buffer->elem_offset,
+                  buffer->name, buffer->data_alignment, buffer->offset_factor, buffer->buffer_type);
   }
 
   PrimExpr VisitExpr_(const VarNode* var) final {

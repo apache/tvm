@@ -105,6 +105,34 @@ def flashattn_bwd_preprocess(batch, heads, seq_len, dim):
     return flash_bwd_prep
 
 
+def make_dq_layout(dQ):
+    # atomicAdd can not be vectorized, so we need to reorder dq to match the 8x8 gemm fragment
+    return T.Layout(
+        dQ.shape, lambda b, l, h, d: [b, l // 8, h, d // 8, (d % 2), 4 * (l % 8) + (d % 8) // 2]
+    )
+
+
+def flashattn_bwd_postprocess(batch, heads, seq_len, dim):
+    dtype = "float16"
+    accum_dtype = "float"
+    shape = [batch, seq_len, heads, dim]
+    blk = 64
+
+    @T.prim_func
+    def flash_bwd_post(
+        dQ: T.Buffer(shape, accum_dtype),
+        dQ_out: T.Buffer(shape, dtype),
+    ):
+        with T.Kernel(T.ceildiv(seq_len, blk), heads, batch, threads=128) as (bx, by, bz):
+            T.annotate_layout({dQ: make_dq_layout(dQ)})
+            T.copy(
+                dQ[bz, bx * blk : (bx + 1) * blk, by, :],
+                dQ_out[bz, bx * blk : (bx + 1) * blk, by, :],
+            )
+
+    return flash_bwd_post
+
+
 def flashattn_bwd(batch, heads, seq_len, dim, is_casual, block_M, block_N):
     sm_scale = (1.0 / dim) ** 0.5
     scale = (1.0 / dim) ** 0.5 * 1.44269504  # log2(e)
@@ -142,11 +170,10 @@ def flashattn_bwd(batch, heads, seq_len, dim, is_casual, block_M, block_N):
             dv = T.alloc_fragment([block_M, dim], accum_dtype)
             dk = T.alloc_fragment([block_M, dim], accum_dtype)
             dq = T.alloc_fragment([block_N, dim], accum_dtype)
-            dq_shared = T.alloc_shared([block_N, dim], accum_dtype)
 
             T.annotate_layout(
                 {
-                    dq_shared: tl.layout.make_swizzled_layout(dq_shared),
+                    dQ: make_dq_layout(dQ),
                     K_shared: tl.layout.make_swizzled_layout(K_shared),
                 }
             )
@@ -189,9 +216,9 @@ def flashattn_bwd(batch, heads, seq_len, dim, is_casual, block_M, block_N):
                 T.copy(dsT_cast, dsT_shared)
                 T.clear(dq)
                 T.gemm(dsT_shared, K_local_T, dq, transpose_A=True)
-                T.copy(dq, dq_shared)
                 for i, j in T.Parallel(block_N, dim):
-                    T.atomic_add(dQ[bz, k * block_N + i, bx, j], dq_shared[i, j])
+                    if k * block_N + i < seq_len:
+                        T.atomic_add(dQ[bz, k * block_N + i, bx, j], dq[i, j])
             T.copy(dv, dV[bz, by * block_M : (by + 1) * block_M, bx, :])
             T.copy(dk, dK[bz, by * block_M : (by + 1) * block_M, bx, :])
 
@@ -218,12 +245,14 @@ class _attention(torch.autograd.Function):
         block_M = 64
         block_N = 64 if D_HEAD <= 64 else 32
         mod_prep = tl.cached(flashattn_bwd_preprocess, [2], BATCH, H, N_CTX, D_HEAD)
+        mod_post = tl.cached(flashattn_bwd_postprocess, [1], BATCH, H, N_CTX, D_HEAD)
         delta = mod_prep(o, do)
         mod = tl.cached(
             flashattn_bwd, [6, 7, 8], BATCH, H, N_CTX, D_HEAD, ctx.causal, block_M, block_N
         )
         dq, dk, dv = mod(q, k, v, do, lse, delta)
-        return dq.half(), dk, dv, None
+        dq = mod_post(dq)
+        return dq, dk, dv, None
 
 
 attention = _attention.apply
@@ -238,7 +267,7 @@ def ref_program(Q, K, V, casual):
 
 if __name__ == "__main__":
     BATCH, H, N_CTX, D_HEAD = 64, 12, 2048, 64
-    casual = True
+    casual = False
     flops_per_matmul = 2.0 * BATCH * H * N_CTX * N_CTX * D_HEAD
     total_flops = 5 * flops_per_matmul
     if casual:

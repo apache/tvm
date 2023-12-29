@@ -30,7 +30,8 @@ class Layout(Node):
         for idx, size in enumerate(shape):
             iv = IterVar(Range(0, size), Var(f"i{idx}", "int32"), 0)
             forward_vars.append(iv)
-        forward_index = forward_fn(*forward_vars)
+        vars = [iv.var for iv in forward_vars]
+        forward_index = forward_fn(*vars)
         if isinstance(forward_index, PrimExpr):
             forward_index = [forward_index]
         self.__init_handle_by_constructor__(_ffi_api.Layout, forward_vars, forward_index)
@@ -61,16 +62,17 @@ class Fragment(Layout):
         for idx, size in enumerate(shape):
             iv = IterVar(Range(0, size), Var(f"i{idx}", "int32"), 0)
             forward_vars.append(iv)
+        vars = [iv.var for iv in forward_vars]
         if forward_fn:
-            forward_index = forward_fn(forward_vars)
+            forward_index = forward_fn(*vars)
         else:
             forward_index = None
         if replicate > 1:
             thread_replicate = IterVar(Range(0, replicate), Var("rep", "int32"), 0)
-            forward_thread = forward_thread_fn(*forward_vars, thread_replicate)
+            forward_thread = forward_thread_fn(*vars, thread_replicate.var)
         else:
             thread_replicate = None
-            forward_thread = forward_thread_fn(*forward_vars)
+            forward_thread = forward_thread_fn(*vars)
         self.__init_handle_by_constructor__(
             _ffi_api.Fragment, forward_vars, forward_index, forward_thread, thread_replicate
         )
