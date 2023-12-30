@@ -24,7 +24,7 @@ if typing.TYPE_CHECKING:
 ArgSpecType = typing.Union["Int", "Tensor"]
 MethodSpecType = typing.Union["MethodSpec", typing.Dict[str, ArgSpecType]]
 ModuleSpecType = typing.Union["ModuleSpec", typing.Dict[str, MethodSpecType]]
-SpecAny = typing.Union["Int", "Tensor", "Tuple"]
+SpecAny = typing.Union["Object", "Int", "Tensor", "Tuple"]
 
 
 class Int:  # pylint: disable=too-few-public-methods
@@ -50,6 +50,18 @@ class Tensor:  # pylint: disable=too-few-public-methods
     def __repr__(self) -> str:
         shape = ", ".join(str(i) for i in self.shape)
         return f"Tensor([{shape}], '{self.dtype}')"
+
+
+class Object:  # pylint: disable=too-few-public-methods
+    """An non-tensor opaque frontend object."""
+
+    object_type: typing.Type
+
+    def __init__(self, object_type: typing.Type) -> None:
+        self.object_type = object_type
+
+    def __repr__(self) -> str:
+        return "object"
 
 
 class Tuple:  # pylint: disable=too-few-public-methods
@@ -141,7 +153,7 @@ class MethodSpec:
                 return Int()
             if isinstance(arg_spec, str) and arg_spec == "int":
                 return Int()
-            if isinstance(arg_spec, (Int, Tensor)):
+            if isinstance(arg_spec, (Int, Tensor, Object)):
                 return arg_spec
             if isinstance(arg_spec, (tuple, list, Tuple)):
                 return Tuple(
