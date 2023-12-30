@@ -241,6 +241,7 @@ class PipelineRewriter : public StmtExprMutator {
       int stage = pipeline_info_[block].stage;
       if (pipeline_info_[block].async) {
         auto& state = async_states[stage];
+        state.producer_head = pipeline_loop_->min - 1;
         for (auto write_region : block->writes) {
           auto buffer = write_region->buffer;
           state.dst_buffers.insert(buffer.get());
@@ -276,11 +277,11 @@ class PipelineRewriter : public StmtExprMutator {
     }
 
     // Step 2: Emit the pipeline prologue, body and epilogue.
-    Stmt prologue = EmitImpl(pipeline_loop_->min, pipeline_loop_->min + max_stage_, true);
+    Stmt prologue = EmitImpl(pipeline_loop_->min, pipeline_loop_->min + max_stage_, true, true);
     Stmt body = EmitImpl(pipeline_loop_->min + max_stage_,
-                         pipeline_loop_->min + pipeline_loop_->extent, false);
+                         pipeline_loop_->min + pipeline_loop_->extent, false, false);
     Stmt epilogue = EmitImpl(pipeline_loop_->min + pipeline_loop_->extent,
-                             pipeline_loop_->min + pipeline_loop_->extent + max_stage_, true);
+                             pipeline_loop_->min + pipeline_loop_->extent + max_stage_, true, true);
 
     SeqStmt stmt = SeqStmt({prologue, body, epilogue});
 
@@ -446,7 +447,7 @@ class PipelineRewriter : public StmtExprMutator {
     // async invocations exactly. When it is valid, it is the "sum of extents of loops that have
     // been executed" - 1, e.g. for epilogue it is prologue extent + body extent - 1. This
     // is only needed to compute wait count for epilogue without async producers.
-    Optional<PrimExpr> producer_head{PrimExpr(-1)};
+    PrimExpr producer_head;
     std::vector<std::vector<int>> commit_groups;
     std::unordered_map<const BufferNode*, int> buffer_to_commit_group_;
     bool writes(Buffer buf) const { return dst_buffers.count(buf.get()) > 0; }
@@ -508,7 +509,7 @@ class PipelineRewriter : public StmtExprMutator {
           // if the group is after the wait point, minus by 1
           if (group.front() > new_blocks[i].order) producer_head -= 1;
         } else {
-          producer_head = state.producer_head.value();
+          producer_head = state.producer_head;
         }
         in_flight_cnt += producer_head - consumer_head;
       }
@@ -578,7 +579,7 @@ class PipelineRewriter : public StmtExprMutator {
    * \param unroll_loop Whether the loop should be unrolled.
    * \return The result loop.
    */
-  Stmt EmitImpl(PrimExpr start, PrimExpr end, bool unroll_loop) {
+  Stmt EmitImpl(PrimExpr start, PrimExpr end, bool unroll_loop, bool need_bound_check) {
     PrimExpr new_loop_var;
     PrimExpr extent = end - start;
 
@@ -600,9 +601,11 @@ class PipelineRewriter : public StmtExprMutator {
     for (const Block& block : ordered_stmts_) {
       int stage = pipeline_info_.at(block).stage;
       int order = pipeline_info_.at(block).order;
+      PrimExpr inbound = Bool(true);
       PrimExpr skewed_loop_var = new_loop_var - stage;
-      PrimExpr inbound = analyzer_.Simplify(pipeline_loop_->min <= skewed_loop_var) &&
-                         (skewed_loop_var < pipeline_loop_->min + pipeline_loop_->extent);
+      if (need_bound_check)
+        inbound = analyzer_.Simplify(pipeline_loop_->min <= skewed_loop_var) &&
+                  (skewed_loop_var < pipeline_loop_->min + pipeline_loop_->extent);
       if (analyzer_.CanProve(!inbound)) {
         continue;
       }
@@ -667,7 +670,7 @@ class PipelineRewriter : public StmtExprMutator {
 
     // Update producer heads in the global async states.
     for (const auto& [stage_id, state] : async_states_local) {
-      async_states[stage_id].producer_head = async_states[stage_id].producer_head.value() + extent;
+      async_states[stage_id].producer_head += extent;
     }
 
     return BlockRealize({}, Bool(true), MakeBlock(std::move(new_loop), buffer_data_to_buffer_));

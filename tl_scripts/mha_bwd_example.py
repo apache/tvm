@@ -188,7 +188,7 @@ def flashattn_bwd(batch, heads, seq_len, dim, is_casual, block_M, block_N):
                 K_local[i, j] *= scale
             loop_st = T.floordiv(by * block_M, block_N) if is_casual else 0
             loop_ed = T.ceildiv(seq_len, block_N)
-            for k in T.Pipelined(loop_st, loop_ed, num_stages=0):
+            for k in T.Pipelined(loop_st, loop_ed, num_stages=1):
                 T.copy(Q[bz, k * block_N : (k + 1) * block_N, bx, :], q)
                 T.clear(qkT)
                 T.gemm(K_local, q, qkT, transpose_B=True, policy=T.GemmWarpPolicy.FullRow)
