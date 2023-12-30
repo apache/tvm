@@ -20,7 +20,6 @@ from functools import reduce
 from typing import List, Optional, Union
 
 from tvm.tir.function import PrimFunc
-from ..base.roller.config import Stride
 from tvm import DataType, arith, ir, tir
 from tvm.target import Target
 

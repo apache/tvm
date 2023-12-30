@@ -1,22 +1,45 @@
-from typing import Dict, List, Optional
+# Licensed to the Apache Software Foundation (ASF) under one
+# or more contributor license agreements.  See the NOTICE file
+# distributed with this work for additional information
+# regarding copyright ownership.  The ASF licenses this file
+# to you under the Apache License, Version 2.0 (the
+# "License"); you may not use this file except in compliance
+# with the License.  You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing,
+# software distributed under the License is distributed on an
+# "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+# KIND, either express or implied.  See the License for the
+# specific language governing permissions and limitations
+# under the License.
+"""Config definition for schedule"""
+from typing import Dict, List, Optional, Tuple
 
 import numpy as np
 
 
 class TensorCoreExtraConfig:
-    def __init__(self, AS_shape, BS_shape, AF_shape, BF_shape, tc_axis) -> None:
-        self.AS_shape = AS_shape
-        self.BS_shape = BS_shape
-        self.AF_shape = AF_shape
-        self.BF_shape = BF_shape
-        self.tc_axis = tc_axis
+    """
+    This class is used to store extra information for tensorcore
+    """
+    def __init__(self, AS_shape:Tuple[int], BS_shape:Tuple[int], AF_shape:Tuple[int], BF_shape:Tuple[int], tc_axis:Tuple[int]) -> None:
+        self.AS_shape:Tuple[int] = AS_shape
+        self.BS_shape:Tuple[int] = BS_shape
+        self.AF_shape:Tuple[int] = AF_shape
+        self.BF_shape:Tuple[int] = BF_shape
+        self.tc_axis:Tuple[int] = tc_axis
 
 class Stride:
+    """
+    Manages stride information for a given axis of a tensor.
+    """
     def __init__(self, stride: int = 1, ax: int = -1) -> None:
         # which axis to put stride on
-        self._ax = int(ax)
+        self._ax:int = int(ax)
         # the stride size of the axis
-        self._stride = int(stride)
+        self._stride:int = int(stride)
 
     @property
     def ax(self) -> int:
@@ -53,6 +76,9 @@ class Stride:
         return f"<Stride, {self._ax}, {self._stride}>"
 
 class TileDict:
+    """
+    Manages tiling information and configurations for computational tasks.
+    """
     def __init__(self, output_tile) -> None:
         self.output_tile = output_tile
         # schedule config
@@ -82,6 +108,9 @@ class TileDict:
 
 
 class Config:
+    """
+    Central configuration class for managing various parameters of computational tasks.
+    """
     def __init__(self) -> None:
         self.arch = None
         self.use_tc = None
@@ -148,7 +177,6 @@ class Config:
         if self.use_tc:
             self.warp = dic["warp"]
             self.wmma = dic["wmma"]
-            self.use_cutlass = dic["use_cutlass"]
         else:
             self.thread = dic["thread"]
         self.rstep = dic["rstep"]

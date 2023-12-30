@@ -1,3 +1,19 @@
+# Licensed to the Apache Software Foundation (ASF) under one
+# or more contributor license agreements.  See the NOTICE file
+# distributed with this work for additional information
+# regarding copyright ownership.  The ASF licenses this file
+# to you under the Apache License, Version 2.0 (the
+# "License"); you may not use this file except in compliance
+# with the License.  You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing,
+# software distributed under the License is distributed on an
+# "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+# KIND, either express or implied.  See the License for the
+# specific language governing permissions and limitations
+# under the License.
 import tvm
 from tvm import tir
 from tvm.tir import IterVar, Var, PrimFunc
@@ -9,6 +25,7 @@ from ..analysis import BlockInfo
 from .. import analysis
 from .. import normalize_prim_func
 from .shape_inference import get_analyzer_by_tir
+
 
 def pre_order_traverse(block_analyzer, blocks, func):
     visited = set()
@@ -240,19 +257,19 @@ class PrimFuncNode(Node):
         # axis is fixed for one expression, so only inference and cached
         assert self.get_tag("tensorcore_config")
         C_ax_m, C_ax_n = self.get_tag("tensorcore_config")
-        wmma_m, wmma_n, wmma_k = [16, 16, 16] # just for testing, any number is ok
+        wmma_m, wmma_n, wmma_k = [16, 16, 16]  # just for testing, any number is ok
         CL_shape = [1] * len(self.get_space_dim())
         CL_shape[C_ax_m] = wmma_m
         CL_shape[C_ax_n] = wmma_n
-        shapes = self.propogate_reduction_inputs(CL_shape, {x.var.name : 1 for x in self.raxis})
+        shapes = self.propogate_reduction_inputs(CL_shape, {x.var.name: 1 for x in self.raxis})
         A_deps, B_deps = shapes.values()
         A_ax_m = A_deps.index(wmma_m)
         B_ax_n = B_deps.index(wmma_n)
 
         CL_shape = [1] * len(self.get_space_dim())
-        shapes = self.propogate_reduction_inputs(CL_shape, {x.var.name : wmma_k for x in self.raxis})
+        shapes = self.propogate_reduction_inputs(CL_shape, {x.var.name: wmma_k for x in self.raxis})
         A_deps, B_deps = shapes.values()
-        A_ax_k = len(A_deps) - 1 - A_deps[::-1].index(wmma_k)  
+        A_ax_k = len(A_deps) - 1 - A_deps[::-1].index(wmma_k)
         B_ax_k = len(B_deps) - 1 - B_deps[::-1].index(wmma_k)
         tc_axis = (A_ax_m, A_ax_k, B_ax_k, B_ax_n, C_ax_m, C_ax_n)
         return tc_axis
@@ -305,5 +322,3 @@ class PrimFuncNode(Node):
                 buffer_len = (buffer_len + 31) // 32 * 32
                 result += buffer_len
         return result, cached_tensor
-
-    

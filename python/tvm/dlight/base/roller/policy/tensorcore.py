@@ -1,3 +1,20 @@
+# Licensed to the Apache Software Foundation (ASF) under one
+# or more contributor license agreements.  See the NOTICE file
+# distributed with this work for additional information
+# regarding copyright ownership.  The ASF licenses this file
+# to you under the Apache License, Version 2.0 (the
+# "License"); you may not use this file except in compliance
+# with the License.  You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing,
+# software distributed under the License is distributed on an
+# "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+# KIND, either express or implied.  See the License for the
+# specific language governing permissions and limitations
+# under the License.
+"""Policy for tensorcore schedule"""
 import tvm
 from typing import Dict, List, Tuple
 import numpy as np
@@ -9,14 +26,15 @@ from .common import factorize, get_all_factors
 from .default import DefaultPolicy
 from ..rasterization import *
 
+
 class TensorCorePolicy(DefaultPolicy):
-    def __init__(self, func: tvm.tir.PrimFunc, arch: Arch, tags:Dict={}) -> None:
+    def __init__(self, func: tvm.tir.PrimFunc, arch: Arch, tags: Dict = {}) -> None:
         super().__init__(func, arch, tags)
         self.wmma_k = 16
-        self.pipeline_stage:int = 1
-        self.use_async_copy:bool = False
+        self.pipeline_stage: int = 1
+        self.use_async_copy: bool = False
         self._legalize_info()
-    
+
     def _legalize_info(self):
         pipleline_stage = self.prim_func_node.get_tag("pipeline_stage")
         if pipleline_stage:
@@ -34,11 +52,13 @@ class TensorCorePolicy(DefaultPolicy):
                 self.use_async_copy = 2
             else:
                 self.use_async_copy = 1
-            
-    def _compute_tc_strides(self, node: PrimFuncNode, tile: List[int], rstep: Dict[str, int]={}) -> Tuple[Stride, Stride, Stride]:
-        '''
-            strides was used for shared memory padding, which is necessary for avoiding shared memory load bank conflict when we do not applying tensorcore layout.
-        '''
+
+    def _compute_tc_strides(
+        self, node: PrimFuncNode, tile: List[int], rstep: Dict[str, int] = {}
+    ) -> Tuple[Stride, Stride, Stride]:
+        """
+        strides was used for shared memory padding, which is necessary for avoiding shared memory load bank conflict when we do not applying tensorcore layout.
+        """
         shapes = node.propogate_reduction_inputs(tile, rstep)
         AS_shape, BS_shape = shapes.values()
         CS_shape = tile
@@ -49,11 +69,10 @@ class TensorCorePolicy(DefaultPolicy):
         A_high_ax = min(A_ax_m, A_ax_k)
         B_high_ax = min(B_ax_n, B_ax_k)
         C_high_ax = min(C_ax_m, C_ax_n)
-        A_stride = Stride(stride=np.prod(AS_shape[A_high_ax+1:]) + offset, ax=A_high_ax)
-        B_stride = Stride(stride=np.prod(BS_shape[B_high_ax+1:]) + offset, ax=B_high_ax)
-        C_stride = Stride(stride=np.prod(CS_shape[C_high_ax+1:]) + offset, ax=C_high_ax)
+        A_stride = Stride(stride=np.prod(AS_shape[A_high_ax + 1 :]) + offset, ax=A_high_ax)
+        B_stride = Stride(stride=np.prod(BS_shape[B_high_ax + 1 :]) + offset, ax=B_high_ax)
+        C_stride = Stride(stride=np.prod(CS_shape[C_high_ax + 1 :]) + offset, ax=C_high_ax)
         return A_stride, B_stride, C_stride
-
 
     def infer_node_smem_usage(self, td: TileDict, node: PrimFuncNode):
         value, cached_tensors = super().infer_node_smem_usage(td, node)
@@ -68,7 +87,7 @@ class TensorCorePolicy(DefaultPolicy):
             iter_name = iter_info.var.name
             iter_dom = iter_info.dom
             if iter_dom % 16 > 0:
-                result[iter_name] = 16 if iter_dom < 32 else 32 # padding case
+                result[iter_name] = 16 if iter_dom < 32 else 32  # padding case
             elif iter_dom % 32 == 0:
                 result[iter_name] = 32
             else:
@@ -83,14 +102,20 @@ class TensorCorePolicy(DefaultPolicy):
             return super().get_node_reduce_step_candidates(node)
         else:
             # must be a a multiple of wmma_k
-            return {k : [x * self.wmma_k for x in get_all_factors(node.raxis[k] // self.wmma_k)] for k in node.raxis}
+            return {
+                k: [x * self.wmma_k for x in get_all_factors(node.raxis[k] // self.wmma_k)]
+                for k in node.raxis
+            }
 
     def check_tile_shape_isvalid(self, td: TileDict):
         for node in self.ordered_nodes:
             if node.get_tag("tensorcore_config"):
                 ax_m, ax_n = node.get_tag("tensorcore_config")
                 block_m, block_n = td.tile_map[node][ax_m], td.tile_map[node][ax_n]
-                wmma_invalid = [block_m % wmma_m or block_n % wmma_n for wmma_m, wmma_n in [(16, 16), (8, 32), (32, 8)]]
+                wmma_invalid = [
+                    block_m % wmma_m or block_n % wmma_n
+                    for wmma_m, wmma_n in [(16, 16), (8, 32), (32, 8)]
+                ]
                 if all(wmma_invalid):
                     return False
                 if any([y % x for x, y in zip(td.tile_map[node], node.get_space_dim())]):
@@ -100,7 +125,9 @@ class TensorCorePolicy(DefaultPolicy):
     def compute_node_stride_map(self, node: PrimFuncNode, td: TileDict):
         if not node.get_tag("tensorcore_config"):
             return super().compute_node_stride_map(node, td)
-        AS_stride, BS_stride, C_stride = self._compute_tc_strides(node, td.get_tile(node), td.get_rstep(node))
+        AS_stride, BS_stride, C_stride = self._compute_tc_strides(
+            node, td.get_tile(node), td.get_rstep(node)
+        )
         A_stride, B_stride, _ = self._compute_tc_strides(node, td.get_tile(node))
         output_strides = {
             int(i + len(node.input_buffers)): Stride() for i, _ in enumerate(node.output_buffers)
@@ -118,7 +145,7 @@ class TensorCorePolicy(DefaultPolicy):
         tile, rsteps = td.get_tile(node), td.get_rstep(node)
         warps = block_size // self.arch.warp_size
         ndim = len(tile)
-        wmma = [16, 16, 16] # TODO(leiwang1999): should generalize the config
+        wmma = [16, 16, 16]  # TODO(leiwang1999): should generalize the config
         wmma_tile = [1 for i in range(ndim)]
         wmma_tile[ax_m] = wmma[0]
         wmma_tile[ax_n] = wmma[1]
@@ -129,7 +156,7 @@ class TensorCorePolicy(DefaultPolicy):
             return None
         factors = factorize(np.prod(space) // warps)
 
-        def _score(node, thread): # small is better
+        def _score(node, thread):  # small is better
             score = 0
             block_tile = [int(np.ceil(tile[i] / thread[i])) for i in range(ndim)]
             shape = node.propogate_inputs(block_tile)
@@ -148,7 +175,7 @@ class TensorCorePolicy(DefaultPolicy):
                 warp_tile[i] //= factor
             if len(score_map) == 0:
                 return None
-            dim_order = sorted(score_map.keys(), key=lambda x:score_map[x])
+            dim_order = sorted(score_map.keys(), key=lambda x: score_map[x])
             warp_tile[dim_order[0]] *= factor
 
         codegen_dict = Config()

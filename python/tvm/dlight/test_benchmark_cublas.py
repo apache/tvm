@@ -60,20 +60,6 @@ def gemv_i4(M, N, K, dtype="float16"):
 M = 1
 N = 16384
 K = 16384
-benchmark_results = {}
-ir_module = gemv_i4(M, N, K, "float16")
-func = ir_module["main"]
-target = tvm.target.Target("nvidia/nvidia-a100")
-arch = CUDA(target)
-policy = DefaultPolicy(func=func, arch=arch)
-configs = policy.emit_config(1)
-rule = GEMV()
-
-tune_start = time.time()
-cpresults, best = apply_and_build(func, rule, configs, arch, parallel_build=False)
-fast_tune_time = time.time() - tune_start
-print("[FastDlight] The best latency of top 1 is {:.3f} ms".format(cpresults[0].latency * 1e3))
-print("[FastDlight] The best latency of top 20 is {:.3f} ms".format(best.latency * 1e3))
 
 from tvm.script import relax as R
 from tvm.script import tir as T
@@ -246,11 +232,23 @@ print(mod_deploy)
 dev = tvm.device("cuda", 0)
 ex = relax.build(mod_deploy, target="nvidia/nvidia-a100")
 vm = relax.vm.VirtualMachine(ex, dev)
-
-x = np.random.randn(*x_shape).astype("float16")
-y = np.random.normal(0, 0.002, size=y_shape).astype("int8")
-tvm_x = tvm.nd.array(x, dev)
-tvm_y = tvm.nd.array(y, dev)
+tvm_a = tvm.nd.array(np.random.uniform(0, 1, [M, K]).astype("float16"), device=dev)
+tvm_b = tvm.nd.array(np.random.randint(-127, 128, [N, K // 2]).astype("int8"), device=dev)
 tvm_scales = tvm.nd.array(np.ones(N, dtype="float16"), dev)
-vm["main"](*best.profile_tensors)
-print(best.profile_tensors[-1])
+vm_output =vm["main"](tvm_a, tvm_b, tvm_scales)
+print(vm_output)
+
+# warm up
+for i in range(5):
+    vm["main"](tvm_a, tvm_b, tvm_scales)
+
+iters = 10
+dev.sync()
+start = time.time()
+for i in range(iters):
+    vm["main"](tvm_a, tvm_b, tvm_scales)
+dev.sync()
+end = time.time()
+
+cost = (end - start) / iters * 1000
+print("cost: ", cost)

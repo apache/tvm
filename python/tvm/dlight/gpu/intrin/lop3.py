@@ -14,9 +14,9 @@ __device__ void decode_i4s_to_f16(T1 *_i4s, T2* B_local_decode, const int N = 8)
   static constexpr uint BOTTOM_MASK = 0x000f000f;
   static constexpr uint TOP_MASK = 0x00f000f0;
   static constexpr uint I4s_TO_F16s_MAGIC_NUM = 0x64006400;
-  static constexpr uint FP16_TOP_MAGIC_NUM = 0x64086408;
+  static constexpr uint FP16_TOP_MAGIC_NUM = 0x64006400;
   static constexpr uint ONE_SIXTEENTH = 0x2c002c00;
-  static constexpr uint NEG_72 = 0xd480d480;
+  static constexpr uint NEG_64 = 0xd400d400;
   uint const i4s = *reinterpret_cast<uint *>(_i4s);
 #pragma unroll
   for (int i = 0; i < (N / 4); i++)
@@ -28,7 +28,7 @@ __device__ void decode_i4s_to_f16(T1 *_i4s, T2* B_local_decode, const int N = 8)
                  : "=r"(h[i * 2 + 1])
                  : "r"(i4s >> (8 * i)), "n"(TOP_MASK), "n"(I4s_TO_F16s_MAGIC_NUM), "n"(immLut));
     asm volatile("sub.f16x2 %0, %1, %2;\\n" : "=r"(h[i * 2 + 0]) : "r"(h[i * 2 + 0]), "r"(FP16_TOP_MAGIC_NUM));
-    asm volatile("fma.rn.f16x2 %0, %1, %2, %3;\\n" : "=r"(h[i * 2 + 1]) : "r"(h[i * 2 + 1]), "r"(ONE_SIXTEENTH), "r"(NEG_72));
+    asm volatile("fma.rn.f16x2 %0, %1, %2, %3;\\n" : "=r"(h[i * 2 + 1]) : "r"(h[i * 2 + 1]), "r"(ONE_SIXTEENTH), "r"(NEG_64));
   }
 }
 

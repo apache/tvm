@@ -1,4 +1,21 @@
-class Block():
+# Licensed to the Apache Software Foundation (ASF) under one
+# or more contributor license agreements.  See the NOTICE file
+# distributed with this work for additional information
+# regarding copyright ownership.  The ASF licenses this file
+# to you under the Apache License, Version 2.0 (the
+# "License"); you may not use this file except in compliance
+# with the License.  You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing,
+# software distributed under the License is distributed on an
+# "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+# KIND, either express or implied.  See the License for the
+# specific language governing permissions and limitations
+# under the License.
+"""Benifit For Dlight Schedule"""
+class Block:
     def __init__(self, start, end, is_free):
         self.start = start
         self.end = end
@@ -8,14 +25,15 @@ class Block():
         return self.end - self.start
 
     def merge(self, other):
-        assert(self.is_free == other.is_free)
+        assert self.is_free == other.is_free
         self.start = min(self.start, other.start)
         self.end = max(self.end, other.end)
 
     def __repr__(self) -> str:
         return "<Block offset={} size={}>".format(self.start, self.size())
 
-class BestFit():
+
+class BestFit:
     def __init__(self, align=32):
         self.limit = 0
         self.list = []
@@ -33,7 +51,9 @@ class BestFit():
             remain = found.size() - size
             if remain != 0:
                 found.end -= remain
-                self.list.insert(self.list.index(found) + 1, Block(found.end, found.end + remain, True))
+                self.list.insert(
+                    self.list.index(found) + 1, Block(found.end, found.end + remain, True)
+                )
             return found
         elif len(self.list) > 0 and self.list[-1].is_free:
             add = size - self.list[-1].size()
@@ -48,12 +68,12 @@ class BestFit():
             return block
 
     def free(self, block: Block) -> None:
-        assert(not block.is_free)
+        assert not block.is_free
         idx = self.list.index(block)
         self.list[idx] = Block(block.start, block.end, True)
-        if idx + 1 < len(self.list) and self.list[idx+1].is_free:
-            self.list[idx].merge(self.list[idx+1])
-            self.list.pop(idx+1)
-        if idx - 1 >= 0 and self.list[idx-1].is_free:
-            self.list[idx].merge(self.list[idx-1])
-            self.list.pop(idx-1)
+        if idx + 1 < len(self.list) and self.list[idx + 1].is_free:
+            self.list[idx].merge(self.list[idx + 1])
+            self.list.pop(idx + 1)
+        if idx - 1 >= 0 and self.list[idx - 1].is_free:
+            self.list[idx].merge(self.list[idx - 1])
+            self.list.pop(idx - 1)

@@ -81,8 +81,8 @@ benchmark_sets = [
     # (prim_func, input_args, fast_dlight_schedule, default_dlight_schedule),
     # (gemv, (1, 1024, 1024, "float16"), GEMV, GEMV),
     # (gemv, (1, 8192, 8192, "float16"), GEMV, GEMV),
-    # (gemv, (1, 16384, 16384, "float16"), GEMV, GEMV),
-    (gemv_i4, (1, 16384, 16384, "float16"), GEMV, GEMV),
+    (gemv, (1, 16384, 16384, "float16"), GEMV, GEMV),
+    # (gemv_i4, (1, 14336, 57344, "float16"), GEMV, GEMV),
 ]
 benchmark_results = {}
 for get_prim_func, input_args, f_schedule, d_schedule in benchmark_sets:
@@ -91,7 +91,7 @@ for get_prim_func, input_args, f_schedule, d_schedule in benchmark_sets:
     target = tvm.target.Target("nvidia/nvidia-a100")
     arch = CUDA(target)
     policy = DefaultPolicy(func=func, arch=arch)
-    configs = policy.emit_config(1)
+    configs = policy.emit_config(20)
     rule = f_schedule()
     
     tune_start = time.time()

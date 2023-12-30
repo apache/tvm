@@ -1,3 +1,20 @@
+# Licensed to the Apache Software Foundation (ASF) under one
+# or more contributor license agreements.  See the NOTICE file
+# distributed with this work for additional information
+# regarding copyright ownership.  The ASF licenses this file
+# to you under the Apache License, Version 2.0 (the
+# "License"); you may not use this file except in compliance
+# with the License.  You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing,
+# software distributed under the License is distributed on an
+# "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+# KIND, either express or implied.  See the License for the
+# specific language governing permissions and limitations
+# under the License.
+"""Policy for cuda core schedule"""
 import functools
 import math
 from queue import PriorityQueue
@@ -12,13 +29,15 @@ from ..bestfit import BestFit
 from ..config import Config, Stride, TileDict
 from .common import coalesced_factor, coalesced_tensor_shape, factorize, get_all_factors
 from ..node import PrimFuncNode
-import logging
-
-logger = logging.getLogger(__name__)
 
 
 class DefaultPolicy:
-    def __init__(self, func: tvm.tir.PrimFunc, arch: Arch, tags:Dict = {}) -> None:
+    """
+    Default Policy for fastdlight, a heuristic plan that tries to
+    minimize memory traffic and maximize parallelism.for Dlight Schedule.
+    """
+
+    def __init__(self, func: tvm.tir.PrimFunc, arch: Arch, tags: Dict = {}) -> None:
         self.arch = arch
         self.prim_func_node = PrimFuncNode(func, tags)
         self.ordered_nodes = [self.prim_func_node]
@@ -30,7 +49,7 @@ class DefaultPolicy:
             return []
 
         rstep_map = self._assign_reduce_step(self.prim_func_node)
-        smem_tile_condidates = self.DFS_smem_tile(base_tile, topk, rstep_map)
+        smem_tile_condidates = self.dfs_smem_tile(base_tile, rstep_map)
         results = []
         for td in smem_tile_condidates:
             if not self.check_tile_shape_isvalid(td):
@@ -50,7 +69,7 @@ class DefaultPolicy:
                 break
         return results
 
-    def DFS_smem_tile(self, init_tile, topk, rstep_map) -> Iterable[TileDict]:
+    def dfs_smem_tile(self, init_tile, rstep_map) -> Iterable[TileDict]:
         _steps = [get_all_factors(n) for n in self.prim_func_node.get_space_dim()]
         steps = [step[step.index(t) :] for step, t in zip(_steps, init_tile)]
         for i in range(len(steps)):
@@ -90,8 +109,16 @@ class DefaultPolicy:
         sorted_tiles = sorted(visited_tiles, key=lambda td: prio(td))
         return sorted_tiles
 
-    # get the minimum tile that could satisfy no redundancy computation
     def get_base_tile(self):
+        """
+        Gets the minimum tile configuration that satisfies no redundancy in computation.
+
+        Returns
+        -------
+        List[int]
+            The base tile configuration, which is a list of 1s equal in length to the space dimensions
+            of the primary function node.
+        """
         shape = self.prim_func_node.get_space_dim()
         base_tile = [1 for _ in shape]
 
@@ -99,6 +126,20 @@ class DefaultPolicy:
 
     # handles multiple output cases
     def _get_output_tile_map(self, tile):
+        """
+        Handles multiple output cases by mapping output nodes to their respective tile configurations.
+
+        Parameters
+        ----------
+        tile : List[int]
+            The tile configuration.
+
+        Returns
+        -------
+        Dict
+            A dictionary mapping the primary function node to its corresponding tile configuration
+            based on the output nodes' space dimensions.
+        """
         tile_map = {}
         tile_map[self.prim_func_node] = [
             tile[i]
@@ -109,20 +150,62 @@ class DefaultPolicy:
         return tile_map
 
     def score_block_size(self, n):
+        """
+        Scores a block size based on its efficiency and fit relative to the architecture's warp size and SM partition.
+
+        Parameters
+        ----------
+        n : int
+            The block size to score.
+
+        Returns
+        -------
+        Tuple[float, float]
+            A tuple containing two scores representing efficiency and fit, respectively.
+        """
         num_wrap = (n + self.arch.warp_size - 1) // self.arch.warp_size
         r1 = max(num_wrap / self.arch.sm_partition, self.arch.sm_partition / num_wrap)
         r2 = (num_wrap * self.arch.warp_size - n) / n
         return (r1, r2)
 
     def get_block_size(self, n):
+        """
+        Determines the optimal block size for a given constraint, based on scoring various factors.
+
+        Parameters
+        ----------
+        n : int
+            The constraint size.
+
+        Returns
+        -------
+        int
+            The optimal block size chosen from the factors of n, constrained by a maximum of 1024 and
+            scored by the `score_block_size` method.
+        """
         factors = get_all_factors(n)
         factors = list(filter(lambda x: x <= 1024, factors))
         factor_ordered = sorted(factors, key=self.score_block_size)
         return factor_ordered[0]
 
     def get_node_reduce_step_candidates(self, node: PrimFuncNode):
-        # general idea : use factor first, since it does not require extra boundary check
-        #                for large prime number, which is rare case, use power of 2.
+        """
+        Calculates reduction step candidates for each reduction axis in a PrimFuncNode. General idea : use factor first, since it does not require extra boundary check. for large prime number, which is rare case, use power of 2.
+
+        Parameters
+        ----------
+        node : PrimFuncNode
+            The node for which to calculate reduction step candidates. It contains reduction axes (raxis) 
+            with their domains (dom.extent).
+
+        Returns
+        -------
+        Dict[str, List[int]]
+            A dictionary mapping axis variable names to lists of step candidates. For each axis in the node,
+            this function calculates possible step sizes. For axes with a large prime domain, it uses powers of 2
+            as step candidates; for others, it uses all factors of the domain.
+        """
+       
         results = {}
         for k_iter in node.raxis:
             all_factors = get_all_factors(k_iter.dom)
@@ -134,6 +217,19 @@ class DefaultPolicy:
         return results
 
     def _assign_reduce_step(self, node: PrimFuncNode):
+        """
+        Assigns an optimal reduction step for the given PrimFuncNode.
+
+        Parameters
+        ----------
+        node : PrimFuncNode
+            The node for which the reduction step is to be assigned.
+
+        Returns
+        -------
+        Dict
+            A dictionary mapping reduction axis variable names to their optimal reduction steps.
+        """
         if node.reduction_block is None:
             return {}
 
@@ -185,6 +281,19 @@ class DefaultPolicy:
         return rstep
 
     def _expand_reduce_axis(self, td: TileDict):
+        """
+        Expands the reduction axis in the TileDict based on shared memory limits.
+
+        Parameters
+        ----------
+        td : TileDict
+            The TileDict object to be optimized.
+
+        Returns
+        -------
+        None
+            This function modifies the TileDict in place.
+        """
         smem_limit = min(self.arch.max_smem_usage // td.block_per_SM, self.arch.smem_cap)
         rstep_map = td.rstep_map.copy()
 
@@ -247,14 +356,57 @@ class DefaultPolicy:
         td.smem_cost, td.cached_tensors_map = self._compute_shared_memory_usage(td)
 
     def _compute_memory_traffic(self, output_tile):
+        """
+        Computes the memory traffic for a given output tile configuration.
+
+        Parameters
+        ----------
+        output_tile : List[int]
+            The output tile configuration.
+
+        Returns
+        -------
+        Tuple[int, Dict]
+            The total memory traffic and a map of operation tiles.
+        """
         op_tile_map = self._get_output_tile_map(output_tile)
         traffic = 0
         return traffic, op_tile_map
 
     def infer_node_smem_usage(self, td: TileDict, node: PrimFuncNode):
+        """
+        Infers the shared memory usage of a node given a TileDict configuration.
+
+        Parameters
+        ----------
+        td : TileDict
+            The TileDict object containing the tile configuration.
+        node : PrimFuncNode
+            The node for which to infer the shared memory usage.
+
+        Returns
+        -------
+        int
+            The estimated amount of shared memory used by the node.
+        """
         return node.footprint(td.get_tile(node), td.get_rstep(node), td.tensor_strides_map[node])
 
     def _compute_shared_memory_usage(self, td: TileDict):
+        """
+        Computes the stride map for a given node and TileDict configuration.
+
+        Parameters
+        ----------
+        node : PrimFuncNode
+            The node for which to compute the stride map.
+        td : TileDict
+            The TileDict object containing the tile configuration.
+
+        Returns
+        -------
+        Tuple[Dict, Dict]
+            The output strides and tensor strides.
+        """
         self._compute_stride_map(td)
         allocator = BestFit()
         block_map = {}
@@ -269,6 +421,21 @@ class DefaultPolicy:
         return allocator.limit, cached_tensors_map
 
     def compute_node_stride_map(self, node: PrimFuncNode, td: TileDict):
+        """
+        Computes the stride map for a given node based on the TileDict configuration.
+
+        Parameters
+        ----------
+        node : PrimFuncNode
+            The node for which to compute the stride map.
+        td : TileDict
+            The TileDict object containing the tile configuration.
+
+        Returns
+        -------
+        Tuple[Dict, Dict]
+            A tuple of dictionaries containing the output strides and tensor strides.
+        """
         output_strides = {
             int(i + len(node.input_buffers)): Stride() for i, _ in enumerate(node.output_buffers)
         }
@@ -276,6 +443,19 @@ class DefaultPolicy:
         return output_strides, tensor_strides
 
     def _compute_stride_map(self, td: TileDict):
+        """
+        Computes the stride map for all nodes in a TileDict.
+
+        Parameters
+        ----------
+        td : TileDict
+            The TileDict object for which to compute the stride maps.
+
+        Returns
+        -------
+        None
+            This function updates the TileDict object in place with the computed stride maps.
+        """
         output_strides_map = {}
         tensor_strides_map = {}
         for node in self.ordered_nodes:
@@ -284,10 +464,23 @@ class DefaultPolicy:
             )
         td.output_strides_map, td.tensor_strides_map = output_strides_map, tensor_strides_map
 
-    def get_dtype_bits(self):
-        return 16
-
     def compute_tile_dict(self, output_tile: List[int], rstep_map) -> TileDict:
+        """
+        Computes and returns a TileDict object for a given output tile configuration and reduction step map.
+
+        Parameters
+        ----------
+        output_tile : List[int]
+            The output tile configuration.
+        rstep_map : Dict
+            The reduction step map.
+
+        Returns
+        -------
+        TileDict
+            A TileDict object containing the computed tile configuration, memory traffic, shared memory cost,
+            grid size, and other related parameters.
+        """
         td = TileDict(output_tile)
         td.rstep_map = rstep_map
         td.traffic, td.tile_map = self._compute_memory_traffic(output_tile)
@@ -318,7 +511,16 @@ class DefaultPolicy:
         td.num_wave = int(np.ceil(td.grid_size / int(td.block_per_SM * self.arch.compute_max_core)))
         return td
 
-    def check_tile_shape_isvalid(self, td: TileDict):
+    def check_tile_shape_isvalid(self, td: TileDict) -> bool:
+        """
+        Checks if the tile shapes in the TileDict are valid for the nodes in this context.
+
+        Parameters:
+        - td (TileDict): The TileDict object containing tile shapes and other configurations.
+
+        Returns:
+        - bool: True if all tile shapes are valid, False otherwise.
+        """
         for node in self.ordered_nodes:
             if np.prod(td.get_tile(node)) == 0:
                 return False
@@ -339,6 +541,19 @@ class DefaultPolicy:
         return True
 
     def recommend_block_size(self, td: TileDict) -> List[int]:
+        """
+        Recommends optimal block sizes based on the TileDict configuration.
+
+        Parameters
+        ----------
+        td : TileDict
+            The TileDict object containing the tile configuration.
+
+        Returns
+        -------
+        List[int]
+            A list of recommended block sizes sorted based on their score.
+        """
         node_space_sizes = [int(np.prod(td.get_tile(node))) for node in self.ordered_nodes]
         max_block_size = functools.reduce(math.gcd, node_space_sizes)
 
@@ -371,6 +586,21 @@ class DefaultPolicy:
         return factor_ordered
 
     def assign_block_size(self, td: TileDict, topk=1):
+        """
+        Assigns block sizes to the TileDict based on the recommended block sizes.
+
+        Parameters
+        ----------
+        td : TileDict
+            The TileDict object to assign block sizes to.
+        topk : int, optional
+            The number of top block sizes to consider.
+
+        Yields
+        -------
+        Dict
+            The block size assignment for the primary function node.
+        """
         block_size_ordered = self.recommend_block_size(td)
         for block_size in block_size_ordered:
             result = {}
@@ -388,6 +618,19 @@ class DefaultPolicy:
                     break
 
     def _assign_block_order(self, td: TileDict):
+        """
+        Assigns block order to the TileDict based on the grid size and other parameters.
+
+        Parameters
+        ----------
+        td : TileDict
+            The TileDict object to assign block order to.
+
+        Returns
+        -------
+        Dict
+            A dictionary representing the block order assignment for each node.
+        """
         block_idx = tvm.te.var("block_idx")
         analyzer = tvm.arith.Analyzer()
         analyzer.update(block_idx, tvm.arith.ConstIntBound(0, td.grid_size - 1))
@@ -400,6 +643,23 @@ class DefaultPolicy:
         return result
 
     def _assign_block_size(self, node: PrimFuncNode, td: TileDict, block_size: int):
+        """
+        Assigns a block size to a given PrimFuncNode based on the TileDict configuration and the specified block size.
+
+        Parameters
+        ----------
+        node : PrimFuncNode
+            The node to assign the block size to.
+        td : TileDict
+            The TileDict object containing the tile configuration.
+        block_size : int
+            The block size to be assigned.
+
+        Returns
+        -------
+        Config
+            A Config object containing the assigned block size and other related settings.
+        """
         tile, rsteps = td.get_tile(node), td.get_rstep(node)
         factors = factorize(block_size)
         cur_threads = [1 for _ in tile]
@@ -465,6 +725,23 @@ class DefaultPolicy:
         return codegen_dict
 
     def _plan_vectorize(self, node: PrimFuncNode, td: TileDict, block_size: int):
+        """
+        Plans vectorization for a given PrimFuncNode based on the TileDict configuration and block size.
+
+        Parameters
+        ----------
+        node : PrimFuncNode
+            The node for which to plan vectorization.
+        td : TileDict
+            The TileDict object containing the tile configuration.
+        block_size : int
+            The block size used for vectorization planning.
+
+        Returns
+        -------
+        Dict
+            A dictionary mapping tensors to their vectorization size.
+        """
         def is_cont(shape, vec):
             if len(shape) == 0:
                 return vec == 1
@@ -496,4 +773,17 @@ class DefaultPolicy:
         return vectorize_result
 
     def plan_rasterization(self, td: TileDict):
-        raise NotImplementedError()
+        """
+        Plans the rasterization for the given TileDict. This function is not implemented yet.
+
+        Parameters
+        ----------
+        td : TileDict
+            The TileDict object to plan rasterization for.
+
+        Raises
+        -------
+        RasterRationPlan
+            This function is not implemented yet.
+        """
+        raise NotImplementedError("Rasterization plan is not implemented yet.")
