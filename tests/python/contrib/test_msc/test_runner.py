@@ -82,7 +82,7 @@ def _test_from_torch(runner_cls, device, is_training=False, atol=1e-3, rtol=1e-3
 
     torch_model = _get_torch_model("resnet50", is_training)
     if torch_model:
-        workspace = msc_utils.set_workspace()
+        workspace = msc_utils.set_workspace(msc_utils.msc_dir())
         log_path = workspace.relpath("MSC_LOG", keep_history=False)
         msc_utils.set_global_logger("info", log_path)
         input_info = [([1, 3, 224, 224], "float32")]
@@ -139,7 +139,7 @@ def test_tensorflow_runner():
 
     tf_graph, graph_def = _get_tf_graph()
     if tf_graph and graph_def:
-        workspace = msc_utils.set_workspace()
+        workspace = msc_utils.set_workspace(msc_utils.msc_dir())
         log_path = workspace.relpath("MSC_LOG", keep_history=False)
         msc_utils.set_global_logger("info", log_path)
         data = np.random.uniform(size=(1, 224, 224, 3)).astype("float32")

@@ -46,10 +46,10 @@ def _get_config(
 ):
     """Get msc config"""
     return {
+        "workspace": msc_utils.msc_dir(),
         "model_type": model_type,
         "inputs": inputs,
         "outputs": outputs,
-        "debug_level": 0,
         "dataset": {"loader": "from_random", "max_iter": 5},
         "prepare": {"profile": {"benchmark": {"repeat": 10}}},
         "baseline": {

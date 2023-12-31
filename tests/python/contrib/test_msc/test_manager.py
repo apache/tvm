@@ -34,6 +34,7 @@ requires_tensorrt = pytest.mark.skipif(
 def _get_config(model_type, compile_type, inputs, outputs, atol=1e-2, rtol=1e-2):
     """Get msc config"""
     return {
+        "workspace": msc_utils.msc_dir(),
         "model_type": model_type,
         "inputs": inputs,
         "outputs": outputs,
