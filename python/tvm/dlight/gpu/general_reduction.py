@@ -21,10 +21,11 @@ from typing import List, Union
 from tvm import tir
 from tvm.target import Target
 
-from ..base import ScheduleRule, normalize_prim_func, try_inline_contiguous_spatial
+from ..base import normalize_prim_func, try_inline_contiguous_spatial
+from .base import GPUScheduleRule
 
 
-class GeneralReduction(ScheduleRule):
+class GeneralReduction(GPUScheduleRule):
     """General Reduction rule for operators including softmax, layer norm, RMS norm, etc"""
 
     def apply(  # pylint: disable=too-many-locals
@@ -33,7 +34,7 @@ class GeneralReduction(ScheduleRule):
         target: Target,
         _: bool,
     ) -> Union[None, tir.Schedule, List[tir.Schedule]]:
-        if not isinstance(func, tir.PrimFunc):
+        if not isinstance(func, tir.PrimFunc) or not self.is_target_available(target):
             return None
 
         if target.kind.name == "cuda":

@@ -23,13 +23,13 @@ from tvm.target import Target
 
 from ..base import (
     BlockInfo,
-    ScheduleRule,
     normalize_prim_func,
     try_inline_contiguous_spatial,
     detect_dominant_read,
     is_broadcast_epilogue,
 )
 from . import utils
+from .base import GPUScheduleRule
 
 
 def _get_reduction_expr(block: tir.Block) -> Optional[tir.PrimExpr]:
@@ -48,7 +48,7 @@ def _get_reduction_expr(block: tir.Block) -> Optional[tir.PrimExpr]:
     return buffer_store.value.b
 
 
-class Reduction(ScheduleRule):
+class Reduction(GPUScheduleRule):
     """A rule for Reduction."""
 
     def apply(  # pylint: disable=too-many-locals,too-many-branches,too-many-return-statements
@@ -57,7 +57,7 @@ class Reduction(ScheduleRule):
         target: Target,
         _: bool,
     ) -> Union[None, tir.Schedule, List[tir.Schedule]]:
-        if not isinstance(func, tir.PrimFunc):
+        if not isinstance(func, tir.PrimFunc) or not self.is_target_available(target):
             return None
         sch = tir.Schedule(func)
         block_infos = normalize_prim_func(sch)
