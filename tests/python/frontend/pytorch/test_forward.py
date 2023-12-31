@@ -2163,6 +2163,31 @@ def test_forward_broadcast_tensors():
 
 
 @tvm.testing.uses_gpu
+def test_forward_broadcast_to():
+    """test_forward_broadcast_to"""
+    torch.set_grad_enabled(False)
+
+    class BroadCastTo1(Module):
+        def forward(self, x):
+            return torch.broadcast_to(x, (3, 3))
+
+    x = torch.tensor([1, 2, 3])
+    verify_model(BroadCastTo1().float().eval(), input_data=[x])
+
+    class BroadCastTo2(Module):
+        def __init__(self):
+            super().__init__()
+            self.y = torch.tensor(1)
+            self.z = torch.tensor(2)
+
+        def forward(self, x):
+            return torch.broadcast_to(x, (self.y + self.z, 3))
+
+    x = torch.tensor([1, 2, 3])
+    verify_model(BroadCastTo2().float().eval(), input_data=[x])
+
+
+@tvm.testing.uses_gpu
 def test_forward_pow():
     """test_forward_pow"""
     torch.set_grad_enabled(False)
