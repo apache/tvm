@@ -448,6 +448,60 @@ class BasePruner(WeightTool):
             "Can not find data {} from {} weights".format(name, len(self._meta_weights))
         )
 
+    def create_tasks(self, **kwargs) -> List[dict]:
+        """Create tasks for gym
+
+        Parameters
+        ----------
+        kwargs: dict
+           The kwargs for create tasks.
+
+        Returns
+        -------
+        tasks: list<dict>
+            The tasks.
+        """
+
+        tasks = []
+        for w_node in self.get_w_nodes():
+            if w_node.get_attr("weight_strategy") != "main":
+                continue
+            consumer = self.find_producer(w_node.name).name
+            strategy = self._get_tensor_strategy(w_node.name, consumer)
+            tasks.append(
+                {
+                    "tensor_names": [self.to_tensor_id(w_node.name, consumer)],
+                    **strategy.meta,
+                }
+            )
+        return tasks
+
+    def plan_by_strategys(self, strategys: List[dict]) -> dict:
+        """Plan the pruning with startegys and get plan
+
+        Parameters
+        -------
+        strategys: list<dict>
+            The given strategys
+
+        Returns
+        -------
+        plan: dict
+            The plan after new strategy applied.
+        """
+
+        self._tensor_cache, self._processed_tensor = {}, {}
+        self._plan = {}
+        self._strategys = self._parse_strategys(msc_utils.copy_dict(strategys))
+        info = {k: v.inspect() for k, v in self._strategys.items()}
+        title = "{}.PRUNE_STRATEGYS".format(self.tool_type().upper())
+        self._logger.debug(msc_utils.msg_block(title, info, width=0))
+        for w_node in self.get_w_nodes():
+            consumer = self.find_consumers(w_node.name)[0]
+            self.process_tensor(w_node.weight, w_node.name, consumer.name, "")
+        self._plan = {n: c for n, c in self._plan.items() if c["in_indices"] or c["out_indices"]}
+        return self._plan
+
     def finalize(self) -> dict:
         """Get the plan"""
 

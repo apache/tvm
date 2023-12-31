@@ -68,7 +68,7 @@ def _get_config(
     }
 
 
-def get_tool_config(tool_type, use_distill=False):
+def get_tool_config(tool_type, use_distill=False, use_gym=False):
     """Get config for the tool"""
     config = {}
     if tool_type == ToolType.PRUNER:
@@ -76,6 +76,23 @@ def get_tool_config(tool_type, use_distill=False):
             "plan_file": "msc_pruner.json",
             "strategys": [{"method": "per_channel", "density": 0.8}],
         }
+        if use_gym:
+            config["gym_configs"] = [
+                {
+                    "env": {
+                        "executors": {
+                            "action_space": {
+                                "method": "action_prune_density",
+                                "start": 0.4,
+                                "end": 0.8,
+                                "step": 0.4,
+                            }
+                        },
+                        "max_tasks": 3,
+                    },
+                    "agent": {"agent_type": "search.grid", "executors": {}},
+                }
+            ]
     elif tool_type == ToolType.QUANTIZER:
         # pylint: disable=import-outside-toplevel
         from tvm.contrib.msc.core.tools.quantize import QuantizeStage
@@ -113,6 +130,23 @@ def get_tool_config(tool_type, use_distill=False):
                 },
             ],
         }
+        if use_gym:
+            config["gym_configs"] = [
+                {
+                    "env": {
+                        "executors": {
+                            "action_space": {
+                                "method": "action_quantize_scale",
+                                "start": 0.8,
+                                "end": 1.2,
+                                "step": 0.2,
+                            }
+                        },
+                        "max_tasks": 3,
+                    },
+                    "agent": {"agent_type": "search.grid", "executors": {}},
+                }
+            ]
     elif tool_type == ToolType.TRACKER:
         config = {
             "plan_file": "msc_tracker.json",
@@ -184,16 +218,16 @@ def _test_from_torch(
         )
         manager = MSCManager(torch_model, config)
         report = manager.run_pipe()
-        assert report["success"], "Failed to run pipe for torch -> {}".format(compile_type)
+        model_info = manager.runner.model_info
         for t_type, config in tools_config.items():
             assert os.path.isfile(
                 msc_utils.get_config_dir().relpath(config["plan_file"])
             ), "Failed to find plan of " + str(t_type)
-        model_info = manager.runner.model_info
+        manager.destory()
+        assert report["success"], "Failed to run pipe for torch -> {}".format(compile_type)
         assert msc_utils.dict_equal(
             model_info, expected_info
         ), "Model info {} mismatch with expected {}".format(model_info, expected_info)
-        manager.destory()
 
 
 def get_model_info(compile_type):
@@ -249,6 +283,16 @@ def test_tvm_distill(tool_type):
     )
 
 
+@pytest.mark.parametrize("tool_type", [ToolType.PRUNER, ToolType.QUANTIZER])
+def test_tvm_gym(tool_type):
+    """Test tools for tvm with distiller"""
+
+    tool_config = get_tool_config(tool_type, use_gym=True)
+    _test_from_torch(
+        MSCFramework.TVM, tool_config, get_model_info(MSCFramework.TVM), is_training=True
+    )
+
+
 @requires_tensorrt
 @pytest.mark.parametrize(
     "tool_type",
@@ -280,6 +324,17 @@ def test_tensorrt_distill(tool_type):
     """Test tools for tensorrt with distiller"""
 
     tool_config = get_tool_config(tool_type, use_distill=True)
+    _test_from_torch(
+        MSCFramework.TENSORRT, tool_config, get_model_info(MSCFramework.TENSORRT), is_training=False
+    )
+
+
+@requires_tensorrt
+@pytest.mark.parametrize("tool_type", [ToolType.PRUNER])
+def test_tensorrt_gym(tool_type):
+    """Test tools for tensorrt with gym"""
+
+    tool_config = get_tool_config(tool_type, use_gym=True)
     _test_from_torch(
         MSCFramework.TENSORRT, tool_config, get_model_info(MSCFramework.TENSORRT), is_training=False
     )
