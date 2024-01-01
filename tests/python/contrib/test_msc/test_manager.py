@@ -17,6 +17,7 @@
 
 """ Test Managers in MSC. """
 
+import json
 import pytest
 import torch
 
@@ -103,7 +104,7 @@ def _check_manager(manager, expected_info):
         err = "Model info {} mismatch with expected {}".format(model_info, expected_info)
     manager.destory()
     if not passed:
-        raise Exception(err)
+        raise Exception("{}\nReport:{}".format(err, json.dumps(manager.report, indent=2)))
 
 
 def _test_from_torch(compile_type, expected_info, is_training=False, atol=1e-1, rtol=1e-1):
