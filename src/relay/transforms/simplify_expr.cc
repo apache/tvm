@@ -794,7 +794,7 @@ class EliminateIdentityRewrite : public DFPatternRewrite {
     if (!IsScalar(GetRef<Expr>(constant))) {
       return false;
     }
-    auto value = TryToScalar(constant->data, 0);
+    auto value = TryToScalar<long double>(constant->data, 0);
     if (!value) {
       // unsupported dtype
       return false;
