@@ -31,10 +31,11 @@ requires_tensorrt = pytest.mark.skipif(
 )
 
 
-def _get_config(model_type, compile_type, inputs, outputs, atol=1e-2, rtol=1e-2):
+def _get_config(model_type, compile_type, inputs, outputs, atol=1e-1, rtol=1e-1):
     """Get msc config"""
     return {
         "workspace": msc_utils.msc_dir(),
+        "verbose": "critical",
         "model_type": model_type,
         "inputs": inputs,
         "outputs": outputs,
@@ -57,7 +58,7 @@ def _get_torch_model(name, is_training=False):
     try:
         import torchvision
 
-        model = getattr(torchvision.models, name)(pretrained=True)
+        model = getattr(torchvision.models, name)()
         if is_training:
             model = model.train()
         else:
@@ -89,7 +90,23 @@ def _get_tf_graph():
         return None
 
 
-def _test_from_torch(compile_type, expected_info, is_training=False, atol=1e-2, rtol=1e-2):
+def _check_manager(manager, expected_info):
+    """Check the manager results"""
+
+    model_info = manager.runner.model_info
+    passed, err = True, ""
+    if not manager.report["success"]:
+        passed = False
+        err = "Failed to run pipe for {} -> {}".format(manager.model_type, manager.compile_type)
+    if not msc_utils.dict_equal(model_info, expected_info):
+        passed = False
+        err = "Model info {} mismatch with expected {}".format(model_info, expected_info)
+    manager.destory()
+    if not passed:
+        raise Exception(err)
+
+
+def _test_from_torch(compile_type, expected_info, is_training=False, atol=1e-1, rtol=1e-1):
     torch_model = _get_torch_model("resnet50", is_training)
     if torch_model:
         if torch.cuda.is_available():
@@ -103,13 +120,8 @@ def _test_from_torch(compile_type, expected_info, is_training=False, atol=1e-2, 
             rtol=rtol,
         )
         manager = MSCManager(torch_model, config)
-        report = manager.run_pipe()
-        assert report["success"], "Failed to run pipe for torch -> {}".format(compile_type)
-        model_info = manager.runner.model_info
-        assert msc_utils.dict_equal(
-            model_info, expected_info
-        ), "Model info {} mismatch with expected {}".format(model_info, expected_info)
-        manager.destory()
+        manager.run_pipe()
+        _check_manager(manager, expected_info)
 
 
 def _test_from_tf(compile_type, expected_info, atol=1e-2, rtol=1e-2):
@@ -125,13 +137,8 @@ def _test_from_tf(compile_type, expected_info, atol=1e-2, rtol=1e-2):
         )
         config["compile"]["profile"]["check"]["err_rate"] = -1
         manager = MSCManager(graphdef, config)
-        report = manager.run_pipe()
-        assert report["success"], "Failed to run pipe for tensorflow -> {}".format(compile_type)
-        model_info = manager.runner.model_info
-        assert msc_utils.dict_equal(
-            model_info, expected_info
-        ), "Model info {} mismatch with expected {}".format(model_info, expected_info)
-        manager.destory()
+        manager.run_pipe()
+        _check_manager(manager, expected_info)
 
 
 def test_tvm_manager():

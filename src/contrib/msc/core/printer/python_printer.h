@@ -66,6 +66,9 @@ class PythonPrinter : public MSCBasePrinter {
   /*! * \brief Print a IfDoc to python format*/
   void PrintTypedDoc(const IfDoc& doc) final;
 
+  /*! * \brief Print a ForDoc to python format*/
+  void PrintTypedDoc(const ForDoc& doc) final;
+
   /*! * \brief Print a ScopeDoc to python format*/
   void PrintTypedDoc(const ScopeDoc& doc) final;
 
@@ -78,8 +81,14 @@ class PythonPrinter : public MSCBasePrinter {
   /*! * \brief Print a CommentDoc to python format*/
   void PrintTypedDoc(const CommentDoc& doc) final;
 
-  /*! \brief Virtual method to print a StrictListDoc*/
+  /*! * \brief Print a StrictListDoc to python format*/
   void PrintTypedDoc(const StrictListDoc& doc) final;
+
+  /*! * \brief Print a SwitchDoc to python format*/
+  void PrintTypedDoc(const SwitchDoc& doc) final;
+
+  /*! \brief Print comment for stmt in python format*/
+  void MaybePrintComment(const StmtDoc& stmt, bool multi_lines = false) final;
 
  private:
   /*! \brief Print block with indent*/

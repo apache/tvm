@@ -53,10 +53,10 @@ class BaseManager(object):
         self._workspace = msc_utils.set_workspace(config.get("workspace"))
         log_path = config.get("log_path") or self._workspace.relpath("MSC_LOG", keep_history=False)
         if config.get("debug_level", 0) > 0 and "verbose" not in config:
-            verbose = "debug"
+            self._verbose = "debug"
         else:
-            verbose = config.get("verbose", "info")
-        self._logger = msc_utils.set_global_logger(verbose, log_path)
+            self._verbose = config.get("verbose", "info")
+        self._logger = msc_utils.set_global_logger(self._verbose, log_path)
         msc_utils.time_stamp(MSCStage.SETUP)
         self._logger.info(msc_utils.msg_block("SETUP", self.setup(config)))
 
@@ -78,6 +78,9 @@ class BaseManager(object):
         self._tools_config = {}
         self._relax_mod, self._runner = None, None
         self._data_loader, self._sample_inputs = None, None
+        self._model_type = self._config["model_type"]
+        self._optimize_type = self._config.get("optimize", {}).get("run_type", self._model_type)
+        self._compile_type = self._config.get("compile", {}).get("run_type", self._model_type)
         self._report = {
             "success": False,
             "info": {
@@ -172,9 +175,9 @@ class BaseManager(object):
             self._runner = self.compile(self._config["compile"], use_cache)
         except Exception as exc:  # pylint: disable=broad-exception-caught
             err_msg = "Pipeline failed:{}\nTrace: {}".format(exc, traceback.format_exc())
-        report = self.summary(err_msg)
-        self._logger.info(msc_utils.msg_block("SUMMARY", report, 0))
-        return report
+        self.summary(err_msg)
+        self._logger.info(msc_utils.msg_block("SUMMARY", self._report, 0))
+        return self._report
 
     def prepare(self, stage_config: dict, use_cache: bool = False) -> Dict[str, np.ndarray]:
         """Prepare datas for the pipeline.
@@ -573,6 +576,7 @@ class BaseManager(object):
                         "knowledge": knowledge,
                     },
                     "debug_level": runner.debug_level,
+                    "verbose": self._verbose,
                 }
                 controller = create_controller(runner.stage, config, extra_config)
                 knowledge = controller.run()
@@ -867,6 +871,22 @@ class BaseManager(object):
     @property
     def runner(self):
         return self._runner
+
+    @property
+    def report(self):
+        return self._report
+
+    @property
+    def model_type(self):
+        return self._model_type
+
+    @property
+    def optimize_type(self):
+        return self._optimize_type
+
+    @property
+    def compile_type(self):
+        return self._compile_type
 
 
 class MSCManager(BaseManager):

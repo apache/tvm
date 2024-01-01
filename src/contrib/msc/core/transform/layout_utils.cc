@@ -30,6 +30,32 @@ namespace tvm {
 namespace contrib {
 namespace msc {
 
+NLayout LayoutUtils::InferNLayout(const Expr& expr, const VarLayoutMap& var_layout_map) {
+  if (expr->IsInstance<VarNode>() && var_layout_map.count(Downcast<Var>(expr))) {
+    return tvm::relax::GetNLayout(var_layout_map, expr);
+  }
+  return GetNLayout(expr);
+}
+
+LayoutDecision LayoutUtils::InferLayoutDecision(const Expr& expr,
+                                                const VarLayoutMap& var_layout_map) {
+  const auto& nlayout = InferNLayout(expr, var_layout_map);
+  ICHECK(nlayout.IsLeaf()) << "Cannot get layout for " << expr;
+  return nlayout.LeafValue();
+}
+
+LayoutDecision LayoutUtils::InferLayoutDecisionAt(const Expr& expr,
+                                                  const VarLayoutMap& var_layout_map,
+                                                  size_t index) {
+  const auto& nlayouts = InferNLayout(expr, var_layout_map);
+  if (nlayouts.IsLeaf()) {
+    return index == 0 ? nlayouts.LeafValue() : LayoutDecision("");
+  }
+  const auto& nlayout = nlayouts.NestedArray()[0];
+  ICHECK(nlayout.IsLeaf()) << "Cannot get output layout for " << expr;
+  return nlayout.LeafValue();
+}
+
 bool LayoutUtils::LayoutInfered(const Expr& expr) {
   const String& layout = SpanUtils::GetAttr(expr->span, "layout");
   return layout.size() > 0;

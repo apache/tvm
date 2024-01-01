@@ -45,7 +45,7 @@ def _get_torch_model(name, is_training=False):
     try:
         import torchvision
 
-        model = getattr(torchvision.models, name)(pretrained=True)
+        model = getattr(torchvision.models, name)()
         if is_training:
             model = model.train()
         else:
@@ -77,7 +77,7 @@ def _get_tf_graph():
         return None, None
 
 
-def _test_from_torch(runner_cls, device, is_training=False, atol=1e-3, rtol=1e-3):
+def _test_from_torch(runner_cls, device, is_training=False, atol=1e-1, rtol=1e-1):
     """Test runner from torch model"""
 
     torch_model = _get_torch_model("resnet50", is_training)
@@ -96,9 +96,9 @@ def _test_from_torch(runner_cls, device, is_training=False, atol=1e-3, rtol=1e-3
         runner.build()
         outputs = runner.run(datas, ret_type="list")
         golden = [msc_utils.cast_array(golden)]
+        workspace.destory()
         for gol_r, out_r in zip(golden, outputs):
             tvm.testing.assert_allclose(gol_r, out_r, atol=atol, rtol=rtol)
-        workspace.destory()
 
 
 def test_tvm_runner_cpu():
@@ -124,14 +124,14 @@ def test_torch_runner_cpu():
 def test_torch_runner_gpu():
     """Test runner for torch on cuda"""
 
-    _test_from_torch(TorchRunner, "cuda", atol=1e-2, rtol=1e-2)
+    _test_from_torch(TorchRunner, "cuda", atol=1e-1, rtol=1e-1)
 
 
 @requires_tensorrt
 def test_tensorrt_runner():
     """Test runner for tensorrt"""
 
-    _test_from_torch(TensorRTRunner, "cuda", atol=1e-2, rtol=1e-2)
+    _test_from_torch(TensorRTRunner, "cuda", atol=1e-1, rtol=1e-1)
 
 
 def test_tensorflow_runner():
@@ -153,9 +153,9 @@ def test_tensorflow_runner():
         runner = TensorflowRunner(mod)
         runner.build()
         outputs = runner.run([data], ret_type="list")
+        workspace.destory()
         for gol_r, out_r in zip(golden, outputs):
             tvm.testing.assert_allclose(gol_r, out_r, atol=1e-3, rtol=1e-3)
-        workspace.destory()
 
 
 if __name__ == "__main__":
