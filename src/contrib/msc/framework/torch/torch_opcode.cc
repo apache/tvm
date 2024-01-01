@@ -563,8 +563,7 @@ class TorchSplitCodeGen : public TorchOpCode {
     for (size_t i = 0; i < node()->outputs.size(); i++) {
       indices.push_back(node()->OutputAt(i)->DimAt(axis)->value);
     }
-    stack_.call_arg(DocUtils::ToList(indices), "split_size_or_sections")
-        .op_arg<int>("axis", "dim");
+    stack_.call_arg(DocUtils::ToList(indices), "split_size_or_sections").op_arg<int>("axis", "dim");
   }
 };
 
