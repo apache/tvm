@@ -1038,8 +1038,11 @@ void CodeGenC::VisitStmt_(const ForNode* op) {
 
 void CodeGenC::VisitStmt_(const WhileNode* op) {
   PrintIndent();
-  stream << "while (" << PrintExpr(op->condition) << ") {\n";
+  stream << "while (1) {\n";
   int while_scope = BeginScope();
+  std::string cond = PrintExpr(op->condition);
+  PrintIndent();
+  stream << "if (!(" << cond << ")) { break; }\n";
   PrintStmt(op->body);
   this->EndScope(while_scope);
   PrintIndent();
