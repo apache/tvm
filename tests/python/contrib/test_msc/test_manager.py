@@ -18,6 +18,7 @@
 """ Test Managers in MSC. """
 
 import json
+import datetime
 import pytest
 import torch
 
@@ -34,8 +35,12 @@ requires_tensorrt = pytest.mark.skipif(
 
 def _get_config(model_type, compile_type, inputs, outputs, atol=1e-1, rtol=1e-1):
     """Get msc config"""
+
+    path = "test_manager_{}_{}_{}".format(
+        model_type, compile_type, datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
+    )
     return {
-        "workspace": msc_utils.msc_dir(),
+        "workspace": msc_utils.msc_dir(path),
         "verbose": "critical",
         "model_type": model_type,
         "inputs": inputs,
@@ -55,6 +60,7 @@ def _get_config(model_type, compile_type, inputs, outputs, atol=1e-1, rtol=1e-1)
 
 def _get_torch_model(name, is_training=False):
     """Get model from torch vision"""
+
     # pylint: disable=import-outside-toplevel
     try:
         import torchvision
@@ -72,6 +78,7 @@ def _get_torch_model(name, is_training=False):
 
 def _get_tf_graph():
     """Get graph from tensorflow"""
+
     # pylint: disable=import-outside-toplevel
     try:
         from tvm.contrib.msc.framework.tensorflow import tf_v1

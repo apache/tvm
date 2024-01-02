@@ -18,6 +18,7 @@
 """ Test Tools in MSC. """
 
 import json
+import datetime
 import pytest
 import torch
 
@@ -44,8 +45,15 @@ def _get_config(
     optimize_type=None,
 ):
     """Get msc config"""
+
+    path = "test_tool_{}_{}".format(model_type, compile_type)
+    for t_type, config in tools_config.items():
+        path = path + "_" + str(t_type)
+        if "gym_configs" in config:
+            path = path + "_gym"
+    path = path + "_" + str(datetime.datetime.now().strftime("%Y%m%d_%H%M%S"))
     return {
-        "workspace": msc_utils.msc_dir(),
+        "workspace": msc_utils.msc_dir(path),
         "verbose": "critical",
         "model_type": model_type,
         "inputs": inputs,
@@ -70,6 +78,7 @@ def _get_config(
 
 def get_tool_config(tool_type, use_distill=False, use_gym=False):
     """Get config for the tool"""
+
     config = {}
     if tool_type == ToolType.PRUNER:
         config = {
@@ -178,6 +187,7 @@ def get_tool_config(tool_type, use_distill=False, use_gym=False):
 
 def _get_torch_model(name, is_training=False):
     """Get model from torch vision"""
+
     # pylint: disable=import-outside-toplevel
     try:
         import torchvision
@@ -239,6 +249,7 @@ def _test_from_torch(
 
 def get_model_info(compile_type):
     """Get the model info"""
+
     if compile_type == MSCFramework.TVM:
         return {
             "inputs": [

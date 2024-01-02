@@ -61,7 +61,7 @@ class MSCDirectory(object):
 
     def __init__(self, path: str = None, keep_history: bool = True, cleanup: bool = False):
         if not path:
-            path = "msc_" + str(datetime.datetime.now().strftime("%Y%m%d_%H-%M-%S"))
+            path = "msc_" + str(datetime.datetime.now().strftime("%Y%m%d_%H%M%S"))
         self._path = os.path.abspath(path)
         self._cleanup = cleanup
         self._cwd = os.getcwd()
