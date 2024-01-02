@@ -20,6 +20,8 @@
 /*!
  * \file tvm/arith/ir_mutator_with_analyzer.cc
  */
+#include <vector>
+
 #include "ir_mutator_with_analyzer.h"
 
 #include <tvm/arith/iter_affine_map.h>
