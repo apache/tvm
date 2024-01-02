@@ -536,7 +536,7 @@ class CodeGenCMSISNN : public codegen::CodeGenCHost {
     };
 
     PrintIndent();
-    stream << "switch (!status) {\n";
+    stream << "switch (status) {\n";
     PrintIndent();
     stream << "case ARM_CMSIS_NN_SUCCESS: break;\n";
     PrintIndent();
