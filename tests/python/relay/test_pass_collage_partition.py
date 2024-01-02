@@ -67,8 +67,6 @@ def run_collage(
     with pass_ctxt:
         config = make_compilation_config(pass_ctxt, targets)
         actual_mod = InferType()(input_mod)
-        # Capture indexes only to help debug failing tests
-        actual_mod = CapturePostDfsIndexInSpans()(actual_mod)
         actual_mod = CollagePartition(config, cost_estimator)(actual_mod)
 
         if not tvm.ir.structural_equal(actual_mod, expected_mod, map_free_vars=True):
