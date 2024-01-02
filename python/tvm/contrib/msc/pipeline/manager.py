@@ -19,6 +19,7 @@
 
 import os
 import time
+import json
 from typing import Dict, Any
 import traceback
 import numpy as np
@@ -29,6 +30,7 @@ from tvm.contrib.msc.core.tools import ToolType
 from tvm.contrib.msc.core.utils.namespace import MSCFramework, MSCMap
 from tvm.contrib.msc.core.utils.message import MSCStage
 from tvm.contrib.msc.core import utils as msc_utils
+from tvm.contrib.msc.core.gym.control import create_controller
 
 
 class BaseManager(object):
@@ -561,7 +563,25 @@ class BaseManager(object):
             tool_stage, t_stage_config, tools_config=tools_config, profile=False, use_cache=False
         )
         if gym_configs:
-            raise NotImplementedError("Gym is not implemented")
+            knowledge = None
+            for idx, config in enumerate(gym_configs):
+                self._logger.info("GYM[%d/%d].CREATE(%s)", idx, len(gym_configs), tool_stage)
+                extra_config = {
+                    "env": {
+                        "runner": runner,
+                        "data_loader": self._data_loader,
+                        "knowledge": knowledge,
+                    },
+                    "debug_level": runner.debug_level,
+                }
+                controller = create_controller(runner.stage, config, extra_config)
+                knowledge = controller.run()
+            with open(plan_file, "w") as f:
+                f.write(json.dumps(knowledge, indent=2))
+            self._logger.info(
+                "Gym save %d knowledge(%s) -> %s", len(knowledge), tool_type, plan_file
+            )
+            return plan_file
         return runner.apply_tool(tool_type, self._data_loader)
 
     def _profile_runner(self, runner: BaseRunner, stage_config: str) -> dict:
