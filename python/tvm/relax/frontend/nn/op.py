@@ -1556,11 +1556,12 @@ def tensor_ir_op(
     for arg in args:
         if isinstance(arg, Tensor):
             call_tir_args.append(arg._expr)
-        elif isinstance(arg, rx.ShapeExpr) or isinstance(arg, _tir.PrimExpr):
+        elif isinstance(arg, (rx.ShapeExpr, _tir.PrimExpr)):
             tir_vars.append(arg)
         else:
             raise TypeError(
-                f"Unsupported type: tensor_ir_op args expect Tensor or ShapeExpr or PrimExpr, but got {type(arg)}"
+                "Unsupported type: tensor_ir_op args expect Tensor or ShapeExpr or PrimExpr,"
+                f"but got {type(arg)}"
             )
 
     if isinstance(out, Tensor):
