@@ -96,27 +96,6 @@ void ArrayCopyToBytes(const DLTensor* handle, void* data, size_t nbytes) {
   DeviceAPI::Get(handle->device)->StreamSync(handle->device, nullptr);
 }
 
-TVM_REGISTER_GLOBAL("mlc.show_dltensor").set_body_typed([](NDArray arr) {
-  auto handle = arr.operator->();
-  LOG(INFO) << "data: " << handle->data;
-  LOG(INFO) << "device:" << handle->device.device_type << " " << handle->device.device_id;
-  LOG(INFO) << "ndim: " << handle->ndim;
-  LOG(INFO) << DLDataType2String(handle->dtype);
-  LOG(INFO) << "shape:";
-  for (int i = 0; i < handle->ndim; ++i) {
-    LOG(INFO) << handle->shape[i];
-  }
-  LOG(INFO) << "strides:";
-  if (handle->strides == nullptr) {
-    LOG(INFO) << "nullptr";
-  } else {
-    for (int i = 0; i < handle->ndim; ++i) {
-      LOG(INFO) << handle->strides[i];
-    }
-  }
-  LOG(INFO) << "byte_offset: " << handle->byte_offset;
-});
-
 struct NDArray::Internal {
   // Default deleter for the container
   static void DefaultDeleter(Object* ptr_obj) {
