@@ -1556,7 +1556,7 @@ export class Instance implements Disposable {
         });
         const recSource = buffer.slice(rec.byteOffset, rec.byteOffset + rec.nbytes);
         // first sync copy to cpu.
-        this.ctx.arrayDecodeStorage(cpu_arr, new Uint8Array(recSource), rec.format);
+        this.ctx.arrayDecodeStorage(cpu_arr, new Uint8Array(recSource), rec.format, rec.dtype);
         // then async stream into GPU if needed
         if (device.deviceType === DeviceStrToEnum.cpu) {
           this.ndarrayCacheUpdate(rec.name, cpu_arr, false);

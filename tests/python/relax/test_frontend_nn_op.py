@@ -17,11 +17,13 @@
 # pylint: disable=missing-docstring, invalid-name
 import tvm
 import tvm.testing
-from tvm import tir
+from tvm import relax, tir
 from tvm.relax.frontend.nn import Module, Tensor, op, spec
 from tvm.script import ir as I
 from tvm.script import relax as R
 from tvm.script import tir as T
+
+# mypy: disable-error-code="attr-defined,valid-type,name-defined"
 
 
 def test_binary():
@@ -174,7 +176,7 @@ def test_image():
         def test(self, x: Tensor, weight: Tensor, bias: Tensor):
             padded = op.pad(x, [0, 0, 0, 0, 1, 1, 1, 1])
             conv2d = op.conv2d(padded, weight, bias)
-            interpolate = op.interpolate(x, size=[40, 40])
+            interpolate = op.interpolate(x, size=[40, 40])  # type: ignore
             return (conv2d, interpolate)
 
     @R.function
@@ -347,7 +349,7 @@ def test_create():
     class Model(Module):
         def test(self, x: Tensor):
             triu_out = op.triu(x)
-            full_with_scalar_out = op.full([10, 10], fill_value=10)
+            full_with_scalar_out = op.full([10, 10], fill_value=10)  # type: ignore
             full_with_FloatImm_out = op.full(
                 [10, 10], fill_value=tir.FloatImm(dtype="float32", value=10)
             )
@@ -636,6 +638,25 @@ def test_extern():
         debug=True,
     )
     tvm.ir.assert_structural_equal(irmodule, Expected)
+
+
+def test_empty():
+    @tvm.register_func("test_empty_assert", override=True)
+    def test_empty_assert(_lineo, x):
+        assert x.shape == (10, 10)
+        assert x.dtype == "float32"
+
+    class Model(Module):
+        def test(self):
+            result = op.empty([10, 10], dtype="float32")
+            op.debug_func("test_empty_assert", result)
+            return result
+
+    irmodule, _ = Model().export_tvm(spec={"test": {}}, debug=True)
+    ex = relax.build(irmodule, "llvm")
+    vm = relax.VirtualMachine(ex, tvm.cpu())
+    effects = vm["_initialize_effect"]()
+    vm["test"](*effects)
 
 
 if __name__ == "__main__":

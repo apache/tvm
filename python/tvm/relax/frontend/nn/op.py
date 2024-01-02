@@ -1149,6 +1149,65 @@ def zeros(
     return wrap_nested(_op.zeros(shape, dtype), name)
 
 
+def ones(
+    shape: Sequence[IntExpr],
+    dtype: str = "float32",
+    name: str = "ones",
+) -> Tensor:
+    """Construct a tensor of all zeros, with the input shape and dtype.
+
+    Parameters
+    ----------
+    shape : Sequence[IntExpr]
+        The shape of the created tensor.
+
+    dtype : str
+        The data type of the created tensor.
+
+    name : str
+        Name hint.
+
+    Returns
+    -------
+    result : Tensor
+        The result tensor.
+    """
+    return wrap_nested(_op.ones(shape, dtype), name)
+
+
+def empty(
+    shape: Sequence[IntExpr],
+    dtype: str = "float32",
+    name: str = "empty",
+) -> Tensor:
+    """Construct an uninitialized tensor, with the input shape and dtype.
+
+    Parameters
+    ----------
+    shape : Sequence[IntExpr]
+        The shape of the created tensor.
+
+    dtype : str
+        The data type of the created tensor.
+
+    name : str
+        Name hint.
+
+    Returns
+    -------
+    result : Tensor
+        The result tensor.
+    """
+    return wrap_nested(  # type: ignore
+        _op.builtin.alloc_tensor(
+            rx.ShapeExpr(shape),  # type: ignore
+            dtype,
+            runtime_device_index=0,
+        ),
+        name,
+    )
+
+
 def split(
     ary: Tensor,
     indices_or_sections: Union[int, Sequence[int]],
