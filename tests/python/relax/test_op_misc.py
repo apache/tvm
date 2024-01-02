@@ -66,6 +66,16 @@ def test_implicit_op():
     m, n = tvm.tir.Var("m", "int64"), tvm.tir.Var("n", "int64")
     x = rx.Var("x", R.Tensor([m, n], "float32"))
     y = rx.Var("y", R.Tensor([m, n], "float32"))
+    func = rx.Var(
+        "func",
+        R.Callable(
+            [R.Tensor([m, n], "float32")],
+            R.Callable(
+                [R.Tensor([m, n], "float32")],
+                R.Tuple,
+            ),
+        ),
+    )
 
     def _check_call(expr, op_name: str):
         assert isinstance(expr, rx.Call)
@@ -94,9 +104,9 @@ def test_implicit_op():
     _check_call(x.astype("float32"), "astype")
 
     # Call
-    call_expr = x(y)(y)
+    call_expr = func(y)(y)
     assert isinstance(call_expr.op, rx.Call)
-    assert call_expr.op.op == x
+    assert call_expr.op.op == func
 
     # GetTupleItem
     ## Eager get item for tuple
