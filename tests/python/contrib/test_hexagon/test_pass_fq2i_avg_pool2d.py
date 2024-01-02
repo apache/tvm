@@ -15,6 +15,8 @@
 # specific language governing permissions and limitations
 # under the License.
 
+# pylint: disable=redefined-outer-name
+
 """ Tests for avg_pool2d fake quantization to integer """
 
 import numpy as np
