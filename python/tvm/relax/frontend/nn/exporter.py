@@ -23,7 +23,7 @@ from tvm.ir import IRModule
 
 from ... import expr as rx
 from ...block_builder import BlockBuilder
-from ...struct_info import ShapeStructInfo, TupleStructInfo
+from ...struct_info import ObjectStructInfo, ShapeStructInfo, TupleStructInfo
 from . import core, extern
 from . import spec as _spec
 from .modules import IOEffect
@@ -160,7 +160,7 @@ def _emit_method(  # pylint: disable=too-many-locals,too-many-branches,too-many-
 ):
     # pylint: disable=protected-access
     def _unwrap_ret(expr: typing.Any) -> typing.Any:
-        if isinstance(expr, core.Tensor):
+        if isinstance(expr, (core.Tensor, core.Object)):
             return expr._expr
         if isinstance(expr, tuple):
             return rx.Tuple([_unwrap_ret(x) for x in expr])
@@ -171,7 +171,7 @@ def _emit_method(  # pylint: disable=too-many-locals,too-many-branches,too-many-
     def _convert_input(arg):
         if isinstance(arg, tir.Var):
             return rx.Var(arg.name, struct_info=ShapeStructInfo(values=[arg]))
-        if isinstance(arg, core.Tensor):
+        if isinstance(arg, (core.Tensor, core.Object)):
             return arg._expr  # pylint: disable=protected-access
         if isinstance(arg, _spec.Tuple):
             return rx.Var(
@@ -292,6 +292,8 @@ def _method_spec_to_inputs(
                 dtype=arg_spec.dtype,
                 name=arg_name,
             )
+        elif isinstance(arg_spec, _spec.Object):
+            arg = arg_spec.object_type(_expr=rx.Var(arg_name, ObjectStructInfo()), _name=arg_name)
         elif isinstance(arg_spec, _spec.Tuple):
             elements = type(arg_spec.elements)(
                 [
