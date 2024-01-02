@@ -39,7 +39,7 @@ namespace relax {
 namespace {
 class ParamStructInfoMutator : public ExprMutator {
  public:
-  ParamStructInfoMutator(TypedPackedFunc<Optional<StructInfo>(Var)> sinfo_func)
+  explicit ParamStructInfoMutator(TypedPackedFunc<Optional<StructInfo>(Var)> sinfo_func)
       : sinfo_func_(sinfo_func) {}
 
   using ExprMutator::VisitExpr_;
