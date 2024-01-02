@@ -848,9 +848,8 @@ class PagedAttentionKVCacheObj : public AttentionKVCache {
     if (num_depths_ == 1) {
       if (use_decode_kernel_[0]) {
         f_attention_decode_begin_forward_(
-            /*depth=*/0, page_indptr_on_depths_view_[0], page_indices_on_depths_view_[0],
-            last_page_len_on_depths_view_[0], /*return_lse=*/true, num_qo_heads_, num_kv_heads_,
-            head_dim_, page_size_, /*rotary_mode=*/true);
+            /*depth=*/0, page_indptr_on_depths_view_[0], last_page_len_on_depths_view_[0],
+            num_qo_heads_, num_kv_heads_, head_dim_, page_size_, /*rotary_mode=*/true);
       } else {
         f_attention_prefill_begin_forward_(/*depth=*/0, qo_indptr_on_depths_view_[0],
                                            cur_batch_size_, num_qo_heads_, num_kv_heads_);
@@ -864,9 +863,8 @@ class PagedAttentionKVCacheObj : public AttentionKVCache {
         }
         if (use_decode_kernel_[d]) {
           f_attention_decode_begin_forward_(
-              d, page_indptr_on_depths_view_[d], page_indices_on_depths_view_[d],
-              last_page_len_on_depths_view_[d], /*rotary_mode=*/false, num_qo_heads_, num_kv_heads_,
-              head_dim_, page_size_, /*return_lse=*/true);
+              d, page_indptr_on_depths_view_[d], last_page_len_on_depths_view_[d], num_qo_heads_,
+              num_kv_heads_, head_dim_, page_size_, /*rotary_mode=*/false);
         } else {
           f_attention_prefill_begin_forward_(/*depth=*/d, qo_indptr_on_depths_view_[d],
                                              last_page_len_on_depths_view_[d]->shape[0],
