@@ -219,6 +219,12 @@ class TokenAllocator1D {
     available_pool_[token->dtype].insert({token->bytes, token});
   }
 
+  /*! \brief Clear the allocator. */
+  void Clear() {
+    available_pool_.clear();
+    full_pool_.clear();
+  }
+
  private:
   /*! \brief A constant scale representing the token search range. */
   const int match_range_{16};
@@ -569,6 +575,8 @@ class StorageAllocator : public StorageAllocatorBaseVisitor {
       if (func == nullptr) {
         continue;
       }
+      // Clear the allocator to make the planning of different functions independent.
+      allocator_.Clear();
       this->VisitExpr_(func);
     }
   }
