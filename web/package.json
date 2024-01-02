@@ -13,7 +13,7 @@
     "build": "rollup -c",
     "lint": "eslint -c .eslintrc.json .",
     "typedoc": "typedoc src/index.ts --plugin typedoc-plugin-missing-exports",
-    "test": "jest",
+    "test": "node --experimental-wasm-eh node_modules/.bin/jest",
     "bundle": "npm run build && cp lib/index.js dist/index.js && cp lib/index.js dist/tvmjs.bundle.js",
     "example": "npm run bundle && node apps/node/example.js",
     "example:wasi": "npm run bundle && node --experimental-wasi-unstable-preview1 --experimental-wasm-bigint apps/node/wasi_example.js",
