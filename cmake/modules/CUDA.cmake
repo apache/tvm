@@ -38,27 +38,10 @@ if(USE_CUDA)
   list(APPEND TVM_RUNTIME_LINKER_LIBS ${CUDA_CUDA_LIBRARY})
   list(APPEND TVM_RUNTIME_LINKER_LIBS ${CUDA_NVRTC_LIBRARY})
 
-  # Compatibility with cmake 3.18+
-  #
-  # The updates to the cutlass kernels made in TVM PR#16244 require
-  # symbols provided in cuda 7.5+.  While the cuda architecture is
-  # specified by setting `NVCC_FLAGS` in the `CMakeLists.txt` for each
-  # kernel, cmake 3.18+ also sets it based on the
-  # `CMAKE_CUDA_ARCHITECTURES` value.  If not set, cmake will explicitly
-  # pass the compute capability as nvidia's default of 5.2, *EVEN IF* it
-  # has already been specified in `NVCC_FLAGS`.  Because the kernels
-  # cannot compile with compute capability of 5.2, this causes
-  # compilation errors.
-  #
-  # By setting `CMAKE_CUDA_ARCHITECTURES` to `OFF`, cmake does not add
-  # 5.2 as a target architecture.
-  #
-  # See https://cmake.org/cmake/help/latest/policy/CMP0104.html for
-  # details on CMake's policy for CUDA architecture flags.
-  #
-  # See https://cmake.org/cmake/help/latest/policy/CMP0104.html for the
-  # default CUDA architecture for each version of CUDA.
-  set(CMAKE_CUDA_ARCHITECTURES OFF)
+  if(NOT DEFINED CMAKE_CUDA_ARCHITECTURES)
+    message(STATUS "CMAKE_CUDA_ARCHITECTURES not set, using native")
+    set(CMAKE_CUDA_ARCHITECTURES native)
+  endif()
 
   if(USE_CUDNN)
     message(STATUS "Build with cuDNN support")
