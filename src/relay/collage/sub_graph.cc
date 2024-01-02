@@ -130,6 +130,21 @@ class Extractor : public ExprMutator {
     // Sweep backwards through the body, rewriting to account for each nested sub-graph.
     body = NestedSubGraph::ParallelRewrite(body_dataflow_graph, body, std::move(nested_sub_graphs));
 
+    // Invoke the compiler target preprocessing function define under "relay.ext.compiler.optimize"
+    if (opt_attrs_.defined() && (opt_attrs_.find("Compiler") != opt_attrs_.end())) {
+      DictAttrs opt_dict_attr = DictAttrs(opt_attrs_);
+      std::string spec_name = opt_dict_attr.GetAttr("Compiler", Optional<String>()).value();
+      std::string ext_opt = "relay.ext." + spec_name + ".optimize";
+      auto pf = tvm::runtime::Registry::Get(ext_opt);
+      if (pf != nullptr) {
+        auto mod = IRModule::FromExpr(body);
+        mod = transform::InferType()(mod);
+        mod = (*pf)(mod);
+        mod = transform::InferType()(mod);
+        body = Downcast<Function>(mod->Lookup("main"))->body;
+      }
+    }
+
     if (for_function) {
       // Rewrite so all input nodes are now conveyed via call arguments to a new function.
       Array<Type> arg_types;
@@ -245,7 +260,7 @@ class Extractor : public ExprMutator {
     } else if (CanInline(expr)) {
       // Implicitly include inlinable input sub-expressions.
       return expr;
-    } else if (opt_attrs_.defined()) {
+    } else if (opt_attrs_.defined() && (expr.as<ConstantNode>() == nullptr)) {
       // Map to a function parameter.
       return VarFor(expr);
     } else {
