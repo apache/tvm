@@ -152,9 +152,13 @@ Pass MetaScheduleApplyDatabase(Optional<String> work_dir, bool enable_warning = 
           ICHECK_EQ(new_mod->functions.size(), 1);
           BaseFunc new_base_func = (*new_mod->functions.begin()).second;
           ICHECK(new_base_func->IsInstance<tir::PrimFuncNode>());
-          tir::PrimFunc new_prim_func = Downcast<tir::PrimFunc>(new_base_func);
-          // copy the original attrs
-          new_prim_func = WithAttrs(std::move(new_prim_func), {prim_func->attrs->dict});
+          tir::PrimFunc tuned_prim_func = Downcast<tir::PrimFunc>(new_base_func);
+          // maintain the original attributes
+          tir::PrimFunc new_prim_func = tir::PrimFunc(/*params=*/tuned_prim_func->params,
+                                                      /*body=*/tuned_prim_func->body,
+                                                      /*ret_type=*/tuned_prim_func->ret_type,
+                                                      /*buffer_map=*/tuned_prim_func->buffer_map,
+                                                      /*attrs=*/prim_func->attrs);
           new_prim_func = WithAttr(std::move(new_prim_func), tir::attr::kIsScheduled, Bool(true));
           result.Set(gv, new_prim_func);
           continue;
