@@ -65,14 +65,12 @@ class SortScanDispatcher(PyExprMutator):
                         call.args[0],
                         call.attrs.axis,
                         not call.attrs.descending,
-                        primfunc_attrs={"tir.is_scheduled": 1},
                     )
                 return self.builder_.call_te(
                     topi.cuda.sort if tgt.kind.name == "cuda" else topi.sort,
                     call.args[0],
                     call.attrs.axis,
                     not call.attrs.descending,
-                    primfunc_attrs={"tir.is_scheduled": 1},
                 )
 
         if call.op.name == "relax.cumsum":
@@ -84,7 +82,6 @@ class SortScanDispatcher(PyExprMutator):
                     call.args[0],
                     axis,
                     call.attrs.dtype,
-                    primfunc_attrs={"tir.is_scheduled": 1},
                 )
 
         return super().visit_call_(call)

@@ -47,7 +47,7 @@ def test_dispatch_cumsum():
 
         @T.prim_func(private=True)
         def cumsum(var_A: T.handle, out_buf: T.Buffer((T.int64(2), T.int64(3)), "float64")):
-            T.func_attr({"tir.is_scheduled": 1, "tir.noalias": T.bool(True)})
+            T.func_attr({"tir.noalias": T.bool(True)})
             A = T.match_buffer(var_A, (T.int64(2), T.int64(3)), offset_factor=1)
             with T.block("cumsum_generic"):
                 T.reads(A[T.int64(0) : T.int64(2), T.int64(0) : T.int64(3)])
@@ -114,7 +114,6 @@ def test_dispatch_cumsum_cuda():
                     topi.cuda.cumsum,
                     x,
                     axis=1,
-                    primfunc_attrs={"tir.is_scheduled": 1},
                 )
                 out = bb.emit_output(out)
             bb.emit_func_output(out)
@@ -146,7 +145,7 @@ def test_dispatch_sort():
 
         @T.prim_func(private=True)
         def sort(var_A: T.handle, var_sort_cpu: T.handle):
-            T.func_attr({"tir.is_scheduled": 1, "tir.noalias": T.bool(True)})
+            T.func_attr({"tir.noalias": T.bool(True)})
             m = T.int64()
             data_buf = T.match_buffer(var_A, (m, T.int64(3)), align=8)
             out_buf = T.match_buffer(var_sort_cpu, (m, T.int64(3)), align=8)
@@ -226,7 +225,6 @@ def test_dispatch_sort_cuda():
                     topi.cuda.sort,
                     x,
                     axis=1,
-                    primfunc_attrs={"tir.is_scheduled": 1},
                 )
                 out = bb.emit_output(out)
             bb.emit_func_output(out)
@@ -239,7 +237,6 @@ def test_dispatch_sort_cuda():
                     y,
                     0,
                     False,
-                    primfunc_attrs={"tir.is_scheduled": 1},
                 )
                 out = bb.emit_output(out)
             bb.emit_func_output(out)
