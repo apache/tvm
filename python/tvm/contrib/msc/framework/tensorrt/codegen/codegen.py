@@ -114,15 +114,16 @@ def to_sub_tensorrt(
                 folder.copy(path, info["src"])
         return folder.move(engine_name + ".trt", output_folder.relpath(engine_name + ".trt"))
 
-    codegen = CodeGen(
-        graph,
-        _ffi_api.GetTensorRTSources,
-        codegen_config,
-        print_config,
-        build_folder.create_dir(graph.name),
-        code_format="cpp",
-    )
-    engine_file = codegen.load([], pre_load=_create_depends, post_load=_build_engine)
+    with build_folder as folder:
+        codegen = CodeGen(
+            graph,
+            _ffi_api.GetTensorRTSources,
+            codegen_config,
+            print_config,
+            folder.create_dir(graph.name),
+            code_format="cpp",
+        )
+        engine_file = codegen.load([], pre_load=_create_depends, post_load=_build_engine)
     return {
         "graph_json": graph.to_json(),
         "graph_name": graph.name,

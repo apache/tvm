@@ -18,7 +18,9 @@
 import tvm
 import tvm.testing
 from tvm import relax
-from tvm.script import ir as I, relax as R, tir as T
+from tvm.script import ir as I
+from tvm.script import relax as R
+from tvm.script import tir as T
 
 
 def test_basic():
@@ -1099,6 +1101,75 @@ def test_call_tir_dyn():
             _2: R.Tuple = cls.tir_exp(lv2, alloc2)
             lv3: R.Tensor((n,), dtype="float32") = alloc2
             return lv3
+    # fmt: on
+
+    mod = relax.transform.StaticPlanBlockMemory()(Module)
+    tvm.ir.assert_structural_equal(mod, Expected)
+
+
+def test_function_independence():
+    # fmt: off
+    @tvm.script.ir_module
+    class Module:
+        @T.prim_func
+        def exp(A: T.handle, B: T.handle):
+            T.evaluate(0)
+
+        @R.function
+        def func1(x: R.Tensor((8,), dtype="float32")) -> R.Tensor((8,), dtype="float32"):
+            R.func_attr({"relax.force_pure": 1})
+            cls = Module
+            alloc: R.Tensor((8,), dtype="float32") = R.builtin.alloc_tensor(R.shape([8,]), dtype="float32", runtime_device_index=0)
+            _: R.Tuple() = cls.exp(x, alloc)
+            lv: R.Tensor((8,), dtype="float32") = alloc
+            alloc1: R.Tensor((8,), dtype="float32") = R.builtin.alloc_tensor(R.shape([8,]), dtype="float32", runtime_device_index=0)
+            _1: R.Tuple() = cls.exp(lv, alloc1)
+            gv: R.Tensor((8,), dtype="float32") = alloc1
+            return gv
+
+        @R.function
+        def func2(x: R.Tensor((10,), dtype="float32")) -> R.Tensor((10,), dtype="float32"):
+            R.func_attr({"relax.force_pure": 1})
+            cls = Module
+            alloc: R.Tensor((10,), dtype="float32") = R.builtin.alloc_tensor(R.shape([10,]), dtype="float32", runtime_device_index=0)
+            _: R.Tuple() = cls.exp(x, alloc)
+            lv: R.Tensor((10,), dtype="float32") = alloc
+            alloc1: R.Tensor((10,), dtype="float32") = R.builtin.alloc_tensor(R.shape([10,]), dtype="float32", runtime_device_index=0)
+            _1: R.Tuple() = cls.exp(lv, alloc1)
+            gv: R.Tensor((10,), dtype="float32") = alloc1
+            return gv
+
+    @I.ir_module
+    class Expected:
+        @T.prim_func
+        def exp(A: T.handle, B: T.handle):
+            T.evaluate(0)
+
+        @R.function
+        def func1(x: R.Tensor((8,), dtype="float32")) -> R.Tensor((8,), dtype="float32"):
+            R.func_attr({"relax.force_pure": 1})
+            cls = Expected
+            storage: R.Object = R.memory.alloc_storage(R.shape([32]), R.prim_value(0), R.str("global"), R.dtype("float32"))
+            alloc: R.Tensor((8,), dtype="float32") = R.memory.alloc_tensor(storage, R.prim_value(0), R.shape([8]), R.dtype("float32"))
+            _: R.Tuple = cls.exp(x, alloc)
+            lv: R.Tensor((8,), dtype="float32") = alloc
+            alloc1: R.Tensor((8,), dtype="float32") = R.builtin.alloc_tensor(R.shape([8]), R.dtype("float32"), R.prim_value(0))
+            _1: R.Tuple = cls.exp(lv, alloc1)
+            gv: R.Tensor((8,), dtype="float32") = alloc1
+            return gv
+
+        @R.function
+        def func2(x: R.Tensor((10,), dtype="float32")) -> R.Tensor((10,), dtype="float32"):
+            R.func_attr({"relax.force_pure": 1})
+            cls = Expected
+            storage1: R.Object = R.memory.alloc_storage(R.shape([40]), R.prim_value(0), R.str("global"), R.dtype("float32"))
+            alloc: R.Tensor((10,), dtype="float32") = R.memory.alloc_tensor(storage1, R.prim_value(0), R.shape([10]), R.dtype("float32"))
+            _: R.Tuple = cls.exp(x, alloc)
+            lv: R.Tensor((10,), dtype="float32") = alloc
+            alloc1: R.Tensor((10,), dtype="float32") = R.builtin.alloc_tensor(R.shape([10]), R.dtype("float32"), R.prim_value(0))
+            _1: R.Tuple = cls.exp(lv, alloc1)
+            gv: R.Tensor((10,), dtype="float32") = alloc1
+            return gv
     # fmt: on
 
     mod = relax.transform.StaticPlanBlockMemory()(Module)
