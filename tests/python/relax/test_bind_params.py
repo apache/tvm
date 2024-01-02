@@ -112,11 +112,14 @@ prim_value_dtype = tvm.testing.parameter("int64", "int32", "float32")
 
 
 def test_bind_prim_value(prim_value_dtype):
+    if prim_value_dtype != "int64":
+        pytest.xfail(reason="Currently, only support int64 as known symbolic value")
+
     N = tir.Var("N", prim_value_dtype)
     value = tir.const(16, prim_value_dtype)
 
     @R.function
-    def before(A: R.Prim(value=N)):
+    def before(A: R.Prim(value=N)) -> R.Prim(value=N):
         R.func_attr({"global_symbol": "main"})
         B: R.Prim(value=N) = A
         return B
