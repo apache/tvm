@@ -542,10 +542,14 @@ class CodeGenCMSISNN : public codegen::CodeGenCHost {
     PrintIndent();
     stream << "case ARM_CMSIS_NN_ARG_ERROR: ";
     emit_error("ARM_CMSIS_NN_ARG_ERROR");
-    stream << "return -1;\n";
     PrintIndent();
     stream << "case ARM_CMSIS_NN_NO_IMPL_ERROR: ";
     emit_error("ARM_CMSIS_NN_NO_IMPL_ERROR");
+    PrintIndent();
+    stream << "case ARM_CMSIS_NN_FAILURE: ";
+    emit_error("ARM_CMSIS_NN_FAILURE");
+    PrintIndent();
+    stream << "default: ";
     stream << "return -1;\n";
     PrintIndent();
     stream << "}\n";
