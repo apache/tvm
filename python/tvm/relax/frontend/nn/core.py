@@ -50,7 +50,12 @@ from tvm.target import Target
 
 from ... import expr as rx
 from ...block_builder import BlockBuilder
-from ...struct_info import ShapeStructInfo, TensorStructInfo, TupleStructInfo
+from ...struct_info import (
+    ObjectStructInfo,
+    ShapeStructInfo,
+    TensorStructInfo,
+    TupleStructInfo,
+)
 from ._tensor_op import _TensorOp
 from .subroutine import SubroutineMixin
 
@@ -272,6 +277,22 @@ class Parameter(Tensor):
             self._expr = Tensor.placeholder(  # pylint: disable=protected-access
                 self.shape, dtype=dtype, name="param"
             )._expr
+
+
+class Object:
+    """A wrapper on top of relax.Expr whose struct_info is the base
+    ObjectStructInfo (rather than any its subclass). Object effectively
+    represents non-tensor frontend components such as KV caches.
+    """
+
+    _expr: rx.Var
+
+    def __init__(self, *, _expr: rx.Expr, _name: str) -> None:
+        """Private constructor. Object is never supposed to be constructed directly by users."""
+        if not isinstance(_expr, rx.Var):
+            _expr = BlockBuilder.current().emit(_expr, _name)
+        self._expr = _expr
+        assert isinstance(self._expr.struct_info, ObjectStructInfo)
 
 
 class Effect:

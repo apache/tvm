@@ -126,8 +126,8 @@ TVM_REGISTER_GLOBAL("testing.object_use_count").set_body([](TVMArgs args, TVMRet
   *ret = (obj.use_count() - 1);
 });
 
-void ArrayDecodeStorage(NDArray cpu_arr, std::string bytes, std::string format) {
-  if (format == "f32-to-bf16") {
+void ArrayDecodeStorage(NDArray cpu_arr, std::string bytes, std::string format, std::string dtype) {
+  if (format == "f32-to-bf16" && dtype == "float32") {
     std::vector<uint16_t> buffer(bytes.length() / 2);
     std::memcpy(buffer.data(), bytes.data(), buffer.size() * 2);
     // decode bf16 to f32

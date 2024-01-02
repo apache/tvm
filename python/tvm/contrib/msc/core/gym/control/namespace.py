@@ -14,25 +14,27 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-"""A PyTorch-like API to build IRModules."""
-# pylint: disable=redefined-builtin
-from . import op, spec
-from .core import Effect, Module, ModuleList, Object, Parameter, Tensor
-from .exporter import add_extern
-from .extern import ExternModule, ObjectModule, SourceModule
-from .modules import (
-    GELU,
-    Conv1D,
-    ConvTranspose1D,
-    Embedding,
-    IOEffect,
-    KVCache,
-    LayerNorm,
-    Linear,
-    ReLU,
-    RMSNorm,
-    SiLU,
-)
-from .op import *
-from .subroutine import SubroutineMixin
-from .visitor import Mutator
+"""tvm.contrib.msc.core.gym.control.namespace"""
+
+
+class GYMObject(object):
+    """Enum all gym objects"""
+
+    BASE = "base"
+    ENV = "env"
+    AGENT = "agent"
+    SERVICE = "service"
+
+
+class GYMAction(object):
+    """Enum all gym actions"""
+
+    INIT = "init"
+    RESET = "reset"
+    GET_STATE = "get_state"
+    CHOOSE_ACTION = "choose_action"
+    STEP = "step"
+    STORE = "store"
+    LEARN = "learn"
+    SUMMARY = "summary"
+    CLEANUP = "cleanup"

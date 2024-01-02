@@ -19,6 +19,9 @@ if(USE_CUDA AND USE_CUTLASS)
   tvm_file_glob(GLOB CUTLASS_CONTRIB_SRC src/relay/backend/contrib/cutlass/*.cc src/relax/backend/contrib/cutlass/*.cc)
   list(APPEND COMPILER_SRCS ${CUTLASS_CONTRIB_SRC})
 
+  set(FPA_INTB_GEMM_TVM_BINDING ON)
+  set(FPA_INTB_GEMM_TVM_HOME ${PROJECT_SOURCE_DIR})
+
   set(CUTLASS_DIR ${PROJECT_SOURCE_DIR}/3rdparty/cutlass)
   add_subdirectory(${PROJECT_SOURCE_DIR}/3rdparty/cutlass_fpA_intB_gemm)
   add_subdirectory(${PROJECT_SOURCE_DIR}/3rdparty/libflash_attn)
