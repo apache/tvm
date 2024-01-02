@@ -18,7 +18,6 @@
 """ Test Managers in MSC. """
 
 import json
-import datetime
 import pytest
 import torch
 
@@ -36,9 +35,7 @@ requires_tensorrt = pytest.mark.skipif(
 def _get_config(model_type, compile_type, inputs, outputs, atol=1e-1, rtol=1e-1):
     """Get msc config"""
 
-    path = "test_manager_{}_{}_{}".format(
-        model_type, compile_type, datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
-    )
+    path = "test_manager_{}_{}".format(model_type, compile_type)
     return {
         "workspace": msc_utils.msc_dir(path),
         "verbose": "critical",

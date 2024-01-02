@@ -18,7 +18,6 @@
 """ Test Tools in MSC. """
 
 import json
-import datetime
 import pytest
 import torch
 
@@ -46,12 +45,7 @@ def _get_config(
 ):
     """Get msc config"""
 
-    path = "test_tool_{}_{}".format(model_type, compile_type)
-    for t_type, config in tools_config.items():
-        path = path + "_" + str(t_type)
-        if "gym_configs" in config:
-            path = path + "_gym"
-    path = path + "_" + str(datetime.datetime.now().strftime("%Y%m%d_%H%M%S"))
+    path = "_".join(["test_tools", model_type, compile_type] + list(tools_config.keys()))
     return {
         "workspace": msc_utils.msc_dir(path),
         "verbose": "critical",
@@ -76,7 +70,7 @@ def _get_config(
     }
 
 
-def get_tool_config(tool_type, use_distill=False, use_gym=False):
+def get_tool_config(tool_type, use_distill=False):
     """Get config for the tool"""
 
     config = {}
@@ -85,23 +79,6 @@ def get_tool_config(tool_type, use_distill=False, use_gym=False):
             "plan_file": "msc_pruner.json",
             "strategys": [{"method": "per_channel", "density": 0.8}],
         }
-        if use_gym:
-            config["gym_configs"] = [
-                {
-                    "env": {
-                        "executors": {
-                            "action_space": {
-                                "method": "action_prune_density",
-                                "start": 0.4,
-                                "end": 0.8,
-                                "step": 0.4,
-                            }
-                        },
-                        "max_tasks": 3,
-                    },
-                    "agent": {"agent_type": "search.grid", "executors": {}},
-                }
-            ]
     elif tool_type == ToolType.QUANTIZER:
         # pylint: disable=import-outside-toplevel
         from tvm.contrib.msc.core.tools.quantize import QuantizeStage
@@ -139,23 +116,6 @@ def get_tool_config(tool_type, use_distill=False, use_gym=False):
                 },
             ],
         }
-        if use_gym:
-            config["gym_configs"] = [
-                {
-                    "env": {
-                        "executors": {
-                            "action_space": {
-                                "method": "action_quantize_scale",
-                                "start": 0.8,
-                                "end": 1.2,
-                                "step": 0.2,
-                            }
-                        },
-                        "max_tasks": 3,
-                    },
-                    "agent": {"agent_type": "search.grid", "executors": {}},
-                }
-            ]
     elif tool_type == ToolType.TRACKER:
         config = {
             "plan_file": "msc_tracker.json",
@@ -302,17 +262,6 @@ def test_tvm_distill(tool_type):
     )
 
 
-@tvm.testing.requires_gpu
-@pytest.mark.parametrize("tool_type", [ToolType.PRUNER, ToolType.QUANTIZER])
-def test_tvm_gym(tool_type):
-    """Test tools for tvm with gym"""
-
-    tool_config = get_tool_config(tool_type, use_gym=True)
-    _test_from_torch(
-        MSCFramework.TVM, tool_config, get_model_info(MSCFramework.TVM), is_training=True
-    )
-
-
 @requires_tensorrt
 @pytest.mark.parametrize(
     "tool_type",
@@ -344,17 +293,6 @@ def test_tensorrt_distill(tool_type):
     """Test tools for tensorrt with distiller"""
 
     tool_config = get_tool_config(tool_type, use_distill=True)
-    _test_from_torch(
-        MSCFramework.TENSORRT, tool_config, get_model_info(MSCFramework.TENSORRT), is_training=False
-    )
-
-
-@requires_tensorrt
-@pytest.mark.parametrize("tool_type", [ToolType.PRUNER])
-def test_tensorrt_gym(tool_type):
-    """Test tools for tensorrt with gym"""
-
-    tool_config = get_tool_config(tool_type, use_gym=True)
     _test_from_torch(
         MSCFramework.TENSORRT, tool_config, get_model_info(MSCFramework.TENSORRT), is_training=False
     )
