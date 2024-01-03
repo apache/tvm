@@ -20,7 +20,7 @@
 /*!
  * \file merge_shared_memory_allocations.cc
  * \brief Each GPU kernel is allowed to have only one dynamic or static shared memory allocation.
- * This pass merges multiple TIR-level dynamic or shared memory allocations into one allocation.
+ * This pass merges multiple TIR-level dynamic or static shared memory allocations into one allocation.
  */
 #include <tvm/runtime/registry.h>
 #include <tvm/tir/expr.h>
