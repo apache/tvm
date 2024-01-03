@@ -1001,7 +1001,7 @@ def UnifyThreadBinding():
 
 
 def MergeSharedMemoryAllocations():
-    """This pass merges multiple TIR-level dynamic shared memory allocations
+    """This pass merges multiple TIR-level shared memory allocations
     into one allocation.
 
     Returns
