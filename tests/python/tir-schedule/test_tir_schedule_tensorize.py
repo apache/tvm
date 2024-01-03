@@ -744,7 +744,7 @@ def test_tensorize_dp4a():
     ]:
         _test_intrin(*args)
 
-        
+
 def test_tensor_intrin_look_up():
     intrin_name = 'non_existent_intrin'
     assert tir.TensorIntrin.get(intrin_name, allow_missing=True) is None
