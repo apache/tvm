@@ -251,7 +251,7 @@ def test_tvm_tool(tool_type):
     )
 
 
-@tvm.testing.requires_gpu
+@tvm.testing.requires_cuda
 @pytest.mark.parametrize("tool_type", [ToolType.PRUNER, ToolType.QUANTIZER])
 def test_tvm_distill(tool_type):
     """Test tools for tvm with distiller"""

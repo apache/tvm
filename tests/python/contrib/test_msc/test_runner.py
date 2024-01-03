@@ -109,8 +109,8 @@ def test_tvm_runner_cpu():
     _test_from_torch(TVMRunner, "cpu", is_training=True)
 
 
-@tvm.testing.requires_gpu
-def test_tvm_runner_gpu():
+@tvm.testing.requires_cuda
+def test_tvm_runner_cuda():
     """Test runner for tvm on cuda"""
 
     _test_from_torch(TVMRunner, "cuda", is_training=True)
@@ -122,8 +122,8 @@ def test_torch_runner_cpu():
     _test_from_torch(TorchRunner, "cpu")
 
 
-@tvm.testing.requires_gpu
-def test_torch_runner_gpu():
+@tvm.testing.requires_cuda
+def test_torch_runner_cuda():
     """Test runner for torch on cuda"""
 
     _test_from_torch(TorchRunner, "cuda", atol=1e-1, rtol=1e-1)
