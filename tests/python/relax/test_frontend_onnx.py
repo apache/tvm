@@ -1226,6 +1226,8 @@ def test_attention(dynamic):
                 "mask_index": mask_index,
                 "relative_position_bias": relative_position_bias,
             },
+            # Maximum observed delta from 500 iterations was 2e-4.
+            atol=1e-3,
         )
         # "present" output should be nullptr when the "past" input isn't included,
         # but ort requires an output shape to be specified?
