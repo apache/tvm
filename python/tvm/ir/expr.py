@@ -167,7 +167,15 @@ class Range(Node, Scriptable):
     ) -> None:
         if end is None:
             end = convert(begin)
-            begin = const(0, dtype=end.dtype, span=span)
+            begin = 0
+
+        # Backwards-compatibility for common python usage as
+        # `Range(0, expr)`.  The FFI would convert this to int32 by
+        # default, which can produce an error in the C++ `Range`
+        # constructor due to mismatched dtype..
+        if isinstance(begin, int) and isinstance(end, PrimExpr):
+            begin = const(begin, dtype=end.dtype, span=span)
+
         self.__init_handle_by_constructor__(_ffi_api.Range, begin, end, span)
 
     @staticmethod
