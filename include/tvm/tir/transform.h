@@ -614,9 +614,9 @@ TVM_DLL Pass InstallDebugSpans();
 TVM_DLL Pass UnifyThreadBinding();
 
 /*!
- *  A pass to merge multiple TIR-level dynamic shared memory allocations into one
+ *  A pass to merge multiple TIR-level shared memory allocations into one
  */
-TVM_DLL Pass MergeDynamicSharedMemoryAllocations();
+TVM_DLL Pass MergeSharedMemoryAllocations();
 
 /*!
  * \brief This pass is post-scheduling pass to convert all

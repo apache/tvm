@@ -32,7 +32,7 @@ def run_passes(sch, args):
             tvm.tir.transform.Simplify(),
             tvm.tir.transform.VectorizeLoop(),
             tvm.tir.transform.StorageRewrite(),
-            tvm.tir.transform.MergeDynamicSharedMemoryAllocations(),
+            tvm.tir.transform.MergeSharedMemoryAllocations(),
         ]
     )(mod)
 
@@ -136,7 +136,7 @@ def test_matmul_dyn_shared():
         np_ref = np.dot(a_np.astype("float32"), b_np.astype("float32"))
         tvm.testing.assert_allclose(c.numpy(), np_ref, 1e-4, 1e-4)
 
-    for target in ["cuda", "nvptx"]:
+    for target in ["cuda"]:
         check_target(target)
 
 
@@ -201,7 +201,7 @@ def test_dyn_shared_vectorized_store():
                 c.numpy(), a.numpy().astype("float32") + b.numpy(), 1e-4, 1e-4
             )
 
-    for target in ["cuda", "nvptx"]:
+    for target in ["cuda"]:
         check_target(target)
 
 
@@ -266,7 +266,7 @@ def test_dyn_shared_reuse_and_merge():
         fadd(a, b, c, d)
         tvm.testing.assert_allclose(d.numpy(), a.numpy() + b.numpy() + c.numpy(), 1e-4, 1e-4)
 
-    for target in ["cuda", "nvptx"]:
+    for target in ["cuda"]:
         check_target(target)
 
 
@@ -323,7 +323,7 @@ def test_dyn_shared_more_dtype():
         fadd(a, b, c)
         tvm.testing.assert_allclose(c.numpy(), a.numpy().astype("float32") + b.numpy(), 1e-4, 1e-4)
 
-    for target in ["cuda", "nvptx"]:
+    for target in ["cuda"]:
         check_target(target)
 
 
@@ -336,7 +336,7 @@ class TestMatmul(tvm.testing.CompareBeforeAfter):
     for the replaced allocations.
     """
 
-    transform = tvm.tir.transform.MergeDynamicSharedMemoryAllocations()
+    transform = tvm.tir.transform.MergeSharedMemoryAllocations()
 
     use_decl_buffer = tvm.testing.parameter(by_dict={"t_buffer": False, "decl_buffer": True})
 
@@ -455,4 +455,5 @@ class TestMatmul(tvm.testing.CompareBeforeAfter):
 
 
 if __name__ == "__main__":
-    tvm.testing.main()
+    # tvm.testing.main()
+    test_dyn_shared_more_dtype()

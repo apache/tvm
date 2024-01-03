@@ -1000,7 +1000,7 @@ def UnifyThreadBinding():
     return _ffi_api.UnifyThreadBinding()  # type: ignore
 
 
-def MergeDynamicSharedMemoryAllocations():
+def MergeSharedMemoryAllocations():
     """This pass merges multiple TIR-level dynamic shared memory allocations
     into one allocation.
 
@@ -1009,7 +1009,7 @@ def MergeDynamicSharedMemoryAllocations():
     fpass : tvm.transform.Pass
         The result pass
     """
-    return _ffi_api.MergeDynamicSharedMemoryAllocations()  # type: ignore
+    return _ffi_api.MergeSharedMemoryAllocations()  # type: ignore
 
 
 def ConvertForLoopsToSerial():
