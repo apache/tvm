@@ -82,8 +82,8 @@ TEST(TargetCreation, NestedConfig) {
       {
           "her_maps",
           Map<String, runtime::Int>{
-              {"a", 1},
-              {"b", 2},
+              {"a", runtime::Int(1)},
+              {"b", runtime::Int(2)},
           },
       },
   };
@@ -113,8 +113,8 @@ TEST(TargetCreationFail, UnrecognizedConfigOption) {
       {
           "her_maps",
           Map<String, runtime::Int>{
-              {"a", 1},
-              {"b", 2},
+              {"a", runtime::Int(1)},
+              {"b", runtime::Int(2)},
           },
       },
   };
@@ -135,8 +135,8 @@ TEST(TargetCreationFail, TypeMismatch) {
       {
           "her_maps",
           Map<String, runtime::Int>{
-              {"a", 1},
-              {"b", 2},
+              {"a", runtime::Int(1)},
+              {"b", runtime::Int(2)},
           },
       },
   };
@@ -156,8 +156,8 @@ TEST(TargetCreationFail, TargetKindNotFound) {
       {
           "her_maps",
           Map<String, runtime::Int>{
-              {"a", 1},
-              {"b", 2},
+              {"a", runtime::Int(1)},
+              {"b", runtime::Int(2)},
           },
       },
   };
