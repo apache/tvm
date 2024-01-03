@@ -45,26 +45,26 @@ class ParamStructInfoMutator : public ExprMutator {
   using ExprMutator::VisitExpr_;
   using ExprMutator::VisitVarDef_;
 
-  Var VisitVarDef_(const VarNode* op) override {
-    Var var = ExprMutator::VisitVarDef_(op);
-    if (!inside_expr_) {
-      if (auto new_sinfo = sinfo_func_(var)) {
-        return Var(var->vid, new_sinfo);
-      }
-    }
-    return var;
-  }
+  Expr VisitExpr_(const FunctionNode* op) override {
+    auto func = GetRef<Function>(op);
 
-  Expr VisitExpr_(const SeqExprNode* op) override {
-    bool cache = inside_expr_;
-    inside_expr_ = true;
-    auto ret = ExprMutator::VisitExpr_(op);
-    inside_expr_ = cache;
-    return ret;
+    auto params = op->params.Map([this](Var param) {
+      if (auto new_sinfo = sinfo_func_(param)) {
+        auto new_param = WithStructInfo(param, new_sinfo.value());
+        var_remap_[param->vid] = new_param;
+        return new_param;
+      } else {
+        return param;
+      }
+    });
+
+    if (!params.same_as(func->params)) {
+      func.CopyOnWrite()->params = params;
+    }
+    return ExprMutator::VisitExpr_(func.get());
   }
 
   TypedPackedFunc<Optional<StructInfo>(Var)> sinfo_func_;
-  bool inside_expr_{false};
 };
 }  // namespace
 
