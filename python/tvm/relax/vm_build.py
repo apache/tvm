@@ -328,7 +328,12 @@ def build(
     if pipeline is not None:
         if isinstance(pipeline, str):
             pipeline = relax.get_pipeline(pipeline)
-        mod = pipeline(mod)
+        if target is None:
+            mod = pipeline(mod)
+        else:
+            with target:
+                mod = pipeline(mod)
+
     ext_libs, constants = _extract_attrs(mod)
     params.update(dict(constants))
     builder = relax.ExecBuilder()
