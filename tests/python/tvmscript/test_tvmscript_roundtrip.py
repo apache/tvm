@@ -3339,6 +3339,15 @@ def ramp_int64():
     return func
 
 
+def scalable_vectors():
+    @T.prim_func
+    def func(a: T.handle):
+        A = T.match_buffer(a, (200,), "float32")
+        A[T.Ramp(11, 2, 4 * tir.vscale())] = T.Broadcast(125, 4 * tir.vscale())
+
+    return func
+
+
 def let_expression():
     @T.prim_func
     def func():
@@ -4038,6 +4047,7 @@ ir_generator = tvm.testing.parameter(
     buffer_axis_separator,
     buffer_ramp_access_as_slice_index,
     ramp_int64,
+    scalable_vectors,
     let_expression,
     void_ptr,
     decl_buffer,

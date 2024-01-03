@@ -1289,7 +1289,7 @@ def buffer_store(
             if lanes == 1:
                 expr_indices.append(index.start)
             else:
-                expr_indices.append(ramp(index.start, step, int(lanes)))
+                expr_indices.append(ramp(index.start, step, lanes))
         else:
             expr_indices.append(index)
     if isinstance(value, bool) and buffer.dtype == "bool":
@@ -1854,6 +1854,7 @@ ptx_wait_barrier = _op_wrapper(_tir_op.ptx_wait_barrier)
 create_barriers = _op_wrapper(_tir_op.create_barriers)
 assume = _op_wrapper(_tir_op.assume)
 undef = _op_wrapper(_tir_op.undef)
+vscale = _op_wrapper(_tir_op.vscale)
 TVMBackendAllocWorkspace = _op_wrapper(_tir_op.TVMBackendAllocWorkspace)
 TVMBackendFreeWorkspace = _op_wrapper(_tir_op.TVMBackendFreeWorkspace)
 start_profile_intrinsic = _op_wrapper(_tir_op.start_profile_intrinsic)
@@ -1890,7 +1891,6 @@ mma_fill = _dtype_forward(_tir_op.mma_fill)
 vectorlow = _dtype_forward(_tir_op.vectorlow)
 vectorhigh = _dtype_forward(_tir_op.vectorhigh)
 vectorcombine = _dtype_forward(_tir_op.vectorcombine)
-
 
 broadcast = Broadcast
 ramp = Ramp
@@ -2199,4 +2199,5 @@ __all__ = [
     "IterVar",
     "CommReducer",
     "Range",
+    "vscale",
 ]

@@ -122,20 +122,33 @@ PrimExpr q_multiply_shift(PrimExpr x, PrimExpr y, PrimExpr q, PrimExpr s, Span s
                    {x, y, q, s}, span);
 }
 
+void BroadcastToMatchLanes(PrimExpr& op_a, PrimExpr& op_b) {  // NOLINT(*)
+  DataType dtype_a = op_a.dtype();
+  DataType dtype_b = op_b.dtype();
+
+  if (dtype_a.lanes() == 1 && dtype_b.lanes() != 1) {
+    if (dtype_b.is_scalable()) {
+      op_a = tir::Broadcast(
+          op_a, tir::Mul(dtype_b.lanes(), Call(DataType::Int(32), builtin::vscale(), {})));
+    } else {
+      op_a = tir::Broadcast(op_a, dtype_b.lanes());
+    }
+  }
+}
+
 // The public function with a quick checking path.
 void BinaryOpMatchTypes(PrimExpr& lhs, PrimExpr& rhs, Span span) {  // NOLINT(*)
   CHECK(lhs.defined()) << "ValueError: `lhs` is null in the binary operator";
   CHECK(rhs.defined()) << "ValueError: `rhs` is null in the binary operator";
   if (lhs.dtype() == rhs.dtype()) return;
+
+  BroadcastToMatchLanes(lhs, rhs);
+  BroadcastToMatchLanes(rhs, lhs);
+
   DataType ltype = lhs.dtype();
   DataType rtype = rhs.dtype();
-  if (ltype.lanes() == 1 && rtype.lanes() != 1) {
-    lhs = tir::Broadcast(lhs, rtype.lanes());
-  } else if (rtype.lanes() == 1 && ltype.lanes() != 1) {
-    rhs = tir::Broadcast(rhs, ltype.lanes());
-  } else {
-    ICHECK(ltype.lanes() == rtype.lanes()) << "Cannot match type " << ltype << " vs " << rtype;
-  }
+
+  ICHECK(ltype.lanes() == rtype.lanes()) << "Cannot match type " << ltype << " vs " << rtype;
   if (lhs.dtype() == rhs.dtype()) return;
 
   ltype = lhs.dtype();
@@ -337,11 +350,17 @@ PrimExpr cast(const DataType& t, PrimExpr value, Span span) {
           value = tir::Cast(vtype, value, span);
         }
       }
-      return tir::Broadcast(value, t.lanes(), span);
+      if (t.is_scalable()) {
+        return tir::Broadcast(
+            value, tir::Mul(t.lanes(), Call(DataType::Int(32), builtin::vscale(), {})), span);
+      } else {
+        return tir::Broadcast(value, t.lanes(), span);
+      }
     } else {
       ICHECK(value.dtype().lanes() == t.lanes());
+      ICHECK(value.dtype().is_scalable() == t.is_scalable());
       if (const auto* broadcast = value.as<tir::BroadcastNode>()) {
-        return tir::Broadcast(cast(vtype, broadcast->value, span), t.lanes(), span);
+        return tir::Broadcast(cast(vtype, broadcast->value, span), broadcast->lanes, span);
       } else if (const auto* ramp = value.as<tir::RampNode>()) {
         if (t.is_int() || t.is_uint()) {
           // only cast to index data type can be folded to ramp

@@ -35,19 +35,53 @@
 #include <unordered_set>
 #include <vector>
 
+#include "../../target/parsers/aprofile.h"
+
 namespace tvm {
 namespace tir {
 
-inline PrimExpr BroadcastTo(PrimExpr e, int lanes) {
-  if (e.dtype().lanes() == lanes) return e;
-  if (const BroadcastNode* op = e.as<BroadcastNode>()) {
-    if (lanes % op->lanes == 0) {
-      return Broadcast(op->value, lanes);
+inline PrimExpr BroadcastTo(PrimExpr e, int lanes, bool scalable) {
+  if (!scalable) {
+    // Check that we are not broadcasting a scalable vector into fixed length vector
+    ICHECK(!e.dtype().is_scalable());
+    if (e.dtype().lanes() == lanes) return e;
+    if (const BroadcastNode* op = e.as<BroadcastNode>()) {
+      int op_lanes = op->lanes.as<IntImmNode>()->value;
+      if (lanes % op_lanes == 0) {
+        return Broadcast(op->value, lanes);
+      }
+    }
+  } else {
+    if (e.dtype().is_scalable() && e.dtype().lanes() == lanes) {
+      // It's already a scalable vector in a correct form
+      return e;
+    } else {
+      ICHECK(lanes % e.dtype().lanes() == 0);
+      PrimExpr scalable_lanes = Mul(lanes, Call(DataType::Int(32), builtin::vscale(), {}));
+      return Broadcast(e, scalable_lanes);
     }
   }
   ICHECK_EQ(e.dtype().lanes(), 1) << "Cannot broadcast lane=" << e.dtype().lanes() << " to "
                                   << lanes;
   return Broadcast(e, lanes);
+}
+
+bool EnableBufferPredication() {
+  transform::PassContext pass_ctx = transform::PassContext::Current();
+  bool enable_buffer_predication =
+      pass_ctx->GetConfig<Bool>("tir.enable_buffer_predication", Bool(false)).value();
+  if (enable_buffer_predication) {
+    return true;
+  }
+
+  // When compiling for aarch64 devices with SVE, we should enable predication by default
+  Target current_target = Target::Current();
+  if (!current_target.defined()) {
+    return false;
+  }
+  TargetJSON target_json = target::parsers::aprofile::ParseTarget(current_target->Export());
+  TargetFeatures features = Downcast<TargetFeatures>(target_json.at("features"));
+  return Downcast<Bool>(features.at("has_sve"));
 }
 
 // Rewrite vectorized allocation access
@@ -60,7 +94,7 @@ inline PrimExpr BroadcastTo(PrimExpr e, int lanes) {
 //
 class VecAllocAccess : public StmtExprMutator {
  public:
-  VecAllocAccess(const VarNode* buf, Var var, int var_lanes)
+  VecAllocAccess(const VarNode* buf, Var var, PrimExpr var_lanes)
       : buf_(buf), var_(var), var_lanes_(var_lanes) {}
 
   PrimExpr VisitExpr_(const BufferLoadNode* op) final {
@@ -136,7 +170,7 @@ class VecAllocAccess : public StmtExprMutator {
   // variable to be replaced
   Var var_;
   // the lanes.
-  int var_lanes_;
+  PrimExpr var_lanes_;
   // Analyzer for simplifications
   arith::Analyzer analyzer_;
 };
@@ -149,7 +183,7 @@ class Vectorizer : public StmtMutator, public ExprFunctor<PrimExpr(const PrimExp
   using ExprFunctor::VisitExpr;
   using StmtMutator::operator();
 
-  Vectorizer(Var var, int var_lanes) : var_(var), var_lanes_(var_lanes) {
+  Vectorizer(Var var, PrimExpr var_lanes) : var_(var), var_lanes_(var_lanes) {
     ramp_ = Ramp(IntImm(var->dtype, 0), IntImm(var->dtype, 1), var_lanes);
   }
 
@@ -191,7 +225,8 @@ class Vectorizer : public StmtMutator, public ExprFunctor<PrimExpr(const PrimExp
           return Ramp(b_ramp->base * a, b_ramp->stride * a, b_ramp->lanes);
         }
       }
-      return Mul(BroadcastTo(a, lanes), BroadcastTo(b, lanes));
+      bool is_scalable = a.dtype().is_scalable() || b.dtype().is_scalable();
+      return Mul(BroadcastTo(a, lanes, is_scalable), BroadcastTo(b, lanes, is_scalable));
     }
     return BinaryVec<Mul>(op);
   }
@@ -224,13 +259,17 @@ class Vectorizer : public StmtMutator, public ExprFunctor<PrimExpr(const PrimExp
     PrimExpr stride = this->VisitExpr(op->stride);
     if (base.dtype().lanes() > 1 && stride.dtype().lanes() == 1) {
       const RampNode* base_ramp = base.as<RampNode>();
-      if (analyzer_.CanProve(base_ramp->stride == stride * make_const(stride.dtype(), op->lanes))) {
+      ICHECK(op->lanes->IsInstance<IntImmNode>()) << "Scalable ramp of ramps is not supported yet";
+      int lanes = static_cast<int>(Downcast<IntImm>(op->lanes)->value);
+      if (analyzer_.CanProve(base_ramp->stride == stride * make_const(stride.dtype(), lanes))) {
         return Ramp(base_ramp->base, stride, op->lanes * base_ramp->lanes);
       }
     }
+    ICHECK(!base.dtype().is_scalable()) << "Ramp base with scalable dtype is not supported";
+    ICHECK(!stride.dtype().is_scalable()) << "Ramp stride with scalable dtype is not supported";
     int lanes = std::max(base.dtype().lanes(), stride.dtype().lanes());
-    base = BroadcastTo(base, lanes);
-    stride = BroadcastTo(stride, lanes);
+    base = BroadcastTo(base, lanes, false);
+    stride = BroadcastTo(stride, lanes, false);
     Array<PrimExpr> elems;
     for (int i = 0; i < lanes; ++i) {
       elems.push_back(
@@ -260,15 +299,21 @@ class Vectorizer : public StmtMutator, public ExprFunctor<PrimExpr(const PrimExp
       return GetRef<PrimExpr>(op);
     } else {
       int lanes = std::max(std::max(cond.dtype().lanes(), t.dtype().lanes()), f.dtype().lanes());
-      return Select(cond, BroadcastTo(t, lanes), BroadcastTo(f, lanes));
+      bool is_scalable = t.dtype().is_scalable() || t.dtype().is_scalable();
+      return Select(cond, BroadcastTo(t, lanes, is_scalable), BroadcastTo(f, lanes, is_scalable));
     }
   }
+
   PrimExpr VisitExpr_(const CastNode* op) final {
     PrimExpr value = this->VisitExpr(op->value);
     if (value.same_as(op->value)) {
       return GetRef<PrimExpr>(op);
     } else {
-      return Cast(op->dtype.with_lanes(value.dtype().lanes()), value);
+      if (value.dtype().is_scalable()) {
+        return Cast(op->dtype.with_scalable_lanes(value.dtype().lanes()), value);
+      } else {
+        return Cast(op->dtype.with_lanes(value.dtype().lanes()), value);
+      }
     }
   }
 
@@ -305,9 +350,14 @@ class Vectorizer : public StmtMutator, public ExprFunctor<PrimExpr(const PrimExp
       return GetRef<PrimExpr>(op);
     } else {
       int lanes = std::max(t.dtype().lanes(), f.dtype().lanes());
-      t = BroadcastTo(t, lanes);
-      f = BroadcastTo(f, lanes);
-      return Call(op->dtype.with_lanes(lanes), op->op, {cond, t, f});
+      bool is_scalable = t.dtype().is_scalable() || f.dtype().is_scalable();
+      t = BroadcastTo(t, lanes, is_scalable);
+      f = BroadcastTo(f, lanes, is_scalable);
+      if (op->dtype.is_scalable()) {
+        return Call(op->dtype.with_scalable_lanes(lanes), op->op, {cond, t, f});
+      } else {
+        return Call(op->dtype.with_lanes(lanes), op->op, {cond, t, f});
+      }
     }
   }
   // Call
@@ -413,10 +463,14 @@ class Vectorizer : public StmtMutator, public ExprFunctor<PrimExpr(const PrimExp
 
     if (!indices.same_as(op->indices) || !value.same_as(op->value)) {
       // How many lanes of indexing are present in the index and
-      // buffer element type, excluding the last index.  T
+      // buffer element type, excluding the last index.
       int other_index_lanes = op->buffer->dtype.lanes();
+      ICHECK(!op->buffer->dtype.is_scalable())
+          << "Scalable buffer elements are not supported in vectorizer";
       for (size_t i = 0; i < indices.size() - 1; i++) {
         other_index_lanes *= indices[i].dtype().lanes();
+        // Only allow the last index to be scalable
+        ICHECK(!indices[i].dtype().is_scalable());
       }
 
       // The total number of lanes of indexing, including the last index.
@@ -434,11 +488,13 @@ class Vectorizer : public StmtMutator, public ExprFunctor<PrimExpr(const PrimExp
 
       // Broadcast the last index such that the total number of index
       // lanes matches the desired number.
-      indices.Set(indices.size() - 1, BroadcastTo(indices[indices.size() - 1], last_index_lanes));
+      bool is_last_index_scalable = indices[indices.size() - 1].dtype().is_scalable();
+      indices.Set(indices.size() - 1, BroadcastTo(indices[indices.size() - 1], last_index_lanes,
+                                                  is_last_index_scalable));
 
       auto writer = store.CopyOnWrite();
       writer->indices = indices;
-      writer->value = BroadcastTo(value, total_lanes);
+      writer->value = BroadcastTo(value, total_lanes, is_last_index_scalable);
     }
 
     return std::move(store);
@@ -462,17 +518,136 @@ class Vectorizer : public StmtMutator, public ExprFunctor<PrimExpr(const PrimExp
                  op->annotations);
     }
   }
+
+  /*!
+   * \brief A pass that tries to rewrite buffer accesses (loads and stores) with a
+   * predicate expression where possible.
+   *
+   * \note For now we start with a minimalized case targeting block-level predicates
+   * produced by the split schedule primitive, with the potential for predicating
+   * more complex terms in the future if needed.
+   *
+   * \example
+   * Before:
+   * for i_0 in T.serial(4):
+   *     for i_1 in T.vectorized(4):
+   *         if i_0 * 4 + i_1 < 14:
+   *             B[i_0 * 4 + i_1] = A[i_0 * 4 + i_1] + 1.0
+   *
+   * After:
+   * for i_0 in T.serial(4):
+   *  pred = T.get_active_lane_mask(i_0 * 4, 14)
+   *  B(pred=pred)[i_0 * 4:i_0 * 4 + 4] = A(pred=pred)[i_0 * 4:i_0 * 4 + 4] + \
+   *      T.Broadcast(T.float32(1), 4)
+   */
+  class TryPredicateBufferAccesses : public StmtExprMutator {
+   public:
+    TryPredicateBufferAccesses() {}
+
+    /*!
+     * \brief Run the pass to try to exact predicates.
+     * \param stmt - The statement containing buffer accesses (loads and stores)
+     * we want to attempt to predicate.
+     * \param condition - The conditional expression (block-level predicate)
+     * that we will try to remove.
+     * \return pair<success, stmt> - Boolean value for success/failure, the rewritten
+     * stmt if successful.
+     */
+    std::pair<bool, Stmt> Run(Stmt stmt, PrimExpr condition) {
+      // Check that the condition provided is of the form a < b, for now.
+      if (!condition->IsInstance<LTNode>()) {
+        return {false, stmt};
+      }
+
+      LT lt = Downcast<LT>(condition);
+
+      // Check the form of the vectorized condition, we're expecting
+      // Ramp(...) < Broadcast(...)
+      if (!lt->a->IsInstance<RampNode>() || !lt->b->IsInstance<BroadcastNode>()) {
+        return {false, stmt};
+      }
+
+      base_ = Downcast<Ramp>(lt->a)->base;
+      limit_ = Downcast<Broadcast>(lt->b)->value;
+
+      // Now we can try to predicate
+      Stmt predicated_stmt = StmtExprMutator::operator()(std::move(stmt));
+      if (num_accesses_analyzed_ > 0 && num_accesses_analyzed_ == num_accesses_rewritten_) {
+        return {true, predicated_stmt};
+      }
+      return {false, stmt};
+    }
+
+   private:
+    PrimExpr VisitExpr_(const BufferLoadNode* op) final {
+      auto load = Downcast<BufferLoad>(StmtExprMutator::VisitExpr_(op));
+      return TryPredicateBufferAccess(load);
+    }
+
+    Stmt VisitStmt_(const BufferStoreNode* op) final {
+      auto store = Downcast<BufferStore>(StmtExprMutator::VisitStmt_(op));
+      return TryPredicateBufferAccess(store);
+    }
+
+    template <typename AccessNode>
+    AccessNode TryPredicateBufferAccess(AccessNode node) {
+      num_accesses_analyzed_ += 1;
+
+      // Do not try to predicate non-vectorized accesses
+      Array<PrimExpr> indices = node->indices;
+      if (!indices.size() || !indices[0]->IsInstance<RampNode>()) {
+        return node;
+      }
+      Ramp ramp = Downcast<Ramp>(node->indices[0]);
+
+      // The vectorized access pattern must match the base of the predicate
+      if (!tvm::StructuralEqual()(ramp->base, base_)) {
+        return node;
+      }
+
+      DataType buf_predicate_dtype =
+          DataType(DataType::kInt, 1, ramp->dtype.lanes(), ramp->dtype.is_scalable());
+      Call lane_mask = Call(buf_predicate_dtype, builtin::get_active_lane_mask(), {base_, limit_});
+
+      num_accesses_rewritten_ += 1;
+      auto writer = node.CopyOnWrite();
+      writer->predicate = lane_mask;
+      return node;
+    }
+
+    /*! \brief The variable base expr of the predicate. */
+    PrimExpr base_;
+    /*! \brief The limit of the predicate. The expr specifies the upper bound of the base's
+     * evaluated value. */
+    PrimExpr limit_;
+    /*! \brief The number of buffer accesses in the stmt we will analyze. */
+    size_t num_accesses_analyzed_ = 0;
+    /*! \brief The number of buffer accesses rewritten with predicates. */
+    size_t num_accesses_rewritten_ = 0;
+  };
+
   // IfThenElse
   Stmt VisitStmt_(const IfThenElseNode* op) final {
     ICHECK(!op->condition.dtype().is_vector());
     PrimExpr condition = this->VisitExpr(op->condition);
-    if (condition.dtype().is_vector()) {
-      return Scalarize(GetRef<Stmt>(op));
-    }
     Stmt then_case = this->VisitStmt(op->then_case);
     Optional<Stmt> else_case = NullOpt;
     if (op->else_case) {
       else_case = this->VisitStmt(op->else_case.value());
+    }
+
+    // Check if we can rewrite the condition with predicated buffers
+    if (EnableBufferPredication() && condition.dtype().is_vector() && !else_case.defined()) {
+      std::pair<bool, Stmt> success_stmt_pair =
+          TryPredicateBufferAccesses().Run(then_case, condition);
+      bool can_remove_if_then_else = success_stmt_pair.first;
+      if (can_remove_if_then_else) {
+        return success_stmt_pair.second;
+      }
+    }
+
+    if (condition.dtype().is_vector()) {
+      return Scalarize(GetRef<Stmt>(op));
     }
     if (condition.same_as(op->condition) && then_case.same_as(op->then_case) &&
         else_case.same_as(op->else_case)) {
@@ -481,6 +656,7 @@ class Vectorizer : public StmtMutator, public ExprFunctor<PrimExpr(const PrimExp
       return IfThenElse(condition, then_case, else_case);
     }
   }
+
   // While
   Stmt VisitStmt_(const WhileNode* op) final {
     LOG(FATAL) << "A while loop inside a vectorized loop not supported.";
@@ -545,8 +721,7 @@ class Vectorizer : public StmtMutator, public ExprFunctor<PrimExpr(const PrimExp
   Stmt Scalarize(Stmt stmt) {
     Var idx(var_->name_hint + ".s", var_->dtype);
     stmt = Substitute(stmt, {{var_, idx}});
-    return For(idx, IntImm(var_->dtype, 0), IntImm(var_->dtype, var_lanes_), ForKind::kSerial,
-               stmt);
+    return For(idx, IntImm(var_->dtype, 0), var_lanes_, ForKind::kSerial, stmt);
   }
   // ProducerStore
   Stmt VisitStmt_(const ProducerStoreNode* op) final {
@@ -561,7 +736,7 @@ class Vectorizer : public StmtMutator, public ExprFunctor<PrimExpr(const PrimExp
   // variable to be replaced
   Var var_;
   // the lanes.
-  int var_lanes_;
+  PrimExpr var_lanes_;
   // ramp representing the var.
   PrimExpr ramp_;
   // flag to mark requirment of scalarization.
@@ -573,6 +748,7 @@ class Vectorizer : public StmtMutator, public ExprFunctor<PrimExpr(const PrimExp
 
   // mutate array, with given lane requirement
   // when finished, p_lane updates the lane requirement.
+  // TODO(ekalda): Support scalable vectors
   Array<PrimExpr> MutateArray(Array<PrimExpr> arr, int* p_lanes) {
     if (arr.size() == 0) return arr;
     int& lanes = *p_lanes;
@@ -588,7 +764,7 @@ class Vectorizer : public StmtMutator, public ExprFunctor<PrimExpr(const PrimExp
 
     for (size_t i = 0; i < arr.size(); ++i) {
       if (new_arr[i].dtype().lanes() != lanes) {
-        new_arr[i] = BroadcastTo(new_arr[i], lanes);
+        new_arr[i] = BroadcastTo(new_arr[i], lanes, false);
         changed = true;
       }
     }
@@ -604,7 +780,8 @@ class Vectorizer : public StmtMutator, public ExprFunctor<PrimExpr(const PrimExp
       return GetRef<PrimExpr>(op);
     } else {
       int lanes = std::max(a.dtype().lanes(), b.dtype().lanes());
-      return TOp(BroadcastTo(a, lanes), BroadcastTo(b, lanes));
+      bool is_scalable = a.dtype().is_scalable() || b.dtype().is_scalable();
+      return TOp(BroadcastTo(a, lanes, is_scalable), BroadcastTo(b, lanes, is_scalable));
     }
   }
   template <typename T, typename FCompute>
@@ -626,7 +803,8 @@ class Vectorizer : public StmtMutator, public ExprFunctor<PrimExpr(const PrimExp
           return Ramp(fcompute(a_ramp->base, b), a_ramp->stride, a_ramp->lanes);
         }
       }
-      return fcompute(BroadcastTo(a, lanes), BroadcastTo(b, lanes));
+      bool is_scalable = a.dtype().is_scalable() || b.dtype().is_scalable();
+      return fcompute(BroadcastTo(a, lanes, is_scalable), BroadcastTo(b, lanes, is_scalable));
     }
   }
 };
@@ -636,11 +814,7 @@ class LoopVectorizer : public StmtMutator {
   Stmt VisitStmt_(const ForNode* op) final {
     if (op->kind == ForKind::kVectorized) {
       ICHECK(is_zero(op->min));
-      auto* extent_as_int = op->extent.as<IntImmNode>();
-      if (!extent_as_int || extent_as_int->value < 1) {
-        LOG(FATAL) << "Failed to vectorize loop with extent " << op->extent;
-      }
-      return Vectorizer(op->loop_var, static_cast<int>(extent_as_int->value))(op->body);
+      return Vectorizer(op->loop_var, op->extent)(op->body);
     } else {
       return StmtMutator::VisitStmt_(op);
     }

@@ -273,14 +273,23 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
     .set_dispatch<tir::BufferStore>(  //
         "", [](tir::BufferStore store, ObjectPath p, IRDocsifier d) -> Doc {
           ExprDoc buffer = d->AsDoc<ExprDoc>(store->buffer, p->Attr("buffer"));
-          return AssignDoc(/*lhs=*/buffer[BufferIndices(store->indices, p->Attr("indices"), d)],
-                           /*rhs=*/d->AsDoc<ExprDoc>(store->value, p->Attr("value")), NullOpt);
+          if (store->predicate.defined()) {
+            ExprDoc predicate = d->AsDoc<ExprDoc>(store->predicate, p->Attr("predicate"));
+            buffer = CallDoc(buffer, {}, {"pred"}, {predicate});
+          }
+          return AssignDoc(
+              /*lhs=*/buffer[BufferIndices(store->indices, p->Attr("indices"), d)],
+              /*rhs=*/d->AsDoc<ExprDoc>(store->value, p->Attr("value")), NullOpt);
         });
 
 TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
     .set_dispatch<tir::BufferLoad>(  //
         "", [](tir::BufferLoad load, ObjectPath p, IRDocsifier d) -> Doc {
           ExprDoc buffer = d->AsDoc<ExprDoc>(load->buffer, p->Attr("buffer"));
+          if (load->predicate.defined()) {
+            ExprDoc predicate = d->AsDoc<ExprDoc>(load->predicate, p->Attr("predicate"));
+            buffer = CallDoc(buffer, {}, {"pred"}, {predicate});
+          }
           return buffer[BufferIndices(load->indices, p->Attr("indices"), d)];
         });
 

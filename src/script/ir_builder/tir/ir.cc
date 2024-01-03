@@ -519,7 +519,14 @@ Var EnvThread(String thread_tag) {
 void BufferStore(Buffer buffer, PrimExpr value, Array<PrimExpr> indices) {
   runtime::DataType buffer_dtype = buffer->dtype;
   int index_lanes = indices.size() ? indices.back().dtype().lanes() : 1;
-  runtime::DataType lhs_dtype = buffer_dtype.with_lanes(buffer_dtype.lanes() * index_lanes);
+  bool index_scalable = indices.size() ? indices.back().dtype().is_scalable() : false;
+  bool buffer_scalable = buffer->dtype.is_scalable();
+  runtime::DataType lhs_dtype;
+  if (index_scalable || buffer_scalable) {
+    lhs_dtype = buffer_dtype.with_scalable_lanes(buffer_dtype.lanes() * index_lanes);
+  } else {
+    lhs_dtype = buffer_dtype.with_lanes(buffer_dtype.lanes() * index_lanes);
+  }
   runtime::DataType rhs_dtype = value->dtype;
   if (lhs_dtype != rhs_dtype) {
     if (lhs_dtype.lanes() != rhs_dtype.lanes()) {

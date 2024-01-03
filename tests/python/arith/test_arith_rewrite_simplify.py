@@ -80,8 +80,19 @@ class TestVector(BaseCompare):
         TestCase(tvm.tir.Ramp(x, 1, 4) + tvm.tir.Ramp(y, 2, 4), tvm.tir.Ramp(x + y, 3, 4)),
         TestCase(tvm.tir.Ramp(x, 1, 2) + y, tvm.tir.Ramp(x + y, 1, 2)),
         TestCase(y + tvm.tir.Ramp(x, 1, 2), tvm.tir.Ramp(y + x, 1, 2)),
+        TestCase(
+            tvm.tir.Ramp(x, 1, 4 * tir.vscale()) + tvm.tir.Ramp(y, 2, 4 * tir.vscale()),
+            tvm.tir.Ramp(x + y, 3, 4 * tir.vscale()),
+        ),
         TestCase(y.astype("int32x2") + x.astype("int32x2"), (y + x).astype("int32x2")),
+        TestCase(
+            y.astype("int32x8xvscale") + x.astype("int32x8xvscale"),
+            (y + x).astype("int32x8xvscale"),
+        ),
         TestCase(tvm.tir.Broadcast(0, 4) + y, tvm.tir.Broadcast(y, 4)),
+        TestCase(
+            tvm.tir.Broadcast(0, 8 * tir.vscale()) + y, tvm.tir.Broadcast(y, 8 * tir.vscale())
+        ),
         TestCase(
             tvm.tir.Ramp(x, 1, 4).astype("float32x4") + tvm.tir.Broadcast(0.0, 4),
             tvm.tir.Ramp(x, 1, 4).astype("float32x4"),
@@ -100,21 +111,42 @@ class TestVector(BaseCompare):
         ## DivMod rules
         # trunc div
         TestCase(tdiv(y.astype("int32x2"), x.astype("int32x2")), tdiv(y, x).astype("int32x2")),
+        TestCase(
+            tdiv(y.astype("int32x4xvscale"), x.astype("int32x4xvscale")),
+            tdiv(y, x).astype("int32x4xvscale"),
+        ),
         TestCase(tdiv(tvm.tir.Ramp(x, 4, 4), 2), tvm.tir.Ramp(tdiv(x, 2), 2, 4)),
+        TestCase(
+            tdiv(tvm.tir.Ramp(x, 4, 5 * tir.vscale()), 2),
+            tvm.tir.Ramp(tdiv(x, 2), 2, 5 * tir.vscale()),
+        ),
         TestCase(tdiv(tvm.tir.Ramp(x * 8 + 1, 1, 4), 8), x.astype("int32x4"), x >= 0),
         TestCase(tdiv(tvm.tir.Ramp(x * 8 + 15, 1, 4), 8), tdiv(tvm.tir.Ramp(x * 8 + 15, 1, 4), 8)),
         # trunc mod
         TestCase(tmod(y.astype("int32x2"), x.astype("int32x2")), tmod(y, x).astype("int32x2")),
         TestCase(tmod(tvm.tir.Ramp(x, 4, 4), 2), tvm.tir.Broadcast(tmod(x, 2), 4)),
         TestCase(tmod(tvm.tir.Ramp(x * 8 + 1, 1, 4), 8), tvm.tir.Ramp(1, 1, 4), x >= 0),
+        TestCase(
+            tmod(tvm.tir.Ramp(x * 8 + 1, 1, 4 * tir.vscale()), 8),
+            tmod(tvm.tir.Ramp(1, 1, 4 * tir.vscale()), 8),
+            x >= 0,
+        ),
         TestCase(tmod(tvm.tir.Ramp(x * 8 + 1, 15, 4), 8), tmod(tvm.tir.Ramp(1, 15, 4), 8), x >= 0),
         # floor div
         TestCase(fld(y.astype("int32x2"), x.astype("int32x2")), fld(y, x).astype("int32x2")),
         TestCase(fld(tvm.tir.Ramp(x, 4, 4), 2), tvm.tir.Ramp(fld(x, 2), 2, 4)),
+        TestCase(
+            fld(tvm.tir.Ramp(x, 4, 4 * tir.vscale()), 2),
+            tvm.tir.Ramp(fld(x, 2), 2, 4 * tir.vscale()),
+        ),
         TestCase(fld(tvm.tir.Ramp(x * 8 + 1, 1, 4), 8), (x).astype("int32x4")),
         TestCase(fld(tvm.tir.Ramp(x * 8 + 15, 1, 4), 8), fld(tvm.tir.Ramp(x * 8 + 15, 1, 4), 8)),
         TestCase(
             fld(tvm.tir.Ramp(x, 8, 5), tvm.tir.Broadcast(4, 5)), tvm.tir.Ramp(fld(x, 4), 2, 5)
+        ),
+        TestCase(
+            fld(tvm.tir.Ramp(x, 8, 4 * tir.vscale()), tvm.tir.Broadcast(4, 4 * tir.vscale())),
+            tvm.tir.Ramp(fld(x, 4), 2, 4 * tir.vscale()),
         ),
         TestCase(
             fld(tvm.tir.Ramp(flm(x * 4, 256), 1, 4), tvm.tir.Broadcast(8, 4)),
@@ -126,6 +158,10 @@ class TestVector(BaseCompare):
         ),
         TestCase(
             fld(tvm.tir.Ramp(x * 8, 1, 4), tvm.tir.Broadcast(4, 4)), tvm.tir.Broadcast(x * 2, 4)
+        ),
+        TestCase(
+            fld(tvm.tir.Ramp(x * 8, 1, 4 * tir.vscale()), tvm.tir.Broadcast(4, 4 * tir.vscale())),
+            fld(tvm.tir.Ramp(x * 8, 1, 4 * tir.vscale()), tvm.tir.Broadcast(4, 4 * tir.vscale())),
         ),
         TestCase(
             fld(tvm.tir.Ramp(x * 8, 3, 4), tvm.tir.Broadcast(4, 4)),
@@ -158,7 +194,15 @@ class TestVector(BaseCompare):
         # floor mod
         TestCase(flm(y.astype("int32x2"), x.astype("int32x2")), flm(y, x).astype("int32x2")),
         TestCase(flm(tvm.tir.Ramp(x, 4, 4), 2), tvm.tir.Broadcast(flm(x, 2), 4)),
+        TestCase(
+            flm(tvm.tir.Ramp(x, 4, 8 * tir.vscale()), 2),
+            tvm.tir.Broadcast(flm(x, 2), 8 * tir.vscale()),
+        ),
         TestCase(flm(tvm.tir.Ramp(x * 8 + 1, 1, 4), 8), tvm.tir.Ramp(1, 1, 4)),
+        TestCase(
+            flm(tvm.tir.Ramp(x * 8 + 1, 1, 4 * tir.vscale()), 8),
+            flm(tvm.tir.Ramp(1, 1, 4 * tir.vscale()), 8),
+        ),
         TestCase(flm(tvm.tir.Ramp(x * 8 + 1, 15, 4), 8), flm(tvm.tir.Ramp(1, 15, 4), 8)),
         TestCase(
             flm(tvm.tir.Ramp(x, 8, 4), tvm.tir.Broadcast(4, 4)), tvm.tir.Broadcast(flm(x, 4), 4)

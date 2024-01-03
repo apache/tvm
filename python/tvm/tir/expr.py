@@ -1095,6 +1095,9 @@ class BufferLoad(PrimExprWithOp):
     indices : List[PrimExpr]
         The buffer indices.
 
+    predicate : Optional[PrimExpr]
+        The buffer predicate
+
     span : Optional[Span]
         The location of this expression in the source code.
     """
@@ -1103,10 +1106,14 @@ class BufferLoad(PrimExprWithOp):
     indices: List[PrimExpr]
 
     def __init__(
-        self, buffer: Buffer, indices: List[PrimExpr], span: Optional[Span] = None
+        self,
+        buffer: Buffer,
+        indices: List[PrimExpr],
+        predicate: Optional[PrimExpr] = None,
+        span: Optional[Span] = None,
     ) -> None:
         self.__init_handle_by_constructor__(
-            _ffi_api.BufferLoad, buffer, indices, span  # type: ignore
+            _ffi_api.BufferLoad, buffer, indices, predicate, span  # type: ignore
         )
 
 

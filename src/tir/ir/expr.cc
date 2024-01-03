@@ -21,10 +21,13 @@
  * \file expr.cc
  */
 #include <tvm/runtime/registry.h>
+#include <tvm/tir/analysis.h>
+#include <tvm/tir/builtin.h>
 #include <tvm/tir/expr.h>
 #include <tvm/tir/op.h>
 #include <tvm/tir/stmt_functor.h>
 
+#include "../../arith/scalable_expression.h"
 #include "../../support/str_escape.h"
 #include "buffer_common.h"
 
@@ -427,18 +430,26 @@ TVM_REGISTER_GLOBAL("tir.Select")
 TVM_REGISTER_NODE_TYPE(SelectNode);
 
 // Ramp
-Ramp::Ramp(PrimExpr base, PrimExpr stride, int lanes, Span span) {
+Ramp::Ramp(PrimExpr base, PrimExpr stride, PrimExpr lanes, Span span) {
   ICHECK(base.defined());
   ICHECK(stride.defined());
   ICHECK(base.dtype().is_scalar());
   ICHECK(stride.dtype().is_scalar());
-  ICHECK_GT(lanes, 1);
   if (stride.dtype() != base.dtype()) {
     stride = cast(base.dtype(), stride);
   }
 
   ObjectPtr<RampNode> node = make_object<RampNode>();
-  node->dtype = base.dtype().with_lanes(lanes);
+  auto* lanes_int = lanes.as<IntImmNode>();
+  if (lanes_int) {
+    int lanes = static_cast<int>(lanes_int->value);
+    ICHECK_GT(lanes, 1);
+    node->dtype = base.dtype().with_lanes(lanes);
+  } else { /* scalable vector */
+    lanes = arith::CanonicalizeScalableLanes(lanes);
+    int vscale_multiplier = Downcast<IntImm>(Downcast<Mul>(lanes)->a)->value;
+    node->dtype = base.dtype().with_scalable_lanes(vscale_multiplier);
+  }
   node->base = base;
   node->stride = stride;
   node->lanes = lanes;
@@ -447,27 +458,35 @@ Ramp::Ramp(PrimExpr base, PrimExpr stride, int lanes, Span span) {
 }
 
 TVM_REGISTER_GLOBAL("tir.Ramp")
-    .set_body_typed([](PrimExpr base, PrimExpr stride, int lanes, Span span) {
+    .set_body_typed([](PrimExpr base, PrimExpr stride, PrimExpr lanes, Span span) {
       return Ramp(base, stride, lanes, span);
     });
 
 TVM_REGISTER_NODE_TYPE(RampNode);
 
 // Broadcast
-Broadcast::Broadcast(PrimExpr value, int lanes, Span span) {
+Broadcast::Broadcast(PrimExpr value, PrimExpr lanes, Span span) {
   ICHECK(value.defined());
   ICHECK(value.dtype().is_scalar());
-  ICHECK_GT(lanes, 1);
 
   ObjectPtr<BroadcastNode> node = make_object<BroadcastNode>();
-  node->dtype = value.dtype().with_lanes(lanes);
+  auto* lanes_int = lanes.as<IntImmNode>();
+  if (lanes_int) {
+    int lanes = static_cast<int>(lanes_int->value);
+    ICHECK_GT(lanes, 1);
+    node->dtype = value.dtype().with_lanes(lanes);
+  } else { /* scalable vector */
+    lanes = arith::CanonicalizeScalableLanes(lanes);
+    int vscale_multiplier = Downcast<IntImm>(Downcast<Mul>(lanes)->a)->value;
+    node->dtype = value.dtype().with_scalable_lanes(vscale_multiplier);
+  }
   node->value = std::move(value);
   node->lanes = lanes;
   node->span = std::move(span);
   data_ = node;
 }
 
-TVM_REGISTER_GLOBAL("tir.Broadcast").set_body_typed([](PrimExpr value, int lanes, Span span) {
+TVM_REGISTER_GLOBAL("tir.Broadcast").set_body_typed([](PrimExpr value, PrimExpr lanes, Span span) {
   return Broadcast(value, lanes, span);
 });
 
@@ -525,8 +544,8 @@ TVM_REGISTER_GLOBAL("tir.Call")
           for (Range r : br->region) {
             if (is_one(r->extent)) {
               indices.push_back(r->min);
-            } else if (const auto* extent = r->extent.as<IntImmNode>()) {
-              indices.push_back(tir::Ramp(r->min, make_const(r->min->dtype, 1), extent->value));
+            } else if (r->extent.as<IntImmNode>()) {
+              indices.push_back(tir::Ramp(r->min, make_const(r->min->dtype, 1), r->extent));
             } else {
               LOG(FATAL) << "ValueError: Cannot convert to BufferLoad: "
                          << GetRef<BufferRegion>(br);
@@ -717,10 +736,14 @@ void BufferLoadNode::LegalizeDType() {
   int index_lanes = indices.size() ? indices.back().dtype().lanes() : 1;
   int buffer_lanes = buffer->dtype.lanes();
 
-  this->dtype = buffer->dtype.with_lanes(index_lanes * buffer_lanes);
+  if ((indices.size() && indices.back().dtype().is_scalable()) || buffer->dtype.is_scalable()) {
+    this->dtype = buffer->dtype.with_scalable_lanes(index_lanes * buffer_lanes);
+  } else {
+    this->dtype = buffer->dtype.with_lanes(index_lanes * buffer_lanes);
+  }
 }
 
-BufferLoad::BufferLoad(Buffer buffer, Array<PrimExpr> indices, Span span) {
+BufferLoad::BufferLoad(Buffer buffer, Array<PrimExpr> indices, PrimExpr predicate, Span span) {
   ICHECK_EQ(buffer->shape.size(), indices.size())
       << "Buffer " << buffer->name << " is " << buffer->shape.size()
       << "-dimensional, cannot be indexed with the " << indices.size()
@@ -729,14 +752,15 @@ BufferLoad::BufferLoad(Buffer buffer, Array<PrimExpr> indices, Span span) {
   ObjectPtr<BufferLoadNode> node = make_object<BufferLoadNode>();
   node->buffer = std::move(buffer);
   node->indices = std::move(indices);
+  node->predicate = std::move(predicate);
   node->span = std::move(span);
   node->LegalizeDType();
   data_ = std::move(node);
 }
 
 TVM_REGISTER_GLOBAL("tir.BufferLoad")
-    .set_body_typed([](Buffer buffer, Array<PrimExpr> indices, Span span) {
-      return BufferLoad(buffer, indices, span);
+    .set_body_typed([](Buffer buffer, Array<PrimExpr> indices, PrimExpr predicate, Span span) {
+      return BufferLoad(buffer, indices, predicate, span);
     });
 
 TVM_REGISTER_NODE_TYPE(BufferLoadNode);

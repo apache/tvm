@@ -97,6 +97,7 @@ class MatchBufferLower : public StmtExprMutator {
       auto n = CopyOnWrite(op);
       n->indices = ConvertIndices(MatchBufferRegion(buffer, source), op->indices);
       n->buffer = source->buffer;
+      ICHECK(!op->predicate.defined()) << "Indices change can affect the predicate";
       return Stmt(n);
     }
   }
@@ -113,6 +114,7 @@ class MatchBufferLower : public StmtExprMutator {
       const Buffer& buffer = (*it).first;
       const BufferRegion& source = (*it).second;
       Array<PrimExpr> indices = ConvertIndices(MatchBufferRegion(buffer, source), op->indices);
+      ICHECK(!op->predicate.defined()) << "Indices change can affect the predicate";
       return BufferLoad(source->buffer, indices);
     }
   }

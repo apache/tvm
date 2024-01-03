@@ -1586,6 +1586,10 @@ def vectorlow(dtype, vec):
     return call_intrin(dtype, "tir.vectorlow", vec)
 
 
+def vscale():
+    return call_intrin("int32", "tir.vscale")
+
+
 def vectorhigh(dtype, vec):
     """Get the high level half of the vector
 

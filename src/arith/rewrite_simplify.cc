@@ -247,7 +247,7 @@ PrimExpr RewriteSimplifier::Impl::VisitExpr_(const AddNode* op) {
   // Pattern var match FloatImm
   PVar<FloatImm> c4;
   // Pattern var for lanes in broadcast and ramp
-  PVar<int> lanes;
+  PVar<PrimExpr> lanes;
   // Vector rules
   if (op->dtype.lanes() != 1) {
     TVM_TRY_REWRITE(ramp(b1, s1, lanes) + ramp(b2, s2, lanes), ramp(b1 + b2, s1 + s2, lanes));
@@ -396,7 +396,7 @@ PrimExpr RewriteSimplifier::Impl::VisitExpr_(const SubNode* op) {
   // Pattern var match IntImm
   PVar<IntImm> c1, c2, c3;
   // Pattern var for lanes in broadcast and ramp
-  PVar<int> lanes;
+  PVar<PrimExpr> lanes;
   // Vector rules
   if (op->dtype.lanes() != 1) {
     TVM_TRY_REWRITE(ramp(b1, s1, lanes) - ramp(b2, s2, lanes), ramp(b1 - b2, s1 - s2, lanes));
@@ -580,7 +580,7 @@ PrimExpr RewriteSimplifier::Impl::VisitExpr_(const MulNode* op) {
   // Pattern var match FloatImm
   PVar<FloatImm> c3;
   // Pattern var for lanes in broadcast and ramp
-  PVar<int> lanes;
+  PVar<PrimExpr> lanes;
   // Vector rules
   if (op->dtype.lanes() != 1) {
     TVM_TRY_REWRITE(broadcast(x, lanes) * broadcast(y, lanes), broadcast(x * y, lanes));
@@ -617,7 +617,7 @@ PrimExpr RewriteSimplifier::Impl::VisitExpr_(const DivNode* op) {
   // Pattern var match IntImm
   PVar<IntImm> c1, c2, c3;
   // Pattern var for lanes in broadcast and ramp
-  PVar<int> lanes;
+  PVar<PrimExpr> lanes;
 
   // x / 2.0 = x * 0.5
   if (const FloatImmNode* ptr = op->b.as<FloatImmNode>()) {
@@ -639,10 +639,11 @@ PrimExpr RewriteSimplifier::Impl::VisitExpr_(const DivNode* op) {
         return ramp(div(b1, c2), div(c1, c2), lanes).Eval();
       }
       // If all possible indices in ramp are the same.
-      if (CanProveGreaterEqual(b1.Eval(), 0)) {
+      if (CanProveGreaterEqual(b1.Eval(), 0) && !IsWithScalableLanes(lanes.Eval())) {
         ModularSet bmod = analyzer_->modular_set(b1.Eval());
         int64_t ramp_min = bmod->base / c2val;
-        int64_t ramp_max = (bmod->base + (lanes.Eval() - 1) * c1val) / c2val;
+        auto lanes_int = lanes.Eval().as<IntImmNode>()->value;
+        int64_t ramp_max = (bmod->base + (lanes_int - 1) * c1val) / c2val;
         if (bmod->coeff % c2val == 0 && ramp_min == ramp_max) {
           return broadcast(div(b1, c2), lanes).Eval();
         }
@@ -777,7 +778,7 @@ PrimExpr RewriteSimplifier::Impl::VisitExpr_(const ModNode* op) {
   // Pattern var match IntImm
   PVar<IntImm> c1, c2;
   // Pattern var for lanes in broadcast and ramp
-  PVar<int> lanes;
+  PVar<PrimExpr> lanes;
 
   // Vector rules
   if (op->dtype.lanes() != 1) {
@@ -793,14 +794,23 @@ PrimExpr RewriteSimplifier::Impl::VisitExpr_(const ModNode* op) {
         return broadcast(truncmod(b1, c2), lanes).Eval();
       }
       // If all possible indices in ramp are the same.
-      if (CanProveGreaterEqual(b1.Eval(), 0)) {
+      if (CanProveGreaterEqual(b1.Eval(), 0) /*&& !IsWithScalableLanes(lanes.Eval())*/) {
         ModularSet bmod = analyzer_->modular_set(b1.Eval());
-        int64_t ramp_min = bmod->base / c2val;
-        int64_t ramp_max = (bmod->base + (lanes.Eval() - 1) * c1val) / c2val;
-        if (bmod->coeff % c2val == 0) {
-          if (ramp_min == ramp_max) {
-            return ramp(truncmod(bmod->base, c2), c1, lanes).Eval();
-          } else {
+        if (!IsWithScalableLanes(lanes.Eval())) {
+          auto lanes_int = lanes.Eval().as<IntImmNode>()->value;
+          int64_t ramp_min = bmod->base / c2val;
+          int64_t ramp_max = (bmod->base + (lanes_int - 1) * c1val) / c2val;
+          if (bmod->coeff % c2val == 0) {
+            if (ramp_min == ramp_max) {
+              return ramp(truncmod(bmod->base, c2), c1, lanes).Eval();
+            } else {
+              return truncmod(ramp(truncmod(bmod->base, c2), c1, lanes), broadcast(c2, lanes))
+                  .Eval();
+            }
+          }
+        } else { /* Special case for scalable vectors */
+          ModularSet bmod = analyzer_->modular_set(b1.Eval());
+          if (bmod->coeff % c2val == 0) {
             return truncmod(ramp(truncmod(bmod->base, c2), c1, lanes), broadcast(c2, lanes)).Eval();
           }
         }
@@ -857,7 +867,7 @@ PrimExpr RewriteSimplifier::Impl::VisitExpr_(const FloorDivNode* op) {
   // Pattern var match IntImm
   PVar<IntImm> c1, c2, c3;
   // Pattern var for lanes in broadcast and ramp
-  PVar<int> lanes;
+  PVar<PrimExpr> lanes;
 
   // Vector rules
   if (op->dtype.lanes() != 1) {
@@ -872,17 +882,20 @@ PrimExpr RewriteSimplifier::Impl::VisitExpr_(const FloorDivNode* op) {
         return ramp(floordiv(b1, c2), floordiv(c1, c2), lanes).Eval();
       }
       // If all possible indices in ramp are the same.
-      ModularSet bmod = analyzer_->modular_set(b1.Eval());
-      int64_t ramp_min = floordiv(bmod->base, c2val);
-      int64_t ramp_max = floordiv(bmod->base + (lanes.Eval() - 1) * c1val, c2val);
-      if (ramp_min == ramp_max) {
-        // If b1 can devide c2
-        if (bmod->coeff % c2val == 0) {
-          return broadcast(floordiv(b1, c2), lanes).Eval();
-        }
-        // If all indices can be guaranteed to settle inside a coeff range
-        if (c2val % bmod->coeff == 0 && bmod->base + (lanes.Eval() - 1) * c1val < bmod->coeff) {
-          return broadcast(floordiv(b1, c2), lanes).Eval();
+      if (!IsWithScalableLanes(lanes.Eval())) {
+        ModularSet bmod = analyzer_->modular_set(b1.Eval());
+        int64_t ramp_min = floordiv(bmod->base, c2val);
+        auto lanes_int = lanes.Eval().as<IntImmNode>()->value;
+        int64_t ramp_max = floordiv(bmod->base + (lanes_int - 1) * c1val, c2val);
+        if (ramp_min == ramp_max) {
+          // If b1 can devide c2
+          if (bmod->coeff % c2val == 0) {
+            return broadcast(floordiv(b1, c2), lanes).Eval();
+          }
+          // If all indices can be guaranteed to settle inside a coeff range
+          if (c2val % bmod->coeff == 0 && bmod->base + (lanes_int - 1) * c1val < bmod->coeff) {
+            return broadcast(floordiv(b1, c2), lanes).Eval();
+          }
         }
       }
     }
@@ -993,7 +1006,7 @@ PrimExpr RewriteSimplifier::Impl::VisitExpr_(const FloorModNode* op) {
   // Pattern var match IntImm
   PVar<IntImm> c1, c2;
   // Pattern var for lanes in broadcast and ramp
-  PVar<int> lanes;
+  PVar<PrimExpr> lanes;
 
   // Vector rules
   if (op->dtype.lanes() != 1) {
@@ -1010,20 +1023,27 @@ PrimExpr RewriteSimplifier::Impl::VisitExpr_(const FloorModNode* op) {
       }
       // If all possible indices in ramp are the same.
       ModularSet bmod = analyzer_->modular_set(b1.Eval());
-      int64_t ramp_min = floordiv(bmod->base, c2val);
-      int64_t ramp_max = floordiv(bmod->base + (lanes.Eval() - 1) * c1val, c2val);
-      if (ramp_min == ramp_max) {
-        // If b1 can devide c2
+      if (!IsWithScalableLanes(lanes.Eval())) {
+        int64_t ramp_min = floordiv(bmod->base, c2val);
+        auto lanes_int = lanes.Eval().as<IntImmNode>()->value;
+        int64_t ramp_max = floordiv(bmod->base + (lanes_int - 1) * c1val, c2val);
+        if (ramp_min == ramp_max) {
+          // If b1 can devide c2
+          if (bmod->coeff % c2val == 0) {
+            return ramp(floormod(bmod->base, c2), c1, lanes).Eval();
+          }
+          // If all indices can be guaranteed to settle inside a coeff range
+          if (c2val % bmod->coeff == 0 && bmod->base + (lanes_int - 1) * c1val < bmod->coeff) {
+            return ramp(floormod(b1, c2), c1, lanes).Eval();
+          }
+        }
         if (bmod->coeff % c2val == 0) {
-          return ramp(floormod(bmod->base, c2), c1, lanes).Eval();
+          return floormod(ramp(floormod(bmod->base, c2), c1, lanes), broadcast(c2, lanes)).Eval();
         }
-        // If all indices can be guaranteed to settle inside a coeff range
-        if (c2val % bmod->coeff == 0 && bmod->base + (lanes.Eval() - 1) * c1val < bmod->coeff) {
-          return ramp(floormod(b1, c2), c1, lanes).Eval();
+      } else { /* scalable vectors */
+        if (bmod->coeff % c2val == 0) {
+          return floormod(ramp(floormod(bmod->base, c2), c1, lanes), broadcast(c2, lanes)).Eval();
         }
-      }
-      if (bmod->coeff % c2val == 0) {
-        return floormod(ramp(floormod(bmod->base, c2), c1, lanes), broadcast(c2, lanes)).Eval();
       }
     }
   }
@@ -1093,7 +1113,7 @@ PrimExpr RewriteSimplifier::Impl::VisitExpr_(const MinNode* op) {
   PVar<PrimExpr> x, y, z, s1, s2;
   // Pattern var match IntImm
   PVar<IntImm> c1, c2;
-  PVar<int> lanes;
+  PVar<PrimExpr> lanes;
 
   // vector rule
   if (op->dtype.lanes() != 1) {
@@ -1267,7 +1287,7 @@ PrimExpr RewriteSimplifier::Impl::VisitExpr_(const MaxNode* op) {
   PVar<PrimExpr> x, y, z, s1, s2;
   // Pattern var match IntImm
   PVar<IntImm> c1, c2;
-  PVar<int> lanes;
+  PVar<PrimExpr> lanes;
 
   // vector rule
   if (op->dtype.lanes() != 1) {
@@ -1475,7 +1495,7 @@ PrimExpr RewriteSimplifier::Impl::ApplyRewriteRules(EQ ret) {
   PVar<PrimExpr> x, y;
   // Pattern var match IntImm
   PVar<IntImm> c1, c2;
-  PVar<int> lanes;
+  PVar<PrimExpr> lanes;
 
   // vector rule
   if (ret->dtype.lanes() != 1) {
@@ -1603,7 +1623,7 @@ PrimExpr RewriteSimplifier::Impl::ApplyRewriteRules(LT ret) {
   PVar<PrimExpr> x, y, z, s1, s2;
   // Pattern var match IntImm
   PVar<IntImm> c1, c2;
-  PVar<int> lanes;
+  PVar<PrimExpr> lanes;
 
   // vector rule
   if (ret->dtype.lanes() != 1) {
@@ -1761,7 +1781,7 @@ PrimExpr RewriteSimplifier::Impl::VisitExpr_(const NotNode* op) {
 PrimExpr RewriteSimplifier::Impl::ApplyRewriteRules(Not ret) {
   // Pattern var to match any expression
   PVar<PrimExpr> x, y;
-  PVar<int> lanes;
+  PVar<PrimExpr> lanes;
   if (ret->dtype.lanes() != 1) {
     TVM_TRY_REWRITE(!broadcast(x, lanes), broadcast(!x, lanes));
   }
@@ -1836,7 +1856,7 @@ PrimExpr RewriteSimplifier::Impl::VisitExpr_(const AndNode* op) {
   PVar<PrimExpr> x, y, z;
   // Pattern var match IntImm
   PVar<IntImm> c1, c2, c3;
-  PVar<int> lanes;
+  PVar<PrimExpr> lanes;
 
   if (op->dtype.lanes() != 1) {
     TVM_TRY_REWRITE(broadcast(x, lanes) && broadcast(y, lanes), broadcast(x && y, lanes));
@@ -1984,7 +2004,7 @@ PrimExpr RewriteSimplifier::Impl::VisitExpr_(const OrNode* op) {
   PVar<PrimExpr> x, y, z;
   // Pattern var match IntImm
   PVar<IntImm> c1, c2;
-  PVar<int> lanes;
+  PVar<PrimExpr> lanes;
 
   if (op->dtype.lanes() != 1) {
     TVM_TRY_REWRITE(broadcast(x, lanes) || broadcast(y, lanes), broadcast(x || y, lanes));
