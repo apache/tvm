@@ -20,7 +20,7 @@
 import tvm
 from tvm import tir
 from tvm.tir import Block, BufferStore
-from tvm.tir.expr import Cast, BufferLoad
+from tvm.tir.expr import Cast, BufferLoad, Call
 from tvm.target import Target
 
 from ..base import ScheduleRule
@@ -58,10 +58,15 @@ def identify_cast_or_load_block(block: Block) -> bool:
 def identify_rsqrt_block(block: Block) -> bool:
     if len(block.reads) != 1 or len(block.writes) != 1:
         return False
-    try:
-        op = block.body.value.op
-    except Exception:
+
+    if not isinstance(block.body, BufferStore):
         return False
+    store = block.body
+
+    if not isinstance(store.value, Call):
+        return False
+    call = store.value
+    op = call.op
 
     return op == tvm.ir.op.Op.get("tir.rsqrt")
 
