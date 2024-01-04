@@ -53,7 +53,7 @@ TVM_REGISTER_TARGET_KIND("cutlass", kDLCUDA)
     // given candidate list. Note that the larger split-K factor requires a larger workspace.
     // Currently, parallel split-k has been tested only for wgrad. For GEMM and other conv2d
     // kinds, split_k_slices is ignored.
-    .add_attr_option<Array<runtime::Int>>("split_k_slices", Array<runtime::Int>({1}))
+    .add_attr_option<Array<runtime::Int>>("split_k_slices", Array<runtime::Int>{runtime::Int(1)})
     // When True, profile all kernel variants with smaller alignments than the largest possible.
     .add_attr_option<runtime::Bool>("profile_all_alignments", runtime::Bool(false))
     // Whether to profile all candidate kernels, or stop profiling after the first applicable kernel
