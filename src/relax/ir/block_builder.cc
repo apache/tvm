@@ -437,9 +437,18 @@ class BlockBuilderImpl : public BlockBuilderNode {
 
     void VisitStructInfo_(const ShapeStructInfoNode* op) final {
       for (const PrimExpr& s : op->values.value_or(Array<PrimExpr>())) {
-        // Only collect single var defined shape. Ignore something like `R.Tensor((m + 1, n + 1))
+        // Only collect single var defined shape. Ignore something like `R.Shape((m + 1, n + 1))
         if (const auto* var = s.as<tir::VarNode>()) {
           shape_var_map_.Set(GetRef<tir::Var>(var), s);
+        }
+      }
+    }
+
+    void VisitStructInfo_(const PrimStructInfoNode* op) final {
+      // Only collect single var defined shape. Ignore something like `R.Prim(value=m + 1)`
+      if (op->value.defined()) {
+        if (auto var = op->value.as<tir::Var>()) {
+          shape_var_map_.Set(var.value(), op->value.value());
         }
       }
     }
