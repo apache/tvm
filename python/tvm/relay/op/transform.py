@@ -855,13 +855,14 @@ def broadcast_to(data, shape):
         The resulting tensor.
     """
     if isinstance(shape, Constant):
-        shape = list(shape.data.numpy())
-    if isinstance(shape, Expr):
+        shape = shape.data.numpy()
+        shape = [_expr.IntImm(str(shape.dtype), int(value)) for value in shape]
+    elif isinstance(shape, Expr):
         return _dyn_make.broadcast_to(data, shape)
+
     if isinstance(shape, int):
         shape = [shape]
-    if isinstance(shape, (list, tuple)):
-        shape = list(shape)
+
     return _make.broadcast_to(data, shape)
 
 
