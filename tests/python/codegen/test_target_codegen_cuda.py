@@ -24,6 +24,7 @@ import numpy as np
 from tvm import topi
 from tvm.contrib.nvcc import have_fp16, have_int8, have_bf16
 from tvm.contrib import utils
+from tvm.script import tir as T
 import tvm.testing
 import pytest
 
@@ -1066,6 +1067,51 @@ def test_cuda_save_kernels_for_profiling():
         assert "tvm_kernels.cu" in os.listdir(tmp_path)
 
     check_cuda(64, 2)
+
+
+def test_cuda_thread_sync_inside_condition():
+    @T.prim_func
+    def func1(A: T.Buffer((4, 4), "float32")) -> None:
+        A_shared = T.alloc_buffer((4, 4), "float32", scope="shared")
+        for bx in T.thread_binding(1, "blockIdx.x"):
+            for tx in T.thread_binding(32, "threadIdx.x"):
+                if A[0, 0] > 1.0:
+                    for i, j in T.grid(4, 4):
+                        A_shared[i, j] = A[i, j]
+                    for i, j in T.grid(4, 4):
+                        A[i, j] = A_shared[i, j] + 1.0
+
+    @T.prim_func
+    def func2(A: T.Buffer((4, 4), "float32")) -> None:
+        A_shared = T.alloc_buffer((4, 4), "float32", scope="shared")
+        for bx in T.thread_binding(1, "blockIdx.x"):
+            for tx in T.thread_binding(32, "threadIdx.x"):
+                if T.tvm_thread_invariant(A[0, 0] > 1.0):
+                    for i, j in T.grid(4, 4):
+                        A_shared[i, j] = A[i, j]
+                    for i, j in T.grid(4, 4):
+                        A[i, j] = A_shared[i, j] + 1.0
+
+    @T.prim_func
+    def func3(A: T.Buffer((4, 4), "float32")) -> None:
+        A_shared = T.alloc_buffer((4, 4), "float32", scope="shared")
+        for bx in T.thread_binding(1, "blockIdx.x"):
+            for tx in T.thread_binding(32, "threadIdx.x"):
+                while T.tvm_thread_invariant(A[0, 0] > 1.0):
+                    for i, j in T.grid(4, 4):
+                        A_shared[i, j] = A[i, j]
+                    for i, j in T.grid(4, 4):
+                        A[i, j] = A_shared[i, j] + 1.0
+
+    mod = tvm.IRModule({"main": func1})
+    with pytest.raises(tvm.error.InternalError):
+        tvm.build(mod, target="cuda")
+
+    mod = tvm.IRModule({"main": func2})
+    tvm.build(mod, target="cuda")
+
+    mod = tvm.IRModule({"main": func3})
+    tvm.build(mod, target="cuda")
 
 
 if __name__ == "__main__":
