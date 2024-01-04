@@ -96,7 +96,7 @@ def _allocate_tensor(func_id, args):
     )
     shape = args[0]
     for i in shape:
-        _internal_assert(isinstance(i, _expr.PrimExpr), "The shape should be an expression")
+        _internal_assert(isinstance(i, (_expr.PrimExpr, int)), "The shape should be an expression")
     if n > 1:
         _internal_assert(isinstance(args[1], str), "The data type should be an str")
         _internal_assert(
