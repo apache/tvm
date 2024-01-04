@@ -49,7 +49,7 @@ const Array<Doc> RelaxOpCode::GetDocs() {
 void RelaxOpCode::BuilderEmit(const String& ret, const String& name) {
   stack_.func_call("block_builder.emit", ret).call_arg(ret);
   if (name.size() > 0) {
-    stack_.call_arg(DocUtils::ToStrDoc(name), "name_hint");
+    stack_.call_arg(DocUtils::ToStrDoc(name + "_compute"), "name_hint");
   }
 }
 

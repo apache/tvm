@@ -105,6 +105,7 @@ void RelaxCodeGen::CodeGenGraph() {
       }
     }
     stack_.func_call("block_builder.emit_output", idx_exit).call_arg(idx_exit);
+    stack_.call_arg(DocUtils::ToStrDoc(e->name), "name_hint");
     idx_exits.push_back(idx_exit);
   }
   stack_.scope_end();
