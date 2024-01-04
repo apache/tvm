@@ -103,3 +103,18 @@ class ScheduleRule:  # pylint: disable=too-few-public-methods
             return _Rule()
 
         return decorator
+
+    def is_target_available(self, target: Target) -> bool:  # pylint: disable=unused-argument
+        """Check whether the rule is available for the given target.
+
+        Parameters
+        ----------
+        target : Target
+            The compilation target the schedule is supposed to be built for.
+
+        Returns
+        -------
+        available : bool
+            Whether the rule is available for the given target.
+        """
+        return True

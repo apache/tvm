@@ -17,21 +17,20 @@
 """Reduction rule for operators including softmax, layer norm, RMS norm, etc"""
 from typing import List, Union
 
-from tvm import tir, arith
+from tvm import arith, tir
 from tvm.target import Target
 from tvm.tir import Schedule
 from tvm.tir.schedule import BlockRV
 
-
 from ..base import (
-    ScheduleRule,
+    detect_dominant_read,
     normalize_prim_func,
     try_inline_contiguous_spatial,
-    detect_dominant_read,
 )
+from .base import GPUScheduleRule
 
 
-class Transpose(ScheduleRule):
+class Transpose(GPUScheduleRule):
     """Schedule rule for transpose"""
 
     def is_transpose(self, sch: Schedule, block_rv: BlockRV):
@@ -52,6 +51,8 @@ class Transpose(ScheduleRule):
         _: bool,
     ) -> Union[None, tir.Schedule, List[tir.Schedule]]:
         # pylint: disable=invalid-name
+        if not isinstance(func, tir.PrimFunc) or not self.is_target_available(target):
+            return None
         if target.kind.name == "cuda":
             len_tx = 16
             len_ty = 8

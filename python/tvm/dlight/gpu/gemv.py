@@ -24,13 +24,13 @@ from tvm.target import Target
 
 from ..base import (
     BlockInfo,
-    ScheduleRule,
     collect_vars_used_in_access_region,
     detect_dominant_read,
     is_broadcast_epilogue,
     normalize_prim_func,
     try_inline_contiguous_spatial,
 )
+from .base import GPUScheduleRule
 
 
 def _get_reduction_expr(block: tir.Block) -> Optional[tir.PrimExpr]:
@@ -154,7 +154,7 @@ def normalize(
     return is_inner_reduction
 
 
-class GEMV(ScheduleRule):
+class GEMV(GPUScheduleRule):
     """A rule for GEMV and DecodeGEMV."""
 
     def apply(  # pylint: disable=too-many-locals,too-many-branches,too-many-return-statements
@@ -163,7 +163,7 @@ class GEMV(ScheduleRule):
         target: Target,
         _: bool,
     ) -> Union[None, tir.Schedule, List[tir.Schedule]]:
-        if not isinstance(func, tir.PrimFunc):
+        if not isinstance(func, tir.PrimFunc) or not self.is_target_available(target):
             return None
         sch = tir.Schedule(func)
         block_infos = normalize_prim_func(sch)
