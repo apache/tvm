@@ -20,7 +20,8 @@
 /*!
  * \file merge_shared_memory_allocations.cc
  * \brief Each GPU kernel is allowed to have only one dynamic or static shared memory allocation.
- * This pass merges multiple TIR-level dynamic or static shared memory allocations into one allocation.
+ * This pass merges multiple TIR-level dynamic or static shared memory allocations into one
+ * allocation.
  */
 #include <tvm/runtime/registry.h>
 #include <tvm/tir/expr.h>
@@ -650,8 +651,7 @@ namespace transform {
 
 Pass MergeSharedMemoryAllocations() {
   auto pass_func = [](PrimFunc f, IRModule m, PassContext ctx) {
-    bool merge_static_smem =
-        ctx->GetConfig<Bool>("tir.merge_static_smem", Bool(false)).value();
+    bool merge_static_smem = ctx->GetConfig<Bool>("tir.merge_static_smem", Bool(false)).value();
     auto* n = f.CopyOnWrite();
     n->body = MergeSharedMemoryAllocations(std::move(n->body), merge_static_smem);
     return f;
