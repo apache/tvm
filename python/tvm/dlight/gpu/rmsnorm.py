@@ -76,9 +76,9 @@ class RMSNorm(ScheduleRule):
         _: bool,
     ) -> tir.Schedule:
         if target.kind.name == "cuda":
-            tx = 512
+            num_tx = 512
         else:
-            tx = 64
+            num_tx = 64
 
         sch = tir.Schedule(func)
         root = sch.get_block(name="root", func_name="main")
@@ -113,7 +113,9 @@ class RMSNorm(ScheduleRule):
         sch.transform_block_layout(block=rsqrt, index_map=lambda v_ax0, v_ax1: (v_ax1,))
 
         block_loop, loops = sch.get_loops(block=read)
-        thread_loop, _, _ = sch.split(loop=loops, factors=[tx, None, 8], preserve_unit_iters=True)
+        thread_loop, _, _ = sch.split(
+            loop=loops, factors=[num_tx, None, 8], preserve_unit_iters=True
+        )
         sch.bind(block_loop, thread_axis="blockIdx.x")
         sch.bind(thread_loop, thread_axis="threadIdx.x")
         sch.vectorize(sch.get_loops(block=read)[-1])
@@ -123,7 +125,9 @@ class RMSNorm(ScheduleRule):
         sch.reverse_compute_at(block=rsqrt, loop=block_loop, index=-1)
         sch.reverse_compute_at(block=norm, loop=block_loop, index=-1)
         block_loop, loops = sch.get_loops(block=norm)
-        thread_loop, _, _ = sch.split(loop=loops, factors=[tx, None, 8], preserve_unit_iters=True)
+        thread_loop, _, _ = sch.split(
+            loop=loops, factors=[num_tx, None, 8], preserve_unit_iters=True
+        )
         sch.bind(thread_loop, thread_axis="threadIdx.x")
 
         sch.reverse_compute_at(block=write, loop=thread_loop, index=-1)
