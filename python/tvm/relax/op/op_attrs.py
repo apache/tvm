@@ -114,6 +114,11 @@ class PermuteDimsAttrs(Attrs):
     """Attributes for permute_dims operator"""
 
 
+@tvm._ffi.register_object("relax.attrs.SortAttrs")
+class SortAttrs(Attrs):
+    """Attributes for sort operator"""
+
+
 @tvm._ffi.register_object("relax.attrs.SplitAttrs")
 class SplitAttrs(Attrs):
     """Attributes used in split operator"""

@@ -68,6 +68,7 @@ from .transform import (
     StaticPlanBlockMemory,
     ToMixedPrecision,
     ToNonDataflow,
+    UpdateParamStructInfo,
     UpdateVDevice,
     VMBuiltinLower,
     VMShapeLower,

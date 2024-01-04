@@ -1523,7 +1523,7 @@ OutType = TypeVar("OutType", bound=Union[Tensor, Sequence[Tensor]])
 def tensor_ir_op(
     func: _tir.PrimFunc,
     name_hint: str,
-    args: Union[Tensor, Sequence[Union[Tensor, _tir.Var]]],
+    args: Union[Tensor, Sequence[Union[Tensor, rx.ShapeExpr, _tir.PrimExpr]]],
     out: OutType,
 ) -> OutType:
     """Create a `call_tir` binding with given PrimFunc
@@ -1536,7 +1536,7 @@ def tensor_ir_op(
     name_hint : str
         Name hint.
 
-    args : Union[Tensor, Sequence[Union[Tensor, _tir.Var]]]
+    args : Union[Tensor, Sequence[Union[Tensor, rx.ShapeExpr, _tir.PrimExpr]]]
         The arguments to pass to the PrimFunc.
 
     out : Union[Tensor, List[Tensor]]
@@ -1556,11 +1556,12 @@ def tensor_ir_op(
     for arg in args:
         if isinstance(arg, Tensor):
             call_tir_args.append(arg._expr)
-        elif isinstance(arg, _tir.Var):
+        elif isinstance(arg, (rx.ShapeExpr, _tir.PrimExpr)):
             tir_vars.append(arg)
         else:
             raise TypeError(
-                f"Unsupported type: tensor_ir_op args expect Tensor or tir.Var, but got {type(arg)}"
+                "Unsupported type: tensor_ir_op args expect Tensor or ShapeExpr or PrimExpr,"
+                f"but got {type(arg)}"
             )
 
     if isinstance(out, Tensor):

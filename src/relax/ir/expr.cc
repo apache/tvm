@@ -36,6 +36,12 @@ Id::Id(String name_hint) {
 }
 
 Call::Call(Expr op, Array<Expr> args, Attrs attrs, Array<StructInfo> sinfo_args, Span span) {
+  CHECK(!op->struct_info_.defined() || op->struct_info_->IsInstance<FuncStructInfoNode>())
+      << "ValueError: "
+      << "Call expects its operator to have FuncStructInfo, "
+      << "but operator " << op << ", which was called with arguments " << args
+      << ", has struct info " << op->struct_info_;
+
   ObjectPtr<CallNode> n = make_object<CallNode>();
   n->op = std::move(op);
   n->args = std::move(args);

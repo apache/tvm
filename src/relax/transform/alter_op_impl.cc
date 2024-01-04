@@ -324,6 +324,7 @@ class AlterOpImplMutator : public ExprMutator {
 
   /*! \brief Returns the TensorStructInfo after applying the \p transform on its shape */
   StructInfo UpdateStructInfo(const TensorStructInfo& tensor_sinfo, const IndexMap& transform) {
+    if (transform.get() == nullptr) return tensor_sinfo;
     auto shape = GetShapeFromTensorStructInfo(tensor_sinfo);
     arith::Analyzer analyzer;
     auto new_shape = transform->MapShape(shape, &analyzer);

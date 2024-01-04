@@ -39,7 +39,7 @@ class Module:
         B = T.match_buffer(y, (32, 32))
         C = T.match_buffer(z, (32, 32))
 
-        for (i0, j0, k0) in T.grid(32, 32, 32):
+        for i0, j0, k0 in T.grid(32, 32, 32):
             with T.block():
                 i, j, k = T.axis.remap("SSR", [i0, j0, k0])
                 with T.init():
@@ -51,7 +51,7 @@ class Module:
         T.func_attr({"global_symbol": "tir_relu"})
         A = T.match_buffer(x, (32, 32))
         B = T.match_buffer(y, (32, 32))
-        for (i, j) in T.grid(32, 32):
+        for i, j in T.grid(32, 32):
             with T.block():
                 vi, vj = T.axis.remap("SS", [i, j])
                 B[vi, vj] = T.max(A[vi, vj], 0.0)
@@ -68,6 +68,7 @@ class Module:
 
 main_fn = Module["main"]
 bindings = main_fn.body.blocks[0].bindings
+
 
 ## Node-wise Matching
 def test_expr_pattern():

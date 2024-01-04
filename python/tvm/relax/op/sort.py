@@ -14,8 +14,32 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-"""Relax backends"""
+"""Sortings operators."""
 
-from . import contrib
-from .pattern_registry import get_pattern, get_patterns_with_prefix
-from .dispatch_sort_scan import DispatchSortScan
+from . import _ffi_api
+from ..expr import Expr
+
+
+def sort(x: Expr, axis: int = -1, descending: bool = False):
+    """Performs sorting along the given axis and returns an array
+    in sorted order.
+
+    Parameters
+    ----------
+    x : relax.Expr
+        The input tensor.
+
+    axis : int
+        Axis along which to sort the input tensor.
+        By default the last axis of the input is used.
+
+    descending : bool
+        Whether to sort in descending order, the default is False
+
+    Returns
+    -------
+    out : relax.Expr
+        Sorted tensor.
+
+    """
+    return _ffi_api.sort(x, axis, descending)  # type: ignore
