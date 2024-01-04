@@ -20,11 +20,6 @@ if(USE_VLLM)
   include_directories(src/runtime/contrib/vllm)
   enable_language(CUDA)
 
-  if(NOT DEFINED CMAKE_CUDA_ARCHITECTURES)
-    message(WARNING "CMAKE_CUDA_ARCHITECTURES not set, compiling vLLM kernels for sm80 and sm75.")
-    set(CMAKE_CUDA_ARCHITECTURES "80;75")
-  endif()
-
   tvm_file_glob(GLOB VLLM_CONTRIB_SRC src/runtime/contrib/vllm/*.cu src/runtime/contrib/vllm/*.cc)
   list(APPEND RUNTIME_SRCS ${VLLM_CONTRIB_SRC})
 endif(USE_VLLM)

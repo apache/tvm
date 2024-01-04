@@ -64,12 +64,6 @@ if(USE_CUDA)
     message(STATUS "Build with Thrust support")
     cmake_minimum_required(VERSION 3.13) # to compile CUDA code
     enable_language(CUDA)
-
-    if(NOT DEFINED CMAKE_CUDA_ARCHITECTURES)
-      message(WARNING "CMAKE_CUDA_ARCHITECTURES not set, compiling Thrust for sm80 and sm75.")
-      set(CMAKE_CUDA_ARCHITECTURES "80;75")
-    endif()
-
     set(CMAKE_CUDA_FLAGS "${CMAKE_CUDA_FLAGS} --expt-extended-lambda")
     tvm_file_glob(GLOB CONTRIB_THRUST_SRC src/runtime/contrib/thrust/*.cu)
     list(APPEND RUNTIME_SRCS ${CONTRIB_THRUST_SRC})
