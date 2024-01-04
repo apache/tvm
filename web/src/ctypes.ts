@@ -34,6 +34,11 @@ export type PtrOffset = number;
 export type FTVMGetLastError = () => Pointer;
 
 /**
+ * void TVMAPISetLastError(const char* msg);
+ */
+export type FTVMAPISetLastError = (msg: Pointer) => void;
+
+/**
  * int TVMModGetFunction(TVMModuleHandle mod,
  *                       const char* func_name,
  *                       int query_imports,
