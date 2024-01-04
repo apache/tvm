@@ -18,8 +18,8 @@
 
 import os
 import shutil
+import tempfile
 import types
-import datetime
 from functools import partial
 from typing import List, Any, Union
 from importlib.machinery import SourceFileLoader
@@ -60,9 +60,7 @@ class MSCDirectory(object):
     """Create a directory manager for MSC"""
 
     def __init__(self, path: str = None, keep_history: bool = True, cleanup: bool = False):
-        if not path:
-            path = "msc_" + str(datetime.datetime.now().strftime("%Y%m%d_%H%M%S"))
-        self._path = os.path.abspath(path)
+        self._path = os.path.abspath(path or tempfile.mkdtemp())
         self._cleanup = cleanup
         self._cwd = os.getcwd()
         if os.path.isdir(self._path) and not keep_history:
