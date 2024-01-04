@@ -412,6 +412,12 @@ TVM_DLL const Op& tvm_check_return();
 TVM_DLL const Op& tvm_thread_context();
 
 /*!
+ * \brief Mark a condition to be thread invariant.
+ *  This means the condition must be the same for all threads.
+ */
+TVM_DLL const Op& tvm_thread_invariant();
+
+/*!
  * \brief Lowered version of call packed, the space of value and
  *  type codes are explicitly allocated.
  *
