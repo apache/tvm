@@ -211,6 +211,10 @@ TIR_DEFINE_BUILTIN_FUNC(tvm_thread_context)
     .set_num_inputs(1)
     .set_attr<TCallEffectKind>("TCallEffectKind", Integer(CallEffectKind::kOpaque));
 
+TIR_DEFINE_BUILTIN_FUNC(tvm_thread_invariant)
+    .set_num_inputs(1)
+    .set_attr<TCallEffectKind>("TCallEffectKind", Integer(CallEffectKind::kPure));
+
 TIR_DEFINE_BUILTIN_FUNC(tvm_call_packed_lowered)
     .set_attr<TCallEffectKind>("TCallEffectKind", Integer(CallEffectKind::kOpaque))
     .set_attr<TScriptPrinterName>("TScriptPrinterName", String("call_packed_lowered"),

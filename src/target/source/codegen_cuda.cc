@@ -1059,6 +1059,10 @@ void CodeGenCUDA::VisitExpr_(const CallNode* op, std::ostream& os) {
     stream << ": \"l\"((void*)(" << global_buffer << "+" << global_addr << ")), \"r\"((int)"
            << guard << ")\n";
     stream << ");\n";
+  } else if (op->op.same_as(builtin::tvm_thread_invariant())) {
+    os << "(";
+    this->PrintExpr(op->args[0], os);
+    os << ")";
   } else {
     CodeGenC::VisitExpr_(op, os);
   }
