@@ -39,8 +39,14 @@ void JSONDumps(ObjectRef json_obj, std::ostringstream& os) {
     } else {
       os << int_imm->value;
     }
+  } else if (const auto* runtime_bool = json_obj.as<runtime::Bool::ContainerType>()) {
+    os << (runtime_bool->value ? "true" : "false");
+  } else if (const auto* runtime_int = json_obj.as<runtime::Int::ContainerType>()) {
+    os << runtime_int->value;
   } else if (const auto* float_imm = json_obj.as<FloatImmNode>()) {
     os << std::setprecision(20) << float_imm->value;
+  } else if (const auto* runtime_float = json_obj.as<runtime::Float::ContainerType>()) {
+    os << std::setprecision(20) << runtime_float->value;
   } else if (const auto* str = json_obj.as<runtime::StringObj>()) {
     os << '"' << support::StrEscape(str->data, str->size) << '"';
   } else if (const auto* array = json_obj.as<runtime::ArrayNode>()) {

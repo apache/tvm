@@ -84,7 +84,7 @@ class Box : public ObjectRef {
    *
    * \param value The value to be boxed
    */
-  explicit Box(Prim value) : ObjectRef(make_object<BoxNode<Prim>>(value)) {}
+  Box(Prim value) : ObjectRef(make_object<BoxNode<Prim>>(value)) {}  // NOLINT(*)
 
   operator Prim() const { return (*this)->value; }
 
