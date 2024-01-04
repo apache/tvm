@@ -444,10 +444,22 @@ PrimExpr BlockBufferAccessSimplifier::VisitExpr_(const BufferLoadNode* op) {
 
 /******** PrimFunc-level analysis and transformation ********/
 
+void GetLeafBlocksHelper(Schedule sch, BlockRV cur_block_rv, Array<BlockRV>* leaf_blocks) {
+  Array<BlockRV> blocks = sch->GetChildBlocks(cur_block_rv);
+  if (blocks.empty()) {
+    leaf_blocks->push_back(cur_block_rv);
+  } else {
+    for (const BlockRV& block : blocks) {
+      GetLeafBlocksHelper(sch, block, leaf_blocks);
+    }
+  }
+}
+
 Optional<ObjectRef> NormalizePrimFunc(Schedule sch) {
   BlockRV root_block = sch->GetBlock("root");
-  Array<BlockRV> blocks = sch->GetChildBlocks(root_block);
-  for (const BlockRV& block : blocks) {
+  Array<BlockRV> leaf_blocks;
+  GetLeafBlocksHelper(sch, root_block, &leaf_blocks);
+  for (const BlockRV& block : leaf_blocks) {
     StmtSRef block_sref = sch->GetSRef(block);
     Array<StmtSRef> loops = GetLoops(block_sref);
     Array<PrimExpr> binds = GetBlockRealize(sch->state(), block_sref)->iter_values;
@@ -465,10 +477,11 @@ Optional<ObjectRef> NormalizePrimFunc(Schedule sch) {
       }
     }
   }
+
   Array<Array<LoopRV>> block_loops;
   Array<Array<IterVar>> block_iters;
   Array<IntImm> block_is_reduction;
-  for (const BlockRV& block : blocks) {
+  for (const BlockRV& block : leaf_blocks) {
     Array<IterVar> iters = sch->Get(block)->iter_vars;
     bool has_spatial_iter = false;
     Array<Var> index_map_inputs;
@@ -498,7 +511,7 @@ Optional<ObjectRef> NormalizePrimFunc(Schedule sch) {
                                          sch->GetSRef(root_block));
     block_is_reduction.push_back(Bool(is_reduction));
   }
-  return Array<ObjectRef>{blocks, block_loops, block_iters, block_is_reduction};
+  return Array<ObjectRef>{leaf_blocks, block_loops, block_iters, block_is_reduction};
 }
 
 TVM_REGISTER_GLOBAL("tir.schedule.NormalizePrimFunc").set_body_typed(NormalizePrimFunc);
