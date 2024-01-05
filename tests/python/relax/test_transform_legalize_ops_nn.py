@@ -2773,9 +2773,10 @@ def test_rms_norm():
             T.func_attr({"tir.noalias": T.bool(True)})
             # with T.block("root"):
             T_cast_1 = T.alloc_buffer((T.int64(2), T.int64(3), T.int64(4), T.int64(5)))
-            T_cast_2 = T.alloc_buffer((T.int64(4), T.int64(5)))
             T_multiply = T.alloc_buffer((T.int64(2), T.int64(3), T.int64(4), T.int64(5)))
             T_multiply_red = T.alloc_buffer((T.int64(2), T.int64(3)))
+            rsqrt = T.alloc_buffer((T.int64(2), T.int64(3)))
+            T_cast_2 = T.alloc_buffer((T.int64(4), T.int64(5)))
             T_rms_norm = T.alloc_buffer((T.int64(2), T.int64(3), T.int64(4), T.int64(5)))
             for ax0, ax1, ax2, ax3 in T.grid(T.int64(2), T.int64(3), T.int64(4), T.int64(5)):
                 with T.block("T_cast"):
@@ -2783,12 +2784,6 @@ def test_rms_norm():
                     T.reads(A[v_ax0, v_ax1, v_ax2, v_ax3])
                     T.writes(T_cast_1[v_ax0, v_ax1, v_ax2, v_ax3])
                     T_cast_1[v_ax0, v_ax1, v_ax2, v_ax3] = A[v_ax0, v_ax1, v_ax2, v_ax3]
-            for ax0, ax1 in T.grid(T.int64(4), T.int64(5)):
-                with T.block("T_cast_1"):
-                    v_ax0, v_ax1 = T.axis.remap("SS", [ax0, ax1])
-                    T.reads(B[v_ax0, v_ax1])
-                    T.writes(T_cast_2[v_ax0, v_ax1])
-                    T_cast_2[v_ax0, v_ax1] = B[v_ax0, v_ax1]
             for ax0, ax1, ax2, ax3 in T.grid(T.int64(2), T.int64(3), T.int64(4), T.int64(5)):
                 with T.block("T_multiply"):
                     v_ax0, v_ax1, v_ax2, v_ax3 = T.axis.remap("SSSS", [ax0, ax1, ax2, ax3])
@@ -2803,12 +2798,24 @@ def test_rms_norm():
                     with T.init():
                         T_multiply_red[v_ax0, v_ax1] = T.float32(0)
                     T_multiply_red[v_ax0, v_ax1] = T_multiply_red[v_ax0, v_ax1] + T_multiply[v_ax0, v_ax1, v_k2, v_k3]
+            for ax0, ax1 in T.grid(T.int64(2), T.int64(3)):
+                with T.block("rsqrt"):
+                    v_ax0, v_ax1 = T.axis.remap("SS", [ax0, ax1])
+                    T.reads(T_multiply_red[v_ax0, v_ax1])
+                    T.writes(rsqrt[v_ax0, v_ax1])
+                    rsqrt[v_ax0, v_ax1] = T.rsqrt(T_multiply_red[v_ax0, v_ax1] * T.float32(0.050000000000000003) + T.float32(1.0000000000000001e-05))
+            for ax0, ax1 in T.grid(T.int64(4), T.int64(5)):
+                with T.block("T_cast_1"):
+                    v_ax0, v_ax1 = T.axis.remap("SS", [ax0, ax1])
+                    T.reads(B[v_ax0, v_ax1])
+                    T.writes(T_cast_2[v_ax0, v_ax1])
+                    T_cast_2[v_ax0, v_ax1] = B[v_ax0, v_ax1]
             for ax0, ax1, ax2, ax3 in T.grid(T.int64(2), T.int64(3), T.int64(4), T.int64(5)):
                 with T.block("T_rms_norm"):
                     v_ax0, v_ax1, v_ax2, v_ax3 = T.axis.remap("SSSS", [ax0, ax1, ax2, ax3])
-                    T.reads(T_cast_1[v_ax0, v_ax1, v_ax2, v_ax3], T_cast_2[v_ax2, v_ax3], T_multiply_red[v_ax0, v_ax1])
+                    T.reads(rsqrt[v_ax0, v_ax1], T_cast_1[v_ax0, v_ax1, v_ax2, v_ax3], T_cast_2[v_ax2, v_ax3])
                     T.writes(T_rms_norm[v_ax0, v_ax1, v_ax2, v_ax3])
-                    T_rms_norm[v_ax0, v_ax1, v_ax2, v_ax3] = T_cast_1[v_ax0, v_ax1, v_ax2, v_ax3] * T_cast_2[v_ax2, v_ax3] * T.rsqrt(T_multiply_red[v_ax0, v_ax1] * T.float32(0.050000000000000003) + T.float32(1.0000000000000001e-05))
+                    T_rms_norm[v_ax0, v_ax1, v_ax2, v_ax3] = rsqrt[v_ax0, v_ax1] * T_cast_1[v_ax0, v_ax1, v_ax2, v_ax3] * T_cast_2[v_ax2, v_ax3]
             for ax0, ax1, ax2, ax3 in T.grid(T.int64(2), T.int64(3), T.int64(4), T.int64(5)):
                 with T.block("T_cast_2"):
                     v_ax0, v_ax1, v_ax2, v_ax3 = T.axis.remap("SSSS", [ax0, ax1, ax2, ax3])
@@ -2842,9 +2849,10 @@ def test_rms_norm_fp16():
             T.func_attr({"tir.noalias": T.bool(True)})
             # with T.block("root"):
             T_cast_1 = T.alloc_buffer((T.int64(2), T.int64(3), T.int64(4), T.int64(5)))
-            T_cast_2 = T.alloc_buffer((T.int64(4), T.int64(5)))
             T_multiply = T.alloc_buffer((T.int64(2), T.int64(3), T.int64(4), T.int64(5)))
             T_multiply_red = T.alloc_buffer((T.int64(2), T.int64(3)))
+            rsqrt = T.alloc_buffer((T.int64(2), T.int64(3)))
+            T_cast_2 = T.alloc_buffer((T.int64(4), T.int64(5)))
             T_rms_norm = T.alloc_buffer((T.int64(2), T.int64(3), T.int64(4), T.int64(5)))
             for ax0, ax1, ax2, ax3 in T.grid(T.int64(2), T.int64(3), T.int64(4), T.int64(5)):
                 with T.block("T_cast"):
@@ -2852,12 +2860,6 @@ def test_rms_norm_fp16():
                     T.reads(A[v_ax0, v_ax1, v_ax2, v_ax3])
                     T.writes(T_cast_1[v_ax0, v_ax1, v_ax2, v_ax3])
                     T_cast_1[v_ax0, v_ax1, v_ax2, v_ax3] = T.Cast("float32", A[v_ax0, v_ax1, v_ax2, v_ax3])
-            for ax0, ax1 in T.grid(T.int64(4), T.int64(5)):
-                with T.block("T_cast_1"):
-                    v_ax0, v_ax1 = T.axis.remap("SS", [ax0, ax1])
-                    T.reads(B[v_ax0, v_ax1])
-                    T.writes(T_cast_2[v_ax0, v_ax1])
-                    T_cast_2[v_ax0, v_ax1] = T.Cast("float32", B[v_ax0, v_ax1])
             for ax0, ax1, ax2, ax3 in T.grid(T.int64(2), T.int64(3), T.int64(4), T.int64(5)):
                 with T.block("T_multiply"):
                     v_ax0, v_ax1, v_ax2, v_ax3 = T.axis.remap("SSSS", [ax0, ax1, ax2, ax3])
@@ -2872,12 +2874,24 @@ def test_rms_norm_fp16():
                     with T.init():
                         T_multiply_red[v_ax0, v_ax1] = T.float32(0)
                     T_multiply_red[v_ax0, v_ax1] = T_multiply_red[v_ax0, v_ax1] + T_multiply[v_ax0, v_ax1, v_k2, v_k3]
+            for ax0, ax1 in T.grid(T.int64(2), T.int64(3)):
+                with T.block("rsqrt"):
+                    v_ax0, v_ax1 = T.axis.remap("SS", [ax0, ax1])
+                    T.reads(T_multiply_red[v_ax0, v_ax1])
+                    T.writes(rsqrt[v_ax0, v_ax1])
+                    rsqrt[v_ax0, v_ax1] = T.rsqrt(T_multiply_red[v_ax0, v_ax1] * T.float32(0.050000000000000003) + T.float32(1.0000000000000001e-05))
+            for ax0, ax1 in T.grid(T.int64(4), T.int64(5)):
+                with T.block("T_cast_1"):
+                    v_ax0, v_ax1 = T.axis.remap("SS", [ax0, ax1])
+                    T.reads(B[v_ax0, v_ax1])
+                    T.writes(T_cast_2[v_ax0, v_ax1])
+                    T_cast_2[v_ax0, v_ax1] = T.Cast("float32", B[v_ax0, v_ax1])
             for ax0, ax1, ax2, ax3 in T.grid(T.int64(2), T.int64(3), T.int64(4), T.int64(5)):
                 with T.block("T_rms_norm"):
                     v_ax0, v_ax1, v_ax2, v_ax3 = T.axis.remap("SSSS", [ax0, ax1, ax2, ax3])
-                    T.reads(T_cast_1[v_ax0, v_ax1, v_ax2, v_ax3], T_cast_2[v_ax2, v_ax3], T_multiply_red[v_ax0, v_ax1])
+                    T.reads(rsqrt[v_ax0, v_ax1], T_cast_1[v_ax0, v_ax1, v_ax2, v_ax3], T_cast_2[v_ax2, v_ax3])
                     T.writes(T_rms_norm[v_ax0, v_ax1, v_ax2, v_ax3])
-                    T_rms_norm[v_ax0, v_ax1, v_ax2, v_ax3] = T_cast_1[v_ax0, v_ax1, v_ax2, v_ax3] * T_cast_2[v_ax2, v_ax3] * T.rsqrt(T_multiply_red[v_ax0, v_ax1] * T.float32(0.050000000000000003) + T.float32(1.0000000000000001e-05))
+                    T_rms_norm[v_ax0, v_ax1, v_ax2, v_ax3] = rsqrt[v_ax0, v_ax1] * T_cast_1[v_ax0, v_ax1, v_ax2, v_ax3] * T_cast_2[v_ax2, v_ax3]
             for ax0, ax1, ax2, ax3 in T.grid(T.int64(2), T.int64(3), T.int64(4), T.int64(5)):
                 with T.block("T_cast_2"):
                     v_ax0, v_ax1, v_ax2, v_ax3 = T.axis.remap("SSSS", [ax0, ax1, ax2, ax3])
@@ -2918,9 +2932,10 @@ def test_rms_norm_symbolic():
             T_cast = T.match_buffer(var_T_cast, (n, s, f))
             # with T.block("root"):
             T_cast_1 = T.alloc_buffer((n, s, f))
-            T_cast_2 = T.alloc_buffer((s, f))
             T_multiply = T.alloc_buffer((n, s, f))
             T_multiply_red = T.alloc_buffer((n,))
+            rsqrt = T.alloc_buffer((n,))
+            T_cast_2 = T.alloc_buffer((s, f))
             T_rms_norm = T.alloc_buffer((n, s, f))
             for ax0, ax1, ax2 in T.grid(n, s, f):
                 with T.block("T_cast"):
@@ -2928,12 +2943,6 @@ def test_rms_norm_symbolic():
                     T.reads(A[v_ax0, v_ax1, v_ax2])
                     T.writes(T_cast_1[v_ax0, v_ax1, v_ax2])
                     T_cast_1[v_ax0, v_ax1, v_ax2] = A[v_ax0, v_ax1, v_ax2]
-            for ax0, ax1 in T.grid(s, f):
-                with T.block("T_cast_1"):
-                    v_ax0, v_ax1 = T.axis.remap("SS", [ax0, ax1])
-                    T.reads(B[v_ax0, v_ax1])
-                    T.writes(T_cast_2[v_ax0, v_ax1])
-                    T_cast_2[v_ax0, v_ax1] = B[v_ax0, v_ax1]
             for ax0, ax1, ax2 in T.grid(n, s, f):
                 with T.block("T_multiply"):
                     v_ax0, v_ax1, v_ax2 = T.axis.remap("SSS", [ax0, ax1, ax2])
@@ -2948,12 +2957,24 @@ def test_rms_norm_symbolic():
                     with T.init():
                         T_multiply_red[v_ax0] = T.float32(0)
                     T_multiply_red[v_ax0] = T_multiply_red[v_ax0] + T_multiply[v_ax0, v_k1, v_k2]
+            for ax0 in range(n):
+                with T.block("rsqrt"):
+                    v_ax0 = T.axis.spatial(n, ax0)
+                    T.reads(T_multiply_red[v_ax0])
+                    T.writes(rsqrt[v_ax0])
+                    rsqrt[v_ax0] = T.rsqrt(T_multiply_red[v_ax0] / (T.Cast("float32", s) * T.Cast("float32", f)) + T.float32(1.0000000000000001e-05))
+            for ax0, ax1 in T.grid(s, f):
+                with T.block("T_cast_1"):
+                    v_ax0, v_ax1 = T.axis.remap("SS", [ax0, ax1])
+                    T.reads(B[v_ax0, v_ax1])
+                    T.writes(T_cast_2[v_ax0, v_ax1])
+                    T_cast_2[v_ax0, v_ax1] = B[v_ax0, v_ax1]
             for ax0, ax1, ax2 in T.grid(n, s, f):
                 with T.block("T_rms_norm"):
                     v_ax0, v_ax1, v_ax2 = T.axis.remap("SSS", [ax0, ax1, ax2])
-                    T.reads(T_cast_1[v_ax0, v_ax1, v_ax2], T_cast_2[v_ax1, v_ax2], T_multiply_red[v_ax0])
+                    T.reads(rsqrt[v_ax0], T_cast_1[v_ax0, v_ax1, v_ax2], T_cast_2[v_ax1, v_ax2])
                     T.writes(T_rms_norm[v_ax0, v_ax1, v_ax2])
-                    T_rms_norm[v_ax0, v_ax1, v_ax2] = T_cast_1[v_ax0, v_ax1, v_ax2] * T_cast_2[v_ax1, v_ax2] * T.rsqrt(T_multiply_red[v_ax0] / (T.Cast("float32", s) * T.Cast("float32", f)) + T.float32(1.0000000000000001e-05))
+                    T_rms_norm[v_ax0, v_ax1, v_ax2] = rsqrt[v_ax0] * T_cast_1[v_ax0, v_ax1, v_ax2] * T_cast_2[v_ax1, v_ax2]
             for ax0, ax1, ax2 in T.grid(n, s, f):
                 with T.block("T_cast_2"):
                     v_ax0, v_ax1, v_ax2 = T.axis.remap("SSS", [ax0, ax1, ax2])
@@ -2990,9 +3011,10 @@ def test_rms_norm_no_bias():
             T.func_attr({"tir.noalias": T.bool(True)})
             # with T.block("root"):
             T_cast_1 = T.alloc_buffer((T.int64(2), T.int64(3), T.int64(4), T.int64(5)))
-            T_cast_2 = T.alloc_buffer((T.int64(4), T.int64(5)))
             T_multiply = T.alloc_buffer((T.int64(2), T.int64(3), T.int64(4), T.int64(5)))
             T_multiply_red = T.alloc_buffer((T.int64(2), T.int64(3)))
+            rsqrt = T.alloc_buffer((T.int64(2), T.int64(3)))
+            T_cast_2 = T.alloc_buffer((T.int64(4), T.int64(5)))
             T_rms_norm = T.alloc_buffer((T.int64(2), T.int64(3), T.int64(4), T.int64(5)))
             for ax0, ax1, ax2, ax3 in T.grid(T.int64(2), T.int64(3), T.int64(4), T.int64(5)):
                 with T.block("T_cast"):
@@ -3000,12 +3022,6 @@ def test_rms_norm_no_bias():
                     T.reads(A[v_ax0, v_ax1, v_ax2, v_ax3])
                     T.writes(T_cast_1[v_ax0, v_ax1, v_ax2, v_ax3])
                     T_cast_1[v_ax0, v_ax1, v_ax2, v_ax3] = A[v_ax0, v_ax1, v_ax2, v_ax3]
-            for ax0, ax1 in T.grid(T.int64(4), T.int64(5)):
-                with T.block("T_cast_1"):
-                    v_ax0, v_ax1 = T.axis.remap("SS", [ax0, ax1])
-                    T.reads(B[v_ax0, v_ax1])
-                    T.writes(T_cast_2[v_ax0, v_ax1])
-                    T_cast_2[v_ax0, v_ax1] = B[v_ax0, v_ax1]
             for ax0, ax1, ax2, ax3 in T.grid(T.int64(2), T.int64(3), T.int64(4), T.int64(5)):
                 with T.block("T_multiply"):
                     v_ax0, v_ax1, v_ax2, v_ax3 = T.axis.remap("SSSS", [ax0, ax1, ax2, ax3])
@@ -3020,12 +3036,24 @@ def test_rms_norm_no_bias():
                     with T.init():
                         T_multiply_red[v_ax0, v_ax1] = T.float32(0)
                     T_multiply_red[v_ax0, v_ax1] = T_multiply_red[v_ax0, v_ax1] + T_multiply[v_ax0, v_ax1, v_k2, v_k3]
+            for ax0, ax1 in T.grid(T.int64(2), T.int64(3)):
+                with T.block("rsqrt"):
+                    v_ax0, v_ax1 = T.axis.remap("SS", [ax0, ax1])
+                    T.reads(T_multiply_red[v_ax0, v_ax1])
+                    T.writes(rsqrt[v_ax0, v_ax1])
+                    rsqrt[v_ax0, v_ax1] = T.rsqrt(T_multiply_red[v_ax0, v_ax1] * T.float32(0.050000000000000003) + T.float32(1.0000000000000001e-05))
+            for ax0, ax1 in T.grid(T.int64(4), T.int64(5)):
+                with T.block("T_cast_1"):
+                    v_ax0, v_ax1 = T.axis.remap("SS", [ax0, ax1])
+                    T.reads(B[v_ax0, v_ax1])
+                    T.writes(T_cast_2[v_ax0, v_ax1])
+                    T_cast_2[v_ax0, v_ax1] = B[v_ax0, v_ax1]
             for ax0, ax1, ax2, ax3 in T.grid(T.int64(2), T.int64(3), T.int64(4), T.int64(5)):
                 with T.block("T_rms_norm"):
                     v_ax0, v_ax1, v_ax2, v_ax3 = T.axis.remap("SSSS", [ax0, ax1, ax2, ax3])
-                    T.reads(T_cast_1[v_ax0, v_ax1, v_ax2, v_ax3], T_cast_2[v_ax2, v_ax3], T_multiply_red[v_ax0, v_ax1])
+                    T.reads(rsqrt[v_ax0, v_ax1], T_cast_1[v_ax0, v_ax1, v_ax2, v_ax3], T_cast_2[v_ax2, v_ax3])
                     T.writes(T_rms_norm[v_ax0, v_ax1, v_ax2, v_ax3])
-                    T_rms_norm[v_ax0, v_ax1, v_ax2, v_ax3] = T_cast_1[v_ax0, v_ax1, v_ax2, v_ax3] * T_cast_2[v_ax2, v_ax3] * T.rsqrt(T_multiply_red[v_ax0, v_ax1] * T.float32(0.050000000000000003) + T.float32(1.0000000000000001e-05))
+                    T_rms_norm[v_ax0, v_ax1, v_ax2, v_ax3] = rsqrt[v_ax0, v_ax1] * T_cast_1[v_ax0, v_ax1, v_ax2, v_ax3] * T_cast_2[v_ax2, v_ax3]
             for ax0, ax1, ax2, ax3 in T.grid(T.int64(2), T.int64(3), T.int64(4), T.int64(5)):
                 with T.block("T_cast_2"):
                     v_ax0, v_ax1, v_ax2, v_ax3 = T.axis.remap("SSSS", [ax0, ax1, ax2, ax3])
