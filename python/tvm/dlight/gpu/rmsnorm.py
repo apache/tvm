@@ -107,15 +107,9 @@ class RMSNorm(ScheduleRule):
         if not identify_rsqrt_block(sch.get(rsqrt)):
             return None
 
-        for name in [read, sqr, redsum, norm]:
-            sch.transform_block_layout(
-                block=name,
-                index_map=lambda v_ax0, v_ax1, v_ax2: (
-                    v_ax1,
-                    v_ax2,
-                ),
-            )
-        sch.transform_block_layout(block=rsqrt, index_map=lambda v_ax0, v_ax1: (v_ax1,))
+        for name in [read, sqr, redsum, rsqrt, norm, write]:
+            loops = sch.get_loops(name)
+            sch.fuse(*loops[:-1])
 
         block_loop, loops = sch.get_loops(block=read)
         thread_loop, _, _ = sch.split(
