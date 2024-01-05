@@ -78,7 +78,16 @@ def _return_object(x):
     # subclassing the python native object is forbidden.  For example,
     # `runtime.BoxBool` cannot be a subclass of `bool`, as `bool` does
     # not allow any subclasses.
-    if hasattr(obj, "__into_pynative_object__"):
+    #
+    # The `hasattr` check is done on the object's class, not the
+    # object itself, to avoid edge cases that can result in invalid
+    # error messages.  If a C++ `LOG(FATAL) << nested_obj;` statement
+    # requires C++ to Python conversions in order to print
+    # `nested_obj`, then the `AttributeError` used internally by
+    # `hasattr` may overwrite the text being collected by
+    # `LOG(FATAL)`.  By checking for the method on the class instead
+    # of the instance, we avoid throwing the `AttributeError`.
+    if hasattr(type(obj), "__into_pynative_object__"):
         return obj.__into_pynative_object__()
 
     return obj
