@@ -37,8 +37,8 @@ class BaseAgent(object):
         The extra options for the agent.
     debug_level: int
         The debug level.
-    verbose_task: int
-        The verbose interval task.
+    verbose: str
+        The verbose level.
     logger: logging.Logger
         The logger
     """
@@ -50,6 +50,7 @@ class BaseAgent(object):
         executors: dict,
         options: dict = None,
         debug_level: int = 0,
+        verbose: str = None,
         logger: logging.Logger = None,
     ):
         self._name = name
@@ -60,7 +61,8 @@ class BaseAgent(object):
         if logger:
             self._logger = logger
         else:
-            verbose = "debug" if debug_level > 0 else "info"
+            if not verbose:
+                verbose = "debug" if debug_level > 0 else "info"
             self._logger = msc_utils.create_file_logger(verbose, workspace.relpath("AGENT_LOG"))
         self._logger.info(
             msc_utils.msg_block("AGENT.SETUP({})".format(self.agent_type()), self.setup())

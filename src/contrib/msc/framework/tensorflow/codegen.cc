@@ -43,7 +43,9 @@ void TensorflowCodeGen::CodeGenHelper() {
       .cond_if("name in weights")
       .func_call("tf_v1.get_variable", "var")
       .call_arg("name")
-      .call_arg("weights[name].asnumpy()", "initializer")
+      .inplace_start("asnumpy", DocUtils::ToDoc("initializer"),
+                     DocUtils::ToIndex("weights", "name"))
+      .inplace_end()
       .cond_else()
       .func_call("tf_v1.get_variable", "var")
       .call_arg("name")
@@ -69,9 +71,9 @@ void TensorflowCodeGen::CodeGenGraph() {
     }
     for (const auto& pair : node->weights) {
       stack_.func_call("get_variable", IdxWeightBase(node, pair.first, false))
-          .call_arg(DocUtils::ToStrDoc(pair.second->name))
-          .call_arg(DocUtils::ToListDoc(pair.second->shape, true))
-          .call_arg(DocUtils::ToStrDoc(pair.second->DTypeName()))
+          .call_arg(DocUtils::ToStr(pair.second->name))
+          .call_arg(DocUtils::ToList(pair.second->shape, true))
+          .call_arg(DocUtils::ToStr(pair.second->DTypeName()))
           .call_arg("weights");
     }
   }
@@ -92,7 +94,7 @@ void TensorflowCodeGen::CodeGenGraph() {
   if (idx_outputs.size() == 1) {
     stack_.assign("outputs", idx_outputs[0]);
   } else {
-    stack_.assign("outputs", DocUtils::ToListDoc(idx_outputs));
+    stack_.assign("outputs", DocUtils::ToList(idx_outputs));
   }
   stack_.func_end("outputs");
 }
@@ -101,7 +103,7 @@ void TensorflowCodeGen::CodeGenInference() {
   stack_.comment("Load weights")
       .scope_start("open(\"" + graph()->name + "_params.bin\", \"rb\")", "f")
       .func_call("tvm.runtime.load_param_dict", "params")
-      .func_call("f.read")
+      .func_call("read", "", "f")
       .pop_nest()
       .scope_end()
       .comment("Build Graph")
@@ -109,9 +111,9 @@ void TensorflowCodeGen::CodeGenInference() {
   for (const auto& i : graph()->GetInputs()) {
     const auto& producer = graph()->FindProducer(i);
     stack_.func_call("tf_v1.placeholder", IdxNodeBase(producer))
-        .call_arg(DocUtils::ToStrDoc(i->DTypeName()))
-        .call_arg(DocUtils::ToListDoc(i->shape))
-        .call_arg(DocUtils::ToStrDoc(i->alias));
+        .call_arg(DocUtils::ToStr(i->DTypeName()))
+        .call_arg(DocUtils::ToList(i->shape))
+        .call_arg(DocUtils::ToStr(i->alias));
   }
   stack_.func_call(graph()->name, "outs");
   for (const auto& i : graph()->GetInputs()) {
@@ -121,13 +123,14 @@ void TensorflowCodeGen::CodeGenInference() {
   stack_.call_arg("params").assign("feed_dict", "{}");
   for (const auto& i : graph()->GetInputs()) {
     const auto& producer = graph()->FindProducer(i);
-    stack_.assign("feed_dict[" + IdxNodeBase(producer) + "]", "inputs[\"" + i->alias + "\"]");
+    stack_.assign(DocUtils::ToIndex("feed_dict", IdxNodeBase(producer)),
+                  DocUtils::ToIndex("inputs", DocUtils::ToStr(i->alias)));
   }
   stack_.scope_start("tf_v1.Session()", "sess")
-      .func_call("sess.run")
+      .func_call("run", "", "sess")
       .func_call("ops.variables.global_variables_initializer")
       .pop_nest()
-      .func_call("sess.run", "outputs")
+      .func_call("run", "outputs", "sess")
       .call_arg("outs")
       .call_arg("feed_dict", "feed_dict")
       .scope_end()
@@ -149,7 +152,7 @@ const Array<Doc> TensorflowCodeGen::GetOpCodes(const MSCJoint& node) {
 
 TVM_REGISTER_GLOBAL("msc.framework.tensorflow.GetTensorflowSources")
     .set_body_typed([](const MSCGraph& graph, const String& codegen_config,
-                       const String print_config) -> Map<String, String> {
+                       const String& print_config) -> Map<String, String> {
       TensorflowCodeGen codegen = TensorflowCodeGen(graph, codegen_config);
       return codegen.GetSources(print_config);
     });

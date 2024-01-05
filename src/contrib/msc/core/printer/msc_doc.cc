@@ -52,6 +52,40 @@ PointerDoc::PointerDoc(String name) {
   this->data_ = std::move(n);
 }
 
+StructDoc::StructDoc(IdDoc name, Array<ExprDoc> decorators, Array<StmtDoc> body) {
+  ObjectPtr<StructDocNode> n = make_object<StructDocNode>();
+  n->name = name;
+  n->decorators = decorators;
+  n->body = body;
+  this->data_ = std::move(n);
+}
+
+ConstructorDoc::ConstructorDoc(IdDoc name, Array<AssignDoc> args, Array<StmtDoc> body) {
+  ObjectPtr<ConstructorDocNode> n = make_object<ConstructorDocNode>();
+  n->name = name;
+  n->args = args;
+  n->body = body;
+  this->data_ = std::move(n);
+}
+
+SwitchDoc::SwitchDoc(Array<ExprDoc> predicates, Array<Array<StmtDoc>> branchs,
+                     Array<StmtDoc> default_branch) {
+  ObjectPtr<SwitchDocNode> n = make_object<SwitchDocNode>();
+  n->predicates = predicates;
+  n->branchs = branchs;
+  n->default_branch = default_branch;
+  this->data_ = std::move(n);
+}
+
+LambdaDoc::LambdaDoc(IdDoc name, Array<AssignDoc> args, Array<ExprDoc> refs, Array<StmtDoc> body) {
+  ObjectPtr<LambdaDocNode> n = make_object<LambdaDocNode>();
+  n->name = name;
+  n->args = args;
+  n->refs = refs;
+  n->body = body;
+  this->data_ = std::move(n);
+}
+
 }  // namespace msc
 }  // namespace contrib
 }  // namespace tvm

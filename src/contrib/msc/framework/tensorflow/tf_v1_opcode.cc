@@ -167,20 +167,17 @@ class TFV1BatchnormCodeGen : public TFV1OpCode {
         .op_arg<bool>("scale")
         .op_arg<bool>("center")
         .op_arg<float>("momentum")
-        .op_arg<float>("epsilon")
-        .call_arg("tf_v1.constant_initializer(weights[\"" + node()->WeightAt("gamma")->name +
-                      "\"].asnumpy())",
-                  "gamma_initializer")
-        .call_arg("tf_v1.constant_initializer(weights[\"" + node()->WeightAt("beta")->name +
-                      "\"].asnumpy())",
-                  "beta_initializer")
-        .call_arg("tf_v1.constant_initializer(weights[\"" + node()->WeightAt("mean")->name +
-                      "\"].asnumpy())",
-                  "moving_mean_initializer")
-        .call_arg("tf_v1.constant_initializer(weights[\"" + node()->WeightAt("var")->name +
-                      "\"].asnumpy())",
-                  "moving_variance_initializer")
-        .op_name_arg();
+        .op_arg<float>("epsilon");
+    Array<String> weight_names{"gamma", "beta", "mean", "var"};
+    Array<String> init_names{"gamma", "beta", "moving_mean", "moving_variance"};
+    for (size_t i = 0; i < weight_names.size(); i++) {
+      const auto& w_doc = DocUtils::ToStr(node()->WeightAt(weight_names[i])->name);
+      stack_.inplace_start("tf_v1.constant_initializer", init_names[i] + "_initializer")
+          .inplace_start("asnumpy", NullOpt, DocUtils::ToIndex("weights", w_doc))
+          .inplace_end()
+          .inplace_end();
+    }
+    stack_.op_name_arg();
   }
 };
 
@@ -252,13 +249,13 @@ class TFV1ConvCodeGen : public TFV1OpCode {
     }
     stack_.op_input_arg()
         .op_weight_arg("weight")
-        .call_arg(DocUtils::ToListDoc(strides), "strides")
-        .call_arg(DocUtils::ToListDoc(dilation), "dilations")
+        .call_arg(DocUtils::ToList(strides), "strides")
+        .call_arg(DocUtils::ToList(dilation), "dilations")
         .op_str_arg("data_layout", "data_format");
     if (pair.first.size() > 0) {
-      stack_.call_arg(DocUtils::ToStrDoc(pair.first), "padding");
+      stack_.call_arg(DocUtils::ToStr(pair.first), "padding");
     } else if (pair.second.size() > 0) {
-      stack_.call_arg(DocUtils::ToListDoc(pair.second), "padding");
+      stack_.call_arg(DocUtils::ToList(pair.second), "padding");
     } else {
       LOG_FATAL << "Can not parse padding for " << node();
     }
@@ -290,7 +287,7 @@ class TFV1EinsumCodeGen : public TFV1OpCode {
     const auto& producer = node()->ProducerOf(0);
     stack_.op_call().op_str_arg("subscripts", "");
     if (node()->inputs.size() == 1 && producer->optype == "tuple") {
-      stack_.call_arg(DocUtils::ToIndexDoc(IdxInput(), std::vector<int>{0}));
+      stack_.call_arg(DocUtils::ToIndex(IdxInput(), 0));
     } else {
       stack_.op_inputs_arg(false);
     }
@@ -340,8 +337,8 @@ class TFV1PadCodeGen : public TFV1OpCode {
     ICHECK(val_producer->optype == "constant" && val_producer->HasAttr("scalar"));
     stack_.op_call()
         .op_input_arg()
-        .call_arg(DocUtils::ToListDoc(pad_width), "paddings")
-        .call_arg(DocUtils::ToStrDoc(mode), "mode")
+        .call_arg(DocUtils::ToList(pad_width), "paddings")
+        .call_arg(DocUtils::ToStr(mode), "mode")
         .call_arg(val_producer->GetTypeAttr<float>("scalar"), "constant_values")
         .op_name_arg();
   }
@@ -364,13 +361,13 @@ class TFV1Pool2dCodeGen : public TFV1OpCode {
     stack_.op_call()
         .op_input_arg()
         .op_list_arg<int>("pool_size", "window_shape")
-        .call_arg(DocUtils::ToStrDoc(pooling_type), "pooling_type")
+        .call_arg(DocUtils::ToStr(pooling_type), "pooling_type")
         .op_list_arg<int>("dilation", "dilation_rate")
         .op_list_arg<int>("strides");
     if (pair.first.size() > 0) {
-      stack_.call_arg(DocUtils::ToStrDoc(pair.first), "padding");
+      stack_.call_arg(DocUtils::ToStr(pair.first), "padding");
     } else if (pair.second.size() > 0) {
-      stack_.call_arg(DocUtils::ToListDoc(pair.second), "padding");
+      stack_.call_arg(DocUtils::ToList(pair.second), "padding");
     } else {
       LOG_FATAL << "Can not parse padding for " << node();
     }
@@ -389,7 +386,7 @@ class TFV1PermuteDimsCodeGen : public TFV1OpCode {
         axes.push_back(i - 1);
       }
     }
-    stack_.op_call().op_input_arg().call_arg(DocUtils::ToListDoc(axes)).op_name_arg();
+    stack_.op_call().op_input_arg().call_arg(DocUtils::ToList(axes)).op_name_arg();
   }
 };
 
@@ -454,7 +451,7 @@ class TFV1SplitCodeGen : public TFV1OpCode {
     for (size_t i = 0; i < node()->outputs.size(); i++) {
       indices.push_back(node()->OutputAt(i)->DimAt(axis)->value);
     }
-    stack_.call_arg(DocUtils::ToListDoc(indices), "num_or_size_splits")
+    stack_.call_arg(DocUtils::ToList(indices), "num_or_size_splits")
         .op_arg<int>("axis")
         .op_name_arg();
   }

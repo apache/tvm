@@ -73,7 +73,7 @@ const StrictListDoc TorchOpCode::GetPadding(const String& key) {
   } else {
     LOG_FATAL << "Unexpected padding node" << node();
   }
-  return DocUtils::ToListDoc(padding);
+  return DocUtils::ToList(padding);
 }
 
 #define TORCH_OP_CODEGEN_METHODS(TypeName)                     \
@@ -175,9 +175,9 @@ class TorchBatchNormCodeGen : public TorchOpCode {
           .op_weight_arg("var")
           .op_weight_arg("gamma")
           .op_weight_arg("beta")
-          .call_arg(DocUtils::ToAttrAccessDoc(module_ref(), "training"))
-          .call_arg(DocUtils::ToAttrAccessDoc(module_ref(), "momentum"))
-          .call_arg(DocUtils::ToAttrAccessDoc(module_ref(), "eps"));
+          .call_arg(DocUtils::ToAttrAccess(module_ref(), "training"))
+          .call_arg(DocUtils::ToAttrAccess(module_ref(), "momentum"))
+          .call_arg(DocUtils::ToAttrAccess(module_ref(), "eps"));
     } else {
       TorchOpCode::CodeGenForward();
     }
@@ -244,7 +244,7 @@ class TorchConvCodeGen : public TorchOpCode {
     stack_.op_call()
         .call_arg(weight->DimAt("I"), "in_channels")
         .call_arg(weight->DimAt("O"), "out_channels")
-        .call_arg(DocUtils::ToListDoc(kernel_size), "kernel_size")
+        .call_arg(DocUtils::ToList(kernel_size), "kernel_size")
         .op_list_arg<int>("strides", "stride")
         .call_arg(GetPadding(), "padding")
         .op_list_arg<int>("dilation")
@@ -260,10 +260,10 @@ class TorchConvCodeGen : public TorchOpCode {
       } else {
         stack_.call_arg("None");
       }
-      stack_.call_arg(DocUtils::ToAttrAccessDoc(module_ref(), "stride"))
-          .call_arg(DocUtils::ToAttrAccessDoc(module_ref(), "padding"))
-          .call_arg(DocUtils::ToAttrAccessDoc(module_ref(), "dilation"))
-          .call_arg(DocUtils::ToAttrAccessDoc(module_ref(), "groups"));
+      stack_.call_arg(DocUtils::ToAttrAccess(module_ref(), "stride"))
+          .call_arg(DocUtils::ToAttrAccess(module_ref(), "padding"))
+          .call_arg(DocUtils::ToAttrAccess(module_ref(), "dilation"))
+          .call_arg(DocUtils::ToAttrAccess(module_ref(), "groups"));
     } else {
       TorchOpCode::CodeGenForward();
     }
@@ -365,7 +365,7 @@ class TorchLayerNormCodeGen : public TorchOpCode {
       normalized_shape.push_back(node()->InputAt(0)->DimAt(a));
     }
     stack_.op_call()
-        .call_arg(DocUtils::ToListDoc(normalized_shape), "normalized_shape")
+        .call_arg(DocUtils::ToList(normalized_shape), "normalized_shape")
         .op_arg<float>("epsilon", "eps");
   }
 };
@@ -437,7 +437,7 @@ class TorchPermuteDimsCodeGen : public TorchOpCode {
         axes.push_back(i - 1);
       }
     }
-    stack_.op_call().op_input_arg().call_arg(DocUtils::ToListDoc(axes));
+    stack_.op_call().op_input_arg().call_arg(DocUtils::ToList(axes));
   }
 };
 
@@ -475,7 +475,7 @@ class TorchReduceAxesCodeGen : public TorchOpCode {
       has_axes = true;
     }
     if (has_axes) {
-      stack_.call_arg(DocUtils::ToListDoc(axes), "dim").op_arg<bool>("keepdims", "keepdim");
+      stack_.call_arg(DocUtils::ToList(axes), "dim").op_arg<bool>("keepdims", "keepdim");
     }
   }
 };
@@ -497,7 +497,7 @@ class TorchRepeatCodeGen : public TorchOpCode {
     }
     stack_.assign(IdxNode(), IdxInput())
         .method_call("repeat")
-        .call_arg(DocUtils::ToListDoc(repeats), "");
+        .call_arg(DocUtils::ToList(repeats), "");
   }
 };
 
@@ -514,7 +514,7 @@ class TorchReshapeCodeGen : public TorchOpCode {
         shape.Set(batch_dim, Integer(-1));
       }
     }
-    stack_.op_call().op_input_arg().call_arg(DocUtils::ToListDoc(shape));
+    stack_.op_call().op_input_arg().call_arg(DocUtils::ToList(shape));
   }
 };
 
@@ -530,7 +530,7 @@ class TorchResize2dCodeGen : public TorchOpCode {
     } else {
       LOG(FATAL) << "Unexpected resize2d method " << method;
     }
-    stack_.op_call().op_input_arg().op_list_arg<int>("size").call_arg(DocUtils::ToStrDoc(v_method),
+    stack_.op_call().op_input_arg().op_list_arg<int>("size").call_arg(DocUtils::ToStr(v_method),
                                                                       "mode");
   }
 };
@@ -563,8 +563,7 @@ class TorchSplitCodeGen : public TorchOpCode {
     for (size_t i = 0; i < node()->outputs.size(); i++) {
       indices.push_back(node()->OutputAt(i)->DimAt(axis)->value);
     }
-    stack_.call_arg(DocUtils::ToListDoc(indices), "split_size_or_sections")
-        .op_arg<int>("axis", "dim");
+    stack_.call_arg(DocUtils::ToList(indices), "split_size_or_sections").op_arg<int>("axis", "dim");
   }
 };
 
@@ -591,7 +590,7 @@ class TorchStridedSliceCodeGen : public TorchOpCode {
         slice.push_back(":");
       }
     }
-    stack_.assign(IdxNode(), DocUtils::ToIndexDoc(IdxInput(), slice));
+    stack_.assign(IdxNode(), DocUtils::ToIndices(IdxInput(), slice));
   }
 };
 
