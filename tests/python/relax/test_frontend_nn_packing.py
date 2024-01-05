@@ -21,7 +21,14 @@ from tvm.script import ir as I
 from tvm.script import relax as R
 
 
-def main():
+def _iter_binding_names(mod):
+    """Helper function to compare the names of relax variables"""
+    for block in mod["forward"].body.blocks:
+        for binding in block.bindings:
+            yield binding.var.name_hint
+
+
+def test_nn_export_to_relax():
     class TestModule(nn.Module):
         def __init__(self, in_features: int, out_features: int):
             super().__init__()
@@ -35,38 +42,27 @@ def main():
             x2 = self.linear_2(x)
             return x1 + x2
 
-    # pylint: disable=line-too-long
     @I.ir_module
-    class ExpectedModule:  # pylint: disable=too-few-public-methods
+    class ExpectedModule:
         @R.function
         def forward(
             x: R.Tensor((1, 10), dtype="float32"),
             packed_params: R.Tuple(
                 R.Tensor((20, 10), dtype="float32"), R.Tensor((20, 10), dtype="float32")
             ),
-        ) -> R.Tensor((1, 20), dtype="float32"):
-            R.func_attr({"num_input": 1})  # type: ignore[attr-defined]
-            with R.dataflow():  # type: ignore[attr-defined]
-                linear_1_weight: R.Tensor((20, 10), dtype="float32") = packed_params[0]  # type: ignore[valid-type]
-                linear_2_weight: R.Tensor((20, 10), dtype="float32") = packed_params[1]  # type: ignore[valid-type]
-                permute_dims: R.Tensor((10, 20), dtype="float32") = R.permute_dims(  # type: ignore[attr-defined,valid-type]
-                    linear_1_weight, axes=None
-                )
-                matmul: R.Tensor((1, 20), dtype="float32") = R.matmul(  # type: ignore[attr-defined,valid-type]
-                    x, permute_dims, out_dtype="void"
-                )
-                permute_dims1: R.Tensor((10, 20), dtype="float32") = R.permute_dims(  # type: ignore[attr-defined,valid-type]
-                    linear_2_weight, axes=None
-                )
-                matmul1: R.Tensor((1, 20), dtype="float32") = R.matmul(  # type: ignore[attr-defined,valid-type]
-                    x, permute_dims1, out_dtype="void"
-                )
-                add: R.Tensor((1, 20), dtype="float32") = R.add(matmul, matmul1)  # type: ignore[attr-defined,valid-type]
-                gv: R.Tensor((1, 20), dtype="float32") = add  # type: ignore[attr-defined,valid-type]
-                R.output(gv)  # type: ignore[attr-defined,valid-type]
+        ):
+            R.func_attr({"num_input": 1})
+            with R.dataflow():
+                linear_1_weight = packed_params[0]
+                linear_2_weight = packed_params[1]
+                matmul_1_weight = R.permute_dims(linear_1_weight)
+                matmul = R.matmul(x, matmul_1_weight)
+                matmul_2_weight = R.permute_dims(linear_2_weight)
+                matmul1 = R.matmul(x, matmul_2_weight)
+                add = R.add(matmul, matmul1)
+                gv = add
+                R.output(gv)
             return gv
-
-    # pylint: enable=line-too-long
 
     model = TestModule(10, 20)
     mod, _ = model.export_tvm(
@@ -82,6 +78,9 @@ def main():
     )
     tvm.ir.assert_structural_equal(mod, ExpectedModule)
 
+    for name, expected_name in zip(_iter_binding_names(mod), _iter_binding_names(ExpectedModule)):
+        assert name == expected_name
+
 
 if __name__ == "__main__":
-    main()
+    tvm.testing.main()
