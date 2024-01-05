@@ -687,8 +687,8 @@ EthosnError EthosnAPI::Split(const Expr& expr, SplitParams* params) {
       sl::TensorInfo(input_tensor_shape, input_data_type, params->input_info.m_DataFormat,
                      params->input_info.m_QuantizationInfo);
   params->split_info.m_Axis = attrs->axis;
-  if (attrs->indices_or_sections->IsInstance<runtime::Int>()) {
-    auto sections = Downcast<runtime::Int>(attrs->indices_or_sections)->value;
+  if (const auto* sections_ptr = attrs->indices_or_sections.as<runtime::Int::ContainerType>()) {
+    auto sections = sections_ptr->value;
     int size = input_tensor_shape[attrs->axis] / sections;
     for (int i = 0; i < sections; i++) {
       params->split_info.m_Sizes.push_back(size);
