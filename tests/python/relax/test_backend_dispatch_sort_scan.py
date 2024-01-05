@@ -333,13 +333,13 @@ def test_dispatch_argsort():
 
         @R.function
         def foo(
-            x: R.Tensor(("m", 3), dtype="float32", vdevice="llvm:0")
-        ) -> R.Tensor(("m", 3), dtype="int32", vdevice="llvm:0"):
+            x: R.Tensor(("m", 3), dtype="float32", vdevice="llvm")
+        ) -> R.Tensor(("m", 3), dtype="int32", vdevice="llvm"):
             m = T.int64()
             cls = Expected
             with R.dataflow():
                 gv = R.call_tir(
-                    cls.argsort, (x,), out_sinfo=R.Tensor((m, 3), dtype="int32", vdevice="llvm:0")
+                    cls.argsort, (x,), out_sinfo=R.Tensor((m, 3), dtype="int32", vdevice="llvm")
                 )
                 R.output(gv)
             return gv
@@ -456,10 +456,10 @@ def test_dispatch_topk():
 
         @R.function
         def foo(
-            x: R.Tensor(("m", 3), dtype="float32", vdevice="llvm:0")
+            x: R.Tensor(("m", 3), dtype="float32", vdevice="llvm")
         ) -> R.Tuple(
-            R.Tensor(("m", 1), dtype="float32", vdevice="llvm:0"),
-            R.Tensor(("m", 1), dtype="int32", vdevice="llvm:0"),
+            R.Tensor(("m", 1), dtype="float32", vdevice="llvm"),
+            R.Tensor(("m", 1), dtype="int32", vdevice="llvm"),
         ):
             m = T.int64()
             cls = Expected
@@ -468,8 +468,8 @@ def test_dispatch_topk():
                     cls.topk,
                     (x,),
                     out_sinfo=[
-                        R.Tensor((m, 1), dtype="float32", vdevice="llvm:0"),
-                        R.Tensor((m, 1), dtype="int32", vdevice="llvm:0"),
+                        R.Tensor((m, 1), dtype="float32", vdevice="llvm"),
+                        R.Tensor((m, 1), dtype="int32", vdevice="llvm"),
                     ],
                 )
                 R.output(gv)
