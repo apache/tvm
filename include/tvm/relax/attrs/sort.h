@@ -46,6 +46,53 @@ struct SortAttrs : public tvm::AttrsNode<SortAttrs> {
             "If it is not specified, it defaults to the ascending order.");
   }
 };  // struct SortAttrs
+
+/*! \brief Attributes used in argsort operator */
+struct ArgsortAttrs : public tvm::AttrsNode<ArgsortAttrs> {
+  int axis;
+  bool descending;
+  DataType dtype;
+
+  TVM_DECLARE_ATTRS(ArgsortAttrs, "relax.attrs.ArgsortAttrs") {
+    TVM_ATTR_FIELD(axis).set_default(-1).describe(
+        "Axis along which the argsort is computed."
+        "The default the last axis is used.");
+    TVM_ATTR_FIELD(descending)
+        .set_default(false)
+        .describe(
+            "Whether to argsort in descending order."
+            "If it is not specified, it defaults to the ascending order.");
+    TVM_ATTR_FIELD(dtype)
+        .set_default(NullValue<DataType>())
+        .describe("DType of the output indices.");
+  }
+};  // struct ArgsortAttrs
+
+/*! \brief Attributes used in topk operator */
+struct TopKAttrs : public tvm::AttrsNode<TopKAttrs> {
+  int k;
+  int axis;
+  bool largest;
+  String ret_type;
+  DataType dtype;
+
+  TVM_DECLARE_ATTRS(TopKAttrs, "relax.attrs.TopKAttrs") {
+    TVM_ATTR_FIELD(k).describe("Number of top elements to select");
+    TVM_ATTR_FIELD(axis).set_default(-1).describe("Axis along which to sort the input tensor.");
+    TVM_ATTR_FIELD(ret_type).set_default("both").describe(
+        "The return type [both, values, indices]."
+        "both - return both top k data and indices."
+        "values - return top k data only."
+        "indices - return top k indices only.");
+    TVM_ATTR_FIELD(largest).set_default(true).describe(
+        "Whether to return largest or smallest elements."
+        "By default, return the largest k elements.");
+    TVM_ATTR_FIELD(dtype)
+        .set_default(NullValue<DataType>())
+        .describe("Data type of the output indices.");
+  }
+};  // struct TopKAttrs
+
 }  // namespace relax
 }  // namespace tvm
 

@@ -89,4 +89,13 @@ register_legalize("relax.sum", _statistical(topi.sum))
 
 @register_legalize("relax.cumsum")
 def _cumsum(bb: BlockBuilder, call: Call) -> Expr:
-    return bb.call_te(topi.cumsum, call.args[0], call.attrs.axis, call.attrs.dtype)
+    return bb.call_te(
+        topi.cumsum, call.args[0], call.attrs.axis, call.attrs.dtype, call.attrs.exclusive
+    )
+
+
+@register_legalize("relax.cumprod")
+def _cumprod(bb: BlockBuilder, call: Call) -> Expr:
+    return bb.call_te(
+        topi.cumprod, call.args[0], call.attrs.axis, call.attrs.dtype, call.attrs.exclusive
+    )

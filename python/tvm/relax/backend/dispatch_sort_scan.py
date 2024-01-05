@@ -17,13 +17,13 @@
 # pylint: disable=invalid-name, unused-argument, redefined-argument-from-local
 """Dispatch sort and scan operators to platform dependent implementation."""
 
-from tvm import topi
+from tvm import topi, dlight
 from tvm.ir import Op
 from tvm.ir.module import IRModule
 from tvm.ir.transform import PassContext, module_pass
 from tvm.target import Target
 from tvm.contrib.thrust import can_use_thrust
-from tvm.relax import Expr, Function, Call, PyExprMutator, expr_functor, TensorStructInfo
+from tvm.relax import Expr, GlobalVar, Function, Call, PyExprMutator, expr_functor, TensorStructInfo
 
 
 @expr_functor.mutator
@@ -73,17 +73,40 @@ class SortScanDispatcher(PyExprMutator):
                     not call.attrs.descending,
                 )
 
-        if call.op.name == "relax.cumsum":
+        if call.op.name in ("relax.cumprod", "relax.cumsum"):
             tgt = self._get_target(call)
             axis = int(call.attrs.axis) if call.attrs.axis is not None else call.attrs.axis
+            te_func = topi.cuda.cumsum if tgt.kind.name == "cuda" else topi.cumsum
+            if call.op.name == "relax.cumprod":
+                te_func = topi.cuda.cumprod if tgt.kind.name == "cuda" else topi.cumprod
             with tgt:
-                return self.builder_.call_te(
-                    topi.cuda.cumsum if tgt.kind.name == "cuda" else topi.cumsum,
+                tir_call = self.builder_.call_te(
+                    te_func,
                     call.args[0],
                     axis,
                     call.attrs.dtype,
+                    call.attrs.exclusive,
                 )
 
+            if tgt.kind.name != "cuda":
+                return tir_call
+
+            # Apply dlight.gpu.Fallback() for scan on GPU
+            gvar = tir_call.args[0]
+            assert isinstance(gvar, GlobalVar)
+            scan_prim_func = self.builder_.get()[gvar]
+            sch = dlight.base.transform.apply_rules(
+                scan_prim_func,
+                tgt,
+                [
+                    dlight.gpu.Fallback(),
+                ],
+                False,
+            )
+            if sch is not None:
+                assert len(sch) == 1
+                self.builder_.update_func(gvar, sch[0].mod["main"].with_attr("tir.is_scheduled", 1))
+            return tir_call
         return super().visit_call_(call)
 
 
@@ -99,4 +122,4 @@ class DispatchSortScan:
             if isinstance(func, Function):
                 func = sort_scan_dispater.visit_expr(func)
                 sort_scan_dispater.builder_.update_func(gv, func)
-        return sort_scan_dispater.builder_.get()
+        return sort_scan_dispater.builder_.finalize()

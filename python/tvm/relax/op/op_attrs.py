@@ -119,6 +119,11 @@ class SortAttrs(Attrs):
     """Attributes for sort operator"""
 
 
+@tvm._ffi.register_object("relax.attrs.ArgsortAttrs")
+class ArgsortAttrs(Attrs):
+    """Attributes for argsort operator"""
+
+
 @tvm._ffi.register_object("relax.attrs.SplitAttrs")
 class SplitAttrs(Attrs):
     """Attributes used in split operator"""
@@ -154,9 +159,14 @@ class TileAttrs(Attrs):
     """Attributes for tile operator"""
 
 
-@tvm._ffi.register_object("relax.attrs.CumsumAttrs")
-class CumsumAttrs(Attrs):
-    """Attributes for cumsum operator"""
+@tvm._ffi.register_object("relax.attrs.ScanopAttrs")
+class ScanopAttrs(Attrs):
+    """Attributes for scan operators"""
+
+
+@tvm._ffi.register_object("relax.attrs.TopKAttrs")
+class TopKAttrs(Attrs):
+    """Attributes for topk operators"""
 
 
 @tvm._ffi.register_object("relax.attrs.EinsumAttrs")
