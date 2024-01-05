@@ -236,19 +236,26 @@ def test_vectorize_and_predicate_all_buffer_loads_stores():
                 if i_0 * 4 + i_1 < 14:
                     B[i_0 * 4 + i_1] = A[i_0 * 4 + i_1] + 1.0
 
-    # TODO(lhutton1) Needs parser support for predicates
-    # @T.prim_func
-    # def expected(A: T.Buffer((16,), "float32"), B: T.Buffer((16,), "float32")):
-    #     T.func_attr({"tir.noalias": T.bool(True)})
-    #     for i_0 in range(4):
-    #         B(pred=T.get_active_lane_mask(i_0 * 4, 14))[i_0 * 4:i_0 * 4 + 4] = A(pred=T.get_active_lane_mask(i_0 * 4, 14))[i_0 * 4:i_0 * 4 + 4] + T.Broadcast(T.float32(1), 4)
-    # tvm.ir.assert_structural_equal(after, expected)
+    @T.prim_func
+    def expected(A: T.Buffer((16,), "float32"), B: T.Buffer((16,), "float32")):
+        T.func_attr({"global_symbol": "main", "tir.noalias": T.bool(True)})
+        for i_0 in range(4):
+            load_a = T.meta_var(
+                A.load(
+                    [T.Ramp(i_0 * 4, 1, 4)], predicate=T.get_active_lane_mask("int1x4", i_0 * 4, 14)
+                )
+            )
+            add_1 = T.meta_var(load_a + T.Broadcast(T.float32(1), 4))
+            B.store(
+                add_1,
+                [T.Ramp(i_0 * 4, 1, 4)],
+                predicate=T.get_active_lane_mask("int1x4", i_0 * 4, 14),
+            )
 
-    # Instead, settle for a simple predicate check..
     mod = tvm.IRModule.from_expr(before)
     with tvm.transform.PassContext(config={"tir.enable_buffer_predication": True}):
         after = tvm.tir.transform.VectorizeLoop()(mod)["main"]
-    assert after.body.body.predicate != None
+    tvm.ir.assert_structural_equal(after, expected)
 
 
 def test_vectorize_and_predicate_some_buffer_loads_stores():
@@ -285,21 +292,25 @@ def test_vectorize_and_predicate_multiple_access_statements():
                     A[i_0 * 4 + i_1] = 2.0
                     B[i_0 * 4 + i_1] = 1.0
 
-    # TODO(lhutton1) Needs parser support for predicates
-    # @T.prim_func
-    # def expected(A: T.Buffer((16,), "float32"), B: T.Buffer((16,), "float32")):
-    #     T.func_attr({"global_symbol": "main", "tir.noalias": T.bool(True)})
-    #     for i_0 in range(4):
-    #         A(pred=T.get_active_lane_mask(i_0 * 4, 14))[i_0 * 4:i_0 * 4 + 4] = T.Broadcast(T.float32(2), 4)
-    #         B(pred=T.get_active_lane_mask(i_0 * 4, 14))[i_0 * 4:i_0 * 4 + 4] = T.Broadcast(T.float32(1), 4)
-    # tvm.ir.assert_structural_equal(after, expected)
+    @T.prim_func
+    def expected(A: T.Buffer((16,), "float32"), B: T.Buffer((16,), "float32")):
+        T.func_attr({"global_symbol": "main", "tir.noalias": T.bool(True)})
+        for i_0 in range(4):
+            A.store(
+                T.Broadcast(T.float32(2), 4),
+                [T.Ramp(i_0 * 4, 1, 4)],
+                predicate=T.get_active_lane_mask("int1x4", i_0 * 4, 14),
+            )
+            B.store(
+                T.Broadcast(T.float32(1), 4),
+                [T.Ramp(i_0 * 4, 1, 4)],
+                predicate=T.get_active_lane_mask("int1x4", i_0 * 4, 14),
+            )
 
-    # Instead, settle for a simple predicate check..
     before_mod = tvm.IRModule.from_expr(before)
     with tvm.transform.PassContext(config={"tir.enable_buffer_predication": True}):
         after = tvm.tir.transform.VectorizeLoop()(before_mod)["main"]
-    assert after.body.body[0].predicate != None
-    assert after.body.body[1].predicate != None
+    tvm.ir.assert_structural_equal(after, expected)
 
 
 def test_vectorize_and_predicate_invalid_conditions():

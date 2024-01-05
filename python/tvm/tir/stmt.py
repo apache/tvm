@@ -219,13 +219,13 @@ class BufferStore(Stmt):
         The buffer.
 
     value : PrimExpr
-        The value we to be stored.
+        The value to be stored.
 
     indices : List[PrimExpr]
         The indices location to be stored.
 
     predicate : Optional[PrimExpr]
-        The buffer predicate
+        A vector mask of int1 values that prevents storing values on masked-off lanes.
 
     span : Optional[Span]
         The location of the stmt in the source code.

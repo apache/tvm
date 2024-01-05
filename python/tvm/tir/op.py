@@ -1590,6 +1590,26 @@ def vscale():
     return call_intrin("int32", "tir.vscale")
 
 
+def get_active_lane_mask(dtype, base, limit):
+    """
+    Creates a mask corresponding to active and inactive vector lanes.
+
+    Analogous to https://llvm.org/docs/LangRef.html#llvm-get-active-lane-mask-intrinsics.
+
+    Parameters
+    ----------
+    dtype : str
+        The data type of the result.
+
+    base : PrimExpr
+        An expression reprsenting the base.
+
+    limit : PrimExpr
+        An expression representing the limit.
+    """
+    return call_intrin(dtype, "tir.get_active_lane_mask", base, limit)
+
+
 def vectorhigh(dtype, vec):
     """Get the high level half of the vector
 

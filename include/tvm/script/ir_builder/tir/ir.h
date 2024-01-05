@@ -410,8 +410,9 @@ Var EnvThread(String thread_tag);
  * \param buffer The buffer.
  * \param value The value to be stored.
  * \param indices The indices location to be stored.
+ * \param predicate A vector mask of int1 values that prevents storing values on masked-off lanes.
  */
-void BufferStore(Buffer buffer, PrimExpr value, Array<PrimExpr> indices);
+void BufferStore(Buffer buffer, PrimExpr value, Array<PrimExpr> indices, PrimExpr predicate);
 
 /*!
  * \brief The prefetch hint for a buffer

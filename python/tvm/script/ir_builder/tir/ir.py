@@ -1262,6 +1262,7 @@ def buffer_store(
     buffer: Buffer,  # pylint: disable=redefined-outer-name
     value: PrimExpr,
     indices: List[Union[PrimExpr, slice]],
+    predicate: Optional[PrimExpr] = None,
 ) -> None:
     """Buffer store node.
 
@@ -1275,6 +1276,9 @@ def buffer_store(
 
     indices : List[Union[PrimExpr, slice]]
         The indices location to be stored.
+
+    predicate : Optional[PrimExpr]
+        A vector mask of int1 values that prevents storing values on masked-off lanes.
     """
     from tvm.arith import Analyzer  # pylint: disable=import-outside-toplevel
 
@@ -1295,7 +1299,7 @@ def buffer_store(
     if isinstance(value, bool) and buffer.dtype == "bool":
         value = IntImm("bool", value)
     return _ffi_api.BufferStore(  # type: ignore[attr-defined] # pylint: disable=no-member
-        buffer, value, expr_indices
+        buffer, value, expr_indices, predicate
     )
 
 
@@ -1891,6 +1895,7 @@ mma_fill = _dtype_forward(_tir_op.mma_fill)
 vectorlow = _dtype_forward(_tir_op.vectorlow)
 vectorhigh = _dtype_forward(_tir_op.vectorhigh)
 vectorcombine = _dtype_forward(_tir_op.vectorcombine)
+get_active_lane_mask = _dtype_forward(_tir_op.get_active_lane_mask)
 
 broadcast = Broadcast
 ramp = Ramp
@@ -2200,4 +2205,5 @@ __all__ = [
     "CommReducer",
     "Range",
     "vscale",
+    "get_active_lane_mask",
 ]

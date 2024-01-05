@@ -1093,10 +1093,10 @@ class BufferLoad(PrimExprWithOp):
         The buffer to be loaded.
 
     indices : List[PrimExpr]
-        The buffer indices.
+        The buffer indices to load values from.
 
     predicate : Optional[PrimExpr]
-        The buffer predicate
+        A vector mask of int1 values that prevents loading values on masked-off lanes.
 
     span : Optional[Span]
         The location of this expression in the source code.
