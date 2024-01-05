@@ -110,10 +110,9 @@ StructInfo InferStructInfoTopK(const Call& call, const BlockBuilder& ctx) {
   int k = attrs->k;
   String ret_type = attrs->ret_type;
   int axis = attrs->axis;
-  if (axis < 0) {
+  if (axis < 0 && ndim > 0) {
     axis += ndim;
   }
-  ICHECK(axis >= 0 && axis < ndim);
 
   std::vector<StructInfo> output_sinfos;
   output_sinfos.reserve(2);
@@ -122,13 +121,15 @@ StructInfo InferStructInfoTopK(const Call& call, const BlockBuilder& ctx) {
         TensorStructInfo(data_sinfo->dtype, data_sinfo->ndim, data_sinfo->vdevice));
     output_sinfos.push_back(TensorStructInfo(indices_type, data_sinfo->ndim, data_sinfo->vdevice));
   } else {
-    Array<PrimExpr> shape = data_shape->values;
-    if (k > 0) {
-      shape.Set(axis, k);
+    Array<PrimExpr> out_shape = data_shape->values;
+    const auto* int_dim = out_shape[axis].as<IntImmNode>();
+    if (k > 0 && (int_dim == nullptr || k < int_dim->value)) {
+      out_shape.Set(axis, k);
     }
     output_sinfos.push_back(
-        TensorStructInfo(ShapeExpr(shape), data_sinfo->dtype, data_sinfo->vdevice));
-    output_sinfos.push_back(TensorStructInfo(ShapeExpr(shape), indices_type, data_sinfo->vdevice));
+        TensorStructInfo(ShapeExpr(out_shape), data_sinfo->dtype, data_sinfo->vdevice));
+    output_sinfos.push_back(
+        TensorStructInfo(ShapeExpr(out_shape), indices_type, data_sinfo->vdevice));
   }
 
   if (ret_type == "both") {
