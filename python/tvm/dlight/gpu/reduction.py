@@ -23,13 +23,13 @@ from tvm.target import Target
 
 from ..base import (
     BlockInfo,
-    ScheduleRule,
     normalize_prim_func,
     try_inline_contiguous_spatial,
     detect_dominant_read,
     is_broadcast_epilogue,
 )
 from . import utils
+from .base import GPUScheduleRule
 
 
 def _get_reduction_expr(block: tir.Block) -> Optional[tir.PrimExpr]:
@@ -48,7 +48,7 @@ def _get_reduction_expr(block: tir.Block) -> Optional[tir.PrimExpr]:
     return buffer_store.value.b
 
 
-class Reduction(ScheduleRule):
+class Reduction(GPUScheduleRule):
     """A rule for Reduction."""
 
     def apply(  # pylint: disable=too-many-locals,too-many-branches,too-many-return-statements
@@ -57,7 +57,7 @@ class Reduction(ScheduleRule):
         target: Target,
         _: bool,
     ) -> Union[None, tir.Schedule, List[tir.Schedule]]:
-        if not isinstance(func, tir.PrimFunc):
+        if not isinstance(func, tir.PrimFunc) or not self.is_target_available(target):
             return None
         sch = tir.Schedule(func)
         block_infos = normalize_prim_func(sch)
@@ -85,7 +85,7 @@ class Reduction(ScheduleRule):
         ):
             return None
         # Step 2. Normalize the block, merge spatial and reduction iters
-        is_inner_reduction, c_factor = self._normalize(
+        is_inner_reduction, c_factor, loop_order, s_split_index = self._normalize(
             sch,
             block_info,
             arith.normalize_to_iter_sum(
@@ -97,9 +97,13 @@ class Reduction(ScheduleRule):
             return None
         # Step 3. Do the scheduling
         if is_inner_reduction:
-            self._sch_inner_reduction(sch, target, block, c_factor, epilogue)
+            self._sch_inner_reduction(
+                sch, target, block, c_factor, epilogue, loop_order, s_split_index
+            )
         else:
-            self._sch_inner_spatial(sch, target, block, block_info, c_factor, epilogue)
+            self._sch_inner_spatial(
+                sch, target, block, block_info, c_factor, epilogue, loop_order, s_split_index
+            )
         return sch
 
     def _normalize(  # pylint: disable=too-many-branches
@@ -112,6 +116,7 @@ class Reduction(ScheduleRule):
             return None, None
         iter_to_info = {i.var: i for i in block_info.iters}
         s_loops, r_loops, c_loops, c_factor = [], [], [], None
+        s_split_loop, s_split_index = None, None
         for split_expr in access.args:
             var = split_expr.source.source
             info = iter_to_info.pop(var)
@@ -120,6 +125,8 @@ class Reduction(ScheduleRule):
             if split_expr.lower_factor > 1:
                 if c_loops:
                     return None, None
+                s_split_loop = loop
+                s_split_index = len(s_loops)
                 loop, c_loop = sch.split(loop, factors=[None, split_expr.lower_factor])
                 c_loops.append(c_loop)
                 if not is_inner_reduction:
@@ -135,6 +142,22 @@ class Reduction(ScheduleRule):
                     s_loops.append(info.loop_rv)
                 else:
                     return None, None
+
+        loop_order = {}
+        s_block_var_loops = []
+        for i in block_info.iters:
+            if i.loop_rv in s_loops or i.loop_rv == s_split_loop:
+                s_block_var_loops.append(i.loop_rv)
+
+        for i in range(len(s_block_var_loops)):
+            for j in range(len(s_loops)):
+                if s_block_var_loops[i] == s_loops[j]:
+                    loop_order[i] = j
+                    break
+                if s_block_var_loops[i] == s_split_loop:
+                    loop_order[i] = s_split_index
+                    break
+
         assert s_loops
         assert r_loops
         if len(s_loops) != len([i for i in block_info.iters if i.kind == "S"]):
@@ -144,7 +167,7 @@ class Reduction(ScheduleRule):
         sch.reorder(*s_loops, *r_loops, *c_loops)
         sch.fuse(*s_loops)
         sch.fuse(*r_loops)
-        return is_inner_reduction, c_factor
+        return is_inner_reduction, c_factor, loop_order, s_split_index
 
     def _sch_inner_reduction(  # pylint: disable=too-many-arguments
         self,
@@ -153,6 +176,8 @@ class Reduction(ScheduleRule):
         block: tir.schedule.BlockRV,
         unroll_spatial_factor: Optional[int],
         epilogue_info: Optional[BlockInfo],
+        loop_order,
+        s_split_index,
     ):
         # pylint: disable=invalid-name
         _, r, _ = sch.get_loops(block)
@@ -174,11 +199,20 @@ class Reduction(ScheduleRule):
         # Schedule the write back block
         sch.reverse_compute_at(block, bx, preserve_unit_loops=True)
         _, tx, *s = sch.get_loops(block)
-        s = sch.fuse(*s)
-        sch.reorder(s, tx)
+
         if unroll_spatial_factor:
-            s, inner = sch.split(s, factors=[None, unroll_spatial_factor])
-            sch.reorder(s, tx, inner)
+            assert len(s) == len(loop_order)
+            new_order_s = [s[loop_order[i]] for i in range(len(s))]
+            sch.reorder(*new_order_s)
+            new_order_s[s_split_index], c = sch.split(
+                new_order_s[s_split_index], factors=[None, unroll_spatial_factor]
+            )
+            sch.reorder(*new_order_s, c)
+            s = sch.fuse(*new_order_s)
+            sch.reorder(s, tx, c)
+        else:
+            s = sch.fuse(*s)
+            sch.reorder(s, tx)
         sch.bind(tx, "threadIdx.x")
         # Schedule epilogue
         if epilogue_info is not None:
@@ -201,6 +235,8 @@ class Reduction(ScheduleRule):
         block_info: BlockInfo,
         unroll_spatial_factor: Optional[int],
         epilogue_info: Optional[BlockInfo],
+        loop_order,
+        s_split_index,
     ):
         # pylint: disable=invalid-name
         s, r, _ = sch.get_loops(block)
@@ -226,12 +262,22 @@ class Reduction(ScheduleRule):
         # Schedule the write back block
         sch.reverse_compute_at(block, bx, preserve_unit_loops=True)
         _, r, *s = sch.get_loops(block)
-        s = sch.fuse(*s)
-        sch.reorder(s, r)
         if unroll_spatial_factor:
-            s, _ = sch.split(s, factors=[None, unroll_spatial_factor])
+            assert len(s) == len(loop_order)
+            new_order_s = [s[loop_order[i]] for i in range(len(s))]
+            sch.reorder(*new_order_s)
+            new_order_s[s_split_index], c = sch.split(
+                new_order_s[s_split_index], factors=[None, unroll_spatial_factor]
+            )
+            sch.reorder(*new_order_s, c)
+            s = sch.fuse(*new_order_s)
+            sch.reorder(s, c, r)
+        else:
+            s = sch.fuse(*s)
+            sch.reorder(s, r)
         sch.bind(s, "threadIdx.x")
         sch.bind(r, "threadIdx.y")
+
         # Schedule epilogue
         if epilogue_info is not None:
             epilogue = epilogue_info.block_rv

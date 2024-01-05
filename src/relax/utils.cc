@@ -155,6 +155,23 @@ tvm::Map<tir::Var, PrimExpr> InferSymbolicVarMap(
     }
   };
 
+  auto bind_from_prim_value = [&bind_from_prim_expr](const StructInfo& var,
+                                                     const StructInfo& expr) {
+    auto var_sinfo = var.as<PrimStructInfoNode>();
+    if (!var_sinfo) return;
+
+    auto expr_sinfo = expr.as<PrimStructInfoNode>();
+    CHECK(expr_sinfo) << "Cannot bind expression with struct type " << expr
+                      << " to variable with struct type " << var;
+    CHECK_EQ(var_sinfo->dtype, expr_sinfo->dtype)
+        << "Cannot bind expression with struct type " << expr << " to variable with struct type "
+        << var << ", due to conflicting PrimExpr DataType";
+
+    if (!var_sinfo->value.defined() || !expr_sinfo->value.defined()) return;
+
+    bind_from_prim_expr(var_sinfo->value.value(), expr_sinfo->value.value());
+  };
+
   auto bind_from_shape = [&bind_from_prim_expr](const StructInfo& var, const StructInfo& expr) {
     auto var_shape = var.as<ShapeStructInfoNode>();
     if (!var_shape) return;
@@ -195,6 +212,7 @@ tvm::Map<tir::Var, PrimExpr> InferSymbolicVarMap(
 
     bind_from_tensor(var_sinfo, expr_sinfo);
     bind_from_shape(var_sinfo, expr_sinfo);
+    bind_from_prim_value(var_sinfo, expr_sinfo);
   }
 
   return tir_var_remap;

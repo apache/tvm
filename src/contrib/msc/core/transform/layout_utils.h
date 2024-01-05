@@ -46,6 +46,27 @@ using namespace tvm::relax;
 class LayoutUtils {
  public:
   /*!
+   * \brief Infer NLayout.
+   * \return The NLayout.
+   */
+  TVM_DLL static NLayout InferNLayout(const Expr& expr, const VarLayoutMap& var_layout_map);
+
+  /*!
+   * \brief Infer LayoutDecision.
+   * \return The LayoutDecision.
+   */
+  TVM_DLL static LayoutDecision InferLayoutDecision(const Expr& expr,
+                                                    const VarLayoutMap& var_layout_map);
+
+  /*!
+   * \brief Infer LayoutDecision at given pos.
+   * \return The LayoutDecision.
+   */
+  TVM_DLL static LayoutDecision InferLayoutDecisionAt(const Expr& expr,
+                                                      const VarLayoutMap& var_layout_map,
+                                                      size_t index = 0);
+
+  /*!
    * \brief Check if the layout is infered.
    * \return Whether the layout is infered.
    */

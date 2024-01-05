@@ -151,6 +151,8 @@ class BaseService(object):
         The record step.
     debug_level: int
         The debug level
+    verbose: str
+        The verbose level.
     """
 
     def __init__(
@@ -164,15 +166,19 @@ class BaseService(object):
         max_iter: int = 1,
         record_step: int = 5,
         debug_level: int = 0,
+        verbose: str = None,
     ):
         self._workspace = workspace
         tasks = tasks or [GYMObject.ENV + ":0", GYMObject.AGENT + ":0"]
-        verbose = "debug" if debug_level > 0 else "info"
+        if not verbose:
+            verbose = "debug" if debug_level > 0 else "info"
         self._logger = msc_utils.create_file_logger(verbose, self._workspace.relpath("SERVICE_LOG"))
 
         def _create_workers(config: dict, obj_type: str) -> List[BaseWorker]:
             if "debug_level" not in config:
                 config["debug_level"] = debug_level
+            if "verbose" not in config:
+                config["verbose"] = verbose
             if "logger" not in config:
                 config["logger"] = self._logger
             return [

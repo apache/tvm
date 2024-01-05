@@ -533,6 +533,21 @@ TVM_DLL bool WellFormed(IRModule m, bool check_struct_info = true);
 TVM_DLL Map<tir::Block, Map<ObjectRef, tir::IndexMap>> SuggestLayoutTransforms(
     const Function& fn, Array<tir::IndexMap> write_buffer_transformations);
 
+/* \brief Collect variables whose value can be computed at compile-time
+ *
+ * If a function has the `kNumInput` attribute, then the first
+ * `kNumInput` parameters are provided at run-time, while all
+ * remaining parameters may be known at compile-time.  This utility
+ * collects all variable bindings that only depend, directly or
+ * indirectly, on the parameters known at compile-time.
+ *
+ * \param func The relax::Function to analyze
+ *
+ * \return The set of variables that can be computed at compile-time,
+ * in order of their occurrence within the function.
+ */
+TVM_DLL Array<Var> ComputableAtCompileTime(const Function& func);
+
 }  // namespace relax
 }  // namespace tvm
 

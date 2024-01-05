@@ -31,8 +31,8 @@ class BaseController(object):
         The worksapce.
     config: dict
         The config for service.
-    is_master: bool
-        Whether the node is master node
+    is_main: bool
+        Whether the node is main node
     """
 
     def __init__(

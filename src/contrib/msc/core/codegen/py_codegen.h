@@ -103,7 +103,7 @@ class PyCodeGen : public BaseCodeGen<ConfigType, HelperType> {
           .func_arg("dtype", "str")
           .func_start()
           .func_call("os.path.join", "path")
-          .call_arg(DocUtils::ToStrDoc(this->config()->baseline_folder))
+          .call_arg(DocUtils::ToStr(this->config()->baseline_folder))
           .call_arg("name + \".bin\"")
           .cond_if("os.path.isfile(path)")
           .func_call("np.fromfile", "data")
@@ -129,21 +129,27 @@ class PyCodeGen : public BaseCodeGen<ConfigType, HelperType> {
         .assign("golden", "{}");
     for (const auto& i : this->graph()->input_names) {
       const auto& input = this->graph()->FindTensor(i);
-      this->stack_.func_call("load_data", "inputs[\"" + input->alias + "\"]")
-          .call_arg(DocUtils::ToStrDoc(input->alias))
-          .call_arg(DocUtils::ToListDoc(input->shape, true))
-          .call_arg(DocUtils::ToStrDoc(runtime::DLDataType2String(input->dtype)));
+      this->stack_
+          .func_call("load_data", DocUtils::ToIndex("inputs", DocUtils::ToStr(input->alias)))
+          .call_arg(DocUtils::ToStr(input->alias))
+          .call_arg(DocUtils::ToList(input->shape, true))
+          .call_arg(DocUtils::ToStr(runtime::DLDataType2String(input->dtype)));
     }
     for (const auto& o : this->graph()->output_names) {
       const auto& output = this->graph()->FindTensor(o);
-      this->stack_.func_call("load_data", "golden[\"" + output->alias + "\"]")
-          .call_arg(DocUtils::ToStrDoc(output->alias))
-          .call_arg(DocUtils::ToListDoc(output->shape, true))
-          .call_arg(DocUtils::ToStrDoc(runtime::DLDataType2String(output->dtype)));
+      this->stack_
+          .func_call("load_data", DocUtils::ToIndex("golden", DocUtils::ToStr(output->alias)))
+          .call_arg(DocUtils::ToStr(output->alias))
+          .call_arg(DocUtils::ToList(output->shape, true))
+          .call_arg(DocUtils::ToStr(runtime::DLDataType2String(output->dtype)));
     }
     this->stack_.comment("Build and inference the graph");
     CodeGenInference();
-    this->stack_.line("msc_utils.compare_arrays(golden, outputs, verbose=\"detail\")").cond_end();
+    this->stack_.func_call("msc_utils.compare_arrays")
+        .call_arg("golden")
+        .call_arg("outputs")
+        .call_arg(DocUtils::ToStr("detail"), "verbose")
+        .cond_end();
   }
 
   /*! \brief Stack the docs for the node*/
@@ -155,19 +161,19 @@ class PyCodeGen : public BaseCodeGen<ConfigType, HelperType> {
         const auto& input = node->InputAt(i);
         this->stack_.func_call("msc_tools.process_tensor", this->IdxInputBase(node, i, true))
             .call_arg(this->IdxInputBase(node, i, false))
-            .call_arg(DocUtils::ToStrDoc(input->name))
-            .call_arg(DocUtils::ToStrDoc(node->name))
-            .call_arg(DocUtils::ToStrDoc(this->config()->tools_scope))
-            .call_arg(DocUtils::ToStrDoc(this->config()->tools_tag));
+            .call_arg(DocUtils::ToStr(input->name))
+            .call_arg(DocUtils::ToStr(node->name))
+            .call_arg(DocUtils::ToStr(this->config()->tools_scope))
+            .call_arg(DocUtils::ToStr(this->config()->tools_tag));
       }
       for (const auto& pair : node->weights) {
         this->stack_
             .func_call("msc_tools.process_tensor", this->IdxWeightBase(node, pair.first, true))
             .call_arg(this->IdxWeightBase(node, pair.first, false))
-            .call_arg(DocUtils::ToStrDoc(pair.second->name))
-            .call_arg(DocUtils::ToStrDoc(node->name))
-            .call_arg(DocUtils::ToStrDoc(this->config()->tools_scope))
-            .call_arg(DocUtils::ToStrDoc(this->config()->tools_tag));
+            .call_arg(DocUtils::ToStr(pair.second->name))
+            .call_arg(DocUtils::ToStr(node->name))
+            .call_arg(DocUtils::ToStr(this->config()->tools_scope))
+            .call_arg(DocUtils::ToStr(this->config()->tools_tag));
       }
     }
     for (const auto& d : this->GetOpCodes(node)) {
@@ -180,10 +186,10 @@ class PyCodeGen : public BaseCodeGen<ConfigType, HelperType> {
         if (graph_outputs_.count(node->OutputAt(index))) {
           this->stack_.func_call("msc_tools.process_tensor", this->IdxOutputBase(node, index, true))
               .call_arg(this->IdxOutputBase(node, index, false))
-              .call_arg(DocUtils::ToStrDoc(node->OutputAt(index)->name))
-              .call_arg(DocUtils::ToStrDoc("exit"))
-              .call_arg(DocUtils::ToStrDoc(this->config()->tools_scope))
-              .call_arg(DocUtils::ToStrDoc(this->config()->tools_tag));
+              .call_arg(DocUtils::ToStr(node->OutputAt(index)->name))
+              .call_arg(DocUtils::ToStr("exit"))
+              .call_arg(DocUtils::ToStr(this->config()->tools_scope))
+              .call_arg(DocUtils::ToStr(this->config()->tools_tag));
         }
       }
     }
