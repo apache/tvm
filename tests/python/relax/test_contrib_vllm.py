@@ -117,7 +117,7 @@ def test_attention():
                 num_seqs = T.int64()
                 max_len = R.to_vdevice(R.max(context_lens), "llvm:0")
                 # alloc workspace
-                exp_sums= R.zeros((num_seqs, 1, 1), "float32")
+                exp_sums = R.zeros((num_seqs, 1, 1), "float32")
                 max_logits = R.zeros((num_seqs, 1, 1), "float32")
                 tmp_out = R.zeros((num_seqs, 1, 1, 64), "float16")
 
