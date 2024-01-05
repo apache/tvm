@@ -36,9 +36,6 @@ const Array<Doc> RelaxOpCode::GetDocs() {
   if (node()->optype == "input" || node()->optype == "constant" || node()->optype == "shape") {
     emit_var = false;
   }
-  if (node()->optype == "tuple" && node()->children.size() == 0) {
-    emit_var = false;
-  }
   if (emit_var) {
     const auto& name = config()->explicit_name ? node()->name : "";
     BuilderEmit(IdxNode(), name);
@@ -49,7 +46,7 @@ const Array<Doc> RelaxOpCode::GetDocs() {
 void RelaxOpCode::BuilderEmit(const String& ret, const String& name) {
   stack_.func_call("block_builder.emit", ret).call_arg(ret);
   if (name.size() > 0) {
-    stack_.call_arg(DocUtils::ToDoc(name + "_compute"), "name_hint");
+    stack_.call_arg(DocUtils::ToStr(name), "name_hint");
   }
 }
 
