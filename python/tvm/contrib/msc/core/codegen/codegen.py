@@ -174,10 +174,16 @@ def relay_to_relax(
 
     mod = codegen.load(inputs, post_load=_bind_weights)
 
-    # The canonicalization of relax variable bindings is not required
-    # for correctness.  It does, however, remove trivial `x = y`
-    # bindings, preventing test cases from depending on their
-    # presence.
-    mod = tvm.relax.transform.CanonicalizeBindings()(mod)
+    mod = tvm.ir.transform.Sequential(
+        [
+            # The canonicalization of relax variable bindings is not required
+            # for correctness.  It does, however, remove trivial `x = y`
+            # bindings, preventing test cases from depending on their
+            # presence.
+            tvm.relax.transform.CanonicalizeBindings(),
+            tvm.relax.transform.ConvertToDataflow(min_size=1),
+        ],
+        name="tvm.contrib.msc.core.codegen.relay_to_relax_postproc",
+    )(mod)
 
     return mod

@@ -60,6 +60,8 @@ def verify_model(torch_model, input_info, opt_config=None, codegen_config=None, 
     graph_model = fx.symbolic_trace(torch_model)
     with torch.no_grad():
         expected = from_fx(graph_model, input_info)
+    expected = tvm.relax.transform.CanonicalizeBindings()(expected)
+
     # graph from relay
     datas = [np.random.rand(*i[0]).astype(i[1]) for i in input_info]
     torch_datas = [torch.from_numpy(i) for i in datas]

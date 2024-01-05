@@ -31,6 +31,8 @@ def verify_model(torch_model, input_info, opt_config=None):
     graph_model = fx.symbolic_trace(torch_model)
     with torch.no_grad():
         expected = from_fx(graph_model, input_info)
+    expected = tvm.relax.transform.CanonicalizeBindings()(expected)
+
     graph, weights = translate.from_relax(expected, opt_config=opt_config)
     mod = tvm_codegen.to_relax(graph, weights, codegen_config={"explicit_name": False})
     tvm.ir.assert_structural_equal(mod, expected)
