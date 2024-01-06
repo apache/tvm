@@ -424,15 +424,12 @@ Stmt GenerateStmtFromExternOp(const te::ExternOp& extern_op, CreateFuncInfo* inf
     }
   }
 
-  // Step 3. Collect Access Region
-  Array<BufferRegion> reads, writes;
-  for (const te::Tensor& tensor : extern_op->inputs) {
-    // We have ICHECK before so it is not needed here.
-    reads.push_back(BufferRegion::FullRegion(info->tensor2buffers[tensor]));
-  }
-  for (const Buffer& buffer : extern_op->output_placeholders) {
-    writes.push_back(BufferRegion::FullRegion(buffer));
-  }
+  // The access region does not need to be collected here, as it will
+  // be generated with the later application of "script.Complete" in
+  // GenerateAndCompletePrimFunc.  Waiting until later also handles
+  // the case where there is only a single BlockNode, which then
+  // becomes the root Block of the function, and should not have
+  // reads/writes filled in.
 
   BufferSubstituter substituter(var_map, input_buffer_map);
   Stmt body = substituter(extern_op->body);
@@ -442,8 +439,8 @@ Stmt GenerateStmtFromExternOp(const te::ExternOp& extern_op, CreateFuncInfo* inf
                       /*predicate=*/Bool(true),
                       /*block=*/
                       Block(/*iter_vars=*/{},
-                            /*reads=*/std::move(reads),
-                            /*writes=*/std::move(writes),
+                            /*reads=*/{},
+                            /*writes=*/{},
                             /*name_hint=*/info->FreshName(extern_op->name),
                             /*body=*/std::move(body),
                             /*init=*/NullOpt,

@@ -230,6 +230,17 @@ def StorageRewrite():
     return _ffi_api.StorageRewrite()  # type: ignore
 
 
+def InlinePrivateFunctions():
+    """Inline calls to private functions
+
+    Returns
+    -------
+    fpass : tvm.transform.Pass
+        The result pass
+    """
+    return _ffi_api.InlinePrivateFunctions()  # type: ignore
+
+
 def PointerValueTypeRewrite():
     """
     Rewrite the pointer content type of arguments, as well as Alloc internal to the function to use

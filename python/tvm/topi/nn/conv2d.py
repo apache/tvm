@@ -615,17 +615,17 @@ def conv2d_NCHWc_int8(
     )
 
 
-def conv2d_gemm_weight_transform(kernel, tile_rows, tile_cols):
+def conv2d_gemm_weight_transform(kernel, tile_N, tile_K):
     """Weight transformation for winograd
 
     Parameters
     ----------
     kernel: Tensor
         The raw kernel tensor with layout "NHWC".
-    tile_rows: int
-        Tile rows of the weight transformation for ConvGemm.
-    tile_cols: int
-        Tile columns of the weight transformation for ConvGemm.
+    tile_N: int
+        Tile size across N axis of the weight transformation for ConvGemm. (N = OC)
+    tile_K: int
+        Tile size across K axis of the weight transformation for ConvGemm. (K = KW * KH * IC)
 
     Returns
     -------
@@ -640,7 +640,7 @@ def conv2d_gemm_weight_transform(kernel, tile_rows, tile_cols):
         (K, N), lambda x, y: kernel[(x // IC) // KW, (x // IC) % KW, x % IC, y], "weight_flatten"
     )
 
-    pad_N, pad_K = tvm.topi.arm_cpu.arm_utils.get_conv2d_weights_padding(N, K, tile_rows, tile_cols)
+    pad_N, pad_K = tvm.topi.arm_cpu.arm_utils.get_conv2d_weights_padding(N, K, tile_N, tile_K)
 
     N_padded = N + pad_N
     K_padded = K + pad_K
@@ -650,11 +650,19 @@ def conv2d_gemm_weight_transform(kernel, tile_rows, tile_cols):
             kernel_flat, pad_before=(0, 0), pad_after=(pad_K, pad_N), name="weight_padding"
         )
 
-    return te.compute(
-        (N_padded // tile_rows, K_padded // tile_cols, tile_rows, tile_cols),
-        lambda x, y, z, w: kernel_flat[w + tile_cols * y, z + tile_rows * x],
-        name="weight_block_reshape",
-    )
+    if kernel.dtype in ["int8", "uint8"]:
+        B_inter_t = te.compute(
+            (N_padded // tile_N, K_padded // tile_K, tile_N, tile_K),
+            lambda x, y, z, w: kernel_flat[w + tile_K * y, z + tile_N * x],
+            name="weight_block_reshape",
+        )
+    else:
+        B_inter_t = te.compute(
+            (N_padded // tile_N, K_padded // tile_K, tile_K, tile_N),
+            lambda x, y, z, w: kernel_flat[z + tile_K * y, w + tile_N * x],
+            name="weight_block_reshape",
+        )
+    return B_inter_t
 
 
 def conv2d_winograd_weight_transform(kernel, tile_size):

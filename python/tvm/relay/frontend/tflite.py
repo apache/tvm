@@ -2677,12 +2677,6 @@ class OperatorConverter(object):
         except ImportError:
             raise ImportError("The tflite package must be installed")
 
-        # the quantized form MirrorPad is not yet implemented in TFLite.
-        if self.is_quantized(op):
-            raise tvm.error.OpNotImplemented(
-                "TFlite quantized MIRROR_PAD operator is not supported yet."
-            )
-
         input_tensors = self.get_input_tensors(op)
         assert len(input_tensors) == 2, "input tensors length should be 2"
 

@@ -33,72 +33,23 @@ from tvm import autotvm
 from tvm.autotvm.measure import request_remote
 from tvm.relay.expr_functor import ExprMutator, Call
 
+"""Utils for adreno compute/schedules"""
 
-class Device:
-    """
-    Configuration for CLML tests.
+import os
+import tvm
+import numpy as np
+from tvm import relay
+from tvm import autotvm
+from tvm import rpc
+from tvm.contrib import utils, ndk
+from tvm.relay import testing
+from tvm.relay.transform import recast
+from tvm.contrib import graph_runtime
+from tvm.runtime.vm import VirtualMachine
+import json
 
-    Check tests/python/contrib/clml/ for the presence of an test_config.json file.
-    This file can be used to override the default configuration here which will attempt to run the
-    Open CLML runtime tests locally if the runtime is available. Changing the configuration
-    will allow these runtime tests to be offloaded to a remote Snapdragon device via a tracker for example.
 
-    Notes
-    -----
-        The test configuration will be loaded once when the class is created. If the configuration
-        changes between tests, any changes will not be picked up.
-
-    Parameters
-    ----------
-    device : RPCSession
-        Allows tests to connect to and use remote device.
-
-    Attributes
-    ----------
-    connection_type : str
-        Details the type of RPC connection to use. Options:
-        local - Use the local device,
-        tracker - Connect to a tracker to request a remote device,
-        remote - Connect to a remote device directly.
-    host : str
-        Specify IP address or hostname of remote target.
-    port : int
-        Specify port number of remote target.
-    target : str
-        The compilation target.
-    device_key : str
-        The device key of the remote target. Use when connecting to a remote device via a tracker.
-    cross_compile : str
-        Specify path to cross compiler to use when connecting a remote device from a non-arm platform.
-    """
-
-    connection_type = "tracker"
-    host = os.getenv("TVM_TRACKER_HOST", "localhost")
-    port = int(os.getenv("TVM_TRACKER_PORT", 9090))
-    target = "opencl"
-    target_host = "llvm -mtriple=aarch64-linux-gnu"
-    device_key = os.getenv("RPC_DEVICE_KEY", "android")
-    cross_compile = os.getenv("TVM_NDK_CC", "aarch64-linux-android-g++")
-
-    def __init__(self):
-        """Keep remote device for lifetime of object."""
-        self.device = self._get_remote()
-
-    @classmethod
-    def _get_remote(cls):
-        """Get a remote (or local) device to use for testing."""
-        if cls.connection_type == "tracker":
-            device = request_remote(cls.device_key, cls.host, cls.port, timeout=1000)
-        elif cls.connection_type == "remote":
-            device = rpc.connect(cls.host, cls.port)
-        elif cls.connection_type == "local":
-            device = rpc.LocalSession()
-        else:
-            raise ValueError(
-                "connection_type in test_config.json should be one of: " "local, tracker, remote."
-            )
-
-        return device
+NDK_CROSS_COMPILER = os.getenv("TVM_NDK_CC", "aarch64-linux-android-g++")
 
 
 def get_cpu_op_count(mod):
@@ -139,78 +90,102 @@ def get_non_cpu_op_count(mod):
     return c.count
 
 
-def skip_codegen_test():
-    """Skip test if it requires the CLML codegen and it's not present."""
-    if not tvm.get_global_func("relay.ext.clml", True):
-        print("Skip because CLML codegen is not available.")
-        return True
+# build module run with opencl or clml target with graph executor
+def build_and_run(
+    remote,
+    mod,
+    params1,
+    inputs,
+    target="llvm",
+    enable_clml=False,
+    stat_file=None,
+):
+    if remote is None:
+        target_host = "llvm"
+    else:
+        target_host = "llvm -mtriple=arm64-linux-android"
 
-
-def build_module(mod, target, target_host, params=None, enable_clml=True, tune_log=""):
-    """Build module with option to build for CLML."""
     if isinstance(mod, tvm.relay.expr.Call):
         mod = tvm.IRModule.from_expr(mod)
 
-    with autotvm.apply_history_best(tune_log):
-        with tvm.transform.PassContext(opt_level=3, disabled_pass=["AlterOpLayout"]):
+    with autotvm.apply_history_best(stat_file):
+        with tvm.transform.PassContext(opt_level=3):
             if enable_clml:
-                mod = clml.preprocess_module(mod)
-                mod = clml.partition_for_clml(mod, params)
-            relay.backend.te_compiler.get().clear()
-            return relay.build(mod, target=target, target_host=target_host, params=params)
+                mod = clml.partition_for_clml(mod, params1)
+            graph, lib, params = relay.build(
+                mod, target_host=target_host, target=target, params=params1
+            )
 
-
-def build_and_run(
-    mod, inputs, outputs, params, device, enable_clml=True, no_runs=1, config=None, tune_log=""
-):
-    """Build and run the relay module."""
-    if config is None:
-        config = {}
-
-    try:
-        libm = build_module(mod, device.target, device.target_host, params, enable_clml, tune_log)
-        clml_modules = extract_clml_modules(libm)
-        for mod in clml_modules:
-            source = mod.get_source("json")
-            codegen = json.loads(source)["nodes"]
-            # remove input and const names as these cannot be predetermined
-            for node in range(len(codegen)):
-                if codegen[node]["op"] == "input" or codegen[node]["op"] == "const":
-                    codegen[node]["name"] = ""
-            codegen_str = json.dumps(codegen, sort_keys=True, indent=2)
-
-    except Exception as e:
-        err_msg = "The module could not be built.\n"
-        if config:
-            err_msg += f"The test failed with the following parameters: {config}\n"
-        err_msg += str(e)
-        raise Exception(err_msg)
-
-    lib = update_lib(libm, device.device, device.cross_compile)
-    gen_module = graph_executor.GraphModule(lib["default"](device.device.cl(0)))
-    gen_module.set_input(**inputs)
-    out = []
-    for _ in range(no_runs):
-        gen_module.run()
-        out.append([gen_module.get_output(i) for i in range(outputs)])
-    # time_f = gen_module.module.time_evaluator("run", device.device.cl(0), number=1)
-    # cost = time_f().mean
-    # print("%g secs/iteration\n" % cost)
-    return out
-
-
-def update_lib(lib, device, cross_compile):
-    """Export the library to the remote/local device."""
-    lib_name = "mod.so"
-    temp = utils.tempdir()
-    lib_path = temp.relpath(lib_name)
-    if cross_compile:
-        lib.export_library(lib_path, cc=cross_compile)
+    if remote is None:
+        ctx = tvm.opencl()
+        m = graph_runtime.create(graph, lib, ctx)
     else:
-        lib.export_library(lib_path)
-    device.upload(lib_path)
-    lib = device.load_module(lib_name)
-    return lib
+        temp = utils.tempdir()
+        dso_binary = "dev_lib_cl.so"
+        dso_binary_path = temp.relpath(dso_binary)
+        ctx = remote.cl(0)
+        lib.export_library(dso_binary_path, fcompile=ndk.create_shared)
+        remote.upload(dso_binary_path)
+        rlib = remote.load_module(dso_binary)
+        m = graph_runtime.create(graph, rlib, ctx)
+    m.set_input(**params)
+    m.set_input(**inputs)
+    m.run()
+    return m.get_output(0)
+
+
+# build module run with opencl or clml target with vm executor
+def build_and_run_vm(
+    remote,
+    mod,
+    params1,
+    inputs,
+    target="llvm",
+    enable_clml=False,
+    stat_file=None,
+):
+    if remote is None:
+        target_host = "llvm"
+    else:
+        target_host = "llvm -mtriple=arm64-linux-android"
+
+    target_host = tvm.target.Target(target_host)
+    target = tvm.target.Target(target, target_host)
+    if isinstance(mod, relay.Function):
+        module = tvm.IRModule({})
+        module["main"] = mod
+        mod = module
+    elif isinstance(mod, tvm.relay.expr.Call):
+        mod = tvm.IRModule.from_expr(mod)
+
+    with autotvm.apply_history_best(stat_file):
+        with tvm.transform.PassContext(opt_level=3):
+            if enable_clml:
+                mod = clml.partition_for_clml(mod, params1)
+            vmc = relay.vm.compile(mod, target=target, params=params1)
+
+    if remote is None:
+        dev = tvm.opencl()
+        vm = VirtualMachine(vmc, dev, "naive")
+    else:
+        temp = utils.tempdir()
+        dso_binary = "dev_lib_cl.so"
+        dso_binary_path = temp.relpath(dso_binary)
+        dev = remote.cl(0)
+        vmc.mod.export_library(dso_binary_path, cc=NDK_CROSS_COMPILER)
+        remote.upload(dso_binary_path)
+        rlib = remote.load_module(dso_binary)
+        vm = VirtualMachine(rlib, dev, "naive")
+    inputs_data = {}
+    for key in inputs.keys():
+        inputs_data[key] = tvm.nd.array(inputs[key], dev)
+    for k, v in params1.items():
+        inputs_data[k] = tvm.nd.array(v, dev)
+    vm.set_input("main", **inputs_data)
+    vm.invoke_stateful("main")
+    out = vm.get_outputs()[0]
+
+    return out
 
 
 def extract_clml_modules(module):
@@ -219,18 +194,23 @@ def extract_clml_modules(module):
 
 
 def verify_codegen(
+    remote,
     mod,
-    known_good_codegen,
-    device,
     params,
+    known_good_codegen,
+    target="llvm",
     num_clml_modules=1,
     tvm_ops=0,
 ):
+    if remote is None:
+        target_host = "llvm"
+    else:
+        target_host = "llvm -mtriple=arm64-linux-android"
+
     """Check clml codegen against a known good output."""
     if isinstance(mod, tvm.relay.expr.Call):
         mod = tvm.IRModule.from_expr(mod)
-    with tvm.transform.PassContext(opt_level=3, disabled_pass=["AlterOpLayout"]):
-        mod = clml.preprocess_module(mod)
+    with tvm.transform.PassContext(opt_level=3):
         mod = clml.partition_for_clml(mod, params)
         tvm_op_count = get_cpu_op_count(mod)
         assert tvm_op_count == tvm_ops, "Got {} TVM operators, expected {}".format(
@@ -246,7 +226,7 @@ def verify_codegen(
         ), "Got {} Open CLML partitions, expected {}".format(partition_count, num_clml_modules)
     relay.backend.te_compiler.get().clear()
 
-    module = relay.build(mod, target=device.target, target_host=device.target_host, params=params)
+    module = relay.build(mod, target=target, target_host=target_host, params=params)
     clml_modules = extract_clml_modules(module)
     assert len(clml_modules) == num_clml_modules, (
         f"The number of CLML modules produced ({len(clml_modules)}) does not "

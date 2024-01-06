@@ -189,6 +189,8 @@ def docker(
         env["SCCACHE_CACHE_SIZE"] = os.getenv("SCCACHE_CACHE_SIZE", "50G")
         env["SCCACHE_SERVER_PORT"] = os.getenv("SCCACHE_SERVER_PORT", "4226")
 
+    env["PLATFORM"] = name
+
     docker_bash = REPO_ROOT / "docker" / "bash.sh"
 
     command = [docker_bash]

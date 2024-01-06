@@ -336,10 +336,10 @@ the arguments to the call node, as below. In ``src/relay/op/tensor/transform.cc`
         return Call(op, {data}, Attrs(attrs), {});
     }
 
-    TVM_REGISTER_GLOBAL("relay.op._make.cumsum").set_body_typed(MakeCumprod);
+    TVM_REGISTER_GLOBAL("relay.op._make.cumprod").set_body_typed(MakeCumprod);
 
 Where ``TVM_REGISTER_GLOBAL`` exposes the ``MakeCumsum`` and ``MakeCumprod`` functions
-in Python via ``relay.op._make.cumsum(...)`` and ``relay.op._make.cumsum(...)``.
+in Python via ``relay.op._make.cumsum(...)`` and ``relay.op._make.cumprod(...)``.
 
 7. Including a Cleaner Python API Hook
 --------------------------------------
