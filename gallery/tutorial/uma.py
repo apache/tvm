@@ -254,7 +254,15 @@ Making your Hardware Accelerator TVM-ready with UMA
 #        return 0;
 #   }
 #
-
+######################################################################
+# QVanilla
+===================================================
+# **Author**: Samira Ahmadifarsani
+# **Vanilla** accelerator is a modified version of Vanilla, which can process
+# QNN Conv2D followed by a bias addition operator.
+# To construct the backend for this custom accelerator, the
+# initial step is defining the necessary pattern to annotate and
+# partition the supported operators.
 
 ###########################################################
 # Strawberry
@@ -274,7 +282,34 @@ Making your Hardware Accelerator TVM-ready with UMA
 # the TVM discuss forum: `Link <https://discuss.tvm.apache.org/t/rfc-uma-universal-modular-accelerator-interface/12039>`_.
 # We are eager to extend this tutorial to provide guidance on making further classes of AI hardware
 # accelerators TVM-ready using the UMA interface.
-#
+# After the partitioning process, any unsupported Relay and
+# QNN operators are handled using the default TVM flow, which
+# includes the canonicalization pass to lower QNN operators to
+# existing Relay operators. Without canonicalizing in UMA pipeline, UMA lower cannot lower down
+# qnn.conv2d to TIR because it has no specified schedules and
+# implementations in TOPI. In other words, TVM requires the
+# user to provide a schedule, which is a description of how the
+# computation should be performed. To address this, we add a
+# strategy that specifies the computation and the schedule to be
+# used. In this case, the strategy is the TOPI implementation
+# for the qnn.conv2d operator, explicitly targeting the Hexagon
+# processor. 
+# Once the lowering process to TIR is completed, the TIR
+# pass is responsible for extracting essential data and parameters
+# from the generated TIR representation to interface the generated code and the custom accelerator through the registered
+C/C++ file in the codegen. This includes information such
+as input feature, kernel, and bias data pointers, input and
+kernel dimensions, as well as quantization zero points. In
+the Vanilla example, the TIR pass is designed to handle
+the computation block of the nn.conv2d operator. However,
+for the QNN Conv2D operator, the TIR function depends
+on the specified strategy, requiring adjustments to the pass.
+Specifically, modifications are made to the pass to extract
+data from the computation blocks based on the Hexagon
+strategy, and provide the zero-point values for the quantized
+computation.
+You can find the code blocks of QVanilla in this directory: 
+
 
 ######################################################################
 # References
