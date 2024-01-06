@@ -119,6 +119,15 @@ def _server_env(load_library, work_path=None):
     return temp
 
 
+def _serve_loop(sock, load_library, work_path=None):
+    """Server loop"""
+    sockfd = sock.fileno()
+    temp = _server_env(load_library, work_path)
+    _ffi_api.ServerLoop(sockfd)
+    if not work_path:
+        temp.remove()
+
+
 def _parse_server_opt(opts):
     # parse client options
     ret = {}
@@ -128,25 +137,21 @@ def _parse_server_opt(opts):
     return ret
 
 
-def _serving(sock, addr, opts, load_library):
+def _serving(conn, addr, opts, load_library):
     logger.info(f"connected from {addr}")
     work_path = utils.tempdir()
     old_cwd = os.getcwd()
     os.chdir(work_path.path)  # Avoiding file name conflict between sessions.
     logger.info(f"start serving at {work_path.path}")
 
-    def _serve_loop():
-        _server_env(load_library, work_path)
-        _ffi_api.ServerLoop(sock.fileno())
-
-    server_proc = multiprocessing.Process(target=_serve_loop)
+    server_proc = multiprocessing.Process(target=_serve_loop, args=(conn, load_library, work_path))
     server_proc.start()
     server_proc.join(opts.get("timeout", None))  # Wait until finish or timeout.
 
     if server_proc.is_alive():
         logger.info("timeout in RPC session, kill..")
         _ffi_api.ReturnException(
-            sock.fileno(),
+            conn.fileno(),
             f'RPCSessionTimeoutError: Your {opts["timeout"]}s session has expired, '
             f'try to increase the "session_timeout" value.',
         )
@@ -166,7 +171,7 @@ def _serving(sock, addr, opts, load_library):
     logger.info(f"finish serving {addr}")
     os.chdir(old_cwd)
     work_path.remove()
-    sock.close()
+    conn.close()
 
 
 def _listen_loop(sock, port, rpc_key, tracker_addr, load_library, custom_addr):
