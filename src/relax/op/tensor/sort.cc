@@ -24,6 +24,8 @@
 
 #include "sort.h"
 
+#include <vector>
+
 namespace tvm {
 namespace relax {
 
