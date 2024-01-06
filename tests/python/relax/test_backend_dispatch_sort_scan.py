@@ -50,8 +50,6 @@ def test_dispatch_cumsum():
             T.func_attr({"tir.noalias": T.bool(True)})
             A = T.match_buffer(var_A, (T.int64(2), T.int64(3)), offset_factor=1)
             with T.block("cumsum_generic"):
-                T.reads(A[T.int64(0) : T.int64(2), T.int64(0) : T.int64(3)])
-                T.writes(out_buf[T.int64(0) : T.int64(2), T.int64(0) : T.int64(3)])
                 for fused in T.parallel(T.int64(2)):
                     out_buf[
                         fused * T.int64(3) // T.int64(3), fused * T.int64(3) % T.int64(3)
@@ -150,8 +148,8 @@ def test_dispatch_sort():
             data_buf = T.match_buffer(var_A, (m, T.int64(3)), align=8)
             out_buf = T.match_buffer(var_sort_cpu, (m, T.int64(3)), align=8)
             with T.block("sort_cpu"):
-                T.reads(data_buf[T.int64(0) : m, T.int64(0) : T.int64(3)])
-                T.writes(out_buf[T.int64(0) : m, T.int64(0) : T.int64(3)])
+                T.reads()
+                T.writes()
                 T.call_packed(
                     "tvm.contrib.sort.sort",
                     T.tvm_stack_make_array(

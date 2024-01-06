@@ -644,8 +644,7 @@ def test_autogptq_decode_gemv():
         for i, j in T.grid(T.int64(4096), T.int64(4096)):
             with T.block("decode"):
                 v_i, v_j = T.axis.remap("SS", [i, j])
-                D = T.Buffer((T.int64(4096),), "uint32")
-                T.reads(lv9[v_i // T.int64(8), v_j], lv10[D[v_i], v_j // T.int64(8)], lv12[v_i], lv11[D[v_i], v_j])
+                T.reads(lv9[v_i // T.int64(8), v_j], lv10[lv12[v_i], v_j // T.int64(8)], lv12[v_i], lv11[lv12[v_i], v_j])
                 T.writes(decode_intermediate[v_i, v_j])
                 decode_intermediate[v_i, v_j] = (T.Cast("float16", T.bitwise_and(T.shift_right(lv9[v_i // T.int64(8), v_j], T.Cast("uint32", v_i % T.int64(8) * T.int64(4))), T.uint32(15))) - (T.Cast("float16", T.bitwise_and(T.shift_right(lv10[lv12[v_i], v_j // T.int64(8)], T.Cast("uint32", v_j % T.int64(8) * T.int64(4))), T.uint32(15))) + T.float16(1))) * lv11[lv12[v_i], v_j]
         for i0, i1, i2, k in T.grid(T.int64(1), T.int64(1), T.int64(4096), T.int64(4096)):

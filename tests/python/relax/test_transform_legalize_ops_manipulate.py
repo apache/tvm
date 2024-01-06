@@ -1352,12 +1352,6 @@ def test_scatter_elements():
                 var_rxplaceholder_2, (T.int64(2), T.int64(2)), offset_factor=1
             )
             with T.block("scatter_elements_generic"):
-                T.reads(
-                    rxplaceholder[T.int64(0) : T.int64(4), T.int64(0) : T.int64(4)],
-                    rxplaceholder_1[T.int64(0) : T.int64(2), T.int64(0) : T.int64(2)],
-                    rxplaceholder_2[T.int64(0) : T.int64(2), T.int64(0) : T.int64(2)],
-                )
-                T.writes(out_buf[T.int64(0) : T.int64(4), T.int64(0) : T.int64(4)])
                 for i in T.parallel(T.int64(16)):
                     out_buf[i // T.int64(4), i % T.int64(4)] = rxplaceholder[
                         i // T.int64(4), i % T.int64(4)
@@ -1453,12 +1447,6 @@ def test_scatter_elements_symbolic():
             rxplaceholder_2 = T.match_buffer(var_rxplaceholder_2, (m, n), offset_factor=1)
             out_buf = T.match_buffer(var_scatter_elements_generic, (a, b))
             with T.block("scatter_elements_generic"):
-                T.reads(
-                    rxplaceholder[T.int64(0) : a, T.int64(0) : b],
-                    rxplaceholder_1[T.int64(0) : m, T.int64(0) : n],
-                    rxplaceholder_2[T.int64(0) : m, T.int64(0) : n],
-                )
-                T.writes(out_buf[T.int64(0) : a, T.int64(0) : b])
                 for i in T.parallel(a * b):
                     out_buf[i // b, i % b] = rxplaceholder[i // b, i % b]
                 for fused in T.parallel(m):
