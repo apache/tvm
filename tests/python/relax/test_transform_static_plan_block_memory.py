@@ -15,9 +15,11 @@
 # specific language governing permissions and limitations
 # under the License.
 
+import pytest
+
 import tvm
 import tvm.testing
-from tvm import relax
+from tvm import TVMError, relax
 from tvm.script import ir as I
 from tvm.script import relax as R
 from tvm.script import tir as T
@@ -1174,6 +1176,18 @@ def test_function_independence():
 
     mod = relax.transform.StaticPlanBlockMemory()(Module)
     tvm.ir.assert_structural_equal(mod, Expected)
+
+
+def test_invalid_tir_var_upper_bound():
+    @tvm.script.ir_module
+    class Module:
+        @R.function
+        def main(x: R.Tensor((2, "n"), dtype="float32")):
+            R.func_attr({"tir_var_upper_bound": {"n": [4]}, "relax.force_pure": True})
+            return x
+
+    with pytest.raises(TVMError):
+        relax.transform.StaticPlanBlockMemory()(Module)
 
 
 if __name__ == "__main__":
