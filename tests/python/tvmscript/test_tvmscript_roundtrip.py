@@ -2689,14 +2689,14 @@ def test_match_buffer_region():
     outer_block = root.body.body.body.block
     assert len(outer_block.match_buffers) == 1
     buffer_C = outer_block.match_buffers[0].buffer
-    tvm.ir.assert_structural_equal(buffer_C.shape, [16, 1, 4])
+    tvm.ir.assert_structural_equal(buffer_C.shape, [T.int32(16), T.int32(1), T.int32(4)])
 
     assert isinstance(outer_block.body, tir.stmt.For)
     assert isinstance(outer_block.body.body, tir.stmt.BlockRealize)
     inner_block = outer_block.body.body.block
     assert len(inner_block.match_buffers) == 1
     buffer_D = inner_block.match_buffers[0].buffer
-    tvm.ir.assert_structural_equal(buffer_D.shape, [4, 1, 4])
+    tvm.ir.assert_structural_equal(buffer_D.shape, [T.int32(4), T.int32(1), T.int32(4)])
 
 
 def block_elements():

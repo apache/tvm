@@ -240,6 +240,8 @@ class CodeGenVMTIR : public ExprFunctor<Optional<PrimExpr>(const Expr&)> {
         EmitAllocTensor(call, dst_reg);
       } else if (call_node->op == kill_object_op_) {
         dst_reg = EmitKillObject(call);
+      } else if (call_node->op == tuple_getitem_op_) {
+        EmitTupleAccess(call, dst_reg);
       } else {
         // every "normal" operator is lowered to a global var in the IRModule. The Attrs for those
         // ops are handled in a pass when lowering them to TIR.
@@ -433,6 +435,12 @@ class CodeGenVMTIR : public ExprFunctor<Optional<PrimExpr>(const Expr&)> {
     return dst_reg;
   }
 
+  void EmitTupleAccess(const Call& call_node, int64_t dst_register) {
+    ICHECK_EQ(call_node->args.size(), 2);
+    auto args = call_node->args.Map([this](Expr expr) { return VisitExpr(expr).value(); });
+    EmitCallPacked("vm.builtin.tuple_getitem", args, dst_register);
+  }
+
   void EmitCallBuiltinWithCtx(const Call& call_node, int64_t dst_reg) {
     Array<PrimExpr> args;
     // if context is required, pass as first argument.
@@ -522,6 +530,7 @@ class CodeGenVMTIR : public ExprFunctor<Optional<PrimExpr>(const Expr&)> {
   const Op& kill_object_op_ = Op::Get("relax.vm.kill_object");
   const Op& call_builtin_with_ctx_op_ = Op::Get("relax.call_builtin_with_ctx");
   const Op& null_value_op_ = Op::Get("relax.null_value");
+  const Op& tuple_getitem_op_ = Op::Get("relax.tuple_get_item_dyn");
 };
 
 /*!

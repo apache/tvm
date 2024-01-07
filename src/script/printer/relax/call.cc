@@ -249,6 +249,24 @@ Optional<ExprDoc> PrintRelaxPrint(const relax::Call& n, const ObjectPath& n_p,
   return Relax(d, "print")->Call(args, {"format"}, {first_arg});
 }
 
+Optional<ExprDoc> PrintTupleGetItem(const relax::Call& call, const ObjectPath& path,
+                                    const IRDocsifier& doc) {
+  static const Op& print_op = Op::Get("relax.tuple_get_item_dyn");
+  if (!call->op.same_as(print_op)) {
+    return NullOpt;
+  }
+
+  if (!doc->cfg->syntax_sugar) {
+    // Fall back to the default printing for builtins as `R.tuple_get_item_dyn`
+    return NullOpt;
+  }
+
+  ICHECK_EQ(call->args.size(), 2);
+  ExprDoc tuple = doc->AsDoc<ExprDoc>(call->args[0], path->Attr("args")->ArrayIndex(0));
+  ExprDoc index = doc->AsDoc<ExprDoc>(call->args[1], path->Attr("args")->ArrayIndex(1));
+  return tuple[{index}];
+}
+
 TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
     .set_dispatch<relax::Call>(  //
         "", [](relax::Call n, ObjectPath n_p, IRDocsifier d) -> Doc {
@@ -270,6 +288,10 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
           }
           // Special case: print
           if (Optional<ExprDoc> doc = PrintRelaxPrint(n, n_p, d)) {
+            return doc.value();
+          }
+          // Special case: tuple_get_item_dyn
+          if (Optional<ExprDoc> doc = PrintTupleGetItem(n, n_p, d)) {
             return doc.value();
           }
           ExprDoc prefix{nullptr};

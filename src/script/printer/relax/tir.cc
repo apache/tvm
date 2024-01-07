@@ -18,6 +18,7 @@
  */
 #include <tvm/ir/expr.h>
 
+#include "../tir/utils.h"
 #include "./utils.h"
 
 namespace tvm {
@@ -72,8 +73,11 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable).set_dispatch<tir::SizeVar>("relax", P
 TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
     .set_dispatch<tvm::IntImm>(                                             //
         "relax", [](tvm::IntImm n, ObjectPath n_p, IRDocsifier d) -> Doc {  //
-          // TODO(@junrushao): support non-int64 cases
-          return LiteralDoc::Int(n->value, n_p);
+          ExprDoc doc = LiteralDoc::Int(n->value, n_p);
+          if (n->dtype != DataType::Int(64)) {
+            doc = TIR(d, DType2Str(n->dtype))->Call({doc});
+          }
+          return doc;
         });
 
 TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
@@ -111,11 +115,9 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
 
 TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
     .set_dispatch<Range>("relax", [](Range range, ObjectPath p, IRDocsifier d) -> Doc {
-      return Relax(d, "Range")
-          ->Call({
-              d->AsDoc<ExprDoc>(range->min, p->Attr("min")),
-              d->AsDoc<ExprDoc>(range->extent + range->min, p->Attr("extent")),
-          });
+      With<TIRFrame> frame(d, range);
+      (*frame)->AddDispatchToken(d, "tir");
+      return d->AsDoc<ExprDoc>(range, p);
     });
 
 }  // namespace printer

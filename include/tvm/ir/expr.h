@@ -769,53 +769,95 @@ inline const TTypeNode* RelayExprNode::type_as() const {
 
 namespace tvm {
 namespace runtime {
-// common rule for RetValue and ArgValue
-template <>
-struct PackedFuncValueConverter<PrimExpr> {
-  static PrimExpr From(const TVMPODValue_& val) {
-    if (val.type_code() == kTVMNullptr) {
-      return PrimExpr(ObjectPtr<Object>(nullptr));
-    }
-    if (val.type_code() == kDLInt) {
-      int64_t value = val.operator int64_t();
-      if (value > std::numeric_limits<int>::max() || value < std::numeric_limits<int>::min()) {
-        return IntImm(runtime::DataType::Int(64), value);
-      }
-      return IntImm(runtime::DataType::Int(32), val.operator int());
-    }
-    if (val.type_code() == kDLFloat) {
-      return FloatImm(runtime::DataType::Float(32), val.operator double());
-    }
 
-    return PrimExpr::FromObject_(val.AsObjectRef<ObjectRef>());
+// Automatic conversion into IntImm, Integer, and Bool, when called
+// through the FFI.  Automatic conversions into PrimExpr are
+// registered in "tvm/tir/expr.h", as it includes conversions to the
+// TIR-only StringImm.
+//
+// While the FFI only requires the From() method, these
+// implementations also define a TryFrom() method to avoid duplicate
+// logic in the PrimExpr conversion.
+
+template <>
+struct PackedFuncValueConverter<tvm::IntImm> {
+  static Optional<tvm::IntImm> TryFrom(const TVMPODValue_& val) {
+    if (auto opt = val.TryAsInt()) {
+      int64_t value = opt.value();
+      auto dtype =
+          (value > std::numeric_limits<int>::max() || value < std::numeric_limits<int>::min())
+              ? DataType::Int(64)
+              : DataType::Int(32);
+      return IntImm(dtype, value);
+    } else if (auto opt = val.TryAsBool()) {
+      return IntImm(DataType::Int(32), opt.value());
+    } else {
+      return NullOpt;
+    }
+  }
+
+  static tvm::IntImm From(const TVMPODValue_& val) {
+    if (auto opt = TryFrom(val)) {
+      return opt.value();
+    } else {
+      return val.AsObjectRef<tvm::IntImm>();
+    }
   }
 };
 
 template <>
 struct PackedFuncValueConverter<tvm::Integer> {
   static tvm::Integer From(const TVMPODValue_& val) {
-    if (val.type_code() == kTVMNullptr) {
-      return Integer(ObjectPtr<Object>(nullptr));
+    if (auto opt = val.TryAsInt()) {
+      return Integer(opt.value());
+    } else if (auto opt = val.TryAsBool()) {
+      return Integer(opt.value());
+    } else {
+      return val.AsObjectRef<tvm::Integer>();
     }
-    if (val.type_code() == kTVMArgInt) {
-      return Integer(val.operator int());
-    }
-    return val.AsObjectRef<tvm::Integer>();
   }
 };
 
 template <>
 struct PackedFuncValueConverter<tvm::Bool> {
+  static Optional<tvm::Bool> TryFrom(const TVMPODValue_& val) {
+    if (auto opt = val.TryAsBool()) {
+      return Bool(opt.value());
+    } else if (auto opt = val.TryAsInt()) {
+      int value = opt.value();
+      ICHECK(value == 0 || value == 1)
+          << "ValueError: boolean value can only be 0 or 1, but get " << value;
+      return Bool(static_cast<bool>(value));
+    } else {
+      return NullOpt;
+    }
+  }
+
   static tvm::Bool From(const TVMPODValue_& val) {
-    if (val.type_code() == kTVMNullptr) {
-      return Bool(ObjectPtr<Object>(nullptr));
+    if (auto opt = TryFrom(val)) {
+      return opt.value();
+    } else {
+      return val.AsObjectRef<tvm::Bool>();
     }
-    if (val.type_code() == kTVMArgInt) {
-      int v = val.operator int();
-      ICHECK(v == 0 || v == 1) << "ValueError: boolean value can only be 0 or 1, but get " << v;
-      return Bool(static_cast<bool>(v));
+  }
+};
+
+template <>
+struct PackedFuncValueConverter<tvm::FloatImm> {
+  static Optional<tvm::FloatImm> TryFrom(const TVMPODValue_& val) {
+    if (auto opt = val.TryAsFloat()) {
+      return FloatImm(runtime::DataType::Float(32), opt.value());
+    } else {
+      return NullOpt;
     }
-    return val.AsObjectRef<tvm::Bool>();
+  }
+
+  static tvm::FloatImm From(const TVMPODValue_& val) {
+    if (auto opt = TryFrom(val)) {
+      return opt.value();
+    } else {
+      return val.AsObjectRef<tvm::FloatImm>();
+    }
   }
 };
 

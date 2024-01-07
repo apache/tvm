@@ -215,7 +215,7 @@ class ExprWithOp(Expr, Scriptable):
         """
         return Call(self, args, attrs=attrs)
 
-    def __getitem__(self, index: int) -> "ExprWithOp":
+    def __getitem__(self, index: Union[Expr, PrimExpr, int]) -> "ExprWithOp":
         """Get the i-th element of the tuple or Expr with TupleType.
 
         Parameters
@@ -232,17 +232,7 @@ class ExprWithOp(Expr, Scriptable):
         result: ExprWithOp
             The result expression.
         """
-        try:
-            return TupleGetItem(self, index)
-        except tvm.TVMError as err:
-            # For Python objects with __getitem__, but without
-            # __len__, tuple unpacking is done by iterating over
-            # sequential indices until IndexError is raised.
-            # Therefore, convert from TVMError to IndexError for
-            # compatibility.
-            if "Index out of bounds" in err.args[0]:
-                raise IndexError from err
-            raise
+        return tvm.relax.op.tuple_get_item(self, index)
 
 
 @tvm._ffi.register_object("relax.expr.Call")
@@ -560,7 +550,9 @@ class PrimValue(Expr, Scriptable):
     value: PrimExpr
 
     def __init__(self, value: Union[PrimExpr, int], span: Optional[Span] = None) -> None:
-        if isinstance(value, int):
+        if isinstance(value, bool):
+            value = tvm.tir.IntImm("bool", value)
+        elif isinstance(value, int):
             value = tvm.tir.IntImm("int64", value)
         self.__init_handle_by_constructor__(_ffi_api.PrimValue, value, span)  # type: ignore
 

@@ -41,11 +41,12 @@ def test_function():
     _assert_print(
         func,
         """
+# from tvm.script import tir as T
 # from tvm.script import relax as R
 
 @R.function
 def func(a: R.Tensor((10, 10))) -> R.Tensor((10, 10)):
-    R.func_attr({"some_attr": 1})
+    R.func_attr({"some_attr": T.int32(1)})
     return a""",
     )
 
@@ -60,11 +61,12 @@ def test_lone_private_function():
     _assert_print(
         func,
         """
+# from tvm.script import tir as T
 # from tvm.script import relax as R
 
 @R.function(private=True)
 def main(a: R.Tensor((10, 10))) -> R.Tensor((10, 10)):
-    R.func_attr({"some_attr": 1})
+    R.func_attr({"some_attr": T.int32(1)})
     return a""",
     )
 
@@ -266,9 +268,19 @@ def test_func_type():
     )
 
 
-def test_prim_value():
-    obj = relax.PrimValue(1)
-    _assert_print(obj, "R.prim_value(1)")
+def test_prim_value_int64():
+    obj = relax.PrimValue(T.int64(1))
+    _assert_print(obj, "1")
+
+
+def test_prim_value_int32():
+    obj = relax.PrimValue(T.int32(1))
+    _assert_print(obj, "R.prim_value(T.int32(1))")
+
+
+def test_prim_value_int16():
+    obj = relax.PrimValue(T.int16(1))
+    _assert_print(obj, "R.prim_value(T.int16(1))")
 
 
 def test_string_imm():
@@ -721,6 +733,7 @@ def test_directly_construct_private_funcs():
         obj,
         """
 # from tvm.script import ir as I
+# from tvm.script import tir as T
 # from tvm.script import relax as R
 
 @I.ir_module
@@ -732,7 +745,7 @@ class Module:
 
     @R.function
     def baz(x: R.Tensor((), dtype="int32")) -> R.Tensor((), dtype="int32"):
-        R.func_attr({"relax.force_pure": 1})
+        R.func_attr({"relax.force_pure": T.bool(1)})
         y: R.Tuple = R.print(format=R.str("Hi there!"))
         z: R.Tensor((), dtype="int32") = R.add(x, x)
         return z
@@ -744,7 +757,7 @@ class Module:
 
     @R.function(private=True)
     def quux(x: R.Tensor((), dtype="int32")) -> R.Tensor((), dtype="int32"):
-        R.func_attr({"relax.force_pure": 1})
+        R.func_attr({"relax.force_pure": T.bool(1)})
         y: R.Tuple = R.print(format=R.str("Lol"))
         z: R.Tensor((), dtype="int32") = R.multiply(x, x)
         return z

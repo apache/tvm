@@ -102,6 +102,7 @@ from .set import unique
 from .sort import sort
 from .statistical import cumsum, max, mean, min, prod, std, sum, variance
 from .ternary import ewise_fma
+from .tuple import tuple_get_item, tuple_get_item_dyn
 from .unary import (
     abs,
     acos,
