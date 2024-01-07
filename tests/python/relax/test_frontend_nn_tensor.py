@@ -14,14 +14,14 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+import numpy as np
 import pytest
+
 import tvm
 import tvm.testing
 from tvm import relax
-from tvm.relax.frontend.nn import Tensor, Module, spec
+from tvm.relax.frontend.nn import Module, Tensor, spec
 from tvm.script import relax as R
-
-import numpy as np
 
 
 def test_tensor_from_numpy():
@@ -136,8 +136,8 @@ def test_tensor_op_datatype():
 def test_tensor_op_manipulate():
     class Model(Module):
         def test(self, x: Tensor):
-            z0 = x.reshape([2, 5, 2])
-            z1 = x.permute_dims([2, 1, 0])
+            z0 = x.reshape(2, 5, 2)
+            z1 = x.permute_dims(2, 1, 0)
             z2 = x.repeat(2, axis=1)
             return (z0, z1, z2)
 
