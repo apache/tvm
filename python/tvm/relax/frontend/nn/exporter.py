@@ -111,10 +111,7 @@ class Exporter:
             return result
 
         # pylint: enable=protected-access
-
-        # symbolic shape's name mapping to its tir.Var so that we reuse tir.Var (across all methods)
-        str2var_params: typing.Dict[str, tir.Var] = {}
-        params = _params()
+        params = None
         effects = _effects()
         ext_mods = self.extern_mods
         with self:
@@ -124,6 +121,9 @@ class Exporter:
                         outputs = _emit_effect_init(self.builder, effects)
                     self.builder.emit_func_output(outputs, params=[])
             for method_name, method_spec in zip(spec.method_names, spec.method_specs):
+                # symbolic shape's name mapping to its tir.Var for reuse
+                str2var_params: typing.Dict[str, tir.Var] = {}
+                params = _params()  # Re-initialize so symbolic shapes not shared across methods
                 len_args = len(method_spec.arg_specs)
                 len_effects = {
                     "packed": 1,
