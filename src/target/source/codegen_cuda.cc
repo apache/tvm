@@ -35,6 +35,7 @@
 
 #include "../../tir/transforms/ir_utils.h"
 #include "literal/cuda_half_t.h"
+#include "literal/cuda_int8_t.h"
 #include "ptx.h"
 
 namespace tvm {
@@ -130,6 +131,7 @@ std::string CodeGenCUDA::Finish() {
   if (enable_int8_) {
     decl_stream << "#if defined(__CUDA_ARCH__) && (__CUDA_ARCH__ >= 610)\n";
     decl_stream << "#include <sm_61_intrinsics.h>\n";
+    decl_stream << _cuda_int8_t_def;
     decl_stream << "#endif\n";
   }
 
