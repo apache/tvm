@@ -18,13 +18,13 @@
  */
 
 /*!
- * \file sort.h
+ * \file sorting.h
  * \brief The functions to make Relax tensor sorting operator calls.
  */
-#ifndef TVM_RELAX_OP_TENSOR_SORT_H_
-#define TVM_RELAX_OP_TENSOR_SORT_H_
+#ifndef TVM_RELAX_OP_TENSOR_SORTING_H_
+#define TVM_RELAX_OP_TENSOR_SORTING_H_
 
-#include <tvm/relax/attrs/sort.h>
+#include <tvm/relax/attrs/sorting.h>
 
 #include <algorithm>
 #include <utility>
@@ -68,4 +68,4 @@ Expr topk(Expr data, int k, int axis, String ret_type, bool largest, DataType dt
 }  // namespace relax
 }  // namespace tvm
 
-#endif  // TVM_RELAX_OP_TENSOR_SORT_H_
+#endif  // TVM_RELAX_OP_TENSOR_SORTING_H_

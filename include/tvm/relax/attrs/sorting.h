@@ -18,11 +18,11 @@
  */
 
 /*!
- * \file tvm/relax/attrs/sort.h
+ * \file tvm/relax/attrs/sorting.h
  * \brief Attributes for sorting operators.
  */
-#ifndef TVM_RELAX_ATTRS_SORT_H_
-#define TVM_RELAX_ATTRS_SORT_H_
+#ifndef TVM_RELAX_ATTRS_SORTING_H_
+#define TVM_RELAX_ATTRS_SORTING_H_
 
 #include <tvm/relax/expr.h>
 #include <tvm/tir/index_map.h>
@@ -96,4 +96,4 @@ struct TopKAttrs : public tvm::AttrsNode<TopKAttrs> {
 }  // namespace relax
 }  // namespace tvm
 
-#endif  // TVM_RELAX_ATTRS_SORT_H_
+#endif  // TVM_RELAX_ATTRS_SORTING_H_

@@ -18,11 +18,11 @@
  */
 
 /*!
- * \file sort.cc
+ * \file sorting.cc
  * \brief sorting operators.
  */
 
-#include "sort.h"
+#include "sorting.h"
 
 #include <vector>
 
