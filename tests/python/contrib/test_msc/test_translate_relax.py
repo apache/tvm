@@ -26,16 +26,46 @@ from tvm.relax.frontend.torch import from_fx
 from tvm.contrib.msc.core.frontend import translate
 from tvm.contrib.msc.framework.tvm import codegen as tvm_codegen
 
+import numpy as np
+
 
 def verify_model(torch_model, input_info, opt_config=None):
     graph_model = fx.symbolic_trace(torch_model)
     with torch.no_grad():
-        expected = from_fx(graph_model, input_info)
-    expected = tvm.relax.transform.CanonicalizeBindings()(expected)
+        orig_mod = from_fx(graph_model, input_info)
 
-    graph, weights = translate.from_relax(expected, opt_config=opt_config)
-    mod = tvm_codegen.to_relax(graph, weights, codegen_config={"explicit_name": False})
-    tvm.ir.assert_structural_equal(mod, expected)
+    target = "llvm"
+    dev = tvm.cpu()
+    args = [tvm.nd.array(np.random.random(size=shape).astype(dtype)) for shape, dtype in input_info]
+
+    def _tvm_runtime_to_np(obj):
+        if isinstance(obj, tvm.runtime.NDArray):
+            return obj.numpy()
+        elif isinstance(obj, tvm.runtime.ShapeTuple):
+            return np.array(obj, dtype="int64")
+        elif isinstance(obj, (list, tvm.ir.container.Array)):
+            return [_tvm_runtime_to_np(item) for item in obj]
+        elif isinstance(obj, tuple):
+            return tuple(_tvm_runtime_to_np(item) for item in obj)
+        else:
+            return obj
+
+    def _run_relax(relax_mod):
+        relax_mod = tvm.relax.transform.LegalizeOps()(relax_mod)
+        relax_exec = tvm.relax.build(relax_mod, target)
+        vm = tvm.relax.VirtualMachine(relax_exec, dev)
+        res = vm["main"](*args)
+
+        return _tvm_runtime_to_np(res)
+
+    rt_mod = tvm_codegen.to_relax(
+        *translate.from_relax(orig_mod, opt_config=opt_config),
+        codegen_config={"explicit_name": False},
+    )
+
+    orig_output = _run_relax(orig_mod)
+    rt_output = _run_relax(rt_mod)
+    tvm.testing.assert_allclose(orig_output, rt_output)
 
 
 def test_conv1d():
