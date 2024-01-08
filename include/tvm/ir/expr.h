@@ -781,7 +781,8 @@ namespace runtime {
 
 template <>
 struct PackedFuncValueConverter<tvm::IntImm> {
-  static Optional<tvm::IntImm> TryFrom(const TVMPODValue_& val) {
+  template <typename PODSubclass>
+  static Optional<tvm::IntImm> TryFrom(const PODSubclass& val) {
     if (auto opt = val.TryAsInt()) {
       int64_t value = opt.value();
       auto dtype =
@@ -796,31 +797,34 @@ struct PackedFuncValueConverter<tvm::IntImm> {
     }
   }
 
-  static tvm::IntImm From(const TVMPODValue_& val) {
+  template <typename PODSubclass>
+  static tvm::IntImm From(const PODSubclass& val) {
     if (auto opt = TryFrom(val)) {
       return opt.value();
     } else {
-      return val.AsObjectRef<tvm::IntImm>();
+      return val.template AsObjectRef<tvm::IntImm>();
     }
   }
 };
 
 template <>
 struct PackedFuncValueConverter<tvm::Integer> {
-  static tvm::Integer From(const TVMPODValue_& val) {
+  template <typename PODSubclass>
+  static tvm::Integer From(const PODSubclass& val) {
     if (auto opt = val.TryAsInt()) {
       return Integer(opt.value());
     } else if (auto opt = val.TryAsBool()) {
       return Integer(opt.value());
     } else {
-      return val.AsObjectRef<tvm::Integer>();
+      return val.template AsObjectRef<tvm::Integer>();
     }
   }
 };
 
 template <>
 struct PackedFuncValueConverter<tvm::Bool> {
-  static Optional<tvm::Bool> TryFrom(const TVMPODValue_& val) {
+  template <typename PODSubclass>
+  static Optional<tvm::Bool> TryFrom(const PODSubclass& val) {
     if (auto opt = val.TryAsBool()) {
       return tvm::Bool(opt.value());
     } else if (auto opt = val.TryAsInt()) {
@@ -833,11 +837,12 @@ struct PackedFuncValueConverter<tvm::Bool> {
     }
   }
 
-  static tvm::Bool From(const TVMPODValue_& val) {
+  template <typename PODSubclass>
+  static tvm::Bool From(const PODSubclass& val) {
     if (auto opt = TryFrom(val)) {
       return opt.value();
     } else {
-      return val.AsObjectRef<tvm::Bool>();
+      return val.template AsObjectRef<tvm::Bool>();
     }
   }
 };
@@ -852,11 +857,12 @@ struct PackedFuncValueConverter<tvm::FloatImm> {
     }
   }
 
-  static tvm::FloatImm From(const TVMPODValue_& val) {
+  template <typename PODSubclass>
+  static tvm::FloatImm From(const PODSubclass& val) {
     if (auto opt = TryFrom(val)) {
       return opt.value();
     } else {
-      return val.AsObjectRef<tvm::FloatImm>();
+      return val.template AsObjectRef<tvm::FloatImm>();
     }
   }
 };
@@ -873,8 +879,8 @@ struct PackedFuncValueConverter<tvm::FloatImm> {
  */
 template <>
 struct PackedFuncValueConverter<runtime::Int> {
-  template <typename PODType>
-  static runtime::Int From(const PODType& val) {
+  template <typename PODSubclass>
+  static runtime::Int From(const PODSubclass& val) {
     if (val.template IsObjectRef<tvm::IntImm>()) {
       return runtime::Int(val.template AsObjectRef<tvm::IntImm>()->value);
     } else {
