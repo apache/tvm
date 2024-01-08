@@ -24,3 +24,4 @@ from .matmul import Matmul
 from .reduction import Reduction
 from .transpose import Transpose
 from .general_reduction import GeneralReduction
+from .rmsnorm import RMSNorm
