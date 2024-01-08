@@ -674,7 +674,9 @@ void ExprMutator::ReEmitBinding(const VarBindingNode* binding, Expr new_value) {
   if (!temp.same_as(new_var)) {
     new_var = temp;
   }
+
   this->var_remap_[binding->var->vid] = new_var;
+  this->var_remap_[new_var->vid] = new_var;
 
   builder_->EmitNormalized(VarBinding(new_var, new_value));
 }
