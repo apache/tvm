@@ -296,21 +296,21 @@ def test_tvmc_print_pass_times(capsys, keras_simple, tmpdir_factory):
         (
             "--print-ir-after=[tir.SplitHostDevice]",
             (
-                "Print IR after:\ntir.SplitHostDevice\n# from tvm.script import ir as I\n",
+                "Print IR after: tir.SplitHostDevice\n# from tvm.script import ir as I\n",
                 "@I.ir_module",
             ),
         ),
         (
             "--print-ir-before=[tir.SplitHostDevice]",
-            ("Print IR before:\ntir.SplitHostDevice\n# from tvm.script import ir as I\n"),
+            ("Print IR before: tir.SplitHostDevice\n# from tvm.script import ir as I\n"),
         ),
         (
             "--print-ir-after=[tir.ThreadSync,tir.SplitHostDevice]",
-            ("tir.ThreadSync\n,tir.SplitHostDevice\n"),
+            ("tir.ThreadSync,tir.SplitHostDevice"),
         ),
         (
             "--print-ir-before=[tir.SplitHostDevice] --print-ir-after=[tir.SplitHostDevice]",
-            ("Print IR before:\ntir.SplitHostDevice\n", "Print IR after:\ntir.SplitHostDevice\n"),
+            ("Print IR before: tir.SplitHostDevice\n", "Print IR after: tir.SplitHostDevice\n"),
         ),
     ],
 )
