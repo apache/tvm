@@ -811,9 +811,7 @@ template <>
 struct PackedFuncValueConverter<tvm::Integer> {
   template <typename PODSubclass>
   static tvm::Integer From(const PODSubclass& val) {
-    if (auto opt = val.TryAsInt()) {
-      return Integer(opt.value());
-    } else if (auto opt = val.TryAsBool()) {
+    if (auto opt = PackedFuncValueConverter<tvm::IntImm>::TryFrom(val)) {
       return Integer(opt.value());
     } else {
       return val.template AsObjectRef<tvm::Integer>();
