@@ -18,8 +18,8 @@
  */
 
 /*!
- * \file tvm/relax/transform/expand_matmul_of_sum.cc
- * \brief Expand `matmul(x, A+B)` to `matmul(x, A) + matmul(x,B)`
+ * \file tvm/relax/transform/adjust_matmul_order.cc
+ * \brief Re-order `matmul(matmul(A,B), x)` to `matmul(A, matmul(B,x))`
  */
 
 #include <tvm/relax/analysis.h>
