@@ -121,8 +121,6 @@ class Exporter:
                         outputs = _emit_effect_init(self.builder, effects)
                     self.builder.emit_func_output(outputs, params=[])
             for method_name, method_spec in zip(spec.method_names, spec.method_specs):
-                # symbolic shape's name mapping to its tir.Var for reuse
-                str2var_params: typing.Dict[str, tir.Var] = {}
                 params = _params()  # Re-initialize so symbolic shapes not shared across methods
                 len_args = len(method_spec.arg_specs)
                 len_effects = {
@@ -135,9 +133,7 @@ class Exporter:
                     attrs={"num_input": len_args + len_effects},  # type: ignore
                 ):
                     with self.builder.dataflow():
-                        outputs, inputs = _emit_method(
-                            self.builder, method_spec, params, effects, str2var_params
-                        )
+                        outputs, inputs = _emit_method(self.builder, method_spec, params, effects)
                     self.builder.emit_func_output(outputs, inputs)
         mod = self.builder.finalize()
         return mod, params, ext_mods
@@ -161,9 +157,11 @@ def _emit_method(  # pylint: disable=too-many-locals,too-many-branches,too-many-
     spec: _spec.MethodSpec,
     params: typing.List[typing.Tuple[str, core.Parameter]],
     effects: typing.Optional[typing.List[typing.Tuple[str, core.Effect]]],
-    str2var_params: typing.Dict[str, tir.Var],
 ):
     # pylint: disable=protected-access
+    # symbolic shape's name mapping to its tir.Var for reuse
+    str2var_params: typing.Dict[str, tir.Var] = {}
+
     def _unwrap_ret(expr: typing.Any) -> typing.Any:
         if isinstance(expr, (core.Tensor, core.Object)):
             return expr._expr
