@@ -72,8 +72,40 @@ class PrinterConfigNode : public Object {
   bool syntax_sugar = true;
   /*! \brief Whether variable names should include the object's address */
   bool show_object_address = false;
-  /*! \brief Whether to show StructInfo that can be inferred from arguments */
-  bool show_inferable_type_annotations = true;
+
+  /*! \brief In Relax, whether to show all StructInfo annotations
+   *
+   * If true (default), all variable bindings will be annotated with
+   * the struct info of the variable being bound.
+   *
+   * If false, the annotations will only be shown when they are
+   * required for correct parsing of the Relax function.  For example,
+   * function parameters must always have struct info annotations, but
+   * the struct info for expressions within a function body may be inferred from their
+   * arguments, and are therefore
+   *
+   * Example:
+   *
+   *     # func.show(show_all_struct_info=True)
+   *     @R.function
+   *     def func(
+   *         A: R.Tensor((10, 20), dtype="float32"),
+   *         B: R.Tensor((10,20), dtype="float32"),
+   *     ) -> R.Tensor((10, 20), dtype="float32"):
+   *         C: R.Tensor((10,20), dtype="float32") = R.add(A, B2)
+   *         return C
+   *
+   *     # func.show(show_all_struct_info=False)
+   *     @R.function
+   *     def func(
+   *         A: R.Tensor((10, 20), dtype="float32"),
+   *         B: R.Tensor((10,20), dtype="float32"),
+   *     ) -> R.Tensor((10, 20), dtype="float32"):
+   *         C = R.add(A, B2)
+   *         return C
+   */
+  bool show_all_struct_info = true;
+
   /* \brief Object path to be underlined */
   Array<ObjectPath> path_to_underline = Array<ObjectPath>();
   /*! \brief Object path to be annotated. */
@@ -99,7 +131,7 @@ class PrinterConfigNode : public Object {
     v->Visit("num_context_lines", &num_context_lines);
     v->Visit("syntax_sugar", &syntax_sugar);
     v->Visit("show_object_address", &show_object_address);
-    v->Visit("show_inferable_type_annotations", &show_inferable_type_annotations);
+    v->Visit("show_all_struct_info", &show_all_struct_info);
     v->Visit("path_to_underline", &path_to_underline);
     v->Visit("path_to_annotate", &path_to_annotate);
     v->Visit("obj_to_underline", &obj_to_underline);

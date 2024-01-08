@@ -44,7 +44,7 @@ class PrinterConfig(Object):
     num_context_lines: int
     syntax_sugar: bool
     show_object_address: bool
-    show_inferable_type_annotations: bool
+    show_all_struct_info: bool
     path_to_underline: Optional[List[ObjectPath]]
     path_to_annotate: Optional[Dict[ObjectPath, str]]
     obj_to_underline: Optional[List[Object]]
@@ -68,7 +68,7 @@ class PrinterConfig(Object):
         num_context_lines: Optional[int] = None,
         syntax_sugar: bool = True,
         show_object_address: bool = False,
-        show_inferable_type_annotations: bool = True,
+        show_all_struct_info: bool = True,
         path_to_underline: Optional[List[ObjectPath]] = None,
         path_to_annotate: Optional[Dict[ObjectPath, str]] = None,
         obj_to_underline: Optional[List[Object]] = None,
@@ -91,7 +91,7 @@ class PrinterConfig(Object):
             "num_context_lines": num_context_lines,
             "syntax_sugar": syntax_sugar,
             "show_object_address": show_object_address,
-            "show_inferable_type_annotations": show_inferable_type_annotations,
+            "show_all_struct_info": show_all_struct_info,
             "path_to_underline": path_to_underline,
             "path_to_annotate": path_to_annotate,
             "obj_to_underline": obj_to_underline,
@@ -135,7 +135,7 @@ class Scriptable:
         num_context_lines: int = -1,
         syntax_sugar: bool = True,
         show_object_address: bool = False,
-        show_inferable_type_annotations: bool = True,
+        show_all_struct_info: bool = True,
         path_to_underline: Optional[List[ObjectPath]] = None,
         path_to_annotate: Optional[Dict[ObjectPath, str]] = None,
         obj_to_underline: Optional[List[Object]] = None,
@@ -176,9 +176,10 @@ class Scriptable:
             Whether to output with syntax sugar, set false for complete printing.
         show_object_address: bool = False
             Whether to include the object's address as part of the TVMScript name
-        show_inferable_type_annotations: bool = True
-            Whether to show type annotations that can be inferred from previous
-            annotations.
+        show_all_struct_info: bool = True
+            If True (default), annotate all variable bindings with the struct
+            info of that variable.  If False, only add annotations where
+            required for unambiguous round-trip of Relax -> TVMScript -> Relax.
         path_to_underline : Optional[List[ObjectPath]] = None
             Object path to be underlined
         path_to_annotate : Optional[Dict[ObjectPath, str]] = None
@@ -192,6 +193,7 @@ class Scriptable:
         -------
         script : str
             The TVM Script of the given TVM IR
+
         """
         return _script(
             self,
@@ -211,7 +213,7 @@ class Scriptable:
                 num_context_lines=num_context_lines,
                 syntax_sugar=syntax_sugar,
                 show_object_address=show_object_address,
-                show_inferable_type_annotations=show_inferable_type_annotations,
+                show_all_struct_info=show_all_struct_info,
                 path_to_underline=path_to_underline,
                 path_to_annotate=path_to_annotate,
                 obj_to_underline=obj_to_underline,
@@ -287,7 +289,7 @@ class Scriptable:
         num_context_lines: int = -1,
         syntax_sugar: bool = True,
         show_object_address: bool = False,
-        show_inferable_type_annotations: bool = True,
+        show_all_struct_info: bool = True,
         path_to_underline: Optional[List[ObjectPath]] = None,
         path_to_annotate: Optional[Dict[ObjectPath, str]] = None,
         obj_to_underline: Optional[List[Object]] = None,
@@ -351,9 +353,10 @@ class Scriptable:
             Whether to output with syntax sugar, set false for complete printing.
         show_object_address: bool = False
             Whether to include the object's address as part of the TVMScript name
-        show_inferable_type_annotations: bool = True
-            Whether to show type annotations that can be inferred from previous
-            annotations.
+        show_all_struct_info: bool = True
+            If True (default), annotate all variable bindings with the struct
+            info of that variable.  If False, only add annotations where
+            required for unambiguous round-trip of Relax -> TVMScript -> Relax.
         path_to_underline : Optional[List[ObjectPath]] = None
             Object path to be underlined
         path_to_annotate : Optional[Dict[ObjectPath, str]] = None
@@ -389,7 +392,7 @@ class Scriptable:
                 num_context_lines=num_context_lines,
                 syntax_sugar=syntax_sugar,
                 show_object_address=show_object_address,
-                show_inferable_type_annotations=show_inferable_type_annotations,
+                show_all_struct_info=show_all_struct_info,
                 path_to_underline=path_to_underline,
                 path_to_annotate=path_to_annotate,
                 obj_to_underline=obj_to_underline,

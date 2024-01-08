@@ -112,8 +112,8 @@ PrinterConfig::PrinterConfig(Map<String, ObjectRef> config_dict) {
   if (auto v = config_dict.Get("show_object_address")) {
     n->show_object_address = Downcast<IntImm>(v)->value;
   }
-  if (auto v = config_dict.Get("show_inferable_type_annotations")) {
-    n->show_inferable_type_annotations = Downcast<IntImm>(v)->value;
+  if (auto v = config_dict.Get("show_all_struct_info")) {
+    n->show_all_struct_info = Downcast<IntImm>(v)->value;
   }
 
   // Checking prefixes if they are valid Python identifiers.

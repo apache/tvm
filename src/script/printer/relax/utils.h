@@ -91,7 +91,7 @@ inline Optional<ExprDoc> StructInfoAsAnn(const relax::Var& v, const ObjectPath& 
       return NullOpt;
     }
   }
-  if (!d->cfg->show_inferable_type_annotations) {
+  if (!d->cfg->show_all_struct_info) {
     Optional<relax::StructInfo> inferred_sinfo = NullOpt;
     if (auto opt = rhs.as<relax::Call>()) {
       auto call = opt.value();

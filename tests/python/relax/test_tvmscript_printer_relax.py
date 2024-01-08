@@ -830,6 +830,12 @@ def func(x: R.Tensor((128, 128), dtype="float32")) -> R.Tensor((128, 128), dtype
 
 
 def test_hide_inferable_struct_info():
+    """Redundant type annotations can be omitted
+
+    When `show_all_struct_info=False`, TVMScript type annotations that
+    provide redundant struct info can be omitted.
+    """
+
     @R.function
     def func(A: R.Tensor([10, 20], "float32"), B: R.Tensor(ndim=2, dtype="float32")):
         # R.match_cast has the struct info as an argument, so it can
@@ -858,7 +864,7 @@ def test_hide_inferable_struct_info():
         return E
 
     _assert_print(
-        func.script(show_inferable_type_annotations=False),
+        func.script(show_all_struct_info=False),
         """
 # from tvm.script import relax as R
 
