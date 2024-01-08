@@ -112,6 +112,8 @@ class Exporter:
 
         # pylint: enable=protected-access
 
+        # symbolic shape's name mapping to its tir.Var so that we reuse tir.Var (across all methods)
+        str2var_params: typing.Dict[str, tir.Var] = {}
         params = _params()
         effects = _effects()
         ext_mods = self.extern_mods
@@ -133,7 +135,9 @@ class Exporter:
                     attrs={"num_input": len_args + len_effects},  # type: ignore
                 ):
                     with self.builder.dataflow():
-                        outputs, inputs = _emit_method(self.builder, method_spec, params, effects)
+                        outputs, inputs = _emit_method(
+                            self.builder, method_spec, params, effects, str2var_params
+                        )
                     self.builder.emit_func_output(outputs, inputs)
         mod = self.builder.finalize()
         return mod, params, ext_mods
@@ -157,6 +161,7 @@ def _emit_method(  # pylint: disable=too-many-locals,too-many-branches,too-many-
     spec: _spec.MethodSpec,
     params: typing.List[typing.Tuple[str, core.Parameter]],
     effects: typing.Optional[typing.List[typing.Tuple[str, core.Effect]]],
+    str2var_params: typing.Dict[str, tir.Var],
 ):
     # pylint: disable=protected-access
     def _unwrap_ret(expr: typing.Any) -> typing.Any:
@@ -184,8 +189,20 @@ def _emit_method(  # pylint: disable=too-many-locals,too-many-branches,too-many-
 
     def _params(mode: str) -> typing.List[rx.Var]:
         inputs: typing.List[rx.Var] = []
+
+        def _get_var(shape_var: tir.Var) -> tir.Var:
+            name = shape_var.name
+            if name in str2var_params:
+                return str2var_params[name]
+            var = tir.Var(name, "int64")
+            str2var_params[name] = var
+            return var
+
         for name, param in params:
-            var = core.Tensor.placeholder(param.shape, param.dtype, name)._expr
+            # Make sure the a symbolic shape is not re-registered (same as _method_spec_to_inputs)
+            # e.g. we do not see `vocab_size` for `lm_head` and `vocab_size_1` for `embed_tokens`
+            new_shape = [_get_var(x) if isinstance(x, tir.Var) else x for x in param.shape]
+            var = core.Tensor.placeholder(new_shape, param.dtype, name)._expr
             inputs.append(var)
             param._expr = var
         if mode == "none":
