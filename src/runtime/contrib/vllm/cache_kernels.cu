@@ -94,7 +94,7 @@ __global__ void reconstruct_from_cache_kernel(
                               block_offset;
 
     key[tgt_key_idx] = __ldg(&key_cache[src_key_idx]);
-    value[src_value_idx] = __ldg(&value_cache[tgt_value_idx]);
+    value[tgt_value_idx] = __ldg(&value_cache[src_value_idx]);
   }
 }
 
