@@ -519,7 +519,10 @@ spirv::Value CodeGenSPIRV::VisitExpr_(const CallNode* op) {
 spirv::Value CodeGenSPIRV::VisitExpr_(const RampNode* op) {
   std::vector<spirv::Value> values;
   spirv::Value base = MakeValue(op->base);
-  for (int i = 0; i < op->lanes; ++i) {
+  ICHECK(op->lanes->IsInstance<IntImmNode>())
+      << "Scalable vectors are not supported in codegen_spirv";
+  int lanes = static_cast<int>(Downcast<IntImm>(op->lanes)->value);
+  for (int i = 0; i < lanes; ++i) {
     spirv::Value v = base;
     if (i != 0) {
       spirv::Value offset = MakeValue(make_const(op->stride.dtype(), i) * op->stride);
@@ -533,7 +536,10 @@ spirv::Value CodeGenSPIRV::VisitExpr_(const RampNode* op) {
 spirv::Value CodeGenSPIRV::VisitExpr_(const BroadcastNode* op) {
   std::vector<spirv::Value> values;
   spirv::Value v = MakeValue(op->value);
-  for (int i = 0; i < op->lanes; i++) {
+  ICHECK(op->lanes->IsInstance<IntImmNode>())
+      << "Scalable vectors are not supported in codegen_spirv";
+  int lanes = static_cast<int>(Downcast<IntImm>(op->lanes)->value);
+  for (int i = 0; i < lanes; i++) {
     values.push_back(v);
   }
   return builder_->Concat(values);

@@ -1466,6 +1466,7 @@ llvm::Value* CodeGenLLVM::CreateIntrinsic(const CallNode* op) {
     return builder_->CreateAssumption(cond);
   } else if (op->op.same_as(builtin::tvm_thread_invariant())) {
     return MakeValue(op->args[0]);
+#if TVM_LLVM_VERSION >= 110
   } else if (op->op.same_as(builtin::vscale())) {
     llvm::Intrinsic::ID id = llvm::Intrinsic::vscale;
     llvm::Function* f = GetIntrinsicDecl(id, builder_->getInt32Ty(), {});
@@ -1475,6 +1476,7 @@ llvm::Value* CodeGenLLVM::CreateIntrinsic(const CallNode* op) {
     llvm::Function* f = GetIntrinsicDecl(id, DTypeToLLVMType(op->dtype),
                                          {builder_->getInt32Ty(), builder_->getInt32Ty()});
     return builder_->CreateCall(f, {MakeValue(op->args[0]), MakeValue(op->args[1])});
+#endif
   } else {
     LOG(FATAL) << "unknown intrinsic " << op->op;
   }
@@ -1872,24 +1874,17 @@ llvm::Value* CodeGenLLVM::VisitExpr_(const BroadcastNode* op) {
   DataType dtype = op->dtype;
   llvm::Value* value = MakeValue(op->value);
   llvm::Type* type = DTypeToLLVMType(dtype);
-  llvm::ElementCount ec;
-  if (dtype.is_scalable()) {
-    ec = llvm::ElementCount::get(dtype.lanes(), true);
-  } else {
-    ec = llvm::ElementCount::get(dtype.lanes(), false);
-  }
   llvm::Constant* undef = llvm::UndefValue::get(type);
   llvm::Constant* zero = ConstInt32(0);
   value = builder_->CreateInsertElement(undef, value, zero);
-#if TVM_LLVM_VERSION >= 120
-  llvm::Constant* mask = llvm::ConstantVector::getSplat(ec, zero);
-#elif TVM_LLVM_VERSION >= 110
+#if TVM_LLVM_VERSION >= 110
+  llvm::ElementCount ec = llvm::ElementCount::get(dtype.lanes(), dtype.is_scalable());
   llvm::Constant* mask = llvm::ConstantVector::getSplat(ec, zero);
 #else
-  if (dtype->is_scalable()) {
+  if (dtype.is_scalable()) {
     LOG(FATAL) << "Can't create scalable broadcast";
   }
-  llvm::Constant* mask = llvm::ConstantVector::getSplat(lanes, zero);
+  llvm::Constant* mask = llvm::ConstantVector::getSplat(dtype.lanes(), zero);
 #endif
   return builder_->CreateShuffleVector(value, undef, mask);
 }
