@@ -115,29 +115,6 @@ Expr GroupNormToInferUnpack(const Attrs attrs, Expr data, Expr gamma, Expr beta,
   return out;
 }
 
-Expr LayerNormToInferUnpack(const Attrs attrs, Expr data, Expr gamma, Expr beta, Type tdata) {
-  auto ttype = tdata.as<TensorTypeNode>();
-  ICHECK(ttype);
-  const auto param = attrs.as<LayerNormAttrs>();
-  ICHECK(param);
-
-  Expr epsilon = MakeConstantScalar(ttype->dtype, static_cast<float>(param->epsilon));
-  Expr mean = Mean(data, {param->axis}, true, false);
-  Expr var = Variance(data, mean, {param->axis}, true, false);
-  Expr denom = Sqrt(Add(var, epsilon));
-  Expr out = Divide(Subtract(data, mean), denom);
-
-  size_t ndim = ttype->shape.size();
-  int axis = (param->axis < 0) ? param->axis + ndim : param->axis;
-  if (param->scale) {
-    out = Multiply(out, ExpandBiasToMatchAxis(gamma, ndim, {axis}));
-  }
-  if (param->center) {
-    out = Add(out, ExpandBiasToMatchAxis(beta, ndim, {axis}));
-  }
-  return out;
-}
-
 Expr InstanceNormToInferUnpack(const Attrs attrs, Expr data, Expr gamma, Expr beta, Type tdata) {
   auto ttype = tdata.as<TensorTypeNode>();
   ICHECK(ttype);
@@ -207,10 +184,6 @@ class InferenceSimplifier : public MixedModeMutator {
   Expr Rewrite_(const CallNode* n, const Expr& new_n) {
     if (n->op == batch_norm_op_) {
       ty_map_[new_n.as<CallNode>()->args[0]] = n->args[0]->checked_type();
-    } else if (n->op == layer_norm_op_) {
-      const auto* call = new_n.as<CallNode>();
-      return LayerNormToInferUnpack(call->attrs, call->args[0], call->args[1], call->args[2],
-                                    n->args[0]->checked_type());
     } else if (n->op == group_norm_op_) {
       const auto* call = new_n.as<CallNode>();
       return GroupNormToInferUnpack(call->attrs, call->args[0], call->args[1], call->args[2],
