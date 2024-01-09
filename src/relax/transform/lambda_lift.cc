@@ -111,15 +111,32 @@ class LambdaNameCollector : ExprVisitor {
     // A lookup for names that are unavailable for use.
     std::unordered_set<String> unavailable_names = previous_global_vars_;
 
-    // A helper function to check de-duplicate names
-    auto use_if_unique = [&](const auto& generate_proposed_name) {
+    // A helper function to generate de-duplicated names.  The
+    // `proposed_name_generation_func` should be a function with
+    // signature:
+    //
+    //     Optional<String> func(const FunctionNode*, const Array<String>&)
+    //
+    // The first argument will be the lambda function being lifted.
+    // The second argument will be the nested location where that
+    // lambda function was found.  The function should return the
+    // proposed name for the lifted lambda function.  The proposed
+    // name will be accepted if it does not conflict with any previous
+    // names, and is unique for all lambda functions being lifted.
+    //
+    // This helper function is used to apply several different schemes
+    // to generate the name of the lifted lambda function.  The
+    // overall goal is to provide names that are unique (required by
+    // IRModule), deterministic (required for unit testing), and
+    // human-readable.
+    auto attempt_name_generation = [&](const auto& proposed_name_generation_func) {
       if (remaining_to_name.empty()) {
         return;
       }
 
       std::unordered_map<String, const FunctionNode*> new_names;
       for (const auto& [func, location] : remaining_to_name) {
-        if (Optional<String> opt_proposed_name = generate_proposed_name(func, location)) {
+        if (Optional<String> opt_proposed_name = proposed_name_generation_func(func, location)) {
           auto proposed_name = opt_proposed_name.value();
 
           if (unavailable_names.count(proposed_name)) {
@@ -145,7 +162,7 @@ class LambdaNameCollector : ExprVisitor {
     };
 
     // 1. Start with any publicly explosed names from kGlobalSymbol
-    use_if_unique([&](const auto& func, const auto&) -> Optional<String> {
+    attempt_name_generation([&](const FunctionNode* func, const auto&) -> Optional<String> {
       if (auto it = lifted_with_global_symbol_.find(func); it != lifted_with_global_symbol_.end()) {
         return it->second;
       } else {
@@ -155,7 +172,7 @@ class LambdaNameCollector : ExprVisitor {
 
     // 2. Try concatenating the name of the relax variable with the
     // name of the function that contains it.
-    use_if_unique([&](const auto&, const auto& location) -> String {
+    attempt_name_generation([&](const FunctionNode*, const auto& location) -> String {
       std::stringstream stream;
       stream << location.front() << "_" << location.back();
       return stream.str();
@@ -163,7 +180,7 @@ class LambdaNameCollector : ExprVisitor {
 
     // 3. Try concatenating the entire path together.  Don't include
     // paths of length 2, as they would already be attempted earlier.
-    use_if_unique([&](const auto&, const auto& location) -> Optional<String> {
+    attempt_name_generation([&](const FunctionNode*, const auto& location) -> Optional<String> {
       if (location.size() == 2) return NullOpt;
 
       std::stringstream stream;
@@ -182,7 +199,7 @@ class LambdaNameCollector : ExprVisitor {
     // 4. Fallback.  Count the number of times a relax variable with
     // that name was used.
     std::unordered_map<String, int> usage_count;
-    use_if_unique([&](const auto&, const auto& location) -> String {
+    attempt_name_generation([&](const FunctionNode*, const auto& location) -> String {
       std::stringstream stream;
       stream << location.front() << "_" << location.back();
       int usage = usage_count[stream.str()]++;
