@@ -261,8 +261,8 @@ def compile_model(
     mod_name: Optional[str] = "default",
     workspace_pools: Optional[WorkspaceMemoryPools] = None,
     print_pass_times: bool = False,
-    print_ir_before: List[str] = [],
-    print_ir_after: List[str] = [],
+    print_ir_before: Optional[List[str]] = None,
+    print_ir_after: Optional[List[str]]= None,
     instruments: Optional[Sequence[PassInstrument]] = None,
     desired_layout: Optional[str] = None,
     desired_layout_ops: Optional[List[str]] = None,
@@ -326,9 +326,9 @@ def compile_model(
         compilation.
     print_pass_times: bool
         To enable printing a breakdown of compilation times by pass. Disabled by default.
-    print_ir_before: list[str]
+    print_ir_before: list[str], optional
         To print IR before each named pass of a comma-separated list of passes.
-    print_ir_after: list[str]
+    print_ir_after: list[str], optional
         To print IR after each named pass of a comma-separated list of passes.
     instruments: Optional[Sequence[PassInstrument]]
         The list of pass instrument implementations.
