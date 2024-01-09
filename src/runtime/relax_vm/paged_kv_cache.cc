@@ -277,15 +277,15 @@ class PagedAttentionKVCacheObj : public AttentionKVCache {
   PackedFunc f_transpose_append_;
   PackedFunc f_attention_prefill_;
   PackedFunc f_attention_decode_;
-  PackedFunc f_attention_prefill_ragged_;
-  PackedFunc f_attention_prefill_ragged_begin_forward_;
-  PackedFunc f_attention_prefill_ragged_end_forward_;
-  PackedFunc f_attention_prefill_begin_forward_;
-  PackedFunc f_attention_prefill_end_forward_;
-  PackedFunc f_attention_decode_begin_forward_;
-  PackedFunc f_attention_decode_end_forward_;
+  Optional<PackedFunc> f_attention_prefill_ragged_;
+  Optional<PackedFunc> f_attention_prefill_ragged_begin_forward_;
+  Optional<PackedFunc> f_attention_prefill_ragged_end_forward_;
+  Optional<PackedFunc> f_attention_prefill_begin_forward_;
+  Optional<PackedFunc> f_attention_prefill_end_forward_;
+  Optional<PackedFunc> f_attention_decode_begin_forward_;
+  Optional<PackedFunc> f_attention_decode_end_forward_;
   PackedFunc f_rotary_;
-  PackedFunc f_merge_inplace_;
+  Optional<PackedFunc> f_merge_inplace_;
   Optional<PackedFunc> f_debug_get_kv_;
 
   /*! \brief Number of fork depth in the current round of forward. */
@@ -297,19 +297,23 @@ class PagedAttentionKVCacheObj : public AttentionKVCache {
 
  public:
   /*! \brief Constructor. Take the cache configuration and initialize the NDArrays. */
-  explicit PagedAttentionKVCacheObj(
-      int64_t page_size,  //
-      int64_t num_layers, int64_t num_qo_heads, int64_t num_kv_heads,
-      int64_t head_dim,                                    //
-      int64_t reserved_num_seqs, int64_t num_total_pages,  //
-      double rotary_scale, double rotary_theta,            //
-      DLDataType dtype, DLDevice device, PackedFunc f_transpose_append,
-      PackedFunc f_attention_prefill, PackedFunc f_attention_decode,
-      PackedFunc f_attention_prefill_ragged, PackedFunc f_attention_prefill_ragged_begin_forward,
-      PackedFunc f_attention_prefill_ragged_end_forward,
-      PackedFunc f_attention_prefill_begin_forward, PackedFunc f_attention_prefill_end_forward,
-      PackedFunc f_attention_decode_begin_forward, PackedFunc f_attention_decode_end_forward,
-      PackedFunc f_rotary, PackedFunc f_merge_inplace, Optional<PackedFunc> f_debug_get_kv)
+  explicit PagedAttentionKVCacheObj(int64_t page_size,  //
+                                    int64_t num_layers, int64_t num_qo_heads, int64_t num_kv_heads,
+                                    int64_t head_dim,                                    //
+                                    int64_t reserved_num_seqs, int64_t num_total_pages,  //
+                                    double rotary_scale, double rotary_theta,            //
+                                    DLDataType dtype, DLDevice device,
+                                    PackedFunc f_transpose_append, PackedFunc f_attention_prefill,
+                                    PackedFunc f_attention_decode,
+                                    Optional<PackedFunc> f_attention_prefill_ragged,
+                                    Optional<PackedFunc> f_attention_prefill_ragged_begin_forward,
+                                    Optional<PackedFunc> f_attention_prefill_ragged_end_forward,
+                                    Optional<PackedFunc> f_attention_prefill_begin_forward,
+                                    Optional<PackedFunc> f_attention_prefill_end_forward,
+                                    Optional<PackedFunc> f_attention_decode_begin_forward,
+                                    Optional<PackedFunc> f_attention_decode_end_forward,
+                                    PackedFunc f_rotary, Optional<PackedFunc> f_merge_inplace,
+                                    Optional<PackedFunc> f_debug_get_kv)
       : page_size_(page_size),
         num_layers_(num_layers),
         num_qo_heads_(num_qo_heads),
@@ -418,6 +422,8 @@ class PagedAttentionKVCacheObj : public AttentionKVCache {
         << "The parent sequence \"" << parent_seq_id << "\" cannot be found in KV cache.";
     CHECK(seq_map_.find(child_seq_id) == seq_map_.end())
         << "The child sequence \"" << child_seq_id << "\" is already in the KV cache.";
+    CHECK(f_merge_inplace_.defined() && f_attention_prefill_ragged_.defined())
+        << "Attention merge-score function not available. ForkSequence is thereby not supported.";
 
     int32_t parent_block_idx = parent_it->second.last_block_idx;
     // Create a child block with the parent block pointer.
@@ -558,13 +564,17 @@ class PagedAttentionKVCacheObj : public AttentionKVCache {
   }
 
   void EndForward() final {
+    if (!f_attention_prefill_end_forward_.defined() || !f_attention_decode_end_forward_.defined() ||
+        !f_attention_prefill_ragged_end_forward_.defined()) {
+      return;
+    }
     // Mark the dirty flag as true, so that BeginForward is required
     // to be invoked before the next round of model forward.
     dirty_aux_data_device_ = true;
-    f_attention_prefill_ragged_end_forward_();
+    f_attention_prefill_ragged_end_forward_.value()();
     for (int d = 0; d < num_depths_; ++d) {
-      f_attention_prefill_end_forward_(d);
-      f_attention_decode_end_forward_(d);
+      f_attention_prefill_end_forward_.value()(d);
+      f_attention_decode_end_forward_.value()(d);
     }
   }
 
@@ -845,30 +855,36 @@ class PagedAttentionKVCacheObj : public AttentionKVCache {
 
   /*! \brief Invoke the "begin forward" functions of underlying kernels. */
   void KernelBeginForward() {
+    if (!f_attention_prefill_begin_forward_.defined() ||
+        !f_attention_decode_begin_forward_.defined() ||
+        !f_attention_prefill_ragged_begin_forward_.defined()) {
+      return;
+    }
+
     if (num_depths_ == 1) {
       if (use_decode_kernel_[0]) {
-        f_attention_decode_begin_forward_(
+        f_attention_decode_begin_forward_.value()(
             /*depth=*/0, page_indptr_on_depths_view_[0], last_page_len_on_depths_view_[0],
             num_qo_heads_, num_kv_heads_, head_dim_, page_size_, /*rotary_mode=*/true);
       } else {
-        f_attention_prefill_begin_forward_(/*depth=*/0, qo_indptr_on_depths_view_[0],
-                                           cur_batch_size_, num_qo_heads_, num_kv_heads_);
+        f_attention_prefill_begin_forward_.value()(/*depth=*/0, qo_indptr_on_depths_view_[0],
+                                                   cur_batch_size_, num_qo_heads_, num_kv_heads_);
       }
     } else {
-      f_attention_prefill_ragged_begin_forward_(cur_append_length_indptr_view_, cur_batch_size_,
-                                                num_qo_heads_, num_kv_heads_);
+      f_attention_prefill_ragged_begin_forward_.value()(
+          cur_append_length_indptr_view_, cur_batch_size_, num_qo_heads_, num_kv_heads_);
       for (int d = 0; d < num_depths_; ++d) {
         if (page_indices_on_depths_view_[d]->shape[0] == 0) {
           continue;
         }
         if (use_decode_kernel_[d]) {
-          f_attention_decode_begin_forward_(
+          f_attention_decode_begin_forward_.value()(
               d, page_indptr_on_depths_view_[d], last_page_len_on_depths_view_[d], num_qo_heads_,
               num_kv_heads_, head_dim_, page_size_, /*rotary_mode=*/false);
         } else {
-          f_attention_prefill_begin_forward_(/*depth=*/d, qo_indptr_on_depths_view_[d],
-                                             last_page_len_on_depths_view_[d]->shape[0],
-                                             num_qo_heads_, num_kv_heads_);
+          f_attention_prefill_begin_forward_.value()(/*depth=*/d, qo_indptr_on_depths_view_[d],
+                                                     last_page_len_on_depths_view_[d]->shape[0],
+                                                     num_qo_heads_, num_kv_heads_);
         }
       }
     }
@@ -896,10 +912,11 @@ class PagedAttentionKVCacheObj : public AttentionKVCache {
       }
     } else {
       // Compute appended text self-attention
-      f_attention_prefill_ragged_(q_data, cur_append_length_indptr_view_, k_data, v_data,
-                                  cur_append_length_indptr_view_, output, merged_attn_scores_view_,
-                                  /*causal=*/1,
-                                  /*rotary_mode=*/0, rotary_scale_, rotary_theta_);
+      f_attention_prefill_ragged_.value()(q_data, cur_append_length_indptr_view_, k_data, v_data,
+                                          cur_append_length_indptr_view_, output,
+                                          merged_attn_scores_view_,
+                                          /*causal=*/1,
+                                          /*rotary_mode=*/0, rotary_scale_, rotary_theta_);
 
       for (int d = 0; d < num_depths_; ++d) {
         if (page_indices_on_depths_view_[d]->shape[0] == 0) {
@@ -920,8 +937,8 @@ class PagedAttentionKVCacheObj : public AttentionKVCache {
                                /*causal=*/0,
                                /*rotary_mode=*/0, rotary_scale_, rotary_theta_);
         }
-        f_merge_inplace_(output, merged_attn_scores_view_, temp_attn_output_view_,
-                         temp_attn_scores_view_);
+        f_merge_inplace_.value()(output, merged_attn_scores_view_, temp_attn_output_view_,
+                                 temp_attn_scores_view_);
       }
     }
   }
@@ -1065,6 +1082,27 @@ TVM_REGISTER_GLOBAL("vm.builtin.paged_attention_kv_cache_create")
           std::move(f_attention_prefill_begin_forward), std::move(f_attention_prefill_end_forward),
           std::move(f_attention_decode_begin_forward), std::move(f_attention_decode_end_forward),
           std::move(f_rotary), std::move(f_merge_inplace), std::move(f_debug_get_kv));
+      return PagedAttentionKVCache(std::move(n));
+    });
+
+TVM_REGISTER_GLOBAL("vm.builtin.paged_attention_kv_cache_create_reduced")
+    .set_body_typed([](ShapeTuple cache_config, int64_t num_layers, int64_t num_qo_heads,
+                       int64_t num_kv_heads, int64_t head_dim, double rotary_scale,
+                       double rotary_theta, NDArray init, PackedFunc f_transpose_append,
+                       PackedFunc f_attention_prefill, PackedFunc f_attention_decode,
+                       PackedFunc f_rotary, Optional<PackedFunc> f_debug_get_kv) {
+      CHECK_EQ(cache_config.size(), 3);
+      int64_t reserved_num_seqs = cache_config[0];
+      int64_t total_token_capacity = cache_config[1];
+      int64_t page_size = cache_config[2];
+      int64_t num_total_pages = (total_token_capacity + page_size - 1) / page_size;
+      ObjectPtr<PagedAttentionKVCacheObj> n = make_object<PagedAttentionKVCacheObj>(
+          page_size, num_layers, num_qo_heads, num_kv_heads, head_dim, reserved_num_seqs,
+          num_total_pages, rotary_scale, rotary_theta, init->dtype, init->device,
+          std::move(f_transpose_append), std::move(f_attention_prefill),
+          std::move(f_attention_decode),                                  //
+          NullOpt, NullOpt, NullOpt, NullOpt, NullOpt, NullOpt, NullOpt,  //
+          std::move(f_rotary), NullOpt, std::move(f_debug_get_kv));
       return PagedAttentionKVCache(std::move(n));
     });
 
