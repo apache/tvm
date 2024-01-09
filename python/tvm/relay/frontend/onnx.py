@@ -3297,6 +3297,11 @@ class Softmax(OnnxOpConverter):
         ndim = len(in_shape)
         if axis < 0:
             axis += ndim
+        # Older ONNX Softmax op does not properly support inputs of dimension > 2
+        # But we can use our softmax when the axis is -1
+        if axis == ndim - 1:
+            return _op.nn.softmax(inputs[0], axis=axis)
+
         if axis == 0:
             reshape_shape = [-1]
         elif axis == ndim - 1:
