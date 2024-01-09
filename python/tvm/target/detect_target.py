@@ -23,6 +23,17 @@ from .._ffi.runtime_ctypes import Device
 from ..runtime.ndarray import device
 
 
+def _detect_opencl(dev: Device) -> Target:
+    return Target(
+        {
+            "kind": "opencl",
+            "max_shared_memory_per_block": dev.max_shared_memory_per_block,
+            "max_threads_per_block": dev.max_threads_per_block,
+            "thread_warp_size": dev.warp_size,
+        }
+    )
+
+
 def _detect_metal(dev: Device) -> Target:
     return Target(
         {
@@ -111,4 +122,5 @@ SUPPORT_DEVICE = {
     "metal": _detect_metal,
     "vulkan": _detect_vulkan,
     "rocm": _detect_rocm,
+    "opencl": _detect_opencl,
 }
