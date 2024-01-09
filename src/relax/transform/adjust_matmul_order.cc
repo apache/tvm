@@ -44,35 +44,118 @@ std::tuple<DFPattern, TypedPackedFunc<Expr(Expr, Map<DFPattern, Expr>)>> CreateP
   std::unordered_set<Var, ObjectPtrHash, ObjectPtrEqual> compile_time_lookup(
       compile_time_arr.begin(), compile_time_arr.end());
 
-  auto pat_lhs = WildcardPattern();
+  TypedPackedFunc<bool(Expr)> is_compile_time = [compile_time_lookup](Expr arg) -> bool {
+    if (auto as_var = arg.as<Var>()) {
+      return compile_time_lookup.count(as_var.value());
+    } else {
+      return false;
+    }
+  };
+  TypedPackedFunc<bool(Expr)> is_runtime = [is_compile_time](Expr arg) -> bool {
+    return !is_compile_time(arg);
+  };
 
-  auto pat_rhs_a = WildcardPattern();
-  auto pat_rhs_b = WildcardPattern();
-  auto pat_rhs = IsOp("relax.matmul")(pat_rhs_a, pat_rhs_b);
+  DFPattern pat_a = WildcardPattern();
+  DFPattern pat_b = WildcardPattern();
+  DFPattern pat_c = WildcardPattern();
 
-  auto pat_matmul = IsOp("relax.matmul")(pat_lhs, pat_rhs);
+  auto pat_matmul = IsOp("relax.matmul");
+
+  auto pat_matmul_on_lhs = pat_matmul(pat_matmul(pat_a, pat_b), pat_c);
+  auto pat_matmul_on_rhs = pat_matmul(pat_a, pat_matmul(pat_b, pat_c));
+
+  auto pat = pat_matmul_on_lhs | pat_matmul_on_rhs;
 
   auto rewriter = [=](Expr expr, Map<DFPattern, Expr> matches) -> Expr {
-    auto lhs = matches[pat_lhs];
-    auto rhs_a = matches[pat_rhs_a];
-    auto rhs_b = matches[pat_rhs_b];
+    auto expr_a = matches[pat_a];
+    auto expr_b = matches[pat_b];
+    auto expr_c = matches[pat_c];
 
-    auto is_compile_time = [&compile_time_lookup](Expr arg) -> bool {
-      if (auto as_var = arg.as<Var>()) {
-        return compile_time_lookup.count(as_var.value());
+    // If all three components are compile-time, the order doesn't
+    // matter as the entire expression can be lifted out and
+    // pre-computed.
+    if (is_compile_time(expr_a) && is_compile_time(expr_b) && is_compile_time(expr_c)) {
+      return expr;
+    }
+
+    // If two of the three are compile-time, group those two values
+    // together, to allow them to be lifted out and pre-computed.
+    if (is_compile_time(expr_a) && is_compile_time(expr_b)) {
+      return matmul(matmul(expr_a, expr_b, DataType::Void()), expr_c, DataType::Void());
+    } else if (is_compile_time(expr_b) && is_compile_time(expr_c)) {
+      return matmul(expr_a, matmul(expr_b, expr_c, DataType::Void()), DataType::Void());
+    }
+
+    // Otherwise, select the order that reduces the total number of
+    // operations required, assuming a naive matmul.
+
+    // Matmul on LHS: ([N,R]*[R,M]) * [M,batch]
+    // Matmul on RHS: [N,R] * ([R,M]*[M,batch])
+    //
+    // LHS first: `N*R*M + N*M*batch = N*M*(R+batch)`
+    // RHS first: `N*R*batch + R*M*batch = (N+M)*R*batch`
+
+    auto get_shape = [](Expr expr) -> Optional<Array<PrimExpr>> {
+      auto sinfo = expr->struct_info_.as<TensorStructInfoNode>();
+      if (sinfo) {
+        return sinfo->GetShape();
       } else {
-        return false;
+        return NullOpt;
       }
     };
 
-    if (is_compile_time(rhs_a) && is_compile_time(rhs_b)) {
-      return expr;
-    } else {
-      return matmul(matmul(lhs, rhs_a, DataType::Void()), rhs_b, DataType::Void());
+    auto opt_shape_a = get_shape(expr_a);
+    if (!opt_shape_a) return expr;
+    auto opt_shape_b = get_shape(expr_b);
+    if (!opt_shape_b) return expr;
+    auto opt_shape_c = get_shape(expr_c);
+    if (!opt_shape_c) return expr;
+
+    auto shape_a = opt_shape_a.value();
+    auto shape_b = opt_shape_b.value();
+    auto shape_c = opt_shape_c.value();
+
+    if (shape_a.size() == 1) {
+      shape_a = {IntImm(shape_a[0].dtype(), 1), shape_a[0]};
     }
+    if (shape_b.size() == 1) {
+      if (matches.count(pat_matmul_on_lhs)) {
+        shape_b = {shape_b[0], IntImm(shape_b[0].dtype(), 1)};
+      } else if (matches.count(pat_matmul_on_rhs)) {
+        shape_b = {IntImm(shape_b[0].dtype(), 1), shape_b[0]};
+      } else {
+        LOG(FATAL) << "InternalError: "
+                   << "OrPattern " << pat << " matched, but neither " << pat_matmul_on_lhs
+                   << " nor " << pat_matmul_on_rhs << " matched";
+      }
+    }
+    if (shape_c.size() == 1) {
+      shape_c = {shape_c[0], IntImm(shape_c[0].dtype(), 1)};
+    }
+
+    auto size_N = shape_a[shape_a.size() - 2];
+    auto size_R = shape_a[shape_a.size() - 1];
+    auto size_M = shape_c[shape_c.size() - 2];
+    auto size_B = shape_c[shape_c.size() - 1];
+
+    auto ops_with_lhs_first = (size_R + size_B) * size_N * size_M;
+    auto ops_with_rhs_first = (size_M + size_N) * size_R * size_B;
+
+    arith::Analyzer analyzer;
+    With<arith::ConstraintContext> analyzer_constraint(
+        &analyzer, size_N >= 0 && size_R >= 0 && size_M >= 0 && size_B >= 0);
+    if (analyzer.CanProve(ops_with_lhs_first < ops_with_rhs_first)) {
+      return matmul(matmul(expr_a, expr_b, DataType::Void()), expr_c, DataType::Void());
+    } else if (analyzer.CanProve(ops_with_rhs_first < ops_with_lhs_first)) {
+      return matmul(expr_a, matmul(expr_b, expr_c, DataType::Void()), DataType::Void());
+    }
+
+    // If we cannot determine which order is best, keep the existing
+    // order.
+    return expr;
   };
 
-  return {pat_matmul, rewriter};
+  return {pat, rewriter};
 }
 
 }  // namespace
