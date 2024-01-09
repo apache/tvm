@@ -22,7 +22,7 @@ from tvm import relax as rx
 from tvm import tir
 
 from . import op
-from .core import Effect, Module, ModuleList, Parameter, Tensor, get_default_dtype, ShapeVar
+from .core import Effect, Module, ModuleList, Parameter, Tensor, get_default_dtype
 
 
 class IOEffect(Effect):
@@ -99,8 +99,8 @@ class Linear(Module):
 
     def __init__(
         self,
-        in_features: ShapeVar,
-        out_features: ShapeVar,
+        in_features: Union[int, str, tir.PrimExpr],
+        out_features: Union[int, str, tir.PrimExpr],
         bias: bool = True,
         dtype: Optional[str] = None,
         out_dtype: Optional[str] = None,
@@ -617,7 +617,12 @@ class Embedding(Module):
     Module for embedding layer.
     """
 
-    def __init__(self, num: ShapeVar, dim: ShapeVar, dtype: Optional[str] = None):
+    def __init__(
+        self,
+        num: Union[int, str, tir.PrimExpr],
+        dim: Union[int, str, tir.PrimExpr],
+        dtype: Optional[str] = None,
+    ):
         self.num = num
         self.dim = dim
         self.weight = Parameter((num, dim), dtype=dtype)

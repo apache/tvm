@@ -67,8 +67,6 @@ if TYPE_CHECKING:
 
 
 _DEFAULT_DTYPE = "float32"
-# If a shape is specified as a string `name`, we create a `tvm.tir.Var(name, "int64")`
-ShapeVar = Union[int, str, tir.PrimExpr]
 
 
 def get_default_dtype() -> str:
@@ -130,7 +128,7 @@ class Tensor(_TensorOp):
 
     @staticmethod
     def placeholder(
-        shape: Sequence[ShapeVar],
+        shape: Sequence[Union[int, str, tir.PrimExpr]],
         dtype: str,
         name: str = "tensor",
     ) -> "Tensor":
@@ -222,7 +220,7 @@ class Parameter(Tensor):
 
     def __init__(
         self,
-        shape: Sequence[ShapeVar],
+        shape: Sequence[Union[int, str, tir.PrimExpr]],
         dtype: Optional[str] = None,
     ) -> None:
         """Create a parameter with given shape and dtype. The parameter is not bound to any
@@ -230,7 +228,7 @@ class Parameter(Tensor):
 
         Parameters
         ----------
-        shape : Sequence[ShapeVar]
+        shape : Sequence[Union[int, str, tir.PrimExpr]]
             The shape of the parameter. If it is a string `name`, we create a symbolic shape
             `tvm.tir.Var(name, "int64")`.
         dtype : Optional[str]
