@@ -351,5 +351,58 @@ def test_impure_function():
     _check_save_roundtrip(after)
 
 
+def test_lambda_function_with_same_name_as_global():
+    """Lifted lambda names may not conflict with previous names
+
+    Like `test_basic`, but the module has an existing function
+    `main_inner`, which has the same name as the LambdaLift's first
+    choice of name for the hoisted function.
+    """
+
+    @I.ir_module
+    class Before:
+        @R.function
+        def main(
+            x1: R.Tensor((10, 5), "float32"), y1: R.Tensor((10, 5), "float32")
+        ) -> R.Tensor((10, 5), "float32"):
+            @R.function
+            def inner(
+                x2: R.Tensor((10, 5), "float32"), y2: R.Tensor((10, 5), "float32")
+            ) -> R.Tensor((10, 5), "float32"):
+                s: R.Tensor((10, 5), "float32") = R.add(x2, y2)
+                return s
+
+            gv1: R.Tensor((10, 5), "float32") = inner(x1, y1)
+            return gv1
+
+        @R.function
+        def main_inner():
+            return R.tuple()
+
+    @I.ir_module
+    class Expected:
+        @R.function
+        def main(
+            x1: R.Tensor((10, 5), "float32"), y1: R.Tensor((10, 5), "float32")
+        ) -> R.Tensor((10, 5), "float32"):
+            inner = Expected.main_inner_0
+            gv1: R.Tensor((10, 5), "float32") = inner(x1, y1)
+            return gv1
+
+        @R.function(private=True)
+        def main_inner_0(
+            x2: R.Tensor((10, 5), "float32"), y2: R.Tensor((10, 5), "float32")
+        ) -> R.Tensor((10, 5), "float32"):
+            s: R.Tensor((10, 5), "float32") = R.add(x2, y2)
+            return s
+
+        @R.function
+        def main_inner():
+            return R.tuple()
+
+    after = transform.LambdaLift()(Before)
+    assert_structural_equal(Expected, after)
+
+
 if __name__ == "__main__":
     tvm.testing.main()
