@@ -2741,7 +2741,7 @@ def contrib_conv2d_winograd_weight_transform(weight, tile_size):
     return _make.contrib_conv2d_winograd_weight_transform(weight, tile_size)
 
 
-def contrib_conv2d_gemm_weight_transform(weights, tile_rows, tile_cols):
+def contrib_conv2d_gemm_weight_transform(weights, tile_N, tile_K):
     r"""Weight Transformation part for 2D convolution with gemm algorithm.
 
     We separate this as a single op to enable pre-compute for inference.
@@ -2751,17 +2751,17 @@ def contrib_conv2d_gemm_weight_transform(weights, tile_rows, tile_cols):
     ----------
     weights : tvm.relay.Expr
         The weight expressions.
-    tile_rows: int
-        Tile rows of the weight transformation for ConvGemm.
-    tile_cols: int
-       Tile columns of the weight transformation for ConvGemm.
+    tile_N: int
+        Tile size across N axis of the weight transformation for ConvGemm. (N = OC)
+    tile_K: int
+       Tile size across K axis of the weight transformation for ConvGemm. (K = KW * KH * IC)
 
     Returns
     -------
     result : tvm.relay.Expr
         The computed result.
     """
-    return _make.contrib_conv2d_gemm_weight_transform(weights, tile_rows, tile_cols)
+    return _make.contrib_conv2d_gemm_weight_transform(weights, tile_N, tile_K)
 
 
 def contrib_conv3d_winograd_weight_transform(weight, tile_size):

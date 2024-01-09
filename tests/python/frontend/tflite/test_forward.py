@@ -2414,7 +2414,7 @@ def test_all_unary_elemwise():
     _test_forward_unary_elemwise(_test_floor)
     _test_forward_unary_elemwise(_test_exp)
     _test_forward_unary_elemwise(_test_log, negative=False)
-    _test_forward_unary_elemwise(_test_square)
+    _test_forward_unary_elemwise(_test_square, int_quant_dtype=tf.int8)
     _test_forward_unary_elemwise(_test_sin)
     _test_forward_unary_elemwise(_test_neg)
     _test_forward_unary_elemwise(_test_sqrt, negative=False)
@@ -3436,7 +3436,13 @@ def _test_pad(data, mode="CONSTANT", quantized=False):
                 inq_data[0], ops.convert_to_tensor(data[1], dtype=data[1].dtype), mode=mode
             )
             compare_tflite_with_tvm(
-                [data[0]], ["inq_0:0"], inq_data, [out], quantized=True, input_range=input_range
+                [data[0]],
+                ["inq_0:0"],
+                inq_data,
+                [out],
+                quantized=True,
+                input_range=input_range,
+                experimental_new_converter=True,
             )
         else:
             out = array_ops.pad(
@@ -3505,6 +3511,22 @@ def test_forward_pad():
             np.array([[1, 1], [2, 2]], dtype=np.int32),
         ],
         quantized=True,
+    )
+    _test_pad(
+        [
+            np.arange(0, 256, dtype=np.uint8).reshape((1, 256)),
+            np.array([[1, 1], [2, 2]], dtype=np.int32),
+        ],
+        quantized=True,
+        mode="SYMMETRIC",
+    )
+    _test_pad(
+        [
+            np.arange(0, 256, dtype=np.uint8).reshape((1, 256)),
+            np.array([[0, 0], [2, 2]], dtype=np.int32),
+        ],
+        quantized=True,
+        mode="REFLECT",
     )
 
 

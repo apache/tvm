@@ -338,6 +338,7 @@ TVM_REGISTER_TARGET_KIND("cuda", kDLCUDA)
     .add_attr_option<Integer>("max_threads_per_block")
     .add_attr_option<Integer>("thread_warp_size", Integer(32))
     .add_attr_option<Integer>("registers_per_block")
+    .add_attr_option<Integer>("l2_cache_size_bytes")
     .add_attr_option<Integer>("max_num_threads", Integer(1024))  // TODO(@zxybazh): deprecate it
     .set_default_keys({"cuda", "gpu"})
     .set_target_parser(UpdateCUDAAttrs);

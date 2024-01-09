@@ -185,3 +185,12 @@ TEST(ThreadingBackend, TVMBackendAffinityConfigure) {
     t->join();
   }
 }
+
+TEST(ThreadingBackend, TVMBackendParallelForWithThreadingBackend) {
+  int n = 100;
+  std::vector<int> vec(/*size=*/n, /*value=*/0);
+  tvm::runtime::parallel_for_with_threading_backend([&vec](int i) { vec[i] = i; }, 0, n);
+  for (int i = 0; i < n; ++i) {
+    EXPECT_EQ(vec[i], i);
+  }
+}

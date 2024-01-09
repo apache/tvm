@@ -34,6 +34,30 @@ run_pytest ctypes ${TVM_UNITTEST_TESTSUITE_NAME}-platform-minimal-test-0 tests/p
 run_pytest cython ${TVM_UNITTEST_TESTSUITE_NAME}-platform-minimal-test-1 tests/python/all-platform-minimal-test
 
 # Then run all unittests on both ctypes and cython.
-run_pytest ctypes ${TVM_UNITTEST_TESTSUITE_NAME}-0 tests/python/unittest
-run_pytest cython ${TVM_UNITTEST_TESTSUITE_NAME}-1 tests/python/unittest
+TEST_FILES=(
+  "arith"
+  "auto_scheduler"
+  "autotvm"
+  "codegen"
+  "ir"
+  "meta_schedule"
+  "micro"
+  "runtime"
+  "te"
+  "testing"
+  "tir-analysis"
+  "tir-base"
+  "tir-schedule"
+  "tir-transform"
+  "tir-usmp"
+  "tvmscript"
+  "usmp"
+)
+
+for TEST_FILE in ${TEST_FILES}; do
+    run_pytest ctypes ${TEST_FILE}-0, tests/python/${TEST_FILE}
+    run_pytest cython ${TEST_FILE}-1, tests/python/${TEST_FILE}
+done
+
+# Then run CI tests
 run_pytest ctypes ${TVM_UNITTEST_TESTSUITE_NAME}-ci tests/python/ci

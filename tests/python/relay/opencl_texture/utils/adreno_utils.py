@@ -200,7 +200,10 @@ def build_run_compare_vm(
 
 def gpu_preprocess(tvm_mod):
     layout_config = relay.transform.LayoutConfig()
-    desired_layouts = {"nn.conv2d": ["NCHW4c", "OIHW4o"]}
+    desired_layouts = {
+        "nn.conv2d": ["NCHW4c", "OIHW4o"],
+        "nn.conv2d_transpose": ["NCHW4c", "IOHW4o"],
+    }
     with layout_config:
         seq = tvm.transform.Sequential([relay.transform.ConvertLayout(desired_layouts)])
         with tvm.transform.PassContext(opt_level=3):

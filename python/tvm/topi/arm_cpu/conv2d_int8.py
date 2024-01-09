@@ -25,12 +25,7 @@ from ..nn.conv2d import _get_workload as _get_conv2d_workload, unpack_NCHWc_to_n
 from ..x86.conv2d_int8 import _pack_data
 from ..nn.utils import get_pad_tuple
 from .tensor_intrin import dot_int8_int8_int32_neon_82, dot_int8_int8_int32_neon
-from .conv2d_gemm import (
-    compute_conv2d_gemm_without_weight_transform,
-    schedule_conv2d_gemm_interleaved,
-    schedule_conv2d_gemm_native,
-)
-from .arm_utils import get_tiling_B_interleaved_t
+from .conv2d import compute_conv2d_NHWC, compute_conv2d_NHWC_without_transform, schedule_conv2d_NHWC
 
 
 def _get_default_config(cfg, data, kernel, strides, padding, dilation, out_dtype):
@@ -208,75 +203,6 @@ def schedule_conv2d_nchw_int8(outs):
     return schedule_conv2d_NCHWc_int8(outs)
 
 
-def _compute_conv2d_NHWC_quantized(
-    cfg, data, kernel, strides, padding, dilation, out_dtype, interleave_A
-):
-    N, IH, IW, IC = get_const_tuple(data.shape)
-    KH, KW, _, OC = get_const_tuple(kernel.shape)
-    tile_rows_B, tile_cols_B = get_tiling_B_interleaved_t(interleave_A)
-
-    kernel = nn.conv2d_gemm_weight_transform(kernel, tile_rows_B, tile_cols_B)
-    return compute_conv2d_gemm_without_weight_transform(
-        cfg, data, kernel, strides, padding, dilation, out_dtype, (KH, KW), OC, interleave_A
-    )
-
-
-def _compute_conv2d_NHWC_quantized_without_transform(
-    cfg,
-    data,
-    B,
-    strides,
-    padding,
-    dilation,
-    out_dtype,
-    kernel_size=None,
-    output_channels=None,
-    interleave_A=False,
-):
-    return compute_conv2d_gemm_without_weight_transform(
-        cfg,
-        data,
-        B,
-        strides,
-        padding,
-        dilation,
-        out_dtype,
-        kernel_size,
-        output_channels,
-        interleave_A,
-    )
-
-
-def _schedule_conv2d_NHWC_quantized(cfg, outs, interleave_A):
-    """Create schedule for tensors"""
-    s = te.create_schedule([x.op for x in outs])
-    # Vectorize the output and then inline all the rest
-    out = outs[0]
-    n, h, w, c = out.op.axis
-    n_h_fused = s[out].fuse(n, h)
-    outer, inner = s[out].split(c, 4)
-    s[out].vectorize(inner)
-    s[out].parallel(n_h_fused)
-
-    def _callback(op):
-        """Traverse operators from computation graph"""
-        if op.name == "conv2d_gemm_output":
-            conv_out = op.output(0)
-            if interleave_A:
-                schedule_conv2d_gemm_interleaved(cfg, s, conv_out, out)
-            else:
-                schedule_conv2d_gemm_native(cfg, s, conv_out, out)
-            if out != conv_out:
-                s[conv_out].compute_at(s[out], inner)
-            else:
-                C = conv_out.op.input_tensors[0]
-                if interleave_A:
-                    s[C].compute_at(s[out], inner)
-
-    traverse_inline(s, outs[0].op, _callback)
-    return s
-
-
 # Interleaved schedules: those schedule will interleave the input data. The
 # weights are interleaved and transposed
 @autotvm.register_topi_compute("conv2d_NHWC_quantized_interleaved.arm_cpu")
@@ -284,9 +210,7 @@ def compute_conv2d_NHWC_quantized_interleaved(
     cfg, data, kernel, strides, padding, dilation, out_dtype
 ):
     """Interface for interleaved compute_conv2d_NHWC_quantized_interleaved"""
-    return _compute_conv2d_NHWC_quantized(
-        cfg, data, kernel, strides, padding, dilation, out_dtype, True
-    )
+    return compute_conv2d_NHWC(cfg, data, kernel, strides, padding, dilation, out_dtype, True)
 
 
 @autotvm.register_topi_compute("conv2d_NHWC_quantized_interleaved_without_transform.arm_cpu")
@@ -294,7 +218,7 @@ def compute_conv2d_NHWC_quantized_interleaved_without_transform(
     cfg, data, kernel, strides, padding, dilation, out_dtype, kernel_size, output_channels
 ):
     """Interface for interleaved compute_conv2d_NHWC_quantized_interleaved_without_transform"""
-    return _compute_conv2d_NHWC_quantized_without_transform(
+    return compute_conv2d_NHWC_without_transform(
         cfg, data, kernel, strides, padding, dilation, out_dtype, kernel_size, output_channels, True
     )
 
@@ -302,13 +226,13 @@ def compute_conv2d_NHWC_quantized_interleaved_without_transform(
 @autotvm.register_topi_schedule("conv2d_NHWC_quantized_interleaved.arm_cpu")
 def schedule_conv2d_NHWC_quantized_interleaved(cfg, outs):
     """Interface for interleaved schedule_conv2d_NHWC_quantized_interleaved"""
-    return _schedule_conv2d_NHWC_quantized(cfg, outs, True)
+    return schedule_conv2d_NHWC(cfg, outs, True)
 
 
 @autotvm.register_topi_schedule("conv2d_NHWC_quantized_interleaved_without_transform.arm_cpu")
 def schedule_conv2d_NHWC_quantized_interleaved_without_transform(cfg, outs):
     """Interface for interleaved schedule_conv2d_NHWC_quantized_interleaved"""
-    return _schedule_conv2d_NHWC_quantized(cfg, outs, True)
+    return schedule_conv2d_NHWC(cfg, outs, True)
 
 
 # Native schedules: those schedule won't interleave A (which is left in its native form).
@@ -316,9 +240,7 @@ def schedule_conv2d_NHWC_quantized_interleaved_without_transform(cfg, outs):
 @autotvm.register_topi_compute("conv2d_NHWC_quantized_native.arm_cpu")
 def compute_conv2d_NHWC_quantized_native(cfg, data, kernel, strides, padding, dilation, out_dtype):
     """Interface for native compute_conv2d_NHWC_quantized"""
-    return _compute_conv2d_NHWC_quantized(
-        cfg, data, kernel, strides, padding, dilation, out_dtype, False
-    )
+    return compute_conv2d_NHWC(cfg, data, kernel, strides, padding, dilation, out_dtype, False)
 
 
 @autotvm.register_topi_compute("conv2d_NHWC_quantized_native_without_transform.arm_cpu")
@@ -326,7 +248,7 @@ def compute_conv2d_NHWC_quantized_native_without_transform(
     cfg, data, kernel, strides, padding, dilation, out_dtype, kernel_size, output_channels
 ):
     """Interface for compute_conv2d_NHWC_quantized_native_without_transform"""
-    return _compute_conv2d_NHWC_quantized_without_transform(
+    return compute_conv2d_NHWC_without_transform(
         cfg,
         data,
         kernel,
@@ -343,10 +265,10 @@ def compute_conv2d_NHWC_quantized_native_without_transform(
 @autotvm.register_topi_schedule("conv2d_NHWC_quantized_native.arm_cpu")
 def schedule_conv2d_NHWC_quantized_native(cfg, outs):
     """Interface for native schedule_conv2d_NHWC_quantized"""
-    return _schedule_conv2d_NHWC_quantized(cfg, outs, False)
+    return schedule_conv2d_NHWC(cfg, outs, False)
 
 
 @autotvm.register_topi_schedule("conv2d_NHWC_quantized_native_without_transform.arm_cpu")
 def schedule_conv2d_NHWC_quantized_native_without_transform(cfg, outs):
     """Interface for native schedule_conv2d_NHWC_quantized"""
-    return _schedule_conv2d_NHWC_quantized(cfg, outs, False)
+    return schedule_conv2d_NHWC(cfg, outs, False)

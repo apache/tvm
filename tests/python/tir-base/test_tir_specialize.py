@@ -169,28 +169,6 @@ def mem_copy_m_n_p_n(a: T.handle, b: T.handle, m: T.int32, n: T.int32, p: T.int3
             B[vi, vj] = A[vi, vj]
 
 
-@T.prim_func
-def param_in_arith_exprs(a: T.handle, b: T.handle) -> None:
-    n = T.int32()
-    A = T.match_buffer(a, [n // 8, 8], "int32")
-    B = T.match_buffer(b, [n], "int32")
-    for i in range(n - 1):
-        with T.block():
-            vi = T.axis.S(n - 1, i)
-            B[vi] = A[vi // 8, vi % 8] + (n + 1) * 42
-
-
-@T.prim_func
-def param_in_arith_exprs_n_16(a: T.handle, b: T.handle) -> None:
-    n = T.int32()
-    A = T.match_buffer(a, [2, 8], "int32")
-    B = T.match_buffer(b, [16], "int32")
-    for i in range(15):
-        with T.block():
-            vi = T.axis.S(15, i)
-            B[vi] = A[vi // 8, vi % 8] + 714
-
-
 def test_specialize_nothing():
     func = matmul.specialize({})
     assert func.same_as(matmul)  # Pointer the same
@@ -238,15 +216,113 @@ def test_specialize_recursive_load():
 
 
 def test_specialize_with_const_folding():
-    b = param_in_arith_exprs.params[1]
-    func = param_in_arith_exprs.specialize({b: tvm.tir.decl_buffer([16])})
-    assert_structural_equal_ignore_global_symbol(func, param_in_arith_exprs_n_16)
+    @T.prim_func
+    def before(a: T.handle, b: T.handle):
+        n = T.int32()
+        A = T.match_buffer(a, [n // 8, 8], "int32")
+        B = T.match_buffer(b, [n], "int32")
+        for i in range(n - 1):
+            with T.block():
+                vi = T.axis.S(n - 1, i)
+                B[vi] = A[vi // 8, vi % 8] + (n + 1) * 42
+
+    @T.prim_func
+    def expected(a: T.handle, b: T.handle):
+        A = T.match_buffer(a, [2, 8], "int32")
+        B = T.match_buffer(b, [16], "int32")
+        for i in range(15):
+            with T.block():
+                vi = T.axis.S(15, i)
+                B[vi] = A[vi // 8, vi % 8] + 714
+
+    b = before.params[1]
+    after = before.specialize({b: tvm.tir.decl_buffer([16], dtype="int32")})
+    assert_structural_equal_ignore_global_symbol(expected, after)
+
+
+def test_specialize_decl_buffer():
+    """Buffers occurring in a DeclBuffer statement should be updated"""
+
+    @T.prim_func(private=True)
+    def before(A_data: T.handle("float32"), A_size: T.int32):
+        A_buf = T.decl_buffer(A_size, "float32", data=A_data)
+        for i in range(A_size):
+            A_buf[i] = A_buf[i] * 2.0
+
+    @T.prim_func(private=True)
+    def expected(A_data: T.handle("float32")):
+        A_buf = T.decl_buffer(16, "float32", data=A_data)
+        for i in range(16):
+            A_buf[i] = A_buf[i] * 2.0
+
+    param_map = {before.params[1]: T.int32(16)}
+    after = before.specialize(param_map)
+
+    tvm.ir.assert_structural_equal(expected, after)
+
+
+def test_specialize_buffer_var_to_var():
+    """A buffer var may be remapped by specialization
+
+    If a buffer variable is replaced by a specialization, then other
+    buffers using the same buffer var should also be updated.
+    """
+
+    @T.prim_func(private=True)
+    def before(A: T.Buffer([16, 16], "float32"), B: T.Buffer([16, 16], "float32")):
+        A_flat = T.decl_buffer([256], "float32", data=A.data)
+        B_flat = T.decl_buffer([256], "float32", data=B.data)
+        for i in range(256):
+            B_flat[i] = A_flat[i] * 2.0
+
+    @T.prim_func(private=True)
+    def expected(A: T.Buffer([16, 16], "float32"), B_handle: T.handle):
+        B = T.match_buffer(B_handle, [16, 16], "float32", data=A.data)
+        A_flat = T.decl_buffer([256], "float32", data=A.data)
+        B_flat = T.decl_buffer([256], "float32", data=A.data)
+        for i in range(256):
+            B_flat[i] = A_flat[i] * 2.0
+
+    A = before.buffer_map[before.params[0]]
+    B_handle = before.params[1]
+    param_map = {B_handle: A}
+    after = before.specialize(param_map)
+
+    tvm.ir.assert_structural_equal(expected, after)
+
+
+def test_specialize_buffer_var_to_expr():
+    """Handle specialization of buffer var
+
+    The `tir::Buffer::data` field must be an explicit `tir::Var`, and
+    cannot be replaced with a `tir::PrimExpr` of type
+    `DataType::Handle()`.  However, these substitutions are useful
+    when lowering.  If these occur, a binding of the `tir::Var` is
+    included in the specialized function.
+    """
+
+    @T.prim_func(private=True)
+    def before(A_data: T.handle("float32"), B_data: T.handle("float32")):
+        A_buf = T.decl_buffer(32, "float32", data=A_data)
+        B_buf = T.decl_buffer(16, "float32", data=B_data)
+        for i in range(16):
+            B_buf[i] = A_buf[i] * 2.0
+
+    @T.prim_func(private=True)
+    def expected(A_data: T.handle("float32")):
+        A_buf = T.decl_buffer(32, "float32", data=A_data)
+        B_data: T.Ptr[T.float32] = T.address_of(A_buf[16])
+        B_buf = T.decl_buffer(16, "float32", data=B_data)
+        for i in range(16):
+            B_buf[i] = A_buf[i] * 2.0
+
+    B_data = before.params[1]
+    A_buf = before.body.buffer
+    param_map = {B_data: tvm.tir.address_of(A_buf[16])}
+    after = before.specialize(param_map)
+
+    tvm.ir.assert_structural_equal(expected, after)
 
 
 if __name__ == "__main__":
-    test_specialize_nothing()
-    test_specialize_matmul()
-    test_specialize_elemwise()
-    test_specialize_mem_copy()
-    test_specialize_recursive_load()
-    test_specialize_with_const_folding()
+    tvm.testing.main()

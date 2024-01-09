@@ -315,10 +315,12 @@ def _get_label(font_path, labelstr, rgb):
     from PIL import ImageFont
 
     text = labelstr
+    textSize = 25
     colorText = "black"
     testDraw = ImageDraw.Draw(Image.new("RGB", (1, 1)))
-    font = ImageFont.truetype(font_path, 25)
-    width, height = testDraw.textsize(labelstr, font=font)
+    font = ImageFont.truetype(font_path, textSize)
+    width = int(testDraw.textlength(labelstr, font=font))
+    height = textSize + 5
     img = Image.new(
         "RGB", (width, height), color=(int(rgb[0] * 255), int(rgb[1] * 255), int(rgb[2] * 255))
     )
