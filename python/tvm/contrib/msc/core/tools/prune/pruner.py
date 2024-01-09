@@ -338,8 +338,16 @@ class BasePruner(WeightTool):
             for node in graph.get_nodes():
                 for weight in node.get_weights().values():
                     w_node, w_name = self.find_w_node(weight.name), weight.name
-                    if w_name not in self._plan or w_node.get_attr("status", "") == "pruned":
+                    if w_name not in self._plan:
                         pruned_weights[w_name] = sub_weights[w_name]
+                    elif w_node.get_attr("pruned_shape", "") != "":
+                        pruned_weights[w_name] = sub_weights[w_name]
+                        pruned_shape = [int(i) for i in w_node.get_attr("pruned_shape").split(",")]
+                        assert pruned_shape == list(
+                            pruned_weights[w_name].shape
+                        ), "pruned_shape {} mismatch with data shape {}".format(
+                            pruned_shape, pruned_weights[w_name].shape
+                        )
                     else:
                         data = msc_utils.cast_array(sub_weights[w_name])
                         in_axis, out_axis = self._get_io_axes(self.find_w_node(w_name))
@@ -350,7 +358,10 @@ class BasePruner(WeightTool):
                             data = PruneMethod.prune_axis(data, out_axis, w_config["out_indices"])
                         pruned_tensors[w_name] = _prune_by_shape(weight, data.shape)
                         pruned_weights[w_name] = tvm.nd.array(data)
-                        w_node.set_attr("status", "pruned")
+                        w_node.set_attr(
+                            "pruned_shape",
+                            ",".join([str(i) for i in pruned_tensors[w_name].get_shape()]),
+                        )
                         pruned_weights_cnt += 1
                 if node.optype == "constant":
                     if node.weight_at("const").name not in pruned_tensors:
@@ -375,12 +386,15 @@ class BasePruner(WeightTool):
                 elif node.optype in self._relation_wtypes:
                     for out in node.get_outputs():
                         w_node = self.find_w_node(out.name)
-                        if out.name not in self._plan or w_node.get_attr("status", "") == "pruned":
+                        if out.name not in self._plan or w_node.get_attr("pruned_shape", "") != "":
                             continue
                         pruned_tensors[out.name] = _prune_by_channel(
                             out, len(self._plan[out.name]["out_indices"])
                         )
-                        w_node.set_attr("status", "pruned")
+                        w_node.set_attr(
+                            "pruned_shape",
+                            ",".join([str(i) for i in pruned_tensors[out.name].get_shape()]),
+                        )
                 elif node.get_inputs():
                     ref_input = node.input_at(0)
                     if ref_input.name not in pruned_tensors or ref_input.layout_of("C") < 0:

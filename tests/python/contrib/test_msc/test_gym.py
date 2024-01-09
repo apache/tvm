@@ -247,7 +247,6 @@ def get_model_info(compile_type):
     raise TypeError("Unexpected compile_type " + str(compile_type))
 
 
-@tvm.testing.requires_cuda
 @pytest.mark.parametrize("tool_type", [ToolType.PRUNER, ToolType.QUANTIZER])
 def test_tvm_gym(tool_type):
     """Test tools for tvm with gym"""
