@@ -842,6 +842,28 @@ def test_call_packed():
     _check(foo, bb.get()["foo"])
 
 
+def test_call_packed_without_sinfo_args():
+    @R.function
+    def foo(x: R.Object) -> R.Object:
+        z = R.call_packed("test", x)
+        return z
+
+    x = relax.Var("x", R.Object())
+    bb = relax.BlockBuilder()
+    with bb.function("foo", (x)):
+        z = bb.emit(
+            relax.Call(
+                relax.ExternFunc("test"),
+                (x,),
+                None,
+                sinfo_args=[],
+            )
+        )
+        bb.emit_func_output(z)
+
+    _check(foo, bb.get()["foo"])
+
+
 def test_annotation():
     @R.function
     def foo(
