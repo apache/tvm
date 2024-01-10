@@ -242,7 +242,7 @@ def conv3d(
     and kernel_layout is `OIDHW`, conv3d takes in
     a data Tensor with shape `(batch_size, in_channels, depth, height, width)`,
     and a weight Tensor with shape `(channels, in_channels, kernel_d, kernel_h, kernel_w)`,
-    where `kernel_d`, `kernel_h`, and `kernel_w` are the lengths of the `D`, `H`, 
+    where `kernel_d`, `kernel_h`, and `kernel_w` are the lengths of the `D`, `H`,
     and `W` kernel dimensions, to produce an output Tensor with the following rule:
 
     .. math::

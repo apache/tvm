@@ -397,8 +397,10 @@ inline Array<IntImm> GetCompletePadding2D(Array<IntImm> padding) {
 
 /*!
  * \brief Complete the padding to a 6-length array.
- * - If the padding length is 1, the same padding is used on all front/top/left/back/bottom/right sides
- * - If the padding length is 3, front/back sides use padding[0], top/bottom sides use padding[1] and left/right use padding[2]
+ * - If the padding length is 1, the same padding is used on all front/top/left/back/bottom/right
+ * sides
+ * - If the padding length is 3, front/back sides use padding[0], top/bottom sides use padding[1]
+ * and left/right use padding[2]
  * - If the padding length is 6, padding is in the order of (front, top, left, back, bottom, right)
  * \param padding The given padding to be completed
  * \return The completed padding.

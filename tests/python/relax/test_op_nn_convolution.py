@@ -1570,6 +1570,7 @@ def test_conv2d_transpose_infer_struct_info_wrong_input_type():
     with pytest.raises(TVMError):
         bb.normalize(relax.op.nn.conv2d_transpose(x1, w0))
 
+
 def test_conv3d_infer_struct_info():
     bb = relax.BlockBuilder()
     vdev0 = VDevice("llvm")
@@ -1599,7 +1600,9 @@ def test_conv3d_infer_struct_info():
         relax.TensorStructInfo((2, 4, 26, 26, 26), "float16"),
     )
     _check_inference(
-        bb, relax.op.nn.conv3d(x0, w0, padding=1), relax.TensorStructInfo((2, 4, 28, 28, 28), "float32")
+        bb,
+        relax.op.nn.conv3d(x0, w0, padding=1),
+        relax.TensorStructInfo((2, 4, 28, 28, 28), "float32"),
     )
     _check_inference(
         bb,
@@ -1708,7 +1711,13 @@ def test_conv3d_infer_struct_info_shape_symbolic():
         bb,
         relax.op.nn.conv3d(x0, w0, strides=(2, 2, 2), padding=(1, 1, 1), dilation=(2, 2, 2)),
         relax.TensorStructInfo(
-            (n, ko, tvm.tir.floordiv(id + 3, 2) + 1 - kd, tvm.tir.floordiv(ih + 3, 2) + 1 - kh, tvm.tir.floordiv(iw + 3, 2) + 1 - kw),
+            (
+                n,
+                ko,
+                tvm.tir.floordiv(id + 3, 2) + 1 - kd,
+                tvm.tir.floordiv(ih + 3, 2) + 1 - kh,
+                tvm.tir.floordiv(iw + 3, 2) + 1 - kw,
+            ),
             "float32",
         ),
     )
