@@ -262,7 +262,7 @@ def compile_model(
     workspace_pools: Optional[WorkspaceMemoryPools] = None,
     print_pass_times: bool = False,
     print_ir_before: Optional[List[str]] = None,
-    print_ir_after: Optional[List[str]]= None,
+    print_ir_after: Optional[List[str]] = None,
     instruments: Optional[Sequence[PassInstrument]] = None,
     desired_layout: Optional[str] = None,
     desired_layout_ops: Optional[List[str]] = None,
