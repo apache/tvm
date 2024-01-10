@@ -117,7 +117,7 @@ struct Conv2DAttrs : public tvm::AttrsNode<Conv2DAttrs> {
   }
 };  // struct Conv2dAttrs
 
-/*! \brief Attributes used in Conv2d operator */
+/*! \brief Attributes used in Conv3d operator */
 struct Conv3DAttrs : public tvm::AttrsNode<Conv3DAttrs> {
   Array<IntImm> strides;
   Array<IntImm> padding;

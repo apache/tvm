@@ -272,7 +272,7 @@ def conv3d(
         The padding of convolution on both sides of inputs before convolution.
         It is required to have length either 1, 3 or 6.
 
-    dilation : Union[int, Tuple[int, int]]
+    dilation : Union[int, Tuple[int, int, int]]
         Specifies the dilation rate to be used for dilated convolution.
         It is required to have length either 1 or 3.
 
