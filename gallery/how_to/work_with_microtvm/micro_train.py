@@ -456,7 +456,7 @@ except AttributeError:  # Fall back to TFLite 1.14 method
 mod, params = tvm.relay.frontend.from_tflite(tflite_model)
 
 # Set configuration flags to improve performance
-target = tvm.micro.testing.get_target("zephyr", "nrf5340dk_nrf5340_cpuapp")
+target = tvm.micro.testing.get_target("arduino", "nano33ble")
 runtime = tvm.relay.backend.Runtime("crt")
 executor = tvm.relay.backend.Executor("aot", {"unpacked-api": True})
 
