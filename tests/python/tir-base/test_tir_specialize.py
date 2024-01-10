@@ -16,6 +16,8 @@
 # under the License.
 # pylint: disable=missing-function-docstring, missing-module-docstring
 
+import pytest
+
 import tvm
 from tvm.script import tir as T
 from tvm.tir.schedule.testing import assert_structural_equal_ignore_global_symbol
@@ -322,6 +324,42 @@ def test_specialize_buffer_var_to_expr():
     after = before.specialize(param_map)
 
     tvm.ir.assert_structural_equal(expected, after)
+
+
+def test_specialization_removes_struct_info():
+    """Reset struct info in specialization
+
+    While a PrimFunc usually doesn't have a `relax.StructInfo`, the
+    field can be populated in some edge cases.  If that PrimFunc is
+    specialized, the struct info should be reset.
+    """
+
+    @T.prim_func(private=True)
+    def before(n: T.int32) -> T.int32:
+        T.ret(n * 10)
+
+    @T.prim_func(private=True)
+    def expected() -> T.int32:
+        T.ret(50)
+
+    sinfo = tvm.relax.FuncStructInfo(
+        [tvm.relax.PrimStructInfo("int32")], tvm.relax.PrimStructInfo("int32")
+    )
+    tvm.relax.expr._update_struct_info(before, sinfo)
+
+    n = before.params[0]
+    param_map = {n: 5}
+    after = before.specialize(param_map)
+
+    tvm.ir.assert_structural_equal(expected, after)
+    assert before.struct_info is not None
+
+    # PrimFuncs do not expose the `struct_info_` field.  Checking the
+    # `struct_info` field when it isn't set raises an exception.  This
+    # is the desired behavior, since the struct info before
+    # specialization is no longer valid.
+    with pytest.raises(tvm.TVMError):
+        after.struct_info
 
 
 if __name__ == "__main__":
