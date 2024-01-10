@@ -109,6 +109,47 @@ def _nn_conv2d(bb: BlockBuilder, call: Call) -> Expr:
     )
 
 
+@register_legalize("relax.nn.conv3d")
+def _nn_conv3d(bb: BlockBuilder, call: Call) -> Expr:
+    if call.attrs.out_layout != call.attrs.data_layout:
+        logging.info(
+            "TOPI conv3d does not support different input-output "
+            "layouts, and thus cannot be legalized by TOPI"
+        )
+        return call
+    if len(call.attrs.data_layout) != 5 or len(call.attrs.kernel_layout) != 5:
+        logging.info(
+            "Conv3D where data layout or kernel layout have channel chunk "
+            "cannot be legalized by TOPI at this moment."
+        )
+        return call
+    if call.attrs.groups != 1:
+        data_layout = tir.layout(call.attrs.data_layout)
+        kernel_layout = tir.layout(call.attrs.kernel_layout)
+        ic = call.args[0].struct_info.shape.values[data_layout.index_of("C")]
+        oc = call.args[1].struct_info.shape.values[kernel_layout.index_of("O")]
+        if not isinstance(ic, tir.IntImm) or not isinstance(oc, tir.IntImm):
+            logging.info(
+                "Conv3D where number of groups is more than one and input or output "
+                "channel size is symbolic cannot be legalized by TOPI at this moment."
+            )
+            return call
+
+    return bb.call_te(
+        topi.nn.conv,
+        inp=call.args[0],
+        filt=call.args[1],
+        stride=call.attrs.strides,
+        padding=call.attrs.padding,
+        dilation=call.attrs.dilation,
+        groups=call.attrs.groups,
+        data_layout=call.attrs.data_layout,
+        kernel_layout=call.attrs.kernel_layout,
+        out_dtype=call.attrs.out_dtype if call.attrs.out_dtype != "" else None,
+        primfunc_name_hint="conv3d",
+    )
+
+
 @register_legalize("relax.nn.conv1d_transpose")
 def _nn_conv1d_transpose(bb: BlockBuilder, call: Call) -> Expr:
     if call.attrs.out_layout != call.attrs.data_layout:

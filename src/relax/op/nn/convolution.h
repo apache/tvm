@@ -62,6 +62,11 @@ Expr conv2d(Expr data, Expr weight, Array<IntImm> strides, Array<IntImm> padding
             Array<IntImm> dilation, int groups, String data_layout, String kernel_layout,
             Optional<String> out_layout, DataType out_dtype);
 
+/*! \brief 3D convolution */
+Expr conv3d(Expr data, Expr weight, Array<IntImm> strides, Array<IntImm> padding,
+            Array<IntImm> dilation, int groups, String data_layout, String kernel_layout,
+            Optional<String> out_layout, DataType out_dtype);
+
 /*!
  * \brief One dimensional transposed convolution operator.
  *

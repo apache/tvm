@@ -74,7 +74,8 @@ def generate_random_inputs(
 def check_correctness(
     model: ModelProto,
     inputs: Optional[Dict[str, np.ndarray]] = None,
-    opset: int = None,
+    ir_version: int = 8,
+    opset: int = 14,
     atol: float = 1e-5,
 ) -> None:
     """Run an onnx model in both onnxruntime and TVM through our importer
@@ -86,12 +87,17 @@ def check_correctness(
         The input onnx model that should be tested.
     inputs: Optional[Dict[str, np.ndarray]]
         An optional dictionary containing values for each input in the onnx model.
+    ir_version: int
+        Which version of the onnx IR to use.
     opset: int
         The opset version to use for the onnx importer.
     atol: float
         Set the tolerance of correctness checking. Some ops may be show more
         arithmetic variance than others.
     """
+    # Configure model format.
+    if ir_version is not None:
+        model.ir_version = ir_version
     if opset is not None:
         model.opset_import[0].version = opset
 
@@ -563,9 +569,14 @@ def test_conv():
         )
 
         model = helper.make_model(graph, producer_name="conv_test")
-        check_correctness(model)
+        check_correctness(model, opset=18, atol=1e-4)
 
+    # Conv1D
+    _verify_conv([3, 12, 32], [4, 12, 3], [3, 4, 30])
+    # Conv2D
     _verify_conv([3, 12, 32, 32], [4, 12, 3, 3], [3, 4, 30, 30])
+    # Conv3D
+    _verify_conv([3, 12, 32, 32, 32], [4, 12, 3, 3, 3], [3, 4, 30, 30, 30])
 
 
 def test_pow():
