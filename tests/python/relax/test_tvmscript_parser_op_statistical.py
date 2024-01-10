@@ -170,16 +170,18 @@ def test_std():
     _check(foo, bb.get()["foo"])
 
 
-def test_cumsum():
+def test_scan():
     @R.function
     def foo(x: R.Tensor((2, 3, 4), "float32")):
-        gv = R.cumsum(x, axis=1, dtype="int32")
+        lv = R.cumsum(x, axis=1, dtype="int32")
+        gv = R.cumprod(lv, axis=1, dtype="int32")
         return gv
 
     x = relax.Var("x", R.Tensor((2, 3, 4), "float32"))
     bb = relax.BlockBuilder()
     with bb.function("foo", [x]):
-        gv = bb.emit(relax.op.cumsum(x, axis=1, dtype="int32"))
+        lv = bb.emit(relax.op.cumsum(x, axis=1, dtype="int32"))
+        gv = bb.emit(relax.op.cumprod(lv, axis=1, dtype="int32"))
         bb.emit_func_output(gv)
 
     _check(foo, bb.get()["foo"])

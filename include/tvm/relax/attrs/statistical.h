@@ -42,20 +42,24 @@ struct StatisticalAttrs : public tvm::AttrsNode<StatisticalAttrs> {
   }
 };  // struct StatisticalAttrs
 
-/*! \brief Attributes used in cumsum operators */
-struct CumsumAttrs : public tvm::AttrsNode<CumsumAttrs> {
+/*! \brief Attributes used in scan operators like cumsum, cumprod */
+struct ScanopAttrs : public tvm::AttrsNode<ScanopAttrs> {
   Optional<Integer> axis;
   DataType dtype;
+  Bool exclusive = Bool(false);
 
-  TVM_DECLARE_ATTRS(CumsumAttrs, "relax.attrs.CumsumAttrs") {
+  TVM_DECLARE_ATTRS(ScanopAttrs, "relax.attrs.ScanopAttrs") {
     TVM_ATTR_FIELD(axis).describe(
-        "Axis along which the cumulative sum is computed."
-        "The default (None) is to compute the cumsum over the flattened array.");
+        "The axis along which to perform the scan computation."
+        "The default (None) is to compute over the flattened array.");
     TVM_ATTR_FIELD(dtype).describe(
-        "Type of the returned array and of the accumulator in which the elements are summed."
-        "If dtype is not specified, it defaults to the dtype of data.");
+        "The output data type."
+        "If dtype is not specified, it defaults to the dtype of input data.");
+    TVM_ATTR_FIELD(exclusive)
+        .describe("The first element is not included")
+        .set_default(Bool(false));
   }
-};  // struct CumsumAttrs
+};  // struct ScanopAttrs
 
 }  // namespace relax
 }  // namespace tvm

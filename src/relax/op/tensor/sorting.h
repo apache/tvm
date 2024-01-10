@@ -18,13 +18,13 @@
  */
 
 /*!
- * \file sort.h
+ * \file sorting.h
  * \brief The functions to make Relax tensor sorting operator calls.
  */
-#ifndef TVM_RELAX_OP_TENSOR_SORT_H_
-#define TVM_RELAX_OP_TENSOR_SORT_H_
+#ifndef TVM_RELAX_OP_TENSOR_SORTING_H_
+#define TVM_RELAX_OP_TENSOR_SORTING_H_
 
-#include <tvm/relax/attrs/sort.h>
+#include <tvm/relax/attrs/sorting.h>
 
 #include <algorithm>
 #include <utility>
@@ -43,7 +43,29 @@ namespace relax {
  */
 Expr sort(Expr data, int axis, bool descending);
 
+/*!
+ * \brief Performs sorting along the given axis and returns an array of indices.
+ * \param data The input tensor.
+ * \param axis The axis to sort on.
+ * \param descending Whether to sort in descending order.
+ * \param dtype The data type of the output indices.
+ * \return The computed result.
+ */
+Expr argsort(Expr data, int axis, bool descending, DataType dtype);
+
+/*!
+ * \brief Get the top k elements in an input tensor along the given axis.
+ * \param data The input tensor.
+ * \param k Number of top elements.
+ * \param axis The axis to sort on.
+ * \param ret_type The return type, can be set to one of [both, values, indices].
+ * \param largest Whether to return largest or smallest elements.
+ * \param dtype The data type of the indices output.
+ * \return The computed result.
+ */
+Expr topk(Expr data, int k, int axis, String ret_type, bool largest, DataType dtype);
+
 }  // namespace relax
 }  // namespace tvm
 
-#endif  // TVM_RELAX_OP_TENSOR_SORT_H_
+#endif  // TVM_RELAX_OP_TENSOR_SORTING_H_
