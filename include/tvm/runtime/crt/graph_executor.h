@@ -69,6 +69,12 @@ typedef struct TVMGraphExecutor TVMGraphExecutor;
 int TVMGraphExecutor_Create(const char* sym_json, TVMModuleHandle module_handle,
                             const DLDevice* devices, TVMGraphExecutor** executor);
 
+/*!
+ * \brief get index of graph input based on name.
+ * \param executor The graph executor.
+ * \param name The name of the input.
+ * \return The index of input if found, -1 otherwise.
+ */
 int TVMGraphExecutor_GetInputIndex(TVMGraphExecutor* executor, const char* name);
 
 /*!

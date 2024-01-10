@@ -781,94 +781,143 @@ void TVMGraphExecutor_SetInput(TVMGraphExecutor* executor, const char* name, DLT
 int TVMGraphExecutor_LoadParams(TVMGraphExecutor* executor, const char* param_blob,
                                 const uint32_t param_size) {
   int status = 0;
+  tvm_crt_error_t err = kTvmErrorNoError;
+  TVMGraphExecutorGraphAttr* attrs = &(executor->attrs);
   const char* bptr = param_blob;
   uint64_t header, reserved;
-  memcpy(&header, bptr, sizeof(header));
-  bptr += sizeof(header);
-  if (header != kTVMNDArrayListMagic) {
-    fprintf(stderr, "Invalid parameters file format");
-    status = -1;
-  }
-  memcpy(&reserved, bptr, sizeof(reserved));
-  bptr += sizeof(reserved);
-
-  // read names
+  DLDataType* vtype = NULL;
   char* names = NULL;
-  DLDevice dev = {kDLCPU, 0};
-  tvm_crt_error_t err = TVMPlatformMemoryAllocate(
-      TVM_CRT_MAX_STRLEN_PARAM_NAME * executor->nodes_count, dev, (void**)&names);
-  if (err != kTvmErrorNoError) {
-    fprintf(stderr, "memory allocate error: %08x", err);
-    status = -1;
-    return status;
-  }
-  memset(names, 0, TVM_CRT_MAX_STRLEN_PARAM_NAME * executor->nodes_count);
   uint64_t names_count;
+  DLDevice dev = {kDLCPU, 0};
   int idx;
-  memcpy(&names_count, bptr, sizeof(names_count));
-  bptr += sizeof(names_count);
-  for (idx = 0; idx < names_count; idx++) {
-    uint64_t name_length;
-    memcpy(&name_length, bptr, sizeof(name_length));
-    bptr += sizeof(name_length);
-    if (name_length >= TVM_CRT_MAX_STRLEN_PARAM_NAME) {
-      fprintf(stderr, "Error: function name longer than expected.\n");
+
+  do {
+    memcpy(&header, bptr, sizeof(header));
+    bptr += sizeof(header);
+    if (header != kTVMNDArrayListMagic) {
+      fprintf(stderr, "Invalid parameters file format");
       status = -1;
+      break;
     }
-    memcpy(names + TVM_CRT_MAX_STRLEN_PARAM_NAME * idx, bptr, name_length);
-    bptr += name_length;
-  }
+    memcpy(&reserved, bptr, sizeof(reserved));
+    bptr += sizeof(reserved);
 
-  // read sizes
-  uint64_t sz;
-  memcpy(&sz, bptr, sizeof(sz));
-  bptr += sizeof(sz);
-  uint32_t size = sz;
-  if (size != names_count) {
-    fprintf(stderr, "Invalid parameters file format\n");
-    status = -1;
-  }
-
-  for (idx = 0; idx < size; idx++) {
-    int32_t in_idx =
-        TVMGraphExecutor_GetInputIndex(executor, names + TVM_CRT_MAX_STRLEN_PARAM_NAME * idx);
-    CHECK_GT(in_idx, 0, "Found param for non-existent input: %s\n",
-             names + TVM_CRT_MAX_STRLEN_PARAM_NAME * idx);
-    uint32_t eid = TVMGraphExecutor_GetEntryId(executor, executor->input_nodes[in_idx], 0);
-    if (!(eid < executor->data_entry_count)) {
-      fprintf(stderr, "`entry_id`=%d is greater than expected(%d).\n", eid,
-              executor->data_entry_count);
+    // read types
+    err = TVMPlatformMemoryAllocate(sizeof(DLDataType) * attrs->dltype_count, dev, (void**)&vtype);
+    if (err != kTvmErrorNoError) {
+      fprintf(stderr, "memory allocate error: %08x", err);
       status = -1;
+      break;
+    }
+    // convert strings to DLDataTypes
+    for (idx = 0; idx < attrs->dltype_count; idx++) {
+      vtype[idx] = String2DLDataType(attrs->dltype + idx * TVM_CRT_MAX_STRLEN_DLTYPE);
     }
 
-    if (executor->data_entry[eid].dl_tensor.shape) {
-      err = TVMPlatformMemoryFree(executor->data_entry[eid].dl_tensor.shape, dev);
-      if (err != kTvmErrorNoError) {
-        status = -1;
-      }
-      executor->data_entry[eid].dl_tensor.shape = 0;
+    // read names
+    err = TVMPlatformMemoryAllocate(TVM_CRT_MAX_STRLEN_PARAM_NAME * executor->nodes_count, dev,
+                                    (void**)&names);
+    if (err != kTvmErrorNoError) {
+      fprintf(stderr, "memory allocate error: %08x", err);
+      status = -1;
+      break;
     }
-    if (executor->data_entry[eid].dl_tensor.data) {
-      err = TVMPlatformMemoryFree(executor->data_entry[eid].dl_tensor.data, dev);
-      if (err != kTvmErrorNoError) {
+    memset(names, 0, TVM_CRT_MAX_STRLEN_PARAM_NAME * executor->nodes_count);
+    memcpy(&names_count, bptr, sizeof(names_count));
+    bptr += sizeof(names_count);
+    for (idx = 0; idx < names_count; idx++) {
+      uint64_t name_length;
+      memcpy(&name_length, bptr, sizeof(name_length));
+      bptr += sizeof(name_length);
+      if (name_length >= TVM_CRT_MAX_STRLEN_PARAM_NAME) {
+        fprintf(stderr, "Error: name_id=%d param name longer than expected (%ld).\n", idx,
+                name_length);
         status = -1;
+        break;
       }
-      executor->data_entry[eid].dl_tensor.data = 0;
+      memcpy(names + TVM_CRT_MAX_STRLEN_PARAM_NAME * idx, bptr, name_length);
+      bptr += name_length;
     }
-    status |= TVMNDArray_Load(&(executor->data_entry[eid]), &bptr);
+    if (status) {
+      break;
+    }
+
+    // read sizes
+    uint64_t sz;
+    memcpy(&sz, bptr, sizeof(sz));
+    bptr += sizeof(sz);
+    uint32_t size = sz;
+    if (size != names_count) {
+      fprintf(stderr, "Invalid parameters file format\n");
+      status = -1;
+      break;
+    }
+
+    // read parameters into storage
+    for (idx = 0; idx < size; idx++) {
+      int32_t in_idx =
+          TVMGraphExecutor_GetInputIndex(executor, names + TVM_CRT_MAX_STRLEN_PARAM_NAME * idx);
+      CHECK_GT(in_idx, 0, "Found param for non-existent input: %s\n",
+               names + TVM_CRT_MAX_STRLEN_PARAM_NAME * idx);
+      // get data entry id to locate corresponding storage
+      uint32_t eid = TVMGraphExecutor_GetEntryId(executor, executor->input_nodes[in_idx], 0);
+      if (!(eid < executor->data_entry_count)) {
+        fprintf(stderr, "`entry_id`=%d is greater than expected(%d).\n", eid,
+                executor->data_entry_count);
+        status = -1;
+        break;
+      }
+      uint32_t storage_id = attrs->storage_id[eid];
+
+      // release current storage content
+      status = TVMNDArray_Release(&executor->storage_pool[storage_id].array);
+      if (status) {
+        break;
+      }
+      // load parameters into storage
+      status = TVMNDArray_Load(&executor->storage_pool[storage_id].array, &bptr);
+      if (status) {
+        break;
+      }
+
+      // release data entry shape before creating a view
+      if (executor->data_entry[eid].dl_tensor.shape) {
+        err = TVMPlatformMemoryFree(executor->data_entry[eid].dl_tensor.shape, dev);
+        if (err != kTvmErrorNoError) {
+          status = -1;
+          break;
+        }
+        executor->data_entry[eid].dl_tensor.shape = NULL;
+      }
+      // create view of storage data as a data entry
+      status = TVMNDArray_CreateView(&(executor->storage_pool[storage_id].array),
+                                     attrs->shape + eid * TVM_CRT_MAX_NDIM, attrs->ndim[eid],
+                                     vtype[eid], &executor->data_entry[eid]);
+      if (status) {
+        break;
+      }
 #if TVM_CRT_DEBUG
-    TVMNDArray* entry = &(executor->data_entry[eid]);
-    printf("loading: param %s loaded, in_idx=%d, eid=%d, ndim=%d, data[0]=%f\n",
-           names + TVM_CRT_MAX_STRLEN_PARAM_NAME * idx, in_idx, eid, entry->dl_tensor.ndim,
-           ((float*)entry->dl_tensor.data)[0]);  // NOLINT(*)
-#endif                                           // TVM_CRT_DEBUG
+      TVMNDArray* entry = &(executor->data_entry[eid]);
+      printf("loading: param %s loaded, in_idx=%d, eid=%d, ndim=%d, data[0]=%f\n",
+             names + TVM_CRT_MAX_STRLEN_PARAM_NAME * idx, in_idx, eid, entry->dl_tensor.ndim,
+             ((float*)entry->dl_tensor.data)[0]);  // NOLINT(*)
+#endif                                             // TVM_CRT_DEBUG
+    }
+  } while (0);
+
+  // release memory used for names and types
+  if (NULL != names) {
+    err = TVMPlatformMemoryFree(names, dev);
+    if (err != kTvmErrorNoError) {
+      status = -1;
+    }
   }
 
-  // Release memory
-  err = TVMPlatformMemoryFree(names, dev);
-  if (err != kTvmErrorNoError) {
-    status = -1;
-    return status;
+  if (NULL != vtype) {
+    err = TVMPlatformMemoryFree(vtype, dev);
+    if (err != kTvmErrorNoError) {
+      status = -1;
+    }
   }
 
   return status;
@@ -984,6 +1033,7 @@ int TVMGraphExecutor_SetupStorage(TVMGraphExecutor* executor) {
     TVMGraphExecutorPoolEntry pit = pool_entry[idx];
     DLDevice dev = executor->devices[0];
     uint8_t did_find_linked_param = 0;
+    executor->storage_pool[executor->storage_pool_count].is_linked_param = 0;
     if (lookup_linked_param_valid) {
       lookup_linked_param.args.values[0].v_int64 = idx;
       CHECK_EQ(lookup_linked_param.Call(&lookup_linked_param), 0, "lookup_linked_param");
