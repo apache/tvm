@@ -419,7 +419,7 @@ class VMShapeLowerMutator
 
     // These checks are emitted as extra, in codegen
     // match-cast is simply ignored and treated as a normal binding.
-    builder_->EmitNormalized(GetRef<MatchCast>(binding));
+    ExprMutator::VisitBinding_(binding);
   }
 
   // Do not override shape in struct info fields
