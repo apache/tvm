@@ -25,7 +25,7 @@ from tvm.relay import testing
 from tvm.relay.build_module import bind_params_by_name
 from tvm import autotvm
 from tvm.relay.collage.collage import *
-from test_clml.infrastructure import compile_and_run, opencl_cost_estimator
+from test_clml.infrastructure import compile_and_run
 import pytest
 
 logging.basicConfig(level=logging.INFO)
@@ -47,6 +47,17 @@ TUNING_LOG = ""
 ##
 HOST = tvm.target.Target("llvm -mtriple=arm64-linux-android")
 OPENCL = tvm.target.Target("opencl -device=adreno", HOST)
+RPC_TRACKER_HOST = os.getenv("TVM_TRACKER_HOST", "localhost")
+RPC_TRACKER_PORT = int(os.getenv("TVM_TRACKER_PORT", 9090))
+RPC_KEY = os.getenv("RPC_DEVICE_KEY", "android")
+NDK_CC = os.getenv("TVM_NDK_CC", "aarch64-linux-android-g++")
+
+
+def get_rpc_remote():
+    """Create remote rpc tracker and connect to available remote device"""
+    tracker = rpc.connect_tracker(RPC_TRACKER_HOST, RPC_TRACKER_PORT)
+    remote = tracker.request(RPC_KEY, priority=0, session_timeout=600)
+    return remote
 
 
 def collage(model, input_data):
@@ -73,18 +84,21 @@ def collage(model, input_data):
         config = tvm.target.make_compilation_config(ctxt, targets)
         with ctxt:
             mod = model["mod"]
-            # Register python custom cost function for targets in
-            # custom cost estimator module.
-            cost_estimator = CustomCostEstimator(
-                py_fn_estimator="tvm.relay.collage.opencl_cost_estimator"
-            )
-            mod = tvm.relay.transform.CollagePartition(config, cost_estimator=cost_estimator)(mod)
+            """Collage partition with tvm opencl and clml target on rpc device"""
+            mod = tvm.relay.transform.CollagePartition(
+                config,
+                cost_estimator=CostEstimator(
+                    host=args.host, port=args.port, rpc_key=args.rpc_key, ndk_cc=NDK_CC
+                ),
+            )(mod)
             partitioned_model = model.copy()
             partitioned_model["mod"] = mod
             logging.info("-------------- BEGIN PARTITIONED --------------")
             logging.info(partitioned_model["mod"])
             logging.info("-------------- END PARTITIONED ----------------")
-            return compile_and_run("collage", partitioned_model, targets, input_data)
+            return compile_and_run(
+                get_rpc_remote(), "collage", partitioned_model, targets, input_data
+            )
 
 
 def just_clml(model, input_data):
@@ -104,7 +118,7 @@ def just_clml(model, input_data):
         targets = []
         targets.append(OPENCL)
         targets.append(tvm.target.Target("clml", HOST))
-        return compile_and_run("just_clml", partitioned_model, OPENCL, input_data)
+        return compile_and_run(get_rpc_remote(), "just_clml", partitioned_model, OPENCL, input_data)
 
 
 def just_tvm(model, input_data):
@@ -115,7 +129,7 @@ def just_tvm(model, input_data):
     logging.info("-------------- END ORIGINAL ----------------")
     with autotvm.apply_history_best(TUNING_LOG):
         with tvm.transform.PassContext(opt_level=3):
-            return compile_and_run("just_tvm", model, OPENCL, input_data)
+            return compile_and_run(get_rpc_remote(), "just_tvm", model, OPENCL, input_data)
 
 
 def get_model(model_name, dtype):

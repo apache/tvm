@@ -46,12 +46,9 @@ BYOC_MAX_DEPTH = 8
 ##
 ## Default config definition
 ##
-RPC_TRACKER_HOST = os.getenv("TVM_TRACKER_HOST", "localhost")
-RPC_TRACKER_PORT = int(os.getenv("TVM_TRACKER_PORT", 9090))
-RPC_KEY = os.getenv("RPC_DEVICE_KEY", "android")
-NDK_CROSS_COMPILER = os.getenv("TVM_NDK_CC", "aarch64-linux-android-g++")
 HOST = tvm.target.Target("llvm -mtriple=arm64-linux-android")
 OPENCL = tvm.target.Target("opencl -device=adreno", HOST)
+NDK_CC = os.getenv("TVM_NDK_CC", "aarch64-linux-android-g++")
 
 
 def print_progress(msg):
@@ -143,9 +140,9 @@ def compile_and_run(label, model, targets, inputs):
     dso_binary = "dev_lib_cl.so"
     dso_binary_path = temp.relpath(dso_binary)
     logging.info(f"Exporting library to {dso_binary_path}...")
-    lib.export_library(dso_binary_path, cc=NDK_CROSS_COMPILER)
-    tracker = rpc.connect_tracker(RPC_TRACKER_HOST, RPC_TRACKER_PORT)
-    remote = tracker.request(RPC_KEY, priority=0, session_timeout=600)
+    lib.export_library(dso_binary_path, cc=NDK_CC)
+    tracker = rpc.connect_tracker(args.host, args.port)
+    remote = tracker.request(args.rpc_key, priority=0, session_timeout=600)
     ctx = remote.cl(0)
     remote.upload(dso_binary_path)
     rlib = remote.load_module(dso_binary)
@@ -156,41 +153,6 @@ def compile_and_run(label, model, targets, inputs):
         ctx, repeat=5, number=20, min_repeat_ms=0, func_name=func_name, **main_args
     )
     return profile.mean
-
-
-# Custom cost function for Opencl RPC targets.
-@register_func("tvm.relay.collage.opencl_cost_estimator")
-def opencl_cost_estimator(mod, target):
-    try:
-        # Build the module.
-        logging.info("Compiling module to estimate")
-        exe = tvm.relay.vm.compile(mod, target)
-    except RuntimeError as err:
-        # A build failure indicates the partition is not supported.
-        # eg trying to build an nn.batch_norm on GPU, which has no schedule since we assume it
-        # is only ever used with a tuple projection which is rewritten away.
-        logging.info("Assigning module infinite cost since unable to build: %s", err)
-        return math.inf
-
-    lib = exe.mod
-    tracker = rpc.connect_tracker(RPC_TRACKER_HOST, RPC_TRACKER_PORT)
-    remote = tracker.request(RPC_KEY, priority=0, session_timeout=600)
-    temp = utils.tempdir()
-    dso_binary = "dev_lib_cl.so"
-    dso_binary_path = temp.relpath(dso_binary)
-    ctx = remote.cl(0)
-    lib.export_library(dso_binary_path, cc=NDK_CROSS_COMPILER)
-    remote_path = dso_binary
-    remote.upload(dso_binary_path, target=remote_path)
-    lib = remote.load_module(remote_path)
-
-    vm_factory = tvm.runtime.vm.VirtualMachine(lib, ctx)
-    func_name = "main"
-    main_args = {v.name_hint: arg_for(v.checked_type, ctx) for v in mod[func_name].params}
-    cost = vm_factory.benchmark(
-        ctx, repeat=5, number=20, min_repeat_ms=0, func_name=func_name, **main_args
-    )
-    return cost.mean
 
 
 def collage(model, input_data, tune_log=""):
@@ -217,12 +179,13 @@ def collage(model, input_data, tune_log=""):
         config = tvm.target.make_compilation_config(ctxt, targets)
         with ctxt:
             mod = model["mod"]
-            # Register python custom cost function for targets in
-            # custom cost estimator module.
-            cost_estimator = CustomCostEstimator(
-                py_fn_estimator="tvm.relay.collage.opencl_cost_estimator"
-            )
-            mod = tvm.relay.transform.CollagePartition(config, cost_estimator=cost_estimator)(mod)
+            """Collage partition with tvm opencl and clml target on rpc device"""
+            mod = tvm.relay.transform.CollagePartition(
+                config,
+                cost_estimator=CostEstimator(
+                    host=args.host, port=args.port, rpc_key=args.rpc_key, ndk_cc=NDK_CC
+                ),
+            )(mod)
             partitioned_model = model.copy()
             partitioned_model["mod"] = mod
             logging.info("-------------- BEGIN PARTITIONED --------------")
@@ -322,9 +285,9 @@ def evaluate_network(model_name, dtype):
             "measure_option": autotvm.measure_option(
                 builder=autotvm.LocalBuilder(build_func=ndk.create_shared, timeout=15),
                 runner=autotvm.RPCRunner(
-                    RPC_KEY,
-                    host=RPC_TRACKER_HOST,
-                    port=RPC_TRACKER_PORT,
+                    args.rpc_key,
+                    host=args.host,
+                    port=args.port,
                     number=3,
                     timeout=600,
                 ),

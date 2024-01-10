@@ -50,11 +50,6 @@ import json
 
 from tvm.relay.collage.collage import *
 
-RPC_TRACKER_HOST = os.getenv("TVM_TRACKER_HOST", "localhost")
-RPC_TRACKER_PORT = int(os.getenv("TVM_TRACKER_PORT", 9090))
-RPC_KEY = os.getenv("RPC_DEVICE_KEY", "android")
-NDK_CROSS_COMPILER = os.getenv("TVM_NDK_CC", "aarch64-linux-android-g++")
-
 
 def get_cpu_op_count(mod):
     """Traverse graph counting ops offloaded to TVM."""
@@ -257,7 +252,7 @@ def verify_codegen(
 ########### Collage Drivers ###########
 
 
-def compile_and_run(label, model, targets, inputs):
+def compile_and_run(remote, label, model, targets, inputs):
     """Compile model for target and run it with profiling."""
     logging.info(f"Compiling {model['name']} using {label} with {targets}...")
     mod = model["mod"]
@@ -267,9 +262,8 @@ def compile_and_run(label, model, targets, inputs):
     dso_binary = "dev_lib_cl.so"
     dso_binary_path = temp.relpath(dso_binary)
     logging.info(f"Exporting library to {dso_binary_path}...")
-    lib.export_library(dso_binary_path, cc=NDK_CROSS_COMPILER)
-    tracker = rpc.connect_tracker(RPC_TRACKER_HOST, RPC_TRACKER_PORT)
-    remote = tracker.request(RPC_KEY, priority=0, session_timeout=600)
+    ndk_cc = os.getenv("TVM_NDK_CC", "aarch64-linux-android-g++")
+    lib.export_library(dso_binary_path, cc=ndk_cc)
     ctx = remote.cl(0)
     remote.upload(dso_binary_path)
     rlib = remote.load_module(dso_binary)
@@ -283,38 +277,3 @@ def compile_and_run(label, model, targets, inputs):
     vm_factory.invoke_stateful("main")
     out = vm_factory.get_outputs()[0]
     return out.asnumpy()
-
-
-# Custom cost function for Opencl RPC targets.
-@register_func("tvm.relay.collage.opencl_cost_estimator")
-def opencl_cost_estimator(mod, target):
-    try:
-        # Build the module.
-        logging.info("Compiling module to estimate")
-        exe = tvm.relay.vm.compile(mod, target)
-    except RuntimeError as err:
-        # A build failure indicates the partition is not supported.
-        # eg trying to build an nn.batch_norm on GPU, which has no schedule since we assume it
-        # is only ever used with a tuple projection which is rewritten away.
-        logging.info("Assigning module infinite cost since unable to build: %s", err)
-        return math.inf
-
-    lib = exe.mod
-    tracker = rpc.connect_tracker(RPC_TRACKER_HOST, RPC_TRACKER_PORT)
-    remote = tracker.request(RPC_KEY, priority=0, session_timeout=600)
-    temp = utils.tempdir()
-    dso_binary = "dev_lib_cl.so"
-    dso_binary_path = temp.relpath(dso_binary)
-    ctx = remote.cl(0)
-    lib.export_library(dso_binary_path, cc=NDK_CROSS_COMPILER)
-    remote_path = dso_binary
-    remote.upload(dso_binary_path, target=remote_path)
-    lib = remote.load_module(remote_path)
-
-    vm_factory = tvm.runtime.vm.VirtualMachine(lib, ctx)
-    func_name = "main"
-    main_args = {v.name_hint: arg_for(v.checked_type, ctx) for v in mod[func_name].params}
-    cost = vm_factory.benchmark(
-        ctx, repeat=5, number=20, min_repeat_ms=0, func_name=func_name, **main_args
-    )
-    return cost.mean
