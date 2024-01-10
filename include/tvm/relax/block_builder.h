@@ -87,7 +87,11 @@ class BlockBuilderNode : public Object {
    * GlobalVars in the IRModule to ensure name uniqueness and the invariant:
    * every public function has the same name as its "global_symbol" attribute.
    *
-   * \return The IRModule in this BlockBuilder.
+   * \note this method should be called only once at the end of the building process, since it may
+   * invalidate global vars previously returned by this builder. See also
+   * transform::NormalizeGlobalVar.
+   *
+   * \return The result IRModule.
    */
   virtual IRModule Finalize() = 0;
 

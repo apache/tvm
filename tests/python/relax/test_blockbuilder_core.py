@@ -707,8 +707,10 @@ def test_finalize_public_private_name_conflict():
         gv1 = bb.emit_te(te_one, primfunc_name_hint="func")
         bb.emit_func_output((gv0, gv1))
 
-    mod = bb.finalize()
-    assert rx.analysis.well_formed(mod)
+    mod = bb.get()
+    assert not rx.analysis.well_formed(mod)
+    mod_final = bb.finalize()
+    assert rx.analysis.well_formed(mod_final)
 
     # relax function call
     bb = rx.BlockBuilder()
@@ -724,8 +726,10 @@ def test_finalize_public_private_name_conflict():
         gv0 = bb.emit(rx.Call(gvar1, []))
         bb.emit_func_output(gv0)
 
-    mod = bb.finalize()
-    assert rx.analysis.well_formed(mod)
+    mod = bb.get()
+    assert not rx.analysis.well_formed(mod)
+    mod_final = bb.finalize()
+    assert rx.analysis.well_formed(mod_final)
 
 
 def test_emit_nested_seqexpr_in_binding_block():
