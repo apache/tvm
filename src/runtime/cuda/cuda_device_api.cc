@@ -42,8 +42,9 @@ class CUDADeviceAPI final : public DeviceAPI {
     int value = 0;
     switch (kind) {
       case kExist:
-        value = (cudaDeviceGetAttribute(&value, cudaDevAttrMaxThreadsPerBlock, dev.device_id) ==
-                 cudaSuccess);
+        int count;
+        CUDA_CALL(cudaGetDeviceCount(&count));
+        value = static_cast<int>(dev.device_id < count);
         break;
       case kMaxThreadsPerBlock: {
         CUDA_CALL(cudaDeviceGetAttribute(&value, cudaDevAttrMaxThreadsPerBlock, dev.device_id));
