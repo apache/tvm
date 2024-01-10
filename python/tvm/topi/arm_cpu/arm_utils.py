@@ -74,8 +74,13 @@ def get_tiling_B_transformed(interleave_A, in_dtype):
             # we load 4 rows of B' (i.e., 4 columns of B). Each of them will contain 16 elements
             tile_N = 4
             tile_K = 16
+    # In non-quantized cases, A is not interleaved.
+    elif in_dtype == "float16" and target.features.has_fp16_simd:
+        # Each load from B' contains 32 elements (i.e. 32 columns from B)
+        # We are loading 4 rows from B', in the dimension of reduction (i.e. 4 rows from B)
+        tile_N = 32
+        tile_K = 4
     else:
-        # In non-quantized cases, A is not interleaved.
         # Each load from B' contains 16 elements (i.e. 16 columns from B)
         # We are loading 4 rows from B', in the dimension of reduction (i.e. 4 rows from B)
         tile_N = 16
