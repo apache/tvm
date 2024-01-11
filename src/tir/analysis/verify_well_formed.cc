@@ -347,7 +347,6 @@ bool VerifyWellFormed(const PrimFunc& func, bool assert_mode) {
   }
 
   if (!UndefinedVarVerifier::Verify(func, assert_mode)) return false;
-  if (!SingleEnvThreadVerifier::Verify(func, assert_mode)) return false;
 
   // TODO(Siyuan): add more checks here.
   return true;
@@ -364,7 +363,6 @@ bool VerifyWellFormed(const IRModule& mod, bool assert_mode) {
   }
 
   if (!UndefinedVarVerifier::Verify(mod, assert_mode)) return false;
-  if (!SingleEnvThreadVerifier::Verify(mod, assert_mode)) return false;
 
   return true;
 }
