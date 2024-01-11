@@ -248,7 +248,9 @@ def conv3d(
     .. math::
 
         \mbox{out}[b, c, z, y, x] = \sum_{dz, dy, dx, k}
-           \mbox{data}[b, k, \mbox{strides}[0] * z + dz, \mbox{strides}[1] * y  + dy, \mbox{strides}[2] * x + dx] *
+           \mbox{data}[b, k, \mbox{strides}[0] * z + dz,
+           \mbox{strides}[1] * y  + dy,
+           \mbox{strides}[2] * x + dx] *
            \mbox{weight}[c, k, dz, dy, dx]
 
     Padding and dilation are applied to data and weight respectively before the computation.
