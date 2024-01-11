@@ -116,6 +116,7 @@ class SortScanDispatcher(PyExprMutator):
             tir_call = self.builder_.call_te(
                 te_func,
                 call.args[0],
+                k=call.attrs.k,
                 axis=call.attrs.axis,
                 ret_type=call.attrs.ret_type,
                 is_ascend=not call.attrs.largest,
