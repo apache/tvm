@@ -127,11 +127,13 @@ static TargetFeatures GetFeatures(TargetJSON target) {
   const bool has_dotprod =
       (dotprod_default && !dotprod_disable) || (dotprod_support && dotprod_flag);
 
-  return {
-      {"is_aarch64", Bool(is_aarch64)},  {"has_asimd", Bool(has_asimd)},
-      {"has_sve", Bool(has_sve)},        {"has_dotprod", Bool(has_dotprod)},
-      {"has_matmul_i8", Bool(has_i8mm)},
-  };
+  const bool fp16_flag = HasFlag(mcpu, mattr, "+fullfp16");
+  const bool fp16_support = arch_version >= 8.2;
+  const bool has_fp16_simd = fp16_support && (fp16_flag || has_sve);
+
+  return {{"is_aarch64", Bool(is_aarch64)},  {"has_asimd", Bool(has_asimd)},
+          {"has_sve", Bool(has_sve)},        {"has_dotprod", Bool(has_dotprod)},
+          {"has_matmul_i8", Bool(has_i8mm)}, {"has_fp16_simd", Bool(has_fp16_simd)}};
 }
 
 static Array<String> MergeKeys(Optional<Array<String>> existing_keys) {
