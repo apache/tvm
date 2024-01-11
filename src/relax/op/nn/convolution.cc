@@ -393,14 +393,14 @@ StructInfo InferStructInfoConv3d(const Call& call, const BlockBuilder& ctx) {
 
   const auto* attrs = call->attrs.as<Conv3DAttrs>();
   auto [data_layout, data2NCDHW] = CheckTensorLayout(call, ctx, attrs->data_layout,  //
-                                                    /*tgt_layout=*/"NCDHW",          //
-                                                    /*tensor_name=*/"data");
+                                                     /*tgt_layout=*/"NCDHW",         //
+                                                     /*tensor_name=*/"data");
   auto [weight_layout, weight2OIDHW] = CheckTensorLayout(call, ctx, attrs->kernel_layout,  //
-                                                        /*tgt_layout=*/"OIDHW",            //
-                                                        /*tensor_name=*/"kernel");
+                                                         /*tgt_layout=*/"OIDHW",           //
+                                                         /*tensor_name=*/"kernel");
   auto [out_layout, out2NCDHW] = CheckTensorLayout(call, ctx, attrs->out_layout,  //
-                                                  /*tgt_layout=*/"NCDHW",         //
-                                                  /*tensor_name=*/"output");
+                                                   /*tgt_layout=*/"NCDHW",        //
+                                                   /*tensor_name=*/"output");
 
   Optional<ShapeExpr> data_shape =
       CheckNdimPerLayoutAndGetShape(call, ctx, data_sinfo, data_layout);
@@ -436,7 +436,8 @@ StructInfo InferStructInfoConv3d(const Call& call, const BlockBuilder& ctx) {
     ctx->ReportFatal(Diagnostic::Error(call)
                      << "Conv3d expects the number of output channels to be divisible by the "
                         "number of groups. However, the number of output channels is "
-                     << weight_OIDHW_shape[0] << " while the number of groups is " << attrs->groups);
+                     << weight_OIDHW_shape[0] << " while the number of groups is "
+                     << attrs->groups);
   } else if (!analyzer->CanProveEqual(floormod(weight_OIDHW_shape[0], attrs->groups), 0)) {
     // Todo(relax-team): Trust the input shape at this moment, and revisit
     // this condition with runtime shape check
