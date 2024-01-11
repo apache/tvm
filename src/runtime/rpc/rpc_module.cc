@@ -157,6 +157,8 @@ class RPCWrappedFunc : public Object {
   }
 };
 
+TVM_REGISTER_OBJECT_TYPE(RPCObjectRefObj);
+
 // RPC that represents a remote module session.
 class RPCModuleNode final : public ModuleNode {
  public:
@@ -294,6 +296,11 @@ void RPCWrappedFunc::WrapRemoteReturnToValue(TVMArgs args, TVMRetValue* rv) cons
     void* handle = args[1];
     auto n = make_object<RPCModuleNode>(handle, sess_);
     *rv = Module(n);
+  } else if (tcode == kTVMObjectHandle) {
+    ICHECK_EQ(args.size(), 2);
+    void* handle = args[1];
+    auto n = make_object<RPCObjectRefObj>(handle, sess_);
+    *rv = ObjectRef(n);
   } else if (tcode == kTVMDLTensorHandle || tcode == kTVMNDArrayHandle) {
     ICHECK_EQ(args.size(), 3);
     DLTensor* tensor = args[1];
