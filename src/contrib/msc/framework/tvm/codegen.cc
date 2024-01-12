@@ -71,9 +71,7 @@ void RelaxCodeGen::CodeGenGraph() {
       continue;
     }
     int scope_level = CompareScope(node);
-    if (scope_level == 1) {
-      stack_.scope_start("block_builder.dataflow()");
-    } else if (scope_level == -1) {
+    if (scope_level == -1) {
       stack_.scope_end();
     }
     CodeGenNode(node, config()->use_tools);
@@ -83,13 +81,11 @@ void RelaxCodeGen::CodeGenGraph() {
     for (size_t i = 0; i < scopes().size() - 1; i++) {
       stack_.scope_end();
     }
-  } else if (scopes().size() == 0) {
-    // start dataflow scope for non-scope graph
-    stack_.scope_start("block_builder.dataflow()");
   }
   // mark outputs
   stack_.comment("Emit the outputs");
   Array<String> idx_exits;
+
   for (const auto& e : graph()->GetExits()) {
     const auto& idx_exit = IdxNodeBase(e) + (config()->use_tools ? "_exit" : "");
     if (config()->use_tools) {
@@ -104,10 +100,9 @@ void RelaxCodeGen::CodeGenGraph() {
         stack_.call_arg(DocUtils::ToStr(e->name + "_exit"), "name_hint");
       }
     }
-    stack_.func_call("emit_output", idx_exit, "block_builder").call_arg(idx_exit);
     idx_exits.push_back(idx_exit);
   }
-  stack_.scope_end();
+
   if (config()->use_tools) {
     stack_.func_call("msc_tools.execute_step", "output").call_arg(DocUtils::ToStr("after_build"));
     if (idx_exits.size() == 1) {

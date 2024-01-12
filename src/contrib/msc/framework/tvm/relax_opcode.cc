@@ -36,9 +36,6 @@ const Array<Doc> RelaxOpCode::GetDocs() {
   if (node()->optype == "input" || node()->optype == "constant" || node()->optype == "shape") {
     emit_var = false;
   }
-  if (node()->optype == "tuple" && node()->children.size() == 0) {
-    emit_var = false;
-  }
   if (emit_var) {
     const auto& name = config()->explicit_name ? node()->name : "";
     BuilderEmit(IdxNode(), name);
