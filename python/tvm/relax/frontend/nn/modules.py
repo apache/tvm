@@ -99,8 +99,8 @@ class Linear(Module):
 
     def __init__(
         self,
-        in_features: int,
-        out_features: int,
+        in_features: Union[int, str, tir.PrimExpr],
+        out_features: Union[int, str, tir.PrimExpr],
         bias: bool = True,
         dtype: Optional[str] = None,
         out_dtype: Optional[str] = None,
@@ -617,7 +617,12 @@ class Embedding(Module):
     Module for embedding layer.
     """
 
-    def __init__(self, num: int, dim: int, dtype: Optional[str] = None):
+    def __init__(
+        self,
+        num: Union[int, str, tir.PrimExpr],
+        dim: Union[int, str, tir.PrimExpr],
+        dtype: Optional[str] = None,
+    ):
         self.num = num
         self.dim = dim
         self.weight = Parameter((num, dim), dtype=dtype)
