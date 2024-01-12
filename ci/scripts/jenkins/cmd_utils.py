@@ -58,24 +58,50 @@ class Sh:
         """
         Run 'cmd' in a shell then return the (process, stdout) as a tuple
         """
-        with tempfile.NamedTemporaryFile(delete=False) as f:
-            proc = self.run(f"{cmd} | tee {f.name}", **kwargs)
-            with open(f.name, "r") as f:
-                output = f.read()
-            return proc, output
+
+        logging.info(f"+ {cmd}")
+
+        kwargs = {
+            **self._default_popen_flags(),
+            **kwargs,
+            "stdout": subprocess.PIPE,
+        }
+        proc = subprocess.Popen(cmd, **kwargs)
+
+        stdout = []
+
+        def _tee_output(s):
+            stdout.append(s)
+            print(s, end="")
+
+        while proc.poll() is None:
+            _tee_output(proc.stdout.readline())
+        _tee_output(proc.stdout.read())
+
+        stdout = "".join(stdout)
+        if proc.returncode:
+            raise subprocess.CalledProcessError(proc.returncode, proc.args, stdout)
+
+        return proc, stdout
 
     def run(self, cmd: str, **kwargs):
         logging.info(f"+ {cmd}")
-        defaults = {
+
+        kwargs = {
+            **self._default_popen_flags(),
             "check": True,
+            **kwargs,
+        }
+
+        return subprocess.run(cmd, **kwargs)
+
+    def _default_popen_flags(self):
+        return {
             "shell": True,
             "env": self.env,
             "encoding": "utf-8",
             "cwd": self.cwd,
         }
-        defaults.update(kwargs)
-
-        return subprocess.run(cmd, **defaults)
 
 
 def tags_from_title(title: str) -> List[str]:
