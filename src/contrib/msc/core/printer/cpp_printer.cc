@@ -54,10 +54,20 @@ void CppPrinter::PrintTypedDoc(const IndexDoc& doc) {
 
 void CppPrinter::PrintTypedDoc(const AttrAccessDoc& doc) {
   PrintDoc(doc->value, false);
-  if (!doc->value->IsInstance<PointerDocNode>()) {
-    output_ << ".";
+  if (StringUtils::EndsWith(doc->name, DocSymbol::NextLine())) {
+    const auto& v_name = StringUtils::Replace(doc->name, DocSymbol::NextLine(), "");
+    if (!doc->value->IsInstance<PointerDocNode>()) {
+      IncreaseIndent();
+      PrintDoc(IdDoc("."));
+      DecreaseIndent();
+    }
+    output_ << v_name;
+  } else {
+    if (!doc->value->IsInstance<PointerDocNode>()) {
+      output_ << ".";
+    }
+    output_ << doc->name;
   }
-  output_ << doc->name;
 }
 
 void CppPrinter::PrintTypedDoc(const CallDoc& doc) {
@@ -79,8 +89,10 @@ void CppPrinter::PrintTypedDoc(const CallDoc& doc) {
 void CppPrinter::PrintTypedDoc(const AssignDoc& doc) {
   ICHECK(doc->lhs.defined()) << "lhs should be given for assign";
   if (doc->annotation.defined()) {
-    PrintDoc(doc->annotation.value(), false);
-    output_ << " ";
+    if (!IsEmptyDoc(doc->annotation.value())) {
+      PrintDoc(doc->annotation.value(), false);
+      output_ << " ";
+    }
   }
   PrintDoc(doc->lhs, false);
   if (doc->rhs.defined()) {
@@ -148,7 +160,7 @@ void CppPrinter::PrintTypedDoc(const ForDoc& doc) {
 void CppPrinter::PrintTypedDoc(const ScopeDoc& doc) {
   MaybePrintComment(doc, true);
   ICHECK(doc->rhs.defined()) << "rhs should be given for scope";
-  PrintDoc(doc->rhs);
+  PrintDoc(doc->rhs, false);
   PrintIndentedBlock(doc->body);
 }
 
@@ -158,20 +170,28 @@ void CppPrinter::PrintTypedDoc(const FunctionDoc& doc) {
     ICHECK(arg_doc->comment == nullptr) << "Function arg cannot have comment attached to them.";
   }
   if (doc->return_type.defined()) {
-    PrintDoc(doc->return_type.value(), false);
+    if (!IsEmptyDoc(doc->return_type.value())) {
+      PrintDoc(doc->return_type.value(), false);
+      output_ << " ";
+    }
   } else {
-    output_ << "void";
+    output_ << "void ";
   }
-  output_ << " ";
   PrintDoc(doc->name, false);
   output_ << "(";
   PrintJoinedDocs(doc->args, ", ");
   output_ << ")";
+  if (doc->decorators.size() > 0) {
+    output_ << " ";
+    PrintJoinedDocs(doc->decorators, " ");
+  }
   if (doc->body.size() > 0) {
     output_ << " {";
     PrintIndentedBlock(doc->body);
     if (doc->return_type.defined()) {
-      Endline();
+      if (!IsEmptyDoc(doc->return_type.value())) {
+        Endline();
+      }
     }
     NewLine();
     output_ << "}";
@@ -189,9 +209,11 @@ void CppPrinter::PrintTypedDoc(const ClassDoc& doc) {
   for (const StmtDoc& d : doc->body) {
     PrintDoc(d);
   }
-  NewLine(false);
   output_ << "}";
   Endline();
+  output_ << "  // class ";
+  PrintDoc(doc->name, false);
+  NewLine(false);
 }
 
 void CppPrinter::PrintTypedDoc(const CommentDoc& doc) {
@@ -228,6 +250,101 @@ void CppPrinter::PrintTypedDoc(const StrictListDoc& doc) {
   } else {
     output_ << "{}";
   }
+}
+
+void CppPrinter::PrintTypedDoc(const StructDoc& doc) {
+  MaybePrintComment(doc, true);
+  output_ << "struct ";
+  PrintDoc(doc->name, false);
+  output_ << " {";
+  IncreaseIndent();
+  for (const StmtDoc& d : doc->body) {
+    PrintDoc(d);
+  }
+  DecreaseIndent();
+  NewLine(false);
+  output_ << "}";
+  Endline();
+  output_ << "  // struct ";
+  PrintDoc(doc->name, false);
+  NewLine(false);
+}
+
+void CppPrinter::PrintTypedDoc(const ConstructorDoc& doc) {
+  MaybePrintComment(doc, true);
+  for (const AssignDoc& arg_doc : doc->args) {
+    ICHECK(arg_doc->comment == nullptr) << "Constructor arg cannot have comment attached to them.";
+  }
+  PrintDoc(doc->name, false);
+  output_ << "(";
+  PrintJoinedDocs(doc->args, ", ");
+  output_ << ")";
+  if (doc->body.size() > 0) {
+    output_ << " {";
+    PrintIndentedBlock(doc->body);
+    NewLine();
+    output_ << "}";
+  } else {
+    Endline();
+  }
+  NewLine(false);
+}
+
+void CppPrinter::PrintTypedDoc(const LambdaDoc& doc) {
+  MaybePrintComment(doc, true);
+  for (const AssignDoc& arg_doc : doc->args) {
+    ICHECK(arg_doc->comment == nullptr) << "Function arg cannot have comment attached to them.";
+  }
+  output_ << "auto ";
+  PrintDoc(doc->name, false);
+  output_ << " = [";
+  PrintJoinedDocs(doc->refs, ", ");
+  output_ << "](";
+  PrintJoinedDocs(doc->args, ", ");
+  output_ << ")";
+  if (doc->body.size() > 0) {
+    output_ << " {";
+    PrintIndentedBlock(doc->body);
+    Endline();
+    NewLine();
+    output_ << "};";
+  } else {
+    Endline();
+  }
+  NewLine(false);
+}
+
+void CppPrinter::PrintTypedDoc(const SwitchDoc& doc) {
+  MaybePrintComment(doc, true);
+  ICHECK_EQ(doc->predicates.size(), doc->branchs.size())
+      << "predicates " << doc->predicates.size() << " mismatch with branchs "
+      << doc->branchs.size();
+  for (size_t i = 0; i < doc->predicates.size(); i++) {
+    if (i == 0) {
+      output_ << "if (";
+    } else {
+      NewLine();
+      output_ << "} else if (";
+    }
+    PrintDoc(doc->predicates[i], false);
+    output_ << ") {";
+    PrintIndentedBlock(doc->branchs[i]);
+  }
+  if (!doc->default_branch.empty()) {
+    NewLine();
+    output_ << "} else {";
+    PrintIndentedBlock(doc->default_branch);
+  }
+  NewLine();
+  output_ << "}";
+}
+
+bool CppPrinter::IsEmptyDoc(const ExprDoc& doc) {
+  if (!doc->IsInstance<IdDocNode>()) {
+    return false;
+  }
+  const auto& id_doc = Downcast<IdDoc>(doc);
+  return id_doc->name == DocSymbol::Empty();
 }
 
 void CppPrinter::PrintIndentedBlock(const Array<StmtDoc>& docs) {

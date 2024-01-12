@@ -18,9 +18,10 @@
  */
 
 /*!
- * \file merge_dynamic_shared_memory_allocations.cc
- * \brief Each GPU kernel is allowed to have only one dynamic shared memory allocation.
- * This pass merges multiple TIR-level dynamic shared memory allocations into one allocation.
+ * \file merge_shared_memory_allocations.cc
+ * \brief Each GPU kernel is allowed to have only one dynamic or static shared memory allocation.
+ * This pass merges multiple TIR-level dynamic or static shared memory allocations into one
+ * allocation.
  */
 #include <tvm/runtime/registry.h>
 #include <tvm/tir/expr.h>
@@ -45,6 +46,11 @@ bool IsDynamicSharedMemory(Var buffer_var) {
   return storage_scope.rank == runtime::StorageRank::kShared && storage_scope.tag == ".dyn";
 }
 
+bool IsStaticSharedMemory(Var buffer_var) {
+  StorageScope storage_scope = runtime::StorageScope::Create(GetPtrStorageScope(buffer_var));
+  return storage_scope.rank == runtime::StorageRank::kShared && storage_scope.tag == "";
+}
+
 /*!
  * \brief collect the mapping from the buffer var to its allocate
  */
@@ -53,11 +59,15 @@ class AllocateCollector : public StmtExprVisitor {
   void VisitStmt_(const AllocateNode* op) final {
     if (IsDynamicSharedMemory(op->buffer_var)) {
       dyn_shmem_allocs_[op->buffer_var.get()] = op;
+    } else if (IsStaticSharedMemory(op->buffer_var)) {
+      static_shmem_allocs_[op->buffer_var.get()] = op;
     }
     StmtExprVisitor::VisitStmt_(op);
   }
-  // The mapping from the original buffer var to its allocate
+  // The dynamic mapping from the original buffer var to its allocate
   std::unordered_map<const VarNode*, const AllocateNode*> dyn_shmem_allocs_;
+  // The static mapping from the original buffer var to its allocate
+  std::unordered_map<const VarNode*, const AllocateNode*> static_shmem_allocs_;
 };
 
 // Find a linear pattern of storage access
@@ -73,8 +83,9 @@ class AllocateCollector : public StmtExprVisitor {
 // The storage need to be kept alive between Allocate and last access.
 // The free point is only inserted at the same scope of Allocate.
 //
-class DynSharedMemLinearAccessPatternFinder final : public StmtExprVisitor {
+class SharedMemLinearAccessPatternFinder final : public StmtExprVisitor {
  public:
+  explicit SharedMemLinearAccessPatternFinder(bool is_dynamic = true) : is_dynamic_(is_dynamic) {}
   /*! \brief record the touch list of statement. */
   struct StmtEntry {
     // The statement
@@ -112,7 +123,7 @@ class DynSharedMemLinearAccessPatternFinder final : public StmtExprVisitor {
     auto it = alloc_info_.find(buf);
     if (it != alloc_info_.end() && it->second.alloc) {
       ICHECK_LT(it->second.level, scope_.size());
-      if (IsDynamicSharedMemory(GetRef<Var>(buf))) {
+      if (IsAppropriateSharedMemory(GetRef<Var>(buf))) {
         scope_[it->second.level].touched.push_back(buf);
       }
     }
@@ -143,7 +154,7 @@ class DynSharedMemLinearAccessPatternFinder final : public StmtExprVisitor {
     auto it = alloc_info_.find(buf);
     if (it != alloc_info_.end() && it->second.alloc) {
       ICHECK_LT(it->second.level, scope_.size()) << "Load memory in places other than store.";
-      if (IsDynamicSharedMemory(GetRef<Var>(buf))) {
+      if (IsAppropriateSharedMemory(GetRef<Var>(buf))) {
         scope_[it->second.level].touched.push_back(buf);
       }
     }
@@ -164,7 +175,7 @@ class DynSharedMemLinearAccessPatternFinder final : public StmtExprVisitor {
     auto it = alloc_info_.find(buf);
     if (it != alloc_info_.end() && it->second.alloc) {
       ICHECK_LT(it->second.level, scope_.size());
-      if (IsDynamicSharedMemory(GetRef<Var>(buf))) {
+      if (IsAppropriateSharedMemory(GetRef<Var>(buf))) {
         scope_[it->second.level].touched.push_back(buf);
       }
     }
@@ -217,6 +228,12 @@ class DynSharedMemLinearAccessPatternFinder final : public StmtExprVisitor {
   std::unordered_map<const VarNode*, AllocEntry> alloc_info_;
 
  private:
+  // Wrapper function to determine if the shared memory allocation for a variable is appropriate.
+  bool IsAppropriateSharedMemory(const Var& var) {
+    return is_dynamic_ ? IsDynamicSharedMemory(var) : IsStaticSharedMemory(var);
+  }
+  // Whether do dyanmic analysis.
+  bool is_dynamic_{true};
   // Whether already in thread env.
   bool in_thread_env_{false};
   // The scope stack.
@@ -226,18 +243,23 @@ class DynSharedMemLinearAccessPatternFinder final : public StmtExprVisitor {
 /*!
  * \brief merge the buffers whose live range has no intersection and rewrite the body
  */
-class DynamicSharedMemoryRewriter : public StmtExprMutator {
+class SharedMemoryRewriter : public StmtExprMutator {
  public:
-  explicit DynamicSharedMemoryRewriter(
-      const std::unordered_map<const VarNode*, const AllocateNode*>& dyn_shmem_allocs)
-      : dyn_shmem_allocs_{dyn_shmem_allocs} {}
+  explicit SharedMemoryRewriter(
+      const std::unordered_map<const VarNode*, const AllocateNode*>& shmem_allocs,
+      bool is_dynamic = true)
+      : is_dynamic_{is_dynamic}, shmem_allocs_{shmem_allocs} {
+    if (!is_dynamic) {
+      merged_buf_var_ = Var("buf_shmem", PointerType(PrimType(DataType::UInt(8)), "shared"));
+    }
+  }
 
   /*!
    * \brief plan the memory reuse for all the buffer allocated in the statement
    * \param stmt the statement
    */
-  void PlanReuse(const Stmt& stmt) {
-    DynSharedMemLinearAccessPatternFinder finder;
+  void PlanReuse(const Stmt& stmt, bool is_dynamic = true) {
+    SharedMemLinearAccessPatternFinder finder(is_dynamic);
     finder(stmt);
     this->LivenessAnalysis(finder.linear_seq_);
     this->PlanMemory(finder.linear_seq_);
@@ -263,7 +285,7 @@ class DynamicSharedMemoryRewriter : public StmtExprMutator {
       for (const StorageEntry* e : all_entry) {
         for (int i = 0; i < static_cast<int>(e->allocs.size()); i++) {
           for (const VarNode* buffer : e->allocs[i]) {
-            const AllocateNode* alloc = dyn_shmem_allocs_[buffer];
+            const AllocateNode* alloc = shmem_allocs_[buffer];
             align[i] = std::max(align[i], alloc->dtype.bytes());
           }
         }
@@ -274,7 +296,7 @@ class DynamicSharedMemoryRewriter : public StmtExprMutator {
         for (int i = 0; i < static_cast<int>(e->allocs.size()); i++) {
           PrimExpr inner_offset = 0;
           for (const VarNode* buffer : e->allocs[i]) {
-            const AllocateNode* alloc = dyn_shmem_allocs_[buffer];
+            const AllocateNode* alloc = shmem_allocs_[buffer];
             buffer_byte_offsets_[buffer] = merged_alloc_size_ + inner_offset;
             inner_offset += alloc->extents[0] * alloc->dtype.bytes();
             inner_offset += indexmod(align[i] - indexmod(inner_offset, align[i]), align[i]);
@@ -293,7 +315,7 @@ class DynamicSharedMemoryRewriter : public StmtExprMutator {
   }
 
   Stmt VisitStmt_(const AllocateNode* op) final {
-    if (IsDynamicSharedMemory(op->buffer_var)) {
+    if (IsAppropriateSharedMemory(op->buffer_var)) {
       return StmtExprMutator::VisitStmt(op->body);
     }
     return StmtExprMutator::VisitStmt_(op);
@@ -319,9 +341,9 @@ class DynamicSharedMemoryRewriter : public StmtExprMutator {
 
   template <typename Node>
   Node VisitBufferAccess(Node node) {
-    if (IsDynamicSharedMemory(node->buffer->data)) {
+    if (IsAppropriateSharedMemory(node->buffer->data)) {
       ICHECK_EQ(node->indices.size(), 1)
-          << "MergeDynamicSharedMemoryAllocations expects flat memory buffers, "
+          << "MergeSharedMemoryAllocations expects flat memory buffers, "
           << "and is to be run after "
           << "StorageFlatten (TE schedules) or FlattenBuffer (TIR schedules)";
       Array<PrimExpr> indices = {node->indices[0] +
@@ -342,10 +364,10 @@ class DynamicSharedMemoryRewriter : public StmtExprMutator {
       return it->second;
     }
 
-    if (IsDynamicSharedMemory(buffer->data)) {
+    if (IsAppropriateSharedMemory(buffer->data)) {
       ICHECK_EQ(buffer->shape.size(), 1)
           << "Buffer " << buffer << " has shape " << buffer->shape << ".  "
-          << "MergeDynamicSharedMemoryAllocations expects flat memory buffers, "
+          << "MergeSharedMemoryAllocations expects flat memory buffers, "
           << "and is to be run after "
           << "StorageFlatten (TE schedules) or FlattenBuffer (TIR schedules)";
       auto writer = buffer.CopyOnWrite();
@@ -361,7 +383,7 @@ class DynamicSharedMemoryRewriter : public StmtExprMutator {
       ICHECK_EQ(op->args.size(), 5U);
       DataType dtype = op->args[0].dtype();
       Var buffer = Downcast<Var>(op->args[1]);
-      if (!IsDynamicSharedMemory(buffer)) {
+      if (!IsAppropriateSharedMemory(buffer)) {
         return StmtExprMutator::VisitExpr_(op);
       }
       PrimExpr extra_offset = GetBufferOffset(buffer, dtype);
@@ -381,7 +403,12 @@ class DynamicSharedMemoryRewriter : public StmtExprMutator {
     return indexdiv(it->second, dtype.bytes());
   }
 
-  using StmtEntry = DynSharedMemLinearAccessPatternFinder::StmtEntry;
+  // Wrapper function to determine if the shared memory allocation for a variable is appropriate.
+  bool IsAppropriateSharedMemory(const Var& var) {
+    return is_dynamic_ ? IsDynamicSharedMemory(var) : IsStaticSharedMemory(var);
+  }
+
+  using StmtEntry = SharedMemLinearAccessPatternFinder::StmtEntry;
   struct StorageEntry {
     // The constant size of the buffer in bits, only used if it is constant
     uint64_t const_nbits{0};
@@ -447,9 +474,13 @@ class DynamicSharedMemoryRewriter : public StmtExprMutator {
       // - leaf stmt(offset = 0)
       // - end of scope(offset < 0)
       // In both cases, we need to handle the kill event correctly
+      auto is_leaf_alloc = [&](const VarNode* var) {
+        return seq[i].scope_pair_offset == 0 &&
+               std::find(it->second.gen.begin(), it->second.gen.end(), var) != it->second.gen.end();
+      };
       if (it != event_map_.end() && seq[i].scope_pair_offset <= 0) {
         for (const VarNode* var : it->second.kill) {
-          this->Free(var);
+          if (!is_leaf_alloc(var)) this->Free(var);
         }
       }
       // scope_pair_offset >= 0 means it is either
@@ -458,10 +489,15 @@ class DynamicSharedMemoryRewriter : public StmtExprMutator {
       // In both cases, we need to handle the gen event correctly
       if (it != event_map_.end() && seq[i].scope_pair_offset >= 0) {
         for (const VarNode* var : it->second.gen) {
-          ICHECK(dyn_shmem_allocs_.count(var));
-          const AllocateNode* alloc = dyn_shmem_allocs_[var];
+          ICHECK(shmem_allocs_.count(var));
+          const AllocateNode* alloc = shmem_allocs_[var];
           StorageEntry* dst_entry = FindAlloc(alloc);
           alloc_map_[var] = dst_entry;
+        }
+      }
+      if (it != event_map_.end() && seq[i].scope_pair_offset <= 0) {
+        for (const VarNode* var : it->second.kill) {
+          if (is_leaf_alloc(var)) this->Free(var);
         }
       }
     }
@@ -510,6 +546,7 @@ class DynamicSharedMemoryRewriter : public StmtExprMutator {
         StorageEntry* e = it->second;
         e->const_nbits = std::max(const_nbits, e->const_nbits);
         const_free_map_.erase(it);
+        it->second->allocs.push_back({op->buffer_var.get()});
         return e;
       }
       // Then start looking at smaller buffers.
@@ -578,10 +615,12 @@ class DynamicSharedMemoryRewriter : public StmtExprMutator {
       sym_free_list_.push_back(e);
     }
   }
+  // Wheather enable dyanmic analysis.
+  bool is_dynamic_{true};
   // The var for the merged buffer
   Var merged_buf_var_{"buf_dyn_shmem", PointerType(PrimType(DataType::UInt(8)), "shared.dyn")};
   // The mapping from the original buffer var to its allocate
-  std::unordered_map<const VarNode*, const AllocateNode*> dyn_shmem_allocs_;
+  std::unordered_map<const VarNode*, const AllocateNode*> shmem_allocs_;
   // The size of the merged buffer
   PrimExpr merged_alloc_size_{0};
   // The mapping from the original buffer var to its offset in the merged buffer
@@ -602,30 +641,36 @@ class DynamicSharedMemoryRewriter : public StmtExprMutator {
   support::Arena arena_;
 };
 
-Stmt MergeDynamicSharedMemoryAllocations(Stmt stmt) {
+Stmt MergeSharedMemoryAllocations(Stmt stmt, bool merge_static_smem) {
   AllocateCollector collector;
   collector(stmt);
   if (collector.dyn_shmem_allocs_.size() > 1) {
-    DynamicSharedMemoryRewriter rewriter(collector.dyn_shmem_allocs_);
+    SharedMemoryRewriter rewriter(collector.dyn_shmem_allocs_);
     rewriter.PlanReuse(stmt);
-    return rewriter(std::move(stmt));
+    stmt = rewriter(std::move(stmt));
+  }
+  if (merge_static_smem && collector.static_shmem_allocs_.size() > 1) {
+    SharedMemoryRewriter rewriter(collector.static_shmem_allocs_, false);
+    rewriter.PlanReuse(stmt, false);
+    stmt = rewriter(std::move(stmt));
   }
   return stmt;
 }
 
 namespace transform {
 
-Pass MergeDynamicSharedMemoryAllocations() {
+Pass MergeSharedMemoryAllocations() {
   auto pass_func = [](PrimFunc f, IRModule m, PassContext ctx) {
+    bool merge_static_smem = ctx->GetConfig<Bool>("tir.merge_static_smem", Bool(false)).value();
     auto* n = f.CopyOnWrite();
-    n->body = MergeDynamicSharedMemoryAllocations(std::move(n->body));
+    n->body = MergeSharedMemoryAllocations(std::move(n->body), merge_static_smem);
     return f;
   };
-  return CreatePrimFuncPass(pass_func, 0, "tir.MergeDynamicSharedMemoryAllocations", {});
+  return CreatePrimFuncPass(pass_func, 0, "tir.MergeSharedMemoryAllocations", {});
 }
 
-TVM_REGISTER_GLOBAL("tir.transform.MergeDynamicSharedMemoryAllocations")
-    .set_body_typed(MergeDynamicSharedMemoryAllocations);
+TVM_REGISTER_GLOBAL("tir.transform.MergeSharedMemoryAllocations")
+    .set_body_typed(MergeSharedMemoryAllocations);
 
 }  // namespace transform
 }  // namespace tir

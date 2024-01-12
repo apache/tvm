@@ -334,8 +334,25 @@ class StorageAllocatorInit : public StorageAllocatorBaseVisitor {
     // memory planning.
     // NOTE: we only apply the annotated upper bounds to the TIR variables that
     // appear in the **function signature**.
-    Map<String, IntImm> var_upper_bound_attr =
-        func->GetAttr<Map<String, IntImm>>("tir_var_upper_bound").value_or(Map<String, IntImm>());
+    Map<ObjectRef, ObjectRef> var_upper_bound_attr_raw =
+        func->GetAttr<Map<ObjectRef, ObjectRef>>("tir_var_upper_bound")
+            .value_or(Map<ObjectRef, ObjectRef>());
+    std::unordered_map<String, IntImm> var_upper_bound_attr;
+    // We manually check the value type to ensure the values are all positive IntImm.
+    for (auto it : var_upper_bound_attr_raw) {
+      const auto* key = it.first.as<StringObj>();
+      const auto* value = it.second.as<IntImmNode>();
+      CHECK(key != nullptr)
+          << "The entry key of attr `tir_var_upper_bound` should be string. However "
+          << it.first->GetTypeKey() << " is got.";
+      CHECK(value != nullptr)
+          << "The entry value of attr `tir_var_upper_bound` should be integer. However "
+          << it.second->GetTypeKey() << " is got.";
+      CHECK_GT(value->value, 0)
+          << "The entry value of attr `tir_var_upper_bound` should be a positive integer, while "
+          << value->value << " is got.";
+      var_upper_bound_attr[GetRef<String>(key)] = GetRef<IntImm>(value);
+    }
     Array<tir::Var> var_in_signature = TIRVarsInStructInfo(GetStructInfo(GetRef<Function>(func)));
     var_upper_bound_.clear();
     for (const tir::Var& tir_var : var_in_signature) {

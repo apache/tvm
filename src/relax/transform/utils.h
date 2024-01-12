@@ -421,6 +421,18 @@ Expr EliminateCommonSubexpr(const Expr& expr, bool call_only = false);
  */
 Expr CanonicalizeBindings(const Expr& expr);
 
+/* \brief Remove use of trivial bindings
+ *
+ * Utility for converting from individual model parameters to a single
+ * parameter with a tuple of parameters.  If the `kNumInput` attribute
+ * is absent, no model parameters are present, so no updates are made.
+ *
+ * \param func The function to be updated.
+ *
+ * \ret The updated function.
+ */
+Function BundleModelParams(const Function& func);
+
 }  // namespace relax
 }  // namespace tvm
 

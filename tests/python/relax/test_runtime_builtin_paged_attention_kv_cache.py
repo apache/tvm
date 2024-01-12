@@ -81,12 +81,20 @@ def kv_cache_transpose_append(
     for global_pos, h, f in T.grid(ntoken, num_kv_heads, head_dim):
         with T.block("k_transpose_append"):
             vgpos, vh, vf = T.axis.remap("SSS", [global_pos, h, f])
+            T.reads(position_map[vgpos], k_data[vgpos, vh, vf])
+            T.writes(
+                pages[position_map[vgpos] // page_size, 0, vh, position_map[vgpos] % page_size, vf]
+            )
             position: T.int64 = T.Cast("int64", position_map[vgpos])
             pages[
                 T.floordiv(position, page_size), 0, vh, T.floormod(position, page_size), vf
             ] = k_data[vgpos, vh, vf]
         with T.block("v_transpose_append"):
             vgpos, vh, vf = T.axis.remap("SSS", [global_pos, h, f])
+            T.reads(position_map[vgpos], k_data[vgpos, vh, vf])
+            T.writes(
+                pages[position_map[vgpos] // page_size, 1, vh, position_map[vgpos] % page_size, vf]
+            )
             position: T.int64 = T.Cast("int64", position_map[vgpos])
             pages[
                 T.floordiv(position, page_size), 1, vh, T.floormod(position, page_size), vf
@@ -115,6 +123,11 @@ def copy_cache(
     for p, h, d in T.grid(seqlen, num_kv_heads, head_dim):
         with T.block("copy0"):
             vp, vh, vd = T.axis.remap("SSS", [p, h, d])
+            T.reads(
+                position_map[vp],
+                pages[position_map[vp] // page_size, 0:2, vh, position_map[vp] % page_size, vd],
+            )
+            T.writes(k_data[layer_id, vp, vh, vd], v_data[layer_id, vp, vh, vd])
             position: T.int64 = T.Cast("int64", position_map[vp])
             k_data[layer_id, vp, vh, vd] = pages[
                 T.floordiv(position, page_size), 0, vh, T.floormod(position, page_size), vd
@@ -457,7 +470,7 @@ def test_paged_attention_kv_cache_popn(kv_cache):
         if pop_length != 0:
             cached_k[seq_id] = cached_k[seq_id][:, :-pop_length, ...]
             cached_v[seq_id] = cached_v[seq_id][:, :-pop_length, ...]
-        verify_cached_kv(kv_cache, seq_ids=list(range(4)), expected_k=cached_k, expected_v=cached_v)
+        verify_cached_kv(kv_cache, seq_ids=list(range(5)), expected_k=cached_k, expected_v=cached_v)
 
 
 if __name__ == "__main__":

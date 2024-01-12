@@ -78,10 +78,10 @@ class _TensorOp:
         other = _convert_scalar(other, self)
         return _op().minimum(self, other)
 
-    def reshape(self, shape):
+    def reshape(self, *shape):
         return _op().reshape(self, shape)
 
-    def permute_dims(self, axes):
+    def permute_dims(self, *axes):
         return _op().permute_dims(self, axes)
 
     def repeat(self, repeats: int, axis: Optional[int] = None):

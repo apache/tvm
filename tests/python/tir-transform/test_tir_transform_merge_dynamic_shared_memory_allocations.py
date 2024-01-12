@@ -32,7 +32,7 @@ def run_passes(sch, args):
             tvm.tir.transform.Simplify(),
             tvm.tir.transform.VectorizeLoop(),
             tvm.tir.transform.StorageRewrite(),
-            tvm.tir.transform.MergeDynamicSharedMemoryAllocations(),
+            tvm.tir.transform.MergeSharedMemoryAllocations(),
         ]
     )(mod)
 
@@ -336,7 +336,7 @@ class TestMatmul(tvm.testing.CompareBeforeAfter):
     for the replaced allocations.
     """
 
-    transform = tvm.tir.transform.MergeDynamicSharedMemoryAllocations()
+    transform = tvm.tir.transform.MergeSharedMemoryAllocations()
 
     use_decl_buffer = tvm.testing.parameter(by_dict={"t_buffer": False, "decl_buffer": True})
 
@@ -376,7 +376,6 @@ class TestMatmul(tvm.testing.CompareBeforeAfter):
 
             C_local[0] = T.float32(0)
             for i in range(64):
-
                 A_sh[threadIdx_y * 16 + threadIdx_x] = A_flat[
                     blockIdx_y * 16384 + threadIdx_y * 1024 + i * 16 + threadIdx_x
                 ]
@@ -450,6 +449,66 @@ class TestMatmul(tvm.testing.CompareBeforeAfter):
             matmul_flat[
                 blockIdx_y * 16384 + threadIdx_y * 1024 + blockIdx_x * 16 + threadIdx_x
             ] = C_sh[threadIdx_y * 16 + threadIdx_x]
+
+        return func
+
+
+class TestSimpleAllocNoReuse(tvm.testing.CompareBeforeAfter):
+    """Test alloc and free within the same scope."""
+
+    transform = tvm.tir.transform.MergeDynamicSharedMemoryAllocations()
+
+    def before(self):
+        @T.prim_func
+        def func():
+            threadIdx_x = T.launch_thread("threadIdx.x", 128)
+            A_sh_data = T.allocate([128], "float32", "shared.dyn")
+            B_sh_data = T.allocate([128], "float32", "shared.dyn")
+            A_sh = T.decl_buffer([128], data=A_sh_data, scope="shared.dyn")
+            B_sh = T.decl_buffer([128], data=B_sh_data, scope="shared.dyn")
+            B_sh[threadIdx_x] = A_sh[threadIdx_x]
+
+        return func
+
+    def expected(self):
+        @T.prim_func
+        def func():
+            threadIdx_x = T.launch_thread("threadIdx.x", 128)
+            buf_dyn_shmem = T.allocate([1024], "uint8", "shared.dyn")
+            A_sh = T.decl_buffer((128,), data=buf_dyn_shmem, scope="shared.dyn")
+            B_sh = T.decl_buffer((128,), data=buf_dyn_shmem, scope="shared.dyn")
+            B_sh[threadIdx_x + 128] = A_sh[threadIdx_x]
+
+        return func
+
+
+class TestSimpleAllocReuse(tvm.testing.CompareBeforeAfter):
+    """Test alloc and free within the same scope with a reuse chance."""
+
+    transform = tvm.tir.transform.MergeDynamicSharedMemoryAllocations()
+
+    def before(self):
+        @T.prim_func
+        def func():
+            threadIdx_x = T.launch_thread("threadIdx.x", 128)
+            A_sh_data = T.allocate([128], "float32", "shared.dyn")
+            B_sh_data = T.allocate([128], "float32", "shared.dyn")
+            A_sh = T.decl_buffer([128], data=A_sh_data, scope="shared.dyn")
+            B_sh = T.decl_buffer([128], data=B_sh_data, scope="shared.dyn")
+            A_sh[threadIdx_x] = 0
+            B_sh[threadIdx_x] = 0
+
+        return func
+
+    def expected(self):
+        @T.prim_func
+        def func():
+            threadIdx_x = T.launch_thread("threadIdx.x", 128)
+            buf_dyn_shmem = T.allocate([512], "uint8", "shared.dyn")
+            A_sh = T.decl_buffer((128,), data=buf_dyn_shmem, scope="shared.dyn")
+            B_sh = T.decl_buffer((128,), data=buf_dyn_shmem, scope="shared.dyn")
+            A_sh[threadIdx_x] = 0
+            B_sh[threadIdx_x] = 0
 
         return func
 

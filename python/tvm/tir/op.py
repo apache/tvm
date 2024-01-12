@@ -602,6 +602,23 @@ def tvm_thread_allreduce(*freduce_args):
     return call_intrin("handle", "tir.tvm_thread_allreduce", *freduce_args)
 
 
+def tvm_thread_invariant(cond):
+    """Mark condition as thread invariant.
+
+    Parameters
+    ----------
+    cond : Expr
+        The condition.
+
+    Returns
+    -------
+    call : PrimExpr
+        The call expression.
+    """
+    assert isinstance(cond, PrimExpr)
+    return call_intrin(cond.dtype, "tir.tvm_thread_invariant", cond)
+
+
 def tvm_storage_sync(storage_scope):
     """Perform synchronization in specified scope.
 

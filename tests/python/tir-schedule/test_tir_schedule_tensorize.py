@@ -26,7 +26,10 @@ from tvm.tir.schedule.testing import (
     verify_trace_roundtrip,
 )
 from tvm.tir.tensor_intrin.arm_cpu import (
-    DP4A_INTRIN,
+    DP4A_S8S8S32_INTRIN,
+    DP4A_U8U8U32_INTRIN,
+    DP4A_U8S8S32_INTRIN,
+    DP4A_S8U8S32_INTRIN,
     ARM_DOT_4x4_i8_NEON_INTRIN,
     ARM_DOT_4x4_i8_SDOT_INTRIN,
 )
@@ -687,26 +690,25 @@ def test_tensorize_vdmpy():
     verify_trace_roundtrip(sch=sch, mod=func)
 
 
-def test_tensorize_dpa4():
-    m, n, k = 128, 128, 128
+def test_tensorize_dp4a():
+    # pylint: disable=too-many-locals
+    def _test_intrin(dtype_a, dtype_b, dtype_c, intrin):
+        m, n, k = 128, 128, 128
+        X = te.placeholder((m, k), name="X", dtype=dtype_a)
+        W = te.placeholder((n, k), name="W", dtype=dtype_b)
+        ak = te.reduce_axis((0, k), name="k")
 
-    X = te.placeholder((m, k), name="X", dtype="int8")
-    W = te.placeholder((n, k), name="W", dtype="int8")
-    ak = te.reduce_axis((0, k), name="k")
+        matmul = te.compute(
+            (m, n),
+            lambda i, j: te.sum(
+                X[i, ak].astype(dtype_c) * W[j, ak].astype(dtype_c),
+                axis=ak,
+            ),
+            name="compute",
+        )
 
-    matmul = te.compute(
-        (m, n),
-        lambda i, j: te.sum(
-            X[i, ak].astype("int32")
-            * W[j, ak].astype("int32"),
-            axis=ak,
-        ),
-        name="compute",
-    )
+        func = te.create_prim_func([X, W, matmul])
 
-    func = te.create_prim_func([X, W, matmul])
-
-    for intrin in [AMDGPU_SDOT4_INTRIN, DP4A_INTRIN]:
         sch = tir.Schedule(func, debug_mask="all")
         block = sch.get_block("compute")
         i, j, k = sch.get_loops(block)
@@ -717,7 +719,6 @@ def test_tensorize_dpa4():
         ko, kt = sch.split(ko, factors=sch.sample_perfect_tile(ko, n=2))
 
         sch.reorder(by, bx, ty, tx, yi, xi)
-
         CC = sch.cache_write(block, 0, "local")
         sch.reverse_compute_at(CC, tx)
 
@@ -733,6 +734,15 @@ def test_tensorize_dpa4():
         sch.tensorize(ki, intrin)
 
         verify_trace_roundtrip(sch=sch, mod=func)
+
+    for args in [
+        ("int8", "int8", "int32", AMDGPU_SDOT4_INTRIN),
+        ("int8", "int8", "int32", DP4A_S8S8S32_INTRIN),
+        ("int8", "uint8", "int32", DP4A_S8U8S32_INTRIN),
+        ("uint8", "int8", "int32", DP4A_U8S8S32_INTRIN),
+        ("uint8", "uint8", "uint32", DP4A_U8U8U32_INTRIN),
+    ]:
+        _test_intrin(*args)
 
 
 def test_tensor_intrin_look_up():

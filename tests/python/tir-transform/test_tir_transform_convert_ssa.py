@@ -269,5 +269,221 @@ class TestDedupAutoBroadcastBuffer(BaseBeforeAfter):
         return tvm.IRModule({"func_a": self._make_func(), "func_b": self._make_func()})
 
 
+class TestKeepDuplicateThreadIdxInSameFunction(BaseBeforeAfter):
+    """Environment threads are treated as being at function scope
+
+    The `"thread_extent"` attribute has some unique semantics.  It
+    serves as the definition of the `tir::Var` representing the
+    environment thread (e.g. `threadIdx.x` in CUDA).  However,
+    multiple `"thread_extent"` attributes may co-exist in the same
+    PrimFunc.  For the purpose of variable scope, use of the
+    `tir::Var` is only allowed within the body of the `AttrStmt`.
+    However, for the purpose of well-formed-ness, all
+    `"thread_extent"` attributes must use the same IterVar instance
+    (e.g. `WarpIndexFinder` in `lower_warp_memory.cc` may throw an
+    error if multiple IterVar instances occur).
+
+    If there are multiple `AttrStmt` with key `"thread_extent"` in a
+    single function (represented in TVMScript as `T.launch_thread`),
+    these should be treated as a definition of a single variable at
+    function scope, and should not be de-duplicated.
+    """
+
+    def before(self):
+        @I.ir_module
+        class mod:
+            @T.prim_func
+            def main(A: T.Buffer([256], "float32")):
+                threadIdx_x = T.env_thread("threadIdx.x")
+                with T.launch_thread(threadIdx_x, 256):
+                    A[threadIdx_x] = A[threadIdx_x] + 1.0
+
+                with T.launch_thread(threadIdx_x, 256):
+                    A[threadIdx_x] = A[threadIdx_x] + 2.0
+
+        return mod
+
+    expected = before
+
+
+class TestDeDuplicateThreadIdxAcrossMultipleFunctions(BaseBeforeAfter):
+    """Environment threads are treated as being at function scope
+
+    See `TestKeepDuplicateThreadIdxInSameFunction` for background
+    information.
+
+    If there are multiple functions in an IRModule, the `AttrStmt`
+    with key `"thread_extent"` in a single function (represented in
+    TVMScript as `T.launch_thread`), these should be treated as a
+    definition of a single variable at function scope, and should not
+    be de-duplicated.
+
+    For this test case, the `AttrStmt` for `"thread_extent"` are
+    written explicitly, without using the usual `T.env_thread` and
+    `T.launch_thread`, as they cannot represent the duplciate
+    Var/IterVar usage across the two PrimFuncs.
+    """
+
+    def before(self):
+        threadIdx_x = tvm.tir.Var("threadIdx_x", "int32")
+
+        @I.ir_module
+        class mod:
+            @T.prim_func
+            def kernel_1(A: T.Buffer([256], "float32")):
+                T.attr(
+                    T.iter_var(threadIdx_x, T.Range(0, 256), "ThreadIndex", "threadIdx.x"),
+                    "thread_extent",
+                    256,
+                )
+                A[threadIdx_x] = A[threadIdx_x] + T.float32(1)
+
+            @T.prim_func
+            def kernel_2(A: T.Buffer([256], "float32")):
+                T.attr(
+                    T.iter_var(threadIdx_x, T.Range(0, 256), "ThreadIndex", "threadIdx.x"),
+                    "thread_extent",
+                    256,
+                )
+                A[threadIdx_x] = A[threadIdx_x] + T.float32(1)
+
+        return mod
+
+    def expected(self):
+        @I.ir_module
+        class mod:
+            @T.prim_func
+            def kernel_1(A: T.Buffer([256], "float32")):
+                threadIdx_x = T.int32()
+                T.attr(
+                    T.iter_var(threadIdx_x, T.Range(0, 256), "ThreadIndex", "threadIdx.x"),
+                    "thread_extent",
+                    256,
+                )
+                A[threadIdx_x] = A[threadIdx_x] + T.float32(1)
+
+            @T.prim_func
+            def kernel_2(A: T.Buffer([256], "float32")):
+                threadIdx_x = T.int32()
+                T.attr(
+                    T.iter_var(threadIdx_x, T.Range(0, 256), "ThreadIndex", "threadIdx.x"),
+                    "thread_extent",
+                    256,
+                )
+                A[threadIdx_x] = A[threadIdx_x] + T.float32(1)
+
+        return mod
+
+
+class TestDeDuplicateThreadIdxIterVarAcrossMultipleFunctions(BaseBeforeAfter):
+    """Environment threads are treated as being at function scope
+
+    Like `TestDeDuplicateThreadIdxAcrossMultipleFunctions`, except the
+    `IterVar` for the environment thread is duplicated across multiple
+    PrimFuncs, not just the `tir.Var` inside the `IterVar`.
+    """
+
+    def before(self):
+        threadIdx_x = tvm.tir.Var("threadIdx_x", "int32")
+        iter_var = tvm.tir.IterVar(
+            tvm.ir.Range(0, 256), threadIdx_x, tvm.tir.IterVar.ThreadIndex, "threadIdx.x"
+        )
+
+        @I.ir_module
+        class mod:
+            @T.prim_func
+            def kernel_1(A: T.Buffer([256], "float32")):
+                T.attr(iter_var, "thread_extent", 256)
+                A[threadIdx_x] = A[threadIdx_x] + T.float32(1)
+
+            @T.prim_func
+            def kernel_2(A: T.Buffer([256], "float32")):
+                T.attr(iter_var, "thread_extent", 256)
+                A[threadIdx_x] = A[threadIdx_x] + T.float32(1)
+
+        return mod
+
+    def expected(self):
+        @I.ir_module
+        class mod:
+            @T.prim_func
+            def kernel_1(A: T.Buffer([256], "float32")):
+                threadIdx_x = T.int32()
+                T.attr(
+                    T.iter_var(threadIdx_x, T.Range(0, 256), "ThreadIndex", "threadIdx.x"),
+                    "thread_extent",
+                    256,
+                )
+                A[threadIdx_x] = A[threadIdx_x] + T.float32(1)
+
+            @T.prim_func
+            def kernel_2(A: T.Buffer([256], "float32")):
+                threadIdx_x = T.int32()
+                T.attr(
+                    T.iter_var(threadIdx_x, T.Range(0, 256), "ThreadIndex", "threadIdx.x"),
+                    "thread_extent",
+                    256,
+                )
+                A[threadIdx_x] = A[threadIdx_x] + T.float32(1)
+
+        return mod
+
+
+class TestThreadIdxReusedWithinAndAcrossFunctions(BaseBeforeAfter):
+    """Environment threads are treated as being at function scope
+
+    A combination of
+    TestDeDuplicateThreadIdxIterVarAcrossMultipleFunctions and
+    TestKeepDuplicateThreadIdxInSameFunction.  The re-use within a
+    function should be maintained, while re-use across functions is
+    de-duplicated.
+    """
+
+    def before(self):
+        threadIdx_x = tvm.tir.Var("threadIdx_x", "int32")
+        iter_var = tvm.tir.IterVar(
+            tvm.ir.Range(0, 256), threadIdx_x, tvm.tir.IterVar.ThreadIndex, "threadIdx.x"
+        )
+
+        @I.ir_module
+        class mod:
+            @T.prim_func
+            def kernel_1(A: T.Buffer([256], "float32")):
+                with T.attr(iter_var, "thread_extent", 256):
+                    A[threadIdx_x] = A[threadIdx_x] + 1.0
+                with T.attr(iter_var, "thread_extent", 256):
+                    A[threadIdx_x] = A[threadIdx_x] + 2.0
+
+            @T.prim_func
+            def kernel_2(A: T.Buffer([256], "float32")):
+                with T.attr(iter_var, "thread_extent", 256):
+                    A[threadIdx_x] = A[threadIdx_x] + 1.0
+                with T.attr(iter_var, "thread_extent", 256):
+                    A[threadIdx_x] = A[threadIdx_x] + 2.0
+
+        return mod
+
+    def expected(self):
+        @I.ir_module
+        class mod:
+            @T.prim_func
+            def kernel_1(A: T.Buffer([256], "float32")):
+                threadIdx_x = T.env_thread("threadIdx.x")
+                with T.launch_thread(threadIdx_x, 256):
+                    A[threadIdx_x] = A[threadIdx_x] + 1.0
+                with T.launch_thread(threadIdx_x, 256):
+                    A[threadIdx_x] = A[threadIdx_x] + 2.0
+
+            @T.prim_func
+            def kernel_2(A: T.Buffer([256], "float32")):
+                threadIdx_x = T.env_thread("threadIdx.x")
+                with T.launch_thread(threadIdx_x, 256):
+                    A[threadIdx_x] = A[threadIdx_x] + 1.0
+                with T.launch_thread(threadIdx_x, 256):
+                    A[threadIdx_x] = A[threadIdx_x] + 2.0
+
+        return mod
+
+
 if __name__ == "__main__":
     tvm.testing.main()

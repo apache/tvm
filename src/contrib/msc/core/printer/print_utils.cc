@@ -28,6 +28,10 @@ namespace tvm {
 namespace contrib {
 namespace msc {
 
+const String DocSymbol::Empty() { return "::EMPTY"; }
+
+const String DocSymbol::NextLine() { return "::NEXT_LINE"; }
+
 const ExprDoc DocUtils::ToDoc(int64_t val) { return LiteralDoc::Int(val, NullOpt); }
 
 const ExprDoc DocUtils::ToDoc(int val) { return ToDoc(static_cast<int64_t>(val)); }
@@ -52,28 +56,35 @@ const ExprDoc DocUtils::ToDoc(bool val) { return LiteralDoc::Boolean(val, NullOp
 
 const ExprDoc DocUtils::ToDoc(const ExprDoc& val) { return val; }
 
-const ExprDoc DocUtils::ToStrDoc(const String& val) { return LiteralDoc::Str(val, NullOpt); }
+const ExprDoc DocUtils::ToStr(const String& val) { return LiteralDoc::Str(val, NullOpt); }
 
-const PointerDoc DocUtils::ToPtrDoc(const String& val) { return PointerDoc(val); }
+const PointerDoc DocUtils::ToPtr(const String& val) { return PointerDoc(val); }
 
-const DeclareDoc DocUtils::ToDeclareDoc(const String& type, const String& variable, size_t len,
-                                        bool use_constructor) {
-  Optional<ExprDoc> type_doc;
-  if (type.size() == 0) {
-    type_doc = NullOpt;
-  } else {
-    type_doc = IdDoc(type);
+const StrictListDoc DocUtils::ToStrList(const std::vector<std::string>& values, bool allow_empty) {
+  if (values.size() > 0 || allow_empty) {
+    Array<ExprDoc> elements;
+    for (const auto& v : values) {
+      elements.push_back(ToStr(v));
+    }
+    return StrictListDoc(ListDoc(elements), allow_empty);
   }
-  if (len == 0) {
-    return DeclareDoc(type_doc, IdDoc(variable), Array<ExprDoc>(), use_constructor);
-  }
-  Array<Doc> doc_indices{DocUtils::ToDoc(len)};
-  return DeclareDoc(type_doc, IndexDoc(IdDoc(variable), doc_indices), Array<ExprDoc>(),
-                    use_constructor);
+  return StrictListDoc(ListDoc(), false);
 }
 
-const AttrAccessDoc DocUtils::ToAttrAccessDoc(const String& value, const String& name) {
-  return AttrAccessDoc(IdDoc(value), name);
+const StrictListDoc DocUtils::ToStrList(const std::vector<String>& values, bool allow_empty) {
+  std::vector<std::string> v_values;
+  for (const auto& v : values) {
+    v_values.push_back(v);
+  }
+  return ToStrList(v_values, allow_empty);
+}
+
+const StrictListDoc DocUtils::ToStrList(const Array<String>& values, bool allow_empty) {
+  std::vector<std::string> v_values;
+  for (const auto& v : values) {
+    v_values.push_back(v);
+  }
+  return ToStrList(v_values, allow_empty);
 }
 
 const Array<StmtDoc> DocUtils::ToStmts(const Array<Doc>& docs) {

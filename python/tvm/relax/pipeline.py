@@ -24,7 +24,7 @@ as it is or serves as a basis to do further composition.
 import tvm
 from tvm import meta_schedule as ms
 
-from . import transform
+from . import transform, backend
 
 
 def zero_pipeline(*, enable_warning: bool = False):
@@ -81,6 +81,7 @@ def default_build_pipeline():
     def _pipeline(mod: tvm.ir.IRModule, _ctx: tvm.transform.PassContext) -> tvm.ir.IRModule:
         seq = tvm.transform.Sequential(
             [
+                backend.DispatchSortScan(),
                 transform.LegalizeOps(),
                 transform.RewriteDataflowReshape(),
                 transform.ToNonDataflow(),

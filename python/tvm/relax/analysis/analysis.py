@@ -528,3 +528,28 @@ def detect_recursion(mod: tvm.IRModule) -> List[List[GlobalVar]]:
         with any other, it will be a singleton in this list.
     """
     return _ffi_api.detect_recursion(mod)  # type: ignore
+
+
+def computable_at_compile_time(func: Function) -> List[Var]:
+    """Collect variables whose value can be computed at compile-time
+
+    If a function has the `kNumInput` attribute, then the first
+    `kNumInput` parameters are provided at run-time, while all
+    remaining parameters may be known at compile-time.  This utility
+    collects all variable bindings that only depend, directly or
+    indirectly, on the parameters known at compile-time.
+
+    Parameters
+    ----------
+    func: Function
+
+        The `relax.Function` to analyze
+
+    Returns
+    -------
+    ret: List[Var]
+
+        The set of variables that can be computed at compile-time, in
+        order of their occurrence within the function.
+    """
+    return _ffi_api.computable_at_compile_time(func)  # type: ignore

@@ -99,7 +99,8 @@ from .mask import masked_fill
 from .qdq import quantize, dequantize
 from .search import argmax, argmin, where
 from .set import unique
-from .statistical import cumsum, max, mean, min, prod, std, sum, variance
+from .sorting import sort, argsort, topk
+from .statistical import cumsum, cumprod, max, mean, min, prod, std, sum, variance
 from .ternary import ewise_fma
 from .unary import (
     abs,

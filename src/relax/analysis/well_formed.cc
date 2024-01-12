@@ -133,7 +133,7 @@ class WellFormedChecker : public relax::ExprVisitor,
     Optional<String> gsymbol = func->GetAttr<String>(tvm::attr::kGlobalSymbol);
     if (gsymbol.defined() && gsymbol != var->name_hint) {
       Malformed(Diagnostic::Error(func->span)
-                << "Name in GlobalVar is not equal to name in gsymbol: " << var->name_hint
+                << "Name in GlobalVar is not equal to name in gsymbol: " << var
                 << " != " << gsymbol.value());
     }
   }
@@ -149,13 +149,13 @@ class WellFormedChecker : public relax::ExprVisitor,
     GlobalVar var = GetRef<GlobalVar>(op);
     if (!(mod_->ContainGlobalVar(var->name_hint) &&
           mod_->GetGlobalVar(var->name_hint).same_as(var))) {
-      Malformed(Diagnostic::Error(var) << "GlobalVar " << op->name_hint << " is not defined.");
+      Malformed(Diagnostic::Error(var) << "GlobalVar " << op << " is not defined.");
     }
 
     if (op->checked_type_.defined()) {
       if ((!op->checked_type_->IsInstance<FuncTypeNode>()) &&
           (!op->checked_type_->IsInstance<PackedFuncTypeNode>())) {
-        Malformed(Diagnostic::Error(var) << "The checked_type_ of GlobalVar " << op->name_hint
+        Malformed(Diagnostic::Error(var) << "The checked_type_ of GlobalVar " << op
                                          << " must be either FuncType or PackedFuncType.");
       }
     }
@@ -190,7 +190,7 @@ class WellFormedChecker : public relax::ExprVisitor,
   void VisitExpr_(const VarNode* op) final {
     Var var = GetRef<Var>(op);
     if (var_set_.count(var) == 0 && recur_vars_.count(var) == 0) {
-      Malformed(Diagnostic::Error(var) << "Var " << op->name_hint() << " is not defined.");
+      Malformed(Diagnostic::Error(var) << "Var " << op << " is not defined.");
     }
     CheckStructInfo(op);
   }
@@ -199,10 +199,10 @@ class WellFormedChecker : public relax::ExprVisitor,
     DataflowVar var = GetRef<DataflowVar>(op);
     if (!is_dataflow_) {
       Malformed(Diagnostic::Error(var)
-                << "DataflowVar " << op->name_hint() << " is used outside DataflowBlock.");
+                << "DataflowVar " << op << " is used outside DataflowBlock.");
     }
     if (dataflow_var_set_.count(var) == 0) {
-      Malformed(Diagnostic::Error(var) << "DataflowVar " << op->name_hint() << " is not defined.");
+      Malformed(Diagnostic::Error(var) << "DataflowVar " << op << " is not defined.");
     }
     CheckStructInfo(op);
   }
@@ -246,7 +246,7 @@ class WellFormedChecker : public relax::ExprVisitor,
       if (param_var_func_map_.count(param) == 1) {
         // TODO(relax-team): Complete this error info after we integrate printer
         Malformed(Diagnostic::Error(param->span)
-                  << "Relax variable " << param->name_hint()
+                  << "Relax variable " << param
                   << " is repeatedly used as parameters in function.");
       }
       param_var_func_map_.insert({param, cur_visited_func_});
@@ -442,12 +442,11 @@ class WellFormedChecker : public relax::ExprVisitor,
   void VisitVarDef_(const DataflowVarNode* var) final {
     if (!is_dataflow_) {
       Malformed(Diagnostic::Error(var)
-                << "DataflowVar " << var->name_hint() << " is defined outside DataflowBlock.");
+                << "DataflowVar " << var << " is defined outside DataflowBlock.");
     }
     DataflowVar lv = GetRef<DataflowVar>(var);
     if (dataflow_var_set_.count(lv) == 1) {
-      Malformed(Diagnostic::Error(var)
-                << "DataflowVar " << lv->name_hint() << " is defined more than once.");
+      Malformed(Diagnostic::Error(var) << "DataflowVar " << lv << " is defined more than once.");
     }
     // register DataflowVar
     dataflow_var_set_.insert(lv);
@@ -457,8 +456,7 @@ class WellFormedChecker : public relax::ExprVisitor,
   void VisitVarDef_(const VarNode* var) final {
     Var gv = GetRef<Var>(var);
     if (var_set_.count(gv) == 1) {
-      Malformed(Diagnostic::Error(var)
-                << "Var " << gv->name_hint() << " is defined more than once.");
+      Malformed(Diagnostic::Error(var) << "Var " << gv << " is defined more than once.");
     }
     // register Var
     var_set_.insert(gv);
@@ -469,8 +467,7 @@ class WellFormedChecker : public relax::ExprVisitor,
     tir::Var var = GetRef<tir::Var>(op);
     // default mode, check defined.
     if (symbolic_var_set_.count(var) == 0) {
-      this->Malformed(Diagnostic::Error(var)
-                      << "Symbolic Var " << var->name_hint << " is not defined.");
+      this->Malformed(Diagnostic::Error(var) << "Symbolic Var " << var << " is not defined.");
     }
 
     // don't perform the check
@@ -483,7 +480,7 @@ class WellFormedChecker : public relax::ExprVisitor,
     if (it != symbolic_var_func_map_.end() && it->second != cur_visited_func_) {
       // TODO(relax-team): Complete this error info after we integrate printer
       Malformed(Diagnostic::Error(var->span)
-                << "Symbolic Var " << var->name_hint
+                << "Symbolic Var " << var
                 << " presents in different functions in the same Module.");
     }
     symbolic_var_func_map_.insert({var, cur_visited_func_});

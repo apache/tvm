@@ -68,6 +68,34 @@ TVM_DLL Optional<Map<DFPattern, Var>> MatchGraph(const PatternContext& ctx,
  * \return The rewritten or the input function, depending on the pattern matching result.
  */
 TVM_DLL Function RewriteBindings(const PatternContext& ctx, PackedFunc rewriter, Function f);
+
+/**
+ * \brief Rewrite a function with the given pattern and the rewriter function.
+ *
+ * Pattern match and replace at an expression level.  This level of
+ * granularity does not allow simultaneous replacement cannot be
+ * performed.  In addition, removal of bindings cannot be performed
+ * explicitly, and is only done implicitly through RemoveAllUnused.
+ * See also `RewriteBindings`, which performs replacement on a
+ * block-level, and does not have these restrictions.
+ *
+ * \param pattern The pattern to be replaced
+ *
+ * \param rewriter The function to be called on a successful pattern
+ *  matching.  Given the matched expression and a map of sub-matches,
+ *  it should return the replacement expression.  If the expression
+ *  doesn't require updating (e.g. replacement required checks beyond
+ *  those expressed in the pattern), it should return the expression
+ *  unmodified.
+ *
+ * \param func The function to rewrite
+ *
+ * \return The updated function, if any updates were applied.
+ */
+TVM_DLL Function RewriteCall(const DFPattern& pattern,
+                             TypedPackedFunc<Expr(Expr, Map<DFPattern, Expr>)> rewriter,
+                             Function func);
+
 }  // namespace relax
 }  // namespace tvm
 

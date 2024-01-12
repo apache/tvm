@@ -423,6 +423,13 @@ TVM_DLL Pass BF16StorageLegalize();
 TVM_DLL Pass FP8StorageLegalize();
 
 /*!
+ * \brief Inline calls to private functions
+ *
+ * \return The pass.
+ */
+TVM_DLL Pass InlinePrivateFunctions();
+
+/*!
  * \brief Rewrite the pointer content type of arguments,
  *  as well as Alloc internal to the function to use
  *  the most frequently accessed type for load/store
@@ -614,9 +621,9 @@ TVM_DLL Pass InstallDebugSpans();
 TVM_DLL Pass UnifyThreadBinding();
 
 /*!
- *  A pass to merge multiple TIR-level dynamic shared memory allocations into one
+ *  A pass to merge multiple TIR-level shared memory allocations into one
  */
-TVM_DLL Pass MergeDynamicSharedMemoryAllocations();
+TVM_DLL Pass MergeSharedMemoryAllocations();
 
 /*!
  * \brief This pass is post-scheduling pass to convert all

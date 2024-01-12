@@ -727,7 +727,14 @@ class WildcardPatternNode : public DFPatternNode {
  */
 class WildcardPattern : public DFPattern {
  public:
-  TVM_DEFINE_OBJECT_REF_METHODS(WildcardPattern, DFPattern, WildcardPatternNode);
+  WildcardPattern();
+
+  // Declaring WildcardPattern declared as non-nullable avoids the
+  // default zero-parameter constructor for ObjectRef with `data_ =
+  // nullptr`.  This allows a zero-parameter constructor to be
+  // declared here, to create a valid wildcard instance.
+
+  TVM_DEFINE_NOTNULLABLE_OBJECT_REF_METHODS(WildcardPattern, DFPattern, WildcardPatternNode);
 };
 
 /*!

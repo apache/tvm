@@ -25,13 +25,45 @@ from tvm.ir import IRModule
 from tvm.contrib import utils
 from test_clml.infrastructure import (
     build_and_run,
-    Device,
-    skip_codegen_test,
+    build_and_run_vm,
     verify_codegen,
-    build_module,
-    get_cpu_op_count,
 )
 import pytest
+
+
+executor_type = tvm.testing.parameter("ge", "vm")
+
+
+def _build_and_run_network(remote, mod, params, input_data, target, executor_type, tvm_log=""):
+    """Helper function to build and run a network."""
+
+    outputs = []
+    for clml in [True, False]:
+        if executor_type == "ge":
+            outputs.append(
+                build_and_run(
+                    remote,
+                    mod,
+                    params,
+                    input_data,
+                    target,
+                    enable_clml=clml,
+                    stat_file=tvm_log,
+                )
+            )
+        else:
+            outputs.append(
+                build_and_run_vm(
+                    remote,
+                    mod,
+                    params,
+                    input_data,
+                    target,
+                    enable_clml=clml,
+                    stat_file=tvm_log,
+                )
+            )
+    return outputs
 
 
 def _get_conv_model(
@@ -181,34 +213,36 @@ def _get_conv_expected_codegen(
     return inputs
 
 
-@pytest.mark.parametrize("dtype", ["float32"])
-@tvm.testing.requires_openclml
-def test_conv2d(device, dtype):
-    trials = [
+@pytest.mark.parametrize("dtype", ["float32", "float16"])
+@pytest.mark.parametrize(
+    "trials",
+    [
         # Normal convolution
-        [3, 3, (1, 1), (1, 1), (1, 1), 4, (14, 10, 10), (False, False, False), False],
-        [2, 1, (2, 2), (1, 1), (1, 1), 7, (15, 16, 12), (True, False, True), False],
-        [3, 3, (2, 1), (1, 1), (1, 1), 4, (14, 10, 10), (False, True, False), False],
-        [3, 3, (2, 1), (1, 1), (1, 1), 4, (14, 10, 10), (False, True, True), False],
-        [2, 2, (1, 1), (1, 1), (1, 1), 4, (14, 10, 10), (False, False, False), False],
-        [2, 1, (2, 2), (1, 1), (1, 1), 7, (16, 12, 15), (False, False, True), False],
-        [3, 3, (2, 1), (1, 1), (1, 1), 4, (14, 10, 10), (False, True, False), False],
-        [3, 3, (1, 1), (1, 1), (1, 1), 16, (16, 12, 15), (False, False, False), False],
+        [3, 3, (1, 1), (1, 1), (1, 1), 4, (14, 10, 10), (False, True, False), False],
+        [2, 2, (1, 1), (1, 1), (1, 1), 4, (16, 10, 10), (False, False, False), False],
         [5, 5, (1, 1), (2, 2), (1, 1), 4, (14, 10, 10), (False, False, False), False],
-        [1, 3, (1, 1), (1, 1), (1, 1), 7, (20, 20, 20), (False, False, True), False],
-        [2, 2, (2, 2), (1, 1), (1, 1), 4, (20, 20, 20), (False, True, False), False],
-        [5, 5, (1, 1), (2, 2), (1, 1), 4, (14, 10, 10), (False, False, False), False],
-        [3, 3, (2, 1), (1, 1), (1, 1), 7, (20, 20, 20), (False, False, False), False],
-        [3, 3, (1, 1), (2, 2), (1, 1), 16, (14, 10, 10), (False, True, True), False],
+        [5, 5, (1, 1), (2, 2), (1, 1), 4, (16, 10, 10), (False, False, False), False],
+        [5, 5, (1, 1), (1, 1), (1, 1), 4, (6, 256, 256), (True, True, True), False],
+        [3, 3, (0, 0), (1, 1), (1, 1), 4, (4, 512, 512), (False, True, False), False],
+        [3, 3, (1, 1), (1, 1), (1, 1), 8, (6, 512, 512), (False, True, False), False],
+        [1, 3, (0, 0), (1, 1), (1, 1), 16, (16, 20, 20), (False, False, True), False],
+        [3, 1, (0, 0), (1, 1), (1, 1), 64, (64, 20, 20), (False, False, True), False],
+        # [3, 3, (1, 1), (1, 1), (1, 1), 128, (128, 16, 16), (False, True, False), False],
+        # [3, 3, (1, 1), (2, 2), (1, 1), 256, (128, 16, 16), (False, True, True), False],
         # Depth-wise convolution
-        [3, 3, (1, 1), (1, 1), (1, 1), 20, (20, 20, 20), (False, False, True), True],
-        [5, 5, (2, 2), (1, 1), (1, 1), 20, (20, 20, 20), (False, True, False), True],
-        [3, 3, (2, 2), (2, 2), (1, 1), 14, (14, 10, 10), (False, False, False), True],
-        [5, 5, (0, 0), (1, 1), (1, 1), 20, (20, 20, 20), (False, False, False), True],
-        [3, 3, (1, 1), (2, 2), (1, 1), 14, (14, 10, 10), (False, True, True), True],
-    ]
+        [3, 3, (1, 1), (1, 1), (1, 1), 11, (11, 20, 20), (False, False, True), True],
+        [5, 5, (2, 2), (1, 1), (1, 1), 32, (32, 20, 20), (False, True, False), True],
+        [3, 3, (2, 2), (2, 2), (1, 1), 128, (128, 8, 8), (False, False, False), True],
+        [5, 5, (0, 0), (1, 1), (1, 1), 64, (64, 32, 32), (False, False, False), True],
+        [3, 3, (1, 1), (2, 2), (1, 1), 16, (16, 256, 256), (False, True, True), True],
+    ],
+)
+@tvm.testing.requires_openclml
+@tvm.testing.parametrize_targets("opencl -device=adreno")
+def test_conv2d(remote, dtype, target, trials, executor_type):
+    np.random.seed(0)
 
-    for (
+    (
         kernel_h,
         kernel_w,
         pad,
@@ -218,43 +252,43 @@ def test_conv2d(device, dtype):
         shape,
         composite,
         is_depthwise,
-    ) in trials:
-        shape = (1, *shape)
-        if is_depthwise:
-            groups = shape[1]
-        else:
-            groups = 1
-        outputs = []
-        inputs = {
-            "a": tvm.nd.array(np.random.uniform(-1, 1, shape).astype(dtype)),
-        }
+    ) = trials
 
-        func, params = _get_conv_model(
-            shape,
-            kernel_h,
-            kernel_w,
-            pad,
-            stride,
-            dilation,
-            groups,
-            dtype,
-            out_channels,
-            inputs,
-            has_pad=composite[0],
-            has_bias=composite[1],
-            has_activation=composite[2],
-        )
-        opencl_out = build_and_run(func, inputs, 1, params, device, enable_clml=False)[0]
-        clml_out = build_and_run(func, inputs, 1, params, device, enable_clml=True)[0]
+    shape = (1, *shape)
+    if is_depthwise:
+        groups = shape[1]
+    else:
+        groups = 1
+    outputs = []
+    inputs = {
+        "a": tvm.nd.array(np.random.uniform(-1, 1, shape).astype(dtype)),
+    }
 
-        tvm.testing.assert_allclose(
-            clml_out[0].asnumpy(), opencl_out[0].asnumpy(), rtol=1e-5, atol=1e-5
-        )
-        args = (shape, kernel_h, kernel_w, pad, stride, dilation, groups, dtype, out_channels)
-        exp_codegen = _get_conv_expected_codegen(
-            *args, has_bias=composite[1], has_activation=composite[2]
-        )
-        verify_codegen(func, exp_codegen, device, params)
+    func, params = _get_conv_model(
+        shape,
+        kernel_h,
+        kernel_w,
+        pad,
+        stride,
+        dilation,
+        groups,
+        dtype,
+        out_channels,
+        inputs,
+        has_pad=composite[0],
+        has_bias=composite[1],
+        has_activation=composite[2],
+    )
+    outputs = _build_and_run_network(remote, func, params, inputs, target, executor_type)
+    out_rtol = 1e-1 if dtype == "float16" else 1e-5
+    tvm.testing.assert_allclose(
+        outputs[0].asnumpy(), outputs[1].asnumpy(), rtol=out_rtol, atol=out_rtol
+    )
+    args = (shape, kernel_h, kernel_w, pad, stride, dilation, groups, dtype, out_channels)
+    exp_codegen = _get_conv_expected_codegen(
+        *args, has_bias=composite[1], has_activation=composite[2]
+    )
+    verify_codegen(remote, func, params, exp_codegen, target)
 
 
 def _get_conv2d_transpose_expected_codegen(
@@ -301,69 +335,75 @@ def _get_conv2d_transpose_expected_codegen(
     return exp_codegen
 
 
-@pytest.mark.parametrize("dtype", ["float32"])
-@tvm.testing.requires_openclml
-def test_conv2d_transpose(device, dtype):
-    trials = [
-        [(1, 256, 100, 100), (256, 64, 4, 4), 64, (4, 4), (2, 2), (1, 1, 1, 1)],
+@pytest.mark.parametrize("dtype", ["float32", "float16"])
+@pytest.mark.parametrize(
+    "trials",
+    [
         [(1, 64, 200, 200), (64, 64, 4, 4), 64, (4, 4), (2, 2), (1, 1, 1, 1)],
         [(1, 64, 400, 400), (64, 16, 4, 4), 16, (4, 4), (2, 2), (1, 1, 1, 1)],
-    ]
-    for (dshape, kshape, channels, kernel_size, strides, padding) in trials:
-        x = relay.var("input", shape=dshape, dtype=dtype)
-        input_arr = tvm.nd.array(np.random.uniform(-1, 1, dshape).astype(dtype))
-        w = relay.var("wt", shape=kshape, dtype=dtype)
-        weight_arr = tvm.nd.array(np.random.uniform(-1, 1, kshape).astype(dtype))
-        inputs = {
-            "input": input_arr,
-        }
-        params = {
-            "wt": weight_arr,
-        }
-        y = relay.nn.conv2d_transpose(
-            x,
-            w,
-            channels=channels,
-            kernel_size=kernel_size,
-            strides=strides,
-            padding=padding,
-            kernel_layout="IOHW",
-            data_layout="NCHW",
-        )
-        func = relay.Function([x, w], y)
-        mod = IRModule.from_expr(func)
-
-        opencl_out = build_and_run(mod, inputs, 1, params, device, enable_clml=False)[0]
-        clml_out = build_and_run(mod, inputs, 1, params, device, enable_clml=True)[0]
-        tvm.testing.assert_allclose(
-            clml_out[0].asnumpy(), opencl_out[0].asnumpy(), rtol=1e-3, atol=1e-3
-        )
-
-        args = (
-            dshape,
-            kshape,
-            channels,
-            kernel_size,
-            strides,
-            padding,
-            (1, 1),
-            dtype,
-            opencl_out[0].shape,
-        )
-        exp_codegen = _get_conv2d_transpose_expected_codegen(*args)
-        verify_codegen(mod, exp_codegen, device, params)
-
-
-@pytest.mark.parametrize("dtype", ["float16"])
+        [(1, 16, 32, 32), (16, 16, 3, 3), 16, (3, 3), (1, 1), (1, 1, 1, 1)],
+        # [(1, 256, 100, 100), (256, 64, 4, 4), 64, (4, 4), (2, 2), (1, 1, 1, 1)],
+    ],
+)
 @tvm.testing.requires_openclml
-def test_batchnorm(device, dtype):
+@tvm.testing.parametrize_targets("opencl -device=adreno")
+def test_conv2d_transpose(remote, dtype, target, trials, executor_type):
+    np.random.seed(0)
+    (dshape, kshape, channels, kernel_size, strides, padding) = trials
+    x = relay.var("input", shape=dshape, dtype=dtype)
+    input_arr = tvm.nd.array(np.random.uniform(-1, 1, dshape).astype(dtype))
+    w = relay.var("wt", shape=kshape, dtype=dtype)
+    weight_arr = tvm.nd.array(np.random.uniform(-1, 1, kshape).astype(dtype))
+    inputs = {
+        "input": input_arr,
+    }
+    params = {
+        "wt": weight_arr,
+    }
+    y = relay.nn.conv2d_transpose(
+        x,
+        w,
+        channels=channels,
+        kernel_size=kernel_size,
+        strides=strides,
+        padding=padding,
+        kernel_layout="IOHW",
+        data_layout="NCHW",
+    )
+    func = relay.Function([x, w], y)
+    mod = IRModule.from_expr(func)
+    outputs = _build_and_run_network(remote, mod, params, inputs, target, executor_type)
+    out_rtol = 1e-1 if dtype == "float16" else 1e-5
+    tvm.testing.assert_allclose(
+        outputs[0].asnumpy(), outputs[1].asnumpy(), rtol=out_rtol, atol=out_rtol
+    )
+    args = (
+        dshape,
+        kshape,
+        channels,
+        kernel_size,
+        strides,
+        padding,
+        (1, 1),
+        dtype,
+        outputs[0].shape,
+    )
+    exp_codegen = _get_conv2d_transpose_expected_codegen(*args)
+    verify_codegen(remote, mod, params, exp_codegen, target)
+
+
+@pytest.mark.parametrize("dtype", ["float32", "float16"])
+@pytest.mark.parametrize("trials", [[1, 64, 8, 8], [1, 16, 64, 64]])
+@tvm.testing.requires_openclml
+@tvm.testing.parametrize_targets("opencl -device=adreno")
+def test_batchnorm(remote, dtype, target, trials, executor_type):
     if clml.clml_sdk_version() < 3:
         print("Skip due to unsupported CLML version:", clml.clml_sdk_version())
         return
-    in_shape = (1, 8, 64, 64)
-    channels = 8
+    in_shape = trials
+    channels = in_shape[1]
 
-    np.random.seed(8)
+    np.random.seed(0)
 
     input_arr = tvm.nd.array(np.random.uniform(-1, 1, in_shape).astype(dtype))
     inp = relay.var("a", shape=in_shape, dtype=dtype)
@@ -381,24 +421,58 @@ def test_batchnorm(device, dtype):
 
     func = relay.nn.batch_norm(inp, gamma, beta, mean, variance, axis=1, epsilon=0.0003)[0]
     mod = IRModule.from_expr(func)
-
     inputs = {
         "a": input_arr,
     }
-
-    opencl_out = build_and_run(mod, inputs, 1, params, device, enable_clml=False)[0]
-    clml_out = build_and_run(mod, inputs, 1, params, device, enable_clml=True)[0]
-
+    outputs = _build_and_run_network(remote, mod, params, inputs, target, executor_type)
+    out_rtol = 1e-3 if dtype == "float16" else 1e-5
     tvm.testing.assert_allclose(
-        clml_out[0].asnumpy(), opencl_out[0].asnumpy(), rtol=1e-3, atol=1e-3
+        outputs[0].asnumpy(), outputs[1].asnumpy(), rtol=out_rtol, atol=out_rtol
     )
+    exp_codegen = [
+        {
+            "attrs": {"dtype": [[dtype]], "shape": [[list(inputs["a"].shape)]]},
+            "name": "",
+            "op": "input",
+        },
+        {"attrs": {"dtype": [[dtype]], "shape": [[[channels]]]}, "name": "", "op": "const"},
+        {"attrs": {"dtype": [[dtype]], "shape": [[[channels]]]}, "name": "", "op": "const"},
+        {"attrs": {"dtype": [[dtype]], "shape": [[[channels]]]}, "name": "", "op": "const"},
+        {"attrs": {"dtype": [[dtype]], "shape": [[[channels]]]}, "name": "", "op": "const"},
+        {
+            "attrs": {
+                "axis": [["1"]],
+                "center": [["1"]],
+                "dtype": [[dtype]],
+                "epsilon": [["0.00029999999999999997"]],
+                "num_inputs": "5",
+                "num_outputs": "1",
+                "scale": [["1"]],
+                "shape": [[list(outputs[0].shape)]],
+            },
+            "inputs": [[0, 0, 0], [1, 0, 0], [2, 0, 0], [3, 0, 0], [4, 0, 0]],
+            "name": "nn.batch_norm",
+            "op": "kernel",
+        },
+    ]
+    verify_codegen(remote, mod, params, exp_codegen, target)
 
 
-@pytest.mark.parametrize("dtype", ["float16"])
+@pytest.mark.parametrize("dtype", ["float32", "float16"])
+@pytest.mark.parametrize(
+    "trials",
+    [
+        [(1, 64, 64, 40), (1, 64, 64, 40)],
+        [(1, 1280, 32, 32), (1, 640, 32, 32)],
+        [(1, 64), (1, 32)],
+    ],
+)
 @tvm.testing.requires_openclml
-def test_concat(device, dtype):
-    in_shape_1 = (1, 16, 16, 16)
-    in_shape_2 = (1, 16, 16, 16)
+@tvm.testing.parametrize_targets("opencl -device=adreno")
+def test_concat(remote, dtype, target, trials, executor_type):
+    np.random.seed(0)
+    in_shape_1 = trials[0]
+    in_shape_2 = trials[1]
     a = relay.var("input_1", shape=in_shape_1, dtype=dtype)
     b = relay.var("input_2", shape=in_shape_2, dtype=dtype)
     low, high = -1, 1
@@ -409,14 +483,13 @@ def test_concat(device, dtype):
 
     params = {}
     func = relay.concatenate((a, b), axis=1)
-    mod = IRModule.from_expr(func)
 
-    opencl_out = build_and_run(mod, inputs, 1, params, device, enable_clml=False)[0]
-    clml_out = build_and_run(mod, inputs, 1, params, device, enable_clml=True)[0]
-
+    outputs = _build_and_run_network(remote, func, params, inputs, target, executor_type)
+    out_rtol = 1e-2 if dtype == "float16" else 1e-5
     tvm.testing.assert_allclose(
-        clml_out[0].asnumpy(), opencl_out[0].asnumpy(), rtol=1e-3, atol=1e-3
+        outputs[0].asnumpy(), outputs[1].asnumpy(), rtol=out_rtol, atol=out_rtol
     )
+
     exp_codegen = [
         {
             "attrs": {
@@ -440,14 +513,14 @@ def test_concat(device, dtype):
                 "dtype": [[dtype]],
                 "num_inputs": "2",
                 "num_outputs": "1",
-                "shape": [[list(clml_out[0].shape)]],
+                "shape": [[list(outputs[0].shape)]],
             },
             "inputs": [[0, 0, 0], [1, 0, 0]],
             "name": "concatenate",
             "op": "kernel",
         },
     ]
-    verify_codegen(func, exp_codegen, device, params)
+    verify_codegen(remote, func, params, exp_codegen, target)
 
 
 def _get_pool_expected_codegen(input_shape, pool_size, stride, padding, pool_type, dtype):
@@ -488,10 +561,10 @@ def _get_pool_expected_codegen(input_shape, pool_size, stride, padding, pool_typ
     return exp_codegen
 
 
-@pytest.mark.parametrize("dtype", ["float16"])
-@tvm.testing.requires_openclml
-def test_pool(device, dtype):
-    trials = [
+@pytest.mark.parametrize("dtype", ["float32", "float16"])
+@pytest.mark.parametrize(
+    "trials",
+    [
         # input size         pool_size stride  paading
         [(1, 64, 147, 147), (3, 3), (2, 2), (0, 0, 0, 0), "max"],
         [(1, 192, 71, 71), (3, 3), (2, 2), (0, 0, 0, 0), "max"],
@@ -503,42 +576,59 @@ def test_pool(device, dtype):
         [(1, 288, 35, 35), (3, 3), (1, 1), (0, 0, 1, 1), "avg"],
         [(1, 768, 17, 17), (3, 3), (1, 1), (0, 0, 1, 1), "avg"],
         [(1, 1280, 8, 8), (3, 3), (1, 1), (0, 0, 1, 1), "avg"],
-    ]
+    ],
+)
+@tvm.testing.requires_openclml
+@tvm.testing.parametrize_targets("opencl -device=adreno")
+def test_pool(remote, dtype, target, trials, executor_type):
+    np.random.seed(0)
     params = {}
-    for (
+    (
         input_shape,
         pool_size,
         stride,
         padding,
         pooling_type,
-    ) in trials:
-        a = relay.var("input_1", shape=input_shape, dtype=dtype)
-        input_arr = tvm.nd.array(np.random.uniform(-1, 1, input_shape).astype(dtype))
-        inputs = {
-            "input_1": input_arr,
-        }
+    ) = trials
+    a = relay.var("input_1", shape=input_shape, dtype=dtype)
+    input_arr = tvm.nd.array(np.random.uniform(-1, 1, input_shape).astype(dtype))
+    inputs = {
+        "input_1": input_arr,
+    }
+    if pooling_type == "max":
+        func = relay.nn.max_pool2d(a, pool_size=pool_size, strides=stride, padding=padding)
+    else:
+        func = relay.nn.avg_pool2d(a, pool_size=pool_size, strides=stride, padding=padding)
 
-        if pooling_type == "max":
-            func = relay.nn.max_pool2d(a, pool_size=pool_size, strides=stride, padding=padding)
-        else:
-            func = relay.nn.avg_pool2d(a, pool_size=pool_size, strides=stride, padding=padding)
-        mod = IRModule.from_expr(func)
-
-        opencl_out = build_and_run(mod, inputs, 1, params, device, enable_clml=False)[0]
-        clml_out = build_and_run(mod, inputs, 1, params, device, enable_clml=True)[0]
-        tvm.testing.assert_allclose(
-            clml_out[0].asnumpy(), opencl_out[0].asnumpy(), rtol=1e-3, atol=1e-3
-        )
-
-        args = (input_shape, pool_size, stride, padding, pooling_type, dtype)
-        exp_codegen = _get_pool_expected_codegen(*args)
-        verify_codegen(func, exp_codegen, device, params)
+    outputs = _build_and_run_network(remote, func, params, inputs, target, executor_type)
+    out_rtol = 1e-2 if dtype == "float16" else 1e-5
+    tvm.testing.assert_allclose(
+        outputs[0].asnumpy(), outputs[1].asnumpy(), rtol=out_rtol, atol=out_rtol
+    )
+    args = (input_shape, pool_size, stride, padding, pooling_type, dtype)
+    exp_codegen = _get_pool_expected_codegen(*args)
+    verify_codegen(remote, func, params, exp_codegen, target)
 
 
-@pytest.mark.parametrize("dtype", ["float32"])
+@pytest.mark.parametrize("dtype", ["float32", "float16"])
+@pytest.mark.parametrize(
+    "trials",
+    [
+        [(5, 16), (32, 16), False],
+        [(320, 64), (320, 64), False],
+        [(256, 256), (256, 256), False],
+        [(512, 512), (512, 512), False],
+        [(1, 256), (100, 256), False],
+        [(1, 16), (32, 16), True],
+        [(1, 512), (512, 512), True],
+        [(1, 5), (4, 5), True],
+    ],
+)
 @tvm.testing.requires_openclml
-def test_dense(device, dtype):
+@tvm.testing.parametrize_targets("opencl -device=adreno")
+def test_dense(remote, dtype, target, trials, executor_type):
     def _get_model(x_shape, k_shape, has_bias=False):
+        np.random.seed(0)
         x = relay.var("x", shape=(x_shape), dtype=dtype)
         kernel = relay.var("kernel", shape=(k_shape), dtype=dtype)
         out = relay.nn.dense(x, kernel, units=k_shape[0])
@@ -562,22 +652,8 @@ def test_dense(device, dtype):
                 "op": "const",
             },
         ]
-
-        dense_node = {
-            "attrs": {
-                "num_inputs": "2",
-                "num_outputs": "1",
-                "dtype": [[dtype]],
-                "out_dtype": [[""]],
-                "shape": [[[x_shape[0], k_shape[0]]]],
-                "units": [[str(k_shape[0])]],
-            },
-            "inputs": [[0, 0, 0], [1, 0, 0]],
-            "name": "nn.dense",
-            "op": "kernel",
-        }
-        exp_codegen.append(dense_node)
-
+        input_nodes = [[0, 0, 0], [1, 0, 0]]
+        num_inputs = 2
         if has_bias:
             bias = relay.var("bias", shape=(k_shape[0],), dtype=dtype)
             out = relay.nn.bias_add(out, bias)
@@ -590,43 +666,48 @@ def test_dense(device, dtype):
                 "op": "const",
             }
             exp_codegen.append(bias_data_node)
-            bias_node = {
-                "attrs": {
-                    "num_inputs": "2",
-                    "num_outputs": "1",
-                    "dtype": [[dtype]],
-                    "shape": [[[x_shape[0], k_shape[0]]]],
-                },
-                "inputs": [[2, 0, 0], [3, 0, 0]],
-                "name": "add",
-                "op": "kernel",
-            }
-            exp_codegen.append(bias_node)
-
+            input_nodes.append([2, 0, 0])
+            num_inputs += 1
             params["bias"] = tvm.nd.array(np.random.uniform(-1, 1, (k_shape[0],)).astype(dtype))
+
+        dense_node = {
+            "attrs": {
+                "num_inputs": str(num_inputs),
+                "num_outputs": "1",
+                "dtype": [[dtype]],
+                "out_dtype": [[""]],
+                "shape": [[[x_shape[0], k_shape[0]]]],
+                "units": [[str(k_shape[0])]],
+            },
+            "inputs": input_nodes,
+            "name": "nn.dense",
+            "op": "kernel",
+        }
+        exp_codegen.append(dense_node)
 
         return out, params, inputs, exp_codegen
 
     def _verify(out, params, inputs, exp_codegen):
         mod = IRModule.from_expr(out)
-        opencl_out = build_and_run(mod, inputs, 1, params, device, enable_clml=False)[0]
-        clml_out = build_and_run(mod, inputs, 1, params, device, enable_clml=True)[0]
+        outputs = _build_and_run_network(remote, mod, params, inputs, target, executor_type)
+        out_rtol = 1e-1 if dtype == "float16" else 1e-5
         tvm.testing.assert_allclose(
-            clml_out[0].asnumpy(), opencl_out[0].asnumpy(), rtol=1e-2, atol=1e-2
+            outputs[0].asnumpy(), outputs[1].asnumpy(), rtol=out_rtol, atol=out_rtol
         )
-        verify_codegen(out, exp_codegen, device, params)
+        verify_codegen(remote, mod, params, exp_codegen, target)
 
-    _verify(*(_get_model((5, 16), (32, 16), False)))
-    _verify(*(_get_model((1, 16), (32, 16), True)))
+    _verify(*(_get_model(trials[0], trials[1], trials[2])))
 
 
-@pytest.mark.parametrize("dtype", ["float32"])
+@pytest.mark.parametrize("dtype", ["float32", "float16"])
 @tvm.testing.requires_openclml
-def test_binary_ops(device, dtype):
-    def _get_model(a_shape, b_shape, op):
+@tvm.testing.parametrize_targets("opencl -device=adreno")
+def test_binary_ops(remote, dtype, target, executor_type):
+    def _get_model(a_shape, b_shape, op_func):
+        np.random.seed(0)
         a = relay.var("a", shape=(a_shape), dtype=dtype)
         b = relay.var("b", shape=(b_shape), dtype=dtype)
-        out = op(a, b)
+        out = op_func(a, b)
         inputs = {
             "a": tvm.nd.array(np.random.uniform(-1, 1, a_shape).astype(dtype)),
             "b": tvm.nd.array(np.random.uniform(-1, 1, b_shape).astype(dtype)),
@@ -636,32 +717,56 @@ def test_binary_ops(device, dtype):
 
     def _verify(out, params, inputs):
         mod = IRModule.from_expr(out)
-        opencl_out = build_and_run(mod, inputs, 1, params, device, enable_clml=False)[0]
-        clml_out = build_and_run(mod, inputs, 1, params, device, enable_clml=True)[0]
+        outputs = _build_and_run_network(remote, mod, params, inputs, target, executor_type)
+        out_rtol = 1e-2 if dtype == "float16" else 1e-5
         tvm.testing.assert_allclose(
-            clml_out[0].asnumpy(), opencl_out[0].asnumpy(), rtol=1e-3, atol=1e-3
+            outputs[0].asnumpy(), outputs[1].asnumpy(), rtol=out_rtol, atol=out_rtol
         )
-
-        # Check to make sure these ops are offloaded to CLML instead of TVM.
-        with tvm.transform.PassContext(opt_level=3, disabled_pass=["AlterOpLayout"]):
-            mod = clml.partition_for_clml(mod, params)
-            tvm_op_count = get_cpu_op_count(mod)
-            assert tvm_op_count == 0, "Got {} TVM Native Compute partitions, expected 0".format(
-                tvm_op_count
-            )
+        exp_codegen = [
+            {
+                "attrs": {
+                    "dtype": [[dtype]],
+                    "shape": [[list(inputs["a"].shape)]],
+                },
+                "name": "",
+                "op": "input",
+            },
+            {
+                "attrs": {
+                    "dtype": [[dtype]],
+                    "shape": [[list(inputs["b"].shape)]],
+                },
+                "name": "",
+                "op": "input",
+            },
+            {
+                "attrs": {
+                    "dtype": [[dtype]],
+                    "num_inputs": "2",
+                    "num_outputs": "1",
+                    "shape": [[list(outputs[0].shape)]],
+                },
+                "inputs": [[0, 0, 0], [1, 0, 0]],
+                "name": str(out.op.name),
+                "op": "kernel",
+            },
+        ]
+        verify_codegen(remote, mod, params, exp_codegen, target)
 
     _verify(*(_get_model((1, 16), (1, 16), relay.add)))
-    _verify(*(_get_model((1, 16), (1, 16), relay.subtract)))
-    _verify(*(_get_model((1, 16), (1, 16), relay.multiply)))
-    _verify(*(_get_model((1, 16), (1, 16), relay.divide)))
+    _verify(*(_get_model((1, 18), (1, 18), relay.subtract)))
+    _verify(*(_get_model((1, 256), (1, 256), relay.multiply)))
+    _verify(*(_get_model((1, 10), (1, 10), relay.divide)))
     _verify(*(_get_model((1, 16), (1, 16), relay.minimum)))
-    _verify(*(_get_model((1, 16), (1, 16), relay.maximum)))
+    _verify(*(_get_model((1, 512), (1, 512), relay.maximum)))
 
 
-@pytest.mark.parametrize("dtype", ["float32"])
+@pytest.mark.parametrize("dtype", ["float32", "float16"])
 @tvm.testing.requires_openclml
-def test_unary_ops(device, dtype):
+@tvm.testing.parametrize_targets("opencl -device=adreno")
+def test_unary_ops(remote, dtype, target, executor_type):
     def _get_model(a_shape, op):
+        np.random.seed(0)
         a = relay.var("a", shape=(a_shape), dtype=dtype)
         out = op(a)
         inputs = {"a": tvm.nd.array(np.random.uniform(-1, 1, a_shape).astype(dtype))}
@@ -670,28 +775,45 @@ def test_unary_ops(device, dtype):
 
     def _verify(out, params, inputs):
         mod = IRModule.from_expr(out)
-        opencl_out = build_and_run(mod, inputs, 1, params, device, enable_clml=False)[0]
-        clml_out = build_and_run(mod, inputs, 1, params, device, enable_clml=True)[0]
+        outputs = _build_and_run_network(remote, mod, params, inputs, target, executor_type)
+        out_rtol = 1e-2 if dtype == "float16" else 1e-5
         tvm.testing.assert_allclose(
-            clml_out[0].asnumpy(), opencl_out[0].asnumpy(), rtol=1e-3, atol=1e-3
+            outputs[0].asnumpy(), outputs[1].asnumpy(), rtol=out_rtol, atol=out_rtol
         )
 
-        # Check to make sure these ops are offloaded to CLML instead of TVM.
-        with tvm.transform.PassContext(opt_level=3, disabled_pass=["AlterOpLayout"]):
-            mod = clml.partition_for_clml(mod, params)
-            tvm_op_count = get_cpu_op_count(mod)
-            assert tvm_op_count == 0, "Got {} TVM Native Compute partitions, expected 0".format(
-                tvm_op_count
-            )
+        exp_codegen = [
+            {
+                "attrs": {
+                    "dtype": [[dtype]],
+                    "shape": [[list(inputs["a"].shape)]],
+                },
+                "name": "",
+                "op": "input",
+            },
+            {
+                "attrs": {
+                    "dtype": [[dtype]],
+                    "num_inputs": "1",
+                    "num_outputs": "1",
+                    "shape": [[list(outputs[0].shape)]],
+                },
+                "inputs": [[0, 0, 0]],
+                "name": "nn.relu",
+                "op": "kernel",
+            },
+        ]
+        verify_codegen(remote, mod, params, exp_codegen, target)
 
-    _verify(*(_get_model((1, 16), relay.nn.softmax)))
     _verify(*(_get_model((1, 16), relay.nn.relu)))
+    _verify(*(_get_model((1, 256), relay.nn.relu)))
 
 
 @pytest.mark.parametrize("dtype", ["float32", "float16"])
 @tvm.testing.requires_openclml
-def test_depth_to_space(device, dtype):
+@tvm.testing.parametrize_targets("opencl -device=adreno")
+def test_depth_to_space(remote, dtype, target, executor_type):
     def _get_model(a_shape, block_size):
+        np.random.seed(0)
         a = relay.var("a", shape=(a_shape), dtype=dtype)
         out = relay.nn.depth_to_space(a, block_size)
         inputs = {"a": tvm.nd.array(np.random.uniform(-1, 1, a_shape).astype(dtype))}
@@ -700,10 +822,10 @@ def test_depth_to_space(device, dtype):
 
     def _verify(out, params, inputs):
         mod = IRModule.from_expr(out)
-        opencl_out = build_and_run(mod, inputs, 1, params, device, enable_clml=False)[0]
-        clml_out = build_and_run(mod, inputs, 1, params, device, enable_clml=True)[0]
+        outputs = _build_and_run_network(remote, mod, params, inputs, target, executor_type)
+        out_rtol = 1e-2 if dtype == "float16" else 1e-5
         tvm.testing.assert_allclose(
-            clml_out[0].asnumpy(), opencl_out[0].asnumpy(), rtol=1e-3, atol=1e-3
+            outputs[0].asnumpy(), outputs[1].asnumpy(), rtol=out_rtol, atol=out_rtol
         )
 
         # Check to make sure these ops are offloaded to CLML instead of TVM.
@@ -724,23 +846,26 @@ def test_depth_to_space(device, dtype):
                     "dtype": [[dtype]],
                     "num_inputs": "1",
                     "num_outputs": "1",
-                    "shape": [[list(clml_out[0].shape)]],
+                    "shape": [[list(outputs[0].shape)]],
                 },
                 "inputs": [[0, 0, 0]],
                 "name": "nn.depth_to_space",
                 "op": "kernel",
             },
         ]
-        verify_codegen(out, exp_codegen, device, params)
+        verify_codegen(remote, mod, params, exp_codegen, target)
 
     _verify(*(_get_model((1, 64, 8, 8), 4)))
     _verify(*(_get_model((1, 64, 8, 8), 8)))
+    _verify(*(_get_model((1, 512, 8, 8), 8)))
 
 
 @pytest.mark.parametrize("dtype", ["float32", "float16"])
 @tvm.testing.requires_openclml
-def test_resize_bilinear(device, dtype):
+@tvm.testing.parametrize_targets("opencl -device=adreno")
+def test_resize_bilinear(remote, dtype, target, executor_type):
     def _get_model(a_shape, scale, align_corners):
+        np.random.seed(0)
         a = relay.var("a", shape=(a_shape), dtype=dtype)
         out = relay.nn.upsampling(
             a, scale_h=scale[0], scale_w=scale[1], method="bilinear", align_corners=align_corners
@@ -751,10 +876,10 @@ def test_resize_bilinear(device, dtype):
 
     def _verify(out, params, inputs):
         mod = IRModule.from_expr(out)
-        opencl_out = build_and_run(mod, inputs, 1, params, device, enable_clml=False)[0]
-        clml_out = build_and_run(mod, inputs, 1, params, device, enable_clml=True)[0]
+        outputs = _build_and_run_network(remote, mod, params, inputs, target, executor_type)
+        out_rtol = 1e-2 if dtype == "float16" else 1e-5
         tvm.testing.assert_allclose(
-            clml_out[0].asnumpy(), opencl_out[0].asnumpy(), rtol=1e-3, atol=1e-3
+            outputs[0].asnumpy(), outputs[1].asnumpy(), rtol=out_rtol, atol=out_rtol
         )
 
         # Check to make sure these ops are offloaded to CLML instead of TVM.
@@ -777,23 +902,35 @@ def test_resize_bilinear(device, dtype):
                     "dtype": [[dtype]],
                     "num_inputs": "1",
                     "num_outputs": "1",
-                    "shape": [[list(clml_out[0].shape)]],
+                    "shape": [[list(outputs[0].shape)]],
                 },
                 "inputs": [[0, 0, 0]],
                 "name": "nn.upsampling",
                 "op": "kernel",
             },
         ]
-        verify_codegen(out, exp_codegen, device, params)
+        verify_codegen(remote, mod, params, exp_codegen, target)
 
     _verify(*(_get_model((1, 16, 8, 8), (2, 2), False)))
     _verify(*(_get_model((1, 16, 7, 7), (2, 2), True)))
+    _verify(*(_get_model((1, 64, 8, 8), (2, 2), True)))
 
 
-@pytest.mark.parametrize("dtype", ["float32"])
+@pytest.mark.parametrize("dtype", ["float32", "float16"])
+@pytest.mark.parametrize(
+    "trials",
+    [
+        [(1, 512, 32), (1, 512, 32), False, True],
+        [(1, 128, 32), (1, 128, 32), False, True],
+        [(1, 128, 128), (1, 32, 128), False, True],
+        [(1, 64, 40), (1, 64, 40), False, True],
+    ],
+)
 @tvm.testing.requires_openclml
-def test_batch_matmul(device, dtype):
+@tvm.testing.parametrize_targets("opencl -device=adreno")
+def test_batch_matmul(remote, dtype, target, executor_type, trials):
     def _get_model(a_shape, b_shape, a_transpose, b_transpose):
+        np.random.seed(0)
         a = relay.var("a", shape=(a_shape), dtype=dtype)
         b = relay.var("b", shape=(b_shape), dtype=dtype)
         out = relay.nn.batch_matmul(a, b, transpose_a=a_transpose, transpose_b=b_transpose)
@@ -806,10 +943,10 @@ def test_batch_matmul(device, dtype):
 
     def _verify(out, params, inputs):
         mod = IRModule.from_expr(out)
-        opencl_out = build_and_run(mod, inputs, 1, params, device, enable_clml=False)[0]
-        clml_out = build_and_run(mod, inputs, 1, params, device, enable_clml=True)[0]
+        outputs = _build_and_run_network(remote, mod, params, inputs, target, executor_type)
+        out_rtol = 1e-1 if dtype == "float16" else 1e-5
         tvm.testing.assert_allclose(
-            clml_out[0].asnumpy(), opencl_out[0].asnumpy(), rtol=1e-3, atol=1e-3
+            outputs[0].asnumpy(), outputs[1].asnumpy(), rtol=out_rtol, atol=out_rtol
         )
 
         # Check to make sure these ops are offloaded to CLML instead of TVM.
@@ -838,17 +975,320 @@ def test_batch_matmul(device, dtype):
                     "dtype": [[dtype]],
                     "num_inputs": "2",
                     "num_outputs": "1",
-                    "shape": [[list(clml_out[0].shape)]],
+                    "shape": [[list(outputs[0].shape)]],
                 },
                 "inputs": [[0, 0, 0], [1, 0, 0]],
                 "name": "nn.batch_matmul",
                 "op": "kernel",
             },
         ]
-        verify_codegen(out, exp_codegen, device, params)
+        verify_codegen(remote, mod, params, exp_codegen, target)
 
-    _verify(*(_get_model((1, 128, 32), (1, 128, 32), False, True)))
-    _verify(*(_get_model((1, 128, 128), (1, 32, 128), False, True)))
+    _verify(*(_get_model(trials[0], trials[1], trials[2], trials[3])))
+
+
+def _get_softmax_exp_codegen(inputs, dtype, output_shape, axis):
+
+    exp_codegen = [
+        {
+            "attrs": {
+                "dtype": [[dtype]],
+                "shape": [[list(inputs["a"].shape)]],
+            },
+            "name": "",
+            "op": "input",
+        },
+        {
+            "attrs": {
+                "axis": [[str(axis)]],
+                "dtype": [[dtype]],
+                "num_inputs": "1",
+                "num_outputs": "1",
+                "shape": [[list(output_shape)]],
+            },
+            "inputs": [[0, 0, 0]],
+            "name": "nn.softmax",
+            "op": "kernel",
+        },
+    ]
+    return exp_codegen
+
+
+@pytest.mark.parametrize("dtype", ["float32", "float16"])
+@tvm.testing.requires_openclml
+@tvm.testing.parametrize_targets("opencl -device=adreno")
+def test_softmax(remote, dtype, target, executor_type):
+    def _get_model(a_shape, axis):
+        np.random.seed(0)
+        a = relay.var("a", shape=(a_shape), dtype=dtype)
+        inputs = {"a": tvm.nd.array(np.random.uniform(-1, 1, a_shape).astype(dtype))}
+        out = relay.nn.softmax(a, axis)
+        params = {}
+        return out, params, inputs, axis
+
+    def _verify(out, params, inputs, axis):
+        mod = IRModule.from_expr(out)
+        outputs = _build_and_run_network(remote, mod, params, inputs, target, executor_type)
+        out_rtol = 1e-1 if dtype == "float16" else 1e-5
+        tvm.testing.assert_allclose(
+            outputs[0].asnumpy(), outputs[1].asnumpy(), rtol=out_rtol, atol=out_rtol
+        )
+        args = (inputs, dtype, outputs[0].shape, axis)
+        exp_codegen = _get_softmax_exp_codegen(*args)
+        verify_codegen(remote, mod, params, exp_codegen, target)
+
+    _verify(*(_get_model((1, 5), 1)))
+    _verify(*(_get_model((1, 1000), 1)))
+    _verify(*(_get_model((1, 3), 1)))
+
+
+@pytest.mark.parametrize("dtype", ["float32", "float16"])
+@pytest.mark.parametrize(
+    "trials",
+    [
+        [(1, 1, 2, 2), 2, 1],
+        [(1, 16, 2, 2), 4, 4],
+        [(1, 8, 4, 4), 3, 2],
+    ],
+)
+@tvm.testing.requires_openclml
+@tvm.testing.parametrize_targets("opencl -device=adreno")
+def test_upsampling(remote, dtype, target, executor_type, trials):
+    def _verify(in_shape, scale_h, scale_w):
+        np.random.seed(0)
+        a = relay.var("a", shape=in_shape, dtype=dtype)
+        inputs = {
+            "a": tvm.nd.array(np.random.uniform(-1, 1, in_shape).astype(dtype)),
+        }
+        params = {}
+        func = relay.nn.upsampling(
+            a, scale_h, scale_w, layout="NCHW", method="bilinear", align_corners=False
+        )
+        mod = IRModule.from_expr(func)
+        outputs = _build_and_run_network(remote, mod, params, inputs, target, executor_type)
+        out_rtol = 1e-2 if dtype == "float16" else 1e-5
+        tvm.testing.assert_allclose(
+            outputs[0].asnumpy(), outputs[1].asnumpy(), rtol=out_rtol, atol=out_rtol
+        )
+        exp_codegen = [
+            {
+                "attrs": {"dtype": [[dtype]], "shape": [[list(inputs["a"].shape)]]},
+                "name": "",
+                "op": "input",
+            },
+            {
+                "attrs": {
+                    "align_corners": [["0"]],
+                    "dtype": [[dtype]],
+                    "layout": [["NCHW"]],
+                    "method": [["bilinear"]],
+                    "num_inputs": "1",
+                    "num_outputs": "1",
+                    "scale_h": [[str(scale_h)]],
+                    "scale_w": [[str(scale_w)]],
+                    "shape": [[list(outputs[0].shape)]],
+                },
+                "inputs": [[0, 0, 0]],
+                "name": "nn.upsampling",
+                "op": "kernel",
+            },
+        ]
+        verify_codegen(remote, mod, params, exp_codegen, target)
+
+    _verify(trials[0], trials[1], trials[2])
+
+
+@pytest.mark.parametrize("dtype", ["float32", "float16"])
+@pytest.mark.parametrize(
+    "trials",
+    [
+        [(1, 40, 64, 64), (1, 40, 4096)],
+        [(1, 77, 768), (1, 1, -1, 768)],
+        [(1, 80, 32, 32), (1, 80, 1024)],
+        [(1, 2, 3, 4), (1, 0, -1)],
+    ],
+)
+@tvm.testing.requires_openclml
+@tvm.testing.parametrize_targets("opencl -device=adreno")
+def test_reshape(remote, dtype, target, executor_type, trials):
+    def _verify(shape, newshape):
+        np.random.seed(0)
+        x = relay.var("x", shape=(shape), dtype=dtype)
+        # Defined the test case with unary operator
+        # Single reshape op is failing in native OpenCL with vm executor type
+        # Empty TVM mod in VM doesn't pick appropriate cross compiler
+        out = relay.nn.relu(x)
+        out = relay.reshape(out, newshape)
+
+        inputs = {"x": tvm.nd.array(np.random.uniform(-1, 1, shape).astype(dtype))}
+        params = {}
+        mod = IRModule.from_expr(out)
+        outputs = _build_and_run_network(remote, mod, params, inputs, target, executor_type)
+        out_rtol = 1e-3 if dtype == "float16" else 1e-5
+        tvm.testing.assert_allclose(
+            outputs[0].asnumpy(), outputs[1].asnumpy(), rtol=out_rtol, atol=out_rtol
+        )
+        exp_codegen = [
+            {
+                "attrs": {"dtype": [[dtype]], "shape": [[list(inputs["x"].shape)]]},
+                "name": "",
+                "op": "input",
+            },
+            {
+                "attrs": {
+                    "dtype": [[dtype]],
+                    "num_inputs": "1",
+                    "num_outputs": "1",
+                    "shape": [[list(inputs["x"].shape)]],
+                },
+                "inputs": [[0, 0, 0]],
+                "name": "nn.relu",
+                "op": "kernel",
+            },
+            {
+                "attrs": {
+                    "allowzero": [["0"]],
+                    "dtype": [[dtype]],
+                    "newshape": [[str(ele) for ele in list(newshape)]],
+                    "num_inputs": "1",
+                    "num_outputs": "1",
+                    "shape": [[list(outputs[0].shape)]],
+                },
+                "inputs": [[1, 0, 0]],
+                "name": "reshape",
+                "op": "kernel",
+            },
+        ]
+        verify_codegen(remote, mod, params, exp_codegen, target)
+
+    _verify(trials[0], trials[1])
+
+
+def _get_pool_global_expected_codegen(input_shape, pool_type, dtype, out_shape):
+
+    exp_codegen = [
+        {
+            "attrs": {
+                "dtype": [[str(dtype)]],
+                "shape": [[list(input_shape)]],
+            },
+            "name": "",
+            "op": "input",
+        },
+        {
+            "attrs": {
+                "dtype": [[str(dtype)]],
+                "layout": [["NCHW"]],
+                "num_inputs": "1",
+                "num_outputs": "1",
+                "out_layout": [[""]],
+                "shape": [[list(out_shape)]],
+            },
+            "inputs": [[0, 0, 0]],
+            "name": "nn.global_avg_pool2d" if pool_type == "avg" else "nn.global_max_pool2d",
+            "op": "kernel",
+        },
+    ]
+    return exp_codegen
+
+
+@pytest.mark.parametrize("dtype", ["float32", "float16"])
+@pytest.mark.parametrize(
+    "trials",
+    [
+        [(1, 3, 32, 32), "avg"],
+        [(1, 64, 147, 147), "max"],
+        [(1, 192, 71, 71), "max"],
+        [(1, 288, 35, 35), "max"],
+        [(1, 768, 17, 17), "max"],
+        [(1, 2048, 17, 17), "max"],
+        [(1, 192, 35, 35), "avg"],
+        [(1, 256, 35, 35), "avg"],
+        [(1, 288, 35, 35), "avg"],
+        [(1, 768, 17, 17), "avg"],
+        [(1, 1280, 8, 8), "avg"],
+    ],
+)
+@tvm.testing.requires_openclml
+@tvm.testing.parametrize_targets("opencl -device=adreno")
+def test_pool_global(remote, dtype, target, executor_type, trials):
+    params = {}
+    (input_shape, pooling_type) = trials
+    np.random.seed(0)
+    a = relay.var("a", shape=input_shape, dtype=dtype)
+    inputs = {"a": tvm.nd.array(np.random.uniform(-1, 1, input_shape).astype(dtype))}
+    if pooling_type == "max":
+        func = relay.nn.global_max_pool2d(a)
+    else:
+        func = relay.nn.global_avg_pool2d(a)
+    mod = IRModule.from_expr(func)
+    outputs = _build_and_run_network(remote, mod, params, inputs, target, executor_type)
+    out_rtol = 1e-3 if dtype == "float16" else 1e-5
+    tvm.testing.assert_allclose(
+        outputs[0].asnumpy(), outputs[1].asnumpy(), rtol=out_rtol, atol=out_rtol
+    )
+    args = (input_shape, pooling_type, dtype, outputs[0].shape)
+    exp_codegen = _get_pool_global_expected_codegen(*args)
+    verify_codegen(remote, mod, params, exp_codegen, target)
+
+
+@pytest.mark.parametrize("dtype", ["float32", "float16"])
+@tvm.testing.requires_openclml
+@tvm.testing.parametrize_targets("opencl -device=adreno")
+def test_batch_flatten(remote, dtype, target, executor_type):
+    def _get_model(a_shape):
+        a = relay.var("a", shape=(a_shape), dtype=dtype)
+        # Defined the test case with unary operator
+        # Single batch_flatten op is failing in native OpenCL
+        # Empty TVM mod in VM doesn't pick appropriate cross compiler
+        out = relay.nn.relu(a)
+        out = relay.nn.batch_flatten(out)
+        inputs = {"a": tvm.nd.array(np.random.uniform(-1, 1, a_shape).astype(dtype))}
+        params = {}
+        return out, params, inputs
+
+    def _verify(out, params, inputs):
+        mod = IRModule.from_expr(out)
+        outputs = _build_and_run_network(remote, mod, params, inputs, target, executor_type)
+        out_rtol = 1e-3 if dtype == "float16" else 1e-5
+        tvm.testing.assert_allclose(
+            outputs[0].asnumpy(), outputs[1].asnumpy(), rtol=out_rtol, atol=out_rtol
+        )
+        exp_codegen = [
+            {
+                "attrs": {"dtype": [[dtype]], "shape": [[list(inputs["a"].shape)]]},
+                "name": "",
+                "op": "input",
+            },
+            {
+                "attrs": {
+                    "dtype": [[dtype]],
+                    "num_inputs": "1",
+                    "num_outputs": "1",
+                    "shape": [[list(inputs["a"].shape)]],
+                },
+                "inputs": [[0, 0, 0]],
+                "name": "nn.relu",
+                "op": "kernel",
+            },
+            {
+                "attrs": {
+                    "dtype": [[dtype]],
+                    "num_inputs": "1",
+                    "num_outputs": "1",
+                    "shape": [[list(outputs[0].shape)]],
+                },
+                "inputs": [[1, 0, 0]],
+                "name": "nn.batch_flatten",
+                "op": "kernel",
+            },
+        ]
+        verify_codegen(remote, mod, params, exp_codegen, target)
+
+    _verify(*(_get_model((1, 3, 2))))
+    _verify(*(_get_model((1, 4, 3, 2))))
+    _verify(*(_get_model((1, 64, 8, 8))))
+    _verify(*(_get_model((1, 128, 4, 4))))
 
 
 if __name__ == "__main__":

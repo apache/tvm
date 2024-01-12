@@ -36,17 +36,17 @@ const Array<Doc> TensorRTOpCode::GetDocs() {
   CodeGenBuild();
   if (node()->optype == "tuple") {
     for (size_t i = 0; i < node()->outputs.size(); i++) {
-      stack_.func_call("setName", NullOpt, DocUtils::ToPtrDoc(IdxOutput(i)))
-          .call_arg(DocUtils::ToStrDoc(node()->OutputAt(i)->name));
+      stack_.func_call("setName", NullOpt, DocUtils::ToPtr(IdxOutput(i)))
+          .call_arg(DocUtils::ToStr(node()->OutputAt(i)->name));
     }
   } else if (node()->optype == "get_item") {
-    stack_.func_call("setName", NullOpt, DocUtils::ToPtrDoc(IdxNode()))
-        .call_arg(DocUtils::ToStrDoc(node()->OutputAt(0)->name));
+    stack_.func_call("setName", NullOpt, DocUtils::ToPtr(IdxNode()))
+        .call_arg(DocUtils::ToStr(node()->OutputAt(0)->name));
   } else if (node()->optype != "input") {
-    SetLayerByValue("Name", DocUtils::ToStrDoc(node()->name));
+    SetLayerByValue("Name", DocUtils::ToStr(node()->name));
     for (size_t i = 0; i < node()->outputs.size(); i++) {
-      stack_.func_call("setName", NullOpt, DocUtils::ToPtrDoc(IdxOutput(i)))
-          .call_arg(DocUtils::ToStrDoc(node()->OutputAt(i)->name));
+      stack_.func_call("setName", NullOpt, DocUtils::ToPtr(IdxOutput(i)))
+          .call_arg(DocUtils::ToStr(node()->OutputAt(i)->name));
     }
   }
   return stack_.GetDocs();
@@ -155,29 +155,29 @@ const size_t TensorRTOpCode::AttrToAxis(const String& key, size_t ndim) {
 
 template <typename T>
 void TensorRTOpCode::SetLayerByAttr(const String& method, const String& key) {
-  stack_.func_call("set" + method, NullOpt, DocUtils::ToPtrDoc(IdxNode())).op_arg<T>(key, "");
+  stack_.func_call("set" + method, NullOpt, DocUtils::ToPtr(IdxNode())).op_arg<T>(key, "");
 }
 
 template <typename T>
 void TensorRTOpCode::SetLayerByValue(const String& method, const T& value) {
-  stack_.func_call("set" + method, NullOpt, DocUtils::ToPtrDoc(IdxNode())).call_arg(value);
+  stack_.func_call("set" + method, NullOpt, DocUtils::ToPtr(IdxNode())).call_arg(value);
 }
 
 void TensorRTOpCode::SetLayerByDimsAttr(const String& method, const String& key, bool use_ndim) {
-  stack_.func_call("set" + method, NullOpt, DocUtils::ToPtrDoc(IdxNode()))
+  stack_.func_call("set" + method, NullOpt, DocUtils::ToPtr(IdxNode()))
       .call_arg(AttrToDims(key, use_ndim));
 }
 
 template <typename T>
 void TensorRTOpCode::SetLayerByDimsValue(const String& method, const std::vector<T>& value,
                                          bool use_ndim) {
-  stack_.func_call("set" + method, NullOpt, DocUtils::ToPtrDoc(IdxNode()))
+  stack_.func_call("set" + method, NullOpt, DocUtils::ToPtr(IdxNode()))
       .call_arg(ToDims(value, use_ndim));
 }
 
 void TensorRTOpCode::SetLayerByDimsValue(const String& method, const Array<Integer>& value,
                                          bool use_ndim) {
-  stack_.func_call("set" + method, NullOpt, DocUtils::ToPtrDoc(IdxNode()))
+  stack_.func_call("set" + method, NullOpt, DocUtils::ToPtr(IdxNode()))
       .call_arg(ToDims(value, use_ndim));
 }
 
@@ -267,7 +267,7 @@ class TensorRTAstypeCodeGen : public TensorRTOpCode {
   void CodeGenBuild() final {
     stack_.op_call()
         .op_input_arg()
-        .func_call("setOutput", NullOpt, DocUtils::ToPtrDoc(IdxNode()))
+        .func_call("setOutput", NullOpt, DocUtils::ToPtr(IdxNode()))
         .call_arg(0)
         .op_dtype_arg(node()->OutputAt(0)->dtype);
   }
@@ -298,7 +298,10 @@ class TensorRTConcatCodeGen : public TensorRTOpCode {
     const auto& producer = node()->ProducerOf(0);
     ICHECK(node()->parents.size() == 1 && producer->optype == "tuple")
         << "Concat expect parent as tuple, get " << node();
-    stack_.op_call().call_arg(IdxNodeBase(producer) + ".data()").call_arg(producer->inputs.size());
+    stack_.op_call()
+        .inplace_start("data", "", IdxNodeBase(producer))
+        .inplace_end()
+        .call_arg(producer->inputs.size());
     SetLayerByValue("Axis", AttrToAxis());
   }
 };
@@ -386,7 +389,7 @@ class TensorRTInputCodeGen : public TensorRTOpCode {
   void CodeGenBuild() final {
     const auto& output = node()->OutputAt(0);
     stack_.op_call()
-        .call_arg(DocUtils::ToStrDoc(output->name))
+        .call_arg(DocUtils::ToStr(output->name))
         .op_dtype_arg(output->dtype)
         .call_arg(ToDims(output->shape));
   }
@@ -405,7 +408,7 @@ class TensorRTLinearCodeGen : public TensorRTOpCode {
     if (use_bias_) {
       stack_.op_weight_arg("bias");
     } else {
-      stack_.call_arg("mWeights[\"" + node()->name + ".bias\"]");
+      stack_.call_arg(DocUtils::ToIndex("mWeights", DocUtils::ToStr(node()->name + ".bias")));
     }
   }
 

@@ -1082,8 +1082,6 @@ def test_cumsum():
             T.func_attr({"tir.noalias": True})
             rxplaceholder = T.match_buffer(var_rxplaceholder, (T.int64(3), T.int64(2), T.int64(3)), offset_factor=1)
             with T.block("cumsum_generic"):
-                T.reads(rxplaceholder[T.int64(0):T.int64(3), T.int64(0):T.int64(2), T.int64(0):T.int64(3)])
-                T.writes(out_buf[T.int64(0):T.int64(3), T.int64(0):T.int64(2), T.int64(0):T.int64(3)])
                 for fused in T.parallel(T.int64(9)):
                     out_buf[(fused // T.int64(3) * T.int64(2) * T.int64(3) + fused % T.int64(3)) // T.int64(3) // T.int64(2), (fused // T.int64(3) * T.int64(2) * T.int64(3) + fused % T.int64(3)) // T.int64(3) % T.int64(2), (fused // T.int64(3) * T.int64(2) * T.int64(3) + fused % T.int64(3)) % T.int64(3)] = T.Cast("int32", rxplaceholder[(fused // T.int64(3) * T.int64(2) * T.int64(3) + fused % T.int64(3)) // T.int64(3) // T.int64(2), (fused // T.int64(3) * T.int64(2) * T.int64(3) + fused % T.int64(3)) // T.int64(3) % T.int64(2), (fused // T.int64(3) * T.int64(2) * T.int64(3) + fused % T.int64(3)) % T.int64(3)])
                     for _k in range(T.int64(1)):
@@ -1118,8 +1116,6 @@ def test_cumsum_symbolic():
             rxplaceholder = T.match_buffer(var_rxplaceholder, (a, b, c), offset_factor=1)
             out_buf = T.match_buffer(var_cumsum_generic, (a, b, c), "int32")
             with T.block("cumsum_generic"):
-                T.reads(rxplaceholder[T.int64(0):a, T.int64(0):b, T.int64(0):c])
-                T.writes(out_buf[T.int64(0):a, T.int64(0):b, T.int64(0):c])
                 for fused in T.parallel(a * c):
                     out_buf[(fused // c * b * c + fused % c) // c // b, (fused // c * b * c + fused % c) // c % b, (fused // c * b * c + fused % c) % c] = T.Cast("int32", rxplaceholder[(fused // c * b * c + fused % c) // c // b, (fused // c * b * c + fused % c) // c % b, (fused // c * b * c + fused % c) % c])
                     for _k in range(b - T.int64(1)):

@@ -102,5 +102,96 @@ def test_no_model_params():
     tvm.ir.assert_structural_equal(after, Expected)
 
 
+def test_dataflow():
+    """Parameters can be substituted into a dataflow block"""
+
+    @tvm.script.ir_module
+    class Before:
+        @R.function
+        def main(
+            a: R.Tensor([16], "float32"),
+            b: R.Tensor([16], "float32"),
+            c: R.Tensor([16], "float32"),
+        ) -> R.Tensor([16], "float32"):
+            R.func_attr({"num_input": 1})
+            with R.dataflow():
+                expr = a
+                expr = R.add(expr, b)
+                expr = R.add(expr, c)
+                R.output(expr)
+            return expr
+
+    @tvm.script.ir_module
+    class Expected:
+        @R.function
+        def main(
+            a: R.Tensor([16], "float32"),
+            params: R.Tuple(R.Tensor([16], "float32"), R.Tensor([16], "float32")),
+        ) -> R.Tensor([16], "float32"):
+            R.func_attr({"num_input": 1})
+            with R.dataflow():
+                expr = a
+                b = params[0]
+                expr = R.add(expr, b)
+                c = params[1]
+                expr = R.add(expr, c)
+                R.output(expr)
+            return expr
+
+    mod = Before
+    after = relax.transform.BundleModelParams()(mod)
+    tvm.ir.assert_structural_equal(after, Expected)
+
+
+def test_variable_names():
+    """Parameters retain their names within the updated function
+
+    For readability, the parameter names should be used to generate
+    the new variable names.
+
+    Like `test_basic`, but explicitly checks the names of bound
+    variables.
+    """
+
+    @tvm.script.ir_module
+    class Before:
+        @R.function
+        def main(
+            a: R.Tensor([16], "float32"),
+            b: R.Tensor([16], "float32"),
+            c: R.Tensor([16], "float32"),
+        ) -> R.Tensor([16], "float32"):
+            R.func_attr({"num_input": 1})
+            expr = a
+            expr = R.add(expr, b)
+            expr = R.add(expr, c)
+            return expr
+
+    @tvm.script.ir_module
+    class Expected:
+        @R.function
+        def main(
+            a: R.Tensor([16], "float32"),
+            params: R.Tuple(R.Tensor([16], "float32"), R.Tensor([16], "float32")),
+        ) -> R.Tensor([16], "float32"):
+            R.func_attr({"num_input": 1})
+            expr = a
+            b = params[0]
+            expr = R.add(expr, b)
+            c = params[1]
+            expr = R.add(expr, c)
+            return expr
+
+    mod = Before
+    after = relax.transform.BundleModelParams()(mod)
+    tvm.ir.assert_structural_equal(after, Expected)
+
+    for binding, expected_binding in zip(
+        after["main"].body.blocks[0].bindings,
+        Expected["main"].body.blocks[0].bindings,
+    ):
+        assert binding.var.name_hint == expected_binding.var.name_hint
+
+
 if __name__ == "__main__":
     tvm.testing.main()

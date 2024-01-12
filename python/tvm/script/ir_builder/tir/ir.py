@@ -1832,6 +1832,7 @@ call_cpacked_lowered = _op_wrapper(_tir_op.call_cpacked_lowered)
 tvm_tuple = _op_wrapper(_tir_op.tvm_tuple)
 tvm_struct_set = _op_wrapper(_tir_op.tvm_struct_set)
 tvm_struct_get = _tir_op.tvm_struct_get
+tvm_thread_invariant = _op_wrapper(_tir_op.tvm_thread_invariant)
 tvm_thread_allreduce = _op_wrapper(_tir_op.tvm_thread_allreduce)
 tvm_load_matrix_sync = _op_wrapper(_tir_op.tvm_load_matrix_sync)
 tvm_mma_sync = _op_wrapper(_tir_op.tvm_mma_sync)
@@ -2108,6 +2109,7 @@ __all__ = [
     "tvm_tuple",
     "tvm_struct_set",
     "tvm_struct_get",
+    "tvm_thread_invariant",
     "tvm_thread_allreduce",
     "tvm_load_matrix_sync",
     "tvm_mma_sync",

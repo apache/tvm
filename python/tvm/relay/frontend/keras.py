@@ -967,7 +967,7 @@ def _convert_concat(
         if axis == -1:
             axis = 1
         else:
-            axis = axis + 1 if axis < dims else 1
+            axis = axis + 1 if axis < (dims - 1) else 1
     return _op.concatenate(_as_list(inexpr), axis=axis)
 
 

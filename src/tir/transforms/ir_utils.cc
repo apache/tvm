@@ -207,6 +207,7 @@ class IRConvertSSA final : public StmtExprMutator {
     while (redefines.size()) {
       redefines.pop_back();
     }
+    function_scope_var_remap_.clear();
     return func;
   }
 
@@ -259,6 +260,9 @@ class IRConvertSSA final : public StmtExprMutator {
   Var GetRemappedVar(Var var) {
     if (auto it = scope_.find(var.get()); it != scope_.end() && it->second.size()) {
       return it->second.back();
+    } else if (auto it = function_scope_var_remap_.find(var.get());
+               it != function_scope_var_remap_.end()) {
+      return it->second;
     } else {
       return var;
     }
@@ -343,7 +347,53 @@ class IRConvertSSA final : public StmtExprMutator {
     }
   }
   Stmt VisitStmt_(const AttrStmtNode* op) final {
-    if (const VarNode* v = op->node.as<VarNode>()) {
+    if (const IterVarNode* iter_var = op->node.as<IterVarNode>()) {
+      Range dom = iter_var->dom;
+      if (dom.defined()) {
+        auto min = VisitExpr(dom->min);
+        auto extent = VisitExpr(dom->extent);
+        if (!min.same_as(iter_var->dom->min) || !extent.same_as(iter_var->dom->extent)) {
+          dom = Range::FromMinExtent(min, extent);
+        }
+      }
+
+      Var var = iter_var->var;
+      if (auto it = function_scope_var_remap_.find(var.get());
+          it != function_scope_var_remap_.end()) {
+        var = it->second;
+      } else if (defined_.count(var.get())) {
+        Var new_var = [&]() {
+          if (var->type_annotation.defined()) {
+            return Var(var->name_hint, var->type_annotation);
+          } else {
+            return Var(var->name_hint, var->dtype);
+          }
+        }();
+
+        function_scope_var_remap_.insert({var.get(), new_var});
+        var = new_var;
+      } else {
+        function_scope_var_remap_.insert({var.get(), var});
+        defined_.insert(var.get());
+      }
+
+      IterVar new_iter_var;
+      if (dom.same_as(iter_var->dom) && var.same_as(iter_var->var)) {
+        new_iter_var = GetRef<IterVar>(iter_var);
+      } else {
+        new_iter_var = IterVar(dom, var, iter_var->iter_type, iter_var->thread_tag, iter_var->span);
+      }
+
+      auto value = VisitExpr(op->value);
+      auto body = VisitStmt(op->body);
+
+      if (new_iter_var.get() == iter_var && body.same_as(op->body) && value.same_as(op->value)) {
+        return GetRef<Stmt>(op);
+      } else {
+        return AttrStmt(new_iter_var, op->attr_key, value, body, iter_var->span);
+      }
+
+    } else if (const VarNode* v = op->node.as<VarNode>()) {
       Stmt stmt = StmtExprMutator::VisitStmt_(op);
       op = stmt.as<AttrStmtNode>();
       if (scope_.count(v) && scope_[v].size() != 0) {
@@ -402,6 +452,8 @@ class IRConvertSSA final : public StmtExprMutator {
   std::unordered_map<const VarNode*, std::vector<Var>> scope_;
   std::unordered_set<const VarNode*> defined_;
   std::unordered_map<const BufferNode*, std::vector<Buffer>> buf_remap_;
+
+  std::unordered_map<const VarNode*, Var> function_scope_var_remap_;
 };
 
 Stmt ConvertSSA(Stmt stmt) { return IRConvertSSA()(std::move(stmt)); }

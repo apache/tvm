@@ -577,7 +577,7 @@ def broadcast_to(x: Tensor, shape: Sequence[IntExpr], name: str = "broadcast_to"
     return wrap_nested(_op.broadcast_to(x._expr, shape), name)
 
 
-def permute_dims(x: Tensor, axes: Optional[List[int]] = None, name: str = "permute_dims") -> Tensor:
+def permute_dims(x: Tensor, axes: Optional[List[int]] = None, name: str = None) -> Tensor:
     """Permutes the dimensions of an array.
 
     Parameters
@@ -596,6 +596,13 @@ def permute_dims(x: Tensor, axes: Optional[List[int]] = None, name: str = "permu
     result : Tensor
         The transposed result.
     """
+    if name is None:
+        x_name = getattr(getattr(x, "_expr", None), "name_hint", None)
+        if x_name is not None and "linear" in x_name:
+            name = x_name.replace("linear", "matmul")
+        else:
+            name = "permute_dims"
+
     return wrap_nested(_op.permute_dims(x._expr, axes=axes), name)
 
 

@@ -17,6 +17,7 @@
 """Relax transformations. """
 
 from .transform import (
+    AdjustMatmulOrder,
     AllocateWorkspace,
     AlterOpImpl,
     AnnotateTIROpPattern,
@@ -67,6 +68,7 @@ from .transform import (
     StaticPlanBlockMemory,
     ToMixedPrecision,
     ToNonDataflow,
+    UpdateParamStructInfo,
     UpdateVDevice,
     VMBuiltinLower,
     VMShapeLower,

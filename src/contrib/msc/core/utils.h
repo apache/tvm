@@ -39,6 +39,9 @@ using Expr = tvm::RelayExpr;
 using RelaxCall = tvm::relax::Call;
 using RelayCall = tvm::relay::Call;
 
+/*!
+ * \brief Utils for Common.
+ */
 class CommonUtils {
  public:
   /*!
@@ -128,6 +131,18 @@ class StringUtils {
                                              const String& right, bool from_left = true);
 
   /*!
+   * \brief Change string to upper.
+   * \return The String.
+   */
+  TVM_DLL static const String Upper(const String& src_string);
+
+  /*!
+   * \brief Change string to lower.
+   * \return The String.
+   */
+  TVM_DLL static const String Lower(const String& src_string);
+
+  /*!
    * \brief Change Object to String.
    * \return The String.
    */
@@ -193,6 +208,29 @@ class ArrayUtils {
       }
     }
     return new_array;
+  }
+
+  template <typename T>
+  TVM_DLL static const Array<Array<T>> Product(const Array<Array<T>>& arrays) {
+    Array<Array<T>> p_arrays;
+    if (arrays.size() == 1) {
+      for (const auto& a : arrays[0]) {
+        p_arrays.push_back(Array<T>{a});
+      }
+      return p_arrays;
+    }
+    Array<Array<T>> sub_arrays;
+    for (size_t i = 0; i < arrays.size() - 1; i++) {
+      sub_arrays.push_back(arrays[i]);
+    }
+    for (const auto& p_array : Product(sub_arrays)) {
+      for (const auto& a : arrays[arrays.size() - 1]) {
+        Array<T> sub_array = p_array;
+        sub_array.push_back(a);
+        p_arrays.push_back(sub_array);
+      }
+    }
+    return p_arrays;
   }
 };
 
