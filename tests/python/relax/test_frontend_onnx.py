@@ -569,7 +569,7 @@ def test_conv():
         )
 
         model = helper.make_model(graph, producer_name="conv_test")
-        check_correctness(model, opset=18, atol=1e-4)
+        check_correctness(model, atol=1e-4)
 
     # Conv1D
     _verify_conv([3, 12, 32], [4, 12, 3], [3, 4, 30])
