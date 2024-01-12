@@ -364,8 +364,8 @@ class ProcessSession(Session):
         self.__init_handle_by_constructor__(
             _ffi_api.SessionProcess,  # type: ignore # pylint: disable=no-member
             num_workers,
-            entrypoint,
             "runtime.disco.create_process_pool",
+            entrypoint,
         )
 
 
