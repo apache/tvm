@@ -2680,7 +2680,7 @@ class PyTorchOpConverter:
         return ret
 
     def nonzero_numpy(self, inputs, input_types):
-        return self.nonzero(inputs, input_types, is_numpy_style=False)
+        return self.nonzero(inputs, input_types, is_numpy_style=True)
 
     def scatter(self, inputs, input_types):
         assert len(inputs) == 4 or len(inputs) == 5, (

@@ -4445,6 +4445,7 @@ def test_forward_nonzero():
 
     inp = torch.Tensor(np.array([[0, 1, 0], [2, 0, 9], [-1, -1, 0]]).astype("float32"))
     verify_trace_model(Nonzero(), [inp], ["llvm"])
+    verify_trace_model(Nonzero(as_tuple=True), [inp], ["llvm"])
 
 
 def test_forward_scatter():
