@@ -141,15 +141,23 @@ tvm::Array<Var> AllVars(const Expr& expr) { return VarVisitor().All(expr); }
 
 tvm::Array<GlobalVar> AllGlobalVars(const Expr& expr) { return VarVisitor().AllGlobalVars(expr); }
 
-bool ContainsImpureCall(const Expr& expr, const Optional<Expr>& own_name) {
+Optional<Expr> FindImpureCall(const Expr& expr, const Optional<Expr>& own_name) {
   class ImpureCallChecker : public ExprVisitor {
    public:
-    explicit ImpureCallChecker(const Optional<Expr>& own_name) : own_name_(own_name) {}
+    static Optional<Expr> Check(const Expr& expr, const Optional<Expr>& own_name) {
+      ImpureCallChecker visitor(own_name);
+      visitor.VisitExpr(expr);
+      return visitor.impure_expr_;
+    }
 
-    bool Check(const Expr& expr) {
-      contains_impure_ = false;
-      VisitExpr(expr);
-      return contains_impure_;
+   private:
+    ImpureCallChecker(const Optional<Expr>& own_name) : own_name_(own_name) {}
+
+    void VisitExpr(const Expr& expr) override {
+      // Early bail-out if we found an impure expression
+      if (!impure_expr_) {
+        ExprVisitor::VisitExpr(expr);
+      }
     }
 
     void VisitExpr_(const FunctionNode* func) override {
@@ -159,28 +167,34 @@ bool ContainsImpureCall(const Expr& expr, const Optional<Expr>& own_name) {
 
     void VisitExpr_(const CallNode* call) override {
       // ignore recursive calls if we find one
-      if (!(own_name_ && own_name_.value().same_as(call->op))) {
-        if (IsImpureCall(GetRef<Call>(call))) {
-          contains_impure_ = true;
-        }
+      bool is_recursive = (own_name_ && own_name_.value().same_as(call->op));
+      auto expr = GetRef<Call>(call);
+      if (!is_recursive && IsImpureCall(expr)) {
+        impure_expr_ = expr;
+      } else {
+        ExprVisitor::VisitExpr_(call);
       }
-      ExprVisitor::VisitExpr_(call);
     }
 
    private:
     const Optional<Expr>& own_name_;
-    bool contains_impure_ = false;
+    Optional<Expr> impure_expr_ = NullOpt;
   };
 
   if (own_name) {
     ICHECK(own_name.value().as<VarNode>() || own_name.value().as<GlobalVarNode>())
         << "Must pass a Var or GlobalVar for own_name";
   }
-  ImpureCallChecker checker(own_name);
-  if (auto func = expr.as<FunctionNode>()) {
-    return checker.Check(func->body);
+
+  Expr to_check = expr;
+  if (auto func = to_check.as<FunctionNode>()) {
+    to_check = func->body;
   }
-  return checker.Check(expr);
+  return ImpureCallChecker::Check(to_check, own_name);
+}
+
+bool ContainsImpureCall(const Expr& expr, const Optional<Expr>& own_name) {
+  return FindImpureCall(expr, own_name).defined();
 }
 
 TVM_REGISTER_GLOBAL("relax.analysis.free_vars").set_body_typed(FreeVars);
