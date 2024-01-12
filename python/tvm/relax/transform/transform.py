@@ -1249,6 +1249,23 @@ def UpdateParamStructInfo(sinfo_func: Callable[[Var], Optional[StructInfo]]):
     return _ffi_api.UpdateParamStructInfo(sinfo_func)  # type: ignore
 
 
+def AdjustMatmulOrder():
+    """Reorder `x*(A*B)` to `(x*A)*B`
+
+    Useful for optimizing LoRA computations, where `matmul(x,
+    LoraA*LoraB)` may be computed as `matmul(matmul(x, LoraA),
+    LoraB)`, reducing the total memory usage.
+
+
+    Returns
+    -------
+    ret : tvm.transform.Pass
+        The corresponding pass.
+    """
+
+    return _ffi_api.AdjustMatmulOrder()  # type: ignore
+
+
 def CombineParallelMatmul(check=None):
     """Combine multiple matmul operators sharing the same LHS matrix into one,
     followed by slicing. When all matmul branches in a tree have the same set of fused ops,
