@@ -22,7 +22,6 @@ from typing import Any, Callable, Dict, List, Optional, Sequence, Union
 import tvm
 from tvm import relax as rx
 from tvm import tir
-from tvm.ir.base import deprecated
 from tvm.ir.module import IRModule
 from tvm.runtime import Object
 
@@ -654,16 +653,16 @@ class BlockBuilder(Object):
         """
         return _ffi_api.BlockBuilderNormalize(self, expr)  # type: ignore
 
-    @deprecated("tvm.relax.BlockBuilder.get", "tvm.relax.BlockBuilder.finalize")
     def get(self) -> tvm.IRModule:
-        """Return the IRModule being built.
+        """Return intermediate IRModule. For the situation where the IRModule is needed in the
+        middle of a building process.
 
         Returns
         -------
         ret : tvm.IRModule
             An IRModule with Relax and TIR functions being built.
         """
-        return self.finalize()
+        return _ffi_api.BlockBuilderGetContextIRModule(self)  # type: ignore
 
     def finalize(self) -> tvm.IRModule:
         """Finalize the building process and return the result IRModule.
@@ -671,9 +670,9 @@ class BlockBuilder(Object):
         Possibly rename GlobalVars in the IRModule to ensure name uniqueness and the invariant:
         every public function has the same name as its "global_symbol" attribute.
 
-        Note this call may invalidate global vars previously returned by this builder
-        (see tvm.relax.transform.NormalizeGlobalVar), so it can only be called once at the end of
-        the building process.
+        Note this method should be called only once at the end of the building process, since it may
+        invalidate global vars previously returned by this builder.
+        See also tvm.relax.transform.NormalizeGlobalVar.
 
         Returns
         -------
