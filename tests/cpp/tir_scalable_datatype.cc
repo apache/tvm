@@ -113,6 +113,7 @@ TEST(TIR, TestGetScalableVectorBytes) {
 // -----------
 // Integration
 // -----------
+#if TVM_LLVM_VERSION >= 120
 TEST(TIR, TestScalableIntrinCall) {
   tvm::DataType scalable_type = tvm::DataType(kDLInt, 32, 4, true);
   tvm::tir::Call call = tvm::tir::Call(
@@ -122,6 +123,7 @@ TEST(TIR, TestScalableIntrinCall) {
   ASSERT_EQ(call->Script(),
             "T.call_llvm_intrin(\"int32x4xvscale\", \"llvm.experimental.stepvector\")");
 }
+#endif
 
 TEST(TIR, TestTIRScriptScalableDtype2Str) {
   tvm::DataType scalable_type = tvm::DataType(kDLInt, 32, 4, true);
