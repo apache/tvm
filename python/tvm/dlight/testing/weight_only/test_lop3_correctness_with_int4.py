@@ -116,16 +116,25 @@ numpy_b = tvm_b.numpy()
 def interleave_weight(qweight):
     # reinterpret the data type of qweight to int32
     qweight = qweight.view(np.int32)
-     
+    # i4s        {e7,e6,e5,e4,e3,e2,e1,e0}
     new_qweight = np.zeros_like(qweight)
+    # interleave {0, 0, 0, 0, 0, 0, 0, 0}
     new_qweight |= (qweight & 0x0000000f)
+    # interleave {0, 0, 0, 0, 0, 0, 0, e0}
     new_qweight |= (qweight & 0x000000f0) << 12
+    # interleave {0, 0, 0, e1, 0, 0, 0, e0}
     new_qweight |= (qweight & 0x00000f00) >> 4
+    # interleave {0, 0, 0, e1, 0, 0, e2, e0}
     new_qweight |= (qweight & 0x0000f000) << 8
+    # interleave {0, 0, e3, e1, 0, 0, e2, e0}
     new_qweight |= (qweight & 0x000f0000) >> 8
+    # interleave {0, 0, e3, e1, 0, e4, e2, e0}
     new_qweight |= (qweight & 0x00f00000) << 4
+    # interleave {0, e5, e3, e1, 0, e4, e2, e0}
     new_qweight |= (qweight & 0x0f000000) >> 12
+    # interleave {0, e5, e3, e1, e6, e4, e2, e0}
     new_qweight |= (qweight & 0xf0000000)
+    # interleave {e7, e5, e3, e1, e6, e4, e2, e0}
     return new_qweight.view(np.int8)
 
 permutated_b = interleave_weight(numpy_b)

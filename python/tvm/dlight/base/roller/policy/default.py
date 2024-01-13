@@ -237,7 +237,7 @@ class DefaultPolicy:
         tile = [1] * len(node.get_space_dim())
         all_steps = self.get_node_reduce_step_candidates(node)
 
-        def sim(a, b):
+        def sim(a:int, b:int):
             return (2 * a * b) / (a * a + b * b)
 
         def _score(rstep_id):
@@ -249,7 +249,7 @@ class DefaultPolicy:
                     (node.get_buffer_dtype(input_buffer).bits + 7) // 8
                 )
                 score += sim(
-                    coalesced_factor(shape[i], input_buffer.shape),
+                    int(coalesced_factor(shape[i], input_buffer.shape)),
                     read_transaction_elements,
                 )
             return score
@@ -371,6 +371,18 @@ class DefaultPolicy:
         """
         op_tile_map = self._get_output_tile_map(output_tile)
         traffic = 0
+        for node in reversed(self.ordered_nodes):
+            tile = op_tile_map[node]
+            input_shapes = node.propogate_inputs(tile)
+            output_shapes = node.propogate_outputs(tile)
+            for i, buffer in enumerate(node.input_buffers):
+                nbytes = (node.get_buffer_dtype(buffer).bits + 7) // 8
+                read_transaction_elements = self.arch.transaction_size[1] // nbytes
+                traffic += coalesced_tensor_shape(input_shapes[i], buffer.shape, read_transaction_elements) * nbytes
+            for i, buffer in enumerate(node.output_buffers):
+                nbytes = (node.get_buffer_dtype(buffer).bits + 7) // 8
+                write_transaction_elements = self.arch.transaction_size[0] // nbytes
+                traffic += coalesced_tensor_shape(output_shapes[i], buffer.shape, write_transaction_elements) * nbytes
         return traffic, op_tile_map
 
     def infer_node_smem_usage(self, td: TileDict, node: PrimFuncNode):

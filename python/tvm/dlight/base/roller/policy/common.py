@@ -63,7 +63,7 @@ def coalesced_tensor_shape(subtensor: List[int], tensor: List[int], transaction_
         return 0
 
     # Calculate the coalesced factor for the subtensor
-    factor = coalesced_factor(subtensor, tensor)
+    factor = int(coalesced_factor(subtensor, tensor))
 
     # Compute the shape of the coalesced tensor
     return transaction_size * bytes / min(transaction_size, factor)

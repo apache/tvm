@@ -113,7 +113,7 @@ class Config:
     """
     def __init__(self) -> None:
         self.arch = None
-        self.use_tc = None
+        self.use_tc = None # todo(lei): this should be renamed.
         self.compute_capability = None
 
         # spacial axes tiling info

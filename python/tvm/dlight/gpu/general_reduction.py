@@ -17,11 +17,13 @@
 # pylint: disable=invalid-name
 """Reduction rule for operators including softmax, layer norm, RMS norm, etc"""
 from typing import List, Union
+from functools import reduce
 
 from tvm import tir
 from tvm.target import Target
 
 from ..base import ScheduleRule, normalize_prim_func, try_inline_contiguous_spatial
+from ..base.roller.config import Stride
 
 
 class GeneralReduction(ScheduleRule):
@@ -102,87 +104,306 @@ class GeneralReduction(ScheduleRule):
         # sch.annotate(bx, ann_key="pragma_unroll_explicit", ann_val=1)
         return sch
 
+    def sch_inner_reduction_with_config(  # pylint: disable=too-many-locals,too-many-branches,too-many-return-statements
+        self,
+        func: tir.PrimFunc,
+        config,
+    ):
+        block_factors = config.block
+        thread_factors = config.thread
+        reduce_therad_factors = config.reduce_thread
+
+        # For inter thread reduction case, one thread must only compute one element
+        assert thread_factors == block_factors
+
+        # inline all the other blocks
+        sch = tir.Schedule(func)
+        block_infos = normalize_prim_func(sch)
+
+        reduction_block: tir.schedule.BlockRV = None
+        for block in block_infos:
+            s_loops: List[tir.schedule.LoopRV] = []
+            r_loops: List[tir.schedule.LoopRV] = []
+            o_loops: List[tir.schedule.LoopRV] = []
+            dom_kind = block.dom_kind()
+            block_rv = block.block_rv
+
+            if (
+                any(
+                    [
+                        sch.get(loop_rv).thread_binding is not None
+                        for loop_rv in sch.get_loops(block_rv)
+                    ]
+                )
+                or len(sch.get_loops(block.block_rv)) == 0
+            ):
+                continue
+
+            for loop, iter_type in zip(sch.get_loops(block_rv), dom_kind):
+                {"S": s_loops, "R": r_loops, "O": o_loops}[iter_type].append(loop)
+
+            if not s_loops:
+                s_loops.append(sch.add_unit_loop(block_rv))
+            if len(r_loops) > 0:
+                reduction_block = block
+
+        # Align the number of block iters of the last block.
+        dom_kind = reduction_block.dom_kind()
+        num_leading_s = len(dom_kind) - len(dom_kind.lstrip("S"))
+        num_trailing_r = len(dom_kind) - len(dom_kind.rstrip("R"))
+
+        # num_last_block_iter = len(block_infos[-1].dom_kind())
+        # if num_last_block_iter < len(dom_kind):
+        #     index_map = tir.IndexMap.from_func(
+        #         lambda *iters: (
+        #             [tir.const(0, iters[0].dtype)] * (len(dom_kind) - num_last_block_iter)
+        #             + list(iters)
+        #         ),
+        #         ndim=num_last_block_iter,
+        #     )
+        #     sch.transform_block_layout(reduction_block.block_rv, index_map)
+
+        reduction_block = reduction_block.block_rv
+        loops = sch.get_loops(reduction_block)
+        s_loops = loops[:num_leading_s]
+        r_loops = loops[-num_trailing_r:]
+
+        reg_tile = sch.cache_write(reduction_block, 0, "local")
+
+        block_axis = []
+        thread_axis = []
+
+        for s_loop, block_factor in zip(s_loops, block_factors):
+            block_loop, thread_loop = sch.split(s_loop, factors=[None, block_factor])
+            block_axis.append(block_loop)
+            thread_axis.append(thread_loop)
+
+        axis_order = block_axis + thread_axis
+
+        sch.reorder(*axis_order)
+        blck_fused = sch.fuse(*block_axis)
+        thrd_fused = sch.fuse(*thread_axis)
+        sch.bind(blck_fused, "blockIdx.x")
+        sch.bind(thrd_fused, "threadIdx.y")
+
+        reduce_outer_axis, reduce_inner_axis, reduce_inter_threads = [], [], []
+        for i in config.raxis_order:
+            loop = r_loops[i]
+            ro, ri = sch.split(loop, factors=[None, config.rstep[i]])
+            ri, thd = sch.split(ri, factors=[None, config.reduce_thread[i]])
+            reduce_inter_threads.append(thd)
+            reduce_outer_axis.append(ro)
+            reduce_inner_axis.append(ri)
+
+        axis_order = reduce_inter_threads + reduce_outer_axis + reduce_inner_axis
+        sch.reorder(*axis_order)
+        fused_reduce_inter_threads = sch.fuse(*reduce_inter_threads)
+        sch.bind(fused_reduce_inter_threads, "threadIdx.x")
+
+        # todo(lei): should add the shared_inputs/stride memory pad analysis at shared memory fusion stage.
+        for i, input_region in enumerate(sch.get(reduction_block).reads):
+            if input_region.buffer.name not in config.cached_tensors:
+                continue
+
+            # otherwise cooperative fetch in shared memory.
+            cache_shared = sch.cache_read(reduction_block, i, "shared")
+            sch.compute_at(cache_shared, reduce_outer_axis[-1])
+
+            dim_offset = (
+                len(reduce_inner_axis) + len(reduce_outer_axis) + 2
+            )  # outer loops are: blck_fused, thrd_fused, vthread_axis, reduce_outer_axis
+            if input_region.buffer.name in config.vectorize:
+                vectorize = config.vectorize[input_region.buffer.name]
+            else:
+                vectorize = 1
+
+            loops = sch.get_loops(cache_shared)
+            if len(loops) == dim_offset:
+                # handle fetching only one element
+                loops.append(sch.add_unit_loop(reduction_block))
+            assert len(loops) > dim_offset
+
+            def prod(iterable):
+                return reduce(lambda x, y: x * y, iterable, 1)
+
+            _, ty, tx, tv = sch.split(
+                sch.fuse(*loops[dim_offset:]),
+                factors=[
+                    None,
+                    int(prod(thread_factors)),
+                    int(prod(reduce_therad_factors)),
+                    vectorize,
+                ],
+            )
+            sch.vectorize(tv)
+            sch.bind(ty, "threadIdx.y")
+            sch.bind(tx, "threadIdx.x")
+
+        sch.reverse_compute_at(reg_tile, thrd_fused)
+
+        # resolve compute_at
+        block_infos = try_inline_contiguous_spatial(sch, block_infos)
+        if block_infos is None or len(block_infos) == 0:
+            return None
+        return sch
+
+    def sch_outer_reduction_with_config(  # pylint: disable=too-many-locals,too-many-branches,too-many-return-statements
+        self,
+        func: tir.PrimFunc,
+        config,
+    ):
+        block_factors = config.block
+        thread_factors = config.thread
+        step_factors = config.step
+
+        # inline all the other blocks
+        sch = tir.Schedule(func)
+        block_infos = normalize_prim_func(sch)
+
+        reduction_block: tir.schedule.BlockRV = None
+        for block in block_infos:
+            s_loops: List[tir.schedule.LoopRV] = []
+            r_loops: List[tir.schedule.LoopRV] = []
+            o_loops: List[tir.schedule.LoopRV] = []
+            dom_kind = block.dom_kind()
+            block_rv = block.block_rv
+
+            if (
+                any(
+                    [
+                        sch.get(loop_rv).thread_binding is not None
+                        for loop_rv in sch.get_loops(block_rv)
+                    ]
+                )
+                or len(sch.get_loops(block.block_rv)) == 0
+            ):
+                continue
+
+            for loop, iter_type in zip(sch.get_loops(block_rv), dom_kind):
+                {"S": s_loops, "R": r_loops, "O": o_loops}[iter_type].append(loop)
+
+            if not s_loops:
+                s_loops.append(sch.add_unit_loop(block_rv))
+            if len(r_loops) > 0:
+                reduction_block = block
+
+        # Align the number of block iters of the last block.
+        dom_kind = reduction_block.dom_kind()
+        num_leading_s = len(dom_kind) - len(dom_kind.lstrip("S"))
+        num_trailing_r = len(dom_kind) - len(dom_kind.rstrip("R"))
+
+        num_last_block_iter = len(block_infos[-1].dom_kind())
+        if num_last_block_iter < len(dom_kind):
+            index_map = tir.IndexMap.from_func(
+                lambda *iters: (
+                    [tir.const(0, iters[0].dtype)] * (len(dom_kind) - num_last_block_iter)
+                    + list(iters)
+                ),
+                ndim=num_last_block_iter,
+            )
+            sch.transform_block_layout(reduction_block.block_rv, index_map)
+
+        reduction_block = reduction_block.block_rv
+        loops = sch.get_loops(reduction_block)
+        s_loops = loops[:num_leading_s]
+        r_loops = loops[-num_trailing_r:]
+
+        reg_tile = sch.cache_write(reduction_block, 0, "local")
+
+        block_axis = []
+        vthread_axis = []
+        thread_axis = []
+        inner_axis = []
+        for s_loop, block_factor, step_factor, thread_factor in zip(
+            s_loops, block_factors, step_factors, thread_factors
+        ):
+            block_loop, inner_loop = sch.split(s_loop, factors=[None, block_factor])
+            vthread_loop, inner_loop = sch.split(
+                inner_loop, factors=[None, thread_factor * step_factor]
+            )
+            thread_loop, inner_loop = sch.split(inner_loop, factors=[None, step_factor])
+            block_axis.append(block_loop)
+            vthread_axis.append(vthread_loop)
+            thread_axis.append(thread_loop)
+            inner_axis.append(inner_loop)
+
+        reduce_outer_axis, reduce_inner_axis = [], []
+        for i in config.raxis_order:
+            loop = r_loops[i]
+            ro, ri = sch.split(loop, factors=[None, config.rstep[i]])
+            reduce_outer_axis.append(ro)
+            reduce_inner_axis.append(ri)
+
+        vthread_axis = list(reversed(vthread_axis))  # inner virtual thread first
+        axis_order = (
+            block_axis
+            + vthread_axis
+            + thread_axis
+            + reduce_outer_axis
+            + reduce_inner_axis
+            + inner_axis
+        )
+
+        sch.reorder(*axis_order)
+        blck_fused = sch.fuse(*block_axis)
+        thrd_fused = sch.fuse(*thread_axis)
+        sch.bind(blck_fused, "blockIdx.x")
+        sch.bind(thrd_fused, "threadIdx.x")
+        if len(vthread_axis) > 3:
+            vthread_axis = vthread_axis[0:2] + [sch.fuse(*vthread_axis[2:])]
+        for i, ax in enumerate(vthread_axis):
+            sch.bind(ax, "vthread" + [".x", ".y", ".z"][i])
+
+        # todo(lei): should add the shared_inputs/stride memory pad analysis at shared memory fusion stage.
+        for i, input_region in enumerate(sch.get(reduction_block).reads):
+            if input_region.buffer.name not in config.cached_tensors:
+                continue
+
+            # otherwise cooperative fetch in shared memory.
+            cache_shared = sch.cache_read(reduction_block, i, "shared")
+            sch.compute_at(cache_shared, reduce_outer_axis[-1])
+
+            dim_offset = (
+                len(vthread_axis) + len(reduce_outer_axis) + 2
+            )  # outer loops are: blck_fused, thrd_fused, vthread_axis, reduce_outer_axis
+            if input_region.buffer.name in config.vectorize:
+                vectorize = config.vectorize[input_region.buffer.name]
+            else:
+                vectorize = 1
+
+            loops = sch.get_loops(cache_shared)
+            if len(loops) == dim_offset:
+                # handle fetching only one element
+                loops.append(sch.add_unit_loop(reduction_block))
+            assert len(loops) > dim_offset
+
+            def prod(iterable):
+                return reduce(lambda x, y: x * y, iterable, 1)
+
+            _, tx, tv = sch.split(
+                sch.fuse(*loops[dim_offset:]), factors=[None, int(prod(thread_factors)), vectorize]
+            )
+            sch.vectorize(tv)
+            sch.bind(tx, "threadIdx.x")
+
+        sch.reverse_compute_at(reg_tile, thrd_fused)
+
+        sch.decompose_reduction(reduction_block, reduce_outer_axis[0])
+
+        # resolve compute_at
+        block_infos = try_inline_contiguous_spatial(sch, block_infos)
+        if block_infos is None or len(block_infos) == 0:
+            return None
+
+        return sch
+
     def apply_config(  # pylint: disable=too-many-locals,missing-docstring
         self,
         func: tir.PrimFunc,
         config,
     ) -> tir.Schedule:
-        block_factors = config.block
-        thread_factors = config.thread
-        step_factors = config.step_factors
-        reduce_thread = config.reduce_thread
-        if any([t > 1 for t in reduce_thread]):
-            # block reduction schedule
-            return None
-
-        sch = tir.Schedule(func)
-        block_infos = normalize_prim_func(sch)
-        block_infos = try_inline_contiguous_spatial(sch, block_infos)
-        if block_infos is None or len(block_infos) == 0:
-            return None
-
-        loops = sch.get_loops(block_infos[-1].block_rv)
-        block_loops = []
-        vthread_loops = []
-        thread_loops = []
-        inner_loops = []
-        for s_loop, block_factor, step_factor, thread_factor in zip(s_loops, block_factors, step_factors, thread_factors):
-            block_loop, inner_loop = sch.split(s_loop, factors=[None, block_factor])
-            vthread_loop, inner_loop = sch.split(
-            inner_loop, factors=[None, thread_factor * step_factor])
-            thread_loop, inner_loop = sch.split(inner_loop, factors=[None, step_factor])
-            block_loops.append(block_loop)
-            vthread_loops.append(vthread_loop)
-            thread_loops.append(thread_loop)
-            inner_loops.append(inner_loop)
-
-        reduce_outer_axis, reduce_inner_axis = [], []
-        for i in config.raxis_order:
-            loop = reduce_loops[i]
-            ro, ri = sch.split(loop, factors=[None, config.rstep[i]])
-            reduce_outer_axis.append(ro)
-            reduce_inner_axis.append(ri)
-
-        vthd_axis = list(reversed(vthd_axis)) # inner virtual thread first
-        axis_order = blck_axis + vthd_axis + thrd_axis + reduce_outer_axis + reduce_inner_axis + tile_axis
-
-        sch.reorder(*axis_order)
-        blck_fused = sch.fuse(*blck_axis)
-        thrd_fused = sch.fuse(*thrd_axis)
-        sch.bind(blck_fused, "blockIdx.x")
-        sch.bind(thrd_fused, "threadIdx.x")
-        if len(vthd_axis) > 3:
-            vthd_axis = vthd_axis[0:2] + [sch.fuse(*vthd_axis[2:])]
-        for i, ax in enumerate(vthd_axis):
-            sch.bind(ax, "vthread" + ['.x', '.y', '.z'][i])
-        for ax in tile_axis:
-            sch.unroll(ax)
-
-        cached_stages = []
-        for i, input_tensor in enumerate(self.reduce_op.input_tensors):
-            SS = sch.cache_read(C, i, "shared")
-            cached_stages.append(SS)
-            if input_tensor in self.shared_inputs:
-                sch.compute_at(SS, blck_fused)
-                strides = self.shared_inputs_strides[input_tensor]
-                dim_offset = 1
-            else:
-                sch.compute_at(SS, reduce_outer_axis[-1])
-                strides = Stride()
-                dim_offset = len(vthd_axis) + len(reduce_outer_axis) + 2 # outer loops are: blck_fused, thrd_fused, vthd_axis, reduce_outer_axis
-            if input_tensor.name in config.vectorize and not self._is_from_shared(input_tensor):
-                vectorize = config.vectorize[input_tensor.name]
-            else:
-                vectorize = 1
-            self.cooperative_fetch(SS, dim_offset, strides, vectorize)
-
-        sch.reverse_compute_at(CL, thrd_fused)
-        if len(tile_axis) > 0:
-            for ax in sch.get_loops(CL)[-len(tile_axis):]:
-                sch.unroll(ax)
-        
-        sch.decompose_reduction(C, reduce_outer_axis[0])
-
-        self.schedule_compute_inline()
-        
-        return sch
+        if any([t > 1 for t in config.reduce_thread]):
+            # todo(lei) should implement block reduction schedule
+            return self.sch_inner_reduction_with_config(func, config)
+        else:
+            return self.sch_outer_reduction_with_config(func, config)

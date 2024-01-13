@@ -952,6 +952,29 @@ class GEMV(ScheduleRule):
         func: tir.PrimFunc,
         config,
     ) -> tir.Schedule:
+        if not isinstance(func, tir.PrimFunc):
+            return None
+        sch = tir.Schedule(func)
+        block_infos = normalize_prim_func(sch)
+        block_infos = try_inline_contiguous_spatial(sch, block_infos)
+        if len(block_infos) == 1:
+            epilogue = None
+        elif len(block_infos) == 2:
+            epilogue = block_infos[1]
+            if not epilogue.is_injective():
+                return None
+        else:
+            return None
+
+        block_info = block_infos[0]
+        if len(block_info.iters) not in [2, 3]:
+            # either [B, S, R] = [B, S, R] * [B, R]
+            # or [S, R] = [S, R] * [R]
+            return None
+
+        if is_gemv(sch, block_info) is None:
+            return None
+
         if "inconsistent" in func.attrs:
             inconsistent_rule = GEMVWithInconsistentInfo()
             return inconsistent_rule.apply_config(func, config)

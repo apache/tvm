@@ -14,6 +14,8 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+"""PrimFunc Warpper and Block Infomation Analaysis"""
+
 import tvm
 from tvm import tir
 from tvm.tir import IterVar, Var, PrimFunc
@@ -21,7 +23,7 @@ from typing import Any, Iterable, Dict, List, Tuple
 import functools
 import numpy as np
 from tvm.tir.schedule.schedule import BlockRV
-from ..analysis import BlockInfo
+from ..analysis import BlockInfo, get_reduction_blocks
 from .. import analysis
 from .. import normalize_prim_func
 from .shape_inference import get_analyzer_by_tir
@@ -46,29 +48,6 @@ class BlockAnalyzer(object):
     def __init__(self, sch) -> None:
         self.sch: tir.Schedule = sch
         self.block_infos: List[BlockInfo] = normalize_prim_func(self.sch)
-
-    def get_reduction_blocks(self, sch, blocks) -> bool:
-        # Get the main computation block
-        def is_reduction(block: BlockRV) -> bool:
-            block_stmt = sch.get(block)
-            iter_types = {iter_var.iter_type for iter_var in block_stmt.iter_vars}
-            return iter_types == {IterVar.CommReduce, IterVar.DataPar}
-
-        def is_spatial(block: BlockRV) -> bool:
-            block_stmt = sch.get(block)
-            iter_types = {iter_var.iter_type for iter_var in block_stmt.iter_vars}
-            return iter_types == {IterVar.DataPar}
-
-        # NOTE: We assume there is only one reduction block in the function
-        # all blocks are required to be spatial or reduction
-        if not all([is_reduction(block) or is_spatial(block) for block in blocks]):
-            return None
-
-        # There is only one reduction block
-        reduction_blocks = [block for block in blocks if is_reduction(block)]
-        if len(reduction_blocks) == 0:
-            return None
-        return reduction_blocks
 
     def get_block_name(self, block: BlockRV) -> str:
         return self.sch.get_sref(block).stmt.name_hint
@@ -118,6 +97,40 @@ class Node(object):
     def __init__(self) -> None:
         self._dtypes = []
 
+class BufferNode(Node):
+    '''BufferNode is a wrapper of tir.Buffer, which is used to store the buffer information.'''
+    def __init__(self, buffer: tir.Buffer, tags: Dict = {}) -> None:
+        super().__init__()
+        self.buffer = buffer
+        self._tag: Dict = {}
+        for tag in tags:
+            self.add_tag(tag, tags[tag])
+        self.set_dtype(tvm.DataType(self.buffer.dtype))
+
+    def add_tag(self, k: str, v: Any = True) -> None:
+        self._tag[k] = v
+
+    def get_tag(self, k: str) -> Any:
+        if k not in self._tag:
+            return None
+        return self._tag[k]
+
+    def set_dtype(self, dtype: tvm.DataType, id=0) -> None:
+        assert isinstance(dtype, tvm.DataType), type(dtype)
+        if dtype == tvm.DataType("bool"):
+            dtype = tvm.DataType("int8")
+        if len(self._dtypes) <= id:
+            self._dtypes.extend([None for _ in range(id - len(self._dtypes) + 1)])
+        elif self._dtypes[id] is not None:
+            assert self._dtypes[id] == dtype, (self._dtypes, dtype)
+        self._dtypes[id] = dtype
+
+    def get_dtype(self, id=0) -> tvm.DataType:
+        return self._dtypes[id]
+
+    def get_buffer_dtype(self, buffer: tir.Buffer) -> tvm.DataType:
+        return tvm.DataType(buffer.dtype)
+    
 
 class PrimFuncNode(Node):
     def __init__(self, prim_func: PrimFunc, tags: Dict = {}) -> None:
@@ -146,7 +159,7 @@ class PrimFuncNode(Node):
         self.blocks = blocks
 
         self.output_blocks = self.sch.get_output_blocks(root_block)
-        reduction_blocks = self.block_analyzer.get_reduction_blocks(self.sch, blocks)
+        reduction_blocks = get_reduction_blocks(self.sch, blocks)
         if reduction_blocks is None:
             self.reduction_block = None
             # analysis base on the first output block
@@ -232,6 +245,17 @@ class PrimFuncNode(Node):
             if arg.name in intermediate_bind:
                 results.append(shapes[arg.name])
                 continue
+            # should not exceed original shape
+            trimmed_shape = list(map(min, zip(shapes[arg.name], self.input_buffers[i].shape)))
+            results.append(trimmed_shape)
+        return results
+
+    def propogate_outputs(self, tile, rstep={}) -> List[List[int]]:
+        read_idx_offset = len(self.input_buffers)
+        targets = [t.name for t in self.args[read_idx_offset:]]
+        shapes, _ = self.propogate(tile, rstep, targets)
+        results = []
+        for i, arg in enumerate(self.args[read_idx_offset:]):
             # should not exceed original shape
             trimmed_shape = list(map(min, zip(shapes[arg.name], self.input_buffers[i].shape)))
             results.append(trimmed_shape)

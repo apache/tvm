@@ -41,5 +41,8 @@ class CUDA(Arch):
         self.reg_cap: int = 65536
         self.max_smem_usage: int = 2 * self.smem_cap
         self.sm_partition: int = 4
+        # the number of transaction size in bytes
         self.transaction_size: List[int] = [32, 128]  # in bytes
+        # bandwidth in MB/s, will be used for recommend basic tile size
+        # TODO(lei): find some way to get the real bandwidth
         self.bandwidth: List[int] = [750, 12080]

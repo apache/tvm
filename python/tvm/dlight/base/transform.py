@@ -21,11 +21,15 @@ or a space for MetaSchedule tuning
 from typing import List, Optional
 
 from tvm import tir
+from tvm import dlight as dl
 from tvm.ir import IRModule
 from tvm.ir.transform import PassContext, module_pass
 from tvm.target import Target
-
+from .roller.policy import DefaultPolicy
+from .roller.arch import CUDA
 from .schedule_rule import ScheduleRule
+from .analysis import get_root_block, get_reduction_blocks
+from .utils import apply_and_build
 
 
 def _is_scheduled(func: tir.PrimFunc) -> bool:
@@ -65,6 +69,66 @@ class ApplyDefaultSchedule:  # pylint: disable=too-few-public-methods
                 if sch is not None:
                     assert len(sch) == 1
                     updated_functions[g_var] = sch[0].mod["main"].with_attr("tir.is_scheduled", 1)
+        for g_var, func in updated_functions.items():
+            mod[g_var] = func
+        return mod
+
+
+@module_pass(opt_level=0, name="ApplyFastTuning")
+class ApplyFastTuning:  # pylint: disable=too-few-public-methods
+    """A IRModule pass that applies a list of ScheduleRules to all PrimFuncs in the module."""
+
+    def __init__(self, topk: int = 10):
+        """Construct a new ApplyFastTuning pass.
+
+        Parameters
+        ----------
+        *rules : ScheduleRule
+            The ScheduleRules to apply to all PrimFuncs in the module.
+        """
+        self.topk = topk
+
+    def transform_module(  # pylint: disable=missing-function-docstring
+        self,
+        mod: IRModule,
+        _: PassContext,
+    ) -> IRModule:
+        target = Target.current(allow_none=False)
+        updated_functions = {}
+        for g_var, func in mod.functions_items():
+            if isinstance(func, tir.PrimFunc) and not _is_scheduled(func):
+                arch = CUDA(target)
+                print(f"[FastDlight] is scheduling {g_var}")
+                # TODO(lei): should analysis the prim func to enable the right policy
+                # (Default Policy for general or TensorCore Policy for tensorcore)
+                policy = DefaultPolicy(func=func, arch=arch)
+                configs = policy.emit_config(self.topk)
+                if configs:
+                    _, best = apply_and_build(
+                        func=func, configs=configs, arch=arch, parallel_build=True
+                    )
+                    if best is not None:
+                        updated_functions[g_var] = best.sch.mod["main"].with_attr(
+                            "tir.is_scheduled", 1
+                        )
+                else:
+                    print(
+                        f"[FastDlight] warnning: {g_var} has no valid config, fallback to default schedule"
+                    )
+                    _default_rules = [
+                        dl.gpu.Matmul(),
+                        dl.gpu.GEMV(),
+                        dl.gpu.Reduction(),
+                        dl.gpu.GeneralReduction(),
+                        dl.gpu.Fallback(),
+                    ]
+                    sch = _apply_rules(func, target, _default_rules, tunable=False)
+                    if sch is not None:
+                        assert len(sch) == 1
+                        updated_functions[g_var] = (
+                            sch[0].mod["main"].with_attr("tir.is_scheduled", 1)
+                        )
+
         for g_var, func in updated_functions.items():
             mod[g_var] = func
         return mod

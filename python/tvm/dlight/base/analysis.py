@@ -22,7 +22,7 @@ from typing_extensions import Literal
 from tvm import ir, tir
 from tvm._ffi import get_global_func
 from tvm.target.target import Target
-from tvm.tir import Schedule
+from tvm.tir import Schedule, IterVar
 from tvm.tir.schedule import BlockRV
 
 
@@ -251,3 +251,30 @@ def is_broadcast_epilogue(
         if len(tir_vars) < len(epilogue_iters):
             return True
     return False
+
+
+def get_reduction_blocks(
+    sch: tir.Schedule, 
+    blocks: List[tir.schedule.BlockRV]
+) -> bool:
+    # Get the main computation block
+    def is_reduction(block: BlockRV) -> bool:
+        block_stmt = sch.get(block)
+        iter_types = {iter_var.iter_type for iter_var in block_stmt.iter_vars}
+        return iter_types == {IterVar.CommReduce, IterVar.DataPar}
+
+    def is_spatial(block: BlockRV) -> bool:
+        block_stmt = sch.get(block)
+        iter_types = {iter_var.iter_type for iter_var in block_stmt.iter_vars}
+        return iter_types == {IterVar.DataPar}
+
+    # NOTE: We assume there is only one reduction block in the function
+    # all blocks are required to be spatial or reduction
+    if not all([is_reduction(block) or is_spatial(block) for block in blocks]):
+        return None
+
+    # There is only one reduction block
+    reduction_blocks = [block for block in blocks if is_reduction(block)]
+    if len(reduction_blocks) == 0:
+        return None
+    return reduction_blocks

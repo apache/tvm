@@ -22,7 +22,7 @@ import numpy as np
 from ..arch import Arch
 from ..config import Config, Stride, TileDict
 from ..node import PrimFuncNode
-from .common import factorize, get_all_factors
+from .common import coalesced_factor, factorize, get_all_factors
 from .default import DefaultPolicy
 from ..rasterization import *
 
@@ -56,13 +56,13 @@ class TensorCorePolicy(DefaultPolicy):
     def _compute_tc_strides(
         self, node: PrimFuncNode, tile: List[int], rstep: Dict[str, int] = {}
     ) -> Tuple[Stride, Stride, Stride]:
-        """
-        strides was used for shared memory padding, which is necessary for avoiding shared memory load bank conflict when we do not applying tensorcore layout.
-        """
+        # strides was used for shared memory padding. which is necessary for avoiding 
+        # shared memory load bank conflict when we do not applying tensorcore layout.
         shapes = node.propogate_reduction_inputs(tile, rstep)
         AS_shape, BS_shape = shapes.values()
         CS_shape = tile
         A_ax_m, A_ax_k, B_ax_k, B_ax_n, C_ax_m, C_ax_n = node.infer_tensorcore_axis()
+
         # applying strides
         # TODO(leiwang1999): offset should be dynamically set. we can use tag -> enable_offset to control this option..
         offset = 8
@@ -95,6 +95,71 @@ class TensorCorePolicy(DefaultPolicy):
         return result
 
     def _expand_reduce_axis(self, td):
+        # For tensorcore program, if we got a small tilesize, we should consider expand the reduce axis
+        # to improve compute efficiency.
+        smem_limit = min(self.arch.max_smem_usage // td.block_per_SM, self.arch.smem_cap)
+        rstep_map = td.rstep_map.copy()
+        
+        def _optimize(node, rstep):
+            all_steps = self.get_node_reduce_step_candidates(node)
+            for k in all_steps:
+                all_steps[k] = list(filter(lambda x: x % rstep[k] == 0, all_steps[k]))
+            
+            def _shared_memory_usage(td: TileDict):
+                return node.footprint(td.output_tile, new_rstep_map, td.tensor_strides_map[node])
+            
+            def _score(rstep_id):
+                rstep = {
+                    k.var.name: all_steps[k.var.name][rstep_id[k.var.name]] for k in node.raxis
+                }
+                score = 0
+                shape = node.propogate_inputs(td.get_tile(node), rstep=rstep)
+                for i, input_buffer in enumerate(node.input_buffers):
+                    score += coalesced_factor(shape[i], input_buffer.shape)
+                return score
+
+            def _enlarge(rstep_id):
+                candidates = []
+                for ax in rstep_id:
+                    if rstep_id[ax] + 1 == len(all_steps[ax]):
+                        continue
+                    r = rstep_id.copy()
+                    r[ax] += 1
+                    candidates.append((r, _score(r)))
+                if len(candidates) == 0:
+                    return None
+                return max(candidates, key=lambda x: x[1])[0]
+
+            cur_rstep_id = {
+                k.var.name: all_steps[k.var.name].index(rstep[k.var.name]) for k in node.raxis
+            }
+            new_rstep_map = rstep_map.copy()
+            while True:
+                new_rstep_id = _enlarge(cur_rstep_id)
+                if new_rstep_id is None:
+                    break
+                new_rstep_map = {
+                    k.var.name: all_steps[k.var.name][new_rstep_id[k.var.name]] for k in node.raxis
+                }
+                old_rstep_map = td.rstep_map
+                td.rstep_map = new_rstep_map
+                smem_usage, _ = _shared_memory_usage(td)
+                td.rstep_map = old_rstep_map
+                if smem_usage > smem_limit:
+                    break
+                else:
+                    cur_rstep_id = new_rstep_id
+            rstep = {
+                k.var.name: all_steps[k.var.name][cur_rstep_id[k.var.name]] for k in node.raxis
+            }
+            return rstep
+
+        for node in self.ordered_nodes:
+            if len(node.raxis) > 0:
+                rstep = _optimize(node, rstep_map)
+                rstep_map = rstep
+        td.rstep_map = rstep_map
+        td.smem_cost, td.cached_tensors_map = self._compute_shared_memory_usage(td)
         return
 
     def get_node_reduce_step_candidates(self, node):
@@ -103,7 +168,7 @@ class TensorCorePolicy(DefaultPolicy):
         else:
             # must be a a multiple of wmma_k
             return {
-                k: [x * self.wmma_k for x in get_all_factors(node.raxis[k] // self.wmma_k)]
+                k.var.name: [x * self.wmma_k for x in get_all_factors(k.dom // self.wmma_k)]
                 for k in node.raxis
             }
 

@@ -18,13 +18,17 @@ import tvm
 import os
 from concurrent.futures import ThreadPoolExecutor
 import numpy as np
-from typing import List, Tuple
+from typing import List, Tuple, Optional
+from tvm import tir
+from tvm import dlight as dl
+from .analysis import get_root_block, get_reduction_blocks
 
 
 class CompileResult:
-    '''
+    """
     Class to store the result of compilation
-    '''
+    """
+
     def __init__(self, config, sch, mod):
         self.config = config
         self.sch = sch
@@ -38,24 +42,59 @@ class CompileResult:
         return self.time_evaluator(*self.profile_tensors).mean
 
 
+def _apply_config(
+    func: tir.PrimFunc,
+    config=None,  # todo(lei): update typing
+) -> Optional[List[tir.Schedule]]:
+    """
+    find rules:
+    case 1. if the main block has no reduce op, then use the Elementwise rule.
+    case 2. if the config enabled tensorcore, then use the TensorCore rule.
+    case 3. if any([t > 1 for t in config.reduce_thread]), we should use the InnerThread Reduction Rule.
+    case 4. else we should use general reduction rule.
+    """
+    print("[FastDlight] Apply config ", config)
+    sch = tir.Schedule(func)
+    root_block = get_root_block(sch)
+    blocks = sch.get_child_blocks(root_block)
+    reduction_blocks = get_reduction_blocks(sch, blocks)
+    if not reduction_blocks:
+        return dl.gpu.ElementWise().apply_config(func, config)
+    elif config.use_tc:
+        return dl.gpu.MatmulTensorization().apply_config(func, config)
+    else:
+        _reduction_rules = []
+
+        _reduction_rules.append(dl.gpu.GEMV())
+        if not any([t > 1 for t in config.reduce_thread]):
+            # Matrix multiplication template doesn't support inner thread reduction
+            _reduction_rules.append(dl.gpu.Matmul())
+        _reduction_rules.append(dl.gpu.GeneralReduction())
+
+        for rule in _reduction_rules:
+            sch = rule.apply_config(func, config)
+            if sch is not None:
+                return sch
+    return None
+
+
 def _apply_and_build(
     func,
-    rule,
     config,
     arch,
 ):
-    print("[FastDlight] Applying with config ", config)
-    sch = rule.apply_config(func, config)
+    sch = _apply_config(func, config)
+    print("[FastDlight] Apply config ", config)
     if sch is None:
         return config, sch, None
-    with tvm.transform.PassContext(config={"tir.use_async_copy": 1}):
+    # todo(lei): should add exception handling
+    with tvm.transform.PassContext(config={"tir.use_async_copy": True}):
         mod = tvm.build(sch.mod["main"], target=arch.target)
     return config, sch, mod
 
 
 def apply_and_build_parallel(
     func,
-    rule,
     configs,
     arch,
     num_repeats=3,
@@ -76,7 +115,6 @@ def apply_and_build_parallel(
         future_to_configs = executor.map(
             _apply_and_build,
             [func for _ in configs],
-            [rule for _ in configs],
             configs,
             [arch for _ in configs],
         )
@@ -108,16 +146,15 @@ def apply_and_build_parallel(
 
 def apply_and_build(
     func,
-    rule,
     configs,
     arch,
     parallel_build=False,
 ) -> Tuple[List[CompileResult], CompileResult]:
     if parallel_build:
-        return apply_and_build_parallel(func, rule, configs, arch)
+        return apply_and_build_parallel(func, configs, arch)
     cpresults = []
     for config in configs:
-        config, sch, mod = _apply_and_build(func, rule, config, arch)
+        config, sch, mod = _apply_and_build(func, config, arch)
 
         cpresult = CompileResult(config, sch, mod)
         args = func.buffer_map.values()

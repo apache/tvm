@@ -1,10 +1,7 @@
 import numpy as np
 import tvm
 from tvm.script import tir as T
-from tvm.dlight.base.roller.policy import TensorCorePolicy
-from tvm.dlight.base.roller.arch import CUDA
 from tvm.dlight.gpu import Matmul
-from tvm.dlight.base.utils import apply_and_build, apply_and_build_parallel
 import time
 
 def matmul_nt(
@@ -39,20 +36,6 @@ for get_prim_func, input_args, f_schedule, d_schedule in benchmark_sets:
     ir_module = get_prim_func(*input_args)
     func = ir_module["main"]
     target = tvm.target.Target("nvidia/nvidia-a100")
-    arch = CUDA(target)
-    policy = TensorCorePolicy(func=func, arch=arch, tags={
-                                                "tensorcore_config": [0, 1],
-                                                "pipeline_stage": 2,
-                                                "use_async_copy": 1,
-                                                })
-    configs = policy.emit_config(20)
-    rule = f_schedule()
-    
-    tune_start = time.time()
-    cpresults, best = apply_and_build_parallel(func, rule, configs, arch)
-    fast_tune_time = time.time() - tune_start
-    print("[FastDlight] The best latency of top 1 is {:.3f} ms".format(cpresults[0].latency * 1e3))
-    print("[FastDlight] The best latency of top 20 is {:.3f} ms".format(best.latency * 1e3))
 
     # evaluate the performance of the default schedule
 
@@ -67,11 +50,11 @@ for get_prim_func, input_args, f_schedule, d_schedule in benchmark_sets:
     profile_tensors = []
     for arg in args:
         profile_tensors.append(tvm.nd.array(
-            np.random.uniform(0, 1, [int(i) for i in arg.shape]).astype(arg.dtype), device=arch.device)
+            np.random.uniform(0, 1, [int(i) for i in arg.shape]).astype(arg.dtype), device=tvm.cuda())
         )
                     
     timer_cuda_mod = mod_default.time_evaluator(
-        mod_default.entry_name, arch.device, number=5)
+        mod_default.entry_name, tvm.cuda(), number=5)
     t = timer_cuda_mod(*profile_tensors).mean
 
 
@@ -79,9 +62,6 @@ for get_prim_func, input_args, f_schedule, d_schedule in benchmark_sets:
     
     profile_config = {
         f"{get_prim_func.__name__}-{'-'.join([str(i) for i in input_args])}": {
-            'fast_dlight_top20_tune_time': fast_tune_time,
-            'fast_dlight_top1_latency': cpresults[0].latency * 1e3,
-            'fast_dlight_top20_latency': best.latency * 1e3,
             'default_dlight_tune_time': default_tune_time,
             'default_dlight_latency': t* 1e3,
             
