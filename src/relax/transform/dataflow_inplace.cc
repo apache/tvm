@@ -788,12 +788,6 @@ class ModuleInplaceTransformer : public ExprMutator {
   // and replace any valid calls in them
   BindingBlock VisitBindingBlock_(const DataflowBlockNode* op) override {
     auto block = GetRef<DataflowBlock>(op);
-    // std::unordered_set<Var, ObjectPtrHash, ObjectPtrEqual> free_var_set;
-    // for (auto binding : block->bindings) {
-    //   auto binding_free_vars = FreeVars(GetBoundValue(binding));
-    //   free_var_set.insert(binding_free_vars.begin(), binding_free_vars.end());
-    // }
-    // Array<Var> free_var_list(free_var_set.begin(), free_var_set.end());
 
     // For now, only handle exact match cases.
     // Note: Not passing any input values for now, as we can't make any assumptions
