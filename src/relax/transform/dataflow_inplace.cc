@@ -610,7 +610,7 @@ std::pair<std::vector<std::vector<int>>, std::vector<std::vector<int>>> FindInpl
             }
           }
         }
-        if (!candidates.size()) {
+        if (!candidates.empty()) {
           continue;
         }
 
@@ -629,7 +629,7 @@ std::pair<std::vector<std::vector<int>>, std::vector<std::vector<int>>> FindInpl
         }
 
         // if we have a candidate, then this can be made in-place. Report the appropriate candidates
-        if (!candidates.size()) {
+        if (!candidates.empty()) {
           continue;
         }
 
