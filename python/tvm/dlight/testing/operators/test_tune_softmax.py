@@ -8,6 +8,7 @@ from tvm.dlight.base.roller.arch import CUDA
 from tvm.dlight.gpu import GeneralReduction, Matmul
 from tvm.dlight.base.utils import apply_and_build
 
+
 def softmax(M, N, dtype="float16"):
     @tvm.script.ir_module
     class Softmax:
@@ -36,10 +37,12 @@ def softmax(M, N, dtype="float16"):
                 with T.block("T_softmax_norm"):
                     v_i0, v_i1 = T.axis.remap("SS", [i0, i1])
                     T_softmax_norm[v_i0, v_i1] = T_softmax_exp[v_i0, v_i1] / T_softmax_expsum[v_i0]
+
     return Softmax
 
+
 benchmark_sets = [
-    (softmax, (128, 10, 'float16'), GeneralReduction),
+    (softmax, (128, 10, "float16"), GeneralReduction),
 ]
 
 benchmark_results = {}
@@ -56,13 +59,12 @@ for get_prim_func, input_args, d_schedule in benchmark_sets:
     fast_tune_time = time.time() - tune_start
     print("[FastDlight] The best latency of top 1 is {:.3f} ms".format(cpresults[0].latency * 1e3))
     print("[FastDlight] The best latency of top 20 is {:.3f} ms".format(best.latency * 1e3))
-    print(best.code)
 
     # evaluate the performance of the default schedule
     rule = d_schedule()
     default_tune_start = time.time()
     sch_default = rule.apply(func, target, False)
-    print(sch_default.mod)
+
     mod_default = tvm.build(sch_default.mod["main"], target="cuda")
     default_tune_time = time.time() - default_tune_start
 

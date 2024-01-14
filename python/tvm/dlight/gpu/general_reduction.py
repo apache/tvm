@@ -23,7 +23,7 @@ from tvm import tir
 from tvm.target import Target
 
 from ..base import ScheduleRule, normalize_prim_func, try_inline_contiguous_spatial
-from ..base.roller.config import Stride
+from ..base.analysis import get_root_block, get_reduction_blocks
 
 
 class GeneralReduction(ScheduleRule):
@@ -120,7 +120,8 @@ class GeneralReduction(ScheduleRule):
         sch = tir.Schedule(func)
         block_infos = normalize_prim_func(sch)
 
-        reduction_block: tir.schedule.BlockRV = None
+        schedule_block: tir.schedule.BlockRV = None
+        reduction_blocks: List[tir.schedule.BlockRV] = []
         for block in block_infos:
             s_loops: List[tir.schedule.LoopRV] = []
             r_loops: List[tir.schedule.LoopRV] = []
@@ -145,30 +146,19 @@ class GeneralReduction(ScheduleRule):
             if not s_loops:
                 s_loops.append(sch.add_unit_loop(block_rv))
             if len(r_loops) > 0:
-                reduction_block = block
+                # always use the last reduction block for scheduling
+                schedule_block = block
+                reduction_blocks.append(block_rv)
 
         # Align the number of block iters of the last block.
-        dom_kind = reduction_block.dom_kind()
+        dom_kind = schedule_block.dom_kind()
         num_leading_s = len(dom_kind) - len(dom_kind.lstrip("S"))
         num_trailing_r = len(dom_kind) - len(dom_kind.rstrip("R"))
 
-        # num_last_block_iter = len(block_infos[-1].dom_kind())
-        # if num_last_block_iter < len(dom_kind):
-        #     index_map = tir.IndexMap.from_func(
-        #         lambda *iters: (
-        #             [tir.const(0, iters[0].dtype)] * (len(dom_kind) - num_last_block_iter)
-        #             + list(iters)
-        #         ),
-        #         ndim=num_last_block_iter,
-        #     )
-        #     sch.transform_block_layout(reduction_block.block_rv, index_map)
-
-        reduction_block = reduction_block.block_rv
-        loops = sch.get_loops(reduction_block)
+        schedule_block = schedule_block.block_rv
+        loops = sch.get_loops(schedule_block)
         s_loops = loops[:num_leading_s]
         r_loops = loops[-num_trailing_r:]
-
-        reg_tile = sch.cache_write(reduction_block, 0, "local")
 
         block_axis = []
         thread_axis = []
@@ -200,13 +190,17 @@ class GeneralReduction(ScheduleRule):
         fused_reduce_inter_threads = sch.fuse(*reduce_inter_threads)
         sch.bind(fused_reduce_inter_threads, "threadIdx.x")
 
+        def prod(iterable):
+            return reduce(lambda x, y: x * y, iterable, 1)
+
+        reg_tile = sch.cache_write(schedule_block, 0, "local")
         # todo(lei): should add the shared_inputs/stride memory pad analysis at shared memory fusion stage.
-        for i, input_region in enumerate(sch.get(reduction_block).reads):
+        for i, input_region in enumerate(sch.get(schedule_block).reads):
             if input_region.buffer.name not in config.cached_tensors:
                 continue
 
             # otherwise cooperative fetch in shared memory.
-            cache_shared = sch.cache_read(reduction_block, i, "shared")
+            cache_shared = sch.cache_read(schedule_block, i, "shared")
             sch.compute_at(cache_shared, reduce_outer_axis[-1])
 
             dim_offset = (
@@ -220,11 +214,8 @@ class GeneralReduction(ScheduleRule):
             loops = sch.get_loops(cache_shared)
             if len(loops) == dim_offset:
                 # handle fetching only one element
-                loops.append(sch.add_unit_loop(reduction_block))
+                loops.append(sch.add_unit_loop(schedule_block))
             assert len(loops) > dim_offset
-
-            def prod(iterable):
-                return reduce(lambda x, y: x * y, iterable, 1)
 
             _, ty, tx, tv = sch.split(
                 sch.fuse(*loops[dim_offset:]),
@@ -260,7 +251,7 @@ class GeneralReduction(ScheduleRule):
         sch = tir.Schedule(func)
         block_infos = normalize_prim_func(sch)
 
-        reduction_block: tir.schedule.BlockRV = None
+        schedule_block: tir.schedule.BlockRV = None
         for block in block_infos:
             s_loops: List[tir.schedule.LoopRV] = []
             r_loops: List[tir.schedule.LoopRV] = []
@@ -285,10 +276,11 @@ class GeneralReduction(ScheduleRule):
             if not s_loops:
                 s_loops.append(sch.add_unit_loop(block_rv))
             if len(r_loops) > 0:
-                reduction_block = block
+                # always use the last reduction block for scheduling
+                schedule_block = block
 
         # Align the number of block iters of the last block.
-        dom_kind = reduction_block.dom_kind()
+        dom_kind = schedule_block.dom_kind()
         num_leading_s = len(dom_kind) - len(dom_kind.lstrip("S"))
         num_trailing_r = len(dom_kind) - len(dom_kind.rstrip("R"))
 
@@ -301,14 +293,14 @@ class GeneralReduction(ScheduleRule):
                 ),
                 ndim=num_last_block_iter,
             )
-            sch.transform_block_layout(reduction_block.block_rv, index_map)
+            sch.transform_block_layout(schedule_block.block_rv, index_map)
 
-        reduction_block = reduction_block.block_rv
-        loops = sch.get_loops(reduction_block)
+        schedule_block = schedule_block.block_rv
+        loops = sch.get_loops(schedule_block)
         s_loops = loops[:num_leading_s]
         r_loops = loops[-num_trailing_r:]
 
-        reg_tile = sch.cache_write(reduction_block, 0, "local")
+        reg_tile = sch.cache_write(schedule_block, 0, "local")
 
         block_axis = []
         vthread_axis = []
@@ -355,12 +347,12 @@ class GeneralReduction(ScheduleRule):
             sch.bind(ax, "vthread" + [".x", ".y", ".z"][i])
 
         # todo(lei): should add the shared_inputs/stride memory pad analysis at shared memory fusion stage.
-        for i, input_region in enumerate(sch.get(reduction_block).reads):
+        for i, input_region in enumerate(sch.get(schedule_block).reads):
             if input_region.buffer.name not in config.cached_tensors:
                 continue
 
             # otherwise cooperative fetch in shared memory.
-            cache_shared = sch.cache_read(reduction_block, i, "shared")
+            cache_shared = sch.cache_read(schedule_block, i, "shared")
             sch.compute_at(cache_shared, reduce_outer_axis[-1])
 
             dim_offset = (
@@ -374,7 +366,7 @@ class GeneralReduction(ScheduleRule):
             loops = sch.get_loops(cache_shared)
             if len(loops) == dim_offset:
                 # handle fetching only one element
-                loops.append(sch.add_unit_loop(reduction_block))
+                loops.append(sch.add_unit_loop(schedule_block))
             assert len(loops) > dim_offset
 
             def prod(iterable):
@@ -388,7 +380,7 @@ class GeneralReduction(ScheduleRule):
 
         sch.reverse_compute_at(reg_tile, thrd_fused)
 
-        sch.decompose_reduction(reduction_block, reduce_outer_axis[0])
+        sch.decompose_reduction(schedule_block, reduce_outer_axis[0])
 
         # resolve compute_at
         block_infos = try_inline_contiguous_spatial(sch, block_infos)
@@ -397,11 +389,86 @@ class GeneralReduction(ScheduleRule):
 
         return sch
 
+    def sch_mutiple_reductions_with_config(  # pylint: disable=too-many-locals,too-many-branches,too-many-return-statements
+        self,
+        func: tir.PrimFunc,
+        config,
+    ):
+        block_factors = config.block
+        thread_factors = config.thread
+        reduce_therad_factors = config.reduce_thread
+
+        sch = tir.Schedule(func)
+        block_infos = normalize_prim_func(sch)
+        block_infos = try_inline_contiguous_spatial(sch, block_infos)
+        if block_infos is None or len(block_infos) == 0:
+            return None
+
+        def prod(iterable):
+            return reduce(lambda x, y: x * y, iterable, 1)
+
+        len_tx = prod(thread_factors) * prod(reduce_therad_factors)
+        block_factor = prod(block_factors)
+
+        dom_kind = block_infos[0].dom_kind()
+        num_leading_s = len(dom_kind) - len(dom_kind.lstrip("S"))
+        num_trailing_r = len(dom_kind) - len(dom_kind.rstrip("R"))
+
+        # Align the number of block iters of the last block.
+        num_last_block_iter = len(block_infos[-1].dom_kind())
+        if num_last_block_iter < len(dom_kind):
+            index_map = tir.IndexMap.from_func(
+                lambda *iters: (
+                    [tir.const(0, iters[0].dtype)] * (len(dom_kind) - num_last_block_iter)
+                    + list(iters)
+                ),
+                ndim=num_last_block_iter,
+            )
+            sch.transform_block_layout(block_infos[-1].block_rv, index_map)
+
+        try:
+            # TODO: fix num_leading_s = 0 case
+            assert num_trailing_r > 0
+            for block in block_infos[1:-1]:
+                assert block.dom_kind() == dom_kind
+            assert block_infos[-1].is_injective()
+            assert len(block_infos[-1].dom_kind()) <= len(dom_kind)
+        except AssertionError:
+            return None
+
+        loops = sch.get_loops(block_infos[-1].block_rv)
+        bx, _ = sch.split(sch.fuse(*loops[:num_leading_s]), factors=[None, block_factor])
+        r_loop, tx = sch.split(loops[-1], [None, len_tx])
+        sch.reorder(tx, r_loop)
+        sch.bind(bx, "blockIdx.x")
+        sch.bind(tx, "threadIdx.x")
+
+        for block in reversed(block_infos[:-1]):
+            block = block.block_rv
+            for i, _ in enumerate(sch.get(block).writes):
+                sch.set_scope(block, buffer_index=i, storage_scope="shared")
+            sch.compute_at(block, bx, preserve_unit_loops=True)
+            r_loop = sch.fuse(*sch.get_loops(block)[-num_trailing_r:])
+            r_loop, tx = sch.split(r_loop, [None, len_tx])
+            sch.reorder(tx, r_loop)
+            sch.bind(tx, "threadIdx.x")
+
+        return sch
+
     def apply_config(  # pylint: disable=too-many-locals,missing-docstring
         self,
         func: tir.PrimFunc,
         config,
     ) -> tir.Schedule:
+        # check the number of reduction blocks
+        sch = tir.Schedule(func)
+        root_block = get_root_block(sch)
+        blocks = sch.get_child_blocks(root_block)
+        reduction_blocks = get_reduction_blocks(sch, blocks)
+        if len(reduction_blocks) > 1:
+            # schedule for multiple reduction blocks (e.g. softmax)
+            return self.sch_mutiple_reductions_with_config(func, config)
+
         if any([t > 1 for t in config.reduce_thread]):
             # todo(lei) should implement block reduction schedule
             return self.sch_inner_reduction_with_config(func, config)

@@ -95,7 +95,7 @@ for get_prim_func, input_args, f_schedule, d_schedule in benchmark_sets:
     rule = f_schedule()
     
     tune_start = time.time()
-    cpresults, best = apply_and_build(func, rule, configs, arch, parallel_build=False)
+    cpresults, best = apply_and_build(func, configs, arch, parallel_build=True)
     fast_tune_time = time.time() - tune_start
     print("[FastDlight] The best latency of top 1 is {:.3f} ms".format(cpresults[0].latency * 1e3))
     print("[FastDlight] The best latency of top 20 is {:.3f} ms".format(best.latency * 1e3))

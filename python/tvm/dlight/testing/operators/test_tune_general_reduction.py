@@ -99,7 +99,6 @@ def conv2d_nhwc_hwnc(n, f, h, w, c, kh, kw, s, d, p, in_dtype="float16", out_dty
     return tvm.ir.IRModule({"main": te.create_prim_func([A, B, C])})
 
 
-
 benchmark_sets = [
     # (gemv, (1, 16384, 16384, "float16"), GeneralReduction, Fallback),
     # (matmul_nt, (1024, 1024, 1024, "float16", "float16"), GeneralReduction, Fallback),
