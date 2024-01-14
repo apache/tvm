@@ -986,6 +986,42 @@ def test_call_tir_with_grad():
     _check(Module)
 
 
+def test_call_tir_inplace():
+    @tvm.script.ir_module
+    class Module:
+        @T.prim_func
+        def copy(
+            A: T.Buffer((2, 3), "int32"),
+            B: T.Buffer((2, 3), "int32"),
+            out1: T.Buffer((2, 3), "int32"),
+        ):
+            # copies the contents of B into A and out1
+            T.func_attr({"tir.noalias": True})
+            for i0, i1 in T.grid(T.int64(2), T.int64(3)):
+                with T.block("T_zeros"):
+                    ax0, ax1 = T.axis.remap("SS", [i0, i1])
+                    T.reads(B[ax0, ax1])
+                    T.writes(A[ax0, ax1], out1[ax0, ax1])
+                    A[ax0, ax1] = B[ax0, ax1]
+                    out1[ax0, ax1] = B[ax0, ax1]
+
+        @R.function
+        def main(
+            x: R.Tensor((2, 3), "int32"), y: R.Tensor((2, 3), "int32")
+        ) -> R.Tuple(
+            R.Tensor((2, 3), "int32"), R.Tensor((2, 3), "int32"), R.Tensor((2, 3), "int32")
+        ):
+            res = R.call_tir_inplace(
+                Module.copy,
+                (x, y),
+                [0, -1],
+                [R.Tensor((2, 3), "int32"), R.Tensor((2, 3), "int32")],
+            )
+            return res
+        
+    _check(Module)
+
+
 def test_local_function():
     @R.function
     def main(

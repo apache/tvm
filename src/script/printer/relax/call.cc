@@ -97,11 +97,13 @@ ExprDoc PrintCallee(const relax::Expr& n, const ObjectPath& n_p, const IRDocsifi
 Optional<ExprDoc> PrintCallTIRDPSPacked(const relax::Call& n, const ObjectPath& n_p,
                                         const IRDocsifier& d) {
   static const Op& call_tir_op = Op::Get("relax.call_tir");
+  static const Op& call_tir_inplace_op = Op::Get("relax.call_tir_inplace");
   static const Op& call_dps_packed_op = Op::Get("relax.call_dps_packed");
   static const Op& call_tir_with_grad_op = Op::Get("relax.call_tir_with_grad");
   static const Op& call_tir_local_view = Op::Get("relax.dist.call_tir_local_view");
   if (!n->op.same_as(call_tir_op) && !n->op.same_as(call_dps_packed_op) &&
-      !n->op.same_as(call_tir_with_grad_op) && !n->op.same_as(call_tir_local_view)) {
+      !n->op.same_as(call_tir_with_grad_op) && !n->op.same_as(call_tir_local_view) &&
+      !n->op.same_as(call_tir_inplace_op)) {
     return NullOpt;
   }
   ICHECK(n->args.size() == 2 || n->args.size() == 3);
@@ -135,6 +137,19 @@ Optional<ExprDoc> PrintCallTIRDPSPacked(const relax::Call& n, const ObjectPath& 
     kwargs_values.push_back(d->AsDoc<ExprDoc>(o_sinfo, o_sinfo_p));
   }
 
+  // for call_tir_inplace, we also need to include the inplace args
+  if (n->op.same_as(call_tir_inplace_op)) {
+    kwargs_keys.push_back("inplace_indices");
+    Array<ExprDoc> index_fields;
+    if (auto* call_tir_inplace_attrs = n->attrs.as<relax::CallTIRInplaceAttrs>()) {
+      for (auto inplace_index : call_tir_inplace_attrs->inplace_indices) {
+        index_fields.push_back(
+            LiteralDoc::Int(inplace_index.IntValue(), n_p->Attr("attrs")->Attr("inplace_indices")));
+      }
+    }
+    kwargs_values.push_back(ListDoc(index_fields));
+  }
+
   // start of specially handling call_tir_with_grad
   if (const auto* call_tir_with_grad_attrs = n->attrs.as<relax::CallTIRWithGradAttrs>()) {
     kwargs_keys.push_back("te_grad_name");
@@ -163,6 +178,8 @@ Optional<ExprDoc> PrintCallTIRDPSPacked(const relax::Call& n, const ObjectPath& 
     return Relax(d, "dist.call_tir_local_view")->Call(args, kwargs_keys, kwargs_values);
   } else if (is_dtensor) {
     return Relax(d, "dist.call_tir")->Call(args, kwargs_keys, kwargs_values);
+  } else if (n->op.same_as(call_tir_inplace_op)) {
+    return Relax(d, "call_tir_inplace")->Call(args, kwargs_keys, kwargs_values);
   } else {
     return Relax(d, "call_tir")->Call(args, kwargs_keys, kwargs_values);
   }
