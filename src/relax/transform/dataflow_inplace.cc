@@ -294,15 +294,11 @@ class AliasAnalyzer {
   int mem_idx_;
 };
 
-// given a shape, return the allocation size corresponding to it (product of elements)
-int ShapeSize(const ShapeExpr& shape) {
-  int ret = 1;
+// given a shape, return the number of elements corresponding to it (product of elements)
+PrimExpr NumElements(const ShapeExpr& shape) {
+  PrimExpr ret = IntImm(DataType::Int(64), 1);
   for (auto dim : shape->values) {
-    if (auto int_dim = dim.as<IntImmNode>()) {
-      ret *= static_cast<int>(int_dim->value);
-    } else {
-      return -1;
-    }
+    ret *= dim;
   }
   return ret;
 }
@@ -364,9 +360,10 @@ std::pair<bool, bool> SizeMatches(const StructInfo& target_info, const StructInf
       }
       auto target_shape = Downcast<ShapeExpr>(target_tensor->shape);
       auto arg_shape = Downcast<ShapeExpr>(arg_tensor->shape);
-      int target_size = ShapeSize(target_shape);
-      int arg_size = ShapeSize(arg_shape);
-      if (target_size == -1 || arg_size == -1 || target_size < arg_size) {
+      PrimExpr target_size = NumElements(target_shape);
+      PrimExpr arg_size = NumElements(arg_shape);
+      if (!target_size.as<IntImmNode>() || !arg_size.as<IntImmNode>() ||
+          Downcast<IntImm>(target_size)->value < Downcast<IntImm>(arg_size)->value) {
         return {false, false};
       }
       // exact match: number of dims and each dim matches
