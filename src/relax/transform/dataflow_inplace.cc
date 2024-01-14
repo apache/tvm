@@ -264,14 +264,6 @@ class AliasAnalyzer {
         // call_pure_packed: treat as non-op call
         if (op_node->name == "relax.call_pure_packed") {
           return HandleMysteryCall(call_node, bound_var, true);
-        } else if (op_node->name == "relax.split") {
-          // split: Returns a tuple, treat as allocation
-
-          // tuple is freshly allocated, but also add components to the tuple map
-          int tup_idx = get_fresh_idx();
-          ret.insert(tup_idx);
-          // the LHS (the bound var) will definitely have a tuple struct info
-          InsertFreshTuple(tup_idx, GetStructInfoAs<TupleStructInfoNode>(bound_var));
         } else if (op_node->name == "relax.call_tir") {
           // call_tir: can potentially return a tuple
           if (auto* tuple_struct_info = call_node->sinfo_args[0].as<TupleStructInfoNode>()) {
@@ -282,8 +274,17 @@ class AliasAnalyzer {
             ret.insert(get_fresh_idx());
           }
         } else {
-          // We are assuming most op calls return a single fresh allocation.
+          // We are assuming most op calls return fresh values.
           // We may have to track more exceptions
+          
+          // If the returned value is a tuple, we'll assume it's a fresh tuple
+          // (there may be exceptions to this too)
+          if (auto* tup_info = GetStructInfoAs<TupleStructInfoNode>(bound_var)) {
+            int tup_idx = get_fresh_idx();
+            ret.insert(tup_idx);
+            InsertFreshTuple(tup_idx, tup_info);
+            return ret;
+          }
           ret.insert(get_fresh_idx());
         }
       } else {
