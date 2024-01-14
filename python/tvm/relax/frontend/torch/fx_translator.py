@@ -695,6 +695,34 @@ class TorchFXImporter:
 
         return self.block_builder.emit(relax.op.add(conv1d, bias))
 
+    def _conv3d(self, node: fx.node.Node) -> relax.Var:
+        x = self.env[node.args[0]]
+        module = self.named_modules[node.target]
+        weight = self.params[module.weight]
+
+        conv3d = self.block_builder.emit(
+            relax.op.nn.conv3d(
+                x,
+                weight,
+                strides=module.stride,
+                padding=module.padding,
+                dilation=module.dilation,
+                groups=module.groups,
+                data_layout="NCDHW",
+                kernel_layout="OIDHW",
+                out_dtype="float32",
+            )
+        )
+
+        if module.bias is None:
+            return conv3d
+
+        bias = self.params[module.bias]
+        assert len(self.shape_of(bias)) == 1
+        bias = relax.op.reshape(bias, (1, -1, 1, 1, 1))
+
+        return self.block_builder.emit(relax.op.add(conv3d, bias))
+
     def _conv2d_impl(
         self,
         x: relax.Expr,
@@ -1313,6 +1341,7 @@ class TorchFXImporter:
             nn.Linear: self._linear,
             nn.Conv1d: self._conv1d,
             nn.Conv2d: self._conv2d,
+            nn.Conv3d: self._conv3d,
             nn.ConvTranspose1d: self._conv1d_transpose,
             nn.ConvTranspose2d: self._conv2d_transpose,
             nn.MaxPool2d: self._max_pool2d,

@@ -25,6 +25,7 @@ from .nn import (
     conv1d_transpose,
     conv2d,
     conv2d_transpose,
+    conv3d,
     cross_entropy_with_logits,
     dropout,
     gelu,

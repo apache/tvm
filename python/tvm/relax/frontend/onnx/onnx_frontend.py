@@ -685,32 +685,32 @@ class Conv(OnnxOpConverter):
             ndim = len(inputs[0].struct_info.shape)
 
         if ndim == 3:
-            conv_out = bb.emit_te(
-                topi.nn.conv1d,
-                inputs[0],
-                inputs[1],
-                attr.get("strides", 1),
-                attr.get("pads", 0),
-                attr.get("dilation", 1),
-                "NCHW",
-                "OIHW",
-            )
+            op = relax.op.nn.conv1d
+            data_layout = "NCW"
+            kernel_layout = "OIW"
         elif ndim == 4:
-            conv_out = bb.normalize(
-                relax.op.nn.conv2d(
-                    data=inputs[0],
-                    weight=inputs[1],
-                    strides=attr.get("strides", 1),
-                    padding=attr.get("pads", 0),
-                    dilation=attr.get("dilation", 1),
-                    groups=attr.get("group", 1),
-                    data_layout="NCHW",
-                    kernel_layout="OIHW",
-                )
-            )
+            op = relax.op.nn.conv2d
+            data_layout = "NCHW"
+            kernel_layout = "OIHW"
+        elif ndim == 5:
+            op = relax.op.nn.conv3d
+            data_layout = "NCDHW"
+            kernel_layout = "OIDHW"
         else:
-            raise NotImplementedError("Only 2d conv currently supported.")
+            raise NotImplementedError("Ndim > 5 not supported for convolution.")
 
+        conv_out = bb.normalize(
+            op(
+                data=inputs[0],
+                weight=inputs[1],
+                strides=attr.get("strides", 1),
+                padding=attr.get("pads", 0),
+                dilation=attr.get("dilation", 1),
+                groups=attr.get("group", 1),
+                data_layout=data_layout,
+                kernel_layout=kernel_layout,
+            )
+        )
         if inputs[2] is not None:
             bias = relax.op.reshape(
                 inputs[2],
