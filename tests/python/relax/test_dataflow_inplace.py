@@ -57,8 +57,8 @@ def test_liveness_analysis():
         "p": (3, 5),
         "n": (4, 5),
     }
-    for var, live_range in live_ranges.items():
-        assert live_range == expected_ranges[var.name_hint]
+    actual_ranges = {var.name_hint: live_range for var, live_range in live_ranges.items()}
+    assert actual_ranges == expected_ranges
 
 
 def test_alias_analysis_basic():
@@ -124,8 +124,8 @@ def test_alias_analysis_tuple():
         "n": {3},
     }
 
-    for var, alias_set in alias_sets.items():
-        assert alias_set == expected[var.name_hint]
+    actual_alias_sets = {var.name_hint : alias_set for var, alias_set in alias_sets.items()}
+    assert expected == actual_alias_sets
     assert 2 in tuple_map
     assert tuple_map[2] == [{0}, {1}]
 
@@ -157,8 +157,8 @@ def test_alias_split():
         "n": {3},
     }
 
-    for var, alias_set in alias_sets.items():
-        assert alias_set == expected[var.name_hint]
+    actual_alias_sets = {var.name_hint : alias_set for var, alias_set in alias_sets.items()}
+    assert expected == actual_alias_sets
     assert len(tuple_map) == 1
     assert 1 in tuple_map
     assert tuple_map[1] == [{2}, {3}, {4}, {5}]
@@ -231,8 +231,8 @@ def test_alias_call_tir():
         "v": {4},
     }
 
-    for var, alias_set in alias_sets.items():
-        assert alias_set == expected[var.name_hint]
+    actual_alias_sets = {var.name_hint : alias_set for var, alias_set in alias_sets.items()}
+    assert expected == actual_alias_sets
     assert len(tuple_map) == 1
     assert 2 in tuple_map
     assert tuple_map[2] == [{3}, {4}]
@@ -277,8 +277,8 @@ def test_mystery_calls():
         # (in principle, we can use type information to narrow down the aliasing)
     }
 
-    for var, alias_set in alias_sets.items():
-        assert alias_set == expected[var.name_hint]
+    actual_alias_sets = {var.name_hint : alias_set for var, alias_set in alias_sets.items()}
+    assert expected == actual_alias_sets
     assert len(tuple_map) == 2
     assert 5 in tuple_map
     assert tuple_map[5] == [{3}, {4}]
@@ -313,8 +313,8 @@ def test_alias_external_value():
         "c": {-1},
     }
 
-    for var, alias_set in alias_sets.items():
-        assert alias_set == expected[var.name_hint]
+    actual_alias_sets = {var.name_hint : alias_set for var, alias_set in alias_sets.items()}
+    assert expected == actual_alias_sets
     assert len(tuple_map) == 1
     assert 2 in tuple_map
     assert tuple_map[2] == [{-1}, {1}]
