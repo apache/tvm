@@ -254,8 +254,9 @@ def RemovePurityChecking() -> tvm.ir.transform.Pass:
 
 def DataflowUseInplaceCalls() -> tvm.ir.transform.Pass:
     """
-    Pass that changes calls to supported operators in dataflow blocks into in-place
-    implementations. Supported operators will be replaced by calls to `call_tir_inplace` that invoke
+    Pass that changes calls to operators that can be done in-place
+    (generally, these are elementwise operations) into in-place implementations.
+    Supported operators will be replaced by calls to `call_tir_inplace` that invoke
     in-place PrimFunc implementations of those operators (which are based on the legalizations of
     those operators).
 
