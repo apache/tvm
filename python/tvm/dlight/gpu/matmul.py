@@ -1646,8 +1646,6 @@ class Matmul(ScheduleRule):
                 if in_dtype == "int8" and out_dtype == "int32":
                     tensorize_sch = MatmulInt8Tensorization().apply(func, target, _)
                 else:
-                    # tensorize_sch = MatmulAdvancedTensorization().apply(func, target, _)
-                    # tensorize_sch = MatmulAdvancedTensorizationMMA().apply(func, target, _)
                     tensorize_sch = MatmulTensorization().apply(func, target, _)
                 if tensorize_sch is not None:
                     return tensorize_sch
@@ -1826,8 +1824,8 @@ class Matmul(ScheduleRule):
 
             def is_trivial_load(block):
                 # avoid vectorize under global[v2, v1]] shared[v1, v2] case
-                reads = sch.get_sref(block).stmt.reads
-                writes = sch.get_sref(block).stmt.writes
+                reads = sch.get(block).reads
+                writes = sch.get(block).writes
                 if len(reads) != 1 or len(writes) != 1:
                     return False
                 return all(
@@ -1840,7 +1838,6 @@ class Matmul(ScheduleRule):
             sch.bind(ty, "threadIdx.y")
             sch.bind(tx, "threadIdx.x")
 
-
             _, vec = sch.split(
                 sch.fuse(*sch.get_loops(block_local)[-2:]),
                 [None, vec_len // prod(config.step)],
@@ -1852,7 +1849,9 @@ class Matmul(ScheduleRule):
         for i, input_region in enumerate(sch.get(main_block).reads):
             _buffer_name = input_region.buffer.name.replace("_reindex", "")
             if _buffer_name not in config.cached_tensors:
-                print(f"Warning: {_buffer_name} is not in cached_tensors {config.cached_tensors}, skip.")
+                print(
+                    f"Warning: {_buffer_name} is not in cached_tensors {config.cached_tensors}, skip."
+                )
                 continue
 
             # otherwise cooperative fetch in shared memory.
@@ -1865,7 +1864,9 @@ class Matmul(ScheduleRule):
 
         auto_inline_consumer_chain(sch, l2g)
 
-        _, vec = sch.split(sch.fuse(*sch.get_loops(l2g)[-2:]), [None, vectorize // prod(config.step)])
+        _, vec = sch.split(
+            sch.fuse(*sch.get_loops(l2g)[-2:]), [None, vectorize // prod(config.step)]
+        )
         sch.vectorize(vec)
 
         sch.decompose_reduction(main_block, ko)

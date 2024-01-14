@@ -369,7 +369,7 @@ def _extract_dependent_region(block_analyzer, block: BlockRV) -> Dict[str, List[
         if not region_exist_in_list(index, dependent_region[x.buffer.name]):
             dependent_region[x.buffer.name].append(index)
 
-    stmt = block_analyzer.sch.get_sref(block).stmt
+    stmt = block_analyzer.sch.get(block)
     tir.stmt_functor.post_order_visit(stmt, fvisit=fvisit)
     return dependent_region
 

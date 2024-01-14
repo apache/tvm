@@ -216,18 +216,18 @@ class InThreadReducerMaker : private StmtMutator {
     return GetRef<BlockRealize>(realize);
   }
 
-  Stmt VisitStmt_(const ForNode* loop) final {
-    if (Optional<For> opt_res = Downcast<Optional<For>>(StmtMutator::VisitStmt_(loop))) {
-      For res = opt_res.value();
-      if (res->thread_binding.defined()) {
-        return res->body;
-      } else {
-        return std::move(res);
-      }
-    } else {
-      return Stmt{nullptr};
-    }
-  }
+  // Stmt VisitStmt_(const ForNode* loop) final {
+  //   if (Optional<For> opt_res = Downcast<Optional<For>>(StmtMutator::VisitStmt_(loop))) {
+  //     For res = opt_res.value();
+  //     if (res->thread_binding.defined()) {
+  //       return res->body;
+  //     } else {
+  //       return std::move(res);
+  //     }
+  //   } else {
+  //     return Stmt{nullptr};
+  //   }
+  // }
 
   Stmt VisitStmt_(const SeqStmtNode* seq) final {
     Array<Stmt> stmts;

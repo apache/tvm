@@ -245,8 +245,8 @@ class GEMVWithInconsistentInfo(ScheduleRule):
         sch.bind(tx, "threadIdx.x")
         sch.bind(j, "threadIdx.y")
 
-        self.block_size = [sch.get_sref(tx).stmt.extent, sch.get_sref(j).stmt.extent, 1]
-        self.grid_size = [sch.get_sref(bx).stmt.extent, 1, 1]
+        self.block_size = [sch.get(tx).extent, sch.get(j).extent, 1]
+        self.grid_size = [sch.get(bx).extent, 1, 1]
 
         sch.compute_at(block_decode_B, tx, preserve_unit_loops=True)
         sch.compute_at(block_shared_local_A, tx, preserve_unit_loops=True)
@@ -313,7 +313,7 @@ class GEMVWithInconsistentInfo(ScheduleRule):
         thrd_axis = []
         tile_axis = []
         for i, loop in enumerate(s_loops):
-            if sch.get_sref(loop).stmt.extent % config.block[i]:
+            if sch.get(loop).extent % config.block[i]:
                 raise NotImplementedError("Undivisible block in TIR schedule is still buggy.")
             bx, _t = sch.split(loop, factors=[None, config.block[i]])
             blck_axis.append(bx)
@@ -838,8 +838,8 @@ class GEMV(ScheduleRule):
         sch.bind(tx, "threadIdx.x")
         sch.bind(j, "threadIdx.y")
 
-        self.block_size = [sch.get_sref(tx).stmt.extent, sch.get_sref(j).stmt.extent, 1]
-        self.grid_size = [sch.get_sref(bx).stmt.extent, 1, 1]
+        self.block_size = [sch.get(tx).extent, sch.get(j).extent, 1]
+        self.grid_size = [sch.get(bx).extent, 1, 1]
 
         sch.compute_at(block_shared_local_A, tx, preserve_unit_loops=True)
         sch.compute_at(block_shared_local_B, tx, preserve_unit_loops=True)
@@ -898,7 +898,7 @@ class GEMV(ScheduleRule):
         thrd_axis = []
         tile_axis = []
         for i, loop in enumerate(s_loops):
-            if sch.get_sref(loop).stmt.extent % config.block[i]:
+            if sch.get(loop).extent % config.block[i]:
                 raise NotImplementedError("Undivisible block in TIR schedule is still buggy.")
             bx, _t = sch.split(loop, factors=[None, config.block[i]])
             blck_axis.append(bx)

@@ -85,7 +85,7 @@ class TensorCorePolicy(DefaultPolicy):
         result = {}
         for iter_info in node.raxis:
             iter_name = iter_info.var.name
-            iter_dom = iter_info.extent
+            iter_dom = iter_info.dom.extent
             if iter_dom % 16 > 0:
                 result[iter_name] = 16 if iter_dom < 32 else 32  # padding case
             elif iter_dom % 32 == 0:

@@ -51,7 +51,7 @@ class BlockAnalyzer(object):
         self.block_infos: List[BlockInfo] = normalize_prim_func(self.sch)
 
     def get_block_name(self, block: BlockRV) -> str:
-        return self.sch.get_sref(block).stmt.name_hint
+        return self.sch.get(block).name_hint
 
     def get_block_info(self, block: BlockRV) -> BlockInfo:
         for block_info in self.block_infos:
@@ -77,13 +77,13 @@ class BlockAnalyzer(object):
 
     def get_input_buffers(self, block: BlockRV) -> List[tir.Buffer]:
         buffers = []
-        for read in self.sch.get_sref(block).stmt.reads:
+        for read in self.sch.get(block).reads:
             buffers.append(read.buffer)
         return buffers
 
     def get_output_buffers(self, block: BlockRV) -> List[tir.Buffer]:
         buffers = []
-        for write in self.sch.get_sref(block).stmt.writes:
+        for write in self.sch.get(block).writes:
             buffers.append(write.buffer)
         return buffers
 
@@ -179,7 +179,7 @@ class PrimFuncNode(Node):
 
         # collect output buffers
         for output_block in self.output_blocks:
-            for write in self.sch.get_sref(output_block).stmt.writes:
+            for write in self.sch.get(output_block).writes:
                 if write not in self.output_buffers:
                     self.output_buffers.append(write.buffer)
 
@@ -205,8 +205,7 @@ class PrimFuncNode(Node):
             # assume outer stage has the same shape
             loops = self.sch.get_loops(self.schedule_stages[0])
             for loop in loops:
-                sref = self.sch.get_sref(loop)
-                dim_size.append(int(sref.stmt.extent))
+                dim_size.append(int(self.sch.get(loop).extent))
         return [int(x) for x in dim_size]
 
     def add_tag(self, k: str, v: Any = True) -> None:

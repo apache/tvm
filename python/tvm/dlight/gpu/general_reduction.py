@@ -194,6 +194,7 @@ class GeneralReduction(ScheduleRule):
             return reduce(lambda x, y: x * y, iterable, 1)
 
         reg_tile = sch.cache_write(schedule_block, 0, "local")
+
         # todo(lei): should add the shared_inputs/stride memory pad analysis at shared memory fusion stage.
         for i, input_region in enumerate(sch.get(schedule_block).reads):
             if input_region.buffer.name not in config.cached_tensors:

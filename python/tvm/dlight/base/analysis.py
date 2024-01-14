@@ -15,15 +15,17 @@
 # specific language governing permissions and limitations
 # under the License.
 """Analysis on TIR blocks, loops and functions."""
-from typing import List, Optional, Set, Union
+from typing import List, Optional, Set, Union, Tuple, Dict
 
 from typing_extensions import Literal
 
 from tvm import ir, tir
 from tvm._ffi import get_global_func
 from tvm.target.target import Target
-from tvm.tir import Schedule, IterVar
+from tvm.tir import Schedule, IterVar, IndexMap
 from tvm.tir.schedule import BlockRV
+from tvm.tir.function import TensorIntrin
+from tvm.tir.schedule.analysis import get_auto_tensorize_mapping_info
 
 
 class IterInfo:
@@ -254,9 +256,8 @@ def is_broadcast_epilogue(
 
 
 def get_reduction_blocks(
-    sch: tir.Schedule, 
-    blocks: List[tir.schedule.BlockRV]
-) -> bool:
+    sch: tir.Schedule, blocks: List[tir.schedule.BlockRV]
+) -> List[tir.schedule.BlockRV]:
     # Get the main computation block
     def is_reduction(block: BlockRV) -> bool:
         block_stmt = sch.get(block)
@@ -278,3 +279,201 @@ def get_reduction_blocks(
     if len(reduction_blocks) == 0:
         return None
     return reduction_blocks
+
+
+def normalize_with_tensorcore(
+    sch: tir.Schedule, block: BlockRV, intrin_group: Dict[str, str]
+) -> tir.Schedule:
+    """
+    Normalizing the PrimFunc to TensorCore MatMul (for example conv2d with im2col), the python implementation of MetaSchedule::TransformWithTensorIntrin
+
+    for ax0, ax1, ax2, ax3, ax4, ax5 in T.grid(4, 16, 16, 3, 3, 64):
+        with T.block("PadInput_reindex_reindex"):
+            v0, v1, v2, v3, v4, v5 = T.axis.remap("SSSSSS", [ax0, ax1, ax2, ax3, ax4, ax5])
+            T.reads(PadInput[v0, v1 + v3, v2 + v4, v5])
+            T.writes(PadInput_reindex[v0 * 256 + v1 * 16 + v2, v3 * 192 + v4 * 64 + v5])
+            PadInput_reindex[v0 * 256 + v1 * 16 + v2, v3 * 192 + v4 * 64 + v5] = PadInput[v0, v1 + v3, v2 + v4, v5]
+    for ax0, ax1, ax2, ax3 in T.grid(64, 3, 3, 64):
+        with T.block("weight_reindex_reindex"):
+            v0, v1, v2, v3 = T.axis.remap("SSSS", [ax0, ax1, ax2, ax3])
+            T.reads(weight[v1, v2, v3, v0])
+            T.writes(weight_reindex[v1 * 192 + v2 * 64 + v3, v0])
+            weight_reindex[v1 * 192 + v2 * 64 + v3, v0] = weight[v1, v2, v3, v0]
+    """
+    desc = TensorIntrin.get(intrin_group["compute"]).desc
+    mapping_info = get_auto_tensorize_mapping_info(sch, block, desc)
+    assert len(mapping_info.mappings) == 1
+    index_map = mapping_info.mappings[0]
+
+    tensor_core_reindex_A = sch.reindex(block, ("read", 0))
+    tensor_core_reindex_B = sch.reindex(block, ("read", 1))
+    tensor_core_reindex_C = sch.reindex(block, ("write", 0))
+
+    lhs_to_index_map_src = {}
+    rhs_to_index_map_tgt = {}
+    unmapped_index_map_src = []
+    assert len(index_map.initial_indices) == len(mapping_info.lhs_iters)
+
+    for i in range(len(mapping_info.lhs_iters)):
+        lhs_to_index_map_src[mapping_info.lhs_iters[i].var] = index_map.initial_indices[i]
+    offset = len(index_map.final_indices) - len(mapping_info.rhs_iters)
+
+    for i in range(offset):
+        unmapped_index_map_src.append(index_map.final_indices[i])
+
+    for i in range(offset, len(index_map.final_indices)):
+        rhs_to_index_map_tgt[mapping_info.rhs_iters[i - offset].var] = index_map.final_indices[i]
+
+    def get_sub_index_map(buffer_region, reindex_block, type: str = "read"):
+        # python implementation of
+        # src/meta_schedule/schedule_rule/multi_level_tiling_tensor_core.cc:802-822
+
+        sub_index_map_src = []
+        sub_index_map_tgt = []
+
+        region = buffer_region.region
+        for r_var in region:
+            assert r_var.extent == 1
+            var_ptr = r_var.min
+            assert var_ptr is not None
+            lhs_representer = lhs_to_index_map_src[var_ptr]
+            sub_index_map_src.append(lhs_representer)
+            if lhs_representer in unmapped_index_map_src:
+                sub_index_map_tgt.append(lhs_representer)
+
+        original_buffer = sch.get(reindex_block).reads[0].buffer
+        if type == "write":
+            original_buffer = sch.get(reindex_block).writes[0].buffer
+        original_buffer = mapping_info.lhs_buffer_map[original_buffer]
+        for i in range(len(mapping_info.rhs_buffer_indices[original_buffer])):
+            var = mapping_info.rhs_buffer_indices[original_buffer][i]
+            sub_index_map_tgt.append(rhs_to_index_map_tgt[var])
+        index_map = IndexMap(sub_index_map_src, sub_index_map_tgt, None)
+        print(index_map)
+        return index_map
+
+    def transform_layout(
+        block: BlockRV, reindex_block: BlockRV, type: Dict[str, int] = ("read", 0)
+    ):
+        region_str, index = type
+        reverse_region_str = {"write": "read", "read": "write"}[region_str]
+        if region_str == "read":
+            buffer_region = sch.get(block).reads[index]
+        else:
+            buffer_region = sch.get(block).writes[index]
+
+        reindex_map = get_sub_index_map(buffer_region, reindex_block, region_str)
+        sch.transform_layout(reindex_block, (reverse_region_str, 0), reindex_map)
+
+    transform_layout(block, tensor_core_reindex_A, ("read", 0))
+    transform_layout(block, tensor_core_reindex_B, ("read", 1))
+    transform_layout(block, tensor_core_reindex_C, ("write", 0))
+
+    sch.transform_block_layout(block, index_map)
+
+    return sch
+
+
+def get_tensorized_func_and_tags(
+    func: tir.PrimFunc,
+    target: Target,
+) -> Tuple[tir.PrimFunc, Dict[str, Union[List[int], int]]]:
+    from tvm.tir.tensor_intrin.cuda import (  # pylint: disable=import-outside-toplevel
+        get_wmma_intrin_group,
+    )
+
+    """
+        transform function to matmul if necessary (e.g. transform conv2d with im2col)
+    """
+    # step1. detect whether the function can utilize tensorcore
+    sch = tir.Schedule(func)
+    root_block = get_root_block(sch)
+    blocks = sch.get_child_blocks(root_block)
+    reduction_blocks = get_reduction_blocks(sch, blocks)
+    if not reduction_blocks or len(reduction_blocks) != 1:
+        return func, None
+
+    def _can_be_tensorized(sch: tir.Schedule, block: BlockRV) -> bool:
+        block_stmt = sch.get(block)
+        conditions = []
+        conditions.append(len(block_stmt.reads) == 2)
+        conditions.append(len(block_stmt.writes) == 1)
+        conditions.append(len(collect_vars_used_in_access_region(block_stmt.writes[0].region)) > 0)
+        if not all(conditions):
+            return False
+        return True
+
+    # step2. transform function to tensorcore matmul (e.g. conv2d with im2col)
+    def check_sm_version(arch: str) -> int:
+        sm_version = arch.replace("sm_", "")
+        return int(sm_version) if sm_version.isdigit() else -1
+
+    def get_in_out_dtypes(block: tir.Block) -> Tuple[str]:
+        """
+        Detect In/Out data types for the given block based on the analysis if read/write buffers.
+        """
+        assert len(block.reads) > 0 and len(block.writes) > 0
+        in_dtype = block.reads[0].buffer.dtype
+        out_dtype = block.writes[0].buffer.dtype
+        return (in_dtype, out_dtype)
+
+    def analysis_tensorcore_tags(sch: tir.Schedule, block: BlockRV, target: Target) -> bool:
+        tags: Dict[str, Union[List[int], int]] = {}
+        block_stmt = sch.get(block)
+
+        # analysis tensorcore axis
+        # todo(lei): maybe we can remove this in the future
+        (write_buffer_region,) = block_stmt.writes
+        out_axis = len(write_buffer_region.buffer.shape)
+        tags["tensorcore_config"] = [out_axis - 2, out_axis - 1]
+
+        # analysis pipeline stage
+        # todo(lei): maybe we can integrate this into policy in the future
+        tags["pipeline_stage"] = 1
+        if target.kind.name == "cuda" and check_sm_version(target.arch) >= 80:
+            # enable pipleline stage only for sm_80 devices
+            tags["pipeline_stage"] = 2
+
+        # analysis async copy
+        # todo(lei): maybe we can integrate this into policy in the future
+        tags["use_async_copy"] = 0
+        if tags["pipeline_stage"] == 2 and check_sm_version(target.arch) >= 80:
+            # async copy only works in software pipeline.
+            tags["use_async_copy"] = 1
+
+        return tags
+
+    (main_block,) = reduction_blocks
+    if _can_be_tensorized(sch, main_block) is None:
+        return func, None
+
+    minimal_tensorize_threshold = 64
+    block_stmt = sch.get(main_block)
+    if target.kind.name == "cuda" and check_sm_version(target.arch) >= 70:
+        apply_tensorization: bool = True
+        # the batch dimension is not taken into consideration.
+        for item_var in block_stmt.iter_vars[1:]:
+            extent = item_var.dom.extent
+            if isinstance(extent, tir.expr.IntImm):
+                if extent.value <= minimal_tensorize_threshold:
+                    apply_tensorization = False
+        if apply_tensorization:
+            in_dtype, out_dtype = get_in_out_dtypes(block_stmt)
+            try:
+                intrin_group = get_wmma_intrin_group(
+                    load_scope="shared",
+                    store_scope="shared",
+                    in_dtype=in_dtype,
+                    out_dtype=out_dtype,
+                    trans_b=True,
+                )
+            except:
+                print("[WARNING] Cannot find the corresponding wmma intrin group")
+                return None
+
+            # reindex and transform functions
+            sch = normalize_with_tensorcore(sch, main_block, intrin_group)
+            tags = analysis_tensorcore_tags(sch, main_block, target)
+            return sch.mod["main"], tags
+
+    return func, None

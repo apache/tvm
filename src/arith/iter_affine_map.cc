@@ -1463,7 +1463,6 @@ IterMapResult DetectIterMap(const Array<PrimExpr>& indices, const Map<Var, Range
 
   IterMapRewriter rewriter(analyzer, constrained_input_iters, check_level,
                            simplify_trivial_iterators, &result->errors);
-  // LOG(INFO) << "before setp 0.0";
   // Step0.0: rewrite constraints in the order from size-small ones to size-big ones
   for (const IterConstraint& constraint : constraints) {
     auto res = rewriter.RewriteIterConstraint(constraint.iter, constraint.lower_bound,
@@ -1476,7 +1475,6 @@ IterMapResult DetectIterMap(const Array<PrimExpr>& indices, const Map<Var, Range
     result->errors.push_back("Invalid constraints.");
     return result;
   }
-  // LOG(INFO) << "before setp 0.1";
 
   // Step0.1: Rewrite indicies and determine required padding,
   // if there is no padding, it should be the final result.

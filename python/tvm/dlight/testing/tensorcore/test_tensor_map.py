@@ -47,8 +47,11 @@ from tvm.tir.stmt_functor import pre_order_visit
 from tvm.tir.tensor_intrin.cuda import (
     WMMA_SYNC_16x16x16_f16f16f16_INTRIN,
     WMMA_SYNC_16x16x16_f16f16f32_INTRIN,
+    WMMA_LOAD_16x16x16_F16_A_INTRIN,
+    WMMA_LOAD_16x16x16_F16_B_INTRIN,
 )
 from tvm.tir.tensor_intrin.x86 import dot_product_16x4_u8i8i32_desc
+
 
 
 def _make_vars(*args: str) -> List[Var]:
@@ -237,11 +240,11 @@ def test_get_tensorize_loop_mapping_dense_16x4():
     s = Schedule(DenseTIRModule)
     block = s.get_block("compute")
 
-    info = get_tensorize_loop_mapping(s, block, dot_product_16x4_u8i8i32_desc)
+    mapping_info = get_tensorize_loop_mapping(s, block, dot_product_16x4_u8i8i32_desc)
 
-    assert isinstance(info, TensorizeInfo)
+    assert isinstance(mapping_info, TensorizeInfo)
 
-    desc_loop_to_sref = dict((v, k) for k, v in info.loop_map.items())
+    desc_loop_to_sref = dict((v, k) for k, v in mapping_info.loop_map.items())
 
     desc_loops = collect_loops(dot_product_16x4_u8i8i32_desc)
     _, loop_j, loop_k = s.get_loops(block)
@@ -255,9 +258,9 @@ def test_get_tensorize_loop_mapping_conv2d_nchwc_16x4():
     s = Schedule(Conv2dNCHWcTIRModule)
     block = s.get_block("conv2d_NCHWc_int8")
 
-    info = get_tensorize_loop_mapping(s, block, dot_product_16x4_u8i8i32_desc)
+    mapping_info = get_tensorize_loop_mapping(s, block, dot_product_16x4_u8i8i32_desc)
 
-    desc_loop_to_sref = dict((v, k) for k, v in info.loop_map.items())
+    desc_loop_to_sref = dict((v, k) for k, v in mapping_info.loop_map.items())
 
     desc_loops = collect_loops(dot_product_16x4_u8i8i32_desc)
 
@@ -303,9 +306,9 @@ def test_get_tensorize_loop_mapping_matmul_mma():
         if do_reorder:
             s.reorder(i2, i0, i1)
 
-        info = get_tensorize_loop_mapping(s, block, matmul_16x16x16xf16f16f16_desc)
-        assert info is not None
-        desc_loop_to_sref = dict((v, k) for k, v in info.loop_map.items())
+        mapping_info = get_tensorize_loop_mapping(s, block, matmul_16x16x16xf16f16f16_desc)
+        assert mapping_info is not None
+        desc_loop_to_sref = dict((v, k) for k, v in mapping_info.loop_map.items())
 
         for i in range(3):
             assert desc_loops[i] in desc_loop_to_sref
@@ -329,10 +332,10 @@ def test_get_tensorize_loop_mapping_padding_matmul():
     block = s.get_block("C")
 
     desc = TensorIntrin.get(WMMA_SYNC_16x16x16_f16f16f16_INTRIN).desc
-    info = get_tensorize_loop_mapping(s, block, desc, allow_padding=True)
-    assert info is not None
+    mapping_info = get_tensorize_loop_mapping(s, block, desc, allow_padding=True)
+    assert mapping_info is not None
     expected_padding = [16, 1, 16]
-    actual_padding = info.block_iter_paddings
+    actual_padding = mapping_info.block_iter_paddings
     assert actual_padding is not None
     assert len(actual_padding) == len(expected_padding)
     for actual, expected in zip(actual_padding, expected_padding):
@@ -343,12 +346,12 @@ def check_index_map(workload, block_name, intrin_name, expected_index_map):
     s = Schedule(workload)
     block = s.get_block(block_name)
     desc_func = TensorIntrin.get(intrin_name).desc
-    info = get_auto_tensorize_mapping_info(s, block, desc_func)
+    mapping_info = get_auto_tensorize_mapping_info(s, block, desc_func)
     if expected_index_map is None:
-        assert info is None
+        assert mapping_info is None
         return
-    assert len(info.mappings) == 1
-    assert IndexMap.from_func(expected_index_map).is_equivalent_to(info.mappings[0])
+    assert len(mapping_info.mappings) == 1
+    assert IndexMap.from_func(expected_index_map).is_equivalent_to(mapping_info.mappings[0])
 
 
 def test_get_auto_tensorize_mapping_info_conv2d():
@@ -463,30 +466,75 @@ if __name__ == "__main__":
     )
     workload = conv2d
     block_name = "conv2d_nhwc"
-    def elementwise_copy(M, N, dtype="float16"):
-        @tvm.script.ir_module
-        class ElementWiseCopy:
-            @T.prim_func
-            def main(a: T.handle, b: T.handle):
-                T.func_attr({"global_symbol": "main", "tir.noalias": True})
-                A = T.match_buffer(a, [M, N], dtype=dtype)
-                B = T.match_buffer(b, [M, N], dtype=dtype)
-                
-                for i, j in T.grid(M, N):
-                    with T.block("B"):
-                        vi, vj = T.axis.remap("SS", [i, j])
-                        T.reads(A[vi, vj])
-                        T.writes(B[vi, vj])
-                        B[vi, vj] = A[vi, vj]
-        return ElementWiseCopy
-    # workload = elementwise_copy(128, 128, dtype="float16")
-    # block_name = 'B'
     s = Schedule(workload)
     block = s.get_block(block_name)
     desc_func = TensorIntrin.get(WMMA_SYNC_16x16x16_f16f16f32_INTRIN).desc
-    info = get_auto_tensorize_mapping_info(s, block, desc_func)
-    print(info.mappings)
-    # print(info.mappings[0])
-    # print(info.mappings[1])
-    # print(info.mappings[2])
+    mapping_info = get_auto_tensorize_mapping_info(s, block, desc_func)
+    original_read_buffers = [buffer for buffer in s.get(block).reads]
+    original_write_buffers = [buffer for buffer in s.get(block).writes]
+
+    tensor_core_reindex_store = s.reindex(block, ('write', 0))
+    tensor_core_reindex_A = s.reindex(block, ('read', 0))
+    tensor_core_reindex_B = s.reindex(block, ('read', 1))
+    assert len(mapping_info.mappings) == 1
+    index_map = mapping_info.mappings[0]
+    
+    lhs_to_index_map_src = {}
+    rhs_to_index_map_tgt = {}
+    unmapped_index_map_src = []
+    assert len(index_map.initial_indices) == len(mapping_info.lhs_iters)
+    
+    for i in range(len(mapping_info.lhs_iters)):
+        lhs_to_index_map_src[mapping_info.lhs_iters[i].var] = index_map.initial_indices[i]
+    offset = len(index_map.final_indices) - len(mapping_info.rhs_iters)
+    assert offset == 0
+    
+    for i in range(offset, len(index_map.final_indices)):
+        rhs_to_index_map_tgt[mapping_info.rhs_iters[i - offset].var] = index_map.final_indices[i]
+    
+    def get_sub_index_map(buffer_region, reindex_block, type: str = 'read'):
+        # python implementation of src/meta_schedule/schedule_rule/multi_level_tiling_tensor_core.cc:802-822
+        sub_index_map_src = []
+        sub_index_map_tgt = []
+    
+        region = buffer_region.region
+        for r_var in region:
+            assert r_var.extent == 1
+            var_ptr = r_var.min
+            assert var_ptr is not None
+            lhs_representer = lhs_to_index_map_src[var_ptr]
+            sub_index_map_src.append(lhs_representer)
+            if lhs_representer in unmapped_index_map_src:
+                sub_index_map_tgt.append(lhs_representer)
+        
+        original_buffer = s.get(reindex_block).reads[0].buffer
+        if type == 'write':
+            original_buffer = s.get(reindex_block).writes[0].buffer
+        original_buffer = mapping_info.lhs_buffer_map[original_buffer]
+        for i in range(len(mapping_info.rhs_buffer_indices[original_buffer])):
+            var = mapping_info.rhs_buffer_indices[original_buffer][i]
+            sub_index_map_tgt.append(rhs_to_index_map_tgt[var])
+        index_map = IndexMap(sub_index_map_src, sub_index_map_tgt, None)
+        print(index_map)
+        return index_map
+    
+    buffer_region_a, buffer_region_b = s.get(block).reads
+    buffer_region_c, = s.get(block).writes
+    print('buffer_region_a')
+    reindex_map = get_sub_index_map(buffer_region_a, tensor_core_reindex_A)
+    s.transform_layout(tensor_core_reindex_A, ('write', 0), reindex_map)
+    print('buffer_region_b')
+    reindex_map = get_sub_index_map(buffer_region_b, tensor_core_reindex_B)
+    s.transform_layout(tensor_core_reindex_B, ('write', 0), reindex_map)
+    print('buffer_region_c')
+    reindex_map = get_sub_index_map(buffer_region_c, tensor_core_reindex_store, 'write')
+    s.transform_layout(tensor_core_reindex_store, ('read', 0), reindex_map)   
+    
+    s.transform_block_layout(block, index_map)
+    print(s.mod)
+    # for (int i = offset; i < static_cast<int>(index_map->final_indices.size()); ++i) {
+    #     rhs_to_index_map_tgt[mapping_info->rhs_iters[i - offset]->var] = index_map->final_indices[i];
+    # }
+    
+    
     

@@ -44,7 +44,7 @@ def get_block(
     target_block : tir.BlockRV = None
     for block_info in blocks:
         block = block_info.block_rv
-        if sch.get_sref(block).stmt.name_hint == name:
+        if sch.get(block).name_hint == name:
             target_block = block
     return target_block
 
@@ -74,7 +74,7 @@ def get_output_blocks(
     output_blocks = []
     for block_info in blocks:
         block = block_info.block_rv
-        for write in sch.get_sref(block).stmt.writes:
+        for write in sch.get(block).writes:
             if write.buffer in args:
                 output_blocks.append(block)
     

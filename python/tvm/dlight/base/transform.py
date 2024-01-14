@@ -25,10 +25,10 @@ from tvm import dlight as dl
 from tvm.ir import IRModule
 from tvm.ir.transform import PassContext, module_pass
 from tvm.target import Target
-from .roller.policy import DefaultPolicy
+from .roller.policy import DefaultPolicy, TensorCorePolicy
 from .roller.arch import CUDA
 from .schedule_rule import ScheduleRule
-from .analysis import get_root_block, get_reduction_blocks
+from .analysis import get_root_block, get_reduction_blocks, get_tensorized_func_and_tags
 from .utils import apply_and_build
 
 
@@ -112,10 +112,16 @@ class ApplyFastTuning:  # pylint: disable=too-few-public-methods
         for g_var, func in mod.functions_items():
             if isinstance(func, tir.PrimFunc) and not _is_scheduled(func):
                 arch = CUDA(target)
-                print(f"[FastDlight] is scheduling {g_var}")
+                print(f"[FastDlight] Scheduling {g_var}")
+
                 # TODO(lei): should analysis the prim func to enable the right policy
                 # (Default Policy for general or TensorCore Policy for tensorcore)
                 policy = DefaultPolicy(func=func, arch=arch)
+                func, tags = get_tensorized_func_and_tags(func, arch.target)
+                if tags:
+                    print(f"[FastDlight] Enabling tensorcore policy for {g_var}")
+                    policy = TensorCorePolicy(func=func, arch=arch, tags=tags)
+
                 configs = policy.emit_config(self.topk)
                 if configs:
                     _, best = apply_and_build(
