@@ -204,19 +204,6 @@ class TVMPluginCodegen(BasePluginCodeGen):
             {"need_convert": False, "with_runtime": True, "tvm_root": tvm_root}
         )
 
-    def has_libs(self) -> bool:
-        """Check if the libs are built
-
-        Returns
-        -------
-        has_libs: bool
-            Whether has libs.
-        """
-
-        if not super().has_libs():
-            return False
-        return any("msc_tvm_plugin" in f for f in self._lib_folder.listdir())
-
     @property
     def source_getter(self):
         return _ffi_api.GetTVMPluginSources
