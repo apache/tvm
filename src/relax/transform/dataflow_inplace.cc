@@ -351,7 +351,7 @@ std::unordered_set<StructInfo, ObjectPtrHash, ObjectPtrEqual> GatherCandidateSin
 }
 
 // Given the two struct info, return a pair of bools where the first element is true if
-// the two struct info are the same _size_ in memory and the second element is true
+// the two struct info have the same number of elements and dtype and the second element is true
 // if the shapes match _exactly_. Performs this check recursively and ensures the
 // stated condition is true for all tensor members of the struct info (return false
 // if a single pair of corresponding tensors does not meet the condition).
