@@ -1983,8 +1983,8 @@ class ONNXGraphImporter:
         with self.bb.function("main"):
             with self.bb.dataflow() as df:  # pylint: disable=invalid-name, unused-variable
                 self.opset = opset
-                self._parse_graph_input(graph)
                 self._parse_graph_initializers(graph)
+                self._parse_graph_input(graph)
                 self._check_for_unsupported_ops(graph)
                 self._construct_nodes(graph)
 
