@@ -437,19 +437,85 @@ def test_insert_inplace_calls():
                 R.output(m)
             return m
 
+    @I.ir_module
+    class Expected:
+        @T.prim_func(private=True)
+        def add_inplace(
+            A: T.Buffer((T.int64(2), T.int64(3)), "float32"),
+            B: T.Buffer((T.int64(1), T.int64(3)), "float32"),
+        ):
+            T.func_attr({"tir.noalias": T.bool(True)})
+            for ax0, ax1 in T.grid(T.int64(2), T.int64(3)):
+                with T.block("T_add"):
+                    v_ax0, v_ax1 = T.axis.remap("SS", [ax0, ax1])
+                    T.reads(A[v_ax0, v_ax1], B[T.int64(0), v_ax1])
+                    T.writes(A[v_ax0, v_ax1])
+                    A[v_ax0, v_ax1] = A[v_ax0, v_ax1] + B[T.int64(0), v_ax1]
+
+        @T.prim_func(private=True)
+        def multiply_inplace(
+            A: T.Buffer((T.int64(2), T.int64(3)), "float32"),
+            B: T.Buffer((T.int64(1), T.int64(3)), "float32"),
+        ):
+            T.func_attr({"tir.noalias": T.bool(True)})
+            for ax0, ax1 in T.grid(T.int64(2), T.int64(3)):
+                with T.block("T_multiply"):
+                    v_ax0, v_ax1 = T.axis.remap("SS", [ax0, ax1])
+                    T.reads(A[v_ax0, v_ax1], B[T.int64(0), v_ax1])
+                    T.writes(A[v_ax0, v_ax1])
+                    A[v_ax0, v_ax1] = A[v_ax0, v_ax1] * B[T.int64(0), v_ax1]
+
+        @T.prim_func(private=True)
+        def subtract_inplace(
+            A: T.Buffer((T.int64(1), T.int64(3)), "float32"),
+            B: T.Buffer((T.int64(1), T.int64(3)), "float32"),
+        ):
+            T.func_attr({"tir.noalias": T.bool(True)})
+            for ax0, ax1 in T.grid(T.int64(1), T.int64(3)):
+                with T.block("T_subtract"):
+                    v_ax0, v_ax1 = T.axis.remap("SS", [ax0, ax1])
+                    T.reads(A[v_ax0, v_ax1], B[v_ax0, v_ax1])
+                    T.writes(B[v_ax0, v_ax1])
+                    B[v_ax0, v_ax1] = A[v_ax0, v_ax1] - B[v_ax0, v_ax1]
+
+        @R.function
+        def main(
+            x: R.Tensor((2, 3), dtype="float32"), y: R.Tensor((1, 3), dtype="float32")
+        ) -> R.Tensor((2, 3), dtype="float32"):
+            cls = Expected
+            with R.dataflow():
+                z: R.Tensor((2, 3), dtype="float32") = R.add(x, y)
+                a: R.Tensor((2, 3), dtype="float32") = R.call_tir_inplace(
+                    cls.add_inplace,
+                    (z, y),
+                    inplace_indices=[0],
+                    out_sinfo=[R.Tensor((2, 3), dtype="float32"),],
+                )
+                q: R.Tensor((2, 3), dtype="float32") = R.call_tir_inplace(
+                    cls.multiply_inplace,
+                    (a, y),
+                    inplace_indices=[0],
+                    out_sinfo=[R.Tensor((2, 3), dtype="float32"),],
+                )
+                r: R.Tensor((1, 3), dtype="float32") = R.subtract(y, y)
+                s: R.Tensor((1, 3), dtype="float32") = R.call_tir_inplace(
+                    cls.subtract_inplace,
+                    (r, r),
+                    inplace_indices=[1],
+                    out_sinfo=[R.Tensor((1, 3), dtype="float32"),],
+                )
+                m: R.Tensor((2, 3), dtype="float32") = R.call_tir_inplace(
+                    cls.multiply_inplace,
+                    (q, s),
+                    inplace_indices=[0],
+                    out_sinfo=[R.Tensor((2, 3), dtype="float32"),],
+                )
+                R.output(m)
+            return m
+
     transform_pass = DataflowUseInplaceCalls()
     new_mod = transform_pass(EndToEndTest)
-
-    # check that all operations are done in-place
-    assert new_mod["add_inplace"]
-    assert new_mod["subtract_inplace"]
-    assert new_mod["multiply_inplace"]
-    expected_ops = ["add_inplace", "multiply_inplace", "subtract_inplace", "multiply_inplace"]
-    inplace_binding_idxs = [1, 2, 4, 5]
-    for i, idx in enumerate(inplace_binding_idxs):
-        binding = new_mod["main"].body.blocks[0].bindings[idx]
-        assert binding.value.op.name == "relax.call_tir_inplace"
-        assert binding.value.args[0].name_hint == expected_ops[i]
+    tvm.ir.assert_structural_equal(new_mod, Expected)
 
     x = tvm.nd.array(np.random.rand(2, 3).astype("float32"))
     y = tvm.nd.array(np.random.rand(1, 3).astype("float32"))
