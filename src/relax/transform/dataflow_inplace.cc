@@ -64,8 +64,14 @@ std::unordered_map<Var, std::pair<int, int>, ObjectPtrHash, ObjectPtrEqual> Anal
     }
 
     for (auto var : used_vars) {
+      int range_end = i;
+      // if the var is not a dataflow var, then it is live
+      // after the block (we are not checking later blocks)
+      if (!var.as<DataflowVarNode>()) {
+        range_end = block->bindings.size();
+      }
       if (!ret.count(var)) {
-        ret[var] = {-1, i};
+        ret[var] = {-1, range_end};
       }
     }
 

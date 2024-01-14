@@ -41,17 +41,20 @@ def test_liveness_analysis():
                 q = R.multiply(z, y)
                 p = R.add(z, q)
                 n = R.multiply(p, p)
-                R.output(n)
+                R.output(n, p)
             return n
 
     block = BasicLiveness["main"].body.blocks[0]
+    print(block.bindings[-2].var, type(block.bindings[-2].var))
     live_ranges = dataflow_liveness_analysis(block)
     expected_ranges = {
-        "x": (-1, 1),
+        # x is live past the binding block
+        "x": (-1, 5),
         "y": (0, 2),
         "z": (1, 3),
         "q": (2, 3),
-        "p": (3, 4),
+        # exposed though ultimately not used
+        "p": (3, 5),
         "n": (4, 5),
     }
     for var, live_range in live_ranges.items():
@@ -326,8 +329,7 @@ def test_inplace_simple_case():
         ) -> R.Tensor((2, 3), "int32"):
             with R.dataflow():
                 z = R.add(x, y)  # cannot be done inplace: x and y are live later
-                q = R.multiply(x, y)  # can be done inplace: neither x nor y is used later
-                p = R.add(z, q)  # can be done inplace: neither z nor q is used later
+                p = R.add(z, z)  # can be done inplace: z is not used later
                 r = p  # alias of p
                 m = R.multiply(p, p)  # p is not used later but r is, so can't do inplace
                 n = R.add(m, r)  # can be done inplace: r is not used again
@@ -349,10 +351,10 @@ def test_inplace_simple_case():
             for j in range(len(expected[i][1])):
                 assert actual[i][j + 1] in expected[i][1]
 
-    assert_candidate_list(size_match, [(1, {0, 1}), (2, {0, 1}), (5, {1}), (6, {0, 1})])
+    assert_candidate_list(size_match, [(1, {0, 1}), (4, {1}), (5, {0, 1})])
     # TODO(@slyubomirsky): I couldn't think of an easy example where sizes don't match,
     # but broadcasting might cause it to happen
-    assert_candidate_list(exact_match, [(1, {0, 1}), (2, {0, 1}), (5, {1}), (6, {0, 1})])
+    assert_candidate_list(exact_match, [(1, {0, 1}), (4, {1}), (5, {0, 1})])
 
 
 def test_inplace_single_call():
