@@ -394,17 +394,22 @@ std::pair<bool, bool> SizeMatches(const StructInfo& target_info, const StructInf
     }
     bool all_exact = true;
     for (size_t i = 0; i < target_tup->fields.size(); i++) {
-      auto element_match = SizeMatches(target_tup->fields[i], arg_tup->fields[i]);
-      if (!element_match.first) {
+      // if members aren't either tuples or tensors, simply skip them,
+      // since they don't matter for in-place computations
+      if (!(target_tup->fields[i].as<TensorStructInfoNode>() ||
+            target_tup->fields[i].as<TupleStructInfoNode>()) &&
+          !(arg_tup->fields[i].as<TensorStructInfoNode>() ||
+            arg_tup->fields[i].as<TupleStructInfoNode>())) {
+        continue;
+      }
+      auto [field_size_match, field_exact_match] =
+          SizeMatches(target_tup->fields[i], arg_tup->fields[i]);
+      if (!field_size_match) {
         return {false, false};
       }
-      if (!element_match.second) {
-        all_exact = false;
-      }
+      all_exact = all_exact && field_exact_match;
     }
     return {true, all_exact};
-  } else if (target_info.as<PrimStructInfoNode>() && arg_info.as<PrimStructInfoNode>()) {
-    return {true, true};
   } else {
     return {false, false};
   }
