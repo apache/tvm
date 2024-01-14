@@ -27,6 +27,8 @@ from ..analysis import BlockInfo, get_reduction_blocks
 from .. import analysis
 from .. import normalize_prim_func
 from .shape_inference import get_analyzer_by_tir
+from tvm._ffi import get_global_func
+
 
 
 def pre_order_traverse(block_analyzer, blocks, func):
@@ -36,13 +38,12 @@ def pre_order_traverse(block_analyzer, blocks, func):
         if block in visited:
             return
         visited.add(block)
-        for input_blocks in block_analyzer.get_producer_blocks(block):
-            _traverse(input_blocks)
+        for dep_blocks in block_analyzer.get_consumer_blocks(block):
+            _traverse(dep_blocks)
         func(block)
 
     for block in blocks:
         _traverse(block)
-
 
 class BlockAnalyzer(object):
     def __init__(self, sch) -> None:
@@ -91,6 +92,9 @@ class BlockAnalyzer(object):
 
     def get_producer_blocks(self, block: BlockRV) -> List[BlockRV]:
         return self.sch.get_producers(block)
+    
+    def get_consumer_blocks(self, block: BlockRV) -> List[BlockRV]:
+        return self.sch.get_consumers(block)
 
 
 class Node(object):
@@ -138,7 +142,7 @@ class PrimFuncNode(Node):
         self.prim_func = prim_func
         self.sch: tir.Schedule = tir.Schedule(self.prim_func)
         self.block_analyzer: BlockAnalyzer = BlockAnalyzer(self.sch)
-        self.schedule_block = None
+        self.schedule_stages: List[BlockRV] = []
         self.blocks: List[BlockRV] = []
         self.output_blocks: List[BlockRV] = None
         self.reduction_block: BlockRV = None
@@ -162,8 +166,7 @@ class PrimFuncNode(Node):
         reduction_blocks = get_reduction_blocks(self.sch, blocks)
         if reduction_blocks is None:
             self.reduction_block = None
-            # analysis base on the first output block
-            self.schedule_block = self.output_blocks[0]
+            self.schedule_stages.append(*self.output_blocks)
         else:
             # analysis on the last reduction block
             self.reduction_block = reduction_blocks[-1]
@@ -172,7 +175,7 @@ class PrimFuncNode(Node):
             for iter in reduce_block_info.iters:
                 if iter.kind == "R":
                     self.raxis.append(iter)
-            self.schedule_block = self.reduction_block
+            self.schedule_stages.append(self.reduction_block)
 
         # collect output buffers
         for output_block in self.output_blocks:
@@ -197,9 +200,10 @@ class PrimFuncNode(Node):
             block_info = self.block_analyzer.get_block_info(self.reduction_block)
             for iter in block_info.iters:
                 if iter.kind == "S":
-                    dim_size.append(int(iter.dom))
+                    dim_size.append(int(iter.dom.extent))
         else:
-            loops = self.sch.get_loops(self.schedule_block)
+            # assume outer stage has the same shape
+            loops = self.sch.get_loops(self.schedule_stages[0])
             for loop in loops:
                 sref = self.sch.get_sref(loop)
                 dim_size.append(int(sref.stmt.extent))
@@ -231,8 +235,8 @@ class PrimFuncNode(Node):
 
     def propogate(self, tile, rstep={}, targets=None):
         shape = {
-            buffer.name: [tvm.arith.ConstIntBound(0, val - 1) for val in tile]
-            for buffer in self.output_buffers
+            self.block_analyzer.get_output_buffers(block)[0].name: [tvm.arith.ConstIntBound(0, val - 1) for val in tile]
+            for block in self.schedule_stages
         }
         return self.ana.infer(shape, rstep, targets)
 
@@ -303,7 +307,7 @@ class PrimFuncNode(Node):
         shapes, _ = self.propogate(shape, rstep)
 
         def is_broadcast_pattern(buffer, output_buffer):
-            return len(shapes[output_buffer.name]) > len(shapes[buffer.name]) and np.prod(
+            return buffer in self.args and len(shapes[output_buffer.name]) > len(shapes[buffer.name]) and np.prod(
                 shapes[output_buffer.name]
             ) > np.prod(shapes[buffer.name])
 
@@ -315,7 +319,7 @@ class PrimFuncNode(Node):
                 reduce_dependent_blocks = set()
                 pre_order_traverse(
                     self.block_analyzer,
-                    [*self.output_blocks],
+                    [self.reduction_block],
                     lambda block: reduce_dependent_blocks.add(block),
                 )
                 self.reduce_dependent_blocks = reduce_dependent_blocks
@@ -323,7 +327,7 @@ class PrimFuncNode(Node):
 
         # compute cached stages
         cached_tensor = []
-        for block in self.output_blocks:
+        for block in self.blocks:
             output_buffer = self.block_analyzer.get_output_buffers(block)[0]
             for buffer in self.block_analyzer.get_input_buffers(block):
                 cache = buffer.name not in cached_tensor and (

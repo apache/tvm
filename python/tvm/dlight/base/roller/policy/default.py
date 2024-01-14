@@ -208,10 +208,10 @@ class DefaultPolicy:
        
         results = {}
         for k_iter in node.raxis:
-            all_factors = get_all_factors(k_iter.dom)
-            if len(all_factors) == 2 and k_iter.dom > 64:
+            all_factors = get_all_factors(int(k_iter.dom.extent))
+            if len(all_factors) == 2 and int(k_iter.dom.extent) > 64:
                 all_factors = [1]
-                while all_factors[-1] * 2 < k_iter.dom:
+                while all_factors[-1] * 2 < int(k_iter.dom.extent):
                     all_factors.append(all_factors[-1] * 2)
             results[k_iter.var.name] = all_factors
         return results

@@ -90,7 +90,7 @@ class Reduction(ScheduleRule):
             block_info,
             arith.normalize_to_iter_sum(
                 detect_dominant_read(block_stmt),
-                input_iters={i.var: i.dom for i in block_stmt.iter_vars},
+                input_iters={i.var: i.dom.extent for i in block_stmt.iter_vars},
             ),
         )
         if is_inner_reduction is None and c_factor is None:
@@ -131,7 +131,7 @@ class Reduction(ScheduleRule):
 
         if iter_to_info:
             for var, info in iter_to_info.items():
-                if info.kind == "S" and info.dom == 1:
+                if info.kind == "S" and info.dom.extent == 1:
                     s_loops.append(info.loop_rv)
                 else:
                     return None, None
@@ -205,7 +205,7 @@ class Reduction(ScheduleRule):
         # pylint: disable=invalid-name
         s, r, _ = sch.get_loops(block)
         len_tx, len_ty = 16, 16
-        s_factor = [i.dom for i in block_info.iters if i.kind == "S"][-1]
+        s_factor = [i.dom.extent for i in block_info.iters if i.kind == "S"][-1]
         # get perfect spatial factor, spatial factor should be divide the innermost spatial loop so
         # that the block after r_factor and be reversed compute at the original scope
         while len_tx > 1:

@@ -54,10 +54,12 @@ def _apply_config(
     case 4. else we should use general reduction rule.
     """
     print("[FastDlight] Apply config ", config)
+
     sch = tir.Schedule(func)
     root_block = get_root_block(sch)
     blocks = sch.get_child_blocks(root_block)
     reduction_blocks = get_reduction_blocks(sch, blocks)
+    # try:
     if not reduction_blocks:
         return dl.gpu.ElementWise().apply_config(func, config)
     elif config.use_tc:
@@ -75,6 +77,9 @@ def _apply_config(
             sch = rule.apply_config(func, config)
             if sch is not None:
                 return sch
+    # except Exception as e:
+    #     print("[FastDlight] Apply config failed: ", e)
+    #     return None
     return None
 
 
@@ -82,9 +87,8 @@ def _apply_and_build(
     func,
     config,
     arch,
-):
+) -> Tuple[Optional[List[tir.Schedule]], Optional[tvm.IRModule], Optional[tvm.runtime.Module]]:
     sch = _apply_config(func, config)
-    print("[FastDlight] Apply config ", config)
     if sch is None:
         return config, sch, None
     # todo(lei): should add exception handling
@@ -120,6 +124,8 @@ def apply_and_build_parallel(
         )
 
     for config, sch, mod in future_to_configs:
+        if mod is None:
+            continue
         cpresult = CompileResult(config, sch, mod)
 
         timer_cuda_mod = mod.time_evaluator(mod.entry_name, arch.device, number=num_repeats)
@@ -155,6 +161,9 @@ def apply_and_build(
     cpresults = []
     for config in configs:
         config, sch, mod = _apply_and_build(func, config, arch)
+
+        if mod is None:
+            continue
 
         cpresult = CompileResult(config, sch, mod)
         args = func.buffer_map.values()

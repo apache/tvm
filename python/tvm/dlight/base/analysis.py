@@ -159,7 +159,7 @@ def normalize_prim_func(sch: tir.Schedule) -> Optional[List[BlockInfo]]:
                     IterInfo(
                         kind=_iter_kind(iter),  # type: ignore
                         var=iter.var,
-                        dom=iter.dom.extent,
+                        dom=iter.dom,
                         loop_rv=loop,
                     )
                     for loop, iter in zip(loops, iters)

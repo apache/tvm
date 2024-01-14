@@ -95,6 +95,20 @@ class ApplyFastTuning:  # pylint: disable=too-few-public-methods
     ) -> IRModule:
         target = Target.current(allow_none=False)
         updated_functions = {}
+
+        def _apply_with_default(func: tir.PrimFunc, target: Target):
+            _default_rules = [
+                dl.gpu.Matmul(),
+                dl.gpu.GEMV(),
+                dl.gpu.Reduction(),
+                dl.gpu.GeneralReduction(),
+                dl.gpu.Fallback(),
+            ]
+            sch = _apply_rules(func, target, _default_rules, tunable=False)
+            if sch is not None:
+                assert len(sch) == 1
+                updated_functions[g_var] = sch[0].mod["main"].with_attr("tir.is_scheduled", 1)
+
         for g_var, func in mod.functions_items():
             if isinstance(func, tir.PrimFunc) and not _is_scheduled(func):
                 arch = CUDA(target)
@@ -111,23 +125,16 @@ class ApplyFastTuning:  # pylint: disable=too-few-public-methods
                         updated_functions[g_var] = best.sch.mod["main"].with_attr(
                             "tir.is_scheduled", 1
                         )
+                    else:
+                        print(
+                            f"[FastDlight] warnning: {g_var} has no valid config, fallback to default schedule"
+                        )
+                        _apply_with_default(func, target)
                 else:
                     print(
                         f"[FastDlight] warnning: {g_var} has no valid config, fallback to default schedule"
                     )
-                    _default_rules = [
-                        dl.gpu.Matmul(),
-                        dl.gpu.GEMV(),
-                        dl.gpu.Reduction(),
-                        dl.gpu.GeneralReduction(),
-                        dl.gpu.Fallback(),
-                    ]
-                    sch = _apply_rules(func, target, _default_rules, tunable=False)
-                    if sch is not None:
-                        assert len(sch) == 1
-                        updated_functions[g_var] = (
-                            sch[0].mod["main"].with_attr("tir.is_scheduled", 1)
-                        )
+                    _apply_with_default(func, target)
 
         for g_var, func in updated_functions.items():
             mod[g_var] = func

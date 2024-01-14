@@ -110,7 +110,7 @@ def normalize(
     block_stmt: tir.Block = sch.get(block_info.block_rv)
     access = arith.normalize_to_iter_sum(
         detect_dominant_read(block_stmt),
-        input_iters={i.var: i.dom for i in block_stmt.iter_vars},
+        input_iters={i.var: i.dom.extent for i in block_stmt.iter_vars},
     )
 
     buffers_use_vars = [collect_vars_used_in_access_region(buf.region) for buf in block_stmt.writes]

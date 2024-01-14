@@ -1852,7 +1852,7 @@ class Matmul(ScheduleRule):
         for i, input_region in enumerate(sch.get(main_block).reads):
             _buffer_name = input_region.buffer.name.replace("_reindex", "")
             if _buffer_name not in config.cached_tensors:
-                print(f"Warning: {input_region.buffer.name} is not in cached_tensors, skip.")
+                print(f"Warning: {_buffer_name} is not in cached_tensors {config.cached_tensors}, skip.")
                 continue
 
             # otherwise cooperative fetch in shared memory.

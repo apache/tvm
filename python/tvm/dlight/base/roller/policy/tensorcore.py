@@ -85,7 +85,7 @@ class TensorCorePolicy(DefaultPolicy):
         result = {}
         for iter_info in node.raxis:
             iter_name = iter_info.var.name
-            iter_dom = iter_info.dom
+            iter_dom = iter_info.extent
             if iter_dom % 16 > 0:
                 result[iter_name] = 16 if iter_dom < 32 else 32  # padding case
             elif iter_dom % 32 == 0:
@@ -168,7 +168,7 @@ class TensorCorePolicy(DefaultPolicy):
         else:
             # must be a a multiple of wmma_k
             return {
-                k.var.name: [x * self.wmma_k for x in get_all_factors(k.dom // self.wmma_k)]
+                k.var.name: [x * self.wmma_k for x in get_all_factors(int(k.dom.extent) // self.wmma_k)]
                 for k in node.raxis
             }
 
