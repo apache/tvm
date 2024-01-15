@@ -199,21 +199,23 @@ std::ostream& operator<<(std::ostream& os, const LLVMTargetInfo::Option& opt) {
   return os;
 }
 
-LLVMTargetInfo::LLVMTargetInfo(LLVMInstance& instance, const Target& target) {
-  triple_ = target->GetAttr<String>("mtriple").value_or("default");
+LLVMTargetInfo::LLVMTargetInfo(LLVMInstance& instance, const Target& target)
+    : LLVMTargetInfo(instance, target->Export()) {}
 
+LLVMTargetInfo::LLVMTargetInfo(LLVMInstance& instance, const TargetJSON& target) {
+  triple_ = Downcast<String>(target.Get("mtriple").value_or(String("default")));
   if (triple_.empty() || triple_ == "default") {
     triple_ = llvm::sys::getDefaultTargetTriple();
   }
-  cpu_ = target->GetAttr<String>("mcpu").value_or(defaults::cpu);
+  cpu_ = Downcast<String>(target.Get("mcpu").value_or(String(defaults::cpu)));
 
-  if (const Optional<Array<String>>& v = target->GetAttr<Array<String>>("mattr")) {
+  if (const auto& v = Downcast<Optional<Array<String>>>(target.Get("mattr"))) {
     for (const String& s : v.value()) {
       attrs_.push_back(s);
     }
   }
   // llvm module target
-  if (target->kind->name == "llvm") {
+  if (Downcast<String>(target.Get("kind")) == "llvm") {
     // legalize -mcpu with the target -mtriple
     auto arches = GetAllLLVMTargetArches();
     bool has_arch =
@@ -224,7 +226,7 @@ LLVMTargetInfo::LLVMTargetInfo(LLVMInstance& instance, const Target& target) {
     }
   }
 
-  if (const Optional<Array<String>>& v = target->GetAttr<Array<String>>("cl-opt")) {
+  if (const auto& v = Downcast<Optional<Array<String>>>(target.Get("cl-opt"))) {
     llvm::StringMap<llvm::cl::Option*>& options = llvm::cl::getRegisteredOptions();
     bool parse_error = false;
     for (const String& s : v.value()) {
@@ -245,7 +247,7 @@ LLVMTargetInfo::LLVMTargetInfo(LLVMInstance& instance, const Target& target) {
   }
 
   llvm::FloatABI::ABIType float_abi = llvm::FloatABI::Default;
-  if (const Optional<String>& v = target->GetAttr<String>("mfloat-abi")) {
+  if (const auto& v = Downcast<Optional<String>>(target.Get("mfloat-abi"))) {
     String value = v.value();
     if (value == "hard") {
       float_abi = llvm::FloatABI::Hard;
@@ -283,14 +285,14 @@ LLVMTargetInfo::LLVMTargetInfo(LLVMInstance& instance, const Target& target) {
   target_options_.NoInfsFPMath = false;
   target_options_.NoNaNsFPMath = true;
   target_options_.FloatABIType = float_abi;
-  if (const Optional<String>& v = target->GetAttr<String>("mabi")) {
-    target_options_.MCOptions.ABIName = v.value();
+  if (target.find("mabi") != target.end()) {
+    target_options_.MCOptions.ABIName = Downcast<String>(target.Get("mabi"));
   }
 
-  auto maybe_level = target->GetAttr<Integer>("opt-level");
+  auto maybe_level = Downcast<Integer>(target.Get("opt-level"));
 #if TVM_LLVM_VERSION <= 170
   if (maybe_level.defined()) {
-    int level = maybe_level.value()->value;
+    int level = maybe_level->value;
     if (level <= 0) {
       opt_level_ = llvm::CodeGenOpt::None;
     } else if (level == 1) {
@@ -327,7 +329,7 @@ LLVMTargetInfo::LLVMTargetInfo(LLVMInstance& instance, const Target& target) {
   // Fast math options
 
   auto GetBoolFlag = [&target](llvm::StringRef flag) -> bool {
-    return target->GetAttr<Bool>(flag.str()).value_or(Bool(false));
+    return Downcast<Bool>(target.Get(flag.str()).value_or(Bool(false)));
   };
   if (GetBoolFlag("fast-math")) {
 #if TVM_LLVM_VERSION >= 60
@@ -850,7 +852,7 @@ const Array<String> LLVMTargetInfo::GetAllLLVMTargetArches() const {
   return cpu_arches;
 }
 
-const Array<String> LLVMTargetInfo::GetAllLLVMCpuFeatures() const {
+const Map<String, String> LLVMTargetInfo::GetAllLLVMCpuFeatures() const {
   std::string feats = "";
   for (const auto& attr : attrs_) {
     feats += feats.empty() ? attr : ("," + attr);
@@ -864,10 +866,11 @@ const Array<String> LLVMTargetInfo::GetAllLLVMCpuFeatures() const {
 #else
       MCInfo->getAllProcessorFeatures();
 #endif
-  Array<String> cpu_features;
+  // TVM doesn't have an FFI friendly Set, so use a Map instead for now
+  Map<String, String> cpu_features;
   for (const auto& feat : llvm_features) {
     if (MCInfo->checkFeatures("+" + std::string(feat.Key))) {
-      cpu_features.push_back(feat.Key);
+      cpu_features.Set(feat.Key, "");
     }
   }
 
@@ -877,9 +880,7 @@ const Array<String> LLVMTargetInfo::GetAllLLVMCpuFeatures() const {
 const bool LLVMTargetInfo::TargetHasCPUFeature(const std::string& feature) const {
   // lookup features for `-mcpu`
   auto feats = GetAllLLVMCpuFeatures();
-  bool has_feature =
-      std::any_of(feats.begin(), feats.end(), [&](const auto& var) { return var == feature; });
-
+  bool has_feature = feats.find(feature) != feats.end();
   return has_feature;
 }
 

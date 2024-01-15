@@ -697,12 +697,12 @@ TVM_REGISTER_GLOBAL("target.llvm_get_cpu_archlist")
     });
 
 TVM_REGISTER_GLOBAL("target.llvm_get_cpu_features")
-    .set_body_typed([](const Target& target) -> Array<String> {
+    .set_body_typed([](const Target& target) -> Map<String, String> {
       auto use_target = target.defined() ? target : Target::Current(false);
       // ignore non "llvm" target
       if (target.defined()) {
         if (target->kind->name != "llvm") {
-          return Array<String>{};
+          return {};
         }
       }
       auto llvm_instance = std::make_unique<LLVMInstance>();
@@ -722,8 +722,7 @@ TVM_REGISTER_GLOBAL("target.llvm_cpu_has_feature")
       auto llvm_instance = std::make_unique<LLVMInstance>();
       LLVMTargetInfo llvm_backend(*llvm_instance, use_target);
       auto cpu_features = llvm_backend.GetAllLLVMCpuFeatures();
-      bool has_feature = std::any_of(cpu_features.begin(), cpu_features.end(),
-                                     [&](auto& var) { return var == feature; });
+      bool has_feature = cpu_features.find(feature) != cpu_features.end();
       return has_feature;
     });
 

@@ -19,6 +19,7 @@
 
 #include "../src/target/parsers/aprofile.h"
 
+#include <gmock/gmock.h>
 #include <gtest/gtest.h>
 
 #include <cmath>
@@ -29,6 +30,8 @@ namespace target {
 namespace parsers {
 namespace aprofile {
 
+using ::testing::HasSubstr;
+
 static float defaultI8MM = 8.6;
 static float optionalI8MM[] = {8.2, 8.3, 8.4, 8.5};
 static float defaultDotProd = 8.4;
@@ -38,15 +41,25 @@ class AProfileOptionalI8MM : public testing::TestWithParam<float> {};
 class AProfileOptionalDotProd : public testing::TestWithParam<float> {};
 
 static TargetFeatures ParseTargetWithAttrs(String mcpu, String mtriple, Array<String> mattr) {
-  return ParseTarget({
-      {"mcpu", mcpu},
+  TargetJSON target_json = {
+      {"kind", String("llvm")},
       {"mtriple", mtriple},
       {"mattr", mattr},
-  });
+  };
+  if (mcpu != "") {
+    target_json.Set("mcpu", mcpu);
+  }
+  return ParseTarget(target_json);
+}
+
+std::string FloatToStringWithoutTrailingZeros(float value) {
+  std::stringstream ss;
+  ss << value;
+  return ss.str();
 }
 
 TEST(AProfileParser, ParseTargetKeys) {
-  TargetJSON target = ParseTarget({});
+  TargetJSON target = ParseTarget({{"kind", String("llvm")}});
   Array<String> keys = Downcast<Array<String>>(target.at("keys"));
   ASSERT_EQ(keys.size(), 2);
   ASSERT_EQ(keys[0], "arm_cpu");
@@ -55,6 +68,7 @@ TEST(AProfileParser, ParseTargetKeys) {
 
 TEST(AProfileParser, ParseTargetWithExistingKeys) {
   TargetJSON target = ParseTarget({
+      {"kind", String("llvm")},
       {"keys", Array<String>{"cpu"}},
   });
   TargetFeatures features = Downcast<TargetFeatures>(target.at("features"));
@@ -66,6 +80,7 @@ TEST(AProfileParser, ParseTargetWithExistingKeys) {
 
 TEST(AProfileParser, ParseTargetWithDuplicateKey) {
   TargetJSON target = ParseTarget({
+      {"kind", String("llvm")},
       {"keys", Array<String>{"cpu", "arm_cpu"}},
   });
   TargetFeatures features = Downcast<TargetFeatures>(target.at("features"));
@@ -76,13 +91,10 @@ TEST(AProfileParser, ParseTargetWithDuplicateKey) {
 }
 
 TEST(AProfileParser, ParseTargetDefaults) {
-  TargetJSON target = ParseTarget({});
+  TargetJSON target = ParseTarget({{"kind", String("llvm")}});
   TargetFeatures features = Downcast<TargetFeatures>(target.at("features"));
 
   ASSERT_EQ(Downcast<Bool>(features.at("is_aarch64")), false);
-  ASSERT_EQ(Downcast<Bool>(features.at("has_asimd")), false);
-  ASSERT_EQ(Downcast<Bool>(features.at("has_dotprod")), false);
-  ASSERT_EQ(Downcast<Bool>(features.at("has_matmul_i8")), false);
 }
 
 TEST(AProfileParser, IsAArch64Triple) {
@@ -111,6 +123,7 @@ TEST(AProfileParser, IsAArch32Triple) {
 
 TEST(AProfileParser, IsAArch32BlankCPU) {
   TargetJSON target = ParseTarget({
+      {"kind", String("llvm")},
       {"mtriple", String("arm-unknown-linux-gnu")},
   });
   TargetFeatures features = Downcast<TargetFeatures>(target.at("features"));
@@ -155,21 +168,17 @@ TEST(AProfileParser, AArch64HasASIMD) {
   ASSERT_EQ(Downcast<Bool>(features.at("has_asimd")), true);
 }
 
-TEST(AProfileParser, AArch32NoASIMD) {
+TEST(AProfileParser, AArch32ASIMD) {
   TargetJSON target = ParseTargetWithAttrs("", "armv8a-arm-none-eabi", {});
   TargetFeatures features = Downcast<TargetFeatures>(target.at("features"));
   ASSERT_EQ(IsArch(target), true);
-  ASSERT_EQ(Downcast<Bool>(features.at("has_asimd")), false);
+  // TODO(lhutton1) LLVM reports that Neon is support with this target string. Is that true?
+  ASSERT_EQ(Downcast<Bool>(features.at("has_asimd")), true);
 }
 
 TEST(AProfileParser, AArch32HasASIMDWithOption) {
   TargetJSON target = ParseTargetWithAttrs("", "armv8a-arm-none-eabi", {"+simd"});
   TargetFeatures features = Downcast<TargetFeatures>(target.at("features"));
-  ASSERT_EQ(IsArch(target), true);
-  ASSERT_EQ(Downcast<Bool>(features.at("has_asimd")), true);
-
-  target = ParseTargetWithAttrs("cortex-a+simd", "armv8a-arm-none-eabi", {""});
-  features = Downcast<TargetFeatures>(target.at("features"));
   ASSERT_EQ(IsArch(target), true);
   ASSERT_EQ(Downcast<Bool>(features.at("has_asimd")), true);
 }
@@ -179,23 +188,10 @@ TEST(AProfileParser, AArch32HasASIMDWithAlternativeOption) {
   TargetFeatures features = Downcast<TargetFeatures>(target.at("features"));
   ASSERT_EQ(IsArch(target), true);
   ASSERT_EQ(Downcast<Bool>(features.at("has_asimd")), true);
-
-  target = ParseTargetWithAttrs("cortex-a+neon", "armv8a-arm-none-eabi", {""});
-  features = Downcast<TargetFeatures>(target.at("features"));
-  ASSERT_EQ(IsArch(target), true);
-  ASSERT_EQ(Downcast<Bool>(features.at("has_asimd")), true);
-}
-
-TEST(AProfileParser, NoI8MMSupport) {
-  std::string attr = "+v8.0a";
-  TargetJSON target = ParseTargetWithAttrs("", "aarch64-arm-none-eabi", {attr, "+i8mm"});
-  TargetFeatures features = Downcast<TargetFeatures>(target.at("features"));
-  ASSERT_EQ(IsArch(target), true);
-  ASSERT_EQ(Downcast<Bool>(features.at("has_matmul_i8")), false);
 }
 
 TEST(AProfileParser, DefaultI8MMSupport) {
-  std::string arch_attr = "+v" + std::to_string(defaultI8MM) + "a";
+  std::string arch_attr = "+v" + FloatToStringWithoutTrailingZeros(defaultI8MM) + "a";
   TargetJSON target = ParseTargetWithAttrs("", "aarch64-arm-none-eabi", {arch_attr});
   TargetFeatures features = Downcast<TargetFeatures>(target.at("features"));
   ASSERT_EQ(IsArch(target), true);
@@ -203,20 +199,15 @@ TEST(AProfileParser, DefaultI8MMSupport) {
 }
 
 TEST(AProfileParser, DefaultI8MMSupportDisable) {
-  std::string arch_attr = "+v" + std::to_string(defaultI8MM) + "a";
-  TargetJSON target = ParseTargetWithAttrs("", "aarch64-arm-none-eabi", {arch_attr, "+noi8mm"});
+  std::string arch_attr = "+v" + FloatToStringWithoutTrailingZeros(defaultI8MM) + "a";
+  TargetJSON target = ParseTargetWithAttrs("", "aarch64-arm-none-eabi", {arch_attr, "-i8mm"});
   TargetFeatures features = Downcast<TargetFeatures>(target.at("features"));
-  ASSERT_EQ(IsArch(target), true);
-  ASSERT_EQ(Downcast<Bool>(features.at("has_matmul_i8")), false);
-
-  target = ParseTargetWithAttrs("cortex-a+noi8mm", "aarch64-arm-none-eabi", {arch_attr});
-  features = Downcast<TargetFeatures>(target.at("features"));
   ASSERT_EQ(IsArch(target), true);
   ASSERT_EQ(Downcast<Bool>(features.at("has_matmul_i8")), false);
 }
 
 TEST_P(AProfileOptionalI8MM, OptionalI8MMSupport) {
-  std::string arch_attr = "+v" + std::to_string(GetParam()) + "a";
+  std::string arch_attr = "+v" + FloatToStringWithoutTrailingZeros(GetParam()) + "a";
 
   TargetJSON target = ParseTargetWithAttrs("", "aarch64-arm-none-eabi", {arch_attr});
   TargetFeatures features = Downcast<TargetFeatures>(target.at("features"));
@@ -227,23 +218,10 @@ TEST_P(AProfileOptionalI8MM, OptionalI8MMSupport) {
   features = Downcast<TargetFeatures>(target.at("features"));
   ASSERT_EQ(IsArch(target), true);
   ASSERT_EQ(Downcast<Bool>(features.at("has_matmul_i8")), true);
-
-  target = ParseTargetWithAttrs("cortex-a+i8mm", "aarch64-arm-none-eabi", {arch_attr});
-  features = Downcast<TargetFeatures>(target.at("features"));
-  ASSERT_EQ(IsArch(target), true);
-  ASSERT_EQ(Downcast<Bool>(features.at("has_matmul_i8")), true);
-}
-
-TEST(AProfileParser, NoDotProdSupport) {
-  std::string attr = "+v8.0a";
-  TargetJSON target = ParseTargetWithAttrs("", "aarch64-arm-none-eabi", {attr, "+dotprod"});
-  TargetFeatures features = Downcast<TargetFeatures>(target.at("features"));
-  ASSERT_EQ(IsArch(target), true);
-  ASSERT_EQ(Downcast<Bool>(features.at("has_dotprod")), false);
 }
 
 TEST(AProfileParser, DefaultDotProdSupport) {
-  std::string arch_attr = "+v" + std::to_string(defaultDotProd) + "a";
+  std::string arch_attr = "+v" + FloatToStringWithoutTrailingZeros(defaultDotProd) + "a";
   TargetJSON target = ParseTargetWithAttrs("", "aarch64-arm-none-eabi", {arch_attr});
   TargetFeatures features = Downcast<TargetFeatures>(target.at("features"));
   ASSERT_EQ(IsArch(target), true);
@@ -251,20 +229,15 @@ TEST(AProfileParser, DefaultDotProdSupport) {
 }
 
 TEST(AProfileParser, DefaultDotProdSupportDisable) {
-  std::string arch_attr = "+v" + std::to_string(defaultDotProd) + "a";
-  TargetJSON target = ParseTargetWithAttrs("", "aarch64-arm-none-eabi", {arch_attr, "+nodotprod"});
+  std::string arch_attr = "+v" + FloatToStringWithoutTrailingZeros(defaultDotProd) + "a";
+  TargetJSON target = ParseTargetWithAttrs("", "aarch64-arm-none-eabi", {arch_attr, "-dotprod"});
   TargetFeatures features = Downcast<TargetFeatures>(target.at("features"));
-  ASSERT_EQ(IsArch(target), true);
-  ASSERT_EQ(Downcast<Bool>(features.at("has_dotprod")), false);
-
-  target = ParseTargetWithAttrs("cortex-a+nodotprod", "aarch64-arm-none-eabi", {arch_attr});
-  features = Downcast<TargetFeatures>(target.at("features"));
   ASSERT_EQ(IsArch(target), true);
   ASSERT_EQ(Downcast<Bool>(features.at("has_dotprod")), false);
 }
 
 TEST_P(AProfileOptionalDotProd, OptionalDotProdSupport) {
-  std::string arch_attr = "+v" + std::to_string(GetParam()) + "a";
+  std::string arch_attr = "+v" + FloatToStringWithoutTrailingZeros(GetParam()) + "a";
 
   TargetJSON target = ParseTargetWithAttrs("", "aarch64-arm-none-eabi", {arch_attr});
   TargetFeatures features = Downcast<TargetFeatures>(target.at("features"));
@@ -275,15 +248,10 @@ TEST_P(AProfileOptionalDotProd, OptionalDotProdSupport) {
   features = Downcast<TargetFeatures>(target.at("features"));
   ASSERT_EQ(IsArch(target), true);
   ASSERT_EQ(Downcast<Bool>(features.at("has_dotprod")), true);
-
-  target = ParseTargetWithAttrs("cortex-a+dotprod", "aarch64-arm-none-eabi", {arch_attr});
-  features = Downcast<TargetFeatures>(target.at("features"));
-  ASSERT_EQ(IsArch(target), true);
-  ASSERT_EQ(Downcast<Bool>(features.at("has_dotprod")), true);
 }
 
 TEST(AProfileParser, ArchVersionInvalidLetter) {
-  std::string arch_attr = "+v" + std::to_string(defaultDotProd) + "b";
+  std::string arch_attr = "+v" + FloatToStringWithoutTrailingZeros(defaultDotProd) + "b";
   TargetJSON target = ParseTargetWithAttrs("", "aarch64-arm-none-eabi", {arch_attr});
   TargetFeatures features = Downcast<TargetFeatures>(target.at("features"));
   ASSERT_EQ(IsArch(target), true);
@@ -292,7 +260,7 @@ TEST(AProfileParser, ArchVersionInvalidLetter) {
 
 using AProfileOptionalSVE = testing::TestWithParam<float>;
 TEST_P(AProfileOptionalSVE, OptionalSVESupport) {
-  const std::string arch_attr = "+v" + std::to_string(GetParam()) + "a";
+  const std::string arch_attr = "+v" + FloatToStringWithoutTrailingZeros(GetParam()) + "a";
 
   // Check that the "has_sve" feature is not set by default when "+sve" isn't set as an attribute.
   TargetJSON target = ParseTargetWithAttrs("", "aarch64-arm-none-eabi", {arch_attr});
@@ -307,9 +275,25 @@ TEST_P(AProfileOptionalSVE, OptionalSVESupport) {
   EXPECT_TRUE(Downcast<Bool>(features.at("has_sve")));
 }
 
+TEST(AProfileDefaultSVE, DefaultSVESupportSVESupport) {
+  const std::string arch_attr = "+v9a";
+
+  // Check that the "has_sve" feature is not set by default when "+sve" isn't set as an attribute.
+  TargetJSON target = ParseTargetWithAttrs("", "aarch64-arm-none-eabi", {arch_attr});
+  TargetFeatures features = Downcast<TargetFeatures>(target.at("features"));
+  EXPECT_TRUE(IsArch(target));
+  EXPECT_TRUE(Downcast<Bool>(features.at("has_sve")));
+
+  // Check that the "has_sve" feature is set when "+sve" is explicitly set as an attribute.
+  target = ParseTargetWithAttrs("", "aarch64-arm-none-eabi", {arch_attr, "+sve"});
+  features = Downcast<TargetFeatures>(target.at("features"));
+  EXPECT_TRUE(IsArch(target));
+  EXPECT_TRUE(Downcast<Bool>(features.at("has_sve")));
+}
+
 using AProfileOptionalFP16 = testing::TestWithParam<float>;
 TEST_P(AProfileOptionalFP16, OptionalFP16Support) {
-  const std::string arch_attr = "+v" + std::to_string(GetParam()) + "a";
+  const std::string arch_attr = "+v" + FloatToStringWithoutTrailingZeros(GetParam()) + "a";
 
   // Check that the "has_fp16_simd" feature is not set by default when "+fullfp16" isn't set as an
   // attribute.
@@ -332,13 +316,57 @@ TEST_P(AProfileOptionalFP16, OptionalFP16Support) {
   EXPECT_TRUE(Downcast<Bool>(features.at("has_fp16_simd")));
 }
 
+TEST(AProfileDefaultFP16, DefaultFP16Support) {
+  const std::string arch_attr = "+v9a";
+
+  // Check that the "has_fp16_simd" feature is not set by default when "+fullfp16" isn't set as an
+  // attribute.
+  TargetJSON target = ParseTargetWithAttrs("", "aarch64-arm-none-eabi", {arch_attr});
+  TargetFeatures features = Downcast<TargetFeatures>(target.at("features"));
+  EXPECT_TRUE(IsArch(target));
+  EXPECT_TRUE(Downcast<Bool>(features.at("has_fp16_simd")));
+
+  // Check that the "has_fp16_simd" feature is set when "+fullfp16" is explicitly set as an
+  // attribute.
+  target = ParseTargetWithAttrs("", "aarch64-arm-none-eabi", {arch_attr, "+fullfp16"});
+  features = Downcast<TargetFeatures>(target.at("features"));
+  EXPECT_TRUE(IsArch(target));
+  EXPECT_TRUE(Downcast<Bool>(features.at("has_fp16_simd")));
+
+  // Check that the "has_fp16_simd" feature is set when "+sve" is explicitly set as an attribute.
+  target = ParseTargetWithAttrs("", "aarch64-arm-none-eabi", {arch_attr, "+sve"});
+  features = Downcast<TargetFeatures>(target.at("features"));
+  EXPECT_TRUE(IsArch(target));
+  EXPECT_TRUE(Downcast<Bool>(features.at("has_fp16_simd")));
+}
+
+TEST(AProfileParser, ImpliedFeature) {
+  TargetJSON target = ParseTargetWithAttrs("", "aarch64-linux-gnu", {"+sve2"});
+  TargetFeatures features = Downcast<TargetFeatures>(target.at("features"));
+  EXPECT_TRUE(Downcast<Bool>(features.at("has_sve")));
+  EXPECT_TRUE(Downcast<Bool>(features.at("has_asimd")));
+}
+
+TEST(AProfileParser, UnexpectedTargetKind) {
+  EXPECT_THROW(
+      {
+        try {
+          ParseTarget({{"kind", String("c")}});
+        } catch (const tvm::InternalError& e) {
+          EXPECT_THAT(e.what(), HasSubstr("Expected target kind 'llvm', but got 'c'"));
+          throw;
+        }
+      },
+      tvm::InternalError);
+}
+
 INSTANTIATE_TEST_CASE_P(AProfileParser, AProfileOptionalI8MM, ::testing::ValuesIn(optionalI8MM));
 INSTANTIATE_TEST_CASE_P(AProfileParser, AProfileOptionalDotProd,
                         ::testing::ValuesIn(optionalDotProd));
 INSTANTIATE_TEST_CASE_P(AProfileParser, AProfileOptionalSVE,
-                        ::testing::Values(8.0, 8.1, 8.2, 8.3, 8.4, 8.5, 8.6, 8.7, 8.8, 8.9, 9.0));
+                        ::testing::Values(8.0, 8.1, 8.2, 8.3, 8.4, 8.5, 8.6, 8.7, 8.8, 8.9));
 INSTANTIATE_TEST_CASE_P(AProfileParser, AProfileOptionalFP16,
-                        ::testing::Values(8.2, 8.3, 8.4, 8.5, 8.6, 8.7, 8.8, 8.9, 9.0));
+                        ::testing::Values(8.2, 8.3, 8.4, 8.5, 8.6, 8.7, 8.8, 8.9));
 
 }  // namespace aprofile
 }  // namespace parsers

@@ -119,7 +119,7 @@ def _get_conv2d_impl(dtype, target):
         ),
         (
             "llvm --device=arm_cpu --mtriple=aarch64-linux-gnu -mattr=+v9a",
-            "conv2d_NHWC_quantized_interleaved_without_transform.arm_cpu",
+            "conv2d_NHWC_quantized_native_without_transform.arm_cpu",
         ),
     ],
 )
