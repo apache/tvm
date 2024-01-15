@@ -24,6 +24,7 @@ import numpy as np  # type: ignore
 import tvm  # type: ignore
 from tvm import relay
 from tvm.ir import Op
+from tvm.relay.backend.contrib.ethosu import util
 from tvm.relay.build_module import bind_params_by_name  # type: ignore
 from tvm.relay.dataflow_pattern import (  # type: ignore
     is_constant,
@@ -1810,27 +1811,37 @@ class FullyConnectedParams:
         from tvm.relay.backend.contrib.ethosu.util import QDenseArgs  # type: ignore
         from tvm.relay.backend.contrib.ethosu.util import BiasAddArgs, RequantArgs
 
+        fract_scale = tvm.relay.Constant(tvm.nd.array(np.array(1 / 2**15)))
+        fract_zero_point = tvm.relay.Constant(tvm.nd.array(np.array(0, dtype="int32")))
         self.activation = None
-        if str(func_body.op.name) == "clip":
-            self.activation = func_body
-            requantize_op = self.activation.args[0]
-        else:
-            requantize_op = func_body
-
-        call = requantize_op.args[0]
-        if str(requantize_op.args[0].op.name) == "nn.bias_add":
-            bias_add = call
-            qnn_dense = call.args[0]
-        else:
+        if util.is_fixed_point_enabled():
+            qnn_dense = func_body
             bias_add = None
-            qnn_dense = call
+        else:
+            if str(func_body.op.name) == "clip":
+                self.activation = func_body
+                requantize_op = self.activation.args[0]
+            else:
+                requantize_op = func_body
+
+            call = requantize_op.args[0]
+            if str(requantize_op.args[0].op.name) == "nn.bias_add":
+                bias_add = call
+                qnn_dense = call.args[0]
+            else:
+                bias_add = None
+                qnn_dense = call
 
         # weights & biases are params as they should be constant
         self.weights = TensorParams(
             qnn_dense.args[QDenseArgs.WEIGHTS.value],
             None,
-            qnn_dense.args[QDenseArgs.WEIGHTS_SCALE.value],
-            qnn_dense.args[QDenseArgs.WEIGHTS_ZERO_POINT.value],
+            fract_scale
+            if util.is_fixed_point_enabled()
+            else qnn_dense.args[QDenseArgs.WEIGHTS_SCALE.value],
+            fract_zero_point
+            if util.is_fixed_point_enabled()
+            else qnn_dense.args[QDenseArgs.WEIGHTS_ZERO_POINT.value],
         )
         self.biases = (
             TensorParams(
@@ -1845,14 +1856,22 @@ class FullyConnectedParams:
         self.ifm = TensorParams(
             qnn_dense.args[QDenseArgs.IFM.value],
             None,
-            qnn_dense.args[QDenseArgs.IFM_SCALE.value],
-            qnn_dense.args[QDenseArgs.IFM_ZERO_POINT.value],
+            fract_scale
+            if util.is_fixed_point_enabled()
+            else qnn_dense.args[QDenseArgs.IFM_SCALE.value],
+            fract_zero_point
+            if util.is_fixed_point_enabled()
+            else qnn_dense.args[QDenseArgs.IFM_ZERO_POINT.value],
         )
         self.ofm = TensorParams(
             func_body,
             None,
-            requantize_op.args[RequantArgs.OFM_SCALE.value],
-            requantize_op.args[RequantArgs.OFM_ZERO_POINT.value],
+            fract_scale
+            if util.is_fixed_point_enabled()
+            else requantize_op.args[RequantArgs.OFM_SCALE.value],
+            fract_zero_point
+            if util.is_fixed_point_enabled()
+            else requantize_op.args[RequantArgs.OFM_ZERO_POINT.value],
         )
 
     def is_valid(self) -> bool:
@@ -1917,7 +1936,7 @@ class MatMulParams(FullyConnectedParams):
         Checks whether matrix multiplication has compatible attributes with HW
         """
 
-        if not check_valid_dtypes([self.ifm, self.ofm], supported_dtypes=[np.int8]):
+        if not check_valid_dtypes([self.ifm, self.ofm], supported_dtypes=[np.int8, np.int16]):
             return False
         if not len(self.ifm.shape) == 2:
             return False
@@ -1935,7 +1954,7 @@ def matmul_pattern():
     )
     req = is_op("qnn.requantize")(dense, is_constant(), is_constant(), is_constant(), is_constant())
     optional_clip = req.optional(is_op("clip"))
-    return optional_clip
+    return optional_clip | is_op("nn.dense")(wildcard(), wildcard())
 
 
 class HardSwishParams:

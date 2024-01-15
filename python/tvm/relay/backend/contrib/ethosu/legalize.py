@@ -1415,7 +1415,7 @@ class MatMulRewriter(DFPatternCallback):
         params = ethosu_patterns.MatMulParams(post.op.body)
         ifm = post.args[0]
         ifm2 = post.args[1]
-        lut = relay.const([], dtype="int8")
+        lut = relay.const([], dtype=params.ifm.dtype)
         activation_map = {"clip": "CLIP"}
         if params.activation:
             activation = activation_map[params.activation.op.name]
@@ -1471,7 +1471,7 @@ class MatMulRewriter(DFPatternCallback):
                 rounding_mode="NATURAL",
             )
 
-            # Convert tensor dtype from int32 to int8
+            # Convert tensor dtype from int32 to output dtype
             scalar_tensor = relay.const(np.ones([1, 1, 1, 1], dtype="int32"), dtype="int32")
             reduce_sum = ethosu_ops.ethosu_binary_elementwise(
                 ifm=reduce_sum,
@@ -1487,7 +1487,7 @@ class MatMulRewriter(DFPatternCallback):
                 ifm_channels=1,
                 ifm2_channels=1,
                 reversed_operands=False,
-                ofm_dtype="int8",
+                ofm_dtype=params.ofm.dtype,
             )
 
             res_columns.append(reduce_sum)

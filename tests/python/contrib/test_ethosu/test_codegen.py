@@ -1624,5 +1624,57 @@ def test_tflite_subtract_sigmoid(accel_type):
     )
 
 
+@pytest.mark.parametrize("accel_type", ["ethos-u55-256", "ethos-u65-256"])
+@pytest.mark.parametrize(
+    "ifm_shape,ofm_channels,fract_size,tolerance",
+    [[(1, 16), 8, 15, 0.001], [(2, 8), 16, 14, 0.3]],
+)
+def test_ethosu_matmul_fixed_point(accel_type, ifm_shape, ofm_channels, fract_size, tolerance):
+    np.random.seed(0)
+    dtype = "int16"
+    weights_shape = (ofm_channels, ifm_shape[1])
+
+    def create_model():
+        ifm = relay.var("ifm", shape=ifm_shape, dtype=dtype)
+        ifm2 = relay.var("ifm2", shape=weights_shape, dtype=dtype)
+        dense = relay.nn.dense(ifm, ifm2)
+        return tvm.IRModule.from_expr(relay.Function([ifm, ifm2], dense))
+
+    def generate_ref(input_data, weights):
+        return np.matmul(input_data, np.transpose(weights))
+
+    def convert_to_fixed_point(arr, fract_size):
+        fract_fact = 0b1 << fract_size
+        return np.array(arr * fract_fact, dtype=np.int16)
+
+    cpu_mod = create_model()
+    input_data = {
+        "ifm": np.random.uniform(-0.5, 0.5, size=ifm_shape),
+        "ifm2": np.random.uniform(-0.5, 0.5, size=weights_shape),
+    }
+    output_data = generate_ref(input_data["ifm"], input_data["ifm2"])
+
+    input_data = {
+        "ifm": convert_to_fixed_point(input_data["ifm"], fract_size),
+        "ifm2": convert_to_fixed_point(input_data["ifm2"], fract_size),
+    }
+    output_data = {"output": convert_to_fixed_point(output_data, fract_size)}
+    tolerance = convert_to_fixed_point(tolerance, fract_size)
+
+    config = {"enable_fixed_point": True}
+    with tvm.transform.PassContext(config={"relay.ext.ethos-u.options": config}):
+        ethosu_mod = partition_for_ethosu(cpu_mod)
+
+    infra.compare_ethosu_with_reference(
+        ethosu_mod,
+        input_data,
+        output_data,
+        accel_type,
+        enable_cascader=False,
+        output_tolerance=tolerance,
+        enable_fixed_point=True,
+    )
+
+
 if __name__ == "__main__":
     tvm.testing.main()
