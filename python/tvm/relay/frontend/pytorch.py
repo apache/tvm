@@ -2672,6 +2672,12 @@ class PyTorchOpConverter:
 
         return _op.logical_and(lhs, rhs)
 
+    def logical_or(self, inputs, input_types):
+        lhs = _op.cast(inputs[0], "bool")
+        rhs = _op.cast(inputs[1], "bool")
+
+        return _op.logical_or(lhs, rhs)
+
     def nonzero(self, inputs, input_types, is_numpy_style=False):
         data = inputs[0]
         ret = _op.transform.argwhere(data)
@@ -4238,6 +4244,7 @@ class PyTorchOpConverter:
             "aten::unbind": self.unbind,
             "aten::__and__": self.logical_and,
             "aten::logical_and": self.logical_and,
+            "aten::logical_or": self.logical_or,
             "aten::_shape_as_tensor": self.shape_as_tensor,
             "aten::nonzero": self.nonzero,
             "aten::nonzero_numpy": self.nonzero_numpy,
