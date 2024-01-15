@@ -106,12 +106,20 @@ class CUDADeviceAPI final : public DeviceAPI {
       }
       case kDriverVersion:
         return;
-      case kL2CacheSizeBytes:
+      case kL2CacheSizeBytes: {
         // Get size of device l2 cache size in bytes.
         int l2_size = 0;
         CUDA_CALL(cudaDeviceGetAttribute(&l2_size, cudaDevAttrL2CacheSize, dev.device_id));
         *rv = l2_size;
         return;
+      }
+      case kTotalGlobalMemory: {
+        cudaDeviceProp prop;
+        CUDA_CALL(cudaGetDeviceProperties(&prop, dev.device_id));
+        int64_t total_global_memory = prop.totalGlobalMem;
+        *rv = total_global_memory;
+        return;
+      }
     }
     *rv = value;
   }

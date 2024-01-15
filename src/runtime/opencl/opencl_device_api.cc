@@ -199,13 +199,21 @@ void OpenCLWorkspace::GetAttr(Device dev, DeviceAttrKind kind, TVMRetValue* rv) 
       *rv = std::string(value);
       break;
     }
-    case kL2CacheSizeBytes:
+    case kL2CacheSizeBytes: {
       // NOTE(Zihao): this API cannot reflect the real L2 cache size in both CUDA/AMD GPUs.
       cl_ulong value;
       OPENCL_CALL(clGetDeviceInfo(device_id, CL_DEVICE_GLOBAL_MEM_CACHE_SIZE, sizeof(value), &value,
                                   nullptr));
       *rv = static_cast<int64_t>(value);
       break;
+    }
+    case kTotalGlobalMemory: {
+      cl_ulong total_global_memory;
+      OPENCL_CALL(clGetDeviceInfo(device_id, CL_DEVICE_GLOBAL_MEM_SIZE, sizeof(total_global_memory),
+                                  &total_global_memory, nullptr));
+      *rv = static_cast<int64_t>(total_global_memory);
+      return;
+    }
   }
 }
 

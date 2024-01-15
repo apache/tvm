@@ -163,6 +163,10 @@ void VulkanDeviceAPI::GetAttr(Device dev, DeviceAttrKind kind, TVMRetValue* rv) 
 
     case kL2CacheSizeBytes:
       break;
+
+    case kTotalGlobalMemory: {
+      return;
+    }
   }
 }
 
