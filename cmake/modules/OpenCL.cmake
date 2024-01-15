@@ -81,7 +81,7 @@ if(USE_OPENCL)
     if(Build_OpenCL_GTests)
         message(STATUS "Building OpenCL-Gtests")
         tvm_file_glob(GLOB_RECURSE OPENCL_TEST_SRCS
-          "${CMAKE_SOURCE_DIR}/tests/cpp-runtime/opencl/*.cc"
+          "tests/cpp-runtime/opencl/*.cc"
         )
         add_executable(opencl-cpptest ${OPENCL_TEST_SRCS})
         target_link_libraries(opencl-cpptest PRIVATE gtest_main tvm_runtime)
