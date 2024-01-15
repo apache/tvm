@@ -506,6 +506,20 @@ class Device(ctypes.Structure):
         """
         return self._GetDeviceAttr(self.device_type, self.device_id, 13)
 
+    @property
+    def total_global_memory(self):
+        """Return size of the total global memory.
+
+        Supported devices include CUDA/ROCm/Metal/OpenCL.
+
+        Returns
+        -------
+        total_global_memory : int or None
+            Return the global memory available on device in bytes.
+            Return None if the device does not support this feature.
+        """
+        return self._GetDeviceAttr(self.device_type, self.device_id, 14)
+
     def texture_spatial_limit(self):
         """Returns limits for textures by spatial dimensions
 
