@@ -730,7 +730,7 @@ class ThreadAllreduceBuilder final : public StmtExprMutator {
     // rocm only supports 32 bit operands for shuffling at the moment
     if ((target_->kind->name == "rocm") &&
         (std::any_of(types.begin(), types.end(), [](DataType ty) {
-          if ((ty.is_vector()) || !ty.is_int()) return true;
+          if (ty.is_vector()) return ty.bits() * ty.lanes() != 32;
           return ty.bits() != 32;
         }))) {
       return false;
