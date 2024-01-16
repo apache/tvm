@@ -29,6 +29,7 @@ class ElementWise(ScheduleRule):
     """
     An elementwise schedule rule for GPU operators.
     """
+
     def apply_config(  # pylint: disable=too-many-locals,missing-docstring
         self,
         func: tir.PrimFunc,
@@ -37,7 +38,7 @@ class ElementWise(ScheduleRule):
         block_factors = config.block
         thread_factors = config.thread
         step_factors = config.step
-        
+
         sch = tir.Schedule(func)
         block_infos = normalize_prim_func(sch)
 
@@ -75,22 +76,30 @@ class ElementWise(ScheduleRule):
             vthread_loops = []
             thread_loops = []
             inner_loops = []
-            for s_loop, block_factor, step_factor, thread_factor in zip(s_loops, block_factors, step_factors, thread_factors):
+            for s_loop, block_factor, step_factor, thread_factor in zip(
+                s_loops, block_factors, step_factors, thread_factors
+            ):
                 block_loop, inner_loop = sch.split(s_loop, factors=[None, block_factor])
                 vthread_loop, inner_loop = sch.split(
-                inner_loop, factors=[None, thread_factor * step_factor])
+                    inner_loop, factors=[None, thread_factor * step_factor]
+                )
                 thread_loop, inner_loop = sch.split(inner_loop, factors=[None, step_factor])
                 block_loops.append(block_loop)
                 vthread_loops.append(vthread_loop)
                 thread_loops.append(thread_loop)
                 inner_loops.append(inner_loop)
-                
+
             # inner virtual thread first
             vthread_loops = list(reversed(vthread_loops))
-            sch.reorder(*block_loops, *vthread_loops, *thread_loops, *inner_loops, *r_loops, *o_loops)
+            sch.reorder(
+                *block_loops, *vthread_loops, *thread_loops, *inner_loops, *r_loops, *o_loops
+            )
             sch.bind(sch.fuse(*block_loops), "blockIdx.x")
             sch.bind(sch.fuse(*thread_loops), "threadIdx.x")
+            if len(vthread_loops) > 3:
+                vthread_loops = vthread_loops[0:2] + [sch.fuse(*vthread_loops[2:])]
+
             for i, ax in enumerate(vthread_loops):
-                sch.bind(ax, "vthread" + ['.x', '.y', '.z'][i])
+                sch.bind(ax, "vthread" + [".x", ".y", ".z"][i])
 
         return sch
