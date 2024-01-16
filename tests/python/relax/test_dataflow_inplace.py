@@ -45,7 +45,6 @@ def test_liveness_analysis():
             return n
 
     block = BasicLiveness["main"].body.blocks[0]
-    print(block.bindings[-2].var, type(block.bindings[-2].var))
     live_ranges = dataflow_liveness_analysis(block)
     expected_ranges = {
         # x is live past the binding block
