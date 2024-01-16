@@ -4882,6 +4882,21 @@ def test_logical_and():
     verify_model(test_fn, [a, b])
 
 
+def test_logical_or():
+    """test_logical_or"""
+
+    def test_fn(x, y):
+        return torch.logical_or(x, y)
+
+    a = torch.tensor([0, 1, 10, 0], dtype=torch.int8)
+    b = torch.tensor([4, 0, 1, 0], dtype=torch.int8)
+    verify_model(test_fn, [a, b])
+
+    a = torch.tensor([True, False, True])
+    b = torch.tensor([True, False, False])
+    verify_model(test_fn, [a, b])
+
+
 def test_masked_select():
     """test_masked_select"""
 
