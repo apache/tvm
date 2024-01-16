@@ -322,13 +322,8 @@ std::unordered_set<StructInfo, ObjectPtrHash, ObjectPtrEqual> GatherCandidateSin
       return {};
     }
     // don't consider cases where we don't know the shape at compile time
-    // TODO(@slyubomirsky): variables might be okay if we use the arithmetic analyzer
-    if (auto* shape_node = tensor_info->shape.as<ShapeExprNode>()) {
-      for (auto dim : shape_node->values) {
-        if (!dim.as<IntImmNode>()) {
-          return {};
-        }
-      }
+    // (we will use the analyzer to do best-effort analysis where there are vars)
+    if (tensor_info->shape.as<ShapeExprNode>()) {
       return {GetRef<TensorStructInfo>(tensor_info)};
     } else {
       return {};
@@ -356,7 +351,8 @@ std::unordered_set<StructInfo, ObjectPtrHash, ObjectPtrEqual> GatherCandidateSin
 // if the shapes match _exactly_. Performs this check recursively and ensures the
 // stated condition is true for all tensor members of the struct info (return false
 // if a single pair of corresponding tensors does not meet the condition).
-std::pair<bool, bool> SizeMatches(const StructInfo& target_info, const StructInfo& arg_info) {
+std::pair<bool, bool> SizeMatches(const StructInfo& target_info, const StructInfo& arg_info,
+                                  const BlockBuilder& ctx) {
   if (target_info.as<TensorStructInfoNode>() && arg_info.as<TensorStructInfoNode>()) {
     auto target_tensor = Downcast<TensorStructInfo>(target_info);
     auto arg_tensor = Downcast<TensorStructInfo>(arg_info);
@@ -369,18 +365,13 @@ std::pair<bool, bool> SizeMatches(const StructInfo& target_info, const StructInf
       auto arg_shape = Downcast<ShapeExpr>(arg_tensor->shape);
       PrimExpr target_size = NumElements(target_shape);
       PrimExpr arg_size = NumElements(arg_shape);
-      if (!target_size.as<IntImmNode>() || !arg_size.as<IntImmNode>() ||
-          Downcast<IntImm>(target_size)->value < Downcast<IntImm>(arg_size)->value) {
+      if (!ctx->GetAnalyzer()->CanProve(arg_size >= target_size)) {
         return {false, false};
       }
       // exact match: number of dims and each dim matches
       if (target_shape->values.size() == arg_shape->values.size()) {
         for (size_t i = 0; i < target_shape->values.size(); i++) {
-          if (!arg_shape->values[i].as<IntImmNode>()) {
-            return {false, false};
-          }
-          if (Downcast<IntImm>(target_shape->values[i])->value !=
-              Downcast<IntImm>(arg_shape->values[i])->value) {
+          if (!ctx->GetAnalyzer()->CanProveEqual(target_shape->values[i], arg_shape->values[i])) {
             return {true, false};
           }
         }
@@ -407,7 +398,7 @@ std::pair<bool, bool> SizeMatches(const StructInfo& target_info, const StructInf
         continue;
       }
       auto [field_size_match, field_exact_match] =
-          SizeMatches(target_tup->fields[i], arg_tup->fields[i]);
+          SizeMatches(target_tup->fields[i], arg_tup->fields[i], ctx);
       if (!field_size_match) {
         return {false, false};
       }
@@ -574,7 +565,8 @@ class InplaceOpportunity : public ObjectRef {
 //   The first element is the index of the *binding* in the block.
 //   All remaining elements are the indices of *eligible arguments* in that call.
 std::pair<std::vector<InplaceOpportunity>, std::vector<InplaceOpportunity>>
-FindInplaceOpportunities(const DataflowBlock& block, const Array<Var>& inputs) {
+FindInplaceOpportunities(const DataflowBlock& block, const Array<Var>& inputs,
+                         const BlockBuilder& ctx) {
   auto live_ranges = AnalyzeLiveness(block);
   AliasAnalyzer analyzer;
   auto alias_info = analyzer.Analyze(block, inputs);
@@ -633,10 +625,10 @@ FindInplaceOpportunities(const DataflowBlock& block, const Array<Var>& inputs) {
         for (size_t j = 0; j < call_node->args.size(); j++) {
           auto arg = call_node->args[j];
           for (auto target : target_sinfo) {
-            std::pair<bool, bool> match = SizeMatches(target, GetStructInfo(arg));
-            if (match.first) {
+            auto [matches_size, matches_exactly] = SizeMatches(target, GetStructInfo(arg), ctx);
+            if (matches_size) {
               candidates.insert(static_cast<int>(j));
-              if (match.second) {
+              if (matches_exactly) {
                 exact_match_candidates.insert(static_cast<int>(j));
               }
             }
@@ -829,7 +821,7 @@ class ModuleInplaceTransformer : public ExprMutator {
     // For now, only handle exact match cases.
     // Note: Not passing any input values for now, as we can't make any assumptions
     // about them.
-    auto matches_found = FindInplaceOpportunities(block, {});
+    auto matches_found = FindInplaceOpportunities(block, {}, builder_);
     auto exact_matches = matches_found.second;
 
     Array<Binding> new_bindings;
@@ -1003,17 +995,21 @@ Array<ObjectRef> DataflowAliasAnalysis(const DataflowBlock& block, Array<Var> in
 // this would be preferable to do as a dataflow block pass,
 // but the transformation adds new PrimFuncs, so it affects the module
 tvm::transform::Pass DataflowUseInplaceCalls() {
-  return tvm::transform::CreateModulePass(
+  auto inplace_pass = tvm::transform::CreateModulePass(
       [](const IRModule& mod, const PassContext& ctx) -> IRModule {
         ModuleInplaceTransformer transformer(mod);
         return transformer.Transform();
       },
       0, "DataflowInsertInPlaceCalls", {}, false);
+  // odd quirk: if Normalize is not explicitly called, then the function
+  // StructInfo will not be properly updated
+  return tvm::transform::Sequential({inplace_pass, Normalize()});
 }
 
 Array<Array<InplaceOpportunity>> DataflowInplaceAnalysis(const DataflowBlock& block,
-                                                         const Array<Var>& inputs) {
-  auto index_lists = relax::FindInplaceOpportunities(block, inputs);
+                                                         const Array<Var>& inputs,
+                                                         const IRModule& mod) {
+  auto index_lists = relax::FindInplaceOpportunities(block, inputs, BlockBuilder::Create(mod));
   return {Array<InplaceOpportunity>(index_lists.first.begin(), index_lists.first.end()),
           Array<InplaceOpportunity>(index_lists.second.begin(), index_lists.second.end())};
 }

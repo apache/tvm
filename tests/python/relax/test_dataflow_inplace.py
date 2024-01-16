@@ -337,7 +337,9 @@ def test_inplace_simple_case():
             return ret
 
     block = InplaceBasic["main"].body.blocks[0]
-    size_match, exact_match = dataflow_inplace_analysis(block, InplaceBasic["main"].params)
+    size_match, exact_match = dataflow_inplace_analysis(
+        block, InplaceBasic["main"].params, InplaceBasic
+    )
 
     # order does not matter for the listing of candidates, so we have to implement as sets
     def assert_candidate_list(
@@ -533,6 +535,109 @@ def test_insert_inplace_calls():
     vm = relax.VirtualMachine(ex, tvm.cpu())
     res = vm["main"](x, y)
     assert (expected == res.numpy()).all()
+
+
+def test_dynamic():
+    @I.ir_module
+    class DynamicTestCase:
+        @R.function
+        def main(
+            x: R.Tensor(("a", "b"), dtype="float32"), y: R.Tensor(("a", "b"), dtype="float32")
+        ) -> R.Tensor(("a", "b"), dtype="float32"):
+            with R.dataflow():
+                z = R.add(x, y)
+                # Cannot be done in-place because x and y are arguments
+                a = R.add(z, y)  # this one can be done in-place
+                s = R.subtract(a, a)  # No broadcast. Can be done in-place
+                R.output(s)
+            return s
+
+    # the result should be all zeroes
+    transform_pass = DataflowUseInplaceCalls()
+    new_mod = transform_pass(DynamicTestCase)
+
+    @I.ir_module
+    class Expected:
+        @T.prim_func(private=True)
+        def add_inplace(var_A: T.handle, var_B: T.handle):
+            T.func_attr({"tir.noalias": T.bool(True)})
+            a, b = T.int64(), T.int64()
+            A = T.match_buffer(var_A, (a, b))
+            B = T.match_buffer(var_B, (a, b))
+            for ax0, ax1 in T.grid(a, b):
+                with T.block("T_add"):
+                    v_ax0, v_ax1 = T.axis.remap("SS", [ax0, ax1])
+                    T.reads(A[v_ax0, v_ax1], B[v_ax0, v_ax1])
+                    T.writes(A[v_ax0, v_ax1])
+                    A[v_ax0, v_ax1] = A[v_ax0, v_ax1] + B[v_ax0, v_ax1]
+
+        @T.prim_func(private=True)
+        def subtract_inplace(var_A: T.handle, var_B: T.handle):
+            T.func_attr({"tir.noalias": T.bool(True)})
+            a, b = T.int64(), T.int64()
+            A = T.match_buffer(var_A, (a, b))
+            B = T.match_buffer(var_B, (a, b))
+            for ax0, ax1 in T.grid(a, b):
+                with T.block("T_subtract"):
+                    v_ax0, v_ax1 = T.axis.remap("SS", [ax0, ax1])
+                    T.reads(A[v_ax0, v_ax1], B[v_ax0, v_ax1])
+                    T.writes(B[v_ax0, v_ax1])
+                    B[v_ax0, v_ax1] = A[v_ax0, v_ax1] - B[v_ax0, v_ax1]
+
+        @R.function
+        def main(
+            x: R.Tensor(("a", "b"), dtype="float32"), y: R.Tensor(("a", "b"), dtype="float32")
+        ) -> R.Tensor(("a", "b"), dtype="float32"):
+            a = T.int64()
+            b = T.int64()
+            cls = Expected
+            with R.dataflow():
+                z = R.add(x, y)
+                a_1 = R.call_tir_inplace(
+                    cls.add_inplace,
+                    (z, y),
+                    out_sinfo=R.Tensor((a, b), dtype="float32"),
+                    inplace_indices=[0],
+                )
+                s = R.call_tir_inplace(
+                    cls.subtract_inplace,
+                    (a_1, a_1),
+                    out_sinfo=R.Tensor((a, b), dtype="float32"),
+                    inplace_indices=[1],
+                )
+                R.output(s)
+            return s
+
+    tvm.ir.assert_structural_equal(new_mod, Expected, map_free_vars=True)
+    x = tvm.nd.array(np.random.rand(2, 3).astype("float32"))
+    y = tvm.nd.array(np.random.rand(2, 3).astype("float32"))
+    expected = np.zeros((2, 3), dtype="float32")
+
+    target = tvm.target.Target("llvm")
+    ex = relax.build(new_mod, target)
+    vm = relax.VirtualMachine(ex, tvm.cpu())
+    res = vm["main"](x, y)
+    assert (expected == res.numpy()).all()
+
+
+def test_dynamic_mismatch():
+    # cannot statically prove the shapes to be equal so the module should be unchanged
+    @I.ir_module
+    class DynamicMistmatchTestCase:
+        @R.function
+        def main(
+            x: R.Tensor(("a", "b"), dtype="float32"), y: R.Tensor(("c", "d"), dtype="float32")
+        ):
+            with R.dataflow():
+                z = R.add(x, y)
+                # Cannot be done in-place because x and y are arguments
+                a = R.add(z, y)  # cannot conclude that shapes match
+                R.output(a)
+            return a
+
+    transform_pass = DataflowUseInplaceCalls()
+    new_mod = transform_pass(DynamicMistmatchTestCase)
+    tvm.ir.assert_structural_equal(new_mod, DynamicMistmatchTestCase)
 
 
 if __name__ == "__main__":

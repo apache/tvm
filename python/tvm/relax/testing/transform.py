@@ -192,7 +192,7 @@ class InplaceOpportunity(Object):
 
 
 def dataflow_inplace_analysis(
-    block: DataflowBlock, inputs: List[Var]
+    block: DataflowBlock, inputs: List[Var], mod: IRModule
 ) -> Tuple[List[Tuple[int, Set[int]]], List[Tuple[int, Set[int]]]]:
     """
     Inner function for the dataflow inplace transformation exposed for testing.
@@ -202,6 +202,7 @@ def dataflow_inplace_analysis(
     index_lists = tvm.get_global_func("relax.testing.transform.DataflowInplaceAnalysis")(
         block,
         inputs,
+        mod
     )  # type: ignore
 
     def convert(opp_list):
