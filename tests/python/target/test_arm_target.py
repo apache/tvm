@@ -383,6 +383,7 @@ def _test_accuracy(input_values, output_values, build_mod):
     tvm.testing.assert_allclose(output_buf.numpy(), output_values)
 
 
+@tvm.testing.skip_if_32bit(reason="Skipping test for i386 due to old version of LLVM")
 def test_vectorize_to_sve():
     target = "llvm -mtriple=aarch64-linux-gnu -mattr=+sve"
     vscale = tvm.tir.vscale()
@@ -409,6 +410,7 @@ def test_vectorize_to_sve():
         _test_accuracy(np_ones, np_ones, build_mod)
 
 
+@tvm.testing.skip_if_32bit(reason="Skipping test for i386 due to old version of LLVM")
 def test_vectorize_to_sve_with_broadcast():
     target = "llvm -mtriple=aarch64-linux-gnu -mattr=+sve"
     vscale = tvm.tir.vscale()
@@ -437,6 +439,7 @@ def test_vectorize_to_sve_with_broadcast():
         _test_accuracy(np_ones, output_values, build_mod)
 
 
+@tvm.testing.skip_if_32bit(reason="Skipping test for i386 due to old version of LLVM")
 def test_sve_full_stack():
     target = "llvm -mtriple=aarch64-linux-gnu -mattr=+sve"
     vscale = tvm.tir.vscale()
