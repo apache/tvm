@@ -200,9 +200,7 @@ def dataflow_inplace_analysis(
     if "PYTEST_CURRENT_TEST" not in os.environ:
         logging.warning("The function dataflow_inplace_analysis is exposed for testing only.")
     index_lists = tvm.get_global_func("relax.testing.transform.DataflowInplaceAnalysis")(
-        block,
-        inputs,
-        mod
+        block, inputs, mod
     )  # type: ignore
 
     def convert(opp_list):
