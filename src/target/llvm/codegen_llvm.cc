@@ -1476,6 +1476,8 @@ llvm::Value* CodeGenLLVM::CreateIntrinsic(const CallNode* op) {
   } else if (op->op.same_as(builtin::assume())) {
     llvm::Value* cond = MakeValue(op->args[0]);
     return builder_->CreateAssumption(cond);
+  } else if (op->op.same_as(builtin::tvm_thread_invariant())) {
+    return MakeValue(op->args[0]);
   } else {
     LOG(FATAL) << "unknown intrinsic " << op->op;
   }
