@@ -19,10 +19,15 @@
 
 # Setup build environment
 TVM_ROOT=$(shell cd ../..; pwd)
-CRT_ROOT ?= ../../build/standalone_crt
+TVM_BUILD_DIR ?= ../../build
+CRT_ROOT ?= $(TVM_BUILD_DIR)/standalone_crt
 ifeq ($(shell ls -lhd $(CRT_ROOT)),)
 $(error "CRT not found. Ensure you have built the standalone_crt target and try again")
 endif
+TVM_TARGET ?= llvm
+CC ?= gcc
+CXX ?= g++
+RUNNER ?=
 
 ENABLE_TVM_PLATFORM_ABORT_BACKTRACE ?= 1
 
@@ -68,21 +73,21 @@ MODEL_OBJ = $(build_dir)/model_c/devc.o $(build_dir)/model_c/lib0.o $(build_dir)
 TEST_MODEL_OBJ = $(build_dir)/test_model_c/devc.o $(build_dir)/test_model_c/lib0.o $(build_dir)/test_model_c/lib1.o
 
 demo_dynamic: $(build_dir)/demo_dynamic $(build_dir)/bundle.so $(build_dir)/bundle_c.so $(build_dir)/bundle.so $(build_dir)/graph_cpp.json $(build_dir)/graph_c.json $(build_dir)/params_cpp.bin $(build_dir)/params_c.bin $(build_dir)/cat.bin
-	$(QUIET)TVM_NUM_THREADS=1 $(build_dir)/demo_dynamic $(build_dir)/bundle.so $(build_dir)/graph_cpp.json $(build_dir)/params_cpp.bin $(build_dir)/cat.bin
-	$(QUIET)TVM_NUM_THREADS=1 $(build_dir)/demo_dynamic $(build_dir)/bundle_c.so $(build_dir)/graph_c.json $(build_dir)/params_c.bin $(build_dir)/cat.bin
+	$(QUIET)TVM_NUM_THREADS=1 $(RUNNER) $(build_dir)/demo_dynamic $(build_dir)/bundle.so $(build_dir)/graph_cpp.json $(build_dir)/params_cpp.bin $(build_dir)/cat.bin
+	$(QUIET)TVM_NUM_THREADS=1 $(RUNNER) $(build_dir)/demo_dynamic $(build_dir)/bundle_c.so $(build_dir)/graph_c.json $(build_dir)/params_c.bin $(build_dir)/cat.bin
 
 test_dynamic: $(build_dir)/test_dynamic $(build_dir)/test_bundle.so $(build_dir)/test_bundle_c.so $(build_dir)/test_data_c.bin $(build_dir)/test_output_c.bin $(build_dir)/test_data_cpp.bin $(build_dir)/test_output_cpp.bin
-	$(QUIET)TVM_NUM_THREADS=1 $(build_dir)/test_dynamic $(build_dir)/test_bundle.so $(build_dir)/test_data_cpp.bin $(build_dir)/test_output_cpp.bin $(build_dir)/test_graph_cpp.json $(build_dir)/test_params_cpp.bin
-	$(QUIET)TVM_NUM_THREADS=1 $(build_dir)/test_dynamic $(build_dir)/test_bundle_c.so $(build_dir)/test_data_c.bin $(build_dir)/test_output_c.bin $(build_dir)/test_graph_c.json $(build_dir)/test_params_c.bin
+	$(QUIET)TVM_NUM_THREADS=1 $(RUNNER) $(build_dir)/test_dynamic $(build_dir)/test_bundle.so $(build_dir)/test_data_cpp.bin $(build_dir)/test_output_cpp.bin $(build_dir)/test_graph_cpp.json $(build_dir)/test_params_cpp.bin
+	$(QUIET)TVM_NUM_THREADS=1 $(RUNNER) $(build_dir)/test_dynamic $(build_dir)/test_bundle_c.so $(build_dir)/test_data_c.bin $(build_dir)/test_output_c.bin $(build_dir)/test_graph_c.json $(build_dir)/test_params_c.bin
 
-demo_static: $(build_dir)/demo_static $(build_dir)/cat.bin
-	$(QUIET)TVM_NUM_THREADS=1 $(build_dir)/demo_static $(build_dir)/cat.bin
+demo_static: $(build_dir)/crt_config/crt_config.h $(build_dir)/demo_static $(build_dir)/cat.bin
+	$(QUIET)TVM_NUM_THREADS=1 $(RUNNER) $(build_dir)/demo_static $(build_dir)/cat.bin
 
 test_static: $(build_dir)/crt_config/crt_config.h $(build_dir)/test_static $(build_dir)/test_data_c.bin $(build_dir)/test_output_c.bin
-	$(QUIET)TVM_NUM_THREADS=1 $(build_dir)/test_static $(build_dir)/test_data_c.bin $(build_dir)/test_output_c.bin $(build_dir)/test_graph_c.json $(build_dir)/test_params_c.bin
+	$(QUIET)TVM_NUM_THREADS=1 $(RUNNER) $(build_dir)/test_static $(build_dir)/test_data_c.bin $(build_dir)/test_output_c.bin $(build_dir)/test_graph_c.json $(build_dir)/test_params_c.bin
 
 $(build_dir)/crt_config/crt_config.h:
-	$(QUIET)mkdir --parents $(build_dir)/crt_config && cp ../../build/microtvm_template_projects/crt/crt_config/crt_config.h $(build_dir)/crt_config/crt_config.h
+	$(QUIET)mkdir --parents $(build_dir)/crt_config && cp $(TVM_BUILD_DIR)/microtvm_template_projects/crt/crt_config/crt_config.h $(build_dir)/crt_config/crt_config.h
 
 $(build_dir)/crt:
 	$(QUIET)mkdir --parents $(build_dir)/crt && cp -r $(CRT_ROOT)/* $(build_dir)/crt
@@ -98,23 +103,23 @@ $(build_dir)/libmemory.a: $(build_dir)/crt $(build_dir)/crt_config/crt_config.h
 
 $(build_dir)/demo_dynamic: demo.cc
 	$(QUIET)mkdir -p $(@D)
-	$(QUIET)g++ $(PKG_CXXFLAGS) -o $@ demo.cc $(BACKTRACE_LDFLAGS)
+	$(QUIET)$(CXX) $(PKG_CXXFLAGS) -o $@ demo.cc $(BACKTRACE_LDFLAGS)
 
 $(build_dir)/test_dynamic: test.cc ${build_dir}/test_graph_c.json ${build_dir}/test_params_c.bin $(BACKTRACE_OBJS)
 	$(QUIET)mkdir -p $(@D)
-	$(QUIET)g++ $(PKG_CXXFLAGS) -o $@ test.cc $(BACKTRACE_OBJS) $(BACKTRACE_LDFLAGS)
+	$(QUIET)$(CXX) $(PKG_CXXFLAGS) -o $@ test.cc $(BACKTRACE_OBJS) $(BACKTRACE_LDFLAGS)
 
 $(build_dir)/demo_static: demo_static.c ${build_dir}/bundle_static.o $(MODEL_OBJ) ${build_dir}/libmemory.a ${build_dir}/libgraph_executor.a ${build_dir}/libcommon.a ${build_dir}/graph_c.json.c ${build_dir}/params_c.bin.c $(BACKTRACE_OBJS)
 	$(QUIET)mkdir -p $(@D)
-	$(QUIET)gcc $(PKG_CFLAGS) -o $@ $^ $(PKG_LDFLAGS) $(BACKTRACE_LDFLAGS) $(BACKTRACE_CFLAGS)
+	$(QUIET)$(CC) $(PKG_CFLAGS) -o $@ $^ $(PKG_LDFLAGS) $(BACKTRACE_LDFLAGS) $(BACKTRACE_CFLAGS)
 
 $(build_dir)/test_static: test_static.c ${build_dir}/bundle_static.o $(TEST_MODEL_OBJ) ${build_dir}/libmemory.a ${build_dir}/libgraph_executor.a ${build_dir}/libcommon.a $(BACKTRACE_OBJS)
 	$(QUIET)mkdir -p $(@D)
-	$(QUIET)gcc $(PKG_CFLAGS) -o $@ $^ $(BACKTRACE_LDFLAGS)
+	$(QUIET)$(CC) $(PKG_CFLAGS) -o $@ $^ $(BACKTRACE_LDFLAGS)
 
 $(build_dir)/backtrace.o: backtrace.c
 	$(QUIET)mkdir -p $(@D)
-	$(QUIET)gcc -c $(PKG_CFLAGS) -o $@ $^ $(BACKTRACE_CFLAGS)
+	$(QUIET)$(CC) -c $(PKG_CFLAGS) -o $@ $^ $(BACKTRACE_CFLAGS)
 
 # Serialize our graph.json file.
 $(build_dir)/graph_cpp.json.c: $(build_dir)/graph_cpp.json
@@ -131,36 +136,36 @@ $(build_dir)/params_cpp.bin.c: $(build_dir)/params_cpp.bin
 	$(QUIET)xxd -i $^  > $@
 
 $(MODEL_OBJ) $(build_dir)/graph_c.json $(build_dir)/model_cpp.o $(build_dir)/graph_cpp.json $(build_dir)/params.bin $(build_dir)/cat.bin: build_model.py
-	$(QUIET)python3 $< -o $(build_dir)
-	$(QUIET)mkdir -p build/model_c
-	$(QUIET)tar -C build/model_c -xvf build/model_c.tar
+	$(QUIET)python3 $< -T "$(TVM_TARGET)" -o $(build_dir)
+	$(QUIET)mkdir -p $(build_dir)/model_c
+	$(QUIET)tar -C $(build_dir)/model_c -xvf $(build_dir)/model_c.tar
 
 $(TEST_MODEL_OBJ) $(build_dir)/test_graph_c.json $(build_dir)/test_params_c.bin $(build_dir)/test_data_c.bin $(build_dir)/test_output_c.bin $(build_dir)/test_model_cpp.o $(build_dir)/test_graph_cpp.json $(build_dir)/test_params_cpp.bin $(build_dir)/test_data_cpp.bin $(build_dir)/test_output_cpp.bin: build_model.py
-	$(QUIET)python3 $< -o $(build_dir) --test
-	$(QUIET)mkdir -p build/test_model_c
-	$(QUIET)tar -C build/test_model_c -xvf build/test_model_c.tar
+	$(QUIET)python3 $< -T "$(TVM_TARGET)" -o $(build_dir) --test
+	$(QUIET)mkdir -p $(build_dir)/test_model_c
+	$(QUIET)tar -C $(build_dir)/test_model_c -xvf $(build_dir)/test_model_c.tar
 
 # Build our bundle against the serialized bundle.c API, the runtime.cc API, and
 # the serialized graph.json and params.bin
 $(build_dir)/bundle.so: bundle.cc runtime.cc $(build_dir)/model_cpp.o
 	$(QUIET)mkdir -p $(@D)
-	$(QUIET)g++ -shared $(PKG_CXXFLAGS) -fvisibility=hidden -o $@  $^ $(PKG_LDFLAGS)
+	$(QUIET)$(CXX) -shared $(PKG_CXXFLAGS) -fvisibility=hidden -o $@  $^ $(PKG_LDFLAGS)
 
 $(build_dir)/bundle_c.so: bundle.c $(MODEL_OBJ) ${build_dir}/libmemory.a ${build_dir}/libgraph_executor.a ${build_dir}/libcommon.a $(BACKTRACE_OBJS)
 	$(QUIET)mkdir -p $(@D)
-	$(QUIET)gcc -shared $(PKG_CFLAGS) -fvisibility=hidden -o $@  $^ $(PKG_LDFLAGS) $(BACKTRACE_LDFLAGS) $(BACKTRACE_CFLAGS)
+	$(QUIET)$(CC) -shared $(PKG_CFLAGS) -fvisibility=hidden -o $@  $^ $(PKG_LDFLAGS) $(BACKTRACE_LDFLAGS) $(BACKTRACE_CFLAGS)
 
 $(build_dir)/test_bundle.so: bundle.cc runtime.cc $(build_dir)/test_model_cpp.o
 	$(QUIET)mkdir -p $(@D)
-	$(QUIET)g++ -shared $(PKG_CXXFLAGS) -fvisibility=hidden -o $@  $^ $(PKG_LDFLAGS)
+	$(QUIET)$(CXX) -shared $(PKG_CXXFLAGS) -fvisibility=hidden -o $@  $^ $(PKG_LDFLAGS)
 
 $(build_dir)/test_bundle_c.so: bundle.c $(TEST_MODEL_OBJ) ${build_dir}/libmemory.a ${build_dir}/libgraph_executor.a ${build_dir}/libcommon.a $(BACKTRACE_OBJS)
 	$(QUIET)mkdir -p $(@D)
-	$(QUIET)gcc -shared $(PKG_CFLAGS) -fvisibility=hidden -o $@  $^ $(PKG_LDFLAGS) $(BACKTRACE_LDFLAGS) $(BACKTRACE_CFLAGS)
+	$(QUIET)$(CC) -shared $(PKG_CFLAGS) -fvisibility=hidden -o $@  $^ $(PKG_LDFLAGS) $(BACKTRACE_LDFLAGS) $(BACKTRACE_CFLAGS)
 
 $(build_dir)/bundle_static.o: bundle_static.c
 	$(QUIET)mkdir -p $(@D)
-	$(QUIET)gcc -c $(PKG_CFLAGS) -o $@  $^ $(BACKTRACE_CFLAGS)
+	$(QUIET)$(CC) -c $(PKG_CFLAGS) -o $@  $^ $(BACKTRACE_CFLAGS)
 
 clean:
 	$(QUIET)rm -rf $(build_dir)/bundle.so $(build_dir)/bundle_c.so $(build_dir)/test_bundle.so $(build_dir)/test_bundle_c.so $(build_dir)/crt

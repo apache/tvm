@@ -47,7 +47,7 @@ def build_module(opts):
 
     for runtime, file_format_str in RUNTIMES:
         with tvm.transform.PassContext(opt_level=3, config={"tir.disable_vectorize": True}):
-            graph, lib, params = relay.build(func, "llvm", runtime=runtime, params=params)
+            graph, lib, params = relay.build(func, opts.target, runtime=runtime, params=params)
 
         build_dir = os.path.abspath(opts.out_dir)
         if not os.path.isdir(build_dir):
@@ -88,7 +88,7 @@ def build_test_module(opts):
         with tvm.transform.PassContext(opt_level=3, config={"tir.disable_vectorize": True}):
             graph, lib, lowered_params = relay.build(
                 tvm.IRModule.from_expr(func),
-                "llvm",
+                opts.target,
                 runtime=runtime,
                 params=params,
             )
@@ -158,6 +158,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("-o", "--out-dir", default=".")
     parser.add_argument("-t", "--test", action="store_true")
+    parser.add_argument("-T", "--target", default="llvm")
     opts = parser.parse_args()
 
     if opts.test:
