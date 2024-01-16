@@ -1811,10 +1811,12 @@ class FullyConnectedParams:
         from tvm.relay.backend.contrib.ethosu.util import QDenseArgs  # type: ignore
         from tvm.relay.backend.contrib.ethosu.util import BiasAddArgs, RequantArgs
 
-        fract_scale = tvm.relay.Constant(tvm.nd.array(np.array(1 / 2**15)))
-        fract_zero_point = tvm.relay.Constant(tvm.nd.array(np.array(0, dtype="int32")))
         self.activation = None
         if util.is_fixed_point_enabled():
+            fract_scale = tvm.relay.Constant(
+                tvm.nd.array(np.array(1 / 2 ** util.get_fixed_point_fraction_size()))
+            )
+            fract_zero_point = tvm.relay.Constant(tvm.nd.array(np.array(0, dtype="int32")))
             qnn_dense = func_body
             bias_add = None
         else:

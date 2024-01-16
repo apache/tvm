@@ -43,6 +43,7 @@ struct EthosUCompilerConfigNode : public tvm::AttrsNode<EthosUCompilerConfigNode
   Bool enable_striping = Bool(false);
   Bool disable_copying_constants = Bool(false);
   Bool enable_fixed_point = Bool(false);
+  Integer fixed_point_fraction_size = Integer(0);
   String dev_force_block_config;
   String dev_max_open_plans;
   String dev_max_closed_plans;
@@ -80,6 +81,11 @@ struct EthosUCompilerConfigNode : public tvm::AttrsNode<EthosUCompilerConfigNode
             "enabled, it is assumed that input data should be converted to fixed point "
             "representation")
         .set_default(Bool(false));
+    TVM_ATTR_FIELD(fixed_point_fraction_size)
+        .describe(
+            "Fraction size refers to the number of bits used to represent the fractional part of a "
+            "fixed point number")
+        .set_default(Integer(0));
     TVM_ATTR_FIELD(dev_force_block_config)
         .describe((dev_warning + String("Force the block config to a given value; format = "
                                         "\"[BLK_HEIGHT]x[BLK_WIDTH]x[BLK_DEPTH]\""))

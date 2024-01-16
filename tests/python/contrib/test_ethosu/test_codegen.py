@@ -1627,7 +1627,7 @@ def test_tflite_subtract_sigmoid(accel_type):
 @pytest.mark.parametrize("accel_type", ["ethos-u55-256", "ethos-u65-256"])
 @pytest.mark.parametrize(
     "ifm_shape,ofm_channels,fract_size,tolerance",
-    [[(1, 16), 8, 15, 0.001], [(2, 8), 16, 14, 0.3]],
+    [[(1, 16), 8, 15, 0.001], [(2, 8), 16, 14, 0.001], [(4, 8), 16, 12, 0.001]],
 )
 def test_ethosu_matmul_fixed_point(accel_type, ifm_shape, ofm_channels, fract_size, tolerance):
     np.random.seed(0)
@@ -1661,7 +1661,7 @@ def test_ethosu_matmul_fixed_point(accel_type, ifm_shape, ofm_channels, fract_si
     output_data = {"output": convert_to_fixed_point(output_data, fract_size)}
     tolerance = convert_to_fixed_point(tolerance, fract_size)
 
-    config = {"enable_fixed_point": True}
+    config = {"enable_fixed_point": True, "fixed_point_fraction_size": fract_size}
     with tvm.transform.PassContext(config={"relay.ext.ethos-u.options": config}):
         ethosu_mod = partition_for_ethosu(cpu_mod)
 
@@ -1673,6 +1673,7 @@ def test_ethosu_matmul_fixed_point(accel_type, ifm_shape, ofm_channels, fract_si
         enable_cascader=False,
         output_tolerance=tolerance,
         enable_fixed_point=True,
+        fixed_point_fraction_size=fract_size,
     )
 
 
