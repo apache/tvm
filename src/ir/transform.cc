@@ -31,6 +31,7 @@
 
 #include <chrono>
 #include <iomanip>
+#include <regex>
 #include <stack>
 #include <unordered_set>
 
@@ -183,44 +184,78 @@ Map<String, Map<String, String>> PassContext::ListConfigs() {
 
 PassContext PassContext::Create() { return PassContext(make_object<PassContextNode>()); }
 
+namespace {
+struct ClearOnError {
+  Array<instrument::PassInstrument>* instruments{nullptr};
+
+  ~ClearOnError() {
+    if (instruments) {
+      LOG(INFO) << "Pass instrumentation enter/exti failed.";
+      LOG(INFO) << "Disabling pass instrumentation.";
+      instruments->clear();
+    }
+  }
+};
+struct ExitContextOnError {
+  std::vector<instrument::PassInstrument> successes;
+
+  ~ExitContextOnError() {
+    for (auto it = successes.rbegin(); it != successes.rend(); it++) {
+      LOG(INFO) << (*it)->name << " exiting PassContext ...";
+      (*it)->ExitPassContext();
+      LOG(INFO) << (*it)->name << " exited PassContext.";
+    }
+  }
+};
+}  // namespace
+
 void PassContext::InstrumentEnterPassContext() {
   auto pass_ctx_node = this->operator->();
   if (pass_ctx_node->instruments.defined()) {
-    Array<instrument::PassInstrument> enter_successes;
-    try {
-      for (instrument::PassInstrument pi : pass_ctx_node->instruments) {
-        pi->EnterPassContext();
-        enter_successes.push_back(pi);
-      }
-    } catch (const Error& e) {
-      LOG(INFO) << "Pass instrumentation entering pass context failed.";
-      LOG(INFO) << "Disable pass instrumentation.";
-      pass_ctx_node->instruments.clear();
-
-      for (instrument::PassInstrument pi : enter_successes) {
-        LOG(INFO) << pi->name << " exiting PassContext ...";
-        pi->ExitPassContext();
-        LOG(INFO) << pi->name << " exited PassContext.";
-      }
-      enter_successes.clear();
-
-      throw e;
+    ClearOnError clear_context{&pass_ctx_node->instruments};
+    ExitContextOnError exit_context;
+    for (instrument::PassInstrument pi : pass_ctx_node->instruments) {
+      pi->EnterPassContext();
+      exit_context.successes.push_back(pi);
     }
+    exit_context.successes.clear();
+    clear_context.instruments = nullptr;
   }
 }
+
+namespace {
+
+struct ExitPassSuccesses {
+  ~ExitPassSuccesses() {
+    if (all_initialized) {
+      return;
+    }
+
+    LOG(INFO) << "Pass instrumentation entering pass context failed.";
+    LOG(INFO) << "Disable pass instrumentation.";
+    instruments->clear();
+
+    for (auto it = successes.rbegin(); it != successes.rend(); it++) {
+      LOG(INFO) << (*it)->name << " exiting PassContext ...";
+      (*it)->ExitPassContext();
+      LOG(INFO) << (*it)->name << " exited PassContext.";
+    }
+  }
+
+  bool all_initialized{false};
+  std::vector<instrument::PassInstrument> successes;
+  Array<instrument::PassInstrument>* instruments{nullptr};
+};
+}  // namespace
 
 void PassContext::InstrumentExitPassContext() {
   auto pass_ctx_node = this->operator->();
   if (pass_ctx_node->instruments.defined()) {
-    try {
-      for (instrument::PassInstrument pi : pass_ctx_node->instruments) {
-        pi->ExitPassContext();
-      }
-    } catch (const Error& e) {
-      LOG(INFO) << "Pass instrumentation exiting pass context failed.";
-      pass_ctx_node->instruments.clear();
-      throw e;
+    ClearOnError clear_context{&pass_ctx_node->instruments};
+    for (instrument::PassInstrument pi : pass_ctx_node->instruments) {
+      pi->ExitPassContext();
     }
+    clear_context.instruments = nullptr;
   }
 }
 
@@ -495,6 +530,36 @@ Pass CreateModulePass(const runtime::TypedPackedFunc<IRModule(IRModule, PassCont
                       int opt_level, String name, tvm::Array<String> required, bool traceable) {
   PassInfo pass_info = PassInfo(opt_level, name, required, traceable);
   return ModulePass(pass_func, pass_info);
+}
+
+Pass ApplyPassToFunction(Pass pass, String func_name_regex,
+                         bool error_if_no_function_matches_regex) {
+  auto pass_name =
+      static_cast<const std::stringstream&>(std::stringstream() << "ApplyPassTo" << func_name_regex)
+          .str();
+  std::regex regex(func_name_regex.operator std::string());
+
+  auto pass_func = [pass, regex](IRModule mod, PassContext) -> IRModule {
+    IRModule subset;
+
+    for (const auto& [gvar, func] : mod->functions) {
+      std::string name = gvar->name_hint;
+      if (std::regex_match(name, regex)) {
+        subset->Add(gvar, func);
+      }
+    }
+
+    if (subset->functions.size()) {
+      IRModule new_subset = pass(subset);
+      if (!new_subset.same_as(subset)) {
+        mod.CopyOnWrite()->Update(new_subset);
+      }
+    }
+
+    return mod;
+  };
+
+  return CreateModulePass(pass_func, 0, pass_name, {});
 }
 
 TVM_REGISTER_NODE_TYPE(PassInfoNode);
