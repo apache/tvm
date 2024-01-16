@@ -276,7 +276,7 @@ class AliasAnalyzer {
         } else {
           // We are assuming most op calls return fresh values.
           // We may have to track more exceptions
-          
+
           // If the returned value is a tuple, we'll assume it's a fresh tuple
           // (there may be exceptions to this too)
           if (auto* tup_info = GetStructInfoAs<TupleStructInfoNode>(bound_var)) {
@@ -528,6 +528,38 @@ static std::unordered_set<std::string> SUPPORTED_OPS = {"relax.add",      "relax
                                                         "relax.nn.silu",  "relax.nn.relu"};
 bool OpSupportsInplace(const Op& op) { return SUPPORTED_OPS.count(op->name); }
 
+/*! \brief Corresponds to a binding where at least one argument meets the conditions to be
+ *  made in-place. Contains the binding index and indices of the applicable arguments
+ */
+class InplaceOpportunityNode : public Object {
+ public:
+  // need to use Array for the benefit of the FFI
+  Integer binding_idx;
+  Array<Integer> arg_idxs;
+
+  void VisitAttrs(tvm::AttrVisitor* v) {
+    v->Visit("binding_idx", &binding_idx);
+    v->Visit("arg_idxs", &arg_idxs);
+  }
+
+  static constexpr const char* _type_key = "relax.transform.InplaceOpportunity";
+  TVM_DECLARE_BASE_OBJECT_INFO(InplaceOpportunityNode, Object);
+};
+
+TVM_REGISTER_NODE_TYPE(InplaceOpportunityNode);
+
+class InplaceOpportunity : public ObjectRef {
+ public:
+  TVM_DLL InplaceOpportunity(const Integer& binding_idx, const Array<Integer>& arg_idxs) {
+    auto node = make_object<InplaceOpportunityNode>();
+    node->binding_idx = binding_idx;
+    node->arg_idxs = arg_idxs;
+    data_ = std::move(node);
+  }
+
+  TVM_DEFINE_OBJECT_REF_METHODS(InplaceOpportunity, ObjectRef, InplaceOpportunityNode);
+};
+
 // Check for in-place eligibility:
 //  1. see if there's an arg big enough to hold the result
 //  2. see if the arg is live past the call
@@ -541,16 +573,16 @@ bool OpSupportsInplace(const Op& op) { return SUPPORTED_OPS.count(op->name); }
 // For both lists, each element is a list of ints of the following format:
 //   The first element is the index of the *binding* in the block.
 //   All remaining elements are the indices of *eligible arguments* in that call.
-std::pair<std::vector<std::vector<int>>, std::vector<std::vector<int>>> FindInplaceOpportunities(
-    const DataflowBlock& block, const Array<Var>& inputs) {
+std::pair<std::vector<InplaceOpportunity>, std::vector<InplaceOpportunity>>
+FindInplaceOpportunities(const DataflowBlock& block, const Array<Var>& inputs) {
   auto live_ranges = AnalyzeLiveness(block);
   AliasAnalyzer analyzer;
   auto alias_info = analyzer.Analyze(block, inputs);
   auto alias_sets = alias_info.first;
   auto tuple_map = alias_info.second;
 
-  std::vector<std::vector<int>> size_match_list;
-  std::vector<std::vector<int>> exact_match_list;
+  std::vector<InplaceOpportunity> size_match_list;
+  std::vector<InplaceOpportunity> exact_match_list;
 
   // sort the live ranges by starting index
   std::vector<Var> live_order;
@@ -634,20 +666,24 @@ std::pair<std::vector<std::vector<int>>, std::vector<std::vector<int>>> FindInpl
         }
 
         // produce a list of candidates for this index
-        std::vector<int> size_match_indices = {static_cast<int>(i)};
-        size_match_indices.insert(size_match_indices.end(), candidates.begin(), candidates.end());
-        size_match_list.push_back(size_match_indices);
+        Array<Integer> size_candidate_list;
+        for (auto candidate : candidates) {
+          size_candidate_list.push_back(Integer(candidate));
+        }
+        size_match_list.push_back(InplaceOpportunity(Integer(i), size_candidate_list));
 
         // also gather up the exact match candidates if there are any
-        std::vector<int> exact_match_indices = {static_cast<int>(i)};
+        Array<Integer> exact_candidate_list;
         for (auto candidate : candidates) {
-          if (exact_match_candidates.count(candidate)) {
-            exact_match_indices.push_back(candidate);
+          if (!exact_match_candidates.count(candidate)) {
+            continue;
           }
+          exact_candidate_list.push_back(Integer(candidate));
         }
-        if (exact_match_indices.size() > 1) {
-          exact_match_list.push_back(exact_match_indices);
+        if (exact_candidate_list.empty()) {
+          continue;
         }
+        exact_match_list.push_back(InplaceOpportunity(Integer(i), exact_candidate_list));
       }
     }
 
@@ -800,7 +836,7 @@ class ModuleInplaceTransformer : public ExprMutator {
     int current_match_index = 0;
     for (size_t i = 0; i < block->bindings.size(); i++) {
       if (current_match_index >= static_cast<int>(exact_matches.size()) ||
-          exact_matches[current_match_index][0] != static_cast<int>(i)) {
+          exact_matches[current_match_index]->binding_idx.IntValue() != static_cast<int>(i)) {
         new_bindings.push_back(block->bindings[i]);
         continue;
       }
@@ -808,7 +844,8 @@ class ModuleInplaceTransformer : public ExprMutator {
       auto target_binding = block->bindings[i];
       auto target_call = Downcast<Call>(GetBoundValue(target_binding));
       // can just pick the first index arbitrarily (only using one output for now too)
-      auto new_call = CreateInplaceCall(target_call, {exact_matches[current_match_index][1]});
+      auto new_call =
+          CreateInplaceCall(target_call, {exact_matches[current_match_index]->arg_idxs[0]});
       // now replace the binding appropriately
       if (auto* var_binding_node = target_binding.as<VarBindingNode>()) {
         auto var_binding = GetRef<VarBinding>(var_binding_node);
@@ -974,26 +1011,11 @@ tvm::transform::Pass DataflowUseInplaceCalls() {
       0, "DataflowInsertInPlaceCalls", {}, false);
 }
 
-Array<Array<Array<Integer>>> DataflowInplaceAnalysis(const DataflowBlock& block,
-                                                     const Array<Var>& inputs) {
+Array<Array<InplaceOpportunity>> DataflowInplaceAnalysis(const DataflowBlock& block,
+                                                         const Array<Var>& inputs) {
   auto index_lists = relax::FindInplaceOpportunities(block, inputs);
-  Array<Array<Integer>> size_match_array;
-  for (auto indices : index_lists.first) {
-    Array<Integer> index_array;
-    for (auto index : indices) {
-      index_array.push_back(Integer(index));
-    }
-    size_match_array.push_back(index_array);
-  }
-  Array<Array<Integer>> exact_match_array;
-  for (auto indices : index_lists.second) {
-    Array<Integer> index_array;
-    for (auto index : indices) {
-      index_array.push_back(Integer(index));
-    }
-    exact_match_array.push_back(index_array);
-  }
-  return {size_match_array, exact_match_array};
+  return {Array<InplaceOpportunity>(index_lists.first.begin(), index_lists.first.end()),
+          Array<InplaceOpportunity>(index_lists.second.begin(), index_lists.second.end())};
 }
 
 // these are exposed only for testing

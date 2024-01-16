@@ -28,6 +28,7 @@ from tvm.ir.transform import PassContext
 from tvm.relax import PyExprMutator
 from tvm.relax.expr import Call, DataflowBlock, Var
 from tvm.relay.backend.te_compiler import select_implementation
+from tvm.runtime.object import Object
 from tvm.target import Target
 
 
@@ -171,9 +172,28 @@ def dataflow_alias_analysis(
     return res_alias_sets, res_tuple_map  # type: ignore
 
 
+@tvm._ffi.register_object("relax.transform.InplaceOpportunity")
+class InplaceOpportunity(Object):
+    """
+    Represents an opportunity to make a binding in-place. Exposed only for testing;
+    the constructor is not exposed.
+
+    Parameters:
+    -----------
+    binding_idx: int
+        Index of the binding within its block
+
+    arg_idxs: List[int]
+        Indices of arguments that are eligible to be used as in-place targets.
+    """
+
+    def __init__(_):
+        raise NotImplementedError("Constructor for InplaceOpportunity not exposed!")
+
+
 def dataflow_inplace_analysis(
     block: DataflowBlock, inputs: List[Var]
-) -> Tuple[List[int], List[int]]:
+) -> Tuple[List[Tuple[int, Set[int]]], List[Tuple[int, Set[int]]]]:
     """
     Inner function for the dataflow inplace transformation exposed for testing.
     """
@@ -183,7 +203,11 @@ def dataflow_inplace_analysis(
         block,
         inputs,
     )  # type: ignore
-    return tuple(map(list, index_lists))  # type: ignore
+
+    def convert(opp_list):
+        return list(map(lambda opp: (int(opp.binding_idx), set(map(int, opp.arg_idxs))), opp_list))
+
+    return (convert(index_lists[0]), convert(index_lists[1]))  # type: ignore
 
 
 def dataflow_single_inplace_call(

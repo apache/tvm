@@ -341,14 +341,14 @@ def test_inplace_simple_case():
 
     # order does not matter for the listing of candidates, so we have to implement as sets
     def assert_candidate_list(
-        actual: List[List[int]], expected: List[Tuple[int, Set[int]]]
+        actual: List[Tuple[int, Set[int]]], expected: List[Tuple[int, Set[int]]]
     ) -> None:
         assert len(actual) == len(expected)
         for i in range(len(actual)):
             assert actual[i][0] == expected[i][0]
-            assert len(expected[i][1]) == len(actual[i]) - 1
-            for j in range(len(expected[i][1])):
-                assert actual[i][j + 1] in expected[i][1]
+            assert len(expected[i][1]) == len(actual[i][1])
+            for idx in actual[i][1]:
+                assert idx in expected[i][1]
 
     assert_candidate_list(size_match, [(1, {0, 1}), (4, {1}), (5, {0, 1})])
     # TODO(@slyubomirsky): I couldn't think of an easy example where sizes don't match,
