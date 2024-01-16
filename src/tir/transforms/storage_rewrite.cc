@@ -1702,8 +1702,14 @@ namespace transform {
 
 Pass StorageRewrite() {
   auto pass_func = [](PrimFunc f, IRModule m, PassContext ctx) {
+    bool merge_static_smem = ctx->GetConfig<Bool>("tir.merge_static_smem", Bool(false)).value();
+    // disable merge_static_smem for Vulkan
+    auto target = Target::Current(true);
+    if (target.defined() && target->kind->name == "vulkan") {
+      merge_static_smem = false;
+    }
     auto* n = f.CopyOnWrite();
-    n->body = StoragePlanRewriter().Rewrite(std::move(n->body), true);
+    n->body = StoragePlanRewriter().Rewrite(std::move(n->body), merge_static_smem);
     // Parameters may not be rewritten, but internal allocations may.
     // Vectorization of AllocateConst is currently disabled, as it has
     // indexing issues for types that include padding (e.g. int8x3

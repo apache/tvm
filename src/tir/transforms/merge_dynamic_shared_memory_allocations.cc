@@ -627,6 +627,11 @@ namespace transform {
 
 Pass MergeDynamicSharedMemoryAllocations() {
   auto pass_func = [](PrimFunc f, IRModule m, PassContext ctx) {
+    // disable this pass for Vulkan
+    auto target = Target::Current(true);
+    if (target.defined() && target->kind->name == "vulkan") {
+      return f;
+    }
     auto* n = f.CopyOnWrite();
     n->body = MergeDynamicSharedMemoryAllocations(std::move(n->body));
     return f;
