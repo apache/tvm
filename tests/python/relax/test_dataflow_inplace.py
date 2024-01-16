@@ -124,7 +124,7 @@ def test_alias_analysis_tuple():
         "n": {3},
     }
 
-    actual_alias_sets = {var.name_hint : alias_set for var, alias_set in alias_sets.items()}
+    actual_alias_sets = {var.name_hint: alias_set for var, alias_set in alias_sets.items()}
     assert expected == actual_alias_sets
     assert 2 in tuple_map
     assert tuple_map[2] == [{0}, {1}]
@@ -157,7 +157,7 @@ def test_alias_split():
         "n": {3},
     }
 
-    actual_alias_sets = {var.name_hint : alias_set for var, alias_set in alias_sets.items()}
+    actual_alias_sets = {var.name_hint: alias_set for var, alias_set in alias_sets.items()}
     assert expected == actual_alias_sets
     assert len(tuple_map) == 1
     assert 1 in tuple_map
@@ -231,7 +231,7 @@ def test_alias_call_tir():
         "v": {4},
     }
 
-    actual_alias_sets = {var.name_hint : alias_set for var, alias_set in alias_sets.items()}
+    actual_alias_sets = {var.name_hint: alias_set for var, alias_set in alias_sets.items()}
     assert expected == actual_alias_sets
     assert len(tuple_map) == 1
     assert 2 in tuple_map
@@ -277,7 +277,7 @@ def test_mystery_calls():
         # (in principle, we can use type information to narrow down the aliasing)
     }
 
-    actual_alias_sets = {var.name_hint : alias_set for var, alias_set in alias_sets.items()}
+    actual_alias_sets = {var.name_hint: alias_set for var, alias_set in alias_sets.items()}
     assert expected == actual_alias_sets
     assert len(tuple_map) == 2
     assert 5 in tuple_map
@@ -313,7 +313,7 @@ def test_alias_external_value():
         "c": {-1},
     }
 
-    actual_alias_sets = {var.name_hint : alias_set for var, alias_set in alias_sets.items()}
+    actual_alias_sets = {var.name_hint: alias_set for var, alias_set in alias_sets.items()}
     assert expected == actual_alias_sets
     assert len(tuple_map) == 1
     assert 2 in tuple_map
@@ -489,26 +489,34 @@ def test_insert_inplace_calls():
                     cls.add_inplace,
                     (z, y),
                     inplace_indices=[0],
-                    out_sinfo=[R.Tensor((2, 3), dtype="float32"),],
+                    out_sinfo=[
+                        R.Tensor((2, 3), dtype="float32"),
+                    ],
                 )
                 q: R.Tensor((2, 3), dtype="float32") = R.call_tir_inplace(
                     cls.multiply_inplace,
                     (a, y),
                     inplace_indices=[0],
-                    out_sinfo=[R.Tensor((2, 3), dtype="float32"),],
+                    out_sinfo=[
+                        R.Tensor((2, 3), dtype="float32"),
+                    ],
                 )
                 r: R.Tensor((1, 3), dtype="float32") = R.subtract(y, y)
                 s: R.Tensor((1, 3), dtype="float32") = R.call_tir_inplace(
                     cls.subtract_inplace,
                     (r, r),
                     inplace_indices=[1],
-                    out_sinfo=[R.Tensor((1, 3), dtype="float32"),],
+                    out_sinfo=[
+                        R.Tensor((1, 3), dtype="float32"),
+                    ],
                 )
                 m: R.Tensor((2, 3), dtype="float32") = R.call_tir_inplace(
                     cls.multiply_inplace,
                     (q, s),
                     inplace_indices=[0],
-                    out_sinfo=[R.Tensor((2, 3), dtype="float32"),],
+                    out_sinfo=[
+                        R.Tensor((2, 3), dtype="float32"),
+                    ],
                 )
                 R.output(m)
             return m

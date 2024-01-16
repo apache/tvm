@@ -138,9 +138,7 @@ def dataflow_liveness_analysis(block: DataflowBlock) -> Dict[Var, Tuple[int, int
     Inner function for the dataflow inplace transformation exposed for testing.
     """
     if "PYTEST_CURRENT_TEST" not in os.environ:
-        logging.warning(
-            "The function dataflow_liveness_analysis is exposed for testing only."
-        )
+        logging.warning("The function dataflow_liveness_analysis is exposed for testing only.")
 
     live_ranges = tvm.get_global_func("relax.testing.transform.DataflowLivenessAnalysis")(
         block
@@ -158,9 +156,7 @@ def dataflow_alias_analysis(
     Inner function for the dataflow inplace transformation exposed for testing.
     """
     if "PYTEST_CURRENT_TEST" not in os.environ:
-        logging.warning(
-            "The function dataflow_alias_analysis is exposed for testing only."
-        )
+        logging.warning("The function dataflow_alias_analysis is exposed for testing only.")
 
     alias_sets, tuple_map = tvm.get_global_func("relax.testing.transform.DataflowAliasAnalysis")(
         block,
@@ -182,9 +178,7 @@ def dataflow_inplace_analysis(
     Inner function for the dataflow inplace transformation exposed for testing.
     """
     if "PYTEST_CURRENT_TEST" not in os.environ:
-        logging.warning(
-            "The function dataflow_inplace_analysis is exposed for testing only."
-        )
+        logging.warning("The function dataflow_inplace_analysis is exposed for testing only.")
     index_lists = tvm.get_global_func("relax.testing.transform.DataflowInplaceAnalysis")(
         block,
         inputs,
@@ -199,9 +193,7 @@ def dataflow_single_inplace_call(
     Inner function for the dataflow inplace transformation exposed for testing.
     """
     if "PYTEST_CURRENT_TEST" not in os.environ:
-        logging.warning(
-            "The function dataflow_single_inplace_call is exposed for testing only."
-        )
+        logging.warning("The function dataflow_single_inplace_call is exposed for testing only.")
 
     ret = tvm.get_global_func("relax.testing.transform.SingleInplaceCall")(
         mod,

@@ -1018,7 +1018,7 @@ def test_call_tir_inplace():
                 [R.Tensor((2, 3), "int32"), R.Tensor((2, 3), "int32")],
             )
             return res
-        
+
     _check(Module)
 
 
