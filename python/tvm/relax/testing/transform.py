@@ -187,7 +187,7 @@ class InplaceOpportunity(Object):
         Indices of arguments that are eligible to be used as in-place targets.
     """
 
-    def __init__(_):
+    def __init__(self, _binding_idx, _arg_idxs):
         raise NotImplementedError("Constructor for InplaceOpportunity not exposed!")
 
 
