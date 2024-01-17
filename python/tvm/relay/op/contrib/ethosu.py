@@ -24,7 +24,6 @@ import numpy as np  # type: ignore
 import tvm  # type: ignore
 from tvm import relay
 from tvm.ir import Op
-from tvm.relay.backend.contrib.ethosu import util
 from tvm.relay.build_module import bind_params_by_name  # type: ignore
 from tvm.relay.dataflow_pattern import (  # type: ignore
     is_constant,
@@ -1809,12 +1808,17 @@ class FullyConnectedParams:
     @requires_vela
     def __init__(self, func_body):
         from tvm.relay.backend.contrib.ethosu.util import QDenseArgs  # type: ignore
-        from tvm.relay.backend.contrib.ethosu.util import BiasAddArgs, RequantArgs
+        from tvm.relay.backend.contrib.ethosu.util import (
+            BiasAddArgs,
+            RequantArgs,
+            get_fixed_point_fraction_size,
+            is_fixed_point_enabled,
+        )
 
         self.activation = None
-        if util.is_fixed_point_enabled():
+        if is_fixed_point_enabled():
             fract_scale = tvm.relay.Constant(
-                tvm.nd.array(np.array(1 / 2 ** util.get_fixed_point_fraction_size()))
+                tvm.nd.array(np.array(1 / 2 ** get_fixed_point_fraction_size()))
             )
             fract_zero_point = tvm.relay.Constant(tvm.nd.array(np.array(0, dtype="int32")))
             qnn_dense = func_body
@@ -1839,10 +1843,10 @@ class FullyConnectedParams:
             qnn_dense.args[QDenseArgs.WEIGHTS.value],
             None,
             fract_scale
-            if util.is_fixed_point_enabled()
+            if is_fixed_point_enabled()
             else qnn_dense.args[QDenseArgs.WEIGHTS_SCALE.value],
             fract_zero_point
-            if util.is_fixed_point_enabled()
+            if is_fixed_point_enabled()
             else qnn_dense.args[QDenseArgs.WEIGHTS_ZERO_POINT.value],
         )
         self.biases = (
@@ -1858,21 +1862,19 @@ class FullyConnectedParams:
         self.ifm = TensorParams(
             qnn_dense.args[QDenseArgs.IFM.value],
             None,
-            fract_scale
-            if util.is_fixed_point_enabled()
-            else qnn_dense.args[QDenseArgs.IFM_SCALE.value],
+            fract_scale if is_fixed_point_enabled() else qnn_dense.args[QDenseArgs.IFM_SCALE.value],
             fract_zero_point
-            if util.is_fixed_point_enabled()
+            if is_fixed_point_enabled()
             else qnn_dense.args[QDenseArgs.IFM_ZERO_POINT.value],
         )
         self.ofm = TensorParams(
             func_body,
             None,
             fract_scale
-            if util.is_fixed_point_enabled()
+            if is_fixed_point_enabled()
             else requantize_op.args[RequantArgs.OFM_SCALE.value],
             fract_zero_point
-            if util.is_fixed_point_enabled()
+            if is_fixed_point_enabled()
             else requantize_op.args[RequantArgs.OFM_ZERO_POINT.value],
         )
 
