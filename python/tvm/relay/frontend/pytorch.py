@@ -918,7 +918,7 @@ class PyTorchOpConverter:
         # Find the spacing between values as step
         if step != 1:
             step = (stop - start) / (step - 1)
-            stop = stop + step
+            stop = stop + (step / 2)
         else:
             stop = start + step
 

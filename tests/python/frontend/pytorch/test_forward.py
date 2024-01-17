@@ -3632,6 +3632,10 @@ def test_forward_linspace():
         def forward(self, *args):
             return torch.linspace(1, 2, 1, dtype=torch.int16)
 
+    class Linspace9(Module):
+        def forward(self, *args):
+            return torch.linspace(0, 8, 10)
+
     verify_model(Linspace1().float().eval())
     verify_model(Linspace2().float().eval())
     verify_model(Linspace3().float().eval())
@@ -3640,6 +3644,7 @@ def test_forward_linspace():
     verify_model(Linspace6().float().eval())
     verify_model(Linspace7().float().eval())
     verify_model(Linspace8().float().eval())
+    verify_model(Linspace9().float().eval())
 
 
 @tvm.testing.uses_gpu
