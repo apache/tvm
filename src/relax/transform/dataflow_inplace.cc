@@ -788,10 +788,7 @@ class ModuleInplaceTransformer : public ExprMutator {
       if (auto* func_node = kv.second.as<FunctionNode>()) {
         auto gv = kv.first;
         auto func_params = func_node->params;
-        auto function = GetRef<Function>(func_node);
-        auto* function_cow = function.CopyOnWrite();
-        auto new_body = VisitExpr(function->body);
-        function_cow->body = new_body;
+        auto function = Downcast<Function>(VisitExpr(GetRef<Function>(func_node)));
         builder_->UpdateFunction(gv, function);
       }
     }
@@ -804,11 +801,10 @@ class ModuleInplaceTransformer : public ExprMutator {
     return ret;
   }
 
-  // for handling inner functions
   Expr VisitExpr_(const FunctionNode* op) override {
     auto old_func_params = func_params;
     func_params = op->params;
-    auto ret = ExprMutator::VisitExpr(GetRef<Function>(op));
+    auto ret = ExprMutator::VisitExpr_(op);
     func_params = old_func_params;
     return ret;
   }
@@ -817,44 +813,51 @@ class ModuleInplaceTransformer : public ExprMutator {
   // and replace any valid calls in them
   BindingBlock VisitBindingBlock_(const DataflowBlockNode* op) override {
     auto block = GetRef<DataflowBlock>(op);
+    auto old_idxs = inplace_idxs;
 
     // For now, only handle exact match cases.
     // Note: Not passing any input values for now, as we can't make any assumptions
     // about them.
     auto matches_found = FindInplaceOpportunities(block, {}, builder_);
-    auto exact_matches = matches_found.second;
-
-    Array<Binding> new_bindings;
-    int current_match_index = 0;
-    for (size_t i = 0; i < block->bindings.size(); i++) {
-      if (current_match_index >= static_cast<int>(exact_matches.size()) ||
-          exact_matches[current_match_index]->binding_idx.IntValue() != static_cast<int>(i)) {
-        new_bindings.push_back(block->bindings[i]);
-        continue;
-      }
-
-      auto target_binding = block->bindings[i];
-      auto target_call = Downcast<Call>(GetBoundValue(target_binding));
-      // can just pick the first index arbitrarily (only using one output for now too)
-      auto new_call =
-          CreateInplaceCall(target_call, {exact_matches[current_match_index]->arg_idxs[0]});
-      // now replace the binding appropriately
-      if (auto* var_binding_node = target_binding.as<VarBindingNode>()) {
-        auto var_binding = GetRef<VarBinding>(var_binding_node);
-        auto* var_binding_cow = var_binding.CopyOnWrite();
-        var_binding_cow->value = new_call;
-        new_bindings.push_back(var_binding);
-      } else if (auto* match_cast_node = target_binding.as<MatchCastNode>()) {
-        auto match_cast = GetRef<MatchCast>(match_cast_node);
-        auto* match_cast_cow = match_cast.CopyOnWrite();
-        match_cast_cow->value = new_call;
-        new_bindings.push_back(match_cast);
-      } else {
-        CHECK(false) << "Invalid binding type";
-      }
-      current_match_index++;
+    Map<Binding, Array<Integer>> new_idxs;
+    for (auto match : matches_found.second) {
+      new_idxs.Set(block->bindings[match->binding_idx.IntValue()], match->arg_idxs);
     }
-    return DataflowBlock(new_bindings, block->span);
+
+    inplace_idxs = new_idxs;
+    auto ret = ExprMutator::VisitBindingBlock_(op);
+    inplace_idxs = old_idxs;
+    return ret;
+  }
+
+  Expr ReplaceBoundCall(const Binding& binding) {
+    // can just pick the first index arbitrarily (only using one output for now too)
+    // now replace the binding appropriately
+    auto arg_idxs = inplace_idxs.at(binding);
+    auto target = Downcast<Call>(GetBoundValue(binding));
+    auto new_call = CreateInplaceCall(target, {arg_idxs[0]});
+    return builder_->Normalize(new_call);
+  }
+
+  void VisitBinding_(const VarBindingNode* binding) override {
+    auto binding_ref = GetRef<VarBinding>(binding);
+    if (!inplace_idxs.count(binding_ref)) {
+      ExprMutator::VisitBinding_(binding);
+      return;
+    }
+    Expr new_value = ReplaceBoundCall(binding_ref);
+    builder_->EmitNormalized(VarBinding(binding->var, new_value, binding->span));
+  }
+
+  void VisitBinding_(const MatchCastNode* binding) override {
+    auto binding_ref = GetRef<MatchCast>(binding);
+    if (!inplace_idxs.count(binding_ref)) {
+      ExprMutator::VisitBinding_(binding);
+      return;
+    }
+    Expr new_value = ReplaceBoundCall(binding_ref);
+    builder_->EmitNormalized(
+        MatchCast(binding->var, new_value, binding->struct_info, binding->span));
   }
 
   // Given the call and indices of arguments that could be done in-place,
@@ -947,10 +950,13 @@ class ModuleInplaceTransformer : public ExprMutator {
 
  private:
   const IRModule& mod_;
-  Array<GlobalVar>
-      legalizers_added;    // Keep track of legalizers we add so we can clean up at the end.
-  Array<Var> func_params;  // The current function's params will be treated as non-aliased
-                           // (we are assuming good behavior on the user's part).
+  // Keep track of legalizers we add so we can clean up at the end.
+  Array<GlobalVar> legalizers_added;
+  // The current function's params will be treated as non-aliased
+  // (we are assuming good behavior on the user's part).
+  Array<Var> func_params;
+  // map of eligible bindings to indices of arguments that can be used as the in-place target
+  Map<Binding, Array<Integer>> inplace_idxs;
 };
 
 namespace transform {
@@ -995,15 +1001,12 @@ Array<ObjectRef> DataflowAliasAnalysis(const DataflowBlock& block, Array<Var> in
 // this would be preferable to do as a dataflow block pass,
 // but the transformation adds new PrimFuncs, so it affects the module
 tvm::transform::Pass DataflowUseInplaceCalls() {
-  auto inplace_pass = tvm::transform::CreateModulePass(
+  return tvm::transform::CreateModulePass(
       [](const IRModule& mod, const PassContext& ctx) -> IRModule {
         ModuleInplaceTransformer transformer(mod);
         return transformer.Transform();
       },
       0, "DataflowInsertInPlaceCalls", {}, false);
-  // odd quirk: if Normalize is not explicitly called, then the function
-  // StructInfo will not be properly updated
-  return tvm::transform::Sequential({inplace_pass, Normalize()});
 }
 
 Array<Array<InplaceOpportunity>> DataflowInplaceAnalysis(const DataflowBlock& block,
