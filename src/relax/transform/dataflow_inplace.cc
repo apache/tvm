@@ -600,6 +600,18 @@ FindInplaceOpportunities(const DataflowBlock& block, const Array<Var>& inputs,
       currently_live.insert(live_var);
       last_live++;
     }
+    // remove vars whose range has come to an end
+    // (keep a separate set to avoid changing the set while iterating on it)
+    std::unordered_set<Var, ObjectPtrHash, ObjectPtrEqual> remove;
+    for (auto var : currently_live) {
+      auto live_range = live_ranges[var];
+      if (live_range.second < static_cast<int>(i)) {
+        remove.insert(var);
+      }
+    }
+    for (auto var : remove) {
+      currently_live.erase(var);
+    }
 
     // if we reach a binding check the conditions
     Binding b = block->bindings[i];
@@ -677,19 +689,6 @@ FindInplaceOpportunities(const DataflowBlock& block, const Array<Var>& inputs,
         }
         exact_match_list.push_back(InplaceOpportunity(Integer(i), exact_candidate_list));
       }
-    }
-
-    // remove vars whose range has come to an end
-    // (keep a separate set to avoid changing the sit while iterating on it)
-    std::unordered_set<Var, ObjectPtrHash, ObjectPtrEqual> remove;
-    for (auto var : currently_live) {
-      auto live_range = live_ranges[var];
-      if (live_range.second <= static_cast<int>(i)) {
-        remove.insert(var);
-      }
-    }
-    for (auto var : remove) {
-      currently_live.erase(var);
     }
   }
 
