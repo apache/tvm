@@ -82,6 +82,9 @@ TVM_REGISTER_OP("tir.fabs")
 TVM_REGISTER_OP("tir.exp").set_attr<FLowerIntrinsic>("vulkan.FLowerIntrinsic",
                                                      DispatchGLSLPureIntrin<GLSLstd450Exp>);
 
+TVM_REGISTER_OP("tir.exp2")
+    .set_attr<FLowerIntrinsic>("vulkan.FLowerIntrinsic", DispatchGLSLPureIntrin<GLSLstd450Exp2>);
+
 TVM_REGISTER_OP("tir.sin").set_attr<FLowerIntrinsic>("vulkan.FLowerIntrinsic",
                                                      DispatchGLSLPureIntrin<GLSLstd450Sin>);
 

@@ -509,6 +509,8 @@ spirv::Value CodeGenSPIRV::VisitExpr_(const CallNode* op) {
     spirv::SType ptr_type = builder_->GetPointerType(ele_stype, buffer_val.stype.storage_class);
     ICHECK(var_map_.count(buffer_node));
     return builder_->StructArrayAccess(ptr_type, var_map_[buffer_node], MakeValue(index));
+  } else if (op->op.same_as(builtin::tvm_thread_invariant())) {
+    return MakeValue(op->args[0]);
   } else {
     LOG(FATAL) << "Unresolved call  " << op->op;
   }
@@ -608,6 +610,17 @@ void CodeGenSPIRV::Scalarize(const PrimExpr& e, std::function<void(int i, spirv:
       f(i, builder_->MakeValue(spv::OpCompositeExtract, etype, value, i));
     }
   }
+}
+
+spirv::Value CodeGenSPIRV::VisitExpr_(const ShuffleNode* op) {
+  ICHECK(op->vectors.size() == 1 && op->indices.size() == 1)
+      << "SPIR-V codegen only supports shuffle "
+      << "of one vector with one index";
+  spirv::Value vector = MakeValue(op->vectors[0]);
+  int index = Downcast<Integer>(op->indices[0])->value;
+  spirv::SType etype = builder_->GetSType(op->dtype);
+  spirv::Value element = builder_->MakeValue(spv::OpCompositeExtract, etype, vector, index);
+  return element;
 }
 
 void CodeGenSPIRV::VisitStmt_(const BufferStoreNode* op) {
