@@ -509,6 +509,8 @@ spirv::Value CodeGenSPIRV::VisitExpr_(const CallNode* op) {
     spirv::SType ptr_type = builder_->GetPointerType(ele_stype, buffer_val.stype.storage_class);
     ICHECK(var_map_.count(buffer_node));
     return builder_->StructArrayAccess(ptr_type, var_map_[buffer_node], MakeValue(index));
+  } else if (op->op.same_as(builtin::tvm_thread_invariant())) {
+    return MakeValue(op->args[0]);
   } else {
     LOG(FATAL) << "Unresolved call  " << op->op;
   }

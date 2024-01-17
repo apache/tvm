@@ -77,10 +77,11 @@ class Pipe : public dmlc::Stream {
   size_t Read(void* ptr, size_t size) final {
     if (size == 0) return 0;
 #ifdef _WIN32
-    auto fread = [&]() {
+    auto fread = [&]() -> ssize_t {
       DWORD nread;
-      if (!ReadFile(handle_, static_cast<TCHAR*>(ptr), size, &nread, nullptr)) return -1;
-      return nread;
+      if (!ReadFile(handle_, static_cast<TCHAR*>(ptr), size, &nread, nullptr))
+        return static_cast<ssize_t>(-1);
+      return static_cast<ssize_t>(nread);
     };
     DWORD nread = static_cast<DWORD>(RetryCallOnEINTR(fread, GetLastErrorCode));
     ICHECK_EQ(static_cast<size_t>(nread), size) << "Read Error: " << GetLastError();
@@ -99,10 +100,11 @@ class Pipe : public dmlc::Stream {
   void Write(const void* ptr, size_t size) final {
     if (size == 0) return;
 #ifdef _WIN32
-    auto fwrite = [&]() {
+    auto fwrite = [&]() -> ssize_t {
       DWORD nwrite;
-      if (!WriteFile(handle_, static_cast<const TCHAR*>(ptr), size, &nwrite, nullptr)) return -1;
-      return nwrite;
+      if (!WriteFile(handle_, static_cast<const TCHAR*>(ptr), size, &nwrite, nullptr))
+        return static_cast<ssize_t>(-1);
+      return static_cast<ssize_t>(nwrite);
     };
     DWORD nwrite = static_cast<DWORD>(RetryCallOnEINTR(fwrite, GetLastErrorCode));
     ICHECK_EQ(static_cast<size_t>(nwrite), size) << "Write Error: " << GetLastError();
