@@ -53,6 +53,8 @@ def create_headers(name, type, output_len):
 
     if ext in [".npy"]:
         data = np.load(path)
+    elif ext in [".txt"]:
+        data = np.loadtxt(path)
     else:
         from PIL import Image
 

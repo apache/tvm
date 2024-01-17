@@ -67,7 +67,7 @@ tar -xf module.tar
 cd ..
 case ${MODEL} in
   DS_CNN_*)
-    python3 ./convert_data.py ./data/yes.npy -t float32 -o 12
+    python3 ./convert_data.py ./data/yes.txt -t float32 -o 12
     export MODEL_FLAGS=" \
         -D MODEL_NAME=${MODEL} \
         -D MODEL_OUT_FIELD=.Identity \
