@@ -1055,5 +1055,26 @@ def test_multple_runs():
     )
 
 
+@pytest.mark.skip_well_formed_check_before_transform
+def test_error_on_repeated_variable_definitions():
+    """Raise error for SSA violations
+
+    Internally, `FuseOpsByPattern` makes a mapping from relax
+    variables to the fused group containing that variable.  If the
+    input module violates SSA, this map may be ill-formed.
+
+    While not strictly necessary for FuseOps to handle ill-formed
+    inputs, checking it at this level provides better error handling
+    than propagating it to downstream passes.
+    """
+    mod = Conv2dReLU.clone()
+    mod["copy"] = mod["main"].with_attr("global_symbol", "copy")
+
+    patterns = [("dnnl.conv2d_relu", conv2d_relu_pat)]
+
+    with pytest.raises(ValueError):
+        relax.transform.FuseOpsByPattern(patterns)(mod)
+
+
 if __name__ == "__main__":
     pytest.main([__file__])
