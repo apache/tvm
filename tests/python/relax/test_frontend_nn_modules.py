@@ -248,7 +248,12 @@ def test_conv2d():
 
 def test_conv2d_dynamic():
     @R.function
-    def forward(x: R.Tensor(("n", "c", "h", "w"), dtype="float32"), _io: R.Object, weight: R.Tensor((32, "in_channels", 3, 3), dtype="float32"), bias: R.Tensor((32,), dtype="float32")) -> R.Tuple(R.Tensor(("n", 32, "h - 2", "w - 2"), dtype="float32"), R.Tuple(R.Object)):
+    def forward(
+        x: R.Tensor(("n", "c", "h", "w"), dtype="float32"),
+        _io: R.Object,
+        weight: R.Tensor((32, "in_channels", 3, 3), dtype="float32"),
+        bias: R.Tensor((32,), dtype="float32"),
+    ) -> R.Tuple(R.Tensor(("n", 32, "h - 2", "w - 2"), dtype="float32"), R.Tuple(R.Object)):
         n = T.int64()
         h = T.int64()
         w = T.int64()
@@ -259,7 +264,9 @@ def test_conv2d_dynamic():
             lv1: R.Tensor((n, 32, h - 2, w - 2), dtype="float32") = R.nn.conv2d(x, weight)
             lv2: R.Tensor((1, 32, 1, 1), dtype="float32") = R.reshape(bias, R.shape([1, 32, 1, 1]))
             conv2d: R.Tensor((n, 32, h - 2, w - 2), dtype="float32") = R.add(lv1, lv2)
-            gv1: R.Tuple(R.Tensor((n, 32, h - 2, w - 2), dtype="float32"), R.Tuple(R.Object)) = conv2d, (_io,)
+            gv1: R.Tuple(
+                R.Tensor((n, 32, h - 2, w - 2), dtype="float32"), R.Tuple(R.Object)
+            ) = conv2d, (_io,)
             R.output(gv1)
         return gv1
 

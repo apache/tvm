@@ -276,7 +276,7 @@ def test_conv2d_offload(data_shape, weight_shape, dtype, epilogue, residual_bloc
 @pytest.mark.parametrize(
     "data_shape, weight_shape, dtype",
     [
-        # batch dynamism 
+        # batch dynamism
         ((T.Var("n", "int64"), 32, 32, 16), (32, 3, 3, 16), "float16"),
         # channel dynamism
         ((16, 32, 32, T.Var("c", "int64")), (32, 3, 3, T.Var("c", "int64")), "float16"),
