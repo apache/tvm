@@ -235,10 +235,16 @@ class Conv2D(Module):
         self.dilation = dilation
         self.groups = groups
 
+        # Allow dynamic input channels.
+        if isinstance(self.in_channels, int):
+            in_channels = int(self.in_channels / self.groups)
+        else:
+            in_channels = tir.floordiv(self.in_channels, self.groups)
+
         self.weight = Parameter(
             (
                 self.out_channels,
-                int(self.in_channels / self.groups),
+                in_channels,
                 self.kernel_size,
                 self.kernel_size,
             ),
