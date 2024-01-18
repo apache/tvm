@@ -106,6 +106,30 @@ TVM_REGISTER_TARGET_TAG("nvidia/jetson-orin-nano")
                                                  {"mcpu", String("carmel")},
                                                  {"num-cores", Integer(6)}}}});
 
+TVM_REGISTER_TARGET_TAG("nvidia/jetson-agx-orin-32gb")
+    .set_config({{"kind", String("cuda")},
+                 {"arch", String("sm_87")},
+                 {"max_shared_memory_per_block", Integer(49152)},
+                 {"max_threads_per_block", Integer(1024)},
+                 {"thread_warp_size", Integer(32)},
+                 {"registers_per_block", Integer(65536)},
+                 {"host", Map<String, ObjectRef>{{"kind", String("llvm")},
+                                                 {"mtriple", String("aarch64-linux-gnu")},
+                                                 {"mcpu", String("cortex-a78")},
+                                                 {"num-cores", Integer(8)}}}});
+
+TVM_REGISTER_TARGET_TAG("nvidia/jetson-agx-orin-64gb")
+    .set_config({{"kind", String("cuda")},
+                 {"arch", String("sm_87")},
+                 {"max_shared_memory_per_block", Integer(49152)},
+                 {"max_threads_per_block", Integer(1024)},
+                 {"thread_warp_size", Integer(32)},
+                 {"registers_per_block", Integer(65536)},
+                 {"host", Map<String, ObjectRef>{{"kind", String("llvm")},
+                                                 {"mtriple", String("aarch64-linux-gnu")},
+                                                 {"mcpu", String("cortex-a78")},
+                                                 {"num-cores", Integer(12)}}}});
+
 #define TVM_REGISTER_CUDA_TAG(Name, Arch, SharedMem, RegPerBlock) \
   TVM_REGISTER_TARGET_TAG(Name).set_config({                      \
       {"kind", String("cuda")},                                   \
@@ -131,6 +155,8 @@ TVM_REGISTER_CUDA_TAG("nvidia/tesla-c2050", "sm_20", 49152, 32768);
 TVM_REGISTER_CUDA_TAG("nvidia/tesla-c2070", "sm_20", 49152, 32768);
 TVM_REGISTER_CUDA_TAG("nvidia/nvidia-a100", "sm_80", 49152, 65536)
     .with_config("l2_cache_size_bytes", Integer(41943040));
+TVM_REGISTER_CUDA_TAG("nvidia/nvidia-h100", "sm_90", 49152, 65536)
+    .with_config("l2_cache_size_bytes", Integer(52428800));
 TVM_REGISTER_CUDA_TAG("nvidia/nvidia-a40", "sm_86", 49152, 65536);
 TVM_REGISTER_CUDA_TAG("nvidia/nvidia-a30", "sm_80", 49152, 65536);
 TVM_REGISTER_CUDA_TAG("nvidia/nvidia-a10", "sm_86", 49152, 65536);

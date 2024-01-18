@@ -273,5 +273,77 @@ class TestSplitHostDeviceNameCollision(BaseCompare):
         return mod
 
 
+def test_dynamic_launch_thread():
+    """Dynamic T.launch_thread may depend on host-side variable
+
+    A dynamic parameter for `T.launch_thread` may have an extent that
+    is computed using variables outside of the `T.target` section.
+
+    This is a regression test to catch a previous failure mode, in
+    which SplitHostDevice generated output with undefined variables,
+    if the only use of a variable occurred in the extent of a
+    `T.launch_thread` statement.
+
+    While the lowering pass `LowerDeviceKernelLaunch` will hoist the
+    computation of the extent from the device kernel to the host
+    function, the IRModule must be well-defined at all stages of
+    lowering.  Even if a variable is only used as part of a thread
+    extent, `SplitHostDevice` should treat it as a kernel parameter, to
+    provide a definition of the variable within the TIR device kernel.
+    """
+
+    @I.ir_module
+    class before:
+        @T.prim_func
+        def default_function(var_A: T.handle, var_B: T.handle, seq_len: T.int32):
+            T.func_attr({"target": T.target("cuda")})
+
+            A = T.match_buffer(var_A, [seq_len], "int32")
+            B = T.match_buffer(var_B, [seq_len], "int32")
+
+            num_blocks: T.int32 = (seq_len + 127) // 128
+            with T.attr(T.target("cuda"), "target", 0):
+                blockIdx_x = T.launch_thread("blockIdx.x", num_blocks)
+                threadIdx_x = T.launch_thread("threadIdx.x", 128)
+                if blockIdx_x * 128 + threadIdx_x < seq_len:
+                    B[blockIdx_x * 128 + threadIdx_x] = A[blockIdx_x * 128 + threadIdx_x]
+
+    @I.ir_module
+    class expected:
+        @T.prim_func
+        def default_function(var_A: T.handle, var_B: T.handle, seq_len: T.int32):
+            T.func_attr({"target": T.target("cuda")})
+            A = T.match_buffer(var_A, (seq_len,), "int32")
+            B = T.match_buffer(var_B, (seq_len,), "int32")
+            num_blocks: T.int32 = (seq_len + 127) // 128
+            expected.default_function_kernel(A.data, B.data, num_blocks, seq_len)
+
+        @T.prim_func(private=True)
+        def default_function_kernel(
+            A_data: T.handle("int32"),
+            B_data: T.handle("int32"),
+            num_blocks: T.int32,
+            seq_len: T.int32,
+        ):
+            T.func_attr(
+                {
+                    "target": T.target("cuda"),
+                    "tir.is_global_func": True,
+                    "tir.noalias": True,
+                }
+            )
+            A = T.decl_buffer(seq_len, "int32", data=A_data)
+            B = T.decl_buffer(seq_len, "int32", data=B_data)
+            blockIdx_x = T.launch_thread("blockIdx.x", num_blocks)
+            threadIdx_x = T.launch_thread("threadIdx.x", 128)
+            if blockIdx_x * 128 + threadIdx_x < seq_len:
+                B[blockIdx_x * 128 + threadIdx_x] = A[blockIdx_x * 128 + threadIdx_x]
+
+    after = tvm.tir.transform.SplitHostDevice()(before)
+
+    tvm.tir.analysis.verify_well_formed(after)
+    tvm.ir.assert_structural_equal(expected, after)
+
+
 if __name__ == "__main__":
     tvm.testing.main()

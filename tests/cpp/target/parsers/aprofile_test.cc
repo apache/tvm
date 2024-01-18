@@ -307,11 +307,38 @@ TEST_P(AProfileOptionalSVE, OptionalSVESupport) {
   EXPECT_TRUE(Downcast<Bool>(features.at("has_sve")));
 }
 
+using AProfileOptionalFP16 = testing::TestWithParam<float>;
+TEST_P(AProfileOptionalFP16, OptionalFP16Support) {
+  const std::string arch_attr = "+v" + std::to_string(GetParam()) + "a";
+
+  // Check that the "has_fp16_simd" feature is not set by default when "+fullfp16" isn't set as an
+  // attribute.
+  TargetJSON target = ParseTargetWithAttrs("", "aarch64-arm-none-eabi", {arch_attr});
+  TargetFeatures features = Downcast<TargetFeatures>(target.at("features"));
+  EXPECT_TRUE(IsArch(target));
+  EXPECT_FALSE(Downcast<Bool>(features.at("has_fp16_simd")));
+
+  // Check that the "has_fp16_simd" feature is set when "+fullfp16" is explicitly set as an
+  // attribute.
+  target = ParseTargetWithAttrs("", "aarch64-arm-none-eabi", {arch_attr, "+fullfp16"});
+  features = Downcast<TargetFeatures>(target.at("features"));
+  EXPECT_TRUE(IsArch(target));
+  EXPECT_TRUE(Downcast<Bool>(features.at("has_fp16_simd")));
+
+  // Check that the "has_fp16_simd" feature is set when "+sve" is explicitly set as an attribute.
+  target = ParseTargetWithAttrs("", "aarch64-arm-none-eabi", {arch_attr, "+sve"});
+  features = Downcast<TargetFeatures>(target.at("features"));
+  EXPECT_TRUE(IsArch(target));
+  EXPECT_TRUE(Downcast<Bool>(features.at("has_fp16_simd")));
+}
+
 INSTANTIATE_TEST_CASE_P(AProfileParser, AProfileOptionalI8MM, ::testing::ValuesIn(optionalI8MM));
 INSTANTIATE_TEST_CASE_P(AProfileParser, AProfileOptionalDotProd,
                         ::testing::ValuesIn(optionalDotProd));
 INSTANTIATE_TEST_CASE_P(AProfileParser, AProfileOptionalSVE,
                         ::testing::Values(8.0, 8.1, 8.2, 8.3, 8.4, 8.5, 8.6, 8.7, 8.8, 8.9, 9.0));
+INSTANTIATE_TEST_CASE_P(AProfileParser, AProfileOptionalFP16,
+                        ::testing::Values(8.2, 8.3, 8.4, 8.5, 8.6, 8.7, 8.8, 8.9, 9.0));
 
 }  // namespace aprofile
 }  // namespace parsers

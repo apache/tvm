@@ -36,7 +36,7 @@ echo "Checking MyPy Type defs in the tvmscript printer package."
 mypy  --check-untyped-defs python/tvm/script/printer
 
 echo "Checking MyPy Type defs in the TIR package with unittest"
-MYPYPATH=$TVM_PATH/python mypy --check-untyped-defs tests/python/unittest/test_tvmscript_type.py
+MYPYPATH=$TVM_PATH/python mypy --check-untyped-defs tests/python/tvmscript/test_tvmscript_type.py
 
 echo "Checking MyPy Type defs in tvm.relay.op.contrib"
 mypy --disallow-untyped-defs python/tvm/relay/op/contrib/cublas.py

@@ -164,6 +164,9 @@ void VulkanDeviceAPI::GetAttr(Device dev, DeviceAttrKind kind, TVMRetValue* rv) 
       break;
     case kImagePitchAlignment:
       break;
+    case kTotalGlobalMemory: {
+      return;
+    }
   }
 }
 

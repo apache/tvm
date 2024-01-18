@@ -50,7 +50,8 @@ enum DeviceAttrKind : int {
   kApiVersion = 11,
   kDriverVersion = 12,
   kL2CacheSizeBytes = 13,
-  kImagePitchAlignment = 14
+  kTotalGlobalMemory = 14,
+  kImagePitchAlignment = 15,
 };
 
 #ifdef TVM_KALLOC_ALIGNMENT

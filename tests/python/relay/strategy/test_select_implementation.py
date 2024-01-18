@@ -57,6 +57,39 @@ def test_concatenate(target, expected_implementation):
     assert impl.name == expected_implementation
 
 
+def _get_conv2d_impl(dtype, target):
+    """Returns selected conv2d implementation for a given datatype and target"""
+    data_shape = (1, 1, 1, 4)
+    weight_shape = (1, 1, 4, 4)
+    data_layout = "NHWC"
+    kernel_layout = "HWIO"
+    channels = 4
+    kernel_size = (1, 1)
+
+    out = relay.nn.conv2d(
+        relay.var("data", shape=data_shape, dtype=dtype),
+        relay.var("weight", shape=weight_shape, dtype=dtype),
+        kernel_size=kernel_size,
+        channels=channels,
+        data_layout=data_layout,
+        kernel_layout=kernel_layout,
+        out_dtype=dtype,
+    )
+
+    with target:
+        out = run_opt_pass(out, relay.transform.AlterOpLayout())
+        impl, _ = relay.backend.te_compiler.select_implementation(
+            out.op,
+            out.attrs,
+            [te.placeholder(data_shape, dtype), te.placeholder(weight_shape, dtype)],
+            out.checked_type,
+            target,
+            use_autotvm=False,
+        )
+
+    return impl.name
+
+
 @pytest.mark.parametrize(
     "target,expected_impl",
     [
@@ -93,37 +126,78 @@ def test_concatenate(target, expected_implementation):
 )
 def test_int8_conv2d(target, expected_impl):
     target = tvm.target.Target(target)
-
     dtype = "int8"
-    data_shape = (1, 1, 1, 4)
-    weight_shape = (1, 1, 4, 4)
-    data_layout = "NHWC"
-    kernel_layout = "HWIO"
-    channels = 4
-    kernel_size = (1, 1)
 
-    out = relay.nn.conv2d(
-        relay.var("data", shape=data_shape, dtype=dtype),
-        relay.var("weight", shape=weight_shape, dtype=dtype),
-        kernel_size=kernel_size,
-        channels=channels,
-        data_layout=data_layout,
-        kernel_layout=kernel_layout,
-        out_dtype=dtype,
-    )
+    selected_impl = _get_conv2d_impl(dtype, target)
+    assert selected_impl == expected_impl
 
-    with target:
-        out = run_opt_pass(out, relay.transform.AlterOpLayout())
-        impl, _ = relay.backend.te_compiler.select_implementation(
-            out.op,
-            out.attrs,
-            [te.placeholder(data_shape, dtype), te.placeholder(weight_shape, dtype)],
-            out.checked_type,
-            target,
-            use_autotvm=False,
-        )
 
-    assert impl.name == expected_impl
+@pytest.mark.parametrize(
+    "target,expected_impl",
+    [
+        ("llvm -device=arm_cpu", "conv2d_nhwc_spatial_pack.arm_cpu"),
+        (
+            "llvm -device=arm_cpu -mtriple=armv8l-linux-gnu -mattr=+neon",
+            "conv2d_nhwc_spatial_pack.arm_cpu",
+        ),
+        (
+            "llvm -device=arm_cpu -mtriple=aarch64-linux-gnu",
+            "conv2d_NHWC_hybrid_without_transform.arm_cpu",
+        ),
+        (
+            "llvm -device=arm_cpu -mtriple=aarch64-linux-gnu -mattr=+neon",
+            "conv2d_NHWC_hybrid_without_transform.arm_cpu",
+        ),
+        (
+            "llvm --device=arm_cpu --mtriple=aarch64-linux-gnu -mattr=+v8.2a,+neon",
+            "conv2d_NHWC_hybrid_without_transform.arm_cpu",
+        ),
+        (
+            "llvm --device=arm_cpu --mtriple=aarch64-linux-gnu -mattr=+v9a",
+            "conv2d_NHWC_hybrid_without_transform.arm_cpu",
+        ),
+    ],
+)
+def test_fp32_conv2d(target, expected_impl):
+    target = tvm.target.Target(target)
+    dtype = "float32"
+
+    selected_impl = _get_conv2d_impl(dtype, target)
+    assert selected_impl == expected_impl
+
+
+@pytest.mark.parametrize(
+    "target,expected_impl",
+    [
+        ("llvm -device=arm_cpu", "conv2d_nhwc_spatial_pack.arm_cpu"),
+        (
+            "llvm -device=arm_cpu -mtriple=armv8l-linux-gnu -mattr=+neon",
+            "conv2d_nhwc_spatial_pack.arm_cpu",
+        ),
+        (
+            "llvm -device=arm_cpu -mtriple=aarch64-linux-gnu",
+            "conv2d_NHWC_hybrid_without_transform.arm_cpu",
+        ),
+        (
+            "llvm -device=arm_cpu -mtriple=aarch64-linux-gnu -mattr=+neon",
+            "conv2d_NHWC_hybrid_without_transform.arm_cpu",
+        ),
+        (
+            "llvm --device=arm_cpu --mtriple=aarch64-linux-gnu -mattr=+v8.2a,+neon",
+            "conv2d_NHWC_hybrid_without_transform.arm_cpu",
+        ),
+        (
+            "llvm --device=arm_cpu --mtriple=aarch64-linux-gnu -mattr=+v9a",
+            "conv2d_NHWC_hybrid_without_transform.arm_cpu",
+        ),
+    ],
+)
+def test_fp16_conv2d(target, expected_impl):
+    target = tvm.target.Target(target)
+    dtype = "float16"
+
+    selected_impl = _get_conv2d_impl(dtype, target)
+    assert selected_impl == expected_impl
 
 
 @pytest.mark.parametrize(

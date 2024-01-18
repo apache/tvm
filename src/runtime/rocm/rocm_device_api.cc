@@ -122,7 +122,7 @@ class ROCMDeviceAPI final : public DeviceAPI {
       }
       case kDriverVersion:
         return;
-      case kL2CacheSizeBytes:
+      case kL2CacheSizeBytes: {
         // Get size of device l2 cache size in bytes.
         int l2_size;
         ROCM_CALL(hipDeviceGetAttribute(&l2_size, hipDeviceAttributeL2CacheSize, device.device_id));
@@ -130,6 +130,14 @@ class ROCMDeviceAPI final : public DeviceAPI {
         return;
       case kImagePitchAlignment:
         return;
+      }
+      case kTotalGlobalMemory: {
+        hipDeviceProp_t prop;
+        ROCM_CALL(hipGetDeviceProperties(&prop, device.device_id));
+        int64_t total_global_memory = prop.totalGlobalMem;
+        *rv = total_global_memory;
+        return;
+      }
     }
     *rv = value;
   }

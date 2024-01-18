@@ -426,6 +426,7 @@ def test_rpc_return_ndarray():
     ref_count = m("ref_count")
     get_elem = m("get_elem")
     get_arr_elem = m("get_arr_elem")
+
     # array test
     def run_arr_test():
         arr = get_arr()
@@ -433,6 +434,36 @@ def test_rpc_return_ndarray():
         assert get_arr_elem(arr, 0) == 0.0
 
     run_arr_test()
+
+
+@tvm.testing.requires_rpc
+def test_rpc_return_remote_object():
+    def check(client, is_local):
+        make_shape = client.get_function("runtime.ShapeTuple")
+        get_elem = client.get_function("runtime.GetShapeTupleElem")
+        get_size = client.get_function("runtime.GetShapeTupleSize")
+        shape = make_shape(2, 3)
+        assert shape.type_key == "runtime.RPCObjectRef"
+        assert get_elem(shape, 0) == 2
+        assert get_elem(shape, 1) == 3
+        assert get_size(shape) == 2
+
+    # start server
+    server = rpc.Server(key="x1")
+    client = rpc.connect("127.0.0.1", server.port, key="x1")
+    check(rpc.LocalSession(), True)
+    check(client, False)
+
+    def check_minrpc():
+        if tvm.get_global_func("rpc.CreatePipeClient", allow_missing=True) is None:
+            return
+        # Test minrpc server.
+        temp = utils.tempdir()
+        minrpc_exec = temp.relpath("minrpc")
+        tvm.rpc.with_minrpc(cc.create_executable)(minrpc_exec, [])
+        check(rpc.PopenSession(minrpc_exec), False)
+
+    check_minrpc()
 
 
 @tvm.testing.requires_rpc

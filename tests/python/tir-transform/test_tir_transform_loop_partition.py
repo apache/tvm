@@ -14,6 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+import pytest
 import tvm
 import tvm.testing
 from tvm import te
@@ -832,6 +833,233 @@ def test_loop_partition_with_unit_loop_in_condition():
         },
     )
     assert tvm.ir.structural_equal(mod["main"], after.with_attr("global_symbol", "main"))
+
+
+@T.prim_func
+def concat_func_single_point(
+    placeholder: T.Buffer((28, 64), "int8"),
+    placeholder_1: T.Buffer((28, 1), "int8"),
+    placeholder_2: T.Buffer((28, 63), "int8"),
+    T_concat: T.Buffer((28, 128), "int8"),
+) -> None:
+    for i0 in range(28):
+        for i1 in T.serial(128, annotations={"pragma_loop_partition_hint": 1}):
+            if i1 > 63:
+                T_concat[i0, i1] = placeholder[i0, i1 - 64]
+            elif i1 == 63:
+                T_concat[i0, i1] = placeholder_1[i0, i1 - 63]
+            else:
+                T_concat[i0, i1] = placeholder_2[i0, i1]
+
+
+@T.prim_func
+def expected_partitioned_concat_single_point(
+    placeholder: T.Buffer((28, 64), "int8"),
+    placeholder_1: T.Buffer((28, 1), "int8"),
+    placeholder_2: T.Buffer((28, 63), "int8"),
+    T_concat: T.Buffer((28, 128), "int8"),
+):
+    for i0 in range(28):
+        T_concat_1 = T.Buffer((3584,), "int8", data=T_concat.data)
+        for i1 in range(63):
+            placeholder_2_1 = T.Buffer((1764,), "int8", data=placeholder_2.data)
+            T_concat_1[i0 * 128 + i1] = placeholder_2_1[i0 * 63 + i1]
+        placeholder_1_1 = T.Buffer((28,), "int8", data=placeholder_1.data)
+        T_concat_1[i0 * 128 + 63] = placeholder_1_1[i0]
+        for i1 in range(64):
+            placeholder_3 = T.Buffer((1792,), "int8", data=placeholder.data)
+            T_concat_1[i0 * 128 + i1 + 64] = placeholder_3[i0 * 64 + i1]
+
+
+@T.prim_func
+def concat_func_start_point_equality(
+    placeholder: T.Buffer((28, 64), "int8"),
+    placeholder_1: T.Buffer((28, 1), "int8"),
+    placeholder_2: T.Buffer((28, 63), "int8"),
+    T_concat: T.Buffer((28, 128), "int8"),
+) -> None:
+    for i0 in range(28):
+        for i1 in range(128, annotations={"pragma_loop_partition_hint": 1}):
+            if i1 == 0:
+                # Special case for i1 == 0
+                T_concat[i0, i1] = placeholder_1[i0, 0]
+            elif i1 < 64:
+                # Normal case for i1 in [1, 63]
+                T_concat[i0, i1] = placeholder_2[i0, i1]
+            else:
+                # Case for i1 in [64, 127]
+                T_concat[i0, i1] = placeholder[i0, i1 - 64]
+
+
+@T.prim_func
+def concat_func_start_point_equality_expected(
+    placeholder: T.Buffer((28, 64), "int8"),
+    placeholder_1: T.Buffer((28, 1), "int8"),
+    placeholder_2: T.Buffer((28, 63), "int8"),
+    T_concat: T.Buffer((28, 128), "int8"),
+):
+    for i0 in range(28):
+        T_concat_1 = T.Buffer((3584,), "int8", data=T_concat.data)
+        placeholder_1_1 = T.Buffer((28,), "int8", data=placeholder_1.data)
+        T_concat_1[i0 * 128] = placeholder_1_1[i0]
+        for i1 in range(63):
+            placeholder_2_1 = T.Buffer((1764,), "int8", data=placeholder_2.data)
+            T_concat_1[i0 * 128 + i1 + 1] = placeholder_2_1[i0 * 63 + i1 + 1]
+        for i1 in range(64):
+            placeholder_3 = T.Buffer((1792,), "int8", data=placeholder.data)
+            T_concat_1[i0 * 128 + i1 + 64] = placeholder_3[i0 * 64 + i1]
+
+
+@T.prim_func
+def concat_func_end_point_equality(
+    placeholder: T.Buffer((28, 64), "int8"),
+    placeholder_1: T.Buffer((28, 1), "int8"),
+    placeholder_2: T.Buffer((28, 63), "int8"),
+    T_concat: T.Buffer((28, 128), "int8"),
+) -> None:
+    for i0 in range(28):
+        for i1 in range(128, annotations={"pragma_loop_partition_hint": 1}):
+            if i1 == 127:
+                # Explicit equality check for the end point i1 == 127
+                T_concat[i0, i1] = placeholder_1[i0, 0]
+            elif i1 >= 64:
+                # Case for i1 in [64, 126]
+                T_concat[i0, i1] = placeholder[i0, i1 - 64]
+            else:
+                # Case for i1 in [0, 63]
+                T_concat[i0, i1] = placeholder_2[i0, i1]
+
+
+@T.prim_func
+def concat_func_end_point_equality_expected(
+    placeholder: T.Buffer((28, 64), "int8"),
+    placeholder_1: T.Buffer((28, 1), "int8"),
+    placeholder_2: T.Buffer((28, 63), "int8"),
+    T_concat: T.Buffer((28, 128), "int8"),
+):
+    for i0 in range(28):
+        T_concat_1 = T.Buffer((3584,), "int8", data=T_concat.data)
+        for i1 in range(64):
+            placeholder_2_1 = T.Buffer((1764,), "int8", data=placeholder_2.data)
+            T_concat_1[i0 * 128 + i1] = placeholder_2_1[i0 * 63 + i1]
+        for i1 in range(63):
+            placeholder_3 = T.Buffer((1792,), "int8", data=placeholder.data)
+            T_concat_1[i0 * 128 + i1 + 64] = placeholder_3[i0 * 64 + i1]
+        placeholder_1_1 = T.Buffer((28,), "int8", data=placeholder_1.data)
+        T_concat_1[i0 * 128 + 127] = placeholder_1_1[i0]
+
+
+@T.prim_func
+def concat_func_edge_equalities(
+    placeholder: T.Buffer((28, 64), "int8"),
+    placeholder_1: T.Buffer((28, 1), "int8"),
+    placeholder_2: T.Buffer((28, 1), "int8"),
+    T_concat: T.Buffer((28, 66), "int8"),
+) -> None:
+    for i0 in range(28):
+        for i1 in range(
+            66, annotations={"pragma_loop_partition_hint": 1}
+        ):  # Loop from 0 to 65 inclusive
+            if i1 == 0:
+                # Handle equality at the start of the range: i1 == 0
+                T_concat[i0, i1] = placeholder_2[i0, 0]
+            elif i1 == 65:
+                # Handle equality at the end of the range: i1 == 65
+                T_concat[i0, i1] = placeholder_1[i0, 0]
+            else:
+                # Copying from placeholder (from 0 to 63)
+                T_concat[i0, i1] = placeholder[i0, i1 - 1]
+
+
+@T.prim_func
+def concat_func_edge_equalities_expected(
+    placeholder: T.Buffer((28, 64), "int8"),
+    placeholder_1: T.Buffer((28, 1), "int8"),
+    placeholder_2: T.Buffer((28, 1), "int8"),
+    T_concat: T.Buffer((28, 66), "int8"),
+):
+    for i0 in range(28):
+        T_concat_1 = T.Buffer((1848,), "int8", data=T_concat.data)
+        placeholder_2_1 = T.Buffer((28,), "int8", data=placeholder_2.data)
+        T_concat_1[i0 * 66] = placeholder_2_1[i0]
+        for i1 in range(64):
+            placeholder_3 = T.Buffer((1792,), "int8", data=placeholder.data)
+            T_concat_1[i0 * 66 + i1 + 1] = placeholder_3[i0 * 64 + i1]
+        placeholder_1_1 = T.Buffer((28,), "int8", data=placeholder_1.data)
+        T_concat_1[i0 * 66 + 65] = placeholder_1_1[i0]
+
+
+@T.prim_func
+def concat_five_buffers_with_equalities(
+    buffer_a: T.Buffer((28, 1), "int8"),  # Used for i1 == 0
+    buffer_b: T.Buffer((28, 63), "int8"),  # Fills i1 from 1 to 63
+    buffer_c: T.Buffer((28, 1), "int8"),  # Used for i1 == 64
+    buffer_d: T.Buffer((28, 63), "int8"),  # Fills i1 from 65 to 128
+    buffer_e: T.Buffer((28, 1), "int8"),  # Used for i1 == 129
+    T_concat: T.Buffer((28, 129), "int8"),
+) -> None:
+    for i0 in range(28):
+        for i1 in range(130, annotations={"pragma_loop_partition_hint": 1}):
+            if i1 == 0:
+                T_concat[i0, i1] = buffer_a[i0, 0]
+            elif i1 == 64:
+                T_concat[i0, i1] = buffer_c[i0, 0]
+            elif i1 == 129:
+                T_concat[i0, i1] = buffer_e[i0, 0]
+            elif i1 < 64:
+                T_concat[i0, i1] = buffer_b[i0, i1 - 1]
+            else:  # i1 > 64 and i1 < 128
+                T_concat[i0, i1] = buffer_d[i0, i1 - 65]
+
+
+@T.prim_func
+def concat_five_buffers_with_equalities_expected(
+    buffer_a: T.Buffer((28, 1), "int8"),  # Used for i1 == 0
+    buffer_b: T.Buffer((28, 63), "int8"),  # Fills i1 from 1 to 63
+    buffer_c: T.Buffer((28, 1), "int8"),  # Used for i1 == 64
+    buffer_d: T.Buffer((28, 63), "int8"),  # Fills i1 from 65 to 128
+    buffer_e: T.Buffer((28, 1), "int8"),  # Used for i1 == 129
+    T_concat: T.Buffer((28, 129), "int8"),
+):
+    for i0 in range(28):
+        T_concat_1 = T.Buffer((3612,), "int8", data=T_concat.data)
+        buffer_a_1 = T.Buffer((28,), "int8", data=buffer_a.data)
+        T_concat_1[i0 * 129] = buffer_a_1[i0]
+        for i1 in range(63):
+            buffer_b_1 = T.Buffer((1764,), "int8", data=buffer_b.data)
+            T_concat_1[i0 * 129 + i1 + 1] = buffer_b_1[i0 * 63 + i1]
+        buffer_c_1 = T.Buffer((28,), "int8", data=buffer_c.data)
+        T_concat_1[i0 * 129 + 64] = buffer_c_1[i0]
+        for i1 in range(64):
+            buffer_d_1 = T.Buffer((1764,), "int8", data=buffer_d.data)
+            T_concat_1[i0 * 129 + i1 + 65] = buffer_d_1[i0 * 63 + i1]
+        buffer_e_1 = T.Buffer((28,), "int8", data=buffer_e.data)
+        T_concat_1[i0 * 129 + 129] = buffer_e_1[i0]
+
+
+@pytest.mark.parametrize(
+    "origin,expected",
+    [
+        (concat_func_single_point, expected_partitioned_concat_single_point),
+        (concat_func_start_point_equality, concat_func_start_point_equality_expected),
+        (concat_func_end_point_equality, concat_func_end_point_equality_expected),
+        (concat_func_edge_equalities, concat_func_edge_equalities_expected),
+        (concat_five_buffers_with_equalities, concat_five_buffers_with_equalities_expected),
+    ],
+)
+def test_single_point_partition(origin, expected):
+    origin = origin.with_attr({"global_symbol": "main"})
+    expected = expected.with_attr({"global_symbol": "main"})
+    mod = partition_from_scheduled_tir(
+        origin,
+        {
+            "tir.LoopPartition": {
+                "partition_const_loop": True,
+                "unroll_loop_with_partition_hint_no_interval": True,
+            }
+        },
+    )
+    assert tvm.ir.structural_equal(mod["main"], expected)
 
 
 if __name__ == "__main__":

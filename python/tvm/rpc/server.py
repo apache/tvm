@@ -119,6 +119,11 @@ def _server_env(load_library, work_path=None):
     return temp
 
 
+def _serve_loop(sock, load_library, work_path):
+    _server_env(load_library, work_path)
+    _ffi_api.ServerLoop(sock.fileno())
+
+
 def _parse_server_opt(opts):
     # parse client options
     ret = {}
@@ -135,11 +140,7 @@ def _serving(sock, addr, opts, load_library):
     os.chdir(work_path.path)  # Avoiding file name conflict between sessions.
     logger.info(f"start serving at {work_path.path}")
 
-    def _serve_loop():
-        _server_env(load_library, work_path)
-        _ffi_api.ServerLoop(sock.fileno())
-
-    server_proc = multiprocessing.Process(target=_serve_loop)
+    server_proc = multiprocessing.Process(target=_serve_loop, args=(sock, load_library, work_path))
     server_proc.start()
     server_proc.join(opts.get("timeout", None))  # Wait until finish or timeout.
 
