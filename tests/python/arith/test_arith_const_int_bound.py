@@ -19,6 +19,7 @@ import tvm
 import tvm.testing
 
 from tvm import te
+from tvm.arith import ConstIntBound
 
 
 def test_dtype_bound():
@@ -92,6 +93,98 @@ def test_add_sub_bound():
     bd = analyzer.const_int_bound(x + y)
     assert bd.min_value == bd.NEG_INF
     assert bd.max_value == bd.POS_INF
+
+
+def test_lower_bound_using_difference_of_reciprocals():
+    """Special handling for differences of reciprocals
+
+    These terms can appear when comparing the number of operations for
+    different orderings of matrix multiplications, with A, B, and C
+    known to be positive values.
+
+    In these cases, comparing `(A+B)*C < A*B` is equivalent to
+    `1/A + 1/B < 1/C`.  Working in terms of the reciprocals
+    allows the ConstIntBound analyzer to provide a tighter
+    bound for these differences than would otherwise be
+    available.
+
+    For `(A+B)*C - A*B`, the normal bottom-up integer bounds are unable to
+    provide the bounds required to provide these inequalities, because they
+    treat the terms as uncorrelated.  That is, they assume that `(A+B)*C` may
+    achieve its minimum while `A*B` simultaneously achieves its maximum.
+
+    """
+    analyzer = tvm.arith.Analyzer()
+    A, B, C = [te.var(letter, "int64") for letter in "ABC"]
+
+    analyzer.update(A, ConstIntBound(1, 4095))
+    analyzer.update(B, ConstIntBound(1, 4095))
+    analyzer.update(C, ConstIntBound(2048, 2048))
+
+    bd = analyzer.const_int_bound((A + B) * C - A * B)
+    assert bd.min_value == 2048
+
+    bd = analyzer.const_int_bound((A + B) * C - B * A)
+    assert bd.min_value == 2048
+
+
+def test_lower_bound_using_difference_of_reciprocals_with_dominant_term():
+    """Like `test_lower_bound_using_difference_of_reciprocal`, with single term known
+
+    If a single term is enough to know the sign of `1/A + 1/B - 1/C`,
+    then we can still provide a bound.
+    """
+    analyzer = tvm.arith.Analyzer()
+    A, B, C = [te.var(letter, "int64") for letter in "ABC"]
+
+    analyzer.update(A, ConstIntBound(1, 1024))
+    analyzer.update(B, ConstIntBound(1, ConstIntBound.POS_INF))
+    analyzer.update(C, ConstIntBound(2048, 2048))
+
+    bd = analyzer.const_int_bound((A + B) * C - A * B)
+    assert bd.min_value == 2048
+
+    bd = analyzer.const_int_bound((B + A) * C - A * B)
+    assert bd.min_value == 2048
+
+
+def test_upper_bound_using_difference_of_reciprocals():
+    """Upper bound for known negative terms
+
+    Like `test_lower_bound_using_difference_of_reciprocals`, but with the terms
+    reversed.
+    """
+    analyzer = tvm.arith.Analyzer()
+    A, B, C = [te.var(letter, "int64") for letter in "ABC"]
+
+    analyzer.update(A, ConstIntBound(1, 4095))
+    analyzer.update(B, ConstIntBound(1, 4095))
+    analyzer.update(C, ConstIntBound(2048, 2048))
+
+    bd = analyzer.const_int_bound(A * B - (A + B) * C)
+    assert bd.max_value == -2048
+    bd = analyzer.const_int_bound(B * A - (A + B) * C)
+    assert bd.max_value == -2048
+
+
+def test_upper_bound_using_difference_of_reciprocals_with_dominant_term():
+    """Upper bound for known negative terms
+
+    Like `test_lower_bound_using_difference_of_reciprocals_with_dominant_term`,
+    but with the terms reversed.
+    """
+    analyzer = tvm.arith.Analyzer()
+    A, B, C = [te.var(letter, "int64") for letter in "ABC"]
+
+    analyzer.update(A, ConstIntBound(1, 1024))
+    analyzer.update(B, ConstIntBound(1, ConstIntBound.POS_INF))
+    analyzer.update(C, ConstIntBound(2048, 2048))
+
+    bd = analyzer.const_int_bound(A * B - (A + B) * C)
+    assert bd.max_value == -2048
+
+    bd = analyzer.const_int_bound(A * B - (B + A) * C)
+    assert bd.max_value == -2048
 
 
 def test_mul_bound():
