@@ -47,6 +47,10 @@ _dense_implementations = {
         (topi.x86.dense_pack, topi.x86.schedule_dense_pack),
         (topi.x86.dense_dynamic, topi.x86.schedule_dense_dynamic),
     ],
+    "arm_cpu": (
+        topi.arm_cpu.dense_gemm,
+        topi.arm_cpu.schedule_dense_gemm,
+    ),
     "gpu": [
         (topi.gpu.dense_small_batch, topi.gpu.schedule_dense_small_batch),
         (topi.gpu.dense_large_batch, topi.gpu.schedule_dense_large_batch),

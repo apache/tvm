@@ -729,6 +729,17 @@ def schedule_dense_arm_cpu(attrs, inputs, out_type, target):
             plevel=12,
         )
 
+    if (
+        data.dtype in ["float16", "float32"]
+        and weight.dtype in ["float16", "float32"]
+        and out_type.dtype in ["float16", "float32"]
+    ):
+        strategy.add_implementation(
+            wrap_compute_dense(topi.arm_cpu.dense_gemm),
+            wrap_topi_schedule(topi.arm_cpu.schedule_dense_gemm),
+            name="dense_gemm.arm_cpu",
+            plevel=11,
+        )
     # Fallback to x86 schedules as there is currently no arm_cpu schedule for dense
     strategy.add_implementation(
         wrap_compute_dense(topi.x86.dense_nopack),
@@ -772,6 +783,18 @@ def matmul_strategy_arm_cpu(attrs, inputs, out_type, target):
             wrap_compute_matmul(topi.arm_cpu.compute_matmul_sme),
             lambda: None,
             name="matmul.arm_cpu.sme",
+        )
+    elif (
+        data.dtype in ["float16", "float32"]
+        and weight.dtype in ["float16", "float32"]
+        and out_type.dtype in ["float16", "float32"]
+        and not (attrs.transpose_a or attrs.transpose_b)
+        and len(data.shape) == 2
+    ):
+        strategy.add_implementation(
+            wrap_compute_matmul(topi.arm_cpu.dense_gemm),
+            wrap_topi_schedule(topi.arm_cpu.schedule_dense_gemm),
+            name="matmul.arm_cpu.neon",
         )
         return strategy
 
