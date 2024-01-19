@@ -89,6 +89,10 @@ void MetalWorkspace::GetAttr(Device dev, DeviceAttrKind kind, TVMRetValue* rv) {
         return;
       case kL2CacheSizeBytes:
         return;
+      case kTotalGlobalMemory: {
+        *rv = static_cast<int64_t>([devices[dev.device_id] recommendedMaxWorkingSetSize]);
+        return;
+      }
     }
   };
 }

@@ -280,9 +280,9 @@ def test_conv2d(remote, dtype, target, trials, executor_type):
         has_activation=composite[2],
     )
     outputs = _build_and_run_network(remote, func, params, inputs, target, executor_type)
-    out_rtol = 1e-1 if dtype == "float16" else 1e-5
+    out_tol = 1e-1 if dtype == "float16" else 1e-5
     tvm.testing.assert_allclose(
-        outputs[0].asnumpy(), outputs[1].asnumpy(), rtol=out_rtol, atol=out_rtol
+        outputs[0].asnumpy(), outputs[1].asnumpy(), rtol=out_tol, atol=out_tol
     )
     args = (shape, kernel_h, kernel_w, pad, stride, dilation, groups, dtype, out_channels)
     exp_codegen = _get_conv_expected_codegen(
@@ -373,9 +373,9 @@ def test_conv2d_transpose(remote, dtype, target, trials, executor_type):
     func = relay.Function([x, w], y)
     mod = IRModule.from_expr(func)
     outputs = _build_and_run_network(remote, mod, params, inputs, target, executor_type)
-    out_rtol = 1e-1 if dtype == "float16" else 1e-5
+    out_tol = 1e-1 if dtype == "float16" else 1e-5
     tvm.testing.assert_allclose(
-        outputs[0].asnumpy(), outputs[1].asnumpy(), rtol=out_rtol, atol=out_rtol
+        outputs[0].asnumpy(), outputs[1].asnumpy(), rtol=out_tol, atol=out_tol
     )
     args = (
         dshape,
@@ -425,9 +425,9 @@ def test_batchnorm(remote, dtype, target, trials, executor_type):
         "a": input_arr,
     }
     outputs = _build_and_run_network(remote, mod, params, inputs, target, executor_type)
-    out_rtol = 1e-3 if dtype == "float16" else 1e-5
+    out_tol = 1e-3 if dtype == "float16" else 1e-5
     tvm.testing.assert_allclose(
-        outputs[0].asnumpy(), outputs[1].asnumpy(), rtol=out_rtol, atol=out_rtol
+        outputs[0].asnumpy(), outputs[1].asnumpy(), rtol=out_tol, atol=out_tol
     )
     exp_codegen = [
         {
@@ -485,9 +485,9 @@ def test_concat(remote, dtype, target, trials, executor_type):
     func = relay.concatenate((a, b), axis=1)
 
     outputs = _build_and_run_network(remote, func, params, inputs, target, executor_type)
-    out_rtol = 1e-2 if dtype == "float16" else 1e-5
+    out_tol = 1e-2 if dtype == "float16" else 1e-5
     tvm.testing.assert_allclose(
-        outputs[0].asnumpy(), outputs[1].asnumpy(), rtol=out_rtol, atol=out_rtol
+        outputs[0].asnumpy(), outputs[1].asnumpy(), rtol=out_tol, atol=out_tol
     )
 
     exp_codegen = [
@@ -601,9 +601,9 @@ def test_pool(remote, dtype, target, trials, executor_type):
         func = relay.nn.avg_pool2d(a, pool_size=pool_size, strides=stride, padding=padding)
 
     outputs = _build_and_run_network(remote, func, params, inputs, target, executor_type)
-    out_rtol = 1e-2 if dtype == "float16" else 1e-5
+    out_tol = 1e-2 if dtype == "float16" else 1e-5
     tvm.testing.assert_allclose(
-        outputs[0].asnumpy(), outputs[1].asnumpy(), rtol=out_rtol, atol=out_rtol
+        outputs[0].asnumpy(), outputs[1].asnumpy(), rtol=out_tol, atol=out_tol
     )
     args = (input_shape, pool_size, stride, padding, pooling_type, dtype)
     exp_codegen = _get_pool_expected_codegen(*args)
@@ -690,9 +690,9 @@ def test_dense(remote, dtype, target, trials, executor_type):
     def _verify(out, params, inputs, exp_codegen):
         mod = IRModule.from_expr(out)
         outputs = _build_and_run_network(remote, mod, params, inputs, target, executor_type)
-        out_rtol = 1e-1 if dtype == "float16" else 1e-5
+        out_tol = 1e-1 if dtype == "float16" else 1e-5
         tvm.testing.assert_allclose(
-            outputs[0].asnumpy(), outputs[1].asnumpy(), rtol=out_rtol, atol=out_rtol
+            outputs[0].asnumpy(), outputs[1].asnumpy(), rtol=out_tol, atol=out_tol
         )
         verify_codegen(remote, mod, params, exp_codegen, target)
 
@@ -718,9 +718,9 @@ def test_binary_ops(remote, dtype, target, executor_type):
     def _verify(out, params, inputs):
         mod = IRModule.from_expr(out)
         outputs = _build_and_run_network(remote, mod, params, inputs, target, executor_type)
-        out_rtol = 1e-2 if dtype == "float16" else 1e-5
+        out_tol = 1e-2 if dtype == "float16" else 1e-5
         tvm.testing.assert_allclose(
-            outputs[0].asnumpy(), outputs[1].asnumpy(), rtol=out_rtol, atol=out_rtol
+            outputs[0].asnumpy(), outputs[1].asnumpy(), rtol=out_tol, atol=out_tol
         )
         exp_codegen = [
             {
@@ -776,9 +776,9 @@ def test_unary_ops(remote, dtype, target, executor_type):
     def _verify(out, params, inputs):
         mod = IRModule.from_expr(out)
         outputs = _build_and_run_network(remote, mod, params, inputs, target, executor_type)
-        out_rtol = 1e-2 if dtype == "float16" else 1e-5
+        out_tol = 1e-2 if dtype == "float16" else 1e-5
         tvm.testing.assert_allclose(
-            outputs[0].asnumpy(), outputs[1].asnumpy(), rtol=out_rtol, atol=out_rtol
+            outputs[0].asnumpy(), outputs[1].asnumpy(), rtol=out_tol, atol=out_tol
         )
 
         exp_codegen = [
@@ -823,12 +823,11 @@ def test_depth_to_space(remote, dtype, target, executor_type):
     def _verify(out, params, inputs):
         mod = IRModule.from_expr(out)
         outputs = _build_and_run_network(remote, mod, params, inputs, target, executor_type)
-        out_rtol = 1e-2 if dtype == "float16" else 1e-5
+        out_tol = 1e-2 if dtype == "float16" else 1e-5
         tvm.testing.assert_allclose(
-            outputs[0].asnumpy(), outputs[1].asnumpy(), rtol=out_rtol, atol=out_rtol
+            outputs[0].asnumpy(), outputs[1].asnumpy(), rtol=out_tol, atol=out_tol
         )
 
-        # Check to make sure these ops are offloaded to CLML instead of TVM.
         exp_codegen = [
             {
                 "attrs": {
@@ -877,12 +876,11 @@ def test_resize_bilinear(remote, dtype, target, executor_type):
     def _verify(out, params, inputs):
         mod = IRModule.from_expr(out)
         outputs = _build_and_run_network(remote, mod, params, inputs, target, executor_type)
-        out_rtol = 1e-2 if dtype == "float16" else 1e-5
+        out_tol = 1e-2 if dtype == "float16" else 1e-5
         tvm.testing.assert_allclose(
-            outputs[0].asnumpy(), outputs[1].asnumpy(), rtol=out_rtol, atol=out_rtol
+            outputs[0].asnumpy(), outputs[1].asnumpy(), rtol=out_tol, atol=out_tol
         )
 
-        # Check to make sure these ops are offloaded to CLML instead of TVM.
         exp_codegen = [
             {
                 "attrs": {
@@ -944,12 +942,11 @@ def test_batch_matmul(remote, dtype, target, executor_type, trials):
     def _verify(out, params, inputs):
         mod = IRModule.from_expr(out)
         outputs = _build_and_run_network(remote, mod, params, inputs, target, executor_type)
-        out_rtol = 1e-1 if dtype == "float16" else 1e-5
+        out_tol = 1e-1 if dtype == "float16" else 1e-5
         tvm.testing.assert_allclose(
-            outputs[0].asnumpy(), outputs[1].asnumpy(), rtol=out_rtol, atol=out_rtol
+            outputs[0].asnumpy(), outputs[1].asnumpy(), rtol=out_tol, atol=out_tol
         )
 
-        # Check to make sure these ops are offloaded to CLML instead of TVM.
         exp_codegen = [
             {
                 "attrs": {
@@ -1026,20 +1023,30 @@ def test_softmax(remote, dtype, target, executor_type):
         params = {}
         return out, params, inputs, axis
 
-    def _verify(out, params, inputs, axis):
+    def _verify(out, params, inputs, axis, out_tol):
         mod = IRModule.from_expr(out)
         outputs = _build_and_run_network(remote, mod, params, inputs, target, executor_type)
-        out_rtol = 1e-1 if dtype == "float16" else 1e-5
         tvm.testing.assert_allclose(
-            outputs[0].asnumpy(), outputs[1].asnumpy(), rtol=out_rtol, atol=out_rtol
+            outputs[0].asnumpy(), outputs[1].numpy(), rtol=out_tol, atol=out_tol
         )
         args = (inputs, dtype, outputs[0].shape, axis)
         exp_codegen = _get_softmax_exp_codegen(*args)
         verify_codegen(remote, mod, params, exp_codegen, target)
 
-    _verify(*(_get_model((1, 5), 1)))
-    _verify(*(_get_model((1, 1000), 1)))
-    _verify(*(_get_model((1, 3), 1)))
+    # 2D Tensor  TEST CASES
+    _verify(*(_get_model((1, 5), 1)), 1e-3)
+    _verify(*(_get_model((1, 16), 1)), 1e-3)
+    _verify(*(_get_model((1, 1000), -1)), 1e-3)
+
+    # 4D Tensor  TEST CASES  layout = NCHW
+    _verify(*(_get_model((1, 100, 64, 100), 1)), 1e-3)
+    _verify(*(_get_model((1, 64, 64, 64), 1)), 1e-3)
+    _verify(*(_get_model((1, 5, 3, 4), 1)), 1e-3)
+
+    # 4D Tensor  TEST CASES  layout = NHWC
+    _verify(*(_get_model((1, 64, 100, 100), 3)), 1e-1)
+    _verify(*(_get_model((1, 100, 100, 100), 3)), 1e-1)
+    _verify(*(_get_model((1, 64, 5, 32), -1)), 1e-1)
 
 
 @pytest.mark.parametrize("dtype", ["float32", "float16"])
@@ -1066,9 +1073,9 @@ def test_upsampling(remote, dtype, target, executor_type, trials):
         )
         mod = IRModule.from_expr(func)
         outputs = _build_and_run_network(remote, mod, params, inputs, target, executor_type)
-        out_rtol = 1e-2 if dtype == "float16" else 1e-5
+        out_tol = 1e-2 if dtype == "float16" else 1e-5
         tvm.testing.assert_allclose(
-            outputs[0].asnumpy(), outputs[1].asnumpy(), rtol=out_rtol, atol=out_rtol
+            outputs[0].asnumpy(), outputs[1].asnumpy(), rtol=out_tol, atol=out_tol
         )
         exp_codegen = [
             {
@@ -1124,9 +1131,9 @@ def test_reshape(remote, dtype, target, executor_type, trials):
         params = {}
         mod = IRModule.from_expr(out)
         outputs = _build_and_run_network(remote, mod, params, inputs, target, executor_type)
-        out_rtol = 1e-3 if dtype == "float16" else 1e-5
+        out_tol = 1e-3 if dtype == "float16" else 1e-5
         tvm.testing.assert_allclose(
-            outputs[0].asnumpy(), outputs[1].asnumpy(), rtol=out_rtol, atol=out_rtol
+            outputs[0].asnumpy(), outputs[1].asnumpy(), rtol=out_tol, atol=out_tol
         )
         exp_codegen = [
             {
@@ -1223,9 +1230,9 @@ def test_pool_global(remote, dtype, target, executor_type, trials):
         func = relay.nn.global_avg_pool2d(a)
     mod = IRModule.from_expr(func)
     outputs = _build_and_run_network(remote, mod, params, inputs, target, executor_type)
-    out_rtol = 1e-3 if dtype == "float16" else 1e-5
+    out_tol = 1e-3 if dtype == "float16" else 1e-5
     tvm.testing.assert_allclose(
-        outputs[0].asnumpy(), outputs[1].asnumpy(), rtol=out_rtol, atol=out_rtol
+        outputs[0].asnumpy(), outputs[1].asnumpy(), rtol=out_tol, atol=out_tol
     )
     args = (input_shape, pooling_type, dtype, outputs[0].shape)
     exp_codegen = _get_pool_global_expected_codegen(*args)
@@ -1241,6 +1248,7 @@ def test_batch_flatten(remote, dtype, target, executor_type):
         # Defined the test case with unary operator
         # Single batch_flatten op is failing in native OpenCL
         # Empty TVM mod in VM doesn't pick appropriate cross compiler
+        np.random.seed(0)
         out = relay.nn.relu(a)
         out = relay.nn.batch_flatten(out)
         inputs = {"a": tvm.nd.array(np.random.uniform(-1, 1, a_shape).astype(dtype))}
@@ -1250,9 +1258,9 @@ def test_batch_flatten(remote, dtype, target, executor_type):
     def _verify(out, params, inputs):
         mod = IRModule.from_expr(out)
         outputs = _build_and_run_network(remote, mod, params, inputs, target, executor_type)
-        out_rtol = 1e-3 if dtype == "float16" else 1e-5
+        out_tol = 1e-3 if dtype == "float16" else 1e-5
         tvm.testing.assert_allclose(
-            outputs[0].asnumpy(), outputs[1].asnumpy(), rtol=out_rtol, atol=out_rtol
+            outputs[0].asnumpy(), outputs[1].asnumpy(), rtol=out_tol, atol=out_tol
         )
         exp_codegen = [
             {

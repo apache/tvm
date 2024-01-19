@@ -437,7 +437,8 @@ def clml_pattern_table():
 
     def check_softmax_op(extract):
         call = extract
-        if len(call.args[0].checked_type.shape) > 2:
+        # supports 2D and 4D tensors
+        if len(call.args[0].checked_type.shape) not in [2, 4]:
             return False
         return True
 
