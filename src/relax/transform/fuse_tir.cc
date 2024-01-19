@@ -682,10 +682,25 @@ class FusedTIRConstructor : public ExprVisitor {
       const tir::Var& param = output_params[i];
       const tir::Buffer& buffer = func->buffer_map.at(param);
 
+      auto unify_name_hints = [this, &buffer, &param]() {
+        String base_name = buffer->name;
+        String unique_name = base_name + "_intermediate";
+        size_t unique_id = 0;
+        std::unordered_set<std::string> names;
+
+        for (auto& _buffer : func_info_.alloc_buffers) {
+          names.insert(_buffer->name);
+        }
+
+        while (names.find(unique_name) != names.end()) {
+          unique_name = unique_name + "_" + std::to_string(++unique_id);
+        }
+        return unique_name;
+      };
       // Update buffer with new symbolic shape according to the sinfo
       auto n = make_object<tir::BufferNode>(*buffer.get());
       n->shape = output_shapes[i];
-      n->name = param->name_hint + "_intermediate";
+      n->name = unify_name_hints();
       tir::Buffer new_buffer(n);
       func_info_.alloc_buffers.push_back(new_buffer);
       alloc_buffers.push_back(new_buffer);
