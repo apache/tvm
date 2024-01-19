@@ -244,6 +244,27 @@ Array<LoopRV> TracedScheduleNode::Split(const LoopRV& loop_rv,
   return results;
 }
 
+Array<LoopRV> TracedScheduleNode::LoopPartition(const LoopRV& loop_rv,
+                                                const Array<Optional<ExprRV>>& factor_rvs,
+                                                bool preserve_unit_iters) {
+  Array<LoopRV> results =
+      ConcreteScheduleNode::LoopPartition(loop_rv, factor_rvs, preserve_unit_iters);
+
+  std::vector<ObjectRef> inputs;
+  inputs.reserve(1 + factor_rvs.size());
+  inputs.push_back(loop_rv);
+  for (const ObjectRef& obj : factor_rvs) {
+    inputs.push_back(obj);
+  }
+
+  static const InstructionKind& kind = InstructionKind::Get("LoopPartition");
+  trace_->Append(/*inst=*/Instruction(/*kind=*/kind,
+                                      /*inputs=*/inputs,
+                                      /*attrs=*/{Integer(preserve_unit_iters)},
+                                      /*outputs=*/{results.begin(), results.end()}));
+  return results;
+}
+
 void TracedScheduleNode::Reorder(const Array<LoopRV>& ordered_loop_rvs) {
   ConcreteScheduleNode::Reorder(ordered_loop_rvs);
 

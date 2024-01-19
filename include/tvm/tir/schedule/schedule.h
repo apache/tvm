@@ -355,6 +355,17 @@ class ScheduleNode : public runtime::Object {
   virtual Array<LoopRV> Split(const LoopRV& loop_rv, const Array<Optional<ExprRV>>& factors,
                               bool preserve_unit_iters = true) = 0;
   /*!
+   * \brief Partition the loops into sequence of multiple loops
+   * 1) The loop can't have annotation or thread binding.
+   * \param loop_rv The loop to be partition
+   * \param factors The positive integers, and at most one of which is `NullOpt`, which means
+   * that factor is inferred.
+   * \param preserve_unit_iters Whether or not to preserve unit iterators in block bindings
+   * \return The new loops after partition
+   */
+  virtual Array<LoopRV> LoopPartition(const LoopRV& loop_rv, const Array<Optional<ExprRV>>& factors,
+                                      bool preserve_unit_iters = true) = 0;
+  /*!
    * \brief Reorder a list of loops. It doesn't require the loops to be consecutive.
    * It requires:
    * 1) The loops are in the same chain. That means: the loops can be ordered to [l_1, l_2, ... ,
