@@ -304,6 +304,19 @@ TVM_DLL Array<tir::Var> TIRVarsInStructInfo(const StructInfo& sinfo);
  */
 TVM_DLL Array<tir::Var> DefinableTIRVarsInStructInfo(const StructInfo& sinfo);
 
+/*! \brief Collect expressions whose usage requires them to be non-negative
+ *
+ * Any PrimExpr that is used as a tensor shape, or as an element in a
+ * ShapeExpr, may not be negative.  This utility function can be used
+ * to generate assertions prior to calling a kernel, or to provide
+ * assumptions within a kernel that may be useful for simplification.
+ *
+ * \param sinfo The struct info to be analyzed
+ *
+ * \return A list of non-negative expressions.
+ */
+TVM_DLL Array<PrimExpr> CollectNonNegativeExpressions(const StructInfo& sinfo);
+
 /*!
  * \brief Get the TIR variables that defined in the input function.
  * The returned list is deduplicated - each TIR variable will appear at most once.

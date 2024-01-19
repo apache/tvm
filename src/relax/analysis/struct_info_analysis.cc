@@ -1219,6 +1219,51 @@ TVM_REGISTER_GLOBAL("relax.analysis.TIRVarsInStructInfo").set_body_typed(TIRVars
 TVM_REGISTER_GLOBAL("relax.analysis.DefinableTIRVarsInStructInfo")
     .set_body_typed(DefinableTIRVarsInStructInfo);
 
+class NonNegativeExpressionCollector : relax::StructInfoVisitor {
+ public:
+  static Array<PrimExpr> Collect(const StructInfo& sinfo) {
+    NonNegativeExpressionCollector visitor;
+    visitor(sinfo);
+    return visitor.expressions_;
+  }
+
+ private:
+  void VisitStructInfo_(const TensorStructInfoNode* op) override {
+    if (op->shape.defined()) {
+      VisitStructInfo(GetStructInfo(op->shape.value()));
+    }
+  }
+
+  void VisitStructInfo_(const PrimStructInfoNode* op) override {
+    // Unlike the expressions in TensorStructInfo or ShapeStructInfo,
+    // PrimStructInfo may contain negative values.  This override
+    // prevents calling VisitStructInfoExprField from the default
+    // StructInfoVisitor implementation.
+  }
+
+  void VisitStructInfoExprField(const PrimExpr& size_expr) override {
+    if (auto size_int = size_expr.as<IntImmNode>(); size_int && size_int->value >= 0) {
+      // Avoid cluttering the result with non-negative integers
+      return;
+    }
+
+    if (!dedup_lookup_.count(size_expr)) {
+      expressions_.push_back(size_expr);
+      dedup_lookup_.insert(size_expr);
+    }
+  }
+
+  Array<PrimExpr> expressions_;
+  std::unordered_set<PrimExpr, StructuralHash, StructuralEqual> dedup_lookup_;
+};
+
+Array<PrimExpr> CollectNonNegativeExpressions(const StructInfo& sinfo) {
+  return NonNegativeExpressionCollector::Collect(sinfo);
+}
+
+TVM_REGISTER_GLOBAL("relax.analysis.CollectNonNegativeExpressions")
+    .set_body_typed(CollectNonNegativeExpressions);
+
 class SymbolicVarCollector : public relax::ExprVisitor,
                              public relax::StructInfoVisitor,
                              public tir::ExprVisitor {
