@@ -134,6 +134,24 @@ PrimExpr DispatchFastErf(const PrimExpr& e) {
   return res;
 }
 
+PrimExpr DispatchNumericalStableTanh(const PrimExpr& e) {
+  using tir::make_const;
+  using tir::make_zero;
+  const tir::CallNode* call = e.as<tir::CallNode>();
+  ICHECK(call != nullptr);
+  const PrimExpr& x = call->args[0];
+  PrimExpr one = make_const(x.dtype(), 1);
+  PrimExpr two = make_const(x.dtype(), 2);
+  PrimExpr neg_two = make_const(x.dtype(), -2);
+
+  PrimExpr exp_neg2x = exp(neg_two * x);
+  PrimExpr exp_pos2x = exp(two * x);
+
+  PrimExpr tanh_pos = (one - exp_neg2x) / (one + exp_neg2x);
+  PrimExpr tanh_neg = (exp_pos2x - one) / (exp_pos2x + one);
+  return tir::Select(x >= make_zero(x.dtype()), tanh_pos, tanh_neg);
+}
+
 }  // namespace intrin
 
 namespace legalize {
