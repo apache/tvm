@@ -659,8 +659,6 @@ def get_mma_intrin_group(
     out_dtype: Literal["float16", "float32", "int32"],
     trans_a: bool,
     trans_b: bool,
-    intra_propagate_a: bool = False,
-    intra_propagate_b: bool = False,
     not_use_mma_store_intrinic: bool = True,
     store_to_smem_dtype: Optional[Literal["float16", "float32", "int32"]] = None,
 ) -> Dict[str, str]:
@@ -737,7 +735,6 @@ def get_mma_intrin_group(
     return {
         "init": init_intrin,
         "load_a": load_a_intrin,
-        
         "load_b": load_b_intrin,
         "compute": compute_intrin,
         "store": store_intrin,
@@ -1317,11 +1314,11 @@ TensorIntrin.register(
 
 
 def get_wmma_intrin_group(
-    load_scope: Literal["shared", "shared.dyn"],
-    store_scope: Literal["global", "shared", "shared.dyn"],
-    in_dtype: str,
-    out_dtype: str,
-    trans_b: bool,
+    load_scope: Literal["shared", "shared.dyn"] = "shared",
+    store_scope: Literal["global", "shared", "shared.dyn"] = "shared",
+    in_dtype: str = "float16",
+    out_dtype: str = "float16",
+    trans_b: bool = True,
 ) -> Dict[str, str]:
     """Get a group of intrinsics for wmma tensor core with the given configurations
 

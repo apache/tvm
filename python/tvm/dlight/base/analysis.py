@@ -160,7 +160,9 @@ def detect_iter_traits(block: tir.Block) -> Optional[Tuple[List[IterTrait]]]:
     return A_traits, B_traits, C_traits, block_traits
 
 
-def get_index_map(block: tir.Block) -> Optional[Tuple[tir.IndexMap, ...]]:
+def get_index_map(
+    block: tir.Block, layout: List[str] = ["n", "t", "n"]
+) -> Optional[Tuple[tir.IndexMap, ...]]:
     """Get index maps for the block
 
     Parameters
@@ -168,8 +170,11 @@ def get_index_map(block: tir.Block) -> Optional[Tuple[tir.IndexMap, ...]]:
     block : tir.Block
         The block to be analyzed
 
-    simplified : bool
-        Whether to use simplified index map (e.g. remove constant axes)
+    layout : List[str]
+        the target layout index map to be used.
+        'n' for [i, k] layout
+        't' for [k, j] layout
+        'a' for auto inference based on whether the last axis is reduction.
 
     Returns
     -------
@@ -199,22 +204,52 @@ def get_index_map(block: tir.Block) -> Optional[Tuple[tir.IndexMap, ...]]:
         axes = get_ordered_axes(region)
         return is_common_reduce(axes[-1])
 
+    def infer_layout(layout: str, region: List[Range], kind: str = "A"):
+        """
+        Infer the layout based on the region and the kind of buffer
+        kind: "A", "B", "C"
+        """
+        primary_iter, secondary_iter, reduction_iter = {
+            "A": (IterKind.kIter_I, IterKind.kIter_K, IterKind.kIter_K),
+            "B": (IterKind.kIter_K, IterKind.kIter_J, IterKind.kIter_K),
+            "C": (IterKind.kIter_I, IterKind.kIter_J, None),
+        }[kind]
+
+        spatial_iter = {
+            "A": IterKind.kIter_I,
+            "B": IterKind.kIter_J,
+            "C": None,
+        }[kind]
+
+        if layout == "n":
+            return [IterKind.kIter_S, primary_iter, secondary_iter]
+        elif layout == "t":
+            return [IterKind.kIter_S, secondary_iter, primary_iter]
+        elif layout == "a":
+            # auto inference layout
+            # for buffer with reduction axis, we put it as the last axis
+            # otherwise, we put it as the first axis
+            if kind == "C":
+                return [IterKind.kIter_S, primary_iter, secondary_iter]
+            else:
+                return (
+                    [IterKind.kIter_S, spatial_iter, reduction_iter]
+                    if check_last_trait(region)
+                    else [IterKind.kIter_S, reduction_iter, spatial_iter]
+                )
+        else:
+            raise ValueError(f"Unknown layout {layout}")
+
     A_index_map = make_iter_fusion_index_map(
-        A_traits,
-        [IterKind.kIter_S, IterKind.kIter_I, IterKind.kIter_K]
-        if check_last_trait(block.reads[0].region)
-        else [IterKind.kIter_S, IterKind.kIter_K, IterKind.kIter_I],
+        A_traits, infer_layout(layout[0], block.reads[0].region, kind="A")
     )
     B_index_map = make_iter_fusion_index_map(
-        B_traits,
-        [IterKind.kIter_S, IterKind.kIter_J, IterKind.kIter_K]
-        if check_last_trait(block.reads[1].region)
-        else [IterKind.kIter_S, IterKind.kIter_K, IterKind.kIter_J],
+        B_traits, infer_layout(layout[1], block.reads[1].region, kind="B")
+    )
+    C_index_map = make_iter_fusion_index_map(
+        C_traits, infer_layout(layout[2], block.writes[0].region, kind="C")
     )
 
-    C_index_map = make_iter_fusion_index_map(
-        C_traits, [IterKind.kIter_S, IterKind.kIter_I, IterKind.kIter_J]
-    )
     matmul_index_map = make_iter_fusion_index_map(
         block_traits, [IterKind.kIter_S, IterKind.kIter_I, IterKind.kIter_J, IterKind.kIter_K]
     )
@@ -518,7 +553,8 @@ def get_reduction_blocks(
 def normalize_with_tensorcore(sch: tir.Schedule, main_block: BlockRV) -> Optional[tir.Schedule]:
     block_stmt = sch.get(main_block)
 
-    index_maps = get_index_map(block_stmt)
+    # let layout be 'a' to auto inference the layout
+    index_maps = get_index_map(block_stmt, layout=["a", "a", "a"])
     if index_maps is None:
         print("[WARNING] Cannot find the appropriate index map for tensorcore")
         return None

@@ -377,7 +377,6 @@ Block MakeReIndexStage(const Block& block, CacheStageInfo* info,
   for (const PrimExpr& index : original_indices) {
     target_indices.push_back(Substitute(index, block_var_replace_map));
   }
-
   // Step 3: Create the reindex block
 
   // The src and the dst region and indices of the data copy
@@ -2234,7 +2233,7 @@ Array<StmtSRef> CacheInplace(ScheduleState self, const StmtSRef& block_sref, int
 }
 
 StmtSRef ReIndex(ScheduleState self, const StmtSRef& block_sref, int buffer_index,
-                 BufferIndexType buffer_index_type) {
+                 BufferIndexType buffer_index_type, bool skip_simplify) {
   const BlockNode* block_ptr = TVM_SREF_TO_BLOCK(block_sref);
   Block block = GetRef<Block>(block_ptr);
   Buffer buffer = GetNthAccessBuffer(self, block, buffer_index, buffer_index_type);
@@ -2244,12 +2243,17 @@ StmtSRef ReIndex(ScheduleState self, const StmtSRef& block_sref, int buffer_inde
   // Step 1. Collect the original indices and check there's only single pattern of related
   // Load/Store and the buffer is not accessed opaquely
   Array<PrimExpr> original_indices = ReIndexCollector::Collect(self->mod, buffer, block);
+
   // Simplify the indices if possible
-  for (const IterVar& iter : block->iter_vars) {
-    analyzer.Bind(iter->var, iter->dom);
+  if (!skip_simplify){
+    // skip simplification in case to preserve unit loops. 
+    for (const IterVar& iter : block->iter_vars) {
+        analyzer.Bind(iter->var, iter->dom);
+    }
+    original_indices.MutateByApply(
+        [&analyzer](const PrimExpr& expr) { return SimplifyNonTrivialExpr(expr, &analyzer); });
   }
-  original_indices.MutateByApply(
-      [&analyzer](const PrimExpr& expr) { return SimplifyNonTrivialExpr(expr, &analyzer); });
+  
 
   // Collect block iters appearing in the original_indices
   std::unordered_set<Var, ObjectPtrHash, ObjectPtrEqual> covered;
@@ -2408,22 +2412,22 @@ struct ReIndexTraits : public UnpackedInstTraits<ReIndexTraits> {
 
  private:
   static constexpr size_t kNumInputs = 1;
-  static constexpr size_t kNumAttrs = 2;
+  static constexpr size_t kNumAttrs = 3;
   static constexpr size_t kNumDecisions = 0;
 
   static BlockRV UnpackedApplyToSchedule(Schedule sch, BlockRV block, Integer buffer_index,
-                                         Integer buffer_index_type) {
+                                         Integer buffer_index_type, Bool skip_simplify) {
     return sch->ReIndex(block, buffer_index.IntValue(),
-                        static_cast<BufferIndexType>(buffer_index_type->value));
+                        static_cast<BufferIndexType>(buffer_index_type->value), skip_simplify.operator bool());
   }
 
   static String UnpackedAsPython(Array<String> outputs, String block, Integer buffer_index,
-                                 Integer buffer_index_type) {
+                                 Integer buffer_index_type, Bool skip_simplify) {
     PythonAPICall py("reindex");
     py.Input("block", block);
     std::ostringstream os;
     os << "(\"" << BufferIndexType2Str(static_cast<BufferIndexType>(buffer_index_type->value))
-       << "\", " << buffer_index << ")";
+       << "\", " << buffer_index << "\", " << skip_simplify << ")";
     py.Input("buffer", os.str());
     py.SingleOutput(outputs);
     return py.Str();

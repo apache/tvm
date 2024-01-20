@@ -31,7 +31,6 @@
 
 namespace tvm {
 namespace tir {
-
 // TODO(Siyuan): move it to somewhere under tir folder
 /*!
  * \brief Match symbolic vars according to the given PrimExpr, and update the var_remap.
@@ -361,6 +360,27 @@ class BlockNameDeduplicator : public tir::StmtMutator {
 
 namespace relax {
 
+class BlockPrinter : public tir::StmtExprVisitor {
+  void VisitStmt_(const tir::AttrStmtNode* op) final {
+    tir::AttrStmt attr_stmt = GetRef<tir::AttrStmt>(op);
+    tir::StmtExprVisitor::VisitStmt_(op);
+  }
+
+  void VisitStmt_(const tir::AllocateNode* op) final {
+    tir::Allocate alloc = GetRef<tir::Allocate>(op);
+    tir::StmtExprVisitor::VisitStmt_(op);
+  }
+
+  void VisitStmt_(const tir::DeclBufferNode* op) final {
+    tir::DeclBuffer decl_buffer = GetRef<tir::DeclBuffer>(op);
+    tir::StmtExprVisitor::VisitStmt_(op);
+  }
+
+  void VisitStmt_(const tir::BlockNode* Block) final {
+    tir::Block blockstmt = GetRef<tir::Block>(Block);
+    tir::StmtExprVisitor::VisitStmt_(Block);
+  }
+};
 class FusedTIRConstructor : public ExprVisitor {
  public:
   /*!
@@ -702,10 +722,25 @@ class FusedTIRConstructor : public ExprVisitor {
       const tir::Var& param = output_params[i];
       const tir::Buffer& buffer = func->buffer_map.at(param);
 
+      auto unify_name_hints = [this, &buffer, &param]() {
+        String base_name = buffer->name;
+        String unique_name = base_name + "_intermediate";
+        size_t unique_id = 0;
+
+        std::unordered_set<std::string> names;
+        for (auto& _buffer : func_info_.alloc_buffers) {
+          names.insert(_buffer->name);
+        }
+
+        while (names.find(unique_name) != names.end()) {
+          unique_name = unique_name + "_" + std::to_string(++unique_id);
+        }
+        return unique_name;
+      };
       // Update buffer with new symbolic shape according to the sinfo
       auto n = make_object<tir::BufferNode>(*buffer.get());
       n->shape = output_shapes[i];
-      n->name = param->name_hint + "_intermediate";
+      n->name = unify_name_hints();
       tir::Buffer new_buffer(n);
       func_info_.alloc_buffers.push_back(new_buffer);
       alloc_buffers.push_back(new_buffer);
@@ -796,7 +831,6 @@ class FusedTIRConstructor : public ExprVisitor {
       }
     }
     tir::Stmt body = tir::BlockNameDeduplicator()(tir::SeqStmt::Flatten(func_info_.bodies));
-
     body = subst.Substitute(body);
     body = tir::Block({}, {}, {}, "root", std::move(body), NullOpt, alloc_buffers);
     body = tir::BlockRealize({}, Bool(true), Downcast<tir::Block>(body));
@@ -1068,6 +1102,7 @@ class TIRFuseMutator : public ExprMutator {
 
 IRModule FuseTIR(IRModule mod) {
   mod = TIRFuseMutator::Transform(mod);
+
   return mod;
 }
 

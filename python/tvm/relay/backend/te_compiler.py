@@ -137,7 +137,9 @@ def get_valid_implementations(op, attrs, inputs, out_type, target):
     return ret
 
 
-def select_implementation(op, attrs, inputs, out_type, target, use_autotvm=True):
+def select_implementation(
+    op, attrs, inputs, out_type, target, use_autotvm=True, strategy="max_plevel"
+):
     """Select the best implementation from the op strategy.
 
     If use_autotvm is True, it'll first try to find the best implementation
@@ -169,6 +171,9 @@ def select_implementation(op, attrs, inputs, out_type, target, use_autotvm=True)
     use_autotvm : bool
         Whether query AutoTVM to pick the best.
 
+    strategy : str
+        The strategy to select the implementation, candidates are ["max_plevel", "first", "last"]
+
     Returns
     -------
     ret : tuple(relay.op.OpImplementation, List[tvm.te.Tensor])
@@ -177,7 +182,14 @@ def select_implementation(op, attrs, inputs, out_type, target, use_autotvm=True)
     all_impls = get_valid_implementations(op, attrs, inputs, out_type, target)
     if len(all_impls) == 0:
         raise RuntimeError(f"No valid {op} implementations for {target}")
-    best_plevel_impl = max(all_impls, key=lambda x: x.plevel)
+    if strategy == "max_plevel":
+        best_plevel_impl = max(all_impls, key=lambda x: x.plevel)
+    elif strategy == "first":
+        best_plevel_impl = all_impls[0]
+    elif strategy == "last":
+        best_plevel_impl = all_impls[-1]
+    else:
+        raise ValueError(f"Invalid strategy {strategy}")
 
     # Disable autotvm if auto_scheduler is enabled.
     # (i.e., always return the implementation with the highest priority for auto-scheduler).

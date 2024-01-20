@@ -730,13 +730,13 @@ class DefaultPolicy:
         codegen_dict.cached_tensors = td.cached_tensors_map[node]
         codegen_dict.rasterization_plan = self.plan_rasterization(td)
 
-        if node.get_dtype().bits == 16:  # set step=2 for fp16 case
+        if node.get_dtype().bits == 16:  # set step=2 for 16bit case to ensure coalesced access
             codegen_dict._step = [1 for _ in range(ndim)]
             for i in reversed(range(ndim)):
                 if codegen_dict.block[i] // codegen_dict.thread[i] % 2 == 0:
                     codegen_dict._step[i] = 2
                     break
-        elif node.get_dtype().bits == 8:  # set step=4 for 8bit case
+        elif node.get_dtype().bits == 8:  # set step=4 for 8bit case to ensure coalesced access
             codegen_dict._step = [1 for _ in range(ndim)]
             for i in reversed(range(ndim)):
                 if codegen_dict.block[i] // codegen_dict.thread[i] % 4 == 0:

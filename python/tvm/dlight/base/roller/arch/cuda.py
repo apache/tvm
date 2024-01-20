@@ -17,13 +17,24 @@
 import tvm
 from tvm.target import Target
 from .arch_base import Arch
-from typing import List
-
+from typing import List, Dict
+from tvm.tir.tensor_intrin.cuda import get_wmma_intrin_group, get_mma_intrin_group
 
 def check_sm_version(arch: str) -> int:
     sm_version = arch.replace("sm_", "")
     return int(sm_version) if sm_version.isdigit() else -1
 
+class TensorInstruction(object):
+    def __init__(
+        self,
+        name: str,
+        intrin_group: Dict,
+        shape: List[int],
+    ):
+        self.name: str = name
+        self.intrin_group: Dict = intrin_group
+        # only mantain the shape of M and N
+        self.shape: List[int] = shape
 
 class CUDA(Arch):
     def __init__(self, target: Target):
@@ -46,4 +57,14 @@ class CUDA(Arch):
         self.transaction_size: List[int] = [32, 128]  # in bytes
         # bandwidth in MB/s, will be used for recommend basic tile size
         # TODO(lei): find some way to get the real bandwidth
+        # However, the ratio of bandwidth between different devices can
+        # be similar. The bandwidth can work for another devices as well.
         self.bandwidth: List[int] = [750, 12080]
+        # the tensor instruction informations
+        self.available_tensor_instructions = (
+            TensorInstruction("mma", get_mma_intrin_group, [16, 16]),
+            TensorInstruction("wmma", get_wmma_intrin_group, [16, 16]),
+        )
+
+    def get_avaliable_tensorintrin_shapes(self):
+        return [t.shape for t in self.available_tensor_instructions]

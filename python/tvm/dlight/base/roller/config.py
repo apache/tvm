@@ -133,7 +133,7 @@ class IntrinInfo:
         return f"<IntrinInfo, {self.in_dtype}, {self.out_dtype}, {self.trans_b}>"
 
 
-class Config:
+class Config(object):
     """
     Central configuration class for managing various parameters of computational tasks.
     """

@@ -30,6 +30,8 @@ from ..rasterization import *
 class TensorCorePolicy(DefaultPolicy):
     def __init__(self, func: tvm.tir.PrimFunc, arch: Arch, tags: Dict = {}) -> None:
         super().__init__(func, arch, tags)
+        # this is the trick for wmma.
+        # However, for int8 mma, the wmma_k should be 32.
         self.wmma_k = 16
         self.pipeline_stage: int = 1
         self.use_async_copy: bool = False
@@ -182,9 +184,10 @@ class TensorCorePolicy(DefaultPolicy):
             if node.get_tag("tensorcore_config"):
                 ax_m, ax_n = node.get_tag("tensorcore_config")
                 block_m, block_n = td.tile_map[node][ax_m], td.tile_map[node][ax_n]
+                # check the tile size is valid
                 wmma_invalid = [
-                    block_m % wmma_m or block_n % wmma_n
-                    for wmma_m, wmma_n in [(16, 16), (8, 32), (32, 8)]
+                    block_m < wmma_m or block_n < wmma_n
+                    for wmma_m, wmma_n in self.arch.get_avaliable_tensorintrin_shapes()
                 ]
                 if all(wmma_invalid):
                     return False
@@ -192,17 +195,33 @@ class TensorCorePolicy(DefaultPolicy):
                     return False
         return super().check_tile_shape_isvalid(td)
 
+    def _can_implement_layout(self, node: PrimFuncNode, td: TileDict):
+        # Not implemented yet
+        # This function is used to check whether we can implement swizzling
+        # layout under this tile config
+        return False
+
     def compute_node_stride_map(self, node: PrimFuncNode, td: TileDict):
         if not node.get_tag("tensorcore_config"):
             return super().compute_node_stride_map(node, td)
+        use_layout = self._can_implement_layout(node, td)
+
         AS_stride, BS_stride, C_stride = self._compute_tc_strides(
             node, td.get_tile(node), td.get_rstep(node)
         )
         A_stride, B_stride, _ = self._compute_tc_strides(node, td.get_tile(node))
+        tensor_strides = {}
         output_strides = {
             int(i + len(node.input_buffers)): Stride() for i, _ in enumerate(node.output_buffers)
         }
         tensor_strides = {}
+        # when connected to shared input, should use full stride without rstep
+        for i, (stride, stride_full) in enumerate(zip([AS_stride, BS_stride], [A_stride, B_stride])):
+            if use_layout: continue
+            _ = node.block_analyzer.get_input_buffers(
+                node.reduction_block
+                )[i].name
+           # TODO(lei): should dig further for shared memory connection case.
 
         return output_strides, tensor_strides
 
@@ -215,10 +234,12 @@ class TensorCorePolicy(DefaultPolicy):
         tile, rsteps = td.get_tile(node), td.get_rstep(node)
         warps = block_size // self.arch.warp_size
         ndim = len(tile)
-        wmma = [16, 16, 16]  # TODO(leiwang1999): should generalize the config in w, n, k order.
+
+        wmma = self.arch.get_avaliable_tensorintrin_shapes()[-1]
         wmma_tile = [1 for _ in range(ndim)]
         wmma_tile[ax_m] = wmma[0]
         wmma_tile[ax_n] = wmma[1]
+
         space = [tile[i] // wmma_tile[i] for i in range(ndim)]
         if tile[ax_m] < wmma_tile[ax_m] or tile[ax_n] < wmma_tile[ax_n]:
             # allow pad, otherwise, we can not get a valid tile shape
@@ -258,7 +279,7 @@ class TensorCorePolicy(DefaultPolicy):
         codegen_dict.rstep = [int(rsteps[ax.var.name]) for ax in node.raxis]
         codegen_dict.cached_tensors = td.cached_tensors_map[node]
         codegen_dict.rasterization_plan = self.plan_rasterization(td)
-        codegen_dict.wmma = wmma
+        codegen_dict.wmma = wmma + [self.wmma_k]
 
         intrin_info = node.get_tag("intrin_info")
         if intrin_info:

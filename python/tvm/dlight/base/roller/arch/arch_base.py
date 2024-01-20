@@ -48,3 +48,7 @@ class Arch:
         self.transaction_size: List[int] = [0, 0]  # in bytes
         # bandwidth in MB/s, will be used for recommend basic tile size
         self.bandwidth: List[int] = [0, 0]
+
+    def get_avaliable_tensorintrin_shapes(self):
+        raise NotImplementedError()
+    
