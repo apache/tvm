@@ -24,22 +24,32 @@ class TensorCoreExtraConfig:
     """
     This class is used to store extra information for tensorcore
     """
-    def __init__(self, AS_shape:Tuple[int], BS_shape:Tuple[int], AF_shape:Tuple[int], BF_shape:Tuple[int], tc_axis:Tuple[int]) -> None:
-        self.AS_shape:Tuple[int] = AS_shape
-        self.BS_shape:Tuple[int] = BS_shape
-        self.AF_shape:Tuple[int] = AF_shape
-        self.BF_shape:Tuple[int] = BF_shape
-        self.tc_axis:Tuple[int] = tc_axis
+
+    def __init__(
+        self,
+        AS_shape: Tuple[int],
+        BS_shape: Tuple[int],
+        AF_shape: Tuple[int],
+        BF_shape: Tuple[int],
+        tc_axis: Tuple[int],
+    ) -> None:
+        self.AS_shape: Tuple[int] = AS_shape
+        self.BS_shape: Tuple[int] = BS_shape
+        self.AF_shape: Tuple[int] = AF_shape
+        self.BF_shape: Tuple[int] = BF_shape
+        self.tc_axis: Tuple[int] = tc_axis
+
 
 class Stride:
     """
     Manages stride information for a given axis of a tensor.
     """
+
     def __init__(self, stride: int = 1, ax: int = -1) -> None:
         # which axis to put stride on
-        self._ax:int = int(ax)
+        self._ax: int = int(ax)
         # the stride size of the axis
-        self._stride:int = int(stride)
+        self._stride: int = int(stride)
 
     @property
     def ax(self) -> int:
@@ -65,7 +75,7 @@ class Stride:
             strided_elem = original_shape
         else:
             assert self.ax < len(shape)
-            strided_elem = np.prod(shape[0:self.ax+1]) * self.stride
+            strided_elem = np.prod(shape[0 : self.ax + 1]) * self.stride
             assert strided_elem >= original_shape
         return int(strided_elem)
 
@@ -75,10 +85,12 @@ class Stride:
     def __repr__(self) -> str:
         return f"<Stride, {self._ax}, {self._stride}>"
 
+
 class TileDict:
     """
     Manages tiling information and configurations for computational tasks.
     """
+
     def __init__(self, output_tile) -> None:
         self.output_tile = output_tile
         # schedule config
@@ -107,13 +119,28 @@ class TileDict:
         return hash(tuple(self.output_tile))
 
 
+class IntrinInfo:
+    """
+    The information of tensorcore intrinsic related infomation
+    """
+
+    def __init__(self, in_dtype: str, out_dtype: str, trans_b: bool) -> None:
+        self.in_dtype = in_dtype
+        self.out_dtype = out_dtype
+        self.trans_b = trans_b
+
+    def __repr__(self) -> str:
+        return f"<IntrinInfo, {self.in_dtype}, {self.out_dtype}, {self.trans_b}>"
+
+
 class Config:
     """
     Central configuration class for managing various parameters of computational tasks.
     """
+
     def __init__(self) -> None:
         self.arch = None
-        self.use_tc = None # todo(lei): this should be renamed.
+        self.use_tc = None  # todo(lei): this should be renamed.
         self.compute_capability = None
 
         # spacial axes tiling info
@@ -126,7 +153,7 @@ class Config:
         # reduce axes tiling info
         self.rstep = []
         self.reduce_thread = []
-        self.raster_factor = 0
+        self.rasterization_plan = None
         self.cached_tensors = []
         self.block_order = None
         self.output_strides = {}
@@ -135,9 +162,10 @@ class Config:
         # Experimental
         self._raxis_order = []
         self._step = []
-        self.vectorize : Dict[str, int] = {}
+        self.vectorize: Dict[str, int] = {}
         self.pipeline_stage = 1
         self.use_async = False
+        self.intrin_info = IntrinInfo("float16", "float16", True)
 
     def to_dict(self) -> Dict:
         dic = {}
@@ -218,10 +246,10 @@ class Config:
 
         tc_axis = node.infer_tensorcore_axis()
 
-        shapes = node.propogate_reduction_inputs(self.block, {x : self.rstep[0] for x in node.raxis})
+        shapes = node.propogate_reduction_inputs(self.block, {x: self.rstep[0] for x in node.raxis})
         AS_shape, BS_shape = shapes.values()
 
-        shapes = node.propogate_reduction_inputs(self.warp, {x : wmma_k for x in node.raxis})
+        shapes = node.propogate_reduction_inputs(self.warp, {x: wmma_k for x in node.raxis})
         AF_shape, BF_shape = shapes.values()
 
         self.tc_extra_conf = TensorCoreExtraConfig(AS_shape, BS_shape, AF_shape, BF_shape, tc_axis)

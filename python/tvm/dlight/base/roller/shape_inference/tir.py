@@ -14,8 +14,9 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-from typing import Dict, List, Tuple
+from typing import Dict, List, Tuple, Set, Mapping
 from tvm.tir.schedule.schedule import BlockRV
+from tvm.ir import structural_equal
 from tvm import arith, tir
 
 
@@ -93,11 +94,31 @@ class TensorDepNode(object):
 class DependencyAnalysis(object):
     def __init__(self, deps):
         self.deps = deps
-        self.name2dep = {
-            dep.block_analyzer.get_output_buffers(dep.block)[0].name: dep for dep in self.deps
-        }
+        # issue: duplicate name when we have two same ops.
+        self.name2dep = self._construct_unique_name2dep(deps)
         self.mapping = {}  # name -> TensorDepNode
 
+    def _construct_unique_name2dep(self, deps):
+        """
+        This is a workaround for the issue that we have two same ops' fuse case.
+        See https://github.com/apache/tvm/issues/16433
+        """
+        _names:Set = set()
+        name2dep:Mapping = {}
+        for dep in deps:
+            output_buffer = dep.block_analyzer.get_output_buffers(dep.block)[0]
+            base_name = output_buffer.name
+            if base_name not in _names:
+                _names.add(base_name)
+            else:
+                i = 1
+                while f"{base_name}_{i}" in _names:
+                    i += 1
+                base_name = f"{base_name}_{i}"
+                _names.add(base_name)
+            name2dep[base_name] = dep
+        return name2dep
+        
     def get_or_create_node(self, name):
         if name not in self.mapping:
             self.mapping[name] = TensorDepNode(name)
@@ -201,9 +222,7 @@ class InputShapeInference:
                     continue
                 if dep_name not in mapping:
                     mapping[dep_name] = [output_indices]
-                elif not region_exist_in_list(
-                    output_indices, mapping[dep_name]
-                ):
+                elif not region_exist_in_list(output_indices, mapping[dep_name]):
                     mapping[dep_name].append(output_indices)
 
         for dep in reversed(self.deps):
@@ -315,7 +334,7 @@ def region_exist_in_list(a, list) -> bool:
     def expr_is_same(a, b) -> bool:
         if isinstance(a, tir.IntImm) and isinstance(b, tir.IntImm):
             return a.value == b.value
-        return a.same_as(b)
+        return structural_equal(a, b)
 
     def region_is_same(a, b) -> bool:
         for indice_a, indice_b in zip(a, b):
@@ -365,6 +384,19 @@ def _extract_dependent_region(block_analyzer, block: BlockRV) -> Dict[str, List[
             expr = walk_indice(indice)
             if expr is None:
                 expr = tir.Var("undefined") % shape_limit
+            if isinstance(expr, tir.IntImm) and expr.value == 0:
+                """for tensor ir zero dim smplification case.
+                for ax0, ax1, ax2 in T.grid(T.int64(1024), T.int64(1024), T.int64(1024)):
+                    with T.block("T_dense"):
+                        v0, v1, v2 = T.axis.remap("SSR", [ax0, ax1, ax2])
+                        T.reads(A_reindex[T.int64(0), v0, v2], B_reindex[T.int64(0), v1, v2])
+                        T.writes(T_dense_reindex[T.int64(0), v0, v1])
+                        with T.init():
+                            T_dense_reindex[T.int64(0), v0, v1] = T.float16(0)
+                        T_dense_reindex[T.int64(0), v0, v1] = T_dense_reindex[T.int64(0), v0, v1] + A_reindex[T.int64(0), v0, v2] * B_reindex[T.int64(0), v1, v2]
+                For exmaple, the T_dense_reindex has three dims, however there're only two spatial loops.
+                """
+                continue
             index.append(expr)
         if not region_exist_in_list(index, dependent_region[x.buffer.name]):
             dependent_region[x.buffer.name].append(index)

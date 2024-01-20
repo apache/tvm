@@ -29,6 +29,7 @@ from ..bestfit import BestFit
 from ..config import Config, Stride, TileDict
 from .common import coalesced_factor, coalesced_tensor_shape, factorize, get_all_factors
 from ..node import PrimFuncNode
+from ..rasterization import *
 
 
 class DefaultPolicy:
@@ -195,7 +196,7 @@ class DefaultPolicy:
         Parameters
         ----------
         node : PrimFuncNode
-            The node for which to calculate reduction step candidates. It contains reduction axes (raxis) 
+            The node for which to calculate reduction step candidates. It contains reduction axes (raxis)
             with their domains (dom.extent).
 
         Returns
@@ -205,7 +206,7 @@ class DefaultPolicy:
             this function calculates possible step sizes. For axes with a large prime domain, it uses powers of 2
             as step candidates; for others, it uses all factors of the domain.
         """
-       
+
         results = {}
         for k_iter in node.raxis:
             all_factors = get_all_factors(int(k_iter.dom.extent))
@@ -237,7 +238,7 @@ class DefaultPolicy:
         tile = [1] * len(node.get_space_dim())
         all_steps = self.get_node_reduce_step_candidates(node)
 
-        def sim(a:int, b:int):
+        def sim(a: int, b: int):
             return (2 * a * b) / (a * a + b * b)
 
         def _score(rstep_id):
@@ -378,11 +379,19 @@ class DefaultPolicy:
             for i, buffer in enumerate(node.input_buffers):
                 nbytes = (node.get_buffer_dtype(buffer).bits + 7) // 8
                 read_transaction_elements = self.arch.transaction_size[1] // nbytes
-                traffic += coalesced_tensor_shape(input_shapes[i], buffer.shape, read_transaction_elements) * nbytes
+                traffic += (
+                    coalesced_tensor_shape(input_shapes[i], buffer.shape, read_transaction_elements)
+                    * nbytes
+                )
             for i, buffer in enumerate(node.output_buffers):
                 nbytes = (node.get_buffer_dtype(buffer).bits + 7) // 8
                 write_transaction_elements = self.arch.transaction_size[0] // nbytes
-                traffic += coalesced_tensor_shape(output_shapes[i], buffer.shape, write_transaction_elements) * nbytes
+                traffic += (
+                    coalesced_tensor_shape(
+                        output_shapes[i], buffer.shape, write_transaction_elements
+                    )
+                    * nbytes
+                )
         return traffic, op_tile_map
 
     def infer_node_smem_usage(self, td: TileDict, node: PrimFuncNode):
@@ -719,6 +728,7 @@ class DefaultPolicy:
         codegen_dict.rstep = [rsteps[ax.var.name] for ax in node.raxis]
         codegen_dict.reduce_thread = [reduce_thread[ax.var.name] for ax in node.raxis]
         codegen_dict.cached_tensors = td.cached_tensors_map[node]
+        codegen_dict.rasterization_plan = self.plan_rasterization(td)
 
         if node.get_dtype().bits == 16:  # set step=2 for fp16 case
             codegen_dict._step = [1 for _ in range(ndim)]
@@ -754,6 +764,7 @@ class DefaultPolicy:
         Dict
             A dictionary mapping tensors to their vectorization size.
         """
+
         def is_cont(shape, vec):
             if len(shape) == 0:
                 return vec == 1
@@ -784,7 +795,7 @@ class DefaultPolicy:
                     break
         return vectorize_result
 
-    def plan_rasterization(self, td: TileDict):
+    def plan_rasterization(self, td: TileDict):  # pylint: disable=unused-argument
         """
         Plans the rasterization for the given TileDict. This function is not implemented yet.
 
@@ -798,4 +809,4 @@ class DefaultPolicy:
         RasterRationPlan
             This function is not implemented yet.
         """
-        raise NotImplementedError("Rasterization plan is not implemented yet.")
+        return NoRasterization()

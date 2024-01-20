@@ -27,8 +27,6 @@ from ..analysis import BlockInfo, get_reduction_blocks
 from .. import analysis
 from .. import normalize_prim_func
 from .shape_inference import get_analyzer_by_tir
-from tvm._ffi import get_global_func
-
 
 
 def pre_order_traverse(block_analyzer, blocks, func):
@@ -44,6 +42,7 @@ def pre_order_traverse(block_analyzer, blocks, func):
 
     for block in blocks:
         _traverse(block)
+
 
 class BlockAnalyzer(object):
     def __init__(self, sch) -> None:
@@ -92,7 +91,7 @@ class BlockAnalyzer(object):
 
     def get_producer_blocks(self, block: BlockRV) -> List[BlockRV]:
         return self.sch.get_producers(block)
-    
+
     def get_consumer_blocks(self, block: BlockRV) -> List[BlockRV]:
         return self.sch.get_consumers(block)
 
@@ -101,8 +100,10 @@ class Node(object):
     def __init__(self) -> None:
         self._dtypes = []
 
+
 class BufferNode(Node):
-    '''BufferNode is a wrapper of tir.Buffer, which is used to store the buffer information.'''
+    """BufferNode is a wrapper of tir.Buffer, which is used to store the buffer information."""
+
     def __init__(self, buffer: tir.Buffer, tags: Dict = {}) -> None:
         super().__init__()
         self.buffer = buffer
@@ -134,7 +135,7 @@ class BufferNode(Node):
 
     def get_buffer_dtype(self, buffer: tir.Buffer) -> tvm.DataType:
         return tvm.DataType(buffer.dtype)
-    
+
 
 class PrimFuncNode(Node):
     def __init__(self, prim_func: PrimFunc, tags: Dict = {}) -> None:
@@ -183,7 +184,8 @@ class PrimFuncNode(Node):
                 if write not in self.output_buffers:
                     self.output_buffers.append(write.buffer)
 
-        for buffer in self.prim_func.buffer_map.values():
+        for param in self.prim_func.params:
+            buffer = self.prim_func.buffer_map[param]
             if buffer not in self.output_buffers:
                 self.input_buffers.append(buffer)
 
@@ -207,6 +209,9 @@ class PrimFuncNode(Node):
             for loop in loops:
                 dim_size.append(int(self.sch.get(loop).extent))
         return [int(x) for x in dim_size]
+
+    def set_tag(self, k: str, v: Any = True) -> None:
+        self.add_tag(k, v)
 
     def add_tag(self, k: str, v: Any = True) -> None:
         self._tag[k] = v
@@ -234,7 +239,9 @@ class PrimFuncNode(Node):
 
     def propogate(self, tile, rstep={}, targets=None):
         shape = {
-            self.block_analyzer.get_output_buffers(block)[0].name: [tvm.arith.ConstIntBound(0, val - 1) for val in tile]
+            self.block_analyzer.get_output_buffers(block)[0].name: [
+                tvm.arith.ConstIntBound(0, val - 1) for val in tile
+            ]
             for block in self.schedule_stages
         }
         return self.ana.infer(shape, rstep, targets)
@@ -249,7 +256,9 @@ class PrimFuncNode(Node):
                 results.append(shapes[arg.name])
                 continue
             # should not exceed original shape
-            trimmed_shape = list(map(min, zip(shapes[arg.name], self.input_buffers[i].shape)))
+            trimmed_shape = [
+                int(i) for i in list(map(min, zip(shapes[arg.name], self.input_buffers[i].shape)))
+            ]
             results.append(trimmed_shape)
         return results
 
@@ -283,11 +292,33 @@ class PrimFuncNode(Node):
     def infer_tensorcore_axis(self) -> Tuple[int]:
         # axis is fixed for one expression, so only inference and cached
         assert self.get_tag("tensorcore_config")
+
         C_ax_m, C_ax_n = self.get_tag("tensorcore_config")
         wmma_m, wmma_n, wmma_k = [16, 16, 16]  # just for testing, any number is ok
-        CL_shape = [1] * len(self.get_space_dim())
-        CL_shape[C_ax_m] = wmma_m
-        CL_shape[C_ax_n] = wmma_n
+
+        def get_cl_shapes(c_ax_m, c_ax_n):
+            output_buffer_shape = (
+                self.block_analyzer.sch.get(self.reduction_block).writes[0].buffer.shape
+            )
+            valid_region = []
+            for region in output_buffer_shape:
+                if region.value == 1:
+                    continue
+                valid_region.append(region)
+
+            num_nvalid_regions = len(output_buffer_shape) - len(valid_region)
+
+            spatial_dim = self.get_space_dim()
+            assert len(valid_region) == len(
+                spatial_dim
+            ), f" {valid_region} mismatch with {spatial_dim}"
+            cl_shapes = [1] * len(spatial_dim)
+            cl_shapes[c_ax_m - num_nvalid_regions] = wmma_m
+            cl_shapes[c_ax_n - num_nvalid_regions] = wmma_n
+            self.set_tag("tensorcore_config", [s - num_nvalid_regions for s in [c_ax_m, c_ax_n]])
+            return cl_shapes
+
+        CL_shape = get_cl_shapes(C_ax_m, C_ax_n)
         shapes = self.propogate_reduction_inputs(CL_shape, {x.var.name: 1 for x in self.raxis})
         A_deps, B_deps = shapes.values()
         A_ax_m = A_deps.index(wmma_m)
@@ -306,9 +337,11 @@ class PrimFuncNode(Node):
         shapes, _ = self.propogate(shape, rstep)
 
         def is_broadcast_pattern(buffer, output_buffer):
-            return buffer in self.args and len(shapes[output_buffer.name]) > len(shapes[buffer.name]) and np.prod(
-                shapes[output_buffer.name]
-            ) > np.prod(shapes[buffer.name])
+            return (
+                buffer in self.args
+                and len(shapes[output_buffer.name]) > len(shapes[buffer.name])
+                and np.prod(shapes[output_buffer.name]) > np.prod(shapes[buffer.name])
+            )
 
         def is_after_reduce_stage(block):
             if not self.reduction_block:

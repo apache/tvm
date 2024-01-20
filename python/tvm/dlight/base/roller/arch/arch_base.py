@@ -43,3 +43,8 @@ class Arch:
         self.compute_capability: str = (
             "unknown"  # The compute capability, indicating the feature set and performance level
         )
+        self.l2_cache_size_bytes: int = 0
+        # the number of transaction size in bytes
+        self.transaction_size: List[int] = [0, 0]  # in bytes
+        # bandwidth in MB/s, will be used for recommend basic tile size
+        self.bandwidth: List[int] = [0, 0]

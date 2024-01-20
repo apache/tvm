@@ -18,12 +18,14 @@
 
 from typing import List
 
+
 class Rasterization:
     def __init__(self) -> None:
         pass
 
     def get_code(self) -> List[str]:
         raise NotImplementedError()
+
 
 class NoRasterization(Rasterization):
     def __init__(self) -> None:
@@ -35,6 +37,7 @@ class NoRasterization(Rasterization):
     def get_code(self) -> List[str]:
         return []
 
+
 class Rasterization2DRow(Rasterization):
     """
     Rasterization by Row, each Row line width is panel_width
@@ -43,20 +46,17 @@ class Rasterization2DRow(Rasterization):
         |_________
         __________|
     """
-    def __init__(self, row_size, column_size, panel_width=4) -> None:
+
+    def __init__(self, panel_width=4) -> None:
         super().__init__()
-        self.row_size_ = row_size
-        self.column_size_ = column_size
         self.panel_width_ = panel_width
 
     def __repr__(self) -> str:
         return f"<Rasterization2DRow({self.panel_width_})>"
 
     def get_code(self) -> List[str]:
-        return ["int __bid = blockIdx.x;",
-                "const dim3 blockIdx(rasterization2DRow<{}, {}, {}>(__bid), 0, 0);".format(
-                    self.row_size_, self.column_size_, self.panel_width_)
-                ]
+        raise NotImplementedError()
+
 
 class Rasterization2DColumn(Rasterization):
     """
@@ -66,17 +66,33 @@ class Rasterization2DColumn(Rasterization):
          | | | |
          |_| |_|
     """
-    def __init__(self, row_size, column_size, panel_width=4) -> None:
+
+    def __init__(self, panel_width=4) -> None:
         super().__init__()
-        self.row_size_ = row_size
-        self.column_size_ = column_size
         self.panel_width_ = panel_width
 
     def __repr__(self) -> str:
         return f"<Rasterization2DColumn({self.panel_width_})>"
 
+    def get_device_function(self) -> str:
+        return """
+__device__ dim3 rasterization2DColumn(const int panel_width) {
+    const auto baseBlockIdx = blockIdx.x + gridDim.x *blockIdx.y;
+    const auto totalPanel = (gridDim.x * gridDim.y +panel_width * gridDim.x - 1) / (panel_width * gridDim.x);
+    const auto totalBlock = gridDim.x * gridDim.y;
+    const auto panelIdx = baseBlockIdx / (panel_width *gridDim.x);
+    const auto strideLd = panelIdx + 1 < totalPanel ?panel_width : (totalBlock - panelIdx * (panel_width *gridDim.x)) / gridDim.x;
+    const auto bx = (panelIdx & 1) ? gridDim.x -(baseBlockIdx - panelIdx * panel_width * gridDim.x) /strideLd - 1 : (baseBlockIdx - panelIdx * panel_width *gridDim.x) / strideLd;
+    const auto by = (baseBlockIdx - panelIdx * panel_width *gridDim.x) % strideLd + panelIdx * panel_width;
+    const auto bz = blockIdx.z;
+    
+    dim3 blockIdx(bx, by, bz);
+    return blockIdx;
+}
+    """
+
     def get_code(self) -> List[str]:
-        return ["int __bid = blockIdx.x;",
-                "const dim3 blockIdx(rasterization2DColumn<{}, {}, {}>(__bid), 0, 0);".format(
-                    self.row_size_, self.column_size_, self.panel_width_)
-                ]
+        return [
+            self.get_device_function(),
+            "const dim3 blockIdx(rasterization2DColumn({});".format(self.panel_width_),
+        ]

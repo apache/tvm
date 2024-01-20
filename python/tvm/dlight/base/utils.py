@@ -16,7 +16,7 @@
 # under the License.
 import tvm
 import os
-from concurrent.futures import ThreadPoolExecutor
+from concurrent.futures import ThreadPoolExecutor, as_completed
 import numpy as np
 from typing import List, Tuple, Optional
 from tvm import tir
@@ -59,27 +59,29 @@ def _apply_config(
     root_block = get_root_block(sch)
     blocks = sch.get_child_blocks(root_block)
     reduction_blocks = get_reduction_blocks(sch, blocks)
-    # try:
-    if not reduction_blocks:
-        return dl.gpu.ElementWise().apply_config(func, config)
-    elif config.use_tc:
-        return dl.gpu.MatmulTensorization().apply_config(func, config)
-    else:
-        _reduction_rules = []
+    try:
+        if not reduction_blocks:
+            return dl.gpu.ElementWise().apply_config(func, config)
+        elif config.use_tc:
+            return dl.gpu.MatmulTensorization().apply_config(func, config)
+        else:
+            _reduction_rules = []
 
-        _reduction_rules.append(dl.gpu.GEMV())
-        if not any([t > 1 for t in config.reduce_thread]):
-            # Matrix multiplication template doesn't support inner thread reduction
-            _reduction_rules.append(dl.gpu.Matmul())
-        _reduction_rules.append(dl.gpu.GeneralReduction())
+            _reduction_rules.append(dl.gpu.GEMV())
+            if not any([t > 1 for t in config.reduce_thread]):
+                # Matrix multiplication template doesn't support inner thread reduction
+                _reduction_rules.append(dl.gpu.Matmul())
+            _reduction_rules.append(dl.gpu.GeneralReduction())
 
-        for rule in _reduction_rules:
-            sch = rule.apply_config(func, config)
-            if sch is not None:
-                return sch
-    # except Exception as e:
-    #     print("[FastDlight] Apply config failed: ", e)
-    #     return None
+            for rule in _reduction_rules:
+                try:
+                    sch = rule.apply_config(func, config)
+                except:
+                    continue
+                if sch is not None:
+                    return sch
+    except Exception as e_msg:
+        print("[FastDlight] Apply config failed: ", e_msg)
     return None
 
 
@@ -91,9 +93,13 @@ def _apply_and_build(
     sch = _apply_config(func, config)
     if sch is None:
         return config, sch, None
-    # todo(lei): should add exception handling
-    with tvm.transform.PassContext(config={"tir.use_async_copy": True}):
-        mod = tvm.build(sch.mod["main"], target=arch.target)
+    
+    # TODO(@lei): is tvm.build thread safe?
+    try:
+        with tvm.transform.PassContext(config={"tir.use_async_copy": True}):
+            mod = tvm.build(sch.mod["main"], target=arch.target)
+    except:
+        mod = None
     return config, sch, mod
 
 
@@ -105,25 +111,41 @@ def apply_and_build_parallel(
 ) -> CompileResult:
     cpresults = []
 
-    args = func.buffer_map.values()
     profile_tensors = []
-    for arg in args:
-        profile_tensors.append(
-            tvm.nd.array(
-                np.random.uniform(0, 1, [int(i) for i in arg.shape]).astype(arg.dtype),
-                device=arch.device,
+    for param in func.params:
+        arg = func.buffer_map[param]
+        if arg.dtype == "int8":
+            profile_tensors.append(
+                tvm.nd.array(
+                    np.random.randint(-127, 128, [int(i) for i in arg.shape]).astype(arg.dtype),
+                    device=arch.device,
+                )
             )
-        )
+        else:
+            profile_tensors.append(
+                tvm.nd.array(
+                    np.random.uniform(0, 1, [int(i) for i in arg.shape]).astype(arg.dtype),
+                    device=arch.device,
+                )
+            )
 
-    with ThreadPoolExecutor(max_workers=os.cpu_count()) as executor:
-        future_to_configs = executor.map(
-            _apply_and_build,
-            [func for _ in configs],
-            configs,
-            [arch for _ in configs],
-        )
+    num_procs = min(len(configs), os.cpu_count(), 10)
+    with ThreadPoolExecutor(max_workers=num_procs) as executor:
+        all_tasks = []
+        for config in configs:
+            t = executor.submit(
+                _apply_and_build,
+                func,
+                config,
+                arch,
+            )
+            all_tasks.append(t)
 
-    for config, sch, mod in future_to_configs:
+    for future in as_completed(all_tasks):
+        config, sch, mod = future.result()
+        if sch is None:
+            continue
+
         if mod is None:
             continue
         cpresult = CompileResult(config, sch, mod)
@@ -137,8 +159,11 @@ def apply_and_build_parallel(
     best_latency = 1e9
     for cpresult in cpresults:
         config = cpresult.config
-
-        latency = cpresult.profile()
+        try:
+            latency = cpresult.profile()
+        except:
+            print("[FastDlight] Evaluation with config failed: ", config)
+            continue
         print("[FastDlight] Evaluation with config ", config)
         print("[FastDlight] Time cost of this config: {:.3f} ms".format(latency * 1e3))
 
@@ -162,13 +187,10 @@ def apply_and_build(
     for config in configs:
         config, sch, mod = _apply_and_build(func, config, arch)
 
-        if mod is None:
-            continue
-
         cpresult = CompileResult(config, sch, mod)
-        args = func.buffer_map.values()
         profile_tensors = []
-        for arg in args:
+        for param in func.params:
+            arg = func.buffer_map[param]
             if arg.dtype == "int8":
                 profile_tensors.append(
                     tvm.nd.array(
@@ -193,7 +215,11 @@ def apply_and_build(
     best_latency = 1e9
     for cpresult in cpresults:
         config = cpresult.config
-        latency = cpresult.profile()
+        try:
+            latency = cpresult.profile()
+        except Exception as e_mesg:
+            print("[FastDlight] Evaluation with config failed: ", e_mesg)
+            continue
         print("[FastDlight] Evaluation with config ", config)
         print("[FastDlight] Time cost of this config: {:.3f} ms".format(latency * 1e3))
         cpresult.latency = latency

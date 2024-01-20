@@ -23,7 +23,7 @@ from tvm import tir
 from tvm.target import Target
 
 from ..base import ScheduleRule, normalize_prim_func, try_inline_contiguous_spatial
-from ..base.analysis import get_root_block, get_reduction_blocks
+from ..base.analysis import get_root_block, get_reduction_blocks, BlockInfo
 
 
 class GeneralReduction(ScheduleRule):
@@ -252,7 +252,7 @@ class GeneralReduction(ScheduleRule):
         sch = tir.Schedule(func)
         block_infos = normalize_prim_func(sch)
 
-        schedule_block: tir.schedule.BlockRV = None
+        schedule_block: BlockInfo = None
         for block in block_infos:
             s_loops: List[tir.schedule.LoopRV] = []
             r_loops: List[tir.schedule.LoopRV] = []
@@ -294,7 +294,7 @@ class GeneralReduction(ScheduleRule):
                 ),
                 ndim=num_last_block_iter,
             )
-            sch.transform_block_layout(schedule_block.block_rv, index_map)
+            sch.transform_block_layout(block_infos[-1].block_rv, index_map)
 
         schedule_block = schedule_block.block_rv
         loops = sch.get_loops(schedule_block)

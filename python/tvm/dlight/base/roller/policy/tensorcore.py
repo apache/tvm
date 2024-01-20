@@ -20,7 +20,7 @@ from typing import Dict, List, Tuple
 import numpy as np
 
 from ..arch import Arch
-from ..config import Config, Stride, TileDict
+from ..config import Config, Stride, TileDict, IntrinInfo
 from ..node import PrimFuncNode
 from .common import coalesced_factor, factorize, get_all_factors
 from .default import DefaultPolicy
@@ -56,7 +56,7 @@ class TensorCorePolicy(DefaultPolicy):
     def _compute_tc_strides(
         self, node: PrimFuncNode, tile: List[int], rstep: Dict[str, int] = {}
     ) -> Tuple[Stride, Stride, Stride]:
-        # strides was used for shared memory padding. which is necessary for avoiding 
+        # strides was used for shared memory padding. which is necessary for avoiding
         # shared memory load bank conflict when we do not applying tensorcore layout.
         shapes = node.propogate_reduction_inputs(tile, rstep)
         AS_shape, BS_shape = shapes.values()
@@ -99,15 +99,18 @@ class TensorCorePolicy(DefaultPolicy):
         # to improve compute efficiency.
         smem_limit = min(self.arch.max_smem_usage // td.block_per_SM, self.arch.smem_cap)
         rstep_map = td.rstep_map.copy()
-        
+
         def _optimize(node, rstep):
             all_steps = self.get_node_reduce_step_candidates(node)
+            # todo(lei): optimzie the all_steps enlarge policy to be a multiple of the original all_steps[k]
             for k in all_steps:
                 all_steps[k] = list(filter(lambda x: x % rstep[k] == 0, all_steps[k]))
-            
+            if any([v == [] for v in all_steps.values()]):
+                return rstep
+
             def _shared_memory_usage(td: TileDict):
                 return node.footprint(td.output_tile, new_rstep_map, td.tensor_strides_map[node])
-            
+
             def _score(rstep_id):
                 rstep = {
                     k.var.name: all_steps[k.var.name][rstep_id[k.var.name]] for k in node.raxis
@@ -168,7 +171,9 @@ class TensorCorePolicy(DefaultPolicy):
         else:
             # must be a a multiple of wmma_k
             return {
-                k.var.name: [x * self.wmma_k for x in get_all_factors(int(k.dom.extent) // self.wmma_k)]
+                k.var.name: [
+                    x * self.wmma_k for x in get_all_factors(int(k.dom.extent) // self.wmma_k)
+                ]
                 for k in node.raxis
             }
 
@@ -210,12 +215,13 @@ class TensorCorePolicy(DefaultPolicy):
         tile, rsteps = td.get_tile(node), td.get_rstep(node)
         warps = block_size // self.arch.warp_size
         ndim = len(tile)
-        wmma = [16, 16, 16]  # TODO(leiwang1999): should generalize the config
-        wmma_tile = [1 for i in range(ndim)]
+        wmma = [16, 16, 16]  # TODO(leiwang1999): should generalize the config in w, n, k order.
+        wmma_tile = [1 for _ in range(ndim)]
         wmma_tile[ax_m] = wmma[0]
         wmma_tile[ax_n] = wmma[1]
         space = [tile[i] // wmma_tile[i] for i in range(ndim)]
-        if tile[ax_m] % wmma_tile[ax_m] != 0 or tile[ax_n] % wmma_tile[ax_n]:
+        if tile[ax_m] < wmma_tile[ax_m] or tile[ax_n] < wmma_tile[ax_n]:
+            # allow pad, otherwise, we can not get a valid tile shape
             return None
         if np.prod(space) % warps != 0:
             return None
@@ -225,7 +231,7 @@ class TensorCorePolicy(DefaultPolicy):
             score = 0
             block_tile = [int(np.ceil(tile[i] / thread[i])) for i in range(ndim)]
             shape = node.propogate_inputs(block_tile)
-            for i, buffer in enumerate(node.input_buffers):
+            for i, _ in enumerate(node.input_buffers):
                 score += np.prod(shape[i]) / self.arch.bandwidth[1]
             return score
 
@@ -251,10 +257,39 @@ class TensorCorePolicy(DefaultPolicy):
         codegen_dict.use_async = self.use_async_copy
         codegen_dict.rstep = [int(rsteps[ax.var.name]) for ax in node.raxis]
         codegen_dict.cached_tensors = td.cached_tensors_map[node]
+        codegen_dict.rasterization_plan = self.plan_rasterization(td)
         codegen_dict.wmma = wmma
+
+        intrin_info = node.get_tag("intrin_info")
+        if intrin_info:
+            codegen_dict.intrin_info = IntrinInfo(**intrin_info)
+
         codegen_dict.complete_config(node)
         codegen_dict.vectorize = self._plan_vectorize(self.prim_func_node, td, block_size)
         return codegen_dict
 
     def plan_rasterization(self, td: TileDict):
-        return NoRasterization()
+        conditions = []
+        # only support single node for now
+        conditions.append(len(self.ordered_nodes) > 1)
+        # small op don't need this
+        conditions.append(td.num_wave < 4)
+        # only on Ampere+ arch
+        conditions.append(self.arch.compute_capability < "80")
+
+        def _check_memory_size():
+            overall_gmem_size_in_bytes: int = 0
+            for node in self.ordered_nodes:
+                for arg in node.args:
+                    overall_gmem_size_in_bytes += (
+                        int(np.prod(arg.shape)) * tvm.DataType(arg.dtype).bits // 8
+                    )
+            return overall_gmem_size_in_bytes < (self.arch.l2_cache_size_bytes * 4)
+
+        conditions.append(_check_memory_size())
+        if any(conditions):
+            return NoRasterization()
+        # otherwise, simply provide a block rasterization factor
+        raster_factor = int(self.arch.compute_max_core**0.5)
+
+        return Rasterization2DColumn(raster_factor)
