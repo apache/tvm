@@ -34,7 +34,7 @@ from ..base.analysis import (
     get_reduction_blocks,
     get_index_map,
     get_in_out_dtypes,
-    normalize_with_tensorcore,
+    normalize_to_matmul,
 )
 
 
@@ -986,7 +986,7 @@ class MatmulTensorization(GPUScheduleRule):
 
         # Step 1. Normalize generic matmul to C[S, I, J] += A[S, I, K] * B[S, J, K]/B[S, K, J]
         if not (func.attrs is not None and "dlight.tensorcore_prenormlized" in func.attrs.keys()):
-            sch = normalize_with_tensorcore(sch, main_block)
+            sch = normalize_to_matmul(sch, main_block, ["a", "a", "a"])
 
         # Step 2. Padding for dynamic shape kernels
         sch.pad_einsum(
@@ -1424,14 +1424,16 @@ class Matmul(GPUScheduleRule):
 
         main_block = reduction_blocks[0]
         block_stmt = sch.get(main_block)
-        sch = normalize_with_tensorcore(sch, main_block)
+        sch = normalize_to_matmul(sch, main_block)
+        if sch is None:
+            return None
      
         # Step 1. Check Tensor Core support
         # Tensorization config:
         # If any value of I, J, K is fixed and less than this threshold,
         # tensorization rule will not be applied.
         minimal_tensorize_threshold = 64
-        block_stmt = sch.get(main_block)
+
         if target.kind.name == "cuda" and check_sm_version(target.arch) >= 70:
             apply_tensorization: bool = True
             # the batch dimension is not taken into consideration.

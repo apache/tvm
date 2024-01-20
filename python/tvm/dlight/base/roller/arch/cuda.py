@@ -18,7 +18,6 @@ import tvm
 from tvm.target import Target
 from .arch_base import Arch
 from typing import List, Dict
-from tvm.tir.tensor_intrin.cuda import get_wmma_intrin_group, get_mma_intrin_group
 
 def check_sm_version(arch: str) -> int:
     sm_version = arch.replace("sm_", "")
@@ -61,6 +60,9 @@ class CUDA(Arch):
         # be similar. The bandwidth can work for another devices as well.
         self.bandwidth: List[int] = [750, 12080]
         # the tensor instruction informations
+        
+        from tvm.tir.tensor_intrin.cuda import get_wmma_intrin_group, get_mma_intrin_group
+
         self.available_tensor_instructions = (
             TensorInstruction("mma", get_mma_intrin_group, [16, 16]),
             TensorInstruction("wmma", get_wmma_intrin_group, [16, 16]),

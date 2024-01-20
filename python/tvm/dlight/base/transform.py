@@ -124,7 +124,7 @@ class ApplyFastTuning:  # pylint: disable=too-few-public-methods
                 normalize_mod_func_ = tvm._ffi.get_global_func("tvm.meta_schedule.normalize_mod")
                 _normalized_func_mod = normalize_mod_func_(func)
 
-                if self.cache_meta_database.has_workload(normalize_mod_func_(func)):
+                if self.cache_meta_database.has_workload(_normalized_func_mod):
                     tuning_record = self.cache_meta_database.query_tuning_record(
                         _normalized_func_mod,
                         target,
@@ -149,10 +149,7 @@ class ApplyFastTuning:  # pylint: disable=too-few-public-methods
                     print(f"[FastDlight] Enabling tensorcore policy for {g_var}")
                     policy = TensorCorePolicy(func=_tensorized_func, arch=arch, tags=tags)
 
-                # try:
                 configs = policy.emit_config(self.topk)
-                # except:
-                #     configs = None
 
                 if configs:
                     _, best = apply_and_build(

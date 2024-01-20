@@ -183,6 +183,7 @@ def get_index_map(
     """
     traits = detect_iter_traits(block)
     if traits is None:
+        print("[WARNING] traits is None, the block is", block)
         return None
     A_traits, B_traits, C_traits, block_traits = traits
 
@@ -562,11 +563,11 @@ def get_reduction_blocks(
     return reduction_blocks
 
 
-def normalize_with_tensorcore(sch: tir.Schedule, main_block: BlockRV) -> Optional[tir.Schedule]:
+def normalize_to_matmul(sch: tir.Schedule, main_block: BlockRV, layout:List[str]=["n", "t", "n"]) -> Optional[tir.Schedule]:
     block_stmt = sch.get(main_block)
 
     # let layout be 'a' to auto inference the layout
-    index_maps = get_index_map(block_stmt, layout=["a", "a", "a"])
+    index_maps = get_index_map(block_stmt, layout=layout)
     if index_maps is None:
         print("[WARNING] Cannot find the appropriate index map for tensorcore")
         return None
@@ -609,7 +610,7 @@ def get_tensorized_func_and_tags(
         conditions = []
         conditions.append(len(block_stmt.reads) == 2)
         conditions.append(len(block_stmt.writes) == 1)
-        conditions.append(len(collect_vars_used_in_access_region(block_stmt.writes[0].region)) > 0)
+        conditions.append(len(collect_block_iter_vars_used_in_access_region(block_stmt, block_stmt.writes[0].region)) > 0)
         if not all(conditions):
             return False
         return True
@@ -702,7 +703,7 @@ def get_tensorized_func_and_tags(
         # reindex and transform functions
         # Normalize tensor functions to C[S, I, J] += A[S, I, K] * B[S, J, K]
         # or C[S, I, J] += A[S, I, K] * B[S, K, J]
-        sch = normalize_with_tensorcore(sch, main_block)
+        sch = normalize_to_matmul(sch, main_block, ["a", "a", "a"])
         if sch is None:
             return func, None
 
