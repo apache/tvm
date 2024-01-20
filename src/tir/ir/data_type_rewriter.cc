@@ -258,6 +258,17 @@ Stmt IndexDataTypeRewriter::VisitStmt_(const AllocateNode* op) {
   }
 }
 
+Stmt IndexDataTypeRewriter::VisitStmt_(const AttrStmtNode* op) {
+  if (op->attr_key == attr::thread_extent || op->attr_key == attr::virtual_thread) {
+    bool is_enabled = is_enabled_;
+    is_enabled_ = true;
+    auto stmt = DataTypeLegalizer::VisitStmt_(op);
+    is_enabled_ = is_enabled;
+    return stmt;
+  }
+  return DataTypeLegalizer::VisitStmt_(op);
+}
+
 Stmt IndexDataTypeRewriter::VisitStmt_(const DeclBufferNode* op) {
   Buffer new_buffer = VisitBuffer(op->buffer);
   DeclBuffer decl_buffer = Downcast<DeclBuffer>(StmtExprMutator::VisitStmt_(op));
