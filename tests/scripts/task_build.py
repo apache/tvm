@@ -34,6 +34,7 @@ if __name__ == "__main__":
 
     parser = argparse.ArgumentParser(description="List pytest nodeids for a folder")
     parser.add_argument("--sccache-bucket", required=False, help="sccache bucket name")
+    parser.add_argument("--sccache-region", required=False, help="sccache region")
     parser.add_argument("--build-dir", default="build", help="build folder")
     parser.add_argument("--cmake-target", help="optional build target")
     args = parser.parse_args()
@@ -48,7 +49,9 @@ if __name__ == "__main__":
     if use_sccache:
         if args.sccache_bucket:
             env["SCCACHE_BUCKET"] = args.sccache_bucket
+            env["SCCACHE_REGION"] = args.sccache_region
             logging.info(f"Using sccache bucket: {args.sccache_bucket}")
+            logging.info(f"Using sccache region: {args.sccache_region}")
         else:
             logging.info(f"No sccache bucket set, using local cache")
         env["CXX"] = "/opt/sccache/c++"
