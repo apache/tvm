@@ -55,14 +55,9 @@ class DefaultPolicy:
         for td in smem_tile_condidates:
             if not self.check_tile_shape_isvalid(td):
                 continue
-            block_orders = self._assign_block_order(td)
-            if block_orders is False:
-                continue
+
             self._expand_reduce_axis(td)
             for codegen_dicts in self.assign_block_size(td):
-                # handle cases where block is not ordinal (e.g. transpose)
-                for _, block_order in block_orders.items():
-                    codegen_dicts.block_order = block_order
                 results.append(codegen_dicts)
                 if len(results) >= topk:
                     break
@@ -86,7 +81,7 @@ class DefaultPolicy:
         queue = PriorityQueue()
 
         def prio(td: TileDict):
-            return (td.traffic + 1) * td.num_wave  # * (td.block_per_SM ** 0.5)
+            return (td.traffic + 1) * td.num_wave
 
         def add_to_queue(tile):
             if tuple(tile) in visited_tiles:
@@ -637,31 +632,6 @@ class DefaultPolicy:
                 topk -= 1
                 if topk == 0:
                     break
-
-    def _assign_block_order(self, td: TileDict):
-        """
-        Assigns block order to the TileDict based on the grid size and other parameters.
-
-        Parameters
-        ----------
-        td : TileDict
-            The TileDict object to assign block order to.
-
-        Returns
-        -------
-        Dict
-            A dictionary representing the block order assignment for each node.
-        """
-        block_idx = tvm.te.var("block_idx")
-        analyzer = tvm.arith.Analyzer()
-        analyzer.update(block_idx, tvm.arith.ConstIntBound(0, td.grid_size - 1))
-        expr_map = {node: block_idx for node in self.output_nodes}
-        result = {}
-        for node in reversed(self.ordered_nodes):
-            expr = expr_map[node]
-            if not (expr.same_as(block_idx) or isinstance(expr, tvm.tir.expr.ConstExpr)):
-                result[node] = expr
-        return result
 
     def _assign_block_size(self, node: PrimFuncNode, td: TileDict, block_size: int):
         """

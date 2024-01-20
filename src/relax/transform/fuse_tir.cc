@@ -360,27 +360,6 @@ class BlockNameDeduplicator : public tir::StmtMutator {
 
 namespace relax {
 
-class BlockPrinter : public tir::StmtExprVisitor {
-  void VisitStmt_(const tir::AttrStmtNode* op) final {
-    tir::AttrStmt attr_stmt = GetRef<tir::AttrStmt>(op);
-    tir::StmtExprVisitor::VisitStmt_(op);
-  }
-
-  void VisitStmt_(const tir::AllocateNode* op) final {
-    tir::Allocate alloc = GetRef<tir::Allocate>(op);
-    tir::StmtExprVisitor::VisitStmt_(op);
-  }
-
-  void VisitStmt_(const tir::DeclBufferNode* op) final {
-    tir::DeclBuffer decl_buffer = GetRef<tir::DeclBuffer>(op);
-    tir::StmtExprVisitor::VisitStmt_(op);
-  }
-
-  void VisitStmt_(const tir::BlockNode* Block) final {
-    tir::Block blockstmt = GetRef<tir::Block>(Block);
-    tir::StmtExprVisitor::VisitStmt_(Block);
-  }
-};
 class FusedTIRConstructor : public ExprVisitor {
  public:
   /*!
@@ -706,8 +685,8 @@ class FusedTIRConstructor : public ExprVisitor {
         String base_name = buffer->name;
         String unique_name = base_name + "_intermediate";
         size_t unique_id = 0;
-
         std::unordered_set<std::string> names;
+
         for (auto& _buffer : func_info_.alloc_buffers) {
           names.insert(_buffer->name);
         }
@@ -794,6 +773,7 @@ class FusedTIRConstructor : public ExprVisitor {
       }
     }
     tir::Stmt body = tir::BlockNameDeduplicator()(tir::SeqStmt::Flatten(func_info_.bodies));
+
     body = subst.Substitute(body);
     body = tir::Block({}, {}, {}, "root", std::move(body), NullOpt, alloc_buffers);
     body = tir::BlockRealize({}, Bool(true), Downcast<tir::Block>(body));
@@ -1046,7 +1026,6 @@ class TIRFuseMutator : public ExprMutator {
 
 IRModule FuseTIR(IRModule mod) {
   mod = TIRFuseMutator::Transform(mod);
-
   return mod;
 }
 

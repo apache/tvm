@@ -155,7 +155,6 @@ class Config(object):
         self.reduce_thread = []
         self.rasterization_plan = None
         self.cached_tensors = []
-        self.block_order = None
         self.output_strides = {}
         self.schedule_stages = None
 
@@ -178,8 +177,6 @@ class Config(object):
         dic["rstep"] = self.rstep
         if np.prod(self.reduce_thread) > 1:
             dic["reduce_thread"] = self.reduce_thread
-        if self.block_order is not None:
-            dic["block_order"] = self.block_order
         if self.use_tc:
             dic["use_tc"] = self.use_tc
         if self.output_strides:
@@ -212,8 +209,6 @@ class Config(object):
             self.reduce_thread = dic["reduce_thread"]
         else:
             self.reduce_thread = [1 for _ in self.rstep]
-        if "block_order" in dic:
-            self.block_order = dic["block_order"]
         if "strides" in dic:
             self.output_strides = dic["strides"]
         if "step" in dic:
