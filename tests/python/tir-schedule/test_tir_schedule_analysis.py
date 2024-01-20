@@ -455,38 +455,4 @@ def test_empty_grid():
 
 
 if __name__ == "__main__":
-    # tvm.testing.main()
-    matmul = create_prim_func(te_workload.matmul(128, 128, 128, in_dtype="float16", out_dtype="float32"))
-    workload = matmul
-    conv2d = create_prim_func(
-        te_workload.conv2d_nhwc(4, 16, 16, 64, 64, 3, 1, 1, in_dtype="float16", out_dtype="float32")
-    )
-    workload = conv2d
-    block_name = "conv2d_nhwc"
-    def elementwise_copy(M, N, dtype="float16"):
-        @tvm.script.ir_module
-        class ElementWiseCopy:
-            @T.prim_func
-            def main(a: T.handle, b: T.handle):
-                T.func_attr({"global_symbol": "main", "tir.noalias": True})
-                A = T.match_buffer(a, [M, N], dtype=dtype)
-                B = T.match_buffer(b, [M, N], dtype=dtype)
-                
-                for i, j in T.grid(M, N):
-                    with T.block("B"):
-                        vi, vj = T.axis.remap("SS", [i, j])
-                        T.reads(A[vi, vj])
-                        T.writes(B[vi, vj])
-                        B[vi, vj] = A[vi, vj]
-        return ElementWiseCopy
-    # workload = elementwise_copy(128, 128, dtype="float16")
-    # block_name = 'B'
-    s = Schedule(workload)
-    block = s.get_block(block_name)
-    desc_func = TensorIntrin.get(WMMA_SYNC_16x16x16_f16f16f32_INTRIN).desc
-    info = get_auto_tensorize_mapping_info(s, block, desc_func)
-    print(info.mappings)
-    # print(info.mappings[0])
-    # print(info.mappings[1])
-    # print(info.mappings[2])
-    
+    tvm.testing.main()

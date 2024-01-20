@@ -314,5 +314,4 @@ def test_extract_func_info_from_prim_func():
 
 
 if __name__ == "__main__":
-    test_benchmark_prim_func_local()
-    test_benchmark_prim_func_full_local()
+    tvm.testing.main()

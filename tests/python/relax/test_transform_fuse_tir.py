@@ -1845,5 +1845,4 @@ def test_gather():
 
 
 if __name__ == "__main__":
-    # tvm.testing.main()
-    test_gather()
+    tvm.testing.main()
