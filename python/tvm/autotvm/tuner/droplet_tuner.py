@@ -18,8 +18,9 @@
 
 import logging
 import os
+
 import numpy as np
-from scipy import stats
+
 from .tuner import Tuner
 
 LOGGER = logging.getLogger("autotvm")
@@ -85,6 +86,9 @@ class DropletTuner(Tuner):
     def p_value(self, elem_1, elem_2):
         if len(elem_1) <= 1 or len(elem_2) <= 1:
             return True
+
+        from scipy import stats  # pylint: disable=import-outside-toplevel
+
         return stats.ttest_ind(np.array(elem_1), np.array(elem_2)).pvalue <= self.pvalue
 
     def next_batch(self, batch_size):
