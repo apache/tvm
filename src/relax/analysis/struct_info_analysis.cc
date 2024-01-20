@@ -118,6 +118,28 @@ class WellDefinedEraser : public StructInfoMutator,
                     std::function<Optional<Expr>(const Var& var)> f_var_map, arith::Analyzer* ana)
       : f_shape_var_map_(f_shape_var_map), f_var_map_(f_var_map), ana_(ana) {}
 
+  StructInfo VisitStructInfo_(const PrimStructInfoNode* op) final {
+    bool has_undefined = false;
+    Optional<PrimExpr> value;
+
+    if (op->value.defined()) {
+      std::swap(has_undefined_, has_undefined);
+      value = VisitPrimExpr(op->value.value());
+      std::swap(has_undefined_, has_undefined);
+    }
+
+    // erase symbolic shape if we have undefined.
+    if (!has_undefined) {
+      if (value.same_as(op->value)) {
+        return GetRef<StructInfo>(op);
+      } else {
+        return PrimStructInfo(value.value(), op->span);
+      }
+    } else {
+      return PrimStructInfo(op->dtype, op->span);
+    }
+  }
+
   StructInfo VisitStructInfo_(const ShapeStructInfoNode* op) final {
     bool has_undefined = false;
     Optional<Array<PrimExpr>> values;
@@ -295,7 +317,15 @@ class StructInfoBaseChecker
       if (other.as<ObjectStructInfoNode>()) return BaseCheckResult::kFailL1;
       return BaseCheckResult::kFailL0;
     }
-    return lhs->dtype == rhs->dtype ? BaseCheckResult::kPass : BaseCheckResult::kFailL0;
+
+    if (lhs->dtype != rhs->dtype) {
+      return BaseCheckResult::kFailL0;
+    }
+
+    if (!lhs->value.defined()) return BaseCheckResult::kPass;
+    if (!rhs->value.defined()) return BaseCheckResult::kFailL2;
+
+    return PrimValueMatchCheck(lhs->value.value(), rhs->value.value());
   }
 
   BaseCheckResult VisitStructInfo_(const ShapeStructInfoNode* lhs, const StructInfo& other) final {

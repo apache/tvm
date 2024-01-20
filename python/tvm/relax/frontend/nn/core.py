@@ -50,7 +50,12 @@ from tvm.target import Target
 
 from ... import expr as rx
 from ...block_builder import BlockBuilder
-from ...struct_info import ShapeStructInfo, TensorStructInfo, TupleStructInfo
+from ...struct_info import (
+    ObjectStructInfo,
+    ShapeStructInfo,
+    TensorStructInfo,
+    TupleStructInfo,
+)
 from ._tensor_op import _TensorOp
 from .subroutine import SubroutineMixin
 
@@ -123,19 +128,25 @@ class Tensor(_TensorOp):
 
     @staticmethod
     def placeholder(
-        shape: Sequence[Union[int, tir.PrimExpr]],
+        shape: Sequence[Union[int, str, tir.PrimExpr]],
         dtype: str,
         name: str = "tensor",
     ) -> "Tensor":
         """Create a placeholder tensor with given shape and dtype. A placeholder tensor should
         never be created directly by users in usual cases, and the only exception is to indicate
         the shape/dtype of return values of an external function.
+
+        If shape is a string `name`, we create a symbolic shape `tvm.tir.Var(name, "int64")`.
         """
         new_shape = []
         for expr in shape:
             if isinstance(expr, (int, tir.IntImm)):
                 expr = int(expr)
                 assert expr >= 0
+                new_shape.append(expr)
+                continue
+            if isinstance(expr, str):
+                expr = tir.Var(expr, "int64")
                 new_shape.append(expr)
                 continue
             if not isinstance(expr, tir.PrimExpr):
@@ -209,7 +220,7 @@ class Parameter(Tensor):
 
     def __init__(
         self,
-        shape: Sequence[Union[int, tir.PrimExpr]],
+        shape: Sequence[Union[int, str, tir.PrimExpr]],
         dtype: Optional[str] = None,
     ) -> None:
         """Create a parameter with given shape and dtype. The parameter is not bound to any
@@ -217,8 +228,9 @@ class Parameter(Tensor):
 
         Parameters
         ----------
-        shape : Sequence[Union[int, tir.PrimExpr]]
-            The shape of the parameter
+        shape : Sequence[Union[int, str, tir.PrimExpr]]
+            The shape of the parameter. If it is a string `name`, we create a symbolic shape
+            `tvm.tir.Var(name, "int64")`.
         dtype : Optional[str]
             The data type of the parameter. If not specified, the default dtype will be used.
         """
@@ -272,6 +284,22 @@ class Parameter(Tensor):
             self._expr = Tensor.placeholder(  # pylint: disable=protected-access
                 self.shape, dtype=dtype, name="param"
             )._expr
+
+
+class Object:
+    """A wrapper on top of relax.Expr whose struct_info is the base
+    ObjectStructInfo (rather than any its subclass). Object effectively
+    represents non-tensor frontend components such as KV caches.
+    """
+
+    _expr: rx.Var
+
+    def __init__(self, *, _expr: rx.Expr, _name: str) -> None:
+        """Private constructor. Object is never supposed to be constructed directly by users."""
+        if not isinstance(_expr, rx.Var):
+            _expr = BlockBuilder.current().emit(_expr, _name)
+        self._expr = _expr
+        assert isinstance(self._expr.struct_info, ObjectStructInfo)
 
 
 class Effect:

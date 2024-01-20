@@ -31,6 +31,7 @@
 
 #include <chrono>
 #include <iomanip>
+#include <regex>
 #include <stack>
 #include <unordered_set>
 
@@ -529,6 +530,36 @@ Pass CreateModulePass(const runtime::TypedPackedFunc<IRModule(IRModule, PassCont
                       int opt_level, String name, tvm::Array<String> required, bool traceable) {
   PassInfo pass_info = PassInfo(opt_level, name, required, traceable);
   return ModulePass(pass_func, pass_info);
+}
+
+Pass ApplyPassToFunction(Pass pass, String func_name_regex,
+                         bool error_if_no_function_matches_regex) {
+  auto pass_name =
+      static_cast<const std::stringstream&>(std::stringstream() << "ApplyPassTo" << func_name_regex)
+          .str();
+  std::regex regex(func_name_regex.operator std::string());
+
+  auto pass_func = [pass, regex](IRModule mod, PassContext) -> IRModule {
+    IRModule subset;
+
+    for (const auto& [gvar, func] : mod->functions) {
+      std::string name = gvar->name_hint;
+      if (std::regex_match(name, regex)) {
+        subset->Add(gvar, func);
+      }
+    }
+
+    if (subset->functions.size()) {
+      IRModule new_subset = pass(subset);
+      if (!new_subset.same_as(subset)) {
+        mod.CopyOnWrite()->Update(new_subset);
+      }
+    }
+
+    return mod;
+  };
+
+  return CreateModulePass(pass_func, 0, pass_name, {});
 }
 
 TVM_REGISTER_NODE_TYPE(PassInfoNode);

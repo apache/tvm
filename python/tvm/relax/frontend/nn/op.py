@@ -577,7 +577,7 @@ def broadcast_to(x: Tensor, shape: Sequence[IntExpr], name: str = "broadcast_to"
     return wrap_nested(_op.broadcast_to(x._expr, shape), name)
 
 
-def permute_dims(x: Tensor, axes: Optional[List[int]] = None, name: str = "permute_dims") -> Tensor:
+def permute_dims(x: Tensor, axes: Optional[List[int]] = None, name: str = None) -> Tensor:
     """Permutes the dimensions of an array.
 
     Parameters
@@ -596,6 +596,13 @@ def permute_dims(x: Tensor, axes: Optional[List[int]] = None, name: str = "permu
     result : Tensor
         The transposed result.
     """
+    if name is None:
+        x_name = getattr(getattr(x, "_expr", None), "name_hint", None)
+        if x_name is not None and "linear" in x_name:
+            name = x_name.replace("linear", "matmul")
+        else:
+            name = "permute_dims"
+
     return wrap_nested(_op.permute_dims(x._expr, axes=axes), name)
 
 
@@ -1142,6 +1149,65 @@ def zeros(
     return wrap_nested(_op.zeros(shape, dtype), name)
 
 
+def ones(
+    shape: Sequence[IntExpr],
+    dtype: str = "float32",
+    name: str = "ones",
+) -> Tensor:
+    """Construct a tensor of all zeros, with the input shape and dtype.
+
+    Parameters
+    ----------
+    shape : Sequence[IntExpr]
+        The shape of the created tensor.
+
+    dtype : str
+        The data type of the created tensor.
+
+    name : str
+        Name hint.
+
+    Returns
+    -------
+    result : Tensor
+        The result tensor.
+    """
+    return wrap_nested(_op.ones(shape, dtype), name)
+
+
+def empty(
+    shape: Sequence[IntExpr],
+    dtype: str = "float32",
+    name: str = "empty",
+) -> Tensor:
+    """Construct an uninitialized tensor, with the input shape and dtype.
+
+    Parameters
+    ----------
+    shape : Sequence[IntExpr]
+        The shape of the created tensor.
+
+    dtype : str
+        The data type of the created tensor.
+
+    name : str
+        Name hint.
+
+    Returns
+    -------
+    result : Tensor
+        The result tensor.
+    """
+    return wrap_nested(  # type: ignore
+        _op.builtin.alloc_tensor(
+            rx.ShapeExpr(shape),  # type: ignore
+            dtype,
+            runtime_device_index=0,
+        ),
+        name,
+    )
+
+
 def split(
     ary: Tensor,
     indices_or_sections: Union[int, Sequence[int]],
@@ -1464,7 +1530,7 @@ OutType = TypeVar("OutType", bound=Union[Tensor, Sequence[Tensor]])
 def tensor_ir_op(
     func: _tir.PrimFunc,
     name_hint: str,
-    args: Union[Tensor, Sequence[Union[Tensor, _tir.Var]]],
+    args: Union[Tensor, Sequence[Union[Tensor, rx.ShapeExpr, _tir.PrimExpr]]],
     out: OutType,
 ) -> OutType:
     """Create a `call_tir` binding with given PrimFunc
@@ -1477,7 +1543,7 @@ def tensor_ir_op(
     name_hint : str
         Name hint.
 
-    args : Union[Tensor, Sequence[Union[Tensor, _tir.Var]]]
+    args : Union[Tensor, Sequence[Union[Tensor, rx.ShapeExpr, _tir.PrimExpr]]]
         The arguments to pass to the PrimFunc.
 
     out : Union[Tensor, List[Tensor]]
@@ -1497,11 +1563,12 @@ def tensor_ir_op(
     for arg in args:
         if isinstance(arg, Tensor):
             call_tir_args.append(arg._expr)
-        elif isinstance(arg, _tir.Var):
+        elif isinstance(arg, (rx.ShapeExpr, _tir.PrimExpr)):
             tir_vars.append(arg)
         else:
             raise TypeError(
-                f"Unsupported type: tensor_ir_op args expect Tensor or tir.Var, but got {type(arg)}"
+                "Unsupported type: tensor_ir_op args expect Tensor or ShapeExpr or PrimExpr,"
+                f"but got {type(arg)}"
             )
 
     if isinstance(out, Tensor):

@@ -107,9 +107,7 @@ def build_and_run(mod, inputs_np, target, legalize=True, cuda_graph=False):
     return f(*inputs).numpy()
 
 
-def get_result_with_relax_cutlass_offload(
-    mod, *args, assert_all_bindings_fused=True, num_final_bindings=1
-):
+def build_cutlass(mod, assert_all_bindings_fused=True, num_final_bindings=1):
     mod = partition_for_cutlass(mod)
 
     if assert_all_bindings_fused:
@@ -117,7 +115,13 @@ def get_result_with_relax_cutlass_offload(
 
     codegen_pass = relax.transform.RunCodegen({"cutlass": {"sm": 80, "find_first_valid": True}})
     mod = codegen_pass(mod)
+    return mod
 
+
+def get_result_with_relax_cutlass_offload(
+    mod, *args, assert_all_bindings_fused=True, num_final_bindings=1
+):
+    mod = build_cutlass(mod, assert_all_bindings_fused, num_final_bindings)
     return build_and_run(mod, args, "cuda")
 
 
@@ -267,6 +271,29 @@ def test_conv2d_offload(data_shape, weight_shape, dtype, epilogue, residual_bloc
     ref = build_and_run(mod, args, "llvm")
 
     tvm.testing.assert_allclose(out, ref, rtol=1e-5, atol=1e-5)
+
+
+@pytest.mark.parametrize(
+    "data_shape, weight_shape, dtype",
+    [
+        # batch dynamism
+        ((T.Var("n", "int64"), 32, 32, 16), (32, 3, 3, 16), "float16"),
+        # channel dynamism
+        ((16, 32, 32, T.Var("c", "int64")), (32, 3, 3, T.Var("c", "int64")), "float16"),
+    ],
+)
+def test_conv2d_dynamic(data_shape, weight_shape, dtype):
+    # Create dynamic conv2d module.
+    mod = get_relax_conv2d_module(
+        data_shape,
+        weight_shape,
+        dtype,
+    )
+    # Attempt to offload to cutlass, should run without an error
+    # but not offload due to incompatibility.
+    mod = build_cutlass(mod)
+    # Check that no cutlass call is introduced (until we support dynamism).
+    assert "call_dps" not in str(mod.__repr__())
 
 
 def test_cutlass_partition_conv2d_residual_blocked():

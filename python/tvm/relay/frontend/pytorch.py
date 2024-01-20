@@ -21,6 +21,8 @@
 """PT: PyTorch frontend."""
 import functools
 import itertools
+from abc import ABC
+from typing import Dict
 import math
 import re
 import sys
@@ -137,7 +139,9 @@ def _is_int_seq(seq):
 class PyTorchOpConverter:
     """A helper class for holding PyTorch op converters."""
 
-    def __init__(self, prelude, default_dtype, use_parser_friendly_name=False):
+    def __init__(
+        self, prelude, default_dtype, use_parser_friendly_name=False, preserve_pytorch_scopes=False
+    ):
         self.prelude = prelude
         self.default_dtype = default_dtype
         self.create_convert_map()
@@ -146,6 +150,7 @@ class PyTorchOpConverter:
         self.op_type_dict = {}  # map from op type to its presenting order
         self.current_op = []  # stack for recording current processing op
         self.use_parser_friendly_name = use_parser_friendly_name
+        self.preserve_pytorch_scopes = preserve_pytorch_scopes
 
     # this incrementally infers the type, see the comments on the type visitor
     # above.
@@ -446,11 +451,9 @@ class PyTorchOpConverter:
         stride = inputs[4]
 
         target_begin, is_begin_const = try_infer_value(
-            inputs[2], lambda ret: ret.astype(np.int).item(0)
+            inputs[2], lambda ret: ret.astype(int).item(0)
         )
-        target_end, is_end_const = try_infer_value(
-            inputs[3], lambda ret: ret.astype(np.int).item(0)
-        )
+        target_end, is_end_const = try_infer_value(inputs[3], lambda ret: ret.astype(int).item(0))
 
         # A fast path when slicing is nop.
         if (
@@ -592,9 +595,7 @@ class PyTorchOpConverter:
             )
             raise AssertionError(msg)
 
-        if isinstance(inputs[1], torch.Tensor) and not (
-            list(inputs[1].shape) == [] or list(inputs[1].shape) == 1
-        ):
+        if isinstance(inputs[1], torch.Tensor) and len(inputs[1].shape) not in [0, 1]:
             msg = "indices_or_sections must be a zero-dimensional or one-dimensional long tensor"
             raise AssertionError(msg)
 
@@ -847,7 +848,7 @@ class PyTorchOpConverter:
             dtype = _convert_dtype_value(inputs[2])
         else:
             # if dtype is None, use the dtype of the input tensor
-            dtype = self.infer_type(inputs[0])
+            dtype = self.infer_type(inputs[0]).dtype
         return self.full_impl(data, 0, dtype)
 
     def full(self, inputs, input_types):
@@ -898,7 +899,7 @@ class PyTorchOpConverter:
             dtype = _convert_dtype_value(inputs[3])
         else:
             # if dtype is None, use the dtype of the input tensor
-            dtype = self.infer_type(inputs[0])
+            dtype = self.infer_type(inputs[0]).dtype
 
         return self.full_impl(data, fill_value, dtype)
 
@@ -917,7 +918,7 @@ class PyTorchOpConverter:
         # Find the spacing between values as step
         if step != 1:
             step = (stop - start) / (step - 1)
-            stop = stop + step
+            stop = stop + (step / 2)
         else:
             stop = start + step
 
@@ -1544,6 +1545,33 @@ class PyTorchOpConverter:
         out = _op.reshape(data, new_shape)
         if squeeze_axes:
             out = _op.squeeze(out, axis=squeeze_axes)
+        return out
+
+    def unflatten(self, inputs, input_types):
+        data = inputs[0]
+        dim = int(inputs[1])
+        unflattened_size = tuple(inputs[2])
+        dshape = get_const_tuple(self.infer_shape_with_prelude(data))
+
+        dim = dim if dim >= 0 else len(dshape) + dim
+        assert len(dshape) > dim >= 0
+
+        new_unflattened_size = []
+        for s in unflattened_size:
+            if isinstance(s, _expr.Constant):
+                s = s.data.numpy().item()
+            new_unflattened_size.append(s)
+
+        assert new_unflattened_size.count(-1) <= 1
+
+        mult = np.multiply.reduce(new_unflattened_size)
+        if mult < 0:
+            assert dshape[dim] % mult == 0
+        else:
+            assert dshape[dim] == mult
+
+        new_shape = dshape[:dim] + tuple(new_unflattened_size) + dshape[dim + 1 :]
+        out = _op.reshape(data, new_shape)
         return out
 
     def addmm(self, inputs, input_types):
@@ -2300,6 +2328,21 @@ class PyTorchOpConverter:
             res_shape = list(torch.broadcast_tensors(*map(torch.empty, infer_shape_value))[0].shape)
         return [_op.broadcast_to(tensor, res_shape) for tensor in tensor_list]
 
+    def broadcast_to(self, inputs, input_types):
+        tensor = inputs[0]
+        new_shape = inputs[1]
+        import torch
+
+        if not isinstance(new_shape, (list, tuple, torch.Size)):
+            msg = f"Data type {type(new_shape)} could not be parsed in broadcast_to op"
+            raise AssertionError(msg)
+
+        for i, dim in enumerate(new_shape):
+            if not isinstance(dim, int):
+                new_shape[i] = int(_infer_value(dim, {}).numpy())
+
+        return _op.broadcast_to(tensor, new_shape)
+
     def Bool(self, inputs, input_types):
         assert len(inputs) == 1
         return inputs[0]
@@ -2629,6 +2672,12 @@ class PyTorchOpConverter:
 
         return _op.logical_and(lhs, rhs)
 
+    def logical_or(self, inputs, input_types):
+        lhs = _op.cast(inputs[0], "bool")
+        rhs = _op.cast(inputs[1], "bool")
+
+        return _op.logical_or(lhs, rhs)
+
     def nonzero(self, inputs, input_types, is_numpy_style=False):
         data = inputs[0]
         ret = _op.transform.argwhere(data)
@@ -2637,7 +2686,7 @@ class PyTorchOpConverter:
         return ret
 
     def nonzero_numpy(self, inputs, input_types):
-        return self.nonzero(inputs, input_types, is_numpy_style=False)
+        return self.nonzero(inputs, input_types, is_numpy_style=True)
 
     def scatter(self, inputs, input_types):
         assert len(inputs) == 4 or len(inputs) == 5, (
@@ -2726,7 +2775,7 @@ class PyTorchOpConverter:
             for i in [0, 1]:
                 size, _ = try_infer_value(
                     inputs[1][i],
-                    lambda ret: ret.astype(np.int),
+                    lambda ret: ret.astype(int),
                     lambda: _op.expand_dims(inputs[1][i], axis=0),
                 )
                 out_size.append(size)
@@ -3844,6 +3893,135 @@ class PyTorchOpConverter:
         # Return
         return _op.scatter_nd(source, indices, values, mode)
 
+    def linalg_vector_norm(self, inputs, input_types):
+        data = inputs[0]
+        dtype = input_types[0]
+        ord = inputs[1]
+        dim = inputs[2]
+        keepdim = inputs[3]
+
+        assert dtype == "float32" or dtype == "float64"
+
+        if ord == 0:
+            return _op.reduce.sum(
+                _op.cast(_op.not_equal(data, _expr.const(0, dtype=dtype)), dtype=dtype),
+                axis=dim,
+                keepdims=keepdim,
+            )
+        elif ord == np.inf:
+            return _op.reduce.max(_op.abs(data), axis=dim, keepdims=keepdim)
+        elif ord == np.NINF:
+            return _op.reduce.min(_op.abs(data), axis=dim, keepdims=keepdim)
+        reci_ord = _expr.const(1.0 / ord, dtype=dtype)
+        ord = _expr.const(ord, dtype=dtype)
+        return _op.power(
+            _op.reduce.sum(_op.power(_op.abs(data), ord), axis=dim, keepdims=keepdim),
+            reci_ord,
+        )
+
+    def scaled_dot_product_attention(self, inputs, input_types):
+        query = inputs[0]
+        key = inputs[1]
+        value = inputs[2]
+        attn_mask = inputs[3]
+        dropout_p = inputs[4]
+        is_causal = inputs[5]
+
+        # Explicit scale can be used from torch>=2.1.0
+        if len(inputs) == 7:
+            scale = inputs[6]
+        else:
+            scale = None
+
+        assert (
+            input_types[0] == input_types[1] == input_types[2]
+        ), "Expected query, key, and value to have the same dtype"
+
+        dtype = input_types[0]
+        assert dtype == "float32" or dtype == "float64", "Data type can be float32 or float64"
+
+        query_shape = self.infer_shape_with_prelude(query)
+        key_shape = self.infer_shape_with_prelude(key)
+        value_shape = self.infer_shape_with_prelude(value)
+        assert 3 <= len(query_shape) <= 4, "Only 3D or 4D query supported"
+        assert 3 <= len(key_shape) <= 4, "Only 3D or 4D key supported"
+        assert 3 <= len(value_shape) <= 4, "Only 3D or 4D value supported"
+
+        assert dropout_p == 0.0, "Only dropout_p==0.0 supported"
+
+        L, S = query_shape[-2], key_shape[-2]
+
+        if scale is None:
+            scale_factor = _expr.const(1 / math.sqrt(query_shape[-1]), dtype=dtype)
+        else:
+            scale_factor = _expr.const(scale, dtype=dtype)
+
+        attn_bias = _op.full(_expr.const(0.0, dtype=dtype), (L, S))
+
+        if is_causal:
+            assert attn_mask is None, "Explicit attn_mask shouldn't be set when is_causal=True"
+            temp_mask = _op.full(_expr.const(True), [L, S], dtype="bool")
+            temp_mask = _op.trilu(temp_mask, 0, upper=False)
+            temp_mask = _op.cast(temp_mask, dtype="bool")
+            temp_mask = _op.logical_not(temp_mask)
+            fill_value = _op.cast(_expr.const(float("-inf")), dtype=dtype)
+            attn_bias = _op.where(temp_mask, fill_value, attn_bias)
+            attn_bias = _op.cast(attn_bias, dtype)
+
+        if attn_mask is not None:
+            if input_types[3] == "bool":
+                attn_mask = _op.logical_not(attn_mask)
+                fill_value = _op.cast(_expr.const(float("-inf")), dtype=dtype)
+                attn_bias = _op.where(attn_mask, fill_value, attn_bias)
+            else:
+                attn_bias = _op.add(attn_bias, attn_mask)
+
+        if len(query_shape) < len(key_shape):
+            batch_size = key_shape[0]
+        else:
+            batch_size = query_shape[0]
+        if len(query_shape) == 4 and len(key_shape) == 4:
+            query = _op.reshape(query, newshape=[-3, -2])
+            key = _op.reshape(key, newshape=[-3, -2])
+        if len(query_shape) == 3 and len(key_shape) == 4:
+            query = _op.broadcast_to(query, shape=(batch_size,) + query_shape)
+            query = _op.reshape(query, newshape=[-3, -2])
+            key = _op.reshape(key, newshape=[-3, -2])
+        if len(query_shape) == 4 and len(key_shape) == 3:
+            query = _op.reshape(query, newshape=[-3, -2])
+            key = _op.broadcast_to(key, shape=(batch_size,) + key_shape)
+            key = _op.reshape(key, newshape=[-3, -2])
+        attn_weight = _op.nn.batch_matmul(query, key)
+        if len(query_shape) == 4 or len(key_shape) == 4:
+            attn_weight = _op.reshape(attn_weight, newshape=[-4, batch_size, -1, -2])
+        attn_weight = _op.squeeze(attn_weight, axis=[])
+
+        attn_weight = _op.multiply(attn_weight, scale_factor)
+        attn_weight = _op.add(attn_weight, attn_bias)
+        attn_weight = _op.nn.softmax(attn_weight)
+        attn_weight = _op.nn.dropout(attn_weight, rate=dropout_p)
+
+        aw_shape = self.infer_shape_with_prelude(attn_weight)
+        if len(aw_shape) < len(value_shape):
+            batch_size = value_shape[0]
+        else:
+            batch_size = aw_shape[0]
+        if len(aw_shape) == 4 and len(value_shape) == 4:
+            attn_weight = _op.reshape(attn_weight, newshape=[-3, -2])
+            value = _op.reshape(value, newshape=[-3, -2])
+        if len(aw_shape) == 3 and len(value_shape) == 4:
+            attn_weight = _op.broadcast_to(attn_weight, shape=(batch_size,) + aw_shape)
+            attn_weight = _op.reshape(attn_weight, newshape=[-3, -2])
+            value = _op.reshape(value, newshape=[-3, -2])
+        if len(aw_shape) == 4 and len(value_shape) == 3:
+            attn_weight = _op.reshape(attn_weight, newshape=[-3, -2])
+            value = _op.broadcast_to(value, shape=(batch_size,) + value_shape)
+            value = _op.reshape(value, newshape=[-3, -2])
+        attn_weight = _op.nn.batch_matmul(attn_weight, value, transpose_b=False)
+        if len(aw_shape) == 4 or len(value_shape) == 4:
+            attn_weight = _op.reshape(attn_weight, newshape=[-4, batch_size, -1, -2])
+        return attn_weight
+
     # Operator mappings
     def create_convert_map(self):
         self.convert_map = {
@@ -3890,6 +4068,7 @@ class PyTorchOpConverter:
             "aten::squeeze": self.squeeze,
             "aten::unsqueeze": self.unsqueeze,
             "aten::cat": self.concatenate,
+            "aten::concat": self.concatenate,
             "aten::slice": self.slice,
             "aten::narrow": self.narrow,
             "aten::split": self.split,
@@ -3945,6 +4124,7 @@ class PyTorchOpConverter:
             "aten::t": self.transpose,
             "aten::numpy_T": self.numpy_T,
             "aten::flatten": self.flatten,
+            "aten::unflatten": self.unflatten,
             "aten::addmm": self.addmm,
             "aten::size": self.size,
             "aten::view": self.view,
@@ -4031,6 +4211,7 @@ class PyTorchOpConverter:
             "aten::upsample_nearest3d": self.make_upsample3d("nearest_neighbor"),
             "aten::expand_as": self.expand_as,
             "aten::broadcast_tensors": self.broadcast_tensors,
+            "aten::broadcast_to": self.broadcast_to,
             "aten::lt": self.make_elemwise("less"),
             "aten::gt": self.make_elemwise("greater"),
             "aten::le": self.make_elemwise("less_equal"),
@@ -4063,6 +4244,7 @@ class PyTorchOpConverter:
             "aten::unbind": self.unbind,
             "aten::__and__": self.logical_and,
             "aten::logical_and": self.logical_and,
+            "aten::logical_or": self.logical_or,
             "aten::_shape_as_tensor": self.shape_as_tensor,
             "aten::nonzero": self.nonzero,
             "aten::nonzero_numpy": self.nonzero_numpy,
@@ -4118,6 +4300,8 @@ class PyTorchOpConverter:
             "aten::_weight_norm": self.weight_norm,
             "aten::copy_": self.inplace_copy,
             "aten::swapaxes": self.transpose,
+            "aten::linalg_vector_norm": self.linalg_vector_norm,
+            "aten::scaled_dot_product_attention": self.scaled_dot_product_attention,
         }
 
     def update_convert_map(self, custom_map):
@@ -4155,7 +4339,11 @@ class PyTorchOpConverter:
     def convert_block(self, block, outputs):
         """Translate Torch "Block", used for prim::If and prim::Loop"""
         ops = _get_operator_nodes(
-            block.nodes(), self.source_map, self.op_type_dict, self.use_parser_friendly_name
+            block.nodes(),
+            self.source_map,
+            self.op_type_dict,
+            self.use_parser_friendly_name,
+            self.preserve_pytorch_scopes,
         )
         ret_names = _get_input_names(block.returnNode())
         return self.convert_operators(ops, outputs, ret_names)
@@ -4722,25 +4910,76 @@ def _get_constant(node):
         return None
 
 
-def _rename_outputs(node, source_map, op_type_dict, use_parser_friendly_name):
-    """Rewrite debug name of node outputs with its operator type"""
+class NodeNamer(ABC):
+    """Name each node and output edge in the relay graph"""
 
-    def _get_source_name(op_type):
+    def __init__(self, op_counter_dict: Dict[str, int]):
+        self.op_counter_dict = op_counter_dict
+
+    def increment_counter(self, identifier: str) -> int:
         op_idx = 0
-        if op_type in op_type_dict:
-            op_idx = op_type_dict[op_type] + 1
-        op_type_dict[op_type] = op_idx
-        return "_".join([op_type, str(op_idx)])
+        if identifier in self.op_counter_dict:
+            op_idx = self.op_counter_dict[identifier] + 1
+        self.op_counter_dict[identifier] = op_idx
+        return op_idx
 
-    # get source name of operator and rename all of its outputs
+    def get_node_source_name(self, node) -> str:
+        raise NotImplementedError()
+
+    def get_node_output_name(self, node_src_name: str, index: int) -> str:
+        raise NotImplementedError()
+
+
+class DefaultNodeKindNamer(NodeNamer):
+    """
+    Namer that uses a default naming based on the "type"/kind of node
     # e.g. node.kind(): aten::adaptive_max_pool2d
     # node_src_name -> aten::adaptive_max_pool2d_x
     # output_1 -> aten::adaptive_max_pool2d_x_0
     # output_2 -> aten::adaptive_max_pool2d_x_1
+    """
+
+    def get_node_source_name(self, node) -> str:
+        op_idx = self.increment_counter(node.kind())
+        return "_".join([node.kind(), str(op_idx)])
+
+    def get_node_output_name(self, node_src_name: str, index: int) -> str:
+        return "_".join([node_src_name, str(index)])
+
+
+class PytorchScopePreservingNamer(NodeNamer):
+    """
+    Namer that uses the Pytorch scope to name nodes.
+    eg. node could be called "bert.encoder.layer.11.output.dense"
+    """
+
+    def get_node_source_name(self, node) -> str:
+        # This works per the scope naming in Pytorch 2.0 and beyond.
+        scope_name_parts = node.scopeName().split("/")
+        imp_parts = [part.split("::")[-1] for part in scope_name_parts]
+        node_src_name = ".".join([part for part in imp_parts if part])
+        return node_src_name
+
+    def get_node_output_name(self, node_src_name: str, index: int) -> str:
+        op_idx = self.increment_counter(node_src_name)
+        return "_".join([node_src_name, str(op_idx), str(index)])
+
+
+def _rename_outputs(
+    node, source_map, op_type_dict, use_parser_friendly_name, preserve_pytorch_scopes
+):
+    """Rewrite debug name of node outputs with its operator type"""
+    namer = (
+        PytorchScopePreservingNamer(op_type_dict)
+        if preserve_pytorch_scopes
+        else DefaultNodeKindNamer(op_type_dict)
+    )
+    # get source name of operator and rename all of its outputs
     if node.kind() != "prim::GetAttr":
-        node_src_name = _get_source_name(node.kind())
+        node_src_name = namer.get_node_source_name(node)
         for index, output in enumerate(node.outputs()):
-            output.setDebugName("_".join([node_src_name, str(index)]))
+            name = namer.get_node_output_name(node_src_name, index)
+            output.setDebugName(name)
         # update source map
         # if use_parser_friendly_name is True: e.g. prim::Constant_0 -> prim__Constant_0
         if use_parser_friendly_name:
@@ -4748,7 +4987,7 @@ def _rename_outputs(node, source_map, op_type_dict, use_parser_friendly_name):
         source_map[node] = node_src_name
 
 
-def _debug_rename(graph, use_parser_friendly_name):
+def _debug_rename(graph, use_parser_friendly_name, preserve_pytorch_scopes):
     """Returns map between node and source name"""
     source_map, op_type_dict = {}, {}
     prim_with_blocks = ["prim::If", "prim::Loop"]
@@ -4760,13 +4999,21 @@ def _debug_rename(graph, use_parser_friendly_name):
             if node.kind() in prim_with_blocks:
                 for block in node.blocks():
                     _traverse_graph(block.nodes())
-            _rename_outputs(node, source_map, op_type_dict, use_parser_friendly_name)
+            _rename_outputs(
+                node, source_map, op_type_dict, use_parser_friendly_name, preserve_pytorch_scopes
+            )
 
     _traverse_graph(graph.nodes())
     return source_map
 
 
-def _get_operator_nodes(nodes, source_map=None, op_type_dict=None, use_parser_friendly_name=False):
+def _get_operator_nodes(
+    nodes,
+    source_map=None,
+    op_type_dict=None,
+    use_parser_friendly_name=False,
+    preserve_pytorch_scopes=False,
+):
     """Returns torch IR nodes that need conversion to Relay"""
     ops, should_rename_graph = [], all([source_map, op_type_dict]) is not None
 
@@ -4776,7 +5023,9 @@ def _get_operator_nodes(nodes, source_map=None, op_type_dict=None, use_parser_fr
             continue
 
         if should_rename_graph:
-            _rename_outputs(node, source_map, op_type_dict, use_parser_friendly_name)
+            _rename_outputs(
+                node, source_map, op_type_dict, use_parser_friendly_name, preserve_pytorch_scopes
+            )
 
         if node.outputsSize() > 1:
             node_name = "_".join(_get_output_names(node))
@@ -4975,11 +5224,18 @@ def convert_params(graph, state_dict, source_map, use_parser_friendly_name=False
 
             full_attr = _getattr_full_name(getattrs, attr_name_sep)
             full_attr_node_name = _get_output_name(getattrs[-1])
-            # set variable name by concatenating first consumer's name with full attribute
+
+            # check if the node is a torch.nn.ParameterList, and if so, include the index in
+            # the attribute name as well
+            # e.g. "weights.1"
+            if re.search(attr_name_sep + r"\d+$", full_attr):
+                attr_name = full_attr.split(attr_name_sep)[-2:]
+            else:
+                attr_name = [full_attr.split(attr_name_sep)[-1]]
+
+            # set variable name by concatenating first consumer's name with attribute name
             # e.g. "aten::batch_norm_5.running_mean"
-            var_name = attr_name_sep.join(
-                [source_map[_get_users(getattrs[-1])[0]], full_attr.split(attr_name_sep)[-1]]
-            )
+            var_name = attr_name_sep.join([source_map[_get_users(getattrs[-1])[0]]] + attr_name)
 
             if full_attr.endswith("_packed_params"):  # for quantized models
                 packed_param_map[full_attr_node_name] = full_attr
@@ -5031,6 +5287,7 @@ def from_pytorch(
     use_parser_friendly_name=False,
     keep_quantized_weight=False,
     export_renamed_c_graph_path=None,
+    preserve_pytorch_scopes=False,
 ):
     """Load PyTorch model in the form of a scripted PyTorch model and convert into relay.
     The companion parameters will be handled automatically.
@@ -5078,6 +5335,10 @@ def from_pytorch(
         During the conversion, variable names in torch._C.Graph will be assigned based on their op
         types. The exported text file can be the reference to spans.
 
+    preserve_pytorch_scopes : bool
+        When naming the nodes in the Relay graph, use the "scope name" from the Pytorch model.
+        If false, a default namer is used that does not preserve the Pytorch scope names.
+
     Returns
     -------
     mod : tvm.IRModule
@@ -5092,7 +5353,9 @@ def from_pytorch(
     prelude = Prelude(mod)
     enable_lower_all_tuples = True
 
-    converter = PyTorchOpConverter(prelude, default_dtype, use_parser_friendly_name)
+    converter = PyTorchOpConverter(
+        prelude, default_dtype, use_parser_friendly_name, preserve_pytorch_scopes
+    )
 
     graph = script_module.graph.copy()
 
@@ -5124,7 +5387,7 @@ def from_pytorch(
 
     # rename _C.Graph here for constructing meaningful source name of graph nodes
     # by doing so, we could Use source_map as the reference to rename model parameters
-    source_map = _debug_rename(graph, use_parser_friendly_name)
+    source_map = _debug_rename(graph, use_parser_friendly_name, preserve_pytorch_scopes)
     param_vars, tensors, packed_param_map, param_debug_name_map = convert_params(
         graph, params, source_map, use_parser_friendly_name
     )
@@ -5152,7 +5415,11 @@ def from_pytorch(
         converter.update_convert_map(qnn_torch.convert_map)
 
     operator_nodes = _get_operator_nodes(
-        graph.nodes(), converter.source_map, converter.op_type_dict, use_parser_friendly_name
+        graph.nodes(),
+        converter.source_map,
+        converter.op_type_dict,
+        use_parser_friendly_name,
+        preserve_pytorch_scopes,
     )
     ret_name = _get_input_names(graph.return_node())
     outputs = converter.convert_operators(operator_nodes, outputs, ret_name)

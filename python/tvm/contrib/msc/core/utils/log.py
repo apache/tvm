@@ -75,6 +75,10 @@ def create_file_logger(level: Union[str, int] = logging.INFO, path: str = None) 
             level = logging.INFO
         elif level == "warn":
             level = logging.WARN
+        elif level == "error":
+            level = logging.ERROR
+        elif level == "critical":
+            level = logging.CRITICAL
         else:
             raise Exception("Unexcept verbose {}, should be debug| info| warn")
 

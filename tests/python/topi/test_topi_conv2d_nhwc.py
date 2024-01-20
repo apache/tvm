@@ -16,6 +16,7 @@
 # under the License.
 """Example code to do convolution."""
 import os
+import platform
 import numpy as np
 import tvm
 from tvm import te
@@ -44,6 +45,19 @@ _conv2d_nhwc_implement = {
     ),
     "hls": (topi.nn.conv2d_nhwc, topi.hls.schedule_conv2d_nhwc),
 }
+
+device = tvm.testing.parameter(
+    (
+        "llvm --device arm_cpu --mtriple aarch64-linux-gnu",
+        topi.arm_cpu.conv2d_nhwc_spatial_pack,
+        topi.arm_cpu.schedule_conv2d_nhwc_spatial_pack,
+    ),
+    (
+        "llvm --device arm_cpu --mtriple aarch64-linux-gnu -mattr=+v8.2a",
+        topi.arm_cpu.compute_conv2d_NHWC_hybrid,
+        topi.arm_cpu.schedule_conv2d_NHWC_hybrid,
+    ),
+)
 
 dtype = tvm.testing.parameter("float32")
 
@@ -75,6 +89,31 @@ def ref_data(dtype, batch, in_channel, in_size, num_filter, kernel, stride, padd
     dw_np = tvm.topi.testing.dilate_python(w_np, (dilation, dilation, 1, 1))
     b_np = tvm.topi.testing.conv2d_nhwc_python(a_np, dw_np, stride, padding)
     return a_np, w_np, b_np
+
+
+def test_conv2d_nhwc_gemm_fp32(device, ref_data, dtype, stride, padding, dilation):
+    a_np, w_np, b_np = ref_data
+
+    A = te.placeholder(a_np.shape, name="A", dtype=dtype)
+    W = te.placeholder(w_np.shape, name="W", dtype=dtype)
+
+    target, compute, schedule = device
+    dev = tvm.device(target, 0)
+
+    with tvm.target.Target(target):
+        B = compute(A, W, stride, padding, dilation, dtype)
+        s = schedule([B])
+    a = tvm.nd.array(a_np, dev)
+    w = tvm.nd.array(w_np, dev)
+    b = tvm.nd.array(np.zeros(get_const_tuple(B.shape), dtype=B.dtype), dev)
+    func = tvm.build(s, [A, W, B], target)
+
+    build_only = platform.machine() != "aarch64"
+    if build_only:
+        return
+
+    func(a, w, b)
+    tvm.testing.assert_allclose(b.numpy(), b_np, rtol=1e-5)
 
 
 def test_conv2d_nhwc_hwio(target, dev, ref_data, dtype, stride, padding, dilation):

@@ -197,12 +197,14 @@ struct ConvWinogradWeightTransformAttrs : public tvm::AttrsNode<ConvWinogradWeig
 
 /*! \brief Attributes used in gemm weight transformation operators */
 struct ConvGemmWeightTransformAttrs : public tvm::AttrsNode<ConvGemmWeightTransformAttrs> {
-  int tile_rows;
-  int tile_cols;
+  int tile_N;
+  int tile_K;
 
   TVM_DECLARE_ATTRS(ConvGemmWeightTransformAttrs, "relay.attrs.ConvGemmWeightTransformAttrs") {
-    TVM_ATTR_FIELD(tile_rows).describe("Tile rows of the weight transformation for ConvGemm.");
-    TVM_ATTR_FIELD(tile_cols).describe("Tile columns of the weight transformation for ConvGemm.");
+    TVM_ATTR_FIELD(tile_N).describe(
+        "Tile size across N axis of the weight transformation for ConvGemm. (N = OC)");
+    TVM_ATTR_FIELD(tile_K).describe(
+        "Tile size across K axis of the weight transformation for ConvGemm. (K = KW * KH * IC)");
   }
 };
 

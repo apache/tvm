@@ -313,8 +313,6 @@ def test_take_backward():
             rxplaceholder_1 = T.match_buffer(var_rxplaceholder_1, (T.int64(3), T.int64(4), T.int64(5)), offset_factor=1)
             rxplaceholder_2 = T.match_buffer(var_rxplaceholder_2, (T.int64(2),), "int32", offset_factor=1)
             with T.block("take_backward"):
-                T.reads(rxplaceholder[T.int64(0):T.int64(3), T.int64(0):T.int64(2), T.int64(0):T.int64(5)], rxplaceholder_1[T.int64(0):T.int64(3), T.int64(0):T.int64(4), T.int64(0):T.int64(5)], rxplaceholder_2[T.int64(0):T.int64(2)])
-                T.writes(out_buf[T.int64(0):T.int64(3), T.int64(0):T.int64(4), T.int64(0):T.int64(5)])
                 for i in range(T.int64(60)):
                     out_buf[i // T.int64(5) // T.int64(4), i // T.int64(5) % T.int64(4), i % T.int64(5)] = T.float32(0)
                 for parallel, serial in T.grid(T.int64(15), T.int64(2)):
@@ -354,8 +352,6 @@ def test_take_backward_symbolic():
             rxplaceholder_2 = T.match_buffer(var_rxplaceholder_2, (i,), "int32", offset_factor=1)
             out_buf = T.match_buffer(var_take_backward, (m, n))
             with T.block("take_backward"):
-                T.reads(rxplaceholder[T.int64(0):m, T.int64(0):i], rxplaceholder_1[T.int64(0):m, T.int64(0):n], rxplaceholder_2[T.int64(0):i])
-                T.writes(out_buf[T.int64(0):m, T.int64(0):n])
                 for i_1 in range(m * n):
                     out_buf[i_1 // n, i_1 % n] = T.float32(0)
                 for parallel, serial in T.grid(m, i):

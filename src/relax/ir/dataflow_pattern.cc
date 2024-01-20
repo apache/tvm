@@ -241,10 +241,8 @@ RELAX_PATTERN_PRINTER_DEF(NotPatternNode,
                           [](auto p, auto node) { p->stream << "!(" << node->reject << ")"; });
 
 TVM_REGISTER_NODE_TYPE(WildcardPatternNode);
-TVM_REGISTER_GLOBAL("relax.dpl.WildcardPattern").set_body_typed([]() {
-  auto w = WildcardPattern(make_object<WildcardPatternNode>());
-  return w;
-});
+WildcardPattern::WildcardPattern() { data_ = make_object<WildcardPatternNode>(); }
+TVM_REGISTER_GLOBAL("relax.dpl.WildcardPattern").set_body_typed([]() { return WildcardPattern(); });
 RELAX_PATTERN_PRINTER_DEF(WildcardPatternNode, [](auto p, auto node) { p->stream << "*"; });
 
 TVM_REGISTER_NODE_TYPE(TypePatternNode);

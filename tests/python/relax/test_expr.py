@@ -271,5 +271,25 @@ def test_datatype_imm():
     _check_json_roundtrip(d0)
 
 
+def test_call():
+    dtype = rx.PrimStructInfo("int32")
+    func = rx.Var("func", rx.FuncStructInfo([dtype], dtype))
+    arg = rx.Var("arg", dtype)
+    call = rx.Call(func, [arg])
+    assert call.op.same_as(func)
+    assert len(call.args) == 1
+    assert call.args[0].same_as(arg)
+
+
+def test_call_raises_error_for_invalid_function():
+    """relax::Call requires the function to have FuncStructInfo"""
+    dtype = rx.PrimStructInfo("int32")
+    func = rx.Var("func", dtype)
+    arg = rx.Var("arg", dtype)
+
+    with pytest.raises(ValueError):
+        rx.Call(func, [arg])
+
+
 if __name__ == "__main__":
     tvm.testing.main()

@@ -670,11 +670,21 @@ void ExprMutator::ReEmitBinding(const VarBindingNode* binding, Expr new_value) {
     return;
   }
 
-  Var temp = WithStructInfo(new_var, GetStructInfo(new_value));
+  auto new_sinfo = new_value->struct_info_.as<StructInfo>();
+
+  ICHECK(new_sinfo)
+      << "InternalError: "
+      << "In binding of variable " << binding->var << ", the value " << new_value
+      << " does not have StructInfo.  "
+      << "This typically occurs when ReEmitBinding is called without first calling Normalize.";
+
+  Var temp = WithStructInfo(new_var, new_sinfo.value());
   if (!temp.same_as(new_var)) {
     new_var = temp;
   }
+
   this->var_remap_[binding->var->vid] = new_var;
+  this->var_remap_[new_var->vid] = new_var;
 
   builder_->EmitNormalized(VarBinding(new_var, new_value));
 }

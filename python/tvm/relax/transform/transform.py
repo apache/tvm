@@ -24,7 +24,7 @@ from typing import Callable, Dict, List, Mapping, Optional, Sequence, Tuple, Uni
 import numpy as np  # type: ignore
 
 import tvm.ir
-from tvm.relax import Expr, Var
+from tvm.relax import Expr, Var, StructInfo
 from tvm.relax.dpl import DFPattern
 from tvm.runtime import NDArray, Object
 from tvm.tir import IndexMap, PrimFunc
@@ -250,6 +250,22 @@ def RemovePurityChecking() -> tvm.ir.transform.Pass:
     Should be used after ToNonDataflow()
     """
     return _ffi_api.RemovePurityChecking()  # type: ignore
+
+
+def DataflowUseInplaceCalls() -> tvm.ir.transform.Pass:
+    """
+    Pass that changes calls to operators that can be done in-place
+    (generally, these are elementwise operations) into in-place implementations.
+    Supported operators will be replaced by calls to `call_tir_inplace` that invoke
+    in-place PrimFunc implementations of those operators (which are based on the legalizations of
+    those operators).
+
+    Returns
+    -------
+    ret: tvm.ir.transform.Pass
+        The pass
+    """
+    return _ffi_api.DataflowUseInplaceCalls()
 
 
 def LambdaLift() -> tvm.ir.transform.Pass:
@@ -1222,6 +1238,48 @@ def SplitCallTIRByPattern(patterns: List[PrimFunc], fcodegen: Callable) -> tvm.i
         The registered pass for splitting call_tir.
     """
     return _ffi_api.SplitCallTIRByPattern(patterns, fcodegen)  # type: ignore
+
+
+def UpdateParamStructInfo(sinfo_func: Callable[[Var], Optional[StructInfo]]):
+    """Update struct info of parameters
+
+    Update struct info of parameters.  Internal bindings and function
+    return type will be updated using relax's struct inference rules.
+    Errors resulting from struct inference will be propagated to the
+    user.
+
+    Parameters
+    ----------
+    sinfo_func: Callable[[Var], Optional[StructInfo]]
+
+        A function that is called once for each function parameter,
+        and returns the updated struct info to be used for it.  If the
+        function returns `None`, the parameter is not modified.
+
+    Returns
+    -------
+    ret : tvm.transform.Pass
+        The corresponding pass.
+
+    """
+    return _ffi_api.UpdateParamStructInfo(sinfo_func)  # type: ignore
+
+
+def AdjustMatmulOrder():
+    """Reorder `x*(A*B)` to `(x*A)*B`
+
+    Useful for optimizing LoRA computations, where `matmul(x,
+    LoraA*LoraB)` may be computed as `matmul(matmul(x, LoraA),
+    LoraB)`, reducing the total memory usage.
+
+
+    Returns
+    -------
+    ret : tvm.transform.Pass
+        The corresponding pass.
+    """
+
+    return _ffi_api.AdjustMatmulOrder()  # type: ignore
 
 
 def CombineParallelMatmul(check=None):

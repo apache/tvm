@@ -211,37 +211,50 @@ def conv2d_strategy_arm_cpu(attrs, inputs, out_type, target):
                 )
             elif kernel_layout == "HWIO":
                 is_aarch64 = target.features.is_aarch64
-                has_asimd = target.features.has_asimd
                 has_dot_prod = target.features.has_dotprod
                 has_matmul_i8 = target.features.has_matmul_i8
-
-                if data.dtype in ["int8", "uint8"]:
-                    if has_matmul_i8:
+                interleaved_compute = topi.arm_cpu.compute_conv2d_NHWC_quantized_interleaved
+                interleaved_schedule = topi.arm_cpu.schedule_conv2d_NHWC_quantized_interleaved
+                native_compute = topi.arm_cpu.compute_conv2d_NHWC_quantized_native
+                native_schedule = topi.arm_cpu.schedule_conv2d_NHWC_quantized_native
+                # Quantized cases
+                if is_aarch64 and data.dtype in ["int8", "uint8"]:
+                    if has_matmul_i8 and has_dot_prod:
                         strategy.add_implementation(
-                            wrap_compute_conv2d(
-                                topi.arm_cpu.compute_conv2d_NHWC_quantized_interleaved
-                            ),
-                            wrap_topi_schedule(
-                                topi.arm_cpu.schedule_conv2d_NHWC_quantized_interleaved
-                            ),
+                            wrap_compute_conv2d(interleaved_compute),
+                            wrap_topi_schedule(interleaved_schedule),
                             name="conv2d_NHWC_quantized_interleaved.arm_cpu",
                         )
-                    if has_dot_prod:
                         strategy.add_implementation(
-                            wrap_compute_conv2d(topi.arm_cpu.compute_conv2d_NHWC_quantized_native),
-                            wrap_topi_schedule(topi.arm_cpu.schedule_conv2d_NHWC_quantized_native),
+                            wrap_compute_conv2d(native_compute),
+                            wrap_topi_schedule(native_schedule),
                             name="conv2d_NHWC_quantized_native.arm_cpu",
                         )
-                    if is_aarch64 and has_asimd:
+                    elif has_matmul_i8:
                         strategy.add_implementation(
-                            wrap_compute_conv2d(
-                                topi.arm_cpu.compute_conv2d_NHWC_quantized_interleaved
-                            ),
-                            wrap_topi_schedule(
-                                topi.arm_cpu.schedule_conv2d_NHWC_quantized_interleaved
-                            ),
+                            wrap_compute_conv2d(interleaved_compute),
+                            wrap_topi_schedule(interleaved_schedule),
                             name="conv2d_NHWC_quantized_interleaved.arm_cpu",
                         )
+                    elif has_dot_prod:
+                        strategy.add_implementation(
+                            wrap_compute_conv2d(native_compute),
+                            wrap_topi_schedule(native_schedule),
+                            name="conv2d_NHWC_quantized_native.arm_cpu",
+                        )
+                    else:
+                        strategy.add_implementation(
+                            wrap_compute_conv2d(interleaved_compute),
+                            wrap_topi_schedule(interleaved_schedule),
+                            name="conv2d_NHWC_quantized_interleaved.arm_cpu",
+                        )
+                # Non-quantized cases
+                if is_aarch64 and data.dtype in ["float32", "float16"]:
+                    strategy.add_implementation(
+                        wrap_compute_conv2d(topi.arm_cpu.compute_conv2d_NHWC_hybrid),
+                        wrap_topi_schedule(topi.arm_cpu.schedule_conv2d_NHWC_hybrid),
+                        name="conv2d_NHWC_hybrid.arm_cpu",
+                    )
                 if (not is_aarch64) or (data.dtype not in ["int8", "uint8"]):
                     # TODO(@giuseros)
                     # This strategy errors out for quantized data types when tuning.
@@ -250,6 +263,7 @@ def conv2d_strategy_arm_cpu(attrs, inputs, out_type, target):
                         wrap_compute_conv2d(topi.arm_cpu.conv2d_nhwc_spatial_pack),
                         wrap_topi_schedule(topi.arm_cpu.schedule_conv2d_nhwc_spatial_pack),
                         name="conv2d_nhwc_spatial_pack.arm_cpu",
+                        plevel=5,
                     )
             else:
                 raise RuntimeError(f"Unsupported kernel layout {kernel_layout} for conv2d NHWC")
@@ -485,40 +499,59 @@ def conv2d_gemm_without_weight_transform_strategy_arm_cpu(attrs, inputs, out_typ
     data = inputs[0]
     strategy = _op.OpStrategy()
     is_aarch64 = target.features.is_aarch64
-    has_asimd = target.features.has_asimd
     has_dot_prod = target.features.has_dotprod
     has_matmul_i8 = target.features.has_matmul_i8
 
     interleaved_compute = topi.arm_cpu.compute_conv2d_NHWC_quantized_interleaved_without_transform
+    interleaved_schedule = topi.arm_cpu.schedule_conv2d_NHWC_quantized_interleaved_without_transform
     native_compute = topi.arm_cpu.compute_conv2d_NHWC_quantized_native_without_transform
-    if layout == "NHWC" and data.dtype in ["int8", "uint8"]:
-        if has_matmul_i8:
+    native_schedule = topi.arm_cpu.schedule_conv2d_NHWC_quantized_native_without_transform
+    if layout == "NHWC" and data.dtype in ["int8", "uint8", "float32", "float16"]:
+        # Non-AArch64 cases
+        if not is_aarch64:
+            raise RuntimeError("Unsupported non-AArch64 conv2d_NHWC_without_transform")
+        # AArch64 cases
+        if data.dtype in ["int8", "uint8"]:
+            # Quantized cases
+            if has_matmul_i8 and has_dot_prod:
+                strategy.add_implementation(
+                    wrap_compute_conv2d_gemm(interleaved_compute),
+                    wrap_topi_schedule(interleaved_schedule),
+                    name="conv2d_NHWC_quantized_interleaved_without_transform.arm_cpu",
+                )
+                strategy.add_implementation(
+                    wrap_compute_conv2d_gemm(native_compute),
+                    wrap_topi_schedule(native_schedule),
+                    name="conv2d_NHWC_quantized_native_without_transform.arm_cpu",
+                )
+            elif has_matmul_i8:
+                strategy.add_implementation(
+                    wrap_compute_conv2d_gemm(interleaved_compute),
+                    wrap_topi_schedule(interleaved_schedule),
+                    name="conv2d_NHWC_quantized_interleaved_without_transform.arm_cpu",
+                )
+            elif has_dot_prod:
+                strategy.add_implementation(
+                    wrap_compute_conv2d_gemm(native_compute),
+                    wrap_topi_schedule(native_schedule),
+                    name="conv2d_NHWC_quantized_native_without_transform.arm_cpu",
+                )
+            else:
+                strategy.add_implementation(
+                    wrap_compute_conv2d_gemm(interleaved_compute),
+                    wrap_topi_schedule(interleaved_schedule),
+                    name="conv2d_NHWC_quantized_interleaved_without_transform.arm_cpu",
+                )
+        elif data.dtype in ["float32", "float16"]:
+            # Non-quantized cases
             strategy.add_implementation(
-                wrap_compute_conv2d_gemm(interleaved_compute),
-                wrap_topi_schedule(
-                    topi.arm_cpu.schedule_conv2d_NHWC_quantized_interleaved_without_transform
-                ),
-                name="conv2d_NHWC_quantized_interleaved_without_transform.arm_cpu",
-            )
-        if has_dot_prod:
-            strategy.add_implementation(
-                wrap_compute_conv2d_gemm(native_compute),
-                wrap_topi_schedule(
-                    topi.arm_cpu.schedule_conv2d_NHWC_quantized_native_without_transform
-                ),
-                name="conv2d_NHWC_quantized_native_without_transform.arm_cpu",
-            )
-        if is_aarch64 and has_asimd:
-            strategy.add_implementation(
-                wrap_compute_conv2d_gemm(interleaved_compute),
-                wrap_topi_schedule(
-                    topi.arm_cpu.schedule_conv2d_NHWC_quantized_interleaved_without_transform
-                ),
-                name="conv2d_NHWC_quantized_interleaved_without_transform.arm_cpu",
+                wrap_compute_conv2d_gemm(topi.arm_cpu.compute_conv2d_NHWC_hybrid_without_transform),
+                wrap_topi_schedule(topi.arm_cpu.schedule_conv2d_NHWC_hybrid_without_transform),
+                name="conv2d_NHWC_hybrid_without_transform.arm_cpu",
             )
     else:
         raise RuntimeError(
-            f"Unsupported conv2d_NHWC_quantized_without_transform layout {layout}"
+            f"Unsupported conv2d_NHWC_without_transform layout {layout}"
             f"with datatype {data.dtype}"
         )
     return strategy

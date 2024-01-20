@@ -28,7 +28,9 @@
 #include <string>
 #include <vector>
 
+#include "../utils.h"
 #include "msc_base_printer.h"
+#include "print_utils.h"
 
 namespace tvm {
 namespace contrib {
@@ -51,50 +53,62 @@ class CppPrinter : public MSCBasePrinter {
   }
 
  protected:
-  /*! * \brief Print a LiteralDoc to python format*/
+  /*! * \brief Print a LiteralDoc to cpp format*/
   void PrintTypedDoc(const LiteralDoc& doc) final;
 
-  /*! \brief Virtual method to print an IndexDoc*/
+  /*! * \brief Print a IndexDoc to cpp format*/
   void PrintTypedDoc(const IndexDoc& doc) final;
 
-  /*! * \brief Print a AttrAccessDoc to python format*/
+  /*! * \brief Print a AttrAccessDoc to cpp format*/
   void PrintTypedDoc(const AttrAccessDoc& doc) final;
 
-  /*! * \brief Print a CallDoc to python format*/
+  /*! * \brief Print a CallDoc to cpp format*/
   void PrintTypedDoc(const CallDoc& doc) final;
 
-  /*! * \brief Print a AssignDoc to python format*/
+  /*! * \brief Print a AssignDoc to cpp format*/
   void PrintTypedDoc(const AssignDoc& doc) final;
 
-  /*! * \brief Print a IfDoc to python format*/
+  /*! * \brief Print a IfDoc to cpp format*/
   void PrintTypedDoc(const IfDoc& doc) final;
 
-  /*! * \brief Print a WhileDoc to python format*/
+  /*! * \brief Print a WhileDoc to cpp format*/
   void PrintTypedDoc(const WhileDoc& doc) final;
 
-  /*! \brief Virtual method to print a ForDoc*/
+  /*! * \brief Print a ForDoc to cpp format*/
   void PrintTypedDoc(const ForDoc& doc) final;
 
-  /*! * \brief Print a ScopeDoc to python format*/
+  /*! * \brief Print a ScopeDoc to cpp format*/
   void PrintTypedDoc(const ScopeDoc& doc) final;
 
-  /*! * \brief Print a FunctionDoc to python format*/
+  /*! * \brief Print a FunctionDoc to cpp format*/
   void PrintTypedDoc(const FunctionDoc& doc) final;
 
-  /*! * \brief Print a ClassDoc to python format*/
+  /*! * \brief Print a ClassDoc to cpp format*/
   void PrintTypedDoc(const ClassDoc& doc) final;
 
-  /*! * \brief Print a CommentDoc to python format*/
+  /*! * \brief Print a CommentDoc to cpp format*/
   void PrintTypedDoc(const CommentDoc& doc) final;
 
-  /*! \brief Virtual method to print a DeclareDoc*/
+  /*! * \brief Print a DeclareDoc to cpp format*/
   void PrintTypedDoc(const DeclareDoc& doc) final;
 
-  /*! \brief Virtual method to print a PointerDoc*/
+  /*! * \brief Print a PointerDoc to cpp format*/
   void PrintTypedDoc(const PointerDoc& doc) final;
 
-  /*! \brief Virtual method to print a StrictListDoc*/
+  /*! * \brief Print a StrictListDoc to cpp format*/
   void PrintTypedDoc(const StrictListDoc& doc) final;
+
+  /*! * \brief Print a StructDoc to cpp format*/
+  void PrintTypedDoc(const StructDoc& doc) final;
+
+  /*! * \brief Print a ConstructorDoc to cpp format*/
+  void PrintTypedDoc(const ConstructorDoc& doc) final;
+
+  /*! * \brief Print a LambdaDoc to cpp format*/
+  void PrintTypedDoc(const LambdaDoc& doc) final;
+
+  /*! * \brief Print a SwitchDoc to cpp format*/
+  void PrintTypedDoc(const SwitchDoc& doc) final;
 
  private:
   /*! \brief endline scopes*/
@@ -128,6 +142,9 @@ class CppPrinter : public MSCBasePrinter {
       output_ << ";";
     }
   }
+
+  /*! \brief Check if the doc is empty doc*/
+  bool IsEmptyDoc(const ExprDoc& doc);
 
   /*! \brief Print block with indent*/
   void PrintIndentedBlock(const Array<StmtDoc>& docs);

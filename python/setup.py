@@ -36,6 +36,7 @@ else:
 CURRENT_DIR = os.path.dirname(__file__)
 FFI_MODE = os.environ.get("TVM_FFI", "auto")
 CONDA_BUILD = os.getenv("CONDA_BUILD") is not None
+INPLACE_BUILD = "--inplace" in sys.argv
 
 
 def get_lib_path():
@@ -46,7 +47,7 @@ def get_lib_path():
     libinfo = {"__file__": libinfo_py}
     exec(compile(open(libinfo_py, "rb").read(), libinfo_py, "exec"), libinfo, libinfo)
     version = libinfo["__version__"]
-    if not CONDA_BUILD:
+    if not CONDA_BUILD and not INPLACE_BUILD:
         lib_path = libinfo["find_lib_path"]()
         libs = [lib_path[0]]
         if "runtime" not in libs[0]:
@@ -214,7 +215,7 @@ class BinaryDistribution(Distribution):
 
 
 setup_kwargs = {}
-if not CONDA_BUILD:
+if not CONDA_BUILD and not INPLACE_BUILD:
     with open("MANIFEST.in", "w") as fo:
         for path in LIB_LIST:
             if os.path.isfile(path):
@@ -286,7 +287,7 @@ setup(
 )
 
 
-if not CONDA_BUILD:
+if not CONDA_BUILD and not INPLACE_BUILD:
     # Wheel cleanup
     os.remove("MANIFEST.in")
     for path in LIB_LIST:

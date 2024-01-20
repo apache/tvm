@@ -59,7 +59,6 @@ fattention_decode_end_forward = None
 fattention_prefill_ragged_begin_forward = None
 fattention_prefill_ragged_end_forward = None
 fattention_merge_state = None
-fattention_rotary = None
 
 
 @T.prim_func
@@ -81,12 +80,20 @@ def kv_cache_transpose_append(
     for global_pos, h, f in T.grid(ntoken, num_kv_heads, head_dim):
         with T.block("k_transpose_append"):
             vgpos, vh, vf = T.axis.remap("SSS", [global_pos, h, f])
+            T.reads(position_map[vgpos], k_data[vgpos, vh, vf])
+            T.writes(
+                pages[position_map[vgpos] // page_size, 0, vh, position_map[vgpos] % page_size, vf]
+            )
             position: T.int64 = T.Cast("int64", position_map[vgpos])
             pages[
                 T.floordiv(position, page_size), 0, vh, T.floormod(position, page_size), vf
             ] = k_data[vgpos, vh, vf]
         with T.block("v_transpose_append"):
             vgpos, vh, vf = T.axis.remap("SSS", [global_pos, h, f])
+            T.reads(position_map[vgpos], k_data[vgpos, vh, vf])
+            T.writes(
+                pages[position_map[vgpos] // page_size, 1, vh, position_map[vgpos] % page_size, vf]
+            )
             position: T.int64 = T.Cast("int64", position_map[vgpos])
             pages[
                 T.floordiv(position, page_size), 1, vh, T.floormod(position, page_size), vf
@@ -115,6 +122,11 @@ def copy_cache(
     for p, h, d in T.grid(seqlen, num_kv_heads, head_dim):
         with T.block("copy0"):
             vp, vh, vd = T.axis.remap("SSS", [p, h, d])
+            T.reads(
+                position_map[vp],
+                pages[position_map[vp] // page_size, 0:2, vh, position_map[vp] % page_size, vd],
+            )
+            T.writes(k_data[layer_id, vp, vh, vd], v_data[layer_id, vp, vh, vd])
             position: T.int64 = T.Cast("int64", position_map[vp])
             k_data[layer_id, vp, vh, vd] = pages[
                 T.floordiv(position, page_size), 0, vh, T.floormod(position, page_size), vd
@@ -132,7 +144,7 @@ def set_global_func():
     global fattention_prefill_ragged
     global fattention_prefill_ragged_begin_forward
     global fattention_prefill_ragged_end_forward
-    global fattention_merge_state, fattention_rotary
+    global fattention_merge_state
 
     fclear = tvm.get_global_func("vm.builtin.paged_attention_kv_cache_clear")
     fcreate = tvm.get_global_func("vm.builtin.paged_attention_kv_cache_create")
@@ -169,7 +181,6 @@ def set_global_func():
         "flashinfer.attention_kernel_prefill_with_ragged_kv_cache_end_forward"
     )
     fattention_merge_state = tvm.get_global_func("flashinfer.merge_state_in_place")
-    fattention_rotary = tvm.get_global_func("flashinfer.batch_qk_apply_rotary_in_place")
 
 
 def create_kv_cache():
@@ -203,7 +214,6 @@ def create_kv_cache():
         fattention_prefill_end_forward,
         fattention_decode_begin_forward,
         fattention_decode_end_forward,
-        fattention_rotary,
         fattention_merge_state,
         fcopy_cache,
     )
@@ -290,13 +300,7 @@ def apply_attention(
         cached_k[seq_id] = np.concatenate(
             [
                 cached_k[seq_id],
-                np.stack(
-                    [
-                        f_apply_rotary(new_k[l], cached_k[seq_id].shape[1], rope_scale, rope_theta)
-                        for l in range(num_layers)
-                    ],
-                    axis=0,
-                ),
+                np.stack([new_k[l] for l in range(num_layers)], axis=0),
             ],
             axis=1,
         )
@@ -334,12 +338,9 @@ def apply_attention(
                 rope_scale,
                 rope_theta,
             ).transpose(1, 0, 2)
-            # Todo(Zihao, Ruihang): fold RoPE into flashinfer attn kernel in multi-level cases.
-            # so that k/v values in cache does not have RoPE applied.
-            # k_seq = f_apply_rotary(cached_k[seq_id][layer_id], 0, rope_scale, rope_theta).transpose(
-            #     1, 2, 0
-            # )
-            k_seq = cached_k[seq_id][layer_id].transpose(1, 2, 0)
+            k_seq = f_apply_rotary(cached_k[seq_id][layer_id], 0, rope_scale, rope_theta).transpose(
+                1, 2, 0
+            )
             v_seq = cached_v[seq_id][layer_id].transpose(1, 0, 2)
 
             k_seq = np.repeat(k_seq, num_qo_heads // num_kv_heads, axis=0)
@@ -457,7 +458,7 @@ def test_paged_attention_kv_cache_popn(kv_cache):
         if pop_length != 0:
             cached_k[seq_id] = cached_k[seq_id][:, :-pop_length, ...]
             cached_v[seq_id] = cached_v[seq_id][:, :-pop_length, ...]
-        verify_cached_kv(kv_cache, seq_ids=list(range(4)), expected_k=cached_k, expected_v=cached_v)
+        verify_cached_kv(kv_cache, seq_ids=list(range(5)), expected_k=cached_k, expected_v=cached_v)
 
 
 if __name__ == "__main__":

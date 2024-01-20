@@ -31,6 +31,7 @@ export TVM_TRACKER_PORT=$(((RANDOM % 100) + 9100))
 export RPC_DEVICE_KEY="android"
 export RPC_TARGET="adreno"
 export TVM_NDK_CC="${ANDROID_NDK_HOME}/toolchains/llvm/prebuilt/linux-x86_64/bin/aarch64-linux-android28-clang"
+export CXX="${ANDROID_NDK_HOME}/toolchains/llvm/prebuilt/linux-x86_64/bin/aarch64-linux-android28-clang"
 
 env PYTHONPATH=python python3 -m tvm.exec.rpc_tracker --host "${TVM_TRACKER_HOST}" --port "${TVM_TRACKER_PORT}" &
 TRACKER_PID=$!
@@ -54,18 +55,33 @@ adb forward tcp:5002 tcp:5002
 env adb shell "cd ${TARGET_FOLDER}; killall -9 tvm_rpc-${USER}; sleep 2; LD_LIBRARY_PATH=${TARGET_FOLDER}/ ./tvm_rpc-${USER} server --host=0.0.0.0 --port=5000 --port-end=5010 --tracker=127.0.0.1:${TVM_TRACKER_PORT} --key=${RPC_DEVICE_KEY}" &
 DEVICE_PID=$!
 sleep 5 # Wait for the device connections
-trap "{ kill ${TRACKER_PID}; kill ${DEVICE_PID}; }" 0
+trap "{ kill ${TRACKER_PID}; kill ${DEVICE_PID}; cleanup; }" 0
 
 # cleanup pycache
 find . -type f -path "*.pyc" | xargs rm -f
 # Test TVM
 make cython3
 
+# The RPC to remote Android device has issue of hang after few tests with in CI environments.
+# Lets run them individually on fresh rpc session.
 # OpenCL texture test on Adreno
-run_pytest ctypes ${TVM_INTEGRATION_TESTSUITE_NAME}-opencl-texture tests/python/relay/opencl_texture
+TEXTURE_TESTS=$(./ci/scripts/jenkins/pytest_ids.py --folder tests/python/relay/opencl_texture)
+i=0
+IFS=$'\n'
+for node_id in $TEXTURE_TESTS; do
+    echo "$node_id"
+    run_pytest ctypes "$TVM_INTEGRATION_TESTSUITE_NAME-opencl-texture-$i" "$node_id" --reruns=0
+    i=$((i+1))
+done
 
 # Adreno CLML test
-run_pytest ctypes ${TVM_INTEGRATION_TESTSUITE_NAME}-openclml tests/python/contrib/test_clml
+CLML_TESTS=$(./ci/scripts/jenkins/pytest_ids.py --folder tests/python/contrib/test_clml)
+i=0
+for node_id in $CLML_TESTS; do
+    echo "$node_id"
+    run_pytest ctypes "$TVM_INTEGRATION_TESTSUITE_NAME-openclml-$i" "$node_id" --reruns=0
+    i=$((i+1))
+done
 
 kill ${TRACKER_PID}
 kill ${DEVICE_PID}

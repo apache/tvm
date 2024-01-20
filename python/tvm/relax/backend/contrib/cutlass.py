@@ -132,6 +132,11 @@ def _check_conv2d(context: PatternCheckContext) -> bool:
     if not _check_residual(conv2d_call, context):
         return False
 
+    # Check if any dimensions are symbolic.
+    for dim in data.struct_info.shape.values:
+        if isinstance(dim, tvm.tir.Var):
+            return False
+
     # pylint: disable=invalid-name
     IC = data.struct_info.shape.values[3]
     OC = weight.struct_info.shape.values[0]

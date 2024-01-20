@@ -142,7 +142,7 @@ class RPCSession {
 
   /*!
    * \brief Free a remote function.
-   * \param handle The remote handle, can be NDArray/PackedFunc/Module
+   * \param handle The remote handle, can be NDArray/PackedFunc/Module/Object
    * \param type_code The type code of the underlying type.
    */
   virtual void FreeHandle(void* handle, int type_code) = 0;
@@ -285,6 +285,55 @@ struct RemoteSpace {
   void* data;
   /*! \brief Reference to the underlying RPC session. */
   std::shared_ptr<RPCSession> sess;
+};
+
+/*!
+ * \brief Object wrapper that represents a reference to a remote object
+ */
+class RPCObjectRefObj : public Object {
+ public:
+  /*!
+   * \brief constructor
+   * \param object_handle handle that points to the remote object
+   * \param sess The remote session
+   */
+  RPCObjectRefObj(void* object_handle, std::shared_ptr<RPCSession> sess)
+      : object_handle_(object_handle), sess_(sess) {}
+
+  ~RPCObjectRefObj() {
+    if (object_handle_ != nullptr) {
+      try {
+        sess_->FreeHandle(object_handle_, kTVMObjectHandle);
+      } catch (const Error& e) {
+        // fault tolerance to remote close
+      }
+      object_handle_ = nullptr;
+    }
+  }
+
+  const std::shared_ptr<RPCSession>& sess() const { return sess_; }
+
+  void* object_handle() const { return object_handle_; }
+
+  static constexpr const uint32_t _type_index = TypeIndex::kRuntimeRPCObjectRef;
+  static constexpr const char* _type_key = "runtime.RPCObjectRef";
+  TVM_DECLARE_FINAL_OBJECT_INFO(RPCObjectRefObj, Object);
+
+ private:
+  // The object handle
+  void* object_handle_{nullptr};
+  // The local channel
+  std::shared_ptr<RPCSession> sess_;
+};
+
+/*!
+ * \brief Managed reference to RPCObjectRefObj.
+ * \sa RPCObjectRefObj
+ * \note No public constructor is provided as it is not supposed to be directly created by users.
+ */
+class RPCObjectRef : public ObjectRef {
+ public:
+  TVM_DEFINE_MUTABLE_NOTNULLABLE_OBJECT_REF_METHODS(RPCObjectRef, ObjectRef, RPCObjectRefObj);
 };
 
 /*!

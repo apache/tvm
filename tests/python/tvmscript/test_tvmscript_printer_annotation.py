@@ -84,3 +84,28 @@ def main():
     T.evaluate(6)
     T.evaluate(7)  # annotation 7"""
     )
+
+
+def test_disable_concise_scoping_when_scope_annotated():
+    @T.prim_func
+    def _func():
+        x = 1
+        y = x + 1
+        T.evaluate(y - 1)
+
+    result = _func.with_attr("global_symbol", "main").script(
+        obj_to_annotate={
+            _func.body.body: "annotation 1",
+        }
+    )
+    assert (
+        result
+        == """# from tvm.script import tir as T
+
+@T.prim_func
+def main():
+    x: T.int32 = 1
+    # annotation 1
+    with T.LetStmt(x + 1) as y:
+        T.evaluate(y - 1)"""
+    )

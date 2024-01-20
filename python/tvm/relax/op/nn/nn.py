@@ -220,6 +220,106 @@ def conv2d(
     )
 
 
+def conv3d(
+    data: Expr,
+    weight: Expr,
+    strides: Union[int, Tuple[int, int]] = (1, 1, 1),
+    padding: Union[int, Tuple[int, ...]] = (0, 0, 0),
+    dilation: Union[int, Tuple[int, int]] = (1, 1, 1),
+    groups: int = 1,
+    data_layout: str = "NCDHW",
+    kernel_layout: str = "OIDHW",
+    out_layout: Optional[str] = None,
+    out_dtype: Optional[Union[str, DataType]] = None,
+) -> Expr:
+    r"""3D convolution.
+
+    This operator takes the weight as the convolution kernel
+    and convolves it with data to produce an output.
+
+
+    In the default case, where the data_layout is `NCDHW`
+    and kernel_layout is `OIDHW`, conv3d takes in
+    a data Tensor with shape `(batch_size, in_channels, depth, height, width)`,
+    and a weight Tensor with shape `(channels, in_channels, kernel_d, kernel_h, kernel_w)`,
+    where `kernel_d`, `kernel_h`, and `kernel_w` are the lengths of the `D`, `H`,
+    and `W` kernel dimensions, to produce an output Tensor with the following rule:
+
+    .. math::
+
+        \mbox{out}[b, c, z, y, x] = \sum_{dz, dy, dx, k}
+           \mbox{data}[b, k, \mbox{strides}[0] * z + dz,
+           \mbox{strides}[1] * y  + dy,
+           \mbox{strides}[2] * x + dx] *
+           \mbox{weight}[c, k, dz, dy, dx]
+
+    Padding and dilation are applied to data and weight respectively before the computation.
+    This operator accepts data layout specification.
+    Semantically, the operator will convert the layout to the canonical layout
+    (`NCDHW` for data and `OIDHW` for weight), perform the computation,
+    then convert to the out_layout.
+
+    Parameters
+    ----------
+    data : relax.Expr
+        The input data to the operator.
+
+    weight : relax.Expr
+        The weight expressions.
+
+    strides : Union[int, Tuple[int, int, int]]
+        The strides of convolution. It is required to have length either 1 or 3.
+
+    padding : Union[int, Tuple[int, ...]]
+        The padding of convolution on both sides of inputs before convolution.
+        It is required to have length either 1, 3 or 6.
+
+    dilation : Union[int, Tuple[int, int, int]]
+        Specifies the dilation rate to be used for dilated convolution.
+        It is required to have length either 1 or 3.
+
+    groups : int
+        Number of groups to split the input into for grouped convolution.
+        The number of input and output channels should be divisible by the number of groups.
+
+    data_layout : str
+        Layout of the input.
+
+    kernel_layout : str
+        Layout of the weight.
+
+    out_layout : Optional[str]
+        Layout of the output. If not specified, it is the same as data_layout
+
+    out_dtype : Optional[Union[str, DataType]]
+        Specifies the output data type for mixed precision conv2d.
+
+    Returns
+    -------
+    result : relax.Expr
+        The computed result.
+    """
+    if isinstance(strides, int):
+        strides = (strides, strides, strides)
+    if isinstance(dilation, int):
+        dilation = (dilation, dilation, dilation)
+    if isinstance(padding, int):
+        padding = (padding, padding, padding, padding, padding, padding)
+
+    return _ffi_api.conv3d(  # type: ignore
+        data,
+        weight,
+        strides,
+        padding,
+        dilation,
+        groups,
+        data_layout,
+        kernel_layout,
+        out_layout,
+        out_dtype,
+    )
+
+
 def conv1d_transpose(
     data: Expr,
     weight: Expr,

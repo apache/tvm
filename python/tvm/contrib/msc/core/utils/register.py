@@ -27,6 +27,11 @@ class MSCRegistery:
     MSC_FUNCS = "msc_funcs"
     MSC_TOOLS_CLS = "msc_tools_cls"
     MSC_TOOLS_METHOD = "msc_tools_method"
+    GYM_CONFIGERS = "gym_configers"
+    GYM_CONTROLLERS = "gym_controllers"
+    GYM_AGENTS = "gym_agents"
+    GYM_ENVS = "gym_envs"
+    GYM_METHODS = "gym_agents_method"
 
     @classmethod
     def register(cls, key: str, value: Any):
@@ -185,3 +190,170 @@ def get_registered_tool_method(
     tools_method = MSCRegistery.get(MSCRegistery.MSC_TOOLS_METHOD, {})
     register_name = "{}.{}".format(tool_type, method_style)
     return tools_method.get(framework, {}).get(register_name)
+
+
+def register_gym_configer(configer: Any):
+    """Register a gym configer.
+
+    Parameters
+    ----------
+    configer: class
+        The configer class.
+    """
+
+    configers = MSCRegistery.get(MSCRegistery.GYM_CONFIGERS, {})
+    assert hasattr(configer, "config_type"), "config_type should be given to register configer"
+    configers[configer.config_type()] = configer
+    MSCRegistery.register(MSCRegistery.GYM_CONFIGERS, configers)
+
+
+def get_registered_gym_configer(config_type: str) -> Any:
+    """Get the registered configer.
+
+    Parameters
+    ----------
+    config_type: string
+        The type of configer.
+
+    Returns
+    -------
+    configer: class
+        The configer class.
+    """
+
+    configers = MSCRegistery.get(MSCRegistery.GYM_CONFIGERS, {})
+    return configers.get(config_type)
+
+
+def register_gym_controller(controller: Any):
+    """Register a gym controller.
+
+    Parameters
+    ----------
+    controller: class
+        The controller class.
+    """
+
+    controllers = MSCRegistery.get(MSCRegistery.GYM_CONTROLLERS, {})
+    assert hasattr(
+        controller, "control_type"
+    ), "control_type should be given to register controller"
+    controllers[controller.control_type()] = controller
+    MSCRegistery.register(MSCRegistery.GYM_CONTROLLERS, controllers)
+
+
+def get_registered_gym_controller(control_type: str) -> Any:
+    """Get the registered controller.
+
+    Parameters
+    ----------
+    control_type: string
+        The type of controller.
+
+    Returns
+    -------
+    controller: class
+        The controller class.
+    """
+
+    controllers = MSCRegistery.get(MSCRegistery.GYM_CONTROLLERS, {})
+    return controllers.get(control_type)
+
+
+def register_gym_agent(agent: Any):
+    """Register a gym agent.
+
+    Parameters
+    ----------
+    agent: class
+        The agent class.
+    """
+
+    agents = MSCRegistery.get(MSCRegistery.GYM_AGENTS, {})
+    assert hasattr(agent, "agent_type"), "agent_type should be given to register agent"
+    agents[agent.agent_type()] = agent
+    MSCRegistery.register(MSCRegistery.GYM_AGENTS, agents)
+
+
+def get_registered_gym_agent(agent_type: str) -> Any:
+    """Get the registered agent.
+
+    Parameters
+    ----------
+    agent_type: string
+        The type of agent.
+
+    Returns
+    -------
+    agent: class
+        The agent class.
+    """
+
+    agents = MSCRegistery.get(MSCRegistery.GYM_AGENTS, {})
+    return agents.get(agent_type)
+
+
+def register_gym_env(env: Any):
+    """Register a gym env.
+
+    Parameters
+    ----------
+    env: class
+        The env class.
+    """
+
+    envs = MSCRegistery.get(MSCRegistery.GYM_ENVS, {})
+    assert hasattr(env, "env_type"), "env_type should be given to register env"
+    envs[env.env_type()] = env
+    MSCRegistery.register(MSCRegistery.GYM_ENVS, envs)
+
+
+def get_registered_gym_env(env_type: str) -> Any:
+    """Get the registered env.
+
+    Parameters
+    ----------
+    env_type: string
+        The type of agent.
+
+    Returns
+    -------
+    env: class
+        The agent class.
+    """
+
+    envs = MSCRegistery.get(MSCRegistery.GYM_ENVS, {})
+    return envs.get(env_type)
+
+
+def register_gym_method(method: Any):
+    """Register a gym method.
+
+    Parameters
+    ----------
+    method: class
+        The method class.
+    """
+
+    methods = MSCRegistery.get(MSCRegistery.GYM_METHODS, {})
+    assert hasattr(method, "method_type"), "method_type should be given to register method"
+    methods[method.method_type()] = method
+    MSCRegistery.register(MSCRegistery.GYM_METHODS, methods)
+
+
+def get_registered_gym_method(method_type: str) -> Any:
+    """Get the registered agent.
+
+    Parameters
+    ----------
+    method_type: str
+        The type of method.
+
+    Returns
+    -------
+    method: class
+        The method class.
+    """
+
+    methods = MSCRegistery.get(MSCRegistery.GYM_METHODS, {})
+    return methods.get(method_type)

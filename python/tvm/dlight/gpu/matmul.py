@@ -24,6 +24,7 @@ from tvm import tir
 from tvm.target import Target
 from tvm.tir import PrimExpr
 from tvm.tir import IndexMap
+from .base import GPUScheduleRule
 from ..base import ScheduleRule, analysis
 from ..base.roller.rasterization import NoRasterization
 from ..base.analysis import (
@@ -35,6 +36,7 @@ from ..base.analysis import (
     get_in_out_dtypes,
     normalize_with_tensorcore,
 )
+
 
 
 def _collect_producers(sch: tir.Schedule, block: tir.schedule.BlockRV):
@@ -709,7 +711,7 @@ class MatmulAdvancedTensorizationMMA(ScheduleRule):
         return sch
 
 
-class MatmulTensorization(ScheduleRule):
+class MatmulTensorization(GPUScheduleRule):
     """
     The schedule rule for float16 tensor core matmul computation.
     func with attr 'dlight.do_not_tensorize' will not be tensorized.
@@ -725,6 +727,8 @@ class MatmulTensorization(ScheduleRule):
             get_wmma_intrin_group,
         )
 
+        if not isinstance(func, tir.PrimFunc) or not self.is_target_available(target):
+            return None
         sch = tir.Schedule(func)
         root_block = analysis.get_root_block(sch)
         blocks = sch.get_child_blocks(root_block)
@@ -1144,7 +1148,7 @@ class MatmulTensorization(ScheduleRule):
         return sch if tensorize_success else None
 
 
-class MatmulInt8Tensorization(ScheduleRule):
+class MatmulInt8Tensorization(GPUScheduleRule):
     """
     The schedule rule for int8 tensor core matmul computation.
     func with attr 'dlight.do_not_tensorize' will not be tensorized.
@@ -1160,6 +1164,8 @@ class MatmulInt8Tensorization(ScheduleRule):
             get_wmma_intrin_group,
         )
 
+        if not isinstance(func, tir.PrimFunc) or not self.is_target_available(target):
+            return None
         sch = tir.Schedule(func)
         root_block = analysis.get_root_block(sch)
         blocks = sch.get_child_blocks(root_block)
@@ -1347,7 +1353,7 @@ class MatmulInt8Tensorization(ScheduleRule):
         return sch
 
 
-class Matmul(ScheduleRule):
+class Matmul(GPUScheduleRule):
     """The schedule rule for matmul-like computation"""
 
     @dataclass
@@ -1406,6 +1412,8 @@ class Matmul(ScheduleRule):
         target: Target,
         _: bool,
     ) -> Optional[tir.Schedule]:
+        if not isinstance(func, tir.PrimFunc) or not self.is_target_available(target):
+            return None
         sch = tir.Schedule(func)
         root_block = analysis.get_root_block(sch)
         blocks = sch.get_child_blocks(root_block)

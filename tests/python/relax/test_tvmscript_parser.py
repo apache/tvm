@@ -986,6 +986,42 @@ def test_call_tir_with_grad():
     _check(Module)
 
 
+def test_call_tir_inplace():
+    @tvm.script.ir_module
+    class Module:
+        @T.prim_func
+        def copy(
+            A: T.Buffer((2, 3), "int32"),
+            B: T.Buffer((2, 3), "int32"),
+            out1: T.Buffer((2, 3), "int32"),
+        ):
+            # copies the contents of B into A and out1
+            T.func_attr({"tir.noalias": True})
+            for i0, i1 in T.grid(T.int64(2), T.int64(3)):
+                with T.block("T_zeros"):
+                    ax0, ax1 = T.axis.remap("SS", [i0, i1])
+                    T.reads(B[ax0, ax1])
+                    T.writes(A[ax0, ax1], out1[ax0, ax1])
+                    A[ax0, ax1] = B[ax0, ax1]
+                    out1[ax0, ax1] = B[ax0, ax1]
+
+        @R.function
+        def main(
+            x: R.Tensor((2, 3), "int32"), y: R.Tensor((2, 3), "int32")
+        ) -> R.Tuple(
+            R.Tensor((2, 3), "int32"), R.Tensor((2, 3), "int32"), R.Tensor((2, 3), "int32")
+        ):
+            res = R.call_tir_inplace(
+                Module.copy,
+                (x, y),
+                [0, -1],
+                [R.Tensor((2, 3), "int32"), R.Tensor((2, 3), "int32")],
+            )
+            return res
+
+    _check(Module)
+
+
 def test_local_function():
     @R.function
     def main(
@@ -1162,7 +1198,7 @@ def test_if_branch_var_scope():
             return w
 
 
-def test_erase_to_well_defined():
+def test_erase_to_well_defined_removes_internal_vars():
     @R.function
     def foo(x: R.Tensor):
         q = x
@@ -1172,7 +1208,99 @@ def test_erase_to_well_defined():
         return w
 
     tvm.ir.assert_structural_equal(foo.ret_struct_info, R.Tensor(ndim=2))
+    assert foo.ret_struct_info.shape is None
     _check(foo)
+
+
+def test_erase_to_well_defined_keeps_variables_exposed_by_tensor_shape():
+    @R.function
+    def foo(x: R.Tensor(["m", "n"])):
+        q = x
+        m, n = T.int64(), T.int64()
+        z = R.match_cast(q, R.Tensor((m, n)))
+        w = z
+        return w
+
+    assert foo.ret_struct_info.shape is not None
+    _check(foo)
+
+
+def test_erase_to_well_defined_keeps_variants_exposed_by_shape_expr():
+    @R.function
+    def foo(x: R.Tensor, _: R.Shape(["m", "n"])):
+        q = x
+        m, n = T.int64(), T.int64()
+        z = R.match_cast(q, R.Tensor((m, n)))
+        w = z
+        return w
+
+    assert foo.ret_struct_info.shape is not None
+    _check(foo)
+
+
+def test_erase_to_well_defined_keeps_variants_exposed_by_prim_value():
+    @R.function
+    def foo(x: R.Tensor, _m: R.Prim(value="m"), _n: R.Prim(value="n")):
+        q = x
+        m, n = T.int64(), T.int64()
+        z = R.match_cast(q, R.Tensor((m, n)))
+        w = z
+        return w
+
+    assert foo.ret_struct_info.shape is not None
+    _check(foo)
+
+
+def test_erase_to_well_defined_infers_from_shape_expr():
+    @I.ir_module
+    class Module:
+        # The subroutine's symbolic variables are only in-scope for the subroutine.
+        @R.function
+        def subroutine(x: R.Tensor, _: R.Shape(["m", "n"])) -> R.Tensor(["m", "n"]):
+            q = x
+            m, n = T.int64(), T.int64()
+            z = R.match_cast(q, R.Tensor((m, n)))
+            w = z
+            return w
+
+        # However, struct inference can make the symbolic variables in
+        # the main function to the symbolic variables in the
+        # subroutine.  Therefore, the shape of the tensor returned
+        # from main can have a well-defined shape.
+        @R.function
+        def main(x: R.Tensor, shape: R.Shape(["m", "n"])):
+            output = Module.subroutine(x, shape)
+            return output
+
+    assert Module["main"].ret_struct_info.shape is not None
+    _check(Module)
+
+
+def test_erase_to_well_defined_infers_from_prim_value():
+    @I.ir_module
+    class Module:
+        # The subroutine's symbolic variables are only in-scope for the subroutine.
+        @R.function
+        def subroutine(
+            x: R.Tensor, _m: R.Prim(value="m"), _n: R.Prim(value="n")
+        ) -> R.Tensor(["m", "n"]):
+            q = x
+            m, n = T.int64(), T.int64()
+            z = R.match_cast(q, R.Tensor((m, n)))
+            w = z
+            return w
+
+        # However, struct inference can make the symbolic variables in
+        # the main function to the symbolic variables in the
+        # subroutine.  Therefore, the shape of the tensor returned
+        # from main can have a well-defined shape.
+        @R.function
+        def main(x: R.Tensor, relax_m: R.Prim(value="m"), relax_n: R.Prim(value="n")):
+            output = Module.subroutine(x, relax_m, relax_n)
+            return output
+
+    assert Module["main"].ret_struct_info.shape is not None
+    _check(Module)
 
 
 def test_empty_tuple():

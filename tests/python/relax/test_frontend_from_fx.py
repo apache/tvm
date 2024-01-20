@@ -368,6 +368,85 @@ def test_conv2d_transpose():
     verify_model(model, input_info, binding, expected2)
 
 
+def test_conv3d():
+    class Conv3D1(Module):
+        def __init__(self):
+            super().__init__()
+            self.conv = torch.nn.Conv3d(3, 6, 7, bias=True)
+
+        def forward(self, input):
+            return self.conv(input)
+
+    @tvm.script.ir_module
+    class expected1:
+        @R.function
+        def main(
+            input_1: R.Tensor((1, 3, 10, 10, 10), dtype="float32"),
+            w1: R.Tensor((6, 3, 7, 7, 7), dtype="float32"),
+            w2: R.Tensor((6,), dtype="float32"),
+        ) -> R.Tensor((1, 6, 4, 4, 4), dtype="float32"):
+            # block 0
+            with R.dataflow():
+                lv1: R.Tensor((1, 6, 4, 4, 4), dtype="float32") = R.nn.conv3d(
+                    input_1,
+                    w1,
+                    strides=[1],
+                    padding=[0, 0, 0],
+                    dilation=[1],
+                    data_layout="NCDHW",
+                    kernel_layout="OIDHW",
+                    out_layout="NCDHW",
+                    out_dtype="float32",
+                )
+                lv2: R.Tensor((1, 6, 1, 1, 1)) = R.reshape(w2, [1, 6, 1, 1, 1])
+                lv3: R.Tensor((1, 6, 4, 4, 4), dtype="float32") = R.add(lv1, lv2)
+                gv: R.Tensor((1, 6, 4, 4, 4), dtype="float32") = lv3
+                R.output(gv)
+            return gv
+
+    class Conv3D2(Module):
+        def __init__(self):
+            super().__init__()
+            self.conv = torch.nn.Conv3d(3, 6, 7, bias=False)
+
+        def forward(self, input):
+            return self.conv(input)
+
+    @tvm.script.ir_module
+    class expected2:
+        @R.function
+        def main(
+            input_1: R.Tensor((1, 3, 10, 10, 10), dtype="float32"),
+            w1: R.Tensor((6, 3, 7, 7, 7), dtype="float32"),
+        ) -> R.Tensor((1, 6, 4, 4, 4), dtype="float32"):
+            # block 0
+            with R.dataflow():
+                lv1: R.Tensor((1, 6, 4, 4, 4), dtype="float32") = R.nn.conv3d(
+                    input_1,
+                    w1,
+                    strides=[1],
+                    padding=[0, 0, 0],
+                    dilation=[1],
+                    data_layout="NCDHW",
+                    kernel_layout="OIDHW",
+                    out_layout="NCDHW",
+                    out_dtype="float32",
+                )
+                gv: R.Tensor((1, 6, 4, 4, 4), dtype="float32") = lv1
+                R.output(gv)
+            return gv
+
+    input_info = [([1, 3, 10, 10, 10], "float32")]
+
+    model = Conv3D1()
+    binding = {"w1": model.conv.weight.detach().numpy(), "w2": model.conv.bias.detach().numpy()}
+    verify_model(model, input_info, binding, expected1)
+
+    model = Conv3D2()
+    binding = {"w1": model.conv.weight.detach().numpy()}
+    verify_model(model, input_info, binding, expected2)
+
+
 def test_linear():
     # nn.Linear
     class Dense1(Module):

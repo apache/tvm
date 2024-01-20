@@ -78,6 +78,8 @@ void DFPatternMatcher::ClearMap(size_t watermark) {
 }
 
 bool DFPatternMatcher::VisitDFPattern(const DFPattern& pattern, const Expr& expr0) {
+  CHECK(pattern.defined()) << "Null pattern found when matching against " << expr0;
+
   auto expr = TryGetValOfVar(expr0, var2val_);
   if (memoize_ && memo_.count(pattern)) {
     ICHECK_EQ(memo_[pattern].size(), 1);
@@ -1109,12 +1111,14 @@ Function RewriteBindings(const PatternContext& ctx, PackedFunc rewriter, Functio
   return PatternRewriter::Run(ctx, rewriter, f);
 }
 
-TVM_REGISTER_GLOBAL("relax.dpl.rewrite_call")
-    .set_body_typed([](DFPattern pat, PackedFunc rewriter, Function f) {
-      return PatternRewriter::Run(pat, rewriter, f);
-    });
-
 TVM_REGISTER_GLOBAL("relax.dpl.rewrite_bindings").set_body_typed(RewriteBindings);
+
+Function RewriteCall(const DFPattern& pat,
+                     TypedPackedFunc<Expr(Expr, Map<DFPattern, Expr>)> rewriter, Function f) {
+  return PatternRewriter::Run(pat, rewriter, f);
+}
+
+TVM_REGISTER_GLOBAL("relax.dpl.rewrite_call").set_body_typed(RewriteCall);
 
 }  // namespace relax
 }  // namespace tvm

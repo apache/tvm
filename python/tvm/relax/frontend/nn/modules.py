@@ -99,8 +99,8 @@ class Linear(Module):
 
     def __init__(
         self,
-        in_features: int,
-        out_features: int,
+        in_features: Union[int, str, tir.PrimExpr],
+        out_features: Union[int, str, tir.PrimExpr],
         bias: bool = True,
         dtype: Optional[str] = None,
         out_dtype: Optional[str] = None,
@@ -235,10 +235,16 @@ class Conv2D(Module):
         self.dilation = dilation
         self.groups = groups
 
+        # Allow dynamic input channels.
+        if isinstance(self.in_channels, int):
+            in_channels = int(self.in_channels / self.groups)
+        else:
+            in_channels = tir.floordiv(self.in_channels, self.groups)
+
         self.weight = Parameter(
             (
                 self.out_channels,
-                int(self.in_channels / self.groups),
+                in_channels,
                 self.kernel_size,
                 self.kernel_size,
             ),
@@ -617,7 +623,12 @@ class Embedding(Module):
     Module for embedding layer.
     """
 
-    def __init__(self, num: int, dim: int, dtype: Optional[str] = None):
+    def __init__(
+        self,
+        num: Union[int, str, tir.PrimExpr],
+        dim: Union[int, str, tir.PrimExpr],
+        dtype: Optional[str] = None,
+    ):
         self.num = num
         self.dim = dim
         self.weight = Parameter((num, dim), dtype=dtype)

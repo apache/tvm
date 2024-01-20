@@ -168,6 +168,11 @@ if(MSVC)
   set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /MP")
   add_compile_options(/bigobj)
 
+  # Use standard-conforming two-phase name resolution for templates.
+  # This minimizes the differences between g++/clang builds on Linux,
+  # and MSVC builds on Windows.
+  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /permissive-")
+
   # MSVC already errors on undefined symbols, no additional flag needed.
   set(TVM_NO_UNDEFINED_SYMBOLS "")
 
@@ -572,6 +577,7 @@ include(cmake/modules/contrib/VitisAI.cmake)
 include(cmake/modules/contrib/Verilator.cmake)
 include(cmake/modules/contrib/UMA.cmake)
 include(cmake/modules/contrib/MSC.cmake)
+include(cmake/modules/contrib/vllm.cmake)
 include(cmake/modules/Git.cmake)
 include(cmake/modules/LibInfo.cmake)
 include(cmake/modules/RustExt.cmake)
@@ -886,6 +892,8 @@ if(USE_CUDA AND USE_CUTLASS)
   install(TARGETS fpA_intB_gemm EXPORT ${PROJECT_NAME}Targets DESTINATION lib${LIB_SUFFIX})
   target_link_libraries(tvm PRIVATE fpA_intB_gemm)
   target_link_libraries(tvm_runtime PRIVATE fpA_intB_gemm)
+  target_link_libraries(tvm PRIVATE fpA_intB_gemm_tvm)
+  target_link_libraries(tvm_runtime PRIVATE fpA_intB_gemm_tvm)
 
   install(TARGETS flash_attn EXPORT ${PROJECT_NAME}Targets DESTINATION lib${LIB_SUFFIX})
   target_link_libraries(tvm PRIVATE -Wl,--no-as-needed flash_attn)

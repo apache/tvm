@@ -399,6 +399,31 @@ R.call_tir_with_grad(tir_func, (v0,), out_sinfo=R.Tensor((54, 96), dtype="float3
     )
 
 
+def test_call_tir_inplace():
+    x = relax.Var("x", R.Tensor((32, 32), dtype="int32"))
+    y = relax.Var("y", R.Tensor((32, 32), dtype="int32"))
+    t = tir.Var("t", dtype="int64")
+    call = relax.call_tir_inplace(
+        relax.GlobalVar("tir_func"),
+        (
+            x,
+            y,
+        ),
+        inplace_indices=[-1, 0],
+        out_sinfo=[R.Tensor((32, 32), dtype="int32"), R.Tensor((32, 32), dtype="int32")],
+        tir_vars=[t],
+    )
+    _assert_print(
+        call,
+        """
+x: R.Tensor((32, 32), dtype="int32")
+y: R.Tensor((32, 32), dtype="int32")
+t = T.int64()
+R.call_tir_inplace(tir_func, (x, y), out_sinfo=[R.Tensor((32, 32), dtype="int32"), R.Tensor((32, 32), dtype="int32")], inplace_indices=[-1, 0], tir_vars=R.shape([t]))
+        """,
+    )
+
+
 def test_seq_expr():
     x = tir.Var("x", "int64")
     a = relax.Var("a", relax.TensorStructInfo([1, x, 3], "float32"))

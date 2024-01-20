@@ -18,7 +18,8 @@
 from .analysis import (
     BlockInfo,
     IterInfo,
-    collect_vars_used_in_access_region,
+    collect_block_iter_vars_used_in_access_region,
+    collect_vars_used_in_prim_expr,
     detect_dominant_read,
     is_broadcast_epilogue,
     normalize_prim_func,

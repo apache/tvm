@@ -33,6 +33,14 @@ class Object;
 /*! \brief The current RPC procotol version. */
 constexpr const char* kRPCProtocolVer = "0.8.0";
 
+/*!
+ * \brief type index of kRuntimeRPCObjectRefTypeIndex
+ * \note this needs to be kept consistent with runtime/object.h
+ * but we explicitly declare it here because minrpc needs to be minimum dep
+ * only c C API
+ */
+constexpr const int kRuntimeRPCObjectRefTypeIndex = 9;
+
 // When tvm.rpc.server.GetCRTMaxPacketSize global function is not registered.
 const uint64_t kRPCMaxTransferSizeBytesDefault = UINT64_MAX;
 

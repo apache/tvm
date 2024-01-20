@@ -31,7 +31,10 @@ from ..base import (
     is_broadcast_epilogue,
     normalize_prim_func,
     try_inline_contiguous_spatial,
+    get_output_blocks,
+    get_block,
 )
+from .base import GPUScheduleRule
 
 
 def _get_reduction_expr(block: tir.Block) -> Optional[tir.PrimExpr]:
@@ -166,8 +169,8 @@ def normalize(
     return is_inner_reduction
 
 
-class GEMVWithInconsistentInfo(ScheduleRule):
-    """A rule for GEMV and DecodeGEMV."""
+class GEMVWithInconsistentInfo(GPUScheduleRule):
+    """A rule for DecodeGEMV."""
 
     def sch_inner_reduction_with_config(  # pylint: disable=too-many-locals,too-many-branches,too-many-return-statements
         self,
@@ -379,7 +382,7 @@ class GEMVWithInconsistentInfo(ScheduleRule):
         return self.sch_outer_reduction_with_config(func, config)
 
 
-class GEMV(ScheduleRule):
+class GEMV(GPUScheduleRule):
     """A rule for GEMV and DecodeGEMV."""
 
     def apply(  # pylint: disable=too-many-locals,too-many-branches,too-many-return-statements
@@ -388,7 +391,7 @@ class GEMV(ScheduleRule):
         target: Target,
         _: bool,
     ) -> Union[None, tir.Schedule, List[tir.Schedule]]:
-        if not isinstance(func, tir.PrimFunc):
+        if not isinstance(func, tir.PrimFunc) or not self.is_target_available(target):
             return None
         sch = tir.Schedule(func)
         block_infos = normalize_prim_func(sch)

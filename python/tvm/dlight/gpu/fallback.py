@@ -21,11 +21,12 @@ from typing import List, Tuple
 from tvm import tir
 from tvm.target import Target
 
-from ..base import ScheduleRule, normalize_prim_func, try_inline
+from ..base import normalize_prim_func, try_inline
 from . import utils
+from .base import GPUScheduleRule
 
 
-class Fallback(ScheduleRule):
+class Fallback(GPUScheduleRule):
     """
     A fallback schedule rule for all GPU operators. It will try to inline all the blocks first,
     and then apply a simple block/grid mapping to the spatial loops on top of the remaining blocks.
@@ -37,6 +38,8 @@ class Fallback(ScheduleRule):
         target: Target,
         _: bool,
     ) -> tir.Schedule:
+        if not isinstance(func, tir.PrimFunc) or not self.is_target_available(target):
+            return None
         max_threads_per_block = utils.max_threads_per_block(target)
 
         sch = tir.Schedule(func)

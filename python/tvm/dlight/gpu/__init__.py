@@ -25,3 +25,4 @@ from .reduction import Reduction
 from .transpose import Transpose
 from .general_reduction import GeneralReduction
 from .element_wise import ElementWise
+from .rmsnorm import RMSNorm

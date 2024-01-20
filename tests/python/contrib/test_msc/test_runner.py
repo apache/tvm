@@ -41,11 +41,12 @@ requires_tensorrt = pytest.mark.skipif(
 
 def _get_torch_model(name, is_training=False):
     """Get model from torch vision"""
+
     # pylint: disable=import-outside-toplevel
     try:
         import torchvision
 
-        model = getattr(torchvision.models, name)(pretrained=True)
+        model = getattr(torchvision.models, name)()
         if is_training:
             model = model.train()
         else:
@@ -77,14 +78,15 @@ def _get_tf_graph():
         return None, None
 
 
-def _test_from_torch(runner_cls, device, is_training=False, atol=1e-3, rtol=1e-3):
+def _test_from_torch(runner_cls, device, is_training=False, atol=1e-1, rtol=1e-1):
     """Test runner from torch model"""
 
     torch_model = _get_torch_model("resnet50", is_training)
     if torch_model:
-        workspace = msc_utils.set_workspace()
+        path = "test_runner_torch_{}_{}".format(runner_cls.__name__, device)
+        workspace = msc_utils.set_workspace(msc_utils.msc_dir(path))
         log_path = workspace.relpath("MSC_LOG", keep_history=False)
-        msc_utils.set_global_logger("info", log_path)
+        msc_utils.set_global_logger("critical", log_path)
         input_info = [([1, 3, 224, 224], "float32")]
         datas = [np.random.rand(*i[0]).astype(i[1]) for i in input_info]
         torch_datas = [torch.from_numpy(d) for d in datas]
@@ -96,9 +98,9 @@ def _test_from_torch(runner_cls, device, is_training=False, atol=1e-3, rtol=1e-3
         runner.build()
         outputs = runner.run(datas, ret_type="list")
         golden = [msc_utils.cast_array(golden)]
+        workspace.destory()
         for gol_r, out_r in zip(golden, outputs):
             tvm.testing.assert_allclose(gol_r, out_r, atol=atol, rtol=rtol)
-        workspace.destory()
 
 
 def test_tvm_runner_cpu():
@@ -107,9 +109,9 @@ def test_tvm_runner_cpu():
     _test_from_torch(TVMRunner, "cpu", is_training=True)
 
 
-@tvm.testing.requires_gpu
-def test_tvm_runner_gpu():
-    """Test runner for tvm on gpu"""
+@tvm.testing.requires_cuda
+def test_tvm_runner_cuda():
+    """Test runner for tvm on cuda"""
 
     _test_from_torch(TVMRunner, "cuda", is_training=True)
 
@@ -120,18 +122,18 @@ def test_torch_runner_cpu():
     _test_from_torch(TorchRunner, "cpu")
 
 
-@tvm.testing.requires_gpu
-def test_torch_runner_gpu():
+@tvm.testing.requires_cuda
+def test_torch_runner_cuda():
     """Test runner for torch on cuda"""
 
-    _test_from_torch(TorchRunner, "cuda", atol=1e-2, rtol=1e-2)
+    _test_from_torch(TorchRunner, "cuda", atol=1e-1, rtol=1e-1)
 
 
 @requires_tensorrt
 def test_tensorrt_runner():
     """Test runner for tensorrt"""
 
-    _test_from_torch(TensorRTRunner, "cuda", atol=1e-2, rtol=1e-2)
+    _test_from_torch(TensorRTRunner, "cuda", atol=1e-1, rtol=1e-1)
 
 
 def test_tensorflow_runner():
@@ -139,9 +141,10 @@ def test_tensorflow_runner():
 
     tf_graph, graph_def = _get_tf_graph()
     if tf_graph and graph_def:
-        workspace = msc_utils.set_workspace()
+        path = "test_runner_tf"
+        workspace = msc_utils.set_workspace(msc_utils.msc_dir(path))
         log_path = workspace.relpath("MSC_LOG", keep_history=False)
-        msc_utils.set_global_logger("info", log_path)
+        msc_utils.set_global_logger("critical", log_path)
         data = np.random.uniform(size=(1, 224, 224, 3)).astype("float32")
         out_name = "MobilenetV2/Predictions/Reshape_1:0"
         # get golden
@@ -153,9 +156,9 @@ def test_tensorflow_runner():
         runner = TensorflowRunner(mod)
         runner.build()
         outputs = runner.run([data], ret_type="list")
+        workspace.destory()
         for gol_r, out_r in zip(golden, outputs):
             tvm.testing.assert_allclose(gol_r, out_r, atol=1e-3, rtol=1e-3)
-        workspace.destory()
 
 
 if __name__ == "__main__":

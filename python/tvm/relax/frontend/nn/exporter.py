@@ -23,7 +23,7 @@ from tvm.ir import IRModule
 
 from ... import expr as rx
 from ...block_builder import BlockBuilder
-from ...struct_info import ShapeStructInfo, TupleStructInfo
+from ...struct_info import ObjectStructInfo, ShapeStructInfo, TupleStructInfo
 from . import core, extern
 from . import spec as _spec
 from .modules import IOEffect
@@ -111,8 +111,7 @@ class Exporter:
             return result
 
         # pylint: enable=protected-access
-
-        params = _params()
+        params = None
         effects = _effects()
         ext_mods = self.extern_mods
         with self:
@@ -122,6 +121,7 @@ class Exporter:
                         outputs = _emit_effect_init(self.builder, effects)
                     self.builder.emit_func_output(outputs, params=[])
             for method_name, method_spec in zip(spec.method_names, spec.method_specs):
+                params = _params()  # Re-initialize so symbolic shapes not shared across methods
                 len_args = len(method_spec.arg_specs)
                 len_effects = {
                     "packed": 1,
@@ -159,8 +159,11 @@ def _emit_method(  # pylint: disable=too-many-locals,too-many-branches,too-many-
     effects: typing.Optional[typing.List[typing.Tuple[str, core.Effect]]],
 ):
     # pylint: disable=protected-access
+    # symbolic shape's name mapping to its tir.Var for reuse
+    str2var_params: typing.Dict[str, tir.Var] = {}
+
     def _unwrap_ret(expr: typing.Any) -> typing.Any:
-        if isinstance(expr, core.Tensor):
+        if isinstance(expr, (core.Tensor, core.Object)):
             return expr._expr
         if isinstance(expr, tuple):
             return rx.Tuple([_unwrap_ret(x) for x in expr])
@@ -171,7 +174,7 @@ def _emit_method(  # pylint: disable=too-many-locals,too-many-branches,too-many-
     def _convert_input(arg):
         if isinstance(arg, tir.Var):
             return rx.Var(arg.name, struct_info=ShapeStructInfo(values=[arg]))
-        if isinstance(arg, core.Tensor):
+        if isinstance(arg, (core.Tensor, core.Object)):
             return arg._expr  # pylint: disable=protected-access
         if isinstance(arg, _spec.Tuple):
             return rx.Var(
@@ -184,8 +187,20 @@ def _emit_method(  # pylint: disable=too-many-locals,too-many-branches,too-many-
 
     def _params(mode: str) -> typing.List[rx.Var]:
         inputs: typing.List[rx.Var] = []
+
+        def _get_var(shape_var: tir.Var) -> tir.Var:
+            name = shape_var.name
+            if name in str2var_params:
+                return str2var_params[name]
+            var = tir.Var(name, "int64")
+            str2var_params[name] = var
+            return var
+
         for name, param in params:
-            var = core.Tensor.placeholder(param.shape, param.dtype, name)._expr
+            # Make sure the a symbolic shape is not re-registered (same as _method_spec_to_inputs)
+            # e.g. we do not see `vocab_size` for `lm_head` and `vocab_size_1` for `embed_tokens`
+            new_shape = [_get_var(x) if isinstance(x, tir.Var) else x for x in param.shape]
+            var = core.Tensor.placeholder(new_shape, param.dtype, name)._expr
             inputs.append(var)
             param._expr = var
         if mode == "none":
@@ -292,6 +307,8 @@ def _method_spec_to_inputs(
                 dtype=arg_spec.dtype,
                 name=arg_name,
             )
+        elif isinstance(arg_spec, _spec.Object):
+            arg = arg_spec.object_type(_expr=rx.Var(arg_name, ObjectStructInfo()), _name=arg_name)
         elif isinstance(arg_spec, _spec.Tuple):
             elements = type(arg_spec.elements)(
                 [
