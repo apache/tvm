@@ -82,8 +82,8 @@ static TargetFeatures GetFeatures(TargetJSON target) {
 
   Optional<String> mtriple = Downcast<Optional<String>>(target.Get("mtriple"));
 
-  auto llvm_instance = std::make_unique<codegen::LLVMInstance>();
-  codegen::LLVMTargetInfo llvm_target(*llvm_instance, target);
+  auto llvm_instance = std::make_unique<tvm::codegen::LLVMInstance>();
+  tvm::codegen::LLVMTargetInfo llvm_target(*llvm_instance, target);
   Map<String, String> features = llvm_target.GetAllLLVMCpuFeatures();
 
   auto has_feature = [features](const String& feature) {
