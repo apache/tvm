@@ -105,7 +105,7 @@ TVM_REGISTER_OP("tir.tan").set_attr<FLowerIntrinsic>("webgpu.FLowerIntrinsic",
                                                      DispatchPureExtern<Direct>);
 
 TVM_REGISTER_OP("tir.tanh")
-    .set_attr<FLowerIntrinsic>("webgpu.FLowerIntrinsic", DispatchPureExtern<Direct>);
+    .set_attr<FLowerIntrinsic>("webgpu.FLowerIntrinsic", DispatchNumericalStableTanh);
 
 TVM_REGISTER_OP("tir.trunc")
     .set_attr<FLowerIntrinsic>("webgpu.FLowerIntrinsic", DispatchPureExtern<Direct>);

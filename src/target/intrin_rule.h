@@ -80,6 +80,9 @@ inline PrimExpr DispatchPureExtern(const PrimExpr& e) {
 // Dispatch ERF to fast erf when it is not available.
 PrimExpr DispatchFastErf(const PrimExpr& e);
 
+// Dispatch numerically stable tanh such that tanh(large_num) does not result in NaN
+PrimExpr DispatchNumericalStableTanh(const PrimExpr& e);
+
 }  // namespace intrin
 }  // namespace codegen
 }  // namespace tvm
