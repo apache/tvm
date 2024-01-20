@@ -510,7 +510,7 @@ class ScheduleNode : public runtime::Object {
    * \return The reindex stage block.
    */
   virtual BlockRV ReIndex(const BlockRV& block_rv, int buffer_index,
-                          BufferIndexType buffer_index_type) = 0;
+                          BufferIndexType buffer_index_type, bool skip_simplify = false) = 0;
   /******** Schedule: Data movement ********/
   virtual BlockRV ReadAt(const LoopRV& loop_rv, const BlockRV& block_rv, int read_buffer_index,
                          const String& storage_scope) = 0;

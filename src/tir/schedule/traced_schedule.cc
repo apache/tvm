@@ -420,13 +420,13 @@ Array<BlockRV> TracedScheduleNode::CacheIndex(const BlockRV& block_rv, const Str
 }
 
 BlockRV TracedScheduleNode::ReIndex(const BlockRV& block_rv, int buffer_index,
-                                    BufferIndexType buffer_index_type) {
-  BlockRV result = ConcreteScheduleNode::ReIndex(block_rv, buffer_index, buffer_index_type);
+                                    BufferIndexType buffer_index_type, bool skip_simplify) {
+  BlockRV result = ConcreteScheduleNode::ReIndex(block_rv, buffer_index, buffer_index_type, skip_simplify);
 
   static const InstructionKind& kind = InstructionKind::Get("ReIndex");
   trace_->Append(/*inst=*/Instruction(/*kind=*/kind,
                                       /*inputs=*/{block_rv},
-                                      /*attrs=*/{Integer(buffer_index), Integer(buffer_index_type)},
+                                      /*attrs=*/{Integer(buffer_index), Integer(buffer_index_type), Bool(skip_simplify)},
                                       /*outputs=*/{result}));
   return result;
 }

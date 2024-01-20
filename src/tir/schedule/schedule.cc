@@ -200,8 +200,8 @@ TVM_REGISTER_GLOBAL("tir.schedule.ScheduleCacheIndex")
     .set_body_method<Schedule>(&ScheduleNode::CacheIndex);
 TVM_REGISTER_GLOBAL("tir.schedule.ScheduleReIndex")
     .set_body_typed([](Schedule self, const BlockRV& block_rv, int buffer_index,
-                       int buffer_index_type) {
-      return self->ReIndex(block_rv, buffer_index, static_cast<BufferIndexType>(buffer_index_type));
+                       int buffer_index_type, bool skip_simplify) {
+      return self->ReIndex(block_rv, buffer_index, static_cast<BufferIndexType>(buffer_index_type), skip_simplify);
     });
 /******** (FFI) Data movement ********/
 TVM_REGISTER_GLOBAL("tir.schedule.ScheduleReadAt").set_body_method<Schedule>(&ScheduleNode::ReadAt);

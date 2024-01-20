@@ -132,7 +132,7 @@ class ConcreteScheduleNode : public ScheduleNode {
   Array<BlockRV> CacheIndex(const BlockRV& block_rv, const String& storage_scope,
                             int cse_thresh) override;
   BlockRV ReIndex(const BlockRV& block_rv, int buffer_index,
-                  BufferIndexType buffer_index_type) override;
+                  BufferIndexType buffer_index_type, bool skip_simplify) override;
   /******** Schedule: Data movement ********/
   BlockRV ReadAt(const LoopRV& loop_rv, const BlockRV& block_rv, int read_buffer_index,
                  const String& storage_scope) override;

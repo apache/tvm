@@ -655,10 +655,10 @@ Array<BlockRV> ConcreteScheduleNode::CacheIndex(const BlockRV& block_rv,
 }
 
 BlockRV ConcreteScheduleNode::ReIndex(const BlockRV& block_rv, int buffer_index,
-                                      BufferIndexType buffer_index_type) {
+                                      BufferIndexType buffer_index_type, bool skip_simplify) {
   StmtSRef result{nullptr};
   TVM_TIR_SCHEDULE_BEGIN();
-  result = tir::ReIndex(state_, this->GetSRef(block_rv), buffer_index, buffer_index_type);
+  result = tir::ReIndex(state_, this->GetSRef(block_rv), buffer_index, buffer_index_type, skip_simplify);
   TVM_TIR_SCHEDULE_END("reindex", this->error_render_level_);
   this->state_->DebugVerify();
   return CreateRV<BlockRV>(result);
