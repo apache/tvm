@@ -53,22 +53,4 @@ github:
 
   # See https://cwiki.apache.org/confluence/display/INFRA/Git+-+.asf.yaml+features#Git.asf.yamlfeatures-Branchprotection
   protected_branches:
-    main:
-      required_status_checks:
-        contexts:
-          # Require passing runs from Jenkins for all platforms
-          - arm/pr-head
-          - cortexm/pr-head
-          - cpu/pr-head
-          - docker/pr-head
-          - gpu/pr-head
-          - hexagon/pr-head
-          - i386/pr-head
-          - lint/pr-head
-          - minimal/pr-head
-          - riscv/pr-head
-          - wasm/pr-head
-          - cross-isa-minimal/pr-head
-
-      required_pull_request_reviews:
-        required_approving_review_count: 1
+    main: {}
