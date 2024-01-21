@@ -525,31 +525,6 @@ TVM_DLL Pass CreateModulePass(
     const runtime::TypedPackedFunc<IRModule(IRModule, PassContext)>& pass_func, int opt_level,
     String name, Array<runtime::String> required, bool traceable = false);
 
-/*
- * \brief Utility to apply a pass to specific functions in an IRModule
- *
- * TVM uses IRModule to IRModule transformations at all stages of
- * lowering.  These transformations may be useful when hand-writing an
- * optimized model, or to perform optimizations on specific kernels
- * within an IRModule.  This utility allows a pass to be applied to a
- * specified function, without altering other functions in the module.
- *
- * \param pass The IRModule to IRModule pass to be applied.
- *
- * \param func_name_regex A regex used to select the functions to be
- * updated.  The pass will be applied to all functions whose name
- * matches the regex.
- *
- * \param error_if_no_function_matches_regex Specifies the behavior if
- *     an IRModule does not contain any function matching the provided
- *     regex.  If true, an error will be raised.  If false (default),
- *     the IRModule will be returned unmodified.
- *
- * \return The modified IRModule to IRModule pass.
- */
-TVM_DLL Pass ApplyPassToFunction(Pass pass, String func_name_regex,
-                                 bool error_if_no_function_matches_regex = false);
-
 /*!
  * \brief A special trace pass that prints the header and IR to LOG(INFO).
  * \param header The header to be attached to the output.
