@@ -1351,6 +1351,92 @@ def test_tuple_input_unused_field():
     _check(Module, Expected)
 
 
+def test_unique_duplicated_buffer_allocation():
+    @I.ir_module
+    class Module:
+        @T.prim_func(private=True)
+        def add(
+            A: T.Buffer((T.int64(4096), T.int64(4096)), "float16"),
+            Out: T.Buffer((T.int64(4096), T.int64(4096)), "float16"),
+        ):
+            for i, j in T.grid(T.int64(4096), T.int64(4096)):
+                with T.block("add"):
+                    vi, vj = T.axis.remap("SS", [i, j])
+                    Out[vi, vj] = A[vi, vj] + T.float16(1.0)
+
+        @T.prim_func(private=True)
+        def add1(
+            A: T.Buffer((T.int64(4096), T.int64(4096)), "float16"),
+            Out: T.Buffer((T.int64(4096), T.int64(4096)), "float16"),
+        ):
+            for i, j in T.grid(T.int64(4096), T.int64(4096)):
+                with T.block("add"):
+                    vi, vj = T.axis.remap("SS", [i, j])
+                    Out[vi, vj] = A[vi, vj] + T.float16(2.0)
+
+        @R.function
+        def main(
+            input_embeds: R.Tensor((4096, 4096), dtype="float16"),
+        ) -> R.Tensor((4096, 4096), dtype="float16"):
+            cls = Module
+            with R.dataflow():
+                gv: R.Tensor((4096, 4096), dtype="float16") = cls.fused_func(input_embeds)
+                R.output(gv)
+            return gv
+
+        @R.function(private=True)
+        def fused_func(
+            input_embeds: R.Tensor((4096, 4096), dtype="float16"),
+        ) -> R.Tensor((4096, 4096), dtype="float16"):
+            R.func_attr({"Primitive": 1})
+            cls = Module
+            with R.dataflow():
+                lv = R.call_tir(
+                    cls.add, (input_embeds,), out_sinfo=R.Tensor((4096, 4096), dtype="float16")
+                )
+                gv = R.call_tir(cls.add1, (lv,), out_sinfo=R.Tensor((4096, 4096), dtype="float16"))
+                R.output(gv)
+            return gv
+
+    @I.ir_module
+    class Expected:
+        @T.prim_func(private=True)
+        def fused_func(
+            input_embeds: T.Buffer((T.int64(4096), T.int64(4096)), "float16"),
+            Out_intermediate_1: T.Buffer((T.int64(4096), T.int64(4096)), "float16"),
+        ):
+            T.func_attr({"tir.noalias": T.bool(True)})
+            Out_intermediate = T.alloc_buffer((T.int64(4096), T.int64(4096)), "float16")
+            for i, j in T.grid(T.int64(4096), T.int64(4096)):
+                with T.block("add"):
+                    vi, vj = T.axis.remap("SS", [i, j])
+                    T.reads(input_embeds[vi, vj])
+                    T.writes(Out_intermediate[vi, vj])
+                    Out_intermediate[vi, vj] = input_embeds[vi, vj] + T.float16(1)
+            for i, j in T.grid(T.int64(4096), T.int64(4096)):
+                with T.block("add_1"):
+                    vi, vj = T.axis.remap("SS", [i, j])
+                    T.reads(Out_intermediate[vi, vj])
+                    T.writes(Out_intermediate_1[vi, vj])
+                    Out_intermediate_1[vi, vj] = Out_intermediate[vi, vj] + T.float16(2)
+
+        @R.function
+        def main(
+            input_embeds: R.Tensor((4096, 4096), dtype="float16")
+        ) -> R.Tensor((4096, 4096), dtype="float16"):
+            cls = Expected
+            with R.dataflow():
+                gv = R.call_tir(
+                    cls.fused_func,
+                    (input_embeds,),
+                    out_sinfo=R.Tensor((4096, 4096), dtype="float16"),
+                )
+                R.output(gv)
+            return gv
+
+    _check(Module, Expected)
+
+
 def test_extern_func():
     bb = relax.BlockBuilder()
     bb.add_func(relax.extern("extern_func"), "extern_func")
