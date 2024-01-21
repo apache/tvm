@@ -1710,8 +1710,11 @@ Pass StorageRewrite() {
     if (target.defined() && target->kind->name == "vulkan") {
       merge_static_smem = false;
     }
+    // Only enable reuse when we are not merging static shared memory.
+    // Otherwise we will do it in a separate stage
+    bool enable_reuse = merge_static_smem ? false : true;
     auto* n = f.CopyOnWrite();
-    n->body = StoragePlanRewriter().Rewrite(std::move(n->body), true, merge_static_smem);
+    n->body = StoragePlanRewriter().Rewrite(std::move(n->body), true, enable_reuse);
     // Parameters may not be rewritten, but internal allocations may.
     // Vectorization of AllocateConst is currently disabled, as it has
     // indexing issues for types that include padding (e.g. int8x3
