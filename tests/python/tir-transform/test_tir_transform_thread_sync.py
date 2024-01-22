@@ -195,7 +195,7 @@ def test_sync_let_stmt():
                 cross_thread_A_temp_1[0],
                 threadIdx_x,
             )
-    print(tvm.__file__)
+
     mod = run_passes(func)
     assert "T.tvm_storage_sync" in str(mod)
 
