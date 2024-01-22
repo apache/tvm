@@ -47,10 +47,6 @@ if(USE_CUDA)
     set(CMAKE_CUDA_ARCHITECTURES native)
   endif()
 
-  if(USE_CUDA AND USE_NCCL)
-    add_subdirectory(${PROJECT_SOURCE_DIR}/3rdparty/trt-llm-allreduce)
-  endif()
-
   if(USE_CUDNN)
     message(STATUS "Build with cuDNN support")
     include_directories(SYSTEM ${CUDA_CUDNN_INCLUDE_DIRS})
