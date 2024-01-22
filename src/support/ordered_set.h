@@ -26,6 +26,7 @@
 
 #include <tvm/runtime/object.h>
 
+#include <functional>
 #include <list>
 #include <unordered_map>
 
@@ -39,17 +40,31 @@ namespace detail {
  */
 template <typename T, typename = void>
 struct OrderedSetLookupType {
-  using MapType = std::unordered_map<T, typename std::list<T>::iterator>;
+  using Hash = std::hash<T>;
+  using Equal = std::equal_to<T>;
 };
 
 template <typename T>
 struct OrderedSetLookupType<T, std::enable_if_t<std::is_base_of_v<runtime::ObjectRef, T>>> {
-  using MapType = std::unordered_map<T, typename std::list<T>::iterator, runtime::ObjectPtrHash,
-                                     runtime::ObjectPtrEqual>;
+  using Hash = runtime::ObjectPtrHash;
+  using Equal = runtime::ObjectPtrEqual;
 };
 }  // namespace detail
 
-template <typename T>
+/* \brief Utility to hold an ordered set
+ *
+ * \tparam T The type held by the OrderedSet
+ *
+ * \tparam LookupHash The hash implementation to use for detecting
+ * duplicate entries.  If unspecified, defaults to `ObjectPtrHash` for
+ * TVM types, and `std::hash<T>` otherwise.
+ *
+ * \tparam LookupEqual The equality-checker to use for detecting
+ * duplicate entries.  If unspecified, defaults to `ObjectPtrEqual`
+ * for TVM types, and `std::equal_to<T>` otherwise.
+ */
+template <typename T, typename LookupHash = typename detail::OrderedSetLookupType<T>::Hash,
+          typename LookupEqual = typename detail::OrderedSetLookupType<T>::Equal>
 class OrderedSet {
  public:
   OrderedSet() = default;
@@ -91,7 +106,7 @@ class OrderedSet {
 
  private:
   std::list<T> elements_;
-  typename detail::OrderedSetLookupType<T>::MapType elem_to_iter_;
+  std::unordered_map<T, typename std::list<T>::iterator, LookupHash, LookupEqual> elem_to_iter_;
 };
 
 }  // namespace support
