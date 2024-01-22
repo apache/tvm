@@ -142,6 +142,12 @@ class Var : public PrimExpr {
  */
 class SizeVarNode : public VarNode {
  public:
+  int64_t min_value;
+  void VisitAttrs(tvm::AttrVisitor* v) {
+    VarNode::VisitAttrs(v);
+    v->Visit("min_value", &min_value);
+  }
+
   static constexpr const char* _type_key = "tir.SizeVar";
   TVM_DECLARE_FINAL_OBJECT_INFO(SizeVarNode, VarNode);
 };
@@ -157,14 +163,15 @@ class SizeVar : public Var {
    * \param span The location of this object in the source code.
    */
   TVM_DLL explicit SizeVar(String name_hint = "s", DataType t = DataType::Int(32),
-                           Span span = Span());
+                           int64_t min_value = 0, Span span = Span());
   /*!
    * \brief Constructor which provides a more detailed type annotation.
    * \param name_hint variable name.
    * \param type_annotation The type annotation.
    * \param span The location of this object in the source code.
    */
-  TVM_DLL explicit SizeVar(String name_hint, Type type_annotation, Span span = Span());
+  TVM_DLL explicit SizeVar(String name_hint, Type type_annotation, int64_t min_value = 0,
+                           Span span = Span());
   /*!
    * \brief Get pointer to the internal value.
    * \return the corresponding Variable.

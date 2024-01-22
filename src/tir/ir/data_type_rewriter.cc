@@ -521,17 +521,22 @@ Stmt IndexDataTypeRewriter::VisitStmt_(const ForNode* op) {
   Var new_loop_var = Downcast<Var>(VisitExpr(op->loop_var));
   PrimExpr min = VisitExpr(op->min);
   PrimExpr extent = VisitExpr(op->extent);
+  Optional<IterVar> thread_binding = NullOpt;
+  if (op->thread_binding.defined()) {
+    thread_binding = VisitIterVar(op->thread_binding.value());
+  }
   is_enabled_ = is_enabled;
 
   Stmt new_body = VisitStmt(op->body);
 
   if (!new_loop_var.same_as(op->loop_var) || !min.same_as(op->min) || !extent.same_as(op->extent) ||
-      !new_body.same_as(op->body)) {
+      !new_body.same_as(op->body) || !thread_binding.same_as(op->thread_binding)) {
     For new_for = GetRef<For>(op);
     auto* n = new_for.CopyOnWrite();
     n->loop_var = new_loop_var;
     n->min = cast(new_loop_var.dtype(), min);
     n->extent = cast(new_loop_var.dtype(), extent);
+    n->thread_binding = std::move(thread_binding);
     n->body = new_body;
     return std::move(new_for);
   } else {

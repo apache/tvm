@@ -195,7 +195,7 @@ class Analyzer:
         """
         return self._canonical_simplify(expr)
 
-    def int_set(self, expr, dom_map):
+    def int_set(self, expr, dom_map=None):
         """Compute a symbolic IntSet that covers expr for all values in dom_map.
 
         Parameters
@@ -203,8 +203,9 @@ class Analyzer:
         expr : PrimExpr
             The expression.
 
-        dom_map : Dict[Var, tvm.arith.IntSet]
-            The domain for variables to be relaxed.
+        dom_map : Optional[Dict[Var, tvm.arith.IntSet]]
+            The domain for variables to be relaxed. If None, use the domain map defined by bound
+            variables.
 
         Returns
         -------

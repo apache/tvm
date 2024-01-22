@@ -171,8 +171,7 @@ void ParallelizeComputation(const ScheduleState& self, const StmtSRef& loop_sref
   ObjectPtr<ForNode> new_loop = make_object<ForNode>(*loop);
   new_loop->kind = for_kind;
   if (thread_axis.defined()) {
-    const String& thread_tag = thread_axis.value();
-    new_loop->thread_binding = IterVar(/*dom=*/Range(nullptr),                                    //
+    new_loop->thread_binding = IterVar(/*dom=*/Range::FromMinExtent(loop->min, loop->extent),     //
                                        /*var=*/Var(thread_axis.value(), loop->loop_var.dtype()),  //
                                        /*iter_type=*/kThreadIndex,                                //
                                        /*thread_tag=*/thread_axis.value());

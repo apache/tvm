@@ -2922,6 +2922,17 @@ def simplify_bracket():
     return simplify_bracket
 
 
+def size_var():
+    @T.prim_func
+    def size_var() -> None:
+        a = T.int32(is_size_var=True)
+        b = T.int32(is_size_var=True, min_value=0)
+        c = T.int32(is_size_var=True, min_value=1)
+        T.evaluate(a + b * c)
+
+    return size_var
+
+
 def var_with_same_name():
     @T.prim_func
     def var_with_same_name(a: T.handle) -> None:
@@ -4015,6 +4026,7 @@ ir_generator = tvm.testing.parameter(
     abs,
     constant_folding,
     simplify_bracket,
+    size_var,
     while_loop,
     primfunc_with_allocate_annotations,
     comm_reducer_single_reduce_group,

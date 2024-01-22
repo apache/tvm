@@ -611,6 +611,15 @@ def get_mma_store_intrin(dtype, local_size, scope="global", use_mma_store_intrin
                         row, col = T.meta_var(index_map_rev(tx, local_id))
                         C[row, col] = C_warp[tx, local_id]
 
+            with T.block("root"):
+                T.reads(C_warp[0:WARP_SIZE, 0:local_size])
+                T.writes(C[0:M_DIM, 0:N_DIM])
+
+                for tx in T.thread_binding(0, WARP_SIZE, "threadIdx.x"):
+                    for local_id in T.serial(local_size):
+                        row, col = T.meta_var(index_map_rev(tx, local_id))
+                        C[row, col] = C_warp[tx, local_id]
+
     return mma_store_desc, mma_store_impl
 
 
@@ -732,7 +741,7 @@ def get_mma_intrin_group(
     load_scope = "_dyn" if load_scope == "shared.dyn" else ""
     load_a_intrin = f"mma_ldmatrix_{in_dtype}_a{trans_a}{load_scope}"
     load_b_intrin = f"mma_ldmatrix_{in_dtype}_b{trans_b}{load_scope}"
-    indexmap_a = shared_16x16_to_mma_32x8_layout if in_dtype == "float16" else shared_32x16_to_mma_32x16_layout  
+
     # e.g. mma_f16f16f32_trans_a_trans_b
     trans_a_str = trans_a + "_a" if trans_a != "" else ""
     trans_b_str = trans_b + "_b" if trans_b != "" else ""
