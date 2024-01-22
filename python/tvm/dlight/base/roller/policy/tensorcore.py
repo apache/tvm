@@ -96,9 +96,20 @@ class TensorCorePolicy(DefaultPolicy):
                 return super()._assign_reduce_step(node)
         return result
 
-    def _expand_reduce_axis(self, td):
+    def _expand_reduce_axis(self, td: TileDict):
         # For tensorcore program, if we got a small tilesize, we should consider expand the reduce axis
         # to improve compute efficiency.
+        def _check_small_tile(td: TileDict):
+            minimal_threadhold = 32
+            for node in self.ordered_nodes:
+                tile = td.get_tile(node)
+                if any([t <= minimal_threadhold for t in tile]):
+                    return True
+            return False
+
+        if not _check_small_tile(td):
+            return None
+
         smem_limit = min(self.arch.max_smem_usage // td.block_per_SM, self.arch.smem_cap)
         rstep_map = td.rstep_map.copy()
 
@@ -216,12 +227,13 @@ class TensorCorePolicy(DefaultPolicy):
         }
         tensor_strides = {}
         # when connected to shared input, should use full stride without rstep
-        for i, (stride, stride_full) in enumerate(zip([AS_stride, BS_stride], [A_stride, B_stride])):
-            if use_layout: continue
-            _ = node.block_analyzer.get_input_buffers(
-                node.reduction_block
-                )[i].name
-           # TODO(lei): should dig further for shared memory connection case.
+        for i, (stride, stride_full) in enumerate(
+            zip([AS_stride, BS_stride], [A_stride, B_stride])
+        ):
+            if use_layout:
+                continue
+            _ = node.block_analyzer.get_input_buffers(node.reduction_block)[i].name
+        # TODO(lei): should dig further for shared memory connection case.
 
         return output_strides, tensor_strides
 
