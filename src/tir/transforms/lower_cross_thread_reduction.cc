@@ -252,7 +252,7 @@ class InThreadReducerMaker : private StmtMutator {
       For res = opt_res.value();
       if (res->thread_binding.defined()) {
         UnderLoopReductionBlockVarCollector collector;
-        if (!res->body.defined() || collector.CheckHasReductionBlocks(res->body)) {
+        if (!res->body.defined() || collector.CheckHasReductionBlocks(res)) {
           return res->body;
         }
         return std::move(res);
