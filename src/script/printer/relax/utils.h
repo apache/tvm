@@ -84,14 +84,16 @@ inline Optional<ExprDoc> StructInfoAsAnn(const relax::Var& v, const ObjectPath& 
   if (!v->struct_info_.defined()) {
     return NullOpt;
   }
+  bool attempt_to_hide_struct_info = !d->cfg->show_all_struct_info;
+
   if (const auto* call = rhs.as<relax::CallNode>()) {
     static const Op& call_tir_op = Op::Get("relax.call_tir");
     static const Op& call_dps_packed_op = Op::Get("relax.call_dps_packed");
     if (call->op.same_as(call_tir_op) || call->op.same_as(call_dps_packed_op)) {
-      return NullOpt;
+      attempt_to_hide_struct_info = true;
     }
   }
-  if (!d->cfg->show_all_struct_info) {
+  if (attempt_to_hide_struct_info) {
     Optional<relax::StructInfo> inferred_sinfo = NullOpt;
     if (auto opt = rhs.as<relax::Call>()) {
       auto call = opt.value();
