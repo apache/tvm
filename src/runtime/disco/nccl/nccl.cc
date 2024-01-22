@@ -24,6 +24,7 @@
 #include <tvm/runtime/registry.h>
 
 #include <cstring>
+#include <memory>
 #include <mutex>
 #include <sstream>
 #include <vector>
@@ -38,6 +39,7 @@
 #if TVM_NCCL_RCCL_SWITCH == 0
 #include <nccl.h>
 
+#include "../../../../3rdparty/trt-llm-allreduce/include/cuda_allreduce.h"
 #include "../../cuda/cuda_common.h"
 #else
 #include <rccl/rccl.h>
@@ -140,6 +142,7 @@ struct CCLThreadLocalContext {
   int device_id;
   deviceStream_t default_stream = nullptr;
   ncclComm_t comm;
+  std::unique_ptr<CustomAllReduce> custom_allreduce;
 
   void Clear() {
     NCCL_CALL(ncclCommDestroy(comm));
@@ -190,6 +193,8 @@ void InitCCLPerWorker(IntTuple device_ids, std::string unique_id_bytes) {
   worker->ccl = TVM_DISCO_CCL_NAME;
   ctx->worker = worker;
   ctx->device_id = device_id;
+  ctx->custom_allreduce =
+      std::make_unique<CustomAllReduce>(worker->num_workers, worker->worker_id, ctx->comm);
   // Initialize the communicator
   ncclUniqueId id;
   std::memcpy(id.internal, unique_id_bytes.data(), NCCL_UNIQUE_ID_BYTES);
@@ -201,6 +206,13 @@ void AllReduce(NDArray send, ReduceKind reduce_kind, NDArray recv) {
   ShapeTuple shape = send.Shape();
   int64_t numel = shape->Product();
   deviceStream_t stream = ctx->GetDefaultStream();
+  // TODO(csullivan) make this work
+  // 1. pass type in
+  // 2. src and dest args
+  // 3. some strategy selection outside, if (!enqueu) do nccl?
+  // 3. reduce kind
+  // 4. pass stream in to custom api
+  // ctx->custom_allreduce->enqueue(send->data, numel);
   NCCL_CALL(ncclAllReduce(send->data, recv->data, numel,
                           /*datatype=*/AsNCCLDataType(DataType(send->dtype)),
                           /*op=*/AsNCCLRedOp(reduce_kind), ctx->comm, stream));
