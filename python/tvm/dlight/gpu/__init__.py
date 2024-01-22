@@ -20,7 +20,7 @@ For CUDA/ROCm/Vulkan/Metal-specific rules, use `tvm.dlight.cuda/rocm/vulkan/meta
 """
 from .gemv import GEMV
 from .fallback import Fallback
-from .matmul import Matmul, MatmulTensorization
+from .matmul import Matmul, MatmulWMMATensorization, MatmulMMATensorization
 from .reduction import Reduction
 from .transpose import Transpose
 from .general_reduction import GeneralReduction

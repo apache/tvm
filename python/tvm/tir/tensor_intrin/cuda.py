@@ -636,6 +636,18 @@ TensorIntrin.register(
     *get_mma_store_intrin("float16", 8, "shared.dyn", False),
 )
 
+MMA_store_16x16_f16_shared_INTRIN_SIMPLE = "mma_store_16x16_f16_shared_simple_"
+TensorIntrin.register(
+    MMA_store_16x16_f16_shared_INTRIN_SIMPLE,
+    *get_mma_store_intrin("float16", 8, "shared", False),
+)
+
+MMA_store_16x16_f16_global_INTRIN_SIMPLE = "mma_store_16x16_f16_global_simple_"
+TensorIntrin.register(
+    MMA_store_16x16_f16_global_INTRIN_SIMPLE,
+    *get_mma_store_intrin("float16", 8, "global", False),
+)
+
 MMA_store_16x16_f16_global_INTRIN = "mma_store_16x16_f16_global_"
 TensorIntrin.register(
     MMA_store_16x16_f16_global_INTRIN, *get_mma_store_intrin("float16", 8, "global", True)
