@@ -240,7 +240,6 @@ class LambdaLifter : public ExprMutator {
     auto cache = current_lambda_var_;
     current_lambda_var_ = binding->var;
 
-    // ExprMutator::VisitBinding_(binding, func_node);
     auto new_value = VisitExpr(binding->value);
     if (!rebind_map_.count(binding->var)) {
       ReEmitBinding(binding, new_value);
@@ -304,9 +303,9 @@ class LambdaLifter : public ExprMutator {
 
     Expr body = func_node->body;
 
-    // recursive call
+    // Defining the rewrite rule prior to visiting the body, so that
+    // recursive closures can be updated.
     if (is_recursive && is_closure) {
-      // it is required by block_blocker, will be updated later
       nested_closure_map_.emplace(
           current_lambda_var_.value(),
           Call(gvar_lifted_func, captured_vars.Map([](Var var) -> Expr { return var; })));
@@ -371,8 +370,7 @@ class LambdaLifter : public ExprMutator {
 
       // Call "relax.invoke_closure" to invoke closure
 
-      if (bool is_closure = IsClosure(var);
-          is_closure && builder_->LookupBinding(var).as<CallNode>()) {
+      if (IsClosure(var) && builder_->LookupBinding(var).as<CallNode>()) {
         // if the original op was pure, we should use invoke_pure_closure
         Call orig_call = Downcast<Call>(builder_->LookupBinding(var));
         bool is_pure = [&]() -> bool {
@@ -424,13 +422,6 @@ class LambdaLifter : public ExprMutator {
   }
 
   bool IsClosure(Expr val) {
-    static int depth = -1;
-    struct Context {
-      explicit Context(int* ptr) : ptr(ptr) { (*ptr)++; }
-      ~Context() { (*ptr)--; }
-      int* ptr;
-    } context(&depth);
-
     if (auto opt_var = val.as<Var>()) {
       if (closures_.count(opt_var.value())) {
         return true;
