@@ -276,10 +276,6 @@ def collage(model):
         config = tvm.target.make_compilation_config(ctxt, targets)
         with ctxt:
             mod = model["mod"]
-            mod = tvm.relay.transform.CapturePostDfsIndexInSpans()(mod)
-            logging.info("-------------- BEGIN INDEXED --------------")
-            logging.info(mod)
-            logging.info("-------------- END INDEXED ----------------")
             mod = tvm.relay.transform.CollagePartition(config)(mod)
             partitioned_model = model.copy()
             partitioned_model["mod"] = mod
