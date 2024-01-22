@@ -1,6 +1,27 @@
+# Licensed to the Apache Software Foundation (ASF) under one
+# or more contributor license agreements.  See the NOTICE file
+# distributed with this work for additional information
+# regarding copyright ownership.  The ASF licenses this file
+# to you under the Apache License, Version 2.0 (the
+# "License"); you may not use this file except in compliance
+# with the License.  You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing,
+# software distributed under the License is distributed on an
+# "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+# KIND, either express or implied.  See the License for the
+# specific language governing permissions and limitations
+# under the License.
+
+"""
+Test relax vm builtin to enable DMA copy and wait operations.
+"""
+
 import tvm
 import tvm.script
-from tvm import IRModule, relax, tir
+from tvm import relax
 from tvm.script.parser import ir as I
 from tvm.script.parser import relax as R
 from tvm.script.parser import tir as T
@@ -8,14 +29,17 @@ import tvm.contrib.hexagon
 import tvm.testing
 import numpy as np
 
+# pylint: disable=invalid-name, missing-class-docstring, missing-function-docstring
+
+
 @I.ir_module
 class Module_1D:
     @T.prim_func
     def compute_add_in_vtcm(a: T.handle, b: T.handle, c: T.handle) -> None:
         m = T.int32()
-        A = T.match_buffer(a, (m, ), "int32", scope="global.vtcm")
-        B = T.match_buffer(b, (m, ), "int32", scope="global.vtcm")
-        C = T.match_buffer(c, (m, ), "int32", scope="global.vtcm")
+        A = T.match_buffer(a, (m,), "int32", scope="global.vtcm")
+        B = T.match_buffer(b, (m,), "int32", scope="global.vtcm")
+        C = T.match_buffer(c, (m,), "int32", scope="global.vtcm")
         for ax0 in T.grid(m):
             with T.block("T_add"):
                 v_ax0 = T.axis.remap("S", [ax0])
@@ -30,10 +54,24 @@ class Module_1D:
     ) -> R.Tensor((12800,), "int32"):
         cls = Module_1D
         vtcm_obj_a: R.Object = R.vm.alloc_storage(
-            R.shape([12800,]), runtime_device_index=0, dtype="int32", storage_scope="global.vtcm"
+            R.shape(
+                [
+                    12800,
+                ]
+            ),
+            runtime_device_index=0,
+            dtype="int32",
+            storage_scope="global.vtcm",
         )
         a: R.Tensor([12800,], dtype="int32") = R.vm.alloc_tensor(
-            vtcm_obj_a, offset=0, shape=R.shape([12800,]), dtype="int32"
+            vtcm_obj_a,
+            offset=0,
+            shape=R.shape(
+                [
+                    12800,
+                ]
+            ),
+            dtype="int32",
         )
         __: R.Tuple = R.call_builtin_with_ctx(
             "vm.builtin.hexagon.dma_copy",
@@ -41,10 +79,24 @@ class Module_1D:
             sinfo_args=[],
         )
         vtcm_obj_b: R.Object = R.vm.alloc_storage(
-            R.shape([12800,]), runtime_device_index=0, dtype="int32", storage_scope="global.vtcm"
+            R.shape(
+                [
+                    12800,
+                ]
+            ),
+            runtime_device_index=0,
+            dtype="int32",
+            storage_scope="global.vtcm",
         )
         b: R.Tensor([12800,], dtype="int32") = R.vm.alloc_tensor(
-            vtcm_obj_b, offset=0, shape=R.shape([12800,]), dtype="int32"
+            vtcm_obj_b,
+            offset=0,
+            shape=R.shape(
+                [
+                    12800,
+                ]
+            ),
+            dtype="int32",
         )
         __: R.Tuple = R.call_builtin_with_ctx(
             "vm.builtin.hexagon.dma_copy",
@@ -52,10 +104,24 @@ class Module_1D:
             sinfo_args=[],
         )
         vtcm_obj_c: R.Object = R.vm.alloc_storage(
-            R.shape([12800,]), runtime_device_index=0, dtype="int32", storage_scope="global.vtcm"
+            R.shape(
+                [
+                    12800,
+                ]
+            ),
+            runtime_device_index=0,
+            dtype="int32",
+            storage_scope="global.vtcm",
         )
         c: R.Tensor([12800,], dtype="int32") = R.vm.alloc_tensor(
-            vtcm_obj_c, offset=0, shape=R.shape([12800,]), dtype="int32"
+            vtcm_obj_c,
+            offset=0,
+            shape=R.shape(
+                [
+                    12800,
+                ]
+            ),
+            dtype="int32",
         )
         __: R.Tuple = R.call_builtin_with_ctx(
             "vm.builtin.hexagon.dma_wait",
@@ -69,7 +135,13 @@ class Module_1D:
         )
         ___: R.Tuple = cls.compute_add_in_vtcm(a, b, c)
         ret_val: R.Tensor((12800,), dtype="int32") = R.builtin.alloc_tensor(
-            R.shape([12800,]), R.dtype("int32"), R.prim_value(0)
+            R.shape(
+                [
+                    12800,
+                ]
+            ),
+            R.dtype("int32"),
+            R.prim_value(0),
         )
         __: R.Tuple = R.call_builtin_with_ctx(
             "vm.builtin.hexagon.dma_copy",

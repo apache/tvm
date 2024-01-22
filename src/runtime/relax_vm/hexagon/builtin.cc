@@ -25,8 +25,8 @@
 #include <tvm/runtime/packed_func.h>
 #include <tvm/runtime/registry.h>
 #include <tvm/runtime/relax_vm/vm.h>
-#include "../../hexagon/hexagon_device_api.h"
 
+#include "../../hexagon/hexagon_device_api.h"
 namespace tvm {
 namespace runtime {
 namespace relax_vm {
