@@ -36,6 +36,7 @@ from .transform import (
     DecomposeOpsForInference,
     DecomposeOpsForTraining,
     EliminateCommonSubexpr,
+    ExpandMatmulOfSum,
     ExpandTupleArguments,
     FewShotTuning,
     FoldConstant,

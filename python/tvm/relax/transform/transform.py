@@ -1282,6 +1282,26 @@ def AdjustMatmulOrder():
     return _ffi_api.AdjustMatmulOrder()  # type: ignore
 
 
+def ExpandMatmulOfSum():
+    """Expand `matmul(x, A+B)` to `matmul(x,A) + matmul(x,B)`
+
+    If either operand can be fully computed at compile-time (only
+    depends on function parameters after kNumInput), this expansion is
+    suppressed.
+
+    Useful for optimizing LoRA computations, where `matmul(x, Base +
+    LoraA*LoraB)` may be expanded to `matmul(x, Base) + matmul(x,
+    LoraA*LoraB)`, allowing it to optimized with  `CombineParallelMatmul`.
+
+    Returns
+    -------
+    ret : tvm.transform.Pass
+        The corresponding pass.
+    """
+
+    return _ffi_api.ExpandMatmulOfSum()  # type: ignore
+
+
 def CombineParallelMatmul(check=None):
     """Combine multiple matmul operators sharing the same LHS matrix into one,
     followed by slicing. When all matmul branches in a tree have the same set of fused ops,
