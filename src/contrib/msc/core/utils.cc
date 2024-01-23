@@ -78,6 +78,34 @@ int CommonUtils::CompareVersion(const Array<Integer>& given_version,
   return CompareVersion(int_given_version, int_target_version);
 }
 
+const String CommonUtils::ToAttrKey(const String& key) {
+  if (key == "name") {
+    return msc_attr::kName;
+  }
+  if (key == "optype") {
+    return msc_attr::kOptype;
+  }
+  if (key == "op_attrs") {
+    return msc_attr::kOpattrs;
+  }
+  if (key == "layout") {
+    return msc_attr::kLayout;
+  }
+  if (key == "shared_ref") {
+    return msc_attr::kSharedRef;
+  }
+  if (key == "unique") {
+    return msc_attr::kUnique;
+  }
+  if (key == "input_layouts") {
+    return msc_attr::kInputLayouts;
+  }
+  if (key == "consumer_type") {
+    return msc_attr::kConsumerType;
+  }
+  LOG_FATAL << "Unexpected key " << key;
+}
+
 bool StringUtils::Contains(const String& src_string, const String& sub_string) {
   if (src_string.size() == 0) {
     return false;
@@ -148,6 +176,15 @@ const String StringUtils::Join(const Array<String>& sub_strings, const String& j
     join_str = join_str + sub_strings[i] + (i == sub_strings.size() - 1 ? "" : joint);
   }
   return join_str;
+}
+
+const String StringUtils::Join(const std::vector<std::string>& sub_strings,
+                               const std::string& joint) {
+  Array<String> new_strings;
+  for (const auto& s : sub_strings) {
+    new_strings.push_back(s);
+  }
+  return Join(new_strings, joint);
 }
 
 const String StringUtils::Replace(const String& src_string, const String& old_str,
@@ -432,6 +469,10 @@ TVM_REGISTER_GLOBAL("msc.core.CompareVersion")
                        const Array<Integer>& target_version) -> Integer {
       return Integer(CommonUtils::CompareVersion(given_version, target_version));
     });
+
+TVM_REGISTER_GLOBAL("msc.core.ToAttrKey").set_body_typed([](const String& key) -> String {
+  return CommonUtils::ToAttrKey(key);
+});
 
 }  // namespace msc
 }  // namespace contrib
