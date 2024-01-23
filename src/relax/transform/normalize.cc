@@ -174,6 +174,10 @@ class NormalizeMutator : public ExprMutatorBase {
 
 Expr Normalize(const Expr& e) { return NormalizeMutator().VisitExpr(e); }
 
+Function Normalize(Function func) {
+  return Downcast<Function>(NormalizeMutator().VisitExpr(std::move(func)));
+}
+
 class GlobalVarNormalizer : private ExprMutator {
  public:
   static IRModule Normalize(const IRModule& m) {

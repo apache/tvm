@@ -1021,6 +1021,18 @@ class Function(BaseFunc, Scriptable):
         """
         return Call(self, args, None, None)
 
+    @staticmethod
+    def _normalize_value(value):
+        """Conversions that must occur prior to the FFI conversions"""
+        if isinstance(value, int):
+            # Relax uses int64 for symbolic variables, but the FFI
+            # converts python integers into int32.
+            return tvm.tir.const(value, "int64")
+        elif isinstance(value, (_np.ndarray, tvm.nd.NDArray)):
+            return tvm.relax.const(value)
+        else:
+            return value
+
     def bind_symbolic_vars(
         self, binding_map: Mapping[Union[str, tvm.tir.Var], PrimExpr]
     ) -> "Function":
@@ -1042,14 +1054,35 @@ class Function(BaseFunc, Scriptable):
             The updated function
         """
 
-        # Relax uses int64 for symbolic variables, but the FFI
-        # converts python integers into int32.
-        binding_map = {
-            key: tvm.tir.const(value, "int64") if isinstance(value, int) else value
-            for key, value in binding_map.items()
-        }
+        binding_map = {key: self._normalize_value(value) for key, value in binding_map.items()}
 
         return _ffi_api.FunctionBindSymbolicVars(self, binding_map)  # type: ignore
+
+    def check_for_special_case(
+        self, special_case: Mapping[Union[str, tvm.tir.Var, Var], Union[PrimExpr, Expr]]
+    ) -> "Function":
+        """Return a new function with updated symbolic variable
+
+        Parameters
+        ----------
+        binding_map: Mapping[Union[str, tvm.tir.Var], Union[PrimExpr,Expr]]
+
+            The mapping of values to be replaced.  Keys may be either
+            a `relax.Var, a `tir.Var` or a string providing the name
+            of the variable.  If the variables are referred to by
+            name, the name must uniquely identify the `tir.Var` or
+            `relax.Var` in the function signature.
+
+        Returns
+        -------
+        func: Function
+
+            The updated function
+        """
+
+        special_case = {key: self._normalize_value(value) for key, value in special_case.items()}
+
+        return _ffi_api.FunctionCheckForSpecialCase(self, special_case)  # type: ignore
 
     def bind_params(
         self,
@@ -1085,19 +1118,7 @@ class Function(BaseFunc, Scriptable):
             The updated function
         """
 
-        def _normalize_value(value):
-            # Conversions that must occur prior to the FFI
-            # conversions.
-            if isinstance(value, int):
-                # Relax uses int64 for symbolic variables, but the FFI
-                # converts python integers into int32.
-                return tvm.tir.const(value, "int64")
-            elif isinstance(value, (_np.ndarray, tvm.nd.NDArray)):
-                return tvm.relax.const(value)
-            else:
-                return value
-
-        binding_map = {key: _normalize_value(value) for key, value in binding_map.items()}
+        binding_map = {key: self._normalize_value(value) for key, value in binding_map.items()}
 
         return _ffi_api.FunctionBindParams(self, binding_map)  # type: ignore
 
