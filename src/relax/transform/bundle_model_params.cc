@@ -35,7 +35,7 @@ namespace relax {
 
 class ModelParamBundler : public ExprMutator {
  public:
-  ModelParamBundler() {}
+  ModelParamBundler(Optional<String> param_tuple_name) : param_tuple_name_(param_tuple_name) {}
 
   Expr VisitExpr_(const FunctionNode* op) override {
     Function func = GetRef<Function>(op);
@@ -59,7 +59,7 @@ class ModelParamBundler : public ExprMutator {
       param_tuple.push_back(GetStructInfo(func->params[i]));
     }
 
-    Var var_param_tuple("model_params", TupleStructInfo(param_tuple));
+    Var var_param_tuple(param_tuple_name_.value_or("model_params"), TupleStructInfo(param_tuple));
     params.push_back(var_param_tuple);
 
     for (size_t i = num_input; i < func->params.size(); i++) {
@@ -81,21 +81,22 @@ class ModelParamBundler : public ExprMutator {
   }
 
  private:
+  Optional<String> param_tuple_name_;
   Map<Var, Expr> var_to_expr_;
 };
 
-Function BundleModelParams(const Function& func) {
-  ModelParamBundler mutator;
+Function BundleModelParams(const Function& func, Optional<String> param_tuple_name) {
+  ModelParamBundler mutator(param_tuple_name);
   return Downcast<Function>(mutator(func));
 }
 
 namespace transform {
-Pass BundleModelParams() {
+Pass BundleModelParams(Optional<String> param_tuple_name) {
   runtime::TypedPackedFunc<IRModule(IRModule, PassContext)> pass_func = [=](IRModule mod,
                                                                             PassContext pc) {
     IRModule updates;
 
-    ModelParamBundler mutator;
+    ModelParamBundler mutator(param_tuple_name);
 
     for (const auto& [gvar, func] : mod->functions) {
       if (auto opt = func.as<relax::Function>()) {
