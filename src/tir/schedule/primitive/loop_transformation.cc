@@ -399,7 +399,6 @@ Array<StmtSRef> Split(ScheduleState self, const StmtSRef& loop_sref, const Array
   // Currently, loops not starting with 0 are not supported
   arith::Analyzer analyzer;
   CheckLoopStartsWithZero(self, loop_sref, &analyzer);
-  // should add AddShapeVarBounds
 
   // Find the most common dtype
   DataType dtype;
@@ -434,8 +433,6 @@ Array<StmtSRef> Split(ScheduleState self, const StmtSRef& loop_sref, const Array
       &opaque_block_reuse)(std::move(new_stmt));
   // Step 3. Update predicate to guard the loop
   PrimExpr predicate = substitute_value < loop->extent;
-  // VLOG(0) << predicate;
-  // VLOG(0) << analyzer.CanProve(predicate, arith::ProofStrength::kSymbolicBound);
   if (!analyzer.CanProve(predicate, arith::ProofStrength::kSymbolicBound)) {
     new_stmt = BlockPredicateAppender(/*predicate=*/predicate)(std::move(new_stmt));
   }

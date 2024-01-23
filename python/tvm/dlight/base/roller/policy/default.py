@@ -714,6 +714,7 @@ class DefaultPolicy:
                     break
         # Plan vectorize
         codegen_dict.vectorize = self._plan_vectorize(node, td, block_size)
+        codegen_dict.arch = self.arch
         return codegen_dict
 
     def _plan_vectorize(self, node: PrimFuncNode, td: TileDict, block_size: int):

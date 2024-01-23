@@ -455,13 +455,12 @@ inline Var Handle(runtime::DataType dtype = runtime::DataType::Void(),
   return is_size_var ? tvm::tir::SizeVar("", type_annotation) : tvm::tir::Var("", type_annotation);
 }
 
-#define TVM_TIR_IR_BUILDER_DEF_DTYPE_CAST(FuncName, DType)                              \
-  inline PrimExpr FuncName(Optional<PrimExpr> expr = NullOpt, bool is_size_var = false, \
-                           int64_t min_value = 0) {                                     \
-    DataType dtype = DType;                                                             \
-    return expr.defined() ? tvm::cast(dtype, expr.value())                              \
-                          : (is_size_var ? tvm::tir::SizeVar("", dtype, min_value)      \
-                                         : tvm::tir::Var("", dtype));                   \
+#define TVM_TIR_IR_BUILDER_DEF_DTYPE_CAST(FuncName, DType)                                \
+  inline PrimExpr FuncName(Optional<PrimExpr> expr = NullOpt, bool is_size_var = false) { \
+    DataType dtype = DType;                                                               \
+    return expr.defined()                                                                 \
+               ? tvm::cast(dtype, expr.value())                                           \
+               : (is_size_var ? tvm::tir::SizeVar("", dtype) : tvm::tir::Var("", dtype)); \
   }
 
 #define TVM_TIR_IR_BUILDER_DEF_DTYPE_CAST_SIZES(DType, FDType) \

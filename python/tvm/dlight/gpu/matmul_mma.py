@@ -21,20 +21,24 @@ from typing import Literal, Optional
 from tvm import tir
 from tvm.target import Target
 
-from ..base import ScheduleRule, analysis
+from ..base.roller.rasterization import NoRasterization
+from ..base import analysis
+from .base import GPUScheduleRule
 from .matmul_analysis import (
     auto_inline_consumer_chain,
+    auto_inline_consumers,
+    is_transpose_block,
+    is_identity_block,
+    inline_transpose_block,
     auto_inline_producers,
-    get_dequantize_block,
     get_index_map,
     get_reduction_blocks,
-    inline_transpose_block,
-    is_identity_block,
-    is_transpose_block,
+    get_dequantize_block,
+    normalize_to_matmul,
 )
 
 
-class MatmulTensorizationMMA(ScheduleRule):
+class MatmulTensorizationMMA(GPUScheduleRule):
     """
     The schedule rule for float16 tensor core matmul computation.
     func with attr 'dlight.do_not_tensorize' will not be tensorized.
@@ -87,7 +91,7 @@ class MatmulTensorizationMMA(ScheduleRule):
         # Tensorization by hardware intrinsics
         from tvm.tir.tensor_intrin.cuda import (  # pylint: disable=import-outside-toplevel
             get_mma_intrin_group,
-            shared_16x16_to_ldmatrix_32x8_layout,
+            shared_16x16_to_mma_32x8_layout,
         )
 
         # tile size
@@ -217,7 +221,7 @@ class MatmulTensorizationMMA(ScheduleRule):
                     v0,
                     v1 // micro_size_1,
                     v2 // micro_size_2,
-                    *shared_16x16_to_ldmatrix_32x8_layout(v1 % micro_size_1, v2 % micro_size_2),
+                    *shared_16x16_to_mma_32x8_layout(v1 % micro_size_1, v2 % micro_size_2),
                 ),
             )
 
@@ -267,7 +271,7 @@ class MatmulTensorizationMMA(ScheduleRule):
                     v0,
                     v1 // micro_size_m,
                     v2 // micro_size_n,
-                    *shared_16x16_to_ldmatrix_32x8_layout(v1 % micro_size_m, v2 % micro_size_n),
+                    *shared_16x16_to_mma_32x8_layout(v1 % micro_size_m, v2 % micro_size_n),
                 ),
             )
 
@@ -320,4 +324,274 @@ class MatmulTensorizationMMA(ScheduleRule):
             sch.bind(v1, "threadIdx.x")
             sch.unroll(v2)
             sch.vectorize(v3)
+        return sch
+
+    def apply_config(  # pylint: disable=too-many-locals,missing-docstring
+        self,
+        func: tir.PrimFunc,
+        config,
+    ) -> Optional[tir.Schedule]:
+        from tvm.tir.tensor_intrin.cuda import (  # pylint: disable=import-outside-toplevel
+            get_mma_intrin_group,
+            shared_16x16_to_mma_32x8_layout,
+        )
+
+        sch = tir.Schedule(func)
+        root_block = analysis.get_root_block(sch)
+        output_blocks = sch.get_output_blocks(root_block)
+        blocks = sch.get_child_blocks(root_block)
+        cache_write_required = True  # main_block not in output_blocks
+
+        if func.attrs is not None and "dlight.do_not_tensorize" in func.attrs.keys():
+            return None
+
+        reduction_blocks = get_reduction_blocks(sch, blocks)
+        if reduction_blocks is None:
+            return None
+
+        main_block = reduction_blocks[0]
+
+        # Start Schedule
+        # Step 0. Get schedule config.
+        # NOTE: we can analyze the config by the hardware spec in the future
+
+        # tensor core intrinsic size
+        intrin_info = config.intrin_info
+        warp_row_tiles = config.warp[0]
+        warp_col_tiles = config.warp[1]
+        block_row_warps = config.block[0] // warp_row_tiles
+        block_col_warps = config.block[1] // warp_col_tiles
+        stage = config.pipeline_stage
+        use_async = config.use_async
+        chunk = config.rstep[0]
+        shared_scope = "shared.dyn"
+
+        micro_size_x = 16
+        micro_size_y = 16
+        micro_size_k = 16
+
+        warp_size = 32
+
+        i_factors, j_factors, k_factors = (
+            [None, 1, block_row_warps, warp_row_tiles // micro_size_x],
+            [1, None, block_col_warps, warp_col_tiles // micro_size_y],
+            [None, chunk // micro_size_k],
+        )
+
+        num_ty = i_factors[2]
+        num_tz = j_factors[2]
+        x_pad_factor = i_factors[2] * i_factors[3]
+        y_pad_factor = j_factors[2] * j_factors[3]
+        k_pad_factor = k_factors[1]
+
+        # Step 1. Normalize generic matmul to C[S, I, J] += A[S, I, K] * B[S, J, K]/B[S, K, J]
+        if not (func.attrs is not None and "dlight.tensorcore_prenormlized" in func.attrs.keys()):
+            sch = normalize_to_matmul(sch, main_block, ["a", "a", "a"])
+
+        # Step 2. Padding for dynamic shape kernels
+        sch.pad_einsum(
+            main_block,
+            [
+                1,
+                micro_size_x * x_pad_factor,
+                micro_size_y * y_pad_factor,
+                micro_size_k * k_pad_factor,
+            ],
+        )
+
+        # Step 3. Schedule matmul to use tensor core
+        block = main_block
+
+        batch, i, j, k = sch.get_loops(block)
+
+        # inner loops for tensor core computation
+        i, i_inner = sch.split(i, factors=[None, micro_size_x])
+        j, j_inner = sch.split(j, factors=[None, micro_size_y])
+        k, k_inner = sch.split(k, factors=[None, micro_size_k])
+
+        sch.reorder(i, j, k, i_inner, j_inner, k_inner)
+
+        block_inner = block
+        block_outer = sch.blockize(i_inner)
+
+        i0, i1, i2, i3 = sch.split(i, factors=i_factors)
+        j0, j1, j2, j3 = sch.split(j, factors=j_factors)
+        k0, k1 = sch.split(k, k_factors)
+
+        sch.reorder(i0, j0, i1, j1, j2, i2, k0, k1, i3, j3)
+
+        block_idx = sch.fuse(i0, j0)
+        block_idy = sch.fuse(i1, j1)
+        thread_idy = i2
+        thread_idz = j2
+
+        # plan rasteration
+        if (
+            not isinstance(config.rasterization_plan, NoRasterization)
+            and sch.get(batch).extent.value == 1
+        ):
+            device_func, invoke_func = config.rasterization_plan.get_code()
+            factor = config.rasterization_plan.panel_width_
+
+            # TODO(lei): this is a trick for rasterization implementation
+            # wait for https://github.com/apache/tvm/pull/16113 to be merged
+            # require a solution for general block rasterization
+            # factor = 8  # should be divisible by block_idy
+            # if sch.get(block_idy).extent.value % factor == 0:
+            #     block_k, block_idy = sch.split(block_idy, factors=[None, factor])
+            #     sch.bind(block_k, "blockIdx.z")
+        else:
+            sch.bind(batch, "blockIdx.z")
+
+        sch.bind(block_idx, "blockIdx.x")
+        sch.bind(block_idy, "blockIdx.y")
+        sch.bind(thread_idy, "threadIdx.y")
+        sch.bind(thread_idz, "threadIdx.z")
+
+        def fetch_to_shared(block, idx, ndim, vec_len, dtype="float16"):
+            block_read = sch.cache_read(block, idx, shared_scope)
+            sch.compute_at(block_read, k0)
+            fused = sch.fuse(*sch.get_loops(block_read)[-ndim:])
+
+            _, f_1, f_2, f_3, f_4 = sch.split(
+                fused, factors=[None, num_tz, num_ty, warp_size, vec_len]
+            )
+
+            sch.bind(f_3, "threadIdx.x")
+            sch.bind(f_2, "threadIdx.y")
+            sch.bind(f_1, "threadIdx.z")
+            sch.vectorize(f_4)
+            return block_read
+
+        a_g2s = fetch_to_shared(
+            block_outer,
+            0,
+            2,
+            vec_len=list(config.vectorize.values())[0],
+            dtype=intrin_info.in_dtype,
+        )
+        b_g2s = fetch_to_shared(
+            block_outer,
+            1,
+            2,
+            vec_len=list(config.vectorize.values())[1],
+            dtype=intrin_info.in_dtype,
+        )
+
+        # Apply Swizzling
+        sch.annotate(a_g2s, ann_key="permuted_layout", ann_val=True)
+        sch.annotate(b_g2s, ann_key="permuted_layout", ann_val=True)
+
+        auto_inline_producers(sch, a_g2s)
+        auto_inline_producers(sch, b_g2s)
+
+        # create read cache to load matrix from shared memory to wmma fragments
+        A_mat = sch.cache_read(block_outer, 0, "warp")
+        B_mat = sch.cache_read(block_outer, 1, "warp")
+        sch.compute_at(A_mat, k1)
+        sch.compute_at(B_mat, k1)
+
+        # create write cache to store matrix from wmma fragments to shared memory and global memory
+        if cache_write_required:
+            accumulator_shared_to_global = sch.cache_write(block_outer, 0, shared_scope)
+            sch.storage_align(accumulator_shared_to_global, 0, -2, 16, 4)
+
+        store = sch.cache_write(block_outer, 0, "warp")
+        sch.reverse_compute_at(store, thread_idy)
+    
+        if cache_write_required:
+            sch.reverse_compute_at(accumulator_shared_to_global, thread_idy)
+        else:
+            auto_inline_consumer_chain(sch, store)
+
+        # split the store loop to match hardware intrinsic pattern
+        i, j = sch.get_loops(store)[-2:]
+        i0, i1 = sch.split(i, factors=[None, micro_size_x])
+        j0, j1 = sch.split(j, factors=[None, micro_size_y])
+        sch.reorder(i0, j0, i1, j1)
+
+        block_init_c = sch.decompose_reduction(block_outer, k0)
+        block_init_c_inner = sch.get_child_blocks(block_init_c)[0]
+
+        # Tensorization by hardware intrinsics
+        intrin_group = get_mma_intrin_group(
+            load_scope=shared_scope,
+            store_scope=shared_scope if cache_write_required else "global",
+            in_dtype=intrin_info.in_dtype,
+            out_dtype=intrin_info.out_dtype,
+            trans_a=False,
+            trans_b=intrin_info.trans_b,
+            not_use_mma_store_intrinic=False,
+        )
+
+        def index_map_A(b, i, j):
+            return (
+                b,
+                i // 16,
+                j // 16,
+                *shared_16x16_to_mma_32x8_layout(i % 16, j % 16),
+            )
+
+        def index_map_B(b, i, j):
+            return (
+                b,
+                i // 16,
+                j // 16,
+                *shared_16x16_to_mma_32x8_layout(i % 16, j % 16),
+            )
+
+        def index_map_C(b, i, j):
+            return (
+                b,
+                i // 16,
+                j // 16,
+                *shared_16x16_to_mma_32x8_layout(i % 16, j % 16),
+            )
+
+        sch.transform_layout(A_mat, ("write", 0), index_map_A)
+        sch.transform_layout(B_mat, ("write", 0), index_map_B)
+        sch.transform_layout(store, ("read", 0), index_map_C)
+
+        try:
+            i, j = sch.get_loops(A_mat)[-2:]
+            i0, i1 = sch.split(i, factors=[None, micro_size_x])
+            j0, j1 = sch.split(j, factors=[None, micro_size_y])
+            sch.reorder(i0, j0, i1, j1)
+            ba = sch.blockize(i1)
+            sch.annotate(ba, ann_key="permuted_layout", ann_val=True)
+            sch.tensorize(ba, intrin_group["load_a"])
+
+            i, j = sch.get_loops(B_mat)[-2:]
+            i0, i1 = sch.split(i, factors=[None, micro_size_x])
+            j0, j1 = sch.split(j, factors=[None, micro_size_y])
+            sch.reorder(i0, j0, i1, j1)
+            bb = sch.blockize(i1)
+            sch.annotate(bb, ann_key="permuted_layout", ann_val=True)
+            sch.tensorize(bb, intrin_group["load_b"])
+        except Exception:  # pylint: disable=bare-except
+            return None
+
+        def tensorize_init_store_compute():
+            sch.tensorize(sch.get_loops(block_init_c_inner)[-2], intrin_group["init"])
+            sch.tensorize(sch.get_loops(store)[-2], intrin_group["store"])
+            sch.tensorize(sch.get_loops(block_inner)[-3], intrin_group["compute"])
+
+        tensorize_init_store_compute()
+
+        if cache_write_required:
+            auto_inline_consumer_chain(sch, accumulator_shared_to_global)
+
+            fused = sch.fuse(*sch.get_loops(accumulator_shared_to_global)[-2:])
+            _, f1, f2 = sch.split(
+                fused, factors=[None, warp_size, max(list(config.vectorize.values()))]
+            )
+            sch.bind(f1, "threadIdx.x")
+            sch.vectorize(f2)
+
+        if stage > 1:
+            sch.annotate(k0, ann_key="software_pipeline_stage", ann_val=[0, 0, stage - 1])
+            sch.annotate(k0, ann_key="software_pipeline_order", ann_val=[0, 1, 2])
+        if use_async:
+            sch.annotate(k0, "software_pipeline_async_stages", [0])
+
         return sch

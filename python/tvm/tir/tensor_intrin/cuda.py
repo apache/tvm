@@ -611,14 +611,6 @@ def get_mma_store_intrin(dtype, local_size, scope="global", use_mma_store_intrin
                         row, col = T.meta_var(index_map_rev(tx, local_id))
                         C[row, col] = C_warp[tx, local_id]
 
-            with T.block("root"):
-                T.reads(C_warp[0:WARP_SIZE, 0:local_size])
-                T.writes(C[0:M_DIM, 0:N_DIM])
-
-                for tx in T.thread_binding(0, WARP_SIZE, "threadIdx.x"):
-                    for local_id in T.serial(local_size):
-                        row, col = T.meta_var(index_map_rev(tx, local_id))
-                        C[row, col] = C_warp[tx, local_id]
 
     return mma_store_desc, mma_store_impl
 
@@ -643,6 +635,12 @@ MMA_store_16x16_f16_shared_dyn_INTRIN_SIMPLE = "mma_store_16x16_f16_shared_dyn_s
 TensorIntrin.register(
     MMA_store_16x16_f16_shared_dyn_INTRIN_SIMPLE,
     *get_mma_store_intrin("float16", 8, "shared.dyn", False),
+)
+
+MMA_store_16x16_f16_shared_dyn_INTRIN = "mma_store_16x16_f16_shared_dyn_"
+TensorIntrin.register(
+    MMA_store_16x16_f16_shared_dyn_INTRIN,
+    *get_mma_store_intrin("float16", 8, "shared.dyn", True),
 )
 
 MMA_store_16x16_f16_shared_INTRIN_SIMPLE = "mma_store_16x16_f16_shared_simple_"

@@ -121,30 +121,27 @@ TVM_REGISTER_GLOBAL("tir.Var").set_body_typed([](String name_hint, runtime::TVMA
 TVM_REGISTER_NODE_TYPE(VarNode);
 
 // SizeVar
-SizeVar::SizeVar(String name_hint, DataType dtype, int64_t min_value, Span span) {
+SizeVar::SizeVar(String name_hint, DataType dtype, Span span) {
   auto n = make_object<SizeVarNode>();
   n->name_hint = std::move(name_hint);
   n->type_annotation = GetTypeFromRuntimeDataType(dtype);
   n->dtype = std::move(dtype);
-  n->min_value = min_value;
   n->span = std::move(span);
   data_ = std::move(n);
 }
 
-SizeVar::SizeVar(String name_hint, Type type_annotation, int64_t min_value, Span span) {
+SizeVar::SizeVar(String name_hint, Type type_annotation, Span span) {
   auto n = make_object<SizeVarNode>();
   n->name_hint = std::move(name_hint);
   n->dtype = GetRuntimeDataType(type_annotation);
   n->type_annotation = std::move(type_annotation);
-  n->min_value = min_value;
   n->span = std::move(span);
   data_ = std::move(n);
 }
 
-TVM_REGISTER_GLOBAL("tir.SizeVar")
-    .set_body_typed([](String s, DataType t, int64_t min_value, Span span) {
-      return SizeVar(s, t, min_value, span);
-    });
+TVM_REGISTER_GLOBAL("tir.SizeVar").set_body_typed([](String s, DataType t, Span span) {
+  return SizeVar(s, t, span);
+});
 
 TVM_REGISTER_NODE_TYPE(SizeVarNode);
 

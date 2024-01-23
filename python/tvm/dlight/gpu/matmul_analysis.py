@@ -18,13 +18,15 @@
 """A GEMM schedule rule for GPU operators."""
 from dataclasses import dataclass
 from enum import Enum
-from typing import Dict, List, Optional, Set, Tuple
+from typing import List, Optional, Set, Union, Tuple, Dict
 
 from tvm import tir
 from tvm.ir import Range
 from tvm.tir import IterVar, PrimExpr, Var
 from tvm.tir.analysis import undefined_vars
 from tvm.tir.schedule.schedule import BlockRV
+from ..base.analysis import collect_block_iter_vars_used_in_access_region
+from tvm.target.target import Target
 
 
 def _is_one(x: PrimExpr) -> bool:
@@ -182,7 +184,7 @@ def detect_iter_traits(block: tir.Block) -> Optional[Tuple[List[IterTrait]]]:
     def get_access_axes(region: List[Range]) -> Set[Var]:
         axes: Set[Var] = set()
         for r in region:
-            if not r.extent:
+            if not _is_one(r.extent):
                 raise ValueError("Expect elemwise block access")
             axes = axes.union(set(undefined_vars(r.min)))
         return axes
@@ -199,7 +201,11 @@ def detect_iter_traits(block: tir.Block) -> Optional[Tuple[List[IterTrait]]]:
         var = iter_var.var
         kind: IterKind
         if _is_one(iter_var.dom.extent):
-            kind = IterKind.kIter_T
+            if iter_var.iter_type == tir.IterVar.CommReduce:
+                # for simplified case (e.g. 1x1 conv kernel)
+                kind = IterKind.kIter_K
+            else:
+                kind = IterKind.kIter_T
         elif iter_var.iter_type == iter_var.DataPar:
             if var in A_axes and var in B_axes and var in C_axes:
                 kind = IterKind.kIter_S
@@ -230,13 +236,21 @@ def detect_iter_traits(block: tir.Block) -> Optional[Tuple[List[IterTrait]]]:
     return A_traits, B_traits, C_traits, block_traits
 
 
-def get_index_map(block: tir.Block) -> Optional[Tuple[tir.IndexMap, ...]]:
+def get_index_map(
+    block: tir.Block, layout: List[str] = ["n", "t", "n"]
+) -> Optional[Tuple[tir.IndexMap, ...]]:
     """Get index maps for the block
 
     Parameters
     ----------
     block : tir.Block
         The block to be analyzed
+
+    layout : List[str]
+        the target layout index map to be used.
+        'n' for [i, k] layout
+        't' for [k, j] layout
+        'a' for auto inference based on whether the last axis is reduction.
 
     Returns
     -------
@@ -245,23 +259,84 @@ def get_index_map(block: tir.Block) -> Optional[Tuple[tir.IndexMap, ...]]:
     """
     traits = detect_iter_traits(block)
     if traits is None:
+        print("[WARNING] traits is None, the block is", block)
         return None
     A_traits, B_traits, C_traits, block_traits = traits
 
+    def get_ordered_axes(region: List[Range]) -> Set[Var]:
+        axes: List[Var] = []
+        for r in region:
+            if not _is_one(r.extent):
+                raise ValueError("Expect elemwise block access")
+            axes.append(r.min)
+        return axes
+
+    def is_common_reduce(var: Var) -> bool:
+        for iter_var in block.iter_vars:
+            if iter_var.var == var and iter_var.iter_type == IterVar.CommReduce:
+                return True
+        return False
+
+    def check_last_trait(region: List[Range]):
+        axes = get_ordered_axes(region)
+        return is_common_reduce(axes[-1])
+
+    def infer_layout(layout: str, region: List[Range], kind: str = "A"):
+        """
+        Infer the layout based on the region and the kind of buffer
+        kind: "A", "B", "C"
+        """
+        primary_iter, secondary_iter, reduction_iter = {
+            "A": (IterKind.kIter_I, IterKind.kIter_K, IterKind.kIter_K),
+            "B": (IterKind.kIter_K, IterKind.kIter_J, IterKind.kIter_K),
+            "C": (IterKind.kIter_I, IterKind.kIter_J, None),
+        }[kind]
+
+        spatial_iter = {
+            "A": IterKind.kIter_I,
+            "B": IterKind.kIter_J,
+            "C": None,
+        }[kind]
+
+        if layout == "n":
+            return [IterKind.kIter_S, primary_iter, secondary_iter]
+        elif layout == "t":
+            return [IterKind.kIter_S, secondary_iter, primary_iter]
+        elif layout == "a":
+            # auto inference layout
+            # for buffer with reduction axis, we put it as the last axis
+            # otherwise, we put it as the first axis
+            if kind == "C":
+                return [IterKind.kIter_S, primary_iter, secondary_iter]
+            else:
+                return (
+                    [IterKind.kIter_S, spatial_iter, reduction_iter]
+                    if check_last_trait(region)
+                    else [IterKind.kIter_S, reduction_iter, spatial_iter]
+                )
+        else:
+            raise ValueError(f"Unknown layout {layout}")
+
     A_index_map = make_iter_fusion_index_map(
-        A_traits, [IterKind.kIter_S, IterKind.kIter_I, IterKind.kIter_K]
+        A_traits, infer_layout(layout[0], block.reads[0].region, kind="A")
     )
     B_index_map = make_iter_fusion_index_map(
-        B_traits, [IterKind.kIter_S, IterKind.kIter_J, IterKind.kIter_K]
+        B_traits, infer_layout(layout[1], block.reads[1].region, kind="B")
     )
     C_index_map = make_iter_fusion_index_map(
-        C_traits, [IterKind.kIter_S, IterKind.kIter_I, IterKind.kIter_J]
+        C_traits, infer_layout(layout[2], block.writes[0].region, kind="C")
     )
+
     matmul_index_map = make_iter_fusion_index_map(
         block_traits, [IterKind.kIter_S, IterKind.kIter_I, IterKind.kIter_J, IterKind.kIter_K]
     )
 
-    return matmul_index_map, A_index_map, B_index_map, C_index_map
+    return (
+        matmul_index_map,
+        A_index_map,
+        B_index_map,
+        C_index_map,
+    )
 
 
 def get_reduction_blocks(sch, blocks) -> Optional[List[BlockRV]]:
@@ -372,3 +447,169 @@ def inline_transpose_block(sch: tir.Schedule, blocks: List[tir.schedule.BlockRV]
             except:
                 result_blocks.append(block)
     return result_blocks
+
+
+def normalize_to_matmul(
+    sch: tir.Schedule, main_block: BlockRV, layout: List[str] = ["n", "t", "n"]
+) -> Optional[tir.Schedule]:
+    block_stmt = sch.get(main_block)
+
+    # let layout be 'a' to auto inference the layout
+    index_maps = get_index_map(block_stmt, layout=layout)
+    if index_maps is None:
+        print("[WARNING] Cannot find the appropriate index map for tensorcore")
+        return None
+
+    matmul_index_map, a_index_map, b_index_map, c_index_map = index_maps
+
+    # `skip_simplify` to  avoid the bug in the 1x1 conv
+    block = sch.reindex(main_block, ("read", 0), skip_simplify=True)
+    sch.transform_layout(block, ("write", 0), a_index_map)
+    block = sch.reindex(main_block, ("read", 1), skip_simplify=True)
+    sch.transform_layout(block, ("write", 0), b_index_map)
+    block = sch.reindex(main_block, ("write", 0), skip_simplify=True)
+    sch.transform_layout(block, ("read", 0), c_index_map)
+    sch.transform_block_layout(main_block, matmul_index_map)
+    sch.mod["main"] = sch.mod["main"].with_attr("dlight.tensorcore_prenormlized", True)
+    return sch
+
+
+def get_tensorized_func_and_tags(
+    func: tir.PrimFunc,
+    target: Target,
+) -> Tuple[tir.PrimFunc, Dict[str, Union[List[int], int]]]:
+    from tvm.tir.tensor_intrin.cuda import (  # pylint: disable=import-outside-toplevel
+        get_wmma_intrin_group,
+    )
+
+    """
+        transform function to matmul if necessary (e.g. transform conv2d with im2col)
+    """
+    # step1. detect whether the function can utilize tensorcore
+    sch = tir.Schedule(func)
+    root_block = get_root_block(sch)
+    blocks = sch.get_child_blocks(root_block)
+    reduction_blocks = get_reduction_blocks(sch, blocks)
+    if not reduction_blocks or len(reduction_blocks) != 1:
+        return func, None
+
+    def _can_be_tensorized(sch: tir.Schedule, block: BlockRV) -> bool:
+        block_stmt = sch.get(block)
+        conditions = []
+        conditions.append(len(block_stmt.reads) == 2)
+        conditions.append(len(block_stmt.writes) == 1)
+        conditions.append(
+            len(
+                collect_block_iter_vars_used_in_access_region(
+                    block_stmt, block_stmt.writes[0].region
+                )
+            )
+            > 0
+        )
+        if not all(conditions):
+            return False
+        return True
+
+    # step2. transform function to tensorcore matmul (e.g. conv2d with im2col)
+    def check_sm_version(arch: str) -> int:
+        sm_version = arch.replace("sm_", "")
+        return int(sm_version) if sm_version.isdigit() else -1
+
+    def get_in_out_dtypes(block: tir.Block) -> Tuple[str]:
+        """
+        Detect In/Out data types for the given block based on the analysis if read/write buffers.
+        """
+        assert len(block.reads) > 0 and len(block.writes) > 0
+        in_dtype = block.reads[0].buffer.dtype
+        out_dtype = block.writes[0].buffer.dtype
+        return (in_dtype, out_dtype)
+
+    def analysis_tensorcore_tags(sch: tir.Schedule, block: BlockRV, target: Target) -> bool:
+        tags: Dict[str, Union[List[int], int]] = {}
+        block_stmt = sch.get(block)
+
+        # analysis tensorcore axis
+        # todo(lei): maybe we can remove this in the future
+        (write_buffer_region,) = block_stmt.writes
+        out_axis = len(write_buffer_region.buffer.shape)
+        tags["tensorcore_config"] = [out_axis - 2, out_axis - 1]
+
+        # analysis pipeline stage
+        # todo(lei): maybe we can integrate this into policy in the future
+        tags["pipeline_stage"] = 1
+        if target.kind.name == "cuda" and check_sm_version(target.arch) >= 80:
+            # enable pipleline stage only for sm_80 devices
+            tags["pipeline_stage"] = 2
+
+        # analysis async copy
+        # todo(lei): maybe we can integrate this into policy in the future
+        tags["use_async_copy"] = 0
+        if tags["pipeline_stage"] == 2 and check_sm_version(target.arch) >= 80:
+            # async copy only works in software pipeline.
+            tags["use_async_copy"] = 1
+
+        # analysis intrin infomation
+        def get_ordered_axes(region: List[Range]) -> Set[Var]:
+            axes: List[Var] = []
+            for r in region:
+                if not _is_one(r.extent):
+                    raise ValueError("Expect elemwise block access")
+                axes.append(r.min)
+            return axes
+
+        def is_common_reduce(var: Var) -> bool:
+            for iter_var in block_stmt.iter_vars:
+                if iter_var.var == var and iter_var.iter_type == IterVar.CommReduce:
+                    return True
+            return False
+
+        def check_last_trait(region: List[Range]):
+            axes = get_ordered_axes(region)
+            return is_common_reduce(axes[-1])
+
+        intrin_info: dict = {}
+        in_dtype, out_dtype = get_in_out_dtypes(block_stmt)
+        intrin_info["in_dtype"] = in_dtype
+        intrin_info["out_dtype"] = out_dtype
+        # if the last dimension is reduce axis, the B is transposed
+        intrin_info["trans_b"] = check_last_trait(block_stmt.reads[1].region)
+
+        tags["intrin_info"] = intrin_info
+
+        return tags
+
+    (main_block,) = reduction_blocks
+    if _can_be_tensorized(sch, main_block) is None:
+        return func, None
+
+    minimal_tensorize_threshold = 64
+    block_stmt = sch.get(main_block)
+    if target.kind.name == "cuda" and check_sm_version(target.arch) >= 70:
+        in_dtype, out_dtype = get_in_out_dtypes(block_stmt)
+        try:
+            _ = get_wmma_intrin_group(
+                in_dtype=in_dtype,
+                out_dtype=out_dtype,
+            )
+        except:
+            print("[FastDlight][WARNING] Cannot find the corresponding wmma intrin group")
+            return func, None
+
+        # reindex and transform functions
+        # Normalize tensor functions to C[S, I, J] += A[S, I, K] * B[S, J, K]
+        # or C[S, I, J] += A[S, I, K] * B[S, K, J]
+        sch = normalize_to_matmul(sch, main_block, ["a", "a", "a"])
+        if sch is None:
+            return func, None
+
+        block_stmt = sch.get(main_block)
+        # the batch dimension is not taken into consideration.
+        for item_var in block_stmt.iter_vars[1:]:
+            extent = item_var.dom.extent
+            if isinstance(extent, tir.expr.IntImm):
+                if extent.value < minimal_tensorize_threshold:
+                    return func, None
+        tags = analysis_tensorcore_tags(sch, main_block, target)
+        return sch.mod["main"], tags
+
+    return func, None

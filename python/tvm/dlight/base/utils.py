@@ -63,7 +63,12 @@ def _apply_config(
         if not reduction_blocks:
             return dl.gpu.ElementWise().apply_config(func, config)
         elif config.use_tc:
-            return dl.gpu.MatmulTensorization().apply_config(func, config)
+            if config.arch.sm_version >= 80:
+                # For A100(sm_80) or more advanced gpu, use MMA tensorization.
+                return dl.gpu.MatmulTensorizationMMA().apply_config(func, config)
+            else:
+                # For other GPUs, use WMMA tensorization.
+                return dl.gpu.MatmulTensorizationWMMA().apply_config(func, config)
         else:
             _reduction_rules = []
 
@@ -93,12 +98,15 @@ def _apply_and_build(
     sch = _apply_config(func, config)
     if sch is None:
         return config, sch, None
-    
+
     # TODO(@lei): is tvm.build thread safe?
     try:
-        with tvm.transform.PassContext(config={"tir.use_async_copy": True}):
+        with tvm.transform.PassContext(
+            config={"tir.use_async_copy": True, "tir.merge_static_smem": True}
+        ):
             mod = tvm.build(sch.mod["main"], target=arch.target)
-    except:
+    except Exception as e_msg:
+        print(e_msg)
         mod = None
     return config, sch, mod
 

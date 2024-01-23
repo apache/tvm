@@ -31,6 +31,7 @@ from .matmul_analysis import (
     auto_inline_producers,
     get_in_out_dtypes,
     get_index_map,
+    normalize_to_matmul,
     get_reduction_blocks,
 )
 from .matmul_mma import MatmulTensorizationMMA
@@ -259,12 +260,8 @@ class Matmul(GPUScheduleRule):
         # analyzed by matmul expr.
         assert len(config.block) == 2, "Matmul Only support 2D block"
 
-        if config.use_tc:
-            tensorize_sch = MatmulMMATensorization().apply_config(func, config)
-            if tensorize_sch is not None:
-                return tensorize_sch
-
         main_block = reduction_blocks[0]
+
         block_stmt = sch.get(main_block)
 
         # cuda core prefer b is [k, j] layout without swizzling.

@@ -128,8 +128,7 @@ Stmt SplitBindVectorize(const Stmt& stmt, const ConstraintSet& constraints) {
   body = For(new_loop_vars.back(), 0, vector_len, ForKind::kVectorized, std::move(body));
   for (int i = n - 2; i >= 1; i--) {
     body = For(new_loop_vars[i], 0, factors[i], ForKind::kThreadBinding, std::move(body),
-               IterVar(Range::FromMinExtent(0, factors[i]), Var(thread_axis[i - 1]), kThreadIndex,
-                       thread_axis[i - 1]));
+               IterVar(Range(nullptr), Var(thread_axis[i - 1]), kThreadIndex, thread_axis[i - 1]));
   }
   return For(new_loop_vars[0], 0, factors[0], ForKind::kSerial, std::move(body));
 }

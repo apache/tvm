@@ -51,9 +51,9 @@ class TensorCorePolicy(DefaultPolicy):
             self.use_async_copy = use_async_copy
         else:
             if self.arch.compute_capability == "sm_80":
-                self.use_async_copy = 2
-            else:
                 self.use_async_copy = 1
+            else:
+                self.use_async_copy = 0
 
     def _compute_tc_strides(
         self, node: PrimFuncNode, tile: List[int], rstep: Dict[str, int] = {}
@@ -299,6 +299,7 @@ class TensorCorePolicy(DefaultPolicy):
 
         codegen_dict.complete_config(node)
         codegen_dict.vectorize = self._plan_vectorize(self.prim_func_node, td, block_size)
+        codegen_dict.arch = self.arch
         return codegen_dict
 
     def plan_rasterization(self, td: TileDict):

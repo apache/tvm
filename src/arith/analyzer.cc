@@ -219,9 +219,7 @@ bool Analyzer::CanProve(const PrimExpr& expr, ProofStrength strength) {
       lower_bound = 0;
     }
     if (pos_diff) {
-      // VLOG(0) << pos_diff;
       IntSet iset = this->int_set(this->Simplify(pos_diff.value()));
-      // VLOG(0) << iset.min() << ", " << iset.max();
       if (iset.HasLowerBound()) {
         ConstIntBound relaxed_lower_bound = this->const_int_bound(this->Simplify(iset.min()));
         if (relaxed_lower_bound->min_value >= lower_bound) return true;
@@ -292,14 +290,8 @@ TVM_REGISTER_GLOBAL("arith.CreateAnalyzer").set_body([](TVMArgs args, TVMRetValu
       return PackedFunc(
           [self](TVMArgs args, TVMRetValue* ret) { *ret = self->canonical_simplify(args[0]); });
     } else if (name == "int_set") {
-      return PackedFunc([self](TVMArgs args, TVMRetValue* ret) {
-        auto dom_map = args[1].operator Optional<Map<Var, IntSet>>();
-        if (dom_map) {
-          *ret = self->int_set(args[0], dom_map.value());
-        } else {
-          *ret = self->int_set(args[0]);
-        }
-      });
+      return PackedFunc(
+          [self](TVMArgs args, TVMRetValue* ret) { *ret = self->int_set(args[0], args[1]); });
     } else if (name == "bind") {
       return PackedFunc([self](TVMArgs args, TVMRetValue* ret) {
         if (args[1].IsObjectRef<Range>()) {
