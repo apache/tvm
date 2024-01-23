@@ -238,7 +238,7 @@ struct GetOutputBlocksTraits : public UnpackedInstTraits<GetOutputBlocksTraits> 
 
   static String UnpackedAsPython(Array<String> outputs, String block_rv) {
     PythonAPICall py("get_output_blocks");
-    py.Input("scope_block", block_rv);
+    py.Input("block", block_rv);
     py.OutputList(outputs);
     return py.Str();
   }

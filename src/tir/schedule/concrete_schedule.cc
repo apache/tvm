@@ -394,71 +394,79 @@ LoopRV ConcreteScheduleNode::Fuse(const Array<LoopRV>& loop_rvs, bool preserve_u
   return CreateRV<LoopRV>(result);
 }
 
+class NotSingleInferFactorError : public ScheduleError {
+ public:
+  explicit NotSingleInferFactorError(IRModule mod) : mod_(mod) {}
+
+  String FastErrorString() const final {
+    return "ScheduleError: only one factor can be specified as -1 or none";
+  }
+
+  String DetailRenderTemplate() const final {
+    return "Only one factor can be specified as -1 or none";
+  }
+
+  IRModule mod() const final { return mod_; }
+  Array<ObjectRef> LocationsOfInterest() const final { return {}; }
+
+  IRModule mod_;
+};
+
+class WrongFactorError : public ScheduleError {
+ public:
+  explicit WrongFactorError(IRModule mod, For loop, bool product)
+      : mod_(mod), loop_(std::move(loop)), product_(product) {}
+
+  String FastErrorString() const final {
+    if (product_)
+      return "ScheduleError: The product of factors is not larger than or equal to the extent of "
+             "loop";
+    else
+      return "ScheduleError: The sum of factors is larger than or equal to the extent of loop";
+  }
+
+  String DetailRenderTemplate() const final {
+    if (product_)
+      return "The product of factors is not larger than or equal to the extent of loop {0}";
+    else
+      return "The sum of factors is larger than or equal to the extent of loop {0}";
+  }
+
+  IRModule mod() const final { return mod_; }
+  Array<ObjectRef> LocationsOfInterest() const final { return {loop_}; }
+
+  IRModule mod_;
+  For loop_;
+  bool product_;
+};
+
+class NonPositiveFactorError : public ScheduleError {
+ public:
+  explicit NonPositiveFactorError(IRModule mod, int64_t factor, size_t idx)
+      : mod_(std::move(mod)), factor_(factor), idx_(idx) {}
+
+  String FastErrorString() const final {
+    return "ScheduleError: All the constant factors are required to be positive. However, some "
+           "constant input factor is zero or negative.";
+  }
+  String DetailRenderTemplate() const final {
+    std::ostringstream os;
+    os << "All the constant factors are required to be positive. However, the factor at position "
+       << idx_ << " is " << factor_;
+    return os.str();
+  }
+  IRModule mod() const final { return mod_; }
+  Array<ObjectRef> LocationsOfInterest() const final { return {}; }
+
+ private:
+  IRModule mod_;
+  int64_t factor_;
+  size_t idx_;
+};
+
 Array<LoopRV> ConcreteScheduleNode::Split(const LoopRV& loop_rv,
                                           const Array<Optional<ExprRV>>& factor_rvs,
                                           bool preserve_unit_iters) {
-  class NotSingleInferFactorError : public ScheduleError {
-   public:
-    explicit NotSingleInferFactorError(IRModule mod) : mod_(mod) {}
-
-    String FastErrorString() const final {
-      return "ScheduleError: only one factor can be specified as -1 or none";
-    }
-
-    String DetailRenderTemplate() const final {
-      return "Only one factor can be specified as -1 or none";
-    }
-
-    IRModule mod() const final { return mod_; }
-    Array<ObjectRef> LocationsOfInterest() const final { return {}; }
-
-    IRModule mod_;
-  };
-
-  class WrongFactorProductError : public ScheduleError {
-   public:
-    explicit WrongFactorProductError(IRModule mod, For loop) : mod_(mod), loop_(std::move(loop)) {}
-
-    String FastErrorString() const final {
-      return "ScheduleError: The product of factors is not larger than or equal to the extent of "
-             "loop";
-    }
-
-    String DetailRenderTemplate() const final {
-      return "The product of factors is not larger than or equal to the extent of loop {0}";
-    }
-
-    IRModule mod() const final { return mod_; }
-    Array<ObjectRef> LocationsOfInterest() const final { return {loop_}; }
-
-    IRModule mod_;
-    For loop_;
-  };
-
-  class NonPositiveFactorError : public ScheduleError {
-   public:
-    explicit NonPositiveFactorError(IRModule mod, int64_t factor, size_t idx)
-        : mod_(std::move(mod)), factor_(factor), idx_(idx) {}
-
-    String FastErrorString() const final {
-      return "ScheduleError: All the constant factors are required to be positive. However, some "
-             "constant input factor is zero or negative.";
-    }
-    String DetailRenderTemplate() const final {
-      std::ostringstream os;
-      os << "All the constant factors are required to be positive. However, the factor at position "
-         << idx_ << " is " << factor_;
-      return os.str();
-    }
-    IRModule mod() const final { return mod_; }
-    Array<ObjectRef> LocationsOfInterest() const final { return {}; }
-
-   private:
-    IRModule mod_;
-    int64_t factor_;
-    size_t idx_;
-  };
-
   // Prepare for the splitting
   StmtSRef loop_sref = this->GetSRef(loop_rv);
   const ForNode* loop = TVM_SREF_TO_FOR(loop_sref);
@@ -492,7 +500,7 @@ Array<LoopRV> ConcreteScheduleNode::Split(const LoopRV& loop_rv,
     factors.Set(infer_index,
                 this->analyzer_->Simplify(floordiv(loop->extent + tot_length - 1, tot_length)));
   } else if (!this->analyzer_->CanProve(tot_length >= loop->extent)) {
-    throw WrongFactorProductError(state_->mod, GetRef<For>(loop));
+    throw WrongFactorError(state_->mod, GetRef<For>(loop), true);
   }
   results = tir::Split(state_, loop_sref, factors, preserve_unit_iters);
   TVM_TIR_SCHEDULE_END("split", this->error_render_level_);
@@ -521,68 +529,6 @@ Array<LoopRV> ConcreteScheduleNode::LoopPartition(const LoopRV& loop_rv,
 
     IRModule mod_;
     For loop_;
-  };
-
-  class NotSingleInferFactorError : public ScheduleError {
-   public:
-    explicit NotSingleInferFactorError(IRModule mod) : mod_(mod) {}
-
-    String FastErrorString() const final {
-      return "ScheduleError: only one factor can be specified as -1 or none";
-    }
-
-    String DetailRenderTemplate() const final {
-      return "Only one factor can be specified as -1 or none";
-    }
-
-    IRModule mod() const final { return mod_; }
-    Array<ObjectRef> LocationsOfInterest() const final { return {}; }
-
-    IRModule mod_;
-  };
-
-  class WrongFactorSumError : public ScheduleError {
-   public:
-    explicit WrongFactorSumError(IRModule mod, For loop) : mod_(mod), loop_(std::move(loop)) {}
-
-    String FastErrorString() const final {
-      return "ScheduleError: The sum of factors is larger than or equal to the extent of "
-             "loop";
-    }
-
-    String DetailRenderTemplate() const final {
-      return "The sum of factors is not larger than or equal to the extent of loop {0}";
-    }
-
-    IRModule mod() const final { return mod_; }
-    Array<ObjectRef> LocationsOfInterest() const final { return {loop_}; }
-
-    IRModule mod_;
-    For loop_;
-  };
-
-  class NonPositiveFactorError : public ScheduleError {
-   public:
-    explicit NonPositiveFactorError(IRModule mod, int64_t factor, size_t idx)
-        : mod_(std::move(mod)), factor_(factor), idx_(idx) {}
-
-    String FastErrorString() const final {
-      return "ScheduleError: All the constant factors are required to be positive. However, some "
-             "constant input factor is zero or negative.";
-    }
-    String DetailRenderTemplate() const final {
-      std::ostringstream os;
-      os << "All the constant factors are required to be positive. However, the factor at position "
-         << idx_ << " is " << factor_;
-      return os.str();
-    }
-    IRModule mod() const final { return mod_; }
-    Array<ObjectRef> LocationsOfInterest() const final { return {}; }
-
-   private:
-    IRModule mod_;
-    int64_t factor_;
-    size_t idx_;
   };
 
   // Prepare for the loop_partitioning
@@ -618,7 +564,7 @@ Array<LoopRV> ConcreteScheduleNode::LoopPartition(const LoopRV& loop_rv,
     }
   }
   if (this->analyzer_->CanProve(tot_length >= loop->extent)) {
-    throw WrongFactorSumError(state_->mod, GetRef<For>(loop));
+    throw WrongFactorError(state_->mod, GetRef<For>(loop), false);
   }
   if (infer_index != -1) {
     // if there is a 'None' in the factor list, 'None' becomes the difference between the extent and
