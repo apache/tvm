@@ -63,6 +63,7 @@ from .transform import (
     RemovePurityChecking,
     RemoveUnusedParameters,
     RemoveUnusedOutputs,
+    ReorderTakeAfterMatmul,
     RewriteCUDAGraph,
     RewriteDataflowReshape,
     RunCodegen,

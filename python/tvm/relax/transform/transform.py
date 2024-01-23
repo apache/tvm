@@ -1302,6 +1302,21 @@ def ExpandMatmulOfSum():
     return _ffi_api.ExpandMatmulOfSum()  # type: ignore
 
 
+def ReorderTakeAfterMatmul():
+    """Reorder `matmul(x, take(weights, indices))` to `take(matmul(x,weights),indices)`
+
+    Useful for optimizing LoRA computations, where several LoRAs may
+    be batched together.
+
+    Returns
+    -------
+    ret : tvm.transform.Pass
+        The corresponding pass.
+    """
+
+    return _ffi_api.ReorderTakeAfterMatmul()  # type: ignore
+
+
 def CombineParallelMatmul(check=None):
     """Combine multiple matmul operators sharing the same LHS matrix into one,
     followed by slicing. When all matmul branches in a tree have the same set of fused ops,
