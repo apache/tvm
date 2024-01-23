@@ -3270,6 +3270,30 @@ def test_attention():
     tvm.ir.assert_structural_equal(mod, Expected)
 
 
+def test_dynamic_attention():
+    """The sequence lengths may be dynamic
+
+    In previous implementations, the `seq_len` and `seq_len_kv` were
+    assumed to be static integers, and produced an exception during
+    legalization.
+    """
+
+    @tvm.script.ir_module
+    class Attention:
+        @R.function
+        def main(
+            q: R.Tensor((4, "seq_len", 32, 8), "float32"),
+            k: R.Tensor((4, "seq_len_kv", 32, 8), "float32"),
+            v: R.Tensor((4, "seq_len_kv", 32, 16), "float32"),
+            bias: R.Tensor((4, 32, "seq_len", "seq_len_kv"), "float32"),
+        ):
+            scale = T.FloatImm("float32", 0.1)
+            gv = R.nn.attention(q, k, v, bias, scale=scale, causal_mask="BottomRight")
+            return gv
+
+    LegalizeOps()(Attention)
+
+
 def test_nll_loss():
     # fmt: off
     @tvm.script.ir_module
