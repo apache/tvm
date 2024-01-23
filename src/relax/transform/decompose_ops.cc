@@ -48,7 +48,7 @@ Expr ExpandToMatchInput(Expr data, int ndim, Array<Integer> axes) {
   return expand_dims(data, expand_axes);
 }
 
-Tuple DecomposeBatchNorm(const Call& call) {
+Tuple SimplifyBatchNormInference(const Call& call) {
   auto attrs = call->attrs.as<BatchNormAttrs>();
   ICHECK_NOTNULL(attrs);
 
@@ -75,18 +75,14 @@ Tuple DecomposeBatchNorm(const Call& call) {
   return Tuple({out, call->args[3], call->args[4]});
 }
 
-Expr MutateBatchNormForTraining(Call call) {
+Tuple SimplifyBatchNormTraining(const Call& call) {
   auto attrs = call->attrs.as<BatchNormAttrs>();
   ICHECK_NOTNULL(attrs);
 
-  ICHECK_EQ(call->args.size(), 5);
   Expr data = call->args[0];
+  TensorStructInfo sinfo = MatchTensorStructInfo(data);
   Expr gamma = call->args[1];
   Expr beta = call->args[2];
-  Expr moving_mean = call->args[3];
-  Expr moving_var = call->args[4];
-
-  TensorStructInfo sinfo = MatchTensorStructInfo(data);
 
   Array<Integer> reduce_axes;
   for (int i = 0; i < sinfo->ndim; ++i) {
@@ -96,21 +92,35 @@ Expr MutateBatchNormForTraining(Call call) {
   }
 
   Expr data_mean = mean(data, reduce_axes, false);
+  Expr data_mean_rs = ExpandToMatchInput(data_mean, sinfo->ndim, {attrs->axis});
   Expr data_var = variance(data, reduce_axes, false);
+  Expr data_var_rs = ExpandToMatchInput(data_var, sinfo->ndim, {attrs->axis});
 
+  // output = (x - mean) / sqrt(var + epsilon) * gamma + beta
+  Expr epsilon = MakeConstantScalar(attrs->epsilon, sinfo->dtype);
+  Expr sqrt_var = sqrt(add(data_var_rs, epsilon));
+  Expr out = divide(subtract(data, data_mean_rs), sqrt_var);
+
+  if (attrs->scale) {
+    out = multiply(out, ExpandToMatchInput(gamma, sinfo->ndim, {attrs->axis}));
+  }
+  if (attrs->center) {
+    out = add(out, ExpandToMatchInput(beta, sinfo->ndim, {attrs->axis}));
+  }
+
+  Expr moving_mean = call->args[3];
+  Expr moving_var = call->args[4];
   Expr momentum = MakeConstantScalar(attrs->momentum, sinfo->dtype);
   Expr one_minus_mom = MakeConstantScalar(1 - attrs->momentum, sinfo->dtype);
 
-  Expr new_moving_mean = add(multiply(one_minus_mom, moving_mean), multiply(momentum, data_mean));
-  Expr new_moving_var = add(multiply(one_minus_mom, moving_var), multiply(momentum, data_var));
-
-  call.CopyOnWrite()->args = {data, gamma, beta, data_mean, data_var};
-  // return call;
-
-  return relax::Tuple({TupleGetItem(call, 0), new_moving_mean, new_moving_var});
+  return Tuple({
+      out,
+      add(multiply(one_minus_mom, moving_mean), multiply(momentum, data_mean)),
+      add(multiply(one_minus_mom, moving_var), multiply(momentum, data_var)),
+  });
 }
 
-Expr DecomposeLayerNorm(const Call& call) {
+Expr SimplifyLayerNorm(const Call& call) {
   auto attrs = call->attrs.as<LayerNormAttrs>();
   ICHECK_NOTNULL(attrs);
 
@@ -162,92 +172,92 @@ Expr TensorToShape(const Call& call_node, const BlockBuilder& builder) {
   return ShapeExpr(shape_var);
 }
 
-/*! \brief Update operators that have a training-specific form
- *
- * Some operators, such as relax.op.batch_norm, need additional
- * processing when being run for training.  This mutator applies any mutations required
- */
-class TrainingOperatorMutator : public ExprMutator {
- private:
-  using ExprMutator::VisitExpr_;
+class OpDecomposer : public ExprMutator {
+ public:
+  constexpr static const char* kModeInference = "inference";
+  constexpr static const char* kModeTraining = "training";
 
-  Expr VisitExpr_(const CallNode* call_node) final {
-    Call call = Downcast<Call>(VisitExprPostOrder_(call_node));
-    if (call->op == batch_norm_op_) {
-      return MutateBatchNormForTraining(call);
-    } else if (call->op == layer_norm_op_) {
-      // Here we only decompose LayerNorm in training because it is more efficient as a single op.
-      // In the future maybe we can also remove this decomposition during training.
-      return DecomposeLayerNorm(call);
-    } else {
-      return call;
-    }
+  explicit OpDecomposer(String mode) : ExprMutator(), mode_(mode) {
+    CHECK(mode == kModeInference || mode == kModeTraining)
+        << "The argument mode must be one of the following values: \"inference\", \"training\".";
   }
 
-  /* composite opeartor list */
-  const Op& batch_norm_op_ = Op::Get("relax.nn.batch_norm");
-  const Op& layer_norm_op_ = Op::Get("relax.nn.layer_norm");
-};
-
-class OpDecomposer : public ExprMutator {
  private:
   using ExprMutator::VisitExpr_;
 
   Expr VisitExpr_(const CallNode* call_node) final {
     Call call = Downcast<Call>(VisitExprPostOrder_(call_node));
     if (call->op == batch_norm_op_) {
-      return DecomposeBatchNorm(call);
+      if (mode_ == kModeInference) {
+        return SimplifyBatchNormInference(call);
+      } else {
+        ICHECK_EQ(mode_, kModeTraining);
+        return SimplifyBatchNormTraining(call);
+      }
+    } else if (call->op == layer_norm_op_ && mode_ == kModeTraining) {
+      // Here we only decompose LayerNorm in training because it is more efficient as a single op.
+      // In the future maybe we can also remove this decomposition during training.
+      return SimplifyLayerNorm(call);
     } else if (call->op == tensor_to_shape_op_) {
       return TensorToShape(call, builder_);
     }
     return call;
   }
 
+  const String mode_;
+
   /* composite opeartor list */
   const Op& batch_norm_op_ = Op::Get("relax.nn.batch_norm");
+  const Op& layer_norm_op_ = Op::Get("relax.nn.layer_norm");
   const Op& tensor_to_shape_op_ = Op::Get("relax.tensor_to_shape");
 };
 
-namespace transform {
+IRModule Decompose(IRModule mod, Optional<String> func_name, String mode) {
+  auto op_decomposer = OpDecomposer(mode);
 
-Pass MutateOpsForTraining() {
-  auto pass_func = [](Function func, IRModule, PassContext) -> Function {
-    TrainingOperatorMutator mutator;
-    return Downcast<Function>(mutator(func));
-  };
-  return CreateFunctionPass(/*pass_function=*/pass_func,
-                            /*opt_level=*/0,
-                            /*pass_name=*/"MutateOpsForTraining",
-                            /*required=*/{});
-}
+  IRModuleNode* new_module = mod.CopyOnWrite();
 
-Pass DecomposeOps() {
-  auto pass_func = [](Function func, IRModule, PassContext) -> Function {
-    OpDecomposer mutator;
-    return Downcast<Function>(mutator(func));
-  };
-  return CreateFunctionPass(/*pass_function=*/pass_func,
-                            /*opt_level=*/0,
-                            /*pass_name=*/"DecomposeOps",
-                            /*required=*/{});
-}
-
-Pass DecomposeOpsForInference(Optional<String> func_name) {
-  if (func_name) {
-    return ApplyPassToFunction(DecomposeOps(), func_name.value());
-  } else {
-    return DecomposeOps();
+  if (!func_name.defined()) {  // simplify all functions
+    Map<GlobalVar, BaseFunc> functions = mod->functions;
+    for (const auto& func_pr : functions) {
+      if (const auto* relax_f = func_pr.second.as<FunctionNode>()) {
+        Function f = Downcast<Function>(op_decomposer(GetRef<Function>(relax_f)));
+        new_module->Update(func_pr.first, f);
+      }
+    }
+  } else {  // simplify specified function
+    auto* func_ptr = mod->Lookup(func_name.value()).as<FunctionNode>();
+    CHECK(func_ptr) << func_name.value() << "is not a Relax Function";
+    auto gvar = mod->GetGlobalVar(func_name.value());
+    auto func = GetRef<Function>(func_ptr);
+    func = Downcast<Function>(op_decomposer(func));
+    new_module->Update(gvar, func);
   }
+
+  return GetRef<IRModule>(new_module);
+}
+
+namespace transform {
+Pass DecomposeOpsForInference(Optional<String> func_name) {
+  runtime::TypedPackedFunc<IRModule(IRModule, PassContext)> pass_func = [=](IRModule mod,
+                                                                            PassContext pc) {
+    return Decompose(mod, func_name, OpDecomposer::kModeInference);
+  };
+  return CreateModulePass(/*pass_function=*/pass_func,
+                          /*opt_level=*/0,
+                          /*pass_name=*/"DecomposeOpsForInference",
+                          /*required=*/{});
 }
 
 Pass DecomposeOpsForTraining(Optional<String> func_name) {
-  auto module_pass = tvm::transform::Sequential({MutateOpsForTraining(), DecomposeOps()},
-                                                "DecomposeOpsForTraining");
-  if (func_name) {
-    return ApplyPassToFunction(module_pass, func_name.value());
-  } else {
-    return module_pass;
-  }
+  runtime::TypedPackedFunc<IRModule(IRModule, PassContext)> pass_func = [=](IRModule mod,
+                                                                            PassContext pc) {
+    return Decompose(mod, func_name, OpDecomposer::kModeTraining);
+  };
+  return CreateModulePass(/*pass_function=*/pass_func,
+                          /*opt_level=*/0,
+                          /*pass_name=*/"DecomposeOpsForTraining",
+                          /*required=*/{});
 }
 
 TVM_REGISTER_GLOBAL("relax.transform.DecomposeOpsForInference")

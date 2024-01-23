@@ -56,7 +56,7 @@ github:
     main:
       required_status_checks:
         contexts:
-          # Require passing runs from Jenkins for all platforms
+          - unity/pr-head
           - arm/pr-head
           - cortexm/pr-head
           - cpu/pr-head
