@@ -221,8 +221,11 @@ LLVMTargetInfo::LLVMTargetInfo(LLVMInstance& instance, const TargetJSON& target)
     bool has_arch =
         std::any_of(arches.begin(), arches.end(), [&](const auto& var) { return var == cpu_; });
     if (!has_arch) {
-      LOG(FATAL) << "LLVM cpu architecture `-mcpu=" << cpu_
-                 << "` is not valid in `-mtriple=" << triple_ << "`";
+      // Flag an error, but don't abort. This mimicks the behaviour of 'llc' to
+      // give the code a chance to run with a less-specific target.
+      LOG(ERROR) << "LLVM cpu architecture `-mcpu=" << cpu_
+                 << "` is not valid in `-mtriple=" << triple_ << "`"
+                 << ", cpu architecture ignored";
     }
   }
 

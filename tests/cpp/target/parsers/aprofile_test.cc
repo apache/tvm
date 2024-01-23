@@ -17,8 +17,6 @@
  * under the License.
  */
 
-#if TVM_LLVM_VERSION > 120
-
 #include "../src/target/parsers/aprofile.h"
 
 #include <gmock/gmock.h>
@@ -41,23 +39,25 @@ static float optionalI8MM[] = {8.2, 8.3, 8.4, 8.5};
 static float defaultDotProd = 8.4;
 static float optionalDotProd[] = {8.2, 8.3};
 
-class AProfileParser : public ::testing::Test {
- public:
-  AProfileParser() {
-    auto llvm_instance = std::make_unique<codegen::LLVMInstance>();
-    codegen::LLVMTargetInfo llvm_backend(*llvm_instance, "llvm");
-    Array<String> targets = llvm_backend.GetAllLLVMTargets();
-    int expected_target_count = 0;
-    for (String target : targets) {
-      if (target == "aarch64" || target == "arm") {
-        expected_target_count += 1;
-      }
-    }
-    if (expected_target_count >= 2) {
-      has_aarch64_and_arm_targets = true;
+static bool CheckArchitectureAvailability() {
+  auto llvm_instance = std::make_unique<codegen::LLVMInstance>();
+  codegen::LLVMTargetInfo llvm_backend(*llvm_instance, "llvm");
+  Array<String> targets = llvm_backend.GetAllLLVMTargets();
+  int expected_target_count = 0;
+  for (String target : targets) {
+    if (target == "aarch64" || target == "arm") {
+      expected_target_count += 1;
     }
   }
+  if (expected_target_count >= 2) {
+    return true;
+  }
+  return false;
+}
+static bool has_aarch64_and_arm_targets = CheckArchitectureAvailability();
 
+class AProfileParser : public ::testing::Test {
+ public:
   // Check that LLVM has been compiled with the required targets, otherwise skip the test.
   // Unfortunately, googletest doesn't let you call GTEST_SKIP in SetUpTestSuite() to skip
   // the whole suite of tests, so a cached result is checked before each test is run instead.
@@ -66,9 +66,6 @@ class AProfileParser : public ::testing::Test {
       GTEST_SKIP() << "Skipping as LLVM has not been built for Arm(R)-based targets.";
     }
   }
-
- private:
-  bool has_aarch64_and_arm_targets = false;
 };
 
 class AProfileParserTestWithParam : public AProfileParser,
@@ -395,6 +392,17 @@ TEST_F(AProfileParser, UnexpectedTargetKind) {
       tvm::InternalError);
 }
 
+TEST(AProfileParserInvalid, LLVMUnsupportedArchitecture) {
+  if (has_aarch64_and_arm_targets) {
+    GTEST_SKIP() << "LLVM has been compiled for the correct targets.";
+  }
+  TargetJSON target = ParseTarget({{"kind", String("llvm")}});
+  TargetFeatures features = Downcast<TargetFeatures>(target.at("features"));
+  for (auto feature : features) {
+    ASSERT_EQ(Downcast<Bool>(feature.second), false);
+  }
+}
+
 INSTANTIATE_TEST_SUITE_P(AProfileParser, AProfileOptionalI8MM, ::testing::ValuesIn(optionalI8MM));
 INSTANTIATE_TEST_SUITE_P(AProfileParser, AProfileOptionalDotProd,
                          ::testing::ValuesIn(optionalDotProd));
@@ -407,5 +415,3 @@ INSTANTIATE_TEST_SUITE_P(AProfileParser, AProfileOptionalFP16,
 }  // namespace parsers
 }  // namespace target
 }  // namespace tvm
-
-#endif

@@ -39,21 +39,6 @@ def test_llvm_targets():
     assert codegen.llvm_get_system_x86_vendor() == _ffi_api.llvm_get_system_x86_vendor()
     assert str(codegen.llvm_get_targets()) == str(_ffi_api.llvm_get_targets())
 
-    # check LLVM target -mcpu legality
-    try:
-        tvm.target.codegen.llvm_get_cpu_features(
-            tvm.target.Target("llvm -mtriple=x86_64-linux-gnu -mcpu=dummy")
-        )
-        assert False
-    except tvm.error.TVMError as e:
-        msg = str(e)
-        assert (
-            msg.find(
-                "TVMError: LLVM cpu architecture `-mcpu=dummy` is not valid in `-mtriple=x86_64-linux-gnu`"
-            )
-            != -1
-        )
-
 
 min_llvm_version, llvm_target, cpu_arch, cpu_features, is_supported = tvm.testing.parameters(
     (-1, "x86_64", "sandybridge", "sse4.1", True),

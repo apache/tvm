@@ -76,14 +76,30 @@ bool IsArch(TargetJSON attrs) {
   return IsAArch32(mtriple, mcpu) || IsAArch64(mtriple);
 }
 
+bool CheckContains(Array<String> array, String predicate) {
+  return std::any_of(array.begin(), array.end(), [&](String var) { return var == predicate; });
+}
+
 static TargetFeatures GetFeatures(TargetJSON target) {
+#ifdef TVM_LLVM_VERSION
   String kind = Downcast<String>(target.Get("kind"));
   ICHECK_EQ(kind, "llvm") << "Expected target kind 'llvm', but got '" << kind << "'";
 
   Optional<String> mtriple = Downcast<Optional<String>>(target.Get("mtriple"));
+  Optional<String> mcpu = Downcast<Optional<String>>(target.Get("mcpu"));
 
-  auto llvm_instance = std::make_unique<tvm::codegen::LLVMInstance>();
-  tvm::codegen::LLVMTargetInfo llvm_target(*llvm_instance, target);
+  // Check that LLVM has been compiled with the correct target support
+  auto llvm_instance = std::make_unique<codegen::LLVMInstance>();
+  codegen::LLVMTargetInfo llvm_backend(*llvm_instance, "llvm");
+  Array<String> targets = llvm_backend.GetAllLLVMTargets();
+  if ((IsAArch64(mtriple) && !CheckContains(targets, "aarch64")) ||
+      (IsAArch32(mtriple, mcpu) && !CheckContains(targets, "arm"))) {
+    LOG(WARNING) << "Cannot parse target features. LLVM was not compiled with support for "
+                    "Arm(R)-based targets.";
+    return {};
+  }
+
+  codegen::LLVMTargetInfo llvm_target(*llvm_instance, target);
   Map<String, String> features = llvm_target.GetAllLLVMCpuFeatures();
 
   auto has_feature = [features](const String& feature) {
@@ -96,6 +112,10 @@ static TargetFeatures GetFeatures(TargetJSON target) {
           {"has_dotprod", Bool(has_feature("dotprod"))},
           {"has_matmul_i8", Bool(has_feature("i8mm"))},
           {"has_fp16_simd", Bool(has_feature("fullfp16"))}};
+#endif
+
+  LOG(WARNING) << "Cannot parse Arm(R)-based target features without LLVM support.";
+  return {};
 }
 
 static Array<String> MergeKeys(Optional<Array<String>> existing_keys) {
