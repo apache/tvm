@@ -137,6 +137,19 @@ class AttentionKVCache : public Object {
   virtual void Attention(int64_t layer_id, NDArray q_data, NDArray k_data, NDArray v_data,
                          Optional<NDArray> mask, NDArray o_data) = 0;
 
+  /*!
+   * \brief Compute attention with Q/K/V data which are concatenated along
+   * the head dimension.
+   * \param layer_id The model layer where the attention compute happens.
+   * \param qkv_data The input Q/K/V data, in layout
+   * `(total_length, num_qo_heads + 2 * num_kv_heads, head_dim)`.
+   * \param mask The input mask data, in layout `(total_sqr_length)`.
+   * \param o_data The output O data, in layout `(total_length, num_qo_heads, head_dim)`.
+   * \sa AttentionKVCache::Attention
+   */
+  virtual void AttentionWithFusedQKV(int64_t layer_id, NDArray qkv_data, Optional<NDArray> mask,
+                                     NDArray o_data) = 0;
+
   /************** Debug Helpers **************/
 
   /*!
