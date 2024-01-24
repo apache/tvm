@@ -828,15 +828,19 @@ class StorageAllocationRewriter : public ExprMutator {
       const auto* shape = sinfo->shape.as<ShapeExprNode>();
       ICHECK_NOTNULL(shape);
       Array<PrimExpr> upper_bounded_shape = GetUpperBoundShape(shape->values, &ana_);
-      if (!IsStaticShape(shape->values) && IsStaticShape(upper_bounded_shape)) {
+      if (!IsStaticShape(shape->values)) {
         ICHECK(!sinfo->IsUnknownDtype());
         ICHECK_EQ(sinfo->dtype, Downcast<DataTypeImm>(call->args[1])->value);
-        StorageToken token(upper_bounded_shape, sinfo->dtype);
+        PrimExpr bytes = upper_bounded_shape[0];
+        for (int i = 1; i < static_cast<int>(upper_bounded_shape.size()); ++i) {
+          bytes *= upper_bounded_shape[i];
+        }
+        bytes *= sinfo->dtype.bytes() * sinfo->dtype.lanes();
         Call alloc_storage(mem_alloc_storage,
-                           {/*size=*/ShapeExpr({tvm::IntImm(DataType::Int(64), token->bytes)}),
+                           {/*size=*/ShapeExpr({bytes}),
                             /*virtual_device_index=*/Downcast<PrimValue>(call->args[2]),
                             /*storage_scope=*/StringImm("global"),  //
-                            /*dtype=*/DataTypeImm(token->dtype)});
+                            /*dtype=*/DataTypeImm(sinfo->dtype)});
         Var storage = builder_->Emit(alloc_storage, "storage");
         return Call(mem_alloc_tensor, {storage,  //
                                        /*offset=*/PrimValue::Int64(0),
