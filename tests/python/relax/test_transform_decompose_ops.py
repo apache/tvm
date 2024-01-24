@@ -137,44 +137,39 @@ def test_batch_norm_training():
             R.Tensor((64,), dtype="float32"),
         ):
             with R.dataflow():
-                lv: R.Tensor((64,), dtype="float32") = R.mean(x, axis=[0, 2, 3], keepdims=False)
-                lv1: R.Tensor((1, 64, 1, 1), dtype="float32") = R.expand_dims(lv, axis=[0, 2, 3])
-                lv2: R.Tensor((1, 64, 112, 112), dtype="float32") = R.subtract(x, lv1)
-                lv3: R.Tensor((64,), dtype="float32") = R.variance(
-                    x, axis=[0, 2, 3], keepdims=False
-                )
-                lv4: R.Tensor((1, 64, 1, 1), dtype="float32") = R.expand_dims(lv3, axis=[0, 2, 3])
-                lv5: R.Tensor((1, 64, 1, 1), dtype="float32") = R.add(
-                    lv4, R.const(9.9999997473787516e-06, "float32")
-                )
-                lv6: R.Tensor((1, 64, 1, 1), dtype="float32") = R.sqrt(lv5)
-                lv7: R.Tensor((1, 64, 112, 112), dtype="float32") = R.divide(lv2, lv6)
-                lv8: R.Tensor((1, 64, 1, 1), dtype="float32") = R.expand_dims(gamma, axis=[0, 2, 3])
-                lv9: R.Tensor((1, 64, 112, 112), dtype="float32") = R.multiply(lv7, lv8)
-                lv10: R.Tensor((1, 64, 1, 1), dtype="float32") = R.expand_dims(beta, axis=[0, 2, 3])
-                lv11: R.Tensor((1, 64, 112, 112), dtype="float32") = R.add(lv9, lv10)
-                lv12: R.Tensor((64,), dtype="float32") = R.multiply(
-                    R.const(0.89999997615814209, "float32"), moving_mean
-                )
-                lv13: R.Tensor((64,), dtype="float32") = R.multiply(
-                    R.const(0.10000000149011612, "float32"), lv
-                )
-                lv14: R.Tensor((64,), dtype="float32") = R.add(lv12, lv13)
-                lv15: R.Tensor((64,), dtype="float32") = R.multiply(
-                    R.const(0.89999997615814209, "float32"), moving_var
-                )
-                lv16: R.Tensor((64,), dtype="float32") = R.multiply(
-                    R.const(0.10000000149011612, "float32"), lv3
-                )
-                lv17: R.Tensor((64,), dtype="float32") = R.add(lv15, lv16)
-                bn: R.Tuple(
-                    R.Tensor((1, 64, 112, 112), dtype="float32"),
-                    R.Tensor((64,), dtype="float32"),
-                    R.Tensor((64,), dtype="float32"),
-                ) = (lv11, lv14, lv17)
-                gv0: R.Tensor((1, 64, 112, 112), dtype="float32") = bn[0]
-                gv1: R.Tensor((64,), dtype="float32") = bn[1]
-                gv2: R.Tensor((64,), dtype="float32") = bn[2]
+                # This portion is training-specific, computing the
+                # mean/variance of the dataset.
+                lv = R.mean(x, axis=[0, 2, 3], keepdims=False)
+                lv3 = R.variance(x, axis=[0, 2, 3], keepdims=False)
+
+                # This portion is identical to the batch_norm run during inference
+                lv1 = R.expand_dims(lv, axis=[0, 2, 3])
+                lv2 = R.subtract(x, lv1)
+                lv4 = R.expand_dims(lv3, axis=[0, 2, 3])
+                lv5 = R.add(lv4, R.const(9.9999997473787516e-06, "float32"))
+                lv6 = R.sqrt(lv5)
+                lv7 = R.divide(lv2, lv6)
+                lv8 = R.expand_dims(gamma, axis=[0, 2, 3])
+                lv9 = R.multiply(lv7, lv8)
+                lv10 = R.expand_dims(beta, axis=[0, 2, 3])
+                lv11 = R.add(lv9, lv10)
+                inner_tuple = (lv11, lv, lv3)
+                # This is the result that would be returned from a
+                # batch_norm at inference.
+
+                # However, at training we need to update the moving
+                # mean/variance, and to return those updated values.
+                inner_res = inner_tuple[0]
+                lv12 = R.multiply(R.const(0.89999997615814209, "float32"), moving_mean)
+                lv13 = R.multiply(R.const(0.10000000149011612, "float32"), lv)
+                lv14 = R.add(lv12, lv13)
+                lv15 = R.multiply(R.const(0.89999997615814209, "float32"), moving_var)
+                lv16 = R.multiply(R.const(0.10000000149011612, "float32"), lv3)
+                lv17 = R.add(lv15, lv16)
+                bn = (inner_res, lv14, lv17)
+                gv0 = bn[0]
+                gv1 = bn[1]
+                gv2 = bn[2]
                 R.output(gv0, gv1, gv2)
             return (gv0, gv1, gv2)
 
