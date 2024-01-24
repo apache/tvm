@@ -1930,5 +1930,31 @@ def test_gather():
     _check(Before, After)
 
 
+def test_keep_inplace():
+    # Should not do anything to this module. The PrimFunc is private but should be kept around
+    # TODO(@tvm-team): Handle in-place cases in fusion so this won't need to be a special case
+    @I.ir_module
+    class InplaceAddExample:
+        @T.prim_func(private=True)
+        def inplace_add(A: T.Buffer((2, 3), "int32"), B: T.Buffer((2, 3), "int32")):
+            T.func_attr({"tir.noalias": True})
+            for i0, i1 in T.grid(T.int64(2), T.int64(3)):
+                with T.block("T_add"):
+                    ax0, ax1 = T.axis.remap("SS", [i0, i1])
+                    T.reads(A[ax0, ax1], B[ax0, ax1])
+                    T.writes(A[ax0, ax1])
+                    A[ax0, ax1] = A[ax0, ax1] + B[ax0, ax1]
+
+        @R.function
+        def main(
+            x: R.Tensor((2, 3), "int32"), y: R.Tensor((2, 3), "int32")
+        ) -> R.Tensor((2, 3), "int32"):
+            cls = InplaceAddExample
+            res = R.call_tir_inplace(cls.inplace_add, (x, y), [0], R.Tensor((2, 3), "int32"))
+            return res
+
+    _check(InplaceAddExample, InplaceAddExample)
+
+
 if __name__ == "__main__":
     tvm.testing.main()

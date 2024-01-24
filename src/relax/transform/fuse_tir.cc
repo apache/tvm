@@ -873,6 +873,30 @@ std::vector<size_t> GetTupleAccessedIndices(const FunctionNode* func, const Var&
   return indices;
 }
 
+Array<GlobalVar> FindInplaceCalls(const Function& func) {
+  class InplaceCallFinder : public ExprVisitor {
+   public:
+    Array<GlobalVar> Search(const Function& func) {
+      VisitExpr(func);
+      return funcs;
+    }
+
+    void VisitExpr_(const CallNode* call) override {
+      static const Op& call_tir_inplace_op = Op::Get("relax.call_tir_inplace");
+      if (call->op == call_tir_inplace_op) {
+        funcs.push_back(Downcast<GlobalVar>(call->args[0]));
+      }
+      ExprVisitor::VisitExpr_(call);
+    }
+
+   private:
+    Array<GlobalVar> funcs;
+  };
+
+  InplaceCallFinder finder;
+  return finder.Search(func);
+}
+
 /*!
  * \brief The helper class to fuse TIR functions and build a new module which calls the fused TIR.
  */
@@ -883,12 +907,20 @@ class TIRFuseMutator : public ExprMutator {
     for (const auto& [gv, func] : mod->functions) {
       // 1. If a TIR function has global symbol, we keep the function.
       // 2. Always keep ExternFunc.
+      // 3. Keep PrimFuncs that are called in-place (TODO(@tvm-team): Fuse these eventually)
       if (const auto* prim_func = func.as<tir::PrimFuncNode>()) {
         if (prim_func->GetAttr<String>("global_symbol").defined()) {
           funcs_to_keep.Set(gv, func);
         }
       } else if (func->IsInstance<ExternFuncNode>()) {
         funcs_to_keep.Set(gv, func);
+      } else if (const auto* relax_func = func.as<relax::FunctionNode>()) {
+        auto inplace_funcs_called = FindInplaceCalls(GetRef<Function>(relax_func));
+        for (auto gv : inplace_funcs_called) {
+          const auto* inplace_func = mod->Lookup(gv).as<tir::PrimFuncNode>();
+          ICHECK(inplace_func) << "In-place calls must be of PrimFuncs";
+          funcs_to_keep.Set(gv, GetRef<BaseFunc>(inplace_func));
+        }
       }
     }
     // Since TIRFuseMutator will delete bunch of PrimFunc, we create an empty block builder.
