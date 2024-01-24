@@ -38,11 +38,11 @@ def _get_config(model_type, compile_type, inputs, outputs, atol=1e-1, rtol=1e-1)
     path = "test_manager_{}_{}".format(model_type, compile_type)
     return {
         "workspace": msc_utils.msc_dir(path),
-        "verbose": "critical",
+        "verbose": "debug:1",
         "model_type": model_type,
         "inputs": inputs,
         "outputs": outputs,
-        "dataset": {"loader": "from_random", "max_iter": 5},
+        "dataset": {"prepare": {"loader": "from_random", "max_iter": 5}},
         "prepare": {"profile": {"benchmark": {"repeat": 10}}},
         "baseline": {
             "run_type": model_type,
@@ -55,7 +55,7 @@ def _get_config(model_type, compile_type, inputs, outputs, atol=1e-1, rtol=1e-1)
     }
 
 
-def _get_torch_model(name, is_training=False):
+def _get_torch_model(name, training=False):
     """Get model from torch vision"""
 
     # pylint: disable=import-outside-toplevel
@@ -63,7 +63,7 @@ def _get_torch_model(name, is_training=False):
         import torchvision
 
         model = getattr(torchvision.models, name)()
-        if is_training:
+        if training:
             model = model.train()
         else:
             model = model.eval()
@@ -111,8 +111,8 @@ def _check_manager(manager, expected_info):
         raise Exception("{}\nReport:{}".format(err, json.dumps(manager.report, indent=2)))
 
 
-def _test_from_torch(compile_type, expected_info, is_training=False, atol=1e-1, rtol=1e-1):
-    torch_model = _get_torch_model("resnet50", is_training)
+def _test_from_torch(compile_type, expected_info, training=False, atol=1e-1, rtol=1e-1):
+    torch_model = _get_torch_model("resnet50", training)
     if torch_model:
         if torch.cuda.is_available():
             torch_model = torch_model.to(torch.device("cuda:0"))
@@ -168,7 +168,7 @@ def test_tvm_manager():
             "msc.linear_bias": 1,
         },
     }
-    _test_from_torch(MSCFramework.TVM, model_info, is_training=True)
+    _test_from_torch(MSCFramework.TVM, model_info, training=False)
 
     model_info = {
         "inputs": [
@@ -222,7 +222,7 @@ def test_torch_manager():
             "msc.linear_bias": 1,
         },
     }
-    _test_from_torch(MSCFramework.TORCH, model_info, is_training=False)
+    _test_from_torch(MSCFramework.TORCH, model_info, training=False)
 
 
 def test_tensorflow_manager():
@@ -269,7 +269,7 @@ def test_tensorrt_manager():
         "outputs": [{"name": "output", "shape": [1, 1000], "dtype": "float32", "layout": ""}],
         "nodes": {"total": 2, "input": 1, "msc_tensorrt": 1},
     }
-    _test_from_torch(MSCFramework.TENSORRT, model_info, is_training=False)
+    _test_from_torch(MSCFramework.TENSORRT, model_info, training=False)
 
 
 if __name__ == "__main__":

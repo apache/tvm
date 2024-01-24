@@ -33,9 +33,16 @@ class BaseTracker(BaseTool):
             The setup info.
         """
 
+        # filter plan
+        def _filter_info(info: dict) -> dict:
+            return {k: v for k, v in info.items() if k != self._stage}
+
+        self._plan = {k: _filter_info(v) for k, v in self._plan.items()}
         data_folder = msc_utils.get_dataset_dir().create_dir("Track")
         self._loaders = {}
         for folder in data_folder.listdir():
+            if folder == self._stage:
+                continue
             if msc_utils.is_simple_dataset(data_folder.relpath(folder)):
                 self._loaders[folder] = msc_utils.SimpleDataLoader(data_folder.relpath(folder))
         self._saver = msc_utils.SimpleDataSaver(data_folder.relpath(self._stage))
@@ -163,12 +170,9 @@ class BaseTracker(BaseTool):
 
         if self._stage in self._plan.get(name, {}):
             return tensor
-        if name not in self._plan:
-            self._plan[name] = {}
-        plan = {}
+        plan = self._plan.setdefault(name, {}).setdefault(self._stage, {})
         for strategy in strategys:
             plan.update(strategy(self, tensor, name, consumer))
-        self._plan[name][self._stage] = plan
         return tensor
 
     @classmethod

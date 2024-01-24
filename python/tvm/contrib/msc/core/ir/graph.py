@@ -660,6 +660,19 @@ class MSCGraph(BaseGraph):
         for n in self.node_names:
             yield self.find_node(n)
 
+    def get_weights(self) -> Iterable[MSCTensor]:
+        """Get all the weights in the graph.
+
+        Returns
+        -------
+        weights: generator<MSCTensor>
+            The generator of weights.
+        """
+
+        for node in self.get_nodes():
+            for weight in node.get_weights().values():
+                yield weight
+
     def input_at(self, idx: int) -> MSCTensor:
         """Get input at idx.
 

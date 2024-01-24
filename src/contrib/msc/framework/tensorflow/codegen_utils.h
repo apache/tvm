@@ -42,17 +42,12 @@ class TFV1CodeGenHelper : public BaseCodeGenHelper {};
  * \brief CodeGen config for tensorflow codegen
  */
 struct TensorflowCodeGenConfig {
-  bool is_training{false};
   CODEGEN_CONFIG_MEMBERS
   void Load(dmlc::JSONReader* reader) {
     std::string key;
     reader->BeginObject();
     while (reader->NextObjectItem(&key)) {
-      if (key == "is_training") {
-        reader->Read(&is_training);
-      } else {
-        CODEGEN_CONFIG_PARSE
-      }
+      CODEGEN_CONFIG_PARSE
     }
   }
 };

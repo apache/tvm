@@ -69,7 +69,7 @@ def create_file_logger(level: Union[str, int] = logging.INFO, path: str = None) 
     """
 
     if isinstance(level, str):
-        if level == "debug":
+        if level.startswith("debug"):
             level = logging.DEBUG
         elif level == "info":
             level = logging.INFO

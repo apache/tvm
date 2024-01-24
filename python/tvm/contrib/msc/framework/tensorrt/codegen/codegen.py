@@ -18,7 +18,7 @@
 
 import os
 import subprocess
-from typing import Dict, Optional, Tuple, List, Union
+from typing import Dict, Optional, List, Union
 import numpy as np
 
 import tvm
@@ -33,7 +33,7 @@ from .utils import write_weight
 
 def to_sub_tensorrt(
     graph: MSCGraph,
-    weights: Optional[Dict[str, tvm.nd.array]] = None,
+    weights: Dict[str, tvm.nd.array],
     codegen_config: Optional[Dict[str, str]] = None,
     print_config: Optional[Dict[str, str]] = None,
     build_folder: msc_utils.MSCDirectory = None,
@@ -76,21 +76,20 @@ def to_sub_tensorrt(
 
     def _create_depends(folder: msc_utils.MSCDirectory) -> str:
         if weights:
-            # fill fake weights
-            runtime_weights = weights
+            # gather weights
+            engine_wts = {}
             for node in graph.get_nodes():
+                for weight in node.get_weights().values():
+                    engine_wts[weight.name] = weights[weight.name]
                 if node.optype in ("nn.conv2d", "msc.linear"):
                     weight = node.weight_at("weight")
                     bias = np.zeros([weight.dim_at("O")], dtype=weight.dtype_name)
-                    runtime_weights[node.name + ".bias"] = bias
+                    engine_wts[node.name + ".bias"] = bias
             # write weights file
             with open(folder.relpath(graph.name + ".wts"), "w") as f:
-                f.write("{}\n".format(len(runtime_weights)))
-                for name, data in runtime_weights.items():
-                    if isinstance(data, np.ndarray):
-                        write_weight(name, data, f)
-                    else:
-                        write_weight(name, data.asnumpy(), f)
+                f.write("{}\n".format(len(engine_wts)))
+                for name, data in engine_wts.items():
+                    write_weight(name, msc_utils.cast_array(data), f)
         # save utils sources
         with folder.create_dir("utils") as utils_folder:
             for name, source in get_trt_sources().items():
@@ -115,12 +114,13 @@ def to_sub_tensorrt(
         return folder.move(engine_name + ".trt", output_folder.relpath(engine_name + ".trt"))
 
     with build_folder as folder:
+        sub_folder = folder.create_dir(graph.name)
         codegen = CodeGen(
             graph,
             _ffi_api.GetTensorRTSources,
             codegen_config,
             print_config,
-            folder.create_dir(graph.name),
+            sub_folder,
             code_format="cpp",
         )
         engine_file = codegen.load([], pre_load=_create_depends, post_load=_build_engine)
@@ -133,7 +133,8 @@ def to_sub_tensorrt(
 
 def to_tensorrt(
     mod: tvm.IRModule,
-    graph_infos: List[Tuple[str, MSCGraph, Dict[str, tvm.nd.array]]],
+    graphs: List[MSCGraph],
+    weights: Dict[str, tvm.nd.array],
     codegen_configs: Optional[Union[Dict[str, str], List[Dict[str, str]]]] = None,
     print_configs: Optional[Union[Dict[str, str], List[Dict[str, str]]]] = None,
     extra_options: Optional[Union[Dict[str, str], List[Dict[str, str]]]] = None,
@@ -146,8 +147,10 @@ def to_tensorrt(
     ----------
     mod: IRModule
         The IRModule of relax.
-    graph_infos: list<name, graph, name>
-        The translated graph.
+    graphs: list<graph>
+        The translated graphs.
+    weights: dict<str, tvn.nd.array>
+        The weights.
     codegen_configs: dict or list<dict>
         The config for codegen.
     print_configs: dict ot list<dict>
@@ -167,14 +170,19 @@ def to_tensorrt(
 
     target_options = {}
     if not isinstance(codegen_configs, (list, tuple)):
-        codegen_configs = [codegen_configs] * len(graph_infos)
+        codegen_configs = [codegen_configs] * len(graphs)
     if not isinstance(print_configs, (list, tuple)):
-        print_configs = [print_configs] * len(graph_infos)
+        print_configs = [print_configs] * len(graphs)
     if not isinstance(extra_options, (list, tuple)):
-        extra_options = [extra_options] * len(graph_infos)
-    for idx, (graph, weights) in enumerate(graph_infos):
+        extra_options = [extra_options] * len(graphs)
+    for idx, graph in enumerate(graphs):
         options = to_sub_tensorrt(
-            graph, weights, codegen_configs[idx], print_configs[idx], build_folder, output_folder
+            graph,
+            weights,
+            codegen_configs[idx],
+            print_configs[idx],
+            build_folder,
+            output_folder,
         )
         if extra_options[idx]:
             options.update(extra_options[idx])

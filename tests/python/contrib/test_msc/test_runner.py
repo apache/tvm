@@ -39,7 +39,7 @@ requires_tensorrt = pytest.mark.skipif(
 )
 
 
-def _get_torch_model(name, is_training=False):
+def _get_torch_model(name, training=False):
     """Get model from torch vision"""
 
     # pylint: disable=import-outside-toplevel
@@ -47,7 +47,7 @@ def _get_torch_model(name, is_training=False):
         import torchvision
 
         model = getattr(torchvision.models, name)()
-        if is_training:
+        if training:
             model = model.train()
         else:
             model = model.eval()
@@ -78,10 +78,10 @@ def _get_tf_graph():
         return None, None
 
 
-def _test_from_torch(runner_cls, device, is_training=False, atol=1e-1, rtol=1e-1):
+def _test_from_torch(runner_cls, device, training=False, atol=1e-1, rtol=1e-1):
     """Test runner from torch model"""
 
-    torch_model = _get_torch_model("resnet50", is_training)
+    torch_model = _get_torch_model("resnet50", training)
     if torch_model:
         path = "test_runner_torch_{}_{}".format(runner_cls.__name__, device)
         workspace = msc_utils.set_workspace(msc_utils.msc_dir(path))
@@ -94,7 +94,7 @@ def _test_from_torch(runner_cls, device, is_training=False, atol=1e-1, rtol=1e-1
         with torch.no_grad():
             golden = torch_model(*torch_datas)
             mod = from_fx(graph_model, input_info)
-        runner = runner_cls(mod, device=device, is_training=is_training)
+        runner = runner_cls(mod, device=device, training=training)
         runner.build()
         outputs = runner.run(datas, ret_type="list")
         golden = [msc_utils.cast_array(golden)]
@@ -106,27 +106,31 @@ def _test_from_torch(runner_cls, device, is_training=False, atol=1e-1, rtol=1e-1
 def test_tvm_runner_cpu():
     """Test runner for tvm on cpu"""
 
-    _test_from_torch(TVMRunner, "cpu", is_training=True)
+    for training in [True, False]:
+        _test_from_torch(TVMRunner, "cpu", training=training)
 
 
 @tvm.testing.requires_cuda
 def test_tvm_runner_cuda():
     """Test runner for tvm on cuda"""
 
-    _test_from_torch(TVMRunner, "cuda", is_training=True)
+    for training in [True, False]:
+        _test_from_torch(TVMRunner, "cuda", training=training)
 
 
 def test_torch_runner_cpu():
     """Test runner for torch on cpu"""
 
-    _test_from_torch(TorchRunner, "cpu")
+    for training in [True, False]:
+        _test_from_torch(TorchRunner, "cpu", training=training)
 
 
 @tvm.testing.requires_cuda
 def test_torch_runner_cuda():
     """Test runner for torch on cuda"""
 
-    _test_from_torch(TorchRunner, "cuda", atol=1e-1, rtol=1e-1)
+    for training in [True, False]:
+        _test_from_torch(TorchRunner, "cuda", training=training, atol=1e-1, rtol=1e-1)
 
 
 @requires_tensorrt

@@ -20,12 +20,38 @@ import os
 import shutil
 import tempfile
 import types
+import subprocess
 from functools import partial
 from typing import List, Any, Union
 from importlib.machinery import SourceFileLoader
 
 from .namespace import MSCMap, MSCKey, MSCFramework
 from .register import get_registered_func
+
+
+def is_callable(name: str, framework: str = MSCFramework.MSC) -> bool:
+    """Check if name is callable.
+
+    Parameters
+    ----------
+    name: string
+        The name of the registered func or path:f_name str.
+    framework: string
+        Should be from MSCFramework.
+
+    Returns
+    -------
+    is_callable: bool
+        Whether the name is callable
+    """
+
+    func = get_registered_func(name, framework)
+    if func:
+        return True
+    if ".py:" in name:
+        path, _ = name.split(":")
+        return os.path.isfile(path)
+    return False
 
 
 def load_callable(name: str, framework: str = MSCFramework.MSC) -> callable:
@@ -356,6 +382,35 @@ def to_abs_path(path: str, root_dir: MSCDirectory = None, keep_history: bool = T
     if os.path.abspath(path) == path:
         return path
     return root_dir.relpath(path, keep_history)
+
+
+def pack_folder(path: str, style="tar"):
+    """Pack the folder
+
+    Parameters
+    ----------
+    path: str
+        The path of the folder.
+    style: str
+        The pack style.
+
+    Returns
+    -------
+    pack_path: str
+        The packed path.
+    """
+
+    root = os.path.dirname(path)
+    if style == "tar":
+        cmd = "tar --exculde={0}.tar.gz -zcvf {0}.tar.gz {0} && rm -rf {0}".format(path)
+    else:
+        raise NotImplementedError("Pack style {} is not supported".format(style))
+    if root:
+        with msc_dir(root):
+            retcode = subprocess.call(cmd, shell=True)
+    else:
+        retcode = subprocess.call(cmd, shell=True)
+    assert retcode == 0, "Failed to pack the folder {}({}): {}".format(path, style, retcode)
 
 
 get_build_dir = partial(get_workspace_subdir, name="Build")

@@ -35,12 +35,14 @@
 #include <set>
 #include <stack>
 #include <string>
+#include <tuple>
 #include <unordered_map>
 #include <utility>
 #include <vector>
 
 #include "../utils.h"
 #include "graph.h"
+#include "plugin.h"
 
 namespace tvm {
 namespace contrib {
@@ -150,7 +152,7 @@ class RelaxFuncAttrGetter : public RelaxExprVisitor {
  public:
   /*! \brief Get the attributes as Map<String, String>*/
   Map<String, String> GetAttrs(const Expr& expr) {
-    RelaxExprVisitor::VisitExpr(expr);
+    VisitExpr(expr);
     return attrs_;
   }
 
@@ -166,7 +168,7 @@ class RelaxFuncValueGetter : public RelaxExprVisitor {
  public:
   /*! \brief Get the attributes from prim value as Map<String, String>*/
   Array<String> GetValues(const Expr& expr) {
-    RelaxExprVisitor::VisitExpr(expr);
+    VisitExpr(expr);
     return values_;
   }
 
@@ -179,7 +181,7 @@ class RelaxFuncValueGetter : public RelaxExprVisitor {
 class RelaxFuncParamsFinder : public RelaxExprVisitor {
  public:
   /*!
-   * \brief The constructor of RelaxGraphBuilder
+   * \brief The constructor of RelaxFuncParamsFinder
    * \param ref_module the reference module.
    */
   explicit RelaxFuncParamsFinder(const IRModule& ref_module) : RelaxExprVisitor() {
@@ -188,7 +190,7 @@ class RelaxFuncParamsFinder : public RelaxExprVisitor {
 
   /*! \brief Find the func params and bind with arguments*/
   Map<Expr, Expr> FindParams(const Expr& expr) {
-    RelaxExprVisitor::VisitExpr(expr);
+    VisitExpr(expr);
     return params_;
   }
 
@@ -199,6 +201,32 @@ class RelaxFuncParamsFinder : public RelaxExprVisitor {
  private:
   IRModule ref_module_;
   Map<Expr, Expr> params_;
+  Map<Expr, relax::Function> local_funcs_;
+};
+
+class RelaxLayoutsFinder : public RelaxExprVisitor {
+ public:
+  /*!
+   * \brief The constructor of RelaxLayoutsFinder
+   * \param ref_module the reference module.
+   */
+  explicit RelaxLayoutsFinder(const IRModule& ref_module) : RelaxExprVisitor() {
+    ref_module_ = ref_module;
+  }
+
+  /*! \brief Find the layouts form attrs*/
+  Map<String, String> FindLayouts(const Expr& expr) {
+    VisitExpr(expr);
+    return layouts_;
+  }
+
+  void VisitBinding_(const relax::VarBindingNode* binding, const relax::FunctionNode* val) final;
+
+  void VisitExpr_(const relax::CallNode* op) final;
+
+ private:
+  IRModule ref_module_;
+  Map<String, String> layouts_;
   Map<Expr, relax::Function> local_funcs_;
 };
 
@@ -223,6 +251,7 @@ class RelaxGraphBuilder : public RelaxExprVisitor {
     if (config_.byoc_entry.size() > 0) {
       func_params_ = RelaxFuncParamsFinder(ref_module).FindParams(ref_module->Lookup(name));
     }
+    layouts_ = RelaxLayoutsFinder(ref_module).FindLayouts(ref_module->Lookup(name));
   }
 
   /*! \brief Build MSCGraph from relax function*/
@@ -257,15 +286,25 @@ class RelaxGraphBuilder : public RelaxExprVisitor {
   void VisitBinding_(const relax::VarBindingNode* binding, const relax::FunctionNode* val) final;
 
  private:
+  /*! \brief Get the node_name, optype, layout for func*/
+  const std::tuple<String, String, String> ParseFunc(const relax::Function& func);
+
+  /*! \brief Get the plugin inputs*/
+  Array<Expr> GetPluginInputs(const relax::Expr& expr);
+
   String name_;
-  String scope_name_;
   IRModule ref_module_;
   MSCRBuildConfig config_;
+  Map<String, String> layouts_;
   Array<MSCJoint> nodes_;
   Map<String, MSCTensor> weights_;
   Map<Expr, Array<String>> expr_tensor_map_;
   std::unordered_map<String, std::pair<BaseJoint, size_t>> tensor_input_map_;
   std::set<String> ignore_nodes_;
+  // scope name
+  String scope_name_;
+  std::set<String> setted_blocks_;
+  Array<String> block_stack_;
   // BYOC maps
   Map<Expr, relax::Function> target_funcs_;
   Map<Expr, Expr> func_params_;
