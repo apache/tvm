@@ -566,7 +566,10 @@ def instantiate_template(func_name, annotations, func_args):
         transposed = "transposed" in func_name or "dense" in func_name
         lhs_arg_idx = _get_optional_int_annotation(annotations, "lhs_arg_idx", 0)
         rhs_arg_idx = _get_optional_int_annotation(annotations, "rhs_arg_idx", 1)
-        bias_arg_idx = _get_optional_int_annotation(annotations, "bias_arg_idx", None)
+        if "bias" in func_name:
+            bias_arg_idx = _get_optional_int_annotation(annotations, "bias_arg_idx", 2)
+        else:
+            bias_arg_idx = _get_optional_int_annotation(annotations, "bias_arg_idx", None)
         residual_arg_idx = _get_optional_int_annotation(annotations, "residual_arg_idx", None)
 
         lhs_arg = func_args[lhs_arg_idx]
@@ -592,9 +595,9 @@ def instantiate_template(func_name, annotations, func_args):
         attrs["M"] = get_dim(lhs_shape[lhs_batched_offset], lhs_arg, 0, lhs_batched_offset)
 
         if transposed:
-            attrs["N"] = get_dim(rhs_shape[rhs_batched_offset], rhs_arg, 0, rhs_batched_offset)
-        else:
             attrs["N"] = get_dim(rhs_shape[rhs_batched_offset + 1], rhs_arg, 1, rhs_batched_offset)
+        else:
+            attrs["N"] = get_dim(rhs_shape[rhs_batched_offset], rhs_arg, 0, rhs_batched_offset)
 
         if batched:
             headers.append("cutlass/gemm/device/gemm_batched.h")
