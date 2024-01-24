@@ -17,6 +17,7 @@
  * under the License.
  */
 #include <tvm/relax/analysis.h>
+#include <tvm/relax/attrs/op.h>
 #include <tvm/relax/expr_functor.h>
 #include <tvm/relax/struct_info.h>
 #include <tvm/relax/transform.h>
@@ -476,8 +477,11 @@ class FusedTIRConstructor : public ExprVisitor {
   void VisitExpr_(const CallNode* call) final {
     ExprVisitor::VisitExpr_(call);
     static const Op& call_tir_op_ = Op::Get("relax.call_tir");
-    ICHECK(call->op == call_tir_op_)
-        << "Only call_tir is supported in primitive function, but got: " << GetRef<Expr>(call);
+    static const Op& call_tir_inplace_op_ = Op::Get("relax.call_tir_inplace");
+
+    ICHECK(call->op == call_tir_op_ || call->op == call_tir_inplace_op_)
+        << "Only call_tir and call_tir_inplace are supported in primitive function, but got: "
+        << GetRef<Expr>(call);
 
     // Step 1. Get Global var and PrimFunc
     GlobalVar gv = Downcast<GlobalVar>(call->args[0]);
@@ -503,7 +507,9 @@ class FusedTIRConstructor : public ExprVisitor {
     MapInputBuffer(prim_func, call->args[1]);
     const Array<Array<PrimExpr>>& output_buffer_shapes = GetCallTIROutputShapes(call);
 
-    AllocateIntermediateBuffer(GetRef<Expr>(call), prim_func, output_buffer_shapes);
+    // TODO(@tvm-team): We should be able to avoid intermediate allocations for in-place calls.
+    // Currently the same logic is done for in-place calls to avoid crashes or garbage output.
+    AllocateIntermediateBuffer(call, prim_func, output_buffer_shapes);
 
     // Step 6. Update tir_vars
     if (call->args.size() > 2) {
@@ -566,7 +572,8 @@ class FusedTIRConstructor : public ExprVisitor {
    */
   static Array<Array<PrimExpr>> GetCallTIROutputShapes(const CallNode* call) {
     static const Op& call_tir_op_ = Op::Get("relax.call_tir");
-    ICHECK(call->op.same_as(call_tir_op_));
+    static const Op& call_tir_inplace_op_ = Op::Get("relax.call_tir_inplace");
+    ICHECK(call->op.same_as(call_tir_op_) || call->op.same_as(call_tir_inplace_op_));
     ICHECK_EQ(call->sinfo_args.size(), 1);
     auto get_tensor_shape = [](const TensorStructInfoNode* sinfo) {
       const auto* shape_expr = sinfo->shape.as<ShapeExprNode>();
@@ -639,28 +646,56 @@ class FusedTIRConstructor : public ExprVisitor {
     MapArgsToBuffer(arg_list, buffer_list);
   }
 
-  static Array<tir::Var> GetPrimFuncOutputParams(const tir::PrimFunc& func, size_t output_size) {
+  static Array<Integer> GetInplaceOutputIndices(const Array<Integer>& inplace_indices) {
+    Array<Integer> ret;
+    int num_non_negative = 0;
+    for (auto idx : inplace_indices) {
+      int i = idx.IntValue();
+      if (i > 0) {
+        num_non_negative++;
+      }
+    }
+
+    int negative_idx_translation = num_non_negative;
+    for (auto idx : inplace_indices) {
+      int i = idx.IntValue();
+      if (i > 0) {
+        ret.push_back(Integer(i));
+      } else {
+        ret.push_back(Integer(negative_idx_translation));
+        negative_idx_translation++;
+      }
+    }
+
+    return ret;
+  }
+
+  static Array<tir::Var> GetPrimFuncOutputParams(const tir::PrimFunc& func,
+                                                 const Array<Integer>& output_indices) {
     size_t n = func->params.size();
     int symbolic_var_index = -1;
+    size_t output_size = output_indices.size();
     ICHECK_GE(n, output_size);
-    for (size_t i = 0; i < n; ++i) {
-      const tir::Var& param = func->params[i];
+
+    Array<tir::Var> ret;
+    for (auto idx : output_indices) {
+      int i = idx.IntValue();
+      const tir::Var& param = func->params[static_cast<size_t>(i)];
       if (param->dtype.is_int() || param->dtype.is_uint()) {
         if (symbolic_var_index == -1) symbolic_var_index = i;
       } else if (param->dtype.is_handle()) {
         CHECK(symbolic_var_index == -1) << "The scalar input should be at the ending of the "
                                            "parameter list.";
+        ret.push_back(param);
       } else {
         LOG(FATAL) << "The params of PrimFunc are expected to be Buffer handle or scalar, but got: "
                    << param->dtype;
       }
     }
+
     size_t end_index = symbolic_var_index == -1 ? n : symbolic_var_index;
     ICHECK_GE(end_index, output_size);
-    size_t begin_index = end_index - output_size;
-    Array<tir::Var> output_params{func->params.begin() + begin_index,
-                                  func->params.begin() + end_index};
-    return output_params;
+    return ret;
   }
 
   /*!
@@ -670,14 +705,28 @@ class FusedTIRConstructor : public ExprVisitor {
    * \param func The old TIR PrimFunc
    * \param output_shapes The shape of output params.
    */
-  void AllocateIntermediateBuffer(const Expr& expr, const tir::PrimFunc& func,
+  void AllocateIntermediateBuffer(const CallNode* call, const tir::PrimFunc& func,
                                   const Array<Array<PrimExpr>>& output_shapes) {
+    bool is_inplace = (call->op == Op::Get("relax.call_tir_inplace"));
+
     size_t n = func->params.size();
     size_t output_size = output_shapes.size();
     ICHECK_GE(n, output_size);
     // Allocate intermediate buffer
     Array<tir::Buffer> alloc_buffers;
-    Array<tir::Var> output_params = GetPrimFuncOutputParams(func, output_size);
+    Array<Integer> output_idxs;
+    if (is_inplace) {
+      const auto* attrs = call->attrs.as<CallTIRInplaceAttrs>();
+      CHECK(attrs) << "Must have CallTIRInplaceAttrs for an in-place call";
+      output_idxs = std::move(GetInplaceOutputIndices(attrs->inplace_indices));
+    } else {
+      int num_inputs = Downcast<Tuple>(call->args[1])->fields.size();
+      for (size_t i = 0; i < output_size; i++) {
+        output_idxs.push_back(num_inputs + i);
+      }
+    }
+
+    Array<tir::Var> output_params = GetPrimFuncOutputParams(func, output_idxs);
     for (size_t i = 0; i < output_size; ++i) {
       const tir::Var& param = output_params[i];
       const tir::Buffer& buffer = func->buffer_map.at(param);
@@ -710,7 +759,7 @@ class FusedTIRConstructor : public ExprVisitor {
       func_info_.buffer_subst_map.Set(buffer, new_buffer);
     }
     // Update expr2buffers
-    func_info_.expr2buffers.Set(expr, alloc_buffers);
+    func_info_.expr2buffers.Set(GetRef<Expr>(call), alloc_buffers);
   }
 
   /*!
@@ -945,6 +994,7 @@ class TIRFuseMutator : public ExprMutator {
 
   Expr VisitExpr_(const CallNode* op) final {
     static const Op& call_tir_op_ = Op::Get("relax.call_tir");
+    static const Op& call_tir_inplace_op_ = Op::Get("relax.call_tir_inplace");
 
     Call call = Downcast<Call>(builder_->Normalize(ExprMutator::VisitExpr_(op)));
 
@@ -985,8 +1035,8 @@ class TIRFuseMutator : public ExprMutator {
             CHECK(prim_value->value.defined())
                 << "FuseTIR requires all R.Prim arguments to have a known value.";
             PrimExpr expr = prim_value->value.value();
-            CHECK(expr->IsInstance<tir::VarNode>())
-                << "FuseTIR currently requires all R.Prim arguments to provide a single tir::Var.";
+            CHECK(expr->IsInstance<tir::VarNode>()) << "FuseTIR currently requires all R.Prim "
+                                                       "arguments to provide a single tir::Var.";
             tir_vars.push_back(expr);
 
           } else {
@@ -1003,8 +1053,8 @@ class TIRFuseMutator : public ExprMutator {
         // Case 1.2. The callee function is not primitive, nothing to do.
         return call;
       }
-    } else if (call->op == call_tir_op_) {
-      // Case 2. It is a call_tir, re-emit the PrimFunc.
+    } else if (call->op == call_tir_op_ || call->op == call_tir_inplace_op_) {
+      // Case 2. It is a call_tir or call_tir_inplace, re-emit the PrimFunc.
       if (const auto* gv = call->args[0].as<GlobalVarNode>()) {
         tir::PrimFunc func = Downcast<tir::PrimFunc>(mod_->Lookup(GetRef<GlobalVar>(gv)));
         GlobalVar new_gv = this->builder_->AddFunction(func, gv->name_hint);
