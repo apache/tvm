@@ -928,12 +928,7 @@ class ModuleInplaceTransformer : public ExprMutator {
 
     // note: this might be a good time to get rid of the old legalized function, but we don't do it
     // now because later ops might need the same one. Instead, we will clean up at the end
-    
-    // TODO(@tvm-team): Making these public so that FuseTIR does not get rid of them.
-    // The fix for this would be to properly handle inplace calls in FuseOps and FuseTIR
-    auto new_gv = builder_->AddFunction(
-        WithAttr(legal_primfunc, tvm::attr::kGlobalSymbol, inline_legal_op_name),
-        inline_legal_op_name);
+    auto new_gv = builder_->AddFunction(legal_primfunc, inline_legal_op_name);
 
     // update the call (change the op, update the argument, change the attrs)
     legalized_call_cow->op = call_tir_inplace_op;
