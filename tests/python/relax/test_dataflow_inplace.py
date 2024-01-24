@@ -372,8 +372,8 @@ def test_inplace_single_call():
     add_call = TestModule["main"].body.blocks[0].bindings[0].value
     new_add, new_mod = dataflow_single_inplace_call(TestModule, add_call, [0])
 
-    @T.prim_func(private=True)
-    def expected_add(
+    @T.prim_func
+    def add_inplace(
         A: T.Buffer((T.int64(2), T.int64(3)), "float32"),
         B: T.Buffer((T.int64(2), T.int64(3)), "float32"),
     ):
@@ -385,15 +385,15 @@ def test_inplace_single_call():
                 T.writes(A[v_ax0, v_ax1])
                 A[v_ax0, v_ax1] = A[v_ax0, v_ax1] + B[v_ax0, v_ax1]
 
-    tvm.ir.assert_structural_equal(new_mod["add_inplace"], expected_add)
+    tvm.ir.assert_structural_equal(new_mod["add_inplace"], add_inplace)
     assert new_add.op.name == "relax.call_tir_inplace"
     assert new_add.args[0].name_hint == "add_inplace"
     for i, arg in enumerate(new_add.args[1].fields):
         arg == add_call.args[i]
     new_add.attrs.inplace_indices == [0]
 
-    @T.prim_func(private=True)
-    def expected_silu(A: T.Buffer((T.int64(2), T.int64(3)), "float32")):
+    @T.prim_func
+    def silu_inplace(A: T.Buffer((T.int64(2), T.int64(3)), "float32")):
         T.func_attr({"tir.noalias": T.bool(True)})
         compute = T.alloc_buffer((T.int64(2), T.int64(3)))
         for i0, i1 in T.grid(T.int64(2), T.int64(3)):
@@ -412,7 +412,7 @@ def test_inplace_single_call():
     silu_call = TestModule["main"].body.blocks[0].bindings[1].value
     new_silu, new_mod = dataflow_single_inplace_call(TestModule, silu_call, [0])
 
-    tvm.ir.assert_structural_equal(new_mod["silu_inplace"], expected_silu)
+    tvm.ir.assert_structural_equal(new_mod["silu_inplace"], silu_inplace)
     assert new_silu.op.name == "relax.call_tir_inplace"
     assert new_silu.args[0].name_hint == "silu_inplace"
     for i, arg in enumerate(new_silu.args[1].fields):
@@ -440,7 +440,7 @@ def test_insert_inplace_calls():
 
     @I.ir_module
     class Expected:
-        @T.prim_func(private=True)
+        @T.prim_func
         def add_inplace(
             A: T.Buffer((T.int64(2), T.int64(3)), "float32"),
             B: T.Buffer((T.int64(1), T.int64(3)), "float32"),
@@ -453,7 +453,7 @@ def test_insert_inplace_calls():
                     T.writes(A[v_ax0, v_ax1])
                     A[v_ax0, v_ax1] = A[v_ax0, v_ax1] + B[T.int64(0), v_ax1]
 
-        @T.prim_func(private=True)
+        @T.prim_func
         def multiply_inplace(
             A: T.Buffer((T.int64(2), T.int64(3)), "float32"),
             B: T.Buffer((T.int64(1), T.int64(3)), "float32"),
@@ -466,7 +466,7 @@ def test_insert_inplace_calls():
                     T.writes(A[v_ax0, v_ax1])
                     A[v_ax0, v_ax1] = A[v_ax0, v_ax1] * B[T.int64(0), v_ax1]
 
-        @T.prim_func(private=True)
+        @T.prim_func
         def subtract_inplace(
             A: T.Buffer((T.int64(1), T.int64(3)), "float32"),
             B: T.Buffer((T.int64(1), T.int64(3)), "float32"),
@@ -558,7 +558,7 @@ def test_dynamic():
 
     @I.ir_module
     class Expected:
-        @T.prim_func(private=True)
+        @T.prim_func
         def add_inplace(var_A: T.handle, var_B: T.handle):
             T.func_attr({"tir.noalias": T.bool(True)})
             a, b = T.int64(), T.int64()
@@ -571,7 +571,7 @@ def test_dynamic():
                     T.writes(A[v_ax0, v_ax1])
                     A[v_ax0, v_ax1] = A[v_ax0, v_ax1] + B[v_ax0, v_ax1]
 
-        @T.prim_func(private=True)
+        @T.prim_func
         def subtract_inplace(var_A: T.handle, var_B: T.handle):
             T.func_attr({"tir.noalias": T.bool(True)})
             a, b = T.int64(), T.int64()
