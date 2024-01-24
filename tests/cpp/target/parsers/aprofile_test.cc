@@ -40,6 +40,7 @@ static float defaultDotProd = 8.4;
 static float optionalDotProd[] = {8.2, 8.3};
 
 static bool CheckArchitectureAvailability() {
+#if TVM_LLVM_VERSION > 120
   auto llvm_instance = std::make_unique<codegen::LLVMInstance>();
   codegen::LLVMTargetInfo llvm_backend(*llvm_instance, "llvm");
   Array<String> targets = llvm_backend.GetAllLLVMTargets();
@@ -52,6 +53,7 @@ static bool CheckArchitectureAvailability() {
   if (expected_target_count >= 2) {
     return true;
   }
+#endif
   return false;
 }
 static bool has_aarch64_and_arm_targets = CheckArchitectureAvailability();
