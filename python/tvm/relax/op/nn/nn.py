@@ -1392,7 +1392,7 @@ def attention_var_len(
     causal_mask: Optional[str] = None,
     window_size: Optional[int] = None,
 ) -> Expr:
-    r"""Computes fused multi head attention over batched sequences of variable lengths.
+    """Computes fused multi head attention over batched sequences of variable lengths.
 
     Given concatenated inputs and sequence lengths information, this operator computes
     attention for all sequences more efficiently than calling the normal attention operator
@@ -1437,22 +1437,37 @@ def attention_var_len(
         while for 'BottomRight', the mask matrix is as `np.tril(*, k=abs(seq_len - seq_len_kv))`
         For example, with seq_len = 4, seq_len_kv = 2,
         mask for 'TopLeft':
-        [[1, 0],
-         [1, 1],
-         [1, 1],
-         [1, 1]]
+
+        .. code:: python
+
+            [[1, 0],
+            [1, 1],
+            [1, 1],
+            [1, 1]]
+
         mask for 'BottomRight':
-        [[1, 1],
-         [1, 1],
-         [1, 1],
-         [1, 1]]
+
+        .. code:: python
+
+            [[1, 1],
+            [1, 1],
+            [1, 1],
+            [1, 1]]
+
         with seq_len = 2, seq_len_kv = 4,
         mask for 'TopLeft':
-        [[1, 0, 0, 0],
-         [1, 1, 0, 0]]
+
+        .. code:: python
+
+            [[1, 0, 0, 0],
+            [1, 1, 0, 0]]
+
         mask for 'BottomRight':
-        [[1, 1, 1, 0],
-         [1, 1, 1, 1]]
+
+        .. code:: python
+
+            [[1, 1, 1, 0],
+            [1, 1, 1, 1]]
 
     window_size: Optional[int]
         The size of the window for sliding-window attention.
@@ -1460,7 +1475,7 @@ def attention_var_len(
     Returns
     -------
     result : relax.Expr
-        The computed result with shape (1, total_seq_len, num_head, head_dim_v).
+        The computed result with shape `(1, total_seq_len, num_head, head_dim_v)`.
     """
     if seqstart_k is None:
         seqstart_k = seqstart_q
