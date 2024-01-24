@@ -1262,6 +1262,7 @@ def buffer_store(
     buffer: Buffer,  # pylint: disable=redefined-outer-name
     value: PrimExpr,
     indices: List[Union[PrimExpr, slice]],
+    predicate: Optional[PrimExpr] = None,
 ) -> None:
     """Buffer store node.
 
@@ -1275,6 +1276,9 @@ def buffer_store(
 
     indices : List[Union[PrimExpr, slice]]
         The indices location to be stored.
+
+    predicate : Optional[PrimExpr]
+        A vector mask of int1 values that prevents storing values on masked-off lanes.
     """
     from tvm.arith import Analyzer  # pylint: disable=import-outside-toplevel
 
@@ -1289,13 +1293,13 @@ def buffer_store(
             if lanes == 1:
                 expr_indices.append(index.start)
             else:
-                expr_indices.append(ramp(index.start, step, int(lanes)))
+                expr_indices.append(ramp(index.start, step, lanes))
         else:
             expr_indices.append(index)
     if isinstance(value, bool) and buffer.dtype == "bool":
         value = IntImm("bool", value)
     return _ffi_api.BufferStore(  # type: ignore[attr-defined] # pylint: disable=no-member
-        buffer, value, expr_indices
+        buffer, value, expr_indices, predicate
     )
 
 
@@ -1854,6 +1858,7 @@ ptx_wait_barrier = _op_wrapper(_tir_op.ptx_wait_barrier)
 create_barriers = _op_wrapper(_tir_op.create_barriers)
 assume = _op_wrapper(_tir_op.assume)
 undef = _op_wrapper(_tir_op.undef)
+vscale = _op_wrapper(_tir_op.vscale)
 TVMBackendAllocWorkspace = _op_wrapper(_tir_op.TVMBackendAllocWorkspace)
 TVMBackendFreeWorkspace = _op_wrapper(_tir_op.TVMBackendFreeWorkspace)
 start_profile_intrinsic = _op_wrapper(_tir_op.start_profile_intrinsic)
@@ -1890,7 +1895,7 @@ mma_fill = _dtype_forward(_tir_op.mma_fill)
 vectorlow = _dtype_forward(_tir_op.vectorlow)
 vectorhigh = _dtype_forward(_tir_op.vectorhigh)
 vectorcombine = _dtype_forward(_tir_op.vectorcombine)
-
+get_active_lane_mask = _dtype_forward(_tir_op.get_active_lane_mask)
 
 broadcast = Broadcast
 ramp = Ramp
@@ -2199,4 +2204,6 @@ __all__ = [
     "IterVar",
     "CommReducer",
     "Range",
+    "vscale",
+    "get_active_lane_mask",
 ]

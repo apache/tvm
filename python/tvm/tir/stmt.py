@@ -219,10 +219,13 @@ class BufferStore(Stmt):
         The buffer.
 
     value : PrimExpr
-        The value we to be stored.
+        The value to be stored.
 
     indices : List[PrimExpr]
         The indices location to be stored.
+
+    predicate : Optional[PrimExpr]
+        A vector mask of int1 values that prevents storing values on masked-off lanes.
 
     span : Optional[Span]
         The location of the stmt in the source code.
@@ -231,6 +234,7 @@ class BufferStore(Stmt):
     buffer: Buffer
     value: PrimExpr
     indices: List[PrimExpr]
+    predicate: Optional[PrimExpr]
     span: Optional[Span]
 
     def __init__(
@@ -238,10 +242,11 @@ class BufferStore(Stmt):
         buffer: Buffer,
         value: PrimExpr,
         indices: List[PrimExpr],
+        predicate: Optional[PrimExpr] = None,
         span: Optional[Span] = None,
     ) -> None:
         self.__init_handle_by_constructor__(
-            _ffi_api.BufferStore, buffer, value, indices, span  # type: ignore
+            _ffi_api.BufferStore, buffer, value, indices, predicate, span  # type: ignore
         )
 
 

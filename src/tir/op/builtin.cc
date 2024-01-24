@@ -368,6 +368,15 @@ TIR_DEFINE_BUILTIN_FUNC(dma_start_group)
 TIR_DEFINE_BUILTIN_FUNC(dma_end_group)
     .set_attr<TCallEffectKind>("TCallEffectKind", Integer(CallEffectKind::kOpaque));
 
+TIR_DEFINE_BUILTIN_FUNC(vscale).set_attr<TCallEffectKind>("TCallEffectKind",
+                                                          Integer(CallEffectKind::kOpaque));
+
+TIR_DEFINE_BUILTIN_FUNC(get_active_lane_mask)
+    .set_num_inputs(2)
+    .set_attr<TCallEffectKind>("TCallEffectKind", Integer(CallEffectKind::kOpaque))
+    .set_attr<TScriptDtypePrintLocation>("TScriptDtypePrintLocation",
+                                         Integer(ScriptDtypePrintLocation::kFirst));
+
 TIR_DEFINE_BUILTIN_FUNC(assume)
     .set_attr<TCallEffectKind>("TCallEffectKind", Integer(CallEffectKind::kEmbedInfo))
     .set_num_inputs(1);

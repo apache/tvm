@@ -718,7 +718,8 @@ class MergeConstantsMutator : public StmtExprMutator {
                             buffer->axis_separators,
                             buffer->span};
           old_to_new_read_buffers[buffer.as<BufferNode>()] = new_buffer;
-          new_args.push_back(BufferLoad(new_buffer, buffer_load->indices, buffer_load->span));
+          new_args.push_back(BufferLoad(new_buffer, buffer_load->indices, buffer_load->predicate,
+                                        buffer_load->span));
           break;
         }
         case 2: /* length */ {

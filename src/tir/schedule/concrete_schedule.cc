@@ -20,6 +20,8 @@
 
 #include <random>
 
+#include "../analysis/check_contains.h"
+
 namespace tvm {
 namespace tir {
 
@@ -396,7 +398,7 @@ LoopRV ConcreteScheduleNode::Fuse(const Array<LoopRV>& loop_rvs, bool preserve_u
 
 Array<LoopRV> ConcreteScheduleNode::Split(const LoopRV& loop_rv,
                                           const Array<Optional<ExprRV>>& factor_rvs,
-                                          bool preserve_unit_iters) {
+                                          bool preserve_unit_iters, bool disable_predication) {
   class NotSingleInferFactorError : public ScheduleError {
    public:
     explicit NotSingleInferFactorError(IRModule mod) : mod_(mod) {}
@@ -488,13 +490,14 @@ Array<LoopRV> ConcreteScheduleNode::Split(const LoopRV& loop_rv,
       tot_length *= factor;
     }
   }
+
   if (infer_index != -1) {
     factors.Set(infer_index,
                 this->analyzer_->Simplify(floordiv(loop->extent + tot_length - 1, tot_length)));
   } else if (!this->analyzer_->CanProve(tot_length >= loop->extent)) {
     throw WrongFactorProductError(state_->mod, GetRef<For>(loop));
   }
-  results = tir::Split(state_, loop_sref, factors, preserve_unit_iters);
+  results = tir::Split(state_, loop_sref, factors, preserve_unit_iters, disable_predication);
   TVM_TIR_SCHEDULE_END("split", this->error_render_level_);
   this->state_->DebugVerify();
   return CreateRV<LoopRV>(results);

@@ -1023,7 +1023,7 @@ requires_vitis_ai = Feature("vitis_ai", "Vitis AI", cmake_flag="USE_VITIS_AI")
 
 
 # check cpu features
-def _has_cpu_feat(features):
+def has_cpu_feat(features):
     cpu = codegen.llvm_get_system_cpu()
     triple = codegen.llvm_get_system_triple()
     target = "llvm -mtriple=%s -mcpu=%s" % (triple, cpu)
@@ -1035,21 +1035,28 @@ def _has_cpu_feat(features):
 requires_arm_dot = Feature(
     "arm_dot",
     "ARM dot product",
-    run_time_check=lambda: _has_cpu_feat("dotprod"),
+    run_time_check=lambda: has_cpu_feat("dotprod"),
+)
+
+
+requires_aarch64_sve = Feature(
+    "arm_sve",
+    "AArch64 SVE",
+    run_time_check=lambda: has_cpu_feat("sve"),
 )
 
 
 requires_x86_vnni = Feature(
     "x86_vnni",
     "x86 VNNI Extensions",
-    run_time_check=lambda: (_has_cpu_feat("avx512vnni") or _has_cpu_feat("avxvnni")),
+    run_time_check=lambda: (has_cpu_feat("avx512vnni") or has_cpu_feat("avxvnni")),
 )
 
 
 requires_x86_avx512 = Feature(
     "x86_avx512",
     "x86 AVX512 Extensions",
-    run_time_check=lambda: _has_cpu_feat(
+    run_time_check=lambda: has_cpu_feat(
         ["avx512bw", "avx512cd", "avx512dq", "avx512vl", "avx512f"]
     ),
 )
@@ -1058,7 +1065,7 @@ requires_x86_avx512 = Feature(
 requires_x86_amx = Feature(
     "x86_amx",
     "x86 AMX Extensions",
-    run_time_check=lambda: _has_cpu_feat("amx-int8"),
+    run_time_check=lambda: has_cpu_feat("amx-int8"),
 )
 
 

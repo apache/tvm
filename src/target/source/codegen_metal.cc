@@ -308,9 +308,12 @@ void CodeGenMetal::VisitExpr_(const SelectNode* op, std::ostream& os) {  // NOLI
 
 void CodeGenMetal::VisitExpr_(const BroadcastNode* op, std::ostream& os) {  // NOLINT(*)
   std::string v = PrintExpr(op->value);
+  ICHECK(op->lanes->IsInstance<IntImmNode>())
+      << "Scalable vectors are not supported in codegen_metal";
+  int lanes = static_cast<int>(Downcast<IntImm>(op->lanes)->value);
   PrintType(op->dtype, os);
   os << "(";
-  for (int i = 0; i < op->lanes; ++i) {
+  for (int i = 0; i < lanes; ++i) {
     if (i != 0) os << ", ";
     os << v;
   }

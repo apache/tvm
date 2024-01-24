@@ -462,6 +462,8 @@ def visit_expr_stmt(self: Parser, node: doc.Expr) -> None:
     elif isinstance(res, str):
         # Ignore docstrings
         pass
+    elif isinstance(res, tvm.tir.stmt.BufferStore):
+        T.buffer_store(res.buffer, res.value, res.indices, res.predicate)
     else:
         self.report_error(node, f"Parsing resulted in unexpected type {type(res)}")
 

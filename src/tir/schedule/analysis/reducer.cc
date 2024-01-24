@@ -178,16 +178,14 @@ class PatternMatcher : public ExprVisitor {
     if (ptr == nullptr) {
       match_success_ = false;
     } else {
-      if (op->lanes != ptr->lanes) {
-        match_success_ = false;
-      } else {
-        PrimExpr tmp = expr_to_match_;
-        expr_to_match_ = ptr->base;
-        VisitExpr(op->base);
-        expr_to_match_ = ptr->stride;
-        VisitExpr(op->stride);
-        std::swap(expr_to_match_, tmp);
-      }
+      PrimExpr tmp = expr_to_match_;
+      expr_to_match_ = ptr->base;
+      VisitExpr(op->base);
+      expr_to_match_ = ptr->stride;
+      VisitExpr(op->stride);
+      expr_to_match_ = ptr->lanes;
+      VisitExpr(op->lanes);
+      std::swap(expr_to_match_, tmp);
     }
   }
 
@@ -196,14 +194,12 @@ class PatternMatcher : public ExprVisitor {
     if (ptr == nullptr) {
       match_success_ = false;
     } else {
-      if (op->lanes != ptr->lanes) {
-        match_success_ = false;
-      } else {
-        PrimExpr tmp = expr_to_match_;
-        expr_to_match_ = ptr->value;
-        VisitExpr(op->value);
-        std::swap(expr_to_match_, tmp);
-      }
+      PrimExpr tmp = expr_to_match_;
+      expr_to_match_ = ptr->value;
+      VisitExpr(op->value);
+      expr_to_match_ = ptr->lanes;
+      VisitExpr(op->lanes);
+      std::swap(expr_to_match_, tmp);
     }
   }
 
@@ -265,7 +261,6 @@ class PatternMatcher : public ExprVisitor {
   void Match(const Array<PrimExpr>& exprs_to_match) {
     this->match_success_ = true;
     this->filled_map_.clear();
-
     ICHECK_EQ(pattern_.size(), exprs_to_match.size());
     int n_buffers = pattern_.size();
     for (int i = 0; i < n_buffers; ++i) {

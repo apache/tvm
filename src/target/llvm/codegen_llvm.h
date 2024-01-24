@@ -349,9 +349,9 @@ class CodeGenLLVM : public ExprFunctor<llvm::Value*(const PrimExpr&)>,
    *       - Should return the generated expression.
    */
   void BufferAccessHelper(
-      Buffer buffer, Array<PrimExpr> indices, DataType value_dtype,
-      std::function<llvm::Instruction*(TypedPointer buffer_ptr, int subelement_i, int alignment,
-                                       bool is_volatile)>
+      Buffer buffer, Array<PrimExpr> indices, PrimExpr predicate, DataType value_dtype,
+      std::function<llvm::Instruction*(TypedPointer buffer_ptr, int subelement_i,
+                                       llvm::Value* predicate, int alignment, bool is_volatile)>
           make_instruction);
   // Initialize target
   virtual void InitTarget();
@@ -468,7 +468,6 @@ class CodeGenLLVM : public ExprFunctor<llvm::Value*(const PrimExpr&)>,
   llvm::Value* CreateAdd(DataType t, llvm::Value* a, llvm::Value* b);
   llvm::Value* CreateSub(DataType t, llvm::Value* a, llvm::Value* b);
   llvm::Value* CreateMul(DataType t, llvm::Value* a, llvm::Value* b);
-  llvm::Value* CreateBroadcast(llvm::Value* value, int lanes);
   virtual TypedPointer CreateBufferPtr(llvm::Value* buffer_ptr, DataType buffer_element_dtype,
                                        llvm::ArrayRef<llvm::Value*> indices, DataType value_dtype);
   // Vector concatenation.

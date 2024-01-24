@@ -53,8 +53,8 @@ PrimExpr PrimExpr::FromObject_(ObjectRef ref) {
     for (const Range& r : buffer_region->region) {
       if (tvm::tir::is_one(r->extent)) {
         indices.push_back(r->min);
-      } else if (const auto* extent = r->extent.as<IntImmNode>()) {
-        indices.push_back(tir::Ramp(r->min, tvm::tir::make_const(r->min->dtype, 1), extent->value));
+      } else if (r->extent.as<IntImmNode>()) {
+        indices.push_back(tir::Ramp(r->min, tvm::tir::make_const(r->min->dtype, 1), r->extent));
       } else {
         LOG(FATAL) << "ValueError: Cannot convert to BufferLoad: " << ref;
       }

@@ -653,5 +653,73 @@ def test_split_int64_factors():
     assert_structural_equal_ignore_global_symbol(elementwise_symbolic_split, sch.mod["main"])
 
 
+@pytest.mark.parametrize("num_elements", [128, 115])
+def test_split_predicated(num_elements):
+    # By default, splitting with vscale will result in predication being
+    # applied. This is because at compile-time we don't know if vscale is
+    # a multiple of the extent of the loop to be split.
+    @T.prim_func
+    def before(A: T.Buffer((num_elements,), "float32")):
+        T.func_attr({"global_symbol": "my_module", "tir.noalias": True})
+        for i in T.serial(num_elements):
+            with T.block("A"):
+                v_i = T.axis.remap("S", [i])
+                A[v_i] = 1.0
+
+    @T.prim_func
+    def after(A: T.Buffer((num_elements,), "float32")):
+        T.func_attr({"global_symbol": "my_module", "tir.noalias": True})
+        for i_0, i_1 in T.grid(
+            (T.vscale() * 4 + (num_elements - 1)) // (T.vscale() * 4), T.vscale() * 4
+        ):
+            with T.block("A"):
+                v_i = T.axis.spatial(num_elements, i_0 * (T.vscale() * 4) + i_1)
+                T.where(i_0 * (T.vscale() * 4) + i_1 < num_elements)
+                A[v_i] = 1.0
+
+    with tvm.target.Target("llvm -mtriple=aarch64-linux-gnu"):
+        sch = tvm.tir.Schedule(before)
+        (a,) = sch.get_loops("A")
+        sch.split(a, factors=[T.ceildiv(num_elements, 4 * T.vscale()), 4 * T.vscale()])
+
+    tvm.ir.assert_structural_equal(sch.mod["main"], after)
+
+
+def test_split_assume_exact_multiple():
+    # If the schedule writer knows the extent of the loop to be split will always
+    # be a multiple, they may use `disable_predication=True` to ensure
+    # a predicate is not created.
+    num_elements = 128
+
+    @T.prim_func
+    def before(A: T.Buffer((num_elements,), "float32")):
+        T.func_attr({"global_symbol": "my_module", "tir.noalias": True})
+        for i in T.serial(num_elements):
+            with T.block("A"):
+                v_i = T.axis.remap("S", [i])
+                A[v_i] = 1.0
+
+    @T.prim_func
+    def after(A: T.Buffer((num_elements,), "float32")):
+        T.func_attr({"global_symbol": "my_module", "tir.noalias": True})
+        for i_0, i_1 in T.grid(
+            (T.vscale() * 4 + (num_elements - 1)) // (T.vscale() * 4), T.vscale() * 4
+        ):
+            with T.block("A"):
+                v_i = T.axis.spatial(num_elements, i_0 * (T.vscale() * 4) + i_1)
+                A[v_i] = 1.0
+
+    with tvm.target.Target("llvm -mtriple=aarch64-linux-gnu"):
+        sch = tvm.tir.Schedule(before)
+        (a,) = sch.get_loops("A")
+        sch.split(
+            a,
+            factors=[T.ceildiv(num_elements, 4 * T.vscale()), 4 * T.vscale()],
+            disable_predication=True,
+        )
+
+    tvm.ir.assert_structural_equal(sch.mod["main"], after)
+
+
 if __name__ == "__main__":
     tvm.testing.main()

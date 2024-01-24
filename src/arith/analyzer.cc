@@ -22,9 +22,13 @@
  */
 #include <tvm/arith/analyzer.h>
 #include <tvm/runtime/registry.h>
+#include <tvm/tir/builtin.h>
 #include <tvm/tir/expr.h>
 #include <tvm/tir/op.h>
 
+#include "../target/parsers/aprofile.h"
+#include "../tir/analysis/check_contains.h"
+#include "./scalable_expression.h"
 #include "const_fold.h"
 #include "product_normal_form.h"
 
@@ -224,6 +228,33 @@ bool Analyzer::CanProve(const PrimExpr& expr, ProofStrength strength) {
         ConstIntBound relaxed_lower_bound = this->const_int_bound(this->Simplify(iset.min()));
         if (relaxed_lower_bound->min_value >= lower_bound) return true;
       }
+    }
+  }
+
+  // Current analysis may not be powerful enough to prove expressions with
+  // multiple symbolic values. When the expression is scalable and the compile
+  // target is AArch64, we can make some assumptions about the value of vscale
+  // and iterate over a space of pre-defined values to attempt to prove the
+  // expression.
+  Target current_target = tvm::Target::Current(true);
+  if (!current_target.defined()) {
+    return false;
+  }
+  TargetJSON target_json = target::parsers::aprofile::ParseTarget(current_target->Export());
+  TargetFeatures features = Downcast<TargetFeatures>(target_json.at("features"));
+  bool is_llvm_aarch64 = Downcast<Bool>(features.at("is_aarch64"));
+  if (is_llvm_aarch64 && tir::CheckContains::ExprContains(simplified, IsVScaleCall)) {
+    bool can_prove_expr = true;
+    for (const unsigned int vscale_value : kVScaleValues) {
+      PrimExpr result = SubstituteVScaleWithKnownValue(expr, vscale_value);
+      result = Simplify(result);
+      const int64_t* as_int = tir::as_const_int(result);
+      if (!as_int || *as_int == 0) {
+        can_prove_expr = false;
+      }
+    }
+    if (can_prove_expr) {
+      return true;
     }
   }
 

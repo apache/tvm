@@ -70,7 +70,7 @@ DataType MatchDataType(std::vector<DataType> dtypes) {
 }
 
 void SplitHelper(StageNode* self, IterVar parent, PrimExpr factor, PrimExpr nparts,
-                 IterVar* p_outer, IterVar* p_inner) {
+                 IterVar* p_outer, IterVar* p_inner, bool disable_predication) {
   // Check if split is valid.
   ICHECK(parent->iter_type == kDataPar || parent->iter_type == kCommReduce ||
          parent->iter_type == kOrdered)
@@ -83,7 +83,7 @@ void SplitHelper(StageNode* self, IterVar parent, PrimExpr factor, PrimExpr npar
   Array<IterVar>& all_vars = self->all_iter_vars;
   Array<IterVar>& leaf_vars = self->leaf_iter_vars;
   size_t pos = FindLeafVar(all_vars.GetArrayNode(), leaf_vars.GetArrayNode(), parent);
-  self->relations.push_back(Split(parent, outer, inner, factor, nparts));
+  self->relations.push_back(Split(parent, outer, inner, factor, nparts, disable_predication));
   // add vars to all vars
   all_vars.push_back(outer);
   all_vars.push_back(inner);
@@ -226,17 +226,17 @@ Stage& Stage::set_store_predicate(PrimExpr predicate) {
   return *this;
 }
 
-Stage& Stage::split(IterVar parent, PrimExpr factor, IterVar* p_outer,
-                    IterVar* p_inner) {  // NOLINT(*)
+Stage& Stage::split(IterVar parent, PrimExpr factor, IterVar* p_outer, IterVar* p_inner,
+                    bool disable_predication) {  // NOLINT(*)
   With<ScheduleContext> ctx(operator->()->attach_sch, __func__);
-  SplitHelper(operator->(), parent, factor, PrimExpr(), p_outer, p_inner);
+  SplitHelper(operator->(), parent, factor, PrimExpr(), p_outer, p_inner, disable_predication);
   return *this;
 }
 
-Stage& Stage::split_by_nparts(IterVar parent, PrimExpr nparts, IterVar* p_outer,
-                              IterVar* p_inner) {  // NOLINT(*)
+Stage& Stage::split_by_nparts(IterVar parent, PrimExpr nparts, IterVar* p_outer, IterVar* p_inner,
+                              bool disable_predication) {  // NOLINT(*)
   With<ScheduleContext> ctx(operator->()->attach_sch, __func__);
-  SplitHelper(operator->(), parent, PrimExpr(), nparts, p_outer, p_inner);
+  SplitHelper(operator->(), parent, PrimExpr(), nparts, p_outer, p_inner, disable_predication);
   return *this;
 }
 
@@ -805,13 +805,15 @@ void ScheduleContext::ExitWithScope() {
   }
 }
 
-Split::Split(IterVar parent, IterVar outer, IterVar inner, PrimExpr factor, PrimExpr nparts) {
+Split::Split(IterVar parent, IterVar outer, IterVar inner, PrimExpr factor, PrimExpr nparts,
+             bool disable_predication) {
   auto n = make_object<SplitNode>();
   n->parent = parent;
   n->outer = outer;
   n->inner = inner;
   n->factor = factor;
   n->nparts = nparts;
+  n->disable_predication = disable_predication;
   data_ = std::move(n);
 }
 
@@ -927,6 +929,8 @@ TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
         p->stream << ", nparts=";
         p->Print(op->nparts);
       }
+      p->stream << ", disable_predication=";
+      p->stream << op->disable_predication;
       p->stream << ')';
     })
     .set_dispatch<FuseNode>([](const ObjectRef& node, ReprPrinter* p) {
@@ -973,16 +977,16 @@ TVM_REGISTER_GLOBAL("te.StageSetScope").set_body_method(&Stage::set_scope);
 TVM_REGISTER_GLOBAL("te.StageBind").set_body_method(&Stage::bind);
 
 TVM_REGISTER_GLOBAL("te.StageSplitByFactor")
-    .set_body_typed([](Stage stage, IterVar parent, PrimExpr factor) {
+    .set_body_typed([](Stage stage, IterVar parent, PrimExpr factor, bool disable_predication) {
       IterVar outer, inner;
-      stage.split(parent, factor, &outer, &inner);
+      stage.split(parent, factor, &outer, &inner, disable_predication);
       return Array<IterVar>({outer, inner});
     });
 
 TVM_REGISTER_GLOBAL("te.StageSplitByNParts")
-    .set_body_typed([](Stage stage, IterVar parent, PrimExpr nparts) {
+    .set_body_typed([](Stage stage, IterVar parent, PrimExpr nparts, bool disable_predication) {
       IterVar outer, inner;
-      stage.split_by_nparts(parent, nparts, &outer, &inner);
+      stage.split_by_nparts(parent, nparts, &outer, &inner, disable_predication);
       return Array<IterVar>({outer, inner});
     });
 

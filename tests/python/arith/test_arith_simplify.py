@@ -65,5 +65,13 @@ def test_regression_simplify_inf_recursion():
     ana.rewrite_simplify(res)
 
 
+def test_symbolic_vscale_expression():
+    with tvm.target.Target("llvm -mtriple=aarch64-linux-gnu"):
+        ana = tvm.arith.Analyzer()
+        assert ana.can_prove(128 // tir.vscale() * tir.vscale() <= 128)
+        assert ana.can_prove(128 // (tir.vscale() * 4) * (tir.vscale() * 4) <= 128)
+        assert ana.can_prove(tir.vscale() % 2 <= tir.vscale())
+
+
 if __name__ == "__main__":
     tvm.testing.main()

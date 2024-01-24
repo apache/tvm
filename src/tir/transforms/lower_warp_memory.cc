@@ -137,6 +137,8 @@ class WarpStoreCoeffFinder : private StmtExprVisitor {
 
     PrimExpr index = op->indices[0];
     if (op->value.dtype().lanes() != 1) {
+      ICHECK(!op->value.dtype().is_scalable())
+          << "Scalable vectors are not supported in lower_warp_memory";
       arith::PVar<PrimExpr> base;
       ICHECK(arith::ramp(base, 1, op->value.dtype().lanes()).Match(index))
           << "LowerWarpMemory failed due to store index=" << index
@@ -343,6 +345,8 @@ class WarpAccessRewriter : protected StmtExprMutator {
   std::pair<PrimExpr, PrimExpr> SplitIndexByGroup(const PrimExpr& index) {
     if (index.dtype().lanes() != 1) {
       arith::PVar<PrimExpr> base;
+      ICHECK(!index.dtype().is_scalable())
+          << "Scalable vectors are not supported in lower_warp_memory";
       ICHECK(arith::ramp(base, 1, index.dtype().lanes()).Match(index));
 
       auto [local_index, group] = SplitIndexByGroup(base.Eval());

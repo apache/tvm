@@ -730,7 +730,7 @@ class ThreadScopePropagate : public StmtExprMutator {
 
     auto it = buf_remap_.find(op->buffer->data);
     if (it != buf_remap_.end()) {
-      return BufferLoad(it->second, op->indices, op->span);
+      return BufferLoad(it->second, op->indices, op->predicate, op->span);
     } else {
       return expr;
     }
@@ -743,7 +743,7 @@ class ThreadScopePropagate : public StmtExprMutator {
 
     auto it = buf_remap_.find(op->buffer->data);
     if (it != buf_remap_.end()) {
-      return BufferStore(it->second, op->value, op->indices, op->span);
+      return BufferStore(it->second, op->value, op->indices, op->predicate, op->span);
     } else {
       return stmt;
     }
@@ -938,8 +938,10 @@ class BufferBindUnwrapper : public StmtExprMutator {
     const BufferEntry& e = GetBufferEntry(op->buffer);
 
     if (e.remap) {
+      ICHECK(!op->predicate.defined()) << "Remapping predicate is not supported";
       return BufferLoad(e.remap->target,
-                        remap_indices(op->indices, e.remap->begins, e.remap->extents), op->span);
+                        remap_indices(op->indices, e.remap->begins, e.remap->extents),
+                        op->predicate, op->span);
     } else {
       return expr;
     }
@@ -952,8 +954,10 @@ class BufferBindUnwrapper : public StmtExprMutator {
     const BufferEntry& e = GetBufferEntry(op->buffer);
 
     if (e.remap) {
+      ICHECK(!op->predicate.defined()) << "Remapping predicate is not supported";
       return BufferStore(e.remap->target, op->value,
-                         remap_indices(op->indices, e.remap->begins, e.remap->extents), op->span);
+                         remap_indices(op->indices, e.remap->begins, e.remap->extents),
+                         op->predicate, op->span);
     } else {
       return stmt;
     }
@@ -1418,7 +1422,8 @@ class StorageFlattener : public StmtExprMutator {
 
     auto flattened_indices = e.buffer->ElemOffset(op->indices);
 
-    Stmt body = BufferStore(e.flattened_buffer, value, flattened_indices, op->span);
+    ICHECK(!op->predicate.defined()) << "Changing the index can affect the predicate";
+    Stmt body = BufferStore(e.flattened_buffer, value, flattened_indices, op->predicate, op->span);
     if (create_bound_attributes_ && ShapeIsValid(e.buffer->shape)) {
       shape_collector_.push_back(std::make_pair(e.buffer->data, e.buffer->shape));
     }
@@ -1574,7 +1579,9 @@ class StorageFlattener : public StmtExprMutator {
     }
 
     auto flattened_indices = e.buffer->ElemOffset(op->indices);
-    PrimExpr val = BufferLoad(e.flattened_buffer, flattened_indices, op->span);
+
+    ICHECK(!op->predicate.defined()) << "Changing the index can affect the predicate";
+    PrimExpr val = BufferLoad(e.flattened_buffer, flattened_indices, op->predicate, op->span);
 
     if (op->dtype == DataType::Bool()) {
       ICHECK_EQ(e.flattened_buffer->dtype, DataType::Int(8))

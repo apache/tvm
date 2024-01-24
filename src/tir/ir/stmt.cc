@@ -458,7 +458,8 @@ TVM_REGISTER_GLOBAL("tir.Evaluate").set_body_typed([](PrimExpr value, Span span)
 TVM_REGISTER_NODE_TYPE(EvaluateNode);
 
 // BufferStore
-BufferStore::BufferStore(Buffer buffer, PrimExpr value, Array<PrimExpr> indices, Span span) {
+BufferStore::BufferStore(Buffer buffer, PrimExpr value, Array<PrimExpr> indices, PrimExpr predicate,
+                         Span span) {
   ICHECK_EQ(buffer->shape.size(), indices.size())
       << "Buffer " << buffer->name << " is " << buffer->shape.size()
       << "-dimensional, cannot be indexed with the " << indices.size()
@@ -470,16 +471,26 @@ BufferStore::BufferStore(Buffer buffer, PrimExpr value, Array<PrimExpr> indices,
   }
 
   int index_lanes = indices.size() ? indices.back().dtype().lanes() : 1;
+  bool index_scalable = indices.size() ? indices.back().dtype().is_scalable() : false;
   int buffer_lanes = buffer->dtype.lanes();
+  bool buffer_scalable = buffer->dtype.is_scalable();
 
   ICHECK_EQ(index_lanes * buffer_lanes, value.dtype().lanes())
       << "Cannot store value with " << value.dtype().lanes() << ", expected value with "
       << index_lanes * buffer_lanes << " (" << index_lanes << " index lanes * " << buffer_lanes
       << " buffer element lanes)";
-  if (buffer->dtype.with_lanes(buffer_lanes * index_lanes) != value.dtype()) {
+
+  runtime::DataType buffer_dtype;
+  if (index_scalable || buffer_scalable) {
+    buffer_dtype = buffer->dtype.with_scalable_lanes(buffer_lanes * index_lanes);
+  } else {
+    buffer_dtype = buffer->dtype.with_lanes(buffer_lanes * index_lanes);
+  }
+  if (buffer_dtype != value.dtype()) {
     LOG(FATAL) << "TypeError: dtype mismatch on BufferStore: "      //
                << "buffer's dtype is `" << buffer->dtype            //
                << "`, the lanes of indexing are: `" << index_lanes  //
+               << "`, the scalability is: `" << buffer_dtype.is_scalable()
                << "`, but RHS's dtype is `" << value.dtype() << "`";
   }
 
@@ -487,14 +498,14 @@ BufferStore::BufferStore(Buffer buffer, PrimExpr value, Array<PrimExpr> indices,
   node->buffer = std::move(buffer);
   node->value = std::move(value);
   node->indices = std::move(indices);
+  node->predicate = std::move(predicate);
   node->span = std::move(span);
   data_ = std::move(node);
 }
 
 TVM_REGISTER_GLOBAL("tir.BufferStore")
-    .set_body_typed([](Buffer buffer, PrimExpr value, Array<PrimExpr> indices, Span span) {
-      return BufferStore(buffer, value, indices, span);
-    });
+    .set_body_typed([](Buffer buffer, PrimExpr value, Array<PrimExpr> indices, PrimExpr predicate,
+                       Span span) { return BufferStore(buffer, value, indices, predicate, span); });
 
 TVM_REGISTER_NODE_TYPE(BufferStoreNode);
 

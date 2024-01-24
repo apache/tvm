@@ -909,6 +909,18 @@ TVM_DLL const Op& anylist_setitem_call_packed();
  */
 TVM_DLL const Op& anylist_setitem_call_cpacked();
 
+/*!
+ * \brief Return the value of vscale
+ */
+TVM_DLL const Op& vscale();
+
+/*!
+ * \brief Provide the predicate constructed of the currently active lanes
+ *
+ * Calculate the active lane masks given a bound and a current value
+ */
+TVM_DLL const Op& get_active_lane_mask();
+
 /*! \brief The kind of structure field info used in intrinsic */
 enum TVMStructFieldKind : int {
   // array head address

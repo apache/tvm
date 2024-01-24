@@ -257,7 +257,8 @@ class RollingBufferInjector : public StmtExprMutator {
           indices.push_back(index);
         }
       }
-      Stmt buffer_store = BufferStore(op->buffer, op->value, indices, op->span);
+      ICHECK(!op->predicate.defined()) << "Indices change can affect the predicate";
+      Stmt buffer_store = BufferStore(op->buffer, op->value, indices, op->predicate, op->span);
       // Then wrap the BufferStores in some Ifs to avoid recomputing elements
       for (size_t i{0}; i < rolling_buffer_info.axis_iter_vars.size(); ++i) {
         auto iter_var{rolling_buffer_info.axis_iter_vars[i]};
@@ -293,7 +294,8 @@ class RollingBufferInjector : public StmtExprMutator {
           indices.push_back(index);
         }
       }
-      return BufferLoad(op->buffer, indices, op->span);
+      ICHECK(!op->predicate.defined()) << "Indices change can affect the predicate";
+      return BufferLoad(op->buffer, indices, op->predicate, op->span);
     } else {
       return expr;
     }

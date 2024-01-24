@@ -231,23 +231,27 @@ class BufferStoreNode : public StmtNode {
   PrimExpr value;
   /*! \brief The indices location to be stored. */
   Array<PrimExpr> indices;
+  /*! \brief The predicate for this store. */
+  PrimExpr predicate;
 
   void VisitAttrs(AttrVisitor* v) {
     v->Visit("buffer", &buffer);
     v->Visit("value", &value);
     v->Visit("indices", &indices);
+    v->Visit("predicate", &predicate);
     v->Visit("span", &span);
   }
 
   bool SEqualReduce(const BufferStoreNode* other, SEqualReducer equal) const {
     return equal(buffer, other->buffer) && equal(value, other->value) &&
-           equal(indices, other->indices);
+           equal(indices, other->indices) && equal(predicate, other->predicate);
   }
 
   void SHashReduce(SHashReducer hash_reduce) const {
     hash_reduce(buffer);
     hash_reduce(value);
     hash_reduce(indices);
+    hash_reduce(predicate);
   }
 
   static constexpr const char* _type_key = "tir.BufferStore";
@@ -261,7 +265,7 @@ class BufferStoreNode : public StmtNode {
 class BufferStore : public Stmt {
  public:
   TVM_DLL explicit BufferStore(Buffer buffer, PrimExpr value, Array<PrimExpr> indices,
-                               Span span = Span());
+                               PrimExpr predicate = PrimExpr(nullptr), Span span = Span());
 
   TVM_DEFINE_OBJECT_REF_METHODS(BufferStore, Stmt, BufferStoreNode);
   TVM_DEFINE_OBJECT_REF_COW_METHOD(BufferStoreNode);

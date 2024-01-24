@@ -26,6 +26,7 @@
 #include <tvm/runtime/registry.h>
 #include <tvm/tir/expr.h>
 #include <tvm/tir/expr_functor.h>
+#include <tvm/tir/utils.h>
 
 #include <algorithm>
 #include <unordered_map>
@@ -466,14 +467,21 @@ class IntervalSetEvaluator : public ExprFunctor<IntervalSet(const PrimExpr&)> {
     if (stride.Match(op->stride)) {
       DataType t = op->base.dtype();
       int64_t vstride = stride.Eval()->value;
-      if (vstride > 0) {
-        return Combine<Add>(analyzer_, base,
-                            IntervalSet(make_zero(t), make_const(t, vstride * (op->lanes - 1))),
-                            op->dtype);
-      } else {
-        return Combine<Add>(analyzer_, base,
-                            IntervalSet(make_const(t, vstride * (op->lanes - 1)), make_zero(t)),
-                            op->dtype);
+      if (op->lanes->IsInstance<IntImmNode>()) {
+        int lanes = static_cast<int>(Downcast<IntImm>(op->lanes)->value);
+        if (vstride > 0) {
+          return Combine<Add>(analyzer_, base,
+                              IntervalSet(make_zero(t), make_const(t, vstride * (lanes - 1))),
+                              op->dtype);
+        } else {
+          return Combine<Add>(analyzer_, base,
+                              IntervalSet(make_const(t, vstride * (lanes - 1)), make_zero(t)),
+                              op->dtype);
+        }
+      } else { /* Scalable vector */
+        if (vstride > 0) {
+          return Combine<Add>(analyzer_, base, IntervalSet(make_zero(t), pos_inf()), op->dtype);
+        }
       }
     }
     DLOG(WARNING) << "cannot evaluate set on expression " << GetRef<PrimExpr>(op);
