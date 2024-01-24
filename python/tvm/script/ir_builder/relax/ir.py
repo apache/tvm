@@ -330,7 +330,7 @@ def output(*vars: Tuple[Var]) -> None:
 def call_packed(
     func: py_str,
     *args: Expr,
-    sinfo_args: Union[StructInfo, List[StructInfo]],
+    sinfo_args: Optional[Union[StructInfo, List[StructInfo]]] = None,
     **kwargs: Any,
 ) -> Call:
     """Create a relax Call, which calls a packed function.
@@ -340,7 +340,7 @@ def call_packed(
         The name of extern function.
     *args : Expr
         The arguments.
-    sinfo_args: Union[StructInfo, List[StructInfo]]
+    sinfo_args: Optional[Union[StructInfo, List[StructInfo]]]
         The list of structure info arguments.
     kwargs: Expr
         The keyword arguments.
@@ -352,7 +352,7 @@ def call_packed(
     """
     op = ExternFunc(func)
     if sinfo_args is None:
-        raise ValueError("R.call_packed is required to have type_args")
+        sinfo_args = []
     if isinstance(sinfo_args, py_tuple):  # type: ignore
         sinfo_args = list(sinfo_args)
     elif not isinstance(sinfo_args, list):
