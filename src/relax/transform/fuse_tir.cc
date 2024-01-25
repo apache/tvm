@@ -878,54 +878,44 @@ std::vector<size_t> GetTupleAccessedIndices(const FunctionNode* func, const Var&
  */
 class TIRFuseMutator : public ExprMutator {
  public:
-  static IRModule Transform(const IRModule& mod) {
-    Map<GlobalVar, BaseFunc> funcs_to_keep;
-    for (const auto& [gv, func] : mod->functions) {
-      // 1. If a TIR function has global symbol, we keep the function.
-      // 2. Always keep ExternFunc.
-      if (const auto* prim_func = func.as<tir::PrimFuncNode>()) {
-        if (prim_func->GetAttr<String>("global_symbol").defined()) {
-          funcs_to_keep.Set(gv, func);
-        }
-      } else if (func->IsInstance<ExternFuncNode>()) {
-        funcs_to_keep.Set(gv, func);
-      }
-    }
-    // Since TIRFuseMutator will delete bunch of PrimFunc, we create an empty block builder.
-    TIRFuseMutator mutator(mod);
-    // Step 1. Fuse all primitive relax functions, store the result in `fused_tir_funcs_`
-    for (const auto& [gv, func] : mod->functions) {
-      // Only fuse primitive relax functions
-      if (func->IsInstance<relax::FunctionNode>() && func->HasNonzeroAttr(attr::kPrimitive)) {
-        tir::PrimFunc fused_tir = FusedTIRConstructor::GetFusedTIR(mod, gv);
-        mutator.fused_tir_funcs_.Set(gv, fused_tir);
-      }
-    }
+  static IRModule Transform(const IRModule& orig_mod) {
+    // Track the original IRModule separate from the BlockBuilder's
+    // partially transformed module.  Preserving access to the
+    // pre-fused Primitive function is necessary for context-dependent
+    // fusion (e.g. producing two fused versions of the same primitive
+    // function, depending on whether it uses `R.call_tir` or
+    // `R.call_tir_inplace`).
 
-    // Step 2. Update all non-primitive relax functions and add it, with the dependent function,
-    // into the new IRModule
-    for (const auto& [gv, func] : mod->functions) {
+    IRModule without_prim = [&] {
+      IRModule mod = orig_mod;
+      auto write_ptr = mod.CopyOnWrite();
+      for (const auto& [gv, func] : orig_mod->functions) {
+        if (func->IsInstance<relax::FunctionNode>() && func->HasNonzeroAttr(attr::kPrimitive)) {
+          write_ptr->Remove(gv);
+        }
+      }
+      return mod;
+    }();
+
+    TIRFuseMutator mutator(orig_mod, without_prim);
+
+    // Any non-primitive relax functions should be inspected for calls
+    // into primitve relax functions.  The primitive relax functions
+    // themselves will be updated as part of `mutator.VisitExpr`,
+    // while the non-primitive relax functions are updated here.
+    for (const auto& [gv, func] : orig_mod->functions) {
       if (func->IsInstance<relax::FunctionNode>() && !func->HasNonzeroAttr(attr::kPrimitive)) {
         relax::Function update_func = Downcast<Function>(mutator.VisitExpr(func));
-        mutator.builder_->AddFunction(update_func, gv->name_hint);
+        mutator.builder_->UpdateFunction(gv, update_func);
       }
     }
 
-    // Step 3. Add all functions that need to be kept.
-    auto modified_mod = mutator.builder_->GetContextIRModule();
-    for (const auto& [gv, func] : funcs_to_keep) {
-      if (!modified_mod->ContainGlobalVar(gv->name_hint)) {
-        modified_mod->Add(gv, func);
-      }
-    }
-
-    // Step 4. Copy over module attributes and return.
-    if (mod->attrs.defined()) modified_mod = WithAttrs(modified_mod, mod->attrs->dict);
-    return modified_mod;
+    return mutator.builder_->Finalize();
   }
 
  private:
-  explicit TIRFuseMutator(const IRModule& mod) : mod_(mod) {}
+  explicit TIRFuseMutator(const IRModule& mod, IRModule without_prim)
+      : ExprMutator(without_prim), orig_mod_(mod) {}
 
   using ExprMutator::VisitExpr_;
 
@@ -950,63 +940,66 @@ class TIRFuseMutator : public ExprMutator {
 
     if (call->op->IsInstance<GlobalVarNode>()) {
       // Case 1. It is a relax cross function call
-      GlobalVar old_gv = Downcast<GlobalVar>(call->op);
-      auto relax_func = Downcast<Function>(mod_->Lookup(old_gv));
-      auto it = fused_tir_funcs_.find(old_gv);
-      if (it != fused_tir_funcs_.end()) {
-        const tir::PrimFunc& fused_tir = (*it).second;
-        // Case 1.1. It calls a primitive relax function, update the call into a call_tir
-        GlobalVar fused_tir_gv = this->builder_->AddFunction(fused_tir, old_gv->name_hint);
-        // Step a. Flatten all args since call_tir does not support Tuple value.
-        Array<Expr> arg_list;
-        Array<PrimExpr> tir_vars;
-        for (size_t i = 0; i < call->args.size(); ++i) {
-          auto arg = call->args[i];
-          auto sinfo = GetStructInfo(arg);
+      GlobalVar old_gvar = Downcast<GlobalVar>(call->op);
+      auto relax_func = Downcast<Function>(orig_mod_->Lookup(old_gvar));
 
-          ICHECK(!relax_func->params[i]->struct_info_->IsInstance<TupleStructInfoNode>() &&
-                 !sinfo.as<TupleStructInfoNode>())
-              << "InternalError: "
-              << "All tuple parameters should be expanded before this point in FuseTIR.  "
-              << "However, argument " << arg << " with struct info " << arg->struct_info_
-              << " is passed as argument " << i << " to Primitive Relax function " << old_gv
-              << ", which expects parameter " << relax_func->params[i] << " to have struct info "
-              << relax_func->params[i]->struct_info_;
-
-          if (const auto* shape = sinfo.as<ShapeStructInfoNode>()) {
-            CHECK(shape->values.defined())
-                << "FuseTIR requires all shape input has struct_info value.";
-            for (const PrimExpr& prim_value : shape->values.value()) {
-              CHECK(prim_value->IsInstance<tir::VarNode>())
-                  << "All shape inputs are expected to be single tir var.";
-              tir_vars.push_back(prim_value);
-            }
-          } else if (const auto* prim_value = sinfo.as<PrimStructInfoNode>()) {
-            CHECK(prim_value->value.defined())
-                << "FuseTIR requires all R.Prim arguments to have a known value.";
-            PrimExpr expr = prim_value->value.value();
-            CHECK(expr->IsInstance<tir::VarNode>())
-                << "FuseTIR currently requires all R.Prim arguments to provide a single tir::Var.";
-            tir_vars.push_back(expr);
-
-          } else {
-            arg_list.push_back(arg);
-          }
-        }
-        // Step b. Create call_tir
-        Array<Expr> call_args = {fused_tir_gv, Tuple(arg_list)};
-        if (!tir_vars.empty()) {
-          call_args.push_back(ShapeExpr(tir_vars));
-        }
-        return Call(call_tir_op_, call_args, call->attrs, {GetStructInfo(call)});
-      } else {
-        // Case 1.2. The callee function is not primitive, nothing to do.
+      if (!relax_func->HasNonzeroAttr(attr::kPrimitive)) {
+        // The callee is not a primitive function, no need to fuse.
         return call;
       }
+
+      tir::PrimFunc fused_tir = FusedTIRConstructor::GetFusedTIR(orig_mod_, old_gvar);
+
+      // Case 1.1. It calls a primitive relax function, update the call into a call_tir
+      GlobalVar fused_tir_gv = this->builder_->AddFunction(fused_tir, old_gvar->name_hint);
+
+      // Step a. Flatten all args since call_tir does not support Tuple value.
+      Array<Expr> arg_list;
+      Array<PrimExpr> tir_vars;
+      for (size_t i = 0; i < call->args.size(); ++i) {
+        auto arg = call->args[i];
+        auto sinfo = GetStructInfo(arg);
+
+        ICHECK(!relax_func->params[i]->struct_info_->IsInstance<TupleStructInfoNode>() &&
+               !sinfo.as<TupleStructInfoNode>())
+            << "InternalError: "
+            << "All tuple parameters should be expanded before this point in FuseTIR.  "
+            << "However, argument " << arg << " with struct info " << arg->struct_info_
+            << " is passed as argument " << i << " to Primitive Relax function " << old_gvar
+            << ", which expects parameter " << relax_func->params[i] << " to have struct info "
+            << relax_func->params[i]->struct_info_;
+
+        if (const auto* shape = sinfo.as<ShapeStructInfoNode>()) {
+          CHECK(shape->values.defined())
+              << "FuseTIR requires all shape input has struct_info value.";
+          for (const PrimExpr& prim_value : shape->values.value()) {
+            CHECK(prim_value->IsInstance<tir::VarNode>())
+                << "All shape inputs are expected to be single tir var.";
+            tir_vars.push_back(prim_value);
+          }
+        } else if (const auto* prim_value = sinfo.as<PrimStructInfoNode>()) {
+          CHECK(prim_value->value.defined())
+              << "FuseTIR requires all R.Prim arguments to have a known value.";
+          PrimExpr expr = prim_value->value.value();
+          CHECK(expr->IsInstance<tir::VarNode>())
+              << "FuseTIR currently requires all R.Prim arguments to provide a single tir::Var.";
+          tir_vars.push_back(expr);
+
+        } else {
+          arg_list.push_back(arg);
+        }
+      }
+      // Step b. Create call_tir
+      Array<Expr> call_args = {fused_tir_gv, Tuple(arg_list)};
+      if (!tir_vars.empty()) {
+        call_args.push_back(ShapeExpr(tir_vars));
+      }
+      return Call(call_tir_op_, call_args, call->attrs, {GetStructInfo(call)});
+
     } else if (call->op == call_tir_op_) {
       // Case 2. It is a call_tir, re-emit the PrimFunc.
       if (const auto* gv = call->args[0].as<GlobalVarNode>()) {
-        tir::PrimFunc func = Downcast<tir::PrimFunc>(mod_->Lookup(GetRef<GlobalVar>(gv)));
+        tir::PrimFunc func = Downcast<tir::PrimFunc>(orig_mod_->Lookup(GetRef<GlobalVar>(gv)));
         GlobalVar new_gv = this->builder_->AddFunction(func, gv->name_hint);
         Array<Expr> new_args = call->args;
         new_args.Set(0, new_gv);
@@ -1020,9 +1013,7 @@ class TIRFuseMutator : public ExprMutator {
 
  private:
   /*! \brief The IRModule */
-  const IRModule& mod_;
-  /*! \brief The map from global var of primitive relax function to generated prim func. */
-  Map<GlobalVar, tir::PrimFunc> fused_tir_funcs_;
+  const IRModule& orig_mod_;
 };
 
 IRModule FuseTIR(IRModule mod) {
@@ -1044,6 +1035,15 @@ Pass FuseTIR() {
           ExpandTupleArguments(),
           RemoveUnusedParameters(),
           inner_pass,
+          // At each call site, TIRFuseMutator inserts calls to
+          // attr::kPrimitive relax functions with calls to the fused
+          // TIR functions.  However, until we reach the end of the
+          // module, we don't know whether the unfused TIR functions
+          // were called from contexts other than the attr::kPrimitive
+          // relax function, and cannot remove them entirely.
+          // Post-processing with `DeadCodeElimination` ensures that
+          // we do not keep any unreachable pre-fused TIR PrimFuncs.
+          DeadCodeElimination({}),
       },
       "FuseTIR");
 }

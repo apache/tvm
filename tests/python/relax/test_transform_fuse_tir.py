@@ -493,7 +493,7 @@ def test_fuse_with_immediate_tuple():
         y = relax.Var("y", R.Tensor([10, 20], "float32"))
         with bb.function("main", [x, y]):
             with bb.dataflow():
-                gv = bb.emit_output(bb.call_te(topi.add, x, y, primfunc_name_hint="fused_add"))
+                gv = bb.emit_output(bb.call_te(topi.add, x, y, primfunc_name_hint="add"))
             bb.emit_func_output(gv)
         return bb.get()
 
