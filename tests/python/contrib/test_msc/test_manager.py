@@ -38,7 +38,7 @@ def _get_config(model_type, compile_type, inputs, outputs, atol=1e-1, rtol=1e-1)
     path = "test_manager_{}_{}".format(model_type, compile_type)
     return {
         "workspace": msc_utils.msc_dir(path),
-        "verbose": "debug:1",
+        "verbose": "critical",
         "model_type": model_type,
         "inputs": inputs,
         "outputs": outputs,
