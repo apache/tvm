@@ -40,7 +40,7 @@ from tvm.driver.tvmc.model import TVMCPackage
 from tvm.contrib import utils
 
 
-def _test_save_dumps(tmpdir_factory):
+def test_save_dumps(tmpdir_factory):
     tmpdir = tmpdir_factory.mktemp("data")
     dump_formats = {"relay": "fake relay", "tir": "fake tir", "ll": "fake llvm", "asm": "fake asm"}
     tvmc.compiler.save_dumps("fake_module", dump_formats, dump_root=tmpdir)
@@ -51,7 +51,7 @@ def _test_save_dumps(tmpdir_factory):
     assert path.exists("{}/{}".format(tmpdir, "fake_module.relay"))
 
 
-def _test_save_dump_offloads_ethosu(tmp_path_factory):
+def test_save_dump_offloads_ethosu(tmp_path_factory):
 
     tflite = pytest.importorskip("tflite")
     tensorflow = pytest.importorskip("tensorflow")
@@ -106,7 +106,7 @@ def _test_save_dump_offloads_ethosu(tmp_path_factory):
         )
         return op
 
-    from tests.python.contrib._test_ethosu.infra import get_tflite_graph
+    from tests.python.contrib.test_ethosu.infra import get_tflite_graph
 
     _, tflite_graph = get_tflite_graph(simple_net, [input_shape])
     tflite_model = tflite.Model.Model.GetRootAsModel(tflite_graph, 0)
@@ -186,7 +186,7 @@ def _test_save_dump_offloads_ethosu(tmp_path_factory):
                 assert r_output == r_expected
 
 
-def _test_save_dump_offloads_cmsis(tmp_path_factory):
+def test_save_dump_offloads_cmsis(tmp_path_factory):
 
     tflite = pytest.importorskip("tflite")
     tensorflow = pytest.importorskip("tensorflow")
@@ -240,7 +240,7 @@ def _test_save_dump_offloads_cmsis(tmp_path_factory):
         )
         return op
 
-    from tests.python.contrib._test_ethosu.infra import get_tflite_graph
+    from tests.python.contrib.test_ethosu.infra import get_tflite_graph
 
     _, tflite_graph = get_tflite_graph(simple_net, [input_shape])
     tflite_model = tflite.Model.Model.GetRootAsModel(tflite_graph, 0)
@@ -316,7 +316,7 @@ def _test_save_dump_offloads_cmsis(tmp_path_factory):
                 assert file_string.replace("\n", "") == expected[i]
 
 
-def _test_save_dump_offloads_generic(tmp_path_factory):
+def test_save_dump_offloads_generic(tmp_path_factory):
 
     tflite = pytest.importorskip("tflite")
     tensorflow = pytest.importorskip("tensorflow")
@@ -370,7 +370,7 @@ def _test_save_dump_offloads_generic(tmp_path_factory):
         )
         return op
 
-    from tests.python.contrib._test_ethosu.infra import get_tflite_graph
+    from tests.python.contrib.test_ethosu.infra import get_tflite_graph
 
     _, tflite_graph = get_tflite_graph(simple_net, [input_shape])
     tflite_model = tflite.Model.Model.GetRootAsModel(tflite_graph, 0)
@@ -473,7 +473,7 @@ def verify_compile_tflite_module(model, shape_dict=None, use_vm=False):
 
 
 @pytest.mark.parametrize("use_vm", [True, False])
-def _test_compile_tflite_module(use_vm, tflite_mobilenet_v1_1_quant):
+def test_compile_tflite_module(use_vm, tflite_mobilenet_v1_1_quant):
     # some CI environments wont offer tflite, so skip in case it is not present
     pytest.importorskip("tflite")
     # Check default compilation.
@@ -484,7 +484,7 @@ def _test_compile_tflite_module(use_vm, tflite_mobilenet_v1_1_quant):
     verify_compile_tflite_module(tflite_mobilenet_v1_1_quant, shape_dict, use_vm=use_vm)
 
 
-def _test_single_tir_dump(tflite_mobilenet_v1_1_quant):
+def test_single_tir_dump(tflite_mobilenet_v1_1_quant):
     pytest.importorskip("tflite")
     tvmc_model = tvmc.load(tflite_mobilenet_v1_1_quant)
     tvmc_package = tvmc.compile(tvmc_model, target="llvm", dump_code="tir")
@@ -494,7 +494,7 @@ def _test_single_tir_dump(tflite_mobilenet_v1_1_quant):
         assert "tir" in f.read()
 
 
-def _test_code_dumps(tflite_mobilenet_v1_1_quant):
+def test_code_dumps(tflite_mobilenet_v1_1_quant):
     pytest.importorskip("tflite")
     tvmc_model = tvmc.load(tflite_mobilenet_v1_1_quant)
     dump_code = ["asm", "ll", "tir", "relay"]
@@ -536,7 +536,7 @@ def test_cross_compile_aarch64_tflite_module(use_vm, tflite_mobilenet_v1_1_quant
 @pytest.mark.skipif(
     not shutil.which("aarch64-linux-gnu-gcc"), reason="cross-compilation toolchain not installed"
 )
-def _test_cross_compile_options_aarch64_tflite_module(tflite_mobilenet_v1_1_quant):
+def test_cross_compile_options_aarch64_tflite_module(tflite_mobilenet_v1_1_quant):
     pytest.importorskip("tflite")
 
     fake_sysroot_dir = utils.tempdir().relpath("")
@@ -559,7 +559,7 @@ def _test_cross_compile_options_aarch64_tflite_module(tflite_mobilenet_v1_1_quan
     assert os.path.exists(dumps_path)
 
 
-def _test_compile_keras__save_module(keras_resnet50, tmpdir_factory):
+def test_compile_keras__save_module(keras_resnet50, tmpdir_factory):
     # some CI environments wont offer tensorflow/Keras, so skip in case it is not present
     pytest.importorskip("tensorflow")
 
@@ -583,7 +583,7 @@ def _test_compile_keras__save_module(keras_resnet50, tmpdir_factory):
 @pytest.mark.skipif(
     not shutil.which("aarch64-linux-gnu-gcc"), reason="cross-compilation toolchain not installed"
 )
-def _test_cross_compile_aarch64_keras_module(keras_resnet50):
+def test_cross_compile_aarch64_keras_module(keras_resnet50):
     # some CI environments wont offer tensorflow/Keras, so skip in case it is not present
     pytest.importorskip("tensorflow")
 
@@ -608,7 +608,7 @@ def _test_cross_compile_aarch64_keras_module(keras_resnet50):
 @pytest.mark.skipif(
     not shutil.which("aarch64-linux-gnu-gcc"), reason="cross-compilation toolchain not installed"
 )
-def _test_cross_compile_options_aarch64_keras_module(keras_resnet50):
+def test_cross_compile_options_aarch64_keras_module(keras_resnet50):
     # some CI environments wont offer tensorflow/Keras, so skip in case it is not present
     pytest.importorskip("tensorflow")
 
@@ -642,7 +642,7 @@ def verify_compile_onnx_module(model, shape_dict=None, use_vm=False):
 
 
 @pytest.mark.parametrize("use_vm", [True, False])
-def _test_compile_onnx_module(use_vm, onnx_resnet50):
+def test_compile_onnx_module(use_vm, onnx_resnet50):
     # Test default compilation
     verify_compile_onnx_module(onnx_resnet50)
     # Test with manual shape dict
@@ -655,7 +655,7 @@ def _test_compile_onnx_module(use_vm, onnx_resnet50):
 @pytest.mark.skipif(
     not shutil.which("aarch64-linux-gnu-gcc"), reason="cross-compilation toolchain not installed"
 )
-def _test_cross_compile_aarch64_onnx_module(onnx_resnet50):
+def test_cross_compile_aarch64_onnx_module(onnx_resnet50):
     # some CI environments wont offer onnx, so skip in case it is not present
     pytest.importorskip("onnx")
 
@@ -680,7 +680,7 @@ def _test_cross_compile_aarch64_onnx_module(onnx_resnet50):
 @pytest.mark.skipif(
     not shutil.which("aarch64-linux-gnu-gcc"), reason="cross-compilation toolchain not installed"
 )
-def _test_cross_compile_options_aarch64_onnx_module(onnx_resnet50):
+def test_cross_compile_options_aarch64_onnx_module(onnx_resnet50):
     # some CI environments wont offer onnx, so skip in case it is not present
     pytest.importorskip("onnx")
 
@@ -718,7 +718,7 @@ def verify_compile_paddle_module(model, shape_dict=None):
     assert os.path.exists(dumps_path)
 
 
-def _test_compile_paddle_module(paddle_resnet50):
+def test_compile_paddle_module(paddle_resnet50):
     # some CI environments wont offer Paddle, so skip in case it is not present
     pytest.importorskip("paddle")
     # Check default compilation.
@@ -733,7 +733,7 @@ def _test_compile_paddle_module(paddle_resnet50):
 @pytest.mark.skipif(
     not shutil.which("aarch64-linux-gnu-gcc"), reason="cross-compilation toolchain not installed"
 )
-def _test_cross_compile_aarch64_paddle_module(paddle_resnet50):
+def test_cross_compile_aarch64_paddle_module(paddle_resnet50):
     # some CI environments wont offer paddle, so skip in case it is not present
     pytest.importorskip("paddle")
 
@@ -758,7 +758,7 @@ def _test_cross_compile_aarch64_paddle_module(paddle_resnet50):
 @pytest.mark.skipif(
     not shutil.which("aarch64-linux-gnu-gcc"), reason="cross-compilation toolchain not installed"
 )
-def _test_cross_compile_options_aarch64_paddle_module(paddle_resnet50):
+def test_cross_compile_options_aarch64_paddle_module(paddle_resnet50):
     # some CI environments wont offer paddle, so skip in case it is not present
     pytest.importorskip("paddle")
 
@@ -784,7 +784,7 @@ def _test_cross_compile_options_aarch64_paddle_module(paddle_resnet50):
 
 @pytest.mark.parametrize("use_vm", [True, False])
 @tvm.testing.requires_opencl
-def _test_compile_opencl(use_vm, tflite_mobilenet_v1_0_25_128):
+def test_compile_opencl(use_vm, tflite_mobilenet_v1_0_25_128):
     pytest.importorskip("tflite")
     tvmc_model = tvmc.load(tflite_mobilenet_v1_0_25_128)
     tvmc_package = tvmc.compile(
@@ -810,7 +810,7 @@ def _test_compile_opencl(use_vm, tflite_mobilenet_v1_0_25_128):
 
 
 @tvm.testing.requires_cmsisnn
-def _test_compile_tflite_module_with_external_codegen_cmsisnn(
+def test_compile_tflite_module_with_external_codegen_cmsisnn(
     tmpdir_factory, tflite_cnn_s_quantized
 ):
     pytest.importorskip("tflite")
@@ -844,7 +844,7 @@ def _test_compile_tflite_module_with_external_codegen_cmsisnn(
 
 
 @tvm.testing.requires_ethosn
-def _test_compile_tflite_module_with_external_codegen_ethos_n78(tflite_mobilenet_v1_1_quant):
+def test_compile_tflite_module_with_external_codegen_ethos_n78(tflite_mobilenet_v1_1_quant):
     pytest.importorskip("tflite")
     tvmc_model = tvmc.load(tflite_mobilenet_v1_1_quant)
     tvmc_package = tvmc.compile(tvmc_model, target="ethos-n -variant=n78, llvm", dump_code="relay")
@@ -859,7 +859,7 @@ def _test_compile_tflite_module_with_external_codegen_ethos_n78(tflite_mobilenet
 
 
 @tvm.testing.requires_vitis_ai
-def _test_compile_tflite_module_with_external_codegen_vitis_ai(tflite_mobilenet_v1_1_quant):
+def test_compile_tflite_module_with_external_codegen_vitis_ai(tflite_mobilenet_v1_1_quant):
     pytest.importorskip("tflite")
 
     tvmc_model = tvmc.load(tflite_mobilenet_v1_1_quant)
@@ -878,7 +878,7 @@ def _test_compile_tflite_module_with_external_codegen_vitis_ai(tflite_mobilenet_
     assert os.path.exists(dumps_path)
 
 
-def _test_compile_tflite_module_with_external_codegen_ethosu(
+def test_compile_tflite_module_with_external_codegen_ethosu(
     tmpdir_factory, tflite_mobilenet_v1_1_quant
 ):
     pytest.importorskip("tflite")
@@ -924,7 +924,7 @@ def _test_compile_tflite_module_with_external_codegen_ethosu(
 @mock.patch("tvm.driver.tvmc.load")
 @mock.patch("tvm.transform.PassContext")
 @mock.patch("tvm.driver.tvmc.model.TVMCPackage.__init__", return_value=None)
-def _test_compile_check_configs_composite_target(mock_pkg, mock_pc, mock_fe, mock_ct, mock_relay):
+def test_compile_check_configs_composite_target(mock_pkg, mock_pc, mock_fe, mock_ct, mock_relay):
     mock_codegen = {}
     mock_codegen["config_key"] = "relay.ext.mock.options"
     mock_codegen["pass_pipeline"] = lambda *args, **kwargs: None
@@ -952,7 +952,7 @@ def _test_compile_check_configs_composite_target(mock_pkg, mock_pc, mock_fe, moc
     )
 
 
-def _test_compile_tflite_module_with_mod_name(tmpdir_factory, tflite_cnn_s_quantized):
+def test_compile_tflite_module_with_mod_name(tmpdir_factory, tflite_cnn_s_quantized):
     pytest.importorskip("tflite")
 
     output_dir = tmpdir_factory.mktemp("mlf")
@@ -998,7 +998,7 @@ def _test_compile_tflite_module_with_mod_name(tmpdir_factory, tflite_cnn_s_quant
 
 
 @tvm.testing.requires_cmsisnn
-def _test_compile_tflite_module_with_mod_name_and_cmsisnn(tmpdir_factory, tflite_cnn_s_quantized):
+def test_compile_tflite_module_with_mod_name_and_cmsisnn(tmpdir_factory, tflite_cnn_s_quantized):
     pytest.importorskip("tflite")
 
     output_dir = tmpdir_factory.mktemp("mlf")
@@ -1048,7 +1048,7 @@ def _test_compile_tflite_module_with_mod_name_and_cmsisnn(tmpdir_factory, tflite
             assert b"tvmgen_classify_cmsis_nn_main_" in content
 
 
-def _test_compile_tflite_module_with_mod_name_and_ethosu(
+def test_compile_tflite_module_with_mod_name_and_ethosu(
     tmpdir_factory, tflite_mobilenet_v1_1_quant
 ):
     pytest.importorskip("tflite")
@@ -1103,7 +1103,7 @@ def _test_compile_tflite_module_with_mod_name_and_ethosu(
 @mock.patch("tvm.relay.build")
 @mock.patch("tvm.driver.tvmc.load")
 @mock.patch("tvm.driver.tvmc.model.TVMCPackage.__init__", return_value=None)
-def _test_compile_check_workspace_pools(mock_pkg, mock_fe, mock_relay):
+def test_compile_check_workspace_pools(mock_pkg, mock_fe, mock_relay):
     mock_fe.return_value = mock.MagicMock()
     mock_relay.return_value = mock.MagicMock()
     memory_pools = WorkspaceMemoryPools(
@@ -1120,7 +1120,7 @@ def _test_compile_check_workspace_pools(mock_pkg, mock_fe, mock_relay):
     assert mock_relay.call_args_list[0][1]["workspace_memory_pools"] == memory_pools
 
 
-def _test_compile_check_pass_instrument(keras_resnet50):
+def test_compile_check_pass_instrument(keras_resnet50):
     pytest.importorskip("tensorflow")
 
     @tvm.instrument.pass_instrument
