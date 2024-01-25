@@ -163,6 +163,11 @@ def add_compile_parser(subparsers, _, json_params):
         help="print compilation time per pass",
     )
     parser.add_argument(
+        "--use-vm",
+        action="store_true",
+        help="flag to use vm executor for compile and deploying",
+    )
+    parser.add_argument(
         "--print-ir-before",
         help="print IR before each named pass of a comma-separated list of pass names."
         "e.g. '--print-ir-before [tir.SplitHostDevice,tir.ConvertSSA]' ",
@@ -228,6 +233,7 @@ def drive_compile(args):
         pass_context_configs=args.pass_config,
         mod_name=args.module_name,
         additional_target_options=additional_targets,
+        use_vm=args.use_vm,
         workspace_pools=(
             workspace_pools_recombobulate(args, [workspace_pools_target], extra_targets)
         ),

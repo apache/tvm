@@ -49,6 +49,7 @@ import tarfile
 import json
 from typing import Optional, Union, Dict, Callable, TextIO
 from pathlib import Path
+import ast
 import numpy as np
 
 import tvm
@@ -189,6 +190,8 @@ class TVMCModel(object):
         self,
         vm_exec: Executable,
         package_path: Optional[str] = None,
+        cross: Optional[Union[str, Callable]] = None,
+        cross_options: Optional[str] = None,
         lib_format: str = "so",
     ):
         """Save this TVMCModel compiled via vm to file.
@@ -213,11 +216,33 @@ class TVMCModel(object):
             package_path = self.default_package_path()
 
         path_lib = temp.relpath(lib_name)
-        vm_exec.mod.export_library(path_lib)
+        if not cross:
+            vm_exec.mod.export_library(path_lib)
+        else:
+            if not cross_options:
+                vm_exec.mod.export_library(path_lib, fcompile=tvm.contrib.cc.cross_compiler(cross))
+            else:
+                vm_exec.mod.export_library(
+                    path_lib,
+                    fcompile=tvm.contrib.cc.cross_compiler(cross, options=cross_options.split(" ")),
+                )
         self.lib_path = path_lib
+
+        # Save input meta data
+        input_meta_name = "input_meta.json"
+        input_meta = {}
+        input_meta["shape_dict"] = {}
+        input_meta["dtype_dict"] = {}
+        for p in self.mod["main"].params:
+            input_meta["shape_dict"][p.name_hint] = str(p.checked_type.shape)
+            input_meta["dtype_dict"][p.name_hint] = str(p.checked_type.dtype)
+        with open(temp.relpath(input_meta_name), "w") as input_file:
+            json.dump(input_meta, input_file, indent=4)
+
         # Package up all the temp files into a tar file.
         with tarfile.open(package_path, "w") as tar:
             tar.add(path_lib, lib_name)
+            tar.add(temp.relpath(input_meta_name), input_meta_name)
 
         return package_path
 
@@ -322,7 +347,9 @@ class TVMCModel(object):
             raise TVMCException("Specifying the MLF output and a cross compiler is not supported.")
 
         if isinstance(executor_factory, Executable):
-            package_path = self.export_vm_format(executor_factory, package_path, output_format)
+            package_path = self.export_vm_format(
+                executor_factory, package_path, cross, cross_options, output_format
+            )
         elif output_format in ["so", "tar"]:
             package_path = self.export_classic_format(
                 executor_factory, package_path, cross, cross_options, output_format
@@ -451,6 +478,14 @@ class TVMCPackage(object):
                 graph = temp.relpath("mod.json")
                 params = temp.relpath("mod.params")
                 self.executor_type = "graph"
+            elif self.type == "vm":
+                input_meta_name = temp.relpath("input_meta.json")
+                with open(temp.relpath(input_meta_name), "r") as input_file:
+                    self.input_meta = json.load(input_file)
+                shape_dict = self.input_meta["shape_dict"]
+                for p in shape_dict.keys():
+                    self.input_meta["shape_dict"][p] = ast.literal_eval(shape_dict[p])
+                self.executor_type = "vm"
 
         if params is not None:
             with open(params, "rb") as param_file:
