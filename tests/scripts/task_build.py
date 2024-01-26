@@ -47,8 +47,9 @@ if __name__ == "__main__":
 
     if use_sccache:
         if args.sccache_bucket:
-            env["SCCACHE_BUCKET"] = args.sccache_bucket
-            logging.info(f"Using sccache bucket: {args.sccache_bucket}")
+            env["SCCACHE_BUCKET"] = "invalid_sccache_bucket"
+            logging.info(f"sccache bucket in args: {args.sccache_bucket}")
+            logging.info(f"Using sccache bucket: {env['SCCACHE_BUCKET']}")
         else:
             logging.info(f"No sccache bucket set, using local cache")
         env["CXX"] = "/opt/sccache/c++"
