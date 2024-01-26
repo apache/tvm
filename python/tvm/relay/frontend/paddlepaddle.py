@@ -203,12 +203,23 @@ def convert_batch_norm(g, op, block):
     mean_name = op.input("Mean")[0]
     variance_name = op.input("Variance")[0]
     epsilon = op.attr("epsilon")
+    data_layout = op.attr("data_layout")
+
+    if data_layout == "NCHW":
+        axis = 1
+    elif data_layout == "NHWC":
+        axis = 3
+    else:
+        msg = f'Value {data_layout} in attribute "batch_norm" of operator Conv is not "valid."'
+        raise tvm.error.OpAttributeInvalid(msg)
+    
     out = _op.nn.batch_norm(
-        g.get_node(ipt_name),
-        g.get_node(scale_name),
-        g.get_node(bias_name),
-        g.get_node(mean_name),
-        g.get_node(variance_name),
+        g.get_node(ipt_name),  # data
+        g.get_node(scale_name),  # gamma
+        g.get_node(bias_name),  # beta
+        g.get_node(mean_name),  # moving_mean
+        g.get_node(variance_name),  # moving_var
+        axis=axis,
         epsilon=epsilon,
     )
     g.add_node(op.output("Y")[0], out[0])
@@ -1208,10 +1219,8 @@ def convert_matmul(g, op, block):
 
     # This implemention almost keeps same with ONNX
     # Need to check input shape as batch matmul must be supported.
-    a_shape = shape_of(inputs[0], dtype="int32")
-    a_rank = infer_shape(a_shape)[0]
-    b_shape = shape_of(inputs[1], dtype="int32")
-    b_rank = infer_shape(b_shape)[0]
+    a_rank = len(a_shape)
+    b_rank = len(b_shape)
     # When performing a batch matmul, we need to properly handle N-dim shapes.
     if a_rank > 2 or b_rank > 2:
 
@@ -1524,10 +1533,16 @@ def convert_pool2d(g, op, block):
                 padding=paddings,
                 ceil_mode=ceil_mode,
                 count_include_pad=not exclusive,
+                layout=data_format
             )
         else:
             out = getattr(_op.nn, op_map[pooling_type])(
-                input_x, pool_size=ksize, strides=strides, padding=paddings, ceil_mode=ceil_mode
+                input_x, 
+                pool_size=ksize, 
+                strides=strides, 
+                padding=paddings, 
+                ceil_mode=ceil_mode, 
+                layout=data_format
             )
     else:
         out = getattr(_op.nn, "adaptive_" + op_map[pooling_type])(
@@ -2973,7 +2988,7 @@ class GraphProto:
         if scope is None:
             import paddle
 
-            scope = paddle.fluid.global_scope()
+            scope = paddle.static.global_scope()
         self.check_unsupported_ops(program)
         self.extract_parameters(program, scope)
         self.ops_to_relay(program)
