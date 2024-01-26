@@ -51,10 +51,6 @@ void StorageAccessVisitor::VisitExpr_(const BufferLoadNode* op) {
   }
   // traverse child
   StmtExprVisitor::VisitExpr_(op);
-  // push to the scope
-  scope_.back().push_back(curr_stmt_);
-  // clear access entry.
-  curr_stmt_.access.clear();
 }
 
 void StorageAccessVisitor::VisitStmt_(const BufferStoreNode* op) {
@@ -103,12 +99,13 @@ void StorageAccessVisitor::VisitStmt_(const LetStmtNode* op) {
   curr_stmt_.access.clear();
   ICHECK_EQ(curr_stmt_.access.size(), 0U);
   curr_stmt_.stmt = op;
-  StmtExprVisitor::VisitStmt_(op);
+  this->VisitExpr(op->value);
   // push to the scope
-  if (curr_stmt_.access.size() != 0) {
-    scope_.back().push_back(curr_stmt_);
-    curr_stmt_.access.clear();
-  }
+  scope_.back().push_back(curr_stmt_);
+  // clear access entry.
+  curr_stmt_.access.clear();
+  // traverse child
+  this->VisitStmt(op->body);
   allow_append_ = false;
 }
 
