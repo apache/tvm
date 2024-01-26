@@ -31,10 +31,14 @@ namespace tvm {
 namespace runtime {
 
 TVM_REGISTER_GLOBAL("tvm.contrib.flash_attn.flash_decoding_with_paged_kvcache")
-  .set_body_typed([](const DLTensor* query, const DLTensor* key_cache,
-                     const DLTensor* value_cache, const DLTensor* block_tables,
-                     const DLTensor* context_lens, DLTensor* softmax_lse_accum,
-                     DLTensor* output_accum, DLTensor* out) {
+  .set_body_typed([](const DLTensor* query,  // (batch_size, seqlen_q, num_heads, head_size), fp16
+		     const DLTensor* key_cache,  // (num_blocks, page_block_size, num_heads_k, head_size), fp16
+                     const DLTensor* value_cache,  // (num_blocks, page_block_size, num_heads_k, head_size), fp16
+		     const DLTensor* block_tables,  // (batch_size, max_num_blocks_per_seq), int32
+                     const DLTensor* context_lens,  // (batch_size,), int32
+		     DLTensor* softmax_lse_accum,  // (max_num_splits, batch_size, num_heads, seqlen_q), fp32
+                     DLTensor* output_accum,  // (max_num_splits, batch_size, num_heads, seqlen_q, head_size), fp32
+		     DLTensor* out) {  // (batch_size, seqlen_q, num_heads, head_size), fp16
       int batch_size = query->shape[0];
       int seqlen_q = query->shape[1];
       int num_heads = query->shape[2];
@@ -45,10 +49,17 @@ TVM_REGISTER_GLOBAL("tvm.contrib.flash_attn.flash_decoding_with_paged_kvcache")
       int max_num_blocks_per_seq = block_tables->shape[1];
       float softmax_scale = 1.0 / sqrt(static_cast<float>(head_dim));
 
+      ICHECK(block_size % 256 == 0) << "Block size needs to be a multiple of 256.";
+
       auto block_table_ptr = static_cast<int*>(block_tables->data);
       auto seqlens_k_ptr = static_cast<int*>(context_lens->data);
 
       using half = ::flash_attn::half;
+
+      ICHECK(TypeMatch(block_tables->dtype, kDLInt, 32));
+      ICHECK(TypeMatch(context_lens->dtype, kDLInt, 32));
+      ICHECK(TypeMatch(softmax_lse_accum->dtype, kDLFloat, 32));
+      ICHECK(TypeMatch(output_accum->dtype, kDLFloat, 32));
 
       auto q_ptr = static_cast<half*>(query->data);
       auto kcache_ptr = static_cast<half*>(key_cache->data);
