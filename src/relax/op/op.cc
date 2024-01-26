@@ -780,7 +780,9 @@ StructInfo ReturnTensorToShapeStructInfo(const Call& call, const BlockBuilder& c
   const auto* tsinfo = GetStructInfoAs<TensorStructInfoNode>(call->args[0]);
   ICHECK(tsinfo && tsinfo->shape.defined());
   ShapeExpr shape_expr = Downcast<ShapeExpr>(tsinfo->shape.value());
-  ICHECK(shape_expr->values.size() == 1);
+  ICHECK(shape_expr->values.size() == 1) << "relax.tensor_to_shape expected argument to be 1-d, "
+                                         << "but " << call << " has argument " << call->args[0]
+                                         << " with struct info " << call->args[0]->struct_info_;
   const IntImmNode* ndim = shape_expr->values[0].as<IntImmNode>();
   ICHECK(ndim);
   return ShapeStructInfo(ndim->value);
