@@ -2988,7 +2988,7 @@ class GraphProto:
         if scope is None:
             import paddle
 
-            scope = paddle.fluid.global_scope()
+            scope = paddle.static.global_scope()
         self.check_unsupported_ops(program)
         self.extract_parameters(program, scope)
         self.ops_to_relay(program)
