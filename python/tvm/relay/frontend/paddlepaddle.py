@@ -203,7 +203,7 @@ def convert_batch_norm(g, op, block):
     mean_name = op.input("Mean")[0]
     variance_name = op.input("Variance")[0]
     epsilon = op.attr("epsilon")
-    data_layout = op.attr("data_format")
+    data_layout = op.attr("data_layout")
 
     if data_layout == "NCHW":
         axis = 1
@@ -1219,10 +1219,8 @@ def convert_matmul(g, op, block):
 
     # This implemention almost keeps same with ONNX
     # Need to check input shape as batch matmul must be supported.
-    a_shape = shape_of(inputs[0], dtype="int32")
-    a_rank = infer_shape(a_shape)[0]
-    b_shape = shape_of(inputs[1], dtype="int32")
-    b_rank = infer_shape(b_shape)[0]
+    a_rank = len(a_shape)
+    b_rank = len(b_shape)
     # When performing a batch matmul, we need to properly handle N-dim shapes.
     if a_rank > 2 or b_rank > 2:
 
