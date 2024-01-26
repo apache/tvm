@@ -104,9 +104,9 @@ void StorageAccessVisitor::VisitStmt_(const LetStmtNode* op) {
   scope_.back().push_back(curr_stmt_);
   // clear access entry.
   curr_stmt_.access.clear();
-  // traverse child
-  this->VisitStmt(op->body);
   allow_append_ = false;
+  // traverse body block
+  this->VisitStmt(op->body);
 }
 
 void StorageAccessVisitor::VisitStmt_(const AttrStmtNode* op) {
