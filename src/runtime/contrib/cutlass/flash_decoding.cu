@@ -30,15 +30,21 @@
 namespace tvm {
 namespace runtime {
 
+/*
+  query: (batch_size, seqlen_q, num_heads, head_size), fp16
+  key_cache: (num_blocks, page_block_size, num_heads_k, head_size), fp16
+  value_cache: num_blocks, page_block_size, num_heads_k, head_size), fp16
+  block_tables: (batch_size, max_num_blocks_per_seq), int32
+  context_lens: (batch_size,), int32
+  softmax_lse_accum: (max_num_splits, batch_size, num_heads, seqlen_q), fp32
+  output_accum: (max_num_splits, batch_size, num_heads, seqlen_q, head_size), fp32
+  out: (batch_size, seqlen_q, num_heads, head_size), fp16
+*/
 TVM_REGISTER_GLOBAL("tvm.contrib.flash_attn.flash_decoding_with_paged_kvcache")
-  .set_body_typed([](const DLTensor* query,  // (batch_size, seqlen_q, num_heads, head_size), fp16
-		     const DLTensor* key_cache,  // (num_blocks, page_block_size, num_heads_k, head_size), fp16
-                     const DLTensor* value_cache,  // (num_blocks, page_block_size, num_heads_k, head_size), fp16
-		     const DLTensor* block_tables,  // (batch_size, max_num_blocks_per_seq), int32
-                     const DLTensor* context_lens,  // (batch_size,), int32
-		     DLTensor* softmax_lse_accum,  // (max_num_splits, batch_size, num_heads, seqlen_q), fp32
-                     DLTensor* output_accum,  // (max_num_splits, batch_size, num_heads, seqlen_q, head_size), fp32
-		     DLTensor* out) {  // (batch_size, seqlen_q, num_heads, head_size), fp16
+  .set_body_typed([](const DLTensor* query, const DLTensor* key_cache,
+                     const DLTensor* value_cache, const DLTensor* block_tables,
+                     const DLTensor* context_lens, DLTensor* softmax_lse_accum,
+                     DLTensor* output_accum, DLTensor* out) {
       int batch_size = query->shape[0];
       int seqlen_q = query->shape[1];
       int num_heads = query->shape[2];
