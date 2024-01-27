@@ -212,7 +212,7 @@ def convert_batch_norm(g, op, block):
     else:
         msg = f'Value {data_layout} in attribute "batch_norm" of operator Conv is not "valid."'
         raise tvm.error.OpAttributeInvalid(msg)
-    
+
     out = _op.nn.batch_norm(
         g.get_node(ipt_name),  # data
         g.get_node(scale_name),  # gamma
@@ -1533,16 +1533,16 @@ def convert_pool2d(g, op, block):
                 padding=paddings,
                 ceil_mode=ceil_mode,
                 count_include_pad=not exclusive,
-                layout=data_format
+                layout=data_format,
             )
         else:
             out = getattr(_op.nn, op_map[pooling_type])(
-                input_x, 
-                pool_size=ksize, 
-                strides=strides, 
-                padding=paddings, 
-                ceil_mode=ceil_mode, 
-                layout=data_format
+                input_x,
+                pool_size=ksize,
+                strides=strides,
+                padding=paddings,
+                ceil_mode=ceil_mode,
+                layout=data_format,
             )
     else:
         out = getattr(_op.nn, "adaptive_" + op_map[pooling_type])(
