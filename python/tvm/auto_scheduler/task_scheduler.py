@@ -31,10 +31,11 @@ import numpy as np
 
 from .search_policy import SearchPolicy, SketchPolicy, PreloadMeasuredStates
 from .cost_model import RandomModel, XGBModel
-from .utils import array_mean
+from .utils import array_mean, get_multilayers, get_time, write_file
 from .measure import ProgramMeasurer
 from .measure_record import RecordReader
 from . import _ffi_api
+from .droplet_search import Droplet
 
 logger = logging.getLogger("auto_scheduler")
 
@@ -650,3 +651,48 @@ class LogEstimatedLatency(TaskSchedulerCallback):
                 % (time.time() - task_scheduler.tic, total_latency_str, task_scheduler.ct)
             )
             filep.flush()
+
+
+def droplet_exploitation(log_file, target="x86", verbose=True):
+    """optimization of the model after execution of the Ansor method, using
+    Droplet algorithm."""
+    cfg = get_multilayers(log_file)
+    _, time_total_ansor, _ = get_time(log_file)
+    time_droplet = 0
+
+    if verbose:
+        print("Layer, Droplet time (s), Ansor time (s), tuning time (s), speedup")
+
+    for layer, workload in enumerate(cfg):
+        log = f"layer_{layer}.log"
+        if os.path.isfile(log):
+            os.remove(log)
+
+        ansor_time, json_file = cfg[workload]
+        model = Droplet(json_file, target, log)
+        model.tune()
+
+        best_time, time_total, best_cfg = get_time(log)
+        time_droplet += time_total
+
+        # Append the best solution in the same Ansor's log
+        # solutions that are invalid or same are not saved
+        if np.mean(best_time) != 1e10:
+            write_file([best_cfg], log_file, "a")
+            if verbose:
+                print(
+                    "%d, %.6f, %.6f, %.2f, %.2f"
+                    % (
+                        layer,
+                        np.mean(best_time),
+                        np.mean(ansor_time),
+                        time_total,
+                        np.mean(ansor_time) / np.mean(best_time),
+                    )
+                )
+
+    if verbose:
+        print(
+            "Time Ansor (s): %.2f, Time Droplet (s): %.2f, Time Total (s): %.2f"
+            % (time_total_ansor, time_droplet, time_total_ansor + time_droplet)
+        )

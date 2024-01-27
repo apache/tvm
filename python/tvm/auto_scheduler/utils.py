@@ -408,3 +408,77 @@ def to_str_round(x, decimal=6):
         format_str = f"%.{decimal}f"
         return format_str % x
     raise ValueError(f"Invalid value: {str(x)}\ttype: {type(x)}")
+
+
+def get_multilayers(log):
+    """Collect from the log the multilayers results
+
+    Parameters
+    ----------
+    log: str
+        The input log path
+
+    Returns
+    -------
+    ret: dict(str : (str, str))
+        A dictionary with a tuple
+    """
+    hash_map = dict()
+    file = open(log, "r")
+    for line in file.readlines():
+        data = json.loads(line)
+        if "i" in data:
+            res, key = data["r"][0], data["i"][0][0]
+            if key not in hash_map or np.mean(hash_map[key][0]) > np.mean(res):
+                hash_map[key] = (res, data)
+    file.close()
+    return hash_map
+
+
+def write_file(json_list, log="/tmp/file.json", mode="w"):
+    """Write the log file
+
+    Parameters
+    ----------
+    json_list: list
+        The list input json
+    log: Optional[str]
+        Path destiny to save the log file
+    mode: Optional[str]
+        Mode save, "a" means append and "w" means write
+
+    Returns
+    -------
+    ret: str
+        log path file
+    """
+    with open(log, mode, encoding="utf-8") as outfile:
+        for j in json_list:
+            outfile.write(json.dumps(j) + "\n")
+    return log
+
+
+def get_time(log):
+    """Colect the time from log file
+
+    Parameters
+    ----------
+    log: str
+        The input log path
+
+    Returns
+    -------
+    ret: Union[float, float, dict]
+        Returns the best time, total time, and data
+    """
+    time_total, best_time, best_cfg = 0, 1e10, {}
+    f = open(log, "r")
+    for line in f.readlines():
+        data = json.loads(line)
+        if "r" in data:
+            res = data["r"][0]
+            time_total += data["r"][2]
+            if np.mean(res) < np.mean(best_time):
+                best_time, best_cfg = res, data
+    f.close()
+    return best_time, time_total, best_cfg
