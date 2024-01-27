@@ -97,10 +97,22 @@ class BlockAnalyzer(object):
 
 
 class Node(object):
-    def __init__(self) -> None:
+    def __init__(self, tags: Dict = {}) -> None:
         self._dtypes = []
+        self._tag: Dict = {}
+        for tag in tags:
+            self.add_tag(tag, tags[tag])
 
+    def set_tag(self, k: str, v: Any = True) -> None:
+        self.add_tag(k, v)
 
+    def add_tag(self, k: str, v: Any = True) -> None:
+        self._tag[k] = v
+
+    def get_tag(self, k: str) -> Any:
+        if k not in self._tag:
+            return None
+        return self._tag[k]
 class BufferNode(Node):
     """BufferNode is a wrapper of tir.Buffer, which is used to store the buffer information."""
 
@@ -111,14 +123,6 @@ class BufferNode(Node):
         for tag in tags:
             self.add_tag(tag, tags[tag])
         self.set_dtype(tvm.DataType(self.buffer.dtype))
-
-    def add_tag(self, k: str, v: Any = True) -> None:
-        self._tag[k] = v
-
-    def get_tag(self, k: str) -> Any:
-        if k not in self._tag:
-            return None
-        return self._tag[k]
 
     def set_dtype(self, dtype: tvm.DataType, id=0) -> None:
         assert isinstance(dtype, tvm.DataType), type(dtype)
@@ -139,8 +143,8 @@ class BufferNode(Node):
 
 class PrimFuncNode(Node):
     def __init__(self, prim_func: PrimFunc, tags: Dict = {}) -> None:
-        super().__init__()
-        self.prim_func = prim_func
+        super().__init__(tags)
+        self.prim_func = self._specialize_func(prim_func)
         self.sch: tir.Schedule = tir.Schedule(self.prim_func)
         self.block_analyzer: BlockAnalyzer = BlockAnalyzer(self.sch)
         self.schedule_stages: List[BlockRV] = []
@@ -152,11 +156,17 @@ class PrimFuncNode(Node):
         self.output_buffers = []
         self.buffers = []
         self.args = []
-        self._tag: Dict = {}
-        for tag in tags:
-            self.add_tag(tag, tags[tag])
         self._analysis_funcinfo()
         self.ana = get_analyzer_by_tir(self.block_analyzer, self.blocks)
+
+    def _specialize_func(self, func: PrimFunc):
+        # Specialize the function to make it more friendly for analysis.
+        opt_shapes = self.get_tag("opt_shapes")
+        if opt_shapes:
+            for name, shape in opt_shapes.items():
+                var = analysis.find_var_from_func(func, name)
+                func = func.specialize({var: shape})
+        return func
 
     def _analysis_funcinfo(self):
         root_block = analysis.get_root_block(self.sch)
@@ -185,6 +195,9 @@ class PrimFuncNode(Node):
                     self.output_buffers.append(write.buffer)
 
         for param in self.prim_func.params:
+            if param not in self.prim_func.buffer_map:
+                # in case of dynamic symbolic may in params
+                continue
             buffer = self.prim_func.buffer_map[param]
             if buffer not in self.output_buffers:
                 self.input_buffers.append(buffer)
@@ -195,6 +208,20 @@ class PrimFuncNode(Node):
         # set dtype
         self.set_dtype(tvm.DataType(self.output_buffers[0].dtype))
 
+    def get_opt_shape(self, name) -> int:
+        opt_shapes = self.get_tag("opt_shapes")
+        if opt_shapes is None:
+            return None
+        return opt_shapes[name]
+
+    def extent_warpper(self, value) -> int:
+        if isinstance(value, tvm.tir.Var):
+            return self.get_opt_shape(value.name)
+        elif isinstance(value, tvm.tir.IntImm):
+            return int(value)
+        else:
+            return value
+
     @functools.lru_cache()
     def get_space_dim(self) -> List[int]:
         dim_size = []
@@ -202,24 +229,17 @@ class PrimFuncNode(Node):
             block_info = self.block_analyzer.get_block_info(self.reduction_block)
             for iter in block_info.iters:
                 if iter.kind == "S":
-                    dim_size.append(int(iter.dom.extent))
+                    if isinstance(iter.dom.extent, tvm.tir.IntImm):
+                        dim_size.append(int(iter.dom.extent))
+                    else:
+                        assert isinstance(iter.dom.extent, tvm.tir.Var)
+                        dim_size.append(self.get_opt_shape(iter.dom.extent.name))
         else:
             # assume outer stage has the same shape
             loops = self.sch.get_loops(self.schedule_stages[0])
             for loop in loops:
                 dim_size.append(int(self.sch.get(loop).extent))
         return [int(x) for x in dim_size]
-
-    def set_tag(self, k: str, v: Any = True) -> None:
-        self.add_tag(k, v)
-
-    def add_tag(self, k: str, v: Any = True) -> None:
-        self._tag[k] = v
-
-    def get_tag(self, k: str) -> Any:
-        if k not in self._tag:
-            return None
-        return self._tag[k]
 
     def set_dtype(self, dtype: tvm.DataType, id=0) -> None:
         assert isinstance(dtype, tvm.DataType), type(dtype)
@@ -257,7 +277,7 @@ class PrimFuncNode(Node):
                 continue
             # should not exceed original shape
             trimmed_shape = [
-                int(i) for i in list(map(min, zip(shapes[arg.name], self.input_buffers[i].shape)))
+               self.extent_warpper(i) for i in list(map(min, zip(shapes[arg.name], self.input_buffers[i].shape)))
             ]
             results.append(trimmed_shape)
         return results

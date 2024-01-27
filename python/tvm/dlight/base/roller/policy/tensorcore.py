@@ -300,6 +300,7 @@ class TensorCorePolicy(DefaultPolicy):
         codegen_dict.complete_config(node)
         codegen_dict.vectorize = self._plan_vectorize(self.prim_func_node, td, block_size)
         codegen_dict.arch = self.arch
+        codegen_dict.opt_shapes = self.prim_func_node.get_tag("opt_shapes")
         return codegen_dict
 
     def plan_rasterization(self, td: TileDict):

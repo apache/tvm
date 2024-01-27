@@ -124,13 +124,14 @@ class IntrinInfo:
     The information of tensorcore intrinsic related infomation
     """
 
-    def __init__(self, in_dtype: str, out_dtype: str, trans_b: bool) -> None:
+    def __init__(self, in_dtype: str, out_dtype: str, trans_b: bool, smooth_b: bool = False) -> None:
         self.in_dtype = in_dtype
         self.out_dtype = out_dtype
         self.trans_b = trans_b
+        self.smooth_b = smooth_b
 
     def __repr__(self) -> str:
-        return f"<IntrinInfo, {self.in_dtype}, {self.out_dtype}, {self.trans_b}>"
+        return f"<IntrinInfo, {self.in_dtype}, {self.out_dtype}, {self.trans_b}, {self.propagate_b}>"
 
 
 class Config(object):
@@ -164,6 +165,7 @@ class Config(object):
         self.vectorize: Dict[str, int] = {}
         self.pipeline_stage = 1
         self.use_async = False
+        self.opt_shapes : Dict[str, int] = {}
         self.intrin_info = IntrinInfo("float16", "float16", True)
 
     def to_dict(self) -> Dict:

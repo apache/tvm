@@ -442,6 +442,12 @@ def normalize_prim_func(sch: tir.Schedule) -> Optional[List[BlockInfo]]:
         )
     return blocks
 
+def find_var_from_func(func, var: str):
+    for buffer in func.buffer_map.values():
+        for i in buffer.shape:
+            if isinstance(i, tir.Var) and i.name == var:
+                return i
+    raise ValueError(f"Cannot find var {var} from func {func}")
 
 def _assert_gpu_target(target: Target):
     if "gpu" not in target.keys:

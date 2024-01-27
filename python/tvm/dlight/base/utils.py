@@ -118,6 +118,15 @@ def apply_and_build_parallel(
     num_repeats=3,
 ) -> CompileResult:
     cpresults = []
+    
+    def var_warpper(v):
+        if isinstance(v, tvm.tir.Var):
+            assert v.name in config.opt_shapes
+            return config.opt_shapes[v.name]
+        elif isinstance(v, tvm.tir.IntImm):
+            return v.value
+        else:
+            raise RuntimeError("Not supported type: ", type(v))
 
     profile_tensors = []
     for param in func.params:
@@ -195,6 +204,16 @@ def apply_and_build(
     for config in configs:
         config, sch, mod = _apply_and_build(func, config, arch)
 
+        def var_warpper(v):
+            if isinstance(v, tvm.tir.Var):
+                print(config.opt_shapes)
+                assert v.name in config.opt_shapes
+                return config.opt_shapes[v.name]
+            elif isinstance(v, tvm.tir.IntImm):
+                return v.value
+            else:
+                raise RuntimeError("Not supported type: ", type(v))
+
         cpresult = CompileResult(config, sch, mod)
         profile_tensors = []
         for param in func.params:
@@ -202,14 +221,14 @@ def apply_and_build(
             if arg.dtype == "int8":
                 profile_tensors.append(
                     tvm.nd.array(
-                        np.random.randint(-127, 128, [int(i) for i in arg.shape]).astype(arg.dtype),
+                        np.random.randint(-127, 128, [var_warpper(i) for i in arg.shape]).astype(arg.dtype),
                         device=arch.device,
                     )
                 )
             else:
                 profile_tensors.append(
                     tvm.nd.array(
-                        np.random.uniform(0, 1, [int(i) for i in arg.shape]).astype(arg.dtype),
+                        np.random.uniform(0, 1, [var_warpper(i) for i in arg.shape]).astype(arg.dtype),
                         device=arch.device,
                     )
                 )
