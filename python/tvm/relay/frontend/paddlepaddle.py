@@ -1223,6 +1223,8 @@ def convert_matmul(g, op, block):
     b_rank = len(b_shape)
     # When performing a batch matmul, we need to properly handle N-dim shapes.
     if a_rank > 2 or b_rank > 2:
+        a_shape = shape_of(inputs[0], dtype="int32")
+        b_shape = shape_of(inputs[1], dtype="int32")
 
         def flatten_to_nd(x, x_shape, nd=3):
             ndims = infer_shape(x_shape)[0]
