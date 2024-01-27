@@ -96,7 +96,6 @@ void StorageAccessVisitor::VisitStmt_(const EvaluateNode* op) {
 
 void StorageAccessVisitor::VisitStmt_(const LetStmtNode* op) {
   allow_append_ = true;
-  curr_stmt_.access.clear();
   ICHECK_EQ(curr_stmt_.access.size(), 0U);
   curr_stmt_.stmt = op;
   this->VisitExpr(op->value);
