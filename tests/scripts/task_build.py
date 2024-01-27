@@ -47,12 +47,9 @@ if __name__ == "__main__":
     build_dir = build_dir.relative_to(REPO_ROOT)
 
     if use_sccache:
-        if args.sccache_bucket:
+        if args.sccache_bucket and "AWS_ACCESS_KEY_ID" in os.environ:
             env["SCCACHE_BUCKET"] = args.sccache_bucket
-            env["SCCACHE_REGION"] = "us-west-2"
-            if args.sccache_region:
-                env["SCCACHE_REGION"] = args.sccache_region
-
+            env["SCCACHE_REGION"] = args.sccache_region if args.sccache_region else "us-west-2"
             logging.info(f"Using sccache bucket: {args.sccache_bucket}")
             logging.info(f"Using sccache region: {env['SCCACHE_REGION']}")
         else:
