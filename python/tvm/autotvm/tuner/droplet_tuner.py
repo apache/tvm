@@ -18,7 +18,6 @@
 
 import logging
 import os
-
 import numpy as np
 
 from .tuner import Tuner
@@ -51,7 +50,7 @@ class DropletTuner(Tuner):
 
         # start position
         start_position = [0] * len(self.dims) if start_position is None else start_position
-        self.best_choice = (-1, [0] * len(self.dims), [99999])
+        self.best_choice, self.found_best_pos = (-1, [0] * len(self.dims), [99999]), True
         self.visited = set([self.space.knob2point(start_position)])
         self.execution, self.total_execution, self.pvalue = 1, max(self.dims), pvalue
         self.step, self.iter, self.batch = 1, 0, max(16, os.cpu_count())
@@ -63,7 +62,9 @@ class DropletTuner(Tuner):
 
     def search_space(self, factor=1):
         search_space = []
-        for i in range(2 ** len(self.dims) - 1, 0, -1):
+        for i in range(1, 2 ** len(self.space.dims) - 1):
+            if len(search_space) > 2 * self.batch:
+                break
             search_space += [self.num_to_bin(i, factor)] + [self.num_to_bin(i, -factor)]
         return search_space
 
@@ -86,7 +87,6 @@ class DropletTuner(Tuner):
     def p_value(self, elem_1, elem_2):
         if len(elem_1) <= 1 or len(elem_2) <= 1:
             return True
-
         from scipy import stats  # pylint: disable=import-outside-toplevel
 
         return stats.ttest_ind(np.array(elem_1), np.array(elem_2)).pvalue <= self.pvalue
@@ -107,14 +107,14 @@ class DropletTuner(Tuner):
             self.next += self.next_pos(self.search_space(self.execution))
 
     def update(self, inputs, results):
-        found_best_pos, count_valids = False, 0
+        self.found_best_pos, count_valids = False, 0
         for i, (_, res) in enumerate(zip(inputs, results)):
             try:
                 if np.mean(self.best_choice[2]) > np.mean(res.costs) and self.p_value(
                     self.best_choice[2], res.costs
                 ):
                     self.best_choice = (self.next[i][0], self.next[i][1], res.costs)
-                    found_best_pos = True
+                    self.found_best_pos = True
                 count_valids += 1
             except TypeError:
                 LOGGER.debug("Solution is not valid")
@@ -123,7 +123,7 @@ class DropletTuner(Tuner):
                 continue
 
         self.next = self.next[self.batch : -1]
-        if found_best_pos:
+        if self.found_best_pos:
             self.next += self.next_pos(self.search_space())
             self.execution = 1
         self.speculation()

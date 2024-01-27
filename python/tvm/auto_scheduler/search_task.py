@@ -22,6 +22,7 @@ import json
 import os
 import logging
 import numpy as np
+from collections import OrderedDict
 
 import tvm._ffi
 from tvm.runtime import Object, ndarray
@@ -594,6 +595,11 @@ class SearchTask(Object):
             state["task_input_names"],
             state["desc"],
         )
+
+    @property
+    def config_space(self):
+        """Create a link with AutoTVM"""
+        self.space_map = OrderedDict()
 
 
 def create_task(func, args, target, target_host=None, hardware_params=None):
