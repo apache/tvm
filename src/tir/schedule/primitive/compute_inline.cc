@@ -320,6 +320,11 @@ class BaseInliner : public StmtExprMutator {
       block = tgt_stmt.as<BlockNode>();
       ICHECK(block != nullptr);
     }
+    // Bind the block iter domains to the analyzer for simplification
+    for (const IterVar& iter : src_block->iter_vars) {
+      analyzer_.Bind(iter->var, iter->dom);
+    }
+
     Block tgt_block = Downcast<Block>(StmtExprMutator::VisitStmt_(block));
     bool is_scope_root = src_block.get() == scope_root_sref_->stmt;
     tgt_block = UpdateBuffersInBlockSignature(std::move(tgt_block), is_scope_root);
@@ -415,6 +420,8 @@ class BaseInliner : public StmtExprMutator {
   }
 
  protected:
+  /*! \brief The arithmetic analyzer */
+  arith::Analyzer analyzer_;
   /*! \brief The buffer to be inlined */
   Buffer inlined_buffer_{nullptr};
   /*! \brief The body of the block to be inlined */
@@ -534,7 +541,7 @@ class ComputeInliner : public BaseInliner {
 
   PrimExpr ReplaceInlinedBuffer(BufferLoad load) {
     SetIndexSubstitution(load->indices);
-    return Substitute(store_value_, idx_sub_);
+    return analyzer_.Simplify(Substitute(store_value_, idx_sub_));
   }
 
   /*!
@@ -549,8 +556,6 @@ class ComputeInliner : public BaseInliner {
     }
   }
 
-  /*! \brief The arithmetic analyzer */
-  arith::Analyzer analyzer_;
   /*! \brief The store value for inlinement. If the producer
    store indices are trivial, it is wrt the producer block iter var,
    otherwise it is wrt to the placeholder vars of store indices. */
