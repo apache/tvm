@@ -115,13 +115,13 @@ class PrimFunc(BaseFunc, Scriptable):
             span,
         )
 
-    def specialize(self, param_map: Mapping[Var, Union[PrimExpr, Buffer]]):
+    def specialize(self, param_map: Mapping[Union[str, Var], Union[PrimExpr, Buffer]]):
         """Specialize parameters of PrimFunc
 
         Parameters
         ----------
 
-        param_map : Mapping[Var, Union[PrimExpr, Buffer]]
+        param_map : Mapping[Union[str, Var], Union[PrimExpr, Buffer]]
             The mapping from function params to the instance
 
         Examples
@@ -168,6 +168,23 @@ class PrimFunc(BaseFunc, Scriptable):
         func : PrimFunc
             The new function with parameter specialized
         """
+
+        def find_variable_from_function(function, variable_name: str):
+            for buffer in function.buffer_map.values():
+                for dimension in buffer.shape:
+                    if isinstance(dimension, tvm.tir.Var) and dimension.name == variable_name:
+                        return dimension
+            raise ValueError(f"Cannot find variable {variable_name} from function {function}")
+
+        # Legalize string keys to Var
+        legalized_parameter_map = {}
+        for key, value in param_map.items():
+            if isinstance(key, str):
+                variable = find_variable_from_function(self, key)
+                legalized_parameter_map[variable] = value
+            else:
+                legalized_parameter_map[key] = value
+        param_map = legalized_parameter_map
         return _ffi_api.Specialize(self, param_map)  # type: ignore
 
 
