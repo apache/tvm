@@ -1478,6 +1478,12 @@ llvm::Value* CodeGenLLVM::CreateIntrinsic(const CallNode* op) {
     return builder_->CreateAssumption(cond);
   } else if (op->op.same_as(builtin::tvm_thread_invariant())) {
     return MakeValue(op->args[0]);
+#if TVM_LLVM_VERSION >= 110
+  } else if (op->op.same_as(builtin::vscale())) {
+    llvm::Intrinsic::ID id = llvm::Intrinsic::vscale;
+    llvm::Function* f = GetIntrinsicDecl(id, builder_->getInt32Ty(), {});
+    return builder_->CreateCall(f);
+#endif
   } else {
     LOG(FATAL) << "unknown intrinsic " << op->op;
   }

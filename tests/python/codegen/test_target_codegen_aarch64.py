@@ -16,10 +16,8 @@
 # under the License.
 import tvm
 from tvm import te
-from tvm.script import tir as TIR
+from tvm.script import tir as T
 import re
-import os
-import ctypes
 import pytest
 
 from tvm.target.codegen import llvm_version_major
@@ -474,6 +472,24 @@ def test_memcpy(dtype):
         assert len(loads) > 0
 
     check_correct_assembly(type=dtype)
+
+
+@pytest.mark.skipif(
+    llvm_version_major() < 10, reason="Vscale is not supported in earlier versions of LLVM"
+)
+def test_codegen_vscale():
+    target = "llvm -mtriple=aarch64-linux-gnu -mattr=+sve"
+    vscale = tvm.tir.vscale()
+
+    @T.prim_func
+    def main(A: T.Buffer((5,), "int32")):
+        for i in range(5):
+            A[i] = 2 * vscale
+
+    build_mod = tvm.build(main, target=target)
+    llvm = build_mod.get_source()
+
+    assert re.findall(r"llvm.vscale.i32", llvm), "No vscale in generated LLVM."
 
 
 if __name__ == "__main__":

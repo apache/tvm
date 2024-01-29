@@ -909,6 +909,11 @@ TVM_DLL const Op& anylist_setitem_call_packed();
  */
 TVM_DLL const Op& anylist_setitem_call_cpacked();
 
+/*!
+ * \brief Get the target's vscale value
+ */
+TVM_DLL const Op& vscale();
+
 /*! \brief The kind of structure field info used in intrinsic */
 enum TVMStructFieldKind : int {
   // array head address
