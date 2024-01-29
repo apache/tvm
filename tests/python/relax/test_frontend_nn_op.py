@@ -26,6 +26,31 @@ from tvm.script import tir as T
 # mypy: disable-error-code="attr-defined,valid-type,name-defined"
 
 
+def test_unary():
+    class Model(Module):
+        def test(self, x: Tensor):
+            z0 = op.square(x)
+            return (x,)
+
+    # fmt: off
+    @R.function
+    def test(x: R.Tensor((1, 10), dtype="float32"), _io: R.Object):
+        R.func_attr({"num_input": 2})
+        with R.dataflow():
+            square: R.Tensor((1, 10), dtype="float32") = R.square(x)
+            gv1 = (x,), (_io,)
+            R.output(gv1)
+        return gv1
+    # fmt: on
+
+    m = Model()
+    irmodule, _ = m.export_tvm(
+        spec={"test": {"x": spec.Tensor([1, 10], "float32")}},
+        debug=True,
+    )
+    tvm.ir.assert_structural_equal(irmodule["test"], test)
+
+
 def test_binary():
     class Model(Module):
         def test(self, x: Tensor, y: Tensor):
@@ -298,6 +323,7 @@ def test_nn():
             relu_out = op.relu(x)
             silu_out = op.silu(x)
             gelu_out = op.gelu(x)
+            sigmoid_out = op.sigmoid(x)
             softmax_out = op.softmax(x, axis=2)
             rms_norm_out = op.rms_norm(x, weight, axes=[-2, -1])
             rms_norm_with_bias_out = op.rms_norm(x, weight, axes=[-2, -1])
@@ -316,6 +342,7 @@ def test_nn():
             relu: R.Tensor((2, 3, 4, 5), dtype="float32") = R.nn.relu(x)
             silu: R.Tensor((2, 3, 4, 5), dtype="float32") = R.nn.silu(x)
             gelu: R.Tensor((2, 3, 4, 5), dtype="float32") = R.nn.gelu(x)
+            sigmoid: R.Tensor((2, 3, 4, 5), dtype="float32") = R.sigmoid(x)
             softmax: R.Tensor((2, 3, 4, 5), dtype="float32") = R.nn.softmax(x, axis=2)
             rms_norm: R.Tensor((2, 3, 4, 5), dtype="float32") = R.nn.rms_norm(
                 x, weight, axes=[-2, -1], epsilon=1.0000000000000001e-05
