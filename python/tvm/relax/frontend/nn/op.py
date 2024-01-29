@@ -843,6 +843,31 @@ def gelu(x: Tensor, approximate: Optional[str] = None, name: str = "gelu") -> Te
     return wrap_nested(gelu_out, name)
 
 
+def sigmoid(x: Tensor, name: str = "sigmoid") -> Tensor:
+    r"""Computes sigmoid.
+
+    .. math:: \text{sigmoid}(x) = \frac{1}{1 + \exp(-x)}
+
+    Parameters
+    ----------
+    data: Tensor
+        The input data to the operator.
+
+    name : str
+        Name hint.
+
+    Returns
+    -------
+    result : Tensor
+        The computed result.
+
+    Note
+    ----
+    The input tensor is required to have float dtype
+    """
+    return wrap_nested(_op.sigmoid(x._expr), name)
+
+
 def softmax(x: Tensor, axis: int = -1, name: str = "softmax") -> Tensor:
     r"""Computes softmax.
 
@@ -1266,6 +1291,25 @@ def pad(
         Padded output tensor.
     """
     return wrap_nested(_op.nn.pad(x._expr, pad_width=pad, pad_value=value, pad_mode=mode), name)
+
+
+def square(x: Tensor, name: str = "square") -> Tensor:
+    """Computes the element-wise square of the input tensor.
+
+    Parameters
+    ----------
+    x : Tensor
+        The input tensor.
+
+    name : str
+        Name hint.
+
+    Returns
+    -------
+    result : Tensor
+        The computed result.
+    """
+    return wrap_nested(_op.square(x._expr), name)
 
 
 def get_timestep_embedding(
