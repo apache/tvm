@@ -42,8 +42,10 @@ def test_llvm_targets(capfd):
     tvm.target.codegen.llvm_get_cpu_features(
         tvm.target.Target("llvm -mtriple=x86_64-linux-gnu -mcpu=dummy")
     )
-    expected_str = ("Error: LLVM cpu architecture `-mcpu=dummy` is not valid in "
-                    "`-mtriple=x86_64-linux-gnu`, cpu architecture ignored")
+    expected_str = (
+        "Error: LLVM cpu architecture `-mcpu=dummy` is not valid in "
+        "`-mtriple=x86_64-linux-gnu`, using default `-mcpu=generic`"
+    )
     assert expected_str in capfd.readouterr().err
 
 

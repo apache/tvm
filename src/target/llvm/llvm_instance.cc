@@ -225,7 +225,7 @@ LLVMTargetInfo::LLVMTargetInfo(LLVMInstance& instance, const TargetJSON& target)
       // give the code a chance to run with a less-specific target.
       LOG(ERROR) << "LLVM cpu architecture `-mcpu=" << cpu_
                  << "` is not valid in `-mtriple=" << triple_ << "`"
-                 << ", cpu architecture ignored";
+                 << ", using default `-mcpu=" << String(defaults::cpu) << "`";
     }
   }
 
