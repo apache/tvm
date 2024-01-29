@@ -94,6 +94,20 @@ void StorageAccessVisitor::VisitStmt_(const EvaluateNode* op) {
   allow_append_ = false;
 }
 
+void StorageAccessVisitor::VisitStmt_(const LetStmtNode* op) {
+  allow_append_ = true;
+  ICHECK_EQ(curr_stmt_.access.size(), 0U);
+  curr_stmt_.stmt = op;
+  this->VisitExpr(op->value);
+  // push to the scope
+  scope_.back().push_back(curr_stmt_);
+  // clear access entry.
+  curr_stmt_.access.clear();
+  allow_append_ = false;
+  // traverse body block
+  this->VisitStmt(op->body);
+}
+
 void StorageAccessVisitor::VisitStmt_(const AttrStmtNode* op) {
   if (op->attr_key == attr::double_buffer_write) {
     ICHECK(double_buffer_write_ == nullptr);
