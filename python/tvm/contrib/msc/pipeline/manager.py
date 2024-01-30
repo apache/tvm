@@ -32,6 +32,8 @@ from tvm.contrib.msc.core.utils.namespace import MSCFramework, MSCMap, MSCKey
 from tvm.contrib.msc.core.utils.message import MSCStage
 from tvm.contrib.msc.core import utils as msc_utils
 from tvm.contrib.msc.core.gym.control import create_controller
+from tvm.contrib.msc.core import _ffi_api
+from tvm.contrib.msc.plugin.utils import load_plugins
 
 
 class BaseManager(object):
@@ -43,9 +45,25 @@ class BaseManager(object):
         The raw model in framwork.
     config: dict
         The config for pipeline.
+    plugins: dict
+        The plugins for pipeline.
+    root: str
+        The root path for files.
     """
 
-    def __init__(self, model: Any, config: dict):
+    def __init__(self, model: Any, config: dict, plugins: dict = None, root: str = None):
+        # change path to root path
+        if root:
+
+            def _from_root_mark(val):
+                if root and isinstance(val, str) and MSCKey.ROOT_MARK in val:
+                    return val.replace(MSCKey.ROOT_MARK, root)
+                return val
+
+            model = _from_root_mark(model)
+            config = msc_utils.map_dict(config, _from_root_mark)
+            plugins = msc_utils.map_dict(plugins, _from_root_mark)
+
         # check stage
         for stage in ["inputs", "outputs", "dataset", MSCStage.PREPARE, MSCStage.COMPILE]:
             assert stage in config, "{} should be given to run the pipeline".format(stage)
@@ -55,6 +73,10 @@ class BaseManager(object):
         self._model, self._device, self._training = self._get_runner_cls(
             self._model_type
         ).load_native(model)
+        if plugins:
+            self._plugins = load_plugins(plugins)
+        else:
+            self._plugins = {}
         use_cache = config.get("use_cache", True)
         self._workspace = msc_utils.set_workspace(config.get("workspace"), use_cache)
         self._verbose = config.get("verbose", "info")
@@ -87,6 +109,12 @@ class BaseManager(object):
         self._meta_config = config
         self._optimize_type = config.get(MSCStage.OPTIMIZE, {}).get("run_type", self._model_type)
         self._compile_type = config.get(MSCStage.COMPILE, {}).get("run_type", self._model_type)
+        # register plugins
+        if self._plugins:
+            for t in [self._model_type, self._optimize_type, self._compile_type]:
+                assert t in self._plugins, "Missing plugin for {}".format(t)
+            for name, plugin in self._plugins[self._model_type].get_ops_info().items():
+                _ffi_api.RegisterPlugin(name, msc_utils.dump_dict(plugin))
         self._config, self._debug_levels = self.update_config(config)
         self._tools_config = {}
         self._relax_mod, self._runner = None, None
@@ -100,7 +128,7 @@ class BaseManager(object):
             "duration": {},
             "profile": {},
         }
-        return {"workspace": self._workspace.path, "config": config}
+        return {"workspace": self._workspace.path, "plugins": self._plugins, "config": config}
 
     def update_config(self, config: dict) -> dict:
         """Update config
@@ -300,20 +328,22 @@ class BaseManager(object):
             self._logger.info("Load parsed mod from %s", cache_path)
         else:
             parse_config = msc_utils.copy_dict(stage_config.get("parse_config", {}))
-            runner_cls = self._get_runner_cls(self._config[MSCStage.COMPILE]["run_type"])
-            trans_func = (
-                runner_cls.target_transform if hasattr(runner_cls, "target_transform") else None
-            )
-            parse_info = {
-                "parser": stage_config["parser"],
-                "config": parse_config,
-                "trans_func": trans_func,
-            }
+            parse_info = {"parser": stage_config["parser"], "config": parse_config}
             self._logger.info(msc_utils.msg_block("PARSE", parse_info))
             parse_config["as_msc"] = False
+            if self._model_type in self._plugins:
+                plugin = self._plugins[self._model_type]
+                parse_config["custom_convert_map"] = plugin.get_convert_map()
             self._relax_mod, _ = stage_config["parser"](self._model, **parse_config)
-            if trans_func:
-                self._relax_mod = trans_func(self._relax_mod)
+            for stage in [MSCStage.OPTIMIZE, MSCStage.COMPILE]:
+                if stage not in self._config:
+                    continue
+                runner_cls = self._get_runner_cls(self._config[stage]["run_type"])
+                if hasattr(runner_cls, "target_transform"):
+                    self._logger.info(
+                        "Transform for stage %s: %s", stage, runner_cls.target_transform
+                    )
+                    self._relax_mod = runner_cls.target_transform(self._relax_mod)
             self._relax_mod = msc_transform.SetExprName()(self._relax_mod)
             if cache_path:
                 with open(cache_path, "w") as f:
@@ -498,6 +528,7 @@ class BaseManager(object):
         runner = runner_cls(
             self._relax_mod,
             tools_config=tools_config,
+            plugin=self._plugins.get(stage_config["run_type"]),
             stage=stage,
             logger=self._logger,
             **run_config,
@@ -534,6 +565,10 @@ class BaseManager(object):
 
         assert tool_type in stage_config, "Can not find config for tool " + str(tool_type)
         tool_stage, tool_config = self._get_tool_stage(tool_type), stage_config[tool_type]
+        if "run_type" in tool_config:
+            run_type = tool_config.pop("run_type")
+        else:
+            run_type = stage_config["run_type"]
         plan_file = tool_config["plan_file"]
         if "gym_configs" in tool_config:
             gym_configs = tool_config.pop("gym_configs")
@@ -548,10 +583,7 @@ class BaseManager(object):
             self._logger.info("Skip %s with plan %s", tool_type, plan_file)
             return plan_file
         msc_utils.time_stamp(tool_stage)
-        t_stage_config = {
-            "run_type": stage_config["run_type"],
-            "run_config": stage_config["run_config"],
-        }
+        t_stage_config = {"run_type": run_type, "run_config": stage_config["run_config"]}
         runner = self._create_runner(
             tool_stage, t_stage_config, tools_config=tools_config, profile=False, use_cache=False
         )

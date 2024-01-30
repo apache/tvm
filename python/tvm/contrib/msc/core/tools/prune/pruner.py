@@ -82,6 +82,7 @@ class BasePruner(WeightTool):
         def _update_stages(strategy):
             if "stages" not in strategy:
                 strategy["stages"] = [msc_utils.MSCStage.PRUNE]
+            strategy["tensor_types"] = ["weight", "output"]
             return strategy
 
         return super()._parse_strategys([_update_stages(s) for s in strategy_list])

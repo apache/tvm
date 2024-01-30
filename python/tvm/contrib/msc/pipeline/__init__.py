@@ -17,3 +17,4 @@
 """tvm.contrib.msc.pipeline"""
 
 from .manager import *
+from .wrapper import *

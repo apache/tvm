@@ -16,7 +16,7 @@
 # under the License.
 """tvm.contrib.msc.framework.tensorflow.codegen.codegen"""
 
-from typing import Dict, Optional
+from typing import Dict, Optional, Any
 
 import tvm
 from tvm.contrib.msc.core.ir import MSCGraph
@@ -32,6 +32,7 @@ def to_tensorflow(
     codegen_config: Optional[Dict[str, str]] = None,
     print_config: Optional[Dict[str, str]] = None,
     build_folder: msc_utils.MSCDirectory = None,
+    plugin: Any = None,
 ) -> tf_v1.Graph:
     """Change MSCGraph to tensorflow graph.
 
@@ -47,6 +48,8 @@ def to_tensorflow(
         The config for print.
     build_folder: MSCDirectory
         The folder for saving scripts and datas.
+    plugin: PluginManager
+        The plugin manager.
 
     Returns
     -------
@@ -63,4 +66,7 @@ def to_tensorflow(
     codegen = CodeGen(
         graph, _ffi_api.GetTensorflowSources, codegen_config, print_config, build_folder
     )
-    return codegen.load(inputs + [weights], pre_load=_save_weights)
+    model_args = inputs + [weights]
+    if plugin:
+        model_args = model_args + [plugin]
+    return codegen.load(model_args, pre_load=_save_weights)

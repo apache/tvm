@@ -57,6 +57,8 @@ class BaseRunner(object):
         Whether compile model to trainable
     stage: str
         The stage of runner.
+    plugin: PluginManager
+        The plugin manager.
     name: str
         The name of the runner
     debug_level: int
@@ -75,6 +77,7 @@ class BaseRunner(object):
         device: str = "cpu",
         training: bool = False,
         stage: str = "default",
+        plugin: Any = None,
         name: str = "main",
         debug_level: int = 0,
         logger: logging.Logger = None,
@@ -86,6 +89,7 @@ class BaseRunner(object):
         self._build_config = msc_utils.copy_dict(build_config)
         self._device = device if self._device_enabled(device) else "cpu"
         self._stage = stage
+        self._plugin = plugin
         self._name = name
         self._debug_level = debug_level
         self._training, self._trained = training, training
@@ -123,8 +127,11 @@ class BaseRunner(object):
                     stage=self._stage,
                     **config,
                 )
+        if self._plugin:
+            self._update_codegen({"use_plugin": True})
         return {
             "tools": {k: v.tool_style() for k, v in self._tools.items()},
+            "plugin": self._plugin,
             "translate_config": self._translate_config,
             "generate_config": self._generate_config,
             "build_config": self._build_config,
@@ -1069,6 +1076,7 @@ class ModelRunner(BaseRunner):
             codegen_config=self._generate_config.get("codegen"),
             print_config=self._generate_config.get("print"),
             build_folder=self._generate_config["build_folder"],
+            plugin=self._plugin,
         )
 
     def _inspect_model(self) -> dict:
@@ -1226,6 +1234,7 @@ class BYOCRunner(BaseRunner):
             extra_options=extra_option,
             build_folder=self._generate_config["build_folder"],
             output_folder=self._generate_config.get("output_folder", msc_utils.get_output_dir()),
+            plugin=self._plugin,
         )
 
     def _build_runnable(self, model: Any) -> Any:
