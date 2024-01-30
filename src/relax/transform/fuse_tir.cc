@@ -449,9 +449,9 @@ class FusedTIRConstructor : public ExprVisitor {
     for (size_t i = 0; i < func_info_.params.size(); i++) {
       input_to_idx[func_info_.params[i]] = Integer(i);
     }
-    for (auto kv : func_info_.buffer_map) {
-      if (input_to_idx.count(kv.first)) {
-        buffer_to_idx[kv.second] = input_to_idx[kv.first];
+    for (auto [var, buffer] : func_info_.buffer_map) {
+      if (auto it = input_to_idx.find(var); it != input_to_idx.end()) {
+        buffer_to_idx[buffer] = (*it).second;
       }
     }
 
@@ -462,8 +462,8 @@ class FusedTIRConstructor : public ExprVisitor {
       // Do not add output vars for in-place inputs
       // (i.e., already listed in the buffer map. This would result
       // in duplicates in the buffer map otherwise)
-      if (buffer_to_idx.count(buffers[i])) {
-        inplace_indices_.push_back(buffer_to_idx[buffers[i]]);
+      if (auto it = buffer_to_idx.find(buffers[i]); it != buffer_to_idx.end()) {
+        inplace_indices_.push_back((*it).second);
         continue;
       }
 
@@ -1080,10 +1080,10 @@ class TIRFuseMutator : public ExprMutator {
         }
         Op call_op = call_tir_op_;
         Attrs call_attrs = call->attrs;
-        if (inplace_indices_.count(old_gv)) {
+        if (auto it = inplace_indices_.find(old_gv); it != inplace_indices_.end()) {
           call_op = call_tir_inplace_op_;
           auto inplace_attrs = make_object<CallTIRInplaceAttrs>();
-          inplace_attrs->inplace_indices = inplace_indices_.at(old_gv);
+          inplace_attrs->inplace_indices = (*it).second;
           call_attrs = Attrs(inplace_attrs);
         }
         return Call(call_op, call_args, call_attrs, {GetStructInfo(call)});

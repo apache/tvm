@@ -1943,8 +1943,8 @@ def test_inplace_simple():
             for ax0, ax1 in T.grid(T.int64(10), T.int64(20)):
                 with T.block("T_add"):
                     v_ax0, v_ax1 = T.axis.remap("SS", [ax0, ax1])
-                    T.reads(A[v_ax0, v_ax1], B[()])
-                    T.writes(A[v_ax0, v_ax1])
+                    # T.reads(A[v_ax0, v_ax1], B[()])
+                    # T.writes(A[v_ax0, v_ax1])
                     A[v_ax0, v_ax1] = A[v_ax0, v_ax1] + B[()]
 
         @T.prim_func(private=True)
@@ -1953,8 +1953,8 @@ def test_inplace_simple():
             for i0, i1 in T.grid(T.int64(10), T.int64(20)):
                 with T.block("compute"):
                     v_i0, v_i1 = T.axis.remap("SS", [i0, i1])
-                    T.reads(A[v_i0, v_i1])
-                    T.writes(A[v_i0, v_i1])
+                    # T.reads(A[v_i0, v_i1])
+                    # T.writes(A[v_i0, v_i1])
                     A[v_i0, v_i1] = T.exp(A[v_i0, v_i1])
 
         @T.prim_func(private=True)
@@ -1963,8 +1963,8 @@ def test_inplace_simple():
             for ax0, ax1 in T.grid(T.int64(10), T.int64(20)):
                 with T.block("T_squeeze"):
                     v_ax0, v_ax1 = T.axis.remap("SS", [ax0, ax1])
-                    T.reads(A[v_ax0, v_ax1])
-                    T.writes(A[v_ax0, v_ax1])
+                    # T.reads(A[v_ax0, v_ax1])
+                    # T.writes(A[v_ax0, v_ax1])
                     A[v_ax0, v_ax1] = A[v_ax0, v_ax1]
 
         @R.function(private=True)
@@ -1974,7 +1974,11 @@ def test_inplace_simple():
             R.func_attr({"Primitive": 1})
             cls = Module
             with R.dataflow():
-                # this overwrites x and is actually evil but we are doing it just to test the pass
+                # This overwrites x and is actually evil because the function is marked as pure
+                # but we are doing it just to test the pass. The automatic DataflowUseInplaceCalls
+                # transformation will not produce code like this, but it may make sense to do it
+                # if ownership of x is fully and truly transferred.
+                # Users should apply with caution!
                 lv = R.call_tir_inplace(
                     cls.add_inplace,
                     (x, p0),
@@ -2018,20 +2022,14 @@ def test_inplace_simple():
             for ax0, ax1 in T.grid(T.int64(10), T.int64(20)):
                 with T.block("T_add"):
                     v_ax0, v_ax1 = T.axis.remap("SS", [ax0, ax1])
-                    T.reads(x[v_ax0, v_ax1], p0[()])
-                    T.writes(x[v_ax0, v_ax1])
                     x[v_ax0, v_ax1] = x[v_ax0, v_ax1] + p0[()]
             for i0, i1 in T.grid(T.int64(10), T.int64(20)):
                 with T.block("compute"):
                     v_i0, v_i1 = T.axis.remap("SS", [i0, i1])
-                    T.reads(x[v_i0, v_i1])
-                    T.writes(x[v_i0, v_i1])
                     x[v_i0, v_i1] = T.exp(x[v_i0, v_i1])
             for ax0, ax1 in T.grid(T.int64(10), T.int64(20)):
                 with T.block("T_squeeze"):
                     v_ax0, v_ax1 = T.axis.remap("SS", [ax0, ax1])
-                    T.reads(x[v_ax0, v_ax1])
-                    T.writes(x[v_ax0, v_ax1])
                     x[v_ax0, v_ax1] = x[v_ax0, v_ax1]
 
         # note that this will clobber x! Use with caution
@@ -2068,8 +2066,6 @@ def test_fuse_inplace_and_non_inplace():
             for ax0, ax1 in T.grid(T.int64(10), T.int64(20)):
                 with T.block("T_add"):
                     v_ax0, v_ax1 = T.axis.remap("SS", [ax0, ax1])
-                    T.reads(A[v_ax0, v_ax1], B[()])
-                    T.writes(Out[v_ax0, v_ax1])
                     Out[v_ax0, v_ax1] = A[v_ax0, v_ax1] + B[()]
 
         @T.prim_func(private=True)
@@ -2078,8 +2074,6 @@ def test_fuse_inplace_and_non_inplace():
             for i0, i1 in T.grid(T.int64(10), T.int64(20)):
                 with T.block("compute"):
                     v_i0, v_i1 = T.axis.remap("SS", [i0, i1])
-                    T.reads(A[v_i0, v_i1])
-                    T.writes(A[v_i0, v_i1])
                     A[v_i0, v_i1] = T.exp(A[v_i0, v_i1])
 
         @T.prim_func(private=True)
@@ -2088,8 +2082,6 @@ def test_fuse_inplace_and_non_inplace():
             for ax0, ax1 in T.grid(T.int64(10), T.int64(20)):
                 with T.block("T_squeeze"):
                     v_ax0, v_ax1 = T.axis.remap("SS", [ax0, ax1])
-                    T.reads(A[v_ax0, v_ax1])
-                    T.writes(A[v_ax0, v_ax1])
                     A[v_ax0, v_ax1] = A[v_ax0, v_ax1]
 
         @R.function(private=True)
@@ -2143,20 +2135,14 @@ def test_fuse_inplace_and_non_inplace():
             for ax0, ax1 in T.grid(T.int64(10), T.int64(20)):
                 with T.block("T_add"):
                     v_ax0, v_ax1 = T.axis.remap("SS", [ax0, ax1])
-                    T.reads(x[v_ax0, v_ax1], p0[()])
-                    T.writes(p_output0[v_ax0, v_ax1])
                     p_output0[v_ax0, v_ax1] = x[v_ax0, v_ax1] + p0[()]
             for i0, i1 in T.grid(T.int64(10), T.int64(20)):
                 with T.block("compute"):
                     v_i0, v_i1 = T.axis.remap("SS", [i0, i1])
-                    T.reads(p_output0[v_i0, v_i1])
-                    T.writes(p_output0[v_i0, v_i1])
                     p_output0[v_i0, v_i1] = T.exp(p_output0[v_i0, v_i1])
             for ax0, ax1 in T.grid(T.int64(10), T.int64(20)):
                 with T.block("T_squeeze"):
                     v_ax0, v_ax1 = T.axis.remap("SS", [ax0, ax1])
-                    T.reads(p_output0[v_ax0, v_ax1])
-                    T.writes(p_output0[v_ax0, v_ax1])
                     p_output0[v_ax0, v_ax1] = p_output0[v_ax0, v_ax1]
 
         @R.function
