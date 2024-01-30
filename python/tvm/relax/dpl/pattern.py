@@ -878,6 +878,8 @@ def _is_call_tir(
     elif isinstance(args, (list, tuple)):
         args = TuplePattern(args)
 
+    if tir_vars is None:
+        return is_op("relax.call_tir")(func_pattern, args, add_constraint=False)
     return is_op("relax.call_tir")(func_pattern, args, tir_vars, add_constraint=False)
 
 
@@ -896,7 +898,8 @@ def is_call_tir(
         Name of the CPS function to call.
     args : Union[List[DFPattern], Tuple[DFPattern]], optional
         Arguments in expected call_packed, by default None meaning arbitrary (number of) arguments
-
+    tir_vars : Optional[DFPattern]
+        Pattern to match the tuple of integers that are unpacked when calling the tir func.
     Returns
     -------
     CallPattern
