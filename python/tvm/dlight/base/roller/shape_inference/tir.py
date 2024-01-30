@@ -383,7 +383,7 @@ def _extract_dependent_region(block_analyzer, block: BlockRV) -> Dict[str, List[
         for indice, shape_limit in zip(x.indices, x.buffer.shape):
             expr = walk_indice(indice)
             if expr is None:
-                expr = tir.Var("undefined") % shape_limit
+                expr = tir.Var("undefined", dtype="int8") % shape_limit
             if isinstance(expr, tir.IntImm) and expr.value == 0:
                 """for tensor ir zero dim smplification case.
                 for ax0, ax1, ax2 in T.grid(T.int64(1024), T.int64(1024), T.int64(1024)):

@@ -96,17 +96,18 @@ def _apply_and_build(
     arch,
 ) -> Tuple[Optional[List[tir.Schedule]], Optional[tvm.IRModule], Optional[tvm.runtime.Module]]:
     sch = _apply_config(func, config)
+
     if sch is None:
         return config, sch, None
 
     # TODO(@lei): is tvm.build thread safe?
     try:
         with tvm.transform.PassContext(
-            config={"tir.use_async_copy": True, "tir.merge_static_smem": True}
+            config={"tir.use_async_copy": True, "tir.merge_static_smem": False}
         ):
             mod = tvm.build(sch.mod["main"], target=arch.target)
     except Exception as e_msg:
-        print(e_msg)
+        print(f"build with config {config} failed ")
         mod = None
     return config, sch, mod
 
@@ -115,7 +116,7 @@ def apply_and_build_parallel(
     func,
     configs,
     arch,
-    num_repeats=3,
+    num_repeats=5,
 ) -> CompileResult:
     cpresults = []
     
@@ -134,14 +135,14 @@ def apply_and_build_parallel(
         if arg.dtype == "int8":
             profile_tensors.append(
                 tvm.nd.array(
-                    np.random.randint(-127, 128, [int(i) for i in arg.shape]).astype(arg.dtype),
+                    np.random.randint(-127, 128, [var_warpper(i) for i in arg.shape]).astype(arg.dtype),
                     device=arch.device,
                 )
             )
         else:
             profile_tensors.append(
                 tvm.nd.array(
-                    np.random.uniform(0, 1, [int(i) for i in arg.shape]).astype(arg.dtype),
+                    np.random.uniform(0, 1, [var_warpper(i) for i in arg.shape]).astype(arg.dtype),
                     device=arch.device,
                 )
             )
@@ -178,8 +179,8 @@ def apply_and_build_parallel(
         config = cpresult.config
         try:
             latency = cpresult.profile()
-        except:
-            print("[FastDlight] Evaluation with config failed: ", config)
+        except Exception as e_mesg:
+            print("[FastDlight] Evaluation with config failed: ", e_mesg)
             continue
         print("[FastDlight] Evaluation with config ", config)
         print("[FastDlight] Time cost of this config: {:.3f} ms".format(latency * 1e3))

@@ -684,7 +684,10 @@ def get_tensorized_func_and_tags(
         intrin_info["out_dtype"] = out_dtype
         # if the last dimension is reduce axis, the B is transposed
         intrin_info["trans_b"] = check_last_trait(block_stmt.reads[1].region)
-
+        if "smooth_a" in func.attrs:
+            intrin_info["smooth_a"] = func.attrs["smooth_a"]
+        if "smooth_b" in func.attrs:
+            intrin_info["smooth_b"] = func.attrs["smooth_b"]
         tags["intrin_info"] = intrin_info
 
         return tags

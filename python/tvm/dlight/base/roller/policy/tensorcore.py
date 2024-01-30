@@ -84,14 +84,22 @@ class TensorCorePolicy(DefaultPolicy):
     def _assign_reduce_step(self, node):
         if not node.get_tag("tensorcore_config"):
             return super()._assign_reduce_step(node)
+        # get reduce input size
+        target_transaction = self.arch.transaction_size[0] * 2
+        # 512 bytes // type bits
+        reduce_input_dtype = node.get_buffer_dtype(
+            node.block_analyzer.get_input_buffers(node.reduction_block)[0]
+        )
+        basic = (target_transaction * 8) // reduce_input_dtype.bits
+
         result = {}
         for iter_info in node.raxis:
             iter_name = iter_info.var.name
             iter_dom = iter_info.dom.extent
             if iter_dom % 16 > 0:
-                result[iter_name] = 16 if iter_dom < 32 else 32  # padding case
-            elif iter_dom % 32 == 0:
-                result[iter_name] = 32
+                result[iter_name] = 16 if iter_dom < basic else basic  # for the case of padding
+            elif iter_dom % basic == 0:
+                result[iter_name] = basic
             else:
                 return super()._assign_reduce_step(node)
         return result
