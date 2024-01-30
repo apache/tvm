@@ -2168,7 +2168,7 @@ def test_fuse_inplace_and_non_inplace():
                 gv1: R.Tensor((10, 20), dtype="float32") = R.call_tir(
                     cls.fused_add_exp_squeeze,
                     (x, p0),
-                    out_sinfo=R.Tensor((10, 20), dtype="float32")
+                    out_sinfo=R.Tensor((10, 20), dtype="float32"),
                 )
                 R.output(gv1)
             return gv1
