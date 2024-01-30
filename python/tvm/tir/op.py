@@ -3339,7 +3339,8 @@ def anylist_setitem_call_cpacked(list_handle, index, func_name, *args):
 
 
 def vscale():
-    """Get the target's vscale value
+    """Get the target's vscale value. It will be lowered to llvm.vscale intrinsic
+    (https://llvm.org/docs/LangRef.html#llvm-vscale-intrinsic)
     Returns
     -------
     call : PrimExpr

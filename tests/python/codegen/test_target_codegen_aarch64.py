@@ -475,7 +475,7 @@ def test_memcpy(dtype):
 
 
 @pytest.mark.skipif(
-    llvm_version_major() < 10, reason="Vscale is not supported in earlier versions of LLVM"
+    llvm_version_major() < 11, reason="Vscale is not supported in earlier versions of LLVM"
 )
 def test_codegen_vscale():
     target = "llvm -mtriple=aarch64-linux-gnu -mattr=+sve"
