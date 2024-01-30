@@ -95,7 +95,7 @@ class SubexprCounter : public ExprVisitor {
           e->IsInstance<GlobalVarNode>() || e->IsInstance<tvm::OpNode>() ||
           e->IsInstance<PrimValueNode>() || e->IsInstance<StringImmNode>() ||
           e->IsInstance<ShapeExprNode>() || e->IsInstance<ExternFuncNode>() ||
-          e->IsInstance<ConstantNode>())) {
+          e->IsInstance<ConstantNode>() || e->IsInstance<DataTypeImmNode>())) {
       // also if e has an impure subexpression, we will not deduplicate it
       if (!impurity_detector_.Detect(e)) {
         int count = 0;
