@@ -574,7 +574,8 @@ def RunCodegen(
         The registered pass to remove unused functions.
     """
     if entry_functions is None:
-        entry_functions = ["main"]
+        entry_functions = []
+
     # enable cutlass byoc registries
     # pylint: disable=unused-import,import-outside-toplevel
     from tvm.contrib import cutlass as _cutlass
