@@ -86,7 +86,7 @@ class PyCodeGen : public BaseCodeGen<ConfigType, HelperType> {
   virtual void CodeGenHeader() {
     this->stack_.line("import os")
         .line("import numpy as np")
-        .line("from typing import List, Dict")
+        .line("from typing import List, Dict, Any")
         .line("import tvm");
     if (this->config()->use_tools) {
       this->stack_.line("from tvm.contrib.msc.core import tools as msc_tools");

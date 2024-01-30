@@ -20,7 +20,7 @@ import datetime
 import logging
 from typing import List
 
-from .info import dump_dict
+from .arguments import dump_dict
 from .log import get_global_logger
 from .namespace import MSCMap, MSCKey
 

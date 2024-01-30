@@ -45,23 +45,23 @@ class BaseDistiller(BaseTool):
         return super().setup()
 
     def _reset(
-        self, graphs: List[MSCGraph], weights: List[Dict[str, tvm.nd.array]]
-    ) -> Tuple[List[MSCGraph], List[Dict[str, tvm.nd.array]]]:
+        self, graphs: List[MSCGraph], weights: Dict[str, tvm.nd.array]
+    ) -> Tuple[List[MSCGraph], Dict[str, tvm.nd.array]]:
         """Reset the tool
 
         Parameters
         ----------
         graphs: list<MSCgraph>
             The msc graphs.
-        weights: list<dict<str, tvm.nd.array>>
-            The weights
+        weights: dict<str, tvm.nd.array>
+            The weights.
 
         Returns
         -------
         graphs: list<MSCgraph>
             The msc graphs.
-        weights: list<dict<str, tvm.nd.array>>
-            The weights
+        weights: dict<str, tvm.nd.array>
+            The weights.
         """
 
         self._current_iter = 0
@@ -69,8 +69,7 @@ class BaseDistiller(BaseTool):
         if self._distilled:
             with open(self._weights_path, "rb") as f:
                 distilled_weights = tvm.runtime.load_param_dict(f.read())
-            for sub_weights in weights:
-                sub_weights.update({k: v for k, v in distilled_weights.items() if k in sub_weights})
+            weights.update({k: v for k, v in distilled_weights.items() if k in weights})
             self._logger.info("Update %d distilled weights", len(distilled_weights))
         return super()._reset(graphs, weights)
 

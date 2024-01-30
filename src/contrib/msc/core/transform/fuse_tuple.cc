@@ -67,20 +67,29 @@ class TupleFuser : public ExprMutator {
   }
 
   void VisitBinding_(const VarBindingNode* binding, const CallNode* val) final {
-    bool is_tuple_call = false;
+    bool has_tuple_arg = false;
     if (target_funcs_.count(val->op)) {
-      if (val->args.size() == 1 && val->args[0]->IsInstance<TupleNode>()) {
-        const auto& func_call = AddFunc(val->args[0]);
-        const auto& tuple_out = builder_->Emit(func_call);
-        ICHECK(target_funcs_.count(func_call->op)) << "Can not find target func " << func_call->op;
-        target_funcs_.Set(tuple_out, target_funcs_[func_call->op]);
-        const auto& new_call = Call(val->op, {tuple_out}, val->attrs, val->sinfo_args, val->span);
-        ReEmitBinding(binding, builder_->Normalize(new_call));
-        is_tuple_call = true;
+      Array<Expr> new_args;
+      for (const auto& arg : val->args) {
+        if (arg->IsInstance<TupleNode>()) {
+          const auto& func_call = AddFunc(arg);
+          const auto& tuple_out = builder_->Emit(func_call);
+          ICHECK(target_funcs_.count(func_call->op))
+              << "Can not find target func " << func_call->op;
+          target_funcs_.Set(tuple_out, target_funcs_[func_call->op]);
+          has_tuple_arg = true;
+          new_args.push_back(tuple_out);
+        } else {
+          new_args.push_back(arg);
+        }
+        if (has_tuple_arg) {
+          const auto& new_call = Call(val->op, new_args, val->attrs, val->sinfo_args, val->span);
+          ReEmitBinding(binding, builder_->Normalize(new_call));
+        }
       }
       target_funcs_.Set(binding->var, target_funcs_[val->op]);
     }
-    if (!is_tuple_call) {
+    if (!has_tuple_arg) {
       ExprMutator::VisitBinding_(binding, val);
     }
   }
@@ -150,10 +159,11 @@ class TupleFuser : public ExprMutator {
     BindingBlock new_block = builder_->EndBlock();
     Expr body = builder_->Normalize(output);
     body = builder_->Normalize(SeqExpr({new_block}, body));
+
     Map<String, ObjectRef> func_attrs;
-    func_attrs.Set(tvm::relax::attr::kComposite, target_ + func_name);
-    func_attrs.Set(tvm::relax::attr::kPrimitive, Integer(1));
-    func_attrs.Set("unique_name", SpanUtils::GetAttr(expr->span, "name"));
+    func_attrs.Set(attr::kPrimitive, Integer(1));
+    func_attrs.Set(attr::kComposite, target_ + func_name);
+    func_attrs.Set(msc_attr::kUnique, SpanUtils::GetAttr(expr->span, msc_attr::kName));
 
     Function function = Function(/*params=*/params,            //
                                  /*body=*/body,                //
