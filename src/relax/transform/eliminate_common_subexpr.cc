@@ -91,6 +91,7 @@ class SubexprCounter : public ExprVisitor {
     // 4. StringImm nodes (not much benefit from binding to a var)
     // 5. Scalar constants (not much benefit from binding to a var)
     // 6. Shape expressions (exist to hold several PrimValue objects)
+    // 7. DataType nodes (no need to modify dtype nodes)
     if (!(e->IsInstance<VarNode>() || e->IsInstance<DataflowVarNode>() ||
           e->IsInstance<GlobalVarNode>() || e->IsInstance<tvm::OpNode>() ||
           e->IsInstance<PrimValueNode>() || e->IsInstance<StringImmNode>() ||

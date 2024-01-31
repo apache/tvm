@@ -343,9 +343,7 @@ def test_do_not_eliminate_dtype():
     @I.ir_module
     class Before:
         @R.function
-        def foo(
-            x: R.Tensor((32, 64), "int32"),
-        ) -> R.Tensor((32, 64), "int32"):
+        def foo() -> R.Tensor((32, 64), "int32"):
             obj: R.Object = R.vm.alloc_storage(
                 R.shape([24576]), runtime_device_index=0, dtype="uint8"
             )
@@ -355,7 +353,6 @@ def test_do_not_eliminate_dtype():
             ret_val: R.Tensor([32, 64], dtype="int32") = R.builtin.alloc_tensor(
                 R.shape([32, 64]), R.dtype("int32"), R.prim_value(0)
             )
-            _1: R.Tuple = R.vm.copy_tensor(a, ret_val)
             _t1: R.Tuple = R.vm.kill_object(a)
             _t3: R.Tuple = R.vm.kill_object(obj)
             lv: R.Tensor([32, 64], dtype="int32") = ret_val
