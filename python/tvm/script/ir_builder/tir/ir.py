@@ -162,15 +162,22 @@ def buffer_decl(*args, **kwargs):
     return buffer(*args, **kwargs)
 
 
-def prim_func() -> frame.PrimFuncFrame:
+def prim_func(is_private: bool = False) -> frame.PrimFuncFrame:
     """The primitive function statement.
+
+    Parameters
+    ----------
+    is_private : bool
+        Whether the PrimFunc is annotated as private
+        (if yes, it does not have a global symbol assigned;
+        otherwise, the global symbol is the PrimFunc's name)
 
     Returns
     -------
     res : frame.PrimFuncFrame
         The PrimFuncFrame.
     """
-    return _ffi_api.PrimFunc()  # type: ignore[attr-defined] # pylint: disable=no-member
+    return _ffi_api.PrimFunc(is_private)  # type: ignore[attr-defined] # pylint: disable=no-member
 
 
 def arg(name: str, obj: Union[Var, Buffer]) -> Union[Var, Buffer]:
@@ -309,7 +316,8 @@ def match_buffer(
             raise ValueError("Shape must be specified when binding input param")
     shape = (shape,) if isinstance(shape, (PrimExpr, Integral)) else shape
     if strides is not None:
-        strides = [Var(s, "int32") if isinstance(s, str) else s for s in strides]
+        idx_dtype = shape[0].dtype if isinstance(shape[0], PrimExpr) else "int32"
+        strides = [Var(s, idx_dtype) if isinstance(s, str) else s for s in strides]
     else:
         strides = []
     return _ffi_api.MatchBuffer(  # type: ignore[attr-defined] # pylint: disable=no-member
@@ -862,6 +870,8 @@ def Assert(condition: PrimExpr, message: str) -> frame.AssertFrame:  # pylint: d
     res : frame.AssertFrame
         The result AssertFrame.
     """
+    if isinstance(condition, bool):
+        condition = IntImm("bool", condition)
     return _ffi_api.Assert(condition, message)  # type: ignore[attr-defined] # pylint: disable=no-member
 
 
@@ -1268,6 +1278,9 @@ def buffer_store(
     """
     from tvm.arith import Analyzer  # pylint: disable=import-outside-toplevel
 
+    if not isinstance(indices, (list, tuple, ir.Array)):
+        indices = [indices]
+
     expr_indices = []
     for index in indices:
         if isinstance(index, slice):
@@ -1441,7 +1454,9 @@ def boolean(expr: Optional[PrimExpr] = None, is_size_var: bool = False) -> PrimE
     return _ffi_api.Boolean(expr, is_size_var)  # type: ignore[attr-defined] # pylint: disable=no-member
 
 
-def handle(dtype: str = "void", storage_scope: str = "global", *, is_size_var: bool = False) -> Var:
+def handle(
+    dtype: Optional[str] = None, storage_scope: str = "global", *, is_size_var: bool = False
+) -> Var:
     """Create a TIR var that represents a pointer.
 
     Parameters
@@ -1460,7 +1475,15 @@ def handle(dtype: str = "void", storage_scope: str = "global", *, is_size_var: b
     res : PrimExpr
         The new tir.Var with type handle or casted expression with type handle.
     """
-    return _ffi_api.Handle(dtype, storage_scope, is_size_var)  # type: ignore[attr-defined] # pylint: disable=no-member
+    is_unknown_type = dtype is None
+    if dtype is None:
+        dtype = "void"
+    return _ffi_api.Handle(  # type: ignore[attr-defined] # pylint: disable=no-member
+        dtype,
+        storage_scope,
+        is_size_var,
+        is_unknown_type,
+    )
 
 
 def void(expr: Optional[PrimExpr] = None, *, is_size_var: bool = False) -> PrimExpr:
@@ -1645,13 +1668,19 @@ def index_map(
     return IndexMap.from_func(mapping, inverse_index_map=inverse_index_map)
 
 
-def target(target_config: Union[Dict, str]) -> Target:
+def target(
+    target_config: Union[Dict, str],
+    host: Optional[Union[Dict, str, Target]] = None,
+) -> Target:
     """
     Create a target
 
     Parameters
     ----------
     target_config : Union[Dict, str]
+        The target configuration.
+
+    host : Optional[Union[Dict, str, Target]]
         The target configuration.
 
     Returns
@@ -1663,7 +1692,19 @@ def target(target_config: Union[Dict, str]) -> Target:
         raise ValueError(
             f"T.target expected a config dict or string, but got {type(target_config)}"
         )
-    return Target(target_config)
+    if host is not None and not isinstance(host, (str, dict, Target)):
+        raise ValueError(
+            "T.target expected the host to be "
+            "a config dict, string, or T.target, "
+            f"but got {type(host)}"
+        )
+    if isinstance(target_config, dict) and "host" in target_config and host is not None:
+        raise ValueError(
+            "T.target expects to either receive the host "
+            "as part of the target's config dictionary, "
+            "or as a separate argument, but not both."
+        )
+    return Target(target_config, host)
 
 
 def Range(begin: PrimExpr, end: PrimExpr) -> ir.Range:  # pylint: disable=invalid-name
@@ -1791,6 +1832,7 @@ call_cpacked_lowered = _op_wrapper(_tir_op.call_cpacked_lowered)
 tvm_tuple = _op_wrapper(_tir_op.tvm_tuple)
 tvm_struct_set = _op_wrapper(_tir_op.tvm_struct_set)
 tvm_struct_get = _tir_op.tvm_struct_get
+tvm_thread_invariant = _op_wrapper(_tir_op.tvm_thread_invariant)
 tvm_thread_allreduce = _op_wrapper(_tir_op.tvm_thread_allreduce)
 tvm_load_matrix_sync = _op_wrapper(_tir_op.tvm_load_matrix_sync)
 tvm_mma_sync = _op_wrapper(_tir_op.tvm_mma_sync)
@@ -1804,6 +1846,12 @@ tvm_warp_shuffle_down = _tir_op.tvm_warp_shuffle_down
 tvm_warp_activemask = _tir_op.tvm_warp_activemask
 ptx_wait_group = _op_wrapper(_tir_op.ptx_wait_group)
 ptx_commit_group = _op_wrapper(_tir_op.ptx_commit_group)
+ptx_cp_async_barrier = _op_wrapper(_tir_op.ptx_cp_async_barrier)
+ptx_init_barrier_thread_count = _op_wrapper(_tir_op.ptx_init_barrier_thread_count)
+ptx_arrive_barrier = _op_wrapper(_tir_op.ptx_arrive_barrier)
+ptx_arrive_barrier_expect_tx = _op_wrapper(_tir_op.ptx_arrive_barrier_expect_tx)
+ptx_wait_barrier = _op_wrapper(_tir_op.ptx_wait_barrier)
+create_barriers = _op_wrapper(_tir_op.create_barriers)
 assume = _op_wrapper(_tir_op.assume)
 undef = _op_wrapper(_tir_op.undef)
 TVMBackendAllocWorkspace = _op_wrapper(_tir_op.TVMBackendAllocWorkspace)
@@ -1814,6 +1862,7 @@ anylist_getitem = _op_wrapper(_tir_op.anylist_getitem)
 anylist_resetitem = _op_wrapper(_tir_op.anylist_resetitem)
 anylist_setitem_call_packed = _op_wrapper(_tir_op.anylist_setitem_call_packed)
 anylist_setitem_call_cpacked = _op_wrapper(_tir_op.anylist_setitem_call_cpacked)
+vscale = _op_wrapper(_tir_op.vscale)
 
 
 def _dtype_forward(func):
@@ -1836,6 +1885,7 @@ ptx_mma = _dtype_forward(_tir_op.ptx_mma)
 ptx_mma_sp = _dtype_forward(_tir_op.ptx_mma_sp)
 ptx_ldmatrix = _dtype_forward(_tir_op.ptx_ldmatrix)
 ptx_cp_async = _dtype_forward(_tir_op.ptx_cp_async)
+ptx_cp_async_bulk = _dtype_forward(_tir_op.ptx_cp_async_bulk)
 mma_store = _dtype_forward(_tir_op.mma_store)
 mma_fill = _dtype_forward(_tir_op.mma_fill)
 vectorlow = _dtype_forward(_tir_op.vectorlow)
@@ -2060,6 +2110,7 @@ __all__ = [
     "tvm_tuple",
     "tvm_struct_set",
     "tvm_struct_get",
+    "tvm_thread_invariant",
     "tvm_thread_allreduce",
     "tvm_load_matrix_sync",
     "tvm_mma_sync",
@@ -2075,8 +2126,15 @@ __all__ = [
     "ptx_mma_sp",
     "ptx_ldmatrix",
     "ptx_cp_async",
+    "ptx_cp_async_bulk",
     "ptx_wait_group",
     "ptx_commit_group",
+    "ptx_cp_async_barrier",
+    "ptx_init_barrier_thread_count",
+    "ptx_arrive_barrier",
+    "ptx_arrive_barrier_expect_tx",
+    "ptx_wait_barrier",
+    "create_barriers",
     "mma_store",
     "mma_fill",
     "vectorlow",
@@ -2142,4 +2200,5 @@ __all__ = [
     "IterVar",
     "CommReducer",
     "Range",
+    "vscale",
 ]
