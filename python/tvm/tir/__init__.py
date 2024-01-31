@@ -88,6 +88,7 @@ from .op import comm_reducer, min, max, sum
 from .op import q_multiply_shift, q_multiply_shift_per_axis, shift_left, shift_right
 from .op import TVMBackendAllocWorkspace, TVMBackendFreeWorkspace
 from .op import start_profile_intrinsic, end_profile_intrinsic
+from .op import vscale
 from .generic import add, subtract, multiply
 
 from .schedule import StmtSRef, BlockScope, ScheduleState, Schedule, ScheduleError
