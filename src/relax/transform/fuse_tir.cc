@@ -379,7 +379,11 @@ class FusedTIRConstructor : public ExprVisitor {
     CHECK(f->HasNonzeroAttr(relax::attr::kPrimitive))
         << "Expected a function with attr `kPrimitive`";
     visitor(Downcast<relax::Function>(f));
-    return {visitor.fused_tir_, visitor.inplace_indices_};
+    Array<Integer> inplace_indices;
+    for (size_t idx : visitor.inplace_indices_) {
+      inplace_indices.push_back(Integer(idx));
+    }
+    return {visitor.fused_tir_, inplace_indices};
   }
 
  private:
@@ -444,10 +448,10 @@ class FusedTIRConstructor : public ExprVisitor {
     const Array<tir::Buffer>& buffers = (*it).second;
 
     // map of input buffers to indices (helpful for detecting in-place inputs)
-    std::unordered_map<tir::Buffer, Integer, ObjectPtrHash, ObjectPtrEqual> buffer_to_idx;
-    std::unordered_map<tir::Var, Integer, ObjectPtrHash, ObjectPtrEqual> input_to_idx;
+    std::unordered_map<tir::Buffer, size_t, ObjectPtrHash, ObjectPtrEqual> buffer_to_idx;
+    std::unordered_map<tir::Var, size_t, ObjectPtrHash, ObjectPtrEqual> input_to_idx;
     for (size_t i = 0; i < func_info_.params.size(); i++) {
-      input_to_idx[func_info_.params[i]] = Integer(i);
+      input_to_idx[func_info_.params[i]] = i;
     }
     for (auto [var, buffer] : func_info_.buffer_map) {
       if (auto it = input_to_idx.find(var); it != input_to_idx.end()) {
@@ -463,7 +467,7 @@ class FusedTIRConstructor : public ExprVisitor {
       // (i.e., already listed in the buffer map. This would result
       // in duplicates in the buffer map otherwise)
       if (auto it = buffer_to_idx.find(buffers[i]); it != buffer_to_idx.end()) {
-        inplace_indices_.push_back((*it).second);
+        inplace_indices_.insert((*it).second);
         continue;
       }
 
@@ -933,7 +937,7 @@ class FusedTIRConstructor : public ExprVisitor {
   /*! \brief The tir function after fusion*/
   tir::PrimFunc fused_tir_;
   /*! \brief Indices of inputs that are used for in-place computation */
-  Array<Integer> inplace_indices_;
+  std::unordered_set<size_t> inplace_indices_;
 };
 
 std::vector<size_t> GetTupleAccessedIndices(const FunctionNode* func, const Var& tuple_var) {
