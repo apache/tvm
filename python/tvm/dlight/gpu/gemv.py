@@ -178,24 +178,21 @@ class GEMVWithDequantizeInfo(GPUScheduleRule):
         config,
     ):
         sch = tir.Schedule(func)
-        from .intrin.lop3 import (
-            lop3_import_c,
-            LOP3_FAST_DECODE_INT4_TO_FP16_INTRIN
-        )
-        
+        from .intrin.lop3 import get_lop3_intrin_group
+
         # TODO(leiwang): this is a hack to get the configuaration, should write a pass to analysis
-        dequantize_info = func.attrs['dequantize_info']
-        
+        dequantize_info = func.attrs["dequantize_info"]
+
         def check_dequantize_info(dequantize_info):
             conditions = []
             conditions.append(len(dequantize_info) == 1)
             # more conditions, e.g. check the format is in [fp, nf, int]
             # check if the dequantize value name is weight
             return all(conditions)
-        
+
         assert check_dequantize_info(dequantize_info)
-        
-        B_decode_info, = list(dequantize_info.values())
+
+        (B_decode_info,) = list(dequantize_info.values())
         block_infos = normalize_prim_func(sch)
 
         if block_infos is None:
@@ -238,20 +235,19 @@ class GEMVWithDequantizeInfo(GPUScheduleRule):
 
         block_b = reduction_block
         output_blocks = get_output_blocks(sch, block_infos)
-        B_decode_block = get_block(sch, block_infos, B_decode_info['decode_block'])
+        B_decode_block = get_block(sch, block_infos, B_decode_info["decode_block"])
 
         # compute inline
         for block_info in reversed(block_infos):
             block = block_info.block_rv
             if block not in (reduction_block, *output_blocks, B_decode_block):
                 sch.compute_inline(block)
-        
+
         block_decode_B = sch.cache_read(block_b, 1, "local")
         sch.compute_inline(B_decode_block)
-        
+
         j, k = sch.get_loops(block_b)[-2:]
-        
-        
+
         block_shared_local_A = sch.cache_read(block_b, 0, "local")
         block_shared_local_B = sch.cache_read(block_decode_B, 0, "local")
         block_local_C = sch.cache_write(block_b, 0, "local")
@@ -279,8 +275,12 @@ class GEMVWithDequantizeInfo(GPUScheduleRule):
         sch.vectorize(block_local_a_v)
         block_local_b_v = sch.get_loops(block_shared_local_B)[-1]
         sch.vectorize(block_local_b_v)
-        sch.tensorize(sch.get_loops(block_decode_B)[-1], LOP3_FAST_DECODE_INT4_TO_FP16_INTRIN)
-        sch.annotate(block_b, ann_key="pragma_import_c", ann_val=lop3_import_c)
+        if "fast_decoding" in B_decode_info and B_decode_info["fast_decoding"]:
+            intrin_info = get_lop3_intrin_group(
+                in_dtype="int8", out_dtype="float16", storage_nbit=4, with_scale=False
+            )
+            sch.tensorize(sch.get_loops(block_decode_B)[-1], intrin_info["compute"])
+            sch.annotate(block_b, ann_key="pragma_import_c", ann_val=intrin_info["c_source"])
         return sch
 
     def apply_config(self, func: PrimFunc, config):

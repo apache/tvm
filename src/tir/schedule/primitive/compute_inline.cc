@@ -320,11 +320,6 @@ class BaseInliner : public StmtExprMutator {
       block = tgt_stmt.as<BlockNode>();
       ICHECK(block != nullptr);
     }
-    // Bind the block iter domains to the analyzer for simplification
-    for (const IterVar& iter : src_block->iter_vars) {
-      analyzer_.Bind(iter->var, iter->dom);
-    }
-
     Block tgt_block = Downcast<Block>(StmtExprMutator::VisitStmt_(block));
     bool is_scope_root = src_block.get() == scope_root_sref_->stmt;
     tgt_block = UpdateBuffersInBlockSignature(std::move(tgt_block), is_scope_root);
@@ -420,8 +415,6 @@ class BaseInliner : public StmtExprMutator {
   }
 
  protected:
-  /*! \brief The arithmetic analyzer */
-  arith::Analyzer analyzer_;
   /*! \brief The buffer to be inlined */
   Buffer inlined_buffer_{nullptr};
   /*! \brief The body of the block to be inlined */
@@ -493,7 +486,6 @@ class ComputeInliner : public BaseInliner {
         return true;
       }
     }
-
     // If the mapping for store indices is non-trivial
     // check bijective mapping from producer iter var to store indices
     Map<Var, Range> producer_iter_doms;
@@ -544,6 +536,16 @@ class ComputeInliner : public BaseInliner {
     return analyzer_.Simplify(Substitute(store_value_, idx_sub_));
   }
 
+  Stmt VisitStmt_(const BlockNode* block) {
+    // Bind the block iter domains to the analyzer for simplification
+    Block src_block = GetRef<Block>(block);
+    for (const IterVar& iter : src_block->iter_vars) {
+      analyzer_.Bind(iter->var, iter->dom);
+    }
+
+    return BaseInliner::VisitStmt_(block);
+  }
+
   /*!
    * \brief Set the mapping of index substitution `self->idx_sub_`
    * \param indices The expressions that the corresponding index variables are replaced to
@@ -556,6 +558,8 @@ class ComputeInliner : public BaseInliner {
     }
   }
 
+  /*! \brief The arithmetic analyzer */
+  arith::Analyzer analyzer_;
   /*! \brief The store value for inlinement. If the producer
    store indices are trivial, it is wrt the producer block iter var,
    otherwise it is wrt to the placeholder vars of store indices. */
@@ -609,6 +613,7 @@ class ReverseComputeInliner : public BaseInliner {
 
   bool BodyPatternAllowInline(const BlockRealize& consumer_block_realize) {
     const Block& consumer_block = consumer_block_realize->block;
+    LOG(INFO) << "BodyPatternAllowInline";
 
     if (!is_one(consumer_block_realize->predicate)) {
       // Failure: Predicate is the consumer block is not supported
@@ -823,8 +828,13 @@ class ReverseComputeInliner : public BaseInliner {
   bool UpdateAndCheckIndexExprs(const Array<PrimExpr>& indices) {
     if (buffer_load_indices_.empty()) {
       buffer_load_indices_ = indices;
-    } else if (!std::equal(buffer_load_indices_.begin(), buffer_load_indices_.end(),
-                           indices.begin(), indices.end(), ExprDeepEqual())) {
+    } else if (!std::equal(
+                   buffer_load_indices_.begin(), buffer_load_indices_.end(), indices.begin(),
+                   indices.end(), [this](const PrimExpr& lhs, const PrimExpr& rhs) {
+                     // use the analyzer to simpify before deep euqal.
+                     // this is needed to handle cases where the index is an unit loop.
+                     return ExprDeepEqual()(analyzer_.Simplify(rhs), analyzer_.Simplify(rhs));
+                   })) {
       // Failure: indices are not consistent in different BufferLoads
       return false;
     }
