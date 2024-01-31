@@ -467,7 +467,10 @@ class FusedTIRConstructor : public ExprVisitor {
       // (i.e., already listed in the buffer map. This would result
       // in duplicates in the buffer map otherwise)
       if (auto it = buffer_to_idx.find(buffers[i]); it != buffer_to_idx.end()) {
-        inplace_indices_.insert((*it).second);
+        auto idx = (*it).second;
+        CHECK(!inplace_indices_.count(idx))
+            << "In-place index " << idx << " used twice! An argument must be aliased.";
+        inplace_indices_.insert(idx);
         continue;
       }
 
