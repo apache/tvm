@@ -871,7 +871,7 @@ def is_shape(shape: List[tvm.ir.PrimExpr]) -> "PrimArrPattern":
 def _is_call_tir(
     func_pattern: DFPattern,
     args: Union[List, Tuple, TuplePattern] = None,
-    tir_vars: Optional[DFPattern] = None
+    tir_vars: Optional[DFPattern] = None,
 ) -> CallPattern:
     if args is None:
         args = wildcard()
@@ -887,7 +887,7 @@ def _is_call_tir(
 def is_call_tir(
     func_name: str,
     args: Union[List, Tuple, TuplePattern] = None,
-    tir_vars: Optional[DFPattern] = None
+    tir_vars: Optional[DFPattern] = None,
 ) -> CallPattern:
     """
     Syntax sugar for creating a CallPattern for call_tir that calls an function through global var.
