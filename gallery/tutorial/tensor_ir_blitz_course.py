@@ -19,7 +19,8 @@
 
 Blitz Course to TensorIR
 ========================
-**Author**: `Siyuan Feng <https://github.com/Hzfengsy>`_
+**Author**: `Siyuan Feng <https://github.com/Hzfengsy>`_, \
+            `Lufang Chen <https://github.com/vincentccc>`_
 
 TensorIR is a domain specific language for deep learning programs serving two broad purposes:
 
@@ -192,3 +193,8 @@ cuda_b = tvm.nd.array(np.zeros((8,)).astype("float32"), ctx)
 cuda_mod(cuda_a, cuda_b)
 print(cuda_a)
 print(cuda_b)
+
+
+################################################################################################
+# Extract cuda source.
+print(cuda_mod.imported_modules[0].get_source())
