@@ -158,6 +158,7 @@ class RuntimeContext implements Disposable {
   ndarrayCreateView: PackedFunc;
   sampleTopPFromLogits: PackedFunc;
   applyRepetitionPenalty: PackedFunc;
+  applyPresenceAndFrequencyPenalty: PackedFunc;
   applySoftmaxWithTemperature: PackedFunc;
 
   private autoDisposeScope: Array<Array<Disposable | undefined>> = [];
@@ -180,6 +181,7 @@ class RuntimeContext implements Disposable {
     this.ndarrayCreateView = getGlobalFunc("runtime.TVMArrayCreateView");
     this.sampleTopPFromLogits = getGlobalFunc("vm.builtin.sample_top_p_from_logits");
     this.applyRepetitionPenalty = getGlobalFunc("vm.builtin.apply_repetition_penalty");
+    this.applyPresenceAndFrequencyPenalty = getGlobalFunc("vm.builtin.apply_presence_and_frequency_penalty");
     this.applySoftmaxWithTemperature = getGlobalFunc("vm.builtin.apply_softmax_with_temperature");
   }
 
@@ -202,6 +204,7 @@ class RuntimeContext implements Disposable {
     this.ndarrayCreateView.dispose();
     this.sampleTopPFromLogits.dispose();
     this.applyRepetitionPenalty.dispose();
+    this.applyPresenceAndFrequencyPenalty.dispose();
     this.applySoftmaxWithTemperature.dispose();
   }
 
@@ -1755,6 +1758,27 @@ export class Instance implements Disposable {
    */
   applyRepetitionPenalty(logits: NDArray, token_ids: NDArray, penalty: number) {
     return this.ctx.applyRepetitionPenalty(logits, token_ids, penalty);
+  }
+
+  /**
+   * Apply presence and frequency penalty. This is an inplace operation.
+   * @param logits The input logits before penalty.
+   * @param token_ids The appeared token ids.
+   * @param token_freqs The number of times each token has appeared since last PrefillStep.
+   * token_freqs[i] is the frequency of token_ids[i], for all i. And all token_freqs should be >= 1.
+   * @param presence_penalty The penalty factor.
+   * @param frequency_penalty The penalty factor.
+   */
+  applyPresenceAndFrequencyPenalty(
+    logits: NDArray,
+    token_ids: NDArray,
+    token_freqs: NDArray,
+    presence_penalty: number,
+    frequency_penalty: number
+  ) {
+    return this.ctx.applyPresenceAndFrequencyPenalty(
+      logits, token_ids, token_freqs, presence_penalty, frequency_penalty
+    );
   }
 
   /**
