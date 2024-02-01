@@ -216,7 +216,7 @@ class TokenAllocator1D {
       int64_t available_size = available_token->const_bytes();
       ICHECK_EQ(available_token->ref_counter, 0)
           << "Available tokens are expected to have 0 reference.";
-      ICHECK_GT(available_size, 0);
+      ICHECK_GE(available_size, 0);
       ICHECK_GE(size, available_size);
       // Enlarge the token size.
       available_token->bytes = tir::make_const(DataType::Int(64), size);
