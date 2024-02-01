@@ -506,18 +506,18 @@ def _qnn_dense_legalize_arm_cpu(attrs, inputs, types):
 def _qnn_conv2d_legalize_intel_cpu(attrs, inputs, types):
     # TODO(vvchernov): not only VNNI
     # The VNNI transformations prefer uint8 x int8 datatypes.
-    if is_fast_int8_on_intel():
-        return helper_change_dtypes_to_uint8_int8(attrs, inputs, types, relay.qnn.op.conv2d)
-    return helper_no_fast_int8_hw_legalization(attrs, inputs, types, relay.nn.conv2d)
+    #if is_fast_int8_on_intel():
+    return helper_change_dtypes_to_uint8_int8(attrs, inputs, types, relay.qnn.op.conv2d)
+    #return helper_no_fast_int8_hw_legalization(attrs, inputs, types, relay.nn.conv2d)
 
 
 @qnn_dense_legalize.register("cpu")
 def _qnn_dense_legalize_intel_cpu(attrs, inputs, types):
     # TODO(vvchernov): not only VNNI
     # The VNNI transformations prefer uint8 x int8 datatypes.
-    if is_fast_int8_on_intel():
-        return helper_change_dtypes_to_uint8_int8(attrs, inputs, types, relay.qnn.op.dense)
-    return helper_no_fast_int8_hw_legalization(attrs, inputs, types, relay.nn.dense)
+    #if is_fast_int8_on_intel():
+    return helper_change_dtypes_to_uint8_int8(attrs, inputs, types, relay.qnn.op.dense)
+    #return helper_no_fast_int8_hw_legalization(attrs, inputs, types, relay.nn.dense)
 
 
 #####################
