@@ -157,7 +157,7 @@ using Tokens = NestedMsg<StorageToken>;
  */
 class TokenAllocator1D {
  public:
-  TokenAllocator1D(arith::Analyzer* analyzer) : analyzer_(analyzer) {}
+  explicit TokenAllocator1D(arith::Analyzer* analyzer) : analyzer_(analyzer) {}
 
   /*!
    * \brief Request a storage token from the available token pool for a
