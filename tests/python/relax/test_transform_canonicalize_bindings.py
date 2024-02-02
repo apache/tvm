@@ -972,5 +972,29 @@ def test_canonicalization_causes_struct_info_update():
     assert_structural_equal(Expected, after)
 
 
+def test_unwrap_tuple_of_constant():
+    @I.ir_module
+    class TestChainAssignments:
+        @R.function
+        def main():
+            tup = (R.const(0, "int64"), R.const(1, "int64"))
+            x = tup[0]
+            y = tup[1]
+            z = R.add(x, y)
+            return z
+
+    @I.ir_module
+    class Expected:
+        @R.function
+        def main():
+            tup = (R.const(0, "int64"), R.const(1, "int64"))
+            x = tup[0]
+            y = tup[1]
+            z = R.add(R.const(0, "int64"), R.const(1, "int64"))
+            return z
+
+    verify(TestChainAssignments, Expected)
+
+
 if __name__ == "__main__":
     tvm.testing.main()
