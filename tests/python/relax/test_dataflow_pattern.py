@@ -1241,29 +1241,27 @@ def test_combine_transposed_matmul_twice():
             lv1: R.Tensor((640, 1280), dtype="float32") = R.permute_dims(lv, axes=None)
             lv2: R.Tensor((2, 1024, 1280), dtype="float32") = R.matmul(x1, lv1, out_dtype="void")
             lv3: R.Tuple(
-                R.Tensor((2, 640, 1280), dtype="float32"),
-                R.Tensor((2, 384, 1280), dtype="float32"),
-                R.Tensor((2, 0, 1280), dtype="float32"),
-            ) = R.split(lv2, indices_or_sections=[640, 1280], axis=1)
-            lv0: R.Tensor((2, 640, 1280), dtype="float32") = lv3[0]
-            lv1_1: R.Tensor((2, 384, 1280), dtype="float32") = lv3[1]
+                R.Tensor((2, 1024, 640), dtype="float32"),
+                R.Tensor((2, 1024, 640), dtype="float32"),
+            ) = R.split(lv2, indices_or_sections=[640], axis=-1)
+            lv0: R.Tensor((2, 1024, 640), dtype="float32") = lv3[0]
+            lv1_1: R.Tensor((2, 1024, 640), dtype="float32") = lv3[1]
             lv_1: R.Tensor((1280, 640), dtype="float32") = R.concat((w2, w3), axis=0)
             lv1_2: R.Tensor((640, 1280), dtype="float32") = R.permute_dims(lv_1, axes=None)
             lv2_1: R.Tensor((2, 1024, 1280), dtype="float32") = R.matmul(
                 x2, lv1_2, out_dtype="void"
             )
             lv3_1: R.Tuple(
-                R.Tensor((2, 640, 1280), dtype="float32"),
-                R.Tensor((2, 384, 1280), dtype="float32"),
-                R.Tensor((2, 0, 1280), dtype="float32"),
-            ) = R.split(lv2_1, indices_or_sections=[640, 1280], axis=1)
-            lv2_1_1: R.Tensor((2, 640, 1280), dtype="float32") = lv3_1[0]
-            lv3_1_1: R.Tensor((2, 384, 1280), dtype="float32") = lv3_1[1]
+                R.Tensor((2, 1024, 640), dtype="float32"),
+                R.Tensor((2, 1024, 640), dtype="float32"),
+            ) = R.split(lv2_1, indices_or_sections=[640], axis=-1)
+            lv2_1_1: R.Tensor((2, 1024, 640), dtype="float32") = lv3_1[0]
+            lv3_1_1: R.Tensor((2, 1024, 640), dtype="float32") = lv3_1[1]
             out: R.Tuple(
-                R.Tensor((2, 640, 1280), dtype="float32"),
-                R.Tensor((2, 384, 1280), dtype="float32"),
-                R.Tensor((2, 640, 1280), dtype="float32"),
-                R.Tensor((2, 384, 1280), dtype="float32"),
+                R.Tensor((2, 1024, 640), dtype="float32"),
+                R.Tensor((2, 1024, 640), dtype="float32"),
+                R.Tensor((2, 1024, 640), dtype="float32"),
+                R.Tensor((2, 1024, 640), dtype="float32"),
             ) = (lv0, lv1_1, lv2_1_1, lv3_1_1)
             R.output(out)
         return out
@@ -1282,9 +1280,9 @@ def test_combine_transposed_matmul_twice():
 
             concat = R.concat([w1, w2], axis=0)
             matmul = R.matmul(inp, R.permute_dims(concat))
-            sections = [w1.struct_info.shape[0], w1.struct_info.shape[0] + w2.struct_info.shape[0]]
+            sections = [w1.struct_info.shape[0]]
 
-            chunks = R.split(matmul, sections, 1)
+            chunks = R.split(matmul, sections, -1)
 
             return {
                 matchings[matmul1]: chunks[0],
@@ -1297,6 +1295,7 @@ def test_combine_transposed_matmul_twice():
         # make sure it builds
         mod = tvm.IRModule()
         mod["main"] = rewritten
+        print(mod)
 
         rx.build(mod, target="llvm")
 
