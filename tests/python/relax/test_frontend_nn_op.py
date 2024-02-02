@@ -619,6 +619,111 @@ def test_tensor_ir_op():
     tvm.ir.assert_structural_equal(irmodule, Expected)
 
 
+def test_tensor_ir_inplace_op():
+    hidden_size = 4096
+    dtype = "float16"
+
+    @T.prim_func
+    def inplace_take(
+        var_weight: T.handle, var_pos: T.handle, var_embeddings: T.handle, offset: T.int64
+    ):
+        T.func_attr({"tir.noalias": T.bool(True)})
+        vocab_size = T.int64()
+        weight = T.match_buffer(var_weight, (vocab_size, hidden_size), dtype)
+        seq_len = T.int64()
+        total_seq_len = T.int64()
+        pos = T.match_buffer(var_pos, (seq_len,), "int32")
+        embeddings = T.match_buffer(var_embeddings, (total_seq_len, hidden_size), dtype)
+        for ax0, ax1 in T.grid(seq_len, hidden_size):
+            with T.block("T_take"):
+                v0, v1 = T.axis.remap("SS", [ax0, ax1])
+                T.reads(weight[pos[v0], v1], pos[v0])
+                T.writes(embeddings[v0, v1])
+                embeddings[v0 + offset, v1] = weight[pos[v0], v1]
+
+    class Model(Module):
+        def test(
+            self, embedding_table: Tensor, input_ids: Tensor, embedding_dst: Tensor, offset: int
+        ):
+            tensor_expr_op_out = op.tensor_ir_op(
+                inplace_take,
+                "inplace_take",
+                args=[embedding_table, input_ids, embedding_dst, offset],
+                out=Tensor.placeholder(embedding_dst.shape, embedding_dst.dtype),
+            )
+            return tensor_expr_op_out
+
+    @I.ir_module
+    class Expected:
+        @T.prim_func
+        def inplace_take(
+            var_weight: T.handle, var_pos: T.handle, var_embeddings: T.handle, offset: T.int64
+        ):
+            T.func_attr({"tir.noalias": T.bool(True)})
+            vocab_size = T.int64()
+            weight = T.match_buffer(var_weight, (vocab_size, hidden_size), dtype)
+            seq_len = T.int64()
+            total_seq_len = T.int64()
+            pos = T.match_buffer(var_pos, (seq_len,), "int32")
+            embeddings = T.match_buffer(var_embeddings, (total_seq_len, hidden_size), dtype)
+            for ax0, ax1 in T.grid(seq_len, hidden_size):
+                with T.block("T_take"):
+                    v0, v1 = T.axis.remap("SS", [ax0, ax1])
+                    T.reads(weight[pos[v0], v1], pos[v0])
+                    T.writes(embeddings[v0, v1])
+                    embeddings[v0 + offset, v1] = weight[pos[v0], v1]
+
+        @R.function
+        def _initialize_effect() -> R.Tuple(R.Object):
+            with R.dataflow():
+                _io: R.Object = R.null_value()
+                lv: R.Tuple(R.Object) = (_io,)
+                gv: R.Tuple(R.Object) = lv
+                R.output(gv)
+            return gv
+
+        @R.function
+        def test(
+            embedding_table: R.Tensor(("vocab_size", hidden_size), dtype),
+            input_ids: R.Tensor(("seq_len",), "int32"),
+            embedding_dst: R.Tensor(("total_seq_len", hidden_size), dtype),
+            offset: R.Shape(["offset_1"]),
+            packed_params: R.Tuple,
+        ) -> R.Tensor(("total_seq_len", hidden_size), dtype):
+            total_seq_len = T.int64()
+            offset_1 = T.int64()
+            R.func_attr({"num_input": 4})
+            cls = Expected
+            with R.dataflow():
+                lv1 = R.call_tir(
+                    cls.inplace_take,
+                    (embedding_table, input_ids, embedding_dst),
+                    out_sinfo=R.Tensor((total_seq_len, hidden_size), dtype),
+                    tir_vars=R.shape([offset_1]),
+                )
+                gv1: R.Tensor((total_seq_len, hidden_size), dtype) = lv1
+                R.output(gv1)
+            return gv1
+
+    m = Model()
+    irmodule, _ = m.export_tvm(
+        spec={
+            "test": {
+                "embedding_table": spec.Tensor(["vocab_size", hidden_size], dtype),
+                "input_ids": spec.Tensor(["seq_len"], "int32"),
+                "embedding_dst": spec.Tensor(["total_seq_len", hidden_size], dtype),
+                "offset": int,
+                "$": {
+                    "param_mode": "packed",
+                    "effect_mode": "none",
+                },
+            },
+        },
+        debug=True,
+    )
+    tvm.ir.assert_structural_equal(irmodule, Expected)
+
+
 def test_extern():
     class Model(Module):
         def test(self, q: Tensor, k: Tensor, v: Tensor):
