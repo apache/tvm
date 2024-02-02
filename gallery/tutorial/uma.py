@@ -256,7 +256,7 @@ Making your Hardware Accelerator TVM-ready with UMA
 #
 ######################################################################
 # QVanilla
-===================================================
+# -------------
 # **Author**: Samira Ahmadifarsani
 # **QVanilla** accelerator is a modified version of Vanilla, which can process QNN Conv2D followed by a bias addition operator. We need to deal with QNN operators for this example.
 # To construct the backend for this custom accelerator, the initial step is defining the necessary pattern to annotate and
