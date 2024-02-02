@@ -682,7 +682,7 @@ class FusedTIRConstructor : public ExprVisitor {
       const tir::Var& param = output_params[i];
       const tir::Buffer& buffer = func->buffer_map.at(param);
 
-      auto unify_name_hints = [this, &buffer, &param]() {
+      auto unify_name_hints = [this, &buffer]() {
         String base_name = buffer->name;
         String unique_name = base_name + "_intermediate";
         size_t unique_id = 0;
