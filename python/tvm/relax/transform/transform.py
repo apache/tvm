@@ -584,7 +584,7 @@ def RunCodegen(
 
 
 def FoldConstant() -> tvm.ir.transform.Pass:
-    """Fold constant expressions.
+    """Fold constant expressions within dataflow blocks.
 
     Returns
     -------
@@ -763,6 +763,8 @@ def FuseOpsByPattern(
     into a new function.
 
     The end result is similar to FuseOps, but fusion is driven completely by the provided patterns.
+
+    Note: Only operates within dataflow blocks.
 
     Parameters
     ----------
@@ -1172,11 +1174,12 @@ def DeadCodeElimination(entry_functions: Optional[List[str]] = None) -> tvm.ir.t
     """Remove dead code in the IRModule.
     Currently it removes:
 
-       1. Unused local VarBindings in a DataflowBlock.
-       2. Unused DataflowBlocks in a function.
-       3. Unused Relax functions in the module.
+       1. Unused local VarBindings
+          (those where the bound var is unused and no impure operation is used).
+       2. Unused Relax functions in the module.
           We detect the call chain from the entry function, and remove all unused functions.
 
+    Any binding blocks that are left empty will be removed by the normalizer.
 
     Notes
     -----
@@ -1202,6 +1205,8 @@ def ToMixedPrecision(
 ) -> tvm.ir.transform.Pass:
     """Automatic mixed precision pass. Currently the pass assumes the input module to be fp32
     only, and will automatically cast fp32 to fp16 for certain ops.
+
+    Note: Mainly operates within dataflow blocks.
 
     Parameters
     ----------

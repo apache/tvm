@@ -214,7 +214,7 @@ TVM_DLL Pass BindSymbolicVars(Map<ObjectRef, PrimExpr> binding_map,
                               Optional<String> func_name = NullOpt);
 
 /*!
- * \brief Fold constant expressions.
+ * \brief Fold constant expressions within dataflow blocks.
  *
  * \return The Pass.
  */
@@ -477,6 +477,8 @@ TVM_DLL Pass Gradient(String func_name, Optional<Array<Var>> require_grads = Nul
  * This must be True if the created composite functions are intended to be offloaded to
  * an external backend without using the MergeCompositeFunctions pass.
  * \return The Pass.
+ * 
+ * \note Only operates within dataflow blocks.
  */
 TVM_DLL Pass FuseOpsByPattern(const tvm::Array<FusionPattern>& patterns, bool bind_constants = true,
                               bool annotate_codegen = false);
@@ -548,6 +550,7 @@ TVM_DLL Pass AlterOpImpl(const Map<String, tir::PrimFunc>& op_impl_map,
  * \brief Layout conversion pass.
  * \param desired_layouts The desired layouts for some operators.
  * \return The Pass.
+ * \note Operates only on dataflow blocks.
  */
 TVM_DLL Pass ConvertLayout(Map<String, Array<String>> desired_layouts);
 
@@ -564,10 +567,13 @@ TVM_DLL Pass ConvertToDataflow(int min_size = 2);
  * \brief Dead code elimination.
  * \sa RemoveAllUnused
  * Currently it removes:
- *   1. Unused local VarBindings in a DataflowBlock.
- *   2. Unused DataflowBlocks in a function.
- *   3. Unused Relax functions in the module.
+ *   1. Unused local VarBindings
+ *      (those where the bound var is unused and no impure operation is used).
+ *   2. Unused Relax functions in the module.
  *      We detect the call chain from the entry function, and remove all unused functions.
+ * 
+ * Any binding blocks that are left empty will be removed by the normalizer.
+ * 
  * \return The Pass.
  */
 TVM_DLL Pass DeadCodeElimination(Array<runtime::String> entry_functions);
@@ -589,6 +595,8 @@ TVM_DLL Pass DataflowUseInplaceCalls();
  * \param fp16_input_names The names of function parameters whose dtype should become fp16. The
  * function signature would change accordingly.
  * \return The Pass.
+ * 
+ * \note Mainly operates within dataflow blocks.
  */
 TVM_DLL Pass ToMixedPrecision(const DataType& out_dtype,
                               Optional<Array<String>> fp16_input_names = NullOpt);
