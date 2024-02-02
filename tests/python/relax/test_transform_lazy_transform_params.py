@@ -602,5 +602,77 @@ def test_duplicate_outputs():
     tvm.ir.assert_structural_equal(after, Expected)
 
 
+def test_params_without_tuple():
+    @I.ir_module
+    class Before:
+        @R.function
+        def transform_params(A: R.Tensor([16, 16], "float32"), B: R.Tensor([16, 16], "float32")):
+            C = R.multiply(A, R.const(2, "float32"))
+            D = R.add(C, B)
+            return (D, B)
+
+    @I.ir_module
+    class Expected:
+        @R.function(pure=False)
+        def transform_params():
+            A = R.call_packed("get_item", R.prim_value(0), sinfo_args=[R.Object])
+            A = R.match_cast(A, R.Tensor([16, 16], "float32"))
+            C = R.multiply(A, R.const(2, "float32"))
+
+            B = R.call_packed("get_item", R.prim_value(1), sinfo_args=[R.Object])
+            B = R.match_cast(B, R.Tensor([16, 16], "float32"))
+            D = R.add(C, B)
+            return (D, B)
+
+    After = LazyTransformParams(fset_item=None)(Before)
+    tvm.ir.assert_structural_equal(After, Expected)
+
+
+def test_retain_before_num_input():
+    """Only lazily load parameters after num_input"""
+
+    @I.ir_module
+    class Before:
+        @R.function
+        def transform_params(
+            relax_rank: R.Prim(value="rank"),
+            A: R.Tensor([16, 16], "float32"),
+            B: R.Tensor([16, 16], "float32"),
+        ):
+            R.func_attr({"num_input": 1})
+            rank = T.int64()
+            A_sharded = R.strided_slice(
+                A, axes=[0], begin=[rank * 8], end=[(rank + 1) * 8], assume_inbound=True
+            )
+            B_sharded = R.strided_slice(
+                B, axes=[1], begin=[rank * 8], end=[(rank + 1) * 8], assume_inbound=True
+            )
+            return (A_sharded, B_sharded)
+
+    @I.ir_module
+    class Expected:
+        @R.function(pure=False)
+        def transform_params(relax_rank: R.Prim(value="rank")):
+            R.func_attr({"num_input": 1})
+            rank = T.int64()
+
+            A = R.call_packed("get_item", R.prim_value(0), sinfo_args=[R.Object])
+            A = R.match_cast(A, R.Tensor([16, 16], "float32"))
+            A_sharded = R.strided_slice(
+                A, axes=[0], begin=[rank * 8], end=[(rank + 1) * 8], assume_inbound=True
+            )
+
+            B = R.call_packed("get_item", R.prim_value(1), sinfo_args=[R.Object])
+            B = R.match_cast(B, R.Tensor([16, 16], "float32"))
+            B_sharded = R.strided_slice(
+                B, axes=[1], begin=[rank * 8], end=[(rank + 1) * 8], assume_inbound=True
+            )
+
+            return (A_sharded, B_sharded)
+
+    After = LazyTransformParams(fset_item=None)(Before)
+    tvm.ir.assert_structural_equal(After, Expected)
+
+
 if __name__ == "__main__":
     tvm.testing.main()
