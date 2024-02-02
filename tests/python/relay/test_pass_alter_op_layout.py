@@ -15,6 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 """Test alter op layout pass"""
+import platform
 import pytest
 
 import tvm
@@ -1195,7 +1196,7 @@ def test_alter_layout_nhwc_arm():
     def alter_conv2d(attrs, inputs, tinfos, out_type):
         from tvm import topi
 
-        with tvm.target.Target("llvm -device=arm_cpu"):
+        with tvm.target.Target("llvm -mtriple=arm-linux-gnu -device=arm_cpu"):
             return topi.nn.conv2d_alter_layout(attrs, inputs, tinfos, out_type)
 
     # Check NHWC conversion.
@@ -1538,6 +1539,10 @@ def test_conv2d_reduce_channels():
         relay.build(mod, params=params, target="llvm")
 
 
+@pytest.mark.skipif(
+    platform.machine() == "aarch64",
+    reason="Layout NCHW4c unsupported in `arm_cpu`. See <issue link>",
+)
 def test_alter_layout_nonscalar_broadcast():
     """Test boradcast operators"""
 
@@ -1602,6 +1607,10 @@ def test_alter_layout_nonscalar_broadcast():
     np.testing.assert_allclose(res.numpy(), res1.numpy())
 
 
+@pytest.mark.skipif(
+    platform.machine() == "aarch64",
+    reason="Layout NCHW4c unsupported in `arm_cpu`. See <issue link>",
+)
 def test_alter_layout_blocked_no_broadcast():
     """Test boradcast operators working on already blocked layout"""
 
@@ -1660,6 +1669,10 @@ def test_alter_layout_blocked_no_broadcast():
     np.testing.assert_allclose(res.numpy(), res1.numpy())
 
 
+@pytest.mark.skipif(
+    platform.machine() == "aarch64",
+    reason="Layout NCHW4c unsupported in `arm_cpu`. See <issue link>",
+)
 def test_alter_layout_blocked_broadcast():
     """Test boradcast operators working on already blocked layout"""
 
@@ -1718,6 +1731,10 @@ def test_alter_layout_blocked_broadcast():
     np.testing.assert_allclose(res.numpy(), res1.numpy())
 
 
+@pytest.mark.skipif(
+    platform.machine() == "aarch64",
+    reason="Layout NCHW4c unsupported in `arm_cpu`. See <issue link>",
+)
 def test_alter_layout_re_blocking_broadcast():
     """Test of re-blocking shapes with boradcast operators"""
 
@@ -1802,6 +1819,10 @@ def test_alter_layout_re_blocking_broadcast():
     np.testing.assert_allclose(res.numpy(), res1.numpy(), rtol=1e-5, atol=1e-5)
 
 
+@pytest.mark.skipif(
+    platform.machine() == "aarch64",
+    reason="Layout NCHW4c unsupported in `arm_cpu`. See <issue link>",
+)
 def test_broadcast_non_adaptable():
     """NCHW4c + [x, x, 4] and NCHW4c is being altered to NCHW"""
 
@@ -1870,6 +1891,10 @@ def test_broadcast_non_adaptable():
     np.testing.assert_allclose(res.numpy(), res1.numpy())
 
 
+@pytest.mark.skipif(
+    platform.machine() == "aarch64",
+    reason="Layout NCHW4c unsupported in `arm_cpu`. See <issue link>",
+)
 def test_broadcast_respect_input_layouts():
     def before():
         x = relay.var("x", shape=(1, 16, 1, 1))

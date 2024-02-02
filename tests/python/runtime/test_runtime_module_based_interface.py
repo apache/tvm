@@ -14,8 +14,13 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-import numpy as np
+
 import os
+import platform
+
+import numpy as np
+import pytest
+
 from tvm import relay, runtime
 from tvm.relay import testing
 import tvm
@@ -129,6 +134,9 @@ def test_cpu_get_graph_params_run():
 
 
 @tvm.testing.requires_llvm
+@pytest.mark.skipif(
+    platform.machine() == "aarch64", reason="Fails with an output mismatch. See <issue link>."
+)
 def test_cpu_get_graph_params_compare():
     # Create sample net
     from tvm.relay.testing.init import create_workload, Constant

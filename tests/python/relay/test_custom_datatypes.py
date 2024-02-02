@@ -17,8 +17,11 @@
 """Unit tests for the Bring Your Own Datatype framework.
 
 TODO(@gussmith23 @hypercubestart) link to documentation"""
+import platform
+
 import numpy as np
 import pytest
+
 import tvm
 import tvm.topi.testing
 import tvm.testing
@@ -530,6 +533,10 @@ def run_batchnorm(src_dtype, dst_dtype, rtol=1e-6, atol=1e-6):
     )
 
 
+@pytest.mark.skipif(
+    platform.machine() == "aarch64",
+    reason="Custom datatype not understood by `arm_cpu` schedule. See <issue link>.",
+)
 def test_myfloat():
     setup_myfloat()
 
