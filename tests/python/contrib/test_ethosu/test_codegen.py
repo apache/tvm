@@ -1661,7 +1661,7 @@ def test_ethosu_matmul_fixed_point(accel_type, ifm_shape, ofm_channels, fract_si
     output_data = {"output": convert_to_fixed_point(output_data, fract_size)}
     tolerance = convert_to_fixed_point(tolerance, fract_size)
 
-    config = {"enable_fixed_point": True, "fixed_point_fraction_size": fract_size}
+    config = {"fixed_point_fraction_size": fract_size}
     with tvm.transform.PassContext(config={"relay.ext.ethos-u.options": config}):
         ethosu_mod = partition_for_ethosu(cpu_mod)
 
@@ -1672,7 +1672,6 @@ def test_ethosu_matmul_fixed_point(accel_type, ifm_shape, ofm_channels, fract_si
         accel_type,
         enable_cascader=False,
         output_tolerance=tolerance,
-        enable_fixed_point=True,
         fixed_point_fraction_size=fract_size,
     )
 

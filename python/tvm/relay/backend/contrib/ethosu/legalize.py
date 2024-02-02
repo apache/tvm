@@ -1402,17 +1402,20 @@ class FullyConnectedRewriter(DFPatternCallback):
         return ethosu_fc
 
 
-class MatMulRewriter(DFPatternCallback):
-    """Legalize matrix multiplication to an NPU operator"""
+class MatrixMultiplicationRewriter(DFPatternCallback):
+    """Legalize matrix multiplication with two tensors into sequence of NPU operators"""
 
-    def __init__(self):
+    def __init__(
+        self,
+        params_class: Type,
+        pattern: CallPattern,
+    ):
         super().__init__(require_type=True)
-        self.pattern = (
-            wildcard().has_attr({"Composite": ethosu_patterns.MatMulParams.composite_name})
-        )(wildcard(), wildcard())
+        self.pattern = pattern
+        self.params_class = params_class
 
     def callback(self, pre, post, node_map):
-        params = ethosu_patterns.MatMulParams(post.op.body)
+        params = self.params_class(post.op.body)
         ifm = post.args[0]
         ifm2 = post.args[1]
         lut = relay.const([], dtype=params.ifm.dtype)
@@ -1495,6 +1498,32 @@ class MatMulRewriter(DFPatternCallback):
         # Concatenate result columns
         concat = relay.op.concatenate(relay.Tuple(res_columns), axis=3)
         return relay.reshape(concat, params.ofm.shape)
+
+
+class MatMulRewriter(MatrixMultiplicationRewriter):
+    """Convert ethos-u.matmul composite function to sequence of NPU operators"""
+
+    def __init__(self):
+        super().__init__(
+            params_class=ethosu_patterns.MatMulParams,
+            pattern=(
+                wildcard().has_attr({"Composite": ethosu_patterns.MatMulParams.composite_name})
+            )(wildcard(), wildcard()),
+        )
+
+
+class MatMulFixedPointRewriter(MatrixMultiplicationRewriter):
+    """Convert ethos-u.matmul_fixed_point composite function to sequence of NPU operators"""
+
+    def __init__(self):
+        super().__init__(
+            params_class=ethosu_patterns.MatMulFixedPointParams,
+            pattern=(
+                wildcard().has_attr(
+                    {"Composite": ethosu_patterns.MatMulFixedPointParams.composite_name}
+                )
+            )(wildcard(), wildcard()),
+        )
 
 
 class PadRewriter(DFPatternCallback):
@@ -1644,6 +1673,7 @@ class LegalizeEthosU:
             PartitionedSplitRewriter(),
             FullyConnectedRewriter(),
             MatMulRewriter(),
+            MatMulFixedPointRewriter(),
             SplitRewriter(),
             ChannelPadRewriter(),
             Conv2DRewriter(),

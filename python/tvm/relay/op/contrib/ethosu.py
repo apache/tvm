@@ -1808,46 +1808,29 @@ class FullyConnectedParams:
     @requires_vela
     def __init__(self, func_body):
         from tvm.relay.backend.contrib.ethosu.util import QDenseArgs  # type: ignore
-        from tvm.relay.backend.contrib.ethosu.util import (
-            BiasAddArgs,
-            RequantArgs,
-            get_fixed_point_fraction_size,
-            is_fixed_point_enabled,
-        )
+        from tvm.relay.backend.contrib.ethosu.util import BiasAddArgs, RequantArgs
 
         self.activation = None
-        if is_fixed_point_enabled():
-            fract_scale = tvm.relay.Constant(
-                tvm.nd.array(np.array(1 / 2 ** get_fixed_point_fraction_size()))
-            )
-            fract_zero_point = tvm.relay.Constant(tvm.nd.array(np.array(0, dtype="int32")))
-            qnn_dense = func_body
-            bias_add = None
+        if str(func_body.op.name) == "clip":
+            self.activation = func_body
+            requantize_op = self.activation.args[0]
         else:
-            if str(func_body.op.name) == "clip":
-                self.activation = func_body
-                requantize_op = self.activation.args[0]
-            else:
-                requantize_op = func_body
+            requantize_op = func_body
 
-            call = requantize_op.args[0]
-            if str(requantize_op.args[0].op.name) == "nn.bias_add":
-                bias_add = call
-                qnn_dense = call.args[0]
-            else:
-                bias_add = None
-                qnn_dense = call
+        call = requantize_op.args[0]
+        if str(requantize_op.args[0].op.name) == "nn.bias_add":
+            bias_add = call
+            qnn_dense = call.args[0]
+        else:
+            bias_add = None
+            qnn_dense = call
 
         # weights & biases are params as they should be constant
         self.weights = TensorParams(
             qnn_dense.args[QDenseArgs.WEIGHTS.value],
             None,
-            fract_scale
-            if is_fixed_point_enabled()
-            else qnn_dense.args[QDenseArgs.WEIGHTS_SCALE.value],
-            fract_zero_point
-            if is_fixed_point_enabled()
-            else qnn_dense.args[QDenseArgs.WEIGHTS_ZERO_POINT.value],
+            qnn_dense.args[QDenseArgs.WEIGHTS_SCALE.value],
+            qnn_dense.args[QDenseArgs.WEIGHTS_ZERO_POINT.value],
         )
         self.biases = (
             TensorParams(
@@ -1862,20 +1845,14 @@ class FullyConnectedParams:
         self.ifm = TensorParams(
             qnn_dense.args[QDenseArgs.IFM.value],
             None,
-            fract_scale if is_fixed_point_enabled() else qnn_dense.args[QDenseArgs.IFM_SCALE.value],
-            fract_zero_point
-            if is_fixed_point_enabled()
-            else qnn_dense.args[QDenseArgs.IFM_ZERO_POINT.value],
+            qnn_dense.args[QDenseArgs.IFM_SCALE.value],
+            qnn_dense.args[QDenseArgs.IFM_ZERO_POINT.value],
         )
         self.ofm = TensorParams(
             func_body,
             None,
-            fract_scale
-            if is_fixed_point_enabled()
-            else requantize_op.args[RequantArgs.OFM_SCALE.value],
-            fract_zero_point
-            if is_fixed_point_enabled()
-            else requantize_op.args[RequantArgs.OFM_ZERO_POINT.value],
+            requantize_op.args[RequantArgs.OFM_SCALE.value],
+            requantize_op.args[RequantArgs.OFM_ZERO_POINT.value],
         )
 
     def is_valid(self) -> bool:
@@ -1958,7 +1935,67 @@ def matmul_pattern():
     )
     req = is_op("qnn.requantize")(dense, is_constant(), is_constant(), is_constant(), is_constant())
     optional_clip = req.optional(is_op("clip"))
-    return optional_clip | is_op("nn.dense")(wildcard(), wildcard())
+    return optional_clip
+
+
+class MatMulFixedPointParams:
+    """
+    This class will parse a call to an ethos-u.matmul_fixed_point composite
+    function and extract the parameter information.
+    """
+
+    composite_name = "ethos-u.matmul_fixed_point"
+
+    @requires_vela
+    def __init__(self, func_body):
+        from tvm.relay.backend.contrib.ethosu.util import QDenseArgs, get_fixed_point_fraction_size
+
+        self.fraction_size = get_fixed_point_fraction_size()
+        fract_scale = tvm.relay.Constant(tvm.nd.array(np.array(1 / 2**self.fraction_size)))
+        fract_zero_point = tvm.relay.Constant(tvm.nd.array(np.array(0, dtype="int32")))
+        dense = func_body
+
+        self.activation = None
+        self.weights = TensorParams(
+            dense.args[QDenseArgs.WEIGHTS.value],
+            None,
+            fract_scale,
+            fract_zero_point,
+        )
+        self.ifm = TensorParams(
+            dense.args[QDenseArgs.IFM.value],
+            None,
+            fract_scale,
+            fract_zero_point,
+        )
+        self.ofm = TensorParams(
+            dense,
+            None,
+            fract_scale,
+            fract_zero_point,
+        )
+
+    def is_valid(self) -> bool:
+        """
+        Checks whether matrix multiplication has compatible attributes with HW
+        """
+
+        if self.fraction_size < 0 or self.fraction_size > 16:
+            return False
+        if not check_valid_dtypes([self.ifm, self.ofm], supported_dtypes=[np.int16]):
+            return False
+        if not len(self.ifm.shape) == 2:
+            return False
+        if not len(self.ofm.shape) == 2:
+            return False
+        # The weights must be transposed
+        if self.ifm.shape[1] != self.weights.shape[1]:
+            return False
+        return True
+
+
+def matmul_fixed_point_pattern():
+    return is_op("nn.dense")(wildcard(), wildcard())
 
 
 class HardSwishParams:
@@ -2250,6 +2287,11 @@ def pattern_table() -> List[Tuple[str, tvm.relay.dataflow_pattern.DFPattern, Cal
             MatMulParams.composite_name,
             matmul_pattern(),
             lambda pat: MatMulParams(pat).is_valid(),
+        ),
+        (
+            MatMulFixedPointParams.composite_name,
+            matmul_fixed_point_pattern(),
+            lambda pat: MatMulFixedPointParams(pat).is_valid(),
         ),
         (
             MaxPool2DParams.composite_name,

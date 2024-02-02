@@ -42,7 +42,6 @@ struct EthosUCompilerConfigNode : public tvm::AttrsNode<EthosUCompilerConfigNode
   Bool enable_cascader = Bool(false);
   Bool enable_striping = Bool(false);
   Bool disable_copying_constants = Bool(false);
-  Bool enable_fixed_point = Bool(false);
   Integer fixed_point_fraction_size = Integer(0);
   String dev_force_block_config;
   String dev_max_open_plans;
@@ -74,17 +73,10 @@ struct EthosUCompilerConfigNode : public tvm::AttrsNode<EthosUCompilerConfigNode
             "the linker script for section \".rodata.tvm\" that the constants are located in SRAM)")
         .set_default(Bool(false));
     String dev_warning = "Option is intended for development and debugging purposes only. ";
-    TVM_ATTR_FIELD(enable_fixed_point)
-        .describe(
-            "Whether calculation with fixed point is enabled. When this option "
-            "is "
-            "enabled, it is assumed that input data should be converted to fixed point "
-            "representation")
-        .set_default(Bool(false));
     TVM_ATTR_FIELD(fixed_point_fraction_size)
         .describe(
             "Fraction size refers to the number of bits used to represent the fractional part of a "
-            "fixed point number")
+            "fixed point number for non-quantized int16 operations")
         .set_default(Integer(0));
     TVM_ATTR_FIELD(dev_force_block_config)
         .describe((dev_warning + String("Force the block config to a given value; format = "
