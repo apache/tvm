@@ -24,6 +24,7 @@
 #include <exception>
 
 #include "../../../../src/runtime/memory/pooled_allocator.h"
+#include "../../../../src/runtime/memory/lru_cache_allocator.h"
 
 namespace tvm {
 namespace runtime {
@@ -40,7 +41,12 @@ class MemoryManagerWrapper : public MemoryManager {
   void clear() { allocators_.clear(); }
 };
 
-class TvmVMMemoryManagerTest : public ::testing::Test {
+struct TestParams{
+  AllocatorType type;
+  size_t page_size;
+};
+
+class TvmVMMemoryManagerTest : public ::testing::TestWithParam<TestParams> {
  protected:
   void SetUp() override {
     // Clear allocators from previous tests
@@ -58,19 +64,6 @@ TEST_F(TvmVMMemoryManagerTest, NaiveAllocBasic) {
   EXPECT_EQ(allocator->UsedMemory(), 0);
 }
 
-TEST_F(TvmVMMemoryManagerTest, PooledAllocBasic) {
-  Device dev = {kDLCPU, 0};
-  size_t nbytes = 64;
-  size_t page_size = PooledAllocator::kDefaultPageSize;
-  size_t size = ((nbytes + page_size - 1) / page_size) * page_size;
-  Allocator* allocator = MemoryManagerWrapper::GetOrCreateAllocator(dev, kPooled);
-  EXPECT_EQ(allocator->UsedMemory(), 0);
-  auto buff = allocator->Alloc(nbytes, 32, DataType::Float(32));
-  EXPECT_EQ(allocator->UsedMemory(), size);
-  allocator->Free(buff);
-  EXPECT_EQ(allocator->UsedMemory(), size);
-}
-
 TEST_F(TvmVMMemoryManagerTest, NaiveEmptyBasic) {
   Device dev = {kDLCPU, 0};
   Allocator* allocator = MemoryManagerWrapper::GetOrCreateAllocator(dev, kNaive);
@@ -83,22 +76,6 @@ TEST_F(TvmVMMemoryManagerTest, NaiveEmptyBasic) {
     EXPECT_EQ(allocator->UsedMemory(), nbytes);
   }
   EXPECT_EQ(allocator->UsedMemory(), 0);
-}
-
-TEST_F(TvmVMMemoryManagerTest, PooledEmptyBasic) {
-  Device dev = {kDLCPU, 0};
-  Allocator* allocator = MemoryManagerWrapper::GetOrCreateAllocator(dev, kPooled);
-  EXPECT_EQ(allocator->UsedMemory(), 0);
-  auto dt = DataType::Float(32);
-  size_t nbytes = 1 * 3 * 6 * 6 * dt.bytes();
-  size_t page_size = PooledAllocator::kDefaultPageSize;
-  size_t size = ((nbytes + page_size - 1) / page_size) * page_size;
-  ShapeTuple shape = {1, 3, 6, 6};
-  {
-    auto ndarray = allocator->Empty(shape, dt, dev);
-    EXPECT_EQ(allocator->UsedMemory(), size);
-  }
-  EXPECT_EQ(allocator->UsedMemory(), size);
 }
 
 TEST_F(TvmVMMemoryManagerTest, NaiveAllocWithShape) {
@@ -120,31 +97,6 @@ TEST_F(TvmVMMemoryManagerTest, NaiveAllocWithShape) {
   } catch (std::exception& e) {
     std::string pattern =
         "Device does not support allocate data space with specified memory scope: global.texture";
-    std::string what = e.what();
-    EXPECT_NE(what.find(pattern), std::string::npos) << what;
-  }
-}
-
-TEST_F(TvmVMMemoryManagerTest, PooledAllocWithShape) {
-  Device dev = {kDLCPU, 0};
-  Allocator* allocator = MemoryManagerWrapper::GetOrCreateAllocator(dev, kPooled);
-  EXPECT_EQ(allocator->UsedMemory(), 0);
-  auto dt = DataType::Float(32);
-  size_t nbytes = 1 * 3 * 6 * 6 * dt.bytes();
-  size_t page_size = PooledAllocator::kDefaultPageSize;
-  size_t size = ((nbytes + page_size - 1) / page_size) * page_size;
-  ShapeTuple shape = {1, 3, 6, 6};
-  auto buff = allocator->Alloc(shape, dt);
-  EXPECT_EQ(allocator->UsedMemory(), size);
-  allocator->Free(buff);
-  EXPECT_EQ(allocator->UsedMemory(), size);
-
-  try {
-    auto texture = allocator->Alloc(shape, dt, "global.texture");
-    (void)texture;
-    FAIL();
-  } catch (std::exception& e) {
-    std::string pattern = "This alloc should be implemented";
     std::string what = e.what();
     EXPECT_NE(what.find(pattern), std::string::npos) << what;
   }
@@ -202,6 +154,74 @@ TEST_F(TvmVMMemoryManagerTest, PooledAllocOpenCLTexture) {
     EXPECT_NE(what.find(pattern), std::string::npos) << what;
   }
 }
+
+static std::vector<TestParams> testsParams = {
+  {kPooled,  PooledAllocator::kDefaultPageSize},
+  {kLRUCache, LRUCacheAllocator::kDefaultPageSize}
+};
+
+TEST_P(TvmVMMemoryManagerTest, AllocBasic) {
+  auto params = GetParam();
+  Device dev = {kDLCPU, 0};
+  Allocator* allocator = MemoryManagerWrapper::GetOrCreateAllocator(dev, params.type);
+  EXPECT_EQ(allocator->UsedMemory(), 0);
+  size_t nbytes = 64;
+  size_t page_size = params.page_size;
+  size_t size = ((nbytes + page_size - 1) / page_size) * page_size;
+  EXPECT_EQ(allocator->UsedMemory(), 0);
+  auto buff = allocator->Alloc(nbytes, 32, DataType::Float(32));
+  EXPECT_EQ(allocator->UsedMemory(), size);
+  allocator->Free(buff);
+  EXPECT_EQ(allocator->UsedMemory(), size);
+}
+
+TEST_P(TvmVMMemoryManagerTest, EmptyBasic) {
+  auto params = GetParam();
+  Device dev = {kDLCPU, 0};
+  Allocator* allocator = MemoryManagerWrapper::GetOrCreateAllocator(dev, params.type);
+  EXPECT_EQ(allocator->UsedMemory(), 0);
+  auto dt = DataType::Float(32);
+  size_t nbytes = 1 * 3 * 6 * 6 * dt.bytes();
+  size_t page_size = params.page_size;
+  size_t size = ((nbytes + page_size - 1) / page_size) * page_size;
+  ShapeTuple shape = {1, 3, 6, 6};
+  {
+    auto ndarray = allocator->Empty(shape, dt, dev);
+    EXPECT_EQ(allocator->UsedMemory(), size);
+  }
+  EXPECT_EQ(allocator->UsedMemory(), size);
+}
+
+TEST_P(TvmVMMemoryManagerTest, AllocWithShape) {
+  auto params = GetParam();
+  Device dev = {kDLCPU, 0};
+  Allocator* allocator = MemoryManagerWrapper::GetOrCreateAllocator(dev, params.type);
+  EXPECT_EQ(allocator->UsedMemory(), 0);
+  auto dt = DataType::Float(32);
+  size_t nbytes = 1 * 3 * 6 * 6 * dt.bytes();
+  size_t page_size = params.page_size;
+  size_t size = ((nbytes + page_size - 1) / page_size) * page_size;
+  ShapeTuple shape = {1, 3, 6, 6};
+  auto buff = allocator->Alloc(shape, dt);
+  EXPECT_EQ(allocator->UsedMemory(), size);
+  allocator->Free(buff);
+  EXPECT_EQ(allocator->UsedMemory(), size);
+
+  try {
+    auto texture = allocator->Alloc(shape, dt, "global.texture");
+    (void)texture;
+    FAIL();
+  } catch (std::exception& e) {
+    std::string pattern = "This alloc should be implemented";
+    std::string what = e.what();
+    EXPECT_NE(what.find(pattern), std::string::npos) << what;
+  }
+}
+
+INSTANTIATE_TEST_SUITE_P(
+    TvmVMMemoryManagerTestSuite, TvmVMMemoryManagerTest,
+    testing::ValuesIn(testsParams));
+
 }  // namespace memory
 }  // namespace runtime
 }  // namespace tvm

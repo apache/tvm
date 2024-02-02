@@ -29,6 +29,7 @@
 
 #include "naive_allocator.h"
 #include "pooled_allocator.h"
+#include "lru_cache_allocator.h"
 
 namespace tvm {
 namespace runtime {
@@ -144,6 +145,11 @@ Allocator* MemoryManager::GetOrCreateAllocator(Device dev, AllocatorType type) {
       case kPooled: {
         VLOG(1) << "New pooled allocator for " << dev;
         alloc.reset(new PooledAllocator(dev));
+        break;
+      }
+      case kLRUCache: {
+        VLOG(1) << "New LRU cache allocator for " << dev;
+        alloc.reset(new LRUCacheAllocator(dev));
         break;
       }
       default:
