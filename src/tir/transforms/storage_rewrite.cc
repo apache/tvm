@@ -1708,7 +1708,7 @@ Pass StorageRewrite() {
     // disable merge_static_smem for Vulkan
     auto target = Target::Current(true);
     if (target.defined() && target->kind->name == "vulkan") {
-      merge_static_smem = false;
+      merge_static_smem = true;
     }
     // Only enable reuse when we are not merging static shared memory.
     // Otherwise we will do it in a separate stage
