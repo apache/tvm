@@ -52,7 +52,7 @@ def Gradient(
     """Reverse-mode automatic differentiation.
 
     This pass will differentiate one function in the IRModule. Now the input function must have only
-    one dataflow block.
+    one dataflow block (ConvertToDataflow may need to be called first).
 
     For a given function specified by `func_name`, it generates a new function with the name
     `func_name + "_adjoint"`. The new function computes the gradient of the **differentiation
@@ -260,6 +260,8 @@ def DataflowUseInplaceCalls() -> tvm.ir.transform.Pass:
     in-place PrimFunc implementations of those operators (which are based on the legalizations of
     those operators).
 
+    Note: ConvertToDataflow may need to be called first to provide dataflow blocks.
+
     Returns
     -------
     ret: tvm.ir.transform.Pass
@@ -281,6 +283,8 @@ def LambdaLift() -> tvm.ir.transform.Pass:
 def ConvertToDataflow(min_size: int = 2) -> tvm.ir.transform.Pass:
     """A pass that converts consecutive dataflow operations
     inside binding blocks into dataflow blocks.
+
+    Note: ConvertToDataflow may need to be called first.
 
     Params
     ------
@@ -394,6 +398,8 @@ def RewriteDataflowReshape() -> tvm.ir.transform.Pass:
     The VM reshape operator calls will be further lowered to a CreateView
     operation at runtime, instead of doing real data copy.
     Here "reshape-like" includes reshape, expand_dims, flatten, etc.
+
+    Note: Operates only in dataflow blocks. ConvertToDataflow may need to be called first.
 
     Returns
     -------
@@ -586,6 +592,8 @@ def RunCodegen(
 def FoldConstant() -> tvm.ir.transform.Pass:
     """Fold constant expressions within dataflow blocks.
 
+    Note: ConvertToDataflow may need to be called first to provide dataflow blocks.
+
     Returns
     -------
     ret: tvm.ir.transform.Pass
@@ -650,6 +658,8 @@ def FuseOps(fuse_opt_level=-1) -> tvm.ir.transform.Pass:
     the function being manipulated into function calls to the new grouped function.
 
     A follow-up pass named "FuseTIR" will generate a TIR PrimFunc for each grouped function.
+
+    Note: ConvertToDataflow may need to be called first to provide dataflow blocks.
 
     Parameters
     ----------
@@ -764,7 +774,7 @@ def FuseOpsByPattern(
 
     The end result is similar to FuseOps, but fusion is driven completely by the provided patterns.
 
-    Note: Only operates within dataflow blocks.
+    Note: Only operates within dataflow blocks. ConvertToDataflow may need to be called first.
 
     Parameters
     ----------
@@ -1206,7 +1216,7 @@ def ToMixedPrecision(
     """Automatic mixed precision pass. Currently the pass assumes the input module to be fp32
     only, and will automatically cast fp32 to fp16 for certain ops.
 
-    Note: Mainly operates within dataflow blocks.
+    Note: Mainly operates within dataflow blocks. ConvertToDataflow may need to be called first.
 
     Parameters
     ----------
