@@ -203,6 +203,11 @@ inline void parallel_launch_with_threading_backend(T flambda) {
 
 template <typename T>
 inline void parallel_for_with_threading_backend(T flambda, int64_t begin, int64_t end) {
+  if (end - begin == 1) {
+    flambda(begin);
+    return;
+  }
+
   auto flaunch = [begin, end, flambda](int task_id, int num_task) {
     // For each thread, do static division and call into flambda.
     int64_t total_len = end - begin;
