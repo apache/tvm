@@ -662,11 +662,6 @@ namespace transform {
 Pass MergeSharedMemoryAllocations() {
   auto pass_func = [](PrimFunc f, IRModule m, PassContext ctx) {
     bool merge_static_smem = ctx->GetConfig<Bool>("tir.merge_static_smem", Bool(false)).value();
-    // disable this pass for Vulkan
-    auto target = Target::Current(true);
-    if (target.defined() && target->kind->name == "vulkan") {
-      return f;
-    }
     auto* n = f.CopyOnWrite();
     n->body = MergeSharedMemoryAllocations(std::move(n->body), merge_static_smem);
     return f;
