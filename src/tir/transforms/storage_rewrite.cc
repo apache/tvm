@@ -380,13 +380,13 @@ class StoragePlanRewriter : public StmtExprMutator {
   using StmtEntry = LinearAccessPatternFinder::StmtEntry;
   using AllocEntry = LinearAccessPatternFinder::AllocEntry;
 
-  Stmt Rewrite(Stmt stmt, bool detect_inplace) {
+  Stmt Rewrite(Stmt stmt, bool detect_inplace, bool enable_reuse = true) {
     detect_inplace_ = detect_inplace;
     // plan the rewrite
     LinearAccessPatternFinder finder;
     finder(stmt);
     this->LivenessAnalysis(finder.linear_seq_);
-    this->PlanMemory(finder.linear_seq_, finder.alloc_info_);
+    this->PlanMemory(finder.linear_seq_, finder.alloc_info_, enable_reuse);
     all_buffers_accessed_ = finder.all_buffers_accessed_;
     this->PrepareNewAlloc();
     // start rewrite
@@ -816,7 +816,8 @@ class StoragePlanRewriter : public StmtExprMutator {
 
   // Memory plan algorithm
   void PlanMemory(const std::vector<StmtEntry>& seq,
-                  const std::unordered_map<const VarNode*, AllocEntry>& alloc_info) {
+                  const std::unordered_map<const VarNode*, AllocEntry>& alloc_info,
+                  bool enable_reuse = true) {
     std::unordered_set<const VarNode*> inplace_flag;
 
     for (size_t i = 0; i < seq.size(); ++i) {
@@ -863,8 +864,8 @@ class StoragePlanRewriter : public StmtExprMutator {
             }
           }
           if (dst_entry == nullptr) {
-            dst_entry =
-                FindAlloc(alloc, thread_scope_, storage_scope, entry.num_physical_dimensions);
+            dst_entry = FindAlloc(alloc, thread_scope_, storage_scope,
+                                  entry.num_physical_dimensions, enable_reuse);
           }
           dst_entry->allocs.emplace_back(alloc);
           alloc_map_[var] = dst_entry;
@@ -917,7 +918,8 @@ class StoragePlanRewriter : public StmtExprMutator {
   }
 
   StorageEntry* FindAlloc(const AllocateNode* op, const Object* attach_scope,
-                          const StorageScope& scope, size_t num_physical_dimensions) {
+                          const StorageScope& scope, size_t num_physical_dimensions,
+                          bool enable_reuse = true) {
     ICHECK(op != nullptr);
     // skip plan for local variable,
     // compiler can do a better job with register allocation.
@@ -940,7 +942,7 @@ class StoragePlanRewriter : public StmtExprMutator {
         (scope.tag.length() == 0) && (scope.rank >= StorageRank::kWarp || op->dtype.is_handle() ||
                                       (is_known_size && const_nbits <= 32));
 
-    if (is_small_array || !is_flat_memory_space) {
+    if (!enable_reuse || is_small_array || !is_flat_memory_space) {
       return NewAlloc(op, attach_scope, scope, const_nbits);
     }
 
@@ -1702,8 +1704,17 @@ namespace transform {
 
 Pass StorageRewrite() {
   auto pass_func = [](PrimFunc f, IRModule m, PassContext ctx) {
+    bool merge_static_smem = ctx->GetConfig<Bool>("tir.merge_static_smem", Bool(false)).value();
+    // disable merge_static_smem for Vulkan
+    auto target = Target::Current(true);
+    if (target.defined() && target->kind->name == "vulkan") {
+      merge_static_smem = false;
+    }
+    // Only enable reuse when we are not merging static shared memory.
+    // Otherwise we will do it in a separate stage
+    bool enable_reuse = merge_static_smem ? false : true;
     auto* n = f.CopyOnWrite();
-    n->body = StoragePlanRewriter().Rewrite(std::move(n->body), true);
+    n->body = StoragePlanRewriter().Rewrite(std::move(n->body), true, enable_reuse);
     // Parameters may not be rewritten, but internal allocations may.
     // Vectorization of AllocateConst is currently disabled, as it has
     // indexing issues for types that include padding (e.g. int8x3

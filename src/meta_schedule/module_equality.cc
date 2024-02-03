@@ -54,19 +54,6 @@ class SEqualHandlerIgnoreNDArray : public SEqualHandlerDefault {
   }
 };
 
-class SHashHandlerIgnoreNDArray : public SHashHandlerDefault {
- protected:
-  void DispatchSHash(const ObjectRef& object, bool map_free_vars) override {
-    ICHECK(object.defined());
-    if (auto ndarray = object.as<runtime::NDArray::Container>()) {
-      SHashReducer hash_reduce(this, map_free_vars);
-      NDArrayHash(ndarray, &hash_reduce, false);
-    } else {
-      SHashHandlerDefault::DispatchSHash(object, map_free_vars);
-    }
-  }
-};
-
 class ModuleEqualityIgnoreNDArray : public ModuleEquality {
  public:
   size_t Hash(IRModule mod) const { return SHashHandlerIgnoreNDArray().Hash(mod, false); }

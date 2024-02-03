@@ -43,6 +43,8 @@ class PrinterConfigNode : public Object {
   std::string ir_prefix = "I";
   /*! \brief The prefix of TIR nodes */
   std::string tir_prefix = "T";
+  /*! \brief The prefix of Relax nodes */
+  std::string relax_prefix = "R";
   /*!
    * \brief The alias of the current module at cross-function call
    * \note Directly use module name if it's empty.
@@ -84,6 +86,7 @@ class PrinterConfigNode : public Object {
     v->Visit("show_meta", &show_meta);
     v->Visit("ir_prefix", &ir_prefix);
     v->Visit("tir_prefix", &tir_prefix);
+    v->Visit("relax_prefix", &relax_prefix);
     v->Visit("module_alias", &module_alias);
     v->Visit("buffer_dtype", &buffer_dtype);
     v->Visit("int_dtype", &int_dtype);
@@ -99,6 +102,8 @@ class PrinterConfigNode : public Object {
     v->Visit("obj_to_underline", &obj_to_underline);
     v->Visit("obj_to_annotate", &obj_to_annotate);
   }
+
+  Array<String> GetBuiltinKeywords();
 
   static constexpr const char* _type_key = "node.PrinterConfig";
   TVM_DECLARE_FINAL_OBJECT_INFO(PrinterConfigNode, Object);

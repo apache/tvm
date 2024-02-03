@@ -65,12 +65,17 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
       With<IRFrame> f(d);
       (*f)->AddDispatchToken(d, "ir");
       IdDoc module_doc = d->Define(mod, f(), GetBindingName(d).value_or("Module"));
+      (*f)->global_infos = &mod->global_infos;
       if (mod->attrs.defined() && !mod->attrs->dict.empty()) {
         (*f)->stmts.push_back(
             ExprStmtDoc(IR(d, "module_attrs")  //
                             ->Call({d->AsDoc<ExprDoc>(mod->attrs, p->Attr("attrs"))})));
       }
-
+      if (mod->global_infos.defined() && !mod->global_infos.empty()) {
+        (*f)->stmts.push_back(ExprStmtDoc(
+            IR(d, "module_global_infos")  //
+                ->Call({d->AsDoc<ExprDoc>(mod->global_infos, p->Attr("global_infos"))})));
+      }
       // Declare GlobalVars first
       IdDoc module_alias = d->cfg->module_alias.empty() ? module_doc : IdDoc(d->cfg->module_alias);
       for (const auto& entry : functions) {
@@ -80,20 +85,28 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
         });
       }
       // Print functions
-
       for (const auto& entry : functions) {
         const GlobalVar& gv = entry.gv;
-        const BaseFunc& func = entry.func;
+        const BaseFunc& base_func = entry.func;
         d->cfg->binding_names.push_back(gv->name_hint);
-        Doc doc = d->AsDoc(func, p->Attr("functions")->MapValue(gv));
+        Doc doc = d->AsDoc(base_func, p->Attr("functions")->MapValue(gv));
         d->cfg->binding_names.pop_back();
         if (const auto* stmt_block = doc.as<StmtBlockDocNode>()) {
           (*f)->stmts.push_back(stmt_block->stmts.back());
           (*f)->stmts.back()->source_paths = std::move(doc->source_paths);
         } else if (auto stmt = doc.as<StmtDoc>()) {
           (*f)->stmts.push_back(stmt.value());
+        } else if (auto func = doc.as<FunctionDoc>()) {
+          (*f)->stmts.push_back(func.value());
+        } else if (auto expr = doc.as<ExprDoc>()) {
+          ExprDoc lhs = IdDoc(gv->name_hint);
+          AssignDoc assignment(lhs, expr.value(), NullOpt);
+          (*f)->stmts.push_back(assignment);
         } else {
-          (*f)->stmts.push_back(Downcast<FunctionDoc>(doc));
+          LOG(FATAL) << "TypeError: "
+                     << "Expected IRModule to only contain functions, "
+                     << " but mod[" << gv->name_hint << "] with type  " << base_func->GetTypeKey()
+                     << " produced Doc type of " << doc->GetTypeKey();
         }
       }
       return HeaderWrapper(d, ClassDoc(module_doc, {IR(d, "ir_module")}, (*f)->stmts));
@@ -107,6 +120,21 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
 TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
     .set_dispatch<GlobalVar>("", [](GlobalVar gv, ObjectPath p, IRDocsifier d) -> Doc {
       return IR(d, "GlobalVar")->Call({LiteralDoc::Str(gv->name_hint, p->Attr("name_hint"))});
+    });
+
+TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
+    .set_dispatch<DummyGlobalInfo>("", [](GlobalInfo ginfo, ObjectPath p, IRDocsifier d) -> Doc {
+      return IR(d, "dummy_global_info")->Call({});
+    });
+
+TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
+    .set_dispatch<VDevice>("", [](VDevice vdev, ObjectPath p, IRDocsifier d) -> Doc {
+      d->AddGlobalInfo("vdevice", vdev);
+      Map<String, ObjectRef> config = vdev->target->Export();
+      return IR(d, "vdevice")
+          ->Call({d->AsDoc<ExprDoc>(config, p),
+                  LiteralDoc::Int(vdev->vdevice_id, p->Attr("vdevice_id")),
+                  LiteralDoc::Str(vdev->memory_scope, p->Attr("memory_scope"))});
     });
 
 TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
@@ -156,6 +184,15 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
       return IR(d, "IncompleteType")->Call({});
     });
 
+TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
+    .set_dispatch<Range>("ir", [](Range range, ObjectPath p, IRDocsifier d) -> Doc {
+      return IR(d, "Range")
+          ->Call({
+              d->AsDoc<ExprDoc>(range->min, p->Attr("min")),
+              d->AsDoc<ExprDoc>(range->extent + range->min, p->Attr("extent")),
+          });
+    });
+
 std::string ReprPrintIRModule(const ObjectRef& mod, const PrinterConfig& cfg) {
   if (const auto* f = runtime::Registry::Get("relay.ir.PrintRelayModule")) {
     if (Optional<String> s = (*f)(mod)) {
@@ -172,6 +209,7 @@ TVM_SCRIPT_REPR(DictAttrsNode, ReprPrintIR);
 TVM_SCRIPT_REPR(RelayRefTypeNode, ReprPrintIR);
 TVM_SCRIPT_REPR(FuncTypeNode, ReprPrintIR);
 TVM_SCRIPT_REPR(IncompleteTypeNode, ReprPrintIR);
+TVM_SCRIPT_REPR(RangeNode, ReprPrintIR);
 TVM_SCRIPT_REPR(IRModuleNode, ReprPrintIRModule);
 
 }  // namespace printer

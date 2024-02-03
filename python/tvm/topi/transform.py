@@ -226,6 +226,41 @@ def strided_slice(a, begin, end, strides=None, axes=None, slice_mode="end"):
     return cpp.strided_slice(a, begin, end, strides, axes, slice_mode)
 
 
+def dynamic_strided_slice(a, begin, end, strides, output_shape):
+    """Slice of an array.
+
+    Parameters
+    ----------
+    a : tvm.te.Tensor
+        The tensor to be sliced.
+
+    begin : tvm.te.Tensor
+        The indices to begin with in the slicing.
+
+    end : tvm.te.Tensor
+        Indices indicating end of the slice.
+
+    strides : tvm.te.Tensor
+        Specifies the stride values, it can be negative
+        in that case, the input tensor will be reversed
+        in that particular axis.
+
+    output_shape: list of PrimExpr
+        Specifies the output shape
+
+    Returns
+    -------
+    ret : tvm.te.Tensor
+    """
+    if not isinstance(begin, tvm.te.Tensor):
+        begin = const_vector(begin)
+    if not isinstance(end, tvm.te.Tensor):
+        end = const_vector(end)
+    if not isinstance(strides, tvm.te.Tensor):
+        strides = const_vector(strides)
+    return cpp.relax_dynamic_strided_slice(a, begin, end, strides, output_shape)
+
+
 @tvm.te.tag_scope(tag=tag.INJECTIVE + ",strided_set")
 def strided_set(a, v, begin, end, strides=None):
     """Set slice of an array.

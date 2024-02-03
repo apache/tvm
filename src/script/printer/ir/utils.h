@@ -36,7 +36,11 @@ namespace printer {
 
 class IRFrameNode : public FrameNode {
  public:
-  void VisitAttrs(AttrVisitor* v) { FrameNode::VisitAttrs(v); }
+  Map<String, Array<GlobalInfo>>* global_infos = nullptr;
+  void VisitAttrs(AttrVisitor* v) {
+    FrameNode::VisitAttrs(v);
+    // `global_infos` is not visited
+  }
 
   static constexpr const char* _type_key = "script.printer.IRFrame";
   TVM_DECLARE_FINAL_OBJECT_INFO(IRFrameNode, FrameNode);
@@ -48,6 +52,7 @@ class IRFrame : public Frame {
     ObjectPtr<IRFrameNode> n = make_object<IRFrameNode>();
     n->stmts.clear();
     n->d = d.get();
+    n->global_infos = nullptr;
     data_ = std::move(n);
   }
 

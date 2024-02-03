@@ -698,6 +698,23 @@ def elementwise_producer_not_cover_consumer(
 
 
 @T.prim_func
+def elementwise_producer_is_reduction(
+    A: T.Buffer((128, 128), "float32"), D: T.Buffer((128), "float32")
+) -> None:
+    B = T.alloc_buffer((128))
+    for i, j in T.grid(128, 128):
+        with T.block("B"):
+            vi, vj = T.axis.remap("SR", [i, j])
+            with T.init():
+                B[vi] = T.float32(0)
+            B[vi] = B[vi] + A[vi, vj]
+    for i in T.grid(128):
+        with T.block("C"):
+            vi = T.axis.remap("S", [i])
+            D[vi] = B[vi] + 1.0
+
+
+@T.prim_func
 def elementwise_predicate_producer(a: T.handle, c: T.handle) -> None:
     A = T.match_buffer(a, (128, 128))
     B = T.alloc_buffer((127, 128))
@@ -1282,6 +1299,13 @@ def test_reverse_compute_inline_producer_predicate_disallowed():
     assert_structural_equal_ignore_global_symbol(
         Conv2dInt8_TensorCore_with_predicate_after["main"], sch.mod["main"]
     )
+
+
+def test_reverse_compute_inline_producer_is_reduction():
+    """Test reverse comput inline when producer is reduction"""
+    sch = tir.Schedule(elementwise_producer_is_reduction, debug_mask="all")
+    with pytest.raises(tvm.tir.ScheduleError):
+        sch.reverse_compute_inline(sch.get_block("C"))
 
 
 def test_compute_inline_softmax():

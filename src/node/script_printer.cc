@@ -21,6 +21,8 @@
 #include <tvm/node/script_printer.h>
 #include <tvm/runtime/registry.h>
 
+#include <algorithm>
+
 namespace tvm {
 
 TVMScriptPrinter::FType& TVMScriptPrinter::vtable() {
@@ -33,6 +35,20 @@ std::string TVMScriptPrinter::Script(const ObjectRef& node, const Optional<Print
     return AsLegacyRepr(node);
   }
   return TVMScriptPrinter::vtable()(node, cfg.value_or(PrinterConfig()));
+}
+
+bool IsIdentifier(const std::string& name) {
+  // Python identifiers follow the regex: "^[a-zA-Z_][a-zA-Z0-9_]*$"
+  // `std::regex` would cause a symbol conflict with PyTorch, we avoids to use it in the codebase.
+  //
+  // We convert the regex into following conditions:
+  // 1. The name is not empty.
+  // 2. The first character is either an alphabet or an underscore.
+  // 3. The rest of the characters are either an alphabet, a digit or an underscore.
+  return name.size() > 0 &&                            //
+         (std::isalpha(name[0]) || name[0] == '_') &&  //
+         std::all_of(name.begin() + 1, name.end(),
+                     [](char c) { return std::isalnum(c) || c == '_'; });
 }
 
 PrinterConfig::PrinterConfig(Map<String, ObjectRef> config_dict) {
@@ -49,7 +65,12 @@ PrinterConfig::PrinterConfig(Map<String, ObjectRef> config_dict) {
   if (auto v = config_dict.Get("tir_prefix")) {
     n->tir_prefix = Downcast<String>(v);
   }
-
+  if (auto v = config_dict.Get("relax_prefix")) {
+    n->relax_prefix = Downcast<String>(v);
+  }
+  if (auto v = config_dict.Get("module_alias")) {
+    n->module_alias = Downcast<String>(v);
+  }
   if (auto v = config_dict.Get("buffer_dtype")) {
     n->buffer_dtype = DataType(runtime::String2DLDataType(Downcast<String>(v)));
   }
@@ -92,7 +113,22 @@ PrinterConfig::PrinterConfig(Map<String, ObjectRef> config_dict) {
     n->show_object_address = Downcast<IntImm>(v)->value;
   }
 
+  // Checking prefixes if they are valid Python identifiers.
+  CHECK(IsIdentifier(n->ir_prefix)) << "Invalid `ir_prefix`: " << n->ir_prefix;
+  CHECK(IsIdentifier(n->tir_prefix)) << "Invalid `tir_prefix`: " << n->tir_prefix;
+  CHECK(IsIdentifier(n->relax_prefix)) << "Invalid `relax_prefix`: " << n->relax_prefix;
+  CHECK(n->module_alias.empty() || IsIdentifier(n->module_alias))
+      << "Invalid `module_alias`: " << n->module_alias;
+
   this->data_ = std::move(n);
+}
+
+Array<String> PrinterConfigNode::GetBuiltinKeywords() {
+  Array<String> result{this->ir_prefix, this->tir_prefix, this->relax_prefix};
+  if (!this->module_alias.empty()) {
+    result.push_back(this->module_alias);
+  }
+  return result;
 }
 
 TVM_REGISTER_NODE_TYPE(PrinterConfigNode);

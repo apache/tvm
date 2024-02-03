@@ -34,7 +34,8 @@ namespace tvm {
 
 IRModule::IRModule(tvm::Map<GlobalVar, BaseFunc> functions,
                    tvm::Map<GlobalTypeVar, TypeData> type_definitions,
-                   std::unordered_set<String> import_set, SourceMap source_map, DictAttrs attrs) {
+                   std::unordered_set<String> import_set, SourceMap source_map, DictAttrs attrs,
+                   Map<String, Array<GlobalInfo>> global_infos) {
   auto n = make_object<IRModuleNode>();
   n->functions = std::move(functions);
   n->type_definitions = std::move(type_definitions);
@@ -44,6 +45,7 @@ IRModule::IRModule(tvm::Map<GlobalVar, BaseFunc> functions,
   n->import_set_ = std::move(import_set);
   n->source_map = source_map;
   n->attrs = std::move(attrs);
+  n->global_infos = std::move(global_infos);
 
   for (const auto& kv : n->functions) {
     // set global var map
@@ -67,6 +69,13 @@ bool IRModuleNode::SEqualReduce(const IRModuleNode* other, SEqualReducer equal) 
     return false;
   }
 
+  if (this->global_infos.size() != other->global_infos.size()) return false;
+  for (const auto& kv : this->global_infos) {
+    if (!equal(kv.second, other->global_infos[kv.first])) return false;
+  }
+
+  if (functions.size() != other->functions.size()) return false;
+  // Update GlobalVar remap
   if (equal.IsPathTracingEnabled()) {
     if ((functions.size() != other->functions.size()) ||
         (type_definitions.size() != other->type_definitions.size())) {
@@ -139,6 +148,7 @@ void IRModuleNode::SHashReduce(SHashReducer hash_reduce) const {
   }
   reduce_temp();
   hash_reduce(this->attrs);
+  hash_reduce(this->global_infos);
 }
 
 bool IRModuleNode::ContainGlobalVar(const String& name) const {
@@ -262,6 +272,10 @@ void IRModuleNode::UpdateTypeDef(const GlobalTypeVar& var, const TypeData& type)
   this->AddTypeDef(var, type, true);
 }
 
+void IRModuleNode::UpdateGlobalInfo(const String& name, const Array<GlobalInfo>& info) {
+  this->global_infos.Set(name, info);
+}
+
 void IRModuleNode::Remove(const GlobalVar& var) {
   auto functions_node = this->functions.CopyOnWrite();
   functions_node->erase(var);
@@ -310,7 +324,7 @@ void IRModuleNode::Update(const IRModule& mod) {
 
 IRModule IRModuleNode::ShallowCopy() {
   return IRModule(this->functions, this->type_definitions, this->Imports(), this->source_map,
-                  this->attrs);
+                  this->attrs, this->global_infos);
 }
 
 std::pair<IRModule, GlobalVar> IRModule::FromExprInContext(
@@ -383,7 +397,7 @@ TVM_REGISTER_NODE_TYPE(IRModuleNode);
 
 TVM_REGISTER_GLOBAL("ir.IRModule")
     .set_body_typed([](tvm::Map<GlobalVar, BaseFunc> funcs, tvm::Map<GlobalTypeVar, TypeData> types,
-                       tvm::ObjectRef attrs) {
+                       tvm::ObjectRef attrs, Map<String, Array<GlobalInfo>> global_infos) {
       auto dict_attrs = [&attrs]() {
         if (!attrs.defined()) {
           return DictAttrs();
@@ -396,8 +410,14 @@ TVM_REGISTER_GLOBAL("ir.IRModule")
         }
       }();
 
-      return IRModule(funcs, types, {}, {}, dict_attrs);
+      return IRModule(funcs, types, {}, {}, dict_attrs, global_infos);
     });
+
+TVM_REGISTER_GLOBAL("ir.Module_Clone").set_body_typed([](IRModule mod) -> IRModule {
+  IRModule clone = mod;
+  clone.CopyOnWrite();
+  return clone;
+});
 
 TVM_REGISTER_GLOBAL("ir.Module_Add")
     .set_body_typed([](IRModule mod, GlobalVar var, ObjectRef val, bool update) -> IRModule {
@@ -407,6 +427,34 @@ TVM_REGISTER_GLOBAL("ir.Module_Add")
       }
       mod->Add(var, Downcast<BaseFunc>(val), update);
       return mod;
+    });
+
+TVM_REGISTER_GLOBAL("ir.Module_Remove")
+    .set_body_typed([](IRModule mod, Variant<String, GlobalVar> var) -> IRModule {
+      GlobalVar gvar = [&]() {
+        if (auto opt = var.as<GlobalVar>()) {
+          return opt.value();
+        } else if (auto opt = var.as<String>()) {
+          return mod->GetGlobalVar(opt.value());
+        } else {
+          LOG(FATAL) << "InternalError: "
+                     << "Variant didn't contain any of the allowed types";
+        }
+      }();
+      mod->Remove(gvar);
+      return mod;
+    });
+
+TVM_REGISTER_GLOBAL("ir.Module_Contains")
+    .set_body_typed([](IRModule mod, Variant<String, GlobalVar> var) -> bool {
+      if (auto opt = var.as<GlobalVar>()) {
+        return mod->functions.count(opt.value());
+      } else if (auto opt = var.as<String>()) {
+        return mod->global_var_map_.count(opt.value());
+      } else {
+        LOG(FATAL) << "InternalError: "
+                   << "Variant didn't contain any of the allowed types";
+      }
     });
 
 TVM_REGISTER_GLOBAL("ir.Module_AddDef").set_body_method<IRModule>(&IRModuleNode::AddTypeDef);
@@ -458,6 +506,11 @@ TVM_REGISTER_GLOBAL("ir.Module_Update").set_body_typed([](IRModule mod, IRModule
 TVM_REGISTER_GLOBAL("ir.Module_UpdateFunction")
     .set_body_typed([](IRModule mod, GlobalVar gv, BaseFunc func) { mod->Update(gv, func); });
 
+TVM_REGISTER_GLOBAL("ir.Module_UpdateGlobalInfo")
+    .set_body_typed([](IRModule mod, String name, Array<GlobalInfo> global_info) {
+      mod->UpdateGlobalInfo(name, global_info);
+    });
+
 TVM_REGISTER_GLOBAL("ir.Module_Import").set_body_typed([](IRModule mod, String path) {
   mod->Import(path);
 });
@@ -466,9 +519,21 @@ TVM_REGISTER_GLOBAL("ir.Module_ImportFromStd").set_body_typed([](IRModule mod, S
   mod->ImportFromStd(path);
 });
 
+TVM_REGISTER_GLOBAL("ir.Module_GetAttrs").set_body_typed([](IRModule mod) -> ObjectRef {
+  return mod->GetAttrs();
+});
+
 TVM_REGISTER_GLOBAL("ir.Module_WithAttr")
     .set_body_typed([](IRModule mod, String key, ObjectRef value) -> IRModule {
       return WithAttr(mod, key, value);
+    });
+
+TVM_REGISTER_GLOBAL("ir.Module_WithoutAttr")
+    .set_body_typed([](IRModule mod, String key) -> IRModule { return WithoutAttr(mod, key); });
+
+TVM_REGISTER_GLOBAL("ir.Module_WithAttrs")
+    .set_body_typed([](IRModule mod, Map<String, ObjectRef> attr_map) -> IRModule {
+      return WithAttrs(mod, attr_map);
     });
 
 TVM_REGISTER_GLOBAL("ir.Module_GetAttr").set_body_typed([](IRModule mod, String key) -> ObjectRef {

@@ -920,8 +920,10 @@ CodeGenCPU::PackedCall CodeGenCPU::MakeCallPackedLowered(const Array<PrimExpr>& 
           llvm::Function::Create(ftype_tvm_backend_packed_c_func_, llvm::Function::ExternalLinkage,
                                  func_name, module_.get());
     }
-
-    nargs -= 1;
+    // NOTE: This is a bugfix to a previous coupled convention(in lower_tvm_builtin)
+    // The begin, end should correspond to the right location in cpacked excluding resource handle.
+    // TODO(tqchen): upstream the fix.
+    // nargs -= 1;
     call_args.insert(call_args.end(), {
                                           builder_->CreateBitCast(arg_value, t_void_p_),
                                           arg_tcode.addr,

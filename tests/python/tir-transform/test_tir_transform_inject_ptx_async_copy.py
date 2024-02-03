@@ -161,7 +161,7 @@ def test_inject_async_copy_shared_dyn():
     mod = tvm.tir.transform.LowerOpaqueBlock()(mod)
     mod = tvm.tir.transform.FlattenBuffer()(mod)
     mod = tvm.tir.transform.VectorizeLoop()(mod)
-    mod = tvm.tir.transform.MergeDynamicSharedMemoryAllocations()(mod)
+    mod = tvm.tir.transform.MergeSharedMemoryAllocations()(mod)
     mod = tvm.tir.transform.InjectPTXAsyncCopy()(mod)
 
     assert count_cp_async(mod["main"].body) == 2

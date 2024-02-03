@@ -27,6 +27,7 @@
 #include <tvm/ir/adt.h>
 #include <tvm/ir/expr.h>
 #include <tvm/ir/function.h>
+#include <tvm/ir/global_info.h>
 #include <tvm/ir/source_map.h>
 #include <tvm/ir/type.h>
 #include <tvm/runtime/container/array.h>
@@ -63,6 +64,8 @@ class IRModuleNode : public Object {
   SourceMap source_map;
   /* \brief Additional attributes storing meta-data about the module. */
   DictAttrs attrs;
+  /*! \brief Globally static object that are referred by the IR itself */
+  Map<String, Array<GlobalInfo>> global_infos;
   /*!
    * \brief A map from string names to global variables that
    * ensures global uniqueness.
@@ -116,6 +119,12 @@ class IRModuleNode : public Object {
   }
 
   /*!
+   * \brief Get the metadata attributes.
+   * \returns The additional meta-data attributes
+   */
+  DictAttrs GetAttrs() const { return attrs; }
+
+  /*!
    * \brief Check whether the module has an non-zero integer attr.
    *
    * This function can be used to check whether an optional
@@ -145,6 +154,7 @@ class IRModuleNode : public Object {
     v->Visit("global_type_var_map_", &global_type_var_map_);
     v->Visit("source_map", &source_map);
     v->Visit("attrs", &attrs);
+    v->Visit("global_infos", &global_infos);
   }
 
   TVM_DLL bool SEqualReduce(const IRModuleNode* other, SEqualReducer equal) const;
@@ -203,6 +213,13 @@ class IRModuleNode : public Object {
    * \param type The new ADT.
    */
   TVM_DLL void UpdateTypeDef(const GlobalTypeVar& var, const TypeData& type);
+
+  /*!
+   * \brief Update an array of global infos in the global environment.
+   * \param name The name of the global info.
+   * \param info The new array of global infos.
+   */
+  TVM_DLL void UpdateGlobalInfo(const String& name, const Array<GlobalInfo>& info);
 
   /*!
    * \brief Remove a function from the global environment.
@@ -353,12 +370,13 @@ class IRModule : public ObjectRef {
    * \param type_definitions Type definitions in the module.
    * \param import_set Set of imported files in the module.
    * \param map The module source map.
-   * \param attrs The module attributes.
+   * \param attrs The module meta-data attributes.
+   * \param global_infos Global infos in the module.
    */
   TVM_DLL explicit IRModule(Map<GlobalVar, BaseFunc> functions,
                             Map<GlobalTypeVar, TypeData> type_definitions = {},
                             std::unordered_set<String> import_set = {}, SourceMap map = {},
-                            DictAttrs attrs = {});
+                            DictAttrs attrs = {}, Map<String, Array<GlobalInfo>> global_infos = {});
 
   /*! \brief default constructor */
   IRModule() : IRModule(Map<GlobalVar, BaseFunc>({})) {}

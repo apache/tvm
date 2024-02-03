@@ -1481,10 +1481,10 @@ def _sparse_segment_mean_with_num_segments():
 
 
 def _sparse_tensor_dense_add():
-    # Sparse utility from scipy
-    from scipy.sparse import csr_matrix
-
     def _impl(inputs, attr, params, mod):
+        # Sparse utility from scipy
+        from scipy.sparse import csr_matrix
+
         assert (
             len(inputs) == 4
         ), "There should be 4 input tensors [sparse_indices, sparse_values, sparse_shape, dense]."

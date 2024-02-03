@@ -168,7 +168,7 @@ def gen_ir(data, indices, updates, out, axis, reduce_func):
     max_threads = int(tvm.target.Target.current(allow_none=False).max_num_threads)
     # Copy initial input data to output
     with ib.new_scope():
-        num_blocks = ceil_div(full_range, max_threads)
+        num_blocks = cast(ceil_div(full_range, max_threads), "int32")
         bx = te.thread_axis("blockIdx.x")
         tx = te.thread_axis("threadIdx.x")
         ib.scope_attr(bx, "thread_extent", num_blocks)

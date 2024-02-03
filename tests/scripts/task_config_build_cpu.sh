@@ -57,3 +57,4 @@ echo set\(USE_CCACHE OFF\) >> config.cmake
 echo set\(USE_ETHOSU OFF\) >> config.cmake
 echo set\(USE_UMA ON\) >> config.cmake
 echo set\(SUMMARIZE ON\) >> config.cmake
+echo set\(USE_MSC ON\) >> config.cmake

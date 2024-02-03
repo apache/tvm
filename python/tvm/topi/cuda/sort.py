@@ -120,7 +120,6 @@ def _odd_even_sort(
     values=None,
     values_swap=None,
 ):
-
     nthread_tx = block_size // 2
     nthread_bx = ceil_div(size, block_size)
     nthread_by = axis_mul_before

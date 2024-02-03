@@ -41,7 +41,6 @@
 #include "../support/base64.h"
 
 namespace tvm {
-
 namespace codegen {
 
 /*!

@@ -256,5 +256,9 @@ TVM_REGISTER_GLOBAL("profiling.timer.rocm").set_body_typed([](Device dev) {
   return Timer(make_object<ROCMTimerNode>());
 });
 
+TVM_REGISTER_GLOBAL("runtime.get_rocm_stream").set_body_typed([]() {
+  return static_cast<void*>(ROCMThreadEntry::ThreadLocal()->stream);
+});
+
 }  // namespace runtime
 }  // namespace tvm

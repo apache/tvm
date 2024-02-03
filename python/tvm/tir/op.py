@@ -3270,6 +3270,85 @@ def TVMBackendFreeWorkspace(device_type, device_id, ptr):
     return call_intrin("int32", "tir.TVMBackendFreeWorkspace", device_type, device_id, ptr)
 
 
+def anylist_getitem(list_handle, index):
+    """Returns an item from any list.
+    list_handle: Var
+        The handle to anylist
+    index : int
+        The index
+    Returns
+    -------
+    call : PrimExpr
+        The call expression.
+    """
+    return call_intrin("handle", "tir.anylist_getitem", list_handle, index)
+
+
+def anylist_resetitem(list_handle, index):
+    """Reset an item from any list.
+    list_handle: Var
+        The handle to anylist
+    index : int
+        The index
+    Returns
+    -------
+    call : PrimExpr
+        The call expression.
+    """
+    return call_intrin("int", "tir.anylist_resetitem", list_handle, index)
+
+
+def anylist_setitem_call_packed(list_handle, index, func_name, *args):
+    """Set anylist item by result of packed call.
+    list_handle: Var
+        The handle to anylist
+    index : int
+        The index
+    func_name: str
+        The name of the function to be called.
+    args:
+        Extra arguments
+    Returns
+    -------
+    call : PrimExpr
+        The call expression.
+    """
+    return call_intrin(
+        "int", "tir.anylist_setitem_call_packed", list_handle, index, func_name, *args
+    )
+
+
+def anylist_setitem_call_cpacked(list_handle, index, func_name, *args):
+    """Set anylist item by result of packed call.
+    list_handle: Var
+        The handle to anylist
+    index : int
+        The index
+    func_name: str
+        The name of the function to be called.
+    args:
+        Extra arguments
+    Returns
+    -------
+    call : PrimExpr
+        The call expression.
+    """
+    return call_intrin(
+        "int", "tir.anylist_setitem_call_cpacked", list_handle, index, func_name, *args
+    )
+
+
+def vscale():
+    """Get the target's vscale value. It will be lowered to llvm.vscale intrinsic
+    (https://llvm.org/docs/LangRef.html#llvm-vscale-intrinsic)
+    Returns
+    -------
+    call : PrimExpr
+        Call to the vscale intrinsic
+    """
+    return call_intrin("int32", "tir.vscale")
+
+
 # pylint: disable=unnecessary-lambda
 sum = comm_reducer(lambda x, y: x + y, lambda t: const(0, dtype=t), name="sum")
 min = comm_reducer(lambda x, y: _ffi_api._OpMin(x, y, None), max_value, name="min")  # type: ignore

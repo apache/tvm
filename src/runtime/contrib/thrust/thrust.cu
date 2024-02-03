@@ -324,10 +324,14 @@ void thrust_scan(DLTensor* data, DLTensor* output, bool exclusive) {
 
 TVM_REGISTER_GLOBAL("tvm.contrib.thrust.sum_scan")
 .set_body([](TVMArgs args, TVMRetValue* ret) {
-  ICHECK_EQ(args.num_args, 3);
+  ICHECK(args.num_args == 3 || args.num_args == 2);
   DLTensor* data = args[0];
   DLTensor* output = args[1];
-  bool exclusive = args[2];
+  bool exclusive = false;
+
+  if (args.num_args == 3) {
+    exclusive = args[2];
+  }
 
   auto in_dtype = DLDataType2String(data->dtype);
   auto out_dtype = DLDataType2String(output->dtype);

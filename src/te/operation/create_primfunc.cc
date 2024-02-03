@@ -567,15 +567,85 @@ PrimFunc CreatePrimFunc(const Array<te::Tensor>& arg_list,
 }
 
 TVM_REGISTER_GLOBAL("te.CreatePrimFunc").set_body([](TVMArgs args, TVMRetValue* ret) {
-  Array<te::Tensor> arg_list = args[0];
+  Array<ObjectRef> arg_list = args[0];
   std::optional<DataType> index_dtype_override{std::nullopt};
   // Add conversion to make std::optional compatible with FFI.
-  ICHECK_EQ(args.size(), 2);
   if (args[1].type_code() != kTVMNullptr) {
     index_dtype_override = args[1].operator DataType();
   }
   *ret = CreatePrimFunc(arg_list, index_dtype_override);
 });
+
+// Relax version impl
+PrimFunc GenerateAndCompletePrimFunc(const Array<ObjectRef>& arg_tir_var_list,
+                                     const Array<Stmt>& root_stmts, CreateFuncInfo* info) {
+  Array<Var> parameters;
+  Map<Var, Buffer> buffer_map;
+  for (const ObjectRef& x : arg_tir_var_list) {
+    if (auto n = x.as<te::TensorNode>()) {
+      te::Tensor tensor = GetRef<te::Tensor>(n);
+      Var arg("var_" + tensor->GetNameHint(), PrimType(DataType::Handle()));
+      parameters.push_back(arg);
+      auto it = info->tensor2buffers.find(tensor);
+      ICHECK(it != info->tensor2buffers.end());
+      buffer_map.Set(arg, it->second);
+    } else if (auto n = x.as<tir::VarNode>()) {
+      tir::Var var = GetRef<tir::Var>(n);
+      parameters.push_back(var);
+    }
+  }
+  PrimFunc func = WithAttrs(PrimFunc(/*params=*/std::move(parameters),
+                                     /*body=*/SeqStmt::Flatten(root_stmts),
+                                     /*ret_type=*/VoidType(),
+                                     /*buffer_map=*/std::move(buffer_map)),
+                            {{"global_symbol", String("main")}, {"tir.noalias", Bool(true)}});
+
+  const auto* complete = runtime::Registry::Get("script.Complete");
+  ICHECK(complete);
+  func = (*complete)(std::move(func), info->root_alloc);
+  return func;
+}
+
+PrimFunc CreatePrimFuncWithConstants(const Array<ObjectRef>& arg_list,
+                                     const Array<runtime::NDArray>& constants,
+                                     std::optional<DataType> index_dtype_override) {
+  Array<te::Tensor> tensor_arg_list;
+  for (const ObjectRef& x : arg_list) {
+    if (auto tensor_node = x.as<te::TensorNode>()) {
+      te::Tensor tensor = GetRef<te::Tensor>(tensor_node);
+      tensor_arg_list.push_back(tensor);
+    }
+  }
+  // Infomations used in CreatePrimFunc and its sub-functions.
+  CreateFuncInfo info(tensor_arg_list);
+  // Root body stmts.
+  Array<Stmt> root_stmts;
+  // Analyzer
+  arith::Analyzer analyzer;
+
+  // Step 1. Create ordered array of operations and validate they are supported.
+  Array<te::Operation> order = CollectOrderedOps(tensor_arg_list);
+
+  // Step 2. Initialize buffer binds map
+  InitializeBufferBinds(order, &info);
+
+  // Step 3. Rewrite compute stages into blocks.
+  for (const te::Operation& op : order) {
+    RewriteStageToBlock(op, &info, &root_stmts, &analyzer);
+  }
+  auto func = GenerateAndCompletePrimFunc(arg_list, root_stmts, &info);
+  func = tir::BindParams(func, constants);
+  if (index_dtype_override.has_value()) {
+    func = IndexDataTypeNormalizer(index_dtype_override.value()).Rewrite(std::move(func));
+  }
+  auto result = LayoutFreePlaceholdersNormalizer().Process(std::move(func));
+  return result;
+}
+
+PrimFunc CreatePrimFunc(const Array<ObjectRef>& arg_list,
+                        std::optional<DataType> index_dtype_override) {
+  return CreatePrimFuncWithConstants(arg_list, {}, index_dtype_override);
+}
 
 }  // namespace tir
 }  // namespace tvm

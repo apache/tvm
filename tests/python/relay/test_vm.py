@@ -14,26 +14,24 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-import numpy as np
-import pytest
-import time
 from unittest.mock import patch
 
+import numpy as np
+import pytest
+
 import tvm
-from tvm import runtime
-from tvm import relay, IRModule
-from tvm.relay.backend import vm
-from tvm.relay.scope_builder import ScopeBuilder
-from tvm.relay.prelude import Prelude
-from tvm.relay.loops import while_loop
-from tvm.relay import testing
-from tvm.contrib import utils
-from tvm import rpc
 import tvm.testing
-from tvm.relay.transform import InferType
-from tvm.relay.testing import mlp
-from tvm.relay.dataflow_pattern import wildcard, is_op
+from tvm import IRModule, relay, rpc, runtime
+from tvm.contrib import utils
+from tvm.relay import testing
+from tvm.relay.backend import vm
 from tvm.relay.backend.vm import VMCompiler
+from tvm.relay.dataflow_pattern import is_op, wildcard
+from tvm.relay.loops import while_loop
+from tvm.relay.prelude import Prelude
+from tvm.relay.scope_builder import ScopeBuilder
+from tvm.relay.testing import mlp
+from tvm.relay.transform import InferType
 
 
 def check_result(target, dev, args, expected_result, mod):

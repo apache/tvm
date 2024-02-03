@@ -28,9 +28,10 @@ from .parser import Parser
 def _default_globals() -> Dict[str, Any]:
     import tvm  # pylint: disable=import-outside-toplevel
     from tvm.script.parser import ir  # pylint: disable=import-outside-toplevel
+    from tvm.script.parser import relax  # pylint: disable=import-outside-toplevel
     from tvm.script.parser import tir  # pylint: disable=import-outside-toplevel
 
-    extra_vars = {"tvm": tvm, "I": ir, "ir": ir, "T": tir, "tir": tir}
+    extra_vars = {"tvm": tvm, "I": ir, "ir": ir, "T": tir, "tir": tir, "R": relax, "relax": relax}
     return extra_vars
 
 

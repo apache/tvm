@@ -243,20 +243,33 @@ def build(
 
     if not isinstance(inputs, (dict, container.Map)):
         target = Target.current() if target is None else target
-        target = target if target else "llvm"
-        target_input_mod = {target: input_mod}
+        if target is None and isinstance(input_mod, tvm.IRModule):
+            target_mod = {}
+            for gvar, func in input_mod.functions.items():
+                tgt = func.attrs["target"] if func.attrs and "target" in func.attrs else "llvm"
+                if tgt not in target_mod:
+                    target_mod[tgt] = {}
+                target_mod[tgt][gvar] = func
+
+            target_input_mod = {}
+            for tgt in target_mod.keys():
+                tir_mod = tvm.IRModule(target_mod[tgt])
+                tir_mod.with_attrs(input_mod.attrs)
+                target_input_mod[tgt] = tir_mod
+        else:
+            target_input_mod = {target: input_mod}
     else:
-        target_input_mod = inputs
+        target_input_mod = {tgt: lower(mod) for tgt, mod in inputs.items()}
 
     # Because modules can be created from a variety of sources, we annotate them
     # with the relevant attributes here to ensure they propagate
     annotated_mods = {}
-    for tar, mod in target_input_mod.items():
-        if not isinstance(tar, (str, Target)):
+    for tgt, mod in target_input_mod.items():
+        if not isinstance(tgt, (str, Target)):
             raise ValueError("The key of inputs must be str or " "Target when inputs is dict.")
         if not isinstance(mod, tvm.IRModule):
-            raise ValueError("inputs must be Schedule, IRModule," "or dict of str to IRModule.")
-        annotated_mods[tar] = mod.with_attr("runtime", runtime)
+            raise ValueError("inputs must be Schedule, IRModule, " "or dict of str to IRModule.")
+        annotated_mods[tgt] = mod.with_attr("runtime", runtime)
 
     # TODO(mbs): Both CompilationConfig and TIRToRuntime implement the same host target
     #  defaulting logic, but there's currently no way to get back the decided host.
