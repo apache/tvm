@@ -688,6 +688,32 @@ TVM_REGISTER_GLOBAL("tir.bitwise_not").set_body_typed([](PrimExpr a, Span span) 
 PrimExpr pow(PrimExpr x, PrimExpr y, Span span) {
   BinaryOpMatchTypes(x, y, span);
   ICHECK(x.dtype().is_float()) << "power only applies to float";
+
+  // If we detect pow(x, 3), suggest using x * x * x
+  if (y.dtype().is_int()) {
+    using tir::IntImmNode;
+    const IntImmNode* px = y.as<IntImmNode>();
+    if (px) {
+      if (px->value >= 3) {
+        LOG(WARNING)
+            << "Detected pow(x, y) where y >= 3, it is recommended to avoid this as it may lead to "
+               "uninteded behaviors when x < 0. Perhaps with `x * x * x ...` or "
+               "`pow(x, 2) * pow(x, 2) ...`.";
+      }
+    }
+  } else if (y.dtype().is_float()) {
+    using tir::FloatImmNode;
+    const FloatImmNode* fx = y.as<FloatImmNode>();
+    if (fx) {
+      if (fx->value >= 3.0) {
+        LOG(WARNING)
+            << "Detected pow(x, y) where y >= 3, it is recommended to avoid this as it may lead to "
+               "uninteded behaviors when x < 0. Perhaps with `x * x * x ...` or "
+               "`pow(x, 2) * pow(x, 2) ...`.";
+      }
+    }
+  }
+
   static auto op = Op::Get("tir.pow");
   return tir::Call(x.dtype(), op, {x, y}, span);
 }
