@@ -39,6 +39,7 @@
 #include <iterator>
 #include <functional>
 #include <numeric>
+#include <vector>
 
 namespace tvm {
 namespace runtime {
@@ -65,8 +66,7 @@ class LRUCacheAllocator final : public Allocator {
   }
 
   class LRUCache {
-  public:
-
+   public:
     using object_t = std::pair<size_t, Buffer>;
     using queue_t = std::list<object_t>;
     using pair_t = std::pair<size_t, queue_t::iterator>;
@@ -74,8 +74,7 @@ class LRUCacheAllocator final : public Allocator {
     using lru_t = std::list<pair_t>;
 
     LRUCache(size_t count, Device dev)
-    : capacity_(count)
-    {
+    : capacity_(count) {
       ids_.resize(capacity_);
       iters_map_.resize(capacity_);
       std::iota(ids_.begin(), ids_.end(), 1);
@@ -113,14 +112,14 @@ class LRUCacheAllocator final : public Allocator {
 
     size_t remove_oldest(size_t desired_size) {
       size_t removed = 0;
-      while((removed < desired_size) && !queue_.empty()) {
+      while ((removed < desired_size) && !queue_.empty()) {
         removed += remove_from_storages();
       }
       return removed;
     }
 
     void remove_all() {
-      while(!queue_.empty()) {
+      while (!queue_.empty()) {
         remove_from_storages();
       }
     }
@@ -129,8 +128,7 @@ class LRUCacheAllocator final : public Allocator {
       return queue_.size();
     }
 
-  private:
-
+   private:
     void add_to_storages(size_t size, const Buffer& val) {
       auto id = ids_.back();
       ids_.pop_back();
