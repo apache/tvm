@@ -42,6 +42,7 @@ namespace memory {
 enum AllocatorType {
   kNaive = 1,
   kPooled,
+  kLRUCache
 };
 
 struct Buffer {

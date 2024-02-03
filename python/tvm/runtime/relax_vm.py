@@ -41,6 +41,7 @@ class VirtualMachine(object):
 
     NAIVE_ALLOCATOR = 1
     POOLED_ALLOCATOR = 2
+    LRUCACHE_ALLOCATOR = 3
 
     def __init__(
         self,
@@ -115,9 +116,11 @@ class VirtualMachine(object):
         if memory_cfg is None:
             memory_cfg = {}
         elif isinstance(memory_cfg, str):
-            assert memory_cfg in ["naive", "pooled"]
+            assert memory_cfg in ["naive", "pooled", "lru_cache"]
             if memory_cfg == "naive":
                 default_alloc_type = VirtualMachine.NAIVE_ALLOCATOR
+            elif memory_cfg == "lru_cache":
+                default_alloc_type = VirtualMachine.LRUCACHE_ALLOCATOR
             memory_cfg = {}
         elif not isinstance(memory_cfg, dict):
             raise TypeError(
