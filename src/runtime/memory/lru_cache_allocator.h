@@ -80,7 +80,7 @@ class LRUCacheAllocator final : public Allocator {
       std::iota(ids_.begin(), ids_.end(), 1);
       auto api = DeviceAPI::Get(dev);
       deallocator_ = std::bind(&DeviceAPI::FreeDataSpace, api, _1, _2);
-    };
+    }
 
     std::optional<Buffer> get(size_t size) {
       auto it = map_.find(size);
