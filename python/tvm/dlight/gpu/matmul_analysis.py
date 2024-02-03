@@ -25,8 +25,13 @@ from tvm.ir import Range
 from tvm.tir import IterVar, PrimExpr, Var
 from tvm.tir.analysis import undefined_vars
 from tvm.tir.schedule.schedule import BlockRV
-from ..base.analysis import collect_block_iter_vars_used_in_access_region
+from ..base.analysis import (
+    collect_block_iter_vars_used_in_access_region,
+    get_root_block,
+    get_reduction_blocks,
+)
 from tvm.target.target import Target
+from tvm.tir import IndexMap
 
 
 def _is_one(x: PrimExpr) -> bool:
@@ -259,7 +264,6 @@ def get_index_map(
     """
     traits = detect_iter_traits(block)
     if traits is None:
-        print("[WARNING] traits is None, the block is", block)
         return None
     A_traits, B_traits, C_traits, block_traits = traits
 
@@ -337,31 +341,6 @@ def get_index_map(
         B_index_map,
         C_index_map,
     )
-
-
-def get_reduction_blocks(sch, blocks) -> Optional[List[BlockRV]]:
-    # Get the main computation block
-    def is_reduction(block: BlockRV) -> bool:
-        block_stmt = sch.get(block)
-        iter_types = {iter_var.iter_type for iter_var in block_stmt.iter_vars}
-        return iter_types == {IterVar.CommReduce, IterVar.DataPar}
-
-    def is_spatial(block: BlockRV) -> bool:
-        block_stmt = sch.get(block)
-        iter_types = {iter_var.iter_type for iter_var in block_stmt.iter_vars}
-        return iter_types == {IterVar.DataPar}
-
-    # NOTE: We assume there is only one reduction block in the function
-    # all blocks are required to be spatial or reduction
-    if not all([is_reduction(block) or is_spatial(block) for block in blocks]):
-        return None
-
-    # There is only one reduction block
-    reduction_blocks = [block for block in blocks if is_reduction(block)]
-    if len(reduction_blocks) != 1:
-        return None
-
-    return reduction_blocks
 
 
 def get_in_out_dtypes(block: tir.Block) -> Tuple[str]:
@@ -515,15 +494,6 @@ def get_tensorized_func_and_tags(
         sm_version = arch.replace("sm_", "")
         return int(sm_version) if sm_version.isdigit() else -1
 
-    def get_in_out_dtypes(block: tir.Block) -> Tuple[str]:
-        """
-        Detect In/Out data types for the given block based on the analysis if read/write buffers.
-        """
-        assert len(block.reads) > 0 and len(block.writes) > 0
-        in_dtype = block.reads[0].buffer.dtype
-        out_dtype = block.writes[0].buffer.dtype
-        return (in_dtype, out_dtype)
-
     def analysis_tensorcore_tags(sch: tir.Schedule, block: BlockRV, target: Target) -> bool:
         tags: Dict[str, Union[List[int], int]] = {}
         block_stmt = sch.get(block)
@@ -573,7 +543,10 @@ def get_tensorized_func_and_tags(
         intrin_info["out_dtype"] = out_dtype
         # if the last dimension is reduce axis, the B is transposed
         intrin_info["trans_b"] = check_last_trait(block_stmt.reads[1].region)
-
+        if "smooth_a" in func.attrs:
+            intrin_info["smooth_a"] = func.attrs["smooth_a"]
+        if "smooth_b" in func.attrs:
+            intrin_info["smooth_b"] = func.attrs["smooth_b"]
         tags["intrin_info"] = intrin_info
 
         return tags
@@ -613,3 +586,45 @@ def get_tensorized_func_and_tags(
         return sch.mod["main"], tags
 
     return func, None
+
+
+def get_propagate_map(trans: bool = True, dtype="float16"):
+    from tvm.tir.tensor_intrin.cuda import (  # pylint: disable=import-outside-toplevel
+        ldmatrix_32x8_to_shared_16x16_layout,
+        ldmatrix_trans_32x8_to_shared_16x16_layout,
+    )
+
+    assert dtype in ["float16"], "Only support float16 for now"
+
+    ldmatrix_layout = ldmatrix_32x8_to_shared_16x16_layout
+    ldmatrix_layout_trans = ldmatrix_trans_32x8_to_shared_16x16_layout
+
+    # IntraWarp memory layout was occurred by ldmatrix, we should lift the ld_matrix out
+    def ldmatrix_permutation_16x16_32x8_16x16(kernel_i, kernel_j):
+        thread_id = kernel_i * 2 + kernel_j // 8
+        local_id = kernel_j % 8
+        return ldmatrix_layout(thread_id, local_id)
+
+    def ldmatrix_trans_permutation_16x16_32x8_16x16(kernel_i, kernel_j):
+        thread_id = kernel_i * 2 + kernel_j // 8
+        local_id = kernel_j % 8
+        return ldmatrix_layout_trans(thread_id, local_id)
+
+    ldmatrix_index_map = (
+        ldmatrix_trans_permutation_16x16_32x8_16x16
+        if trans
+        else ldmatrix_permutation_16x16_32x8_16x16
+    )
+
+    def permutation(i, j, kernel_i, kernel_j):
+        return (
+            i,
+            j,
+            *ldmatrix_index_map(kernel_i, kernel_j),
+        )
+
+    # TODO(lei): index_dtype should be analyzed from the schedule
+    inversed_index_map = IndexMap.from_func(
+        ldmatrix_index_map, index_dtype="int32"
+    ).inverse([16, 16])
+    return permutation, inversed_index_map

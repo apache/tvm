@@ -122,14 +122,16 @@ class Matmul(GPUScheduleRule):
         if target.kind.name == "cuda" and utils.get_sm_version(target) >= 70:
             apply_tensorization: bool = True
             # the batch dimension is not taken into consideration.
+            # Analyze read/write buffers and choose correct tensorizer: int8 or fp16.
+            in_dtype, out_dtype = get_in_out_dtypes(block_stmt)
+            if in_dtype not in ["int8", "float16"]:
+                apply_tensorization = False
             for item_var in block_stmt.iter_vars[1:]:
                 extent = item_var.dom.extent
                 if isinstance(extent, tir.expr.IntImm):
                     if extent.value <= minimal_tensorize_threshold:
                         apply_tensorization = False
             if apply_tensorization:
-                # Analyze read/write buffers and choose correct tensorizer: int8 or fp16.
-                in_dtype, out_dtype = get_in_out_dtypes(block_stmt)
                 if in_dtype == "int8" and out_dtype == "int32":
                     tensorize_sch = MatmulInt8Tensorization().apply(func, target, _)
                 elif utils.get_sm_version(target) >= 80:

@@ -113,32 +113,6 @@ class Node(object):
         if k not in self._tag:
             return None
         return self._tag[k]
-class BufferNode(Node):
-    """BufferNode is a wrapper of tir.Buffer, which is used to store the buffer information."""
-
-    def __init__(self, buffer: tir.Buffer, tags: Dict = {}) -> None:
-        super().__init__()
-        self.buffer = buffer
-        self._tag: Dict = {}
-        for tag in tags:
-            self.add_tag(tag, tags[tag])
-        self.set_dtype(tvm.DataType(self.buffer.dtype))
-
-    def set_dtype(self, dtype: tvm.DataType, id=0) -> None:
-        assert isinstance(dtype, tvm.DataType), type(dtype)
-        if dtype == tvm.DataType("bool"):
-            dtype = tvm.DataType("int8")
-        if len(self._dtypes) <= id:
-            self._dtypes.extend([None for _ in range(id - len(self._dtypes) + 1)])
-        elif self._dtypes[id] is not None:
-            assert self._dtypes[id] == dtype, (self._dtypes, dtype)
-        self._dtypes[id] = dtype
-
-    def get_dtype(self, id=0) -> tvm.DataType:
-        return self._dtypes[id]
-
-    def get_buffer_dtype(self, buffer: tir.Buffer) -> tvm.DataType:
-        return tvm.DataType(buffer.dtype)
 
 
 class PrimFuncNode(Node):
@@ -161,6 +135,9 @@ class PrimFuncNode(Node):
 
     def _specialize_func(self, func: PrimFunc):
         # Specialize the function to make it more friendly for analysis.
+        # set attrs
+        for k, v in func.attrs.items():
+            self.set_tag(k, v)
         opt_shapes = self.get_tag("opt_shapes")
         if opt_shapes:
             for name, shape in opt_shapes.items():
@@ -277,7 +254,8 @@ class PrimFuncNode(Node):
                 continue
             # should not exceed original shape
             trimmed_shape = [
-               self.extent_warpper(i) for i in list(map(min, zip(shapes[arg.name], self.input_buffers[i].shape)))
+                self.extent_warpper(i)
+                for i in list(map(min, zip(shapes[arg.name], self.input_buffers[i].shape)))
             ]
             results.append(trimmed_shape)
         return results

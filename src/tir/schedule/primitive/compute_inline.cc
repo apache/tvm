@@ -613,7 +613,6 @@ class ReverseComputeInliner : public BaseInliner {
 
   bool BodyPatternAllowInline(const BlockRealize& consumer_block_realize) {
     const Block& consumer_block = consumer_block_realize->block;
-    LOG(INFO) << "BodyPatternAllowInline";
 
     if (!is_one(consumer_block_realize->predicate)) {
       // Failure: Predicate is the consumer block is not supported

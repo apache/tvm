@@ -34,7 +34,7 @@ from tvm.target import Target
 from .roller.policy import DefaultPolicy, TensorCorePolicy
 from .roller.arch import CUDA
 from .schedule_rule import ScheduleRule
-from .analysis import get_tensorized_func_and_tags
+from ..gpu.matmul_analysis import get_tensorized_func_and_tags
 from .utils import apply_and_build
 
 
