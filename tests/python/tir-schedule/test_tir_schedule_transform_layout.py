@@ -739,7 +739,10 @@ class TestPaddedTransformIfThenElseReduction(BasePaddingCompare):
                 with T.init():
                     B[vi, vj] = T.if_then_else(vi == 3 and 2 <= vj, 0, 0, dtype="int32")
                 B[vi, vj] = T.if_then_else(
-                    vi == 3 and 2 <= vj, 0, B[vi, vj] + A[vi * 4 + vj, vk], dtype="int32"
+                    vi == 3 and 2 <= vj,
+                    0,
+                    B[vj // 4 + vi, vj % 4] + A[vi * 4 + vj, vk],
+                    dtype="int32",
                 )
 
 
@@ -764,7 +767,7 @@ class TestPaddedTransformIfThenElseReductionOpaque(BasePaddingCompare):
             for k in T.serial(32):
                 with T.block("block"):
                     B[i, j] = T.if_then_else(
-                        i == 3 and 2 <= j, 0, B[i, j] + A[i * 4 + j, k], dtype="int32"
+                        i == 3 and 2 <= j, 0, B[j // 4 + i, j % 4] + A[i * 4 + j, k], dtype="int32"
                     )
 
 

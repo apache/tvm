@@ -76,12 +76,12 @@ def create(graph_json_str, libmod, device, dump_root=None):
     # Automatically set params if they can be extracted from the libmod
     try:
         params = libmod["get_graph_params"]()
+        if isinstance(params, tvm.ir.container.Map):
+            gmod.set_input(**params)
     except (AttributeError, tvm.error.RPCError):
         # Params can not be extracted from the libmod and must be set somewhere else manually
         # Do not set params during RPC communication
         pass
-    else:
-        gmod.set_input(**params)
 
     return gmod
 
