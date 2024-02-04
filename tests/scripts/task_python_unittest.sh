@@ -54,7 +54,7 @@ TEST_FILES=(
   "usmp"
 )
 
-for TEST_FILE in ${TEST_FILES}; do
+for TEST_FILE in ${TEST_FILES[@]}; do
     run_pytest ctypes ${TEST_FILE}-0, tests/python/${TEST_FILE}
     run_pytest cython ${TEST_FILE}-1, tests/python/${TEST_FILE}
 done
