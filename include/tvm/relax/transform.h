@@ -460,7 +460,7 @@ class PatternCheckContext : public ObjectRef {
  * of the return value as the target. If it is not specified, the first return value will be the
  * target.
  * \return The Pass.
- * 
+ *
  * \note ConvertToDataflow may need to be called first to provide dataflow blocks.
  */
 TVM_DLL Pass Gradient(String func_name, Optional<Array<Var>> require_grads = NullOpt,
