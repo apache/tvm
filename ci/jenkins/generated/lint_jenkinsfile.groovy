@@ -493,10 +493,12 @@ def make_standalone_crt(image, build_dir) {
       set -eux
       ${docker_run} ${image} python3 ./tests/scripts/task_build.py \
         --sccache-bucket tvm-sccache-prod \
+        --sccache-region us-west-2 \
         --cmake-target standalone_crt \
         --build-dir build
       ${docker_run} ${image} python3 ./tests/scripts/task_build.py \
         --sccache-bucket tvm-sccache-prod \
+        --sccache-region us-west-2 \
         --cmake-target crttest \
         --build-dir build
       """,
@@ -510,6 +512,7 @@ def make_cpp_tests(image, build_dir) {
       set -eux
       ${docker_run} ${image} python3 ./tests/scripts/task_build.py \
         --sccache-bucket tvm-sccache-prod \
+        --sccache-region us-west-2 \
         --cmake-target cpptest \
         --build-dir ${build_dir}
       """,
@@ -519,7 +522,7 @@ def make_cpp_tests(image, build_dir) {
 
 def cmake_build(image, path, make_flag) {
   sh (
-    script: "${docker_run} --env CI_NUM_EXECUTORS ${image} ./tests/scripts/task_build.py --sccache-bucket tvm-sccache-prod --build-dir ${path}",
+    script: "${docker_run} --env CI_NUM_EXECUTORS ${image} ./tests/scripts/task_build.py --sccache-bucket tvm-sccache-prod --sccache-region us-west-2 --build-dir ${path}",
     label: 'Run cmake build',
   )
 }

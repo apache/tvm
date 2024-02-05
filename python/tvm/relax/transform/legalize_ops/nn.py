@@ -350,7 +350,8 @@ def _nn_gelu_tanh(bb: BlockBuilder, call: Call) -> Expr:
                 tir.const(1.0, dtype)
                 + topi.tanh(
                     tir.const(math.sqrt(2.0 / math.pi), dtype)
-                    * (x + tir.const(0.044715, dtype) * topi.power(x, 3))
+                    * x
+                    * (1 + tir.const(0.044715, dtype) * x * x)
                 )
             )
         )

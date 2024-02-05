@@ -16,7 +16,7 @@
 # under the License.
 """tvm.contrib.msc.framework.torch.codegen.codegen"""
 
-from typing import Dict, Optional
+from typing import Dict, Optional, Any
 import torch
 
 import tvm
@@ -32,6 +32,7 @@ def to_torch(
     codegen_config: Optional[Dict[str, str]] = None,
     print_config: Optional[Dict[str, str]] = None,
     build_folder: msc_utils.MSCDirectory = None,
+    plugin: Any = None,
 ) -> torch.nn.Module:
     """Change MSCGraph to torch nn.Module.
 
@@ -47,6 +48,8 @@ def to_torch(
         The config for print.
     build_folder: MSCDirectory
         The folder for saving scripts and datas.
+    plugin: PluginManager
+        The plugin manager.
 
     Returns
     -------
@@ -73,4 +76,5 @@ def to_torch(
         return model
 
     codegen = CodeGen(graph, _ffi_api.GetTorchSources, codegen_config, print_config, build_folder)
-    return codegen.load([], pre_load=_save_weights, post_load=_bind_weights)
+    model_args = [plugin] if plugin else []
+    return codegen.load(model_args, pre_load=_save_weights, post_load=_bind_weights)

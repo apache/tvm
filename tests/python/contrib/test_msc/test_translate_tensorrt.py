@@ -69,8 +69,8 @@ def check_names(mod):
 
         def visit_function_(self, op: tvm.relax.Function) -> None:
             if "Composite" in op.attrs:
-                assert "unique_name" in op.attrs, "Can not find unique_name for func " + str(op)
-                name = str(op.attrs["unique_name"])
+                assert "Unique" in op.attrs, "Can not find unique_name for func " + str(op)
+                name = str(op.attrs["Unique"])
                 assert name not in self._recorded_names, "Name {} is already in use".format(name)
                 self._recorded_names.add(name)
             super().visit_function_(op)
@@ -83,7 +83,7 @@ def check_names(mod):
     for _, func in mod.functions.items():
         if not _is_target_func(func):
             continue
-        assert "byoc_name" in func.attrs, "Can not find byoc_name from function attributes"
+        assert "Unique" in func.attrs, "Can not find Unique from function attributes"
         NameChecker().check(func)
 
 
@@ -100,13 +100,13 @@ def verify_model(torch_model, input_info, allow_incomplete=False):
         golden = [golden]
     golden = [g.detach().cpu().numpy() for g in golden]
     # partition module for tensorrt
-    mod, graph_infos = translate.partition_for_tensorrt(
+    mod, graphs, weights = translate.partition_for_tensorrt(
         mod, trans_config={"allow_incomplete": allow_incomplete}
     )
     check_names(mod)
     output_folder = msc_utils.msc_dir()
     # tranalte to tensorrt
-    mod = codegen.to_tensorrt(mod, graph_infos, output_folder=output_folder)
+    mod = codegen.to_tensorrt(mod, graphs, weights, output_folder=output_folder)
     tvm_datas = [tvm.nd.array(i, device=tvm.cuda()) for i in datas]
     results = build_and_run(mod, tvm_datas)
     for gol, res in zip(golden, results):

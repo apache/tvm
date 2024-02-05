@@ -33,6 +33,7 @@
 #include <vector>
 
 #include "../ir/graph.h"
+#include "../ir/plugin.h"
 #include "code_stack.h"
 #include "codegen_utils.h"
 
@@ -79,6 +80,36 @@ class BaseOpCode {
   /*! \brief Get describe for default node weight*/
   const String IdxWeight(const String& wtype, bool process = true) {
     return IdxWeightBase(node_, wtype, process);
+  }
+
+  /*! \brief Get the node attr as doc*/
+  const ExprDoc GetAttrDoc(const String& key, const String& type) {
+    if (StringUtils::StartsWith(type, "list")) {
+      const String& ele_type =
+          StringUtils::Replace(StringUtils::Replace(type, "list(", ""), ")", "");
+      if (ele_type == "bool") {
+        return DocUtils::ToList(node_->GetTypeArrayAttr<bool>(key));
+      } else if (ele_type == "int" || ele_type == "int32") {
+        return DocUtils::ToList(node_->GetTypeArrayAttr<int>(key));
+      } else if (ele_type == "long" || ele_type == "int64") {
+        return DocUtils::ToList(node_->GetTypeArrayAttr<int64_t>(key));
+      } else if (ele_type == "float" || ele_type == "float32") {
+        return DocUtils::ToList(node_->GetTypeArrayAttr<float>(key));
+      } else if (ele_type == "string") {
+        return DocUtils::ToStrList(node_->GetTypeArrayAttr<std::string>(key));
+      }
+    } else if (type == "bool") {
+      return DocUtils::ToDoc(node_->GetTypeAttr<bool>(key));
+    } else if (type == "int" || type == "int32") {
+      return DocUtils::ToDoc(node_->GetTypeAttr<int>(key));
+    } else if (type == "long" || type == "int64") {
+      return DocUtils::ToDoc(node_->GetTypeAttr<int64_t>(key));
+    } else if (type == "float" || type == "float32") {
+      return DocUtils::ToDoc(node_->GetTypeAttr<float>(key));
+    } else if (type == "string") {
+      return DocUtils::ToStr(node_->GetTypeAttr<std::string>(key));
+    }
+    return DocUtils::ToDoc(node_->GetTypeAttr<std::string>(key));
   }
 
   /*! \brief Get comment for default node*/
@@ -167,6 +198,14 @@ class BaseCodeGen {
       LOG(FATAL) << "Unexpected node scope " << node->scope << " with current scope "
                  << scopes_.top();
     }
+  }
+
+  /*! \brief Get the optype for op codegen*/
+  const String GetOpType(const MSCJoint& node) {
+    if (config_->use_plugin && IsPlugin(node->optype)) {
+      return "plugin";
+    }
+    return node->optype;
   }
 
   /*! \brief Get the docs for the op*/

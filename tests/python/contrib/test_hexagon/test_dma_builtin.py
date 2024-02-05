@@ -19,6 +19,7 @@
 Test relax vm builtin to enable DMA copy and wait operations.
 """
 
+import numpy as np
 import tvm
 import tvm.script
 from tvm import relax
@@ -27,9 +28,8 @@ from tvm.script.parser import relax as R
 from tvm.script.parser import tir as T
 import tvm.contrib.hexagon
 import tvm.testing
-import numpy as np
 
-# pylint: disable=invalid-name, missing-class-docstring, missing-function-docstring
+# pylint: disable=invalid-name, missing-class-docstring, missing-function-docstring, no-self-argument
 
 
 @I.ir_module

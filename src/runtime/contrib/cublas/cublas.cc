@@ -135,9 +135,10 @@ int roundoff(int v, int d) { return (v + d - 1) / d * d; }
 
 #if CUDART_VERSION >= 10010
 
-void CallCublasLt(cublasLtHandle_t hdl, cudaStream_t stream, const DLTensor* A, const DLTensor* B,
+void CallCublasLt(cublasLtHandle_t hdl, cudaStream_t stream,
+                  cublasLtMatmulPreference_t matmul_pref_desc, const DLTensor* A, const DLTensor* B,
                   const DLTensor* bias, const DLTensor* C, bool transa, bool transb,
-                  cublasLtEpilogue_t epilogue) {
+                  void* workspace_ptr, size_t workspace_size, cublasLtEpilogue_t epilogue) {
   ICHECK(TypeEqual(A->dtype, B->dtype));
   // Reversed strides indicates an in-place transpose operation.
   transa = IsInPlaceTransposed(A) ? !transa : transa;
@@ -265,8 +266,21 @@ void CallCublasLt(cublasLtHandle_t hdl, cudaStream_t stream, const DLTensor* A, 
   auto B_data = static_cast<char*>(B->data) + B->byte_offset;
   auto C_data = static_cast<char*>(C->data) + C->byte_offset;
 
+  cublasLtMatmulPreferenceSetAttribute(matmul_pref_desc, CUBLASLT_MATMUL_PREF_MAX_WORKSPACE_BYTES,
+                                       &workspace_size, sizeof(size_t));
+
+  cublasLtMatmulHeuristicResult_t heuristic_result = {};
+  int returned_result = 0;
+  CHECK_CUBLAS_ERROR(cublasLtMatmulAlgoGetHeuristic(hdl, op_desc, A_desc, B_desc, C_desc, C_desc,
+                                                    matmul_pref_desc, 1, &heuristic_result,
+                                                    &returned_result));
+  if (returned_result == 0) {
+    CHECK_CUBLAS_ERROR(CUBLAS_STATUS_NOT_SUPPORTED);
+  }
+
   CHECK_CUBLAS_ERROR(cublasLtMatmul(hdl, op_desc, alpha, B_data, A_desc, A_data, B_desc, beta,
-                                    C_data, C_desc, C_data, C_desc, nullptr, nullptr, 0, stream));
+                                    C_data, C_desc, C_data, C_desc, &heuristic_result.algo,
+                                    workspace_ptr, workspace_size, stream));
 
   cublasLtMatmulDescDestroy(op_desc);
   cublasLtMatrixLayoutDestroy(A_desc);

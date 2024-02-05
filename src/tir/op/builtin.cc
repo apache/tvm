@@ -394,6 +394,9 @@ TIR_DEFINE_BUILTIN_FUNC(anylist_setitem_call_packed)
 
 TIR_DEFINE_BUILTIN_FUNC(anylist_setitem_call_cpacked)
     .set_attr<TCallEffectKind>("TCallEffectKind", Integer(CallEffectKind::kOpaque));
+
+TIR_DEFINE_BUILTIN_FUNC(vscale).set_attr<TCallEffectKind>("TCallEffectKind",
+                                                          Integer(CallEffectKind::kPure));
 }  // namespace builtin
 }  // namespace tir
 }  // namespace tvm

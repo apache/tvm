@@ -27,6 +27,8 @@
 #include <tvm/ir/module.h>
 #include <tvm/relax/expr.h>
 
+#include <set>
+
 #include "../../core/codegen/codegen_json.h"
 
 namespace tvm {
@@ -42,6 +44,17 @@ void TensorRTCodeGen::CodeGenClassDeclare() {
       .line("#include \"utils/trt_common.h\"");
   if (config()->precision == "int8") {
     stack_.line("#include \"utils/trt_quantize.h\"");
+  }
+  // plugin headers
+  if (config()->use_plugin) {
+    std::set<String> plugins;
+    for (const auto& n : graph()->node_names) {
+      const auto& node = graph()->FindNode(n);
+      if (IsPlugin(node->optype) && !plugins.count(node->optype)) {
+        stack_.line("#include \"plugin/" + node->optype + "_op.h\"");
+        plugins.insert(node->optype);
+      }
+    }
   }
   stack_.line().line("using namespace nvinfer1;").line();
   StartNamespace();
@@ -439,6 +452,7 @@ void TensorRTCodeGen::CodeGenCmake() {
   stack_.line("cmake_minimum_required(VERSION " + config()->cmake_version + " FATAL_ERROR)")
       .line("project(" + graph()->name + ")")
       .line("find_package(CUDA)")
+      .line()
       .line("find_path(TRT_INCLUDE_DIR NvInfer.h HINTS " + config()->tensorrt_root +
             " PATH_SUFFIXES include)")
       .line("find_library(TRT_LIBS nvinfer HINTS " + config()->tensorrt_root +
@@ -447,13 +461,23 @@ void TensorRTCodeGen::CodeGenCmake() {
           "message(STATUS \"Build project with TRT_INCLUDE_DIR ${TRT_INCLUDE_DIR} and "
           "TRT_LIBS "
           "${TRT_LIBS}\")")
+      .line()
       .line("add_definitions(-DTRT_MAJOR=" + std::to_string(config()->version[0]) + ")")
       .line("add_definitions(-DTRT_MINOR=" + std::to_string(config()->version[1]) + ")")
       .line("add_definitions(-DTRT_PATCH=" + std::to_string(config()->version[2]) + ")")
-      .line("file(GLOB_RECURSE TRT_SRCS *.cc)")
+      .line();
+  if (config()->use_plugin) {
+    stack_.line("add_definitions(-DPLUGIN_SUPPORT_TENSORRT)").line();
+  }
+  String link_libs = " ${TRT_LIBS}";
+  if (config()->extern_libs.size() > 0) {
+    stack_.line("set(EXTERN_LIBS " + StringUtils::Join(config()->extern_libs, " ") + ")");
+    link_libs = link_libs + " ${EXTERN_LIBS}";
+  }
+  stack_.line("file(GLOB_RECURSE TRT_SRCS *.cc)")
       .line("cuda_add_executable(" + graph()->name + " ${TRT_SRCS})")
       .line("target_include_directories(" + graph()->name + " PUBLIC ${TRT_INCLUDE_DIR})")
-      .line("target_link_libraries(" + graph()->name + " ${TRT_LIBS})");
+      .line("target_link_libraries(" + graph()->name + link_libs + ")");
 }
 
 const String TensorRTCodeGen::IdxTensor(const MSCTensor& tensor) {
@@ -518,7 +542,7 @@ const String TensorRTCodeGen::ToDims(const Array<Integer>& dims, bool use_ndim) 
 
 const Array<Doc> TensorRTCodeGen::GetOpCodes(const MSCJoint& node) {
   const auto& ops_map = GetTensorRTOpCodes();
-  auto it = ops_map->find(node->optype);
+  auto it = ops_map->find(GetOpType(node));
   ICHECK(it != ops_map->end()) << "Unsupported tensorrt op(" << node->optype << "): " << node;
   it->second->Config(node, config());
   try {
@@ -576,12 +600,12 @@ Array<runtime::Module> MSCTensorRTCompiler(Array<Function> functions,
   Array<runtime::Module> compiled_functions;
   for (const auto& func : functions) {
     VLOG(1) << "MSC.TensorRT partition:" << std::endl << func;
-    const auto& byoc_name_opt = func->GetAttr<runtime::String>("byoc_name");
-    ICHECK(byoc_name_opt.defined()) << "Can not find byoc_name from attrs";
-    const auto& byoc_name = byoc_name_opt.value();
+    const auto& name_opt = func->GetAttr<runtime::String>(msc_attr::kUnique);
+    ICHECK(name_opt.defined()) << "Can not find " << msc_attr::kUnique << " from attrs";
+    const auto& name = name_opt.value();
     std::string func_name = GetExtSymbol(func);
-    ICHECK(target_option.count(byoc_name)) << "Can not find target option for " << byoc_name;
-    const auto& options = Downcast<String>(target_option[byoc_name]);
+    ICHECK(target_option.count(name)) << "Can not find target option for " << name;
+    const auto& options = Downcast<String>(target_option[name]);
     MSCJSONSerializer serializer(constant_names, options);
     serializer.serialize(func);
     std::string graph_json = serializer.GetJSON();

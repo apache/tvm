@@ -44,8 +44,14 @@ void TorchCodeGen::CodeGenGraph() {
     stack_.func_decorator("msc_tools.wrap_step(\"build\",\"" + config()->tools_tag + "\")");
   }
   stack_.func_arg("self", "torch.nn.Module");
-  stack_.func_start();
-  stack_.func_call("super").call_arg(graph()->name).call_arg("self").method_call("__init__");
+  if (config()->use_plugin) {
+    stack_.func_arg("plugin", "Any");
+  }
+  stack_.func_start()
+      .func_call("super")
+      .call_arg(graph()->name)
+      .call_arg("self")
+      .method_call("__init__");
   for (const auto& n : graph()->node_names) {
     const auto& node = graph()->FindNode(n);
     if (node->optype == "input") {
@@ -99,9 +105,17 @@ void TorchCodeGen::CodeGenGraph() {
 }
 
 void TorchCodeGen::CodeGenInference() {
-  stack_.comment("Build Model")
-      .func_call(graph()->name, "model")
-      .comment("Load weights")
+  if (config()->use_plugin) {
+    stack_.comment("Import Plugin")
+        .line("from msc_plugin.torch import PluginManager")
+        .line()
+        .func_call("PluginManager", "plugin");
+  }
+  stack_.comment("Build Model").func_call(graph()->name, "model");
+  if (config()->use_plugin) {
+    stack_.call_arg("plugin");
+  }
+  stack_.comment("Load weights")
       .func_call("torch.load", "weights")
       .call_arg(DocUtils::ToStr(graph()->name + ".pth"))
       .func_call("load_state_dict", "", "model")
@@ -126,7 +140,7 @@ void TorchCodeGen::CodeGenInference() {
 
 const Array<Doc> TorchCodeGen::GetOpCodes(const MSCJoint& node) {
   const auto& ops_map = GetTorchOpCodes();
-  auto it = ops_map->find(node->optype);
+  auto it = ops_map->find(GetOpType(node));
   ICHECK(it != ops_map->end()) << "Unsupported torch op(" << node->optype << "): " << node;
   it->second->Config(node, config(), is_init_);
   try {

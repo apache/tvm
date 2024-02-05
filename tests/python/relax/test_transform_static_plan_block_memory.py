@@ -701,9 +701,34 @@ def test_symbolic_shape():
             y: R.Tensor((m, n), dtype="float32") = alloc
             return x
 
-    # The pass does no change.
+    @tvm.script.ir_module
+    class Expected:
+        @T.prim_func
+        def exp(var_A: T.handle, var_B: T.handle):
+            m = T.int64()
+            n = T.int64()
+            A = T.match_buffer(var_A, (m, n), "float32")
+            B = T.match_buffer(var_B, (m, n), "float32")
+            T.evaluate(0)
+
+        @R.function
+        def main(x: R.Tensor(("m", "n"), dtype="float32")) -> R.Tensor(("m", "n"), dtype="float32"):
+            m = T.int64()
+            n = T.int64()
+            R.func_attr({"relax.force_pure": True})
+            cls = Expected
+            storage: R.Object = R.memory.alloc_storage(
+                R.shape([4 * (m * n)]), R.prim_value(0), R.str("global"), R.dtype("float32")
+            )
+            alloc: R.Tensor((m, n), dtype="float32") = R.memory.alloc_tensor(
+                storage, R.prim_value(0), R.shape([m, n]), R.dtype("float32")
+            )
+            _: R.Tuple = cls.exp(x, alloc)
+            y: R.Tensor((m, n), dtype="float32") = alloc
+            return x
+
     mod = relax.transform.StaticPlanBlockMemory()(Module)
-    tvm.ir.assert_structural_equal(mod, Module)
+    tvm.ir.assert_structural_equal(mod, Expected)
 
 
 def test_zero_reference():
@@ -1165,6 +1190,76 @@ def test_call_tir_dyn_plan_dynamic_func_output():
             _2: R.Tuple = cls.tir_exp(lv2, alloc2)
             lv3: R.Tensor((n,), dtype="float32") = alloc2
             return lv3
+    # fmt: on
+
+    mod = relax.transform.StaticPlanBlockMemory()(Module)
+    tvm.ir.assert_structural_equal(mod, Expected)
+
+
+def test_call_tir_dyn_plan_partially_dynamic():
+    # fmt: off
+    @I.ir_module
+    class Module:
+        @T.prim_func
+        def tir_full(var_full: T.handle, n: T.int64, m: T.int64):
+            T.evaluate(0)
+
+        @T.prim_func
+        def tir_exp(var_rxplaceholder: T.handle, var_compute: T.handle):
+            T.evaluate(0)
+
+        @R.function
+        def main(s: R.Shape(["n", "m"])) -> R.Tensor(("n", "m"), dtype="float32"):
+            n = T.int64()
+            m = T.int64()
+            R.func_attr({"tir_var_upper_bound": {"n": 20}, "relax.force_pure": True, "relax.memory_plan_dynamic_func_output": True})
+            cls = Module
+            alloc: R.Tensor((n, m), dtype="float32") = R.builtin.alloc_tensor(R.shape([n, m]), R.dtype("float32"), R.prim_value(0))
+            _: R.Tuple = R.vm.call_tir_dyn(cls.tir_full, (alloc, R.shape([n, m])))
+            full: R.Tensor((n, m), dtype="float32") = alloc
+            alloc1: R.Tensor((n, m), dtype="float32") = R.builtin.alloc_tensor(R.shape([n, m]), R.dtype("float32"), R.prim_value(0))
+            _1: R.Tuple = cls.tir_exp(full, alloc1)
+            lv2: R.Tensor((n, m), dtype="float32") = alloc1
+            alloc2: R.Tensor((n, m), dtype="float32") = R.builtin.alloc_tensor(R.shape([n, m]), R.dtype("float32"), R.prim_value(0))
+            _2: R.Tuple = cls.tir_exp(lv2, alloc2)
+            lv3: R.Tensor((n, m), dtype="float32") = alloc2
+            alloc3: R.Tensor((n, m), dtype="float32") = R.builtin.alloc_tensor(R.shape([n, m]), R.dtype("float32"), R.prim_value(0))
+            _3: R.Tuple = cls.tir_exp(lv3, alloc3)
+            lv4: R.Tensor((n, m), dtype="float32") = alloc3
+            return lv4
+
+    @I.ir_module
+    class Expected:
+        @T.prim_func
+        def tir_full(var_full: T.handle, n: T.int64, m: T.int64):
+            T.evaluate(0)
+
+        @T.prim_func
+        def tir_exp(var_rxplaceholder: T.handle, var_compute: T.handle):
+            T.evaluate(0)
+
+        @R.function
+        def main(s: R.Shape(["n", "m"])) -> R.Tensor(("n", "m"), dtype="float32"):
+            n = T.int64()
+            m = T.int64()
+            R.func_attr({"relax.force_pure": True, "tir_var_upper_bound": {"n": 20}})
+            cls = Expected
+            storage: R.Object = R.memory.alloc_storage(R.shape([80 * m]), R.prim_value(0), R.str("global"), R.dtype("float32"))
+            alloc: R.Tensor((n, m), dtype="float32") = R.memory.alloc_tensor(storage, R.prim_value(0), R.shape([n, m]), R.dtype("float32"))
+            _: R.Tuple = R.vm.call_tir_dyn(cls.tir_full, (alloc, R.shape([n, m])))
+            full: R.Tensor((n, m), dtype="float32") = alloc
+            storage1: R.Object = R.memory.alloc_storage(R.shape([80 * m]), R.prim_value(0), R.str("global"), R.dtype("float32"))
+            alloc1: R.Tensor((n, m), dtype="float32") = R.memory.alloc_tensor(storage1, R.prim_value(0), R.shape([n, m]), R.dtype("float32"))
+            _1: R.Tuple = cls.tir_exp(full, alloc1)
+            lv2: R.Tensor((n, m), dtype="float32") = alloc1
+            alloc2: R.Tensor((n, m), dtype="float32") = R.memory.alloc_tensor(storage, R.prim_value(0), R.shape([n, m]), R.dtype("float32"))
+            _2: R.Tuple = cls.tir_exp(lv2, alloc2)
+            lv3: R.Tensor((n, m), dtype="float32") = alloc2
+            storage2: R.Object = R.memory.alloc_storage(R.shape([20 * m * 4]), R.prim_value(0), R.str("global"), R.dtype("float32"))
+            alloc3: R.Tensor((n, m), dtype="float32") = R.memory.alloc_tensor(storage2, R.prim_value(0), R.shape([n, m]), R.dtype("float32"))
+            _3: R.Tuple = cls.tir_exp(lv3, alloc3)
+            lv4 = alloc3
+            return lv4
     # fmt: on
 
     mod = relax.transform.StaticPlanBlockMemory()(Module)
