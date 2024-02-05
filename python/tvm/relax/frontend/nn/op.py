@@ -421,6 +421,64 @@ def conv2d(
     return wrap_nested(conv_out, name)
 
 
+def conv3d(
+    x: Tensor,
+    weight: Tensor,
+    bias: Optional[Tensor] = None,
+    stride: Optional[Union[int, Tuple]] = 1,
+    padding: Optional[Union[int, Tuple, str]] = 0,
+    dilation: Optional[Union[int, Tuple]] = 1,
+    groups: Optional[int] = 1,
+    name: str = "conv3d",
+) -> Tensor:
+    """Applies a 3D convolution over an input image composed of sevaral input planes
+
+    Parameters
+    ----------
+    x : Tensor
+        Input tensor of shape [B, N, D, H, W]
+
+    weight : Tensor
+        Filters of shape [O, N/groups, kD, kH, kW]
+
+    bias : Optional[Tensor]
+        Optional bias tensor of shape [O].
+
+    stride : Optional[Union[int, Tuple]]
+        The stride of the convolving kernel. Can be a single number
+        or tuple of (sD, sH, sW).
+
+    padding : Optional[[Union[int, Tuple]]]
+        Implicit paddings on both sides of the input.
+
+    dilation : Optional[Union[int, Tuple]]
+        The spacing between kernel elements. Can be a single number of tuple (dD, dH, dW).
+
+    groups : Optional[int]
+        Split input into a number of groups.
+
+    name : str
+        Name hint.
+
+    Returns
+    -------
+    result : Tensor
+        The computed result with shape [B, O, oD, oH, oW].
+    """
+    conv_out = _op.nn.conv3d(
+        data=x._expr,
+        weight=weight._expr,
+        strides=stride,
+        padding=padding,
+        dilation=dilation,
+        groups=groups,
+    )
+    if bias is not None:
+        conv_out = _op.add(conv_out, _op.reshape(bias._expr, [1, -1, 1, 1, 1]))
+
+    return wrap_nested(conv_out, name)
+
+
 def conv1d_transpose(
     x: Tensor,
     weight: Tensor,
@@ -1484,6 +1542,33 @@ def interpolate(
         ),
         name,
     )
+
+
+def where(condition: Tensor, input: Tensor, other: Tensor, name: str = "where") -> Tensor:
+    """Return a tensor of elemends selected from input or other based on condition.
+
+    Parameters
+    ----------
+    condition : Tensor
+        When True, yield input, otherwise yield other.
+
+    input : Tensor
+        Value or values selected at indices where condition is True.
+
+    other : Tensor
+        Value or values selected at indices where condition is False.
+
+    name : str
+        Name hint.
+
+    Returns
+    -------
+    result : Tensor
+        The computed result.
+    """
+    # Cast condition to boolean.
+    condition = astype(condition, "bool")
+    return wrap_nested(_op.where(condition._expr, input._expr, other._expr), name)
 
 
 def ccl_allreduce(x: Tensor, op_type: str = "sum", name="ccl_allreduce"):
