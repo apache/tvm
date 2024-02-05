@@ -164,7 +164,7 @@ def test_llvm_ir_debug_accuracy():
 
     # Check that it matches the expected line number (in main.tir)
     debug_line_no = int(locations[directive_idx])
-    assert debug_line_no == 43
+    assert debug_line_no == 56
 
 
 if __name__ == "__main__":
