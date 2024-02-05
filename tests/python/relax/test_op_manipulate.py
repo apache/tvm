@@ -2184,6 +2184,18 @@ def test_split_infer_struct_info():
     z = relax.Var("z", R.Tensor((n, 16)))
     w = relax.Var("w", R.Tensor((n + 5, 16)))
 
+    # All relax shape variables are non-negative.  When a scope
+    # begins, any TIR variables that are used as shape variables are
+    # declared to be non-negative `tvm.arith.Analyzer`.  Because
+    # `relax.op.split` clamps the indices to be within the bounds of
+    # the axis being split, simplifying with non-negative shape
+    # variables can result in much simpler shapes.
+    #
+    # For example, an axis of size `n`, split on the range from 2 to 5
+    # has size `T.max(T.min(5, n + 5) - T.min(2, n + 5), 0)`.  If it
+    # is known that `n >= 0`, then this simplifies down to `3`.
+    bb.begin_scope([x, y, z, w])
+
     _check_inference(
         bb,
         relax.op.split(x, 1),
@@ -2263,19 +2275,14 @@ def test_split_infer_struct_info():
         ),
     )
 
-    # Spliting a dynamic axis at specific indices is allowed.  The
-    # algebraic form here isn't the cleanest, primarily because the
-    # test case doesn't know that `n` is a shape variable.  When
-    # occurring in a relax function, `n` would be marked with
-    # `analyzer_.MarkGlobalNonNegValue`, which would make the shapes
-    # simplify to `[(2,16), (3,16), (n,16)]`.
+    # Splitting a dynamic axis at specific indices is allowed.
     _check_inference(
         bb,
         relax.op.split(w, [2, 5]),
         R.Tuple(
-            R.Tensor((T.max(T.min(2, n + 5) - T.min(0, n + 5), 0), 16)),
-            R.Tensor((T.max(T.min(5, n + 5) - T.min(2, n + 5), 0), 16)),
-            R.Tensor((T.max(n, 0), 16)),
+            R.Tensor((2, 16)),
+            R.Tensor((3, 16)),
+            R.Tensor((n, 16)),
         ),
     )
 

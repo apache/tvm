@@ -170,6 +170,10 @@ class BlockBuilderImpl : public BlockBuilderNode {
         auto it = shape_var_map.find(shape_var);
         if (it == shape_var_map.end()) {
           shape_var_map.Set(shape_var, shape_expr);
+          // Expose the shape variable as non-negative, for purposes
+          // of shape inference.  In many cases, knowning that the
+          // shape variable is non-negative allows for simpler
+          // expressions for dynamic shapes.
           analyzer_.MarkGlobalNonNegValue(shape_var);
         } else {
           const PrimExpr& old_shape_expr = (*it).second;
