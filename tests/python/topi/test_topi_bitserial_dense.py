@@ -54,10 +54,11 @@ def verify_bitserial_dense(batch, in_dim, out_dim, activation_bits, weight_bits,
         return a_np, b_np, c_np
 
     for target in ["llvm", "llvm -device=arm_cpu"]:
-        if "arm_cpu" in target and "arm" not in os.uname()[4]:
+        target = tvm.target.Target(target)
+        if "arm_cpu" in target.keys and "arm" not in os.uname()[4]:
             print("Skipped running code, not an arm device")
             continue
-        input_dtype = "uint8" if "arm_cpu" in target else "uint32"
+        input_dtype = "uint8" if "arm_cpu" in target.keys else "uint32"
         A = te.placeholder((batch, in_dim), dtype=input_dtype, name="A")
         B = te.placeholder((out_dim, in_dim), dtype=input_dtype, name="B")
         fcompute, fschedule = tvm.topi.testing.dispatch(target, _bitserial_dense_implement)
