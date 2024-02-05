@@ -668,6 +668,19 @@ class RelaxTriCodeGen : public RelaxOpCode {
   }
 };
 
+class RelaxPluginOpCodeGen : public RelaxOpCode {
+  RELAX_OP_CODEGEN_METHODS(RelaxPluginOpCodeGen)
+
+ protected:
+  void CodeGenBuild() final {
+    const auto& plugin = GetPlugin(node()->optype);
+    stack_.op_call("plugin." + node()->optype).op_inputs_arg(false);
+    for (const auto& a : plugin->attrs) {
+      stack_.call_arg(GetAttrDoc(a->name, a->type), a->name);
+    }
+  }
+};
+
 const std::shared_ptr<std::unordered_map<String, std::shared_ptr<RelaxOpCode>>> GetRelaxOpCodes() {
   static auto map = std::make_shared<std::unordered_map<String, std::shared_ptr<RelaxOpCode>>>();
   if (!map->empty()) return map;
@@ -798,6 +811,7 @@ const std::shared_ptr<std::unordered_map<String, std::shared_ptr<RelaxOpCode>>> 
   map->emplace("get_item", std::make_shared<RelaxGetItemCodeGen>("relax.TupleGetItem"));
   map->emplace("shape", std::make_shared<RelaxShapeCodeGen>("relax.ShapeExpr"));
   map->emplace("tuple", std::make_shared<RelaxTupleCodeGen>("relax.Tuple"));
+  map->emplace("plugin", std::make_shared<RelaxPluginOpCodeGen>("Plugin"));
 
   // msc ops
   map->emplace("msc.attention", std::make_shared<RelaxAttentionCodeGen>("relax.op.nn.attention"));

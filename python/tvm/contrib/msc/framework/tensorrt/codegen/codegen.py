@@ -18,7 +18,7 @@
 
 import os
 import subprocess
-from typing import Dict, Optional, List, Union
+from typing import Dict, Optional, List, Union, Any
 import numpy as np
 
 import tvm
@@ -38,6 +38,7 @@ def to_sub_tensorrt(
     print_config: Optional[Dict[str, str]] = None,
     build_folder: msc_utils.MSCDirectory = None,
     output_folder: msc_utils.MSCDirectory = None,
+    plugin: Any = None,
 ) -> str:
     """Change MSCGraph to TensorRT engine file.
 
@@ -55,6 +56,8 @@ def to_sub_tensorrt(
         The folder for saving sources and datas.
     export_folder: MSCDirectory
         The folder for saving outputs.
+    plugin: PluginManager
+        The plugin manager.
 
     Returns
     -------
@@ -90,6 +93,10 @@ def to_sub_tensorrt(
                 f.write("{}\n".format(len(engine_wts)))
                 for name, data in engine_wts.items():
                     write_weight(name, msc_utils.cast_array(data), f)
+        # copy plugin
+        if plugin:
+            plugin.copy_libs("plugin_lib")
+            plugin.copy_includes("plugin")
         # save utils sources
         with folder.create_dir("utils") as utils_folder:
             for name, source in get_trt_sources().items():
@@ -115,6 +122,10 @@ def to_sub_tensorrt(
 
     with build_folder as folder:
         sub_folder = folder.create_dir(graph.name)
+        if plugin:
+            codegen_config["extern_libs"] = [
+                sub_folder.create_dir("plugin_lib").relpath(f) for f in plugin.list_libs()
+            ]
         codegen = CodeGen(
             graph,
             _ffi_api.GetTensorRTSources,
@@ -140,6 +151,7 @@ def to_tensorrt(
     extra_options: Optional[Union[Dict[str, str], List[Dict[str, str]]]] = None,
     build_folder: msc_utils.MSCDirectory = None,
     output_folder: msc_utils.MSCDirectory = None,
+    plugin: Any = None,
 ) -> Dict[str, str]:
     """Change all MSCGraphs to TensorRT engine files.
 
@@ -161,6 +173,8 @@ def to_tensorrt(
         The folder for saving sources and datas.
     export_folder: MSCDirectory
         The folder for saving outputs.
+    plugin: PluginManager
+        The plugin manager.
 
     Returns
     -------
@@ -183,6 +197,7 @@ def to_tensorrt(
             print_configs[idx],
             build_folder,
             output_folder,
+            plugin=plugin,
         )
         if extra_options[idx]:
             options.update(extra_options[idx])
