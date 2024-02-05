@@ -2143,6 +2143,15 @@ Array<PrimExpr> IterMapSimplify(const Array<PrimExpr>& indices, const Map<Var, R
                            /*simplify_trivial_iterators=*/simplify_trivial_iterators);
   Array<IterSumExpr> rewrite = res->indices;
 
+  if (rewrite.empty() && !is_one(input_pred) && check_level != IterMapLevel::Bijective) {
+    // The input predicate may cause detect iter map to fail
+    // but we can still detect the iter map without the input predicate
+    // in which case the resulting iter map is valid and can be used for simplification.
+    rewrite = DetectIterMap(indices, input_iters, const_true(), check_level, ana,
+                            /*simplify_trivial_iterators=*/simplify_trivial_iterators)
+                  ->indices;
+  }
+
   if (rewrite.empty()) {
     return indices;
   }
