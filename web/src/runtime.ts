@@ -26,6 +26,7 @@ import { Memory, CachedCallStack } from "./memory";
 import { assert, StringToUint8Array } from "./support";
 import { Environment } from "./environment";
 import { FunctionInfo, WebGPUContext } from "./webgpu";
+import { ArtifactCacheTemplate } from "./artifact_cache";
 
 import * as compact from "./compact";
 import * as ctypes from "./ctypes";
@@ -985,7 +986,7 @@ export type InitProgressCallback = (report: InitProgressReport) => void;
 /**
  * Cache to store model related data.
  */
-export class ArtifactCache {
+export class ArtifactCache implements ArtifactCacheTemplate {
   private scope: string;
   private cache?: Cache;
 
@@ -1017,6 +1018,14 @@ export class ArtifactCache {
       .then(requests => requests.map(request => request.url))
       .then(cacheKeys => keys.every(key => cacheKeys.indexOf(key) !== -1))
       .catch(err => false);
+  }
+
+  async deleteInCache(url: string) {
+    if (this.cache === undefined) {
+      this.cache = await caches.open(this.scope);
+    }
+    const result = await this.cache.delete(url);
+    return result;
   }
 }
 
@@ -1451,7 +1460,7 @@ export class Instance implements Disposable {
   }
 
   /**
-   * Fetch NDArray cache from url.
+   * Given cacheUrl, search up items to fetch based on cacheUrl/ndarray-cache.json
    *
    * @param ndarrayCacheUrl The cache url.
    * @param device The device to be fetched to.
@@ -1477,6 +1486,7 @@ export class Instance implements Disposable {
     this.cacheMetadata = { ...this.cacheMetadata, ...(list["metadata"] as Record<string, any>) };
   }
 
+
   /**
    * Fetch list of NDArray into the NDArrayCache.
    *
@@ -1489,7 +1499,7 @@ export class Instance implements Disposable {
     ndarrayCacheUrl: string,
     list: Array<NDArrayShardEntry>,
     device: DLDevice,
-    artifactCache: ArtifactCache
+    artifactCache: ArtifactCacheTemplate
   ) {
     const perf = compact.getPerformance();
     const tstart = perf.now();
@@ -1536,10 +1546,11 @@ export class Instance implements Disposable {
       });
     }
 
-    for (let i = 0; i < list.length; ++i) {
+    const processShard = async (i: number) => {
       reportCallback(i);
-      fetchedBytes += list[i].nbytes;
-      const dataUrl = new URL(list[i].dataPath, ndarrayCacheUrl).href;
+      const shard = list[i];
+      fetchedBytes += shard.nbytes;
+      const dataUrl = new URL(shard.dataPath, ndarrayCacheUrl).href;
       let buffer;
       try {
         buffer = await (await artifactCache.fetchWithCache(dataUrl)).arrayBuffer();
@@ -1547,7 +1558,7 @@ export class Instance implements Disposable {
         this.env.logger("Error: Cannot fetch " + dataUrl + " err= " + err);
         throw err;
       }
-      const shardRecords = list[i].records;
+      const shardRecords = shard.records;
       for (let j = 0; j < shardRecords.length; ++j) {
         const rec = shardRecords[j];
         const cpu_arr = this.withNewScope(() => {
@@ -1578,6 +1589,7 @@ export class Instance implements Disposable {
       }
       timeElapsed = Math.ceil((perf.now() - tstart) / 1000);
     }
+    await Promise.all(list.map((_, index) => processShard(index)));
     reportCallback(list.length);
   }
 
@@ -2431,4 +2443,29 @@ export async function hasNDArrayInCache(
   }
   list = list["records"] as Array<NDArrayShardEntry>;
   return await artifactCache.hasAllKeys(list.map(key => new URL(key.dataPath, ndarrayCacheUrl).href));
+}
+
+/**
+ * Given cacheUrl, search up items to delete based on cacheUrl/ndarray-cache.json
+ *
+ * @param cacheUrl
+ * @param cacheScope
+ */
+export async function deleteNDArrayCache(
+  cacheUrl: string,
+  cacheScope = "tvmjs"
+) {
+  const artifactCache = new ArtifactCache(cacheScope);
+  const jsonUrl = new URL("ndarray-cache.json", cacheUrl).href;
+  const result = await artifactCache.fetchWithCache(jsonUrl);
+  let list;
+  if (result instanceof Response){
+    list = await result.json();
+  }
+  const arrayentry = list["records"] as Array<NDArrayShardEntry>;
+  const processShard = async (i: number) => {
+    const dataUrl = new URL(arrayentry[i].dataPath, cacheUrl).href;
+    await artifactCache.deleteInCache(dataUrl);
+  }
+  await Promise.all(arrayentry.map((_, index) => processShard(index)));
 }
