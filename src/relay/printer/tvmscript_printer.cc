@@ -912,14 +912,14 @@ Doc TVMScriptPrinter::VisitExpr_(const RampNode* op, ExprPrecedence* out_precede
   *out_precedence = ExprPrecedence::kIdentity;
   Doc doc;
   doc << tir_prefix_ << ".ramp(" << Print(op->base) << ", " << Print(op->stride) << ", "
-      << op->lanes << ")";
+      << Print(op->lanes) << ")";
   return doc;
 }
 
 Doc TVMScriptPrinter::VisitExpr_(const BroadcastNode* op, ExprPrecedence* out_precedence) {
   *out_precedence = ExprPrecedence::kIdentity;
   Doc doc;
-  doc << tir_prefix_ << ".broadcast(" << Print(op->value) << ", " << op->lanes << ")";
+  doc << tir_prefix_ << ".broadcast(" << Print(op->value) << ", " << Print(op->lanes) << ")";
   return doc;
 }
 

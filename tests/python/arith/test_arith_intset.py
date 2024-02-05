@@ -54,6 +54,14 @@ def test_vector():
     assert s.max_value.value == base + stride * (lanes - 1)
 
 
+def test_scalable_vector():
+    base = 5
+    s = tvm.arith.IntSet.vector(tvm.tir.Ramp(base, 2, 4 * tvm.tir.vscale()))
+
+    assert s.min_value.value == base
+    assert s.max_value.same_as(tvm.arith.int_set.pos_inf())
+
+
 def test_add_sub():
     ck = IntSetChecker()
     x, y = te.var("x"), te.var("y")

@@ -1162,19 +1162,23 @@ void CodeGenCUDA::VisitStmt_(const EvaluateNode* op) {
 }
 
 void CodeGenCUDA::VisitExpr_(const RampNode* op, std::ostream& os) {
-  CHECK_LE(op->lanes, 4) << "ValueError: Ramp of more than 4 lanes is not allowed.";
+  ICHECK(!op->dtype.is_scalable()) << "Scalable vectors are not supported in codegen_cuda";
+  int lanes = static_cast<int>(Downcast<IntImm>(op->lanes)->value);
+  CHECK_LE(lanes, 4) << "ValueError: Ramp of more than 4 lanes is not allowed.";
   PrintVecConstructor(op->dtype, os);
   os << "(";
-  for (int i = 0; i < op->lanes; i++) {
+  for (int i = 0; i < lanes; i++) {
     os << "(" << PrintExpr(op->base) << ")"
        << "+(" << PrintExpr(op->stride) << "*" << i << ")";
-    if (i != op->lanes - 1) os << ", ";
+    if (i != lanes - 1) os << ", ";
   }
   os << ")";
 }
 
 void CodeGenCUDA::VisitExpr_(const BroadcastNode* op, std::ostream& os) {  // NOLINT(*)
-  if ((op->dtype.is_int() || op->dtype.is_uint()) && op->dtype.bits() == 8 && op->lanes == 4) {
+  ICHECK(!op->dtype.is_scalable()) << "Scalable vectors are not supported in codegen_c_host";
+  int lanes = static_cast<int>(Downcast<IntImm>(op->lanes)->value);
+  if ((op->dtype.is_int() || op->dtype.is_uint()) && op->dtype.bits() == 8 && lanes == 4) {
     // make_int8x4
     const int64_t* p = as_const_int(op->value);
     ICHECK(p);
@@ -1192,7 +1196,7 @@ void CodeGenCUDA::VisitExpr_(const BroadcastNode* op, std::ostream& os) {  // NO
     std::string v = PrintExpr(op->value);
     PrintVecConstructor(op->dtype, os);
     os << '(';
-    for (int i = 0; i < op->lanes / 2; ++i) {
+    for (int i = 0; i < lanes / 2; ++i) {
       if (i != 0) os << ", ";
       os << "__pack_half2(" << v << ", " << v << ")";
     }
@@ -1204,7 +1208,7 @@ void CodeGenCUDA::VisitExpr_(const BroadcastNode* op, std::ostream& os) {  // NO
     std::string v = PrintExpr(op->value);
     PrintVecConstructor(op->dtype, os);
     os << '(';
-    for (int i = 0; i < op->lanes / 2; ++i) {
+    for (int i = 0; i < lanes / 2; ++i) {
       if (i != 0) os << ", ";
       os << "__pack_nv_bfloat162(" << v << ", " << v << ")";
     }
@@ -1218,7 +1222,7 @@ void CodeGenCUDA::VisitExpr_(const BroadcastNode* op, std::ostream& os) {  // NO
     ICHECK(p);
     int64_t v = *p & 0xF;
 
-    if (op->lanes == 4) {
+    if (lanes == 4) {
       v = (v << 12) | (v << 8) | (v << 4) | v;
       if (op->dtype.is_uint()) {
         os << "(uint16_t)" << v;
@@ -1227,16 +1231,16 @@ void CodeGenCUDA::VisitExpr_(const BroadcastNode* op, std::ostream& os) {  // NO
       }
     } else {
       v = (v << 28) | (v << 24) | (v << 20) | (v << 16) | (v << 12) | (v << 8) | (v << 4) | v;
-      if (op->lanes == 8) {
+      if (lanes == 8) {
         if (op->dtype.is_uint()) {
           os << "(uint)" << v;
         } else {
           os << "(int)" << v;
         }
-      } else if (op->lanes == 16 || op->lanes == 32) {
+      } else if (lanes == 16 || lanes == 32) {
         PrintVecConstructor(op->dtype, os);
         os << '(';
-        for (int i = 0; i < op->lanes / 8; ++i) {
+        for (int i = 0; i < lanes / 8; ++i) {
           if (i != 0) os << ", ";
           if (op->dtype.is_uint()) {
             os << "(uint)" << v;
@@ -1258,7 +1262,7 @@ void CodeGenCUDA::VisitExpr_(const BroadcastNode* op, std::ostream& os) {  // NO
   std::string v = PrintExpr(op->value);
   PrintVecConstructor(op->dtype, os);
   os << '(';
-  for (int i = 0; i < op->lanes; ++i) {
+  for (int i = 0; i < lanes; ++i) {
     if (i != 0) os << ", ";
     os << v;
   }

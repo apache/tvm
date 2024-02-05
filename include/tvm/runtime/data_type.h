@@ -71,11 +71,12 @@ class DataType {
    * \param code The type code.
    * \param bits The number of bits in the type.
    * \param lanes The number of lanes.
+   * \param is_scalable Whether the data type is scalable.
    */
-  DataType(int code, int bits, int lanes) {
+  DataType(int code, int bits, int lanes, bool is_scalable = false) {
     data_.code = static_cast<uint8_t>(code);
     data_.bits = static_cast<uint8_t>(bits);
-    data_.lanes = static_cast<uint16_t>(lanes);
+    data_.lanes = is_scalable ? static_cast<uint16_t>(-lanes) : static_cast<uint16_t>(lanes);
     if (code == kBFloat) {
       ICHECK_EQ(bits, 16);
     }
@@ -90,7 +91,10 @@ class DataType {
   /*! \return number of bytes to store each scalar. */
   int bytes() const { return (bits() + 7) / 8; }
   /*! \return number of lanes in the data. */
-  int lanes() const { return static_cast<int>(data_.lanes); }
+  int lanes() const {
+    int encoded_lanes = static_cast<int16_t>(data_.lanes);
+    return is_scalable() ? -encoded_lanes : encoded_lanes;
+  }
   /*! \return whether type is a scalar type. */
   bool is_scalar() const { return lanes() == 1; }
   /*! \return whether type is a scalar type. */
@@ -114,17 +118,28 @@ class DataType {
   /*! \return whether type is a handle type. */
   bool is_handle() const { return code() == DataType::kHandle && !is_void(); }
   /*! \return whether type is a vector type. */
-  bool is_vector() const { return lanes() > 1; }
+  bool is_vector() const {
+    int encoded_lanes = static_cast<int16_t>(data_.lanes);
+    return encoded_lanes != 0 && encoded_lanes != 1;
+  }
   /*! \return whether type is a bool vector type. */
   bool is_vector_bool() const { return is_vector() && bits() == 1; }
   /*! \return whether type is a Void type. */
   bool is_void() const { return code() == DataType::kHandle && bits() == 0 && lanes() == 0; }
+  /*! \return Whether the type is scalable. */
+  bool is_scalable() const { return static_cast<int16_t>(data_.lanes) < 0; }
   /*!
    * \brief Create a new data type by change lanes to a specified value.
    * \param lanes The target number of lanes.
    * \return the result type.
    */
   DataType with_lanes(int lanes) const { return DataType(data_.code, data_.bits, lanes); }
+  /*!
+   * \brief Create a new scalable data type by changing the lanes to a specified value.
+   * \param lanes The target number of lanes.
+   * \return A copy of the old DataType with the number of scalable lanes.
+   */
+  DataType with_scalable_lanes(int lanes) const { return DataType(data_.code, data_.bits, -lanes); }
   /*!
    * \brief Create a new data type by change bits to a specified value.
    * \param bits The target number of bits.
@@ -247,6 +262,9 @@ class DataType {
  * \return Number of bytes needed.
  */
 inline int GetVectorBytes(DataType dtype) {
+  if (dtype.is_scalable()) {
+    LOG(FATAL) << "Cannot get vector bytes of scalable vector";
+  }
   int data_bits = dtype.bits() * dtype.lanes();
   // allow bool to exist
   if (dtype == DataType::Bool() || dtype == DataType::Int(4) || dtype == DataType::UInt(4) ||

@@ -38,10 +38,13 @@
 namespace tvm {
 namespace tir {
 
+// TODO(ekalda): P5 in https://github.com/apache/tvm/issues/16455
 inline PrimExpr BroadcastTo(PrimExpr e, int lanes) {
   if (e.dtype().lanes() == lanes) return e;
   if (const BroadcastNode* op = e.as<BroadcastNode>()) {
-    if (lanes % op->lanes == 0) {
+    ICHECK(!e.dtype().is_scalable());
+    int broadcast_lanes = static_cast<int>(Downcast<IntImm>(op->lanes)->value);
+    if (lanes % broadcast_lanes == 0) {
       return Broadcast(op->value, lanes);
     }
   }
@@ -180,15 +183,18 @@ class Vectorizer : public StmtMutator, public ExprFunctor<PrimExpr(const PrimExp
     if (a.same_as(op->a) && b.same_as(op->b)) {
       return GetRef<PrimExpr>(op);
     } else {
+      // TODO(ekalda): P5 in https://github.com/apache/tvm/issues/16455
       int lanes = std::max(a.dtype().lanes(), b.dtype().lanes());
       if (lanes != 1) {
         const RampNode* b_ramp = b.as<RampNode>();
         const RampNode* a_ramp = a.as<RampNode>();
         if (a_ramp && b.dtype().lanes() == 1 && analyzer_.CanProve(b > 0)) {
-          return Ramp(a_ramp->base * b, a_ramp->stride * b, a_ramp->lanes);
+          int lanes = static_cast<int>(Downcast<IntImm>(a_ramp->lanes)->value);
+          return Ramp(a_ramp->base * b, a_ramp->stride * b, lanes);
         }
         if (b_ramp && a.dtype().lanes() == 1 && analyzer_.CanProve(a > 0)) {
-          return Ramp(b_ramp->base * a, b_ramp->stride * a, b_ramp->lanes);
+          int lanes = static_cast<int>(Downcast<IntImm>(b_ramp->lanes)->value);
+          return Ramp(b_ramp->base * a, b_ramp->stride * a, lanes);
         }
       }
       return Mul(BroadcastTo(a, lanes), BroadcastTo(b, lanes));
@@ -222,10 +228,13 @@ class Vectorizer : public StmtMutator, public ExprFunctor<PrimExpr(const PrimExp
   PrimExpr VisitExpr_(const RampNode* op) final {
     PrimExpr base = this->VisitExpr(op->base);
     PrimExpr stride = this->VisitExpr(op->stride);
+    // TODO(ekalda): P5 in https://github.com/apache/tvm/issues/16455
+    int op_lanes = static_cast<int>(Downcast<IntImm>(op->lanes)->value);
     if (base.dtype().lanes() > 1 && stride.dtype().lanes() == 1) {
       const RampNode* base_ramp = base.as<RampNode>();
-      if (analyzer_.CanProve(base_ramp->stride == stride * make_const(stride.dtype(), op->lanes))) {
-        return Ramp(base_ramp->base, stride, op->lanes * base_ramp->lanes);
+      int base_ramp_lanes = static_cast<int>(Downcast<IntImm>(base_ramp->lanes)->value);
+      if (analyzer_.CanProve(base_ramp->stride == stride * make_const(stride.dtype(), op_lanes))) {
+        return Ramp(base_ramp->base, stride, op_lanes * base_ramp_lanes);
       }
     }
     int lanes = std::max(base.dtype().lanes(), stride.dtype().lanes());
