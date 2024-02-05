@@ -1238,10 +1238,14 @@ class CompositeFunctionAnnotator : public ExprMutator {
 
   Expr VisitExpr_(const FunctionNode* func_node) final {
     Function f_inner = Downcast<Function>(ExprMutator::VisitExpr_(func_node));
-    auto composite_name = func_node->GetAttr<String>(attr::kComposite);
+
+    if (!func_node->GetAttr<String>(attr::kComposite)) {
+      // This lambda function doesn't have `attr::kComposite`, so it
+      // was not produced by FuseOps.
+      return std::move(f_inner);
+    }
 
     f_inner = WithoutAttr(std::move(f_inner), tvm::relax::attr::kPrimitive);
-    ICHECK(composite_name);
 
     Array<Var> param_vars;
     Array<Expr> params;
