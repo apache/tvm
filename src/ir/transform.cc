@@ -531,6 +531,43 @@ Pass CreateModulePass(const runtime::TypedPackedFunc<IRModule(IRModule, PassCont
   return ModulePass(pass_func, pass_info);
 }
 
+Pass ApplyPassToFunction(Pass pass, String func_name_regex,
+                         bool error_if_no_function_matches_regex) {
+  auto pass_name =
+      static_cast<const std::stringstream&>(std::stringstream() << "ApplyPassTo" << func_name_regex)
+          .str();
+
+  auto pass_func = [pass, func_name_regex](IRModule mod, PassContext) -> IRModule {
+    const auto* regex_match_func = tvm::runtime::Registry::Get("tvm.support.regex_match");
+    CHECK(regex_match_func)
+        << "RuntimeError: "
+        << "The PackedFunc 'tvm.support.regex_match' has not been registered.  "
+        << "This can occur if the TVM Python library has not yet been imported.";
+
+    IRModule subset;
+
+    for (const auto& [gvar, func] : mod->functions) {
+      std::string name = gvar->name_hint;
+      if ((*regex_match_func)(func_name_regex, name)) {
+        subset->Add(gvar, func);
+      }
+    }
+
+    if (subset->functions.size()) {
+      IRModule new_subset = pass(subset);
+      if (!new_subset.same_as(subset)) {
+        mod.CopyOnWrite()->Update(new_subset);
+      }
+    }
+
+    return mod;
+  };
+
+  return CreateModulePass(pass_func, 0, pass_name, {});
+}
+
+TVM_REGISTER_GLOBAL("transform.ApplyPassToFunction").set_body_typed(ApplyPassToFunction);
+
 TVM_REGISTER_NODE_TYPE(PassInfoNode);
 
 TVM_REGISTER_GLOBAL("transform.PassInfo")
