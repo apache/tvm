@@ -16,7 +16,7 @@
 # under the License.
 """tvm.contrib.msc.framework.tvm.codegen.codegen"""
 
-from typing import Dict, Optional
+from typing import Dict, Optional, Any
 
 import tvm
 from tvm.relax.transform import BindParams
@@ -32,6 +32,7 @@ def to_relax(
     codegen_config: Optional[Dict[str, str]] = None,
     print_config: Optional[Dict[str, str]] = None,
     build_folder: msc_utils.MSCDirectory = None,
+    plugin: Any = None,
 ) -> tvm.IRModule:
     """Change MSCGraph to IRModule.
 
@@ -47,6 +48,8 @@ def to_relax(
         The config for print.
     build_folder: MSCDirectory
         The folder for saving scripts and datas.
+    plugin: PluginManager
+        The plugin manager.
 
     Returns
     -------
@@ -81,4 +84,7 @@ def to_relax(
         )(mod)
 
     codegen = CodeGen(graph, _ffi_api.GetRelaxSources, codegen_config, print_config, build_folder)
-    return codegen.load(inputs, pre_load=_save_weights, post_load=_post_proc)
+    model_args = inputs
+    if plugin:
+        model_args = model_args + [plugin]
+    return codegen.load(model_args, pre_load=_save_weights, post_load=_post_proc)

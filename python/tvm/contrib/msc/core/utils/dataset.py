@@ -23,7 +23,7 @@ import json
 from typing import List, Union, Dict, Any
 import numpy as np
 
-from .info import load_dict
+from .arguments import load_dict
 
 
 class BaseDataLoader(object):
@@ -433,6 +433,8 @@ class IODataSaver(BaseDataSaver):
                 info = self._info["inputs"][name]
                 f.write("{} {} {}\n".format(name, info.get("save_name", name), info["bytes"]))
             for name in self._output_names:
+                if name not in self._info["outputs"]:
+                    continue
                 info = self._info["outputs"][name]
                 f.write("{} {} {}\n".format(name, info.get("save_name", name), info["bytes"]))
 
@@ -501,6 +503,8 @@ class IODataSaver(BaseDataSaver):
 def is_io_dataset(folder: str) -> bool:
     """Check if a folder is IO dataset"""
 
+    if not isinstance(folder, str):
+        return False
     if not os.path.isfile(os.path.join(folder, "datas_info.json")):
         return False
     data_info = load_dict(os.path.join(folder, "datas_info.json"))

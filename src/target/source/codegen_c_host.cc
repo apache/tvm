@@ -75,6 +75,10 @@ void CodeGenCHost::InitGlobalContext() {
 
 void CodeGenCHost::DefineModuleName() { decl_stream << "void* " << module_name_ << " = NULL;\n"; }
 
+void CodeGenCHost::AddFunction(const GlobalVar& gvar, const PrimFunc& func) {
+  return AddFunction(gvar, func, /*emit_fwd_func_decl=*/false);
+}
+
 void CodeGenCHost::AddFunction(const GlobalVar& gvar, const PrimFunc& func,
                                bool emit_fwd_func_decl) {
   auto global_symbol = func->GetAttr<String>(tvm::attr::kGlobalSymbol);

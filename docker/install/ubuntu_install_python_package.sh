@@ -44,5 +44,4 @@ pip3 install --upgrade \
     junitparser==2.4.2 \
     six \
     tornado \
-    pytest-lazy-fixture \
     ml_dtypes

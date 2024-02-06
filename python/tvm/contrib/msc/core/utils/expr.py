@@ -25,7 +25,7 @@ from tvm.contrib.msc.core import _ffi_api
 
 
 def get_expr_name(expr: relax.Expr) -> str:
-    """Get name hint ofr expr
+    """Get name hint for expr
 
     Parameters
     ----------
@@ -38,7 +38,7 @@ def get_expr_name(expr: relax.Expr) -> str:
         The name_hint of expr
     """
 
-    name = _ffi_api.SpanGetAttr(expr.span, "name")
+    name = _ffi_api.SpanGetAttr(expr.span, _ffi_api.ToAttrKey("name"))
     if not name and isinstance(expr, relax.Var):
         return expr.name_hint
     return name
@@ -60,8 +60,25 @@ def set_expr_name(expr: relax.Expr, name: str):
         The expr with name.
     """
 
-    expr.span = _ffi_api.SpanSetAttr(expr.span, "name", name)
+    expr.span = _ffi_api.SpanSetAttr(expr.span, _ffi_api.ToAttrKey("name"), name)
     return expr
+
+
+def get_expr_layout(expr: relax.Expr) -> str:
+    """Get layout for expr
+
+    Parameters
+    ----------
+    expr: Expr
+        The Expr of relax.
+
+    Returns
+    -------
+    layout: str
+        The layout of expr
+    """
+
+    return _ffi_api.SpanGetAttr(expr.span, _ffi_api.ToAttrKey("layout"))
 
 
 def get_span_attrs(mod: tvm.IRModule) -> dict:

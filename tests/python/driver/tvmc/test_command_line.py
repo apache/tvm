@@ -21,7 +21,6 @@ import shutil
 import logging
 import sys
 
-from pytest_lazyfixture import lazy_fixture
 from unittest import mock
 
 import tvm
@@ -128,9 +127,10 @@ def fake_directory(tmp_path):
 
 @pytest.mark.parametrize(
     "invalid_input",
-    [lazy_fixture("missing_file"), lazy_fixture("broken_symlink"), lazy_fixture("fake_directory")],
+    ["missing_file", "broken_symlink", "fake_directory"],
 )
-def test_tvmc_compile_file_check(capsys, invalid_input):
+def test_tvmc_compile_file_check(capsys, invalid_input, request):
+    invalid_input = request.getfixturevalue(invalid_input)
     compile_cmd = f"tvmc compile --target 'c' {invalid_input}"
     run_arg = compile_cmd.split(" ")[1:]
 
@@ -147,9 +147,10 @@ def test_tvmc_compile_file_check(capsys, invalid_input):
 
 @pytest.mark.parametrize(
     "invalid_input",
-    [lazy_fixture("missing_file"), lazy_fixture("broken_symlink"), lazy_fixture("fake_directory")],
+    ["missing_file", "broken_symlink", "fake_directory"],
 )
-def test_tvmc_tune_file_check(capsys, invalid_input):
+def test_tvmc_tune_file_check(capsys, invalid_input, request):
+    invalid_input = request.getfixturevalue(invalid_input)
     tune_cmd = f"tvmc tune --target 'llvm' --output output.json {invalid_input}"
     run_arg = tune_cmd.split(" ")[1:]
 
@@ -194,13 +195,15 @@ def paddle_model(paddle_resnet50):
 @pytest.mark.parametrize(
     "model",
     [
-        lazy_fixture("paddle_model"),
+        "paddle_model",
     ],
 )
 # compile_model() can take too long and is tested elsewhere, hence it's mocked below
 @mock.patch.object(compiler, "compile_model")
 # @mock.patch.object(compiler, "compile_model")
-def test_tvmc_compile_input_model(mock_compile_model, tmpdir_factory, model):
+def test_tvmc_compile_input_model(mock_compile_model, tmpdir_factory, model, request):
+
+    model = request.getfixturevalue(model)
     output_dir = tmpdir_factory.mktemp("output")
     output_file = output_dir / "model.tar"
 

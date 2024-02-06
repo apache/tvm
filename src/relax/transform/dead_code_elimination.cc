@@ -24,10 +24,12 @@
  * \sa tvm/relax/ir/binding_rewrite.cc
  *
  * Currently it removes:
- *   1. Unused local VarBindings in a DataflowBlock.
- *   2. Unused DataflowBlocks in a function.
- *   3. Unused Relax functions in the module.
+ *   1. Unused local VarBindings
+ *      (those where the bound var is unused and no impure operation is used).
+ *   2. Unused Relax functions in the module.
  *      We detect the call chain from the entry function, and remove all unused functions.
+ *
+ * Any binding blocks that are left empty will be removed by the normalizer.
  */
 
 #include <tvm/relax/analysis.h>

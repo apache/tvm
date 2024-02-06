@@ -198,13 +198,13 @@ def call_tir_inplace(
     args : Expr
         The input arguments.
 
-    input_indices : Union[int, List[int]]
+    inplace_indices : Union[int, List[int]]
         Specify which arguments should be used for in-place computations.
-        If `input_indices` is a single integer, it will be made into a singleton list.
-        Suppose `input_indices[i] = j`, where `j >= 0`. Then the `i`th output
+        If `inplace_indices` is a single integer, it will be made into a singleton list.
+        Suppose `inplace_indices[i] = j`, where `j >= 0`. Then the `i`th output
         will be an alias of `args[j]`.
-        If `input_indices[i] = -1`, then the `i`th output will be a freshly allocated tensor.
-        At least one member of `input_indices` must not be -1.
+        If `inplace_indices[i] = -1`, then the `i`th output will be a freshly allocated tensor.
+        At least one member of `inplace_indices` must not be -1.
 
     out_sinfo : Union[TensorStructInfo, List[TensorStructInfo]]
         The structure info of the call_tir_inplace output.
@@ -637,13 +637,13 @@ def call_inplace_packed(
     args: Expr
       The arguments for the PackedFunc.
 
-    input_indices : Union[int, List[int]]
+    inplace_indices : Union[int, List[int]]
       Specify which arguments should be used for in-place computations.
-      If `input_indices` is a single integer, it will be made into a singleton list.
-      Suppose `input_indices[i] = j`, where `j >= 0`. Then the `i`th output
+      If `inplace_indices` is a single integer, it will be made into a singleton list.
+      Suppose `inplace_indices[i] = j`, where `j >= 0`. Then the `i`th output
       will be an alias of `args[j]`.
-      If `input_indices[i] = -1`, then the `i`th output will be a freshly allocated tensor.
-      At least one member of `input_indices` must not be -1.
+      If `inplace_indices[i] = -1`, then the `i`th output will be a freshly allocated tensor.
+      At least one member of `inplace_indices` must not be -1.
 
     sinfo_args: Union[StructInfo, List[StructInfo]]
         The list of structure info arguments (giving the structural info for the returned value).

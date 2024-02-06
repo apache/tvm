@@ -516,6 +516,42 @@ void ApplyRepetitionPenalty(NDArray logits, NDArray token_ids, double penalty) {
 
 TVM_REGISTER_GLOBAL("vm.builtin.apply_repetition_penalty").set_body_typed(ApplyRepetitionPenalty);
 
+/*!
+ * \brief Apply presence and frequency penalty. This is an inplace operation.
+ * \param logits The input logits before penalty.
+ * \param token_ids The appeared token ids.
+ * \param token_freqs The number of times each token has appeared since last PrefillStep.
+ * token_freqs[i] is the frequency of token_ids[i], for all i. And all token_freqs should be >= 1.
+ * \param presence_penalty The penalty factor, applied if a token appeared in an one-off manner.
+ * \param frequency_penalty The penalty factor, contributes more the more frequent a token appears.
+ */
+void ApplyPresenceAndFrequencyPenalty(NDArray logits, NDArray token_ids, NDArray token_freqs,
+                                      double presence_penalty, double frequency_penalty) {
+  // See https://platform.openai.com/docs/guides/text-generation/frequency-and-presence-penalties
+  ICHECK(logits.IsContiguous());
+  ICHECK(token_ids.IsContiguous());
+  ICHECK(token_freqs.IsContiguous());
+  ICHECK(logits.DataType() == DataType::Float(32)) << "Logits data type is not float32!";
+  ICHECK(token_ids.DataType() == DataType::Int(32)) << "token ids must be int32!";
+  ICHECK(token_freqs.DataType() == DataType::Int(32)) << "token freqs must be int32!";
+  ICHECK(logits->device.device_type == kDLCPU) << "logits device must be CPU!";
+  ICHECK(token_ids->device.device_type == kDLCPU) << "token_ids device must be CPU!";
+  ICHECK(token_freqs->device.device_type == kDLCPU) << "token_ids device must be CPU!";
+
+  float* logits_raw_data = static_cast<float*>(logits->data);
+  int* token_ids_data = static_cast<int*>(token_ids->data);
+  int* token_freqs_data = static_cast<int*>(token_freqs->data);
+  size_t num_token_ids = token_ids->shape[token_ids->ndim - 1];
+  for (size_t i = 0; i < num_token_ids; ++i) {
+    int token_id = token_ids_data[i];
+    int token_freq = token_freqs_data[i];
+    logits_raw_data[token_id] -= (token_freq * frequency_penalty + presence_penalty);
+  }
+}
+
+TVM_REGISTER_GLOBAL("vm.builtin.apply_presence_and_frequency_penalty")
+    .set_body_typed(ApplyPresenceAndFrequencyPenalty);
+
 // This is an inplace operation.
 void ApplySoftmaxWithTemperature(NDArray logits, double temperature) {
   ICHECK(logits.IsContiguous());

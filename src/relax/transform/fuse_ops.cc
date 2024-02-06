@@ -183,6 +183,8 @@ class GraphCreator : public ExprVisitor {
     ICHECK_NOTNULL(binding_var_node);
 
     static const Op& call_tir_op_ = Op::Get("relax.call_tir");
+    static const Op& call_tir_inplace_op_ = Op::Get("relax.call_tir_inplace");
+
     OpPatternKind pattern = OpPatternKind::kOpaque;
     Array<Expr> args = call->args;
 
@@ -191,7 +193,7 @@ class GraphCreator : public ExprVisitor {
     // - Otherwise, the pattern of the current binding variable node is set to `kOpaque`, and we
     // recurse into the call expression.
     const auto* op = call->op.as<OpNode>();
-    if (op == call_tir_op_.get()) {
+    if (op == call_tir_op_.get() || op == call_tir_inplace_op_.get()) {
       const GlobalVar& global_var = Downcast<GlobalVar>(call->args[0]);
       tir::PrimFunc func = Downcast<tir::PrimFunc>(mod_->Lookup(global_var));
 
@@ -377,7 +379,8 @@ class FunctionCreator : public ExprMutator {
    * function accordingly
    * \param binding The binding to be appended
    * \note Allowed bindings are:
-   *  - VarBinding with value being a call node calling `relax.call_tir`.
+   *  - VarBinding with value being a call node calling `relax.call_tir` or
+   *    `relax.call_tir_inplace`.
    *  - VarBinding with value being a tuple-get-item node.
    * // TODO(tvm-team): handle match shape
    */
@@ -387,7 +390,8 @@ class FunctionCreator : public ExprMutator {
 
     if (const auto* var_binding = binding.as<VarBindingNode>()) {
       if (const auto* call = var_binding->value.as<CallNode>()) {
-        if (call->op == Op::Get("relax.call_tir")) {
+        if (call->op == Op::Get("relax.call_tir") ||
+            call->op == Op::Get("relax.call_tir_inplace")) {
           // Update the name of the function.
           name_hint_ = name_hint_ + "_" + Downcast<GlobalVar>(call->args[0])->name_hint;
 
