@@ -525,5 +525,52 @@ def test_check():
     tvm.ir.assert_structural_equal(after, expected)
 
 
+def test_dynamic_rhs():
+    @R.function(private=True)
+    def before(
+        x: R.Tensor((2, 1024, 640), "float32"),
+        w0: R.Tensor((640, 640), "float32"),
+        w1: R.Tensor((640, "M"), "float32"),
+    ):
+        M = T.int64()
+        with R.dataflow():
+            lv0 = R.matmul(x, w0)
+            lv1 = R.matmul(x, w1)
+            out = (lv0, lv1)
+            R.output(out)
+        return out
+
+    @R.function(private=True)
+    def expected(
+        x: R.Tensor((2, 1024, 640), dtype="float32"),
+        w0: R.Tensor((640, 640), dtype="float32"),
+        w1: R.Tensor((640, "M"), dtype="float32"),
+    ) -> R.Tuple(
+        R.Tensor((2, 1024, 640), dtype="float32"), R.Tensor((2, 1024, "M"), dtype="float32")
+    ):
+        M = T.int64()
+        with R.dataflow():
+            lv: R.Tensor((640, 640 + M), dtype="float32") = R.concat((w0, w1), axis=1)
+            lv1: R.Tensor((2, 1024, 640 + M), dtype="float32") = R.matmul(
+                x, lv, out_dtype="float32"
+            )
+            lv2: R.Tuple(
+                R.Tensor((2, 1024, 640), dtype="float32"),
+                R.Tensor((2, 1024, M), dtype="float32"),
+            ) = R.split(lv1, indices_or_sections=[640], axis=2)
+            lv0: R.Tensor((2, 1024, 640), dtype="float32") = lv2[0]
+            lv1_1: R.Tensor((2, 1024, M), dtype="float32") = lv2[1]
+            out: R.Tuple(
+                R.Tensor((2, 1024, 640), dtype="float32"),
+                R.Tensor((2, 1024, M), dtype="float32"),
+            ) = (lv0, lv1_1)
+            R.output(out)
+        return out
+
+    after = CombineParallelMatmul()(tvm.IRModule.from_expr(before))["main"]
+
+    tvm.ir.assert_structural_equal(after, expected)
+
+
 if __name__ == "__main__":
     tvm.testing.main()
