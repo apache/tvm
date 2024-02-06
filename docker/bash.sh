@@ -281,7 +281,6 @@ while (( $# )); do
             COMMAND=( "$@" )
             break
             ;;
-        
 
         -*|--*)
             echo "Error: Unknown flag: $1" >&2
