@@ -155,9 +155,7 @@ def test_llvm_ir_debug_accuracy():
     locations = find_di_locations(source)
 
     # Find the 'assert' from MyModule
-    debug_dir_match = re.search(
-        r"tail call void %0\(i8\* getelementptr inbounds .* !dbg !(\d+)\n", source
-    )
+    debug_dir_match = re.search(r"tail call void %0\(.* !dbg !(\d+)\n", source)
 
     # Extract out the debug directive line
     directive_idx = debug_dir_match.groups()[0]
