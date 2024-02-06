@@ -445,3 +445,46 @@ def PrintIR(header="", show_meta_data=False):
     The pass
     """
     return _ffi_transform_api.PrintIR(header, show_meta_data)
+
+
+def ApplyPassToFunction(
+    transform: Pass,
+    func_name_regex: str,
+    error_if_no_function_matches_regex: bool = False,
+) -> Pass:
+    """Utility to apply a pass to specific functions in an IRModule
+
+    TVM uses IRModule to IRModule transformations at all stages of
+    lowering.  These transformations may be useful when hand-writing an
+    optimized model, or to perform optimizations on specific kernels
+    within an IRModule.  This utility allows a pass to be applied to a
+    specified function, without altering other functions in the module.
+
+    Parameters
+    ----------
+    transform: Pass
+
+        The IRModule to IRModule pass to be applied.
+
+    func_name_regex: str
+
+        A regex used to select the functions to be updated.  The pass
+        will be applied to all functions whose name matches the regex.
+
+    error_if_no_function_matches_regex: bool
+
+        Specifies the behavior if an IRModule does not contain any
+        function matching the provided regex.  If true, an error will
+        be raised.  If false (default), the IRModule will be returned
+        unmodified.
+
+    Returns
+    -------
+    new_transform: Pass
+
+        The modified IRModule to IRModule pass.
+
+    """
+    return _ffi_transform_api.ApplyPassToFunction(
+        transform, func_name_regex, error_if_no_function_matches_regex
+    )
