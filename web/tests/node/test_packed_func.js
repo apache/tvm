@@ -126,6 +126,21 @@ test("RegisterGlobal", () => {
   tvm.endScope();
 });
 
+test("ExceptionPassing", () => {
+  tvm.beginScope();
+  tvm.registerFunc("throw_error", function (msg) {
+    throw Error(msg);
+  });
+  let f = tvm.getGlobalFunc("throw_error");
+  try {
+    f("error-xyz");
+    throw Error("error not caught");
+  } catch (error) {
+    assert(error.message.indexOf("error-xyz") != -1);
+  }
+  tvm.endScope();
+});
+
 test("NDArrayCbArg", () => {
   tvm.beginScope();
   let use_count = tvm.getGlobalFunc("testing.object_use_count");
