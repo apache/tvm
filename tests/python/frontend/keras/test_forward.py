@@ -70,13 +70,16 @@ USING_CLASSIC_KERAS = ("keras", {"keras_mod": keras})
 USING_TENSORFLOW_KERAS = ("tf_keras", {"keras_mod": tf_keras})
 
 
-def verify_keras_frontend(keras_model, need_transpose=True, layout="NCHW"):
+def verify_keras_frontend(
+    keras_model, need_transpose=True, need_output_transpose=True, layout="NCHW"
+):
     """Generic function to generate and compare Keras and TVM output"""
     # Keras frontend currently supports tensorflow backend only.
     assert keras.backend.backend() == "tensorflow"
 
     if layout != "NCHW":
         need_transpose = False
+        need_output_transpose = False
 
     in_shapes = []
     for layer in keras_model._input_layers:
@@ -102,9 +105,13 @@ def verify_keras_frontend(keras_model, need_transpose=True, layout="NCHW"):
         return [m.get_output(i).numpy() for i in range(m.get_num_outputs())]
 
     def to_channels_first(arr):
+        if arr.ndim < 3:
+            return arr
         return arr.transpose([0, -1] + list(range(1, arr.ndim - 1)))
 
     def to_channels_last(arr):
+        if arr.ndim < 3:
+            return arr
         return arr.transpose([0] + list(range(2, arr.ndim)) + [1])
 
     in_data = [np.random.uniform(size=shape, low=-1.0, high=1.0) for shape in in_shapes]
@@ -114,7 +121,7 @@ def verify_keras_frontend(keras_model, need_transpose=True, layout="NCHW"):
         inputs = [to_channels_first(x) for x in in_data] if need_transpose else in_data
         tvm_out = get_tvm_output(inputs, target, dev)
         for kout, tout in zip(keras_out, tvm_out):
-            if need_transpose:
+            if need_output_transpose:
                 tout = to_channels_last(tout)
             tvm.testing.assert_allclose(kout, tout, rtol=1e-5, atol=1e-5)
 
@@ -853,6 +860,38 @@ class TestKeras:
             verify_keras_frontend(keras_model, layout="NCHW")
             verify_keras_frontend(keras_model, layout="NHWC")
 
+    def test_forward_sum(self, keras_mod):
+        """test_forward_sum"""
+        data = keras_mod.layers.Input(shape=(16, 12, 8))
+        k_backend = keras_mod.backend
+        l2_funcs = [
+            (keras_mod.layers.Lambda(lambda v: k_backend.sum(v, 1, True)), True),
+            (keras_mod.layers.Lambda(lambda v: k_backend.sum(v, 1, keepdims=True)), True),
+            (keras_mod.layers.Lambda(lambda v: k_backend.sum(v, axis=2, keepdims=True)), True),
+            (keras_mod.layers.Lambda(lambda v: k_backend.sum(v, keepdims=False, axis=2)), True),
+            (keras_mod.layers.Lambda(lambda v: k_backend.sum(x=v, axis=-2, keepdims=True)), True),
+            (keras_mod.layers.Lambda(lambda v: k_backend.sum(keepdims=True, x=v, axis=1)), True),
+            (keras_mod.layers.Lambda(lambda v: k_backend.sum(x=v, axis=-1, keepdims=True)), True),
+            (keras_mod.layers.Lambda(lambda v: k_backend.sum(v, axis=-2)), True),
+            (keras_mod.layers.Lambda(lambda v: k_backend.sum(axis=None, x=v)), True),
+            # In the next case the reduction axis is the channel axis. So
+            # after reduction we won't have this axis in the output, so we
+            # don't need to do transpose for output tensor.
+            (keras_mod.layers.Lambda(lambda v: k_backend.sum(v, -1)), False),
+            (keras_mod.layers.Lambda(lambda v: k_backend.sum(v)), True),
+            (keras_mod.layers.Lambda(lambda v: k_backend.sum(v, axis=(2, 3))), True),
+            (keras_mod.layers.Lambda(lambda v: k_backend.sum(v, (1, 2))), True),
+            (keras_mod.layers.Lambda(lambda v: k_backend.sum(v, axis=[-2, -1])), True),
+            (keras_mod.layers.Lambda(lambda v: k_backend.sum(v, [-3, -2])), True),
+        ]
+        for l2_func, need_output_transpose in l2_funcs:
+            x = l2_func(data)
+            keras_model = keras_mod.models.Model(data, x)
+            verify_keras_frontend(
+                keras_model, need_output_transpose=need_output_transpose, layout="NCHW"
+            )
+            verify_keras_frontend(keras_model, layout="NHWC")
+
     def test_forward_time_distributed(self, keras_mod):
         """test_forward_time_distributed"""
         conv2d_inputs = keras_mod.Input(shape=(10, 128, 128, 3))
@@ -922,5 +961,6 @@ if __name__ == "__main__":
         sut.test_forward_embedding(keras_mod=k)
         sut.test_forward_repeat_vector(keras_mod=k)
         sut.test_forward_l2_normalize(keras_mod=k)
+        sut.test_forward_sum(keras_mod=k)
         sut.test_forward_time_distributed(keras_mod=k)
         sut.test_simplernn_with_infertype(keras_mod=k)

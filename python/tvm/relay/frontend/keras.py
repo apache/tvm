@@ -60,6 +60,17 @@ def _as_list(arr):
     return [arr]
 
 
+def _is_int_or_tuple_of_ints(v):
+    if isinstance(v, list) and len(v) > 0:
+        for i in v:
+            if not isinstance(i, int):
+                return False
+        return True
+    if isinstance(v, tuple) and len(v) > 0:
+        return isinstance(v[0], int)
+    return isinstance(v, int)
+
+
 def _convert_recurrent_activation(inexpr, keras_layer):
     act_type = keras_layer.recurrent_activation.__name__
     return _convert_activation(inexpr, act_type, None, None, None)
@@ -1198,18 +1209,8 @@ def _convert_l2_normalize(inexpr, keras_layer, data_layout):
                 axis = param_list[1]
                 is_param_list_parsed = True
 
-    def is_int_or_tuple_of_ints(v):
-        if isinstance(v, list) and len(v) > 0:
-            for i in v:
-                if not isinstance(i, int):
-                    return False
-            return True
-        if isinstance(v, tuple) and len(v) > 0:
-            return isinstance(v[0], int)
-        return isinstance(v, int)
-
     assert is_param_list_parsed and (
-        axis is None or is_int_or_tuple_of_ints(axis)
+        axis is None or _is_int_or_tuple_of_ints(axis)
     ), "Can not parse l2_normalize lambda function found in Lambda layer"
     if isinstance(axis, int):
         axis = [axis]
@@ -1228,6 +1229,102 @@ def _convert_l2_normalize(inexpr, keras_layer, data_layout):
     return _op.nn.l2_normalize(inexpr, eps=1e-12, axis=axis)
 
 
+def _convert_sum(inexpr, keras_layer, data_layout):
+    sum_is_loaded = False
+    param_list = []
+    for i in dis.get_instructions(keras_layer.function):
+        if i.opname in ["LOAD_GLOBAL", "LOAD_DEREF"]:
+            continue
+        if i.opname in ["LOAD_ATTR", "LOAD_METHOD"]:
+            if i.argval == "sum":
+                assert not sum_is_loaded, "l2_normalize was already LOADED"
+                sum_is_loaded = True
+        elif i.opname in ["LOAD_CONST", "LOAD_FAST"] and sum_is_loaded:
+            param_list.append(i.argval)
+        elif i.opname == "BUILD_LIST":
+            sz = i.argval
+            assert len(param_list) >= sz
+            new_list = param_list[-sz:]
+            param_list = param_list[:-sz]
+            param_list.append(new_list)
+        elif i.opname in ["CALL_FUNCTION_KW", "CALL_METHOD"]:
+            break
+
+    axis = None
+    keep_dims = False
+    is_param_list_parsed = False
+    if sum_is_loaded and len(param_list) > 0:
+        # last param_list item is tuple of strings means that
+        # lambda uses named parameters when calling sum
+        if (
+            isinstance(param_list[-1], tuple)
+            and len(param_list[-1]) > 0
+            and isinstance(param_list[-1][0], str)
+        ):
+            param_names = param_list[-1]
+            if len(param_names) == 1 and param_names[0] == "x":
+                # lambda v: K.sum(x=v)
+                is_param_list_parsed = True
+            elif len(param_names) == 1 and param_names[0] == "axis" and len(param_list) == 3:
+                # lambda x: K.sum(x, axis=1)
+                axis = param_list[1]
+                is_param_list_parsed = True
+            elif len(param_names) == 1 and param_names[0] == "keepdims" and len(param_list) == 4:
+                # lambda x: K.sum(x, 1, keepdims=False)
+                axis = param_list[1]
+                keep_dims = param_list[2]
+                is_param_list_parsed = True
+            elif len(param_names) == 2 and len(param_list) == 3:
+                # lambda x: K.sum(x=x, axis=1)
+                # lambda x: K.sum(axis=1, x=x)
+                axis = param_list[param_names.index("axis")]
+                is_param_list_parsed = True
+            elif len(param_names) >= 2 and len(param_list) == 4:
+                # lambda x: K.sum(x=x, axis=1, keepdims=False)
+                # lambda x: K.sum(x, axis=1, keepdims=False)
+                # lambda x: K.sum(x, keepdims=False, axis=1)
+                # lambda x: K.sum(axis=1, x=x, keepdims=False)
+                offset = len(param_list) - len(param_names) - 1
+                axis = param_list[param_names.index("axis") + offset]
+                keep_dims = param_list[param_names.index("keepdims") + offset]
+                is_param_list_parsed = True
+        else:
+            # lambda x: K.sum(x)
+            if len(param_list) == 1:
+                is_param_list_parsed = True
+            # lambda x: K.sum(x, 1)
+            elif len(param_list) == 2:
+                axis = param_list[1]
+                is_param_list_parsed = True
+            # lambda x: K.sum(x, 1, False)
+            elif len(param_list) == 3:
+                axis = param_list[1]
+                keep_dims = param_list[2]
+                is_param_list_parsed = True
+
+    assert is_param_list_parsed, "Can not parse sum lambda function found in Lambda layer"
+    assert axis is None or _is_int_or_tuple_of_ints(
+        axis
+    ), "axis should be an integer, tuple, list or None"
+    assert isinstance(keep_dims, bool), "keepdims should be a boolean"
+    if isinstance(axis, int):
+        axis = [axis]
+
+    if data_layout == "NCHW":
+        dims = len(keras_layer.input_shape)
+
+        def fix_axis_for_nchw(axis):
+            if axis == 0:
+                return 0
+            if axis in [(dims - 1), -1]:
+                return 1
+            return axis + 1
+
+        if axis is not None:
+            axis = [fix_axis_for_nchw(x) for x in axis]
+    return _op.reduce.sum(inexpr, axis=axis, keepdims=keep_dims)
+
+
 def _convert_lambda(inexpr, keras_layer, _, data_layout):
     fcode = keras_layer.function.__code__
     # Convert l2_normalize
@@ -1237,6 +1334,8 @@ def _convert_lambda(inexpr, keras_layer, _, data_layout):
         and fcode.co_names[-1] == "l2_normalize"
     ):
         return _convert_l2_normalize(inexpr, keras_layer, data_layout)
+    elif fcode.co_name == "<lambda>" and len(fcode.co_names) > 0 and fcode.co_names[-1] == "sum":
+        return _convert_sum(inexpr, keras_layer, data_layout)
     raise tvm.error.OpNotImplemented(
         f"Function {fcode.co_names} used in Lambda layer is not supported in frontend Keras."
     )
