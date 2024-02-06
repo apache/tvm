@@ -43,7 +43,10 @@ TargetJSON ParseTarget(TargetJSON target) {
 
   // Try to fill in the blanks by detecting target information from the system
   if (kind == "llvm" && !mtriple.defined() && !mcpu.defined()) {
-    target.Set("mtriple", DetectSystemTriple().value_or(""));
+    String system_triple = DetectSystemTriple().value_or("");
+    LOG(WARNING) << "Explicit mtriple or mcpu was not provided. Using system detected mtriple: "
+                 << system_triple << ".";
+    target.Set("mtriple", system_triple);
   }
 
   if (mprofile::IsArch(target)) {

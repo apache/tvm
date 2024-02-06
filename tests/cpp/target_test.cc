@@ -503,16 +503,23 @@ TEST(TargetCreation, DetectSystemTriple) {
       {"kind", String("llvm")},
   };
 
+  testing::internal::CaptureStderr();
   Target target = Target(config);
+  std::string cap_stderr = testing::internal::GetCapturedStderr();
   ICHECK_EQ(target->kind, TargetKind::Get("llvm").value());
 
   Optional<String> mtriple = target->GetAttr<String>("mtriple");
   auto pf = tvm::runtime::Registry::Get("target.llvm_get_system_triple");
-  if (pf->defined()) {
-    ICHECK(mtriple.defined());
-    ICHECK_EQ(mtriple.value(), String((*pf)()));
+  if (!pf->defined()) {
+    GTEST_SKIP() << "LLVM is not available, skipping test";
   }
-  GTEST_SKIP() << "LLVM is not available, skipping test";
+
+  ICHECK(mtriple.defined());
+  ICHECK_EQ(mtriple.value(), String((*pf)()));
+  std::string expected_warning_message =
+      "Warning: Explicit mtriple or mcpu was not provided. Using system detected mtriple: " +
+      mtriple.value();
+  ICHECK(cap_stderr.find(expected_warning_message) != std::string::npos);
 }
 
 TEST(TargetKindRegistry, ListTargetKinds) {
