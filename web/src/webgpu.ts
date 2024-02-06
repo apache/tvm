@@ -35,12 +35,12 @@ export interface GPUDeviceDetectOutput {
  */
 export async function detectGPUDevice(): Promise<GPUDeviceDetectOutput | undefined> {
   if (typeof navigator !== "undefined" && navigator.gpu !== undefined) {
-    const adapter = await navigator.gpu.requestAdapter({"powerPreference":"high-performance"});
+    const adapter = await navigator.gpu.requestAdapter({ "powerPreference": "high-performance" });
     if (adapter == null) {
       throw Error("Cannot find adapter that matches the request");
     }
     const computeMB = (value: number) => {
-      return Math.ceil(value  / (1 << 20)) + "MB";
+      return Math.ceil(value / (1 << 20)) + "MB";
     }
 
     // more detailed error message
@@ -77,7 +77,7 @@ export async function detectGPUDevice(): Promise<GPUDeviceDetectOutput | undefin
     }
 
     const requiredMaxComputeWorkgroupStorageSize = 32 << 10;
-    if (requiredMaxComputeWorkgroupStorageSize> adapter.limits.maxComputeWorkgroupStorageSize) {
+    if (requiredMaxComputeWorkgroupStorageSize > adapter.limits.maxComputeWorkgroupStorageSize) {
       throw Error(
         `Cannot initialize runtime because of requested maxComputeWorkgroupStorageSize ` +
         `exceeds limit. requested=${requiredMaxComputeWorkgroupStorageSize}, ` +
@@ -85,7 +85,16 @@ export async function detectGPUDevice(): Promise<GPUDeviceDetectOutput | undefin
       );
     }
 
-    const requiredFeatures : GPUFeatureName[] = [];
+    const requiredMaxStorageBuffersPerShaderStage = 10;  // default is 8
+    if (requiredMaxStorageBuffersPerShaderStage > adapter.limits.maxStorageBuffersPerShaderStage) {
+      throw Error(
+        `Cannot initialize runtime because of requested maxStorageBuffersPerShaderStage ` +
+        `exceeds limit. requested=${requiredMaxStorageBuffersPerShaderStage}, ` +
+        `limit=${adapter.limits.maxStorageBuffersPerShaderStage}. `
+      );
+    }
+
+    const requiredFeatures: GPUFeatureName[] = [];
     // Always require f16 if available
     if (adapter.features.has("shader-f16")) {
       requiredFeatures.push("shader-f16");
@@ -97,6 +106,7 @@ export async function detectGPUDevice(): Promise<GPUDeviceDetectOutput | undefin
         maxBufferSize: requiredMaxBufferSize,
         maxStorageBufferBindingSize: requiredMaxStorageBufferBindingSize,
         maxComputeWorkgroupStorageSize: requiredMaxComputeWorkgroupStorageSize,
+        maxStorageBuffersPerShaderStage: requiredMaxStorageBuffersPerShaderStage,
       },
       requiredFeatures
     });
@@ -110,7 +120,7 @@ export async function detectGPUDevice(): Promise<GPUDeviceDetectOutput | undefin
   }
 }
 
-const canvasRenderWGSL =`
+const canvasRenderWGSL = `
 @group(0) @binding(0) var my_sampler : sampler;
 @group(0) @binding(1) var my_texture : texture_2d<f32>;
 
@@ -193,7 +203,7 @@ class CanvasRenderManager implements Disposable {
         }),
         entryPoint: "fragment_main",
         targets: [{
-            format: this.canvasTextureFormat,
+          format: this.canvasTextureFormat,
         }],
       },
       primitive: {
@@ -215,7 +225,7 @@ class CanvasRenderManager implements Disposable {
         }),
         entryPoint: "fragment_clear",
         targets: [{
-            format: this.canvasTextureFormat,
+          format: this.canvasTextureFormat,
         }],
       },
       primitive: {
@@ -285,7 +295,7 @@ class CanvasRenderManager implements Disposable {
       bytesPerRow: this.stagingTexture.width * 4
     }, {
       texture: this.stagingTexture
-    },{
+    }, {
       width: this.stagingTexture.width,
       height: this.stagingTexture.height
     });
@@ -314,7 +324,7 @@ class CanvasRenderManager implements Disposable {
     this.device.queue.submit([commandEncoder.finish()]);
   }
 
-  dispose() : void {
+  dispose(): void {
     this.stagingTexture.destroy();
   }
 }
@@ -453,7 +463,7 @@ export class WebGPUContext {
    * @param code The shader data(in WGSL)
    * @returns The shader
    */
-  createShader(finfo: FunctionInfo, code: string) : Function {
+  createShader(finfo: FunctionInfo, code: string): Function {
     return this.createShadeInternal(finfo, code, false) as Function;
   }
 
@@ -465,7 +475,7 @@ export class WebGPUContext {
    * @param code The shader data(in WGSL)
    * @returns The shader
    */
-  async createShaderAsync(finfo: FunctionInfo, code: string) : Promise<Function> {
+  async createShaderAsync(finfo: FunctionInfo, code: string): Promise<Function> {
     return await (this.createShadeInternal(finfo, code, true) as Promise<Function>);
   }
 
@@ -474,8 +484,8 @@ export class WebGPUContext {
    * \param nbytes The minimum size.
    * \return The allocated buffer
    */
-  private getPodArgsBuffer(nbytes: number) : GPUBuffer {
-    let buffer : GPUBuffer | undefined = undefined;
+  private getPodArgsBuffer(nbytes: number): GPUBuffer {
+    let buffer: GPUBuffer | undefined = undefined;
     if (this.podArgStagingBuffers.length >= this.maxNumPodArgsStagingBuffers) {
       buffer = this.podArgStagingBuffers.shift();
     }
@@ -538,8 +548,8 @@ export class WebGPUContext {
 
 
     const layoutEntries: Array<GPUBindGroupLayoutEntry> = [];
-    const bufferArgIndices : Array<number> = [];
-    const podArgIndices : Array<number> = [];
+    const bufferArgIndices: Array<number> = [];
+    const podArgIndices: Array<number> = [];
 
     for (let i = 0; i < finfo.arg_types.length; ++i) {
       const dtype = finfo.arg_types[i];
@@ -547,7 +557,7 @@ export class WebGPUContext {
         layoutEntries.push({
           binding: bufferArgIndices.length,
           visibility: GPUShaderStage.COMPUTE,
-          buffer :  {
+          buffer: {
             type: paramWriteAccess[bufferArgIndices.length] ? "storage" : "read-only-storage"
           }
         });
@@ -564,7 +574,7 @@ export class WebGPUContext {
     layoutEntries.push({
       binding: bufferArgIndices.length,
       visibility: GPUShaderStage.COMPUTE,
-      buffer :  {
+      buffer: {
         type: "uniform"
       }
     });
@@ -573,14 +583,14 @@ export class WebGPUContext {
       entries: layoutEntries
     });
     const pipelineLayout = this.device.createPipelineLayout({
-      bindGroupLayouts: [ bindGroupLayout ]
+      bindGroupLayouts: [bindGroupLayout]
     });
 
     // Function to create the pipeline.
-    const createShaderFunc =  (pipeline: GPUComputePipeline): Function => {
+    const createShaderFunc = (pipeline: GPUComputePipeline): Function => {
       const submitShader = (...args: Array<GPUPointer | number>): void => {
         if (this.debugShaderSubmitLimit != -1 &&
-            this.shaderSubmitCounter >= this.debugShaderSubmitLimit) {
+          this.shaderSubmitCounter >= this.debugShaderSubmitLimit) {
           this.shaderSubmitCounter += 1;
           return;
         }
@@ -675,8 +685,8 @@ export class WebGPUContext {
 
         if (this.debugLogFinish) {
           const currCounter = this.shaderSubmitCounter;
-          this.device.queue.onSubmittedWorkDone().then(()=> {
-            console.log("["+ currCounter + "][Debug] finish shader" + finfo.name);
+          this.device.queue.onSubmittedWorkDone().then(() => {
+            console.log("[" + currCounter + "][Debug] finish shader" + finfo.name);
           });
         }
         this.shaderSubmitCounter += 1;
@@ -799,14 +809,31 @@ export class WebGPUContext {
     nbytes: number
   ): void {
     // Perhaps it would be more useful to use a staging buffer?
-    const rawBytes = this.memory.loadRawBytes(from, nbytes);
-    this.device.queue.writeBuffer(
-      this.gpuBufferFromPtr(to),
-      toOffset,
-      rawBytes,
-      0,
-      nbytes
-    );
+    let rawBytes = this.memory.loadRawBytes(from, nbytes);
+    if (rawBytes.length % 4 !== 0) {
+      // writeBuffer requires length to be multiples of 4, so we pad here
+      const toPad = 4 - rawBytes.length % 4;
+      rawBytes = new Uint8Array(rawBytes.length + toPad);
+      rawBytes.set(rawBytes);
+      nbytes = nbytes + toPad;
+    }
+    try {
+      this.device.queue.writeBuffer(
+        this.gpuBufferFromPtr(to),
+        toOffset,
+        rawBytes,
+        0,
+        nbytes
+      );
+    } catch (err) {
+      console.log("CHARLIE deviceCopyToGPU ERR");
+      console.log("rawBytes: ", rawBytes);
+      console.log("nbytes: ", nbytes);
+      console.log("toOffset: ", toOffset);
+      console.log(err);
+      throw new Error(err);
+    }
+
   }
 
   private deviceCopyFromGPU(

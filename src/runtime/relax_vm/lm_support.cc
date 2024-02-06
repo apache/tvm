@@ -226,18 +226,19 @@ class AttentionKVCacheObj : public Object {
   }
 
   static constexpr const uint32_t _type_index = TypeIndex::kDynamic;
-  static constexpr const char* _type_key = "relax.vm.AttentionKVCache";
+  static constexpr const char* _type_key = "relax.vm.AttentionKVCacheLegacy";
   TVM_DECLARE_FINAL_OBJECT_INFO(AttentionKVCacheObj, Object);
 };
 
 /*! \brief reference to closure. */
-class AttentionKVCache : public ObjectRef {
+class AttentionKVCacheLegacy : public ObjectRef {
  public:
   /*!
    * \brief Create the attention kv cache.
    * \param init_data The initial reserved.
    */
-  static AttentionKVCache Create(NDArray init_data, ShapeTuple reserve_shape, int init_fill_count) {
+  static AttentionKVCacheLegacy Create(NDArray init_data, ShapeTuple reserve_shape,
+                                       int init_fill_count) {
     auto n = make_object<AttentionKVCacheObj>();
     n->data = NDArray::Empty(reserve_shape, init_data->dtype, init_data->device);
     n->fill_count = 0;
@@ -246,10 +247,10 @@ class AttentionKVCache : public ObjectRef {
       n->fill_count = init_fill_count;
       n->window_attention_current_pos = init_fill_count;  // window attention only
     }
-    return AttentionKVCache(n);
+    return AttentionKVCacheLegacy(n);
   }
 
-  TVM_DEFINE_MUTABLE_OBJECT_REF_METHODS(AttentionKVCache, ObjectRef, AttentionKVCacheObj);
+  TVM_DEFINE_MUTABLE_OBJECT_REF_METHODS(AttentionKVCacheLegacy, ObjectRef, AttentionKVCacheObj);
 };
 
 TVM_REGISTER_OBJECT_TYPE(AttentionKVCacheObj);
@@ -258,24 +259,24 @@ TVM_REGISTER_OBJECT_TYPE(AttentionKVCacheObj);
 //  Register runtime functions
 //-------------------------------------------------
 TVM_REGISTER_GLOBAL("vm.builtin.attention_kv_cache_create")
-    .set_body_typed(AttentionKVCache::Create);
+    .set_body_typed(AttentionKVCacheLegacy::Create);
 
-AttentionKVCache AttentionKVCacheUpdate(AttentionKVCache cache, NDArray value) {
+AttentionKVCacheLegacy AttentionKVCacheUpdate(AttentionKVCacheLegacy cache, NDArray value) {
   cache->Update(value);
   return cache;
 }
 
 TVM_REGISTER_GLOBAL("vm.builtin.attention_kv_cache_update").set_body_typed(AttentionKVCacheUpdate);
 
-AttentionKVCache AttentionKVCacheAppend(AttentionKVCache cache, NDArray value) {
+AttentionKVCacheLegacy AttentionKVCacheAppend(AttentionKVCacheLegacy cache, NDArray value) {
   cache->Append(value);
   return cache;
 }
 
 TVM_REGISTER_GLOBAL("vm.builtin.attention_kv_cache_append").set_body_typed(AttentionKVCacheAppend);
 
-AttentionKVCache AttentionKVCacheWindowOverride(AttentionKVCache cache, NDArray value,
-                                                int64_t max_cache_size) {
+AttentionKVCacheLegacy AttentionKVCacheWindowOverride(AttentionKVCacheLegacy cache, NDArray value,
+                                                      int64_t max_cache_size) {
   cache->WindowOverride(value, max_cache_size);
   return cache;
 }
@@ -283,9 +284,10 @@ AttentionKVCache AttentionKVCacheWindowOverride(AttentionKVCache cache, NDArray 
 TVM_REGISTER_GLOBAL("vm.builtin.attention_kv_cache_window_override")
     .set_body_typed(AttentionKVCacheWindowOverride);
 
-AttentionKVCache AttentionKVCacheWindowOverrideWithSinks(AttentionKVCache cache, NDArray value,
-                                                         int64_t max_cache_size,
-                                                         int64_t num_attention_sinks) {
+AttentionKVCacheLegacy AttentionKVCacheWindowOverrideWithSinks(AttentionKVCacheLegacy cache,
+                                                               NDArray value,
+                                                               int64_t max_cache_size,
+                                                               int64_t num_attention_sinks) {
   cache->WindowOverride(value, max_cache_size, num_attention_sinks);
   return cache;
 }
@@ -293,7 +295,7 @@ AttentionKVCache AttentionKVCacheWindowOverrideWithSinks(AttentionKVCache cache,
 TVM_REGISTER_GLOBAL("vm.builtin.attention_kv_cache_window_override_with_sinks")
     .set_body_typed(AttentionKVCacheWindowOverrideWithSinks);
 
-NDArray AttentionKVCacheView(AttentionKVCache cache, ShapeTuple shape) {
+NDArray AttentionKVCacheView(AttentionKVCacheLegacy cache, ShapeTuple shape) {
   return cache->View(shape);
 }
 
@@ -302,7 +304,7 @@ TVM_REGISTER_GLOBAL("vm.builtin.attention_kv_cache_view")
       CHECK(args.size() == 1 || args.size() == 2)
           << "ValueError: `vm.builtin.attention_kv_cache_view` expects 1 or 2 arguments, but got "
           << args.size() << ".";
-      AttentionKVCache cache = args[0];
+      AttentionKVCacheLegacy cache = args[0];
       if (args.size() == 2) {
         ShapeTuple shape = args[1];
         *rv = cache->View(shape);
@@ -316,8 +318,8 @@ TVM_REGISTER_GLOBAL("vm.builtin.attention_kv_cache_view")
       }
     });
 
-void AttentionKVCacheArrayPopN(Array<AttentionKVCache> caches, int64_t n) {
-  for (AttentionKVCache cache : caches) {
+void AttentionKVCacheArrayPopN(Array<AttentionKVCacheLegacy> caches, int64_t n) {
+  for (AttentionKVCacheLegacy cache : caches) {
     cache->PopN(static_cast<size_t>(n));
   }
 }
@@ -325,8 +327,8 @@ void AttentionKVCacheArrayPopN(Array<AttentionKVCache> caches, int64_t n) {
 TVM_REGISTER_GLOBAL("vm.builtin.attention_kv_cache_array_popn")
     .set_body_typed(AttentionKVCacheArrayPopN);
 
-void AttentionKVCacheArrayClear(Array<AttentionKVCache> caches) {
-  for (AttentionKVCache cache : caches) {
+void AttentionKVCacheArrayClear(Array<AttentionKVCacheLegacy> caches) {
+  for (AttentionKVCacheLegacy cache : caches) {
     cache->Clear();
   }
 }

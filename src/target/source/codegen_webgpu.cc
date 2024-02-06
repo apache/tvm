@@ -636,6 +636,19 @@ void CodeGenWebGPU::VisitStmt_(const AllocateConstNode* op) {
   LOG(FATAL) << "WebGPU: do not support alloc const";
 }
 
+void CodeGenWebGPU::VisitStmt_(const WhileNode* op) {
+  PrintIndent();
+  stream << "while (true) {\n";
+  int while_scope = BeginScope();
+  std::string cond = PrintExpr(op->condition);
+  PrintIndent();
+  stream << "if (!(" << cond << ")) { break; }\n";
+  PrintStmt(op->body);
+  this->EndScope(while_scope);
+  PrintIndent();
+  stream << "}\n";
+}
+
 //-------------------------------------------------
 // WebGPUSourceModule to enable export
 //-------------------------------------------------
