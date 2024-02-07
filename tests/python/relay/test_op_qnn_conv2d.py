@@ -768,7 +768,7 @@ def test_kernel_size_1x1_strides_2():
 
 @pytest.mark.skipif(
     platform.machine() == "aarch64",
-    reason="Fails due to encountering none type in autotvm. See <issue link>",
+    reason="Fails due to encountering none type in autotvm. See https://github.com/apache/tvm/issues/16538",
 )
 def test_tflite_large_irregular():
     with TempOpAttr("qnn.conv2d", "FTVMQnnLegalize", legalize_qnn_conv2d):

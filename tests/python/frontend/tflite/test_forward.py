@@ -1102,7 +1102,7 @@ def test_forward_quantized_convolution():
 
         if platform.machine() == "aarch64":
             pytest.skip(
-                reason="Grouped convolution type inference error for `arm_cpu`. See <issue link>"
+                reason="Grouped convolution type inference error for `arm_cpu`. See https://github.com/apache/tvm/issues/16532"
             )
 
         _test_tflite2_quantized_convolution(
@@ -1129,7 +1129,9 @@ def test_forward_quantized_depthwise_convolution():
     )
 
     if platform.machine() == "aarch64":
-        pytest.skip(reason="Tensor intrinsic data type mismatch error. See <issue link>")
+        pytest.skip(
+            reason="Tensor intrinsic data type mismatch error. See https://github.com/apache/tvm/issues/16533"
+        )
 
     _test_tflite2_quantized_depthwise_convolution(
         [1, 8, 8, 128], [1, 1, 128, 1], [1, 1], [1, 1], "SAME", "NHWC", 1, tf.int16
@@ -5104,7 +5106,8 @@ def test_forward_qnn_mobilenet_v3_net():
 
 
 @pytest.mark.skipif(
-    platform.machine() == "aarch64", reason="Fails with an output mismatch. See <insert issue here>"
+    platform.machine() == "aarch64",
+    reason="Fails with an output mismatch. See https://github.com/apache/tvm/issues/16534",
 )
 def test_forward_tflite2_qnn_resnet50():
     """Test the Quantized TFLite version 2.1.0 Resnet50 model."""
@@ -5204,7 +5207,7 @@ def test_forward_tflite_float16():
 
 @pytest.mark.skipif(
     platform.machine() == "aarch64",
-    reason="Fails during leagalization due to int16 datatype. See <insert issue here>",
+    reason="Fails during leagalization due to int16 datatype. See https://github.com/apache/tvm/issues/16535",
 )
 def test_forward_mobilenet_int16():
     """Test int16 quantized model"""
@@ -5250,7 +5253,7 @@ def test_forward_mobilenet_int16():
 
 @pytest.mark.skipif(
     platform.machine() == "aarch64",
-    reason="Fails during leagalization due to int16 datatype. See <insert issue here>",
+    reason="Fails during leagalization due to int16 datatype. See https://github.com/apache/tvm/issues/16535",
 )
 def test_forward_ds_cnn_int16():
     """Test DS_CNN int16 quantized model"""

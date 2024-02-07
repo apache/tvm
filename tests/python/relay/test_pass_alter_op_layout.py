@@ -1541,7 +1541,7 @@ def test_conv2d_reduce_channels():
 
 @pytest.mark.skipif(
     platform.machine() == "aarch64",
-    reason="Layout NCHW4c unsupported in `arm_cpu`. See <issue link>",
+    reason="Layout NCHW4c unsupported in `arm_cpu`. See https://github.com/apache/tvm/issues/16537",
 )
 def test_alter_layout_nonscalar_broadcast():
     """Test boradcast operators"""
@@ -1609,7 +1609,7 @@ def test_alter_layout_nonscalar_broadcast():
 
 @pytest.mark.skipif(
     platform.machine() == "aarch64",
-    reason="Layout NCHW4c unsupported in `arm_cpu`. See <issue link>",
+    reason="Layout NCHW4c unsupported in `arm_cpu`. See https://github.com/apache/tvm/issues/16537",
 )
 def test_alter_layout_blocked_no_broadcast():
     """Test boradcast operators working on already blocked layout"""
@@ -1671,7 +1671,7 @@ def test_alter_layout_blocked_no_broadcast():
 
 @pytest.mark.skipif(
     platform.machine() == "aarch64",
-    reason="Layout NCHW4c unsupported in `arm_cpu`. See <issue link>",
+    reason="Layout NCHW4c unsupported in `arm_cpu`. See https://github.com/apache/tvm/issues/16537",
 )
 def test_alter_layout_blocked_broadcast():
     """Test boradcast operators working on already blocked layout"""
@@ -1733,7 +1733,7 @@ def test_alter_layout_blocked_broadcast():
 
 @pytest.mark.skipif(
     platform.machine() == "aarch64",
-    reason="Layout NCHW4c unsupported in `arm_cpu`. See <issue link>",
+    reason="Layout NCHW4c unsupported in `arm_cpu`. See https://github.com/apache/tvm/issues/16537",
 )
 def test_alter_layout_re_blocking_broadcast():
     """Test of re-blocking shapes with boradcast operators"""
@@ -1821,7 +1821,7 @@ def test_alter_layout_re_blocking_broadcast():
 
 @pytest.mark.skipif(
     platform.machine() == "aarch64",
-    reason="Layout NCHW4c unsupported in `arm_cpu`. See <issue link>",
+    reason="Layout NCHW4c unsupported in `arm_cpu`. See https://github.com/apache/tvm/issues/16537",
 )
 def test_broadcast_non_adaptable():
     """NCHW4c + [x, x, 4] and NCHW4c is being altered to NCHW"""
@@ -1893,7 +1893,7 @@ def test_broadcast_non_adaptable():
 
 @pytest.mark.skipif(
     platform.machine() == "aarch64",
-    reason="Layout NCHW4c unsupported in `arm_cpu`. See <issue link>",
+    reason="Layout NCHW4c unsupported in `arm_cpu`. See https://github.com/apache/tvm/issues/16537",
 )
 def test_broadcast_respect_input_layouts():
     def before():

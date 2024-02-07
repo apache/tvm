@@ -134,9 +134,6 @@ def test_cpu_get_graph_params_run():
 
 
 @tvm.testing.requires_llvm
-@pytest.mark.skipif(
-    platform.machine() == "aarch64", reason="Fails with an output mismatch. See <issue link>."
-)
 def test_cpu_get_graph_params_compare():
     # Create sample net
     from tvm.relay.testing.init import create_workload, Constant
@@ -168,9 +165,8 @@ def test_cpu_get_graph_params_compare():
     loaded_lib = tvm.runtime.load_module(path_lib)
     loaded_params = loaded_lib["get_graph_params"]()
 
-    tvm.testing.assert_allclose(
-        params["conv_weight"].numpy(), loaded_params["p0"].numpy()[0][0], atol=1e-5
-    )
+    p0_squeezed = np.squeeze(loaded_params["p0"].numpy())
+    tvm.testing.assert_allclose(params["conv_weight"].numpy(), p0_squeezed, atol=1e-5)
 
 
 @tvm.testing.requires_cuda

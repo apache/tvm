@@ -640,7 +640,9 @@ def test_any_conv2d():
     )
 
     if platform.machine() == "aarch64":
-        pytest.skip(reason="Dynamic height and width not supported in arm_cpu. See <issue link>")
+        pytest.skip(
+            reason="Dynamic height and width not supported in arm_cpu. See https://github.com/apache/tvm/issues/16536"
+        )
 
     verify_any_conv2d(
         (relay.Any(), 64, relay.Any(), relay.Any()),
