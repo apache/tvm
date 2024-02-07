@@ -134,6 +134,14 @@ Instruction Executable::GetInstruction(Index i) const {
       ExecWord* args = const_cast<ExecWord*>(&instr_data[offset + 4]);
       return Instruction::Call(func_idx, num_args, reinterpret_cast<Instruction::Arg*>(args), dst);
     }
+    case Opcode::CallFromRegister: {
+      RegName dst = instr_data[offset + 1];
+      Index func_idx = instr_data[offset + 2];
+      Index num_args = instr_data[offset + 3];
+      ExecWord* args = const_cast<ExecWord*>(&instr_data[offset + 4]);
+      return Instruction::CallFromRegister(func_idx, num_args,
+                                           reinterpret_cast<Instruction::Arg*>(args), dst);
+    }
     case Opcode::Ret: {
       RegName result = instr_data[offset + 1];
       return Instruction::Ret(result);
