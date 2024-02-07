@@ -739,7 +739,7 @@ std::unique_ptr<CodeGenLLVM::DebugInfo> CodeGenLLVM::CreateDebugInfo(llvm::Modul
   debug_info->di_builder_ = llvm::make_unique<llvm::DIBuilder>(*module);
 #endif
   // TODO(tulloch): pass this information through relay::Span classes to the IRModule instance?
-  debug_info->file_ = debug_info->di_builder_->createFile("main.tir", ".");
+  debug_info->file_ = debug_info->di_builder_->createFile("IRModule.CodeGenLLVM", ".");
   const int runtime_version = 0;
   const bool is_optimized = false;
   const char* compiler_flags = "";
@@ -866,7 +866,6 @@ llvm::Value* CodeGenLLVM::CreateVecConcat(std::vector<llvm::Value*> vecs) {
 
 void CodeGenLLVM::CreateSerialFor(llvm::Value* begin, llvm::Value* end, llvm::Value* stride,
                                   const Var& loop_var, const Stmt& body) {
-  EmitDebugLocation(body->span);
   llvm::BasicBlock* pre_block = builder_->GetInsertBlock();
   std::string loop_var_name = loop_var->name_hint;
   llvm::LLVMContext* ctx = llvm_target_->GetContext();
@@ -875,14 +874,18 @@ void CodeGenLLVM::CreateSerialFor(llvm::Value* begin, llvm::Value* end, llvm::Va
   auto* for_end = llvm::BasicBlock::Create(*ctx, "for_end_" + loop_var_name, function_);
   builder_->CreateBr(for_begin);
   builder_->SetInsertPoint(for_begin);
+
   llvm::PHINode* loop_value = builder_->CreatePHI(begin->getType(), 2);
-  loop_value->setName(loop_var->name_hint.c_str());
+  AddDebugInformation(loop_value, loop_var);
   loop_value->addIncoming(begin, pre_block);
   ICHECK(!var_map_.count(loop_var.get()));
   var_map_[loop_var.get()] = loop_value;
+
   auto lt = CreateLT(loop_var.dtype(), loop_value, end);
   builder_->CreateCondBr(lt, for_body, for_end, md_very_likely_branch_);
   builder_->SetInsertPoint(for_body);
+  EmitDebugLocation(body->span);
+
   this->VisitStmt(body);
   var_map_.erase(loop_var.get());
   llvm::Value* loop_next = CreateAdd(loop_var.dtype(), loop_value, stride);
@@ -947,10 +950,13 @@ llvm::Constant* CodeGenLLVM::GetGlobalConstant(llvm::Constant* const_data, const
 }
 
 llvm::Constant* CodeGenLLVM::GetConstString(const std::string& str) {
-  auto it = str_map_.find(str);
-  if (it != str_map_.end()) return it->second;
+  if (auto it = str_map_.find(str); it != str_map_.end()) {
+    return it->second;
+  }
+
   auto llvm_str = llvm::ConstantDataArray::getString(*llvm_target_->GetContext(), str);
   auto ptr = GetGlobalConstant(llvm_str, ".str", llvm::GlobalValue::PrivateLinkage);
+
   str_map_[str] = ptr;
   return ptr;
 }
@@ -1651,7 +1657,7 @@ llvm::Value* CodeGenLLVM::VisitExpr_(const LetNode* op) {
   }
   auto var_value = MakeValue(op->value);
   var_map_[op->var.get()] = var_value;
-  var_value->setName(op->var->name_hint.c_str());
+  AddDebugInformation(var_value, op->var);
   analyzer_->Bind(op->var, op->value);
   return MakeValue(op->body);
 }
@@ -1998,7 +2004,7 @@ void CodeGenLLVM::VisitStmt_(const AllocateNode* op) {
 
   buf = builder_->CreatePointerCast(
       buf, DTypeToLLVMType(op->dtype)->getPointerTo(buf->getType()->getPointerAddressSpace()));
-  buf->setName(op->buffer_var->name_hint.c_str());
+  AddDebugInformation(buf, op->buffer_var);
 
   ICHECK(!var_map_.count(op->buffer_var.get()));
   var_map_[op->buffer_var.get()] = buf;
@@ -2064,13 +2070,14 @@ void CodeGenLLVM::VisitStmt_(const LetStmtNode* op) {
     }
   }
 
-  value->setName(v->name_hint.c_str());
+  AddDebugInformation(value, op->var);
   var_map_[v] = value;
   analyzer_->Bind(op->var, op->value);
   if (alloc_storage_info_.count(v) && alloc_storage_info_[v].alignment > 1) {
     builder_->CreateAlignmentAssumption(*data_layout_, GetVarValue(v),
                                         alloc_storage_info_[v].alignment);
   }
+  AddDebugInformation(value, op->var);
   this->VisitStmt(op->body);
 }
 
@@ -2091,24 +2098,148 @@ void CodeGenLLVM::VisitStmt_(const EvaluateNode* op) {
   MakeValue(op->value);
 }
 
-void CodeGenLLVM::EmitDebugLocation(const Span& span) {
+void CodeGenLLVM::EmitDebugLocation(const Optional<Span>& span) {
 #if TVM_LLVM_VERSION >= 50
   if (di_subprogram_ == nullptr) {
     // debug info is not always generated outside of CPU codegen
     return;
   }
-  if (!span.defined()) {
-    VLOG(0) << "Cannot emit debug location for undefined span";
-    return;
-  }
+
   llvm::LLVMContext* ctx = llvm_target_->GetContext();
-  auto loc = llvm::DebugLoc(llvm::DILocation::get(*ctx, span->line, span->column, di_subprogram_));
+  int line = 0;
+  int column = 0;
+  if (span) {
+    auto ptr = span.as<SpanNode>();
+    line = ptr->line;
+    column = ptr->column;
+  }
+
+  auto loc = llvm::DebugLoc(llvm::DILocation::get(*ctx, line, column, di_subprogram_));
   builder_->SetCurrentDebugLocation(loc);
 #endif
 }
 
 void CodeGenLLVM::EmitDebugLocation() { builder_->SetCurrentDebugLocation(nullptr); }
 void CodeGenLLVM::EmitDebugLocation(const StmtNode* op) { EmitDebugLocation(op->span); }
+
+// Following Glow |DebugInfo::generateFunctionDebugInfo|, https://git.io/fjadv
+void CodeGenLLVM::AddDebugInformation(llvm::Function* f_llvm, const Array<Type>& tvm_param_types) {
+#if TVM_LLVM_VERSION >= 50
+  ICHECK(di_subprogram_);
+  f_llvm->setSubprogram(di_subprogram_);
+  ICHECK_EQ(f_llvm->getSubprogram(), di_subprogram_);
+
+  IRBuilder builder(&f_llvm->getEntryBlock());
+  if (!f_llvm->getEntryBlock().empty()) {
+    builder.SetInsertPoint(&f_llvm->getEntryBlock().front());
+  }
+  llvm::DebugLoc DL;
+  builder.SetCurrentDebugLocation(DL);
+  llvm::LLVMContext* ctx = llvm_target_->GetContext();
+
+  ICHECK_EQ(f_llvm->arg_size(), tvm_param_types.size());
+  for (auto iter_param = f_llvm->arg_begin(); iter_param != f_llvm->arg_end(); iter_param++) {
+    size_t i = std::distance(f_llvm->arg_begin(), iter_param);
+    auto* paramAlloca = builder.CreateAlloca(iter_param->getType());
+
+    auto param = dbg_info_->di_builder_->createParameterVariable(
+        di_subprogram_, iter_param->getName(), i + 1, dbg_info_->file_, 0,
+        GetDebugType(tvm_param_types[i], iter_param->getType()),
+        /*alwaysPreserve=*/true);
+
+    auto* store = builder.CreateStore(iter_param, paramAlloca);
+    auto* di_loc = llvm::DILocation::get(*ctx, 0, 0, di_subprogram_);
+    dbg_info_->di_builder_->insertDeclare(paramAlloca, param,
+                                          dbg_info_->di_builder_->createExpression(),
+                                          llvm::DebugLoc(di_loc), store);
+  }
+  dbg_info_->di_builder_->finalizeSubprogram(f_llvm->getSubprogram());
+  auto* scope = f_llvm->getSubprogram();
+  if (!scope) {
+    return;
+  }
+
+  for (auto& BB : *f_llvm) {
+    for (auto& I : BB) {
+      if (I.getDebugLoc()) {
+        continue;
+      }
+      auto* di_loc = llvm::DILocation::get(*ctx, 0, 0, scope);
+      I.setDebugLoc(llvm::DebugLoc(di_loc));
+    }
+  }
+#endif
+}
+
+void CodeGenLLVM::AddDebugInformation(llvm::Value* llvm_value, const Var& tir_var,
+                                      llvm::Instruction* insert_before) {
+  llvm_value->setName(tir_var->name_hint.c_str());
+
+#if TVM_LLVM_VERSION >= 50
+  if (!di_subprogram_) return;
+
+  auto local_var = dbg_info_->di_builder_->createAutoVariable(
+      di_subprogram_, std::string(tir_var->name_hint), dbg_info_->file_, 0,
+      GetDebugType(GetType(tir_var)));
+
+  auto* di_loc = llvm::DILocation::get(*llvm_target_->GetContext(), 0, 0, di_subprogram_);
+
+  if (insert_before) {
+    dbg_info_->di_builder_->insertDeclare(llvm_value, local_var,
+                                          dbg_info_->di_builder_->createExpression(),
+                                          llvm::DebugLoc(di_loc), insert_before);
+  } else {
+    dbg_info_->di_builder_->insertDeclare(llvm_value, local_var,
+                                          dbg_info_->di_builder_->createExpression(),
+                                          llvm::DebugLoc(di_loc), builder_->GetInsertBlock());
+  }
+#endif
+}
+
+llvm::DIType* CodeGenLLVM::GetDebugType(const Type& ty_tir) {
+  return GetDebugType(ty_tir, GetLLVMType(ty_tir));
+}
+llvm::DIType* CodeGenLLVM::GetDebugType(const Type& ty_tir, llvm::Type* ty_llvm) {
+  if (ty_llvm == t_void_) {
+    return nullptr;
+
+  } else if (ty_llvm->isPointerTy()) {
+    auto* ptr_type = ty_tir.as<PointerTypeNode>();
+    ICHECK(ptr_type != nullptr || GetRuntimeDataType(ty_tir).is_handle())
+        << "Got LLVM pointer type from non-pointer IR type: " << ty_tir;
+    auto* pointee_type = ptr_type != nullptr ? GetDebugType(ptr_type->element_type,
+                                                            GetLLVMType(ptr_type->element_type))
+                                             : nullptr;
+    return dbg_info_->di_builder_->createPointerType(pointee_type,
+                                                     ty_llvm->getPrimitiveSizeInBits());
+
+  } else if (auto* prim_type = ty_tir.as<PrimTypeNode>()) {
+    DataType dtype = prim_type->dtype;
+    auto dwarf_type = [&]() -> llvm::dwarf::TypeKind {
+      if (dtype.is_bool()) {
+        return llvm::dwarf::DW_ATE_boolean;
+      } else if (dtype.is_float()) {
+        return llvm::dwarf::DW_ATE_float;
+      } else if (dtype.is_int()) {
+        return llvm::dwarf::DW_ATE_signed;
+      } else if (dtype.is_uint()) {
+        return llvm::dwarf::DW_ATE_unsigned;
+      } else {
+        LOG(FATAL) << "No DWARF representation for TIR type " << dtype;
+      }
+    }();
+
+    return dbg_info_->di_builder_->createBasicType(DLDataType2String(dtype),
+                                                   dtype.bits() * dtype.lanes(), dwarf_type);
+
+  } else {
+    std::string type_str;
+    llvm::raw_string_ostream rso(type_str);
+    ty_llvm->print(rso);
+    LOG(FATAL) << "Unknown LLVM type:" << rso.str();
+  }
+  return nullptr;
+}
 
 TVM_REGISTER_GLOBAL("tvm.codegen.llvm.GetDefaultTargetTriple").set_body_typed([]() -> std::string {
   return llvm::sys::getDefaultTargetTriple();
