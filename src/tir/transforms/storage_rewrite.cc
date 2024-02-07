@@ -1724,8 +1724,9 @@ Pass StorageRewrite() {
     }
 
     Optional<Target> target = f->GetAttr<Target>("target");
-    if (target.defined() && target.value()->kind->name == "vulkan") {
-      // Require exactly same-dtype matching in smem reuse for Vulkan
+    if (target.defined() &&
+        (target.value()->kind->name == "vulkan" || target.value()->kind->name == "webgpu")) {
+      // Require exactly same-dtype matching in smem reuse for Vulkan and WebGPU
       reuse_require_exact_matched_dtype = true;
     }
     auto* n = f.CopyOnWrite();
