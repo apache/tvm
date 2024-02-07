@@ -42,14 +42,12 @@ def create_tvmjs_wasm(output, objects, options=None, cc="emcc"):
     cmd += ["-O3"]
     cmd += ["-std=c++17"]
     cmd += ["--no-entry"]
-    # temp disable for backward compact
-    # can enable after emsdk updates
-    # cmd += ["-fwasm-exception"]
+    cmd += ["-fwasm-exception"]
     cmd += ["-s", "WASM_BIGINT=1"]
     cmd += ["-s", "ERROR_ON_UNDEFINED_SYMBOLS=0"]
     cmd += ["-s", "STANDALONE_WASM=1"]
     cmd += ["-s", "ALLOW_MEMORY_GROWTH=1"]
-    cmd += ["-s", "TOTAL_MEMORY=80MB"]
+    cmd += ["-s", "TOTAL_MEMORY=160MB"]
 
     objects = [objects] if isinstance(objects, str) else objects
 

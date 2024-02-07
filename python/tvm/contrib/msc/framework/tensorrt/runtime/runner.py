@@ -23,6 +23,7 @@ import tvm
 from tvm.contrib.msc.core.ir import MSCGraph
 from tvm.contrib.msc.core.runtime import BYOCRunner
 from tvm.contrib.msc.core.tools import ToolType
+from tvm.contrib.msc.core.utils.message import MSCStage
 from tvm.contrib.msc.core.utils.namespace import MSCFramework
 from tvm.contrib.msc.core import utils as msc_utils
 from tvm.contrib.msc.framework.tensorrt.frontend import (
@@ -47,7 +48,13 @@ class TensorRTRunner(BYOCRunner):
 
         if not self._device.startswith("cuda"):
             self._device = "cuda"
+        assert not self._training, "TensorRT only support eval"
         return super().setup()
+
+    def train(self):
+        """Change status to train"""
+
+        raise Exception("TensorRT only support eval")
 
     def apply_tool(self, tool_type: str, data_loader: Any = None) -> dict:
         """Execute tool and get plan
@@ -66,22 +73,20 @@ class TensorRTRunner(BYOCRunner):
             assert data_loader, "data_loader should be given to plan prune"
             for inputs in data_loader():
                 self.run(inputs)
-            self._generate_model()
+            self._generate_model(self._graphs, self._weights)
             quantizer.calibrate()
             assert quantizer.calibrated, "Failed to calibrate the tenosrrt quantizer"
         return super().apply_tool(tool_type, data_loader)
 
-    def _generate_model(
-        self, graphs: List[MSCGraph] = None, weights: List[Dict[str, tvm.nd.array]] = None
-    ) -> Any:
+    def _generate_model(self, graphs: List[MSCGraph], weights: Dict[str, tvm.nd.array]) -> Any:
         """Codegen the model according to framework
 
         Parameters
         -------
         graphs: list<MSCgraph>
             The msc graphs.
-        weights: list<dict<str, tvm.nd.array>>
-            The weights
+        weights: dict<str, tvm.nd.array>
+            The weights.
 
         Returns
         -------
@@ -125,3 +130,33 @@ class TensorRTRunner(BYOCRunner):
     @property
     def framework(self):
         return MSCFramework.TENSORRT
+
+    @classmethod
+    def update_config(cls, stage: str, config: dict, model: Any = None) -> dict:
+        """Update the config for parse
+
+        Parameters
+        -------
+        stage: str
+            The stage to be updated
+        config: dict
+            The config for pipeline.
+        model:
+            The native model.
+
+        Returns
+        -------
+        config: dict
+            The updated config.
+        """
+
+        config = BYOCRunner.update_config(stage, config, model)
+        if stage not in config:
+            return config
+        if stage in (MSCStage.BASELINE, MSCStage.OPTIMIZE, MSCStage.COMPILE):
+            run_config = config[stage].get("run_config", {})
+            if "extra_option" not in run_config["generate_config"]:
+                run_config["generate_config"]["extra_option"] = {}
+            run_config["generate_config"]["extra_option"]["stage"] = stage
+            config[stage]["run_config"] = run_config
+        return config

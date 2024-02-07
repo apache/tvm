@@ -170,13 +170,17 @@ class BlockBuilderImpl : public BlockBuilderNode {
         auto it = shape_var_map.find(shape_var);
         if (it == shape_var_map.end()) {
           shape_var_map.Set(shape_var, shape_expr);
+          // Expose the shape variable as non-negative, for purposes
+          // of shape inference.  In many cases, knowning that the
+          // shape variable is non-negative allows for simpler
+          // expressions for dynamic shapes.
+          analyzer_.MarkGlobalNonNegValue(shape_var);
         } else {
           const PrimExpr& old_shape_expr = (*it).second;
           CHECK(analyzer_.CanProveEqual(old_shape_expr, shape_expr))
               << "Inconsistent shape var " << shape_var << " in scope: " << old_shape_expr << " vs "
               << shape_expr;
         }
-        shape_var_map.Set(shape_var, shape_expr);
       }
     }
     scope_stack_.emplace_back(ScopeFrame({std::move(shape_var_map)}));

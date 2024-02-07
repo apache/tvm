@@ -574,7 +574,8 @@ ConstantPattern IsConst() { return ConstantPattern(make_object<ConstantPatternNo
 WildcardPattern Wildcard() { return WildcardPattern(make_object<WildcardPatternNode>()); }
 ExprPattern IsExpr(const Expr& expr) { return ExprPattern(expr); }
 ExprPattern IsOp(const String& op_name) { return IsExpr(Op::Get(op_name)); }
-CallPattern IsCallTIR(const String& name, Optional<TuplePattern> var_args) {
+CallPattern IsCallTIR(const String& name, Optional<TuplePattern> var_args,
+                      Optional<DFPattern> tir_vars) {
   DFPattern arg_pattern;
   if (!var_args.defined()) {
     arg_pattern = Wildcard();
@@ -582,6 +583,9 @@ CallPattern IsCallTIR(const String& name, Optional<TuplePattern> var_args) {
     arg_pattern = var_args.value();
   }
 
+  if (tir_vars.defined()) {
+    return IsOp("relax.call_tir")(GlobalVarPattern(name), arg_pattern, tir_vars.value());
+  }
   return IsOp("relax.call_tir")(GlobalVarPattern(name), arg_pattern);
 }
 

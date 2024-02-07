@@ -73,15 +73,15 @@ const String TensorRTOpCode::DeclareInputs(bool simplify) {
     const auto& idx_input = StringUtils::Replace(IdxInput(), "*", "");
     stack_.declare("std::vector<ITensor*>", inputs_ref + "_vec")
         .declare_arg(node()->inputs.size())
-        .declare_arg(idx_input)
-        .assign(inputs_ref, inputs_ref + "_vec.data()", "ITensor**");
+        .declare_arg(idx_input);
   } else {
-    stack_.declare("std::vector<ITensor*>", IdxNode(), 0, false);
+    stack_.declare("std::vector<ITensor*>", inputs_ref + "_vec", 0, false);
     for (size_t i = 0; i < node()->inputs.size(); i++) {
       const auto& idx_input = StringUtils::Replace(IdxInput(i), "*", "");
       stack_.declare_arg(idx_input);
     }
   }
+  stack_.assign(inputs_ref, inputs_ref + "_vec.data()", "ITensor**");
   return inputs_ref;
 }
 
@@ -298,10 +298,7 @@ class TensorRTConcatCodeGen : public TensorRTOpCode {
     const auto& producer = node()->ProducerOf(0);
     ICHECK(node()->parents.size() == 1 && producer->optype == "tuple")
         << "Concat expect parent as tuple, get " << node();
-    stack_.op_call()
-        .inplace_start("data", "", IdxNodeBase(producer))
-        .inplace_end()
-        .call_arg(producer->inputs.size());
+    stack_.op_call().call_arg(IdxNodeBase(producer)).call_arg(producer->inputs.size());
     SetLayerByValue("Axis", AttrToAxis());
   }
 };
@@ -679,11 +676,8 @@ class TensorRTTupleCodeGen : public TensorRTOpCode {
 
  protected:
   void CodeGenBuild() final {
-    stack_.declare("std::vector<ITensor*>", IdxNode(), 0, false);
-    for (size_t i = 0; i < node()->inputs.size(); i++) {
-      const auto& idx_input = StringUtils::Replace(IdxInput(i), "*", "");
-      stack_.declare_arg(idx_input);
-    }
+    const auto& inputs_ref = DeclareInputs();
+    stack_.assign(IdxNode(), inputs_ref, "auto");
   }
 };
 
@@ -708,6 +702,35 @@ class TensorRTWhereCodeGen : public TensorRTOpCode {
 
  protected:
   void CodeGenBuild() final { stack_.op_call().op_inputs_arg(false); }
+};
+
+class TensorRTPluginOpCodeGen : public TensorRTOpCode {
+ public:
+  TENSORRT_OP_CODEGEN_METHODS(TensorRTPluginOpCodeGen)
+
+ protected:
+  void CodeGenBuild() final {
+    const auto& producer = node()->ParentAt(0);
+    ICHECK(producer->optype == "tuple")
+        << "Only support tensorrt plugin with tuple, get " << producer;
+
+    const auto& plugin = GetPlugin(node()->optype);
+    const auto& input_ref = "inputs_" + std::to_string(producer->index);
+    const String& func_name = "plugin::" + node()->optype + "DynamicPlugin";
+    const String& plugin_ref = "plugin_" + std::to_string(node()->index);
+    const String& layouts_ref = "layouts_" + std::to_string(node()->index);
+    stack_.declare("std::vector<std::string>", layouts_ref, 0, false);
+    for (const auto& i : node()->GetInputs()) {
+      stack_.declare_arg(DocUtils::ToStr(i->layout.name()));
+    }
+    stack_.func_call(func_name, DocUtils::ToDeclare("auto", plugin_ref))
+        .call_arg(DocUtils::ToStr(node()->name));
+    for (const auto& a : plugin->attrs) {
+      stack_.call_arg(GetAttrDoc(a->name, a->type));
+    }
+    stack_.call_arg(layouts_ref);
+    stack_.op_call().call_arg(input_ref).call_arg(plugin->inputs.size()).call_arg(plugin_ref);
+  }
 };
 
 const std::shared_ptr<std::unordered_map<String, std::shared_ptr<TensorRTOpCode>>>
@@ -796,15 +819,14 @@ GetTensorRTOpCodes() {
 
   // special op
   map->emplace("input", std::make_shared<TensorRTInputCodeGen>("Input"));
+  map->emplace("get_item", std::make_shared<TensorRTGetItemCodeGen>(""));
+  map->emplace("tuple", std::make_shared<TensorRTTupleCodeGen>(""));
+  map->emplace("plugin", std::make_shared<TensorRTPluginOpCodeGen>("PluginV2"));
 
   // msc ops
   map->emplace("msc.conv2d_bias", std::make_shared<TensorRTConvCodeGen>("ConvolutionNd", true));
   map->emplace("msc.linear", std::make_shared<TensorRTLinearCodeGen>("FullyConnected", false));
   map->emplace("msc.linear_bias", std::make_shared<TensorRTLinearCodeGen>("FullyConnected", true));
-
-  // special op
-  map->emplace("get_item", std::make_shared<TensorRTGetItemCodeGen>(""));
-  map->emplace("tuple", std::make_shared<TensorRTTupleCodeGen>(""));
 
   return map;
 }

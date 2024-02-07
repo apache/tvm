@@ -52,7 +52,7 @@ def _get_config(
         "model_type": model_type,
         "inputs": inputs,
         "outputs": outputs,
-        "dataset": {"loader": "from_random", "max_iter": 5},
+        "dataset": {"prepare": {"loader": "from_random", "max_iter": 5}},
         "prepare": {"profile": {"benchmark": {"repeat": 10}}},
         "baseline": {
             "run_type": model_type,
@@ -145,7 +145,7 @@ def get_tool_config(tool_type, use_distill=False):
     return {tool_type: config}
 
 
-def _get_torch_model(name, is_training=False):
+def _get_torch_model(name, training=False):
     """Get model from torch vision"""
 
     # pylint: disable=import-outside-toplevel
@@ -153,7 +153,7 @@ def _get_torch_model(name, is_training=False):
         import torchvision
 
         model = getattr(torchvision.models, name)()
-        if is_training:
+        if training:
             model = model.train()
         else:
             model = model.eval()
@@ -183,12 +183,12 @@ def _test_from_torch(
     compile_type,
     tools_config,
     expected_info,
-    is_training=False,
+    training=False,
     atol=1e-1,
     rtol=1e-1,
     optimize_type=None,
 ):
-    torch_model = _get_torch_model("resnet50", is_training)
+    torch_model = _get_torch_model("resnet50", training)
     if torch_model:
         if torch.cuda.is_available():
             torch_model = torch_model.to(torch.device("cuda:0"))
@@ -247,7 +247,7 @@ def test_tvm_tool(tool_type):
 
     tool_config = get_tool_config(tool_type)
     _test_from_torch(
-        MSCFramework.TVM, tool_config, get_model_info(MSCFramework.TVM), is_training=True
+        MSCFramework.TVM, tool_config, get_model_info(MSCFramework.TVM), training=False
     )
 
 
@@ -258,7 +258,7 @@ def test_tvm_distill(tool_type):
 
     tool_config = get_tool_config(tool_type, use_distill=True)
     _test_from_torch(
-        MSCFramework.TVM, tool_config, get_model_info(MSCFramework.TVM), is_training=True
+        MSCFramework.TVM, tool_config, get_model_info(MSCFramework.TVM), training=False
     )
 
 
@@ -280,7 +280,7 @@ def test_tensorrt_tool(tool_type):
         MSCFramework.TENSORRT,
         tool_config,
         get_model_info(MSCFramework.TENSORRT),
-        is_training=False,
+        training=False,
         atol=1e-1,
         rtol=1e-1,
         optimize_type=optimize_type,
@@ -294,7 +294,7 @@ def test_tensorrt_distill(tool_type):
 
     tool_config = get_tool_config(tool_type, use_distill=True)
     _test_from_torch(
-        MSCFramework.TENSORRT, tool_config, get_model_info(MSCFramework.TENSORRT), is_training=False
+        MSCFramework.TENSORRT, tool_config, get_model_info(MSCFramework.TENSORRT), training=False
     )
 
 

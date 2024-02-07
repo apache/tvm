@@ -79,8 +79,8 @@ class TorchDistillerFactory(object):
                     raise NotImplementedError("optimizer {} is not supported".format(optimizer))
 
                 # Get loss function
-                loss_strategy = self._strategys.get("loss.all")
-                assert loss_strategy, "Can not find loss.all in strategys"
+                loss_strategy = self._strategys.get("loss.output")
+                assert loss_strategy, "Can not find loss.output in strategys"
 
                 def get_loss(teacher_outputs, student_outputs):
                     return loss_strategy(self, teacher_outputs, student_outputs)

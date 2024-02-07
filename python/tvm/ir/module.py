@@ -80,6 +80,9 @@ class IRModule(Node, Scriptable):
             global_infos,
         )
 
+    def clone(self) -> "IRModule":
+        return _ffi_api.Module_Clone(self)
+
     def functions_items(self):
         """Get items in self.functions.items() in alphabetical order.
 
@@ -137,6 +140,12 @@ class IRModule(Node, Scriptable):
         if isinstance(var, _expr.GlobalVar):
             return _ffi_api.Module_Lookup(self, var)
         return _ffi_api.Module_LookupDef(self, var)
+
+    def __delitem__(self, var: Union[str, _expr.GlobalVar]):
+        _ffi_api.Module_Remove(self, var)
+
+    def __contains__(self, var: Union[str, _expr.GlobalVar]) -> bool:
+        return _ffi_api.Module_Contains(self, var)
 
     def update(self, other):
         """Insert functions in another Module to current one.

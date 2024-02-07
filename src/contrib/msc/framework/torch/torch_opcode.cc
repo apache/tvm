@@ -223,7 +223,13 @@ class TorchConstantCodeGen : public TorchOpCode {
     }
   }
 
-  void CodeGenForward() final { stack_.assign(IdxNode(), module_ref()); }
+  void CodeGenForward() final {
+    if (config()->use_tools) {
+      stack_.assign(IdxNode(), IdxWeight("const", true));
+    } else {
+      stack_.assign(IdxNode(), module_ref());
+    }
+  }
 };
 
 class TorchConvCodeGen : public TorchOpCode {
@@ -510,7 +516,7 @@ class TorchReshapeCodeGen : public TorchOpCode {
     const auto& out_layout = node()->OutputAt(0)->layout;
     if (out_layout.defined()) {
       int32_t batch_dim = out_layout.IndexOf(tvm::tir::LayoutAxis::Get("N"));
-      if (batch_dim > 0) {
+      if (batch_dim >= 0) {
         shape.Set(batch_dim, Integer(-1));
       }
     }
@@ -606,6 +612,21 @@ class TorchTupleCodeGen : public TorchOpCode {
 
  protected:
   void CodeGenForward() final { stack_.op_call().op_inputs_arg(); }
+};
+
+class TorchPluginOpCodeGen : public TorchOpCode {
+  TORCH_OP_CODEGEN_METHODS(TorchPluginOpCodeGen)
+
+ protected:
+  void CodeGenInit() final {
+    const auto& plugin = GetPlugin(node()->optype);
+    stack_.op_call("plugin." + node()->optype);
+    for (const auto& a : plugin->attrs) {
+      stack_.call_arg(GetAttrDoc(a->name, a->type), a->name);
+    }
+  }
+
+  void CodeGenForward() final { stack_.op_call().op_inputs_arg(false); }
 };
 
 const std::shared_ptr<std::unordered_map<String, std::shared_ptr<TorchOpCode>>> GetTorchOpCodes() {
@@ -728,6 +749,7 @@ const std::shared_ptr<std::unordered_map<String, std::shared_ptr<TorchOpCode>>> 
   map->emplace("get_item", std::make_shared<TorchGetItemCodeGen>("", ""));
   map->emplace("shape", std::make_shared<TorchShapeCodeGen>("", "torch.Size"));
   map->emplace("tuple", std::make_shared<TorchTupleCodeGen>("", "tuple"));
+  map->emplace("plugin", std::make_shared<TorchPluginOpCodeGen>("Plugin", ""));
 
   // msc ops
   map->emplace("msc.attention", std::make_shared<TorchAttentionCodeGen>(
@@ -743,7 +765,6 @@ const std::shared_ptr<std::unordered_map<String, std::shared_ptr<TorchOpCode>>> 
                std::make_shared<TorchLinearCodeGen>("nn.Linear", "functional.linear", false));
   map->emplace("msc.linear_bias",
                std::make_shared<TorchLinearCodeGen>("nn.Linear", "functional.linear", true));
-
   return map;
 }
 

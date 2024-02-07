@@ -86,7 +86,7 @@ def SetExprLayout(allow_missing: bool = True, entry_name: str = "main") -> tvm.i
     return relax_api.SetExprLayout(allow_missing, entry_name)  # type: ignore
 
 
-def BindShape(entry_name: str = "main") -> tvm.ir.transform.Pass:
+def InlineParams(entry_name: str = "main") -> tvm.ir.transform.Pass:
     """Bind ShapeExpr to reshape
 
     Parameters
@@ -99,7 +99,7 @@ def BindShape(entry_name: str = "main") -> tvm.ir.transform.Pass:
     ret: tvm.ir.transform.Pass
     """
 
-    return relax_api.BindShape(entry_name)  # type: ignore
+    return relax_api.InlineParams(entry_name)  # type: ignore
 
 
 def FuseTuple(target, entry_name: str = "main") -> tvm.ir.transform.Pass:
