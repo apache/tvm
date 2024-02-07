@@ -1102,7 +1102,10 @@ def test_forward_quantized_convolution():
 
         if platform.machine() == "aarch64":
             pytest.skip(
-                reason="Grouped convolution type inference error for `arm_cpu`. See https://github.com/apache/tvm/issues/16532"
+                reason=(
+                    "Grouped convolution type inference error for `arm_cpu`. "
+                    "See https://github.com/apache/tvm/issues/16532"
+                )
             )
 
         _test_tflite2_quantized_convolution(
@@ -1130,7 +1133,10 @@ def test_forward_quantized_depthwise_convolution():
 
     if platform.machine() == "aarch64":
         pytest.skip(
-            reason="Tensor intrinsic data type mismatch error. See https://github.com/apache/tvm/issues/16533"
+            reason=(
+                "Tensor intrinsic data type mismatch error. "
+                "See https://github.com/apache/tvm/issues/16533"
+            )
         )
 
     _test_tflite2_quantized_depthwise_convolution(
@@ -5207,7 +5213,10 @@ def test_forward_tflite_float16():
 
 @pytest.mark.skipif(
     platform.machine() == "aarch64",
-    reason="Fails during leagalization due to int16 datatype. See https://github.com/apache/tvm/issues/16535",
+    reason=(
+        "Fails during leagalization due to int16 datatype. "
+        "See https://github.com/apache/tvm/issues/16535",
+    ),
 )
 def test_forward_mobilenet_int16():
     """Test int16 quantized model"""
@@ -5253,7 +5262,10 @@ def test_forward_mobilenet_int16():
 
 @pytest.mark.skipif(
     platform.machine() == "aarch64",
-    reason="Fails during leagalization due to int16 datatype. See https://github.com/apache/tvm/issues/16535",
+    reason=(
+        "Fails during leagalization due to int16 datatype. "
+        "See https://github.com/apache/tvm/issues/16535",
+    ),
 )
 def test_forward_ds_cnn_int16():
     """Test DS_CNN int16 quantized model"""
