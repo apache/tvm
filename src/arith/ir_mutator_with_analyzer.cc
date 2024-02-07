@@ -52,7 +52,7 @@ Array<PrimExpr> IRMutatorWithAnalyzer::IterMapSimplifyWithContext(const Array<Pr
   if (non_trivial_only) {
     (simplified).MutateByApply([&](const PrimExpr& e) {
       auto s = this->analyzer_->Simplify(e);
-      return s->IsInstance<IntImmNode>() ? s : e;
+      return s->IsInstance<IntImmNode>() ? e : s;
     });
     for (int i = 0; i < n; ++i) {
       if (simplified[i]->IsInstance<IntImmNode>() && indices[i]->IsInstance<VarNode>()) {

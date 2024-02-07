@@ -803,7 +803,7 @@ class TransformLayoutRewriter : private arith::IRMutatorWithAnalyzer {
   void RewriteBufferAccess(Buffer* buffer, Array<PrimExpr>* indices) {
     *buffer = new_buffer_;
     *indices = index_map_->MapIndices(*indices, &index_simplifier_);
-     *indices = this->IterMapSimplifyWithContext(*indices, true);
+    *indices = this->IterMapSimplifyWithContext(*indices, true);
   }
 
   using Parent = arith::IRMutatorWithAnalyzer;
