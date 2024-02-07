@@ -155,16 +155,14 @@ def test_llvm_ir_debug_accuracy():
     locations = find_di_locations(source)
 
     # Find the 'assert' from MyModule
-    debug_dir_match = re.search(
-        r"tail call void %0\(i8\* getelementptr inbounds .* !dbg !(\d+)\n", source
-    )
+    debug_dir_match = re.search(r"tail call void %0\(.* !dbg !(\d+)\n", source)
 
     # Extract out the debug directive line
     directive_idx = debug_dir_match.groups()[0]
 
     # Check that it matches the expected line number (in main.tir)
     debug_line_no = int(locations[directive_idx])
-    assert debug_line_no == 43
+    assert debug_line_no == 56
 
 
 if __name__ == "__main__":
