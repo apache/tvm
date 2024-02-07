@@ -48,10 +48,6 @@ fn main() -> Result<()> {
         obj_file.exists(),
         "Could not build tvm lib: {}",
         String::from_utf8(output.stderr)?
-            .trim()
-            .split("\n")
-            .last()
-            .unwrap_or("")
     );
 
     let mut builder = Builder::new(File::create(&lib_file)?);

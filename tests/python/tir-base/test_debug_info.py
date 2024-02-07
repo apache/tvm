@@ -141,7 +141,7 @@ def test_llvm_ir_debug_info():
     source = runtime_module.get_source()
 
     locations = find_di_locations(source)
-    assert len(locations) == 35
+    assert len(locations) == 41
 
 
 def test_llvm_ir_debug_accuracy():
@@ -162,7 +162,7 @@ def test_llvm_ir_debug_accuracy():
 
     # Check that it matches the expected line number (in main.tir)
     debug_line_no = int(locations[directive_idx])
-    assert debug_line_no == 56
+    assert debug_line_no == 60
 
 
 if __name__ == "__main__":
