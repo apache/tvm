@@ -157,7 +157,7 @@ def derive_similarity_tag(dag, log_base=1.618):
         if tag:
             ret += op.attrs["auto_scheduler_task_scheduler_tag"] + "_"
     if ret:
-        ret += "%d" % int(math.log(dag.flop_ct + 1, log_base))
+        ret += f"{int(math.log(dag.flop_ct + 1, log_base))}"
     return ret
 
 
@@ -436,10 +436,9 @@ class TaskScheduler:
                 cost < 1e9 for cost in self.best_costs
             ):
                 if self.tune_option.verbose >= 1:
-                    print(
-                        "Stop early since no performance improvement in the last "
-                        + str(self.early_stopping_all)
-                        + " measurement trials."
+                    logger.info(
+                        f"Stop early since no performance improvement in the last "
+                        f"{self.early_stopping_all} measurement trials."
                     )
                 break
 
@@ -539,7 +538,7 @@ class TaskScheduler:
 
         self.cur_score = self._compute_score(self.best_costs)
 
-        logger.info("TaskScheduler: Loaded %d measurement records from %s", total_ct + 1, log_file)
+        logger.info(f"TaskScheduler: Loaded {total_ct + 1} measurement records from {log_file}")
 
 
 class TaskSchedulerCallback:
@@ -578,12 +577,12 @@ class PrintTableInfo(TaskSchedulerCallback):
             return
 
         _ffi_api.PrintTitle("Task Scheduler")
-        print(
+        logger.info(
             "|  ID  "
             "|                       Task Description                        "
             "| Latency (ms) | Speed (GFLOPS) | Trials |"
         )
-        print(
+        logger.info(
             "----------------------------------------------------------------"
             "-------------------------------------------------"
         )
@@ -592,35 +591,35 @@ class PrintTableInfo(TaskSchedulerCallback):
         for i in range(len(task_scheduler.tasks)):
             id_str = f"{i}"
             latency_str = (
-                "%.3f" % (1e3 * task_scheduler.best_costs[i])
+                f"{1e3 * task_scheduler.best_costs[i]:.3f}"
                 if task_scheduler.best_costs[i] < 1e9
                 else "-"
             )
             task_desc = task_scheduler.tasks[i].desc
+            best_cost = task_scheduler.best_costs[i]
             speed_str = (
-                "%.2f"
-                % (task_scheduler.tasks[i].compute_dag.flop_ct / task_scheduler.best_costs[i] / 1e9)
+                f"{task_scheduler.tasks[i].compute_dag.flop_ct / best_cost / 1e9:.2f}"
                 if task_scheduler.best_costs[i] < 1e9
                 else "-"
             )
-            trials_str = "%d" % (task_scheduler.task_cts[i] * task_scheduler.num_measures_per_round)
-            print(
-                "| %4s | %61s | %12s | % 14s | %6s |"
-                % (id_str, task_desc, latency_str, speed_str, trials_str)
+            trials_str = f"{(task_scheduler.task_cts[i] * task_scheduler.num_measures_per_round)}"
+            logger.info(
+                f"| {id_str:4s} | {task_desc:61s} | {latency_str:12s} | "
+                f"{speed_str:14s} | {trials_str:6s} |"
             )
-        print(
+        logger.info(
             "----------------------------------------------------------------"
             "-------------------------------------------------"
         )
 
         # overall info
         if all(cost < 1e9 for cost in task_scheduler.best_costs):
-            total_latency_str = "%.3f" % (task_scheduler.cur_score * 1e3)
+            total_latency_str = f"{task_scheduler.cur_score * 1e3:.3f}"
         else:
             total_latency_str = "-"
-        print(
-            "Estimated total latency: %s ms\tTrials: %d\tUsed time : %.0f s\tNext ID: %d\t"
-            % (total_latency_str, task_scheduler.ct, time.time() - task_scheduler.tic, task_id)
+        logger.info(
+            f"Estimated total latency: {total_latency_str} ms\tTrials: {task_scheduler.ct}\t"
+            f"Used time : {time.time() - task_scheduler.tic:.0f} s\tNext ID: {task_id}\t"
         )
 
 
@@ -641,27 +640,26 @@ class LogEstimatedLatency(TaskSchedulerCallback):
 
     def post_tune(self, task_scheduler, task_id):
         if all(cost < 1e9 for cost in task_scheduler.best_costs):
-            total_latency_str = "%.3f" % (task_scheduler.cur_score * 1e3)
+            total_latency_str = f"{task_scheduler.cur_score * 1e3:.3f}"
         else:
             total_latency_str = "N/A"
 
         with open(self.log_file, "a") as filep:
             filep.write(
-                "ElapsedTime(s)\t%.0f\tEstimatedLatency(ms)\t%s\tTrials\t%d\n"
-                % (time.time() - task_scheduler.tic, total_latency_str, task_scheduler.ct)
+                f"ElapsedTime(s)\t{time.time() - task_scheduler.tic:.0f}\tEstimatedLatency(ms)\t"
+                f"{total_latency_str}\tTrials\t{task_scheduler.ct}\n"
             )
             filep.flush()
 
 
-def droplet_exploitation(log_file, target="x86", verbose=True):
+def droplet_exploitation(log_file, target="llvm"):
     """optimization of the model after execution of the Ansor method, using
     Droplet algorithm."""
     cfg = get_multilayers(log_file)
     _, time_total_ansor, _ = get_time(log_file)
     time_droplet = 0
 
-    if verbose:
-        print("Layer, Droplet time (s), Ansor time (s), tuning time (s), speedup")
+    logger.info("Layer, Droplet time (s), Ansor time (s), tuning time (s), speedup")
 
     for layer, workload in enumerate(cfg):
         log = f"layer_{layer}.log"
@@ -675,24 +673,21 @@ def droplet_exploitation(log_file, target="x86", verbose=True):
         best_time, time_total, best_cfg = get_time(log)
         time_droplet += time_total
 
+        droplet_avg_time = np.mean(best_time)
+        ansor_avg_time = np.mean(ansor_time)
+        speedup = ansor_avg_time / droplet_avg_time
+
         # Append the best solution in the same Ansor's log
         # solutions that are invalid or same are not saved
         if np.mean(best_time) != 1e10:
             write_file([best_cfg], log_file, "a")
-            if verbose:
-                print(
-                    "%d, %.6f, %.6f, %.2f, %.2f"
-                    % (
-                        layer,
-                        np.mean(best_time),
-                        np.mean(ansor_time),
-                        time_total,
-                        np.mean(ansor_time) / np.mean(best_time),
-                    )
-                )
+            logger.info(
+                f"{layer}, {droplet_avg_time:.6f}, {ansor_avg_time:.6f},"
+                f" {time_total:.2f}, {speedup:.2f}"
+            )
 
-    if verbose:
-        print(
-            "Time Ansor (s): %.2f, Time Droplet (s): %.2f, Time Total (s): %.2f"
-            % (time_total_ansor, time_droplet, time_total_ansor + time_droplet)
-        )
+    time_total = time_total_ansor + time_droplet
+    logger.info(
+        f"Time Ansor (s): {time_total_ansor:.2f}, Time Droplet (s): {time_droplet:.2f},"
+        f"Time Total (s): {time_total:.2f}"
+    )

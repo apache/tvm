@@ -424,14 +424,13 @@ def get_multilayers(log):
         A dictionary with a tuple
     """
     hash_map = dict()
-    file = open(log, "r")
-    for line in file.readlines():
-        data = json.loads(line)
-        if "i" in data:
-            res, key = data["r"][0], data["i"][0][0]
-            if key not in hash_map or np.mean(hash_map[key][0]) > np.mean(res):
-                hash_map[key] = (res, data)
-    file.close()
+    with open(log, "r", encoding="utf-8") as log_file:
+        for line in log_file.readlines():
+            data = json.loads(line)
+            if "i" in data:
+                res, key = data["r"][0], data["i"][0][0]
+                if key not in hash_map or np.mean(hash_map[key][0]) > np.mean(res):
+                    hash_map[key] = (res, data)
     return hash_map
 
 
@@ -464,7 +463,7 @@ def get_time(log):
     Parameters
     ----------
     log: str
-        The input log path
+        The input log path with the Ansor parameter
 
     Returns
     -------
@@ -472,13 +471,12 @@ def get_time(log):
         Returns the best time, total time, and data
     """
     time_total, best_time, best_cfg = 0, 1e10, {}
-    f = open(log, "r")
-    for line in f.readlines():
-        data = json.loads(line)
-        if "r" in data:
-            res = data["r"][0]
-            time_total += data["r"][2]
-            if np.mean(res) < np.mean(best_time):
-                best_time, best_cfg = res, data
-    f.close()
+    with open(log, "r", encoding="utf-8") as log_file:
+        for line in log_file.readlines():
+            data = json.loads(line)
+            if "r" in data:
+                res = data["r"][0]
+                time_total += data["r"][2]
+                if np.mean(res) < np.mean(best_time):
+                    best_time, best_cfg = res, data
     return best_time, time_total, best_cfg

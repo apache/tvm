@@ -26,6 +26,7 @@ from tvm import auto_scheduler
 
 from tvm.testing.auto_scheduler import matmul_auto_scheduler_test
 
+
 @tvm.testing.requires_llvm
 def test_task_scheduler_gradient_droplet():
     tasks = []
@@ -63,7 +64,7 @@ def test_task_scheduler_gradient_droplet():
         task_scheduler.tune(tune_option, search_policy="sketch.random")
 
         # Use the droplet algorithm to optimize the kernel
-        auto_scheduler.task_scheduler.droplet_exploitation(log_file)
+        auto_scheduler.task_scheduler.droplet_exploitation(log_file, tasks[0].target)
 
         # Check the allocation results
         counters = {}
@@ -73,8 +74,9 @@ def test_task_scheduler_gradient_droplet():
         for inp, _ in auto_scheduler.load_records(log_file):
             counters[inp.task.workload_key] += 1
 
-        assert counters[tasks[0].workload_key] == n_trials - 1
-        assert counters[tasks[1].workload_key] == 1
+        # droplet adds an optimized solution at the end
+        assert counters[tasks[0].workload_key] == n_trials
+        assert counters[tasks[1].workload_key] == 2
         del measure_ctx
 
 

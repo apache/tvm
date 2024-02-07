@@ -52,7 +52,7 @@ class Space:
     """
 
     def __init__(self, cfg, task):
-        self.jfile, self.cfg = cfg, cfg["i"][1][1]
+        self.cfg = deepcopy(cfg)
         self.total_dims, self.dims, self.task = 0, [], task
         self.config_space = {}
         self.create_space()
@@ -61,15 +61,19 @@ class Space:
         """Create the space using Ansor's space"""
         sp_space = [4, 8, 16, 24, 32, 48, 64]
         pr_space = [64, 128, 256, 512]
-        for i in range(len(self.cfg)):
-            f = self.cfg[i]
-            if f[0] == "SP" and f[3] != 1:
-                for j in range(len(f[4])):
-                    self.config_space[f"{f[0]}_{i}_{j}"] = self.add_space(sp_space, [f[4][j]], f[3])
-            elif f[0] == "PR":
-                start_value = int(f[3].split("$")[-1])
+        idx_sp, idx_pos, idx_size, idx_tile = 0, 1, 3, 4
+        config = self.cfg["i"][idx_pos][idx_pos]
+        for i in range(len(config)):
+            opt = config[i]
+            if opt[idx_sp] == "SP" and opt[idx_size] != 1:
+                for j in range(len(opt[idx_tile])):
+                    self.config_space[f"{opt[idx_sp]}_{i}_{j}"] = self.add_space(
+                        sp_space, [opt[idx_tile][j]], opt[idx_size]
+                    )
+            elif opt[idx_sp] == "PR":
+                start_value = int(opt[idx_size].split("$")[-1])
                 if start_value != 0:
-                    self.config_space[f"{f[0]}_{i}"] = [
+                    self.config_space[f"{opt[idx_sp]}_{i}"] = [
                         f"auto_unroll_max_step${v}" for v in self.add_space(pr_space, [start_value])
                     ]
         self.dims = []
@@ -82,32 +86,54 @@ class Space:
 
     def apply_opt(self, vals):
         """Apply the space using Ansor's space"""
-        jfile = deepcopy(self.jfile)
-        cfg = jfile["i"][1][1]
-        index = 0
-        for i in range(len(cfg)):
-            f = cfg[i]
-            if f[0] == "SP" and f[3] != 1:
-                new_f = []
-                for j in range(len(f[4])):
-                    new_f.append(self.get_value(f"{f[0]}_{i}_{j}", vals[index]))
+        idx_sp, idx_pos, idx_size, idx_tile = 0, 1, 3, 4
+        index, config = 0, self.cfg["i"][idx_pos][idx_pos]
+        for i in range(len(config)):
+            opt = config[i]
+            if opt[idx_sp] == "SP" and opt[idx_size] != 1:
+                new_value = []
+                for j in range(len(opt[idx_tile])):
+                    new_value.append(self.get_value(f"{opt[idx_sp]}_{i}_{j}", vals[index]))
                     index += 1
-                cfg[i] = ["SP", f[1], f[2], f[3], new_f, f[5]]
-            elif f[0] == "PR":
-                if f[3] != "auto_unroll_max_step$0":
-                    cfg[i] = ["PR", f[1], f[2], self.get_value(f"{f[0]}_{i}", vals[index])]
+                config[i][idx_tile] = new_value
+            elif opt[idx_sp] == "PR":
+                if opt[idx_size] != "auto_unroll_max_step$0":
+                    config[i][idx_size] = self.get_value(f"{opt[idx_sp]}_{i}", vals[index])
                     index += 1
-        return jfile
+        return self.cfg
 
-    def run(self, log, final_log):
+    def run(
+        self,
+        log,
+        final_log,
+        timeout=20,
+        verbose=0,
+        number=3,
+        repeat=3,
+        min_repeat_ms=0,
+        cooldown_interval=0,
+        cache=False,
+        dev=0,
+    ):
         """Execute a log file and save"""
         readlines, _ = tvm.auto_scheduler.RecordReader(log).read_lines()
         inputs, results = [], []
         for i in range(len(readlines)):
             state = self.task.compute_dag.infer_bound_from_state(readlines[i].state)
             inp = [tvm.auto_scheduler.MeasureInput(self.task, state)]
-            build_res = local_builder_build(inp, 20, os.cpu_count(), "default", 0)
-            res = local_run(inp, build_res, 20, 3, 3, 0, 0, False, 0, 0)
+            build_res = local_builder_build(inp, timeout, os.cpu_count(), "default", verbose)
+            res = local_run(
+                inp,
+                build_res,
+                timeout,
+                number,
+                repeat,
+                min_repeat_ms,
+                cooldown_interval,
+                cache,
+                verbose,
+                dev,
+            )
             tvm.auto_scheduler._ffi_api.SaveRecords(final_log, inp, res)
             inputs.append(inp[0])
             results.append(MeasureResultSpace(res))

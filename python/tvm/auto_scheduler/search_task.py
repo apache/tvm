@@ -23,7 +23,6 @@ import os
 import logging
 from collections import OrderedDict
 import numpy as np
-from collections import OrderedDict
 
 import tvm._ffi
 from tvm.runtime import Object, ndarray
