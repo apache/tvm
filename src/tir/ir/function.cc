@@ -35,6 +35,33 @@ PrimFunc::PrimFunc(Array<tir::Var> params, Stmt body, Type ret_type,
   if (!ret_type.defined()) {
     ret_type = VoidType();
   }
+
+  attrs = [&]() -> DictAttrs {
+    Map<String, ObjectRef> new_attrs;
+    bool is_same = true;
+
+    for (const auto& [key, obj] : attrs->dict) {
+      ObjectRef new_obj = obj;
+
+      if (const auto* runtime_int = obj.as<runtime::Int::ContainerType>()) {
+        new_obj = Integer(runtime_int->value);
+      } else if (const auto* runtime_bool = obj.as<runtime::Bool::ContainerType>()) {
+        new_obj = Bool(runtime_bool->value);
+      } else if (const auto* runtime_float = obj.as<runtime::Float::ContainerType>()) {
+        new_obj = FloatImm(DataType::Float(64), runtime_float->value);
+      }
+
+      is_same = is_same && new_obj.same_as(obj);
+      new_attrs.Set(key, new_obj);
+    }
+
+    if (is_same) {
+      return attrs;
+    } else {
+      return DictAttrs(new_attrs);
+    }
+  }();
+
   auto n = make_object<PrimFuncNode>();
   n->params = std::move(params);
   n->body = std::move(body);
