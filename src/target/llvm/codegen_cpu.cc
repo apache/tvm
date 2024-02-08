@@ -525,11 +525,10 @@ void CodeGenCPU::CreateComputeScope(const AttrStmtNode* op) {
   llvm::Function* fcompute = llvm::Function::Create(ftype, llvm::Function::InternalLinkage,
                                                     MakeStringRef(value->value), module_.get());
   SetTargetAttributes(fcompute);
-  for(auto it = fcompute->arg_begin(); it!=fcompute->arg_end(); it++) {
+  for (auto it = fcompute->arg_begin(); it != fcompute->arg_end(); it++) {
     const Var& var = vargs[std::distance(fcompute->arg_begin(), it)];
     it->setName(std::string(var->name_hint));
   }
-
 
   llvm::BasicBlock* compute_call_end = CheckCallSuccess(builder_->CreateCall(fcompute, arg_values));
   llvm::LLVMContext* ctx = llvm_target_->GetContext();
@@ -564,7 +563,8 @@ void CodeGenCPU::CreateComputeScope(const AttrStmtNode* op) {
   }
 
   function_ = fcompute;
-  di_subprogram_ = CreateDebugFunction(MakeStringRef(value->value), vargs.Map(GetType), PrimType(DataType::Int(32)));
+  di_subprogram_ = CreateDebugFunction(MakeStringRef(value->value), vargs.Map(GetType),
+                                       PrimType(DataType::Int(32)));
   auto* compute_entry = llvm::BasicBlock::Create(*ctx, "entry", function_);
   builder_->SetInsertPoint(compute_entry);
   this->VisitStmt(op->body);
