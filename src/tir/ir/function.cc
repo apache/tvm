@@ -36,31 +36,39 @@ PrimFunc::PrimFunc(Array<tir::Var> params, Stmt body, Type ret_type,
     ret_type = VoidType();
   }
 
-  attrs = [&]() -> DictAttrs {
-    Map<String, ObjectRef> new_attrs;
-    bool is_same = true;
-
-    for (const auto& [key, obj] : attrs->dict) {
-      ObjectRef new_obj = obj;
-
+  if (attrs.defined()) {
+    std::function<ObjectRef(ObjectRef)> normalize_obj =
+        [&normalize_obj](ObjectRef obj) -> ObjectRef {
       if (const auto* runtime_int = obj.as<runtime::Int::ContainerType>()) {
-        new_obj = Integer(runtime_int->value);
+        return Integer(runtime_int->value);
       } else if (const auto* runtime_bool = obj.as<runtime::Bool::ContainerType>()) {
-        new_obj = Bool(runtime_bool->value);
+        return Bool(runtime_bool->value);
       } else if (const auto* runtime_float = obj.as<runtime::Float::ContainerType>()) {
-        new_obj = FloatImm(DataType::Float(64), runtime_float->value);
+        return FloatImm(DataType::Float(64), runtime_float->value);
+      } else if (auto opt_array = obj.as<Array<ObjectRef>>()) {
+        return opt_array.value().Map(normalize_obj);
+      } else {
+        return obj;
+      }
+    };
+
+    attrs = [&]() -> DictAttrs {
+      Map<String, ObjectRef> new_attrs;
+      bool is_same = true;
+
+      for (const auto& [key, obj] : attrs->dict) {
+        ObjectRef new_obj = normalize_obj(obj);
+        is_same = is_same && new_obj.same_as(obj);
+        new_attrs.Set(key, new_obj);
       }
 
-      is_same = is_same && new_obj.same_as(obj);
-      new_attrs.Set(key, new_obj);
-    }
-
-    if (is_same) {
-      return attrs;
-    } else {
-      return DictAttrs(new_attrs);
-    }
-  }();
+      if (is_same) {
+        return attrs;
+      } else {
+        return DictAttrs(new_attrs);
+      }
+    }();
+  }
 
   auto n = make_object<PrimFuncNode>();
   n->params = std::move(params);
