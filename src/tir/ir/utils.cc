@@ -62,7 +62,7 @@ ObjectRef NormalizeAttributeObject(ObjectRef obj) {
   } else {
     return obj;
   }
-};
+}
 
 }  // namespace tir
 }  // namespace tvm
