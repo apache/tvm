@@ -106,12 +106,18 @@ from tvm.contrib.download import download_testdata
 # `MXNet Gluon model zoo <https://mxnet.apache.org/api/python/gluon/model_zoo.html>`_.
 # You can found more details about this part at tutorial :ref:`tutorial-from-mxnet`.
 
+import sys
+
 from mxnet.gluon.model_zoo.vision import get_model
 from PIL import Image
 import numpy as np
 
 # one line to get the model
-block = get_model("resnet18_v1", pretrained=True)
+try:
+    block = get_model("resnet18_v1", pretrained=True)
+except RuntimeError:
+    print("Downloads from mxnet no longer supported", file=sys.stderr)
+    sys.exit(0)
 
 ######################################################################
 # In order to test our model, here we download an image of cat and

@@ -20,8 +20,10 @@ name = "resnet"
 version = "0.0.0"
 authors = ["TVM Contributors"]
 license = "Apache-2.0"
-build = "build.rs"
 edition = "2018"
+# Currently disabled, as it depends on the no-longer-supported
+# mxnet repo to download resnet.
+# build = "build.rs"
 
 [dependencies]
 ndarray = "0.12"
