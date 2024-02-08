@@ -404,12 +404,15 @@ inline DLDataType String2DLDataType(std::string s) {
     return t;
   } else if (s.substr(0, 6) == "bfloat") {
     t.code = DataType::kBFloat;
+    t.bits = 16;
     scan = s.c_str() + 6;
   } else if (s.substr(0, 10) == "e4m3_float") {
     t.code = DataType::kE4M3Float;
+    t.bits = 8;
     scan = s.c_str() + 10;
   } else if (s.substr(0, 10) == "e5m2_float") {
     t.code = DataType::kE5M2Float;
+    t.bits = 8;
     scan = s.c_str() + 10;
   } else if (s.substr(0, 6) == "custom") {
     t.code = ParseCustomDatatype(s, &scan);
