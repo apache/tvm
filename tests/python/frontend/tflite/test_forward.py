@@ -5213,10 +5213,8 @@ def test_forward_tflite_float16():
 
 @pytest.mark.skipif(
     platform.machine() == "aarch64",
-    reason=(
-        "Fails during leagalization due to int16 datatype. "
-        "See https://github.com/apache/tvm/issues/16535",
-    ),
+    reason="Fails during leagalization due to int16 datatype. "
+    "See https://github.com/apache/tvm/issues/16535",
 )
 def test_forward_mobilenet_int16():
     """Test int16 quantized model"""
@@ -5262,10 +5260,8 @@ def test_forward_mobilenet_int16():
 
 @pytest.mark.skipif(
     platform.machine() == "aarch64",
-    reason=(
-        "Fails during leagalization due to int16 datatype. "
-        "See https://github.com/apache/tvm/issues/16535",
-    ),
+    reason="Fails during leagalization due to int16 datatype. "
+    "See https://github.com/apache/tvm/issues/16535",
 )
 def test_forward_ds_cnn_int16():
     """Test DS_CNN int16 quantized model"""
