@@ -294,9 +294,9 @@ void CodeGenCUDA::PrintType(DataType t, std::ostream& os) {  // NOLINT(*)
     if (t.is_scalar()) {
       vec = "";
     } else if (lanes == 2) {
-      vec = "2_";
+      vec = "_2";
     } else if (lanes == 4) {
-      vec = "x4";
+      vec = "_4";
     }
     if (t.code() == DataType::kE4M3Float) {
       os << "fp8_e4" << vec << "_t";
