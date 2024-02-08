@@ -121,6 +121,24 @@ std::string CodeGenCUDA::Finish() {
   if (enable_fp8_) {
     decl_stream << "#if defined(__CUDA_ARCH__) && (__CUDA_ARCH__ >= 890)\n";
     decl_stream << "#include <cuda_fp8.h>\n";
+    decl_stream << "using fp8_e4_t = __nv_fp8_e4m3;\n";
+    decl_stream << "using fp8_e4_2_t = __nv_fp8x2_e4m3;\n";
+    decl_stream << "using fp8_e4_4_t = __nv_fp8x4_e4m3;\n";
+    decl_stream << "struct __align__(8) fp8_e4_8_t {\n";
+    decl_stream << "  __nv_fp8x2_e4m3 x;\n";
+    decl_stream << "  __nv_fp8x2_e4m3 y;\n";
+    decl_stream << "  __nv_fp8x2_e4m3 z;\n";
+    decl_stream << "  __nv_fp8x2_e4m3 w;\n";
+    decl_stream << "};\n";
+    decl_stream << "using fp8_e5_t = __nv_fp8_e5m2;\n";
+    decl_stream << "using fp8_e5_2_t = __nv_fp8x2_e5m2;\n";
+    decl_stream << "using fp8_e5_4_t = __nv_fp8x4_e5m2;\n";
+    decl_stream << "struct __align__(8) fp8_e5_8_t {\n";
+    decl_stream << "  __nv_fp8x2_e5m2 x;\n";
+    decl_stream << "  __nv_fp8x2_e5m2 y;\n";
+    decl_stream << "  __nv_fp8x2_e5m2 z;\n";
+    decl_stream << "  __nv_fp8x2_e5m2 w;\n";
+    decl_stream << "};\n";
     decl_stream << "#endif\n\n";
   }
 
@@ -271,12 +289,19 @@ void CodeGenCUDA::PrintType(DataType t, std::ostream& os) {  // NOLINT(*)
     }
     if (!fail) return;
   } else if (t.is_float8()) {
+    enable_fp8_ = true;
+    std::string vec;
     if (t.is_scalar()) {
-      os << "unsigned char";  // __nv_fp8_storage_t is an alias of unsigned char
+      vec = "";
     } else if (lanes == 2) {
-      os << "unsigned short int";  // __nv_fp8x2_storage_t is an alias of unsigned short
+      vec = "2_";
     } else if (lanes == 4) {
-      os << "unsigned int";  // __nv_fp8x4_storage_t is an alias of unsigned int
+      vec = "x4";
+    }
+    if (t.code() == DataType::kE4M3Float) {
+      os << "fp8_e4" << vec << "_t";
+    } else if (t.code() == DataType::kE5M2Float) {
+      os << "fp8_e5" << vec << "_t";
     } else {
       fail = true;
     }

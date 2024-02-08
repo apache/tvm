@@ -586,6 +586,8 @@ llvm::Type* CodeGenLLVM::DTypeToLLVMType(const DataType& dtype) const {
       default:
         LOG(FATAL) << "do not support " << dtype;
     }
+  } else if (dtype.code() == DataType::kE4M3Float || dtype.code() == DataType::kE5M2Float) {
+    etype = llvm::Type::getInt8Ty(*ctx);
   }
   if (dtype.lanes() != 1) {
 #if TVM_LLVM_VERSION >= 110
@@ -594,6 +596,7 @@ llvm::Type* CodeGenLLVM::DTypeToLLVMType(const DataType& dtype) const {
     return llvm::VectorType::get(etype, dtype.lanes());
 #endif
   } else {
+    ICHECK(etype != nullptr) << "No suitable llvm type found for dtype: " << dtype;
     return etype;
   }
 }  // namespace codegen

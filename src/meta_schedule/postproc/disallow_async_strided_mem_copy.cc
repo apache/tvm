@@ -119,7 +119,9 @@ namespace meta_schedule {
 class DisallowAsyncStridedMemCopyNode : public PostprocNode {
  public:
   // Inherited from PostprocNode
-  void InitializeWithTuneContext(const TuneContext& context) final {}
+  void InitializeWithTuneContext(const TuneContext& context) final {
+    this->target_ = context->target.value();
+  }
   // Inherited from PostprocNode
   bool Apply(const tir::Schedule& sch) final {
     IRModule mod = sch->mod();
@@ -138,7 +140,7 @@ class DisallowAsyncStridedMemCopyNode : public PostprocNode {
           pass_list.push_back(tir::transform::InjectSoftwarePipeline());
           pass_list.push_back(tir::transform::LowerOpaqueBlock());
           pass_list.push_back(tir::transform::FlattenBuffer());
-          pass_list.push_back(tir::transform::BF16ComputeLegalize());
+          pass_list.push_back(tir::transform::BF16ComputeLegalize(this->target_));
           pass_list.push_back(tir::transform::NarrowDataType(32));
           pass_list.push_back(tir::transform::Simplify());
           pass_list.push_back(tir::transform::InjectVirtualThread());
@@ -166,6 +168,7 @@ class DisallowAsyncStridedMemCopyNode : public PostprocNode {
     return Postproc(n);
   }
 
+  Target target_{nullptr};
   static constexpr const char* _type_key = "meta_schedule.DisallowAsyncStridedMemCopy";
   TVM_DECLARE_FINAL_OBJECT_INFO(DisallowAsyncStridedMemCopyNode, PostprocNode);
 };

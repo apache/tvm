@@ -693,7 +693,19 @@ class FP8StorageLegalizer : public StorageLegalizer {
 
 namespace transform {
 
-Pass BF16ComputeLegalize() {
+bool CheckDataTypeSupport(const Target& target, const std::string& support_func_name) {
+  bool has_native_support = false;
+  if (const PackedFunc* get_cv =
+          tvm::runtime::Registry::Get("tvm.contrib.nvcc.get_compute_version")) {
+    std::string compute_version = (*get_cv)(target);
+    if (const PackedFunc* check_support = tvm::runtime::Registry::Get(support_func_name)) {
+      has_native_support = (*check_support)(compute_version);
+    }
+  }
+  return has_native_support;
+}
+
+Pass BF16ComputeLegalize(Target target) {
   auto pass_func = [](PrimFunc f, IRModule m, PassContext ctx) {
     // TODO(tvm-team): skip if the target supports bf16
     return BF16ComputeLegalizer().Legalize(f);
@@ -703,7 +715,7 @@ Pass BF16ComputeLegalize() {
 
 TVM_REGISTER_GLOBAL("tir.transform.BF16ComputeLegalize").set_body_typed(BF16ComputeLegalize);
 
-Pass BF16StorageLegalize() {
+Pass BF16StorageLegalize(Target target) {
   auto pass_func = [](PrimFunc f, IRModule m, PassContext ctx) {
     // TODO(tvm-team): skip if the target supports bf16
     return BF16StorageLegalizer().Legalize(f);
@@ -713,9 +725,11 @@ Pass BF16StorageLegalize() {
 
 TVM_REGISTER_GLOBAL("tir.transform.BF16StorageLegalize").set_body_typed(BF16StorageLegalize);
 
-Pass FP8ComputeLegalize(String promote_dtype_str) {
+Pass FP8ComputeLegalize(Target target, String promote_dtype_str) {
   auto pass_func = [=](PrimFunc f, IRModule m, PassContext ctx) {
-    // TODO(tvm-team): skip if the target supports fp8
+    if (CheckDataTypeSupport(target, "tvm.contrib.nvcc.supports_fp8")) {
+      return f;
+    }
     return FP8ComputeLegalizer(DataType(String2DLDataType(promote_dtype_str))).Legalize(f);
   };
   return CreatePrimFuncPass(pass_func, 0, "tir.FP8ComputeLegalize", {});
@@ -723,9 +737,11 @@ Pass FP8ComputeLegalize(String promote_dtype_str) {
 
 TVM_REGISTER_GLOBAL("tir.transform.FP8ComputeLegalize").set_body_typed(FP8ComputeLegalize);
 
-Pass FP8StorageLegalize() {
-  auto pass_func = [](PrimFunc f, IRModule m, PassContext ctx) {
-    // TODO(tvm-team): skip if the target supports fp8
+Pass FP8StorageLegalize(Target target) {
+  auto pass_func = [=](PrimFunc f, IRModule m, PassContext ctx) {
+    if (CheckDataTypeSupport(target, "tvm.contrib.nvcc.supports_fp8")) {
+      return f;
+    }
     return FP8StorageLegalizer().Legalize(f);
   };
   return CreatePrimFuncPass(pass_func, 0, "tir.FP8StorageLegalize", {});
