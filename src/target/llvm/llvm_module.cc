@@ -364,7 +364,7 @@ void LLVMModuleNode::Init(const IRModule& mod, const Target& target) {
   }
 
   module_->addModuleFlag(llvm::Module::Override, "Dwarf Version",
-                         tm->getTargetTriple().isOSDarwin() ? 2 : llvm::dwarf::DWARF_VERSION);
+                         tm->getTargetTriple().isOSDarwin() ? 2 : 4);
 }
 
 void LLVMModuleNode::Init(std::unique_ptr<llvm::Module> module,
@@ -639,10 +639,9 @@ runtime::Module CreateLLVMCppMetadataModule(runtime::metadata::Metadata metadata
   llvm_target->SetTargetMetadata(mod.get());
   mod->addModuleFlag(llvm::Module::Override, "Debug Info Version", llvm::DEBUG_METADATA_VERSION);
 
-  mod->addModuleFlag(llvm::Module::Override, "Dwarf Version",
-                     llvm_target->GetOrCreateTargetMachine()->getTargetTriple().isOSDarwin()
-                         ? 2
-                         : llvm::dwarf::DWARF_VERSION);
+  mod->addModuleFlag(
+      llvm::Module::Override, "Dwarf Version",
+      llvm_target->GetOrCreateTargetMachine()->getTargetTriple().isOSDarwin() ? 2 : 4);
 
   auto n = make_object<LLVMModuleNode>();
   n->Init(std::move(mod), std::move(llvm_instance));
@@ -686,10 +685,9 @@ runtime::Module CreateLLVMCrtMetadataModule(const Array<runtime::Module>& module
   llvm_target->SetTargetMetadata(mod.get());
   mod->addModuleFlag(llvm::Module::Override, "Debug Info Version", llvm::DEBUG_METADATA_VERSION);
 
-  mod->addModuleFlag(llvm::Module::Override, "Dwarf Version",
-                     llvm_target->GetOrCreateTargetMachine()->getTargetTriple().isOSDarwin()
-                         ? 2
-                         : llvm::dwarf::DWARF_VERSION);
+  mod->addModuleFlag(
+      llvm::Module::Override, "Dwarf Version",
+      llvm_target->GetOrCreateTargetMachine()->getTargetTriple().isOSDarwin() ? 2 : 4);
 
   auto n = make_object<LLVMModuleNode>();
   n->Init(std::move(mod), std::move(llvm_instance));
