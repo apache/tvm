@@ -185,9 +185,9 @@ void CodeGenCPU::Init(const std::string& module_name, LLVMTarget* llvm_target,
   InitGlobalContext(dynamic_lookup);
 }
 
-llvm::DISubprogram* CodeGenCPU::CreateDebugFunction(
-  llvm::StringRef name, const Array<Type>& param_types, const Type& return_type
-) {
+llvm::DISubprogram* CodeGenCPU::CreateDebugFunction(llvm::StringRef name,
+                                                    const Array<Type>& param_types,
+                                                    const Type& return_type) {
 #if TVM_LLVM_VERSION < 50
   return nullptr;
 #else
@@ -238,8 +238,6 @@ void CodeGenCPU::AddFunction(const GlobalVar& gvar, const PrimFunc& func) {
   }
   AddDebugInformation(function_, func->params.Map(GetType));
 }
-
-
 
 void CodeGenCPU::AddMainFunction(const std::string& entry_func_name) {
   llvm::Function* f = module_->getFunction(entry_func_name);
