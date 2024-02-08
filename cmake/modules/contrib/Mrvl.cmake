@@ -14,17 +14,17 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-# pylint: disable=wildcard-import
-"""Contrib modules."""
-from .register import get_pattern_table, register_pattern_table
-
-from .arm_compute_lib import *
-from .dnnl import *
-from .bnns import *
-from .coreml import *
-from .ethosn import *
-from .libtorch import *
-from .tensorrt import *
-from .cutlass import *
-from .clml import *
-from .mrvl import *
+include(ExternalProject)
+if(USE_MRVL)
+  # Mrvl Module
+  message(STATUS "Build with Mrvl support")
+  file(GLOB RUNTIME_MRVL_SRCS
+    src/runtime/contrib/mrvl/mrvl_runtime.cc
+  )
+  list(APPEND RUNTIME_SRCS ${RUNTIME_MRVL_SRCS})
+  file(GLOB COMPILER_MRVL_SRCS
+    src/relay/backend/contrib/mrvl/codegen.cc
+    src/relay/backend/contrib/mrvl/compiler_attr.cc
+  )
+  list(APPEND COMPILER_SRCS ${COMPILER_MRVL_SRCS})
+endif(USE_MRVL)

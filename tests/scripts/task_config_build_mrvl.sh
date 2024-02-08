@@ -1,3 +1,4 @@
+#!/usr/bin/env bash
 # Licensed to the Apache Software Foundation (ASF) under one
 # or more contributor license agreements.  See the NOTICE file
 # distributed with this work for additional information
@@ -14,17 +15,19 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-# pylint: disable=wildcard-import
-"""Contrib modules."""
-from .register import get_pattern_table, register_pattern_table
 
-from .arm_compute_lib import *
-from .dnnl import *
-from .bnns import *
-from .coreml import *
-from .ethosn import *
-from .libtorch import *
-from .tensorrt import *
-from .cutlass import *
-from .clml import *
-from .mrvl import *
+set -euxo pipefail
+
+BUILD_DIR=$1
+mkdir -p "$BUILD_DIR"
+cd "$BUILD_DIR"
+cp ../cmake/config.cmake .
+
+echo set\(USE_LLVM  \"/usr/bin/llvm-config-15 --link-static\"\) >> config.cmake
+echo set\(CMAKE_CXX_FLAGS \"-Werror -Wno-error=range-loop-construct\"\) >> config.cmake
+echo set\(USE_LIBBACKTRACE COMPILE\) >> config.cmake
+echo set\(BACKTRACE_ON_SEGFAULT ON\) >> config.cmake
+
+# Enable Mrvl target
+echo set\(USE_MRVL ON\) >> config.cmake
+echo set\(HIDE_PRIVATE_SYMBOLS ON\) >> config.cmake
