@@ -27,6 +27,7 @@
 #include <tvm/tir/stmt.h>
 
 #include "buffer_common.h"
+#include "utils.h"
 
 namespace tvm {
 namespace tir {
@@ -610,6 +611,8 @@ Block::Block(Array<IterVar> iter_vars, Array<BufferRegion> reads, Array<BufferRe
              String name_hint, Stmt body, Optional<Stmt> init, Array<Buffer> alloc_buffers,
              Array<MatchBufferRegion> match_buffers, Map<String, ObjectRef> annotations,
              Span span) {
+  annotations = Downcast<Map<String, ObjectRef>>(NormalizeAttributeObject(annotations));
+
   ObjectPtr<BlockNode> node = make_object<BlockNode>();
   node->iter_vars = std::move(iter_vars);
   node->reads = std::move(reads);

@@ -25,6 +25,8 @@
 #include <tvm/tir/function.h>
 #include <tvm/tir/op.h>
 
+#include "utils.h"
+
 namespace tvm {
 namespace tir {
 // Get the function type of a PrimFunc
@@ -37,37 +39,7 @@ PrimFunc::PrimFunc(Array<tir::Var> params, Stmt body, Type ret_type,
   }
 
   if (attrs.defined()) {
-    std::function<ObjectRef(ObjectRef)> normalize_obj =
-        [&normalize_obj](ObjectRef obj) -> ObjectRef {
-      if (const auto* runtime_int = obj.as<runtime::Int::ContainerType>()) {
-        return Integer(runtime_int->value);
-      } else if (const auto* runtime_bool = obj.as<runtime::Bool::ContainerType>()) {
-        return Bool(runtime_bool->value);
-      } else if (const auto* runtime_float = obj.as<runtime::Float::ContainerType>()) {
-        return FloatImm(DataType::Float(64), runtime_float->value);
-      } else if (auto opt_array = obj.as<Array<ObjectRef>>()) {
-        return opt_array.value().Map(normalize_obj);
-      } else {
-        return obj;
-      }
-    };
-
-    attrs = [&]() -> DictAttrs {
-      Map<String, ObjectRef> new_attrs;
-      bool is_same = true;
-
-      for (const auto& [key, obj] : attrs->dict) {
-        ObjectRef new_obj = normalize_obj(obj);
-        is_same = is_same && new_obj.same_as(obj);
-        new_attrs.Set(key, new_obj);
-      }
-
-      if (is_same) {
-        return attrs;
-      } else {
-        return DictAttrs(new_attrs);
-      }
-    }();
+    attrs = Downcast<DictAttrs>(NormalizeAttributeObject(attrs));
   }
 
   auto n = make_object<PrimFuncNode>();
