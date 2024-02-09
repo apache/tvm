@@ -422,6 +422,7 @@ def have_bf16(compute_version):
 
     return False
 
+
 @tvm._ffi.register_func("tvm.contrib.nvcc.supports_fp8")
 def have_fp8(compute_version):
     """Whether fp8 support is provided in the specified compute capability or not
