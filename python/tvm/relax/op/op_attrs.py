@@ -59,6 +59,11 @@ class Conv2DAttrs(Attrs):
     """Attributes for nn.conv2d"""
 
 
+@tvm._ffi.register_object("relax.attrs.Conv3DAttrs")
+class Conv3DAttrs(Attrs):
+    """Attributes for nn.conv3d"""
+
+
 @tvm._ffi.register_object("relax.attrs.Conv2DTransposeAttrs")
 class Conv2DTransposeAttrs(Attrs):
     """Attributes for nn.conv2d_transpose"""
