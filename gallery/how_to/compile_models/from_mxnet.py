@@ -37,6 +37,7 @@ https://mxnet.apache.org/versions/master/install/index.html
 # sphinx_gallery_start_ignore
 # sphinx_gallery_requires_cuda = True
 # sphinx_gallery_end_ignore
+import sys
 import mxnet as mx
 import tvm
 import tvm.relay as relay
@@ -51,7 +52,12 @@ from mxnet.gluon.model_zoo.vision import get_model
 from PIL import Image
 from matplotlib import pyplot as plt
 
-block = get_model("resnet18_v1", pretrained=True)
+try:
+    block = get_model("resnet18_v1", pretrained=True)
+except RuntimeError:
+    print("Downloads from mxnet no longer supported", file=sys.stderr)
+    sys.exit(0)
+
 img_url = "https://github.com/dmlc/mxnet.js/blob/main/data/cat.png?raw=true"
 img_name = "cat.png"
 synset_url = "".join(

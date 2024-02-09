@@ -14,15 +14,19 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+
 from collections import namedtuple
-import tvm
-from tvm import relay
-from tvm.relay import quantize as qtz
-import mxnet as mx
-from mxnet import gluon
 import logging
 import os
+
+import mxnet as mx
+from mxnet import gluon
+import pytest
+
+import tvm
 import tvm.testing
+from tvm import relay
+from tvm.relay import quantize as qtz
 
 logging.basicConfig(level=logging.INFO)
 
@@ -69,7 +73,10 @@ def get_val_data(model_name, rec_val, batch_size, num_workers=4):
 
 
 def get_model(model_name, batch_size, qconfig, original=False):
-    gluon_model = gluon.model_zoo.vision.get_model(model_name, pretrained=True)
+    try:
+        gluon_model = gluon.model_zoo.vision.get_model(model_name, pretrained=True)
+    except RuntimeError:
+        pytest.skip(reason="mxnet downloads no longer supported")
     img_size = 299 if model_name == "inceptionv3" else 224
     data_shape = (batch_size, 3, img_size, img_size)
     mod, params = relay.frontend.from_mxnet(gluon_model, {"data": data_shape})

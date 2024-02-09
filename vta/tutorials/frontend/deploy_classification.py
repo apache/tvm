@@ -43,6 +43,7 @@ from __future__ import absolute_import, print_function
 import argparse, json, os, requests, sys, time
 from io import BytesIO
 from os.path import join, isfile
+import sys
 from PIL import Image
 
 from mxnet.gluon.model_zoo import vision
@@ -163,7 +164,11 @@ with autotvm.tophub.context(target):
     shape_dict = {"data": (env.BATCH, 3, 224, 224)}
 
     # Get off the shelf gluon model, and convert to relay
-    gluon_model = vision.get_model(model, pretrained=True)
+    try:
+        gluon_model = vision.get_model(model, pretrained=True)
+    except RuntimeError:
+        print("Downloads from mxnet no longer supported", file=sys.stderr)
+        sys.exit(0)
 
     # Measure build start time
     build_start = time.time()
