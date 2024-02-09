@@ -41,7 +41,7 @@ def test_e4m3_conversions():
                 v_i = T.axis.spatial(64, i)
                 T.reads(A[v_i], B[v_i])
                 T.writes(C[v_i])
-                C[v_i] = T.Cast(dtype, T.float16(A[v_i]) + T.float16(B[v_i]))
+                C[v_i] = T.Cast(dtype, T.Cast("float16", A[v_i]) + T.Cast("float16", B[v_i]))
 
     sch = tvm.tir.Schedule(add)
     block = sch.get_block("C")
@@ -66,6 +66,76 @@ def test_e4m3_conversions():
 
     tvm.testing.assert_allclose(
         c.numpy().astype("float16"), (a.numpy() + b.numpy()).astype("float16")
+    )
+
+
+native_dtype, promoted_dtype = tvm.testing.parameters(
+    ("e4m3_float8", "float32"),
+    ("e4m3_float8", "float16"),
+    ("e4m3_float8x2", "float32x2"),
+    ("e4m3_float8x2", "float16x2"),
+    ("e4m3_float8x4", "float32x4"),
+    # Supported via half4 vector type extension in codegen
+    ("e4m3_float8x4", "float16x4"),
+)
+
+
+@tvm.testing.requires_cuda_compute_version(9)
+def test_e4m3x2_conversions(native_dtype, promoted_dtype):
+    vector_length = 64
+
+    @T.prim_func
+    def add(
+        A: T.Buffer((vector_length,), native_dtype),
+        B: T.Buffer((vector_length,), native_dtype),
+        C: T.Buffer((vector_length,), native_dtype),
+    ):
+        T.func_attr({"tir.noalias": T.bool(True)})
+        # with T.block("root"):
+        for i in range(vector_length):
+            with T.block("C"):
+                v_i = T.axis.spatial(vector_length, i)
+                T.reads(A[v_i], B[v_i])
+                T.writes(C[v_i])
+                C[v_i] = T.Cast(
+                    native_dtype, T.Cast(promoted_dtype, A[v_i]) + T.Cast(promoted_dtype, B[v_i])
+                )
+
+    sch = tvm.tir.Schedule(add)
+    block = sch.get_block("C")
+    b = sch.get_loops(block)
+    bx, tx = sch.split(b[0], factors=[None, 32])
+    sch.bind(bx, "blockIdx.x")
+    sch.bind(tx, "threadIdx.x")
+
+    target = "cuda"
+    fadd = tvm.build(sch.mod, target=target)
+    cuda_src = fadd.imported_modules[0].get_source()
+    dev = tvm.device(target, 0)
+
+    numpytype = "float8_e4m3fn"
+    if "x" in native_dtype:
+        lanes = int(native_dtype.split("x")[-1])
+    else:
+        lanes = 1
+
+    if "x" in promoted_dtype:
+        promoted_base_dtype = promoted_dtype.split("x")[0]
+    else:
+        promoted_base_dtype = promoted_dtype
+
+    np_shape = (vector_length, lanes) if lanes > 1 else (vector_length,)
+    a_np = np.random.uniform(low=0, high=5, size=np_shape).astype(numpytype)
+    a = tvm.nd.empty(shape=(vector_length,), dtype=native_dtype, device=dev)
+    a.copyfrom(a_np)
+    b_np = np.random.uniform(low=0, high=5, size=np_shape).astype(numpytype)
+    b = tvm.nd.empty(shape=(vector_length,), dtype=native_dtype, device=dev)
+    b.copyfrom(b_np)
+    c = tvm.nd.empty(shape=(vector_length,), dtype=native_dtype, device=dev)
+    fadd(a, b, c)
+
+    tvm.testing.assert_allclose(
+        c.numpy().astype(promoted_base_dtype), (a_np + b_np).astype(promoted_base_dtype)
     )
 
 

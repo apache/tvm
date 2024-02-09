@@ -41,6 +41,31 @@
 namespace tvm {
 namespace codegen {
 
+std::string GetFP8Type(DataType type) {
+  std::stringstream stream;
+  int32_t lanes = type.lanes();
+  std::string vec;
+  if (type.is_scalar()) {
+    vec = "";
+  } else if (lanes == 2) {
+    vec = "_2";
+  } else if (lanes == 4) {
+    vec = "_4";
+  } else if (lanes == 8) {
+    vec = "_8";
+  } else {
+    LOG(FATAL) << "Only support scalar and vector types of width (2, 4, 8) for FP8";
+  }
+  if (type.code() == DataType::kE4M3Float) {
+    stream << "fp8_e4" << vec << "_t";
+  } else if (type.code() == DataType::kE5M2Float) {
+    stream << "fp8_e5" << vec << "_t";
+  } else {
+    LOG(FATAL) << "Unsupported FP8 type in CUDA codegen";
+  }
+  return stream.str();
+}
+
 CodeGenCUDA::CodeGenCUDA() { restrict_keyword_ = "__restrict__"; }
 
 void CodeGenCUDA::Init(bool output_ssa) {
@@ -124,21 +149,10 @@ std::string CodeGenCUDA::Finish() {
     decl_stream << "using fp8_e4_t = __nv_fp8_e4m3;\n";
     decl_stream << "using fp8_e4_2_t = __nv_fp8x2_e4m3;\n";
     decl_stream << "using fp8_e4_4_t = __nv_fp8x4_e4m3;\n";
-    decl_stream << "struct __align__(8) fp8_e4_8_t {\n";
-    decl_stream << "  __nv_fp8x2_e4m3 x;\n";
-    decl_stream << "  __nv_fp8x2_e4m3 y;\n";
-    decl_stream << "  __nv_fp8x2_e4m3 z;\n";
-    decl_stream << "  __nv_fp8x2_e4m3 w;\n";
-    decl_stream << "};\n";
     decl_stream << "using fp8_e5_t = __nv_fp8_e5m2;\n";
     decl_stream << "using fp8_e5_2_t = __nv_fp8x2_e5m2;\n";
     decl_stream << "using fp8_e5_4_t = __nv_fp8x4_e5m2;\n";
-    decl_stream << "struct __align__(8) fp8_e5_8_t {\n";
-    decl_stream << "  __nv_fp8x2_e5m2 x;\n";
-    decl_stream << "  __nv_fp8x2_e5m2 y;\n";
-    decl_stream << "  __nv_fp8x2_e5m2 z;\n";
-    decl_stream << "  __nv_fp8x2_e5m2 w;\n";
-    decl_stream << "};\n";
+    decl_stream << _cuda_vector_type_extensions;
     decl_stream << "#endif\n\n";
   }
 
@@ -232,17 +246,23 @@ void CodeGenCUDA::PrintType(DataType t, std::ostream& os) {  // NOLINT(*)
         if (t.is_scalar()) {
           os << "half";
         } else if (lanes <= 8) {
-          // Emit CUDA code to access fp16 vector elements.
-          //
-          // half4 is stored as uint2
-          //
-          // h4.x is emitted as *(half2*)(&(u2.x)).x
-          // h4.y is emitted as *(half2*)(&(u2.x)).y
-          // h4.z is emitted as *(half2*)(&(u2.y)).x
-          // h4.w is emitted as *(half2*)(&(u2.y)).y
-          //
-          ICHECK_EQ(lanes % 2, 0) << "only support even lane for half type";
-          os << "uint" << lanes / 2;
+          ICHECK_EQ(lanes % 2, 0) << "Only support an even number of lanes for half type";
+          // Use native vector types when working with fp8
+          if (enable_fp8_ && lanes <= 4) {
+            os << "half" << lanes;
+          } else {
+            // Emit CUDA code to access fp16 vector elements.
+            //
+            // half4 is stored as uint2
+            //
+            // h4.x is emitted as *(half2*)(&(u2.x)).x
+            // h4.y is emitted as *(half2*)(&(u2.x)).y
+            // h4.z is emitted as *(half2*)(&(u2.y)).x
+            // h4.w is emitted as *(half2*)(&(u2.y)).y
+            //
+
+            os << "uint" << lanes / 2;
+          }
         } else {
           fail = true;
         }
@@ -290,22 +310,8 @@ void CodeGenCUDA::PrintType(DataType t, std::ostream& os) {  // NOLINT(*)
     if (!fail) return;
   } else if (t.is_float8()) {
     enable_fp8_ = true;
-    std::string vec;
-    if (t.is_scalar()) {
-      vec = "";
-    } else if (lanes == 2) {
-      vec = "_2";
-    } else if (lanes == 4) {
-      vec = "_4";
-    }
-    if (t.code() == DataType::kE4M3Float) {
-      os << "fp8_e4" << vec << "_t";
-    } else if (t.code() == DataType::kE5M2Float) {
-      os << "fp8_e5" << vec << "_t";
-    } else {
-      fail = true;
-    }
-    if (!fail) return;
+    os << GetFP8Type(t);
+    return;
   } else if (t == DataType::Bool()) {
     os << "bool";
     return;
@@ -471,7 +477,7 @@ void CodeGenCUDA::PrintVecConstructor(DataType t, std::ostream& os) {
 
 void CodeGenCUDA::PrintVecBinaryOp(const std::string& op, DataType t, PrimExpr lhs, PrimExpr rhs,
                                    std::ostream& os) {  // NOLINT(*)
-  // Delcare the result.
+  // Declare the result.
   std::string sret = name_supply_->FreshName("_");
   this->PrintIndent();
   this->PrintType(t, stream);
@@ -522,7 +528,14 @@ void CodeGenCUDA::PrintVecElemLoad(const std::string& vec, DataType t, int i,
       os << "((" << type_name << ")(" << ac << " >> " << i % 4 * 8 << "))";
     }
   } else if (t.is_float16()) {
-    os << "((half2*)(&(" << vec << "." << access[i / 2] << ")))->" << access[i % 2];
+    if (t.lanes() == 2) {
+      // TODO(csullivan): Consider conditionally supporting value casting in the fp8 / vector case
+      os << "((half2*)(&(" << vec << "." << access[i / 2] << ")))->" << access[i % 2];
+    } else if (t.lanes() == 4) {
+      os << vec << "." << access[i];
+    } else {
+      LOG(FATAL) << "Unimplemented: Only support codegen for vector half loads with lanes = {2, 4}";
+    }
   } else if (t.is_bfloat16()) {
     os << "((nv_bfloat162*)(&(" << vec << "." << access[i / 2] << ")))->" << access[i % 2];
   } else if (t.lanes() > 4 && t.lanes() <= 8) {
@@ -568,8 +581,16 @@ void CodeGenCUDA::PrintVecElemStore(const std::string& vec, DataType t, int i,
       stream << "(" << value << " << " << i % 4 * 8 << ");\n";
     }
   } else if (t.is_float16()) {
-    stream << "((half2*)(&(" << vec << "." << access[i / 2] << ")))->" << access[i % 2] << " = "
-           << value << ";\n";
+    if (t.lanes() == 2) {
+      stream << "((half2*)(&(" << vec << "." << access[i / 2] << ")))->" << access[i % 2] << " = "
+             << value << ";\n";
+    } else if (t.lanes() == 4) {
+      stream << vec << "." << access[i] << " = " << value << ";\n";
+    } else {
+      LOG(FATAL)
+          << "Unimplemented: Only support codegen for vector half stores with lanes = {2, 4}";
+    }
+
   } else if (t.is_bfloat16()) {
     stream << "((nv_bfloat162*)(&(" << vec << "." << access[i / 2] << ")))->" << access[i % 2]
            << " = " << value << ";\n";
@@ -672,6 +693,16 @@ void CodeGenCUDA::VisitExpr_(const CastNode* op, std::ostream& os) {
 
   // Emit simple C-style type conversion.
   if (from_ty.is_scalar()) return CodeGenC::VisitExpr_(op, os);
+
+  if (target_ty.code() == DataType::kE4M3Float || target_ty.code() == DataType::kE5M2Float ||
+      from_ty.code() == DataType::kE4M3Float || from_ty.code() == DataType::kE5M2Float) {
+    std::ostringstream val;
+    val << "(";
+    PrintType(target_ty, val);
+    val << ")(" << PrintExpr(op->value) << ")";
+    os << val.str();
+    return;
+  }
 
   // We could emit make_float4 like calls, but the emitted code looks
   // too compact to read. Emit this as vectorized unary ops.
