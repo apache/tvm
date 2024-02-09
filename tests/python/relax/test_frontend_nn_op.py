@@ -277,9 +277,7 @@ def test_chunk():
             return chunk
 
     @R.function
-    def test(
-        x: R.Tensor((8,), dtype="float32"), _io: R.Object
-    ) -> R.Tuple(
+    def test(x: R.Tensor((8,), dtype="float32"), _io: R.Object) -> R.Tuple(
         R.Tuple(
             R.Tensor((2,), dtype="float32"),
             R.Tensor((2,), dtype="float32"),
@@ -468,9 +466,9 @@ def test_scaled_dot_product_attention():
     ) -> R.Tuple(R.Tensor((1, 32, 32, 32), dtype="float32"), R.Tuple(R.Object)):
         R.func_attr({"num_input": 4})
         with R.dataflow():
-            scaled_dot_product_attention: R.Tensor(
-                (1, 32, 32, 32), dtype="float32"
-            ) = R.nn.attention(query, key, value, scale=None, causal_mask=None)
+            scaled_dot_product_attention: R.Tensor((1, 32, 32, 32), dtype="float32") = (
+                R.nn.attention(query, key, value, scale=None, causal_mask=None)
+            )
             gv1: R.Tuple(R.Tensor((1, 32, 32, 32), dtype="float32"), R.Tuple(R.Object)) = (
                 scaled_dot_product_attention,
                 (_io,),
@@ -829,5 +827,76 @@ def test_empty():
     vm["test"](*effects)
 
 
+def test_sample():
+    from tvm import dlight
+
+    class Model(Module):
+        def foo(self, prob: Tensor, uniform_sample: Tensor):
+            z0 = op.multinomial_from_uniform(prob, uniform_sample)
+            return z0
+
+    m = Model()
+    mod, _ = m.export_tvm(
+        spec={
+            "foo": {
+                "prob": spec.Tensor([3, 5], "float32"),
+                "uniform_sample": spec.Tensor([3, 1], "float32"),
+            }
+        },
+        debug=True,
+    )
+
+    mod = relax.transform.LegalizeOps()(mod)
+    mod.show()
+
+    # target = tvm.target.Target("cuda -libs=thrust", host="llvm")
+    target = tvm.target.Target("cuda", host="llvm")
+    with target:
+        mod = dlight.ApplyDefaultSchedule(dlight.gpu.Fallback())(mod)
+        # mod = tir.transform.DefaultGPUSchedule()(mod)
+    ex = relax.build(mod, target)
+    dev = tvm.cuda(0)
+    vm = relax.VirtualMachine(ex, dev)
+
+    shape1 = (3, 5)
+    shape2 = (3, 1)
+    effects = vm["_initialize_effect"]()
+    import numpy as np
+
+    inputs = [
+        tvm.nd.array(np.random.rand(*shape1).astype(np.float32), dev),
+        tvm.nd.array(np.full((3, 1), 0.6).astype(np.float32), dev),
+        effects,
+    ]
+
+    input_0 = tvm.nd.array(
+        np.array(
+            [
+                [0.05548463, 0.13319702, 0.21289983, 0.26031765, 0.3381008],
+                [0.02430844, 0.06528492, 0.2515713, 0.29633388, 0.36250144],
+                [0.00928442, 0.08201023, 0.09577332, 0.37546444, 0.43746758],
+            ]
+        ).astype(np.float32),
+        dev,
+    )
+
+    input_cumsum = tvm.nd.array(
+        np.array(
+            [
+                [0.05548463, 0.18868165, 0.40158147, 0.6618991, 0.9999999],
+                [0.02430844, 0.08959336, 0.34116465, 0.6374985, 0.99999994],
+                [0.00928442, 0.09129465, 0.18706796, 0.5625324, 1.0],
+            ]
+        ).astype(np.float32),
+        dev,
+    )
+    inputs[0] = input_0
+
+    res = vm["foo"](*inputs)
+    print("inputs: ", inputs)
+    print("res: ", res[0].asnumpy())
+
+
 if __name__ == "__main__":
-    tvm.testing.main()
+    # tvm.testing.main()
+    test_sample()

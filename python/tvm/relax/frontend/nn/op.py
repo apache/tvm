@@ -1825,3 +1825,186 @@ def print_(tensor: Tensor):
     filename, line_number = inspect.getframeinfo(inspect.currentframe().f_back)[:2]
     line_info = f"{filename}:{line_number}"
     debug_func("vm.builtin.debug_print", tensor, _line_info=line_info)
+
+
+def less(a: Tensor, b: Tensor, name: str = "less") -> Tensor:
+    """Broadcasted element-wise comparison for (lhs < rhs).
+
+    Parameters
+    ----------
+    a : Tensor
+        The first input tensor.
+
+    b : Tensor
+        The second input tensor.
+
+    name : str
+        Name hint.
+
+    Returns
+    -------
+    result : Tensor
+        The computed result.
+    """
+    return wrap_nested(_op.less(a._expr, b._expr), name)
+
+
+def less_equal(a: Tensor, b: Tensor, name: str = "less_equal") -> Tensor:
+    """Broadcasted element-wise comparison for (lhs <= rhs).
+
+    Parameters
+    ----------
+    a : Tensor
+        The first input tensor.
+
+    b : Tensor
+        The second input tensor.
+
+    name : str
+        Name hint.
+
+    Returns
+    -------
+    result : Tensor
+        The computed result.
+    """
+    return wrap_nested(_op.less_equal(a._expr, b._expr), name)
+
+
+def greater(a: Tensor, b: Tensor, name: str = "greater") -> Tensor:
+    """Broadcasted element-wise comparison for (lhs > rhs).
+
+    Parameters
+    ----------
+    a : Tensor
+        The first input tensor.
+
+    b : Tensor
+        The second input tensor.
+
+    name : str
+        Name hint.
+
+    Returns
+    -------
+    result : Tensor
+        The computed result.
+    """
+    return wrap_nested(_op.greater(a._expr, b._expr), name)
+
+
+def greater_equal(a: Tensor, b: Tensor, name: str = "greater_equal") -> Tensor:
+    """Broadcasted element-wise comparison for (lhs >= rhs).
+
+    Parameters
+    ----------
+    a : Tensor
+        The first input tensor.
+
+    b : Tensor
+        The second input tensor.
+
+    name : str
+        Name hint.
+
+    Returns
+    -------
+    result : Tensor
+        The computed result.
+    """
+    return wrap_nested(_op.greater_equal(a._expr, b._expr), name)
+
+
+def equal(a: Tensor, b: Tensor, name: str = "equal") -> Tensor:
+    """Broadcasted element-wise comparison for (lhs == rhs).
+
+    Parameters
+    ----------
+    a : Tensor
+        The first input tensor.
+
+    b : Tensor
+        The second input tensor.
+
+    name : str
+        Name hint.
+
+    Returns
+    -------
+    result : Tensor
+        The computed result.
+    """
+    return wrap_nested(_op.equal(a._expr, b._expr), name)
+
+
+def not_equal(a: Tensor, b: Tensor, name: str = "not_equal") -> Tensor:
+    """Broadcasted element-wise comparison for (lhs != rhs).
+
+    Parameters
+    ----------
+    a : Tensor
+        The first input tensor.
+
+    b : Tensor
+        The second input tensor.
+
+    name : str
+        Name hint.
+
+    Returns
+    -------
+    result : Tensor
+        The computed result.
+    """
+    return wrap_nested(_op.not_equal(a._expr, b._expr), name)
+
+
+def multinomial_from_uniform(prob: Tensor, uniform_sample: Tensor):
+    """
+    uniform_sample  = 0.6
+    cumsum = [0.5, 0.2, 0.3]
+    cumsum_prob = [0.5, 0.7, 1]
+    cmp_info = [1, 1, 0]
+    """
+    from tvm.script import tir as T
+    from tvm.target import Target
+    from tvm.topi.cuda.scan import inclusive_scan, cumsum
+
+    batch, vocab = prob.shape
+    with Target.current(allow_none=True) or Target(
+        {
+            "kind": "cuda",
+            "max_num_threads": 1024,
+            "arch": "sm_50",
+        }
+    ):
+        cumsum_prob = tensor_expr_op(inclusive_scan, "cumsum", args=[prob, 1])
+        # cumsum_prob = tensor_expr_op(cumsum, "cumsum", args=[prob, 1, "int32"])  # type: ignore[list-item]
+
+    # return cumsum_prob
+    cmp_info = cumsum_prob < uniform_sample  # TODO (yongwww): fuse here. <=/>
+    cmp_info = cmp_info.astype("int8")
+    # return cmp_info
+
+    @T.prim_func(private=True)
+    def _get_sample_index(A: T.handle, B: T.handle):
+        batch, vocab = T.int64(), T.int64()
+        cmp_info = T.match_buffer(A, [batch, vocab], "int8")
+        output_index = T.match_buffer(B, [batch, 1], "int32")
+
+        for i0 in T.parallel(batch):
+            for i1 in T.parallel(vocab):
+                with T.block("T_get_sample_index"):
+                    ax0, ax1 = T.axis.remap("SS", [i0, i1])
+                    # if cmp_info[ax0, ax1] == 1 and (cmp_info[ax0, ax1 + 1] == 0):
+                    if cmp_info[ax0, ax1] == 1 and (
+                        ax1 == vocab - 1 or cmp_info[ax0, ax1 + 1] == 0
+                    ):
+                        output_index[ax0, 0] = ax1
+
+    return tensor_ir_op(
+        _get_sample_index,
+        "get_sample_index",
+        args=[cmp_info],
+        out=Tensor.placeholder([batch, 1], "int32"),
+    )
