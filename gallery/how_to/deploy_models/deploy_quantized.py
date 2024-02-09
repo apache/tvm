@@ -27,6 +27,9 @@ In this tutorial, we will import a GluonCV pre-trained model on ImageNet to
 Relay, quantize the Relay model and then perform the inference.
 """
 
+import logging
+import os
+import sys
 
 import tvm
 from tvm import te
@@ -34,8 +37,7 @@ from tvm import relay
 import mxnet as mx
 from tvm.contrib.download import download_testdata
 from mxnet import gluon
-import logging
-import os
+
 
 batch_size = 1
 model_name = "resnet18_v1"
@@ -157,7 +159,11 @@ def run_inference(mod):
 
 
 def main():
-    mod, params = get_model()
+    try:
+        mod, params = get_model()
+    except RuntimeError:
+        print("Downloads from mxnet no longer supported", file=sys.stderr)
+        return
     mod = quantize(mod, params, data_aware=True)
     run_inference(mod)
 

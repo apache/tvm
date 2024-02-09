@@ -44,6 +44,8 @@ get it to run, you will need to wrap the body of this tutorial in a :code:`if
 __name__ == "__main__":` block.
 """
 
+import os
+import sys
 
 import numpy as np
 
@@ -51,7 +53,7 @@ import tvm
 from tvm import relay, auto_scheduler
 import tvm.relay.testing
 from tvm.contrib import graph_executor
-import os
+
 
 #################################################################
 # Define a Network
@@ -169,7 +171,11 @@ device_key = "rk3399"
 
 # Extract tasks from the network
 print("Extract tasks...")
-mod, params, input_shape, output_shape = get_network(network, batch_size, layout, dtype=dtype)
+try:
+    mod, params, input_shape, output_shape = get_network(network, batch_size, layout, dtype=dtype)
+except RuntimeError:
+    print("Downloads from mxnet no longer supported", file=sys.stderr)
+    sys.exit(0)
 tasks, task_weights = auto_scheduler.extract_tasks(mod["main"], params, target)
 
 for idx, task in enumerate(tasks):
