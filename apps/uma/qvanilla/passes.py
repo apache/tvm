@@ -26,8 +26,16 @@ from tvm.tir import buffer
 
 @tvm.tir.transform.prim_func_pass(opt_level=2)
 class QVanillaAcceleratorConv2dPass:
+    """
+      detects the matched block, extracts the required arguments and maps it to
+      the external call function (the respective accelerator kernel).
+
+      _EXTERNAL_FUNCTION_NAME : name of the accelerator kernel defined in the included 
+      interface file in codegen.
+      _TVM_BLOCK_MATCH_NAME : name of the matched TIR block in PrimFunc (based on the strategy)
+
+    """
     _EXTERNAL_FUNCTION_NAME = "q_vanilla_accelerator_conv2dnchw"
-    # _TVM_BLOCK_MATCH_NAME = "conv2d_nchw"
     _TVM_BLOCK_MATCH_NAME = "compute_2"
     def transform_function(
         self, func: tvm.tir.PrimFunc, mod: tvm.ir.IRModule, ctx: tvm.ir.transform.PassContext
@@ -100,7 +108,6 @@ class QVanillaAcceleratorConv2dPass:
                         s1.append(s.buffer.data)
                         s2.append(s.value)
 
-
                 tvm.tir.stmt_functor.post_order_visit(func.body, _visit)
                 
                 for i in range(len(s1)):
@@ -109,10 +116,7 @@ class QVanillaAcceleratorConv2dPass:
                         
                         zp.append(s2[i])
                 block_idx = len(s1) - 3      
-            
-              
-                ###
-                
+
                 conv2d_block = sch.get_block(cls._TVM_BLOCK_MATCH_NAME)
                 rv_loops = sch.get_loops(conv2d_block)
                 
@@ -180,7 +184,7 @@ def tir_call(ib: tvm.tir.ir_builder, extern: bool, name: str, *args):
 
 @tvm.ir.transform.module_pass(opt_level=0)
 class ConvertLayout:
-    print("relay pass")
+
     def transform_module(self, mod, ctx):
        
         # My pass functionality...
@@ -191,26 +195,19 @@ class ConvertLayout:
                                     relay.transform.ConvertLayout(desired_layouts)])
         with tvm.transform.PassContext(opt_level=3):
             mod = seq(mod)
-        
-        print("after convert layout")
+
         return mod
 
 @tvm.ir.transform.module_pass(opt_level=0)
 class Canonicalize:
-    print("Canonicalize")
+
     def transform_module(self, mod, ctx):
-        print("Canonicalize_transform")
-        print(mod)
-        # My pass functionality...
-        
-        # Convert the layout to NCHW
-        # RemoveUnunsedFunctions is used to clean up the graph.
+
         seq = tvm.transform.Sequential([relay.transform.RemoveUnusedFunctions(),
                                     relay.qnn.transform.CanonicalizeOps()])
         with tvm.transform.PassContext(opt_level=3):
             mod = seq(mod)
         
-        print(mod)
         return mod
         
         

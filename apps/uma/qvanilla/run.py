@@ -43,7 +43,7 @@ def generate_tflite_file(tflite_filename):
     mnist = tf.keras.datasets.mnist
     (x_train, y_train), (x_test, y_test) = mnist.load_data()
     x_train, x_test = x_train / 255.0, x_test / 255.0
-    print(x_train.shape)
+    
     x_train, x_test = x_train.reshape(-1, 28, 28, 1), x_test.reshape(-1, 28, 28, 1)
     tf_model = tf.keras.models.Sequential(
         [
@@ -96,7 +96,7 @@ def main():
 
     uma_backend = QVanillaAcceleratorBackend()
     uma_backend.register()
-    print("registering done")
+   
     target = tvm.target.Target("q_vanilla_accelerator", host=tvm.target.Target("c"))
     target_c = tvm.target.Target("c")
     
@@ -106,7 +106,7 @@ def main():
     input_list = {str(tf_model_details[0]["name"]): data}
     output_list = generate_ref_data(mod, input_list, params)
 
-    print("before partitioning")
+
     mod = uma_backend.partition(mod)
       
  
@@ -129,8 +129,6 @@ def main():
         test_dir=str(export_directory),
     )
 
-
-    print("compiling")
 
     
 if __name__ == "__main__":

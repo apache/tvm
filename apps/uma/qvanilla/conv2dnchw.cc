@@ -61,7 +61,6 @@ int q_vanilla_accelerator_conv2dnchw(int8_t* q_vanilla_accelerator_0_i0, int8_t*
         for (int32_t ic_ = 0; ic_ < ic; ++ic_) {
           for (int32_t kh_ = 0; kh_ < kh; ++kh_) {
             for (int32_t kw_ = 0; kw_ < kh; ++kw_) {
-              // int32_t cse_var_3 = (((oc_ * ih * iw) + (oh * iw)) + ow);
               if (((ic_ == 0) && (kh_ == 0)) && (kw_ == 0)) {
                 compute[cse_var_3] = 0;
               }

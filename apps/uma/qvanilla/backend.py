@@ -27,7 +27,7 @@ class QVanillaAcceleratorBackend(UMABackend):
     """UMA backend for the QVanillaAccelerator accelerator."""
 
     def __init__(self):
-        print("init!")
+        
         super().__init__()
 
         # Target configuration
