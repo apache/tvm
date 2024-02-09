@@ -54,6 +54,8 @@ log file to get the best knob parameters.
 # Now return to python code. Import packages.
 
 import os
+import sys
+
 from mxnet.gluon.model_zoo import vision
 import numpy as np
 from PIL import Image
@@ -471,7 +473,11 @@ def tune_and_evaluate(tuning_opt):
 
 
 # Run the tuning and evaluate the results
-tune_and_evaluate(tuning_option)
+try:
+    tune_and_evaluate(tuning_option)
+except RuntimeError:
+    print("Downloads from mxnet no longer supported", file=sys.stderr)
+    sys.exit(0)
 
 ######################################################################
 # Sample Output
