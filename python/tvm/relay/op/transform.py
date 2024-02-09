@@ -18,6 +18,8 @@
 # pylint: disable=import-outside-toplevel
 """Transform operators."""
 
+from typing import Optional
+
 from ...tir import expr as _expr
 from ..expr import Constant, Expr, Tuple, TupleWrapper, const
 from . import _make
@@ -1939,9 +1941,8 @@ def stft(
     return _make.stft(data, n_fft, hop_length, win_length, window, normalized, onesided)
 
 
-def dft(re_data, im_data, inverse=False):
-    """
-    Computes the discrete Fourier transform of input (calculation along the last axis).
+def dft(re_data, im_data, inverse: Optional[bool]=False):
+    """Computes the discrete Fourier transform of input (calculation along the last axis).
     This gives frequency components of the signal as they change over time.
 
     Parameters
@@ -1953,8 +1954,11 @@ def dft(re_data, im_data, inverse=False):
         N-D tensor, imaginary part of the input signal.
         If the signal is real, then the values of this tensor are zeros.
 
-    inverse : bool
+    inverse : Optional[bool]
+
         Whether to perform the inverse discrete fourier transform.
+        Providing None is equivalent to False, and is maintained for
+        compatibility.
 
     Returns
     -------
@@ -1962,7 +1966,11 @@ def dft(re_data, im_data, inverse=False):
         The Fourier Transform of the input (Real part).
     im_output : relay.Expr
         The Fourier Transform of the input (Imaginary part).
+
     """
+    if inverse is None:
+        inverse = False
+
     return TupleWrapper(_make.dft(re_data, im_data, inverse), 2)
 
 

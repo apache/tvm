@@ -137,6 +137,8 @@ For::For(Var loop_var, PrimExpr min, PrimExpr extent, ForKind kind, Stmt body,
   ICHECK(loop_var.dtype() == min.dtype()) << loop_var.dtype() << " vs " << min.dtype();
   ICHECK(loop_var.dtype() == extent.dtype()) << loop_var.dtype() << " vs " << extent.dtype();
 
+  annotations = Downcast<Map<String, ObjectRef>>(NormalizeAttributeObject(annotations));
+
   ObjectPtr<ForNode> node = make_object<ForNode>();
   node->loop_var = std::move(loop_var);
   node->min = std::move(min);
@@ -235,6 +237,8 @@ Allocate::Allocate(Var buffer_var, DataType dtype, Array<PrimExpr> extents, Prim
   ICHECK(condition.defined());
   ICHECK(condition.dtype().is_bool());
 
+  annotations = Downcast<Map<String, ObjectRef>>(NormalizeAttributeObject(annotations));
+
   ObjectPtr<AllocateNode> node = make_object<AllocateNode>();
   node->buffer_var = std::move(buffer_var);
   node->dtype = dtype;
@@ -288,6 +292,8 @@ AllocateConst::AllocateConst(Var buffer_var, DataType dtype, Array<PrimExpr> ext
   }
   ICHECK(body.defined());
   ICHECK(data_or_idx.defined());
+
+  annotations = Downcast<Map<String, ObjectRef>>(NormalizeAttributeObject(annotations));
 
   ObjectPtr<AllocateConstNode> node = make_object<AllocateConstNode>();
   node->buffer_var = std::move(buffer_var);
