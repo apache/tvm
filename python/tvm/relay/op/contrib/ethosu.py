@@ -1948,28 +1948,31 @@ class MatMulFixedPointParams:
 
     @requires_vela
     def __init__(self, func_body):
-        from tvm.relay.backend.contrib.ethosu.util import QDenseArgs, get_fixed_point_fraction_size
+        from tvm.relay.backend.contrib.ethosu.util import QDenseArgs
 
-        self.fraction_size = get_fixed_point_fraction_size()
+        dense_fixed_point = func_body.args[0]
+        dense = dense_fixed_point.args[0]
+        # fixed_point_multiply relay operation uses multiplier with 31 fractional bits
+        # so to determine the size of the fraction use the formula: 31 - shift
+        self.fraction_size = 31 - dense_fixed_point.attrs.shift
         fract_scale = tvm.relay.Constant(tvm.nd.array(np.array(1 / 2**self.fraction_size)))
         fract_zero_point = tvm.relay.Constant(tvm.nd.array(np.array(0, dtype="int32")))
-        dense = func_body
 
         self.activation = None
         self.weights = TensorParams(
-            dense.args[QDenseArgs.WEIGHTS.value],
+            dense.args[QDenseArgs.WEIGHTS.value].args[0].args[0],
             None,
             fract_scale,
             fract_zero_point,
         )
         self.ifm = TensorParams(
-            dense.args[QDenseArgs.IFM.value],
+            dense.args[QDenseArgs.IFM.value].args[0].args[0],
             None,
             fract_scale,
             fract_zero_point,
         )
         self.ofm = TensorParams(
-            dense,
+            func_body,
             None,
             fract_scale,
             fract_zero_point,
@@ -1995,7 +1998,13 @@ class MatMulFixedPointParams:
 
 
 def matmul_fixed_point_pattern():
-    return is_op("nn.dense")(wildcard(), wildcard())
+    ifm = is_op("cast")(wildcard())
+    ifm2 = is_op("cast")(wildcard())
+    ifm = is_op("fixed_point_multiply")(ifm)
+    ifm2 = is_op("fixed_point_multiply")(ifm2)
+    dense = is_op("nn.dense")(ifm, ifm2)
+    dense = is_op("fixed_point_multiply")(dense)
+    return is_op("cast")(dense)
 
 
 class HardSwishParams:

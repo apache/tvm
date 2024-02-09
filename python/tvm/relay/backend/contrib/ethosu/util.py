@@ -264,19 +264,6 @@ def is_copying_constants_disabled() -> bool:
     return bool(compiler_attrs.disable_copying_constants)
 
 
-def is_fixed_point_enabled() -> bool:
-    """Determine whether calculation with fixed point is enabled"""
-    compiler_attrs = tvm.get_global_func("relay.ext.ethos-u.get_compiler_attrs")()
-    return bool(compiler_attrs.enable_fixed_point)
-
-
-def get_fixed_point_fraction_size() -> int:
-    """Function to get the number of bits used to
-    represent the fractional part of a fixed point number"""
-    compiler_attrs = tvm.get_global_func("relay.ext.ethos-u.get_compiler_attrs")()
-    return int(compiler_attrs.fixed_point_fraction_size)
-
-
 def is_striping_enabled() -> bool:
     """Determine whether the cascader is enabled"""
     compiler_attrs = tvm.get_global_func("relay.ext.ethos-u.get_compiler_attrs")()

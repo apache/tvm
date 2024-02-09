@@ -1637,33 +1637,33 @@ def test_ethosu_matmul_fixed_point(accel_type, ifm_shape, ofm_channels, fract_si
     def create_model():
         ifm = relay.var("ifm", shape=ifm_shape, dtype=dtype)
         ifm2 = relay.var("ifm2", shape=weights_shape, dtype=dtype)
-        dense = relay.nn.dense(ifm, ifm2)
+        ifm_fixed_point = relay.cast(ifm, "int32")
+        ifm2_fixed_point = relay.cast(ifm2, "int32")
+        ifm_fixed_point = relay.fixed_point_multiply(ifm_fixed_point, 2**31 - 1, 0)
+        ifm2_fixed_point = relay.fixed_point_multiply(ifm2_fixed_point, 2**31 - 1, 0)
+        dense = relay.nn.dense(ifm_fixed_point, ifm2_fixed_point)
+        dense = relay.fixed_point_multiply(dense, 1, 16)
+        dense = relay.cast(dense, dtype)
         return tvm.IRModule.from_expr(relay.Function([ifm, ifm2], dense))
-
-    def generate_ref(input_data, weights):
-        return np.matmul(input_data, np.transpose(weights))
 
     def convert_to_fixed_point(arr, fract_size):
         fract_fact = 0b1 << fract_size
         return np.array(arr * fract_fact, dtype=np.int16)
 
     cpu_mod = create_model()
+    ethosu_mod = partition_for_ethosu(cpu_mod)
+
     input_data = {
         "ifm": np.random.uniform(-0.5, 0.5, size=ifm_shape),
         "ifm2": np.random.uniform(-0.5, 0.5, size=weights_shape),
     }
-    output_data = generate_ref(input_data["ifm"], input_data["ifm2"])
-
     input_data = {
         "ifm": convert_to_fixed_point(input_data["ifm"], fract_size),
         "ifm2": convert_to_fixed_point(input_data["ifm2"], fract_size),
     }
-    output_data = {"output": convert_to_fixed_point(output_data, fract_size)}
+    output_data = generate_ref_data(cpu_mod, input_data)
+    output_data = {"output": output_data["output"].astype("int16")}
     tolerance = convert_to_fixed_point(tolerance, fract_size)
-
-    config = {"fixed_point_fraction_size": fract_size}
-    with tvm.transform.PassContext(config={"relay.ext.ethos-u.options": config}):
-        ethosu_mod = partition_for_ethosu(cpu_mod)
 
     infra.compare_ethosu_with_reference(
         ethosu_mod,
@@ -1672,7 +1672,6 @@ def test_ethosu_matmul_fixed_point(accel_type, ifm_shape, ofm_channels, fract_si
         accel_type,
         enable_cascader=False,
         output_tolerance=tolerance,
-        fixed_point_fraction_size=fract_size,
     )
 
 
