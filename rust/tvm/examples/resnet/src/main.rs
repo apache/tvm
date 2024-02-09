@@ -31,6 +31,10 @@ use tvm_rt::graph_rt::GraphRt;
 use tvm_rt::*;
 
 fn main() -> anyhow::Result<()> {
+    // Currently disabled, as it depends on the no-longer-supported
+    // mxnet repo to download resnet.
+
+    /*
     let dev = Device::cpu(0);
     println!("{}", concat!(env!("CARGO_MANIFEST_DIR"), "/cat.png"));
 
@@ -134,6 +138,7 @@ fn main() -> anyhow::Result<()> {
         "input image belongs to the class `{}` with probability {}",
         label, max_prob
     );
+    */
 
     Ok(())
 }

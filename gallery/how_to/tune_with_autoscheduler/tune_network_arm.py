@@ -49,6 +49,7 @@ __name__ == "__main__":` block.
 
 import numpy as np
 import os
+import sys
 
 import tvm
 from tvm import relay, auto_scheduler
@@ -264,9 +265,13 @@ log_file = "%s-%s-B%d-%s.json" % (network, layout, batch_size, target.kind.name)
 
 # Extract tasks from the network
 print("Get model...")
-mod, params, input_shape, output_shape = get_network(
-    network, batch_size, layout, dtype=dtype, use_sparse=use_sparse
-)
+try:
+    mod, params, input_shape, output_shape = get_network(
+        network, batch_size, layout, dtype=dtype, use_sparse=use_sparse
+    )
+except RuntimeError:
+    print("Downloads from mxnet no longer supported", file=sys.stderr)
+    sys.exit(0)
 print("Extract tasks...")
 tasks, task_weights = auto_scheduler.extract_tasks(mod["main"], params, target)
 
