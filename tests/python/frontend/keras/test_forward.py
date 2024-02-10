@@ -285,6 +285,16 @@ class TestKeras:
         keras_model = keras_mod.models.Model(data, x)
         verify_keras_frontend(keras_model, need_transpose=False)
 
+        data = keras_mod.layers.Input(shape=(120, 2560), name="image_set")
+        x = keras_mod.layers.Dense(1, activation="linear", name="e")(data)
+        keras_model = keras_mod.models.Model(data, x)
+        verify_keras_frontend(keras_model, need_transpose=False)
+
+        data = keras_mod.layers.Input(shape=(10, 12, 2560), name="image_set")
+        x = keras_mod.layers.Dense(32, activation="linear", name="e")(data)
+        keras_model = keras_mod.models.Model(data, x)
+        verify_keras_frontend(keras_model, need_transpose=False)
+
     def test_forward_permute(self, keras_mod):
         data = keras_mod.layers.Input(shape=(2, 3, 4))
         x = keras_mod.layers.Permute([2, 3, 1])(data)

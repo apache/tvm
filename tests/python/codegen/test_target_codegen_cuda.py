@@ -1069,6 +1069,8 @@ def test_cuda_save_kernels_for_profiling():
     check_cuda(64, 2)
 
 
+@tvm.testing.requires_gpu
+@tvm.testing.requires_cuda
 def test_cuda_thread_sync_inside_condition():
     @T.prim_func
     def func1(A: T.Buffer((4, 4), "float32")) -> None:

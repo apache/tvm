@@ -162,8 +162,7 @@ def test_reuse_of_env_thread_in_function_is_mandatory():
         with T.launch_thread("threadIdx.x", 256) as threadIdx_x:
             A[threadIdx_x] = A[threadIdx_x] + 2.0
 
-    with pytest.raises(ValueError):
-        tvm.tir.analysis.verify_well_formed(func)
+    tvm.tir.analysis.verify_well_formed(func)
 
 
 def test_reuse_of_env_thread_across_functions_is_ill_formed():

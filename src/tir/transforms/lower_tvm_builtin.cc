@@ -320,13 +320,16 @@ class BuiltinLower : public StmtExprMutator {
   PrimExpr VisitExpr_(const CallNode* op) final {
     if (op->op.same_as(builtin::tvm_call_packed())) {
       return MakeCallPackedGeneric(op, 0, builtin::tvm_call_packed_lowered(),
-                                   /* use_string_lookup */ true);
+                                   /* use_string_lookup */ true,
+                                   /* use_last_value_as_traced_value*/ false);
     } else if (op->op.same_as(builtin::tvm_call_cpacked())) {
       return MakeCallPackedGeneric(op, 0, builtin::tvm_call_cpacked_lowered(),
-                                   /* use_string_lookup */ false);
+                                   /* use_string_lookup */ false,
+                                   /* use_last_value_as_traced_value*/ false);
     } else if (op->op.same_as(builtin::tvm_call_trace_packed())) {
       return MakeCallPackedGeneric(op, 0, builtin::tvm_call_trace_packed_lowered(),
-                                   /* use_string_lookup */ true);
+                                   /* use_string_lookup */ true,
+                                   /* use_last_value_as_traced_value*/ true);
     } else if (op->op.same_as(builtin::anylist_setitem_call_packed())) {
       return MakeAnyListSetItemCallPacked(op, builtin::tvm_call_packed_lowered(), true);
     } else if (op->op.same_as(builtin::anylist_setitem_call_cpacked())) {
@@ -510,7 +513,7 @@ class BuiltinLower : public StmtExprMutator {
     PrimExpr list_handle = op->args[0];
     PrimExpr list_index = op->args[1];
 
-    Call call = MakeCallPackedGeneric(op, 2, lowered_op, use_string_lookup);
+    Call call = MakeCallPackedGeneric(op, 2, lowered_op, use_string_lookup, false);
     PrimExpr value_stack = call->args[1];
     PrimExpr tcode_stack = call->args[2];
     // The stack offset of return value stack_end
@@ -528,9 +531,10 @@ class BuiltinLower : public StmtExprMutator {
    * \param name_offset The beginning of function name and call packed section.
    * \param lowered_packed_op The target lowered op.
    * \param use_string_lookup Whether to lookup function by string.
+   * \param pass_last_arg_as_traced_value Whether to pass last argument as traced value
    */
   Call MakeCallPackedGeneric(const CallNode* op, size_t name_offset, const Op& lowered_packed_op,
-                             bool use_string_lookup) {
+                             bool use_string_lookup, bool pass_last_arg_as_traced_value) {
     auto& scope = alloca_scope_.back();
     auto& prep_seq = prep_seq_stack_.back();
 
@@ -571,6 +575,7 @@ class BuiltinLower : public StmtExprMutator {
                                    ConstInt32(arg_stack_begin + num_args)};
     // cpacked call resource_handle
     if (!use_string_lookup) {
+      ICHECK(!pass_last_arg_as_traced_value);
       PrimExpr last_arg = op->args[args_end];
       const VarNode* var_node = last_arg.as<VarNode>();
       if (var_node != nullptr) {
@@ -579,6 +584,10 @@ class BuiltinLower : public StmtExprMutator {
       } else {
         packed_args.push_back(last_arg);
       }
+    } else if (pass_last_arg_as_traced_value) {
+      // pass in last element as traced value
+      // used by call_packed_traced
+      packed_args.push_back(op->args[op->args.size() - 1]);
     }
     return Call(op->dtype, lowered_packed_op, packed_args);
   }

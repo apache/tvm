@@ -318,7 +318,17 @@ void TIRVisitorWithPath::VisitStmt_(const BlockNode* op, ObjectPath path) {
     for (size_t i = 0; i < op->match_buffers.size(); i++) {
       auto buf = op->match_buffers[i]->buffer;
       auto buffer_path = match_path->ArrayIndex(i)->Attr("buffer");
+      auto buffer_strides_path = buffer_path->Attr("strides");
       context.push_back(WithDef(buf->data, buffer_path->Attr("data")));
+      // Define buffer strides and elem_offset if they are vars
+      if (const auto* v = buf->elem_offset.as<VarNode>()) {
+        context.push_back(WithDef(GetRef<Var>(v), buffer_path->Attr("elem_offset")));
+      }
+      for (size_t i = 0; i < buf->strides.size(); ++i) {
+        if (const auto* v = buf->strides[i].as<VarNode>()) {
+          context.push_back(WithDef(GetRef<Var>(v), buffer_strides_path->ArrayIndex(i)));
+        }
+      }
       context.push_back(WithDef(buf, buffer_path));
     }
   }

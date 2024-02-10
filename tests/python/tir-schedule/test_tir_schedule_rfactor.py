@@ -1582,6 +1582,7 @@ def test_reduction_rfactor_argmax_body_bufferstore_value_not_var():
         s.rfactor(ki, 1)
 
 
+@pytest.mark.xfail(reason="The input IR is not well-formed")
 def test_reduction_rfactor_argmax_body_bufferstore_value_unbound_var():
     s = tir.Schedule(argmax_split_body_bufferstore_value_unbound_var, debug_mask="all")
     argmax = s.get_block("argmax")

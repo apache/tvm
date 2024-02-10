@@ -244,8 +244,8 @@ def tir_extern(a: T.handle, b: T.handle, c: T.handle) -> None:
     C = T.match_buffer(c, (128, 128), elem_offset=off3)
     # body
     with T.block("C"):
-        T.reads([A[0:128, 0:128], B[0:128, 0:128]])
-        T.writes([C[0:128, 0:128]])
+        T.reads()
+        T.writes()
         T.evaluate(
             T.tvm_call_packed(
                 "tvm.contrib.cblas.matmul",
@@ -778,8 +778,8 @@ def test_extern_with_explicit_buffer_access():
         P = T.match_buffer(var_P, [1], dtype="float32", offset_factor=1)
         C = T.match_buffer(var_C, [128, 128], dtype="float32", offset_factor=1)
         with T.block("C"):
-            T.reads(A[0:128, 0:128], B[0:128, 0:128], P[0])
-            T.writes(C[0:128, 0:128])
+            T.reads()
+            T.writes()
             T.call_extern("myfunc", A.data, B.data, C.data, P[0], dtype="")
 
     _check_workload(te_extern, tir_extern)

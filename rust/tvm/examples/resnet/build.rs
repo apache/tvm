@@ -21,6 +21,10 @@ use anyhow::{Context, Result};
 use std::{io::Write, path::Path, process::Command};
 
 fn main() -> Result<()> {
+    // Currently disabled, as it depends on the no-longer-supported
+    // mxnet repo to download resnet.
+
+    /*
     let out_dir = std::env::var("CARGO_MANIFEST_DIR")?;
     let python_script = concat!(env!("CARGO_MANIFEST_DIR"), "/src/build_resnet.py");
     let synset_txt = concat!(env!("CARGO_MANIFEST_DIR"), "/synset.txt");
@@ -52,6 +56,8 @@ fn main() -> Result<()> {
             .unwrap_or("")
     );
     println!("cargo:rustc-link-search=native={}", out_dir);
+
+    */
 
     Ok(())
 }

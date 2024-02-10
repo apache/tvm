@@ -58,6 +58,8 @@ If you would like to try this with your own datatype library, first bring the li
 # --------------------
 #
 # We'll begin by writing a simple program in TVM; afterwards, we will re-write it to use custom datatypes.
+import sys
+
 import tvm
 from tvm import relay
 
@@ -253,7 +255,11 @@ def get_cat_image():
     return np.asarray(img, dtype="float32")
 
 
-module, params = get_mobilenet()
+try:
+    module, params = get_mobilenet()
+except RuntimeError:
+    print("Downloads from mxnet no longer supported", file=sys.stderr)
+    sys.exit(0)
 
 ######################################################################
 # It's easy to execute MobileNet with native TVM:
