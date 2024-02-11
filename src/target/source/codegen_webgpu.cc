@@ -599,8 +599,8 @@ void CodeGenWebGPU::VisitStmt_(const AllocateNode* op) {
     PrintType(op->dtype, this->decl_stream);
     this->decl_stream << ", " << constant_size << ">;\n";
   } else if (storage_scope.rank == runtime::StorageRank::kLocal) {
-    // TODO: These code would cause non-uniformity as it introduces variables in module scope rather
-    // than function scope; but it was included for some unknown reasons; kept for now.
+    // TODO(Charlie): These code would cause non-uniformity as it introduces variables in module
+    // scope rather than function scope; but it was included for some unknown reasons; kept for now.
     // this->decl_stream << "var<private> " << vid << " : array<";
     // PrintType(op->dtype, this->decl_stream);
     // this->decl_stream << ", " << constant_size << ">;\n";
