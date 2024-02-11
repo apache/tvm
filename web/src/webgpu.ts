@@ -817,23 +817,13 @@ export class WebGPUContext {
       rawBytes.set(rawBytes);
       nbytes = nbytes + toPad;
     }
-    try {
-      this.device.queue.writeBuffer(
-        this.gpuBufferFromPtr(to),
-        toOffset,
-        rawBytes,
-        0,
-        nbytes
-      );
-    } catch (err) {
-      console.log("CHARLIE deviceCopyToGPU ERR");
-      console.log("rawBytes: ", rawBytes);
-      console.log("nbytes: ", nbytes);
-      console.log("toOffset: ", toOffset);
-      console.log(err);
-      throw new Error(err);
-    }
-
+    this.device.queue.writeBuffer(
+      this.gpuBufferFromPtr(to),
+      toOffset,
+      rawBytes,
+      0,
+      nbytes
+    );
   }
 
   private deviceCopyFromGPU(
