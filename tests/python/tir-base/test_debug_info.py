@@ -141,7 +141,7 @@ def test_llvm_ir_debug_info():
     source = runtime_module.get_source()
 
     locations = find_di_locations(source)
-    assert len(locations) == 34
+    assert len(locations) == 35
 
 
 def test_llvm_ir_debug_accuracy():
