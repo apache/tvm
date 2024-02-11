@@ -1941,7 +1941,7 @@ def stft(
     return _make.stft(data, n_fft, hop_length, win_length, window, normalized, onesided)
 
 
-def dft(re_data, im_data, inverse: Optional[bool]=False):
+def dft(re_data, im_data, inverse: Optional[bool] = False):
     """Computes the discrete Fourier transform of input (calculation along the last axis).
     This gives frequency components of the signal as they change over time.
 
