@@ -63,10 +63,12 @@ class ROCMModuleNode : public runtime::ModuleNode {
   }
 
   const char* type_key() const final { return "hip"; }
+  int GetPropertyMask() const final {
+    return ModulePropertyMask::kBinarySerializable | ModulePropertyMask::kRunnable;
+  }
+  PackedFunc GetFunction(const String& name, const ObjectPtr<Object>& sptr_to_self) final;
 
-  PackedFunc GetFunction(const std::string& name, const ObjectPtr<Object>& sptr_to_self) final;
-
-  void SaveToFile(const std::string& file_name, const std::string& format) final {
+  void SaveToFile(const String& file_name, const String& format) final {
     std::string fmt = GetFileFormat(file_name, format);
     std::string meta_file = GetMetaFilePath(file_name);
     // note: llvm and asm formats are not laodable, so we don't save them
@@ -81,7 +83,7 @@ class ROCMModuleNode : public runtime::ModuleNode {
     stream->Write(data_);
   }
 
-  std::string GetSource(const std::string& format) final {
+  String GetSource(const String& format) final {
     if (format == fmt_) {
       return data_;
     }
@@ -188,8 +190,7 @@ class ROCMWrappedFunc {
   LaunchParamConfig launch_param_config_;
 };
 
-PackedFunc ROCMModuleNode::GetFunction(const std::string& name,
-                                       const ObjectPtr<Object>& sptr_to_self) {
+PackedFunc ROCMModuleNode::GetFunction(const String& name, const ObjectPtr<Object>& sptr_to_self) {
   ICHECK_EQ(sptr_to_self.get(), this);
   ICHECK_NE(name, symbol::tvm_module_main) << "Device function do not have main";
   auto it = fmap_.find(name);
@@ -197,7 +198,7 @@ PackedFunc ROCMModuleNode::GetFunction(const std::string& name,
   const FunctionInfo& info = it->second;
   ROCMWrappedFunc f;
   f.Init(this, sptr_to_self, name, info.arg_types.size(), info.launch_param_tags);
-  return PackFuncPackedArg(f, info.arg_types);
+  return PackFuncPackedArgAligned(f, info.arg_types);
 }
 
 Module ROCMModuleCreate(std::string data, std::string fmt,
