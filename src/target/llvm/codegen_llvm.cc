@@ -2200,7 +2200,7 @@ llvm::DIType* CodeGenLLVM::GetDebugType(const Type& ty_tir) {
   return GetDebugType(ty_tir, GetLLVMType(ty_tir));
 }
 llvm::DIType* CodeGenLLVM::GetDebugType(const Type& ty_tir, llvm::Type* ty_llvm) {
-  if (ty_llvm == t_void_) {
+  if (ty_llvm == nullptr || ty_llvm == t_void_) {
     return nullptr;
 
   } else if (ty_llvm->isPointerTy()) {
