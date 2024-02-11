@@ -1004,6 +1004,22 @@ Expr MakeVMAllocTensor(Expr storage, PrimValue offset, Expr shape, DataTypeImm d
 
 TVM_REGISTER_GLOBAL("relax.op.vm.alloc_tensor").set_body_typed(MakeVMAllocTensor);
 
+// vm copy_tensor_from_to
+
+RELAY_REGISTER_OP("relax.vm.copy_tensor_from_to")
+    .set_num_inputs(2)
+    .add_argument("src", "Expr", "The tensor to copy from")
+    .add_argument("dst", "Expr", "The tensor to copy to")
+    .set_attr<FInferStructInfo>("FInferStructInfo", ReturnVoidStructInfo)
+    .set_attr<Bool>("FPurity", Bool(true));
+
+Expr MakeVMCopyTensor(Expr src, Expr dst) {
+  static const Op& op = Op::Get("relax.vm.copy_tensor_from_to");
+  return Call(op, {src, dst}, Attrs(), {});
+}
+
+TVM_REGISTER_GLOBAL("relax.op.vm.copy_tensor_from_to").set_body_typed(MakeVMCopyTensor);
+
 // vm kill_object
 
 TVM_REGISTER_OP("relax.vm.kill_object")

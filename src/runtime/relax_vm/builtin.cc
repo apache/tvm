@@ -410,6 +410,10 @@ TVM_REGISTER_GLOBAL("vm.builtin.reshape").set_body_typed([](NDArray data, ShapeT
   return data.CreateView(new_shape, data->dtype);
 });
 
+TVM_REGISTER_GLOBAL("vm.builtin.copy_tensor_from_to").set_body_typed([](NDArray src, NDArray dst) {
+  dst.CopyFrom(src);
+});
+
 TVM_REGISTER_GLOBAL("vm.builtin.null_value").set_body([](TVMArgs args, TVMRetValue* rv) {
   CHECK_EQ(args.size(), 0);
   *rv = nullptr;

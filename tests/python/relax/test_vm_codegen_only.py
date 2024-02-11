@@ -360,6 +360,42 @@ def test_vm_builtin_reshape(exec_mode):
 
 
 @pytest.mark.parametrize("exec_mode", EXEC_MODE)
+def test_vm_builtin_copy_tensor_from_to(exec_mode):
+    @tvm.script.ir_module
+    class TestVMCopyTensor:
+        @R.function
+        def main(x: R.Tensor((3, 4), "float32")):
+            R.func_attr({"global_symbol": "main"})
+            storage: R.Object = R.vm.alloc_storage(
+                R.shape(
+                    [
+                        48,
+                    ]
+                ),
+                R.prim_value(0),
+                R.dtype("uint8"),
+            )
+            ret_val: R.Tensor((3, 4), dtype="float32") = R.vm.alloc_tensor(
+                storage, R.prim_value(0), R.shape([3, 4]), R.dtype("float32")
+            )
+            __: R.Tuple = R.vm.copy_tensor_from_to(x, ret_val)
+            lv: R.Tensor([3, 4], dtype="float32") = ret_val
+            return lv
+
+    mod = TestVMCopyTensor
+    target = tvm.target.Target("llvm", host="llvm")
+    ex = codegen(mod, target, exec_mode)
+    dev = tvm.cpu()
+    vm = relax.VirtualMachine(ex, dev)
+
+    input_np = np.random.rand(3, 4).astype("float32")
+    input = tvm.nd.array(input_np, dev)
+    res = vm["main"](input)
+    expected = input_np
+    tvm.testing.assert_allclose(res.numpy(), expected, rtol=1e-7, atol=1e-7)
+
+
+@pytest.mark.parametrize("exec_mode", EXEC_MODE)
 def test_vm_kill_object(exec_mode):
     @I.ir_module
     class TestKillObject:

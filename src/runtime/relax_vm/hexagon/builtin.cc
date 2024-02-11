@@ -57,6 +57,44 @@ TVM_REGISTER_GLOBAL("vm.builtin.hexagon.dma_wait")
       ICHECK(inflight_dma >= 0);
       tvm::runtime::hexagon::HexagonDeviceAPI::Global()->UserDMA()->Wait(queue_id, inflight_dma);
     });
+
+NDArray AllocNDArrayFromOffsets(TVMArgValue vm_ptr, Storage storage, uint64_t offset,
+                                Storage data_storage, ShapeTuple data_storage_offsets,
+                                ShapeTuple logical_shape, ShapeTuple shape_2d, DLDataType dtype) {
+  auto* storage_obj = storage.operator->();
+
+  auto* container = storage_obj->CreateNDArrayContainer(offset, logical_shape, dtype);
+
+  size_t needed_size = sizeof(void*) * shape_2d[0];
+  auto offset_ptr =
+      reinterpret_cast<uint8_t*>(storage_obj->buffer.data) + static_cast<size_t>(offset);
+  auto cast_offset_ptr = reinterpret_cast<uint8_t**>(offset_ptr);
+  uint8_t* data_base = reinterpret_cast<uint8_t*>(data_storage->buffer.data);
+  size_t indx = 0;
+  for (auto elem : data_storage_offsets) {
+    cast_offset_ptr[indx] = &(data_base[static_cast<size_t>(elem)]);
+    indx++;
+  }
+
+  container->dl_tensor.data = reinterpret_cast<void*>(offset_ptr);
+  container->dl_tensor.byte_offset = 0;
+
+  NDArray ret(GetObjectPtr<Object>(container));
+  // RAII in effect, now run the check.
+
+  ICHECK((offset + sizeof(void*) * shape_2d[0]) <= storage_obj->buffer.size)
+      << "storage allocation failure, attempted to allocate " << needed_size << " at offset "
+      << offset << " in region that is " << storage_obj->buffer.size << "bytes";
+
+  tvm::runtime::hexagon::HexagonDeviceAPI::Global()->SetPhysicalShape(
+      ret.operator->(), 2, const_cast<int64_t*>(shape_2d.data()));
+
+  return ret;
+}
+
+TVM_REGISTER_GLOBAL("vm.builtin.hexagon.alloc_discontiguous_tensor")
+    .set_body_typed(AllocNDArrayFromOffsets);
+
 }  // namespace relax_vm
 }  // namespace runtime
 }  // namespace tvm

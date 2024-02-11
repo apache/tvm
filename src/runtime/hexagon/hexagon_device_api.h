@@ -22,7 +22,6 @@
 
 #include <tvm/runtime/device_api.h>
 
-#include <map>
 #include <memory>
 #include <string>
 #include <unordered_map>
@@ -39,6 +38,12 @@
 namespace tvm {
 namespace runtime {
 namespace hexagon {
+
+struct PhysicalShape {
+  size_t ndim;
+  size_t nblocks;
+  size_t block_size;
+};
 
 /*!
  * \brief Hexagon Device API that is compiled and run on Hexagon.
@@ -148,6 +153,11 @@ class HexagonDeviceAPI final : public DeviceAPI {
    */
   void CopyDataFromTo(DLTensor* from, DLTensor* to, TVMStreamHandle stream) final;
 
+  /*!
+   * \brief set physical shape of tensor
+   */
+  void SetPhysicalShape(const DLTensor* tensor, const int64_t ndim, const int64_t* shape);
+
   HexagonThreadManager* ThreadManager() {
     CHECK(runtime_threads) << "runtime_threads has not been created";
     return runtime_threads.get();
@@ -178,6 +188,11 @@ class HexagonDeviceAPI final : public DeviceAPI {
     return (dev.device_type == kDLHexagon) || (dev.device_type == kDLCPU);
   }
 
+  /*!
+   * \brief set physical shape of tensor - private helper
+   */
+  void SetPhysicalShape(const void* data, const PhysicalShape&);
+
   //! \brief Manages runtime HexagonBuffer allocations
   // runtime_hexbuffs is used for runtime allocations.  It is created with a call to
   // AcquireResources, and destroyed on ReleaseResources.  The buffers in this manager are scoped
@@ -199,6 +214,9 @@ class HexagonDeviceAPI final : public DeviceAPI {
 
   //! \brief Hexagon power manager
   std::unique_ptr<HexagonPowerManager> runtime_power_manager;
+
+  //! \brief NDArray base -> Physical Shape map
+  std::unordered_map<void*, PhysicalShape> ndarray_physical_shape;
 };
 }  // namespace hexagon
 }  // namespace runtime

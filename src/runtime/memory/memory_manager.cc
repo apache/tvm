@@ -83,7 +83,8 @@ inline size_t GetDataAlignment(const DLTensor& arr) {
   return align;
 }
 
-NDArray StorageObj::AllocNDArray(int64_t offset, ShapeTuple shape, DLDataType dtype) {
+NDArray::Container* StorageObj::CreateNDArrayContainer(int64_t offset, ShapeTuple shape,
+                                                       DLDataType dtype) {
   VerifyDataType(dtype);
 
   // crtical zone: allocate header, cannot throw
@@ -92,7 +93,6 @@ NDArray StorageObj::AllocNDArray(int64_t offset, ShapeTuple shape, DLDataType dt
   container->dl_tensor.byte_offset = offset;
 
   container->SetDeleter(StorageObj::Deleter);
-  size_t needed_size = DeviceAPI::Get(this->buffer.device)->GetDataSize(container->dl_tensor);
   this->IncRef();
   // The manager context pointer must continue to point to the storage object
   // which owns the backing memory, and keeps track of the reference count.
@@ -101,6 +101,12 @@ NDArray StorageObj::AllocNDArray(int64_t offset, ShapeTuple shape, DLDataType dt
   // reference count, then destroy the container, but leave the underlying
   // buffer intact.
   container->manager_ctx = reinterpret_cast<void*>(this);
+  return container;
+}
+
+NDArray StorageObj::AllocNDArray(int64_t offset, ShapeTuple shape, DLDataType dtype) {
+  auto* container = CreateNDArrayContainer(offset, shape, dtype);
+  size_t needed_size = DeviceAPI::Get(this->buffer.device)->GetDataSize(container->dl_tensor);
 
   if (this->buffer.device.device_type == kDLHexagon) {
     // For Hexagon, non-zero offset support simply requires adjusting the

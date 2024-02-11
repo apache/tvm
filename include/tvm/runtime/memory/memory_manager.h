@@ -139,6 +139,10 @@ class StorageObj : public Object {
   /*! \brief The index into the VM function table. */
   Buffer buffer;
 
+  /* \brief Common function to create an NDArray container with the provided offset, shape and dtype
+   */
+  NDArray::Container* CreateNDArrayContainer(int64_t offset, ShapeTuple shape, DLDataType dtype);
+
   /*! \brief Allocate an NDArray from a given piece of storage. */
   NDArray AllocNDArray(int64_t offset, ShapeTuple shape, DLDataType dtype);
 

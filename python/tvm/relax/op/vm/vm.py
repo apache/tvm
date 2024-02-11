@@ -131,3 +131,23 @@ def call_tir_dyn(func: Expr, args: Tuple) -> Call:
         args = Tuple(args)
 
     return _ffi_api.call_tir_dyn(func, args)  # type: ignore
+
+
+@args_converter.auto
+def copy_tensor_from_to(src: Expr, dst: Expr) -> Call:
+    """Construct a call to copy one tensor to another.
+
+    Parameters
+    ----------
+    src : Expr
+        Source tensor for copy.
+
+    dst : Expr
+        Destination tensor for copy.
+
+    Returns
+    -------
+    result : Call
+        A relax Call, which performs the copy.
+    """
+    return _ffi_api.copy_tensor_from_to(src, dst)  # type: ignore
