@@ -599,13 +599,15 @@ void CodeGenWebGPU::VisitStmt_(const AllocateNode* op) {
     PrintType(op->dtype, this->decl_stream);
     this->decl_stream << ", " << constant_size << ">;\n";
   } else if (storage_scope.rank == runtime::StorageRank::kLocal) {
-    this->decl_stream << "var<private> " << vid << " : array<";
-    PrintType(op->dtype, this->decl_stream);
-    this->decl_stream << ", " << constant_size << ">;\n";
-    // this->PrintIndent();
-    // this->stream << "var " << vid << " : array<";
-    // PrintType(op->dtype, this->stream);
-    // this->stream << ", " << constant_size << ">;\n";
+    // TODO(Charlie): These code would cause non-uniformity as it introduces variables in module
+    // scope rather than function scope; but it was included for some unknown reasons; kept for now.
+    // this->decl_stream << "var<private> " << vid << " : array<";
+    // PrintType(op->dtype, this->decl_stream);
+    // this->decl_stream << ", " << constant_size << ">;\n";
+    this->PrintIndent();
+    this->stream << "var " << vid << " : array<";
+    PrintType(op->dtype, this->stream);
+    this->stream << ", " << constant_size << ">;\n";
   } else {
     LOG(FATAL) << "WebGPU: Do not support storage scope: " << storage_scope.to_string();
   }
@@ -634,6 +636,19 @@ void CodeGenWebGPU::VisitStmt_(const AssertStmtNode* op) {
 
 void CodeGenWebGPU::VisitStmt_(const AllocateConstNode* op) {
   LOG(FATAL) << "WebGPU: do not support alloc const";
+}
+
+void CodeGenWebGPU::VisitStmt_(const WhileNode* op) {
+  PrintIndent();
+  stream << "while (true) {\n";
+  int while_scope = BeginScope();
+  std::string cond = PrintExpr(op->condition);
+  PrintIndent();
+  stream << "if (!(" << cond << ")) { break; }\n";
+  PrintStmt(op->body);
+  this->EndScope(while_scope);
+  PrintIndent();
+  stream << "}\n";
 }
 
 //-------------------------------------------------
