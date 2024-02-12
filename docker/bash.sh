@@ -94,6 +94,10 @@ Usage: docker/bash.sh [-i|--interactive] [--net=host] [-t|--tty]
 
     Print the docker command to be run, but do not execute it.
 
+--build-dir BUILD_DIR
+
+    The build directory of TVM. This is appended to LD_LIBRARY_PATH
+
 --env
 
     Pass an environment variable through to the container.
@@ -265,6 +269,11 @@ while (( $# )); do
         --repo-mount-point=?*)
             REPO_MOUNT_POINT="${1#*=}"
             shift
+            ;;
+
+        --build-dir)
+            DOCKER_ENV+=( --env LD_LIBRARY_PATH=${REPO_MOUNT_POINT}/${2})
+            shift 2
             ;;
 
         --)

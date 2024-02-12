@@ -37,6 +37,7 @@ if __name__ == "__main__":
     parser.add_argument("--sccache-region", required=False, help="sccache region")
     parser.add_argument("--build-dir", default="build", help="build folder")
     parser.add_argument("--cmake-target", help="optional build target")
+    parser.add_argument("--debug", required=False, action="store_true", help="build in debug mode")
     args = parser.parse_args()
 
     env = {"VTA_HW_PATH": str(Path(os.getcwd()) / "3rdparty" / "vta-hw")}
@@ -82,7 +83,10 @@ if __name__ == "__main__":
     if build_platform == "i386":
         sh.run("cmake ..", cwd=build_dir)
     else:
-        sh.run("cmake -GNinja -DCMAKE_BUILD_TYPE=RelWithDebInfo ..", cwd=build_dir)
+        if args.debug:
+            sh.run("cmake -GNinja -DCMAKE_BUILD_TYPE=Debug ..", cwd=build_dir)
+        else:
+            sh.run("cmake -GNinja -DCMAKE_BUILD_TYPE=RelWithDebInfo ..", cwd=build_dir)
 
     target = ""
     if args.cmake_target:
