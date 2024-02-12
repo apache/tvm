@@ -1623,6 +1623,9 @@ def tensor_ir_op(
     bb = BlockBuilder.current()
     global_var = bb.add_func(func, name_hint)
 
+    if len(tir_vars) == 0:
+        tir_vars = None
+
     return wrap_nested(
         bb.emit(rx.call_tir(global_var, call_tir_args, out_sinfo, tir_vars=tir_vars)),
         name=name_hint,
