@@ -152,9 +152,9 @@ std::string CodeGenCUDA::Finish() {
     decl_stream << "using fp8_e5_t = __nv_fp8_e5m2;\n";
     decl_stream << "using fp8_e5_2_t = __nv_fp8x2_e5m2;\n";
     decl_stream << "using fp8_e5_4_t = __nv_fp8x4_e5m2;\n";
-    decl_stream << _cuda_vector_type_extensions;
     decl_stream << "#endif\n\n";
   }
+  declare_vector_type_extensions(decl_stream, enable_fp16_, enable_fp8_);
 
   if (enable_warp_shuffle_) {
     decl_stream << _cuda_warp_intrinsic_util;
@@ -248,7 +248,7 @@ void CodeGenCUDA::PrintType(DataType t, std::ostream& os) {  // NOLINT(*)
         } else if (lanes <= 8) {
           ICHECK_EQ(lanes % 2, 0) << "Only support an even number of lanes for half type";
           // Use native vector types when working with fp8
-          if (enable_fp8_ && lanes <= 4) {
+          if (lanes <= 4) {
             os << "half" << lanes;
           } else {
             // Emit CUDA code to access fp16 vector elements.
@@ -1250,9 +1250,16 @@ void CodeGenCUDA::VisitExpr_(const BroadcastNode* op, std::ostream& os) {  // NO
     std::string v = PrintExpr(op->value);
     PrintVecConstructor(op->dtype, os);
     os << '(';
-    for (int i = 0; i < lanes / 2; ++i) {
-      if (i != 0) os << ", ";
-      os << "__pack_half2(" << v << ", " << v << ")";
+    if (lanes <= 4) {
+      for (int i = 0; i < lanes / 2; ++i) {
+        if (i != 0) os << ", ";
+        os << v << ", " << v;
+      }
+    } else {
+      for (int i = 0; i < lanes / 2; ++i) {
+        if (i != 0) os << ", ";
+        os << "__pack_half2(" << v << ", " << v << ")";
+      }
     }
     os << ')';
     return;
@@ -1504,15 +1511,10 @@ void CodeGenCUDA::PrintVecElemLoadExpr(DataType t, int i, const std::string& val
       PrintVecConstructor(t, os);
       os << '(';
     }
-    if (i % 2 == 0) {
-      os << "__pack_half2(" << value;
+    if (i == t.lanes() - 1) {
+      os << value << ")";
     } else {
-      os << "," << value << ")";
-      if (i != t.lanes() - 1) {
-        os << ",";
-      } else {
-        os << ")";
-      }
+      os << value << ",";
     }
     return;
   }

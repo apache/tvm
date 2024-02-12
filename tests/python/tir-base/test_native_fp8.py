@@ -69,6 +69,37 @@ def test_e4m3_conversions():
     )
 
 
+@tvm.testing.requires_cuda_compute_version(9)
+def test_e4m3_packing():
+    native_dtype, packed_dtype = ("e4m3_float8x2", "uint32")
+    vector_length = 64
+
+    @T.prim_func
+    def add(
+        A: T.Buffer((vector_length,), native_dtype),
+        B: T.Buffer((vector_length,), packed_dtype),
+    ):
+        T.func_attr({"tir.noalias": T.bool(True)})
+        # with T.block("root"):
+        for i in range(vector_length):
+            with T.block("C"):
+                v_i = T.axis.spatial(vector_length, i)
+                T.reads(A[v_i])
+                T.writes(B[v_i])
+                B[v_i] = T.reinterpret(packed_dtype, A[v_i])
+
+    sch = tvm.tir.Schedule(add)
+    block = sch.get_block("C")
+    b = sch.get_loops(block)
+    bx, tx = sch.split(b[0], factors=[None, 32])
+    sch.bind(bx, "blockIdx.x")
+    sch.bind(tx, "threadIdx.x")
+
+    target = "cuda"
+    tvm.build(sch.mod, target=target)
+    # TODO(csullivan): numerical check
+
+
 native_dtype, promoted_dtype = tvm.testing.parameters(
     ("e4m3_float8", "float32"),
     ("e4m3_float8", "float16"),
@@ -81,7 +112,7 @@ native_dtype, promoted_dtype = tvm.testing.parameters(
 
 
 @tvm.testing.requires_cuda_compute_version(9)
-def test_e4m3x2_conversions(native_dtype, promoted_dtype):
+def test_e4m3_vector_conversions(native_dtype, promoted_dtype):
     vector_length = 64
 
     @T.prim_func
@@ -137,6 +168,83 @@ def test_e4m3x2_conversions(native_dtype, promoted_dtype):
     tvm.testing.assert_allclose(
         c.numpy().astype(promoted_base_dtype), (a_np + b_np).astype(promoted_base_dtype)
     )
+
+
+bcast_length = tvm.testing.parameter(2, 4, 6, 8)
+
+
+@tvm.testing.requires_cuda_compute_version(8)
+def test_half_broadcast(bcast_length):
+    dtype = "float16"
+
+    @T.prim_func
+    def vector_broadcast(a: T.Buffer[(), dtype], vec: T.Buffer[(bcast_length,), dtype]):
+        for t in range(1):
+            with T.block("broadcast"):
+                vec[0:bcast_length] = T.broadcast(a[()], bcast_length)
+
+    sch = tvm.tir.Schedule(vector_broadcast)
+    block = sch.get_block("broadcast")
+    b = sch.get_loops(block)
+    bx, tx = sch.split(b[0], factors=[None, 1])
+    sch.bind(bx, "blockIdx.x")
+    sch.bind(tx, "threadIdx.x")
+
+    target = "cuda"
+    tvm.build(sch.mod, target=target)
+    # TODO(csullivan): numerical check
+
+
+vector_length = tvm.testing.parameter(2, 4)
+
+
+@tvm.testing.requires_cuda_compute_version(8)
+def test_half_misaligned_vector_load(vector_length):
+    dtype = "float16"
+    vec_dtype = dtype + "x" + str(vector_length)
+
+    @T.prim_func
+    def vector_load(A: T.Buffer[(128,), dtype], B: T.Buffer[(32,), vec_dtype]):
+        for b in T.thread_binding(1, thread="blockIdx.x"):
+            for i in T.thread_binding(32, thread="threadIdx.x"):
+                vec_index = T.ramp((i + 1) * vector_length - 1, -1, vector_length)
+                B[i] = A[vec_index]
+
+    target = "cuda"
+    tvm.build(vector_load, target=target)
+    # TODO(csullivan): numerical check
+
+
+@tvm.testing.requires_cuda_compute_version(8)
+def test_half_vector_add():
+    dtype = "float16x4"
+    vector_length = 64
+
+    @T.prim_func
+    def add(
+        A: T.Buffer((vector_length,), dtype),
+        B: T.Buffer((vector_length,), dtype),
+        C: T.Buffer((vector_length,), dtype),
+    ):
+        T.func_attr({"tir.noalias": T.bool(True)})
+        # with T.block("root"):
+        for i in range(vector_length):
+            with T.block("C"):
+                v_i = T.axis.spatial(vector_length, i)
+                T.reads(A[v_i], B[v_i])
+                T.writes(C[v_i])
+                C[v_i] = A[v_i] + B[v_i]
+
+    sch = tvm.tir.Schedule(add)
+    block = sch.get_block("C")
+    b = sch.get_loops(block)
+    bx, tx = sch.split(b[0], factors=[None, 32])
+    sch.bind(bx, "blockIdx.x")
+    sch.bind(tx, "threadIdx.x")
+
+    target = "cuda"
+    fadd = tvm.build(sch.mod, target=target)
+    # TODO(csullivan): numerical check
 
 
 if __name__ == "__main__":
