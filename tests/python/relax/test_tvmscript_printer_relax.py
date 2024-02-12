@@ -829,5 +829,54 @@ def func(x: R.Tensor((128, 128), dtype="float32")) -> R.Tensor((128, 128), dtype
     )
 
 
+def test_hide_inferable_struct_info():
+    """Redundant type annotations can be omitted
+
+    When `show_all_struct_info=False`, TVMScript type annotations that
+    provide redundant struct info can be omitted.
+    """
+
+    @R.function
+    def func(A: R.Tensor([10, 20], "float32"), B: R.Tensor(ndim=2, dtype="float32")):
+        # R.match_cast has the struct info as an argument, so it can
+        # be omitted from the variable annotation.
+        B2 = R.match_cast(B, R.Tensor([10, 20], "float32"))
+
+        # Call nodes may have inferable shapes from their arguments.
+        C = R.add(A, B2)
+
+        # Trivial bindings can be inferred to have the same struct
+        # info as the RHS.
+        D = C
+
+        # Here, the struct info cannot be omitted.  `R.add(D,B)` has
+        # struct info `R.Tensor(ndim=2)`, but the variable has a shape
+        # `R.Tensor([10,20])`.  This is compatible, so it is not an
+        # error to have this annotation, but it is not inferrable from
+        # the RHS.  Therefore, it must still be printed.
+        E: R.Tensor([10, 20], "float32") = R.add(D, B)
+
+        # The return type can be inferred from function body, but is
+        # still always printed in the TVMScript.  When parsing an
+        # IRModule with functions calling each other, the return type
+        # of each callee must be available for use in the caller's
+        # shape inference.
+        return E
+
+    _assert_print(
+        func.script(show_all_struct_info=False),
+        """
+# from tvm.script import relax as R
+
+@R.function
+def func(A: R.Tensor((10, 20), dtype="float32"), B: R.Tensor(dtype="float32", ndim=2)) -> R.Tensor((10, 20), dtype="float32"):
+    B2 = R.match_cast(B, R.Tensor((10, 20), dtype="float32"))
+    C = R.add(A, B2)
+    D = C
+    E: R.Tensor((10, 20), dtype="float32") = R.add(D, B)
+    return E""",
+    )
+
+
 if __name__ == "__main__":
     tvm.testing.main()
