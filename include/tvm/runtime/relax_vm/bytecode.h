@@ -58,6 +58,7 @@ enum class Opcode {
   Ret = 2U,
   Goto = 3U,
   If = 4U,
+  CallFromRegister = 5U,
 };
 
 /*! \brief A single virtual machine instruction.
@@ -183,10 +184,15 @@ struct Instruction {
   /*! \brief The instruction opcode. */
   Opcode op;
   union {
-    struct /* Call */ {
+    struct /* Call, CallFromRegister */ {
       /*! \brief The destination register. */
       RegName dst;
-      /*! \brief The index into the packed function table. */
+      /*! \brief The index of the function.
+       *
+       * For `OpCode::Call`, this is an index into the table of static
+       * functions.  For `OpCode::CallFromRegister`, this is an index
+       * of a register.
+       */
       Index func_idx;
       /*! \brief The number of arguments to the packed function. */
       Index num_args;
@@ -208,27 +214,43 @@ struct Instruction {
       Index false_offset;
     };
   };
+
   /*!
    * \brief Construct a Call instruction.
-   * \param func_idx The index of the function to call.
+   * \param func_idx The index of the function to call within the
+   *                 static function table
    * \param num_args The number of arguments.
    * \param args The input arguments.
    * \param dst The destination register.
    * \return The call instruction.
    */
   static Instruction Call(Index func_idx, Index num_args, Arg* args, RegName dst);
+
+  /*!
+   * \brief Construct a Call instruction.
+   * \param func_idx The index of the function to call within the
+   *                 current stack frame's registers.
+   * \param num_args The number of arguments.
+   * \param args The input arguments.
+   * \param dst The destination register.
+   * \return The call instruction.
+   */
+  static Instruction CallFromRegister(Index func_idx, Index num_args, Arg* args, RegName dst);
+
   /*!
    * \brief Construct a return instruction.
    * \param result The register containing the return value.
    * \return The return instruction.
    */
   static Instruction Ret(RegName result);
+
   /*!
    * \brief Construct a goto instruction.
    * \param pc_offset The register containing the jump offset.
    * \return The goto instruction.
    */
   static Instruction Goto(RegName pc_offset);
+
   /*!
    * \brief Construct an If instruction.
    * \param cond The register containing the cond value.

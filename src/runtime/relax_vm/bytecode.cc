@@ -42,6 +42,17 @@ Instruction Instruction::Call(Index func_idx, Index num_args, Instruction::Arg* 
   return instr;
 }
 
+Instruction Instruction::CallFromRegister(Index func_idx, Index num_args, Instruction::Arg* args,
+                                          RegName dst) {
+  Instruction instr;
+  instr.op = Opcode::CallFromRegister;
+  instr.dst = dst;
+  instr.func_idx = func_idx;
+  instr.num_args = num_args;
+  instr.args = args;
+  return instr;
+}
+
 Instruction Instruction::Ret(RegName result) {
   Instruction instr;
   instr.op = Opcode::Ret;
