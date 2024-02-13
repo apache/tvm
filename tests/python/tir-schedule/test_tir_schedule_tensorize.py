@@ -836,6 +836,124 @@ def test_tensorize_matmul_mixed_dtype():
     assert_structural_equal_ignore_global_symbol(s.mod["main"], tensorized_matmul_int64_shape)
     verify_trace_roundtrip(sch=s, mod=matmul_int64_shape)
 
+def _tir_packed_int_to_int_to_float(storage_nbit: int):
+    storage_dtype = "int" + str(storage_nbit)
+
+    def f_convert(nbit: int, val: tir.PrimExpr, pos: tir.PrimExpr, dtype: str):
+        assert val.dtype == storage_dtype
+        mask = tir.const((1 << nbit) - 1, "int32")
+        unextended = (val >> (pos.astype("int32") * tir.const(nbit, "int32"))) & mask
+        return tir.Cast(dtype, (unextended << tir.const(32 - nbit, "int32")) >> tir.const(32 - nbit, "int32"))
+
+    return f_convert
+
+@T.prim_func
+def decode_i4s_to_f16_desc(compressed: T.handle, decompressed: T.handle) -> None:
+    Compressed = T.match_buffer(
+        compressed,
+        [
+            1,
+        ],
+        dtype="int32",
+        scope="local",
+    )
+    Decompressed = T.match_buffer(
+        decompressed,
+        [
+            8,
+        ],
+        dtype="float16",
+        scope="local",
+    )
+
+    with T.block("root"):
+        T.reads(Compressed[0:1])
+        T.writes(Decompressed[0:8])
+        for i in T.grid(8):
+            with T.block("decode"):
+                vi = T.axis.remap("S", [i])
+                Decompressed[vi] = _tir_packed_int_to_int_to_float(32)(
+                    4,
+                    Compressed[vi // 8],
+                    vi % 8,
+                    dtype="float16",
+                )
+
+@T.prim_func
+def decode_i4s_to_f16_impl(compressed: T.handle, decompressed: T.handle) -> None:
+    Compressed = T.match_buffer(
+        compressed,
+        [
+            1,
+        ],
+        dtype="int32",
+        scope="local",
+    )
+    Decompressed = T.match_buffer(
+        decompressed,
+        [
+            8,
+        ],
+        dtype="float16",
+        scope="local",
+    )
+
+    with T.block("root"):
+        T.reads(Compressed[0:1])
+        T.writes(Decompressed[0:8])
+        T.call_extern(
+            "handle",
+            "test_decode_i4s_to_f16",
+            Compressed.data,
+            Decompressed.data,
+            8,
+        )
+
+tir.TensorIntrin.register("test_decode_i4s_to_f16_intrin", decode_i4s_to_f16_desc, decode_i4s_to_f16_impl)
+
+def test_tensorize_arith_simplification():
+    # fmt: off
+    @T.prim_func
+    def decode_i4s_to_int32_to_f16():
+        B_decode_local = T.alloc_buffer((16384, 16384), "float16", scope="local")
+        B_local = T.alloc_buffer((16384, 2048), "int32", scope="local")
+        for ax0_0 in T.thread_binding(8192, thread="blockIdx.x"):
+            for ax0_1 in T.thread_binding(2, thread="threadIdx.y"):
+                for ax1_0 in range(32):
+                    for ax1_1 in T.thread_binding(64, thread="threadIdx.x"):
+                        for ax0, ax1 in T.grid(1, 8):
+                            with T.block("B_decode_local"):
+                                v0 = T.axis.spatial(16384, ax0_0 * 2 + ax0_1 + ax0)
+                                v1 = T.axis.spatial(16384, ax1_0 * 512 + ax1_1 * 8 + ax1)
+                                T.reads(B_local[v0, v1 // 8])
+                                T.writes(B_decode_local[v0, v1])
+                                B_decode_local[v0, v1] = T.Cast("float16", T.shift_right(T.shift_left(T.bitwise_and(T.shift_right(B_local[v0, v1 // 8], v1 % 8 * 4), 15), 28), 28))
+                                
+    @T.prim_func
+    def tensorized_decode_i4s_to_int32_to_f16():
+        B_decode_local = T.alloc_buffer((16384, 16384), "float16", scope="local")
+        B_local = T.alloc_buffer((16384, 2048), "int32", scope="local")
+        for ax0_0 in T.thread_binding(8192, thread="blockIdx.x"):
+            for ax0_1 in T.thread_binding(2, thread="threadIdx.y"):
+                for ax1_0 in range(32):
+                    for ax1_1 in T.thread_binding(64, thread="threadIdx.x"):
+                        for ax0 in range(1):
+                            with T.block("B_decode_local_o"):
+                                v0_o = T.axis.spatial(16384, ax0_0 * 2 + ax0_1 + ax0)
+                                v1_o = T.axis.spatial(2048, ax1_0 * 64 + ax1_1)
+                                T.reads(B_local[v0_o, v1_o])
+                                T.writes(B_decode_local[v0_o, v1_o * 8:v1_o * 8 + 8])
+                                Compressed = T.match_buffer(B_local[v0_o, v1_o], (1,), "int32", scope="local")
+                                Decompressed = T.match_buffer(B_decode_local[v0_o, v1_o * 8:v1_o * 8 + 8], (8,), "float16", scope="local")
+                                T.call_extern("handle", "test_decode_i4s_to_f16", Compressed.data, Decompressed.data, 8)
+
+    s = tir.Schedule(decode_i4s_to_int32_to_f16, debug_mask="all")
+    update = s.get_block("B_decode_local")
+    ii = s.get_loops(update)[-1]
+    s.tensorize(ii, "test_decode_i4s_to_f16_intrin")
+    assert_structural_equal_ignore_global_symbol(s.mod["main"], tensorized_decode_i4s_to_int32_to_f16)
+    verify_trace_roundtrip(sch=s, mod=decode_i4s_to_int32_to_f16)
+
 
 if __name__ == "__main__":
     tvm.testing.main()

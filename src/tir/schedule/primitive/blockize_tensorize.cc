@@ -20,6 +20,7 @@
 
 #include <functional>
 
+#include "../../transforms/simplify.h"
 #include "../ir_comparator.h"
 #include "../utils.h"
 
@@ -738,6 +739,28 @@ StmtSRef Blockize(ScheduleState self, const Array<StmtSRef>& blocks, bool preser
   return result;
 }
 
+class TensorIntrinSimplifier : public arith::IRMutatorWithAnalyzer {
+ public:
+  static PrimFunc Apply(PrimFunc func, arith::Analyzer* analyzer) {
+    TensorIntrinSimplifier simplifier(analyzer);
+    func.CopyOnWrite()->body = simplifier(func->body);
+    return func;
+  }
+
+ private:
+  explicit TensorIntrinSimplifier(arith::Analyzer* analyzer) : IRMutatorWithAnalyzer(analyzer) {}
+
+  using Parent = IRMutatorWithAnalyzer;
+  using Parent::VisitExpr_;
+  using Parent::VisitStmt;
+  using Parent::VisitStmt_;
+
+  Stmt VisitStmt_(const BlockNode* block) final {
+    Block sref = GetRef<Block>(block);
+    return tvm::tir::Simplify(sref, analyzer_);
+  }
+};
+
 void Tensorize(ScheduleState self, const StmtSRef& sref, const TensorIntrin& intrin,
                bool preserve_unit_iters) {
   // Step 1: Blockize the subtree rooted at the given loop if needed
@@ -755,7 +778,9 @@ void Tensorize(ScheduleState self, const StmtSRef& sref, const TensorIntrin& int
                << GetRef<Stmt>(sref->stmt);
     throw;
   }
-  PrimFunc intrin_desc = intrin->desc;
+
+  arith::Analyzer analyzer;
+  PrimFunc intrin_desc = TensorIntrinSimplifier::Apply(intrin->desc, &analyzer);
   PrimFunc intrin_impl = DeepCopy(intrin->impl);
 
   int index_dtype_bits = -1;

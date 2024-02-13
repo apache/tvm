@@ -46,6 +46,7 @@ class TensorizeComparator : public ExprComparator, public StmtComparator {
   bool VisitExpr(const PrimExpr& n, const PrimExpr& other) override;
   bool VisitStmt(const Stmt& n, const Stmt& other) override;
 
+  bool VisitExpr_(const CallNode* op, const PrimExpr& other) override;
   bool VisitStmt_(const ForNode* op, const Stmt& other) override;
   bool VisitStmt_(const SeqStmtNode* op, const Stmt& other) override;
   bool VisitStmt_(const BufferStoreNode* op, const Stmt& other) override;
