@@ -44,7 +44,7 @@ def test_tensor_dtype_code(dtype):
     class mod:
         @R.function
         def main(A: R.Tensor):
-            return relax.Call(Op.get("relax.tensor_dtype_code"), [A])
+            return A.dtype.type_code
 
     built = relax.build(mod)
     vm = relax.VirtualMachine(built, tvm.cpu())
@@ -61,7 +61,7 @@ def test_tensor_dtype_bits(dtype):
     class mod:
         @R.function
         def main(A: R.Tensor):
-            return relax.Call(Op.get("relax.tensor_dtype_bits"), [A])
+            return A.dtype.bits
 
     built = relax.build(mod)
     vm = relax.VirtualMachine(built, tvm.cpu())
@@ -78,7 +78,7 @@ def test_tensor_dtype_lanes(dtype):
     class mod:
         @R.function
         def main(A: R.Tensor):
-            return relax.Call(Op.get("relax.tensor_dtype_lanes"), [A])
+            return A.dtype.lanes
 
     built = relax.build(mod)
     vm = relax.VirtualMachine(built, tvm.cpu())
@@ -95,7 +95,7 @@ def test_tensor_ndim(shape):
     class mod:
         @R.function
         def main(A: R.Tensor):
-            return relax.Call(Op.get("relax.tensor_ndim"), [A])
+            return A.ndim
 
     built = relax.build(mod)
     vm = relax.VirtualMachine(built, tvm.cpu())
@@ -111,7 +111,7 @@ def test_tensor_shape(shape):
     class mod:
         @R.function
         def main(A: R.Tensor, axis: R.Prim("int64")):
-            return relax.Call(Op.get("relax.tensor_shape_i"), [A, axis])
+            return A.shape[axis]
 
     built = relax.build(mod)
     vm = relax.VirtualMachine(built, tvm.cpu())
