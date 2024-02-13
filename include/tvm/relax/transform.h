@@ -578,9 +578,12 @@ TVM_DLL Pass ConvertToDataflow(int min_size = 2);
  *
  * Any binding blocks that are left empty will be removed by the normalizer.
  *
+ * \param entry_functions Names of functions that should be considered
+ *     as entry points, in addition to any externally exposed functions.
+ *
  * \return The Pass.
  */
-TVM_DLL Pass DeadCodeElimination(Array<runtime::String> entry_functions);
+TVM_DLL Pass DeadCodeElimination(Array<runtime::String> entry_functions = {});
 
 /*!
  * \brief Pass that changes calls to operators that can be done in-place
