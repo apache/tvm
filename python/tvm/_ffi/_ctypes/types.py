@@ -27,6 +27,7 @@ class TVMValue(ctypes.Union):
 
     _fields_ = [
         ("v_int64", ctypes.c_int64),
+        ("v_bool", ctypes.c_bool),
         ("v_float64", ctypes.c_double),
         ("v_handle", ctypes.c_void_p),
         ("v_str", ctypes.c_char_p),
@@ -94,6 +95,7 @@ def _device_to_int64(dev):
 
 RETURN_SWITCH = {
     ArgTypeCode.INT: lambda x: x.v_int64,
+    ArgTypeCode.BOOL: lambda x: x.v_bool,
     ArgTypeCode.FLOAT: lambda x: x.v_float64,
     ArgTypeCode.HANDLE: _return_handle,
     ArgTypeCode.NULL: lambda x: None,
@@ -104,6 +106,7 @@ RETURN_SWITCH = {
 
 C_TO_PY_ARG_SWITCH = {
     ArgTypeCode.INT: lambda x: x.v_int64,
+    ArgTypeCode.BOOL: lambda x: x.v_bool,
     ArgTypeCode.FLOAT: lambda x: x.v_float64,
     ArgTypeCode.HANDLE: _return_handle,
     ArgTypeCode.NULL: lambda x: None,

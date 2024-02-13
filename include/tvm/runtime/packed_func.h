@@ -637,6 +637,17 @@ class TVMPODValue_ {
     return static_cast<T*>(value_.v_handle);
   }
 
+  std::optional<bool> TryAsBool() const {
+    // Helper function to reduce duplication in the variable integer
+    // conversions.  This is publicly exposed, as it can be useful in
+    // specializations of PackedFuncValueConverter.
+    if (type_code_ == kTVMBool) {
+      return value_.v_bool;
+    } else {
+      return std::nullopt;
+    }
+  }
+
   std::optional<int64_t> TryAsInt() const {
     // Helper function to reduce duplication in the variable integer
     // conversions.  This is publicly exposed, as it can be useful in
@@ -707,16 +718,6 @@ class TVMPODValue_CRTP_ : public TVMPODValue_ {
   inline bool IsObjectRef() const;
   template <typename TObjectRef>
   inline TObjectRef AsObjectRef() const;
-
-  std::optional<bool> TryAsBool() const {
-    // Booleans may be kept distinct from Int by using Box<bool> and
-    // Box<int64_t>.
-    if (IsObjectRef<runtime::Bool>()) {
-      return AsObjectRef<runtime::Bool>()->value;
-    } else {
-      return std::nullopt;
-    }
-  }
 
   operator double() const {
     // Allow automatic conversion from int to float
@@ -1012,12 +1013,9 @@ class TVMRetValue : public TVMPODValue_CRTP_<TVMRetValue> {
   }
   TVMRetValue& operator=(const DataType& other) { return operator=(other.operator DLDataType()); }
   TVMRetValue& operator=(bool value) {
-    // While a boolean could be stored using the primitive kDLInt
-    // type, this causes round-trip inconsistencies for languages that
-    // distinguish between integer and boolean types (i.e. Anything
-    // after C89).  Rather than adding another type for booleans, this
-    // is stored in the Box<bool> container.
-    return operator=(Box(value));
+    this->SwitchToPOD(kTVMBool);
+    value_.v_bool = value;
+    return *this;
   }
   TVMRetValue& operator=(std::string value) {
     this->SwitchToClass(kTVMStr, value);
@@ -1381,6 +1379,8 @@ inline const char* ArgTypeCode2Str(int type_code) {
   switch (type_code) {
     case kDLInt:
       return "int";
+    case kTVMBool:
+      return "bool";
     case kDLUInt:
       return "uint";
     case kDLFloat:
@@ -1802,6 +1802,10 @@ class TVMArgsSetter {
     values_[i].v_int64 = static_cast<int64_t>(value);
     type_codes_[i] = kDLInt;
   }
+  TVM_ALWAYS_INLINE void operator()(size_t i, bool value) const {
+    values_[i].v_bool = value;
+    type_codes_[i] = kTVMBool;
+  }
   TVM_ALWAYS_INLINE void operator()(size_t i, uint64_t value) const {
     values_[i].v_int64 = static_cast<int64_t>(value);
     ICHECK_LE(value, static_cast<uint64_t>(std::numeric_limits<int64_t>::max()));
@@ -2104,6 +2108,18 @@ inline void TVMArgsSetter::SetObject(size_t i, T&& value) const {
     }
   }
 
+  // Like with BoxInt, unwrap any BoxBool instances.  See the BoxInt
+  // explanation for more detail.
+  if constexpr (std::is_base_of_v<Bool::ContainerType, ContainerType> ||
+                std::is_base_of_v<ContainerType, Bool::ContainerType>) {
+    if (std::is_base_of_v<Bool::ContainerType, ContainerType> ||
+        ptr->IsInstance<Bool::ContainerType>()) {
+      values_[i].v_bool = static_cast<Bool::ContainerType*>(ptr)->value;
+      type_codes_[i] = kTVMBool;
+      return;
+    }
+  }
+
   // If a boxed integer is being returned, always unbox it to the
   // primitive type.  This must be checked at the PackedFunc level to
   // ensure that a boxed primitive argument is round-tripped correctly
@@ -2144,10 +2160,6 @@ inline void TVMArgsSetter::SetObject(size_t i, T&& value) const {
       return;
     }
   }
-
-  // Deliberately do *not* unwrap BoxBool instances.  If BoxBool were
-  // unwrapped to kTVMArgInt, it would be ambiguous whether the
-  // user-defined object was a bool or an int.
 
   // Final fallback, if the ObjectRef has no special cases that must
   // be expressed within the TVMRetValue.
@@ -2285,6 +2297,12 @@ inline TObjectRef TVMPODValue_CRTP_<Derived>::AsObjectRef() const {
     }
   }
 
+  if constexpr (std::is_base_of_v<TObjectRef, Bool>) {
+    if (type_code_ == kTVMBool) {
+      return Bool(value_.v_bool);
+    }
+  }
+
   if constexpr (std::is_base_of_v<TObjectRef, String>) {
     if (type_code_ == kTVMStr || type_code_ == kTVMBytes) {
       // This step is the reason why `AsObjectRef` cannot be provided
@@ -2352,6 +2370,13 @@ inline TVMRetValue& TVMRetValue::operator=(TObjectRef other) {
       if (std::is_base_of_v<PackedFunc::ContainerType, ContainerType> ||
           ptr->IsInstance<PackedFunc::ContainerType>()) {
         return operator=(PackedFunc(std::move(other.data_)));
+      }
+    }
+
+    if constexpr (std::is_base_of_v<Bool, TObjectRef> || std::is_base_of_v<TObjectRef, Bool>) {
+      if (std::is_base_of_v<Bool, TObjectRef> || ptr->IsInstance<Bool::ContainerType>()) {
+        bool value = static_cast<const Bool::ContainerType*>(ptr)->value;
+        return operator=(value);
       }
     }
 

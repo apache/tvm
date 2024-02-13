@@ -48,7 +48,8 @@ class ArgTypeCode(object):
     BYTES = 12
     NDARRAY_HANDLE = 13
     OBJECT_RVALUE_REF_ARG = 14
-    EXT_BEGIN = 15
+    BOOL = 15
+    EXT_BEGIN = 16
 
 
 class TVMByteArray(ctypes.Structure):

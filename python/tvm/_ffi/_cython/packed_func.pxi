@@ -45,7 +45,7 @@ cdef int tvm_callback(TVMValue* args,
             tcode == kTVMModuleHandle or
             tcode == kTVMNDArrayHandle or
             tcode == kTVMObjectRefArg or
-            tcode > kTVMExtBegin):
+            tcode >= kTVMExtBegin):
             CHECK_CALL(TVMCbArgToReturn(&value, &tcode))
 
         if tcode != kTVMDLTensorHandle:

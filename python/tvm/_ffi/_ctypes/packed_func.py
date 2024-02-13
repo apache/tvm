@@ -137,10 +137,8 @@ def _make_tvm_args(args, temp_args):
         elif isinstance(arg, bool):
             # A python `bool` is a subclass of `int`, so this check
             # must occur before `Integral`.
-            arg = _FUNC_CONVERT_TO_OBJECT(arg)
-            values[i].v_handle = arg.handle
-            type_codes[i] = ArgTypeCode.OBJECT_HANDLE
-            temp_args.append(arg)
+            values[i].v_bool = arg
+            type_codes[i] = ArgTypeCode.BOOL
         elif isinstance(arg, Integral):
             values[i].v_int64 = arg
             type_codes[i] = ArgTypeCode.INT

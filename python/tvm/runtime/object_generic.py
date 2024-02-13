@@ -64,23 +64,10 @@ def convert_to_object(value, span=None):
 
     """
 
-    # Import inside function call to avoid circular import from
-    # uninitialized tvm.runtime module.
-    from .container import BoxBool  # pylint: disable=import-outside-toplevel
-
     if isinstance(value, ObjectTypes):
         return value
-
-    elif isinstance(value, bool):
-        # Python types int and float will be converted to C++ types
-        # Box<i64> and Box<double> using kDLInt.  Boolean types need
-        # to be explicitly converted to Box<bool> to avoid ambiguous
-        # representation.  This allows `bool(True)` and `int(1)` to be
-        # unambiguously passed to the C++ implementations.
-        return BoxBool(value)
-
-    elif isinstance(value, Number):
-        return const(value, span=span)
+    elif isinstance(value, (bool, int, float)):
+        return value
     elif isinstance(value, string_types):
         return _ffi_api.String(value)
     elif isinstance(value, (list, tuple)):

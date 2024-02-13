@@ -47,6 +47,12 @@ PrimExpr PrimExpr::FromObject_(ObjectRef ref) {
   if (auto opt = ref.as<runtime::String>()) {
     return tir::StringImm(opt.value());
   }
+  if (auto opt = ref.as<runtime::Bool>()) {
+    return Bool(opt.value());
+  }
+  if (auto opt = ref.as<runtime::Int>()) {
+    return Integer(opt.value());
+  }
   if (const auto* buffer_region = ref.as<tir::BufferRegionNode>()) {
     Array<PrimExpr> indices;
     indices.reserve(buffer_region->region.size());
