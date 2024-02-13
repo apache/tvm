@@ -24,12 +24,14 @@
 #include <tvm/tir/builtin.h>
 #include <tvm/tir/expr.h>
 
+#include "../../src/script/printer/utils.h"
+
 using ::testing::HasSubstr;
 
 // ---------
 // Data Type
 // ---------
-TEST(TIR, TestCreateScalableType) {
+TEST(ScalableDataType, TestCreateScalableType) {
   tvm::DataType scalable_type = tvm::DataType(kDLInt, 32, 4, true);
   ASSERT_EQ(scalable_type.code(), kDLInt);
   ASSERT_EQ(scalable_type.bits(), 32);
@@ -38,7 +40,7 @@ TEST(TIR, TestCreateScalableType) {
   ASSERT_TRUE(scalable_type.is_scalable_or_fixed_length_vector());
 }
 
-TEST(TIR, TestScalableWithBits) {
+TEST(ScalableDataType, TestScalableWithBits) {
   tvm::DataType scalable_type = tvm::DataType(kDLInt, 1, 8, true);
   scalable_type = scalable_type.with_bits(32);
   ASSERT_EQ(scalable_type.bits(), 32);
@@ -46,7 +48,7 @@ TEST(TIR, TestScalableWithBits) {
   ASSERT_TRUE(scalable_type.is_scalable_or_fixed_length_vector());
 }
 
-TEST(TIR, TestScalableWithVscaleFactor) {
+TEST(ScalableDataType, TestScalableWithVscaleFactor) {
   tvm::DataType type = tvm::DataType(kDLInt, 32, 1);
   tvm::DataType scalable_type = type.with_scalable_vscale_factor(4);
   ASSERT_EQ(scalable_type.vscale_factor(), 4);
@@ -54,18 +56,47 @@ TEST(TIR, TestScalableWithVscaleFactor) {
   ASSERT_TRUE(scalable_type.is_scalable_or_fixed_length_vector());
 }
 
-TEST(TIR, TestAssignScalableDataType) {
+TEST(ScalableDataType, TestAssignScalableDataType) {
   tvm::DataType scalable_type = tvm::DataType(kDLInt, 32, 2, true);
   tvm::DataType scalable_type_copy = scalable_type;
   ASSERT_TRUE(scalable_type_copy.is_scalable_vector());
   ASSERT_TRUE(scalable_type_copy.is_scalable_or_fixed_length_vector());
 }
 
-TEST(TIR, TestScalableDataTypeAndNonScalableDataTypeInequality) {
+TEST(ScalableDataType, TestScalableDataTypeEquality) {
+  ASSERT_TRUE(tvm::DataType(kDLInt, 32, 4, true) == tvm::DataType(kDLInt, 32, 4, true));
+}
+
+TEST(ScalableDataType, TestScalableDataTypeAndNonScalableDataTypeInequality) {
   ASSERT_FALSE(tvm::DataType(kDLInt, 32, 4, true) == tvm::DataType(kDLInt, 32, 4));
 }
 
-TEST(TIR, TestGetScalableVectorBytesError) {
+TEST(ScalableDataType, TestScalableDataTypeToString) {
+  tvm::DataType scalable_type = tvm::DataType(kDLInt, 32, 4, true);
+  EXPECT_EQ(tvm::runtime::DLDataType2String(scalable_type), "int32xvscalex4");
+}
+
+TEST(ScalableDataType, TestStringToScalableDataType) {
+  std::string scalable_type_str = "int32xvscalex4";
+  EXPECT_EQ(tvm::DataType(tvm::runtime::String2DLDataType(scalable_type_str)),
+            tvm::DataType(kDLInt, 32, 4, true));
+}
+
+TEST(ScalableDataType, TestInvalidStringToScalableDataType) {
+  std::string scalable_type_str = "int32x4xvscale";
+  EXPECT_THROW(
+      {
+        try {
+          tvm::runtime::String2DLDataType(scalable_type_str);
+        } catch (const tvm::InternalError& e) {
+          EXPECT_THAT(e.what(), HasSubstr("unknown type int32x4xvscale"));
+          throw;
+        }
+      },
+      tvm::InternalError);
+}
+
+TEST(ScalableDataType, TestGetScalableVectorBytes) {
   tvm::DataType scalable_type = tvm::DataType(kDLInt, 32, 4, true);
   EXPECT_THROW(
       {
@@ -80,7 +111,7 @@ TEST(TIR, TestGetScalableVectorBytesError) {
       tvm::InternalError);
 }
 
-TEST(TIR, TestScalableDataTypeInvalidLanesError) {
+TEST(ScalableDataType, TestScalableDataTypeInvalidLanesError) {
   EXPECT_THROW(
       {
         try {
@@ -93,7 +124,7 @@ TEST(TIR, TestScalableDataTypeInvalidLanesError) {
       tvm::InternalError);
 }
 
-TEST(TIR, TestScalableDataTypeInvalidVscaleFactorAccess) {
+TEST(ScalableDataType, TestScalableDataTypeInvalidVscaleFactorAccess) {
   tvm::DataType fixed_length_type = tvm::DataType(kDLFloat, 32, 4);
   ASSERT_TRUE(fixed_length_type.is_fixed_length_vector());
   ASSERT_TRUE(fixed_length_type.is_scalable_or_fixed_length_vector());
@@ -109,7 +140,7 @@ TEST(TIR, TestScalableDataTypeInvalidVscaleFactorAccess) {
       tvm::InternalError);
 }
 
-TEST(TIR, TestScalableDataTypeInvalidLanesAccess) {
+TEST(ScalableDataType, TestScalableDataTypeInvalidLanesAccess) {
   tvm::DataType scalable_type = tvm::DataType(kDLFloat, 32, 4, true);
   EXPECT_THROW(
       {
@@ -122,4 +153,24 @@ TEST(TIR, TestScalableDataTypeInvalidLanesAccess) {
         }
       },
       tvm::InternalError);
+}
+
+// -----------
+// Integration
+// -----------
+#if TVM_LLVM_VERSION >= 120
+TEST(ScalableDataType, TestScalableIntrinCall) {
+  tvm::DataType scalable_type = tvm::DataType(kDLInt, 32, 4, true);
+  tvm::tir::Call call = tvm::tir::Call(
+      scalable_type, tvm::tir::builtin::call_llvm_intrin(),
+      {tvm::IntImm(tvm::DataType::Int(32), ::llvm::Intrinsic::experimental_stepvector)});
+  ASSERT_EQ(call->dtype, scalable_type);
+  ASSERT_EQ(call->Script(),
+            "T.call_llvm_intrin(\"int32xvscalex4\", \"llvm.experimental.stepvector\")");
+}
+#endif
+
+TEST(ScalableDataType, TestTIRScriptScalableDtype2Str) {
+  tvm::DataType scalable_type = tvm::DataType(kDLInt, 32, 4, true);
+  ASSERT_EQ(tvm::script::printer::DType2Str(scalable_type), "int32xvscalex4");
 }
