@@ -27,7 +27,6 @@
 #include <tvm/tir/expr.h>
 #include <tvm/tir/op.h>
 
-#include "../tir/transforms/replace_selected_expr.h"
 #include "./pattern_match.h"
 
 namespace tvm {
@@ -40,22 +39,15 @@ bool IsVScaleCall(const PrimExpr& expr) {
   return false;
 }
 
-PrimExpr CanonicalizeScalableLanes(const PrimExpr& lanes) {
+std::optional<int> ExtractVscaleFactor(const PrimExpr& lanes) {
   PVar<IntImm> multiplier;
   PCallExpr<PVscaleOp> vscale;
 
-  PrimExpr new_lanes;
-
-  if ((multiplier * vscale).Match(lanes)) {
-    new_lanes = lanes;
-  } else if ((vscale * multiplier).Match(lanes)) {
-    new_lanes =
-        tir::Mul(multiplier.Eval(), tir::Call(DataType::Int(32), tir::builtin::vscale(), {}));
+  if (PMatchesOneOf(multiplier * vscale, vscale * multiplier).Match(lanes)) {
+    return multiplier.Eval()->value;
   } else {
-    LOG(FATAL) << "Illegal form for scalable vector lanes: " << lanes;
+    return std::nullopt;
   }
-
-  return new_lanes;
 }
 
 }  // namespace arith

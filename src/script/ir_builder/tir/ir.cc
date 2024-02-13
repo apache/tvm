@@ -518,14 +518,44 @@ Var EnvThread(String thread_tag) {
 
 void BufferStore(Buffer buffer, PrimExpr value, Array<PrimExpr> indices) {
   runtime::DataType buffer_dtype = buffer->dtype;
-  int index_lanes = indices.size() ? indices.back().dtype().lanes() : 1;
-  bool is_scalable = indices.size() ? indices.back().dtype().is_scalable() : false;
-  runtime::DataType lhs_dtype =
-      is_scalable ? buffer_dtype.with_scalable_lanes(buffer_dtype.lanes() * index_lanes)
-                  : buffer_dtype.with_lanes(buffer_dtype.lanes() * index_lanes);
+  bool is_index_scalable = indices.empty() ? false : indices.back().dtype().is_scalable_vector();
+  bool is_buffer_dtype_scalable = buffer_dtype.is_scalable_vector();
+
+  ICHECK(!(is_index_scalable && is_buffer_dtype_scalable))
+      << "Index dtype and buffer dtype can't both be scalable.";
+
+  int index_lanes;
+  if (indices.empty()) {
+    index_lanes = 1;
+  } else if (is_index_scalable) {
+    index_lanes = indices.back().dtype().vscale_factor();
+  } else {
+    index_lanes = indices.back().dtype().lanes();
+  }
+
+  int buffer_lanes = is_buffer_dtype_scalable ? buffer_dtype.vscale_factor() : buffer_dtype.lanes();
+
+  runtime::DataType lhs_dtype;
+  if (is_buffer_dtype_scalable || is_index_scalable) {
+    lhs_dtype = buffer_dtype.with_scalable_vscale_factor(buffer_lanes * index_lanes);
+  } else {
+    lhs_dtype = buffer_dtype.with_lanes(buffer_dtype.lanes() * index_lanes);
+  }
+
   runtime::DataType rhs_dtype = value->dtype;
+
   if (lhs_dtype != rhs_dtype) {
-    if (lhs_dtype.lanes() != rhs_dtype.lanes()) {
+    ICHECK(lhs_dtype.is_scalable_vector() == rhs_dtype.is_scalable_vector())
+        << "Can't mix scalable and fixed length vectors in a statement";
+
+    bool lanes_match = false;
+    if (lhs_dtype.is_scalable_vector()) {
+      lanes_match = lhs_dtype.vscale_factor() == rhs_dtype.vscale_factor();
+    } else {
+      lanes_match = lhs_dtype.lanes() == rhs_dtype.lanes();
+    }
+
+    if (!lanes_match) {
       LOG(FATAL) << "TypeError: Incompatible types in BufferStore"
                  << ": LHS is `" << lhs_dtype << "`, RHS is `" << rhs_dtype
                  << "`, indexing lanes: " << index_lanes;

@@ -472,8 +472,7 @@ void CodeGenOpenCL::VisitExpr_(const CallNode* op, std::ostream& os) {
 
 void CodeGenOpenCL::VisitExpr_(const BroadcastNode* op, std::ostream& os) {  // NOLINT(*)
   std::string v = PrintExpr(op->value);
-  ICHECK(!op->dtype.is_scalable()) << "Scalable vectors are not supported in codegen_opencl";
-  int lanes = static_cast<int>(Downcast<IntImm>(op->lanes)->value);
+  int lanes = op->dtype.lanes();
   os << "((";
   PrintType(op->dtype, os);
   os << ")(";
@@ -488,8 +487,7 @@ void CodeGenOpenCL::VisitExpr_(const RampNode* op, std::ostream& os) {  // NOLIN
   os << "((";
   PrintType(op->dtype, os);
   os << ")(";
-  ICHECK(!op->dtype.is_scalable()) << "Scalable vectors are not supported in codegen_opencl";
-  int lanes = static_cast<int>(Downcast<IntImm>(op->lanes)->value);
+  int lanes = op->dtype.lanes();
   for (int i = 0; i < lanes; i++) {
     os << "(" << PrintExpr(op->base) << ")"
        << "+(" << PrintExpr(op->stride) << "*" << i << ")";

@@ -888,8 +888,7 @@ void CodeGenC::VisitExpr_(const RampNode* op, std::ostream& os) {  // NOLINT(*)
   // NOTE: C have comma expression so cannot use (int2)(v0, v1)
   // instead should use int2(v0, v1)
   PrintType(op->dtype, os);
-  ICHECK(!op->dtype.is_scalable()) << "Scalable vectors are not supported in codegen_c";
-  int lanes = static_cast<int>(Downcast<IntImm>(op->lanes)->value);
+  int lanes = op->dtype.lanes();
   os << "(";
   for (int i = 0; i < lanes; i++) {
     os << "(" << PrintExpr(op->base) << ")"

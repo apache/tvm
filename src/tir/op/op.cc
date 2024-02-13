@@ -127,10 +127,11 @@ void BroadcastToMatchLanes(PrimExpr& op_a, PrimExpr& op_b) {  // NOLINT(*)
   DataType dtype_a = op_a.dtype();
   DataType dtype_b = op_b.dtype();
 
-  if (dtype_a.lanes() == 1 && dtype_b.lanes() != 1) {
-    if (dtype_b.is_scalable()) {
+  if (!dtype_a.is_scalable_or_fixed_length_vector() &&
+      dtype_b.is_scalable_or_fixed_length_vector()) {
+    if (dtype_b.is_scalable_vector()) {
       op_a = tir::Broadcast(
-          op_a, tir::Mul(dtype_b.lanes(), Call(DataType::Int(32), builtin::vscale(), {})));
+          op_a, tir::Mul(dtype_b.vscale_factor(), Call(DataType::Int(32), builtin::vscale(), {})));
     } else {
       op_a = tir::Broadcast(op_a, dtype_b.lanes());
     }
@@ -149,7 +150,18 @@ void BinaryOpMatchTypes(PrimExpr& lhs, PrimExpr& rhs, Span span) {  // NOLINT(*)
   DataType ltype = lhs.dtype();
   DataType rtype = rhs.dtype();
 
-  ICHECK(ltype.lanes() == rtype.lanes()) << "Cannot match type " << ltype << " vs " << rtype;
+  ICHECK(ltype.is_scalable_vector() == rtype.is_scalable_vector())
+      << "Can't match scalable and fixed length vectors";
+
+  bool lanes_match = false;
+
+  if (ltype.is_scalable_vector()) {
+    lanes_match = ltype.vscale_factor() == rtype.vscale_factor();
+  } else {
+    lanes_match = ltype.lanes() == rtype.lanes();
+  }
+
+  ICHECK(lanes_match) << "Cannot match type " << ltype << " vs " << rtype;
   if (lhs.dtype() == rhs.dtype()) return;
 
   ltype = lhs.dtype();
@@ -340,7 +352,7 @@ PrimExpr cast(const DataType& t, PrimExpr value, Span span) {
     return tir::Cast(t, value, span);
   } else {
     DataType vtype = t.element_of();
-    if (value.dtype().lanes() == 1) {
+    if (!value.dtype().is_scalable_or_fixed_length_vector()) {
       // manually unroll cast
       if (value.dtype() != vtype) {
         if (const IntImmNode* op = value.as<IntImmNode>()) {
@@ -351,15 +363,23 @@ PrimExpr cast(const DataType& t, PrimExpr value, Span span) {
           value = tir::Cast(vtype, value, span);
         }
       }
-      if (t.is_scalable()) {
+      if (t.is_scalable_vector()) {
         return tir::Broadcast(
-            value, tir::Mul(t.lanes(), Call(DataType::Int(32), builtin::vscale(), {})), span);
+            value, tir::Mul(t.vscale_factor(), Call(DataType::Int(32), builtin::vscale(), {})),
+            span);
       } else {
         return tir::Broadcast(value, t.lanes(), span);
       }
-    } else {
-      ICHECK(value.dtype().lanes() == t.lanes());
-      ICHECK(value.dtype().is_scalable() == t.is_scalable());
+    } else { /* value is a vector */
+      ICHECK(value.dtype().is_scalable_vector() == t.is_scalable_vector());
+
+      bool lanes_match = false;
+      if (value.dtype().is_scalable_vector()) {
+        lanes_match = value.dtype().vscale_factor() == t.vscale_factor();
+      } else {
+        lanes_match = value.dtype().lanes() == t.lanes();
+      }
+      ICHECK(lanes_match);
       if (const auto* broadcast = value.as<tir::BroadcastNode>()) {
         return tir::Broadcast(cast(vtype, broadcast->value, span), broadcast->lanes, span);
       } else if (const auto* ramp = value.as<tir::RampNode>()) {

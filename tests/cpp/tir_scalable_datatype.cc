@@ -33,46 +33,91 @@ TEST(TIR, TestCreateScalableType) {
   tvm::DataType scalable_type = tvm::DataType(kDLInt, 32, 4, true);
   ASSERT_EQ(scalable_type.code(), kDLInt);
   ASSERT_EQ(scalable_type.bits(), 32);
-  ASSERT_EQ(scalable_type.lanes(), 4);
-  ASSERT_TRUE(scalable_type.is_scalable());
-  ASSERT_TRUE(scalable_type.is_vector());
+  ASSERT_EQ(scalable_type.vscale_factor(), 4);
+  ASSERT_TRUE(scalable_type.is_scalable_vector());
+  ASSERT_TRUE(scalable_type.is_scalable_or_fixed_length_vector());
 }
 
 TEST(TIR, TestScalableWithBits) {
-  tvm::DataType scalable_type = tvm::DataType(kDLInt, 1, 1, true);
+  tvm::DataType scalable_type = tvm::DataType(kDLInt, 1, 8, true);
   scalable_type = scalable_type.with_bits(32);
   ASSERT_EQ(scalable_type.bits(), 32);
-  ASSERT_TRUE(scalable_type.is_scalable());
-  ASSERT_TRUE(scalable_type.is_vector());
+  ASSERT_TRUE(scalable_type.is_scalable_vector());
+  ASSERT_TRUE(scalable_type.is_scalable_or_fixed_length_vector());
 }
 
-TEST(TIR, TestScalableWithLanes) {
+TEST(TIR, TestScalableWithVscaleFactor) {
   tvm::DataType type = tvm::DataType(kDLInt, 32, 1);
-  tvm::DataType scalable_type = type.with_scalable_lanes(4);
-  ASSERT_EQ(scalable_type.lanes(), 4);
-  ASSERT_TRUE(scalable_type.is_scalable());
-  ASSERT_TRUE(scalable_type.is_vector());
+  tvm::DataType scalable_type = type.with_scalable_vscale_factor(4);
+  ASSERT_EQ(scalable_type.vscale_factor(), 4);
+  ASSERT_TRUE(scalable_type.is_scalable_vector());
+  ASSERT_TRUE(scalable_type.is_scalable_or_fixed_length_vector());
 }
 
 TEST(TIR, TestAssignScalableDataType) {
-  tvm::DataType scalable_type = tvm::DataType(kDLInt, 32, 1, true);
+  tvm::DataType scalable_type = tvm::DataType(kDLInt, 32, 2, true);
   tvm::DataType scalable_type_copy = scalable_type;
-  ASSERT_TRUE(scalable_type_copy.is_scalable());
-  ASSERT_TRUE(scalable_type_copy.is_vector());
+  ASSERT_TRUE(scalable_type_copy.is_scalable_vector());
+  ASSERT_TRUE(scalable_type_copy.is_scalable_or_fixed_length_vector());
 }
 
 TEST(TIR, TestScalableDataTypeAndNonScalableDataTypeInequality) {
   ASSERT_FALSE(tvm::DataType(kDLInt, 32, 4, true) == tvm::DataType(kDLInt, 32, 4));
 }
 
-TEST(TIR, TestGetScalableVectorBytes) {
+TEST(TIR, TestGetScalableVectorBytesError) {
   tvm::DataType scalable_type = tvm::DataType(kDLInt, 32, 4, true);
   EXPECT_THROW(
       {
         try {
           tvm::runtime::GetVectorBytes(scalable_type);
         } catch (const tvm::InternalError& e) {
-          EXPECT_THAT(e.what(), HasSubstr("Cannot get vector bytes of scalable vector"));
+          EXPECT_THAT(e.what(),
+                      HasSubstr("Can't fetch the lanes of a scalable vector at a compile time"));
+          throw;
+        }
+      },
+      tvm::InternalError);
+}
+
+TEST(TIR, TestScalableDataTypeInvalidLanesError) {
+  EXPECT_THROW(
+      {
+        try {
+          tvm::DataType(kDLFloat, 62, 1, true);
+        } catch (const tvm::InternalError& e) {
+          EXPECT_THAT(e.what(), HasSubstr("Invalid value for vscale factor"));
+          throw;
+        }
+      },
+      tvm::InternalError);
+}
+
+TEST(TIR, TestScalableDataTypeInvalidVscaleFactorAccess) {
+  tvm::DataType fixed_length_type = tvm::DataType(kDLFloat, 32, 4);
+  ASSERT_TRUE(fixed_length_type.is_fixed_length_vector());
+  ASSERT_TRUE(fixed_length_type.is_scalable_or_fixed_length_vector());
+  EXPECT_THROW(
+      {
+        try {
+          fixed_length_type.vscale_factor();
+        } catch (const tvm::InternalError& e) {
+          EXPECT_THAT(e.what(), HasSubstr("A fixed length vector doesn't have a vscale factor"));
+          throw;
+        }
+      },
+      tvm::InternalError);
+}
+
+TEST(TIR, TestScalableDataTypeInvalidLanesAccess) {
+  tvm::DataType scalable_type = tvm::DataType(kDLFloat, 32, 4, true);
+  EXPECT_THROW(
+      {
+        try {
+          scalable_type.lanes();
+        } catch (const tvm::InternalError& e) {
+          EXPECT_THAT(e.what(),
+                      HasSubstr("Can't fetch the lanes of a scalable vector at a compile time"));
           throw;
         }
       },

@@ -21,9 +21,12 @@
  * \file expr.cc
  */
 #include <tvm/runtime/registry.h>
+#include <tvm/tir/builtin.h>
 #include <tvm/tir/expr.h>
 #include <tvm/tir/op.h>
 #include <tvm/tir/stmt_functor.h>
+
+#include <optional>
 
 #include "../../arith/scalable_expression.h"
 #include "../../support/str_escape.h"
@@ -438,15 +441,17 @@ Ramp::Ramp(PrimExpr base, PrimExpr stride, PrimExpr lanes, Span span) {
   }
 
   ObjectPtr<RampNode> node = make_object<RampNode>();
-  auto* lanes_int = lanes.as<IntImmNode>();
-  if (lanes_int) {
-    int lanes = static_cast<int>(lanes_int->value);
+  auto* lanes_as_int = lanes.as<IntImmNode>();
+  if (lanes_as_int) {
+    int lanes = static_cast<int>(lanes_as_int->value);
     ICHECK_GT(lanes, 1);
     node->dtype = base.dtype().with_lanes(lanes);
   } else { /* scalable vector */
-    lanes = arith::CanonicalizeScalableLanes(lanes);
-    int vscale_multiplier = Downcast<IntImm>(Downcast<Mul>(lanes)->a)->value;
-    node->dtype = base.dtype().with_scalable_lanes(vscale_multiplier);
+    std::optional<int> vscale_factor = arith::ExtractVscaleFactor(lanes);
+    ICHECK(vscale_factor) << "Invalid expression for scalable lanes " << lanes;
+
+    node->dtype = base.dtype().with_scalable_vscale_factor(vscale_factor.value());
+    lanes = Mul(Call(DataType::Int(32), tir::builtin::vscale(), {}), vscale_factor.value());
   }
   node->base = base;
   node->stride = stride;
@@ -474,9 +479,11 @@ Broadcast::Broadcast(PrimExpr value, PrimExpr lanes, Span span) {
     ICHECK_GT(lanes, 1);
     node->dtype = value.dtype().with_lanes(lanes);
   } else { /* scalable vector */
-    lanes = arith::CanonicalizeScalableLanes(lanes);
-    int vscale_multiplier = Downcast<IntImm>(Downcast<Mul>(lanes)->a)->value;
-    node->dtype = value.dtype().with_scalable_lanes(vscale_multiplier);
+    std::optional<int> vscale_factor = arith::ExtractVscaleFactor(lanes);
+    ICHECK(vscale_factor) << "Invalid expression for scalable lanes " << lanes;
+
+    node->dtype = value.dtype().with_scalable_vscale_factor(vscale_factor.value());
+    lanes = Mul(Call(DataType::Int(32), tir::builtin::vscale(), {}), vscale_factor.value());
   }
   node->value = std::move(value);
   node->lanes = lanes;
@@ -731,13 +738,25 @@ void BufferLoadNode::LegalizeDType() {
         << "Only the last index of a buffer access may be a vector type.";
   }
 
-  int index_lanes = indices.size() ? indices.back().dtype().lanes() : 1;
-  int buffer_lanes = buffer->dtype.lanes();
-
-  if ((indices.size() && indices.back().dtype().is_scalable()) || buffer->dtype.is_scalable()) {
-    this->dtype = buffer->dtype.with_scalable_lanes(index_lanes * buffer_lanes);
+  if (indices.empty()) {
+    this->dtype = buffer->dtype;
   } else {
-    this->dtype = buffer->dtype.with_lanes(index_lanes * buffer_lanes);
+    auto index_dtype = indices.back().dtype();
+    bool is_buffer_dtype_scalable = buffer->dtype.is_scalable_vector();
+    bool is_index_scalable = index_dtype.is_scalable_vector();
+
+    ICHECK(!(is_index_scalable && is_buffer_dtype_scalable))
+        << "Index dtype and buffer dtype can't both be scalable.";
+
+    if (is_index_scalable) {
+      this->dtype = buffer->dtype.with_scalable_vscale_factor(index_dtype.vscale_factor() *
+                                                              buffer->dtype.lanes());
+    } else if (is_buffer_dtype_scalable) {
+      this->dtype = buffer->dtype.with_scalable_vscale_factor(buffer->dtype.vscale_factor() *
+                                                              index_dtype.lanes());
+    } else {
+      this->dtype = buffer->dtype.with_lanes(index_dtype.lanes() * buffer->dtype.lanes());
+    }
   }
 }
 

@@ -208,8 +208,7 @@ void CodeGenCHost::PrintType(DataType t, std::ostream& os) {  // NOLINT(*)
 
 void CodeGenCHost::VisitExpr_(const BroadcastNode* op, std::ostream& os) {  // NOLINT(*)
   std::string v = PrintExpr(op->value);
-  ICHECK(!op->dtype.is_scalable()) << "Scalable vectors are not supported in codegen_c_host";
-  int lanes = static_cast<int>(Downcast<IntImm>(op->lanes)->value);
+  int lanes = op->dtype.lanes();
   os << "((";
   PrintType(op->dtype, os);
   os << ")(";

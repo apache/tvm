@@ -413,8 +413,8 @@ def _create_broadcast(lanes):
 @pytest.mark.parametrize("node_func", [_create_ramp, _create_broadcast])
 def test_scalable_vec(lanes, node_func):
     def _check_dtype(node):
-        assert node.lanes.a == 11
-        assert node.lanes.b.equal(tvm.tir.vscale())
+        assert node.lanes.a.equal(tvm.tir.vscale())
+        assert node.lanes.b == 11
 
     _check_dtype(node_func(lanes))
 
@@ -435,8 +435,8 @@ def test_broadcast_to_scalable_vec():
 
     assert isinstance(broadcast, tvm.tir.expr.Broadcast)
     assert broadcast.value == 3
-    assert broadcast.lanes.a == 4
-    assert broadcast.lanes.b.equal(tvm.tir.vscale())
+    assert broadcast.lanes.a.equal(tvm.tir.vscale())
+    assert broadcast.lanes.b == 4
 
 
 @pytest.mark.xfail(

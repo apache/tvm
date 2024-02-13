@@ -1731,7 +1731,7 @@ void CodeGenLLVM::BufferAccessHelper(
     int subelement_i = i;
     if (const RampNode* ramp = last_index.as<RampNode>()) {
       // TODO(ekalda): P4 in https://github.com/apache/tvm/issues/16455
-      ICHECK(!last_index.dtype().is_scalable());
+      ICHECK(!last_index.dtype().is_scalable_vector());
       PrimExpr offset = ramp->base + (ramp->stride * i);
       last_index_value = MakeValue(offset);
     } else if (last_index.dtype().lanes() > 1) {
@@ -1830,8 +1830,8 @@ llvm::Value* CodeGenLLVM::VisitExpr_(const CallNode* op) {
 llvm::Value* CodeGenLLVM::VisitExpr_(const RampNode* op) {
   llvm::Value* vec = llvm::UndefValue::get(DTypeToLLVMType(op->dtype));
   // TODO(ekalda): P4 in https://github.com/apache/tvm/issues/16455
-  ICHECK(!op->dtype.is_scalable());
-  auto lanes = static_cast<int>(Downcast<IntImm>(op->lanes)->value);
+  ICHECK(!op->dtype.is_scalable_vector());
+  int lanes = op->dtype.lanes();
   for (int i = 0; i < lanes; ++i) {
     vec = builder_->CreateInsertElement(
         vec, MakeValue(op->base + op->stride * make_const(op->stride.dtype(), i)), ConstInt32(i));
@@ -1865,8 +1865,8 @@ llvm::Value* CodeGenLLVM::VisitExpr_(const ShuffleNode* op) {
 
 llvm::Value* CodeGenLLVM::VisitExpr_(const BroadcastNode* op) {
   // TODO(ekalda): P4 in https://github.com/apache/tvm/issues/16455
-  ICHECK(!op->dtype.is_scalable());
-  int lanes = static_cast<int>(Downcast<IntImm>(op->lanes)->value);
+  ICHECK(!op->dtype.is_scalable_vector());
+  int lanes = op->dtype.lanes();
   return CreateBroadcast(MakeValue(op->value), lanes);
 }
 

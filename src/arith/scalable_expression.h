@@ -27,6 +27,8 @@
 
 #include <tvm/ir/expr.h>
 
+#include <optional>
+
 namespace tvm {
 namespace arith {
 
@@ -38,11 +40,11 @@ namespace arith {
 bool IsVScaleCall(const PrimExpr& expr);
 
 /*!
- * \brief Returns the scalable lanes in a form multiplier * vscale
+ * \brief Returns the vscale multiplier as a nullable type
  * \param lanes The scalable lanes as a PrimExpr
- * \return Scalable lanes in a form multiplier * vscale
+ * \return vscale multiplier as std::optional<int>
  */
-PrimExpr CanonicalizeScalableLanes(const PrimExpr& lanes);
+std::optional<int> ExtractVscaleFactor(const PrimExpr& lanes);
 
 }  // namespace arith
 }  // namespace tvm

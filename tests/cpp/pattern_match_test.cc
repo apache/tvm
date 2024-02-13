@@ -27,7 +27,7 @@ TEST(Pattern, Basic) {
   using namespace tvm::tir;
   using namespace tvm::arith;
   tvm::tir::Var x("x"), y("y"), z("z");
-  PrimExpr scalable_lanes = Mul(4, Call(DataType::Int(32), builtin::vscale(), {}));
+  PrimExpr scalable_lanes = Mul(Call(DataType::Int(32), builtin::vscale(), {}), 4);
   arith::PVar<PrimExpr> px, py, pz;
   arith::PVar<DataType> pt;
   arith::PVar<PrimExpr> planes;
@@ -114,7 +114,7 @@ TEST(Pattern, Basic) {
     ICHECK(ramp(px, PConst<PrimExpr>(1), planes).Match(tir::Ramp(x, 1, 10)));
     ICHECK(planes.Eval().as<IntImmNode>()->value == 10);
     ICHECK(ramp(px, PConst<PrimExpr>(1), planes).Match(tir::Ramp(x, 1, scalable_lanes)));
-    ICHECK((PConst<PrimExpr>(4) * vscale).Match(planes.Eval()));
+    ICHECK((vscale * PConst<PrimExpr>(4)).Match(planes.Eval()));
     ICHECK(!ramp(px, PConst<PrimExpr>(1), planes).Match(tir::Ramp(x, 2, 10)));
   }
   // broadcast pattern
@@ -123,7 +123,7 @@ TEST(Pattern, Basic) {
     ICHECK(planes.Eval().as<IntImmNode>()->value == 10);
     ICHECK(broadcast(px * py, planes).Match(tir::Broadcast(x * 10, 10)));
     ICHECK(broadcast(px, planes).Match(tir::Broadcast(x, scalable_lanes)));
-    ICHECK((PConst<PrimExpr>(4) * vscale).Match(planes.Eval()));
+    ICHECK((vscale * PConst<PrimExpr>(4)).Match(planes.Eval()));
   }
 }
 

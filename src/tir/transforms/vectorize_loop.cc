@@ -42,7 +42,7 @@ namespace tir {
 inline PrimExpr BroadcastTo(PrimExpr e, int lanes) {
   if (e.dtype().lanes() == lanes) return e;
   if (const BroadcastNode* op = e.as<BroadcastNode>()) {
-    ICHECK(!e.dtype().is_scalable());
+    ICHECK(!e.dtype().is_scalable_vector());
     int broadcast_lanes = static_cast<int>(Downcast<IntImm>(op->lanes)->value);
     if (lanes % broadcast_lanes == 0) {
       return Broadcast(op->value, lanes);
@@ -304,7 +304,7 @@ class Vectorizer : public StmtMutator, public ExprFunctor<PrimExpr(const PrimExp
   // IfThenElse expr
   PrimExpr MutateIfThenElseExpr_(const CallNode* op) {
     PrimExpr cond = this->VisitExpr(op->args[0]);
-    if (cond.dtype().is_vector()) {
+    if (cond.dtype().is_scalable_or_fixed_length_vector()) {
       need_scalarize_ = true;
       return GetRef<PrimExpr>(op);
     }
@@ -346,7 +346,7 @@ class Vectorizer : public StmtMutator, public ExprFunctor<PrimExpr(const PrimExp
       Array<PrimExpr> new_args;
       for (auto arg : op->args) {
         auto new_arg = this->VisitExpr(arg);
-        if (new_arg.dtype().is_vector()) {
+        if (new_arg.dtype().is_scalable_or_fixed_length_vector()) {
           need_scalarize_ = true;
           return GetRef<PrimExpr>(op);
         }
@@ -458,9 +458,9 @@ class Vectorizer : public StmtMutator, public ExprFunctor<PrimExpr(const PrimExp
       LOG(WARNING) << "Detect vectorize inside vectorized loop, ignoring...";
     }
     ICHECK(is_zero(op->min));
-    ICHECK(!op->extent.dtype().is_vector());
+    ICHECK(!op->extent.dtype().is_scalable_or_fixed_length_vector());
     PrimExpr extent = this->VisitExpr(op->extent);
-    if (extent.dtype().is_vector()) {
+    if (extent.dtype().is_scalable_or_fixed_length_vector()) {
       return Scalarize(GetRef<Stmt>(op));
     }
     Stmt body = this->VisitStmt(op->body);
@@ -473,9 +473,9 @@ class Vectorizer : public StmtMutator, public ExprFunctor<PrimExpr(const PrimExp
   }
   // IfThenElse
   Stmt VisitStmt_(const IfThenElseNode* op) final {
-    ICHECK(!op->condition.dtype().is_vector());
+    ICHECK(!op->condition.dtype().is_scalable_or_fixed_length_vector());
     PrimExpr condition = this->VisitExpr(op->condition);
-    if (condition.dtype().is_vector()) {
+    if (condition.dtype().is_scalable_or_fixed_length_vector()) {
       return Scalarize(GetRef<Stmt>(op));
     }
     Stmt then_case = this->VisitStmt(op->then_case);
@@ -518,7 +518,7 @@ class Vectorizer : public StmtMutator, public ExprFunctor<PrimExpr(const PrimExp
   Stmt VisitStmt_(const AllocateNode* op) final {
     // Mutate the condition
     PrimExpr condition = this->VisitExpr(op->condition);
-    if (condition.dtype().is_vector()) {
+    if (condition.dtype().is_scalable_or_fixed_length_vector()) {
       LOG(WARNING) << "Cannot handle vector extent in alloc of " << op->buffer_var->name_hint;
       return Scalarize(GetRef<Stmt>(op));
     }
@@ -527,7 +527,7 @@ class Vectorizer : public StmtMutator, public ExprFunctor<PrimExpr(const PrimExp
     Array<PrimExpr> extents;
     for (const auto& extent : op->extents) {
       PrimExpr new_ext = this->VisitExpr(extent);
-      if (new_ext.dtype().is_vector()) {
+      if (new_ext.dtype().is_scalable_or_fixed_length_vector()) {
         LOG(WARNING) << "Cannot handle vector extent in alloc of " << op->buffer_var->name_hint;
         return Scalarize(GetRef<Stmt>(op));
       }

@@ -629,9 +629,6 @@ def test_select():
 def test_ramp(lanes, scripted_lanes):
     a = tir.Var("a", "int32")
     obj = tir.Ramp(a, 1, lanes)
-    import pdb
-
-    pdb.set_trace()
     _assert_print(
         obj,
         """

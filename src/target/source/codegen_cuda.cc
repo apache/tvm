@@ -672,7 +672,7 @@ void CodeGenCUDA::VisitExpr_(const CastNode* op, std::ostream& os) {
 void CodeGenCUDA::PrintCallExtern(Type ret_type, String global_symbol, const Array<PrimExpr>& args,
                                   bool skip_first_arg, std::ostream& os) {  // NOLINT(*)
   DataType ret_dtype = GetRuntimeDataType(ret_type);
-  if (ret_dtype.is_vector()) {
+  if (ret_dtype.is_fixed_length_vector()) {
     //
     // Emit an unsupported vector call
     //
@@ -1162,8 +1162,7 @@ void CodeGenCUDA::VisitStmt_(const EvaluateNode* op) {
 }
 
 void CodeGenCUDA::VisitExpr_(const RampNode* op, std::ostream& os) {
-  ICHECK(!op->dtype.is_scalable()) << "Scalable vectors are not supported in codegen_cuda";
-  int lanes = static_cast<int>(Downcast<IntImm>(op->lanes)->value);
+  int lanes = op->dtype.lanes();
   CHECK_LE(lanes, 4) << "ValueError: Ramp of more than 4 lanes is not allowed.";
   PrintVecConstructor(op->dtype, os);
   os << "(";
@@ -1176,8 +1175,7 @@ void CodeGenCUDA::VisitExpr_(const RampNode* op, std::ostream& os) {
 }
 
 void CodeGenCUDA::VisitExpr_(const BroadcastNode* op, std::ostream& os) {  // NOLINT(*)
-  ICHECK(!op->dtype.is_scalable()) << "Scalable vectors are not supported in codegen_c_host";
-  int lanes = static_cast<int>(Downcast<IntImm>(op->lanes)->value);
+  int lanes = op->dtype.lanes();
   if ((op->dtype.is_int() || op->dtype.is_uint()) && op->dtype.bits() == 8 && lanes == 4) {
     // make_int8x4
     const int64_t* p = as_const_int(op->value);
@@ -1271,7 +1269,7 @@ void CodeGenCUDA::VisitExpr_(const BroadcastNode* op, std::ostream& os) {  // NO
 
 void CodeGenCUDA::VisitExpr_(const SelectNode* op, std::ostream& os) {
   // Non-vector cases.
-  if (!op->dtype.is_vector()) {
+  if (!op->dtype.is_fixed_length_vector()) {
     CodeGenC::VisitExpr_(op, os);
     return;
   }
