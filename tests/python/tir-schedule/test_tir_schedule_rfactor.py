@@ -501,7 +501,7 @@ def rowsum_zero_dim(a: T.handle, b: T.handle) -> None:
 def rowsum_zero_dim_rfactor(a: T.handle, b: T.handle) -> None:
     A = T.match_buffer(a, [128])
     B = T.match_buffer(b, [])
-    B_rf = T.alloc_buffer([128])
+    B_rf = T.alloc_buffer([128], elem_offset=T.int64(0))
 
     for i in range(128):
         with T.block("B_rf"):
@@ -1582,6 +1582,7 @@ def test_reduction_rfactor_argmax_body_bufferstore_value_not_var():
         s.rfactor(ki, 1)
 
 
+@pytest.mark.xfail(reason="The input IR is not well-formed")
 def test_reduction_rfactor_argmax_body_bufferstore_value_unbound_var():
     s = tir.Schedule(argmax_split_body_bufferstore_value_unbound_var, debug_mask="all")
     argmax = s.get_block("argmax")

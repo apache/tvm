@@ -17,7 +17,7 @@
 
 """Perform ResNet autoTVM tuning on VTA using Relay."""
 
-import argparse, os, time
+import argparse, os, sys, time
 from mxnet.gluon.model_zoo import vision
 import numpy as np
 from PIL import Image
@@ -285,7 +285,11 @@ if __name__ == "__main__":
 
     # Compile Relay program
     print("Initial compile...")
-    relay_prog, params = compile_network(opt, env, target)
+    try:
+        relay_prog, params = compile_network(opt, env, target)
+    except RuntimeError:
+        print("Downloads from mxnet no longer supported", file=sys.stderr)
+        sys.exit(0)
 
     # Register VTA tuning tasks
     register_vta_tuning_tasks()

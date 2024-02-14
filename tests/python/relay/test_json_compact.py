@@ -15,11 +15,11 @@
 # specific language governing permissions and limitations
 # under the License.
 
-import tvm
-from tvm import relay
-from tvm import te
 import json
 
+import tvm
+import tvm.testing
+from tvm import relay
 
 # 0.6 BACKWARDS COMPATIBILITY TESTS
 
@@ -125,7 +125,7 @@ def test_global_var():
         {"type_key": ""},
         {
             "type_key": "relay.GlobalVar",
-            "attrs": {"_checked_type_": "0", "name_hint": "x", "span": "0"},
+            "attrs": {"_checked_type_": "0", "name_hint": "x", "span": "0", "struct_info_": "0"},
         },
     ]
     data = {
@@ -140,7 +140,7 @@ def test_global_var():
         {"type_key": ""},
         {
             "type_key": "GlobalVar",
-            "attrs": {"_checked_type_": "0", "name_hint": "x", "span": "0"},
+            "attrs": {"_checked_type_": "0", "name_hint": "x", "span": "0", "struct_info_": "0"},
         },
     ]
     data = {
@@ -231,6 +231,7 @@ def test_irmodule_attributes():
                 "global_var_map_": "0",
                 "source_map": "0",
                 "type_definitions": "0",
+                "global_infos": "0",
             },
         },
     ]
@@ -277,11 +278,4 @@ def test_virtual_device():
 
 
 if __name__ == "__main__":
-    test_op()
-    test_type_var()
-    test_var()
-    test_incomplete_type()
-    test_func_tuple_type()
-    test_global_var()
-    test_tir_var()
-    test_str_map()
+    tvm.testing.main()

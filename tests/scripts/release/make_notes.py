@@ -91,6 +91,8 @@ TAG_DICT = {
     "relay": "Relay",
     "qnn": "Relay",
     "quantization": "Relay",
+    "relax": "Relax",
+    "unity": "Relax",
     "tvmscript": "TVMScript",
     "tvmscripts": "TVMScript",
     "tvmc": "TVMC",

@@ -543,6 +543,7 @@ class PR:
             "tvm-minimal-cross-isa",
             "tvm-riscv",
             "tvm-wasm",
+            "tvm-unity",
         ]
         for name in job_names:
             url = JENKINS_URL + f"job/{name}/job/PR-{self.number}/buildWithParameters"

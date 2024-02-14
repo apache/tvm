@@ -279,6 +279,7 @@ TVM_REGISTER_GLOBAL("runtime.module.create_metal_module")
       std::unordered_map<std::string, FunctionInfo> fmap;
       dmlc::JSONReader reader(&stream);
       reader.Read(&fmap);
+
       return MetalModuleCreate(
           std::unordered_map<std::string, std::string>(smap.begin(), smap.end()), fmap, fmt,
           source);

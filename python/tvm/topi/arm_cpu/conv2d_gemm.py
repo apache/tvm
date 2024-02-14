@@ -22,6 +22,7 @@ from tvm.target import Target
 from tvm import te
 from tvm.topi import nn
 from tvm.autotvm.task.space import AnnotateEntity, ReorderEntity, OtherOptionEntity
+from tvm.topi.arm_cpu.arm_utils import get_tiling_B_transformed
 from ..utils import get_const_tuple, get_const_int
 from ..nn.utils import get_pad_tuple
 from .tensor_intrin import (
@@ -339,7 +340,15 @@ def compute_conv2d_gemm_without_weight_transform(
             ),
             name="C",
         )
-        zero = tvm.tir.const(0)
+        # Ensure padding on the N axis does not get removed during tir passes
+        # by adding a dummy reference to the specific padded area of the result
+        if in_dtype == "float16" and target.features.has_fp16_simd:
+            zero = (
+                tvm.tir.const(1, C.dtype) * C[0, 0, N_padded - 1]
+                - tvm.tir.const(1, C.dtype) * C[0, 0, N_padded - 1]
+            )
+        else:
+            zero = tvm.tir.const(0)
 
     # Reshape the result into a convolution output
     out_shape = (batches, OH, OW, OC)
@@ -454,6 +463,7 @@ def schedule_conv2d_gemm_native(cfg, s, out, final_out):
     C = out.op.input_tensors[0]
     A = C.op.input_tensors[0]
     in_type = A.dtype
+    y_tile_size, _ = get_tiling_B_transformed(False, in_type)
 
     # Computation
     b, x, y = C.op.axis
@@ -461,7 +471,6 @@ def schedule_conv2d_gemm_native(cfg, s, out, final_out):
 
     if in_type in ["int8", "uint8"]:
         k_outer, k_inner = s[C].split(k, 16)
-        y_tile_size = 16
         x_outer, y_outer, x_inner, y_inner = s[C].tile(x, y, x_factor=4, y_factor=y_tile_size)
         s[C].reorder(b, x_outer, y_outer, k_outer, x_inner, y_inner, k_inner)
         gemm_acc = gemm_acc_nx16_int8_int8_int32(in_type, rows=1)
@@ -470,9 +479,8 @@ def schedule_conv2d_gemm_native(cfg, s, out, final_out):
         s[C].parallel(x_outer)
     else:
         k_outer, k_inner = s[C].split(k, 4)
-        y_tile_size = 16
         x_outer, y_outer, x_inner, y_inner = s[C].tile(x, y, x_factor=4, y_factor=y_tile_size)
-        y_inner_outer, y_inner_inner = s[C].split(y_inner, 4)
+        y_inner_outer, y_inner_inner = s[C].split(y_inner, nparts=4)
         b_x_outer_fused = s[C].fuse(b, x_outer)
         s[C].parallel(b_x_outer_fused)
         s[C].reorder(

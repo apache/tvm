@@ -160,6 +160,34 @@ class WebGPUModuleNode final : public runtime::ModuleNode {
   const char* type_key() const final { return "webgpu"; }
 
   PackedFunc GetFunction(const String& name, const ObjectPtr<Object>& sptr_to_self) final {
+    // special function
+    if (name == "webgpu.get_fmap") {
+      return PackedFunc([this](TVMArgs args, TVMRetValue* rv) {
+        std::ostringstream os;
+        dmlc::JSONWriter writer(&os);
+        writer.Write(fmap_);
+        *rv = os.str();
+      });
+    } else if (name == "webgpu.get_shader") {
+      return PackedFunc([this](TVMArgs args, TVMRetValue* rv) {
+        std::string name = args[0];
+        auto it = smap_.find(name);
+        ICHECK(it != smap_.end()) << "Cannot find code " << name;
+        *rv = it->second;
+      });
+    } else if (name == "webgpu.update_prebuild") {
+      return PackedFunc([this](TVMArgs args, TVMRetValue* rv) {
+        std::string name = args[0];
+        PackedFunc func = args[1];
+        prebuild_[name] = func;
+      });
+    }
+    // check prebuild cache
+    auto prebuild_it = prebuild_.find(name);
+    if (prebuild_it != prebuild_.end()) {
+      return prebuild_it->second;
+    }
+
     auto it = smap_.find(name);
     if (it != smap_.end()) {
       FunctionInfo info = fmap_.at(name);
@@ -173,9 +201,7 @@ class WebGPUModuleNode final : public runtime::ModuleNode {
     }
   }
 
-  void SaveToFile(const String& file_name, const String& format) final {
-    LOG(FATAL) << "Not implemented";
-  }
+  int GetPropertyMask() const final { return ModulePropertyMask::kBinarySerializable; };
 
   void SaveToBinary(dmlc::Stream* stream) final { LOG(FATAL) << "Not implemented"; }
 
@@ -185,12 +211,14 @@ class WebGPUModuleNode final : public runtime::ModuleNode {
   }
 
  private:
-  // function information table.
+  // code table
   std::unordered_map<std::string, std::string> smap_;
   // function information table.
   std::unordered_map<std::string, FunctionInfo> fmap_;
   // The source
   std::string source_;
+  // prebuild_ functions
+  std::unordered_map<std::string, PackedFunc> prebuild_;
   // Callback to get the GPU function.
   TypedPackedFunc<PackedFunc(std::string finfo, std::string shader)> create_shader_;
 };

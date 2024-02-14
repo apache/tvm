@@ -296,7 +296,7 @@ class DenseDP4ATiled:
                                     W_shared[j, k_o * 4 : k_o * 4 + 4],
                                 )
                                 T.writes(compute_local[i, j])
-                                T.block_attr({"meta_schedule.auto_tensorize": "dp4a"})
+                                T.block_attr({"meta_schedule.auto_tensorize": "dp4a_s8s8s32"})
                                 with T.init():
                                     with T.block("compute_init"):
                                         T.reads()

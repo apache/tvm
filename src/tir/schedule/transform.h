@@ -72,6 +72,15 @@ Array<BufferRegion> ReplaceBuffer(Array<BufferRegion> regions, const Buffer& sou
                                   const Buffer& target);
 
 /*!
+ * \brief Replaces the buffer within the specific sequence of regions
+ * \param regions The regions whose buffers are to be replaced
+ * \param buffer_map The mapping from old buffers to new buffers
+ * \return The new sequence of regions after replacement
+ */
+Array<BufferRegion> ReplaceBuffer(Array<BufferRegion> regions,
+                                  const Map<Buffer, Buffer>& buffer_map);
+
+/*!
  * \brief Replaces the buffer within the specific sequence of match_buffers
  * \param match_buffers The match_buffers whose buffers are to be replaced
  * \param source The buffer to be replaced

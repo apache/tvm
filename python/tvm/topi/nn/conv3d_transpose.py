@@ -18,11 +18,11 @@
 """Transposed 3D convolution operators (sometimes called Deconvolution)."""
 import tvm
 from tvm import te
-from tvm import relay
+
+from ..utils import simplify
 from .dilate import dilate
 from .pad import pad
 from .utils import get_pad_tuple3d
-from ..utils import simplify
 
 
 def conv3d_transpose_ncdhw(Input, Filter, strides, padding, out_dtype, output_padding):
@@ -218,6 +218,8 @@ def conv3d_transpose_legalize(attrs, inputs, types):
     result : tvm.relay.Expr
         The legalized expr
     """
+    from tvm import relay  # pylint: disable=import-outside-toplevel
+
     if attrs["data_layout"] == "NDHWC":
         data, kernel = inputs
         kernel_layout = attrs["kernel_layout"]

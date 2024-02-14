@@ -98,6 +98,7 @@ tvm_option(USE_MKL "MKL root path when use MKL blas" OFF)
 tvm_option(USE_DNNL "Enable DNNL codegen" OFF)
 tvm_option(USE_CUDNN "Build with cuDNN" OFF)
 tvm_option(USE_CUBLAS "Build with cuBLAS" OFF)
+tvm_option(USE_NVTX "Build with NVTX" OFF)
 tvm_option(USE_CUTLASS "Build with CUTLASS" OFF)
 tvm_option(USE_THRUST "Build with Thrust" OFF)
 tvm_option(USE_CURAND "Build with cuRAND" OFF)
@@ -126,6 +127,7 @@ tvm_option(USE_CLML "Build with CLML Codegen support" OFF)
 tvm_option(USE_CLML_GRAPH_EXECUTOR "Build with CLML graph runtime" OFF)
 tvm_option(USE_UMA "Build with UMA support" OFF)
 tvm_option(USE_VERILATOR "Build with Verilator support" OFF)
+tvm_option(USE_MSC "Enable Multi-System Compiler" OFF)
 
 # include directories
 include_directories(${CMAKE_INCLUDE_PATH})
@@ -303,6 +305,18 @@ tvm_file_glob(GLOB_RECURSE COMPILER_SRCS
     src/driver/*.cc
     src/support/*.cc
     src/script/*.cc
+    src/relax/ir/*.cc
+    src/relax/op/*.cc
+    src/relax/analysis/*.cc
+    src/relax/transform/*.cc
+    src/relax/backend/vm/*.cc
+    src/relax/backend/task_extraction.cc
+    src/relax/backend/pattern_registry.cc
+    src/relax/utils.cc
+    src/relax/distributed/*.cc
+    src/relax/distributed/transform/*.cc
+    src/relax/op/distributed/*.cc
+    src/relax/testing/*.cc
     )
 
 tvm_file_glob(GLOB CODEGEN_SRCS
@@ -351,6 +365,7 @@ tvm_file_glob(GLOB RUNTIME_SRCS
   src/runtime/memory/*.cc
   src/runtime/disco/*.cc
   src/runtime/minrpc/*.cc
+  src/runtime/relax_vm/*.cc
 )
 
 if(BUILD_FOR_HEXAGON)
@@ -437,13 +452,15 @@ if(USE_CUDA AND USE_NCCL)
   message(STATUS "Build with NCCL...")
   find_nccl(${USE_NCCL})
   tvm_file_glob(GLOB RUNTIME_NCCL_SRC src/runtime/disco/nccl/*.cc)
+  set_source_files_properties(src/runtime/disco/nccl/nccl.cc PROPERTIES COMPILE_DEFINITIONS "TVM_NCCL_RCCL_SWITCH=0")
   list(APPEND RUNTIME_SRCS ${RUNTIME_NCCL_SRC})
 endif()
 
 if(USE_ROCM AND USE_RCCL)
   message(STATUS "Build with RCCL...")
   find_rccl(${USE_RCCL})
-  tvm_file_glob(GLOB RUNTIME_RCCL_SRC src/runtime/disco/rccl/*.cc)
+  tvm_file_glob(GLOB RUNTIME_RCCL_SRC src/runtime/disco/nccl/*.cc)
+  set_source_files_properties(src/runtime/disco/nccl/nccl.cc PROPERTIES COMPILE_DEFINITIONS "TVM_NCCL_RCCL_SWITCH=1")
   list(APPEND RUNTIME_SRCS ${RUNTIME_RCCL_SRC})
 endif()
 
@@ -559,6 +576,8 @@ include(cmake/modules/contrib/TensorRT.cmake)
 include(cmake/modules/contrib/VitisAI.cmake)
 include(cmake/modules/contrib/Verilator.cmake)
 include(cmake/modules/contrib/UMA.cmake)
+include(cmake/modules/contrib/MSC.cmake)
+include(cmake/modules/contrib/vllm.cmake)
 include(cmake/modules/Git.cmake)
 include(cmake/modules/LibInfo.cmake)
 include(cmake/modules/RustExt.cmake)
@@ -873,14 +892,46 @@ if(USE_CUDA AND USE_CUTLASS)
   install(TARGETS fpA_intB_gemm EXPORT ${PROJECT_NAME}Targets DESTINATION lib${LIB_SUFFIX})
   target_link_libraries(tvm PRIVATE fpA_intB_gemm)
   target_link_libraries(tvm_runtime PRIVATE fpA_intB_gemm)
+  target_link_libraries(tvm PRIVATE fpA_intB_gemm_tvm)
+  target_link_libraries(tvm_runtime PRIVATE fpA_intB_gemm_tvm)
+
+  install(TARGETS flash_attn EXPORT ${PROJECT_NAME}Targets DESTINATION lib${LIB_SUFFIX})
+  target_link_libraries(tvm PRIVATE -Wl,--no-as-needed flash_attn)
+  target_link_libraries(tvm_runtime PRIVATE -Wl,--no-as-needed flash_attn)
+endif()
+
+if(USE_CUDA AND USE_NVTX)
+  set_source_files_properties(src/runtime/nvtx.cc PROPERTIES COMPILE_DEFINITIONS "TVM_NVTX_ENABLED=1")
 endif()
 
 if(USE_CUDA AND USE_NCCL)
-  target_link_libraries(tvm PRIVATE nccl)
-  target_link_libraries(tvm_runtime PRIVATE nccl)
+  find_library(LIBRT rt)
+  target_link_libraries(tvm PRIVATE nccl ${LIBRT})
+  target_link_libraries(tvm_runtime PRIVATE nccl ${LIBRT})
 endif()
 
 if(USE_ROCM AND USE_RCCL)
   target_link_libraries(tvm PRIVATE rccl)
   target_link_libraries(tvm_runtime PRIVATE rccl)
 endif()
+
+
+option(USE_FLASHINFER "Build TVM with FlashInfer" OFF)
+if (USE_FLASHINFER STREQUAL "ON")
+  message(STATUS "Build with FlashInfer")
+  set(FLASHINFER_TVM_BINDING ON)
+  set(FLASHINFER_TVM_HOME ${PROJECT_SOURCE_DIR})
+  set(FLASHINFER_ENABLE_FP8 OFF)
+  set(FLASHINFER_PREFILL OFF)
+  set(FLASHINFER_DECODE OFF)
+  set(FLASHINFER_PAGE OFF)
+  add_subdirectory(3rdparty/flashinfer)
+else ()
+  message(STATUS "Build without FlashInfer")
+endif ()
+
+
+if (USE_FLASHINFER STREQUAL "ON")
+  target_link_libraries(tvm PRIVATE flashinfer_tvm)
+  target_link_libraries(tvm_runtime PRIVATE flashinfer_tvm)
+endif ()

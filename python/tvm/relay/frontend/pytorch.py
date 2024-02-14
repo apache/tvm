@@ -918,7 +918,7 @@ class PyTorchOpConverter:
         # Find the spacing between values as step
         if step != 1:
             step = (stop - start) / (step - 1)
-            stop = stop + step
+            stop = stop + (step / 2)
         else:
             stop = start + step
 
@@ -2672,6 +2672,12 @@ class PyTorchOpConverter:
 
         return _op.logical_and(lhs, rhs)
 
+    def logical_or(self, inputs, input_types):
+        lhs = _op.cast(inputs[0], "bool")
+        rhs = _op.cast(inputs[1], "bool")
+
+        return _op.logical_or(lhs, rhs)
+
     def nonzero(self, inputs, input_types, is_numpy_style=False):
         data = inputs[0]
         ret = _op.transform.argwhere(data)
@@ -2680,7 +2686,7 @@ class PyTorchOpConverter:
         return ret
 
     def nonzero_numpy(self, inputs, input_types):
-        return self.nonzero(inputs, input_types, is_numpy_style=False)
+        return self.nonzero(inputs, input_types, is_numpy_style=True)
 
     def scatter(self, inputs, input_types):
         assert len(inputs) == 4 or len(inputs) == 5, (
@@ -4238,6 +4244,7 @@ class PyTorchOpConverter:
             "aten::unbind": self.unbind,
             "aten::__and__": self.logical_and,
             "aten::logical_and": self.logical_and,
+            "aten::logical_or": self.logical_or,
             "aten::_shape_as_tensor": self.shape_as_tensor,
             "aten::nonzero": self.nonzero,
             "aten::nonzero_numpy": self.nonzero_numpy,

@@ -1226,7 +1226,7 @@ void TransformLayout(ScheduleState self, const StmtSRef& block_sref, int buffer_
 }
 
 /*!
- * \brief Detect the block iter type assoicated with the expression
+ * \brief Detect the block iter type associated with the expression
  *
  * This function collects block iters in the expression and check if the block iters have the same
  * iter type. The detected iter type is the iter type of the block iters in the expression
@@ -1399,13 +1399,18 @@ void TransformBlockLayout(ScheduleState self, const StmtSRef& block_sref,
   for (size_t i = 0; i < transformed_block_iters.size(); ++i) {
     Var new_block_var{"v" + std::to_string(i), transformed_block_iters[i]->dtype};
     new_block_vars.push_back(new_block_var);
-    IterVarType iter_type = DetectNewBlockIterType(transformed_block_iters[i], block_iter_type);
+    IterVarType iter_type;
+    if (is_one(new_block_iter_range[i])) {
+      iter_type = kDataPar;
+    } else {
+      iter_type = DetectNewBlockIterType(transformed_block_iters[i], block_iter_type);
+    }
     if (iter_type == kOpaque) {
       throw OpaqueNewIterTypeError(self->mod, GetRef<Block>(block_ptr), transformed_block_iters[i]);
     }
     auto dtype = new_block_var.dtype();
     new_block_iters.push_back(IterVar(
-        /*dom=*/Range::FromMinExtent(make_zero(dtype), new_block_iter_range[i]),
+        /*dom=*/Range::FromMinExtent(make_zero(dtype), cast(dtype, new_block_iter_range[i])),
         /*var=*/std::move(new_block_var), /*iter_type=*/iter_type));
   }
 

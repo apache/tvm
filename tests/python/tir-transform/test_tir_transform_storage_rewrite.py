@@ -15,7 +15,9 @@
 # specific language governing permissions and limitations
 # under the License.
 import sys
+
 import pytest
+
 import tvm
 import tvm.testing
 from tvm import te
@@ -926,6 +928,88 @@ class TestNoOrphanedDeclBuffer(BaseCompare):
 
         for i in range(16):
             D[i] = C[i]
+
+
+def test_vulkan_smem_reuse():
+    target = tvm.target.Target(
+        {
+            "keys": ["vulkan", "gpu"],
+            "kind": "vulkan",
+            "max_num_threads": 256,
+            "max_threads_per_block": 256,
+            "supports_float32": T.bool(True),
+            "supports_int32": T.bool(True),
+            "tag": "",
+            "thread_warp_size": 1,
+        }
+    )
+
+    @T.prim_func(private=True)
+    def func(A: T.Buffer((4,), "float32"), B: T.Buffer((4,), "float16")):
+        T.func_attr({"tir.noalias": T.bool(True)})
+        A_shared = T.allocate([4], "float32", "shared")
+        A_local = T.allocate([4], "float32", "local")
+        B_shared = T.allocate([4], "float16", "shared")
+        A_shared_1 = T.Buffer((4,), data=A_shared, scope="shared")
+        with T.launch_thread("threadIdx.x", 4) as threadIdx_x:
+            A_1 = T.Buffer((4,), data=A.data)
+            A_shared_1[threadIdx_x] = A_1[threadIdx_x]
+        A_local_1 = T.Buffer((4,), data=A_local, scope="local")
+        with T.launch_thread("threadIdx.x", 4) as threadIdx_x:
+            A_local_1[threadIdx_x] = A_shared_1[threadIdx_x]
+        B_shared_1 = T.Buffer((4,), "float16", data=B_shared, scope="shared")
+        with T.launch_thread("threadIdx.x", 4) as threadIdx_x:
+            B_shared_1[threadIdx_x] = T.Cast("float16", A_local_1[threadIdx_x])
+        threadIdx_x = T.launch_thread("threadIdx.x", 4)
+        B_1 = T.Buffer((4,), "float16", data=B.data)
+        B_1[threadIdx_x] = B_shared_1[threadIdx_x]
+
+    @T.prim_func(private=True)
+    def normal_lowering(A: T.Buffer((4,), "float32"), B: T.Buffer((4,), "float16")):
+        T.func_attr({"tir.noalias": T.bool(True)})
+        A_shared = T.allocate([4], "float32", "shared")
+        A_local = T.allocate([4], "float32", "local")
+        A_shared_1 = T.Buffer((4,), data=A_shared, scope="shared")
+        with T.launch_thread("threadIdx.x", 4) as threadIdx_x:
+            A_1 = T.Buffer((4,), data=A.data)
+            A_shared_1[threadIdx_x] = A_1[threadIdx_x]
+        A_local_1 = T.Buffer((4,), data=A_local, scope="local")
+        with T.launch_thread("threadIdx.x", 4) as threadIdx_x:
+            A_local_1[threadIdx_x] = A_shared_1[threadIdx_x]
+        A_shared_2 = T.Buffer((4,), "float16", data=A_shared, scope="shared")
+        with T.launch_thread("threadIdx.x", 4) as threadIdx_x:
+            A_shared_2[threadIdx_x] = T.Cast("float16", A_local_1[threadIdx_x])
+        threadIdx_x = T.launch_thread("threadIdx.x", 4)
+        B_1 = T.Buffer((4,), "float16", data=B.data)
+        B_1[threadIdx_x] = A_shared_2[threadIdx_x]
+
+    @T.prim_func(private=True)
+    def no_reuse_lowering(A: T.Buffer((4,), "float32"), B: T.Buffer((4,), "float16")):
+        T.func_attr({"target": target, "tir.noalias": T.bool(True)})
+        A_shared_1 = T.allocate([4], "float32", "shared")
+        A_local_1 = T.allocate([4], "float32", "local")
+        B_shared_1 = T.allocate([4], "float16", "shared")
+        A_shared_1_1 = T.Buffer((4,), data=A_shared_1, scope="shared")
+        with T.launch_thread("threadIdx.x", 4) as threadIdx_x:
+            A_1 = T.Buffer((4,), data=A.data)
+            A_shared_1_1[threadIdx_x] = A_1[threadIdx_x]
+        A_local_1_1 = T.Buffer((4,), data=A_local_1, scope="local")
+        with T.launch_thread("threadIdx.x", 4) as threadIdx_x:
+            A_local_1_1[threadIdx_x] = A_shared_1_1[threadIdx_x]
+        B_shared_1_1 = T.Buffer((4,), "float16", data=B_shared_1, scope="shared")
+        with T.launch_thread("threadIdx.x", 4) as threadIdx_x:
+            B_shared_1_1[threadIdx_x] = T.Cast("float16", A_local_1_1[threadIdx_x])
+        threadIdx_x = T.launch_thread("threadIdx.x", 4)
+        B_1 = T.Buffer((4,), "float16", data=B.data)
+        B_1[threadIdx_x] = B_shared_1_1[threadIdx_x]
+
+    # Reuse shared memory when lowering without target.
+    mod = tvm.IRModule({"main": func})
+    tvm.ir.assert_structural_equal(tvm.lower(mod)["main"], normal_lowering)
+
+    # No shared memory reuse when lowering with target Vulkan.
+    mod = tvm.tir.transform.BindTarget(target)(mod)
+    tvm.ir.assert_structural_equal(tvm.lower(mod)["main"], no_reuse_lowering)
 
 
 if __name__ == "__main__":

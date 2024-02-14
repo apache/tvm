@@ -352,6 +352,13 @@ constexpr const char* kIsGlobalFunc = "tir.is_global_func";
  */
 constexpr const char* kIsHostFunc = "tir.is_host_func";
 
+/*!
+ * \brief Mark the function as scheduled, so the default schedule will pass will skip it.
+ *
+ * Type: Integer
+ */
+constexpr const char* kIsScheduled = "tir.is_scheduled";
+
 }  // namespace attr
 }  // namespace tir
 }  // namespace tvm

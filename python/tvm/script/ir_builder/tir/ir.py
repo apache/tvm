@@ -1858,6 +1858,11 @@ TVMBackendAllocWorkspace = _op_wrapper(_tir_op.TVMBackendAllocWorkspace)
 TVMBackendFreeWorkspace = _op_wrapper(_tir_op.TVMBackendFreeWorkspace)
 start_profile_intrinsic = _op_wrapper(_tir_op.start_profile_intrinsic)
 end_profile_intrinsic = _op_wrapper(_tir_op.end_profile_intrinsic)
+anylist_getitem = _op_wrapper(_tir_op.anylist_getitem)
+anylist_resetitem = _op_wrapper(_tir_op.anylist_resetitem)
+anylist_setitem_call_packed = _op_wrapper(_tir_op.anylist_setitem_call_packed)
+anylist_setitem_call_cpacked = _op_wrapper(_tir_op.anylist_setitem_call_cpacked)
+vscale = _op_wrapper(_tir_op.vscale)
 
 
 def _dtype_forward(func):
@@ -2146,6 +2151,10 @@ __all__ = [
     "start_profile_intrinsic",
     "end_profile_intrinsic",
     "meta_var",
+    "anylist_getitem",
+    "anylist_resetitem",
+    "anylist_setitem_call_packed",
+    "anylist_setitem_call_cpacked",
     "llvm_lookup_intrinsic_id",
     "type_annotation",
     "broadcast",
@@ -2191,4 +2200,5 @@ __all__ = [
     "IterVar",
     "CommReducer",
     "Range",
+    "vscale",
 ]

@@ -17,7 +17,7 @@
 # pylint: disable=invalid-name, unused-argument
 """Backend QNN related feature registration"""
 import numpy as np
-from scipy import special
+
 import tvm
 from tvm import relay
 from tvm._ffi.base import TVMError
@@ -78,12 +78,27 @@ def hardswish_func(x):
 register_qnn_unary_op_legalize("qnn.sqrt", np.sqrt)
 register_qnn_unary_op_legalize("qnn.rsqrt", lambda arr: 1 / np.sqrt(arr))
 register_qnn_unary_op_legalize("qnn.exp", np.exp)
-register_qnn_unary_op_legalize("qnn.erf", special.erf)
 register_qnn_unary_op_legalize("qnn.sigmoid", lambda arr: 1 / (1 + np.exp(-arr)))
 register_qnn_unary_op_legalize("qnn.hardswish", hardswish_func)
 register_qnn_unary_op_legalize("qnn.tanh", np.tanh)
 register_qnn_unary_op_legalize("qnn.log", np.log)
 register_qnn_unary_op_legalize("qnn.abs", np.abs)
+
+
+@reg.register_qnn_legalize("qnn.erf")
+def _legalize_qnn_erf(attrs, inputs, types):
+    from scipy import special  # pylint: disable=import-outside-toplevel
+
+    return create_integer_lookup_op(
+        input_arg=inputs[0],
+        floating_point_func=special.erf,
+        in_scale=inputs[1],
+        in_zero_point=inputs[2],
+        out_scale=inputs[3],
+        out_zero_point=inputs[4],
+        in_dtype=types[0].dtype,
+        out_dtype=types[0].dtype,
+    )
 
 
 # Default to None. If overridden by target, this will not be run.

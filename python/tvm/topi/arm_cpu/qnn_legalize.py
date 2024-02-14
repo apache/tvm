@@ -30,11 +30,12 @@ as there is no downside. This may be possible with Relax, but I'm unsure.
 """
 
 import numpy as np
-from scipy.signal import convolve2d
-from tvm.topi.utils import get_const_tuple
+
 from tvm import nd, relay
-from .qnn_alter_op import prev_ops_match, edit_attrs
+from tvm.topi.utils import get_const_tuple
+
 from ..nn import bias_add_legalize
+from .qnn_alter_op import edit_attrs, prev_ops_match
 
 
 def _compute_fixed_conv2d_outputs(requantize_op):
@@ -112,6 +113,7 @@ def _compute_fixed_depthwise_outputs(requantize_op, fixed_channel_inputs):
         an output channel index, and each value is the value that all entries in that output channel
         will have. If the block has no fixed output channels, this dictionary will be empty.
     """
+    from scipy.signal import convolve2d  # pylint: disable=import-outside-toplevel
 
     bias_add_op = requantize_op.args[0]
     depthwise_op = bias_add_op.args[0]

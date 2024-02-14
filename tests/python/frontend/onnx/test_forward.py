@@ -37,6 +37,7 @@ from tvm import relay
 from tvm.contrib import graph_executor, utils
 from tvm.relay.frontend.common import infer_type
 from tvm.relay.build_module import bind_params_by_name
+from tvm.relax.frontend.onnx import from_onnx
 from relay.utils.tag_span import _create_span, _set_span, _verify_structural_equal_with_span
 
 import onnx
@@ -5384,6 +5385,67 @@ def test_softplus(target, dev):
     # More fancy case.
     input_data = np.random.randn(1, 32, 32, 3).astype("float32")
     verify_softplus(input_data)
+
+
+def test_load_cumsum():
+    """test_load_cumsum"""
+
+    def create_cumsum_model():
+        input_shape = [2, 3]
+
+        graph = helper.make_graph(
+            [
+                helper.make_node("CumSum", inputs=["X", "axis"], outputs=["Y"]),
+            ],
+            "cumsum_graph",
+            inputs=[
+                helper.make_tensor_value_info("X", onnx.TensorProto.DOUBLE, input_shape),
+                helper.make_tensor_value_info("axis", onnx.TensorProto.INT32, [1], "axis"),
+            ],
+            outputs=[helper.make_tensor_value_info("Y", onnx.TensorProto.DOUBLE, input_shape)],
+        )
+        return helper.make_model(graph)
+
+    from_onnx(create_cumsum_model())
+
+
+def test_load_trilu():
+    """test_load_trilu"""
+
+    def create_trilu_model():
+        input_shape = [2, 3, 3]
+
+        graph = helper.make_graph(
+            [
+                helper.make_node("Trilu", inputs=["x", "k"], outputs=["y"]),
+            ],
+            "trilu_graph",
+            inputs=[
+                helper.make_tensor_value_info("x", onnx.TensorProto.DOUBLE, input_shape),
+                helper.make_tensor_value_info("k", onnx.TensorProto.INT32, [1], "k"),
+            ],
+            outputs=[helper.make_tensor_value_info("y", onnx.TensorProto.DOUBLE, input_shape)],
+        )
+        return helper.make_model(graph)
+
+    def create_trilu_model_const_k():
+        input_shape = [2, 3, 3]
+
+        graph = helper.make_graph(
+            [
+                make_constant_node("k", onnx.TensorProto.INT32, [1], [1]),
+                helper.make_node("Trilu", inputs=["x", "k"], outputs=["y"]),
+            ],
+            "trilu_graph",
+            inputs=[
+                helper.make_tensor_value_info("x", onnx.TensorProto.DOUBLE, input_shape),
+            ],
+            outputs=[helper.make_tensor_value_info("y", onnx.TensorProto.DOUBLE, input_shape)],
+        )
+        return helper.make_model(graph)
+
+    from_onnx(create_trilu_model())
+    from_onnx(create_trilu_model_const_k())
 
 
 @tvm.testing.parametrize_targets

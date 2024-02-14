@@ -54,6 +54,11 @@ set(USE_CUDA OFF)
 # - /path/to/nccl: use specific path to nccl
 set(USE_NCCL OFF)
 
+# Whether to enable NVTX support (must have USE_CUDA enabled):
+# - ON: enable NCCL with cmake's auto search
+# - OFF: disable NCCL
+set(USE_NVTX OFF)
+
 # Whether enable ROCM runtime
 #
 # Possible values:
@@ -296,6 +301,9 @@ set(USE_VITIS_AI OFF)
 
 # Build Verilator codegen and runtime
 set(USE_VERILATOR OFF)
+
+# Whether to use the Multi-System Compiler
+set(USE_MSC OFF)
 
 #Whether to use CLML codegen
 set(USE_CLML OFF)

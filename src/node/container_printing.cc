@@ -62,14 +62,6 @@ TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
 
 TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
     .set_dispatch<ShapeTupleObj>([](const ObjectRef& node, ReprPrinter* p) {
-      auto* op = static_cast<const ShapeTupleObj*>(node.get());
-      p->stream << '[';
-      for (size_t i = 0; i < op->size; ++i) {
-        if (i != 0) {
-          p->stream << ", ";
-        }
-        p->stream << op->data[i];
-      }
-      p->stream << ']';
+      p->stream << Downcast<ShapeTuple>(node);
     });
 }  // namespace tvm

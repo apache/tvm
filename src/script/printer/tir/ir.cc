@@ -51,11 +51,11 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
     });
 
 TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
-    .set_dispatch<Range>("", [](Range range, ObjectPath p, IRDocsifier d) -> Doc {
+    .set_dispatch<Range>("tir", [](Range range, ObjectPath p, IRDocsifier d) -> Doc {
       return TIR(d, "Range")
           ->Call({
               d->AsDoc<ExprDoc>(range->min, p->Attr("min")),
-              d->AsDoc<ExprDoc>(range->extent, p->Attr("extent")),
+              d->AsDoc<ExprDoc>(range->extent + range->min, p->Attr("extent")),
           });
     });
 
@@ -97,7 +97,6 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
 
 TVM_SCRIPT_REPR(IntImmNode, ReprPrintTIR);
 TVM_SCRIPT_REPR(FloatImmNode, ReprPrintTIR);
-TVM_SCRIPT_REPR(RangeNode, ReprPrintTIR);
 TVM_SCRIPT_REPR(PrimTypeNode, ReprPrintTIR);
 TVM_SCRIPT_REPR(PointerTypeNode, ReprPrintTIR);
 TVM_SCRIPT_REPR(TupleTypeNode, ReprPrintTIR);

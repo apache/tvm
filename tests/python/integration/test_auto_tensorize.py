@@ -26,7 +26,7 @@ from tvm import meta_schedule as ms
 from tvm import relay
 from tvm.meta_schedule.testing import relay_workload
 from tvm.meta_schedule.testing.tlcbench import load_quantized_bert_base
-from tvm.tir.tensor_intrin.arm_cpu import DP4A_INTRIN
+from tvm.tir.tensor_intrin.arm_cpu import DP4A_S8S8S32_INTRIN
 from tvm.tir.tensor_intrin.rocm import AMDGPU_SDOT4_INTRIN
 from tvm.tir.tensor_intrin.x86 import VNNI_DOT_16x4_INTRIN as VNNI_INTRIN
 from tvm.tir.tensor_intrin.x86 import AVX512_DOT_16x4_INTRIN as AVX512_INTRIN
@@ -126,7 +126,7 @@ def _get_sch_rules_for_dp4a(intrin):
     ]
 
 
-SCH_RULES_FOR_DP4A = _get_sch_rules_for_dp4a(DP4A_INTRIN)
+SCH_RULES_FOR_DP4A = _get_sch_rules_for_dp4a(DP4A_S8S8S32_INTRIN)
 SCH_RULES_FOR_SDOT4 = _get_sch_rules_for_dp4a(AMDGPU_SDOT4_INTRIN)
 
 POSTPROCS_FOR_VNNI = [

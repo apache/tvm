@@ -380,13 +380,15 @@ class StoragePlanRewriter : public StmtExprMutator {
   using StmtEntry = LinearAccessPatternFinder::StmtEntry;
   using AllocEntry = LinearAccessPatternFinder::AllocEntry;
 
-  Stmt Rewrite(Stmt stmt, bool detect_inplace) {
+  Stmt Rewrite(Stmt stmt, bool detect_inplace, bool enable_reuse,
+               bool reuse_require_exact_matched_dtype) {
     detect_inplace_ = detect_inplace;
     // plan the rewrite
     LinearAccessPatternFinder finder;
     finder(stmt);
     this->LivenessAnalysis(finder.linear_seq_);
-    this->PlanMemory(finder.linear_seq_, finder.alloc_info_);
+    this->PlanMemory(finder.linear_seq_, finder.alloc_info_, enable_reuse,
+                     reuse_require_exact_matched_dtype);
     all_buffers_accessed_ = finder.all_buffers_accessed_;
     this->PrepareNewAlloc();
     // start rewrite
@@ -816,7 +818,8 @@ class StoragePlanRewriter : public StmtExprMutator {
 
   // Memory plan algorithm
   void PlanMemory(const std::vector<StmtEntry>& seq,
-                  const std::unordered_map<const VarNode*, AllocEntry>& alloc_info) {
+                  const std::unordered_map<const VarNode*, AllocEntry>& alloc_info,
+                  bool enable_reuse, bool reuse_require_exact_matched_dtype) {
     std::unordered_set<const VarNode*> inplace_flag;
 
     for (size_t i = 0; i < seq.size(); ++i) {
@@ -864,7 +867,8 @@ class StoragePlanRewriter : public StmtExprMutator {
           }
           if (dst_entry == nullptr) {
             dst_entry =
-                FindAlloc(alloc, thread_scope_, storage_scope, entry.num_physical_dimensions);
+                FindAlloc(alloc, thread_scope_, storage_scope, entry.num_physical_dimensions,
+                          enable_reuse, reuse_require_exact_matched_dtype);
           }
           dst_entry->allocs.emplace_back(alloc);
           alloc_map_[var] = dst_entry;
@@ -917,7 +921,8 @@ class StoragePlanRewriter : public StmtExprMutator {
   }
 
   StorageEntry* FindAlloc(const AllocateNode* op, const Object* attach_scope,
-                          const StorageScope& scope, size_t num_physical_dimensions) {
+                          const StorageScope& scope, size_t num_physical_dimensions,
+                          bool enable_reuse, bool reuse_require_exact_matched_dtype) {
     ICHECK(op != nullptr);
     // skip plan for local variable,
     // compiler can do a better job with register allocation.
@@ -940,7 +945,7 @@ class StoragePlanRewriter : public StmtExprMutator {
         (scope.tag.length() == 0) && (scope.rank >= StorageRank::kWarp || op->dtype.is_handle() ||
                                       (is_known_size && const_nbits <= 32));
 
-    if (is_small_array || !is_flat_memory_space) {
+    if (!enable_reuse || is_small_array || !is_flat_memory_space) {
       return NewAlloc(op, attach_scope, scope, const_nbits);
     }
 
@@ -956,6 +961,9 @@ class StoragePlanRewriter : public StmtExprMutator {
         if (e->scope != scope) continue;
         // when not divided, no reuse, eg, float4 vs float3
         if (e->bits_offset % op_elem_bits != 0) continue;
+        if (reuse_require_exact_matched_dtype && e->elem_type != op->dtype) {
+          continue;
+        }
         e->const_nbits = std::max(const_nbits, e->const_nbits);
         const_free_map_.erase(it);
         return e;
@@ -967,6 +975,9 @@ class StoragePlanRewriter : public StmtExprMutator {
         if (e->attach_scope_ != attach_scope) continue;
         if (e->scope != scope) continue;
         if (e->elem_type != op->dtype.element_of()) continue;
+        if (reuse_require_exact_matched_dtype && e->elem_type != op->dtype) {
+          continue;
+        }
         e->const_nbits = std::max(const_nbits, e->const_nbits);
         const_free_map_.erase(it);
         return e;
@@ -1702,8 +1713,25 @@ namespace transform {
 
 Pass StorageRewrite() {
   auto pass_func = [](PrimFunc f, IRModule m, PassContext ctx) {
+    bool enable_reuse = true;
+    bool reuse_require_exact_matched_dtype = false;
+    bool merge_static_smem = ctx->GetConfig<Bool>("tir.merge_static_smem", Bool(false)).value();
+    if (merge_static_smem) {
+      // When `merge_static_smem` is true, we will reuse and merge shared
+      // memory in a dedicated pass `MergeSharedMemoryAllocations`.
+      // And so we don't enable reuse in this pass.
+      enable_reuse = false;
+    }
+
+    Optional<Target> target = f->GetAttr<Target>("target");
+    if (target.defined() &&
+        (target.value()->kind->name == "vulkan" || target.value()->kind->name == "webgpu")) {
+      // Require exactly same-dtype matching in smem reuse for Vulkan and WebGPU
+      reuse_require_exact_matched_dtype = true;
+    }
     auto* n = f.CopyOnWrite();
-    n->body = StoragePlanRewriter().Rewrite(std::move(n->body), true);
+    n->body = StoragePlanRewriter().Rewrite(std::move(n->body), true, enable_reuse,
+                                            reuse_require_exact_matched_dtype);
     // Parameters may not be rewritten, but internal allocations may.
     // Vectorization of AllocateConst is currently disabled, as it has
     // indexing issues for types that include padding (e.g. int8x3

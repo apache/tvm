@@ -23,7 +23,7 @@ Connect javascript end to the websocket port and connect to the RPC.
 import tvm
 from tvm import te
 from tvm import rpc
-from tvm.contrib import utils, emcc
+from tvm.contrib import utils, tvmjs
 from tvm.relay.backend import Runtime
 import numpy as np
 
@@ -38,21 +38,21 @@ def test_rpc():
     target = tvm.target.Target("webgpu", host="llvm -mtriple=wasm32-unknown-unknown-wasm")
     runtime = Runtime("cpp", {"system-lib": True})
 
-    n = 2048
+    n = te.var("n")
     A = te.placeholder((n,), name="A")
-    B = te.compute(A.shape, lambda *i: te.log(te.abs(A(*i)) + 1.0), name="B")
-    s = te.create_schedule(B.op)
+    B = te.compute(A.shape, lambda *i: te.log(te.abs(A(*i) + 1)), name="B")
+    mod = tvm.IRModule.from_expr(te.create_prim_func([A, B]))
+    sch = tvm.tir.Schedule(mod)
+    (i,) = sch.get_loops(block=sch.get_block("B"))
+    i0, i1 = sch.split(i, [None, 32])
+    sch.bind(i0, "blockIdx.x")
+    sch.bind(i1, "threadIdx.x")
 
-    num_thread = 2
-    xo, xi = s[B].split(B.op.axis[0], factor=num_thread)
-    s[B].bind(xi, te.thread_axis("threadIdx.x"))
-    s[B].bind(xo, te.thread_axis("blockIdx.x"))
-
-    fadd = tvm.build(s, [A, B], target, runtime=runtime, name="addone")
+    fadd = tvm.build(sch.mod, target=target, runtime=runtime)
     temp = utils.tempdir()
 
     wasm_path = temp.relpath("addone_gpu.wasm")
-    fadd.export_library(wasm_path, fcompile=emcc.create_tvmjs_wasm)
+    fadd.export_library(wasm_path, fcompile=tvmjs.create_tvmjs_wasm)
 
     wasm_binary = open(wasm_path, "rb").read()
     remote = rpc.connect(
@@ -62,21 +62,21 @@ def test_rpc():
         session_constructor_args=["rpc.WasmSession", wasm_binary],
     )
 
-    def check(remote):
+    def check(remote, size):
         # basic function checks.
         dev = remote.webgpu(0)
-        adata = np.random.uniform(size=n).astype(A.dtype)
+        adata = np.random.uniform(size=size).astype(A.dtype)
         a = tvm.nd.array(adata, dev)
-        b = tvm.nd.array(np.zeros(n, dtype=A.dtype), dev)
+        b = tvm.nd.array(np.zeros(size, dtype=A.dtype), dev)
 
         np.testing.assert_equal(a.numpy(), adata)
         f1 = remote.system_lib()
-        addone = f1.get_function("addone")
+        addone = f1.get_function("main")
         addone(a, b)
         np.testing.assert_allclose(b.numpy(), np.log(np.abs(a.numpy()) + 1), atol=1e-5, rtol=1e-5)
         print("Test pass..")
 
-    check(remote)
+    check(remote, 71821 * 32)
 
 
 test_rpc()

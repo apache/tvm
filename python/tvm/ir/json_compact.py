@@ -57,6 +57,21 @@ def create_updater(node_map, from_ver, to_ver):
     return _updater
 
 
+def create_updater_13_to_14():
+    """Create an update to upgrade json from v0.13 to v0.14 for TVM Unity"""
+
+    def _update_vdevice(item, _):
+        if "vdevice" not in item["attrs"]:
+            item["attrs"]["vdevice"] = "0"
+        return item
+
+    node_map = {
+        "relax.TensorStructInfo": _update_vdevice,
+    }
+
+    return create_updater(node_map, "0.13", "0.14")
+
+
 def create_updater_08_to_09():
     """
     Create an update to upgrade json from v0.8 to v0.9
@@ -259,6 +274,8 @@ def upgrade_json(json_str):
         data = create_updater_08_to_09()(create_updater_07_to_08()(data))
     elif from_version.startswith("0.8"):
         data = create_updater_08_to_09()(data)
+    elif from_version.startswith("0.13"):
+        data = create_updater_13_to_14()(data)
     else:
         raise ValueError(f"Cannot update from version {from_version}")
     return json.dumps(data, indent=2)

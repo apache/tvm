@@ -74,6 +74,7 @@ class DataTypeLegalizer : public StmtExprMutator {
   PrimExpr VisitExpr_(const GENode* op) override;
   PrimExpr VisitExpr_(const CallNode* op) override;
   PrimExpr VisitExpr_(const CastNode* op) override;
+  PrimExpr VisitExpr_(const LetNode* op) override;
 
   using StmtExprMutator::VisitExpr_;
   using StmtExprMutator::VisitStmt_;
@@ -103,6 +104,7 @@ class IndexDataTypeRewriter : public DataTypeLegalizer {
   Stmt VisitStmt_(const BlockRealizeNode* op) override;
   Stmt VisitStmt_(const BlockNode* op) override;
   Stmt VisitStmt_(const BufferStoreNode* op) override;
+  Stmt VisitStmt_(const AttrStmtNode* op) override;
   PrimExpr VisitExpr_(const BufferLoadNode* op) override;
   Array<PrimExpr> VisitIndices(Array<PrimExpr> indices);
   Stmt VisitStmt_(const IfThenElseNode* op) override;
@@ -115,6 +117,8 @@ class IndexDataTypeRewriter : public DataTypeLegalizer {
   PrimExpr VisitExpr_(const GTNode* op) override;
   PrimExpr VisitExpr_(const GENode* op) override;
   PrimExpr VisitExpr_(const CallNode* op) override;
+  PrimExpr VisitExpr_(const SelectNode* op) override;
+
   Stmt VisitStmt_(const ForNode* op) override;
 
   Buffer VisitBuffer(const Buffer& buffer);
@@ -146,9 +150,12 @@ class IndexDataTypeNormalizer : public IndexDataTypeRewriter {
   using Parent = IndexDataTypeRewriter;
   using Parent::VisitExpr_;
   using Parent::VisitStmt_;
-  PrimExpr VisitExpr_(const IntImmNode* op) final;
-  PrimExpr VisitExpr_(const VarNode* op) final;
-  PrimExpr VisitExpr_(const CastNode* op) final;
+  PrimExpr VisitExpr_(const IntImmNode* op) override;
+  PrimExpr VisitExpr_(const VarNode* op) override;
+  PrimExpr VisitExpr_(const CastNode* op) override;
+
+  /*! \brief Specifies which data type we can rewrite */
+  virtual bool CanRewriteDType(DataType dtype) const;
 
   DataType target_data_type_ = DataType::Int(64);
 };

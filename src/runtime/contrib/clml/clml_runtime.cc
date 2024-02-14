@@ -511,6 +511,7 @@ class CLMLRuntime : public JSONRuntimeBase {
 
   /*!
    * \brief Create an CLML tensor from JSON node entry. Lookup storage map before creation.
+   * Update input placeholder for NHWC layout
    *
    * \param nid The node index of graph JSON.
    * \param shape shape information of tensor
@@ -528,15 +529,22 @@ class CLMLRuntime : public JSONRuntimeBase {
         uint32_t eid = EntryID(nid, 0);
         node_data = data_entry_[eid]->data;
       }
+
       auto clml_tensor = MakeCLMLTensorFromJSONNode(node, layout, dtype, node_data, shape);
+
       this->layer_.storage_map.insert({nid, std::make_pair(clml_tensor, node)});
 
       if ("input" == node.GetOpType()) {
         this->layer_.inputs.insert({nid, this->layer_.storage_map[nid].first});
         // Input copy placeholder Tensor
-        this->layer_.in_placeholder.insert(
-            {nid, MakeCLMLTensorFromJSONNode(node, CL_TENSOR_LAYOUT_NCHW_QCOM, dtype, node_data,
-                                             shape)});
+        if (layout == CL_TENSOR_LAYOUT_OPTIMAL_QCOM) {
+          this->layer_.in_placeholder.insert(
+              {nid, MakeCLMLTensorFromJSONNode(node, CL_TENSOR_LAYOUT_NCHW_QCOM, dtype, node_data,
+                                               shape)});
+        } else {
+          this->layer_.in_placeholder.insert(
+              {nid, MakeCLMLTensorFromJSONNode(node, layout, dtype, node_data, shape)});
+        }
       }
 
       return clml_tensor;
@@ -559,6 +567,7 @@ class CLMLRuntime : public JSONRuntimeBase {
       const auto& node = nodes_[nid];
       if ("nn.dense" == node.GetOpName()) CreateDenseLayerTensor(&layer_, node, nid);
       if ("nn.batch_matmul" == node.GetOpName()) CreateBatchMatmulLayerTensor(&layer_, node, nid);
+      if ("nn.softmax" == node.GetOpName()) CreateSoftmaxLayerTensor(&layer_, node, nid);
     }
 
     for (nid = 0; nid < nodes_.size(); ++nid) {
@@ -1093,6 +1102,37 @@ class CLMLRuntime : public JSONRuntimeBase {
   }
 
   /*!
+   * \brief Create a Softmax layer Tensors with supported layout.
+   * \param layer The CLML layer to build. Containing inputs, outputs and the CLML function.
+   * \param node The JSON representation of the operator.
+   * \param nid The node index of JSON graph node, which points to this operator.
+   */
+
+  void CreateSoftmaxLayerTensor(CachedLayer* layer, const JSONGraphNode& node, size_t nid) {
+    cl_ml_tensor_layout_qcom layout;
+    cl_int result = 0;
+    cl_ml_op_qcom op = nullptr;
+    DLDataType tvm_dtype = node.GetOpDataType()[0];
+    cl_channel_type cl_dtype = MakeCLDataType(tvm_dtype);
+    auto out_dims = GetTensorDims(nodes_[node.GetInputs()[0].id_]);
+    int axis = std::stoi(node.GetAttr<std::vector<std::string>>("axis")[0]);
+    // enabling  NHWC layout && NCHW layout for 4D,  basis the axis value
+    if (out_dims.h >= 1 && out_dims.w >= 1) {
+      if (axis == 3 || axis == -1) {
+        layout = CL_TENSOR_LAYOUT_NHWC_QCOM;
+      } else {
+        layout = CL_TENSOR_LAYOUT_NCHW_QCOM;
+      }
+    } else {  // default layout for 2D
+      layout = CL_TENSOR_LAYOUT_OPTIMAL_QCOM;
+    }
+    auto output = MakeCLMLTensorFromJSONEntry(nid, {}, layout, cl_dtype);
+    auto input = MakeCLMLTensorFromJSONEntry(node.GetInputs()[0].id_, {}, layout, cl_dtype);
+
+    return;
+  }
+
+  /*!
    * \brief Create a SoftMax layer.
    *
    * \param layer The CLML layer to build. Containing inputs, outputs and the CLML output.
@@ -1100,24 +1140,20 @@ class CLMLRuntime : public JSONRuntimeBase {
    * \param nid The node index of JSON graph node, which points to this operator.
    */
   void CreateSoftMaxLayer(CachedLayer* layer, const JSONGraphNode& node, size_t nid) {
+    cl_ml_tensor_layout_qcom layout;
+    cl_softmax_mode_qcom mode = CL_SOFTMAX_MODE_SPATIAL_QCOM;
     cl_int result = 0;
     cl_ml_op_qcom op = nullptr;
     DLDataType tvm_dtype = node.GetOpDataType()[0];
     cl_channel_type cl_dtype = MakeCLDataType(tvm_dtype);
     cl_arithmetic_mode_qcom cl_arithmetic_mode = MakeCLArithMode(cl_dtype, cl_dtype);
-    auto input = MakeCLMLTensorFromJSONEntry(node.GetInputs()[0].id_, {},
-                                             CL_TENSOR_LAYOUT_OPTIMAL_QCOM, cl_dtype);
-    auto out_dims = GetTensorDims(nodes_[node.GetInputs()[0].id_]);
-    auto output = MakeCLMLTensorFromJSONEntry(nid, {out_dims.n, out_dims.c, 1, 1},
-                                              CL_TENSOR_LAYOUT_OPTIMAL_QCOM, cl_dtype);
-
-    cl_ml_op_softmax_desc_qcom softmax_desc = {CL_SOFTMAX_ALGORITHM_ACCURATE_QCOM,
-                                               CL_SOFTMAX_MODE_INSTANCE_QCOM, cl_arithmetic_mode};
-
+    auto output = MakeCLMLTensorFromJSONEntry(nid, {}, layout, cl_dtype);
+    auto input = MakeCLMLTensorFromJSONEntry(node.GetInputs()[0].id_, {}, layout, cl_dtype);
+    cl_ml_op_softmax_desc_qcom softmax_desc = {CL_SOFTMAX_ALGORITHM_ACCURATE_QCOM, mode,
+                                               cl_arithmetic_mode};
     result = CLML_INTF->clCreateMLOpSoftmaxQCOM(CLML_CTX, nullptr, &softmax_desc, input->tensor,
                                                 output->tensor, &op, layer_.tuning_cache);
     ICHECK(op && result == CL_SUCCESS) << "SoftMax Error:" << result;
-
     layer->function.push_back(op);
     return;
   }

@@ -1002,7 +1002,7 @@ def conv(
     # compute the output shape
     out_channel = num_filter
     out_dimensions = [
-        simplify(d - (k - 1) * dil - 1 + pb + pe) // stride + 1
+        simplify((d - (k - 1) * dil - 1 + pb + pe) // stride + 1)
         for d, k, dil, pb, pe, stride in zip(
             dimensions, kernel_dimensions, dilations, pad_begin, pad_end, strides
         )

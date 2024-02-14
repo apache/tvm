@@ -175,8 +175,11 @@ class RPCEndpoint::EventHandler : public dmlc::Stream {
     for (int i = 0; i < num_args; ++i) {
       int tcode = type_codes[i];
       if (tcode == kTVMObjectHandle || tcode == kTVMObjectRValueRefArg) {
-        LOG(FATAL) << "ValueError: Cannot pass argument " << i << ", type "
-                   << args[i].AsObjectRef<ObjectRef>()->GetTypeKey() << " is not supported by RPC";
+        if (!args[i].IsObjectRef<RPCObjectRef>()) {
+          LOG(FATAL) << "ValueError: Cannot pass argument " << i << ", type "
+                     << args[i].AsObjectRef<ObjectRef>()->GetTypeKey()
+                     << " is not supported by RPC";
+        }
       } else if (tcode == kDLDevice) {
         DLDevice dev = args[i];
         ICHECK(!IsRPCSessionDevice(dev)) << "InternalError: cannot pass RPC device in the channel";
@@ -219,14 +222,48 @@ class RPCEndpoint::EventHandler : public dmlc::Stream {
     this->Write(cdata);
   }
 
-  void WriteObject(void* obj) { this->ThrowError(RPCServerStatus::kUnknownTypeCode); }
-  uint64_t GetObjectBytes(void* obj) {
-    this->ThrowError(RPCServerStatus::kUnknownTypeCode);
-    return 0;
+  void WriteObject(Object* obj) {
+    // NOTE: for now all remote object are encoded as RPCObjectRef
+    // follow the same disco protocol in case we would like to upgrade later
+    //
+    // Rationale note: Only handle remote object allows the same mechanism to work for minRPC
+    // which is needed for wasm and other env that goes through C API
+    if (obj->IsInstance<RPCObjectRefObj>()) {
+      auto* ref = static_cast<RPCObjectRefObj*>(obj);
+      this->template Write<uint32_t>(kRuntimeRPCObjectRefTypeIndex);
+      uint64_t handle = reinterpret_cast<uint64_t>(ref->object_handle());
+      this->template Write<int64_t>(handle);
+    } else {
+      LOG(FATAL) << "ValueError: Object type is not supported in RPC calling convention: "
+                 << obj->GetTypeKey() << " (type_index = " << obj->type_index() << ")";
+    }
+  }
+  uint64_t GetObjectBytes(Object* obj) {
+    if (obj->IsInstance<RPCObjectRefObj>()) {
+      return sizeof(uint32_t) + sizeof(int64_t);
+    } else {
+      LOG(FATAL) << "ValueError: Object type is not supported in RPC calling convention: "
+                 << obj->GetTypeKey() << " (type_index = " << obj->type_index() << ")";
+    }
   }
 
   void ReadObject(int* tcode, TVMValue* value) {
-    this->ThrowError(RPCServerStatus::kUnknownTypeCode);
+    // NOTE: for now all remote object are encoded as RPCObjectRef
+    // follow the same disco protocol in case we would like to upgrade later
+    //
+    // Rationale note: Only handle remote object allows the same mechanism to work for minRPC
+    // which is needed for wasm and other env that goes through C API
+    uint32_t type_index;
+    this->template Read<uint32_t>(&type_index);
+    if (type_index == kRuntimeRPCObjectRefTypeIndex) {
+      uint64_t handle;
+      this->template Read<uint64_t>(&handle);
+      tcode[0] = kTVMObjectHandle;
+      value[0].v_handle = reinterpret_cast<void*>(handle);
+    } else {
+      LOG(FATAL) << "ValueError: Object type is not supported in Disco calling convention: "
+                 << Object::TypeIndex2Key(type_index) << " (type_index = " << type_index << ")";
+    }
   }
 
   void MessageDone() {

@@ -382,6 +382,21 @@ TIR_DEFINE_BUILTIN_FUNC(start_profile_intrinsic)
 TIR_DEFINE_BUILTIN_FUNC(end_profile_intrinsic)
     .set_attr<TCallEffectKind>("TCallEffectKind", Integer(CallEffectKind::kPure));
 
+TIR_DEFINE_BUILTIN_FUNC(anylist_getitem)
+    .set_attr<TCallEffectKind>("TCallEffectKind", Integer(CallEffectKind::kReadState));
+
+TIR_DEFINE_BUILTIN_FUNC(anylist_resetitem)
+    .set_attr<TCallEffectKind>("TCallEffectKind", Integer(CallEffectKind::kOpaque))
+    .set_attr<TGlobalSymbol>("TGlobalSymbol", "TVMBackendAnyListResetItem");
+
+TIR_DEFINE_BUILTIN_FUNC(anylist_setitem_call_packed)
+    .set_attr<TCallEffectKind>("TCallEffectKind", Integer(CallEffectKind::kOpaque));
+
+TIR_DEFINE_BUILTIN_FUNC(anylist_setitem_call_cpacked)
+    .set_attr<TCallEffectKind>("TCallEffectKind", Integer(CallEffectKind::kOpaque));
+
+TIR_DEFINE_BUILTIN_FUNC(vscale).set_attr<TCallEffectKind>("TCallEffectKind",
+                                                          Integer(CallEffectKind::kPure));
 }  // namespace builtin
 }  // namespace tir
 }  // namespace tvm
