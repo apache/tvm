@@ -187,7 +187,7 @@ typedef enum {
   kTVMBytes = 12U,
   kTVMNDArrayHandle = 13U,
   kTVMObjectRValueRefArg = 14U,
-  kTVMBool = 15U,
+  kTVMArgBool = 15U,
   // Extension codes for other frameworks to integrate TVM PackedFunc.
   // To make sure each framework's id do not conflict, use first and
   // last sections to mark ranges.

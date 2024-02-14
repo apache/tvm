@@ -641,7 +641,7 @@ class TVMPODValue_ {
     // Helper function to reduce duplication in the variable integer
     // conversions.  This is publicly exposed, as it can be useful in
     // specializations of PackedFuncValueConverter.
-    if (type_code_ == kTVMBool) {
+    if (type_code_ == kTVMArgBool) {
       return value_.v_bool;
     } else {
       return std::nullopt;
@@ -1013,7 +1013,7 @@ class TVMRetValue : public TVMPODValue_CRTP_<TVMRetValue> {
   }
   TVMRetValue& operator=(const DataType& other) { return operator=(other.operator DLDataType()); }
   TVMRetValue& operator=(bool value) {
-    this->SwitchToPOD(kTVMBool);
+    this->SwitchToPOD(kTVMArgBool);
     value_.v_bool = value;
     return *this;
   }
@@ -1379,7 +1379,7 @@ inline const char* ArgTypeCode2Str(int type_code) {
   switch (type_code) {
     case kDLInt:
       return "int";
-    case kTVMBool:
+    case kTVMArgBool:
       return "bool";
     case kDLUInt:
       return "uint";
@@ -1804,7 +1804,7 @@ class TVMArgsSetter {
   }
   TVM_ALWAYS_INLINE void operator()(size_t i, bool value) const {
     values_[i].v_bool = value;
-    type_codes_[i] = kTVMBool;
+    type_codes_[i] = kTVMArgBool;
   }
   TVM_ALWAYS_INLINE void operator()(size_t i, uint64_t value) const {
     values_[i].v_int64 = static_cast<int64_t>(value);
@@ -2115,7 +2115,7 @@ inline void TVMArgsSetter::SetObject(size_t i, T&& value) const {
     if (std::is_base_of_v<Bool::ContainerType, ContainerType> ||
         ptr->IsInstance<Bool::ContainerType>()) {
       values_[i].v_bool = static_cast<Bool::ContainerType*>(ptr)->value;
-      type_codes_[i] = kTVMBool;
+      type_codes_[i] = kTVMArgBool;
       return;
     }
   }
@@ -2298,7 +2298,7 @@ inline TObjectRef TVMPODValue_CRTP_<Derived>::AsObjectRef() const {
   }
 
   if constexpr (std::is_base_of_v<TObjectRef, Bool>) {
-    if (type_code_ == kTVMBool) {
+    if (type_code_ == kTVMArgBool) {
       return Bool(value_.v_bool);
     }
   }
