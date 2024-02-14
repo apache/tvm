@@ -1199,7 +1199,8 @@ class CompositeFunctionAnnotator : public ExprMutator {
     auto all_functions = mod->functions;
     for (const auto& entry : all_functions) {
       if (const auto* func = entry.second.as<FunctionNode>()) {
-        if (func->GetAttr<String>(attr::kComposite).defined()) {
+        if (func->GetAttr<String>(attr::kComposite).defined() ||
+            func->GetAttr<String>(attr::kCodegen).defined()) {
           continue;
         }
         auto new_body = VisitExpr(func->body);
@@ -1270,6 +1271,13 @@ IRModule FuseOpsByPattern(const tvm::Array<transform::FusionPattern>& patterns, 
       if (entry.second->IsInstance<tir::PrimFuncNode>()) {
         continue;
       }
+      const FunctionNode* function = entry.second.as<FunctionNode>();
+      if (function->GetAttr<Integer>(attr::kPrimitive).defined() ||
+          function->GetAttr<String>(attr::kComposite).defined() ||
+          function->GetAttr<String>(attr::kCodegen).defined()) {
+        continue;
+      }
+
       auto map = PatternBasedPartitioner::Run(pattern->name, pattern->pattern,
                                               pattern->annotation_patterns,
                                               pattern->check.value_or(nullptr), entry.second,

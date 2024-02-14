@@ -1046,5 +1046,14 @@ def test_intermediate_var_to_var_binding():
     assert "fused_relax_permute_dims_relax_matmul_cublas" in func_names  # add is not fused
 
 
+def test_multple_runs():
+    check(
+        Conv2dReLU_composite_annotated,
+        [("dnnl.conv2d_relu", conv2d_relu_pat)],
+        Conv2dReLU_composite_annotated,
+        annotate_codegen=True,
+    )
+
+
 if __name__ == "__main__":
     pytest.main([__file__])
