@@ -243,7 +243,7 @@ def _vmlink(
     if ext_libs is None:
         ext_libs = []
     lib = None
-    if tir_mod is not None:
+    if tir_mod is not None and len(tir_mod.get_global_vars()) > 0:
         lib = tvm.build(
             tir_mod,
             target=target,
@@ -348,10 +348,10 @@ def build(
     )
 
 
-def _filter_tir(mod: tvm.IRModule) -> tvm.IRModule:
-    tir_mod = IRModule({})
-    tir_mod = tir_mod.with_attrs(mod.attrs)
-    for gv in mod.get_global_vars():
-        if isinstance(mod[gv], PrimFunc):
-            tir_mod[gv] = mod[gv]
-    return tir_mod
+def _filter_tir(mod: tvm.IRModule) -> Optional[tvm.IRModule]:
+    tir_mod = {gvar: func for gvar, func in mod.functions.items() if isinstance(func, PrimFunc)}
+
+    if tir_mod:
+        return IRModule(tir_mod, attrs=mod.attrs)
+    else:
+        return None

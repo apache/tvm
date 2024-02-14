@@ -451,6 +451,7 @@ void CheckAndUpdateHostConsistency(Map<Target, IRModule>* targets, Target* host)
 
 runtime::Module TIRToRuntime(const Map<Target, IRModule>& inputs_arg,
                              const Target& target_host_arg) {
+  CHECK(inputs_arg.size()) << "TIRToRuntime expects at least one IRModule as input.";
   std::vector<runtime::Module> device_modules;
   Map<Target, IRModule> inputs = inputs_arg;
   Target target_host = target_host_arg;
