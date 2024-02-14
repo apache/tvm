@@ -18,7 +18,8 @@
 import inspect
 from typing import Any, Dict, Union
 
-from ....relax.analysis import well_formed
+from ....relax.analysis import well_formed as relax_well_formed
+from ....tir.analysis import verify_well_formed as tir_well_formed
 from ....ir.module import IRModule
 from ...ir_builder import IRBuilder
 from . import doc
@@ -87,8 +88,12 @@ def parse(
         except ParserError as err:
             parser.report_error(err.node, err.args[0])
     ret = builder.get()
-    # well-formedness check will ignore any non-Relax functions
-    if check_well_formed and isinstance(ret, IRModule) and not well_formed(ret):
+    # check well-formedness in both Relax and TIR
+    if (
+        check_well_formed
+        and isinstance(ret, IRModule)
+        and not (relax_well_formed(ret) and tir_well_formed(ret, assert_mode=False))
+    ):
         parser.report_error(
             source.as_ast(),
             err="Program containing Relax functions is not well-formed",
