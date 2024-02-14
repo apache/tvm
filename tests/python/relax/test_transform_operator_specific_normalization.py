@@ -74,11 +74,12 @@ def test_normalization_suppressed_for_tvmscript(custom_op):
     """FNormalize isn't applied when parsing TVMScript
 
     TVMScript should be able to produce un-normalized Relax IR for
-    specifying test cases, and to ensure that no changes occur when
-    performing a round-trip through TVMScript.
+    specifying test cases if the well-formed check is disabled,
+    and to ensure that no changes occur when performing a round-trip
+    through TVMScript.
     """
 
-    @R.function
+    @R.function(check_well_formed=False)
     def func(A: R.Tensor):
         return relax.Call(custom_op, [A])
 
@@ -116,7 +117,7 @@ def test_normalization_applied_during_cpp_mutator(custom_op):
 def test_normalization_applied_during_python_mutator(custom_op):
     """FNormalize is applied by relax.ExprMutator subclasses"""
 
-    @R.function(private=True)
+    @R.function(private=True, check_well_formed=False)
     def before(A: R.Tensor):
         return relax.Call(custom_op, [A])
 

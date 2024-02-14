@@ -67,7 +67,7 @@ def matmul_m_128(a: T.handle, b: T.handle, c: T.handle) -> None:
             C[vi, vj] = C[vi, vj] + A[vi, vk] * B[vj, vk]
 
 
-@T.prim_func
+@T.prim_func(check_well_formed=False)
 def matmul_m_8x(a: T.handle, b: T.handle, c: T.handle) -> None:
     x = T.int32()
     m = T.int32()

@@ -89,13 +89,13 @@ def parse(
             parser.report_error(err.node, err.args[0])
     ret = builder.get()
     # check well-formedness in both Relax and TIR
-    if (
-        check_well_formed
-        and isinstance(ret, IRModule)
-        and not (relax_well_formed(ret) and tir_well_formed(ret, assert_mode=False))
-    ):
-        parser.report_error(
-            source.as_ast(),
-            err="Program containing Relax functions is not well-formed",
-        )
+    if check_well_formed:
+        check_ret = ret
+        if not isinstance(check_ret, IRModule):
+            check_ret = IRModule.from_expr(ret)
+        if not relax_well_formed(check_ret) or not tir_well_formed(check_ret, assert_mode=False):
+            parser.report_error(
+                source.as_ast(),
+                err="Program is not well-formed",
+            )
     return ret
