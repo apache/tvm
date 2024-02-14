@@ -45,23 +45,11 @@ def scan_macro(program: Union[Any, str], extra_vars: Dict[str, Any] = None) -> A
     return source, closure_vars
 
 
-def find_decorator_annotation(node: doc.Module, annotation: str, default: bool = True) -> bool:
-    """
-    Check the value of given annotation (argument name) in the function decorator.
-    Returns the value of the annotation if present, otherwise giving the default value.
-    """
-    # Note: A Module body is always a list containing a single ClassDef.
-    # The ClassDef has a decorator list
-    for dec in node.body[0].decorator_list:
-        if not isinstance(dec, doc.Call) or dec.func.attr != "ir_module":
-            continue
-        for keyword in dec.keywords:
-            if keyword.arg == annotation:
-                return keyword.value.value
-    return default
-
-
-def parse(program: Union[doc.AST, Any, str], extra_vars: Dict[str, Any] = None) -> Any:
+def parse(
+    program: Union[doc.AST, Any, str],
+    extra_vars: Dict[str, Any] = None,
+    check_well_formed: bool = True,
+) -> Any:
     """Register a method for a operand type, AST operator node and operand index.
 
     Parameters
@@ -71,6 +59,9 @@ def parse(program: Union[doc.AST, Any, str], extra_vars: Dict[str, Any] = None) 
 
     extra_vars : Dict[str, Any]
         The extra variable table for parsing.
+
+    check_well_formed : bool
+        Whether to check well-formedness after parsing.
 
     Returns
     -------
@@ -97,13 +88,9 @@ def parse(program: Union[doc.AST, Any, str], extra_vars: Dict[str, Any] = None) 
             parser.report_error(err.node, err.args[0])
     ret = builder.get()
     # well-formedness check will ignore any non-Relax functions
-    if isinstance(ret, IRModule):
-        # note: use the walrus operator (:=) once the project Python version
-        # supports it, would be more concise
-        source_ast = source.as_ast()
-        if find_decorator_annotation(source_ast, "check_well_formed") and not well_formed(ret):
-            parser.report_error(
-                source_ast,
-                err="Program containing Relax functions is not well-formed",
-            )
+    if check_well_formed and isinstance(ret, IRModule) and not well_formed(ret):
+        parser.report_error(
+            source.as_ast(),
+            err="Program containing Relax functions is not well-formed",
+        )
     return ret

@@ -15,31 +15,31 @@
 # specific language governing permissions and limitations
 # under the License.
 import pytest
-import numpy as np
 
 import tvm
 import tvm.testing
 from tvm import relax
+from tvm import tir
 from tvm.ir.base import assert_structural_equal
 
 import tvm.script
 from tvm.script import tir as T, relax as R, ir as I
 
 
+@pytest.mark.skip_well_formed_check_before_transform
 def test_normalize_relax_function():
-    # parser will check well-formedness so we can't use it to construct this example
-    bb = relax.BlockBuilder()
-    f = relax.Function(
-        [],
-        relax.SeqExpr([], relax.Constant(tvm.nd.array(np.int32(1)), R.Tensor((), "int32"))),
-        R.Tensor((), "int32"),
-    )
-    f_gv = bb.add_func(bb.normalize(f).without_attr("global_symbol"), "f")
-    with bb.function("f1", []):
-        gv = bb.emit(f_gv(), "gv")
-        bb.emit_func_output(gv)
-    Before = bb.get()
-    Before.update_func(Before.get_global_var("f1"), Before["f1"].with_attr("global_symbol", "f"))
+    @I.ir_module(check_well_formed=False)
+    class Before:
+        @R.function(private=True)
+        def f():
+            return R.const(1, "int32")
+
+        @R.function
+        def f1():
+            R.func_attr({"global_symbol": "f"})
+            cls = Before
+            gv: R.Tensor((), dtype="int32") = cls.f()
+            return gv
 
     @I.ir_module
     class Expected:
@@ -62,19 +62,18 @@ def test_normalize_relax_function():
 
 @pytest.mark.skip_well_formed_check_before_transform
 def test_normalize_tir_function():
-    # parser will check well-formedness so we can't use it to construct this example
-    bb = relax.BlockBuilder()
+    @I.ir_module(check_well_formed=False)
+    class Before:
+        @T.prim_func(private=True)
+        def f(x: T.Buffer((1,), "int32")):
+            x[0] = T.int32(0)
 
-    @T.prim_func(private=True)
-    def f(x: T.Buffer((1,), "int32")):
-        x[0] = T.int32(0)
-
-    f_gv = bb.add_func(f, "f")
-    with bb.function("f1", []):
-        gv = bb.emit(R.call_tir(f_gv, (), R.Tensor((1,), dtype="int32")))
-        bb.emit_func_output(gv)
-    Before = bb.get()
-    Before.update_func(Before.get_global_var("f1"), Before["f1"].with_attr("global_symbol", "f"))
+        @R.function
+        def f1():
+            R.func_attr({"global_symbol": "f"})
+            cls = Before
+            gv: R.Tensor((), dtype="int32") = R.call_tir(cls.f, (), R.Tensor((1,), dtype="int32"))
+            return gv
 
     @I.ir_module
     class Expected:

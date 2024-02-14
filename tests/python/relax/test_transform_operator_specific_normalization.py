@@ -95,14 +95,11 @@ def test_normalization_suppressed_for_tvmscript(custom_op):
 def test_normalization_applied_during_cpp_mutator(custom_op):
     """FNormalize is applied by relax::ExprMutator subclasses"""
 
-    # can't use parser because it will check well-formedness proactively
-    @R.function
-    def main(A: R.Tensor):
-        return relax.Call(custom_op, [A])
-
-    bb = relax.BlockBuilder()
-    bb.add_func(main, "main")
-    Before = bb.get()
+    @I.ir_module(check_well_formed=False)
+    class Before:
+        @R.function
+        def main(A: R.Tensor):
+            return relax.Call(custom_op, [A])
 
     @I.ir_module
     class Expected:
@@ -158,13 +155,11 @@ def test_un_normalized_call_node_is_ill_formed(custom_op, define_normalization):
     FNormalize has no corresponding check applied.
     """
 
-    @R.function
-    def main(A: R.Tensor):
-        return relax.Call(custom_op, [A])
-
-    bb = relax.BlockBuilder()
-    bb.add_func(main, "main")
-    Module = bb.get()
+    @I.ir_module(check_well_formed=False)
+    class Module:
+        @R.function
+        def main(A: R.Tensor):
+            return relax.Call(custom_op, [A])
 
     if define_normalization:
         assert not relax.analysis.well_formed(Module)
@@ -176,41 +171,22 @@ def test_un_normalized_call_node_is_ill_formed(custom_op, define_normalization):
 def test_normalize_to_inline_tuple_for_call_tir(custom_op):
     """FNormalize in-lines the argument tuple for R.call_tir"""
 
-    @T.prim_func(private=True)
-    def multiply_by_two(A: T.Buffer(16, "float32"), B: T.Buffer(16, "float32")):
-        for i in range(16):
-            B[i] = A[i] * 2.0
+    @I.ir_module(check_well_formed=False)
+    class Before:
+        @R.function
+        def main(A: R.Tensor([16], "float32")):
+            cls = Before
+            args = (A,)
+            return relax.Call(
+                tvm.ir.Op.get("relax.call_tir"),
+                [cls.multiply_by_two, args],
+                sinfo_args=[A.struct_info],
+            )
 
-    bb = relax.BlockBuilder()
-    primfunc_gv = bb.add_func(multiply_by_two, "multiply_by_two")
-    a = relax.Var("a", R.Tensor([16], "float32"))
-    tup = relax.Var("tup", R.Tuple(R.Tensor([16], "float32")))
-    ret = relax.Var("ret", R.Tensor([16], "float32"))
-    # can't even use the block builder to assemble because it will normalize!
-    main_func = relax.Function(
-        [a],
-        relax.SeqExpr(
-            [
-                relax.BindingBlock(
-                    [
-                        relax.VarBinding(tup, relax.Tuple([a])),
-                        relax.VarBinding(
-                            ret,
-                            relax.Call(
-                                tvm.ir.Op.get("relax.call_tir"),
-                                [primfunc_gv, tup],
-                                sinfo_args=[a.struct_info],
-                            ),
-                        ),
-                    ]
-                )
-            ],
-            ret,
-        ),
-        R.Tensor([16], "float32"),
-    ).with_attr("global_symbol", "main")
-    bb.add_func(main_func, "main")
-    Before = bb.get()
+        @T.prim_func(private=True)
+        def multiply_by_two(A: T.Buffer(16, "float32"), B: T.Buffer(16, "float32")):
+            for i in range(16):
+                B[i] = A[i] * 2.0
 
     @I.ir_module
     class Expected:
@@ -243,39 +219,21 @@ def test_normalize_argument_to_inline_tuple_for_call_tir(custom_op):
     argument tuple is provided as a relax function argument.
     """
 
-    @T.prim_func(private=True)
-    def multiply_by_two(A: T.Buffer(16, "float32"), B: T.Buffer(16, "float32")):
-        for i in range(16):
-            B[i] = A[i] * 2.0
+    @I.ir_module(check_well_formed=False)
+    class Before:
+        @R.function
+        def main(args: R.Tuple([R.Tensor([16], "float32")])):
+            cls = Before
+            return relax.Call(
+                tvm.ir.Op.get("relax.call_tir"),
+                [cls.multiply_by_two, args],
+                sinfo_args=[args[0].struct_info],
+            )
 
-    bb = relax.BlockBuilder()
-    primfunc_gv = bb.add_func(multiply_by_two, "multiply_by_two")
-
-    args = relax.Var("args", R.Tuple(R.Tensor([16], "float32")))
-    ret = relax.Var("ret", R.Tensor([16], "float32"))
-    main_func = relax.Function(
-        [args],
-        relax.SeqExpr(
-            [
-                relax.BindingBlock(
-                    [
-                        relax.VarBinding(
-                            ret,
-                            relax.Call(
-                                tvm.ir.Op.get("relax.call_tir"),
-                                [primfunc_gv, args],
-                                sinfo_args=[R.Tensor([16], "float32")],
-                            ),
-                        )
-                    ]
-                ),
-            ],
-            ret,
-        ),
-        args[0].struct_info,
-    ).with_attr("global_symbol", "main")
-    bb.add_func(main_func, "main")
-    Before = bb.get()
+        @T.prim_func(private=True)
+        def multiply_by_two(A: T.Buffer(16, "float32"), B: T.Buffer(16, "float32")):
+            for i in range(16):
+                B[i] = A[i] * 2.0
 
     @I.ir_module
     class Expected:
@@ -326,41 +284,23 @@ def test_normalize_to_inline_tuple_for_call_tir_inplace(custom_op):
 
     inplace_attrs = Expected["main"].body.blocks[0].bindings[1].value.attrs
 
-    @T.prim_func(private=True)
-    def multiply_by_two(A: T.Buffer(16, "float32")):
-        for i in range(16):
-            A[i] = A[i] * 2.0
+    @I.ir_module(check_well_formed=False)
+    class Before:
+        @R.function
+        def main(A: R.Tensor([16], "float32")):
+            cls = Before
+            args = (A,)
+            return relax.Call(
+                tvm.ir.Op.get("relax.call_tir_inplace"),
+                [cls.multiply_by_two, args],
+                attrs=inplace_attrs,
+                sinfo_args=[A.struct_info],
+            )
 
-    bb = relax.BlockBuilder()
-    primfunc_gv = bb.add_func(multiply_by_two, "multiply_by_two")
-    a = relax.Var("a", R.Tensor([16], "float32"))
-    tup = relax.Var("tup", R.Tuple(R.Tensor([16], "float32")))
-    ret = relax.Var("ret", R.Tensor([16], "float32"))
-    main_func = relax.Function(
-        [a],
-        relax.SeqExpr(
-            [
-                relax.BindingBlock(
-                    [
-                        relax.VarBinding(tup, relax.Tuple([a])),
-                        relax.VarBinding(
-                            ret,
-                            relax.Call(
-                                tvm.ir.Op.get("relax.call_tir_inplace"),
-                                [primfunc_gv, tup],
-                                attrs=inplace_attrs,
-                                sinfo_args=[a.struct_info],
-                            ),
-                        ),
-                    ]
-                )
-            ],
-            ret,
-        ),
-        R.Tensor([16], "float32"),
-    ).with_attr("global_symbol", "main")
-    bb.add_func(main_func, "main")
-    Before = bb.get()
+        @T.prim_func(private=True)
+        def multiply_by_two(A: T.Buffer(16, "float32")):
+            for i in range(16):
+                A[i] = A[i] * 2.0
 
     After = tvm.relax.testing.transform.ApplyEmptyCppMutator()(Before)
 
@@ -402,49 +342,30 @@ def test_normalize_to_inline_tuple_for_call_tir_with_grad(custom_op):
 
     with_grad_attrs = Expected["main"].body.blocks[0].bindings[1].value.attrs
 
-    @T.prim_func(private=True)
-    def multiply_by_two(A: T.Buffer(16, "float32"), B: T.Buffer(16, "float32")):
-        for i in range(16):
-            B[i] = A[i] * 2.0
+    @I.ir_module(check_well_formed=False)
+    class Before:
+        @R.function
+        def main(A: R.Tensor([16], "float32")):
+            cls = Before
+            args = (A,)
+            return relax.Call(
+                tvm.ir.Op.get("relax.call_tir_with_grad"),
+                [cls.multiply_by_two, args],
+                attrs=with_grad_attrs,
+                sinfo_args=[A.struct_info],
+            )
 
-    @T.prim_func(private=True)
-    def f_grad(
-        A: T.Buffer(16, "float32"), B: T.Buffer(16, "float32"), Grad: T.Buffer(16, "float32")
-    ):
-        for i in range(16):
-            Grad[i] = 2.0
+        @T.prim_func(private=True)
+        def multiply_by_two(A: T.Buffer(16, "float32"), B: T.Buffer(16, "float32")):
+            for i in range(16):
+                B[i] = A[i] * 2.0
 
-    bb = relax.BlockBuilder()
-    multiply_gv = bb.add_func(multiply_by_two, "multiply_by_two")
-    bb.add_func(f_grad, "f_grad")
-    a = relax.Var("a", R.Tensor([16], "float32"))
-    tup = relax.Var("tup", R.Tuple(R.Tensor([16], "float32")))
-    ret = relax.Var("ret", R.Tensor([16], "float32"))
-    main_func = relax.Function(
-        [a],
-        relax.SeqExpr(
-            [
-                relax.BindingBlock(
-                    [
-                        relax.VarBinding(tup, relax.Tuple([a])),
-                        relax.VarBinding(
-                            ret,
-                            relax.Call(
-                                tvm.ir.Op.get("relax.call_tir_with_grad"),
-                                [multiply_gv, tup],
-                                attrs=with_grad_attrs,
-                                sinfo_args=[a.struct_info],
-                            ),
-                        ),
-                    ]
-                )
-            ],
-            ret,
-        ),
-        R.Tensor([16], "float32"),
-    ).with_attr("global_symbol", "main")
-    bb.add_func(main_func, "main")
-    Before = bb.get()
+        @T.prim_func(private=True)
+        def f_grad(
+            A: T.Buffer(16, "float32"), B: T.Buffer(16, "float32"), Grad: T.Buffer(16, "float32")
+        ):
+            for i in range(16):
+                Grad[i] = 2.0
 
     After = tvm.relax.testing.transform.ApplyEmptyCppMutator()(Before)
 
