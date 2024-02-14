@@ -85,6 +85,42 @@ def test_tuple() -> None:
     with pytest.raises(IndexError, match="Tuple index out of range"):
         t[-3]
 
+    t_iter = iter(t)
+    assert next(t_iter).same_as(v0)
+    assert next(t_iter).same_as(v1)
+    with pytest.raises(StopIteration):
+        next(t_iter)
+
+
+def test_tuple_var():
+    sinfo_a = rx.TensorStructInfo(dtype="float16")
+    sinfo_b = rx.TensorStructInfo(dtype="int32")
+    var = rx.Var("var", rx.TupleStructInfo([sinfo_a, sinfo_b]))
+
+    a = var[0]
+    assert isinstance(a, rx.TupleGetItem)
+    tvm.ir.assert_structural_equal(a.struct_info, sinfo_a)
+
+    b = var[1]
+    assert isinstance(b, rx.TupleGetItem)
+    tvm.ir.assert_structural_equal(b.struct_info, sinfo_b)
+
+    with pytest.raises(IndexError):
+        var[-1]
+
+    with pytest.raises(IndexError):
+        var[2]
+
+    with pytest.raises(TypeError):
+        iter(var)
+
+
+def test_iteration_over_non_tuple_var_is_invalid():
+    var = rx.Var("var", rx.ObjectStructInfo())
+
+    with pytest.raises(TypeError):
+        iter(var)
+
 
 def test_match_cast() -> None:
     # match_cast([16, 8], [m, n])
