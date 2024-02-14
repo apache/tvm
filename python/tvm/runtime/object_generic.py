@@ -38,7 +38,7 @@ class ObjectGeneric(object):
 ObjectTypes = (ObjectBase, NDArrayBase, Module, ObjectRValueRef, PackedFuncBase, PyNativeObject)
 
 
-def convert_to_object(value, span=None):
+def convert_to_object(value):
     """Convert a Python value to corresponding object type.
 
     Type conversions performed by this function must *only* produce
@@ -53,9 +53,6 @@ def convert_to_object(value, span=None):
     ----------
     value : str
         The value to be inspected.
-
-    span : Optional[Span]
-        The location of this itervar in the source code.
 
     Returns
     -------
@@ -90,15 +87,12 @@ def convert_to_object(value, span=None):
         raise TypeError(f"don't know how to convert type {type(value)} to object")
 
 
-def convert(value, span=None):
+def convert(value):
     """Convert value to TVM object or function.
 
     Parameters
     ----------
     value : python value
-
-    span : Optional[Span]
-        The location of this statement in the source code.
 
     Returns
     -------
@@ -111,7 +105,7 @@ def convert(value, span=None):
     the codebase. We can choose one to keep and discard the other one later.
     """
 
-    return convert_to_object(value, span=span)
+    return convert_to_object(value)
 
 
 def _scalar_type_inference(value):
