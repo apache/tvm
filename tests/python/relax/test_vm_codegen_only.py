@@ -42,7 +42,7 @@ def codegen(mod, target, exec_mode="bytecode"):
 def test_vm_copy(exec_mode):
     @tvm.script.ir_module
     class TestVMMove:
-        @R.function
+        @R.function(pure=False)
         def foo(x: R.Tensor((3, 4), "float32")):
             R.func_attr({"global_symbol": "foo"})
             z = R.call_packed("vm.builtin.copy", x, sinfo_args=(R.Tensor((3, 4), dtype="float32")))
@@ -61,7 +61,7 @@ def test_vm_copy(exec_mode):
 def test_vm_to_device(exec_mode):
     @tvm.script.ir_module
     class TestVMToDevice:
-        @R.function
+        @R.function(pure=False)
         def foo(x: R.Tensor((3, 4), "float32")):
             R.func_attr({"global_symbol": "foo"})
             # Copy x to the first cpu: device_type=1 and device_id=0.
@@ -110,7 +110,7 @@ def test_if_cond_const(exec_mode):
 def test_vm_exec_serialize_export_library(exec_mode):
     @tvm.script.ir_module
     class TestVMMove:
-        @R.function
+        @R.function(pure=False)
         def foo(x: R.Tensor((3, 4), "float32")):
             R.func_attr({"global_symbol": "foo"})
             z = R.call_packed("vm.builtin.copy", x, sinfo_args=(R.Tensor((3, 4), dtype="float32")))
@@ -133,7 +133,7 @@ def test_vm_exec_serialize_export_library(exec_mode):
 def test_if_cond(exec_mode):
     @tvm.script.ir_module
     class TestVMCompileIf:
-        @R.function
+        @R.function(pure=False)
         def ife(cond: R.Tensor((), "bool"), x: R.Tensor((3, 4), "float32")) -> R.Tensor:
             R.func_attr({"global_symbol": "ife"})
             if cond:
@@ -183,7 +183,7 @@ def test_vm_return_const_tuple(exec_mode):
 def test_vm_const_as_call_arg(exec_mode):
     @tvm.script.ir_module
     class TestVMConstAsCallArg:
-        @R.function
+        @R.function(pure=False)
         def main(x: R.Tensor(ndim=2, dtype="float32")):
             R.func_attr({"global_symbol": "main"})
             a = R.call_packed(
@@ -219,7 +219,7 @@ def test_shape_check_builtin(exec_mode):
 
     @tvm.script.ir_module
     class TestVMShapeCheck:
-        @R.function
+        @R.function(pure=False)
         def main(x: R.Tensor(["n", "m"], "float32")) -> R.Shape(ndim=3):
             R.func_attr({"global_symbol": "main"})
             n = T.int64()
@@ -338,7 +338,7 @@ def test_datatype_imm(exec_mode):
 def test_vm_builtin_reshape(exec_mode):
     @tvm.script.ir_module
     class TestVMBuiltinReshape:
-        @R.function
+        @R.function(pure=False)
         def main(x: R.Tensor((3, 4), "float32")):
             R.func_attr({"global_symbol": "main"})
             y = R.call_packed(
@@ -383,7 +383,8 @@ def test_vm_kill_object(exec_mode):
                     T.writes(T_full[v_ax0])
                     T_full[v_ax0] = T.float32(1)
 
-        @R.function
+        # PrimFuncs called directly are treated as impure
+        @R.function(pure=False)
         def main() -> R.Tensor((4,), dtype="float32"):
             R.func_attr({"global_symbol": "main"})
             cls = TestKillObject
@@ -425,7 +426,7 @@ def test_vm_kill_object(exec_mode):
 def test_preserve_trivial_bindings(exec_mode):
     @I.ir_module
     class mod:
-        @R.function
+        @R.function(pure=False)
         def main():
             callback = R.ExternFunc("test.vm.check_if_defined")
 

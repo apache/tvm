@@ -18,6 +18,8 @@
 import inspect
 from typing import Any, Dict, Union
 
+from ....relax.analysis import well_formed
+from ....ir.module import IRModule
 from ...ir_builder import IRBuilder
 from . import doc
 from .diagnostics import Source
@@ -41,6 +43,22 @@ def scan_macro(program: Union[Any, str], extra_vars: Dict[str, Any] = None) -> A
     source = Source(program)
     closure_vars = extra_vars or _default_globals()
     return source, closure_vars
+
+
+def find_decorator_annotation(node: doc.Module, annotation: str, default: bool = True) -> bool:
+    """
+    Check the value of given annotation (argument name) in the function decorator.
+    Returns the value of the annotation if present, otherwise giving the default value.
+    """
+    # Note: A Module body is always a list containing a single ClassDef.
+    # The ClassDef has a decorator list
+    for dec in node.body[0].decorator_list:
+        if not isinstance(dec, doc.Call) or dec.func.attr != "ir_module":
+            continue
+        for keyword in dec.keywords:
+            if keyword.arg == annotation:
+                return keyword.value.value
+    return default
 
 
 def parse(program: Union[doc.AST, Any, str], extra_vars: Dict[str, Any] = None) -> Any:
@@ -77,4 +95,15 @@ def parse(program: Union[doc.AST, Any, str], extra_vars: Dict[str, Any] = None) 
             parser.parse(extra_vars=extra_vars)
         except ParserError as err:
             parser.report_error(err.node, err.args[0])
-    return builder.get()
+    ret = builder.get()
+    # well-formedness check will ignore any non-Relax functions
+    if isinstance(ret, IRModule):
+        # note: use the walrus operator (:=) once the project Python version
+        # supports it, would be more concise
+        source_ast = source.as_ast()
+        if find_decorator_annotation(source_ast, "check_well_formed") and not well_formed(ret):
+            parser.report_error(
+                source_ast,
+                err="Program containing Relax functions is not well-formed",
+            )
+    return ret
