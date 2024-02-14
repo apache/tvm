@@ -624,7 +624,7 @@ def test_select():
 
 
 @pytest.mark.parametrize(
-    "lanes, scripted_lanes", [(32, "32"), (8 * tvm.tir.vscale(), "8 * T.vscale()")]
+    "lanes, scripted_lanes", [(32, "32"), (tvm.tir.vscale() * 8, "T.vscale() * 8")]
 )
 def test_ramp(lanes, scripted_lanes):
     a = tir.Var("a", "int32")
@@ -641,7 +641,7 @@ T.Ramp(a, 1, {})
 
 
 @pytest.mark.parametrize(
-    "lanes, scripted_lanes", [(4, "4"), (4 * tvm.tir.vscale(), "4 * T.vscale()")]
+    "lanes, scripted_lanes", [(4, "4"), (tvm.tir.vscale() * 4, "T.vscale() * 4")]
 )
 def test_broadcast(lanes, scripted_lanes):
     obj = tir.Broadcast(0, lanes)

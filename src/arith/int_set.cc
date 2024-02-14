@@ -966,7 +966,7 @@ IntSet EvalSet(PrimExpr e, const Map<Var, IntSet>& dom_map) {
 
 IntSet IntSet::Vector(PrimExpr x) {
   // short cut: simply get single point
-  if (x.dtype().lanes() == 1) {
+  if (!x.dtype().is_scalable_or_fixed_length_vector()) {
     return IntSet::SinglePoint(x);
   } else {
     // vector case.
