@@ -2254,5 +2254,65 @@ def test_use_as_inplace_and_dps():
     _check(Module, Expected)
 
 
+def test_private_nonprimitive_func():
+    """Input IRModule may contain calls to non-primitive functions
+
+    This is a regression test.  Prior implementations did not preserve
+    relax-to-relax function calls.
+    """
+
+    @I.ir_module
+    class Before:
+        @R.function
+        def main(
+            input_ids: R.Tensor((1,), dtype="int32"),
+            input_embeds: R.Tensor((4096, 4096), dtype="float16"),
+        ) -> R.Tensor((1, 4096), dtype="float16"):
+            cls = Before
+            with R.dataflow():
+                gv = cls.fused_func(input_ids, input_embeds)
+                R.output(gv)
+            return gv
+
+        @R.function(private=True)
+        def fused_func(
+            input_ids: R.Tensor((1,), dtype="int32"),
+            input_embeds: R.Tensor((4096, 4096), dtype="float16"),
+        ) -> R.Tensor((1, 4096), dtype="float16"):
+            cls = Before
+            with R.dataflow():
+                lv = R.call_tir(
+                    cls.add, (input_embeds,), out_sinfo=R.Tensor((4096, 4096), dtype="float16")
+                )
+                gv = R.call_tir(
+                    cls.take, (lv, input_ids), out_sinfo=R.Tensor((1, 4096), dtype="float16")
+                )
+                R.output(gv)
+            return gv
+
+        @T.prim_func(private=True)
+        def add(
+            A: T.Buffer((T.int64(4096), T.int64(4096)), "float16"),
+            Out: T.Buffer((T.int64(4096), T.int64(4096)), "float16"),
+        ):
+            for i, j in T.grid(T.int64(4096), T.int64(4096)):
+                with T.block("add"):
+                    vi, vj = T.axis.remap("SS", [i, j])
+                    Out[vi, vj] = A[vi, vj] + T.float16(1.0)
+
+        @T.prim_func(private=True)
+        def take(
+            A: T.Buffer((T.int64(4096), T.int64(4096)), "float16"),
+            B: T.Buffer((T.int64(1),), "int32"),
+            T_take: T.Buffer((T.int64(1), T.int64(4096)), "float16"),
+        ):
+            for ax0, ax1 in T.grid(T.int64(1), T.int64(4096)):
+                with T.block("T_take"):
+                    v_ax0, v_ax1 = T.axis.remap("SS", [ax0, ax1])
+                    T_take[v_ax0, v_ax1] = A[B[v_ax0], v_ax1]
+
+    _check(Before, Before)
+
+
 if __name__ == "__main__":
     tvm.testing.main()
