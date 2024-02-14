@@ -34,10 +34,9 @@ import sys
 import tvm
 from tvm import te
 from tvm import relay
-import mxnet as mx
 from tvm.contrib.download import download_testdata
-from mxnet import gluon
-
+import torch
+import torchvision
 
 batch_size = 1
 model_name = "resnet18_v1"
@@ -103,7 +102,8 @@ def calibrate_dataset():
 # ----------------
 # We use the Relay MxNet frontend to import a model from the Gluon model zoo.
 def get_model():
-    gluon_model = gluon.model_zoo.vision.get_model(model_name, pretrained=True)
+    model = getattr(torchvision.models, model_name)(pretrained=True)
+    model = model.eval()
     img_size = 299 if model_name == "inceptionv3" else 224
     data_shape = (batch_size, 3, img_size, img_size)
     mod, params = relay.frontend.from_mxnet(gluon_model, {"data": data_shape})
@@ -159,11 +159,7 @@ def run_inference(mod):
 
 
 def main():
-    try:
-        mod, params = get_model()
-    except RuntimeError:
-        print("Downloads from mxnet no longer supported", file=sys.stderr)
-        return
+    mod, params = get_model()
     mod = quantize(mod, params, data_aware=True)
     run_inference(mod)
 

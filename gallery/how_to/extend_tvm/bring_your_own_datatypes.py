@@ -233,12 +233,18 @@ print("z (myfloat32):\t{}".format(z_output_myfloat))
 
 
 def get_mobilenet():
-    dshape = (1, 3, 224, 224)
-    from mxnet.gluon.model_zoo.vision import get_model
+    import torch
+    from torchvision.models import mobilenet_v2, MobileNet_V2_Weights
 
-    block = get_model("mobilenet0.25", pretrained=True)
-    shape_dict = {"data": dshape}
-    return relay.frontend.from_mxnet(block, shape_dict)
+    model = mobilenet_v2(weights=MobileNet_V2_Weights)
+    model = model.eval()
+    input_shape = [1, 3, 224, 224]
+    input_data = torch.randn(input_shape)
+    scripted_model = torch.jit.trace(model, input_data).eval()
+
+    input_name = "input0"
+    shape_list = [(input_name, input_shape)]
+    return relay.frontend.from_pytorch(scripted_model, shape_list)
 
 
 def get_cat_image():
@@ -255,11 +261,7 @@ def get_cat_image():
     return np.asarray(img, dtype="float32")
 
 
-try:
-    module, params = get_mobilenet()
-except RuntimeError:
-    print("Downloads from mxnet no longer supported", file=sys.stderr)
-    sys.exit(0)
+module, params = get_mobilenet()
 
 ######################################################################
 # It's easy to execute MobileNet with native TVM:
