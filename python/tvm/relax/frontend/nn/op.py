@@ -1960,15 +1960,9 @@ def not_equal(a: Tensor, b: Tensor, name: str = "not_equal") -> Tensor:
 
 
 def multinomial_from_uniform(prob: Tensor, uniform_sample: Tensor):
-    """
-    uniform_sample  = 0.6
-    cumsum = [0.5, 0.2, 0.3]
-    cumsum_prob = [0.5, 0.7, 1]
-    cmp_info = [1, 1, 0]
-    """
     from tvm.script import tir as T
     from tvm.target import Target
-    from tvm.topi.cuda.scan import inclusive_scan, cumsum
+    from tvm.topi.cuda.scan import inclusive_scan
 
     batch, vocab = prob.shape
     with Target.current(allow_none=True) or Target(
@@ -1978,33 +1972,28 @@ def multinomial_from_uniform(prob: Tensor, uniform_sample: Tensor):
             "arch": "sm_50",
         }
     ):
-        cumsum_prob = tensor_expr_op(inclusive_scan, "cumsum", args=[prob, 1])
-        # cumsum_prob = tensor_expr_op(cumsum, "cumsum", args=[prob, 1, "int32"])  # type: ignore[list-item]
-
-    # return cumsum_prob
-    cmp_info = cumsum_prob < uniform_sample  # TODO (yongwww): fuse here. <=/>
-    cmp_info = cmp_info.astype("int8")
-    # return cmp_info
+        cumsum_prob = tensor_expr_op(inclusive_scan, "cumsum", args=[prob, 1])  # type: ignore[list-item]
 
     @T.prim_func(private=True)
-    def _get_sample_index(A: T.handle, B: T.handle):
+    def _get_sample_index(A: T.handle, B: T.handle, C: T.handle):
         batch, vocab = T.int64(), T.int64()
-        cmp_info = T.match_buffer(A, [batch, vocab], "int8")
-        output_index = T.match_buffer(B, [batch, 1], "int32")
+        prob = T.match_buffer(A, (batch, vocab), "float32")
+        usample = T.match_buffer(B, (batch, 1), "float32")
+        output_index = T.match_buffer(C, (batch, 1), "int32")
 
-        for i0 in T.parallel(batch):
-            for i1 in T.parallel(vocab):
+        for ax0 in T.parallel(batch):
+            for ax1 in T.parallel(vocab):
                 with T.block("T_get_sample_index"):
-                    ax0, ax1 = T.axis.remap("SS", [i0, i1])
-                    # if cmp_info[ax0, ax1] == 1 and (cmp_info[ax0, ax1 + 1] == 0):
-                    if cmp_info[ax0, ax1] == 1 and (
-                        ax1 == vocab - 1 or cmp_info[ax0, ax1 + 1] == 0
+                    v_ax0, v_ax1 = T.axis.remap("SS", [ax0, ax1])
+                    T.writes(output_index[v_ax0, 0])
+                    if (prob[v_ax0, v_ax1] < usample[v_ax0, T.int64(0)]) and (
+                        v_ax1 == vocab - 1 or prob[v_ax0, v_ax1 + 1] > usample[v_ax0, T.int64(0)]
                     ):
-                        output_index[ax0, 0] = ax1
+                        output_index[v_ax0, 0] = T.Cast("int32", v_ax1)
 
     return tensor_ir_op(
         _get_sample_index,
         "get_sample_index",
-        args=[cmp_info],
+        args=[cumsum_prob, uniform_sample],
         out=Tensor.placeholder([batch, 1], "int32"),
     )

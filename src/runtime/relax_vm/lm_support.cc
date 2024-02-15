@@ -495,6 +495,44 @@ int SampleTopPFromProb(NDArray prob, double top_p, double uniform_sample) {
 
 TVM_REGISTER_GLOBAL("vm.builtin.sample_top_p_from_prob").set_body_typed(SampleTopPFromProb);
 
+NDArray MultinomialFromUniform(NDArray prob, NDArray uniform_sample) {
+  ICHECK(prob.IsContiguous());
+  ICHECK(uniform_sample.IsContiguous());
+
+  if (prob->device.device_type != kDLCPU) {
+    prob = prob.CopyTo(DLDevice{kDLCPU, 0});
+  }
+  if (uniform_sample->device.device_type != kDLCPU) {
+    uniform_sample = uniform_sample.CopyTo(DLDevice{kDLCPU, 0});
+  }
+
+  ICHECK(prob->device.device_type == kDLCPU);
+  ICHECK(uniform_sample->device.device_type == kDLCPU);
+
+  int64_t batch_size = prob->shape[0];
+  int64_t vocab_size = prob->shape[prob->ndim - 1];
+  const float* pprob = static_cast<float*>(prob->data);
+  const float* psample = static_cast<float*>(uniform_sample->data);
+  NDArray new_array = NDArray::Empty({batch_size, 1}, DataType::Int(64), uniform_sample->device);
+  int64_t* parray = static_cast<int64_t*>(new_array->data);
+  float cum_sum_prob;
+  for (int64_t i = 0; i < batch_size; ++i) {
+    cum_sum_prob = 0.0f;
+    int64_t prob_idx = 0;
+    for (int j = 0; j < vocab_size; ++j) {
+      cum_sum_prob += pprob[i * vocab_size + j];
+      if (cum_sum_prob >= psample[i]) {
+        break;
+      }
+      prob_idx = j;
+    }
+    parray[i] = prob_idx;
+  }
+  return new_array;
+}
+
+TVM_REGISTER_GLOBAL("vm.builtin.multinomial_from_uniform").set_body_typed(MultinomialFromUniform);
+
 // This is an inplace operation.
 void ApplyRepetitionPenalty(NDArray logits, NDArray token_ids, double penalty) {
   ICHECK(logits.IsContiguous());
