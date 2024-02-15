@@ -71,7 +71,8 @@ def test_domain_touched():
 def test_domain_touched_vector():
     m = tvm.runtime.convert(128)
 
-    @T.prim_func
+    # n is undefined
+    @T.prim_func(check_well_formed=False)
     def func(a: T.handle, b: T.handle):
         n = T.int32()
         A = T.match_buffer(a, (n * m,))
