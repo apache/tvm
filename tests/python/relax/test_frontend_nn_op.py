@@ -883,7 +883,7 @@ def test_multinomial_from_uniform():
             cls = Expected
             with R.dataflow():
                 cumsum: R.Tensor((4, 5), dtype="float32") = R.cumsum(prob, axis=1, dtype="void", exclusive=True)
-                lv1 = R.call_tir(cls.get_sample_index, (cumsum, uniform_sample), out_sinfo=R.Tensor((4, 1), dtype="int64"), tir_vars=R.shape([]))
+                lv1 = R.call_tir(cls.get_sample_index, (cumsum, uniform_sample), out_sinfo=R.Tensor((4, 1), dtype="int64"))
                 gv1: R.Tuple(R.Tensor((4, 1), dtype="int64"), R.Tuple(R.Object)) = lv1, (_io,)
                 R.output(gv1)
             return gv1
