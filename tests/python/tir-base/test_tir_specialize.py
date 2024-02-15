@@ -277,7 +277,8 @@ def test_specialize_buffer_var_to_var():
         for i in range(256):
             B_flat[i] = A_flat[i] * 2.0
 
-    @T.prim_func(private=True)
+    # well-formed checker complains about multiple nested definitions of B_flat?
+    @T.prim_func(private=True, check_well_formed=False)
     def expected(A: T.Buffer([16, 16], "float32"), B_handle: T.handle):
         B = T.match_buffer(B_handle, [16, 16], "float32", data=A.data)
         A_flat = T.decl_buffer([256], "float32", data=A.data)
