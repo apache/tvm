@@ -61,11 +61,18 @@ def test_binary():
             z4 = op.maximum(x, y)
             z5 = op.minimum(x, y)
             z6 = op.subtract(x, y)
-            return (z0, z1, z2, z3, z4, z5, z6)
+            z7 = op.greater(x, y)
+            z8 = op.greater_equal(x, y)
+            z9 = op.less(x, y)
+            z10 = op.less_equal(x, y)
+            z11 = op.equal(x, y)
+            z12 = op.not_equal(x, y)
+
+            return (z0, z1, z2, z3, z4, z5, z6, z7, z8, z9, z10, z11, z12)
 
     # fmt: off
     @R.function
-    def test(x: R.Tensor((1, 10), dtype="float32"), y: R.Tensor((10, 1), dtype="float32"), _io: R.Object) -> R.Tuple(R.Tuple(R.Tensor((10, 10), dtype="float32"), R.Tensor((10, 10), dtype="float32"), R.Tensor((10, 10), dtype="float32"), R.Tensor((1, 1), dtype="float32"), R.Tensor((10, 10), dtype="float32"), R.Tensor((10, 10), dtype="float32"), R.Tensor((10, 10), dtype="float32")), R.Tuple(R.Object)):
+    def test(x: R.Tensor((1, 10), dtype="float32"), y: R.Tensor((10, 1), dtype="float32"), _io: R.Object):
         R.func_attr({"num_input": 3})
         with R.dataflow():
             add: R.Tensor((10, 10), dtype="float32") = R.add(x, y)
@@ -75,7 +82,13 @@ def test_binary():
             maximum: R.Tensor((10, 10), dtype="float32") = R.maximum(x, y)
             minimum: R.Tensor((10, 10), dtype="float32") = R.minimum(x, y)
             subtract: R.Tensor((10, 10), dtype="float32") = R.subtract(x, y)
-            gv1: R.Tuple(R.Tuple(R.Tensor((10, 10), dtype="float32"), R.Tensor((10, 10), dtype="float32"), R.Tensor((10, 10), dtype="float32"), R.Tensor((1, 1), dtype="float32"), R.Tensor((10, 10), dtype="float32"), R.Tensor((10, 10), dtype="float32"), R.Tensor((10, 10), dtype="float32")), R.Tuple(R.Object)) = (add, mul, divide, matmul, maximum, minimum, subtract), (_io,)
+            greater: R.Tensor((10, 10), dtype="bool") = x > y
+            greater_equal: R.Tensor((10, 10), dtype="bool") = x >= y
+            less: R.Tensor((10, 10), dtype="bool") = x < y
+            less_equal: R.Tensor((10, 10), dtype="bool") = x <= y
+            equal: R.Tensor((10, 10), dtype="bool") = R.equal(x, y)
+            not_equal: R.Tensor((10, 10), dtype="bool") = R.not_equal(x, y)
+            gv1 = (add, mul, divide, matmul, maximum, minimum, subtract, greater, greater_equal, less, less_equal, equal, not_equal), (_io,)
             R.output(gv1)
         return gv1
     # fmt: on
@@ -827,76 +840,89 @@ def test_empty():
     vm["test"](*effects)
 
 
-def test_sample():
-    from tvm import dlight
+@tvm.testing.requires_gpu
+def test_multinomial_from_uniform():
+    import numpy as np
+
+    prob_shape = (4, 5)
+    sample_shape = (4, 1)
 
     class Model(Module):
         def foo(self, prob: Tensor, uniform_sample: Tensor):
             z0 = op.multinomial_from_uniform(prob, uniform_sample)
             return z0
 
+    # fmt: off
+    @I.ir_module
+    class Expected:
+        @T.prim_func(private=True)
+        def get_sample_index(A: T.handle, B: T.handle, C: T.handle):
+            batch, vocab = T.int64(), T.int64()
+            prob = T.match_buffer(A, (batch, vocab))
+            usample = T.match_buffer(B, (batch, 1))
+            output_index = T.match_buffer(C, (batch, 1), "int64")
+            for ax0 in T.parallel(batch):
+                for ax1 in T.parallel(vocab):
+                    with T.block("T_get_sample_index"):
+                        v_ax0, v_ax1 = T.axis.remap("SS", [ax0, ax1])
+                        T.reads(prob[v_ax0, v_ax1:v_ax1 + T.int64(2)], usample[v_ax0, T.int64(0)])
+                        T.writes(output_index[v_ax0, 0])
+                        if prob[v_ax0, v_ax1] < usample[v_ax0, T.int64(0)] and (v_ax1 == vocab - T.int64(1) or prob[v_ax0, v_ax1 + T.int64(1)] > usample[v_ax0, T.int64(0)]):
+                            output_index[v_ax0, 0] = v_ax1
+
+        @R.function
+        def _initialize_effect() -> R.Tuple(R.Object):
+            with R.dataflow():
+                _io: R.Object = R.null_value()
+                lv: R.Tuple(R.Object) = (_io,)
+                gv: R.Tuple(R.Object) = lv
+                R.output(gv)
+            return gv
+
+        @R.function
+        def foo(prob: R.Tensor((4, 5), dtype="float32"), uniform_sample: R.Tensor((4, 1), dtype="float32"), _io: R.Object) -> R.Tuple(R.Tensor((4, 1), dtype="int64"), R.Tuple(R.Object)):
+            R.func_attr({"num_input": 3})
+            cls = Expected
+            with R.dataflow():
+                cumsum: R.Tensor((4, 5), dtype="float32") = R.cumsum(prob, axis=1, dtype="void", exclusive=True)
+                lv1 = R.call_tir(cls.get_sample_index, (cumsum, uniform_sample), out_sinfo=R.Tensor((4, 1), dtype="int64"), tir_vars=R.shape([]))
+                gv1: R.Tuple(R.Tensor((4, 1), dtype="int64"), R.Tuple(R.Object)) = lv1, (_io,)
+                R.output(gv1)
+            return gv1
+    # fmt: on
+
     m = Model()
     mod, _ = m.export_tvm(
         spec={
             "foo": {
-                "prob": spec.Tensor([3, 5], "float32"),
-                "uniform_sample": spec.Tensor([3, 1], "float32"),
+                "prob": spec.Tensor(prob_shape, "float32"),
+                "uniform_sample": spec.Tensor(sample_shape, "float32"),
             }
         },
         debug=True,
     )
 
-    mod = relax.transform.LegalizeOps()(mod)
-    mod.show()
+    tvm.ir.assert_structural_equal(mod, Expected)
 
-    # target = tvm.target.Target("cuda -libs=thrust", host="llvm")
     target = tvm.target.Target("cuda", host="llvm")
     with target:
-        mod = dlight.ApplyDefaultSchedule(dlight.gpu.Fallback())(mod)
-        # mod = tir.transform.DefaultGPUSchedule()(mod)
+        mod = tir.transform.DefaultGPUSchedule()(mod)
     ex = relax.build(mod, target)
     dev = tvm.cuda(0)
     vm = relax.VirtualMachine(ex, dev)
 
-    shape1 = (3, 5)
-    shape2 = (3, 1)
     effects = vm["_initialize_effect"]()
-    import numpy as np
 
-    inputs = [
-        tvm.nd.array(np.random.rand(*shape1).astype(np.float32), dev),
-        tvm.nd.array(np.full((3, 1), 0.6).astype(np.float32), dev),
-        effects,
-    ]
-
-    input_0 = tvm.nd.array(
-        np.array(
-            [
-                [0.05548463, 0.13319702, 0.21289983, 0.26031765, 0.3381008],
-                [0.02430844, 0.06528492, 0.2515713, 0.29633388, 0.36250144],
-                [0.00928442, 0.08201023, 0.09577332, 0.37546444, 0.43746758],
-            ]
-        ).astype(np.float32),
-        dev,
-    )
-
-    input_cumsum = tvm.nd.array(
-        np.array(
-            [
-                [0.05548463, 0.18868165, 0.40158147, 0.6618991, 0.9999999],
-                [0.02430844, 0.08959336, 0.34116465, 0.6374985, 0.99999994],
-                [0.00928442, 0.09129465, 0.18706796, 0.5625324, 1.0],
-            ]
-        ).astype(np.float32),
-        dev,
-    )
-    inputs[0] = input_0
-
+    np_rand = np.random.rand(*prob_shape).astype(np.float32)
+    # normalize it to get the random prob
+    np_prob = np_rand / np_rand.sum(axis=1, keepdims=True)
+    nd_prob = tvm.nd.array(np_prob, dev)
+    # special sample to get deterministic results
+    nd_sample = tvm.nd.array(np.array([[1], [0], [0], [1.1]]).astype(np.float32), dev)
+    inputs = [nd_prob, nd_sample, effects]
     res = vm["foo"](*inputs)
-    print("inputs: ", inputs)
-    print("res: ", res[0].asnumpy())
+    tvm.testing.assert_allclose(res[0].numpy(), np.array([[4], [0], [0], [4]]).astype(np.int64))
 
 
 if __name__ == "__main__":
-    # tvm.testing.main()
-    test_sample()
+    tvm.testing.main()

@@ -24,6 +24,7 @@ from typing import Any, Callable, Dict, List, Optional, Sequence, Tuple, TypeVar
 import numpy as np
 
 from tvm import tir as _tir
+from tvm.script import tir as T
 
 from ... import expr as rx
 from ... import op as _op
@@ -1959,41 +1960,130 @@ def not_equal(a: Tensor, b: Tensor, name: str = "not_equal") -> Tensor:
     return wrap_nested(_op.not_equal(a._expr, b._expr), name)
 
 
-def multinomial_from_uniform(prob: Tensor, uniform_sample: Tensor):
-    from tvm.script import tir as T
-    from tvm.target import Target
-    from tvm.topi.cuda.scan import inclusive_scan
+def cumsum(
+    data: Tensor,
+    axis: Optional[int] = None,
+    dtype: Optional[str] = None,
+    exclusive: Optional[bool] = None,
+    name: str = "cumsum",
+) -> Tensor:
+    """Numpy style cumsum op. Return the cumulative inclusive sum of the elements along
+    a given axis.
 
-    batch, vocab = prob.shape
-    with Target.current(allow_none=True) or Target(
-        {
-            "kind": "cuda",
-            "max_num_threads": 1024,
-            "arch": "sm_50",
-        }
-    ):
-        cumsum_prob = tensor_expr_op(inclusive_scan, "cumsum", args=[prob, 1])  # type: ignore[list-item]
+    Parameters
+    ----------
+    data : Tensor
+        The input data to the operator.
+
+    axis : Optional[int]
+        Axis along which the cumulative sum is computed. The default (None) is to compute
+        the cumsum over the flattened array.
+
+    dtype : Optional[str]
+        Type of the returned array and of the accumulator in which the elements are summed.
+        If dtype is not specified, it defaults to the dtype of data.
+
+    exclusive : Optional[bool]
+        If true will return exclusive sum in which the first element is not
+        included.
+
+    name : str
+        Name hint.
+
+    Returns
+    -------
+    result : Tensor
+        The result has the same size as data, and the same shape as data if axis is not None.
+        If axis is None, the result is a 1-d array.
+
+    Examples
+    --------
+    .. code-block:: python
+
+        a = [[1, 2, 3], [4, 5, 6]]
+
+        cumsum(a)  # if axis is not provided, cumsum is done over the flattened input.
+        -> [ 1,  3,  6, 10, 15, 21]
+
+        cumsum(a, dtype="float32")
+        -> [  1.,   3.,   6.,  10.,  15.,  21.]
+
+        cumsum(a, axis=0)  # sum over rows for each of the 3 columns
+        -> [[1, 2, 3],
+            [5, 7, 9]]
+
+        cumsum(a, axis=1)
+        -> [[ 1,  3,  6],
+            [ 4,  9, 15]]
+
+        a = [1, 0, 1, 0, 1, 1, 0]  # a is a boolean array
+        cumsum(a, dtype=int32)  # dtype should be provided to get the expected results
+        -> [1, 1, 2, 2, 3, 4, 4]
+    """
+    return wrap_nested(_op.cumsum(data._expr, axis, dtype, exclusive), name)
+
+
+def multinomial_from_uniform(
+    prob: Tensor, uniform_sample: Tensor, name: str = "multinomial_from_uniform"
+):
+    """Returns a tensor where each row contains the index sampled from the multinomial
+    probability distribution located in the corresponding row of tensor prob.
+
+    Notes
+    -----
+    For better cpu performance, use 'vm.builtin.multinomial_from_uniform'.
+
+    Parameters
+    ----------
+    prob : Tensor
+        The probability tensor.
+
+    uniform_sample : Tensor
+        The uniform sample.
+
+    name : str
+        Name hint.
+
+    Returns
+    -------
+    result : Tensor
+        The computed result.
+
+    Examples
+    --------
+    .. code-block:: python
+
+        prob = [[0.2, 0.3, 0.5], [0.3, 0.4, 0.3]]
+        usample = [[0.4], [0.9]]
+
+        multinomial_from_uniform(a)
+        -> [[1], [2]]
+    """
+
+    batch = prob.shape[0]
+    cumsum_prob = cumsum(prob, axis=1, exclusive=True)
 
     @T.prim_func(private=True)
     def _get_sample_index(A: T.handle, B: T.handle, C: T.handle):
         batch, vocab = T.int64(), T.int64()
         prob = T.match_buffer(A, (batch, vocab), "float32")
         usample = T.match_buffer(B, (batch, 1), "float32")
-        output_index = T.match_buffer(C, (batch, 1), "int32")
+        output_index = T.match_buffer(C, (batch, 1), "int64")
 
         for ax0 in T.parallel(batch):
             for ax1 in T.parallel(vocab):
                 with T.block("T_get_sample_index"):
                     v_ax0, v_ax1 = T.axis.remap("SS", [ax0, ax1])
                     T.writes(output_index[v_ax0, 0])
+
                     if (prob[v_ax0, v_ax1] < usample[v_ax0, T.int64(0)]) and (
                         v_ax1 == vocab - 1 or prob[v_ax0, v_ax1 + 1] > usample[v_ax0, T.int64(0)]
                     ):
-                        output_index[v_ax0, 0] = T.Cast("int32", v_ax1)
+                        output_index[v_ax0, 0] = v_ax1
 
     return tensor_ir_op(
         _get_sample_index,
         "get_sample_index",
         args=[cumsum_prob, uniform_sample],
-        out=Tensor.placeholder([batch, 1], "int32"),
+        out=Tensor.placeholder([batch, 1], "int64"),
     )

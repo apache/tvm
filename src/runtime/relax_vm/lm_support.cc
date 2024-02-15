@@ -520,11 +520,11 @@ NDArray MultinomialFromUniform(NDArray prob, NDArray uniform_sample) {
     cum_sum_prob = 0.0f;
     int64_t prob_idx = 0;
     for (int j = 0; j < vocab_size; ++j) {
+      prob_idx = j;
       cum_sum_prob += pprob[i * vocab_size + j];
-      if (cum_sum_prob >= psample[i]) {
+      if (cum_sum_prob > psample[i]) {
         break;
       }
-      prob_idx = j;
     }
     parray[i] = prob_idx;
   }

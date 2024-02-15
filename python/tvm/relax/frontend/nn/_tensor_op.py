@@ -67,14 +67,6 @@ class _TensorOp:
         other = _convert_scalar(other, self)
         return _op().divide(self, other)
 
-    def __eq__(self, other):
-        other = _convert_scalar(other, self)
-        return _op().equal(self, other)
-
-    def __ne__(self, other):
-        other = _convert_scalar(other, self)
-        return _op().not_equal(self, other)
-
     def __lt__(self, other):
         other = _convert_scalar(other, self)
         return _op().less(self, other)
