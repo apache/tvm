@@ -2023,9 +2023,7 @@ def cumsum(
     return wrap_nested(_op.cumsum(data._expr, axis, dtype, exclusive), name)
 
 
-def multinomial_from_uniform(
-    prob: Tensor, uniform_sample: Tensor, name: str = "multinomial_from_uniform"
-):
+def multinomial_from_uniform(prob: Tensor, uniform_sample: Tensor):
     """Returns a tensor where each row contains the index sampled from the multinomial
     probability distribution located in the corresponding row of tensor prob.
 
@@ -2040,9 +2038,6 @@ def multinomial_from_uniform(
 
     uniform_sample : Tensor
         The uniform sample.
-
-    name : str
-        Name hint.
 
     Returns
     -------
