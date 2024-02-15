@@ -190,16 +190,15 @@ def quant_and_pack_fp8x4_e4m3_sm90(
     ):
         # with T.block("root"):
         # test = T.alloc_buffer(1, dtype=vec_model_dtype, scope="local")
-        for i0, i1 in T.grid(T.int64(weight_shape[0]), T.int64(weight_shape[1])):
+        for i0, i1 in T.grid(T.int64(weight_shape[0]), T.int64(weight_shape[1] // vector_length)):
             with T.block("compute"):
-                v_i0 = T.axis.spatial(T.int64(weight_shape[0]), i0)
-                v_i1 = T.axis.spatial(T.int64(weight_shape[1] // vector_length), i1)
+                v_i0, v_i1 = T.axis.remap("SS", [i0, i1])
                 T.reads(
                     A[v_i0, v_i1 : v_i1 + vector_length],
                     scale[v_i0, v_i1 * T.int64(vector_length) // T.int64(group_size)],
                 )
                 T.writes(compute[v_i0, v_i1 * vector_length])
-                compute[v_i0, v_i1 * vector_length] = T.reinterpret(
+                compute[v_i0, v_i1] = T.reinterpret(
                     storage_dtype,
                     T.Cast(
                         vec_quantized_dtype,
