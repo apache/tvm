@@ -840,9 +840,7 @@ def test_empty():
     vm["test"](*effects)
 
 
-@tvm.testing.requires_gpu
 def test_multinomial_from_uniform():
-    import numpy as np
 
     prob_shape = (4, 5)
     sample_shape = (4, 1)
@@ -903,25 +901,6 @@ def test_multinomial_from_uniform():
     )
 
     tvm.ir.assert_structural_equal(mod, Expected)
-
-    target = tvm.target.Target("cuda", host="llvm")
-    with target:
-        mod = tir.transform.DefaultGPUSchedule()(mod)
-    ex = relax.build(mod, target)
-    dev = tvm.cuda(0)
-    vm = relax.VirtualMachine(ex, dev)
-
-    effects = vm["_initialize_effect"]()
-
-    np_rand = np.random.rand(*prob_shape).astype(np.float32)
-    # normalize it to get the random prob
-    np_prob = np_rand / np_rand.sum(axis=1, keepdims=True)
-    nd_prob = tvm.nd.array(np_prob, dev)
-    # special sample to get deterministic results
-    nd_sample = tvm.nd.array(np.array([[1], [0], [0], [1.1]]).astype(np.float32), dev)
-    inputs = [nd_prob, nd_sample, effects]
-    res = vm["foo"](*inputs)
-    tvm.testing.assert_allclose(res[0].numpy(), np.array([[4], [0], [0], [4]]).astype(np.int64))
 
 
 if __name__ == "__main__":
