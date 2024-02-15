@@ -24,6 +24,239 @@ import numpy as np
 import tvm.testing
 
 
+from typing import List, Tuple
+from tvm import DataType, DataTypeCode, IRModule
+from tvm import dlight as dl
+from tvm import relax, te, tir, topi
+from tvm.relax.frontend import nn
+from tvm.runtime import NDArray
+from tvm.target import Target
+
+
+def create_quantize_func(
+    weight_shape,
+    model_dtype,
+    quantize_dtype,
+    storage_dtype,
+    group_size,
+    num_elem_per_storage,
+    max_int_value,
+    axis,
+    output_transpose,
+) -> IRModule:
+    if DataType(quantize_dtype).type_code == DataTypeCode.E4M3Float:
+        quantize_func = quantize_fp8x4_e4m3
+    else:
+        assert NotImplementedError()
+
+    bb = relax.BlockBuilder()  # pylint: disable=invalid-name
+    weight_var = relax.Var("weight", relax.TensorStructInfo(weight_shape, model_dtype))
+    compute_scale, compute_quantize, compute_transpose = quantize_func(
+        weight_shape,
+        model_dtype,
+        quantize_dtype,
+        storage_dtype,
+        group_size,
+        num_elem_per_storage,
+        max_int_value,
+        axis,
+        output_transpose,
+    )
+    with bb.function(name="main", params=[weight_var]):
+        with bb.dataflow():
+            lv_scale = bb.emit_te(compute_scale, weight_var)
+            lv_quantized_weight = compute_quantize(bb, (weight_var, lv_scale))
+            if compute_transpose:
+                lv_output = bb.emit_te(compute_transpose, lv_quantized_weight, lv_scale)
+                lv_quantized_weight = lv_output[0]
+                lv_scale = lv_output[1]
+            tuple_output = bb.emit((lv_quantized_weight, lv_scale))
+            gv = bb.emit_output(tuple_output)
+        bb.emit_func_output(gv)
+    return bb.finalize()
+
+
+def quantize_fp8x4_e4m3(  # pylint: disable=too-many-locals
+    weight_shape: List[tir.PrimExpr],
+    model_dtype,
+    quantize_dtype,
+    storage_dtype,
+    group_size,
+    num_elem_per_storage,
+    max_int_value,
+    axis: int = -1,
+    output_transpose: bool = False,
+) -> Tuple[te.Tensor, te.Tensor]:
+    """Group quantization for weight tensor, defined in tensor expression."""
+    max_int = tir.const(max_int_value, model_dtype)
+    shape = weight_shape  # pylint: disable=invalid-name
+    axis = axis if axis >= 0 else len(shape) + axis
+    k = shape[axis]
+    quantize_dtype = DataType(quantize_dtype)
+    # compute scale per group
+    r = te.reduce_axis((0, group_size), name="r")  # pylint: disable=invalid-name
+    num_group = tir.ceildiv(k, group_size)
+    # (4096, 4096) -> quantize axis = 0, group size = 32 -> (128, 4096)
+    # for channel quant group_size = 4096 -> (1, 4096)
+    scale_shape = (*shape[:axis], num_group, *shape[axis + 1 :])
+
+    def compute_scale(weight: te.Tensor):
+        min_scaling_factor = tir.const(1.0 / (max_int_value * 512.0), model_dtype)
+        max_abs = te.compute(
+            shape=scale_shape,
+            fcompute=lambda *idx: te.max(
+                tir.if_then_else(
+                    idx[axis] * group_size + r < k,
+                    te.abs(weight(*idx[:axis], idx[axis] * group_size + r, *idx[axis + 1 :])),
+                    te.min_value(model_dtype),
+                ),
+                axis=r,
+            ),
+            name="max_abs_value",
+        )
+        scale = te.compute(
+            scale_shape,
+            lambda *idx: te.max(max_abs(*idx).astype(model_dtype) / max_int, min_scaling_factor),
+            name="scale",
+        )
+        return scale
+
+    def compute_quantize_weight(bb: relax.BlockBuilder, args: relax.expr.Expr):
+        # compute scaled weight
+        packed_shape = (weight_shape[0], weight_shape[1] // num_elem_per_storage)
+        quant = quant_and_pack_fp8x4_e4m3_sm90(
+            weight_shape,
+            packed_shape,
+            scale_shape,
+            group_size,
+            axis,
+            model_dtype,
+            storage_dtype,
+            quantize_dtype,
+        )
+        # quant.show()
+        # import ipdb
+
+        # ipdb.set_trace()
+
+        global_var = bb.add_func(quant, "quantized_weight")
+        lv_quantized_weight = bb.emit(
+            relax.call_tir(global_var, args, relax.TensorStructInfo(packed_shape, storage_dtype))
+        )
+        return lv_quantized_weight
+
+    compute_transpose = None
+    if output_transpose:
+
+        def compute_transpose(quantized_weight: te.Tensor, scale: te.Tensor):
+            if len(quantized_weight.shape) != 2 or len(scale.shape) != 2:
+                raise ValueError(
+                    "Does not support transpose output quantized weight with ndim != 2"
+                )
+
+            quantized_weight = topi.transpose(quantized_weight)
+            scale = topi.transpose(scale)
+            return quantized_weight, scale
+
+    return compute_scale, compute_quantize_weight, compute_transpose
+
+
+def quant_and_pack_fp8x4_e4m3_sm90(
+    weight_shape,
+    packed_shape,
+    scale_shape,
+    group_size,
+    axis,
+    model_dtype,
+    storage_dtype,
+    quantized_dtype,
+):
+    vector_length = 4
+    vec_quantized_dtype = f"{quantized_dtype}x{vector_length}"
+    vec_model_dtype = f"{model_dtype}x{vector_length}"
+    num_elem_per_storage = vector_length
+    assert (
+        group_size % vector_length == 0
+    ), f"Number of elements in a group must be divisible by fp8 vector length {vector_length}"
+
+    @T.prim_func(private=True)
+    def quant_pack(
+        A: T.Buffer(weight_shape, model_dtype),
+        scale: T.Buffer(scale_shape, model_dtype),
+        compute: T.Buffer(
+            packed_shape,
+            storage_dtype,
+        ),
+    ):
+        # with T.block("root"):
+        # test = T.alloc_buffer(1, dtype=vec_model_dtype, scope="local")
+        for i0, i1 in T.grid(T.int64(weight_shape[0]), T.int64(weight_shape[1])):
+            with T.block("compute"):
+                v_i0 = T.axis.spatial(T.int64(weight_shape[0]), i0)
+                v_i1 = T.axis.spatial(T.int64(weight_shape[1] // vector_length), i1)
+                T.reads(
+                    A[v_i0, v_i1 : v_i1 + vector_length],
+                    scale[v_i0, v_i1 * T.int64(vector_length) // T.int64(group_size)],
+                )
+                T.writes(compute[v_i0, v_i1 * vector_length])
+                compute[v_i0, v_i1 * vector_length] = T.reinterpret(
+                    storage_dtype,
+                    T.Cast(
+                        vec_quantized_dtype,
+                        # Note: Using the colon here is a sugared way of writing T.ramp(v_i1, 1, vector_length)
+                        # ie a vector load of A
+                        A[v_i0, v_i1 : v_i1 + vector_length]
+                        / scale[v_i0, v_i1 * T.int64(vector_length) // T.int64(group_size)],
+                    ),
+                )
+
+    quant_pack.show()
+    return quant_pack
+
+
+def dequant_fp8x4_e4m3_sm90(
+    packed_weight_shape,
+    scale_shape,
+    out_shape,
+    group_size,
+    axis,
+    model_dtype,
+    storage_dtype,
+    quantized_dtype,
+):
+    vector_length = 4
+    vec_quantized_dtype = f"{quantized_dtype}x{vector_length}"
+    vec_model_dtype = f"{model_dtype}x{vector_length}"
+    num_elem_per_storage = vector_length
+
+    @T.prim_func
+    def dequant(
+        packed_weight: T.Buffer(packed_weight_shape, storage_dtype),
+        scale: T.Buffer(scale_shape, model_dtype),
+        dequantize: T.Buffer(out_shape, model_dtype),
+    ):
+        T.func_attr({"tir.noalias": T.bool(True)})
+        # with T.block("root"):
+        for i0, i1 in T.grid(T.int64(packed_weight_shape[0]), T.int64(packed_weight_shape[1])):
+            with T.block("dequantize"):
+                v_i0 = T.axis.spatial(T.int64(packed_weight_shape[0]), i0)
+                v_i1 = T.axis.spatial(T.int64(packed_weight_shape[1]), i1)
+                T.reads(
+                    packed_weight[v_i0, v_i1],
+                    scale[v_i0, v_i1 * T.int64(vector_length) // T.int64(group_size)],
+                )
+                T.writes(dequantize[v_i0, v_i1 : v_i1 + vector_length])
+                dequantize[v_i0, v_i1 : v_i1 + vector_length] = T.Cast(
+                    vec_model_dtype, T.reinterpret(vec_quantized_dtype, packed_weight[v_i0, v_i1])
+                ) * T.Broadcast(
+                    scale[v_i0, v_i1 * T.int64(vector_length) // T.int64(group_size)], vector_length
+                )
+
+    dequant.show()
+
+    return dequant
+
+
 @tvm.testing.requires_cuda_compute_version(9)
 def test_e4m3_conversions():
     dtype = "e4m3_float8"
@@ -310,6 +543,139 @@ def test_half4_vector_add():
     fadd(a, b, c)
     c_expected = a_np + b_np
     tvm.testing.assert_allclose(c.numpy(), c_expected, atol=1e-5, rtol=1e-5)
+
+
+@tvm.testing.requires_cuda_compute_version(8)
+def test_weight_scale():
+    weight_shape = [32000, 4096]
+    group_size = 32
+    axis = 1
+    scale_shape = [d // group_size if axis == i else d for i, d in enumerate(weight_shape)]
+    model_dtype = "float16"
+    storage_dtype = "uint32"
+    quantized_dtype = "e4m3_float8"
+
+    # q_weight = fp8(weight_f16 / scale_f16)
+    # q_weight = fp8x4(weight_f16x4 / scale_f16x4)
+    vector_length = 4
+    vec_quantized_dtype = "e4m3_float8x4"
+    vec_model_dtype = "float16x4"
+    num_el_per_storage = 4
+
+    @T.prim_func
+    def vectorized(
+        A: T.Buffer(weight_shape, model_dtype),
+        scale: T.Buffer(scale_shape, model_dtype),
+        compute: T.Buffer(
+            (T.int64(weight_shape[0]), T.int64(weight_shape[1] // num_el_per_storage)),
+            storage_dtype,
+        ),
+    ):
+        T.func_attr({"tir.noalias": T.bool(True)})
+        # with T.block("root"):
+        # test = T.alloc_buffer(1, dtype=vec_model_dtype, scope="local")
+        for i0, i1 in T.grid(T.int64(weight_shape[0]), T.int64(weight_shape[1])):
+            with T.block("compute"):
+                v_i0 = T.axis.spatial(T.int64(weight_shape[0]), i0)
+                v_i1 = T.axis.spatial(T.int64(weight_shape[1] // vector_length), i1)
+                T.reads(
+                    A[v_i0, v_i1 : v_i1 + vector_length], scale[v_i0, v_i1 // T.int64(group_size)]
+                )
+                T.writes(compute[v_i0, v_i1 * vector_length])
+                compute[v_i0, v_i1 * vector_length] = T.reinterpret(
+                    storage_dtype,
+                    T.Cast(
+                        vec_quantized_dtype,
+                        # Note: Using the colon here is a sugared way of writing T.ramp(v_i1, 1, vector_length)
+                        # ie a vector load of A
+                        A[v_i0, v_i1 : v_i1 + vector_length]
+                        / scale[v_i0, v_i1 // T.int64(group_size)],
+                    ),
+                )
+
+    sch = tvm.tir.Schedule(vectorized)
+    block = sch.get_block("compute")
+    loops = sch.get_loops(block)
+    txo, txi = sch.split(loops[0], factors=[None, 256])
+    sch.bind(loops[1], "blockIdx.x")
+    sch.bind(txi, "threadIdx.x")
+    sch.mod.show()
+
+    # sch = tvm.tir.Schedule(main)
+    # block = sch.get_block("compute")
+    # loops = sch.get_loops(block)
+    # bx, tx, lanes = sch.split(loops[-1], factors=[None, 32, 4])
+    # w_l = sch.cache_read(block, 0, storage_scope="local")
+    # # s_l = sch.cache_read(block, 1, storage_scope="local")
+    # sch.compute_at(block=w_l, loop=tx)
+    # # sch.compute_at(block=s_l, loop=tx)
+    # sch.bind(bx, "blockIdx.x")
+    # sch.bind(tx, "threadIdx.x")
+    # # sch.vectorize(lanes)
+    # sch.mod.show()
+
+    import ipdb
+
+    ipdb.set_trace()
+    target = "cuda"
+    f = tvm.build(sch.mod, target=target)
+    print(f.imported_modules[0].get_source())
+
+
+weight_shape = tvm.testing.parameter([32000, 4096], [4096, 14336])
+
+
+@tvm.testing.requires_cuda_compute_version(8)
+def test_fp8_e4_quant_weight(weight_shape):
+    group_size = 32
+    axis = 1
+    scale_shape = [d // group_size if axis == i else d for i, d in enumerate(weight_shape)]
+    model_dtype = "float16"
+    storage_dtype = "uint32"
+    quantize_dtype = "e4m3_float8"
+    num_el_per_storage = 4
+
+    # TODO(csullivan): check this
+    max_int_value = 448 if "e4m3" in quantize_dtype else 57344
+
+    mod = create_quantize_func(
+        weight_shape,
+        model_dtype,
+        quantize_dtype,
+        storage_dtype,
+        group_size,
+        num_el_per_storage,
+        max_int_value,
+        axis,
+        output_transpose=False,
+    )
+
+    target_str = "cuda"
+    target = tvm.target.Target(target_str)
+    dev = tvm.device(target_str, 0)
+    with target:
+        mod = dl.ApplyDefaultSchedule(
+            dl.gpu.Reduction(),
+            dl.gpu.GeneralReduction(),
+            dl.gpu.Fallback(),
+        )(mod)
+
+    mod.show()
+
+    f = tvm.build(mod["compute_scale"], target=target)
+    cuda_src = f.imported_modules[0].get_source()
+    print(cuda_src)
+
+    ex = relax.build(mod, target=target)
+
+    vm = relax.VirtualMachine(ex, dev)  # pylint: disable=invalid-name
+
+    weight_np = np.random.uniform(-100, 100, weight_shape).astype(model_dtype)
+    weight = tvm.nd.array(weight_np, device=dev)
+    quant_weight, scales = vm["main"](weight)
+    quant_weight_np, scales_np = quant_weight.numpy(), scales.numpy()
+
+    print(quant_weight_np, scales_np)
 
 
 if __name__ == "__main__":
