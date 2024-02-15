@@ -27,6 +27,13 @@ from .diagnostics import Source
 from .error import ParserError
 from .parser import Parser
 
+WELL_FORMED_ERROR_MESSAGE = (
+    "Program is not well-formed. If this is deliberate, consider "
+    "setting check_well_formed in the top-level decorator to False "
+    "(e.g., @I.ir_module(check_well_formed=False) or "
+    "@R.function(check_well_formed=False))."
+)
+
 
 def _default_globals() -> Dict[str, Any]:
     import tvm  # pylint: disable=import-outside-toplevel
@@ -95,9 +102,12 @@ def parse(
             check_ret = IRModule.from_expr(ret)
         source_ast = source.as_ast()
         if not relax_well_formed(check_ret):
-            parser.report_error(source_ast, err="Program is not well-formed")
+            parser.report_error(source_ast, err=WELL_FORMED_ERROR_MESSAGE)
         try:
             tir_well_formed(check_ret)
         except Exception as err:
-            parser.report_error(source_ast, err=err)
+            parser.report_error(
+                source_ast,
+                err=f"{WELL_FORMED_ERROR_MESSAGE}\n\nTraceback: {str(err)}",
+            )
     return ret
