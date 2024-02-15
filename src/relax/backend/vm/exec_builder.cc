@@ -138,20 +138,10 @@ void ExecBuilderNode::EndFunction(const std::string& func_name) {
 
 void ExecBuilderNode::EmitCall(vm::Instruction::Arg func, std::vector<vm::Instruction::Arg> args,
                                vm::RegName dst) {
-  Opcode op_code;
-  if (func.kind() == vm::Instruction::ArgKind::kFuncIdx) {
-    op_code = Opcode::Call;
-  } else if (func.kind() == vm::Instruction::ArgKind::kRegister) {
-    op_code = Opcode::CallFromRegister;
-  } else {
-    LOG(FATAL) << "VM instruction for a function must be either "
-               << "kFuncIdx (static function ) "
-               << "or kRegister (function passed as parameter), "
-               << "but instead found " << func.kind();
-  }
+  ICHECK(func.kind() == vm::Instruction::ArgKind::kFuncIdx);
   // store instruction
   exec_->instr_offset.push_back(exec_->instr_data.size());
-  exec_->instr_data.push_back(static_cast<ExecWord>(op_code));
+  exec_->instr_data.push_back(static_cast<ExecWord>(Opcode::Call));
   exec_->instr_data.push_back(dst);
   exec_->instr_data.push_back(func.value());
   exec_->instr_data.push_back(args.size());
@@ -238,8 +228,7 @@ void ExecBuilderNode::CheckExecutable() {
     for (size_t idx = start_instr; idx < end_instr; ++idx) {
       Instruction instr = exec_->GetInstruction(idx);
       switch (instr.op) {
-        case Opcode::Call:
-        case Opcode::CallFromRegister: {
+        case Opcode::Call: {
           check_func_defined(Instruction::Arg::FuncIdx(instr.func_idx));
           for (int i = 0; i < instr.num_args; ++i) {
             check_reg_defined(instr.args[i]);
@@ -291,8 +280,7 @@ void ExecBuilderNode::Formalize() {
     for (size_t idx = start_instr; idx < end_instr; ++idx) {
       Instruction instr = this->exec_->GetInstruction(idx);
       switch (instr.op) {
-        case Opcode::Call:
-        case Opcode::CallFromRegister: {
+        case Opcode::Call: {
           // rewrite args
           for (int i = 0; i < instr.num_args; ++i) {
             if (instr.args[i].kind() == Instruction::ArgKind::kRegister &&
