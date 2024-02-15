@@ -348,14 +348,15 @@ def test_no_normalization_without_commoning():
 # -------------------------------------------------
 # Part for testing the commoning with equivalences
 # -------------------------------------------------
-@T.prim_func
+# B is treated as uninitialized
+@T.prim_func(check_well_formed=False)
 def func_distributivity(i1: T.int32, i2: T.int32, x: T.int32, y: T.int32, z: T.int32) -> None:
     B = T.Buffer((50,), "int32")
     B[i1] = x * (y + z)
     B[i2] = x * y + x * z
 
 
-@T.prim_func
+@T.prim_func(check_well_formed=False)
 def func_distributivity_expected(
     i1: T.int32, i2: T.int32, x: T.int32, y: T.int32, z: T.int32
 ) -> None:
@@ -365,14 +366,14 @@ def func_distributivity_expected(
         B[i2] = cse_var_1
 
 
-@T.prim_func
+@T.prim_func(check_well_formed=False)
 def func_associativity(i1: T.int32, i2: T.int32, x: T.int32, y: T.int32, z: T.int32) -> None:
     B = T.Buffer((50,), "int32")
     B[i1] = (x + y) + z
     B[i2] = x + (y + z)
 
 
-@T.prim_func
+@T.prim_func(check_well_formed=False)
 def func_associativity_expected(
     i1: T.int32, i2: T.int32, x: T.int32, y: T.int32, z: T.int32
 ) -> None:
