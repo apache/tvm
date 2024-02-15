@@ -150,6 +150,15 @@ class AttentionKVCache : public Object {
   virtual void AttentionWithFusedQKV(int64_t layer_id, NDArray qkv_data, Optional<NDArray> mask,
                                      NDArray o_data) = 0;
 
+  /************** Positions **************/
+
+  /*!
+   * \brief Get the in-sequence positions of each slot in the query.
+   * This function is supposed to be invoked after calling BeginForward.
+   * \return The in-sequence query positions, in shape `(total_length,)`.
+   */
+  virtual NDArray GetQueryPositions() const = 0;
+
   /************** Debug Helpers **************/
 
   /*!
