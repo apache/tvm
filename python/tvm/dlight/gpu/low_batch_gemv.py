@@ -78,7 +78,8 @@ def is_gemv(sch: tir.Schedule, block_info: BlockInfo) -> Optional[List[tir.Buffe
     Returns
     -------
     ret : Optional[List[tir.Buffer]]
-        The vector-like buffers used in the low batch GEMM if it is a low batch GEMM, otherwise None.
+        The vector-like buffers used in the low batch GEMM if it is a low batch GEMM,
+        otherwise None.
     """
     block = block_info.block_rv
     block_stmt = sch.get(block)
