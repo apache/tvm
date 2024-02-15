@@ -519,7 +519,7 @@ NDArray MultinomialFromUniform(NDArray prob, NDArray uniform_sample) {
   for (int64_t i = 0; i < batch_size; ++i) {
     cum_sum_prob = 0.0f;
     int64_t prob_idx = 0;
-    for (int j = 0; j < vocab_size; ++j) {
+    for (int64_t j = 0; j < vocab_size; ++j) {
       prob_idx = j;
       cum_sum_prob += pprob[i * vocab_size + j];
       if (cum_sum_prob > psample[i]) {
