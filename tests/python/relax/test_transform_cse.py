@@ -45,10 +45,7 @@ def test_simple():
         def foo(x: R.Tensor((2, 3), dtype="float32"), y: R.Tensor((2, 3), dtype="float32")):
             with R.dataflow():
                 lv0 = R.add(x, y)
-                # can combine with canonicalizing bindings
-                # and getting rid of unused bindings to eliminate this line too
-                lv1 = lv0
-                gv = R.multiply(lv0, lv1)
+                gv = R.multiply(lv0, lv0)
                 R.output(gv)
             return gv
 
@@ -90,6 +87,12 @@ def test_constants():
 
 
 def test_repeated_inner_tuples():
+    """CSE is only applied at variable bindings
+
+    To remain consistent with the behavior of the normalizer, tuples
+    are kept as-is, even if they contain repeated sub-tuples.
+    """
+
     @I.ir_module
     class Before:
         @R.function
@@ -101,18 +104,7 @@ def test_repeated_inner_tuples():
                 R.output(gv)
             return gv
 
-    @I.ir_module
-    class Expected:
-        @R.function
-        def foo(x: R.Tensor((), dtype="int32")) -> R.Tensor((), dtype="int32"):
-            with R.dataflow():
-                t1 = (x, x)
-                t2 = (x, t1)
-                t3 = (t1, t2)
-                t4 = (t3, t3, t2)
-                gv = t4[0][0][1]
-                R.output(gv)
-            return gv
+    Expected = Before
 
     verify(Before, Expected)
 
@@ -159,8 +151,7 @@ def test_inner_function():
                 def bar(y: R.Tensor((), dtype="int32")) -> R.Tensor((), dtype="int32"):
                     with R.dataflow():
                         lv0 = R.add(y, y)
-                        lv1 = lv0
-                        lv2 = R.add(lv0, lv1)
+                        lv2 = R.add(lv0, lv0)
                         gv = lv2
                         R.output(gv)
                     return R.add(gv, gv)
@@ -168,12 +159,8 @@ def test_inner_function():
                 # can further clean this up
                 # using canonicalize bindings, eliminate unused bindings, and CSE again
                 lv0 = bar(x)
-                lv1 = lv0
-                lv2 = R.add(lv0, lv1)
-                lv3 = lv0
-                lv4 = lv0
-                lv5 = R.add(lv3, lv4)
-                lv6 = R.add(lv2, lv5)
+                lv2 = R.add(lv0, lv0)
+                lv6 = R.add(lv2, lv2)
                 gv = lv6
                 R.output(gv)
             return gv
@@ -200,9 +187,8 @@ def test_call_only():
         def foo(x: R.Tensor((160,), dtype="float32")) -> R.Tensor((160,), dtype="float32"):
             with R.dataflow():
                 lv1 = R.arange(R.prim_value(0), R.prim_value(160), R.prim_value(1), dtype="float32")
-                lv2 = lv1
                 lv3 = R.add(x, lv1)
-                out = R.add(lv3, lv2)
+                out = R.add(lv3, lv1)
                 R.output(out)
             return out
 
@@ -225,8 +211,7 @@ def test_cse_outside_dataflow():
         @R.function
         def foo(x: R.Tensor((2, 3), dtype="float32"), y: R.Tensor((2, 3), dtype="float32")):
             lv0 = R.add(x, y)
-            lv1 = lv0
-            gv = R.multiply(lv0, lv1)
+            gv = R.multiply(lv0, lv0)
             return gv
 
     verify(Before, Expected)
@@ -255,8 +240,7 @@ def test_do_not_eliminate_impure():
             p2 = R.print(format="Message")
             a1 = R.assert_op(R.const(False), format="Always fails")
             lv0 = R.add(x, y)
-            lv1 = lv0
-            gv = R.multiply(lv0, lv1)
+            gv = R.multiply(lv0, lv0)
             a2 = R.assert_op(R.const(False), format="Always fails")
             return gv
 
@@ -359,6 +343,78 @@ def test_do_not_eliminate_dtype():
             return lv
 
     Expected = Before
+
+    verify(Before, Expected)
+
+
+def test_match_cast():
+    @I.ir_module
+    class Before:
+        @R.function
+        def foo(x: R.Tensor((2, 3), dtype="float32"), y: R.Tensor((2, 3), dtype="float32")):
+            with R.dataflow():
+                A1 = R.add(x, y)
+                B1 = R.match_cast(A1, R.Tensor([2, 3], "float32"))
+
+                A2 = R.add(x, y)
+                B2 = R.match_cast(A2, R.Tensor([2, 3], "float32"))
+
+                gv = R.multiply(B1, B2)
+                R.output(gv)
+            return gv
+
+    @I.ir_module
+    class Expected:
+        @R.function
+        def foo(x: R.Tensor((2, 3), dtype="float32"), y: R.Tensor((2, 3), dtype="float32")):
+            with R.dataflow():
+                A1 = R.add(x, y)
+                B1 = R.match_cast(A1, R.Tensor([2, 3], "float32"))
+                gv = R.multiply(B1, B1)
+                R.output(gv)
+            return gv
+
+    verify(Before, Expected)
+
+
+def test_match_cast_with_symbolic_vars():
+    @I.ir_module
+    class Before:
+        @R.function
+        def foo(x: R.Tensor(dtype="float32"), y: R.Tensor(dtype="float32")):
+            with R.dataflow():
+                A1 = R.add(x, y)
+
+                n = T.int64()
+                m = T.int64()
+                B1 = R.match_cast(A1, R.Tensor([n, m], "float32"))
+
+                A2 = R.add(x, y)
+                p = T.int64()
+                q = T.int64()
+                B2 = R.match_cast(A2, R.Tensor([p, q], "float32"))
+
+                gv = R.multiply(B1, B2)
+                R.output(gv)
+            return gv
+
+    @I.ir_module
+    class Expected:
+        @R.function
+        def foo(x: R.Tensor(dtype="float32"), y: R.Tensor(dtype="float32")):
+            with R.dataflow():
+                A1 = R.add(x, y)
+                n = T.int64()
+                m = T.int64()
+                B1 = R.match_cast(A1, R.Tensor([n, m], "float32"))
+
+                p = T.int64()
+                q = T.int64()
+                B2 = R.match_cast(A1, R.Tensor([p, q], "float32"))
+
+                gv = R.multiply(B1, B2)
+                R.output(gv)
+            return gv
 
     verify(Before, Expected)
 
