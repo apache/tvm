@@ -592,9 +592,9 @@ def test_attention():
             reshape2: R.Tensor((2, 77, 10, 64), dtype="float32") = R.reshape(
                 matmul2, R.shape([2, 77, 10, 64])
             )
-            scaled_dot_product_attention: R.Tensor((2, 4096, 10, 64), dtype="float32") = (
-                R.nn.attention(reshape, reshape1, reshape2, scale=None, causal_mask=None)
-            )
+            scaled_dot_product_attention: R.Tensor(
+                (2, 4096, 10, 64), dtype="float32"
+            ) = R.nn.attention(reshape, reshape1, reshape2, scale=None, causal_mask=None)
             reshape3: R.Tensor((2, 4096, 640), dtype="float32") = R.reshape(
                 scaled_dot_product_attention, R.shape([2, 4096, 640])
             )

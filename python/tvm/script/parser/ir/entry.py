@@ -43,6 +43,7 @@ def ir_module(mod: Optional[Type] = None, check_well_formed: bool = True) -> IRM
     ir_module : IRModule
         The parsed ir module.
     """
+
     def decorator_wrapper(mod):
         if not inspect.isclass(mod):
             raise TypeError(f"Expect a class, but got: {mod}")
