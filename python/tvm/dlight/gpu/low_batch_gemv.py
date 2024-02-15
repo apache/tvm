@@ -14,7 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-"""A rule for GEMV and DecodeGEMV."""
+"""A rule for low-batch GEMM / decode-GEMM using GEMV schedule."""
 import re
 from functools import reduce
 from typing import List, Optional, Union, Set
@@ -31,7 +31,7 @@ from ..base import (
     try_inline_contiguous_spatial,
 )
 from .base import GPUScheduleRule
-from .matmul import auto_inline_consumer_chain, auto_inline_producers
+from .matmul import auto_inline_producers
 
 
 def _get_reduction_expr(block: tir.Block) -> Optional[tir.PrimExpr]:
@@ -63,7 +63,7 @@ def get_bytes(dtype: Union[DataType, str]) -> int:
 
 
 def is_gemv(sch: tir.Schedule, block_info: BlockInfo) -> Optional[List[tir.Buffer]]:
-    """Check if the block is a GEMV.
+    """Check if the block is a low batch GEMM.
 
     Parameters
     ----------
@@ -78,7 +78,7 @@ def is_gemv(sch: tir.Schedule, block_info: BlockInfo) -> Optional[List[tir.Buffe
     Returns
     -------
     ret : Optional[List[tir.Buffer]]
-        The vector buffers used in the GEMV if it is a GEMV, otherwise None.
+        The vector-like buffers used in the low batch GEMM if it is a low batch GEMM, otherwise None.
     """
     block = block_info.block_rv
     block_stmt = sch.get(block)
@@ -93,29 +93,44 @@ def is_gemv(sch: tir.Schedule, block_info: BlockInfo) -> Optional[List[tir.Buffe
     )
     if not all(conditions):
         return None
-    const_iter_vars = set(iter_var.var for iter_var in block_stmt.iter_vars if isinstance(iter_var.dom.extent, tir.IntImm))
+    const_iter_vars = set(
+        iter_var.var
+        for iter_var in block_stmt.iter_vars
+        if isinstance(iter_var.dom.extent, tir.IntImm)
+    )
     if len(const_iter_vars) == len(block_stmt.iter_vars):
         return None
     ret = [
         read.buffer
         for read in block_stmt.reads
-        if len(collect_block_iter_vars_used_in_access_region(block_stmt, read.region) & const_iter_vars) < len(const_iter_vars)
-        and len(collect_block_iter_vars_used_in_access_region(block_stmt, read.region) & const_iter_vars) > 0
+        if len(
+            collect_block_iter_vars_used_in_access_region(block_stmt, read.region) & const_iter_vars
+        )
+        < len(const_iter_vars)
+        and len(
+            collect_block_iter_vars_used_in_access_region(block_stmt, read.region) & const_iter_vars
+        )
+        > 0
     ]
     return ret if 0 < len(ret) < len(block_stmt.reads) else None
+
 
 def detect_dominant_read(block: tir.Block, const_iter_vars: Set[tir.Var]) -> tir.PrimExpr:
     """Detect the dominant read indices in the block."""
     dominant_read = None
     num_read_iters = -1
     for buffer_region in block.reads:
-        tir_vars = collect_block_iter_vars_used_in_access_region(block, buffer_region.region) & const_iter_vars
+        tir_vars = (
+            collect_block_iter_vars_used_in_access_region(block, buffer_region.region)
+            & const_iter_vars
+        )
         if num_read_iters < len(tir_vars):
             num_read_iters = len(tir_vars)
             dominant_read = buffer_region
     assert dominant_read is not None
     (result,) = dominant_read.buffer.offset_of([e.min for e in dominant_read.region])
     return result
+
 
 def normalize(
     sch: tir.Schedule,
@@ -129,9 +144,7 @@ def normalize(
         if isinstance(iter_var.dom.extent, tir.IntImm)
     )
     dynamic_iter_vars = set(
-        iter_var.var
-        for iter_var in block_stmt.iter_vars
-        if iter_var.var not in const_iter_vars
+        iter_var.var for iter_var in block_stmt.iter_vars if iter_var.var not in const_iter_vars
     )
     access = arith.normalize_to_iter_sum(
         detect_dominant_read(block_stmt, const_iter_vars),
@@ -192,7 +205,7 @@ def normalize(
 
 
 class LowBatchGEMV(GPUScheduleRule):
-    """A rule for GEMV and DecodeGEMV."""
+    """A rule for low batch GEMM / decode-GEMM."""
 
     def apply(  # pylint: disable=too-many-locals,too-many-branches,too-many-return-statements
         self,
@@ -204,8 +217,10 @@ class LowBatchGEMV(GPUScheduleRule):
             return None
         sch = tir.Schedule(func)
         block_infos = normalize_prim_func(sch)
-        
-        reduction_block_infos = [block_info for block_info in block_infos if block_info.is_reduction()]
+
+        reduction_block_infos = [
+            block_info for block_info in block_infos if block_info.is_reduction()
+        ]
         if len(reduction_block_infos) != 1:
             return None
         reduction_block_info = reduction_block_infos[0]
@@ -213,7 +228,10 @@ class LowBatchGEMV(GPUScheduleRule):
         if vector_input_buffers is None:
             return None
         batch_pad = 4 if len(block_infos) == 1 else 1
-        pad_value = [iter.dom if isinstance(iter.dom, int) else batch_pad for iter in reduction_block_info.iters ]
+        pad_value = [
+            iter.dom if isinstance(iter.dom, int) else batch_pad
+            for iter in reduction_block_info.iters
+        ]
         sch.pad_einsum(reduction_block_info.block_rv, pad_value)
         block_infos = normalize_prim_func(sch)
         block_infos = [block_info for block_info in block_infos if "pad" not in block_info.name]
@@ -328,14 +346,13 @@ class LowBatchGEMV(GPUScheduleRule):
             # number of dimensions of A_q
             Aq_local = sch.cache_read(rf, read_buffer_index=1, storage_scope="local")
             sch.compute_at(Aq_local, r, preserve_unit_loops=True)
-            
+
             s_local, r_local = sch.get_loops(block=Aq_local)[-2:]
             s_local, vec_load = sch.split(
                 s_local, factors=[None, VEC_LOAD], preserve_unit_iters=True
             )
             sch.reorder(s_local, r_local, vec_load)  # either s_local or r_local should be 1
             sch.vectorize(vec_load)
-
 
             # load vector into shared memory, shape should be the whole vector
             if LOAD_V_SHARED:
@@ -389,7 +406,7 @@ class LowBatchGEMV(GPUScheduleRule):
 
             # reduce tile_s * tr to tile_s
             sch.reverse_compute_at(gemv, loop=bx, preserve_unit_loops=True)
-            
+
             tr, batch_loop, *ts_tile_s = sch.get_loops(block=gemv)[2:]
             ts_tile_s = sch.fuse(*ts_tile_s)
             ts, tile_s = sch.split(ts_tile_s, factors=[TS, None], preserve_unit_iters=True)
@@ -432,7 +449,7 @@ class LowBatchGEMV(GPUScheduleRule):
                 sch.annotate(
                     block_or_loop=sch.get_loops(V_shared)[-4], ann_key="pragma_vectorize", ann_val=1
                 )
-                
+
             epilogue = sch.get_consumers(gemv)
             # Schedule epilogue
             if epilogue:
@@ -440,7 +457,7 @@ class LowBatchGEMV(GPUScheduleRule):
                 if is_broadcast_epilogue(sch, block, epilogue):
                     sch.reverse_compute_at(epilogue, bx)
                     sch.set_scope(block, 0, "shared")
-                    _, _,_, *s = sch.get_loops(epilogue)  # pylint: disable=invalid-name
+                    _, _, _, *s = sch.get_loops(epilogue)  # pylint: disable=invalid-name
                     _, tx = sch.split(sch.fuse(*s), factors=[None, TX])
                     sch.bind(tx, "threadIdx.x")
                 else:
@@ -450,7 +467,6 @@ class LowBatchGEMV(GPUScheduleRule):
                     ts, tile_s = sch.split(ts_tile_s, factors=[TS, None], preserve_unit_iters=True)
                     sch.bind(ts, TAG_S)
                     sch.set_scope(block, 0, "local")
-
 
             return sch
 
@@ -545,7 +561,7 @@ class LowBatchGEMV(GPUScheduleRule):
         )
         VEC_C = min(get_max_factor(TILE_R, [1, 2, 4, 8]), VEC_C)
         VEC_LOAD = 1
-            
+
         return apply(
             sch,
             gemv=block,
