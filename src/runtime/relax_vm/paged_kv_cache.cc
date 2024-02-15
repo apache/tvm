@@ -153,12 +153,14 @@ struct Sequence {
 /*!
  * \brief The rotary embedding mode adopted by the paged KV cache
  * when computing attention.
+ * "None" means RoPE is never applied to q and k.
  * "Normal" means RoPE is computed in a standalone kernel.
  * "Inline" means RoPE is computed on-the-fly in attention kernels.
  */
 enum class RoPEMode : int {
-  kNormal = 0,
-  kInline = 1,
+  kNone = 0,
+  kNormal = 1,
+  kInline = 2,
 };
 
 /*!
