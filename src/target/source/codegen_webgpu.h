@@ -21,7 +21,7 @@
  * \file codegen_webgpu.h
  * \brief Generate WebGPU shaders in WGSL.
  *
- * This module generates WGSL shading langauge.
+ * This module generates WGSL shading language.
  * See https://www.w3.org/TR/WGSL/ for the language reference.
  */
 #ifndef TVM_TARGET_SOURCE_CODEGEN_WEBGPU_H_
@@ -40,7 +40,7 @@ namespace codegen {
  * \brief WebGPU code generator.
  *
  * Note WGSL have a different syntax from normal C.
- * We only leevrage the C for expression generation and
+ * We only leverage the C for expression generation and
  * write most of the language generations.
  */
 class CodeGenWebGPU final : public CodeGenC {
@@ -48,6 +48,7 @@ class CodeGenWebGPU final : public CodeGenC {
   explicit CodeGenWebGPU(Target target);
   // overrides
   std::string Finish() final;
+  using CodeGenC::AddFunction;
   runtime::FunctionInfo AddFunction(const PrimFunc& f, bool skip_readonly_decl);  // NOLINT(*)
   void InitFuncState(const PrimFunc& f) final;
   void PrintStorageSync(const CallNode* op) final;     // NOLINT(*)

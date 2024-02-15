@@ -86,6 +86,7 @@ class PrinterConfigNode : public Object {
    *
    * Example:
    *
+   * \code{.py}
    *     # func.show(show_all_struct_info=True)
    *     @R.function
    *     def func(
@@ -103,6 +104,7 @@ class PrinterConfigNode : public Object {
    *     ) -> R.Tensor((10, 20), dtype="float32"):
    *         C = R.add(A, B2)
    *         return C
+   * \endcode
    */
   bool show_all_struct_info = true;
 
