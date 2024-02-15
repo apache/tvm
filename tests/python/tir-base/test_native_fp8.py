@@ -244,15 +244,14 @@ def dequant_fp8x4_e4m3_sm90(
                     packed_weight[v_i0, v_i1],
                     scale[v_i0, v_i1 * T.int64(vector_length) // T.int64(group_size)],
                 )
-                T.writes(dequantize[v_i0, v_i1 : v_i1 + vector_length])
-                dequantize[v_i0, v_i1 : v_i1 + vector_length] = T.Cast(
+
+                dequantize[v_i0, T.ramp(v_i1 * vector_length, 1, vector_length)] = T.Cast(
                     vec_model_dtype, T.reinterpret(vec_quantized_dtype, packed_weight[v_i0, v_i1])
                 ) * T.Broadcast(
                     scale[v_i0, v_i1 * T.int64(vector_length) // T.int64(group_size)], vector_length
                 )
 
     dequant.show()
-
     return dequant
 
 
