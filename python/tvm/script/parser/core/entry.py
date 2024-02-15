@@ -93,9 +93,11 @@ def parse(
         check_ret = ret
         if not isinstance(check_ret, IRModule):
             check_ret = IRModule.from_expr(ret)
-        if not relax_well_formed(check_ret) or not tir_well_formed(check_ret, assert_mode=False):
-            parser.report_error(
-                source.as_ast(),
-                err="Program is not well-formed",
-            )
+        source_ast = source.as_ast()
+        if not relax_well_formed(check_ret):
+            parser.report_error(source_ast, err="Program is not well-formed")
+        try:
+            tir_well_formed(check_ret)
+        except Exception as err:
+            parser.report_error(source_ast, err=err)
     return ret
