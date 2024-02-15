@@ -303,6 +303,26 @@ def LambdaLift() -> tvm.ir.transform.Pass:
     return _ffi_api.LambdaLift()
 
 
+def LazyGetInput() -> tvm.ir.transform.Pass:
+    """A pass that requests inputs lazily
+
+    Returns
+    -------
+    ret : tvm.ir.transform.Pass
+    """
+    return _ffi_api.LazyGetInput()
+
+
+def LazySetOutput() -> tvm.ir.transform.Pass:
+    """A pass that sets function outputs when available
+
+    Returns
+    -------
+    ret : tvm.ir.transform.Pass
+    """
+    return _ffi_api.LazySetOutput()
+
+
 def ConvertToDataflow(min_size: int = 2) -> tvm.ir.transform.Pass:
     """A pass that converts consecutive dataflow operations
     inside binding blocks into dataflow blocks.
