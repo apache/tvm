@@ -72,17 +72,6 @@ def get_network(name, batch_size, dtype="float32"):
         net, params = testing.squeezenet.get_workload(
             batch_size=batch_size, version=version, dtype=dtype
         )
-    elif name == "mxnet":
-        # an example for mxnet model
-        from mxnet.gluon.model_zoo.vision import get_model
-
-        block = get_model("resnet18_v1", pretrained=True)
-        net, params = relay.frontend.from_mxnet(block, shape={"data": input_shape}, dtype=dtype)
-        net = net["main"]
-        net = relay.Function(
-            net.params, relay.nn.softmax(net.body), None, net.type_params, net.attrs
-        )
-        net = tvm.IRModule.from_expr(net)
     else:
         raise ValueError("Unsupported network: " + name)
 
