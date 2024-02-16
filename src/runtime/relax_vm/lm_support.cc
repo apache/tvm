@@ -515,9 +515,8 @@ NDArray MultinomialFromUniform(NDArray prob, NDArray uniform_sample) {
   const float* psample = static_cast<float*>(uniform_sample->data);
   NDArray new_array = NDArray::Empty({batch_size, 1}, DataType::Int(64), uniform_sample->device);
   int64_t* parray = static_cast<int64_t*>(new_array->data);
-  float cum_sum_prob;
   for (int64_t i = 0; i < batch_size; ++i) {
-    cum_sum_prob = 0.0f;
+    float cum_sum_prob = 0.0f;
     int64_t prob_idx = 0;
     for (int64_t j = 0; j < vocab_size; ++j) {
       prob_idx = j;
