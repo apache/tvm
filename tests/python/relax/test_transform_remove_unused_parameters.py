@@ -161,7 +161,7 @@ class TestRemoveExtraPrimVariables(BaseCompare):
 class TestRemoveExtraShapeVariables(BaseCompare):
     """Remove parameters that only serve to define existing symbolic variables
 
-    If a `R.Shape` parameter provies a definition of a symbolic
+    If a `R.Shape` parameter provides a definition of a symbolic
     variable, but that symbolic variable can be determined from a
     different parameter, then the `R.Shape` parameter can be removed.
     """
