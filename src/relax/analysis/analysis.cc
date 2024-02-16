@@ -151,7 +151,7 @@ Optional<Expr> FindImpureCall(const Expr& expr, const Optional<Expr>& own_name) 
     }
 
    private:
-    ImpureCallChecker(const Optional<Expr>& own_name) : own_name_(own_name) {}
+    explicit ImpureCallChecker(const Optional<Expr>& own_name) : own_name_(own_name) {}
 
     void VisitExpr(const Expr& expr) override {
       // Early bail-out if we found an impure expression
