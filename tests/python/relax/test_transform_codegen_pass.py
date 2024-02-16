@@ -40,7 +40,7 @@ has_tensorrt_runtime = pytest.mark.skipif(
 )
 
 # Global variable in pytest that applies markers to all tests.
-# pytestmark = [has_tensorrt_codegen, has_tensorrt_runtime]
+pytestmark = [has_tensorrt_codegen, has_tensorrt_runtime]
 
 # Target gpu
 target_str = "nvidia/nvidia-t4"
@@ -350,7 +350,6 @@ def test_dynamic_shape():
 
     after = relax.transform.RunCodegen()(Before)
     tvm.ir.assert_structural_equal(after["main"], Expected["main"])
-    after.show()
 
 
 def test_no_op_for_call_to_tir():
