@@ -2073,8 +2073,9 @@ def multinomial_from_uniform(prob: Tensor, uniform_sample: Tensor):
                     if usample[v_ax0, T.int64(0)] < prob[v_ax0, v_ax1] or v_ax1 + 1 == vocab_size:
                         if v_ax1 == 0:
                             output_index[v_ax0, 0] = 0
-                        elif not (usample[v_ax0, T.int64(0)] < prob[v_ax0, v_ax1 - 1]):
-                            output_index[v_ax0, 0] = v_ax1
+                        else:
+                            if not (usample[v_ax0, T.int64(0)] < prob[v_ax0, v_ax1 - 1]):
+                                output_index[v_ax0, 0] = v_ax1
 
     return tensor_ir_op(
         _get_sample_index,

@@ -857,18 +857,22 @@ def test_multinomial_from_uniform():
     class Expected:
         @T.prim_func(private=True)
         def get_sample_index(A: T.handle, B: T.handle, C: T.handle):
-            batch, vocab = T.int64(), T.int64()
-            prob = T.match_buffer(A, (batch, vocab))
+            batch, vocab_size = T.int64(), T.int64()
+            prob = T.match_buffer(A, (batch, vocab_size))
             usample = T.match_buffer(B, (batch, 1))
             output_index = T.match_buffer(C, (batch, 1), "int64")
             for ax0 in T.parallel(batch):
-                for ax1 in T.parallel(vocab):
+                for ax1 in T.parallel(vocab_size):
                     with T.block("T_get_sample_index"):
                         v_ax0, v_ax1 = T.axis.remap("SS", [ax0, ax1])
-                        T.reads(prob[v_ax0, v_ax1:v_ax1 + T.int64(2)], usample[v_ax0, T.int64(0)])
+                        T.reads(usample[v_ax0, T.int64(0)], prob[v_ax0, v_ax1 - T.int64(1):v_ax1 - T.int64(1) + T.int64(2)])
                         T.writes(output_index[v_ax0, 0])
-                        if prob[v_ax0, v_ax1] < usample[v_ax0, T.int64(0)] and (v_ax1 == vocab - T.int64(1) or prob[v_ax0, v_ax1 + T.int64(1)] > usample[v_ax0, T.int64(0)]):
-                            output_index[v_ax0, 0] = v_ax1
+                        if usample[v_ax0, T.int64(0)] < prob[v_ax0, v_ax1] or v_ax1 + T.int64(1) == vocab_size:
+                            if v_ax1 == T.int64(0):
+                                output_index[v_ax0, 0] = T.int64(0)
+                            else:
+                                if not usample[v_ax0, T.int64(0)] < prob[v_ax0, v_ax1 - T.int64(1)]:
+                                    output_index[v_ax0, 0] = v_ax1
 
         @R.function
         def _initialize_effect() -> R.Tuple(R.Object):
@@ -884,7 +888,7 @@ def test_multinomial_from_uniform():
             R.func_attr({"num_input": 3})
             cls = Expected
             with R.dataflow():
-                cumsum: R.Tensor((4, 5), dtype="float32") = R.cumsum(prob, axis=1, dtype="void", exclusive=True)
+                cumsum: R.Tensor((4, 5), dtype="float32") = R.cumsum(prob, axis=1, dtype="void", exclusive=False)
                 lv1 = R.call_tir(cls.get_sample_index, (cumsum, uniform_sample), out_sinfo=R.Tensor((4, 1), dtype="int64"))
                 gv1: R.Tuple(R.Tensor((4, 1), dtype="int64"), R.Tuple(R.Object)) = lv1, (_io,)
                 R.output(gv1)
