@@ -21,6 +21,8 @@
  * \file simplify.cc
  * \brief Statement simplifier based on analyzer
  */
+#include "simplify.h"
+
 #include <tvm/arith/analyzer.h>
 #include <tvm/runtime/registry.h>
 #include <tvm/tir/analysis.h>
@@ -31,7 +33,6 @@
 
 #include <optional>
 
-#include "simplify.h"
 #include "../../arith/ir_mutator_with_analyzer.h"
 #include "../../tir/analysis/control_flow_graph.h"
 #include "../../tir/analysis/var_use_def_analysis.h"
@@ -161,23 +162,6 @@ class StmtSimplifier : public IRMutatorWithAnalyzer {
     simplifier.MarkBufferMapShapes(func);
     func.CopyOnWrite()->body = simplifier(func->body);
     return func;
-  }
-
-  static Stmt Apply(Stmt stmt, Analyzer* analyzer, Optional<SimplifyConfig> config_opt = NullOpt) {
-    auto config = config_opt.value_or(AttrsWithDefaultValues<arith::SimplifyConfig>());
-    analyzer->rewrite_simplify.SetEnabledExtensions(config->GetEnabledExtensions());
-
-    std::optional<ControlFlowGraph> touch_pattern = std::nullopt;
-    if (config->propagate_knowns_to_prove_conditional ||
-        config->propagate_knowns_to_simplify_expressions) {
-      touch_pattern = ControlFlowGraph(stmt);
-    }
-
-    std::unordered_set<const VarNode*> used_in_buffer_def = CollectVarsUsedInBufferDefinition(stmt);
-    StmtSimplifier simplifier(analyzer, config, std::move(touch_pattern),
-                              std::move(used_in_buffer_def));
-    stmt = simplifier.Simplify(std::move(stmt));
-    return stmt;
   }
 
  private:
@@ -358,8 +342,8 @@ class StmtSimplifier : public IRMutatorWithAnalyzer {
 
 namespace tir {
 
-Stmt Simplify(Stmt stmt, arith::Analyzer* analyzer) {
-  return arith::StmtSimplifier::Apply(std::move(stmt), analyzer);
+PrimFunc Simplify(PrimFunc func, arith::Analyzer* analyzer) {
+  return arith::StmtSimplifier::Apply(std::move(func), analyzer);
 }
 
 namespace transform {
