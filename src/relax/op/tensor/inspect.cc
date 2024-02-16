@@ -18,19 +18,20 @@
  */
 
 /*!
- * \file unpack.cc
+ * \file inspect.cc
  * \brief Operators to access runtime DLTensor parameters
  */
-
-#include "unpack.h"
 
 #include <tvm/relax/op_attr_types.h>
 #include <tvm/tir/builtin.h>
 #include <tvm/tir/function.h>
 #include <tvm/tir/op.h>
 
+#include "inspect.h"
+
 namespace tvm {
 namespace relax {
+namespace inspect {
 
 TensorStructInfo GetTensorArgInfo(const Call& call) {
   CHECK_EQ(call->args.size(), 1) << "TypeError: "
@@ -85,7 +86,7 @@ Expr NormalizeToKnownPrimValue(const BlockBuilder&, Call call) {
 //// relax.tensor_dtype_code
 
 Expr tensor_dtype_code(Expr expr) {
-  static const Op& op = Op::Get("relax.tensor_dtype_code");
+  static const Op& op = Op::Get("relax.inspect.tensor_dtype_code");
   return Call(op, {expr});
 }
 
@@ -111,7 +112,7 @@ Expr LegalizeTensorDtypeCode(const BlockBuilder& bb, const Call& call) {
   return Call(gvar_getter, {arg});
 }
 
-TVM_REGISTER_OP("relax.tensor_dtype_code")
+TVM_REGISTER_OP("relax.inspect.tensor_dtype_code")
     .set_num_inputs(1)
     .add_argument("tensor", "Tensor", "The tensor to be inspected")
     .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoTensorDtypeCode)
@@ -123,7 +124,7 @@ TVM_REGISTER_OP("relax.tensor_dtype_code")
 //// relax.tensor_dtype_bits
 
 Expr tensor_dtype_bits(Expr expr) {
-  static const Op& op = Op::Get("relax.tensor_dtype_bits");
+  static const Op& op = Op::Get("relax.inspect.tensor_dtype_bits");
   return Call(op, {expr});
 }
 
@@ -149,7 +150,7 @@ Expr LegalizeTensorDtypeBits(const BlockBuilder& bb, const Call& call) {
   return Call(gvar_getter, {arg});
 }
 
-TVM_REGISTER_OP("relax.tensor_dtype_bits")
+TVM_REGISTER_OP("relax.inspect.tensor_dtype_bits")
     .set_num_inputs(1)
     .add_argument("tensor", "Tensor", "The tensor to be inspected")
     .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoTensorDtypeBits)
@@ -161,7 +162,7 @@ TVM_REGISTER_OP("relax.tensor_dtype_bits")
 //// relax.tensor_dtype_lanes
 
 Expr tensor_dtype_lanes(Expr expr) {
-  static const Op& op = Op::Get("relax.tensor_dtype_lanes");
+  static const Op& op = Op::Get("relax.inspect.tensor_dtype_lanes");
   return Call(op, {expr});
 }
 
@@ -187,7 +188,7 @@ Expr LegalizeTensorDtypeLanes(const BlockBuilder& bb, const Call& call) {
   return Call(gvar_getter, {arg});
 }
 
-TVM_REGISTER_OP("relax.tensor_dtype_lanes")
+TVM_REGISTER_OP("relax.inspect.tensor_dtype_lanes")
     .set_num_inputs(1)
     .add_argument("tensor", "Tensor", "The tensor to be inspected")
     .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoTensorDtypeLanes)
@@ -199,7 +200,7 @@ TVM_REGISTER_OP("relax.tensor_dtype_lanes")
 //// relax.tensor_ndim
 
 Expr tensor_ndim(Expr expr) {
-  static const Op& op = Op::Get("relax.tensor_ndim");
+  static const Op& op = Op::Get("relax.inspect.tensor_ndim");
   return Call(op, {expr});
 }
 
@@ -224,7 +225,7 @@ Expr LegalizeTensorNDim(const BlockBuilder& bb, const Call& call) {
   return Call(gvar_getter, {arg});
 }
 
-TVM_REGISTER_OP("relax.tensor_ndim")
+TVM_REGISTER_OP("relax.inspect.tensor_ndim")
     .set_num_inputs(1)
     .add_argument("tensor", "Tensor", "The tensor to be inspected")
     .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoTensorNDim)
@@ -236,7 +237,7 @@ TVM_REGISTER_OP("relax.tensor_ndim")
 //// relax.tensor_shape_i
 
 Expr tensor_shape_i(Expr expr) {
-  static const Op& op = Op::Get("relax.tensor_shape_i");
+  static const Op& op = Op::Get("relax.inspect.tensor_shape_i");
   return Call(op, {expr});
 }
 
@@ -335,7 +336,7 @@ Expr LegalizeTensorShape(const BlockBuilder& bb, const Call& call) {
   return Call(gvar_getter, call->args);
 }
 
-TVM_REGISTER_OP("relax.tensor_shape_i")
+TVM_REGISTER_OP("relax.inspect.tensor_shape_i")
     .set_num_inputs(2)
     .add_argument("tensor", "Tensor", "The tensor to be inspected")
     .add_argument("axis", "Prim(int64)", "The axis whose extent should be returned")
@@ -345,5 +346,6 @@ TVM_REGISTER_OP("relax.tensor_shape_i")
     .set_attr<FNormalize>("FNormalize", NormalizeToKnownPrimValue)
     .set_attr<Bool>("FPurity", Bool(true));
 
+}  // namespace inspect
 }  // namespace relax
 }  // namespace tvm

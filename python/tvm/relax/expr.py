@@ -249,8 +249,8 @@ class ExprWithOp(Expr, Scriptable):
 
         Used for early checks in `expr.dtype` and `expr.shape`
         accessors.  While invalid usage would cause errors to be
-        raised durin shape inference, an earlier check makes it easier
-        to find the invalid usage.
+        raised during shape inference, an earlier check makes it
+        easier to find the invalid usage.
         """
         if self.struct_info_ is None:
             return
@@ -271,7 +271,7 @@ class ExprWithOp(Expr, Scriptable):
     def ndim(self) -> "Expr":
         """Returns the runtime value of DLTensor::ndim"""
         self._check_for_tensor_struct_info()
-        op = tvm.ir.Op.get("relax.tensor_ndim")
+        op = tvm.ir.Op.get("relax.inspect.tensor_ndim")
         return tvm.relax.Call(op, [self])
 
     @property
@@ -331,7 +331,7 @@ class _DLTensorDTypeProxy(tvm.runtime.ObjectGeneric):
             The type code of the DLTensor.  See the `DLDeviceType`
             enum in `dlpack.h` for more information.
         """
-        op = tvm.ir.Op.get("relax.tensor_dtype_code")
+        op = tvm.ir.Op.get("relax.inspect.tensor_dtype_code")
         return tvm.relax.Call(op, [self.tensor])
 
     @property
@@ -344,7 +344,7 @@ class _DLTensorDTypeProxy(tvm.runtime.ObjectGeneric):
 
             The number of lanes in the DLDataType
         """
-        op = tvm.ir.Op.get("relax.tensor_dtype_lanes")
+        op = tvm.ir.Op.get("relax.inspect.tensor_dtype_lanes")
         return tvm.relax.Call(op, [self.tensor])
 
     @property
@@ -357,7 +357,7 @@ class _DLTensorDTypeProxy(tvm.runtime.ObjectGeneric):
 
             The number of bits in the DLDataType
         """
-        op = tvm.ir.Op.get("relax.tensor_dtype_bits")
+        op = tvm.ir.Op.get("relax.inspect.tensor_dtype_bits")
         return tvm.relax.Call(op, [self.tensor])
 
 
@@ -427,7 +427,7 @@ class _DLTensorShapeProxy(tvm.runtime.ObjectGeneric):
                 f"but index {axis} had struct info {axis.struct_info_}."
             )
 
-        op = tvm.ir.Op.get("relax.tensor_shape_i")
+        op = tvm.ir.Op.get("relax.inspect.tensor_shape_i")
         return tvm.relax.Call(op, [self.tensor, axis])
 
 

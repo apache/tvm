@@ -18,16 +18,17 @@
  */
 
 /*!
- * \file unpack.h
+ * \file inspect.h
  * \brief Operators to access runtime DLTensor parameters
  */
-#ifndef TVM_RELAX_OP_TENSOR_UNPACK_H_
-#define TVM_RELAX_OP_TENSOR_UNPACK_H_
+#ifndef TVM_RELAX_OP_TENSOR_INSPECT_H_
+#define TVM_RELAX_OP_TENSOR_INSPECT_H_
 
 #include <tvm/relax/expr.h>
 
 namespace tvm {
 namespace relax {
+namespace inspect {
 
 /* \brief Return the DLTensor::dtype::type_code field
  *
@@ -84,7 +85,8 @@ Expr tensor_ndim(Expr expr);
  */
 Expr tensor_shape_i(Expr expr, Expr axis);
 
+}  // namespace inspect
 }  // namespace relax
 }  // namespace tvm
 
-#endif  // TVM_RELAX_OP_TENSOR_UNPACK_H_
+#endif  // TVM_RELAX_OP_TENSOR_INSPECT_H_
