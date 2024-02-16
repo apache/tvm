@@ -22,12 +22,12 @@
  * \brief Operators to access runtime DLTensor parameters
  */
 
+#include "inspect.h"
+
 #include <tvm/relax/op_attr_types.h>
 #include <tvm/tir/builtin.h>
 #include <tvm/tir/function.h>
 #include <tvm/tir/op.h>
-
-#include "inspect.h"
 
 namespace tvm {
 namespace relax {
