@@ -731,5 +731,83 @@ def test_check_weights_with_dynamic_shape():
     assert_structural_equal(after, expected)
 
 
+def test_update_symbolic_vars_in_match_cast_rhs():
+    """Symbolic variables may be used on the RHS of match_cast"""
+
+    @I.ir_module
+    class Before:
+        @R.function
+        def main(
+            arg_prim_value: R.Prim(value="n"),
+        ):
+            R.func_attr({"relax.force_pure": 1})
+            n = T.int64()
+            shape = R.shape([n])
+            m = T.int64()
+            _ = R.match_cast(shape, R.Shape([m]))
+            return R.prim_value(m)
+
+    @I.ir_module
+    class Expected:
+        @R.function
+        def main(arg_prim_value: R.Prim(value="n")) -> R.Prim("int64"):
+            R.func_attr({"relax.force_pure": 1})
+            n = T.int64()
+
+            shape_heap = R.call_builtin_with_ctx(
+                "vm.builtin.alloc_shape_heap",
+                [2],
+                sinfo_args=(R.Tensor(dtype="int64", ndim=1),),
+            )
+            _ = R.call_packed(
+                "vm.builtin.check_prim_value_info",
+                arg_prim_value,
+                R.dtype("int64"),
+                "",
+                sinfo_args=[R.Tuple],
+            )
+            _ = R.call_packed(
+                "vm.builtin.match_prim_value",
+                arg_prim_value,
+                shape_heap,
+                MatchShapeCode.STORE_TO_HEAP,
+                0,
+                "",
+                sinfo_args=[R.Tuple],
+            )
+            shape = R.call_packed(
+                "vm.builtin.make_shape",
+                shape_heap,
+                1,
+                MakeShapeCode.LOAD_SHAPE,
+                0,
+                sinfo_args=[R.Shape(ndim=1)],
+            )
+            _ = R.call_packed(
+                "vm.builtin.match_shape",
+                shape,
+                shape_heap,
+                1,
+                MatchShapeCode.STORE_TO_HEAP,
+                1,
+                "",
+                sinfo_args=[R.Tuple],
+            )
+
+            m = T.int64()
+            _ = R.match_cast(shape, R.Shape([m]))
+            gv = R.call_packed(
+                "vm.builtin.make_prim_value",
+                shape_heap,
+                MakeShapeCode.LOAD_SHAPE,
+                1,
+                sinfo_args=[R.Prim(value=m)],
+            )
+            return gv
+
+    After = relax.transform.VMShapeLower(emit_err_ctx=False)(Before)
+    assert_structural_equal(Expected, After)
+
+
 if __name__ == "__main__":
     tvm.testing.main()
