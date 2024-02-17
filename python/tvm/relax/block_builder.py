@@ -553,7 +553,12 @@ class BlockBuilder(Object):
         ret : tvm.relax.Var
             A newly created variable that get bounds to be the casted result.
         """
-        return _ffi_api.BlockBuilderEmitMatchCast(self, value, struct_info, name_hint)  # type: ignore
+        return _ffi_api.BlockBuilderEmitMatchCast(
+            self,
+            value,
+            struct_info,
+            name_hint,
+        )  # type: ignore
 
     def emit_output(self, output: Union[Expr, Tuple, List[Expr]], name_hint: str = "") -> Var:
         """Emit output for the current dataflow block or function.
