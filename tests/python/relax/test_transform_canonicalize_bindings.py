@@ -289,33 +289,6 @@ def test_fold_match_cast():
     verify(Input, Expected)
 
 
-def test_unable_to_fold():
-    @I.ir_module
-    class MultipleUse:
-        @R.function
-        def main() -> R.Tensor((), "int32"):
-            with R.dataflow():
-                n = R.const(1)
-                # multiple uses -> cannot coalesce
-                m = R.add(n, n)
-                R.output(n)
-            return n
-
-    @I.ir_module
-    class ComplexExpr:
-        @R.function
-        def main() -> R.Tensor((), "int32"):
-            with R.dataflow():
-                y = R.const(1)
-                # y does not appear by itself -> cannot coalesce
-                n = R.add(y, y)
-                R.output(n)
-            return n
-
-    verify(MultipleUse, MultipleUse)
-    verify(ComplexExpr, ComplexExpr)
-
-
 def test_multiple_outputs():
     @I.ir_module
     class Input:
@@ -380,10 +353,9 @@ def test_single_output_multiple_nondataflow():
     verify(Input, Expected)
 
 
-def test_multiply_used_in_outputs():
-    # cannot fold output in this case
+def test_fold_const_to_output():
     @I.ir_module
-    class UsedInMultipleOutputs:
+    class Before:
         @R.function
         def main() -> R.Tensor((), "int32"):
             with R.dataflow():
@@ -391,7 +363,16 @@ def test_multiply_used_in_outputs():
                 R.output(n)
             return n
 
-    verify(UsedInMultipleOutputs, UsedInMultipleOutputs)
+    @I.ir_module
+    class Expected:
+        @R.function
+        def main() -> R.Tensor((), "int32"):
+            with R.dataflow():
+                n = R.const(1)
+                R.output(n)
+            return R.const(1)
+
+    verify(Before, Expected)
 
 
 def test_canonicalize_var_to_dataflow_var_if_legal():
