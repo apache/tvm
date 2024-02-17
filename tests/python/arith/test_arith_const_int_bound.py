@@ -15,87 +15,88 @@
 # specific language governing permissions and limitations
 # under the License.
 
+import contextlib
+
 import tvm
 import tvm.testing
 
 from tvm import te
 from tvm.arith import ConstIntBound
 
-
-def test_dtype_bound():
-    analyzer = tvm.arith.Analyzer()
-
-    x = te.var("x", dtype="int64")
-    bd = analyzer.const_int_bound(x)
-    assert bd.min_value == bd.NEG_INF
-    assert bd.max_value == bd.POS_INF
-
-    x = te.var("x", dtype="int8")
-    bd = analyzer.const_int_bound(x)
-    assert bd.min_value == -128
-    assert bd.max_value == 127
-
-    x = te.var("x", dtype="uint8")
-    bd = analyzer.const_int_bound(x)
-    assert bd.min_value == 0
-    assert bd.max_value == 255
+NEG_INF = ConstIntBound.NEG_INF
+POS_INF = ConstIntBound.POS_INF
 
 
-def test_cast_bound():
-    analyzer = tvm.arith.Analyzer()
+class TestCase:
+    def __init__(self, expr, expected_bounds, known_bounds=None, constraint=None):
+        self.expr = expr
+        self.expected_bounds = expected_bounds
+        if known_bounds is None:
+            self.known_bounds = {}
+        else:
+            self.known_bounds = known_bounds
+
+        self.constraint = constraint
+
+    @property
+    def __name__(self):
+        return str(self.expr)
+
+
+class BaseCompare:
+    def test_const_bounds(self, test_case):
+        analyzer = tvm.arith.Analyzer()
+
+        for var, bounds in test_case.known_bounds.items():
+            analyzer.update(var, ConstIntBound(*bounds))
+
+        with contextlib.ExitStack() as stack:
+            if test_case.constraint is not None:
+                stack.enter_context(analyzer.constraint_scope(test_case.constraint))
+
+            bounds = analyzer.const_int_bound(test_case.expr)
+
+        if test_case.expected_bounds[0] is None:
+            assert bounds.max_value == test_case.expected_bounds[1]
+        elif test_case.expected_bounds[1] is None:
+            assert bounds.min_value == test_case.expected_bounds[0]
+        else:
+            assert (bounds.min_value, bounds.max_value) == test_case.expected_bounds
+
+
+class TestDataType(BaseCompare):
+    test_case = tvm.testing.parameter(
+        TestCase(te.var("x", dtype="int64"), (NEG_INF, POS_INF)),
+        TestCase(te.var("x", dtype="int8"), (-128, 127)),
+        TestCase(te.var("x", dtype="uint8"), (0, 255)),
+        TestCase(te.size_var("x", dtype="int32"), (0, POS_INF)),
+    )
+
+
+class TestCastBound(BaseCompare):
     x = te.var("x", dtype="int8")
     tmod = tvm.tir.truncmod
-    bd = analyzer.const_int_bound(tmod(x, 3).astype("uint32"))
-    assert bd.min_value == 0
-    assert bd.max_value == 2
 
-    bd = analyzer.const_int_bound(tmod(x, 3).astype("float32").astype("int32"))
-    assert bd.min_value == -2
-    assert bd.max_value == 2
+    test_case = tvm.testing.parameter(
+        TestCase(tmod(x, 3).astype("uint32"), (0, 2)),
+        TestCase(tmod(x, 3).astype("float32").astype("int32"), (-2, 2)),
+    )
 
 
-def test_add_sub_bound():
-    analyzer = tvm.arith.Analyzer()
-    x, y = te.var("x", "int64"), te.var("y", "int64")
-    bd = analyzer.const_int_bound(x + y)
-    assert bd.min_value == bd.NEG_INF
-    assert bd.max_value == bd.POS_INF
+class TestAddSubBound(BaseCompare):
+    x = te.var("x", "int64")
+    y = te.var("y", "int64")
 
-    analyzer.update(x, tvm.arith.ConstIntBound(0, 4))
-    analyzer.update(y, tvm.arith.ConstIntBound(1, 10))
-    bd = analyzer.const_int_bound(x + y)
-    assert bd.min_value == 1
-    assert bd.max_value == 14
-
-    bd = analyzer.const_int_bound(x - y)
-    assert bd.min_value == -10
-    assert bd.max_value == 3
-
-    analyzer.update(x, tvm.arith.ConstIntBound(0, bd.POS_INF), override=True)
-    bd = analyzer.const_int_bound(x - y)
-    assert bd.min_value == -10
-    assert bd.max_value == bd.POS_INF
-
-    bd = analyzer.const_int_bound(1 - x)
-    assert bd.min_value == bd.NEG_INF
-    assert bd.max_value == 1
-
-    ## constants with negative or positive max(int64) occassionally show up
-    ## in models, this is to ensure we can handle those cases
-    analyzer.update(x, tvm.arith.ConstIntBound(bd.NEG_INF, bd.NEG_INF), override=True)
-    analyzer.update(y, tvm.arith.ConstIntBound(bd.NEG_INF, bd.POS_INF), override=True)
-    bd = analyzer.const_int_bound(x + y)
-    assert bd.min_value == bd.NEG_INF
-    assert bd.max_value == bd.POS_INF
-
-    analyzer.update(x, tvm.arith.ConstIntBound(bd.POS_INF, bd.POS_INF), override=True)
-    analyzer.update(y, tvm.arith.ConstIntBound(bd.NEG_INF, bd.POS_INF), override=True)
-    bd = analyzer.const_int_bound(x + y)
-    assert bd.min_value == bd.NEG_INF
-    assert bd.max_value == bd.POS_INF
+    test_case = tvm.testing.parameter(
+        TestCase(x + y, (NEG_INF, POS_INF)),
+        TestCase(x + y, (1, 14), known_bounds={x: (0, 4), y: (1, 10)}),
+        TestCase(x - y, (-10, 3), known_bounds={x: (0, 4), y: (1, 10)}),
+        TestCase(x - y, (-10, POS_INF), known_bounds={x: (0, POS_INF), y: (1, 10)}),
+        TestCase(1 - x, (NEG_INF, 1), known_bounds={x: (0, POS_INF), y: (1, 10)}),
+    )
 
 
-def test_lower_bound_using_difference_of_reciprocals():
+class TestBoundsUsingReciprocals(BaseCompare):
     """Special handling for differences of reciprocals
 
     These terms can appear when comparing the number of operations for
@@ -112,369 +113,185 @@ def test_lower_bound_using_difference_of_reciprocals():
     provide the bounds required to provide these inequalities, because they
     treat the terms as uncorrelated.  That is, they assume that `(A+B)*C` may
     achieve its minimum while `A*B` simultaneously achieves its maximum.
-
     """
-    analyzer = tvm.arith.Analyzer()
+
     A, B, C = [te.var(letter, "int64") for letter in "ABC"]
 
-    analyzer.update(A, ConstIntBound(1, 4095))
-    analyzer.update(B, ConstIntBound(1, 4095))
-    analyzer.update(C, ConstIntBound(2048, 2048))
+    symmetric_bounds = {A: (1, 4095), B: (1, 4095), C: (2048, 2048)}
+    asymmetric_bounds = {A: (1, 1024), B: (1, POS_INF), C: (2048, 2048)}
 
-    bd = analyzer.const_int_bound((A + B) * C - A * B)
-    assert bd.min_value == 2048
-
-    bd = analyzer.const_int_bound((A + B) * C - B * A)
-    assert bd.min_value == 2048
-
-
-def test_lower_bound_using_difference_of_reciprocals_with_dominant_term():
-    """Like `test_lower_bound_using_difference_of_reciprocal`, with single term known
-
-    If a single term is enough to know the sign of `1/A + 1/B - 1/C`,
-    then we can still provide a bound.
-    """
-    analyzer = tvm.arith.Analyzer()
-    A, B, C = [te.var(letter, "int64") for letter in "ABC"]
-
-    analyzer.update(A, ConstIntBound(1, 1024))
-    analyzer.update(B, ConstIntBound(1, ConstIntBound.POS_INF))
-    analyzer.update(C, ConstIntBound(2048, 2048))
-
-    bd = analyzer.const_int_bound((A + B) * C - A * B)
-    assert bd.min_value == 2048
-
-    bd = analyzer.const_int_bound((B + A) * C - A * B)
-    assert bd.min_value == 2048
+    test_case = tvm.testing.parameter(
+        TestCase((A + B) * C - A * B, (2048, None), known_bounds=symmetric_bounds),
+        TestCase((A + B) * C - B * A, (2048, None), known_bounds=symmetric_bounds),
+        TestCase(A * B - (A + B) * C, (None, -2048), known_bounds=symmetric_bounds),
+        TestCase(B * A - (A + B) * C, (None, -2048), known_bounds=symmetric_bounds),
+        TestCase((A + B) * C - A * B, (2048, None), known_bounds=asymmetric_bounds),
+        TestCase((A + B) * C - B * A, (2048, None), known_bounds=asymmetric_bounds),
+        TestCase(A * B - (A + B) * C, (None, -2048), known_bounds=asymmetric_bounds),
+        TestCase(B * A - (A + B) * C, (None, -2048), known_bounds=asymmetric_bounds),
+    )
 
 
-def test_upper_bound_using_difference_of_reciprocals():
-    """Upper bound for known negative terms
-
-    Like `test_lower_bound_using_difference_of_reciprocals`, but with the terms
-    reversed.
-    """
-    analyzer = tvm.arith.Analyzer()
-    A, B, C = [te.var(letter, "int64") for letter in "ABC"]
-
-    analyzer.update(A, ConstIntBound(1, 4095))
-    analyzer.update(B, ConstIntBound(1, 4095))
-    analyzer.update(C, ConstIntBound(2048, 2048))
-
-    bd = analyzer.const_int_bound(A * B - (A + B) * C)
-    assert bd.max_value == -2048
-    bd = analyzer.const_int_bound(B * A - (A + B) * C)
-    assert bd.max_value == -2048
-
-
-def test_upper_bound_using_difference_of_reciprocals_with_dominant_term():
-    """Upper bound for known negative terms
-
-    Like `test_lower_bound_using_difference_of_reciprocals_with_dominant_term`,
-    but with the terms reversed.
-    """
-    analyzer = tvm.arith.Analyzer()
-    A, B, C = [te.var(letter, "int64") for letter in "ABC"]
-
-    analyzer.update(A, ConstIntBound(1, 1024))
-    analyzer.update(B, ConstIntBound(1, ConstIntBound.POS_INF))
-    analyzer.update(C, ConstIntBound(2048, 2048))
-
-    bd = analyzer.const_int_bound(A * B - (A + B) * C)
-    assert bd.max_value == -2048
-
-    bd = analyzer.const_int_bound(A * B - (B + A) * C)
-    assert bd.max_value == -2048
-
-
-def test_mul_bound():
-    analyzer = tvm.arith.Analyzer()
+class TestMulBound(BaseCompare):
     x, y = te.var("x"), te.var("y")
 
-    analyzer.update(x, tvm.arith.ConstIntBound(-2, 4))
-    analyzer.update(y, tvm.arith.ConstIntBound(4, 10))
-    bd = analyzer.const_int_bound(x * y + 20)
-    assert bd.min_value == 0
-    assert bd.max_value == 60
-
-    analyzer.update(x, tvm.arith.ConstIntBound(-3, 4), override=True)
-    analyzer.update(y, tvm.arith.ConstIntBound(-8, 2), override=True)
-    bd = analyzer.const_int_bound(x * y)
-    assert bd.min_value == -32
-    assert bd.max_value == 24
-
-    analyzer.update(x, tvm.arith.ConstIntBound(bd.NEG_INF, 4), override=True)
-    analyzer.update(y, tvm.arith.ConstIntBound(-8, 2), override=True)
-    bd = analyzer.const_int_bound(x * y)
-    assert bd.min_value == bd.NEG_INF
-    assert bd.max_value == bd.POS_INF
+    test_case = tvm.testing.parameter(
+        TestCase(x * y + 20, (0, 60), {x: (-2, 4), y: (4, 10)}),
+        TestCase(x * y, (-32, 24), {x: (-3, 4), y: (-8, 2)}),
+        TestCase(x * y, (NEG_INF, POS_INF), {x: (NEG_INF, 4), y: (-8, 2)}),
+    )
 
 
-def test_truncdiv_bound():
-    analyzer = tvm.arith.Analyzer()
-    x, y = te.var("x"), te.var("y")
-    tdiv = tvm.tir.truncdiv
-
-    analyzer.update(x, tvm.arith.ConstIntBound(-9, 4))
-    analyzer.update(y, tvm.arith.ConstIntBound(4, 10))
-    bd = analyzer.const_int_bound(tdiv(x, y))
-    assert bd.min_value == -2
-
-    analyzer.update(x, tvm.arith.ConstIntBound(-9, 4), override=True)
-    analyzer.update(y, tvm.arith.ConstIntBound(-2, 0), override=True)
-    bd = analyzer.const_int_bound(tdiv(x, y))
-    assert bd.min_value == -4
-    assert bd.max_value == 9
-
-    analyzer.update(x, tvm.arith.ConstIntBound(bd.NEG_INF, 4), override=True)
-    analyzer.update(y, tvm.arith.ConstIntBound(-2, 1), override=True)
-    bd = analyzer.const_int_bound(tdiv(x, y))
-    assert bd.min_value == bd.NEG_INF
-    assert bd.max_value == bd.POS_INF
-
-    analyzer.update(x, tvm.arith.ConstIntBound(-9, 4), override=True)
-    analyzer.update(y, tvm.arith.ConstIntBound(-4, 12), override=True)
-    bd = analyzer.const_int_bound(tdiv(x, y))
-    assert bd.min_value == -9
-    assert bd.max_value == 9
-
-
-def test_truncmod_bound():
-    analyzer = tvm.arith.Analyzer()
+class TestTruncDivBound(BaseCompare):
     x, y = te.var("x"), te.var("y")
 
-    tmod = tvm.tir.truncmod
+    expr = tvm.tir.truncdiv(x, y)
 
-    analyzer.update(x, tvm.arith.ConstIntBound(-9, 4))
-    analyzer.update(y, tvm.arith.ConstIntBound(4, 10))
-    bd = analyzer.const_int_bound(tmod(x, y))
-    assert bd.min_value == -9
-    assert bd.max_value == 4
-
-    analyzer.update(x, tvm.arith.ConstIntBound(bd.NEG_INF, bd.POS_INF), override=True)
-    analyzer.update(y, tvm.arith.ConstIntBound(4, 10), override=True)
-    bd = analyzer.const_int_bound(tmod(x, y))
-    assert bd.min_value == -9
-    assert bd.max_value == 9
-
-    analyzer.update(x, tvm.arith.ConstIntBound(1, bd.POS_INF), override=True)
-    analyzer.update(y, tvm.arith.ConstIntBound(4, 10), override=True)
-    bd = analyzer.const_int_bound(tmod(x, y))
-    assert bd.min_value == 0
-    assert bd.max_value == 9
+    test_case = tvm.testing.parameter(
+        TestCase(expr, (-2, None), {x: (-9, 4), y: (4, 10)}),
+        TestCase(expr, (-4, 9), {x: (-9, 4), y: (-2, 0)}),
+        TestCase(expr, (NEG_INF, POS_INF), {x: (NEG_INF, 4), y: (-2, 1)}),
+        TestCase(expr, (-9, 9), {x: (-9, 4), y: (-4, 12)}),
+    )
 
 
-def test_floordiv_bound():
-    analyzer = tvm.arith.Analyzer()
-    x, y = te.var("x"), te.var("y")
-    fld = tvm.te.floordiv
-    analyzer.update(x, tvm.arith.ConstIntBound(-9, 4))
-    analyzer.update(y, tvm.arith.ConstIntBound(4, 10))
-    bd = analyzer.const_int_bound(fld(x, y))
-    assert bd.min_value == -9 // 4
-
-    analyzer.update(x, tvm.arith.ConstIntBound(-9, 4), override=True)
-    analyzer.update(y, tvm.arith.ConstIntBound(-2, 0), override=True)
-    bd = analyzer.const_int_bound(fld(x, y))
-    assert bd.min_value == -4
-    assert bd.max_value == 9
-
-    analyzer.update(x, tvm.arith.ConstIntBound(bd.NEG_INF, 4), override=True)
-    analyzer.update(y, tvm.arith.ConstIntBound(-2, 1), override=True)
-    bd = analyzer.const_int_bound(fld(x, y))
-    assert bd.min_value == bd.NEG_INF
-    assert bd.max_value == bd.POS_INF
-
-    analyzer.update(x, tvm.arith.ConstIntBound(-9, 4), override=True)
-    analyzer.update(y, tvm.arith.ConstIntBound(-4, 12), override=True)
-    bd = analyzer.const_int_bound(fld(x, y))
-    assert bd.min_value == -9
-    assert bd.max_value == 9
-
-    # Test handling unsigned integers well
-    x, y = te.var("x", dtype="uint32"), te.var("y", dtype="uint32")
-    analyzer.update(x, tvm.arith.ConstIntBound(1, 4), override=True)
-    analyzer.update(y, tvm.arith.ConstIntBound(0, 12), override=True)
-    bd = analyzer.const_int_bound(fld(x, y))
-    assert bd.min_value == 0
-    assert bd.max_value == 4
-
-
-def test_floormod_bound():
-    analyzer = tvm.arith.Analyzer()
-    x, y = te.var("x"), te.var("y")
-    flm = tvm.te.floormod
-
-    analyzer.update(x, tvm.arith.ConstIntBound(-9, 4))
-    analyzer.update(y, tvm.arith.ConstIntBound(4, 10))
-    bd = analyzer.const_int_bound(flm(x, y))
-    assert bd.min_value == 0
-    assert bd.max_value == 9
-
-    analyzer.update(x, tvm.arith.ConstIntBound(bd.NEG_INF, bd.POS_INF), override=True)
-    analyzer.update(y, tvm.arith.ConstIntBound(4, 10), override=True)
-    bd = analyzer.const_int_bound(flm(x, y))
-    assert bd.min_value == 0
-    assert bd.max_value == 9
-
-    analyzer.update(x, tvm.arith.ConstIntBound(1, bd.POS_INF), override=True)
-    analyzer.update(y, tvm.arith.ConstIntBound(4, 10), override=True)
-    bd = analyzer.const_int_bound(flm(x, y))
-    assert bd.min_value == 0
-    assert bd.max_value == 9
-
-
-def test_min_max_bound():
-    analyzer = tvm.arith.Analyzer()
+class TestTruncModBound(BaseCompare):
     x, y = te.var("x"), te.var("y")
 
-    analyzer.update(x, tvm.arith.ConstIntBound(-9, 11))
-    analyzer.update(y, tvm.arith.ConstIntBound(4, 10))
-    bd = analyzer.const_int_bound(tvm.te.min(x, y))
-    assert bd.min_value == -9
-    assert bd.max_value == 10
+    expr = tvm.tir.truncmod(x, y)
 
-    analyzer.update(x, tvm.arith.ConstIntBound(bd.NEG_INF, bd.POS_INF), override=True)
-    analyzer.update(y, tvm.arith.ConstIntBound(4, 10), override=True)
-    bd = analyzer.const_int_bound(tvm.te.min(x, y))
-    assert bd.min_value == bd.NEG_INF
-    assert bd.max_value == 10
-
-    bd = analyzer.const_int_bound(tvm.te.max(x, y))
-    assert bd.min_value == 4
-    assert bd.max_value == bd.POS_INF
-
-    analyzer.update(x, tvm.arith.ConstIntBound(1, bd.POS_INF), override=True)
-    analyzer.update(y, tvm.arith.ConstIntBound(4, 10), override=True)
-    bd = analyzer.const_int_bound(tvm.te.max(x, y))
-    assert bd.min_value == 4
-    assert bd.max_value == bd.POS_INF
+    test_case = tvm.testing.parameter(
+        TestCase(expr, (-9, 4), {x: (-9, 4), y: (4, 10)}),
+        TestCase(expr, (-9, 9), {x: (NEG_INF, POS_INF), y: (4, 10)}),
+        TestCase(expr, (0, 9), {x: (1, POS_INF), y: (4, 10)}),
+    )
 
 
-def test_select_bound():
-    analyzer = tvm.arith.Analyzer()
+class TestFloorDivBound(BaseCompare):
+    x, y = te.var("x"), te.var("y")
+    ux = te.var("x", dtype="uint32")
+    uy = te.var("y", dtype="uint32")
+
+    test_case = tvm.testing.parameter(
+        TestCase(x // y, (-9 // 4, None), {x: (-9, 4), y: (4, 10)}),
+        TestCase(x // y, (-4, 9), {x: (-9, 4), y: (-2, 0)}),
+        TestCase(x // y, (NEG_INF, POS_INF), {x: (NEG_INF, 4), y: (-2, 1)}),
+        TestCase(x // y, (-9, 9), {x: (-9, 4), y: (-4, 12)}),
+        TestCase(ux // uy, (0, 4), {ux: (1, 4), uy: (0, 12)}),
+    )
+
+
+class TestFloorModBound(BaseCompare):
     x, y = te.var("x"), te.var("y")
 
-    analyzer.update(x, tvm.arith.ConstIntBound(-9, 11))
-    analyzer.update(y, tvm.arith.ConstIntBound(4, 10))
+    test_case = tvm.testing.parameter(
+        TestCase(x % y, (0, 9), {x: (-9, 4), y: (4, 10)}),
+        TestCase(x % y, (0, 9), {x: (NEG_INF, POS_INF), y: (4, 10)}),
+        TestCase(x % y, (0, 9), {x: (1, POS_INF), y: (4, 10)}),
+    )
 
-    bd = analyzer.const_int_bound(tvm.tir.Select(x > 1, (y < 0).astype("int32"), y + 1))
-    assert bd.min_value == 0
-    assert bd.max_value == 11
 
-
-def test_shift_and_bound():
-    analyzer = tvm.arith.Analyzer()
+class TestMinMaxBound(BaseCompare):
     x, y = te.var("x"), te.var("y")
 
-    analyzer.update(x, tvm.arith.ConstIntBound(-9, 11))
-    analyzer.update(y, tvm.arith.ConstIntBound(2, 10))
-
-    bd = analyzer.const_int_bound(x >> y)
-    assert bd.min_value == -3
-    assert bd.max_value == 2
-
-    bd = analyzer.const_int_bound(x & y)
-    assert bd.min_value == 0
-    assert bd.max_value == 10
-
-    analyzer.update(x, tvm.arith.ConstIntBound(10, 11), override=True)
-    bd = analyzer.const_int_bound(x & y)
-    assert bd.min_value == 0
-    assert bd.max_value == 10
+    test_case = tvm.testing.parameter(
+        TestCase(tvm.te.min(x, y), (-9, 10), {x: (-9, 11), y: (4, 10)}),
+        TestCase(tvm.te.min(x, y), (NEG_INF, 10), {x: (NEG_INF, POS_INF), y: (4, 10)}),
+        TestCase(tvm.te.max(x, y), (4, POS_INF), {x: (NEG_INF, POS_INF), y: (4, 10)}),
+        TestCase(tvm.te.max(x, y), (4, POS_INF), {x: (1, POS_INF), y: (4, 10)}),
+    )
 
 
-def test_mix_index_bound():
-    analyzer = tvm.arith.Analyzer()
+class TestSelectBound(BaseCompare):
+    x, y = te.var("x"), te.var("y")
+
+    test_case = tvm.testing.parameter(
+        TestCase(
+            tvm.tir.Select(x > 1, (y < 0).astype("int32"), y + 1),
+            (0, 11),
+            {x: (-9, 11), y: (4, 10)},
+        ),
+    )
+
+
+class TestShiftAndBound(BaseCompare):
+    x, y = te.var("x"), te.var("y")
+
+    test_case = tvm.testing.parameter(
+        TestCase(x >> y, (-3, 2), {x: (-9, 11), y: (2, 10)}),
+        TestCase(x & y, (0, 10), {x: (-9, 11), y: (2, 10)}),
+        TestCase(x & y, (0, 10), {x: (10, 11), y: (2, 10)}),
+    )
+
+
+class TestMixIndexBound(BaseCompare):
     x, y = te.var("x"), te.var("y")
     tdiv = tvm.tir.truncdiv
     tmod = tvm.tir.truncmod
 
-    analyzer.update(x, tvm.arith.ConstIntBound(0, 24 - 1))
-    analyzer.update(y, tvm.arith.ConstIntBound(0, 3 - 1))
-    bd = analyzer.const_int_bound(tmod(x, 8) + tdiv(x, 8) * 8)
-    assert bd.min_value == 0
-    assert bd.max_value == 24 - 1
-
-    bd = analyzer.const_int_bound(y + x * 3)
-    assert bd.min_value == 0
-    assert bd.max_value == 24 * 3 - 1
-
-    bd = analyzer.const_int_bound(tmod(x, 7) + tdiv(x, 7) * 7)
-    assert bd.min_value == 0
-    assert bd.max_value == (23 // 7) * 7 + 6
+    test_case = tvm.testing.parameter(
+        TestCase(tmod(x, 8) + tdiv(x, 8) * 8, (0, 24 - 1), {x: (0, 24 - 1), y: (0, 3 - 1)}),
+        TestCase(y + x * 3, (0, 24 * 3 - 1), {x: (0, 24 - 1), y: (0, 3 - 1)}),
+        TestCase(
+            tmod(x, 7) + tdiv(x, 7) * 7, (0, (23 // 7) * 7 + 6), {x: (0, 24 - 1), y: (0, 3 - 1)}
+        ),
+    )
 
 
-def test_size_var_bound():
-    analyzer = tvm.arith.Analyzer()
-    x = te.size_var("x")
-    bd = analyzer.const_int_bound(x)
-    assert bd.min_value == 0
-    assert bd.max_value == bd.POS_INF
-
-
-def test_let_bound():
-    analyzer = tvm.arith.Analyzer()
+class TestLetBound(BaseCompare):
     x = te.var("x")
-    bd = analyzer.const_int_bound(tvm.tir.Let(x, 1, x + 1))
-    assert bd.min_value == 2
-    assert bd.max_value == 2
+    test_case = tvm.testing.parameter(
+        TestCase(tvm.tir.Let(x, 1, x + 1), (2, 2)),
+    )
 
 
-def test_floormod_negative_divisor():
-    analyzer = tvm.arith.Analyzer()
+class TestFloorModNegativeDivisor(BaseCompare):
     flm, fld = tvm.te.floormod, tvm.te.floordiv
     a, b = te.var("a"), te.var("b")
-    analyzer.update(a, tvm.arith.ConstIntBound(0, 6))
-    analyzer.update(b, tvm.arith.ConstIntBound(-5, 7))
-    bd = analyzer.const_int_bound(flm(a, b))
-    assert bd.min_value == -4
-    assert bd.max_value == 6
+
+    test_case = tvm.testing.parameter(
+        TestCase(a % b, (-4, 6), {a: (0, 6), b: (-5, 7)}),
+    )
 
 
-def test_divmod_assume_no_zero_divsor():
-    # Divmod non negative expression makes assumption that divide by zero won't occur
-    # this assumption is important to get best result from symbolic shape programs
-    analyzer = tvm.arith.Analyzer()
-    flm, fld = tvm.te.floormod, tvm.te.floordiv
+class TestDivModAssumeNoZeroDivisor(BaseCompare):
+    """Divmod non negative expression makes assumption that divide by
+    zero won't occur this assumption is important to get best result
+    from symbolic shape programs
+    """
+
     a, b = te.var("a"), te.var("b")
-    analyzer.update(a, tvm.arith.ConstIntBound(0, 6))
-    analyzer.update(b, tvm.arith.ConstIntBound(0, tvm.arith.ConstIntBound.POS_INF))
-    bd = analyzer.const_int_bound(fld(a, b))
-    assert bd.min_value == 0
-    assert bd.max_value == 6
 
-    bd = analyzer.const_int_bound(flm(a, b))
-    assert bd.min_value == 0
-    assert bd.max_value == 6
+    test_case = tvm.testing.parameter(
+        TestCase(a // b, (0, 6), {a: (0, 6), b: (0, POS_INF)}),
+        TestCase(a % b, (0, 6), {a: (0, 6), b: (0, POS_INF)}),
+    )
 
 
-def test_multiple_condition():
-    analyzer = tvm.arith.Analyzer()
-    flm, fld = tvm.te.floormod, tvm.te.floordiv
+class TestMultipleCondition(BaseCompare):
     a = te.var("a")
-    analyzer.update(a, tvm.arith.ConstIntBound(0, 128))
-    with analyzer.constraint_scope(tvm.tir.all(1 <= flm(a, 58), flm(a, 58) < 57)):
-        bound = analyzer.const_int_bound(flm(a, 58) - 1)
-    assert bound.min_value == 0
+    test_case = tvm.testing.parameter(
+        TestCase(
+            a % 58 - 1,
+            (0, None),
+            known_bounds={a: (0, 128)},
+            constraint=tvm.tir.all(1 <= a % 58, a % 58 < 57),
+        ),
+    )
 
 
-def test_broadcast_bound():
-    analyzer = tvm.arith.Analyzer()
+class TestBroadcastBound(BaseCompare):
     a = te.var("a")
-    analyzer.update(a, tvm.arith.ConstIntBound(0, 128))
-    bound = analyzer.const_int_bound(tvm.tir.Broadcast(a, 4))
-    assert bound.min_value == 0
-    assert bound.max_value == 128
+    test_case = tvm.testing.parameter(
+        TestCase(tvm.tir.Broadcast(a, 4), (0, 128), {a: (0, 128)}),
+    )
 
 
-def test_ramp_bound():
-    analyzer = tvm.arith.Analyzer()
+class TestRampBound(BaseCompare):
     a = te.var("a")
-    analyzer.update(a, tvm.arith.ConstIntBound(0, 128))
-    bound = analyzer.const_int_bound(tvm.tir.Ramp(a, 2, 4) + 2)
-    assert bound.min_value == 2
-    assert bound.max_value == 128 + 2 * 3 + 2
+    test_case = tvm.testing.parameter(
+        TestCase(tvm.tir.Ramp(a, 2, 4) + 2, (2, 128 + 2 * 3 + 2), {a: (0, 128)}),
+    )
 
 
 if __name__ == "__main__":
