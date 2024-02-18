@@ -293,7 +293,7 @@ class Unsqueeze(OnnxOpConverter):
     """Converts an onnx Unsqueeze node into an equivalent Relax expression."""
 
     @classmethod
-    def _impl_v11(cls, bb, inputs, attr, params):
+    def _impl_v1(cls, bb, inputs, attr, params):
         axes = list(attr.get("axes"))
         inputs = inputs + [relax.const(axes, "int64")]
         return cls._impl_v13(bb, inputs, attr, params)
@@ -569,6 +569,15 @@ class Where(OnnxOpConverter):
 
 class Clip(OnnxOpConverter):
     """Converts an onnx Clip node into an equivalent Relax expression."""
+
+    @classmethod
+    def _impl_v1(cls, bb, inputs, attr, params):
+        min = float(attr.get("min", -_np.inf))
+        max = float(attr.get("max", _np.inf))
+        results = inputs[0]
+        results = bb.emit_te(topi.maximum, results, min)
+        results = bb.emit_te(topi.minimum, results, max)
+        return results
 
     @classmethod
     def _impl_v13(cls, bb, inputs, attr, params):
