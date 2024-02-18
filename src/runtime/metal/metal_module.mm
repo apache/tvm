@@ -57,9 +57,9 @@ class MetalModuleNode final : public runtime::ModuleNode {
     return ModulePropertyMask::kBinarySerializable | ModulePropertyMask::kRunnable;
   }
 
-  PackedFunc GetFunction(const std::string& name, const ObjectPtr<Object>& sptr_to_self) final;
+  PackedFunc GetFunction(const String& name, const ObjectPtr<Object>& sptr_to_self) final;
 
-  void SaveToFile(const std::string& file_name, const std::string& format) final {
+  void SaveToFile(const String& file_name, const String& format) final {
     LOG(FATAL) << "Do not support save to file, use save to binary and export instead";
   }
 
@@ -70,7 +70,7 @@ class MetalModuleNode final : public runtime::ModuleNode {
     stream->Write(fmap_);
     stream->Write(fmt_);
   }
-  std::string GetSource(const std::string& format) final {
+  String GetSource(const String& format) final {
     // return text source if available.
     return source_;
   }
@@ -191,7 +191,9 @@ class MetalWrappedFunc {
     AUTORELEASEPOOL {
       metal::MetalThreadEntry* t = metal::MetalThreadEntry::ThreadLocal();
       int device_id = t->device.device_id;
-      auto stream = static_cast<metal::Stream*>(t->stream[device_id]);
+      // obtain the stream
+      auto stream =
+          metal::MetalWorkspace::Global()->CastStreamOrGetDefault(t->stream[device_id], device_id);
       if (stream->HasErrorHappened()) return;
       if (scache_[device_id] == nil) {
         scache_[device_id] = m_->GetPipelineState(device_id, func_name_);
@@ -241,8 +243,7 @@ class MetalWrappedFunc {
   LaunchParamConfig launch_param_config_;
 };
 
-PackedFunc MetalModuleNode::GetFunction(const std::string& name,
-                                        const ObjectPtr<Object>& sptr_to_self) {
+PackedFunc MetalModuleNode::GetFunction(const String& name, const ObjectPtr<Object>& sptr_to_self) {
   PackedFunc pf;
   AUTORELEASEPOOL {
     ICHECK_EQ(sptr_to_self.get(), this);
@@ -266,10 +267,7 @@ Module MetalModuleCreate(std::unordered_map<std::string, std::string> smap,
                          std::unordered_map<std::string, FunctionInfo> fmap, std::string fmt,
                          std::string source) {
   ObjectPtr<Object> n;
-  AUTORELEASEPOOL {
-    metal::MetalWorkspace::Global()->Init();
-    n = make_object<MetalModuleNode>(smap, fmap, fmt, source);
-  };
+  AUTORELEASEPOOL { n = make_object<MetalModuleNode>(smap, fmap, fmt, source); };
   return Module(n);
 }
 
