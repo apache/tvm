@@ -928,7 +928,7 @@ def test_tensorize_arith_simplification():
                                 T.reads(B_local[v0, v1 // 8])
                                 T.writes(B_decode_local[v0, v1])
                                 B_decode_local[v0, v1] = T.Cast("float16", T.shift_right(T.shift_left(T.bitwise_and(T.shift_right(B_local[v0, v1 // 8], v1 % 8 * 4), 15), 28), 28))
-                      
+           
     @T.prim_func
     def tensorized_decode_i4s_to_int32_to_f16():
         B_decode_local = T.alloc_buffer((16384, 16384), "float16", scope="local")
