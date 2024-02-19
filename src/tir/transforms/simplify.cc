@@ -21,8 +21,6 @@
  * \file simplify.cc
  * \brief Statement simplifier based on analyzer
  */
-#include "simplify.h"
-
 #include <tvm/arith/analyzer.h>
 #include <tvm/runtime/registry.h>
 #include <tvm/tir/analysis.h>
@@ -33,6 +31,7 @@
 
 #include <optional>
 
+#include "../../tir/transforms/simplify.h"
 #include "../../arith/ir_mutator_with_analyzer.h"
 #include "../../tir/analysis/control_flow_graph.h"
 #include "../../tir/analysis/var_use_def_analysis.h"
