@@ -1800,6 +1800,20 @@ def test_call_pure_packed():
     _check(foo, bb.get()["foo"])
 
 
+def test_call_pure_packed_returning_object():
+    @R.function
+    def foo() -> R.Object:
+        z = R.call_pure_packed("dummy_func", sinfo_args=R.Object)
+        return z
+
+    bb = relax.BlockBuilder()
+    with bb.function("foo", params=[]):
+        z = bb.emit(R.call_pure_packed("dummy_func", sinfo_args=[relax.ObjectStructInfo()]))
+        bb.emit_func_output(z)
+
+    _check(foo, bb.get()["foo"])
+
+
 def test_private_function():
     @I.ir_module
     class Addition:
