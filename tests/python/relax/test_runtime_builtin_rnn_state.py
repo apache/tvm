@@ -40,7 +40,6 @@ num_layers = 1
 device = tvm.cuda()
 # Note that kernels in this test file cannot support 1-dim states.
 states = [((16, 16), "float16"), ((32, 32), "float32")]
-init_values = [tvm.nd.array(np_zero, device=device), tvm.nd.array(np_one, device=device)]
 
 f_clear = None
 f_add_sequence = None
@@ -64,13 +63,13 @@ def set_global_func():
     global f_begin_forward, f_end_forward, f_get, f_set, f_debug_get
     global f_tir_gets, f_tir_sets
 
-    f_clear = tvm.get_global_func("vm.builtin.rnn_state_clear")
-    f_add_sequence = tvm.get_global_func("vm.builtin.rnn_state_add_sequence")
-    f_remove_sequence = tvm.get_global_func("vm.builtin.rnn_state_remove_sequence")
-    f_fork_sequence = tvm.get_global_func("vm.builtin.rnn_state_fork_sequence")
-    f_popn = tvm.get_global_func("vm.builtin.rnn_state_popn")
-    f_begin_forward = tvm.get_global_func("vm.builtin.rnn_state_begin_forward")
-    f_end_forward = tvm.get_global_func("vm.builtin.rnn_state_end_forward")
+    f_clear = tvm.get_global_func("vm.builtin.kv_state_clear")
+    f_add_sequence = tvm.get_global_func("vm.builtin.kv_state_add_sequence")
+    f_remove_sequence = tvm.get_global_func("vm.builtin.kv_state_remove_sequence")
+    f_fork_sequence = tvm.get_global_func("vm.builtin.kv_state_fork_sequence")
+    f_popn = tvm.get_global_func("vm.builtin.kv_state_popn")
+    f_begin_forward = tvm.get_global_func("vm.builtin.kv_state_begin_forward")
+    f_end_forward = tvm.get_global_func("vm.builtin.kv_state_end_forward")
     f_get = tvm.get_global_func("vm.builtin.rnn_state_get")
     f_set = tvm.get_global_func("vm.builtin.rnn_state_set")
     f_debug_get = tvm.get_global_func("vm.builtin.rnn_state_debug_get")
@@ -96,6 +95,7 @@ def set_global_func():
 
 def create_rnn_state():
     f_create = tvm.get_global_func("vm.builtin.rnn_state_create")
+    init_values = [tvm.nd.array(np_zero, device=device), tvm.nd.array(np_one, device=device)]
     return f_create(num_layers, reserved_nseq, max_history, f_tir_gets, f_tir_sets, init_values)
 
 
@@ -119,10 +119,13 @@ def test_rnn_state_get(rnn_state):  # pylint: disable=redefined-outer-name
     f_clear(state)
     f_add_sequence(state, 0)
     f_begin_forward(state, ShapeTuple([0]), ShapeTuple([1]))
-    ret = f_get(state, 0, 0), f_get(state, 0, 1)
+    tvm_nd_0 = tvm.nd.array(np.empty((1, 16, 16), "float16"), device=device)
+    tvm_nd_1 = tvm.nd.array(np.empty((1, 32, 32), "float32"), device=device)
+    f_get(state, 0, 0, tvm_nd_0)
+    f_get(state, 0, 1, tvm_nd_1)
     f_end_forward(state)
-    tvm.testing.assert_allclose(ret[0].numpy(), np.zeros((1, 16, 16), "float16"))
-    tvm.testing.assert_allclose(ret[1].numpy(), np.ones((1, 32, 32), "float32"))
+    tvm.testing.assert_allclose(tvm_nd_0.numpy(), np.zeros((1, 16, 16), "float16"))
+    tvm.testing.assert_allclose(tvm_nd_1.numpy(), np.ones((1, 32, 32), "float32"))
 
 
 @tvm.testing.requires_cuda

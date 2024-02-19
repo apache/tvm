@@ -21,12 +21,10 @@
  * \brief Runtime RNN state object for space state models.
  */
 
-#include "rnn_state.h"
-
-#include <dlpack/dlpack.h>
-
 #include <cstdint>
 #include <vector>
+
+#include "kv_state.h"
 
 namespace tvm {
 namespace runtime {
@@ -38,7 +36,7 @@ namespace relax_vm {
 // Users can interact with it through the runtime API function calls
 //-----------------------------------------------------------------------------
 
-class RNNStateImpObj : public RNNState {
+class RNNStateImpObj : public RNNStateObj {
  private:
   /********************* Data Structures *********************/
 
@@ -237,7 +235,7 @@ class RNNStateImpObj : public RNNState {
       }
       it->second.history_slot_id = (it->second.history_slot_id + 1) % max_history_;
     }
-    // TODO: We need to update history_slot_id_device_ (on device) as well.
+    // TODO(Siyuan): We need to update history_slot_id_device_ (on device) as well.
     // There are two ways to do this:
     // 1. Update history_slot_id_device_ on device directly through a explict kernel
     // 2. Update history_slot_id on host and then sync to device.
@@ -245,7 +243,7 @@ class RNNStateImpObj : public RNNState {
     dirty_aux_data_device_ = true;
   }
 
-  NDArray Get(int64_t layer_id, int64_t state_id) final {
+  void Get(int64_t layer_id, int64_t state_id, NDArray o_data) final {
     // The auxiliary data structure on device must have been synchronized.
     CHECK(!dirty_aux_data_device_)
         << "The auxiliary arrays are not synchronized to device. Please call "
@@ -256,11 +254,20 @@ class RNNStateImpObj : public RNNState {
     // TODO(siyuan): support zero-copy when seq_len is one
     // Copy the state data to the return array.
     NDArray state = storages_[layer_id][state_id];
-    std::vector<int64_t> shape{cur_batch_size_};
-    shape.insert(shape.end(), state.Shape().begin() + 2, state.Shape().end());
-    NDArray result = NDArray::Empty(shape, state->dtype, state->device);
-    f_gets_[state_id](state, seq_slot_ids_view_, history_slot_ids_view_, result);
-    return result;
+    f_gets_[state_id](state, seq_slot_ids_view_, history_slot_ids_view_, o_data);
+  }
+
+  void Set(int64_t layer_id, int64_t state_id, NDArray data) final {
+    // The auxiliary data structure on device must have been synchronized.
+    CHECK(!dirty_aux_data_device_)
+        << "The auxiliary arrays are not synchronized to device. Please call "
+           "`BeginForward` to synchronize before calling `Set`.";
+    ICHECK(cur_batch_size_ == static_cast<int64_t>(cur_seq_ids_.size()))
+        << "The batch size is not consistent with the number of sequence ids.";
+    CHECK_GT(cur_batch_size_, 0) << "The curent batch size should be greater than 0.";
+
+    NDArray state = storages_[layer_id][state_id];
+    f_sets_[state_id](state, seq_slot_ids_view_, history_slot_ids_view_, data);
   }
 
   NDArray DebugGet(int64_t layer_id, int64_t state_id, int64_t seq_id) {
@@ -278,19 +285,6 @@ class RNNStateImpObj : public RNNState {
 
     NDArray::CopyFromTo(&copy_src, &copy_dst);
     return result;
-  }
-
-  void Set(int64_t layer_id, int64_t state_id, NDArray data) final {
-    // The auxiliary data structure on device must have been synchronized.
-    CHECK(!dirty_aux_data_device_)
-        << "The auxiliary arrays are not synchronized to device. Please call "
-           "`BeginForward` to synchronize before calling `Set`.";
-    ICHECK(cur_batch_size_ == static_cast<int64_t>(cur_seq_ids_.size()))
-        << "The batch size is not consistent with the number of sequence ids.";
-    CHECK_GT(cur_batch_size_, 0) << "The curent batch size should be greater than 0.";
-
-    NDArray state = storages_[layer_id][state_id];
-    f_sets_[state_id](state, seq_slot_ids_view_, history_slot_ids_view_, data);
   }
 
   /************** Sequence Management **************/
@@ -348,7 +342,7 @@ class RNNStateImpObj : public RNNState {
     dirty_aux_data_device_ = true;
   }
 
-  void PopN(int64_t seq_id, int64_t n) final {
+  void PopN(int64_t seq_id, int32_t n) final {
     auto it = seq_map_.find(seq_id);
     CHECK(it != seq_map_.end()) << "The sequence \"" << seq_id
                                 << "\" cannot be found in space state.";
@@ -448,12 +442,7 @@ class RNNStateImpObj : public RNNState {
  public:
   static constexpr const uint32_t _type_index = TypeIndex::kDynamic;
   static constexpr const char* _type_key = "relax.vm.RNNStateImp";
-  TVM_DECLARE_FINAL_OBJECT_INFO(RNNStateImpObj, Object);
-};
-
-class RNNStateImp : public ObjectRef {
- public:
-  TVM_DEFINE_MUTABLE_OBJECT_REF_METHODS(RNNStateImp, ObjectRef, RNNStateImpObj);
+  TVM_DECLARE_FINAL_OBJECT_INFO(RNNStateImpObj, RNNStateObj);
 };
 
 TVM_REGISTER_OBJECT_TYPE(RNNStateImpObj);
@@ -490,30 +479,7 @@ TVM_REGISTER_GLOBAL("vm.builtin.rnn_state_create")
       ObjectPtr<RNNStateImpObj> n =
           make_object<RNNStateImpObj>(num_layers, reserved_num_seqs, max_history, device,
                                       std::move(f_gets), std::move(f_sets), init_layer_value);
-      return RNNStateImp(std::move(n));
-    });
-
-TVM_REGISTER_GLOBAL("vm.builtin.rnn_state_clear")
-    .set_body_method<RNNStateImp>(&RNNStateImpObj::Clear);
-TVM_REGISTER_GLOBAL("vm.builtin.rnn_state_add_sequence")
-    .set_body_method<RNNStateImp>(&RNNStateImpObj::AddSequence);
-TVM_REGISTER_GLOBAL("vm.builtin.rnn_state_remove_sequence")
-    .set_body_method<RNNStateImp>(&RNNStateImpObj::RemoveSequence);
-TVM_REGISTER_GLOBAL("vm.builtin.rnn_state_fork_sequence")
-    .set_body_method<RNNStateImp>(&RNNStateImpObj::ForkSequence);
-TVM_REGISTER_GLOBAL("vm.builtin.rnn_state_popn")
-    .set_body_method<RNNStateImp>(&RNNStateImpObj::PopN);
-TVM_REGISTER_GLOBAL("vm.builtin.rnn_state_begin_forward")
-    .set_body_method<RNNStateImp>(&RNNStateImpObj::BeginForward);
-TVM_REGISTER_GLOBAL("vm.builtin.rnn_state_end_forward")
-    .set_body_method<RNNStateImp>(&RNNStateImpObj::EndForward);
-TVM_REGISTER_GLOBAL("vm.builtin.rnn_state_get").set_body_method<RNNStateImp>(&RNNStateImpObj::Get);
-TVM_REGISTER_GLOBAL("vm.builtin.rnn_state_debug_get")
-    .set_body_method<RNNStateImp>(&RNNStateImpObj::DebugGet);
-TVM_REGISTER_GLOBAL("vm.builtin.rnn_state_set")
-    .set_body_typed([](RNNStateImp state, int64_t layer_id, int64_t state_id, NDArray data) {
-      state->Set(layer_id, state_id, data);
-      return state;
+      return RNNState(std::move(n));
     });
 
 }  // namespace relax_vm
