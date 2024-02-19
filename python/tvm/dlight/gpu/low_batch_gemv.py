@@ -207,6 +207,10 @@ def normalize(
 
 class LowBatchGEMV(GPUScheduleRule):
     """A rule for low batch GEMM / decode-GEMM."""
+    
+    def __init__(self, bucket = 1):
+        self.bucket = bucket
+        
 
     def apply(  # pylint: disable=too-many-locals,too-many-branches,too-many-return-statements
         self,
@@ -228,14 +232,21 @@ class LowBatchGEMV(GPUScheduleRule):
         vector_input_buffers = is_gemv(sch, reduction_block_info)
         if vector_input_buffers is None:
             return None
-        batch_pad = 4 if len(block_infos) == 1 else 1
+        batch_pad = self.bucket
         pad_value = [
             iter.dom if isinstance(iter.dom, int) else batch_pad
             for iter in reduction_block_info.iters
         ]
         sch.pad_einsum(reduction_block_info.block_rv, pad_value)
         block_infos = normalize_prim_func(sch)
-        block_infos = [block_info for block_info in block_infos if "pad" not in block_info.name]
+        dequantize_block = None
+        pad_input_block = None
+        for block_info in block_infos:
+            if "dequantize" in block_info.name:
+                dequantize_block = block_info.block_rv
+            elif "pad" in block_info.name and len(sch.get_producers(block_info.block_rv)) == 0:
+                pad_input_block = block_info.block_rv
+        block_infos = [block_info for block_info in block_infos if "pad" not in block_info.name and "dequantize" not in block_info.name]
         block_infos = try_inline_contiguous_spatial(sch, block_infos)
         if len(block_infos) == 1:
             epilogue = None
@@ -262,7 +273,7 @@ class LowBatchGEMV(GPUScheduleRule):
         if is_inner_reduction is None:
             return None
         elif is_inner_reduction:
-            self.sch_inner_reduction(sch, target, block, vector_input_buffers, epilogue, batch_pad)
+            self.sch_inner_reduction(sch, target, block, dequantize_block, pad_input_block, vector_input_buffers, epilogue, batch_pad)
             return sch
         else:
             raise NotImplementedError("Outer reduction is not supported yet")
@@ -272,6 +283,8 @@ class LowBatchGEMV(GPUScheduleRule):
         sch: tir.Schedule,
         target: Target,
         block: tir.schedule.BlockRV,
+        dequantize_block: Optional[tir.schedule.BlockRV],
+        pad_input_block: Optional[tir.schedule.BlockRV],
         vector_input_buffers: List[tir.Buffer],
         epilogue_info: Optional[BlockInfo],
         batch_pad: int,
@@ -301,7 +314,6 @@ class LowBatchGEMV(GPUScheduleRule):
             UNROLL,
         ):
             # rfactor: reduce to tx * vec_c
-            auto_inline_producers(sch, gemv)
 
             _, b, s, r, c = sch.get_loops(block=gemv)
             s = sch.fuse(b, s)
@@ -345,15 +357,16 @@ class LowBatchGEMV(GPUScheduleRule):
             # vectorize load A
             # (TODO) this is now actually problematic since the number of loops is dependent on the
             # number of dimensions of A_q
-            Aq_local = sch.cache_read(rf, read_buffer_index=1, storage_scope="local")
-            sch.compute_at(Aq_local, r, preserve_unit_loops=True)
-
-            s_local, r_local = sch.get_loops(block=Aq_local)[-2:]
-            s_local, vec_load = sch.split(
-                s_local, factors=[None, VEC_LOAD], preserve_unit_iters=True
-            )
-            sch.reorder(s_local, r_local, vec_load)  # either s_local or r_local should be 1
-            sch.vectorize(vec_load)
+            if dequantize_block is not None:
+                sch.compute_at(dequantize_block, r, preserve_unit_loops=True)
+                sch.set_scope(dequantize_block, 0, "local")
+            
+                s_local, r_local = sch.get_loops(block=dequantize_block)[-2:]
+                s_local, vec_load = sch.split(
+                    s_local, factors=[None, VEC_LOAD], preserve_unit_iters=True
+                )
+                sch.reorder(s_local, r_local, vec_load)  # either s_local or r_local should be 1
+                sch.vectorize(vec_load)
 
             # load vector into shared memory, shape should be the whole vector
             if LOAD_V_SHARED:
@@ -389,6 +402,8 @@ class LowBatchGEMV(GPUScheduleRule):
                 sch.bind(ty, "threadIdx.y")
                 sch.bind(tx, "threadIdx.x")
                 sch.vectorize(vec)
+            if pad_input_block is not None:
+                sch.compute_inline(pad_input_block)
 
             # reduce tile_s * tr * vec to tile_s * tr
             sch.reverse_compute_at(rf2, loop=bx, preserve_unit_loops=True)
@@ -502,7 +517,7 @@ class LowBatchGEMV(GPUScheduleRule):
             UNROLL = 256
             if isinstance(len_S, int):
                 if len_S > len_R:
-                    TS, TR = 4, 16
+                    TS, TR = 2, 32
                 else:
                     TS, TR = 2, 64
         elif target.kind.name == "rocm":
@@ -555,14 +570,13 @@ class LowBatchGEMV(GPUScheduleRule):
                 TR //= 2
 
         TILE_S, TILE_R = (
-            1,
+            2,
             len_c
             if len_c > 1
             else max(get_max_factor(len_r, [TR * 1, TR * 2, TR * 4, TR * 8]) // TR, 1),
         )
         VEC_C = min(get_max_factor(TILE_R, [1, 2, 4, 8]), VEC_C)
         VEC_LOAD = 1
-
         return apply(
             sch,
             gemv=block,
