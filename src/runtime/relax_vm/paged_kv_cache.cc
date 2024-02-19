@@ -1248,14 +1248,14 @@ TVM_REGISTER_GLOBAL("vm.builtin.paged_attention_kv_cache_get_query_positions")
 TVM_REGISTER_GLOBAL("vm.builtin.paged_attention_kv_cache_debug_get_kv")
     .set_body_method<PagedAttentionKVCache>(&PagedAttentionKVCacheObj::DebugGetKV);
 TVM_REGISTER_GLOBAL("vm.builtin.paged_attention_kv_cache_attention")
-    .set_body_typed([](PagedAttentionKVCache kv_cache, int64_t layer_id, 
+    .set_body_typed([](PagedAttentionKVCache kv_cache, int64_t layer_id,
                        double attn_score_scaling_factor, NDArray q_data,
                        NDArray k_data, NDArray v_data, NDArray o_data) {
       kv_cache->Attention(layer_id, std::move(q_data), std::move(k_data), std::move(v_data),
                           NullOpt, std::move(o_data), attn_score_scaling_factor);
     });
 TVM_REGISTER_GLOBAL("vm.builtin.paged_attention_kv_cache_attention_with_fused_qkv")
-    .set_body_typed([](PagedAttentionKVCache kv_cache, int64_t layer_id, 
+    .set_body_typed([](PagedAttentionKVCache kv_cache, int64_t layer_id,
                        double attn_score_scaling_factor, NDArray qkv_data,
                        NDArray o_data) {
       kv_cache->AttentionWithFusedQKV(layer_id, std::move(qkv_data), NullOpt, std::move(o_data),
