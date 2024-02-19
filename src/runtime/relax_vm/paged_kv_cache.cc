@@ -645,7 +645,7 @@ class PagedAttentionKVCacheObj : public AttentionKVCache {
   }
 
   void Attention(int64_t layer_id, NDArray q_data, NDArray k_data, NDArray v_data,
-                 Optional<NDArray> mask, NDArray o_data) final {
+                 Optional<NDArray> mask, NDArray o_data, double attn_score_scaling_factor) final {
     // Part 1. Shape and dtype check.
     NDArray pages = pages_[layer_id];
     CHECK(q_data.DataType() == pages.DataType());
@@ -695,11 +695,11 @@ class PagedAttentionKVCacheObj : public AttentionKVCache {
     // Part 3: append k/v data to kv-cache
     f_transpose_append_(pages_[layer_id], k_data, v_data, append_position_map_view_);
     // Part 4: perform attention
-    AttentionInternal(layer_id, q_data, k_data, v_data, o_data);
+    AttentionInternal(layer_id, q_data, k_data, v_data, o_data, attn_score_scaling_factor);
   }
 
   void AttentionWithFusedQKV(int64_t layer_id, NDArray qkv_data, Optional<NDArray> mask,
-                             NDArray o_data) final {
+                             NDArray o_data, double attn_score_scaling_factor) final {
     // Part 1. Shape and dtype check.
     NDArray pages = pages_[layer_id];
     CHECK(qkv_data.DataType() == pages.DataType());
@@ -743,7 +743,7 @@ class PagedAttentionKVCacheObj : public AttentionKVCache {
     // Part 3: append k/v data to kv-cache
     f_transpose_append_(pages_[layer_id], k_data, v_data, append_position_map_view_);
     // Part 4: perform attention
-    AttentionInternal(layer_id, q_data, k_data, v_data, o_data);
+    AttentionInternal(layer_id, q_data, k_data, v_data, o_data, attn_score_scaling_factor);
   }
 
   NDArray GetQueryPositions() const final {
@@ -992,14 +992,15 @@ class PagedAttentionKVCacheObj : public AttentionKVCache {
    * input k/v data and the k/v data in cache on the given layer.
    */
   void AttentionInternal(int64_t layer_id, NDArray q_data, NDArray k_data, NDArray v_data,
-                         NDArray output) {
+                         NDArray output, double attn_score_scaling_factor) {
     CHECK_GE(num_depths_, 1) << "The number of effective depths must be greater or equal to 1.";
     if (append_before_attn_) {
       f_attention_decode_(
           /*depth=*/0, q_data, pages_[layer_id], page_indptr_on_depths_view_[0],
           page_indices_on_depths_view_[0], last_page_len_on_depths_view_[0],
           k_rope_pos_offset_view_[0], q_rope_position_map_view_, output, merged_attn_scores_view_,
-          /*rotary_mode=*/rope_mode_ == RoPEMode::kInline, rotary_scale_, rotary_theta_);
+          /*rotary_mode=*/rope_mode_ == RoPEMode::kInline, rotary_scale_, rotary_theta_,
+          attn_score_scaling_factor);
     } else {
       // Compute appended text self-attention
       f_attention_prefill_ragged_.value()(
@@ -1007,7 +1008,8 @@ class PagedAttentionKVCacheObj : public AttentionKVCache {
           q_rope_position_map_view_, k_ragged_rope_pos_offset_view_, output,
           merged_attn_scores_view_,
           /*causal=*/1,
-          /*rotary_mode=*/rope_mode_ == RoPEMode::kInline, rotary_scale_, rotary_theta_);
+          /*rotary_mode=*/rope_mode_ == RoPEMode::kInline, rotary_scale_, rotary_theta_,
+          attn_score_scaling_factor);
 
       for (int d = 0; d < num_depths_; ++d) {
         if (page_indices_on_depths_view_[d]->shape[0] == 0) {
@@ -1020,7 +1022,7 @@ class PagedAttentionKVCacheObj : public AttentionKVCache {
                               k_rope_pos_offset_view_[d], q_rope_position_map_view_,
                               temp_attn_output_view_, temp_attn_scores_view_,
                               /*rotary_mode=*/rope_mode_ == RoPEMode::kInline, rotary_scale_,
-                              rotary_theta_);
+                              rotary_theta_, attn_score_scaling_factor);
         } else {
           // Use prefill kernel for depth d
           f_attention_prefill_(
@@ -1029,7 +1031,8 @@ class PagedAttentionKVCacheObj : public AttentionKVCache {
               last_page_len_on_depths_view_[d], k_rope_pos_offset_view_[d],
               q_rope_position_map_view_, temp_attn_output_view_, temp_attn_scores_view_,
               /*causal=*/0,
-              /*rotary_mode=*/rope_mode_ == RoPEMode::kInline, rotary_scale_, rotary_theta_);
+              /*rotary_mode=*/rope_mode_ == RoPEMode::kInline, rotary_scale_, rotary_theta_,
+              attn_score_scaling_factor);
         }
         f_merge_inplace_.value()(output, merged_attn_scores_view_, temp_attn_output_view_,
                                  temp_attn_scores_view_);
@@ -1245,15 +1248,18 @@ TVM_REGISTER_GLOBAL("vm.builtin.paged_attention_kv_cache_get_query_positions")
 TVM_REGISTER_GLOBAL("vm.builtin.paged_attention_kv_cache_debug_get_kv")
     .set_body_method<PagedAttentionKVCache>(&PagedAttentionKVCacheObj::DebugGetKV);
 TVM_REGISTER_GLOBAL("vm.builtin.paged_attention_kv_cache_attention")
-    .set_body_typed([](PagedAttentionKVCache kv_cache, int64_t layer_id, NDArray q_data,
+    .set_body_typed([](PagedAttentionKVCache kv_cache, int64_t layer_id, 
+                       double attn_score_scaling_factor, NDArray q_data,
                        NDArray k_data, NDArray v_data, NDArray o_data) {
       kv_cache->Attention(layer_id, std::move(q_data), std::move(k_data), std::move(v_data),
-                          NullOpt, std::move(o_data));
+                          NullOpt, std::move(o_data), attn_score_scaling_factor);
     });
 TVM_REGISTER_GLOBAL("vm.builtin.paged_attention_kv_cache_attention_with_fused_qkv")
-    .set_body_typed([](PagedAttentionKVCache kv_cache, int64_t layer_id, NDArray qkv_data,
+    .set_body_typed([](PagedAttentionKVCache kv_cache, int64_t layer_id, 
+                       double attn_score_scaling_factor, NDArray qkv_data,
                        NDArray o_data) {
-      kv_cache->AttentionWithFusedQKV(layer_id, std::move(qkv_data), NullOpt, std::move(o_data));
+      kv_cache->AttentionWithFusedQKV(layer_id, std::move(qkv_data), NullOpt, std::move(o_data),
+                                      attn_score_scaling_factor);
     });
 
 }  // namespace relax_vm

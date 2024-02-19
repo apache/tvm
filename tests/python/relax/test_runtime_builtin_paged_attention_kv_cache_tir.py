@@ -273,11 +273,11 @@ def apply_attention(
             keys = tvm.nd.array(keys_np, device=device)
             values = tvm.nd.array(values_np, device=device)
             outputs = tvm.nd.empty(queries.shape, dtype, device=device)
-            fattention(kv_cache, layer_id, queries, keys, values, outputs)
+            fattention(kv_cache, layer_id, 1.0, queries, keys, values, outputs)
         else:
             qkv = tvm.nd.array(np.concatenate([queries_np, keys_np, values_np], axis=1), device)
             outputs = tvm.nd.empty(queries_np.shape, dtype, device=device)
-            fattention_with_fuse_qkv(kv_cache, layer_id, qkv, outputs)
+            fattention_with_fuse_qkv(kv_cache, layer_id, 1.0, qkv, outputs)
 
         # Compute attention expected results.
         outputs = np.expand_dims(outputs.numpy(), axis=0)
@@ -751,6 +751,7 @@ def _attention_prefill(h_kv, h_q, d, dtype):
         rotary_mode: T.int32,
         rope_scale: T.float32,
         rope_theta: T.float32,
+        attn_score_scaling_factor: T.float32,
     ):
         batch_size = T.int32(is_size_var=True)
         total_len = T.int32(is_size_var=True)
@@ -901,7 +902,7 @@ def _attention_prefill(h_kv, h_q, d, dtype):
                                                     i, j, k = T.axis.remap("SSR", [li, lj, lk])
                                                     with T.init():
                                                         S_local[i, j] = 0.0
-                                                    S_local[i, j] += Q_smem[i, k] * K_smem[j, k] * sm_scale
+                                                    S_local[i, j] += Q_smem[i, k] * K_smem[j, k] * attn_score_scaling_factor * sm_scale
                                         T.tvm_storage_sync("shared")
                                         for li, lj in T.grid(tile_x, tile_z):
                                             with T.block("S_store"):
@@ -1083,6 +1084,7 @@ def _attention_decode(num_kv_heads, num_qo_heads, head_dim, qkv_dtype):
         rotary_mode: T.int32,
         rope_scale: T.float32,
         rope_theta: T.float32,
+        attn_score_scaling_factor: T.float32,
     ):
         T.func_attr({"tir.is_scheduled": 1})
         B = T.int32(is_size_var=True)
@@ -1194,7 +1196,7 @@ def _attention_decode(num_kv_heads, num_qo_heads, head_dim, qkv_dtype):
                                         # compute S = Q * K * sm_scale
                                         S_reduce_local[0] = 0
                                         for vec in T.serial(VEC_SIZE):
-                                            S_reduce_local[0] += Q_local[vec] * K_local[vec] * sm_scale
+                                            S_reduce_local[0] += Q_local[vec] * K_local[vec] * attn_score_scaling_factor * sm_scale
 
                                         with T.block("block_cross_thread"):
                                             T.reads(S_reduce_local[0])
@@ -1304,6 +1306,7 @@ def _attention_prefill_ragged(h_kv, h_q, d, dtype):
         rotary_mode: T.int32,
         rope_scale: T.float32,
         rope_theta: T.float32,
+        attn_score_scaling_factor: T.float32,
     ):
         batch_size = T.int32(is_size_var=True)
         qo_len = T.int32(is_size_var=True)
@@ -1442,7 +1445,7 @@ def _attention_prefill_ragged(h_kv, h_q, d, dtype):
                                                     i, j, k = T.axis.remap("SSR", [li, lj, lk])
                                                     with T.init():
                                                         S_local[i, j] = 0.0
-                                                    S_local[i, j] += Q_smem[i, k] * K_smem[j, k] * sm_scale
+                                                    S_local[i, j] += Q_smem[i, k] * K_smem[j, k] * attn_score_scaling_factor * sm_scale
                                         T.tvm_storage_sync("shared")
                                         for li, lj in T.grid(tile_x, tile_z):
                                             with T.block("S_store"):
