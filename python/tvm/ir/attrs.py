@@ -153,7 +153,7 @@ def make_node(type_key, **kwargs):
 
     .. code-block:: python
 
-       x = tvm.ir.make_node("IntImm", dtype="int32", value=10)
+       x = tvm.ir.make_node("IntImm", dtype=tvm.runtime.String("int32"), value=10, span=None)
        assert isinstance(x, tvm.tir.IntImm)
        assert x.value == 10
     """
