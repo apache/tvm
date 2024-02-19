@@ -226,7 +226,7 @@ def test_emit_match_cast():
             assert_structural_equal(lv0.struct_info, rx.TensorStructInfo([m, n], "float32"))
 
             # lv1: Shape = match_cast(shape, rx.ShapeStructInfo([m, n]))
-            lv1 = bb.match_cast(y, rx.ShapeStructInfo([m, n]))
+            lv1 = bb.match_cast(y, rx.ShapeStructInfo([m, n]), "var_name")
             assert lv1.struct_info == rx.ShapeStructInfo([m, n])
             gv0 = bb.emit_output(lv1)
 
@@ -244,6 +244,7 @@ def test_emit_match_cast():
     assert b1.value == y
     assert b1.struct_info == rx.ShapeStructInfo([m, n])
     assert b1.var == lv1
+    assert b1.var.name_hint == "var_name"
 
 
 def test_emit_match_cast_binding_in_dataflow_block():
