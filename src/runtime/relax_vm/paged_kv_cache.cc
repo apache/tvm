@@ -1003,13 +1003,13 @@ class PagedAttentionKVCacheObj : public AttentionKVCache {
           attn_score_scaling_factor);
     } else {
       // Compute appended text self-attention
-      f_attention_prefill_ragged_.value()(
-          q_data, cur_append_length_indptr_view_, k_data, v_data, cur_append_length_indptr_view_,
-          q_rope_position_map_view_, k_ragged_rope_pos_offset_view_, output,
-          merged_attn_scores_view_,
-          /*causal=*/1,
-          /*rotary_mode=*/rope_mode_ == RoPEMode::kInline, rotary_scale_, rotary_theta_,
-          attn_score_scaling_factor);
+      f_attention_prefill_ragged_.value()(q_data, cur_append_length_indptr_view_, k_data, v_data,
+                                          cur_append_length_indptr_view_, q_rope_position_map_view_,
+                                          k_ragged_rope_pos_offset_view_, output,
+                                          merged_attn_scores_view_,
+                                          /*causal=*/1,
+                                          /*rotary_mode=*/rope_mode_ == RoPEMode::kInline,
+                                          rotary_scale_, rotary_theta_, attn_score_scaling_factor);
 
       for (int d = 0; d < num_depths_; ++d) {
         if (page_indices_on_depths_view_[d]->shape[0] == 0) {
@@ -1249,15 +1249,14 @@ TVM_REGISTER_GLOBAL("vm.builtin.paged_attention_kv_cache_debug_get_kv")
     .set_body_method<PagedAttentionKVCache>(&PagedAttentionKVCacheObj::DebugGetKV);
 TVM_REGISTER_GLOBAL("vm.builtin.paged_attention_kv_cache_attention")
     .set_body_typed([](PagedAttentionKVCache kv_cache, int64_t layer_id,
-                       double attn_score_scaling_factor, NDArray q_data,
-                       NDArray k_data, NDArray v_data, NDArray o_data) {
+                       double attn_score_scaling_factor, NDArray q_data, NDArray k_data,
+                       NDArray v_data, NDArray o_data) {
       kv_cache->Attention(layer_id, std::move(q_data), std::move(k_data), std::move(v_data),
                           NullOpt, std::move(o_data), attn_score_scaling_factor);
     });
 TVM_REGISTER_GLOBAL("vm.builtin.paged_attention_kv_cache_attention_with_fused_qkv")
     .set_body_typed([](PagedAttentionKVCache kv_cache, int64_t layer_id,
-                       double attn_score_scaling_factor, NDArray qkv_data,
-                       NDArray o_data) {
+                       double attn_score_scaling_factor, NDArray qkv_data, NDArray o_data) {
       kv_cache->AttentionWithFusedQKV(layer_id, std::move(qkv_data), NullOpt, std::move(o_data),
                                       attn_score_scaling_factor);
     });
