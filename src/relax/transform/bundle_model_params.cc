@@ -35,7 +35,8 @@ namespace relax {
 
 class ModelParamBundler : public ExprMutator {
  public:
-  ModelParamBundler(Optional<String> param_tuple_name) : param_tuple_name_(param_tuple_name) {}
+  explicit ModelParamBundler(Optional<String> param_tuple_name)
+      : param_tuple_name_(param_tuple_name) {}
 
   Expr VisitExpr_(const FunctionNode* op) override {
     Function func = GetRef<Function>(op);
