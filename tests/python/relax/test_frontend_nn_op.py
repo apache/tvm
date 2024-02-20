@@ -290,9 +290,7 @@ def test_chunk():
             return chunk
 
     @R.function
-    def test(
-        x: R.Tensor((8,), dtype="float32"), _io: R.Object
-    ) -> R.Tuple(
+    def test(x: R.Tensor((8,), dtype="float32"), _io: R.Object) -> R.Tuple(
         R.Tuple(
             R.Tensor((2,), dtype="float32"),
             R.Tensor((2,), dtype="float32"),
@@ -481,9 +479,9 @@ def test_scaled_dot_product_attention():
     ) -> R.Tuple(R.Tensor((1, 32, 32, 32), dtype="float32"), R.Tuple(R.Object)):
         R.func_attr({"num_input": 4})
         with R.dataflow():
-            scaled_dot_product_attention: R.Tensor(
-                (1, 32, 32, 32), dtype="float32"
-            ) = R.nn.attention(query, key, value, scale=None, causal_mask=None)
+            scaled_dot_product_attention: R.Tensor((1, 32, 32, 32), dtype="float32") = (
+                R.nn.attention(query, key, value, scale=None, causal_mask=None)
+            )
             gv1: R.Tuple(R.Tensor((1, 32, 32, 32), dtype="float32"), R.Tuple(R.Object)) = (
                 scaled_dot_product_attention,
                 (_io,),
@@ -907,6 +905,196 @@ def test_multinomial_from_uniform():
     )
 
     tvm.ir.assert_structural_equal(mod, Expected)
+
+
+def test_sample_top_p_top_k_from_sorted_prob(
+    prob_shape=(2, 3), sample_shape=(2, 1), is_random=True
+):
+    import numpy as np
+    import time
+
+    class Model(Module):
+        def foo(
+            self, prob: Tensor, index: Tensor, top_p: Tensor, top_k: Tensor, uniform_sample: Tensor
+        ):
+            z0 = op.sample_top_p_top_k_from_sorted_prob(prob, index, top_p, top_k, uniform_sample)
+            return z0
+
+    m = Model()
+    mod, _ = m.export_tvm(
+        spec={
+            "foo": {
+                "prob": spec.Tensor(prob_shape, "float32"),
+                "index": spec.Tensor(prob_shape, "int64"),
+                "top_p": spec.Tensor(sample_shape, "float32"),
+                "top_k": spec.Tensor(sample_shape, "int64"),
+                "uniform_sample": spec.Tensor(sample_shape, "float32"),
+            }
+        },
+        debug=True,
+    )
+
+    # target = tvm.target.Target("cuda", host="llvm")
+    target = tvm.target.Target("cuda -libs=thrust", host="llvm")
+    # mod = relax.transform.LegalizeOps()(mod)
+    # tvm.ir.assert_structural_equal(mod, mod1)
+    with target:
+        mod = relax.backend.DispatchSortScan()(mod)
+        mod = relax.transform.LegalizeOps()(mod)
+        mod = tir.transform.DefaultGPUSchedule()(mod)
+
+    # mod.show()
+
+    ex = relax.build(mod, target)
+    dev = tvm.cuda(0)
+    vm = relax.VirtualMachine(ex, dev)
+
+    effects = vm["_initialize_effect"]()
+    # inputs:
+    # prob: R.Tensor((2, 3), dtype="float32"),
+    # index: R.Tensor((2, 3), dtype="int64"),
+    # top_p: R.Tensor((2, 1), dtype="float32"),
+    # top_k: R.Tensor((2, 1), dtype="float32"),
+    # uniform_sample: R.Tensor((2, 1), dtype="float32")
+
+    np_rand = np.random.rand(*prob_shape).astype(np.float32)
+    # normalize it to get the random prob
+    np_prob = np_rand / np_rand.sum(axis=1, keepdims=True)
+    np_indices = np.argsort(np_prob, axis=1)[:, ::-1].astype(np.int64)
+    np_sorted_prob = np.take_along_axis(np_prob, np_indices, axis=1)
+    np_top_p = np.random.rand(*sample_shape).astype(np.float32)
+    np_top_k = np.random.randint(0, 101, size=sample_shape, dtype=np.int64)
+    np_usample = np.random.rand(*sample_shape).astype(np.float32)
+
+    # Getting the indices of the sorted elements in the original array
+
+    if is_random:
+        sorted_prob = tvm.nd.array(np_sorted_prob, dev)
+        indices = tvm.nd.array(np_indices, dev)
+        top_p = tvm.nd.array(np_top_p, dev)
+        top_k = tvm.nd.array(np_top_k, dev)
+        usample = tvm.nd.array(np_usample, dev)
+    else:
+        sorted_prob = tvm.nd.array(
+            np.array([[0.5, 0.4, 0.1], [0.4, 0.3, 0.3]]).astype(np.float32), dev
+        )
+        indices = tvm.nd.array(np.array([[2, 1, 0], [2, 0, 1]]).astype(np.int64), dev)
+        top_p = tvm.nd.array(np.array([[0.6], [0.9]]).astype(np.float32), dev)
+        top_k = tvm.nd.array(np.array([[3], [2]]).astype(np.int64), dev)
+        usample = tvm.nd.array(np.array([[0.5], [0.6]]).astype(np.float32), dev)
+        # special sample to get deterministic results
+        # nd_sample = tvm.nd.array(np.array([[1], [0], [0], [1.1]]).astype(np.float32), dev)
+
+    inputs = [sorted_prob, indices, top_p, top_k, usample, effects]
+
+    res = vm["foo"](*inputs)
+
+    warmup = 100
+    iterations = 1000
+    for _ in range(warmup):
+        vm["foo"](*inputs)
+    start_time = time.time()
+    for _ in range(iterations):
+        vm["foo"](*inputs)
+    dur = (time.time() - start_time) * 1000 / iterations
+
+    # print("inputs: \n", inputs)
+    # print("res: \n", res[0].numpy())
+    # tvm.testing.assert_allclose(res[0].numpy(), np.array([[4], [0], [0], [4]]).astype(np.int64))
+    # print("tvm dur: ", dur)
+    return dur
+
+
+def test_renormalize_top_p_top_k_prob(prob_shape=(2, 3), sample_shape=(2, 1), is_random=True):
+    import numpy as np
+    import time
+
+    class Model(Module):
+        def foo(
+            self,
+            prob: Tensor,
+            sorted_prob: Tensor,
+            sorted_index: Tensor,
+            top_p: Tensor,
+            top_k: Tensor,
+        ):
+            z0 = op.renormalize_top_p_top_k_prob(prob, sorted_prob, sorted_index, top_p, top_k)
+            return z0
+
+    m = Model()
+    mod, _ = m.export_tvm(
+        spec={
+            "foo": {
+                "prob": spec.Tensor(prob_shape, "float32"),
+                "sorted_prob": spec.Tensor(prob_shape, "float32"),
+                "sorted_index": spec.Tensor(prob_shape, "int64"),
+                "top_p": spec.Tensor(sample_shape, "float32"),
+                "top_k": spec.Tensor(sample_shape, "int64"),
+            }
+        },
+        debug=True,
+    )
+
+    # target = tvm.target.Target("cuda", host="llvm")
+    target = tvm.target.Target("cuda -libs=thrust", host="llvm")
+    # mod = relax.transform.LegalizeOps()(mod)
+    # tvm.ir.assert_structural_equal(mod, mod1)
+    with target:
+        mod = relax.backend.DispatchSortScan()(mod)
+        mod = relax.transform.LegalizeOps()(mod)
+        mod = tir.transform.DefaultGPUSchedule()(mod)
+
+    # mod.show()
+
+    ex = relax.build(mod, target)
+    dev = tvm.cuda(0)
+    vm = relax.VirtualMachine(ex, dev)
+
+    effects = vm["_initialize_effect"]()
+    # inputs:
+    # prob: R.Tensor((2, 3), dtype="float32"),
+    # index: R.Tensor((2, 3), dtype="int64"),
+    # top_p: R.Tensor((2, 1), dtype="float32"),
+    # top_k: R.Tensor((2, 1), dtype="float32"),
+    # uniform_sample: R.Tensor((2, 1), dtype="float32")
+
+    np_rand = np.random.rand(*prob_shape).astype(np.float32)
+    # normalize it to get the random prob
+    np_prob = np_rand / np_rand.sum(axis=1, keepdims=True)
+    # np_sorted_prob = np.sort(np_prob, axis=1)[:, ::-1].astype(np.float32)
+    np_indices = np.argsort(np_prob, axis=1)[:, ::-1].astype(np.int64)
+    np_sorted_prob = np.take_along_axis(np_prob, np_indices, axis=1)
+    np_top_p = np.random.rand(*sample_shape).astype(np.float32)
+    np_top_k = np.random.randint(0, 101, size=sample_shape, dtype=np.int64)
+    np_usample = np.random.rand(*sample_shape).astype(np.float32)
+
+    # Getting the indices of the sorted elements in the original array
+
+    if is_random:
+        prob = tvm.nd.array(np_prob, dev)
+        sorted_prob = tvm.nd.array(np_sorted_prob, dev)
+        indices = tvm.nd.array(np_indices, dev)
+        top_p = tvm.nd.array(np_top_p, dev)
+        top_k = tvm.nd.array(np_top_k, dev)
+        usample = tvm.nd.array(np_usample, dev)
+    else:
+        sorted_prob = tvm.nd.array(
+            np.array([[0.5, 0.4, 0.1], [0.4, 0.3, 0.3]]).astype(np.float32), dev
+        )
+        indices = tvm.nd.array(np.array([[2, 1, 0], [2, 0, 1]]).astype(np.int64), dev)
+        top_p = tvm.nd.array(np.array([[0.6], [0.9]]).astype(np.float32), dev)
+        top_k = tvm.nd.array(np.array([[3], [2]]).astype(np.int64), dev)
+        usample = tvm.nd.array(np.array([[0.5], [0.6]]).astype(np.float32), dev)
+        # special sample to get deterministic results
+        # nd_sample = tvm.nd.array(np.array([[1], [0], [0], [1.1]]).astype(np.float32), dev)
+
+    inputs = [prob, sorted_prob, indices, top_p, top_k, effects]
+
+    res = vm["foo"](*inputs)
+
+    print("inputs: \n", inputs)
+    print("res: \n", res[0].numpy())
+    # tvm.testing.assert_allclose(res[0].numpy(), np.array([[4], [0], [0], [4]]).astype(np.int64))
 
 
 if __name__ == "__main__":

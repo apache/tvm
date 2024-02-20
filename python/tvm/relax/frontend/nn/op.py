@@ -25,6 +25,7 @@ import numpy as np
 
 from tvm import tir as _tir
 from tvm.script import tir as T
+from tvm import te
 
 from ... import expr as rx
 from ... import op as _op
@@ -1960,6 +1961,39 @@ def not_equal(a: Tensor, b: Tensor, name: str = "not_equal") -> Tensor:
     return wrap_nested(_op.not_equal(a._expr, b._expr), name)
 
 
+def where(condition: Tensor, x1: Tensor, x2: Tensor, name: str = "where") -> Tensor:
+    """Selecting elements from either the input tensors depending on the value of the
+    condition.
+
+    For a given position, return the corresponding value in `x1` if `condition` is True,
+    and return the corresponding value in `x2` otherwise.
+
+    Parameters
+    ----------
+    condition : Tensor
+        When True, yield `x1`; otherwise, yield `x2`.
+        Must be broadcasting compatible with `x1` and `x2`.
+        Must have boolean dtype.
+
+    x1 : Tensor
+        The first input tensor.
+        Must be broadcasting compatible with `condition` and `x2`.
+
+    x2 : Tensor
+        The second input tensor.
+        Must be broadcasting compatible with `condition` and `x1`.
+
+    name : str
+        Name hint.
+
+    Returns
+    -------
+    result : Tensor
+        The result tensor.
+    """
+    return wrap_nested(_op.where(condition._expr, x1._expr, x2._expr), name)
+
+
 def cumsum(
     data: Tensor,
     axis: Optional[int] = None,
@@ -2083,3 +2117,131 @@ def multinomial_from_uniform(prob: Tensor, uniform_sample: Tensor):
         args=[cumsum_prob, uniform_sample],
         out=Tensor.placeholder([batch, 1], "int64"),
     )
+
+
+def sample_top_p_top_k_from_sorted_prob(sorted_prob, sorted_index, top_p, top_k, uniform_sample):
+    @T.prim_func(private=True)
+    def _get_renorm_prob(A: T.handle, B: T.handle, C: T.handle):
+        batch, vocab_size = T.int64(), T.int64()
+        cumsum_prob = T.match_buffer(A, (batch, vocab_size), "float32")
+        cumsum_mask = T.match_buffer(B, (batch, vocab_size), "bool")
+        renorm_prob = T.match_buffer(C, (batch, 1), "float32")
+        for ax0 in range(batch):
+            for ax1 in range(vocab_size):
+                with T.block("T_get_renorm_prob"):
+                    v_ax0, v_ax1 = T.axis.remap("SS", [ax0, ax1])
+                    if cumsum_mask[v_ax0, v_ax1] == 1 and cumsum_mask[v_ax0, v_ax1 + 1] == 0:
+                        renorm_prob[v_ax0, 0] = cumsum_prob[v_ax0, v_ax1 + 1]
+                    if cumsum_mask[v_ax0, v_ax1] == 1 and v_ax1 + 1 == vocab_size:
+                        renorm_prob[v_ax0, 0] = cumsum_prob[v_ax0, v_ax1]
+
+    @T.prim_func(private=True)
+    def _get_index(A: T.handle, B: T.handle, C: T.handle, D: T.handle):
+        batch, vocab_size = T.int64(), T.int64()
+        prob = T.match_buffer(A, (batch, vocab_size), "float32")
+        usample = T.match_buffer(B, (batch, 1), "float32")
+        indices = T.match_buffer(C, (batch, vocab_size), "int64")
+        output_index = T.match_buffer(D, (batch, 1), "int64")
+
+        for ax0 in T.parallel(batch):
+            for ax1 in T.grid(vocab_size):
+                with T.block("T_get_index"):
+                    v_ax0, v_ax1 = T.axis.remap("SS", [ax0, ax1])
+                    T.writes(output_index[v_ax0, 0])
+                    if usample[v_ax0, T.int64(0)] < prob[v_ax0, v_ax1] or v_ax1 + 1 == vocab_size:
+                        if v_ax1 == 0:
+                            output_index[v_ax0, 0] = indices[v_ax0, 0]
+                        else:
+                            if not (usample[v_ax0, T.int64(0)] < prob[v_ax0, v_ax1 - 1]):
+                                output_index[v_ax0, 0] = indices[v_ax0, v_ax1]
+
+    batch = sorted_prob.shape[0]
+    cumsum_sorted = cumsum(sorted_prob, axis=1)
+
+    cumsum_mask = tensor_expr_op(
+        lambda cumsum_sorted, top_p, top_k: te.compute(
+            cumsum_sorted.shape,
+            lambda i, j: _tir.all(cumsum_sorted[i, j] < top_p[i, 0], j + 1 < top_k[i, 0]),
+        ),
+        "get_mask_top_p_top_k",
+        args=[cumsum_sorted, top_p, top_k],
+    )
+
+    renorm_prob = tensor_ir_op(
+        _get_renorm_prob,
+        "get_renorm_prob",
+        args=[cumsum_sorted, cumsum_mask],
+        out=Tensor.placeholder(
+            [batch, 1],
+            "float32",
+        ),
+    )
+    cumsum_sorted_renorm = cumsum_sorted / renorm_prob
+    # TODO(yongwww): fuse the division into get_index
+
+    out_index_in_sorted = tensor_ir_op(
+        _get_index,
+        "get_index",
+        args=[cumsum_sorted_renorm, uniform_sample, sorted_index],
+        out=Tensor.placeholder([batch, 1], "int64"),
+    )
+    return out_index_in_sorted
+
+
+def renormalize_top_p_top_k_prob(prob, sorted_prob, sorted_index, top_p, top_k):
+    from tvm.script import tir as T
+
+    @T.prim_func(private=True)
+    def _get_renorm_cutoff(A: T.handle, B: T.handle, C: T.handle):
+        batch, vocab_size = T.int64(), T.int64()
+        # cumsum_prob = T.match_buffer(A, (batch, vocab_size), "float32")
+        sorted_prob = T.match_buffer(A, (batch, vocab_size), "float32")
+        cumsum_mask = T.match_buffer(B, (batch, vocab_size), "bool")
+        cutoff = T.match_buffer(C, (batch, 1), "float32")
+        for ax0 in range(batch):
+            for ax1 in range(vocab_size):
+                with T.block("T_get_renorm_prob"):
+                    v_ax0, v_ax1 = T.axis.remap("SS", [ax0, ax1])
+                    if cumsum_mask[v_ax0, v_ax1] == 1 and cumsum_mask[v_ax0, v_ax1 + 1] == 0:
+                        cutoff[v_ax0, 0] = sorted_prob[v_ax0, v_ax1 + 1]
+                    if cumsum_mask[v_ax0, v_ax1] == 1 and v_ax1 + 1 == vocab_size:
+                        cutoff[v_ax0, 0] = sorted_prob[v_ax0, v_ax1]
+
+    batch = sorted_prob.shape[0]
+    cumsum_sorted = cumsum(sorted_prob, axis=1)
+
+    cumsum_mask = tensor_expr_op(
+        lambda cumsum_sorted, top_p, top_k: te.compute(
+            cumsum_sorted.shape,
+            lambda i, j: _tir.all(cumsum_sorted[i, j] < top_p[i, 0], j + 1 < top_k[i, 0]),
+        ),
+        "get_mask_top_p_top_k",
+        args=[cumsum_sorted, top_p, top_k],
+    )
+
+    renorm_cutoff = tensor_ir_op(
+        _get_renorm_cutoff,
+        "get_renorm_cutoff",
+        args=[sorted_prob, cumsum_mask],
+        out=Tensor.placeholder(
+            [batch, 1],
+            "float32",
+        ),
+    )
+
+    new_prob = tensor_expr_op(
+        lambda prob, renorm_cutoff: te.compute(
+            prob.shape,
+            lambda i, j: _tir.Select(prob[i, j] >= renorm_cutoff[i, 0], prob[i, j], T.float32(0)),
+        ),
+        "get_prob_top_p_top_k",
+        args=[prob, renorm_cutoff],
+    )
+
+    prob_sum = sum(new_prob, axis=1, keepdims=True)
+    # If the value of sum is zero, replace it with one instead to avoid NAN
+    safe_prob_sum = where(
+        equal(new_prob, Tensor.from_scalar(0, new_prob.dtype)), ones(prob_sum.shape), prob_sum
+    )
+    new_prob = new_prob / safe_prob_sum
+    return new_prob
