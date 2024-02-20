@@ -45,6 +45,7 @@ def test_simple():
         def foo(x: R.Tensor((2, 3), dtype="float32"), y: R.Tensor((2, 3), dtype="float32")):
             with R.dataflow():
                 lv0 = R.add(x, y)
+                lv1 = lv0
                 gv = R.multiply(lv0, lv0)
                 R.output(gv)
             return gv
@@ -151,6 +152,7 @@ def test_inner_function():
                 def bar(y: R.Tensor((), dtype="int32")) -> R.Tensor((), dtype="int32"):
                     with R.dataflow():
                         lv0 = R.add(y, y)
+                        lv1 = lv0
                         lv2 = R.add(lv0, lv0)
                         gv = lv2
                         R.output(gv)
@@ -159,7 +161,11 @@ def test_inner_function():
                 # can further clean this up
                 # using canonicalize bindings, eliminate unused bindings, and CSE again
                 lv0 = bar(x)
+                lv1 = lv0
                 lv2 = R.add(lv0, lv0)
+                lv3 = lv0
+                lv4 = lv0
+                lv5 = lv2
                 lv6 = R.add(lv2, lv2)
                 gv = lv6
                 R.output(gv)
@@ -187,6 +193,7 @@ def test_call_only():
         def foo(x: R.Tensor((160,), dtype="float32")) -> R.Tensor((160,), dtype="float32"):
             with R.dataflow():
                 lv1 = R.arange(R.prim_value(0), R.prim_value(160), R.prim_value(1), dtype="float32")
+                lv2 = lv1
                 lv3 = R.add(x, lv1)
                 out = R.add(lv3, lv1)
                 R.output(out)
@@ -211,8 +218,70 @@ def test_cse_outside_dataflow():
         @R.function
         def foo(x: R.Tensor((2, 3), dtype="float32"), y: R.Tensor((2, 3), dtype="float32")):
             lv0 = R.add(x, y)
+            lv1 = lv0
             gv = R.multiply(lv0, lv0)
             return gv
+
+    verify(Before, Expected)
+
+
+def test_no_cse_across_dataflow():
+    # same example as previously but it will work without a dataflow wrapper
+    @I.ir_module
+    class Before:
+        @R.function(pure=False)
+        def foo(x: R.Tensor((2, 3), dtype="float32"), y: R.Tensor((2, 3), dtype="float32")):
+            with R.dataflow():
+                lv0 = R.add(x, y)
+                lv1 = R.add(x, y)
+                gv1 = R.multiply(lv0, lv1)
+                R.output(gv1)
+
+            _ = R.print(format="Prevent dataflow block merging")
+
+            with R.dataflow():
+                lv2 = R.add(x, y)
+                lv3 = R.add(x, y)
+                gv2 = R.multiply(lv2, lv3)
+                R.output(gv2)
+
+            gv3 = R.add(x, y)
+            gv4 = R.add(x, y)
+            gv5 = R.multiply(gv3, gv4)
+
+            output = R.add(R.add(gv1, gv2), gv5)
+            return output
+
+    @I.ir_module
+    class Expected:
+        @R.function(pure=False)
+        def foo(x: R.Tensor((2, 3), dtype="float32"), y: R.Tensor((2, 3), dtype="float32")):
+            with R.dataflow():
+                # The R.add(x,y) may be de-duplicated within a dataflow block
+                lv0 = R.add(x, y)
+                lv1 = lv0
+                gv1 = R.multiply(lv0, lv0)
+                R.output(gv1)
+
+            _ = R.print(format="Prevent dataflow block merging")
+
+            with R.dataflow():
+                # However, the later dataflow block may not be
+                # de-duplicated using variables in the earlier block.
+                lv2 = R.add(x, y)
+                lv3 = lv2
+                gv2 = R.multiply(lv2, lv2)
+                R.output(gv2)
+
+            # And while non-dataflow bindings can be de-duplicated,
+            # they cannot be de-duplicated using bindings that were
+            # valid in either of the earlier dataflow blocks.
+            gv3 = R.add(x, y)
+            gv4 = gv3
+            gv5 = R.multiply(gv3, gv3)
+
+            output = R.add(R.add(gv1, gv2), gv5)
+            return output
 
     verify(Before, Expected)
 
@@ -240,6 +309,7 @@ def test_do_not_eliminate_impure():
             p2 = R.print(format="Message")
             a1 = R.assert_op(R.const(False), format="Always fails")
             lv0 = R.add(x, y)
+            lv1 = lv0
             gv = R.multiply(lv0, lv0)
             a2 = R.assert_op(R.const(False), format="Always fails")
             return gv
@@ -370,6 +440,9 @@ def test_match_cast():
             with R.dataflow():
                 A1 = R.add(x, y)
                 B1 = R.match_cast(A1, R.Tensor([2, 3], "float32"))
+
+                A2 = A1
+                B2 = B1
                 gv = R.multiply(B1, B1)
                 R.output(gv)
             return gv
@@ -408,6 +481,7 @@ def test_match_cast_with_symbolic_vars():
                 m = T.int64()
                 B1 = R.match_cast(A1, R.Tensor([n, m], "float32"))
 
+                A2 = A1
                 p = T.int64()
                 q = T.int64()
                 B2 = R.match_cast(A1, R.Tensor([p, q], "float32"))

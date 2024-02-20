@@ -29,51 +29,120 @@
 #include <tvm/relax/transform.h>
 #include <tvm/relax/utils.h>
 
+#include "../../support/utils.h"
+
 namespace tvm {
 namespace relax {
+namespace {
+/* \brief Lookup key for subexpression replacements
+ *
+ * The lookup key must contain the expression being bound, along with
+ * the struct info used for a match cast, if applicable.  Using
+ * `MatchCast` with StructuralEqual and StructuralHash would be almost
+ * correct, but acts as a point of definition for symbolic variables
+ * within the output struct info.  As a result, it would erroneously
+ * de-duplicate `R.match_cast(A, R.Tensor([m,n]))` and
+ * `R.match_cast(A, R.Tensor([p,q]))`, even though they define
+ * different symbolic variables.
+ */
+struct ReplacementKey {
+  tvm::relax::Expr bound_value;
+  tvm::Optional<tvm::relax::StructInfo> match_cast = tvm::NullOpt;
+
+  explicit ReplacementKey(const tvm::relax::Binding& binding)
+      : bound_value(GetBoundValue(binding)) {
+    if (const auto* ptr = binding.as<tvm::relax::MatchCastNode>()) {
+      match_cast = ptr->struct_info;
+    }
+  }
+
+  friend bool operator==(const ReplacementKey& a, const ReplacementKey& b) {
+    tvm::StructuralEqual eq;
+    return eq(a.bound_value, b.bound_value) && eq(a.match_cast, b.match_cast);
+  }
+};
+
+}  // namespace
+}  // namespace relax
+}  // namespace tvm
+
+/* \brief Definition of std::hash<ReplacementKey>
+ *
+ * Specialization of std::hash must occur outside of tvm::relax
+ * namespace, and before its usage in the constructor of
+ * `CommonSubexprEliminator`.
+ */
+template <>
+struct std::hash<tvm::relax::ReplacementKey> {
+  std::size_t operator()(const tvm::relax::ReplacementKey& key) const {
+    tvm::StructuralHash hasher;
+    return tvm::support::HashCombine(hasher(key.bound_value), hasher(key.match_cast));
+  }
+};
+
+namespace tvm {
+namespace relax {
+
+namespace {
 
 class CommonSubexprEliminator : public ExprMutator {
  public:
   explicit CommonSubexprEliminator(bool call_only = false) : call_only_(call_only) {}
 
+  BindingBlock VisitBindingBlock_(const DataflowBlockNode* block) override {
+    auto cache_exprs = expr_replacements_;
+    auto cache_vars = var_remap_;
+    auto output = ExprMutator::VisitBindingBlock_(block);
+    expr_replacements_ = cache_exprs;
+    var_remap_ = cache_vars;
+    return output;
+  }
+
   void VisitBinding(const Binding& binding) override {
     Expr bound_value = VisitExpr(GetBoundValue(binding));
 
-    auto it = var_replacements_.find(bound_value);
+    Binding output_binding = [&]() -> Binding {
+      if (binding.as<VarBindingNode>()) {
+        return VarBinding(binding->var, bound_value);
+      } else if (auto match_cast = binding.as<MatchCastNode>()) {
+        return MatchCast(binding->var, bound_value, match_cast->struct_info);
+      } else {
+        LOG(FATAL) << "Binding must be either VarBinding or MatchCast, "
+                   << "but was " << binding->GetTypeKey();
+      }
+    }();
+
+    ReplacementKey lookup_key(output_binding);
 
     if (call_only_ && !bound_value->IsInstance<relax::CallNode>()) {
-      // This type may not be eliminated, so we maintain the new
-      // binding.
-      ExprMutator::VisitBinding(binding);
+      VLOG(1) << "Since call_only_ is true, it is forbidden to de-duplicate " << bound_value;
 
     } else if (ContainsImpureCall(bound_value)) {
-      // This expression is impure, and must be retained.
-      ExprMutator::VisitBinding(binding);
-    } else if (it == var_replacements_.end()) {
-      // This expression could be de-duplicated, but it is the first
-      // time we've seen this expression.  Remember it in case we see
-      // it again.
-      var_replacements_.insert({bound_value, binding->var});
-      ExprMutator::VisitBinding(binding);
+      VLOG(1) << "Since the expression is impure, cannot de-duplicate " << bound_value;
 
-    } else if (!StructuralEqual()(GetStructInfo(binding->var), GetStructInfo(it->second))) {
-      // We've seen this expression before, but it is bound to a
-      // different struct info this time.  This is a MatchCast node,
-      // and the struct info may be required for downstream usage, or to
-      // define symbolic variables.
-      ExprMutator::VisitBinding(binding);
+    } else if (auto it = expr_replacements_.find(lookup_key); it != expr_replacements_.end()) {
+      VLOG(1) << "Value " << bound_value << " has previously been bound as " << it->second
+              << ".  The duplicate binding of this value to " << binding->var
+              << " will be replaced with a trivial binding, "
+              << "and occurrences of " << binding->var << " will be replaced with " << it->second;
+      output_binding = VarBinding(binding->var, it->second);
+      var_remap_.insert({binding->var->vid, it->second});
 
     } else {
-      // We've seen this expression before, and can re-use the first occurrence.
-      var_remap_.insert({binding->var->vid, it->second});
+      VLOG(1) << "Value " << bound_value << " is bound to " << binding->var
+              << " and may be de-duplicated if it occurs again.";
+
+      expr_replacements_.insert({lookup_key, binding->var});
     }
+
+    builder_->EmitNormalized(output_binding);
   }
 
   Expr VisitExpr_(const FunctionNode* op) override {
     // If we have accumulated any state, visit the function in a fresh
     // copy of the mutator, to avoid replacing a child-scope
     // expression with a parent-scope binding, or vice versa.
-    if (var_replacements_.size() || var_remap_.size()) {
+    if (expr_replacements_.size() || var_remap_.size()) {
       return VisitWithCleanScope(GetRef<Expr>(op));
     } else {
       return ExprMutator::VisitExpr_(op);
@@ -100,9 +169,10 @@ class CommonSubexprEliminator : public ExprMutator {
   }
 
   bool call_only_{false};
-
-  std::unordered_map<Expr, Var, StructuralHash, StructuralEqual> var_replacements_;
+  std::unordered_map<ReplacementKey, Var> expr_replacements_;
 };
+
+}  // namespace
 
 Expr EliminateCommonSubexpr(const Expr& expr, bool call_only) {
   CommonSubexprEliminator mutator(call_only);
