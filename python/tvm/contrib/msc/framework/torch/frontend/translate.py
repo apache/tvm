@@ -70,6 +70,7 @@ def from_torch(
     build_config: Optional[Dict[str, str]] = None,
     opt_config: Optional[Dict[str, str]] = None,
     as_msc: bool = True,
+    custom_convert_map: dict = None,
 ) -> Tuple[Union[MSCGraph, tvm.IRModule], Dict[str, tvm.nd.array]]:
     """Change torch nn.Module to MSCGraph.
 
@@ -91,6 +92,8 @@ def from_torch(
         The config for optimize the relay before translate.
     as_msc: bool
         Set to to return msc graph, otherwise relax mod
+    custom_convert_map: dict
+        The convert map for plugin
 
     Returns
     -------
@@ -103,7 +106,7 @@ def from_torch(
     if via_relax:
         graph_model, params = torch.fx.symbolic_trace(model), None
         with torch.no_grad():
-            relax_mod = from_fx(graph_model, input_info)
+            relax_mod = from_fx(graph_model, input_info, custom_convert_map=custom_convert_map)
     else:
         datas = [np.random.rand(*i[0]).astype(i[1]) for i in input_info]
         torch_datas = [torch.from_numpy(i) for i in datas]
@@ -116,7 +119,9 @@ def from_torch(
             shape_list = list(zip(input_names, input_info))
         else:
             shape_list = [("input" + str(idx), i_info) for idx, i_info in enumerate(input_info)]
-        relay_mod, params = tvm.relay.frontend.from_pytorch(scripted_model, shape_list)
+        relay_mod, params = tvm.relay.frontend.from_pytorch(
+            scripted_model, shape_list, custom_convert_map=custom_convert_map
+        )
         relax_mod = relay_to_relax(relay_mod, params, trans_config, build_config, opt_config)
     if not as_msc:
         return relax_mod, params
