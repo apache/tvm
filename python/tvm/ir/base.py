@@ -69,6 +69,23 @@ class Span(Object):
         )
 
 
+@register_object("SequentialSpan")
+class SequentialSpan(Object):
+    """A sequence of source spans
+
+    This span is specific for an expression, which is from multiple expressions
+    after an IR transform.
+
+    Parameters
+    ----------
+    spans : Array
+        The array of spans.
+    """
+
+    def __init__(self, spans):
+        self.__init_handle_by_constructor__(_ffi_api.SequentialSpan, spans)
+
+
 @register_object
 class EnvFunc(Object):
     """Environment function.
@@ -109,11 +126,8 @@ def load_json(json_str) -> Object:
         The loaded tvm node.
     """
 
-    try:
-        return _ffi_node_api.LoadJSON(json_str)
-    except tvm.error.TVMError:
-        json_str = json_compact.upgrade_json(json_str)
-        return _ffi_node_api.LoadJSON(json_str)
+    json_str = json_compact.upgrade_json(json_str)
+    return _ffi_node_api.LoadJSON(json_str)
 
 
 def save_json(node) -> str:

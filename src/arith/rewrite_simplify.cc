@@ -29,6 +29,7 @@
 #include <tvm/tir/op.h>
 
 #include <algorithm>
+#include <tuple>
 #include <utility>
 
 #include "../target/datatype/registry.h"
@@ -36,6 +37,7 @@
 #include "const_fold.h"
 #include "constraint_extract.h"
 #include "pattern_match.h"
+#include "scalable_expression.h"
 
 namespace tvm {
 namespace arith {
@@ -57,25 +59,33 @@ using namespace tir;
 
 // macro for doing simple rewrite
 #define TVM_TRY_REWRITE(SrcExpr, ResExpr) \
+  RecordAttemptedRewrite();               \
   if ((SrcExpr).Match(ret)) {             \
+    RecordRewrite();                      \
     return (ResExpr).Eval();              \
   }
 
 // macro for rewrite + recursively rewrite ResExpr
 #define TVM_TRY_RECURSIVE_REWRITE(SrcExpr, ResExpr) \
+  RecordAttemptedRewrite();                         \
   if ((SrcExpr).Match(ret)) {                       \
+    RecordRewrite();                                \
     return RecursiveRewrite((ResExpr).Eval());      \
   }
 
 // macro rewrite only if CondExor is true after match.
 #define TVM_TRY_REWRITE_IF(SrcExpr, ResExpr, CondExpr)      \
+  RecordAttemptedRewrite();                                 \
   if ((SrcExpr).Match(ret, [&]() { return (CondExpr); })) { \
+    RecordRewrite();                                        \
     return (ResExpr).Eval();                                \
   }
 
 // macro rewrite + recursive_rewrite only if CondExor is true after match.
 #define TVM_TRY_RECURSIVE_REWRITE_IF(SrcExpr, ResExpr, CondExpr) \
+  RecordAttemptedRewrite();                                      \
   if ((SrcExpr).Match(ret, [&]() { return (CondExpr); })) {      \
+    RecordRewrite();                                             \
     return RecursiveRewrite((ResExpr).Eval());                   \
   }
 
@@ -120,6 +130,23 @@ PrimExpr NormalizeBooleanOperators(PrimExpr expr) {
   }
 }
 
+std::tuple<PrimExpr, int64_t> ExtractConstantOffset(const PrimExpr& expr) {
+  PVar<PrimExpr> x;
+  PVar<IntImm> c1;
+
+  // Any (c1+x) terms are normalized into (x+c1), so we don't need to
+  // check for it.
+  if ((x + c1).Match(expr)) {
+    return {x.Eval(), c1.Eval()->value};
+  } else if ((x - c1).Match(expr)) {
+    return {x.Eval(), -c1.Eval()->value};
+  } else if ((c1 - x).Match(expr)) {
+    return {x.Eval(), c1.Eval()->value};
+  } else {
+    return {expr, 0};
+  }
+}
+
 CompareResult RewriteSimplifier::Impl::TryCompare(const PrimExpr& x, const PrimExpr& y) {
   CompareResult output = CompareResult::kUnknown;
 
@@ -150,6 +177,12 @@ CompareResult RewriteSimplifier::Impl::TryCompareUsingKnownInequalities(const Pr
 
 // try to prove x equals val
 CompareResult RewriteSimplifier::Impl::TryCompare(const PrimExpr& x, int64_t val) {
+  // NOTE on implementation: this function can be called many times and can be a bottleneck,
+  // As a result, we keep comparison here lightweight.
+  // We only do constant int bound analysis here.
+  //
+  // For stronger comparison proof that is out of the recursive simplifcation
+  // consider look at analyzer::CanProveStrong
   PrimExpr diff = this->VisitExpr(x);
   if (const auto* ptr = diff.as<IntImmNode>()) {
     if (ptr->value == val) {
@@ -176,6 +209,8 @@ CompareResult RewriteSimplifier::Impl::TryCompare(const PrimExpr& x, int64_t val
   if (dbound->max_value <= val) {
     return CompareResult::kLE;
   }
+
+  // modular analysis
   if (val == 0) {
     ModularSet dmod = analyzer_->modular_set(diff);
     if (dmod->base != 0) {
@@ -183,6 +218,11 @@ CompareResult RewriteSimplifier::Impl::TryCompare(const PrimExpr& x, int64_t val
     }
   }
   return CompareResult::kUnknown;
+}
+
+PrimExpr RewriteSimplifier::Impl::VisitExpr(const PrimExpr& e) {
+  stats_.nodes_visited++;
+  return IRMutatorWithAnalyzer::VisitExpr(e);
 }
 
 void RewriteSimplifier::Impl::Update(const Var& var, const PrimExpr& info, bool can_override) {
@@ -208,9 +248,9 @@ PrimExpr RewriteSimplifier::Impl::VisitExpr_(const AddNode* op) {
   // Pattern var match FloatImm
   PVar<FloatImm> c4;
   // Pattern var for lanes in broadcast and ramp
-  PVar<int> lanes;
+  PVar<PrimExpr> lanes;
   // Vector rules
-  if (op->dtype.lanes() != 1) {
+  if (op->dtype.is_scalable_or_fixed_length_vector()) {
     TVM_TRY_REWRITE(ramp(b1, s1, lanes) + ramp(b2, s2, lanes), ramp(b1 + b2, s1 + s2, lanes));
     TVM_TRY_REWRITE(ramp(b1, s1, lanes) + broadcast(x, lanes), ramp(b1 + x, s1, lanes));
     TVM_TRY_REWRITE(broadcast(x, lanes) + ramp(b1, s1, lanes), ramp(x + b1, s1, lanes));
@@ -278,10 +318,23 @@ PrimExpr RewriteSimplifier::Impl::VisitExpr_(const AddNode* op) {
     TVM_TRY_REWRITE_IF(floordiv(floormod(x, c2) + c1, c2) + floordiv(x, c2), floordiv(x + c1, c2),
                        c2.Eval()->value > 0);
 
+    TVM_TRY_RECURSIVE_REWRITE(floordiv(x, 2) + floormod(x, 2), floordiv(x + 1, 2));
+
+    // Simplify (x + 1) % 2 + x % 2 => 1
+    // NOTE: we should avoid simplifying (x + 1) %2 => 1 - x % 2 though
+    // mainly because introducing extra negative signs to expression can harm itertaor
+    // analysis which usually relies on positive itertator co-efficients.
+    TVM_TRY_REWRITE_IF(floormod(x + c1, 2) + floormod(x, 2), OneWithTypeLike(x),
+                       floormod(c1.Eval()->value, 2) == 1);
+    TVM_TRY_REWRITE_IF(floormod(x, 2) + floormod(x + c1, 2), OneWithTypeLike(x),
+                       floormod(c1.Eval()->value, 2) == 1);
+
     // canonicalization rule
     // will try rewrite again after canonicalization.
+
     TVM_TRY_RECURSIVE_REWRITE(matches_one_of(x + (c1 - y), (c1 - y) + x), (x - y) + c1);
-    TVM_TRY_RECURSIVE_REWRITE(matches_one_of(x + c1 + y, x + (c1 + y)), (x + y) + c1);
+    TVM_TRY_RECURSIVE_REWRITE(matches_one_of((x + c1) + y, x + (c1 + y), x + (y + c1)),
+                              (x + y) + c1);
     TVM_TRY_RECURSIVE_REWRITE(x + max(y, z), max(y, z) + x);
     TVM_TRY_RECURSIVE_REWRITE(x + min(y, z), min(y, z) + x);
 
@@ -320,6 +373,7 @@ std::function<void()> RewriteSimplifier::Impl::EnterConstraint(const PrimExpr& c
       literal_constraints_.push_back(Not(negation));
     }
   }
+  stats_.constraints_entered++;
   size_t new_literal_size = literal_constraints_.size();
   auto frecover = [old_literal_size, new_literal_size, this]() {
     ICHECK_EQ(literal_constraints_.size(), new_literal_size);
@@ -343,9 +397,9 @@ PrimExpr RewriteSimplifier::Impl::VisitExpr_(const SubNode* op) {
   // Pattern var match IntImm
   PVar<IntImm> c1, c2, c3;
   // Pattern var for lanes in broadcast and ramp
-  PVar<int> lanes;
+  PVar<PrimExpr> lanes;
   // Vector rules
-  if (op->dtype.lanes() != 1) {
+  if (op->dtype.is_scalable_or_fixed_length_vector()) {
     TVM_TRY_REWRITE(ramp(b1, s1, lanes) - ramp(b2, s2, lanes), ramp(b1 - b2, s1 - s2, lanes));
     TVM_TRY_REWRITE(ramp(b1, s1, lanes) - broadcast(x, lanes), ramp(b1 - x, s1, lanes));
     TVM_TRY_REWRITE(broadcast(x, lanes) - ramp(b1, s1, lanes), ramp(x - b1, 0 - s1, lanes));
@@ -456,6 +510,14 @@ PrimExpr RewriteSimplifier::Impl::VisitExpr_(const SubNode* op) {
     TVM_TRY_REWRITE_IF(floordiv(x - y, c1) * c1 - x, 0 - floormod(x - y, c1) - y,
                        c1.Eval()->value != 0);
 
+    TVM_TRY_RECURSIVE_REWRITE(
+        floordiv(x + c1, 2) - floordiv(x + c2, 2),
+        floormod(x, 2) * (floormod(c1, 2) - floormod(c2, 2)) + (floordiv(c1, 2) - floordiv(c2, 2)));
+    TVM_TRY_RECURSIVE_REWRITE(floordiv(x, 2) - floordiv(x + c2, 2),
+                              floormod(x, 2) * (0 - floormod(c2, 2)) - floordiv(c2, 2));
+    TVM_TRY_RECURSIVE_REWRITE(floordiv(x + c1, 2) - floordiv(x, 2),
+                              floormod(x, 2) * floormod(c1, 2) + floordiv(c1, 2));
+
     TVM_TRY_REWRITE_IF(
         x * c2 - floordiv(x, c1) * c3, floormod(x, c1) * c2,
         c1.Eval()->value != 0 && c3.Eval()->value == c1.Eval()->value * c2.Eval()->value);
@@ -475,6 +537,8 @@ PrimExpr RewriteSimplifier::Impl::VisitExpr_(const SubNode* op) {
         floordiv(x - y, c1) * c3 - x * c2, (0 - floormod(x - y, c1) - y) * c2,
         c1.Eval()->value != 0 && c3.Eval()->value == c1.Eval()->value * c2.Eval()->value);
 
+    TVM_TRY_RECURSIVE_REWRITE(floordiv(x + 1, 2) - floormod(x, 2), floordiv(x, 2));
+
     TVM_TRY_REWRITE_IF(floordiv(x + c1, c3) - floordiv(x + c2, c3),
                        floordiv(floormod(x + floormod(c2, c3), c3) + (c1 - c2), c3),
                        c3.Eval()->value > 0);
@@ -485,6 +549,7 @@ PrimExpr RewriteSimplifier::Impl::VisitExpr_(const SubNode* op) {
     // will try rewrite again after canonicalization.
     TVM_TRY_REWRITE(x - c1, x + (0 - c1));
     TVM_TRY_RECURSIVE_REWRITE((x + c1) - y, (x - y) + c1);
+    TVM_TRY_RECURSIVE_REWRITE(x - (y + c1), (x - y) + (0 - c1));
     TVM_TRY_RECURSIVE_REWRITE(x - (y - z), (x + z) - y);
     TVM_TRY_RECURSIVE_REWRITE(x - y * c1, x + y * (0 - c1));
   } else if (op->dtype.is_float()) {
@@ -516,9 +581,9 @@ PrimExpr RewriteSimplifier::Impl::VisitExpr_(const MulNode* op) {
   // Pattern var match FloatImm
   PVar<FloatImm> c3;
   // Pattern var for lanes in broadcast and ramp
-  PVar<int> lanes;
+  PVar<PrimExpr> lanes;
   // Vector rules
-  if (op->dtype.lanes() != 1) {
+  if (op->dtype.is_scalable_or_fixed_length_vector()) {
     TVM_TRY_REWRITE(broadcast(x, lanes) * broadcast(y, lanes), broadcast(x * y, lanes));
     TVM_TRY_REWRITE(matches_one_of(ramp(b1, s1, lanes) * broadcast(x, lanes),
                                    broadcast(x, lanes) * ramp(b1, s1, lanes)),
@@ -553,7 +618,7 @@ PrimExpr RewriteSimplifier::Impl::VisitExpr_(const DivNode* op) {
   // Pattern var match IntImm
   PVar<IntImm> c1, c2, c3;
   // Pattern var for lanes in broadcast and ramp
-  PVar<int> lanes;
+  PVar<PrimExpr> lanes;
 
   // x / 2.0 = x * 0.5
   if (const FloatImmNode* ptr = op->b.as<FloatImmNode>()) {
@@ -563,7 +628,7 @@ PrimExpr RewriteSimplifier::Impl::VisitExpr_(const DivNode* op) {
   }
 
   // Vector rules
-  if (op->dtype.lanes() != 1) {
+  if (op->dtype.is_scalable_or_fixed_length_vector()) {
     // NOTE: use div as the pattern also works for float.
     TVM_TRY_REWRITE(div(broadcast(x, lanes), broadcast(y, lanes)), broadcast(div(x, y), lanes));
     // ramp / bcast
@@ -575,10 +640,11 @@ PrimExpr RewriteSimplifier::Impl::VisitExpr_(const DivNode* op) {
         return ramp(div(b1, c2), div(c1, c2), lanes).Eval();
       }
       // If all possible indices in ramp are the same.
-      if (CanProveGreaterEqual(b1.Eval(), 0)) {
+      if (CanProveGreaterEqual(b1.Eval(), 0) && !arith::ExtractVscaleFactor(lanes.Eval())) {
         ModularSet bmod = analyzer_->modular_set(b1.Eval());
         int64_t ramp_min = bmod->base / c2val;
-        int64_t ramp_max = (bmod->base + (lanes.Eval() - 1) * c1val) / c2val;
+        auto lanes_int = lanes.Eval().as<IntImmNode>()->value;
+        int64_t ramp_max = (bmod->base + (lanes_int - 1) * c1val) / c2val;
         if (bmod->coeff % c2val == 0 && ramp_min == ramp_max) {
           return broadcast(div(b1, c2), lanes).Eval();
         }
@@ -713,10 +779,10 @@ PrimExpr RewriteSimplifier::Impl::VisitExpr_(const ModNode* op) {
   // Pattern var match IntImm
   PVar<IntImm> c1, c2;
   // Pattern var for lanes in broadcast and ramp
-  PVar<int> lanes;
+  PVar<PrimExpr> lanes;
 
   // Vector rules
-  if (op->dtype.lanes() != 1) {
+  if (op->dtype.is_scalable_or_fixed_length_vector()) {
     TVM_TRY_REWRITE(truncmod(broadcast(x, lanes), broadcast(y, lanes)),
                     broadcast(truncmod(x, y), lanes));
 
@@ -731,12 +797,21 @@ PrimExpr RewriteSimplifier::Impl::VisitExpr_(const ModNode* op) {
       // If all possible indices in ramp are the same.
       if (CanProveGreaterEqual(b1.Eval(), 0)) {
         ModularSet bmod = analyzer_->modular_set(b1.Eval());
-        int64_t ramp_min = bmod->base / c2val;
-        int64_t ramp_max = (bmod->base + (lanes.Eval() - 1) * c1val) / c2val;
-        if (bmod->coeff % c2val == 0) {
-          if (ramp_min == ramp_max) {
-            return ramp(truncmod(bmod->base, c2), c1, lanes).Eval();
-          } else {
+        if (!arith::ExtractVscaleFactor(lanes.Eval())) {
+          auto lanes_int = lanes.Eval().as<IntImmNode>()->value;
+          int64_t ramp_min = bmod->base / c2val;
+          int64_t ramp_max = (bmod->base + (lanes_int - 1) * c1val) / c2val;
+          if (bmod->coeff % c2val == 0) {
+            if (ramp_min == ramp_max) {
+              return ramp(truncmod(bmod->base, c2), c1, lanes).Eval();
+            } else {
+              return truncmod(ramp(truncmod(bmod->base, c2), c1, lanes), broadcast(c2, lanes))
+                  .Eval();
+            }
+          }
+        } else { /* Special case for scalable vectors */
+          ModularSet bmod = analyzer_->modular_set(b1.Eval());
+          if (bmod->coeff % c2val == 0) {
             return truncmod(ramp(truncmod(bmod->base, c2), c1, lanes), broadcast(c2, lanes)).Eval();
           }
         }
@@ -793,10 +868,10 @@ PrimExpr RewriteSimplifier::Impl::VisitExpr_(const FloorDivNode* op) {
   // Pattern var match IntImm
   PVar<IntImm> c1, c2, c3;
   // Pattern var for lanes in broadcast and ramp
-  PVar<int> lanes;
+  PVar<PrimExpr> lanes;
 
   // Vector rules
-  if (op->dtype.lanes() != 1) {
+  if (op->dtype.is_scalable_or_fixed_length_vector()) {
     TVM_TRY_REWRITE(floordiv(broadcast(x, lanes), broadcast(y, lanes)),
                     broadcast(floordiv(x, y), lanes));
     // ramp // bcast
@@ -808,17 +883,20 @@ PrimExpr RewriteSimplifier::Impl::VisitExpr_(const FloorDivNode* op) {
         return ramp(floordiv(b1, c2), floordiv(c1, c2), lanes).Eval();
       }
       // If all possible indices in ramp are the same.
-      ModularSet bmod = analyzer_->modular_set(b1.Eval());
-      int64_t ramp_min = floordiv(bmod->base, c2val);
-      int64_t ramp_max = floordiv(bmod->base + (lanes.Eval() - 1) * c1val, c2val);
-      if (ramp_min == ramp_max) {
-        // If b1 can devide c2
-        if (bmod->coeff % c2val == 0) {
-          return broadcast(floordiv(b1, c2), lanes).Eval();
-        }
-        // If all indices can be guaranteed to settle inside a coeff range
-        if (c2val % bmod->coeff == 0 && bmod->base + (lanes.Eval() - 1) * c1val < bmod->coeff) {
-          return broadcast(floordiv(b1, c2), lanes).Eval();
+      if (!arith::ExtractVscaleFactor(lanes.Eval())) {
+        ModularSet bmod = analyzer_->modular_set(b1.Eval());
+        int64_t ramp_min = floordiv(bmod->base, c2val);
+        auto lanes_int = lanes.Eval().as<IntImmNode>()->value;
+        int64_t ramp_max = floordiv(bmod->base + (lanes_int - 1) * c1val, c2val);
+        if (ramp_min == ramp_max) {
+          // If b1 can divide c2
+          if (bmod->coeff % c2val == 0) {
+            return broadcast(floordiv(b1, c2), lanes).Eval();
+          }
+          // If all indices can be guaranteed to settle inside a coeff range
+          if (c2val % bmod->coeff == 0 && bmod->base + (lanes_int - 1) * c1val < bmod->coeff) {
+            return broadcast(floordiv(b1, c2), lanes).Eval();
+          }
         }
       }
     }
@@ -863,6 +941,8 @@ PrimExpr RewriteSimplifier::Impl::VisitExpr_(const FloorDivNode* op) {
 
     TVM_TRY_REWRITE(floordiv(x, x), OneWithTypeLike(x));
     TVM_TRY_REWRITE(matches_one_of(floordiv(x * c1, x), floordiv(c1 * x, x)), c1);
+
+    TVM_TRY_REWRITE(floordiv(floormod(x, 2) + 1, 2), floormod(x, 2));
 
     // Rules involving 2-operands.
     TVM_TRY_REWRITE_IF(floordiv(min(x * c1, y), c2), min(x * floordiv(c1, c2), floordiv(y, c2)),
@@ -927,10 +1007,10 @@ PrimExpr RewriteSimplifier::Impl::VisitExpr_(const FloorModNode* op) {
   // Pattern var match IntImm
   PVar<IntImm> c1, c2;
   // Pattern var for lanes in broadcast and ramp
-  PVar<int> lanes;
+  PVar<PrimExpr> lanes;
 
   // Vector rules
-  if (op->dtype.lanes() != 1) {
+  if (op->dtype.is_scalable_or_fixed_length_vector()) {
     TVM_TRY_REWRITE(floormod(broadcast(x, lanes), broadcast(y, lanes)),
                     broadcast(floormod(x, y), lanes));
 
@@ -944,20 +1024,28 @@ PrimExpr RewriteSimplifier::Impl::VisitExpr_(const FloorModNode* op) {
       }
       // If all possible indices in ramp are the same.
       ModularSet bmod = analyzer_->modular_set(b1.Eval());
-      int64_t ramp_min = floordiv(bmod->base, c2val);
-      int64_t ramp_max = floordiv(bmod->base + (lanes.Eval() - 1) * c1val, c2val);
-      if (ramp_min == ramp_max) {
-        // If b1 can devide c2
+      if (!arith::ExtractVscaleFactor(lanes.Eval())) {
+        int64_t ramp_min = floordiv(bmod->base, c2val);
+        auto lanes_int = lanes.Eval().as<IntImmNode>()->value;
+        int64_t ramp_max = floordiv(bmod->base + (lanes_int - 1) * c1val, c2val);
+        if (ramp_min == ramp_max) {
+          // If b1 can divide c2
+          if (bmod->coeff % c2val == 0) {
+            return ramp(floormod(bmod->base, c2), c1, lanes).Eval();
+          }
+          // If all indices can be guaranteed to settle inside a coeff range
+          if (c2val % bmod->coeff == 0 && bmod->base + (lanes_int - 1) * c1val < bmod->coeff) {
+            return ramp(floormod(b1, c2), c1, lanes).Eval();
+          }
+        }
+        // If b1 can divide c2
         if (bmod->coeff % c2val == 0) {
-          return ramp(floormod(bmod->base, c2), c1, lanes).Eval();
+          return floormod(ramp(floormod(bmod->base, c2), c1, lanes), broadcast(c2, lanes)).Eval();
         }
-        // If all indices can be guaranteed to settle inside a coeff range
-        if (c2val % bmod->coeff == 0 && bmod->base + (lanes.Eval() - 1) * c1val < bmod->coeff) {
-          return ramp(floormod(b1, c2), c1, lanes).Eval();
+      } else { /* scalable vectors */
+        if (bmod->coeff % c2val == 0) {
+          return floormod(ramp(floormod(bmod->base, c2), c1, lanes), broadcast(c2, lanes)).Eval();
         }
-      }
-      if (bmod->coeff % c2val == 0) {
-        return floormod(ramp(floormod(bmod->base, c2), c1, lanes), broadcast(c2, lanes)).Eval();
       }
     }
   }
@@ -975,8 +1063,10 @@ PrimExpr RewriteSimplifier::Impl::VisitExpr_(const FloorModNode* op) {
     TVM_TRY_REWRITE_IF(floormod(x * c1 + y, c2), floormod(x * floormod(c1, c2) + y, c2),
                        c2.Eval()->value > 0);
 
-    TVM_TRY_REWRITE_IF(floormod(x + c1, c2), floormod(x, c2),
-                       c2.Eval()->value > 0 && c1.Eval()->value % c2.Eval()->value == 0);
+    // (x + 5) % 2 -> (x + 1) %2,  (x + 3) % 3 => x
+    TVM_TRY_REWRITE_IF(
+        floormod(x + c1, c2), floormod(x + floormod(c1, c2), c2),
+        c2.Eval()->value > 0 && (c1.Eval()->value >= c2.Eval()->value || c1.Eval()->value < 0));
 
     TVM_TRY_REWRITE_IF(floormod(x + y * c1, c2), floormod(x + y * floormod(c1, c2), c2),
                        c2.Eval()->value > 0);
@@ -985,12 +1075,31 @@ PrimExpr RewriteSimplifier::Impl::VisitExpr_(const FloorModNode* op) {
 
     TVM_TRY_REWRITE(matches_one_of(floormod(x * y, y), floormod(y * x, y)), ZeroWithTypeLike(y));
 
-    // try modular analysis
+    // x = ay + b, then (ay + b + (ny - ay - b) % y) % y -> (b + (-b) % y) % y -> 0
+    TVM_TRY_REWRITE_IF(
+        matches_one_of(floormod(x + floormod(z, y), y), floormod(floormod(z, y) + x, y)),
+        ZeroWithTypeLike(x), CanProveEqual(floormod(x.Eval() + z.Eval(), y.Eval()), 0));
+    // x = ay + b, then (ay + b - (ay + b) % +-y) % y -> (b - b % +-y) % y -> 0
+    TVM_TRY_REWRITE_IF(
+        matches_one_of(floormod(x - floormod(x, z), y), floormod(floormod(x, z) - x, y)),
+        ZeroWithTypeLike(x),
+        CanProveEqual(y.Eval() - z.Eval(), 0) || CanProveEqual(y.Eval() + z.Eval(), 0));
+
     if (floormod(x, c1).Match(ret)) {
-      ModularSet mod = analyzer_->modular_set(x.Eval());
       int64_t c1val = c1.Eval()->value;
-      if (mod->coeff % c1val == 0 && c1val > 0) {
-        return floormod(mod->base, c1).Eval();
+      if (c1val > 0) {
+        // try modular analysis
+        ModularSet mod = analyzer_->modular_set(x.Eval());
+        if (mod->coeff % c1val == 0) {
+          return floormod(mod->base, c1).Eval();
+        }
+
+        // floormod(x,c1) is a no-op when x is already in the
+        // appropriate range.
+        ConstIntBound bound = analyzer_->const_int_bound(x.Eval());
+        if (bound->min_value >= 0 && bound->max_value < c1val) {
+          return x.Eval();
+        }
       }
     }
   }
@@ -1006,10 +1115,10 @@ PrimExpr RewriteSimplifier::Impl::VisitExpr_(const MinNode* op) {
   PVar<PrimExpr> x, y, z, s1, s2;
   // Pattern var match IntImm
   PVar<IntImm> c1, c2;
-  PVar<int> lanes;
+  PVar<PrimExpr> lanes;
 
   // vector rule
-  if (op->dtype.lanes() != 1) {
+  if (op->dtype.is_scalable_or_fixed_length_vector()) {
     TVM_TRY_REWRITE(min(broadcast(x, lanes), broadcast(y, lanes)), broadcast(min(x, y), lanes));
     TVM_TRY_REWRITE(min(min(x, broadcast(y, lanes)), broadcast(z, lanes)),
                     min(x, broadcast(min(y, z), lanes)));
@@ -1180,10 +1289,10 @@ PrimExpr RewriteSimplifier::Impl::VisitExpr_(const MaxNode* op) {
   PVar<PrimExpr> x, y, z, s1, s2;
   // Pattern var match IntImm
   PVar<IntImm> c1, c2;
-  PVar<int> lanes;
+  PVar<PrimExpr> lanes;
 
   // vector rule
-  if (op->dtype.lanes() != 1) {
+  if (op->dtype.is_scalable_or_fixed_length_vector()) {
     TVM_TRY_REWRITE(max(broadcast(x, lanes), broadcast(y, lanes)), broadcast(max(x, y), lanes));
     TVM_TRY_REWRITE(max(max(x, broadcast(y, lanes)), broadcast(z, lanes)),
                     max(x, broadcast(max(y, z), lanes)));
@@ -1388,10 +1497,10 @@ PrimExpr RewriteSimplifier::Impl::ApplyRewriteRules(EQ ret) {
   PVar<PrimExpr> x, y;
   // Pattern var match IntImm
   PVar<IntImm> c1, c2;
-  PVar<int> lanes;
+  PVar<PrimExpr> lanes;
 
   // vector rule
-  if (ret->dtype.lanes() != 1) {
+  if (ret->dtype.is_scalable_or_fixed_length_vector()) {
     TVM_TRY_REWRITE(broadcast(x, lanes) == broadcast(y, lanes), broadcast(x == y, lanes));
   }
 
@@ -1516,10 +1625,10 @@ PrimExpr RewriteSimplifier::Impl::ApplyRewriteRules(LT ret) {
   PVar<PrimExpr> x, y, z, s1, s2;
   // Pattern var match IntImm
   PVar<IntImm> c1, c2;
-  PVar<int> lanes;
+  PVar<PrimExpr> lanes;
 
   // vector rule
-  if (ret->dtype.lanes() != 1) {
+  if (ret->dtype.is_scalable_or_fixed_length_vector()) {
     TVM_TRY_REWRITE(broadcast(x, lanes) < broadcast(y, lanes), broadcast(x < y, lanes));
     TVM_TRY_REWRITE(ramp(x, s1, lanes) < ramp(y, s1, lanes), broadcast(x < y, lanes));
   }
@@ -1636,20 +1745,28 @@ PrimExpr RewriteSimplifier::Impl::ApplyRewriteRules(LT ret) {
     TVM_TRY_RECURSIVE_REWRITE(x < c1 + y, x - y < c1);
     TVM_TRY_RECURSIVE_REWRITE(c1 + y < x, c1 < x - y);
 
-    if ((x + c1 < y + c2).Match(ret)) {
-      int64_t diff = c2.Eval()->value - c1.Eval()->value;
-      PrimExpr out = [&]() {
-        if (diff == 0) {
-          return (x < y).Eval();
-        } else if (diff == 1) {
-          return (x <= y).Eval();
-        } else if (diff < 0) {
-          return (x + (-diff) < y).Eval();
-        } else {
-          return (x < y + diff).Eval();
-        }
-      }();
-      return RecursiveRewrite(out);
+    auto merge_constants = [&]() -> Optional<PrimExpr> {
+      auto [lhs, lhs_offset] = ExtractConstantOffset(ret->a);
+      auto [rhs, rhs_offset] = ExtractConstantOffset(ret->b);
+      if (lhs_offset == 0 && rhs_offset == 0) {
+        return NullOpt;
+      }
+
+      int64_t diff = rhs_offset - lhs_offset;
+      if (diff == 0) {
+        return lhs < rhs;
+      } else if (diff == 1) {
+        return lhs <= rhs;
+      } else if (diff < 0 && rhs_offset != 0) {
+        return lhs + make_const(lhs.dtype(), -diff) < rhs;
+      } else if (diff > 0 && lhs_offset != 0) {
+        return lhs < rhs + make_const(rhs.dtype(), diff);
+      }
+
+      return NullOpt;
+    }();
+    if (merge_constants) {
+      return RecursiveRewrite(merge_constants.value());
     }
   }
   return std::move(ret);
@@ -1666,8 +1783,8 @@ PrimExpr RewriteSimplifier::Impl::VisitExpr_(const NotNode* op) {
 PrimExpr RewriteSimplifier::Impl::ApplyRewriteRules(Not ret) {
   // Pattern var to match any expression
   PVar<PrimExpr> x, y;
-  PVar<int> lanes;
-  if (ret->dtype.lanes() != 1) {
+  PVar<PrimExpr> lanes;
+  if (ret->dtype.is_scalable_or_fixed_length_vector()) {
     TVM_TRY_REWRITE(!broadcast(x, lanes), broadcast(!x, lanes));
   }
 
@@ -1741,9 +1858,9 @@ PrimExpr RewriteSimplifier::Impl::VisitExpr_(const AndNode* op) {
   PVar<PrimExpr> x, y, z;
   // Pattern var match IntImm
   PVar<IntImm> c1, c2, c3;
-  PVar<int> lanes;
+  PVar<PrimExpr> lanes;
 
-  if (op->dtype.lanes() != 1) {
+  if (op->dtype.is_scalable_or_fixed_length_vector()) {
     TVM_TRY_REWRITE(broadcast(x, lanes) && broadcast(y, lanes), broadcast(x && y, lanes));
   }
 
@@ -1771,6 +1888,7 @@ PrimExpr RewriteSimplifier::Impl::VisitExpr_(const AndNode* op) {
                      }),
                      cfalse, c2.Eval()->value > c1.Eval()->value);
 
+  TVM_TRY_REWRITE((x == c1) && (x == c2), (x == c1) && (c1 == c2));
   TVM_TRY_REWRITE(matches_one_of(x == c1 && x != c2, x != c2 && x == c1), x == c1 && c1 != c2);
 
   TVM_TRY_RECURSIVE_REWRITE(matches_one_of(floordiv(x, c2) == c1 && floormod(x, c2) == c3,
@@ -1888,9 +2006,9 @@ PrimExpr RewriteSimplifier::Impl::VisitExpr_(const OrNode* op) {
   PVar<PrimExpr> x, y, z;
   // Pattern var match IntImm
   PVar<IntImm> c1, c2;
-  PVar<int> lanes;
+  PVar<PrimExpr> lanes;
 
-  if (op->dtype.lanes() != 1) {
+  if (op->dtype.is_scalable_or_fixed_length_vector()) {
     TVM_TRY_REWRITE(broadcast(x, lanes) || broadcast(y, lanes), broadcast(x || y, lanes));
   }
 
@@ -1915,6 +2033,7 @@ PrimExpr RewriteSimplifier::Impl::VisitExpr_(const OrNode* op) {
   TVM_TRY_REWRITE_IF(x <= c1 || c2 <= x, ctrue, c2.Eval()->value <= c1.Eval()->value + 1);
   TVM_TRY_REWRITE_IF(c2 <= x || x <= c1, ctrue, c2.Eval()->value <= c1.Eval()->value + 1);
 
+  TVM_TRY_REWRITE(x != c1 || x != c2, x != c1 || c1 != c2);
   TVM_TRY_REWRITE(x != c1 || x == c2, x != c1 || c1 == c2);
   TVM_TRY_REWRITE(x == c2 || x != c1, x != c1 || c1 == c2);
 
@@ -2079,9 +2198,30 @@ RewriteSimplifier::Extension RewriteSimplifier::GetEnabledExtensions() const {
   return impl_->GetEnabledExtensions();
 }
 
+ObjectRef RewriteSimplifier::GetStatsCounters() const { return impl_->GetStatsCounters(); }
+
+void RewriteSimplifier::ResetStatsCounters() { impl_->ResetStatsCounters(); }
+
+void RewriteSimplifier::SetMaximumRewriteSteps(int64_t maximum) {
+  impl_->SetMaximumRewriteSteps(maximum);
+}
+
 RewriteSimplifier::RewriteSimplifier(Analyzer* parent) : impl_(new Impl(parent)) {}
 
 RewriteSimplifier::~RewriteSimplifier() { delete impl_; }
+
+TVM_REGISTER_NODE_TYPE(RewriteSimplifierStatsNode);
+
+TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
+    .set_dispatch<RewriteSimplifierStatsNode>([](const ObjectRef& node, ReprPrinter* p) {
+      auto* ptr = node.as<RewriteSimplifierStatsNode>();
+      p->stream << "RewriteSimplifierStats(nodes_visited = " << ptr->nodes_visited
+                << ", constraints_entered = " << ptr->constraints_entered
+                << ", rewrites_attempted = " << ptr->rewrites_attempted
+                << ", rewrites_performed = " << ptr->rewrites_performed
+                << ", max_recursive_depth = " << ptr->max_recursive_depth
+                << ", num_recursive_rewrites = " << ptr->num_recursive_rewrites << ")";
+    });
 
 }  // namespace arith
 }  // namespace tvm

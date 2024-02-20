@@ -30,6 +30,7 @@
 #include "../../runtime/texture.h"
 #include "../../runtime/thread_storage_scope.h"
 #include "../build_common.h"
+#include "../spirv/spirv_utils.h"
 
 namespace tvm {
 namespace codegen {
@@ -87,7 +88,7 @@ void CodeGenOpenCL::InitFuncState(const PrimFunc& f) {
   }
 }
 
-void CodeGenOpenCL::PrintFuncPrefix(std::ostream& os) { os << "__kernel void"; }
+void CodeGenOpenCL::PrintFuncPrefix(std::ostream& os) { os << "__kernel "; }
 
 void CodeGenOpenCL::PreFunctionBody(const PrimFunc& f) {
   for (Var arg : f->params) {
@@ -369,17 +370,19 @@ std::string CodeGenOpenCL::CastFromTo(std::string value, DataType from, DataType
 
 std::string CodeGenOpenCL::CastTo(std::string value, DataType target) {
   std::ostringstream os;
-  if (target.lanes() == 1) {
-    os << "((";
+  if (target == DataType::Bool()) {
+    os << "(";
+    os << "(";
     this->PrintType(target, os);
     os << ")" << value << ")";
-  } else {  // convert vector type
+    return os.str();
+  } else {
     os << "(";
     os << "convert_";
     this->PrintType(target, os);
     os << "(" << value << "))";
+    return os.str();
   }
-  return os.str();
 }
 
 void CodeGenOpenCL::VisitStmt_(const AllocateNode* op) {
@@ -469,10 +472,11 @@ void CodeGenOpenCL::VisitExpr_(const CallNode* op, std::ostream& os) {
 
 void CodeGenOpenCL::VisitExpr_(const BroadcastNode* op, std::ostream& os) {  // NOLINT(*)
   std::string v = PrintExpr(op->value);
+  int lanes = op->dtype.lanes();
   os << "((";
   PrintType(op->dtype, os);
   os << ")(";
-  for (int i = 0; i < op->lanes; ++i) {
+  for (int i = 0; i < lanes; ++i) {
     if (i != 0) os << ", ";
     os << v;
   }
@@ -483,10 +487,11 @@ void CodeGenOpenCL::VisitExpr_(const RampNode* op, std::ostream& os) {  // NOLIN
   os << "((";
   PrintType(op->dtype, os);
   os << ")(";
-  for (int i = 0; i < op->lanes; i++) {
+  int lanes = op->dtype.lanes();
+  for (int i = 0; i < lanes; i++) {
     os << "(" << PrintExpr(op->base) << ")"
        << "+(" << PrintExpr(op->stride) << "*" << i << ")";
-    if (i != op->lanes - 1) os << ", ";
+    if (i != lanes - 1) os << ", ";
   }
   os << "))";
 }
@@ -566,11 +571,7 @@ void CodeGenOpenCL::VisitExpr_(const SelectNode* op, std::ostream& os) {
   os << ", ";
   PrintExpr(op->condition, oss);
   if (op->dtype.is_float()) {
-    if (op->condition.dtype().is_uint() || op->condition.dtype().is_int()) {
-      os << oss.str();
-    } else {
-      os << CastTo(oss.str(), DataType::Int(op->dtype.bits(), op->dtype.lanes()));
-    }
+    os << CastTo(oss.str(), DataType::Int(op->dtype.bits(), op->dtype.lanes()));
   } else {
     os << CastFromTo(oss.str(), op->condition.dtype(), op->dtype);
   }
@@ -585,24 +586,40 @@ void CodeGenOpenCL::SetTextureScope(
 }
 
 runtime::Module BuildOpenCL(IRModule mod, Target target) {
+#if TVM_ENABLE_SPIRV
+  Optional<String> device = target->GetAttr<String>("device");
+  if (device && device.value() == "spirv") {
+    auto [smap, spirv_text] = LowerToSPIRV(mod, target);
+    return runtime::OpenCLModuleCreate(smap, spirv_text, ExtractFuncInfo(mod));
+  }
+#endif
+
   using tvm::runtime::Registry;
   bool output_ssa = false;
 
-  std::stringstream code;
-  const auto* fpostproc = Registry::Get("tvm_callback_opencl_postproc");
-  for (auto kv : mod->functions) {
-    ICHECK(kv.second->IsInstance<PrimFuncNode>()) << "CodeGenOpenCL: Can only take PrimFunc";
-    code << "// Function: " << kv.first->name_hint << std::endl;
-    CodeGenOpenCL cg;
-    cg.Init(output_ssa);
-    auto f = Downcast<PrimFunc>(kv.second);
-    auto calling_conv = f->GetAttr<Integer>(tvm::attr::kCallingConv);
+  Map<GlobalVar, PrimFunc> functions;
+  for (auto [gvar, base_func] : mod->functions) {
+    ICHECK(base_func->IsInstance<PrimFuncNode>()) << "CodeGenOpenCL: Can only take PrimFunc";
+    auto prim_func = Downcast<PrimFunc>(base_func);
+    auto calling_conv = prim_func->GetAttr<Integer>(tvm::attr::kCallingConv);
     ICHECK(calling_conv == CallingConv::kDeviceKernelLaunch)
         << "CodeGenOpenCL: expect calling_conv equals CallingConv::kDeviceKernelLaunch";
-    cg.AddFunction(f);
+    functions.Set(gvar, prim_func);
+  }
+
+  std::stringstream code;
+  const auto* fpostproc = Registry::Get("tvm_callback_opencl_postproc");
+  for (auto [gvar, prim_func] : functions) {
+    code << "// Function: " << gvar->name_hint << std::endl;
+    CodeGenOpenCL cg;
+    cg.Init(output_ssa);
+    for (auto [other_gvar, other_prim_func] : functions) {
+      cg.DeclareFunction(other_gvar, other_prim_func);
+    }
+    cg.AddFunction(gvar, prim_func);
     std::string fsource = cg.Finish();
     if (fpostproc) {
-      fsource = (*fpostproc)(fsource).operator std::string();
+      fsource = (*fpostproc)(fsource, target).operator std::string();
     }
     code << fsource;
   }

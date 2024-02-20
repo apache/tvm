@@ -3339,6 +3339,15 @@ def ramp_int64():
     return func
 
 
+def scalable_vectors():
+    @T.prim_func
+    def func(a: T.handle):
+        A = T.match_buffer(a, (200,), "float32")
+        A[T.Ramp(11, 2, 4 * tir.vscale())] = T.Broadcast(125, 4 * tir.vscale())
+
+    return func
+
+
 def let_expression():
     @T.prim_func
     def func():

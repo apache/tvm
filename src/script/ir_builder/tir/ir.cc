@@ -54,9 +54,10 @@ Buffer BufferDecl(Array<PrimExpr> shape, DataType dtype, String buffer_name, Opt
                 axis_separators.value_or(Array<IntImm>()));
 }
 
-PrimFuncFrame PrimFunc() {
+PrimFuncFrame PrimFunc(bool is_private) {
   ObjectPtr<PrimFuncFrameNode> n = make_object<PrimFuncFrameNode>();
   n->name = NullOpt;
+  n->is_private = is_private;
   n->args.clear();
   n->ret_type = NullOpt;
   n->buffer_map.clear();
@@ -95,6 +96,10 @@ void FuncAttrs(Map<String, ObjectRef> attrs) {
   PrimFuncFrame frame = FindPrimFuncFrame("T.func_attr");
   if (frame->attrs.defined()) {
     LOG(FATAL) << "ValueError: Duplicate prim func annotations, previous one is " << frame->attrs;
+  }
+  if (attrs.count(tvm::attr::kGlobalSymbol) && frame->is_private) {
+    LOG(FATAL) << "ValueError: Specifying the global symbol even though the PrimFunc is annotated "
+                  "as private";
   }
   frame->attrs = attrs;
 }
@@ -173,10 +178,10 @@ void Reads(Array<ObjectRef> buffer_slices) {
   }
   Array<BufferRegion> reads;
   for (const ObjectRef& obj : buffer_slices) {
-    if (const auto* buffer_region = obj.as<BufferRegionNode>()) {
-      reads.push_back(GetRef<BufferRegion>(buffer_region));
-    } else if (const auto* buffer_load = obj.as<BufferLoadNode>()) {
-      reads.push_back(BufferRegionFromLoad(GetRef<BufferLoad>(buffer_load)));
+    if (auto buffer_region = obj.as<BufferRegion>()) {
+      reads.push_back(buffer_region.value());
+    } else if (auto buffer_load = obj.as<BufferLoad>()) {
+      reads.push_back(BufferRegionFromLoad(buffer_load.value()));
     } else {
       LOG(FATAL) << "Invalid type for buffer reads.";
     }
@@ -193,10 +198,10 @@ void Writes(Array<ObjectRef> buffer_slices) {
   }
   Array<BufferRegion> writes;
   for (const ObjectRef& obj : buffer_slices) {
-    if (const auto* buffer_region = obj.as<BufferRegionNode>()) {
-      writes.push_back(GetRef<BufferRegion>(buffer_region));
-    } else if (const auto* buffer_load = obj.as<BufferLoadNode>()) {
-      writes.push_back(BufferRegionFromLoad(GetRef<BufferLoad>(buffer_load)));
+    if (auto buffer_region = obj.as<BufferRegion>()) {
+      writes.push_back(buffer_region.value());
+    } else if (auto buffer_load = obj.as<BufferLoad>()) {
+      writes.push_back(BufferRegionFromLoad(buffer_load.value()));
     } else {
       LOG(FATAL) << "Invalid type for buffer writes.";
     }
@@ -314,7 +319,7 @@ Array<Var> Remap(String kinds, Array<PrimExpr> bindings, DataType dtype) {
     PrimExpr extent = arith::Analyzer().Simplify(stop - start);                                   \
     ObjectPtr<ForFrameNode> n = make_object<ForFrameNode>();                                      \
     int bits = std::max(min.dtype().bits(), extent.dtype().bits());                               \
-    n->vars = {Var("v", DataType::Int(bits))};                                                    \
+    n->vars = {Var("v", DataType(min.dtype().code(), bits, 1))};                                  \
     n->doms = {Range::FromMinExtent(min, extent)};                                                \
     n->f_make_for_loop = [annotations](Array<Var> vars, Array<Range> doms, tvm::tir::Stmt body) { \
       ICHECK_EQ(vars.size(), 1);                                                                  \
@@ -339,13 +344,14 @@ ForFrame ThreadBinding(PrimExpr start, PrimExpr stop, String thread,
   PrimExpr extent = arith::Analyzer().Simplify(stop - start);
   ObjectPtr<ForFrameNode> n = make_object<ForFrameNode>();
   int bits = std::max(min.dtype().bits(), extent.dtype().bits());
-  n->vars = {Var("v", DataType::Int(bits))};
+  DataType dtype = DataType(min.dtype().code(), bits, 1);
+  n->vars = {Var("v", dtype)};
   n->doms = {Range::FromMinExtent(min, extent)};
-  n->f_make_for_loop = [annotations, thread](Array<Var> vars, Array<Range> doms, Stmt body) -> For {
+  n->f_make_for_loop = [annotations, thread, dtype](Array<Var> vars, Array<Range> doms,
+                                                    Stmt body) -> For {
     ICHECK_EQ(vars.size(), 1);
     ICHECK_EQ(doms.size(), 1);
-    IterVar iter_var(Range(nullptr), Var("iter", DataType::Int(32)), IterVarType::kThreadIndex,
-                     thread);
+    IterVar iter_var(Range(nullptr), Var("iter", dtype), IterVarType::kThreadIndex, thread);
     return For(vars[0], doms[0]->min, doms[0]->extent, ForKind::kThreadBinding, body, iter_var,
                annotations.value_or(Map<String, ObjectRef>()));
   };
@@ -512,11 +518,44 @@ Var EnvThread(String thread_tag) {
 
 void BufferStore(Buffer buffer, PrimExpr value, Array<PrimExpr> indices) {
   runtime::DataType buffer_dtype = buffer->dtype;
-  int index_lanes = indices.size() ? indices.back().dtype().lanes() : 1;
-  runtime::DataType lhs_dtype = buffer_dtype.with_lanes(buffer_dtype.lanes() * index_lanes);
+  bool is_index_scalable = indices.empty() ? false : indices.back().dtype().is_scalable_vector();
+  bool is_buffer_dtype_scalable = buffer_dtype.is_scalable_vector();
+
+  ICHECK(!(is_index_scalable && is_buffer_dtype_scalable))
+      << "Index dtype and buffer dtype can't both be scalable.";
+
+  int index_lanes;
+  if (indices.empty()) {
+    index_lanes = 1;
+  } else if (is_index_scalable) {
+    index_lanes = indices.back().dtype().vscale_factor();
+  } else {
+    index_lanes = indices.back().dtype().lanes();
+  }
+
+  int buffer_lanes = is_buffer_dtype_scalable ? buffer_dtype.vscale_factor() : buffer_dtype.lanes();
+
+  runtime::DataType lhs_dtype;
+  if (is_buffer_dtype_scalable || is_index_scalable) {
+    lhs_dtype = buffer_dtype.with_scalable_vscale_factor(buffer_lanes * index_lanes);
+  } else {
+    lhs_dtype = buffer_dtype.with_lanes(buffer_dtype.lanes() * index_lanes);
+  }
+
   runtime::DataType rhs_dtype = value->dtype;
+
   if (lhs_dtype != rhs_dtype) {
-    if (lhs_dtype.lanes() != rhs_dtype.lanes()) {
+    ICHECK(lhs_dtype.is_scalable_vector() == rhs_dtype.is_scalable_vector())
+        << "Can't mix scalable and fixed length vectors in a statement";
+
+    bool lanes_match = false;
+    if (lhs_dtype.is_scalable_vector()) {
+      lanes_match = lhs_dtype.vscale_factor() == rhs_dtype.vscale_factor();
+    } else {
+      lanes_match = lhs_dtype.lanes() == rhs_dtype.lanes();
+    }
+
+    if (!lanes_match) {
       LOG(FATAL) << "TypeError: Incompatible types in BufferStore"
                  << ": LHS is `" << lhs_dtype << "`, RHS is `" << rhs_dtype
                  << "`, indexing lanes: " << index_lanes;
@@ -576,8 +615,8 @@ TVM_STATIC_IR_FUNCTOR(Namer, vtable)
       int n = buffer->strides.size();
       for (int i = 0; i < n; ++i) {
         PrimExpr e = buffer->strides[i];
-        if (const tvm::tir::VarNode* v = e.as<tvm::tir::VarNode>()) {
-          Namer::Name(GetRef<tvm::tir::Var>(v), name + "_s" + std::to_string(i));
+        if (auto v = e.as<tvm::tir::Var>()) {
+          Namer::Name(v.value(), name + "_s" + std::to_string(i));
         }
       }
     });
@@ -608,11 +647,11 @@ TVM_REGISTER_GLOBAL("script.ir_builder.tir.PrimFunc").set_body_typed(PrimFunc);
 TVM_REGISTER_GLOBAL("script.ir_builder.tir.Arg")
     .set_body_typed([](String name, ObjectRef obj) -> ObjectRef {
       using namespace tvm::tir;
-      if (const auto* var = obj.as<VarNode>()) {
-        return Arg(name, GetRef<tvm::tir::Var>(var));
+      if (auto var = obj.as<Var>()) {
+        return Arg(name, var.value());
       }
-      if (const auto* buffer = obj.as<BufferNode>()) {
-        return Arg(name, GetRef<Buffer>(buffer));
+      if (auto buffer = obj.as<Buffer>()) {
+        return Arg(name, buffer.value());
       }
       LOG(FATAL) << "ValueError: Unexpected type for TIR Arg: " << obj->GetTypeKey();
       throw;
@@ -657,10 +696,10 @@ TVM_REGISTER_GLOBAL("script.ir_builder.tir.Else").set_body_typed(Else);
 TVM_REGISTER_GLOBAL("script.ir_builder.tir.DeclBuffer").set_body_typed(DeclBuffer);
 TVM_REGISTER_GLOBAL("script.ir_builder.tir.LaunchThread")
     .set_body_typed([](ObjectRef thread_tag_or_var, PrimExpr extent) {
-      if (const auto* var = thread_tag_or_var.as<tvm::tir::VarNode>()) {
-        return LaunchThread(GetRef<tvm::tir::Var>(var), extent);
-      } else if (const auto* str = thread_tag_or_var.as<StringObj>()) {
-        return LaunchThread(GetRef<String>(str), extent);
+      if (auto var = thread_tag_or_var.as<tvm::tir::Var>()) {
+        return LaunchThread(var.value(), extent);
+      } else if (auto str = thread_tag_or_var.as<String>()) {
+        return LaunchThread(str.value(), extent);
       } else {
         LOG(FATAL) << "ValueError: Unexpected type for TIR LaunchThread: "
                    << thread_tag_or_var->GetTypeKey();

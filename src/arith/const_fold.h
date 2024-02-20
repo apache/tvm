@@ -72,7 +72,8 @@ inline Optional<PrimExpr> TryConstFold(PrimExpr a);
  * \return the checked result.
  */
 inline bool IsIndexType(const DataType& type) {
-  return type.is_int() && type.lanes() == 1 && (type.bits() == 32 || type.bits() == 64);
+  return type.is_int() && !type.is_scalable_or_fixed_length_vector() &&
+         (type.bits() == 32 || type.bits() == 64);
 }
 
 /*! \brief Helper to get const folding result repr in int64. */
@@ -441,7 +442,7 @@ struct SymbolicLimits {
 /*!
  * \brief Opaque expression representing positive infinity.
  *
- *  It can can only be used as parameter of by min/max
+ *  It can only be used as parameter of by min/max
  *  for integer analysis and cannot be used in normal expressions.
  *
  * \return positive infinity.
@@ -459,7 +460,7 @@ inline bool is_pos_inf(const PrimExpr& value) { return value.same_as(SymbolicLim
 /*!
  * \brief Opaque expression representing negative infinity.
  *
- *  It can can only be used as parameter of by min/max
+ *  It can only be used as parameter of by min/max
  *  for integer analysis and cannot be used in normal expressions.
  *
  * \return negative infinity.
