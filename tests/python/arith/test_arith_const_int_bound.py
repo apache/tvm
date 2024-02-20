@@ -43,8 +43,33 @@ class TestCase:
         return str(self.expr)
 
 
+with_reciprocal_pattern_match = tvm.testing.parameter(
+    by_dict={
+        "with_updated_const_int_analyzer": True,
+        "without_updated_const_int_analyzer": False,
+    }
+)
+
+import pytest
+
+
+@pytest.fixture(autouse=True)
+def set_reciprocal_pattern_match(with_reciprocal_pattern_match):
+    import os
+
+    var_name = "TVM_ENABLE_RECIPROCAL_PATTERN_MATCH"
+    old_value = os.environ.get(var_name)
+    os.environ[var_name] = str(int(with_reciprocal_pattern_match))
+    yield
+
+    if old_value is None:
+        del os.environ[var_name]
+    else:
+        os.environ = old_value
+
+
 class BaseCompare:
-    def test_const_bounds(self, test_case):
+    def test_const_bounds(self, test_case, benchmark):
         analyzer = tvm.arith.Analyzer()
 
         for var, bounds in test_case.known_bounds.items():
@@ -54,7 +79,7 @@ class BaseCompare:
             if test_case.constraint is not None:
                 stack.enter_context(analyzer.constraint_scope(test_case.constraint))
 
-            bounds = analyzer.const_int_bound(test_case.expr)
+            bounds = benchmark(analyzer.const_int_bound, test_case.expr)
 
         if test_case.expected_bounds[0] is None:
             assert bounds.max_value == test_case.expected_bounds[1]
