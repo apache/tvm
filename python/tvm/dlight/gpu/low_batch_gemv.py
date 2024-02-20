@@ -207,10 +207,9 @@ def normalize(
 
 class LowBatchGEMV(GPUScheduleRule):
     """A rule for low batch GEMM / decode-GEMM."""
-    
-    def __init__(self, bucket = 4):
+
+    def __init__(self, bucket=4):
         self.bucket = bucket
-        
 
     def apply(  # pylint: disable=too-many-locals,too-many-branches,too-many-return-statements
         self,
@@ -246,7 +245,11 @@ class LowBatchGEMV(GPUScheduleRule):
                 dequantize_block = block_info.block_rv
             elif "pad" in block_info.name and len(sch.get_producers(block_info.block_rv)) == 0:
                 pad_input_block = block_info.block_rv
-        block_infos = [block_info for block_info in block_infos if "pad" not in block_info.name and "dequantize" not in block_info.name]
+        block_infos = [
+            block_info
+            for block_info in block_infos
+            if "pad" not in block_info.name and "dequantize" not in block_info.name
+        ]
         block_infos = try_inline_contiguous_spatial(sch, block_infos)
         if len(block_infos) == 1:
             epilogue = None
@@ -273,7 +276,16 @@ class LowBatchGEMV(GPUScheduleRule):
         if is_inner_reduction is None:
             return None
         elif is_inner_reduction:
-            self.sch_inner_reduction(sch, target, block, dequantize_block, pad_input_block, vector_input_buffers, epilogue, batch_pad)
+            self.sch_inner_reduction(
+                sch,
+                target,
+                block,
+                dequantize_block,
+                pad_input_block,
+                vector_input_buffers,
+                epilogue,
+                batch_pad,
+            )
             return sch
         else:
             raise NotImplementedError("Outer reduction is not supported yet")
@@ -360,7 +372,7 @@ class LowBatchGEMV(GPUScheduleRule):
             if dequantize_block is not None:
                 sch.compute_at(dequantize_block, r, preserve_unit_loops=True)
                 sch.set_scope(dequantize_block, 0, "local")
-            
+
                 s_local, r_local = sch.get_loops(block=dequantize_block)[-2:]
                 s_local, vec_load = sch.split(
                     s_local, factors=[None, VEC_LOAD], preserve_unit_iters=True
