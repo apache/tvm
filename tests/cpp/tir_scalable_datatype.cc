@@ -158,7 +158,7 @@ TEST(ScalableDataType, TestScalableDataTypeInvalidLanesAccess) {
 // -----------
 // Integration
 // -----------
-#if TVM_LLVM_VERSION >= 120
+#if TVM_LLVM_VERSION >= 130
 TEST(ScalableDataType, TestScalableIntrinCall) {
   tvm::DataType scalable_type = tvm::DataType(kDLInt, 32, 4, true);
   tvm::tir::Call call = tvm::tir::Call(

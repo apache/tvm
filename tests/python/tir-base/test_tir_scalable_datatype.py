@@ -20,6 +20,7 @@ import pytest
 import tvm
 from tvm import tir
 from tvm.script import tir as T
+from tvm.target.codegen import llvm_version_major
 
 """
 Tests for scalable data types.
@@ -31,12 +32,14 @@ def test_create_scalable_data_type_python_api():
     assert str(dtype) == "float32xvscalex4"
 
 
+@pytest.mark.skipif(llvm_version_major() < 13, reason="Stepvector intrinsic was added in LLVM 13.")
 def test_create_scalable_tir_intrin():
     intrin = tir.call_llvm_intrin("int32xvscalex4", "llvm.experimental.stepvector")
     assert intrin.dtype == "int32xvscalex4"
     assert str(intrin) == 'T.call_llvm_intrin("int32xvscalex4", "llvm.experimental.stepvector")'
 
 
+@pytest.mark.skipif(llvm_version_major() < 13, reason="Stepvector intrinsic was added in LLVM 13.")
 def test_tvm_script_create_scalable_tir_intrin():
     @T.prim_func
     def my_func():
