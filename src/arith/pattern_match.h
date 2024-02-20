@@ -628,10 +628,11 @@ inline PRampExpr<TBase, TStride, TLanes> ramp(const Pattern<TBase>& base,
 }
 
 template <typename TBase>
-inline PRampExpr<TBase, PConstWithTypeLike<TBase>, PConst<int>> ramp(const Pattern<TBase>& base,
-                                                                     int stride, int lanes) {
-  return PRampExpr<TBase, PConstWithTypeLike<TBase>, PConst<int>>(
-      base.derived(), PConstWithTypeLike<TBase>(base.derived(), stride), PConst<int>(lanes));
+inline PRampExpr<TBase, PConstWithTypeLike<TBase>, PConstWithTypeLike<TBase>> ramp(
+    const Pattern<TBase>& base, int stride, int lanes) {
+  return PRampExpr<TBase, PConstWithTypeLike<TBase>, PConstWithTypeLike<TBase>>(
+      base.derived(), PConstWithTypeLike<TBase>(base.derived(), stride),
+      PConstWithTypeLike<TBase>(base.derived(), lanes));
 }
 
 /*!
@@ -835,6 +836,12 @@ inline PCallExpr<PIfThenElseOp, TCond, TA, TB> if_then_else(const Pattern<TCond>
                                                  false_value.derived());
 }
 
+// vscale
+struct PVscaleOp {
+  static PrimExpr Eval() { return tir::Call(DataType::Int(32), GetOp(), {}); }
+  static const Op& GetOp() { return tir::builtin::vscale(); }
+};
+
 template <typename... TPattern>
 class PMatchesOneOf {
  public:
@@ -914,7 +921,6 @@ inline std::enable_if_t<(std::is_base_of_v<Pattern<TPattern>, TPattern> && ... &
 matches_one_of(const TPattern&... patterns) {
   return PMatchesOneOf<TPattern...>(patterns...);
 }
-
 }  // namespace arith
 }  // namespace tvm
 #endif  // TVM_ARITH_PATTERN_MATCH_H_

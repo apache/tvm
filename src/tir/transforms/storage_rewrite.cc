@@ -1327,9 +1327,12 @@ class VectorTypeAccessChecker : public StmtExprVisitor {
     if (indices.size()) {
       const RampNode* ramp_index = indices[indices.size() - 1].as<RampNode>();
       if (ramp_index && is_one(ramp_index->stride)) {
-        arith::ModularSet me = analyzer_.modular_set(ramp_index->base);
-        if ((me->coeff % ramp_index->lanes == 0) && (me->base % ramp_index->lanes == 0)) {
-          lanes_used = ramp_index->lanes;
+        if (ramp_index->lanes->IsInstance<IntImmNode>()) {
+          int lanes = static_cast<int>(Downcast<IntImm>(ramp_index->lanes)->value);
+          arith::ModularSet me = analyzer_.modular_set(ramp_index->base);
+          if ((me->coeff % lanes == 0) && (me->base % lanes == 0)) {
+            lanes_used = lanes;
+          }
         }
       }
     }
@@ -1462,13 +1465,13 @@ class VectorTypeRewriter : public StmtExprMutator {
 
     Array<PrimExpr> indices = node->indices;
     const PrimExpr& last_dim_index = indices[indices.size() - 1];
-    if (const RampNode* ramp_index = last_dim_index.as<RampNode>();
-        ramp_index && is_one(ramp_index->stride)) {
-      PrimExpr new_index =
-          ramp_index->base / make_const(ramp_index->base.dtype(), ramp_index->lanes);
-      if (ramp_index->lanes != info.factor()) {
-        ICHECK(info.factor() && ramp_index->lanes % info.factor() == 0);
-        int new_lanes = ramp_index->lanes / info.factor();
+    const RampNode* ramp_index = indices[indices.size() - 1].as<RampNode>();
+    if (ramp_index && is_one(ramp_index->stride) && ramp_index->lanes->IsInstance<IntImmNode>()) {
+      int lanes = static_cast<int>(Downcast<IntImm>(ramp_index->lanes)->value);
+      PrimExpr new_index = ramp_index->base / make_const(ramp_index->base.dtype(), lanes);
+      if (lanes != info.factor()) {
+        ICHECK(info.factor() && lanes % info.factor() == 0);
+        int new_lanes = lanes / info.factor();
         new_index = Ramp(new_index * new_lanes, ramp_index->stride, new_lanes, ramp_index->span);
       }
       indices.Set(indices.size() - 1, new_index);
