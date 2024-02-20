@@ -208,7 +208,7 @@ def normalize(
 class LowBatchGEMV(GPUScheduleRule):
     """A rule for low batch GEMM / decode-GEMM."""
     
-    def __init__(self, bucket = 1):
+    def __init__(self, bucket = 4):
         self.bucket = bucket
         
 
