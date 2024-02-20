@@ -31,7 +31,6 @@ from ..base import (
     try_inline_contiguous_spatial,
 )
 from .base import GPUScheduleRule
-from .matmul import auto_inline_producers
 
 
 def _get_reduction_expr(block: tir.Block) -> Optional[tir.PrimExpr]:
