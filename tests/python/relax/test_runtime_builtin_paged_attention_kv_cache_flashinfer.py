@@ -447,11 +447,11 @@ def apply_attention(
             keys = tvm.nd.array(keys_np, device=device)
             values = tvm.nd.array(values_np, device=device)
             outputs = tvm.nd.empty(queries.shape, dtype, device=device)
-            fattention(kv_cache, layer_id, queries, keys, values, outputs)
+            fattention(kv_cache, layer_id, 1.0, queries, keys, values, outputs)
         else:
             qkv = tvm.nd.array(np.concatenate([queries_np, keys_np, values_np], axis=1), device)
             outputs = tvm.nd.empty(queries_np.shape, dtype, device=device)
-            fattention_with_fuse_qkv(kv_cache, layer_id, qkv, outputs)
+            fattention_with_fuse_qkv(kv_cache, layer_id, 1.0, qkv, outputs)
 
         # Compute attention expected results.
         outputs = np.expand_dims(outputs.numpy(), axis=0)

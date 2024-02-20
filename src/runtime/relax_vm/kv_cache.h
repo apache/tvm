@@ -135,7 +135,8 @@ class AttentionKVCache : public Object {
    * \param o_data The output O data, in layout `(total_length, num_qo_heads, head_dim)`.
    */
   virtual void Attention(int64_t layer_id, NDArray q_data, NDArray k_data, NDArray v_data,
-                         Optional<NDArray> mask, NDArray o_data) = 0;
+                         Optional<NDArray> mask, NDArray o_data,
+                         double attn_score_scaling_factor) = 0;
 
   /*!
    * \brief Compute attention with Q/K/V data which are concatenated along
@@ -148,7 +149,7 @@ class AttentionKVCache : public Object {
    * \sa AttentionKVCache::Attention
    */
   virtual void AttentionWithFusedQKV(int64_t layer_id, NDArray qkv_data, Optional<NDArray> mask,
-                                     NDArray o_data) = 0;
+                                     NDArray o_data, double attn_score_scaling_factor) = 0;
 
   /************** Positions **************/
 
