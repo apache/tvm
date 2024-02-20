@@ -28,6 +28,9 @@ from tvm.testing.aot import AOTTestRunner, compile_and_run, AOTTestModel
 
 
 def test_output_on_mismatch_option():
+    """
+    Test the print_output_on_mismatch option when there is a mismatch.
+    """
     interface_api = "packed"
     use_unpacked_api = True
     test_runner = AOTTestRunner()
@@ -43,7 +46,7 @@ def test_output_on_mismatch_option():
         ).astype(dtype)
     }
 
-    msg = ".*Actual, Reference\n" "2.000000, 0.000000\n" "AOT_TEST_FAILURE.*"
+    msg = ".*Actual, Reference\n2.000000, 0.000000\nAOT_TEST_FAILURE.*"
     with pytest.raises(RuntimeError, match=msg):
         compile_and_run(
             AOTTestModel(module=tvm.IRModule.from_expr(func), inputs={}, outputs=outputs),
