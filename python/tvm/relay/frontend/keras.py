@@ -1037,8 +1037,7 @@ def _convert_lstm(
         out_gate = _convert_recurrent_activation(gates[3], keras_layer)
         next_h = out_gate * _convert_activation(next_c, keras_layer, etab, data_layout)
         if keras_layer.return_sequences:
-            out_shape = (*input_shape[:-1], units)
-            out_list.append(_op.reshape(next_h, newshape=out_shape))
+            out_list.append(_op.expand_dims(next_h, axis=1))
     out = _op.concatenate(out_list, axis=1) if keras_layer.return_sequences else next_h
     return [out, next_h, next_c]
 
