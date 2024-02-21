@@ -558,7 +558,6 @@ class TestKeras:
         data = keras_mod.layers.Input(shape=(10, 32))
         rnn_funcs = [
             keras_mod.layers.LSTM(16),
-            keras_mod.layers.LSTM(16, batch_size=2),
             keras_mod.layers.LSTM(16, return_sequences=True),
             keras_mod.layers.LSTM(16, go_backwards=True),
             keras_mod.layers.LSTM(16, return_sequences=True, go_backwards=True),
@@ -568,6 +567,7 @@ class TestKeras:
             x = rnn_func(data)
             keras_model = keras_mod.models.Model(data, x)
             verify_keras_frontend(keras_model, need_transpose=False)
+            verify_keras_frontend(keras_model, need_transpose=False, batch_size=2)
 
     def test_forward_rnn(self, keras_mod):
         """test_forward_rnn"""
