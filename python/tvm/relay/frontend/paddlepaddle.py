@@ -314,6 +314,7 @@ def convert_conv2d(g, op, block):
     strides = op.attr("strides")
 
     kernel = g.get_node(op.input("Filter")[0])
+    kernel_layout = "OIHW"
     input_x = g.get_node(op.input("Input")[0])
     data_layout = op.attr("data_format")
     out_channels, _, k_h, k_w = infer_shape(kernel)
@@ -335,6 +336,16 @@ def convert_conv2d(g, op, block):
         msg = f'Value {padding_algorithm} in attribute "padding" of operator Conv is not "valid."'
         raise tvm.error.OpAttributeInvalid(msg)
 
+    if data_layout == "NHWC":
+        kernel_layout = "HWIO"
+        # PaddlePaddle wieght layout is "OIHW", tvm need "HWIO" when op data_format is "NHWC"
+        kernel_data = g.get_params(op.input("Filter")[0])
+        kernel_data = kernel_data.asnumpy()
+        kernel_data = kernel_data.transpose((2, 3, 1, 0))
+        kernel_data = _nd.array(kernel_data)
+        g.modify_node(op.input("Filter")[0], kernel_data)
+        kernel = g.get_node(op.input("Filter")[0])
+
     out = _op.nn.conv2d(
         input_x,
         kernel,
@@ -345,6 +356,7 @@ def convert_conv2d(g, op, block):
         channels=out_channels,
         kernel_size=[k_h, k_w],
         data_layout=data_layout,
+        kernel_layout=kernel_layout,
     )
     g.add_node(op.output("Output")[0], out)
 
@@ -2914,6 +2926,12 @@ class GraphProto:
         """add a node to graph"""
 
         self.nodes[name] = fold_constant(node)
+
+    def modify_node(self, name, params):
+        """modify node from graph"""
+
+        self.params[name] = params
+        self.nodes[name] = new_var(name, shape=params.shape, dtype=params.dtype)
 
     def get_params(self, name=None):
         """Get params from graph."""
