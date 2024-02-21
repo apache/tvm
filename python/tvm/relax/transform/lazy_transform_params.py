@@ -83,7 +83,7 @@ class LivenessAnalysis(PyExprVisitor):
     """
 
     def __init__(self, out_tuple_var: relax.Var) -> None:
-        self.last_appear_in_var_binding = None
+        self.last_appear_in_var_binding = []
         self.out_tuple_var = out_tuple_var
         self.var_liveness_end = {}
         self.ended_vars = set()
@@ -164,6 +164,11 @@ class LazyTransformParamsFuncCreator:
 
         new_body = new_func.body
         if self.fset_item is not None:
+            # The LazyOutputMutator only inspects variable bindings
+            # for replacement.  If the output tuple includes elements
+            # that do not have a variable binding, such as
+            # `relax.Const`, these must still produce a call to the
+            # `"set_item"` function.
             leaf_outputs = {
                 expr: indices
                 for expr, indices in self.out_tuple_map.items()
