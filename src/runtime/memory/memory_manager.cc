@@ -83,7 +83,7 @@ inline size_t GetDataAlignment(const DLTensor& arr) {
   return align;
 }
 
-NDArray StorageObj::AllocNDArray(size_t offset, ShapeTuple shape, DLDataType dtype) {
+NDArray StorageObj::AllocNDArray(int64_t offset, ShapeTuple shape, DLDataType dtype) {
   VerifyDataType(dtype);
 
   // crtical zone: allocate header, cannot throw
@@ -101,6 +101,14 @@ NDArray StorageObj::AllocNDArray(size_t offset, ShapeTuple shape, DLDataType dty
   // reference count, then destroy the container, but leave the underlying
   // buffer intact.
   container->manager_ctx = reinterpret_cast<void*>(this);
+
+  if (this->buffer.device.device_type == kDLHexagon) {
+    // For Hexagon, non-zero offset support simply requires adjusting the
+    // beginning of data pointer
+    auto offset_ptr = reinterpret_cast<uint8_t*>(this->buffer.data) + offset;
+    container->dl_tensor.data = reinterpret_cast<void*>(offset_ptr);
+    container->dl_tensor.byte_offset = 0;
+  }
 
   NDArray ret(GetObjectPtr<Object>(container));
   // RAII in effect, now run the check.

@@ -2163,6 +2163,31 @@ def test_forward_broadcast_tensors():
 
 
 @tvm.testing.uses_gpu
+def test_forward_broadcast_to():
+    """test_forward_broadcast_to"""
+    torch.set_grad_enabled(False)
+
+    class BroadCastTo1(Module):
+        def forward(self, x):
+            return torch.broadcast_to(x, (3, 3))
+
+    x = torch.tensor([1, 2, 3])
+    verify_model(BroadCastTo1().float().eval(), input_data=[x])
+
+    class BroadCastTo2(Module):
+        def __init__(self):
+            super().__init__()
+            self.y = torch.tensor(1)
+            self.z = torch.tensor(2)
+
+        def forward(self, x):
+            return torch.broadcast_to(x, (self.y + self.z, 3))
+
+    x = torch.tensor([1, 2, 3])
+    verify_model(BroadCastTo2().float().eval(), input_data=[x])
+
+
+@tvm.testing.uses_gpu
 def test_forward_pow():
     """test_forward_pow"""
     torch.set_grad_enabled(False)
@@ -3607,6 +3632,10 @@ def test_forward_linspace():
         def forward(self, *args):
             return torch.linspace(1, 2, 1, dtype=torch.int16)
 
+    class Linspace9(Module):
+        def forward(self, *args):
+            return torch.linspace(0, 8, 10)
+
     verify_model(Linspace1().float().eval())
     verify_model(Linspace2().float().eval())
     verify_model(Linspace3().float().eval())
@@ -3615,6 +3644,7 @@ def test_forward_linspace():
     verify_model(Linspace6().float().eval())
     verify_model(Linspace7().float().eval())
     verify_model(Linspace8().float().eval())
+    verify_model(Linspace9().float().eval())
 
 
 @tvm.testing.uses_gpu
@@ -4420,6 +4450,7 @@ def test_forward_nonzero():
 
     inp = torch.Tensor(np.array([[0, 1, 0], [2, 0, 9], [-1, -1, 0]]).astype("float32"))
     verify_trace_model(Nonzero(), [inp], ["llvm"])
+    verify_trace_model(Nonzero(as_tuple=True), [inp], ["llvm"])
 
 
 def test_forward_scatter():
@@ -4846,6 +4877,21 @@ def test_logical_and():
 
     def test_fn(x, y):
         return torch.logical_and(x, y)
+
+    a = torch.tensor([0, 1, 10, 0], dtype=torch.int8)
+    b = torch.tensor([4, 0, 1, 0], dtype=torch.int8)
+    verify_model(test_fn, [a, b])
+
+    a = torch.tensor([True, False, True])
+    b = torch.tensor([True, False, False])
+    verify_model(test_fn, [a, b])
+
+
+def test_logical_or():
+    """test_logical_or"""
+
+    def test_fn(x, y):
+        return torch.logical_or(x, y)
 
     a = torch.tensor([0, 1, 10, 0], dtype=torch.int8)
     b = torch.tensor([4, 0, 1, 0], dtype=torch.int8)

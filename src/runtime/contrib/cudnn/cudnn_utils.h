@@ -114,6 +114,21 @@ void SetConvDescriptors(CuDNNThreadEntry* entry_ptr, int format, int dims, int g
                         int64_t w_dim[], int64_t y_dim[], DLDataType data_dtype,
                         const std::string& conv_dtype);
 
+void FindAlgo(int format, int dims, int groups, const int pad[], const int stride[],
+              const int dilation[], const int x_dim[], const int w_dim[], const int y_dim[],
+              const std::string& data_dtype, const std::string& conv_dtype, bool verbose,
+              runtime::TVMRetValue* ret);
+
+void ConvolutionForward(int mode, int format, int algo, int dims, int groups, const int pad[],
+                        const int stride[], const int dilation[], const DLTensor* x,
+                        const DLTensor* w, const DLTensor* y, const std::string& conv_dtype);
+
+void ConvolutionBiasActivationForward(int mode, int format, int algo, int dims, int groups, int act,
+                                      double coef, const int pad[], const int stride[],
+                                      const int dilation[], const DLTensor* x, const DLTensor* w,
+                                      const DLTensor* y, const DLTensor* bias,
+                                      const std::string& conv_dtype);
+
 }  // namespace contrib
 }  // namespace tvm
 

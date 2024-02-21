@@ -27,6 +27,7 @@ import tvm.topi.testing
 
 from tvm import te, topi, tir
 
+
 in_shape, axis, keepdims, reduce_type, dtype = tvm.testing.parameters(
     ((32,), 0, False, "argmax", "float32"),
     ((128, 24, 128, 24), (1, 2, 3), True, "sum", "float32"),

@@ -21,7 +21,7 @@
  * \file codegen_webgpu.h
  * \brief Generate WebGPU shaders in WGSL.
  *
- * This module generates WGSL shading langauge.
+ * This module generates WGSL shading language.
  * See https://www.w3.org/TR/WGSL/ for the language reference.
  */
 #ifndef TVM_TARGET_SOURCE_CODEGEN_WEBGPU_H_
@@ -40,7 +40,7 @@ namespace codegen {
  * \brief WebGPU code generator.
  *
  * Note WGSL have a different syntax from normal C.
- * We only leevrage the C for expression generation and
+ * We only leverage the C for expression generation and
  * write most of the language generations.
  */
 class CodeGenWebGPU final : public CodeGenC {
@@ -48,9 +48,8 @@ class CodeGenWebGPU final : public CodeGenC {
   explicit CodeGenWebGPU(Target target);
   // overrides
   std::string Finish() final;
-  void PrintFunctionSignature(const String& function_name, const PrimFunc& func,
-                              std::ostream& os) final;
-  void AddFunction(const GlobalVar& gvar, const PrimFunc& f) final;
+  using CodeGenC::AddFunction;
+  runtime::FunctionInfo AddFunction(const PrimFunc& f, bool skip_readonly_decl);  // NOLINT(*)
   void InitFuncState(const PrimFunc& f) final;
   void PrintStorageSync(const CallNode* op) final;     // NOLINT(*)
   void PrintType(DataType t, std::ostream& os) final;  // NOLINT(*)
@@ -73,19 +72,27 @@ class CodeGenWebGPU final : public CodeGenC {
   void VisitStmt_(const BufferStoreNode* op) final;
   void VisitStmt_(const ForNode* op) final;
   void VisitStmt_(const AllocateNode* op) final;
-  void VisitStmt_(const AttrStmtNode* op) final;
   void VisitStmt_(const AssertStmtNode* op) final;
   void VisitStmt_(const AllocateConstNode* op) final;
+  void VisitStmt_(const WhileNode* op) final;
 
  private:
   /*!
-   * \brief Records the workgroup size of the kernel.
+   * \brief Enforce value to be U32.
    */
-  uint32_t workgroup_size_[3];
+  static PrimExpr EnforceU32(PrimExpr value);
   /*!
    * \brief Storage type of bool values.
    */
   DataType boolean_storage_type_{DataType::Int(8)};
+
+  // whether enable fp16
+  bool enable_fp16_{false};
+
+  /*! \brief the header stream for function label and enable directive if any, goes before any other
+   * declaration */
+  std::ostringstream header_stream;
+
   Target target_;
 };
 }  // namespace codegen

@@ -178,19 +178,24 @@ TVM_REGISTER_GLOBAL("topi.strided_slice").set_body([](TVMArgs args, TVMRetValue*
   Array<PrimExpr> begin = args[1];
   Array<PrimExpr> end = args[2];
   Array<PrimExpr> strides = args[3];
-  if (IsConstIntArray(begin) && IsConstIntArray(end) && IsConstIntArray(strides)) {
+  Array<Integer> axes = args[4];
+  if (IsConstIntArray(begin) && IsConstIntArray(end) && IsConstIntArray(strides) &&
+      IsConstIntArray(x->shape)) {
     Array<Integer> begin_static = args[1];
     Array<Integer> end_static = args[2];
     Array<Integer> strides_static = args[3];
-    Array<Integer> axes = args[4];
     std::string slice_mode = args[5];
-    if (axes.size() > 0) {
+    if (axes.size()) {
       *rv = strided_slice_with_axes(x, begin_static, end_static, strides_static, axes, slice_mode);
     } else {
       *rv = strided_slice(x, begin_static, end_static, strides_static, slice_mode);
     }
   } else {
-    *rv = dynamic_strided_slice(x, begin, end, strides);
+    if (axes.size()) {
+      *rv = dynamic_strided_slice_with_axes(x, begin, end, strides, axes);
+    } else {
+      *rv = dynamic_strided_slice(x, begin, end, strides);
+    }
   }
 });
 
@@ -199,6 +204,14 @@ TVM_REGISTER_GLOBAL("topi.dynamic_strided_slice").set_body([](TVMArgs args, TVMR
   te::Tensor end = args[2];
   te::Tensor strides = args[3];
   *rv = dynamic_strided_slice(args[0], begin, end, strides);
+});
+
+TVM_REGISTER_GLOBAL("topi.relax_dynamic_strided_slice").set_body([](TVMArgs args, TVMRetValue* rv) {
+  te::Tensor begin = args[1];
+  te::Tensor end = args[2];
+  te::Tensor strides = args[3];
+  Array<PrimExpr> output_shape = args[4];
+  *rv = relax::dynamic_strided_slice(args[0], begin, end, strides, output_shape);
 });
 
 TVM_REGISTER_GLOBAL("topi.one_hot").set_body([](TVMArgs args, TVMRetValue* rv) {

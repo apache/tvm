@@ -28,5 +28,5 @@ apt-install-and-clear -y curl
 
 # The node install script fetched and executed here will update the
 # apt source list, hence the second apt-get update --fix-missing is necessary.
-curl -s -S -L https://deb.nodesource.com/setup_14.x | bash -
+curl -s -S -L https://deb.nodesource.com/setup_16.x | bash -
 apt-install-and-clear -y nodejs

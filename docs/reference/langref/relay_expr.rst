@@ -503,7 +503,7 @@ in scope in its value to allow for recursively defined functions
 The value of a :code:`let` binding is the value of the final expression
 after evaluating the bindings it depends on. For example, in the
 following example the entire expression evaluates to a tensor
-of shape :code:`(10, 10)` where all elements are 2:
+of shape :code:`(10, 10)` where all elements are 1:
 
 .. code-block::
 

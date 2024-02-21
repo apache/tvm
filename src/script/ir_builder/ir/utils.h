@@ -41,6 +41,17 @@ inline IRModuleFrame FindModuleFrame(const String& method) {
   throw;
 }
 
+inline IRModuleFrame FindModuleFrame() {
+  IRBuilder builder = IRBuilder::Current();
+  if (Optional<IRModuleFrame> frame = builder->FindFrame<IRModuleFrame>()) {
+    return frame.value();
+  } else {
+    LOG(FATAL) << "ValueError: IRModule frame not find. Please ensure it"
+               << " is called under I.ir_module()";
+  }
+  throw;
+}
+
 }  // namespace ir
 }  // namespace ir_builder
 }  // namespace script

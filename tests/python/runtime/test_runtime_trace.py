@@ -212,10 +212,4 @@ def test_trace_can_change_traced_value_float():
 
 
 if __name__ == "__main__":
-    test_trace_expr_assign()
-    test_trace_expr_sum_generated()
-    test_trace_expr_sum_custom()
-    test_trace_expr_sum_args()
-    test_trace_default_action()
-    test_trace_can_change_traced_value_int()
-    test_trace_can_change_traced_value_float()
+    tvm.testing.main()

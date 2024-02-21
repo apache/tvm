@@ -832,6 +832,16 @@ def _any_gpu_exists():
     )
 
 
+def _multi_gpu_exists():
+    return (
+        (tvm.cuda(0).exist and tvm.cuda(1).exist)
+        or (tvm.rocm(0).exist and tvm.rocm(1).exist)
+        or (tvm.opencl(0).exist and tvm.opencl(1).exist)
+        or (tvm.metal(0).exist and tvm.metal(1).exist)
+        or (tvm.vulkan(0).exist and tvm.vulkan(1).exist)
+    )
+
+
 # Mark a test as requiring llvm to run
 requires_llvm = Feature(
     "llvm", "LLVM", cmake_flag="USE_LLVM", target_kind_enabled="llvm", target_kind_hardware="llvm"
@@ -846,6 +856,16 @@ requires_gpu = Feature("gpu", run_time_check=_any_gpu_exists)
 # To mark a test that must have a GPU present to run, use
 # :py:func:`tvm.testing.requires_gpu`.
 uses_gpu = requires_gpu(support_required="optional")
+
+# Mark a test as requiring multiple GPUs to run.
+requires_multi_gpu = Feature("multi_gpu", run_time_check=_multi_gpu_exists)
+
+# Mark to differentiate tests that use multiple GPUs in some capacity.
+#
+# These tests will be run on test nodes with multiple GPUs.
+# To mark a test that must have multiple GPUs present to run, use
+# :py:func:`tvm.testing.requires_multi_gpu`.
+uses_multi_gpu = requires_multi_gpu(support_required="optional")
 
 # Mark a test as requiring the x86 Architecture to run.
 requires_x86 = Feature(
@@ -968,6 +988,9 @@ requires_ethosu = Feature("ethosu", "Arm(R) Ethos(TM)-U", cmake_flag="USE_ETHOSU
 
 # Mark a test as requiring libtorch to run
 requires_libtorch = Feature("libtorch", "LibTorch", cmake_flag="USE_LIBTORCH")
+
+# Mark a test as requiring the MRVL Library
+requires_mrvl = Feature("mrvl", "Marvell", cmake_flag="USE_MRVL")
 
 # Mark a test as requiring Hexagon to run
 requires_hexagon = Feature(
@@ -1938,7 +1961,7 @@ class CompareBeforeAfter:
 
     @classmethod
     def _normalize_ir_module(cls, func):
-        if isinstance(func, tvm.tir.PrimFunc):
+        if isinstance(func, (tvm.tir.PrimFunc, tvm.IRModule)):
 
             def inner(self):
                 # pylint: disable=unused-argument
@@ -2042,8 +2065,7 @@ class CompareBeforeAfter:
 
     @staticmethod
     def _is_method(func):
-        sig = inspect.signature(func)
-        return "self" in sig.parameters
+        return callable(func) and "self" in inspect.signature(func).parameters
 
     def test_compare(self, before, expected, transform):
         """Unit test to compare the expected TIR PrimFunc to actual"""

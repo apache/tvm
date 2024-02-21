@@ -549,7 +549,11 @@ void PythonDocPrinter::PrintTypedDoc(const AssignDoc& doc) {
   if (doc->rhs) {
     output_ << " = ";
     if (const auto* tuple_doc = doc->rhs.as<TupleDocNode>()) {
-      PrintJoinedDocs(tuple_doc->elements, ", ");
+      if (tuple_doc->elements.size() > 1) {
+        PrintJoinedDocs(tuple_doc->elements, ", ");
+      } else {
+        PrintDoc(doc->rhs.value());
+      }
     } else {
       PrintDoc(doc->rhs.value());
     }

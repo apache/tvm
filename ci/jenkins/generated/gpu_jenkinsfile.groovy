@@ -60,7 +60,7 @@
 // 'python3 jenkins/generate.py'
 // Note: This timestamp is here to ensure that updates to the Jenkinsfile are
 // always rebased on main before merging:
-// Generated at 2023-06-09T15:32:58.400867
+// Generated at 2024-01-10T13:15:25.186261
 
 import org.jenkinsci.plugins.pipeline.modeldefinition.Utils
 // These are set at runtime from data in ci/jenkins/docker-images.yml, update
@@ -493,10 +493,12 @@ def make_standalone_crt(image, build_dir) {
       set -eux
       ${docker_run} ${image} python3 ./tests/scripts/task_build.py \
         --sccache-bucket tvm-sccache-prod \
+        --sccache-region us-west-2 \
         --cmake-target standalone_crt \
         --build-dir build
       ${docker_run} ${image} python3 ./tests/scripts/task_build.py \
         --sccache-bucket tvm-sccache-prod \
+        --sccache-region us-west-2 \
         --cmake-target crttest \
         --build-dir build
       """,
@@ -510,6 +512,7 @@ def make_cpp_tests(image, build_dir) {
       set -eux
       ${docker_run} ${image} python3 ./tests/scripts/task_build.py \
         --sccache-bucket tvm-sccache-prod \
+        --sccache-region us-west-2 \
         --cmake-target cpptest \
         --build-dir ${build_dir}
       """,
@@ -519,7 +522,7 @@ def make_cpp_tests(image, build_dir) {
 
 def cmake_build(image, path, make_flag) {
   sh (
-    script: "${docker_run} --env CI_NUM_EXECUTORS ${image} ./tests/scripts/task_build.py --sccache-bucket tvm-sccache-prod --build-dir ${path}",
+    script: "${docker_run} --env CI_NUM_EXECUTORS ${image} ./tests/scripts/task_build.py --sccache-bucket tvm-sccache-prod --sccache-region us-west-2 --build-dir ${path}",
     label: 'Run cmake build',
   )
 }
@@ -560,7 +563,7 @@ def build(node_type) {
         cmake_build("${ci_gpu} --no-gpu", 'build', '-j2')
         make_standalone_crt("${ci_gpu} --no-gpu", 'build')
         sh(
-            script: "./${jenkins_scripts_root}/s3.py --action upload --bucket ${s3_bucket} --prefix ${s3_prefix}/gpu --items build/libtvm.so build/libvta_fsim.so build/libtvm_runtime.so build/config.cmake build/libtvm_allvisible.so build/microtvm_template_projects build/crttest build/standalone_crt build/build.ninja",
+            script: "./${jenkins_scripts_root}/s3.py --action upload --bucket ${s3_bucket} --prefix ${s3_prefix}/gpu --items build/libtvm.so build/libvta_fsim.so build/libtvm_runtime.so build/config.cmake build/libtvm_allvisible.so build/microtvm_template_projects build/crttest build/standalone_crt build/build.ninja build/3rdparty/libflash_attn/src/libflash_attn.so build/3rdparty/cutlass_fpA_intB_gemm/cutlass_kernels/libfpA_intB_gemm.so",
             label: 'Upload artifacts to S3',
           )
 
@@ -571,7 +574,7 @@ def build(node_type) {
         cmake_build("${ci_gpu} --no-gpu", 'build', '-j2')
         make_standalone_crt("${ci_gpu} --no-gpu", 'build')
         sh(
-            script: "./${jenkins_scripts_root}/s3.py --action upload --bucket ${s3_bucket} --prefix ${s3_prefix}/gpu2 --items build/libtvm.so build/libtvm_runtime.so build/config.cmake build/crttest build/standalone_crt build/build.ninja",
+            script: "./${jenkins_scripts_root}/s3.py --action upload --bucket ${s3_bucket} --prefix ${s3_prefix}/gpu2 --items build/libtvm.so build/libtvm_runtime.so build/config.cmake build/crttest build/standalone_crt build/build.ninja build/3rdparty/libflash_attn/src/libflash_attn.so build/3rdparty/cutlass_fpA_intB_gemm/cutlass_kernels/libfpA_intB_gemm.so",
             label: 'Upload artifacts to S3',
           )
             })
@@ -584,7 +587,7 @@ def build(node_type) {
   }
 }
 try {
-    build('CPU-SMALL-SPOT')
+    build('CPU')
 } catch (Exception ex) {
     build('CPU-SMALL')
 }
@@ -631,7 +634,7 @@ def shard_run_unittest_GPU_1_of_3(node_type='GPU-SPOT', on_demand=false) {
               make_cpp_tests(ci_gpu, 'build')
               cpp_unittest(ci_gpu)
               sh (
-                script: "${docker_run} ${ci_gpu} python3 ./tests/scripts/task_build.py --sccache-bucket tvm-sccache-prod --cmake-target opencl-cpptest --build-dir build",
+                script: "${docker_run} ${ci_gpu} python3 ./tests/scripts/task_build.py --sccache-bucket tvm-sccache-prod --sccache-region us-west-2 --cmake-target opencl-cpptest --build-dir build",
                 label: 'Make OpenCL cpp unit tests',
               )
               sh (

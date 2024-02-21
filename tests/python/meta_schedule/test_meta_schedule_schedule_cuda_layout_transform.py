@@ -34,6 +34,7 @@ from tvm.script import ir as I
 from tvm.script import tir as T
 from tvm.tir.schedule import BlockRV
 
+# fmt: off
 # Small gpu parameters which should work for nearly every (modern-ish) gpu.
 TARGET = tvm.target.Target(
     "cuda -max_threads_per_block=32 -max_num_threads=128 -thread_warp_size=32 -max_shared_memory_per_block=8192 -registers_per_block=1024"

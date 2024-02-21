@@ -32,7 +32,7 @@ def run_passes(sch, args):
             tvm.tir.transform.Simplify(),
             tvm.tir.transform.VectorizeLoop(),
             tvm.tir.transform.StorageRewrite(),
-            tvm.tir.transform.MergeDynamicSharedMemoryAllocations(),
+            tvm.tir.transform.MergeSharedMemoryAllocations(),
         ]
     )(mod)
 
@@ -336,7 +336,7 @@ class TestMatmul(tvm.testing.CompareBeforeAfter):
     for the replaced allocations.
     """
 
-    transform = tvm.tir.transform.MergeDynamicSharedMemoryAllocations()
+    transform = tvm.tir.transform.MergeSharedMemoryAllocations()
 
     use_decl_buffer = tvm.testing.parameter(by_dict={"t_buffer": False, "decl_buffer": True})
 

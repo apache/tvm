@@ -21,7 +21,6 @@ import shutil
 import logging
 import sys
 
-from pytest_lazyfixture import lazy_fixture
 from unittest import mock
 
 import tvm
@@ -128,9 +127,10 @@ def fake_directory(tmp_path):
 
 @pytest.mark.parametrize(
     "invalid_input",
-    [lazy_fixture("missing_file"), lazy_fixture("broken_symlink"), lazy_fixture("fake_directory")],
+    ["missing_file", "broken_symlink", "fake_directory"],
 )
-def test_tvmc_compile_file_check(capsys, invalid_input):
+def test_tvmc_compile_file_check(capsys, invalid_input, request):
+    invalid_input = request.getfixturevalue(invalid_input)
     compile_cmd = f"tvmc compile --target 'c' {invalid_input}"
     run_arg = compile_cmd.split(" ")[1:]
 
@@ -147,9 +147,10 @@ def test_tvmc_compile_file_check(capsys, invalid_input):
 
 @pytest.mark.parametrize(
     "invalid_input",
-    [lazy_fixture("missing_file"), lazy_fixture("broken_symlink"), lazy_fixture("fake_directory")],
+    ["missing_file", "broken_symlink", "fake_directory"],
 )
-def test_tvmc_tune_file_check(capsys, invalid_input):
+def test_tvmc_tune_file_check(capsys, invalid_input, request):
+    invalid_input = request.getfixturevalue(invalid_input)
     tune_cmd = f"tvmc tune --target 'llvm' --output output.json {invalid_input}"
     run_arg = tune_cmd.split(" ")[1:]
 
@@ -194,14 +195,15 @@ def paddle_model(paddle_resnet50):
 @pytest.mark.parametrize(
     "model",
     [
-        lazy_fixture("paddle_model"),
+        "paddle_model",
     ],
 )
 # compile_model() can take too long and is tested elsewhere, hence it's mocked below
 @mock.patch.object(compiler, "compile_model")
 # @mock.patch.object(compiler, "compile_model")
-def test_tvmc_compile_input_model(mock_compile_model, tmpdir_factory, model):
+def test_tvmc_compile_input_model(mock_compile_model, tmpdir_factory, model, request):
 
+    model = request.getfixturevalue(model)
     output_dir = tmpdir_factory.mktemp("output")
     output_file = output_dir / "model.tar"
 
@@ -288,4 +290,44 @@ def test_tvmc_print_pass_times(capsys, keras_simple, tmpdir_factory):
     # Check for timing results output
     captured_out = capsys.readouterr().out
     for exp_str in ("Compilation time breakdown by pass:", "sequential:", "us]"):
+        assert exp_str in captured_out
+
+
+@pytest.mark.parametrize(
+    "print_cmd, out_str",
+    [
+        (
+            "--print-ir-after=[tir.SplitHostDevice]",
+            (
+                "Print IR after: tir.SplitHostDevice\n# from tvm.script import ir as I\n",
+                "@I.ir_module",
+            ),
+        ),
+        (
+            "--print-ir-before=[tir.SplitHostDevice]",
+            ("Print IR before: tir.SplitHostDevice\n# from tvm.script import ir as I\n"),
+        ),
+        (
+            "--print-ir-after=[tir.ThreadSync,tir.SplitHostDevice]",
+            ("tir.ThreadSync,tir.SplitHostDevice"),
+        ),
+        (
+            "--print-ir-before=[tir.SplitHostDevice] --print-ir-after=[tir.SplitHostDevice]",
+            ("Print IR before: tir.SplitHostDevice\n", "Print IR after: tir.SplitHostDevice\n"),
+        ),
+    ],
+)
+def test_tvmc_print_ir_before_after(capsys, keras_simple, tmpdir_factory, print_cmd, out_str):
+    pytest.importorskip("tensorflow")
+    tmpdir = tmpdir_factory.mktemp("out")
+
+    # Compile model
+    module_file = os.path.join(tmpdir, "keras-tvm.tar")
+    compile_cmd = f"tvmc compile --target 'llvm' {keras_simple} --output {module_file} {print_cmd}"
+    compile_args = compile_cmd.split(" ")[1:]
+    _main(compile_args)
+
+    # Check for printing IR before or IR after
+    captured_out = capsys.readouterr().out
+    for exp_str in out_str:
         assert exp_str in captured_out

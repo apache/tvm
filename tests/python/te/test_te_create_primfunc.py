@@ -244,8 +244,8 @@ def tir_extern(a: T.handle, b: T.handle, c: T.handle) -> None:
     C = T.match_buffer(c, (128, 128), elem_offset=off3)
     # body
     with T.block("C"):
-        T.reads([A[0:128, 0:128], B[0:128, 0:128]])
-        T.writes([C[0:128, 0:128]])
+        T.reads()
+        T.writes()
         T.evaluate(
             T.tvm_call_packed(
                 "tvm.contrib.cblas.matmul",
@@ -778,11 +778,40 @@ def test_extern_with_explicit_buffer_access():
         P = T.match_buffer(var_P, [1], dtype="float32", offset_factor=1)
         C = T.match_buffer(var_C, [128, 128], dtype="float32", offset_factor=1)
         with T.block("C"):
-            T.reads(A[0:128, 0:128], B[0:128, 0:128], P[0])
-            T.writes(C[0:128, 0:128])
+            T.reads()
+            T.writes()
             T.call_extern("myfunc", A.data, B.data, C.data, P[0], dtype="")
 
     _check_workload(te_extern, tir_extern)
+
+
+def te_slice_with_var_input():
+    idx = te.var("idx", dtype="int64")
+    m = te.var("m", dtype="int64")
+    n = te.var("n", dtype="int64")
+    tensor = te.placeholder((m, n), name="tensor")
+    slice0 = te.compute((idx, n), lambda i, j: tensor[i, j], name="slice")
+    return [tensor, idx, slice0]
+
+
+@T.prim_func
+def tir_slice_with_var_input(var_tensor: T.handle, idx: T.int64, var_slice: T.handle):
+    T.func_attr({"tir.noalias": T.bool(True), "global_symbol": "main"})
+    m, n = T.int64(), T.int64()
+    tensor = T.match_buffer(var_tensor, (m, n))
+    slice = T.match_buffer(var_slice, (idx, n))
+    # with T.block("root"):
+    for i, j in T.grid(idx, n):
+        with T.block("slice"):
+            v_i = T.axis.spatial(idx, i)
+            v_j = T.axis.spatial(n, j)
+            T.reads(tensor[v_i, v_j])
+            T.writes(slice[v_i, v_j])
+            slice[v_i, v_j] = tensor[v_i, v_j]
+
+
+def test_with_var_input():
+    _check_workload(te_slice_with_var_input, tir_slice_with_var_input, index_dtype_override="int64")
 
 
 if __name__ == "__main__":

@@ -631,13 +631,33 @@ void CodeGenC::VisitExpr_(const CallNode* op, std::ostream& os) {  // NOLINT(*)
     } else if (op->op.same_as(builtin::shift_right())) {
       PrintBinaryIntrinsic(op, " >> ", os, this);
     } else if (op->op.same_as(builtin::if_then_else())) {
-      os << "(";
-      PrintExpr(op->args[0], os);
-      os << " ? ";
-      PrintExpr(op->args[1], os);
-      os << " : ";
-      PrintExpr(op->args[2], os);
-      os << ")";
+      // conditional that skips eval if cond evals to false
+      std::string result = name_supply_->FreshName("condval");
+      std::string cond = PrintExpr(op->args[0]);
+      this->PrintIndent();
+      PrintType(op->dtype, this->stream);
+      this->stream << " " << result << ";\n";
+      this->PrintIndent();
+      this->stream << "if (" << cond << ") {\n";
+      {
+        int then_scope = this->BeginScope();
+        std::string true_val = PrintExpr(op->args[1]);
+        this->PrintIndent();
+        this->stream << result << " = " << true_val << ";\n";
+        this->EndScope(then_scope);
+        this->PrintIndent();
+        this->stream << "} else {\n";
+      }
+      {
+        int else_scope = this->BeginScope();
+        std::string false_val = PrintExpr(op->args[2]);
+        this->PrintIndent();
+        this->stream << result << " = " << false_val << ";\n";
+        this->EndScope(else_scope);
+        this->PrintIndent();
+        this->stream << "}\n";
+      }
+      os << result;
     } else if (op->op.same_as(builtin::address_of())) {
       const BufferLoadNode* load = op->args[0].as<BufferLoadNode>();
       ICHECK(op->args.size() == 1 && load);
@@ -669,6 +689,10 @@ void CodeGenC::VisitExpr_(const CallNode* op, std::ostream& os) {  // NOLINT(*)
       const StringImmNode* str = op->args[0].as<StringImmNode>();
       ICHECK(str != nullptr);
       os << "__tvm_param__" << str->value;
+    } else if (op->op.same_as(builtin::tvm_thread_invariant())) {
+      os << "(";
+      this->PrintExpr(op->args[0], os);
+      os << ")";
     } else {
       LOG(FATAL) << "Unresolved call " << op->op;
     }
@@ -864,11 +888,12 @@ void CodeGenC::VisitExpr_(const RampNode* op, std::ostream& os) {  // NOLINT(*)
   // NOTE: C have comma expression so cannot use (int2)(v0, v1)
   // instead should use int2(v0, v1)
   PrintType(op->dtype, os);
+  int lanes = op->dtype.lanes();
   os << "(";
-  for (int i = 0; i < op->lanes; i++) {
+  for (int i = 0; i < lanes; i++) {
     os << "(" << PrintExpr(op->base) << ")"
        << "+(" << PrintExpr(op->stride) << "*" << i << ")";
-    if (i != op->lanes - 1) os << ", ";
+    if (i != lanes - 1) os << ", ";
   }
   os << ")";
 }
@@ -1018,8 +1043,11 @@ void CodeGenC::VisitStmt_(const ForNode* op) {
 
 void CodeGenC::VisitStmt_(const WhileNode* op) {
   PrintIndent();
-  stream << "while (" << PrintExpr(op->condition) << ") {\n";
+  stream << "while (1) {\n";
   int while_scope = BeginScope();
+  std::string cond = PrintExpr(op->condition);
+  PrintIndent();
+  stream << "if (!(" << cond << ")) { break; }\n";
   PrintStmt(op->body);
   this->EndScope(while_scope);
   PrintIndent();

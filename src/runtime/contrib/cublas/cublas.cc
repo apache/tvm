@@ -24,6 +24,7 @@
 #include <tvm/runtime/logging.h>
 #include <tvm/runtime/registry.h>
 
+#include "../../3rdparty/compiler-rt/builtin_fp16.h"
 #include "../cblas/gemm_common.h"
 #include "cublas_utils.h"
 
@@ -133,7 +134,161 @@ bool CheckMixPrecisionType(DLDataType in_dtype, DLDataType out_dtype, bool int_s
 int roundoff(int v, int d) { return (v + d - 1) / d * d; }
 
 #if CUDART_VERSION >= 10010
-inline void CallLtIgemm(TVMArgs args, TVMRetValue* ret, cublasLtHandle_t hdl) {
+
+void CallCublasLt(cublasLtHandle_t hdl, cudaStream_t stream,
+                  cublasLtMatmulPreference_t matmul_pref_desc, const DLTensor* A, const DLTensor* B,
+                  const DLTensor* bias, const DLTensor* C, bool transa, bool transb,
+                  void* workspace_ptr, size_t workspace_size, cublasLtEpilogue_t epilogue) {
+  ICHECK(TypeEqual(A->dtype, B->dtype));
+  // Reversed strides indicates an in-place transpose operation.
+  transa = IsInPlaceTransposed(A) ? !transa : transa;
+  transb = IsInPlaceTransposed(B) ? !transb : transb;
+
+  auto compute_type = CUBLAS_COMPUTE_32F;
+  auto scale_type = CUDA_R_32F;
+  cudaDataType_t ab_type = CUDA_R_32F;
+  cudaDataType_t c_type = CUDA_R_32F;
+  float one_fp32 = 1.0;
+  float zero_fp32 = 0.0;
+  auto one_fp16 = __truncXfYf2__<float, uint32_t, 23, uint16_t, uint16_t, 10>(1.0);
+  auto zero_fp16 = __truncXfYf2__<float, uint32_t, 23, uint16_t, uint16_t, 10>(0.0);
+  int32_t one_i32 = 1;
+  int32_t zero_i32 = 0;
+  void* alpha = &one_fp32;
+  void* beta = &zero_fp32;
+
+  if (TypeMatch(A->dtype, kDLFloat, 16)) {
+    ab_type = CUDA_R_16F;
+  } else if (TypeMatch(A->dtype, kDLInt, 8)) {
+    ab_type = CUDA_R_8I;
+  }
+
+  if (TypeMatch(C->dtype, kDLFloat, 16)) {
+    c_type = CUDA_R_16F;
+    compute_type = CUBLAS_COMPUTE_16F;
+    scale_type = CUDA_R_16F;
+    alpha = &one_fp16;
+    beta = &zero_fp16;
+  } else if (TypeMatch(C->dtype, kDLInt, 32)) {
+    c_type = CUDA_R_32I;
+    compute_type = CUBLAS_COMPUTE_32I;
+    scale_type = CUDA_R_32I;
+    alpha = &one_i32;
+    beta = &zero_i32;
+  }
+
+  cublasLtMatmulDesc_t op_desc;
+  cublasOperation_t op_transa = CUBLASBooleanToTranspose(transa);
+  cublasOperation_t op_transb = CUBLASBooleanToTranspose(transb);
+
+  CHECK_CUBLAS_ERROR(cublasLtMatmulDescCreate(&op_desc, compute_type, scale_type));
+  CHECK_CUBLAS_ERROR(cublasLtMatmulDescSetAttribute(op_desc, CUBLASLT_MATMUL_DESC_TRANSA,
+                                                    &op_transb, sizeof(op_transb)));
+  CHECK_CUBLAS_ERROR(cublasLtMatmulDescSetAttribute(op_desc, CUBLASLT_MATMUL_DESC_TRANSB,
+                                                    &op_transa, sizeof(op_transa)));
+
+  if (bias != nullptr) {
+    CHECK_CUBLAS_ERROR(cublasLtMatmulDescSetAttribute(op_desc, CUBLASLT_MATMUL_DESC_BIAS_POINTER,
+                                                      &bias->data, sizeof(float*)));
+  }
+
+  if (epilogue != CUBLASLT_EPILOGUE_DEFAULT) {
+    CHECK_CUBLAS_ERROR(cublasLtMatmulDescSetAttribute(op_desc, CUBLASLT_MATMUL_DESC_EPILOGUE,
+                                                      &epilogue, sizeof(epilogue)));
+  }
+
+  int batch_offset_A = A->ndim - 2;
+  int batch_offset_B = B->ndim - 2;
+
+  int M = ColumnCount(B, transb, batch_offset_B);
+  int N = RowCount(A, transa, batch_offset_A);
+  int K = ColumnCount(A, transa, batch_offset_A);
+  bool use_batched_gemm = A->ndim > 2 || B->ndim > 2;
+
+  // If A is batched but B is not, flatten all non-reduction axes of A to use the regular GEMM.
+  // This trick is only applicable if batch axes and the other spatial axis (M or N) are
+  // adjacent in both the input and the output matrix. In particular, if A is of shape (M, K)
+  // and B matrix is of shape (Batch, N, K) with transb = true, the output shape
+  // is (Batch, M, N). Since the Batch and the N axes are not adjacent in the output, we cannot
+  // use the regular GEMM if only B is batched.
+  if (A->ndim > 2 && B->ndim == 2 && transa == false) {
+    N = 1;
+    for (int i = 0; i < A->ndim - 1; ++i) {
+      N *= A->shape[i];
+    }
+    use_batched_gemm = false;
+  }
+
+  int lda = transb ? K : M;
+  int ldb = transa ? N : K;
+  int ldc = M;
+
+  cublasLtMatrixLayout_t A_desc, B_desc, C_desc;
+  CHECK_CUBLAS_ERROR(
+      cublasLtMatrixLayoutCreate(&A_desc, ab_type, !transb ? M : K, !transb ? K : M, lda));
+  CHECK_CUBLAS_ERROR(
+      cublasLtMatrixLayoutCreate(&B_desc, ab_type, !transa ? K : N, !transa ? N : K, ldb));
+  CHECK_CUBLAS_ERROR(cublasLtMatrixLayoutCreate(&C_desc, c_type, M, N, ldc));
+
+  if (use_batched_gemm) {
+    auto get_batch_count = [](int64_t* shape, int batch_offset) {
+      int64_t count = 1;
+      for (int i = 0; i < batch_offset; ++i) {
+        count *= shape[i];
+      }
+      return count;
+    };
+    auto set_batch = [](cublasLtMatrixLayout_t mat_desc, int batch_count, int64_t batch_stride) {
+      CHECK_CUBLAS_ERROR(cublasLtMatrixLayoutSetAttribute(
+          mat_desc, CUBLASLT_MATRIX_LAYOUT_BATCH_COUNT, &batch_count, sizeof(batch_count)));
+      CHECK_CUBLAS_ERROR(
+          cublasLtMatrixLayoutSetAttribute(mat_desc, CUBLASLT_MATRIX_LAYOUT_STRIDED_BATCH_OFFSET,
+                                           &batch_stride, sizeof(batch_stride)));
+    };
+
+    int batch_count_A = get_batch_count(A->shape, batch_offset_A);
+    int batch_count_B = get_batch_count(B->shape, batch_offset_B);
+    int batch_count_C = get_batch_count(C->shape, C->ndim - 2);
+    int64_t batch_stride_A = M * K;
+    int64_t batch_stride_B = K * N;
+    int64_t batch_stride_C = M * N;
+
+    // cuBLASLt does not seem to support batched GEMM with one of matrices having
+    // one batch (with batch_stride 0).
+    ICHECK_EQ(batch_count_A, batch_count_B);
+
+    set_batch(A_desc, batch_count_A, batch_stride_A);
+    set_batch(B_desc, batch_count_B, batch_stride_B);
+    set_batch(C_desc, batch_count_C, batch_stride_C);
+  }
+
+  auto A_data = static_cast<char*>(A->data) + A->byte_offset;
+  auto B_data = static_cast<char*>(B->data) + B->byte_offset;
+  auto C_data = static_cast<char*>(C->data) + C->byte_offset;
+
+  cublasLtMatmulPreferenceSetAttribute(matmul_pref_desc, CUBLASLT_MATMUL_PREF_MAX_WORKSPACE_BYTES,
+                                       &workspace_size, sizeof(size_t));
+
+  cublasLtMatmulHeuristicResult_t heuristic_result = {};
+  int returned_result = 0;
+  CHECK_CUBLAS_ERROR(cublasLtMatmulAlgoGetHeuristic(hdl, op_desc, A_desc, B_desc, C_desc, C_desc,
+                                                    matmul_pref_desc, 1, &heuristic_result,
+                                                    &returned_result));
+  if (returned_result == 0) {
+    CHECK_CUBLAS_ERROR(CUBLAS_STATUS_NOT_SUPPORTED);
+  }
+
+  CHECK_CUBLAS_ERROR(cublasLtMatmul(hdl, op_desc, alpha, B_data, A_desc, A_data, B_desc, beta,
+                                    C_data, C_desc, C_data, C_desc, &heuristic_result.algo,
+                                    workspace_ptr, workspace_size, stream));
+
+  cublasLtMatmulDescDestroy(op_desc);
+  cublasLtMatrixLayoutDestroy(A_desc);
+  cublasLtMatrixLayoutDestroy(B_desc);
+  cublasLtMatrixLayoutDestroy(C_desc);
+}
+
+inline void CallLtIgemm(TVMArgs args, TVMRetValue* ret, cublasLtHandle_t hdl, cudaStream_t stream) {
   DLTensor* A = args[0];
   DLTensor* B = args[1];
   DLTensor* C = args[2];
@@ -172,7 +327,6 @@ inline void CallLtIgemm(TVMArgs args, TVMRetValue* ret, cublasLtHandle_t hdl) {
   auto B_data = reinterpret_cast<void*>(static_cast<char*>(B->data) + B->byte_offset);
   auto C_data = reinterpret_cast<void*>(static_cast<char*>(C->data) + C->byte_offset);
 
-  cublasOperation_t opTranspose = CUBLAS_OP_T;
   cublasLtOrder_t order_COL32 = CUBLASLT_ORDER_COL32;
   cublasLtOrder_t order_COL4_4R2_8C = CUBLASLT_ORDER_COL4_4R2_8C;
   cublasLtMatmulDesc_t operationDesc = nullptr;
@@ -181,8 +335,6 @@ inline void CallLtIgemm(TVMArgs args, TVMRetValue* ret, cublasLtHandle_t hdl) {
 #else
   CHECK_CUBLAS_ERROR(cublasLtMatmulDescCreate(&operationDesc, CUDA_R_32I));
 #endif
-  CHECK_CUBLAS_ERROR(cublasLtMatmulDescSetAttribute(operationDesc, CUBLASLT_MATMUL_DESC_TRANSB,
-                                                    &opTranspose, sizeof(opTranspose)));
   cublasOperation_t opTransA = CUBLASBooleanToTranspose(transa);
   cublasOperation_t opTransB = CUBLASBooleanToTranspose(transb);
   CHECK_CUBLAS_ERROR(cublasLtMatmulDescSetAttribute(operationDesc, CUBLASLT_MATMUL_DESC_TRANSA,
@@ -204,7 +356,7 @@ inline void CallLtIgemm(TVMArgs args, TVMRetValue* ret, cublasLtHandle_t hdl) {
                                                       &order_COL32, sizeof(order_COL32)));
 
   CHECK_CUBLAS_ERROR(cublasLtMatmul(hdl, operationDesc, &alpha, B_data, Adesc, A_data, Bdesc, &beta,
-                                    C_data, Cdesc, C_data, Cdesc, nullptr, nullptr, 0, nullptr));
+                                    C_data, Cdesc, C_data, Cdesc, nullptr, nullptr, 0, stream));
 }
 #endif
 
@@ -378,7 +530,10 @@ TVM_REGISTER_GLOBAL("tvm.contrib.cublaslt.matmul").set_body([](TVMArgs args, TVM
   ICHECK(TypeMatch(A->dtype, kDLInt, 8)) << "Expects dtype to be int8\n";
   cublasLtHandle_t ltHandle;
   CHECK_CUBLAS_ERROR(cublasLtCreate(&ltHandle));
-  CallLtIgemm(args, ret, ltHandle);
+  auto func = tvm::runtime::Registry::Get("runtime.get_cuda_stream");
+  ICHECK(func != nullptr);
+  cudaStream_t stream = static_cast<cudaStream_t>((*func)().operator void*());
+  CallLtIgemm(args, ret, ltHandle, stream);
   CHECK_CUBLAS_ERROR(cublasLtDestroy(ltHandle));
 });
 #endif  // CUDART_VERSION >= 10010

@@ -59,6 +59,17 @@ class RelayExpr(BaseExpr):
             raise ValueError("The type checker has not populated the checked_type for this node")
         return ret
 
+    @property
+    def struct_info(self) -> Optional["tvm.relax.StructInfo"]:
+        """Get the struct info field
+
+        Returns
+        -------
+        struct_info : tvm.relax.StructInfo
+            The struct info if available.
+        """
+        return _ffi_api.ExprStructInfo(self)
+
 
 @tvm._ffi.register_object("GlobalVar")
 class GlobalVar(RelayExpr):
@@ -92,10 +103,18 @@ class GlobalVar(RelayExpr):
             A call taking the variable as a function.
         """
         # pylint: disable=import-outside-toplevel
-        if all(isinstance(x, RelayExpr) for x in args):
-            from tvm import relay
 
-            return relay.Call(self, args)
+        # TODO(@relax-team): replace with Relax base class after it's introduced
+        if all(isinstance(x, RelayExpr) for x in args):
+            if all(is_relax_expr(x) for x in args):
+                from tvm import relax
+
+                return relax.Call(self, args)
+            else:
+                from tvm import relay
+
+                return relay.Call(self, args)
+
         elif all(isinstance(x, (Number, PrimExpr)) for x in args):
             return tvm.tir.call_tir(self, *args)
 
@@ -201,3 +220,42 @@ class Range(Node, Scriptable):
 
     def __ne__(self, other: Object) -> bool:
         return not self.__eq__(other)
+
+
+# TODO(@relax-team): remove when we have a RelaxExpr base class
+def is_relax_expr(expr: RelayExpr) -> bool:
+    """check if a RelayExpr is a Relax expresssion.
+
+    Parameters
+    ----------
+    expr : RelayExpr
+        The expression to check.
+
+    Returns
+    -------
+    res : bool
+        If the expression is Relax expression, return True; otherwise return False.
+    """
+    from tvm import relax  # pylint: disable=import-outside-toplevel
+
+    if isinstance(
+        expr,
+        (
+            relax.Call,
+            relax.Constant,
+            relax.Tuple,
+            relax.TupleGetItem,
+            relax.If,
+            relax.Var,
+            relax.DataflowVar,
+            relax.ShapeExpr,
+            relax.SeqExpr,
+            relax.Function,
+            relax.ExternFunc,
+            relax.PrimValue,
+            relax.StringImm,
+            relax.DataTypeImm,
+        ),
+    ):
+        return True
+    return False

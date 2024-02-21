@@ -51,6 +51,14 @@ using namespace tvm::te;
 inline Tensor layer_norm(const Tensor& data, const Tensor& gamma, const Tensor& beta,
                          const Array<Integer>& axis, double epsilon,
                          std::string name = "T_layer_norm", std::string tag = kInjective) {
+  const auto& data_type = data->dtype;
+  const auto& gamma_type = gamma.defined() ? gamma->dtype : data_type;
+  const auto& beta_type = beta.defined() ? beta->dtype : data_type;
+  ICHECK(data_type == gamma_type && data_type == beta_type)
+      << "layer_norm: data, gamma and beta must have the same type";
+  ICHECK(data_type == DataType::Float(32) || data_type == DataType::Float(16))
+      << "layer_norm: only support float32 and float16 for now";
+  bool is_float16 = data_type == DataType::Float(16);
   // sum x and x^2
   auto ndim = data->shape.size();
   ICHECK_NE(ndim, 0) << "Cannot reduce a 0 dim Tensor";
@@ -60,7 +68,8 @@ inline Tensor layer_norm(const Tensor& data, const Tensor& gamma, const Tensor& 
       MakeReduceTargetShape(real_axis, data, /*keepdims=*/false, /*atleast1d=*/true);
   auto func = MakeTupleSumReducer();
 
-  auto compute = [ndim, &real_axis, &reduce_axes, &func, &data](const Array<Var>& indices) {
+  auto compute = [ndim, is_float16, &real_axis, &reduce_axes, &func,
+                  &data](const Array<Var>& indices) {
     Array<PrimExpr> eval_range;
     int arg_counter = 0;
     int red_counter = 0;
@@ -75,8 +84,18 @@ inline Tensor layer_norm(const Tensor& data, const Tensor& gamma, const Tensor& 
         arg_counter++;
       }
     }
-    auto square = [](const PrimExpr& x) { return x * x; };
-    return func({data(eval_range), square(data(eval_range))}, reduce_axes, nullptr);
+    auto square = [is_float16](const PrimExpr& x) {
+      if (is_float16) {
+        return Cast(DataType::Float(32), x) * Cast(DataType::Float(32), x);
+      }
+      return x * x;
+    };
+    if (is_float16) {
+      return func({Cast(DataType::Float(32), data(eval_range)), square(data(eval_range))},
+                  reduce_axes, nullptr);
+    } else {
+      return func({data(eval_range), square(data(eval_range))}, reduce_axes, nullptr);
+    }
   };
 
   auto temp_x_x2 =
@@ -101,6 +120,9 @@ inline Tensor layer_norm(const Tensor& data, const Tensor& gamma, const Tensor& 
     auto mean = temp_x(non_reduce_indices) / reduce_extent;
     auto var = temp_x2(non_reduce_indices) / reduce_extent - mean * mean;
     auto layer_norm = (data(indices) - mean) * tvm::rsqrt(var + make_const(var->dtype, epsilon));
+    if (is_float16) {
+      layer_norm = Cast(DataType::Float(16), layer_norm);
+    }
     layer_norm = topi::multiply(layer_norm, gamma(reduce_indices));
     if (beta.defined()) {
       layer_norm = topi::add(layer_norm, beta(reduce_indices));

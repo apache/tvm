@@ -25,7 +25,7 @@ from tvm.meta_schedule.testing.space_generation import (
 )
 from tvm.script import tir as T
 from tvm.target import Target
-from tvm.tir.tensor_intrin.arm_cpu import DP4A_INTRIN
+from tvm.tir.tensor_intrin.arm_cpu import DP4A_S8S8S32_INTRIN
 from tvm.tir.tensor_intrin.x86 import AVX512_DOT_16x4_INTRIN as AVX512_INTRIN
 from tvm.tir.tensor_intrin.x86 import VNNI_DOT_16x4_INTRIN as VNNI_INTRIN
 
@@ -281,7 +281,7 @@ def _check_dp4a_dense(m, n, k, in_dtype, out_dtype, expected_mods, expected_deci
         types=None,
         sch_rules=[
             ms.schedule_rule.MultiLevelTilingWithIntrin(
-                DP4A_INTRIN,
+                DP4A_S8S8S32_INTRIN,
                 structure="SSSRRSRS",
                 tile_binds=["blockIdx.x", "vthread.x", "threadIdx.x"],
                 max_innermost_factor=64,
@@ -343,7 +343,7 @@ def test_dp4a_dense():
                                     W_shared[v_j, v_k_o * 4 : v_k_o * 4 + 4],
                                 )
                                 T.writes(compute_local[v_i, v_j])
-                                T.block_attr({"meta_schedule.auto_tensorize": "dp4a"})
+                                T.block_attr({"meta_schedule.auto_tensorize": "dp4a_s8s8s32"})
                                 with T.init():
                                     with T.block("compute_init"):
                                         T.reads()

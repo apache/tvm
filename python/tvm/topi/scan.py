@@ -151,7 +151,7 @@ def scanop(
 def cumsum(
     data: tvm.te.Tensor,
     axis: Optional[int] = None,
-    dtype: Optional[int] = None,
+    dtype: Optional[str] = None,
     exclusive: Optional[bool] = None,
 ) -> tvm.te.Tensor:
     """Numpy style cumsum op. Return the cumulative sum of the elements along a given axis.

@@ -602,6 +602,23 @@ def tvm_thread_allreduce(*freduce_args):
     return call_intrin("handle", "tir.tvm_thread_allreduce", *freduce_args)
 
 
+def tvm_thread_invariant(cond):
+    """Mark condition as thread invariant.
+
+    Parameters
+    ----------
+    cond : Expr
+        The condition.
+
+    Returns
+    -------
+    call : PrimExpr
+        The call expression.
+    """
+    assert isinstance(cond, PrimExpr)
+    return call_intrin(cond.dtype, "tir.tvm_thread_invariant", cond)
+
+
 def tvm_storage_sync(storage_scope):
     """Perform synchronization in specified scope.
 
@@ -3251,6 +3268,85 @@ def TVMBackendFreeWorkspace(device_type, device_id, ptr):
         The call expression.
     """
     return call_intrin("int32", "tir.TVMBackendFreeWorkspace", device_type, device_id, ptr)
+
+
+def anylist_getitem(list_handle, index):
+    """Returns an item from any list.
+    list_handle: Var
+        The handle to anylist
+    index : int
+        The index
+    Returns
+    -------
+    call : PrimExpr
+        The call expression.
+    """
+    return call_intrin("handle", "tir.anylist_getitem", list_handle, index)
+
+
+def anylist_resetitem(list_handle, index):
+    """Reset an item from any list.
+    list_handle: Var
+        The handle to anylist
+    index : int
+        The index
+    Returns
+    -------
+    call : PrimExpr
+        The call expression.
+    """
+    return call_intrin("int", "tir.anylist_resetitem", list_handle, index)
+
+
+def anylist_setitem_call_packed(list_handle, index, func_name, *args):
+    """Set anylist item by result of packed call.
+    list_handle: Var
+        The handle to anylist
+    index : int
+        The index
+    func_name: str
+        The name of the function to be called.
+    args:
+        Extra arguments
+    Returns
+    -------
+    call : PrimExpr
+        The call expression.
+    """
+    return call_intrin(
+        "int", "tir.anylist_setitem_call_packed", list_handle, index, func_name, *args
+    )
+
+
+def anylist_setitem_call_cpacked(list_handle, index, func_name, *args):
+    """Set anylist item by result of packed call.
+    list_handle: Var
+        The handle to anylist
+    index : int
+        The index
+    func_name: str
+        The name of the function to be called.
+    args:
+        Extra arguments
+    Returns
+    -------
+    call : PrimExpr
+        The call expression.
+    """
+    return call_intrin(
+        "int", "tir.anylist_setitem_call_cpacked", list_handle, index, func_name, *args
+    )
+
+
+def vscale():
+    """Get the target's vscale value. It will be lowered to llvm.vscale intrinsic
+    (https://llvm.org/docs/LangRef.html#llvm-vscale-intrinsic)
+    Returns
+    -------
+    call : PrimExpr
+        Call to the vscale intrinsic
+    """
+    return call_intrin("int32", "tir.vscale")
 
 
 # pylint: disable=unnecessary-lambda

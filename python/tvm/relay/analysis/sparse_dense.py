@@ -21,11 +21,12 @@ This file contains helper functions for convert dense model
 to block sparse model
 """
 from collections import namedtuple
-import numpy as np
-import scipy.sparse as sp
-import tvm
-from . import _ffi_api
 
+import numpy as np
+
+import tvm
+
+from . import _ffi_api
 
 SparseAnalysisResult = namedtuple(
     "SparseAnalysisResult",
@@ -75,9 +76,11 @@ def process_params(expr, params, block_size, sparsity_threshold):
     """
 
     # pylint: disable=import-outside-toplevel
-    from tvm.auto_scheduler.search_task import (
+    import scipy.sparse as sp
+
+    from tvm.auto_scheduler.search_task import (  # lazily import to avoid recursive dependency
         register_task_input_buffer,
-    )  # lazily import to avoid recursive dependency
+    )
 
     memo = SparseAnalysisResult(weight_name=[], weight_shape=[])
     weight_names = _search_dense_op_weight(expr)

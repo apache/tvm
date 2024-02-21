@@ -25,9 +25,10 @@
 #include <tvm/runtime/registry.h>
 namespace tvm {
 
-PrimType::PrimType(runtime::DataType dtype) {
+PrimType::PrimType(runtime::DataType dtype, Span span) {
   ObjectPtr<PrimTypeNode> n = make_object<PrimTypeNode>();
   n->dtype = dtype;
+  n->span = std::move(span);
   data_ = std::move(n);
 }
 

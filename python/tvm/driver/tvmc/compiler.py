@@ -31,7 +31,7 @@ import tvm
 from tvm import autotvm, auto_scheduler
 from tvm import relay
 from tvm.driver.tvmc.registry import generate_registry_args, reconstruct_registry_entity
-from tvm.ir.instrument import PassInstrument, PassTimingInstrument
+from tvm.ir.instrument import PassInstrument, PassTimingInstrument, PassPrintingInstrument
 from tvm.ir.memory_pools import WorkspaceMemoryPools
 from tvm.target import Target
 from tvm.relay.backend import Executor, Runtime
@@ -162,6 +162,18 @@ def add_compile_parser(subparsers, _, json_params):
         action="store_true",
         help="print compilation time per pass",
     )
+    parser.add_argument(
+        "--print-ir-before",
+        help="print IR before each named pass of a comma-separated list of pass names."
+        "e.g. '--print-ir-before [tir.SplitHostDevice,tir.ConvertSSA]' ",
+        default="",
+    )
+    parser.add_argument(
+        "--print-ir-after",
+        help="print IR after each named pass of a comma-separated list of pass names."
+        "e.g. '--print-ir-after [tir.SplitHostDevice,tir.ConvertSSA]' ",
+        default="",
+    )
     for one_entry in json_params:
         parser.set_defaults(**one_entry)
 
@@ -220,6 +232,8 @@ def drive_compile(args):
             workspace_pools_recombobulate(args, [workspace_pools_target], extra_targets)
         ),
         print_pass_times=args.print_pass_times,
+        print_ir_before=args.print_ir_before,
+        print_ir_after=args.print_ir_after,
         **transform_args,
     )
 
@@ -247,6 +261,8 @@ def compile_model(
     mod_name: Optional[str] = "default",
     workspace_pools: Optional[WorkspaceMemoryPools] = None,
     print_pass_times: bool = False,
+    print_ir_before: Optional[List[str]] = None,
+    print_ir_after: Optional[List[str]] = None,
     instruments: Optional[Sequence[PassInstrument]] = None,
     desired_layout: Optional[str] = None,
     desired_layout_ops: Optional[List[str]] = None,
@@ -295,7 +311,7 @@ def compile_model(
         needs to be generated.
     disabled_pass: str, optional
         Comma-separated list of passes which needs to be disabled
-        during compilation
+        during compilation.
     pass_context_configs: list[str], optional
         List of strings containing a set of configurations to be passed to the
         PassContext.
@@ -310,6 +326,10 @@ def compile_model(
         compilation.
     print_pass_times: bool
         To enable printing a breakdown of compilation times by pass. Disabled by default.
+    print_ir_before: list[str], optional
+        To print IR before each named pass of a comma-separated list of passes.
+    print_ir_after: list[str], optional
+        To print IR after each named pass of a comma-separated list of passes.
     instruments: Optional[Sequence[PassInstrument]]
         The list of pass instrument implementations.
     desired_layout: str, optional
@@ -368,6 +388,12 @@ def compile_model(
     if print_pass_times:
         timing_inst = PassTimingInstrument()
         instruments = [timing_inst] if instruments is None else [timing_inst] + instruments
+
+    if print_ir_before or print_ir_after:
+        print_ir_instr = PassPrintingInstrument(
+            print_before_pass_names=print_ir_before, print_after_pass_names=print_ir_after
+        )
+        instruments = [print_ir_instr] if instruments is None else [print_ir_instr] + instruments
 
     with tvm.transform.PassContext(
         opt_level=opt_level,
@@ -581,7 +607,6 @@ def dump_operation_offloads(mod: tvm.ir.IRModule, initial_mod: tvm.ir.IRModule, 
     save_to_file = all([dump_path != "-", dump_path != ""])
 
     if print_to_console or save_to_file:
-
         operations_distribution = analyze_operations_distribution(mod)
 
         def annotate_f(x):

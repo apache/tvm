@@ -367,6 +367,14 @@ class RelayExprNode : public BaseExprNode {
    *       This value is discarded during serialization.
    */
   mutable Type checked_type_ = Type(nullptr);
+
+  /*!
+   * \brief Stores the result of structure information of the
+   *        expression that encapsulate both static shape and
+   *        runtime information such as shape.
+   */
+  mutable Optional<ObjectRef> struct_info_ = Optional<ObjectRef>();
+
   /*!
    * \return The checked_type
    */
@@ -454,6 +462,7 @@ class GlobalVarNode : public RelayExprNode {
     v->Visit("virtual_device_", &virtual_device_);
     v->Visit("span", &span);
     v->Visit("_checked_type_", &checked_type_);
+    v->Visit("struct_info_", &struct_info_);
   }
 
   bool SEqualReduce(const GlobalVarNode* other, SEqualReducer equal) const {

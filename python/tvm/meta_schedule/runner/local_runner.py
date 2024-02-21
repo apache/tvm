@@ -390,3 +390,15 @@ def default_run_evaluator(
 def default_cleanup() -> None:
     """Default function to clean up the session"""
     pass  # pylint: disable=unnecessary-pass
+
+
+@tvm.register_func("meta_schedule.runner.get_local_runner")
+def get_local_builder() -> LocalRunner:
+    """Get the local Runner.
+
+    Returns
+    -------
+    runner: LocalRunner
+        The local runner
+    """
+    return LocalRunner()

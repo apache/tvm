@@ -294,10 +294,6 @@ __pack_half2(const half x, const half y) {
   return (v1 << 16) | v0;
 }
 
-// Some fp16 math functions are not supported in cuda_fp16.h,
-// so we define them here to make sure the generated CUDA code
-// is valid.
-#if defined(__CUDA_ARCH__) && (__CUDA_ARCH__ >= 530)
 #define CUDA_UNSUPPORTED_HALF_MATH_BINARY(HALF_MATH_NAME, FP32_MATH_NAME) \
 static inline __device__ __host__ half HALF_MATH_NAME(half x, half y) {   \
   float tmp_x = __half2float(x);                                          \
@@ -313,16 +309,23 @@ static inline __device__ __host__ half HALF_MATH_NAME(half x) {          \
   return __float2half(result);                                           \
 }
 
+// Some fp16 math functions are not supported in cuda_fp16.h,
+// so we define them here to make sure the generated CUDA code
+// is valid.
+#if defined(__CUDA_ARCH__)
+#if (__CUDA_ARCH__ >= 530)
 CUDA_UNSUPPORTED_HALF_MATH_BINARY(hpow, powf)
 CUDA_UNSUPPORTED_HALF_MATH_UNARY(htanh, tanhf)
 CUDA_UNSUPPORTED_HALF_MATH_UNARY(htan, tanf)
 CUDA_UNSUPPORTED_HALF_MATH_UNARY(hatan, atanf)
 CUDA_UNSUPPORTED_HALF_MATH_UNARY(herf, erf)
+#else
+CUDA_UNSUPPORTED_HALF_MATH_UNARY(hexp, exp)
+#endif
+#endif
 
 #undef CUDA_UNSUPPORTED_HALF_MATH_BINARY
 #undef CUDA_UNSUPPORTED_HALF_MATH_UNARY
-
-#endif
 )";
 
 static constexpr const char* _cuda_bfloat16_util = R"(

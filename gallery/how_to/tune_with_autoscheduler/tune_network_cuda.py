@@ -44,7 +44,7 @@ get it to run, you will need to wrap the body of this tutorial in a :code:`if
 __name__ == "__main__":` block.
 """
 
-
+import sys
 import numpy as np
 
 import tvm
@@ -114,20 +114,6 @@ def get_network(name, batch_size, layout="NHWC", dtype="float32"):
     elif name == "inception_v3":
         input_shape = (batch_size, 3, 299, 299) if layout == "NCHW" else (batch_size, 299, 299, 3)
         mod, params = relay.testing.inception_v3.get_workload(batch_size=batch_size, dtype=dtype)
-    elif name == "mxnet":
-        # an example for mxnet model
-        from mxnet.gluon.model_zoo.vision import get_model
-
-        assert layout == "NCHW"
-
-        block = get_model("resnet18_v1", pretrained=True)
-        mod, params = relay.frontend.from_mxnet(block, shape={"data": input_shape}, dtype=dtype)
-        net = mod["main"]
-        net = relay.Function(
-            net.params, relay.nn.softmax(net.body), None, net.type_params, net.attrs
-        )
-        mod = tvm.IRModule.from_expr(net)
-
     return mod, params, input_shape, output_shape
 
 

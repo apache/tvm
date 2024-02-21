@@ -509,6 +509,8 @@ spirv::Value CodeGenSPIRV::VisitExpr_(const CallNode* op) {
     spirv::SType ptr_type = builder_->GetPointerType(ele_stype, buffer_val.stype.storage_class);
     ICHECK(var_map_.count(buffer_node));
     return builder_->StructArrayAccess(ptr_type, var_map_[buffer_node], MakeValue(index));
+  } else if (op->op.same_as(builtin::tvm_thread_invariant())) {
+    return MakeValue(op->args[0]);
   } else {
     LOG(FATAL) << "Unresolved call  " << op->op;
   }
@@ -517,7 +519,8 @@ spirv::Value CodeGenSPIRV::VisitExpr_(const CallNode* op) {
 spirv::Value CodeGenSPIRV::VisitExpr_(const RampNode* op) {
   std::vector<spirv::Value> values;
   spirv::Value base = MakeValue(op->base);
-  for (int i = 0; i < op->lanes; ++i) {
+  int lanes = op->dtype.lanes();
+  for (int i = 0; i < lanes; ++i) {
     spirv::Value v = base;
     if (i != 0) {
       spirv::Value offset = MakeValue(make_const(op->stride.dtype(), i) * op->stride);
@@ -531,7 +534,8 @@ spirv::Value CodeGenSPIRV::VisitExpr_(const RampNode* op) {
 spirv::Value CodeGenSPIRV::VisitExpr_(const BroadcastNode* op) {
   std::vector<spirv::Value> values;
   spirv::Value v = MakeValue(op->value);
-  for (int i = 0; i < op->lanes; i++) {
+  int lanes = op->dtype.lanes();
+  for (int i = 0; i < lanes; i++) {
     values.push_back(v);
   }
   return builder_->Concat(values);
@@ -776,8 +780,6 @@ void CodeGenSPIRV::VisitStmt_(const IfThenElseNode* op) {
   builder_->StartLabel(merge_label);
 }
 
-void CodeGenSPIRV::VisitStmt_(const DeclBufferNode* op) { VisitStmt(op->body); }
-
 void CodeGenSPIRV::VisitStmt_(const AllocateNode* op) {
   ICHECK(!is_zero(op->condition));
   ICHECK(!op->dtype.is_handle());
@@ -837,6 +839,8 @@ void CodeGenSPIRV::VisitStmt_(const AllocateNode* op) {
   var_map_[op->buffer_var.get()] = buf;
   this->VisitStmt(op->body);
 }
+
+void CodeGenSPIRV::VisitStmt_(const DeclBufferNode* op) { this->VisitStmt(op->body); }
 
 void CodeGenSPIRV::VisitStmt_(const AttrStmtNode* op) {
   if (op->attr_key == tir::attr::thread_extent) {

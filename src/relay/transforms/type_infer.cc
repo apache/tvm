@@ -950,7 +950,7 @@ TVM_REGISTER_GLOBAL("relay._transform.InferTypeLocal").set_body_typed([](const E
 });
 
 Pass InferType() {
-  auto pass_info = PassInfo(0, "InferType", {});
+  auto pass_info = PassInfo(0, "InferType", {}, /* trace */ false);
   return tvm::transform::CreateModulePass(
       [=](IRModule mod, const PassContext& pass_ctx) {
         // Execute the pass function and return a new module.

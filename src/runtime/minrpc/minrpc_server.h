@@ -206,7 +206,8 @@ class MinRPCExecute : public MinRPCExecInterface {
         ret_tcode[1] = kTVMBytes;
         ret_handler_->ReturnPackedSeq(ret_value, ret_tcode, 2);
         TVMByteArrayFree(reinterpret_cast<TVMByteArray*>(ret_value[1].v_handle));  // NOLINT(*)
-      } else if (rv_tcode == kTVMPackedFuncHandle || rv_tcode == kTVMModuleHandle) {
+      } else if (rv_tcode == kTVMPackedFuncHandle || rv_tcode == kTVMModuleHandle ||
+                 rv_tcode == kTVMObjectHandle) {
         ret_tcode[1] = kTVMOpaqueHandle;
         ret_handler_->ReturnPackedSeq(ret_value, ret_tcode, 2);
       } else {
@@ -755,7 +756,17 @@ class MinRPCServer {
   }
 
   void ReadObject(int* tcode, TVMValue* value) {
-    this->ThrowError(RPCServerStatus::kUnknownTypeCode);
+    // handles RPCObject in minRPC
+    // NOTE: object needs to be supported by C runtime
+    // because minrpc's restriction of C only
+    // we only handle RPCObjectRef
+    uint32_t type_index;
+    Read(&type_index);
+    MINRPC_CHECK(type_index == kRuntimeRPCObjectRefTypeIndex);
+    uint64_t object_handle;
+    Read(&object_handle);
+    tcode[0] = kTVMObjectHandle;
+    value[0].v_handle = reinterpret_cast<void*>(object_handle);
   }
 
  private:

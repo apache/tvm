@@ -19,10 +19,12 @@ import numpy as np
 import pytest
 import tvm
 from tvm import te
+from tvm import tir
 from tvm import topi
 from tvm import relay
 import tvm.topi.testing
 from tvm.contrib.nvcc import have_fp16
+from tvm.script import tir as T
 
 import tvm.testing
 
@@ -457,6 +459,40 @@ def verify_dynamic_strided_slice(in_shape, begin, end, strides=None):
         check_device(target)
 
 
+def verify_relax_dynamic_strided_slice(in_shape, begin, end, strides, output_shape):
+    A = te.placeholder(shape=in_shape, name="A")
+    Begin = te.placeholder(shape=[len(in_shape)], name="begin", dtype="int64")
+    End = te.placeholder(shape=[len(in_shape)], name="end", dtype="int64")
+    Strides = te.placeholder(shape=[len(in_shape)], name="strides", dtype="int64")
+
+    B = topi.dynamic_strided_slice(A, Begin, End, Strides, output_shape) + 1
+
+    def check_device(target):
+        dev = tvm.device(target, 0)
+        if not tvm.testing.device_enabled(target):
+            print("Skip because %s is not enabled" % target)
+            return
+        print("Running on target: %s" % target)
+        x_np = np.random.uniform(size=in_shape).astype(A.dtype)
+        out_npy = tvm.topi.testing.strided_slice_python(x_np, begin, end, strides) + 1
+        data_nd = tvm.nd.array(x_np, dev)
+        tvm_out = tvm.nd.empty(out_npy.shape, device=dev, dtype=A.dtype)
+        begin_nd = tvm.nd.array(np.array(begin).astype("int64"), dev)
+        end_nd = tvm.nd.array(np.array(end).astype("int64"), dev)
+        strides_nd = tvm.nd.array(np.array(strides).astype("int64"), dev)
+
+        with tvm.target.Target(target):
+            s = tvm.topi.testing.get_injective_schedule(target)(B)
+        foo = tvm.build(s, [A, Begin, End, Strides, B], target, name="stride_slice")
+        foo(data_nd, begin_nd, end_nd, strides_nd, tvm_out)
+        tvm_out_npy = tvm_out.numpy()
+        assert out_npy.shape == tvm_out_npy.shape
+        tvm.testing.assert_allclose(tvm_out_npy, out_npy)
+
+    for target in ["llvm", "opencl", "sdaccel", "aocl_sw_emu"]:
+        check_device(target)
+
+
 def verify_strided_set(in_shape, v_shape, begin, end, strides=None):
     A = te.placeholder(shape=in_shape, name="A")
     V = te.placeholder(shape=v_shape, name="V")
@@ -847,7 +883,49 @@ def test_strided_slice():
     verify_strided_slice((3, 4, 3), [1, 1, 0], [4, 4, 3])
     verify_strided_slice((3, 4, 3), [0, 2, 0], [1, 2, 3])
     verify_strided_slice((3, 4, 3), [0, 0, 0], [None, None, None])
-    verify_strided_slice((3, 4, 3), [0], [2], None, axes=[1])
+
+
+def test_strided_slice_with_dynamic_bounds():
+    """The begin/end of strided_slice can be a PrimExpr
+
+    Where topi.dynamic_strided_slice uses begin/end values provided at
+    runtime, strided_slice takes begin/end values at compile-time.
+    However, these begin/end values may depend on dynamic variables.
+    Previously, these resulted in dispatch to
+    `tvm::topi::dynamic_strided_slice`, ignoring the `axes` argument.
+    """
+    A = te.placeholder(shape=[16, 32, 64], name="A")
+    begins = [tir.Var("begin1", "int32"), tir.Var("begin2", "int32")]
+    ends = [tir.Var("end1", "int32"), tir.Var("end2", "int32")]
+    strides = [1, 1]
+    axes = [2, 1]
+
+    # Dummy tensor to provide begin/end variables in PrimFunc scope.
+    # Outside of a test case, these would typically be provided
+    # through another means, or bound to a static value at a later
+    # point.
+    Dummy = te.placeholder(shape=[*begins, *ends], name="Dummy")
+
+    B = topi.strided_slice(A, begins, ends, strides, axes)
+
+    func = te.create_prim_func([A, Dummy, B]).without_attr("global_symbol")
+
+    @T.prim_func(private=True)
+    def expected(
+        A: T.Buffer((16, 32, 64), "float32"),
+        var_Dummy: T.handle,
+        B_handle: T.handle,
+    ):
+        T.func_attr({"tir.noalias": T.bool(True)})
+        begin1, begin2, end1, end2 = T.int32(), T.int32(), T.int32(), T.int32()
+        Dummy = T.match_buffer(var_Dummy, (begin1, begin2, end1, end2))
+        B = T.match_buffer(B_handle, (16, end2 - begin2, end1 - begin1))
+        for iters in T.grid(*B.shape):
+            with T.block("T_dynamic_strided_slice_with_axes"):
+                i, j, k = T.axis.remap("SSS", iters)
+                B[i, j, k] = A[i, j + begin2, k + begin1]
+
+    tvm.ir.assert_structural_equal(expected, func)
 
 
 @tvm.testing.uses_gpu
@@ -857,6 +935,15 @@ def test_dynamic_strided_slice():
     verify_dynamic_strided_slice((3, 4, 3), [1, 0, 0], [2, 2, 3], [1, 1, 2])
     verify_dynamic_strided_slice((3, 4, 3), [1, 1, 0], [4, 4, 3])
     verify_dynamic_strided_slice((3, 4, 3), [0, 2, 0], [1, 2, 3])
+
+
+@tvm.testing.uses_gpu
+def test_relax_dynamic_strided_slice():
+    verify_relax_dynamic_strided_slice((3, 4, 3), [0, 0, 0], [4, -5, 4], [1, -1, 2], [3, 1, 2])
+    verify_relax_dynamic_strided_slice((3, 4, 3), [1, 1, 0], [4, 4, 3], [2, 1, 1], [1, 3, 3])
+    verify_relax_dynamic_strided_slice((3, 4, 3), [1, 0, 0], [2, 2, 3], [1, 1, 2], [1, 2, 2])
+    verify_relax_dynamic_strided_slice((3, 4, 3), [1, 1, 0], [4, 4, 3], [1, 1, 1], [2, 3, 3])
+    verify_relax_dynamic_strided_slice((3, 4, 3), [0, 2, 0], [1, 2, 3], [1, 1, 1], [1, 0, 3])
 
 
 @tvm.testing.uses_gpu
@@ -1026,6 +1113,9 @@ def test_take():
     verify_take((3, 3, 3), [[11, 25]], mode="fast")
     verify_take((3, 4), [0, 2], axis=0, mode="fast")
     verify_take((3, 4), [0, 2], axis=1, mode="fast")
+    verify_take((3, 5, 7), [[0, 2], [0, 2], [0, 2], [0, 2]], axis=0, mode="fast")
+    verify_take((3, 5, 7), [[0, 2], [0, 2], [0, 2], [0, 2]], axis=1, mode="fast")
+    verify_take((3, 5, 7), [[0, 2], [0, 2], [0, 2], [0, 2]], axis=2, mode="fast")
     verify_take((3, 4), [1, 2], axis=1, indices_dtype="uint32")
     verify_take((3, 4), [1, 2], axis=1, mode="wrap", indices_dtype="uint16")
     verify_take((3, 3, 3), [[11, 20]], mode="fast", indices_dtype="uint8")

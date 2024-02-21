@@ -316,13 +316,24 @@ class BuiltinLower : public StmtExprMutator {
       return Stmt(n);
     }
   }
+
   PrimExpr VisitExpr_(const CallNode* op) final {
     if (op->op.same_as(builtin::tvm_call_packed())) {
-      return MakeCallPacked(op, /* use_string_lookup */ true);
+      return MakeCallPackedGeneric(op, 0, builtin::tvm_call_packed_lowered(),
+                                   /* use_string_lookup */ true,
+                                   /* use_last_value_as_traced_value*/ false);
     } else if (op->op.same_as(builtin::tvm_call_cpacked())) {
-      return MakeCallPacked(op, /* use_string_lookup */ false);
+      return MakeCallPackedGeneric(op, 0, builtin::tvm_call_cpacked_lowered(),
+                                   /* use_string_lookup */ false,
+                                   /* use_last_value_as_traced_value*/ false);
     } else if (op->op.same_as(builtin::tvm_call_trace_packed())) {
-      return MakeCallTracePacked(op);
+      return MakeCallPackedGeneric(op, 0, builtin::tvm_call_trace_packed_lowered(),
+                                   /* use_string_lookup */ true,
+                                   /* use_last_value_as_traced_value*/ true);
+    } else if (op->op.same_as(builtin::anylist_setitem_call_packed())) {
+      return MakeAnyListSetItemCallPacked(op, builtin::tvm_call_packed_lowered(), true);
+    } else if (op->op.same_as(builtin::anylist_setitem_call_cpacked())) {
+      return MakeAnyListSetItemCallPacked(op, builtin::tvm_call_cpacked_lowered(), false);
     } else if (op->op.same_as(builtin::tvm_stack_make_shape())) {
       return MakeShape(op);
     } else if (op->op.same_as(builtin::tvm_stack_make_array())) {
@@ -461,8 +472,69 @@ class BuiltinLower : public StmtExprMutator {
                                        cast(DataType::Int(32), device_type_.value())));
     return TVMStructGet(DataType::Handle(), scope.stack_array, idx, builtin::kArrAddr);
   }
-  // call packed.
-  PrimExpr MakeCallPacked(const CallNode* op, bool use_string_lookup) {
+
+  void SetPackedArg(PrimExpr arg, const Var& value_stack, const Buffer& tcode_stack,
+                    size_t stack_offset, std::vector<tir::Stmt>* prep_seq) {
+    auto* call_pattern = arg.as<CallNode>();
+    if (call_pattern && call_pattern->op.same_as(builtin::anylist_getitem())) {
+      // call runtime function to set anylist
+      prep_seq->emplace_back(
+          Evaluate(Call(DataType::Int(32), Op::Get("tir.TVMBackendAnyListSetPackedArg"),
+                        {call_pattern->args[0], call_pattern->args[1], value_stack,
+                         tcode_stack->data, ConstInt32(stack_offset)})));
+    } else {
+      DataType api_type = APIType(arg.dtype());
+      if (arg.dtype() != api_type) {
+        arg = Cast(api_type, arg);
+      }
+      prep_seq->emplace_back(
+          TVMStructSet(value_stack, stack_offset, builtin::kTVMValueContent, arg));
+      int arg_tcode = api_type.code();
+      if (api_type.is_handle() && arg.as<StringImmNode>()) {
+        arg_tcode = kTVMStr;
+      } else if (IsArrayHandle(arg)) {
+        arg_tcode = kTVMDLTensorHandle;
+      }
+      // opaque handle need to set the kind properly
+      if (arg_tcode == kTVMOpaqueHandle) {
+        prep_seq->emplace_back(IfThenElse(
+            Call(DataType::Bool(), builtin::isnullptr(), {arg}),
+            BufferStore(tcode_stack, ConstInt32(kTVMNullptr), {ConstInt32(stack_offset)}),
+            BufferStore(tcode_stack, ConstInt32(arg_tcode), {ConstInt32(stack_offset)})));
+      } else {
+        prep_seq->emplace_back(
+            BufferStore(tcode_stack, ConstInt32(arg_tcode), {ConstInt32(stack_offset)}));
+      }
+    }
+  }
+
+  PrimExpr MakeAnyListSetItemCallPacked(const CallNode* op, const Op& lowered_op,
+                                        bool use_string_lookup) {
+    PrimExpr list_handle = op->args[0];
+    PrimExpr list_index = op->args[1];
+
+    Call call = MakeCallPackedGeneric(op, 2, lowered_op, use_string_lookup, false);
+    PrimExpr value_stack = call->args[1];
+    PrimExpr tcode_stack = call->args[2];
+    // The stack offset of return value stack_end
+    PrimExpr ret_offset = call->args[4];
+    auto& prep_seq = prep_seq_stack_.back();
+    prep_seq.emplace_back(Evaluate(call));
+    return Call(DataType::Int(32), Op::Get("tir.TVMBackendAnyListMoveFromPackedReturn"),
+                {list_handle, list_index, value_stack, tcode_stack, ret_offset});
+  }
+  /*!
+   * \brief Generic tool to make low-level
+   *  packed_call(other_args..., func_name, packed_arg0, packed_arg1...)
+   *
+   * \param op The call
+   * \param name_offset The beginning of function name and call packed section.
+   * \param lowered_packed_op The target lowered op.
+   * \param use_string_lookup Whether to lookup function by string.
+   * \param pass_last_arg_as_traced_value Whether to pass last argument as traced value
+   */
+  Call MakeCallPackedGeneric(const CallNode* op, size_t name_offset, const Op& lowered_packed_op,
+                             bool use_string_lookup, bool pass_last_arg_as_traced_value) {
     auto& scope = alloca_scope_.back();
     auto& prep_seq = prep_seq_stack_.back();
 
@@ -470,34 +542,24 @@ class BuiltinLower : public StmtExprMutator {
     size_t restore_array_stack = scope.run_sizes.array_stack;
     size_t arg_stack_begin = scope.run_sizes.arg_stack;
 
-    size_t arg_count = op->args.size();
+    size_t args_begin = name_offset + 1;
+    size_t args_end = op->args.size();
 
     // cpacked expects a resource_handle parameter
     if (!use_string_lookup) {
-      arg_count--;
+      --args_end;
     }
+    size_t num_args = args_end - args_begin;
 
-    scope.run_sizes.arg_stack += arg_count;
+    // The extra one slot is for return value.
+    scope.run_sizes.arg_stack += num_args + 1;
     // Specially handle the buffer packed intrinsic
     PrimExpr expr = StmtExprMutator::VisitExpr_(op);
     op = expr.as<CallNode>();
-    for (size_t i = 1; i < arg_count; ++i) {
-      PrimExpr stack_index = ConstInt32(arg_stack_begin + i - 1);
-      PrimExpr arg = op->args[i];
-      DataType t = arg.dtype();
-      DataType api_type = APIType(t);
-      if (t != api_type) {
-        arg = Cast(api_type, arg);
-      }
-      prep_seq.emplace_back(TVMStructSet(scope.stack_value,
-                                         static_cast<int>(arg_stack_begin + i - 1),
-                                         builtin::kTVMValueContent, arg));
-      int arg_tcode = api_type.code();
-      if (api_type.is_handle() && arg.as<StringImmNode>()) {
-        arg_tcode = kTVMStr;
-      }
-      if (IsArrayHandle(arg)) arg_tcode = kTVMDLTensorHandle;
-      prep_seq.emplace_back(BufferStore(scope.stack_tcode, ConstInt32(arg_tcode), {stack_index}));
+
+    for (size_t i = 0; i < num_args; ++i) {
+      this->SetPackedArg(op->args[args_begin + i], scope.stack_value, scope.stack_tcode,
+                         arg_stack_begin + i, &prep_seq);
     }
     // Verify stack size matches earlier value.
     if (is_precheck_) {
@@ -508,13 +570,13 @@ class BuiltinLower : public StmtExprMutator {
     scope.run_sizes.shape_stack = restore_shape_stack;
     scope.run_sizes.array_stack = restore_array_stack;
     scope.run_sizes.arg_stack = arg_stack_begin;
-    Array<PrimExpr> packed_args = {op->args[0], scope.stack_value, scope.stack_tcode->data,
-                                   ConstInt32(arg_stack_begin),
-                                   ConstInt32(arg_stack_begin + op->args.size() - 1)};
-
+    Array<PrimExpr> packed_args = {op->args[name_offset], scope.stack_value,
+                                   scope.stack_tcode->data, ConstInt32(arg_stack_begin),
+                                   ConstInt32(arg_stack_begin + num_args)};
     // cpacked call resource_handle
     if (!use_string_lookup) {
-      PrimExpr last_arg = op->args[arg_count];
+      ICHECK(!pass_last_arg_as_traced_value);
+      PrimExpr last_arg = op->args[args_end];
       const VarNode* var_node = last_arg.as<VarNode>();
       if (var_node != nullptr) {
         tir::Var resource_handle = GetRef<Var>(var_node);
@@ -522,58 +584,12 @@ class BuiltinLower : public StmtExprMutator {
       } else {
         packed_args.push_back(last_arg);
       }
+    } else if (pass_last_arg_as_traced_value) {
+      // pass in last element as traced value
+      // used by call_packed_traced
+      packed_args.push_back(op->args[op->args.size() - 1]);
     }
-
-    auto builtin_call = use_string_lookup ? builtin::tvm_call_packed_lowered()
-                                          : builtin::tvm_call_cpacked_lowered();
-    return Call(op->dtype, builtin_call, packed_args);
-  }
-
-  PrimExpr MakeCallTracePacked(const CallNode* op) {
-    ICHECK(!alloca_scope_.empty());
-    auto& scope = alloca_scope_.back();
-    auto& prep_seq = prep_seq_stack_.back();
-
-    int64_t restore_shape_stack = scope.run_sizes.shape_stack;
-    size_t restore_array_stack = scope.run_sizes.array_stack;
-    size_t arg_stack_begin = scope.run_sizes.arg_stack;
-    scope.run_sizes.arg_stack += op->args.size();
-    size_t args_size = op->args.size();
-    ICHECK_GT(args_size, 0);
-    PrimExpr expr = StmtExprMutator::VisitExpr_(op);
-    op = expr.as<CallNode>();
-    for (size_t i = 1; i < op->args.size(); ++i) {
-      PrimExpr stack_index = ConstInt32(arg_stack_begin + i - 1);
-      PrimExpr arg = op->args[i];
-      DataType t = arg.dtype();
-      DataType api_type = APIType(t);
-      if (t != api_type) {
-        arg = Cast(api_type, arg);
-      }
-      prep_seq.emplace_back(TVMStructSet(scope.stack_value,
-                                         static_cast<int>(arg_stack_begin + i - 1),
-                                         builtin::kTVMValueContent, arg));
-      int arg_tcode = api_type.code();
-      ICHECK(!IsArrayHandle(arg)) << "Trace does not support Buffers";
-      prep_seq.emplace_back(BufferStore(scope.stack_tcode, ConstInt32(arg_tcode), {stack_index}));
-    }
-    // Verify stack size matches earlier value.
-    if (is_precheck_) {
-      scope.UpdateMax();
-    } else {
-      scope.AssertMaxIsValid();
-    }
-    scope.run_sizes.shape_stack = restore_shape_stack;
-    scope.run_sizes.array_stack = restore_array_stack;
-    // Update the top of the stack, so we can use more than one
-    // packed function's arguments with the one stack.
-    scope.run_sizes.arg_stack = arg_stack_begin + args_size - 1;
-    Array<PrimExpr> packed_args = {op->args[0], scope.stack_value, scope.stack_tcode->data,
-                                   ConstInt32(arg_stack_begin),
-                                   ConstInt32(arg_stack_begin + op->args.size() - 1),
-                                   // Pass traced value.
-                                   op->args[args_size - 1]};
-    return Call(op->dtype, builtin::tvm_call_trace_packed_lowered(), packed_args);
+    return Call(op->dtype, lowered_packed_op, packed_args);
   }
 
   Stmt MakeNdMemAllocWithScope(const LetStmtNode* let, const CallNode* call) {

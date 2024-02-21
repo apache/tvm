@@ -63,6 +63,9 @@ class CUDAThreadEntry {
   // get the threadlocal workspace
   static CUDAThreadEntry* ThreadLocal();
 };
+
+inline cudaStream_t GetCUDAStream() { return CUDAThreadEntry::ThreadLocal()->stream; }
+
 }  // namespace runtime
 }  // namespace tvm
 #endif  // TVM_RUNTIME_CUDA_CUDA_COMMON_H_

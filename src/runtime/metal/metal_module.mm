@@ -191,7 +191,9 @@ class MetalWrappedFunc {
     AUTORELEASEPOOL {
       metal::MetalThreadEntry* t = metal::MetalThreadEntry::ThreadLocal();
       int device_id = t->device.device_id;
-      auto stream = static_cast<metal::Stream*>(t->stream[device_id]);
+      // obtain the stream
+      auto stream =
+          metal::MetalWorkspace::Global()->CastStreamOrGetDefault(t->stream[device_id], device_id);
       if (stream->HasErrorHappened()) return;
       if (scache_[device_id] == nil) {
         scache_[device_id] = m_->GetPipelineState(device_id, func_name_);
@@ -265,10 +267,7 @@ Module MetalModuleCreate(std::unordered_map<std::string, std::string> smap,
                          std::unordered_map<std::string, FunctionInfo> fmap, std::string fmt,
                          std::string source) {
   ObjectPtr<Object> n;
-  AUTORELEASEPOOL {
-    metal::MetalWorkspace::Global()->Init();
-    n = make_object<MetalModuleNode>(smap, fmap, fmt, source);
-  };
+  AUTORELEASEPOOL { n = make_object<MetalModuleNode>(smap, fmap, fmt, source); };
   return Module(n);
 }
 
@@ -279,6 +278,7 @@ TVM_REGISTER_GLOBAL("runtime.module.create_metal_module")
       std::unordered_map<std::string, FunctionInfo> fmap;
       dmlc::JSONReader reader(&stream);
       reader.Read(&fmap);
+
       return MetalModuleCreate(
           std::unordered_map<std::string, std::string>(smap.begin(), smap.end()), fmap, fmt,
           source);

@@ -20,15 +20,14 @@
 const path = require("path");
 const fs = require("fs");
 const assert = require("assert");
-const tvmjs = require("../../dist");
+const tvmjs = require("../../dist/tvmjs.bundle")
 
 const wasmPath = tvmjs.wasmPath();
-const EmccWASI = require(path.join(wasmPath, "tvmjs_runtime.wasi.js"));
 const wasmSource = fs.readFileSync(path.join(wasmPath, "tvmjs_runtime.wasm"));
 
 let tvm = new tvmjs.Instance(
   new WebAssembly.Module(wasmSource),
-  new EmccWASI()
+  tvmjs.createPolyfillWASI()
 );
 
 
@@ -39,6 +38,8 @@ test("GetGlobal", () => {
   let fecho = tvm.getGlobalFunc("testing.echo");
 
   assert(faddOne(tvm.scalar(1, "int")) == 2);
+  assert(faddOne(tvm.scalar(-1, "int")) == 0);
+
   // check function argument with different types.
   assert(fecho(1123) == 1123);
   assert(fecho("xyz") == "xyz");
@@ -122,6 +123,21 @@ test("RegisterGlobal", () => {
 
   let syslib = tvm.systemLib();
   syslib.dispose();
+  tvm.endScope();
+});
+
+test("ExceptionPassing", () => {
+  tvm.beginScope();
+  tvm.registerFunc("throw_error", function (msg) {
+    throw Error(msg);
+  });
+  let f = tvm.getGlobalFunc("throw_error");
+  try {
+    f("error-xyz");
+    throw Error("error not caught");
+  } catch (error) {
+    assert(error.message.indexOf("error-xyz") != -1);
+  }
   tvm.endScope();
 });
 

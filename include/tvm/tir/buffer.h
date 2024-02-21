@@ -35,6 +35,18 @@
 namespace tvm {
 namespace tir {
 
+#ifndef TVM_INDEX_DEFAULT_I64
+#define TVM_INDEX_DEFAULT_I64 1
+#endif
+/*! \brief if TVM_INDEX_DEFAULT_I64 is set, return int64, otherwise return int32 */
+inline DataType DefaultIndexType() {
+#if TVM_INDEX_DEFAULT_I64
+  return DataType::Int(64);
+#else
+  return DataType::Int(32);
+#endif
+}
+
 // forward declare Stmt
 class Stmt;
 
@@ -136,7 +148,7 @@ class BufferNode : public Object {
 
   /*! \return preferred index type for this buffer node */
   DataType DefaultIndexType() const {
-    return shape.size() != 0 ? shape[0].dtype() : DataType::Int(32);
+    return shape.size() != 0 ? shape[0].dtype() : tvm::tir::DefaultIndexType();
   }
 
   /*! \brief Determine the offset in the buffer of the given index.

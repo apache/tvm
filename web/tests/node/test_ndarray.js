@@ -23,11 +23,12 @@ const assert = require("assert");
 const tvmjs = require("../../dist/tvmjs.bundle")
 
 const wasmPath = tvmjs.wasmPath();
-const EmccWASI = require(path.join(wasmPath, "tvmjs_runtime.wasi.js"));
 const wasmSource = fs.readFileSync(path.join(wasmPath, "tvmjs_runtime.wasm"));
 
-let tvm = new tvmjs.Instance(new WebAssembly.Module(wasmSource), new EmccWASI());
-
+let tvm = new tvmjs.Instance(
+  new WebAssembly.Module(wasmSource),
+  tvmjs.createPolyfillWASI()
+);
 
 // Basic fields.
 assert(tvm.listGlobalFuncNames() !== undefined);

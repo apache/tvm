@@ -66,6 +66,68 @@ enum class CallingConv : int {
 };
 
 /*!
+ * \brief Supported linkage types.
+ */
+enum class LinkageType : int {
+  /*!
+   * \brief Internal linkage.
+   */
+  kInternal = 0,
+  /*!
+   * \brief External linkage.
+   - Function with external linkage should have a global symbol attached to it.
+   */
+  kExternal = 1
+};
+
+/*!
+ * \brief Generic attribute names that can be attached to any function.
+ *
+ * \sa tvm::tir::attr, tvm::relay::attr
+ */
+namespace attr {
+/*!
+ * \brief Indicates the special calling convention.
+ *
+ * Type: Integer
+ *
+ * \sa tvm::CallingConv
+ */
+constexpr const char* kCallingConv = "calling_conv";
+
+/*!
+ * \brief Compilation target of the function.
+ *
+ * Type: Target
+ *
+ * \sa tvm::Target
+ */
+constexpr const char* kTarget = "target";
+
+/*!
+ * \brief Global linker symbol of the function in generated code.
+ *
+ *  This option forces the code generator to name the
+ *  function with the given.
+ *
+ *  For example, we could set a global_symbol of a function
+ *  early to make sure that we can always refer to it by
+ *  the symbol name in the generated DLL.
+ *
+ *  We should not set the attribute for local functions,
+ *  so that the compiler can freely rename them.
+ *
+ *  A unique global symbol will be automatically assigned
+ *  to each function in the module before the target code
+ *  generation phase.
+ *
+ * Type: String
+ */
+constexpr const char* kGlobalSymbol = "global_symbol";
+
+}  // namespace attr
+
+/*!
  * \brief Base node of all functions.
  *
  * We support several variants of functions throughout the stack.
@@ -130,6 +192,31 @@ class BaseFuncNode : public RelayExprNode {
    * \endcode
    */
   bool HasNonzeroAttr(const std::string& attr_key) const { return attrs.HasNonzeroAttr(attr_key); }
+  /*!
+   * \brief Get the type of the linkage.
+   *
+   * Currently, we only consider external/internal linkage.
+   * This can be extended in the future when necessary.
+   *
+   * \return Linkage type.
+   *
+   * \code
+   *
+   *  void Example(const BaseFunc& f) {
+   *    if (f->GetLinkageType() == tvm::LinkageType::kExternal) {
+   *      // Do not remove a function with external linkage
+   *    }
+   *  }
+   *
+   * \endcode
+   */
+
+  LinkageType GetLinkageType() const {
+    if (GetAttr<String>(attr::kGlobalSymbol))
+      return LinkageType::kExternal;
+    else
+      return LinkageType::kInternal;
+  }
 
   static constexpr const char* _type_key = "BaseFunc";
   static constexpr const uint32_t _type_child_slots = 2;
@@ -145,51 +232,5 @@ class BaseFunc : public RelayExpr {
   TVM_DEFINE_OBJECT_REF_METHODS(BaseFunc, RelayExpr, BaseFuncNode);
 };
 
-/*!
- * \brief Generic attribute names that can be attached to any function.
- *
- * \sa tvm::tir::attr, tvm::relay::attr
- */
-namespace attr {
-/*!
- * \brief Indicates the special calling convention.
- *
- * Type: Integer
- *
- * \sa tvm::CallingConv
- */
-constexpr const char* kCallingConv = "calling_conv";
-
-/*!
- * \brief Compilation target of the function.
- *
- * Type: Target
- *
- * \sa tvm::Target
- */
-constexpr const char* kTarget = "target";
-
-/*!
- * \brief Global linker symbol of the function in generated code.
- *
- *  This option forces the code generator to name the
- *  function with the given.
- *
- *  For example, we could set a global_symbol of a function
- *  early to make sure that we can always refer to it by
- *  the symbol name in the generated DLL.
- *
- *  We should not set the attribute for local functions,
- *  so that the compiler can freely rename them.
- *
- *  A unique global symbol will be automatically assigned
- *  to each function in the module before the target code
- *  generation phase.
- *
- * Type: String
- */
-constexpr const char* kGlobalSymbol = "global_symbol";
-
-}  // namespace attr
 }  // namespace tvm
 #endif  // TVM_IR_FUNCTION_H_

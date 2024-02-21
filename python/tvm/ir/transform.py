@@ -44,8 +44,10 @@ class PassInfo(tvm.runtime.Object):
         The list of passes that are required by a certain pass.
     """
 
-    def __init__(self, opt_level, name, required=None):
-        self.__init_handle_by_constructor__(_ffi_transform_api.PassInfo, opt_level, name, required)
+    def __init__(self, opt_level, name, required=None, traceable=False):
+        self.__init_handle_by_constructor__(
+            _ffi_transform_api.PassInfo, opt_level, name, required, traceable
+        )
 
 
 @tvm._ffi.register_object("transform.PassContext")
@@ -69,6 +71,20 @@ class PassContext(tvm.runtime.Object):
 
     config : Optional[Dict[str, Object]]
         Additional configurations for specific passes.
+
+    trace: Optional[relax.tuning.Trace]
+        Initial trace for trace mode.
+
+    trace_stack: Optional[List[relax.tuning_api.Trace]]
+        Initial trace stack for trace mode.
+
+    make_traceable: Optional[List[str]]
+        List of passes to make traceable.
+
+    num_evals: int
+        initial number of evaluations conducted in the pipeline.
+
+    tuning_api_database: Optional[relax.tuning_api.JSONDatabase]
     """
 
     def __init__(
@@ -78,6 +94,11 @@ class PassContext(tvm.runtime.Object):
         disabled_pass=None,
         instruments=None,
         config=None,
+        trace=None,
+        trace_stack=None,
+        make_traceable=None,
+        num_evals=0,
+        tuning_api_database=None,
     ):
         required = list(required_pass) if required_pass else []
         if not isinstance(required, (list, tuple)):
@@ -91,9 +112,25 @@ class PassContext(tvm.runtime.Object):
         if not isinstance(instruments, (list, tuple)):
             raise TypeError("instruments is expected to be the type of " + "list/tuple/set.")
 
+        # Convert to Map<String, bool>
+        # TODO(sunggg): Replace this to Set equivalent if exists
+        make_traceable = {name: True for name in make_traceable} if make_traceable else None
+
+        if not trace_stack:
+            trace_stack = [trace] if trace else []
+
         config = config if config else None
         self.__init_handle_by_constructor__(
-            _ffi_transform_api.PassContext, opt_level, required, disabled, instruments, config
+            _ffi_transform_api.PassContext,
+            opt_level,
+            required,
+            disabled,
+            instruments,
+            config,
+            trace_stack,
+            make_traceable,
+            num_evals,
+            tuning_api_database,
         )
 
     def __enter__(self):
@@ -129,6 +166,47 @@ class PassContext(tvm.runtime.Object):
 
         """
         return _ffi_transform_api.ListConfigs()
+
+    def push_trace(self, trace):
+        """Push a trace into the stack."""
+        return _ffi_transform_api.PushTrace(self, trace)
+
+    def pop_trace(self, return_current=True):
+        """Pop a topmost trace from the stack.
+        Returns
+        -------
+        Trace : Optional[relax.tuning.Trace]
+        """
+        if return_current:
+            cur_trace = self.get_current_trace()
+            _ffi_transform_api.PopTrace(self)
+            return cur_trace
+
+        return _ffi_transform_api.PopTrace(self)
+
+    def get_trace_stack(self):
+        """Get the current trace stack."""
+        return _ffi_transform_api.GetTraceStack(self)
+
+    def get_trace_stack_size(self):
+        """Get the size of current stack."""
+        return _ffi_transform_api.GetTraceStackSize(self)
+
+    def get_current_trace(self):
+        """Get the trace on the top of the stack."""
+        return _ffi_transform_api.GetCurrentTrace(self)
+
+    def set_num_evals(self, num: int):
+        """Set the number of evaluations conducted in the pipeline."""
+        return _ffi_transform_api.SetNumEvals(self, num)
+
+    def inc_num_evals(self, num: int):
+        """Increment the number of evaluations conducted in the pipeline."""
+        return _ffi_transform_api.IncNumEvals(self, num)
+
+    def get_tuning_api_database(self):
+        """Get tuning api database."""
+        return _ffi_transform_api.GetTuningAPIDatabase(self)
 
 
 @tvm._ffi.register_object("transform.Pass")
@@ -198,7 +276,7 @@ class Sequential(Pass):
         The list of passes that the sequential pass is dependent on.
     """
 
-    def __init__(self, passes=None, opt_level=0, name="sequential", required=None):
+    def __init__(self, passes=None, opt_level=0, name="sequential", required=None, traceable=False):
         passes = passes if passes else []
         if not isinstance(passes, (list, tuple)):
             raise TypeError("passes must be a list of Pass objects.")
@@ -208,7 +286,7 @@ class Sequential(Pass):
             raise TypeError("Required is expected to be the type of list/tuple.")
 
         self.__init_handle_by_constructor__(
-            _ffi_transform_api.Sequential, passes, opt_level, name, required
+            _ffi_transform_api.Sequential, passes, opt_level, name, required, traceable
         )
 
 
@@ -244,7 +322,7 @@ def _wrap_class_module_pass(pass_cls, pass_info):
     return PyModulePass
 
 
-def module_pass(pass_func=None, opt_level=None, name=None, required=None):
+def module_pass(pass_func=None, opt_level=None, name=None, required=None, traceable=False):
     """Decorate a module pass.
 
     This function returns a callback when pass_func is provided.
@@ -268,6 +346,9 @@ def module_pass(pass_func=None, opt_level=None, name=None, required=None):
 
     required : Optional[List[str]]
         The list of passes that the module pass is dependent on.
+
+    traceable: Boolean
+        Boolean variable whether the module pass is traceable
 
     Returns
     -------
@@ -336,7 +417,7 @@ def module_pass(pass_func=None, opt_level=None, name=None, required=None):
     def create_module_pass(pass_arg):
         """Internal function that creates a module pass"""
         fname = name if name else pass_arg.__name__
-        info = PassInfo(opt_level, fname, required)
+        info = PassInfo(opt_level, fname, required, traceable)
         if inspect.isclass(pass_arg):
             return _wrap_class_module_pass(pass_arg, info)
         if not callable(pass_arg):
@@ -364,3 +445,46 @@ def PrintIR(header="", show_meta_data=False):
     The pass
     """
     return _ffi_transform_api.PrintIR(header, show_meta_data)
+
+
+def ApplyPassToFunction(
+    transform: Pass,
+    func_name_regex: str,
+    error_if_no_function_matches_regex: bool = False,
+) -> Pass:
+    """Utility to apply a pass to specific functions in an IRModule
+
+    TVM uses IRModule to IRModule transformations at all stages of
+    lowering.  These transformations may be useful when hand-writing an
+    optimized model, or to perform optimizations on specific kernels
+    within an IRModule.  This utility allows a pass to be applied to a
+    specified function, without altering other functions in the module.
+
+    Parameters
+    ----------
+    transform: Pass
+
+        The IRModule to IRModule pass to be applied.
+
+    func_name_regex: str
+
+        A regex used to select the functions to be updated.  The pass
+        will be applied to all functions whose name matches the regex.
+
+    error_if_no_function_matches_regex: bool
+
+        Specifies the behavior if an IRModule does not contain any
+        function matching the provided regex.  If true, an error will
+        be raised.  If false (default), the IRModule will be returned
+        unmodified.
+
+    Returns
+    -------
+    new_transform: Pass
+
+        The modified IRModule to IRModule pass.
+
+    """
+    return _ffi_transform_api.ApplyPassToFunction(
+        transform, func_name_regex, error_if_no_function_matches_regex
+    )

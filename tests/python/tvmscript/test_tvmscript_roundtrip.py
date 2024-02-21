@@ -21,7 +21,7 @@ import pytest
 import tvm
 import tvm.testing
 from tvm import tir
-from tvm.script import tir as T, ir as I
+from tvm.script import tir as T, ir as I, relax as R
 
 import numpy as np
 
@@ -3339,6 +3339,15 @@ def ramp_int64():
     return func
 
 
+def scalable_vectors():
+    @T.prim_func
+    def func(a: T.handle):
+        A = T.match_buffer(a, (200,), "float32")
+        A[T.Ramp(11, 2, 4 * tir.vscale())] = T.Broadcast(125, 4 * tir.vscale())
+
+    return func
+
+
 def let_expression():
     @T.prim_func
     def func():
@@ -3996,6 +4005,24 @@ def op_of_literal():
         yield make_ir_generator(op, arg)
 
 
+def relax_extern_func():
+    @R.function
+    def func(A: R.Tensor([10, 20], "float32")):
+        func = R.ExternFunc("dummy_func")
+
+        B: R.Tensor([10, 20], "float32") = R.call_dps_packed(
+            func, [A], out_sinfo=R.Tensor([10, 20], "float32")
+        )
+
+        C: R.Tensor(ndim=2, dtype="float32") = R.call_dps_packed(
+            func, [B], out_sinfo=R.Tensor([10, 20], "float32")
+        )
+
+        return C
+
+    return func
+
+
 ir_generator = tvm.testing.parameter(
     launch_env_thread,
     opt_gemm_normalize,
@@ -4081,10 +4108,32 @@ ir_generator = tvm.testing.parameter(
     *op_of_literal(),
 )
 
+relax_ir_generator = tvm.testing.parameter(
+    relax_extern_func,
+)
+
+show_all_relax_struct_info = tvm.testing.parameter(
+    by_dict={
+        "show_all_struct_info": True,
+        "hide_inferable_struct_info": False,
+    }
+)
+
 
 def test_roundtrip(ir_generator):
     original = ir_generator()
     after_roundtrip = tvm.script.from_source(original.script(show_meta=True))
+    tvm.ir.assert_structural_equal(original, after_roundtrip, True)
+
+
+def test_relax_roundtrip(relax_ir_generator, show_all_relax_struct_info):
+    original = relax_ir_generator()
+    after_roundtrip = tvm.script.from_source(
+        original.script(
+            show_meta=True,
+            show_all_struct_info=show_all_relax_struct_info,
+        )
+    )
     tvm.ir.assert_structural_equal(original, after_roundtrip, True)
 
 
