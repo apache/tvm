@@ -59,7 +59,7 @@ namespace relax_vm {
 /*!
  * \brief An object representing an attention kv cache.
  */
-class AttentionKVCacheObj : public Object {
+class AttentionKVCacheLegacyObj : public Object {
  public:
   /*!
    * \brief Underlying support data.
@@ -227,7 +227,7 @@ class AttentionKVCacheObj : public Object {
 
   static constexpr const uint32_t _type_index = TypeIndex::kDynamic;
   static constexpr const char* _type_key = "relax.vm.AttentionKVCacheLegacy";
-  TVM_DECLARE_FINAL_OBJECT_INFO(AttentionKVCacheObj, Object);
+  TVM_DECLARE_FINAL_OBJECT_INFO(AttentionKVCacheLegacyObj, Object);
 };
 
 /*! \brief reference to closure. */
@@ -239,7 +239,7 @@ class AttentionKVCacheLegacy : public ObjectRef {
    */
   static AttentionKVCacheLegacy Create(NDArray init_data, ShapeTuple reserve_shape,
                                        int init_fill_count) {
-    auto n = make_object<AttentionKVCacheObj>();
+    auto n = make_object<AttentionKVCacheLegacyObj>();
     n->data = NDArray::Empty(reserve_shape, init_data->dtype, init_data->device);
     n->fill_count = 0;
     n->Append(init_data);
@@ -250,10 +250,11 @@ class AttentionKVCacheLegacy : public ObjectRef {
     return AttentionKVCacheLegacy(n);
   }
 
-  TVM_DEFINE_MUTABLE_OBJECT_REF_METHODS(AttentionKVCacheLegacy, ObjectRef, AttentionKVCacheObj);
+  TVM_DEFINE_MUTABLE_OBJECT_REF_METHODS(AttentionKVCacheLegacy, ObjectRef,
+                                        AttentionKVCacheLegacyObj);
 };
 
-TVM_REGISTER_OBJECT_TYPE(AttentionKVCacheObj);
+TVM_REGISTER_OBJECT_TYPE(AttentionKVCacheLegacyObj);
 
 //-------------------------------------------------
 //  Register runtime functions

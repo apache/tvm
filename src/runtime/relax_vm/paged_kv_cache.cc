@@ -29,7 +29,7 @@
 #include <utility>
 #include <vector>
 
-#include "kv_cache.h"
+#include "kv_state.h"
 
 namespace tvm {
 namespace runtime {
@@ -183,7 +183,7 @@ enum class RoPEMode : int {
  *     After calling `EndForward`, it is required to call `BeginForward`
  *     before calling any `Attention`.
  */
-class PagedAttentionKVCacheObj : public AttentionKVCache {
+class PagedAttentionKVCacheObj : public AttentionKVCacheObj {
  private:
   /********************* Configuration *********************/
 
@@ -810,7 +810,7 @@ class PagedAttentionKVCacheObj : public AttentionKVCache {
 
   static constexpr const uint32_t _type_index = TypeIndex::kDynamic;
   static constexpr const char* _type_key = "relax.vm.PagedAttentionKVCache";
-  TVM_DECLARE_FINAL_OBJECT_INFO(PagedAttentionKVCacheObj, Object);
+  TVM_DECLARE_FINAL_OBJECT_INFO(PagedAttentionKVCacheObj, AttentionKVCacheObj);
 
  private:
   /*! \brief Get a new free page and return its id. */
@@ -1157,11 +1157,6 @@ class PagedAttentionKVCacheObj : public AttentionKVCache {
   }
 };
 
-class PagedAttentionKVCache : public ObjectRef {
- public:
-  TVM_DEFINE_MUTABLE_OBJECT_REF_METHODS(PagedAttentionKVCache, ObjectRef, PagedAttentionKVCacheObj);
-};
-
 TVM_REGISTER_OBJECT_TYPE(PagedAttentionKVCacheObj);
 
 //-------------------------------------------------
@@ -1199,7 +1194,7 @@ TVM_REGISTER_GLOBAL("vm.builtin.paged_attention_kv_cache_create")
           std::move(f_attention_decode_begin_forward), std::move(f_attention_decode_end_forward),
           std::move(f_merge_inplace), std::move(f_split_rotary), std::move(f_rotary_inplace),
           std::move(f_debug_get_kv));
-      return PagedAttentionKVCache(std::move(n));
+      return AttentionKVCache(std::move(n));
     });
 
 TVM_REGISTER_GLOBAL("vm.builtin.paged_attention_kv_cache_create_reduced")
@@ -1224,38 +1219,40 @@ TVM_REGISTER_GLOBAL("vm.builtin.paged_attention_kv_cache_create_reduced")
           NullOpt, NullOpt, NullOpt, NullOpt, NullOpt, NullOpt,                  //
           std::move(f_merge_inplace), std::move(f_split_rotary), std::move(f_rotary_inplace),
           std::move(f_debug_get_kv));
-      return PagedAttentionKVCache(std::move(n));
+      return AttentionKVCache(std::move(n));
     });
 
+// Keep the following global functions for backward compatibility.
+// TODO(tvm-team): Remove these global functions in the future.
 TVM_REGISTER_GLOBAL("vm.builtin.paged_attention_kv_cache_clear")
-    .set_body_method<PagedAttentionKVCache>(&PagedAttentionKVCacheObj::Clear);
+    .set_body_method<AttentionKVCache>(&AttentionKVCacheObj::Clear);
 TVM_REGISTER_GLOBAL("vm.builtin.paged_attention_kv_cache_add_sequence")
-    .set_body_method<PagedAttentionKVCache>(&PagedAttentionKVCacheObj::AddSequence);
+    .set_body_method<AttentionKVCache>(&AttentionKVCacheObj::AddSequence);
 TVM_REGISTER_GLOBAL("vm.builtin.paged_attention_kv_cache_remove_sequence")
-    .set_body_method<PagedAttentionKVCache>(&PagedAttentionKVCacheObj::RemoveSequence);
+    .set_body_method<AttentionKVCache>(&AttentionKVCacheObj::RemoveSequence);
 TVM_REGISTER_GLOBAL("vm.builtin.paged_attention_kv_cache_fork_sequence")
-    .set_body_method<PagedAttentionKVCache>(&PagedAttentionKVCacheObj::ForkSequence);
+    .set_body_method<AttentionKVCache>(&AttentionKVCacheObj::ForkSequence);
 TVM_REGISTER_GLOBAL("vm.builtin.paged_attention_kv_cache_popn")
-    .set_body_method<PagedAttentionKVCache>(&PagedAttentionKVCacheObj::PopN);
+    .set_body_method<AttentionKVCache>(&AttentionKVCacheObj::PopN);
 TVM_REGISTER_GLOBAL("vm.builtin.paged_attention_kv_cache_get_num_available_pages")
-    .set_body_method<PagedAttentionKVCache>(&PagedAttentionKVCacheObj::GetNumAvailablePages);
+    .set_body_method<AttentionKVCache>(&AttentionKVCacheObj::GetNumAvailablePages);
 TVM_REGISTER_GLOBAL("vm.builtin.paged_attention_kv_cache_begin_forward")
-    .set_body_method<PagedAttentionKVCache>(&PagedAttentionKVCacheObj::BeginForward);
+    .set_body_method<AttentionKVCache>(&AttentionKVCacheObj::BeginForward);
 TVM_REGISTER_GLOBAL("vm.builtin.paged_attention_kv_cache_end_forward")
-    .set_body_method<PagedAttentionKVCache>(&PagedAttentionKVCacheObj::EndForward);
+    .set_body_method<AttentionKVCache>(&AttentionKVCacheObj::EndForward);
 TVM_REGISTER_GLOBAL("vm.builtin.paged_attention_kv_cache_get_query_positions")
-    .set_body_method<PagedAttentionKVCache>(&PagedAttentionKVCacheObj::GetQueryPositions);
+    .set_body_method<AttentionKVCache>(&AttentionKVCacheObj::GetQueryPositions);
 TVM_REGISTER_GLOBAL("vm.builtin.paged_attention_kv_cache_debug_get_kv")
-    .set_body_method<PagedAttentionKVCache>(&PagedAttentionKVCacheObj::DebugGetKV);
+    .set_body_method<AttentionKVCache>(&AttentionKVCacheObj::DebugGetKV);
 TVM_REGISTER_GLOBAL("vm.builtin.paged_attention_kv_cache_attention")
-    .set_body_typed([](PagedAttentionKVCache kv_cache, int64_t layer_id,
+    .set_body_typed([](AttentionKVCache kv_cache, int64_t layer_id,
                        double attn_score_scaling_factor, NDArray q_data, NDArray k_data,
                        NDArray v_data, NDArray o_data) {
       kv_cache->Attention(layer_id, std::move(q_data), std::move(k_data), std::move(v_data),
                           NullOpt, std::move(o_data), attn_score_scaling_factor);
     });
 TVM_REGISTER_GLOBAL("vm.builtin.paged_attention_kv_cache_attention_with_fused_qkv")
-    .set_body_typed([](PagedAttentionKVCache kv_cache, int64_t layer_id,
+    .set_body_typed([](AttentionKVCache kv_cache, int64_t layer_id,
                        double attn_score_scaling_factor, NDArray qkv_data, NDArray o_data) {
       kv_cache->AttentionWithFusedQKV(layer_id, std::move(qkv_data), NullOpt, std::move(o_data),
                                       attn_score_scaling_factor);
