@@ -371,6 +371,7 @@ def conv2d(
     padding: Optional[Union[int, Tuple, str]] = 0,
     dilation: Optional[Union[int, Tuple]] = 1,
     groups: Optional[int] = 1,
+    data_layout: Optional[str] = "NCHW",
     name: str = "conv2d",
 ) -> Tensor:
     """Applies a 2D convolution over an input image composed of sevaral input planes
@@ -399,6 +400,9 @@ def conv2d(
     groups : Optional[int]
         Split input into a number of groups.
 
+    data_layout : Optional[str]
+        Layout of input and output data.
+
     name : str
         Name hint.
 
@@ -413,10 +417,16 @@ def conv2d(
         strides=stride,
         padding=padding,
         dilation=dilation,
+        data_layout=data_layout,
         groups=groups,
     )
     if bias is not None:
-        conv_out = _op.add(conv_out, _op.reshape(bias._expr, [1, -1, 1, 1]))
+        if data_layout == "NCHW":
+            conv_out = _op.add(conv_out, _op.reshape(bias._expr, [1, -1, 1, 1]))
+        elif data_layout == "NHWC":
+            conv_out = _op.add(conv_out, _op.reshape(bias._expr, [1, 1, 1, -1]))
+        else:
+            raise NotImplementedError(f"Dont know how to handle layout {data_layout}.")
 
     return wrap_nested(conv_out, name)
 
@@ -429,6 +439,7 @@ def conv3d(
     padding: Optional[Union[int, Tuple, str]] = 0,
     dilation: Optional[Union[int, Tuple]] = 1,
     groups: Optional[int] = 1,
+    data_layout: Optional[str] = "NCDHW",
     name: str = "conv3d",
 ) -> Tensor:
     """Applies a 3D convolution over an input image composed of sevaral input planes
@@ -457,6 +468,9 @@ def conv3d(
     groups : Optional[int]
         Split input into a number of groups.
 
+    data_layout : Optional[str]
+        Optional layout of the input and output data.
+
     name : str
         Name hint.
 
@@ -472,9 +486,15 @@ def conv3d(
         padding=padding,
         dilation=dilation,
         groups=groups,
+        data_layout=data_layout,
     )
     if bias is not None:
-        conv_out = _op.add(conv_out, _op.reshape(bias._expr, [1, -1, 1, 1, 1]))
+        if data_layout == "NCDHW":
+            conv_out = _op.add(conv_out, _op.reshape(bias._expr, [1, -1, 1, 1, 1]))
+        elif data_layout == "NDHWC":
+            conv_out = _op.add(conv_out, _op.reshape(bias._expr, [1, 1, 1, 1, -1]))
+        else:
+            raise NotImplemented(f"Dont know how to handle layout {data_layout}.")
 
     return wrap_nested(conv_out, name)
 
@@ -1485,6 +1505,7 @@ def interpolate(
     align_corners: Optional[bool] = None,
     recompute_scale_factor: Optional[bool] = None,
     antialias: Optional[bool] = None,
+    data_layout: Optional[str] = "NCHW",
     name: str = "interpolate",
 ):
     """Resize a tensor using the specified mode.
@@ -1506,6 +1527,8 @@ def interpolate(
         Recompute the scale_factor for use in interpolation.
     antialias : Optional[bool]
         Apply antialiasing to output.
+    data_layout : Optional[str]
+        Layout of the input and output data.
     name : str
         Name hint for this operation.
 
@@ -1518,11 +1541,14 @@ def interpolate(
     assert antialias is None, "antialias is not supported."
 
     if size is None:
-        shape = x.shape
-        if isinstance(scale_factor, (list, tuple)):
-            size = tuple(int(shape[i] * scale_factor[i]) for i in range(2, len(shape)))
-        else:
-            size = tuple(int(shape[i] * scale_factor) for i in range(2, len(shape)))
+        size = []
+        for i, dim in enumerate(data_layout):
+            # Only upscale spatial dimensions.
+            if dim not in ["N", "C"]:
+                if isinstance(scale_factor, (list, tuple)):
+                    size.append(int(x.shape[i] * scale_factor[len(size)]))
+                else:
+                    size.append(int(x.shape[i] * scale_factor))
 
     if mode.startswith("nearest"):
         mode = "nearest_neighbor"
@@ -1538,7 +1564,11 @@ def interpolate(
 
     return wrap_nested(
         _op.image.resize2d(
-            x._expr, size, layout="NCHW", method=mode, coordinate_transformation_mode=coord_trans
+            x._expr,
+            size,
+            layout=data_layout,
+            method=mode,
+            coordinate_transformation_mode=coord_trans,
         ),
         name,
     )

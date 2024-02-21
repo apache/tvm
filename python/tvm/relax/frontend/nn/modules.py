@@ -225,6 +225,7 @@ class Conv2D(Module):
         groups: int = 1,
         bias: bool = True,
         dtype: Optional[str] = None,
+        data_layout: str = "NCHW",
     ):
         super().__init__()
         self.in_channels = in_channels
@@ -233,6 +234,7 @@ class Conv2D(Module):
         self.padding = padding
         self.dilation = dilation
         self.groups = groups
+        self.data_layout = data_layout
 
         # Allow dynamic input channels.
         if isinstance(self.in_channels, int):
@@ -270,7 +272,14 @@ class Conv2D(Module):
             The output tensor for the conv2d layer.
         """
         return op.conv2d(
-            x, self.weight, self.bias, self.stride, self.padding, self.dilation, self.groups
+            x,
+            self.weight,
+            self.bias,
+            self.stride,
+            self.padding,
+            self.dilation,
+            self.groups,
+            self.data_layout,
         )
 
 
@@ -290,6 +299,7 @@ class Conv3D(Module):
         groups: int = 1,
         bias: bool = True,
         dtype: Optional[str] = None,
+        data_layout: str = "NCDHW",
     ):
         super().__init__()
         self.in_channels = in_channels
@@ -298,6 +308,7 @@ class Conv3D(Module):
         self.padding = padding
         self.dilation = dilation
         self.groups = groups
+        self.data_layout = data_layout
 
         # Allow dynamic input channels.
         if isinstance(self.in_channels, int):
@@ -335,7 +346,14 @@ class Conv3D(Module):
             The output tensor for the conv2d layer.
         """
         return op.conv3d(
-            x, self.weight, self.bias, self.stride, self.padding, self.dilation, self.groups
+            x,
+            self.weight,
+            self.bias,
+            self.stride,
+            self.padding,
+            self.dilation,
+            self.groups,
+            self.data_layout,
         )
 
 
