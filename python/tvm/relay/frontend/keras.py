@@ -1039,7 +1039,7 @@ def _convert_lstm(
         if keras_layer.return_sequences:
             out_shape = (*input_shape[:-1], units)
             out_list.append(_op.reshape(next_h, newshape=out_shape))
-            out = _op.concatenate(out_list, axis=1) if keras_layer.return_sequences else next_h
+    out = _op.concatenate(out_list, axis=1) if keras_layer.return_sequences else next_h
     return [out, next_h, next_c]
 
 
