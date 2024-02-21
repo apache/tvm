@@ -50,7 +50,6 @@ macro_rules! check_call {
 
 // Define all sumodules.
 pub mod array;
-pub mod boxed_primitive;
 pub mod device;
 pub mod errors;
 pub mod function;

@@ -20,7 +20,6 @@ use proc_macro2::Span;
 use proc_macro_error::abort;
 use quote::quote;
 use syn::parse::{Parse, ParseStream, Result};
-use syn::parse_quote;
 
 use syn::{
     token::Semi, Attribute, FnArg, Generics, Ident, Lit, Meta, NestedMeta, Pat, ReturnType,
@@ -113,14 +112,6 @@ impl Parse for ExternalInput {
     }
 }
 
-/// Returns true if the type is `bool`, false otherwise
-fn is_bool(ty: &syn::Type) -> bool {
-    match ty {
-        Type::Path(ty_path) => ty_path.path.is_ident("bool"),
-        _ => false,
-    }
-}
-
 pub fn macro_impl(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
     let ext_input = syn::parse_macro_input!(input as ExternalInput);
 
@@ -151,15 +142,7 @@ pub fn macro_impl(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
 
         let args = &external.inputs;
 
-        // Pre-processing of arguments, done before calling the
-        // external PackedFunc.
-        let mut arg_pre_proc = Vec::<syn::Stmt>::new();
-
-        // Post-processing of arguments, done after calling the
-        // external PackedFunc.
-        let mut result_post_proc = Vec::<syn::Stmt>::new();
-
-        let (args, arg_tys): (Vec<Ident>, Vec<Type>) = args
+        let (args, tys): (Vec<Ident>, Vec<Type>) = args
             .iter()
             .map(|arg| match arg {
                 FnArg::Typed(pat_type) => match &*pat_type.pat {
@@ -180,52 +163,9 @@ pub fn macro_impl(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
             })
             .unzip();
 
-        let (external_arg_tys, internal_arg_tys): (Vec<Type>, Vec<Type>) = arg_tys
-            .into_iter()
-            .zip(args.iter())
-            .map(|(ty, arg)| -> (Type, Type) {
-                // A boolean is represented in the FFI as `runtime::Bool`, a
-                // child class of ObjectRef, to avoid ambiguity with integer
-                // types.
-                //
-                // * The `tvm_sys` crate cannot (easily) call the
-                //   `runtime.BoxBool` PackedFunc to construct an instance,
-                //   because the argument packing is defined in `tvm_rt`.
-                //
-                // * The implementation `TryFrom<ArgValue<'_>> for bool`,
-                //   cannot be moved to `tvm_rt`, because `ArgValue` is
-                //   defined in `tvm_sys`.
-                //
-                // Instead, defining these conversions as part of the
-                // external wrapping.  For boolean arguments, pre-process by
-                // wrapping in BoxBool.  For boolean results, post-process
-                // by unwrapping the BoxBool.
-                let internal_ty: Type = if is_bool(&ty) {
-                    let box_bool = parse_quote! {#tvm_rt_crate::boxed_primitive::BoxBool};
-                    arg_pre_proc.push(parse_quote! {
-                        let #arg: #box_bool = #arg.into();
-                    });
-                    box_bool
-                } else {
-                    ty.clone()
-                };
-                (ty, internal_ty)
-            })
-            .unzip();
-
         let ret_type = match &external.ret_type {
             ReturnType::Type(_, rtype) => *rtype.clone(),
             ReturnType::Default => syn::parse_str::<Type>("()").unwrap(),
-        };
-
-        let internal_ret_type: Type = if is_bool(&ret_type) {
-            let box_bool = parse_quote! {#tvm_rt_crate::boxed_primitive::BoxBool};
-            result_post_proc.push(parse_quote! {
-                let res: #ret_type = res.into();
-            });
-            box_bool
-        } else {
-            ret_type.clone()
         };
 
         let global = quote! {
@@ -240,15 +180,10 @@ pub fn macro_impl(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
         items.push(global);
 
         let wrapper = quote! {
-            #visibility fn #name<#(#ty_params),*>(#(#args : #external_arg_tys),*) -> #result_type<#ret_type> {
+            #visibility fn #name<#(#ty_params),*>(#(#args : #tys),*) -> #result_type<#ret_type> {
                 let func_ref: #tvm_rt_crate::Function = #global_name.clone();
-                let func_ref: Box<
-                    dyn Fn(#(#internal_arg_tys),*) -> #result_type<#internal_ret_type>
-                  > = func_ref.into();
-
-                #(#arg_pre_proc)*
-                let res: #internal_ret_type = func_ref(#(#args),*)?;
-                #(#result_post_proc)*
+                let func_ref: Box<dyn Fn(#(#tys),*) -> #result_type<#ret_type>> = func_ref.into();
+                let res: #ret_type = func_ref(#(#args),*)?;
                 Ok(res)
             }
         };
