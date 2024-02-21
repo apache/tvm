@@ -36,6 +36,7 @@ from tvm.dlight.benchmark import (
 )
 import tvm.testing
 
+gpu_target = "nvidia/nvidia-a100"
 # pylint: disable=no-self-argument,invalid-name,line-too-long,no-method-argument
 # fmt: off
 @I.ir_module
@@ -188,7 +189,7 @@ def test_benchmark_prim_func_rpc():
                 ((1, "m", 4096), "float32"),
             ],
             dym_var_sample={"m": 128},
-            target="nvidia/geforce-rtx-3070",
+            target=gpu_target,
             rpc_config=rpc_config,
         )
         assert input_infos == [
@@ -208,7 +209,7 @@ def test_benchmark_prim_func_local():
             ((1, "m", 4096), "float32"),
         ],
         dym_var_sample={"m": 128},
-        target="nvidia/geforce-rtx-3070",
+        target=gpu_target,
     )
     assert input_infos == [
         ((1, 128, 4096), "float32"),
@@ -219,7 +220,7 @@ def test_benchmark_prim_func_local():
 
 @pytest.mark.skip("requires CUDA")
 def test_benchmark_prim_func_full_local():
-    with tvm.target.Target("nvidia/geforce-rtx-3070"):
+    with tvm.target.Target(gpu_target):
         benchmark_prim_func(
             cuda_workload,
         )
@@ -237,7 +238,7 @@ def test_benchmark_prim_func_full_rpc():
         )
         benchmark_prim_func(
             cuda_workload,
-            target="nvidia/geforce-rtx-3070",
+            target=gpu_target,
             rpc_config=rpc_config,
             evaluator_config=ms.runner.EvaluatorConfig(
                 number=10,

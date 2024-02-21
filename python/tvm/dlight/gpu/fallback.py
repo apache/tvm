@@ -88,3 +88,4 @@ class Fallback(GPUScheduleRule):
             sch.decompose_reduction(block, r_loop)
 
         return sch
+    

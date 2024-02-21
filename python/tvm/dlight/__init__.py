@@ -17,7 +17,9 @@
 """DLight package provides efficient schedules out-of-box for deep learning workloads."""
 from . import gpu
 from .base import (
+    fast_tune,
     ApplyDefaultSchedule,
+    ApplyFastTuning,
     BlockInfo,
     IterInfo,
     ScheduleRule,

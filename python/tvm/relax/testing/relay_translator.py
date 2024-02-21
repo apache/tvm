@@ -42,6 +42,7 @@ def from_relay(
     disabled_pass: Optional[List[str]] = None,
     translate_op_with_tir: Optional[Dict[str, tvm.tir.PrimFunc]] = None,
     append_op_attrs: bool = False,
+    select_impl_strategy: str = "max_plevel"
 ) -> IRModule:
     """Convert a Relay function into a Relax program.
 
@@ -202,6 +203,7 @@ def from_relay(
                         out_type,
                         target,
                         use_autotvm=False,
+                        strategy=select_impl_strategy,
                     )
                     compute_func = best_impl.compute
                     name_hint = op_name.split(".")[-1]
@@ -251,7 +253,7 @@ def from_relay(
         else:
             raise TypeError("{} is not supported yet.".format(str(type(node))))
 
-    # List of subset of relay->relay optimizations
+    # List of subset of relay->relax optimizations
     # See src/relay/backend/utils.cc::GetPassPrefix() for full list
     seq = tvm.get_global_func("relay.backend.GetPassPrefixSeq")(True, True)
 

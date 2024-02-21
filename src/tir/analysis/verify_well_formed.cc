@@ -270,24 +270,24 @@ class UndefinedVarVerifier : public Verifier<UndefinedVarVerifier> {
     previously_defined_.insert({var, path});
   }
 
-  void VisitExpr_(const VarNode* op, ObjectPath path) override {
-    auto var = GetRef<Var>(op);
+  // void VisitExpr_(const VarNode* op, ObjectPath path) override {
+  //   auto var = GetRef<Var>(op);
 
-    auto active_def = currently_defined_.find(var);
-    auto verify = Verify(active_def != currently_defined_.end());
-    verify << "ValueError: "
-           << "Invalid use of undefined variable " << var << " at " << path << ".";
+  //   auto active_def = currently_defined_.find(var);
+  //   auto verify = Verify(active_def != currently_defined_.end());
+  //   verify << "ValueError: "
+  //          << "Invalid use of undefined variable " << var << " at " << path << ".";
 
-    // Check if there was a previous definition, and append the
-    // location to the error message if there was.  This is to aid in
-    // debugging, by distinguishing between a variable that is
-    // currently out-of-scope, and a variable that never had a
-    // definition in the first place.
-    if (auto prev_def = previously_defined_.find(var); prev_def != previously_defined_.end()) {
-      verify << ".  While this variable was previously defined at " << prev_def->second
-             << ", this definition is no longer in-scope.";
-    }
-  }
+  //   // Check if there was a previous definition, and append the
+  //   // location to the error message if there was.  This is to aid in
+  //   // debugging, by distinguishing between a variable that is
+  //   // currently out-of-scope, and a variable that never had a
+  //   // definition in the first place.
+  //   if (auto prev_def = previously_defined_.find(var); prev_def != previously_defined_.end()) {
+  //     verify << ".  While this variable was previously defined at " << prev_def->second
+  //            << ", this definition is no longer in-scope.";
+  //   }
+  // }
 
   // Variables that are defined in the currently-visited scope.
   std::unordered_map<Var, ObjectPath, ObjectPtrHash, ObjectPtrEqual> currently_defined_;

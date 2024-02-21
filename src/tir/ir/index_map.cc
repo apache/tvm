@@ -87,7 +87,6 @@ std::pair<IndexMap, PrimExpr> IndexMapInverseImpl(const IndexMap& self,
   for (size_t i = 0; i < initial_ranges.size(); i++) {
     input_iters.Set(self->initial_indices[i], initial_ranges[i]);
   }
-
   // Unpack the output indices into linear combinations of the initial
   // indices.
   auto padded_iter_map = DetectIterMap(self->final_indices, input_iters, /*predicate=*/1,

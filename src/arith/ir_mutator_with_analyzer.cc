@@ -50,6 +50,10 @@ Array<PrimExpr> IRMutatorWithAnalyzer::IterMapSimplifyWithContext(const Array<Pr
   Array<PrimExpr> simplified = arith::IterMapSimplify(
       indices, this->iter_vars_, pred, arith::IterMapLevel::Surjective, this->analyzer_);
   if (non_trivial_only) {
+    (simplified).MutateByApply([&](const PrimExpr& e) {
+      auto s = this->analyzer_->Simplify(e);
+      return s->IsInstance<IntImmNode>() ? e : s;
+    });
     for (int i = 0; i < n; ++i) {
       if (simplified[i]->IsInstance<IntImmNode>() && indices[i]->IsInstance<VarNode>()) {
         simplified.Set(i, indices[i]);

@@ -113,7 +113,7 @@ class Reduction(GPUScheduleRule):
         access: arith.IterSumExpr,
     ) -> Tuple[Optional[bool], Optional[int]]:
         if access.base != 0:
-            return None, None
+            return None, None, None, None
         iter_to_info = {i.var: i for i in block_info.iters}
         s_loops, r_loops, c_loops, c_factor = [], [], [], None
         s_split_loop, s_split_index = None, None
@@ -124,7 +124,7 @@ class Reduction(GPUScheduleRule):
             is_inner_reduction = info.kind == "R"
             if split_expr.lower_factor > 1:
                 if c_loops:
-                    return None, None
+                    return None, None, None, None
                 s_split_loop = loop
                 s_split_index = len(s_loops)
                 loop, c_loop = sch.split(loop, factors=[None, split_expr.lower_factor])
@@ -138,10 +138,10 @@ class Reduction(GPUScheduleRule):
 
         if iter_to_info:
             for var, info in iter_to_info.items():
-                if info.kind == "S" and info.dom == 1:
+                if info.kind == "S" and info.dom.extent == 1:
                     s_loops.append(info.loop_rv)
                 else:
-                    return None, None
+                    return None, None, None, None
 
         loop_order = {}
         s_block_var_loops = []
@@ -241,7 +241,7 @@ class Reduction(GPUScheduleRule):
         # pylint: disable=invalid-name
         s, r, _ = sch.get_loops(block)
         len_tx, len_ty = 16, 16
-        s_factor = [i.dom for i in block_info.iters if i.kind == "S"][-1]
+        s_factor = [i.dom.extent for i in block_info.iters if i.kind == "S"][-1]
         # get perfect spatial factor, spatial factor should be divide the innermost spatial loop so
         # that the block after r_factor and be reversed compute at the original scope
         while len_tx > 1:
@@ -281,7 +281,7 @@ class Reduction(GPUScheduleRule):
         # Schedule epilogue
         if epilogue_info is not None:
             epilogue = epilogue_info.block_rv
-            sch.reverse_compute_at(epilogue, bx, preserve_unit_loops=True)
+            sch.reverse_compute_at(epilogue, bx)
             if is_broadcast_epilogue(sch, block, epilogue):
                 sch.set_scope(block, 0, "shared")
                 _, *s = sch.get_loops(epilogue)  # pylint: disable=invalid-name

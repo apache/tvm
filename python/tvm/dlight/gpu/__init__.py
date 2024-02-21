@@ -18,10 +18,15 @@
 GPU-generic schedule rules.
 For CUDA/ROCm/Vulkan/Metal-specific rules, use `tvm.dlight.cuda/rocm/vulkan/metal` instead
 """
-from .gemv import GEMV
 from .fallback import Fallback
-from .matmul import Matmul
+from .element_wise import ElementWise
+from .gemv import GEMV
+from .general_reduction import GeneralReduction
+from .matmul import (
+    Matmul,
+    MatmulTensorizationMMA,
+    MatmulTensorizationWMMA,
+    MatmulTensorizationLegacy,
+)
 from .reduction import Reduction
 from .transpose import Transpose
-from .general_reduction import GeneralReduction
-from .rmsnorm import RMSNorm

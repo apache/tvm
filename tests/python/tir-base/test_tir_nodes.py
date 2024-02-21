@@ -19,6 +19,8 @@ import pytest
 import tvm
 from tvm import ir, te
 
+import tvm.testing
+
 
 def test_const():
     x = tvm.tir.const(1, "int32")
@@ -362,6 +364,14 @@ def test_vars():
     assert x.dtype == "handle"
     assert x.type_annotation == ptype
     assert isinstance(ptype.element_type, tvm.ir.PrimType)
+
+
+def test_size_vars():
+    x = tvm.tir.SizeVar("x", "int32")
+    assert x.dtype == "int32"
+    x = tvm.tir.SizeVar("x", "int64", 1)
+    assert x.dtype == "int64"
+    assert x.min_value == 1
 
 
 def test_scoped_storage_vars():

@@ -16,7 +16,7 @@
 # under the License.
 # pylint: disable=invalid-name,missing-function-docstring,unused-variable
 """Intrinsics for tensorization on NVIDIA GPU."""
-from typing import Dict, Optional, Tuple, Literal
+from typing import Dict, Optional, Tuple, Literal, List
 
 from tvm._ffi import register_func
 from tvm.runtime import convert
@@ -25,31 +25,67 @@ from tvm.tir.function import PrimFunc
 from tvm.tir import Cast, IntImm, TensorIntrin
 
 
-def shared_16x16_to_ldmatrix_32x8_layout(i, j):
+def shared_16x16_to_mma_32x8_smoothlayout(i, j):
+    return (i * 2 + j // 8, j % 8)
+
+
+def shared_16x32_to_mma_32x16_smoothlayout(i, j):
+    return (i * 2 + j // 16, j % 16)
+
+
+def shared_32x16_to_mma_32x16_smoothlayout(i, j):
+    return (i * 2 + j // 16, j % 16)
+
+
+def ldmatrix_32x8_to_shared_16x16_layout(thread_id, local_id):
+    row = thread_id % 16
+    col = 8 * (thread_id // 16) + local_id % 8
+    return row, col
+
+
+def ldmatrix_trans_32x8_to_shared_16x16_layout(thread_id, local_id):
+    row = 8 * (thread_id // 16) + (thread_id % 8)
+    col = 8 * ((thread_id % 16) // 8) + local_id % 8
+    return row, col
+
+
+def ldmatrix_32x16_to_shared_16x32_layout_a(thread_id, local_id):
+    row = thread_id % 16
+    col = local_id + (thread_id // 16) * 16
+    return row, col
+
+
+def ldmatrix_32x16_to_shared_16x32_layout_b(thread_id, local_id):
+    row = (thread_id // 16) * 8 + (thread_id % 8)
+    col = local_id + 16 * ((thread_id % 16) // 8)
+    return row, col
+
+
+def shared_16x16_to_mma_32x8_layout(i, j):
     thread_id = 4 * (i % 8) + (j % 8) // 2
     return thread_id, 4 * (j // 8) + (i // 8) * 2 + (j % 2)
 
 
-def shared_16x32_to_ldmatrix_32x16_layout(i, j):
+def shared_16x32_to_mma_32x16_layout(i, j):
     thread_id = 4 * (i % 8) + (j % 16) // 4
     return thread_id, 8 * (j // 16) + (i // 8) * 4 + j % 4
 
 
-def shared_32x16_to_ldmatrix_32x16_layout(i, j):
+def shared_32x16_to_mma_32x16_layout(i, j):
     thread_id = (i % 16) // 4 + 4 * (j % 8)
     return thread_id, 8 * (j // 8) + (i // 16) * 4 + i % 4
 
 
-def ldmatrix_32x8_to_shared_16x16_layout(thread_id, local_id):
+def mma_32x8_to_shared_16x16_layout(thread_id, local_id):
     row = 8 * (local_id % 4 // 2) + (thread_id // 4)
     col = 8 * (local_id // 4) + (thread_id % 4) * 2 + (local_id % 2)
     return row, col
 
 
-@register_func("tir.index_map.shared_16x16_to_ldmatrix_32x8_layout")
-def index_map_shared_16x16_to_ldmatrix_32x8_layout(ind):
+@register_func("tir.index_map.shared_16x16_to_mma_32x8_layout")
+def index_map_shared_16x16_to_mma_32x8_layout(ind):
     i, j = ind[0], ind[1]
-    thread_id, local_id = shared_16x16_to_ldmatrix_32x8_layout(i, j)
+    thread_id, local_id = shared_16x16_to_mma_32x8_layout(i, j)
     return convert([thread_id, local_id])
 
 
@@ -68,6 +104,7 @@ def get_ldmatrix_intrin(
     matrix_name: Literal["A", "B"],
     transposed: bool,
     shared_scope: str = "shared",
+    propagate_layout: bool = False,
 ):
     local_size = (M_DIM * k_dim) // WARP_SIZE
     smem_offset = None
@@ -105,9 +142,12 @@ def get_ldmatrix_intrin(
     if k_dim == 16:
         assert dtype == "float16"
 
-        index_map = shared_16x16_to_ldmatrix_32x8_layout
+        index_map = shared_16x16_to_mma_32x8_layout
+        if propagate_layout:
+            smem_offset = lambda tx, _: tx * 8
+            index_map = shared_16x16_to_mma_32x8_smoothlayout
 
-        if transpose_layout_for_ldmatrix_input:
+        elif transpose_layout_for_ldmatrix_input:
             smem_offset = (
                 lambda tx, stride: stride * 8 * (tx // HALF_WARP_expr)
                 + stride * (tx % 8)
@@ -127,21 +167,33 @@ def get_ldmatrix_intrin(
         ), "Only k_dim == 16 (float16) or k_dim == 32 (int8) supported for now"
 
         if matrix_name == "B" and not transposed:
-            index_map = shared_32x16_to_ldmatrix_32x16_layout
-            # A dummy offset, ldmatrix cannot be used for int8 + trans case.
-            # We still use the ldmatrix intrinsic, but lower it to a manual loop in the codegen.
-            # Only the stride information is required.
-            smem_offset = lambda _, stride: stride
+            if propagate_layout:
+                smem_offset = lambda tx, _: tx * 16
+                index_map = shared_32x16_to_mma_32x16_smoothlayout
+            else:
+                index_map = shared_32x16_to_mma_32x16_layout
+                # A dummy offset, ldmatrix cannot be used for int8 + trans case.
+                # We still use the ldmatrix intrinsic, but lower it to a manual loop in the codegen.
+                # Only the stride information is required.
+                smem_offset = lambda _, stride: stride
         elif matrix_name == "B" and transposed:
-            index_map = shared_16x32_to_ldmatrix_32x16_layout
-            smem_offset = (
-                lambda tx, stride: stride * 8 * (tx // HALF_WARP_expr)
-                + (tx % 8) * stride
-                + 16 * ((tx % HALF_WARP_expr) // 8)
-            )
+            if propagate_layout:
+                smem_offset = lambda tx, _: tx * 16
+                index_map = shared_16x32_to_mma_32x16_smoothlayout
+            else:
+                index_map = shared_16x32_to_mma_32x16_layout
+                smem_offset = (
+                    lambda tx, stride: stride * 8 * (tx // HALF_WARP_expr)
+                    + (tx % 8) * stride
+                    + 16 * ((tx % HALF_WARP_expr) // 8)
+                )
         else:  # A, not transposed
-            index_map = shared_16x32_to_ldmatrix_32x16_layout
-            smem_offset = lambda tx, stride: stride * (tx % 16) + 16 * (tx // 16)
+            if propagate_layout:
+                index_map = shared_16x32_to_mma_32x16_smoothlayout
+                smem_offset = lambda tx, _: tx * 16
+            else:
+                index_map = shared_16x32_to_mma_32x16_layout
+                smem_offset = lambda tx, stride: stride * (tx % 16) + 16 * (tx // 16)
 
     offset_factor = smem_tile_col
 
@@ -222,6 +274,11 @@ def get_ldmatrix_intrin(
 LDMATRIX_f16_A_INTRIN = "mma_ldmatrix_f16_a"
 TensorIntrin.register(LDMATRIX_f16_A_INTRIN, *get_ldmatrix_intrin(16, "float16", "A", False))
 
+LDMATRIX_f16_A_SMOOTH_INTRIN = "mma_ldmatrix_f16_a_smooth"
+TensorIntrin.register(
+    LDMATRIX_f16_A_SMOOTH_INTRIN, *get_ldmatrix_intrin(16, "float16", "A", False, "shared", True)
+)
+
 LDMATRIX_f16_B_INTRIN = "mma_ldmatrix_f16_b"
 TensorIntrin.register(LDMATRIX_f16_B_INTRIN, *get_ldmatrix_intrin(16, "float16", "B", False))
 
@@ -231,9 +288,21 @@ TensorIntrin.register(LDMATRIX_f16_A_TRANS_INTRIN, *get_ldmatrix_intrin(16, "flo
 LDMATRIX_f16_B_TRANS_INTRIN = "mma_ldmatrix_f16_b_trans"
 TensorIntrin.register(LDMATRIX_f16_B_TRANS_INTRIN, *get_ldmatrix_intrin(16, "float16", "B", True))
 
+LDMATRIX_f16_B_TRANS_SMOOTH_INTRIN = "mma_ldmatrix_f16_b_trans_smooth"
+TensorIntrin.register(
+    LDMATRIX_f16_B_TRANS_SMOOTH_INTRIN,
+    *get_ldmatrix_intrin(16, "float16", "B", True, "shared", True),
+)
+
 LDMATRIX_f16_A_DYN_INTRIN = "mma_ldmatrix_f16_a_dyn"
 TensorIntrin.register(
     LDMATRIX_f16_A_DYN_INTRIN, *get_ldmatrix_intrin(16, "float16", "A", False, "shared.dyn")
+)
+
+LDMATRIX_f16_A_DYN_SMOOTH_INTRIN = "mma_ldmatrix_f16_a_smooth_dyn"
+TensorIntrin.register(
+    LDMATRIX_f16_A_DYN_SMOOTH_INTRIN,
+    *get_ldmatrix_intrin(16, "float16", "A", False, "shared.dyn", True),
 )
 
 LDMATRIX_f16_B_DYN_INTRIN = "mma_ldmatrix_f16_b_dyn"
@@ -251,6 +320,12 @@ TensorIntrin.register(
     LDMATRIX_f16_B_TRANS_DYN_INTRIN, *get_ldmatrix_intrin(16, "float16", "B", True, "shared.dyn")
 )
 
+LDMATRIX_f16_B_TRANS_SMOOTH_DYN_INTRIN = "mma_ldmatrix_f16_b_trans_smooth_dyn"
+TensorIntrin.register(
+    LDMATRIX_f16_B_TRANS_SMOOTH_DYN_INTRIN,
+    *get_ldmatrix_intrin(16, "float16", "B", True, "shared.dyn", True),
+)
+
 LDMATRIX_i8_A_INTRIN = "mma_ldmatrix_i8_a"
 TensorIntrin.register(LDMATRIX_i8_A_INTRIN, *get_ldmatrix_intrin(32, "int8", "A", False))
 
@@ -261,22 +336,85 @@ LDMATRIX_i8_B_TRANS_INTRIN = "mma_ldmatrix_i8_b_trans"
 TensorIntrin.register(LDMATRIX_i8_B_TRANS_INTRIN, *get_ldmatrix_intrin(32, "int8", "B", True))
 
 
-def get_mma_intrin(k_dim, out_dtype, a_transposed, b_transposed):
+LDMATRIX_i8_A_SMOOTH_INTRIN = "mma_ldmatrix_i8_a_smooth"
+TensorIntrin.register(
+    LDMATRIX_i8_A_SMOOTH_INTRIN, *get_ldmatrix_intrin(32, "int8", "A", False, "shared", True)
+)
+
+LDMATRIX_i8_B_SMOOTH_INTRIN = "mma_ldmatrix_i8_b_smooth"
+TensorIntrin.register(
+    LDMATRIX_i8_B_SMOOTH_INTRIN, *get_ldmatrix_intrin(32, "int8", "B", False, "shared", True)
+)
+
+LDMATRIX_i8_B_TRANS_SMOOTH_INTRIN = "mma_ldmatrix_i8_b_trans_smooth"
+TensorIntrin.register(
+    LDMATRIX_i8_B_TRANS_SMOOTH_INTRIN, *get_ldmatrix_intrin(32, "int8", "B", True, "shared", True)
+)
+
+LDMATRIX_i8_A_DYN_INTRIN = "mma_ldmatrix_i8_a_dyn"
+TensorIntrin.register(
+    LDMATRIX_i8_A_DYN_INTRIN, *get_ldmatrix_intrin(32, "int8", "A", False, "shared.dyn")
+)
+
+LDMATRIX_i8_B_DYN_INTRIN = "mma_ldmatrix_i8_b_dyn"
+TensorIntrin.register(
+    LDMATRIX_i8_B_DYN_INTRIN, *get_ldmatrix_intrin(32, "int8", "B", False, "shared.dyn")
+)
+
+LDMATRIX_i8_B_TRANS_DYN_INTRIN = "mma_ldmatrix_i8_b_trans_dyn"
+TensorIntrin.register(
+    LDMATRIX_i8_B_TRANS_DYN_INTRIN, *get_ldmatrix_intrin(32, "int8", "B", True, "shared.dyn")
+)
+
+
+LDMATRIX_i8_A_SMOOTH_DYN_INTRIN = "mma_ldmatrix_i8_a_smooth_dyn"
+TensorIntrin.register(
+    LDMATRIX_i8_A_SMOOTH_DYN_INTRIN,
+    *get_ldmatrix_intrin(32, "int8", "A", False, "shared.dyn", True),
+)
+
+LDMATRIX_i8_B_SMOOTH_DYN_INTRIN = "mma_ldmatrix_i8_b_smooth_dyn"
+TensorIntrin.register(
+    LDMATRIX_i8_B_SMOOTH_DYN_INTRIN,
+    *get_ldmatrix_intrin(32, "int8", "B", False, "shared.dyn", True),
+)
+
+LDMATRIX_i8_B_TRANS_SMOOTH_DYN_INTRIN = "mma_ldmatrix_i8_b_trans_smooth_dyn"
+TensorIntrin.register(
+    LDMATRIX_i8_B_TRANS_SMOOTH_DYN_INTRIN,
+    *get_ldmatrix_intrin(32, "int8", "B", True, "shared.dyn", True),
+)
+
+
+def get_mma_intrin(k_dim, out_dtype, a_transposed, b_transposed, smooth_a=False, smooth_b=False):
     local_size = (M_DIM * k_dim) // WARP_SIZE
     local_size_out = (M_DIM * N_DIM) // 32
 
-    index_map_C = shared_16x16_to_ldmatrix_32x8_layout
+    index_map_C = shared_16x16_to_mma_32x8_layout
 
     if k_dim == 16:
-        index_map_A = shared_16x16_to_ldmatrix_32x8_layout
-        index_map_B = shared_16x16_to_ldmatrix_32x8_layout
+        index_map_A = (
+            shared_16x16_to_mma_32x8_smoothlayout if smooth_a else shared_16x16_to_mma_32x8_layout
+        )
+        index_map_B = (
+            shared_16x16_to_mma_32x8_smoothlayout if smooth_b else shared_16x16_to_mma_32x8_layout
+        )
         mma_prefix = "m16n8k16"
     elif k_dim == 32 and b_transposed:
-        index_map_A = index_map_B = shared_16x32_to_ldmatrix_32x16_layout
+        index_map_A = (
+            shared_16x32_to_mma_32x16_smoothlayout if smooth_a else shared_16x32_to_mma_32x16_layout
+        )
+        index_map_B = (
+            shared_16x32_to_mma_32x16_smoothlayout if smooth_b else shared_16x32_to_mma_32x16_layout
+        )
         mma_prefix = "m16n8k32"
     elif k_dim == 32 and not b_transposed:
-        index_map_A = shared_16x32_to_ldmatrix_32x16_layout
-        index_map_B = shared_32x16_to_ldmatrix_32x16_layout
+        index_map_A = (
+            shared_16x32_to_mma_32x16_layout if smooth_a else shared_16x32_to_mma_32x16_layout
+        )
+        index_map_B = (
+            shared_32x16_to_mma_32x16_layout if smooth_b else shared_32x16_to_mma_32x16_layout
+        )
         mma_prefix = "m16n8k32"
     else:
         assert False
@@ -455,6 +593,17 @@ TensorIntrin.register(MMA_f16f16f16_INTRIN, *get_mma_intrin(16, "float16", False
 MMA_f16f16f16_TRANS_B_INTRIN = "mma_f16f16f16_trans_b"
 TensorIntrin.register(MMA_f16f16f16_TRANS_B_INTRIN, *get_mma_intrin(16, "float16", False, True))
 
+MMA_f16f16f16_TRANS_SMOOTH_B_INTRIN = "mma_f16f16f16_trans_b_smooth_b"
+TensorIntrin.register(
+    MMA_f16f16f16_TRANS_SMOOTH_B_INTRIN, *get_mma_intrin(16, "float16", False, True, False, True)
+)
+
+MMA_f16f16f16_SMOOTH_A_TRANS_SMOOTH_B_INTRIN = "mma_f16f16f16_smooth_a_trans_b_smooth_b"
+TensorIntrin.register(
+    MMA_f16f16f16_SMOOTH_A_TRANS_SMOOTH_B_INTRIN,
+    *get_mma_intrin(16, "float16", False, True, True, True),
+)
+
 MMA_f16f16f16_TRANS_A_INTRIN = "mma_f16f16f16_trans_a"
 TensorIntrin.register(MMA_f16f16f16_TRANS_A_INTRIN, *get_mma_intrin(16, "float16", True, False))
 
@@ -469,12 +618,23 @@ TensorIntrin.register(MMA_i8i8i32_INTRIN, *get_mma_intrin(32, "int32", False, Fa
 MMA_i8i8i32_TRANS_B_INTRIN = "mma_i8i8i32_trans_b"
 TensorIntrin.register(MMA_i8i8i32_TRANS_B_INTRIN, *get_mma_intrin(32, "int32", False, True))
 
+MMA_i8i8i32_TRANS_B_SMOOTH_B_INTRIN = "mma_i8i8i32_trans_b_smooth_b"
+TensorIntrin.register(
+    MMA_i8i8i32_TRANS_B_SMOOTH_B_INTRIN, *get_mma_intrin(32, "int32", False, True, False, True)
+)
+
+MMA_i8i8i32_SMOOTH_A_TRANS_B_SMOOTH_B_INTRIN = "mma_i8i8i32_smooth_a_trans_b_smooth_b"
+TensorIntrin.register(
+    MMA_i8i8i32_SMOOTH_A_TRANS_B_SMOOTH_B_INTRIN,
+    *get_mma_intrin(32, "int32", False, True, True, True),
+)
+
 
 def get_mma_fill_intrin(dtype, local_size):
     zero = IntImm("int32", 0).astype(dtype)
 
     # Assume M = N = 16
-    index_map = shared_16x16_to_ldmatrix_32x8_layout
+    index_map = shared_16x16_to_mma_32x8_layout
 
     @T.prim_func
     def mma_fill_desc(a: T.handle) -> None:
@@ -519,8 +679,8 @@ TensorIntrin.register(MMA_fill_16x16_i32_INTRIN, *get_mma_fill_intrin("int32", 8
 
 def get_mma_store_intrin(dtype, local_size, scope="global", use_mma_store_intrinic=True):
     # Assume M = N = 16
-    index_map = shared_16x16_to_ldmatrix_32x8_layout
-    index_map_rev = ldmatrix_32x8_to_shared_16x16_layout
+    index_map = shared_16x16_to_mma_32x8_layout
+    index_map_rev = mma_32x8_to_shared_16x16_layout
 
     @T.prim_func
     def mma_store_desc(a: T.handle, c: T.handle) -> None:
@@ -617,14 +777,42 @@ TensorIntrin.register(
     *get_mma_store_intrin("float16", 8, "shared.dyn", False),
 )
 
+MMA_store_16x16_f16_shared_dyn_INTRIN = "mma_store_16x16_f16_shared_dyn_"
+TensorIntrin.register(
+    MMA_store_16x16_f16_shared_dyn_INTRIN,
+    *get_mma_store_intrin("float16", 8, "shared.dyn", True),
+)
+
+MMA_store_16x16_f16_shared_INTRIN_SIMPLE = "mma_store_16x16_f16_shared_simple_"
+TensorIntrin.register(
+    MMA_store_16x16_f16_shared_INTRIN_SIMPLE,
+    *get_mma_store_intrin("float16", 8, "shared", False),
+)
+
+MMA_store_16x16_f16_global_INTRIN_SIMPLE = "mma_store_16x16_f16_global_simple_"
+TensorIntrin.register(
+    MMA_store_16x16_f16_global_INTRIN_SIMPLE,
+    *get_mma_store_intrin("float16", 8, "global", False),
+)
+
 MMA_store_16x16_f16_global_INTRIN = "mma_store_16x16_f16_global_"
 TensorIntrin.register(
     MMA_store_16x16_f16_global_INTRIN, *get_mma_store_intrin("float16", 8, "global", True)
 )
 
+MMA_store_16x16_f16_shared_INTRIN = "mma_store_16x16_f16_shared_"
+TensorIntrin.register(
+    MMA_store_16x16_f16_shared_INTRIN, *get_mma_store_intrin("float16", 8, "shared", True)
+)
+
 MMA_store_16x16_i32_global_INTRIN = "mma_store_16x16_i32_global_"
 TensorIntrin.register(
     MMA_store_16x16_i32_global_INTRIN, *get_mma_store_intrin("int32", 8, "global", True)
+)
+
+MMA_store_16x16_i32_shared_INTRIN = "mma_store_16x16_i32_shared_"
+TensorIntrin.register(
+    MMA_store_16x16_i32_shared_INTRIN, *get_mma_store_intrin("int32", 8, "shared", True)
 )
 
 
@@ -635,6 +823,8 @@ def get_mma_intrin_group(
     out_dtype: Literal["float16", "float32", "int32"],
     trans_a: bool,
     trans_b: bool,
+    smooth_a: bool = False,
+    smooth_b: bool = False,
     not_use_mma_store_intrinic: bool = True,
     store_to_smem_dtype: Optional[Literal["float16", "float32", "int32"]] = None,
 ) -> Dict[str, str]:
@@ -659,6 +849,12 @@ def get_mma_intrin_group(
 
     trans_b : bool
         Whether the input matrix B is transposed.
+
+    smooth_a: bool
+        Whether assume the propagted layout of A is smooth.
+
+    smooth_b: bool
+        Whether assume the propagted layout of B is smooth.
 
     not_use_mma_store_intrinic : bool
         Whether to not use the mma_store intrinsic. If True, use BufferStore stmts to store the
@@ -693,14 +889,20 @@ def get_mma_intrin_group(
     # e.g. mma_ldmatrix_f16_a_trans_dyn, mma_ldmatrix_f16_b_trans_dyn
     trans_a = "_trans" if trans_a else ""
     trans_b = "_trans" if trans_b else ""
+    smooth_a = "_smooth" if smooth_a else ""
+    smooth_b = "_smooth" if smooth_b else ""
     load_scope = "_dyn" if load_scope == "shared.dyn" else ""
-    load_a_intrin = f"mma_ldmatrix_{in_dtype}_a{trans_a}{load_scope}"
-    load_b_intrin = f"mma_ldmatrix_{in_dtype}_b{trans_b}{load_scope}"
+    load_a_intrin = f"mma_ldmatrix_{in_dtype}_a{trans_a}{smooth_a}{load_scope}"
+    load_b_intrin = f"mma_ldmatrix_{in_dtype}_b{trans_b}{smooth_b}{load_scope}"
 
     # e.g. mma_f16f16f32_trans_a_trans_b
     trans_a_str = trans_a + "_a" if trans_a != "" else ""
     trans_b_str = trans_b + "_b" if trans_b != "" else ""
-    compute_intrin = f"mma_{in_dtype}{in_dtype}{out_dtype}{trans_a_str}{trans_b_str}"
+    smooth_a_str = smooth_a + "_a" if smooth_a != "" else ""
+    smooth_b_str = smooth_b + "_b" if smooth_b != "" else ""
+    compute_intrin = (
+        f"mma_{in_dtype}{in_dtype}{out_dtype}{trans_a_str}{smooth_a_str}{trans_b_str}{smooth_b_str}"
+    )
 
     # e.g. mma_store_16x16_f32_shared_dyn_simple_
     store_scope = store_scope.replace(".", "_")
@@ -708,12 +910,41 @@ def get_mma_intrin_group(
     suffix = "simple_" if not_use_mma_store_intrinic else ""
     store_intrin = f"mma_store_{shape}_{store_to_smem_dtype}_{store_scope}_{suffix}"
 
+    index_map_c = shared_16x16_to_mma_32x8_layout
+    if in_dtype == "f16":
+        index_map_a = (
+            shared_16x16_to_mma_32x8_smoothlayout if smooth_a else shared_16x16_to_mma_32x8_layout
+        )
+        index_map_b = (
+            shared_16x16_to_mma_32x8_smoothlayout if smooth_b else shared_16x16_to_mma_32x8_layout
+        )
+    elif in_dtype == "i8":
+        index_map_a = (
+            shared_16x32_to_mma_32x16_smoothlayout if smooth_a else shared_16x32_to_mma_32x16_layout
+        )
+        index_map_b = (
+            shared_16x32_to_mma_32x16_smoothlayout if smooth_b else shared_16x32_to_mma_32x16_layout
+        )
+    else:
+        raise ValueError(f"Unsupported in_dtype: {in_dtype}")
+
+    # micro kernel size, the order is [m, n, k]
+    micro_kernel: List[int]
+    if in_dtype == "f16":
+        micro_kernel = [16, 16, 16]
+    elif in_dtype == "i8":
+        micro_kernel = [16, 16, 32]
+    else:
+        raise ValueError(f"Unsupported in_dtype: {in_dtype}")
+
     return {
         "init": init_intrin,
         "load_a": load_a_intrin,
         "load_b": load_b_intrin,
         "compute": compute_intrin,
         "store": store_intrin,
+        "index_map": [index_map_a, index_map_b, index_map_c],
+        "micro_kernel": micro_kernel,
     }
 
 
@@ -1290,11 +1521,11 @@ TensorIntrin.register(
 
 
 def get_wmma_intrin_group(
-    load_scope: Literal["shared", "shared.dyn"],
-    store_scope: Literal["global", "shared", "shared.dyn"],
-    in_dtype: str,
-    out_dtype: str,
-    trans_b: bool,
+    load_scope: Literal["shared", "shared.dyn"] = "shared",
+    store_scope: Literal["global", "shared", "shared.dyn"] = "shared",
+    in_dtype: str = "float16",
+    out_dtype: str = "float16",
+    trans_b: bool = True,
 ) -> Dict[str, str]:
     """Get a group of intrinsics for wmma tensor core with the given configurations
 

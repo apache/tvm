@@ -486,7 +486,6 @@ class ComputeInliner : public BaseInliner {
         return true;
       }
     }
-
     // If the mapping for store indices is non-trivial
     // check bijective mapping from producer iter var to store indices
     Map<Var, Range> producer_iter_doms;
@@ -534,7 +533,17 @@ class ComputeInliner : public BaseInliner {
 
   PrimExpr ReplaceInlinedBuffer(BufferLoad load) {
     SetIndexSubstitution(load->indices);
-    return Substitute(store_value_, idx_sub_);
+    return analyzer_.Simplify(Substitute(store_value_, idx_sub_));
+  }
+
+  Stmt VisitStmt_(const BlockNode* block) {
+    // Bind the block iter domains to the analyzer for simplification
+    Block src_block = GetRef<Block>(block);
+    for (const IterVar& iter : src_block->iter_vars) {
+      analyzer_.Bind(iter->var, iter->dom);
+    }
+
+    return BaseInliner::VisitStmt_(block);
   }
 
   /*!
@@ -818,8 +827,13 @@ class ReverseComputeInliner : public BaseInliner {
   bool UpdateAndCheckIndexExprs(const Array<PrimExpr>& indices) {
     if (buffer_load_indices_.empty()) {
       buffer_load_indices_ = indices;
-    } else if (!std::equal(buffer_load_indices_.begin(), buffer_load_indices_.end(),
-                           indices.begin(), indices.end(), ExprDeepEqual())) {
+    } else if (!std::equal(
+                   buffer_load_indices_.begin(), buffer_load_indices_.end(), indices.begin(),
+                   indices.end(), [this](const PrimExpr& lhs, const PrimExpr& rhs) {
+                     // use the analyzer to simpify before deep euqal.
+                     // this is needed to handle cases where the index is an unit loop.
+                     return ExprDeepEqual()(analyzer_.Simplify(rhs), analyzer_.Simplify(rhs));
+                   })) {
       // Failure: indices are not consistent in different BufferLoads
       return false;
     }

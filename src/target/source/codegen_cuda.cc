@@ -915,7 +915,7 @@ void CodeGenCUDA::VisitExpr_(const CallNode* op, std::ostream& os) {
     // to determine the output location for each 8 element.
 
     const auto* index_map_func =
-        runtime::Registry::Get("tir.index_map.shared_16x16_to_ldmatrix_32x8_layout");
+        runtime::Registry::Get("tir.index_map.shared_16x16_to_mma_32x8_layout");
     ICHECK(index_map_func);
 
     arith::Analyzer analyzer;
@@ -940,11 +940,19 @@ void CodeGenCUDA::VisitExpr_(const CallNode* op, std::ostream& os) {
 
     var_idmap_[inverse_index_map->initial_indices[0].get()] = "threadIdx.x";
     var_idmap_[inverse_index_map->initial_indices[1].get()] = "local_id";
-
-    os << "for (int local_id = 0; local_id < 8; ++local_id) {\n";
-    os << dst << "[" + this->PrintExpr(dst_ind) + "]"
-       << " = " << src << "[" << src_offset << " + local_id];\n";
-    os << "}\n";
+    if (op->dtype.bits() == 16) {
+      os << "for (int local_id = 0; local_id < 8; local_id+=2) {\n";
+      os << "*((uint *)&" << dst << "[" + this->PrintExpr(dst_ind) + "])"
+         << " = "
+         << "*((uint *)&" << src << "[" << src_offset << " + local_id]);\n";
+      os << "}\n";
+    }
+    else {
+      os << "for (int local_id = 0; local_id < 8; ++local_id) {\n";
+      os << dst << "[" + this->PrintExpr(dst_ind) + "]"
+         << " = " << src << "[" << src_offset << " + local_id];\n";
+      os << "}\n";
+    }
 
   } else if (op->op.same_as(builtin::mma_fill())) {
     std::string num_elem = this->PrintExpr(op->args[0]);

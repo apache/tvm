@@ -405,8 +405,6 @@ void UpdateSpecializeVarMap(const PrimFunc& func, const Var& param, const Buffer
  */
 void UpdateSpecializeVarMap(const PrimFunc& func, const Var& param, const PrimExpr& specific_expr,
                             VarMap* var_map) {
-  // check param is in PrimFunc's parameters
-  CHECK(IsParam(func, param)) << "ValueError: Specialize expects param to be in PrimFunc's params";
   // specialize a param not in buffer_map
   CHECK_EQ(func->buffer_map.count(param), 0)
       << "ValueError: Specialize expects param to not be in PrimFunc's buffer_map";
