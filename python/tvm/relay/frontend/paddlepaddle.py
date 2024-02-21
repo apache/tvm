@@ -338,7 +338,7 @@ def convert_conv2d(g, op, block):
 
     if data_layout == "NHWC":
         kernel_layout = "HWIO"
-        # PaddlePaddle wieght layout is "OIHW", tvm need "HWIO" when op data_format is "NHWC"
+        # PaddlePaddle wieght layout is "OIHW", tvm need "HWIO" when op data_format is "NHWC".
         kernel_data = g.get_params(op.input("Filter")[0])
         kernel_data = kernel_data.asnumpy()
         kernel_data = kernel_data.transpose((2, 3, 1, 0))
