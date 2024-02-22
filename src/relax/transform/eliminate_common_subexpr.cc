@@ -90,10 +90,16 @@ class CommonSubexprEliminator : public ExprMutator {
   explicit CommonSubexprEliminator(bool call_only = false) : call_only_(call_only) {}
 
   BindingBlock VisitBindingBlock_(const DataflowBlockNode* block) override {
-    auto cache_exprs = expr_replacements_;
     auto cache_vars = var_remap_;
     auto output = ExprMutator::VisitBindingBlock_(block);
-    expr_replacements_ = cache_exprs;
+
+    for (auto& [key, replacements] : expr_replacements_) {
+      replacements.erase(
+          std::remove_if(replacements.begin(), replacements.end(),
+                         [](const Var& var) -> bool { return var->IsInstance<DataflowVarNode>(); }),
+          replacements.end());
+    }
+
     var_remap_ = cache_vars;
     return output;
   }
@@ -120,19 +126,22 @@ class CommonSubexprEliminator : public ExprMutator {
     } else if (ContainsImpureCall(bound_value)) {
       VLOG(1) << "Since the expression is impure, cannot de-duplicate " << bound_value;
 
-    } else if (auto it = expr_replacements_.find(lookup_key); it != expr_replacements_.end()) {
-      VLOG(1) << "Value " << bound_value << " has previously been bound as " << it->second
+    } else if (auto it = expr_replacements_.find(lookup_key);
+               it != expr_replacements_.end() && it->second.size()) {
+      VLOG(1) << "Value " << bound_value << " has previously been bound as " << it->second[0]
               << ".  The duplicate binding of this value to " << binding->var
               << " will be replaced with a trivial binding, "
-              << "and occurrences of " << binding->var << " will be replaced with " << it->second;
-      output_binding = VarBinding(binding->var, it->second);
-      var_remap_.insert({binding->var->vid, it->second});
+              << "and occurrences of " << binding->var << " will be replaced with "
+              << it->second[0];
+      output_binding = VarBinding(binding->var, it->second[0]);
+      var_remap_.insert({binding->var->vid, it->second[0]});
+      it->second.push_back(binding->var);
 
     } else {
       VLOG(1) << "Value " << bound_value << " is bound to " << binding->var
               << " and may be de-duplicated if it occurs again.";
 
-      expr_replacements_.insert({lookup_key, binding->var});
+      expr_replacements_[lookup_key].push_back(binding->var);
     }
 
     builder_->EmitNormalized(output_binding);
@@ -169,7 +178,7 @@ class CommonSubexprEliminator : public ExprMutator {
   }
 
   bool call_only_{false};
-  std::unordered_map<ReplacementKey, Var> expr_replacements_;
+  std::unordered_map<ReplacementKey, std::vector<Var>> expr_replacements_;
 };
 
 }  // namespace

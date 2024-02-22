@@ -319,8 +319,8 @@ def test_no_replacement_across_dataflow_boundary():
                 C = R.multiply(A, A)
                 R.output(B, C)
 
-            D = R.add(x, y)
-            return (B, C, D)
+            D = B
+            return (B, C, B)
 
     verify(Before, Expected)
 
