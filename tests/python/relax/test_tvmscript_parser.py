@@ -1176,6 +1176,47 @@ def test_if_branch():
     check_call(y_bind.value, "relax.add", [w_bind.var, w_bind.var])
 
 
+def test_if_branch_with_match_cast():
+    """The last branch of a relax::If node may be a MatchCast
+
+    This is a regression test.  In previous implementations, using
+    R.match_cast as the last binding would cause a segfault while
+    parsing.
+    """
+
+    @R.function
+    def func(A: R.Tensor([16, 16]), is_bfloat16: R.Prim("bool")):
+        if is_bfloat16:
+            A = R.match_cast(A, R.Tensor([16, 16], "bfloat16"))
+            B = A.astype("float16")
+        else:
+            B = R.match_cast(A, R.Tensor([16, 16], "float16"))
+        return B
+
+    A, is_bfloat16 = func.params
+    (block,) = func.body.blocks
+    (B_binding,) = block.bindings
+
+    B_var = B_binding.var
+    assert isinstance(B_var, relax.Var)
+    assert B_var.name_hint == "B"
+
+    if_then_else = B_binding.value
+    assert isinstance(if_then_else, relax.If)
+    assert isinstance(if_then_else.true_branch, relax.SeqExpr)
+    assert isinstance(if_then_else.false_branch, relax.SeqExpr)
+
+    else_branch = if_then_else.false_branch
+    (else_block,) = else_branch.blocks
+
+    assert isinstance(else_block.bindings[-1], relax.MatchCast)
+
+    # If the `R.match_cast` were removed, the function would infer the
+    # return value as `R.Tensor([16,16])`, with an unknown dtype.
+    # With the `R.match_cast` retained, the output dtype is known.
+    tvm.ir.assert_structural_equal(func.ret_struct_info, R.Tensor([16, 16], "float16"))
+
+
 def test_if_inside_dataflow():
     with pytest.raises(tvm.error.DiagnosticError):
 
@@ -1795,6 +1836,20 @@ def test_call_pure_packed():
         z = bb.emit(
             R.call_pure_packed("vm.builtin.copy", x, sinfo_args=[R.Tensor((32, 32), "float32")])
         )
+        bb.emit_func_output(z)
+
+    _check(foo, bb.get()["foo"])
+
+
+def test_call_pure_packed_returning_object():
+    @R.function
+    def foo() -> R.Object:
+        z = R.call_pure_packed("dummy_func", sinfo_args=R.Object)
+        return z
+
+    bb = relax.BlockBuilder()
+    with bb.function("foo", params=[]):
+        z = bb.emit(R.call_pure_packed("dummy_func", sinfo_args=[relax.ObjectStructInfo()]))
         bb.emit_func_output(z)
 
     _check(foo, bb.get()["foo"])

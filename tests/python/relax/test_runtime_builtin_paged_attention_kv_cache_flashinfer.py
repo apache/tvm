@@ -14,6 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+import enum
 from typing import Dict, List, Tuple, Union
 
 import numpy as np
@@ -322,7 +323,19 @@ def create_kv_cache(rope_mode):
     return cache
 
 
-@pytest.fixture(params=[0, 1])
+class RopeMode(enum.IntEnum):
+    """The RoPE mode of the Paged KV cache.
+    If it is none, the KV cache will not apply RoPE to q and k.
+    If it is normal, RoPE will be applied to k before adding k to cache.
+    Otherwise, RoPE will be applied to q/k in attention kernel on-the-fly.
+    """
+
+    NONE = 0
+    NORMAL = 1
+    INLINE = 2
+
+
+@pytest.fixture(params=[RopeMode.NONE, RopeMode.NORMAL, RopeMode.INLINE])
 def kv_cache_and_rope_mode(request):
     set_global_func()
     return create_kv_cache(request.param), request.param
@@ -361,7 +374,7 @@ def f_apply_rotary(x, offset, scale, theta):
 
 def apply_attention(
     kv_cache,
-    rope_mode: int,
+    rope_mode: RopeMode,
     batch: List[Tuple[Union[int, Tuple[int, int]], int]],
     cached_k: Dict[int, np.ndarray],
     cached_v: Dict[int, np.ndarray],
@@ -406,10 +419,12 @@ def apply_attention(
                 cached_k[seq_id],
                 np.stack(
                     [
-                        new_k[l]
-                        if rope_mode == 1
-                        else f_apply_rotary(
-                            new_k[l], cached_k[seq_id].shape[1], rope_scale, rope_theta
+                        (
+                            new_k[l]
+                            if rope_mode != RopeMode.NORMAL
+                            else f_apply_rotary(
+                                new_k[l], cached_k[seq_id].shape[1], rope_scale, rope_theta
+                            )
                         )
                         for l in range(num_layers)
                     ],
@@ -432,11 +447,11 @@ def apply_attention(
             keys = tvm.nd.array(keys_np, device=device)
             values = tvm.nd.array(values_np, device=device)
             outputs = tvm.nd.empty(queries.shape, dtype, device=device)
-            fattention(kv_cache, layer_id, queries, keys, values, outputs)
+            fattention(kv_cache, layer_id, 1.0, queries, keys, values, outputs)
         else:
             qkv = tvm.nd.array(np.concatenate([queries_np, keys_np, values_np], axis=1), device)
             outputs = tvm.nd.empty(queries_np.shape, dtype, device=device)
-            fattention_with_fuse_qkv(kv_cache, layer_id, qkv, outputs)
+            fattention_with_fuse_qkv(kv_cache, layer_id, 1.0, qkv, outputs)
 
         # Compute attention expected results.
         outputs = np.expand_dims(outputs.numpy(), axis=0)
@@ -445,15 +460,19 @@ def apply_attention(
             assert cached_k[seq_id].shape[1] == cached_v[seq_id].shape[1] >= append_length
 
             rope_offset = cached_k[seq_id].shape[1] - append_length
-            q_seq = f_apply_rotary(
-                q_array[i][layer_id],
-                rope_offset,
-                rope_scale,
-                rope_theta,
+            q_seq = (
+                q_array[i][layer_id]
+                if rope_mode == RopeMode.NONE
+                else f_apply_rotary(
+                    q_array[i][layer_id],
+                    rope_offset,
+                    rope_scale,
+                    rope_theta,
+                )
             ).transpose(1, 0, 2)
             k_seq = (
                 cached_k[seq_id][layer_id]
-                if rope_mode == 0
+                if rope_mode != RopeMode.INLINE
                 else f_apply_rotary(cached_k[seq_id][layer_id], 0, rope_scale, rope_theta)
             ).transpose(1, 2, 0)
             v_seq = cached_v[seq_id][layer_id].transpose(1, 0, 2)
@@ -586,7 +605,7 @@ def test_paged_attention_kv_cache_popn(kv_cache_and_rope_mode, fuse_qkv):
 
 if __name__ == "__main__":
     set_global_func()
-    for rope_mode in [0, 1]:
+    for rope_mode in [RopeMode.NONE, RopeMode.NORMAL, RopeMode.INLINE]:
         cache = create_kv_cache(rope_mode)
         for fuse_qkv in [False, True]:
             test_paged_attention_kv_cache_prefill_and_decode((cache, rope_mode), fuse_qkv)

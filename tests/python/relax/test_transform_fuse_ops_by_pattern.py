@@ -530,6 +530,60 @@ def test_annotate_codegen():
     )
 
 
+@pytest.mark.parametrize("annotate_codegen", [True, False])
+def test_no_op_if_no_patterns_match(annotate_codegen):
+    """If no matches occur, FuseOpsByPattern is a no-op"""
+    check(
+        Conv2dReLU,
+        [],
+        Conv2dReLU,
+        annotate_codegen=annotate_codegen,
+    )
+
+
+@pytest.mark.parametrize("annotate_codegen", [True, False])
+def test_unmatched_calls_may_include_lambda_functions(annotate_codegen):
+    """If no matches occur, FuseOpsByPattern is a no-op
+
+    This is a regression test.  Previous implementations of
+    CompositeFunctionAnnotator assumed that all lambda functions
+    resulted from FuseOps, and would contain the `kComposite`
+    attribute.
+    """
+
+    @tvm.script.ir_module
+    class Module:
+        @R.function
+        def main(
+            data: R.Tensor((1, 64, 56, 56), "float32"),
+            weight1: R.Tensor((64, 64, 3, 3), "float32"),
+        ):
+            with R.dataflow():
+                conv1 = R.nn.relu(R.nn.conv2d(data, weight1, padding=(1, 1)))
+                R.output(conv1)
+
+            return conv1
+
+        @R.function
+        def unrelated_function(A: R.Tensor([16, 16], dtype="float16")):
+            @R.function
+            def inner_func(B: R.Tensor([16, 16], dtype="float16")):
+                with R.dataflow():
+                    C = R.multiply(B, R.const(2, "float16"))
+                    R.output(C)
+                return C
+
+            D = inner_func(A)
+            return D
+
+    check(
+        Module,
+        [],
+        Module,
+        annotate_codegen=annotate_codegen,
+    )
+
+
 def test_compare_with_merge_composite_path():
     x = relax.Var("x", relax.TensorStructInfo([10, 10], "float32"))
     y = relax.Var("y", relax.TensorStructInfo([10, 10], "float32"))

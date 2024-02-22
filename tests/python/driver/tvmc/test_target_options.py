@@ -53,6 +53,25 @@ def test_target_to_argparse_known_codegen():
     assert parsed.target_cmsis_nn_mcpu == "cortex-m3"
 
 
+@tvm.testing.requires_mrvl
+def test_target_to_argparse_for_mrvl_hybrid():
+    parser = argparse.ArgumentParser()
+    generate_target_args(parser)
+    parsed, _ = parser.parse_known_args(
+        [
+            "--target=mrvl, llvm",
+            "--target-mrvl-mattr=wb_pin_ocm=1,quantize=fp16",
+            "--target-mrvl-num_tiles=2",
+            "--target-mrvl-mcpu=cnf10kb",
+        ]
+    )
+
+    assert parsed.target == "mrvl, llvm"
+    assert parsed.target_mrvl_mattr == "wb_pin_ocm=1,quantize=fp16"
+    assert parsed.target_mrvl_num_tiles == 2
+    assert parsed.target_mrvl_mcpu == "cnf10kb"
+
+
 def test_mapping_target_args():
     parser = argparse.ArgumentParser()
     generate_target_args(parser)
