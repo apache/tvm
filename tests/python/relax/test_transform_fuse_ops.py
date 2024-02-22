@@ -1122,8 +1122,7 @@ def test_multiple_paths():
                 lv31 = R.call_tir(cls.transpose, (w2,), out_sinfo=R.Tensor((1280, 320), dtype="float32"))
                 lv: R.Tensor((2, 320), dtype="float32") = cls.fused_matmul_add1(inp_1, lv31, b2)
                 lv35 = R.call_tir(cls.reshape1, (lv,), out_sinfo=R.Tensor((2, 320, 1, 1), dtype="float32"))
-                lv1: R.Tensor((2, 320, 64, 64), dtype="float32") = cls.fused_conv2d_add_add2(inp_0, w1, lv28, lv35)
-                gv: R.Tensor((2, 320, 64, 64), dtype="float32") = lv1
+                gv: R.Tensor((2, 320, 64, 64), dtype="float32") = cls.fused_conv2d_add_add2(inp_0, w1, lv28, lv35)
                 R.output(gv)
             return gv
     # fmt: on
@@ -1156,16 +1155,16 @@ def test_dead_group():
 
     @I.ir_module
     class Expected:
-        @T.prim_func(private=True)
-        def add(rxplaceholder: T.Buffer((T.int64(1), T.int64(128)), "float32"), rxplaceholder_1: T.Buffer((T.int64(128),), "float32"), T_add: T.Buffer((T.int64(1), T.int64(128)), "float32")):
-            T.func_attr({"op_pattern": 0, "tir.noalias": True})
-            # with T.block("root"):
-            for ax0, ax1 in T.grid(T.int64(1), T.int64(128)):
-                with T.block("T_add"):
-                    v_ax0, v_ax1 = T.axis.remap("SS", [ax0, ax1])
-                    T.reads(rxplaceholder[v_ax0, v_ax1], rxplaceholder_1[v_ax1])
-                    T.writes(T_add[v_ax0, v_ax1])
-                    T_add[v_ax0, v_ax1] = rxplaceholder[v_ax0, v_ax1] + rxplaceholder_1[v_ax1]
+        # @T.prim_func(private=True)
+        # def add(rxplaceholder: T.Buffer((T.int64(1), T.int64(128)), "float32"), rxplaceholder_1: T.Buffer((T.int64(128),), "float32"), T_add: T.Buffer((T.int64(1), T.int64(128)), "float32")):
+        #     T.func_attr({"op_pattern": 0, "tir.noalias": True})
+        #     # with T.block("root"):
+        #     for ax0, ax1 in T.grid(T.int64(1), T.int64(128)):
+        #         with T.block("T_add"):
+        #             v_ax0, v_ax1 = T.axis.remap("SS", [ax0, ax1])
+        #             T.reads(rxplaceholder[v_ax0, v_ax1], rxplaceholder_1[v_ax1])
+        #             T.writes(T_add[v_ax0, v_ax1])
+        #             T_add[v_ax0, v_ax1] = rxplaceholder[v_ax0, v_ax1] + rxplaceholder_1[v_ax1]
 
         @T.prim_func(private=True)
         def add1(rxplaceholder: T.Buffer((T.int64(1), T.int64(10)), "float32"), rxplaceholder_1: T.Buffer((T.int64(10),), "float32"), T_add: T.Buffer((T.int64(1), T.int64(10)), "float32")):
@@ -1178,18 +1177,18 @@ def test_dead_group():
                     T.writes(T_add[v_ax0, v_ax1])
                     T_add[v_ax0, v_ax1] = rxplaceholder[v_ax0, v_ax1] + rxplaceholder_1[v_ax1]
 
-        @T.prim_func(private=True)
-        def matmul(rxplaceholder: T.Buffer((T.int64(1), T.int64(784)), "float32"), rxplaceholder_1: T.Buffer((T.int64(784), T.int64(128)), "float32"), matmul_1: T.Buffer((T.int64(1), T.int64(128)), "float32")):
-            T.func_attr({"op_pattern": 4, "tir.noalias": True})
-            # with T.block("root"):
-            for i0, i1, k in T.grid(T.int64(1), T.int64(128), T.int64(784)):
-                with T.block("matmul"):
-                    v_i0, v_i1, v_k = T.axis.remap("SSR", [i0, i1, k])
-                    T.reads(rxplaceholder[v_i0, v_k], rxplaceholder_1[v_k, v_i1])
-                    T.writes(matmul_1[v_i0, v_i1])
-                    with T.init():
-                        matmul_1[v_i0, v_i1] = T.float32(0)
-                    matmul_1[v_i0, v_i1] = matmul_1[v_i0, v_i1] + rxplaceholder[v_i0, v_k] * rxplaceholder_1[v_k, v_i1]
+        # @T.prim_func(private=True)
+        # def matmul(rxplaceholder: T.Buffer((T.int64(1), T.int64(784)), "float32"), rxplaceholder_1: T.Buffer((T.int64(784), T.int64(128)), "float32"), matmul_1: T.Buffer((T.int64(1), T.int64(128)), "float32")):
+        #     T.func_attr({"op_pattern": 4, "tir.noalias": True})
+        #     # with T.block("root"):
+        #     for i0, i1, k in T.grid(T.int64(1), T.int64(128), T.int64(784)):
+        #         with T.block("matmul"):
+        #             v_i0, v_i1, v_k = T.axis.remap("SSR", [i0, i1, k])
+        #             T.reads(rxplaceholder[v_i0, v_k], rxplaceholder_1[v_k, v_i1])
+        #             T.writes(matmul_1[v_i0, v_i1])
+        #             with T.init():
+        #                 matmul_1[v_i0, v_i1] = T.float32(0)
+        #             matmul_1[v_i0, v_i1] = matmul_1[v_i0, v_i1] + rxplaceholder[v_i0, v_k] * rxplaceholder_1[v_k, v_i1]
 
         @T.prim_func(private=True)
         def matmul1(rxplaceholder: T.Buffer((T.int64(1), T.int64(128)), "float32"), rxplaceholder_1: T.Buffer((T.int64(128), T.int64(10)), "float32"), matmul: T.Buffer((T.int64(1), T.int64(10)), "float32")):
@@ -1204,27 +1203,27 @@ def test_dead_group():
                         matmul[v_i0, v_i1] = T.float32(0)
                     matmul[v_i0, v_i1] = matmul[v_i0, v_i1] + rxplaceholder[v_i0, v_k] * rxplaceholder_1[v_k, v_i1]
 
-        @T.prim_func(private=True)
-        def relu(rxplaceholder: T.Buffer((T.int64(1), T.int64(128)), "float32"), compute: T.Buffer((T.int64(1), T.int64(128)), "float32")):
-            T.func_attr({"op_pattern": 0, "tir.noalias": True})
-            # with T.block("root"):
-            for i0, i1 in T.grid(T.int64(1), T.int64(128)):
-                with T.block("compute"):
-                    v_i0, v_i1 = T.axis.remap("SS", [i0, i1])
-                    T.reads(rxplaceholder[v_i0, v_i1])
-                    T.writes(compute[v_i0, v_i1])
-                    compute[v_i0, v_i1] = T.max(rxplaceholder[v_i0, v_i1], T.float32(0))
+        # @T.prim_func(private=True)
+        # def relu(rxplaceholder: T.Buffer((T.int64(1), T.int64(128)), "float32"), compute: T.Buffer((T.int64(1), T.int64(128)), "float32")):
+        #     T.func_attr({"op_pattern": 0, "tir.noalias": True})
+        #     # with T.block("root"):
+        #     for i0, i1 in T.grid(T.int64(1), T.int64(128)):
+        #         with T.block("compute"):
+        #             v_i0, v_i1 = T.axis.remap("SS", [i0, i1])
+        #             T.reads(rxplaceholder[v_i0, v_i1])
+        #             T.writes(compute[v_i0, v_i1])
+        #             compute[v_i0, v_i1] = T.max(rxplaceholder[v_i0, v_i1], T.float32(0))
 
-        @T.prim_func(private=True)
-        def transpose(rxplaceholder: T.Buffer((T.int64(128), T.int64(784)), "float32"), T_transpose: T.Buffer((T.int64(784), T.int64(128)), "float32")):
-            T.func_attr({"op_pattern": 2, "tir.noalias": True})
-            # with T.block("root"):
-            for ax0, ax1 in T.grid(T.int64(784), T.int64(128)):
-                with T.block("T_transpose"):
-                    v_ax0, v_ax1 = T.axis.remap("SS", [ax0, ax1])
-                    T.reads(rxplaceholder[v_ax1, v_ax0])
-                    T.writes(T_transpose[v_ax0, v_ax1])
-                    T_transpose[v_ax0, v_ax1] = rxplaceholder[v_ax1, v_ax0]
+        # @T.prim_func(private=True)
+        # def transpose(rxplaceholder: T.Buffer((T.int64(128), T.int64(784)), "float32"), T_transpose: T.Buffer((T.int64(784), T.int64(128)), "float32")):
+        #     T.func_attr({"op_pattern": 2, "tir.noalias": True})
+        #     # with T.block("root"):
+        #     for ax0, ax1 in T.grid(T.int64(784), T.int64(128)):
+        #         with T.block("T_transpose"):
+        #             v_ax0, v_ax1 = T.axis.remap("SS", [ax0, ax1])
+        #             T.reads(rxplaceholder[v_ax1, v_ax0])
+        #             T.writes(T_transpose[v_ax0, v_ax1])
+        #             T_transpose[v_ax0, v_ax1] = rxplaceholder[v_ax1, v_ax0]
 
         @T.prim_func(private=True)
         def transpose1(rxplaceholder: T.Buffer((T.int64(10), T.int64(128)), "float32"), T_transpose: T.Buffer((T.int64(128), T.int64(10)), "float32")):
@@ -1252,10 +1251,9 @@ def test_dead_group():
             R.func_attr({"num_input": 1})
             cls = Expected
             with R.dataflow():
-                lv = R.call_tir(cls.transpose, (linear1_weight,), out_sinfo=R.Tensor((784, 128), dtype="float32"))
+                # lv = R.call_tir(cls.transpose, (linear1_weight,), out_sinfo=R.Tensor((784, 128), dtype="float32"))
                 lv4 = R.call_tir(cls.transpose1, (linear2_weight,), out_sinfo=R.Tensor((128, 10), dtype="float32"))
-                lv_1: R.Tensor((1, 10), dtype="float32") = cls.fused_matmul1_add1(inp_1, lv4, linear2_bias)
-                gv: R.Tensor((1, 10), dtype="float32") = lv_1
+                gv: R.Tensor((1, 10), dtype="float32") = cls.fused_matmul1_add1(inp_1, lv4, linear2_bias)
                 R.output(gv)
             return gv
 
@@ -1319,7 +1317,7 @@ def test_symbolic_shape_aware_fuse_2():
     class Expected:
         @R.function(private=True)
         def fused_full_trilu_broadcast_to(
-            s: R.Shape(["n"]),
+            s: R.Prim(value="n"),
         ) -> R.Tensor([1, 1, "n", "n"], "float32"):
             R.func_attr({"Primitive": 1})
             n = T.int64()
@@ -1336,7 +1334,7 @@ def test_symbolic_shape_aware_fuse_2():
             n = T.int64()
             with R.dataflow():
                 gv: R.Tensor([1, 1, n, n], "float32") = cls.fused_full_trilu_broadcast_to(
-                    R.shape([n])
+                    R.prim_value(n)
                 )
                 R.output(gv)
             return gv
@@ -1367,7 +1365,7 @@ def test_shape_expr_arg():
     class Expected:
         @R.function(private=True)
         def fused_full_trilu_broadcast_to(
-            s: R.Shape(["n"]),
+            s: R.Prim(value="n"),
         ) -> R.Tensor([1, 1, "n", "n"], "float32"):
             R.func_attr({"Primitive": 1})
             n = T.int64()
@@ -1384,7 +1382,7 @@ def test_shape_expr_arg():
             n = T.int64()
             with R.dataflow():
                 lv: R.Tensor([1, 1, n, n], "float32") = cls.fused_full_trilu_broadcast_to(
-                    R.shape([n])
+                    R.prim_value(n)
                 )
                 gv = R.call_pure_packed(
                     "vm.builtin.attention_kv_cache_view",
@@ -1406,10 +1404,9 @@ def test_skipping_match_cast():
             m = T.int64()
             n = T.int64()
             with R.dataflow():
-                lv: R.Tensor((m, n), dtype="float32") = R.match_cast(
+                gv: R.Tensor((m, n), dtype="float32") = R.match_cast(
                     A, R.Tensor((m, n), dtype="float32")
                 )
-                gv: R.Tensor((m, n), dtype="float32") = lv
                 R.output(gv)
             return gv
 
@@ -1491,10 +1488,9 @@ def test_partially_used_tuple_param():
             cls = Expected
             with R.dataflow():
                 lv: R.Tensor((2,), dtype="float32") = x[0]
-                lv1: R.Tensor((2,), dtype="float32") = cls.fused_add_divide(
+                gv: R.Tensor((2,), dtype="float32") = cls.fused_add_divide(
                     lv, R.const(1, "float32"), R.const(1, "float32")
                 )
-                gv: R.Tensor((2,), dtype="float32") = lv1
                 R.output(gv)
             return gv
 

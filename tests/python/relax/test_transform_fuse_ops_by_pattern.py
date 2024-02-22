@@ -758,7 +758,6 @@ def test_unused():
                 gv: R.Tensor((1, 64, 56, 56), dtype="float32") = cls.fused_relax_nn_conv2d(
                     data, weight1
                 )
-                relu: R.Tensor((1, 64, 56, 56), dtype="float32") = R.nn.relu(data)
                 R.output(gv)
             return gv
 

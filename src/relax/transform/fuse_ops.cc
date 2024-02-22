@@ -411,21 +411,11 @@ class FunctionCreator : public ExprMutator {
 
           for (const Expr& arg : call->args) {
             CheckDefAndUpdateParam(arg);
-            if (GetStructInfoAs<TupleStructInfoNode>(arg) != nullptr) {
-              // The argument is fully referenced. Thus we remove it from the mapping.
-              partially_used_tuple_params_.erase(arg.get());
-            }
           }
         }
       } else if (var_binding->value.as<TupleGetItemNode>()) {
         const auto* tuple_item = var_binding->value.as<TupleGetItemNode>();
         CheckDefAndUpdateParam(tuple_item->tuple);
-
-        if (partially_used_tuple_params_.find(tuple_item->tuple.get()) !=
-            partially_used_tuple_params_.end()) {
-          // Appending get-item index to the mapping.
-          partially_used_tuple_params_[tuple_item->tuple.get()].push_back(tuple_item->index);
-        }
       }
 
       // Mark the binding variable as defined.
@@ -461,51 +451,9 @@ class FunctionCreator : public ExprMutator {
     // Step 1. Start constructing a new dataflow block.
     builder_->BeginDataflowBlock();
 
-    // Step 2. Handing partially used tuple parameters: replacing entire tuple
-    // parameters with the parameters of its fields that are accessed in the
-    // function.
-    std::unordered_map<const ExprNode*, std::unordered_map<int, Var>> tuple_get_item_remap;
-    for (auto& [tuple_arg, item_indices] : partially_used_tuple_params_) {
-      ICHECK(!item_indices.empty());
-      int param_idx = tuple_param_idx_[tuple_arg];
-      Var param = params_[param_idx];
-      String param_name = params_[param_idx]->name_hint();
-      TupleStructInfo param_sinfo = Downcast<TupleStructInfo>(tuple_arg->struct_info_);
-
-      Array<Expr> item_args;
-      Array<Var> item_params;
-      item_args.reserve(item_indices.size());
-      item_params.reserve(item_indices.size());
-      for (int item_idx : item_indices) {
-        Var item_param(param_name + "_" + std::to_string(item_idx), param_sinfo->fields[item_idx]);
-        item_args.push_back(TupleGetItem(GetRef<Expr>(tuple_arg), item_idx));
-        item_params.push_back(item_param);
-        tuple_get_item_remap[tuple_arg][item_idx] = item_param;
-      }
-      arguments_.erase(arguments_.begin() + param_idx);
-      arguments_.insert(arguments_.begin() + param_idx, item_args.begin(), item_args.end());
-      params_.erase(params_.begin() + param_idx);
-      params_.insert(params_.begin() + param_idx, item_params.begin(), item_params.end());
-    }
-
     // Step 3. Visit each binding and collect outputs one by one.
     Array<Expr> outputs(output_vars_.size(), Expr());
     for (const Binding& binding : bindings_) {
-      // Special handing for TupleGetItem.
-      if (const auto* var_binding = binding.as<VarBindingNode>()) {
-        if (const auto* tuple_get_item = var_binding->value.as<TupleGetItemNode>()) {
-          auto it = tuple_get_item_remap.find(tuple_get_item->tuple.get());
-          if (it != tuple_get_item_remap.end()) {
-            ICHECK(it->second.find(tuple_get_item->index) != it->second.end());
-            var_remap_[var_binding->var->vid] = it->second[tuple_get_item->index];
-            if (auto output_idx = GetOutputIndex(binding->var)) {
-              outputs.Set(*output_idx, it->second[tuple_get_item->index]);
-            }
-            continue;
-          }
-        }
-      }
-
       if (auto output_idx = GetOutputIndex(binding->var)) {
         // Case 1. It is an output binding
         // We only allow VarBinding as output.
@@ -602,13 +550,6 @@ class FunctionCreator : public ExprMutator {
         arguments_.push_back(expr);
         params_.push_back(param);
       }
-
-      // Mark the tuple parameter is partially referenced in the beginning.
-      // We will remove it from the mapping once we find it is fully referenced.
-      if (param_sinfo->IsInstance<TupleStructInfoNode>()) {
-        partially_used_tuple_params_[expr.get()] = {};
-        tuple_param_idx_[expr.get()] = static_cast<int>(arguments_.size()) - 1;
-      }
     }
   }
 
@@ -631,13 +572,6 @@ class FunctionCreator : public ExprMutator {
   std::vector<const VarNode*> output_vars_;
   /*! \brief Whether or not to lift bound constants to parameters */
   bool lift_constant_;
-  /*! \brief Mapping from tuple parameter of the function to its position index */
-  std::unordered_map<const ExprNode*, int> tuple_param_idx_;
-  /*!
-   * \brief Mapping from partially referenced tuple parameter to the list of
-   * indices that the parameter is referred by TupleGetItem
-   */
-  std::unordered_map<const ExprNode*, std::vector<int>> partially_used_tuple_params_;
 };
 
 /*!
@@ -1323,10 +1257,17 @@ Pass FuseOps(int fuse_opt_level) {
         auto max_fuse_depth = pc->GetConfig("relax.FuseOps.max_depth", Integer(kMaxFusedOps));
         return relax::FuseOps(m, opt_level, max_fuse_depth.value().IntValue());
       };
-  return CreateModulePass(/*pass_function=*/pass_func,  //
-                          /*opt_level=*/0,              //
-                          /*pass_name=*/"FuseOps",      //
-                          /*required=*/{});
+  auto inner_pass = CreateModulePass(/*pass_function=*/pass_func,   //
+                                     /*opt_level=*/0,               //
+                                     /*pass_name=*/"FuseOpsInner",  //
+                                     /*required=*/{});
+  return tvm::transform::Sequential(
+      {
+          inner_pass,
+          ExpandTupleArguments(),
+          RemoveUnusedParameters(),
+      },
+      "FuseOpsInner");
 }
 
 TVM_REGISTER_GLOBAL("relax.transform.FuseOps").set_body_typed(FuseOps);
@@ -1337,10 +1278,17 @@ Pass FuseOpsByPattern(const tvm::Array<FusionPattern>& patterns, bool bind_const
       [=](IRModule m, PassContext pc) {
         return relax::FuseOpsByPattern(patterns, m, bind_constants, annotate_codegen);
       };
-  return CreateModulePass(/*pass_function=*/pass_func,       //
-                          /*opt_level=*/0,                   //
-                          /*pass_name=*/"FuseOpsByPattern",  //
-                          /*required=*/{});
+  auto inner_pass = CreateModulePass(/*pass_function=*/pass_func,            //
+                                     /*opt_level=*/0,                        //
+                                     /*pass_name=*/"FuseOpsByPatternInner",  //
+                                     /*required=*/{});
+  return tvm::transform::Sequential(
+      {
+          inner_pass,
+          ExpandTupleArguments(),
+          RemoveUnusedParameters(),
+      },
+      "FuseOpsByPattern");
 }
 
 TVM_REGISTER_GLOBAL("relax.transform.FuseOpsByPattern").set_body_typed(FuseOpsByPattern);
