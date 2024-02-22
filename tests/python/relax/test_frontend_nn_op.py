@@ -1131,18 +1131,16 @@ def test_sample_top_p_top_k_from_sorted_prob():
 def test_renormalize_top_p_top_k_prob():
     prob_shape = (2, 3)
     sample_shape = (2, 1)
-    is_random = False
 
     class Model(Module):
         def foo(
             self,
             prob: Tensor,
             sorted_prob: Tensor,
-            sorted_index: Tensor,
             top_p: Tensor,
             top_k: Tensor,
         ):
-            z0 = op.renormalize_top_p_top_k_prob(prob, sorted_prob, sorted_index, top_p, top_k)
+            z0 = op.renormalize_top_p_top_k_prob(prob, sorted_prob, top_p, top_k)
             return z0
 
     # fmt: off
@@ -1201,8 +1199,8 @@ def test_renormalize_top_p_top_k_prob():
             return gv
 
         @R.function
-        def foo(prob: R.Tensor((2, 3), dtype="float32"), sorted_prob: R.Tensor((2, 3), dtype="float32"), sorted_index: R.Tensor((2, 3), dtype="int64"), top_p: R.Tensor((2, 1), dtype="float32"), top_k: R.Tensor((2, 1), dtype="int64"), _io: R.Object) -> R.Tuple(R.Tensor((2, 3), dtype="float32"), R.Tuple(R.Object)):
-            R.func_attr({"num_input": 6})
+        def foo(prob: R.Tensor((2, 3), dtype="float32"), sorted_prob: R.Tensor((2, 3), dtype="float32"), top_p: R.Tensor((2, 1), dtype="float32"), top_k: R.Tensor((2, 1), dtype="int64"), _io: R.Object) -> R.Tuple(R.Tensor((2, 3), dtype="float32"), R.Tuple(R.Object)):
+            R.func_attr({"num_input": 5})
             cls = Expected
             with R.dataflow():
                 cumsum: R.Tensor((2, 3), dtype="float32") = R.cumsum(sorted_prob, axis=1, dtype="void", exclusive=None)
@@ -1222,7 +1220,6 @@ def test_renormalize_top_p_top_k_prob():
             "foo": {
                 "prob": spec.Tensor(prob_shape, "float32"),
                 "sorted_prob": spec.Tensor(prob_shape, "float32"),
-                "sorted_index": spec.Tensor(prob_shape, "int64"),
                 "top_p": spec.Tensor(sample_shape, "float32"),
                 "top_k": spec.Tensor(sample_shape, "int64"),
             }
@@ -1245,11 +1242,10 @@ def test_renormalize_top_p_top_k_prob():
     effects = vm["_initialize_effect"]()
     prob = tvm.nd.array(np.array([[0.2, 0.3, 0.5], [0.3, 0.3, 0.4]]).astype(np.float32), dev)
     sorted_prob = tvm.nd.array(np.array([[0.5, 0.3, 0.2], [0.4, 0.3, 0.3]]).astype(np.float32), dev)
-    indices = tvm.nd.array(np.array([[2, 1, 0], [2, 0, 1]]).astype(np.int64), dev)
     top_p = tvm.nd.array(np.array([[0.6], [0.9]]).astype(np.float32), dev)
     top_k = tvm.nd.array(np.array([[3], [2]]).astype(np.int64), dev)
 
-    inputs = [prob, sorted_prob, indices, top_p, top_k, effects]
+    inputs = [prob, sorted_prob, top_p, top_k, effects]
 
     res = vm["foo"](*inputs)
     tvm.testing.assert_allclose(

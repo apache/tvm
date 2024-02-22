@@ -2253,7 +2253,7 @@ def sample_top_p_top_k_from_sorted_prob(
     return out_index_in_sorted
 
 
-def renormalize_top_p_top_k_prob(prob, sorted_prob, sorted_index, top_p, top_k):
+def renormalize_top_p_top_k_prob(prob, sorted_prob, top_p, top_k):
     """Renormalizes probabilities after filtering with top_p and top_k, ensuring
     they sum up to 1.
 
@@ -2268,9 +2268,6 @@ def renormalize_top_p_top_k_prob(prob, sorted_prob, sorted_index, top_p, top_k):
 
     sorted_prob : Tensor
         Probabilities sorted in descending order.
-
-    sorted_index : Tensor
-         Indices corresponding to the sorted probabilities.
 
     top_p : Tensor
         The cumulative probability threshold with shape (batch, 1) for nucleus sampling.
