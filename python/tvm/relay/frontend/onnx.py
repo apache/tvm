@@ -2392,7 +2392,7 @@ class Upsample(OnnxOpConverter):
         if not isinstance(scales, _expr.Expr):
             assert scales[0] == 1.0 and scales[1] == 1.0
 
-        mode = attr.get("mode", b"nearest").decode("utf-8")
+        mode = attr.get("mode", b"nearest")
         if mode == b"nearest":
             method = "nearest_neighbor"
         elif mode == b"linear":
