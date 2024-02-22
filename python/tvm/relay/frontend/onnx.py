@@ -3932,7 +3932,7 @@ class Resize(OnnxOpConverter):
 
     @classmethod
     def _impl_v10(cls, inputs, attr, params):
-        mode = attr.get("mode").decode("ascii")
+        mode = attr.get("mode", b"nearest").decode("ascii")
         if mode == "nearest":
             method = "nearest_neighbor"
         elif mode == "linear":
@@ -4007,7 +4007,7 @@ class Resize(OnnxOpConverter):
         if roi is not None and infer_shape(roi)[0] == 0:
             roi = None
         ndims = len(infer_shape(inputs[0]))
-        mode = attr.get("mode").decode("ascii")
+        mode = attr.get("mode", b"nearest").decode("ascii")
         if mode == "nearest":
             method = "nearest_neighbor"
         elif mode == "linear":
