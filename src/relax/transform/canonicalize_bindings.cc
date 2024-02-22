@@ -247,8 +247,7 @@ class BindingCanonicalizer : public ExprMutator {
   }
 
   Expr VisitExpr_(const VarNode* var) override {
-    Var new_var = Downcast<Var>(ExprMutator::VisitExpr_(var));
-
+    Var new_var = GetRef<Var>(var);
     while (auto opt = plan_.replace_usage.Get(new_var->vid)) {
       new_var = opt.value();
     }

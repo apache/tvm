@@ -49,8 +49,8 @@ struct CollectInfo {
 
   /*! \brief Bindings that can be lifted out into a pre-processing
    *
-   * - All bindings in `liftable_bindings` are suitable for use in a
-   *   DataflowBlock.
+   * - All bindings in `computable_at_compile_time` are suitable for
+   *   use in a DataflowBlock.
    *
    * - Do not depend on any parameter prior to attr::kNumInput.
    *
@@ -420,18 +420,18 @@ Pass PartitionTransformParams() {
   };
   return tvm::transform::CreateModulePass(pass_func, 1, "PartitionTransformParams", {});
 }
+
 Pass LiftTransformParams() {
-  // A post-proc utility to reproduce the previous behavior of
-  // LiftTransformParams.
+  // A post-proc utility as as the third step in LiftTransformParams
   //
-  // 1. Partition each function into a compile-time and run-time
-  // lambda functions.
+  // 1. PartitionTransformParams: Partition each function into a
+  // compile-time and run-time lambda functions.
   //
-  // 2. Lift the compile-time and run-time lambda functions out of the
-  // end-to-end function.
+  // 2. LambdaLift: Lift the compile-time and run-time lambda
+  // functions out of the end-to-end function.
   //
-  // 3. Expose the compile-time and run-time functions for external
-  // use, replacing the end-to-end function.
+  // 3. Post-proc: Expose the compile-time and run-time functions for
+  // external use, replacing the end-to-end functions.
   auto post_proc_func = [=](IRModule mod, PassContext pc) {
     std::unordered_set<GlobalVar, ObjectPtrHash, ObjectPtrEqual> to_remove;
     std::unordered_map<GlobalVar, Function, ObjectPtrHash, ObjectPtrEqual> to_add;
