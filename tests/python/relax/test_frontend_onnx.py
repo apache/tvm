@@ -148,7 +148,6 @@ def check_correctness(
         tvm_num_outputs = 1
 
     # Check that number of outputs match.
-
     assert tvm_num_outputs == len(ort_output), "Unequal number of outputs"
 
     for (tvm_out, ort_out) in zip(tvm_output, ort_output):
@@ -435,6 +434,22 @@ def test_unsqueeze():
     check_correctness(model)
 
 
+def test_unsqueeze_v1():
+    # https://github.com/onnx/onnx/blob/main/docs/Changelog.md#Unsqueeze-1
+    unsqueeze_node = helper.make_node("Unsqueeze", ["a"], ["b"], axes=[0, 2, 3])
+    graph = helper.make_graph(
+        [unsqueeze_node],
+        "unsqueeze_v1",
+        inputs=[helper.make_tensor_value_info("a", TensorProto.FLOAT, [32, 32])],
+        outputs=[helper.make_tensor_value_info("b", TensorProto.FLOAT, [1, 32, 1, 1, 32])],
+    )
+
+    model = helper.make_model(
+        graph, producer_name="unsqueeze_v1_test", opset_imports=[helper.make_opsetid("", 6)]
+    )
+    check_correctness(model, opset=10)
+
+
 def test_gelu():
     verify_unary("Gelu", [32, 32], domain="com.microsoft")
 
@@ -488,6 +503,25 @@ def test_clip(min, max):
 
     model = helper.make_model(graph, producer_name="clip_test")
     check_correctness(model)
+
+
+@pytest.mark.parametrize("min", [-6.0, 0.0])
+@pytest.mark.parametrize("max", [6.0])
+def test_clip_v6(max, min):
+    # https://github.com/onnx/onnx/blob/main/docs/Changelog.md#Clip-6
+    clip_node = helper.make_node("Clip", ["input"], ["output"], max=max, min=min)
+    inputs = [helper.make_tensor_value_info("input", TensorProto.FLOAT, [32, 64])]
+    graph = helper.make_graph(
+        [clip_node],
+        "clip_v6_test",
+        inputs=inputs,
+        outputs=[helper.make_tensor_value_info("output", TensorProto.FLOAT, [32, 64])],
+    )
+    model = helper.make_model(
+        graph, producer_name="clip_v6_test", opset_imports=[helper.make_opsetid("", 6)]
+    )
+    onnx.save(model, "a.onnx")
+    check_correctness(model, opset=10)
 
 
 def test_equal():
