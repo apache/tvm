@@ -138,6 +138,12 @@ class TVM_DLL GraphExecutor : public ModuleNode {
   int GetOutputIndex(const std::string& name);
 
   /*!
+   * \brief Get the output info of Graph by parsing the output nodes.
+   * \return The shape and dtype tuple.
+   */
+  std::tuple<ShapeInfo, DtypeInfo> GetOutputInfo() const;
+
+  /*!
    * \brief set index-th input to the graph.
    * \param index The input index.
    * \param data_in The input data.
@@ -213,6 +219,8 @@ class TVM_DLL GraphExecutor : public ModuleNode {
   uint32_t GetNumOfNodes() const { return static_cast<uint32_t>(nodes_.size()); }
 
   std::string GetNodeName(uint32_t nid) const { return nodes_[nid].name; }
+
+  std::unordered_set<std::string> GetParamNames() const { return param_names_; }
 
  protected:
   // Memory pool entry.

@@ -172,6 +172,30 @@ int GraphExecutor::GetOutputIndex(const std::string& name) {
   }
   return -1;
 }
+
+/*!
+ * \brief Get the output info of Graph by parsing the output nodes.
+ * \return The shape and dtype tuple.
+ */
+std::tuple<GraphExecutor::ShapeInfo, GraphExecutor::DtypeInfo> GraphExecutor::GetOutputInfo()
+    const {
+  GraphExecutor::ShapeInfo shape_dict;
+  GraphExecutor::DtypeInfo dtype_dict;
+  for (const auto& output : outputs_) {
+    uint32_t nid = output.node_id;
+    CHECK_LE(nid, nodes_.size());
+    std::string name = nodes_[nid].name;
+    if (param_names_.find(name) == param_names_.end()) {
+      CHECK_LE(nid, attrs_.shape.size());
+      auto shape = attrs_.shape[nid];
+      shape_dict.Set(name, ShapeTuple(shape));
+      CHECK_LE(nid, attrs_.dltype.size());
+      auto dtype = attrs_.dltype[nid];
+      dtype_dict.Set(name, String(dtype));
+    }
+  }
+  return std::make_tuple(shape_dict, dtype_dict);
+}
 /*!
  * \brief set index-th input to the graph.
  * \param index The input index.
