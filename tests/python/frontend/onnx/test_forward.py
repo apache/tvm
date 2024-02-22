@@ -5728,7 +5728,7 @@ unsupported_onnx_tests = [
     "test_unique_sorted_with_axis_3d",
     "test_unique_sorted_with_negative_axis",
     "test_upsample_nearest",
-    "test_upsample_nearest_default"
+    "test_upsample_nearest_default",
 ]
 
 
