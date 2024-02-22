@@ -6021,7 +6021,7 @@ class Multinomial(OnnxOpConverter):
 
     @classmethod
     def _impl_v7(cls, inputs, attr, params):
-        dtype = attr.get("dtype", "int64")
+        dtype = attr.get("dtype", "int32")
         sample_size = attr.get("sample_size", 1)
         seed = attr.get("seed", None)
         if seed is None:
