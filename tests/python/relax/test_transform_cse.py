@@ -532,5 +532,100 @@ def test_match_cast_with_symbolic_vars():
     verify(Before, Expected)
 
 
+def test_replace_binding_within_branch_with_duplicate_before_branch():
+    """Bindings before a branch may be used within the branch"""
+
+    @I.ir_module
+    class Before:
+        @R.function
+        def foo(
+            x: R.Tensor((2, 3), dtype="float32"),
+            y: R.Tensor((2, 3), dtype="float32"),
+            condition: R.Prim("bool"),
+        ):
+            A = R.add(x, y)
+            if condition:
+                B = R.add(x, y)
+                C = R.multiply(x, B)
+                D = R.multiply(A, C)
+            else:
+                B = R.add(x, y)
+                C = R.multiply(y, B)
+                D = R.multiply(A, C)
+            return D
+
+    @I.ir_module
+    class Expected:
+        @R.function
+        def foo(
+            x: R.Tensor((2, 3), dtype="float32"),
+            y: R.Tensor((2, 3), dtype="float32"),
+            condition: R.Prim("bool"),
+        ):
+            A = R.add(x, y)
+            if condition:
+                B = A
+                C = R.multiply(x, A)
+                D = R.multiply(A, C)
+            else:
+                B = A
+                C = R.multiply(y, A)
+                D = R.multiply(A, C)
+            return D
+
+    verify(Before, Expected)
+
+
+def test_keep_duplicate_across_if_and_then():
+    """Bindings in `if` are not valid within `else`"""
+
+    @I.ir_module
+    class Before:
+        @R.function
+        def foo(
+            x: R.Tensor((2, 3), dtype="float32"),
+            y: R.Tensor((2, 3), dtype="float32"),
+            condition: R.Prim("bool"),
+        ):
+            if condition:
+                A = R.add(x, y)
+                B = R.multiply(x, A)
+            else:
+                A = R.add(x, y)
+                B = R.multiply(y, A)
+            return B
+
+    Expected = Before
+
+    verify(Before, Expected)
+
+
+def test_keep_duplicate_after_branch():
+    """Only the final binding is valid after a if/else branch"""
+
+    @I.ir_module
+    class Before:
+        @R.function
+        def foo(
+            x: R.Tensor((2, 3), dtype="float32"),
+            y: R.Tensor((2, 3), dtype="float32"),
+            condition: R.Prim("bool"),
+        ):
+            if condition:
+                A = R.add(x, y)
+                B = R.multiply(x, A)
+            else:
+                A = R.add(x, y)
+                B = R.multiply(y, A)
+
+            C = R.add(x, y)
+            D = R.multiply(B, C)
+            return D
+
+    Expected = Before
+
+    verify(Before, Expected)
+
+
 if __name__ == "__main__":
     tvm.testing.main()

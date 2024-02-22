@@ -160,8 +160,8 @@ class CommonSubexprEliminator : public ExprMutator {
 
   Expr VisitExpr_(const IfNode* op) override {
     Expr cond = VisitExpr(op->cond);
-    Expr true_branch = VisitWithCleanScope(op->true_branch);
-    Expr false_branch = VisitWithCleanScope(op->false_branch);
+    Expr true_branch = VisitWithInnerScope(op->true_branch);
+    Expr false_branch = VisitWithInnerScope(op->false_branch);
     if (op->cond.same_as(cond) && op->true_branch.same_as(true_branch) &&
         op->false_branch.same_as(false_branch) &&
         VisitAndCheckStructInfoFieldUnchanged(op->struct_info_)) {
@@ -172,6 +172,15 @@ class CommonSubexprEliminator : public ExprMutator {
   }
 
  private:
+  Expr VisitWithInnerScope(Expr expr) {
+    auto cached_vars = var_remap_;
+    auto cached_exprs = expr_replacements_;
+    auto output = VisitExpr(expr);
+    var_remap_ = cached_vars;
+    expr_replacements_ = cached_exprs;
+    return output;
+  }
+
   Expr VisitWithCleanScope(Expr expr) {
     CommonSubexprEliminator clean_mutator(call_only_);
     return clean_mutator.VisitExpr(expr);
