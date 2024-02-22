@@ -31,6 +31,16 @@ pub struct SourceNameNode {
     pub name: TString,
 }
 
+impl SourceName {
+    pub fn new(name: TString) -> SourceName {
+        let source_name_node = SourceNameNode {
+            base: Object::base::<SourceNameNode>(),
+            name,
+        };
+        SourceName(Some(ObjectPtr::new(source_name_node)))
+    }
+}
+
 /// Span information for diagnostic purposes.
 #[repr(C)]
 #[derive(Object, Debug)]

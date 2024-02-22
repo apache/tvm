@@ -21,6 +21,7 @@ use crate::ir::attrs::BaseAttrsNode;
 use crate::ir::PrimExpr;
 use crate::runtime::array::Array;
 use crate::runtime::DataType;
+use crate::runtime::ObjectPtr;
 use crate::runtime::String as TString;
 use tvm_macros::Object;
 
@@ -72,6 +73,57 @@ pub struct Conv2DAttrsNode {
     pub kernel_layout: TString,
     pub out_layout: TString,
     pub auto_scheduler_rewritten_layout: TString,
+    pub out_dtype: DataType,
+}
+
+impl Conv2DAttrs {
+    pub fn new(
+        strides: Array<IndexExpr>,
+        padding: Array<IndexExpr>,
+        dilation: Array<IndexExpr>,
+        groups: i32,
+        channels: IndexExpr,
+        kernel_size: Array<IndexExpr>,
+        data_layout: TString,
+        kernel_layout: TString,
+        out_layout: TString,
+        auto_scheduler_rewritten_layout: TString,
+        out_dtype: DataType,
+    ) -> Conv2DAttrs {
+        let conv2d_attrs_node = Conv2DAttrsNode {
+            base: BaseAttrsNode::base::<Conv2DAttrsNode>(),
+            strides,
+            padding,
+            dilation,
+            groups,
+            channels,
+            kernel_size,
+            data_layout,
+            kernel_layout,
+            out_layout,
+            auto_scheduler_rewritten_layout,
+            out_dtype,
+        };
+        Conv2DAttrs(Some(ObjectPtr::new(conv2d_attrs_node)))
+    }
+}
+
+#[repr(C)]
+#[derive(Object, Debug)]
+#[ref_name = "Conv2DTransposeAttrs"]
+#[type_key = "relay.attrs.Conv2DTransposeAttrs"]
+pub struct Conv2DTransposeAttrsNode {
+    pub base: BaseAttrsNode,
+    pub channels: IndexExpr,
+    pub kernel_size: Array<IndexExpr>,
+    pub strides: Array<IndexExpr>,
+    pub padding: Array<IndexExpr>,
+    pub output_padding: Array<IndexExpr>,
+    pub dilation: Array<IndexExpr>,
+    pub groups: i32,
+    pub data_layout: TString,
+    pub kernel_layout: TString,
+    pub out_layout: TString,
     pub out_dtype: DataType,
 }
 
@@ -152,7 +204,24 @@ pub struct DenseAttrsNode {
 pub struct GlobalPool2DAttrsNode {
     pub base: BaseAttrsNode,
     pub layout: TString,
+    pub out_layout: TString,
 }
+
+#[repr(C)]
+#[derive(Object, Debug)]
+#[ref_name = "MaxPool1DAttrs"]
+#[type_key = "relay.attrs.MaxPool1DAttrs"]
+pub struct MaxPool1DAttrsNode {
+    pub base: BaseAttrsNode,
+    pub pool_size: Array<IndexExpr>,
+    pub strides: Array<IndexExpr>,
+    pub padding: Array<IndexExpr>,
+    pub dilation: Array<IndexExpr>,
+    pub layout: TString,
+    pub out_layout: TString,
+    pub ceil_mode: bool,
+}
+
 
 #[repr(C)]
 #[derive(Object, Debug)]
@@ -165,6 +234,23 @@ pub struct MaxPool2DAttrsNode {
     pub padding: Array<IndexExpr>,
     pub dilation: Array<IndexExpr>,
     pub layout: TString,
+    pub out_layout: TString,
+    pub ceil_mode: bool,
+}
+
+
+#[repr(C)]
+#[derive(Object, Debug)]
+#[ref_name = "MaxPool3DAttrs"]
+#[type_key = "relay.attrs.MaxPool3DAttrs"]
+pub struct MaxPool3DAttrsNode {
+    pub base: BaseAttrsNode,
+    pub pool_size: Array<IndexExpr>,
+    pub strides: Array<IndexExpr>,
+    pub padding: Array<IndexExpr>,
+    pub dilation: Array<IndexExpr>,
+    pub layout: TString,
+    pub out_layout: TString,
     pub ceil_mode: bool,
 }
 
@@ -200,6 +286,22 @@ pub struct LeakyReluAttrsNode {
 
 #[repr(C)]
 #[derive(Object, Debug)]
+#[ref_name = "AvgPool1DAttrs"]
+#[type_key = "relay.attrs.AvgPool1DAttrs"]
+pub struct AvgPool1DAttrsNode {
+    pub base: BaseAttrsNode,
+    pub pool_size: Array<IndexExpr>,
+    pub strides: Array<IndexExpr>,
+    pub padding: Array<IndexExpr>,
+    pub dilation: Array<IndexExpr>,
+    pub layout: TString,
+    pub out_layout: TString,
+    pub ceil_mode: bool,
+    pub count_include_pad: bool,
+}
+
+#[repr(C)]
+#[derive(Object, Debug)]
 #[ref_name = "AvgPool2DAttrs"]
 #[type_key = "relay.attrs.AvgPool2DAttrs"]
 pub struct AvgPool2DAttrsNode {
@@ -209,6 +311,23 @@ pub struct AvgPool2DAttrsNode {
     pub padding: Array<IndexExpr>,
     pub dilation: Array<IndexExpr>,
     pub layout: TString,
+    pub out_layout: TString,
+    pub ceil_mode: bool,
+    pub count_include_pad: bool,
+}
+
+#[repr(C)]
+#[derive(Object, Debug)]
+#[ref_name = "AvgPool3DAttrs"]
+#[type_key = "relay.attrs.AvgPool3DAttrs"]
+pub struct AvgPool3DAttrsNode {
+    pub base: BaseAttrsNode,
+    pub pool_size: Array<IndexExpr>,
+    pub strides: Array<IndexExpr>,
+    pub padding: Array<IndexExpr>,
+    pub dilation: Array<IndexExpr>,
+    pub layout: TString,
+    pub out_layout: TString,
     pub ceil_mode: bool,
     pub count_include_pad: bool,
 }
@@ -241,8 +360,10 @@ pub struct DropoutAttrsNode {
 #[type_key = "relay.attrs.BatchMatmulAttrs"]
 pub struct BatchMatmulAttrsNode {
     pub base: BaseAttrsNode,
-    pub auto_scheduler_rewritten_layout: TString,
     pub out_dtype: DataType,
+    pub transpose_a: bool,
+    pub transpose_b: bool,
+    pub auto_scheduler_rewritten_layout: TString,
 }
 
 #[repr(C)]

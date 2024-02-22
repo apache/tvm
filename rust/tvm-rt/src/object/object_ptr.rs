@@ -269,6 +269,10 @@ impl<T: IsObject> ObjectPtr<T> {
         }
     }
 
+    pub fn get_type_key(self) -> String{
+        self.as_ref().get_type_key()
+    }
+
     pub unsafe fn into_raw(self) -> *mut T {
         self.ptr.as_ptr()
     }

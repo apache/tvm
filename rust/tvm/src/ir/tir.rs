@@ -56,11 +56,34 @@ impl From<i32> for IntImm {
     }
 }
 
+impl From<i64> for IntImm {
+    fn from(i : i64) -> IntImm {
+        IntImm::new(DataType::int(64, 1), i)
+    }
+}
+
 impl From<i32> for PrimExpr {
     fn from(i: i32) -> PrimExpr {
         IntImm::from(i).upcast()
     }
 }
+
+impl Into<i64> for PrimExpr {
+    fn into(self) -> i64 {
+        let int_val = self.downcast::<IntImm>().unwrap().value as i64;
+        int_val
+    }
+}
+
+define_node!(FloatImm, "FloatImm", "FloatImm";
+             FloatImmNode { value: f64 });
+
+impl Into<f64> for PrimExpr {
+    fn into(self) -> f64 {
+        let float_val = self.downcast::<FloatImm>().unwrap().value as f64;
+        float_val
+    }
+}   
 
 define_node!(Var, "Var", "tir.Var";
              VarNode { name_hint: TVMString });
