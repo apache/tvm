@@ -16,30 +16,29 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-#ifndef TVM_RUNTIME_RELAX_VM_KV_CACHE_H_
-#define TVM_RUNTIME_RELAX_VM_KV_CACHE_H_
+#ifndef TVM_RUNTIME_RELAX_VM_KV_STATE_H_
+#define TVM_RUNTIME_RELAX_VM_KV_STATE_H_
 #include <tvm/runtime/device_api.h>
 #include <tvm/runtime/logging.h>
 #include <tvm/runtime/ndarray.h>
 #include <tvm/runtime/registry.h>
 
+#include "tvm/runtime/object.h"
+
 namespace tvm {
 namespace runtime {
 namespace relax_vm {
 
-/*!
- * \brief The base class of attention KV cache for efficient
- * k/v data management and attention computation.
- */
-class AttentionKVCache : public Object {
+/*! \brief The base class of attention KV cache and rnn state. */
+class KVStateObj : public Object {
  public:
-  /*! \brief Reset the KV cache. */
+  /*! \brief Reset the KV State. */
   virtual void Clear() = 0;
 
   /************** Sequence Management **************/
 
   /*!
-   * \brief Add a new sequence with empty K/V data in the cache.
+   * \brief Add a new sequence with empty K/V state in the cache.
    * Check if the validity of the input sequence id.
    * \param seq_id The id of the new sequence to be added.
    * \throws Error if the given sequence id is not valid.
@@ -47,15 +46,15 @@ class AttentionKVCache : public Object {
   virtual void AddSequence(int64_t seq_id) = 0;
 
   /*!
-   * \brief Remove a sequence and its K/V data from the KV cache.
+   * \brief Remove a sequence and its K/V state from the KV cache.
    * \param seq_id The sequence to remove from cache.
    * \throws Error if the given sequence id is not valid.
    */
   virtual void RemoveSequence(int64_t seq_id) = 0;
 
   /*!
-   * \brief Fork the K/V data of parent sequence to the child sequence.
-   * After the fork, the child sequence has K/V data of the parent
+   * \brief Fork the K/V state of parent sequence to the child sequence.
+   * After the fork, the child sequence has K/V state of the parent
    * sequence.
    * \param parent_seq_id The parent (source) of the fork.
    * \param child_seq_id The child (destination) of the fork.
@@ -72,18 +71,6 @@ class AttentionKVCache : public Object {
    * \throws Error if the given sequence id is not valid.
    */
   virtual void PopN(int64_t seq_id, int32_t n) = 0;
-
-  /************** Raw Info Query **************/
-
-  /*!
-   * \brief Get the number of available pages in the KV cache.
-   * When the underlying KV cache implementation is not
-   * paged KV cache, the function falls back to return the
-   * number of remaining size (in terms of number of tokens).
-   */
-  virtual int32_t GetNumAvailablePages() const = 0;
-
-  /************** Attention **************/
 
   /*!
    * \brief Mark the start of the forward function with the ids of
@@ -108,6 +95,34 @@ class AttentionKVCache : public Object {
    * function, and contains post-processing of the forward.
    */
   virtual void EndForward() = 0;
+
+  static constexpr const uint32_t _type_index = TypeIndex::kDynamic;
+  static constexpr const char* _type_key = "relax.vm.KVState";
+  TVM_DECLARE_BASE_OBJECT_INFO(KVStateObj, Object)
+};
+
+class KVState : public ObjectRef {
+ public:
+  TVM_DEFINE_MUTABLE_OBJECT_REF_METHODS(KVState, ObjectRef, KVStateObj);
+};
+
+/*!
+ * \brief The base class of attention KV cache for efficient
+ * k/v data management and attention computation.
+ */
+class AttentionKVCacheObj : public KVStateObj {
+ public:
+  /************** Raw Info Query **************/
+
+  /*!
+   * \brief Get the number of available pages in the KV cache.
+   * When the underlying KV cache implementation is not
+   * paged KV cache, the function falls back to return the
+   * number of remaining size (in terms of number of tokens).
+   */
+  virtual int32_t GetNumAvailablePages() const = 0;
+
+  /************** Attention **************/
 
   /*!
    * \brief Compute attention with the given Q/K/V data at the specified
@@ -197,10 +212,63 @@ class AttentionKVCache : public Object {
    * \param v_data The V data to set in layout elaborated above.
    */
   virtual void DebugSetKV(int64_t seq_id, int64_t start_pos, NDArray k_data, NDArray v_data) = 0;
+
+  static constexpr const uint32_t _type_index = TypeIndex::kDynamic;
+  static constexpr const char* _type_key = "relax.vm.AttentionKVCache";
+  TVM_DECLARE_BASE_OBJECT_INFO(AttentionKVCacheObj, KVStateObj);
+};
+
+class AttentionKVCache : public KVState {
+ public:
+  TVM_DEFINE_MUTABLE_OBJECT_REF_METHODS(AttentionKVCache, KVState, AttentionKVCacheObj);
+};
+
+/*!
+ * \brief The base class of RNN State for efficient
+ * State data management and attention computation.
+ */
+class RNNStateObj : public KVStateObj {
+ public:
+  /************** Interaction **************/
+  /*!
+   * \brief Get the State data for the specified sequence.
+   * \param layer_id The model layer where the state is set.
+   * \param state_id The state id within the layer.
+   * \param o_data The output data to be fetched.
+   * \return The array of State data, each element corresponds to a state.
+   * \throws Error if the given sequence id is not valid.
+   */
+  virtual void Get(int64_t layer_id, int64_t state_id, NDArray o_data) = 0;
+
+  /*!
+   * \brief Set the State data for the specified sequence.
+   * \param layer_id The model layer where the state is set.
+   * \param state_id The state id within the layer.
+   * \param data The data to be set.
+   * \throws Error if the given sequence id is not valid.
+   */
+  virtual void Set(int64_t layer_id, int64_t state_id, NDArray data) = 0;
+
+  /*!
+   * \brief Fetch the compact rnn state data of the given sequence.
+   * \param layer_id The model layer where the state is set.
+   * \param state_id The state id within the layer.
+   * \param seq_id The sequence whose state data is to be fetched.
+   */
+  virtual NDArray DebugGet(int64_t layer_id, int64_t state_id, int64_t seq_id) = 0;
+
+  static constexpr const uint32_t _type_index = TypeIndex::kDynamic;
+  static constexpr const char* _type_key = "relax.vm.RNNState";
+  TVM_DECLARE_BASE_OBJECT_INFO(RNNStateObj, KVStateObj);
+};
+
+class RNNState : public KVState {
+ public:
+  TVM_DEFINE_MUTABLE_OBJECT_REF_METHODS(RNNState, KVState, RNNStateObj);
 };
 
 }  // namespace relax_vm
 }  // namespace runtime
 }  // namespace tvm
 
-#endif  // TVM_RUNTIME_RELAX_VM_KV_CACHE_H_
+#endif  // TVM_RUNTIME_RELAX_VM_KV_STATE_H_
