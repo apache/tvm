@@ -279,7 +279,11 @@ TVM_REGISTER_GLOBAL("vm.builtin.check_shape_info").set_body_typed(CheckShapeInfo
  * \param err_ctx Additional context if error occurs.
  */
 void CheckPrimValueInfo(TVMArgValue arg, DataType dtype, Optional<String> err_ctx) {
-  if (dtype.is_bool()) {
+  if (arg.IsObjectRef<ObjectRef>()) {
+    ObjectRef obj = arg.AsObjectRef<ObjectRef>();
+    LOG(FATAL) << "TypeError: " << err_ctx.value_or("") << ", expected dtype " << dtype
+               << ", but received ObjectRef of type " << obj->GetTypeKey();
+  } else if (dtype.is_bool()) {
     arg.operator bool();
   } else if (dtype.is_int()) {
     arg.operator int64_t();

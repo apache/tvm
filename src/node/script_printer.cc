@@ -113,7 +113,7 @@ PrinterConfig::PrinterConfig(Map<String, ObjectRef> config_dict) {
     n->show_object_address = Downcast<runtime::Bool>(v)->value;
   }
   if (auto v = config_dict.Get("show_all_struct_info")) {
-    n->show_all_struct_info = Downcast<IntImm>(v)->value;
+    n->show_all_struct_info = Downcast<runtime::Bool>(v)->value;
   }
 
   // Checking prefixes if they are valid Python identifiers.

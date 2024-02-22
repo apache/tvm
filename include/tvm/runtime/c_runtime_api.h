@@ -81,9 +81,9 @@
 #ifdef __cplusplus
 extern "C" {
 #endif
+#include <stdbool.h>
 #include <stddef.h>
 #include <stdint.h>
-#include <stdbool.h>
 
 /*! \brief type of array index. */
 typedef int64_t tvm_index_t;

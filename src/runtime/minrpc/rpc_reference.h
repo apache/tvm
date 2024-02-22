@@ -324,6 +324,10 @@ struct RPCReference {
           channel->template Write<int64_t>(value.v_int64);
           break;
         }
+        case kTVMArgBool: {
+          channel->template Write<bool>(value.v_bool);
+          break;
+        }
         case kTVMDataType: {
           channel->Write(value.v_type);
           // padding
@@ -429,6 +433,10 @@ struct RPCReference {
         case kDLUInt:
         case kDLFloat: {
           channel->template Read<int64_t>(&(value.v_int64));
+          break;
+        }
+        case kTVMArgBool: {
+          channel->template Read<bool>(&(value.v_bool));
           break;
         }
         case kTVMDataType: {
