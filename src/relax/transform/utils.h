@@ -429,9 +429,12 @@ Expr CanonicalizeBindings(const Expr& expr);
  *
  * \param func The function to be updated.
  *
+ * \param param_tuple_name The name of the tuple parameter.  If
+ * unspecified, defaults to "model_params"
+ *
  * \ret The updated function.
  */
-Function BundleModelParams(const Function& func);
+Function BundleModelParams(const Function& func, Optional<String> param_tuple_name = NullOpt);
 
 }  // namespace relax
 }  // namespace tvm
