@@ -358,6 +358,9 @@ set(USE_HEXAGON_RPC OFF)
 # Valid values are v65, v66, v68, v69, v73.
 set(USE_HEXAGON_ARCH "v68")
 
+# Whether use MRVL codegen
+set(USE_MRVL OFF)
+
 # Whether to use QHL library
 set(USE_HEXAGON_QHL OFF)
 

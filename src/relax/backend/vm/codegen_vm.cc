@@ -391,7 +391,15 @@ class CodeGenVM : public ExprFunctor<Instruction::Arg(const Expr&)> {
   void EmitNormalCall(const Call& call_node, RegName dst_reg) {
     Instruction::Arg func = VisitExpr(call_node->op);
     std::vector<Instruction::Arg> args = VisitArray(call_node->args);
-    builder_->EmitCall(func, args, dst_reg);
+
+    if (func.kind() == vm::Instruction::ArgKind::kFuncIdx) {
+      builder_->EmitCall(func, args, dst_reg);
+    } else {
+      std::vector<Instruction::Arg> closure_args = {
+          Instruction::Arg::Register(Instruction::kVMRegister), func};
+      std::copy(args.begin(), args.end(), std::back_inserter(closure_args));
+      builder_->EmitCall("vm.builtin.invoke_closure", closure_args, dst_reg);
+    }
   }
 
   // Emits call to packed function `name` with arguments copied over from `call_node` args

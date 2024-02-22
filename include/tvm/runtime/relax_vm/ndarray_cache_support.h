@@ -45,8 +45,8 @@ struct NDArrayCacheMetadata {
        * \param staging_buffer The buffer to be used to avoid extra OpenCL copies. Pass in a nullptr
        * in other cases
        */
-      NDArray Load(Device device, const std::string* raw_data,
-                   Optional<NDArray>* staging_buffer = nullptr) const;
+      TVM_DLL NDArray Load(Device device, const std::string* raw_data,
+                           Optional<NDArray>* staging_buffer = nullptr) const;
 
       /*! \brief Name of the parameter */
       std::string name;

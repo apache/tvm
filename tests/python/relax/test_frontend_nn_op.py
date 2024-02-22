@@ -441,9 +441,10 @@ def test_timestep_embedding():
             get_timestep_embedding: R.Tensor((3, 10), dtype="float32") = R.astype(
                 lv11, dtype="float32"
             )
-            gv1: R.Tuple(
-                R.Tensor((3, 10), dtype="float32"), R.Tuple(R.Object)
-            ) = get_timestep_embedding, (_io,)
+            gv1: R.Tuple(R.Tensor((3, 10), dtype="float32"), R.Tuple(R.Object)) = (
+                get_timestep_embedding,
+                (_io,),
+            )
             R.output(gv1)
         return gv1
 
@@ -470,9 +471,10 @@ def test_scaled_dot_product_attention():
             scaled_dot_product_attention: R.Tensor(
                 (1, 32, 32, 32), dtype="float32"
             ) = R.nn.attention(query, key, value, scale=None, causal_mask=None)
-            gv1: R.Tuple(
-                R.Tensor((1, 32, 32, 32), dtype="float32"), R.Tuple(R.Object)
-            ) = scaled_dot_product_attention, (_io,)
+            gv1: R.Tuple(R.Tensor((1, 32, 32, 32), dtype="float32"), R.Tuple(R.Object)) = (
+                scaled_dot_product_attention,
+                (_io,),
+            )
             R.output(gv1)
         return gv1
 
@@ -721,6 +723,42 @@ def test_tensor_ir_inplace_op():
         },
         debug=True,
     )
+    tvm.ir.assert_structural_equal(irmodule, Expected)
+
+
+def test_tensor_ir_op_no_tir_var():
+    @T.prim_func(private=True)
+    def tir_func(A: T.Buffer((16, 16), "float32"), B: T.Buffer((16, 16), "float32")):
+        T.evaluate(0)
+
+    class Model(Module):
+        def test(self, A: Tensor):
+            tensor_expr_op_out = op.tensor_ir_op(
+                tir_func,
+                "tir_func",
+                args=[A],
+                out=[Tensor.placeholder((16, 16), "float32")],
+            )
+            return tensor_expr_op_out
+
+    @I.ir_module
+    class Expected:
+        @T.prim_func(private=True)
+        def tir_func(A: T.Buffer((16, 16), "float32"), B: T.Buffer((16, 16), "float32")):
+            T.evaluate(0)
+
+        @R.function
+        def test(A: R.Tensor((16, 16), dtype="float32")) -> R.Tensor((16, 16), dtype="float32"):
+            R.func_attr({"num_input": 1})
+            cls = Expected
+            with R.dataflow():
+                lv = R.call_tir(cls.tir_func, (A,), out_sinfo=R.Tensor((16, 16), dtype="float32"))
+                gv: R.Tensor((16, 16), dtype="float32") = lv
+                R.output(gv)
+            return gv
+
+    m = Model()
+    irmodule, _ = m.export_tvm(spec={"test": {"A": spec.Tensor([16, 16], "float32")}})
     tvm.ir.assert_structural_equal(irmodule, Expected)
 
 

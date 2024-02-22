@@ -128,6 +128,7 @@ tvm_option(USE_CLML_GRAPH_EXECUTOR "Build with CLML graph runtime" OFF)
 tvm_option(USE_UMA "Build with UMA support" OFF)
 tvm_option(USE_VERILATOR "Build with Verilator support" OFF)
 tvm_option(USE_MSC "Enable Multi-System Compiler" OFF)
+tvm_option(USE_MRVL "Build with MRVL TVM support" OFF)
 
 # include directories
 include_directories(${CMAKE_INCLUDE_PATH})
@@ -581,6 +582,7 @@ include(cmake/modules/contrib/vllm.cmake)
 include(cmake/modules/Git.cmake)
 include(cmake/modules/LibInfo.cmake)
 include(cmake/modules/RustExt.cmake)
+include(cmake/modules/contrib/Mrvl.cmake)
 
 set(LIBINFO_FILE ${CMAKE_CURRENT_LIST_DIR}/src/support/libinfo.cc)
 add_lib_info(${LIBINFO_FILE})

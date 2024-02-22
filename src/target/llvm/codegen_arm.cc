@@ -72,7 +72,7 @@ PrimExpr CodeGenARM::ARMPopcount(const CallNode* call) {
 
   // Fallback to default llvm lowering rule if input type not a full vector or half vector length
   int total_size = call->dtype.bits() * call->dtype.lanes();
-  if (!call->dtype.is_vector() || call->dtype.bits() == 8 ||
+  if (!call->dtype.is_fixed_length_vector() || call->dtype.bits() == 8 ||
       (total_size != 128 && total_size != 64)) {
     Array<PrimExpr> vcnt_args;
     vcnt_args.push_back(IntImm(DataType::UInt(32), ctpop_id));

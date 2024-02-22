@@ -472,10 +472,11 @@ void CodeGenOpenCL::VisitExpr_(const CallNode* op, std::ostream& os) {
 
 void CodeGenOpenCL::VisitExpr_(const BroadcastNode* op, std::ostream& os) {  // NOLINT(*)
   std::string v = PrintExpr(op->value);
+  int lanes = op->dtype.lanes();
   os << "((";
   PrintType(op->dtype, os);
   os << ")(";
-  for (int i = 0; i < op->lanes; ++i) {
+  for (int i = 0; i < lanes; ++i) {
     if (i != 0) os << ", ";
     os << v;
   }
@@ -486,10 +487,11 @@ void CodeGenOpenCL::VisitExpr_(const RampNode* op, std::ostream& os) {  // NOLIN
   os << "((";
   PrintType(op->dtype, os);
   os << ")(";
-  for (int i = 0; i < op->lanes; i++) {
+  int lanes = op->dtype.lanes();
+  for (int i = 0; i < lanes; i++) {
     os << "(" << PrintExpr(op->base) << ")"
        << "+(" << PrintExpr(op->stride) << "*" << i << ")";
-    if (i != op->lanes - 1) os << ", ";
+    if (i != lanes - 1) os << ", ";
   }
   os << "))";
 }

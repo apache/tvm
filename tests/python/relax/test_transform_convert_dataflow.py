@@ -221,7 +221,7 @@ class TestTreatNonCallAsPure(ExtractCompare):
                 t2 = (y, y, x)
                 c = R.const([1, 2, 3], dtype="int32")
                 R.output(c)
-            return c
+            return R.const([1, 2, 3], dtype="int32")
 
         @R.function
         def shapes() -> R.Shape:

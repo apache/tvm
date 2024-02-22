@@ -441,7 +441,6 @@ subsection_order = ExplicitOrder(
     for p in [
         tvm_path / "vta" / "tutorials" / "frontend",
         tvm_path / "vta" / "tutorials" / "optimize",
-        tvm_path / "vta" / "tutorials" / "autotvm",
     ]
 )
 

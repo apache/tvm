@@ -137,7 +137,7 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
       return TIR(d, "Ramp")->Call({
           d->AsDoc<ExprDoc>(ramp->base, ramp_p->Attr("base")),
           d->AsDoc<ExprDoc>(ramp->stride, ramp_p->Attr("stride")),
-          LiteralDoc::Int(ramp->lanes, ramp_p->Attr("lanes")),
+          d->AsDoc<ExprDoc>(ramp->lanes, ramp_p->Attr("lanes")),
       });
     });
 
@@ -146,7 +146,7 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
       return TIR(d, "Broadcast")
           ->Call({
               d->AsDoc<ExprDoc>(bc->value, bc_p->Attr("value")),
-              LiteralDoc::Int(bc->lanes, bc_p->Attr("lanes")),
+              d->AsDoc<ExprDoc>(bc->lanes, bc_p->Attr("lanes")),
           });
     });
 

@@ -290,7 +290,7 @@ void NDArray::CopyFromBytes(const void* data, size_t nbytes) {
 void NDArray::CopyFromTo(const DLTensor* from, DLTensor* to, TVMStreamHandle stream) {
   size_t from_size = GetDataSize(*from);
   size_t to_size = GetDataSize(*to);
-  ICHECK_EQ(from_size, to_size) << "TVMArrayCopyFromTo: The size must exactly match";
+  ICHECK_EQ(from_size, to_size) << "TVMArrayCopyFromTo: The size in bytes must exactly match.";
 
   ICHECK(from->device.device_type == to->device.device_type || from->device.device_type == kDLCPU ||
          to->device.device_type == kDLCPU || from->device.device_type == kDLCUDAHost ||

@@ -233,6 +233,9 @@ def build(
     elif isinstance(inputs, PrimFunc):
         input_mod = lower(inputs, name=name)
     elif isinstance(inputs, tvm.IRModule):
+        assert (
+            len(inputs.get_global_vars()) > 0
+        ), "Expected a non-empty IRModule, but the IRModule contained no functions."
         input_mod = lower(inputs)
     elif not isinstance(inputs, (dict, container.Map)):
         raise ValueError(

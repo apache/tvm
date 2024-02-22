@@ -1015,8 +1015,8 @@ TVM_REGISTER_GLOBAL("relax.BlockBuilderEmit")
     });
 
 TVM_REGISTER_GLOBAL("relax.BlockBuilderEmitMatchCast")
-    .set_body_typed([](BlockBuilder builder, Expr value, StructInfo struct_info) {
-      return builder->EmitMatchCast(value, struct_info);
+    .set_body_typed([](BlockBuilder builder, Expr value, StructInfo struct_info, String name_hint) {
+      return builder->EmitMatchCast(value, struct_info, name_hint);
     });
 
 TVM_REGISTER_GLOBAL("relax.BlockBuilderEmitOutput")

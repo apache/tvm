@@ -126,11 +126,8 @@ def load_json(json_str) -> Object:
         The loaded tvm node.
     """
 
-    try:
-        return _ffi_node_api.LoadJSON(json_str)
-    except tvm.error.TVMError:
-        json_str = json_compact.upgrade_json(json_str)
-        return _ffi_node_api.LoadJSON(json_str)
+    json_str = json_compact.upgrade_json(json_str)
+    return _ffi_node_api.LoadJSON(json_str)
 
 
 def save_json(node) -> str:

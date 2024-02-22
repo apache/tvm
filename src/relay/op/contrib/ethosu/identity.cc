@@ -46,7 +46,8 @@ bool EthosuIdentityRel(const Array<Type>& types, int num_inputs, const Attrs& at
 
   const String operator_name = "ethosu_identity";
 
-  CheckDataType(reporter, ifm->dtype, {DataType::UInt(8), DataType::Int(8)}, operator_name, "ifm");
+  CheckDataType(reporter, ifm->dtype, {DataType::UInt(8), DataType::Int(8), DataType::Int(16)},
+                operator_name, "ifm");
 
   if (ifm->shape.size() > 4) {
     reporter->GetDiagCtx().EmitFatal(

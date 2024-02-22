@@ -21,6 +21,7 @@ from typing import Dict, Union, List, Tuple, Optional, Callable
 import tvm
 import tvm.runtime
 from tvm.runtime.object import Object
+from tvm.runtime import ObjectGeneric
 
 from . import _ffi_api
 from ..expr import Expr, StringImm, ShapeExpr, Call, ExternFunc, GlobalVar, Var
@@ -709,12 +710,24 @@ def call_pure_packed(
         func = func.global_symbol
 
     op = ExternFunc(func)
+
     if sinfo_args is None:
         raise ValueError("R.call_pure_packed is required to have type_args")
+
     if isinstance(sinfo_args, tuple):  # type: ignore
         sinfo_args = list(sinfo_args)
     elif not isinstance(sinfo_args, list):
         sinfo_args = [sinfo_args]
+
+    sinfo_args = [
+        sinfo()
+        if callable(sinfo)
+        else sinfo.asobject()
+        if isinstance(sinfo, ObjectGeneric)
+        else sinfo
+        for sinfo in sinfo_args
+    ]
+
     # note: if we need attributes, we can also take them here
 
     return _ffi_api.call_pure_packed(op, args, None, sinfo_args)  # type: ignore # pylint: disable=no-member

@@ -381,13 +381,13 @@ Doc TIRTextPrinter::VisitExpr_(const ProducerLoadNode* op) {
 
 Doc TIRTextPrinter::VisitExpr_(const RampNode* op) {
   Doc doc;
-  doc << "ramp(" << Print(op->base) << ", " << Print(op->stride) << ", " << op->lanes << ")";
+  doc << "ramp(" << Print(op->base) << ", " << Print(op->stride) << ", " << Print(op->lanes) << ")";
   return doc;
 }
 
 Doc TIRTextPrinter::VisitExpr_(const BroadcastNode* op) {
   Doc doc;
-  doc << "broadcast(" << Print(op->value) << ", " << op->lanes << ")";
+  doc << "broadcast(" << Print(op->value) << ", " << Print(op->lanes) << ")";
   return doc;
 }
 

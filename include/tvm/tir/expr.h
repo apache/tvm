@@ -746,7 +746,7 @@ class RampNode : public PrimExprNode {
   /*! \brief The stride of each step. */
   PrimExpr stride;
   /*! \brief Total number of lanes. */
-  int lanes;
+  PrimExpr lanes;
 
   void VisitAttrs(AttrVisitor* v) {
     v->Visit("dtype", &dtype);
@@ -778,7 +778,7 @@ class RampNode : public PrimExprNode {
  */
 class Ramp : public PrimExpr {
  public:
-  TVM_DLL Ramp(PrimExpr base, PrimExpr stride, int lanes, Span span = Span());
+  TVM_DLL Ramp(PrimExpr base, PrimExpr stride, PrimExpr lanes, Span span = Span());
   TVM_DEFINE_OBJECT_REF_METHODS(Ramp, PrimExpr, RampNode);
   TVM_DEFINE_OBJECT_REF_COW_METHOD(RampNode);
 };
@@ -789,7 +789,7 @@ class BroadcastNode : public PrimExprNode {
   /*! \brief The base value. */
   PrimExpr value;
   /*! \brief The number of lanes. */
-  int lanes;
+  PrimExpr lanes;
 
   void VisitAttrs(AttrVisitor* v) {
     v->Visit("dtype", &dtype);
@@ -818,7 +818,7 @@ class BroadcastNode : public PrimExprNode {
  */
 class Broadcast : public PrimExpr {
  public:
-  TVM_DLL Broadcast(PrimExpr value, int lanes, Span span = Span());
+  TVM_DLL Broadcast(PrimExpr value, PrimExpr lanes, Span span = Span());
   TVM_DEFINE_OBJECT_REF_METHODS(Broadcast, PrimExpr, BroadcastNode);
   TVM_DEFINE_OBJECT_REF_COW_METHOD(BroadcastNode);
 };

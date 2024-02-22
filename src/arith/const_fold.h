@@ -72,7 +72,8 @@ inline Optional<PrimExpr> TryConstFold(PrimExpr a);
  * \return the checked result.
  */
 inline bool IsIndexType(const DataType& type) {
-  return type.is_int() && type.lanes() == 1 && (type.bits() == 32 || type.bits() == 64);
+  return type.is_int() && !type.is_scalable_or_fixed_length_vector() &&
+         (type.bits() == 32 || type.bits() == 64);
 }
 
 /*! \brief Helper to get const folding result repr in int64. */

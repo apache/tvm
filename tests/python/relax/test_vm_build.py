@@ -59,6 +59,26 @@ def test_vm_compile_simple(exec_mode):
     tvm.testing.assert_allclose(inp2.numpy(), inp1.numpy(), rtol=1e-7, atol=1e-7)
 
 
+def test_vm_compile_without_target_arg(exec_mode):
+    """Like test_vm_compile_simple, but with a default target"""
+
+    @tvm.script.ir_module
+    class mod:
+        @R.function
+        def foo(x: R.Tensor((3, 4), "float32"), y: R.Tensor((3, 4), "float32")):
+            z = R.call_pure_packed(
+                "test.vm.identity", x, y, sinfo_args=(R.Tensor(ndim=2, dtype="float32"))
+            )
+            return y
+
+    ex = relax.build(mod, exec_mode=exec_mode)
+    inp1 = tvm.nd.array(np.random.rand(3, 4).astype(np.float32))
+    inp2 = tvm.nd.array(np.random.rand(3, 4).astype(np.float32))
+    vm = relax.VirtualMachine(ex, tvm.cpu())
+    vm["foo"](inp1, inp2)
+    tvm.testing.assert_allclose(inp2.numpy(), inp1.numpy(), rtol=1e-7, atol=1e-7)
+
+
 def test_match_check(exec_mode):
     @tvm.script.ir_module
     class TestMatchCheck:

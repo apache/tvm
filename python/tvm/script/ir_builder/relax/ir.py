@@ -357,13 +357,15 @@ def call_packed(
         sinfo_args = list(sinfo_args)
     elif not isinstance(sinfo_args, list):
         sinfo_args = [sinfo_args]
-    for i, sinfo_arg in enumerate(sinfo_args):
-        if callable(sinfo_arg):
-            sinfo_arg = sinfo_arg()
-        # Convert possible StructInfoProxy to StructInfo
-        if isinstance(sinfo_arg, ObjectGeneric):
-            sinfo_arg = sinfo_arg.asobject()
-        sinfo_args[i] = sinfo_arg
+
+    sinfo_args = [
+        sinfo()
+        if callable(sinfo)
+        else sinfo.asobject()
+        if isinstance(sinfo, ObjectGeneric)
+        else sinfo
+        for sinfo in sinfo_args
+    ]
 
     is_default = False
     if "attrs_type_key" in kwargs:

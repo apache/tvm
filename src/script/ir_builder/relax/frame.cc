@@ -263,7 +263,9 @@ void ElseFrameNode::ExitWithScope() {
   IfFrame frame = FindIfFrame("R.Else");
   frame->else_expr = output;
   CHECK(frame->var_name == var_name)
-      << "This last binding of both branches must have the same variable.";
+      << "This last binding of both branches must provide the same variable.  "
+      << "However, the R.Then branch provides variable " << frame->var_name
+      << ", while the R.Else branch provides variable " << var_name;
 }
 
 TVM_REGISTER_NODE_TYPE(FunctionFrameNode);

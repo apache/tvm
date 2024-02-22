@@ -70,10 +70,13 @@ inline BlockFrame CheckBlockFrameExistAndUnended() {
 inline tvm::relax::SeqExpr GetSeqExprForBranch(const SeqExprFrame& frame, String* var_name) {
   // Step 0. Check frame type
   std::string method;
+  std::string output_var_suffix;
   if (frame->IsInstance<ThenFrameNode>()) {
     method = "R.Then";
+    output_var_suffix = "_then";
   } else if (frame->IsInstance<ElseFrameNode>()) {
     method = "R.Else";
+    output_var_suffix = "_else";
   } else {
     ICHECK(false) << "TypeError: Unsupported frame type: " << frame->GetTypeKey();
   }
@@ -84,29 +87,46 @@ inline tvm::relax::SeqExpr GetSeqExprForBranch(const SeqExprFrame& frame, String
   const tvm::relax::BindingBlock& last_block = frame->binding_blocks.back();
   CHECK(!last_block->bindings.empty()) << "Blocks are expected to be non-empty.";
 
-  // Step 2. Collect body from the last binding.
-  tvm::relax::Expr body;
-  const tvm::relax::Binding& last_binding = last_block->bindings.back();
-  if (const auto* var_binding = last_binding.as<tvm::relax::VarBindingNode>()) {
-    CHECK(!var_binding->var->IsInstance<tvm::relax::DataflowVarNode>())
-        << "A non-dataflow var is expected in the last binding of '" << method << "'.";
-    body = var_binding->value;
-    *var_name = var_binding->var->name_hint();
-  } else if (const auto* match_cast = last_binding.as<tvm::relax::MatchCastNode>()) {
-    CHECK(!match_cast->var->IsInstance<tvm::relax::DataflowVarNode>())
-        << "A non-dataflow var is expected in the last binding of '" << method << "'.";
-    body = var_binding->value;
-    *var_name = match_cast->var->name_hint();
-  } else {
-    ICHECK(false) << "TypeError: Unsupported binding type: " << last_binding->GetTypeKey();
-  }
+  // Step 2. Update the last binding of each branch.  While we could
+  // use the last bound value of each branch as a SeqExpr body, the
+  // Normalizer would pull it back out into a `gv#` binding anyways.
+  // Generating a new variable in each branch provides a more readable
+  // variable name.
 
-  // Step 3. Re-collect binding blocks to remove the last binding.
+  tvm::relax::Binding last_binding = last_block->bindings.back();
+  CHECK(!last_binding->var->IsInstance<tvm::relax::DataflowVarNode>())
+      << "A non-dataflow var is expected in the last binding of '" << method << "'.";
+
+  *var_name = last_binding->var->name_hint();
+
+  // Step 3. Re-collect binding blocks to replace the last binding.
   Array<tvm::relax::BindingBlock> new_blocks(frame->binding_blocks.begin(),
                                              frame->binding_blocks.end() - 1);
   Array<tvm::relax::Binding> last_block_bindings(last_block->bindings.begin(),
                                                  last_block->bindings.end() - 1);
-  new_blocks.push_back(tvm::relax::BindingBlock(last_block_bindings));
+
+  tvm::relax::Var new_var = tvm::relax::Var(last_binding->var->name_hint() + output_var_suffix,
+                                            GetStructInfo(last_binding->var));
+  tvm::relax::Expr body;
+
+  if (const auto* var_binding = last_binding.as<tvm::relax::VarBindingNode>();
+      var_binding && var_binding->value->IsInstance<tvm::relax::VarNode>()) {
+    body = var_binding->value;
+  } else if (const auto* var_binding = last_binding.as<tvm::relax::VarBindingNode>()) {
+    last_block_bindings.push_back(last_binding =
+                                      tvm::relax::VarBinding(new_var, var_binding->value));
+    body = new_var;
+  } else if (const auto* match_cast = last_binding.as<tvm::relax::MatchCastNode>()) {
+    last_block_bindings.push_back(
+        tvm::relax::MatchCast(new_var, match_cast->value, match_cast->struct_info));
+    body = new_var;
+  } else {
+    ICHECK(false) << "TypeError: Unsupported binding type: " << last_binding->GetTypeKey();
+  }
+
+  new_blocks.push_back(last_block->IsInstance<tvm::relax::DataflowBlockNode>()
+                           ? tvm::relax::DataflowBlock(last_block_bindings)
+                           : tvm::relax::BindingBlock(last_block_bindings));
 
   return tvm::relax::SeqExpr(new_blocks, body);
 }

@@ -116,9 +116,9 @@ class CodeGenRunner : ExprMutator {
       auto ret_sinfo = GetStructInfo(call);
       if (auto it = extern_funcs_.find(gvar_node); it != extern_funcs_.end()) {
         return create_call_dps_packed(it->second, ret_sinfo);
-      } else {
+      } else if (auto opt_func = builder_->GetContextIRModule()->Lookup(gvar).as<Function>()) {
         // TODO(@sunggg): Is there any better way to get this func?
-        Function func = Downcast<Function>(builder_->GetContextIRModule()->Lookup(gvar));
+        Function func = opt_func.value();
         Expr new_func = VisitExpr(func);
 
         if (new_func->IsInstance<ExternFuncNode>()) {

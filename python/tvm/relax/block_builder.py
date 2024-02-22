@@ -534,7 +534,7 @@ class BlockBuilder(Object):
         name_hint = kwargs.pop("name_hint", "")
         return self.emit(self.call_te(func, *args, **kwargs), name_hint=name_hint)
 
-    def match_cast(self, value: Expr, struct_info: StructInfo) -> Var:
+    def match_cast(self, value: Expr, struct_info: StructInfo, name_hint: str = "") -> Var:
         """Emit a MatchCast.
 
         Parameters
@@ -545,12 +545,20 @@ class BlockBuilder(Object):
         struct_info : StructInfo
             The struct info to be matched.
 
+        name_hint : str
+            The name of the match cast
+
         Returns
         -------
         ret : tvm.relax.Var
             A newly created variable that get bounds to be the casted result.
         """
-        return _ffi_api.BlockBuilderEmitMatchCast(self, value, struct_info)  # type: ignore
+        return _ffi_api.BlockBuilderEmitMatchCast(
+            self,
+            value,
+            struct_info,
+            name_hint,
+        )  # type: ignore
 
     def emit_output(self, output: Union[Expr, Tuple, List[Expr]], name_hint: str = "") -> Var:
         """Emit output for the current dataflow block or function.

@@ -167,6 +167,10 @@
 #define TVM_INFO_USE_MKL "NOT-FOUND"
 #endif
 
+#ifndef TVM_INFO_USE_MRVL
+#define TVM_INFO_USE_MRVL "NOT-FOUND"
+#endif
+
 #ifndef TVM_INFO_USE_AMX
 #define TVM_INFO_USE_AMX "NOT-FOUND"
 #endif
@@ -327,6 +331,7 @@ TVM_DLL Map<String, String> GetLibInfo() {
       {"USE_MICRO", TVM_INFO_USE_MICRO},
       {"USE_MIOPEN", TVM_INFO_USE_MIOPEN},
       {"USE_MKL", TVM_INFO_USE_MKL},
+      {"USE_MRVL", TVM_INFO_USE_MRVL},
       {"USE_MSVC_MT", TVM_INFO_USE_MSVC_MT},
       {"USE_NNPACK", TVM_INFO_USE_NNPACK},
       {"USE_OPENCL", TVM_INFO_USE_OPENCL},

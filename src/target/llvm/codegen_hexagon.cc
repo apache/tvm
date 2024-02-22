@@ -393,7 +393,7 @@ llvm::Value* CodeGenHexagon::Intrinsic(llvm::Intrinsic::ID IntID,
 llvm::Value* CodeGenHexagon::VectorLookupLoad(Buffer buffer, DataType buffer_type,
                                               Array<PrimExpr> indices) {
   PrimExpr index = indices[0];
-  if (!index.dtype().is_vector()) {
+  if (!index.dtype().is_fixed_length_vector()) {
     return nullptr;
   }
 

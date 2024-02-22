@@ -38,7 +38,10 @@ Map<String, IntImm> ExtractArgIdx(String pattern_name, Function f) {
   auto bindings = AnalyzeVar2Value(f);
   auto inner_body = Downcast<SeqExpr>(f->body)->body;
   auto matched_expr = relax::ExtractMatchedExpr(pattern.value()->pattern, inner_body, bindings);
-  ICHECK(matched_expr);
+  ICHECK(matched_expr) << "ValueError: "
+                       << "For named pattern \"" << pattern_name
+                       << "\", expected to find a match for " << pattern.value()->pattern
+                       << ".  However, the function did not include this pattern " << f;
 
   auto find_index = [](const Array<Var>& params, Var v) -> std::optional<size_t> {
     for (size_t i = 0; i < params.size(); ++i) {

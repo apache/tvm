@@ -1402,20 +1402,23 @@ class FullyConnectedRewriter(DFPatternCallback):
         return ethosu_fc
 
 
-class MatMulRewriter(DFPatternCallback):
-    """Legalize matrix multiplication to an NPU operator"""
+class MatrixMultiplicationRewriter(DFPatternCallback):
+    """Legalize matrix multiplication with two tensors into sequence of NPU operators"""
 
-    def __init__(self):
+    def __init__(
+        self,
+        params_class: Type,
+        pattern: CallPattern,
+    ):
         super().__init__(require_type=True)
-        self.pattern = (
-            wildcard().has_attr({"Composite": ethosu_patterns.MatMulParams.composite_name})
-        )(wildcard(), wildcard())
+        self.pattern = pattern
+        self.params_class = params_class
 
     def callback(self, pre, post, node_map):
-        params = ethosu_patterns.MatMulParams(post.op.body)
+        params = self.params_class(post.op.body)
         ifm = post.args[0]
         ifm2 = post.args[1]
-        lut = relay.const([], dtype="int8")
+        lut = relay.const([], dtype=params.ifm.dtype)
         activation_map = {"clip": "CLIP"}
         if params.activation:
             activation = activation_map[params.activation.op.name]
@@ -1471,7 +1474,7 @@ class MatMulRewriter(DFPatternCallback):
                 rounding_mode="NATURAL",
             )
 
-            # Convert tensor dtype from int32 to int8
+            # Convert tensor dtype from int32 to output dtype
             scalar_tensor = relay.const(np.ones([1, 1, 1, 1], dtype="int32"), dtype="int32")
             reduce_sum = ethosu_ops.ethosu_binary_elementwise(
                 ifm=reduce_sum,
@@ -1487,7 +1490,7 @@ class MatMulRewriter(DFPatternCallback):
                 ifm_channels=1,
                 ifm2_channels=1,
                 reversed_operands=False,
-                ofm_dtype="int8",
+                ofm_dtype=params.ofm.dtype,
             )
 
             res_columns.append(reduce_sum)
@@ -1495,6 +1498,32 @@ class MatMulRewriter(DFPatternCallback):
         # Concatenate result columns
         concat = relay.op.concatenate(relay.Tuple(res_columns), axis=3)
         return relay.reshape(concat, params.ofm.shape)
+
+
+class MatMulRewriter(MatrixMultiplicationRewriter):
+    """Convert ethos-u.matmul composite function to sequence of NPU operators"""
+
+    def __init__(self):
+        super().__init__(
+            params_class=ethosu_patterns.MatMulParams,
+            pattern=(
+                wildcard().has_attr({"Composite": ethosu_patterns.MatMulParams.composite_name})
+            )(wildcard(), wildcard()),
+        )
+
+
+class MatMulFixedPointRewriter(MatrixMultiplicationRewriter):
+    """Convert ethos-u.matmul_fixed_point composite function to sequence of NPU operators"""
+
+    def __init__(self):
+        super().__init__(
+            params_class=ethosu_patterns.MatMulFixedPointParams,
+            pattern=(
+                wildcard().has_attr(
+                    {"Composite": ethosu_patterns.MatMulFixedPointParams.composite_name}
+                )
+            )(wildcard(), wildcard()),
+        )
 
 
 class PadRewriter(DFPatternCallback):
@@ -1644,6 +1673,7 @@ class LegalizeEthosU:
             PartitionedSplitRewriter(),
             FullyConnectedRewriter(),
             MatMulRewriter(),
+            MatMulFixedPointRewriter(),
             SplitRewriter(),
             ChannelPadRewriter(),
             Conv2DRewriter(),

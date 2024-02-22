@@ -117,19 +117,6 @@ def get_network(name, batch_size, layout="NHWC", dtype="float32"):
     elif name == "inception_v3":
         input_shape = (batch_size, 3, 299, 299) if layout == "NCHW" else (batch_size, 299, 299, 3)
         mod, params = relay.testing.inception_v3.get_workload(batch_size=batch_size, dtype=dtype)
-    elif name == "mxnet":
-        # an example for mxnet model
-        from mxnet.gluon.model_zoo.vision import get_model
-
-        assert layout == "NCHW"
-
-        block = get_model("resnet50_v1", pretrained=True)
-        mod, params = relay.frontend.from_mxnet(block, shape={"data": input_shape}, dtype=dtype)
-        net = mod["main"]
-        net = relay.Function(
-            net.params, relay.nn.softmax(net.body), None, net.type_params, net.attrs
-        )
-        mod = tvm.IRModule.from_expr(net)
 
     return mod, params, input_shape, output_shape
 
@@ -171,11 +158,7 @@ device_key = "rk3399"
 
 # Extract tasks from the network
 print("Extract tasks...")
-try:
-    mod, params, input_shape, output_shape = get_network(network, batch_size, layout, dtype=dtype)
-except RuntimeError:
-    print("Downloads from mxnet no longer supported", file=sys.stderr)
-    sys.exit(0)
+mod, params, input_shape, output_shape = get_network(network, batch_size, layout, dtype=dtype)
 tasks, task_weights = auto_scheduler.extract_tasks(mod["main"], params, target)
 
 for idx, task in enumerate(tasks):

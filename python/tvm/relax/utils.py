@@ -370,8 +370,11 @@ def gen_call_tir_inputs(
                         arg, ShapeExpr
                     ), "For Expr having ShapeStructInfo, emit_te now only supports ShapeExpr"
                     return [_convert_te_arg_helper(val) for val in arg.values]
-                if isinstance(arg.struct_info, PrimStructInfo):
-                    return arg.value
+                if (
+                    isinstance(arg.struct_info, PrimStructInfo)
+                    and arg.struct_info.value is not None
+                ):
+                    return _convert_te_arg_helper(arg.struct_info.value)
             elif isinstance(arg, (list, Array)):
                 return [_convert_te_arg_helper(x) for x in arg]
             elif isinstance(arg, tuple):

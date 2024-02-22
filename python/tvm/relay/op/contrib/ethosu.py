@@ -1917,7 +1917,7 @@ class MatMulParams(FullyConnectedParams):
         Checks whether matrix multiplication has compatible attributes with HW
         """
 
-        if not check_valid_dtypes([self.ifm, self.ofm], supported_dtypes=[np.int8]):
+        if not check_valid_dtypes([self.ifm, self.ofm], supported_dtypes=[np.int8, np.int16]):
             return False
         if not len(self.ifm.shape) == 2:
             return False
@@ -1936,6 +1936,75 @@ def matmul_pattern():
     req = is_op("qnn.requantize")(dense, is_constant(), is_constant(), is_constant(), is_constant())
     optional_clip = req.optional(is_op("clip"))
     return optional_clip
+
+
+class MatMulFixedPointParams:
+    """
+    This class will parse a call to an ethos-u.matmul_fixed_point composite
+    function and extract the parameter information.
+    """
+
+    composite_name = "ethos-u.matmul_fixed_point"
+
+    @requires_vela
+    def __init__(self, func_body):
+        from tvm.relay.backend.contrib.ethosu.util import QDenseArgs
+
+        dense_fixed_point = func_body.args[0]
+        dense = dense_fixed_point.args[0]
+        # fixed_point_multiply relay operation uses multiplier with 31 fractional bits
+        # so to determine the size of the fraction use the formula: 31 - shift
+        self.fraction_size = 31 - dense_fixed_point.attrs.shift
+        fract_scale = tvm.relay.Constant(tvm.nd.array(np.array(1 / 2**self.fraction_size)))
+        fract_zero_point = tvm.relay.Constant(tvm.nd.array(np.array(0, dtype="int32")))
+
+        self.activation = None
+        self.weights = TensorParams(
+            dense.args[QDenseArgs.WEIGHTS.value].args[0].args[0],
+            None,
+            fract_scale,
+            fract_zero_point,
+        )
+        self.ifm = TensorParams(
+            dense.args[QDenseArgs.IFM.value].args[0].args[0],
+            None,
+            fract_scale,
+            fract_zero_point,
+        )
+        self.ofm = TensorParams(
+            func_body,
+            None,
+            fract_scale,
+            fract_zero_point,
+        )
+
+    def is_valid(self) -> bool:
+        """
+        Checks whether matrix multiplication has compatible attributes with HW
+        """
+
+        if self.fraction_size < 0 or self.fraction_size > 16:
+            return False
+        if not check_valid_dtypes([self.ifm, self.ofm], supported_dtypes=[np.int16]):
+            return False
+        if not len(self.ifm.shape) == 2:
+            return False
+        if not len(self.ofm.shape) == 2:
+            return False
+        # The weights must be transposed
+        if self.ifm.shape[1] != self.weights.shape[1]:
+            return False
+        return True
+
+
+def matmul_fixed_point_pattern():
+    ifm = is_op("cast")(wildcard())
+    ifm2 = is_op("cast")(wildcard())
+    ifm = is_op("fixed_point_multiply")(ifm)
+    ifm2 = is_op("fixed_point_multiply")(ifm2)
+    dense = is_op("nn.dense")(ifm, ifm2)
+    dense = is_op("fixed_point_multiply")(dense)
+    return is_op("cast")(dense)
 
 
 class HardSwishParams:
@@ -2227,6 +2296,11 @@ def pattern_table() -> List[Tuple[str, tvm.relay.dataflow_pattern.DFPattern, Cal
             MatMulParams.composite_name,
             matmul_pattern(),
             lambda pat: MatMulParams(pat).is_valid(),
+        ),
+        (
+            MatMulFixedPointParams.composite_name,
+            matmul_fixed_point_pattern(),
+            lambda pat: MatMulFixedPointParams(pat).is_valid(),
         ),
         (
             MaxPool2DParams.composite_name,

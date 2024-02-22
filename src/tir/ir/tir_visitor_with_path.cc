@@ -429,6 +429,7 @@ void TIRVisitorWithPath::VisitExpr_(const SelectNode* op, ObjectPath path) {
 void TIRVisitorWithPath::VisitExpr_(const RampNode* op, ObjectPath path) {
   Visit(op->base, path->Attr("base"));
   Visit(op->stride, path->Attr("stride"));
+  Visit(op->lanes, path->Attr("lanes"));
 }
 
 void TIRVisitorWithPath::VisitExpr_(const ShuffleNode* op, ObjectPath path) {
@@ -438,6 +439,7 @@ void TIRVisitorWithPath::VisitExpr_(const ShuffleNode* op, ObjectPath path) {
 
 void TIRVisitorWithPath::VisitExpr_(const BroadcastNode* op, ObjectPath path) {
   Visit(op->value, path->Attr("value"));
+  Visit(op->lanes, path->Attr("lanes"));
 }
 
 }  // namespace tir

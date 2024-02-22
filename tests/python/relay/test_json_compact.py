@@ -277,5 +277,76 @@ def test_virtual_device():
     assert not func.virtual_device_
 
 
+def test_v0_16_ramp_broadcast_lanes():
+    json_graph_v0_15 = {
+        "root": 1,
+        "nodes": [
+            {"type_key": ""},
+            {
+                "type_key": "tir.BufferStore",
+                "attrs": {"buffer": "2", "indices": "16", "span": "0", "value": "14"},
+            },
+            {
+                "type_key": "tir.Buffer",
+                "attrs": {
+                    "axis_separators": "11",
+                    "buffer_type": "1",
+                    "data": "3",
+                    "data_alignment": "64",
+                    "dtype": "int32",
+                    "elem_offset": "12",
+                    "name": "13",
+                    "offset_factor": "1",
+                    "shape": "8",
+                    "span": "0",
+                    "strides": "10",
+                },
+            },
+            {
+                "type_key": "tir.Var",
+                "attrs": {"dtype": "handle", "name": "4", "span": "0", "type_annotation": "5"},
+            },
+            {"type_key": "runtime.String", "repr_str": "buffer"},
+            {"type_key": "PointerType", "attrs": {"element_type": "6", "storage_scope": "7"}},
+            {"type_key": "PrimType", "attrs": {"dtype": "int32"}},
+            {"type_key": "runtime.String"},
+            {"type_key": "Array", "data": [9]},
+            {"type_key": "IntImm", "attrs": {"dtype": "int32", "span": "0", "value": "50"}},
+            {"type_key": "Array"},
+            {"type_key": "Array"},
+            {"type_key": "IntImm", "attrs": {"dtype": "int32", "span": "0", "value": "0"}},
+            {"type_key": "runtime.String", "repr_str": "buffer"},
+            {
+                "type_key": "tir.Broadcast",
+                "attrs": {"dtype": "int32x12", "lanes": "12", "span": "0", "value": "15"},
+            },
+            {"type_key": "IntImm", "attrs": {"dtype": "int32", "span": "0", "value": "3"}},
+            {"type_key": "Array", "data": [17]},
+            {
+                "type_key": "tir.Ramp",
+                "attrs": {
+                    "base": "18",
+                    "dtype": "int32x12",
+                    "lanes": "12",
+                    "span": "0",
+                    "stride": "19",
+                },
+            },
+            {"type_key": "IntImm", "attrs": {"dtype": "int32", "span": "0", "value": "11"}},
+            {"type_key": "IntImm", "attrs": {"dtype": "int32", "span": "0", "value": "1"}},
+        ],
+        "b64ndarrays": [],
+        "attrs": {"tvm_version": "0.15.dev0"},
+    }
+    graph = tvm.ir.load_json(json.dumps(json_graph_v0_15))
+
+    # Ramp
+    assert graph.indices[0].base == 11
+    assert graph.indices[0].lanes == 12
+    # Broadcast
+    assert graph.value.value == 3
+    assert graph.value.lanes == 12
+
+
 if __name__ == "__main__":
     tvm.testing.main()

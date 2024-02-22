@@ -19,6 +19,8 @@
 #ifndef TVM_SCRIPT_PRINTER_RELAX_UTILS_H_
 #define TVM_SCRIPT_PRINTER_RELAX_UTILS_H_
 
+#include <tvm/relax/analysis.h>
+#include <tvm/relax/op_attr_types.h>
 #include <tvm/relax/struct_info.h>
 #include <tvm/relax/type.h>
 #include <tvm/relax/utils.h>
@@ -82,10 +84,47 @@ inline Optional<ExprDoc> StructInfoAsAnn(const relax::Var& v, const ObjectPath& 
   if (!v->struct_info_.defined()) {
     return NullOpt;
   }
+  bool attempt_to_hide_struct_info = !d->cfg->show_all_struct_info;
+
   if (const auto* call = rhs.as<relax::CallNode>()) {
     static const Op& call_tir_op = Op::Get("relax.call_tir");
     static const Op& call_dps_packed_op = Op::Get("relax.call_dps_packed");
     if (call->op.same_as(call_tir_op) || call->op.same_as(call_dps_packed_op)) {
+      attempt_to_hide_struct_info = true;
+    }
+  }
+  if (attempt_to_hide_struct_info) {
+    Optional<relax::StructInfo> inferred_sinfo = NullOpt;
+    if (auto opt = rhs.as<relax::Call>()) {
+      auto call = opt.value();
+      if (auto opt = call->op.as<Op>()) {
+        auto op = opt.value();
+
+        static auto op_map_infer_struct_info =
+            Op::GetAttrMap<relax::FInferStructInfo>("FInferStructInfo");
+
+        auto temp_builder = relax::BlockBuilder::Create(NullOpt);
+        inferred_sinfo = op_map_infer_struct_info[op](call, temp_builder);
+      } else if (auto opt = call->op.as<relax::FuncStructInfo>()) {
+        auto temp_builder = relax::BlockBuilder::Create(NullOpt);
+        inferred_sinfo =
+            DeriveCallRetStructInfo(opt.value(), call, temp_builder, temp_builder->GetAnalyzer());
+      }
+
+    } else if (const auto* tuple = rhs.as<relax::TupleNode>()) {
+      inferred_sinfo = relax::TupleStructInfo(tuple->fields.Map(relax::GetStructInfo));
+
+    } else if (const auto* get_item = rhs.as<relax::TupleGetItemNode>()) {
+      if (auto ptr = get_item->tuple->struct_info_.as<relax::TupleStructInfoNode>();
+          ptr && get_item->index < static_cast<int>(ptr->fields.size())) {
+        inferred_sinfo = ptr->fields[get_item->index];
+      }
+
+    } else if (const auto* trivial_binding = rhs.as<relax::VarNode>()) {
+      inferred_sinfo = trivial_binding->struct_info_.as<relax::StructInfo>();
+    }
+
+    if (inferred_sinfo && StructuralEqual()(inferred_sinfo, v->struct_info_)) {
       return NullOpt;
     }
   }

@@ -1624,5 +1624,56 @@ def test_tflite_subtract_sigmoid(accel_type):
     )
 
 
+@pytest.mark.parametrize("accel_type", ["ethos-u55-256", "ethos-u65-256"])
+@pytest.mark.parametrize(
+    "ifm_shape,ofm_channels,fract_size,tolerance",
+    [[(1, 16), 8, 15, 0.001], [(2, 8), 16, 14, 0.001], [(4, 8), 16, 12, 0.001]],
+)
+def test_ethosu_matmul_fixed_point(accel_type, ifm_shape, ofm_channels, fract_size, tolerance):
+    np.random.seed(0)
+    dtype = "int16"
+    weights_shape = (ofm_channels, ifm_shape[1])
+
+    def create_model():
+        ifm = relay.var("ifm", shape=ifm_shape, dtype=dtype)
+        ifm2 = relay.var("ifm2", shape=weights_shape, dtype=dtype)
+        ifm_fixed_point = relay.cast(ifm, "int32")
+        ifm2_fixed_point = relay.cast(ifm2, "int32")
+        ifm_fixed_point = relay.fixed_point_multiply(ifm_fixed_point, 2**31 - 1, 0)
+        ifm2_fixed_point = relay.fixed_point_multiply(ifm2_fixed_point, 2**31 - 1, 0)
+        dense = relay.nn.dense(ifm_fixed_point, ifm2_fixed_point)
+        dense = relay.fixed_point_multiply(dense, 1, 16)
+        dense = relay.cast(dense, dtype)
+        return tvm.IRModule.from_expr(relay.Function([ifm, ifm2], dense))
+
+    def convert_to_fixed_point(arr, fract_size):
+        fract_fact = 0b1 << fract_size
+        return np.array(arr * fract_fact, dtype=np.int16)
+
+    cpu_mod = create_model()
+    ethosu_mod = partition_for_ethosu(cpu_mod)
+
+    input_data = {
+        "ifm": np.random.uniform(-0.5, 0.5, size=ifm_shape),
+        "ifm2": np.random.uniform(-0.5, 0.5, size=weights_shape),
+    }
+    input_data = {
+        "ifm": convert_to_fixed_point(input_data["ifm"], fract_size),
+        "ifm2": convert_to_fixed_point(input_data["ifm2"], fract_size),
+    }
+    output_data = generate_ref_data(cpu_mod, input_data)
+    output_data = {"output": output_data["output"].astype("int16")}
+    tolerance = convert_to_fixed_point(tolerance, fract_size)
+
+    infra.compare_ethosu_with_reference(
+        ethosu_mod,
+        input_data,
+        output_data,
+        accel_type,
+        enable_cascader=False,
+        output_tolerance=tolerance,
+    )
+
+
 if __name__ == "__main__":
     tvm.testing.main()
