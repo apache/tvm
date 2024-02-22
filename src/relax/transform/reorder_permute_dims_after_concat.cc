@@ -44,6 +44,20 @@ std::tuple<DFPattern, TypedPackedFunc<Expr(Expr, Map<DFPattern, Expr>)>> CreateP
   // TODO(Lunderberg): Allow pattern-matching to handle a flexible
   // number of arguments, each of which matches the same type of
   // pattern.
+  //
+  // Because we instantiate one DFPattern for each value in
+  // `min_concat <= i <= max_concat`, we don't want to set
+  // `max_concat` to an extremely high value.  The current value of 12
+  // was chosen to be significantly higher than the highest value
+  // required so far (3, for query/key/value in attention layers), but
+  // not so high that it requires an excessive number of `DFPattern`.
+  //
+  // This value is deliberately *NOT* exposed, as `max_concat` may be
+  // increased at any point that it is required, and other use cases
+  // should not depend on its value.  If there is a use case that
+  // requires more matmuls to be handled, and pattern-matching does
+  // not yet support a flexible number of `Tuple` elements,
+  // `max_concat` should be increased.
   size_t min_concat = 2;
   size_t max_concat = 12;
 
