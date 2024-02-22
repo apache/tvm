@@ -286,6 +286,45 @@ def test_no_cse_across_dataflow():
     verify(Before, Expected)
 
 
+def test_no_replacement_across_dataflow_boundary():
+    @I.ir_module
+    class Before:
+        @R.function
+        def main(x: R.Tensor((2, 3), dtype="float32"), y: R.Tensor((2, 3), dtype="float32")):
+            with R.dataflow():
+                A = R.add(x, y)
+                # B has the same value as A, and so instances of B can be replaced with A.
+                B = R.add(x, y)
+                C = R.multiply(A, B)
+
+                # However, B is exposed for use outside of the
+                # DataflowBlock, while A is not.  Therefore, any
+                # additional uses of `B` must NOT be replaced with
+                # A.
+                R.output(B, C)
+
+            # In addition, because `A` is only valid within the
+            # dataflow block, the `R.add(x,y)` cannot be de-duplicated
+            # as another usage of `A`.
+            D = R.add(x, y)
+            return (B, C, D)
+
+    @I.ir_module
+    class Expected:
+        @R.function
+        def main(x: R.Tensor((2, 3), dtype="float32"), y: R.Tensor((2, 3), dtype="float32")):
+            with R.dataflow():
+                A = R.add(x, y)
+                B = A
+                C = R.multiply(A, A)
+                R.output(B, C)
+
+            D = R.add(x, y)
+            return (B, C, D)
+
+    verify(Before, Expected)
+
+
 def test_do_not_eliminate_impure():
     @I.ir_module
     class Before:
