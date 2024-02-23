@@ -4810,8 +4810,8 @@ class DFT(OnnxOpConverter):
     def _impl_v17(cls, inputs, attr, params):
         # ************************* Read attrs *************************
         axis = attr.get("axis", 1)
-        inverse = attr.get("inverse")
-        onesided = attr.get("onesided")
+        inverse = attr.get("inverse", 0)
+        onesided = attr.get("onesided", 0)
 
         # ************************* Read inputs ************************
         input_tensor = inputs[0]
