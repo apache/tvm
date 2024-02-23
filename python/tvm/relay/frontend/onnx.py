@@ -4809,7 +4809,7 @@ class DFT(OnnxOpConverter):
     @classmethod
     def _impl_v17(cls, inputs, attr, params):
         # ************************* Read attrs *************************
-        axis = attr.get("axis")
+        axis = attr.get("axis", 1)
         inverse = attr.get("inverse")
         onesided = attr.get("onesided")
 
