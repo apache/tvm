@@ -261,13 +261,14 @@ class WellFormedChecker : public relax::ExprVisitor,
     // if we are not forcing purity and the function is annotated as pure, it must not contain an
     // impure call
     if (check_struct_info_ &&
-        !op->GetAttr<Bool>(relax::attr::kForcePure).value_or(Bool(false))->value && op->is_pure &&
-        ContainsImpureCall(op->body)) {
-      Malformed(Diagnostic::Error(op)
-                << "Function " << op << " is annotated as pure but contains an impure call; "
-                << "please set " << relax::attr::kForcePure << " to true "
-                << "or use a pure operator variant (e.g., call_pure_packed) "
-                << "if it is necessary to override this judgment.");
+        !op->GetAttr<Bool>(relax::attr::kForcePure).value_or(Bool(false))->value && op->is_pure) {
+      if (auto impure = FindImpureCall(op->body)) {
+        Malformed(Diagnostic::Error(op)
+                  << "Function " << op << " is annotated as pure but contains an impure call: "
+                  << impure << ".  Please set " << relax::attr::kForcePure << " to true "
+                  << "or use a pure operator variant (e.g., call_pure_packed) "
+                  << "if it is necessary to override this judgment.");
+      }
     }
 
     if (auto seq = op->body.as<SeqExprNode>()) {
@@ -310,9 +311,11 @@ class WellFormedChecker : public relax::ExprVisitor,
     }
 
     CheckStructInfo(call);
-    if (is_dataflow_ && check_struct_info_ && IsImpureCall(GetRef<Call>(call))) {
-      Malformed(Diagnostic::Error(call)
-                << "There cannot be an impure call inside a dataflow block.");
+    if (is_dataflow_ && check_struct_info_) {
+      if (auto impure = FindImpureCall(GetRef<Call>(call))) {
+        Malformed(Diagnostic::Error(call)
+                  << "Impure function call " << impure << " occurs within a dataflow block.");
+      }
     }
 
     // If the operation has defined a custom normalization function
