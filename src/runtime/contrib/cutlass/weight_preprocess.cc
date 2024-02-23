@@ -21,7 +21,7 @@
 #include <tvm/runtime/packed_func.h>
 #include <tvm/runtime/registry.h>
 
-#include "../../../3rdparty/cutlass_fpA_intB_gemm/cutlass_kernels/cutlass_preprocessors.h"
+#include "cutlass_kernels/cutlass_preprocessors.h"
 
 namespace tvm {
 namespace runtime {
