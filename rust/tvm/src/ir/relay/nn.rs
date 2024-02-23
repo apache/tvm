@@ -17,13 +17,13 @@
  * under the License.
  */
 
+use crate::function::ffi::DLDataType;
+use crate::ir::relay::Expr;
+use crate::ir::PrimExpr;
 use crate::runtime::array::Array;
 use crate::runtime::function::Result;
 use crate::runtime::string::String as TVMString;
 use crate::runtime::{external, IsObjectRef, Object, ObjectRef};
-use crate::ir::PrimExpr;
-use crate::ir::relay::Expr;
-use crate::function::ffi::DLDataType;
 
 external! {
     #[name("relay.op.nn._make.conv1d")]
@@ -437,7 +437,6 @@ external! {
     pub fn batch_to_space_nd(data: Expr, block_shape: Array<PrimExpr>, crops: Array<PrimExpr>, layout: TVMString) -> Expr;
 }
 
-
 // Test Cases
 #[cfg(test)]
 mod tests {
@@ -451,8 +450,8 @@ mod tests {
 
     #[test]
     fn test_conv2d() -> Result<()> {
-        let data = Var::static_tensor("data".to_string(), vec![1,1,1,1], DataType::float32());
-        let weight = Var::static_tensor("data".to_string(), vec![1,1,1,1], DataType::float32());
+        let data = Var::static_tensor("data".to_string(), vec![1, 1, 1, 1], DataType::float32());
+        let weight = Var::static_tensor("data".to_string(), vec![1, 1, 1, 1], DataType::float32());
         let strides = Array::from_vec(vec![PrimExpr::from(1), PrimExpr::from(1)]).unwrap();
         let padding = Array::from_vec(vec![PrimExpr::from(1), PrimExpr::from(1)]).unwrap();
         let dilation = Array::from_vec(vec![PrimExpr::from(1), PrimExpr::from(1)]).unwrap();
@@ -476,15 +475,16 @@ mod tests {
             kernel_layout,
             out_layout,
             out_dtype,
-        ).unwrap();
+        )
+        .unwrap();
         assert!(as_text(conv2d).contains("conv2d"));
         Ok(())
     }
 
     #[test]
     fn test_conv1d() -> Result<()> {
-        let data = Var::static_tensor("data".to_string(), vec![1,1,1], DataType::float32());
-        let weight = Var::static_tensor("data".to_string(), vec![1,1,1], DataType::float32());
+        let data = Var::static_tensor("data".to_string(), vec![1, 1, 1], DataType::float32());
+        let weight = Var::static_tensor("data".to_string(), vec![1, 1, 1], DataType::float32());
         let strides = Array::from_vec(vec![PrimExpr::from(1)]).unwrap();
         let padding = Array::from_vec(vec![PrimExpr::from(1)]).unwrap();
         let dilation = Array::from_vec(vec![PrimExpr::from(1)]).unwrap();
@@ -508,21 +508,43 @@ mod tests {
             kernel_layout,
             out_layout,
             out_dtype,
-        ).unwrap();
+        )
+        .unwrap();
         assert!(as_text(conv1d).contains("conv1d"));
         Ok(())
     }
 
     #[test]
     fn test_conv3d() -> Result<()> {
-        let data = Var::static_tensor("data".to_string(), vec![1,1,1,1,1], DataType::float32());
-        let weight = Var::static_tensor("data".to_string(), vec![1,1,1,1,1], DataType::float32());
-        let strides = Array::from_vec(vec![PrimExpr::from(1), PrimExpr::from(1), PrimExpr::from(1)]).unwrap();
-        let padding = Array::from_vec(vec![PrimExpr::from(1), PrimExpr::from(1), PrimExpr::from(1)]).unwrap();
-        let dilation = Array::from_vec(vec![PrimExpr::from(1), PrimExpr::from(1), PrimExpr::from(1)]).unwrap();
+        let data = Var::static_tensor("data".to_string(), vec![1, 1, 1, 1, 1], DataType::float32());
+        let weight =
+            Var::static_tensor("data".to_string(), vec![1, 1, 1, 1, 1], DataType::float32());
+        let strides = Array::from_vec(vec![
+            PrimExpr::from(1),
+            PrimExpr::from(1),
+            PrimExpr::from(1),
+        ])
+        .unwrap();
+        let padding = Array::from_vec(vec![
+            PrimExpr::from(1),
+            PrimExpr::from(1),
+            PrimExpr::from(1),
+        ])
+        .unwrap();
+        let dilation = Array::from_vec(vec![
+            PrimExpr::from(1),
+            PrimExpr::from(1),
+            PrimExpr::from(1),
+        ])
+        .unwrap();
         let groups = 1.into();
         let channels = 1.into();
-        let kernel_size = Array::from_vec(vec![PrimExpr::from(1), PrimExpr::from(1), PrimExpr::from(1)]).unwrap();
+        let kernel_size = Array::from_vec(vec![
+            PrimExpr::from(1),
+            PrimExpr::from(1),
+            PrimExpr::from(1),
+        ])
+        .unwrap();
         let data_layout = "NCDHW".to_string().into();
         let kernel_layout = "OIDHW".to_string().into();
         let out_layout = "".to_string().into();
@@ -540,9 +562,9 @@ mod tests {
             kernel_layout,
             out_layout,
             out_dtype,
-        ).unwrap();
+        )
+        .unwrap();
         assert!(as_text(conv3d).contains("conv3d"));
         Ok(())
     }
-
 }

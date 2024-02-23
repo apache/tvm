@@ -57,7 +57,7 @@ impl From<i32> for IntImm {
 }
 
 impl From<i64> for IntImm {
-    fn from(i : i64) -> IntImm {
+    fn from(i: i64) -> IntImm {
         IntImm::new(DataType::int(64, 1), i)
     }
 }

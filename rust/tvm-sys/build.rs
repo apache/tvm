@@ -280,7 +280,10 @@ fn main() -> Result<()> {
         .derive_default(true)
         .generate()
         .map_err(|err| {
-            anyhow::anyhow!("bindgen failed to generate the Rust bindings for the C API: {}", err)
+            anyhow::anyhow!(
+                "bindgen failed to generate the Rust bindings for the C API: {}",
+                err
+            )
         })?
         .write_to_file(out_file)
         .context("failed to write the generated Rust binding to disk")?;

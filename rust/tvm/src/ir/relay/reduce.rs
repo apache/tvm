@@ -17,15 +17,15 @@
  * under the License.
  */
 
+use crate::function::ffi::DLDataType;
+use crate::ir::relay::Expr;
+use crate::ir::tir::IntImm;
+use crate::ir::PrimExpr;
 use crate::runtime::array::Array;
 use crate::runtime::function::Result;
 use crate::runtime::map::Map;
 use crate::runtime::string::String as TVMString;
 use crate::runtime::{external, IsObjectRef, Object, ObjectRef};
-use crate::ir::PrimExpr;
-use crate::ir::relay::Expr;
-use crate::function::ffi::DLDataType;
-use crate::ir::tir::IntImm;
 
 external! {
     #[name("relay.op._make.argmax")]

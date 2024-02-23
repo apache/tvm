@@ -17,7 +17,7 @@
  * under the License.
  */
 
-use crate::runtime::{Object, ObjectPtr, IsObject};
+use crate::runtime::{IsObject, Object, ObjectPtr};
 use tvm_macros::Object;
 
 #[repr(C)]

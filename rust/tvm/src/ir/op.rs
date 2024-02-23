@@ -19,11 +19,11 @@
 
 use crate::ir::relay::ExprNode;
 use crate::runtime::array::Array;
+use crate::runtime::function::Result;
 use crate::runtime::ObjectRef;
 use crate::runtime::String as TString;
-use crate::runtime::function::Result;
-use tvm_macros::Object;
 use tvm_macros::external;
+use tvm_macros::Object;
 
 type FuncType = ObjectRef;
 type AttrFieldInfo = ObjectRef;
@@ -44,14 +44,13 @@ pub struct OpNode {
     pub support_level: i32,
 }
 
-external!{
+external! {
     #[name("ir.GetOp")]
     fn get_op(name: TString) -> Op;
 }
 
-
 impl Op {
-    pub fn get(name : TString) -> Result<Op> {
+    pub fn get(name: TString) -> Result<Op> {
         get_op(name)
     }
 }

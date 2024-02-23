@@ -222,7 +222,6 @@ pub struct MaxPool1DAttrsNode {
     pub ceil_mode: bool,
 }
 
-
 #[repr(C)]
 #[derive(Object, Debug)]
 #[ref_name = "MaxPool2DAttrs"]
@@ -237,7 +236,6 @@ pub struct MaxPool2DAttrsNode {
     pub out_layout: TString,
     pub ceil_mode: bool,
 }
-
 
 #[repr(C)]
 #[derive(Object, Debug)]
