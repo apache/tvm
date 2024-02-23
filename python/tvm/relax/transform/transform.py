@@ -1325,6 +1325,26 @@ def ExpandMatmulOfSum():
     return _ffi_api.ExpandMatmulOfSum()  # type: ignore
 
 
+def ReorderPermuteDimsAfterConcat():
+    """Reorder `concat(permute_dims(A), permute_dims(B))` into `permute_dims(concat(A,B))`
+
+    Useful for optimizing computations after `CombineParallelMatmul`.
+    The patterns for optimized `nn.Linear` implementations look for
+    `matmul(activations, permute_dims(weights))`.  After
+    `CombineParallelMatmul`, the `matmul(activations,
+    concat(permute_dims(A), permute_dims(B)))` no longer matches this
+    pattern.  Rearranging into `matmul(activations,
+    permute_dims(concat(A,B)))` restores the pattern match.
+
+    Returns
+    -------
+    ret : tvm.transform.Pass
+        The corresponding pass.
+    """
+
+    return _ffi_api.ReorderPermuteDimsAfterConcat()  # type: ignore
+
+
 def ReorderTakeAfterMatmul():
     """Reorder `matmul(x, take(weights, indices))` to `take(matmul(x,weights),indices)`
 
