@@ -486,6 +486,16 @@ def KillAfterLastUse() -> tvm.ir.transform.Pass:
     return _ffi_api.KillAfterLastUse()  # type: ignore
 
 
+def ComputePrimValue() -> tvm.ir.transform.Pass:
+    """Compute all R.prim_value instances
+
+    Returns
+    -------
+    ret : tvm.ir.transform.Pass
+    """
+    return _ffi_api.ComputePrimValue()  # type: ignore
+
+
 def VMBuiltinLower() -> tvm.ir.transform.Pass:
     """Lowering generic intrinsic to VM intrinsics.
 
