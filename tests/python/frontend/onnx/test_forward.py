@@ -4503,6 +4503,7 @@ def test_resize(target, dev):
             # scales are specified instead of sizes
             verify([1, 16] + [32] * ndim, [], [1, 1] + [0.5] * ndim, method, coord_trans)
             verify([1, 16] + [32] * ndim, [], [1, 1] + [2] * ndim, method, coord_trans)
+            verify([1, 16] + [32] * ndim, [], [1, 1] + [2] * ndim, None, coord_trans)
 
         method = "linear"
         # upsampling
