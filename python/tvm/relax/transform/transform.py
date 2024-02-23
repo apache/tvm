@@ -489,9 +489,18 @@ def KillAfterLastUse() -> tvm.ir.transform.Pass:
 def ComputePrimValue() -> tvm.ir.transform.Pass:
     """Compute all R.prim_value instances
 
+    While high-level relax can include expressions in terms of its
+    symbolic variables, these expressions cannot natively be computed
+    within relax.  In order to provide values for symbolic expressions
+    (e.g. `R.prim_value(N*N)`, where `N` is a symbolic variable), this
+    pass generates a PrimFunc in which the expression can be computed.
+    The relax graph is then updated to include a call to that
+    PrimFunc, in place of the original `R.prim_value(expr)`.
+
     Returns
     -------
     ret : tvm.ir.transform.Pass
+
     """
     return _ffi_api.ComputePrimValue()  # type: ignore
 

@@ -76,5 +76,29 @@ class TestPrimValueInBranchCondition(BaseCompare):
             T.ret(N % 16 == 0)
 
 
+class TestPrimValueInPureFunction(BaseCompare):
+    @I.ir_module
+    class Before:
+        @R.function
+        def main(_N: R.Prim(value="N"), _M: R.Prim(value="M")) -> R.Prim(value="N*M"):
+            N = T.int64()
+            M = T.int64()
+            out = R.prim_value(N * M)
+            return out
+
+    @I.ir_module
+    class Expected:
+        @R.function
+        def main(_N: R.Prim(value="N"), _M: R.Prim(value="M")) -> R.Prim(value="N*M"):
+            N = T.int64()
+            M = T.int64()
+            out = Expected.compute_symbolic_expr(R.prim_value(N), R.prim_value(M))
+            return out
+
+        @T.prim_func(private=True)
+        def compute_symbolic_expr(N: T.int64, M: T.int64) -> T.int64:
+            T.ret(N * M)
+
+
 if __name__ == "__main__":
     tvm.testing.main()
