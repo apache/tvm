@@ -8,116 +8,116 @@ use crate::function::ffi::DLDataType;
 
 external! {
     #[name("relay.op.nn._make.conv1d")]
-    pub fn conv1d(data: Expr, 
-        weight: Expr, 
-        strides: Array<PrimExpr>, 
-        padding: Array<PrimExpr>, 
-        dilation: Array<PrimExpr>, 
-        groups: i32, 
-        channels: PrimExpr, 
+    pub fn conv1d(data: Expr,
+        weight: Expr,
+        strides: Array<PrimExpr>,
+        padding: Array<PrimExpr>,
+        dilation: Array<PrimExpr>,
+        groups: i32,
+        channels: PrimExpr,
         kernel_size: Array<PrimExpr>,
         data_layout: TVMString,
-        kernel_layout: TVMString, 
-        out_layout: TVMString,  
+        kernel_layout: TVMString,
+        out_layout: TVMString,
         out_dtype: DLDataType,
     ) -> Expr;
 
     #[name("relay.op.nn._make.conv2d")]
     pub fn conv2d(
-        data: Expr, 
-        weight: Expr, 
-        strides: Array<PrimExpr>, 
-        padding: Array<PrimExpr>, 
-        dilation: Array<PrimExpr>, 
-        groups: i32, 
-        channels: PrimExpr, 
+        data: Expr,
+        weight: Expr,
+        strides: Array<PrimExpr>,
+        padding: Array<PrimExpr>,
+        dilation: Array<PrimExpr>,
+        groups: i32,
+        channels: PrimExpr,
         kernel_size: Array<PrimExpr>,
         data_layout: TVMString,
-        kernel_layout: TVMString, 
-        out_layout: TVMString,  
+        kernel_layout: TVMString,
+        out_layout: TVMString,
         out_dtype: DLDataType,
     ) -> Expr;
 
     #[name("relay.op.nn._make.conv3d")]
     pub fn conv3d(
-        data: Expr, 
-        weight: Expr, 
-        strides: Array<PrimExpr>, 
-        padding: Array<PrimExpr>, 
-        dilation: Array<PrimExpr>, 
-        groups: i32, 
-        channels: PrimExpr, 
+        data: Expr,
+        weight: Expr,
+        strides: Array<PrimExpr>,
+        padding: Array<PrimExpr>,
+        dilation: Array<PrimExpr>,
+        groups: i32,
+        channels: PrimExpr,
         kernel_size: Array<PrimExpr>,
         data_layout: TVMString,
-        kernel_layout: TVMString, 
-        out_layout: TVMString,  
+        kernel_layout: TVMString,
+        out_layout: TVMString,
         out_dtype: DLDataType,
     ) -> Expr;
 
     #[name("relay.op.nn._make.contrib_conv3d_winograd_without_weight_transform")]
     pub fn contrib_conv3d_winograd_without_weight_transform(
-        data: Expr, 
-        weight: Expr, 
-        strides: Array<PrimExpr>, 
-        padding: Array<PrimExpr>, 
-        dilation: Array<PrimExpr>, 
-        groups: i32, 
-        channels: PrimExpr, 
+        data: Expr,
+        weight: Expr,
+        strides: Array<PrimExpr>,
+        padding: Array<PrimExpr>,
+        dilation: Array<PrimExpr>,
+        groups: i32,
+        channels: PrimExpr,
         kernel_size: Array<PrimExpr>,
         data_layout: TVMString,
-        kernel_layout: TVMString, 
-        out_layout: TVMString,  
+        kernel_layout: TVMString,
+        out_layout: TVMString,
         out_dtype: DLDataType,
     ) -> Expr;
 
     #[name("relay.op.nn._make.conv3d_transpose")]
     pub fn conv3d_transpose(
-        data: Expr, 
-        weight: Expr, 
-        strides: Array<PrimExpr>, 
-        padding: Array<PrimExpr>, 
-        dilation: Array<PrimExpr>, 
-        groups: i32, 
-        channels: PrimExpr, 
+        data: Expr,
+        weight: Expr,
+        strides: Array<PrimExpr>,
+        padding: Array<PrimExpr>,
+        dilation: Array<PrimExpr>,
+        groups: i32,
+        channels: PrimExpr,
         kernel_size: Array<PrimExpr>,
         data_layout: TVMString,
-        kernel_layout: TVMString, 
-        out_layout: TVMString,  
+        kernel_layout: TVMString,
+        out_layout: TVMString,
         out_dtype: DLDataType,
     ) -> Expr;
 
     #[name("relay.op.nn._make.conv2d_transpose")]
     pub fn conv2d_transpose(
-        data: Expr, 
-        weight: Expr, 
-        strides: Array<PrimExpr>, 
-        padding: Array<PrimExpr>, 
-        dilation: Array<PrimExpr>, 
-        groups: i32, 
-        channels: PrimExpr, 
+        data: Expr,
+        weight: Expr,
+        strides: Array<PrimExpr>,
+        padding: Array<PrimExpr>,
+        dilation: Array<PrimExpr>,
+        groups: i32,
+        channels: PrimExpr,
         kernel_size: Array<PrimExpr>,
         data_layout: TVMString,
-        kernel_layout: TVMString, 
-        out_layout: TVMString,  
+        kernel_layout: TVMString,
+        out_layout: TVMString,
         out_dtype: DLDataType,
     ) -> Expr;
 
     #[name("relay.op.nn._make.conv1d_transpose")]
     pub fn conv1d_transpose(
-        data: Expr, 
-        weight: Expr, 
-        strides: Array<PrimExpr>, 
-        padding: Array<PrimExpr>, 
-        dilation: Array<PrimExpr>, 
-        groups: i32, 
-        channels: PrimExpr, 
+        data: Expr,
+        weight: Expr,
+        strides: Array<PrimExpr>,
+        padding: Array<PrimExpr>,
+        dilation: Array<PrimExpr>,
+        groups: i32,
+        channels: PrimExpr,
         kernel_size: Array<PrimExpr>,
         data_layout: TVMString,
-        kernel_layout: TVMString, 
-        out_layout: TVMString,  
+        kernel_layout: TVMString,
+        out_layout: TVMString,
         out_dtype: DLDataType,
     ) -> Expr;
-    
+
     #[name("relay.op.nn._make.softmax")]
     pub fn softmax(data: Expr, axis: i32) -> Expr;
 
@@ -129,22 +129,22 @@ external! {
 
     #[name("relay.op.nn._make.max_pool1d")]
     pub fn max_pool1d(
-        data: Expr, 
-        pool_size: Array<PrimExpr>, 
-        strides: Array<PrimExpr>, 
+        data: Expr,
+        pool_size: Array<PrimExpr>,
+        strides: Array<PrimExpr>,
         dilation: Array<PrimExpr>,
-        padding: Array<PrimExpr>, 
+        padding: Array<PrimExpr>,
         layout: TVMString,
         ceil_mode: bool,
     ) -> Expr;
 
     #[name("relay.op.nn._make.max_pool2d")]
     pub fn max_pool2d(
-        data: Expr, 
-        pool_size: Array<PrimExpr>, 
-        strides: Array<PrimExpr>, 
+        data: Expr,
+        pool_size: Array<PrimExpr>,
+        strides: Array<PrimExpr>,
         dilation: Array<PrimExpr>,
-        padding: Array<PrimExpr>, 
+        padding: Array<PrimExpr>,
         layout: TVMString,
         out_out_layout: TVMString,
         ceil_mode: bool,
@@ -152,11 +152,11 @@ external! {
 
     #[name("relay.op.nn._make.max_pool3d")]
     pub fn max_pool3d(
-        data: Expr, 
-        pool_size: Array<PrimExpr>, 
-        strides: Array<PrimExpr>, 
+        data: Expr,
+        pool_size: Array<PrimExpr>,
+        strides: Array<PrimExpr>,
         dilation: Array<PrimExpr>,
-        padding: Array<PrimExpr>, 
+        padding: Array<PrimExpr>,
         layout: TVMString,
         out_layout: TVMString,
         ceil_mode: bool,
@@ -164,11 +164,11 @@ external! {
 
     #[name("relay.op.nn._make.avg_pool1d")]
     pub fn avg_pool1d(
-        data: Expr, 
-        pool_size: Array<PrimExpr>, 
-        strides: Array<PrimExpr>, 
+        data: Expr,
+        pool_size: Array<PrimExpr>,
+        strides: Array<PrimExpr>,
         dilation: Array<PrimExpr>,
-        padding: Array<PrimExpr>, 
+        padding: Array<PrimExpr>,
         layout: TVMString,
         out_layout: TVMString,
         ceil_mode: bool,
@@ -177,11 +177,11 @@ external! {
 
     #[name("relay.op.nn._make.avg_pool2d")]
     pub fn avg_pool2d(
-        data: Expr, 
-        pool_size: Array<PrimExpr>, 
-        strides: Array<PrimExpr>, 
+        data: Expr,
+        pool_size: Array<PrimExpr>,
+        strides: Array<PrimExpr>,
         dilation: Array<PrimExpr>,
-        padding: Array<PrimExpr>, 
+        padding: Array<PrimExpr>,
         layout: TVMString,
         out_layout: TVMString,
         ceil_mode: bool,
@@ -190,11 +190,11 @@ external! {
 
     #[name("relay.op.nn._make.avg_pool3d")]
     pub fn avg_pool3d(
-        data: Expr, 
-        pool_size: Array<PrimExpr>, 
-        strides: Array<PrimExpr>, 
+        data: Expr,
+        pool_size: Array<PrimExpr>,
+        strides: Array<PrimExpr>,
         dilation: Array<PrimExpr>,
-        padding: Array<PrimExpr>, 
+        padding: Array<PrimExpr>,
         layout: TVMString,
         out_layout: TVMString,
         ceil_mode: bool,
@@ -203,9 +203,9 @@ external! {
 
     #[name("relay.op.nn._make.upsampling")]
     pub fn upsampling(
-        data: Expr, 
+        data: Expr,
         scale_h: i32,
-        scale_w: i32, 
+        scale_w: i32,
         layout: TVMString,
         method: TVMString,
         align_corners: bool,
@@ -213,10 +213,10 @@ external! {
 
     #[name("relay.op.nn._make.upsampling3d")]
     pub fn upsampling3d(
-        data: Expr, 
+        data: Expr,
         scale_d: i32,
         scale_h: i32,
-        scale_w: i32, 
+        scale_w: i32,
         layout: TVMString,
         method: TVMString,
         coordinate_transformation_mode: TVMString,
@@ -281,34 +281,34 @@ external! {
 
     #[name("relay.op.nn._make.contrib_conv2d_winograd_without_weight_transform")]
     pub fn conv2d_winograd_without_weight_transform(
-        data: Expr, 
-        weight: Expr, 
-        strides: Array<PrimExpr>, 
-        padding: Array<PrimExpr>, 
-        dilation: Array<PrimExpr>, 
-        groups: i32, 
-        channels: PrimExpr, 
+        data: Expr,
+        weight: Expr,
+        strides: Array<PrimExpr>,
+        padding: Array<PrimExpr>,
+        dilation: Array<PrimExpr>,
+        groups: i32,
+        channels: PrimExpr,
         kernel_size: Array<PrimExpr>,
         data_layout: TVMString,
-        kernel_layout: TVMString, 
-        out_layout: TVMString,  
+        kernel_layout: TVMString,
+        out_layout: TVMString,
         out_dtype: DLDataType,
     ) -> Expr;
 
 
     #[name("relay.op.nn._make.contrib_conv2d_gemm_without_weight_transform")]
     pub fn conv2d_gemm_without_weight_transform(
-        data: Expr, 
-        weight: Expr, 
-        strides: Array<PrimExpr>, 
-        padding: Array<PrimExpr>, 
-        dilation: Array<PrimExpr>, 
-        groups: i32, 
-        channels: PrimExpr, 
+        data: Expr,
+        weight: Expr,
+        strides: Array<PrimExpr>,
+        padding: Array<PrimExpr>,
+        dilation: Array<PrimExpr>,
+        groups: i32,
+        channels: PrimExpr,
         kernel_size: Array<PrimExpr>,
         data_layout: TVMString,
-        kernel_layout: TVMString, 
-        out_layout: TVMString,  
+        kernel_layout: TVMString,
+        out_layout: TVMString,
         out_dtype: DLDataType,
     ) -> Expr;
 
@@ -316,49 +316,49 @@ external! {
 
     #[name("relay.op.nn._make.contrib_conv2d_winograd_weight_transform")]
     pub fn conv2d_winograd_weight_transform(
-        data: Expr, 
-        weight: Expr, 
-        strides: Array<PrimExpr>, 
-        padding: Array<PrimExpr>, 
-        dilation: Array<PrimExpr>, 
-        groups: i32, 
-        channels: PrimExpr, 
+        data: Expr,
+        weight: Expr,
+        strides: Array<PrimExpr>,
+        padding: Array<PrimExpr>,
+        dilation: Array<PrimExpr>,
+        groups: i32,
+        channels: PrimExpr,
         kernel_size: Array<PrimExpr>,
         data_layout: TVMString,
-        kernel_layout: TVMString, 
-        out_layout: TVMString,  
+        kernel_layout: TVMString,
+        out_layout: TVMString,
         out_dtype: DLDataType,
         tile_size: i32,
     ) -> Expr;
 
     #[name("relay.op.nn._make.contrib_gemm_weight_transform")]
     pub fn gemm_weight_transform(
-        data: Expr, 
-        weight: Expr, 
-        transpose_a: bool, 
-        transpose_b: bool, 
+        data: Expr,
+        weight: Expr,
+        transpose_a: bool,
+        transpose_b: bool,
         out_dtype: DLDataType,
     ) -> Expr;
 
     #[name("relay.op.nn._make.contrib_conv3d_winograd_weight_transform")]
     pub fn conv3d_winograd_weight_transform(
-        data: Expr, 
-        weight: Expr, 
-        strides: Array<PrimExpr>, 
-        padding: Array<PrimExpr>, 
-        dilation: Array<PrimExpr>, 
-        groups: i32, 
-        channels: PrimExpr, 
+        data: Expr,
+        weight: Expr,
+        strides: Array<PrimExpr>,
+        padding: Array<PrimExpr>,
+        dilation: Array<PrimExpr>,
+        groups: i32,
+        channels: PrimExpr,
         kernel_size: Array<PrimExpr>,
         tile_size: i32,
     ) -> Expr;
 
     #[name("relay.op.nn._make.contrib_conv2d_winograd_nnpack_weight_transform")]
     pub fn conv2d_winograd_nnpack_weight_transform(
-        data: Expr, 
-        weight: Expr, 
-        strides: Array<PrimExpr>, 
-        padding: Array<PrimExpr>, 
+        data: Expr,
+        weight: Expr,
+        strides: Array<PrimExpr>,
+        padding: Array<PrimExpr>,
         out_dtype: DLDataType,
     ) -> Expr;
 
@@ -367,11 +367,11 @@ external! {
 
     #[name("relay.op.nn._make.bitserial_conv2d")]
     pub fn bitserial_conv2d(
-        data: Expr, 
-        weight: Expr, 
-        strides: Array<PrimExpr>, 
-        padding: Array<PrimExpr>, 
-        channels: PrimExpr, 
+        data: Expr,
+        weight: Expr,
+        strides: Array<PrimExpr>,
+        padding: Array<PrimExpr>,
+        channels: PrimExpr,
         kernel_size: Array<PrimExpr>,
         pack_dtype: DLDataType,
         out_dtype: DLDataType,
@@ -383,9 +383,9 @@ external! {
 
     #[name("relay.op.nn._make.bitserial_dense")]
     pub fn bitserial_dense(
-        data: Expr, 
-        weight: Expr, 
-        units: i32, 
+        data: Expr,
+        weight: Expr,
+        units: i32,
         pack_dtype: DLDataType,
         out_dtype: DLDataType,
         pack_axis: i32,
@@ -404,7 +404,7 @@ external! {
 
     #[name("relay.op.nn._make.adaptive_avg_pool1d")]
     pub fn adaptive_avg_pool1d(data: Expr, output_size: Array<PrimExpr>, layout: TVMString, out_layout: TVMString) -> Expr;
-    
+
     #[name("relay.op.nn._make.adaptive_avg_pool2d")]
     pub fn adaptive_avg_pool2d(data: Expr, output_size: Array<PrimExpr>, layout: TVMString, out_layout: TVMString) -> Expr;
 
@@ -423,7 +423,7 @@ external! {
 #[cfg(test)]
 mod tests {
     use super::*;
-    
+
     use crate::ir::as_text;
     use crate::ir::relay::Var;
     use crate::ir::ty::TensorType;
@@ -445,17 +445,17 @@ mod tests {
         let out_layout = "".to_string().into();
         let out_dtype = DLDataType::from(DataType::float32());
         let conv2d = conv2d(
-            data.upcast::<Expr>(), 
-            weight.upcast::<Expr>(), 
-            strides, 
-            padding, 
-            dilation, 
-            groups, 
-            channels, 
+            data.upcast::<Expr>(),
+            weight.upcast::<Expr>(),
+            strides,
+            padding,
+            dilation,
+            groups,
+            channels,
             kernel_size,
             data_layout,
-            kernel_layout, 
-            out_layout,  
+            kernel_layout,
+            out_layout,
             out_dtype,
         ).unwrap();
         assert!(as_text(conv2d).contains("conv2d"));
@@ -477,17 +477,17 @@ mod tests {
         let out_layout = "".to_string().into();
         let out_dtype = DLDataType::from(DataType::float32());
         let conv1d = conv1d(
-            data.upcast::<Expr>(), 
-            weight.upcast::<Expr>(), 
-            strides, 
-            padding, 
-            dilation, 
-            groups, 
-            channels, 
+            data.upcast::<Expr>(),
+            weight.upcast::<Expr>(),
+            strides,
+            padding,
+            dilation,
+            groups,
+            channels,
             kernel_size,
             data_layout,
-            kernel_layout, 
-            out_layout,  
+            kernel_layout,
+            out_layout,
             out_dtype,
         ).unwrap();
         assert!(as_text(conv1d).contains("conv1d"));
@@ -509,17 +509,17 @@ mod tests {
         let out_layout = "".to_string().into();
         let out_dtype = DLDataType::from(DataType::float32());
         let conv3d = conv3d(
-            data.upcast::<Expr>(), 
-            weight.upcast::<Expr>(), 
-            strides, 
-            padding, 
-            dilation, 
-            groups, 
-            channels, 
+            data.upcast::<Expr>(),
+            weight.upcast::<Expr>(),
+            strides,
+            padding,
+            dilation,
+            groups,
+            channels,
             kernel_size,
             data_layout,
-            kernel_layout, 
-            out_layout,  
+            kernel_layout,
+            out_layout,
             out_dtype,
         ).unwrap();
         assert!(as_text(conv3d).contains("conv3d"));

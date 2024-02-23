@@ -18,10 +18,10 @@ external!{
     pub fn tan(data: Expr) -> Expr;
 
     #[name("relay.op._make.cos")]
-    pub fn cos(data: Expr) -> Expr;  
+    pub fn cos(data: Expr) -> Expr;
 
     #[name("relay.op._make.sin")]
-    pub fn sin(data: Expr) -> Expr;    
+    pub fn sin(data: Expr) -> Expr;
 
     #[name("relay.op._make.cosh")]
     pub fn cosh(data: Expr) -> Expr;
@@ -183,7 +183,7 @@ external!{
     pub fn ones_like(data: Expr) -> Expr;
 
    #[name("relay.op._make.clip")]
-    pub fn clip(data: Expr, a_min: f64, a_max: f64) -> Expr; 
+    pub fn clip(data: Expr, a_min: f64, a_max: f64) -> Expr;
 
     #[name("relay.op._make.fixed_point_multiply")]
     pub fn fixed_point_multiply(data: Expr, mulitplier: i32, shift: i32) -> Expr;

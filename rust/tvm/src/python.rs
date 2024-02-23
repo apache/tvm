@@ -27,7 +27,7 @@ use pyo3::prelude::*;
 /// For example registered TVM functions can now be
 /// obtained via `Function::get`.
 pub fn load() -> Result<String, ()> {
-    
+
 
     Python::with_gil(|py| {
         load_python_tvm_(py).map_err(|e| {

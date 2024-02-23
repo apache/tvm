@@ -83,7 +83,7 @@ impl Into<f64> for PrimExpr {
         let float_val = self.downcast::<FloatImm>().unwrap().value as f64;
         float_val
     }
-}   
+}
 
 define_node!(Var, "Var", "tir.Var";
              VarNode { name_hint: TVMString });

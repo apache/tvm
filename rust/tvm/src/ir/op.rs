@@ -53,5 +53,5 @@ external!{
 impl Op {
     pub fn get(name : TString) -> Result<Op> {
         get_op(name)
-    }   
+    }
 }
