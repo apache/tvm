@@ -946,24 +946,6 @@ def test_sample_top_p_top_k_from_sorted_prob():
     @I.ir_module
     class Expected:
         @T.prim_func(private=True)
-        def get_cumsum_mask_top_p_top_k(
-            A: T.Buffer((T.int64(2), T.int64(3)), "float32"),
-            B: T.Buffer((T.int64(2), T.int64(1)), "float32"),
-            C: T.Buffer((T.int64(2), T.int64(1)), "int64"),
-            get_cumsum_mask_top_p_top_k: T.Buffer((T.int64(2), T.int64(3)), "bool"),
-        ):
-            T.func_attr({"tir.noalias": T.bool(True)})
-            # with T.block("root"):
-            for i, j in T.grid(T.int64(2), T.int64(3)):
-                with T.block("get_cumsum_mask_top_p_top_k"):
-                    v_i, v_j = T.axis.remap("SS", [i, j])
-                    T.reads(A[v_i, v_j], B[v_i, T.int64(0)], C[v_i, T.int64(0)])
-                    T.writes(get_cumsum_mask_top_p_top_k[v_i, v_j])
-                    get_cumsum_mask_top_p_top_k[v_i, v_j] = (
-                        A[v_i, v_j] < B[v_i, T.int64(0)] and v_j + T.int64(1) < C[v_i, T.int64(0)]
-                    )
-
-        @T.prim_func(private=True)
         def get_index_from_sorted(A: T.handle, B: T.handle, C: T.handle, D: T.handle, E: T.handle):
             batch, vocab_size = T.int64(), T.int64()
             cumsum_sorted = T.match_buffer(A, (batch, vocab_size))
@@ -1001,53 +983,27 @@ def test_sample_top_p_top_k_from_sorted_prob():
                                 output_index[v_ax0, 0] = indices[v_ax0, v_ax1]
 
         @T.prim_func(private=True)
-        def get_renorm_prob(A: T.handle, B: T.handle, C: T.handle):
+        def get_renorm_prob(A: T.handle, B: T.handle, C: T.handle, D: T.handle):
             batch, vocab_size = T.int64(), T.int64()
-            cumsum_prob = T.match_buffer(A, (batch, vocab_size))
-            cumsum_mask = T.match_buffer(B, (batch, vocab_size), "bool")
-            renorm_prob = T.match_buffer(C, (batch, 1))
+            cumsum_sorted = T.match_buffer(A, (batch, vocab_size))
+            top_p = T.match_buffer(B, (batch, 1))
+            top_k = T.match_buffer(C, (batch, 1), "int64")
+            renorm_prob = T.match_buffer(D, (batch, 1))
             # with T.block("root"):
             for ax0, ax1 in T.grid(batch, vocab_size):
                 with T.block("T_get_renorm_prob"):
                     v_ax0, v_ax1 = T.axis.remap("SS", [ax0, ax1])
-                    T.reads(
-                        cumsum_mask[
-                            v_ax0,
-                            T.min(T.min(T.int64(0), v_ax1), v_ax1 + T.int64(1)) : T.min(
-                                T.min(T.int64(0), v_ax1), v_ax1 + T.int64(1)
-                            )
-                            + (
-                                T.max(T.max(T.int64(0), v_ax1), v_ax1 + T.int64(1))
-                                + T.int64(1)
-                                - T.min(T.min(T.int64(0), v_ax1), v_ax1 + T.int64(1))
-                            ),
-                        ],
-                        cumsum_prob[
-                            v_ax0,
-                            T.min(T.min(T.int64(0), v_ax1 + T.int64(1)), v_ax1) : T.min(
-                                T.min(T.int64(0), v_ax1 + T.int64(1)), v_ax1
-                            )
-                            + (
-                                T.max(T.max(T.int64(0), v_ax1 + T.int64(1)), v_ax1)
-                                + T.int64(1)
-                                - T.min(T.min(T.int64(0), v_ax1 + T.int64(1)), v_ax1)
-                            ),
-                        ],
-                    )
+                    T.reads(cumsum_sorted[v_ax0, T.min(T.min(T.int64(0), v_ax1), v_ax1 + T.int64(1)):T.min(T.min(T.int64(0), v_ax1), v_ax1 + T.int64(1)) + (T.max(T.max(T.int64(0), v_ax1), v_ax1 + T.int64(1)) + T.int64(1) - T.min(T.min(T.int64(0), v_ax1), v_ax1 + T.int64(1)))], top_p[v_ax0, 0], top_k[v_ax0, 0])
                     T.writes(renorm_prob[v_ax0, 0])
-                    if cumsum_mask[v_ax0, 0] == T.bool(False):
-                        renorm_prob[v_ax0, 0] = cumsum_prob[v_ax0, 0]
+                    if (cumsum_sorted[v_ax0, 0] < top_p[v_ax0, 0] and top_k[v_ax0, 0] > T.int64(1)) == T.bool(False):
+                        renorm_prob[v_ax0, 0] = cumsum_sorted[v_ax0, 0]
                     else:
-                        if cumsum_mask[v_ax0, v_ax1] == T.bool(True) and cumsum_mask[
-                            v_ax0, v_ax1 + T.int64(1)
-                        ] == T.bool(False):
-                            renorm_prob[v_ax0, 0] = cumsum_prob[v_ax0, v_ax1 + T.int64(1)]
-                        else:
-                            if (
-                                cumsum_mask[v_ax0, v_ax1] == T.bool(True)
-                                and v_ax1 + T.int64(1) == vocab_size
-                            ):
-                                renorm_prob[v_ax0, 0] = cumsum_prob[v_ax0, v_ax1]
+                        if (cumsum_sorted[v_ax0, v_ax1] < top_p[v_ax0, 0] and v_ax1 + T.int64(1) < top_k[v_ax0, 0]) == T.bool(True):
+                            if v_ax1 + T.int64(1) == vocab_size:
+                                renorm_prob[v_ax0, 0] = cumsum_sorted[v_ax0, v_ax1]
+                            else:
+                                if (cumsum_sorted[v_ax0, v_ax1 + T.int64(1)] < top_p[v_ax0, 0] and v_ax1 + T.int64(1) + T.int64(1) < top_k[v_ax0, 0]) == T.bool(False):
+                                    renorm_prob[v_ax0, 0] = cumsum_sorted[v_ax0, v_ax1 + T.int64(1)]
 
         @R.function
         def _initialize_effect() -> R.Tuple(R.Object):
@@ -1070,23 +1026,10 @@ def test_sample_top_p_top_k_from_sorted_prob():
             R.func_attr({"num_input": 6})
             cls = Expected
             with R.dataflow():
-                cumsum: R.Tensor((2, 3), dtype="float32") = R.cumsum(
-                    prob, axis=1, dtype="void", exclusive=None
-                )
-                lv1 = R.call_tir(
-                    cls.get_cumsum_mask_top_p_top_k,
-                    (cumsum, top_p, top_k),
-                    out_sinfo=R.Tensor((2, 3), dtype="bool"),
-                )
-                lv2 = R.call_tir(
-                    cls.get_renorm_prob, (cumsum, lv1), out_sinfo=R.Tensor((2, 1), dtype="float32")
-                )
-                lv3 = R.call_tir(
-                    cls.get_index_from_sorted,
-                    (cumsum, lv2, uniform_sample, index),
-                    out_sinfo=R.Tensor((2, 1), dtype="int64"),
-                )
-                gv1: R.Tuple(R.Tensor((2, 1), dtype="int64"), R.Tuple(R.Object)) = lv3, (_io,)
+                cumsum: R.Tensor((2, 3), dtype="float32") = R.cumsum(prob, axis=1, dtype="void", exclusive=None)
+                lv1 = R.call_tir(cls.get_renorm_prob, (cumsum, top_p, top_k), out_sinfo=R.Tensor((2, 1), dtype="float32"))
+                lv2 = R.call_tir(cls.get_index_from_sorted, (cumsum, lv1, uniform_sample, index), out_sinfo=R.Tensor((2, 1), dtype="int64"))
+                gv1: R.Tuple(R.Tensor((2, 1), dtype="int64"), R.Tuple(R.Object)) = lv2, (_io,)
                 R.output(gv1)
             return gv1
     # fmt: on
@@ -1106,6 +1049,7 @@ def test_sample_top_p_top_k_from_sorted_prob():
     )
 
     tvm.ir.assert_structural_equal(mod, Expected)
+
     target = tvm.target.Target("cuda -libs=thrust", host="llvm")
     with target:
         mod = tir.transform.DefaultGPUSchedule()(mod)
@@ -1158,36 +1102,28 @@ def test_renormalize_top_p_top_k_prob():
                     filter_with_top_p_top_k[v_i, v_j] = T.Select(B[v_i, T.int64(0)] <= A[v_i, v_j], A[v_i, v_j], T.float32(0))
 
         @T.prim_func(private=True)
-        def get_mask_top_p_top_k(A: T.Buffer((T.int64(2), T.int64(3)), "float32"), B: T.Buffer((T.int64(2), T.int64(1)), "float32"), C: T.Buffer((T.int64(2), T.int64(1)), "int64"), get_mask_top_p_top_k: T.Buffer((T.int64(2), T.int64(3)), "bool")):
-            T.func_attr({"tir.noalias": T.bool(True)})
-            # with T.block("root"):
-            for i, j in T.grid(T.int64(2), T.int64(3)):
-                with T.block("get_mask_top_p_top_k"):
-                    v_i, v_j = T.axis.remap("SS", [i, j])
-                    T.reads(A[v_i, v_j], B[v_i, T.int64(0)], C[v_i, T.int64(0)])
-                    T.writes(get_mask_top_p_top_k[v_i, v_j])
-                    get_mask_top_p_top_k[v_i, v_j] = A[v_i, v_j] < B[v_i, T.int64(0)] and v_j + T.int64(1) < C[v_i, T.int64(0)]
-
-        @T.prim_func(private=True)
-        def get_renorm_cutoff(A: T.handle, B: T.handle, C: T.handle):
+        def get_renorm_cutoff(A: T.handle, B: T.handle, C: T.handle, D: T.handle, E: T.handle):
             batch, vocab_size = T.int64(), T.int64()
             sorted_prob = T.match_buffer(A, (batch, vocab_size))
-            cumsum_mask = T.match_buffer(B, (batch, vocab_size), "bool")
-            cutoff = T.match_buffer(C, (batch, 1))
+            cumsum_sorted = T.match_buffer(B, (batch, vocab_size))
+            top_p = T.match_buffer(C, (batch, 1))
+            top_k = T.match_buffer(D, (batch, 1), "int64")
+            cutoff = T.match_buffer(E, (batch, 1))
             # with T.block("root"):
             for ax0, ax1 in T.grid(batch, vocab_size):
                 with T.block("T_get_renorm_prob"):
                     v_ax0, v_ax1 = T.axis.remap("SS", [ax0, ax1])
-                    T.reads(cumsum_mask[v_ax0, T.min(T.min(T.int64(0), v_ax1), v_ax1 + T.int64(1)):T.min(T.min(T.int64(0), v_ax1), v_ax1 + T.int64(1)) + (T.max(T.max(T.int64(0), v_ax1), v_ax1 + T.int64(1)) + T.int64(1) - T.min(T.min(T.int64(0), v_ax1), v_ax1 + T.int64(1)))], sorted_prob[v_ax0, T.min(T.min(T.int64(0), v_ax1 + T.int64(1)), v_ax1):T.min(T.min(T.int64(0), v_ax1 + T.int64(1)), v_ax1) + (T.max(T.max(T.int64(0), v_ax1 + T.int64(1)), v_ax1) + T.int64(1) - T.min(T.min(T.int64(0), v_ax1 + T.int64(1)), v_ax1))])
+                    T.reads(cumsum_sorted[v_ax0, T.min(T.min(T.int64(0), v_ax1), v_ax1 + T.int64(1)):T.min(T.min(T.int64(0), v_ax1), v_ax1 + T.int64(1)) + (T.max(T.max(T.int64(0), v_ax1), v_ax1 + T.int64(1)) + T.int64(1) - T.min(T.min(T.int64(0), v_ax1), v_ax1 + T.int64(1)))], top_p[v_ax0, 0], top_k[v_ax0, 0], sorted_prob[v_ax0, T.min(T.min(T.int64(0), v_ax1), v_ax1 + T.int64(1)):T.min(T.min(T.int64(0), v_ax1), v_ax1 + T.int64(1)) + (T.max(T.max(T.int64(0), v_ax1), v_ax1 + T.int64(1)) + T.int64(1) - T.min(T.min(T.int64(0), v_ax1), v_ax1 + T.int64(1)))])
                     T.writes(cutoff[v_ax0, 0])
-                    if cumsum_mask[v_ax0, 0] == T.bool(False):
+                    if (cumsum_sorted[v_ax0, 0] < top_p[v_ax0, 0] and top_k[v_ax0, 0] > T.int64(1)) == T.bool(False):
                         cutoff[v_ax0, 0] = sorted_prob[v_ax0, 0]
                     else:
-                        if cumsum_mask[v_ax0, v_ax1] == T.bool(True) and cumsum_mask[v_ax0, v_ax1 + T.int64(1)] == T.bool(False):
-                            cutoff[v_ax0, 0] = sorted_prob[v_ax0, v_ax1 + T.int64(1)]
-                        else:
-                            if cumsum_mask[v_ax0, v_ax1] == T.bool(True) and v_ax1 + T.int64(1) == vocab_size:
+                        if (cumsum_sorted[v_ax0, v_ax1] < top_p[v_ax0, 0] and v_ax1 + T.int64(1) < top_k[v_ax0, 0]) == T.bool(True):
+                            if v_ax1 + T.int64(1) == vocab_size:
                                 cutoff[v_ax0, 0] = sorted_prob[v_ax0, v_ax1]
+                            else:
+                                if (cumsum_sorted[v_ax0, v_ax1 + T.int64(1)] < top_p[v_ax0, 0] and v_ax1 + T.int64(1) + T.int64(1) < top_k[v_ax0, 0]) == T.bool(False):
+                                    cutoff[v_ax0, 0] = sorted_prob[v_ax0, v_ax1 + T.int64(1)]
 
         @R.function
         def _initialize_effect() -> R.Tuple(R.Object):
@@ -1204,11 +1140,10 @@ def test_renormalize_top_p_top_k_prob():
             cls = Expected
             with R.dataflow():
                 cumsum: R.Tensor((2, 3), dtype="float32") = R.cumsum(sorted_prob, axis=1, dtype="void", exclusive=None)
-                lv1 = R.call_tir(cls.get_mask_top_p_top_k, (cumsum, top_p, top_k), out_sinfo=R.Tensor((2, 3), dtype="bool"))
-                lv2 = R.call_tir(cls.get_renorm_cutoff, (sorted_prob, lv1), out_sinfo=R.Tensor((2, 1), dtype="float32"))
-                lv3 = R.call_tir(cls.filter_with_top_p_top_k, (prob, lv2), out_sinfo=R.Tensor((2, 3), dtype="float32"))
-                sum: R.Tensor((2, 1), dtype="float32") = R.sum(lv3, axis=[1], keepdims=True)
-                divide: R.Tensor((2, 3), dtype="float32") = R.divide(lv3, sum)
+                lv1 = R.call_tir(cls.get_renorm_cutoff, (sorted_prob, cumsum, top_p, top_k), out_sinfo=R.Tensor((2, 1), dtype="float32"))
+                lv2 = R.call_tir(cls.filter_with_top_p_top_k, (prob, lv1), out_sinfo=R.Tensor((2, 3), dtype="float32"))
+                sum: R.Tensor((2, 1), dtype="float32") = R.sum(lv2, axis=[1], keepdims=True)
+                divide: R.Tensor((2, 3), dtype="float32") = R.divide(lv2, sum)
                 gv1: R.Tuple(R.Tensor((2, 3), dtype="float32"), R.Tuple(R.Object)) = divide, (_io,)
                 R.output(gv1)
             return gv1
