@@ -87,6 +87,9 @@ def _visit_assign(self: Parser, node: doc.Assign) -> None:
     lhs = node.targets[0].id
     rhs = self.eval_expr(node.value)
 
+    if rhs is None:
+        return
+
     I.decl_function(lhs, rhs)
     I.def_function(lhs, rhs)
 
