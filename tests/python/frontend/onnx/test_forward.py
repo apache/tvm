@@ -1727,6 +1727,27 @@ def test_upsample_nearest(target, dev):
 
 
 @tvm.testing.parametrize_targets
+def test_upsample_nearest_default(target, dev):
+    """test_upsample_nearest_default"""
+    scale = 2
+    in_shape = (1, 1, 3, 3)
+    out_shape = (1, 1, 3 * scale, 3 * scale)
+    y = helper.make_node("Upsample", ["in"], ["out"], scales=[1.0, 1.0, 2.0, 2.0])
+
+    in_array = np.random.uniform(size=in_shape).astype(np.float32)
+
+    graph = helper.make_graph(
+        [y],
+        "upsample_nearest_test",
+        inputs=[helper.make_tensor_value_info("in", TensorProto.FLOAT, list(in_shape))],
+        outputs=[helper.make_tensor_value_info("out", TensorProto.FLOAT, list(out_shape))],
+    )
+
+    model = helper.make_model(graph, producer_name="upsample_nearest_test")
+    verify_with_ort_with_inputs(model, [in_array], [out_shape], opset=7, target=target, dev=dev)
+
+
+@tvm.testing.parametrize_targets
 def test_upsample3d_nearest(target, dev):
     """test_upsample3d_nearest"""
     scale = 2
@@ -5708,6 +5729,7 @@ unsupported_onnx_tests = [
     "test_unique_sorted_with_axis_3d",
     "test_unique_sorted_with_negative_axis",
     "test_upsample_nearest",
+    "test_upsample_nearest_default",
 ]
 
 
