@@ -449,10 +449,15 @@ def test_rpc_return_remote_object():
         assert get_size(shape) == 2
 
     # start server
-    server = rpc.Server(key="x1")
-    client = rpc.connect("127.0.0.1", server.port, key="x1")
+
     check(rpc.LocalSession(), True)
-    check(client, False)
+
+    def check_remote():
+        server = rpc.Server(key="x1")
+        client = rpc.connect("127.0.0.1", server.port, key="x1")
+        check(client, False)
+
+    check_remote()
 
     def check_minrpc():
         if tvm.get_global_func("rpc.CreatePipeClient", allow_missing=True) is None:
@@ -462,6 +467,14 @@ def test_rpc_return_remote_object():
         minrpc_exec = temp.relpath("minrpc")
         tvm.rpc.with_minrpc(cc.create_executable)(minrpc_exec, [])
         check(rpc.PopenSession(minrpc_exec), False)
+        # minrpc on the remote
+        server = rpc.Server()
+        client = rpc.connect(
+            "127.0.0.1",
+            server.port,
+            session_constructor_args=["rpc.PopenSession", open(minrpc_exec, "rb").read()],
+        )
+        check(client, False)
 
     check_minrpc()
 
