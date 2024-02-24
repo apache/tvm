@@ -76,14 +76,14 @@ class ThreadGroup {
    *        `worker_callback` will only be called for values >= 1. This
    *        allows use of the main thread as a worker.
    */
-  ThreadGroup(int num_workers, std::function<void(int)> worker_callback,
-              bool exclude_worker0 = false);
-  ~ThreadGroup();
+  TVM_DLL ThreadGroup(int num_workers, std::function<void(int)> worker_callback,
+                      bool exclude_worker0 = false);
+  TVM_DLL ~ThreadGroup();
 
   /*!
    * \brief Blocks until all non-main threads in the pool finish.
    */
-  void Join();
+  TVM_DLL void Join();
 
   enum AffinityMode : int {
     kBig = 1,
@@ -106,8 +106,8 @@ class ThreadGroup {
    *
    * \return The number of workers to use.
    */
-  int Configure(AffinityMode mode, int nthreads, bool exclude_worker0,
-                std::vector<unsigned int> cpus = {});
+  TVM_DLL int Configure(AffinityMode mode, int nthreads, bool exclude_worker0,
+                        std::vector<unsigned int> cpus = {});
 
  private:
   Impl* impl_;
@@ -116,22 +116,22 @@ class ThreadGroup {
 /*!
  * \brief Platform-agnostic no-op.
  */
-void Yield();
+TVM_DLL void Yield();
 /*!
  * \return the maximum number of effective workers for this system.
  */
-int MaxConcurrency();
+TVM_DLL int MaxConcurrency();
 /*!
  * \brief Setting the maximum number of available cores.
  */
-void SetMaxConcurrency(int value);
+TVM_DLL void SetMaxConcurrency(int value);
 /*!
  * \brief Reset the threads in the pool. All current threads are destroyed and
  * new ones are created.
  *
  * Note that this does nothing when openmp is used.
  */
-void ResetThreadPool();
+TVM_DLL void ResetThreadPool();
 
 /*!
  * \brief Configuring the CPU affinity mode for the working threads.
@@ -147,7 +147,7 @@ TVM_DLL void Configure(tvm::runtime::threading::ThreadGroup::AffinityMode mode, 
  * \brief Get the number of threads being used by the TVM runtime
  * \returns The number of threads used.
  */
-int32_t NumThreads();
+TVM_DLL int32_t NumThreads();
 
 }  // namespace threading
 
