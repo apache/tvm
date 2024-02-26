@@ -896,6 +896,9 @@ requires_cudnn = Feature("cudnn", "cuDNN", cmake_flag="USE_CUDNN", parent_featur
 # Mark a test as requiring the cuBLAS library.
 requires_cublas = Feature("cublas", "cuBLAS", cmake_flag="USE_CUBLAS", parent_features="cuda")
 
+# Mark a test as requiring NCCL support
+requires_nccl = Feature("nccl", "NCCL", cmake_flag="USE_NCCL", parent_features="cuda")
+
 # Mark a test as requiring the NVPTX compilation on the CUDA runtime
 requires_nvptx = Feature(
     "nvptx",
