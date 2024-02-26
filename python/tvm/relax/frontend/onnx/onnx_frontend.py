@@ -2059,12 +2059,10 @@ class ONNXGraphImporter:
         if name == "":
             return self._name_supply.fresh_name("empty_")
 
-        new_name = name.replace(".", "_")
-        if not new_name[0].isalpha() and new_name[0] != "_":
-            new_name = str(self._name_supply.fresh_name("input_" + new_name))
+        if not name[0].isalpha() and name[0] != "_":
+            new_name = str(self._name_supply.fresh_name("input_" + name))
         else:
-            new_name = str(self._name_supply.fresh_name(new_name))
-
+            new_name = str(self._name_supply.fresh_name(name))
         if new_name != name:
             warnings.warn(("Renaming name %s to %s" % (name, new_name)))
         return new_name

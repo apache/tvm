@@ -73,8 +73,8 @@ String NameSupplyNode::add_prefix_to_name(const String& name) {
 }
 
 std::string NameSupplyNode::GetUniqueName(std::string name, bool add_underscore) {
-  for (size_t i = 0; i < name.size(); ++i) {
-    if (name[i] == '.') name[i] = '_';
+  if (name.size() >= 1 && name[0] == '.') {
+    name[0] = '_';
   }
   auto it = name_map.find(name);
   if (it != name_map.end()) {
