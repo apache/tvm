@@ -71,6 +71,13 @@ TEST(ScalableDataType, TestScalableDataTypeAndNonScalableDataTypeInequality) {
   ASSERT_FALSE(tvm::DataType(kDLInt, 32, 4, true) == tvm::DataType(kDLInt, 32, 4));
 }
 
+TEST(ScalableDataType, TestIsScalar) {
+  ASSERT_FALSE(tvm::DataType(kDLInt, 32, 4, true).is_scalar());
+  ASSERT_TRUE(tvm::DataType(kDLInt, 32, 1, false).is_scalar());
+  ASSERT_FALSE(tvm::DataType(kDLInt, 32, 4, false).is_scalar());
+  ASSERT_FALSE(tvm::DataType(kDLOpaqueHandle, 1, 0, false).is_scalar());
+}
+
 TEST(ScalableDataType, TestScalableDataTypeToString) {
   tvm::DataType scalable_type = tvm::DataType(kDLInt, 32, 4, true);
   EXPECT_EQ(tvm::runtime::DLDataType2String(scalable_type), "int32xvscalex4");
