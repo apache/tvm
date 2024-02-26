@@ -18,8 +18,6 @@
 import inspect
 from typing import Any, Dict, Union
 
-from ....relax.analysis import well_formed as relax_well_formed
-from ....tir.analysis import verify_well_formed as tir_well_formed
 from ....ir.module import IRModule
 from ...ir_builder import IRBuilder
 from . import doc
@@ -97,6 +95,11 @@ def parse(
     ret = builder.get()
     # check well-formedness in both Relax and TIR
     if check_well_formed:
+        # do the imports here to avoid a circular import at the start
+        # (since importing Relax will import a dependenc on the parser)
+        from ....relax.analysis import well_formed as relax_well_formed
+        from ....tir.analysis import verify_well_formed as tir_well_formed
+
         check_ret = ret
         if not isinstance(check_ret, IRModule):
             check_ret = IRModule.from_expr(ret)
