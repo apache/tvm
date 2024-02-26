@@ -21,7 +21,7 @@ from typing import Any, Callable, Optional, Sequence, Union
 
 import numpy as np
 
-from ..._ffi import register_object
+from ..._ffi import register_object, register_func
 from ..._ffi.runtime_ctypes import Device
 from ..container import ShapeTuple
 from ..ndarray import NDArray
@@ -152,6 +152,23 @@ class Session(Object):
             The global packed function
         """
         return DPackedFunc(_ffi_api.SessionGetGlobalFunc(self, name), self)  # type: ignore # pylint: disable=no-member
+
+    def import_python_module(self, module_name: str) -> None:
+        """Import a python module in each worker
+
+        This may be required before call
+
+        Parameters
+        ----------
+        module_name: str
+
+            The python module name, as it would be used in a python
+            `import` statement.
+        """
+        if not hasattr(self, "_import_python_module"):
+            self._import_python_module = self.get_global_func("runtime.disco._import_python_module")
+
+        self._import_python_module(module_name)
 
     def call_packed(self, func: DRef, *args) -> DRef:
         """Call a PackedFunc on workers providing variadic arguments.
@@ -367,6 +384,11 @@ class ProcessSession(Session):
             "runtime.disco.create_process_pool",
             entrypoint,
         )
+
+
+@register_func("runtime.disco._import_python_module")
+def _import_python_module(module_name: str) -> None:
+    __import__(module_name)
 
 
 REDUCE_OPS = {
