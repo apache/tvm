@@ -377,7 +377,7 @@ class ThreadedSession(Session):
 class ProcessSession(Session):
     """A Disco session backed by pipe-based multi-processing."""
 
-    def __init__(self, num_workers: int, entrypoint: str) -> None:
+    def __init__(self, num_workers: int, entrypoint: str = "tvm.exec.disco_worker") -> None:
         self.__init_handle_by_constructor__(
             _ffi_api.SessionProcess,  # type: ignore # pylint: disable=no-member
             num_workers,
