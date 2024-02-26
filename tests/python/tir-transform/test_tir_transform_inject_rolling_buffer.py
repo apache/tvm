@@ -238,24 +238,9 @@ class PreRollingBuffer:
                         tensor_2[0, (ax1 + (ax1_outer * 4)), ax2, ax3] = T.int8(0)
                         for dh in T.serial(0, 3):
                             for dw in T.serial(0, 3):
-                                tensor_2[
-                                    0,
-                                    (ax1 + (ax1_outer * 4)),
-                                    ax2,
-                                    ax3,
-                                ] = T.max(
-                                    tensor_2[
-                                        0,
-                                        (ax1 + (ax1_outer * 4)),
-                                        ax2,
-                                        ax3,
-                                    ],
-                                    A_1[
-                                        0,
-                                        ((ax1 + (ax1_outer * 4)) + dh),
-                                        (ax2 + dw),
-                                        ax3,
-                                    ],
+                                tensor_2[0, (ax1 + (ax1_outer * 4)), ax2, ax3] = T.max(
+                                    tensor_2[0, (ax1 + (ax1_outer * 4)), ax2, ax3],
+                                    A_1[0, ((ax1 + (ax1_outer * 4)) + dh), (ax2 + dw), ax3],
                                 )
             for ax1_inner in T.serial(0, 4):
                 for ax2_inner in T.serial(0, 8):

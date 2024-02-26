@@ -58,9 +58,9 @@ def opt_gemm_normalize():
                     )
                     for x_c_init in T.serial(0, 32):
                         for y_c_init in T.vectorized(0, 32):
-                            C_global[(x_c_init + (x_outer * 32)), (y_c_init + (y_outer * 32))] = (
-                                T.float32(0)
-                            )
+                            C_global[
+                                (x_c_init + (x_outer * 32)), (y_c_init + (y_outer * 32))
+                            ] = T.float32(0)
                     for k_outer in T.serial(0, 256):
                         for x_c in T.serial(0, 32):
                             for k_inner in T.unroll(0, 4):
@@ -1020,623 +1020,9 @@ def opt_conv_tensorcore_lower():
             for kh in T.serial(0, 3):
                 for ax2 in T.serial(0, 3):
                     with T.launch_thread(tx, 32):
-                        Apad_shared[((((ty * 3072) + (tz * 1536)) + (ax2 * 512)) + tx)] = (
-                            T.if_then_else(
-                                (
-                                    (
-                                        (
-                                            (1 <= (T.floordiv(bz, 14) + kh))
-                                            and ((T.floordiv(bz, 14) + kh) < 15)
-                                        )
-                                        and (1 <= (ax2 + T.floormod(bz, 14)))
-                                    )
-                                    and ((ax2 + T.floormod(bz, 14)) < 15)
-                                ),
-                                A_1[
-                                    (
-                                        (
-                                            (
-                                                (
-                                                    (
-                                                        (
-                                                            (
-                                                                ((bx * 6422528) + (ty * 1605632))
-                                                                + (tz * 802816)
-                                                            )
-                                                            + (kh * 57344)
-                                                        )
-                                                        + (bz * 4096)
-                                                    )
-                                                    + (ax2 * 4096)
-                                                )
-                                                + (ic_outer * 512)
-                                            )
-                                            + tx
-                                        )
-                                        - 61440
-                                    ),
-                                ],
-                                T.float16(0),
-                                dtype="float16",
-                            )
-                        )
-                    with T.launch_thread(tx, 32):
-                        Apad_shared[(((((ty * 3072) + (tz * 1536)) + (ax2 * 512)) + tx) + 32)] = (
-                            T.if_then_else(
-                                (
-                                    (
-                                        (
-                                            (1 <= (T.floordiv(bz, 14) + kh))
-                                            and ((T.floordiv(bz, 14) + kh) < 15)
-                                        )
-                                        and (1 <= (ax2 + T.floormod(bz, 14)))
-                                    )
-                                    and ((ax2 + T.floormod(bz, 14)) < 15)
-                                ),
-                                A_1[
-                                    (
-                                        (
-                                            (
-                                                (
-                                                    (
-                                                        (
-                                                            (
-                                                                ((bx * 6422528) + (ty * 1605632))
-                                                                + (tz * 802816)
-                                                            )
-                                                            + (kh * 57344)
-                                                        )
-                                                        + (bz * 4096)
-                                                    )
-                                                    + (ax2 * 4096)
-                                                )
-                                                + (ic_outer * 512)
-                                            )
-                                            + tx
-                                        )
-                                        - 61408
-                                    ),
-                                ],
-                                T.float16(0),
-                                dtype="float16",
-                            )
-                        )
-                    with T.launch_thread(tx, 32):
-                        Apad_shared[(((((ty * 3072) + (tz * 1536)) + (ax2 * 512)) + tx) + 64)] = (
-                            T.if_then_else(
-                                (
-                                    (
-                                        (
-                                            (1 <= (T.floordiv(bz, 14) + kh))
-                                            and ((T.floordiv(bz, 14) + kh) < 15)
-                                        )
-                                        and (1 <= (ax2 + T.floormod(bz, 14)))
-                                    )
-                                    and ((ax2 + T.floormod(bz, 14)) < 15)
-                                ),
-                                A_1[
-                                    (
-                                        (
-                                            (
-                                                (
-                                                    (
-                                                        (
-                                                            (
-                                                                ((bx * 6422528) + (ty * 1605632))
-                                                                + (tz * 802816)
-                                                            )
-                                                            + (kh * 57344)
-                                                        )
-                                                        + (bz * 4096)
-                                                    )
-                                                    + (ax2 * 4096)
-                                                )
-                                                + (ic_outer * 512)
-                                            )
-                                            + tx
-                                        )
-                                        - 61376
-                                    ),
-                                ],
-                                T.float16(0),
-                                dtype="float16",
-                            )
-                        )
-                    with T.launch_thread(tx, 32):
-                        Apad_shared[(((((ty * 3072) + (tz * 1536)) + (ax2 * 512)) + tx) + 96)] = (
-                            T.if_then_else(
-                                (
-                                    (
-                                        (
-                                            (1 <= (T.floordiv(bz, 14) + kh))
-                                            and ((T.floordiv(bz, 14) + kh) < 15)
-                                        )
-                                        and (1 <= (ax2 + T.floormod(bz, 14)))
-                                    )
-                                    and ((ax2 + T.floormod(bz, 14)) < 15)
-                                ),
-                                A_1[
-                                    (
-                                        (
-                                            (
-                                                (
-                                                    (
-                                                        (
-                                                            (
-                                                                ((bx * 6422528) + (ty * 1605632))
-                                                                + (tz * 802816)
-                                                            )
-                                                            + (kh * 57344)
-                                                        )
-                                                        + (bz * 4096)
-                                                    )
-                                                    + (ax2 * 4096)
-                                                )
-                                                + (ic_outer * 512)
-                                            )
-                                            + tx
-                                        )
-                                        - 61344
-                                    ),
-                                ],
-                                T.float16(0),
-                                dtype="float16",
-                            )
-                        )
-                    with T.launch_thread(tx, 32):
-                        Apad_shared[(((((ty * 3072) + (tz * 1536)) + (ax2 * 512)) + tx) + 128)] = (
-                            T.if_then_else(
-                                (
-                                    (
-                                        (
-                                            (1 <= (T.floordiv(bz, 14) + kh))
-                                            and ((T.floordiv(bz, 14) + kh) < 15)
-                                        )
-                                        and (1 <= (ax2 + T.floormod(bz, 14)))
-                                    )
-                                    and ((ax2 + T.floormod(bz, 14)) < 15)
-                                ),
-                                A_1[
-                                    (
-                                        (
-                                            (
-                                                (
-                                                    (
-                                                        (
-                                                            (
-                                                                ((bx * 6422528) + (ty * 1605632))
-                                                                + (tz * 802816)
-                                                            )
-                                                            + (kh * 57344)
-                                                        )
-                                                        + (bz * 4096)
-                                                    )
-                                                    + (ax2 * 4096)
-                                                )
-                                                + (ic_outer * 512)
-                                            )
-                                            + tx
-                                        )
-                                        - 61312
-                                    ),
-                                ],
-                                T.float16(0),
-                                dtype="float16",
-                            )
-                        )
-                    with T.launch_thread(tx, 32):
-                        Apad_shared[(((((ty * 3072) + (tz * 1536)) + (ax2 * 512)) + tx) + 160)] = (
-                            T.if_then_else(
-                                (
-                                    (
-                                        (
-                                            (1 <= (T.floordiv(bz, 14) + kh))
-                                            and ((T.floordiv(bz, 14) + kh) < 15)
-                                        )
-                                        and (1 <= (ax2 + T.floormod(bz, 14)))
-                                    )
-                                    and ((ax2 + T.floormod(bz, 14)) < 15)
-                                ),
-                                A_1[
-                                    (
-                                        (
-                                            (
-                                                (
-                                                    (
-                                                        (
-                                                            (
-                                                                ((bx * 6422528) + (ty * 1605632))
-                                                                + (tz * 802816)
-                                                            )
-                                                            + (kh * 57344)
-                                                        )
-                                                        + (bz * 4096)
-                                                    )
-                                                    + (ax2 * 4096)
-                                                )
-                                                + (ic_outer * 512)
-                                            )
-                                            + tx
-                                        )
-                                        - 61280
-                                    ),
-                                ],
-                                T.float16(0),
-                                dtype="float16",
-                            )
-                        )
-                    with T.launch_thread(tx, 32):
-                        Apad_shared[(((((ty * 3072) + (tz * 1536)) + (ax2 * 512)) + tx) + 192)] = (
-                            T.if_then_else(
-                                (
-                                    (
-                                        (
-                                            (1 <= (T.floordiv(bz, 14) + kh))
-                                            and ((T.floordiv(bz, 14) + kh) < 15)
-                                        )
-                                        and (1 <= (ax2 + T.floormod(bz, 14)))
-                                    )
-                                    and ((ax2 + T.floormod(bz, 14)) < 15)
-                                ),
-                                A_1[
-                                    (
-                                        (
-                                            (
-                                                (
-                                                    (
-                                                        (
-                                                            (
-                                                                ((bx * 6422528) + (ty * 1605632))
-                                                                + (tz * 802816)
-                                                            )
-                                                            + (kh * 57344)
-                                                        )
-                                                        + (bz * 4096)
-                                                    )
-                                                    + (ax2 * 4096)
-                                                )
-                                                + (ic_outer * 512)
-                                            )
-                                            + tx
-                                        )
-                                        - 61248
-                                    ),
-                                ],
-                                T.float16(0),
-                                dtype="float16",
-                            )
-                        )
-                    with T.launch_thread(tx, 32):
-                        Apad_shared[(((((ty * 3072) + (tz * 1536)) + (ax2 * 512)) + tx) + 224)] = (
-                            T.if_then_else(
-                                (
-                                    (
-                                        (
-                                            (1 <= (T.floordiv(bz, 14) + kh))
-                                            and ((T.floordiv(bz, 14) + kh) < 15)
-                                        )
-                                        and (1 <= (ax2 + T.floormod(bz, 14)))
-                                    )
-                                    and ((ax2 + T.floormod(bz, 14)) < 15)
-                                ),
-                                A_1[
-                                    (
-                                        (
-                                            (
-                                                (
-                                                    (
-                                                        (
-                                                            (
-                                                                ((bx * 6422528) + (ty * 1605632))
-                                                                + (tz * 802816)
-                                                            )
-                                                            + (kh * 57344)
-                                                        )
-                                                        + (bz * 4096)
-                                                    )
-                                                    + (ax2 * 4096)
-                                                )
-                                                + (ic_outer * 512)
-                                            )
-                                            + tx
-                                        )
-                                        - 61216
-                                    ),
-                                ],
-                                T.float16(0),
-                                dtype="float16",
-                            )
-                        )
-                    with T.launch_thread(tx, 32):
-                        Apad_shared[(((((ty * 3072) + (tz * 1536)) + (ax2 * 512)) + tx) + 256)] = (
-                            T.if_then_else(
-                                (
-                                    (
-                                        (
-                                            (1 <= (T.floordiv(bz, 14) + kh))
-                                            and ((T.floordiv(bz, 14) + kh) < 15)
-                                        )
-                                        and (1 <= (ax2 + T.floormod(bz, 14)))
-                                    )
-                                    and ((ax2 + T.floormod(bz, 14)) < 15)
-                                ),
-                                A_1[
-                                    (
-                                        (
-                                            (
-                                                (
-                                                    (
-                                                        (
-                                                            (
-                                                                ((bx * 6422528) + (ty * 1605632))
-                                                                + (tz * 802816)
-                                                            )
-                                                            + (kh * 57344)
-                                                        )
-                                                        + (bz * 4096)
-                                                    )
-                                                    + (ax2 * 4096)
-                                                )
-                                                + (ic_outer * 512)
-                                            )
-                                            + tx
-                                        )
-                                        - 61184
-                                    ),
-                                ],
-                                T.float16(0),
-                                dtype="float16",
-                            )
-                        )
-                    with T.launch_thread(tx, 32):
-                        Apad_shared[(((((ty * 3072) + (tz * 1536)) + (ax2 * 512)) + tx) + 288)] = (
-                            T.if_then_else(
-                                (
-                                    (
-                                        (
-                                            (1 <= (T.floordiv(bz, 14) + kh))
-                                            and ((T.floordiv(bz, 14) + kh) < 15)
-                                        )
-                                        and (1 <= (ax2 + T.floormod(bz, 14)))
-                                    )
-                                    and ((ax2 + T.floormod(bz, 14)) < 15)
-                                ),
-                                A_1[
-                                    (
-                                        (
-                                            (
-                                                (
-                                                    (
-                                                        (
-                                                            (
-                                                                ((bx * 6422528) + (ty * 1605632))
-                                                                + (tz * 802816)
-                                                            )
-                                                            + (kh * 57344)
-                                                        )
-                                                        + (bz * 4096)
-                                                    )
-                                                    + (ax2 * 4096)
-                                                )
-                                                + (ic_outer * 512)
-                                            )
-                                            + tx
-                                        )
-                                        - 61152
-                                    ),
-                                ],
-                                T.float16(0),
-                                dtype="float16",
-                            )
-                        )
-                    with T.launch_thread(tx, 32):
-                        Apad_shared[(((((ty * 3072) + (tz * 1536)) + (ax2 * 512)) + tx) + 320)] = (
-                            T.if_then_else(
-                                (
-                                    (
-                                        (
-                                            (1 <= (T.floordiv(bz, 14) + kh))
-                                            and ((T.floordiv(bz, 14) + kh) < 15)
-                                        )
-                                        and (1 <= (ax2 + T.floormod(bz, 14)))
-                                    )
-                                    and ((ax2 + T.floormod(bz, 14)) < 15)
-                                ),
-                                A_1[
-                                    (
-                                        (
-                                            (
-                                                (
-                                                    (
-                                                        (
-                                                            (
-                                                                ((bx * 6422528) + (ty * 1605632))
-                                                                + (tz * 802816)
-                                                            )
-                                                            + (kh * 57344)
-                                                        )
-                                                        + (bz * 4096)
-                                                    )
-                                                    + (ax2 * 4096)
-                                                )
-                                                + (ic_outer * 512)
-                                            )
-                                            + tx
-                                        )
-                                        - 61120
-                                    ),
-                                ],
-                                T.float16(0),
-                                dtype="float16",
-                            )
-                        )
-                    with T.launch_thread(tx, 32):
-                        Apad_shared[(((((ty * 3072) + (tz * 1536)) + (ax2 * 512)) + tx) + 352)] = (
-                            T.if_then_else(
-                                (
-                                    (
-                                        (
-                                            (1 <= (T.floordiv(bz, 14) + kh))
-                                            and ((T.floordiv(bz, 14) + kh) < 15)
-                                        )
-                                        and (1 <= (ax2 + T.floormod(bz, 14)))
-                                    )
-                                    and ((ax2 + T.floormod(bz, 14)) < 15)
-                                ),
-                                A_1[
-                                    (
-                                        (
-                                            (
-                                                (
-                                                    (
-                                                        (
-                                                            (
-                                                                ((bx * 6422528) + (ty * 1605632))
-                                                                + (tz * 802816)
-                                                            )
-                                                            + (kh * 57344)
-                                                        )
-                                                        + (bz * 4096)
-                                                    )
-                                                    + (ax2 * 4096)
-                                                )
-                                                + (ic_outer * 512)
-                                            )
-                                            + tx
-                                        )
-                                        - 61088
-                                    ),
-                                ],
-                                T.float16(0),
-                                dtype="float16",
-                            )
-                        )
-                    with T.launch_thread(tx, 32):
-                        Apad_shared[(((((ty * 3072) + (tz * 1536)) + (ax2 * 512)) + tx) + 384)] = (
-                            T.if_then_else(
-                                (
-                                    (
-                                        (
-                                            (1 <= (T.floordiv(bz, 14) + kh))
-                                            and ((T.floordiv(bz, 14) + kh) < 15)
-                                        )
-                                        and (1 <= (ax2 + T.floormod(bz, 14)))
-                                    )
-                                    and ((ax2 + T.floormod(bz, 14)) < 15)
-                                ),
-                                A_1[
-                                    (
-                                        (
-                                            (
-                                                (
-                                                    (
-                                                        (
-                                                            (
-                                                                ((bx * 6422528) + (ty * 1605632))
-                                                                + (tz * 802816)
-                                                            )
-                                                            + (kh * 57344)
-                                                        )
-                                                        + (bz * 4096)
-                                                    )
-                                                    + (ax2 * 4096)
-                                                )
-                                                + (ic_outer * 512)
-                                            )
-                                            + tx
-                                        )
-                                        - 61056
-                                    ),
-                                ],
-                                T.float16(0),
-                                dtype="float16",
-                            )
-                        )
-                    with T.launch_thread(tx, 32):
-                        Apad_shared[(((((ty * 3072) + (tz * 1536)) + (ax2 * 512)) + tx) + 416)] = (
-                            T.if_then_else(
-                                (
-                                    (
-                                        (
-                                            (1 <= (T.floordiv(bz, 14) + kh))
-                                            and ((T.floordiv(bz, 14) + kh) < 15)
-                                        )
-                                        and (1 <= (ax2 + T.floormod(bz, 14)))
-                                    )
-                                    and ((ax2 + T.floormod(bz, 14)) < 15)
-                                ),
-                                A_1[
-                                    (
-                                        (
-                                            (
-                                                (
-                                                    (
-                                                        (
-                                                            (
-                                                                ((bx * 6422528) + (ty * 1605632))
-                                                                + (tz * 802816)
-                                                            )
-                                                            + (kh * 57344)
-                                                        )
-                                                        + (bz * 4096)
-                                                    )
-                                                    + (ax2 * 4096)
-                                                )
-                                                + (ic_outer * 512)
-                                            )
-                                            + tx
-                                        )
-                                        - 61024
-                                    ),
-                                ],
-                                T.float16(0),
-                                dtype="float16",
-                            )
-                        )
-                    with T.launch_thread(tx, 32):
-                        Apad_shared[(((((ty * 3072) + (tz * 1536)) + (ax2 * 512)) + tx) + 448)] = (
-                            T.if_then_else(
-                                (
-                                    (
-                                        (
-                                            (1 <= (T.floordiv(bz, 14) + kh))
-                                            and ((T.floordiv(bz, 14) + kh) < 15)
-                                        )
-                                        and (1 <= (ax2 + T.floormod(bz, 14)))
-                                    )
-                                    and ((ax2 + T.floormod(bz, 14)) < 15)
-                                ),
-                                A_1[
-                                    (
-                                        (
-                                            (
-                                                (
-                                                    (
-                                                        (
-                                                            (
-                                                                ((bx * 6422528) + (ty * 1605632))
-                                                                + (tz * 802816)
-                                                            )
-                                                            + (kh * 57344)
-                                                        )
-                                                        + (bz * 4096)
-                                                    )
-                                                    + (ax2 * 4096)
-                                                )
-                                                + (ic_outer * 512)
-                                            )
-                                            + tx
-                                        )
-                                        - 60992
-                                    ),
-                                ],
-                                T.float16(0),
-                                dtype="float16",
-                            )
-                        )
-                    T.launch_thread(tx, 32)
-                    Apad_shared[(((((ty * 3072) + (tz * 1536)) + (ax2 * 512)) + tx) + 480)] = (
-                        T.if_then_else(
+                        Apad_shared[
+                            ((((ty * 3072) + (tz * 1536)) + (ax2 * 512)) + tx)
+                        ] = T.if_then_else(
                             (
                                 (
                                     (
@@ -1668,12 +1054,625 @@ def opt_conv_tensorcore_lower():
                                         )
                                         + tx
                                     )
-                                    - 60960
+                                    - 61440
                                 ),
                             ],
                             T.float16(0),
                             dtype="float16",
                         )
+                    with T.launch_thread(tx, 32):
+                        Apad_shared[
+                            (((((ty * 3072) + (tz * 1536)) + (ax2 * 512)) + tx) + 32)
+                        ] = T.if_then_else(
+                            (
+                                (
+                                    (
+                                        (1 <= (T.floordiv(bz, 14) + kh))
+                                        and ((T.floordiv(bz, 14) + kh) < 15)
+                                    )
+                                    and (1 <= (ax2 + T.floormod(bz, 14)))
+                                )
+                                and ((ax2 + T.floormod(bz, 14)) < 15)
+                            ),
+                            A_1[
+                                (
+                                    (
+                                        (
+                                            (
+                                                (
+                                                    (
+                                                        (
+                                                            ((bx * 6422528) + (ty * 1605632))
+                                                            + (tz * 802816)
+                                                        )
+                                                        + (kh * 57344)
+                                                    )
+                                                    + (bz * 4096)
+                                                )
+                                                + (ax2 * 4096)
+                                            )
+                                            + (ic_outer * 512)
+                                        )
+                                        + tx
+                                    )
+                                    - 61408
+                                ),
+                            ],
+                            T.float16(0),
+                            dtype="float16",
+                        )
+                    with T.launch_thread(tx, 32):
+                        Apad_shared[
+                            (((((ty * 3072) + (tz * 1536)) + (ax2 * 512)) + tx) + 64)
+                        ] = T.if_then_else(
+                            (
+                                (
+                                    (
+                                        (1 <= (T.floordiv(bz, 14) + kh))
+                                        and ((T.floordiv(bz, 14) + kh) < 15)
+                                    )
+                                    and (1 <= (ax2 + T.floormod(bz, 14)))
+                                )
+                                and ((ax2 + T.floormod(bz, 14)) < 15)
+                            ),
+                            A_1[
+                                (
+                                    (
+                                        (
+                                            (
+                                                (
+                                                    (
+                                                        (
+                                                            ((bx * 6422528) + (ty * 1605632))
+                                                            + (tz * 802816)
+                                                        )
+                                                        + (kh * 57344)
+                                                    )
+                                                    + (bz * 4096)
+                                                )
+                                                + (ax2 * 4096)
+                                            )
+                                            + (ic_outer * 512)
+                                        )
+                                        + tx
+                                    )
+                                    - 61376
+                                ),
+                            ],
+                            T.float16(0),
+                            dtype="float16",
+                        )
+                    with T.launch_thread(tx, 32):
+                        Apad_shared[
+                            (((((ty * 3072) + (tz * 1536)) + (ax2 * 512)) + tx) + 96)
+                        ] = T.if_then_else(
+                            (
+                                (
+                                    (
+                                        (1 <= (T.floordiv(bz, 14) + kh))
+                                        and ((T.floordiv(bz, 14) + kh) < 15)
+                                    )
+                                    and (1 <= (ax2 + T.floormod(bz, 14)))
+                                )
+                                and ((ax2 + T.floormod(bz, 14)) < 15)
+                            ),
+                            A_1[
+                                (
+                                    (
+                                        (
+                                            (
+                                                (
+                                                    (
+                                                        (
+                                                            ((bx * 6422528) + (ty * 1605632))
+                                                            + (tz * 802816)
+                                                        )
+                                                        + (kh * 57344)
+                                                    )
+                                                    + (bz * 4096)
+                                                )
+                                                + (ax2 * 4096)
+                                            )
+                                            + (ic_outer * 512)
+                                        )
+                                        + tx
+                                    )
+                                    - 61344
+                                ),
+                            ],
+                            T.float16(0),
+                            dtype="float16",
+                        )
+                    with T.launch_thread(tx, 32):
+                        Apad_shared[
+                            (((((ty * 3072) + (tz * 1536)) + (ax2 * 512)) + tx) + 128)
+                        ] = T.if_then_else(
+                            (
+                                (
+                                    (
+                                        (1 <= (T.floordiv(bz, 14) + kh))
+                                        and ((T.floordiv(bz, 14) + kh) < 15)
+                                    )
+                                    and (1 <= (ax2 + T.floormod(bz, 14)))
+                                )
+                                and ((ax2 + T.floormod(bz, 14)) < 15)
+                            ),
+                            A_1[
+                                (
+                                    (
+                                        (
+                                            (
+                                                (
+                                                    (
+                                                        (
+                                                            ((bx * 6422528) + (ty * 1605632))
+                                                            + (tz * 802816)
+                                                        )
+                                                        + (kh * 57344)
+                                                    )
+                                                    + (bz * 4096)
+                                                )
+                                                + (ax2 * 4096)
+                                            )
+                                            + (ic_outer * 512)
+                                        )
+                                        + tx
+                                    )
+                                    - 61312
+                                ),
+                            ],
+                            T.float16(0),
+                            dtype="float16",
+                        )
+                    with T.launch_thread(tx, 32):
+                        Apad_shared[
+                            (((((ty * 3072) + (tz * 1536)) + (ax2 * 512)) + tx) + 160)
+                        ] = T.if_then_else(
+                            (
+                                (
+                                    (
+                                        (1 <= (T.floordiv(bz, 14) + kh))
+                                        and ((T.floordiv(bz, 14) + kh) < 15)
+                                    )
+                                    and (1 <= (ax2 + T.floormod(bz, 14)))
+                                )
+                                and ((ax2 + T.floormod(bz, 14)) < 15)
+                            ),
+                            A_1[
+                                (
+                                    (
+                                        (
+                                            (
+                                                (
+                                                    (
+                                                        (
+                                                            ((bx * 6422528) + (ty * 1605632))
+                                                            + (tz * 802816)
+                                                        )
+                                                        + (kh * 57344)
+                                                    )
+                                                    + (bz * 4096)
+                                                )
+                                                + (ax2 * 4096)
+                                            )
+                                            + (ic_outer * 512)
+                                        )
+                                        + tx
+                                    )
+                                    - 61280
+                                ),
+                            ],
+                            T.float16(0),
+                            dtype="float16",
+                        )
+                    with T.launch_thread(tx, 32):
+                        Apad_shared[
+                            (((((ty * 3072) + (tz * 1536)) + (ax2 * 512)) + tx) + 192)
+                        ] = T.if_then_else(
+                            (
+                                (
+                                    (
+                                        (1 <= (T.floordiv(bz, 14) + kh))
+                                        and ((T.floordiv(bz, 14) + kh) < 15)
+                                    )
+                                    and (1 <= (ax2 + T.floormod(bz, 14)))
+                                )
+                                and ((ax2 + T.floormod(bz, 14)) < 15)
+                            ),
+                            A_1[
+                                (
+                                    (
+                                        (
+                                            (
+                                                (
+                                                    (
+                                                        (
+                                                            ((bx * 6422528) + (ty * 1605632))
+                                                            + (tz * 802816)
+                                                        )
+                                                        + (kh * 57344)
+                                                    )
+                                                    + (bz * 4096)
+                                                )
+                                                + (ax2 * 4096)
+                                            )
+                                            + (ic_outer * 512)
+                                        )
+                                        + tx
+                                    )
+                                    - 61248
+                                ),
+                            ],
+                            T.float16(0),
+                            dtype="float16",
+                        )
+                    with T.launch_thread(tx, 32):
+                        Apad_shared[
+                            (((((ty * 3072) + (tz * 1536)) + (ax2 * 512)) + tx) + 224)
+                        ] = T.if_then_else(
+                            (
+                                (
+                                    (
+                                        (1 <= (T.floordiv(bz, 14) + kh))
+                                        and ((T.floordiv(bz, 14) + kh) < 15)
+                                    )
+                                    and (1 <= (ax2 + T.floormod(bz, 14)))
+                                )
+                                and ((ax2 + T.floormod(bz, 14)) < 15)
+                            ),
+                            A_1[
+                                (
+                                    (
+                                        (
+                                            (
+                                                (
+                                                    (
+                                                        (
+                                                            ((bx * 6422528) + (ty * 1605632))
+                                                            + (tz * 802816)
+                                                        )
+                                                        + (kh * 57344)
+                                                    )
+                                                    + (bz * 4096)
+                                                )
+                                                + (ax2 * 4096)
+                                            )
+                                            + (ic_outer * 512)
+                                        )
+                                        + tx
+                                    )
+                                    - 61216
+                                ),
+                            ],
+                            T.float16(0),
+                            dtype="float16",
+                        )
+                    with T.launch_thread(tx, 32):
+                        Apad_shared[
+                            (((((ty * 3072) + (tz * 1536)) + (ax2 * 512)) + tx) + 256)
+                        ] = T.if_then_else(
+                            (
+                                (
+                                    (
+                                        (1 <= (T.floordiv(bz, 14) + kh))
+                                        and ((T.floordiv(bz, 14) + kh) < 15)
+                                    )
+                                    and (1 <= (ax2 + T.floormod(bz, 14)))
+                                )
+                                and ((ax2 + T.floormod(bz, 14)) < 15)
+                            ),
+                            A_1[
+                                (
+                                    (
+                                        (
+                                            (
+                                                (
+                                                    (
+                                                        (
+                                                            ((bx * 6422528) + (ty * 1605632))
+                                                            + (tz * 802816)
+                                                        )
+                                                        + (kh * 57344)
+                                                    )
+                                                    + (bz * 4096)
+                                                )
+                                                + (ax2 * 4096)
+                                            )
+                                            + (ic_outer * 512)
+                                        )
+                                        + tx
+                                    )
+                                    - 61184
+                                ),
+                            ],
+                            T.float16(0),
+                            dtype="float16",
+                        )
+                    with T.launch_thread(tx, 32):
+                        Apad_shared[
+                            (((((ty * 3072) + (tz * 1536)) + (ax2 * 512)) + tx) + 288)
+                        ] = T.if_then_else(
+                            (
+                                (
+                                    (
+                                        (1 <= (T.floordiv(bz, 14) + kh))
+                                        and ((T.floordiv(bz, 14) + kh) < 15)
+                                    )
+                                    and (1 <= (ax2 + T.floormod(bz, 14)))
+                                )
+                                and ((ax2 + T.floormod(bz, 14)) < 15)
+                            ),
+                            A_1[
+                                (
+                                    (
+                                        (
+                                            (
+                                                (
+                                                    (
+                                                        (
+                                                            ((bx * 6422528) + (ty * 1605632))
+                                                            + (tz * 802816)
+                                                        )
+                                                        + (kh * 57344)
+                                                    )
+                                                    + (bz * 4096)
+                                                )
+                                                + (ax2 * 4096)
+                                            )
+                                            + (ic_outer * 512)
+                                        )
+                                        + tx
+                                    )
+                                    - 61152
+                                ),
+                            ],
+                            T.float16(0),
+                            dtype="float16",
+                        )
+                    with T.launch_thread(tx, 32):
+                        Apad_shared[
+                            (((((ty * 3072) + (tz * 1536)) + (ax2 * 512)) + tx) + 320)
+                        ] = T.if_then_else(
+                            (
+                                (
+                                    (
+                                        (1 <= (T.floordiv(bz, 14) + kh))
+                                        and ((T.floordiv(bz, 14) + kh) < 15)
+                                    )
+                                    and (1 <= (ax2 + T.floormod(bz, 14)))
+                                )
+                                and ((ax2 + T.floormod(bz, 14)) < 15)
+                            ),
+                            A_1[
+                                (
+                                    (
+                                        (
+                                            (
+                                                (
+                                                    (
+                                                        (
+                                                            ((bx * 6422528) + (ty * 1605632))
+                                                            + (tz * 802816)
+                                                        )
+                                                        + (kh * 57344)
+                                                    )
+                                                    + (bz * 4096)
+                                                )
+                                                + (ax2 * 4096)
+                                            )
+                                            + (ic_outer * 512)
+                                        )
+                                        + tx
+                                    )
+                                    - 61120
+                                ),
+                            ],
+                            T.float16(0),
+                            dtype="float16",
+                        )
+                    with T.launch_thread(tx, 32):
+                        Apad_shared[
+                            (((((ty * 3072) + (tz * 1536)) + (ax2 * 512)) + tx) + 352)
+                        ] = T.if_then_else(
+                            (
+                                (
+                                    (
+                                        (1 <= (T.floordiv(bz, 14) + kh))
+                                        and ((T.floordiv(bz, 14) + kh) < 15)
+                                    )
+                                    and (1 <= (ax2 + T.floormod(bz, 14)))
+                                )
+                                and ((ax2 + T.floormod(bz, 14)) < 15)
+                            ),
+                            A_1[
+                                (
+                                    (
+                                        (
+                                            (
+                                                (
+                                                    (
+                                                        (
+                                                            ((bx * 6422528) + (ty * 1605632))
+                                                            + (tz * 802816)
+                                                        )
+                                                        + (kh * 57344)
+                                                    )
+                                                    + (bz * 4096)
+                                                )
+                                                + (ax2 * 4096)
+                                            )
+                                            + (ic_outer * 512)
+                                        )
+                                        + tx
+                                    )
+                                    - 61088
+                                ),
+                            ],
+                            T.float16(0),
+                            dtype="float16",
+                        )
+                    with T.launch_thread(tx, 32):
+                        Apad_shared[
+                            (((((ty * 3072) + (tz * 1536)) + (ax2 * 512)) + tx) + 384)
+                        ] = T.if_then_else(
+                            (
+                                (
+                                    (
+                                        (1 <= (T.floordiv(bz, 14) + kh))
+                                        and ((T.floordiv(bz, 14) + kh) < 15)
+                                    )
+                                    and (1 <= (ax2 + T.floormod(bz, 14)))
+                                )
+                                and ((ax2 + T.floormod(bz, 14)) < 15)
+                            ),
+                            A_1[
+                                (
+                                    (
+                                        (
+                                            (
+                                                (
+                                                    (
+                                                        (
+                                                            ((bx * 6422528) + (ty * 1605632))
+                                                            + (tz * 802816)
+                                                        )
+                                                        + (kh * 57344)
+                                                    )
+                                                    + (bz * 4096)
+                                                )
+                                                + (ax2 * 4096)
+                                            )
+                                            + (ic_outer * 512)
+                                        )
+                                        + tx
+                                    )
+                                    - 61056
+                                ),
+                            ],
+                            T.float16(0),
+                            dtype="float16",
+                        )
+                    with T.launch_thread(tx, 32):
+                        Apad_shared[
+                            (((((ty * 3072) + (tz * 1536)) + (ax2 * 512)) + tx) + 416)
+                        ] = T.if_then_else(
+                            (
+                                (
+                                    (
+                                        (1 <= (T.floordiv(bz, 14) + kh))
+                                        and ((T.floordiv(bz, 14) + kh) < 15)
+                                    )
+                                    and (1 <= (ax2 + T.floormod(bz, 14)))
+                                )
+                                and ((ax2 + T.floormod(bz, 14)) < 15)
+                            ),
+                            A_1[
+                                (
+                                    (
+                                        (
+                                            (
+                                                (
+                                                    (
+                                                        (
+                                                            ((bx * 6422528) + (ty * 1605632))
+                                                            + (tz * 802816)
+                                                        )
+                                                        + (kh * 57344)
+                                                    )
+                                                    + (bz * 4096)
+                                                )
+                                                + (ax2 * 4096)
+                                            )
+                                            + (ic_outer * 512)
+                                        )
+                                        + tx
+                                    )
+                                    - 61024
+                                ),
+                            ],
+                            T.float16(0),
+                            dtype="float16",
+                        )
+                    with T.launch_thread(tx, 32):
+                        Apad_shared[
+                            (((((ty * 3072) + (tz * 1536)) + (ax2 * 512)) + tx) + 448)
+                        ] = T.if_then_else(
+                                (
+                                    (
+                                        (1 <= (T.floordiv(bz, 14) + kh)
+                                        and ((T.floordiv(bz, 14) + kh) < 15)
+                                    )
+                                    and (1 <= (ax2 + T.floormod(bz, 14)))
+                                )
+                                and ((ax2 + T.floormod(bz, 14)) < 15)
+                            ),
+                            A_1[
+                                (
+                                    (
+                                        (
+                                            (
+                                                (
+                                                    (
+                                                        (
+                                                            ((bx * 6422528) + (ty * 1605632))
+                                                            + (tz * 802816)
+                                                        )
+                                                        + (kh * 57344)
+                                                    )
+                                                    + (bz * 4096)
+                                                )
+                                                + (ax2 * 4096)
+                                            )
+                                            + (ic_outer * 512)
+                                        )
+                                        + tx
+                                    )
+                                    - 60992
+                                ),
+                            ],
+                            T.float16(0),
+                            dtype="float16",
+                        )
+                    T.launch_thread(tx, 32)
+                    Apad_shared[
+                        (((((ty * 3072) + (tz * 1536)) + (ax2 * 512)) + tx) + 480)
+                    ] = T.if_then_else(
+                        (
+                            (
+                                (
+                                    (1 <= (T.floordiv(bz, 14) + kh))
+                                    and ((T.floordiv(bz, 14) + kh) < 15)
+                                )
+                                and (1 <= (ax2 + T.floormod(bz, 14)))
+                            )
+                            and ((ax2 + T.floormod(bz, 14)) < 15)
+                        ),
+                        A_1[
+                            (
+                                (
+                                    (
+                                        (
+                                            (
+                                                (
+                                                    (
+                                                        ((bx * 6422528) + (ty * 1605632))
+                                                        + (tz * 802816)
+                                                    )
+                                                    + (kh * 57344)
+                                                )
+                                                + (bz * 4096)
+                                            )
+                                            + (ax2 * 4096)
+                                        )
+                                        + (ic_outer * 512)
+                                    )
+                                    + tx
+                                )
+                                - 60960
+                            ),
+                        ],
+                        T.float16(0),
+                        dtype="float16",
                     )
                 with T.launch_thread(tx, 32):
                     W_shared[T.ramp((((ty * 512) + (tz * 256)) + (tx * 8)), 1, 8)] = W_1[
