@@ -900,5 +900,22 @@ def test_variable_with_cpp_address():
     assert re.match(expected_regex, script)
 
 
+def test_return_statement():
+    from tvm.script import tir as T
+
+    @T.prim_func
+    def func():
+        T.evaluate(T.ret(5))
+
+    expected_output = """
+# from tvm.script import tir as T
+
+@T.prim_func
+def func():
+    return 5
+    """
+    _assert_print(func, expected_output)
+
+
 if __name__ == "__main__":
     tvm.testing.main()
