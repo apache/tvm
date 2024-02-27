@@ -1020,6 +1020,17 @@ export class ArtifactCache implements ArtifactCacheTemplate {
     return result;
   }
 
+  async addToCache(url: string) {
+    const request = new Request(url);
+    if (this.cache === undefined) {
+      this.cache = await caches.open(this.scope);
+    }
+    const result = await this.cache.match(request);
+    if (result === undefined){
+      await this.cache.add(request);
+    }
+  }
+
   async hasAllKeys(keys: string[]) {
     if (this.cache === undefined) {
       this.cache = await caches.open(this.scope);
@@ -1529,7 +1540,6 @@ export class Instance implements Disposable {
       totalBytes += list[i].nbytes;
     }
     let fetchedBytes = 0;
-    let fetchedShards = 0;
     let timeElapsed = 0;
 
     const cacheOnly = await artifactCache.hasAllKeys(list.map(key => new URL(key.dataPath, ndarrayCacheUrl).href))
@@ -1566,8 +1576,20 @@ export class Instance implements Disposable {
         text: "Start to fetch params",
       });
     }
-
-    const processShard = async (i: number) => {
+    const downloadCache = async (i: number) => {
+      reportCallback(i);
+      const shard = list[i];
+      const dataUrl = new URL(shard.dataPath, ndarrayCacheUrl).href;
+      let buffer;
+      try {
+        buffer = await (await artifactCache.fetchWithCache(dataUrl)).arrayBuffer();
+      } catch (err) {
+        this.env.logger("Error: Cannot fetch " + dataUrl + " err= " + err);
+        throw err;
+      }
+    }
+    await Promise.all(list.map((_, index) => downloadCache(index)));
+    for (let i = 0; i < list.length; ++i) {
       const shard = list[i];
       const dataUrl = new URL(shard.dataPath, ndarrayCacheUrl).href;
       let buffer;
@@ -1608,9 +1630,7 @@ export class Instance implements Disposable {
       }
       timeElapsed = Math.ceil((perf.now() - tstart) / 1000);
       fetchedBytes += shard.nbytes;
-      reportCallback(fetchedShards++);
     }
-    await Promise.all(list.map((_, index) => processShard(index)));
     reportCallback(list.length);
   }
 
