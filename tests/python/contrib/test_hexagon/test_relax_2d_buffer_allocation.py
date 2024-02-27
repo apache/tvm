@@ -46,7 +46,7 @@ class Module:
                     T.writes(output[v_ax0, v_ax1])
                     output[v_ax0, v_ax1] = arg0[v_ax0, v_ax1] + arg1[v_ax0, v_ax1]
 
-    @R.function
+    @R.function(pure=False)
     def main(x: R.Tensor((2, 2), dtype="float32")):
         cls = Module
         # Try allocating 2d storage (2,2) in global.vtcm scope with nd allocator
