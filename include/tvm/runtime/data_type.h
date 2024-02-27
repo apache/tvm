@@ -27,6 +27,7 @@
 #include <tvm/runtime/c_runtime_api.h>
 #include <tvm/runtime/logging.h>
 
+#include <cstring>
 #include <string>
 #include <type_traits>
 
@@ -110,7 +111,7 @@ class DataType {
     return -lanes_as_int;
   }
   /*! \return whether type is a scalar type. */
-  bool is_scalar() const { return lanes() == 1; }
+  bool is_scalar() const { return !is_scalable_vector() && lanes() == 1; }
   /*! \return whether type is a scalar type. */
   bool is_bool() const { return code() == DataType::kUInt && bits() == 1; }
   /*! \return whether type is a float type. */
@@ -389,9 +390,12 @@ inline std::ostream& operator<<(std::ostream& os, DLDataType t) {  // NOLINT(*)
     os << "custom[" << GetCustomTypeName(t.code) << "]";
   }
   if (t.code == kTVMOpaqueHandle) return os;
+  int16_t lanes = static_cast<int16_t>(t.lanes);
   os << static_cast<int>(t.bits);
-  if (t.lanes != 1) {
-    os << 'x' << static_cast<int>(t.lanes);
+  if (lanes > 1) {
+    os << 'x' << lanes;
+  } else if (lanes < -1) {
+    os << "xvscalex" << -lanes;
   }
   return os;
 }
@@ -456,9 +460,14 @@ inline DLDataType String2DLDataType(std::string s) {
   char* xdelim;  // emulate sscanf("%ux%u", bits, lanes)
   uint8_t bits = static_cast<uint8_t>(strtoul(scan, &xdelim, 10));
   if (bits != 0) t.bits = bits;
+  int scalable_multiplier = 1;
+  if (strncmp(xdelim, "xvscale", 7) == 0) {
+    scalable_multiplier = -1;
+    xdelim += 7;
+  }
   char* endpt = xdelim;
   if (*xdelim == 'x') {
-    t.lanes = static_cast<uint16_t>(strtoul(xdelim + 1, &endpt, 10));
+    t.lanes = static_cast<uint16_t>(scalable_multiplier * strtoul(xdelim + 1, &endpt, 10));
   }
   ICHECK(endpt == s.c_str() + s.length()) << "unknown type " << s;
   return t;
