@@ -20,7 +20,8 @@ import numpy as np
 import tvm.testing
 
 
-@T.prim_func
+# A_local is undefined
+@T.prim_func(check_well_formed=False)
 def vector_add(A: T.Buffer((16), "float32"), B: T.Buffer((32), "float32")) -> None:
     T.func_attr({"global_symbol": "default_function", "tir.noalias": True})
     bx = T.env_thread("blockIdx.x")
