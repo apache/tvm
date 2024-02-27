@@ -66,6 +66,11 @@ export PYTHONPATH="$PYTHONPATH:$PWD/python"
 # some python package required by tvm
 pip install torch attrs cloudpickle decorator psutil synr tornado xgboost
 ```
+We also need to prepare the cutlass headers, the default version of cutlass in TVM does not work correctly
+```bash
+git clone https://github.com/NVIDIA/cutlass.git -b v3.2.2
+export TL_CUTLASS_PATH=/path/to/cutlass/include
+```
 Note 1: It is recommeneded to use the latest cuda toolkit, because we requires nvcc to jit compile the generated CUDA code.
 
 Note 2: Don't forget to clone the submodules.
