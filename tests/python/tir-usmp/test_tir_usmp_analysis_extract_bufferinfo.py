@@ -245,7 +245,6 @@ class ParallelSerialMixedForLoops:
         T.evaluate(T.call_extern("tvmgen_default_fused_nn_conv2d_add_fixed_point_multiply_clip_cast_1", input, T.lookup_param("p5", dtype="handle"), T.lookup_param("p6", dtype="handle"), output, dtype="int32"))
 
 
-__tvm_meta__ = None
 # fmt: on
 
 
@@ -286,7 +285,6 @@ class AllSerialForLoops:
         T.evaluate(T.call_extern("tvmgen_default_fused_nn_conv2d_add_fixed_point_multiply_clip_cast_1", input, T.lookup_param("p5", dtype="handle"), T.lookup_param("p6", dtype="handle"), output, dtype="int32"))
 
 
-__tvm_meta__ = None
 # fmt: on
 
 
