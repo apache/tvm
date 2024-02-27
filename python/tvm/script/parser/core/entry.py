@@ -97,8 +97,8 @@ def parse(
     if check_well_formed:
         # (C0415 = import-outside-toplevel. It is necessary here to avoid a circular dependency,
         # since importing Relax imports a dependency on the parser)
-        from ....relax.analysis import well_formed as relax_well_formed # pylint: disable=C0415
-        from ....tir.analysis import verify_well_formed as tir_well_formed # pylint: disable=C0415
+        from ....relax.analysis import well_formed as relax_well_formed  # pylint: disable=C0415
+        from ....tir.analysis import verify_well_formed as tir_well_formed  # pylint: disable=C0415
 
         check_ret = ret
         if not isinstance(check_ret, IRModule):
@@ -108,7 +108,7 @@ def parse(
             parser.report_error(source_ast, err=WELL_FORMED_ERROR_MESSAGE)
         try:
             tir_well_formed(check_ret)
-        except Exception as err: # pylint: disable=broad-exception-caught
+        except Exception as err:  # pylint: disable=broad-exception-caught
             parser.report_error(
                 source_ast,
                 err=f"{WELL_FORMED_ERROR_MESSAGE}\n\nTraceback: {str(err)}",
