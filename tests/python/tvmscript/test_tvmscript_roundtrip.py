@@ -1597,9 +1597,10 @@ def opt_conv_tensorcore_lower():
                         Apad_shared[
                             (((((ty * 3072) + (tz * 1536)) + (ax2 * 512)) + tx) + 448)
                         ] = T.if_then_else(
+                            (
                                 (
                                     (
-                                        (1 <= (T.floordiv(bz, 14) + kh)
+                                        1 <= (T.floordiv(bz, 14) + kh)
                                         and ((T.floordiv(bz, 14) + kh) < 15)
                                     )
                                     and (1 <= (ax2 + T.floormod(bz, 14)))
