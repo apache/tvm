@@ -64,8 +64,30 @@ bool IsAncestorOfAllVarUse(const tir::Stmt& node, const ObjectRef& var, const IR
   return false;
 }
 
+Optional<PrimExpr> FindReturnValue(const tir::Stmt& node) {
+  auto eval = node.as<tir::EvaluateNode>();
+  if (!eval) return NullOpt;
+
+  auto call = eval->value.as<tir::CallNode>();
+  if (!call) return NullOpt;
+
+  if (!call->op.same_as(tir::builtin::ret())) return NullOpt;
+
+  if (call->args.size() != 1) return NullOpt;
+
+  return call->args[0];
+}
+
 TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
     .set_dispatch<tir::Evaluate>("", [](tir::Evaluate eval, ObjectPath p, IRDocsifier d) -> Doc {
+      if (d->cfg->syntax_sugar) {
+        if (auto return_value = FindReturnValue(eval)) {
+          ExprDoc value = d->AsDoc<ExprDoc>(return_value.value(),
+                                            p->Attr("value")->Attr("args")->ArrayIndex(0));
+          return ReturnDoc(value);
+        }
+      }
+
       ExprDoc value = d->AsDoc<ExprDoc>(eval->value, p->Attr("value"));
       if (eval->value->IsInstance<tir::CallNode>()) {
         return ExprStmtDoc(value);
