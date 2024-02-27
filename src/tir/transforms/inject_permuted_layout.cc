@@ -149,6 +149,24 @@ class PermutedLayoutInjector : private IRMutatorWithAnalyzer {
     return block;
   }
 
+  bool CheckBufferShapeIsPermutable(Buffer buffer) {
+    if (buffer->shape.size() < 2) {
+      return false;
+    }
+
+    auto dim = buffer->shape.size();
+    auto buffer_row_size = buffer->shape[dim - 1].as<IntImmNode>()->value;
+    auto buffer_col_size = buffer->shape[dim - 2].as<IntImmNode>()->value;
+
+    if (buffer_row_size % 64 != 0) {
+      if (buffer_row_size % 32 != 0 || buffer_col_size % 2 != 0) {
+        return false;
+      }
+    }
+
+    return false;
+  }
+
   int CheckAndGetBufferRowSize(Buffer buffer) {
     CHECK(buffer->shape.size() >= 2)
         << "The dimension of Buffer \"" << buffer->name << "\" with shape " << buffer->shape
@@ -199,6 +217,9 @@ class PermutedLayoutInjector : private IRMutatorWithAnalyzer {
     }
 
     auto store_node = store.CopyOnWrite();
+    if (!CheckBufferShapeIsPermutable(store_node->buffer)) {
+      return store;
+    }
     store_node->indices =
         HandleBufferIndices(store_node->buffer, store_node->indices, store->buffer->dtype);
     return store;
@@ -218,6 +239,10 @@ class PermutedLayoutInjector : private IRMutatorWithAnalyzer {
     }
 
     auto load_node = load.CopyOnWrite();
+    if (!CheckBufferShapeIsPermutable(load_node->buffer)) {
+      return load;
+    }
+
     load_node->indices =
         HandleBufferIndices(load_node->buffer, load_node->indices, load->buffer->dtype);
     return load;
@@ -236,6 +261,9 @@ class PermutedLayoutInjector : private IRMutatorWithAnalyzer {
     auto buffer_map_iter = buffer_map_.find(Downcast<Var>(access_ptr_call->args[1]));
     CHECK(buffer_map_iter != buffer_map_.end())
         << "The buffer corresponding to data Var " << access_ptr_call->args[1] << " is not found";
+    if (!CheckBufferShapeIsPermutable(buffer_map_iter->second)) {
+      return access_ptr_call;
+    }
     int buffer_row_size = CheckAndGetBufferRowSize(buffer_map_iter->second);
 
     PrimExpr smem_offset = access_ptr_call->args[2] + (offset.defined() ? offset.value() : 0);
