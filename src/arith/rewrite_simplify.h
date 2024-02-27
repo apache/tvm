@@ -216,6 +216,7 @@ class RewriteSimplifier::Impl : public IRMutatorWithAnalyzer {
  private:
   CompareResult TryCompareUsingKnownInequalities(const PrimExpr& x, const PrimExpr& y);
   CompareResult TryCompareUsingConstIntBounds(const PrimExpr& x, const PrimExpr y);
+  CompareResult TryComparisonOfProductAndSum(const PrimExpr& x, const PrimExpr& y);
 
   // Whether x >= val
   bool CanProveGreaterEqual(const PrimExpr& x, int64_t val) {

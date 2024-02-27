@@ -16,7 +16,7 @@
 # under the License.
 # pylint: disable=invalid-name
 """Arithmetic data structure and utility"""
-from enum import IntEnum
+import enum
 from typing import Union
 
 import tvm._ffi
@@ -26,11 +26,24 @@ from tvm.runtime import Object
 from . import _ffi_api
 
 
-class ProofStrength(IntEnum):
+class ProofStrength(enum.IntEnum):
     """Proof strength of the analysis"""
 
     DEFAULT = 0
     SYMBOLIC_BOUND = 1
+
+
+class Extension(enum.Flag):
+    """Extensions enabled for RewriteSimplifier
+
+    Values should match `RewriteSimplifier::Extensions`
+    """
+
+    NoExtensions = 0
+    TransitivelyProveInequalities = 1 << 0
+    ConvertBooleanToAndOfOrs = 1 << 1
+    ApplyConstraintsToBooleanBranches = 1 << 2
+    ComparisonOfProductAndSum = 1 << 3
 
 
 @tvm._ffi.register_object("arith.ModularSet")
@@ -107,6 +120,8 @@ class Analyzer:
         self._enter_constraint_context = _mod("enter_constraint_context")
         self._can_prove_equal = _mod("can_prove_equal")
         self._can_prove = _mod("can_prove")
+        self._get_enabled_extensions = _mod("get_enabled_extensions")
+        self._set_enabled_extensions = _mod("set_enabled_extensions")
 
     def const_int_bound(self, expr):
         """Find constant integer bound for expr.
@@ -311,3 +326,22 @@ class Analyzer:
             Whether we can prove that lhs == rhs
         """
         return self._can_prove_equal(lhs, rhs)
+
+    @property
+    def enabled_extensions(self) -> Extension:
+        """Return the currently enabled extensions"""
+        value = self._get_enabled_extensions()
+        return Extension(value)
+
+    @enabled_extensions.setter
+    def enabled_extensions(self, flags: Union[int, Extension]):
+        """Enable extensions for the analyzer
+
+        Parameters
+        ----------
+        flags: Union[int,Extension]
+
+            The extensions to enable.
+        """
+        flags = Extension(flags).value
+        self._set_enabled_extensions(flags)
