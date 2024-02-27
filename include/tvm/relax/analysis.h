@@ -499,6 +499,21 @@ TVM_DLL bool HasReshapePattern(const tir::PrimFunc& func);
  * \param own_name (Optional.) If we are checking a recursive function body,
  *   the caller can pass the function's name so recursive calls
  *   can be ignored in the check (must be a Var or GlobalVar).
+ * \return The impure expression, if one exists within the given
+ *   expression.  Otherwise, NullOpt.
+ * \note Relies on StructInfo annotations, so ensure that the module has been normalized first.
+ *   Also, an impure call in a *nested* function does *not* mean that the outer expression contains
+ *   an impure call--it only does if the nested function is *later called*.
+ */
+TVM_DLL Optional<Expr> FindImpureCall(const Expr& expr,
+                                      const Optional<Expr>& own_name = Optional<Expr>(nullptr));
+
+/*!
+ * \brief Check if the given expression (likely a function body) contains any impure calls.
+ * \param expr The expression to be examined. If expr is a function, we check the body.
+ * \param own_name (Optional.) If we are checking a recursive function body,
+ *   the caller can pass the function's name so recursive calls
+ *   can be ignored in the check (must be a Var or GlobalVar).
  * \return A boolean indicating if the expression contains any impure calls.
  * \note Relies on StructInfo annotations, so ensure that the module has been normalized first.
  *   Also, an impure call in a *nested* function does *not* mean that the outer expression contains

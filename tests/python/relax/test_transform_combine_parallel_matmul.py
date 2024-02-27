@@ -525,7 +525,16 @@ def test_check():
     tvm.ir.assert_structural_equal(after, expected)
 
 
-def test_dynamic_rhs():
+def test_combine_matmul_of_static_and_dynamic_shapes():
+    """Combine two matmuls, one with dynamic shape
+
+    The `R.split` operator must have a static list of integer indices
+    at which to split the matmul output, because these integer indices
+    are stored as operator attributes.  However, the last output can
+    still have a dynamic shape.
+
+    """
+
     @R.function(private=True)
     def before(
         x: R.Tensor((2, 1024, 640), "float32"),
@@ -564,6 +573,118 @@ def test_dynamic_rhs():
                 R.Tensor((2, 1024, 640), dtype="float32"),
                 R.Tensor((2, 1024, M), dtype="float32"),
             ) = (lv0, lv1_1)
+            R.output(out)
+        return out
+
+    after = CombineParallelMatmul()(tvm.IRModule.from_expr(before))["main"]
+
+    tvm.ir.assert_structural_equal(after, expected)
+
+
+def test_combine_matmul_of_dynamic_and_static_shapes():
+    """Combine two matmuls, one with dynamic shape
+
+    Like `test_combine_matmul_of_static_and_dynamic_shapes`, but the
+    dynamic-shaped matmul is encountered first.  Due to the
+    requirements imposed by `R.split` storing the split indices as
+    static integers, the static-shaped weights must occur first in the
+    concatenated weights.
+    """
+
+    @R.function(private=True)
+    def before(
+        x: R.Tensor((2, 1024, 640), "float32"),
+        w0: R.Tensor((640, "M"), "float32"),
+        w1: R.Tensor((640, 640), "float32"),
+    ):
+        M = T.int64()
+        with R.dataflow():
+            lv0 = R.matmul(x, w0)
+            lv1 = R.matmul(x, w1)
+            out = (lv0, lv1)
+            R.output(out)
+        return out
+
+    @R.function(private=True)
+    def expected(
+        x: R.Tensor((2, 1024, 640), dtype="float32"),
+        w0: R.Tensor((640, "M"), dtype="float32"),
+        w1: R.Tensor((640, 640), dtype="float32"),
+    ) -> R.Tuple(
+        R.Tensor((2, 1024, "M"), dtype="float32"), R.Tensor((2, 1024, 640), dtype="float32")
+    ):
+        M = T.int64()
+        with R.dataflow():
+            lv: R.Tensor((640, 640 + M), dtype="float32") = R.concat((w1, w0), axis=1)
+            lv1: R.Tensor((2, 1024, 640 + M), dtype="float32") = R.matmul(
+                x, lv, out_dtype="float32"
+            )
+            lv2: R.Tuple(
+                R.Tensor((2, 1024, 640), dtype="float32"),
+                R.Tensor((2, 1024, M), dtype="float32"),
+            ) = R.split(lv1, indices_or_sections=[640], axis=2)
+            lv0: R.Tensor((2, 1024, M), dtype="float32") = lv2[1]
+            lv1_1: R.Tensor((2, 1024, 640), dtype="float32") = lv2[0]
+            out: R.Tuple(
+                R.Tensor((2, 1024, M), dtype="float32"),
+                R.Tensor((2, 1024, 640), dtype="float32"),
+            ) = (lv0, lv1_1)
+            R.output(out)
+        return out
+
+    after = CombineParallelMatmul()(tvm.IRModule.from_expr(before))["main"]
+
+    tvm.ir.assert_structural_equal(after, expected)
+
+
+def test_limit_one_dynamic_shape_in_combined_matmul():
+    """Combine two matmuls, one with dynamic shape
+
+    Like `test_combine_matmul_of_static_and_dynamic_shapes`, but with
+    two dynamic weights that could, in principle, be merged together.
+    Because `R.split` must have integer indices at which to split,
+    only one of the dynamic outputs can be part of the combined
+    matmul.
+    """
+
+    @R.function(private=True)
+    def before(
+        x: R.Tensor((2, 1024, 640), "float32"),
+        w0: R.Tensor((640, "M"), "float32"),
+        w1: R.Tensor((640, 640), "float32"),
+        w2: R.Tensor((640, "N"), "float32"),
+    ):
+        M = T.int64()
+        with R.dataflow():
+            lv0 = R.matmul(x, w0)
+            lv1 = R.matmul(x, w1)
+            lv2 = R.matmul(x, w2)
+            out = (lv0, lv1, lv2)
+            R.output(out)
+        return out
+
+    @R.function(private=True)
+    def expected(
+        x: R.Tensor((2, 1024, 640), dtype="float32"),
+        w0: R.Tensor((640, "M"), dtype="float32"),
+        w1: R.Tensor((640, 640), dtype="float32"),
+        w2: R.Tensor((640, "N"), "float32"),
+    ) -> R.Tuple(
+        R.Tensor((2, 1024, "M"), dtype="float32"),
+        R.Tensor((2, 1024, 640), dtype="float32"),
+        R.Tensor((2, 1024, "N"), dtype="float32"),
+    ):
+        M = T.int64()
+        with R.dataflow():
+            concat_weights = R.concat((w1, w0), axis=1)
+            concat_output = R.matmul(x, concat_weights, out_dtype="float32")
+            split_output: R.Tuple(
+                [R.Tensor([2, 1024, 640], dtype="float32"), R.Tensor([2, 1024, M], dtype="float32")]
+            ) = R.split(concat_output, indices_or_sections=[640], axis=2)
+            lv0 = split_output[1]
+            lv1 = split_output[0]
+            lv2 = R.matmul(x, w2)
+            out = (lv0, lv1, lv2)
             R.output(out)
         return out
 

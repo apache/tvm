@@ -165,7 +165,11 @@ class CodeGenCPU : public CodeGenLLVM {
   // if not directly finalize function and pass on return code.
   // return the end block after the check
   llvm::BasicBlock* CheckCallSuccess(llvm::Value* retcode);
-  llvm::DISubprogram* CreateDebugFunction(const PrimFunc& f);
+
+  llvm::DISubprogram* CreateDebugFunction(const GlobalVar& gvar, const PrimFunc& f);
+  llvm::DISubprogram* CreateDebugFunction(llvm::StringRef name, const Array<Type>& param_types,
+                                          const Type& return_type);
+
   // Context for injection lookup
   llvm::GlobalVariable* gv_mod_ctx_{nullptr};
   llvm::GlobalVariable* gv_tvm_func_call_{nullptr};
@@ -189,19 +193,11 @@ class CodeGenCPU : public CodeGenLLVM {
   std::vector<std::pair<std::string, llvm::Constant*>> export_system_symbols_;
   // List of functions to be registered in the FuncRegistry, if generated.
   std::vector<std::pair<std::string, llvm::Function*>> registry_functions_;
-  // internal debug information, to be populated by
-  std::unique_ptr<DebugInfo> dbg_info_;
+
   bool target_c_runtime_;
   // The system lib prefix if it is not nullopt, then we should do
   // system lib registration with the given prefix. The prefix can be ""
   Optional<String> system_lib_prefix_;
-
-  // Get the DWARF type corresponding to the LLVM type |ty|. The current API in practice only
-  // generates |int32|, and |int8*|.
-  llvm::DIType* GetDebugType(const Type& ty_tir);
-  llvm::DIType* GetDebugType(const Type& ty_tir, llvm::Type* ty_llvm);
-  // Adds the DWARF debug information for |function| to |dbg_info_|.
-  void AddDebugInformation(PrimFunc f_tir, llvm::Function* f_llvm);
 };
 
 }  // namespace codegen
