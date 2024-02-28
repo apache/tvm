@@ -199,7 +199,7 @@ def test_mixed_buffers(make_rolling):
     _verify_schedule(sch, [A], pool_c)
 
 
-@tvm.script.ir_module(check_well_formed=False)
+@tvm.script.ir_module
 class PreRollingBuffer:
     @T.prim_func
     def main(
@@ -274,7 +274,7 @@ class PreRollingBuffer:
                                 )
 
 
-@tvm.script.ir_module(check_well_formed=False)
+@tvm.script.ir_module
 class PostRollingBuffer:
     @T.prim_func
     def main(
