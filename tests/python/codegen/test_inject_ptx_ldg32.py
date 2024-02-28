@@ -20,21 +20,21 @@ import numpy as np
 import tvm.testing
 
 
-# A_local is undefined
-@T.prim_func(check_well_formed=False)
+@T.prim_func
 def vector_add(A: T.Buffer((16), "float32"), B: T.Buffer((32), "float32")) -> None:
     T.func_attr({"global_symbol": "default_function", "tir.noalias": True})
     bx = T.env_thread("blockIdx.x")
     tx = T.env_thread("threadIdx.x")
     T.launch_thread(bx, 1)
     T.launch_thread(tx, 32)
-    A_local = T.Buffer((32), "float32", scope="local")
-
     with T.block():
-        T.reads(A[0:16])
-        T.writes(A_local[0:32])
-        A_local[tx] = T.if_then_else(tx % 2 == 0, A[tx // 2], T.float32(0), dtype="float32")
-        B[tx] = A_local[tx] + 1.0
+        A_local = T.alloc_buffer((32), "float32", scope="local")
+
+        with T.block():
+            T.reads(A[0:16])
+            T.writes(A_local[0:32])
+            A_local[tx] = T.if_then_else(tx % 2 == 0, A[tx // 2], T.float32(0), dtype="float32")
+            B[tx] = A_local[tx] + 1.0
 
 
 @tvm.testing.requires_cuda
