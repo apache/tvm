@@ -494,7 +494,7 @@ def conv3d(
         elif data_layout == "NDHWC":
             conv_out = _op.add(conv_out, _op.reshape(bias._expr, [1, 1, 1, 1, -1]))
         else:
-            raise NotImplemented(f"Dont know how to handle layout {data_layout}.")
+            raise NotImplementedError(f"Dont know how to handle layout {data_layout}.")
 
     return wrap_nested(conv_out, name)
 
@@ -1574,33 +1574,6 @@ def interpolate(
     )
 
 
-def where(condition: Tensor, input: Tensor, other: Tensor, name: str = "where") -> Tensor:
-    """Return a tensor of elemends selected from input or other based on condition.
-
-    Parameters
-    ----------
-    condition : Tensor
-        When True, yield input, otherwise yield other.
-
-    input : Tensor
-        Value or values selected at indices where condition is True.
-
-    other : Tensor
-        Value or values selected at indices where condition is False.
-
-    name : str
-        Name hint.
-
-    Returns
-    -------
-    result : Tensor
-        The computed result.
-    """
-    # Cast condition to boolean.
-    condition = astype(condition, "bool")
-    return wrap_nested(_op.where(condition._expr, input._expr, other._expr), name)
-
-
 def ccl_allreduce(x: Tensor, op_type: str = "sum", name="ccl_allreduce"):
     """CCL Allreduce operator
 
@@ -2106,6 +2079,8 @@ def where(condition: Tensor, x1: Tensor, x2: Tensor, name: str = "where") -> Ten
     result : Tensor
         The result tensor.
     """
+    # Cast condition to boolean.
+    condition = astype(condition, "bool")
     return wrap_nested(_op.where(condition._expr, x1._expr, x2._expr), name)
 
 
