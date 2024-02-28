@@ -320,6 +320,24 @@ class Tuple : public Expr {
    */
   TVM_DLL explicit Tuple(tvm::Array<Expr> fields, Span span = Span());
 
+  /*!
+   * \brief Utility constructor to handle conversion to relax::Expr
+   *
+   * If the calling scope already has an array of a specific type of
+   * relax expression (e.g. `Array<relax::Var>`), it must be converted
+   * into an array of base type.  This constructor handles the
+   * conversion to the base `Array<relax::Expr>`.
+   *
+   * \tparam RelaxExpr The type of relax expression passed in as an argument.
+   *
+   * \param fields The fields of a tuple.
+   *
+   * \param span The source span of the expression.
+   */
+  template <typename RelaxExpr, typename = std::enable_if_t<std::is_base_of_v<Expr, RelaxExpr>>>
+  TVM_DLL explicit Tuple(tvm::Array<RelaxExpr> fields, Span span = Span())
+      : Tuple(fields.Map([](const RelaxExpr& expr) -> Expr { return expr; }), span) {}
+
   TVM_DEFINE_OBJECT_REF_METHODS(Tuple, Expr, TupleNode);
   TVM_DEFINE_OBJECT_REF_COW_METHOD(TupleNode);
 };

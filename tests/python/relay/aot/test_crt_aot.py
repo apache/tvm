@@ -93,6 +93,7 @@ def test_conv_with_params(interface_api, use_unpacked_api, test_runner):
         test_runner,
         interface_api,
         use_unpacked_api,
+        print_output_on_mismatch=True,
     )
 
 

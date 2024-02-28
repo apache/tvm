@@ -40,3 +40,4 @@ from .params import (
 )
 
 from . import executor
+from . import disco

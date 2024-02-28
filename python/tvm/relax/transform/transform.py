@@ -852,7 +852,7 @@ def LiftTransformParams() -> tvm.ir.transform.Pass:
     return _ffi_api.LiftTransformParams()  # type: ignore
 
 
-def BundleModelParams() -> tvm.ir.transform.Pass:
+def BundleModelParams(param_tuple_name: Optional[str] = None) -> tvm.ir.transform.Pass:
     """Bundle several model parameters into a single tuple paramters
 
     For each function, if the function has the attribute "num_input",
@@ -860,13 +860,20 @@ def BundleModelParams() -> tvm.ir.transform.Pass:
     Run-time parameters (e.g. activations) are the first `num_input`
     parameters, and the remainder are compile-time weights.
 
+    Parameters
+    ----------
+    param_tuple_name: Optional[str]
+
+        The name of the tuple parameter.  If unspecified, defaults to
+        "model_params".
+
     Returns
     -------
     ret : tvm.transform.Pass
         The registered pass for lifting transformation of parameters.
 
     """
-    return _ffi_api.BundleModelParams()  # type: ignore
+    return _ffi_api.BundleModelParams(param_tuple_name)  # type: ignore
 
 
 def LegalizeOps(
@@ -1316,6 +1323,26 @@ def ExpandMatmulOfSum():
     """
 
     return _ffi_api.ExpandMatmulOfSum()  # type: ignore
+
+
+def ReorderPermuteDimsAfterConcat():
+    """Reorder `concat(permute_dims(A), permute_dims(B))` into `permute_dims(concat(A,B))`
+
+    Useful for optimizing computations after `CombineParallelMatmul`.
+    The patterns for optimized `nn.Linear` implementations look for
+    `matmul(activations, permute_dims(weights))`.  After
+    `CombineParallelMatmul`, the `matmul(activations,
+    concat(permute_dims(A), permute_dims(B)))` no longer matches this
+    pattern.  Rearranging into `matmul(activations,
+    permute_dims(concat(A,B)))` restores the pattern match.
+
+    Returns
+    -------
+    ret : tvm.transform.Pass
+        The corresponding pass.
+    """
+
+    return _ffi_api.ReorderPermuteDimsAfterConcat()  # type: ignore
 
 
 def ReorderTakeAfterMatmul():

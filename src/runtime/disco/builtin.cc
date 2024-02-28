@@ -123,6 +123,12 @@ TVM_REGISTER_GLOBAL("runtime.disco.recv_from_worker0").set_body_typed(RecvFromWo
 TVM_REGISTER_GLOBAL("runtime.disco.worker_id").set_body_typed([]() -> ShapeTuple {
   return ShapeTuple({WorkerId()});
 });
+TVM_REGISTER_GLOBAL("runtime.disco.worker_rank").set_body_typed([]() -> int64_t {
+  return WorkerId();
+});
+TVM_REGISTER_GLOBAL("runtime.disco.device").set_body_typed([]() -> Device {
+  return DiscoWorker::ThreadLocal()->default_device;
+});
 
 }  // namespace runtime
 }  // namespace tvm

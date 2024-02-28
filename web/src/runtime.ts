@@ -1512,6 +1512,7 @@ export class Instance implements Disposable {
       totalBytes += list[i].nbytes;
     }
     let fetchedBytes = 0;
+    let fetchedShards = 0;
     let timeElapsed = 0;
 
     const cacheOnly = await artifactCache.hasAllKeys(list.map(key => new URL(key.dataPath, ndarrayCacheUrl).href))
@@ -1550,9 +1551,7 @@ export class Instance implements Disposable {
     }
 
     const processShard = async (i: number) => {
-      reportCallback(i);
       const shard = list[i];
-      fetchedBytes += shard.nbytes;
       const dataUrl = new URL(shard.dataPath, ndarrayCacheUrl).href;
       let buffer;
       try {
@@ -1591,6 +1590,8 @@ export class Instance implements Disposable {
         }
       }
       timeElapsed = Math.ceil((perf.now() - tstart) / 1000);
+      fetchedBytes += shard.nbytes;
+      reportCallback(fetchedShards++);
     }
     await Promise.all(list.map((_, index) => processShard(index)));
     reportCallback(list.length);

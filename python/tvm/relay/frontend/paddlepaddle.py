@@ -315,6 +315,7 @@ def convert_conv2d(g, op, block):
     strides = op.attr("strides")
 
     kernel = g.get_node(op.input("Filter")[0])
+    kernel_layout = "OIHW"
     input_x = g.get_node(op.input("Input")[0])
     data_layout = op.attr("data_format")
     kernel_layout = "OIHW" if data_layout == "NCHW" else "HWIO"
