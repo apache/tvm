@@ -348,36 +348,35 @@ def test_no_normalization_without_commoning():
 # -------------------------------------------------
 # Part for testing the commoning with equivalences
 # -------------------------------------------------
-# B is treated as uninitialized
-@T.prim_func(check_well_formed=False)
-def func_distributivity(i1: T.int32, i2: T.int32, x: T.int32, y: T.int32, z: T.int32) -> None:
-    B = T.Buffer((50,), "int32")
+@T.prim_func
+def func_distributivity(
+    B: T.Buffer((50,), "int32"), i1: T.int32, i2: T.int32, x: T.int32, y: T.int32, z: T.int32
+) -> None:
     B[i1] = x * (y + z)
     B[i2] = x * y + x * z
 
 
-@T.prim_func(check_well_formed=False)
+@T.prim_func
 def func_distributivity_expected(
-    i1: T.int32, i2: T.int32, x: T.int32, y: T.int32, z: T.int32
+    B: T.Buffer((50,), "int32"), i1: T.int32, i2: T.int32, x: T.int32, y: T.int32, z: T.int32
 ) -> None:
-    B = T.Buffer((50,), "int32")
     with T.LetStmt(x * y + x * z) as cse_var_1:
         B[i1] = cse_var_1
         B[i2] = cse_var_1
 
 
-@T.prim_func(check_well_formed=False)
-def func_associativity(i1: T.int32, i2: T.int32, x: T.int32, y: T.int32, z: T.int32) -> None:
-    B = T.Buffer((50,), "int32")
+@T.prim_func
+def func_associativity(
+    B: T.Buffer((50,), "int32"), i1: T.int32, i2: T.int32, x: T.int32, y: T.int32, z: T.int32
+) -> None:
     B[i1] = (x + y) + z
     B[i2] = x + (y + z)
 
 
-@T.prim_func(check_well_formed=False)
+@T.prim_func
 def func_associativity_expected(
-    i1: T.int32, i2: T.int32, x: T.int32, y: T.int32, z: T.int32
+    B: T.Buffer((50,), "int32"), i1: T.int32, i2: T.int32, x: T.int32, y: T.int32, z: T.int32
 ) -> None:
-    B = T.Buffer((50,), "int32")
     with T.LetStmt((x + y) + z) as cse_var_1:
         B[i1] = cse_var_1
         B[i2] = cse_var_1
@@ -460,6 +459,7 @@ LOG_LINE = '{"i": [["[\\"conv2d_layer\\", 1, 7, 7, 512, 512, 3, 3, [1, 1], [1, 1
             ["CA", 3, 6, 7], ["CA", 1, 6, 5], ["FU", 6, [0, 1, 2, 3, 4, 5]], ["AN", 6, 0, 3], \
             ["PR", 3, 0, "auto_unroll_max_step$512"], ["AN", 1, 3, 2], ["AN", 3, 21, 2], \
             ["AN", 6, 6, 2]]]], "r": [[0.0331129], 0, 0.900362, 1647464342], "v": "v0.6"}\n'
+
 
 # The workload associated with the log
 @auto_scheduler.register_workload
