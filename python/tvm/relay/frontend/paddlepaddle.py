@@ -336,13 +336,13 @@ def convert_conv2d(g, op, block):
     else:
         msg = f'Value {padding_algorithm} in attribute "padding" of operator Conv is not "valid."'
         raise tvm.error.OpAttributeInvalid(msg)
-    
+
     is_quantized = op.has_attr("quantization_type")
     # PaddlePaddle wieght layout is "OIHW", tvm need "HWIO" when op data_format is "NHWC".
     # There are two situations when converting the data format of weights:
-    # 1 Conv_2d is not a quantified OP, its weight information is the weights themselves. 
+    # 1 Conv_2d is not a quantified OP, its weight information is the weights themselves.
     #   We directly convert the weight information when processing conv_2d.
-    # 2 Conv_2d is a quantified OP, and its weight information is the output of the quantize_linear operator. 
+    # 2 Conv_2d is a quantified OP, and its weight information is the output of the quantize_linear operator.
     #   Therefore, the weight information needs to be transformed when processing the quantize_linear operator.
     if (not is_quantized) and (data_layout == "NHWC"):
         kernel_data = g.get_params(op.input("Filter")[0])
