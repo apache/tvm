@@ -31,6 +31,7 @@ from .. import expr as _expr
 from .. import function as _function
 from .. import ty as _ty
 from .. import op as _op
+from .. import qnn as _qnn
 from .common import (
     autopad,
     fold_constant,
@@ -314,9 +315,9 @@ def convert_conv2d(g, op, block):
     strides = op.attr("strides")
 
     kernel = g.get_node(op.input("Filter")[0])
-    kernel_layout = "OIHW"
     input_x = g.get_node(op.input("Input")[0])
     data_layout = op.attr("data_format")
+    kernel_layout = "OIHW" if data_layout == "NCHW" else "HWIO"
     out_channels, _, k_h, k_w = infer_shape(kernel)
     if padding_algorithm == "VALID":
         paddings = [0, 0]
@@ -335,10 +336,15 @@ def convert_conv2d(g, op, block):
     else:
         msg = f'Value {padding_algorithm} in attribute "padding" of operator Conv is not "valid."'
         raise tvm.error.OpAttributeInvalid(msg)
-
-    if data_layout == "NHWC":
-        kernel_layout = "HWIO"
-        # PaddlePaddle wieght layout is "OIHW", tvm need "HWIO" when op data_format is "NHWC"
+    
+    is_quantized = op.has_attr("quantization_type")
+    # PaddlePaddle wieght layout is "OIHW", tvm need "HWIO" when op data_format is "NHWC".
+    # There are two situations when converting the data format of weights:
+    # 1 Conv_2d is not a quantified OP, its weight information is the weights themselves. 
+    #   We directly convert the weight information when processing conv_2d.
+    # 2 Conv_2d is a quantified OP, and its weight information is the output of the quantize_linear operator. 
+    #   Therefore, the weight information needs to be transformed when processing the quantize_linear operator.
+    if (not is_quantized) and (data_layout == "NHWC"):
         kernel_data = g.get_params(op.input("Filter")[0])
         kernel_data = kernel_data.asnumpy()
         kernel_data = kernel_data.transpose((2, 3, 1, 0))
@@ -1626,7 +1632,7 @@ def convert_pool3d(g, op, block):
         raise tvm.error.OpAttributeInvalid(msg.format(padding_algorithm))
 
     # handle with special case
-    # while kernel size less than input size
+    # while kernel size more than input size
     # shrink kernel size to input size
     if (
         not isinstance(in_h, _op.Expr)
@@ -1810,6 +1816,53 @@ def convert_roi_align(g, op, block):
         mode="avg",
     )
     g.add_node(op.output("Out")[0], out)
+
+
+def convert_dequantize_linear(g, op, block):
+    """Operator converter for dequantize_linear."""
+
+    data = g.get_node(op.input("X")[0])
+    # paddle_scale = tvm_scale * 127
+    paddle_scale = g.get_node(op.input("Scale")[0])
+    paddle_scale = _op.cast(paddle_scale, "float64")
+    paddle_scale_scale = _expr.const(127, "float64")
+    tvm_scale = paddle_scale / paddle_scale_scale
+
+    zp = g.get_node(op.input("ZeroPoint")[0])
+    axis = op.attr("quant_axis")
+    if axis == -1:
+        axis = 0
+    out = _qnn.op.dequantize(
+        data=data,
+        input_scale=_op.cast(tvm_scale, "float32"),
+        input_zero_point=_op.cast(zp, "int32"),
+        axis=axis,
+    )
+    g.add_node(op.output("Y")[0], out)
+
+
+def convert_quantize_linear(g, op, block):
+    """Operator converter for dequantize_linear."""
+
+    data = g.get_node(op.input("X")[0])
+
+    # paddle_scale = tvm_scale * 127
+    paddle_scale = g.get_node(op.input("Scale")[0])
+    paddle_scale = _op.cast(paddle_scale, "float64")
+    paddle_scale_scale = _expr.const(127, "float64")
+    tvm_scale = paddle_scale / paddle_scale_scale
+
+    zp = g.get_node(op.input("ZeroPoint")[0])
+    axis = op.attr("quant_axis")
+    if axis == -1:
+        axis = 0
+    out = _qnn.op.quantize(
+        data=data,
+        output_scale=_op.cast(tvm_scale, "float32"),
+        output_zero_point=_op.cast(zp, "int32"),
+        axis=axis,
+    )
+    g.add_node(op.output("Y")[0], out)
 
 
 def convert_rnn(g, op, block):
@@ -2905,6 +2958,9 @@ _convert_map = {
     "unstack": convert_unstack,
     "where": convert_where,
     "where_index": convert_where_index,
+    # Quantized
+    "dequantize_linear": convert_dequantize_linear,
+    "quantize_linear": convert_quantize_linear,
 }
 
 
@@ -2938,7 +2994,7 @@ class GraphProto:
 
         if name is None:
             return self.params
-        assert name in self.params
+        assert name in self.params, f"The name({name}) is not in params"
         return self.params[name]
 
     def extract_parameters(self, program, scope=None):
@@ -2950,8 +3006,9 @@ class GraphProto:
             var = program.global_block().var(name)
             if name.endswith("feed") or name.endswith("fetch"):
                 continue
-            if not var.persistable:
-                continue
+            # This judgment will cause the PaddleInference model exported by PaddleSlim to skip some operators that need to be read in NHWC format.
+            # if not var.persistable:
+            #     continue
             if isinstance(scope, dict):
                 self.params[name] = _nd.array(scope[name])
             else:
@@ -3018,7 +3075,6 @@ class GraphProto:
             for op in block.ops:
                 if op.type == "fetch":
                     output_names.append(op.input("X")[0])
-
         outputs = [self.nodes[name] for name in output_names]
         outputs = outputs[0] if len(outputs) == 1 else _expr.Tuple(outputs)
 
