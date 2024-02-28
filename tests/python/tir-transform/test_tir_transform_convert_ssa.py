@@ -327,7 +327,7 @@ class TestDeDuplicateThreadIdxAcrossMultipleFunctions(BaseBeforeAfter):
     def before(self):
         threadIdx_x = tvm.tir.Var("threadIdx_x", "int32")
 
-        # complaints of duplicate definitions of threadIdx_x
+        # threadIdx_x is defined outside
         @I.ir_module(check_well_formed=False)
         class mod:
             @T.prim_func
@@ -351,8 +351,7 @@ class TestDeDuplicateThreadIdxAcrossMultipleFunctions(BaseBeforeAfter):
         return mod
 
     def expected(self):
-        # complaints of duplicate definitions of threadIdx_x
-        @I.ir_module(check_well_formed=False)
+        @I.ir_module
         class mod:
             @T.prim_func
             def kernel_1(A: T.Buffer([256], "float32")):
