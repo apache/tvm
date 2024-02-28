@@ -2444,15 +2444,13 @@ def convert_softmax(g, op, block):
 
     x = g.get_node(op.input("X")[0])
     axis = op.attr("axis")
-    # input_shape = block.var(op.input("X")[0]).shape
-    # if axis < 0:
-    #     axis = len(input_shape) + axis
-    # m = _op.max(x, axis, keepdims=True)
-    # e = _op.exp(x - m)
-    # out = e / _op.sum(e, axis, keepdims=True)
-    # out = _op.cast(out,"float32")
-
-    out = _op.nn.softmax(x, axis)
+    input_shape = block.var(op.input("X")[0]).shape
+    if axis < 0:
+        axis = len(input_shape) + axis
+    m = _op.max(x, axis, keepdims=True)
+    e = _op.exp(x - m)
+    out = e / _op.sum(e, axis, keepdims=True)
+    # out = _op.nn.softmax(x, axis)
     g.add_node(op.output("Out")[0], out)
 
 
@@ -3014,9 +3012,9 @@ class GraphProto:
             # This judgment will cause the PaddleInference model
             # exported by PaddleSlim to skip some operators
             # that need to be read in NHWC format.
-            # var = program.global_block().var(name)
-            # if not var.persistable:
-            #     continue
+            var = program.global_block().var(name)
+            if not var.persistable:
+                continue
             if isinstance(scope, dict):
                 self.params[name] = _nd.array(scope[name])
             else:
