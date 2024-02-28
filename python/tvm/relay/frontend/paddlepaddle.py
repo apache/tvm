@@ -315,7 +315,6 @@ def convert_conv2d(g, op, block):
     strides = op.attr("strides")
 
     kernel = g.get_node(op.input("Filter")[0])
-    kernel_layout = "OIHW"
     input_x = g.get_node(op.input("Input")[0])
     data_layout = op.attr("data_format")
     kernel_layout = "OIHW" if data_layout == "NCHW" else "HWIO"
@@ -343,8 +342,9 @@ def convert_conv2d(g, op, block):
     # There are two situations when converting the data format of weights:
     # 1 Conv_2d is not a quantified OP, its weight information is the weights themselves.
     #   We directly convert the weight information when processing conv_2d.
-    # 2 Conv_2d is a quantified OP, and its weight information is the output of the quantize_linear operator.
-    #   Therefore, the weight information needs to be transformed when processing the quantize_linear operator.
+    # 2 Conv_2d is a quantified OP, and its weight information is the output of
+    #   the quantize_linear operator. Therefore, the weight information needs to be
+    #   transformed when processing the quantize_linear operator.
     if (not is_quantized) and (data_layout == "NHWC"):
         kernel_data = g.get_params(op.input("Filter")[0])
         kernel_data = kernel_data.asnumpy()
@@ -1822,22 +1822,24 @@ def convert_roi_align(g, op, block):
 def convert_dequantize_linear(g, op, block):
     """Operator converter for dequantize_linear."""
 
-    data = g.get_node(op.input("X")[0])
-    # paddle_scale = tvm_scale * 127
-    paddle_scale = g.get_node(op.input("Scale")[0])
-    paddle_scale = _op.cast(paddle_scale, "float64")
-    paddle_scale_scale = _expr.const(127, "float64")
-    tvm_scale = paddle_scale / paddle_scale_scale
+    data_node_name = op.input("X")[0]
+    data_node = g.get_node(data_node_name)
+    print(f"dequantize_input_name is {data_node_name}")
 
-    zp = g.get_node(op.input("ZeroPoint")[0])
-    axis = op.attr("quant_axis")
-    if axis == -1:
-        axis = 0
+    # paddle_scale = tvm_scale * 127
+    paddle_quantize_scale = g.get_params(op.input("Scale")[0]).asnumpy()
+    tvm_quantize_scale = paddle_quantize_scale / 127
+
+    tvm_quantize_zp = g.get_params(op.input("ZeroPoint")[0]).asnumpy()
+
+    tvm_quantize_axis = op.attr("quant_axis")
+    if tvm_quantize_axis == -1:
+        tvm_quantize_axis = 0
     out = _qnn.op.dequantize(
-        data=data,
-        input_scale=_op.cast(tvm_scale, "float32"),
-        input_zero_point=_op.cast(zp, "int32"),
-        axis=axis,
+        data=data_node,
+        input_scale=_op.const(tvm_quantize_scale, "float32"),
+        input_zero_point=_op.const(tvm_quantize_zp, "int32"),
+        axis=tvm_quantize_axis,
     )
     g.add_node(op.output("Y")[0], out)
 
@@ -1845,23 +1847,23 @@ def convert_dequantize_linear(g, op, block):
 def convert_quantize_linear(g, op, block):
     """Operator converter for dequantize_linear."""
 
-    data = g.get_node(op.input("X")[0])
+    data_node_name = op.input("X")[0]
+    data_node = g.get_node(data_node_name)
+    print(f"quantize_input_name is {data_node_name}")
 
     # paddle_scale = tvm_scale * 127
-    paddle_scale = g.get_node(op.input("Scale")[0])
-    paddle_scale = _op.cast(paddle_scale, "float64")
-    paddle_scale_scale = _expr.const(127, "float64")
-    tvm_scale = paddle_scale / paddle_scale_scale
+    paddle_quantize_scale = g.get_params(op.input("Scale")[0]).asnumpy()
+    tvm_quantize_scale = paddle_quantize_scale / 127
 
-    zp = g.get_node(op.input("ZeroPoint")[0])
-    axis = op.attr("quant_axis")
-    if axis == -1:
-        axis = 0
+    tvm_quantize_zp = g.get_params(op.input("ZeroPoint")[0]).asnumpy()
+    tvm_quantize_axis = op.attr("quant_axis")
+    if tvm_quantize_axis == -1:
+        tvm_quantize_axis = 0
     out = _qnn.op.quantize(
-        data=data,
-        output_scale=_op.cast(tvm_scale, "float32"),
-        output_zero_point=_op.cast(zp, "int32"),
-        axis=axis,
+        data=data_node,
+        output_scale=_op.const(tvm_quantize_scale, "float32"),
+        output_zero_point=_op.const(tvm_quantize_zp, "int32"),
+        axis=tvm_quantize_axis,
     )
     g.add_node(op.output("Y")[0], out)
 
@@ -2440,14 +2442,17 @@ def convert_slice(g, op, block):
 def convert_softmax(g, op, block):
     """Operator converter for softmax."""
 
-    axis = op.attr("axis")
-    input_shape = block.var(op.input("X")[0]).shape
-    if axis < 0:
-        axis = len(input_shape) + axis
     x = g.get_node(op.input("X")[0])
-    m = _op.max(x, axis, keepdims=True)
-    e = _op.exp(x - m)
-    out = e / _op.sum(e, axis, keepdims=True)
+    axis = op.attr("axis")
+    # input_shape = block.var(op.input("X")[0]).shape
+    # if axis < 0:
+    #     axis = len(input_shape) + axis
+    # m = _op.max(x, axis, keepdims=True)
+    # e = _op.exp(x - m)
+    # out = e / _op.sum(e, axis, keepdims=True)
+    # out = _op.cast(out,"float32")
+
+    out = _op.nn.softmax(x, axis)
     g.add_node(op.output("Out")[0], out)
 
 
@@ -3004,10 +3009,12 @@ class GraphProto:
         self.params = {}
         variables = program.global_block().vars
         for name in variables:
-            var = program.global_block().var(name)
             if name.endswith("feed") or name.endswith("fetch"):
                 continue
-            # This judgment will cause the PaddleInference model exported by PaddleSlim to skip some operators that need to be read in NHWC format.
+            # This judgment will cause the PaddleInference model
+            # exported by PaddleSlim to skip some operators
+            # that need to be read in NHWC format.
+            # var = program.global_block().var(name)
             # if not var.persistable:
             #     continue
             if isinstance(scope, dict):
