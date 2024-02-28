@@ -96,6 +96,21 @@
  *      y(N,K,P,Q)               not_equal
  *
  *
+ * For strides != 1:
+ * Only input checksum is replaced since no contiguous ones array can describe the operation
+ * Algorithmic description to find all inputs I_csr multiplied with a specific weight(w_csr) ∈ C,S,R
+ * This 2 seperate slices are actually made in the pass with one strided_slice operation even
+ * tough they are arithmetically 2 different operation
+ *
+ *  For each c in C:
+ *    Slice input I to only include elements from channel c (I_c)
+ *    For each s,r in S,R:
+ *      (1) strided_slice(!=1) I_c into elements multiplied with w_csr (totally SxR slices)
+ *      (2) Sum up all elements in sub-tensor (1)
+ *  Concatenate and reshape to C,S,R
+ *
+ *  Thus resulting into CxSxR strided slices
+ *
  */
 
 /*
@@ -160,7 +175,7 @@ class Conv2dVisitor : private ExprVisitor {
   }
 
     bool supportedConv2Dparam(const Conv2DAttrs* arg){
-    return ((Downcast<IntImm>(arg->strides[0])->value  == 1) && (Downcast<IntImm>(arg->strides[1])->value  == 1) &&
+    return (
             (Downcast<IntImm>(arg->dilation[0])->value == 1) && (Downcast<IntImm>(arg->dilation[1])->value == 1) &&
             (Downcast<IntImm>(arg->padding[0])->value  == 0) && (Downcast<IntImm>(arg->padding[1])->value  == 0));
   }
@@ -480,11 +495,156 @@ IRModule Extend2DConv(const IRModule& mod) {
  *                /                                                /
  *               /                                                /
 */      
+        Call batchwise_sum_input;
         auto reduce_batch_axis_attrs = make_object<ReduceAttrs>();
         reduce_batch_axis_attrs->keepdims = true;  // 4D -> 4D We want a Conv2D (tensor*tensor) tensor = (1,C,S,R)
-        reduce_batch_axis_attrs->exclude  = false;
-        reduce_batch_axis_attrs->axis = {data_dim_pos.pos_N}; //Get the N-th dimension in input layout
-        Call batchwise_sum_input(sum_op, {depthwise_conv}, Attrs(reduce_batch_axis_attrs));  // use batch as axis for depthwise sum
+        reduce_batch_axis_attrs->exclude = false;
+        reduce_batch_axis_attrs->axis = {
+            data_dim_pos.pos_N};  // Get the N-th dimension in input layout
+
+        if ((Downcast<IntImm>(orig_conv_attr->strides[0])->value == 1) &&
+            (Downcast<IntImm>(orig_conv_attr->strides[1])->value == 1)) {
+          /// Implement depth-wise conv with conv2d Operation (Group arg splits input into C
+          /// seperate batches)
+          Shape one_tensor = infer_output_shape_conv2d(
+              origin_conv2d, orig_conv_attr, data_dim_pos,
+              weight_dim_pos);  // C1PQ for NCHW, but supports also other layouts
+
+          tvm::runtime::ObjectPtr<tvm::relay::Conv2DAttrs> depthwise_conv_attr;
+          if (static_cast<std::string>(orig_conv_attr->data_layout) == "NCHW") {  //->OIHW
+            depthwise_conv_attr = create_depthwise_conv_attr(
+                orig_conv_attr, one_tensor[2], one_tensor[3], Downcast<IntImm>(one_tensor[0]));
+          } else if (static_cast<std::string>(orig_conv_attr->data_layout) == "NHWC") {  //->HWIO
+            depthwise_conv_attr = create_depthwise_conv_attr(
+                orig_conv_attr, one_tensor[0], one_tensor[1], Downcast<IntImm>(one_tensor[3]));
+          }
+          auto depthwise_kernel = Ones(one_tensor, input_tensor->dtype);
+
+          Call depthwise_conv(conv2d_op, {input, depthwise_kernel}, Attrs{depthwise_conv_attr});
+
+          batchwise_sum_input = Call(sum_op, {depthwise_conv}, Attrs(reduce_batch_axis_attrs));  // use batch as axis for depthwise sum
+        }else {
+          // only works for data_layout="NCHW", kernel_layout="OIHW"
+          // TODO: data_layout="NHWC", kernel_layout="HWIO"
+
+          reduce_batch_axis_attrs->keepdims = true;
+          Call batchsum_input(sum_op, {input}, Attrs(reduce_batch_axis_attrs));  // use batch as axis for depthwise sum
+
+          // Channel slice attributes (uses already 3D array)
+
+          int weight_channels = static_cast<int>(Downcast<IntImm>(weight_tensor->shape[weight_dim_pos.pos_I])->value);
+          int weight_height   = static_cast<int>(Downcast<IntImm>(weight_tensor->shape[weight_dim_pos.pos_H])->value);
+          int input_height    = static_cast<int>(Downcast<IntImm>(input_tensor->shape[data_dim_pos.pos_H])->value);
+          int weight_width    = static_cast<int>(Downcast<IntImm>(weight_tensor->shape[weight_dim_pos.pos_W])->value);
+          int input_width     = static_cast<int>(Downcast<IntImm>(input_tensor->shape[data_dim_pos.pos_W])->value);
+
+
+          ///attributes for input checksum dimension concatination (N already summed up and reduced)
+
+          //For channel=pos_c
+          auto channel_concat_attr = make_object<ConcatenateAttrs>();
+          if (orig_conv_attr->data_layout == "NCHW") {
+            channel_concat_attr->axis = 1;
+          } else {  // if(orig_conv_attr->data_layout == "NHWC"){
+            channel_concat_attr->axis = 3;
+          }
+
+          //For width=pos_x
+          auto width_concat_attr = make_object<ConcatenateAttrs>();
+          if (orig_conv_attr->data_layout == "NCHW") {
+            width_concat_attr->axis = 3;
+          } else {  // if(orig_conv_attr->data_layout == "NHWC"){
+            width_concat_attr->axis = 2;
+          }
+
+          //For height=pos_y
+          auto height_concat_attr = make_object<ConcatenateAttrs>();
+          if (orig_conv_attr->data_layout == "NCHW") {
+            height_concat_attr->axis = 2;
+          } else {  // if(orig_conv_attr->data_layout == "NHWC"){
+            height_concat_attr->axis = 1;
+          }
+
+
+          // sum up strided_sliced sub_tensor (3-D with one Channel) for H/W dimension n not there
+          auto sum_up_sliced_tensor_attr = make_object<ReduceAttrs>();
+          sum_up_sliced_tensor_attr->keepdims = true;
+          sum_up_sliced_tensor_attr->exclude = false;
+
+          if (orig_conv_attr->data_layout == "NCHW") {
+            sum_up_sliced_tensor_attr->axis = {2, 3};
+          } else {  // if(orig_conv_attr->data_layout == "NHWC"){
+            sum_up_sliced_tensor_attr->axis = {1, 2};
+          }
+
+          // original size is one array per channel with w*h elementes
+          Array<Expr> channel_array;
+          for (size_t pos_c = 0; pos_c < weight_channels; pos_c++) {
+            Array<Expr> height_array;
+            for (size_t pos_y = 0; pos_y < weight_height; pos_y++) {
+              Array<Expr> width_array;
+              for (size_t pos_x = 0; pos_x < weight_width; pos_x++) {
+                auto slice_attr = make_object<StridedSliceAttrs>();
+
+                slice_attr->axes = {Integer(0), Integer(1), Integer(2), Integer(3)};
+                slice_attr->slice_mode = "end";
+
+                if (orig_conv_attr->data_layout == "NCHW") {
+                  slice_attr->strides = {
+                      Integer(1),
+                      Integer(1),
+                      Integer(Downcast<IntImm>(orig_conv_attr->strides[0])->value),
+                      Integer(Downcast<IntImm>(orig_conv_attr->strides[1])->value)};
+                } else {  // if(orig_conv_attr->data_layout == "NHWC"){
+                  slice_attr->strides = {
+                      Integer(1),
+                      Integer(Downcast<IntImm>(orig_conv_attr->strides[0])->value),
+                      Integer(Downcast<IntImm>(orig_conv_attr->strides[1])->value),
+                      Integer(1),
+                  };
+                }
+
+                // stride end = inclusive
+                if (orig_conv_attr->data_layout == "NCHW") {
+                  slice_attr->begin = {Integer(0), Integer(pos_c), Integer(pos_y), Integer(pos_x)};
+                } else {  // if(orig_conv_attr->data_layout == "NHWC"){
+                  slice_attr->begin = {Integer(0), Integer(pos_y), Integer(pos_x), Integer(pos_c)};
+                }
+
+                // stride end = exclusive
+                if (orig_conv_attr->data_layout == "NCHW") {
+                  slice_attr->end = {
+                    Integer(1),
+                    Integer(pos_c + 1),
+                    Integer(input_height - (weight_height - pos_y) + 1),
+                    Integer(input_width - (weight_width - pos_x) + 1),
+                  };
+                } else {  // if(orig_conv_attr->data_layout == "NHWC"){
+                  slice_attr->end = {
+                    Integer(1),
+                    Integer(input_height - (weight_height - pos_y) + 1),
+                    Integer(input_width - (weight_width - pos_x) + 1),
+                    Integer(pos_c + 1),
+                  };
+                }
+
+                Call slice(strided_slice_op, {batchsum_input}, Attrs{slice_attr});
+                Call slice_32bit(cast_op, {slice}, Attrs(cast_attr_32bit));
+                Call weight_impact(sum_op, {slice_32bit}, Attrs(sum_up_sliced_tensor_attr));
+                width_array.push_back(weight_impact);
+              }
+              Tuple width_tuple(width_array);
+              auto width_concat = Call(concat_op, {width_tuple}, Attrs(width_concat_attr));
+              height_array.push_back(width_concat);
+            }
+            Tuple height_tuple(height_array);
+            auto height_concat = Call(concat_op, {height_tuple}, Attrs(height_concat_attr));
+            channel_array.push_back(height_concat);
+          }
+          Tuple channel_tuple(channel_array);
+          batchwise_sum_input = Call(concat_op, {channel_tuple}, Attrs(channel_concat_attr));
+        }
+
         Call filterwise_sum_input;
         bool depth = IsDepthwiseConv(origin_conv2d, orig_conv_attr, orig_conv_attr->kernel_layout);
 
