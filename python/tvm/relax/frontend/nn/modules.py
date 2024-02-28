@@ -343,7 +343,7 @@ class Conv3D(Module):
         Returns
         -------
         ret : Tensor
-            The output tensor for the conv2d layer.
+            The output tensor for the conv3d layer.
         """
         return op.conv3d(
             x,
