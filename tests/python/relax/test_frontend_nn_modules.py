@@ -257,11 +257,13 @@ def test_conv3d():
         R.func_attr({"num_input": 2})
         with R.dataflow():
             lv1: R.Tensor((1, 32, 30, 30, 30), dtype="float32") = R.nn.conv3d(x, weight)
-            lv2: R.Tensor((1, 32, 1, 1, 1), dtype="float32") = R.reshape(bias, R.shape([1, 32, 1, 1, 1]))
-            conv3d: R.Tensor((1, 32, 30, 30, 30), dtype="float32") = R.add(lv1, lv2)
-            gv1: R.Tuple(R.Tensor((1, 32, 30, 30, 30), dtype="float32"), R.Tuple(R.Object)) = conv3d, (
-                _io,
+            lv2: R.Tensor((1, 32, 1, 1, 1), dtype="float32") = R.reshape(
+                bias, R.shape([1, 32, 1, 1, 1])
             )
+            conv3d: R.Tensor((1, 32, 30, 30, 30), dtype="float32") = R.add(lv1, lv2)
+            gv1: R.Tuple(
+                R.Tensor((1, 32, 30, 30, 30), dtype="float32"), R.Tuple(R.Object)
+            ) = conv3d, (_io,)
             R.output(gv1)
         return gv1
 

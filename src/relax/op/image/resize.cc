@@ -123,7 +123,8 @@ InferLayoutOutput InferLayoutResize2d(const Call& call,
     data_layout = GetLayoutDecision(var_layout_map, call->args[0]);
     new_attrs->layout = TransposeLike(attrs->layout, InitialLayout(4), data_layout->layout).name();
   }
-  return InferLayoutOutput({data_layout, InitialNLayout(call->args[1])}, {data_layout}, Attrs(new_attrs));
+  return InferLayoutOutput({data_layout, InitialNLayout(call->args[1])}, {data_layout},
+                           Attrs(new_attrs));
 }
 
 TVM_REGISTER_OP("relax.image.resize2d")
