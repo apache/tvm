@@ -1824,17 +1824,20 @@ def convert_dequantize_linear(g, op, block):
 
     data_node_name = op.input("X")[0]
     data_node = g.get_node(data_node_name)
-    # print(f"data_node_name is {data_node_name};data_node is {data_node}")
 
     # paddle_scale = tvm_scale * 127
     paddle_quantize_scale = g.get_params(op.input("Scale")[0]).asnumpy()
-    tvm_quantize_scale = paddle_quantize_scale / 127
+    tvm_quantize_scale = paddle_quantize_scale / 127.0
 
     tvm_quantize_zp = g.get_params(op.input("ZeroPoint")[0]).asnumpy()
 
     tvm_quantize_axis = op.attr("quant_axis")
     if tvm_quantize_axis == -1:
         tvm_quantize_axis = 0
+
+    if len(infer_shape(data_node)) < 2:
+        tvm_quantize_axis = 0
+
     out = _qnn.op.dequantize(
         data=data_node,
         input_scale=_op.const(tvm_quantize_scale, "float32"),
@@ -1849,16 +1852,17 @@ def convert_quantize_linear(g, op, block):
 
     data_node_name = op.input("X")[0]
     data_node = g.get_node(data_node_name)
-    # print(f"data_node_name is {data_node_name};data_node is {data_node}")
 
     # paddle_scale = tvm_scale * 127
     paddle_quantize_scale = g.get_params(op.input("Scale")[0]).asnumpy()
-    tvm_quantize_scale = paddle_quantize_scale / 127
+    tvm_quantize_scale = paddle_quantize_scale / 127.0
 
     tvm_quantize_zp = g.get_params(op.input("ZeroPoint")[0]).asnumpy()
     tvm_quantize_axis = op.attr("quant_axis")
+
     if tvm_quantize_axis == -1:
         tvm_quantize_axis = 0
+
     out = _qnn.op.quantize(
         data=data_node,
         output_scale=_op.const(tvm_quantize_scale, "float32"),
