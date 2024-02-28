@@ -1827,10 +1827,10 @@ def convert_dequantize_linear(g, op, block):
     # print(f"data_node_name is {data_node_name};data_node is {data_node}")
 
     # paddle_scale = tvm_scale * 127
-    paddle_quantize_scale = g.get_params(op.input("Scale")[0]).asnumpy()[0]
+    paddle_quantize_scale = g.get_params(op.input("Scale")[0]).asnumpy()
     tvm_quantize_scale = paddle_quantize_scale / 127
 
-    tvm_quantize_zp = g.get_params(op.input("ZeroPoint")[0]).asnumpy()[0]
+    tvm_quantize_zp = g.get_params(op.input("ZeroPoint")[0]).asnumpy()
 
     tvm_quantize_axis = op.attr("quant_axis")
     if tvm_quantize_axis == -1:
@@ -1852,10 +1852,10 @@ def convert_quantize_linear(g, op, block):
     # print(f"data_node_name is {data_node_name};data_node is {data_node}")
 
     # paddle_scale = tvm_scale * 127
-    paddle_quantize_scale = g.get_params(op.input("Scale")[0]).asnumpy()[0]
+    paddle_quantize_scale = g.get_params(op.input("Scale")[0]).asnumpy()
     tvm_quantize_scale = paddle_quantize_scale / 127
 
-    tvm_quantize_zp = g.get_params(op.input("ZeroPoint")[0]).asnumpy()[0]
+    tvm_quantize_zp = g.get_params(op.input("ZeroPoint")[0]).asnumpy()
     tvm_quantize_axis = op.attr("quant_axis")
     if tvm_quantize_axis == -1:
         tvm_quantize_axis = 0
@@ -2450,7 +2450,6 @@ def convert_softmax(g, op, block):
     m = _op.max(x, axis, keepdims=True)
     e = _op.exp(x - m)
     out = e / _op.sum(e, axis, keepdims=True)
-    # out = _op.nn.softmax(x, axis)
     g.add_node(op.output("Out")[0], out)
 
 
