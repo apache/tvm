@@ -895,7 +895,7 @@ class GEMV(GPUScheduleRule):
         if is_gemv(sch, block_info) is None:
             return None
 
-        if "dequantize_info" in func.attrs:
+        if func.attrs is not None and "dequantize_info" in func.attrs:
             dequantize_rule = GEMVWithDequantizeInfo()
             return dequantize_rule.apply_config(func, config)
 

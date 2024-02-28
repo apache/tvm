@@ -204,8 +204,14 @@ def find_var_from_func(func, var: str):
         for i in buffer.shape:
             if isinstance(i, tir.Var) and i.name == var:
                 return i
-    raise ValueError(f"Cannot find var {var} from func {func}")
+    return None
 
+def check_func_with_dynamic(func):
+    for buffer in func.buffer_map.values():
+        for i in buffer.shape:
+            if isinstance(i, tir.Var):
+                return True
+    return False
 
 def _assert_gpu_target(target: Target):
     if "gpu" not in target.keys:

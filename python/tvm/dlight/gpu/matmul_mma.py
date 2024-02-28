@@ -25,6 +25,7 @@ from ..base.roller.rasterization import NoRasterization
 from ..base import analysis
 from .base import GPUScheduleRule
 from .matmul_mma_dequantize import MatmulTensorizationMMAWithDequantizeInfo
+from .matmul_wmma import MatmulTensorizationWMMA
 from .matmul_analysis import (
     auto_inline_consumer_chain,
     is_transpose_block,
@@ -140,7 +141,8 @@ class MatmulTensorizationMMA(GPUScheduleRule):
         # thread_x == warp_size
         thread_z, thread_y, thread_x = 2, 2, 32
 
-        vector_size = 8
+        # 4 for the sake of inline dequantization
+        vector_size = 4
         unroll_depth = 4
 
         # Step 1. Normalize generic matmul to C[S, I, J] += A[S, I, K] * B[S, J, K]
@@ -210,7 +212,7 @@ class MatmulTensorizationMMA(GPUScheduleRule):
             block_read_smem = sch.cache_read(block_outer, read_buffer_idx, "shared.dyn")
             sch.compute_at(block_read_smem, k0)
             auto_inline_producers(
-                sch, block_read_smem, [dequantize_block] if dequantize_block else []
+                sch, block_read_smem
             )
 
             # For transposed read, we directly load transposed tensor from global
@@ -333,17 +335,6 @@ class MatmulTensorizationMMA(GPUScheduleRule):
         sch.annotate(k0, ann_key="software_pipeline_order", ann_val=[0, 1, 2])
         sch.annotate(k0, ann_key="software_pipeline_async_stages", ann_val=[0])
 
-        # Step 7. Handle dequantize block
-        # Now we just add a dummy kernel to compute dequantize
-        if dequantize_block is not None:
-            auto_inline_producers(sch, dequantize_block)
-            loops = sch.get_loops(dequantize_block)
-            loop = sch.fuse(*loops)
-            v0, v1, v2, v3 = sch.split(loop, [None, 128, 2, 4])
-            sch.bind(v0, "blockIdx.x")
-            sch.bind(v1, "threadIdx.x")
-            sch.unroll(v2)
-            sch.vectorize(v3)
         return sch
 
     def apply_config(  # pylint: disable=too-many-locals,missing-docstring
@@ -351,7 +342,7 @@ class MatmulTensorizationMMA(GPUScheduleRule):
         func: tir.PrimFunc,
         config,
     ) -> Optional[tir.Schedule]:
-        if "dequantize_info" in func.attrs:
+        if func.attrs is not None and "dequantize_info" in func.attrs:
             dequantize_rule = MatmulTensorizationMMAWithDequantizeInfo()
             return dequantize_rule.apply_config(func, config)
 
@@ -372,10 +363,12 @@ class MatmulTensorizationMMA(GPUScheduleRule):
 
         main_block = reduction_blocks[0]
         output_blocks = [sch.get(block) for block in sch.get_output_blocks(root_block)]
-        def check_require_cache(func:tir.PrimFunc):
-            conditions:List[bool] = []
+
+        def check_require_cache(func: tir.PrimFunc):
+            conditions: List[bool] = []
+
             # check if has dynamic symbolic
-            def check_has_dynamic(func:tir.PrimFunc):
+            def check_has_dynamic(func: tir.PrimFunc):
                 for param in func.params:
                     if param not in func.buffer_map:
                         continue
@@ -384,10 +377,12 @@ class MatmulTensorizationMMA(GPUScheduleRule):
                         if isinstance(i, tir.Var):
                             return True
                 return False
+
             conditions.append(check_has_dynamic(func))
             # check if has post process
             conditions.append(sch.get(main_block) not in output_blocks)
             return any(conditions)
+
         cache_write_required = check_require_cache(func)
 
         shared_scope = "shared"
@@ -417,7 +412,7 @@ class MatmulTensorizationMMA(GPUScheduleRule):
         stage = config.pipeline_stage
         use_async = config.use_async
         chunk = config.rstep[0]
-        
+
         micro_size_x, micro_size_y, micro_size_k = intrin_group["micro_kernel"]
 
         # get the axis for layout transform
@@ -503,9 +498,10 @@ class MatmulTensorizationMMA(GPUScheduleRule):
             # TODO(lei): this is a trick for rasterization implementation
             # is not optimal. (5% performance loss)
             # require a solution for general block rasterization
-            factor = 4  # should be divisible by block_idx
+            factor = 8  # should be divisible by block_idx
             if sch.get(block_idx).extent.value % factor == 0:
                 block_k, block_idx = sch.split(block_idx, factors=[None, factor])
+                sch.reorder(block_k, block_idy, block_idx)
                 sch.bind(block_k, "blockIdx.z")
         else:
             sch.bind(batch, "blockIdx.z")

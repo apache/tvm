@@ -520,15 +520,19 @@ bool HasReshapePattern(const PrimFunc& func) {
   if (func->params.size() < 2) {
     return false;
   }
+  // To detect the reshape pattern, we require each For to have
+  // either another For or a BlockRealize as body.
+  if(!func->body->IsInstance<BlockRealizeNode>()){
+    return false;
+  }
+
   Optional<Buffer> src_buffer = func->buffer_map.Get(func->params.front());
   Optional<Buffer> dst_buffer = func->buffer_map.Get(func->params.back());
   if (!(src_buffer.defined() && dst_buffer.defined())) {
     return false;
   }
 
-  // To detect the reshape pattern, we require each For to have
-  // either another For or a BlockRealize as body.
-  ICHECK(func->body->IsInstance<BlockRealizeNode>());
+  
   return ReshapeDetector::Detect(src_buffer.value(), dst_buffer.value(), func->body);
 }
 

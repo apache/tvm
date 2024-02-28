@@ -603,7 +603,16 @@ std::string PrintLoadMatrixAssembly(bool trans, int num, const std::string& type
   CHECK(data_type == ptx::DataType::kBit16) << "ldmatrix only accept matrix with type .b16.";
   std::string asm_code = R"(
   {
-    unsigned int addr = cast_smem_ptr_to_int({smem_addr});
+    unsigned int addr;
+#if TVM_ENBALE_EFFICIENT_SMEM_PTR_CAST
+    addr = static_cast<unsigned int>(__cvta_generic_to_shared((void *)({smem_addr})));
+#else
+    __asm__ __volatile__(
+      "{ .reg .u64 addr; cvta.to.shared.u64 addr, %1; cvt.u32.u64 %0, addr; }\n"
+      : "=r"(addr)
+      : "l"((void *)({smem_addr}))
+    );
+#endif
     __asm__ __volatile__(
       "ldmatrix.sync.aligned{.shape}{.num}{.trans}{.ss}{.type}"
       "{templates};\n"
@@ -633,7 +642,16 @@ std::string PrintCpAsyncAssembly(const std::string& shared_ptr,
                                  const std::string& global_elem_offset, const std::string& bytes) {
   std::string asm_code = R"(
   {
-    unsigned int addr = cast_smem_ptr_to_int({smem_addr});
+        unsigned int addr;
+#if TVM_ENBALE_EFFICIENT_SMEM_PTR_CAST
+    addr = static_cast<unsigned int>(__cvta_generic_to_shared((void *)({smem_addr})));
+#else
+    __asm__ __volatile__(
+      "{ .reg .u64 addr; cvta.to.shared.u64 addr, %1; cvt.u32.u64 %0, addr; }\n"
+      : "=r"(addr)
+      : "l"((void *)({smem_addr}))
+    );
+#endif
     __asm__ __volatile__(
       #if TVM_ENABLE_L2_PREFETCH
         "cp.async.{cg_or_ca}.shared.global.L2::128B [%0], [%1], %2;"
@@ -664,7 +682,16 @@ std::string PrintPredicatedCpAsyncAssembly(const std::string& shared_ptr,
       << "Only support 16, 12, 8, 4, 2, 1 bytes for predicated cp.async";
   std::string predicated_asm_code = R"(
   {
-    unsigned int addr = cast_smem_ptr_to_int({smem_addr});
+        unsigned int addr;
+#if TVM_ENBALE_EFFICIENT_SMEM_PTR_CAST
+    addr = static_cast<unsigned int>(__cvta_generic_to_shared((void *)({smem_addr})));
+#else
+    __asm__ __volatile__(
+      "{ .reg .u64 addr; cvta.to.shared.u64 addr, %1; cvt.u32.u64 %0, addr; }\n"
+      : "=r"(addr)
+      : "l"((void *)({smem_addr}))
+    );
+#endif
     int pred_guard = (int){pred_guard};
     __asm__ __volatile__(
         "{  .reg .pred p;"

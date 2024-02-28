@@ -18,7 +18,7 @@
 Apply ScheduleRules onto an IRModule to generate default schedules without tuning,
 or a space for MetaSchedule tuning
 """
-from typing import List, Optional
+from typing import List, Optional, Dict
 import os
 import shutil
 import tempfile
@@ -26,16 +26,15 @@ import os.path as osp
 import tvm
 from tvm import tir
 from tvm import meta_schedule as ms
-from tvm import dlight as dl
 from tvm.ir import IRModule
 from tvm.ir.transform import PassContext, module_pass
-from tvm.meta_schedule.database import TuningRecord, Workload
 from tvm.target import Target
 from .roller.policy import DefaultPolicy, TensorCorePolicy
 from .roller.arch import CUDA
 from .schedule_rule import ScheduleRule
 from ..gpu.matmul_analysis import get_tensorized_func_and_tags
-from .utils import apply_and_build
+from ..base.analysis import check_func_with_dynamic
+from .utils import apply_and_build, fast_tune, fast_tune_with_dynamic_range
 
 
 def _is_scheduled(func: tir.PrimFunc) -> bool:
@@ -91,6 +90,7 @@ class ApplyFastTuning:  # pylint: disable=too-few-public-methods
         target: Optional[Target] = None,
         parallel_build: bool = True,
         meta_database_dir: str = None,
+        dynamic_range: Dict[str, List[int]] = {},
     ):
         """Construct a new ApplyFastTuning pass.
 
@@ -98,11 +98,14 @@ class ApplyFastTuning:  # pylint: disable=too-few-public-methods
         ----------
         meta_database : str
             The path of database.
+        dynamic_range : Dict[str, List[int]]
+            Use for generate kernel based on dynamic range.
         """
         self.topk = topk
         self.target = Target.current() if target is None else target
         self.parallel_build = parallel_build
         self.meta_database_dir = meta_database_dir
+        self.dynamic_range = dynamic_range
         self.temp_dir = tempfile.TemporaryDirectory()
         print(f"[FastDlight] Using meta database dir {self.temp_dir}")
         path_workload = osp.join(self.temp_dir.name, "database_workload.json")
@@ -121,6 +124,9 @@ class ApplyFastTuning:  # pylint: disable=too-few-public-methods
 
         for g_var, func in mod.functions_items():
             if isinstance(func, tir.PrimFunc) and not _is_scheduled(func):
+                # if g_var.name_hint not in ["extend_te"]:
+                #     continue
+                print(f"[FastDlight] Start to apply fast tuning for {g_var}")
                 normalize_mod_func_ = tvm._ffi.get_global_func("tvm.meta_schedule.normalize_mod")
                 _normalized_func_mod = normalize_mod_func_(func)
 
@@ -130,31 +136,45 @@ class ApplyFastTuning:  # pylint: disable=too-few-public-methods
                         target,
                         g_var.name_hint,
                     )
-                    trace = tuning_record.trace
-                    sch = tvm.tir.Schedule(func)
-                    trace.apply_to_schedule(sch, remove_postproc=False)
-                    print(f"[FastDlight] Find Cache for {g_var}")
-                    updated_functions[g_var] = sch.mod["main"].with_attr("tir.is_scheduled", 1)
-                    continue
+                    if tuning_record:
+                        trace = tuning_record.trace
+                        sch = tvm.tir.Schedule(func)
+                        trace.apply_to_schedule(sch, remove_postproc=False)
+                        print(f"[FastDlight] Find Cache for {g_var}")
+                        updated_functions[g_var] = sch.mod["main"].with_attr("tir.is_scheduled", 1)
+                        continue
 
-                arch = CUDA(target)
-                print(f"[FastDlight] Scheduling {g_var}")
-
-                policy = DefaultPolicy(func=func, arch=arch)
-                try:
-                    _tensorized_func, tags = get_tensorized_func_and_tags(func, arch.target)
-                except:
-                    tags = None
-                if tags:
-                    print(f"[FastDlight] Enabling tensorcore policy for {g_var}")
-                    policy = TensorCorePolicy(func=_tensorized_func, arch=arch, tags=tags)
-
-                configs = policy.emit_config(self.topk)
-
-                if configs:
-                    _, best = apply_and_build(
-                        func=func, configs=configs, arch=arch, parallel_build=self.parallel_build
-                    )
+                if check_func_with_dynamic(func):
+                    try:
+                        dispatch_mod = fast_tune_with_dynamic_range(
+                            func,
+                            target=target,
+                            topk=self.topk,
+                            parallel_build=self.parallel_build,
+                            global_symbol=g_var.name_hint,
+                            dynamic_range=self.dynamic_range,
+                        )
+                    except:
+                        continue
+                    if dispatch_mod:
+                        for g, f in dispatch_mod.functions_items():
+                            if g.name_hint == g_var.name_hint:
+                                # avoid duplicated global symbol
+                                updated_functions[g_var] = f.without_attr(
+                                    "global_symbol"
+                                ).with_attr("tir.is_scheduled", 1)
+                            else:
+                                updated_functions[g] = f.with_attr("tir.is_scheduled", 1)
+                        # cannot reuse meta database as it canot be recorvered from the trace
+                        workload = self.cache_meta_database.commit_workload(_normalized_func_mod)
+                else:
+                    # otherwise is static shape analysis
+                    try:
+                        _, best = fast_tune(
+                            func, target=target, topk=self.topk, parallel_build=self.parallel_build
+                        )
+                    except:
+                        continue
                     if best is not None:
                         updated_functions[g_var] = best.sch.mod["main"].with_attr(
                             "tir.is_scheduled", 1
@@ -186,6 +206,7 @@ class ApplyFastTuning:  # pylint: disable=too-few-public-methods
     def __del__(self):
         # clean up the temp cache
         self.temp_dir.cleanup()
+
 
 def _apply_rules(
     func: tir.PrimFunc,

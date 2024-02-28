@@ -24,7 +24,7 @@ from tvm import tir, IRModule
 from tvm.runtime import Module
 from tvm.tir import Schedule
 from tvm import dlight as dl
-from .analysis import get_root_block, get_reduction_blocks
+from .analysis import get_root_block, get_reduction_blocks, find_var_from_func
 from .roller.arch import Arch
 from tvm.dlight.base.roller.arch import CUDA
 from tvm.dlight.base.roller.policy import TensorCorePolicy, DefaultPolicy
@@ -169,7 +169,8 @@ def apply_and_build_parallel(func, configs, arch, num_repeats=5, max_workers=10)
             schduler.submit(lambda f, c: _apply_config(f, c), func, config) for config in configs
         }
         for future in as_completed(futures):
-            _sched.append(future.result())
+            if future.result() is not None:
+                _sched.append(future.result())
 
     builder = PopenPoolExecutor(max_workers=max_workers)
 
@@ -267,22 +268,42 @@ def fast_tune(
 ):
     if target.kind.name != "cuda":
         print("[FastDlight] Only support CUDA target")
-        return func
-    if "opt_shapes" in func.attrs:
+        return None, None
+    specilized_func = func
+    if func.attrs is not None and "opt_shapes" in func.attrs:
+        opt_shapes = func.attrs["opt_shapes"]
         # should be int value
-        if not all([isinstance(v.value, int) for v in func.attrs["opt_shapes"].values()]):
+        if not all([isinstance(v.value, int) for v in opt_shapes.values()]):
             print("[FastDlight] The opt_shapes should be int value")
-            return func
+            return None, None
+        # currently only support one dynmaic range
+        if len(opt_shapes) > 1:
+            print("[FastDlight] Currently only support one dynamic range")
+            return None, None
+
+        for buffer in func.buffer_map.values():
+            for axis in buffer.shape:
+                if isinstance(axis, tvm.tir.Var):
+                    if axis.name not in opt_shapes:
+                        raise NotImplementedError(
+                            "Currently do not support fast tune with none-dynamic range set"
+                        )
+        if opt_shapes:
+            for name, shape in opt_shapes.items():
+                var = find_var_from_func(func, name)
+                specilized_func = func.specialize({var: shape.astype(var.dtype)}).with_attr(
+                    "is_specialized"
+                )
 
     arch = CUDA(target)
 
     policy = DefaultPolicy(func=func, arch=arch)
     try:
-        func, tags = get_tensorized_func_and_tags(func, arch.target)
+        specilized_func, tags = get_tensorized_func_and_tags(specilized_func, arch.target)
     except:
         tags = None
     if tags:
-        policy = TensorCorePolicy(func=func, arch=arch, tags=tags)
+        policy = TensorCorePolicy(func=specilized_func, arch=arch, tags=tags)
 
     configs = policy.emit_config(topk)
     cpresults, best = apply_and_build(func, configs, arch, parallel_build=parallel_build)
@@ -312,33 +333,11 @@ def collect_buffers_to_declare(func):
     return params, buffers_to_declare
 
 
-# always use the first function as the base
-def collect_buffers_to_declare(func):
-    params = []
-    # collect dynamic symbolic
-    dyn_symbolic: List[tvm.tir.Var] = []
-    buffers_to_declare = []
-    for param in func.params:
-        if param not in func.buffer_map:
-            continue
-        buffer = func.buffer_map[param]
-        for axis in buffer.shape:
-            if isinstance(axis, tvm.tir.Var) and axis not in dyn_symbolic:
-                dyn_symbolic.append(axis)
-        buffers_to_declare.append(buffer)
-        params.append(buffer.data)
-
-    # the args should be buffers + dynamic symbolic
-    params += list(dyn_symbolic)
-
-    return params, buffers_to_declare
-
-
-def refactor_specialized_func(func, params, buffers_to_declare):
+def refactor_specialized_func(g_var, func, params, buffers_to_declare):
     body = func.body
     attrs = func.attrs
-    global_symbol = func.attrs["global_symbol"]
-    if "opt_shapes" in func.attrs:
+    global_symbol = g_var
+    if func.attrs is not None and "opt_shapes" in func.attrs:
         opt_shapes = func.attrs["opt_shapes"]
 
     def serialize_name(opt_shapes: Dict):
@@ -349,14 +348,15 @@ def refactor_specialized_func(func, params, buffers_to_declare):
     for buf in buffers_to_declare:
         body = tvm.tir.DeclBuffer(buf, body=body)
 
+    # devide func must be private
     device_func = tvm.tir.PrimFunc(params, body, ret_type, attrs=attrs).without_attr(
         "global_symbol"
     )
     return global_symbol, device_func
 
 
-def create_dispatch_func(func: tir.PrimFunc, refactored_funcs: List[str]):
-    global_symbol = func.attrs["global_symbol"]
+def create_dispatch_func(g_var: str, func: tir.PrimFunc, refactored_funcs: List[str]):
+    global_symbol = g_var
     attrs = func.attrs
     buffer_map = func.buffer_map
     params = func.params
@@ -406,38 +406,57 @@ def create_dispatch_func(func: tir.PrimFunc, refactored_funcs: List[str]):
 
 
 def create_dispatch_mod(
-    original_func: tir.PrimFunc, specialized_funcs: List[tir.PrimFunc]
+    g_var: str, original_func: tir.PrimFunc, specialized_funcs: List[tir.PrimFunc]
 ) -> IRModule:
     dispatch_mod: IRModule = tvm.IRModule()
     g_var_supply = GlobalVarSupply(dispatch_mod)
     refactored_funcs = []
     for func in specialized_funcs:
         params, buffers_to_declare = collect_buffers_to_declare(func)
-        global_symbol, device_func = refactor_specialized_func(func, params, buffers_to_declare)
+        global_symbol, device_func = refactor_specialized_func(
+            g_var, func, params, buffers_to_declare
+        )
         global_symbol = g_var_supply.fresh_global(global_symbol, add_prefix=False)
         dispatch_mod[global_symbol] = device_func
         refactored_funcs.append((global_symbol, device_func))
-    dispatch_func = create_dispatch_func(original_func, refactored_funcs=refactored_funcs)
-    print(dispatch_func)
+    dispatch_func = create_dispatch_func(g_var, original_func, refactored_funcs=refactored_funcs)
     dispatch_mod.update(tvm.IRModule.from_expr(dispatch_func))
     return dispatch_mod
 
 
 def fast_tune_with_dynamic_range(
-    func: tir.PrimFunc, target: tvm.target.Target, topk: int = 10, parallel_build: bool = True
+    func: tir.PrimFunc,
+    target: tvm.target.Target,
+    topk: int = 10,
+    parallel_build: bool = True,
+    global_symbol: Optional[str] = None,
+    dynamic_range: Dict[str, List[int]] = {},
 ) -> IRModule:
     if target.kind.name != "cuda":
         print("[FastDlight] Only support CUDA target")
-        return func
+        return None
+    if not global_symbol:
+        global_symbol = func.attrs["global_symbol"]
 
-    if "opt_shapes" not in func.attrs:
+    # set opt_shapes for the primfunc with dynamc symbolic
+    opt_shapes: Dict[str, List[int]] = {}
+    for buffer in func.buffer_map.values():
+        for axis in buffer.shape:
+            if isinstance(axis, tvm.tir.Var):
+                if axis.name in dynamic_range:
+                    opt_shapes[axis.name] = dynamic_range[axis.name]
+                else:
+                    raise ValueError(f"[FastDlight] The axis {axis.name} is not in dynamic_range")
+    func = func.with_attr("opt_shapes", opt_shapes)
+
+    if func.attrs is not None and "opt_shapes" not in func.attrs:
         print("[FastDlight] The primfunc has no opt_shapes, please set opt_shapes for the primfunc")
-        return func
+        return None
     else:
         # should be list value
         if not all([isinstance(v, tvm.ir.Array) for v in func.attrs["opt_shapes"].values()]):
             print("[FastDlight] The opt_shapes should be list value")
-            return func
+            return None
 
     print("[FastDlight] Start fast tuning with dynamic range")
     opt_shapes = func.attrs["opt_shapes"]
@@ -452,6 +471,8 @@ def fast_tune_with_dynamic_range(
     for item in specialize_items:
         func = func.with_attr("opt_shapes", item)
         _, best = fast_tune(func, target, topk, parallel_build)
+        if best is None:
+            return None
         specilized_tuned_funcs.append(best.sch.mod["main"])
 
-    return create_dispatch_mod(func, specilized_tuned_funcs)
+    return create_dispatch_mod(global_symbol, func, specilized_tuned_funcs)

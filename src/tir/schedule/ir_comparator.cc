@@ -84,10 +84,8 @@ bool TensorizeComparator::VisitExpr(const PrimExpr& n, const PrimExpr& other) {
 }
 
 bool TensorizeComparator::VisitExpr_(const CallNode* op, const PrimExpr& other) {
-  // todo(leiwang1999):  visit a call op, comparing is not supported by current tvm, forcing return
-  // true.
   const auto* rhs = other.as<CallNode>();
-  if(!rhs->op.same_as(op->op)) return false;
+  if (!rhs->op.same_as(op->op)) return false;
   if (op->dtype.code() != rhs->dtype.code()) {
     if (assert_mode_) {
       std::ostringstream os;

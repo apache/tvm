@@ -136,13 +136,17 @@ class PrimFuncNode(Node):
     def _specialize_func(self, func: PrimFunc):
         # Specialize the function to make it more friendly for analysis.
         # set attrs
-        for k, v in func.attrs.items():
-            self.set_tag(k, v)
+        if func.attrs:
+            for k, v in func.attrs.items():
+                self.set_tag(k, v)
+            if self.get_tag("is_speclized"):
+                return func
         opt_shapes = self.get_tag("opt_shapes")
         if opt_shapes:
             for name, shape in opt_shapes.items():
                 var = analysis.find_var_from_func(func, name)
-                func = func.specialize({var: shape})
+                if var is not None:
+                    func = func.specialize({var: shape.astype(var.dtype)})
         return func
 
     def _analysis_funcinfo(self):

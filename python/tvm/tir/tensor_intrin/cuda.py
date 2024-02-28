@@ -815,6 +815,11 @@ TensorIntrin.register(
     MMA_store_16x16_i32_shared_INTRIN, *get_mma_store_intrin("int32", 8, "shared", True)
 )
 
+MMA_store_16x16_i32_shared_dyn_INTRIN = "mma_store_16x16_i32_shared_dyn_"
+TensorIntrin.register(
+    MMA_store_16x16_i32_shared_dyn_INTRIN, *get_mma_store_intrin("int32", 8, "shared.dyn", True)
+)
+
 
 def get_mma_intrin_group(
     load_scope: Literal["shared", "shared.dyn"],

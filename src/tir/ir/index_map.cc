@@ -99,7 +99,6 @@ std::pair<IndexMap, PrimExpr> IndexMapInverseImpl(const IndexMap& self,
   // output variables.
   Map<Var, PrimExpr> inverse_exprs_map = InverseAffineIterMap(
       padded_iter_map->indices, Array<PrimExpr>(output_vars.begin(), output_vars.end()));
-
   // Unpack the map to an array, maintaining the same parameter order.
   Array<PrimExpr> inverse_exprs;
   for (int i = 0, n = self->initial_indices.size(); i < n; ++i) {

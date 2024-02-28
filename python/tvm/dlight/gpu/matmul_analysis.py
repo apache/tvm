@@ -456,6 +456,8 @@ def normalize_to_matmul(
 def get_tensorized_func_and_tags(
     func: tir.PrimFunc,
     target: Target,
+    skip_normalize: bool = False,
+    allow_gemv: bool = False,
 ) -> Tuple[tir.PrimFunc, Dict[str, Union[List[int], int]]]:
     from tvm.tir.tensor_intrin.cuda import (  # pylint: disable=import-outside-toplevel
         get_wmma_intrin_group,
@@ -543,9 +545,9 @@ def get_tensorized_func_and_tags(
         intrin_info["out_dtype"] = out_dtype
         # if the last dimension is reduce axis, the B is transposed
         intrin_info["trans_b"] = check_last_trait(block_stmt.reads[1].region)
-        if "smooth_a" in func.attrs:
+        if func.attrs is not None and "smooth_a" in func.attrs:
             intrin_info["smooth_a"] = func.attrs["smooth_a"]
-        if "smooth_b" in func.attrs:
+        if func.attrs is not None and "smooth_b" in func.attrs:
             intrin_info["smooth_b"] = func.attrs["smooth_b"]
         tags["intrin_info"] = intrin_info
 
@@ -555,7 +557,6 @@ def get_tensorized_func_and_tags(
     if _can_be_tensorized(sch, main_block) is None:
         return func, None
 
-    minimal_tensorize_threshold = 64
     block_stmt = sch.get(main_block)
     if target.kind.name == "cuda" and check_sm_version(target.arch) >= 70:
         in_dtype, out_dtype = get_in_out_dtypes(block_stmt)
@@ -571,13 +572,21 @@ def get_tensorized_func_and_tags(
         # reindex and transform functions
         # Normalize tensor functions to C[S, I, J] += A[S, I, K] * B[S, J, K]
         # or C[S, I, J] += A[S, I, K] * B[S, K, J]
-        sch = normalize_to_matmul(sch, main_block, ["a", "a", "a"])
-        if sch is None:
-            return func, None
+        # skip normalize when we want to detect tags only.
+        if not skip_normalize:
+            sch = normalize_to_matmul(sch, main_block, ["n", "t", "n"])
+            if sch is None:
+                return func, None
 
         block_stmt = sch.get(main_block)
+
+        minimal_tensorize_threshold = 16
         # the batch dimension is not taken into consideration.
-        for item_var in block_stmt.iter_vars[1:]:
+        extent = block_stmt.iter_vars[1].dom.extent
+        if isinstance(extent, tir.expr.IntImm):
+            if extent.value < (1 if allow_gemv else minimal_tensorize_threshold):
+                return func, None
+        for item_var in block_stmt.iter_vars[2:]:
             extent = item_var.dom.extent
             if isinstance(extent, tir.expr.IntImm):
                 if extent.value < minimal_tensorize_threshold:
@@ -624,7 +633,8 @@ def get_propagate_map(trans: bool = True, dtype="float16"):
         )
 
     # TODO(lei): index_dtype should be analyzed from the schedule
-    inversed_index_map = IndexMap.from_func(
-        ldmatrix_index_map, index_dtype="int32"
-    ).inverse([16, 16])
+    inversed_index_map = IndexMap.from_func(ldmatrix_index_map, index_dtype="int32").inverse(
+        [16, 16]
+    )
     return permutation, inversed_index_map
+

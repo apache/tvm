@@ -176,6 +176,12 @@ std::string CodeGenCUDA::Finish() {
   decl_stream << "  #define uint64_t unsigned long long\n";
   decl_stream << "#endif\n";
 
+  decl_stream << "\n#if defined(__CUDA_ARCH__) && (__CUDA_ARCH__ == 800) \n";
+  decl_stream << "#define TVM_ENBALE_EFFICIENT_SMEM_PTR_CAST 1\n";
+  decl_stream << "#else\n";
+  decl_stream << "#define TVM_ENBALE_EFFICIENT_SMEM_PTR_CAST 0\n";
+  decl_stream << "#endif\n";
+
   return CodeGenC::Finish();
 }
 
