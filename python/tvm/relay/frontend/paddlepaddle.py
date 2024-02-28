@@ -2386,14 +2386,12 @@ def convert_slice(g, op, block):
 def convert_softmax(g, op, block):
     """Operator converter for softmax."""
 
+    data = g.get_node(op.input("X")[0])
     axis = op.attr("axis")
     input_shape = block.var(op.input("X")[0]).shape
     if axis < 0:
         axis = len(input_shape) + axis
-    x = g.get_node(op.input("X")[0])
-    m = _op.max(x, axis, keepdims=True)
-    e = _op.exp(x - m)
-    out = e / _op.sum(e, axis, keepdims=True)
+    out = _op.nn.softmax(data, axis)
     g.add_node(op.output("Out")[0], out)
 
 
