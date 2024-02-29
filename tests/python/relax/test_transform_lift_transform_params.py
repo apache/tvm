@@ -795,5 +795,59 @@ def test_symbolic_var_defined_in_params_but_used_in_weights():
     tvm.ir.assert_structural_equal(Expected, After)
 
 
+def test_only_lift_when_variable_uses_constants():
+    """A variable that has no inputs should not be lifted
+
+    For example, `R.zeros`, or the result of allocation function
+    calls.
+    """
+
+    @tvm.script.ir_module
+    class Before:
+        @R.function
+        def main(
+            A: R.Tensor([16], "int32"),
+            B: R.Tensor([16], "int32"),
+        ):
+            R.func_attr({"num_input": 1})
+            with R.dataflow():
+                offset = R.ones([16], "int32")
+                A_offset = R.add(A, offset)
+                B_offset = R.add(B, offset)
+                output = R.multiply(A_offset, B_offset)
+                R.output(output)
+            return output
+
+    @tvm.script.ir_module
+    class Expected:
+        @R.function
+        def main(
+            A: R.Tensor([16], "int32"),
+            B_offset: R.Tensor([16], "int32"),
+        ):
+            R.func_attr({"num_input": 1})
+            with R.dataflow():
+                offset = R.ones([16], "int32")
+                A_offset = R.add(A, offset)
+                output = R.multiply(A_offset, B_offset)
+                R.output(output)
+            return output
+
+        @R.function
+        def main_transform_params(params: R.Tuple([R.Tensor([16], "int32")])):
+            R.func_attr({"num_input": 0})
+            with R.dataflow():
+                offset = R.ones([16], "int32")
+                B = params[0]
+                B_offset = R.add(B, offset)
+                output = (B_offset,)
+                R.output(output)
+            return output
+
+    mod = Before
+    after = relax.transform.LiftTransformParams()(mod)
+    tvm.ir.assert_structural_equal(after, Expected)
+
+
 if __name__ == "__main__":
     tvm.testing.main()
