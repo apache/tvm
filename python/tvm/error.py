@@ -54,6 +54,7 @@ register_error("TypeError", TypeError)
 register_error("AttributeError", AttributeError)
 register_error("KeyError", KeyError)
 register_error("IndexError", IndexError)
+register_error("AssertionError", AssertionError)
 
 
 @register_error
