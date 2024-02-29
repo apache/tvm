@@ -56,6 +56,10 @@ properties([
   ])
 ])
 
+// Global variable assigned during Sanity Check that holds the sha1 which should be
+// merged into the PR in all branches.
+upstream_revision = null
+
 // tvm libraries
 tvm_runtime = 'build/libtvm_runtime.so, build/config.cmake'
 tvm_lib = 'build/libtvm.so, ' + tvm_runtime
