@@ -140,6 +140,8 @@ class DataType(ctypes.Structure):
             self.lanes = ctypes.c_uint16(-int(arr[2]))
         elif len(arr) > 1:
             self.lanes = ctypes.c_uint16(int(arr[1]))
+        else:
+            self.lanes = 1
         bits = 32
 
         if head.startswith("int"):
