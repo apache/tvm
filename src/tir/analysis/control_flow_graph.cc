@@ -792,14 +792,14 @@ std::pair<BufferTouch, Map<Var, Range>> ControlFlowGraph::ControlFlowBlock::Make
   // implied by solving for the axis variables, and any additional
   // statements resulting from unpacking the expression contained in
   // builtin::assume().
-  PrimExpr scope_predicate = normalize_expr(current_block.current_predicate);
+  PrimExpr current_predicate = normalize_expr(current_block.current_predicate);
   transform_predicate = normalize_expr(transform_predicate);
 
   known_value_expr = local_analyzer.Simplify(normalize_expr(known_value_expr));
 
   // Deliberately use an analyzer without scope-based information,
-  // to avoid simplifying `scope_predicate` to True.
-  PrimExpr predicate_expr = local_analyzer.Simplify(transform_predicate && scope_predicate);
+  // to avoid simplifying `current_predicate` to True.
+  PrimExpr predicate_expr = local_analyzer.Simplify(transform_predicate && current_predicate);
 
   BufferTouch buffer_touch = {buf, predicate_expr, known_value_expr, loop_var_expressions,
                               touch_type};
