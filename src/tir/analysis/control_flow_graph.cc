@@ -473,6 +473,7 @@ class ControlFlowGraphBuilder final : public IRVisitorWithAnalyzer {
   void VisitAccess(const BufferAccess& node, BufferTouch::AccessType touch_type,
                    PrimExpr known_value_expr) {
     auto& current_block = out_->control_flow_.back();
+    current_block.current_predicate = CurrentScopePredicate();
     BufferTouch buffer_touch = current_block.MakeBufferTouch(out_, node->buffer, node->indices,
                                                              touch_type, known_value_expr);
     current_block.touch_points.push_back(buffer_touch);
@@ -791,7 +792,7 @@ std::pair<BufferTouch, Map<Var, Range>> ControlFlowGraph::ControlFlowBlock::Make
   // implied by solving for the axis variables, and any additional
   // statements resulting from unpacking the expression contained in
   // builtin::assume().
-  PrimExpr scope_predicate = normalize_expr(current_block.scope_predicate);
+  PrimExpr scope_predicate = normalize_expr(current_block.current_predicate);
   transform_predicate = normalize_expr(transform_predicate);
 
   known_value_expr = local_analyzer.Simplify(normalize_expr(known_value_expr));

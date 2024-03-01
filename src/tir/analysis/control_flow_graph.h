@@ -530,6 +530,9 @@ class ControlFlowGraph {
     /*! \brief Predicate that must be true to have reached this block */
     PrimExpr scope_predicate{Bool(true)};
 
+    /*! \brief Predicate that are true in this block */
+    PrimExpr current_predicate{Bool(true)};
+
     /*! \brief All known values prior to executing the block */
     BufferState known_at_block_start;
 
