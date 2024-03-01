@@ -30,8 +30,9 @@ from tvm.script import tir as T
 from .infra import make_ethosu_conv2d
 
 
+# uninitialized varaibles used
 # fmt: off
-@tvm.script.ir_module
+@tvm.script.ir_module(check_well_formed=False)
 class ReferenceModule:
     @T.prim_func
     def main(input_placeholder_3: T.Buffer((1, 16, 16, 32), "int8"), input_ethosu_write_1: T.Buffer((1, 16, 16, 8), "int8")) -> None:
@@ -68,13 +69,14 @@ def test_copy():
     mod, _ = _lower_to_tir(func, cascader=copy_constants())
 
     script = mod.script()
-    test_mod = tvm.script.from_source(script)
+    test_mod = tvm.script.from_source(script, check_well_formed=False)
     reference_mod = ReferenceModule
     tvm.ir.assert_structural_equal(test_mod["main"], reference_mod["main"], True)
 
 
+# Uninitialized variables used
 # fmt: off
-@tvm.script.ir_module
+@tvm.script.ir_module(check_well_formed=False)
 class WeightStream:
     @T.prim_func
     def main(input_placeholder_5: T.Buffer((1, 16, 16, 32), "int8"), input_ethosu_write_1: T.Buffer((1, 16, 16, 16), "int8")) -> None:
@@ -127,7 +129,7 @@ def test_weight_stream():
     mod, _ = _lower_to_tir(func, cascader=_cascader)
 
     script = mod.script()
-    test_mod = tvm.script.from_source(script)
+    test_mod = tvm.script.from_source(script, check_well_formed=False)
     reference_mod = WeightStream
     tvm.ir.assert_structural_equal(test_mod["main"], reference_mod["main"], True)
 

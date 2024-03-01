@@ -218,8 +218,9 @@ class Module2:
         )
 
 
+# Complains of the use of undefined vars
 # fmt: off
-@tvm.script.ir_module
+@tvm.script.ir_module(check_well_formed=False)
 class Module3:
     @T.prim_func
     def main(ethos_u_0_i0: T.Buffer((1, 299, 299, 2), "int8"), ethosu_write: T.Buffer((1, 299, 299, 3), "int8")):

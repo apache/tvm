@@ -305,8 +305,9 @@ def test_copy_to_buffer_with_local_scope():
 
 
 def test_no_copies():
+    # the vars placeholder and ethosu_write are undefined
     # fmt: off
-    @tvm.script.ir_module
+    @tvm.script.ir_module(check_well_formed=False)
     class InputModule:
         @T.prim_func
         def main() -> None:
@@ -320,7 +321,7 @@ def test_no_copies():
             T.evaluate(T.call_extern("ethosu_binary_elementwise", "int8", 1, 4, 4, 1, 0, 4, placeholder[0], 0, 0, 0, T.float32(0.00783747), -128, "NHWC", 1, 4, 1, "int8", 1, 4, 1, 1, 0, 4, placeholder[16], 0, 0, 0, T.float32(0.00783747), -128, "NHWC", 1, 1, 1, "int8", 1, 4, 4, 1, 0, 4, ethosu_write_4[0], 0, 0, 0, T.float32(0.00783747), -128, "NHWC", 1, 4, 1, "MAX", 0, "CLIP", -128, 127, "TFL", 1, 4, 4, dtype="handle"))
             T.evaluate(T.call_extern("ethosu_identity", "int8", 1, 4, 4, 1, 0, 4, ethosu_write_4[0], 0, 0, 0, T.float32(1), 0, "NHWC", 1, 4, 1, "int8", 1, 4, 4, 1, 0, 4, ethosu_write[0], 0, 0, 0, T.float32(1), 0, "NHWC", 1, 4, 1, "AVG", 1, 1, 1, 1, 1, 1, 0, 0, 0, 0, "NONE", 0, 0, "TFL", "NONE", 0, 0, 0, dtype="handle"))
 
-    @tvm.script.ir_module
+    @tvm.script.ir_module(check_well_formed=False)
     class ReferenceModule:
         @T.prim_func
         def main() -> None:

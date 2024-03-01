@@ -211,8 +211,9 @@ def test_schedule_cache_reads():
     assert list(sch[cr].iter_var_attrs[iv].pragma_values) == ["ethosu_copy"]
 
 
+# uninitialized variables used
 # fmt: off
-@tvm.script.ir_module
+@tvm.script.ir_module(check_well_formed=False)
 class DiamondGraphTir:
     @T.prim_func
     def main(input_placeholder: T.Buffer((1, 56, 56, 96), "int8"), input_ethosu_write: T.Buffer((1, 56, 56, 24), "int8")) -> None:

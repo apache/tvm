@@ -28,7 +28,8 @@ from .infra import make_ethosu_conv2d
 
 
 # fmt: off
-@tvm.script.ir_module
+# complains of an undefined buffer
+@tvm.script.ir_module(check_well_formed=False)
 class ReferenceModule:
     @T.prim_func
     def main(input_placeholder: T.Buffer((1,8,12,16), "int8"), input_placeholder_1: T.Buffer((1,8,10,16), "int8"), input_T_concat: T.Buffer((1,8,32,16), "int8")) -> None:
@@ -74,7 +75,7 @@ def test_concat():
     func = _get_func()
     mod, _ = _lower_to_tir(func)
     script = mod.script()
-    test_mod = tvm.script.from_source(script)
+    test_mod = tvm.script.from_source(script, check_well_formed=False)
 
     reference_mod = ReferenceModule
     tvm.ir.assert_structural_equal(test_mod["main"], reference_mod["main"], True)

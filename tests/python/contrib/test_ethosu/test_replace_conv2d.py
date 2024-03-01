@@ -363,8 +363,9 @@ def test_conv2d_single(trial):
     assert data[0] == answer, data[0]
 
 
+# Undefined variables used
 # fmt: off
-@tvm.script.ir_module
+@tvm.script.ir_module(check_well_formed=False)
 class Conv2dDoubleCascade1:
     @T.prim_func
     def main(input_placeholder_5: T.Buffer((1, 8, 8, 3), "int8"), input_ethosu_write_1: T.Buffer((1, 8, 8, 8), "int8")) -> None:
@@ -385,7 +386,8 @@ class Conv2dDoubleCascade1:
         T.evaluate(T.call_extern("ethosu_conv2d", "int8", 8, 4, 32, 8, 0, 4, ethosu_write_2[0], 0, 0, 0, T.float32(0.5), 10, "NHWC", 128, 32, 1, "int8", 8, 4, 8, 8, 0, 4, ethosu_write_1[32], 0, 0, 0, T.float32(0.25), 14, "NHWC", 64, 8, 1, 1, 1, 1, 1, 1, 1, buffer[0], 304, T.int8(-1), T.int8(-1), 12, buffer_1[0], 80, T.int8(-1), T.int8(-1), 0, 0, 0, 0, "NONE", 0, 0, "TFL", "NONE", 0, 0, 0, dtype="handle"))
 
 
-@tvm.script.ir_module
+# undefined variables used
+@tvm.script.ir_module(check_well_formed=False)
 class Conv2dDoubleCascade2:
     @T.prim_func
     def main(input_placeholder_5: T.Buffer((1, 8, 8, 3), "int8"), input_ethosu_write_1: T.Buffer((1, 8, 8, 8), "int8")) -> None:
@@ -406,7 +408,8 @@ class Conv2dDoubleCascade2:
         T.evaluate(T.call_extern("ethosu_conv2d", "int8", 5, 8, 32, 5, 0, 8, ethosu_write_2[0], 0, 0, 0, T.float32(0.5), 10, "NHWC", 256, 32, 1, "int8", 4, 8, 8, 4, 0, 8, ethosu_write_1[256], 0, 0, 0, T.float32(0.25), 14, "NHWC", 64, 8, 1, 3, 3, 1, 1, 1, 1, buffer_3[0], 2608, T.int8(-1), T.int8(-1), 12, buffer[0], 80, T.int8(-1), T.int8(-1), 0, 1, 1, 1, "NONE", 0, 0, "TFL", "NONE", 0, 0, 0, dtype="handle"))
 
 
-@tvm.script.ir_module
+# undefined variables used
+@tvm.script.ir_module(check_well_formed=False)
 class Conv2dDoubleCascade3:
     @T.prim_func
     def main(input_placeholder_5: T.Buffer((1, 16, 16, 3), "int8"), input_ethosu_write_1: T.Buffer((1, 20, 4, 8), "int8")) -> None:
@@ -430,7 +433,8 @@ class Conv2dDoubleCascade3:
         T.evaluate(T.call_extern("ethosu_conv2d", "int8", 4, 8, 32, 4, 0, 8, ethosu_write_2[0], 0, 0, 0, T.float32(0.5), 10, "NHWC", 256, 32, 1, "int8", 4, 4, 8, 4, 0, 4, ethosu_write_1[512], 0, 0, 0, T.float32(0.25), 14, "NHWC", 32, 8, 1, 2, 3, 2, 1, 2, 1, buffer[0], 1744, T.int8(-1), T.int8(-1), 12, buffer_1[0], 80, T.int8(-1), T.int8(-1), 0, 1, 2, 0, "NONE", 0, 0, "TFL", "NONE", 0, 0, 0, dtype="handle"))
 
 
-@tvm.script.ir_module
+# undefined variables used
+@tvm.script.ir_module(check_well_formed=False)
 class Conv2dDoubleCascade4:
     @T.prim_func
     def main(input_placeholder_5: T.Buffer((1, 8, 1, 8, 16), "int8"), input_ethosu_write_1: T.Buffer((1, 8, 2, 8, 16), "int8")) -> None:
@@ -451,7 +455,8 @@ class Conv2dDoubleCascade4:
         T.evaluate(T.call_extern("ethosu_conv2d", "int8", 5, 8, 35, 5, 0, 8, ethosu_write_2[0], 0, 0, 0, T.float32(0.5), 10, "NHCWB16", 384, 16, 128, "int8", 4, 8, 26, 4, 0, 8, ethosu_write_1[1024], 0, 0, 0, T.float32(0.25), 14, "NHCWB16", 256, 16, 128, 3, 3, 1, 1, 1, 1, buffer_3[0], 11040, T.int8(-1), T.int8(-1), 12, buffer_2[0], 272, T.int8(-1), T.int8(-1), 0, 1, 1, 1, "NONE", 0, 0, "TFL", "NONE", 0, 0, 0, dtype="handle"))
 
 
-@tvm.script.ir_module
+# undefined variables used
+@tvm.script.ir_module(check_well_formed=False)
 class Conv2dDoubleCascade5:
     @T.prim_func
     def main(input_placeholder: T.Buffer((1, 8, 8, 3), "int8"), input_ethosu_write: T.Buffer((1, 32, 32, 8), "int8")) -> None:
@@ -472,7 +477,8 @@ class Conv2dDoubleCascade5:
         T.evaluate(T.call_extern("ethosu_conv2d", "int8", 8, 16, 32, 8, 0, 16, ethosu_write_1[0], 0, 0, 0, T.float32(0.5), 10, "NHWC", 512, 32, 1, "int8", 16, 32, 8, 16, 0, 32, ethosu_write[4096], 0, 0, 0, T.float32(0.25), 14, "NHWC", 256, 8, 1, 1, 1, 1, 1, 1, 1, buffer_2[0], 304, T.int8(-1), T.int8(-1), 12, buffer_3[0], 80, T.int8(-1), T.int8(-1), 0, 0, 0, 0, "NONE", 0, 0, "TFL", "ZEROS", 0, 0, 0, dtype="handle"))
 
 
-@tvm.script.ir_module
+# undefined variables used
+@tvm.script.ir_module(check_well_formed=False)
 class Conv2dDoubleCascade6:
     @T.prim_func
     def main(input_placeholder: T.Buffer((1, 8, 1, 8, 16), "int8"), input_ethosu_write: T.Buffer((1, 32, 2, 32, 16), "int8")) -> None:
@@ -634,7 +640,7 @@ def test_conv2d_double_cascade(trial):
         func = _get_func(*params[:-1])
         mod, _ = _lower_to_tir(func, cascader=total_cascader(params[-1]))
         script = mod.script()
-        mod = tvm.script.from_source(script)
+        mod = tvm.script.from_source(script, check_well_formed=False)
         tvm.ir.assert_structural_equal(mod["main"], reference_mod["main"], True)
 
 
@@ -691,7 +697,7 @@ def test_conv2d_inline_copy(trial):
     func = _get_func(*params)
     mod, _ = _lower_to_tir(func)
     script = mod.script()
-    mod = tvm.script.from_source(script)
+    mod = tvm.script.from_source(script, check_well_formed=False)
     tvm.ir.assert_structural_equal(mod["main"], reference_mod["main"], True)
 
 
@@ -789,7 +795,7 @@ def test_conv2d_inline_reshape(trial):
     func = _get_func(*params)
     mod, _ = _lower_to_tir(func, cascader=total_cascader((1, 4, 6, 16)))
     script = mod.script()
-    mod = tvm.script.from_source(script)
+    mod = tvm.script.from_source(script, check_well_formed=False)
     tvm.ir.assert_structural_equal(mod["main"], reference_mod["main"], True)
 
 

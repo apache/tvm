@@ -32,8 +32,9 @@ from tvm.script import tir as T
 from .infra import make_ethosu_binary_elementwise, make_ethosu_conv2d
 
 
+# Uninitialized variables used
 # fmt: off
-@tvm.script.ir_module
+@tvm.script.ir_module(check_well_formed=False)
 class WeightStreamOnlyU55:
     @T.prim_func
     def main(input_placeholder: T.Buffer((1, 16, 16, 32), "int8"), input_ethosu_write: T.Buffer((1, 16, 16, 8), "int8")) -> None:
@@ -62,7 +63,8 @@ class WeightStreamOnlyU55:
         T.evaluate(T.call_extern("ethosu_conv2d", "int8", 16, 16, 32, 16, 0, 16, placeholder[0], 0, 0, 0, T.float32(0.5), 10, "NHWC", 512, 32, 1, "int8", 16, 16, 2, 16, 0, 16, ethosu_write[6], 0, 0, 0, T.float32(0.25), 14, "NHWC", 128, 8, 1, 1, 1, 1, 1, 1, 1, p2[0], 112, T.int8(-1), T.int8(-1), 12, p2[112], 32, T.int8(-1), T.int8(-1), 0, 0, 0, 0, "NONE", 0, 0, "TFL", "NONE", 0, 0, 0, dtype="handle"))
 
 
-@tvm.script.ir_module
+# Uninitialized variables used
+@tvm.script.ir_module(check_well_formed=False)
 class WeightStreamOnlyU65:
     @T.prim_func
     def main(ifm: T.Buffer((1, 16, 16, 32), "int8"), ethosu_write: T.Buffer((1, 16, 16, 8), "int8")):
@@ -140,15 +142,16 @@ def test_weight_stream_only(accelerator, reference_mod, reference_const_sizes):
         func = _get_func()
         mod, consts = _lower_to_tir(func, cascader=_planner)
         script = mod.script()
-        test_mod = tvm.script.from_source(script)
+        test_mod = tvm.script.from_source(script, check_well_formed=False)
         tvm.ir.assert_structural_equal(test_mod["main"], reference_mod["main"], True)
 
         test_const_size = [value.size for value in list(consts.values())]
         assert reference_const_sizes.sort() == test_const_size.sort()
 
 
+# Uninitialized variables used
 # fmt: off
-@tvm.script.ir_module
+@tvm.script.ir_module(check_well_formed=False)
 class RereadWeightsU55:
     @T.prim_func
     def main(input_placeholder: T.Buffer((1, 16, 16, 32), "int8"), input_ethosu_write: T.Buffer((1, 16, 16, 8), "int8")) -> None:
@@ -168,7 +171,8 @@ class RereadWeightsU55:
         T.evaluate(T.call_extern("ethosu_conv2d", "int8", 16, 8, 32, 16, 0, 8, placeholder[256], 0, 0, 0, T.float32(0.5), 10, "NHWC", 512, 32, 1, "int8", 16, 8, 8, 16, 0, 8, ethosu_write[64], 0, 0, 0, T.float32(0.25), 14, "NHWC", 128, 8, 1, 1, 1, 1, 1, 1, 1, p2[0], 304, T.int8(-1), T.int8(-1), 12, p2[304], 80, T.int8(-1), T.int8(-1), 0, 0, 0, 0, "NONE", 0, 0, "TFL", "NONE", 0, 0, 0, dtype="handle"))
 
 
-@tvm.script.ir_module
+# Uninitialized variables used
+@tvm.script.ir_module(check_well_formed=False)
 class RereadWeightsU65:
     @T.prim_func
     def main(input_placeholder: T.Buffer((1, 16, 16, 32), "int8"), input_ethosu_write: T.Buffer((1, 16, 16, 8), "int8")) -> None:
@@ -239,15 +243,16 @@ def test_re_read_weights(accelerator, reference_mod, reference_const_sizes):
         func = _get_func()
         mod, consts = _lower_to_tir(func, cascader=_cascader)
         script = mod.script()
-        test_mod = tvm.script.from_source(script)
+        test_mod = tvm.script.from_source(script, check_well_formed=False)
         tvm.ir.assert_structural_equal(test_mod["main"], reference_mod["main"], True)
 
         test_const_size = [value.size for value in list(consts.values())]
         assert reference_const_sizes.sort() == test_const_size.sort()
 
 
+# Uninitialized variables used
 # fmt: off
-@tvm.script.ir_module
+@tvm.script.ir_module(check_well_formed=False)
 class DirectReadOnlyU55:
     @T.prim_func
     def main(input_placeholder: T.Buffer((1, 16, 16, 32), "int8"), input_ethosu_write: T.Buffer((1, 16, 16, 8), "int8")) -> None:
@@ -266,7 +271,8 @@ class DirectReadOnlyU55:
         T.evaluate(T.call_extern("ethosu_conv2d", "int8", 16, 16, 16, 16, 0, 16, ethosu_write_1[0], 0, 0, 0, T.float32(0.5), 10, "NHWC", 256, 16, 1, "int8", 16, 16, 8, 16, 0, 16, ethosu_write[0], 0, 0, 0, T.float32(0.25), 14, "NHWC", 128, 8, 1, 1, 1, 1, 1, 1, 1, buffer_2[0], 160, T.int8(-1), T.int8(-1), 12, buffer_3[0], 80, T.int8(-1), T.int8(-1), 0, 0, 0, 0, "NONE", 0, 0, "TFL", "NONE", 0, 0, 0, dtype="handle"))
 
 
-@tvm.script.ir_module
+# Uninitialized variables used
+@tvm.script.ir_module(check_well_formed=False)
 class DirectReadOnlyU65:
     @T.prim_func
     def main(input_placeholder: T.Buffer((1, 16, 16, 32), "int8"), input_ethosu_write: T.Buffer((1, 16, 16, 8), "int8")) -> None:
@@ -335,15 +341,16 @@ def test_direct_read_only(accelerator, reference_mod, reference_const_sizes):
         mod, consts = _lower_to_tir(func)
 
         script = mod.script()
-        test_mod = tvm.script.from_source(script)
+        test_mod = tvm.script.from_source(script, check_well_formed=False)
         tvm.ir.assert_structural_equal(test_mod["main"], reference_mod["main"], True)
 
         test_const_size = [value.size for value in list(consts.values())]
         assert reference_const_sizes.sort() == test_const_size.sort()
 
 
+# Uninitialized variables used
 # fmt: off
-@tvm.script.ir_module
+@tvm.script.ir_module(check_well_formed=False)
 class MixedReadU55:
     @T.prim_func
     def main(input_ifm: T.Buffer((1,16,16,32), "int8"), input_ethosu_write: T.Buffer((1,16,16,8), "int8")) -> None:
@@ -375,7 +382,8 @@ class MixedReadU55:
         T.evaluate(T.call_extern("ethosu_conv2d", "int8", 16, 16, 16, 16, 0, 16, p3[0], 0, 0, 0, T.float32(0.5), 10, "NHWC", 256, 16, 1, "int8", 16, 16, 2, 16, 0, 16, ethosu_write[6], 0, 0, 0, T.float32(0.25), 14, "NHWC", 128, 8, 1, 1, 1, 1, 1, 1, 1, p2[0], 80, T.int8(-1), T.int8(-1), 12, p2[80], 32, T.int8(-1), T.int8(-1), 0, 0, 0, 0, "NONE", 0, 0, "TFL", "NONE", 0, 0, 0, dtype="handle"))
 
 
-@tvm.script.ir_module
+# Uninitialized variables used
+@tvm.script.ir_module(check_well_formed=False)
 class MixedReadU65:
     @T.prim_func
     def main(ifm: T.Buffer((1, 16, 16, 32), "int8"), ethosu_write: T.Buffer((1, 16, 16, 8), "int8")):
@@ -468,7 +476,7 @@ def test_mixed_read(accelerator, reference_mod, reference_const_sizes):
         mod, consts = _lower_to_tir(func, cascader=_planner)
 
         script = mod.script()
-        test_mod = tvm.script.from_source(script)
+        test_mod = tvm.script.from_source(script, check_well_formed=False)
         tvm.ir.assert_structural_equal(test_mod["main"], reference_mod["main"], True)
 
         test_const_size = [value.size for value in list(consts.values())]
