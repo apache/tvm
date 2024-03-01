@@ -36,7 +36,7 @@ from tvm.dlight.benchmark import (
 )
 import tvm.testing
 
-# The test function uses an undefined symbolic var in Relax. 
+# The test function uses an undefined symbolic var in Relax.
 # In principle, this should be attached to an argument.
 # pylint: disable=no-self-argument,invalid-name,line-too-long,no-method-argument
 # fmt: off
