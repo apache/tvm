@@ -60,7 +60,7 @@
 // 'python3 jenkins/generate.py'
 // Note: This timestamp is here to ensure that updates to the Jenkinsfile are
 // always rebased on main before merging:
-// Generated at 2024-01-10T13:15:25.226391
+// Generated at 2024-03-01T17:24:13.590653
 
 import org.jenkinsci.plugins.pipeline.modeldefinition.Utils
 // These are set at runtime from data in ci/jenkins/docker-images.yml, update
@@ -918,7 +918,11 @@ def shard_run_frontend_aarch64_1_of_2(node_type='ARM-GRAVITON3-SPOT', on_demand=
               ci_setup(ci_arm)
               sh (
                 script: "${docker_run} ${ci_arm} ./tests/scripts/task_python_frontend_cpu.sh",
-                label: 'Run Python frontend tests',
+                label: 'Run General Python frontend tests',
+              )
+              sh (
+                script: "${docker_run} ${ci_arm} ./tests/scripts/task_python_frontend_aarch64only.sh",
+                label: 'Run AArch64 Python frontend tests',
               )
             })
           }
@@ -966,7 +970,11 @@ def shard_run_frontend_aarch64_2_of_2(node_type='ARM-GRAVITON3-SPOT', on_demand=
               ci_setup(ci_arm)
               sh (
                 script: "${docker_run} ${ci_arm} ./tests/scripts/task_python_frontend_cpu.sh",
-                label: 'Run Python frontend tests',
+                label: 'Run General Python frontend tests',
+              )
+              sh (
+                script: "${docker_run} ${ci_arm} ./tests/scripts/task_python_frontend_aarch64only.sh",
+                label: 'Run AArch64 Python frontend tests',
               )
             })
           }
