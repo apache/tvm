@@ -169,13 +169,11 @@ class CallNode : public ExprNode {
 
   bool SEqualReduce(const CallNode* other, SEqualReducer equal) const {
     // skip sinfo_args check for primitive ops.
-    equal->MarkGraphNode();
     return equal(op, other->op) && equal(args, other->args) && equal(attrs, other->attrs) &&
            equal(sinfo_args, other->sinfo_args) && equal(struct_info_, other->struct_info_);
   }
 
   void SHashReduce(SHashReducer hash_reduce) const {
-    hash_reduce->MarkGraphNode();
     hash_reduce(op);
     hash_reduce(args);
     hash_reduce(attrs);
@@ -319,6 +317,24 @@ class Tuple : public Expr {
    * \param span The source span of the expression.
    */
   TVM_DLL explicit Tuple(tvm::Array<Expr> fields, Span span = Span());
+
+  /*!
+   * \brief Utility constructor to handle conversion to relax::Expr
+   *
+   * If the calling scope already has an array of a specific type of
+   * relax expression (e.g. `Array<relax::Var>`), it must be converted
+   * into an array of base type.  This constructor handles the
+   * conversion to the base `Array<relax::Expr>`.
+   *
+   * \tparam RelaxExpr The type of relax expression passed in as an argument.
+   *
+   * \param fields The fields of a tuple.
+   *
+   * \param span The source span of the expression.
+   */
+  template <typename RelaxExpr, typename = std::enable_if_t<std::is_base_of_v<Expr, RelaxExpr>>>
+  TVM_DLL explicit Tuple(tvm::Array<RelaxExpr> fields, Span span = Span())
+      : Tuple(fields.Map([](const RelaxExpr& expr) -> Expr { return expr; }), span) {}
 
   TVM_DEFINE_OBJECT_REF_METHODS(Tuple, Expr, TupleNode);
   TVM_DEFINE_OBJECT_REF_COW_METHOD(TupleNode);

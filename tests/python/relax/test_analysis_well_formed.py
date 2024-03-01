@@ -607,7 +607,7 @@ def test_force_pure_improper():
     assert not rx.analysis.well_formed(mod)
 
 
-def test_impure_in_dataflow_block():
+def test_impure_in_dataflow_block(capfd):
     # even if force_pure is set, an impure operation cannot appear in a dataflow block
     x = rx.Var("x", R.Tensor((), dtype="int32"))
     y = rx.DataflowVar("y")
@@ -617,6 +617,9 @@ def test_impure_in_dataflow_block():
     )
     mod = rx.transform.Normalize()(tvm.IRModule.from_expr(func))
     assert not rx.analysis.well_formed(mod)
+
+    _stdout, stderr = capfd.readouterr()
+    assert "R.print" in stderr
 
 
 if __name__ == "__main__":

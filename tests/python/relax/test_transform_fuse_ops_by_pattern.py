@@ -1109,5 +1109,113 @@ def test_multple_runs():
     )
 
 
+@pytest.mark.skip_well_formed_check_before_transform
+def test_error_on_repeated_variable_definitions():
+    """Raise error for SSA violations
+
+    Internally, `FuseOpsByPattern` makes a mapping from relax
+    variables to the fused group containing that variable.  If the
+    input module violates SSA, this map may be ill-formed.
+
+    While not strictly necessary for FuseOps to handle ill-formed
+    inputs, checking it at this level provides better error handling
+    than propagating it to downstream passes.
+    """
+    mod = Conv2dReLU.clone()
+    mod["copy"] = mod["main"].with_attr("global_symbol", "copy")
+
+    patterns = [("dnnl.conv2d_relu", conv2d_relu_pat)]
+
+    with pytest.raises(ValueError):
+        relax.transform.FuseOpsByPattern(patterns)(mod)
+
+
+def test_matmul_symbolic_var():
+    @I.ir_module
+    class Before:
+        @R.function
+        def main(
+            x: R.Tensor(["batch_size", 1024], "float16"),
+            w1: R.Tensor([1024, 1024], "float16"),
+            w2: R.Tensor([1024, "M"], "float16"),
+        ):
+            with R.dataflow():
+                matmul1 = R.matmul(x, w1)
+                matmul2 = R.matmul(x, w2)
+                out = (matmul1, matmul2)
+                R.output(out)
+            return out
+
+    @I.ir_module
+    class Expected:
+        @R.function
+        def main(
+            x: R.Tensor(["batch_size", 1024], "float16"),
+            w1: R.Tensor([1024, 1024], "float16"),
+            w2: R.Tensor([1024, "M"], "float16"),
+        ) -> R.Tuple(
+            R.Tensor(["batch_size", 1024], "float16"),
+            R.Tensor(["batch_size", "M"], "float16"),
+        ):
+            cls = Expected
+            with R.dataflow():
+                matmul1 = cls.fused_relax_matmul_cublas(x, w1)
+                matmul2 = cls.fused_relax_matmul1_cublas(x, w2)
+                out = (matmul1, matmul2)
+                R.output(out)
+            return out
+
+        @R.function
+        def fused_relax_matmul_cublas(
+            x: R.Tensor(["batch_size", 1024], "float16"),
+            w1: R.Tensor([1024, 1024], "float16"),
+        ) -> R.Tensor(["batch_size", 1024], "float16"):
+            batch_size = T.int64()
+            R.func_attr({"Codegen": "cublas"})
+
+            @R.function
+            def inner_func(
+                x: R.Tensor([batch_size, 1024], "float16"),
+                w1: R.Tensor([1024, 1024], "float16"),
+            ) -> R.Tensor([batch_size, 1024], "float16"):
+                R.func_attr({"Composite": "cublas.matmul"})
+                with R.dataflow():
+                    out = R.matmul(x, w1)
+                    R.output(out)
+                return out
+
+            out = inner_func(x, w1)
+            return out
+
+        @R.function
+        def fused_relax_matmul1_cublas(
+            x: R.Tensor(["batch_size", 1024], "float16"),
+            w2: R.Tensor([1024, "M"], "float16"),
+        ) -> R.Tensor(["batch_size", "M"], "float16"):
+            batch_size = T.int64()
+            M = T.int64()
+            R.func_attr({"Codegen": "cublas"})
+
+            @R.function
+            def inner_func(
+                x: R.Tensor([batch_size, 1024], "float16"),
+                w2: R.Tensor((1024, M), "float16"),
+            ) -> R.Tensor([batch_size, M], "float16"):
+                R.func_attr({"Composite": "cublas.matmul"})
+                with R.dataflow():
+                    out = R.matmul(x, w2)
+                    R.output(out)
+                return out
+
+            out = inner_func(x, w2)
+            return out
+
+    patterns = relax.backend.pattern_registry.get_patterns_with_prefix("cublas.matmul")
+    After = relax.transform.FuseOpsByPattern(patterns, bind_constants=False, annotate_codegen=True)(
+        Before
+    )
+    tvm.ir.assert_structural_equal(Expected, After)
+
+
 if __name__ == "__main__":
     pytest.main([__file__])

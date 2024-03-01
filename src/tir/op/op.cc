@@ -342,7 +342,7 @@ PrimExpr cast(const DataType& t, PrimExpr value, Span span) {
   using tir::FloatImmNode;
   if (value.dtype() == t) return value;
   // const fold IntImm as they are used in index computations
-  if (t.lanes() == 1) {
+  if (t.is_scalar()) {
     if (const IntImmNode* op = value.as<IntImmNode>()) {
       return make_const(t, op->value, op->span);
     } else if (const FloatImmNode* op = value.as<FloatImmNode>()) {

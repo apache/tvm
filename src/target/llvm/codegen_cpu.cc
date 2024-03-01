@@ -185,13 +185,18 @@ void CodeGenCPU::Init(const std::string& module_name, LLVMTarget* llvm_target,
   InitGlobalContext(dynamic_lookup);
 }
 
-llvm::DISubprogram* CodeGenCPU::CreateDebugFunction(const PrimFunc& f) {
-#if TVM_LLVM_VERSION >= 50
+llvm::DISubprogram* CodeGenCPU::CreateDebugFunction(llvm::StringRef name,
+                                                    const Array<Type>& param_types,
+                                                    const Type& return_type) {
+#if TVM_LLVM_VERSION < 50
+  return nullptr;
+#else
+
   llvm::SmallVector<llvm::Metadata*, 4> paramTys;
 
-  paramTys.push_back(GetDebugType(f->ret_type));
-  for (const auto& param : f->params) {
-    paramTys.push_back(GetDebugType(GetType(param)));
+  paramTys.push_back(GetDebugType(return_type));
+  for (const auto& param_type : param_types) {
+    paramTys.push_back(GetDebugType(param_type));
   }
 
   auto* DIFunctionTy = dbg_info_->di_builder_->createSubroutineType(
@@ -199,130 +204,39 @@ llvm::DISubprogram* CodeGenCPU::CreateDebugFunction(const PrimFunc& f) {
 
   bool local_to_unit = llvm::GlobalVariable::isLocalLinkage(llvm::GlobalValue::InternalLinkage);
 
-  // TODO(driazati): determine the IRModule name instead of hardcoding 'main.tir'
 #if TVM_LLVM_VERSION >= 80
   auto SPFlags = llvm::DISubprogram::toSPFlags(local_to_unit, /*IsDefinition=*/true,
                                                /*IsOptimized=*/true);
-  auto* DIFunction = dbg_info_->di_builder_->createFunction(
-      /*Scope=*/dbg_info_->file_, /*Name=*/"main.tir", /*LinkageName=*/"",
-      /*File=*/dbg_info_->file_, /*LineNo=*/0, /*Ty=*/DIFunctionTy,
-      /*ScopeLine=*/0, /*Flags=*/llvm::DINode::FlagZero, /*SPFlags=*/SPFlags);
 #else
-  auto* DIFunction = dbg_info_->di_builder_->createFunction(
-      /*Scope=*/dbg_info_->file_, /*Name=*/"main.tir", /*LinkageName=*/"",
-      /*File=*/dbg_info_->file_, /*LineNo=*/0, /*Ty=*/DIFunctionTy,
-      /*isLocalToUnit=*/local_to_unit, /*isDefinition=*/true, /*ScopeLine=*/0,
-      /*Flags=*/llvm::DINode::FlagPrototyped, /*isOptimized=*/true);
+  bool SPFlags = /*IsOptimized=*/true;
 #endif
+
+  auto* DIFunction = dbg_info_->di_builder_->createFunction(
+      /*Scope=*/dbg_info_->file_, /*Name=*/name, /*LinkageName=*/"",
+      /*File=*/dbg_info_->file_, /*LineNo=*/0, /*Ty=*/DIFunctionTy,
+      /*ScopeLine=*/0, /*Flags=*/llvm::DINode::FlagPrototyped, /*SPFlags=*/SPFlags);
+
   return DIFunction;
-#else
-  return nullptr;
+
 #endif
 }
 
-void CodeGenCPU::AddFunction(const GlobalVar& gvar, const PrimFunc& f) {
-#if TVM_LLVM_VERSION >= 50
-  di_subprogram_ = CreateDebugFunction(f);
-#endif
-  EmitDebugLocation(f->span);
-  CodeGenLLVM::AddFunction(gvar, f);
+llvm::DISubprogram* CodeGenCPU::CreateDebugFunction(const GlobalVar& gvar, const PrimFunc& func) {
+  std::string name = func->GetAttr<String>(tvm::attr::kGlobalSymbol).value_or(gvar->name_hint);
+  return CreateDebugFunction(name, func->params.Map(GetType), func->ret_type);
+}
+
+void CodeGenCPU::AddFunction(const GlobalVar& gvar, const PrimFunc& func) {
+  di_subprogram_ = CreateDebugFunction(gvar, func);
+  EmitDebugLocation(func->span);
+  CodeGenLLVM::AddFunction(gvar, func);
   if (f_tvm_register_system_symbol_ != nullptr) {
-    if (auto global_symbol = f->GetAttr<String>(tvm::attr::kGlobalSymbol)) {
+    if (auto global_symbol = func->GetAttr<String>(tvm::attr::kGlobalSymbol)) {
       export_system_symbols_.emplace_back(
           std::make_pair(global_symbol.value().operator std::string(), function_));
     }
   }
-  AddDebugInformation(f, function_);
-}
-
-// Following Glow |DebugInfo::generateFunctionDebugInfo|, https://git.io/fjadv
-void CodeGenCPU::AddDebugInformation(PrimFunc f_tir, llvm::Function* f_llvm) {
-#if TVM_LLVM_VERSION >= 50
-  ICHECK(di_subprogram_);
-  f_llvm->setSubprogram(di_subprogram_);
-  ICHECK_EQ(f_llvm->getSubprogram(), di_subprogram_);
-
-  IRBuilder builder(&f_llvm->getEntryBlock());
-  if (!f_llvm->getEntryBlock().empty()) {
-    builder.SetInsertPoint(&f_llvm->getEntryBlock().front());
-  }
-  llvm::DebugLoc DL;
-  builder.SetCurrentDebugLocation(DL);
-  llvm::LLVMContext* ctx = llvm_target_->GetContext();
-  for (size_t i = 0; i < f_llvm->arg_size(); ++i) {
-    auto* paramAlloca = builder.CreateAlloca(f_llvm->getFunctionType()->getParamType(i));
-    std::string paramName = "arg" + std::to_string(i + 1);
-    auto param = dbg_info_->di_builder_->createParameterVariable(
-        di_subprogram_, paramName, i + 1, dbg_info_->file_, 0,
-        GetDebugType(GetType(f_tir->params[i]), f_llvm->getFunctionType()->getParamType(i)),
-        /*alwaysPreserve=*/true);
-    auto* store = builder.CreateStore(f_llvm->arg_begin() + i, paramAlloca);
-    auto* di_loc = llvm::DILocation::get(*ctx, 0, 0, di_subprogram_);
-    dbg_info_->di_builder_->insertDeclare(paramAlloca, param,
-                                          dbg_info_->di_builder_->createExpression(),
-                                          llvm::DebugLoc(di_loc), store);
-  }
-  dbg_info_->di_builder_->finalizeSubprogram(f_llvm->getSubprogram());
-  auto* scope = f_llvm->getSubprogram();
-  if (!scope) {
-    return;
-  }
-
-  for (auto& BB : *f_llvm) {
-    for (auto& I : BB) {
-      if (I.getDebugLoc()) {
-        continue;
-      }
-      auto* di_loc = llvm::DILocation::get(*ctx, 0, 0, scope);
-      I.setDebugLoc(llvm::DebugLoc(di_loc));
-    }
-  }
-#endif
-}
-
-llvm::DIType* CodeGenCPU::GetDebugType(const Type& ty_tir) {
-  return GetDebugType(ty_tir, GetLLVMType(ty_tir));
-}
-llvm::DIType* CodeGenCPU::GetDebugType(const Type& ty_tir, llvm::Type* ty_llvm) {
-  if (ty_llvm == t_void_) {
-    return nullptr;
-
-  } else if (ty_llvm->isPointerTy()) {
-    auto* ptr_type = ty_tir.as<PointerTypeNode>();
-    ICHECK(ptr_type != nullptr || GetRuntimeDataType(ty_tir).is_handle())
-        << "Got LLVM pointer type from non-pointer IR type: " << ty_tir;
-    auto* pointee_type = ptr_type != nullptr ? GetDebugType(ptr_type->element_type,
-                                                            GetLLVMType(ptr_type->element_type))
-                                             : nullptr;
-    return dbg_info_->di_builder_->createPointerType(pointee_type,
-                                                     ty_llvm->getPrimitiveSizeInBits());
-
-  } else if (auto* prim_type = ty_tir.as<PrimTypeNode>()) {
-    DataType dtype = prim_type->dtype;
-    auto dwarf_type = [&]() -> llvm::dwarf::TypeKind {
-      if (dtype.is_bool()) {
-        return llvm::dwarf::DW_ATE_boolean;
-      } else if (dtype.is_float()) {
-        return llvm::dwarf::DW_ATE_float;
-      } else if (dtype.is_int()) {
-        return llvm::dwarf::DW_ATE_signed;
-      } else if (dtype.is_uint()) {
-        return llvm::dwarf::DW_ATE_unsigned;
-      } else {
-        LOG(FATAL) << "No DWARF representation for TIR type " << dtype;
-      }
-    }();
-
-    return dbg_info_->di_builder_->createBasicType(DLDataType2String(dtype),
-                                                   dtype.bits() * dtype.lanes(), dwarf_type);
-
-  } else {
-    std::string type_str;
-    llvm::raw_string_ostream rso(type_str);
-    ty_llvm->print(rso);
-    LOG(FATAL) << "Unknown LLVM type:" << rso.str();
-  }
-  return nullptr;
+  AddDebugInformation(function_, func->params.Map(GetType));
 }
 
 void CodeGenCPU::AddMainFunction(const std::string& entry_func_name) {
@@ -570,15 +484,18 @@ void CodeGenCPU::CreateComputeScope(const AttrStmtNode* op) {
       std::swap(function_, parent_->function_);
       std::swap(analyzer_, parent_->analyzer_);
       std::swap(var_map_, parent_->var_map_);
+      std::swap(di_subprogram_, parent_->di_subprogram_);
     }
 
     void ExitWithScope() {
       std::swap(function_, parent_->function_);
       std::swap(analyzer_, parent_->analyzer_);
       std::swap(var_map_, parent_->var_map_);
+      std::swap(di_subprogram_, parent_->di_subprogram_);
     }
 
     llvm::Function* function_{nullptr};
+    llvm::DISubprogram* di_subprogram_{nullptr};
     std::unordered_map<const VarNode*, llvm::Value*> var_map_;
     std::unique_ptr<arith::Analyzer> analyzer_{std::make_unique<arith::Analyzer>()};
     CodeGenCPU* parent_;
@@ -606,6 +523,10 @@ void CodeGenCPU::CreateComputeScope(const AttrStmtNode* op) {
   llvm::Function* fcompute = llvm::Function::Create(ftype, llvm::Function::InternalLinkage,
                                                     MakeStringRef(value->value), module_.get());
   SetTargetAttributes(fcompute);
+  for (auto it = fcompute->arg_begin(); it != fcompute->arg_end(); it++) {
+    const Var& var = vargs[std::distance(fcompute->arg_begin(), it)];
+    it->setName(std::string(var->name_hint));
+  }
 
   llvm::BasicBlock* compute_call_end = CheckCallSuccess(builder_->CreateCall(fcompute, arg_values));
   llvm::LLVMContext* ctx = llvm_target_->GetContext();
@@ -640,11 +561,15 @@ void CodeGenCPU::CreateComputeScope(const AttrStmtNode* op) {
   }
 
   function_ = fcompute;
+  di_subprogram_ = CreateDebugFunction(MakeStringRef(value->value), vargs.Map(GetType),
+                                       PrimType(DataType::Int(32)));
   auto* compute_entry = llvm::BasicBlock::Create(*ctx, "entry", function_);
   builder_->SetInsertPoint(compute_entry);
   this->VisitStmt(op->body);
   builder_->CreateRet(ConstInt32(0));
   builder_->SetInsertPoint(compute_call_end);
+
+  AddDebugInformation(fcompute, vargs.Map(GetType));
 }
 
 CodeGenLLVM::TypedPointer CodeGenCPU::PackClosureData(const Array<Var>& vfields,

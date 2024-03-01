@@ -64,15 +64,14 @@ def test_basic():
         @R.function
         def main(
             x: R.Tensor((1, 3, 224, 224), dtype="float32"),
-            param0: R.Tensor((16, 16, 3, 3), dtype="float32"),
-            param1: R.Tensor((16, 3, 3, 3), dtype="float32"),
+            w2: R.Tensor((16, 16, 3, 3), dtype="float32"),
+            w1_transformed: R.Tensor((16, 3, 3, 3), dtype="float32"),
         ) -> R.Tensor((1, 16, 224, 224), dtype="float32"):
             R.func_attr({"num_input": 1})
             with R.dataflow():
-                param1 = param1
                 conv1: R.Tensor((1, 16, 224, 224), dtype="float32") = R.nn.conv2d(
                     x,
-                    param1,
+                    w1_transformed,
                     strides=[1, 1],
                     padding=[1, 1, 1, 1],
                     dilation=[1, 1],
@@ -82,10 +81,9 @@ def test_basic():
                     out_layout="NCHW",
                     out_dtype="void",
                 )
-                param0 = param0
                 conv2: R.Tensor((1, 16, 224, 224), dtype="float32") = R.nn.conv2d(
                     conv1,
-                    param0,
+                    w2,
                     strides=[1, 1],
                     padding=[1, 1, 1, 1],
                     dilation=[1, 1],
@@ -117,15 +115,16 @@ def test_basic():
         ) -> R.Tuple(
             R.Tensor((16, 16, 3, 3), dtype="float32"), R.Tensor((16, 3, 3, 3), dtype="float32")
         ):
+            R.func_attr({"num_input": 0})
             cls = Expected
             with R.dataflow():
-                lv: R.Tensor((16, 16, 3, 3), dtype="float32") = params[1]
                 lv1: R.Tensor((3, 16, 3, 3), dtype="float32") = params[0]
                 lv2 = R.call_tir(
                     cls.transform_layout_IOHW_to_OIHW,
                     (lv1,),
                     out_sinfo=R.Tensor((16, 3, 3, 3), dtype="float32"),
                 )
+                lv: R.Tensor((16, 16, 3, 3), dtype="float32") = params[1]
                 gv: R.Tuple(
                     R.Tensor((16, 16, 3, 3), dtype="float32"),
                     R.Tensor((16, 3, 3, 3), dtype="float32"),
@@ -136,6 +135,10 @@ def test_basic():
     mod = Before
     after = relax.transform.LiftTransformParams()(mod)
     tvm.ir.assert_structural_equal(after, Expected)
+
+    names_after = [param.name_hint for param in after["main"].params]
+    names_expected = [param.name_hint for param in Expected["main"].params]
+    assert names_after == names_expected
 
 
 def test_tuple():
@@ -168,10 +171,9 @@ def test_tuple():
         ) -> R.Tensor((1, 16, 224, 224), dtype="float32"):
             R.func_attr({"num_input": 1})
             with R.dataflow():
-                lv: R.Tensor((16, 16, 3, 3), dtype="float32") = param1
                 conv1: R.Tensor((1, 16, 224, 224), dtype="float32") = R.nn.conv2d(
                     x,
-                    lv,
+                    param1,
                     strides=[1, 1],
                     padding=[1, 1, 1, 1],
                     dilation=[1, 1],
@@ -181,10 +183,9 @@ def test_tuple():
                     out_layout="NCHW",
                     out_dtype="void",
                 )
-                lv1: R.Tensor((16, 16, 3, 3), dtype="float32") = param0
                 conv2: R.Tensor((1, 16, 224, 224), dtype="float32") = R.nn.conv2d(
                     conv1,
-                    lv1,
+                    param0,
                     strides=[1, 1],
                     padding=[1, 1, 1, 1],
                     dilation=[1, 1],
@@ -203,17 +204,14 @@ def test_tuple():
         ) -> R.Tuple(
             R.Tensor((16, 16, 3, 3), dtype="float32"), R.Tensor((16, 16, 3, 3), dtype="float32")
         ):
+            R.func_attr({"num_input": 0})
             with R.dataflow():
-                lv: R.Tensor((16, 16, 3, 3), dtype="float32") = params[0]
-                lv1: R.Tensor((16, 16, 3, 3), dtype="float32") = params[0]
-                l0: R.Tuple(R.Tensor((16, 16, 3, 3), dtype="float32")) = (lv1,)
-                l1: R.Tuple(R.Tuple(R.Tensor((16, 16, 3, 3), dtype="float32"))) = (l0,)
-                l2: R.Tuple(R.Tensor((16, 16, 3, 3), dtype="float32")) = l1[0]
-                lv2: R.Tensor((16, 16, 3, 3), dtype="float32") = l2[0]
-                gv: R.Tuple(
-                    R.Tensor((16, 16, 3, 3), dtype="float32"),
-                    R.Tensor((16, 16, 3, 3), dtype="float32"),
-                ) = (lv, lv2)
+                lv = params[0]
+                lv0 = (lv,)
+                lv1 = (lv0,)
+                lv2 = params[0]
+                lv3 = params[0]
+                gv = (lv2, lv3)
                 R.output(gv)
             return gv
 
@@ -258,6 +256,7 @@ def test_condition():
             R.Tensor((16, 16, 3, 3), dtype="float32"),
             R.Tensor((), dtype="bool"),
         ):
+            R.func_attr({"num_input": 0})
             with R.dataflow():
                 lv: R.Tensor((16, 16, 3, 3), dtype="float32") = params[0]
                 lv1: R.Tensor((16, 16, 3, 3), dtype="float32") = params[1]
@@ -278,13 +277,10 @@ def test_condition():
             param2: R.Tensor((), dtype="bool"),
         ) -> R.Tensor((1, 16, 224, 224), "float32"):
             R.func_attr({"num_input": 1})
-            gv: R.Tensor((), dtype="bool") = param2
-            if gv:
-                gv1: R.Tensor((16, 16, 3, 3), dtype="float32") = param0
-                w: R.Tensor((16, 16, 3, 3), dtype="float32") = gv1
+            if param2:
+                w: R.Tensor((16, 16, 3, 3), dtype="float32") = param0
             else:
-                gv2: R.Tensor((16, 16, 3, 3), dtype="float32") = param1
-                w: R.Tensor((16, 16, 3, 3), dtype="float32") = gv2
+                w: R.Tensor((16, 16, 3, 3), dtype="float32") = param1
             with R.dataflow():
                 conv1 = R.nn.conv2d(x, w, padding=(1, 1), data_layout="NCHW", kernel_layout="OIHW")
                 R.output(conv1)
@@ -342,8 +338,7 @@ def test_multiple_functions():
         ) -> R.Tensor((256, 256), dtype="float32"):
             R.func_attr({"num_input": 1})
             with R.dataflow():
-                lv: R.Tensor((256, 256), dtype="float32") = param0
-                y: R.Tensor((256, 256), dtype="float32") = R.matmul(x, lv, out_dtype="void")
+                y: R.Tensor((256, 256), dtype="float32") = R.matmul(x, param0, out_dtype="void")
                 R.output(y)
             return y
 
@@ -351,6 +346,7 @@ def test_multiple_functions():
         def func1_transform_params(
             params: R.Tuple(R.Tensor((256, 256), dtype="float32"))
         ) -> R.Tuple(R.Tensor((256, 256), dtype="float32")):
+            R.func_attr({"num_input": 0})
             with R.dataflow():
                 lv: R.Tensor((256, 256), dtype="float32") = params[0]
                 lv1: R.Tensor((256, 256), dtype="float32") = R.permute_dims(lv, axes=[1, 0])
@@ -365,8 +361,7 @@ def test_multiple_functions():
         ) -> R.Tensor((256, 128), dtype="float32"):
             R.func_attr({"num_input": 1})
             with R.dataflow():
-                lv1: R.Tensor((256, 128), dtype="float32") = param0
-                y: R.Tensor((256, 128), dtype="float32") = R.matmul(x, lv1, out_dtype="void")
+                y: R.Tensor((256, 128), dtype="float32") = R.matmul(x, param0, out_dtype="void")
                 R.output(y)
             return y
 
@@ -374,6 +369,7 @@ def test_multiple_functions():
         def func2_transform_params(
             params: R.Tuple(R.Tensor((128, 256), dtype="float32"))
         ) -> R.Tuple(R.Tensor((256, 128), dtype="float32")):
+            R.func_attr({"num_input": 0})
             with R.dataflow():
                 lv: R.Tensor((128, 256), dtype="float32") = params[0]
                 lv1: R.Tensor((256, 128), dtype="float32") = R.permute_dims(lv, axes=[1, 0])
@@ -422,8 +418,7 @@ def test_stop_lifting():
         ) -> R.Tensor((256, 256), dtype="float32"):
             R.func_attr({"num_input": 1})
             with R.dataflow():
-                lv: R.Tensor((256, 256), dtype="float32") = param0
-                w1_add: R.Tensor((256, 256), dtype="float32") = R.add(lv, R.const(1, "float32"))
+                w1_add: R.Tensor((256, 256), dtype="float32") = R.add(param0, R.const(1, "float32"))
                 y: R.Tensor((256, 256), dtype="float32") = R.matmul(x, w1_add, out_dtype="void")
                 R.output(y)
             return y
@@ -432,6 +427,7 @@ def test_stop_lifting():
         def func1_transform_params(
             params: R.Tuple(R.Tensor((256, 256), dtype="float32"))
         ) -> R.Tuple(R.Tensor((256, 256), dtype="float32")):
+            R.func_attr({"num_input": 0})
             with R.dataflow():
                 lv: R.Tensor((256, 256), dtype="float32") = params[0]
                 lv1: R.Tensor((256, 256), dtype="float32") = R.permute_dims(lv, axes=[1, 0])
@@ -459,6 +455,7 @@ def test_symbolic_var_1():
     class Expected:
         @R.function
         def main_transform_params(params: R.Tuple) -> R.Tuple:
+            R.func_attr({"num_input": 0})
             with R.dataflow():
                 gv: R.Tuple = R.tuple()
                 R.output(gv)
@@ -522,6 +519,7 @@ def test_symbolic_var_2():
 
         @R.function
         def main_transform_params(params: R.Tuple) -> R.Tuple:
+            R.func_attr({"num_input": 0})
             with R.dataflow():
                 gv: R.Tuple = R.tuple()
                 R.output(gv)
@@ -603,7 +601,6 @@ def test_symbolic_var_from_shape():
                     tir_vars=R.ShapeExpr([slice_index]),
                     out_sinfo=R.Tensor([16], dtype="int32"),
                 )
-                B_slice = B_slice
                 A_scale = R.multiply(A_slice, B_slice)
                 R.output(A_scale)
             return A_scale
@@ -612,18 +609,19 @@ def test_symbolic_var_from_shape():
         def main_transform_params(
             params: R.Tuple(R.Tensor([16, 16], "int32"), R.Shape(["slice_index"]))
         ):
+            R.func_attr({"num_input": 0})
             slice_index = T.int64()
             cls = Expected
             with R.dataflow():
-                extra_symbolic_vars = R.ShapeExpr([slice_index])
                 B = params[0]
+                # extra_symbolic_vars = params[1]
                 B_slice = R.call_tir(
                     cls.slice,
                     [B],
                     tir_vars=R.ShapeExpr([slice_index]),
                     out_sinfo=R.Tensor([16], dtype="int32"),
                 )
-                output = (extra_symbolic_vars, B_slice)
+                output = (R.ShapeExpr([slice_index]), B_slice)
                 R.output(output)
             return output
 
@@ -652,7 +650,7 @@ def test_symbolic_var_in_param_shape():
             x: R.Tensor((1, 16, 224, "n"), "float32"),
             w1: R.Tensor((16, "m", 3, 3), "float32"),
             w2: R.Tensor((16, "m", 3, 3), "float32"),
-        ) -> R.Tensor((1, 16, 224, 224), "float32"):
+        ) -> R.Tensor((1, 16, 224, "n"), "float32"):
             m = T.int64()
             n = T.int64()
             R.func_attr({"num_input": 1})
@@ -677,11 +675,12 @@ def test_symbolic_var_in_param_shape():
         ) -> R.Tuple(
             R.Tensor((16, "m", 3, 3), dtype="float32"), R.Tensor((16, "m", 3, 3), dtype="float32")
         ):
+            R.func_attr({"num_input": 0})
             m = T.int64()
             with R.dataflow():
-                lv: R.Tensor((16, m, 3, 3), dtype="float32") = params[1]
                 lv1: R.Tensor((16, m, 3, 3), dtype="float32") = params[0]
                 lv2: R.Tensor((16, m, 3, 3), dtype="float32") = R.add(lv1, R.const(1, "float32"))
+                lv: R.Tensor((16, m, 3, 3), dtype="float32") = params[1]
                 gv: R.Tuple(
                     R.Tensor((16, m, 3, 3), dtype="float32"),
                     R.Tensor((16, m, 3, 3), dtype="float32"),
@@ -694,16 +693,15 @@ def test_symbolic_var_in_param_shape():
             x: R.Tensor((1, 16, 224, "n"), dtype="float32"),
             transformed_param_0: R.Tensor((16, "m", 3, 3), dtype="float32"),
             transformed_param_1: R.Tensor((16, "m", 3, 3), dtype="float32"),
-        ) -> R.Tensor((1, 16, 224, 224), dtype="float32"):
+        ) -> R.Tensor((1, 16, 224, "n"), dtype="float32"):
             n = T.int64()
             m = T.int64()
             R.func_attr({"num_input": 1})
             with R.dataflow():
                 zeros: R.Tensor((n, n), dtype="float32") = R.zeros(R.shape([n, n]), dtype="float32")
-                lv: R.Tensor((16, m, 3, 3), dtype="float32") = transformed_param_1
                 conv1: R.Tensor((1, 16, 224, n), dtype="float32") = R.nn.conv2d(
                     x,
-                    lv,
+                    transformed_param_1,
                     strides=[1, 1],
                     padding=[1, 1, 1, 1],
                     dilation=[1, 1],
@@ -713,10 +711,9 @@ def test_symbolic_var_in_param_shape():
                     out_layout="NCHW",
                     out_dtype="void",
                 )
-                lv1: R.Tensor((16, m, 3, 3), dtype="float32") = transformed_param_0
                 conv2: R.Tensor((1, 16, 224, n), dtype="float32") = R.nn.conv2d(
                     conv1,
-                    lv1,
+                    transformed_param_0,
                     strides=[1, 1],
                     padding=[1, 1, 1, 1],
                     dilation=[1, 1],
@@ -770,6 +767,7 @@ def test_symbolic_var_defined_in_params_but_used_in_weights():
         def main_transform_params(
             params: R.Tuple(R.Tensor(("k",), dtype="float32"))
         ) -> R.Tuple(R.Tensor(dtype="float32", ndim=1)):
+            R.func_attr({"num_input": 0})
             k = T.int64()
             with R.dataflow():
                 lv: R.Tensor((k,), dtype="float32") = params[0]
@@ -795,6 +793,60 @@ def test_symbolic_var_defined_in_params_but_used_in_weights():
 
     After = relax.transform.LiftTransformParams()(Before)
     tvm.ir.assert_structural_equal(Expected, After)
+
+
+def test_only_lift_when_variable_uses_constants():
+    """A variable that has no inputs should not be lifted
+
+    For example, `R.zeros`, or the result of allocation function
+    calls.
+    """
+
+    @tvm.script.ir_module
+    class Before:
+        @R.function
+        def main(
+            A: R.Tensor([16], "int32"),
+            B: R.Tensor([16], "int32"),
+        ):
+            R.func_attr({"num_input": 1})
+            with R.dataflow():
+                offset = R.ones([16], "int32")
+                A_offset = R.add(A, offset)
+                B_offset = R.add(B, offset)
+                output = R.multiply(A_offset, B_offset)
+                R.output(output)
+            return output
+
+    @tvm.script.ir_module
+    class Expected:
+        @R.function
+        def main(
+            A: R.Tensor([16], "int32"),
+            B_offset: R.Tensor([16], "int32"),
+        ):
+            R.func_attr({"num_input": 1})
+            with R.dataflow():
+                offset = R.ones([16], "int32")
+                A_offset = R.add(A, offset)
+                output = R.multiply(A_offset, B_offset)
+                R.output(output)
+            return output
+
+        @R.function
+        def main_transform_params(params: R.Tuple([R.Tensor([16], "int32")])):
+            R.func_attr({"num_input": 0})
+            with R.dataflow():
+                offset = R.ones([16], "int32")
+                B = params[0]
+                B_offset = R.add(B, offset)
+                output = (B_offset,)
+                R.output(output)
+            return output
+
+    mod = Before
+    after = relax.transform.LiftTransformParams()(mod)
+    tvm.ir.assert_structural_equal(after, Expected)
 
 
 if __name__ == "__main__":
