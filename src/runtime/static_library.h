@@ -42,7 +42,8 @@ namespace runtime {
  * \brief Returns a static library with the contents loaded from filename which exports
  * func_names with the usual packed-func calling convention.
  */
-Module LoadStaticLibrary(const std::string& filename, Array<String> func_names);
+Module LoadStaticLibrary(const std::string& filename, Array<String> func_names,
+                         Optional<String> source_code = NullOpt);
 
 }  // namespace runtime
 }  // namespace tvm

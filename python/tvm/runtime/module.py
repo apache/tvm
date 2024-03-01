@@ -20,7 +20,7 @@
 import os
 import ctypes
 import struct
-from typing import Sequence
+from typing import Sequence, List, Optional
 import numpy as np
 
 from tvm._ffi.base import _LIB, check_call, c_str, string_types, _RUNTIME_ONLY
@@ -699,11 +699,11 @@ def load_module(path, fmt=""):
     return _ffi_api.ModuleLoadFromFile(path, fmt)
 
 
-def load_static_library(path, func_names):
+def load_static_library(path: str, func_names: List[str], source_code: Optional[str] = None):
     """Load the .o library at path which implements functions with func_names.
     Unlike the generic load_module the result will remain as a static_library
     and will not be relinked on-the-fly into a .so library."""
-    return _ffi_api.ModuleLoadStaticLibrary(path, func_names)
+    return _ffi_api.ModuleLoadStaticLibrary(path, func_names, source_code)
 
 
 def enabled(target):
