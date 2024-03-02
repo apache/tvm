@@ -29,6 +29,7 @@ from tvm.contrib.msc.core.ir import MSCGraph
 from tvm.contrib.msc.core.runtime import ModelRunner
 from tvm.contrib.msc.core.utils.message import MSCStage
 from tvm.contrib.msc.core.utils.namespace import MSCFramework
+from tvm.contrib.msc.core import utils as msc_utils
 from tvm.contrib.msc.framework.tensorflow.frontend import from_tensorflow
 from tvm.contrib.msc.framework.tensorflow.codegen import to_tensorflow
 from tvm.contrib.msc.framework.tensorflow import tf_v1
@@ -154,7 +155,8 @@ class TensorflowRunner(ModelRunner):
             The outputs in list or dict.
         """
 
-        feed_dict = {i["name"] + ":0": inputs[i["name"]] for i in self.get_inputs()}
+        input_names = [i["name"] for i in self.get_inputs()]
+        feed_dict = {i + ":0": msc_utils.cast_array(inputs[i["name"]]) for i in input_names}
         return runnable.run(self._tf_outputs, feed_dict)
 
     def _device_enabled(self, device: str) -> bool:
@@ -182,13 +184,15 @@ class TensorflowRunner(ModelRunner):
         return MSCFramework.TENSORFLOW
 
     @classmethod
-    def load_native(cls, model: Any) -> Tuple[tf_v1.GraphDef, str, bool]:
+    def load_native(cls, model: Any, config: dict) -> Tuple[tf_v1.GraphDef, str, bool]:
         """Load the native model
 
         Parameters
         -------
         model:
             The native model.
+        config: dict
+            The config for pipeline.
 
         Returns
         -------

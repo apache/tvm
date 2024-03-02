@@ -14,14 +14,45 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-# pylint: disable=unused-argument
+# pylint: disable=unused-argument, arguments-differ
 """tvm.contrib.msc.framework.torch.tools.quantize.method"""
 
+from functools import wraps
 import numpy as np
+
 import torch
+from torch.autograd import Function
 from tvm.contrib.msc.core.tools.quantize import QuantizeMethod, BaseQuantizer
 from tvm.contrib.msc.core.utils.namespace import MSCFramework
 from tvm.contrib.msc.core import utils as msc_utils
+
+
+def fake_quantize(func):
+    """Fake quantize without backward"""
+
+    @wraps(func)
+    def wrapper(
+        cls, quantizer: BaseQuantizer, data: torch.Tensor, name: str, consumer: str, *args, **kwargs
+    ):
+        func_name = "quantize_func." + func.__name__
+        quantize_func = quantizer._get_tensor_cache(name, consumer, func_name)
+        if quantize_func is None:
+
+            class FakeQuantize(Function):
+                """Fake quantize func for torch"""
+
+                @staticmethod
+                def forward(ctx, data):
+                    return func(cls, quantizer, data, name, consumer, *args, **kwargs)
+
+                @staticmethod
+                def backward(ctx, grad_outputs):
+                    return grad_outputs
+
+            quantize_func = quantizer._save_tensor_cache(name, consumer, func_name, FakeQuantize)
+        return quantize_func.apply(data)
+
+    return wrapper
 
 
 class TorchQuantizeMethod(QuantizeMethod):
@@ -174,6 +205,7 @@ class TorchQuantizeMethod(QuantizeMethod):
         return {"scale": scale, "sign": sign, "axis": axis, "calibrated": True}
 
     @classmethod
+    @fake_quantize
     def quantize_normal(
         cls,
         quantizer: BaseQuantizer,

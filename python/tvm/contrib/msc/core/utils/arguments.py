@@ -19,7 +19,7 @@
 import os
 import json
 import copy
-import numpy as np
+from typing import Any
 from .info import MSCArray
 
 
@@ -39,6 +39,8 @@ def load_dict(str_dict: str, flavor: str = "json") -> dict:
         The loaded dict.
     """
 
+    if not str_dict:
+        return {}
     if isinstance(str_dict, str) and os.path.isfile(str_dict):
         with open(str_dict, "r") as f:
             dict_obj = json.load(f)
@@ -50,6 +52,29 @@ def load_dict(str_dict: str, flavor: str = "json") -> dict:
         raise Exception("Unexpected str_dict {}({})".format(str_dict, type(str_dict)))
     assert flavor == "json", "Unexpected flavor for load_dict: " + str(flavor)
     return dict_obj
+
+
+def save_dict(dict_obj: Any, path: str, indent: int = 2) -> str:
+    """Save dict object
+
+    Parameters
+    ----------
+    dict_obj:
+        The object that can be load as dict.
+    path: str
+        The output path.
+    indent: int
+        The indent
+
+    Returns
+    -------
+    path: str
+        The output path.
+    """
+
+    with open(path, "w") as f:
+        f.write(json.dumps(load_dict(dict_obj), indent=indent))
+    return path
 
 
 def update_dict(src_dict: dict, new_dict: dict, soft_update: bool = True) -> dict:
@@ -116,20 +141,22 @@ def dump_dict(dict_obj: dict, flavor: str = "dmlc") -> str:
                     lines.append("{}{}:".format(indent * " ", k))
                     lines.extend(_get_lines(v, indent + 2))
                 elif isinstance(v, (tuple, list)) and len(str(k) + str(v)) > max_size:
-                    if all(isinstance(e, (int, float)) for e in v):
+                    if MSCArray.is_array(v):
                         lines.append("{}{}: {}".format(indent * " ", k, MSCArray(v).abstract()))
                     else:
                         lines.append("{}{}:".format(indent * " ", k))
-                        lines.extend(
-                            [
-                                "{}<{}>{}".format((indent + 2) * " ", idx, ele)
-                                for idx, ele in enumerate(v)
-                            ]
-                        )
+                        for idx, ele in enumerate(v):
+                            if isinstance(ele, dict) and len(str(ele)) > max_size:
+                                lines.append("{}[{}.{}]:".format((indent + 2) * " ", k, idx))
+                                lines.extend(_get_lines(ele, indent + 4))
+                            else:
+                                lines.append("{}<{}>{}".format((indent + 2) * " ", idx, ele))
                 elif isinstance(v, bool):
                     lines.append("{}{}: {}".format(indent * " ", k, "true" if v else "false"))
-                elif isinstance(v, np.ndarray):
+                elif MSCArray.is_array(v):
                     lines.append("{}{}: {}".format(indent * " ", k, MSCArray(v).abstract()))
+                elif hasattr(v, "__name__"):
+                    lines.append("{}{}: {}({})".format(indent * " ", k, v.__name__, type(v)))
                 else:
                     lines.append("{}{}: {}".format(indent * " ", k, v))
             return lines
@@ -220,9 +247,11 @@ def map_dict(dict_obj: dict, mapper: callable) -> dict:
     new_dict = {}
     for k, v in dict_obj.items():
         if isinstance(v, (tuple, list)):
-            new_dict[k] = [map_dict(e, mapper) if isinstance(e, dict) else e for e in v]
+            new_dict[k] = [
+                map_dict(mapper(e), mapper) if isinstance(e, dict) else mapper(e) for e in v
+            ]
         elif isinstance(v, dict):
-            new_dict[k] = map_dict(v, mapper)
+            new_dict[k] = map_dict(mapper(v), mapper)
         else:
             new_dict[k] = mapper(v)
     return new_dict
