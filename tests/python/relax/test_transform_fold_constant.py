@@ -109,7 +109,6 @@ def test_one_fold_transpose():
     c1_np = c0_np.T
     before = gen_mod(Module, "before", {"c0": c0_np})
     expected = gen_mod(Module, "expected", {"c1": c1_np})
-
     after = relax.transform.FoldConstant()(before)
     tvm.ir.assert_structural_equal(after, expected)
 
@@ -320,7 +319,7 @@ def test_fold_multiple_relax_ops():
     before = gen_mod(Module, "before", {"c0": c0_np, "c1": c1_np})
     expected = gen_mod(Module, "expected", {"c4": c4_np})
 
-    after = relax.transform.FoldConstant()(before)
+    after = stant()(before)
     tvm.ir.assert_structural_equal(after, expected)
 
 
