@@ -1540,6 +1540,7 @@ export class Instance implements Disposable {
       totalBytes += list[i].nbytes;
     }
     let fetchedBytes = 0;
+    let fetchedShards = 0;
     let timeElapsed = 0;
 
     const cacheOnly = await artifactCache.hasAllKeys(list.map(key => new URL(key.dataPath, ndarrayCacheUrl).href))
@@ -1576,19 +1577,24 @@ export class Instance implements Disposable {
         text: "Start to fetch params",
       });
     }
+    // First download all shards to cache parallely if not yet in cache
     const downloadCache = async (i: number) => {
-      reportCallback(i);
       const shard = list[i];
       const dataUrl = new URL(shard.dataPath, ndarrayCacheUrl).href;
-      let buffer;
       try {
-        buffer = await (await artifactCache.fetchWithCache(dataUrl)).arrayBuffer();
+        await artifactCache.addToCache(dataUrl);
       } catch (err) {
         this.env.logger("Error: Cannot fetch " + dataUrl + " err= " + err);
         throw err;
       }
+      timeElapsed = Math.ceil((perf.now() - tstart) / 1000);
+      fetchedBytes += shard.nbytes;
+      reportCallback(fetchedShards++);
     }
     await Promise.all(list.map((_, index) => downloadCache(index)));
+    reportCallback(list.length);
+
+    // Then iteratively, load the shard from cache
     for (let i = 0; i < list.length; ++i) {
       const shard = list[i];
       const dataUrl = new URL(shard.dataPath, ndarrayCacheUrl).href;
@@ -1628,10 +1634,7 @@ export class Instance implements Disposable {
           gpu_arr.dispose();
         }
       }
-      timeElapsed = Math.ceil((perf.now() - tstart) / 1000);
-      fetchedBytes += shard.nbytes;
     }
-    reportCallback(list.length);
   }
 
   /**
