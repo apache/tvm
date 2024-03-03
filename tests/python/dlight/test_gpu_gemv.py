@@ -996,5 +996,38 @@ def test_blockized_gemv():
         tvm.ir.assert_structural_equal(mod["main"], expected)
 
 
+def test_func_to_skip():
+    @T.prim_func
+    def before(var_A: T.handle, var_exclusive_scan_thrust: T.handle, seq_len: T.int64):
+        data_buf = T.match_buffer(var_A, (seq_len * T.int64(8),), "int32", align=8)
+        output_buf = T.match_buffer(
+            var_exclusive_scan_thrust, (seq_len * T.int64(8),), "int32", align=8
+        )
+        with T.block("exclusive_scan_thrust"):
+            T.reads()
+            T.writes()
+            T.call_packed(
+                "tvm.contrib.thrust.sum_scan",
+                T.tvm_stack_make_array(
+                    data_buf.data, T.tvm_stack_make_shape(seq_len * T.int64(8)), 0, 1, 0, T.int64(0)
+                ),
+                T.tvm_stack_make_array(
+                    output_buf.data,
+                    T.tvm_stack_make_shape(seq_len * T.int64(8)),
+                    0,
+                    1,
+                    0,
+                    T.int64(0),
+                ),
+                T.bool(False),
+            )
+
+    # This function should be skipped.
+    mod = tvm.IRModule({"main": before})
+    with Target("metal"):
+        mod = dl.ApplyDefaultSchedule(dl.gpu.GEMV())(mod)
+        tvm.ir.assert_structural_equal(mod["main"], before)
+
+
 if __name__ == "__main__":
     tvm.testing.main()

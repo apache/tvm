@@ -180,6 +180,8 @@ class GEMV(GPUScheduleRule):
         sch = tir.Schedule(func)
         block_infos = normalize_prim_func(sch)
         block_infos = try_inline_contiguous_spatial(sch, block_infos)
+        if block_infos is None:
+            return None
         if len(block_infos) == 1:
             epilogue = None
         elif len(block_infos) == 2:
