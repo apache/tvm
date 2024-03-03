@@ -156,7 +156,7 @@ class TensorflowRunner(ModelRunner):
         """
 
         input_names = [i["name"] for i in self.get_inputs()]
-        feed_dict = {i + ":0": msc_utils.cast_array(inputs[i["name"]]) for i in input_names}
+        feed_dict = {i + ":0": msc_utils.cast_array(inputs[i]) for i in input_names}
         return runnable.run(self._tf_outputs, feed_dict)
 
     def _device_enabled(self, device: str) -> bool:
