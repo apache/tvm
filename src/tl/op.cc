@@ -222,11 +222,11 @@ PrimExpr CopyArgs::MakePredicate(arith::Analyzer* analyzer, const Array<IterVar>
   for (size_t i = 0; i < ranges.size(); i++) {
     if (is_one(ranges[i]->extent)) continue;
     PrimExpr cond = ranges[i]->min + ivs[idx]->var < extents[i];
-    if (!analyzer->CanProve(cond)) {
+    if (!analyzer->CanProve(cond, arith::ProofStrength::kSymbolicBound)) {
       cond_list.push_back(cond);
     }
     cond = ranges[i]->min + ivs[idx]->var >= 0;
-    if (!analyzer->CanProve(cond)) {
+    if (!analyzer->CanProve(cond, arith::ProofStrength::kSymbolicBound)) {
       cond_list.push_back(cond);
     }
     idx++;

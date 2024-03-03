@@ -100,10 +100,9 @@ class VectorizePlanner : public arith::IRVisitorWithAnalyzer {
     const DataType& access_type = buffer->dtype;
     int max_vector_size = arith::ZeroAwareGCD(128 / access_type.bits(), extent_ptr->value);
 
-    auto buffer_last_dim_size = as_const_int(buffer->shape.back());
-    ICHECK(buffer_last_dim_size != nullptr)
-        << "dyn shape currently not supported " << buffer->shape;
-    max_vector_size = arith::ZeroAwareGCD(max_vector_size, *buffer_last_dim_size);
+    auto mod_set = analyzer_.modular_set(buffer->shape.back());
+    max_vector_size = arith::ZeroAwareGCD(max_vector_size, mod_set->coeff);
+    max_vector_size = arith::ZeroAwareGCD(max_vector_size, mod_set->base);
 
     PrimExpr lsi = indices.back();
     auto iter_sum = arith::NormalizeToIterSum(lsi, iter_map_, &analyzer_);
