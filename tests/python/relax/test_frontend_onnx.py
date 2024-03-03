@@ -296,6 +296,10 @@ def test_mul():
     verify_binary("Mul", [1, 32], [1, 32], [1, 32])
 
 
+def test_sum():
+    verify_binary("Sum", [1, 32], [1, 32], [1, 32])
+
+
 @pytest.mark.parametrize("from_type", [TensorProto.INT32, TensorProto.FLOAT, TensorProto.FLOAT16])
 @pytest.mark.parametrize("to_type", [TensorProto.INT32, TensorProto.FLOAT, TensorProto.FLOAT16])
 def test_cast(from_type, to_type):
@@ -520,7 +524,6 @@ def test_clip_v6(max, min):
     model = helper.make_model(
         graph, producer_name="clip_v6_test", opset_imports=[helper.make_opsetid("", 6)]
     )
-    onnx.save(model, "a.onnx")
     check_correctness(model, opset=10)
 
 
@@ -1778,7 +1781,9 @@ def test_maxpool_and_averagepool():
 
 
 def test_global_average_pool():
+    verify_unary("GlobalAveragePool", [1, 3, 32])
     verify_unary("GlobalAveragePool", [1, 3, 32, 32])
+    verify_unary("GlobalAveragePool", [1, 3, 32, 32, 32])
 
 
 def test_flatten():

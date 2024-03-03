@@ -399,6 +399,17 @@ class Add(OnnxOpConverter):
         return relax.op.add(inputs[0], inputs[1])
 
 
+class Sum(OnnxOpConverter):
+    """Convert an onnx Sum node into an equivalent Relax expression."""
+
+    @classmethod
+    def _impl_v1(cls, bb, inputs, attr, params):
+        for in_index in range(len(inputs) - 1):
+            inputs[in_index + 1] = relax.op.add(inputs[in_index], inputs[in_index + 1])
+
+        return inputs[len(inputs) - 1]
+
+
 class Mul(OnnxOpConverter):
     """Convert an onnx Mul node into an equivalent Relax expression."""
 
@@ -1538,7 +1549,17 @@ class GlobalAveragePool(OnnxOpConverter):
 
     @classmethod
     def _impl_v1(cls, bb, inputs, attr, params):
-        return relax.op.nn.adaptive_avg_pool2d(inputs[0], 1)
+        rank = len(inputs[0].struct_info.shape)
+        if rank == 3:
+            return relax.op.nn.adaptive_avg_pool1d(inputs[0], 1)
+        elif rank == 4:
+            return relax.op.nn.adaptive_avg_pool2d(inputs[0], 1)
+        elif rank == 5:
+            return relax.op.nn.adaptive_avg_pool3d(inputs[0], 1)
+        raise NotImplementedError(
+            "Global average pooling is only implemented for 1D, 2D, and 3D kernels, got %dD."
+            % (rank - 2)
+        )
 
 
 class Flatten(OnnxOpConverter):
@@ -1899,6 +1920,7 @@ def _get_convert_map():
         "Add": Add,
         "Mul": Mul,
         "Cast": Cast,
+        "Sum": Sum,
         "Gather": Gather,
         "Gemm": Gemm,
         "Reshape": Reshape,
