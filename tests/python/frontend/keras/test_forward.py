@@ -878,7 +878,9 @@ class TestKeras:
             # after reduction we won't have this axis in the output, so we
             # don't need to do transpose for output tensor.
             (keras_mod.layers.Lambda(lambda v: k_backend.sum(v, -1)), False),
+            # pylint: disable=unnecessary-lambda
             (keras_mod.layers.Lambda(lambda v: k_backend.sum(v)), True),
+            # pylint: enable=unnecessary-lambda
             (keras_mod.layers.Lambda(lambda v: k_backend.sum(v, axis=(2, 3))), True),
             (keras_mod.layers.Lambda(lambda v: k_backend.sum(v, (1, 2))), True),
             (keras_mod.layers.Lambda(lambda v: k_backend.sum(v, axis=[-2, -1])), True),
