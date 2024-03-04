@@ -8238,7 +8238,7 @@ def test_dft(target, dev):
     D = 7
 
     for axis in list(range(1, n)) + [-2]:
-        for inverse, onesided in [(0, 0), (0, 1), (1, 0)]:
+        for inverse, onesided in [(0, 0), (0, 1), (1, 0), (None, None)]:
             for n_fft in [D, D - 1, D + 1]:
                 for c in [1, 2]:
                     input_shape = [batch_size] + n * [D] + [c]
