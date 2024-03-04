@@ -282,7 +282,7 @@ TVM_REGISTER_GLOBAL("vm.builtin.ndarray_cache.update").set_body([](TVMArgs args,
     for (int64_t i = 0; i < tensor->ndim; i++) {
       shape.push_back(tensor->shape[i]);
     }
-    NDArray arr = NDArray::Empty(shape, tensor->dtype, tensor->device);
+    arr = NDArray::Empty(shape, tensor->dtype, tensor->device);
     arr.CopyFrom(tensor);
     TVMSynchronize(arr->device.device_type, arr->device.device_id, nullptr);
   }
@@ -358,6 +358,19 @@ TVM_REGISTER_GLOBAL("vm.builtin.param_module_from_cache_by_name")
 TVM_REGISTER_GLOBAL("vm.builtin.param_array_from_cache").set_body_typed(ParamModuleNode::GetParams);
 TVM_REGISTER_GLOBAL("vm.builtin.param_array_from_cache_by_name")
     .set_body_typed(ParamModuleNode::GetParamByName);
+TVM_REGISTER_GLOBAL("vm.builtin.param_array_from_cache_by_name_unpacked")
+    .set_body([](TVMArgs args, TVMRetValue* rv) {
+      Array<String> names;
+      names.reserve(args.size());
+      for (int i = 0; i < args.size(); ++i) {
+        if (args[i].type_code() != kTVMStr) {
+          LOG(FATAL) << "ValueError: Expect string as input, but get " << args[i].type_code()
+                     << " at " << i;
+        }
+        names.push_back(args[i]);
+      }
+      *rv = ParamModuleNode::GetParamByName(names);
+    });
 
 }  // namespace relax_vm
 }  // namespace runtime
