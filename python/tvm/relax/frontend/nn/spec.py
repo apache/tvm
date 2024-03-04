@@ -44,7 +44,9 @@ class Tensor:  # pylint: disable=too-few-public-methods
     dtype: str
 
     def __init__(self, shape: typing.Sequence[typing.Union[int, str]], dtype: str) -> None:
-        self.shape = list(shape)
+        if shape is not None:
+            shape = list(shape)
+        self.shape = shape
         self.dtype = dtype
 
     def __repr__(self) -> str:

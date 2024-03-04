@@ -304,8 +304,12 @@ def _method_spec_to_inputs(
         if isinstance(arg_spec, _spec.Int):
             arg = _get_var(arg_name)
         elif isinstance(arg_spec, _spec.Tensor):
+            shape = arg_spec.shape
+            if shape is not None:
+                shape = [_get_var(x) if isinstance(x, str) else x for x in shape]
+
             arg = core.Tensor.placeholder(  # pylint: disable=protected-access
-                shape=[_get_var(x) if isinstance(x, str) else x for x in arg_spec.shape],
+                shape=shape,
                 dtype=arg_spec.dtype,
                 name=arg_name,
             )
