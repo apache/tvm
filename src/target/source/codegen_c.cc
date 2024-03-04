@@ -1008,7 +1008,11 @@ void CodeGenC::VisitStmt_(const AttrStmtNode* op) {
   } else if (op->attr_key == tir::attr::pragma_import_c) {
     const StringImmNode* value = op->value.as<StringImmNode>();
     ICHECK(value != nullptr);
-    decl_stream << value->value;
+    // check if the import is already in the set
+    if (imported_sources_.count(value->value) == 0) {
+      imported_sources_.insert(value->value);
+      decl_stream << value->value;
+    }
   }
   this->PrintStmt(op->body);
 }

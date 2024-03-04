@@ -339,6 +339,13 @@ class CodeGenC : public ExprFunctor<void(const PrimExpr&, std::ostream&)>,
    */
   std::unordered_map<GlobalVar, String, ObjectPtrHash, ObjectPtrEqual> internal_functions_;
 
+  /* \brief imported_sources set for import_c pragma
+    * Otherwise, when compile with several modules while some of them
+    * have the same imported source, the generated code will have duplicated
+    * import statements. 
+  */
+  std::unordered_set<String> imported_sources_;
+
   /* \brief Name supply to generate unique function names */
   NameSupply func_name_supply_{""};
 };
