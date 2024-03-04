@@ -408,6 +408,8 @@ IRModule Extend2DConv(const IRModule& mod) {
       const Op& sum_op = Op::Get("sum");
       const Op& neq_op = Op::Get("not_equal");
       const Op& transpose = Op::Get("transpose");
+      const Op& concat_op = Op::Get("concatenate");
+      const Op& strided_slice_op = Op::Get("strided_slice");
 
 
 
@@ -502,6 +504,9 @@ IRModule Extend2DConv(const IRModule& mod) {
         reduce_batch_axis_attrs->axis = {
             data_dim_pos.pos_N};  // Get the N-th dimension in input layout
 
+
+        bool depth = IsDepthwiseConv(origin_conv2d, orig_conv_attr, orig_conv_attr->kernel_layout);
+
         if ((Downcast<IntImm>(orig_conv_attr->strides[0])->value == 1) &&
             (Downcast<IntImm>(orig_conv_attr->strides[1])->value == 1)) {
           /// Implement depth-wise conv with conv2d Operation (Group arg splits input into C
@@ -524,15 +529,16 @@ IRModule Extend2DConv(const IRModule& mod) {
 
           batchwise_sum_input = Call(sum_op, {depthwise_conv}, Attrs(reduce_batch_axis_attrs));  // use batch as axis for depthwise sum
         }else {
-          // only works for data_layout="NCHW", kernel_layout="OIHW"
-          // TODO: data_layout="NHWC", kernel_layout="HWIO"
 
-          reduce_batch_axis_attrs->keepdims = true;
           Call batchsum_input(sum_op, {input}, Attrs(reduce_batch_axis_attrs));  // use batch as axis for depthwise sum
 
           // Channel slice attributes (uses already 3D array)
-
-          int weight_channels = static_cast<int>(Downcast<IntImm>(weight_tensor->shape[weight_dim_pos.pos_I])->value);
+          int weight_channels;
+          if(!depth){
+            weight_channels = static_cast<int>(Downcast<IntImm>(weight_tensor->shape[weight_dim_pos.pos_I])->value);
+          }else{
+            weight_channels = static_cast<int>(Downcast<IntImm>(weight_tensor->shape[weight_dim_pos.pos_O])->value);
+          }
           int weight_height   = static_cast<int>(Downcast<IntImm>(weight_tensor->shape[weight_dim_pos.pos_H])->value);
           int input_height    = static_cast<int>(Downcast<IntImm>(input_tensor->shape[data_dim_pos.pos_H])->value);
           int weight_width    = static_cast<int>(Downcast<IntImm>(weight_tensor->shape[weight_dim_pos.pos_W])->value);
@@ -635,18 +641,27 @@ IRModule Extend2DConv(const IRModule& mod) {
               }
               Tuple width_tuple(width_array);
               auto width_concat = Call(concat_op, {width_tuple}, Attrs(width_concat_attr));
-              height_array.push_back(width_concat);
+              // no concat required for 1 element
+              if(width_array.size() != 1){
+                height_array.push_back(width_concat);
+              }else{
+                height_array.push_back(width_array[0]);
+              }
             }
             Tuple height_tuple(height_array);
             auto height_concat = Call(concat_op, {height_tuple}, Attrs(height_concat_attr));
-            channel_array.push_back(height_concat);
+            // no concat required for 1 element
+            if(height_array.size() != 1){
+              channel_array.push_back(height_concat);
+            }else{
+              channel_array.push_back(height_array[0]);
+            }
           }
           Tuple channel_tuple(channel_array);
           batchwise_sum_input = Call(concat_op, {channel_tuple}, Attrs(channel_concat_attr));
         }
 
         Call filterwise_sum_input;
-        bool depth = IsDepthwiseConv(origin_conv2d, orig_conv_attr, orig_conv_attr->kernel_layout);
 
         if(weight_tensor->dtype.is_int()){
           cast_attr_32bit->dtype = DataType::Int(32);
