@@ -19,7 +19,7 @@
 from typing import List, Optional, Sequence, Union
 
 from tvm import relax as rx
-from tvm import tir
+from tvm import tir, ir
 
 from . import op
 from .core import Effect, Module, ModuleList, Parameter, Tensor, get_default_dtype
@@ -517,8 +517,13 @@ class KVCache(Effect):
         return [
             bb.emit(
                 rx.Call(
-                    rx.extern("vm.builtin.attention_kv_cache_create"),
-                    args=[rx.op.zeros(init_shape, self.dtype), init_shape, rx.PrimValue(0)],
+                    ir.Op.get("relax.call_pure_packed"),
+                    args=[
+                        rx.extern("vm.builtin.attention_kv_cache_create"),
+                        rx.op.zeros(init_shape, self.dtype),
+                        init_shape,
+                        rx.PrimValue(0),
+                    ],
                     sinfo_args=[rx.ObjectStructInfo()],
                 ),
                 name_hint=name_hint,
@@ -588,8 +593,12 @@ class KVCache(Effect):
         return Tensor(
             _expr=rx.BlockBuilder.current().emit(
                 rx.Call(
-                    rx.extern("vm.builtin.attention_kv_cache_view"),
-                    args=[self.cache, shape],
+                    ir.Op.get("relax.call_pure_packed"),
+                    args=[
+                        rx.extern("vm.builtin.attention_kv_cache_view"),
+                        self.cache,
+                        shape,
+                    ],
                     sinfo_args=[rx.TensorStructInfo(shape, self.dtype)],
                 )
             )
@@ -611,8 +620,12 @@ class KVCache(Effect):
             )
         self.cache = rx.BlockBuilder.current().emit(
             rx.Call(
-                rx.extern("vm.builtin.attention_kv_cache_append"),
-                args=[self.cache, new_element._expr],
+                ir.Op.get("relax.call_pure_packed"),
+                args=[
+                    rx.extern("vm.builtin.attention_kv_cache_append"),
+                    self.cache,
+                    new_element._expr,
+                ],
                 sinfo_args=[rx.ObjectStructInfo()],
             )
         )
