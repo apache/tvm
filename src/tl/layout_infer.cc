@@ -39,13 +39,6 @@ using namespace tir;
 ForNodeLayoutInfer::ForNodeLayoutInfer(const ForNode* root, IterVar thread_var)
     : root_(root), thread_var_(thread_var) {
   VisitStmt_(root);
-  // Check if the buffer indice matches full range
-  for (const auto& [buffer, indices] : indice_map_) {
-    Layout layout(loop_vars_, indices);
-    ICHECK(StructuralEqual()(buffer->shape, layout->OutputShape()))
-        << "Parallel for over fragment does not match full region, " << buffer->shape << " "
-        << layout->OutputShape();
-  }
 }
 
 bool ForNodeLayoutInfer::IsCommonAccessIndice(const Buffer& buffer) const {
@@ -142,8 +135,23 @@ LayoutMap ForNodeLayoutInfer::Inference(const LayoutMap& layout_map, InferLevel 
   } else {
     return {};
   }
-
-  // Step 2: Infer other fragment's layout from the loop's partition
+  // Step 2: Check that the loop's partition ccan correctly align with all source fragment
+  for (const auto& [buffer, _] : indice_map_) {
+    if (layout_map.count(buffer)) {
+      auto fragment = layout_map[buffer].as<Fragment>().value();
+      // TODO: Add thread checks for replicated cases
+      // need to wildcard match the rhs with lhs
+      if (!is_one(loop_layout_->ReplicateExtent()) || !is_one(fragment->ReplicateExtent()))
+        continue;
+      auto vars = loop_vars_.Map([](const IterVar& iv) { return PrimExpr(iv->var); });
+      auto lhs = loop_layout_->ForwardThread(vars, NullOpt);
+      auto rhs = fragment->ForwardThread(indice_map_[buffer], NullOpt);
+      auto diff = analyzer_.Simplify(lhs - rhs);
+      ICHECK(is_zero(diff)) << "Layout infer conflict for " << buffer << " " << source_buffer
+                            << "\nLHS = " << lhs << "\nRHS = " << rhs;
+    }
+  }
+  // Step 3: Infer other fragment's layout from the loop's partition
   LayoutMap results;
   for (const auto& [buffer, _] : indice_map_) {
     if (!layout_map.count(buffer)) results.Set(buffer, CompleteBufferFragment(buffer));
