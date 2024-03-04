@@ -477,7 +477,7 @@ mod tests {
             out_dtype,
         )
         .unwrap();
-        assert!(as_text(conv2d).contains("conv2d"));
+        assert!(as_text(conv2d, 0).contains("conv2d"));
         Ok(())
     }
 
@@ -510,7 +510,7 @@ mod tests {
             out_dtype,
         )
         .unwrap();
-        assert!(as_text(conv1d).contains("conv1d"));
+        assert!(as_text(conv1d, 0).contains("conv1d"));
         Ok(())
     }
 
@@ -564,7 +564,7 @@ mod tests {
             out_dtype,
         )
         .unwrap();
-        assert!(as_text(conv3d).contains("conv3d"));
+        assert!(as_text(conv3d, 0).contains("conv3d"));
         Ok(())
     }
 }
