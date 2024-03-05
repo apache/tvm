@@ -259,7 +259,7 @@ get an activated tvm-build environment. Then you can run the following command t
 
     mkdir build
     cd build
-    cmake -A x64 -Thost=x64 ..
+    cmake ..
     cd ..
 
 The above command generates the solution file under the build directory.

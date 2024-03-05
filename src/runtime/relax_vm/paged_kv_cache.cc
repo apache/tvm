@@ -475,6 +475,7 @@ class PagedAttentionKVCacheObj : public AttentionKVCacheObj {
         << "Attention merge-score function not available. ForkSequence is thereby not supported.";
 
     int32_t parent_block_idx = parent_it->second.last_block_idx;
+    ++global_block_pool_[parent_block_idx].external_ref_cnt;
     // Create a child block with the parent block pointer.
     int32_t child_block_idx = GetFreeBlock();
     global_block_pool_[child_block_idx].start_pos = parent_it->second.seq_length;

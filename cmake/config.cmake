@@ -445,3 +445,9 @@ set(USE_UMA OFF)
 
 # Set custom Alloc Alignment for device allocated memory ndarray points to
 set(USE_KALLOC_ALIGNMENT 64)
+
+# Set Windows Visual Studio default Architecture (equivalent to -A x64)
+SET(CMAKE_VS_PLATFORM_NAME_DEFAULT "x64")
+
+# Set Windows Visual Studio default host (equivalent to -Thost=x64)
+SET(CMAKE_VS_PLATFORM_TOOLSET_HOST_ARCHITECTURE "x64")
