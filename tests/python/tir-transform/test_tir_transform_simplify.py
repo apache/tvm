@@ -1325,6 +1325,7 @@ class TestSimplifyUsingPartiallyKnownBufferExpression(BaseBeforeAfter):
             if 14 <= i:
                 A[i] = 42
 
+
 class TestAssume(BaseBeforeAfter):
     """An assumption about buffer contents may apply to only part of a buffer
     Like TestSimplifyUsingPartiallyKnownBufferConditional, but the
@@ -1348,9 +1349,10 @@ class TestAssume(BaseBeforeAfter):
             T.evaluate(T.assume(i < 14 or A[i] == 0))
 
         for i in T.serial(16):
-            if i<14:
+            if i < 14:
                 if A[i] == 0:
                     A[i] = 42
+
 
 class TestNoSimplificationIfPredicateNotMet(BaseBeforeAfter):
     """Assumptions about buffer contents must apply to all cases to be used
