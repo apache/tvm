@@ -1384,11 +1384,10 @@ def test_cache_read_allocate_const():
     def before(A: T.Buffer((8), "float32"), C: T.Buffer((8), "float32")):
         B = T.allocate_const([0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7], "float32", [8])
         B_buf = T.decl_buffer((8), dtype="float32", data=B)
-        for i in T.serial(128):
+        for i in range(8):
             with T.block("C"):
-                vi = T.axis.remap("S", [i])
+                vi = T.axis.spatial(8, i)
                 T.reads(A[vi], B_buf[vi])
-                T.writes(C[vi])
                 C[vi] = A[vi] + B_buf[vi]
 
     @T.prim_func
@@ -1400,20 +1399,15 @@ def test_cache_read_allocate_const():
         for ax0 in range(8):
             with T.block("A_global"):
                 v0 = T.axis.spatial(8, ax0)
-                T.reads(A[v0])
-                T.writes(A_global[v0])
                 A_global[v0] = A[v0]
         for ax0 in range(8):
             with T.block("B_buf_global"):
                 v0 = T.axis.spatial(8, ax0)
                 T.reads(B_buf[v0])
-                T.writes(B_buf_global[v0])
                 B_buf_global[v0] = B_buf[v0]
-        for i in range(128):
+        for i in range(8):
             with T.block("C"):
-                vi = T.axis.spatial(128, i)
-                T.reads(A_global[vi], B_buf_global[vi])
-                T.writes(C[vi])
+                vi = T.axis.spatial(8, i)
                 C[vi] = A_global[vi] + B_buf_global[vi]
 
     sch = tir.Schedule(before)
