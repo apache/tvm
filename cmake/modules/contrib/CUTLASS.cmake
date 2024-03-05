@@ -53,6 +53,12 @@ if(USE_CUDA AND USE_CUTLASS)
   ### Build cutlass runtime objects using TVM's 3rdparty/cutlass submodule
   set(CUTLASS_DIR ${PROJECT_SOURCE_DIR}/3rdparty/cutlass)
   set(TVM_CUTLASS_RUNTIME_SRCS "")
+
+  # TODO: Should get rid of the postfix 'a' and test sm >= 90
+  if (CMAKE_CUDA_ARCHITECTURES MATCHES "90|90a")
+    list(APPEND TVM_CUTLASS_RUNTIME_SRCS src/runtime/contrib/cutlass/fp16_group_gemm.cu)
+  endif()
+
   if (USE_CUDA_FP8)
     list(APPEND TVM_CUTLASS_RUNTIME_SRCS src/runtime/contrib/cutlass/fp16_fp8_gemm.cu)
     list(APPEND TVM_CUTLASS_RUNTIME_SRCS src/runtime/contrib/cutlass/fp8_group_gemm.cu)

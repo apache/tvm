@@ -29,22 +29,18 @@
 #if defined(CUTLASS_ARCH_MMA_MODIFIABLE_TMA_SM90_SUPPORTED)
 
 template <>
-struct KernelTraits<cutlass::float_e4m3_t> {
-  using KernelSchedule = cutlass::gemm::KernelPtrArrayTmaWarpSpecializedCooperativeFP8FastAccum;
+struct KernelTraits<cutlass::half_t> {
+  using KernelSchedule = cutlass::gemm::KernelPtrArrayTmaWarpSpecializedCooperative;
   using TileShape = Shape<_128, _256, _64>;              // Threadblock-level tile size
   using ClusterShape = Shape<_2, _2, _1>;                // Shape of the threadblocks in a cluster
-};
-
-template <>
-struct KernelTraits<cutlass::float_e5m2_t> : KernelTraits<cutlass::float_e4m3_t> {
 };
 
 namespace tvm {
 namespace runtime {
 
 template <typename ElementA, typename ElementB, typename ElementC>
-void tvm_cutlass_fp8_group_gemm(NDArray x, NDArray weight, NDArray indptr, NDArray workspace,
-                                NDArray out) {
+void tvm_cutlass_group_gemm_sm90(NDArray x, NDArray weight, NDArray indptr, NDArray workspace,
+                                 NDArray out) {
   // Workspace is used for storing device-side group gemm arguments and cutlass internal workspace.
   // Recommened size is 4MB.
   auto func = tvm::runtime::Registry::Get("runtime.get_cuda_stream");
@@ -64,17 +60,9 @@ void tvm_cutlass_fp8_group_gemm(NDArray x, NDArray weight, NDArray indptr, NDArr
                      stream);
 }
 
-TVM_REGISTER_GLOBAL("cutlass.group_gemm_e5m2_e5m2_fp16")
+TVM_REGISTER_GLOBAL("cutlass.group_gemm_fp16_sm90")
     .set_body_typed(
-        tvm_cutlass_fp8_group_gemm<cutlass::float_e5m2_t, cutlass::float_e5m2_t, cutlass::half_t>);
-
-TVM_REGISTER_GLOBAL("cutlass.group_gemm_e5m2_e4m3_fp16")
-    .set_body_typed(
-        tvm_cutlass_fp8_group_gemm<cutlass::float_e5m2_t, cutlass::float_e4m3_t, cutlass::half_t>);
-
-TVM_REGISTER_GLOBAL("cutlass.group_gemm_e4m3_e4m3_fp16")
-    .set_body_typed(
-        tvm_cutlass_fp8_group_gemm<cutlass::float_e4m3_t, cutlass::float_e4m3_t, cutlass::half_t>);
+        tvm_cutlass_group_gemm_sm90<cutlass::half_t, cutlass::half_t, cutlass::half_t>);
 
 }  // namespace runtime
 }  // namespace tvm
