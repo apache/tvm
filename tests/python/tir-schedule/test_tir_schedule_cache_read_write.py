@@ -1379,6 +1379,54 @@ def test_cache_read_fail_invalid_storage_scope(use_block_name):
         sch.cache_read(block_b, 0, "test_scope")
 
 
+def test_cache_read_allocate_const():
+    @T.prim_func
+    def before(A: T.Buffer((8), "float32"), C: T.Buffer((8), "float32")):
+        B = T.allocate_const([0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7], "float32", [8])
+        B_buf = T.decl_buffer((8), dtype="float32", data=B)
+        for i in T.serial(128):
+            with T.block("C"):
+                vi = T.axis.remap("S", [i])
+                T.reads(A[vi], B_buf[vi])
+                T.writes(C[vi])
+                C[vi] = A[vi] + B_buf[vi]
+
+    @T.prim_func
+    def expected(A: T.Buffer((8), "float32"), C: T.Buffer((8), "float32")):
+        B_buf_global = T.alloc_buffer((8), dtype="float32")
+        A_global = T.alloc_buffer((8), dtype="float32")
+        B = T.allocate_const([0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7], "float32", [8])
+        B_buf = T.decl_buffer((8), data=B)
+        for ax0 in range(8):
+            with T.block("A_global"):
+                v0 = T.axis.spatial(8, ax0)
+                T.reads(A[v0])
+                T.writes(A_global[v0])
+                A_global[v0] = A[v0]
+        for ax0 in range(8):
+            with T.block("B_buf_global"):
+                v0 = T.axis.spatial(8, ax0)
+                T.reads(B_buf[v0])
+                T.writes(B_buf_global[v0])
+                B_buf_global[v0] = B_buf[v0]
+        for i in range(128):
+            with T.block("C"):
+                vi = T.axis.spatial(128, i)
+                T.reads(A_global[vi], B_buf_global[vi])
+                T.writes(C[vi])
+                C[vi] = A_global[vi] + B_buf_global[vi]
+
+    sch = tir.Schedule(before)
+    block_c = sch.get_block("C")
+    sch.cache_read(block_c, 1, "global")
+    sch.cache_read(block_c, 0, "global")
+
+    after = sch.mod["main"]
+
+    assert_structural_equal_ignore_global_symbol(expected, after)
+    verify_trace_roundtrip(sch=sch, mod=before)
+
+
 def test_inplace_cache_read():
     sch = tvm.tir.Schedule(inplace_func, debug_mask="all")
     block = sch.get_block("copy_in")
