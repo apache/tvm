@@ -250,6 +250,28 @@ TVM_DLL bool IsBaseOf(const StructInfo& base, const StructInfo& derived,
                       arith::Analyzer* ana = nullptr);
 
 /*!
+ * \brief Return the condition for which base is a superset of derived
+ *
+ * This function returns finer-grained conditions for kFailL2 than StructInfoBaseCheck
+ *
+ * If the returned expression is true, or simplifies to true, then
+ * base is a superset of derived.  If the returned expression is
+ * false, or simplifies to false, then base is not a superset of
+ * derived.
+ *
+ * If the returned expression is neither true nor false, it is an
+ * expression in terms of the symbolic variables available in `base`
+ * and `derived`.
+ *
+ * \param base The base struct info.
+ * \param derived The derived struct info.
+ * \return Whether base is a base of derived.
+ *
+ * \sa BaseCheckResult
+ */
+TVM_DLL PrimExpr StructInfoBaseCheckPrecondition(const StructInfo& base, const StructInfo& derived);
+
+/*!
  * \brief Unify the two struct info to their least common ancestor.
  *
  * \param lhs The left operand.

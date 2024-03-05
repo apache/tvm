@@ -259,6 +259,22 @@ RELAX_PATTERN_PRINTER_DEF(TypePatternNode, [](auto p, auto node) {
   p->stream << "TypePattern(" << node->pattern << " has type " << node->type << ")";
 });
 
+TVM_REGISTER_NODE_TYPE(StructInfoPatternNode);
+StructInfoPattern::StructInfoPattern(DFPattern pattern, StructInfo struct_info) {
+  ObjectPtr<StructInfoPatternNode> n = make_object<StructInfoPatternNode>();
+  n->pattern = std::move(pattern);
+  n->struct_info = std::move(struct_info);
+  data_ = std::move(n);
+}
+TVM_REGISTER_GLOBAL("relax.dpl.StructInfoPattern")
+    .set_body_typed([](DFPattern pattern, StructInfo struct_info) {
+      return StructInfoPattern(pattern, struct_info);
+    });
+RELAX_PATTERN_PRINTER_DEF(StructInfoPatternNode, [](auto p, auto node) {
+  p->stream << "StructInfoPattern(" << node->pattern << " has relax StructInfo "
+            << node->struct_info << ")";
+});
+
 TVM_REGISTER_NODE_TYPE(ShapePatternNode);
 ShapePattern::ShapePattern(DFPattern pattern, Array<PrimExpr> shape) {
   ObjectPtr<ShapePatternNode> n = make_object<ShapePatternNode>();
@@ -371,6 +387,9 @@ class DFPatternDuplicator : public DFPatternFunctor<DFPattern(const DFPattern&)>
   DFPattern VisitDFPattern_(const ShapePatternNode* op) override {
     return ShapePattern(op->pattern, op->shape);
   }
+  DFPattern VisitDFPattern_(const StructInfoPatternNode* op) override {
+    return StructInfoPattern(op->pattern, op->struct_info);
+  }
   DFPattern VisitDFPattern_(const TypePatternNode* op) override {
     return TypePattern(op->pattern, op->type);
   }
@@ -397,6 +416,9 @@ NotPattern DFPattern::operator~() const { return NotPattern(*this); }
 
 AttrPattern DFPattern::HasAttr(const Map<String, ObjectRef>& attrs) const {
   return AttrPattern(*this, DictAttrs(attrs));
+}
+StructInfoPattern DFPattern::HasStructInfo(const StructInfo& struct_info) const {
+  return StructInfoPattern(*this, struct_info);
 }
 TypePattern DFPattern::HasType(const Type& type) const { return TypePattern(*this, type); }
 DataTypePattern DFPattern::HasDtype(const DataType& dtype) const {

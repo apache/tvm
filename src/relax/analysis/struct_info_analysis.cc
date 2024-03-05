@@ -609,6 +609,206 @@ TVM_REGISTER_GLOBAL("relax.StructInfoIsBaseOf")
       return IsBaseOf(base, derived);
     });
 
+class StructInfoBasePreconditionCollector
+    : public StructInfoFunctor<PrimExpr(const StructInfo&, const StructInfo&)> {
+ public:
+  explicit StructInfoBasePreconditionCollector() {}
+
+  PrimExpr VisitStructInfo(const StructInfo& lhs, const StructInfo& other) override {
+    if (lhs.same_as(other)) {
+      // Early bail-out if the StructInfo has reference equality.
+      return Bool(true);
+    } else {
+      return StructInfoFunctor::VisitStructInfo(lhs, other);
+    }
+  }
+
+  PrimExpr VisitStructInfo_(const ObjectStructInfoNode* lhs, const StructInfo& other) final {
+    return Bool(true);
+  }
+
+  PrimExpr VisitStructInfo_(const PrimStructInfoNode* lhs, const StructInfo& other) final {
+    auto* rhs = other.as<PrimStructInfoNode>();
+    if (rhs == nullptr) {
+      return Bool(false);
+    }
+
+    if (lhs->dtype != rhs->dtype) {
+      return Bool(false);
+    }
+
+    if (lhs->value.defined() && rhs->value.defined()) {
+      return lhs->value.value() == rhs->value.value();
+    } else if (lhs->value.defined() && !rhs->value.defined()) {
+      return Bool(false);
+    } else {
+      return Bool(true);
+    }
+  }
+
+  PrimExpr VisitStructInfo_(const ShapeStructInfoNode* lhs, const StructInfo& other) final {
+    auto* rhs = other.as<ShapeStructInfoNode>();
+    if (rhs == nullptr) {
+      return Bool(false);
+    }
+    // lhs have unknown ndim
+    if (lhs->IsUnknownNdim()) {
+      return Bool(true);
+    }
+
+    // ndim must match
+    if (lhs->ndim != rhs->ndim) {
+      return Bool(false);
+    }
+
+    if (lhs->values.defined() && rhs->values.defined()) {
+      return ArrayCheck(lhs->values.value(), rhs->values.value());
+    } else if (lhs->values.defined() && !rhs->values.defined()) {
+      return Bool(false);
+    } else {
+      return Bool(true);
+    }
+  }
+
+  PrimExpr VisitStructInfo_(const TensorStructInfoNode* lhs, const StructInfo& other) final {
+    auto* rhs = other.as<TensorStructInfoNode>();
+    if (rhs == nullptr) {
+      return Bool(false);
+    }
+    // dtype mismatch
+    if (!lhs->IsUnknownDtype() && lhs->dtype != rhs->dtype) {
+      return Bool(false);
+    }
+
+    // ndim mismatch
+    if (!lhs->IsUnknownNdim() && lhs->ndim != rhs->ndim) {
+      return Bool(false);
+    }
+
+    // vdevice mismatch
+    if (lhs->vdevice.defined() && !rhs->vdevice.defined()) {
+      return Bool(false);
+    }
+    if (lhs->vdevice.defined() && rhs->vdevice.defined()) {
+      VDevice lhs_vdevice = lhs->vdevice.value();
+      VDevice rhs_vdevice = rhs->vdevice.value();
+      if (lhs_vdevice->target.defined() && !rhs_vdevice->target.defined()) {
+        return Bool(false);
+      }
+      // mismatch in either the target, vdevice_id, or memory_scope
+      if ((lhs_vdevice->target.defined() && rhs_vdevice->target.defined()) &&
+          (lhs_vdevice->target != rhs_vdevice->target ||
+           lhs_vdevice->vdevice_id != rhs_vdevice->vdevice_id ||
+           lhs_vdevice->memory_scope != rhs_vdevice->memory_scope)) {
+        return Bool(false);
+      }
+    }
+
+    if (lhs->shape.same_as(rhs->shape)) {
+      return Bool(true);
+    } else if (lhs->shape.defined() && !rhs->shape.defined()) {
+      return Bool(false);
+    }
+
+    auto* lhs_shape = lhs->shape.as<ShapeExprNode>();
+    auto* rhs_shape = rhs->shape.as<ShapeExprNode>();
+    if (lhs_shape && rhs_shape) {
+      return ArrayCheck(lhs_shape->values, rhs_shape->values);
+    } else if (lhs_shape && !rhs_shape) {
+      return Bool(false);
+    }
+
+    return Bool(true);
+  }
+
+  PrimExpr VisitStructInfo_(const distributed::DTensorStructInfoNode* lhs,
+                            const StructInfo& other) final {
+    auto* rhs = other.as<distributed::DTensorStructInfoNode>();
+    if (rhs == nullptr) {
+      return Bool(false);
+    }
+
+    StructuralEqual struct_equal;
+    if (!struct_equal(lhs->device_mesh, rhs->device_mesh) ||
+        !struct_equal(lhs->placement, rhs->placement)) {
+      return Bool(false);
+    }
+
+    return this->VisitStructInfo(lhs->tensor_sinfo, rhs->tensor_sinfo);
+  }
+
+  PrimExpr VisitStructInfo_(const TupleStructInfoNode* lhs, const StructInfo& other) final {
+    auto* rhs = other.as<TupleStructInfoNode>();
+    if (rhs == nullptr) {
+      return Bool(false);
+    }
+    return ArrayCheck(lhs->fields, rhs->fields);
+  }
+
+  PrimExpr VisitStructInfo_(const FuncStructInfoNode* lhs, const StructInfo& other) override {
+    auto* rhs = other.as<FuncStructInfoNode>();
+    if (rhs == nullptr) {
+      return Bool(false);
+    }
+
+    // Check purity: Pure functions are a subtype of impure functions
+    if (lhs->purity && !rhs->purity) {
+      return Bool(false);
+    }
+
+    if (lhs->derive_func.defined() && !lhs->derive_func.same_as(rhs->derive_func)) {
+      return Bool(false);
+    }
+    if (lhs->params.defined() && !rhs->params.defined()) {
+      return Bool(false);
+    }
+
+    PrimExpr all_match = VisitStructInfo(lhs->ret, rhs->ret);
+
+    PrimExpr param_check;
+    if (lhs->params.defined()) {
+      param_check = ArrayCheck(lhs->params.value(), rhs->params.value());
+    } else {
+      param_check = Bool(true);
+    }
+
+    PrimExpr ret_check = VisitStructInfo(lhs->ret, rhs->ret);
+
+    return param_check && ret_check;
+  }
+
+ private:
+  PrimExpr ArrayCheck(const Array<PrimExpr>& lhs, const Array<PrimExpr>& rhs) {
+    if (lhs.size() != rhs.size()) {
+      return Bool(false);
+    }
+
+    PrimExpr all_equal = Bool(true);
+    for (size_t i = 0; i < lhs.size(); i++) {
+      all_equal = all_equal && (lhs[i] == rhs[i]);
+    }
+    return all_equal;
+  }
+
+  PrimExpr ArrayCheck(const Array<StructInfo>& lhs, const Array<StructInfo>& rhs) {
+    if (lhs.size() != rhs.size()) {
+      return Bool(false);
+    }
+
+    PrimExpr all_pass = Bool(true);
+
+    for (size_t i = 0; i < lhs.size(); ++i) {
+      all_pass = all_pass && VisitStructInfo(lhs[i], rhs[i]);
+    }
+    return all_pass;
+  }
+};
+
+PrimExpr StructInfoBaseCheckPrecondition(const StructInfo& base, const StructInfo& derived) {
+  StructInfoBasePreconditionCollector visitor;
+  return visitor(base, derived);
+}
+
 //--------------------------
 // DeriveStructInfo
 //--------------------------
