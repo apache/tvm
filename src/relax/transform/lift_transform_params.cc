@@ -38,6 +38,9 @@
 namespace tvm {
 namespace relax {
 
+constexpr const char* kLiftTransformConsumeParams = "relax.lift_transform_params.consume_params";
+TVM_REGISTER_PASS_CONFIG_OPTION(kLiftTransformConsumeParams, Bool);
+
 namespace {
 
 struct CollectInfo {
@@ -540,7 +543,9 @@ Pass LiftTransformParams() {
         if (ends_with(func_name, "transform_params")) {
           func = WithAttr(func, tvm::attr::kGlobalSymbol, gvar->name_hint);
           func = BundleModelParams(func);
-          func = Downcast<Function>(ConsumeBundledParams()(func));
+          if (pc->GetConfig<Bool>(kLiftTransformConsumeParams).value_or(Bool(false))) {
+            func = Downcast<Function>(ConsumeBundledParams()(func));
+          }
           to_add[gvar] = func;
         } else if (ends_with(func_name, "_runtime")) {
           std::string name(func_name.begin(), func_name.end() - sizeof("_runtime") + 1);
