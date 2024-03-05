@@ -1387,7 +1387,6 @@ def test_cache_read_allocate_const():
         for i in range(8):
             with T.block("C"):
                 vi = T.axis.spatial(8, i)
-                T.reads(A[vi], B_buf[vi])
                 C[vi] = A[vi] + B_buf[vi]
 
     @T.prim_func
@@ -1403,7 +1402,6 @@ def test_cache_read_allocate_const():
         for ax0 in range(8):
             with T.block("B_buf_global"):
                 v0 = T.axis.spatial(8, ax0)
-                T.reads(B_buf[v0])
                 B_buf_global[v0] = B_buf[v0]
         for i in range(8):
             with T.block("C"):
