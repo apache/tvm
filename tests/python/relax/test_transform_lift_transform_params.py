@@ -119,12 +119,24 @@ def test_basic():
             cls = Expected
             with R.dataflow():
                 lv1: R.Tensor((3, 16, 3, 3), dtype="float32") = params[0]
+                _1: R.Tuple = R.call_pure_packed(
+                    "vm.builtin.tuple_reset_item",
+                    params,
+                    R.prim_value(T.int32(0)),
+                    sinfo_args=(R.Tuple,),
+                )
                 lv2 = R.call_tir(
                     cls.transform_layout_IOHW_to_OIHW,
                     (lv1,),
                     out_sinfo=R.Tensor((16, 3, 3, 3), dtype="float32"),
                 )
                 lv: R.Tensor((16, 16, 3, 3), dtype="float32") = params[1]
+                _2: R.Tuple = R.call_pure_packed(
+                    "vm.builtin.tuple_reset_item",
+                    params,
+                    R.prim_value(T.int32(1)),
+                    sinfo_args=(R.Tuple,),
+                )
                 gv: R.Tuple(
                     R.Tensor((16, 16, 3, 3), dtype="float32"),
                     R.Tensor((16, 3, 3, 3), dtype="float32"),
@@ -207,10 +219,16 @@ def test_tuple():
             R.func_attr({"num_input": 0})
             with R.dataflow():
                 lv = params[0]
+                _1: R.Tuple = R.call_pure_packed(
+                    "vm.builtin.tuple_reset_item",
+                    params,
+                    R.prim_value(T.int32(0)),
+                    sinfo_args=(R.Tuple,),
+                )
                 lv0 = (lv,)
                 lv1 = (lv0,)
-                lv2 = params[0]
-                lv3 = params[0]
+                lv2 = lv
+                lv3 = lv
                 gv = (lv2, lv3)
                 R.output(gv)
             return gv
@@ -259,8 +277,26 @@ def test_condition():
             R.func_attr({"num_input": 0})
             with R.dataflow():
                 lv: R.Tensor((16, 16, 3, 3), dtype="float32") = params[0]
+                _1: R.Tuple = R.call_pure_packed(
+                    "vm.builtin.tuple_reset_item",
+                    params,
+                    R.prim_value(T.int32(0)),
+                    sinfo_args=(R.Tuple,),
+                )
                 lv1: R.Tensor((16, 16, 3, 3), dtype="float32") = params[1]
+                _2: R.Tuple = R.call_pure_packed(
+                    "vm.builtin.tuple_reset_item",
+                    params,
+                    R.prim_value(T.int32(1)),
+                    sinfo_args=(R.Tuple,),
+                )
                 lv2: R.Tensor((), dtype="bool") = params[2]
+                _3: R.Tuple = R.call_pure_packed(
+                    "vm.builtin.tuple_reset_item",
+                    params,
+                    R.prim_value(T.int32(2)),
+                    sinfo_args=(R.Tuple,),
+                )
                 gv: R.Tuple(
                     R.Tensor((16, 16, 3, 3), dtype="float32"),
                     R.Tensor((16, 16, 3, 3), dtype="float32"),
@@ -349,6 +385,12 @@ def test_multiple_functions():
             R.func_attr({"num_input": 0})
             with R.dataflow():
                 lv: R.Tensor((256, 256), dtype="float32") = params[0]
+                _1: R.Tuple = R.call_pure_packed(
+                    "vm.builtin.tuple_reset_item",
+                    params,
+                    R.prim_value(T.int32(0)),
+                    sinfo_args=(R.Tuple,),
+                )
                 lv1: R.Tensor((256, 256), dtype="float32") = R.permute_dims(lv, axes=[1, 0])
                 gv: R.Tuple(R.Tensor((256, 256), dtype="float32")) = (lv1,)
                 R.output(gv)
@@ -372,6 +414,12 @@ def test_multiple_functions():
             R.func_attr({"num_input": 0})
             with R.dataflow():
                 lv: R.Tensor((128, 256), dtype="float32") = params[0]
+                _1: R.Tuple = R.call_pure_packed(
+                    "vm.builtin.tuple_reset_item",
+                    params,
+                    R.prim_value(T.int32(0)),
+                    sinfo_args=(R.Tuple,),
+                )
                 lv1: R.Tensor((256, 128), dtype="float32") = R.permute_dims(lv, axes=[1, 0])
                 gv: R.Tuple(R.Tensor((256, 128), dtype="float32")) = (lv1,)
                 R.output(gv)
@@ -430,6 +478,12 @@ def test_stop_lifting():
             R.func_attr({"num_input": 0})
             with R.dataflow():
                 lv: R.Tensor((256, 256), dtype="float32") = params[0]
+                _1: R.Tuple = R.call_pure_packed(
+                    "vm.builtin.tuple_reset_item",
+                    params,
+                    R.prim_value(T.int32(0)),
+                    sinfo_args=(R.Tuple,),
+                )
                 lv1: R.Tensor((256, 256), dtype="float32") = R.permute_dims(lv, axes=[1, 0])
                 gv: R.Tuple(R.Tensor((256, 256), dtype="float32")) = (lv1,)
                 R.output(gv)
@@ -614,6 +668,12 @@ def test_symbolic_var_from_shape():
             cls = Expected
             with R.dataflow():
                 B = params[0]
+                _1: R.Tuple = R.call_pure_packed(
+                    "vm.builtin.tuple_reset_item",
+                    params,
+                    R.prim_value(T.int32(0)),
+                    sinfo_args=(R.Tuple,),
+                )
                 # extra_symbolic_vars = params[1]
                 B_slice = R.call_tir(
                     cls.slice,
@@ -679,8 +739,20 @@ def test_symbolic_var_in_param_shape():
             m = T.int64()
             with R.dataflow():
                 lv1: R.Tensor((16, m, 3, 3), dtype="float32") = params[0]
+                _1: R.Tuple = R.call_pure_packed(
+                    "vm.builtin.tuple_reset_item",
+                    params,
+                    R.prim_value(T.int32(0)),
+                    sinfo_args=(R.Tuple,),
+                )
                 lv2: R.Tensor((16, m, 3, 3), dtype="float32") = R.add(lv1, R.const(1, "float32"))
                 lv: R.Tensor((16, m, 3, 3), dtype="float32") = params[1]
+                _2: R.Tuple = R.call_pure_packed(
+                    "vm.builtin.tuple_reset_item",
+                    params,
+                    R.prim_value(T.int32(1)),
+                    sinfo_args=(R.Tuple,),
+                )
                 gv: R.Tuple(
                     R.Tensor((16, m, 3, 3), dtype="float32"),
                     R.Tensor((16, m, 3, 3), dtype="float32"),
@@ -771,6 +843,12 @@ def test_symbolic_var_defined_in_params_but_used_in_weights():
             k = T.int64()
             with R.dataflow():
                 lv: R.Tensor((k,), dtype="float32") = params[0]
+                _1: R.Tuple = R.call_pure_packed(
+                    "vm.builtin.tuple_reset_item",
+                    params,
+                    R.prim_value(T.int32(0)),
+                    sinfo_args=(R.Tuple,),
+                )
                 gv: R.Tuple(R.Tensor((k,), dtype="float32")) = (lv,)
                 R.output(gv)
             return gv
@@ -839,6 +917,12 @@ def test_only_lift_when_variable_uses_constants():
             with R.dataflow():
                 offset = R.ones([16], "int32")
                 B = params[0]
+                _1: R.Tuple = R.call_pure_packed(
+                    "vm.builtin.tuple_reset_item",
+                    params,
+                    R.prim_value(T.int32(0)),
+                    sinfo_args=(R.Tuple,),
+                )
                 B_offset = R.add(B, offset)
                 output = (B_offset,)
                 R.output(output)
