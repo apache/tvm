@@ -246,6 +246,39 @@ def test_conv2d():
     assert_structural_equal(tvm_mod["forward"], forward, True)
 
 
+def test_conv3d():
+    @R.function
+    def forward(
+        x: R.Tensor((1, 3, 32, 32, 32), dtype="float32"),
+        _io: R.Object,
+        weight: R.Tensor((32, 3, 3, 3, 3), dtype="float32"),
+        bias: R.Tensor((32,), dtype="float32"),
+    ) -> R.Tuple(R.Tensor((1, 32, 30, 30, 30), dtype="float32"), R.Tuple(R.Object)):
+        R.func_attr({"num_input": 2})
+        with R.dataflow():
+            lv1: R.Tensor((1, 32, 30, 30, 30), dtype="float32") = R.nn.conv3d(x, weight)
+            lv2: R.Tensor((1, 32, 1, 1, 1), dtype="float32") = R.reshape(
+                bias, R.shape([1, 32, 1, 1, 1])
+            )
+            conv3d: R.Tensor((1, 32, 30, 30, 30), dtype="float32") = R.add(lv1, lv2)
+            gv1: R.Tuple(
+                R.Tensor((1, 32, 30, 30, 30), dtype="float32"), R.Tuple(R.Object)
+            ) = conv3d, (_io,)
+            R.output(gv1)
+        return gv1
+
+    mod = modules.Conv3D(3, 32, 3, bias=True)
+    tvm_mod, _ = mod.export_tvm(
+        spec={
+            "forward": {
+                "x": spec.Tensor([1, 3, 32, 32, 32], "float32"),
+            }
+        },
+        debug=True,
+    )
+    assert_structural_equal(tvm_mod["forward"], forward, True)
+
+
 def test_conv2d_dynamic():
     @R.function
     def forward(
