@@ -1438,21 +1438,40 @@ class BatchNormalization(OnnxOpConverter):
         )
 
 
-class MaxPool(OnnxOpConverter):
-    """Converts an onnx MaxPool node into an equivalent Relax expression."""
+class Pool(OnnxOpConverter):
+    """A helper class for pool op converters."""
+
+    name = ""
 
     @classmethod
-    def _impl_v12(cls, bb, inputs, attr, params):
+    def get_pad_pair(cls, input1d, kernel1d, stride1d, mode):
+        """infer pad size"""
+        if input1d % stride1d == 0:
+            pad = max(kernel1d - stride1d, 0)
+        else:
+            pad = max(kernel1d - (input1d % stride1d), 0)
+        pad_before = pad // 2
+        pad_after = pad - pad_before
+        if "LOWER" in mode:
+            return [pad_after, pad_before]
+        return [pad_before, pad_after]
+
+    @classmethod
+    def _impl_v1(cls, bb, inputs, attr, params):
         # Unpack inputs and attributes.
         data = inputs[0]
+        input_shape = data.struct_info.shape
+        ndim = len(input_shape)
+
         auto_pad = attr.get("auto_pad", b"NOTSET").decode("utf-8")
         ceil_mode = attr.get("ceil_mode", 0)
-        dilations = attr.get("dilations", [1, 1])
+        dilations = attr.get("dilations", [1] * (ndim - 2))
         kernel_shape = attr.get("kernel_shape")
         pads = attr.get("pads", 0)
-        strides = attr.get("strides", [1, 1])
+        strides = attr.get("strides", [1] * (ndim - 2))
 
-        assert len(kernel_shape) == 2, "Currently only 2D pooling is supported."
+        assert len(kernel_shape) in [1, 2, 3], "Currently only 1D/2D/3D/ pooling is supported."
+
         assert auto_pad in [
             "NOTSET",
             "SAME_UPPER",
@@ -1461,39 +1480,57 @@ class MaxPool(OnnxOpConverter):
         ], f"Value {auto_pad} in attribute auto_pad is invalid."
 
         if auto_pad in ("SAME_UPPER", "SAME_LOWER"):
-            input_spatial_shape = cls._get_input_spatial_shape(data)
-            output_spatial_shape = [0 for _ in input_spatial_shape]
+            pads = []
+            if cls.name == "avg_pool":
+                for axis in range(len(input_shape) - 2):
+                    axis_shape = input_shape[2 + axis]
+                    stride = strides[axis]
+                    kernel = kernel_shape[axis]
+                    pad = cls.get_pad_pair(axis_shape, kernel, stride, auto_pad)
+                    pads.append(pad)
+            else:
+                input_spatial_shape = cls._get_input_spatial_shape(data)
+                output_spatial_shape = [0 for _ in input_spatial_shape]
 
-            pads = _np.array([(0, 0) for _ in range(len(kernel_shape))])
+                for i, _ in enumerate(input_spatial_shape):
+                    if auto_pad == "SAME_UPPER":
+                        output_spatial_shape[i] = int(_np.ceil(input_spatial_shape[i] / strides[i]))
+                    else:
+                        output_spatial_shape[i] = int(
+                            _np.floor(input_spatial_shape[i] / strides[i])
+                        )
+                    pad_i = (
+                        (output_spatial_shape[i] - 1) * strides[i]
+                        + ((kernel_shape[i] - 1) * dilations[i] + 1)
+                        - input_spatial_shape[i]
+                    )
 
-            for i, _ in enumerate(input_spatial_shape):
-                if auto_pad == "SAME_UPPER":
-                    output_spatial_shape[i] = int(_np.ceil(input_spatial_shape[i] / strides[i]))
-                else:
-                    output_spatial_shape[i] = int(_np.floor(input_spatial_shape[i] / strides[i]))
-                pad_i = (
-                    (output_spatial_shape[i] - 1) * strides[i]
-                    + ((kernel_shape[i] - 1) * dilations[i] + 1)
-                    - input_spatial_shape[i]
-                )
-                if auto_pad == "SAME_UPPER":
-                    pads[i, 0] = pad_i // 2
-                    pads[i, 1] = pad_i - pads[i, 0]
-                else:
-                    pads[i, 1] = pad_i // 2
-                    pads[i, 0] = pad_i - pads[i, 1]
+                    if auto_pad == "SAME_UPPER":
+                        pads.append([pad_i // 2, pad_i - pad_i // 2])
+                    else:
+                        pads.append([pad_i - pad_i // 2, pad_i // 2])
 
-            # TODO(agladyshev): for now we support only 2D kernel
-            # (top, left, bottom, right)
-            flatten_pads = [pads[0][0], pads[1][0], pads[0][1], pads[1][1]]
-            pads = tuple(flatten_pads)
+            pads = tuple([val for pair in zip(*pads) for val in pair])
 
-        return relax.op.nn.max_pool2d(data, kernel_shape, strides, pads, dilations, ceil_mode)
+        op = getattr(relax.op.nn, cls.name + str(len(kernel_shape)) + "d")
+        return op(data, kernel_shape, strides, pads, dilations, ceil_mode)
 
     @classmethod
     def _get_input_spatial_shape(cls, tensor):
         # shape is (N x C x D1 x D2 ... Dn)
         return _np.array([int(d) for d in tensor.struct_info.shape], dtype="int64")[2:]
+
+
+class MaxPool(Pool):
+    """Converts an onnx MaxPool node into an equivalent Relax expression."""
+
+    name = "max_pool"
+
+
+class AveragePool(Pool):
+    """Converts an onnx MaxPool node into an equivalent Relax expression."""
+
+    name = "avg_pool"
 
 
 class GlobalAveragePool(OnnxOpConverter):
@@ -1922,9 +1959,10 @@ def _get_convert_map():
         "Split": Split,
         "Tile": Tile,
         "BatchNormalization": BatchNormalization,
+        "MaxPool": MaxPool,
+        "AveragePool": AveragePool,
         "GlobalAveragePool": GlobalAveragePool,
         "Flatten": Flatten,
-        "MaxPool": MaxPool,
         "Identity": Identity,
         "Resize": Resize,
         "Einsum": Einsum,

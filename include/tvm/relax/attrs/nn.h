@@ -254,6 +254,43 @@ struct Conv2DTransposeAttrs : public tvm::AttrsNode<Conv2DTransposeAttrs> {
   }
 };  // struct Conv2DTransposeAttrs
 
+/*! \brief Attributes used in max_pool1d and avg_pool1d operator */
+struct Pool1DAttrs : public tvm::AttrsNode<Pool1DAttrs> {
+  Array<IntImm> pool_size;
+  Array<IntImm> strides;
+  Array<IntImm> padding;
+  Array<IntImm> dilation;
+  bool ceil_mode;
+  bool count_include_pad;
+  String layout;
+  String out_layout;
+
+  TVM_DECLARE_ATTRS(Pool1DAttrs, "relax.attrs.Pool1DAttrs") {
+    TVM_ATTR_FIELD(pool_size).describe("Size of the pooling windows.");
+    TVM_ATTR_FIELD(strides).describe("Specifies the strides of the convolution.");
+    TVM_ATTR_FIELD(dilation).describe("Specifies the dilation of the convolution.");
+    TVM_ATTR_FIELD(padding).describe(
+        "If padding is non-zero, then the input is implicitly zero-padded"
+        "Padding support both symmetric and asymmetric as"
+        "one int : same padding used on all sides"
+        "two int : padding width in the order of (left, right)");
+    TVM_ATTR_FIELD(ceil_mode).describe(
+        "A boolean indicating if use ceil or floor to compute the output shape. By using ceil, "
+        "every element in the input tensor will be covered by a sliding window.");
+    TVM_ATTR_FIELD(count_include_pad)
+        .describe("When true, will include padding to compute the average");
+    TVM_ATTR_FIELD(layout).set_default("NCW").describe(
+        "Dimension ordering of input data. Can be 'NCW', 'NWC', etc."
+        "'N', 'C', 'W' stands for batch, channel, and width"
+        "dimensions respectively. Pooling is applied on the 'W' dimensions.");
+    TVM_ATTR_FIELD(out_layout)
+        .describe(
+            "Dimension ordering of output data. Can be 'NCW', 'NWC', etc."
+            "'N', 'C', 'W' stands for batch, channel, and width"
+            "dimensions respectively. Pooling is applied on the 'W' dimensions.");
+  }
+};  // struct Pool1dAttrs
+
 /*! \brief Attributes used in max_pool2d and avg_pool2d operator */
 struct Pool2DAttrs : public tvm::AttrsNode<Pool2DAttrs> {
   Array<IntImm> pool_size;
@@ -261,6 +298,7 @@ struct Pool2DAttrs : public tvm::AttrsNode<Pool2DAttrs> {
   Array<IntImm> padding;
   Array<IntImm> dilation;
   bool ceil_mode;
+  bool count_include_pad;
   String layout;
   String out_layout;
 
@@ -277,6 +315,8 @@ struct Pool2DAttrs : public tvm::AttrsNode<Pool2DAttrs> {
     TVM_ATTR_FIELD(ceil_mode).describe(
         "A boolean indicating if use ceil or floor to compute the output shape. By using ceil, "
         "every element in the input tensor will be covered by a sliding window.");
+    TVM_ATTR_FIELD(count_include_pad)
+        .describe("When true, will include padding to compute the average");
     TVM_ATTR_FIELD(layout).describe(
         "Dimension ordering of input data. Can be 'NCHW', 'NHWC', etc."
         "'N', 'C', 'H', 'W' stands for batch, channel, height, and width"
@@ -290,6 +330,46 @@ struct Pool2DAttrs : public tvm::AttrsNode<Pool2DAttrs> {
             "'W' dimensions.");
   }
 };  // struct Pool2dAttrs
+
+/*! \brief Attributes used in max_pool3d and avg_pool3d operator */
+struct Pool3DAttrs : public tvm::AttrsNode<Pool3DAttrs> {
+  Array<IntImm> pool_size;
+  Array<IntImm> strides;
+  Array<IntImm> padding;
+  Array<IntImm> dilation;
+  bool ceil_mode;
+  bool count_include_pad;
+  String layout;
+  String out_layout;
+
+  TVM_DECLARE_ATTRS(Pool3DAttrs, "relax.attrs.Pool3DAttrs") {
+    TVM_ATTR_FIELD(pool_size).describe("Size of the pooling windows.");
+    TVM_ATTR_FIELD(strides).describe("Specifies the strides of the convolution.");
+    TVM_ATTR_FIELD(dilation).describe("Specifies the dilation of the convolution.");
+    TVM_ATTR_FIELD(padding).describe(
+        "If padding is non-zero, then the input is implicitly zero-padded"
+        "Padding support both symmetric and asymmetric as"
+        "one int : same padding used on all sides"
+        "three int : back, bottom, right will use same padding as front, top, left"
+        "four int : padding width in the order of (front, top, left, back, bottom, right)");
+    TVM_ATTR_FIELD(ceil_mode).describe(
+        "A boolean indicating if use ceil or floor to compute the output shape. By using ceil, "
+        "every element in the input tensor will be covered by a sliding window.");
+    TVM_ATTR_FIELD(count_include_pad)
+        .describe("When true, will include padding to compute the average");
+    TVM_ATTR_FIELD(layout).describe(
+        "Dimension ordering of input data. Can be 'NCDHW', 'NDHWC', etc."
+        "'N', 'C', 'D', 'H', 'W' stands for batch, channel, depth, height, and width"
+        "dimensions respectively. Pooling is applied on the 'D', 'H' and"
+        "'W' dimensions.");
+    TVM_ATTR_FIELD(out_layout)
+        .describe(
+            "Dimension ordering of output data. Can be 'NCDHW', 'NDHWC', etc."
+            "'N', 'C', 'D', 'H', 'W' stands for batch, channel, depth, height, and width"
+            "dimensions respectively. Pooling is applied on the 'D', 'H' and"
+            "'W' dimensions.");
+  }
+};  // struct Pool3dAttrs
 
 /*! \brief Attributes for 2d adaptive pool operator */
 struct AdaptivePool2DAttrs : public tvm::AttrsNode<AdaptivePool2DAttrs> {

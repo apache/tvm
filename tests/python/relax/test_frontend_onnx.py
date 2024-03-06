@@ -1587,69 +1587,194 @@ def test_batch_norm():
     check_correctness(model, opset=15)
 
 
-def test_max_pool():
-    # Pool2D
-    verify_unary(
-        "MaxPool",
-        [1, 1, 32, 32],
-        dict(
-            auto_pad="NOTSET",
-            kernel_shape=[3, 3],
-            pads=[1, 1, 1, 1],
-            strides=[1, 1],
-        ),
-    )
-    # Pool2D with stride
-    verify_unary(
-        "MaxPool",
-        [1, 1, 32, 32],
-        dict(
-            auto_pad="NOTSET",
-            kernel_shape=[3, 3],
-            pads=[1, 1, 1, 1],
-            strides=[2, 2],
-        ),
-    )
-    # Pool2D with stride and autopadding
-    verify_unary(
-        "MaxPool",
-        [1, 1, 32, 32],
-        dict(
-            auto_pad="SAME_UPPER",
-            kernel_shape=[3, 7],
-            pads=None,
-            strides=[3, 2],
-        ),
-    )
-    verify_unary(
-        "MaxPool",
-        [1, 1, 32, 32],
-        dict(
-            auto_pad="SAME_LOWER",
-            kernel_shape=[3, 3],
-            pads=None,
-            strides=[2, 2],
-        ),
-    )
-    verify_unary(
-        "MaxPool",
-        [1, 1, 32, 32],
-        dict(
-            auto_pad="VALID",
-            kernel_shape=[3, 3],
-            pads=None,
-            strides=[2, 2],
-        ),
-    )
-    verify_unary(
-        "MaxPool",
-        [1, 1, 32, 32],
-        dict(
-            auto_pad="SAME_UPPER",
-            kernel_shape=[3, 3],
-            pads=None,
-        ),
-    )
+def test_maxpool_and_averagepool():
+    for pool_name in ["MaxPool", "AveragePool"]:
+        # Pool1D
+        verify_unary(
+            pool_name,
+            [1, 1, 32],
+            dict(
+                auto_pad="NOTSET",
+                kernel_shape=[3],
+                pads=[1, 1],
+                strides=[1],
+            ),
+        )
+        # Pool1D with stride
+        verify_unary(
+            pool_name,
+            [1, 1, 32],
+            dict(
+                auto_pad="NOTSET",
+                kernel_shape=[3],
+                pads=[1, 2],
+                strides=[2],
+            ),
+        )
+        # Pool1D with stride and autopadding
+        verify_unary(
+            pool_name,
+            [1, 1, 32],
+            dict(
+                auto_pad="SAME_UPPER",
+                kernel_shape=[7],
+                pads=None,
+                strides=[2],
+            ),
+        )
+        verify_unary(
+            pool_name,
+            [1, 1, 32],
+            dict(
+                auto_pad="SAME_LOWER",
+                kernel_shape=[4],
+                pads=None,
+                strides=[4],
+            ),
+        )
+        verify_unary(
+            pool_name,
+            [1, 1, 32],
+            dict(
+                auto_pad="VALID",
+                kernel_shape=[5],
+                pads=None,
+                strides=[5],
+            ),
+        )
+        verify_unary(
+            pool_name,
+            [1, 1, 32],
+            dict(
+                auto_pad="SAME_UPPER",
+                kernel_shape=[3],
+                pads=None,
+            ),
+        )
+        # Pool2D
+        verify_unary(
+            pool_name,
+            [1, 1, 32, 32],
+            dict(
+                auto_pad="NOTSET",
+                kernel_shape=[3, 3],
+                pads=[1, 1, 1, 1],
+                strides=[1, 1],
+            ),
+        )
+        # Pool2D with stride
+        verify_unary(
+            pool_name,
+            [1, 1, 32, 32],
+            dict(
+                auto_pad="NOTSET",
+                kernel_shape=[3, 3],
+                pads=[1, 1, 1, 1],
+                strides=[2, 2],
+            ),
+        )
+        # Pool2D with stride and autopadding
+        verify_unary(
+            pool_name,
+            [1, 1, 32, 32],
+            dict(
+                auto_pad="SAME_UPPER",
+                kernel_shape=[3, 7],
+                pads=None,
+                strides=[3, 2],
+            ),
+        )
+        verify_unary(
+            pool_name,
+            [1, 1, 32, 32],
+            dict(
+                auto_pad="SAME_LOWER",
+                kernel_shape=[3, 3],
+                pads=None,
+                strides=[2, 2],
+            ),
+        )
+        verify_unary(
+            pool_name,
+            [1, 1, 32, 32],
+            dict(
+                auto_pad="VALID",
+                kernel_shape=[3, 3],
+                pads=None,
+                strides=[2, 2],
+            ),
+        )
+        verify_unary(
+            pool_name,
+            [1, 1, 32, 32],
+            dict(
+                auto_pad="SAME_UPPER",
+                kernel_shape=[3, 3],
+                pads=None,
+            ),
+        )
+        # Pool3D
+        verify_unary(
+            pool_name,
+            [1, 1, 32, 32, 32],
+            dict(
+                auto_pad="NOTSET",
+                kernel_shape=[3, 3, 4],
+                pads=[1, 2, 1, 1, 2, 2],
+                strides=[1, 1, 1],
+            ),
+        )
+        # Pool3D with stride
+        verify_unary(
+            pool_name,
+            [1, 1, 32, 32, 32],
+            dict(
+                auto_pad="NOTSET",
+                kernel_shape=[3, 4, 3],
+                pads=[1, 1, 1, 1, 1, 2],
+                strides=[2, 2, 3],
+            ),
+        )
+        # Pool3D with stride and autopadding
+        verify_unary(
+            pool_name,
+            [1, 1, 32, 32, 32],
+            dict(
+                auto_pad="SAME_UPPER",
+                kernel_shape=[4, 3, 3],
+                pads=None,
+                strides=[3, 2, 2],
+            ),
+        )
+        verify_unary(
+            pool_name,
+            [1, 1, 32, 32, 32],
+            dict(
+                auto_pad="SAME_LOWER",
+                kernel_shape=[3, 3, 4],
+                pads=None,
+                strides=[2, 2, 2],
+            ),
+        )
+        verify_unary(
+            pool_name,
+            [1, 1, 32, 32, 32],
+            dict(
+                auto_pad="VALID",
+                kernel_shape=[3, 3, 5],
+                pads=None,
+                strides=[2, 2, 3],
+            ),
+        )
+        verify_unary(
+            pool_name,
+            [1, 1, 32, 32, 32],
+            dict(
+                auto_pad="SAME_UPPER",
+                kernel_shape=[3, 3, 5],
+                pads=None,
+            ),
+        )
 
 
 def test_global_average_pool():

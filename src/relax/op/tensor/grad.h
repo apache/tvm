@@ -48,13 +48,15 @@ Expr nll_loss_backward(Expr output_grad, Expr predictions, Expr targets, Optiona
  * relax.max_pool2d. Returns the gradient w.r.t. data. */
 Expr max_pool2d_backward(Expr output_grad, Expr data, Array<IntImm> pool_size,
                          Array<IntImm> strides, Array<IntImm> padding, Array<IntImm> dilation,
-                         bool ceil_mode, String layout, Optional<String> out_layout);
+                         bool ceil_mode, bool count_include_pad, String layout,
+                         Optional<String> out_layout);
 
 /*! \brief Backward operator of relax.avg_pool2d. All parameters except output_grad is the same as
  * relax.avg_pool2d. Returns the gradient w.r.t. data. */
 Expr avg_pool2d_backward(Expr output_grad, Expr data, Array<IntImm> pool_size,
                          Array<IntImm> strides, Array<IntImm> padding, Array<IntImm> dilation,
-                         bool ceil_mode, String layout, Optional<String> out_layout);
+                         bool ceil_mode, bool count_include_pad, String layout,
+                         Optional<String> out_layout);
 
 /*! \brief Backward operator of relax.take. All parameters except output_grad is the same as
  * relax.take. Returns the gradient w.r.t. data. */
