@@ -17,7 +17,7 @@
 
 import tvm
 import tvm.testing
-from tvm import tir
+from tvm import tir, ir
 from tvm.script import tir as T, ir as I
 
 
@@ -483,6 +483,65 @@ class TestThreadIdxReusedWithinAndAcrossFunctions(BaseBeforeAfter):
                     A[threadIdx_x] = A[threadIdx_x] + 2.0
 
         return mod
+
+
+class TestTrackForwardDeclarationsInAttrStmt(BaseBeforeAfter):
+    """T.attr statements may refer to a about-to-be-defined tir.Var"""
+
+    def before(self):
+        """Generate the PrimFunc, which is already SSA
+
+        This is constructed directly, rather than using TVMScript or
+        the `tvm.tir.ir_builder`.  This test case requires a
+        `tir.AttrStmt` that references a variable, followed by the
+        `tir.For` defining that variable.  This is not expressible in
+        either TVMScript or `tvm.tir.ir_builder`, as they only provide
+        the loop iterator within the body of the loop.
+        """
+        i0_outer_outer = tir.Var("i0_outer_outer", "int32")
+        i0_outer_inner = tir.Var("i0_outer_inner", "int32")
+        i0_inner = tir.Var("i0_inner", "int32")
+
+        A = tir.decl_buffer(1024, "float32", "A")
+        B = tir.decl_buffer(1024, "float32", "B")
+
+        index = i0_outer_outer * 52 + i0_outer_inner * 4 + i0_inner
+
+        stmt = tir.BufferStore(B, tir.BufferLoad(A, [index]), [index])
+        stmt = tir.IfThenElse(i0_outer_outer * 13 + i0_outer_inner < 256, stmt, None)
+        stmt = tir.For(i0_inner, 0, 4, tir.ForKind.VECTORIZED, stmt)
+        stmt = tir.For(i0_outer_inner, 0, 13, tir.ForKind.PARALLEL, stmt)
+        stmt = tir.AttrStmt(
+            T.iter_var(i0_outer_inner, None, "DataPar", ""),
+            "pragma_parallal_barrier_when_finish",
+            1,
+            stmt,
+        )
+        stmt = tir.AttrStmt(
+            T.iter_var(i0_outer_inner, None, "DataPar", ""),
+            "pragma_parallal_stride_pattern",
+            1,
+            stmt,
+        )
+        stmt = tir.For(i0_outer_outer, 0, 20, tir.ForKind.SERIAL, stmt)
+        stmt = tir.AttrStmt(
+            T.iter_var(i0_outer_outer, None, "DataPar", ""),
+            "pragma_parallal_launch_point",
+            1,
+            stmt,
+        )
+
+        A_handle = tir.Var("A_handle", "handle")
+        B_handle = tir.Var("B_handle", "handle")
+
+        func = tir.PrimFunc(
+            [A_handle, B_handle],
+            stmt,
+            buffer_map={A_handle: A, B_handle: B},
+        )
+        return func
+
+    expected = before
 
 
 if __name__ == "__main__":
