@@ -71,7 +71,9 @@ class SortScanDispatcher(PyExprMutator):
         )
         if sch is not None:
             assert len(sch) == 1
-            self.builder_.update_func(gvar, sch[0].mod["main"].with_attr("tir.is_scheduled", 1))
+            scan_prim_func = sch[0].mod["main"]
+
+        self.builder_.update_func(gvar, scan_prim_func.with_attr("tir.is_scheduled", 1))
 
     def visit_call_(self, call: relax.Call) -> relax.Expr:
         if not isinstance(call.op, Op):
