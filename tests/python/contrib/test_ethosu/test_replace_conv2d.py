@@ -644,8 +644,9 @@ def test_conv2d_double_cascade(trial):
         tvm.ir.assert_structural_equal(mod["main"], reference_mod["main"], True)
 
 
+# Undefined vars used
 # fmt: off
-@tvm.script.ir_module
+@tvm.script.ir_module(check_well_formed=False)
 class Conv2dInlineCopy1:
     @T.prim_func
     def main(input_placeholder_3: T.Buffer((1, 10, 12, 8), "int8"), input_ethosu_write_1: T.Buffer((1, 8, 8, 16), "int8")) -> None:
@@ -659,7 +660,8 @@ class Conv2dInlineCopy1:
         T.evaluate(T.call_extern("ethosu_conv2d", "int8", 8, 8, 4, 8, 0, 8, placeholder_3[120], 0, 0, 0, T.float32(0.5), 10, "NHWC", 96, 8, 1, "int8", 8, 8, 16, 8, 0, 8, ethosu_write_1[0], 0, 0, 0, T.float32(0.25), 14, "NHWC", 128, 16, 1, 3, 3, 1, 1, 1, 1, buffer[0], 848, T.int8(-1), T.int8(-1), 12, buffer_1[0], 160, T.int8(-1), T.int8(-1), 1, 1, 1, 1, "NONE", 0, 0, "TFL", "NONE", 0, 0, 0, dtype="handle"))
 
 
-@tvm.script.ir_module
+# Undefined vars used
+@tvm.script.ir_module(check_well_formed=False)
 class Conv2dInlineCopy2:
     @T.prim_func
     def main(input_placeholder_3: T.Buffer((1, 7, 9, 5), "int8"), input_ethosu_write_1: T.Buffer((1, 3, 5, 16), "int8")) -> None:
@@ -701,8 +703,9 @@ def test_conv2d_inline_copy(trial):
     tvm.ir.assert_structural_equal(mod["main"], reference_mod["main"], True)
 
 
+# Undefined vars used
 # fmt: off
-@tvm.script.ir_module
+@tvm.script.ir_module(check_well_formed=False)
 class Conv2dInlineReshape1:
     @T.prim_func
     def main(input_placeholder_3: T.Buffer((4, 6, 8, 1), "int8"), input_ethosu_write_1: T.Buffer((1, 8, 6, 16), "int8")) -> None:
@@ -717,7 +720,8 @@ class Conv2dInlineReshape1:
         T.evaluate(T.call_extern("ethosu_conv2d", "int8", 5, 6, 4, 5, 0, 6, placeholder_3[72], 0, 0, 0, T.float32(0.5), 10, "NHWC", 24, 4, 1, "int8", 4, 6, 16, 4, 0, 6, ethosu_write_1[384], 0, 0, 0, T.float32(0.25), 14, "NHWC", 96, 16, 1, 3, 3, 1, 1, 1, 1, buffer_1[0], 848, T.int8(-1), T.int8(-1), 12, buffer[0], 160, T.int8(-1), T.int8(-1), 0, 1, 1, 1, "NONE", 0, 0, "TFL", "NONE", 0, 0, 0, dtype="handle"))
 
 
-@tvm.script.ir_module
+# undefined vars used
+@tvm.script.ir_module(check_well_formed=False)
 class Conv2dInlineReshape2:
     @T.prim_func
     def main(input_placeholder_3: T.Buffer((1, 24, 8), "int8"), input_ethosu_write_1: T.Buffer((1, 8, 6, 16), "int8")) -> None:
@@ -732,7 +736,8 @@ class Conv2dInlineReshape2:
         T.evaluate(T.call_extern("ethosu_conv2d", "int8", 5, 6, 4, 5, 0, 6, placeholder_3[72], 0, 0, 0, T.float32(0.5), 10, "NHWC", 24, 4, 1, "int8", 4, 6, 16, 4, 0, 6, ethosu_write_1[384], 0, 0, 0, T.float32(0.25), 14, "NHWC", 96, 16, 1, 3, 3, 1, 1, 1, 1, buffer_1[0], 848, T.int8(-1), T.int8(-1), 12, buffer[0], 160, T.int8(-1), T.int8(-1), 0, 1, 1, 1, "NONE", 0, 0, "TFL", "NONE", 0, 0, 0, dtype="handle"))
 
 
-@tvm.script.ir_module
+# undefined vars used
+@tvm.script.ir_module(check_well_formed=False)
 class Conv2dInlineReshape3:
     @T.prim_func
     def main(input_placeholder_3: T.Buffer((192, 1), "int8"), input_ethosu_write_1: T.Buffer((1, 8, 6, 16), "int8")) -> None:
@@ -747,7 +752,8 @@ class Conv2dInlineReshape3:
         T.evaluate(T.call_extern("ethosu_conv2d", "int8", 5, 6, 4, 5, 0, 6, placeholder_3[72], 0, 0, 0, T.float32(0.5), 10, "NHWC", 24, 4, 1, "int8", 4, 6, 16, 4, 0, 6, ethosu_write_1[384], 0, 0, 0, T.float32(0.25), 14, "NHWC", 96, 16, 1, 3, 3, 1, 1, 1, 1, buffer_1[0], 848, T.int8(-1), T.int8(-1), 12, buffer[0], 160, T.int8(-1), T.int8(-1), 0, 1, 1, 1, "NONE", 0, 0, "TFL", "NONE", 0, 0, 0, dtype="handle"))
 
 
-@tvm.script.ir_module
+# undefined vars used
+@tvm.script.ir_module(check_well_formed=False)
 class Conv2dInlineReshape4:
     @T.prim_func
     def main(placeholder_3: T.Buffer((192,), "int8"), input_ethosu_write_1: T.Buffer((1, 8, 6, 16), "int8")) -> None:
