@@ -20,7 +20,7 @@ import inspect
 import pytest
 
 import tvm
-from tvm import te, tir
+from tvm import te, tir, testing
 
 from tvm.tir import truncdiv as tdiv, truncmod as tmod, floordiv as fld, floormod as flm
 
@@ -725,6 +725,8 @@ class TestMinIndex(BaseCompare):
         TestCase(tvm.te.min(tvm.te.max(x, 4), fld(x + 3, 4) * 4), tvm.te.max(x, 4), x > 0),
         TestCase(tvm.te.min(fld(x, 10), fld(y, 10)), fld(tvm.te.min(x, y), 10)),
         TestCase(tvm.te.min(fld(x, (-10)), fld(y, (-10))), fld(tvm.te.max(x, y), (-10))),
+        TestCase(tvm.te.min(0, fld(x + 3, 4) * 4 - 1), 0),
+        TestCase(tvm.te.min(fld(x + 3, 4) * 4 - 1, 0), 0),
     )
 
 
@@ -791,6 +793,8 @@ class TestMaxIndex(BaseCompare):
         TestCase(tvm.te.max(fld(x + 3, 4) * 4, x), fld(x + 3, 4) * 4),
         TestCase(tvm.te.max(fld(x, 4) * 4, x), x),
         TestCase(tvm.te.max(x, fld(x, 4) * 4), x),
+        TestCase(tvm.te.max(1, fld(x + 3, 4) * 4), fld(x + 3, 4) * 4),
+        TestCase(tvm.te.max(fld(x + 3, 4) * 4, 1), fld(x + 3, 4) * 4),
     )
 
 
