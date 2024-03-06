@@ -16,11 +16,11 @@
 # under the License.
 import pytest
 
-#pytest.importorskip("ethosu.vela")
+pytest.importorskip("ethosu.vela")
 
 import tvm
 from tvm.script import tir as T
-#from tvm.relay.backend.contrib.ethosu.tir.passes import MergeConstants
+from tvm.relay.backend.contrib.ethosu.tir.passes import MergeConstants
 import numpy as np
 
 
@@ -35,7 +35,8 @@ def check_const_dictionaries(const_dict, new_const_dict):
 
 def test_only_one_operator():
     # fmt: off
-    @tvm.script.ir_module
+    # undefined vars used
+    @tvm.script.ir_module(check_well_formed=False)
     class InputModule:
         @T.prim_func
         def main(buffer2: T.Buffer((128,), "uint8"), buffer3: T.Buffer((32,), "uint8")) -> None:
@@ -53,7 +54,8 @@ def test_only_one_operator():
             T.evaluate(T.call_extern("ethosu_conv2d", "int8", 16, 16, 32, 16, 0, 16, buffer1[0], 0, 0, 0, T.float32(0.5), 10, "NHWC", 512, 32, 1, "int8", 16, 16, 2, 16, 0, 16, buffer10[0], 0, 0, 0, T.float32(0.25), 14, "NHWC", 128, 8, 1, 1, 1, 1, 1, 1, 1, p1[0], 128, 12, p4[0], 32, 0, 0, 0, 0, "NONE", 0, 0, "TFL", "NONE", 0, 0, 0, dtype="handle"))
 
 
-    @tvm.script.ir_module
+    # undefined vars used
+    @tvm.script.ir_module(check_well_formed=False)
     class ReferenceModule:
         @T.prim_func
         def main(buffer2: T.Buffer((160,), "uint8")) -> None:
@@ -80,7 +82,8 @@ def test_only_one_operator():
 
 def test_all_operators_with_weights():
     # fmt: off
-    @tvm.script.ir_module
+    # undefined vars used
+    @tvm.script.ir_module(check_well_formed=False)
     class InputModule:
         @T.prim_func
         def main(buffer2: T.Buffer((128,), "uint8"), buffer3: T.Buffer((32,), "uint8"), buffer4: T.Buffer((112,), "uint8"), buffer5: T.Buffer((32,), "uint8"), buffer6: T.Buffer((112,), "uint8"), buffer7: T.Buffer((32,), "uint8"), buffer8: T.Buffer((112,), "uint8"), buffer9: T.Buffer((32,), "uint8")) -> None:
@@ -119,7 +122,8 @@ def test_all_operators_with_weights():
             T.evaluate(T.call_extern("ethosu_conv2d", "int8", 16, 16, 32, 16, 0, 16, buffer1[0], 0, 0, 0, T.float32(0.5), 10, "NHWC", 512, 32, 1, "int8", 16, 16, 2, 16, 0, 16, buffer10[6], 0, 0, 0, T.float32(0.25), 14, "NHWC", 128, 8, 1, 1, 1, 1, 1, 1, 1, p7[0], 112, 12, p8[0], 32, 0, 0, 0, 0, "NONE", 0, 0, "TFL", "NONE", 0, 0, 0, dtype="handle"))
 
 
-    @tvm.script.ir_module
+    # undefined vars used
+    @tvm.script.ir_module(check_well_formed=False)
     class ReferenceModule:
         @T.prim_func
         def main(buffer2: T.Buffer((160,), "uint8"), buffer4: T.Buffer((144,), "uint8"), buffer6: T.Buffer((144,), "uint8"), buffer8: T.Buffer((144,), "uint8")) -> None:
@@ -170,7 +174,8 @@ def test_all_operators_with_weights():
 
 def test_operators_with_and_without_weights():
     # fmt: off
-    @tvm.script.ir_module
+    # undefined vars used
+    @tvm.script.ir_module(check_well_formed=False)
     class InputModule:
         @T.prim_func
         def main(buffer2: T.Buffer((80,), "uint8"), buffer3: T.Buffer((64,), "uint8")) -> None:
@@ -189,7 +194,8 @@ def test_operators_with_and_without_weights():
             T.evaluate(T.call_extern("ethosu_conv2d", "int8", 214, 114, 2, 214, 0, 114, buffer0[0], 0, 0, 0, T.float32(0.00392157), -128, "NHCWB16", 1824, 16, 1, "int8", 214, 114, 5, 214, 0, 114, buffer6[0], 0, 0, 0, T.float32(0.0174839), -128, "NHCWB16", 1824, 16, 1, 3, 1, 1, 1, 1, 2, p2[0], 80, 0, p3[0], 64, 0, 1, 0, 1, "NONE", 0, 0, "TFL", "NONE", 0, 0, 0, dtype="handle"))
 
 
-    @tvm.script.ir_module
+    # undefined vars used
+    @tvm.script.ir_module(check_well_formed=False)
     class ReferenceModule:
         @T.prim_func
         def main(buffer2: T.Buffer((144,), "uint8")) -> None:
@@ -218,7 +224,8 @@ def test_operators_with_and_without_weights():
 
 def test_copy_to_buffer_with_local_scope():
     # fmt: off
-    @tvm.script.ir_module
+    # undefined vars used
+    @tvm.script.ir_module(check_well_formed=False)
     class InputModule:
         @T.prim_func
         def main(buffer1: T.Buffer((64,), "uint8"),
@@ -255,7 +262,8 @@ def test_copy_to_buffer_with_local_scope():
             T.evaluate(T.call_extern("ethosu_depthwise_conv2d", "int8", 4, 4, 4, 4, 0, 4, buffer9[0], 0, 0, 0, T.float32(0.0078125), 0, "NHCWB16", 64, 16, 1, "int8", 4, 4, 4, 4, 0, 4, buffer8[0], 0, 0, 0, T.float32(0.00372155), -128, "NHWC", 16, 4, 1, 1, 1, 1, 1, 1, 1, p5[0], 16, 0, p6[0], 48, 0, 0, 0, 0, "TANH", 0, 0, "TFL", "NONE", 0, 0, 0, dtype="handle"))
 
 
-    @tvm.script.ir_module
+    # undefined vars used
+    @tvm.script.ir_module(check_well_formed=False)
     class ReferenceModule:
         @T.prim_func
         def main(buffer1: T.Buffer((64,), "uint8"),
@@ -346,7 +354,8 @@ def test_no_copies():
 
 def test_copies_to_the_same_buffer():
     # fmt: off
-    @tvm.script.ir_module
+    # undefined vars used
+    @tvm.script.ir_module(check_well_formed=False)
     class InputModule:
         @T.prim_func
         def main(buffer2: T.Buffer((128,), "uint8"), buffer3: T.Buffer((32,), "uint8")) -> None:
@@ -367,7 +376,8 @@ def test_copies_to_the_same_buffer():
             T.evaluate(T.call_extern("ethosu_conv2d", "int8", 16, 16, 32, 16, 0, 16, buffer1[0], 0, 0, 0, T.float32(0.5), 10, "NHWC", 512, 32, 1, "int8", 16, 16, 2, 16, 0, 16, buffer10[0], 0, 0, 0, T.float32(0.25), 14, "NHWC", 128, 8, 1, 1, 1, 1, 1, 1, 1, p1[0], 128, 12, p4[0], 32, 0, 0, 0, 0, "NONE", 0, 0, "TFL", "NONE", 0, 0, 0, dtype="handle"))
 
 
-    @tvm.script.ir_module
+    # undefined vars used
+    @tvm.script.ir_module(check_well_formed=False)
     class ReferenceModule:
         @T.prim_func
         def main(buffer2: T.Buffer((160,), "uint8")) -> None:
