@@ -117,8 +117,7 @@ class Exporter:
         with self:
             if effects:
                 with self.builder.function("_initialize_effect"):
-                    with self.builder.dataflow():
-                        outputs = _emit_effect_init(self.builder, effects)
+                    outputs = _emit_effect_init(self.builder, effects)
                     self.builder.emit_func_output(outputs, params=[])
             for method_name, method_spec in zip(spec.method_names, spec.method_specs):
                 params = _params()  # Re-initialize so symbolic shapes not shared across methods
@@ -132,12 +131,12 @@ class Exporter:
                     method_name,
                     attrs={"num_input": len_args + len_effects},  # type: ignore
                 ):
-                    with self.builder.dataflow():
-                        outputs, inputs = _emit_method(self.builder, method_spec, params, effects)
+                    outputs, inputs = _emit_method(self.builder, method_spec, params, effects)
                     self.builder.emit_func_output(outputs, inputs)
         mod = self.builder.finalize()
         assert rx.analysis.well_formed(mod)
 
+        mod = rx.transform.ConvertToDataflow(min_size=1)(mod)
         return mod, params, ext_mods
 
 
@@ -150,7 +149,7 @@ def _emit_effect_init(
         inits = effect.emit_init(prefix, builder)
         assert isinstance(inits, list)
         outputs.extend(inits)
-    outputs = builder.emit_output(builder.emit(rx.Tuple(outputs)))
+    outputs = builder.emit(rx.Tuple(outputs))
     return outputs
 
 
@@ -281,9 +280,9 @@ def _emit_method(  # pylint: disable=too-many-locals,too-many-branches,too-many-
     for _, effect in effects:
         effect_outputs.extend(effect.finalize())
     if effect_outputs and spec.effect_mode != "none":
-        outputs = builder.emit_output(rx.Tuple([_unwrap_ret(outputs), rx.Tuple(effect_outputs)]))
+        outputs = builder.emit(rx.Tuple([_unwrap_ret(outputs), rx.Tuple(effect_outputs)]))
     else:
-        outputs = builder.emit_output(_unwrap_ret(outputs))
+        outputs = builder.emit(_unwrap_ret(outputs))
     return outputs, inputs
 
 

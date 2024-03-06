@@ -983,16 +983,21 @@ class FunctionNode : public BaseFuncNode {
 class Function : public BaseFunc {
  public:
   TVM_DLL explicit Function(Array<Var> params, Expr body, Optional<StructInfo> ret_struct_info,
-                            bool is_pure = true, DictAttrs attrs = NullValue<DictAttrs>(),
-                            Span span = Span());
+                            bool is_pure, DictAttrs attrs = NullValue<DictAttrs>(),
+                            Span span = Span())
+      : Function(params, body, ret_struct_info, Optional<Bool>(Bool(is_pure)), attrs, span) {}
+
+  TVM_DLL explicit Function(Array<Var> params, Expr body,
+                            Optional<StructInfo> ret_struct_info = NullOpt,
+                            Optional<Bool> is_pure = NullOpt,
+                            DictAttrs attrs = NullValue<DictAttrs>(), Span span = Span());
 
   /*!
    * \brief Mimics the constructor but without body Expr.
-   * \note ret_struct_info is required, since it can not deduced by the body.
+   * \note `ret_struct_info` and `is_pure` are required, since it can not deduced by the body.
    */
-  TVM_DLL static Function CreateEmpty(Array<Var> params, StructInfo ret_struct_info,
-                                      bool is_pure = true, DictAttrs attrs = NullValue<DictAttrs>(),
-                                      Span span = Span());
+  TVM_DLL static Function CreateEmpty(Array<Var> params, StructInfo ret_struct_info, bool is_pure,
+                                      DictAttrs attrs = NullValue<DictAttrs>(), Span span = Span());
 
   TVM_DEFINE_OBJECT_REF_METHODS(Function, BaseFunc, FunctionNode);
   TVM_DEFINE_OBJECT_REF_COW_METHOD(FunctionNode);

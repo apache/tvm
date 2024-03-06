@@ -441,8 +441,8 @@ TVM_REGISTER_GLOBAL("relax.SeqExpr")
 
 TVM_REGISTER_NODE_TYPE(FunctionNode);
 
-Function::Function(Array<Var> params, Expr body, Optional<StructInfo> ret_struct_info, bool is_pure,
-                   DictAttrs attrs, Span span) {
+Function::Function(Array<Var> params, Expr body, Optional<StructInfo> ret_struct_info,
+                   Optional<Bool> is_pure_override, DictAttrs attrs, Span span) {
   // Set the function type.
   // For function, we take a conservative approach and require the function type
   // to be known at construction time.
@@ -473,6 +473,13 @@ Function::Function(Array<Var> params, Expr body, Optional<StructInfo> ret_struct
     ret_struct_info = body_sinfo;
   }
 
+  bool is_pure;
+  if (is_pure_override.defined()) {
+    is_pure = is_pure_override.value()->value;
+  } else {
+    is_pure = !ContainsImpureCall(body);
+  }
+
   FuncStructInfo func_sinfo(param_sinfo, ret_struct_info.value(), is_pure);
 
   // set the fields
@@ -490,7 +497,7 @@ Function::Function(Array<Var> params, Expr body, Optional<StructInfo> ret_struct
 
 TVM_REGISTER_GLOBAL("relax.Function")
     .set_body_typed([](Array<Var> params, Expr body, Optional<StructInfo> ret_struct_info,
-                       bool is_pure, DictAttrs attrs, Span span) {
+                       Optional<Bool> is_pure, DictAttrs attrs, Span span) {
       return Function(params, body, ret_struct_info, is_pure, attrs, span);
     });
 

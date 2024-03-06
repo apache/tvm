@@ -638,8 +638,8 @@ class BlockBuilder(Object):
         finally:
             self.end_scope()
 
-        # do not specify ret_struct_info and let constructor deduce
-        # from seqe.struct_info
+        # Do not specify ret_struct_info or purity, and let the
+        # constructor deduce from seqe.struct_info.
         func = rx.Function(self._func._params, seqe)
         for key, value in self._func._attrs.items():
             func = func.with_attr(key, value)

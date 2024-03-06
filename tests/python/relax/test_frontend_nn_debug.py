@@ -24,6 +24,8 @@ from tvm.relax.frontend import nn
 from tvm.relax.frontend.nn import op, spec
 from tvm.runtime import NDArray
 
+from tvm.script import ir as I, relax as R
+
 
 def test_debug_print():
     class Layer(nn.Module):
@@ -40,6 +42,62 @@ def test_debug_print():
     x = torch.rand((10, 5), dtype=torch.float32)  # pylint: disable=invalid-name
     y = model["forward"](x)  # pylint: disable=invalid-name
     assert isinstance(y, torch.Tensor)
+
+
+def test_debug_print_well_formed():
+    class Layer(nn.Module):
+        def forward(self, state: nn.Tensor):
+            state = state * 2.0
+            op.print_(state)
+            state = state * 2.0
+            return state
+
+    forward_code = Layer.forward.__wrapped__.__code__
+    debug_location = f"{forward_code.co_filename}:{forward_code.co_firstlineno+2}"
+
+    model, _ = Layer().export_tvm(
+        spec={
+            "forward": {"state": spec.Tensor([10, 5], dtype="float32")},
+        },
+        debug=True,
+    )
+
+    @I.ir_module
+    class Expected:
+        @R.function
+        def _initialize_effect() -> R.Tuple(R.Object):
+            with R.dataflow():
+                _io = R.null_value()
+                gv = (_io,)
+                R.output(gv)
+            return gv
+
+        @R.function(pure=False)
+        def forward(
+            state: R.Tensor((10, 5), dtype="float32"), _io: R.Object
+        ) -> R.Tuple(R.Tensor((10, 5), dtype="float32"), R.Tuple(R.Object)):
+            R.func_attr({"num_input": 2})
+            with R.dataflow():
+                mul = R.multiply(state, R.const(2, "float32"))
+                R.output(mul)
+
+            _io1 = R.call_packed(
+                "vm.builtin.invoke_debug_func",
+                _io,
+                R.str("vm.builtin.debug_print"),
+                R.str(debug_location),
+                mul,
+                sinfo_args=(R.Object,),
+            )
+
+            with R.dataflow():
+                mul1 = R.multiply(mul, R.const(2, "float32"))
+                gv1 = mul1, (_io1,)
+                R.output(gv1)
+
+            return gv1
+
+    tvm.ir.assert_structural_equal(Expected, model)
 
 
 def test_debug_func():
@@ -79,5 +137,4 @@ def test_debug_func():
 
 
 if __name__ == "__main__":
-    test_debug_print()
-    test_debug_func()
+    tvm.testing.main()

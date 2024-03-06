@@ -1897,15 +1897,14 @@ def debug_func(
         else:
             raise TypeError(f"Unsupported type {type(arg)}")
 
+    func = rx.ExternFunc("vm.builtin.invoke_debug_func")
+    call = rx.Call(
+        func,
+        [io.effect, rx.StringImm(name), rx.StringImm(_line_info), *converted_args],
+        sinfo_args=[rx.ObjectStructInfo()],
+    )
     io.effect = BlockBuilder.current().emit(
-        rx.call_pure_packed(
-            "vm.builtin.invoke_debug_func",
-            io.effect,
-            rx.StringImm(name),
-            rx.StringImm(_line_info),
-            *converted_args,
-            sinfo_args=[rx.ObjectStructInfo()],
-        ),
+        call,
         name_hint=io.effect.name_hint,
     )
 

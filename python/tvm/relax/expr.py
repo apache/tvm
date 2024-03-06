@@ -887,7 +887,7 @@ class Function(BaseFunc, Scriptable):
         params: List[Var],
         body: Expr,
         ret_struct_info: Optional[StructInfo] = None,
-        is_pure: Optional[bool] = True,
+        is_pure: Optional[bool] = None,
         attrs: Optional[tvm.ir.DictAttrs] = None,
         span: Optional[Span] = None,
     ) -> None:
