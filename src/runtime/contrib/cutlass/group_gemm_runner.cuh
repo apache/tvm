@@ -56,7 +56,6 @@ inline size_t aligned(size_t value, size_t alignment = 16) {
   return (value + alignment - 1) / alignment * alignment;
 }
 
-
 template <typename T>
 struct KernelTraits;
 
@@ -86,8 +85,8 @@ struct CutlassGroupGemmRunner {
   using ClusterShape = typename KernelTraits<ElementA>::ClusterShape;
   using StageCountType =
       cutlass::gemm::collective::StageCountAuto;  // Stage count maximized based on the tile size
-  using KernelSchedule = typename KernelTraits<ElementA>::KernelSchedule;  // Kernel to launch
-  using EpilogueSchedule = cutlass::epilogue::PtrArrayNoSmemWarpSpecialized;   // Epilogue to launch
+  using KernelSchedule = typename KernelTraits<ElementA>::KernelSchedule;     // Kernel to launch
+  using EpilogueSchedule = cutlass::epilogue::PtrArrayNoSmemWarpSpecialized;  // Epilogue to launch
 
   using CollectiveEpilogue = typename cutlass::epilogue::collective::CollectiveBuilder<
       cutlass::arch::Sm90, cutlass::arch::OpClassTensorOp, TileShape, ClusterShape,
@@ -152,8 +151,8 @@ __global__ void prepare_group_gemm_arguments(
   ptr_A[group_id] = x + prev_rows * k;
   ptr_B[group_id] = weight + group_id * k * n;
   ptr_D[group_id] = out + prev_rows * n;
-  problem_sizes[group_id] = {static_cast<int>(indptr[group_id] - prev_rows),
-                              static_cast<int>(n), static_cast<int>(k)};
+  problem_sizes[group_id] = {static_cast<int>(indptr[group_id] - prev_rows), static_cast<int>(n),
+                             static_cast<int>(k)};
   stride_A[group_id] = cute::make_stride(k, Int<1>{}, int64_t{0});
   stride_B[group_id] = cute::make_stride(k, Int<1>{}, int64_t{0});
   stride_D[group_id] = cute::make_stride(n, Int<1>{}, int64_t{0});
@@ -162,7 +161,7 @@ __global__ void prepare_group_gemm_arguments(
 template <typename ElementA, typename ElementB, typename ElementC>
 void cutlass_group_gemm(ElementA* x, ElementB* weight, int64_t* indptr, uint8_t* workspace,
                         int64_t workspace_size, int64_t n, int64_t k, int64_t num_groups,
-                        ElementC* out, cudaStream_t stream) {
+                        float alpha, float beta, ElementC* out, cudaStream_t stream) {
   using Runner = CutlassGroupGemmRunner<ElementA, ElementB, ElementC>;
   using StrideA = typename Runner::StrideA;
   using StrideB = typename Runner::StrideB;
@@ -185,11 +184,11 @@ void cutlass_group_gemm(ElementA* x, ElementB* weight, int64_t* indptr, uint8_t*
   offset += aligned(sizeof(StrideB) * num_groups);
   StrideC* stride_D = reinterpret_cast<StrideC*>(workspace + offset);
   offset += aligned(sizeof(StrideC) * num_groups);
-  prepare_group_gemm_arguments<<<1, num_groups, 0, stream>>>(
-      ptr_A, ptr_B, ptr_D, problem_sizes, stride_A, stride_B, stride_D, x, weight, out, indptr, n,
-      k, num_groups);
+  prepare_group_gemm_arguments<<<1, num_groups, 0, stream>>>(ptr_A, ptr_B, ptr_D, problem_sizes,
+                                                             stride_A, stride_B, stride_D, x,
+                                                             weight, out, indptr, n, k, num_groups);
   offset = aligned(offset, 256);
   runner.run_group_gemm(ptr_A, ptr_B, const_cast<const ElementC**>(ptr_D), ptr_D, problem_sizes,
                         nullptr, stride_A, stride_B, stride_D, stride_D, workspace + offset,
-                        workspace_size - offset, num_groups, 1.0f, 0.0f, stream);
+                        workspace_size - offset, num_groups, alpha, beta, stream);
 }

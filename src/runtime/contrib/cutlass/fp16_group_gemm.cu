@@ -25,14 +25,13 @@
 
 #include "group_gemm_runner.cuh"
 
-
 #if defined(CUTLASS_ARCH_MMA_MODIFIABLE_TMA_SM90_SUPPORTED)
 
 template <>
 struct KernelTraits<cutlass::half_t> {
   using KernelSchedule = cutlass::gemm::KernelPtrArrayTmaWarpSpecializedCooperative;
-  using TileShape = Shape<_128, _256, _64>;              // Threadblock-level tile size
-  using ClusterShape = Shape<_2, _2, _1>;                // Shape of the threadblocks in a cluster
+  using TileShape = Shape<_128, _256, _64>;  // Threadblock-level tile size
+  using ClusterShape = Shape<_2, _2, _1>;    // Shape of the threadblocks in a cluster
 };
 
 namespace tvm {
@@ -53,16 +52,17 @@ void tvm_cutlass_group_gemm_sm90(NDArray x, NDArray weight, NDArray indptr, NDAr
   int num_groups = weight->shape[0];
   int n = weight->shape[1];
   int k = weight->shape[2];
+  float alpha = 1.0f;
+  float beta = 0.0f;
   cudaStream_t stream = static_cast<cudaStream_t>((*func)().operator void*());
   cutlass_group_gemm(static_cast<ElementA*>(x->data), static_cast<ElementB*>(weight->data),
                      static_cast<int64_t*>(indptr->data), static_cast<uint8_t*>(workspace->data),
-                     workspace->shape[0], n, k, num_groups, static_cast<ElementC*>(out->data),
-                     stream);
+                     workspace->shape[0], n, k, num_groups, alpha, beta,
+                     static_cast<ElementC*>(out->data), stream);
 }
 
 TVM_REGISTER_GLOBAL("cutlass.group_gemm_fp16_sm90")
-    .set_body_typed(
-        tvm_cutlass_group_gemm_sm90<cutlass::half_t, cutlass::half_t, cutlass::half_t>);
+    .set_body_typed(tvm_cutlass_group_gemm_sm90<cutlass::half_t, cutlass::half_t, cutlass::half_t>);
 
 }  // namespace runtime
 }  // namespace tvm
