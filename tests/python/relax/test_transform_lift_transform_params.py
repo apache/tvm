@@ -26,7 +26,8 @@ import numpy as np
 import tvm.topi.testing
 
 
-def test_basic():
+@pytest.mark.parametrize("consume_params", [True, False])
+def test_basic(consume_params):
     @tvm.script.ir_module
     class Before:
         @T.prim_func
@@ -132,12 +133,101 @@ def test_basic():
                 R.output(gv)
             return gv
 
+    @tvm.script.ir_module
+    class ExpectedConsumeParams:
+        @R.function
+        def main(
+            x: R.Tensor((1, 3, 224, 224), dtype="float32"),
+            w2: R.Tensor((16, 16, 3, 3), dtype="float32"),
+            w1_transformed: R.Tensor((16, 3, 3, 3), dtype="float32"),
+        ) -> R.Tensor((1, 16, 224, 224), dtype="float32"):
+            R.func_attr({"num_input": 1})
+            with R.dataflow():
+                conv1: R.Tensor((1, 16, 224, 224), dtype="float32") = R.nn.conv2d(
+                    x,
+                    w1_transformed,
+                    strides=[1, 1],
+                    padding=[1, 1, 1, 1],
+                    dilation=[1, 1],
+                    groups=1,
+                    data_layout="NCHW",
+                    kernel_layout="OIHW",
+                    out_layout="NCHW",
+                    out_dtype="void",
+                )
+                conv2: R.Tensor((1, 16, 224, 224), dtype="float32") = R.nn.conv2d(
+                    conv1,
+                    w2,
+                    strides=[1, 1],
+                    padding=[1, 1, 1, 1],
+                    dilation=[1, 1],
+                    groups=1,
+                    data_layout="NCHW",
+                    kernel_layout="OIHW",
+                    out_layout="NCHW",
+                    out_dtype="void",
+                )
+                R.output(conv2)
+            return conv2
+
+        @T.prim_func
+        def transform_layout_IOHW_to_OIHW(
+            w1: T.Buffer((3, 16, 3, 3), "float32"), out: T.Buffer((16, 3, 3, 3), "float32")
+        ):
+            for ax0, ax1, ax2, ax3 in T.grid(16, 3, 3, 3):
+                with T.block("layout_transform"):
+                    o, i, h, w = T.axis.remap("SSSS", [ax0, ax1, ax2, ax3])
+                    T.reads(w1[i, o, h, w])
+                    T.writes(out[o, i, h, w])
+                    out[o, i, h, w] = w1[i, o, h, w]
+
+        @R.function
+        def main_transform_params(
+            params: R.Tuple(
+                R.Tensor((3, 16, 3, 3), dtype="float32"), R.Tensor((16, 16, 3, 3), dtype="float32")
+            )
+        ) -> R.Tuple(
+            R.Tensor((16, 16, 3, 3), dtype="float32"), R.Tensor((16, 3, 3, 3), dtype="float32")
+        ):
+            R.func_attr({"num_input": 0})
+            cls = ExpectedConsumeParams
+            with R.dataflow():
+                lv1: R.Tensor((3, 16, 3, 3), dtype="float32") = params[0]
+                _1: R.Tuple = R.call_pure_packed(
+                    "vm.builtin.tuple_reset_item",
+                    params,
+                    R.prim_value(T.int32(0)),
+                    sinfo_args=(R.Tuple,),
+                )
+                lv2 = R.call_tir(
+                    cls.transform_layout_IOHW_to_OIHW,
+                    (lv1,),
+                    out_sinfo=R.Tensor((16, 3, 3, 3), dtype="float32"),
+                )
+                lv: R.Tensor((16, 16, 3, 3), dtype="float32") = params[1]
+                _2: R.Tuple = R.call_pure_packed(
+                    "vm.builtin.tuple_reset_item",
+                    params,
+                    R.prim_value(T.int32(1)),
+                    sinfo_args=(R.Tuple,),
+                )
+                gv: R.Tuple(
+                    R.Tensor((16, 16, 3, 3), dtype="float32"),
+                    R.Tensor((16, 3, 3, 3), dtype="float32"),
+                ) = (lv, lv2)
+                R.output(gv)
+            return gv
+
     mod = Before
-    after = relax.transform.LiftTransformParams()(mod)
-    tvm.ir.assert_structural_equal(after, Expected)
+    expected = Expected if not consume_params else ExpectedConsumeParams
+    with tvm.transform.PassContext(
+        config={"relax.lift_transform_params.consume_params": consume_params}
+    ):
+        after = relax.transform.LiftTransformParams()(mod)
+    tvm.ir.assert_structural_equal(after, expected)
 
     names_after = [param.name_hint for param in after["main"].params]
-    names_expected = [param.name_hint for param in Expected["main"].params]
+    names_expected = [param.name_hint for param in expected["main"].params]
     assert names_after == names_expected
 
 

@@ -38,6 +38,9 @@
 namespace tvm {
 namespace relax {
 
+constexpr const char* kLiftTransformConsumeParams = "relax.lift_transform_params.consume_params";
+TVM_REGISTER_PASS_CONFIG_OPTION(kLiftTransformConsumeParams, Bool);
+
 namespace {
 
 struct CollectInfo {
@@ -449,6 +452,48 @@ inline bool ends_with(const std::string& value, const std::string& ending) {
          std::equal(ending.rbegin(), ending.rend(), value.rbegin());
 }
 
+/*!
+ * \brief A mutator to rewrite the transform_params functions to release the original weight after
+ * use. This is done by using builtin.tuple_reset_item to reset the bundled weight tuple. It
+ * requires `BundleModelParams` to be called before this mutator.
+ */
+class ConsumeBundledParams : public ExprMutator {
+ public:
+  void VisitBinding_(const VarBindingNode* binding, const TupleGetItemNode* tuple_get_item) final {
+    static const auto& call_pure_packed = Op::Get("relax.call_pure_packed");
+    static const auto& builtin_tuple_reset_item = ExternFunc("vm.builtin.tuple_reset_item");
+    if (tuple_get_item->tuple.same_as(params_)) {
+      if (auto it = param_remap_.find(tuple_get_item->index); it != param_remap_.end()) {
+        ReEmitBinding(binding, it->second);
+        return;
+      }
+      ExprMutator::VisitBinding_(binding, tuple_get_item);
+      auto new_var = VisitExpr(binding->var);
+      param_remap_[tuple_get_item->index] = new_var;
+      builder_->Emit(
+          Call(call_pure_packed,
+               {builtin_tuple_reset_item, tuple_get_item->tuple, PrimValue(tuple_get_item->index)},
+               tvm::Attrs(), {TupleStructInfo(Array<StructInfo>{})}));
+    } else {
+      ExprMutator::VisitBinding_(binding, tuple_get_item);
+    }
+  }
+
+  Expr VisitExpr_(const FunctionNode* func) final {
+    auto opt_num_input = func->GetAttr<Integer>(attr::kNumInput);
+    ICHECK(opt_num_input.defined());
+    auto num_input = opt_num_input.value()->value;
+    ICHECK_EQ(func->params.size(), num_input + 1);
+    params_ = func->params.back();
+    ICHECK(params_->struct_info_.as<TupleStructInfoNode>());
+    return ExprMutator::VisitExpr_(func);
+  }
+
+ private:
+  Var params_;
+  std::unordered_map<int, Expr> param_remap_;
+};
+
 }  // namespace
 
 namespace transform {
@@ -498,6 +543,9 @@ Pass LiftTransformParams() {
         if (ends_with(func_name, "transform_params")) {
           func = WithAttr(func, tvm::attr::kGlobalSymbol, gvar->name_hint);
           func = BundleModelParams(func);
+          if (pc->GetConfig<Bool>(kLiftTransformConsumeParams).value_or(Bool(false))) {
+            func = Downcast<Function>(ConsumeBundledParams()(func));
+          }
           to_add[gvar] = func;
         } else if (ends_with(func_name, "_runtime")) {
           std::string name(func_name.begin(), func_name.end() - sizeof("_runtime") + 1);
