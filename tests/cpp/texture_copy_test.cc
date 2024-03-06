@@ -98,39 +98,28 @@ TEST(TextureCopy, OverwritePoolSubview) {
     static_cast<float*>(cpu_pool0->data)[i] = random(mt);
   }
 
-  // Random initialize host array
-  for (int64_t h = 0; h < shape[0]; h++) {
-    for (int64_t w = 0; w < shape[1]; w++) {
-      for (int64_t rgba = 0; rgba < shape[2]; rgba++) {
-        static_cast<float*>(cpu_arr0->data)[shape[1] * shape[2] * h + shape[2] * w + rgba] = 1.1f;
-      }
-    }
+  // Random initialize host array storage
+  for (size_t i = 0; i < size; i++) {
+    static_cast<float*>(cpu_arr0->data)[i] = random(mt);
   }
 
-  // Copy to texture pool for initialization
+  // Loop through pool
   cpu_pool0.CopyTo(opencl_txpool);
-  // Copy host data to subview into texture storage
-  cpu_arr0.CopyTo(opencl_txarr0);
-  // Copy modified pool back
   opencl_txpool.CopyTo(cpu_pool1);
 
-  // Check that modifications to pool follow two dimensional
-  // strides according to the written texture shape.
-  for (int64_t h = 0; h < shape_pool[0]; h++) {
-    for (int64_t w = 0; w < shape_pool[1]; w++) {
-      for (int64_t rgba = 0; rgba < shape_pool[2]; rgba++) {
-        size_t i = shape_pool[1] * shape_pool[2] * h + shape_pool[2] * w + rgba;
-        if (h < shape[0] && w < shape[1] && rgba < shape[2]) {
-          size_t j = shape[1] * shape[2] * h + shape[2] * w + rgba;
-          ICHECK_LT(std::fabs(static_cast<float*>(cpu_pool1->data)[i] -
-                              static_cast<float*>(cpu_arr0->data)[j]),
-                    1e-5);
-        } else {
-          ICHECK_LT(std::fabs(static_cast<float*>(cpu_pool1->data)[i] -
-                              static_cast<float*>(cpu_pool0->data)[i]),
-                    1e-5);
-        }
-      }
-    }
+  for (size_t i = 0; i < size_pool; i++) {
+    ICHECK_LT(std::fabs(static_cast<float*>(cpu_pool0->data)[i] -
+                        static_cast<float*>(cpu_pool1->data)[i]),
+              1e-5);
+  }
+
+  // Loop through view
+  cpu_arr0.CopyTo(opencl_txarr0);
+  opencl_txarr0.CopyTo(cpu_arr1);
+
+  for (size_t i = 0; i < size; i++) {
+    ICHECK_LT(
+        std::fabs(static_cast<float*>(cpu_arr0->data)[i] - static_cast<float*>(cpu_arr1->data)[i]),
+        1e-5);
   }
 }

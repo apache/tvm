@@ -179,7 +179,7 @@ def test_plan_memory():
     assert (
         storage_sizes[0][0] == 40
         and storage_sizes[1][0] == 4
-        and storage_sizes[2][0] == 4
+        and storage_sizes[2][0] == 40
         and storage_sizes[3][0] == 40
     )
 

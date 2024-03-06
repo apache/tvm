@@ -42,6 +42,7 @@ namespace memory {
 enum AllocatorType {
   kNaive = 1,
   kPooled,
+  kAny,
 };
 
 struct Buffer {
@@ -83,8 +84,7 @@ class Allocator {
    *  \param mem_scope A memory scope of the buffer.
    *  \return A sized allocation in the form of a buffer.
    */
-  virtual Buffer Alloc(ShapeTuple shape, DLDataType type_hint,
-                       const std::string& mem_scope = "") = 0;
+  Buffer Alloc(ShapeTuple shape, DLDataType type_hint, const std::string& mem_scope = "");
   /*! \brief Free a buffer allocated by the allocator.
    *  \param buffer The buffer to free.
    */
@@ -97,8 +97,8 @@ class Allocator {
   virtual size_t UsedMemory() const = 0;
 
  protected:
-  virtual Buffer Alloc(Device dev, ShapeTuple shape, DLDataType type_hint,
-                       const std::string& mem_scope);
+  std::atomic<size_t> used_memory_;
+  Device device_;
 
  private:
   AllocatorType type_;
@@ -120,7 +120,7 @@ class MemoryManager {
    * \param type The allocator type
    * \return The memory allocator.
    */
-  static Allocator* GetAllocator(Device dev, AllocatorType type);
+  static Allocator* GetAllocator(Device dev, AllocatorType type = AllocatorType::kAny);
   /*! \brief Clear the allocators. */
   static void Clear();
 
@@ -164,6 +164,12 @@ class Storage : public ObjectRef {
 };
 
 }  // namespace memory
+
+using memory::Allocator;
+using memory::AllocatorType;
+using memory::MemoryManager;
+using memory::StorageObj;
+
 }  // namespace runtime
 }  // namespace tvm
 

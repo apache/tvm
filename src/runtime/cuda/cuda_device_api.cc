@@ -120,6 +120,8 @@ class CUDADeviceAPI final : public DeviceAPI {
         *rv = total_global_memory;
         return;
       }
+      case kImagePitchAlignment:
+        return;
     }
     *rv = value;
   }

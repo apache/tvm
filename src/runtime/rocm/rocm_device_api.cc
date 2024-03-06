@@ -128,6 +128,8 @@ class ROCMDeviceAPI final : public DeviceAPI {
         ROCM_CALL(hipDeviceGetAttribute(&l2_size, hipDeviceAttributeL2CacheSize, device.device_id));
         *rv = l2_size;
         return;
+      case kImagePitchAlignment:
+        return;
       }
       case kTotalGlobalMemory: {
         hipDeviceProp_t prop;
