@@ -1114,7 +1114,7 @@ PrimExpr RewriteSimplifier::Impl::VisitExpr_(const MinNode* op) {
   // Pattern var to match any expression
   PVar<PrimExpr> x, y, z, s1, s2;
   // Pattern var match IntImm
-  PVar<IntImm> c1, c2;
+  PVar<IntImm> c1, c2, c3, c4;
   PVar<PrimExpr> lanes;
 
   // vector rule
@@ -1176,6 +1176,12 @@ PrimExpr RewriteSimplifier::Impl::VisitExpr_(const MinNode* op) {
 
     TVM_TRY_REWRITE_IF(matches_one_of(min(x, floordiv(x, c2) * c2), min(floordiv(x, c2) * c2, x)),
                        floordiv(x, c2) * c2, c2.Eval()->value > 0);
+
+    TVM_TRY_REWRITE_IF(matches_one_of(min(floordiv(x + c1, c2) * c2 + c3, c4),
+                                      min(c4, floordiv(x + c1, c2) * c2 + c3)),
+                       c4,
+                       c2.Eval()->value > 0 && c1.Eval()->value + 1 == c2.Eval()->value &&
+                           c4.Eval()->value - c3.Eval()->value <= c2.Eval()->value)
 
     TVM_TRY_REWRITE((PMatchesOneOf{
                         min(max(x, y), min(x, y)),
@@ -1288,7 +1294,7 @@ PrimExpr RewriteSimplifier::Impl::VisitExpr_(const MaxNode* op) {
   // Pattern var to match any expression
   PVar<PrimExpr> x, y, z, s1, s2;
   // Pattern var match IntImm
-  PVar<IntImm> c1, c2;
+  PVar<IntImm> c1, c2, c3;
   PVar<PrimExpr> lanes;
 
   // vector rule
@@ -1356,6 +1362,14 @@ PrimExpr RewriteSimplifier::Impl::VisitExpr_(const MaxNode* op) {
                            max(x, floordiv(x, c2) * c2),
                        }),
                        x, c2.Eval()->value > 0);
+
+    TVM_TRY_REWRITE_IF((PMatchesOneOf{
+                           max(floordiv(x + c1, c2) * c2, c3),
+                           max(c3, floordiv(x + c1, c2) * c2),
+                       }),
+                       floordiv(x + c1, c2) * c2,
+                       c2.Eval()->value > 0 && c1.Eval()->value + 1 == c2.Eval()->value &&
+                           c3.Eval()->value <= c2.Eval()->value);
 
     TVM_TRY_REWRITE((PMatchesOneOf{
                         max(min(x, y), x),
