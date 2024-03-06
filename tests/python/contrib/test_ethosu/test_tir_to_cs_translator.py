@@ -29,8 +29,9 @@ import ethosu.vela.api as vapi
 
 
 # fmt: off
+# Undefined vars used
 """A sample tir test case for translator"""
-@tvm.script.ir_module
+@tvm.script.ir_module(check_well_formed=False)
 class SingleEthosUConv2D:
     @T.prim_func
     def main(placeholder_3: T.Buffer((8192,), "int8"), ethosu_conv2d_1: T.Buffer((1024,), "int8")) -> None:
@@ -44,8 +45,9 @@ class SingleEthosUConv2D:
 
 
 # fmt: off
+# undefined vars used
 """A sample tir test case with multiple convolutions for translator"""
-@tvm.script.ir_module
+@tvm.script.ir_module(check_well_formed=False)
 class MultiEthosUConv2D:
     @T.prim_func
     def main(placeholder_6: T.Buffer((192,), "int8"), ethosu_conv2d_1: T.Buffer((512,), "int8")) -> None:
@@ -66,8 +68,9 @@ class MultiEthosUConv2D:
 
 
 # fmt: off
+# undefined vars used
 """A sample tir test case with copy operations for translator"""
-@tvm.script.ir_module
+@tvm.script.ir_module(check_well_formed=False)
 class MultiEthosUCopy:
     @T.prim_func
     def main(placeholder_3: T.Buffer((8192,), "int8"), ethosu_conv2d_1: T.Buffer((2048,), "int8")) -> None:
@@ -85,8 +88,9 @@ class MultiEthosUCopy:
 
 
 # fmt: off
+# undefined vars used
 """A tir test case with copy operation having a buffer size less than the minimum for a DMA operation"""
-@tvm.script.ir_module
+@tvm.script.ir_module(check_well_formed=False)
 class CopyLessMinimal:
     @T.prim_func
     def main(ethos_u_0_i0: T.Buffer((1, 4), "int8"), ethosu_write: T.Buffer((1, 4), "int8")):
@@ -105,8 +109,9 @@ class CopyLessMinimal:
 
 
 # fmt: off
+# undefined vars used
 """A TIR test module of weight streaming"""
-@tvm.script.ir_module
+@tvm.script.ir_module(check_well_formed=False)
 class WeightStreamOnly:
     @T.prim_func
     def main(placeholder: T.Buffer((8192,), "int8"), ethosu_write: T.Buffer((2048,), "int8")) -> None:
@@ -150,8 +155,9 @@ class WeightStreamOnly:
 
 
 # fmt: off
+# undefined vars used
 """A TIR test module of weight streaming and direct reading"""
-@tvm.script.ir_module
+@tvm.script.ir_module(check_well_formed=False)
 class MixedRead:
     @T.prim_func
     def main(placeholder: T.Buffer((8192,), "int8"), ethosu_write: T.Buffer((2048,), "int8")) -> None:
@@ -703,7 +709,8 @@ def test_translate_ethosu_copy():
 
 
 # fmt: off
-@tvm.script.ir_module
+# undefined vars used
+@tvm.script.ir_module(check_well_formed=False)
 class MixedConstantDatatypes:
     @T.prim_func
     def main(placeholder_4: T.Buffer((2048,), "int8"), ethosu_write_1: T.Buffer((16,), "int8")) -> None:

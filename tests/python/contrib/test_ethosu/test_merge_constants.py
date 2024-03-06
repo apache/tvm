@@ -16,11 +16,11 @@
 # under the License.
 import pytest
 
-pytest.importorskip("ethosu.vela")
+#pytest.importorskip("ethosu.vela")
 
 import tvm
 from tvm.script import tir as T
-from tvm.relay.backend.contrib.ethosu.tir.passes import MergeConstants
+#from tvm.relay.backend.contrib.ethosu.tir.passes import MergeConstants
 import numpy as np
 
 
@@ -637,7 +637,8 @@ def test_arbitrary_argument_order_const_split_mixed():
 
 def test_cycle_count():
     # fmt: off
-    @tvm.script.ir_module
+    # undefined vars used
+    @tvm.script.ir_module(check_well_formed=False)
     class InputModule:
         @T.prim_func
         def main(buffer2: T.Buffer((128,), "uint8"), buffer3: T.Buffer((32,), "uint8"), buffer4: T.Buffer((112,), "uint8"), buffer5: T.Buffer((32,), "uint8"), buffer6: T.Buffer((112,), "uint8"), buffer7: T.Buffer((32,), "uint8"), buffer8: T.Buffer((112,), "uint8"), buffer9: T.Buffer((32,), "uint8")) -> None:
@@ -700,7 +701,7 @@ def test_cycle_count():
                 T.evaluate(T.call_extern("ethosu_conv2d", "int8", 16, 16, 32, 16, 0, 16, buffer1[0], 0, 0, 0, T.float32(0.5), 10, "NHWC", 512, 32, 1, "int8", 16, 16, 2, 16, 0, 16, buffer10[6], 0, 0, 0, T.float32(0.25), 14, "NHWC", 128, 8, 1, 1, 1, 1, 1, 1, 1, p7[0], 112, 12, p8[0], 32, 0, 0, 0, 0, "NONE", 0, 0, "TFL", "NONE", 0, 0, 0, dtype="handle"))
 
 
-    @tvm.script.ir_module
+    @tvm.script.ir_module(check_well_formed=False)
     class ReferenceModule:
         @T.prim_func
         def main(buffer2: T.Buffer((160,), "uint8"), buffer4: T.Buffer((144,), "uint8"), buffer6: T.Buffer((144,), "uint8"), buffer8: T.Buffer((144,), "uint8")) -> None:
