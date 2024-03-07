@@ -1161,7 +1161,6 @@ def test_renormalize_top_p_top_k_prob():
 
     target = tvm.target.Target("cuda -libs=thrust", host="llvm")
     with target:
-        mod = relax.backend.DispatchSortScan()(mod)
         mod = relax.transform.LegalizeOps()(mod)
         mod = tir.transform.DefaultGPUSchedule()(mod)
 
