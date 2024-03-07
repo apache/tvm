@@ -877,7 +877,7 @@ def _create_npu_activation(serial_activation: spec.SerialActivation) -> vapi.Npu
         return None
     op_map = {
         "CLIP": vapi.NpuActivationOp.NONE_OR_RELU,
-        "TANH": vapi.NpuActivationOp.TANH,
+        "TANH": vapi.NpuActivationOp.TABLE_LOOKUP,
         "SIGMOID": vapi.NpuActivationOp.TABLE_LOOKUP,
         "LUT": vapi.NpuActivationOp.TABLE_LOOKUP,
     }
@@ -887,9 +887,6 @@ def _create_npu_activation(serial_activation: spec.SerialActivation) -> vapi.Npu
     if serial_activation.op == "CLIP":
         act_op.min = int(serial_activation.clip_min.value)
         act_op.max = int(serial_activation.clip_max.value)
-    if serial_activation.op == "TANH":
-        act_op.min = float(-1.0)
-        act_op.max = float(1.0)
     if op_map[op] == vapi.NpuActivationOp.TABLE_LOOKUP:
         act_op.lookup_table_index = 0
     return act_op

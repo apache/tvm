@@ -139,7 +139,9 @@ def get_lut_from_func(
 ) -> List[int]:
     """Calculates the values of the lookup table based on the calculation function"""
 
-    if dtype == np.int8:
+    assert dtype in ["int8", "int16"]
+
+    if dtype == "int8":
         lut_values = list()
         qmin, qmax = np.iinfo(dtype).min, np.iinfo(dtype).max
         for x in range(qmin, qmax + 1):
@@ -150,7 +152,8 @@ def get_lut_from_func(
             lut_values.append(lut_result)
 
         return lut_values
-    elif dtype == np.int16:
+    else:
+        # dtype == "int16"
         input_min = ifm_scale * (np.iinfo(np.int16).min - ifm_zp)
         input_max = ifm_scale * (np.iinfo(np.int16).max - ifm_zp)
 
@@ -194,8 +197,6 @@ def get_lut_from_func(
             lut[i] = slope + base
 
         return lut
-    else:
-        assert f"Unsupported 'dtype = {dtype}' !"
 
 
 class LutActivationRewriter(DFPatternCallback):
@@ -222,11 +223,13 @@ class LutActivationRewriter(DFPatternCallback):
         output_scale = float(params.ofm.q_params.scale_f32)
         output_zp = int(params.ofm.q_params.zero_point)
 
-        if params.ifm.dtype == "int8":
+        # Validation function from pattern matching checks that the input type can be int8 or int16
+        ifm_dtype = params.ifm.dtype
+        if ifm_dtype == "int8":
             lut_values = get_lut_from_func(
-                input_scale, input_zp, output_scale, output_zp, self.calc_func, np.int8
+                input_scale, input_zp, output_scale, output_zp, self.calc_func, ifm_dtype
             )
-            lut = relay.const(lut_values, dtype=params.ifm.dtype)
+            lut = relay.const(lut_values, dtype=ifm_dtype)
 
             # We baked the requantization into the LUT, so we don't requantize the identity operator
             identity = ethosu_ops.ethosu_identity(
@@ -239,12 +242,15 @@ class LutActivationRewriter(DFPatternCallback):
                 activation=self.activation_type,
             )
 
-            return identity
-        elif params.ifm.dtype == "int16":
-            lut_tanh = relay.const([], "int16")
-            tanh_identity = ethosu_ops.ethosu_identity(
+        else:
+            # ifm_dtype == "int16"
+            lut = get_lut_from_func(
+                input_scale, input_zp, output_scale, output_zp, self.calc_func, ifm_dtype
+            )
+            lut = relay.const(lut, dtype="int32")
+            identity = ethosu_ops.ethosu_identity(
                 ifm=params.ifm.tensor,
-                lut=lut_tanh,
+                lut=lut,
                 ifm_scale=input_scale,
                 ifm_zero_point=0,
                 ofm_scale=output_scale,
@@ -252,9 +258,7 @@ class LutActivationRewriter(DFPatternCallback):
                 activation=self.activation_type,
             )
 
-            return tanh_identity
-        else:
-            assert f"Unsupported 'ifm.dtype = {params.ifm.dtype}' !"
+        return identity
 
 
 class TanhRewriter(LutActivationRewriter):
@@ -263,6 +267,17 @@ class TanhRewriter(LutActivationRewriter):
     def __init__(self):
         super().__init__(
             params_class=ethosu_patterns.TanhParams, activation_type="TANH", calc_func=math.tanh
+        )
+
+
+class TanhFixedPointRewriter(LutActivationRewriter):
+    """This pass adds tanh with fixed point as a LUT to the identity operator"""
+
+    def __init__(self):
+        super().__init__(
+            params_class=ethosu_patterns.TanhFixedPointParams,
+            activation_type="TANH",
+            calc_func=math.tanh,
         )
 
 
@@ -1748,6 +1763,7 @@ class LegalizeEthosU:
             ShlRewriter(),
             AbsRewriter(),
             TanhRewriter(),
+            TanhFixedPointRewriter(),
             HardSwishRewriter(),
             LeakyReLURewriter(),
             MeanRewriter(),
