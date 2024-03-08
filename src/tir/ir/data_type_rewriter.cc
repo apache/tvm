@@ -451,7 +451,7 @@ Stmt IndexDataTypeRewriter::VisitStmt_(const BufferStoreNode* op) {
 
   Buffer new_buffer = GetRemappedBuffer(op->buffer);
   auto value = this->VisitExpr(op->value);
-  if (new_buffer->dtype != value->dtype && value->dtype.lanes() == 1) {
+  if (new_buffer->dtype != value->dtype && value->dtype.is_scalar()) {
     value = cast(new_buffer->dtype, value);
   }
   auto indices = VisitIndices(op->indices);
