@@ -233,6 +233,29 @@ def ToNonDataflow() -> tvm.ir.transform.Pass:
     return _ffi_api.ToNonDataflow()  # type: ignore
 
 
+def TopologicalSort(order="depth-first", direction="from-inputs") -> tvm.ir.transform.Pass:
+    """Sort relax.Dataflow blocks
+
+    Parameters
+    ----------
+    order: str
+
+        The order in which bindings should be emitted.  Allowed values
+        are "depth-first" and "breadth-first".
+
+    direciton: str
+
+        The direction in which the sort should be performed.  Allowed
+        values are "from-inputs" and "from-outputs".
+
+    Returns
+    -------
+    ret: tvm.ir.transform.Pass
+
+    """
+    return _ffi_api.TopologicalSort(order, direction)  # type: ignore
+
+
 def RemovePurityChecking() -> tvm.ir.transform.Pass:
     """Activate relax.force_pure on all pure functions in the module
     and unwrap all pure override ops into the normal versions.
