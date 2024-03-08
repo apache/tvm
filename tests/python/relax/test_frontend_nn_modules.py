@@ -458,7 +458,8 @@ def test_kv_cache():
                     R.prim_value(0),
                     sinfo_args=(R.Object,),
                 )
-                gv: R.Tuple(R.Object, R.Object) = _io, cache
+                lv1 = _io, cache
+                gv = lv1
                 R.output(gv)
             return gv
 
