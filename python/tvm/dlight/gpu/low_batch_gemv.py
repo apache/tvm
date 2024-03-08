@@ -227,7 +227,8 @@ class LowBatchGEMV(GPUScheduleRule):
             return None
         sch = tir.Schedule(func)
         block_infos = normalize_prim_func(sch)
-
+        if block_infos is None:
+            return None
         reduction_block_infos = [
             block_info for block_info in block_infos if block_info.is_reduction()
         ]
