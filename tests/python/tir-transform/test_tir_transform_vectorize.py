@@ -15,7 +15,10 @@
 # specific language governing permissions and limitations
 # under the License.
 import tvm
+import tvm.testing
 from tvm import te
+from tvm.script import ir as I
+from tvm.script import tir as T
 
 
 def test_vectorize_loop():
@@ -226,13 +229,23 @@ def test_vectorize_dtype_mismatch():
     tvm.lower(s, [A], "llvm", simple_mode=True)
 
 
+def test_vectorize_with_reinterpret():
+    @I.ir_module
+    class Before:
+        @T.prim_func
+        def main(A: T.Buffer((16,), "int32"), B: T.Buffer((16,), "float32")):
+            for i in T.vectorized(0, 16):
+                B[i] = T.reinterpret("float32", A[i])
+
+    @I.ir_module
+    class After:
+        @T.prim_func
+        def main(A: T.Buffer((16,), "int32"), B: T.Buffer((16,), "float32")):
+            B[0:16] = T.reinterpret("float32x16", A[0:16])
+
+    mod = tvm.tir.transform.VectorizeLoop()(Before)
+    tvm.ir.assert_structural_equal(mod, After)
+
+
 if __name__ == "__main__":
-    test_vectorize_vector()
-    test_vectorize_with_if()
-    test_vectorize_loop()
-    test_vectorize_if_then_else()
-    test_vectorize_with_le_cond()
-    test_vectorize_with_ge_cond()
-    test_vectorize_let()
-    test_vectorize_while_fail()
-    test_vectorize_dtype_mismatch()
+    tvm.testing.main()
