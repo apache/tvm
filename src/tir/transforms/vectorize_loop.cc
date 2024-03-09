@@ -32,7 +32,6 @@
 #include <tvm/tir/transform.h>
 
 #include <unordered_map>
-#include <unordered_set>
 #include <vector>
 
 namespace tvm {
@@ -319,6 +318,17 @@ class Vectorizer : public StmtMutator, public ExprFunctor<PrimExpr(const PrimExp
       return Call(op->dtype.with_lanes(lanes), op->op, {cond, t, f});
     }
   }
+  // Reinterpret expr
+  PrimExpr MutateReinterpretExpr_(const CallNode* op) {
+    ICHECK(op->op.same_as(builtin::reinterpret()));
+    PrimExpr value = this->VisitExpr(op->args[0]);
+    if (value.same_as(op->args[0])) {
+      return GetRef<PrimExpr>(op);
+    } else {
+      int lanes = value.dtype().lanes();
+      return Call(op->dtype.with_lanes(lanes), op->op, {value});
+    }
+  }
   // Call
   PrimExpr VisitExpr_(const CallNode* op) final {
     if (op->op.same_as(builtin::if_then_else())) {
@@ -337,6 +347,8 @@ class Vectorizer : public StmtMutator, public ExprFunctor<PrimExpr(const PrimExp
       Array<PrimExpr> mutated_value = MutateArray(value, &lane);
       Array<PrimExpr> new_args{op->args[0], op->args[1], op->args[2], mutated_value[0]};
       return Call(op->dtype.with_lanes(lane), op->op, new_args);
+    } else if (op->op.same_as(builtin::reinterpret())) {
+      return MutateReinterpretExpr_(op);
     }
     auto optional_op = op->op.as<Op>();
     bool vectorizable = optional_op && op_vectorizable_.get(optional_op.value(), false);
