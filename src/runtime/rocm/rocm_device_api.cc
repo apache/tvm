@@ -122,11 +122,20 @@ class ROCMDeviceAPI final : public DeviceAPI {
       }
       case kDriverVersion:
         return;
-      case kL2CacheSizeBytes:
+      case kL2CacheSizeBytes: {
         // Get size of device l2 cache size in bytes.
         int l2_size;
         ROCM_CALL(hipDeviceGetAttribute(&l2_size, hipDeviceAttributeL2CacheSize, device.device_id));
         *rv = l2_size;
+        return;
+      }
+      case kTotalGlobalMemory: {
+        hipDeviceProp_t prop;
+        ROCM_CALL(hipGetDeviceProperties(&prop, device.device_id));
+        int64_t total_global_memory = prop.totalGlobalMem;
+        *rv = total_global_memory;
+        return;
+      }
     }
     *rv = value;
   }
@@ -175,6 +184,10 @@ class ROCMDeviceAPI final : public DeviceAPI {
 
   void SetStream(Device dev, TVMStreamHandle stream) final {
     ROCMThreadEntry::ThreadLocal()->stream = static_cast<hipStream_t>(stream);
+  }
+
+  TVMStreamHandle GetCurrentStream(Device dev) final {
+    return static_cast<TVMStreamHandle>(ROCMThreadEntry::ThreadLocal()->stream);
   }
 
   void* AllocWorkspace(Device dev, size_t size, DLDataType type_hint) final {
