@@ -116,6 +116,8 @@ class WebGPUDeviceAPI : public DeviceAPI {
 
   void SetStream(Device dev, TVMStreamHandle stream) final { LOG(FATAL) << "Not implemented"; }
 
+  TVMStreamHandle GetCurrentStream(Device dev) final { LOG(FATAL) << "Not implemented"; }
+
   void* AllocWorkspace(Device dev, size_t size, DLDataType type_hint) final {
     return WebGPUThreadEntry::ThreadLocal()->pool.AllocWorkspace(dev, size);
   }

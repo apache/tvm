@@ -177,6 +177,12 @@ class TVM_DLL DeviceAPI {
    */
   virtual void SetStream(Device dev, TVMStreamHandle stream) {}
   /*!
+   * \brief Get the current stream
+   * \param dev The device to get stream.
+   * \return The current stream of the device.
+   */
+  virtual TVMStreamHandle GetCurrentStream(Device dev);
+  /*!
    * \brief Synchronize 2 streams of execution.
    *
    * An event is created in event_src stream that the second then

@@ -210,6 +210,8 @@ TVMStreamHandle DeviceAPI::CreateStream(Device dev) { return nullptr; }
 
 void DeviceAPI::FreeStream(Device dev, TVMStreamHandle stream) {}
 
+TVMStreamHandle DeviceAPI::GetCurrentStream(Device dev) { return nullptr; }
+
 void DeviceAPI::SyncStreamFromTo(Device dev, TVMStreamHandle event_src, TVMStreamHandle event_dst) {
 }
 
