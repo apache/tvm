@@ -50,6 +50,7 @@ enum DeviceAttrKind : int {
   kApiVersion = 11,
   kDriverVersion = 12,
   kL2CacheSizeBytes = 13,
+  kTotalGlobalMemory = 14,
 };
 
 #ifdef TVM_KALLOC_ALIGNMENT
@@ -94,6 +95,14 @@ class TVM_DLL DeviceAPI {
    * \sa DeviceAttrKind
    */
   virtual void GetAttr(Device dev, DeviceAttrKind kind, TVMRetValue* rv) = 0;
+
+  /*!
+   * \brief Get the physical memory size required.
+   * \param arr the tensor object.
+   * \param mem_scope the memory scope if any
+   * \return the memory size.
+   */
+  virtual size_t GetDataSize(const DLTensor& arr, Optional<String> mem_scope = NullOpt);
 
   /*!
    * \brief Query the device for specified properties.
@@ -167,6 +176,12 @@ class TVM_DLL DeviceAPI {
    * \param stream The stream to be set.
    */
   virtual void SetStream(Device dev, TVMStreamHandle stream) {}
+  /*!
+   * \brief Get the current stream
+   * \param dev The device to get stream.
+   * \return The current stream of the device.
+   */
+  virtual TVMStreamHandle GetCurrentStream(Device dev);
   /*!
    * \brief Synchronize 2 streams of execution.
    *
