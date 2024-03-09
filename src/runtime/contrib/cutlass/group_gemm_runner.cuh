@@ -20,6 +20,7 @@
 #include <fstream>
 #include <iostream>
 #include <sstream>
+#include <variant>
 #include <vector>
 
 #include "../../cuda/cuda_common.h"
@@ -78,6 +79,7 @@ struct CutlassGroupGemmRunner {
 
   // Core kernel configurations
   using ElementAccumulator = float;  // Element type for internal accumulation
+  using ScaleType = std::variant<ElementAccumulator, const ElementAccumulator*>;
   using ArchTag =
       cutlass::arch::Sm90;  // Tag indicating the minimum SM that supports the intended feature
   using OperatorClass = cutlass::arch::OpClassTensorOp;  // Operator class tag
@@ -116,10 +118,21 @@ struct CutlassGroupGemmRunner {
                       typename ProblemShape::UnderlyingProblemShape* problem_sizes,
                       typename ProblemShape::UnderlyingProblemShape* problem_sizes_host,
                       StrideA* stride_A, StrideB* stride_B, StrideC* stride_C, StrideD* stride_D,
-                      uint8_t* workspace, int64_t workspace_size, int num_groups, float alpha,
-                      float beta, cudaStream_t stream) {
-    typename Gemm::EpilogueOutputOp::Params epilogue_params{ElementAccumulator(alpha),
-                                                            ElementAccumulator(beta)};
+                      uint8_t* workspace, int64_t workspace_size, int num_groups, ScaleType alpha,
+                      ScaleType beta, cudaStream_t stream) {
+    typename Gemm::EpilogueOutputOp::Params epilogue_params = [&]() {
+      ICHECK(alpha.index() == beta.index()) << "alpha and beta must have the same type";
+      if (std::holds_alternative<ElementAccumulator>(alpha)) {
+        return typename Gemm::EpilogueOutputOp::Params{std::get<ElementAccumulator>(alpha),
+                                                       std::get<ElementAccumulator>(beta)};
+      } else if (std::holds_alternative<const ElementAccumulator*>(alpha)) {
+        return typename Gemm::EpilogueOutputOp::Params{std::get<const ElementAccumulator*>(alpha),
+                                                       std::get<const ElementAccumulator*>(beta)};
+      } else {
+        LOG(FATAL) << "Unsupported alpha and beta type";
+        throw;
+      }
+    }();
 
     cutlass::KernelHardwareInfo hw_info;
     hw_info.device_id = 0;
@@ -161,7 +174,9 @@ __global__ void prepare_group_gemm_arguments(
 template <typename ElementA, typename ElementB, typename ElementC>
 void cutlass_group_gemm(ElementA* x, ElementB* weight, int64_t* indptr, uint8_t* workspace,
                         int64_t workspace_size, int64_t n, int64_t k, int64_t num_groups,
-                        float alpha, float beta, ElementC* out, cudaStream_t stream) {
+                        std::variant<float, const float*> alpha,
+                        std::variant<float, const float*> beta, ElementC* out,
+                        cudaStream_t stream) {
   using Runner = CutlassGroupGemmRunner<ElementA, ElementB, ElementC>;
   using StrideA = typename Runner::StrideA;
   using StrideB = typename Runner::StrideB;

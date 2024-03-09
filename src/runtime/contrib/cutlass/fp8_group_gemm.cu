@@ -42,7 +42,7 @@ namespace runtime {
 
 template <typename ElementA, typename ElementB, typename ElementC>
 void tvm_cutlass_fp8_group_gemm(NDArray x, NDArray weight, NDArray indptr, NDArray workspace,
-                                double alpha, NDArray out) {
+                                NDArray alpha, NDArray out) {
   // Workspace is used for storing device-side group gemm arguments and cutlass internal workspace.
   // Recommened size is 4MB.
   auto func = tvm::runtime::Registry::Get("runtime.get_cuda_stream");
@@ -52,14 +52,16 @@ void tvm_cutlass_fp8_group_gemm(NDArray x, NDArray weight, NDArray indptr, NDArr
   CHECK_EQ(indptr->ndim, 1);
   CHECK_EQ(workspace->ndim, 1);
   CHECK_EQ(out->ndim, 2);
+  CHECK_EQ(alpha->dtype.code, kDLFloat);
+  CHECK_EQ(alpha->dtype.bits, 32);
   int num_groups = weight->shape[0];
   int n = weight->shape[1];
   int k = weight->shape[2];
-  float beta = 0.0f;
+  const float* beta = nullptr;
   cudaStream_t stream = static_cast<cudaStream_t>((*func)().operator void*());
   cutlass_group_gemm(static_cast<ElementA*>(x->data), static_cast<ElementB*>(weight->data),
                      static_cast<int64_t*>(indptr->data), static_cast<uint8_t*>(workspace->data),
-                     workspace->shape[0], n, k, num_groups, static_cast<float>(alpha), beta,
+                     workspace->shape[0], n, k, num_groups, static_cast<float*>(alpha->data), beta,
                      static_cast<ElementC*>(out->data), stream);
 }
 
