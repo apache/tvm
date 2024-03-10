@@ -112,7 +112,11 @@ class WebGPUDeviceAPI : public DeviceAPI {
     LOG(FATAL) << "Not implemented";
   }
 
-  void StreamSync(Device dev, TVMStreamHandle stream) final { LOG(FATAL) << "Not implemented"; }
+  void StreamSync(Device dev, TVMStreamHandle stream) final {
+    static const PackedFunc* func = runtime::Registry::Get("__asyncify.WebGPUWaitForTasks");
+    ICHECK(func != nullptr) << "Stream sync inside c++ only supported in asyncify mode";
+    (*func)();
+  }
 
   void SetStream(Device dev, TVMStreamHandle stream) final { LOG(FATAL) << "Not implemented"; }
 

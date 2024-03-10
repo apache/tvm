@@ -569,7 +569,6 @@ int TVMByteArrayFree(TVMByteArray* arr) {
 int TVMFuncCall(TVMFunctionHandle func, TVMValue* args, int* arg_type_codes, int num_args,
                 TVMValue* ret_val, int* ret_type_code) {
   API_BEGIN();
-
   TVMRetValue rv;
   (static_cast<const PackedFuncObj*>(func))
       ->CallPacked(TVMArgs(args, arg_type_codes, num_args), &rv);
