@@ -43,6 +43,7 @@
 #include <utility>
 #include <vector>
 
+#include "../../arith/constraint_extract.h"
 #include "../transform/utils.h"
 #include "dataflow_matcher_impl.h"
 
@@ -85,6 +86,7 @@ bool DFPatternMatcher::VisitDFPattern(const DFPattern& pattern, const Expr& expr
     ICHECK_EQ(memo_[pattern].size(), 1);
     return expr.same_as(memo_[pattern][0]);
   } else {
+    PrimExpr cached_condition = symbolic_expr_condition_;
     size_t watermark = matched_nodes_.size();
     bool out = DFPatternFunctor::VisitDFPattern(pattern, expr);
     if (out) {
@@ -92,6 +94,7 @@ bool DFPatternMatcher::VisitDFPattern(const DFPattern& pattern, const Expr& expr
       matched_nodes_.push_back(pattern);
     } else {
       ClearMap(watermark);
+      symbolic_expr_condition_ = cached_condition;
     }
     return out;
   }
@@ -422,6 +425,58 @@ bool DFPatternMatcher::VisitDFPattern_(const UnorderedTuplePatternNode* op, cons
     }
   }
   return false;
+}
+
+bool DFPatternMatcher::VisitDFPattern_(const StructInfoPatternNode* op, const Expr& expr0) {
+  if (!VisitDFPattern(op->pattern, expr0)) {
+    return false;
+  }
+
+  auto expr = TryGetValOfVar(expr0, var2val_);
+  auto expr_struct_info = GetStructInfo(expr);
+
+  PrimExpr new_constraint = StructInfoBaseCheckPrecondition(op->struct_info, expr_struct_info);
+  if (auto* as_int = new_constraint.as<IntImmNode>()) {
+    return as_int->value;
+  }
+
+  symbolic_expr_condition_ = SimplifyCondition(symbolic_expr_condition_ && new_constraint);
+
+  if (auto* as_int = symbolic_expr_condition_.as<IntImmNode>()) {
+    return as_int->value;
+  } else {
+    return true;
+  }
+}
+
+PrimExpr DFPatternMatcher::SimplifyCondition(PrimExpr condition) {
+  if (condition->IsInstance<IntImmNode>()) {
+    return condition;
+  }
+
+  std::vector<PrimExpr> constraints = arith::ExtractConstraints(condition, false);
+  if (constraints.size() == 1) {
+    return condition;
+  }
+
+  auto sort_key = [](PrimExpr expr) -> String {
+    if (const auto* equal = expr.as<tir::EQNode>()) {
+      if (const auto* var = equal->a.as<tir::VarNode>()) {
+        return var->name_hint;
+      }
+    }
+    return "";
+  };
+  std::stable_sort(
+      constraints.begin(), constraints.end(),
+      [&sort_key](const PrimExpr& a, const PrimExpr& b) { return sort_key(a) < sort_key(b); });
+
+  PrimExpr sorted_condition = Bool(true);
+  for (const PrimExpr& constraint : constraints) {
+    sorted_condition = sorted_condition && constraint;
+  }
+
+  return analyzer_.Simplify(sorted_condition);
 }
 
 bool DFPatternMatcher::VisitDFPattern_(const TypePatternNode* op, const Expr& expr0) {
