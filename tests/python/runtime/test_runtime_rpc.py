@@ -447,6 +447,10 @@ def test_rpc_return_remote_object():
         assert get_elem(shape, 0) == 2
         assert get_elem(shape, 1) == 3
         assert get_size(shape) == 2
+        # Test free object by assigning to the same variable
+        shape = make_shape(0)
+        assert get_size(shape) == 1
+        assert get_elem(shape, 0) == 0
 
     # start server
 
