@@ -1675,20 +1675,24 @@ export class Instance implements Disposable {
 
     const cacheOnly = await artifactCache.hasAllKeys(list.map(key => new URL(key.dataPath, ndarrayCacheUrl).href))
 
-    const reportCallback = (iter: number) => {
+    const reportCallback = (iter: number, loading = false) => {
       // report
       for (let j = 0; j < this.initProgressCallback.length; ++j) {
-        let text = "Fetching param cache[" + iter + "/" + list.length + "]: ";
-        text += Math.ceil(fetchedBytes / (1024 * 1024)).toString() + "MB fetched. "
-        text += Math.floor(fetchedBytes * 100 / totalBytes).toString() + "% completed, "
-        text += timeElapsed + " secs elapsed.";
-        text += " It can take a while when we first visit this page to populate the cache."
-        text += " Later refreshes will become faster.";
-        if (cacheOnly) {
+        let text: string;
+        if (loading) {
+          text = "Finished fetching params, loading onto WebGPU.";
+        } else if (cacheOnly) {
           text = "Loading model from cache[" + iter + "/" + list.length + "]: ";
           text += Math.ceil(fetchedBytes / (1024 * 1024)).toString() + "MB loaded. "
           text += Math.floor(fetchedBytes * 100 / totalBytes).toString() + "% completed, "
           text += timeElapsed + " secs elapsed.";
+        } else {
+          text = "Fetching param cache[" + iter + "/" + list.length + "]: ";
+          text += Math.ceil(fetchedBytes / (1024 * 1024)).toString() + "MB fetched. "
+          text += Math.floor(fetchedBytes * 100 / totalBytes).toString() + "% completed, "
+          text += timeElapsed + " secs elapsed.";
+          text += " It can take a while when we first visit this page to populate the cache."
+          text += " Later refreshes will become faster.";
         }
         this.initProgressCallback[j]({
           progress: fetchedBytes / totalBytes,
@@ -1707,22 +1711,33 @@ export class Instance implements Disposable {
         text: "Start to fetch params",
       });
     }
+
     // First download all shards to cache parallely if not yet in cache
-    const downloadCache = async (i: number) => {
-      const shard = list[i];
-      const dataUrl = new URL(shard.dataPath, ndarrayCacheUrl).href;
-      try {
-        await artifactCache.addToCache(dataUrl);
-      } catch (err) {
-        this.env.logger("Error: Cannot fetch " + dataUrl + " err= " + err);
-        throw err;
+    const downloadCache = async (start: number, end: number) => {
+      // Download params [start, end) from `list`
+      for (let i = start; i < end; i++) {
+        const shard = list[i];
+        const dataUrl = new URL(shard.dataPath, ndarrayCacheUrl).href;
+        try {
+          await artifactCache.addToCache(dataUrl);
+        } catch (err) {
+          this.env.logger("Error: Cannot fetch " + dataUrl + " err= " + err);
+          throw err;
+        }
+        timeElapsed = Math.ceil((perf.now() - tstart) / 1000);
+        fetchedBytes += shard.nbytes;
+        reportCallback(fetchedShards++);
       }
-      timeElapsed = Math.ceil((perf.now() - tstart) / 1000);
-      fetchedBytes += shard.nbytes;
-      reportCallback(fetchedShards++);
     }
-    await Promise.all(list.map((_, index) => downloadCache(index)));
-    reportCallback(list.length);
+    // We launch 4 parallel for loops to limit the max concurrency to 4 download
+    const loopSize = Math.floor(list.length / 4);
+    await Promise.all([
+      downloadCache(0, loopSize),
+      downloadCache(loopSize, 2 * loopSize),
+      downloadCache(2 * loopSize, 3 * loopSize),
+      downloadCache(3 * loopSize, list.length)
+    ]);
+    reportCallback(list.length, /*loading=*/true);
 
     // Then iteratively, load the shard from cache
     for (let i = 0; i < list.length; ++i) {
@@ -2702,7 +2717,7 @@ export async function deleteNDArrayCache(
   const jsonUrl = new URL("ndarray-cache.json", cacheUrl).href;
   const result = await artifactCache.fetchWithCache(jsonUrl);
   let list;
-  if (result instanceof Response){
+  if (result instanceof Response) {
     list = await result.json();
   }
   const arrayentry = list["records"] as Array<NDArrayShardEntry>;
