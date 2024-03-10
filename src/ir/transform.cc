@@ -35,6 +35,7 @@
 #include <unordered_set>
 
 #include "../runtime/object_internal.h"
+#include "../runtime/regex.h"
 
 namespace tvm {
 namespace transform {
@@ -538,17 +539,11 @@ Pass ApplyPassToFunction(Pass pass, String func_name_regex,
           .str();
 
   auto pass_func = [pass, func_name_regex](IRModule mod, PassContext) -> IRModule {
-    const auto* regex_match_func = tvm::runtime::Registry::Get("tvm.support.regex_match");
-    CHECK(regex_match_func)
-        << "RuntimeError: "
-        << "The PackedFunc 'tvm.support.regex_match' has not been registered.  "
-        << "This can occur if the TVM Python library has not yet been imported.";
-
     IRModule subset;
 
     for (const auto& [gvar, func] : mod->functions) {
       std::string name = gvar->name_hint;
-      if ((*regex_match_func)(func_name_regex, name)) {
+      if (tvm::runtime::regex_match(name, func_name_regex)) {
         subset->Add(gvar, func);
       }
     }
