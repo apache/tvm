@@ -31,7 +31,6 @@
 #include <iostream>
 #include <limits>
 #include <memory>
-#include <regex>
 #include <string>
 #include <unordered_map>
 #include <utility>

@@ -41,3 +41,5 @@ from .params import (
 
 from . import executor
 from . import disco
+
+from .support import _regex_match
