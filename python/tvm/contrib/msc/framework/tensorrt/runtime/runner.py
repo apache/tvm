@@ -56,7 +56,7 @@ class TensorRTRunner(BYOCRunner):
 
         raise Exception("TensorRT only support eval")
 
-    def apply_tool(self, tool_type: str, data_loader: Any = None) -> dict:
+    def make_plan(self, tool_type: str, data_loader: Any = None) -> dict:
         """Execute tool and get plan
 
         Parameters
@@ -76,7 +76,7 @@ class TensorRTRunner(BYOCRunner):
             self._generate_model(self._graphs, self._weights)
             quantizer.calibrate()
             assert quantizer.calibrated, "Failed to calibrate the tenosrrt quantizer"
-        return super().apply_tool(tool_type, data_loader)
+        return super().make_plan(tool_type, data_loader)
 
     def _generate_model(self, graphs: List[MSCGraph], weights: Dict[str, tvm.nd.array]) -> Any:
         """Codegen the model according to framework

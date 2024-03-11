@@ -74,6 +74,7 @@ class TVMQuantizeMethod(QuantizeMethod):
         zero_point = quantizer._get_tensor_cache(name, consumer, "zero_point")
         if scale_tensor is None:
             scale_tensor = cls.get_scale_tensor(data, scale, axis, epsilon, expand_dims=False)
+            scale_tensor = 1 / scale_tensor
             if isinstance(scale_tensor, float):
                 scale_tensor = np.array(scale_tensor)
             scale_tensor = scale_tensor.astype(quantizer.find_tensor(name).dtype_name)

@@ -121,16 +121,10 @@ class TVMRunner(ModelRunner):
             The outputs in list.
         """
 
-        model_inputs = self.get_inputs()
-        if device == "cpu":
-            tvm_inputs = [tvm.nd.array(inputs[i["name"]]) for i in model_inputs]
-        elif device.startswith("cuda"):
-            dev_id = int(device.split(":")[1]) if ":" in device else 0
-            tvm_inputs = [
-                tvm.nd.array(inputs[i["name"]], device=tvm.cuda(dev_id)) for i in model_inputs
-            ]
-        else:
-            raise NotImplementedError("Unsupported device " + str(device))
+        input_names = [i["name"] for i in self.get_inputs()]
+        tvm_inputs = [
+            msc_utils.cast_array(inputs[i], MSCFramework.TVM, device) for i in input_names
+        ]
         return runnable(*tvm_inputs)
 
     def _device_enabled(self, device: str) -> bool:
@@ -158,18 +152,24 @@ class TVMRunner(ModelRunner):
         return MSCFramework.TVM
 
     @classmethod
-    def load_native(cls, model: Any) -> tvm.IRModule:
+    def load_native(cls, model: Any, config: dict) -> Tuple[tvm.IRModule, str, bool]:
         """Load the native model
 
         Parameters
         -------
         model:
             The native model.
+        config: dict
+            The config for pipeline.
 
         Returns
         -------
         model: tvm.IRModule
             The loaded native model.
+        device: str
+            The device of the model.
+        training: bool
+            Whether the model is for training.
         """
 
         if isinstance(model, dict) and "model" in model:

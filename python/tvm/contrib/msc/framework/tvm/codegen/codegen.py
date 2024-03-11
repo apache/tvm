@@ -19,11 +19,9 @@
 from typing import Dict, Optional, Any
 
 import tvm
-from tvm.relax.transform import BindParams
 from tvm.contrib.msc.core.ir import MSCGraph
-from tvm.contrib.msc.core.codegen import CodeGen
+from tvm.contrib.msc.core import codegen as msc_codegen
 from tvm.contrib.msc.core import utils as msc_utils
-from tvm.contrib.msc.framework.tvm import _ffi_api
 
 
 def to_relax(
@@ -57,34 +55,4 @@ def to_relax(
         The IRModule of relax.
     """
 
-    inputs = [
-        tvm.relax.Var(i.alias, tvm.relax.TensorStructInfo(i.get_shape(), i.dtype_name))
-        for i in graph.get_inputs()
-    ]
-
-    def _save_weights(folder: msc_utils.MSCDirectory):
-        if weights:
-            with open(folder.relpath(graph.name + "_params.bin"), "wb") as f_params:
-                f_params.write(tvm.runtime.save_param_dict(weights))
-
-    # pylint: disable=unused-argument
-    def _post_proc(mod: tvm.IRModule, folder: msc_utils.MSCDirectory) -> tvm.IRModule:
-        if weights:
-            mod = BindParams("main", weights)(mod)
-        return tvm.ir.transform.Sequential(
-            [
-                # The canonicalization of relax variable bindings is not required
-                # for correctness.  It does, however, remove trivial `x = y`
-                # bindings, preventing test cases from depending on their
-                # presence.
-                tvm.relax.transform.CanonicalizeBindings(),
-                tvm.relax.transform.ConvertToDataflow(min_size=1),
-            ],
-            name="tvm.contrib.msc.framework.tvm.codegen.to_relax_postproc",
-        )(mod)
-
-    codegen = CodeGen(graph, _ffi_api.GetRelaxSources, codegen_config, print_config, build_folder)
-    model_args = inputs
-    if plugin:
-        model_args = model_args + [plugin]
-    return codegen.load(model_args, pre_load=_save_weights, post_load=_post_proc)
+    return msc_codegen.to_relax(graph, weights, codegen_config, print_config, build_folder, plugin)
