@@ -116,8 +116,8 @@ def create_config(
     baseline_type = baseline_type or model_type
     optimize_type = optimize_type or baseline_type
     compile_type = compile_type or optimize_type
-    if tools:
-        tools = [config_tool(t_type, t_config) for t_type, t_config in tools]
+    tools = tools or []
+    tools = [config_tool(t_type, t_config) for t_type, t_config in tools]
     # basic config
     config = {
         "model_type": model_type,
@@ -133,7 +133,8 @@ def create_config(
     }
 
     # config optimize
-    if tools:
+    opt_tools = [t for t in tools if support_tool(t, MSCStage.OPTIMIZE, optimize_type)]
+    if opt_tools:
         config[MSCStage.OPTIMIZE] = {
             "run_type": optimize_type,
             "profile": {"check": {"atol": 1e-3, "rtol": 1e-3}, "benchmark": {"repeat": -1}},
@@ -144,6 +145,10 @@ def create_config(
         "run_type": compile_type,
         "profile": {"check": {"atol": 1e-3, "rtol": 1e-3}, "benchmark": {"repeat": -1}},
     }
+
+    # update config
+    if extra_config:
+        config = msc_utils.update_dict(config, extra_config)
 
     # skip stages
     skip_config = skip_config or {}
@@ -164,7 +169,4 @@ def create_config(
             else:
                 raise TypeError("Unexpected skip type " + str(skip_config[key]))
 
-    # update config
-    if extra_config:
-        config = msc_utils.update_dict(config, extra_config)
     return config

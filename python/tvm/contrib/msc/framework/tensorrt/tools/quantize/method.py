@@ -24,6 +24,7 @@ from tvm.contrib.msc.core.utils.namespace import MSCFramework
 from tvm.contrib.msc.core import utils as msc_utils
 
 
+@msc_utils.register_tool_method
 class TensorRTQuantizeMethod(QuantizeMethod):
     """Default quantize method for tensorrt"""
 
@@ -144,6 +145,3 @@ class TensorRTQuantizeMethod(QuantizeMethod):
     @classmethod
     def framework(cls):
         return MSCFramework.TENSORRT
-
-
-msc_utils.register_tool_method(TensorRTQuantizeMethod)

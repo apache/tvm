@@ -20,6 +20,7 @@
 import os
 import time
 import json
+import logging
 from typing import Dict, Any, Union, List
 import traceback
 import numpy as np
@@ -68,7 +69,7 @@ class BaseManager(object):
         if root:
 
             def _from_root_mark(val):
-                if root and isinstance(val, str) and MSCKey.ROOT_MARK in val:
+                if isinstance(val, str) and MSCKey.ROOT_MARK in val:
                     return val.replace(MSCKey.ROOT_MARK, root)
                 return val
 
@@ -77,7 +78,15 @@ class BaseManager(object):
             plugins = msc_utils.map_dict(plugins, _from_root_mark)
 
         # check stage
-        for stage in ["inputs", "outputs", "dataset", MSCStage.PREPARE, MSCStage.COMPILE]:
+        for stage in [
+            "inputs",
+            "outputs",
+            "dataset",
+            MSCStage.PREPARE,
+            MSCStage.PARSE,
+            MSCStage.COMPILE,
+            MSCStage.EXPORT,
+        ]:
             config.setdefault(stage, {})
 
         MSCMap.reset()
@@ -162,13 +171,9 @@ class BaseManager(object):
             The updated config.
         """
 
-        # update prepare and parse
         assert "inputs" in config, "inputs should be given to run manager"
         assert "outputs" in config, "outputs should be given to run manager"
         config, debug_levels = msc_utils.copy_dict(config), {}
-        for stage in [MSCStage.PREPARE, MSCStage.PARSE]:
-            if stage not in config:
-                config[stage] = {}
         config = self._get_runner_cls(self._model_type).update_config(
             MSCStage.PARSE, config, self._model
         )
@@ -185,6 +190,9 @@ class BaseManager(object):
         # update tool config
         if config.get("tools"):
             config["tools"] = self._update_tools_config(config["tools"])
+
+        # update export config
+        config[MSCStage.EXPORT].update({"inputs": config["inputs"], "outputs": config["outputs"]})
 
         def _set_debug_level(stage: str, sub_config: dict, default: int = None) -> dict:
             if "debug_level" in sub_config:
@@ -218,6 +226,7 @@ class BaseManager(object):
             MSCStage.BASELINE,
             MSCStage.OPTIMIZE,
             MSCStage.COMPILE,
+            MSCStage.EXPORT,
         ]
         return {k: config[k] for k in ordered_keys if k in config}, debug_levels
 
@@ -230,7 +239,7 @@ class BaseManager(object):
             The pipeline report.
         """
 
-        err_msg = None
+        err_msg, err_info = None, None
         try:
             self.prepare()
             self.parse()
@@ -241,9 +250,11 @@ class BaseManager(object):
             if MSCStage.COMPILE in self._config:
                 self.compile()
         except Exception as exc:  # pylint: disable=broad-exception-caught
-            err_msg = "Pipeline failed:{}\nTrace: {}".format(exc, traceback.format_exc())
-        self.summary(err_msg)
+            err_msg = "Pipeline failed: " + str(exc)
+            err_info = traceback.format_exc()
+        self.summary(err_msg, err_info)
         self._logger.info(msc_utils.msg_block("SUMMARY", self._report, 0))
+        self._workspace.finalize()
         return self._report
 
     def prepare(self) -> Dict[str, np.ndarray]:
@@ -334,9 +345,12 @@ class BaseManager(object):
 
         msc_utils.time_stamp(MSCStage.PARSE)
         stage_config = self._config[MSCStage.PARSE]
-        use_cache = self._config.get("use_cache", True)
-
-        cache_path = msc_utils.get_cache_dir().relpath("parsed_relax.json") if use_cache else None
+        if self._config.get("use_cache", True):
+            cache_path = (
+                msc_utils.get_cache_dir().create_dir(MSCStage.PARSE).relpath("parsed_relax.json")
+            )
+        else:
+            cache_path = None
         if cache_path and os.path.isfile(cache_path):
             with open(cache_path, "r") as f:
                 self._relax_mod = tvm.ir.load_json(f.read())
@@ -447,13 +461,15 @@ class BaseManager(object):
                 self._logger.debug("Remove apply once tool %s", tool["tool_type"])
                 self._tools_config = self._tools_config[:-1]
 
-    def summary(self, err_msg=None):
+    def summary(self, err_msg=None, err_info: str = None):
         """Summary the pipeline.
 
         Parameters
         ----------
         err_msg: str
             The error message.
+        err_info: str
+            The error info.
 
         Returns
         -------
@@ -463,7 +479,7 @@ class BaseManager(object):
 
         msc_utils.time_stamp(MSCStage.SUMMARY, False)
         if err_msg:
-            self._report.update({"success": False, "err_msg": err_msg})
+            self._report.update({"success": False, "err_msg": err_msg, "err_info": err_info})
         else:
             self._report["success"] = True
         self._report["duration"] = msc_utils.get_duration()
@@ -490,29 +506,72 @@ class BaseManager(object):
             folder, dump = msc_utils.msc_dir(path.replace(".tar.gz", ""), keep_history=False), True
         else:
             folder = msc_utils.msc_dir(path, keep_history=False)
-        if dump:
-            plugins = export_plugins(self._plugins, folder.create_dir("plugin"))
-        else:
-            plugins = self._plugins
 
         def _to_root_mark(val):
             if isinstance(val, str) and folder.path != val and folder.path in val:
                 return val.replace(folder.path, MSCKey.ROOT_MARK)
             return val
 
-        pipeline = {
-            "model": self.export_model(folder.create_dir("model"), dump),
-            "config": self.export_config(folder, dump),
-            "plugins": plugins,
-            "root": folder.path,
-        }
-        pipeline = msc_utils.map_dict(pipeline, _to_root_mark)
-        if not dump:
-            return pipeline
-        with open(folder.relpath("pipeline.json"), "w") as f:
-            f.write(json.dumps(pipeline, indent=2))
+        # export compiled
+        if self._compiled:
+            if not dump:
+                return self._runner.runnable
+            model = self._runner.export_runnable(folder)
+            if self._plugins:
+                plugin = self._plugins[self.compile_type]
+                model["plugins"] = plugin.copy_libs(folder.create_dir("plugins"))
+            model.update(
+                {
+                    "device": self._runner.device,
+                    "model_type": self.compile_type,
+                    "abstract": self._runner.model_info,
+                }
+            )
+            # save golden
+            num_golden = self._config[MSCStage.EXPORT].get("num_golden", 0)
+            if num_golden > 0:
+                saver_options = {
+                    "input_names": [i[0] for i in self._config["inputs"]],
+                    "output_names": self._config["outputs"],
+                }
+                batch_cnt, model["golden"] = 0, folder.create_dir("golden").path
+                with msc_utils.IODataSaver(model["golden"], saver_options) as saver:
+                    for inputs in self._get_loader()():
+                        if batch_cnt >= num_golden:
+                            break
+                        batch_cnt = saver.save_batch(inputs, self._runner.run(inputs))
+            model = msc_utils.map_dict(model, _to_root_mark)
+            with open(folder.relpath("model.json"), "w") as f:
+                f.write(json.dumps(model, indent=2))
+        else:
+            if dump:
+                plugins = export_plugins(self._plugins, folder.create_dir("plugins"))
+            else:
+                plugins = self._plugins
+
+            pipeline = {
+                "model": self.export_model(folder.create_dir("model"), dump),
+                "config": self.export_config(folder, dump),
+                "plugins": plugins,
+                "root": folder.path,
+            }
+            pipeline = msc_utils.map_dict(pipeline, _to_root_mark)
+            if not dump:
+                return pipeline
+            with open(folder.relpath("pipeline.json"), "w") as f:
+                f.write(json.dumps(pipeline, indent=2))
+        # copy common files
+        if self._optimized or self._compiled:
+            stage = MSCStage.COMPILE if self._compiled else MSCStage.OPTIMIZE
+            msc_utils.get_visual_dir().copy(stage, folder.relpath("visualize"))
+            for log_h in self._logger.handlers:
+                if isinstance(log_h, logging.FileHandler):
+                    folder.copy(log_h.baseFilename)
+            with open(folder.relpath("report.json"), "w") as f:
+                f.write(json.dumps(self._report, indent=2))
+        folder.finalize()
         if path.endswith(".tar.gz"):
-            msc_utils.pack_folder(path.replace(".tar.gz", ""), "tar")
+            msc_utils.pack_folder(path.replace(".tar.gz", ""), "tar.gz")
         return path
 
     def export_model(self, folder: msc_utils.MSCDirectory, dump: bool = True) -> Any:
@@ -531,8 +590,6 @@ class BaseManager(object):
             The exported model.
         """
 
-        if self._compiled:
-            return self._runner._save_runnable(folder) if dump else self._runner.runnable
         if self._optimized:
             module = self._runner.export_module(folder)
             if not dump:
@@ -543,7 +600,9 @@ class BaseManager(object):
             return {"model": path}
         if not dump:
             return self._model
-        return self._get_runner_cls(self._model_type).dump_nativate(self._model, folder)
+        return self._get_runner_cls(self._model_type).dump_nativate(
+            self._model, folder, **self._config[MSCStage.EXPORT]
+        )
 
     def export_config(self, folder: msc_utils.MSCDirectory, dump: bool = True) -> dict:
         """Export the config
@@ -560,9 +619,6 @@ class BaseManager(object):
         config: dict
             The updated config.
         """
-
-        if self._compiled:
-            return {"model_info": self.runner.model_info}
 
         # dump the dataloader
         def _save_dataset(name, info, dump: bool):
@@ -631,6 +687,7 @@ class BaseManager(object):
             self._runner.destory()
         if not keep_workspace:
             self._workspace.destory()
+        msc_utils.remove_loggers()
 
     def _create_runner(
         self,
@@ -689,7 +746,7 @@ class BaseManager(object):
         runner.build(cache_dir=cache_dir)
         self._report["info"][stage + "_type"] = "{}({})".format(runner.framework, runner.device)
         if visualize:
-            runner.visualize(msc_utils.get_visual_dir().create_dir(stage))
+            runner.visualize(msc_utils.get_visual_dir().create_dir(stage.split(".")[0]))
         if profile and "profile" in stage_config:
             self._report["profile"][stage] = self._profile_runner(runner, stage_config)
         if use_cache:
@@ -725,7 +782,9 @@ class BaseManager(object):
             "run_type": tool.get("run_type", self._config[stage]["run_type"]),
             "run_config": self._config[stage]["run_config"],
         }
-        runner = self._create_runner(t_stage, stage_config, profile=False, use_cache=False)
+        runner = self._create_runner(
+            t_stage, stage_config, visualize=False, profile=False, use_cache=False
+        )
         if "gym_configs" in tool:
             knowledge = None
             for idx, config in enumerate(tool["gym_configs"]):
@@ -756,7 +815,10 @@ class BaseManager(object):
             self._logger.info("%sFound %d plan", gym_mark, len(plan))
             return msc_utils.save_dict(plan, plan_file)
         msc_utils.time_stamp(t_stage + ".make_plan", False)
-        return runner.make_plan(tool_type, self._get_loader(tool_stage))
+        plan_file = runner.make_plan(tool_type, self._get_loader(tool_stage))
+        if tool.get("visualize", False):
+            runner.visualize(msc_utils.get_visual_dir().create_dir(stage))
+        return plan_file
 
     def _profile_runner(self, runner: BaseRunner, stage_config: str) -> dict:
         """Profile the runner.

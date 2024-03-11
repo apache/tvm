@@ -86,7 +86,7 @@ def create_tool(framework: str, tool_type: str, tag: str = "main", **config) -> 
     """
 
     tool_style = config.pop("tool_style") if "tool_style" in config else "default"
-    tool_cls = msc_utils.get_registered_tool_cls(framework, tool_type, tool_style)
+    tool_cls = msc_utils.get_registered_tool(framework, tool_type, tool_style)
     assert tool_cls, "Can not find tool class for {}:{} @ {}".format(
         tool_type, tool_style, framework
     )

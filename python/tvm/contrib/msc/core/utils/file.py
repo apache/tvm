@@ -110,6 +110,27 @@ class MSCDirectory(object):
     def __del__(self):
         self.clean_up()
 
+    def finalize(self):
+        """Finalize the directory"""
+
+        if not os.path.isdir(self._path):
+            return self._path
+
+        def _remove_empty(path: str):
+            sub_paths = [os.path.join(path, f) for f in os.listdir(path)]
+            for s_path in sub_paths:
+                if not os.path.isdir(s_path):
+                    continue
+                if len(os.listdir(s_path)) == 0:
+                    shutil.rmtree(s_path)
+                else:
+                    _remove_empty(s_path)
+            if len(os.listdir(path)) == 0:
+                shutil.rmtree(path)
+            return path
+
+        return _remove_empty(self._path)
+
     def clean_up(self):
         """Clean up the dir"""
 
@@ -384,7 +405,7 @@ def to_abs_path(path: str, root_dir: MSCDirectory = None, keep_history: bool = T
     return root_dir.relpath(path, keep_history)
 
 
-def pack_folder(path: str, style="tar"):
+def pack_folder(path: str, style="tar.gz"):
     """Pack the folder
 
     Parameters
@@ -401,7 +422,7 @@ def pack_folder(path: str, style="tar"):
     """
 
     root = os.path.dirname(path)
-    if style == "tar":
+    if style == "tar.gz":
         cmd = "tar --exculde={0}.tar.gz -zcvf {0}.tar.gz {0} && rm -rf {0}".format(path)
     else:
         raise NotImplementedError("Pack style {} is not supported".format(style))
@@ -411,6 +432,7 @@ def pack_folder(path: str, style="tar"):
     else:
         retcode = subprocess.call(cmd, shell=True)
     assert retcode == 0, "Failed to pack the folder {}({}): {}".format(path, style, retcode)
+    return path + "." + style
 
 
 get_build_dir = partial(get_workspace_subdir, name="Build")

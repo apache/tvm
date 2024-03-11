@@ -254,10 +254,8 @@ class BaseQuantizer(BaseTool):
         return ToolType.QUANTIZER
 
 
+@msc_utils.register_tool
 class DefaultQuantizer(BaseQuantizer):
     @classmethod
     def tool_style(cls):
         return "default"
-
-
-msc_utils.register_tool_cls(DefaultQuantizer)

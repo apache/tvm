@@ -39,6 +39,7 @@ class TensorflowDistillerFactory(object):
             The distiller class.
         """
 
+        @msc_utils.register_tool
         class Distiller(base_cls):
             """Adaptive distiller for tensorflow"""
 
@@ -50,6 +51,6 @@ class TensorflowDistillerFactory(object):
 
 
 factory = TensorflowDistillerFactory()
-tools = msc_utils.get_registered_tool_cls(MSCFramework.MSC, ToolType.DISTILLER, tool_style="all")
+tools = msc_utils.get_registered_tool(MSCFramework.MSC, ToolType.DISTILLER, tool_style="all")
 for tool in tools.values():
-    msc_utils.register_tool_cls(factory.create(tool))
+    factory.create(tool)
