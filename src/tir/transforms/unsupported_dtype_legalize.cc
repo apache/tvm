@@ -707,7 +707,7 @@ bool CheckDataTypeSupport(const Target& target, const std::string& support_func_
   return has_native_support;
 }
 
-Pass BF16ComputeLegalize(Target target) {
+Pass BF16ComputeLegalize() {
   auto pass_func = [](PrimFunc f, IRModule m, PassContext ctx) {
     // TODO(tvm-team): skip if the target supports bf16
     return BF16ComputeLegalizer().Legalize(f);
@@ -717,7 +717,7 @@ Pass BF16ComputeLegalize(Target target) {
 
 TVM_REGISTER_GLOBAL("tir.transform.BF16ComputeLegalize").set_body_typed(BF16ComputeLegalize);
 
-Pass BF16StorageLegalize(Target target) {
+Pass BF16StorageLegalize() {
   auto pass_func = [](PrimFunc f, IRModule m, PassContext ctx) {
     // TODO(tvm-team): skip if the target supports bf16
     return BF16StorageLegalizer().Legalize(f);
