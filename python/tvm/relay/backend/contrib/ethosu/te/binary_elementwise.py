@@ -22,7 +22,7 @@ from tvm import te
 from tvm.contrib.ethosu.cascader import TESubgraph, EthosuPart, Propagator, register_matcher
 
 from .dma import dma_ofm_compute, dma_ifm_compute
-from .common import get_layout_transform_matrices
+from .common import get_layout_transform_matrices, get_lut_expr
 
 
 def binary_elementwise_compute(
@@ -180,7 +180,7 @@ def binary_elementwise_compute(
 
     has_lut = activation in ("TANH", "LUT", "SIGMOID")
     # This is a trick to insert the LUT tensor into the TE graph if LUT is present
-    lut_expr = (lut[0] + lut[255]).astype(ifm.dtype) if has_lut else 0
+    lut_expr = get_lut_expr(lut, ifm.dtype) if has_lut else 0
 
     # Add the LUT tensor to the attributes to be able to later tell which tensor is the LUT
     if has_lut:

@@ -178,6 +178,25 @@ def test_copy_luts():
     assert ".local" in sch.stages[10].op.name
 
 
+# This test makes sure that LUT have a correct size
+@pytest.mark.parametrize("dtype,lut_size", [["int8", 256], ["int16", 512]])
+def test_lut_size(dtype, lut_size):
+    ifm_shape = (1, 2, 4, 8)
+    ifm = relay.var("IFM", shape=ifm_shape, dtype=dtype)
+    lut = relay.const([i for i in range(lut_size)], dtype=dtype)
+    identity = make_ethosu_identity(ifm, lut=lut, activation="TANH")
+    func = relay.Function(relay.analysis.free_vars(identity), identity)
+    func = run_opt_pass(func, relay.transform.InferType())
+
+    func, const_dict = extract_constants(func)
+    te_graph = lower_to_te(func)
+
+    sch = te.create_schedule([te_graph.outputs[0].op])
+    copy_luts()(te_graph, const_dict, sch)
+
+    assert sch.stages[3].all_iter_vars[0].dom == tvm.ir.expr.Range(0, lut_size)
+
+
 def test_schedule_cache_reads():
     a = te.placeholder((12, 12), dtype="uint8", name="a")
     b = te.placeholder((12, 12), dtype="uint8", name="b")
