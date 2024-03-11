@@ -171,6 +171,13 @@ def test_target_llvm_options():
     )
 
 
+def test_target_llvm_jit_options():
+    target = tvm.target.Target("llvm -jit=mcjit")
+    assert target.attrs["jit"] == "mcjit"
+    target = tvm.target.Target("llvm -jit=orcjit")
+    assert target.attrs["jit"] == "orcjit"
+
+
 def test_target_create():
     targets = [cuda(), rocm(), mali(), intel_graphics(), arm_cpu("rk3399"), vta(), bifrost()]
     for tgt in targets:
