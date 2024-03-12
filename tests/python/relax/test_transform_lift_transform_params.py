@@ -548,8 +548,10 @@ def test_symbolic_var_1():
             R.func_attr({"num_input": 0})
             with R.dataflow():
                 gv: R.Tuple = R.tuple()
-                R.output(gv)
-            return gv
+                R.output()
+            # All instance of the empty tuple are normalized to be
+            # in-line.
+            return R.tuple()
 
         @R.function
         def main(shape: R.Shape(["n"])) -> R.Shape(["n"]):
@@ -612,8 +614,8 @@ def test_symbolic_var_2():
             R.func_attr({"num_input": 0})
             with R.dataflow():
                 gv: R.Tuple = R.tuple()
-                R.output(gv)
-            return gv
+                R.output()
+            return R.tuple()
 
         @R.function
         def main(shape: R.Shape(["n"])) -> R.Shape(["n"]):
