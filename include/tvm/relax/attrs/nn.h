@@ -371,6 +371,28 @@ struct Pool3DAttrs : public tvm::AttrsNode<Pool3DAttrs> {
   }
 };  // struct Pool3dAttrs
 
+/*! \brief Attributes for 1d adaptive pool operator */
+struct AdaptivePool1DAttrs : public tvm::AttrsNode<AdaptivePool1DAttrs> {
+  Optional<Array<IntImm>> output_size;
+  String layout;
+  String out_layout;
+
+  TVM_DECLARE_ATTRS(AdaptivePool1DAttrs, "relax.attrs.AdaptivePool1DAttrs") {
+    TVM_ATTR_FIELD(output_size).describe("Output width.");
+    TVM_ATTR_FIELD(layout).describe(
+        "Dimension ordering of input data. Can be 'NCW', 'NWC', etc."
+        "'N', 'C', 'W' stands for batch, channel and width"
+        "dimensions respectively. Pooling is applied on the"
+        "'W' dimensions.");
+    TVM_ATTR_FIELD(out_layout)
+        .describe(
+            "Dimension ordering of output data. Can be 'NCW', 'NWC', etc."
+            "'N', 'C', 'W' stands for batch, channel and width"
+            "dimensions respectively. Pooling is applied on the"
+            "'W' dimensions.");
+  }
+};  // struct AdaptivePool1DAttrs
+
 /*! \brief Attributes for 2d adaptive pool operator */
 struct AdaptivePool2DAttrs : public tvm::AttrsNode<AdaptivePool2DAttrs> {
   Optional<Array<IntImm>> output_size;
@@ -392,6 +414,28 @@ struct AdaptivePool2DAttrs : public tvm::AttrsNode<AdaptivePool2DAttrs> {
             "'W' dimensions.");
   }
 };  // struct AdaptivePool2DAttrs
+
+/*! \brief Attributes for 3d adaptive pool operator */
+struct AdaptivePool3DAttrs : public tvm::AttrsNode<AdaptivePool3DAttrs> {
+  Optional<Array<IntImm>> output_size;
+  String layout;
+  String out_layout;
+
+  TVM_DECLARE_ATTRS(AdaptivePool3DAttrs, "relax.attrs.AdaptivePool3DAttrs") {
+    TVM_ATTR_FIELD(output_size).describe("Output depth, height and width.");
+    TVM_ATTR_FIELD(layout).describe(
+        "Dimension ordering of input data. Can be 'NCDHW', 'NDHWC', etc."
+        "'N', 'C', 'D', 'H', 'W' stands for batch, channel, depth, height, and width"
+        "dimensions respectively. Pooling is applied on 'D', 'H' and"
+        "'W' dimensions.");
+    TVM_ATTR_FIELD(out_layout)
+        .describe(
+            "Dimension ordering of output data. Can be 'NCDHW', 'NDHWC', etc."
+            "'N', 'C', 'D', 'H', 'W' stands for batch, channel, depth, height, and width"
+            "dimensions respectively. Pooling is applied on 'D', 'H' and"
+            "'W' dimensions.");
+  }
+};  // struct AdaptivePool3DAttrs
 
 /*! \brief Attributes used in softmax operators */
 struct SoftmaxAttrs : public tvm::AttrsNode<SoftmaxAttrs> {

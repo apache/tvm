@@ -1043,6 +1043,59 @@ def avg_pool3d(
     )
 
 
+def adaptive_avg_pool1d(
+    data: Expr,
+    output_size: Optional[Union[int, Tuple[int]]] = None,
+    layout: str = "NCW",
+    out_layout: Optional[str] = None,
+) -> Expr:
+    r"""1D adaptive average pooling operator. This operator is experimental.
+
+    This operator takes data as input and does 1D average value calculation
+    across each window represented by W.
+
+
+    In the default case, where the data_layout is `NCW`
+    a data Tensor with shape `(batch_size, in_channels, width)`,
+    to produce an output Tensor with shape
+    (batch_size, in_channels, output_width).
+
+    The pooling kernel and stride sizes are automatically chosen for
+    desired output sizes.
+
+    For output_size:
+        If this argument is not provided, input height and width will be used
+        as output width.
+
+        If a single integer is provided for output_size, the output size is
+        (N x C x output_size) for any input (NCW).
+
+    Parameters
+    ----------
+    data : relax.Expr
+        The input data to the operator.
+
+    output_size : Optional[Union[int, Tuple[int, int]]]
+        Output height and width.
+        If not specified, it will be the same as the input height and width.
+        If specified, it is required to have length either 1 or 2.
+
+    layout : str
+        Layout of the input.
+
+    out_layout : Optional[str]
+        Layout of the output. If not specified, it is the same as data_layout
+
+    Returns
+    -------
+    result : relax.Expr
+        The computed result.
+    """
+    if isinstance(output_size, int):
+        output_size = (output_size,)
+    return _ffi_api.adaptive_avg_pool1d(data, output_size, layout, out_layout)  # type: ignore
+
+
 def adaptive_avg_pool2d(
     data: Expr,
     output_size: Optional[Union[int, Tuple[int, int]]] = None,
@@ -1097,6 +1150,62 @@ def adaptive_avg_pool2d(
     if isinstance(output_size, int):
         output_size = (output_size, output_size)
     return _ffi_api.adaptive_avg_pool2d(data, output_size, layout, out_layout)  # type: ignore
+
+
+def adaptive_avg_pool3d(
+    data: Expr,
+    output_size: Optional[Union[int, Tuple[int, int]]] = None,
+    layout: str = "NCDHW",
+    out_layout: Optional[str] = None,
+) -> Expr:
+    r"""3D adaptive average pooling operator. This operator is experimental.
+
+    This operator takes data as input and does 3D average value calculation
+    across each window represented by WxH.
+
+
+    In the default case, where the data_layout is `NCDHW`
+    a data Tensor with shape `(batch_size, in_channels, depth, height, width)`,
+    to produce an output Tensor with shape
+    (batch_size, in_channels, output_depth, output_height, output_width).
+
+    The pooling kernel and stride sizes are automatically chosen for
+    desired output sizes.
+
+    For output_size:
+        If this argument is not provided, input depth, height and width will be used
+        as output depth, height and width.
+
+        If a single integer is provided for output_size, the output size is
+        (N x C x output_size x output_size x output_size) for any input (NCDHW).
+
+        If a tuple of integers (depth, height, width) are provided for output_size,
+        the output size is (N x C x depth x height x width) for any input (NCDHW).
+
+    Parameters
+    ----------
+    data : relax.Expr
+        The input data to the operator.
+
+    output_size : Optional[Union[int, Tuple[int, int]]]
+        Output height and width.
+        If not specified, it will be the same as the input height and width.
+        If specified, it is required to have length either 1 or 3.
+
+    layout : str
+        Layout of the input.
+
+    out_layout : Optional[str]
+        Layout of the output. If not specified, it is the same as data_layout
+
+    Returns
+    -------
+    result : relax.Expr
+        The computed result.
+    """
+    if isinstance(output_size, int):
+        output_size = (output_size, output_size, output_size)
+    return _ffi_api.adaptive_avg_pool3d(data, output_size, layout, out_layout)  # type: ignore
 
 
 def relu(data: Expr) -> Expr:

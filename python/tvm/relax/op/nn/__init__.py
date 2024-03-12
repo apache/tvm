@@ -16,7 +16,9 @@
 # under the License.
 """Neural network related operators."""
 from .nn import (
+    adaptive_avg_pool1d,
     adaptive_avg_pool2d,
+    adaptive_avg_pool3d,
     attention,
     attention_var_len,
     avg_pool1d,
