@@ -888,9 +888,10 @@ class Function(BaseFunc, Scriptable):
         body: Expr,
         ret_struct_info: Optional[StructInfo] = None,
         is_pure: Optional[bool] = None,
-        attrs: Optional[tvm.ir.DictAttrs] = None,
+        attrs: Optional[Union[tvm.ir.DictAttrs, Mapping]] = None,
         span: Optional[Span] = None,
     ) -> None:
+        attrs = Function._normalize_attrs(attrs)
         self.__init_handle_by_constructor__(
             _ffi_api.Function,
             params,
@@ -906,13 +907,22 @@ class Function(BaseFunc, Scriptable):
         params: List[Var],
         ret_struct_info: StructInfo,
         is_pure: Optional[bool] = True,
-        attrs: Optional[tvm.ir.DictAttrs] = None,
+        attrs: Optional[Union[tvm.ir.DictAttrs, Mapping]] = None,
         span: Optional[Span] = None,
     ):
         """Construct a relax.Function but without body"""
+        attrs = Function._normalize_attrs(attrs)
+
         return _ffi_api.FunctionCreateEmpty(
             params, ret_struct_info, is_pure, attrs, span
         )  # type: ignore
+
+    @staticmethod
+    def _normalize_attrs(attrs: Optional[Union[tvm.ir.DictAttrs, Mapping]]) -> tvm.ir.DictAttrs:
+        if attrs is None or isinstance(attrs, tvm.ir.DictAttrs):
+            return attrs
+        else:
+            return tvm.ir.make_node("DictAttrs", **attrs)
 
     def __call__(self, *args):
         """Invoke the global function.
