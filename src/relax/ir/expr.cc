@@ -473,12 +473,22 @@ Function::Function(Array<Var> params, Expr body, Optional<StructInfo> ret_struct
     ret_struct_info = body_sinfo;
   }
 
-  bool is_pure;
-  if (is_pure_override.defined()) {
-    is_pure = is_pure_override.value()->value;
-  } else {
-    is_pure = !ContainsImpureCall(body);
-  }
+  bool is_pure = [&]() -> bool {
+    if (is_pure_override.defined()) {
+      return is_pure_override.value()->value;
+    }
+
+    if (attrs.defined() && attrs->dict.defined()) {
+      if (auto opt_force_pure = attrs->dict.Get(relax::attr::kForcePure)) {
+        bool force_pure = Downcast<IntImm>(opt_force_pure.value())->value;
+        if (force_pure) {
+          return true;
+        }
+      }
+    }
+
+    return !ContainsImpureCall(body);
+  }();
 
   FuncStructInfo func_sinfo(param_sinfo, ret_struct_info.value(), is_pure);
 
