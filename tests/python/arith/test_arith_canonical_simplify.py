@@ -461,6 +461,11 @@ def test_simplify_le():
     )
     ck.verify(tx // 2 % 8 + vec < 8, tx % 16 // 2 + vec < 8)
 
+    # Case 3. No failure
+    x, y, z = te.var("x"), te.var("y"), te.var("z")
+    ck.analyzer.bind(y, tvm.ir.Range(0, 1024))
+    ck.verify(x * 1024 + y < z * 7168, x - z * 7 < 0)
+
 
 if __name__ == "__main__":
     tvm.testing.main()
