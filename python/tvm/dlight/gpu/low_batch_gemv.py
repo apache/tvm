@@ -295,7 +295,7 @@ class LowBatchGEMV(GPUScheduleRule):
             )
             return sch
         else:
-            raise NotImplementedError("Outer reduction is not supported yet")
+            return None
 
     def sch_inner_reduction(  # pylint: disable=too-many-arguments, invalid-name, unused-argument
         self,
