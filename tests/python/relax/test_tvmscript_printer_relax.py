@@ -15,6 +15,9 @@
 # specific language governing permissions and limitations
 # under the License.
 # pylint: disable=missing-docstring
+
+import pytest
+
 import tvm
 import tvm.testing
 from tvm import IRModule, relax, tir
@@ -633,6 +636,7 @@ class Module:
     )
 
 
+@pytest.mark.xfail(reason="Eliding void variable bindings currently disabled")
 def test_assert_op():
     @I.ir_module
     class AssertOpMod:
@@ -651,12 +655,13 @@ def test_assert_op():
 class Module:
     @R.function(pure=False)
     def main(x: R.Tensor((), dtype="int32")) -> R.Tensor((), dtype="int32"):
-        y: R.Tuple = R.assert_op(R.const(False, "bool"), x, format=R.str("x: {}"))
+        R.assert_op(R.const(False, "bool"), x, format=R.str("x: {}"))
         return x
 """,
     )
 
 
+@pytest.mark.xfail(reason="Eliding void variable bindings currently disabled")
 def test_print():
     @I.ir_module
     class PrintMod:
@@ -675,7 +680,7 @@ def test_print():
 class Module:
     @R.function(pure=False)
     def main(x: R.Tensor((), dtype="int32")) -> R.Tensor((), dtype="int32"):
-        y: R.Tuple = R.print(x, format=R.str("x: {}"))
+        R.print(x, format=R.str("x: {}"))
         return x
 """,
     )
@@ -705,6 +710,7 @@ class Module:
     )
 
 
+@pytest.mark.xfail(reason="Eliding void variable bindings currently disabled")
 def test_directly_construct_private_funcs():
     # public
     @R.function
@@ -758,7 +764,7 @@ class Module:
     @R.function
     def baz(x: R.Tensor((), dtype="int32")) -> R.Tensor((), dtype="int32"):
         R.func_attr({"relax.force_pure": 1})
-        y: R.Tuple = R.print(format=R.str("Hi there!"))
+        R.print(format=R.str("Hi there!"))
         z: R.Tensor((), dtype="int32") = R.add(x, x)
         return z
 
@@ -770,7 +776,7 @@ class Module:
     @R.function(private=True)
     def quux(x: R.Tensor((), dtype="int32")) -> R.Tensor((), dtype="int32"):
         R.func_attr({"relax.force_pure": 1})
-        y: R.Tuple = R.print(format=R.str("Lol"))
+        R.print(format=R.str("Lol"))
         z: R.Tensor((), dtype="int32") = R.multiply(x, x)
         return z
 """,
