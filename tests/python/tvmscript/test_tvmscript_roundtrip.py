@@ -113,9 +113,7 @@ def opt_gemm_lower():
                                 T.ramp((x_c * 32), 1, 32)
                             ] + (
                                 T.broadcast(
-                                    A_1[
-                                        (((x_outer * 32768) + (x_c * 1024)) + (k_outer * 4)),
-                                    ],
+                                    A_1[(((x_outer * 32768) + (x_c * 1024)) + (k_outer * 4))],
                                     32,
                                 )
                                 * packedB[T.ramp(((y_outer * 32768) + (k_outer * 128)), 1, 32)]
@@ -4023,6 +4021,47 @@ def relax_extern_func():
     return func
 
 
+def relax_match_cast_struct_info_proxy():
+    """StructInfoProxy subclasses may be used as expressions
+
+    This is a regression test.  The TVMScript parser allows StructInfo
+    to be specified using a default-constructible class
+    (e.g. `R.Tensor` or `R.Shape`) rather than an instance of that
+    class (e.g. `R.Tensor()` or `R.Shape()`).  In previous
+    implementations, this was only handled when the `StructInfo` was
+    used in an annotation context.  However, a `StructInfo` may also
+    appear as an argument, which is passed to `R.match_cast`.  Use of
+    a default-constructible class must be handled in this context as
+    well.
+    """
+
+    def make_ir_generator(proxy_subclass):
+        def inner():
+            @R.function
+            def func(A: R.Object):
+                B = R.match_cast(A, proxy_subclass)
+                return B
+
+            return func
+
+        inner.__name__ = subclass.__name__
+        return inner
+
+    # Not all subclasses of StructInfoProxy are default-constructible.
+    # This list is a subset of `StructInfoProxy.__subclasses__()`,
+    # excluding `PrimProxy` and `DTensorProxy`.
+    subclasses = [
+        tvm.script.parser.relax.entry.ObjectProxy,
+        tvm.script.parser.relax.entry.TensorProxy,
+        tvm.script.parser.relax.entry.CallableProxy,
+        tvm.script.parser.relax.entry.TupleProxy,
+        tvm.script.parser.relax.entry.ShapeProxy,
+    ]
+
+    for subclass in subclasses:
+        yield make_ir_generator(subclass)
+
+
 ir_generator = tvm.testing.parameter(
     launch_env_thread,
     opt_gemm_normalize,
@@ -4106,6 +4145,7 @@ ir_generator = tvm.testing.parameter(
     return_zero_private,
     return_zero_private_with_attr,
     *op_of_literal(),
+    *relax_match_cast_struct_info_proxy(),
 )
 
 relax_ir_generator = tvm.testing.parameter(
