@@ -1752,31 +1752,39 @@ export class Instance implements Disposable {
       }
       const shardRecords = shard.records;
       for (let j = 0; j < shardRecords.length; ++j) {
-        const rec = shardRecords[j];
-        const cpu_arr = this.withNewScope(() => {
-          return this.detachFromCurrentScope(
-            this.empty(rec.shape, rec.dtype, this.cpu())
-          )
-        });
-        const recSource = buffer.slice(rec.byteOffset, rec.byteOffset + rec.nbytes);
-        // first sync copy to cpu.
-        this.ctx.arrayDecodeStorage(cpu_arr, new Uint8Array(recSource), rec.format, rec.dtype);
-        // then async stream into GPU if needed
-        if (device.deviceType === DeviceStrToEnum.cpu) {
-          this.ndarrayCacheUpdate(rec.name, cpu_arr, false);
-          cpu_arr.dispose();
-        } else {
-          // allocate a gpu arr and async copy to it.
-          const gpu_arr = this.withNewScope(() => {
+        try {
+          const rec = shardRecords[j];
+          const cpu_arr = this.withNewScope(() => {
             return this.detachFromCurrentScope(
-              this.empty(rec.shape, rec.dtype, device)
+              this.empty(rec.shape, rec.dtype, this.cpu())
             )
           });
-          gpu_arr.copyFrom(cpu_arr);
-          await device.sync();
-          this.ndarrayCacheUpdate(rec.name, gpu_arr, false);
-          cpu_arr.dispose();
-          gpu_arr.dispose();
+          const recSource = buffer.slice(rec.byteOffset, rec.byteOffset + rec.nbytes);
+          // first sync copy to cpu.
+          this.ctx.arrayDecodeStorage(cpu_arr, new Uint8Array(recSource), rec.format, rec.dtype);
+          // then async stream into GPU if needed
+          if (device.deviceType === DeviceStrToEnum.cpu) {
+            this.ndarrayCacheUpdate(rec.name, cpu_arr, false);
+            cpu_arr.dispose();
+          } else {
+            // allocate a gpu arr and async copy to it.
+            const gpu_arr = this.withNewScope(() => {
+              return this.detachFromCurrentScope(
+                this.empty(rec.shape, rec.dtype, device)
+              )
+            });
+            gpu_arr.copyFrom(cpu_arr);
+            await device.sync();
+            this.ndarrayCacheUpdate(rec.name, gpu_arr, false);
+            cpu_arr.dispose();
+            gpu_arr.dispose();
+          }
+        } catch (err) {
+          this.env.logger(
+            "Failed to load shard " + i + "'s record: " + JSON.stringify(shardRecords[j]) + "\n" +
+            "Error: " + err
+          );
+          throw err;
         }
       }
     }
