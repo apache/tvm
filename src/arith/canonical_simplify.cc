@@ -1422,6 +1422,7 @@ PrimExpr CanonicalSimplifier::Impl::VisitExpr_(const LTNode* op) {
       divisible.CopyOnWrite()->DivideBy(gcd);
       return Rewriter::VisitExpr(divisible->Normalize() < make_zero(dtype));
     } else if (extra->args.size() == 1 &&
+               extra->args[0]->upper_factor != ConstIntBoundNode::kPosInf &&
                extra->args[0]->upper_factor % (gcd * extra->args[0]->lower_factor) == 0) {
       // Case 2. xn == yn % m, where m % d == 0
       divisible.CopyOnWrite()->DivideBy(gcd);
