@@ -1002,8 +1002,7 @@ export class ArtifactIndexDBCache implements ArtifactCacheTemplate {
   private db: IDBDatabase;
 
   private async initDB() {
-    
-    if (this.db != null){
+    if (this.db != null) {
       console.log("The DB is already init!");
       return; // the db is already inialized
     }
@@ -1016,7 +1015,6 @@ export class ArtifactIndexDBCache implements ArtifactCacheTemplate {
           console.log("create url object store success!");
           this.db.createObjectStore('urls', { keyPath: 'url' });
         }
-        
       };
       request.onsuccess = (event) => {
         this.db = (event.target as IDBOpenDBRequest).result;
@@ -1045,7 +1043,7 @@ export class ArtifactIndexDBCache implements ArtifactCacheTemplate {
     });
   }
 
-  constructor(dbName: string){
+  constructor(dbName: string) {
     this.dbName = dbName;
   }
 
@@ -1064,7 +1062,7 @@ export class ArtifactIndexDBCache implements ArtifactCacheTemplate {
       return fetch(url);
     }
   }
-  
+
   /* implements a transaction to add url to */
   async addToCache(url: string) {
     console.log("called Add To Cache Function IndexDB");
@@ -1081,7 +1079,7 @@ export class ArtifactIndexDBCache implements ArtifactCacheTemplate {
   async hasAllKeys(keys: string[]) {
     console.log("called has All Keys IndexDB")
     await this.initDB(); // Ensure the DB is initialized
-    return new Promise<boolean> (async (resolve, reject) => {
+    return new Promise<boolean>(async (resolve, reject) => {
       const transaction = this.db.transaction(['urls'], 'readonly');
       const store = transaction.objectStore('urls');
       let allExist = true;
@@ -1105,8 +1103,7 @@ export class ArtifactIndexDBCache implements ArtifactCacheTemplate {
       }
       resolve(allExist);
     });
-  
-}
+  }
 
   async deleteInCache(url: string) {
     console.log("called delete In Cache function")
@@ -1156,7 +1153,7 @@ export class ArtifactCache implements ArtifactCacheTemplate {
       this.cache = await caches.open(this.scope);
     }
     const result = await this.cache.match(request);
-    if (result === undefined){
+    if (result === undefined) {
       await this.cache.add(request);
     }
   }
