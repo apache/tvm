@@ -596,7 +596,6 @@ llvm::Type* CodeGenLLVM::DTypeToLLVMType(const DataType& dtype) const {
     return llvm::VectorType::get(etype, dtype.lanes());
 #endif
   } else {
-    ICHECK(etype != nullptr) << "No suitable llvm type found for dtype: " << dtype;
     return etype;
   }
 }  // namespace codegen
