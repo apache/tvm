@@ -47,11 +47,12 @@ FType = TypeVar("FType", bound=_Callable)
 
 ############################## R.function ##############################
 
+
 # this formulation allows us to support having @R.function
 # appear as a decorator by itself or to have optional arguments
 # like @R.function(pure=False)
 def function(
-    f: Optional[FType] = None, pure: bool = True, private: bool = False
+    f: Optional[FType] = None, pure: Optional[bool] = None, private: bool = False
 ) -> Union[Function, FType]:
     # pylint: disable=unused-argument
     # (pure and private aren't used here, but are used later in parsing)
