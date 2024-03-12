@@ -23,9 +23,9 @@ from typing import Any, Callable, Dict, List, Optional, Sequence, Tuple, TypeVar
 
 import numpy as np
 
+from tvm import te
 from tvm import tir as _tir
 from tvm.script import tir as T
-from tvm import te
 
 from ... import expr as rx
 from ... import op as _op
@@ -2386,13 +2386,13 @@ def sample_top_p_top_k_from_sorted_prob(
                     or v_ax1 + 1 == vocab_size
                 ):
                     if v_ax1 == 0:
-                        output_index[v_ax0, 0] = indices[v_ax0, 0]
+                        output_index[v_ax0, 0] = indices[sample_indices[v_ax0, T.int64(0)], 0]
                     elif (
                         usample[v_ax0, T.int64(0)]
                         >= cumsum_sorted[sample_indices[v_ax0, T.int64(0)], v_ax1 - 1]
                         / renorm_prob[sample_indices[v_ax0, T.int64(0)], 0]
                     ):
-                        output_index[v_ax0, 0] = indices[v_ax0, v_ax1]
+                        output_index[v_ax0, 0] = indices[sample_indices[v_ax0, T.int64(0)], v_ax1]
 
     cumsum_sorted = cumsum(sorted_prob, axis=1)
 
