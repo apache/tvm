@@ -66,8 +66,8 @@ class Allocator {
    *  \param mem_scope The device memory scope hint.
    *  \return The empty NDArray.
    */
-  NDArray Empty(ShapeTuple shape, DLDataType dtype, Device dev,
-                Optional<String> mem_scope = NullOpt);
+  TVM_DLL NDArray Empty(ShapeTuple shape, DLDataType dtype, Device dev,
+                        Optional<String> mem_scope = NullOpt);
   /*! \brief Return the allocator type. */
   inline AllocatorType type() const { return type_; }
   /*! \brief Allocate a buffer given a size, alignment and type.
@@ -76,29 +76,29 @@ class Allocator {
    *  \param type_hint A type hint to the allocator.
    *  \return A sized allocation in the form of a buffer.
    */
-  virtual Buffer Alloc(size_t nbytes, size_t alignment, DLDataType type_hint) = 0;
+  TVM_DLL virtual Buffer Alloc(size_t nbytes, size_t alignment, DLDataType type_hint) = 0;
   /*! \brief Allocate a buffer given a shape and type.
    *  \param shape The shape of the tensor.
    *  \param type_hint A type hint to the allocator.
    *  \param mem_scope A memory scope of the buffer.
    *  \return A sized allocation in the form of a buffer.
    */
-  virtual Buffer Alloc(ShapeTuple shape, DLDataType type_hint,
-                       const std::string& mem_scope = "") = 0;
+  TVM_DLL virtual Buffer Alloc(ShapeTuple shape, DLDataType type_hint,
+                               const std::string& mem_scope = "") = 0;
   /*! \brief Free a buffer allocated by the allocator.
    *  \param buffer The buffer to free.
    */
-  virtual void Free(const Buffer& buffer) = 0;
+  TVM_DLL virtual void Free(const Buffer& buffer) = 0;
   /*! \brief Clear the allocated memory. */
-  virtual void Clear();
+  TVM_DLL virtual void Clear();
   /*! \brief The amount of memory currently allocated.
    *  \return The amount of memory currently allocated.
    */
-  virtual size_t UsedMemory() const = 0;
+  TVM_DLL virtual size_t UsedMemory() const = 0;
 
  protected:
-  virtual Buffer Alloc(Device dev, ShapeTuple shape, DLDataType type_hint,
-                       const std::string& mem_scope);
+  TVM_DLL virtual Buffer Alloc(Device dev, ShapeTuple shape, DLDataType type_hint,
+                               const std::string& mem_scope);
 
  private:
   AllocatorType type_;
@@ -106,21 +106,21 @@ class Allocator {
 
 class MemoryManager {
  public:
-  static MemoryManager* Global();
+  TVM_DLL static MemoryManager* Global();
   /*!
    * \brief Get or create an allocator given the context and allocator type.
    * \param dev The TVM device
    * \param type The allocator type
    * \return The memory allocator.
    */
-  static Allocator* GetOrCreateAllocator(Device dev, AllocatorType type);
+  TVM_DLL static Allocator* GetOrCreateAllocator(Device dev, AllocatorType type);
   /*!
    * \brief Get an allocator given the context.
    * \param dev The TVM device
    * \param type The allocator type
    * \return The memory allocator.
    */
-  static Allocator* GetAllocator(Device dev, AllocatorType type);
+  TVM_DLL static Allocator* GetAllocator(Device dev, AllocatorType type);
   /*! \brief Clear the allocators. */
   static void Clear();
 
@@ -140,7 +140,7 @@ class StorageObj : public Object {
   Buffer buffer;
 
   /*! \brief Allocate an NDArray from a given piece of storage. */
-  NDArray AllocNDArray(int64_t offset, ShapeTuple shape, DLDataType dtype);
+  TVM_DLL NDArray AllocNDArray(int64_t offset, ShapeTuple shape, DLDataType dtype);
 
   /*! \brief The deleter for an NDArray when allocated from underlying storage. */
   static void Deleter(Object* ptr);
@@ -158,7 +158,7 @@ class StorageObj : public Object {
 /*! \brief reference to storage. */
 class Storage : public ObjectRef {
  public:
-  explicit Storage(Buffer buffer);
+  TVM_DLL explicit Storage(Buffer buffer);
 
   TVM_DEFINE_MUTABLE_OBJECT_REF_METHODS(Storage, ObjectRef, StorageObj);
 };
