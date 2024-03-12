@@ -122,6 +122,9 @@ class DFPattern(Node):
         attrs = make_node("DictAttrs", **attrs)
         return AttrPattern(self, attrs)
 
+    def has_struct_info(self, struct_info: "StructInfo") -> "StructInfoPattern":
+        return StructInfoPattern(self, struct_info)
+
     def has_type(self, ttype: tvm.ir.type.Type) -> "TypePattern":
         """
         Add a type constraint to this pattern
@@ -573,6 +576,27 @@ class WildcardPattern(DFPattern):
 
     def __init__(self):
         self.__init_handle_by_constructor__(ffi.WildcardPattern)  # type: ignore
+
+
+@register_df_node
+class StructInfoPattern(DFPattern):
+    """A pattern that matches another pattern with a certain StructInfo
+
+    Parameters
+    ----------
+    pattern: tvm.relax.dpl.DFPattern
+        The input pattern that needs type annotation.
+
+    struct_info: tvm.relax.StructInfo
+        The struct info to match against
+    """
+
+    def __init__(self, pattern: "DFPattern", struct_info: "StructInfo"):
+        self.__init_handle_by_constructor__(
+            ffi.StructInfoPattern,
+            pattern,
+            struct_info,
+        )  # type: ignore
 
 
 @register_df_node

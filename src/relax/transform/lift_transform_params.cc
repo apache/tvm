@@ -38,6 +38,9 @@
 namespace tvm {
 namespace relax {
 
+constexpr const char* kLiftTransformConsumeParams = "relax.lift_transform_params.consume_params";
+TVM_REGISTER_PASS_CONFIG_OPTION(kLiftTransformConsumeParams, Bool);
+
 namespace {
 
 struct CollectInfo {
@@ -57,6 +60,15 @@ struct CollectInfo {
    * - Does not include "relax.builtin.stop_lift_params"
    */
   std::vector<Binding> computable_at_compile_time;
+
+  /*! \brief Variables that require a compile-time parameter
+   *
+   * Used to distinguish between computed tensors that depend on the
+   * model weights, and computed tensors that require neither model
+   * weights nor runtime arguments (e.g. `R.zeros([16], "float16")`).
+   */
+  std::unordered_set<Variant<relax::Var, tir::Var>, ObjectPtrHash, ObjectPtrEqual>
+      requires_compile_time_param;
 
   /*! \brief Variables that are required at runtime */
   std::unordered_set<Variant<relax::Var, tir::Var>, ObjectPtrHash, ObjectPtrEqual>
@@ -114,7 +126,8 @@ struct CollectInfo {
     // Any variable that is computed at compile-time, but is required
     // at runtime, must be provided as a parameter.
     for (const auto& binding : computable_at_compile_time) {
-      if (required_at_runtime.count(binding->var)) {
+      if (requires_compile_time_param.count(binding->var) &&
+          required_at_runtime.count(binding->var)) {
         params.push_back(binding->var);
       }
     }
@@ -182,16 +195,21 @@ struct CollectInfo {
 
     // Any binding that is computable at compile-time should be
     // suppressed at run-time.
-    struct SuppressCompileTime : ExprMutator {
-      std::unordered_set<Var, ObjectPtrHash, ObjectPtrEqual> to_suppress;
-      explicit SuppressCompileTime(const std::vector<Binding>& bindings) {
-        for (const auto& binding : bindings) {
-          to_suppress.insert(binding->var);
-        }
+    std::unordered_set<Var, ObjectPtrHash, ObjectPtrEqual> to_suppress;
+    for (const auto& binding : computable_at_compile_time) {
+      if (requires_compile_time_param.count(binding->var)) {
+        to_suppress.insert(binding->var);
       }
+    }
+
+    class SuppressCompileTime : public ExprMutator {
+     public:
+      explicit SuppressCompileTime(
+          const std::unordered_set<Var, ObjectPtrHash, ObjectPtrEqual>& to_suppress)
+          : to_suppress_(to_suppress) {}
 
       void VisitBinding(const Binding& binding) override {
-        if (!to_suppress.count(binding->var)) {
+        if (!to_suppress_.count(binding->var)) {
           ExprMutator::VisitBinding(binding);
         }
       }
@@ -205,8 +223,11 @@ struct CollectInfo {
           return ExprMutator::VisitExpr_(call);
         }
       }
+
+     private:
+      const std::unordered_set<Var, ObjectPtrHash, ObjectPtrEqual>& to_suppress_;
     };
-    Expr body = SuppressCompileTime(computable_at_compile_time)(orig_func->body);
+    Expr body = SuppressCompileTime(to_suppress)(orig_func->body);
     body = SeqExpr({DataflowBlock(bindings)}, body);
 
     Function func(params, body, orig_func->ret_struct_info, orig_func->is_pure, orig_func->attrs);
@@ -300,6 +321,7 @@ class LiftableBindingCollector : ExprVisitor {
 
     for (size_t i = num_runtime_params; i < func->params.size(); i++) {
       liftable_vars_.insert(func->params[i]);
+      info_.requires_compile_time_param.insert(func->params[i]);
       for (const auto& tir_var : DefinableTIRVarsInStructInfo(GetStructInfo(func->params[i]))) {
         liftable_vars_.insert(tir_var);
       }
@@ -315,12 +337,48 @@ class LiftableBindingCollector : ExprVisitor {
   }
 
   void VisitBinding(const Binding& binding) override {
+    auto bound_value = GetBoundValue(binding);
+
     if (CanLiftBinding(binding)) {
       info_.computable_at_compile_time.push_back(binding);
       liftable_vars_.insert(binding->var);
+
+      // There are three type of variables we want to distinguish.
+      //
+      // 1. Depend on runtime parameters
+      //
+      //    Must remain within the original function, cannot be
+      //    lifted out into the `transform_params` function.
+      //
+      // 2. Depend on model weights, but not runtime parameters.
+      //
+      //    Legal to lift out into the `transform_params` function.
+      //    Doing so is beneficial, as it reduces the work performed
+      //    in the inference function.
+      //
+      // 3. Depend on neither model weights nor runtime parameters
+      //    (e.g. `R.zeros(shape,dtype)`)
+      //
+      //    Legal to lift out into the `transform_params` function.
+      //    However, doing so would increase the memory footprint of
+      //    the pre-computed parameters, for little to no benefit.
+      //    These may be duplicated between the `transform_params`
+      //    function and the original function, as they typically
+      //    initialize a tensor to an easy-to-compute state.
+      //
+      // Tracking whether a variable depends on the model weights,
+      // either directly or indirectly, allows us to distinguish
+      // between categories (2) and (3).
+      auto upstream_vars = FreeVars(bound_value);
+      bool depends_on_compile_time_param = std::any_of(
+          upstream_vars.begin(), upstream_vars.end(),
+          [&](const Var& var) -> bool { return info_.requires_compile_time_param.count(var); });
+      if (depends_on_compile_time_param) {
+        info_.requires_compile_time_param.insert(binding->var);
+      }
+
     } else {
       info_.required_at_runtime.insert(binding->var);
-      auto bound_value = GetBoundValue(binding);
       for (const auto& upstream_var : FreeVars(bound_value)) {
         info_.required_at_runtime.insert(upstream_var);
       }
@@ -394,6 +452,48 @@ inline bool ends_with(const std::string& value, const std::string& ending) {
          std::equal(ending.rbegin(), ending.rend(), value.rbegin());
 }
 
+/*!
+ * \brief A mutator to rewrite the transform_params functions to release the original weight after
+ * use. This is done by using builtin.tuple_reset_item to reset the bundled weight tuple. It
+ * requires `BundleModelParams` to be called before this mutator.
+ */
+class ConsumeBundledParams : public ExprMutator {
+ public:
+  void VisitBinding_(const VarBindingNode* binding, const TupleGetItemNode* tuple_get_item) final {
+    static const auto& call_pure_packed = Op::Get("relax.call_pure_packed");
+    static const auto& builtin_tuple_reset_item = ExternFunc("vm.builtin.tuple_reset_item");
+    if (tuple_get_item->tuple.same_as(params_)) {
+      if (auto it = param_remap_.find(tuple_get_item->index); it != param_remap_.end()) {
+        ReEmitBinding(binding, it->second);
+        return;
+      }
+      ExprMutator::VisitBinding_(binding, tuple_get_item);
+      auto new_var = VisitExpr(binding->var);
+      param_remap_[tuple_get_item->index] = new_var;
+      builder_->Emit(
+          Call(call_pure_packed,
+               {builtin_tuple_reset_item, tuple_get_item->tuple, PrimValue(tuple_get_item->index)},
+               tvm::Attrs(), {TupleStructInfo(Array<StructInfo>{})}));
+    } else {
+      ExprMutator::VisitBinding_(binding, tuple_get_item);
+    }
+  }
+
+  Expr VisitExpr_(const FunctionNode* func) final {
+    auto opt_num_input = func->GetAttr<Integer>(attr::kNumInput);
+    ICHECK(opt_num_input.defined());
+    auto num_input = opt_num_input.value()->value;
+    ICHECK_EQ(func->params.size(), num_input + 1);
+    params_ = func->params.back();
+    ICHECK(params_->struct_info_.as<TupleStructInfoNode>());
+    return ExprMutator::VisitExpr_(func);
+  }
+
+ private:
+  Var params_;
+  std::unordered_map<int, Expr> param_remap_;
+};
+
 }  // namespace
 
 namespace transform {
@@ -443,6 +543,9 @@ Pass LiftTransformParams() {
         if (ends_with(func_name, "transform_params")) {
           func = WithAttr(func, tvm::attr::kGlobalSymbol, gvar->name_hint);
           func = BundleModelParams(func);
+          if (pc->GetConfig<Bool>(kLiftTransformConsumeParams).value_or(Bool(false))) {
+            func = Downcast<Function>(ConsumeBundledParams()(func));
+          }
           to_add[gvar] = func;
         } else if (ends_with(func_name, "_runtime")) {
           std::string name(func_name.begin(), func_name.end() - sizeof("_runtime") + 1);

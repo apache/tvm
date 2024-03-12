@@ -256,8 +256,23 @@ LLVMTargetInfo::LLVMTargetInfo(LLVMInstance& instance, const Target& target) {
     }
   }
 
-  // Target options
+  // LLVM JIT engine options
+  if (const Optional<String>& v = target->GetAttr<String>("jit")) {
+    String value = v.value();
+    if ((value == "mcjit") || (value == "orcjit")) {
+      jit_engine_ = value;
+    } else {
+      LOG(FATAL) << "invalid jit option " << value << " (can be `mcjit` or `orcjit`).";
+    }
+  }
 
+  // RISCV code model
+  auto arch = llvm::Triple(triple_).getArch();
+  if (arch == llvm::Triple::riscv32 || arch == llvm::Triple::riscv64) {
+    code_model_ = llvm::CodeModel::Medium;
+  }
+
+  // Target options
 #if TVM_LLVM_VERSION < 50
   target_options_.LessPreciseFPMADOption = true;
 #endif
@@ -523,6 +538,10 @@ std::string LLVMTargetInfo::str() const {
     }
     auto* quote = num > 1 ? "'" : "";
     os << quote << Join(",", opts) << quote;
+  }
+
+  if (jit_engine_ != "mcjit") {
+    os << " -jit=" << jit_engine_;
   }
 
   return os.str();

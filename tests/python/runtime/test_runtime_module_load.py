@@ -22,6 +22,7 @@ import numpy as np
 import subprocess
 import tvm.testing
 from tvm.relay.backend import Runtime
+import pytest
 
 runtime_py = """
 import os
@@ -42,9 +43,9 @@ print("Finish runtime checking...")
 """
 
 
-def test_dso_module_load():
-    if not tvm.testing.device_enabled("llvm"):
-        return
+@tvm.testing.requires_llvm
+@pytest.mark.parametrize("target", ["llvm", "llvm -jit=orcjit"])
+def test_dso_module_load(target):
     dtype = "int64"
     temp = utils.tempdir()
 
@@ -63,7 +64,7 @@ def test_dso_module_load():
         mod = tvm.IRModule.from_expr(
             tvm.tir.PrimFunc([Ab], stmt).with_attr("global_symbol", "main")
         )
-        m = tvm.driver.build(mod, target="llvm")
+        m = tvm.driver.build(mod, target=target)
         for name in names:
             m.save(name)
 
@@ -167,6 +168,7 @@ def test_device_module_dump():
         check_stackvm(device)
 
 
+@tvm.testing.requires_llvm
 def test_combine_module_llvm():
     """Test combine multiple module into one shared lib."""
     # graph
@@ -178,9 +180,6 @@ def test_combine_module_llvm():
 
     def check_llvm():
         dev = tvm.cpu(0)
-        if not tvm.testing.device_enabled("llvm"):
-            print("Skip because llvm is not enabled")
-            return
         temp = utils.tempdir()
         fadd1 = tvm.build(s, [A, B], "llvm", name="myadd1")
         fadd2 = tvm.build(s, [A, B], "llvm", name="myadd2")

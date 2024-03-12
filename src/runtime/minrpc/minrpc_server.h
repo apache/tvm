@@ -344,6 +344,8 @@ class MinRPCExecute : public MinRPCExecInterface {
       call_ecode = TVMArrayFree(static_cast<TVMArrayHandle>(handle));
     } else if (type_code == kTVMPackedFuncHandle) {
       call_ecode = TVMFuncFree(handle);
+    } else if (type_code == kTVMObjectHandle) {
+      call_ecode = TVMObjectFree(handle);
     } else {
       MINRPC_CHECK(type_code == kTVMModuleHandle);
       call_ecode = TVMModFree(handle);

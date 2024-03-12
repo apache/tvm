@@ -16,10 +16,14 @@
 # under the License.
 """Neural network related operators."""
 from .nn import (
+    adaptive_avg_pool1d,
     adaptive_avg_pool2d,
+    adaptive_avg_pool3d,
     attention,
     attention_var_len,
+    avg_pool1d,
     avg_pool2d,
+    avg_pool3d,
     batch_norm,
     conv1d,
     conv1d_transpose,
@@ -34,7 +38,9 @@ from .nn import (
     layer_norm,
     leakyrelu,
     log_softmax,
+    max_pool1d,
     max_pool2d,
+    max_pool3d,
     nll_loss,
     pad,
     relu,

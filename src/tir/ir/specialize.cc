@@ -109,6 +109,8 @@ class PrimFuncSpecializer : public StmtExprMutator {
       f_ptr->params = std::move(params);
       f_ptr->buffer_map = std::move(buffer_map);
       f_ptr->body = std::move(body);
+      f_ptr->struct_info_ = NullOpt;
+      f_ptr->checked_type_ = Type(nullptr);
     }
     return f;
   }

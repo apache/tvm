@@ -155,6 +155,7 @@ class MetalWorkspace final : public DeviceAPI {
   void FreeStream(Device dev, TVMStreamHandle stream) final;
   void StreamSync(Device dev, TVMStreamHandle stream) final;
   void SetStream(Device dev, TVMStreamHandle stream) final;
+  TVMStreamHandle GetCurrentStream(Device dev) final;
   void* AllocWorkspace(Device dev, size_t size, DLDataType type_hint) final;
   void FreeWorkspace(Device dev, void* data) final;
   void ReinitializeDefaultStreams();

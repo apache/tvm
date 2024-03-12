@@ -1279,6 +1279,7 @@ out_layout)`
             orig_call.attrs.padding,
             orig_call.attrs.dilation,
             orig_call.attrs.ceil_mode,
+            orig_call.attrs.count_include_pad,
             orig_call.attrs.layout,
             orig_call.attrs.out_layout,
         )
@@ -1310,6 +1311,7 @@ out_layout)`
             orig_call.attrs.padding,
             orig_call.attrs.dilation,
             orig_call.attrs.ceil_mode,
+            orig_call.attrs.count_include_pad,
             orig_call.attrs.layout,
             orig_call.attrs.out_layout,
         )

@@ -251,5 +251,29 @@ def test_batch_gemv():
     tvm.ir.assert_structural_equal(mod["main"], expected)
 
 
+def test_reduction_symbolic_var():
+    # fmt: off
+    @T.prim_func(private=True)
+    def before(var_A: T.handle, var_B: T.handle, matmul: T.Buffer((T.int64(1), T.int64(32), T.int64(1), T.int64(128)), "float32")):
+        T.func_attr({"tir.noalias": T.bool(True)})
+        kv_seq_len = T.int64()
+        A = T.match_buffer(var_A, (T.int64(1), T.int64(32), T.int64(1), kv_seq_len))
+        B = T.match_buffer(var_B, (T.int64(1), T.int64(32), kv_seq_len, T.int64(128)))
+        # with T.block("root"):
+        for i0, i1, i2, i3, k in T.grid(T.int64(1), T.int64(32), T.int64(1), T.int64(128), kv_seq_len):
+            with T.block("matmul"):
+                v_i0, v_i1, v_i2, v_i3, v_k = T.axis.remap("SSSSR", [i0, i1, i2, i3, k])
+                T.reads(A[v_i0, v_i1, v_i2, v_k], B[v_i0, v_i1, v_k, v_i3])
+                T.writes(matmul[v_i0, v_i1, v_i2, v_i3])
+                with T.init():
+                    matmul[v_i0, v_i1, v_i2, v_i3] = T.float32(0)
+                matmul[v_i0, v_i1, v_i2, v_i3] = matmul[v_i0, v_i1, v_i2, v_i3] + A[v_i0, v_i1, v_i2, v_k] * B[v_i0, v_i1, v_k, v_i3]
+    # fmt: on
+    mod = tvm.IRModule({"main": before})
+    with Target("metal"):
+        mod = dl.ApplyDefaultSchedule(dl.gpu.LowBatchGEMV(4))(mod)
+    tvm.ir.assert_structural_equal(mod["main"], before)
+
+
 if __name__ == "__main__":
     tvm.testing.main()

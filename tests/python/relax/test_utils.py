@@ -122,5 +122,28 @@ def test_copy_with_new_vars_on_ir_module_nested_function():
     assert_structural_equal(Actual, Expected)
 
 
+def test_structural_equal_of_call_nodes():
+    """relax.Call must be compared by structural equality, not reference"""
+
+    # Three identical calls to relax.op.zeros
+    calls_to_op_zero = [relax.op.zeros([16], "int32") for _ in range(3)]
+
+    @R.function(private=True)
+    def uses_same_object_twice():
+        A = calls_to_op_zero[0]
+        B = calls_to_op_zero[0]
+        C = R.add(A, B)
+        return C
+
+    @R.function(private=True)
+    def uses_two_different_objects():
+        A = calls_to_op_zero[1]
+        B = calls_to_op_zero[2]
+        C = R.add(A, B)
+        return C
+
+    tvm.ir.assert_structural_equal(uses_same_object_twice, uses_two_different_objects)
+
+
 if __name__ == "__main__":
     pytest.main([__file__])

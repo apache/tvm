@@ -186,6 +186,10 @@ class ROCMDeviceAPI final : public DeviceAPI {
     ROCMThreadEntry::ThreadLocal()->stream = static_cast<hipStream_t>(stream);
   }
 
+  TVMStreamHandle GetCurrentStream(Device dev) final {
+    return static_cast<TVMStreamHandle>(ROCMThreadEntry::ThreadLocal()->stream);
+  }
+
   void* AllocWorkspace(Device dev, size_t size, DLDataType type_hint) final {
     return ROCMThreadEntry::ThreadLocal()->pool.AllocWorkspace(dev, size);
   }

@@ -28,3 +28,13 @@ python3 3rdparty/dmlc-core/scripts/lint.py --quiet tvm cpp \
 			"src/runtime/hexagon/rpc/hexagon_rpc_skel.c" \
 			"src/runtime/hexagon/rpc/hexagon_rpc_stub.c" \
 			"src/relay/backend/contrib/libtorch/libtorch_codegen.cc"
+
+
+if find src -name "*.cc" -exec grep -Hn '^#include <regex>$' {} +; then
+    echo "The <regex> header file may not be used in TVM," 1>&2
+    echo "because it causes ABI incompatibility with most pytorch installations." 1>&2
+    echo "Pytorch packages on PyPI currently set `-DUSE_CXX11_ABI=0`," 1>&2
+    echo "which causes ABI compatibility when calling <regex> functions." 1>&2
+    echo "See https://github.com/pytorch/pytorch/issues/51039 for more details." 1>&2
+    exit 1
+fi

@@ -246,6 +246,39 @@ def test_conv2d():
     assert_structural_equal(tvm_mod["forward"], forward, True)
 
 
+def test_conv3d():
+    @R.function
+    def forward(
+        x: R.Tensor((1, 3, 32, 32, 32), dtype="float32"),
+        _io: R.Object,
+        weight: R.Tensor((32, 3, 3, 3, 3), dtype="float32"),
+        bias: R.Tensor((32,), dtype="float32"),
+    ) -> R.Tuple(R.Tensor((1, 32, 30, 30, 30), dtype="float32"), R.Tuple(R.Object)):
+        R.func_attr({"num_input": 2})
+        with R.dataflow():
+            lv1: R.Tensor((1, 32, 30, 30, 30), dtype="float32") = R.nn.conv3d(x, weight)
+            lv2: R.Tensor((1, 32, 1, 1, 1), dtype="float32") = R.reshape(
+                bias, R.shape([1, 32, 1, 1, 1])
+            )
+            conv3d: R.Tensor((1, 32, 30, 30, 30), dtype="float32") = R.add(lv1, lv2)
+            gv1: R.Tuple(
+                R.Tensor((1, 32, 30, 30, 30), dtype="float32"), R.Tuple(R.Object)
+            ) = conv3d, (_io,)
+            R.output(gv1)
+        return gv1
+
+    mod = modules.Conv3D(3, 32, 3, bias=True)
+    tvm_mod, _ = mod.export_tvm(
+        spec={
+            "forward": {
+                "x": spec.Tensor([1, 3, 32, 32, 32], "float32"),
+            }
+        },
+        debug=True,
+    )
+    assert_structural_equal(tvm_mod["forward"], forward, True)
+
+
 def test_conv2d_dynamic():
     @R.function
     def forward(
@@ -451,15 +484,15 @@ def test_kv_cache():
                 lv: R.Tensor((8, 2, 4), dtype="float32") = R.zeros(
                     R.shape([8, 2, 4]), dtype="float32"
                 )
-                cache: R.Object = R.call_packed(
+                cache: R.Object = R.call_pure_packed(
                     "vm.builtin.attention_kv_cache_create",
                     lv,
                     R.shape([8, 2, 4]),
                     R.prim_value(0),
                     sinfo_args=(R.Object,),
                 )
-                lv1: R.Tuple(R.Object, R.Object) = _io, cache
-                gv: R.Tuple(R.Object, R.Object) = lv1
+                lv1 = _io, cache
+                gv = lv1
                 R.output(gv)
             return gv
 
@@ -469,10 +502,10 @@ def test_kv_cache():
         ) -> R.Tuple(R.Tensor((4, 2, 4), dtype="float32"), R.Tuple(R.Object, R.Object)):
             R.func_attr({"num_input": 3})
             with R.dataflow():
-                lv2: R.Object = R.call_packed(
+                lv2: R.Object = R.call_pure_packed(
                     "vm.builtin.attention_kv_cache_append", cache, x, sinfo_args=(R.Object,)
                 )
-                lv3: R.Tensor((4, 2, 4), dtype="float32") = R.call_packed(
+                lv3: R.Tensor((4, 2, 4), dtype="float32") = R.call_pure_packed(
                     "vm.builtin.attention_kv_cache_view",
                     lv2,
                     R.shape([4, 2, 4]),

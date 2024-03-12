@@ -188,7 +188,7 @@ class TensorRTQuantizerFactory(object):
                         {name: data.asnumpy() for name, data in step_context["datas"].items()}
                     )
                     for name, data in step_context["datas"].items():
-                        self.debug_tensor(data, name, "any", "ctx_gathered")
+                        self.debug_tensors(name, "any", "ctx_gather", {"gather": data})
                 super()._execute_before_forward(step_context)
 
             def _quantize_tensor(
@@ -261,12 +261,8 @@ class TensorRTQuantizerFactory(object):
                         generate_config["codegen"], self._calibrate_savers, self._range_files
                     ):
                         saver.finalize()
-                        self._logger.debug(
-                            "%ssave %d datas to %s",
-                            self.msg_mark(in_forward=False),
-                            self._forward_cnt,
-                            saver.folder,
-                        )
+                        msg = "Save {} batch to {}".format(self._forward_cnt, saver.folder)
+                        self._logger.debug(self.msg_mark(msg, in_forward=False))
                         config.update(
                             {"dataset": saver.folder, "range_file": r_file, "precision": "int8"}
                         )

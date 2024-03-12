@@ -25,6 +25,7 @@ import { Disposable } from "./types";
 import { Memory, CachedCallStack } from "./memory";
 import { assert, StringToUint8Array } from "./support";
 import { Environment } from "./environment";
+import { AsyncifyHandler } from "./asyncify";
 import { FunctionInfo, WebGPUContext } from "./webgpu";
 import { ArtifactCacheTemplate } from "./artifact_cache";
 
@@ -32,9 +33,16 @@ import * as compact from "./compact";
 import * as ctypes from "./ctypes";
 
 /**
- * Type for PackedFunc inthe TVMRuntime.
+ * Type for PackedFunc in the TVMRuntime.
  */
 export type PackedFunc = ((...args: any) => any) &
+  Disposable & { _tvmPackedCell: PackedFuncCell };
+
+/**
+ * Type for AyncPackedFunc in TVMRuntime
+ * possibly may contain stack unwinding through Asynctify
+ */
+export type AsyncPackedFunc = ((...args: any) => Promise<any>) &
   Disposable & { _tvmPackedCell: PackedFuncCell };
 
 /**
@@ -79,7 +87,6 @@ class FFILibrary implements Disposable {
     if (code != 0) {
       const msgPtr = (this.exports
         .TVMGetLastError as ctypes.FTVMGetLastError)();
-      console.log("Here");
       throw new Error("TVMError: " + this.memory.loadCString(msgPtr));
     }
   }
@@ -1057,6 +1064,7 @@ export class Instance implements Disposable {
   private env: Environment;
   private objFactory: Map<number, FObjectConstructor>;
   private ctx: RuntimeContext;
+  private asyncifyHandler: AsyncifyHandler;
   private initProgressCallback: Array<InitProgressCallback> = [];
 
   /**
@@ -1099,6 +1107,7 @@ export class Instance implements Disposable {
     this.lib = new FFILibrary(wasmInstance, env.imports);
     this.memory = this.lib.memory;
     this.exports = this.lib.exports;
+    this.asyncifyHandler = new AsyncifyHandler(this.exports, this.memory.memory);
     this.objFactory = new Map<number, ObjectConstructor>();
     this.ctx = new RuntimeContext(
       (name: string) => {
@@ -1138,6 +1147,14 @@ export class Instance implements Disposable {
       results.push((tend - tstart) / number);
     }
     return results;
+  }
+
+  /**
+   * Check whether we enabled asyncify mode
+   * @returns The asynctify mode toggle
+   */
+  asyncifyEnabled(): boolean {
+    return this.asyncifyHandler.enabled();
   }
 
   dispose(): void {
@@ -1922,13 +1939,55 @@ export class Instance implements Disposable {
     }
     this.objFactory.set(typeIndex, func);
   }
+
   /**
-   * Register an asyncfunction to be global function in the server.
+   * Wrap a function obtained from tvm runtime as AsyncPackedFunc
+   * through the asyncify mechanism
+   *
+   * You only need to call it if the function may contain callback into async
+   * JS function via asynctify. A common one can be GPU synchronize.
+   *
+   * It is always safe to wrap any function as Asynctify, however you do need
+   * to make sure you use await when calling the funciton.
+   *
+   * @param func The PackedFunc.
+   * @returns The wrapped AsyncPackedFunc
+   */
+  wrapAsyncifyPackedFunc(func: PackedFunc): AsyncPackedFunc {
+    const asyncFunc = this.asyncifyHandler.wrapExport(func) as AsyncPackedFunc;
+    asyncFunc.dispose = func.dispose;
+    asyncFunc._tvmPackedCell = func._tvmPackedCell;
+    return asyncFunc;
+  }
+
+  /**
+   * Register async function as asynctify callable in global environment.
+   *
    * @param name The name of the function.
    * @param func function to be registered.
    * @param override Whether overwrite function in existing registry.
    *
-   * @note The async function will only be used for serving remote calls in the rpc.
+   * @note This function is handled via asynctify mechanism
+   * The wasm needs to be compiled with Asynctify
+   */
+  registerAsyncifyFunc(
+    name: string,
+    func: (...args: Array<any>) => Promise<any>,
+    override = false
+  ): void {
+    const asyncWrapped = this.asyncifyHandler.wrapImport(func);
+    this.registerFunc(name, asyncWrapped, override);
+  }
+
+  /**
+   * Register an asyncfunction to be global function in the server.
+   *
+   * @param name The name of the function.
+   * @param func function to be registered.
+   * @param override Whether overwrite function in existing registry.
+   *
+   * @note The async function will only be used for serving remote calls in the rpc
+   * These functions contains explicit continuation
    */
   registerAsyncServerFunc(
     name: string,
@@ -2036,6 +2095,11 @@ export class Instance implements Disposable {
     this.registerAsyncServerFunc("wasm.WebGPUWaitForTasks", async () => {
       await webGPUContext.sync();
     });
+    if (this.asyncifyHandler.enabled()) {
+      this.registerAsyncifyFunc("__asyncify.WebGPUWaitForTasks", async () => {
+        await webGPUContext.sync();
+      });
+    }
     this.lib.webGPUContext = webGPUContext;
   }
 
@@ -2281,7 +2345,6 @@ export class Instance implements Disposable {
       // normal return path
       // recycle all js object value in function unless we want to retain them.
       this.ctx.endScope();
-
       if (rv !== undefined && rv !== null) {
         const stack = lib.getOrAllocCallStack();
         const valueOffset = stack.allocRawBytes(SizeOf.TVMValue);
@@ -2320,8 +2383,10 @@ export class Instance implements Disposable {
       const rvaluePtr = stack.ptrFromOffset(rvalueOffset);
       const rcodePtr = stack.ptrFromOffset(rcodeOffset);
 
-      // commit to wasm memory, till rvalueOffset (the return value don't need to be committed)
-      stack.commitToWasmMemory(rvalueOffset);
+      // pre-store the rcode to be null, in case caller unwind
+      // and not have chance to reset this rcode.
+      stack.storeI32(rcodeOffset, ArgTypeCode.Null);
+      stack.commitToWasmMemory();
 
       this.lib.checkCall(
         (this.exports.TVMFuncCall as ctypes.FTVMFuncCall)(

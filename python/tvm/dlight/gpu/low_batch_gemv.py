@@ -98,7 +98,14 @@ def is_gemv(sch: tir.Schedule, block_info: BlockInfo) -> Optional[List[tir.Buffe
         for iter_var in block_stmt.iter_vars
         if isinstance(iter_var.dom.extent, tir.IntImm)
     )
-    if len(const_iter_vars) == len(block_stmt.iter_vars):
+    if len(block_stmt.iter_vars) - len(const_iter_vars) != 1:
+        return None
+    symbolic_iter_var = list(
+        iter_var
+        for iter_var in block_stmt.iter_vars
+        if not isinstance(iter_var.dom.extent, tir.IntImm)
+    )[0]
+    if symbolic_iter_var.iter_type != tir.stmt.IterVar.DataPar:
         return None
     ret = [
         read.buffer
@@ -220,7 +227,8 @@ class LowBatchGEMV(GPUScheduleRule):
             return None
         sch = tir.Schedule(func)
         block_infos = normalize_prim_func(sch)
-
+        if block_infos is None:
+            return None
         reduction_block_infos = [
             block_info for block_info in block_infos if block_info.is_reduction()
         ]

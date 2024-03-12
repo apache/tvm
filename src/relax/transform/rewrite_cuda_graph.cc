@@ -348,7 +348,8 @@ class CUDAGraphRewritePlanner : public ExprVisitor {
   }
 
   bool IsStatic(const Expr& expr, std::vector<const VarNode*>* vars_collector = nullptr) {
-    if (expr->IsInstance<ConstantNode>() || expr->IsInstance<DataTypeImmNode>()) {
+    if (expr->IsInstance<ConstantNode>() || expr->IsInstance<DataTypeImmNode>() ||
+        expr->IsInstance<StringImmNode>()) {
       return true;
     }
     if (const auto* prim_value = expr.as<PrimValueNode>()) {

@@ -21,7 +21,7 @@
  */
 const path = require("path");
 const fs = require("fs");
-const tvmjs = require("../../lib");
+const tvmjs = require("../../dist/tvmjs.bundle");
 
 const wasmPath = tvmjs.wasmPath();
 const wasmSource = fs.readFileSync(path.join(wasmPath, "tvmjs_runtime.wasm"));

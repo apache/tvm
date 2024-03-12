@@ -483,9 +483,9 @@ Stmt InsertCacheStage(const Stmt& stmt, int pos, const Stmt& stage) {
     seq.insert(seq.begin() + pos, stage);
     body = SeqStmt(seq);
   } else if (pos == 0) {
-    body = SeqStmt({stage, stmt});
+    body = SeqStmt({stage, body});
   } else if (pos == 1) {
-    body = SeqStmt({stmt, stage});
+    body = SeqStmt({body, stage});
   } else {
     LOG(FATAL) << "Cannot insert at position " << pos
                << ".  When inserting adjacent to non-SeqStmt, "

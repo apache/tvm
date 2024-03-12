@@ -520,7 +520,8 @@ def visit_return(self: Parser, node: doc.Return) -> None:
     node : doc.Return
         The doc AST return node.
     """
-    self.report_error(node, "Return is not allowed.")
+    value = self.eval_expr(node.value)
+    T.evaluate(tvm.tir.ret(value))
 
 
 @dispatch.register(token="tir", type_name="tvm_declare_function")

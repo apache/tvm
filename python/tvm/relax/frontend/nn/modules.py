@@ -19,7 +19,7 @@
 from typing import List, Optional, Sequence, Union
 
 from tvm import relax as rx
-from tvm import tir
+from tvm import tir, ir
 
 from . import op
 from .core import Effect, Module, ModuleList, Parameter, Tensor, get_default_dtype
@@ -218,22 +218,23 @@ class Conv2D(Module):
         self,
         in_channels: int,
         out_channels: int,
-        kernel_size: int,
+        kernel_size: Union[List[int], int],
         stride: int = 1,
         padding: int = 0,
         dilation: int = 1,
         groups: int = 1,
         bias: bool = True,
         dtype: Optional[str] = None,
+        data_layout: str = "NCHW",
     ):
         super().__init__()
         self.in_channels = in_channels
         self.out_channels = out_channels
-        self.kernel_size = kernel_size
         self.stride = stride
         self.padding = padding
         self.dilation = dilation
         self.groups = groups
+        self.data_layout = data_layout
 
         # Allow dynamic input channels.
         if isinstance(self.in_channels, int):
@@ -241,15 +242,16 @@ class Conv2D(Module):
         else:
             in_channels = tir.floordiv(self.in_channels, self.groups)
 
-        self.weight = Parameter(
-            (
-                self.out_channels,
-                in_channels,
-                self.kernel_size,
-                self.kernel_size,
-            ),
-            dtype,
-        )
+        # Expand kernel size if provided an integer.
+        if isinstance(kernel_size, int):
+            self.kernel_size = [kernel_size] * 2
+        else:
+            self.kernel_size = kernel_size
+
+        kernel_shape = [self.out_channels, in_channels] + list(self.kernel_size)
+
+        self.weight = Parameter(kernel_shape, dtype)
+
         if bias:
             self.bias = Parameter((self.out_channels,), dtype)
         else:
@@ -270,7 +272,88 @@ class Conv2D(Module):
             The output tensor for the conv2d layer.
         """
         return op.conv2d(
-            x, self.weight, self.bias, self.stride, self.padding, self.dilation, self.groups
+            x,
+            self.weight,
+            self.bias,
+            self.stride,
+            self.padding,
+            self.dilation,
+            self.groups,
+            self.data_layout,
+        )
+
+
+class Conv3D(Module):
+    """
+    Module for conv3d layer.
+    """
+
+    def __init__(  # pylint: disable=too-many-arguments
+        self,
+        in_channels: int,
+        out_channels: int,
+        kernel_size: Union[List[int], int],
+        stride: Union[List[int], int] = 1,
+        padding: Union[List[int], int] = 0,
+        dilation: int = 1,
+        groups: int = 1,
+        bias: bool = True,
+        dtype: Optional[str] = None,
+        data_layout: str = "NCDHW",
+    ):
+        super().__init__()
+        self.in_channels = in_channels
+        self.out_channels = out_channels
+        self.stride = stride
+        self.padding = padding
+        self.dilation = dilation
+        self.groups = groups
+        self.data_layout = data_layout
+
+        # Allow dynamic input channels.
+        if isinstance(self.in_channels, int):
+            in_channels = int(self.in_channels / self.groups)
+        else:
+            in_channels = tir.floordiv(self.in_channels, self.groups)
+
+        # Expand kernel size if given an integer.
+        if isinstance(kernel_size, int):
+            self.kernel_size = [kernel_size] * 3
+        else:
+            self.kernel_size = kernel_size
+
+        kernel_shape = [self.out_channels, self.in_channels] + list(self.kernel_size)
+
+        self.weight = Parameter(kernel_shape, dtype)
+
+        if bias:
+            self.bias = Parameter((self.out_channels,), dtype)
+        else:
+            self.bias = None
+
+    def forward(self, x: Tensor) -> Tensor:  # pylint: disable=invalid-name
+        """
+        Forward method for conv3d layer.
+
+        Parameters
+        ----------
+        x : Tensor
+            The input tensor.
+
+        Returns
+        -------
+        ret : Tensor
+            The output tensor for the conv3d layer.
+        """
+        return op.conv3d(
+            x,
+            self.weight,
+            self.bias,
+            self.stride,
+            self.padding,
+            self.dilation,
+            self.groups,
+            self.data_layout,
         )
 
 
@@ -517,8 +600,13 @@ class KVCache(Effect):
         return [
             bb.emit(
                 rx.Call(
-                    rx.extern("vm.builtin.attention_kv_cache_create"),
-                    args=[rx.op.zeros(init_shape, self.dtype), init_shape, rx.PrimValue(0)],
+                    ir.Op.get("relax.call_pure_packed"),
+                    args=[
+                        rx.extern("vm.builtin.attention_kv_cache_create"),
+                        rx.op.zeros(init_shape, self.dtype),
+                        init_shape,
+                        rx.PrimValue(0),
+                    ],
                     sinfo_args=[rx.ObjectStructInfo()],
                 ),
                 name_hint=name_hint,
@@ -588,8 +676,12 @@ class KVCache(Effect):
         return Tensor(
             _expr=rx.BlockBuilder.current().emit(
                 rx.Call(
-                    rx.extern("vm.builtin.attention_kv_cache_view"),
-                    args=[self.cache, shape],
+                    ir.Op.get("relax.call_pure_packed"),
+                    args=[
+                        rx.extern("vm.builtin.attention_kv_cache_view"),
+                        self.cache,
+                        shape,
+                    ],
                     sinfo_args=[rx.TensorStructInfo(shape, self.dtype)],
                 )
             )
@@ -611,8 +703,12 @@ class KVCache(Effect):
             )
         self.cache = rx.BlockBuilder.current().emit(
             rx.Call(
-                rx.extern("vm.builtin.attention_kv_cache_append"),
-                args=[self.cache, new_element._expr],
+                ir.Op.get("relax.call_pure_packed"),
+                args=[
+                    rx.extern("vm.builtin.attention_kv_cache_append"),
+                    self.cache,
+                    new_element._expr,
+                ],
                 sinfo_args=[rx.ObjectStructInfo()],
             )
         )

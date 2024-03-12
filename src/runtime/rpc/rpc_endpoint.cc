@@ -1006,6 +1006,11 @@ void RPCDevSetStream(RPCSession* handler, TVMArgs args, TVMRetValue* rv) {
   handler->GetDeviceAPI(dev)->SetStream(dev, stream);
 }
 
+void RPCDevGetCurrentStream(RPCSession* handler, TVMArgs args, TVMRetValue* rv) {
+  Device dev = args[0];
+  *rv = handler->GetDeviceAPI(dev)->GetCurrentStream(dev);
+}
+
 void RPCEndpoint::EventHandler::HandleSyscall(RPCCode code) {
   // Event handler sit at clean state at this point.
   switch (code) {
@@ -1042,6 +1047,9 @@ void RPCEndpoint::EventHandler::HandleSyscall(RPCCode code) {
       break;
     case RPCCode::kDevSetStream:
       SysCallHandler(RPCDevSetStream);
+      break;
+    case RPCCode::kDevGetCurrentStream:
+      SysCallHandler(RPCDevGetCurrentStream);
       break;
     case RPCCode::kCopyAmongRemote:
       SysCallHandler(RPCCopyAmongRemote);
@@ -1186,6 +1194,10 @@ class RPCClientSession : public RPCSession, public DeviceAPI {
 
   void SetStream(Device dev, TVMStreamHandle stream) final {
     endpoint_->SysCallRemote(RPCCode::kDevSetStream, dev, stream);
+  }
+
+  TVMStreamHandle GetCurrentStream(Device dev) final {
+    return endpoint_->SysCallRemote(RPCCode::kDevGetCurrentStream, dev);
   }
 
   DeviceAPI* GetDeviceAPI(Device dev, bool allow_missing) final { return this; }
