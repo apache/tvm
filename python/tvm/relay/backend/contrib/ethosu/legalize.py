@@ -154,20 +154,19 @@ def get_lut_from_func(
         return lut_values
     else:
         # dtype == "int16"
-        input_min = ifm_scale * (np.iinfo(np.int16).min - ifm_zp)
-        input_max = ifm_scale * (np.iinfo(np.int16).max - ifm_zp)
+        table_min = np.iinfo(np.int16).min
+        table_max = np.iinfo(np.int16).max
 
-        output_min = ofm_scale * (np.iinfo(np.int16).min - ofm_zp)
-        output_max = ofm_scale * (np.iinfo(np.int16).max - ofm_zp)
+        input_min = ifm_scale * (table_min - ifm_zp)
+        input_max = ifm_scale * (table_max - ifm_zp)
+
+        output_min = ofm_scale * (table_min - ofm_zp)
+        output_max = ofm_scale * (table_max - ofm_zp)
         # Create 16 bit lut following the reference
         nbr_steps = 512
         step = (input_max - input_min) / nbr_steps
         half_step = step / 2
-        output_scaling_inv = (np.iinfo(np.int16).max - np.iinfo(np.int16).min + 1) / (
-            output_max - output_min
-        )
-        table_min = np.iinfo(np.int16).min
-        table_max = np.iinfo(np.int16).max
+        output_scaling_inv = (table_max - table_min + 1) / (output_max - output_min)
 
         values = []
         for i in range(nbr_steps):
