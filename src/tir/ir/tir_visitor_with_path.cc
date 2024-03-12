@@ -180,7 +180,16 @@ void TIRVisitorWithPath::VisitStmt_(const AttrStmtNode* op, ObjectPath path) {
     // Some attributes serve as a source of definition for the
     // tir::Var they annotate.
     context.push_back(WithDef(iter_var.value(), path->Attr("node")));
+
   } else if (op->attr_key == attr::buffer_bind_scope) {
+    // The `attr::buffer_bind_scope` attribute defines a view into an
+    // existing buffer, similar to the newer
+    // `BlockNode::match_buffers` field.  It requires the buffer being
+    // viewed to be defined prior to the attribute.  The
+    // `attr::buffer_bind_scope` is the point of definition for the
+    // `tir::Buffer buffer_view`, its `tir::Var` data pointer, and any
+    // symbolic shapes used within `buffer_view that are not already
+    // defined.
     Array<ObjectRef> arr = Downcast<Array<ObjectRef>>(op->node);
     ICHECK_EQ(arr.size(), 2U);
     Buffer buffer_view = Downcast<Buffer>(arr[0]);
@@ -195,6 +204,10 @@ void TIRVisitorWithPath::VisitStmt_(const AttrStmtNode* op, ObjectPath path) {
     Visit(expr.value(), path->Attr("node"));
   }
   Visit(op->body, path->Attr("body"));
+
+  while (context.size()) {
+    context.pop_back();
+  }
 }
 
 void TIRVisitorWithPath::VisitStmt_(const ForNode* op, ObjectPath path) {
