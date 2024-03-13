@@ -119,7 +119,12 @@ impl IRModule {
         let types = HashMap::<GlobalTypeVar, TypeData>::new();
         let attrs = HashMap::<TVMString, ObjectRef>::new();
         let global_infos = HashMap::<TVMString, ObjectRef>::new();
-        IRModule::new(funcs.iter(), types.iter(), attrs.iter(), global_infos.iter())
+        IRModule::new(
+            funcs.iter(),
+            types.iter(),
+            attrs.iter(),
+            global_infos.iter(),
+        )
     }
 
     pub fn parse<N, S>(file_name: N, source: S) -> Result<IRModule>
@@ -391,5 +396,4 @@ mod tests {
 
         Ok(())
     }
-    
 }

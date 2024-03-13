@@ -40,7 +40,7 @@ pub mod attrs;
 pub struct ExprNode {
     pub base: BaseExprNode,
     pub checked_type: Type,
-    pub struct_info: ObjectRef,  // FIXME: this is actually an Optional
+    pub struct_info: ObjectRef, // FIXME: this is actually an Optional
     pub virtual_device: ObjectRef,
 }
 
