@@ -32,10 +32,6 @@ pub use super::expr::{GlobalVar, GlobalVarNode};
 pub use crate::runtime::DataType;
 
 pub mod attrs;
-pub mod nn;
-pub mod reduce;
-pub mod tensor;
-pub mod transform;
 
 #[repr(C)]
 #[derive(Object, Debug)]
@@ -44,6 +40,7 @@ pub mod transform;
 pub struct ExprNode {
     pub base: BaseExprNode,
     pub checked_type: Type,
+    pub struct_info: ObjectRef,  // FIXME: this is actually an Optional
     pub virtual_device: ObjectRef,
 }
 
@@ -52,6 +49,7 @@ impl ExprNode {
         ExprNode {
             base: BaseExprNode::base::<T>(span.clone()),
             checked_type: Type::null(),
+            struct_info: ObjectRef::null(),
             virtual_device: ObjectRef::null(),
         }
     }
@@ -171,7 +169,7 @@ impl Call {
     ) -> Call {
         let node = CallNode {
             base: ExprNode::base::<CallNode>(span),
-            deleter: ObjectRef::null(), //FIXME (cgerum) - look at what should be the actual value
+            deleter: todo!("Don't know how to construct this"),
             op: op,
             args: args,
             attrs: attrs,

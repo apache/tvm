@@ -76,38 +76,6 @@ pub struct Conv2DAttrsNode {
     pub out_dtype: DataType,
 }
 
-impl Conv2DAttrs {
-    pub fn new(
-        strides: Array<IndexExpr>,
-        padding: Array<IndexExpr>,
-        dilation: Array<IndexExpr>,
-        groups: i32,
-        channels: IndexExpr,
-        kernel_size: Array<IndexExpr>,
-        data_layout: TString,
-        kernel_layout: TString,
-        out_layout: TString,
-        auto_scheduler_rewritten_layout: TString,
-        out_dtype: DataType,
-    ) -> Conv2DAttrs {
-        let conv2d_attrs_node = Conv2DAttrsNode {
-            base: BaseAttrsNode::base::<Conv2DAttrsNode>(),
-            strides,
-            padding,
-            dilation,
-            groups,
-            channels,
-            kernel_size,
-            data_layout,
-            kernel_layout,
-            out_layout,
-            auto_scheduler_rewritten_layout,
-            out_dtype,
-        };
-        Conv2DAttrs(Some(ObjectPtr::new(conv2d_attrs_node)))
-    }
-}
-
 #[repr(C)]
 #[derive(Object, Debug)]
 #[ref_name = "Conv2DTransposeAttrs"]
