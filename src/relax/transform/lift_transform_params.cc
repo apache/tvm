@@ -29,6 +29,7 @@
 #include <tvm/runtime/logging.h>
 
 #include <iostream>
+#include <optional>
 #include <tuple>
 #include <vector>
 
@@ -40,6 +41,9 @@ namespace relax {
 
 constexpr const char* kLiftTransformConsumeParams = "relax.lift_transform_params.consume_params";
 TVM_REGISTER_PASS_CONFIG_OPTION(kLiftTransformConsumeParams, Bool);
+
+constexpr const char* kLiftTransformGlobal = "relax.lift_transform_params.lift_globally";
+TVM_REGISTER_PASS_CONFIG_OPTION(kLiftTransformGlobal, Bool);
 
 namespace {
 
@@ -133,6 +137,40 @@ struct CollectInfo {
     }
 
     return params;
+  }
+
+  // TODO(wuwei): this can be an independant function outside the class
+  Function MakeCompileTimeFunction(const Array<Binding>& bindings, const Array<Var> params,
+                                   const Array<tir::Var>& output_symbolic_vars,
+                                   const Array<Var>& outputs) {
+    Array<Binding> output_var_binding;
+    Array<Expr> output_exprs;
+    if (output_symbolic_vars.size()) {
+      output_exprs.push_back(
+          ShapeExpr(output_symbolic_vars.Map([](tir::Var var) -> PrimExpr { return var; })));
+    }
+
+    for (const auto& var : outputs) {
+      Var out_var(var->name_hint() + "_output", GetStructInfo(var));
+      output_var_binding.push_back(VarBinding(out_var, var));
+      output_exprs.push_back(out_var);
+    }
+
+    Var tuple_var("output_tuple", TupleStructInfo(output_exprs.Map(GetStructInfo)));
+    output_var_binding.push_back(VarBinding(tuple_var, Tuple(output_exprs)));
+
+    SeqExpr body(
+        {
+            DataflowBlock(bindings),
+            DataflowBlock(output_var_binding),
+        },
+        tuple_var);
+    Function func(params, body, GetStructInfo(tuple_var));
+    func = WithAttr(func, attr::kNumInput, Integer(0));
+    // LOG(INFO) << "MakeCompileTimeFunction: " << func;
+    func = CopyWithNewVars(func);
+    func = Downcast<Function>(CanonicalizeBindings(func));
+    return func;
   }
 
   Function MakeCompileTimeFunction() const {
@@ -301,91 +339,13 @@ struct CollectInfo {
   }
 };
 
-class LiftableBindingCollector : ExprVisitor {
- public:
-  static CollectInfo Collect(const Function& func) {
-    LiftableBindingCollector visitor;
-    visitor(func);
-    visitor.info_.orig_func = func;
-    return visitor.info_;
-  }
-
- private:
-  void VisitExpr_(const FunctionNode* func) override {
-    size_t num_runtime_params = func->params.size();
-    if (auto opt = func->attrs.GetAttr<Integer>(attr::kNumInput)) {
-      num_runtime_params = opt.value()->value;
-    }
-
-    info_.num_runtime_params = num_runtime_params;
-
-    for (size_t i = num_runtime_params; i < func->params.size(); i++) {
-      liftable_vars_.insert(func->params[i]);
-      info_.requires_compile_time_param.insert(func->params[i]);
-      for (const auto& tir_var : DefinableTIRVarsInStructInfo(GetStructInfo(func->params[i]))) {
-        liftable_vars_.insert(tir_var);
-      }
-    }
-    ExprVisitor::VisitExpr_(func);
-  }
-
+class BaseLiftableBindingCollector : public ExprVisitor {
+ protected:
   void VisitBindingBlock_(const DataflowBlockNode* block) final {
     bool cache = is_in_dataflow_block_;
     is_in_dataflow_block_ = true;
     ExprVisitor::VisitBindingBlock_(block);
     is_in_dataflow_block_ = cache;
-  }
-
-  void VisitBinding(const Binding& binding) override {
-    auto bound_value = GetBoundValue(binding);
-
-    if (CanLiftBinding(binding)) {
-      info_.computable_at_compile_time.push_back(binding);
-      liftable_vars_.insert(binding->var);
-
-      // There are three type of variables we want to distinguish.
-      //
-      // 1. Depend on runtime parameters
-      //
-      //    Must remain within the original function, cannot be
-      //    lifted out into the `transform_params` function.
-      //
-      // 2. Depend on model weights, but not runtime parameters.
-      //
-      //    Legal to lift out into the `transform_params` function.
-      //    Doing so is beneficial, as it reduces the work performed
-      //    in the inference function.
-      //
-      // 3. Depend on neither model weights nor runtime parameters
-      //    (e.g. `R.zeros(shape,dtype)`)
-      //
-      //    Legal to lift out into the `transform_params` function.
-      //    However, doing so would increase the memory footprint of
-      //    the pre-computed parameters, for little to no benefit.
-      //    These may be duplicated between the `transform_params`
-      //    function and the original function, as they typically
-      //    initialize a tensor to an easy-to-compute state.
-      //
-      // Tracking whether a variable depends on the model weights,
-      // either directly or indirectly, allows us to distinguish
-      // between categories (2) and (3).
-      auto upstream_vars = FreeVars(bound_value);
-      bool depends_on_compile_time_param = std::any_of(
-          upstream_vars.begin(), upstream_vars.end(),
-          [&](const Var& var) -> bool { return info_.requires_compile_time_param.count(var); });
-      if (depends_on_compile_time_param) {
-        info_.requires_compile_time_param.insert(binding->var);
-      }
-
-    } else {
-      info_.required_at_runtime.insert(binding->var);
-      for (const auto& upstream_var : FreeVars(bound_value)) {
-        info_.required_at_runtime.insert(upstream_var);
-      }
-      for (const auto& tir_var : FreeSymbolicVars(bound_value)) {
-        info_.required_at_runtime.insert(tir_var);
-      }
-    }
   }
 
   bool CanLiftBinding(const Binding& binding) const {
@@ -427,24 +387,225 @@ class LiftableBindingCollector : ExprVisitor {
     return true;
   }
 
-  CollectInfo info_;
   std::unordered_set<Variant<Var, tir::Var>, ObjectPtrHash, ObjectPtrEqual> liftable_vars_;
   bool is_in_dataflow_block_{false};
 };
 
-class PreprocessPartitioner : public ExprMutator {
+struct GlobalCollectInfo {
+  Map<Var, Expr> var_remap;
+  Array<Binding> unified_bindings;
+};
+
+class LiftableBindingCollector : public BaseLiftableBindingCollector {
  public:
-  using ExprMutator::VisitExpr_;
-  Expr VisitExpr_(const FunctionNode* op) override {
-    auto func = GetRef<Function>(op);
-    if (func->attrs.GetAttr<Integer>(attr::kNumInput)) {
-      auto info = LiftableBindingCollector::Collect(func);
-      return info.MakePartitionedFunction();
+  static CollectInfo Collect(const Function& func, std::optional<GlobalCollectInfo> global_info) {
+    LiftableBindingCollector visitor(global_info);
+    visitor(func);
+    visitor.info_.orig_func = func;
+    return visitor.info_;
+  }
+
+ private:
+  LiftableBindingCollector(std::optional<GlobalCollectInfo> global_info)
+      : global_info_(global_info) {}
+  void VisitExpr_(const FunctionNode* func) override {
+    size_t num_runtime_params = func->params.size();
+    if (auto opt = func->attrs.GetAttr<Integer>(attr::kNumInput)) {
+      num_runtime_params = opt.value()->value;
+    }
+
+    info_.num_runtime_params = num_runtime_params;
+
+    for (size_t i = num_runtime_params; i < func->params.size(); i++) {
+      liftable_vars_.insert(func->params[i]);
+      info_.requires_compile_time_param.insert(func->params[i]);
+      for (const auto& tir_var : DefinableTIRVarsInStructInfo(GetStructInfo(func->params[i]))) {
+        liftable_vars_.insert(tir_var);
+      }
+    }
+    ExprVisitor::VisitExpr_(func);
+  }
+
+  void VisitBinding(const Binding& binding) override {
+    auto bound_value = GetBoundValue(binding);
+
+    if (CanLiftBinding(binding) &&
+        (!global_info_.has_value() || global_info_->var_remap.count(binding->var))) {
+      info_.computable_at_compile_time.push_back(binding);
+      liftable_vars_.insert(binding->var);
+
+      // There are three type of variables we want to distinguish.
+      //
+      // 1. Depend on runtime parameters
+      //
+      //    Must remain within the original function, cannot be
+      //    lifted out into the `transform_params` function.
+      //
+      // 2. Depend on model weights, but not runtime parameters.
+      //
+      //    Legal to lift out into the `transform_params` function.
+      //    Doing so is beneficial, as it reduces the work performed
+      //    in the inference function.
+      //
+      // 3. Depend on neither model weights nor runtime parameters
+      //    (e.g. `R.zeros(shape,dtype)`)
+      //
+      //    Legal to lift out into the `transform_params` function.
+      //    However, doing so would increase the memory footprint of
+      //    the pre-computed parameters, for little to no benefit.
+      //    These may be duplicated between the `transform_params`
+      //    function and the original function, as they typically
+      //    initialize a tensor to an easy-to-compute state.
+      //
+      // Tracking whether a variable depends on the model weights,
+      // either directly or indirectly, allows us to distinguish
+      // between categories (2) and (3).
+      auto upstream_vars = FreeVars(bound_value);
+      bool depends_on_compile_time_param = std::any_of(
+          upstream_vars.begin(), upstream_vars.end(),
+          [&](const Var& var) -> bool { return info_.requires_compile_time_param.count(var); });
+          LOG(INFO) << "upstream_vars: " << upstream_vars;
+      if (depends_on_compile_time_param) {
+        LOG(INFO) << "requires_compile_time_param " << binding->var;
+        info_.requires_compile_time_param.insert(binding->var);
+      }
+
     } else {
-      return func;
+      LOG(INFO) << "requried_at_runtime: " << binding->var << " " << CanLiftBinding(binding) << " "
+                << (global_info_.has_value() && global_info_->var_remap.count(binding->var));
+      info_.required_at_runtime.insert(binding->var);
+      for (const auto& upstream_var : FreeVars(bound_value)) {
+        info_.required_at_runtime.insert(upstream_var);
+      }
+      for (const auto& tir_var : FreeSymbolicVars(bound_value)) {
+        info_.required_at_runtime.insert(tir_var);
+      }
     }
   }
+
+  std::optional<GlobalCollectInfo> global_info_;
+  CollectInfo info_;
 };
+
+class ParamVisitor {};
+
+class ParamRemapper : public ExprFunctor<void(const Expr&, const Expr&)> {
+ public:
+  void VisitExpr_(const VarNode* lhs_var, const Expr& rhs_expr) final {
+    auto rhs_var = Downcast<Var>(rhs_expr);
+    if (auto it = var_remap_.find(GetRef<Var>(lhs_var)); it != var_remap_.end()) {
+      CHECK((*it).second.same_as(rhs_var));
+    } else {
+      LOG(INFO) << "ParamRemapper: " << GetRef<Var>(lhs_var) << " " << lhs_var << " -> " << rhs_var;
+      var_remap_.Set(GetRef<Var>(lhs_var), rhs_var);
+    }
+  }
+
+  Map<Var, Expr> var_remap_;
+};
+
+class GlobalCollector : public BaseLiftableBindingCollector {
+ public:
+  static GlobalCollectInfo Collect(const Array<Function>& functions,
+                                   const Map<Var, Expr>& var_remap) {
+    GlobalCollector collector(var_remap);
+    for (const auto& func : functions) {
+      int num_inputs = func->GetAttr<Integer>(attr::kNumInput).value()->value;
+      for (int i = num_inputs; i < static_cast<int>(func->params.size()); i++) {
+        collector.liftable_vars_.insert(func->params[i]);
+      }
+      collector(func);
+    }
+    GlobalCollectInfo info;
+    info.var_remap = collector.var_remap_;
+    for (const auto& [normalized_expr, original_bindings] : collector.unified_bindings_) {
+      // Note: it is possible that a function has common subexpressions, so it is not necessary to
+      // require original_bindings.size() == functions.size().
+      if (original_bindings.size() % functions.size() == 0) {
+        // All target functions have the same binding
+        // var_remap_[normalized_expr] = original_bindings[0].var;
+        // var_remap_[original_bindings[0].var] = normalized_expr;
+        info.unified_bindings.push_back(original_bindings[0]);
+        LOG(INFO) << "GlobalTransform: " << info.unified_bindings.back();
+        for (const auto& binding : original_bindings) {
+          info.var_remap.Set(binding->var, original_bindings.front()->var);
+          LOG(INFO) << "GlobalTransform: " << binding->var << " -> "
+                    << original_bindings.front()->var;
+        }
+      } else {
+        LOG(INFO) << "GlobalTransform: discard " << normalized_expr;
+      }
+    }
+    return info;
+  }
+
+ private:
+  GlobalCollector(const Map<Var, Expr>& var_remap) : var_remap_(var_remap) {}
+  void VisitBinding(const Binding& binding) override {
+    auto bound_value = GetBoundValue(binding);
+    if (CanLiftBinding(binding)) {
+      liftable_vars_.insert(binding->var);
+      auto new_value = Bind(bound_value, var_remap_);
+      unified_bindings_[new_value].push_back(binding);
+      if (unified_bindings_[new_value].size() > 1) {
+        var_remap_.Set(binding->var, unified_bindings_[new_value].front()->var);
+      }
+    } else {
+      LOG(INFO) << "GlobalTransform: not liftable " << binding->var;
+    }
+  }
+
+  std::unordered_map<Expr, std::vector<Binding>, StructuralHash, StructuralEqual> unified_bindings_;
+  Map<Var, Expr> var_remap_;
+};
+
+GlobalCollectInfo GlobalCollect(IRModule mod) {
+  // Map<GlobalVar, Function> target_functions;
+  std::vector<Function> target_functions;
+  for (const auto& [gvar, func] : mod->functions) {
+    if (func->IsInstance<FunctionNode>()) {
+      auto opt_num_input = func->GetAttr<Integer>(attr::kNumInput);
+      if (opt_num_input) {
+        target_functions.push_back(Downcast<Function>(func));
+      }
+    }
+  }
+
+  ParamRemapper remapper;
+  LOG(INFO) << "GlobalCollect: " << target_functions.size() << " functions found.";
+  if (target_functions.size() > 0) {
+    int num_inputs_0 = target_functions[0]->GetAttr<Integer>(attr::kNumInput).value()->value;
+    int num_params = static_cast<int>(target_functions[0]->params.size()) - num_inputs_0;
+    for (int i = 0; i < static_cast<int>(target_functions.size()); i++) {
+      int num_inputs_i = target_functions[i]->GetAttr<Integer>(attr::kNumInput).value()->value;
+      CHECK_EQ(num_params, static_cast<int>(target_functions[i]->params.size()) - num_inputs_i)
+          << "The number of parameters should be the same for all target functions";
+      LOG(INFO) << "GlobalCollect: " << target_functions[i]->params.size() << " "
+                << target_functions[i]->params;
+      for (int j = 0; j < num_params; j++) {
+        const auto& rhs_param = target_functions[0]->params[num_inputs_0 + j];
+        const auto& lhs_param = target_functions[i]->params[num_inputs_i + j];
+        remapper.VisitExpr(lhs_param, rhs_param);
+        // remapper.VisitExprDepStructInfoField(lhs_param->struct_info_, rhs_param);
+      }
+    }
+  }
+  return GlobalCollector::Collect(target_functions, remapper.var_remap_);
+}
+
+// class PreprocessPartitioner : public ExprMutator {
+//  public:
+//   using ExprMutator::VisitExpr_;
+//   Expr VisitExpr_(const FunctionNode* op) override {
+//     auto func = GetRef<Function>(op);
+//     if (func->attrs.GetAttr<Integer>(attr::kNumInput)) {
+//       auto info = LiftableBindingCollector::Collect(func);
+//       return info.MakePartitionedFunction();
+//     } else {
+//       return func;
+//     }
+//   }
+// };
 
 // Adapted from https://stackoverflow.com/a/2072890
 inline bool ends_with(const std::string& value, const std::string& ending) {
@@ -500,17 +661,73 @@ namespace transform {
 
 Pass PartitionTransformParams() {
   auto pass_func = [=](IRModule mod, PassContext pc) {
-    PreprocessPartitioner mutator;
-
     IRModule updates;
+
+    std::optional<GlobalCollectInfo> global_collect_info = std::nullopt;
+    if (pc->GetConfig<Bool>(kLiftTransformGlobal).value_or(Bool(false))) {
+      global_collect_info = GlobalCollect(mod);
+    }
+    // PreprocessPartitioner mutator(global_collect_info);
+
+    std::unordered_map<GlobalVar, CollectInfo, ObjectPtrHash, ObjectPtrEqual> local_collect_info;
     for (const auto& [gvar, func] : mod->functions) {
-      if (auto opt = func.as<relax::Function>()) {
-        auto new_func = Downcast<Function>(mutator(opt.value()));
-        if (!new_func.same_as(func)) {
-          updates->Add(gvar, new_func);
-        }
+      if (func.as<relax::FunctionNode>() && func->GetAttr<Integer>(attr::kNumInput)) {
+        auto info =
+            LiftableBindingCollector::Collect(Downcast<relax::Function>(func), global_collect_info);
+        local_collect_info[gvar] = info;
       }
     }
+
+    // Combine local collect info. This determines the output of the compile-time functions.
+    if (global_collect_info.has_value()) {
+    }
+    for (const auto& [gvar, info] : local_collect_info) {
+      auto new_runtime_func = info.MakeRuntimeFunction();
+      new_runtime_func = Downcast<Function>(CanonicalizeBindings(new_runtime_func));
+      new_runtime_func.CopyOnWrite()->attrs = info.orig_func->attrs;
+      updates->Add(gvar, new_runtime_func);
+      if (!global_collect_info.has_value()) {
+        Function new_func = info.MakeCompileTimeFunction();
+        String global_symbol = gvar->name_hint + "_transform_params";
+        new_func = WithAttr(new_func, tvm::attr::kGlobalSymbol, global_symbol);
+        updates->Add(GlobalVar(global_symbol), new_func);
+      }
+    }
+    if (global_collect_info.has_value()) {
+      Array<Var> outputs = local_collect_info.begin()->second.GetCompileTimeOutputs();
+      outputs = outputs.Map([&](const Var& var) -> Var {
+        if (!global_collect_info.value().var_remap.count(var)) {
+          LOG(FATAL) << "GlobalCollectInfo does not contain " << var << " " << var.get();
+        }
+        return Downcast<Var>(global_collect_info.value().var_remap[var]);
+      });
+      Array<Var> inputs;
+      inputs = local_collect_info.begin()->second.GetCompileTimeInputs();
+      inputs = inputs.Map([&](const Var& var) -> Var {
+        if (!global_collect_info.value().var_remap.count(var)) {
+          LOG(FATAL) << "GlobalCollectInfo does not contain " << var << " " << var.get();
+        }
+        return Downcast<Var>(global_collect_info.value().var_remap[var]);
+      });
+      Array<Binding> bindings = local_collect_info.begin()->second.computable_at_compile_time;
+      // FIXME(wuwei): need to consider non-VarBinding cases
+      for (int i = 0; i < bindings.size(); i++) {
+        auto binding = bindings[i];
+        bindings.Set(i, VarBinding(Downcast<Var>(global_collect_info.value().var_remap[binding->var]),
+                                   Bind(Downcast<VarBinding>(binding)->value, global_collect_info.value().var_remap)));
+      }
+
+      Function global_transform = local_collect_info.begin()->second.MakeCompileTimeFunction(
+          global_collect_info.value().unified_bindings, inputs,
+          local_collect_info.begin()->second.GetPropagatedSymbolicVariables(), outputs);
+      updates->Add(GlobalVar("transform_params"),
+                   local_collect_info.begin()->second.MakeCompileTimeFunction());
+    }
+    //
+    // for (const auto& [gvar, info] : local_collect_info) {
+
+    //   updates->Add(gvar, info.MakePartitionedFunction());
+    // }
 
     if (updates->functions.size()) {
       mod.CopyOnWrite()->Update(updates);
