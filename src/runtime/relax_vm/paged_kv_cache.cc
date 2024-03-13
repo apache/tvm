@@ -439,12 +439,12 @@ class PagedAttentionKVCacheObj : public AttentionKVCacheObj {
       free_page_ids_.push_back(page_id);
     }
 
-    // The compute stream is the default stream.
     // If the device is CUDA/ROCm, we create a standalone copy stream, in
     // purpose to hide the latency of auxiliary stream copy.
-    compute_stream_ = DeviceAPI::Get(device)->GetCurrentStream(device);
     if (device.device_type == DLDeviceType::kDLCUDA ||
         device.device_type == DLDeviceType::kDLROCM) {
+      // The compute stream is the default stream.
+      compute_stream_ = DeviceAPI::Get(device)->GetCurrentStream(device);
       copy_stream_ = DeviceAPI::Get(device)->CreateStream(device);
     }
   }
