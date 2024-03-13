@@ -978,6 +978,100 @@ def softmax(x: Tensor, axis: int = -1, name: str = "softmax") -> Tensor:
     return wrap_nested(_op.nn.softmax(x._expr, axis), name)
 
 
+def tanh(x: Tensor, name: str = "tanh") -> Tensor:
+    r"""Applies the hyperbolic tangent function.
+
+    .. math::
+        \text{Tanh}(x) = \frac{e^x - e^{-x}}{e^x + e^{-x}}
+
+    Parameters
+    ----------
+    x : Tensor
+        The input data to the operator.
+
+    name : str
+        Name hint.
+
+    Returns
+    -------
+    result : Tensor
+        The computed result.
+
+    Note
+    ----
+    The input tensor is required to have float dtype
+    """
+    return wrap_nested(_op.tanh(x._expr), name)
+
+
+def exp(x: Tensor, name: str = "exp") -> Tensor:
+    r"""Applies the exponential function.
+
+    .. math::
+        \text{Exp}(x) = e^x
+
+    Parameters
+    ----------
+    x : Tensor
+        The input data to the operator.
+
+    name : str
+        Name hint.
+
+    Returns
+    -------
+    result : Tensor
+        The computed result.
+
+    Note
+    ----
+    The input tensor is required to have float dtype
+    """
+    return wrap_nested(_op.exp(x._expr), name)
+
+
+def permute(x: Tensor, axes: Optional[List[int]], name: str = "permute") -> Tensor:
+    """Permutes the dimensions of the input tensor.
+
+    Parameters
+    ----------
+    x : Tensor
+        The input data to the operator.
+
+    axes : Optional[List[int]]
+        The target axes order.
+
+    name : str
+        Name hint.
+
+    Returns
+    -------
+    result : Tensor
+        The transposed result.
+    """
+
+    return wrap_nested(_op.permute_dims(x._expr, axes=axes), name)
+
+
+def negative(x: Tensor, name: str = "neg") -> Tensor:
+    """Numerical negative of the input tensor.
+
+    Parameters
+    ----------
+    x : Tensor
+        The input data to the operator.
+
+    name : str
+        Name hint.
+
+    Returns
+    -------
+    result : Tensor
+        The computed result.
+    """
+    return wrap_nested(_op.negative(x._expr), name)
+
+
 def layer_norm(
     x: Tensor,
     normalized_shape: Union[int, List[int]],
