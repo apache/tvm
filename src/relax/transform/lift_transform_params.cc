@@ -710,6 +710,7 @@ Pass PartitionTransformParams() {
         return Downcast<Var>(global_collect_info.value().var_remap[var]);
       });
       Array<Binding> bindings = local_collect_info.begin()->second.computable_at_compile_time;
+      LOG(INFO) << "ComputableAtCompileTime: " << bindings;
       // FIXME(wuwei): need to consider non-VarBinding cases
       for (int i = 0; i < bindings.size(); i++) {
         auto binding = bindings[i];

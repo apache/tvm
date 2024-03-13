@@ -986,11 +986,12 @@ def test_lift_global():
                 R.Tensor((32, 32), dtype="float32"),
             )
         ):
+            R.func_attr({"num_input": 0})
             with R.dataflow():
                 ones = R.ones([32, 32], "float32")
-                lv1 = params[0]
                 lv2 = params[1]
                 lv3 = R.add(lv2, ones)
+                lv1 = params[0]
                 gv = (lv1, lv3)
                 R.output(gv)
             return gv
@@ -1022,9 +1023,7 @@ def test_lift_global():
             R.func_attr({"num_input": 2})
             with R.dataflow():
                 lv1 = R.matmul(x, param0)
-                ones = R.ones(
-                    R.shape([32, 32]), dtype="float32"
-                )
+                ones = R.ones(R.shape([32, 32]), dtype="float32")
                 lv3 = R.matmul(lv1, param1)
                 gv = R.add(lv3, y)
                 R.output(gv)
