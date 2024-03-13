@@ -1696,6 +1696,31 @@ class PyTorchOpConverter:
         new_shape = self.infer_shape(inputs[1])
         return _op.transform.reshape(data, new_shape)
 
+    def pixel_unshuffle(self, inputs, input_types):
+        data = inputs[0]
+        downscale_factor = inputs[1]
+        downscale_squared = downscale_factor * downscale_factor
+        b, c, h, w = self.infer_shape(data)
+        assert h % downscale_factor == 0, "input height should be divisible by downscale_factor"
+        assert w % downscale_factor == 0, "input width should be divisible by downscale_factor"
+
+        ndims = len(self.infer_shape_with_prelude(data))
+        axes = list(range(ndims))
+        oc = c * downscale_squared
+        oh = h // downscale_factor
+        ow = w // downscale_factor
+
+        new_shape = [b, c, oh, downscale_factor, ow, downscale_factor]
+        out_shape = [b, oc, oh, ow]
+
+        data = _op.transform.reshape(data, new_shape)
+        # The data will be transposed to
+        # [b, c, downscale_factor, downscale_factor, oh, ow]
+        # for further reshape
+        axes = [0, 1, 3, 5, 2, 4]
+        data = _op.transform.transpose(data, axes)
+        return _op.transform.reshape(data, out_shape)
+
     def pixel_shuffle(self, inputs, input_types):
         data = inputs[0]
         upscale_factor = inputs[1]
@@ -4027,6 +4052,7 @@ class PyTorchOpConverter:
         self.convert_map = {
             "aten::is_floating_point": self.is_floating_point,
             "aten::pixel_shuffle": self.pixel_shuffle,
+            "aten::pixel_unshuffle": self.pixel_unshuffle,
             "aten::device": self.none,
             "prim::device": self.none,
             "aten::sub": self.sub,
