@@ -1199,6 +1199,12 @@ class PipelineInjector : private StmtExprMutator {
     return std::move(block);
   }
 
+  Stmt VisitStmt_(const DeclBufferNode* op) final {
+    const Buffer& buffer = op->buffer;
+    buffer_data_to_buffer_.Set(buffer->data, buffer);
+    return StmtExprMutator::VisitStmt_(op);
+  }
+
   bool HasPipelineAnnotation(const ForNode* op) const {
     auto it1 = op->annotations.find(attr::software_pipeline_stage);
     auto it2 = op->annotations.find(attr::software_pipeline_order);
