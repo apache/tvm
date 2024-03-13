@@ -832,7 +832,7 @@ def MergeCompositeFunctions() -> tvm.ir.transform.Pass:
     return _ffi_api.MergeCompositeFunctions()  # type: ignore
 
 
-def LiftTransformParams() -> tvm.ir.transform.Pass:
+def LiftTransformParams(shared_transform: Union[bool, List[str]] = False) -> tvm.ir.transform.Pass:
     """Lift transformation of the parameters of a function.
 
     When some inputs of the function is marked as 'parameters' (the model weights), this pass
@@ -844,12 +844,28 @@ def LiftTransformParams() -> tvm.ir.transform.Pass:
     Users are expected to invoke the `transform_params` function in runtime and pass the transformed
     parameters to the original function as input.
 
+    Parameters
+    ----------
+    shared_transform : Union[bool, List[str]]
+        Boolean to indicate whether to share the transformation of the parameters among functions or
+        a list of function names to apply the shared transformation.
+
+        When the shared transformation is enabled, all the target functions should have the same
+        parameters and the common part of the transformations will be lifted to a global
+        `transform_params` function that is shared among all functions.
+        Otherwise, each function will have its own `transform_params` function.
+
     Returns
     -------
     ret : tvm.transform.Pass
         The registered pass for lifting transformation of parameters.
     """
-    return _ffi_api.LiftTransformParams()  # type: ignore
+    if isinstance(shared_transform, bool):
+        target_functions = []
+    else:
+        target_functions = shared_transform
+        shared_transform = True
+    return _ffi_api.LiftTransformParams(shared_transform, target_functions)  # type: ignore
 
 
 def BundleModelParams(param_tuple_name: Optional[str] = None) -> tvm.ir.transform.Pass:

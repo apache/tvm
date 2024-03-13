@@ -265,9 +265,15 @@ TVM_DLL Pass RealizeVDevice();
  * Users are expected to invoke the `transform_params` function in runtime and pass the transformed
  * parameters to the original function as input.
  *
+ * \param shared_transform Whether to share the transformation of the parameters among all functions
+ * If true, all functions should have the same parameters and the common part of the transformations
+ * will be lifted to a global `transform_params` function that is shared among all functions. If
+ * false, each function will have its own `transform_params` function.
+ * \param target_functions The list of functions to apply the shared transformation. If empty, the
+ * shared transformation will be applied to all functions.
  * \return The Pass.
  */
-TVM_DLL Pass LiftTransformParams();
+TVM_DLL Pass LiftTransformParams(bool shared_transform, Array<String> target_functions);
 
 /*!
  * \brief Update virtual device.

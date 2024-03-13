@@ -538,8 +538,8 @@ def test_share_identical_transform_across_multiple_functions():
                 w1 = params[0]
                 w1_t = R.permute_dims(w1)
                 w2 = params[1]
-                w1_t = R.permute_dims(w1)
-                output = (w2, w1_t)
+                w2_t = R.permute_dims(w2)
+                output = (w1_t, w2_t)
                 R.output(output)
             return output
 
@@ -983,10 +983,11 @@ def test_share_transforms_resulting_in_identical_functions():
         ):
             R.func_attr({"num_input": 0})
             with R.dataflow():
+                w2 = params[1]
+                w2_t = R.permute_dims(w2)
                 w1 = params[0]
                 w1_t = R.permute_dims(w1)
-                w2 = params[1]
-                output = (w2, w1_t)
+                output = (w2_t, w1_t)
                 R.output(output)
             return output
 
@@ -1137,6 +1138,20 @@ def test_share_transform_across_specified_functions():
             R.func_attr({"num_input": 1})
             with R.dataflow():
                 y1 = R.matmul(x, w1_t)
+                y2 = Expected.fused_permute_dims_matmul(x, w2)
+                output = R.add(y1, y2)
+                R.output(output)
+            return output
+
+        @R.function
+        def func3(
+            x: R.Tensor((256, 256), "float32"),
+            w1: R.Tensor((256, 256), "float32"),
+            w2: R.Tensor((256, 256), "float32"),
+        ) -> R.Tensor((256, 256), "float32"):
+            R.func_attr({"num_input": 1})
+            with R.dataflow():
+                y1 = Expected.fused_permute_dims_matmul(x, w1)
                 y2 = Expected.fused_permute_dims_matmul(x, w2)
                 output = R.add(y1, y2)
                 R.output(output)
@@ -1802,100 +1817,6 @@ def test_only_lift_when_variable_uses_constants():
 
     mod = Before
     after = relax.transform.LiftTransformParams()(mod)
-    tvm.ir.assert_structural_equal(after, Expected)
-
-
-def test_lift_global():
-    @tvm.script.ir_module
-    class Before:
-        @R.function
-        def func1(
-            x: R.Tensor((32, 32), "float32"),
-            w1: R.Tensor((32, 32), "float32"),
-            w2: R.Tensor((32, 32), "float32"),
-        ):
-            R.func_attr({"num_input": 1})
-            with R.dataflow():
-                w1_t = R.permute_dims(w1, [1, 0])
-                lv1 = R.matmul(x, w1_t)
-                ones = R.ones([32, 32], "float32")
-                lv2 = R.add(w2, ones)
-                gv = R.matmul(lv1, lv2)
-                R.output(gv)
-            return gv
-
-        @R.function
-        def func2(
-            x: R.Tensor((32, 32), "float32"),
-            y: R.Tensor((32, 32), "float32"),
-            w1a: R.Tensor((32, 32), "float32"),
-            w2a: R.Tensor((32, 32), "float32"),
-        ):
-            R.func_attr({"num_input": 2})
-            with R.dataflow():
-                lv1 = R.matmul(x, w1a)
-                ones = R.ones([32, 32], "float32")
-                lv2 = R.add(w2a, ones)
-                lv3 = R.matmul(lv1, lv2)
-                gv = R.add(lv3, y)
-                R.output(gv)
-            return gv
-
-    @tvm.script.ir_module
-    class Expected:
-        @R.function
-        def transform_params(
-            params: R.Tuple(
-                R.Tensor((32, 32), dtype="float32"),
-                R.Tensor((32, 32), dtype="float32"),
-            )
-        ):
-            R.func_attr({"num_input": 0})
-            with R.dataflow():
-                ones = R.ones([32, 32], "float32")
-                lv2 = params[1]
-                lv3 = R.add(lv2, ones)
-                lv1 = params[0]
-                gv = (lv1, lv3)
-                R.output(gv)
-            return gv
-
-        @R.function
-        def func1(
-            x: R.Tensor((32, 32), dtype="float32"),
-            param0: R.Tensor((32, 32), dtype="float32"),
-            param1: R.Tensor((32, 32), dtype="float32"),
-        ):
-            R.func_attr({"num_input": 1})
-            with R.dataflow():
-                w1_t = R.permute_dims(param0, [1, 0])
-                lv1 = R.matmul(x, w1_t)
-                ones = R.ones(
-                    R.shape([32, 32]), dtype="float32"
-                )  # not used but rely on DeadCodeElimination to remove it
-                gv = R.matmul(lv1, param1)
-                R.output(gv)
-            return gv
-
-        @R.function
-        def func2(
-            x: R.Tensor((32, 32), dtype="float32"),
-            y: R.Tensor((32, 32), dtype="float32"),
-            param0: R.Tensor((32, 32), dtype="float32"),
-            param1: R.Tensor((32, 32), dtype="float32"),
-        ):
-            R.func_attr({"num_input": 2})
-            with R.dataflow():
-                lv1 = R.matmul(x, param0)
-                ones = R.ones(R.shape([32, 32]), dtype="float32")
-                lv3 = R.matmul(lv1, param1)
-                gv = R.add(lv3, y)
-                R.output(gv)
-            return gv
-
-    mod = Before
-    with tvm.transform.PassContext(config={"relax.lift_transform_params.lift_globally": True}):
-        after = relax.transform.LiftTransformParams()(mod)
     tvm.ir.assert_structural_equal(after, Expected)
 
 
