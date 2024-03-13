@@ -28,7 +28,6 @@
 #include <algorithm>
 #include <optional>
 
-#include "../support/utils.h"
 #include "constraint_extract.h"
 #include "int_operator.h"
 #include "pattern_match.h"
@@ -241,10 +240,8 @@ class ConstIntBoundAnalyzer::Impl
     ret.min_value = InfAwareAdd(a.min_value, b.min_value);
     ret.max_value = InfAwareAdd(a.max_value, b.max_value);
 
-    if (support::BoolEnvironmentVar("TVM_ENABLE_RECIPROCAL_PATTERN_MATCH")) {
-      if (auto bound = BoundUsingReciprocal(GetRef<PrimExpr>(op))) {
-        ret = Intersect(ret, bound.value());
-      }
+    if (auto bound = BoundUsingReciprocal(GetRef<PrimExpr>(op))) {
+      ret = Intersect(ret, bound.value());
     }
 
     return ret;
@@ -257,13 +254,11 @@ class ConstIntBoundAnalyzer::Impl
     ret.min_value = InfAwareAdd(a.min_value, -b.max_value);
     ret.max_value = InfAwareAdd(a.max_value, -b.min_value);
 
-    if (support::BoolEnvironmentVar("TVM_ENABLE_RECIPROCAL_PATTERN_MATCH")) {
-      if (auto bound = BoundUsingReciprocal(GetRef<Sub>(op))) {
-        ret = Intersect(ret, bound.value());
-      }
-      if (auto bound = BoundUsingReciprocal(Sub(op->b, op->a))) {
-        ret = Intersect(ret, Negative(bound.value()));
-      }
+    if (auto bound = BoundUsingReciprocal(GetRef<Sub>(op))) {
+      ret = Intersect(ret, bound.value());
+    }
+    if (auto bound = BoundUsingReciprocal(Sub(op->b, op->a))) {
+      ret = Intersect(ret, Negative(bound.value()));
     }
     return ret;
   }

@@ -50,43 +50,18 @@ class TestCase:
         return str(self.before)
 
 
-with_reciprocal_pattern_match = tvm.testing.parameter(
-    by_dict={
-        "with_updated_const_int_analyzer": True,
-        "without_updated_const_int_analyzer": False,
-    }
-)
-
-
-@pytest.fixture(autouse=True)
-def set_reciprocal_pattern_match(with_reciprocal_pattern_match):
-    import os
-
-    var_name = "TVM_ENABLE_RECIPROCAL_PATTERN_MATCH"
-    old_value = os.environ.get(var_name)
-    os.environ[var_name] = str(int(with_reciprocal_pattern_match))
-    yield
-
-    if old_value is None:
-        del os.environ[var_name]
-    else:
-        os.environ = old_value
-
-
 class BaseCompare:
-    def test_simplify(self, test_case, benchmark):
+    def test_simplify(self, test_case):
         analyzer = tvm.arith.Analyzer()
 
         if inspect.isclass(test_case.expected) and issubclass(test_case.expected, Exception):
             with pytest.raises(test_case.expected):
                 with analyzer.constraint_scope(test_case.constraint):
-                    # analyzer.rewrite_simplify(test_case.before)
-                    benchmark(analyzer.rewrite_simplify, test_case.before)
+                    analyzer.rewrite_simplify(test_case.before)
         else:
 
             with analyzer.constraint_scope(test_case.constraint):
-                # after = analyzer.rewrite_simplify(test_case.before)
-                after = benchmark(analyzer.rewrite_simplify, test_case.before)
+                after = analyzer.rewrite_simplify(test_case.before)
 
             assert tvm.ir.structural_equal(after, test_case.expected), (
                 f"Rewrite didn't match expected.\n"
