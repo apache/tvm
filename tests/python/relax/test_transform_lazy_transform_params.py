@@ -804,5 +804,25 @@ def test_retain_before_num_input():
     tvm.ir.assert_structural_equal(After, Expected)
 
 
+def test_params_without_tuple_with_symbolic_var():
+    @I.ir_module
+    class Before:
+        @R.function
+        def transform_params(A: R.Object):
+            return (A,)
+
+    @I.ir_module
+    class Expected:
+        @R.function(pure=False)
+        def transform_params():
+            A = R.call_packed("get_item", R.prim_value(0), sinfo_args=[R.Object])
+            A = R.match_cast(A, R.Object)
+
+            return (A,)
+
+    After = LazyTransformParams(fset_item=None)(Before)
+    tvm.ir.assert_structural_equal(After, Expected)
+
+
 if __name__ == "__main__":
     tvm.testing.main()

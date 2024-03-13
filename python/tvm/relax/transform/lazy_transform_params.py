@@ -216,7 +216,7 @@ class LazyTransformParamsFuncCreator:
             # direct iterate over the struct info annotation
             for param in func.params[num_input:]:
                 for sinfo in unpack_sinfo(param.struct_info):
-                    if not isinstance(sinfo, relax.TensorStructInfo):
+                    if isinstance(sinfo, (relax.PrimStructInfo, relax.ShapeStructInfo)):
                         params.append(relax.Var("symbolic_var_holder", sinfo))
 
         return relax.Function(
