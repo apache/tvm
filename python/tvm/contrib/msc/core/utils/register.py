@@ -25,13 +25,12 @@ class MSCRegistery:
 
     REGISTERY = {}
     MSC_FUNCS = "msc_funcs"
-    MSC_TOOLS_CLS = "msc_tools_cls"
-    MSC_TOOLS_METHOD = "msc_tools_method"
+    TOOL_CLASSES = "tool_classes"
+    TOOL_METHODS = "tool_methods"
     TOOL_CONFIGERS = "tool_configers"
     GYM_CONFIGERS = "gym_configers"
     GYM_CONTROLLERS = "gym_controllers"
-    GYM_AGENTS = "gym_agents"
-    GYM_ENVS = "gym_envs"
+    GYM_OBJECTS = "gym_objects"
     GYM_METHODS = "gym_agents_method"
     RUNNER_HOOKS = "runner_hooks"
 
@@ -101,29 +100,25 @@ def get_registered_func(name: str, framework: str = MSCFramework.MSC):
     return funcs[framework].get(name)
 
 
-def register_tool_cls(tool_cls: Any):
+def register_tool(tool: Any):
     """Register a tool class.
 
     Parameters
     ----------
-    tool_cls: class
+    tool: class
         The tool class to be registered.
     """
 
-    tools_cls = MSCRegistery.get(MSCRegistery.MSC_TOOLS_CLS, {})
     for key in ["framework", "tool_type", "tool_style"]:
-        assert hasattr(tool_cls, key), "{} should be given to register tool class".format(key)
-    if tool_cls.framework() not in tools_cls:
-        tools_cls[tool_cls.framework()] = {}
-    framework_tools = tools_cls[tool_cls.framework()]
-    if tool_cls.tool_type() not in framework_tools:
-        framework_tools[tool_cls.tool_type()] = {}
-    tools = framework_tools[tool_cls.tool_type()]
-    tools[tool_cls.tool_style()] = tool_cls
-    MSCRegistery.register(MSCRegistery.MSC_TOOLS_CLS, tools_cls)
+        assert hasattr(tool, key), "{} should be given to register tool".format(key)
+    tools_classes = MSCRegistery.get(MSCRegistery.TOOL_CLASSES, {})
+    col = tools_classes.setdefault(tool.framework(), {}).setdefault(tool.tool_type(), {})
+    col[tool.tool_style()] = tool
+    MSCRegistery.register(MSCRegistery.TOOL_CLASSES, tools_classes)
+    return tool
 
 
-def get_registered_tool_cls(framework: str, tool_type: str, tool_style: str) -> Any:
+def get_registered_tool(framework: str, tool_type: str, tool_style: str) -> Any:
     """Get the registered tool class.
 
     Parameters
@@ -137,35 +132,32 @@ def get_registered_tool_cls(framework: str, tool_type: str, tool_style: str) -> 
 
     Returns
     -------
-    tool_cls: class
+    tool: class
         The registered tool class.
     """
 
-    tools_cls = MSCRegistery.get(MSCRegistery.MSC_TOOLS_CLS, {})
+    tools_classes = MSCRegistery.get(MSCRegistery.TOOL_CLASSES, {})
     if tool_style == "all":
-        return tools_cls.get(framework, {}).get(tool_type, {})
-    return tools_cls.get(framework, {}).get(tool_type, {}).get(tool_style)
+        return tools_classes.get(framework, {}).get(tool_type, {})
+    return tools_classes.get(framework, {}).get(tool_type, {}).get(tool_style)
 
 
-def register_tool_method(method_cls: Any, method_style: str = "default"):
+def register_tool_method(method: Any):
     """Register a tool method.
 
     Parameters
     ----------
-    method_cls: class
+    method: class
         The method class.
-    method_style: string
-        The style of the method.
     """
 
-    tools_method = MSCRegistery.get(MSCRegistery.MSC_TOOLS_METHOD, {})
-    for key in ["framework", "tool_type"]:
-        assert hasattr(method_cls, key), "{} should be given to register tool method".format(key)
-    if method_cls.framework() not in tools_method:
-        tools_method[method_cls.framework()] = {}
-    register_name = "{}.{}".format(method_cls.tool_type(), method_style)
-    tools_method[method_cls.framework()][register_name] = method_cls
-    MSCRegistery.register(MSCRegistery.MSC_TOOLS_METHOD, tools_method)
+    for key in ["framework", "tool_type", "method_style"]:
+        assert hasattr(method, key), "{} should be given to register tool method".format(key)
+    tool_methods = MSCRegistery.get(MSCRegistery.TOOL_METHODS, {})
+    col = tool_methods.setdefault(method.framework(), {}).setdefault(method.tool_type(), {})
+    col[method.method_style()] = method
+    MSCRegistery.register(MSCRegistery.TOOL_METHODS, tool_methods)
+    return method
 
 
 def get_registered_tool_method(
@@ -188,9 +180,8 @@ def get_registered_tool_method(
         The method class.
     """
 
-    tools_method = MSCRegistery.get(MSCRegistery.MSC_TOOLS_METHOD, {})
-    register_name = "{}.{}".format(tool_type, method_style)
-    return tools_method.get(framework, {}).get(register_name)
+    tool_methods = MSCRegistery.get(MSCRegistery.TOOL_METHODS, {})
+    return tool_methods.get(framework, {}).get(tool_type, {}).get(method_style)
 
 
 def register_tool_configer(configer: Any):
@@ -240,10 +231,11 @@ def register_gym_configer(configer: Any):
         The configer class.
     """
 
-    configers = MSCRegistery.get(MSCRegistery.GYM_CONFIGERS, {})
     assert hasattr(configer, "config_type"), "config_type should be given to register configer"
-    configers[configer.config_type()] = configer
-    MSCRegistery.register(MSCRegistery.GYM_CONFIGERS, configers)
+    gym_configers = MSCRegistery.get(MSCRegistery.GYM_CONFIGERS, {})
+    gym_configers[configer.config_type()] = configer
+    MSCRegistery.register(MSCRegistery.GYM_CONFIGERS, gym_configers)
+    return configer
 
 
 def get_registered_gym_configer(config_type: str) -> Any:
@@ -260,8 +252,8 @@ def get_registered_gym_configer(config_type: str) -> Any:
         The configer class.
     """
 
-    configers = MSCRegistery.get(MSCRegistery.GYM_CONFIGERS, {})
-    return configers.get(config_type)
+    gym_configers = MSCRegistery.get(MSCRegistery.GYM_CONFIGERS, {})
+    return gym_configers.get(config_type)
 
 
 def register_gym_controller(controller: Any):
@@ -273,12 +265,13 @@ def register_gym_controller(controller: Any):
         The controller class.
     """
 
-    controllers = MSCRegistery.get(MSCRegistery.GYM_CONTROLLERS, {})
     assert hasattr(
         controller, "control_type"
     ), "control_type should be given to register controller"
-    controllers[controller.control_type()] = controller
-    MSCRegistery.register(MSCRegistery.GYM_CONTROLLERS, controllers)
+    gym_controllers = MSCRegistery.get(MSCRegistery.GYM_CONTROLLERS, {})
+    gym_controllers[controller.control_type()] = controller
+    MSCRegistery.register(MSCRegistery.GYM_CONTROLLERS, gym_controllers)
+    return controller
 
 
 def get_registered_gym_controller(control_type: str) -> Any:
@@ -295,74 +288,46 @@ def get_registered_gym_controller(control_type: str) -> Any:
         The controller class.
     """
 
-    controllers = MSCRegistery.get(MSCRegistery.GYM_CONTROLLERS, {})
-    return controllers.get(control_type)
+    gym_controllers = MSCRegistery.get(MSCRegistery.GYM_CONTROLLERS, {})
+    return gym_controllers.get(control_type)
 
 
-def register_gym_agent(agent: Any):
-    """Register a gym agent.
+def register_gym_object(obj: Any):
+    """Register a gym object.
 
     Parameters
     ----------
-    agent: class
-        The agent class.
+    obj: class
+        The object class.
     """
 
-    agents = MSCRegistery.get(MSCRegistery.GYM_AGENTS, {})
-    assert hasattr(agent, "agent_type"), "agent_type should be given to register agent"
-    agents[agent.agent_type()] = agent
-    MSCRegistery.register(MSCRegistery.GYM_AGENTS, agents)
+    for key in ["role", "role_type"]:
+        assert hasattr(obj, key), "{} should be given to register gym object".format(key)
+    gym_objects = MSCRegistery.get(MSCRegistery.GYM_OBJECTS, {})
+    col = gym_objects.setdefault(obj.role(), {})
+    col[obj.role_type()] = obj
+    MSCRegistery.register(MSCRegistery.GYM_OBJECTS, gym_objects)
+    return obj
 
 
-def get_registered_gym_agent(agent_type: str) -> Any:
-    """Get the registered agent.
+def get_registered_gym_object(role: str, role_type: str) -> Any:
+    """Get the registered object.
 
     Parameters
     ----------
-    agent_type: string
-        The type of agent.
+    role: string
+        The role.
+    role_type: string
+        The type of the role.
 
     Returns
     -------
-    agent: class
-        The agent class.
+    object: class
+        The object class.
     """
 
-    agents = MSCRegistery.get(MSCRegistery.GYM_AGENTS, {})
-    return agents.get(agent_type)
-
-
-def register_gym_env(env: Any):
-    """Register a gym env.
-
-    Parameters
-    ----------
-    env: class
-        The env class.
-    """
-
-    envs = MSCRegistery.get(MSCRegistery.GYM_ENVS, {})
-    assert hasattr(env, "env_type"), "env_type should be given to register env"
-    envs[env.env_type()] = env
-    MSCRegistery.register(MSCRegistery.GYM_ENVS, envs)
-
-
-def get_registered_gym_env(env_type: str) -> Any:
-    """Get the registered env.
-
-    Parameters
-    ----------
-    env_type: string
-        The type of agent.
-
-    Returns
-    -------
-    env: class
-        The agent class.
-    """
-
-    envs = MSCRegistery.get(MSCRegistery.GYM_ENVS, {})
-    return envs.get(env_type)
+    gym_objects = MSCRegistery.get(MSCRegistery.GYM_OBJECTS, {})
+    return gym_objects.get(role, {}).get(role_type)
 
 
 def register_gym_method(method: Any):
@@ -374,17 +339,22 @@ def register_gym_method(method: Any):
         The method class.
     """
 
-    methods = MSCRegistery.get(MSCRegistery.GYM_METHODS, {})
-    assert hasattr(method, "method_type"), "method_type should be given to register method"
-    methods[method.method_type()] = method
-    MSCRegistery.register(MSCRegistery.GYM_METHODS, methods)
+    for key in ["role", "method_type"]:
+        assert hasattr(method, key), "{} should be given to register gym method".format(key)
+    gym_methods = MSCRegistery.get(MSCRegistery.GYM_METHODS, {})
+    col = gym_methods.setdefault(method.role(), {})
+    col[method.method_type()] = method
+    MSCRegistery.register(MSCRegistery.GYM_METHODS, gym_methods)
+    return method
 
 
-def get_registered_gym_method(method_type: str) -> Any:
+def get_registered_gym_method(role: str, method_type: str) -> Any:
     """Get the registered gym method.
 
     Parameters
     ----------
+    role: str
+        The role.
     method_type: str
         The type of method.
 
@@ -394,8 +364,8 @@ def get_registered_gym_method(method_type: str) -> Any:
         The method class.
     """
 
-    methods = MSCRegistery.get(MSCRegistery.GYM_METHODS, {})
-    return methods.get(method_type)
+    gym_methods = MSCRegistery.get(MSCRegistery.GYM_METHODS, {})
+    return gym_methods.get(role, {}).get(method_type)
 
 
 def register_runner_hook(hook: Any):
@@ -407,10 +377,11 @@ def register_runner_hook(hook: Any):
         The hook class.
     """
 
-    hooks = MSCRegistery.get(MSCRegistery.RUNNER_HOOKS, {})
     assert hasattr(hook, "name"), "name should be given to register hook"
+    hooks = MSCRegistery.get(MSCRegistery.RUNNER_HOOKS, {})
     hooks[hook.name()] = hook
     MSCRegistery.register(MSCRegistery.RUNNER_HOOKS, hooks)
+    return hook
 
 
 def get_registered_runner_hook(name: str) -> Any:

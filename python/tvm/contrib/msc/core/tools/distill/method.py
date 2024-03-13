@@ -25,6 +25,7 @@ from tvm.contrib.msc.core.utils.namespace import MSCFramework
 from tvm.contrib.msc.core import utils as msc_utils
 
 
+@msc_utils.register_tool_method
 class DistillMethod(object):
     """Default distill method"""
 
@@ -68,5 +69,6 @@ class DistillMethod(object):
     def tool_type(cls):
         return ToolType.DISTILLER
 
-
-msc_utils.register_tool_method(DistillMethod)
+    @classmethod
+    def method_style(cls):
+        return "default"

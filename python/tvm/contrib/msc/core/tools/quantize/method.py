@@ -25,6 +25,7 @@ from tvm.contrib.msc.core.utils.namespace import MSCFramework
 from tvm.contrib.msc.core import utils as msc_utils
 
 
+@msc_utils.register_tool_method
 class QuantizeMethod(object):
     """Default quantize method"""
 
@@ -468,5 +469,6 @@ class QuantizeMethod(object):
     def tool_type(cls):
         return ToolType.QUANTIZER
 
-
-msc_utils.register_tool_method(QuantizeMethod)
+    @classmethod
+    def method_style(cls):
+        return "default"

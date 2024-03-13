@@ -37,10 +37,11 @@ class BaseSearchAgent(BaseAgent):
         return super().setup()
 
     @classmethod
-    def agent_type(cls):
+    def role_type(cls):
         return "search.base"
 
 
+@msc_utils.register_gym_object
 class GridSearchAgent(BaseSearchAgent):
     """GridSearch agent"""
 
@@ -92,10 +93,11 @@ class GridSearchAgent(BaseSearchAgent):
         return best_actions, best_rewards
 
     @classmethod
-    def agent_type(cls):
+    def role_type(cls):
         return "search.grid"
 
 
+@msc_utils.register_gym_object
 class BinarySearchAgent(BaseSearchAgent):
     """BinarySearch agent"""
 
@@ -173,8 +175,5 @@ class BinarySearchAgent(BaseSearchAgent):
         return actions, rewards
 
     @classmethod
-    def agent_type(cls):
+    def role_type(cls):
         return "search.binary"
-
-
-msc_utils.register_gym_agent(GridSearchAgent)

@@ -550,6 +550,22 @@ class BaseRunner(object):
 
         raise NotImplementedError("export_module is not supported in BaseRunner")
 
+    def export_runnable(self, folder: msc_utils.MSCDirectory) -> dict:
+        """Export the runnable
+
+        Parameters
+        -------
+        folder: MSCDirectory
+            The export folder.
+
+        Returns
+        -------
+        info: dict
+            The runnable info.
+        """
+
+        raise NotImplementedError("export_runnable is not supported in BaseRunner")
+
     def train(self):
         """Change status to train"""
 
@@ -1216,6 +1232,7 @@ class BYOCRunner(BaseRunner):
         """
 
         self._byoc_mod, self._byoc_graph = None, None
+        self._executable = None
         return super().setup()
 
     def visualize(self, visual_dir: msc_utils.MSCDirectory):
@@ -1367,15 +1384,15 @@ class BYOCRunner(BaseRunner):
         if self._device == "cpu":
             target = tvm.target.Target("llvm")
             with tvm.transform.PassContext(opt_level=3):
-                relax_exec = tvm.relax.build(model, target)
-                runnable = tvm.relax.VirtualMachine(relax_exec, tvm.cpu())
+                self._executable = tvm.relax.build(model, target)
+                runnable = tvm.relax.VirtualMachine(self._executable, tvm.cpu())
         elif self._device.startswith("cuda"):
             target = tvm.target.Target("cuda")
             with target:
                 model = tvm.tir.transform.DefaultGPUSchedule()(model)
             with tvm.transform.PassContext(opt_level=3):
-                relax_exec = tvm.relax.build(model, target)
-                runnable = tvm.relax.VirtualMachine(relax_exec, tvm.cuda())
+                self._executable = tvm.relax.build(model, target)
+                runnable = tvm.relax.VirtualMachine(self._executable, tvm.cuda())
         else:
             raise NotImplementedError("Unsupported device " + str(self._device))
         return runnable
@@ -1436,6 +1453,24 @@ class BYOCRunner(BaseRunner):
             dev_id = int(device.split(":")[1]) if ":" in device else 0
             return tvm.cuda(dev_id).exist
         return False
+
+    def export_runnable(self, folder: msc_utils.MSCDirectory) -> dict:
+        """Export the runnable
+
+        Parameters
+        -------
+        folder: MSCDirectory
+            The export folder.
+
+        Returns
+        -------
+        info: dict
+            The runnable info.
+        """
+
+        export_path = folder.relpath("model.so")
+        self._executable.export_library(export_path)
+        return {"model": export_path}
 
     @property
     def partition_func(self):

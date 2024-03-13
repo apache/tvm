@@ -25,6 +25,7 @@ from tvm.contrib.msc.core.utils.namespace import MSCFramework
 from tvm.contrib.msc.core import utils as msc_utils
 
 
+@msc_utils.register_tool_method
 class TorchDistillMethod(DistillMethod):
     """Default quantize method for torch"""
 
@@ -111,6 +112,3 @@ class TorchDistillMethod(DistillMethod):
     @classmethod
     def framework(cls):
         return MSCFramework.TORCH
-
-
-msc_utils.register_tool_method(TorchDistillMethod)

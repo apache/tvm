@@ -25,6 +25,7 @@ from tvm.contrib.msc.core.utils.namespace import MSCFramework
 from tvm.contrib.msc.core import utils as msc_utils
 
 
+@msc_utils.register_tool_method
 class PruneMethod(object):
     """Default prune method"""
 
@@ -114,5 +115,6 @@ class PruneMethod(object):
     def tool_type(cls):
         return ToolType.PRUNER
 
-
-msc_utils.register_tool_method(PruneMethod)
+    @classmethod
+    def method_style(cls):
+        return "default"

@@ -55,6 +55,7 @@ def fake_quantize(func):
     return wrapper
 
 
+@msc_utils.register_tool_method
 class TorchQuantizeMethod(QuantizeMethod):
     """Default quantize method for torch"""
 
@@ -264,6 +265,3 @@ class TorchQuantizeMethod(QuantizeMethod):
     @classmethod
     def framework(cls):
         return MSCFramework.TORCH
-
-
-msc_utils.register_tool_method(TorchQuantizeMethod)
