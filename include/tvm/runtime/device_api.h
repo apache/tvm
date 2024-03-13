@@ -147,6 +147,8 @@ class TVM_DLL DeviceAPI {
    * \param from The source array.
    * \param to The target array.
    * \param stream Optional stream object.
+   * \note The copy may happen asynchronously if it involves a GPU context.
+   *       Call StreamSync to ensure the copy completes from host's pov.
    */
   virtual void CopyDataFromTo(DLTensor* from, DLTensor* to, TVMStreamHandle stream);
   /*!
