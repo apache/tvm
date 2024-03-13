@@ -210,6 +210,18 @@ TVM_DLL Array<StmtSRef> Split(ScheduleState self, const StmtSRef& loop_sref,
                               const Array<PrimExpr>& factors, bool preserve_unit_iters);
 
 /*!
+ * Partition a loop into a list of consecutive loops. It requires:
+ * 1) The loop can't have annotation or thread binding.
+ * \param self The state of the schedule
+ * \param loop_sref The sref to the loop being partition
+ * \param factors The partitioning factors
+ * \param preserve_unit_iters Whether or not to preserve unit iterators in block bindings
+ * \return An array of srefs to the loops after partitioning
+ */
+TVM_DLL Array<StmtSRef> LoopPartition(ScheduleState self, const StmtSRef& loop_sref,
+                                      const Array<PrimExpr>& factors, bool preserve_unit_iters);
+
+/*!
  * \brief Merge a list of loops into one. The loops under their LCA requires:
  * 1) Under the same scope
  * 2) Can't have annotations or thread bindings
@@ -303,7 +315,7 @@ TVM_DLL void Vectorize(ScheduleState self, const StmtSRef& loop_sref);
  * \param loop_sref The sref of the loop to be bound to the thread axis
  * \param thread_axis The thread axis to be bound to the loop
  */
-TVM_DLL void Bind(ScheduleState self, const StmtSRef& loop_sref, const IterVar& thread_axis);
+TVM_DLL void Bind(ScheduleState self, const StmtSRef& loop_sref, const String& thread_axis);
 /*!
  * \brief Unroll the input loop. It requires nothing
  * \param self The state of the schedule

@@ -43,6 +43,8 @@
 #include <unordered_set>
 #include <vector>
 
+#include "tvm/tir/expr.h"
+
 namespace tvm {
 namespace topi {
 
@@ -641,6 +643,60 @@ inline Array<Tensor> split(const Tensor& x, Array<PrimExpr> split_indices, int a
  * \param end Indices indicating end of the slice
  * \param strides Specifies the stride values, it can be negative
  * in that case, the input tensor will be reversed in that particular axis
+ * \param axes Specifies which axes will be updated.
+ * \param name The name of the operation
+ * \param tag The tag to mark the operation
+ *
+ * \return A Tensor whose op member is the dynamic_strided_slice operation
+ */
+inline Tensor dynamic_strided_slice_with_axes(
+    const Tensor& x, const Array<PrimExpr>& begin, const Array<PrimExpr>& end,
+    const Array<PrimExpr>& strides, const Array<Integer>& axes,
+    std::string name = "T_dynamic_strided_slice_with_axes", std::string tag = kInjective) {
+  const size_t src_tensor_dim = x->shape.size();
+  ICHECK_EQ(begin.size(), end.size());
+  ICHECK_EQ(begin.size(), strides.size());
+  ICHECK_EQ(begin.size(), axes.size());
+  ICHECK_LE(begin.size(), src_tensor_dim);
+
+  for (const auto& axis_imm : axes) {
+    int axis = axis_imm->value;
+    ICHECK_LT(axis, src_tensor_dim);
+  }
+
+  arith::Analyzer analyzer;
+
+  Array<PrimExpr> out_shape = x->shape;
+  for (size_t i = 0; i < begin.size(); i++) {
+    int axis = axes[i]->value;
+    PrimExpr new_shape = analyzer.Simplify(ceildiv(end[i] - begin[i], strides[i]));
+    out_shape.Set(axis, new_shape);
+  }
+
+  return te::compute(
+      out_shape,
+      [&](const Array<tvm::tir::Var>& indices) {
+        Array<PrimExpr> real_indices = indices.Map([](const auto& var) -> PrimExpr { return var; });
+
+        for (size_t i = 0; i < begin.size(); i++) {
+          int axis = axes[i]->value;
+          PrimExpr new_index = indices[axis] * strides[i] + begin[i];
+          real_indices.Set(axis, new_index);
+        }
+
+        return x(real_indices);
+      },
+      name, tag);
+}
+
+/*!
+ * \brief strided_slice of a tensor where begin/end/stride can be mixed static and dynamic
+ *
+ * \param x The input tensor
+ * \param begin The indices to begin with in the slicing
+ * \param end Indices indicating end of the slice
+ * \param strides Specifies the stride values, it can be negative
+ * in that case, the input tensor will be reversed in that particular axis
  * \param name The name of the operation
  * \param tag The tag to mark the operation
  *
@@ -660,11 +716,12 @@ inline Tensor dynamic_strided_slice(const Tensor& x, const Array<PrimExpr>& begi
   const size_t num_slice_axes = begin.size();
   Array<PrimExpr> out_shape;
 
+  arith::Analyzer analyzer;
   for (size_t i = 0; i < num_slice_axes; ++i) {
-    auto d = indexdiv(end[i] - begin[i], strides[i]);
-    if (d->IsInstance<tvm::IntImmNode>()) {
-      // Preserve static dimension if possible
-      out_shape.push_back(d);
+    // Check ProducerLoad to keep backward compatibility for Relay.
+    if (!begin[i]->IsInstance<ProducerLoadNode>() && !end[i]->IsInstance<ProducerLoadNode>() &&
+        !strides[i]->IsInstance<ProducerLoadNode>()) {
+      out_shape.push_back(analyzer.Simplify(ceildiv(end[i] - begin[i], strides[i])));
     } else {
       out_shape.push_back(tvm::tir::Var("dim"));
     }
@@ -1073,8 +1130,6 @@ inline Tensor take(const Tensor& a, const Tensor& indices, int batch_dims, int a
           name, tag);
     }
   } else if (mode == "fast") {
-    LOG(WARNING) << "Fast mode segfaults when there are out-of-bounds indices. "
-                    "Make sure input indices are in bound";
     return compute(
         out_shape,
         [&](const Array<Var>& out_index) {
@@ -1536,9 +1591,22 @@ inline Tensor tensordot(const Tensor& A, const tvm::te::Tensor& B, Array<PrimExp
 
 inline Tensor arange(const PrimExpr& start, const PrimExpr& stop, const PrimExpr& step,
                      DataType dtype, std::string name = "T_arange", std::string tag = kInjective) {
-  PrimExpr num_elem = tvm::cast(
-      tvm::DataType::Int(32), tvm::ceil(tvm::cast(tvm::DataType::Float(32), stop - start) / step));
-  Array<PrimExpr> shape;
+  arith::Analyzer analyzer;
+  PrimExpr num_elem;
+  bool is_all_int = start.dtype().is_int() && stop.dtype().is_int() && step.dtype().is_int();
+  if (is_all_int && analyzer.CanProveGreaterEqual(step, 1)) {
+    // fast path for integer arange when step is positive
+    num_elem = tvm::floordiv((stop - start + step - 1), step);
+  } else if (is_all_int && analyzer.CanProveLess(step, 0)) {
+    // fast path for integer arange when step is negative
+    num_elem = tvm::floordiv((start - stop - step - 1), -step);
+  } else {
+    // fallback path for non-integer or step of unknown sign
+    num_elem = tvm::cast(DefaultIndexType(),
+                         tvm::ceil(tvm::cast(tvm::DataType::Float(32), stop - start) / step));
+  }
+  num_elem = analyzer.Simplify(num_elem);
+
   return compute(
       {num_elem},
       [&](const Array<Var>& indices) { return tvm::cast(dtype, start + step * indices[0]); }, name,
@@ -2010,7 +2078,6 @@ inline Tensor adv_index(const Tensor& data, const Array<Tensor>& indices,
         for (size_t i = 0; i < broadcast_shape.size(); ++i) {
           tensor_indices.push_back(iter_var[i]);
         }
-
         Array<PrimExpr> real_indices;
         for (size_t i = 0; i < bindices.size(); ++i) {
           real_indices.push_back(bindices[i](tensor_indices));
@@ -2023,6 +2090,42 @@ inline Tensor adv_index(const Tensor& data, const Array<Tensor>& indices,
       },
       name, tag);
 }
+
+namespace relax {
+// relax dynamic slice
+inline te::Tensor dynamic_strided_slice(const te::Tensor& x, const te::Tensor& begin,
+                                        const te::Tensor& end, const te::Tensor& strides,
+                                        Array<PrimExpr> output_shape,
+                                        std::string name = "T_strided_slice_dynamic",
+                                        std::string tag = kInjective) {
+  const size_t num_dynamic_axes = x.ndim();
+  ICHECK_EQ(begin.ndim(), 1);
+  ICHECK_EQ(end.ndim(), 1);
+  ICHECK_EQ(strides.ndim(), 1);
+  const auto* len_begin = begin->shape[0].as<IntImmNode>();
+  const auto* len_end = end->shape[0].as<IntImmNode>();
+  const auto* len_strides = strides->shape[0].as<IntImmNode>();
+  ICHECK(len_begin);
+  ICHECK(len_end);
+  ICHECK(len_strides);
+  ICHECK_EQ(len_begin->value, num_dynamic_axes);
+  ICHECK_EQ(len_end->value, num_dynamic_axes);
+  ICHECK_EQ(len_strides->value, num_dynamic_axes);
+
+  return te::compute(
+      output_shape,
+      [&](const Array<tvm::tir::Var>& indices) {
+        Array<PrimExpr> real_indices;
+        for (size_t i = 0; i < num_dynamic_axes; ++i) {
+          auto ind = make_const(DataType::Int(64), i);
+          real_indices.push_back(indices[i] * strides(ind) + tvm::min(begin(ind), x->shape[i] - 1));
+        }
+        return x(real_indices);
+      },
+      name, tag);
+}
+
+}  // namespace relax
 
 }  // namespace topi
 }  // namespace tvm

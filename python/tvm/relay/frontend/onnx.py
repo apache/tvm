@@ -2392,7 +2392,7 @@ class Upsample(OnnxOpConverter):
         if not isinstance(scales, _expr.Expr):
             assert scales[0] == 1.0 and scales[1] == 1.0
 
-        mode = attr.get("mode")
+        mode = attr.get("mode", b"nearest")
         if mode == b"nearest":
             method = "nearest_neighbor"
         elif mode == b"linear":
@@ -3932,7 +3932,7 @@ class Resize(OnnxOpConverter):
 
     @classmethod
     def _impl_v10(cls, inputs, attr, params):
-        mode = attr.get("mode").decode("ascii")
+        mode = attr.get("mode", b"nearest").decode("ascii")
         if mode == "nearest":
             method = "nearest_neighbor"
         elif mode == "linear":
@@ -4007,7 +4007,7 @@ class Resize(OnnxOpConverter):
         if roi is not None and infer_shape(roi)[0] == 0:
             roi = None
         ndims = len(infer_shape(inputs[0]))
-        mode = attr.get("mode").decode("ascii")
+        mode = attr.get("mode", b"nearest").decode("ascii")
         if mode == "nearest":
             method = "nearest_neighbor"
         elif mode == "linear":
@@ -4809,9 +4809,9 @@ class DFT(OnnxOpConverter):
     @classmethod
     def _impl_v17(cls, inputs, attr, params):
         # ************************* Read attrs *************************
-        axis = attr.get("axis")
-        inverse = attr.get("inverse")
-        onesided = attr.get("onesided")
+        axis = attr.get("axis", 1)
+        inverse = attr.get("inverse", 0)
+        onesided = attr.get("onesided", 0)
 
         # ************************* Read inputs ************************
         input_tensor = inputs[0]
@@ -6021,7 +6021,7 @@ class Multinomial(OnnxOpConverter):
 
     @classmethod
     def _impl_v7(cls, inputs, attr, params):
-        dtype = attr.get("dtype", "int64")
+        dtype = attr.get("dtype", "int32")
         sample_size = attr.get("sample_size", 1)
         seed = attr.get("seed", None)
         if seed is None:

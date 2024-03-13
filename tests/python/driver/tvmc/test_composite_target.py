@@ -35,6 +35,7 @@ def test_get_codegen_names():
 
     assert "ethos-n" in names
     assert "vitis-ai" in names
+    assert "mrvl" in names
     assert len(names) > 0
 
 

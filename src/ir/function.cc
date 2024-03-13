@@ -22,6 +22,7 @@
  * \brief The function data structure.
  */
 #include <tvm/ir/function.h>
+#include <tvm/relax/expr.h>
 #include <tvm/relay/function.h>
 #include <tvm/runtime/registry.h>
 #include <tvm/tir/function.h>
@@ -36,9 +37,27 @@ TVM_REGISTER_GLOBAL("ir.BaseFuncWithAttr")
     .set_body_typed([](BaseFunc func, String key, ObjectRef value) -> BaseFunc {
       if (func->IsInstance<tir::PrimFuncNode>()) {
         return WithAttr(Downcast<tir::PrimFunc>(std::move(func)), key, value);
+      } else if (func->IsInstance<relay::FunctionNode>()) {
+        return WithAttr(Downcast<relay::Function>(std::move(func)), key, value);
+      } else if (func->IsInstance<relax::FunctionNode>()) {
+        return WithAttr(Downcast<relax::Function>(std::move(func)), key, value);
+      } else {
+        LOG(FATAL) << "Do not support function type " << func->GetTypeKey();
       }
-      if (const auto* f = runtime::Registry::Get("relay.ir.FuncWithAttr")) {
-        if (Optional<BaseFunc> ret = (*f)(func, key, value)) {
+    });
+
+TVM_REGISTER_GLOBAL("ir.BaseFuncWithAttrs")
+    .set_body_typed([](BaseFunc func, Map<String, ObjectRef> attr_map) -> BaseFunc {
+      if (func->IsInstance<tir::PrimFuncNode>()) {
+        return WithAttrs(Downcast<tir::PrimFunc>(std::move(func)), attr_map);
+      }
+      if (const auto* f = runtime::Registry::Get("relay.ir.FuncWithAttrs")) {
+        if (Optional<BaseFunc> ret = (*f)(func, attr_map)) {
+          return ret.value();
+        }
+      }
+      if (const auto* f = runtime::Registry::Get("relax.FuncWithAttrs")) {
+        if (Optional<BaseFunc> ret = (*f)(func, attr_map)) {
           return ret.value();
         }
       }
@@ -51,6 +70,8 @@ TVM_REGISTER_GLOBAL("ir.BaseFuncWithoutAttr")
         return WithoutAttr(Downcast<tir::PrimFunc>(std::move(func)), key);
       } else if (func->IsInstance<relay::FunctionNode>()) {
         return WithoutAttr(Downcast<relay::Function>(std::move(func)), key);
+      } else if (func->IsInstance<relax::FunctionNode>()) {
+        return WithoutAttr(Downcast<relax::Function>(std::move(func)), key);
       } else {
         LOG(FATAL) << "Do not support function type " << func->GetTypeKey();
         return func;

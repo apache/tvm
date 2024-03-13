@@ -215,6 +215,58 @@ def conv2d_winograd_without_weight_transform_strategy_adreno(attrs, inputs, out_
     return strategy
 
 
+@conv2d_transpose_strategy.register("adreno")
+def conv2d_transpose_strategy_adreno(attrs, inputs, out_type, target):
+    """conv2d_transpose adreno strategy"""
+    strategy = _op.OpStrategy()
+    _, kernel = inputs
+    dilation = attrs.get_int_tuple("dilation")
+    groups = attrs.groups
+    data_layout = attrs.data_layout
+    kernel_layout = attrs.kernel_layout
+    assert dilation == (1, 1), "not support dilate now"
+
+    if (groups == 1) and (
+        (data_layout == "NCHW" and kernel_layout == "IOHW")
+        or (data_layout == "NCHW4c" and kernel_layout == "IOHW4o")
+        or (data_layout == "NCHW" and kernel_layout == "IOHW4o")
+    ):
+        if len(kernel.shape) == 4:
+            _, oc, _, _ = get_const_tuple(kernel.shape)
+        else:
+            _, oc, _, _, _ = get_const_tuple(kernel.shape)
+        # We cannot use textures for case than number of channels is less than 4.
+        # So, we use compute functions from cuda.
+        if len(kernel.shape) == 4 and oc < 4:
+            strategy.add_implementation(
+                wrap_compute_conv2d_transpose(topi.cuda.conv2d_transpose_nchw),
+                wrap_topi_schedule(topi.cuda.schedule_conv2d_transpose_nchw),
+                name="conv2d_transpose_nchw.cuda",
+            )
+            return strategy
+        strategy.add_implementation(
+            wrap_compute_conv2d_transpose(topi.adreno.conv2d_transpose_nchwc),
+            wrap_topi_schedule(topi.adreno.schedule_conv2d_transpose_nchwc),
+            name="conv2d_transpose_nchwc.image2d",
+            plevel=10,
+        )
+    elif data_layout == "NCHW":
+        strategy.add_implementation(
+            wrap_compute_conv2d_transpose(topi.cuda.conv2d_transpose_nchw, has_groups=True),
+            wrap_topi_schedule(topi.cuda.schedule_conv2d_transpose_nchw),
+            name="conv2d_transpose_nchw.cuda",
+        )
+    else:
+        raise RuntimeError(
+            "Layout not supported: ("
+            + data_layout
+            + ", "
+            + kernel_layout
+            + ") - only support NCHW, NCHW4c / IOHW4o layouts for conv2d_transpose"
+        )
+    return strategy
+
+
 @schedule_pool.register("adreno")
 def schedule_pool_adreno(attrs, outs, target):
     """schedule pooling ops for adreno"""

@@ -1669,7 +1669,7 @@ int CacheWriteStepNode::ApplyToState(State* state, const ComputeDAG& dag) const 
   int next_stage_id = stage_id + 2;
   // TODO(jc94): Fix the cache write bug in TVM and remove added_op == 2 support.
   // TVM's cache_write has a bug with multi outputs. See
-  // `tests/python/unittest/test_auto_scheduler_loop_state.py::test_cache_read_write` test
+  // `tests/python/auto_scheduler/test_auto_scheduler_loop_state.py::test_cache_read_write` test
   // for more details
   if (added_ops == 2) {
     pstate->stages.insert(pstate->stages.begin() + next_stage_id,

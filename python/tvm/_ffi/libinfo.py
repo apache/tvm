@@ -74,9 +74,15 @@ def get_dll_directories():
 
     dll_path.append(install_lib_dir)
 
-    if os.path.isdir(source_dir):
-        dll_path.append(os.path.join(source_dir, "web", "dist", "wasm"))
-        dll_path.append(os.path.join(source_dir, "web", "dist"))
+    # use extra TVM_HOME environment for finding libraries.
+    if os.environ.get("TVM_HOME", None):
+        tvm_source_home_dir = os.environ["TVM_HOME"]
+    else:
+        tvm_source_home_dir = source_dir
+
+    if os.path.isdir(tvm_source_home_dir):
+        dll_path.append(os.path.join(tvm_source_home_dir, "web", "dist", "wasm"))
+        dll_path.append(os.path.join(tvm_source_home_dir, "web", "dist"))
 
     dll_path = [os.path.realpath(x) for x in dll_path]
     return [x for x in dll_path if os.path.isdir(x)]
@@ -112,25 +118,39 @@ def find_lib_path(name=None, search_path=None, optional=False):
         else:
             lib_dll_path = [os.path.join(p, name) for p in dll_path]
         runtime_dll_path = []
+        ext_lib_dll_path = []
     else:
         if sys.platform.startswith("win32"):
             lib_dll_names = ["libtvm.dll", "tvm.dll"]
             runtime_dll_names = ["libtvm_runtime.dll", "tvm_runtime.dll"]
+            ext_lib_dll_names = [
+                "3rdparty/cutlass_fpA_intB_gemm/cutlass_kernels/libfpA_intB_gemm.dll",
+                "3rdparty/libflash_attn/src/libflash_attn.dll",
+            ]
         elif sys.platform.startswith("darwin"):
             lib_dll_names = ["libtvm.dylib"]
             runtime_dll_names = ["libtvm_runtime.dylib"]
+            ext_lib_dll_names = [
+                "3rdparty/cutlass_fpA_intB_gemm/cutlass_kernels/libfpA_intB_gemm.dylib",
+                "3rdparty/libflash_attn/src/libflash_attn.dylib",
+            ]
         else:
             lib_dll_names = ["libtvm.so"]
             runtime_dll_names = ["libtvm_runtime.so"]
+            ext_lib_dll_names = [
+                "3rdparty/cutlass_fpA_intB_gemm/cutlass_kernels/libfpA_intB_gemm.so",
+                "3rdparty/libflash_attn/src/libflash_attn.so",
+            ]
 
-        name = lib_dll_names + runtime_dll_names
+        name = lib_dll_names + runtime_dll_names + ext_lib_dll_names
         lib_dll_path = [os.path.join(p, name) for name in lib_dll_names for p in dll_path]
         runtime_dll_path = [os.path.join(p, name) for name in runtime_dll_names for p in dll_path]
-
+        ext_lib_dll_path = [os.path.join(p, name) for name in ext_lib_dll_names for p in dll_path]
     if not use_runtime:
         # try to find lib_dll_path
         lib_found = [p for p in lib_dll_path if os.path.exists(p) and os.path.isfile(p)]
         lib_found += [p for p in runtime_dll_path if os.path.exists(p) and os.path.isfile(p)]
+        lib_found += [p for p in ext_lib_dll_path if os.path.exists(p) and os.path.isfile(p)]
     else:
         # try to find runtime_dll_path
         use_runtime = True
@@ -227,4 +247,4 @@ def find_include_path(name=None, search_path=None, optional=False):
 # We use the version of the incoming release for code
 # that is under development.
 # The following line is set by tvm/python/update_version.py
-__version__ = "0.15.dev0"
+__version__ = "0.16.dev0"

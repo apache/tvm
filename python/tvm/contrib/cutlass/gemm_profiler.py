@@ -55,7 +55,7 @@ class GemmProfilerEmitter(object):
   }
 
 template<typename DTypeA, typename DTypeB, typename DTypeC>
-cudaError_t CutlassGemmRCR(
+cudaError_t CutlassGemm(
     int M,
     int N,
     int K,
@@ -148,7 +148,7 @@ cudaError_t TestCutlassGemm(int M, int N, int K, DTypeC alpha, DTypeC beta) {
     cudaFree(B);
     return result;
   }
-  result = CutlassGemmRCR<DTypeA, DTypeB, DTypeC>(M, N, K, alpha, A, lda, B, ldb,
+  result = CutlassGemm<DTypeA, DTypeB, DTypeC>(M, N, K, alpha, A, lda, B, ldb,
                                                   beta, C_cutlass, ldc);
   if (result != cudaSuccess) {
     std::cerr << "CUTLASS GEMM kernel failed: "

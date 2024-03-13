@@ -42,8 +42,9 @@ class CUDADeviceAPI final : public DeviceAPI {
     int value = 0;
     switch (kind) {
       case kExist:
-        value = (cudaDeviceGetAttribute(&value, cudaDevAttrMaxThreadsPerBlock, dev.device_id) ==
-                 cudaSuccess);
+        int count;
+        CUDA_CALL(cudaGetDeviceCount(&count));
+        value = static_cast<int>(dev.device_id < count);
         break;
       case kMaxThreadsPerBlock: {
         CUDA_CALL(cudaDeviceGetAttribute(&value, cudaDevAttrMaxThreadsPerBlock, dev.device_id));
@@ -105,12 +106,20 @@ class CUDADeviceAPI final : public DeviceAPI {
       }
       case kDriverVersion:
         return;
-      case kL2CacheSizeBytes:
+      case kL2CacheSizeBytes: {
         // Get size of device l2 cache size in bytes.
         int l2_size = 0;
         CUDA_CALL(cudaDeviceGetAttribute(&l2_size, cudaDevAttrL2CacheSize, dev.device_id));
         *rv = l2_size;
         return;
+      }
+      case kTotalGlobalMemory: {
+        cudaDeviceProp prop;
+        CUDA_CALL(cudaGetDeviceProperties(&prop, dev.device_id));
+        int64_t total_global_memory = prop.totalGlobalMem;
+        *rv = total_global_memory;
+        return;
+      }
     }
     *rv = value;
   }
@@ -186,7 +195,7 @@ class CUDADeviceAPI final : public DeviceAPI {
   TVMStreamHandle CreateStream(Device dev) {
     CUDA_CALL(cudaSetDevice(dev.device_id));
     cudaStream_t retval;
-    CUDA_CALL(cudaStreamCreate(&retval));
+    CUDA_CALL(cudaStreamCreateWithFlags(&retval, cudaStreamNonBlocking));
     return static_cast<TVMStreamHandle>(retval);
   }
 
@@ -216,6 +225,10 @@ class CUDADeviceAPI final : public DeviceAPI {
     CUDAThreadEntry::ThreadLocal()->stream = static_cast<cudaStream_t>(stream);
   }
 
+  TVMStreamHandle GetCurrentStream(Device dev) final {
+    return static_cast<TVMStreamHandle>(CUDAThreadEntry::ThreadLocal()->stream);
+  }
+
   void* AllocWorkspace(Device dev, size_t size, DLDataType type_hint) final {
     return CUDAThreadEntry::ThreadLocal()->pool.AllocWorkspace(dev, size);
   }
@@ -234,11 +247,7 @@ class CUDADeviceAPI final : public DeviceAPI {
  private:
   static void GPUCopy(const void* from, void* to, size_t size, cudaMemcpyKind kind,
                       cudaStream_t stream) {
-    if (stream != nullptr) {
-      CUDA_CALL(cudaMemcpyAsync(to, from, size, kind, stream));
-    } else {
-      CUDA_CALL(cudaMemcpy(to, from, size, kind));
-    }
+    CUDA_CALL(cudaMemcpyAsync(to, from, size, kind, stream));
   }
 };
 
@@ -305,6 +314,18 @@ TVM_DLL String GetCudaFreeMemory() {
 }
 
 TVM_REGISTER_GLOBAL("runtime.GetCudaFreeMemory").set_body_typed(GetCudaFreeMemory);
+
+TVM_REGISTER_GLOBAL("runtime.get_cuda_stream").set_body_typed([]() {
+  return static_cast<void*>(CUDAThreadEntry::ThreadLocal()->stream);
+});
+
+TVM_DLL int GetCudaDeviceCount() {
+  int count;
+  CUDA_CALL(cudaGetDeviceCount(&count));
+  return count;
+}
+
+TVM_REGISTER_GLOBAL("runtime.GetCudaDeviceCount").set_body_typed(GetCudaDeviceCount);
 
 }  // namespace runtime
 }  // namespace tvm

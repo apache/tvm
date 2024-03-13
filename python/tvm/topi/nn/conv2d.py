@@ -144,6 +144,29 @@ def conv2d_alter_layout(attrs, inputs, tinfos, out_type):
 
 
 @tvm.target.generic_func
+def conv2d_transpose_alter_layout(attrs, inputs, tinfos, out_type):
+    """Change Conv2D_Transpose layout.
+
+    Parameters
+    ----------
+    attrs : tvm.ir.Attrs
+        Attributes of current convolution
+    inputs : tvm.relay.Expr
+        Grouped input symbols
+    tinfos : list
+        Input shape and dtype
+    out_type: type
+        The output type
+
+    Note
+    ----
+    Unlike other TOPI functions, this function operates on both graph level and operator level.
+    """
+    # not to change by default
+    return None
+
+
+@tvm.target.generic_func
 def conv2d_infer_layout(workload, cfg):
     """Infer input/output shapes and layouts from a workload and cfg.
 
@@ -592,17 +615,17 @@ def conv2d_NCHWc_int8(
     )
 
 
-def conv2d_gemm_weight_transform(kernel, tile_rows, tile_cols):
+def conv2d_gemm_weight_transform(kernel, tile_N, tile_K):
     """Weight transformation for winograd
 
     Parameters
     ----------
     kernel: Tensor
         The raw kernel tensor with layout "NHWC".
-    tile_rows: int
-        Tile rows of the weight transformation for ConvGemm.
-    tile_cols: int
-        Tile columns of the weight transformation for ConvGemm.
+    tile_N: int
+        Tile size across N axis of the weight transformation for ConvGemm. (N = OC)
+    tile_K: int
+        Tile size across K axis of the weight transformation for ConvGemm. (K = KW * KH * IC)
 
     Returns
     -------
@@ -617,20 +640,7 @@ def conv2d_gemm_weight_transform(kernel, tile_rows, tile_cols):
         (K, N), lambda x, y: kernel[(x // IC) // KW, (x // IC) % KW, x % IC, y], "weight_flatten"
     )
 
-    pad_K = 0
-    pad_N = 0
-
-    if N % tile_rows != 0:
-        pad_N = tile_rows - (N % tile_rows)
-
-    # Tensorize will later make use of 4 tiles at once across the columns so make sure we pad such
-    # that the columns is multiple of 4
-    column_multiplier = 4
-    tile_cols_multiplied = tile_cols * column_multiplier
-    K_misalignment = K % tile_cols_multiplied
-
-    if K_misalignment != 0:
-        pad_K = tile_cols_multiplied - K_misalignment
+    pad_N, pad_K = tvm.topi.arm_cpu.arm_utils.get_conv2d_weights_padding(N, K, tile_N, tile_K)
 
     N_padded = N + pad_N
     K_padded = K + pad_K
@@ -640,11 +650,19 @@ def conv2d_gemm_weight_transform(kernel, tile_rows, tile_cols):
             kernel_flat, pad_before=(0, 0), pad_after=(pad_K, pad_N), name="weight_padding"
         )
 
-    return te.compute(
-        (N_padded // tile_rows, K_padded // tile_cols, tile_rows, tile_cols),
-        lambda x, y, z, w: kernel_flat[w + tile_cols * y, z + tile_rows * x],
-        name="weight_block_reshape",
-    )
+    if kernel.dtype in ["int8", "uint8"]:
+        B_inter_t = te.compute(
+            (N_padded // tile_N, K_padded // tile_K, tile_N, tile_K),
+            lambda x, y, z, w: kernel_flat[w + tile_K * y, z + tile_N * x],
+            name="weight_block_reshape",
+        )
+    else:
+        B_inter_t = te.compute(
+            (N_padded // tile_N, K_padded // tile_K, tile_K, tile_N),
+            lambda x, y, z, w: kernel_flat[z + tile_K * y, w + tile_N * x],
+            name="weight_block_reshape",
+        )
+    return B_inter_t
 
 
 def conv2d_winograd_weight_transform(kernel, tile_size):
@@ -885,7 +903,7 @@ def conv(
     # compute the output shape
     out_channel = num_filter
     out_dimensions = [
-        simplify(d - (k - 1) * dil - 1 + pb + pe) // stride + 1
+        simplify((d - (k - 1) * dil - 1 + pb + pe) // stride + 1)
         for d, k, dil, pb, pe, stride in zip(
             dimensions, kernel_dimensions, dilations, pad_begin, pad_end, strides
         )

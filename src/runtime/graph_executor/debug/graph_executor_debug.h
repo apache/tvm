@@ -123,6 +123,18 @@ class GraphExecutorDebug : public GraphExecutor {
   void DebugGetNodeOutput(int index, DLTensor* data_out);
 
   /*!
+   * \brief return output of index-th node.
+   *
+   * This method will do a partial run of the graph
+   * from begining up to the index-th node and return output of index-th node.
+   * This is costly operation and suggest to use only for debug porpose.
+   *
+   * \param index: The  index of the node.
+   *
+   */
+  NDArray DebugGetNodeOutput(int index);
+
+  /*!
    * \brief Profile execution time of the module.
    *
    * We run the entire module while recording overall and per-op timing

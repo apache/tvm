@@ -21,7 +21,7 @@ import tvm.topi.testing
 from tvm.topi.nn.utils import get_pad_tuple3d
 
 
-def conv3d_transpose_ncdhw_python(a_np, w_np, stride, padding, output_padding):
+def _conv3d_transpose_ncdhw_python(a_np, w_np, stride, padding, output_padding):
     """Transposed 3d convolution operator in NCDHW layout.
 
     Parameters
@@ -101,4 +101,42 @@ def conv3d_transpose_ncdhw_python(a_np, w_np, stride, padding, output_padding):
         padded_a_np, w_np, stride=(1, 1, 1), padding=(0, 0, 0)
     )
 
+    return b_np
+
+
+def conv3d_transpose_ncdhw_python(a_np, w_np, stride, padding, output_padding, groups=1):
+    """Transposed 3d convolution operator in NCDHW layout.
+
+    Parameters
+    ----------
+    a_np : numpy.ndarray
+        5-D with shape [batch, in_channel, in_depth, in_height, in_width]
+
+    w_np : numpy.ndarray
+        5-D with shape [in_channel, num_filter, filter_depth, filter_height, filter_width]
+
+    stride : int or a list/tuple of two ints
+        Stride size, or [stride_depth, stride_height, stride_width]
+
+    padding : int or str
+        Padding size
+
+    output_padding : int or list/tuple of three ints
+        Used to disambiguate output shape.
+
+    groups : int
+        Number of groups
+
+    Returns
+    -------
+    b_np : np.ndarray
+        5-D with shape [batch, out_channel, out_depth, out_height, out_width]
+    """
+    a_slices = np.array_split(a_np, groups, axis=1)
+    w_slices = np.array_split(w_np, groups, axis=0)
+    b_slices = [
+        _conv3d_transpose_ncdhw_python(a_slice, w_slice, stride, padding, output_padding)
+        for a_slice, w_slice in zip(a_slices, w_slices)
+    ]
+    b_np = np.concatenate(b_slices, axis=1)
     return b_np

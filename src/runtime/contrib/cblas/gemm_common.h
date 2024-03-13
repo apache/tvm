@@ -35,7 +35,7 @@ namespace tvm {
 namespace contrib {
 
 using namespace runtime;
-inline int ColumnStride(DLTensor* tensor) {
+inline int ColumnStride(const DLTensor* tensor) {
   // If the tensor itself is transposed then it will have strides
   // backward from what we expect.  Regardless, the max of the strides
   // (the other stride is 1) is the column stride.
@@ -46,7 +46,7 @@ inline int ColumnStride(DLTensor* tensor) {
   }
 }
 
-inline int ElementStride(DLTensor* tensor) {
+inline int ElementStride(const DLTensor* tensor) {
   if (tensor->strides) {
     return std::min(tensor->strides[0], tensor->strides[1]);
   } else {
@@ -55,13 +55,17 @@ inline int ElementStride(DLTensor* tensor) {
 }
 
 // Reversed strides indicates an in-place transpose operation.
-inline bool IsInPlaceTransposed(DLTensor* tensor) {
+inline bool IsInPlaceTransposed(const DLTensor* tensor) {
   return tensor->strides && (tensor->strides[1] > tensor->strides[0]);
 }
 
-inline int RowCount(DLTensor* tensor, bool trans) { return tensor->shape[trans ? 1 : 0]; }
+inline int RowCount(const DLTensor* tensor, bool trans, int batch_offset = 0) {
+  return tensor->shape[batch_offset + (trans ? 1 : 0)];
+}
 
-inline int ColumnCount(DLTensor* tensor, bool trans) { return tensor->shape[trans ? 0 : 1]; }
+inline int ColumnCount(const DLTensor* tensor, bool trans, int batch_offset = 0) {
+  return tensor->shape[batch_offset + (trans ? 0 : 1)];
+}
 
 // Call a column major blas.  Note that data is stored in tvm as row
 // major, so this we switch the arguments.
@@ -159,7 +163,7 @@ inline int ColumnStride3D(DLTensor* tensor) {
     return tensor->shape[2];
   }
 }
-inline int ElementStride3D(DLTensor* tensor) {
+inline int ElementStride3D(const DLTensor* tensor) {
   if (tensor->strides) {
     return std::min(tensor->strides[1], tensor->strides[2]);
   } else {

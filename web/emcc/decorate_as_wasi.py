@@ -20,6 +20,7 @@ import sys
 
 template_head = """
 function EmccWASI() {
+var asyncifyStubs = {};
 """
 
 template_tail = """
@@ -28,15 +29,29 @@ template_tail = """
     this.imports = Module.wasmLibraryProvider.imports;
     this.wasiImport = this.imports["wasi_snapshot_preview1"];
 }
+"""
 
+template_es_tail = """
+export default EmccWASI;
+"""
+
+template_cjs_tail = """
 if (typeof module !== "undefined" && module.exports) {
   module.exports = EmccWASI;
 }
 """
 
+
+def generate_tail(mode):
+    if mode == "es":
+        return template_tail + template_es_tail
+    return template_tail + template_cjs_tail
+
+
 if __name__ == "__main__":
-    if len(sys.argv) != 3:
-        print("Usage <file-in> <file-out>")
-    result = template_head + open(sys.argv[1]).read() + template_tail
+    if len(sys.argv) != 4:
+        print("Usage <file-in> <file-out> <mode>")
+
+    result = template_head + open(sys.argv[1]).read() + generate_tail(sys.argv[3])
     with open(sys.argv[2], "w") as fo:
         fo.write(result)

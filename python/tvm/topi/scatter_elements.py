@@ -33,7 +33,7 @@ def scatter_elements(data, indices, updates, axis=0, reduction="update"):
         output[indices[i][j]][j] = f(output[indices[i][j]][j], updates[i][j]) if axis = 0
         output[i][indices[i][j]] = f(output[i][indices[i][j]], updates[i][j]) if axis = 1
 
-    where the update function f is determinted by the reduction.
+    where the update function f is determined by the reduction.
     Five types of the function are supported: "update", "add", "mul", "min" and "max" (see below)
 
     Parameters

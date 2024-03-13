@@ -21,6 +21,7 @@
 
 #include <tvm/ir/expr.h>
 #include <tvm/ir/function.h>
+#include <tvm/ir/module.h>
 #include <tvm/node/node.h>
 #include <tvm/script/ir_builder/base.h>
 
@@ -47,12 +48,15 @@ class IRModuleFrameNode : public IRBuilderFrameNode {
   Map<GlobalVar, BaseFunc> functions;
   /*! \brief IRModule's attributes. */
   Map<String, ObjectRef> attrs;
+  /*! \brief IRModule's global_infos */
+  Map<String, Array<GlobalInfo>> global_infos;
 
   void VisitAttrs(tvm::AttrVisitor* v) {
     IRBuilderFrameNode::VisitAttrs(v);
     v->Visit("global_vars", &global_var_map);
     v->Visit("functions", &functions);
     v->Visit("attrs", &attrs);
+    v->Visit("global_infos", &global_infos);
   }
 
   static constexpr const char* _type_key = "script.ir_builder.IRModuleFrame";

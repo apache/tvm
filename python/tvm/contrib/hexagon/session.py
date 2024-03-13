@@ -24,7 +24,9 @@ import tempfile
 from typing import Union
 
 import tvm
+from tvm import relax
 from tvm import rpc as _rpc
+from tvm.contrib import utils
 import tvm.contrib.hexagon as hexagon
 from tvm.relay.backend.executor_factory import (
     ExecutorFactoryModule,
@@ -284,13 +286,13 @@ class Session:
             graph_json, graph_debug_mod, self.device, dump_root=str(dump_root)
         )
 
-    def get_executor_from_factory(self, module: ExecutorFactoryModule):
+    def get_executor_from_factory(self, module: Union[ExecutorFactoryModule, relax.Executable]):
         """Create a local GraphModule which consumes a remote libmod.
 
         Parameters
         ----------
 
-        module : ExecutorFactoryModule
+        module : Union[ExecutorFactoryModule, relax.Executable]
 
             The module to upload to the remote
             session and load.
@@ -299,6 +301,8 @@ class Session:
             return self._aot_executor_from_factory(module)
         if isinstance(module, GraphExecutorFactoryModule):
             return self._graph_executor_from_factory(module)
+        if isinstance(module, relax.Executable):
+            return self._relax_vm_executable_executor(module)
 
         raise TypeError(f"Unsupported executor type: {type(module)}")
 
@@ -349,6 +353,35 @@ class Session:
 
         """
         return self.get_graph_executor(module.get_graph_json(), module.get_lib())
+
+    def _relax_vm_executable_executor(self, vm_exec: relax.Executable):
+        """Create a local TVM module which consumes a remote vm executable.
+
+        Paramters
+        ---------
+
+        vm_exec : relax.Executable
+            The Relax VM Executable to upload to the remote and load. This will typically be the
+            output of `relax.build`.
+
+        Returns
+        -------
+        TVMModule :
+            TVM module object
+        """
+        assert self._rpc is not None, "Hexagon session must be started using __enter__ prior to use"
+
+        temp_dir = utils.tempdir()
+        path_exec = temp_dir.relpath("exec.so")
+
+        vm_exec.mod.export_library(
+            path_exec,
+            fcompile=hexagon.create_aot_shared,
+            hexagon_arch="v68",
+        )
+
+        path = self.upload(path_exec, "exec.so")
+        return self._rpc.get_function("tvm.hexagon.load_module")(str(path))
 
     def _aot_executor_from_factory(
         self,

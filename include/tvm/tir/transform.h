@@ -56,7 +56,7 @@ using tvm::transform::Sequential;
  */
 TVM_DLL Pass CreatePrimFuncPass(
     const runtime::TypedPackedFunc<PrimFunc(PrimFunc, IRModule, PassContext)>& pass_func,
-    int opt_level, String name, tvm::Array<String> required);
+    int opt_level, String name, tvm::Array<String> required, bool traceable = false);
 
 /*!
  * \brief Inject prefetch instructions into stmt.
@@ -388,6 +388,14 @@ TVM_DLL Pass CombineContextCall();
 TVM_DLL Pass NarrowDataType(int target_bits);
 
 /*!
+ * \brief Force to narrow down indexing expressions and integer buffers to int32 dtype.
+ *
+ * \return The pass.
+ * \note This pass should not be used in default cases.
+ */
+TVM_DLL Pass ForceNarrowIndexToInt32();
+
+/*!
  * \brief Legalize bf16 compute Ops. Add a cast to fp32
  *   before Ops, then add a cast back to bf16.
  * \return The pass.
@@ -413,6 +421,13 @@ TVM_DLL Pass BF16StorageLegalize();
  * \return The pass.
  */
 TVM_DLL Pass FP8StorageLegalize();
+
+/*!
+ * \brief Inline calls to private functions
+ *
+ * \return The pass.
+ */
+TVM_DLL Pass InlinePrivateFunctions();
 
 /*!
  * \brief Rewrite the pointer content type of arguments,
@@ -606,9 +621,9 @@ TVM_DLL Pass InstallDebugSpans();
 TVM_DLL Pass UnifyThreadBinding();
 
 /*!
- *  A pass to merge multiple TIR-level dynamic shared memory allocations into one
+ *  A pass to merge multiple TIR-level shared memory allocations into one
  */
-TVM_DLL Pass MergeDynamicSharedMemoryAllocations();
+TVM_DLL Pass MergeSharedMemoryAllocations();
 
 /*!
  * \brief This pass is post-scheduling pass to convert all
@@ -804,6 +819,18 @@ TVM_DLL Pass ManifestSharedMemoryLocalStage();
  * \return The pass.
  */
 TVM_DLL Pass InstrumentProfileIntrinsics();
+
+/*!
+ * \brief The pass sets default thread bindings for PrimFuncs, including symbolic shape functions,
+ *  allowing their build and execution on GPU devices. It examines all the blocks within the
+ *  PrimFunc and conducts loop fusion, splitting, and reordering operations based on the loop extent
+ *  and target information, such as the maximum thread block number and maximum thread per block.
+ * \note The primary objective of this pass is not to optimize performance, but rather to
+ *  generate a valid GPU kernel for unscheduled or symbolic shape PrimFuncs. The pass is
+ *  currently only working for CUDA targets.
+ * \return The Pass.
+ */
+TVM_DLL Pass DefaultGPUSchedule();
 
 }  // namespace transform
 }  // namespace tir

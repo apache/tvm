@@ -354,7 +354,7 @@ using ReductionStrideIndex = typename ReductionDevice::StrideIndex;
         return substitute_template(template, values)
 
 
-def instantiate_conv2d_template(attrs, func_args):
+def instantiate_conv2d_template(attrs):
     """Return CUTLASS host code for conv2d based on a template and the provided attribute map."""
     template = """
     ${cutlass_op_def}
@@ -382,8 +382,8 @@ def instantiate_conv2d_template(attrs, func_args):
   cutlass::conv::Conv2dProblemSize problem_size(N, H, W, C, K, R, S, P, Q, pad_h, pad_w, stride_h, stride_w, dilation_h, dilation_w, cutlass::conv::Mode::kCrossCorrelation, split_k_slices);
   const cutlass::conv::SplitKMode split_k_mode = cutlass::conv::SplitKMode::${split_k_mode};
 
-  void* ptr_a = (void*)(${arg0}->data);
-  void* ptr_b = (void*)(${arg1}->data);
+  void* ptr_a = (void*)(${data_arg}->data);
+  void* ptr_b = (void*)(${weight_arg}->data);
   ${bias_decl}
   ${residual_decl}
   void* ptr_out = (void*)(out0->data);
@@ -394,11 +394,12 @@ def instantiate_conv2d_template(attrs, func_args):
   auto activation_shape = TensorNHWC::packed(cutlass::make_Coord(N, H, W, C));
   auto weight_shape = TensorNHWC::packed(cutlass::make_Coord(K, R, S, C));
   auto output_shape = TensorNHWC::packed(cutlass::make_Coord(N, P, Q, K));
+  ${residual_shape_decl}
 
   TensorNHWC layout_A(${A_shape});
   TensorNHWC layout_B(${B_shape});
   TensorNHWC layout_C(${C_shape});
-  TensorNHWC layout_D(${C_shape});
+  TensorNHWC layout_D(${D_shape});
 
   using ElementOutput = ${ElementOutput};
   cutlass::TensorRef<ElementOutput, TensorNHWC> tensor_c{static_cast<ElementOutput*>(${tensor_c}), ${tensor_c_layout}};
@@ -422,7 +423,12 @@ def instantiate_conv2d_template(attrs, func_args):
   status = conv2d_op.initialize(arguments, workspace.get());
   CHECK(status == cutlass::Status::kSuccess);
   ${split_k_update}
-  status = conv2d_op();
+
+  auto func = tvm::runtime::Registry::Get("runtime.get_cuda_stream");
+  ICHECK(func != nullptr);
+  cudaStream_t stream = static_cast<cudaStream_t>((*func)().operator void*());
+
+  status = conv2d_op(stream);
   CHECK(status == cutlass::Status::kSuccess);
   ${split_k_reduction}
 """
@@ -466,7 +472,7 @@ def instantiate_conv2d_template(attrs, func_args):
     use_split_k = "splitk" in attrs["cutlass_op_name"]
     is_wgrad = "backward_weight" in op_type
     is_dgrad = "conv2d_transpose" in op_type
-    has_residual_blcok = "residual" in op_type
+    has_residual_block = "residual" in op_type
     no_bias_scaling = op_type not in [
         "cutlass.conv2d_bias_sigmoid",
         "cutlass.conv2d_bias_silu",
@@ -475,18 +481,18 @@ def instantiate_conv2d_template(attrs, func_args):
 
     aux_map = {}
 
-    if (not has_bias or no_bias_scaling) and not has_residual_blcok:
-        aux_map["beta"] = "0"
+    if (not has_bias or no_bias_scaling) and not has_residual_block:
+        aux_map["beta"] = 0
     else:
-        aux_map["beta"] = "1"
+        aux_map["beta"] = 1
 
-    if has_residual_blcok:
-        aux_map["bias_decl"] = "void* ptr_bias = (void*)(${arg2}->data);\n"
-        aux_map["residual_decl"] = "void* ptr_residual = (void*)(${arg3}->data);"
+    if has_residual_block:
+        aux_map["bias_decl"] = "void* ptr_bias = (void*)(${bias_arg}->data);\n"
+        aux_map["residual_decl"] = "void* ptr_residual = (void*)(${residual_arg}->data);"
         aux_map["tensor_c"] = "ptr_residual"
         aux_map["tensor_c_layout"] = "layout_C"
     elif has_bias:
-        aux_map["bias_decl"] = "void* ptr_c_bias = (void*)(${arg2}->data);\n"
+        aux_map["bias_decl"] = "void* ptr_c_bias = (void*)(${bias_arg}->data);\n"
         aux_map["residual_decl"] = ""
         aux_map["tensor_c"] = "ptr_c_bias"
         aux_map["tensor_c_layout"] = "cutlass::layout::TensorNHWC::Stride(0)"
@@ -496,28 +502,48 @@ def instantiate_conv2d_template(attrs, func_args):
         aux_map["tensor_c"] = "ptr_out"
         aux_map["tensor_c_layout"] = "layout_C"
 
-    if has_bias and no_bias_scaling and not has_residual_blcok:
+    if has_bias and no_bias_scaling and not has_residual_block:
         aux_map["alpha_beta"] = "alpha"
     else:
         aux_map["alpha_beta"] = "alpha, beta"
 
-    if has_residual_blcok:
+    if has_residual_block:
         aux_map["additional_args"] = ", static_cast<ElementOutput*>(ptr_bias), nullptr, 0, K"
     else:
         aux_map["additional_args"] = ""
+
+    aux_map["residual_shape_decl"] = ""
 
     if is_wgrad:
         aux_map["A_shape"] = "output_shape"
         aux_map["B_shape"] = "activation_shape"
         aux_map["C_shape"] = "weight_shape"
+        aux_map["D_shape"] = "weight_shape"
     elif is_dgrad:
         aux_map["A_shape"] = "output_shape"
         aux_map["B_shape"] = "weight_shape"
         aux_map["C_shape"] = "activation_shape"
+        aux_map["D_shape"] = "activation_shape"
     else:
         aux_map["A_shape"] = "activation_shape"
         aux_map["B_shape"] = "weight_shape"
-        aux_map["C_shape"] = "output_shape"
+        aux_map["D_shape"] = "output_shape"
+
+        if has_residual_block:
+            res_shape = list(attrs.pop("residual_shape"))
+            shape_str = f"cutlass::make_Coord({res_shape[0]}, {res_shape[1]}, {res_shape[2]}, K)"
+            aux_map[
+                "residual_shape_decl"
+            ] = f"auto residual_shape = TensorNHWC::packed({shape_str});"
+            aux_map["C_shape"] = "residual_shape"
+
+            if res_shape == [int(attrs[c]) for c in ["N", "H", "W", "K"]]:
+                aux_map["tensor_c_layout"] = "layout_C"
+            else:
+                # bias-like residual input
+                aux_map["tensor_c_layout"] = "cutlass::layout::TensorNHWC::Stride(0)"
+        else:
+            aux_map["C_shape"] = "output_shape"
 
     if use_split_k:
         aux_map["ElementOutput"] = "EpilogueOutputOp::ElementOutput"
@@ -533,8 +559,5 @@ def instantiate_conv2d_template(attrs, func_args):
         aux_map["split_k_reset"] = aux_map["split_k_update"] = aux_map["split_k_reduction"] = ""
 
     template = substitute_template(template, aux_map)
-
-    for i, arg in enumerate(func_args):
-        attrs[f"arg{i}"] = arg
 
     return substitute_template(template, attrs)

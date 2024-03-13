@@ -14,12 +14,12 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-import tvm
-from tvm import te
+"""Configure pytest"""
+# pylint: disable=invalid-name
 import logging
-import numpy as np
 import time
 import multiprocessing
+import tvm
 from tvm import rpc
 
 
@@ -35,6 +35,7 @@ def rpc_proxy_check():
     """
 
     try:
+        # pylint: disable=import-outside-toplevel
         from tvm.rpc import proxy
 
         web_port = 8888

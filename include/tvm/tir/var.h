@@ -270,7 +270,7 @@ class IterVarNode : public Object {
   IterVarType iter_type;
   /*!
    * \brief additional tag on the iteration variable,
-   *  set this if this is binded already to a known thread tag.
+   *  set this if this is bound already to a known thread tag.
    */
   String thread_tag;
   /*!

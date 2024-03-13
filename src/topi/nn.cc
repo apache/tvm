@@ -113,6 +113,11 @@ TVM_REGISTER_GLOBAL("topi.nn.global_pool").set_body([](TVMArgs args, TVMRetValue
   *rv = nn::global_pool(args[0], static_cast<nn::PoolType>(static_cast<int>(args[1])), args[2]);
 });
 
+TVM_REGISTER_GLOBAL("topi.nn.adaptive_pool1d").set_body([](TVMArgs args, TVMRetValue* rv) {
+  *rv = nn::adaptive_pool1d(args[0], args[1], static_cast<nn::PoolType>(static_cast<int>(args[2])),
+                            args[3]);
+});
+
 TVM_REGISTER_GLOBAL("topi.nn.adaptive_pool").set_body([](TVMArgs args, TVMRetValue* rv) {
   *rv = nn::adaptive_pool(args[0], args[1], static_cast<nn::PoolType>(static_cast<int>(args[2])),
                           args[3]);
@@ -179,7 +184,7 @@ TVM_REGISTER_GLOBAL("topi.nn.instance_norm").set_body([](TVMArgs args, TVMRetVal
 
 /* Ops from nn/rms_norm.h */
 TVM_REGISTER_GLOBAL("topi.nn.rms_norm").set_body([](TVMArgs args, TVMRetValue* rv) {
-  *rv = nn::rms_norm(args[0], args[1], args[2], args[3], static_cast<double>(args[4]));
+  *rv = nn::rms_norm(args[0], args[1], args[2], static_cast<double>(args[3]));
 });
 
 }  // namespace topi

@@ -336,6 +336,7 @@ def _conv_find_algo(
     data_dtype,
     conv_dtype,
     groups=1,
+    verbose=False,
 ):
     """
     Common function to choose the best cudnn convolution algorithm for the given input
@@ -361,6 +362,7 @@ def _conv_find_algo(
         data_dtype,
         conv_dtype,
         groups,
+        verbose,
     )
 
 
@@ -375,6 +377,7 @@ def conv_forward_find_algo(
     data_dtype,
     conv_dtype,
     groups=1,
+    verbose=True,
 ):
     """Choose the best forward algorithm for the given input.
 
@@ -420,6 +423,7 @@ def conv_forward_find_algo(
         data_dtype,
         conv_dtype,
         groups,
+        verbose,
     )
 
 
@@ -434,6 +438,7 @@ def conv_backward_data_find_algo(
     data_dtype,
     conv_dtype,
     groups=1,
+    verbose=True,
 ):
     """Choose the best backward data algorithm for the given input.
 
@@ -461,6 +466,8 @@ def conv_backward_data_find_algo(
         convolution type
     groups: int
         number of groups
+    verbose: bool
+        whether to show the selection trials
 
     Returns
     -------
@@ -479,6 +486,7 @@ def conv_backward_data_find_algo(
         data_dtype,
         conv_dtype,
         groups,
+        verbose,
     )
 
 
@@ -493,6 +501,7 @@ def conv_backward_filter_find_algo(
     data_dtype,
     conv_dtype,
     groups=1,
+    verbose=True,
 ):
     """Choose the best backward filter algorithm for the given input.
 
@@ -520,6 +529,8 @@ def conv_backward_filter_find_algo(
         convolution type
     groups: int
         number of groups
+    verbose: bool
+        whether to show the selection trials
 
     Returns
     -------
@@ -538,10 +549,13 @@ def conv_backward_filter_find_algo(
         data_dtype,
         conv_dtype,
         groups,
+        verbose,
     )
 
 
-def conv_forward(x, w, pad, stride, dilation, conv_mode, tensor_format, algo, conv_dtype, groups=1):
+def conv_forward(
+    x, w, pad, stride, dilation, conv_mode, tensor_format, algo, conv_dtype, groups=1, verbose=True
+):
     """Create an extern op that compute 2D or 3D convolution with CuDNN
 
     Parameters
@@ -570,6 +584,8 @@ def conv_forward(x, w, pad, stride, dilation, conv_mode, tensor_format, algo, co
         convolution type
     groups: int
         the number of groups
+    verbose: bool
+        whether to show the selection trials
 
     Returns
     -------
@@ -614,6 +630,7 @@ def conv_forward(x, w, pad, stride, dilation, conv_mode, tensor_format, algo, co
                     x.dtype,
                     conv_dtype,
                     groups,
+                    verbose,
                 )
     else:
         # The dynamic batch size case, pretend this is a single batch
@@ -754,6 +771,7 @@ def conv_backward_data(
             dy.dtype,
             conv_dtype,
             groups,
+            True,
         )
     else:
         algo = 1
@@ -856,6 +874,7 @@ def conv_backward_filter(
         x.dtype,
         conv_dtype,
         groups,
+        True,
     )
 
     return te.extern(

@@ -31,10 +31,10 @@
 
 #include <fstream>
 #include <numeric>
-#include <regex>
 #include <sstream>
 
 #include "../../../../runtime/contrib/dnnl/dnnl_utils.h"
+#include "../../../../runtime/regex.h"
 #include "../../utils.h"
 #include "dnnl.hpp"
 namespace tvm {
@@ -173,12 +173,12 @@ dnnl::memory::dims str2dims(const std::string& str_shape, bool dilates = false,
 }
 
 void check_shapes(const std::vector<std::string> shapes) {
-  std::regex valid_pat("(\\d*)(,(\\d*))*");
-  bool checked = std::regex_match(shapes[0], valid_pat);
+  std::string valid_pat("(\\d*)(,(\\d*))*");
+  bool checked = tvm::runtime::regex_match(shapes[0], valid_pat);
   for (size_t i = 1; i < shapes.size() - 1; i++) {
-    checked &= std::regex_match(shapes[i], valid_pat);
+    checked &= tvm::runtime::regex_match(shapes[i], valid_pat);
   }
-  checked &= std::regex_match(shapes[shapes.size() - 1], std::regex("\\d*"));
+  checked &= tvm::runtime::regex_match(shapes[shapes.size() - 1], "\\d*");
   if (!checked) {
     LOG(FATAL) << "Invalid input args for query dnnl optimal layout.";
   }
@@ -194,8 +194,8 @@ std::string get_optimal_layout_for_conv(std::string data_layout, std::string ker
                                         std::string weight_shape, std::string out_shape,
                                         std::string paddings, std::string strides,
                                         std::string dilates, std::string G, std::string dtype) {
-  check_layout(std::regex_match(data_layout, std::regex("NC(D?)(H?)W")), true);
-  check_layout(std::regex_match(kernel_layout, std::regex("(G?)OI(D?)(H?)W")), true);
+  check_layout(tvm::runtime::regex_match(data_layout, "NC(D?)(H?)W"), true);
+  check_layout(tvm::runtime::regex_match(kernel_layout, "(G?)OI(D?)(H?)W"), true);
   check_shapes({weight_shape, out_shape, paddings, strides, dilates, G});
 
   dnnl::engine eng(dnnl::engine::kind::cpu, 0);
@@ -278,8 +278,8 @@ std::string get_optimal_layout_for_conv_transpose(std::string data_layout,
                                                   std::string paddings, std::string output_paddings,
                                                   std::string strides, std::string dilates,
                                                   std::string G, std::string dtype) {
-  check_layout(std::regex_match(data_layout, std::regex("NC(D?)(H?)W")), true);
-  check_layout(std::regex_match(kernel_layout, std::regex("(G?)((IO)|(OI))(D?)(H?)W")), true);
+  check_layout(tvm::runtime::regex_match(data_layout, "NC(D?)(H?)W"), true);
+  check_layout(tvm::runtime::regex_match(kernel_layout, "(G?)((IO)|(OI))(D?)(H?)W"), true);
   check_shapes({weight_shape, out_shape, paddings, output_paddings, strides, dilates, G});
 
   dnnl::engine eng(dnnl::engine::kind::cpu, 0);

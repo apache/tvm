@@ -16,17 +16,23 @@
 # under the License.
 # pylint: disable=invalid-name, dangerous-default-value, arguments-differ
 """Driver for partitioning and building a Relay module for CUTLASS offload."""
+import itertools
 import logging
-import os
 import multiprocessing
+import operator
+import os
+from functools import reduce
+from typing import Optional, Sequence
+
 import tvm
-from tvm import relay, runtime
+from tvm import relax, relay, runtime
 from tvm._ffi.registry import register_func
 from tvm.contrib.nvcc import get_cuda_version
+from tvm.topi.utils import get_const_tuple
 
 from .gen_conv2d import CutlassConv2DProfiler
 from .gen_gemm import CutlassGemmProfiler
-from .library import ConvKind
+from .library import ConvKind, LayoutType
 
 logger = logging.getLogger("cutlass")
 
@@ -51,6 +57,9 @@ def _get_cutlass_compile_options(sm, threads, use_fast_math=False):
     cutlass_root = _get_cutlass_path()
     cutlass_include = os.path.join(cutlass_root, "include")
     cutlass_util_include = os.path.join(cutlass_root, "tools/util/include")
+    cutlass_attention_include = os.path.join(cutlass_root, "examples/41_fused_multi_head_attention")
+    cutlass_fpA_intB_gemm_include = os.path.join(cutlass_root, "../cutlass_fpA_intB_gemm")
+    flash_attn_include = os.path.join(cutlass_root, "../libflash_attn/include")
 
     kwargs = {}
     kwargs["cc"] = "nvcc"
@@ -67,6 +76,9 @@ def _get_cutlass_compile_options(sm, threads, use_fast_math=False):
         "-std=c++17",
         f"-I{cutlass_include}",
         f"-I{cutlass_util_include}",
+        f"-I{cutlass_attention_include}",
+        f"-I{cutlass_fpA_intB_gemm_include}",
+        f"-I{flash_attn_include}",
     ]
     if use_fast_math:
         kwargs["options"].append("-DCUTLASS_USE_TANH_FOR_SIGMOID")
@@ -517,6 +529,494 @@ def tune_cutlass_function(
         type_params=func.type_params,
         attrs=new_attrs,
     )
+
+
+def _get_call_node(expr: relax.Expr, op_name: str) -> Optional[relax.Call]:
+    node = None
+
+    def fvisit(e):
+        nonlocal node
+        if isinstance(e, relax.Call) and e.op.name == op_name:
+            node = e
+
+    relax.analysis.post_order_visit(expr, fvisit)
+    return node
+
+
+def _extract_relax_function_signature(f):
+    signature = {}
+
+    for i, arg in enumerate(f.params):
+        sinfo = arg.struct_info
+        if isinstance(sinfo, relax.TensorStructInfo):
+            signature["arg%d_shape" % i] = get_const_tuple(sinfo.shape)
+            signature["arg%d_dtype" % i] = sinfo.dtype
+        elif isinstance(sinfo, relax.ShapeStructInfo):
+            signature["arg%d_shape" % i] = get_const_tuple(sinfo.values)
+        else:
+            raise NotImplementedError()
+
+    ret_sinfo = f.ret_struct_info
+    if ret_sinfo.shape is not None:
+        signature["ret_shape"] = get_const_tuple(ret_sinfo.shape)
+    else:
+        signature["ret_shape"] = None
+    signature["ret_dtype"] = ret_sinfo.dtype
+
+    return signature
+
+
+def _extract_arg_idx(pattern_name, f):
+    extract_func = tvm.get_global_func("relax.contrib.extract_arg_idx")
+    arg_indices = extract_func(pattern_name, f)
+    return {k: int(v) for k, v in arg_indices.items()}
+
+
+def is_shape_valid_for_cutlass_matmul(
+    lhs_shape: Sequence[tvm.ir.PrimExpr],
+    rhs_shape: Sequence[tvm.ir.PrimExpr],
+) -> bool:
+    """
+    Check whether the shape of inputs can be handled by CUTLASS GEMM.
+
+    The stride-based batch matmul in CUTLASS cannot handle cases that some of
+    the batch dimensions need to be stretched while others don't. This means
+    it can only handle ND x ND whose batch dimensions match exactly on both side,
+    as well as ND x 2D and 2D x ND. For example, it cannot handle matmul with shape
+    (2, 1, 4, 8) x (2, 3, 8, 16), because the batch stride of lhs is not constant.
+    """
+    if not isinstance(lhs_shape[-1], (tvm.tir.expr.IntImm, int)):
+        # Reduction axis must be constant
+        return False
+
+    lhs_batches = reduce(operator.mul, lhs_shape[:-2], 1)
+    rhs_batches = reduce(operator.mul, rhs_shape[:-2], 1)
+    if lhs_batches == 1 or rhs_batches == 1:
+        # This could be regular matmul or batch matmul with shape ND x 2D or 2D x ND
+        return True
+
+    analyzer = tvm.arith.Analyzer()
+    # If one side has less dimensions, use 1 to fill the gap
+    batch_dim_pairs = list(
+        itertools.zip_longest(
+            list(lhs_shape)[-3::-1],  # Remove the last two dimensions and reverse
+            list(rhs_shape)[-3::-1],
+            fillvalue=1,
+        )
+    )
+    return all(analyzer.can_prove_equal(p[0], p[1]) for p in batch_dim_pairs)
+
+
+@relax.expr_functor.mutator
+class CutlassRelaxFunctionAnnotator(relax.PyExprMutator):
+    """A Relax function mutator that tunes and annotates CUTLASS composite functions
+    with shape, dtype and generated templates.
+    """
+
+    def __init__(
+        self,
+        mod,
+        conv2d_profiler: CutlassConv2DProfiler,
+        gemm_profiler: CutlassGemmProfiler,
+        options,
+    ):
+        super().__init__(mod)
+        self.options = options
+        self.conv2d_profiler = conv2d_profiler
+        self.gemm_profiler = gemm_profiler
+
+    def handle_conv2d(self, f, op_type):
+        """Tune and annotate a conv2d op."""
+        signature = _extract_relax_function_signature(f)
+        arg_idx = _extract_arg_idx(op_type, f)
+        op_attrs = _get_call_node(f.body, "relax.nn.conv2d").attrs
+
+        data_arg = f"arg{arg_idx['lhs']}"
+        weight_arg = f"arg{arg_idx['rhs']}"
+
+        d_shape = signature[f"{data_arg}_shape"]
+        w_shape = signature[f"{weight_arg}_shape"]
+        out_shape = signature["ret_shape"]
+        data_dtype = signature[f"{data_arg}_dtype"]
+        weight_dtype = signature[f"{weight_arg}_dtype"]
+        out_dtype = signature["ret_dtype"]
+        padding = op_attrs["padding"]
+        strides = op_attrs["strides"]
+        dilation = op_attrs["dilation"]
+        conv_kind = ConvKind.Fprop
+
+        use_3xtf32 = self.options.get("use_3xtf32", False)
+        profile_all_alignments = self.options.get("profile_all_alignments", False)
+        find_first_valid = self.options.get("find_first_valid", True)
+        use_multiprocessing = self.options.get("use_multiprocessing", True)
+        split_k_slices = self.options.get("split_k_slices", [1])
+
+        op_name, op_def, _ = self.conv2d_profiler.profile(
+            op_type,
+            d_shape,
+            w_shape,
+            padding,
+            strides,
+            dilation,
+            out_dtype,
+            data_dtype,
+            weight_dtype,
+            use_3xtf32,
+            conv_kind,
+            split_k_slices,
+            profile_all_alignments,
+            find_first_valid=find_first_valid,
+            use_multiprocessing=use_multiprocessing,
+        )
+
+        attrs = {
+            "op_type": op_type,
+            "data_arg_idx": arg_idx["lhs"],
+            "weight_arg_idx": arg_idx["rhs"],
+            "bias_arg_idx": arg_idx.get("bias"),
+            "residual_arg_idx": arg_idx.get("residual"),
+            "arg0_dtype": data_dtype,
+            "arg1_dtype": weight_dtype,
+            "ret_dtype": out_dtype,
+            "arg0_shape": d_shape,
+            "arg1_shape": w_shape,
+            "ret_shape": out_shape,
+            "strides": strides,
+            "padding": padding,
+            "dilation": dilation,
+            "cutlass_op_name": op_name,
+            "cutlass_op_def": op_def,
+        }
+
+        residual_arg = arg_idx.get("residual")
+
+        if residual_arg:
+            residual_shape = signature[f"arg{residual_arg}_shape"]
+            attrs["residual_shape"] = residual_shape
+        elif "residual" in op_type:
+            attrs["residual_shape"] = d_shape
+
+        return f.with_attrs(attrs)
+
+    def handle_decode_matmul(self, f, op_type):
+        """Annotate a decode -> matmul op."""
+        arg_idx = _extract_arg_idx(op_type, f)
+        signature = _extract_relax_function_signature(f)
+        lhs_arg = f"arg{arg_idx['lhs']}"
+        rhs_arg = f"arg{arg_idx['w_encoded']}"
+        lhs_shape = signature[f"{lhs_arg}_shape"]
+        rhs_shape = signature[f"{rhs_arg}_shape"]
+        ret_shape = signature["ret_shape"]
+        scale_arg = f"arg{arg_idx['scales']}"
+        scale_shape = signature[f"{scale_arg}_shape"]
+        N = ret_shape[-1]
+
+        attrs = {
+            "op_type": op_type,
+            "lhs_arg_idx": arg_idx["lhs"],
+            "rhs_arg_idx": arg_idx["w_encoded"],
+            "scales_arg_idx": arg_idx["scales"],
+            "bias_arg_idx": arg_idx.get("bias"),
+            "activation": "identity",
+        }
+        # TODO(wuwei): find a better way to get group size
+        attrs["group_size"] = 64 if len(scale_shape) == 2 and scale_shape[0] != 1 else -1
+
+        attrs["batch_rank"] = len(lhs_shape[:-1])
+        attrs["M"] = reduce(operator.mul, lhs_shape[:-1], 1)
+
+        attrs["bias_stride"] = 0
+
+        if "bias" in arg_idx:
+            bias_shape = signature[f"arg{arg_idx['bias']}_shape"]
+            bias_shape_1d = reduce(operator.mul, bias_shape, 1)
+            if bias_shape_1d != bias_shape[-1]:
+                attrs["bias_stride"] = bias_shape[-1]
+
+        if N == rhs_shape[1]:
+            attrs["weight_nbit"] = 8
+        else:
+            assert N == rhs_shape[1] * 2
+            attrs["weight_nbit"] = 4
+
+        if "residual" in op_type:
+            residual_pos = op_type.find("residual_")
+            postfix = op_type[residual_pos + len("residual_") :]
+
+            if postfix.startswith("multiply"):
+                binary_op = "multiply"
+            else:
+                binary_op = "plus"
+
+            if "relu" in postfix:
+                unary_op = "relu"
+            else:
+                unary_op = "identity"
+
+            activation = "identity"
+
+            for act in ["relu", "silu", "gelu"]:
+                if act in op_type[op_type.find("matmul_") + len("matmul_") : residual_pos]:
+                    activation = act
+                    break
+
+            attrs.update(
+                {
+                    "unary_op": unary_op,
+                    "binary_op": binary_op,
+                    "activation": activation,
+                    "residual_arg_idx": arg_idx["residual"],
+                }
+            )
+        else:
+            for act in ["relu", "silu", "gelu"]:
+                if act in op_type:
+                    attrs["activation"] = act
+                    break
+
+        return f.with_attrs(attrs)
+
+    def handle_matmul(self, f, op_type):
+        """Tune and annotate a matmul op."""
+        signature = _extract_relax_function_signature(f)
+        arg_idx = _extract_arg_idx(op_type, f)
+
+        lhs_arg = f"arg{arg_idx['lhs']}"
+        rhs_arg = f"arg{arg_idx['rhs']}"
+
+        lhs_shape = signature[f"{lhs_arg}_shape"]
+        rhs_shape = signature[f"{rhs_arg}_shape"]
+        out_shape = signature["ret_shape"]
+        lhs_dtype = signature[f"{lhs_arg}_dtype"]
+        rhs_dtype = signature[f"{rhs_arg}_dtype"]
+        out_dtype = signature["ret_dtype"]
+
+        if not is_shape_valid_for_cutlass_matmul(lhs_shape, rhs_shape):
+            raise ValueError(f"Cannot handle the input shapes, lhs: {lhs_shape}, rhs: {rhs_shape}")
+
+        MM = lhs_shape[-2]
+        KK = lhs_shape[-1]
+        if "transposed" in op_type:
+            NN = rhs_shape[-2]
+            ldb = "K"
+            layout_b = LayoutType.ColumnMajor
+        else:
+            NN = rhs_shape[-1]
+            ldb = "N"
+            layout_b = LayoutType.RowMajor
+
+        lhs_batches = reduce(operator.mul, lhs_shape[:-2], 1)
+        rhs_batches = reduce(operator.mul, rhs_shape[:-2], 1)
+        if lhs_batches == 1 and rhs_batches == 1:
+            # Regular matmul
+            is_batched = False
+            batch_attrs = {}
+        else:
+            is_batched = True
+            batch_attrs = {
+                # If both lhs_batches and rhs_batches are greater than 1,
+                # they must be equal. This is checked by is_shape_valid_for_cutlass_matmul.
+                "batch": lhs_batches if rhs_batches == 1 else rhs_batches,
+                "batch_stride_A": 0 if lhs_batches == 1 else MM * KK,
+                "batch_stride_B": 0 if rhs_batches == 1 else KK * NN,
+                "batch_stride_C": MM * NN,
+            }
+
+        use_3xtf32 = self.options.get("use_3xtf32", False)
+        find_first_valid = self.options.get("find_first_valid", True)
+        use_multiprocessing = self.options.get("use_multiprocessing", True)
+
+        op_name, op_def, _ = self.gemm_profiler.profile(
+            op_type,
+            MM,
+            NN,
+            KK,
+            out_dtype,
+            lhs_dtype,
+            rhs_dtype,
+            use_3xtf32,
+            batched=is_batched,
+            find_first_valid=find_first_valid,
+            use_multiprocessing=use_multiprocessing,
+            layout_b=layout_b,
+        )
+
+        return f.with_attrs(
+            {
+                "op_type": op_type,
+                "lhs_arg_idx": arg_idx["lhs"],
+                "rhs_arg_idx": arg_idx["rhs"],
+                "residual_arg_idx": arg_idx.get("residual"),
+                "bias_arg_idx": arg_idx.get("bias"),
+                "arg0_dtype": signature["arg0_dtype"],
+                "arg1_dtype": signature["arg1_dtype"],
+                "ret_dtype": out_dtype,
+                "arg0_shape": signature["arg0_shape"],
+                "arg1_shape": signature["arg1_shape"],
+                "ret_shape": out_shape,
+                "lda": "K",
+                "ldb": ldb,
+                "ldc": "N",
+                "cutlass_op_name": op_name,
+                "cutlass_op_def": op_def,
+                **batch_attrs,
+            }
+        )
+
+    def handle_attention(self, f, op_type):
+        """Annotate an attention op."""
+        signature = _extract_relax_function_signature(f)
+
+        if _get_call_node(f.body, "relax.nn.attention") is not None:
+            op_attrs = _get_call_node(f.body, "relax.nn.attention").attrs
+        elif _get_call_node(f.body, "relax.nn.attention_bias") is not None:
+            op_attrs = _get_call_node(f.body, "relax.nn.attention_bias").attrs
+        elif _get_call_node(f.body, "relax.nn.attention_var_len") is not None:
+            op_attrs = _get_call_node(f.body, "relax.nn.attention_var_len").attrs
+        else:
+            raise ValueError("Cannot find call node for attention")
+        arg = {}
+
+        if "stacked_attention" in op_type:
+            arg["arg0_shape"] = signature["arg0_shape"]
+            arg["arg0_dtype"] = signature["arg0_dtype"]
+            arg["arg1_shape"] = q_shape = signature["arg1_shape"]
+
+            if "arg3_shape" not in signature:
+                # arg0: qkv, arg1: shape, arg2: workspace
+                arg["arg2_shape"] = k_shape = signature["arg1_shape"]
+                arg["arg3_shape"] = v_shape = signature["arg1_shape"]
+            else:
+                # arg0: qkv, arg1: shape1, arg2: shape2, arg3: shape3, arg4: workspace
+                arg["arg2_shape"] = k_shape = signature["arg2_shape"]
+                arg["arg3_shape"] = v_shape = signature["arg3_shape"]
+
+            if "arg5_dtype" in signature:
+                # arg0: qkv, arg1: shape1, arg2: shape2, arg3: shape3, arg4: bias, arg5: workspace
+                arg["bias_dtype"] = signature["arg4_dtype"]
+            if "arg5_shape" in signature:
+                arg["bias_shape"] = signature["arg4_shape"]
+
+            qkv_layout = "qkv_stacked"
+        else:
+            # arg0: q, arg1: k, arg2: v,  arg3: bias, arg4: workspace
+            arg["arg0_shape"] = q_shape = signature["arg0_shape"]
+            arg["arg1_shape"] = k_shape = signature["arg1_shape"]
+            arg["arg2_shape"] = v_shape = signature["arg2_shape"]
+            arg["arg0_dtype"] = signature["arg0_dtype"]
+            arg["arg1_dtype"] = signature["arg1_dtype"]
+            arg["arg2_dtype"] = signature["arg2_dtype"]
+
+            if "arg4_dtype" in signature:
+                arg["bias_dtype"] = signature["arg3_dtype"]
+            if "arg4_shape" in signature:
+                arg["bias_shape"] = signature["arg3_shape"]
+
+            qkv_layout = "default"
+
+        out_shape = signature["ret_shape"]
+        out_dtype = signature["ret_dtype"]
+        num_batches, num_queries, num_q_heads, head_dim = q_shape
+        _, num_keys, num_kv_heads, _ = k_shape
+        _, _, _, head_dim_value = v_shape
+        scale = op_attrs.scale
+
+        if op_attrs.causal_mask is None:
+            custom_mask_type = 0
+        elif op_attrs.causal_mask == "TopLeft":
+            custom_mask_type = 1
+        elif op_attrs.causal_mask == "BottomRight":
+            custom_mask_type = 2
+        else:
+            raise NotImplementedError()
+
+        attrs = {
+            "op_type": op_type,
+            "ret_dtype": out_dtype,
+            "ret_shape": out_shape,
+            "num_batches": num_batches,
+            "num_queries": num_queries,
+            "num_keys": num_keys,
+            "num_q_heads": num_q_heads,
+            "num_kv_heads": num_kv_heads,
+            "head_dim": head_dim,
+            "head_dim_value": head_dim_value,
+            "scale": scale,
+            "arch": self.options["sm"],
+            "qkv_layout": qkv_layout,
+            "custom_mask_type": custom_mask_type,
+            **arg,
+        }
+
+        if "var_len" in op_type:
+            arg_idx = _extract_arg_idx(op_type, f)
+            for arg in ["seqstart_q", "seqstart_k", "max_seqlen_q", "max_seqlen_k"]:
+                if arg in arg_idx:
+                    attrs[arg + "_idx"] = arg_idx[arg]
+
+        if op_attrs.window_size:
+            attrs["window_size"] = op_attrs.window_size
+
+        return f.with_attrs(attrs)
+
+    def handle_norm(self, f, op_type):
+        """Annotate a layer or rms norm op."""
+        signature = _extract_relax_function_signature(f)
+        attrs = {}
+        attrs["batch_rank"] = len(signature["arg0_shape"][:-1])
+        attrs["M"] = reduce(operator.mul, signature["arg0_shape"][:-1], 1)
+        attrs["N"] = signature["arg0_shape"][-1]
+        dtype = signature["arg0_dtype"]
+        attrs["data_type"] = {"float32": "float", "float16": "cutlass::half_t"}[str(dtype)]
+
+        if "rms" in op_type:
+            attrs["rms_eps"] = self.options.get("rms_eps", 1e-5)
+        else:
+            attrs["layer_norm_eps"] = self.options.get("layer_nrom_eps", 1e-5)
+
+        return f.with_attrs(attrs)
+
+    def visit_function_(self, f):
+        if f.attrs is None or "Composite" not in f.attrs:
+            body = super().visit_expr(f.body)
+            return relax.Function(f.params, body, f.ret_struct_info, f.is_pure, f.attrs, f.span)
+
+        op_type = f.attrs["Composite"]
+
+        if "conv2d" in op_type:
+            return self.handle_conv2d(f, op_type)
+        elif "decode" in op_type:
+            return self.handle_decode_matmul(f, op_type)
+        elif "matmul" in op_type:
+            return self.handle_matmul(f, op_type)
+        elif "attention" in op_type:
+            return self.handle_attention(f, op_type)
+        elif "layer_norm" in op_type or "rms_norm" in op_type:
+            return self.handle_norm(f, op_type)
+
+        raise ValueError("Unsupported composite {}".format(op_type))
+
+    def visit_span(self, span):
+        return span
+
+
+@register_func("contrib.cutlass.tune_relax_function")
+def profile_relax_function(functions, options):
+    """Tune and annotate CUTLASS composite functions with shape, dtype and generated templates."""
+    tmp_dir = options.get("tmp_dir", "./tmp")
+    sm = options.get("sm", 80)
+    conv2d_profiler = CutlassConv2DProfiler(sm, _get_cutlass_path(), tmp_dir)
+    gemm_profiler = CutlassGemmProfiler(sm, _get_cutlass_path(), tmp_dir)
+
+    annotated_functions = []
+
+    for f in functions:
+        annotator = CutlassRelaxFunctionAnnotator(
+            tvm.IRModule.from_expr(f), conv2d_profiler, gemm_profiler, options
+        )
+        annotated_functions.append(annotator.visit_expr(f))
+
+    return annotated_functions
 
 
 @register_func("contrib.cutlass.compile")

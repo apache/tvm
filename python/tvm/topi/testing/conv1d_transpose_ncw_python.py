@@ -22,6 +22,18 @@ import tvm.topi.testing
 from tvm.topi.nn.utils import get_pad_tuple1d
 
 
+def group_conv1d_transpose_ncw_python(a_np, w_np, stride, padding, output_padding, groups=1):
+    "Grouped version of `conv1d_transpose_ncw_python`, see that for documentation"
+    a_slices = np.array_split(a_np, groups, axis=1)
+    w_slices = np.array_split(w_np, groups, axis=0)
+    b_slices = [
+        conv1d_transpose_ncw_python(a_slice, w_slice, stride, padding, output_padding)
+        for a_slice, w_slice in zip(a_slices, w_slices)
+    ]
+    b_np = np.concatenate(b_slices, axis=1)
+    return b_np
+
+
 def conv1d_transpose_ncw_python(a_np, w_np, stride, padding, output_padding):
     """Transposed 1D convolution operator in NCW layout.
 

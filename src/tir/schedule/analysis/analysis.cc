@@ -328,6 +328,11 @@ bool IsReductionBlock(const ScheduleState& self, const StmtSRef& block_sref,
   return CheckReductionBlockErrorCode(self, block_sref, scope_root_sref) == 0;
 }
 
+TVM_REGISTER_GLOBAL("tir.schedule.IsReductionBlock")
+    .set_body_typed([](Schedule sch, BlockRV block_rv, BlockRV scope_block_rv) {
+      return IsReductionBlock(sch->state(), sch->GetSRef(block_rv), sch->GetSRef(scope_block_rv));
+    });
+
 void CheckReductionBlock(const ScheduleState& self, const StmtSRef& block_sref,
                          const StmtSRef& scope_root_sref) {
   class NotReductionBlockError : public ScheduleError {
@@ -858,6 +863,11 @@ BlockRealize GetBlockRealize(const ScheduleState& self, const StmtSRef& block_sr
     return GetRef<BlockRealize>(finder.result);
   }
 }
+
+TVM_REGISTER_GLOBAL("tir.schedule.GetBlockRealize")
+    .set_body_typed([](Schedule sch, BlockRV block_rv) {
+      return GetBlockRealize(sch->state(), sch->GetSRef(block_rv));
+    });
 
 IterVarType GetLoopIterType(const StmtSRef& loop_sref) {
   const ForNode* loop = TVM_SREF_TO_FOR(loop_sref);
@@ -1472,6 +1482,11 @@ bool IsTrivialBinding(const ScheduleState& self, const StmtSRef& block_sref) {
   }
   return true;
 }
+
+TVM_REGISTER_GLOBAL("tir.schedule.IsTrivialBinding")
+    .set_body_typed([](Schedule sch, BlockRV block_rv) {
+      return IsTrivialBinding(sch->state(), sch->GetSRef(block_rv));
+    });
 
 bool NeedsMultiLevelTiling(const ScheduleState& self, const StmtSRef& block_sref) {
   if (HasBeenMultiLevelTiled(block_sref)) {
@@ -2117,6 +2132,18 @@ TVM_REGISTER_GLOBAL("tir.schedule.IsOutputBlock").set_body_typed([](Schedule sch
   auto block_sref = sch->GetSRef(block);
   return IsOutputBlock(state, block_sref, GetScopeRoot(state, block_sref, false));
 });
+
+TVM_REGISTER_GLOBAL("tir.schedule.GetLoopIterType")
+    .set_body_typed([](Schedule sch, LoopRV loop) -> String {
+      IterVarType kind = GetLoopIterType(sch->GetSRef(loop));
+      if (kind == kDataPar) {
+        return "S";
+      } else if (kind == kCommReduce) {
+        return "R";
+      } else {
+        return "O";
+      }
+    });
 
 }  // namespace tir
 }  // namespace tvm

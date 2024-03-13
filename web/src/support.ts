@@ -17,6 +17,18 @@
  * under the License.
  */
 
+
+/**
+ * Check if value is a promise type
+ *
+ * @param value The input value
+ * @returns Whether value is promise
+ */
+export function isPromise(value: any): boolean {
+  return value !== undefined && (
+    typeof value == "object" || typeof value == "function"
+  ) && typeof value.then == "function";
+}
 /**
  * Convert string to Uint8array.
  * @param str The string.

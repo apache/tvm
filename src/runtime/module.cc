@@ -185,6 +185,10 @@ TVM_REGISTER_GLOBAL("runtime.ModuleGetImport").set_body_typed([](Module mod, int
   return mod->imports().at(index);
 });
 
+TVM_REGISTER_GLOBAL("runtime.ModuleClearImports").set_body_typed([](Module mod) {
+  mod->ClearImports();
+});
+
 TVM_REGISTER_GLOBAL("runtime.ModuleGetTypeKey").set_body_typed([](Module mod) {
   return std::string(mod->type_key());
 });

@@ -146,7 +146,11 @@ VulkanDeviceProperties::VulkanDeviceProperties(const VulkanInstance& instance,
   max_num_threads = properties.properties.limits.maxComputeWorkGroupInvocations;
 
   // Even if we can't query it, warp size must be at least 1.
-  thread_warp_size = std::max(subgroup.subgroupSize, 1U);
+  // thread_warp_size = std::max(subgroup.subgroupSize, 1U);
+  // vulkan's subgroup may not directly map to warp and atm
+  // can cause issues in softmax allreduce in NVidia GPU
+  // disable warp setting to be safe.
+  thread_warp_size = 1U;
 
   max_block_size_x = properties.properties.limits.maxComputeWorkGroupSize[0];
   max_block_size_y = properties.properties.limits.maxComputeWorkGroupSize[1];

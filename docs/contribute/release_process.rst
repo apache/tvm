@@ -86,17 +86,29 @@ The last step is to update the KEYS file with your code signing key https://www.
 Cut a Release Candidate
 -----------------------
 
-To cut a release candidate, one needs to first cut a branch using selected version string. Branches should be named with the base release version without the patch. For example, to cut a candidate for ``v0.11.0``, the branch should be ``v0.11`` and a tag named ``v0.11.0.rc0`` pushed to the HEAD of that branch once cut.
+To cut a release candidate branch for v0.6 release:
+
+- Need push two commits in one pull request: the first commit need update version number from 0.6.dev0 to 0.6.0, second commit in same one pull request updating version number from 0.6.0 to 0.7.dev0. For this title of pull request, need specify: `[Dont Squash]`;
+- After merged, cut a branch on first version number commit. Branches should be named with the base release version without the patch. For example, to cut a candidate for ``v0.6.0``, the branch should be ``v0.6`` and a tag named ``v0.6.0.rc0`` pushed to the HEAD of that branch once cut.
 
 .. code-block:: bash
 
 	git clone https://github.com/apache/tvm.git
 	cd tvm/
 
-	# Update version numbers
+	# Update version numbers of first commit
 	# ...
 	git add .
 	git commit -m "Bump version numbers to v0.6.0"
+
+	# Update version numbers of second commit
+	# ...
+	git add .
+	git commit -m "Bump version numbers to v0.7.dev0"
+
+	# After pull request merged
+	# cut branch on first commit
+	git checkout <first-commit-id>
 
 	# Replace v0.6 with the relevant version
 	git branch v0.6

@@ -148,6 +148,16 @@ class EnvCAPIRegistry {
    */
   F_Py_IncDefRef py_dec_ref = nullptr;
 
+  /*!
+    \brief PyGILState_Ensure function
+   */
+  void* (*py_gil_state_ensure)() = nullptr;
+
+  /*!
+    \brief PyGILState_Release function
+   */
+  void (*py_gil_state_release)(void*) = nullptr;
+
   static EnvCAPIRegistry* Global() {
     static EnvCAPIRegistry* inst = new EnvCAPIRegistry();
     return inst;
@@ -161,6 +171,10 @@ class EnvCAPIRegistry {
       Update(symbol_name, &py_inc_ref, fptr);
     } else if (symbol_name == "Py_DecRef") {
       Update(symbol_name, &py_dec_ref, fptr);
+    } else if (symbol_name == "PyGILState_Ensure") {
+      Update(symbol_name, &py_gil_state_ensure, fptr);
+    } else if (symbol_name == "PyGILState_Release") {
+      Update(symbol_name, &py_gil_state_release, fptr);
     } else {
       LOG(FATAL) << "Unknown env API " << symbol_name;
     }
@@ -177,15 +191,17 @@ class EnvCAPIRegistry {
   }
 
   void IncRef(void* python_obj) {
+    WithGIL context(this);
     ICHECK(py_inc_ref) << "Attempted to call Py_IncRef through EnvCAPIRegistry, "
                        << "but Py_IncRef wasn't registered";
     (*py_inc_ref)(python_obj);
   }
 
   void DecRef(void* python_obj) {
-    ICHECK(py_inc_ref) << "Attempted to call Py_IncRef through EnvCAPIRegistry, "
-                       << "but Py_IncRef wasn't registered";
-    (*py_inc_ref)(python_obj);
+    WithGIL context(this);
+    ICHECK(py_dec_ref) << "Attempted to call Py_DefRef through EnvCAPIRegistry, "
+                       << "but Py_DefRef wasn't registered";
+    (*py_dec_ref)(python_obj);
   }
 
  private:
@@ -198,6 +214,28 @@ class EnvCAPIRegistry {
     }
     target[0] = ptr_casted;
   }
+
+  struct WithGIL {
+    explicit WithGIL(EnvCAPIRegistry* self) : self(self) {
+      ICHECK(self->py_gil_state_ensure) << "Attempted to acquire GIL through EnvCAPIRegistry, "
+                                        << "but PyGILState_Ensure wasn't registered";
+      ICHECK(self->py_gil_state_release) << "Attempted to acquire GIL through EnvCAPIRegistry, "
+                                         << "but PyGILState_Release wasn't registered";
+      gil_state = self->py_gil_state_ensure();
+    }
+    ~WithGIL() {
+      if (self && gil_state) {
+        self->py_gil_state_release(gil_state);
+      }
+    }
+    WithGIL(const WithGIL&) = delete;
+    WithGIL(WithGIL&&) = delete;
+    WithGIL& operator=(const WithGIL&) = delete;
+    WithGIL& operator=(WithGIL&&) = delete;
+
+    EnvCAPIRegistry* self = nullptr;
+    void* gil_state = nullptr;
+  };
 };
 
 void EnvCheckSignals() { EnvCAPIRegistry::Global()->CheckSignals(); }

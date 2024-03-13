@@ -58,7 +58,7 @@ for idx, test in enumerate(_slowest_tests):
 
 # These rely on running on the same node to pass successfully
 FIXED_ALLOCATION_PREFIXES = {
-    "tests/python/unittest/test_tvm_testing_features.py": 0,
+    "tests/python/testing/test_tvm_testing_features.py": 0,
 }
 
 

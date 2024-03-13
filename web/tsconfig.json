@@ -1,12 +1,11 @@
 {
     "compilerOptions": {
-		"module": "commonjs",
 		"target": "es6",
-		"outDir": "dist",
+		"outDir": "lib",
+		"types": ["node", "@webgpu/types"],
 		"rootDir": "src",
 		"declaration": true,
 		"sourceMap": true,
-		"strict": true,
 		"skipLibCheck": true,
 	},
     "include": ["src"],

@@ -425,7 +425,14 @@ def _emit_main_packed_call(main_file, input_map, output_list, mod_name):
     main_file.write("\n")
 
 
-def _emit_main_compare(main_file, outputs, output_tolerance, mod_name, use_interface_c=False):
+def _emit_main_compare(
+    main_file,
+    outputs,
+    output_tolerance,
+    mod_name,
+    use_interface_c=False,
+    print_output_on_mismatch=False,
+):
     for key in outputs:
         sanitized_tensor_name = re.sub(r"\W", "_", key)
         expected_data_name = _mangle_name(mod_name, f"expected_output_data_{sanitized_tensor_name}")
@@ -433,9 +440,11 @@ def _emit_main_compare(main_file, outputs, output_tolerance, mod_name, use_inter
 
         comparison_function = "abs"
         tolerance = output_tolerance or 0
+        value_format_specifier = "%d"
         if is_float_dtype:
             comparison_function = "fabs"
             tolerance = output_tolerance or 0.001
+            value_format_specifier = "%f"
 
         data_length_var_name = (
             _mangle_name(mod_name, f"output_data_{sanitized_tensor_name}") + "_len"
@@ -447,15 +456,34 @@ def _emit_main_compare(main_file, outputs, output_tolerance, mod_name, use_inter
             )
         else:
             actual_data_name = _mangle_name(mod_name, f"output_data_{sanitized_tensor_name}")
-        main_file.write(
-            f"for (int i = 0; i<{data_length_var_name}; i++) {{\n"
-            f"\tif ({comparison_function}({actual_data_name}[i]-"
-            f"{expected_data_name}[i]) > {tolerance}) {{\n"
-            f'\t\tprintf("{AOT_FAILURE_TOKEN}\\n");\n'
-            f"\t\treturn -1;\n"
-            f"\t}}\n"
-            f"}}"
-        )
+
+        if print_output_on_mismatch:
+            main_file.write(
+                f"int mismatch = 0;"
+                f'printf("Actual, Reference\\n");\n'
+                f"for (int i = 0; i<{data_length_var_name}; i++) {{\n"
+                f"\tif ({comparison_function}({actual_data_name}[i]-"
+                f"{expected_data_name}[i]) > {tolerance}) {{\n"
+                f'\t\tprintf("{value_format_specifier}, {value_format_specifier}\\n"'
+                f", {actual_data_name}[i], {expected_data_name}[i]);\n"
+                f"\t\tmismatch = 1;\n"
+                f"\t}}\n"
+                f"}}"
+                f"if (mismatch == 1) {{\n"
+                f'\tprintf("{AOT_FAILURE_TOKEN}\\n");\n'
+                f"\treturn -1;\n"
+                f"}}"
+            )
+        else:
+            main_file.write(
+                f"for (int i = 0; i<{data_length_var_name}; i++) {{\n"
+                f"\tif ({comparison_function}({actual_data_name}[i]-"
+                f"{expected_data_name}[i]) > {tolerance}) {{\n"
+                f'\t\tprintf("{AOT_FAILURE_TOKEN}\\n");\n'
+                f"\t\treturn -1;\n"
+                f"\t}}\n"
+                f"}}"
+            )
 
 
 def _emit_main_init_memory_manager(main_file):
@@ -500,6 +528,7 @@ def _create_main(
     use_stack_allocator=True,
     use_workspace_io=False,
     debug_last_error=False,
+    print_output_on_mismatch=False,
 ):
     file_path = pathlib.Path(f"{output_path}/" + test_name).resolve()
     # create header file
@@ -568,7 +597,12 @@ def _create_main(
         for compiled_model in compiled_models:
             model = compiled_model.model
             _emit_main_compare(
-                main_file, model.outputs, model.output_tolerance, model.name, interface_api == "c"
+                main_file,
+                model.outputs,
+                model.output_tolerance,
+                model.name,
+                interface_api == "c",
+                print_output_on_mismatch,
             )
         _emit_main_epilogue(main_file, custom_epilogue)
 
@@ -709,6 +743,7 @@ def run_and_check(
     use_workspace_io: bool = False,
     debug_last_error: bool = False,
     checker: Optional[Callable[[str], bool]] = None,
+    print_output_on_mismatch: bool = False,
 ):
     """
     This method uses the original test data and compiled runtime.Modules
@@ -789,6 +824,7 @@ def run_and_check(
             use_stack_allocator,
             use_workspace_io,
             debug_last_error,
+            print_output_on_mismatch,
         )
 
         if checker and (not checker(base_path)):
@@ -832,7 +868,10 @@ def run_and_check(
         _subprocess_check_log_output(run_command, build_path, run_log_path)
 
         with open(run_log_path) as run_log:
-            assert AOT_SUCCESS_TOKEN in run_log.read()
+            run_log_out = run_log.read()
+            if print_output_on_mismatch and AOT_FAILURE_TOKEN in run_log_out:
+                print(run_log_out)
+            assert AOT_SUCCESS_TOKEN in run_log_out
 
         return True
 
@@ -861,15 +900,21 @@ def compile_and_run(
     schedule_name: str = None,
     debug_last_error: bool = False,
     checker: Optional[Callable[[str], bool]] = None,
+    print_output_on_mismatch: bool = False,
 ) -> bool:
     """This is a wrapper API to compile and run models as test for AoT
 
     Parameters
     ----------
     test_dir : str
-        This path will contain build, codegen, include directories
-    verbose: bool
-        Prints commands to build and run AOT test runner
+        This path will contain build, codegen, include directories.
+
+    verbose : bool
+        Prints commands to build and run AOT test runner.
+
+    print_output_on_mismatch : bool
+        Print both the output and reference values side-by-side
+        when there is a mismatch.
     """
 
     if target_opts:
@@ -904,6 +949,7 @@ def compile_and_run(
         verbose=verbose,
         debug_last_error=debug_last_error,
         checker=checker,
+        print_output_on_mismatch=print_output_on_mismatch,
     )
 
 

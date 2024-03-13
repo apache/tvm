@@ -18,18 +18,20 @@
 TVM_ROOT=$(shell cd ..; pwd)
 
 INCLUDE_FLAGS = -I$(TVM_ROOT) -I$(TVM_ROOT)/include\
-	-I$(TVM_ROOT)/3rdparty/dlpack/include -I$(TVM_ROOT)/3rdparty/dmlc-core/include -I$(TVM_ROOT)/3rdparty/compiler-rt
+	-I$(TVM_ROOT)/3rdparty/dlpack/include -I$(TVM_ROOT)/3rdparty/dmlc-core/include\
+	-I$(TVM_ROOT)/3rdparty/compiler-rt -I$(TVM_ROOT)/3rdparty/picojson
 
 .PHONY: clean all rmtypedep preparetest
 
-all: dist/wasm/tvmjs_runtime.wasm dist/wasm/tvmjs_runtime.wasi.js
+all: dist/wasm/tvmjs_runtime.wasm dist/wasm/tvmjs_runtime.wasi.js src/tvmjs_runtime_wasi.js
 
 EMCC = emcc
 
 EMCC_CFLAGS = $(INCLUDE_FLAGS) -O3 -std=c++17 -Wno-ignored-attributes
 
 EMCC_LDFLAGS = --no-entry -s WASM_BIGINT=1 -s ALLOW_MEMORY_GROWTH=1 -s STANDALONE_WASM=1\
- -s ERROR_ON_UNDEFINED_SYMBOLS=0 --pre-js emcc/preload.js
+ -s ERROR_ON_UNDEFINED_SYMBOLS=0 --pre-js emcc/preload.js\
+ -s ASYNCIFY=1
 
 dist/wasm/%.bc: emcc/%.cc
 	@mkdir -p $(@D)
@@ -42,14 +44,12 @@ dist/wasm/tvmjs_runtime.wasm: dist/wasm/wasm_runtime.bc dist/wasm/tvmjs_support.
 	$(EMCC) $(EMCC_CFLAGS) -o dist/wasm/tvmjs_runtime.js $+ $(EMCC_LDFLAGS)
 
 dist/wasm/tvmjs_runtime.wasi.js: dist/wasm/tvmjs_runtime.wasm emcc/decorate_as_wasi.py
-	python3 emcc/decorate_as_wasi.py dist/wasm/tvmjs_runtime.js $@
+	python3 emcc/decorate_as_wasi.py dist/wasm/tvmjs_runtime.js $@ cjs
+
+src/tvmjs_runtime_wasi.js: dist/wasm/tvmjs_runtime.wasm emcc/decorate_as_wasi.py
+	python3 emcc/decorate_as_wasi.py dist/wasm/tvmjs_runtime.js $@ es
 
 clean:
-	@rm -rf dist/wasm
-
-# Patch to remove require("@webgpu/types")
-rmtypedep:
-	grep -v webgpu/types dist/webgpu.js > dist/webgpu.temp.js
-	mv dist/webgpu.temp.js dist/webgpu.js
+	@rm -rf dist/wasm lib src/tvmjs_runtime_wasi.js
 
 -include dist/wasm/*.d

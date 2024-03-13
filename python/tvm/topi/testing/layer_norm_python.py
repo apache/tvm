@@ -44,9 +44,12 @@ def layer_norm_python(data, gamma, beta, axis, epsilon=1e-5):
     result : np.ndarray
         N-D with shape (d_0, d_1, ..., d_{N-1})
     """
+    old_dtype = data.dtype
+    data = data.astype("float32")
     mean = np.mean(data, axis, keepdims=True)
     var = np.var(data, axis, keepdims=True)
     result = (data - mean) / np.sqrt(var + epsilon)
+    result = result.astype(old_dtype)
     result *= gamma
     if beta is not None:
         result += beta

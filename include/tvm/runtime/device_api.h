@@ -50,6 +50,7 @@ enum DeviceAttrKind : int {
   kApiVersion = 11,
   kDriverVersion = 12,
   kL2CacheSizeBytes = 13,
+  kTotalGlobalMemory = 14,
 };
 
 #ifdef TVM_KALLOC_ALIGNMENT
@@ -175,6 +176,12 @@ class TVM_DLL DeviceAPI {
    * \param stream The stream to be set.
    */
   virtual void SetStream(Device dev, TVMStreamHandle stream) {}
+  /*!
+   * \brief Get the current stream
+   * \param dev The device to get stream.
+   * \return The current stream of the device.
+   */
+  virtual TVMStreamHandle GetCurrentStream(Device dev);
   /*!
    * \brief Synchronize 2 streams of execution.
    *

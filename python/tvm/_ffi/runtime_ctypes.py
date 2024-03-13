@@ -135,7 +135,13 @@ class DataType(ctypes.Structure):
 
         arr = type_str.split("x")
         head = arr[0]
-        self.lanes = int(arr[1]) if len(arr) > 1 else 1
+        if len(arr) == 3:
+            assert arr[1] == "vscale", f"Invalid data type. Expected 'vscale' but got '{arr[1]}'"
+            self.lanes = ctypes.c_uint16(-int(arr[2]))
+        elif len(arr) > 1:
+            self.lanes = ctypes.c_uint16(int(arr[1]))
+        else:
+            self.lanes = 1
         bits = 32
 
         if head.startswith("int"):
@@ -188,8 +194,11 @@ class DataType(ctypes.Structure):
 
             type_name = "custom[%s]" % tvm.runtime._ffi_api._datatype_get_type_name(self.type_code)
         x = "%s%d" % (type_name, self.bits)
-        if self.lanes != 1:
+        lanes_as_int = ctypes.c_int16(self.lanes).value
+        if lanes_as_int > 1:
             x += "x%d" % self.lanes
+        elif lanes_as_int < -1:
+            x += "xvscalex%d" % -lanes_as_int
         return x
 
     def __eq__(self, other):
@@ -505,6 +514,20 @@ class Device(ctypes.Structure):
         The value returned by opencl's API is smaller than actual device L2 cache size.
         """
         return self._GetDeviceAttr(self.device_type, self.device_id, 13)
+
+    @property
+    def total_global_memory(self):
+        """Return size of the total global memory.
+
+        Supported devices include CUDA/ROCm/Metal/OpenCL.
+
+        Returns
+        -------
+        total_global_memory : int or None
+            Return the global memory available on device in bytes.
+            Return None if the device does not support this feature.
+        """
+        return self._GetDeviceAttr(self.device_type, self.device_id, 14)
 
     def texture_spatial_limit(self):
         """Returns limits for textures by spatial dimensions

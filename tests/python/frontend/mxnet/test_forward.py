@@ -42,7 +42,10 @@ def verify_mxnet_frontend_impl(
     if gluon_impl:
 
         def get_gluon_output(name, x):
-            net = vision.get_model(name)
+            try:
+                net = vision.get_model(name)
+            except RuntimeError:
+                pytest.skip(reason="mxnet downloads no longer supported")
             net.collect_params().initialize(mx.init.Xavier())
             net_sym = gluon.nn.SymbolBlock(
                 outputs=net(mx.sym.var("data")),

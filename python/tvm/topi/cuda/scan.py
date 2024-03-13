@@ -35,6 +35,21 @@ def _get_thrust_func_name(tvmop):
     return tvmop_to_thrust_func_name[tvmop]
 
 
+def _can_use_scan_thrust(binop):
+    """
+    Check if scan_thrust can be utilized based on the current target and binary op.
+    """
+    target = tvm.target.Target.current()
+    if target is None:
+        return False
+    return binop == tvm.tir.generic.add and any(
+        [
+            can_use_thrust(target, "tvm.contrib.thrust.sum_scan"),
+            can_use_rocthrust(target, "tvm.contrib.thrust.sum_scan"),
+        ]
+    )
+
+
 def exclusive_scan_ir(data, output, reduction=None, binop=tvm.tir.generic.add, identity_value=0):
     """Low level IR to do exclusive sum scan along rows of 2D input.
 
@@ -60,8 +75,8 @@ def exclusive_scan_ir(data, output, reduction=None, binop=tvm.tir.generic.add, i
         your operation.
     """
 
-    batch_size = prod(data.shape[:-1])
-    scan_axis_size = data.shape[-1]
+    batch_size = cast(prod(data.shape[:-1]), "int32")
+    scan_axis_size = cast(data.shape[-1], "int32")
 
     ib = tvm.tir.ir_builder.create()
 
@@ -105,7 +120,7 @@ def exclusive_scan_ir(data, output, reduction=None, binop=tvm.tir.generic.add, i
         # Up Sweep of exclusive scan
         lim = ceil_log2(scan_axis_size)
 
-        with ib.for_range(0, cast(lim, "int64"), dtype="int64") as l2_width:
+        with ib.for_range(0, cast(lim, "int32"), dtype="int32") as l2_width:
             width = 2 << l2_width
 
             with ib.new_scope():
@@ -121,9 +136,9 @@ def exclusive_scan_ir(data, output, reduction=None, binop=tvm.tir.generic.add, i
 
                 by = te.thread_axis("blockIdx.y")
                 ib.scope_attr(by, "thread_extent", nthread_by)
-                start = ib.allocate("int64", (1,), name="start", scope="local")
-                middle = ib.allocate("int64", (1,), name="middle", scope="local")
-                end = ib.allocate("int64", (1,), name="end", scope="local")
+                start = ib.allocate("int32", (1,), name="start", scope="local")
+                middle = ib.allocate("int32", (1,), name="middle", scope="local")
+                end = ib.allocate("int32", (1,), name="end", scope="local")
                 start[0] = width * tid
                 with ib.if_scope(start[0] < scan_axis_size):
                     middle[0] = start[0] + tvm.tir.indexdiv(width, 2)
@@ -143,7 +158,7 @@ def exclusive_scan_ir(data, output, reduction=None, binop=tvm.tir.generic.add, i
                     reduction[bx] = output[(bx + 1) * scan_axis_size - 1]
                 output[(bx + 1) * scan_axis_size - 1] = cast(identity_value, out_dtype)
 
-        with ib.for_range(0, cast(lim, "int64"), dtype="int64") as l2_width:
+        with ib.for_range(0, cast(lim, "int32"), dtype="int32") as l2_width:
             width = 2 << (lim - l2_width - 1)
 
             with ib.new_scope():
@@ -159,9 +174,9 @@ def exclusive_scan_ir(data, output, reduction=None, binop=tvm.tir.generic.add, i
 
                 by = te.thread_axis("blockIdx.y")
                 ib.scope_attr(by, "thread_extent", nthread_by)
-                start = ib.allocate("int64", (1,), name="start", scope="local")
-                middle = ib.allocate("int64", (1,), name="middle", scope="local")
-                end = ib.allocate("int64", (1,), name="end", scope="local")
+                start = ib.allocate("int32", (1,), name="start", scope="local")
+                middle = ib.allocate("int32", (1,), name="middle", scope="local")
+                end = ib.allocate("int32", (1,), name="end", scope="local")
                 tmp = ib.allocate(out_dtype, (1,), name="end", scope="local")
                 start[0] = width * tid
                 with ib.if_scope(tvm.tir.all(start[0] < scan_axis_size)):
@@ -206,8 +221,8 @@ def get_reduction_from_exclusive_scan(data, ex_scan_output, binop=tvm.tir.generi
         ex_scan_output = expand_dims(ex_scan_output, axis=0)
 
     def ir(data, data_ex_scan, reduction):
-        batch_size = prod(data.shape[:-1])
-        scan_axis_size = data.shape[-1]
+        batch_size = cast(prod(data.shape[:-1]), "int32")
+        scan_axis_size = cast(data.shape[-1], "int32")
 
         ib = tvm.tir.ir_builder.create()
 
@@ -363,17 +378,9 @@ def exclusive_scan(
     """
 
     def do_scan(data, output_dtype):
-        target = tvm.target.Target.current()
 
         # TODO: add support for a prod_scan
-        if (
-            target
-            and binop == tvm.tir.generic.add
-            and (
-                can_use_thrust(target, "tvm.contrib.thrust.sum_scan")
-                or can_use_rocthrust(target, "tvm.contrib.thrust.sum_scan")
-            )
-        ):
+        if _can_use_scan_thrust(binop):
             return scan_thrust(
                 data, output_dtype, exclusive=True, return_reduction=return_reduction, binop=binop
             )
@@ -479,6 +486,23 @@ def inclusive_scan(data, axis=-1, output_dtype=None, binop=tvm.tir.generic.add, 
     output : tvm.te.Tensor
         A N-D tensor of the same rank N as the input data.
     """
+
+    if _can_use_scan_thrust(binop):
+        if output_dtype is None or output_dtype == "":
+            output_dtype = data.dtype
+        ndim = len(data.shape)
+        if axis < 0:
+            axis += ndim
+
+        if axis != ndim - 1:
+            axes = swap(list(range(ndim)), axis)
+            data = transpose(data, axes)
+        output = scan_thrust(data, output_dtype, exclusive=False, binop=binop)
+        if axis != ndim - 1:
+            axes = swap(list(range(ndim)), axis)
+            output = transpose(output, axes)
+        return output
+
     ex_scan = exclusive_scan(
         data, axis, output_dtype=output_dtype, binop=binop, identity_value=identity_value
     )

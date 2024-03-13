@@ -14,11 +14,16 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-# pylint: disable=invalid-name,missing-function-docstring
+# pylint: disable=invalid-name,missing-function-docstring,unused-import
 """Intrinsics for ARM tensorization."""
 from tvm.script import tir as T
 from .. import TensorIntrin
-from .dot_product_common import DP4A_INTRIN  # pylint: disable=unused-import
+from .dot_product_common import (
+    DP4A_S8S8S32_INTRIN,
+    DP4A_S8U8S32_INTRIN,
+    DP4A_U8S8S32_INTRIN,
+    DP4A_U8U8U32_INTRIN,
+)
 
 
 # TODO(masahi): Parametrize the TVMScript description of dot product by

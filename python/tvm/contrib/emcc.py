@@ -42,11 +42,19 @@ def create_tvmjs_wasm(output, objects, options=None, cc="emcc"):
     cmd += ["-O3"]
     cmd += ["-std=c++17"]
     cmd += ["--no-entry"]
+    # NOTE: asynctify conflicts with wasm-exception
+    # so we temp disable exception handling for now
+    #
+    # We also expect user to explicitly pass in
+    # -s ASYNCIFY=1 as it can increase wasm size by 2xq
+    #
+    # cmd += ["-s", "ASYNCIFY=1"]
+    # cmd += ["-fwasm-exceptions"]
     cmd += ["-s", "WASM_BIGINT=1"]
     cmd += ["-s", "ERROR_ON_UNDEFINED_SYMBOLS=0"]
     cmd += ["-s", "STANDALONE_WASM=1"]
     cmd += ["-s", "ALLOW_MEMORY_GROWTH=1"]
-    cmd += ["-s", "TOTAL_MEMORY=40MB"]
+    cmd += ["-s", "TOTAL_MEMORY=160MB"]
 
     objects = [objects] if isinstance(objects, str) else objects
 

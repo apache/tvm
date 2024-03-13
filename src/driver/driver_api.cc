@@ -52,6 +52,7 @@ TVM_REGISTER_PASS_CONFIG_OPTION("tir.is_entry_func", Bool);
 TVM_REGISTER_PASS_CONFIG_OPTION("tir.add_lower_pass", Array<Array<ObjectRef>>);
 TVM_REGISTER_PASS_CONFIG_OPTION("tir.debug_keep_trivial_loop", Bool);
 TVM_REGISTER_PASS_CONFIG_OPTION("tir.use_async_copy", Bool);
+TVM_REGISTER_PASS_CONFIG_OPTION("tir.merge_static_smem", Bool);
 TVM_REGISTER_PASS_CONFIG_OPTION("tir.instrument_lwp", Bool);
 TVM_REGISTER_PASS_CONFIG_OPTION("tir.vtcm_capacity", Integer);
 TVM_REGISTER_PASS_CONFIG_OPTION("tir.ptx_ldg32", Bool);
@@ -239,6 +240,10 @@ Array<tvm::transform::Pass> CreatePassList(bool disable_loop_partition) {
   if (use_async_copy) {
     pass_list.push_back(tir::transform::LowerAsyncDMA());
   }
+  // HoistIfThenElse must be applied before UnrollLoop
+  // because HoistIfThenElse could utilize for loop structure
+  // which might be unrolled in UnrollLoop
+  pass_list.push_back(tir::transform::HoistIfThenElse());
   pass_list.push_back(tir::transform::UnrollLoop());
 
   // Add user-defined phase-2 passes
@@ -249,7 +254,6 @@ Array<tvm::transform::Pass> CreatePassList(bool disable_loop_partition) {
   pass_list.push_back(tir::transform::Simplify());
   pass_list.push_back(tir::transform::RemoveNoOp());
   pass_list.push_back(tir::transform::RewriteUnsafeSelect());
-  pass_list.push_back(tir::transform::HoistIfThenElse());
 
   // Add user-defined phase-3 passes
   pass_list.insert(pass_list.end(), user_lower_phase3.begin(), user_lower_phase3.end());
@@ -450,6 +454,7 @@ void CheckAndUpdateHostConsistency(Map<Target, IRModule>* targets, Target* host)
 
 runtime::Module TIRToRuntime(const Map<Target, IRModule>& inputs_arg,
                              const Target& target_host_arg) {
+  CHECK(inputs_arg.size()) << "TIRToRuntime expects at least one IRModule as input.";
   std::vector<runtime::Module> device_modules;
   Map<Target, IRModule> inputs = inputs_arg;
   Target target_host = target_host_arg;
@@ -584,7 +589,6 @@ transform::Sequential MixedModulePassManager(IRModule mixed_mod, Target target) 
 
   mixed_pass_list.push_back(tir::transform::ThreadSync("shared"));
   mixed_pass_list.push_back(tir::transform::ThreadSync("shared.dyn"));
-  mixed_pass_list.push_back(tir::transform::MergeDynamicSharedMemoryAllocations());
   mixed_pass_list.push_back(tir::transform::ThreadSync("warp"));
   mixed_pass_list.push_back(tir::transform::InferFragment());
   mixed_pass_list.push_back(tir::transform::LowerThreadAllreduce());
@@ -602,6 +606,9 @@ transform::Sequential MixedModulePassManager(IRModule mixed_mod, Target target) 
 
   mixed_pass_list.push_back(tir::transform::AnnotateDeviceRegions());
   mixed_pass_list.push_back(tir::transform::SplitHostDevice());
+  // MergeSharedMemoryAllocations must be applied after SplitHostDevice
+  // because the merged allocation site is at the beginning of each device function
+  mixed_pass_list.push_back(tir::transform::MergeSharedMemoryAllocations());
 
   bool unpacked_api = mixed_mod->GetAttr<relay::Executor>(tvm::attr::kExecutor)
                           .value_or(relay::Executor::Create("graph", {}))

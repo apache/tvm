@@ -57,6 +57,47 @@ def create_updater(node_map, from_ver, to_ver):
     return _updater
 
 
+def create_updater_15_to_16():
+    """
+    Create an update to upgrade json from v0.15 to v0.16
+
+    Returns
+    -------
+    fupdater : function
+        The updater function
+    """
+
+    def _update_lanes_obj(item, nodes):
+        lanes = item["attrs"]["lanes"]
+        new_idx = len(nodes)
+        item["attrs"]["lanes"] = str(new_idx)
+        lanes_node = {
+            "type_key": "IntImm",
+            "attrs": {"dtype": "int32", "span": "0", "value": lanes},
+        }
+        nodes.append(lanes_node)
+        return item
+
+    node_map = {"tir.Ramp": _update_lanes_obj, "tir.Broadcast": _update_lanes_obj}
+
+    return create_updater(node_map, "0.15", "0.16")
+
+
+def create_updater_13_to_14():
+    """Create an update to upgrade json from v0.13 to v0.14 for TVM Unity"""
+
+    def _update_vdevice(item, _):
+        if "vdevice" not in item["attrs"]:
+            item["attrs"]["vdevice"] = "0"
+        return item
+
+    node_map = {
+        "relax.TensorStructInfo": _update_vdevice,
+    }
+
+    return create_updater(node_map, "0.13", "0.14")
+
+
 def create_updater_08_to_09():
     """
     Create an update to upgrade json from v0.8 to v0.9
@@ -251,14 +292,29 @@ def upgrade_json(json_str):
         The updated version.
     """
     data = json.loads(json_str)
-    from_version = data["attrs"]["tvm_version"]
 
-    if from_version.startswith("0.6"):
-        data = create_updater_08_to_09()(create_updater_07_to_08()(create_updater_06_to_07()(data)))
-    elif from_version.startswith("0.7"):
-        data = create_updater_08_to_09()(create_updater_07_to_08()(data))
-    elif from_version.startswith("0.8"):
+    def _from_version(data):
+        return data["attrs"]["tvm_version"]
+
+    if _from_version(data).startswith("0.6"):
+        data = create_updater_06_to_07()(data)
+    if _from_version(data).startswith("0.7"):
+        data = create_updater_07_to_08()(data)
+    if _from_version(data).startswith("0.8"):
         data = create_updater_08_to_09()(data)
-    else:
-        raise ValueError(f"Cannot update from version {from_version}")
+    if _from_version(data).startswith("0.9"):
+        data = create_updater({}, "0.9", "0.10")(data)
+    if _from_version(data).startswith("0.10"):
+        data = create_updater({}, "0.10", "0.11")(data)
+    if _from_version(data).startswith("0.11"):
+        data = create_updater({}, "0.11", "0.12")(data)
+    if _from_version(data).startswith("0.12"):
+        data = create_updater({}, "0.12", "0.13")(data)
+    if _from_version(data).startswith("0.13"):
+        data = create_updater_13_to_14()(data)
+    if _from_version(data).startswith("0.14"):
+        data = create_updater({}, "0.14", "0.15")(data)
+    if _from_version(data).startswith("0.15"):
+        data = create_updater_15_to_16()(data)
+
     return json.dumps(data, indent=2)

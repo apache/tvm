@@ -37,6 +37,7 @@ from tvm import relay
 from tvm.contrib import graph_executor, utils
 from tvm.relay.frontend.common import infer_type
 from tvm.relay.build_module import bind_params_by_name
+from tvm.relax.frontend.onnx import from_onnx
 from relay.utils.tag_span import _create_span, _set_span, _verify_structural_equal_with_span
 
 import onnx
@@ -1711,6 +1712,27 @@ def test_upsample_nearest(target, dev):
     in_shape = (1, 1, 3, 3)
     out_shape = (1, 1, 3 * scale, 3 * scale)
     y = helper.make_node("Upsample", ["in"], ["out"], mode="nearest", scales=[1.0, 1.0, 2.0, 2.0])
+
+    in_array = np.random.uniform(size=in_shape).astype(np.float32)
+
+    graph = helper.make_graph(
+        [y],
+        "upsample_nearest_test",
+        inputs=[helper.make_tensor_value_info("in", TensorProto.FLOAT, list(in_shape))],
+        outputs=[helper.make_tensor_value_info("out", TensorProto.FLOAT, list(out_shape))],
+    )
+
+    model = helper.make_model(graph, producer_name="upsample_nearest_test")
+    verify_with_ort_with_inputs(model, [in_array], [out_shape], opset=7, target=target, dev=dev)
+
+
+@tvm.testing.parametrize_targets
+def test_upsample_nearest_default(target, dev):
+    """test_upsample_nearest_default"""
+    scale = 2
+    in_shape = (1, 1, 3, 3)
+    out_shape = (1, 1, 3 * scale, 3 * scale)
+    y = helper.make_node("Upsample", ["in"], ["out"], scales=[1.0, 1.0, 2.0, 2.0])
 
     in_array = np.random.uniform(size=in_shape).astype(np.float32)
 
@@ -4502,6 +4524,7 @@ def test_resize(target, dev):
             # scales are specified instead of sizes
             verify([1, 16] + [32] * ndim, [], [1, 1] + [0.5] * ndim, method, coord_trans)
             verify([1, 16] + [32] * ndim, [], [1, 1] + [2] * ndim, method, coord_trans)
+            verify([1, 16] + [32] * ndim, [], [1, 1] + [2] * ndim, None, coord_trans)
 
         method = "linear"
         # upsampling
@@ -5386,6 +5409,67 @@ def test_softplus(target, dev):
     verify_softplus(input_data)
 
 
+def test_load_cumsum():
+    """test_load_cumsum"""
+
+    def create_cumsum_model():
+        input_shape = [2, 3]
+
+        graph = helper.make_graph(
+            [
+                helper.make_node("CumSum", inputs=["X", "axis"], outputs=["Y"]),
+            ],
+            "cumsum_graph",
+            inputs=[
+                helper.make_tensor_value_info("X", onnx.TensorProto.DOUBLE, input_shape),
+                helper.make_tensor_value_info("axis", onnx.TensorProto.INT32, [1], "axis"),
+            ],
+            outputs=[helper.make_tensor_value_info("Y", onnx.TensorProto.DOUBLE, input_shape)],
+        )
+        return helper.make_model(graph)
+
+    from_onnx(create_cumsum_model())
+
+
+def test_load_trilu():
+    """test_load_trilu"""
+
+    def create_trilu_model():
+        input_shape = [2, 3, 3]
+
+        graph = helper.make_graph(
+            [
+                helper.make_node("Trilu", inputs=["x", "k"], outputs=["y"]),
+            ],
+            "trilu_graph",
+            inputs=[
+                helper.make_tensor_value_info("x", onnx.TensorProto.DOUBLE, input_shape),
+                helper.make_tensor_value_info("k", onnx.TensorProto.INT32, [1], "k"),
+            ],
+            outputs=[helper.make_tensor_value_info("y", onnx.TensorProto.DOUBLE, input_shape)],
+        )
+        return helper.make_model(graph)
+
+    def create_trilu_model_const_k():
+        input_shape = [2, 3, 3]
+
+        graph = helper.make_graph(
+            [
+                make_constant_node("k", onnx.TensorProto.INT32, [1], [1]),
+                helper.make_node("Trilu", inputs=["x", "k"], outputs=["y"]),
+            ],
+            "trilu_graph",
+            inputs=[
+                helper.make_tensor_value_info("x", onnx.TensorProto.DOUBLE, input_shape),
+            ],
+            outputs=[helper.make_tensor_value_info("y", onnx.TensorProto.DOUBLE, input_shape)],
+        )
+        return helper.make_model(graph)
+
+    from_onnx(create_trilu_model())
+    from_onnx(create_trilu_model_const_k())
+
+
 @tvm.testing.parametrize_targets
 def test_cumsum(target, dev):
     """test_cumsum"""
@@ -5645,6 +5729,7 @@ unsupported_onnx_tests = [
     "test_unique_sorted_with_axis_3d",
     "test_unique_sorted_with_negative_axis",
     "test_upsample_nearest",
+    "test_upsample_nearest_default",
 ]
 
 
@@ -8153,7 +8238,7 @@ def test_dft(target, dev):
     D = 7
 
     for axis in list(range(1, n)) + [-2]:
-        for inverse, onesided in [(0, 0), (0, 1), (1, 0)]:
+        for inverse, onesided in [(0, 0), (0, 1), (1, 0), (None, None)]:
             for n_fft in [D, D - 1, D + 1]:
                 for c in [1, 2]:
                     input_shape = [batch_size] + n * [D] + [c]

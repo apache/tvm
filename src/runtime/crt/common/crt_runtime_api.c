@@ -139,6 +139,8 @@ int TVMStreamCreate(int device_type, int device_id, TVMStreamHandle* out) {
   return 0;
 }
 
+int TVMObjectFree(TVMObjectHandle obj) { return 0; }
+
 int TVMStreamFree(int device_type, int device_id, TVMStreamHandle stream) { return 0; }
 
 int TVMSetStream(int device_type, int device_id, TVMStreamHandle stream) { return 0; }

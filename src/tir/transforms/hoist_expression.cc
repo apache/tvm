@@ -558,7 +558,14 @@ Pass HoistIfThenElse() {
   auto pass_func = [=](PrimFunc f, IRModule m, PassContext ctx) {
     auto* n = f.CopyOnWrite();
     auto cfg = ctx->GetConfig<HoistIfThenElseConfig>("tir.HoistIfThenElse");
-
+    auto flag = f->GetAttr<Integer>("tir.HoistIfThenElseExprWithBlock");
+    if (flag && flag.value().IntValue() == 1) {
+      HoistExpressionConfig config(static_cast<int>(HoistedConditionals::kUsingBlockVar) |
+                                       static_cast<int>(HoistedConditionals::kIfElseExpr),
+                                   static_cast<int>(HoistedLetBindings::kNone));
+      n->body = ExpressionHoister::Hoist(std::move(n->body), config);
+      return f;
+    }
     if (!cfg.defined()) {
       cfg = AttrsWithDefaultValues<HoistIfThenElseConfig>();
     }

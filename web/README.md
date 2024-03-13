@@ -94,4 +94,4 @@ Right now we use the SPIRV to generate shaders that can be accepted by Chrome an
   - Firefox should be close pending the support of Fence.
 - Download vulkan SDK (1.1 or higher) that supports SPIRV 1.3
 - Start the WebSocket RPC
-- run `python tests/node/webgpu_rpc_test.py`
+- run `python tests/python/webgpu_rpc_test.py`

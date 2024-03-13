@@ -23,7 +23,7 @@ Connect javascript end to the websocket port and connect to the RPC.
 import tvm
 from tvm import te
 from tvm import rpc
-from tvm.contrib import utils, emcc
+from tvm.contrib import utils, tvmjs
 from tvm.relay.backend import Runtime
 import numpy as np
 

@@ -42,7 +42,6 @@ MetalWorkspace* MetalWorkspace::Global() {
 
 void MetalWorkspace::GetAttr(Device dev, DeviceAttrKind kind, TVMRetValue* rv) {
   AUTORELEASEPOOL {
-    this->Init();
     size_t index = static_cast<size_t>(dev.device_id);
     if (kind == kExist) {
       *rv = int(index < devices.size());
@@ -55,8 +54,14 @@ void MetalWorkspace::GetAttr(Device dev, DeviceAttrKind kind, TVMRetValue* rv) {
         break;
       }
       case kWarpSize: {
-        // Set warp size to be 1 for safty reason.
+#if defined(__x86_64__)
         *rv = 1;
+#elif defined(__aarch64__)
+        *rv = 32;
+#else
+        LOG(WARNING) << "The CPU architecture is neither x86 nor aarch64. Fallback to warp size 1.";
+        *rv = 1;
+#endif
         break;
       }
       case kMaxSharedMemoryPerBlock:
@@ -83,6 +88,10 @@ void MetalWorkspace::GetAttr(Device dev, DeviceAttrKind kind, TVMRetValue* rv) {
         return;
       case kL2CacheSizeBytes:
         return;
+      case kTotalGlobalMemory: {
+        *rv = static_cast<int64_t>([devices[dev.device_id] recommendedMaxWorkingSetSize]);
+        return;
+      }
     }
   };
 }
@@ -132,29 +141,18 @@ MetalWorkspace::~MetalWorkspace() {
   }
 }
 
-void MetalWorkspace::ReinitializeStreams() {
-  std::vector<Stream*>& threadStreams = MetalThreadEntry::ThreadLocal()->stream;
-  ICHECK_EQ(default_streams_.size(), threadStreams.size());
+void MetalWorkspace::ReinitializeDefaultStreams() {
   for (size_t i = 0; i < default_streams_.size(); ++i) {
-    if (threadStreams[i] != nullptr && default_streams_[i] != threadStreams[i])
-      delete threadStreams[i];
     delete default_streams_[i];
   }
   default_streams_.resize(devices.size());
-  threadStreams.resize(devices.size());
   for (size_t i = 0; i < devices.size(); ++i) {
     Stream* stream = new Stream(devices[i]);
     default_streams_[i] = stream;
-    threadStreams[i] = stream;
   }
 }
 
-void MetalWorkspace::Init() {
-  if (initialized_) return;
-  std::lock_guard<std::mutex> lock(this->mutex);
-  if (initialized_) return;
-  initialized_ = true;
-  if (devices.size() != 0) return;
+MetalWorkspace::MetalWorkspace() {
 #if TARGET_OS_IPHONE
   // on iPhone
   id<MTLDevice> d = MTLCreateSystemDefaultDevice();
@@ -168,7 +166,7 @@ void MetalWorkspace::Init() {
     warp_size.push_back(GetWarpSize(d));
   }
 #endif
-  ReinitializeStreams();
+  this->ReinitializeDefaultStreams();
 }
 
 void MetalWorkspace::SetDevice(Device dev) {
@@ -179,7 +177,6 @@ void* MetalWorkspace::AllocDataSpace(Device device, size_t nbytes, size_t alignm
                                      DLDataType type_hint) {
   id<MTLBuffer> buf;
   AUTORELEASEPOOL {
-    this->Init();
     id<MTLDevice> dev = GetDevice(device);
     // GPU memory only
     MTLResourceOptions storage_mode = MTLResourceStorageModePrivate;
@@ -210,20 +207,20 @@ void MetalWorkspace::FreeDataSpace(Device dev, void* ptr) {
   };
 }
 
-Stream* CastStreamOrGetCurrent(TVMStreamHandle stream, int device_id) {
+Stream* MetalWorkspace::CastStreamOrGetDefault(TVMStreamHandle stream, int device_id) {
   if (stream != nullptr) return static_cast<Stream*>(stream);
-  ICHECK(MetalThreadEntry::ThreadLocal()->stream[device_id] != nullptr);
-  return MetalThreadEntry::ThreadLocal()->stream[device_id];
+  ICHECK_LT(static_cast<size_t>(device_id), default_streams_.size());
+  ICHECK(default_streams_[device_id] != nullptr);
+  return default_streams_[device_id];
 }
 
 void MetalWorkspace::CopyDataFromTo(const void* from, size_t from_offset, void* to,
                                     size_t to_offset, size_t size, Device dev_from, Device dev_to,
                                     DLDataType type_hint, TVMStreamHandle stream) {
   AUTORELEASEPOOL {
-    this->Init();
     Device dev = dev_from;
     if (dev_from.device_type == kDLCPU) dev = dev_to;
-    Stream* s = CastStreamOrGetCurrent(stream, dev.device_id);
+    Stream* s = this->CastStreamOrGetDefault(stream, dev.device_id);
     if (s->HasErrorHappened()) {
       LOG(FATAL) << "Error! Some problems on GPU happaned! Cannot copy data to current stream";
     }
@@ -293,15 +290,12 @@ TVMStreamHandle MetalWorkspace::CreateStream(Device dev) {
 void MetalWorkspace::FreeStream(Device dev, TVMStreamHandle stream) {
   ICHECK(stream != nullptr);
   ICHECK_LT(dev.device_id, devices.size()) << "Invalid device id " << dev.device_id;
-  Stream* s = static_cast<Stream*>(stream);
-  if (MetalThreadEntry::ThreadLocal()->stream[dev.device_id] == s)
-    MetalThreadEntry::ThreadLocal()->stream[dev.device_id] = nullptr;
-  delete s;
+  delete static_cast<Stream*>(stream);
 }
 
 void MetalWorkspace::StreamSync(Device dev, TVMStreamHandle stream) {
   AUTORELEASEPOOL {
-    Stream* s = CastStreamOrGetCurrent(stream, dev.device_id);
+    Stream* s = CastStreamOrGetDefault(stream, dev.device_id);
     // commit an empty command buffer and wait until it completes.
     id<MTLCommandBuffer> cb = s->GetCommandBuffer();
     [cb commit];
@@ -315,7 +309,12 @@ void MetalWorkspace::StreamSync(Device dev, TVMStreamHandle stream) {
 void MetalWorkspace::SetStream(Device dev, TVMStreamHandle stream) {
   ICHECK_LT(dev.device_id, devices.size()) << "Invalid device id " << dev.device_id;
   ICHECK(stream != nullptr);
-  MetalThreadEntry::ThreadLocal()->stream[dev.device_id] = static_cast<Stream*>(stream);
+  MetalThreadEntry::ThreadLocal()->stream[dev.device_id] = stream;
+}
+
+TVMStreamHandle MetalWorkspace::GetCurrentStream(Device dev) {
+  ICHECK_LT(dev.device_id, devices.size()) << "Invalid device id " << dev.device_id;
+  return MetalThreadEntry::ThreadLocal()->stream[dev.device_id];
 }
 
 void* MetalWorkspace::AllocWorkspace(Device dev, size_t size, DLDataType type_hint) {
@@ -364,7 +363,7 @@ TVM_REGISTER_GLOBAL("device_api.metal").set_body([](TVMArgs args, TVMRetValue* r
 });
 
 TVM_REGISTER_GLOBAL("metal.ResetGlobalState").set_body_typed([]() {
-  MetalWorkspace::Global()->ReinitializeStreams();
+  MetalWorkspace::Global()->ReinitializeDefaultStreams();
 });
 
 }  // namespace metal
