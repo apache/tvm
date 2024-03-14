@@ -280,6 +280,33 @@ class ExprWithOp(Expr, Scriptable):
         self._check_for_tensor_struct_info()
         return _DLTensorShapeProxy(self)
 
+    @property
+    def strides(self) -> "_DLTensorStrideProxy":
+        """Returns a proxy object for accessing DLTensor::strides"""
+        self._check_for_tensor_struct_info()
+        return _DLTensorStrideProxy(self)
+
+    @property
+    def byte_offset(self) -> "Expr":
+        """Returns a proxy object for accessing DLTensor::byte_offset"""
+        self._check_for_tensor_struct_info()
+        op = tvm.ir.Op.get("relax.inspect.tensor_byte_offset")
+        return tvm.relax.Call(op, [self])
+
+    @property
+    def elem_offset(self) -> "Expr":
+        """Returns a proxy object for accessing a DLTensor's elem_offset
+
+        This parameter is not stored in the DLTensor, but is instead
+        derived from the DLTensor's byte offset and datatype.  This is
+        exposed in Relax for ease of use, and for translation into the
+        `tir::BufferNode::elem_offset` field when interacting with TIR
+        buffers.
+        """
+        self._check_for_tensor_struct_info()
+        op = tvm.ir.Op.get("relax.inspect.tensor_elem_offset")
+        return tvm.relax.Call(op, [self])
+
 
 class _DLTensorDTypeProxy(tvm.runtime.ObjectGeneric):
     """A proxy object for unpacking DLDatatype from DLTensor
@@ -428,6 +455,76 @@ class _DLTensorShapeProxy(tvm.runtime.ObjectGeneric):
             )
 
         op = tvm.ir.Op.get("relax.inspect.tensor_shape_i")
+        return tvm.relax.Call(op, [self.tensor, axis])
+
+
+class _DLTensorStrideProxy(tvm.runtime.ObjectGeneric):
+    """A proxy object for unpacking the strides from DLTensor
+
+    Exposes accessors for the `DLTensor::strides` field.  Accessing
+    these fields will produce `relax.Call` expressions, representing
+    the field's runtime value.  If the datatype of the tensor is known
+    at compile-time, the `relax.Call` will be normalized into a
+    `relax.PrimValue`, with no runtime cost.
+
+    Parameters
+    ----------
+    tensor: relax.Expr
+
+        The relax tensor (or a variable referring to a relax tensor),
+        whose runtime strides is being inspected.
+    """
+
+    def __init__(self, tensor):
+        self.tensor = tensor
+
+    def asobject(self):
+        """Provide expected in error message
+
+        This method is called when `_DLTensorStrideProxy` is used in a
+        context that requires a `relax.Expr`.  This usage is not
+        supported, and raising an error here can provide suggested
+        fixes that are not present in the default error message from
+        `tvm.runtime.convert_to_object`.
+        """
+        raise TypeError(
+            f"{self.tensor}.strides cannot be converted to a relax expression, "
+            f"and should be used as a proxy object to access the runtime strides of the DLTensor. "
+            f"The DLTensor::ndim field can be accessed as len({self.tensor}), "
+            f"and the DLTensor::strides array can be accessed as {self.tensor}.strides[i]"
+        )
+
+    def __getitem__(self, axis: Union[int, PrimExpr, Expr]) -> Expr:
+        """Returns the extent of a tensor axis
+
+        Parameters
+        ----------
+        axis: Union[int, PrimExpr, Expr]
+
+            The tensor axis whose extent should be returned.  For ease
+            of use, any python integers or TIR expressions are
+            converted to `relax.Expr`.
+
+        Returns
+        -------
+        extent: Expr
+
+            The extent of the tensor's axis.
+        """
+
+        if not isinstance(axis, tvm.relax.Expr):
+            axis = tvm.relax.PrimValue(axis)
+
+        if axis.struct_info_ is not None and not isinstance(
+            axis.struct_info_, tvm.relax.PrimStructInfo
+        ):
+            raise TypeError(
+                f"The index used to access {self.tensor}.strides "
+                f'must have struct info R.Prim("int64"), '
+                f"but index {axis} had struct info {axis.struct_info_}."
+            )
+
+        op = tvm.ir.Op.get("relax.inspect.tensor_stride_i")
         return tvm.relax.Call(op, [self.tensor, axis])
 
 
