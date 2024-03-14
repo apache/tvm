@@ -28,7 +28,25 @@ namespace target {
 namespace parsers {
 namespace cpu {
 
+Optional<String> DetectSystemTriple() {
+  auto pf = tvm::runtime::Registry::Get("target.llvm_get_system_triple");
+  if (pf->defined()) {
+    return (*pf)();
+  }
+  return {};
+}
+
 TargetJSON ParseTarget(TargetJSON target) {
+  String kind = Downcast<String>(target.Get("kind"));
+  Optional<String> mtriple = Downcast<Optional<String>>(target.Get("mtriple"));
+  Optional<String> mcpu = Downcast<Optional<String>>(target.Get("mcpu"));
+
+  // Try to fill in the blanks by detecting target information from the system
+  if (kind == "llvm" && !mtriple.defined() && !mcpu.defined()) {
+    String system_triple = DetectSystemTriple().value_or("");
+    target.Set("mtriple", system_triple);
+  }
+
   if (mprofile::IsArch(target)) {
     return mprofile::ParseTarget(target);
   }
