@@ -165,6 +165,7 @@ class RuntimeContext implements Disposable {
   makeShapeTuple: PackedFunc;
   ndarrayCreateView: PackedFunc;
   sampleTopPFromLogits: PackedFunc;
+  sampleTopPFromProb: PackedFunc;
   applyRepetitionPenalty: PackedFunc;
   applyPresenceAndFrequencyPenalty: PackedFunc;
   applySoftmaxWithTemperature: PackedFunc;
@@ -188,6 +189,7 @@ class RuntimeContext implements Disposable {
     this.makeShapeTuple = getGlobalFunc("runtime.ShapeTuple");
     this.ndarrayCreateView = getGlobalFunc("runtime.TVMArrayCreateView");
     this.sampleTopPFromLogits = getGlobalFunc("vm.builtin.sample_top_p_from_logits");
+    this.sampleTopPFromProb = getGlobalFunc("vm.builtin.sample_top_p_from_prob");
     this.applyRepetitionPenalty = getGlobalFunc("vm.builtin.apply_repetition_penalty");
     this.applyPresenceAndFrequencyPenalty = getGlobalFunc("vm.builtin.apply_presence_and_frequency_penalty");
     this.applySoftmaxWithTemperature = getGlobalFunc("vm.builtin.apply_softmax_with_temperature");
@@ -1824,6 +1826,17 @@ export class Instance implements Disposable {
    */
   sampleTopPFromLogits(logits: NDArray, temperature: number, top_p: number): number {
     return this.ctx.sampleTopPFromLogits(logits, temperature, top_p, Math.random());
+  }
+
+  /**
+   * Sample index via top-p sampling.
+   *
+   * @param prob The distribution, i.e. logits after `applySoftmaxWithTemperature()` is performed.
+   * @param top_p The top_p
+   * @returns The sampled index.
+   */
+  sampleTopPFromProb(prob: NDArray, top_p: number): number {
+    return this.ctx.sampleTopPFromProb(prob, top_p, Math.random());
   }
 
   /**
