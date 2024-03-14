@@ -194,7 +194,10 @@ class MetalWrappedFunc {
       // obtain the stream
       auto stream =
           metal::MetalWorkspace::Global()->CastStreamOrGetDefault(t->stream[device_id], device_id);
+
+      // skip launching so the error can be printed during sync
       if (stream->HasErrorHappened()) return;
+
       if (scache_[device_id] == nil) {
         scache_[device_id] = m_->GetPipelineState(device_id, func_name_);
       }
@@ -202,7 +205,8 @@ class MetalWrappedFunc {
       int blockSize = wl.block_dim(0) * wl.block_dim(1) * wl.block_dim(2);
       auto maxTotalThreadsPerThreadgroup = scache_[device_id].maxTotalThreadsPerThreadgroup;
       CHECK_LE(blockSize, maxTotalThreadsPerThreadgroup);
-      id<MTLCommandBuffer> cb = stream->GetCommandBuffer();
+      // attach error message directly in this functio
+      id<MTLCommandBuffer> cb = stream->GetCommandBuffer(/* attach_error_callback= */ false);
       id<MTLComputeCommandEncoder> encoder = [cb computeCommandEncoder];
       [encoder setComputePipelineState:scache_[device_id]];
       for (size_t i = 0; i < num_buffer_args_; ++i) {
@@ -219,6 +223,16 @@ class MetalWrappedFunc {
       MTLSize dimBlock = MTLSizeMake(wl.block_dim(0), wl.block_dim(1), wl.block_dim(2));
       [encoder dispatchThreadgroups:dimGrid threadsPerThreadgroup:dimBlock];
       [encoder endEncoding];
+      // attach error message with function name
+      [cb addCompletedHandler:^(id<MTLCommandBuffer> buffer) {
+        if (buffer.status == MTLCommandBufferStatusError) {
+          ICHECK(buffer.error != nil);
+          std::ostringstream os;
+          os << "GPUError happens after running " << func_name_ << ": "
+             << buffer.error.localizedDescription.UTF8String;
+          stream->SetError(os.str());
+        }
+      }];
       [cb commit];
     };
   }
