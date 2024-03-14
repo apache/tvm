@@ -700,38 +700,6 @@ class ConsumeBundledParams : public ExprMutator {
   std::unordered_map<int, Expr> param_remap_;
 };
 
-// std::pair<std::unordered_set<GlobalVar, ObjectPtrHash, ObjectPtrEqual>, std::vector<Function>>
-//  GetTargetFunctions(const IRModule& mod, const Array<String>& target_function_names) {
-//   std::unordered_set<GlobalVar, ObjectPtrHash, ObjectPtrEqual> target_gvars;
-//   std::vector<Function> target_functions;
-//   if (target_function_names.size()) {
-//     for (const auto& name : target_function_names) {
-//       auto gvar = mod->GetGlobalVar(name);
-//       target_gvars.insert(gvar);
-//       target_functions.push_back(Downcast<Function>(mod->Lookup(gvar)));
-//     }
-//   } else {
-//     // Get all the functions that have the `num_input` attribute.
-//     std::vector<GlobalVar> ordered_target_gvars;
-//     for (const auto& [gvar, func] : mod->functions) {
-//       if (func->IsInstance<FunctionNode>()) {
-//         auto opt_num_input = func->GetAttr<Integer>(attr::kNumInput);
-//         if (opt_num_input) {
-//           ordered_target_gvars.push_back(gvar);
-//         }
-//       }
-//     }
-//     std::sort(ordered_target_gvars.begin(), ordered_target_gvars.end(),
-//               [](const GlobalVar& lhs, const GlobalVar& rhs) { return lhs->name_hint <
-//               rhs->name_hint; });
-//     for (const auto& gvar : ordered_target_gvars) {
-//       target_functions.push_back(Downcast<Function>(mod->Lookup(gvar->name_hint)));
-//     }
-//     target_gvars.insert(ordered_target_gvars.begin(), ordered_target_gvars.end());
-//   }
-//   return {target_gvars, target_functions};
-// }
-
 std::vector<std::pair<GlobalVar, Function>> GetTargetFunctions(
     const IRModule& mod, const Array<String>& target_function_names) {
   std::vector<std::pair<GlobalVar, Function>> target_functions;
