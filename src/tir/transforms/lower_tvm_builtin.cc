@@ -38,6 +38,19 @@ namespace tir {
 // These information are needed during codegen.
 class BuiltinLower : public StmtExprMutator {
  public:
+  static PrimFunc Build(PrimFunc func) {
+    Optional<PrimExpr> device_type = NullOpt;
+    if (auto target = func->GetAttr<Target>(tvm::attr::kTarget)) {
+      device_type = Integer(target.value()->kind->default_device_type);
+    }
+
+    BuiltinLower mutator(device_type);
+    func.CopyOnWrite()->body = mutator.VisitBodyAndRealizeAlloca(func->body);
+    return func;
+  }
+
+  BuiltinLower(Optional<PrimExpr> device_type = NullOpt) : device_type_(device_type) {}
+
   // NOTE: Right now, we make the following scoping requirement
   // for memory allocated by the following primitives
   // - tvm_stack_make_array
@@ -284,13 +297,17 @@ class BuiltinLower : public StmtExprMutator {
 
   Stmt VisitStmt_(const AttrStmtNode* op) final {
     if (op->attr_key == attr::device_id) {
-      ICHECK(!device_id_);
+      auto cache = device_id_;
       device_id_ = op->value;
-      return this->VisitStmt(op->body);
+      Stmt out = this->VisitStmt(op->body);
+      device_id_ = cache;
+      return out;
     } else if (op->attr_key == attr::device_type) {
-      ICHECK(!device_type_);
+      auto cache = device_type_;
       device_type_ = op->value;
-      return this->VisitStmt(op->body);
+      Stmt out = this->VisitStmt(op->body);
+      device_type_ = cache;
+      return out;
     } else {
       return StmtExprMutator::VisitStmt_(op);
     }
@@ -656,13 +673,12 @@ class BuiltinLower : public StmtExprMutator {
 namespace transform {
 
 Pass LowerTVMBuiltin() {
-  auto pass_func = [](PrimFunc f, IRModule m, PassContext ctx) {
-    if (IsHostFunc(f).value_or(false)) {
-      auto global_symbol = f->GetAttr<String>(tvm::attr::kGlobalSymbol);
-      f.CopyOnWrite()->body = BuiltinLower().Build(f->body);
-      VLOG(2) << "LowerTVMBuiltin: " << f;
+  auto pass_func = [](PrimFunc func, IRModule m, PassContext ctx) {
+    if (IsHostFunc(func).value_or(false)) {
+      func = BuiltinLower::Build(func);
+      VLOG(2) << "LowerTVMBuiltin: " << func;
     }
-    return f;
+    return func;
   };
   return CreatePrimFuncPass(pass_func, 0, "tir.LowerTVMBuiltin", {});
 }
