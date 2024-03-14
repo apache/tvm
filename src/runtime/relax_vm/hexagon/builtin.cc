@@ -52,8 +52,8 @@ TVM_REGISTER_GLOBAL("vm.builtin.hexagon.dma_copy")
     });
 
 TVM_REGISTER_GLOBAL("vm.builtin.hexagon.dma_wait")
-    .set_body_typed([](TVMArgValue vm_ptr, int queue_id, int inflight_dma, NDArray src_arr,
-                       NDArray dst_arr) {
+    .set_body_typed([](TVMArgValue vm_ptr, int queue_id, int inflight_dma,
+                       [[maybe_unused]] NDArray src_arr, [[maybe_unused]] NDArray dst_arr) {
       ICHECK(inflight_dma >= 0);
       tvm::runtime::hexagon::HexagonDeviceAPI::Global()->UserDMA()->Wait(queue_id, inflight_dma);
     });
