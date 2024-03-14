@@ -19,7 +19,7 @@
 from typing import List, Optional, Sequence, Union
 
 from tvm import relax as rx
-from tvm import tir, ir
+from tvm import tir
 
 from . import op
 from .core import Effect, Module, ModuleList, Parameter, Tensor, get_default_dtype
