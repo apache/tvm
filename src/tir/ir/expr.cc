@@ -58,7 +58,9 @@ namespace tir {
     CHECK(a.dtype() == b.dtype()) << "TypeError: mismatched types. " << a.dtype() << " vs. " \
                                   << b.dtype() << "\n";                                      \
     ObjectPtr<T> node = make_object<T>();                                                    \
-    node->dtype = DataType::Bool(a.dtype().lanes());                                         \
+    DataType a_dtype = a.dtype();                                                            \
+    node->dtype =                                                                            \
+        DataType::Bool(a_dtype.get_lanes_or_vscale_factor(), a_dtype.is_scalable_vector());  \
     node->a = std::move(a);                                                                  \
     node->b = std::move(b);                                                                  \
     node->span = std::move(span);                                                            \
@@ -393,7 +395,8 @@ Not::Not(PrimExpr a, Span span) {
   ICHECK(a.dtype().is_bool());
 
   ObjectPtr<NotNode> node = make_object<NotNode>();
-  node->dtype = DataType::Bool(a.dtype().lanes());
+  DataType a_dtype = a.dtype();
+  node->dtype = DataType::Bool(a_dtype.get_lanes_or_vscale_factor(), a_dtype.is_scalable_vector());
   node->a = std::move(a);
   node->span = std::move(span);
   data_ = std::move(node);

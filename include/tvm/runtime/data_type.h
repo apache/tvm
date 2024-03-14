@@ -110,6 +110,8 @@ class DataType {
     }
     return -lanes_as_int;
   }
+  /*! \return get vscale factor or lanes depending on scalability of the vector. */
+  int get_lanes_or_vscale_factor() { return is_scalable_vector() ? vscale_factor() : lanes(); }
   /*! \return whether type is a scalar type. */
   bool is_scalar() const { return !is_scalable_vector() && lanes() == 1; }
   /*! \return whether type is a scalar type. */
@@ -211,10 +213,13 @@ class DataType {
   /*!
    * \brief Construct an uint type.
    * \param bits The number of bits in the type.
-   * \param lanes The number of lanes
+   * \param lanes The number of lanes.
+   * \param is_scalable Whether the data type is scalable.
    * \return The constructed data type.
    */
-  static DataType UInt(int bits, int lanes = 1) { return DataType(kDLUInt, bits, lanes); }
+  static DataType UInt(int bits, int lanes = 1, bool is_scalable = false) {
+    return DataType(kDLUInt, bits, lanes, is_scalable);
+  }
   /*!
    * \brief Construct an float type.
    * \param bits The number of bits in the type.
@@ -243,10 +248,13 @@ class DataType {
   static DataType NVFloat8E5M2(int lanes = 1) { return DataType(kE5M2Float, 8, lanes); }
   /*!
    * \brief Construct a bool type.
-   * \param lanes The number of lanes
+   * \param lanes The number of lanes.
+   * \param is_scalable Whether the data type is scalable.
    * \return The constructed data type.
    */
-  static DataType Bool(int lanes = 1) { return DataType::UInt(1, lanes); }
+  static DataType Bool(int lanes = 1, bool is_scalable = false) {
+    return DataType::UInt(1, lanes, is_scalable);
+  }
   /*!
    * \brief Construct a handle type.
    * \param bits The number of bits in the type.
