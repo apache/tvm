@@ -27,6 +27,7 @@
 #include "../../3rdparty/compiler-rt/builtin_fp16.h"
 #include "../cblas/gemm_common.h"
 #include "cublas_utils.h"
+#include "cublas_algo.h"
 
 namespace tvm {
 namespace contrib {
@@ -138,7 +139,8 @@ int roundoff(int v, int d) { return (v + d - 1) / d * d; }
 void CallCublasLt(cublasLtHandle_t hdl, cudaStream_t stream,
                   cublasLtMatmulPreference_t matmul_pref_desc, const DLTensor* A, const DLTensor* B,
                   const DLTensor* bias, const DLTensor* C, bool transa, bool transb,
-                  void* workspace_ptr, size_t workspace_size, cublasLtEpilogue_t epilogue) {
+                  void* workspace_ptr, size_t workspace_size, cublasLtEpilogue_t epilogue,
+                  const cublasLtMatmulAlgo_t* predef_algo) {
   ICHECK(TypeEqual(A->dtype, B->dtype));
   // Reversed strides indicates an in-place transpose operation.
   transa = IsInPlaceTransposed(A) ? !transa : transa;
@@ -266,20 +268,27 @@ void CallCublasLt(cublasLtHandle_t hdl, cudaStream_t stream,
   auto B_data = static_cast<char*>(B->data) + B->byte_offset;
   auto C_data = static_cast<char*>(C->data) + C->byte_offset;
 
-  cublasLtMatmulPreferenceSetAttribute(matmul_pref_desc, CUBLASLT_MATMUL_PREF_MAX_WORKSPACE_BYTES,
-                                       &workspace_size, sizeof(size_t));
+  cublasLtMatmulAlgo_t algo;
+  if (predef_algo) {
+    algo = *predef_algo;
+  } else {
+    cublasLtMatmulPreferenceSetAttribute(matmul_pref_desc, CUBLASLT_MATMUL_PREF_MAX_WORKSPACE_BYTES,
+                                        &workspace_size, sizeof(size_t));
 
-  cublasLtMatmulHeuristicResult_t heuristic_result = {};
-  int returned_result = 0;
-  CHECK_CUBLAS_ERROR(cublasLtMatmulAlgoGetHeuristic(hdl, op_desc, A_desc, B_desc, C_desc, C_desc,
-                                                    matmul_pref_desc, 1, &heuristic_result,
-                                                    &returned_result));
-  if (returned_result == 0) {
-    CHECK_CUBLAS_ERROR(CUBLAS_STATUS_NOT_SUPPORTED);
+    cublasLtMatmulHeuristicResult_t heuristic_result = {};
+    int returned_result = 0;
+    CHECK_CUBLAS_ERROR(cublasLtMatmulAlgoGetHeuristic(hdl, op_desc, A_desc, B_desc, C_desc, C_desc,
+                                                      matmul_pref_desc, 1, &heuristic_result,
+                                                      &returned_result));
+    if (returned_result == 0) {
+      CHECK_CUBLAS_ERROR(CUBLAS_STATUS_NOT_SUPPORTED);
+    }
+
+    algo = heuristic_result.algo;
   }
 
   CHECK_CUBLAS_ERROR(cublasLtMatmul(hdl, op_desc, alpha, B_data, A_desc, A_data, B_desc, beta,
-                                    C_data, C_desc, C_data, C_desc, &heuristic_result.algo,
+                                    C_data, C_desc, C_data, C_desc, &algo,
                                     workspace_ptr, workspace_size, stream));
 
   cublasLtMatmulDescDestroy(op_desc);
@@ -358,7 +367,7 @@ inline void CallLtIgemm(TVMArgs args, TVMRetValue* ret, cublasLtHandle_t hdl, cu
   CHECK_CUBLAS_ERROR(cublasLtMatmul(hdl, operationDesc, &alpha, B_data, Adesc, A_data, Bdesc, &beta,
                                     C_data, Cdesc, C_data, Cdesc, nullptr, nullptr, 0, stream));
 }
-#endif
+#endif  // CUDART_VERSION >= 10010
 
 inline void CallGemmEx(TVMArgs args, TVMRetValue* ret, cublasHandle_t hdl) {
   DLTensor* A = args[0];
