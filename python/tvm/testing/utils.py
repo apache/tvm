@@ -1045,6 +1045,13 @@ requires_arm_dot = Feature(
 )
 
 
+requires_aarch64_sve = Feature(
+    "arm_sve",
+    "AArch64 SVE",
+    run_time_check=lambda: _has_cpu_feat("sve"),
+)
+
+
 requires_x86_vnni = Feature(
     "x86_vnni",
     "x86 VNNI Extensions",

@@ -492,5 +492,46 @@ def test_codegen_vscale():
     assert re.findall(r"llvm.vscale.i32", llvm), "No vscale in generated LLVM."
 
 
+@pytest.mark.skipif(
+    llvm_version_major() < 11, reason="Vscale is not supported in earlier versions of LLVM"
+)
+def test_scalable_buffer_load_store():
+    target = "llvm -mtriple=aarch64-linux-gnu -mattr=+sve"
+
+    @T.prim_func
+    def my_func(a: T.handle, b: T.handle):
+        A = T.match_buffer(a, (128,), "float32")
+        B = T.match_buffer(b, (128,), "float32")
+        T.func_attr({"global_symbol": "my_module", "tir.noalias": True})
+        B[T.ramp(0, 1, 4 * T.vscale())] = A[T.ramp(0, 1, 4 * T.vscale())]
+
+    mod = tvm.build(my_func, target=target)
+    llvm = mod.get_source("ll")
+
+    assert re.findall(r"load <vscale x 4 x float>", llvm), "No scalable load in generated LLVM."
+    assert re.findall(r" store <vscale x 4 x float>", llvm), "No scalable store in generated LLVM."
+
+
+@pytest.mark.skipif(
+    llvm_version_major() < 11, reason="Vscale is not supported in earlier versions of LLVM"
+)
+def test_scalable_broadcast():
+    target = "llvm -mtriple=aarch64-linux-gnu -mattr=+sve"
+
+    @T.prim_func
+    def my_func(a: T.handle):
+        A = T.match_buffer(a, (128,), "float32")
+        T.func_attr({"global_symbol": "my_module", "tir.noalias": True})
+        A[T.ramp(0, 1, 4 * T.vscale())] = T.broadcast(1, 4 * T.vscale())
+
+    mod = tvm.build(my_func, target=target)
+    llvm = mod.get_source("ll")
+
+    assert re.findall(
+        r"shufflevector \(<vscale x 4 x float> insertelement \(<vscale x 4 x float>", llvm
+    ), "No scalable broadcast in generated LLVM."
+    assert re.findall(r" store <vscale x 4 x float>", llvm), "No scalable store in generated LLVM."
+
+
 if __name__ == "__main__":
     tvm.testing.main()
