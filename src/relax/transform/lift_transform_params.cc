@@ -231,7 +231,8 @@ struct LocalCollectInfo : public BaseCollectInfo {
       // variables in the global outputs to the local variables.
       Map<tir::Var, tir::Var> reverse_map;
       for (const auto& var : local_tir_vars) {
-        if (auto it = global_info->tir_var_remap.find(var); it != global_info->tir_var_remap.end()) {
+        if (auto it = global_info->tir_var_remap.find(var);
+            it != global_info->tir_var_remap.end()) {
           reverse_map.Set(Downcast<tir::Var>((*it).second), var);
         }
       }
@@ -583,9 +584,20 @@ class GlobalLiftableBindingCollector : public BaseLiftableBindingCollector {
     // bindings as collector.var_remap_ may contain invalid mappings.
     for (const auto& unified_binding : collector.unified_bindings_) {
       const auto& original_bindings = collector.original_bindings_[GetBoundValue(unified_binding)];
-      // Note: it is possible that a function has common subexpressions, so it is not necessary to
-      // require original_bindings.size() == functions.size().
-      if (original_bindings.size() % functions.size() == 0) {
+      // Note: it is possible that one or more functions have common subexpressions such as:
+      //
+      //   func1:
+      //     w1_t = w.transpose
+      //     w2_t = w.transpose
+      //
+      //   func2:
+      //     w1_t = w.transpose
+      //     w2_t = w.transpose
+      //
+      // In this case, original_bindings.size() != functions.size() but we should still consider
+      // w and w.transpose as a shared binding.
+
+      if (original_bindings.size() == functions.size()) {
         info.computable_at_compile_time.push_back(unified_binding);
         for (const auto& original_binding : original_bindings) {
           info.var_remap.Set(original_binding->var, unified_binding->var);
@@ -629,7 +641,8 @@ class GlobalLiftableBindingCollector : public BaseLiftableBindingCollector {
       original_bindings_;
 };
 
-GlobalCollectInfo MakeGlobalLiftPlan(const IRModule& mod, const std::vector<Function>& target_functions) {
+GlobalCollectInfo MakeGlobalLiftPlan(const IRModule& mod,
+                                     const std::vector<Function>& target_functions) {
   ParamRemapper remapper;
   auto [var_remap, tir_var_remap] = ParamRemapper::GetParamMapping(target_functions);
   return GlobalLiftableBindingCollector::Collect(target_functions, var_remap, tir_var_remap);
@@ -705,7 +718,8 @@ class ConsumeBundledParams : public ExprMutator {
 //       }
 //     }
 //     std::sort(ordered_target_gvars.begin(), ordered_target_gvars.end(),
-//               [](const GlobalVar& lhs, const GlobalVar& rhs) { return lhs->name_hint < rhs->name_hint; });
+//               [](const GlobalVar& lhs, const GlobalVar& rhs) { return lhs->name_hint <
+//               rhs->name_hint; });
 //     for (const auto& gvar : ordered_target_gvars) {
 //       target_functions.push_back(Downcast<Function>(mod->Lookup(gvar->name_hint)));
 //     }
@@ -714,9 +728,8 @@ class ConsumeBundledParams : public ExprMutator {
 //   return {target_gvars, target_functions};
 // }
 
-
-std::vector<std::pair<GlobalVar, Function>> GetTargetFunctions(const IRModule& mod,
-                                                              const Array<String>& target_function_names) {
+std::vector<std::pair<GlobalVar, Function>> GetTargetFunctions(
+    const IRModule& mod, const Array<String>& target_function_names) {
   std::vector<std::pair<GlobalVar, Function>> target_functions;
   if (target_function_names.size()) {
     for (const auto& name : target_function_names) {
@@ -734,7 +747,9 @@ std::vector<std::pair<GlobalVar, Function>> GetTargetFunctions(const IRModule& m
       }
     }
     std::sort(target_functions.begin(), target_functions.end(),
-              [](const auto& lhs, const auto& rhs) { return lhs.first->name_hint < rhs.first->name_hint; });
+              [](const auto& lhs, const auto& rhs) {
+                return lhs.first->name_hint < rhs.first->name_hint;
+              });
   }
   return target_functions;
 }
@@ -771,7 +786,8 @@ Pass PartitionTransformParams(bool shared_transform, const Array<String>& target
       updates->Add(gvar, new_runtime_func);
       if (!global_collect_info.has_value()) {
         // transform_params is emitted for each function if global lifting is not enabled
-        updates->Add(GlobalVar(gvar->name_hint + "_transform_params"), info.MakeCompileTimeFunction());
+        updates->Add(GlobalVar(gvar->name_hint + "_transform_params"),
+                     info.MakeCompileTimeFunction());
       }
     }
     if (global_collect_info.has_value()) {

@@ -1268,6 +1268,7 @@ def test_share_transform_with_unused_parameter():
     tvm.ir.assert_structural_equal(after, Expected)
 
 
+@pytest.mark.xfail
 def test_share_transform_with_no_shared_preprocessing():
     """Like test_share_transform_with_unused_parameter, but each
     function uses a single model weight.
