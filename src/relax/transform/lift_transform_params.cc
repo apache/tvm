@@ -425,7 +425,9 @@ class LocalLiftableBindingCollector : public BaseLiftableBindingCollector {
   }
 
  private:
-  LocalLiftableBindingCollector(GlobalCollectInfo* global_info) { info_.global_info = global_info; }
+  explicit LocalLiftableBindingCollector(GlobalCollectInfo* global_info) {
+    info_.global_info = global_info;
+  }
   void VisitExpr_(const FunctionNode* func) override {
     size_t num_runtime_params = func->params.size();
     if (auto opt = func->attrs.GetAttr<Integer>(attr::kNumInput)) {
