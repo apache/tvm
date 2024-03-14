@@ -15,8 +15,11 @@
 # specific language governing permissions and limitations
 # under the License.
 import os
+import platform
 
 import numpy as np
+import pytest
+
 import tvm
 import tvm.testing
 import tvm.topi.testing
@@ -635,6 +638,12 @@ def test_any_conv2d():
         data_layout="NHWC",
         kernel_layout="HWIO",
     )
+
+    if platform.machine() == "aarch64":
+        pytest.skip(
+            reason="Dynamic height and width not supported in arm_cpu. See https://github.com/apache/tvm/issues/16536"
+        )
+
     verify_any_conv2d(
         (relay.Any(), 64, relay.Any(), relay.Any()),
         (64, 64, 3, 3),

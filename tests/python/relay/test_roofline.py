@@ -34,7 +34,7 @@ from tvm.runtime.profiling import Report
 from tvm.script import tir as T
 
 
-@tvm.testing.requires_llvm
+@tvm.testing.requires_x86
 @pytest.mark.parametrize("dtype", ["float32", "int8", "int32"])
 def test_estimate_peak_flops_cpu(dtype):
     server = rpc.Server(key="roofline_flops_cpu")
@@ -70,6 +70,7 @@ def test_estimate_peak_flops_gpu():
     ), f"FLOP/s should be between 10^12 and 10^14, but it is {flops}"
 
 
+@tvm.testing.requires_x86
 @tvm.testing.skip_if_32bit(reason="Cannot allocate enough memory on i386")
 @tvm.testing.requires_llvm
 def test_estimate_peak_bandwidth_cpu():
@@ -101,6 +102,7 @@ def test_estimate_peak_bandwidth_gpu():
     ), f"Bandwidth should be between 10^9 and 10^12, but it is {bandwidth}"
 
 
+@tvm.testing.requires_x86
 @tvm.testing.skip_if_32bit(reason="Cannot allocate enough memory on i386")
 @tvm.testing.parametrize_targets("llvm -mattr=+fma,+avx2", "cuda")
 def test_roofline_analysis(target, dev):

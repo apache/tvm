@@ -14,8 +14,13 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-import numpy as np
+
 import os
+import platform
+
+import numpy as np
+import pytest
+
 from tvm import relay, runtime
 from tvm.relay import testing
 import tvm
@@ -164,9 +169,8 @@ def test_cpu_get_graph_params_compare():
     loaded_lib = tvm.runtime.load_module(path_lib)
     loaded_params = loaded_lib["get_graph_params"]()
 
-    tvm.testing.assert_allclose(
-        params["conv_weight"].numpy(), loaded_params["p0"].numpy()[0][0], atol=1e-5
-    )
+    p0_squeezed = np.squeeze(loaded_params["p0"].numpy())
+    tvm.testing.assert_allclose(params["conv_weight"].numpy(), p0_squeezed, atol=1e-5)
 
 
 @tvm.testing.requires_cuda
