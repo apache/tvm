@@ -23,7 +23,7 @@
 import { Pointer, PtrOffset, SizeOf, ArgTypeCode } from "./ctypes";
 import { Disposable } from "./types";
 import { Memory, CachedCallStack } from "./memory";
-import { assert, StringToUint8Array } from "./support";
+import { assert, StringToUint8Array, LinearCongruentialGenerator } from "./support";
 import { Environment } from "./environment";
 import { AsyncifyHandler } from "./asyncify";
 import { FunctionInfo, WebGPUContext } from "./webgpu";
@@ -1079,6 +1079,7 @@ export class Instance implements Disposable {
   private ctx: RuntimeContext;
   private asyncifyHandler: AsyncifyHandler;
   private initProgressCallback: Array<InitProgressCallback> = [];
+  private rng: LinearCongruentialGenerator;
 
   /**
    * Internal function(registered by the runtime)
@@ -1131,6 +1132,7 @@ export class Instance implements Disposable {
     );
     this.registerEnvGlobalPackedFuncs();
     this.registerObjectFactoryFuncs();
+    this.rng = new LinearCongruentialGenerator();
   }
 
   /**
@@ -1811,9 +1813,16 @@ export class Instance implements Disposable {
     const scale = high - low;
     const input = new Float32Array(size);
     for (let i = 0; i < input.length; ++i) {
-      input[i] = low + Math.random() * scale;
+      input[i] = low + this.rng.randomFloat() * scale;
     }
     return ret.copyFrom(input);
+  }
+
+  /**
+   * Set the seed of the internal LinearCongruentialGenerator.
+   */
+  setSeed(seed: number): void {
+    this.rng.setSeed(seed);
   }
 
   /**
@@ -1825,7 +1834,7 @@ export class Instance implements Disposable {
    * @returns The sampled index.
    */
   sampleTopPFromLogits(logits: NDArray, temperature: number, top_p: number): number {
-    return this.ctx.sampleTopPFromLogits(logits, temperature, top_p, Math.random());
+    return this.ctx.sampleTopPFromLogits(logits, temperature, top_p, this.rng.randomFloat());
   }
 
   /**
@@ -1836,7 +1845,7 @@ export class Instance implements Disposable {
    * @returns The sampled index.
    */
   sampleTopPFromProb(prob: NDArray, top_p: number): number {
-    return this.ctx.sampleTopPFromProb(prob, top_p, Math.random());
+    return this.ctx.sampleTopPFromProb(prob, top_p, this.rng.randomFloat());
   }
 
   /**
