@@ -578,10 +578,12 @@ class GlobalLiftableBindingCollector : public BaseLiftableBindingCollector {
     Array<Var> params(functions[0]->params.begin() +
                           functions[0]->GetAttr<Integer>(attr::kNumInput).value()->value,
                       functions[0]->params.end());
-    GlobalCollectInfo info{.orig_functions = functions,
-                           .params = std::move(params),
-                           .var_remap = var_remap,
-                           .tir_var_remap = tir_var_remap};
+    // todo(@tvm-team): use c++20 designated initializers when windows CI supports it
+    GlobalCollectInfo info = GlobalCollectInfo();
+    info.orig_functions = functions;
+    info.params = std::move(params);
+    info.var_remap = var_remap;
+    info.tir_var_remap = tir_var_remap;
     // Find shared bindings among transform_params. Re-compute var_remap based on the shared
     // bindings as collector.var_remap_ may contain invalid mappings.
     for (const auto& unified_binding : collector.unified_bindings_) {
@@ -641,7 +643,7 @@ class GlobalLiftableBindingCollector : public BaseLiftableBindingCollector {
   // defined in var_remap_.
   std::unordered_map<Expr, std::vector<Binding>, StructuralHash, StructuralEqual>
       original_bindings_;
-};
+};  // namespace
 
 GlobalCollectInfo MakeGlobalLiftPlan(const IRModule& mod,
                                      const std::vector<Function>& target_functions) {
