@@ -586,6 +586,8 @@ llvm::Type* CodeGenLLVM::DTypeToLLVMType(const DataType& dtype) const {
       default:
         LOG(FATAL) << "do not support " << dtype;
     }
+  } else if (dtype.code() == DataType::kE4M3Float || dtype.code() == DataType::kE5M2Float) {
+    etype = llvm::Type::getInt8Ty(*ctx);
   }
   if (!dtype.is_scalar()) {
 #if TVM_LLVM_VERSION >= 110
