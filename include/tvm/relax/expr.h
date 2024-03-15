@@ -994,7 +994,9 @@ class Function : public BaseFunc {
 
   /*!
    * \brief Mimics the constructor but without body Expr.
-   * \note `ret_struct_info` and `is_pure` are required, since it can not deduced by the body.
+   *
+   * \note `ret_struct_info` and `is_pure` are required, since they
+   * cannot be deduced from the body.
    */
   TVM_DLL static Function CreateEmpty(Array<Var> params, StructInfo ret_struct_info, bool is_pure,
                                       DictAttrs attrs = NullValue<DictAttrs>(), Span span = Span());
