@@ -40,7 +40,7 @@
 #include "tvm_runner.h"
 
 #if defined(_WIN32)
-#include "win32_process.h"
+#include "../cpp_rpc/win32_process.h"
 #endif
 
 using namespace std;
