@@ -216,7 +216,6 @@ Array<tvm::transform::Pass> CreatePassList(bool disable_loop_partition) {
   pass_list.push_back(tir::transform::TransformMmaBufferLayout());
   pass_list.push_back(tir::transform::LowerOpaqueBlock());
   pass_list.push_back(tir::transform::FlattenBuffer());
-  pass_list.push_back(tir::transform::FP8ComputeLegalize());
   pass_list.push_back(tir::transform::BF16ComputeLegalize());
   pass_list.push_back(tir::transform::NarrowDataType(32));
   pass_list.push_back(tir::transform::Simplify());
@@ -570,6 +569,8 @@ transform::Sequential MixedModulePassManager(IRModule mixed_mod, Target target) 
 
   Array<Pass> mixed_pass_list;
 
+  mixed_pass_list.push_back(tir::transform::FP8ComputeLegalize(target));
+
   // VerifyVTCMLimit must occur before LowerVtcmAlloc
   mixed_pass_list.push_back(tir::transform::VerifyVTCMLimit(target));
   // LowerVtcmAlloc must occur after any transformations that modify memory allocation locations
@@ -619,7 +620,7 @@ transform::Sequential MixedModulePassManager(IRModule mixed_mod, Target target) 
   } else {
     mixed_pass_list.push_back(tir::transform::MakePackedAPI());
   }
-  mixed_pass_list.push_back(tir::transform::FP8StorageLegalize());
+  mixed_pass_list.push_back(tir::transform::FP8StorageLegalize(target));
   mixed_pass_list.push_back(tir::transform::BF16StorageLegalize());
 
   mixed_pass_list.push_back(tir::transform::LowerDeviceKernelLaunch());
