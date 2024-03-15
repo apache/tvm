@@ -45,19 +45,16 @@ TVM_REGISTER_GLOBAL("vm.builtin.kv_state_end_forward")
     .set_body_method<KVState>(&KVStateObj::EndForward);
 
 // Attention KV Cache methods
+TVM_REGISTER_GLOBAL("vm.builtin.attention_kv_cache_enable_sliding_window_for_seq")
+    .set_body_method<AttentionKVCache>(&AttentionKVCacheObj::EnableSlidingWindowForSeq);
 TVM_REGISTER_GLOBAL("vm.builtin.attention_kv_cache_get_num_available_pages")
     .set_body_method<AttentionKVCache>(&AttentionKVCacheObj::GetNumAvailablePages);
+TVM_REGISTER_GLOBAL("vm.builtin.attention_kv_cache_get_total_sequence_length")
+    .set_body_method<AttentionKVCache>(&AttentionKVCacheObj::GetTotalSequenceLength);
 TVM_REGISTER_GLOBAL("vm.builtin.attention_kv_cache_get_query_positions")
     .set_body_method<AttentionKVCache>(&AttentionKVCacheObj::GetQueryPositions);
 TVM_REGISTER_GLOBAL("vm.builtin.attention_kv_cache_debug_get_kv")
     .set_body_method<AttentionKVCache>(&AttentionKVCacheObj::DebugGetKV);
-TVM_REGISTER_GLOBAL("vm.builtin.attention_kv_cache_attention")
-    .set_body_typed([](AttentionKVCache kv_cache, int64_t layer_id,
-                       double attn_score_scaling_factor, NDArray q_data, NDArray k_data,
-                       NDArray v_data, NDArray o_data) {
-      kv_cache->Attention(layer_id, std::move(q_data), std::move(k_data), std::move(v_data),
-                          NullOpt, std::move(o_data), attn_score_scaling_factor);
-    });
 TVM_REGISTER_GLOBAL("vm.builtin.attention_kv_cache_attention_with_fused_qkv")
     .set_body_typed([](AttentionKVCache kv_cache, int64_t layer_id,
                        double attn_score_scaling_factor, NDArray qkv_data, NDArray o_data) {

@@ -63,7 +63,6 @@ fattention_decode_end_forward = None
 fattention_prefill_ragged_begin_forward = None
 fattention_prefill_ragged_end_forward = None
 fattention_merge_state = None
-fattention_rotary = None
 
 ftranspose_append = None
 fsplit_rotary = None
@@ -231,39 +230,42 @@ def set_global_func():
     global fattention_prefill_ragged
     global fattention_prefill_ragged_begin_forward
     global fattention_prefill_ragged_end_forward
-    global fattention_merge_state, fsplit_rotary, fattention_rotary
+    global fattention_merge_state, fsplit_rotary
     global ftranspose_append, fcopy_cache
 
-    fclear = tvm.get_global_func("vm.builtin.paged_attention_kv_cache_clear")
+    fclear = tvm.get_global_func("vm.builtin.kv_state_clear")
     fcreate = tvm.get_global_func("vm.builtin.paged_attention_kv_cache_create")
-    fadd_sequence = tvm.get_global_func("vm.builtin.paged_attention_kv_cache_add_sequence")
-    fremove_sequence = tvm.get_global_func("vm.builtin.paged_attention_kv_cache_remove_sequence")
-    ffork_sequence = tvm.get_global_func("vm.builtin.paged_attention_kv_cache_fork_sequence")
-    fpopn = tvm.get_global_func("vm.builtin.paged_attention_kv_cache_popn")
-    fbegin_forward = tvm.get_global_func("vm.builtin.paged_attention_kv_cache_begin_forward")
-    fend_forward = tvm.get_global_func("vm.builtin.paged_attention_kv_cache_end_forward")
-    fattention = tvm.get_global_func("vm.builtin.paged_attention_kv_cache_attention")
+    fadd_sequence = tvm.get_global_func("vm.builtin.kv_state_add_sequence")
+    fremove_sequence = tvm.get_global_func("vm.builtin.kv_state_remove_sequence")
+    ffork_sequence = tvm.get_global_func("vm.builtin.kv_state_fork_sequence")
+    fpopn = tvm.get_global_func("vm.builtin.kv_state_popn")
+    fbegin_forward = tvm.get_global_func("vm.builtin.kv_state_begin_forward")
+    fend_forward = tvm.get_global_func("vm.builtin.kv_state_end_forward")
     fattention_with_fuse_qkv = tvm.get_global_func(
-        "vm.builtin.paged_attention_kv_cache_attention_with_fused_qkv"
+        "vm.builtin.attention_kv_cache_attention_with_fused_qkv"
     )
-    fdebug_get_kv = tvm.get_global_func("vm.builtin.paged_attention_kv_cache_debug_get_kv")
+    fdebug_get_kv = tvm.get_global_func("vm.builtin.attention_kv_cache_debug_get_kv")
 
-    fattention_prefill = tvm.get_global_func("paged_kv_cache.attention_kernel_prefill")
-    fattention_decode = tvm.get_global_func("paged_kv_cache.attention_kernel_decode")
+    fattention_prefill = tvm.get_global_func(
+        "flashinfer.attention_kernel_prefill_with_paged_kv_cache"
+    )
+    fattention_decode = tvm.get_global_func(
+        "flashinfer.attention_kernel_decode_with_paged_kv_cache"
+    )
     fattention_prefill_ragged = tvm.get_global_func(
         "flashinfer.attention_kernel_prefill_with_ragged_kv_cache"
     )
     fattention_prefill_begin_forward = tvm.get_global_func(
-        "paged_kv_cache.attention_kernel_prefill_begin_forward"
+        "flashinfer.attention_kernel_prefill_with_paged_kv_cache_begin_forward"
     )
     fattention_prefill_end_forward = tvm.get_global_func(
-        "paged_kv_cache.attention_kernel_prefill_end_forward"
+        "flashinfer.attention_kernel_prefill_with_paged_kv_cache_end_forward"
     )
     fattention_decode_begin_forward = tvm.get_global_func(
-        "paged_kv_cache.attention_kernel_decode_begin_forward"
+        "flashinfer.attention_kernel_decode_with_paged_kv_cache_begin_forward"
     )
     fattention_decode_end_forward = tvm.get_global_func(
-        "paged_kv_cache.attention_kernel_decode_end_forward"
+        "flashinfer.attention_kernel_decode_with_paged_kv_cache_end_forward"
     )
     fattention_prefill_ragged_begin_forward = tvm.get_global_func(
         "flashinfer.attention_kernel_prefill_with_ragged_kv_cache_begin_forward"
@@ -272,7 +274,6 @@ def set_global_func():
         "flashinfer.attention_kernel_prefill_with_ragged_kv_cache_end_forward"
     )
     fattention_merge_state = tvm.get_global_func("flashinfer.merge_state_in_place")
-    fattention_rotary = tvm.get_global_func("flashinfer.batch_qk_apply_rotary_in_place")
 
     target = tvm.target.Target("nvidia/geforce-rtx-3090-ti")
     builts = []
@@ -293,9 +294,16 @@ def set_global_func():
 
 
 def create_kv_cache(rope_mode):
+    support_sliding_window = 0
     cache = fcreate(
         tvm.runtime.ShapeTuple(
-            [reserved_nseq, maximum_total_seq_length, prefill_chunk_size, page_size]
+            [
+                reserved_nseq,
+                maximum_total_seq_length,
+                prefill_chunk_size,
+                page_size,
+                support_sliding_window,
+            ]
         ),
         num_layers,
         num_qo_heads,
@@ -308,6 +316,8 @@ def create_kv_cache(rope_mode):
         ftranspose_append,
         fattention_prefill,
         fattention_decode,
+        fattention_prefill,
+        fattention_decode,
         fattention_prefill_ragged,
         fattention_prefill_ragged_begin_forward,
         fattention_prefill_ragged_end_forward,
@@ -317,7 +327,6 @@ def create_kv_cache(rope_mode):
         fattention_decode_end_forward,
         fattention_merge_state,
         fsplit_rotary,
-        fattention_rotary,
         fcopy_cache,
     )
     return cache
@@ -378,7 +387,6 @@ def apply_attention(
     batch: List[Tuple[Union[int, Tuple[int, int]], int]],
     cached_k: Dict[int, np.ndarray],
     cached_v: Dict[int, np.ndarray],
-    fuse_qkv: bool,
 ) -> None:
     seq_ids = []
     append_lengths = []
@@ -442,16 +450,9 @@ def apply_attention(
         queries_np = global_new_q[layer_id]
         keys_np = global_new_k[layer_id]
         values_np = global_new_v[layer_id]
-        if not fuse_qkv:
-            queries = tvm.nd.array(queries_np, device=device)
-            keys = tvm.nd.array(keys_np, device=device)
-            values = tvm.nd.array(values_np, device=device)
-            outputs = tvm.nd.empty(queries.shape, dtype, device=device)
-            fattention(kv_cache, layer_id, 1.0, queries, keys, values, outputs)
-        else:
-            qkv = tvm.nd.array(np.concatenate([queries_np, keys_np, values_np], axis=1), device)
-            outputs = tvm.nd.empty(queries_np.shape, dtype, device=device)
-            fattention_with_fuse_qkv(kv_cache, layer_id, 1.0, qkv, outputs)
+        qkv = tvm.nd.array(np.concatenate([queries_np, keys_np, values_np], axis=1), device)
+        outputs = tvm.nd.empty(queries_np.shape, dtype, device=device)
+        fattention_with_fuse_qkv(kv_cache, layer_id, 1.0, qkv, outputs)
 
         # Compute attention expected results.
         outputs = np.expand_dims(outputs.numpy(), axis=0)
@@ -509,8 +510,7 @@ def apply_attention(
 
 
 @pytest.mark.skip(reason="Require FlashInfer enabled")
-@pytest.mark.parametrize("fuse_qkv", [False, True])
-def test_paged_attention_kv_cache_prefill_and_decode(kv_cache_and_rope_mode, fuse_qkv):
+def test_paged_attention_kv_cache_prefill_and_decode(kv_cache_and_rope_mode):
     kv_cache, rope_mode = kv_cache_and_rope_mode
     fclear(kv_cache)
 
@@ -527,12 +527,11 @@ def test_paged_attention_kv_cache_prefill_and_decode(kv_cache_and_rope_mode, fus
     cached_k = {}
     cached_v = {}
     for batch in operation_seq:
-        apply_attention(kv_cache, rope_mode, batch, cached_k, cached_v, fuse_qkv)
+        apply_attention(kv_cache, rope_mode, batch, cached_k, cached_v)
 
 
 @pytest.mark.skip(reason="Require FlashInfer enabled")
-@pytest.mark.parametrize("fuse_qkv", [False, True])
-def test_paged_attention_kv_cache_remove_sequence(kv_cache_and_rope_mode, fuse_qkv):
+def test_paged_attention_kv_cache_remove_sequence(kv_cache_and_rope_mode):
     kv_cache, rope_mode = kv_cache_and_rope_mode
     fclear(kv_cache)
 
@@ -541,7 +540,7 @@ def test_paged_attention_kv_cache_remove_sequence(kv_cache_and_rope_mode, fuse_q
     cached_k = {}
     cached_v = {}
     for seq_id_to_remove in range(num_sequences):
-        apply_attention(kv_cache, rope_mode, batch, cached_k, cached_v, fuse_qkv)
+        apply_attention(kv_cache, rope_mode, batch, cached_k, cached_v)
         # Remove sequence.
         fremove_sequence(kv_cache, seq_id_to_remove)
         cached_k.pop(seq_id_to_remove)
@@ -555,22 +554,21 @@ def test_paged_attention_kv_cache_remove_sequence(kv_cache_and_rope_mode, fuse_q
 
 
 @pytest.mark.skip(reason="Require FlashInfer enabled")
-@pytest.mark.parametrize("fuse_qkv", [False, True])
-def test_paged_attention_kv_cache_fork_sequence(kv_cache_and_rope_mode, fuse_qkv):
+def test_paged_attention_kv_cache_fork_sequence(kv_cache_and_rope_mode):
     kv_cache, rope_mode = kv_cache_and_rope_mode
     fclear(kv_cache)
 
     cached_k = {}
     cached_v = {}
     batch = [(0, 60), (1, 88), (2, 17), (3, 4)]
-    apply_attention(kv_cache, rope_mode, batch, cached_k, cached_v, fuse_qkv)
+    apply_attention(kv_cache, rope_mode, batch, cached_k, cached_v)
     # Fork existing sequences.
-    apply_attention(kv_cache, rope_mode, [((4, 3), 35)], cached_k, cached_v, fuse_qkv)
-    apply_attention(kv_cache, rope_mode, [((5, 0), 20)], cached_k, cached_v, fuse_qkv)
-    apply_attention(kv_cache, rope_mode, [((6, 5), 102)], cached_k, cached_v, fuse_qkv)
-    apply_attention(kv_cache, rope_mode, [((7, 0), 3)], cached_k, cached_v, fuse_qkv)
-    apply_attention(kv_cache, rope_mode, [((8, 5), 71)], cached_k, cached_v, fuse_qkv)
-    apply_attention(kv_cache, rope_mode, [((9, 5), 20)], cached_k, cached_v, fuse_qkv)
+    apply_attention(kv_cache, rope_mode, [((4, 3), 35)], cached_k, cached_v)
+    apply_attention(kv_cache, rope_mode, [((5, 0), 20)], cached_k, cached_v)
+    apply_attention(kv_cache, rope_mode, [((6, 5), 102)], cached_k, cached_v)
+    apply_attention(kv_cache, rope_mode, [((7, 0), 3)], cached_k, cached_v)
+    apply_attention(kv_cache, rope_mode, [((8, 5), 71)], cached_k, cached_v)
+    apply_attention(kv_cache, rope_mode, [((9, 5), 20)], cached_k, cached_v)
     # Mixture of decode and prefill.
     operation_seq = [
         [(2, 1), (4, 1), (7, 1), (6, 1), (8, 1), (9, 1)],
@@ -579,20 +577,19 @@ def test_paged_attention_kv_cache_fork_sequence(kv_cache_and_rope_mode, fuse_qkv
         [(7, 10), (6, 2), (8, 3), (9, 4)],
     ]
     for batch in operation_seq:
-        apply_attention(kv_cache, rope_mode, batch, cached_k, cached_v, fuse_qkv)
+        apply_attention(kv_cache, rope_mode, batch, cached_k, cached_v)
 
 
 @pytest.mark.skip(reason="Require FlashInfer enabled")
-@pytest.mark.parametrize("fuse_qkv", [False, True])
-def test_paged_attention_kv_cache_popn(kv_cache_and_rope_mode, fuse_qkv):
+def test_paged_attention_kv_cache_popn(kv_cache_and_rope_mode):
     kv_cache, rope_mode = kv_cache_and_rope_mode
     fclear(kv_cache)
 
     cached_k = {}
     cached_v = {}
     batch = [(0, 35), (1, 88), (2, 17), (3, 4)]
-    apply_attention(kv_cache, rope_mode, batch, cached_k, cached_v, fuse_qkv)
-    apply_attention(kv_cache, rope_mode, [((4, 3), 35)], cached_k, cached_v, fuse_qkv)
+    apply_attention(kv_cache, rope_mode, batch, cached_k, cached_v)
+    apply_attention(kv_cache, rope_mode, [((4, 3), 35)], cached_k, cached_v)
 
     popn_operations = [(0, 17), (1, 57), (2, 16), (3, 0), (4, 19)]
     for seq_id, pop_length in popn_operations:
@@ -607,8 +604,7 @@ if __name__ == "__main__":
     set_global_func()
     for rope_mode in [RopeMode.NONE, RopeMode.NORMAL, RopeMode.INLINE]:
         cache = create_kv_cache(rope_mode)
-        for fuse_qkv in [False, True]:
-            test_paged_attention_kv_cache_prefill_and_decode((cache, rope_mode), fuse_qkv)
-            test_paged_attention_kv_cache_remove_sequence((cache, rope_mode), fuse_qkv)
-            test_paged_attention_kv_cache_fork_sequence((cache, rope_mode), fuse_qkv)
-            test_paged_attention_kv_cache_popn((cache, rope_mode), fuse_qkv)
+        test_paged_attention_kv_cache_prefill_and_decode((cache, rope_mode))
+        test_paged_attention_kv_cache_remove_sequence((cache, rope_mode))
+        test_paged_attention_kv_cache_fork_sequence((cache, rope_mode))
+        test_paged_attention_kv_cache_popn((cache, rope_mode))
