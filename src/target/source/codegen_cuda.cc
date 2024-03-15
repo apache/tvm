@@ -247,20 +247,9 @@ void CodeGenCUDA::PrintType(DataType t, std::ostream& os) {  // NOLINT(*)
           os << "half";
         } else if (lanes <= 8) {
           ICHECK_EQ(lanes % 2, 0) << "Only support an even number of lanes for half type";
-          // Use native vector types when working with fp8
           if (lanes <= 4) {
             os << "half" << lanes;
           } else {
-            // Emit CUDA code to access fp16 vector elements.
-            //
-            // half4 is stored as uint2
-            //
-            // h4.x is emitted as *(half2*)(&(u2.x)).x
-            // h4.y is emitted as *(half2*)(&(u2.x)).y
-            // h4.z is emitted as *(half2*)(&(u2.y)).x
-            // h4.w is emitted as *(half2*)(&(u2.y)).y
-            //
-
             os << "uint" << lanes / 2;
           }
         } else {
@@ -528,13 +517,10 @@ void CodeGenCUDA::PrintVecElemLoad(const std::string& vec, DataType t, int i,
       os << "((" << type_name << ")(" << ac << " >> " << i % 4 * 8 << "))";
     }
   } else if (t.is_float16()) {
-    if (t.lanes() == 2) {
-      // TODO(csullivan): Consider conditionally supporting value casting in the fp8 / vector case
-      os << "((half2*)(&(" << vec << "." << access[i / 2] << ")))->" << access[i % 2];
-    } else if (t.lanes() == 4) {
+    if (t.lanes() <= 4) {
       os << vec << "." << access[i];
     } else {
-      LOG(FATAL) << "Unimplemented: Only support codegen for vector half loads with lanes = {2, 4}";
+      os << "((half2*)(&(" << vec << "." << access[i / 2] << ")))->" << access[i % 2];
     }
   } else if (t.is_bfloat16()) {
     os << "((nv_bfloat162*)(&(" << vec << "." << access[i / 2] << ")))->" << access[i % 2];
@@ -581,14 +567,11 @@ void CodeGenCUDA::PrintVecElemStore(const std::string& vec, DataType t, int i,
       stream << "(" << value << " << " << i % 4 * 8 << ");\n";
     }
   } else if (t.is_float16()) {
-    if (t.lanes() == 2) {
-      stream << "((half2*)(&(" << vec << "." << access[i / 2] << ")))->" << access[i % 2] << " = "
-             << value << ";\n";
-    } else if (t.lanes() == 4) {
+    if (t.lanes() <= 4) {
       stream << vec << "." << access[i] << " = " << value << ";\n";
     } else {
-      LOG(FATAL)
-          << "Unimplemented: Only support codegen for vector half stores with lanes = {2, 4}";
+      stream << "((half2*)(&(" << vec << "." << access[i / 2] << ")))->" << access[i % 2] << " = "
+             << value << ";\n";
     }
 
   } else if (t.is_bfloat16()) {
