@@ -49,7 +49,7 @@ class BuiltinLower : public StmtExprMutator {
     return func;
   }
 
-  BuiltinLower(Optional<PrimExpr> device_type = NullOpt) : device_type_(device_type) {}
+  explicit BuiltinLower(Optional<PrimExpr> device_type = NullOpt) : device_type_(device_type) {}
 
   // NOTE: Right now, we make the following scoping requirement
   // for memory allocated by the following primitives
