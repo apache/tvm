@@ -320,6 +320,9 @@ set(USE_ANTLR OFF)
 # Whether use Relay debug mode
 set(USE_RELAY_DEBUG OFF)
 
+# Whether to enable debug code that may cause ABI changes
+set(TVM_DEBUG_WITH_ABI_CHANGE OFF)
+
 # Whether to build fast VTA simulator driver
 set(USE_VTA_FSIM OFF)
 
