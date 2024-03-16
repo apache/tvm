@@ -13,8 +13,8 @@ set(TVM_RUNNER_SOURCES
 set(RTVM_LINKER_LIBS "")
 
 if(WIN32)
-  list(APPEND RTVM_SOURCES win32_process.cc)
-  list(APPEND TVM_RUNNER_SOURCES win32_process.cc)
+  list(APPEND RTVM_SOURCES ../cpp_rpc/win32_process.cc)
+  list(APPEND TVM_RUNNER_SOURCES ../cpp_rpc/win32_process.cc)
 endif()
 
 # Set output to same directory as the other TVM libs
