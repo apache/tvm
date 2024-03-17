@@ -1340,12 +1340,30 @@ class StorageFlattener : public StmtExprMutator {
       auto pass = StorageFlattener(func->buffer_map, cache_line_size, create_bound_attributes,
                                    &bound_analyzer);
 
-      auto fptr = func.CopyOnWrite();
-      fptr->body = pass(std::move(fptr->body));
+      Stmt body = pass(func->body);
+
+      for (size_t i = func->params.size(); i > 0; i--) {
+        auto handle = func->params[i - 1];
+        if (auto opt = func->buffer_map.Get(handle)) {
+          auto old_buf = opt.value();
+          if (pass.buf_map_.count(old_buf)) {
+            auto new_buf = pass.GetBufferEntry(old_buf).flattened_buffer;
+            if (!old_buf.same_as(new_buf)) {
+              body = DeclBuffer(new_buf, std::move(body));
+            }
+          }
+        }
+      }
+
       // The buffers in func->buffer_map are deliberately left
       // unflattened, as they are used for validation of user-provided
       // arguments.  The flattened buffers used in the updated
       // function body alias the argument buffers.
+
+      if (!body.same_as(func->body)) {
+        func.CopyOnWrite()->body = body;
+      }
+
       return func;
     };
     return transform::CreatePrimFuncPass(pass_func, 0, "tir.StorageFlattener", {});
@@ -1542,9 +1560,10 @@ class StorageFlattener : public StmtExprMutator {
       buffer_var_defines_.erase(op->buffer->data.get());
       buf_map_[key].in_scope = false;
 
-      Stmt ret =
-          Allocate(e.flattened_buffer->data, e.flattened_buffer->dtype, e.flattened_buffer->shape,
-                   make_const(DataType::Bool(e.flattened_buffer->dtype.lanes()), true), body);
+      Stmt ret = body;
+      ret = DeclBuffer(e.flattened_buffer, body);
+      ret = Allocate(e.flattened_buffer->data, e.flattened_buffer->dtype, e.flattened_buffer->shape,
+                     make_const(DataType::Bool(e.flattened_buffer->dtype.lanes()), true), ret);
 
       if (create_bound_attributes_ && ShapeIsValid(e.buffer->shape)) {
         ret = AttrStmt(e.buffer->data, tir::attr::buffer_bound,
