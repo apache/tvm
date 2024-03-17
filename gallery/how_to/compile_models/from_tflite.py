@@ -106,7 +106,7 @@ from PIL import Image
 from matplotlib import pyplot as plt
 import numpy as np
 
-image_url = "https://github.com/dmlc/mxnet.js/blob/main/data/cat.png?raw=true"
+image_url = "https://github.com/tlc-pack/web-data/blob/main/testdata/cat.png?raw=true"
 image_path = download_testdata(image_url, "cat.png", module="data")
 resized_image = Image.open(image_path).resize((224, 224))
 plt.imshow(resized_image)

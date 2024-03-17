@@ -79,12 +79,10 @@ URL_MAP = {
     "https://download.pytorch.org/models/vgg16_features-amdegroot-88682ab5.pth": f"{BASE}/models/vgg16_features-amdegroot-88682ab5.pth",
     "https://gist.github.com/zhreshold/bcda4716699ac97ea44f791c24310193/raw/93672b029103648953c4e5ad3ac3aadf346a4cdc/super_resolution_0.2.onnx": f"{BASE}/2022-10-05/super_resolution_0.2.onnx",
     "https://gist.githubusercontent.com/zhreshold/4d0b62f3d01426887599d4f7ede23ee5/raw/596b27d23537e5a1b5751d2b0481ef172f58b539/imagenet1000_clsid_to_human.txt": f"{BASE}/2022-10-05/imagenet1000_clsid_to_human.txt",
-    "https://gist.githubusercontent.com/zhreshold/bcda4716699ac97ea44f791c24310193/raw/fa7ef0e9c9a5daea686d6473a62aacd1a5885849/cat.png": f"{BASE}/zhreshold/bcda4716699ac97ea44f791c24310193/raw/fa7ef0e9c9a5daea686d6473a62aacd1a5885849/cat.png",
     "https://github.com/ARM-software/ML-zoo/raw/48a22ee22325d15d2371a6df24eb7d67e21dcc97/models/keyword_spotting/cnn_small/tflite_int8/cnn_s_quantized.tflite": f"{BASE}/ARM-software/ML-zoo/raw/48a22ee22325d15d2371a6df24eb7d67e21dcc97/models/keyword_spotting/cnn_small/tflite_int8/cnn_s_quantized.tflite",
     "https://github.com/czh978/models_for_tvm_test/raw/main/tflite_graph_with_postprocess.pb": f"{BASE}/czh978/models_for_tvm_test/raw/main/tflite_graph_with_postprocess.pb",
-    "https://github.com/dmlc/mxnet.js/blob/main/data/cat.png?raw=true": f"{BASE}/dmlc/mxnet.js/blob/main/data/cat.png"
+    "https://github.com/tlc-pack/web-data/blob/main/testdata/cat.png?raw=true": f"{BASE}/tlc-pack/web-data/blob/main/testdata/cat.png"
     + quote("?raw=true"),
-    "https://github.com/dmlc/mxnet.js/raw/main/data/cat.png": f"{BASE}/dmlc/mxnet.js/raw/main/data/cat.png",
     "https://github.com/dmlc/web-data/blob/main/darknet/cfg/yolov3.cfg?raw=true": f"{BASE}/dmlc/web-data/blob/main/darknet/cfg/yolov3.cfg"
     + quote("?raw=true"),
     "https://github.com/dmlc/web-data/blob/main/darknet/data/arial.ttf?raw=true": f"{BASE}/dmlc/web-data/blob/main/darknet/data/arial.ttf"
@@ -153,7 +151,6 @@ URL_MAP = {
     "https://pjreddie.com/media/files/yolov3.weights": f"{BASE}/yolov3.weights",
     "https://raw.githubusercontent.com/Cadene/pretrained-models.pytorch/master/data/imagenet_classes.txt": f"{BASE}/2022-10-05/imagenet_classes.txt",
     "https://raw.githubusercontent.com/Cadene/pretrained-models.pytorch/master/data/imagenet_synsets.txt": f"{BASE}/2022-10-05/imagenet_synsets.txt",
-    "https://raw.githubusercontent.com/dmlc/mxnet.js/main/data/cat.png": f"{BASE}/dmlc/mxnet.js/main/data/cat.png",
     "https://raw.githubusercontent.com/dmlc/web-data/main/darknet/cfg/yolov3.cfg": f"{BASE}/dmlc/web-data/main/darknet/cfg/yolov3.cfg",
     "https://raw.githubusercontent.com/dmlc/web-data/main/darknet/data/arial.ttf": f"{BASE}/dmlc/web-data/main/darknet/data/arial.ttf",
     "https://raw.githubusercontent.com/dmlc/web-data/main/darknet/data/coco.names": f"{BASE}/dmlc/web-data/main/darknet/data/coco.names",

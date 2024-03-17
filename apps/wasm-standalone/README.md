@@ -159,7 +159,7 @@ Options:
 Next perform model inference using these commands below:
 ```
 $ cp ../../../wasm-graph/lib/wasm_graph_resnet50.wasm ./
-$ wget -O cat.png https://github.com/dmlc/mxnet.js/blob/main/data/cat.png?raw=true
+$ wget -O cat.png https://github.com/tlc-pack/web-data/blob/main/testdata/cat.png?raw=true
 $ wget -O synset.csv https://raw.githubusercontent.com/kazum/tvm-wasm/master/synset.csv
 $ ./target/debug/test_graph_resnet50 -g ./wasm_graph_resnet50.wasm -i ./cat.png -l ./synset.csv
 original image dimensions: (256, 256)

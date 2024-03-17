@@ -115,7 +115,7 @@ scripted_model = torch.jit.trace(model, input_data).eval()
 ######################################################################
 # In order to test our model, here we download an image of cat and
 # transform its format.
-img_url = "https://github.com/dmlc/mxnet.js/blob/main/data/cat.png?raw=true"
+img_url = "https://github.com/tlc-pack/web-data/blob/main/testdata/cat.png?raw=true"
 img_name = "cat.png"
 img_path = download_testdata(img_url, img_name, module="data")
 image = Image.open(img_path).resize((224, 224))
