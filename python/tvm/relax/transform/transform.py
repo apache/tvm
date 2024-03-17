@@ -234,7 +234,7 @@ def ToNonDataflow() -> tvm.ir.transform.Pass:
 
 
 def TopologicalSort(order="depth-first", direction="from-inputs") -> tvm.ir.transform.Pass:
-    """Sort relax.Dataflow blocks
+    """Sort bindings in relax.Dataflow blocks in the order specified
 
     Parameters
     ----------
