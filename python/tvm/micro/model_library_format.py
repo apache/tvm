@@ -514,10 +514,22 @@ class NonStaticShapeError(Exception):
     """Raised when a shape has elements other than IntImm."""
 
 
+class NonDefinedBitSize(Exception):
+    """Raised when a bit size might not be infered."""
+
+
+
 def _shape_to_size(shape, dtype):
-    bits_per_item = int(
-        re.match(r"((float)|(int)|(uint))(?P<width_bits>[0-9]+)", dtype).group("width_bits")
-    )
+    try:
+        group = re.match(r"((float)|(int)|(uint))(?P<width_bits>[0-9]+)", dtype).group("width_bits")
+    except: # boolean
+        if dtype == "bool":
+            group = 8
+        else:
+            raise NonDefinedBitSize(
+                    f"Parameter {dtype}'s couldnt be inferred"
+                )
+    bits_per_item = int(group)
     assert bits_per_item is not None, f"don't know how to compute size of type {dtype}"
     total_bits = bits_per_item
     for s in shape:

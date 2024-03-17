@@ -15,6 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 # pylint: disable=invalid-name, unused-argument, missing-docstring, unused-import
+# Changed by Kappes Johannes @2023
 """
 Relay pass transformation infrastructure.
 """
@@ -134,6 +135,21 @@ def FoldScaleAxis():
     pattern.
     """
     return _ffi_api.FoldScaleAxis()
+
+def Extend2DConv():
+    """Extend a conv2d operation with additional checksum to detect soft faults (see Hari et. al.)
+
+    Returns
+    -------
+    ret : tvm.transform.Pass
+        The registered pass to add checksum operations.
+
+    Note
+    ----
+    Has to append each checksum calculation on the output since data
+    structure is a recursive dataflow tree, instead of a simple replace :(
+    """
+    return _ffi_api.Extend2DConv()
 
 
 def BackwardFoldScaleAxis():
