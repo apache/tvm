@@ -53,12 +53,22 @@ void Analyzer::Bind(const Var& var, const PrimExpr& expr, bool allow_override) {
 
 void Analyzer::Bind(const Var& var, const Range& range, bool allow_override) {
   ICHECK(range.defined());
-  if (tir::is_one(range->extent)) {
-    this->Bind(var, range->min, allow_override);
+
+  Optional<PrimExpr> maybe_min = tir::try_reset_expr_dtype(var.dtype(), range->min);
+  Optional<PrimExpr> maybe_extent = tir::try_reset_expr_dtype(var.dtype(), range->extent);
+
+  CHECK(maybe_min && maybe_extent)
+      << "Incompatible types when binding a variable " << var << ':' << var.dtype()
+      << " to a range min=" << range->min << ':' << range->min.dtype()
+      << ", extent=" << range->extent << ':' << range->extent.dtype();
+
+  if (tir::is_one(maybe_extent.value())) {
+    this->Bind(var, maybe_min.value(), allow_override);
   } else {
-    this->const_int_bound.Bind(var, range, allow_override);
-    this->int_set.Bind(var, range, allow_override);
-    this->transitive_comparisons.Bind(var, range, allow_override);
+    auto new_range = Range::FromMinExtent(maybe_min.value(), maybe_extent.value());
+    this->const_int_bound.Bind(var, new_range, allow_override);
+    this->int_set.Bind(var, new_range, allow_override);
+    this->transitive_comparisons.Bind(var, new_range, allow_override);
   }
   // skip modular_set
   // skip rewrite simplify
