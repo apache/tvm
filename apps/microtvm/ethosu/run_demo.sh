@@ -24,11 +24,13 @@ set -x
 # Show usage
 function show_usage() {
     cat <<EOF
-Usage: run_demo.sh [--ethosu_driver_path ETHOSU_DRIVER_PATH]
+Usage: run_demo.sh [--ethosu_driver_path ETHOSU_DRIVER_PATH] [--alif_target_board BOARD_DevKit]
 -h, --help
     Display this help message.
 --ethosu_driver_path ETHOSU_DRIVER_PATH
     Set path to Arm(R) Ethos(TM)-U core driver.
+--alif_target_board
+   Set Alif target board. Could be one of [BOARD_DevKit, BOARD_AppKit_Alpha1, BOARD_AppKit_Alpha2].
 --cmsis_path CMSIS_PATH
     Set path to CMSIS.
 --ethosu_platform_path ETHOSU_PLATFORM_PATH
@@ -55,6 +57,21 @@ while (( $# )); do
                 shift 2
             else
                 echo 'ERROR: --ethosu_driver_path requires a non-empty argument' >&2
+                show_usage >&2
+                exit 1
+            fi
+            ;;
+
+        --alif_target_board)
+            if [ $# -gt 1 ]
+            then
+                export ALIF_TARGET_BOARD="$2"
+                shift 2
+            else
+                echo 'ERROR: --alif_target_board requires one of the'
+                echo 'following values [BOARD_DevKit, BOARD_AppKit_Alpha1, BOARD_AppKit_Alpha2]' >&2
+
+
                 show_usage >&2
                 exit 1
             fi
@@ -132,10 +149,36 @@ done
 # Directories
 script_dir="$( cd "$( dirname "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )"
 
-# Make build directory
 make cleanall
-mkdir -p build
-cd build
+
+if [ -n "${ALIF_TARGET_BOARD+x}" ]; then
+    mkdir -p ${script_dir}/build/dependencies
+    cd ${script_dir}/build/dependencies
+
+    # Clone Alif's evaluation kit
+    ALIF_ML_KIT_VERSION="cb583e4cfb34dccb683717513ec94beacb6957ab"
+    wget -q https://github.com/Grovety/alif_ml-embedded-evaluation-kit/archive/${ALIF_ML_KIT_VERSION}.zip -O ALIF_Ml_KIT.zip
+    unzip -q ALIF_Ml_KIT.zip -d .
+    mv alif_ml-embedded-evaluation-kit-${ALIF_ML_KIT_VERSION} alif_ml-embedded-evaluation-kit
+    rm ALIF_Ml_KIT.zip
+
+    ALIF_CMSIS_VERSION="dd07ce1b3f25cf588455167a3583e8579c6dca8b"
+    wget -q https://github.com/alifsemi/alif_ensemble-cmsis-dfp/archive/${ALIF_CMSIS_VERSION}.zip -O ALIF_CMSIS.zip
+    unzip -q ALIF_CMSIS.zip -d .
+    mv alif_ensemble-cmsis-dfp-${ALIF_CMSIS_VERSION} alif_ensemble-cmsis-dfp
+    rm ALIF_CMSIS.zip
+
+    # TODO: Remove this after ethos-u-vela==3.9.0 become available in PyPi and TVM's ci_cortexm docker image
+    # Clone the specific version of vela compiler with required bugfixes
+    VELA_VERSION=ca9cc420984eba39b85885bf0d2d7b48bb920da9
+    curl -sL "https://git.mlplatform.org/ml/ethos-u/ethos-u-vela.git/snapshot/ethos-u-vela-${VELA_VERSION}.tar.gz" | tar -xz
+    mv ethos-u-vela-${VELA_VERSION} ethos-u-vela
+    export PYTHONPATH=${script_dir}/build/dependencies/ethos-u-vela:$PYTHONPATH
+fi
+
+# Make build directory
+mkdir -p ${script_dir}/build
+cd ${script_dir}/build
 
 # Get mobilenet_v2 tflite model
 mobilenet_url='https://github.com/ARM-software/ML-zoo/raw/b9e26e662c00e0c0b23587888e75ac1205a99b6e/models/image_classification/mobilenet_v2_1.0_224/tflite_int8/mobilenet_v2_1.0_224_INT8.tflite'
@@ -144,10 +187,14 @@ curl --retry 64 -sSL ${mobilenet_url} -o ./mobilenet_v2_1.0_224_INT8.tflite
 # Compile model for Arm(R) Cortex(R)-M55 CPU and Ethos(TM)-U55 NPU
 # An alternative to using "python3 -m tvm.driver.tvmc" is to call
 # "tvmc" directly once TVM has been pip installed.
+# Please note that if your ML model contains operation
+# which are not supported by Ethos-U NPU than you may
+# need to add CMSIS-NN dependency to the Makefile
 python3 -m tvm.driver.tvmc compile --target=ethos-u,cmsis-nn,c \
     --target-ethos-u-accelerator_config=ethos-u55-256 \
     --target-cmsis-nn-mcpu=cortex-m55 \
     --target-c-mcpu=cortex-m55 \
+    --target-ethos-u-disable_copying_constants=1 \
     --runtime=crt \
     --executor=aot \
     --executor-aot-interface-api=c \
@@ -165,19 +212,23 @@ curl -sS  https://raw.githubusercontent.com/tensorflow/tensorflow/master/tensorf
 # Get input image
 curl -sS https://s3.amazonaws.com/model-server/inputs/kitten.jpg -o kitten.jpg
 
-# Create C header files
-cd ..
+# # Create C header files
+cd ${script_dir}
 python3 ./convert_image.py ./build/kitten.jpg
 python3 ./convert_labels.py ./build/labels_mobilenet_quant_v1_224.txt
 
-# Build demo executable
-cd ${script_dir}
-make
+if [ -n "${ALIF_TARGET_BOARD+x}" ]; then
+    # Build alif demo executable
+    ALIF_TARGET_BOARD=$ALIF_TARGET_BOARD make -f Makefile_alif.mk demo_alif
+else
+    # Build demo executable
+    make
 
-# Run demo executable on the FVP
-FVP_Corstone_SSE-300_Ethos-U55 -C cpu0.CFGDTCMSZ=15 \
--C cpu0.CFGITCMSZ=15 -C mps3_board.uart0.out_file=\"-\" -C mps3_board.uart0.shutdown_tag=\"EXITTHESIM\" \
--C mps3_board.visualisation.disable-visualisation=1 -C mps3_board.telnetterminal0.start_telnet=0 \
--C mps3_board.telnetterminal1.start_telnet=0 -C mps3_board.telnetterminal2.start_telnet=0 -C mps3_board.telnetterminal5.start_telnet=0 \
--C ethosu.extra_args="--fast" \
--C ethosu.num_macs=256 ./build/demo
+    # Run demo executable on the FVP
+    FVP_Corstone_SSE-300_Ethos-U55 -C cpu0.CFGDTCMSZ=15 \
+    -C cpu0.CFGITCMSZ=15 -C mps3_board.uart0.out_file=\"-\" -C mps3_board.uart0.shutdown_tag=\"EXITTHESIM\" \
+    -C mps3_board.visualisation.disable-visualisation=1 -C mps3_board.telnetterminal0.start_telnet=0 \
+    -C mps3_board.telnetterminal1.start_telnet=0 -C mps3_board.telnetterminal2.start_telnet=0 -C mps3_board.telnetterminal5.start_telnet=0 \
+    -C ethosu.extra_args="--fast" \
+    -C ethosu.num_macs=256 ./build/demo
+fi
