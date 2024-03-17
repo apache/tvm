@@ -930,7 +930,11 @@ class TorchFXImporter:
                 output_size = module.output_size
             else:
                 x = self.env[node.args[0]]
-                output_size = node.args[1]
+                shape = self.shape_of(x)
+                output_size = ()
+                first = int(shape[2]) if (node.args[1])[0] is None else (node.args[1])[0]
+                second = int(shape[3]) if (node.args[1])[1] is None else (node.args[1])[1]
+                output_size = output_size+tuple([first])+tuple([second])
             return self.block_builder.emit(
                 relax.op.nn.adaptive_avg_pool2d(x, output_size, layout="NCHW")
             )
