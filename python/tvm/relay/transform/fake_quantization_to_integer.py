@@ -364,9 +364,8 @@ def split(expr, type_map):
     arg = expr.args[0]
     t = type_map[arg]
     attrs = {**expr.attrs}
-    if isinstance(attrs["indices_or_sections"], tvm.tir.IntImm):
-        num_split = attrs["indices_or_sections"].value
-        attrs["indices_or_sections"] = num_split
+    if isinstance(attrs["indices_or_sections"], int):
+        num_split = attrs["indices_or_sections"]
     else:
         num_split = len(attrs["indices_or_sections"]) + 1
     return [expr, TupleAffineType([t] * num_split)]

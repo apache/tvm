@@ -362,9 +362,8 @@ void MultiLevelTilingNode::AnnotateCooperativeFetching(Schedule* sch,
   if (!valid_vector_lens.empty()) {
     int n = valid_vector_lens.size();
     double prob = 1.0 / n;
-    tir::ExprRV vector_load_len =
-        (*sch)->SampleCategorical(support::AsArray<int, Integer>(valid_vector_lens),
-                                  Array<FloatImm>(n, FloatImm(DataType::Float(64), prob)));
+    tir::ExprRV vector_load_len = (*sch)->SampleCategorical(
+        support::AsArray<int, runtime::Int>(valid_vector_lens), Array<runtime::Float>(n, prob));
     (*sch)->Annotate(block, tir::attr::meta_schedule_cooperative_fetch, vector_load_len);
   }
 }

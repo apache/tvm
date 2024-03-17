@@ -172,7 +172,7 @@ def test_ill_formed():
     )
     assert list(solution.dst.variables) == []
     [rel] = solution.dst.relations
-    assert ir.structural_equal(rel, False)
+    ir.assert_structural_equal(rel, tir.const(False))
     assert len(solution.src_to_dst) == 0
     assert len(solution.dst_to_src) == 0
 

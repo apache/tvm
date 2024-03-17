@@ -247,6 +247,9 @@ def cumprod(
         cumprod(a, dtype=int32)  # dtype should be provided to get the expected results
         -> [1, 1, 1, 0, 0, 0, 0]
     """
+    if exclusive is None:
+        exclusive = False
+
     return _ffi_api.cumprod(data, axis, dtype, exclusive)  # type: ignore
 
 
@@ -306,6 +309,9 @@ def cumsum(
         cumsum(a, dtype=int32)  # dtype should be provided to get the expected results
         -> [1, 1, 2, 2, 3, 4, 4]
     """
+    if exclusive is None:
+        exclusive = False
+
     return _ffi_api.cumsum(data, axis, dtype, exclusive)  # type: ignore
 
 

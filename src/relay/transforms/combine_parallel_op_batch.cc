@@ -159,7 +159,7 @@ Call ParallelOpBatchCombiner::MakeCombinedCallFromFollowingOps(const Expr& data,
 void ParallelOpBatchCombiner::UpdateGroupOutput(const Expr& data, const Group& branches,
                                                 size_t depth, ExprSubstMap* subst_map) {
   int index = 0;
-  auto split = MakeSplit(data, Integer(branches.size()), 0);
+  auto split = MakeSplit(data, runtime::Int(branches.size()), 0);
   for (const auto& branch : branches) {
     auto split_data = TupleGetItem(split, index++);
     auto squeezed_data = MakeSqueeze(split_data, {0});

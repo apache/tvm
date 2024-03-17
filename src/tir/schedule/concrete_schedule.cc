@@ -233,9 +233,9 @@ support::LinearCongruentialEngine::TRandState ConcreteScheduleNode::ForkSeed() {
   return support::LinearCongruentialEngine(&rand_state_).ForkSeed();
 }
 
-ExprRV ConcreteScheduleNode::SampleCategorical(const Array<Integer>& candidates,
-                                               const Array<FloatImm>& probs,
-                                               Optional<Integer> decision) {
+ExprRV ConcreteScheduleNode::SampleCategorical(const Array<runtime::Int>& candidates,
+                                               const Array<runtime::Float>& probs,
+                                               Optional<runtime::Int> decision) {
   TVM_TIR_SCHEDULE_BEGIN();
   return CreateRV(tir::SampleCategorical(&this->rand_state_, candidates, probs, &decision));
   TVM_TIR_SCHEDULE_END("sample-categorical", this->error_render_level_);

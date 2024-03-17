@@ -57,7 +57,7 @@ PrinterConfig::PrinterConfig(Map<String, ObjectRef> config_dict) {
     n->binding_names.push_back(Downcast<String>(v));
   }
   if (auto v = config_dict.Get("show_meta")) {
-    n->show_meta = Downcast<IntImm>(v)->value;
+    n->show_meta = Downcast<runtime::Bool>(v)->value;
   }
   if (auto v = config_dict.Get("ir_prefix")) {
     n->ir_prefix = Downcast<String>(v);
@@ -81,16 +81,16 @@ PrinterConfig::PrinterConfig(Map<String, ObjectRef> config_dict) {
     n->float_dtype = DataType(runtime::String2DLDataType(Downcast<String>(v)));
   }
   if (auto v = config_dict.Get("verbose_expr")) {
-    n->verbose_expr = Downcast<IntImm>(v)->value;
+    n->verbose_expr = Downcast<runtime::Bool>(v)->value;
   }
   if (auto v = config_dict.Get("indent_spaces")) {
-    n->indent_spaces = Downcast<IntImm>(v)->value;
+    n->indent_spaces = Downcast<runtime::Int>(v)->value;
   }
   if (auto v = config_dict.Get("print_line_numbers")) {
-    n->print_line_numbers = Downcast<IntImm>(v)->value;
+    n->print_line_numbers = Downcast<runtime::Bool>(v)->value;
   }
   if (auto v = config_dict.Get("num_context_lines")) {
-    n->num_context_lines = Downcast<IntImm>(v)->value;
+    n->num_context_lines = Downcast<runtime::Int>(v)->value;
   }
   if (auto v = config_dict.Get("path_to_underline")) {
     n->path_to_underline = Downcast<Optional<Array<ObjectPath>>>(v).value_or(Array<ObjectPath>());
@@ -107,13 +107,13 @@ PrinterConfig::PrinterConfig(Map<String, ObjectRef> config_dict) {
         Downcast<Optional<Map<ObjectRef, String>>>(v).value_or(Map<ObjectRef, String>());
   }
   if (auto v = config_dict.Get("syntax_sugar")) {
-    n->syntax_sugar = Downcast<IntImm>(v)->value;
+    n->syntax_sugar = Downcast<runtime::Bool>(v)->value;
   }
   if (auto v = config_dict.Get("show_object_address")) {
-    n->show_object_address = Downcast<IntImm>(v)->value;
+    n->show_object_address = Downcast<runtime::Bool>(v)->value;
   }
   if (auto v = config_dict.Get("show_all_struct_info")) {
-    n->show_all_struct_info = Downcast<IntImm>(v)->value;
+    n->show_all_struct_info = Downcast<runtime::Bool>(v)->value;
   }
 
   // Checking prefixes if they are valid Python identifiers.

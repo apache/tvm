@@ -25,6 +25,8 @@
 #include <tvm/tir/function.h>
 #include <tvm/tir/op.h>
 
+#include "utils.h"
+
 namespace tvm {
 namespace tir {
 // Get the function type of a PrimFunc
@@ -35,6 +37,11 @@ PrimFunc::PrimFunc(Array<tir::Var> params, Stmt body, Type ret_type,
   if (!ret_type.defined()) {
     ret_type = VoidType();
   }
+
+  if (attrs.defined()) {
+    attrs = Downcast<DictAttrs>(NormalizeAttributeObject(attrs));
+  }
+
   auto n = make_object<PrimFuncNode>();
   n->params = std::move(params);
   n->body = std::move(body);

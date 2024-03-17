@@ -16,7 +16,7 @@
 # under the License.
 import tvm
 import tvm.testing
-from tvm import te
+from tvm import te, tir
 
 
 class CanonicalChecker:
@@ -377,13 +377,13 @@ def test_simplify_normalize_min_value_expr():
     x = te.var("x", "int32")
 
     ck.verify(te.min_value("int32") - x == 0, x == te.min_value("int32"))
-    ck.verify(te.min_value("int32") + x == 0, False)
+    ck.verify(te.min_value("int32") + x == 0, tir.const(False))
     ck.verify(0 == te.min_value("int32") - x, x == te.min_value("int32"))
-    ck.verify(0 == te.min_value("int32") + x, False)
+    ck.verify(0 == te.min_value("int32") + x, tir.const(False))
     ck.verify(-x + te.min_value("int32") == 0, x == te.min_value("int32"))
-    ck.verify(x + te.min_value("int32") == 0, False)
+    ck.verify(x + te.min_value("int32") == 0, tir.const(False))
     ck.verify(0 == -x + te.min_value("int32"), x == te.min_value("int32"))
-    ck.verify(0 == x + te.min_value("int32"), False)
+    ck.verify(0 == x + te.min_value("int32"), tir.const(False))
 
 
 def test_proddiv_simplify():

@@ -265,7 +265,16 @@ class DictAttrs : public Attrs {
 
     auto it = node->dict.find(attr_key);
     if (it != node->dict.end()) {
-      return Downcast<Optional<TObjectRef>>((*it).second);
+      // For backwards compatibility, return through TVMRetValue.
+      // This triggers any automatic conversions registered with
+      // PackedFuncValueConverter.  Importantly, this allows use of
+      // `GetAttr<Integer>` and `GetAttr<Bool>` for properties that
+      // are stored internally as `runtime::Box<int64_t>` and
+      // `runtime::Box<bool>`.
+      TVMRetValue ret;
+      ret = (*it).second;
+      Optional<TObjectRef> obj = ret;
+      return obj;
     } else {
       return default_value;
     }

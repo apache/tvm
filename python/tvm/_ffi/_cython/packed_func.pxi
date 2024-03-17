@@ -45,7 +45,7 @@ cdef int tvm_callback(TVMValue* args,
             tcode == kTVMModuleHandle or
             tcode == kTVMNDArrayHandle or
             tcode == kTVMObjectRefArg or
-            tcode > kTVMExtBegin):
+            tcode >= kTVMExtBegin):
             CHECK_CALL(TVMCbArgToReturn(&value, &tcode))
 
         if tcode != kTVMDLTensorHandle:
@@ -118,6 +118,13 @@ cdef inline int make_arg(object arg,
         ptr = arg._tvm_handle
         value[0].v_handle = (<void*>ptr)
         tcode[0] = arg.__class__._tvm_tcode
+    elif isinstance(arg, bool):
+        # A python `bool` is a subclass of `int`, so this check
+        # must occur before `Integral`.
+        arg = _FUNC_CONVERT_TO_OBJECT(arg)
+        value[0].v_handle = (<ObjectBase>arg).chandle
+        tcode[0] = kTVMObjectHandle
+        temp_args.append(arg)
     elif isinstance(arg, Integral):
         value[0].v_int64 = arg
         tcode[0] = kInt
