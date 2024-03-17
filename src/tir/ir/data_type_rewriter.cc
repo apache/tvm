@@ -404,6 +404,10 @@ IterVar IndexDataTypeRewriter::VisitIterVar(const IterVar& iter_var) {
 }
 
 Buffer IndexDataTypeRewriter::VisitBuffer(const Buffer& buffer) {
+  if (auto it = buffer_remap_.find(buffer); it != buffer_remap_.end()) {
+    return (*it).second;
+  }
+
   bool is_enabled = is_enabled_;
 
   is_enabled_ = true;
@@ -429,7 +433,7 @@ Buffer IndexDataTypeRewriter::VisitBuffer(const Buffer& buffer) {
 }
 
 BufferRegion IndexDataTypeRewriter::VisitBufferRegion(const BufferRegion& buffer_region) {
-  Buffer remapped_buffer = GetRemappedBuffer(buffer_region->buffer);
+  Buffer remapped_buffer = VisitBuffer(buffer_region->buffer);
 
   bool is_enabled = is_enabled_;
   is_enabled_ = true;
