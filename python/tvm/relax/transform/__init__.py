@@ -72,6 +72,7 @@ from .transform import (
     StaticPlanBlockMemory,
     ToMixedPrecision,
     ToNonDataflow,
+    TopologicalSort,
     UpdateParamStructInfo,
     UpdateVDevice,
     VMBuiltinLower,
