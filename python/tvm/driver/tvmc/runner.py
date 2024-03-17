@@ -405,6 +405,7 @@ def make_inputs_dict(
     dtype_dict: tvm.container.Map,
     inputs: Optional[Dict[str, np.ndarray]] = None,
     fill_mode: str = "random",
+    device: str = "cpu",
 ):
     """Make the inputs dictionary for a graph.
 
@@ -449,7 +450,7 @@ def make_inputs_dict(
     for input_name in shape_dict:
         if input_name in inputs.keys():
             logger.debug("setting input '%s' with user input data", input_name)
-            inputs_dict[input_name] = inputs[input_name]
+            inputs_dict[input_name] = tvm.nd.array(inputs[input_name], device)
         else:
             # container.ShapleTuple -> tuple
             shape = tuple(shape_dict[input_name])
@@ -464,7 +465,7 @@ def make_inputs_dict(
                 fill_mode,
             )
             data = generate_tensor_data(shape, dtype, fill_mode)
-            inputs_dict[input_name] = data
+            inputs_dict[input_name] = tvm.nd.array(data, device)
 
     return inputs_dict
 
@@ -610,18 +611,21 @@ def run_module(
         if tvmc_package.type == "vm":
             assert inputs is not None, "vm runner requires inputs to be provided as a dict"
 
-            input_tensor = {}
-            for e, i in inputs.items():
-                input_tensor[e] = tvm.nd.array(i, dev)
-
+            input_tensor = make_inputs_dict(
+                tvmc_package.input_meta["shape_dict"],
+                tvmc_package.input_meta["dtype_dict"],
+                inputs,
+                fill_mode,
+                dev,
+            )
             if profile:
                 logger.debug("Creating vm with profile enabled.")
-                exe = profiler_vm.VirtualMachineProfiler(lib, dev)
+                exe = profiler_vm.VirtualMachineProfiler(lib, dev, "naive")
                 res = exe.profile(**input_tensor, func_name="main")
                 # This print is intentional
                 print(res)
             else:
-                exe = vm.VirtualMachine(lib, dev)
+                exe = vm.VirtualMachine(lib, dev, "naive")
 
             exe_outputs = exe.invoke("main", **input_tensor)
 
