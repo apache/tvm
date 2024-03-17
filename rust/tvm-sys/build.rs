@@ -36,8 +36,8 @@ struct TVMInstall {
 /// Find the TVM install using the provided path.
 fn find_using_tvm_path<P: AsRef<Path>>(tvm_path: P) -> Result<TVMInstall> {
     Ok(TVMInstall {
-        source_path: tvm_path.as_ref().into(),
-        build_path: tvm_path.as_ref().into(),
+        source_path: PathBuf::from(tvm_path.as_ref()).join("source"),
+        build_path: PathBuf::from(tvm_path.as_ref()).join("build"),
     })
 }
 
