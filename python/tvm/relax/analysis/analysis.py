@@ -21,7 +21,7 @@ This file contains the set of passes for Relax, which exposes an interface for
 configuring the passes and scripting them in Python.
 """
 
-from typing import Dict, List, Optional, Union, Callable
+from typing import Dict, List, Optional, Set, Union, Callable
 from enum import IntEnum
 
 import tvm
@@ -405,6 +405,29 @@ def udchain(dfb: DataflowBlock) -> Dict[Var, List[Var]]:
         A mapping from variable definition to its uses.
     """
     return _ffi_api.udchain(dfb)  # type: ignore
+
+
+def liveness_analysis(func: Function) -> List[Set[Var]]:
+    """
+    Perform a liveness analysis on the given function, returning a set of
+    the variables live in the given program location.
+
+    Parameters
+    ----------
+    func: Function
+        The function to be analyzed
+
+    Returns
+    -------
+    ret: List[Set[Var]]
+        The set of live variables for each binding in the function.
+        The indexing is determined by the control flow graph, so
+        use `extract_cfg` and `get_binding_index` to find the index
+        for a given program location in the list.
+    """
+    live_lists = _ffi_api.LivenessAnalysis(func)
+    # convert the lists to sets
+    return [set(live_list) for live_list in live_lists]
 
 
 def name_to_binding(func: Function) -> Dict[str, List[Binding]]:
