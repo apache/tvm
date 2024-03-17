@@ -69,10 +69,19 @@ def _register_external_op_helper(op_name, supported=True):
 
     @tvm.ir.register_op_attr(op_name, "target.dnnl")
     def _func_wrapper(expr):
+        msg = "DNNL does not support int64."
         args = expr.args
-        if any([x.checked_type.dtype == "int64" for x in args]):
-            logger.info("DNNL does not support int64.")
-            return False
+        for arg in args:
+            # handle tuple case
+            if isinstance(arg.checked_type, tvm.ir.type.TupleType):
+                for tuple_type in arg.checked_type.fields:
+                    if tuple_type.dtype == "int64":
+                        logger.info(msg)
+                        return False
+            elif arg.checked_type.dtype == "int64":
+                logger.info(msg)
+                return False
+
         # DNNL does not support pooling with ceil_mode = True.
         if "pool" in op_name:
             attrs = dict(get_attrs(expr))
@@ -110,6 +119,9 @@ _register_external_op_helper("add")
 _register_external_op_helper("multiply")
 _register_external_op_helper("nn.layer_norm")
 _register_external_op_helper("nn.batch_matmul")
+_register_external_op_helper("cast")
+_register_external_op_helper("concatenate")
+_register_external_op_helper("layout_transform")
 
 
 def append_eltwise_ops(op, eltwise):
