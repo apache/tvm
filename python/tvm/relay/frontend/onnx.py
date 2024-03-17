@@ -6932,6 +6932,7 @@ class GraphProto:
 
     def _construct_nodes(self, graph):
         """Nodes are stored as directed acyclic graph."""
+        convert_map = _get_convert_map(self.opset)
         for node in graph.node:
             op_name = node.op_type
             attr = self._parse_attr(node.attribute)
@@ -6951,7 +6952,7 @@ class GraphProto:
             attr["tvm_custom"]["name"] = i_name
             attr["tvm_custom"]["num_outputs"] = len(node_output)
 
-            op = self._convert_operator(op_name, inputs, attr, self.opset)
+            op = self._convert_operator(op_name, inputs, attr, convert_map)
             if not isinstance(op, _expr.TupleWrapper):
                 outputs_num = 1
             else:
@@ -7050,7 +7051,7 @@ class GraphProto:
                 raise ValueError(f"Cannot parse attribute: \n{a}\n.")
         return attrs
 
-    def _convert_operator(self, op_name, inputs, attrs, opset):
+    def _convert_operator(self, op_name, inputs, attrs, convert_map):
         """Convert ONNX operator into a Relay operator.
         The converter must specify conversions explicitly for incompatible name, and
         apply handlers to operator attributes.
@@ -7063,15 +7064,14 @@ class GraphProto:
             List of inputs.
         attrs : dict
             Dict of operator attributes
-        opset : int
-            Opset version
+        convert_map : dict
+            Dict of operator
 
         Returns
         -------
         sym : tvm.relay.function.Function
             Converted relay function
         """
-        convert_map = _get_convert_map(opset)
         if op_name in _identity_list:
             sym = get_relay_op(op_name)(*inputs, **attrs)
         elif op_name in convert_map:
