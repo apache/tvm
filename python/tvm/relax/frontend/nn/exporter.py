@@ -138,6 +138,7 @@ class Exporter:
         mod = self.builder.finalize()
         assert rx.analysis.well_formed(mod)
 
+        mod = rx.transform.CanonicalizeBindings()(mod)
         return mod, params, ext_mods
 
 
@@ -176,21 +177,25 @@ def _emit_method(  # pylint: disable=too-many-locals,too-many-branches,too-many-
     def _convert_input(arg):
         if isinstance(arg, tir.Var):
             return rx.Var(arg.name, struct_info=ShapeStructInfo(values=[arg]))
-        if isinstance(arg, (core.Tensor, core.Object)):
+        elif isinstance(arg, (core.Tensor, core.Object)):
             return arg._expr  # pylint: disable=protected-access
-        if isinstance(arg, _spec.Tuple):
+        elif isinstance(arg, _spec.Tuple):
             return rx.Var(
                 arg.name,
                 struct_info=TupleStructInfo(
                     [_convert_input(arg_i).struct_info for arg_i in arg.elements]
                 ),
             )
-        raise TypeError(f"Unsupported input type: {type(arg)}")
+        elif isinstance(arg, rx.Expr):
+            return arg
+        else:
+            raise TypeError(f"Unsupported input type: {type(arg)}")
 
     def _params(mode: str) -> typing.List[rx.Var]:
         inputs: typing.List[rx.Var] = []
 
         def _get_var(shape_var: tir.Var) -> tir.Var:
+
             name = shape_var.name
             if name in str2var_params:
                 return str2var_params[name]
@@ -301,16 +306,20 @@ def _method_spec_to_inputs(
         return var
 
     def _convert_input(arg_name, arg_spec):
-        if isinstance(arg_spec, _spec.Int):
-            arg = _get_var(arg_name)
+        if isinstance(arg_spec, rx.TensorStructInfo):
+            return core.Tensor.from_struct_info(arg_spec, name=arg_name)
+        elif isinstance(arg_spec, rx.StructInfo):
+            return core.Object(_expr=rx.Var(arg_name, arg_spec), _name=arg_name)
+        elif isinstance(arg_spec, _spec.Int):
+            return _get_var(arg_name)
         elif isinstance(arg_spec, _spec.Tensor):
-            arg = core.Tensor.placeholder(  # pylint: disable=protected-access
+            return core.Tensor.placeholder(  # pylint: disable=protected-access
                 shape=[_get_var(x) if isinstance(x, str) else x for x in arg_spec.shape],
                 dtype=arg_spec.dtype,
                 name=arg_name,
             )
         elif isinstance(arg_spec, _spec.Object):
-            arg = arg_spec.object_type(_expr=rx.Var(arg_name, ObjectStructInfo()), _name=arg_name)
+            return arg_spec.object_type(_expr=rx.Var(arg_name, ObjectStructInfo()), _name=arg_name)
         elif isinstance(arg_spec, _spec.Tuple):
             elements = type(arg_spec.elements)(
                 [
@@ -318,13 +327,12 @@ def _method_spec_to_inputs(
                     for i in range(len(arg_spec.elements))
                 ]
             )
-            arg = _spec.Tuple(
+            return _spec.Tuple(
                 name=arg_name,
                 elements=elements,
             )
         else:
             raise TypeError(f"Invalid spec for argument {arg_name}: {arg_spec}")
-        return arg
 
     args = []
     for arg_name, arg_spec in zip(spec.arg_names, spec.arg_specs):
