@@ -262,7 +262,7 @@ LLVMTargetInfo::LLVMTargetInfo(LLVMInstance& instance, const TargetJSON& target)
   }
 
   // LLVM JIT engine options
-  if (const Optional<String>& v = target->GetAttr<String>("jit")) {
+  if (const auto& v = Downcast<Optional<String>>(target.Get("jit"))) {
     String value = v.value();
     if ((value == "mcjit") || (value == "orcjit")) {
       jit_engine_ = value;

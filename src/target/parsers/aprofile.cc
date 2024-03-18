@@ -90,7 +90,7 @@ static TargetFeatures GetFeatures(TargetJSON target) {
 
   // Check that LLVM has been compiled with the correct target support
   auto llvm_instance = std::make_unique<codegen::LLVMInstance>();
-  codegen::LLVMTargetInfo llvm_backend(*llvm_instance, "llvm");
+  codegen::LLVMTargetInfo llvm_backend(*llvm_instance, {{"kind", String("llvm")}});
   Array<String> targets = llvm_backend.GetAllLLVMTargets();
   if ((IsAArch64(mtriple) && !CheckContains(targets, "aarch64")) ||
       (IsAArch32(mtriple, mcpu) && !CheckContains(targets, "arm"))) {
