@@ -94,24 +94,22 @@ LayoutMap ForNodeLayoutInfer::Inference(const LayoutMap& layout_map, InferLevel 
         read_source_buffer = buffer;
     }
   }
-  if (source_buffer.defined()) {
-    auto src_layout = layout_map[source_buffer].as<Fragment>().value();
-    if (IsCommonAccessIndice(source_buffer)) {
-      loop_layout_ = src_layout;
+  auto compute_loop_layout_from_buffer = [&](const Buffer& buffer) {
+    Fragment src_layout = layout_map[buffer].as<Fragment>().value();
+    if (IsCommonAccessIndice(buffer)) {
+      return src_layout;
     } else {
-      PrimExpr loop_var_to_thread = src_layout->ForwardThread(indice_map_[source_buffer], {});
-      loop_layout_ = Fragment(loop_vars_, {}, loop_var_to_thread, src_layout->thread_replicate_);
+      Var rep;
+      auto rep_iter = IterVar({0, src_layout->ReplicateExtent()}, rep, IterVarType::kDataPar);
+      PrimExpr loop_var_to_thread = src_layout->ForwardThread(indice_map_[buffer], rep);
+      return Fragment(loop_vars_, {}, loop_var_to_thread, rep_iter);
     }
+  };
+  if (source_buffer.defined()) {
+    loop_layout_ = compute_loop_layout_from_buffer(source_buffer);
   } else if (level == InferLevel::kFree) {
     if (read_source_buffer.defined()) {
-      source_buffer = read_source_buffer;
-      auto src_layout = layout_map[source_buffer].as<Fragment>().value();
-      if (IsCommonAccessIndice(source_buffer)) {
-        loop_layout_ = src_layout;
-      } else {
-        PrimExpr loop_var_to_thread = src_layout->ForwardThread(indice_map_[source_buffer], {});
-        loop_layout_ = Fragment(loop_vars_, {}, loop_var_to_thread, src_layout->thread_replicate_);
-      }
+      loop_layout_ = compute_loop_layout_from_buffer(read_source_buffer);
       // Loop don't need to be replicated.
       if (!is_one(loop_layout_->ReplicateExtent())) loop_layout_ = loop_layout_->DeReplicate();
       // if still has replication, add a condition

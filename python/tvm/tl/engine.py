@@ -52,6 +52,8 @@ def tvm_callback_cuda_compile(code, target):
             "-I" + cutlass_path,
         ],
     )
+    # with open("save.ptx", "wb") as f:
+    #     f.write(ptx)
     return ptx
 
 

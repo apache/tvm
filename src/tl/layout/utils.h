@@ -44,12 +44,12 @@ Array<arith::IterSplitExpr> DivideUnusedIterators(const Array<PrimExpr>& exprs,
                                                   arith::Analyzer* analyzer);
 
 /*!
- * \brief Conpress the iterator, remove the unused part of the iterator not present in the expr
+ * \brief Conpress the iterator var, remove the unused part of the var not present in the expr
  *
  *  Returns the compressed IterVar as well as the Updated iter sum expression.
  */
 std::pair<PrimExpr, IterVar> CompressIterator(const PrimExpr& expr,
-                                              const Array<IterVar> input_iters, const IterVar& iv,
+                                              const Array<IterVar> input_iters, const Var& var,
                                               arith::Analyzer* analyzer);
 
 /*!

@@ -201,7 +201,7 @@ class IterSumMutator {
 };
 
 std::pair<PrimExpr, IterVar> CompressIterator(const PrimExpr& expr,
-                                              const Array<IterVar> input_iters, const IterVar& iv,
+                                              const Array<IterVar> input_iters, const Var& var,
                                               arith::Analyzer* analyzer) {
   auto iter_sum = arith::NormalizeToIterSum(expr, ToVMap(input_iters), analyzer);
   IterMarkSplitCollector collector;
@@ -209,7 +209,7 @@ std::pair<PrimExpr, IterVar> CompressIterator(const PrimExpr& expr,
   IterMark mark;
   for (const IterMark& m : collector.visited_) {
     ICHECK(m->source.as<Var>()) << "Not a normalized iterator: " << mark;
-    if (m->source.as<Var>().value().same_as(iv->var)) {
+    if (m->source.as<Var>().value().same_as(var)) {
       mark = m;
       break;
     }
@@ -225,8 +225,8 @@ std::pair<PrimExpr, IterVar> CompressIterator(const PrimExpr& expr,
   }
   extent = analyzer->Simplify(extent);
 
-  auto new_var = Var(iv->var->name_hint, iv->var->type_annotation);
-  auto new_iter_var = IterVar(Range(0, extent), new_var, iv->iter_type);
+  auto new_var = Var(var->name_hint, var->type_annotation);
+  auto new_iter_var = IterVar(Range(0, extent), new_var, IterVarType::kDataPar);
   auto new_mark = IterMark(new_var, extent);
   PrimExpr scale = 1;
   Map<IterSplitExpr, IterSplitExpr> replace_map;

@@ -38,13 +38,14 @@ class Fragment;
 
 class LayoutNode : public Object {
  public:
-  bool Valid() const { return forward_index_.size() != 0; }
+  LayoutNode() = default;
+  LayoutNode(Array<PrimExpr> input_size, Array<PrimExpr> forward_index);
 
-  size_t InputDim() const { return forward_var_.size(); }
+  size_t InputDim() const { return input_size_.size(); }
 
   size_t OutputDim() const { return forward_index_.size(); }
 
-  Array<PrimExpr> InputShape() const;
+  Array<PrimExpr> InputShape() const { return input_size_; }
 
   Array<PrimExpr> OutputShape() const;
 
@@ -52,13 +53,13 @@ class LayoutNode : public Object {
 
   Array<PrimExpr> Forward(const Array<PrimExpr>& vars) const;
 
-  PrimExpr GetFlattenedIndice() const;
-
   int VectorSize() const;
+
+  virtual Map<Var, Range> getVarMap() const;
 
   virtual void DebugOutput() const;
 
-  virtual void UpdateAnalyzer(arith::Analyzer* analyzer) const;
+  void UpdateAnalyzer(arith::Analyzer* analyzer) const;
 
   void VisitAttrs(tvm::AttrVisitor* v);
   static constexpr bool _type_has_method_sequal_reduce = true;
@@ -67,7 +68,7 @@ class LayoutNode : public Object {
   TVM_DECLARE_BASE_OBJECT_INFO(LayoutNode, Object);
 
   Array<PrimExpr> forward_index_;
-  Array<IterVar> forward_var_;
+  Array<PrimExpr> input_size_;
 };
 
 /*!
@@ -76,6 +77,7 @@ class LayoutNode : public Object {
 class Layout : public ObjectRef {
  public:
   TVM_DLL Layout(Array<IterVar> forward_var, Array<PrimExpr> forward_index);
+  TVM_DLL Layout(Array<PrimExpr> input_size, Array<PrimExpr> forward_index);
 
   TVM_DEFINE_OBJECT_REF_METHODS(Layout, ObjectRef, LayoutNode);
 };
@@ -83,14 +85,14 @@ class Layout : public ObjectRef {
 class FragmentNode : public LayoutNode {
  public:
   FragmentNode() = default;
+  FragmentNode(Array<PrimExpr> input_size, Array<PrimExpr> forward_index, PrimExpr forward_thread,
+               PrimExpr replicate_size);
 
   Layout Inverse() const final;
 
-  void UpdateAnalyzer(arith::Analyzer* analyzer) const final;
-
   PrimExpr ThreadExtent() const;
 
-  PrimExpr ReplicateExtent() const { return thread_replicate_->dom->extent; };
+  PrimExpr ReplicateExtent() const { return replicate_size_; };
 
   PrimExpr ForwardThread(const Array<PrimExpr>& vars, const Optional<PrimExpr>& rep_var) const;
 
@@ -103,6 +105,8 @@ class FragmentNode : public LayoutNode {
 
   Fragment CondenseReplicateVar() const;
 
+  Map<Var, Range> getVarMap() const final;
+
   void DebugOutput() const final;
 
   void VisitAttrs(tvm::AttrVisitor* v);
@@ -111,7 +115,7 @@ class FragmentNode : public LayoutNode {
   TVM_DECLARE_FINAL_OBJECT_INFO(FragmentNode, LayoutNode);
 
   PrimExpr forward_thread_;
-  IterVar thread_replicate_;
+  PrimExpr replicate_size_;
 };
 
 /*!
@@ -122,10 +126,12 @@ class Fragment : public Layout {
   TVM_DLL Fragment(Array<IterVar> forward_var, Array<PrimExpr> forward_index,
                    PrimExpr forward_thread, IterVar thread_replicate);
 
+  TVM_DLL Fragment(Array<PrimExpr> input_size, Array<PrimExpr> forward_index,
+                   PrimExpr forward_thread, PrimExpr replicate_size,
+                   std::optional<Var> replicate_var);
+
   TVM_DEFINE_OBJECT_REF_METHODS(Fragment, Layout, FragmentNode);
 };
-
-bool FragmentThreadEqual(const Fragment& a, const Fragment& b);
 
 Fragment makeGemmFragmentC(const int block_m, const int block_n, const int warp_m, const int warp_n,
                            const int element_size);

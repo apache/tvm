@@ -122,7 +122,7 @@ class LowerTileOpPass : arith::IRMutatorWithAnalyzer {
       PrimExpr expr;
       IterVar var;
       std::tie(expr, var) =
-          CompressIterator(src_indices[i], src_vars, src_vars[args.dim], analyzer_);
+          CompressIterator(src_indices[i], src_vars, src_vars[args.dim]->var, analyzer_);
       src_indice_compressed.push_back(expr);
       src_var_compressed.push_back(var);
     }

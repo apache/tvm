@@ -37,10 +37,6 @@ class Layout(Node):
         self.__init_handle_by_constructor__(_ffi_api.Layout, forward_vars, forward_index)
 
     @property
-    def var(self):
-        return _ffi_api.Layout_var(self)
-
-    @property
     def index(self):
         return _ffi_api.Layout_index(self)
 
@@ -80,10 +76,6 @@ class Fragment(Layout):
     @property
     def thread(self):
         return _ffi_api.Fragment_thread(self)
-
-    @property
-    def replicate_var(self):
-        return _ffi_api.Fragment_replicate_var(self)
 
     def get_thread_size(self):
         return _ffi_api.Fragment_thread_size(self)
