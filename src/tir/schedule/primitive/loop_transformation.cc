@@ -1181,7 +1181,7 @@ struct SplitTraits : public UnpackedInstTraits<SplitTraits> {
     thread_local ObjectRef loop_rv{nullptr};
     thread_local Array<ObjectRef> factors{nullptr};
     loop_rv = inputs[0];
-    factors = Array<ObjectRef>{inputs.begin() + 1, inputs.end()};
+    factors = Array{inputs.begin() + 1, inputs.end()};
     setter(delta, loop_rv);
     setter(delta + 1, factors);
   }

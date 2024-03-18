@@ -323,10 +323,8 @@ class Array : public ObjectRef {
    * \param last end of iterator
    * \tparam IterType The type of iterator
    */
-  template <typename IterType>
+  template <typename IterType, typename = std::enable_if_t<is_valid_iterator_v<T, IterType>>>
   Array(IterType first, IterType last) {
-    static_assert(is_valid_iterator_v<T, IterType>,
-                  "IterType cannot be inserted into a tvm::Array<T>");
     Assign(first, last);
   }
 
@@ -871,6 +869,20 @@ class Array : public ObjectRef {
     return output;
   }
 };
+
+/* Template deduction guide
+ *
+ * The default deduction guides are insufficient to determine the type
+ * parameter `T` in expressions such as `Array{vec.begin(),
+ * vec.end()}`.  If no type has been explicitly given, this guide
+ * prefers to generate an Array containing the same type as is
+ * produced by the iterator.
+ *
+ * That is, given `std::vector<PrimExpr> vec`, the expression
+ * `Array{vec.begin(), vec.end()}` should be of type `Array<PrimExpr>`.
+ */
+template <typename IterType>
+Array(IterType begin, IterType end) -> Array<std::decay_t<decltype(*begin)>>;
 
 template <typename T>
 inline constexpr bool is_tvm_array = false;
