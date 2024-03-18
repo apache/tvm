@@ -701,10 +701,10 @@ class ConsumeBundledParams : public ExprMutator {
 };
 
 std::vector<std::pair<GlobalVar, Function>> GetTargetFunctions(
-    const IRModule& mod, const Array<String>& target_function_names) {
+    const IRModule& mod, const Variant<Bool, Array<String>>& shared_transform) {
   std::vector<std::pair<GlobalVar, Function>> target_functions;
-  if (target_function_names.size()) {
-    for (const auto& name : target_function_names) {
+  if (shared_transform.as<Array<String>>().value_or(Array<String>{}).size()) {
+    for (const auto& name : shared_transform.as<Array<String>>().value()) {
       auto gvar = mod->GetGlobalVar(name);
       target_functions.push_back({gvar, Downcast<Function>(mod->Lookup(gvar))});
     }
@@ -738,8 +738,8 @@ Pass PartitionTransformParams(Variant<Bool, Array<String>> shared_transform) {
     CHECK(shared_transform.defined()) << "shared_transform is not defined";
     CHECK((shared_transform.as<Bool>() || shared_transform.as<Array<String>>()))
         << "shared_transform should be a boolean or an array of function names";
-    auto target_functions =
-        GetTargetFunctions(mod, shared_transform.as<Array<String>>().value_or(Array<String>{}));
+
+    auto target_functions = GetTargetFunctions(mod, shared_transform);
 
     if (shared_transform.as<Bool>().value_or(Bool(true))) {
       std::vector<Function> functions;
