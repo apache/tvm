@@ -760,15 +760,17 @@ Pass PartitionTransformParams(Variant<Bool, Array<String>> shared_transform) {
     for (const auto& [gvar, info] : local_collect_info) {
       auto new_runtime_func = info.MakeRuntimeFunction();
       updates->Add(gvar, new_runtime_func);
-      if (!global_collect_info.has_value()) {
+    }
+
+    if (global_collect_info.has_value()) {
+      auto global_transform = global_collect_info.value().MakeCompileTimeFunc();
+      updates->Add(GlobalVar("transform_params"), global_transform);
+    } else {
+      for (const auto& [gvar, info] : local_collect_info) {
         // transform_params is emitted for each function if global lifting is not enabled
         updates->Add(GlobalVar(gvar->name_hint + "_transform_params"),
                      info.MakeCompileTimeFunction());
       }
-    }
-    if (global_collect_info.has_value()) {
-      auto global_transform = global_collect_info.value().MakeCompileTimeFunc();
-      updates->Add(GlobalVar("transform_params"), global_transform);
     }
 
     if (updates->functions.size()) {
