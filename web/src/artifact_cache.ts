@@ -21,15 +21,25 @@
  */
 export interface ArtifactCacheTemplate {
   /**
-   * fetch key url from cache
+   * fetch key url from cache, optional storetype for IndexDB
+   *
+   * storagetype for indexDB have two options:
+   * 1. json: return a json object
+   * 2. arraybuffer: return an arraybuffer object
    */
-  fetchWithCache(url: string);
+  fetchWithCache(url: string, storetype?: string);
 
   /**
-   * add ey url to cache
+   * add key url to cache, optional storetype for IndexDB
+   *
+   * storagetype for indexDB have two options:
+   * 1. json: return a json object
+   * 2. arraybuffer: return an arraybuffer object
+   *
+   * returns the response or the specified stored object
+   * for reduced database transaction
    */
-  addToCache(url: string);
-
+  addToCache(url: string, storetype?: string): Promise<any>;
   /**
    * check if cache has all keys in Cache
    */

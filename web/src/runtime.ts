@@ -1006,7 +1006,50 @@ export class ArtifactCache implements ArtifactCacheTemplate {
     this.scope = scope;
   }
 
-  async fetchWithCache(url: string) {
+  /**
+   * Convert the Response object to the expected storetype instead
+   * @param response the cache or indexDB response
+   * @param storetype the storetype stored in the indexedDB database
+   * @returns the expected response object
+   */
+  async responseTostoretype(response: Response, storetype: string): Promise<any>{
+    let result: any;
+    if (storetype.toLowerCase() === "json"){
+      result = await result.json();
+    } else if (storetype.toLowerCase() === "arraybuffer") {
+      result = await result.arrayBuffer();
+    } else {
+      console.error("Unknown storage type, return raw response");
+      return response;
+    }
+    return result;
+  }
+
+  /**
+   * fetch the corresponding url object in response or stored object format
+   * @param url url
+   * @param storetype the storage type for indexDB
+   * @returns response in json, arraybuffer or pure response format
+   */
+  async fetchWithCache(url: string, storetype?: string) {
+    const request = new Request(url);
+    if (this.cache === undefined) {
+      this.cache = await caches.open(this.scope);
+    }
+    let result = await this.cache.match(request);
+    if (result === undefined) {
+      result = await this.addToCache(url, storetype);
+      return result;
+    } else {
+      if (storetype === undefined){
+        return result;
+      } else {
+        return await this.responseTostoretype(result, storetype);
+      }
+    }
+  }
+
+  async addToCache(url: string, storetype?: string) {
     const request = new Request(url);
     if (this.cache === undefined) {
       this.cache = await caches.open(this.scope);
@@ -1016,23 +1059,18 @@ export class ArtifactCache implements ArtifactCacheTemplate {
       await this.cache.add(request);
       result = await this.cache.match(request);
     }
-    if (result === undefined) {
-      throw Error("Cannot fetch " + url);
-    }
-    return result;
-  }
-
-  async addToCache(url: string) {
-    const request = new Request(url);
-    if (this.cache === undefined) {
-      this.cache = await caches.open(this.scope);
-    }
-    const result = await this.cache.match(request);
-    if (result === undefined) {
-      await this.cache.add(request);
+    if (storetype === undefined){
+      return result;
+    } else {
+      return await this.responseTostoretype(result, storetype);
     }
   }
 
+  /**
+   * Determine if all keys exist in the cache
+   * @param keys the url key list of the strings
+   * @returns boolean value indicate if all keys are in cache
+   */
   async hasAllKeys(keys: string[]) {
     if (this.cache === undefined) {
       this.cache = await caches.open(this.scope);
@@ -1040,15 +1078,210 @@ export class ArtifactCache implements ArtifactCacheTemplate {
     return this.cache.keys()
       .then(requests => requests.map(request => request.url))
       .then(cacheKeys => keys.every(key => cacheKeys.indexOf(key) !== -1))
-      .catch(err => false);
+      .catch(() => false);
   }
 
+  /**
+   * Delete the corresponding url object in cache
+   * @param url the corresponding url object to be deleted
+   */
   async deleteInCache(url: string) {
     if (this.cache === undefined) {
       this.cache = await caches.open(this.scope);
     }
-    const result = await this.cache.delete(url);
-    return result;
+    await this.cache.delete(url);
+  }
+}
+
+/**
+ * Cache by IndexDB to support caching model data
+ */
+export class ArtifactindexDBCache implements ArtifactCacheTemplate {
+  private dbName?: string;
+  private dbVersion = 1;
+  private db: IDBDatabase | undefined;
+
+  constructor(dbName: string){
+    this.dbName = dbName;
+  }
+
+  /**
+   * Init the indexed DB database if it is not initialized.
+   */
+  private async initDB() {
+    if (this.db != null){
+      return; // the db is already inialized
+    }
+    return new Promise<void>((resolve, reject) => {
+      const request = indexedDB.open(this.dbName, this.dbVersion);
+      request.onupgradeneeded = (event) => {
+        this.db = (event.target as IDBOpenDBRequest).result;
+        if (!this.db.objectStoreNames.contains('urls')) {
+          this.db.createObjectStore('urls', { keyPath: 'url' });
+        }
+      };
+      request.onsuccess = (event) => {
+        this.db = (event.target as IDBOpenDBRequest).result;
+        resolve();
+      };
+      request.onerror = (event) => {
+        console.error("Database error: ", (event.target as IDBOpenDBRequest).error);
+        reject((event.target as IDBOpenDBRequest).error);
+      };
+    });
+  }
+
+  /**
+   * Check if current url object is in indexedDB or not
+   * @param url the url link
+   * @returns boolean indicate if url object in indexedDB
+   */
+  private async isUrlInDB(url: string): Promise<boolean> {
+    return new Promise<boolean>((resolve, reject) => {
+      const transaction = this.db?.transaction(['urls'], 'readonly');
+      if (transaction === undefined){
+        return false;
+      }
+      const store = transaction.objectStore('urls');
+      const request = store.get(url);
+      request.onsuccess = () => {
+        resolve(request.result !== undefined);
+      };
+      request.onerror = (event) => {
+        reject((event.target as IDBRequest).error);
+      };
+    });
+  }
+
+  async asyncGetHelper(url: string){
+    return new Promise((resolve, reject) => {
+      let result: any;
+      const transaction = this.db?.transaction(['urls'], 'readonly');
+      if (transaction === undefined){
+        return false;
+      }
+      transaction.oncomplete = () => resolve(result);
+      transaction.onerror = () => reject(transaction.error);
+      const objectStore = transaction.objectStore('urls');
+      const getRequest = objectStore.get(url);
+      getRequest.onsuccess = () => {
+        result = getRequest.result;
+      }
+    })
+  }
+
+  async fetchWithCache(url: string, storetype?: string) {
+    await this.initDB(); // await the initDB process
+    const isInDB = await this.isUrlInDB(url);
+    if (!isInDB) {
+      const response = await this.addToCache(url, storetype);
+      return response;
+    } else {
+      // URL found in DB, just fetch without storing
+      const result = await this.asyncGetHelper(url);
+      if (result != null && typeof result === "object" && "data" in result){
+        return result.data;
+      } else if (result === null){
+        // previously null data in cache!
+        await this.deleteInCache(url);
+        const response = await this.addToCache(url, storetype);
+        return response;
+      }
+      return null;
+    }
+  }
+
+  async addToIndexDB(url: string, response: any, storetype?: string){
+    await this.initDB();
+    let data: any;
+    if (storetype != undefined){
+      if (storetype.toLowerCase() === "json"){
+        data = await response.json();
+      } else if (storetype.toLocaleLowerCase() === "arraybuffer"){
+        data = await response.arrayBuffer();
+      } else {
+        console.error("Unsupported Type in IndexDB");
+      }
+    }
+    return new Promise<void>((resolve, reject) => {
+      const transaction = this.db?.transaction(['urls'], 'readwrite');
+      if (transaction === undefined){
+        return;
+      }
+      const store = transaction.objectStore('urls');
+      const request = store.add({data, url}); // Index DB follows a {value, key} format, instead of {key, value} format!
+      request.onsuccess = () => resolve();
+      request.onerror = (event) => reject((event.target as IDBRequest).error);
+    });
+  }
+
+  async addToCache(url: string, storetype?: string) :Promise<any>{
+    let response: Response;
+    try {
+      response = await fetch(url);
+      if (!response.ok) {
+        throw new Error('Network response was not ok');
+      }
+      const response_copy = response.clone();
+      await this.addToIndexDB(url, response_copy, storetype);
+      if (storetype.toLowerCase() === "arraybuffer"){
+        return await response.arrayBuffer();
+      } else if (storetype.toLowerCase() === "json"){
+        return await response.json();
+      } else {
+        return response;
+      }
+    } catch (error) {
+      console.error("There was a problem fetching the data:", error);
+    }
+  }
+
+  async hasAllKeys(keys: string[]) :Promise<boolean> {
+    await this.initDB(); // Ensure the DB is initialized
+    if (!this.db) {
+      throw new Error('Database is not initialized');
+    }
+    return new Promise<boolean>((resolve, reject) => {
+      const transaction = this.db.transaction(['urls'], 'readonly');
+      const store = transaction.objectStore('urls');
+      const promises = keys.map(key => {
+        return new Promise<boolean>((resolve) => {
+          const request = store.get(key);
+          request.onsuccess = () => {
+            if (request.result === undefined) {
+              resolve(false); // Key not found, resolve with false
+            } else {
+              resolve(true); // Key found, resolve with true
+            }
+          };
+          request.onerror = () => {
+            resolve(false); // On error, resolve as if the key was not found
+          };
+        });
+      });
+      Promise.all(promises).then(results => {
+        const allExist = results.every(exists => exists);
+        resolve(allExist);
+      }).catch(error => {
+        reject(error); // Reject the main promise if any of the promises are rejected
+      });
+    });
+  }
+
+  async deleteInCache(url: string) {
+    await this.initDB(); // Make sure the DB is initialized
+    const transaction = this.db?.transaction(['urls'], 'readwrite');
+    if (transaction === undefined){
+      return;
+    }
+    const store = transaction.objectStore('urls');
+    const request = store.delete(url);
+    // Await completion of the delete request
+    await new Promise<void>((resolve, reject) => {
+      request.onsuccess = () => resolve();
+      request.onerror = () => reject(request.error);
+    });
+    return;
   }
 }
 
@@ -1500,20 +1733,34 @@ export class Instance implements Disposable {
    * @param ndarrayCacheUrl The cache url.
    * @param device The device to be fetched to.
    * @param cacheScope The scope identifier of the cache
+   * @param cacheType The type of the cache: "cache" or "indexDB"
    * @returns The meta data
    */
   async fetchNDArrayCache(
     ndarrayCacheUrl: string,
     device: DLDevice,
-    cacheScope = "tvmjs"
+    cacheScope = "tvmjs",
+    cacheType = "cache"
   ): Promise<any> {
-    const artifactCache = new ArtifactCache(cacheScope);
+    let artifactCache;
+    if (cacheType === undefined){
+      artifactCache = new ArtifactCache(cacheScope);
+    }
+    if (cacheType.toLowerCase() === "cache"){
+      artifactCache = new ArtifactCache(cacheScope);
+    } else if (cacheType.toLowerCase() == "indexdb"){
+      artifactCache = new ArtifactindexDBCache(cacheScope);
+    } else {
+      console.error("Unsupported Cache Type, using default browser cache");
+      artifactCache = new ArtifactCache(cacheScope);
+    }
     const jsonUrl = new URL("ndarray-cache.json", ndarrayCacheUrl).href;
-    const result = await artifactCache.fetchWithCache(jsonUrl);
-
+    const result = await artifactCache.fetchWithCache(jsonUrl, "json");
     let list;
     if (result instanceof Response) {
       list = await result.json();
+    } else {
+      list = result;
     }
     await this.fetchNDArrayCacheInternal(
       ndarrayCacheUrl,
@@ -1538,7 +1785,6 @@ export class Instance implements Disposable {
   ) {
     const perf = compact.getPerformance();
     const tstart = perf.now();
-
     let totalBytes = 0;
     for (let i = 0; i < list.length; ++i) {
       totalBytes += list[i].nbytes;
@@ -1547,8 +1793,7 @@ export class Instance implements Disposable {
     let fetchedShards = 0;
     let timeElapsed = 0;
 
-    const cacheOnly = await artifactCache.hasAllKeys(list.map(key => new URL(key.dataPath, ndarrayCacheUrl).href))
-
+    const cacheOnly = await artifactCache.hasAllKeys(list.map(key => new URL(key.dataPath, ndarrayCacheUrl).href));
     const reportCallback = (iter: number, loading = false) => {
       // report
       for (let j = 0; j < this.initProgressCallback.length; ++j) {
@@ -1593,7 +1838,7 @@ export class Instance implements Disposable {
         const shard = list[i];
         const dataUrl = new URL(shard.dataPath, ndarrayCacheUrl).href;
         try {
-          await artifactCache.addToCache(dataUrl);
+          await artifactCache.addToCache(dataUrl, "arraybuffer");
         } catch (err) {
           this.env.logger("Error: Cannot fetch " + dataUrl + " err= " + err);
           throw err;
@@ -1604,14 +1849,16 @@ export class Instance implements Disposable {
       }
     }
     // We launch 4 parallel for loops to limit the max concurrency to 4 download
-    const loopSize = Math.floor(list.length / 4);
-    await Promise.all([
-      downloadCache(0, loopSize),
-      downloadCache(loopSize, 2 * loopSize),
-      downloadCache(2 * loopSize, 3 * loopSize),
-      downloadCache(3 * loopSize, list.length)
-    ]);
-    reportCallback(list.length, /*loading=*/true);
+    if (!cacheOnly){
+      const loopSize = Math.floor(list.length / 4);
+      await Promise.all([
+        downloadCache(0, loopSize),
+        downloadCache(loopSize, 2 * loopSize),
+        downloadCache(2 * loopSize, 3 * loopSize),
+        downloadCache(3 * loopSize, list.length)
+      ]);
+      reportCallback(list.length, /*loading=*/true);
+    }
 
     // Then iteratively, load the shard from cache
     for (let i = 0; i < list.length; ++i) {
@@ -1619,7 +1866,7 @@ export class Instance implements Disposable {
       const dataUrl = new URL(shard.dataPath, ndarrayCacheUrl).href;
       let buffer;
       try {
-        buffer = await (await artifactCache.fetchWithCache(dataUrl)).arrayBuffer();
+        buffer = await artifactCache.fetchWithCache(dataUrl, "arraybuffer");
       } catch (err) {
         this.env.logger("Error: Cannot fetch " + dataUrl + " err= " + err);
         throw err;
@@ -1660,6 +1907,9 @@ export class Instance implements Disposable {
           );
           throw err;
         }
+      }
+      if (cacheOnly){
+        reportCallback(i + 1, /* Need to Report call back*/false);
       }
     }
   }
@@ -2118,7 +2368,6 @@ export class Instance implements Disposable {
       }).then(() => {
         finishCounter += 1;
         const tend = perf.now();
-        const timeReportGap = 1000;
         // skip report if gap is smaller than 1000
         if ((tend - tlastReport) < 1000 && finishCounter != fmapEntries.length) {
           return;
@@ -2584,41 +2833,73 @@ export function instantiate(
   );
 }
 
+/**
+ * Function to check if NDarray is in Cache or not
+ *
+ * @param ndarrayCacheUrl The cache url which links to the NDArray
+ * @param cacheScope The scope identifier of the cache
+ * @param cacheType The type of the cache: "cache" or "indexDB"
+ * @returns the result if the cache has NDArray
+ */
 export async function hasNDArrayInCache(
   ndarrayCacheUrl: string,
-  cacheScope = "tvmjs"
+  cacheScope = "tvmjs",
+  cacheType = "cache"
 ): Promise<boolean> {
-  const artifactCache = new ArtifactCache(cacheScope);
+  let artifactCache;
+  if (cacheType.toLowerCase() === "cache"){
+    artifactCache = new ArtifactCache(cacheScope);
+  } else if (cacheType.toLowerCase() == "indexdb"){
+    artifactCache = new ArtifactindexDBCache(cacheScope);
+  } else {
+    console.error("Unsupported Cache Type, using default browser cache");
+    artifactCache = new ArtifactCache(cacheScope);
+  }
   const jsonUrl = new URL("ndarray-cache.json", ndarrayCacheUrl).href;
   const hasJsonUrlInCache = await artifactCache.hasAllKeys([jsonUrl]);
   if (!hasJsonUrlInCache) {
     return false;
   }
-  const result = await artifactCache.fetchWithCache(jsonUrl);
+  const result = await artifactCache.fetchWithCache(jsonUrl, "json");
   let list;
   if (result instanceof Response) {
     list = await result.json();
+  } else {
+    list = result;
   }
   list = list["records"] as Array<NDArrayShardEntry>;
   return await artifactCache.hasAllKeys(list.map(key => new URL(key.dataPath, ndarrayCacheUrl).href));
 }
 
+
 /**
  * Given cacheUrl, search up items to delete based on cacheUrl/ndarray-cache.json
  *
- * @param cacheUrl
- * @param cacheScope
+ * @param cacheUrl The cacheUrl for the items
+ * @param cacheScope The scope identifier of the cache
+ * @param cacheType The type of the cache: "cache" or "indexDB"
  */
 export async function deleteNDArrayCache(
   cacheUrl: string,
-  cacheScope = "tvmjs"
+  cacheScope = "tvmjs",
+  cacheType = "cache"
 ) {
-  const artifactCache = new ArtifactCache(cacheScope);
+  let artifactCache;
+  if (cacheType.toLowerCase() === "cache"){
+    artifactCache = new ArtifactCache(cacheScope);
+  } else if (cacheType.toLowerCase() == "indexdb"){
+    artifactCache = new ArtifactindexDBCache(cacheScope);
+  } else {
+    console.error("Unsupported Cache Type, using default browser cache");
+    artifactCache = new ArtifactCache(cacheScope);
+  }
   const jsonUrl = new URL("ndarray-cache.json", cacheUrl).href;
-  const result = await artifactCache.fetchWithCache(jsonUrl);
+  const result = await artifactCache.fetchWithCache(jsonUrl, "json");
   let list;
   if (result instanceof Response) {
     list = await result.json();
+  } else {
+    list = result;
   }
   const arrayentry = list["records"] as Array<NDArrayShardEntry>;
   const processShard = async (i: number) => {
