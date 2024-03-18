@@ -180,6 +180,7 @@ class ConcreteScheduleNode : public ScheduleNode {
   void EnterPostproc() override {}
   void UnsafeHideBufferAccess(const BlockRV& block_rv, const String& buf_type,
                               const Array<IntImm>& buf_index_array) override;
+  void UnsafeRewriteBufferAccess(const BlockRV& block, int buffer_index, BufferIndexType buffer_index_type, const Array<PrimExpr>& indices) override;
 
  protected:
   /******** Utility functions ********/

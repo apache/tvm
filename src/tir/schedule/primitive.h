@@ -700,6 +700,17 @@ TVM_DLL void RollingBuffer(ScheduleState self, const StmtSRef& block_sref, int w
 TVM_DLL void UnsafeHideBufferAccess(ScheduleState self, const StmtSRef& block_sref,
                                     const String& buf_type, const Array<IntImm>& buf_index_array);
 
+/*!
+ * \brief Hide some buffer access in the given block.
+ * \param self The state of the schedule.
+ * \param block The sref of the block we want to rewrite.
+ * \param buffer_index The buffer index we rewrite.
+ * \param buffer_index_type The type of the buffer index, kRead or kWrite.
+ * \param indices The new indices to access the buffer.
+ */
+TVM_DLL void UnsafeRewriteBufferAccess(ScheduleState self, const StmtSRef& block_sref, int buffer_index,
+                                       BufferIndexType buffer_index_type, const Array<PrimExpr>& indices);
+
 }  // namespace tir
 }  // namespace tvm
 

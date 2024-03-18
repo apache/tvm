@@ -968,5 +968,11 @@ void ConcreteScheduleNode::UnsafeHideBufferAccess(const BlockRV& block_rv, const
   this->state_->DebugVerify();
 }
 
+void ConcreteScheduleNode::UnsafeRewriteBufferAccess(const BlockRV& block, int buffer_index, BufferIndexType buffer_index_type, const Array<PrimExpr>& indices) {
+  TVM_TIR_SCHEDULE_BEGIN();
+  tir::UnsafeRewriteBufferAccess(state_, this->GetSRef(block), buffer_index, buffer_index_type, indices);
+  TVM_TIR_SCHEDULE_END("rewrite-buffer-indices", this->error_render_level_);
+  this->state_->DebugVerify();
+}
 }  // namespace tir
 }  // namespace tvm

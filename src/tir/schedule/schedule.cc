@@ -308,6 +308,12 @@ TVM_REGISTER_GLOBAL("tir.schedule.ScheduleEnterPostproc")
     .set_body_method<Schedule>(&ScheduleNode::EnterPostproc);
 TVM_REGISTER_GLOBAL("tir.schedule.ScheduleUnsafeHideBufferAccess")
     .set_body_method<Schedule>(&ScheduleNode::UnsafeHideBufferAccess);
+TVM_REGISTER_GLOBAL("tir.schedule.ScheduleUnsafeRewriteBufferAccess")
+    .set_body_typed([](Schedule self, const BlockRV& block, int buffer_index, int buffer_index_type, const Array<PrimExpr>& indices) {
+      return self->UnsafeRewriteBufferAccess(block, buffer_index,
+                                   static_cast<BufferIndexType>(buffer_index_type), indices
+                                   );
+    });
 
 }  // namespace tir
 }  // namespace tvm

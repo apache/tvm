@@ -736,13 +736,23 @@ void TracedScheduleNode::EnterPostproc() {
 }
 
 void TracedScheduleNode::UnsafeHideBufferAccess(const BlockRV& block_rv, const String& buf_type,
-                                                const Array<IntImm>& buf_index_array) {
+                              const Array<IntImm>& buf_index_array) {
   ConcreteScheduleNode::UnsafeHideBufferAccess(block_rv, buf_type, buf_index_array);
   static const InstructionKind& kind = InstructionKind::Get("UnsafeHideBufferAccess");
   trace_->Append(/*inst=*/Instruction(
       /*kind=*/kind,
       /*inputs=*/{block_rv, buf_type, buf_index_array},
       /*attrs=*/{},
+      /*outputs=*/{}));
+}
+
+void TracedScheduleNode::UnsafeRewriteBufferAccess(const BlockRV& block, int buffer_index, BufferIndexType buffer_index_type, const Array<PrimExpr>& indices) {
+  ConcreteScheduleNode::UnsafeRewriteBufferAccess(block, buffer_index, buffer_index_type, indices);
+  static const InstructionKind& kind = InstructionKind::Get("UnsafeRewriteBufferAccess");
+  trace_->Append(/*inst=*/Instruction(
+      /*kind=*/kind,
+      /*inputs=*/{block, indices},
+      /*attrs=*/{Integer(buffer_index), Integer(buffer_index_type)},
       /*outputs=*/{}));
 }
 
