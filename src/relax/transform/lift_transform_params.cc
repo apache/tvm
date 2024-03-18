@@ -730,14 +730,18 @@ std::vector<std::pair<GlobalVar, Function>> GetTargetFunctions(
 
 namespace transform {
 
-Pass PartitionTransformParams(bool shared_transform, const Array<String>& target_function_names) {
+Pass PartitionTransformParams(Variant<Bool, Array<String>> shared_transform) {
   auto pass_func = [=](IRModule mod, PassContext pc) {
     IRModule updates;
-
     std::optional<GlobalCollectInfo> global_collect_info;
-    auto target_functions = GetTargetFunctions(mod, target_function_names);
 
-    if (shared_transform) {
+    CHECK(shared_transform.defined()) << "shared_transform is not defined";
+    CHECK((shared_transform.as<Bool>() || shared_transform.as<Array<String>>()))
+        << "shared_transform should be a boolean or an array of function names";
+    auto target_functions =
+        GetTargetFunctions(mod, shared_transform.as<Array<String>>().value_or(Array<String>{}));
+
+    if (shared_transform.as<Bool>().value_or(Bool(true))) {
       std::vector<Function> functions;
       for (const auto& [_, func] : target_functions) {
         functions.push_back(func);
@@ -776,7 +780,7 @@ Pass PartitionTransformParams(bool shared_transform, const Array<String>& target
   return tvm::transform::CreateModulePass(pass_func, 1, "PartitionTransformParams", {});
 }
 
-Pass LiftTransformParams(bool shared_transform, Array<String> target_functions) {
+Pass LiftTransformParams(Variant<Bool, Array<String>> shared_transform) {
   // A post-proc utility as as the third step in LiftTransformParams
   //
   // 1. PartitionTransformParams: Partition each function into a
@@ -819,7 +823,7 @@ Pass LiftTransformParams(bool shared_transform, Array<String> target_functions) 
 
   return tvm::transform::Sequential(
       {
-          PartitionTransformParams(shared_transform, target_functions),
+          PartitionTransformParams(shared_transform),
           LambdaLift(),
           post_proc,
       },

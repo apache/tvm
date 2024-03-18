@@ -846,26 +846,28 @@ def LiftTransformParams(shared_transform: Union[bool, List[str]] = False) -> tvm
 
     Parameters
     ----------
-    shared_transform : Union[bool, List[str]]
-        Boolean to indicate whether to share the transformation of the parameters among functions or
-        a list of function names to apply the shared transformation.
+    shared_transform: Union[bool, List[str]]
 
-        When the shared transformation is enabled, all the target functions should have the same
-        parameters and the common part of the transformations will be lifted to a global
-        `transform_params` function that is shared among all functions.
-        Otherwise, each function will have its own `transform_params` function.
+        Indicates how the parameter transformation function will be produced
+
+        - `False` (default): A separate parameter transformation function will be
+        produced for each function with the `"num_input"` attribute.
+
+        - `True`: A single parameter transformation function will be produced,
+        containing thepreprocessing steps common across all functions with
+        the `"num_input"` attribute.
+
+        - List[str]: A single parameter transformation function will be produced,
+        containing the preprocessing steps common across each function whose
+        name is in the list.  Passing a list of all functions with the `"num_input"`
+        attribute is equivalent to passing `True`.
 
     Returns
     -------
     ret : tvm.transform.Pass
         The registered pass for lifting transformation of parameters.
     """
-    if isinstance(shared_transform, bool):
-        target_functions = []
-    else:
-        target_functions = shared_transform
-        shared_transform = True
-    return _ffi_api.LiftTransformParams(shared_transform, target_functions)  # type: ignore
+    return _ffi_api.LiftTransformParams(shared_transform)  # type: ignore
 
 
 def BundleModelParams(param_tuple_name: Optional[str] = None) -> tvm.ir.transform.Pass:

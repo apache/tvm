@@ -273,7 +273,7 @@ TVM_DLL Pass RealizeVDevice();
  * shared transformation will be applied to all functions.
  * \return The Pass.
  */
-TVM_DLL Pass LiftTransformParams(bool shared_transform, Array<String> target_functions);
+TVM_DLL Pass LiftTransformParams(Variant<Bool, Array<String>> shared_transform = Bool(false));
 
 /*!
  * \brief Update virtual device.
