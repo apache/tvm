@@ -162,8 +162,12 @@ class PermutedLayoutInjector : private IRMutatorWithAnalyzer {
 
     if (buffer_row_size % 64 != 0) {
       if (buffer_row_size % 32 != 0 || buffer_col_size % 2 != 0) {
-        LOG(WARNING) << "The dimension of Buffer \"" << buffer->name << "\" with shape " << buffer->shape
-                << " should be at least 2";
+        LOG(WARNING) << "Permuted Layout for Buffer \"" << buffer->name << "\" with shape "
+                  << buffer->shape
+                  << " is not supported since its second dimension is not divisible by 32 or "
+                     "first dimension is not divisible by 2 and second dimension is not "
+                     "divisible by 64" << " buffer row size: " << buffer_row_size
+                  << " buffer col size: " << buffer_col_size;
         return false;
       }
     }
