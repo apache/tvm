@@ -26,6 +26,7 @@
 #include <tvm/tir/expr_functor.h>
 
 #include <algorithm>
+#include <optional>
 
 #include "constraint_extract.h"
 #include "int_operator.h"
@@ -80,6 +81,16 @@ struct ConstIntBoundAnalyzer::Entry {
 
   bool operator==(const Entry& other) const {
     return min_value == other.min_value && max_value == other.max_value;
+  }
+
+  friend std::ostream& operator<<(std::ostream& os, const Entry& entry) {
+    os << "Entry[";
+    PrintBoundValue(os, entry.min_value);
+    os << ", ";
+    PrintBoundValue(os, entry.max_value);
+    os << "]";
+
+    return os;
   }
 };
 
@@ -177,6 +188,8 @@ class ConstIntBoundAnalyzer::Impl
     return Union(a, b);
   }
 
+  Entry VisitExpr_(const BroadcastNode* op) final { return VisitExpr(op->value); }
+
   Entry VisitExpr_(const CastNode* op) final {
     Entry a;
 
@@ -193,6 +206,31 @@ class ConstIntBoundAnalyzer::Impl
     return Intersect(a, b);
   }
 
+  /*!
+   * \brief Process the divisor by making assumption that divide by zero
+   * won't happen in a valid program.
+   *
+   * This is important for us to get a lot of symbolic shape bound right
+   * now that the shape n >= 0, but in cases
+   * when mod or divide of n occur, the intention is actually n > 0
+   *
+   * \param divisor The input divsor entry
+   * \return The processed entry
+   */
+  Entry AssumeNoZeroDivisor(Entry divisor) {
+    ICHECK(!divisor.is_const(0)) << "Find divide by zero";
+    // NOTE: here we make the assumption that
+    // divide by zero won't happen in a valid program
+    // this is important for us to get a lot of symbolic shape bound right
+    // where most conditions know that the shape n >= 0, but in cases
+    // when mod or divide of n occur, the intention is actually n > 0
+    if (divisor.min_value == 0) {
+      divisor.min_value = 1;
+      ICHECK_GE(divisor.max_value, 1);
+    }
+    return divisor;
+  }
+
   Entry VisitExpr_(const IntImmNode* op) final { return MakeBound(op->value, op->value); }
 
   Entry VisitExpr_(const AddNode* op) final {
@@ -201,6 +239,11 @@ class ConstIntBoundAnalyzer::Impl
     Entry ret;
     ret.min_value = InfAwareAdd(a.min_value, b.min_value);
     ret.max_value = InfAwareAdd(a.max_value, b.max_value);
+
+    if (auto bound = BoundUsingReciprocal(GetRef<PrimExpr>(op))) {
+      ret = Intersect(ret, bound.value());
+    }
+
     return ret;
   }
 
@@ -210,6 +253,13 @@ class ConstIntBoundAnalyzer::Impl
     Entry ret;
     ret.min_value = InfAwareAdd(a.min_value, -b.max_value);
     ret.max_value = InfAwareAdd(a.max_value, -b.min_value);
+
+    if (auto bound = BoundUsingReciprocal(GetRef<Sub>(op))) {
+      ret = Intersect(ret, bound.value());
+    }
+    if (auto bound = BoundUsingReciprocal(Sub(op->b, op->a))) {
+      ret = Intersect(ret, Negative(bound.value()));
+    }
     return ret;
   }
 
@@ -221,14 +271,14 @@ class ConstIntBoundAnalyzer::Impl
 
   Entry VisitExpr_(const DivNode* op) final {
     Entry a = VisitExpr(op->a);
-    Entry b = VisitExpr(op->b);
-    ICHECK(!b.is_const(0)) << "divide by zero";
+    Entry b = AssumeNoZeroDivisor(VisitExpr(op->b));
     return HandleDivision(a, b, op->dtype, InfAwareDiv);
   }
 
   Entry VisitExpr_(const ModNode* op) final {
     Entry a = VisitExpr(op->a);
-    Entry b = VisitExpr(op->b);
+    Entry b = AssumeNoZeroDivisor(VisitExpr(op->b));
+
     if (b.min_value > 0) {
       int64_t b_max_cap = InfAwareAdd(b.max_value, -1);
       if (a.min_value >= 0) {
@@ -250,8 +300,7 @@ class ConstIntBoundAnalyzer::Impl
 
   Entry VisitExpr_(const FloorDivNode* op) final {
     Entry a = VisitExpr(op->a);
-    Entry b = VisitExpr(op->b);
-    ICHECK(!b.is_const(0)) << "floordiv by zero";
+    Entry b = AssumeNoZeroDivisor(VisitExpr(op->b));
     return HandleDivision(a, b, op->dtype, InfAwareFloorDiv);
   }
 
@@ -274,7 +323,8 @@ class ConstIntBoundAnalyzer::Impl
      * That is, min(0, b_min + 1) <= floormod(a, b) <= max(0, b_max - 1)
      */
     Entry a = VisitExpr(op->a);
-    Entry b = VisitExpr(op->b);
+    Entry b = AssumeNoZeroDivisor(VisitExpr(op->b));
+
     if (b.min_value > 0) {
       int64_t b_max_cap = InfAwareAdd(b.max_value, -1);
       if (a.min_value >= 0) {
@@ -455,7 +505,6 @@ class ConstIntBoundAnalyzer::Impl
     // at a negative value and ends at a positive one, narrow it down to
     // be closer to 0, because BinaryOpBoundary only checks end-points of
     // the domain ranges.
-
     // If the range of b contains 0, then some infinity will be involved
     if (b.min_value <= 0 && 0 <= b.max_value && dt.is_int()) {
       Entry b_neg = b.min_value < 0 ? MakeBound(b.min_value, -1) : Everything(dt);
@@ -603,6 +652,25 @@ class ConstIntBoundAnalyzer::Impl
     return ret;
   }
   /*!
+   * \brief Flip the sign of a set.
+   * \param entry The set of values
+   */
+  static Entry Negative(Entry entry) {
+    Entry ret;
+    if (entry.max_value == kPosInf) {
+      ret.min_value = kNegInf;
+    } else {
+      ret.min_value = -entry.max_value;
+    }
+    if (entry.min_value == kNegInf) {
+      ret.max_value = kPosInf;
+    } else {
+      ret.max_value = -entry.min_value;
+    }
+
+    return ret;
+  }
+  /*!
    * \brief return everything dtype can represent.
    * \param dtype The data type.
    * \return Bound that represent everything dtype can represent.
@@ -706,6 +774,164 @@ class ConstIntBoundAnalyzer::Impl
       return MakeBound(std::ceil(std::log2(arg_bounds.min_value)),
                        std::ceil(std::log2(arg_bounds.max_value)));
     }
+  }
+
+  std::optional<Entry> BoundUsingReciprocal(PrimExpr expr) {
+    // Match expressions of the form `(A+B)*C - (A*B)*D`.  Depending on
+    // previous simplifications, the exact form of the expression may vary.
+    auto opt_special_case = [&]() -> std::optional<std::tuple<Entry, Entry, Entry, Entry>> {
+      PVar<PrimExpr> A, B, C, D;
+
+      if (PMatchesOneOf{
+              (A + B) * C - (A * B) * D,
+              (A + B) * C - (B * A) * D,
+          }
+              .Match(expr)) {
+        return std::tuple{VisitExpr(A.Eval()), VisitExpr(B.Eval()), VisitExpr(C.Eval()),
+                          VisitExpr(D.Eval())};
+      } else if (PMatchesOneOf{
+                     (A + B) * C - A * B,
+                     (A + B) * C - B * A,
+                 }
+                     .Match(expr)) {
+        return std::tuple{VisitExpr(A.Eval()), VisitExpr(B.Eval()), VisitExpr(C.Eval()),
+                          MakeBound(1, 1)};
+      } else if (PMatchesOneOf{
+                     (A * B) * D - (A + B) * C,
+                     (B * A) * D - (A + B) * C,
+                 }
+                     .Match(expr)) {
+        return std::tuple{Negative(VisitExpr(A.Eval())), Negative(VisitExpr(B.Eval())),
+                          Negative(VisitExpr(C.Eval())), Negative(VisitExpr(D.Eval()))};
+      } else if (PMatchesOneOf{
+                     A * B - (A + B) * C,
+                     B * A - (A + B) * C,
+                 }
+                     .Match(expr)) {
+        return std::tuple{Negative(VisitExpr(A.Eval())), Negative(VisitExpr(B.Eval())),
+                          Negative(VisitExpr(C.Eval())), MakeBound(-1, -1)};
+      } else if (PMatchesOneOf{
+                     (A * B) * D + (A + B) * C,
+                     (B * A) * D + (A + B) * C,
+                     (A + B) * C + (A * B) * D,
+                     (A + B) * C + (B * A) * D,
+                 }
+                     .Match(expr)) {
+        return std::tuple{Negative(VisitExpr(A.Eval())), Negative(VisitExpr(B.Eval())),
+                          VisitExpr(C.Eval()), Negative(VisitExpr(D.Eval()))};
+      } else if (PMatchesOneOf{
+                     (A * B) + (A + B) * C,
+                     (B * A) + (A + B) * C,
+                     (A + B) * C + (A * B),
+                     (A + B) * C + (B * A),
+                 }
+                     .Match(expr)) {
+        return std::tuple{Negative(VisitExpr(A.Eval())), Negative(VisitExpr(B.Eval())),
+                          VisitExpr(C.Eval()), MakeBound(-1, -1)};
+      } else {
+        return std::nullopt;
+      }
+    }();
+
+    if (!opt_special_case.has_value()) {
+      return std::nullopt;
+    }
+    // Unpacking the tuple would be cleaner with a structured binding.
+    // However, until C++20, structured bindings cannot be captured for
+    // use in a lambda function.
+    auto A_bound = std::get<0>(*opt_special_case);
+    auto B_bound = std::get<1>(*opt_special_case);
+    auto C_bound = std::get<2>(*opt_special_case);
+    auto D_bound = std::get<3>(*opt_special_case);
+
+    // If C and D have different signs, flip the signs of A/B/C so
+    // that C will match the sign of D.
+    if ((D_bound.max_value < 0 && C_bound.min_value > 0) ||
+        (D_bound.min_value > 0 && C_bound.max_value < 0)) {
+      A_bound = Negative(A_bound);
+      B_bound = Negative(B_bound);
+      C_bound = Negative(C_bound);
+    }
+
+    // If all terms are negative, then we'll be providing an upper bound
+    // rather than a lower bound.  To avoid code duplication, flip all the
+    // signs here, find a lower bound, then flip the sign to produce the
+    // upper bound of the original expression.
+    bool all_terms_negative = (A_bound.max_value < 0 && B_bound.max_value < 0 &&
+                               C_bound.max_value < 0 && D_bound.max_value < 0);
+    if (all_terms_negative) {
+      A_bound = Negative(A_bound);
+      B_bound = Negative(B_bound);
+      C_bound = Negative(C_bound);
+      D_bound = Negative(D_bound);
+    }
+
+    bool all_terms_positive = (A_bound.min_value > 0 && B_bound.min_value > 0 &&
+                               C_bound.min_value > 0 && D_bound.min_value > 0);
+    if (!all_terms_positive) {
+      return std::nullopt;
+    }
+
+    // (A + B) * C - (A * B) * D
+    // (A*B*C*D) * ( (A+B)/(A*B*D) - 1/C )
+    // (A*B*C*D) * ( (1/A + 1/B)/D - 1/C )
+    // (A*B*C*D) * (1/(A*D) + 1/(B*D) - 1/C)
+    //
+    // The constant (A*B*C*D) is positive, and its minimum value is the
+    // product of the minimum values of A, B, C, and D.  If the reciprocal
+    // term (1/(A*D) + 1/(B*D) - 1/C) is positive, then this constant can
+    // be used to provide a lower bound on the expression.
+
+    bool reciprocal_term_is_positive = [&]() {
+      if (D_bound.max_value == ConstIntBound::kPosInf) {
+        // If D can grow without bound, the `1/(A*D)` and `1/(B*D)`
+        // terms will approach zero, at which point the `-1/C` term
+        // will determine the sign the sign.
+        return false;
+      }
+
+      if (std::min(A_bound.max_value, B_bound.max_value) * D_bound.max_value <= C_bound.min_value) {
+        // 1/(A*D) + 1/(B*D) - 1/C is positive if 1/C < 1/(A*D) + 1/(B*D).
+        // Since each term is positive, this condition can hold if either
+        // A*D <= C or B*D <= C.
+        return true;
+      }
+      if (A_bound.max_value != ConstIntBound::kPosInf &&
+          B_bound.max_value != ConstIntBound::kPosInf) {
+        // Even if neither term is sufficient on its own, if both A and B
+        // have known upper bounds, the inequality 1/C < 1/(A*D) + 1/(B*D)
+        // may still be provable.
+        //
+        // The maximum value of the LHS is found when C is minimized.  The
+        // minimum value of the RHS is found when A, B, and D are
+        // maximized.  If the condition holds in this case, then it holds
+        // in all cases.
+        //
+        // 1/C_min < 1/(A_max * D_max) + 1/(B_max*D_max)
+        // A_max*B_max*D_max < C_min*B_max + C_min*A_max
+        // A_max*B_max*D_max < C_min*(A_max + B_max)
+        //
+        if (A_bound.max_value * B_bound.max_value * D_bound.max_value <
+            C_bound.min_value * (A_bound.max_value + B_bound.max_value)) {
+          return true;
+        }
+      }
+      return false;
+    }();
+
+    if (!reciprocal_term_is_positive) {
+      return std::nullopt;
+    }
+
+    auto ret = Everything(expr->dtype);
+    ret.min_value = A_bound.min_value * B_bound.min_value * C_bound.min_value * D_bound.min_value;
+
+    // If we flipped the sign of the original expression, flip the sign of
+    // the resulting set of possible values.
+    if (all_terms_negative) {
+      ret = Negative(ret);
+    }
+    return ret;
   }
 };
 
