@@ -854,13 +854,13 @@ def LiftTransformParams(shared_transform: Union[bool, List[str]] = False) -> tvm
         produced for each function with the `"num_input"` attribute.
 
         - `True`: A single parameter transformation function will be produced,
-        containing thepreprocessing steps common across all functions with
+        containing the preprocessing steps common across all functions with
         the `"num_input"` attribute.
 
         - List[str]: A single parameter transformation function will be produced,
         containing the preprocessing steps common across each function whose
         name is in the list.  Passing a list of all functions with the `"num_input"`
-        attribute is equivalent to passing `True`.
+        attribute or an empty list is equivalent to passing `True`.
 
     Returns
     -------
