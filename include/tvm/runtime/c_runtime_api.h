@@ -553,6 +553,40 @@ TVM_DLL int TVMArrayCopyFromTo(TVMArrayHandle from, TVMArrayHandle to, TVMStream
 TVM_DLL int TVMArrayFromDLPack(DLManagedTensor* from, TVMArrayHandle* out);
 
 /*!
+ * \brief Produce an array from the TVMArray Informations that shares data memory
+ * with the DLManagedTensor.
+ * \param data The data pointer.
+ * \param dtype The data type.
+ * \param dev The device of the array.
+ * \param ndim The number of dimension of the array.
+ * \param shape The shape of the array.
+ * \param strides The stride of the array.
+ * \param byte_offset The byte offset of the array.
+ * \param out The output array handle.
+ * \note The data pointer will be managed by the TVMArray.
+ * \return 0 when success, nonzero when failure happens
+ */
+TVM_DLL int TVMArrayFromDLAttributes(void* data, DLDataType dtype, DLDevice dev, int ndim,
+                                     int64_t* shape, int64_t* strides, int64_t byte_offset,
+                                     TVMArrayHandle* out);
+
+/*!
+ * \brief Produce an array from the TVMArray Informations that shares data memory
+ * with the DLManagedTensor.
+ * \param data The data pointer.
+ * \param dtype The data type.
+ * \param dev The device of the array.
+ * \param ndim The number of dimension of the array.
+ * \param shape The shape of the array.
+ * \param strides The stride of the array.
+ * \param byte_offset The byte offset of the array.
+ * \param out The output array handle.
+ * \note The data pointer will be managed by the TVMArray.
+ * \return 0 when success, nonzero when failure happens
+ */
+TVM_DLL int TVMArrayFromDataPointerOnly(void* data, DLDevice dev, TVMArrayHandle* out);
+
+/*!
  * \brief Produce a DLMangedTensor from the array that shares data memory with
  * the array.
  * \param from The source array.

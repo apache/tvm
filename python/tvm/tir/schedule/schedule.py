@@ -1819,10 +1819,10 @@ class Schedule(Object):
 
             If `buffer` is a Buffer object, it must exist within the
             reads/writes of the block.
-        
+
         skip_simplify: bool
-            
-            Whether to skip the simplification of the reindexing, can be 
+
+            Whether to skip the simplification of the reindexing, can be
             used to preserve unit loop after reindex.
 
         Returns
@@ -3791,4 +3791,23 @@ class Schedule(Object):
             block,
             buf_type,
             buf_index_array,
+        )
+
+    @type_checked
+    def unsafe_rewrite_buffer_region(
+        self,
+        block: Union[BlockRV, str],
+        buffer: Union[Tuple[str, int], str, Buffer],
+        indices: List[Union[int, PrimExpr]],
+    ) -> None:
+
+        block = self._normalize_block_arg(block)
+        buffer_index_type, buffer_index, _ = self._normalize_buffer_arg(block, buffer)
+        buffer_index_type_enum = 0 if buffer_index_type == "read" else 1
+        _ffi_api.ScheduleUnsafeRewriteBufferAccess(  # type: ignore # pylint: disable=no-member
+            self,
+            block,
+            buffer_index,
+            buffer_index_type_enum,
+            indices,
         )

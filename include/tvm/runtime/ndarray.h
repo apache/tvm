@@ -179,6 +179,12 @@ class NDArray : public ObjectRef {
    * \return The created NDArray view.
    */
   TVM_DLL static NDArray FromDLPack(DLManagedTensor* tensor);
+
+  TVM_DLL static NDArray FromDLAttributes(void* data, DLDataType dtype, DLDevice dev, int ndim,
+                                          int64_t* shape, int64_t* strides, int64_t byte_offset);
+
+  TVM_DLL static NDArray FromDataPointerOnly(void* data, DLDevice dev);
+
   /*!
    * \brief Function to copy data from one array to another.
    * \param from The source array.

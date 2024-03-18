@@ -275,6 +275,41 @@ NDArray NDArray::FromDLPack(DLManagedTensor* tensor) {
   return NDArray(GetObjectPtr<Object>(data));
 }
 
+NDArray NDArray::FromDLAttributes(void* data, DLDataType dtype, DLDevice dev, int ndim,
+                                  int64_t* shape, int64_t* strides, int64_t byte_offset) {
+  NDArray::Container* container = new NDArray::Container();
+  container->manager_ctx = nullptr;
+  // construct deleter
+  container->SetDeleter(Internal::SelfDeleter);
+  // fill up content.
+  DLTensor from;
+  from.data = const_cast<void*>(data);
+  from.device = dev;
+  from.ndim = ndim;
+  from.dtype = dtype;
+  from.shape = shape;
+  from.strides = strides;
+  from.byte_offset = byte_offset;
+  container->dl_tensor = from;
+  ICHECK(IsAligned(container->dl_tensor))
+      << "Data in DLManagedTensor is not aligned as required by NDArray";
+  // update shape_
+  std::vector<ShapeTuple::index_type> container_shape;
+  container_shape.resize(from.ndim);
+  container_shape.assign(from.shape, from.shape + from.ndim);
+  container->shape_ = ShapeTuple(container_shape);
+  container->dl_tensor.shape = const_cast<ShapeTuple::index_type*>(container->shape_.data());
+  return NDArray(GetObjectPtr<Object>(container));
+}
+
+NDArray NDArray::FromDataPointerOnly(void* data, DLDevice dev) {
+  NDArray::Container* container = new NDArray::Container();
+  container->dl_tensor.data = data;
+  container->dl_tensor.device = dev;
+  return NDArray(GetObjectPtr<Object>(container));
+}
+
+
 void NDArray::CopyToBytes(void* data, size_t nbytes) const {
   ICHECK(data != nullptr);
   ICHECK(data_ != nullptr);
@@ -381,6 +416,21 @@ int TVMArrayCopyFromTo(TVMArrayHandle from, TVMArrayHandle to, TVMStreamHandle s
 int TVMArrayFromDLPack(DLManagedTensor* from, TVMArrayHandle* out) {
   API_BEGIN();
   *out = NDArray::Internal::MoveToFFIHandle(NDArray::FromDLPack(from));
+  API_END();
+}
+
+int TVMArrayFromDLAttributes(void* data, DLDataType dtype, DLDevice dev, int ndim, int64_t* shape,
+                             int64_t* strides, int64_t byte_offset, TVMArrayHandle* out) {
+  API_BEGIN();
+  *out = NDArray::Internal::MoveToFFIHandle(
+      NDArray::FromDLAttributes(data, dtype, dev, ndim, shape, strides, byte_offset));
+  API_END();
+}
+
+int TVMArrayFromDataPointerOnly(void* data, DLDevice dev, TVMArrayHandle* out) {
+  API_BEGIN();
+  *out = NDArray::Internal::MoveToFFIHandle(
+      NDArray::FromDataPointerOnly(data, dev));
   API_END();
 }
 
