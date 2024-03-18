@@ -1768,6 +1768,17 @@ PrimExpr RewriteSimplifier::Impl::ApplyRewriteRules(LT ret) {
     if (merge_constants) {
       return RecursiveRewrite(merge_constants.value());
     }
+
+    auto common_factor = [&]() -> int64_t {
+      auto modular_a = analyzer_->modular_set(ret->a);
+      auto modular_b = analyzer_->modular_set(ret->b);
+      auto gcd_lhs = ZeroAwareGCD(modular_a->base, modular_a->coeff);
+      auto gcd_rhs = ZeroAwareGCD(modular_b->base, modular_b->coeff);
+      return ZeroAwareGCD(gcd_lhs, gcd_rhs);
+    }();
+    if (common_factor > 1) {
+      return RecursiveRewrite(floordiv(ret->a, common_factor) < floordiv(ret->b, common_factor));
+    }
   }
   return std::move(ret);
 }
