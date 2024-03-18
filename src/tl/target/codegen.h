@@ -18,11 +18,11 @@
  */
 
 /*!
- * \file codegen.h
+ * \file target/codegen.h
  * \brief Utility to generate code
  */
-#ifndef TVM_TL_CODEGEN_H_
-#define TVM_TL_CODEGEN_H_
+#ifndef TVM_TL_TARGET_CODEGEN_H_
+#define TVM_TL_TARGET_CODEGEN_H_
 
 #include <tvm/target/codegen.h>
 #include <tvm/tir/expr.h>
@@ -31,7 +31,7 @@
 #include <string>
 #include <unordered_map>
 
-#include "../target/source/codegen_c.h"
+#include "../../target/source/codegen_c.h"
 
 namespace tvm {
 namespace codegen {
@@ -82,4 +82,4 @@ class CodeGenTL final : public CodeGenC {
 }  // namespace codegen
 }  // namespace tvm
 
-#endif  // TVM_TL_CODEGEN_H_
+#endif  // TVM_TL_TARGET_CODEGEN_H_

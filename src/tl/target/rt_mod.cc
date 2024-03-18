@@ -17,8 +17,8 @@
  * under the License.
  */
 
-#include "../runtime/cuda/cuda_module.h"
-#include "../target/build_common.h"
+#include "../../runtime/cuda/cuda_module.h"
+#include "../../target/build_common.h"
 #include "codegen.h"
 
 namespace tvm {

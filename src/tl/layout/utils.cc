@@ -18,17 +18,15 @@
  */
 
 /*!
- * \file arith.cc
+ * \file layout/utils.cc
  * \brief Some arith tools for layout & fragment inference
  *
  */
 
-#include "arith.h"
+#include "utils.h"
 
 #include <tvm/tir/op.h>
 #include <tvm/tir/stmt_functor.h>
-
-#include "helper.h"
 
 namespace tvm {
 namespace tl {
@@ -242,6 +240,22 @@ std::pair<PrimExpr, IterVar> CompressIterator(const PrimExpr& expr,
   PrimExpr reaplced = analyzer->Simplify(NormalizeIterMapToExpr(mutator.Mutate(iter_sum)));
 
   return {reaplced, new_iter_var};
+}
+
+Array<IterVar> ToIterVars(const Map<Var, Range>& vmap) {
+  Array<IterVar> result;
+  for (const auto& [var, range] : vmap) {
+    result.push_back(IterVar(range, var, IterVarType::kDataPar));
+  }
+  return result;
+}
+
+Map<Var, Range> ToVMap(const Array<IterVar>& ivs) {
+  Map<Var, Range> result;
+  for (const auto& iv : ivs) {
+    result.Set(iv->var, iv->dom);
+  }
+  return result;
 }
 
 }  // namespace tl

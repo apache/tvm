@@ -28,8 +28,8 @@
 #include <tvm/target/target.h>
 #include <tvm/tir/stmt_functor.h>
 
+#include "../op.h"
 #include "layout.h"
-#include "op.h"
 
 namespace tvm {
 namespace tl {

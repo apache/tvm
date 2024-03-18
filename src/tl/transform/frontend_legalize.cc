@@ -26,9 +26,9 @@
 #include <tvm/tir/stmt_functor.h>
 #include <tvm/tir/transform.h>
 
-#include "../arith/ir_mutator_with_analyzer.h"
-#include "layout.h"
-#include "op.h"
+#include "../../arith/ir_mutator_with_analyzer.h"
+#include "../layout/layout.h"
+#include "../op.h"
 
 namespace tvm {
 namespace tl {

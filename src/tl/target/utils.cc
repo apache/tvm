@@ -18,11 +18,11 @@
  */
 
 /*!
- * \file tl/target_utils.cc
+ * \file tl/target/utils.cc
  * \brief helper functions for target attributes.
  */
 
-#include "target_utils.h"
+#include "utils.h"
 
 namespace tvm {
 namespace tl {

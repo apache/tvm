@@ -18,7 +18,7 @@
  */
 
 /*!
- * \file Layout.cc
+ * \file layout/layout.cc
  * \brief Define Layout used in MMA and other operations.
  *
  */
@@ -29,9 +29,8 @@
 #include <tvm/tir/op.h>
 #include <tvm/tir/stmt_functor.h>
 
-#include "../arith/pattern_match.h"
-#include "arith.h"
-#include "helper.h"
+#include "../../arith/pattern_match.h"
+#include "utils.h"
 
 namespace tvm {
 namespace tl {

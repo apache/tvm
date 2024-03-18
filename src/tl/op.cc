@@ -29,8 +29,6 @@
 #include <tvm/tir/op.h>
 #include <tvm/tir/op_attr_types.h>
 
-#include "helper.h"
-
 namespace tvm {
 namespace tl {
 

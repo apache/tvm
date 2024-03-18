@@ -18,7 +18,7 @@
  */
 
 /*!
- * \file codegen_cuda.cc
+ * \file target/codegen.cc
  */
 
 #include "codegen.h"
@@ -31,7 +31,7 @@
 #include <utility>
 #include <vector>
 
-#include "op.h"
+#include "../op.h"
 
 namespace tvm {
 namespace codegen {

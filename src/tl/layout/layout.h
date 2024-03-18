@@ -23,8 +23,8 @@
  *
  */
 
-#ifndef TVM_TL_LAYOUT_H_
-#define TVM_TL_LAYOUT_H_
+#ifndef TVM_TL_LAYOUT_LAYOUT_H_
+#define TVM_TL_LAYOUT_LAYOUT_H_
 
 #include <tvm/arith/analyzer.h>
 
@@ -153,4 +153,4 @@ constexpr const char* kLayoutMap = "layout_map";
 }  // namespace tl
 }  // namespace tvm
 
-#endif  // TVM_TL_LAYOUT_H_
+#endif  // TVM_TL_LAYOUT_LAYOUT_H_

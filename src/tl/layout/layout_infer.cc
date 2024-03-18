@@ -18,7 +18,7 @@
  */
 
 /*!
- * \file tl/layout_infer.cc
+ * \file layout/layout_infer.cc
  * \brief Infer layout from ops and parallel for
  */
 
@@ -26,10 +26,10 @@
 
 #include <tvm/tir/op.h>
 
-#include "arith.h"
-#include "auto_vectorize.h"
-#include "loop_partition.h"
-#include "target_utils.h"
+#include "../target/utils.h"
+#include "../transform/loop_partition.h"
+#include "../transform/loop_vectorize.h"
+#include "utils.h"
 
 namespace tvm {
 namespace tl {

@@ -27,7 +27,7 @@
 #include <tvm/tir/stmt_functor.h>
 #include <tvm/tir/transform.h>
 
-#include "target_utils.h"
+#include "../target/utils.h"
 
 namespace tvm {
 namespace tl {

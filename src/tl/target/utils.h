@@ -18,28 +18,28 @@
  */
 
 /*!
- * \file tl/helper.h
- * \brief helper functions for tile library.
+ * \file tl/target/utils.h
+ * \brief helper functions for target attributes.
  *
  */
 
-#ifndef TVM_TL_HELPER_H_
-#define TVM_TL_HELPER_H_
+#ifndef TVM_TL_TARGET_UTILS_H_
+#define TVM_TL_TARGET_UTILS_H_
 
-#include <tvm/ir/expr.h>
-#include <tvm/runtime/container/array.h>
-#include <tvm/tir/expr.h>
+#include <tvm/target/target.h>
 
 namespace tvm {
 namespace tl {
 
-using namespace tir;
+bool TargetIsCuda(const TargetNode* target);
 
-Map<Var, Range> ToVMap(const Array<IterVar>& ivs);
+bool TargetIsVolta(const TargetNode* target);
+bool TargetIsTuring(const TargetNode* target);
+bool TargetIsAmpere(const TargetNode* target);
 
-Array<IterVar> ToIterVars(const Map<Var, Range>& vmap);
+bool TargetHasAsyncCopy(const TargetNode* target);
 
 }  // namespace tl
 }  // namespace tvm
 
-#endif  // TVM_TL_HELPER_H_
+#endif  // TVM_TL_TARGET_UTILS_H_

@@ -18,12 +18,12 @@
  */
 
 /*!
- * \file auto_vectorize.h
+ * \file loop_vectorize.h
  * \brief A tool to automatically vectorize a for loop
  */
 
-#ifndef TVM_TL_AUTO_VECTORIZE_H_
-#define TVM_TL_AUTO_VECTORIZE_H_
+#ifndef TVM_TL_LOOP_VECTORIZE_H_
+#define TVM_TL_LOOP_VECTORIZE_H_
 
 #include <tvm/tir/op.h>
 
@@ -38,4 +38,4 @@ Stmt VectorizeLoop(const For& loop, int vectorize_hint = -1);
 }  // namespace tl
 }  // namespace tvm
 
-#endif  // TVM_TL_AUTO_VECTORIZE_H_
+#endif  // TVM_TL_LOOP_VECTORIZE_H_

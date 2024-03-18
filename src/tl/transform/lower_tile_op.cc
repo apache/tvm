@@ -26,12 +26,11 @@
 #include <tvm/tir/stmt_functor.h>
 #include <tvm/tir/transform.h>
 
-#include "../arith/ir_mutator_with_analyzer.h"
-#include "arith.h"
-#include "helper.h"
-#include "layout.h"
+#include "../../arith/ir_mutator_with_analyzer.h"
+#include "../layout/layout.h"
+#include "../layout/utils.h"
+#include "../op.h"
 #include "loop_partition.h"
-#include "op.h"
 
 namespace tvm {
 namespace tl {

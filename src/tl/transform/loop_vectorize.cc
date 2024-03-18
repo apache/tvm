@@ -18,11 +18,11 @@
  */
 
 /*!
- * \file auto_vectorize.cc
+ * \file loop_vectorize.cc
  * \brief A tool to automatically vectorize a for loop
  */
 
-#include "auto_vectorize.h"
+#include "loop_vectorize.h"
 
 #include <tvm/arith/iter_affine_map.h>
 #include <tvm/tir/builtin.h>
@@ -30,10 +30,10 @@
 
 #include <numeric>
 
-#include "../arith/int_operator.h"
-#include "../arith/ir_visitor_with_analyzer.h"
-#include "helper.h"
-#include "layout.h"
+#include "../../arith/int_operator.h"
+#include "../../arith/ir_visitor_with_analyzer.h"
+#include "../layout/layout.h"
+#include "../layout/utils.h"
 
 namespace tvm {
 namespace tl {

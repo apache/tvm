@@ -2,7 +2,7 @@
  * Licensed to the Apache Software Foundation (ASF) under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
- * regarding copyright ownership.  The ASF licenses this file
+ * regarding copyright ownership. The ASF licenses this file
  * to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
@@ -18,34 +18,30 @@
  */
 
 /*!
- * \file tl/helper.cc
- * \brief helper functions for tile library.
+ * \file loop_partition.h
+ * \brief Partition parallel loops onto threads
  */
 
-#include "helper.h"
+#ifndef TVM_TL_LOOP_PARTITION_H_
+#define TVM_TL_LOOP_PARTITION_H_
 
-#include "op.h"
+#include <tvm/tir/op.h>
+
+#include "../layout/layout.h"
 
 namespace tvm {
 namespace tl {
 
 using namespace tir;
 
-Array<IterVar> ToIterVars(const Map<Var, Range>& vmap) {
-  Array<IterVar> result;
-  for (const auto& [var, range] : vmap) {
-    result.push_back(IterVar(range, var, IterVarType::kDataPar));
-  }
-  return result;
-}
+Stmt PartitionLoop(const ForNode* op, const Var& thread, arith::Analyzer* analyzer,
+                   const Fragment& loop_layout);
 
-Map<Var, Range> ToVMap(const Array<IterVar>& ivs) {
-  Map<Var, Range> result;
-  for (const auto& iv : ivs) {
-    result.Set(iv->var, iv->dom);
-  }
-  return result;
-}
+Fragment PlanLoopPartition(const ForNode* op, size_t num_thread, int vectorize_size);
+
+Stmt LoopPragmaUnroll(Stmt stmt);
 
 }  // namespace tl
 }  // namespace tvm
+
+#endif  // TVM_TL_LOOP_PARTITION_H_

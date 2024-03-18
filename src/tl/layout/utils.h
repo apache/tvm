@@ -18,13 +18,13 @@
  */
 
 /*!
- * \file arith.h
+ * \file layout/utils.h
  * \brief Some arith tools for layout & fragment inference
  *
  */
 
-#ifndef TVM_TL_ARITH_H_
-#define TVM_TL_ARITH_H_
+#ifndef TVM_TL_LAYOUT_UTILS_H_
+#define TVM_TL_LAYOUT_UTILS_H_
 
 #include <tvm/arith/iter_affine_map.h>
 
@@ -58,7 +58,19 @@ std::pair<PrimExpr, IterVar> CompressIterator(const PrimExpr& expr,
  */
 PrimExpr MakeFlattenedExpression(const Array<arith::IterSplitExpr>& splits);
 
+/*!
+ * \brief Convert an Array of IterVar to a Map object
+ *
+ */
+Map<Var, Range> ToVMap(const Array<IterVar>& ivs);
+
+/*!
+ * \brief Convert a Map object to an Array of IterVar
+ *
+ */
+Array<IterVar> ToIterVars(const Map<Var, Range>& vmap);
+
 }  // namespace tl
 }  // namespace tvm
 
-#endif  // TVM_TL_ARITH_H_
+#endif  // TVM_TL_LAYOUT_UTILS_H_

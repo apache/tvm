@@ -29,10 +29,10 @@
 
 #include <queue>
 
-#include "../arith/ir_mutator_with_analyzer.h"
-#include "auto_vectorize.h"
-#include "layout_infer.h"
+#include "../../arith/ir_mutator_with_analyzer.h"
+#include "../layout/layout_infer.h"
 #include "loop_partition.h"
+#include "loop_vectorize.h"
 
 namespace tvm {
 namespace tl {
