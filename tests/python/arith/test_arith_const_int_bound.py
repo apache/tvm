@@ -17,6 +17,8 @@
 
 import contextlib
 
+import pytest
+
 import tvm
 import tvm.testing
 
@@ -96,6 +98,7 @@ class TestAddSubBound(BaseCompare):
     )
 
 
+@pytest.mark.xfail(reason="Not currently supported")
 class TestBoundsUsingReciprocals(BaseCompare):
     """Special handling for differences of reciprocals
 

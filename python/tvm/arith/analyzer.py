@@ -14,10 +14,36 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+# pylint: disable=invalid-name
 """Arithmetic data structure and utility"""
+import enum
+from typing import Union
+
 import tvm._ffi
+from tvm import tir, ir
 from tvm.runtime import Object
+
 from . import _ffi_api
+
+
+class ProofStrength(enum.IntEnum):
+    """Proof strength of the analysis"""
+
+    DEFAULT = 0
+    SYMBOLIC_BOUND = 1
+
+
+class Extension(enum.Flag):
+    """Extensions enabled for RewriteSimplifier
+
+    Values should match `RewriteSimplifier::Extensions`
+    """
+
+    NoExtensions = 0
+    TransitivelyProveInequalities = 1 << 0
+    ConvertBooleanToAndOfOrs = 1 << 1
+    ApplyConstraintsToBooleanBranches = 1 << 2
+    ComparisonOfProductAndSum = 1 << 3
 
 
 @tvm._ffi.register_object("arith.ModularSet")
@@ -87,10 +113,15 @@ class Analyzer:
         self._modular_set = _mod("modular_set")
         self._simplify = _mod("Simplify")
         self._rewrite_simplify = _mod("rewrite_simplify")
+        self._get_rewrite_simplify_stats = _mod("get_rewrite_simplify_stats")
+        self._reset_rewrite_simplify_stats = _mod("reset_rewrite_simplify_stats")
         self._canonical_simplify = _mod("canonical_simplify")
         self._int_set = _mod("int_set")
         self._enter_constraint_context = _mod("enter_constraint_context")
         self._can_prove_equal = _mod("can_prove_equal")
+        self._can_prove = _mod("can_prove")
+        self._get_enabled_extensions = _mod("get_enabled_extensions")
+        self._set_enabled_extensions = _mod("set_enabled_extensions")
 
     def const_int_bound(self, expr):
         """Find constant integer bound for expr.
@@ -157,6 +188,13 @@ class Analyzer:
         """
         return self._rewrite_simplify(expr)
 
+    @property
+    def rewrite_simplify_stats(self):
+        return self._get_rewrite_simplify_stats()
+
+    def reset_rewrite_simplify_stats(self):
+        self._reset_rewrite_simplify_stats()
+
     def canonical_simplify(self, expr):
         """Simplify expression via canonicalization.
 
@@ -190,7 +228,25 @@ class Analyzer:
         """
         return self._int_set(expr, dom_map)
 
-    def bind(self, var, expr):
+    def can_prove(self, expr, strength=ProofStrength.DEFAULT):
+        """Check whether we can prove expr to be true.
+
+        Parameters
+        ----------
+        expr : PrimExpr
+            The expression.
+
+        strength: ProofStrength
+            The proof strength
+
+        Returns
+        -------
+        result : Expr
+            The result.
+        """
+        return self._can_prove(expr, strength)
+
+    def bind(self, var: tir.Var, expr: Union[tir.PrimExpr, ir.Range]):
         """Bind a variable to the expression.
 
         Parameters
@@ -198,8 +254,8 @@ class Analyzer:
         var : tvm.tir.Var
             The variable.
 
-        expr : PrimExpr
-            The expression.
+        expr : Union[tir.PrimExpr, ir.Range]
+            The expression or the range to bind to.
         """
         return self._bind(var, expr)
 
@@ -270,3 +326,22 @@ class Analyzer:
             Whether we can prove that lhs == rhs
         """
         return self._can_prove_equal(lhs, rhs)
+
+    @property
+    def enabled_extensions(self) -> Extension:
+        """Return the currently enabled extensions"""
+        value = self._get_enabled_extensions()
+        return Extension(value)
+
+    @enabled_extensions.setter
+    def enabled_extensions(self, flags: Union[int, Extension]):
+        """Enable extensions for the analyzer
+
+        Parameters
+        ----------
+        flags: Union[int,Extension]
+
+            The extensions to enable.
+        """
+        flags = Extension(flags).value
+        self._set_enabled_extensions(flags)
