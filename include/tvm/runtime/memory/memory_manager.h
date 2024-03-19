@@ -71,19 +71,22 @@ class Allocator {
   /*! \brief Return the allocator type. */
   inline AllocatorType type() const { return type_; }
   /*! \brief Allocate a buffer given a size, alignment and type.
+   *  \param dev The device where the array is allocated.
    *  \param nbytes The size of the buffer.
    *  \param alignment The alignment of the buffer.
    *  \param type_hint A type hint to the allocator.
    *  \return A sized allocation in the form of a buffer.
    */
-  TVM_DLL virtual Buffer Alloc(size_t nbytes, size_t alignment, DLDataType type_hint) = 0;
+  TVM_DLL virtual Buffer Alloc(Device dev, size_t nbytes, size_t alignment,
+                               DLDataType type_hint) = 0;
   /*! \brief Allocate a buffer given a shape and type.
+   *  \param dev The device where the array is allocated.
    *  \param shape The shape of the tensor.
    *  \param type_hint A type hint to the allocator.
    *  \param mem_scope A memory scope of the buffer.
    *  \return A sized allocation in the form of a buffer.
    */
-  TVM_DLL virtual Buffer Alloc(ShapeTuple shape, DLDataType type_hint,
+  TVM_DLL virtual Buffer Alloc(Device dev, ShapeTuple shape, DLDataType type_hint,
                                const std::string& mem_scope = "") = 0;
   /*! \brief Free a buffer allocated by the allocator.
    *  \param buffer The buffer to free.
@@ -95,10 +98,6 @@ class Allocator {
    *  \return The amount of memory currently allocated.
    */
   TVM_DLL virtual size_t UsedMemory() const = 0;
-
- protected:
-  TVM_DLL virtual Buffer Alloc(Device dev, ShapeTuple shape, DLDataType type_hint,
-                               const std::string& mem_scope);
 
  private:
   AllocatorType type_;

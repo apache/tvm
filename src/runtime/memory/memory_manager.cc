@@ -138,12 +138,12 @@ Allocator* MemoryManager::GetOrCreateAllocator(Device dev, AllocatorType type) {
     switch (type) {
       case kNaive: {
         VLOG(1) << "New naive allocator for " << dev;
-        alloc.reset(new NaiveAllocator(dev));
+        alloc.reset(new NaiveAllocator());
         break;
       }
       case kPooled: {
         VLOG(1) << "New pooled allocator for " << dev;
-        alloc.reset(new PooledAllocator(dev));
+        alloc.reset(new PooledAllocator());
         break;
       }
       default:
@@ -194,9 +194,9 @@ NDArray Allocator::Empty(ShapeTuple shape, DLDataType dtype, DLDevice dev,
   size_t alignment = GetDataAlignment(container->dl_tensor);
   Buffer* buffer = new Buffer;
   if (!mem_scope.defined() || mem_scope.value().empty() || mem_scope.value() == "global") {
-    *buffer = this->Alloc(size, alignment, dtype);
+    *buffer = this->Alloc(dev, size, alignment, dtype);
   } else {
-    *buffer = this->Alloc(shape, dtype, mem_scope.value());
+    *buffer = this->Alloc(dev, shape, dtype, mem_scope.value());
   }
   container->manager_ctx = reinterpret_cast<void*>(buffer);
   container->dl_tensor.data = buffer->data;
@@ -210,7 +210,7 @@ Buffer Allocator::Alloc(Device dev, ShapeTuple shape, DLDataType type_hint,
     NDArray::Container container(nullptr, shape, type_hint, dev);
     size_t size = DeviceAPI::Get(dev)->GetDataSize(container.dl_tensor);
     size_t alignment = GetDataAlignment(container.dl_tensor);
-    return Alloc(size, alignment, type_hint);
+    return Alloc(dev, size, alignment, type_hint);
   }
   LOG(FATAL) << "Allocator cannot allocate data space with "
              << "specified memory scope: " << mem_scope;
