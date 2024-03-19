@@ -20,13 +20,11 @@ with the distributed runtime.
 
 import os
 import pickle
-
-
 from typing import Any, Callable, Optional, Sequence, Union
 
 import numpy as np
 
-from ..._ffi import register_object, register_func
+from ..._ffi import get_global_func, register_func, register_object
 from ..._ffi.runtime_ctypes import Device
 from ..container import ShapeTuple
 from ..ndarray import NDArray
@@ -283,7 +281,8 @@ class Session(Object):
             The device IDs to be used by the underlying communication library.
         """
         assert ccl in ("nccl", "rccl"), f"Unsupported CCL backend: {ccl}"
-        return _ffi_api.SessionInitCCL(self, ccl, ShapeTuple(device_ids))  # type: ignore # pylint: disable=no-member
+        _ffi_api.SessionInitCCL(self, ccl, ShapeTuple(device_ids))  # type: ignore # pylint: disable=no-member
+        self._clear_ipc_memory_pool()
 
     def broadcast_from_worker0(self, src: DRef, dst: DRef) -> DRef:
         """Broadcast an array from worker-0 to all other workers.
@@ -364,6 +363,12 @@ class Session(Object):
         """
         func = self._get_cached_method("runtime.disco.allgather")
         func(src, dst)
+
+    def _clear_ipc_memory_pool(self):
+        # Clear the IPC memory allocator when the allocator exists.
+        name = "runtime.disco.cuda_ipc.cuda_ipc_memory_allocator_clear"
+        if get_global_func(name, allow_missing=True) is not None:
+            self.call_packed(self.get_global_func(name))
 
 
 @register_object("runtime.disco.ThreadedSession")

@@ -43,9 +43,10 @@ static void BufferDeleter(Object* obj) {
   delete ptr;
 }
 
-Storage::Storage(Buffer buffer) {
+Storage::Storage(Buffer buffer, Allocator* allocator) {
   auto n = make_object<StorageObj>();
   n->buffer = std::move(buffer);
+  n->allocator = allocator;
   data_ = std::move(n);
 }
 
@@ -203,9 +204,13 @@ NDArray Allocator::Empty(ShapeTuple shape, DLDataType dtype, DLDevice dev,
   return NDArray(GetObjectPtr<Object>(container));
 }
 
+bool Allocator::AllowMemoryScope(const std::string& mem_scope) const {
+  return mem_scope.empty() || mem_scope == "global";
+}
+
 Buffer Allocator::Alloc(Device dev, ShapeTuple shape, DLDataType type_hint,
                         const std::string& mem_scope) {
-  if (mem_scope.empty() || mem_scope == "global") {
+  if (AllowMemoryScope(mem_scope)) {
     // by default, we can always redirect to the flat memory allocations
     NDArray::Container container(nullptr, shape, type_hint, dev);
     size_t size = DeviceAPI::Get(dev)->GetDataSize(container.dl_tensor);
