@@ -33,6 +33,7 @@ def reset_seed():
 
 pytestmark = [*tvm.testing.requires_cublas.marks()]
 
+
 def build_and_run(mod, inputs_np, target, legalize=False, cuda_graph=False):
     dev = tvm.device(target, 0)
     with tvm.transform.PassContext(
