@@ -823,6 +823,7 @@ void VirtualMachine::RunLoop(const std::vector<Index>& output_tensor_reg_indices
 
         auto storage_obj = SimpleObjAllocator().make_object<StorageObj>();
         Allocator* allocator = GetAllocator(instr.alloc_storage.device_index);
+        Device device = devices_[instr.alloc_storage.device_index];
         ICHECK(allocator) << "Did you forget to init the VirtualMachine with devices?";
 
         if (instr.alloc_storage.ndim > 0) {
@@ -844,15 +845,16 @@ void VirtualMachine::RunLoop(const std::vector<Index>& output_tensor_reg_indices
           shape_.resize(instr.alloc_storage.ndim);
           shape_.assign(instr.alloc_storage.shape,
                         instr.alloc_storage.shape + instr.alloc_storage.ndim);
-          storage_obj->buffer =
-              allocator->Alloc(ShapeTuple(shape_), instr.alloc_storage.dtype_hint, mem_scope);
+          storage_obj->buffer = allocator->Alloc(device, ShapeTuple(shape_),
+                                                 instr.alloc_storage.dtype_hint, mem_scope);
         } else {
           auto size = LoadScalarInt(instr.alloc_storage.allocation_size);
           auto alignment = instr.alloc_storage.alignment;
           VLOG(2) << "allocating with allocation_size=" << size << ", alignment=" << alignment
                   << ", dtype_hint=" << DLDataType2String(instr.alloc_storage.dtype_hint)
                   << ", device_index=" << instr.alloc_storage.device_index;
-          storage_obj->buffer = allocator->Alloc(size, alignment, instr.alloc_storage.dtype_hint);
+          storage_obj->buffer =
+              allocator->Alloc(device, size, alignment, instr.alloc_storage.dtype_hint);
         }
         Storage storage(storage_obj);
         WriteRegister(instr.dst, storage);

@@ -35,29 +35,30 @@ namespace memory {
 
 class NaiveAllocator final : public Allocator {
  public:
-  explicit NaiveAllocator(Device dev) : Allocator(kNaive), used_memory_(0), device_(dev) {}
+  explicit NaiveAllocator() : Allocator(kNaive), used_memory_(0) {}
 
-  Buffer Alloc(size_t nbytes, size_t alignment, DLDataType type_hint) override {
+  Buffer Alloc(Device dev, size_t nbytes, size_t alignment, DLDataType type_hint) final {
     Buffer buf;
-    buf.device = device_;
+    buf.device = dev;
     buf.size = nbytes;
     buf.alloc_type = kNaive;
-    buf.data = DeviceAPI::Get(device_)->AllocDataSpace(device_, nbytes, alignment, type_hint);
+    buf.data = DeviceAPI::Get(dev)->AllocDataSpace(dev, nbytes, alignment, type_hint);
     used_memory_.fetch_add(nbytes, std::memory_order_relaxed);
     DLOG(INFO) << "allocate " << nbytes << " B, used memory " << used_memory_ << " B";
     return buf;
   }
 
-  Buffer Alloc(ShapeTuple shape, DLDataType type_hint, const std::string& mem_scope) override {
+  Buffer Alloc(Device dev, ShapeTuple shape, DLDataType type_hint,
+               const std::string& mem_scope) final {
     Buffer buf;
     size_t nbytes = 1;
     for (int i = 0; i < static_cast<int>(shape.size()); ++i) {
       nbytes *= static_cast<size_t>(shape[i]);
     }
     nbytes *= (type_hint.bits * type_hint.lanes + 7) / 8;
-    buf.device = device_;
+    buf.device = dev;
     if (mem_scope.empty() || mem_scope == "global") {
-      auto tmp_buf = Allocator::Alloc(device_, shape, type_hint, mem_scope);
+      auto tmp_buf = Allocator::Alloc(dev, shape, type_hint, mem_scope);
       buf.size = tmp_buf.size;
       buf.data = tmp_buf.data;
       buf.alloc_type = kNaive;
@@ -65,8 +66,8 @@ class NaiveAllocator final : public Allocator {
     }
 
     buf.size = nbytes;
-    buf.data = DeviceAPI::Get(device_)->AllocDataSpace(device_, shape.size(), shape.data(),
-                                                       type_hint, String(mem_scope));
+    buf.data = DeviceAPI::Get(dev)->AllocDataSpace(dev, shape.size(), shape.data(), type_hint,
+                                                   String(mem_scope));
     used_memory_.fetch_add(nbytes, std::memory_order_relaxed);
     DLOG(INFO) << "allocate " << nbytes << " B, used memory " << used_memory_ << " B";
     buf.alloc_type = kNaive;
@@ -74,7 +75,7 @@ class NaiveAllocator final : public Allocator {
   }
 
   void Free(const Buffer& buffer) override {
-    DeviceAPI::Get(device_)->FreeDataSpace(buffer.device, buffer.data);
+    DeviceAPI::Get(buffer.device)->FreeDataSpace(buffer.device, buffer.data);
     used_memory_.fetch_sub(buffer.size, std::memory_order_relaxed);
     DLOG(INFO) << "free " << buffer.size << " B, used memory " << used_memory_ << " B";
   }
@@ -83,7 +84,6 @@ class NaiveAllocator final : public Allocator {
 
  private:
   std::atomic<size_t> used_memory_;
-  Device device_;
 };
 
 }  // namespace memory

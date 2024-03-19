@@ -40,12 +40,12 @@ class PooledAllocator final : public Allocator {
  public:
   static constexpr size_t kDefaultPageSize = 4096;
 
-  explicit PooledAllocator(Device dev, size_t page_size = kDefaultPageSize)
-      : Allocator(kPooled), page_size_(page_size), used_memory_(0), device_(dev) {}
+  explicit PooledAllocator(size_t page_size = kDefaultPageSize)
+      : Allocator(kPooled), page_size_(page_size), used_memory_(0) {}
 
   ~PooledAllocator() { ReleaseAll(); }
 
-  Buffer Alloc(size_t nbytes, size_t alignment, DLDataType type_hint) override {
+  Buffer Alloc(Device dev, size_t nbytes, size_t alignment, DLDataType type_hint) override {
     std::lock_guard<std::recursive_mutex> lock(mu_);
     size_t size = ((nbytes + page_size_ - 1) / page_size_) * page_size_;
     auto&& it = memory_pool_.find(size);
@@ -56,16 +56,16 @@ class PooledAllocator final : public Allocator {
       return ret;
     }
     Buffer buf;
-    buf.device = device_;
+    buf.device = dev;
     buf.size = size;
     buf.alloc_type = kPooled;
     try {
-      buf.data = DeviceAPI::Get(device_)->AllocDataSpace(device_, size, alignment, type_hint);
+      buf.data = DeviceAPI::Get(dev)->AllocDataSpace(dev, size, alignment, type_hint);
     } catch (InternalError& err) {
       LOG(WARNING) << "PooledAllocator got InternalError during allocation: " << err.message();
       LOG(WARNING) << "Trying to release all unused memory and reallocate...";
       ReleaseAll();
-      buf.data = DeviceAPI::Get(device_)->AllocDataSpace(device_, size, alignment, type_hint);
+      buf.data = DeviceAPI::Get(dev)->AllocDataSpace(dev, size, alignment, type_hint);
     }
 
     used_memory_.fetch_add(size, std::memory_order_relaxed);
@@ -73,9 +73,10 @@ class PooledAllocator final : public Allocator {
     return buf;
   }
 
-  Buffer Alloc(ShapeTuple shape, DLDataType type_hint, const std::string& mem_scope) override {
+  Buffer Alloc(Device dev, ShapeTuple shape, DLDataType type_hint,
+               const std::string& mem_scope) override {
     if (mem_scope.empty() || mem_scope == "global") {
-      return Allocator::Alloc(device_, shape, type_hint, mem_scope);
+      return Allocator::Alloc(dev, shape, type_hint, mem_scope);
     }
     LOG(FATAL) << "This alloc should be implemented";
     return {};
@@ -113,7 +114,6 @@ class PooledAllocator final : public Allocator {
   std::atomic<size_t> used_memory_;
   std::unordered_map<size_t, std::vector<Buffer>> memory_pool_;
   std::recursive_mutex mu_;
-  Device device_;
 };
 
 }  // namespace memory
