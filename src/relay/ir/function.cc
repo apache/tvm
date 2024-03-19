@@ -251,7 +251,7 @@ TVM_REGISTER_GLOBAL("relay.ir.IRModuleUpdateWithRenamer")
 
 TVM_REGISTER_GLOBAL("relay.ir.FunctionFromExprInContext")
     .set_body_typed([](RelayExpr expr, IRModule mod) -> Function {
-      return Function(relay::FreeVars(expr), expr, Type(), relay::FreeTypeVars(expr, mod), {});
+      return Function(relay::FreeVars(expr), expr, Type(), relay::FreeTypeVars(expr, mod));
     });
 
 TVM_REGISTER_GLOBAL("relay.ir.FuncWithAttr")
