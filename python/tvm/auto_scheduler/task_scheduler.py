@@ -367,6 +367,10 @@ class TaskScheduler:
                     task_idx = (task_idx + 1) % len(self.tasks)
             elif self.strategy == "gradient":
                 gradients = []
+
+                # fix gradient for task without schedule in warm up
+                self.best_costs[(self.best_costs == 1e10)] = 0
+
                 for i in range(len(self.tasks)):
                     if i in self.dead_tasks:
                         gradients.append(0)
@@ -417,6 +421,9 @@ class TaskScheduler:
                     )
                     assert grad <= 0
                     gradients.append(grad)
+
+                # fix gradient for task without schedule in warm up
+                self.best_costs[(self.best_costs == 0)] = 1e10
 
                 if max(gradients) == min(gradients):
                     task_idx = np.random.choice(len(gradients))
