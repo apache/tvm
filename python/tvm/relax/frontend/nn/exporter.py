@@ -111,7 +111,8 @@ class Exporter:
             return result
 
         # pylint: enable=protected-access
-        params = None
+
+        params = _params()
         effects = _effects()
         ext_mods = self.extern_mods
         with self:
@@ -121,7 +122,6 @@ class Exporter:
                         outputs = _emit_effect_init(self.builder, effects)
                     self.builder.emit_func_output(outputs, params=[])
             for method_name, method_spec in zip(spec.method_names, spec.method_specs):
-                params = _params()  # Re-initialize so symbolic shapes not shared across methods
                 len_args = len(method_spec.arg_specs)
                 len_effects = {
                     "packed": 1,
@@ -135,6 +135,14 @@ class Exporter:
                     with self.builder.dataflow():
                         outputs, inputs = _emit_method(self.builder, method_spec, params, effects)
                     self.builder.emit_func_output(outputs, inputs)
+
+                # TODO(Lunderberg): Make a `ir.transform.ConvertSSA`,
+                # similar to the existing `tir.transform.ConvertSSA`,
+                # that converts an entire module to SSA, including TIR
+                # variable definitions used in either TIR or Relax.
+                mod = self.builder.get()
+                mod[method_name] = rx.utils.copy_with_new_vars(mod[method_name])
+
         mod = self.builder.finalize()
         assert rx.analysis.well_formed(mod)
 
@@ -162,8 +170,6 @@ def _emit_method(  # pylint: disable=too-many-locals,too-many-branches,too-many-
     effects: typing.Optional[typing.List[typing.Tuple[str, core.Effect]]],
 ):
     # pylint: disable=protected-access
-    # symbolic shape's name mapping to its tir.Var for reuse
-    str2var_params: typing.Dict[str, tir.Var] = {}
 
     def _unwrap_ret(expr: typing.Any) -> typing.Any:
         if isinstance(expr, (core.Tensor, core.Object)):
@@ -194,22 +200,9 @@ def _emit_method(  # pylint: disable=too-many-locals,too-many-branches,too-many-
     def _params(mode: str) -> typing.List[rx.Var]:
         inputs: typing.List[rx.Var] = []
 
-        def _get_var(shape_var: tir.Var) -> tir.Var:
-
-            name = shape_var.name
-            if name in str2var_params:
-                return str2var_params[name]
-            var = tir.Var(name, "int64")
-            str2var_params[name] = var
-            return var
-
         for name, param in params:
-            # Make sure the a symbolic shape is not re-registered (same as _method_spec_to_inputs)
-            # e.g. we do not see `vocab_size` for `lm_head` and `vocab_size_1` for `embed_tokens`
-            new_shape = [_get_var(x) if isinstance(x, tir.Var) else x for x in param.shape]
-            var = core.Tensor.placeholder(new_shape, param.dtype, name)._expr
-            inputs.append(var)
-            param._expr = var
+            inputs.append(param._expr)
+
         if mode == "none":
             return []
         if mode == "plain":
