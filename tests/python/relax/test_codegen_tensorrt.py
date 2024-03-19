@@ -49,7 +49,7 @@ tensorrt_enabled = pytest.mark.skipif(
     reason="TENSORRT not enabled.",
 )
 
-pytestmark = [tensorrt_enabled]
+pytestmark = [tensorrt_enabled, *tvm.testing.requires_cuda.marks()]
 
 
 def build_and_run(mod, inputs_np, target, legalize=False):

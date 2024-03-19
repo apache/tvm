@@ -32,7 +32,7 @@ vllm_enabled = pytest.mark.skipif(
     reason="VLLM not enabled.",
 )
 
-pytestmark = [vllm_enabled]
+pytestmark = [vllm_enabled, *tvm.testing.requires_gpu.marks()]
 
 
 def build_and_run(mod, inputs_np, target, legalize=True):
