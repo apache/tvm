@@ -39,7 +39,7 @@ if(USE_CUDA AND USE_CUTLASS)
   add_library(fpA_intB_cutlass_objs OBJECT ${CUTLASS_FPA_INTB_RUNTIME_SRCS})
   target_include_directories(fpA_intB_cutlass_objs PRIVATE
     ${PROJECT_SOURCE_DIR}/3rdparty/cutlass_fpA_intB_gemm
-    ${PROJECT_SOURCE_DIR}/3rdparty/cutlass_fpA_intB_gemm/cutlass/include  
+    ${PROJECT_SOURCE_DIR}/3rdparty/cutlass_fpA_intB_gemm/cutlass/include
   )
   list(APPEND CUTLASS_RUNTIME_OBJS "$<${CUTLASS_GEN_COND}:$<TARGET_OBJECTS:fpA_intB_cutlass_objs>>")
 
@@ -57,9 +57,6 @@ if(USE_CUDA AND USE_CUTLASS)
   # TODO: Should get rid of the postfix 'a' and test sm >= 90
   if (CMAKE_CUDA_ARCHITECTURES MATCHES "90|90a")
     list(APPEND TVM_CUTLASS_RUNTIME_SRCS src/runtime/contrib/cutlass/fp16_group_gemm.cu)
-  endif()
-
-  if (USE_CUDA_FP8)
     list(APPEND TVM_CUTLASS_RUNTIME_SRCS src/runtime/contrib/cutlass/fp16_fp8_gemm.cu)
     list(APPEND TVM_CUTLASS_RUNTIME_SRCS src/runtime/contrib/cutlass/fp8_group_gemm.cu)
   endif()

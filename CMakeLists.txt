@@ -596,9 +596,9 @@ add_library(tvm_libinfo_objs OBJECT ${LIBINFO_FILE})
 
 include(GNUInstallDirs)
 if(NOT BUILD_DUMMY_LIBTVM)
-  add_library(tvm SHARED 
-    $<TARGET_OBJECTS:tvm_objs> 
-    $<TARGET_OBJECTS:tvm_runtime_objs> 
+  add_library(tvm SHARED
+    $<TARGET_OBJECTS:tvm_objs>
+    $<TARGET_OBJECTS:tvm_runtime_objs>
     $<TARGET_OBJECTS:tvm_libinfo_objs>
     ${TVM_RUNTIME_EXT_OBJS}
   )
