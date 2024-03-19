@@ -17,6 +17,7 @@
 import logging
 import tempfile
 import math
+import ml_dtypes
 import tvm
 from tvm import relay
 from tvm.contrib.cudnn import conv_output_shape
@@ -32,6 +33,7 @@ from tvm.contrib.cutlass import (
     finalize_modules,
     finalize_modules_vm,
 )
+from tvm.contrib.pickle_memoize import memoize
 import tvm.testing
 
 logging.basicConfig(level=logging.INFO)
@@ -1103,6 +1105,102 @@ def verify_dense_transpose_dense(
 @tvm.testing.requires_cutlass
 def test_dense_transpose_dense():
     verify_dense_transpose_dense(get_dense_transpose_dense(M, N, K), M, N, K)
+
+
+def verify_group_gemm(
+    func_name, M, N, K, num_groups, x_dtype, weight_dtype, out_dtype, use_scale, rtol, atol
+):
+    group_gemm_func = tvm.get_global_func(func_name, allow_missing=True)
+    if group_gemm_func is None:
+        print(f"Skipped as {func_name} is not available")
+        return
+
+    @memoize("tvm.contrib.cutlass.test_group_gemm_sm90")
+    def get_ref_data():
+        assert M % num_groups == 0
+        M_per_group = M // num_groups
+        a_np = get_random_ndarray((M, K), "float16")
+        b_np = get_random_ndarray((num_groups, N, K), "float16")
+        indptr_np = np.arange(1, num_groups + 1).astype("int64") * M_per_group
+        c_np = np.concatenate(
+            [a_np[i * M_per_group : (i + 1) * M_per_group] @ b_np[i].T for i in range(num_groups)],
+            axis=0,
+        )
+        return a_np, b_np, indptr_np, c_np
+
+    def to_numpy_dtype(dtype):
+        mapping = {"e5m2_float8": ml_dtypes.float8_e5m2, "e4m3_float8": ml_dtypes.float8_e4m3fn}
+        return mapping.get(dtype, dtype)
+
+    a_np, b_np, indptr_np, c_np = get_ref_data()
+    dev = tvm.cuda(0)
+    a_nd = tvm.nd.array(a_np.astype(to_numpy_dtype(x_dtype)), device=dev)
+    b_nd = tvm.nd.array(b_np.astype(to_numpy_dtype(weight_dtype)), device=dev)
+    c_nd = tvm.nd.empty(c_np.shape, dtype=out_dtype, device=dev)
+    indptr_nd = tvm.nd.array(indptr_np, device=dev)
+    workspace = tvm.nd.empty((4096 * 1024,), dtype="uint8", device=dev)
+    if use_scale:
+        scale = tvm.nd.array(np.array([1.0], dtype="float32"), device=dev)
+        group_gemm_func(a_nd, b_nd, indptr_nd, workspace, scale, c_nd)
+    else:
+        group_gemm_func(a_nd, b_nd, indptr_nd, workspace, c_nd)
+    tvm.testing.assert_allclose(c_nd.asnumpy(), c_np, rtol=rtol, atol=atol)
+
+
+@tvm.testing.requires_cutlass
+def test_group_gemm_sm90():
+    verify_group_gemm(
+        "cutlass.group_gemm_fp16_sm90",
+        8,
+        128,
+        128,
+        4,
+        "float16",
+        "float16",
+        "float16",
+        False,
+        rtol=1e-3,
+        atol=1e-3,
+    )
+    verify_group_gemm(
+        "cutlass.group_gemm_e5m2_e5m2_fp16",
+        8,
+        16,
+        16,
+        4,
+        "e5m2_float8",
+        "e5m2_float8",
+        "float16",
+        True,
+        rtol=1e-1,
+        atol=1,
+    )
+    verify_group_gemm(
+        "cutlass.group_gemm_e4m3_e4m3_fp16",
+        8,
+        16,
+        16,
+        4,
+        "e4m3_float8",
+        "e4m3_float8",
+        "float16",
+        True,
+        rtol=1e-1,
+        atol=1,
+    )
+    verify_group_gemm(
+        "cutlass.group_gemm_e4m3_e5m2_fp16",
+        8,
+        16,
+        16,
+        4,
+        "e4m3_float8",
+        "e5m2_float8",
+        "float16",
+        True,
+        rtol=1e-1,
+        atol=1,
+    )
 
 
 if __name__ == "__main__":
