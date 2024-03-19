@@ -159,7 +159,7 @@ class AttentionKVCacheObj : public KVStateObj {
    * This function is supposed to be invoked after calling BeginForward.
    * \return The in-sequence query positions, in shape `(total_length,)`.
    */
-  virtual NDArray GetQueryPositions() const = 0;
+  virtual NDArray GetQueryPositions() = 0;
 
   /************** Debug Helpers **************/
 
