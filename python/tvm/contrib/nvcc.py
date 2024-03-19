@@ -298,7 +298,7 @@ def get_target_compute_version(target=None):
         elif len(arch) == 3:
             # This is for arch like "sm_90a"
             major, minor, suffix = arch
-            return major + "." + minor
+            return major + "." + minor + "." + suffix
 
     # 3. GPU compute version
     if tvm.cuda(0).exist:
