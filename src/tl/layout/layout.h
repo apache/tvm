@@ -19,7 +19,6 @@
 
 /*!
  * \file Layout.h
- * \brief Define Layout used in MMA and other operations.
  *
  */
 
@@ -49,24 +48,23 @@ class LayoutNode : public Object {
 
   Array<PrimExpr> OutputShape() const;
 
+  Array<PrimExpr> GetForwardIndex() const { return forward_index_; }
+
+  virtual Array<PrimExpr> Forward(const Array<PrimExpr>& vars) const;
+
   virtual Layout Inverse() const;
-
-  Array<PrimExpr> Forward(const Array<PrimExpr>& vars) const;
-
-  int VectorSize() const;
-
-  virtual Map<Var, Range> getVarMap() const;
 
   virtual void DebugOutput() const;
 
-  void UpdateAnalyzer(arith::Analyzer* analyzer) const;
-
-  void VisitAttrs(tvm::AttrVisitor* v);
   static constexpr bool _type_has_method_sequal_reduce = true;
-  bool SEqualReduce(const LayoutNode* other, SEqualReducer equal) const;
   static constexpr const char* _type_key = "tl.Layout";
+  bool SEqualReduce(const LayoutNode* other, SEqualReducer equal) const;
+  void VisitAttrs(tvm::AttrVisitor* v);
   TVM_DECLARE_BASE_OBJECT_INFO(LayoutNode, Object);
 
+ protected:
+  virtual Map<Var, Range> getVarMap() const;
+  void UpdateAnalyzer(arith::Analyzer* analyzer) const;
   Array<PrimExpr> forward_index_;
   Array<PrimExpr> input_size_;
 };
@@ -88,6 +86,8 @@ class FragmentNode : public LayoutNode {
   FragmentNode(Array<PrimExpr> input_size, Array<PrimExpr> forward_index, PrimExpr forward_thread,
                PrimExpr replicate_size);
 
+  PrimExpr GetForwardThread() const { return forward_thread_; }
+
   Layout Inverse() const final;
 
   PrimExpr ThreadExtent() const;
@@ -105,8 +105,6 @@ class FragmentNode : public LayoutNode {
 
   Fragment CondenseReplicateVar() const;
 
-  Map<Var, Range> getVarMap() const final;
-
   void DebugOutput() const final;
 
   void VisitAttrs(tvm::AttrVisitor* v);
@@ -114,6 +112,8 @@ class FragmentNode : public LayoutNode {
   static constexpr const char* _type_key = "tl.Fragment";
   TVM_DECLARE_FINAL_OBJECT_INFO(FragmentNode, LayoutNode);
 
+ protected:
+  Map<Var, Range> getVarMap() const final;
   PrimExpr forward_thread_;
   PrimExpr replicate_size_;
 };
@@ -132,6 +132,9 @@ class Fragment : public Layout {
 
   TVM_DEFINE_OBJECT_REF_METHODS(Fragment, Layout, FragmentNode);
 };
+
+Var InputPlaceholder(size_t idx);
+Var ReplicationPlaceholder();
 
 Fragment makeGemmFragmentC(const int block_m, const int block_n, const int warp_m, const int warp_n,
                            const int element_size);
