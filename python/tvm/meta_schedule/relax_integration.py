@@ -138,7 +138,7 @@ def extracted_tasks_to_tune_contexts(
         get_loggers_from_work_dir(work_dir, [t.task_name for t in extracted_tasks]),
         fork_seed(seed, n=len(extracted_tasks)),
     ):
-        if task.mod.attrs is not None and task.mod.attrs.get("tir.is_scheduled", False):
+        if task.mod.attrs.get("tir.is_scheduled", False):
             warnings.warn("The task {task.task_name} is already scheduled, skipping it.")
             continue
         tasks.append(

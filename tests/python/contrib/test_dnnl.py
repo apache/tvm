@@ -1374,7 +1374,7 @@ def check_fully_annotated(mod, desired_compiler):
             op = node.op
             if isinstance(op, relay.GlobalVar):
                 func = mod[op]
-                if "Compiler" in func.attrs and func.attrs["Compiler"] == desired_compiler:
+                if "Compiler" in func.attrs["Compiler"] == desired_compiler:
                     matched_ops.append(op)
                     return
             else:

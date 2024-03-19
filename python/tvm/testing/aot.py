@@ -1001,7 +1001,7 @@ def generate_ref_data(mod, input_data, params=None, target="llvm"):
         main = mod
     else:
         main = mod["main"]
-    if main.attrs is None or main.attrs["output_tensor_names"] is None:
+    if main.attrs["output_tensor_names"] is None:
         output_tensor_names = (
             ["output"] if output_count == 1 else [f"output{i}" for i in range(output_count)]
         )
