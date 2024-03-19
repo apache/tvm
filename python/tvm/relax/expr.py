@@ -878,7 +878,7 @@ class Function(BaseFunc, Scriptable):
     params: List[Var]
     body: Expr
     ret_struct_info: StructInfo
-    is_pure: bool
+    is_pure: Optional[bool]
     attrs: tvm.ir.DictAttrs
     span: Optional[Span]
 
@@ -887,7 +887,7 @@ class Function(BaseFunc, Scriptable):
         params: List[Var],
         body: Expr,
         ret_struct_info: Optional[StructInfo] = None,
-        is_pure: Optional[bool] = True,
+        is_pure: Optional[bool] = None,
         attrs: Optional[tvm.ir.DictAttrs] = None,
         span: Optional[Span] = None,
     ) -> None:
@@ -905,7 +905,7 @@ class Function(BaseFunc, Scriptable):
     def create_empty(
         params: List[Var],
         ret_struct_info: StructInfo,
-        is_pure: Optional[bool] = True,
+        is_pure: Optional[bool] = None,
         attrs: Optional[tvm.ir.DictAttrs] = None,
         span: Optional[Span] = None,
     ):
