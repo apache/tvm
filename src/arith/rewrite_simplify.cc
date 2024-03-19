@@ -156,10 +156,12 @@ CompareResult RewriteSimplifier::Impl::TryCompare(const PrimExpr& x, const PrimE
   };
 
   output = CompareResult(output & TryCompareUsingConstIntBounds(x, y));
-
   if (is_finished()) return output;
 
   output = CompareResult(output & TryCompareUsingKnownInequalities(x, y));
+  if (is_finished()) return output;
+
+  output = CompareResult(output & TryComparisonOfProductAndSum(x, y));
 
   return output;
 }
@@ -173,6 +175,149 @@ CompareResult RewriteSimplifier::Impl::TryCompareUsingKnownInequalities(const Pr
                                                                         const PrimExpr& y) {
   bool propagate_inequalities = enabled_extensions_ & kTransitivelyProveInequalities;
   return analyzer_->transitive_comparisons.TryCompare(x, y, propagate_inequalities);
+}
+
+CompareResult RewriteSimplifier::Impl::TryComparisonOfProductAndSum(const PrimExpr& x,
+                                                                    const PrimExpr& y) {
+  bool check_comparison_of_product_and_sum = enabled_extensions_ & kComparisonOfProductAndSum;
+  if (!check_comparison_of_product_and_sum) {
+    return CompareResult::kUnknown;
+  }
+
+  auto opt_special_case =
+      [&]() -> std::optional<std::tuple<PrimExpr, PrimExpr, PrimExpr, PrimExpr>> {
+    // Match expressions of the form `(A+B)*C - (A*B)*D`.  Depending on
+    // previous simplifications, the exact form of the expression may vary.
+    PVar<PrimExpr> A, B, C, D;
+
+    // diff is `(A+B)*C - (A*B)*D`.
+    PrimExpr diff = this->VisitExpr(x - y);
+
+    if (PMatchesOneOf{
+            (A + B) * C + (A * B) * D,
+            (A + B) * C + (B * A) * D,
+            (A * B) * D + (A + B) * C,
+            (B * A) * D + (A + B) * C,
+        }
+            .Match(diff)) {
+      return std::tuple{A.Eval(), B.Eval(), C.Eval(), -D.Eval()};
+    } else if (PMatchesOneOf{
+                   (A + B) * C + (A * B),
+                   (A + B) * C + (B * A),
+                   (A * B) + (A + B) * C,
+                   (B * A) + (A + B) * C,
+               }
+                   .Match(diff)) {
+      return std::tuple{A.Eval(), B.Eval(), C.Eval(), Integer(-1)};
+    } else {
+      return std::nullopt;
+    }
+  }();
+
+  if (!opt_special_case.has_value()) {
+    return CompareResult::kUnknown;
+  }
+  auto [A, B, C, D] = *opt_special_case;
+
+  auto A_bound = analyzer_->const_int_bound(A);
+  auto B_bound = analyzer_->const_int_bound(B);
+  auto C_bound = analyzer_->const_int_bound(C);
+  auto D_bound = analyzer_->const_int_bound(D);
+
+  auto negate = [](ConstIntBound bound) {
+    return ConstIntBound(-bound->max_value, -bound->min_value);
+  };
+  auto is_negative = [](const ConstIntBound& bound) { return bound->max_value < 0; };
+  auto is_positive = [](const ConstIntBound& bound) { return bound->min_value > 0; };
+
+  // If D is negative, then we'll be providing an upper bound for
+  // `(A*B)*D`, rather than a lower bound.  To avoid code duplication,
+  // flip all the signs here, find a lower bound, then flip the sign
+  // to produce the upper bound of the original expression.
+  //
+  // Before: (A+B)*C < (A*B)*D
+  // After:  (A*B)*(-D) < (A + B)*(-C)
+  bool is_upper_bound = is_negative(D_bound);
+  if (is_upper_bound) {
+    C_bound = negate(C_bound);
+    D_bound = negate(D_bound);
+  }
+
+  // Before: (A+B)*C < (A*B)*D
+  // After:  ((-A) + (-B))*(-C) < ((-A)*(-B))*D
+  if (is_negative(C_bound)) {
+    A_bound = negate(A_bound);
+    B_bound = negate(B_bound);
+    C_bound = negate(C_bound);
+  }
+
+  bool all_terms_positive = (is_positive(A_bound) && is_positive(B_bound) && is_positive(C_bound) &&
+                             is_positive(D_bound));
+  if (!all_terms_positive) {
+    return CompareResult::kUnknown;
+  }
+
+  // (A + B) * C < (A * B) * D
+  // (A + B) * C / (A*B*C*D) < (A * B) * D / (A*B*C*D)
+  // 1/(A*D) + 1/(B*D) < 1/C
+  // (A*B*C*D) * ( (A+B)/(A*B*D) - 1/C )
+  // (A*B*C*D) * ( (1/A + 1/B)/D - 1/C )
+  // (A*B*C*D) * (1/(A*D) + 1/(B*D) - 1/C)
+  //
+  // The constant (A*B*C*D) is positive, and its minimum value is the
+  // product of the minimum values of A, B, C, and D.  If the reciprocal
+  // term (1/(A*D) + 1/(B*D) - 1/C) is positive, then this constant can
+  // be used to provide a lower bound on the expression.
+
+  bool reciprocal_term_is_positive = [&]() {
+    if (D_bound->max_value == ConstIntBound::kPosInf) {
+      // If D can grow without bound, the `1/(A*D)` and `1/(B*D)`
+      // terms will approach zero, at which point the `-1/C` term
+      // will determine the sign the sign.
+      return false;
+    }
+
+    if (std::min(A_bound->max_value, B_bound->max_value) * D_bound->max_value <=
+        C_bound->min_value) {
+      // 1/(A*D) + 1/(B*D) - 1/C is positive if 1/C < 1/(A*D) + 1/(B*D).
+      // Since each term is positive, this condition can hold if either
+      // A*D <= C or B*D <= C.
+      return true;
+    }
+    if (A_bound->max_value != ConstIntBound::kPosInf &&
+        B_bound->max_value != ConstIntBound::kPosInf) {
+      // Even if neither term is sufficient on its own, if both A and B
+      // have known upper bounds, the inequality 1/C < 1/(A*D) + 1/(B*D)
+      // may still be provable.
+      //
+      // The maximum value of the LHS is found when C is minimized.  The
+      // minimum value of the RHS is found when A, B, and D are
+      // maximized.  If the condition holds in this case, then it holds
+      // in all cases.
+      //
+      // 1/C_min < 1/(A_max * D_max) + 1/(B_max*D_max)
+      // A_max*B_max*D_max < C_min*B_max + C_min*A_max
+      // A_max*B_max*D_max < C_min*(A_max + B_max)
+      //
+      if (A_bound->max_value * B_bound->max_value * D_bound->max_value <
+          C_bound->min_value * (A_bound->max_value + B_bound->max_value)) {
+        return true;
+      }
+    }
+    return false;
+  }();
+
+  if (!reciprocal_term_is_positive) {
+    return CompareResult::kUnknown;
+  }
+
+  if (is_upper_bound) {
+    // If we flipped the sign of the original expression, flip the sign of
+    // the resulting set of possible values.
+    return CompareResult::kLT;
+  } else {
+    return CompareResult::kGT;
+  }
 }
 
 // try to prove x equals val

@@ -51,15 +51,17 @@ class TestCase:
 
 
 class BaseCompare:
+    extensions = tvm.arith.Extension.NoExtensions
+
     def test_simplify(self, test_case):
         analyzer = tvm.arith.Analyzer()
+        analyzer.enabled_extensions = self.extensions
 
         if inspect.isclass(test_case.expected) and issubclass(test_case.expected, Exception):
             with pytest.raises(test_case.expected):
                 with analyzer.constraint_scope(test_case.constraint):
                     analyzer.rewrite_simplify(test_case.before)
         else:
-
             with analyzer.constraint_scope(test_case.constraint):
                 after = analyzer.rewrite_simplify(test_case.before)
 
@@ -983,6 +985,15 @@ class TestComparisons(BaseCompare):
         TestCase(y * y >= 0, tvm.tir.const(1, "bool"), y <= 0),
         TestCase(x * 6 <= -3, tvm.tir.const(0, "bool"), x >= 0),
         TestCase(tmod(y - 1, 3) == 0, tmod(y + (-1), 3) == 0),
+    )
+
+
+class TestComparisonOfProductAndSum(BaseCompare):
+    extensions = tvm.arith.Extension.ComparisonOfProductAndSum
+
+    x, y, z = te.var("x"), te.var("y"), te.var("z")
+
+    test_case = tvm.testing.parameter(
         # Special inequality cases
         TestCase(
             x * y < (x + y) * 2048,
