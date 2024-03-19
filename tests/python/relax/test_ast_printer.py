@@ -352,6 +352,11 @@ def test_struct_info():
     simple_func = rx.FuncStructInfo([], rx.ObjectStructInfo())
     assert (
         strip_whitespace(printer.visit_struct_info_(simple_func))
+        == "FuncStructInfo(params=[],ret=ObjectStructInfo())"
+    )
+    pure_func = rx.FuncStructInfo([], rx.ObjectStructInfo(), purity=True)
+    assert (
+        strip_whitespace(printer.visit_struct_info_(pure_func))
         == "FuncStructInfo(params=[],ret=ObjectStructInfo(),purity=True)"
     )
 

@@ -229,7 +229,7 @@ def to_vdevice(data: Expr, dst_vdevice: Union[py_str, VDevice]) -> Expr:
 ############################### Function ################################
 
 
-def function(is_pure: bool = True, is_private: bool = False) -> frame.FunctionFrame:
+def function(is_pure: Optional[bool] = None, is_private: bool = False) -> frame.FunctionFrame:
     """Start a function frame.
     Parameters
     ----------

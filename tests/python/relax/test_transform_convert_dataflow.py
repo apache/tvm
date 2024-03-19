@@ -316,7 +316,7 @@ class TestPureInnerFunction(ExtractCompare):
     class Before:
         @R.function
         def main(x: R.Tensor, y: R.Tensor) -> R.Tensor:
-            @R.function
+            @R.function(pure=True)
             def inner_func(x: R.Tensor, y: R.Tensor) -> R.Tensor:
                 z = R.add(x, y)
                 w = R.multiply(x, z)
@@ -335,7 +335,7 @@ class TestPureInnerFunction(ExtractCompare):
         def main(x: R.Tensor, y: R.Tensor) -> R.Tensor:
             with R.dataflow():
 
-                @R.function
+                @R.function(pure=True)
                 def inner_func(x: R.Tensor, y: R.Tensor) -> R.Tensor:
                     with R.dataflow():
                         z = R.add(x, y)
@@ -395,7 +395,7 @@ class TestImpureExternalFunction(ExtractCompare):
 class TestPureExternalFunction(ExtractCompare):
     @I.ir_module
     class Before:
-        @R.function
+        @R.function(pure=True)
         def extra(x: R.Tensor, y: R.Tensor) -> R.Tensor:
             z = R.add(x, y)
             q = R.matmul(z, x)
@@ -411,7 +411,7 @@ class TestPureExternalFunction(ExtractCompare):
 
     @I.ir_module
     class Expected:
-        @R.function
+        @R.function(pure=True)
         def extra(x: R.Tensor, y: R.Tensor) -> R.Tensor:
             with R.dataflow():
                 z = R.add(x, y)

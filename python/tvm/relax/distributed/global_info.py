@@ -44,13 +44,8 @@ class DeviceMesh(GlobalInfo):
     ):
         if isinstance(shape, (list, tuple)):
             shape = ShapeTuple(shape)
-        device_range = None
-        if isinstance(device_ids, Range):
-            device_range = device_ids
-            device_ids = []
-        self.__init_handle_by_constructor__(
-            ffi.DeviceMesh, shape, device_ids, device_range
-        )  # type: ignore
+
+        self.__init_handle_by_constructor__(ffi.DeviceMesh, shape, device_ids)  # type: ignore
 
 
 def device_mesh(shape: ShapeTuple, device_ids: Union[List[int], Range]) -> DeviceMesh:

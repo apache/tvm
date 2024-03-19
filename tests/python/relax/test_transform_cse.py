@@ -117,7 +117,7 @@ def test_inner_function():
         def foo(x: R.Tensor((), dtype="int32")) -> R.Tensor((), dtype="int32"):
             with R.dataflow():
                 # we are going to do CSE inside the local function
-                @R.function
+                @R.function(pure=True)
                 def bar(y: R.Tensor((), dtype="int32")) -> R.Tensor((), dtype="int32"):
                     with R.dataflow():
                         # writing this out in ANF to illustrate why CSE behaves as it does
@@ -148,7 +148,7 @@ def test_inner_function():
         def foo(x: R.Tensor((), dtype="int32")) -> R.Tensor((), dtype="int32"):
             with R.dataflow():
 
-                @R.function
+                @R.function(pure=True)
                 def bar(y: R.Tensor((), dtype="int32")) -> R.Tensor((), dtype="int32"):
                     with R.dataflow():
                         lv0 = R.add(y, y)

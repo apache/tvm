@@ -75,27 +75,31 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
       (*f)->func_vars = nullptr;
       // Step 4. Print attributes
       if (n->attrs.defined() && !n->attrs->dict.empty()) {
+        Map<String, ObjectRef> attrs_to_print = n->attrs->dict;
+
         // If the function is a global function and has a global symbol,
         // then don't print the global symbol (it will be implicit from not being private).
         // For a function without an IR module whose global symbol
         // doesn't match the function name, we should still print the global symbol attribute.
-        if (AtTopLevelFunction(d) && n->attrs->dict.count(tvm::attr::kGlobalSymbol) &&
-            Downcast<String>(n->attrs->dict.at(tvm::attr::kGlobalSymbol)) == func_name->name) {
-          Map<String, ObjectRef> new_attrs;
-          for (auto kv : n->attrs->dict) {
-            if (kv.first != tvm::attr::kGlobalSymbol) {
-              new_attrs.Set(kv.first, kv.second);
-            }
+        if (AtTopLevelFunction(d)) {
+          if (auto name = attrs_to_print.Get(tvm::attr::kGlobalSymbol);
+              name && name.value() == func_name->name) {
+            attrs_to_print.erase(tvm::attr::kGlobalSymbol);
           }
-          if (!new_attrs.empty()) {
-            (*f)->stmts.push_back(ExprStmtDoc(
-                Relax(d, "func_attr")  //
-                    ->Call({d->AsDoc<ExprDoc>(DictAttrs(new_attrs), n_p->Attr("attrs"))})));
-          }
-        } else {
-          (*f)->stmts.push_back(
-              ExprStmtDoc(Relax(d, "func_attr")  //
-                              ->Call({d->AsDoc<ExprDoc>(n->attrs, n_p->Attr("attrs"))})));
+        }
+
+        if (!attrs_to_print.empty()) {
+          // The function attributes are converted to IR types using
+          // the default FFI conversions, which use int32 to represent
+          // python integers.  Therefore, the function attributes are
+          // printed using TIR conventions.  This ensures that
+          // `R.func_attr({"key": 1})` doesn't get printed as
+          // `R.func_attr({"key": T.int32(1)})`.
+          With<RelaxFrame> attr_frame(d);
+          (*f)->AddDispatchToken(d, "tir");
+          (*f)->stmts.push_back(ExprStmtDoc(
+              Relax(d, "func_attr")
+                  ->Call({d->AsDoc<ExprDoc>(DictAttrs(attrs_to_print), n_p->Attr("attrs"))})));
         }
       }
       // Step 5. Prepare the decorator (include purity if it's impure)
@@ -103,9 +107,12 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
       Array<ExprDoc, void> pos_args = {};
       Array<String, void> dec_keys;
       Array<ExprDoc, void> dec_values;
-      if (!n->is_pure) {
+      if (n->is_pure.defined() || !d->cfg->syntax_sugar) {
         dec_keys.push_back("pure");
-        dec_values.push_back(LiteralDoc::Boolean(false, Optional<ObjectPath>()));
+
+        // dec_values.push_back(
+        //     LiteralDoc::Boolean(n->is_pure.value()->value, Optional<ObjectPath>()));
+        dec_values.push_back(d->AsDoc<ExprDoc>(n->is_pure, n_p->Attr("is_pure")));
       }
       // if the function is global or is not in a module and does not have a global symbol,
       // indicate that it's private

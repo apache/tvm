@@ -85,21 +85,18 @@ StructInfo InferStructInfoCallPurePacked(const Call& call, const BlockBuilder& c
 
   // the callee must be an opaque function
   auto callee = call->args[0];
-  ICHECK(!callee.as<OpNode>()) << "call_pure_packed cannot be used with an op node";
+  ICHECK(!callee.as<OpNode>()) << "Callee of " << call->op << " must not be an Op node, "
+                               << "but expression " << call << " has operation " << callee;
   auto opt = MatchStructInfo<FuncStructInfo>(callee);
-  ICHECK(opt) << "Callee must have a function struct info";
-  FuncStructInfo finfo = opt.value();
-  ICHECK(finfo->IsOpaque()) << "call_pure_packed must be called with an opaque function, but "
-                            << callee << " is not opaque";
+  ICHECK(opt) << "Callee of " << call->op << " must have a function struct info, "
+              << "but expression " << call << " has operation " << callee << " with struct info "
+              << callee->struct_info_;
 
-  // same logic as from DeriveCallRetStructInfo for ordinary calls
-  if (finfo->derive_func.defined()) {
-    // derive using custom derivation function.
-    return finfo->derive_func.value()(call, ctx);
-  } else {
-    // directly return the normal value.
-    return finfo->ret;
-  }
+  Array<Expr> args(call->args.begin() + 1, call->args.end());
+  FuncStructInfo finfo = opt.value();
+
+  return DeriveCallRetStructInfo(finfo, Call(callee, args, call->attrs, call->sinfo_args), ctx,
+                                 ctx->GetAnalyzer());
 }
 
 RELAY_REGISTER_OP("relax.call_pure_packed")

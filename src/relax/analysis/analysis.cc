@@ -141,17 +141,20 @@ tvm::Array<Var> AllVars(const Expr& expr) { return VarVisitor().All(expr); }
 
 tvm::Array<GlobalVar> AllGlobalVars(const Expr& expr) { return VarVisitor().AllGlobalVars(expr); }
 
-Optional<Expr> FindImpureCall(const Expr& expr, const Optional<Expr>& own_name) {
+Optional<Expr> FindImpureCall(const Expr& expr, const Optional<Expr>& own_name,
+                              bool assumed_purity_when_unknown) {
   class ImpureCallChecker : public ExprVisitor {
    public:
-    static Optional<Expr> Check(const Expr& expr, const Optional<Expr>& own_name) {
-      ImpureCallChecker visitor(own_name);
+    static Optional<Expr> Check(const Expr& expr, const Optional<Expr>& own_name,
+                                bool assumed_purity_when_unknown) {
+      ImpureCallChecker visitor(own_name, assumed_purity_when_unknown);
       visitor.VisitExpr(expr);
       return visitor.impure_expr_;
     }
 
    private:
-    explicit ImpureCallChecker(const Optional<Expr>& own_name) : own_name_(own_name) {}
+    explicit ImpureCallChecker(const Optional<Expr>& own_name, bool assumed_purity_when_unknown)
+        : own_name_(own_name), assumed_purity_when_unknown_(assumed_purity_when_unknown) {}
 
     void VisitExpr(const Expr& expr) override {
       // Early bail-out if we found an impure expression
@@ -168,8 +171,10 @@ Optional<Expr> FindImpureCall(const Expr& expr, const Optional<Expr>& own_name) 
     void VisitExpr_(const CallNode* call) override {
       // ignore recursive calls if we find one
       bool is_recursive = (own_name_ && own_name_.value().same_as(call->op));
+
       auto expr = GetRef<Call>(call);
-      if (!is_recursive && IsImpureCall(expr)) {
+      bool is_pure = GetPurity(expr).value_or(assumed_purity_when_unknown_);
+      if (!is_recursive && !is_pure) {
         impure_expr_ = expr;
       } else {
         ExprVisitor::VisitExpr_(call);
@@ -179,6 +184,7 @@ Optional<Expr> FindImpureCall(const Expr& expr, const Optional<Expr>& own_name) 
    private:
     const Optional<Expr>& own_name_;
     Optional<Expr> impure_expr_ = NullOpt;
+    bool assumed_purity_when_unknown_;
   };
 
   if (own_name) {
@@ -190,11 +196,12 @@ Optional<Expr> FindImpureCall(const Expr& expr, const Optional<Expr>& own_name) 
   if (auto func = to_check.as<FunctionNode>()) {
     to_check = func->body;
   }
-  return ImpureCallChecker::Check(to_check, own_name);
+  return ImpureCallChecker::Check(to_check, own_name, assumed_purity_when_unknown);
 }
 
-bool ContainsImpureCall(const Expr& expr, const Optional<Expr>& own_name) {
-  return FindImpureCall(expr, own_name).defined();
+bool ContainsImpureCall(const Expr& expr, const Optional<Expr>& own_name,
+                        bool assumed_purity_when_unknown) {
+  return FindImpureCall(expr, own_name, assumed_purity_when_unknown).defined();
 }
 
 TVM_REGISTER_GLOBAL("relax.analysis.free_vars").set_body_typed(FreeVars);

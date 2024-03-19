@@ -62,7 +62,7 @@ class Conv2dReLU_composite_annotated:
             R.output(gv)
         return gv
 
-    @R.function
+    @R.function(pure=True)
     def fused_relax_nn_conv2d_relax_nn_relu_dnnl(
         data1: R.Tensor((1, 64, 56, 56), dtype="float32"),
         weight11: R.Tensor((64, 64, 3, 3), dtype="float32"),
@@ -74,7 +74,7 @@ class Conv2dReLU_composite_annotated:
             }
         )
 
-        @R.function
+        @R.function(pure=True)
         def gv1(
             data2: R.Tensor((1, 64, 56, 56), dtype="float32"),
             weight12: R.Tensor((64, 64, 3, 3), dtype="float32"),
@@ -129,7 +129,7 @@ class Conv2dReLUx2Partitioned:
             R.output(gv)
         return gv
 
-    @R.function(private=True)
+    @R.function(pure=True, private=True)
     def fused_relax_nn_conv2d_relax_nn_relu(
         data1: R.Tensor((1, 64, 56, 56), dtype="float32"),
         weight11: R.Tensor((64, 64, 3, 3), dtype="float32"),
@@ -143,7 +143,7 @@ class Conv2dReLUx2Partitioned:
             R.output(gv1)
         return gv1
 
-    @R.function(private=True)
+    @R.function(pure=True, private=True)
     def fused_relax_nn_conv2d_relax_nn_relu1(
         conv1: R.Tensor((1, 64, 56, 56), dtype="float32"),
         weight21: R.Tensor((64, 64, 3, 3), dtype="float32"),
@@ -179,7 +179,7 @@ class Conv2dReLUx2Partitioned_only_conv2d:
             R.output(conv2d)
         return conv2d
 
-    @R.function(private=True)
+    @R.function(pure=True, private=True)
     def fused_relax_nn_conv2d(
         data1: R.Tensor((1, 64, 56, 56), dtype="float32"),
         weight11: R.Tensor((64, 64, 3, 3), dtype="float32"),
@@ -192,7 +192,7 @@ class Conv2dReLUx2Partitioned_only_conv2d:
             R.output(gv)
         return gv
 
-    @R.function(private=True)
+    @R.function(pure=True, private=True)
     def fused_relax_nn_conv2d1(
         conv11: R.Tensor((1, 64, 56, 56), dtype="float32"),
         weight21: R.Tensor((64, 64, 3, 3), dtype="float32"),
@@ -241,7 +241,7 @@ class Conv2dConv2dReLUPartitioned:
             R.output(gv)
         return gv
 
-    @R.function(private=True)
+    @R.function(pure=True, private=True)
     def fused_relax_nn_conv2d_relax_nn_relu(
         conv1: R.Tensor((1, 64, 56, 56), dtype="float32"),
         weight21: R.Tensor((64, 64, 3, 3), dtype="float32"),
@@ -255,7 +255,7 @@ class Conv2dConv2dReLUPartitioned:
             R.output(gv1)
         return gv1
 
-    @R.function(private=True)
+    @R.function(pure=True, private=True)
     def fused_relax_nn_conv2d(
         data1: R.Tensor((1, 64, 56, 56), dtype="float32"),
         weight11: R.Tensor((64, 64, 3, 3), dtype="float32"),
@@ -308,7 +308,7 @@ class BranchTupleOutputPartitioned:
             R.output(out)
         return out
 
-    @R.function(private=True)
+    @R.function(pure=True, private=True)
     def fused_relax_nn_conv2d_relax_nn_relu(
         data1: R.Tensor((1, 64, 56, 56), dtype="float32"),
         weight1: R.Tensor((64, 64, 3, 3), dtype="float32"),
@@ -383,14 +383,14 @@ class Conv2dx2:
 
 @tvm.script.ir_module
 class Conv2dx2_partitioned:
-    @R.function
+    @R.function(pure=True)
     def fused_relax_nn_conv2d_cutlass(
         data: R.Tensor((16, 32, 32, 16), dtype="float16"),
         weight1: R.Tensor((16, 3, 3, 16), dtype="float16"),
     ) -> R.Tensor((16, 32, 32, 16), dtype="float16"):
         R.func_attr({"Codegen": "cutlass", "global_symbol": "fused_relax_nn_conv2d_cutlass"})
 
-        @R.function
+        @R.function(pure=True)
         def gv_1(
             data_1: R.Tensor((16, 32, 32, 16), dtype="float16"),
             weight1_1: R.Tensor((16, 3, 3, 16), dtype="float16"),
@@ -610,14 +610,14 @@ def test_compare_with_merge_composite_path():
 
     @I.ir_module
     class Expected1:
-        @R.function
+        @R.function(pure=True)
         def fused_relax_multiply_cutlass(
             x: R.Tensor((10, 10), dtype="float32"), y: R.Tensor((10, 10), dtype="float32")
         ) -> R.Tensor((10, 10), dtype="float32"):
             R.func_attr({"Codegen": "cutlass"})
             # from tvm.script import relax as R
 
-            @R.function
+            @R.function(pure=True)
             def gv(
                 x_1: R.Tensor((10, 10), dtype="float32"),
                 y_1: R.Tensor((10, 10), dtype="float32"),
@@ -651,14 +651,14 @@ def test_compare_with_merge_composite_path():
 
     @I.ir_module
     class Expected2:
-        @R.function
+        @R.function(pure=True)
         def fused_relax_multiply1_cutlass(
             x: R.Tensor((10, 10), dtype="float32"), y: R.Tensor((10, 10), dtype="float32")
         ) -> R.Tensor((10, 10), dtype="float32"):
             R.func_attr({"Codegen": "cutlass"})
             # from tvm.script import relax as R
 
-            @R.function
+            @R.function(pure=True)
             def gv(
                 x_1: R.Tensor((10, 10), dtype="float32"),
                 y_1: R.Tensor((10, 10), dtype="float32"),
@@ -735,7 +735,7 @@ def test_ignore_call_tir():
                     T.writes(out[i, j, k, l])
                     out[i, j, k, l] = T.max(data[i, j, k, l], T.float32(0))
 
-        @R.function(private=True)
+        @R.function(pure=True, private=True)
         def fused_relax_nn_conv2d(
             data: R.Tensor((1, 64, 56, 56), dtype="float32"),
             weight1: R.Tensor((64, 64, 3, 3), dtype="float32"),
@@ -789,7 +789,7 @@ def test_unused():
 
     @I.ir_module
     class Conv2dReLU_partitioned:
-        @R.function(private=True)
+        @R.function(pure=True, private=True)
         def fused_relax_nn_conv2d(
             data: R.Tensor((1, 64, 56, 56), dtype="float32"),
             weight1: R.Tensor((64, 64, 3, 3), dtype="float32"),
@@ -857,7 +857,7 @@ def test_bind_constants():
 
     @I.ir_module
     class Conv2dWithConstantWeight_partitioned:
-        @R.function(private=True)
+        @R.function(pure=True, private=True)
         def fused_relax_nn_conv2d(
             data: R.Tensor((1, 64, 56, 56), dtype="float32"),
             param_0: R.Tensor((64, 64, 3, 3), dtype="float32"),
@@ -902,7 +902,7 @@ def test_split():
 
     @tvm.script.ir_module
     class Expected1:
-        @R.function(private=True)
+        @R.function(pure=True, private=True)
         def fused_relax_split(
             inp: R.Tensor((16, 32), dtype="float32")
         ) -> R.Tuple(R.Tensor((16, 16), dtype="float32"), R.Tensor((16, 16), dtype="float32")):
@@ -931,7 +931,7 @@ def test_split():
 
     @I.ir_module
     class Expected2:
-        @R.function(private=True)
+        @R.function(pure=True, private=True)
         def fused_relax_split_relax_add(
             inp: R.Tensor((16, 32), dtype="float32")
         ) -> R.Tensor((16, 16), dtype="float32"):
@@ -977,7 +977,7 @@ def test_clip():
 
     @I.ir_module
     class Expected1:
-        @R.function(private=True)
+        @R.function(pure=True, private=True)
         def fused_relax_clip(
             x: R.Tensor((10, 10), dtype="float32")
         ) -> R.Tensor((10, 10), dtype="float32"):
@@ -1013,7 +1013,7 @@ def test_clip():
 
     @I.ir_module
     class Expected2:
-        @R.function(private=True)
+        @R.function(pure=True, private=True)
         def fused_relax_clip(
             x: R.Tensor((10, 10), dtype="float32")
         ) -> R.Tensor((10, 10), dtype="float32"):
@@ -1025,7 +1025,7 @@ def test_clip():
                 R.output(gv)
             return gv
 
-        @R.function(private=True)
+        @R.function(pure=True, private=True)
         def fused_relax_clip1(
             x: R.Tensor((10, 10), dtype="float32")
         ) -> R.Tensor((10, 10), dtype="float32"):
@@ -1165,7 +1165,7 @@ def test_matmul_symbolic_var():
                 R.output(out)
             return out
 
-        @R.function
+        @R.function(pure=True)
         def fused_relax_matmul_cublas(
             x: R.Tensor(["batch_size", 1024], "float16"),
             w1: R.Tensor([1024, 1024], "float16"),
@@ -1173,7 +1173,7 @@ def test_matmul_symbolic_var():
             batch_size = T.int64()
             R.func_attr({"Codegen": "cublas"})
 
-            @R.function
+            @R.function(pure=True)
             def inner_func(
                 x: R.Tensor([batch_size, 1024], "float16"),
                 w1: R.Tensor([1024, 1024], "float16"),
@@ -1187,7 +1187,7 @@ def test_matmul_symbolic_var():
             out = inner_func(x, w1)
             return out
 
-        @R.function
+        @R.function(pure=True)
         def fused_relax_matmul1_cublas(
             x: R.Tensor(["batch_size", 1024], "float16"),
             w2: R.Tensor([1024, "M"], "float16"),
@@ -1196,7 +1196,7 @@ def test_matmul_symbolic_var():
             M = T.int64()
             R.func_attr({"Codegen": "cublas"})
 
-            @R.function
+            @R.function(pure=True)
             def inner_func(
                 x: R.Tensor([batch_size, 1024], "float16"),
                 w2: R.Tensor((1024, M), "float16"),

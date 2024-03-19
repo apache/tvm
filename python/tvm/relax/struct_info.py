@@ -16,6 +16,7 @@
 # under the License.
 # pylint: disable=invalid-name, unused-import
 """The struct info nodes of the Relax language."""
+
 from typing import List, Optional, Union
 
 import tvm._ffi
@@ -98,13 +99,9 @@ class PrimStructInfo(StructInfo):
             value = tvm.tir.IntImm("int64", value)
 
         if value is None:
-            self.__init_handle_by_constructor__(
-                _ffi_api.PrimStructInfoFromDtype, dtype, span
-            )  # type: ignore
+            self.__init_handle_by_constructor__(_ffi_api.PrimStructInfoFromDtype, dtype, span)  # type: ignore
         else:
-            self.__init_handle_by_constructor__(
-                _ffi_api.PrimStructInfoFromValue, value, span
-            )  # type: ignore
+            self.__init_handle_by_constructor__(_ffi_api.PrimStructInfoFromValue, value, span)  # type: ignore
 
 
 @tvm._ffi.register_object("relax.ShapeStructInfo")
@@ -132,7 +129,10 @@ class ShapeStructInfo(StructInfo):
         self, values: Optional[List[PrimExpr]] = None, ndim: int = -1, span: Span = None
     ) -> None:
         self.__init_handle_by_constructor__(
-            _ffi_api.ShapeStructInfo, values, ndim, span  # type: ignore
+            _ffi_api.ShapeStructInfo,
+            values,
+            ndim,
+            span,  # type: ignore
         )
 
 
@@ -176,7 +176,12 @@ class TensorStructInfo(StructInfo):
         if isinstance(shape, (list, tuple, Array)):
             shape = ShapeExpr(shape)
         self.__init_handle_by_constructor__(
-            _ffi_api.TensorStructInfo, shape, dtype, ndim, vdevice, span  # type: ignore
+            _ffi_api.TensorStructInfo,
+            shape,
+            dtype,
+            ndim,
+            vdevice,
+            span,  # type: ignore
         )
 
 
@@ -209,7 +214,7 @@ class FuncStructInfo(StructInfo):
     ret: StructInfo
         The struct info of return value
 
-    purity: bool
+    purity: Optional[bool]
         Whether the function is pure (has no visible side effects).
         Note: We consider a function to be pure only if it is pure on all inputs.
         If a function can have visible side effects only in some cases,
@@ -219,14 +224,22 @@ class FuncStructInfo(StructInfo):
     params: Optional[List[StructInfo]]
     ret: StructInfo
     derive_func: Optional[EnvFunc]
-    purity: bool
+    purity: Optional[bool]
     span: Span
 
     def __init__(
-        self, params: List[StructInfo], ret: StructInfo, purity: bool = True, span: Span = None
+        self,
+        params: List[StructInfo],
+        ret: StructInfo,
+        purity: Optional[bool] = None,
+        span: Span = None,
     ) -> None:
         self.__init_handle_by_constructor__(
-            _ffi_api.FuncStructInfo, params, ret, purity, span  # type: ignore
+            _ffi_api.FuncStructInfo,
+            params,
+            ret,
+            purity,
+            span,  # type: ignore
         )
 
     @staticmethod
@@ -234,11 +247,10 @@ class FuncStructInfo(StructInfo):
         *,
         ret: Optional[StructInfo] = None,
         derive_func: Optional[Union[str, EnvFunc]] = None,
-        purity: bool = False,
+        purity: Optional[bool] = None,
         span: Span = None,
     ) -> "FuncStructInfo":
-        """
-        Create an opaque FuncStructInfo.
+        """Create an opaque FuncStructInfo.
 
         The opaque function takes either a ret
         that specificies the struct info of the return value
@@ -252,8 +264,8 @@ class FuncStructInfo(StructInfo):
         derive_func: Optional[Union[str,EnvFunc]]
            The environment function used for derivation
 
-        purity: bool
-           Whether the function is pure (false by default, as most opaque functions are not pure)
+        purity: Optional[bool]
+           Whether the function is pure (unknown by default)
 
         span: Optional[Span]
            Optional span information of the ast.

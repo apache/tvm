@@ -53,7 +53,10 @@ FType = TypeVar("FType", bound=_Callable)
 # appear as a decorator by itself or to have optional arguments
 # like @R.function(pure=False)
 def function(
-    f: Optional[FType] = None, pure: bool = True, private: bool = False, check_well_formed=True
+    f: Optional[FType] = None,
+    pure: Optional[bool] = None,
+    private: bool = False,
+    check_well_formed=True,
 ) -> Union[Function, FType]:
     # pylint: disable=unused-argument
     # (pure and private aren't used here, but are used later in parsing)
@@ -321,12 +324,6 @@ class CallableProxy(StructInfoProxy):
                 params = [params]
             # convert `R.Callable` to `R.Callable()`
             self.params = [param() if callable(param) else param for param in params]
-
-        # Mimic the C++ defaults, where an opaque function is assumed
-        # to be impure, and a non-opaque function is assumed to be
-        # pure.
-        if purity is None:
-            purity = params is not None
 
         self.ret = ret() if callable(ret) else ret
         self.purity = purity

@@ -534,6 +534,9 @@ TVM_DLL bool HasReshapePattern(const tir::PrimFunc& func);
  * \param own_name (Optional.) If we are checking a recursive function body,
  *   the caller can pass the function's name so recursive calls
  *   can be ignored in the check (must be a Var or GlobalVar).
+ *
+ * \param assumed_purity_when_unknown The purity to assume when not otherwise known.
+ *
  * \return The impure expression, if one exists within the given
  *   expression.  Otherwise, NullOpt.
  * \note Relies on StructInfo annotations, so ensure that the module has been normalized first.
@@ -541,7 +544,8 @@ TVM_DLL bool HasReshapePattern(const tir::PrimFunc& func);
  *   an impure call--it only does if the nested function is *later called*.
  */
 TVM_DLL Optional<Expr> FindImpureCall(const Expr& expr,
-                                      const Optional<Expr>& own_name = Optional<Expr>(nullptr));
+                                      const Optional<Expr>& own_name = Optional<Expr>(nullptr),
+                                      bool assumed_purity_when_unknown = false);
 
 /*!
  * \brief Check if the given expression (likely a function body) contains any impure calls.
@@ -549,13 +553,15 @@ TVM_DLL Optional<Expr> FindImpureCall(const Expr& expr,
  * \param own_name (Optional.) If we are checking a recursive function body,
  *   the caller can pass the function's name so recursive calls
  *   can be ignored in the check (must be a Var or GlobalVar).
+ * \param assumed_purity_when_unknown The purity to assume when not otherwise known
  * \return A boolean indicating if the expression contains any impure calls.
  * \note Relies on StructInfo annotations, so ensure that the module has been normalized first.
  *   Also, an impure call in a *nested* function does *not* mean that the outer expression contains
  *   an impure call--it only does if the nested function is *later called*.
  */
 TVM_DLL bool ContainsImpureCall(const Expr& expr,
-                                const Optional<Expr>& own_name = Optional<Expr>(nullptr));
+                                const Optional<Expr>& own_name = Optional<Expr>(nullptr),
+                                bool assumed_purity_when_unknown = false);
 
 /*!
  * \brief Check if the IRModule is well formed.

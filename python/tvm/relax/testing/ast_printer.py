@@ -304,7 +304,8 @@ class ASTPrinter(ExprFunctor):
                     map(self.visit_struct_info_, struct_info_node.params)
                 )
             fields["ret"] = self.visit_struct_info_(struct_info_node.ret)
-            fields["purity"] = bool(struct_info_node.purity)
+            if struct_info_node.purity is not None:
+                fields["purity"] = bool(struct_info_node.purity)
             return self.build_ast_node("FuncStructInfo", **fields)
         else:
             raise ValueError(
