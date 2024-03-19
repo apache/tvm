@@ -538,8 +538,7 @@ def test_tensor_expr_op():
         def _initialize_effect() -> R.Tuple(R.Object):
             with R.dataflow():
                 _io: R.Object = R.null_value()
-                lv: R.Tuple(R.Object) = (_io,)
-                gv: R.Tuple(R.Object) = lv
+                gv = (_io,)
                 R.output(gv)
             return gv
 
@@ -611,8 +610,7 @@ def test_tensor_ir_op():
         def _initialize_effect() -> R.Tuple(R.Object):
             with R.dataflow():
                 _io: R.Object = R.null_value()
-                lv: R.Tuple(R.Object) = (_io,)
-                gv: R.Tuple(R.Object) = lv
+                gv = (_io,)
                 R.output(gv)
             return gv
 
@@ -699,8 +697,7 @@ def test_tensor_ir_inplace_op():
         def _initialize_effect() -> R.Tuple(R.Object):
             with R.dataflow():
                 _io: R.Object = R.null_value()
-                lv: R.Tuple(R.Object) = (_io,)
-                gv: R.Tuple(R.Object) = lv
+                gv = (_io,)
                 R.output(gv)
             return gv
 
@@ -717,13 +714,12 @@ def test_tensor_ir_inplace_op():
             R.func_attr({"num_input": 4})
             cls = Expected
             with R.dataflow():
-                lv1 = R.call_tir(
+                gv1 = R.call_tir(
                     cls.inplace_take,
                     (embedding_table, input_ids, embedding_dst),
                     out_sinfo=R.Tensor((total_seq_len, hidden_size), dtype),
                     tir_vars=R.shape([offset_1]),
                 )
-                gv1: R.Tensor((total_seq_len, hidden_size), dtype) = lv1
                 R.output(gv1)
             return gv1
 
@@ -772,8 +768,7 @@ def test_tensor_ir_op_no_tir_var():
             R.func_attr({"num_input": 1})
             cls = Expected
             with R.dataflow():
-                lv = R.call_tir(cls.tir_func, (A,), out_sinfo=R.Tensor((16, 16), dtype="float32"))
-                gv: R.Tensor((16, 16), dtype="float32") = lv
+                gv = R.call_tir(cls.tir_func, (A,), out_sinfo=R.Tensor((16, 16), dtype="float32"))
                 R.output(gv)
             return gv
 
@@ -800,8 +795,7 @@ def test_extern():
         def _initialize_effect() -> R.Tuple(R.Object):
             with R.dataflow():
                 _io: R.Object = R.null_value()
-                lv: R.Tuple(R.Object) = (_io,)
-                gv: R.Tuple(R.Object) = lv
+                gv = (_io,)
                 R.output(gv)
             return gv
 
@@ -888,8 +882,7 @@ def test_multinomial_from_uniform():
         def _initialize_effect() -> R.Tuple(R.Object):
             with R.dataflow():
                 _io: R.Object = R.null_value()
-                lv: R.Tuple(R.Object) = (_io,)
-                gv: R.Tuple(R.Object) = lv
+                gv = (_io,)
                 R.output(gv)
             return gv
 
@@ -1015,8 +1008,7 @@ def test_sample_top_p_top_k_from_sorted_prob():
         def _initialize_effect() -> R.Tuple(R.Object):
             with R.dataflow():
                 _io: R.Object = R.null_value()
-                lv: R.Tuple(R.Object) = (_io,)
-                gv: R.Tuple(R.Object) = lv
+                gv: R.Tuple(R.Object) = (_io,)
                 R.output(gv)
             return gv
 
@@ -1130,8 +1122,7 @@ def test_renormalize_top_p_top_k_prob():
         def _initialize_effect() -> R.Tuple(R.Object):
             with R.dataflow():
                 _io: R.Object = R.null_value()
-                lv: R.Tuple(R.Object) = (_io,)
-                gv: R.Tuple(R.Object) = lv
+                gv: R.Tuple(R.Object) = (_io,)
                 R.output(gv)
             return gv
 
