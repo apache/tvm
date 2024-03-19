@@ -34,14 +34,7 @@ def reset_seed():
     np.random.seed(0)
 
 
-has_cudnn = tvm.get_global_func("relax.ext.cudnn", True)
-
-cudnn_enabled = pytest.mark.skipif(
-    not has_cudnn,
-    reason="cuDNN not enabled.",
-)
-
-pytestmark = [cudnn_enabled]
+pytestmark = tvm.testing.requires_cudnn.marks()
 
 
 _activation_table = {

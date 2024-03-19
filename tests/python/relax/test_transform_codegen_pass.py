@@ -30,17 +30,17 @@ from tvm.relax.dpl import is_op, wildcard
 env_checker_codegen = tvm.get_global_func("relax.ext.tensorrt", True)
 env_checker_runtime = tvm.get_global_func("relax.is_tensorrt_runtime_enabled", True)
 
-has_tensorrt_codegen = pytest.mark.skipif(
+requires_tensorrt_codegen = pytest.mark.skipif(
     not env_checker_codegen,
     reason="TensorRT codegen not available",
 )
-has_tensorrt_runtime = pytest.mark.skipif(
+requires_tensorrt_runtime = pytest.mark.skipif(
     not env_checker_runtime or not env_checker_runtime(),
     reason="TensorRT runtime not available",
 )
 
 # Global variable in pytest that applies markers to all tests.
-pytestmark = [has_tensorrt_codegen, has_tensorrt_runtime]
+pytestmark = [requires_tensorrt_codegen] + tvm.testing.requires_cuda.marks()
 
 # Target gpu
 target_str = "nvidia/nvidia-t4"
@@ -117,6 +117,7 @@ entry_func_name = tvm.testing.parameter("main", "func")
 
 
 @tvm.testing.requires_gpu
+@requires_tensorrt_runtime
 def test_tensorrt_only(entry_func_name):
     mod, inputs, expected = setup_test()
 
@@ -146,6 +147,7 @@ def test_tensorrt_only(entry_func_name):
 
 
 @tvm.testing.requires_gpu
+@requires_tensorrt_runtime
 def test_mix_use_tensorrt_and_tvm():
     mod, inputs, expected = setup_test()
 

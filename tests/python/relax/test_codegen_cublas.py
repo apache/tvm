@@ -36,14 +36,7 @@ def reset_seed():
     np.random.seed(0)
 
 
-has_cublas = tvm.get_global_func("relax.ext.cublas", True)
-
-cublas_enabled = pytest.mark.skipif(
-    not has_cublas,
-    reason="CUBLAS not enabled.",
-)
-
-pytestmark = [cublas_enabled]
+# pytestmark = tvm.testing.requires_cublas.marks()
 
 
 def build_and_run(mod, inputs_np, target, legalize=False, cuda_graph=False):
