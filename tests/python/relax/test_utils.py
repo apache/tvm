@@ -14,6 +14,9 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+
+import re
+
 import pytest
 
 import tvm
@@ -120,6 +123,27 @@ def test_copy_with_new_vars_on_ir_module_nested_function():
     )
 
     assert_structural_equal(Actual, Expected)
+
+
+def test_assert_structural_equal_in_seqexpr():
+    """The first mismatch is correctly identified."""
+
+    @R.function(private=True)
+    def func_1(A: R.Tensor([16, 16], "float32")):
+        B = R.concat([A, A])
+        return B
+
+    @R.function(private=True)
+    def func_2(A: R.Tensor([16, 16], "float32")):
+        B = R.add(A, A)
+        C = R.add(B, B)
+        return B
+
+    with pytest.raises(
+        ValueError,
+        match=re.escape("<root>.body.blocks[0].bindings[0].value.op"),
+    ):
+        assert_structural_equal(func_1, func_2)
 
 
 def test_structural_equal_of_call_nodes():

@@ -782,15 +782,15 @@ class MatchCastNode : public BindingNode {
 
   bool SEqualReduce(const MatchCastNode* other, SEqualReducer equal) const {
     // NOTE: pattern can contain ShapeExpr which defines the vars
-    return equal.DefEqual(var, other->var) && equal.DefEqual(struct_info, other->struct_info) &&
-           equal(value, other->value);
+    return equal(value, other->value) && equal.DefEqual(struct_info, other->struct_info) &&
+           equal.DefEqual(var, other->var);
   }
 
   void SHashReduce(SHashReducer hash_reduce) const {
     // NOTE: pattern can contain ShapeExpr which defines the vars
-    hash_reduce.DefHash(var);
-    hash_reduce.DefHash(struct_info);
     hash_reduce(value);
+    hash_reduce.DefHash(struct_info);
+    hash_reduce.DefHash(var);
   }
 
   static constexpr const char* _type_key = "relax.expr.MatchCast";
@@ -823,11 +823,11 @@ class VarBindingNode : public BindingNode {
   }
 
   bool SEqualReduce(const VarBindingNode* other, SEqualReducer equal) const {
-    return equal.DefEqual(var, other->var) && equal(value, other->value);
+    return equal(value, other->value) && equal.DefEqual(var, other->var);
   }
   void SHashReduce(SHashReducer hash_reduce) const {
-    hash_reduce.DefHash(var);
     hash_reduce(value);
+    hash_reduce.DefHash(var);
   }
   static constexpr const char* _type_key = "relax.expr.VarBinding";
   static constexpr const bool _type_has_method_sequal_reduce = true;
