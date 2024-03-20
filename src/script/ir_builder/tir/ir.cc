@@ -94,7 +94,6 @@ void FuncName(String name) {
 void FuncAttrs(Map<String, ObjectRef> new_attrs) {
   using namespace tvm::tir;
   PrimFuncFrame frame = FindPrimFuncFrame("T.func_attr");
-  auto attrs = frame->attrs;
   for (const auto& [key, value] : new_attrs) {
     if (key == tvm::attr::kGlobalSymbol && frame->is_private) {
       LOG(FATAL) << "ValueError: "
@@ -103,7 +102,7 @@ void FuncAttrs(Map<String, ObjectRef> new_attrs) {
                  << "However, a private function specified the global symbol as " << value;
     }
 
-    if (auto prev = attrs.Get(key)) {
+    if (auto prev = frame->attrs.Get(key)) {
       LOG(FATAL) << "ValueError: "
                  << "Duplicate prim func annotation for key = \"" << key << "\".  "
                  << "Previous value was " << prev.value() << ", with later definition as " << value;
@@ -111,8 +110,6 @@ void FuncAttrs(Map<String, ObjectRef> new_attrs) {
       frame->attrs.Set(key, value);
     }
   }
-
-  frame->attrs = attrs;
 }
 
 tvm::Type FuncRet(tvm::Type ret_type) {

@@ -32,6 +32,8 @@ namespace relay {
 
 Function::Function(tvm::Array<Var> params, Expr body, Type ret_type,
                    tvm::Array<TypeVar> type_params, DictAttrs attrs, Span span) {
+  CHECK(attrs.defined());
+
   ObjectPtr<FunctionNode> n = make_object<FunctionNode>();
   ICHECK(params.defined());
   ICHECK(type_params.defined());
