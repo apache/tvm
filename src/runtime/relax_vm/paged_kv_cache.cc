@@ -838,10 +838,11 @@ class PagedAttentionKVCacheObj : public AttentionKVCacheObj {
     }
   }
 
-  NDArray GetQueryPositions() const final {
-    CHECK(!dirty_aux_data_device_)
-        << "The auxiliary arrays are not synchronized to device. Please call "
-           "`BeginForward` to synchronize before calling `GetQueryPositions`.";
+  NDArray GetQueryPositions() final {
+    // Sync the copy stream and the compute stream.
+    ComputeStreamWaitForCopyStream();
+    // The auxiliary data structure on device must have been synchronized.
+    ICHECK(!dirty_aux_data_device_);
     return q_rope_position_map_view_;
   };
 
