@@ -57,7 +57,7 @@ class NaiveAllocator final : public Allocator {
     }
     nbytes *= (type_hint.bits * type_hint.lanes + 7) / 8;
     buf.device = dev;
-    if (mem_scope.empty() || mem_scope == "global") {
+    if (AllowMemoryScope(mem_scope)) {
       auto tmp_buf = Allocator::Alloc(dev, shape, type_hint, mem_scope);
       buf.size = tmp_buf.size;
       buf.data = tmp_buf.data;

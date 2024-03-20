@@ -36,7 +36,7 @@ namespace tvm {
 namespace runtime {
 namespace memory {
 
-class PooledAllocator final : public Allocator {
+class PooledAllocator : public Allocator {
  public:
   static constexpr size_t kDefaultPageSize = 4096;
 
@@ -60,12 +60,12 @@ class PooledAllocator final : public Allocator {
     buf.size = size;
     buf.alloc_type = kPooled;
     try {
-      buf.data = DeviceAPI::Get(dev)->AllocDataSpace(dev, size, alignment, type_hint);
+      buf.data = DeviceAllocDataSpace(dev, size, alignment, type_hint);
     } catch (InternalError& err) {
       LOG(WARNING) << "PooledAllocator got InternalError during allocation: " << err.message();
       LOG(WARNING) << "Trying to release all unused memory and reallocate...";
       ReleaseAll();
-      buf.data = DeviceAPI::Get(dev)->AllocDataSpace(dev, size, alignment, type_hint);
+      buf.data = DeviceAllocDataSpace(dev, size, alignment, type_hint);
     }
 
     used_memory_.fetch_add(size, std::memory_order_relaxed);
@@ -75,7 +75,7 @@ class PooledAllocator final : public Allocator {
 
   Buffer Alloc(Device dev, ShapeTuple shape, DLDataType type_hint,
                const std::string& mem_scope) override {
-    if (mem_scope.empty() || mem_scope == "global") {
+    if (AllowMemoryScope(mem_scope)) {
       return Allocator::Alloc(dev, shape, type_hint, mem_scope);
     }
     LOG(FATAL) << "This alloc should be implemented";
@@ -95,13 +95,22 @@ class PooledAllocator final : public Allocator {
 
   size_t UsedMemory() const override { return used_memory_.load(std::memory_order_relaxed); }
 
- private:
-  void ReleaseAll() {
+ protected:
+  virtual void* DeviceAllocDataSpace(Device dev, size_t nbytes, size_t alignment,
+                                     DLDataType type_hint) {
+    return DeviceAPI::Get(dev)->AllocDataSpace(dev, nbytes, alignment, type_hint);
+  }
+
+  virtual void DeviceFreeDataSpace(Device dev, void* ptr) {
+    DeviceAPI::Get(dev)->FreeDataSpace(dev, ptr);
+  }
+
+  virtual void ReleaseAll() {
     std::lock_guard<std::recursive_mutex> lock(mu_);
     for (auto const& it : memory_pool_) {
       auto const& pool = it.second;
       for (auto const& buf : pool) {
-        DeviceAPI::Get(buf.device)->FreeDataSpace(buf.device, buf.data);
+        DeviceFreeDataSpace(buf.device, buf.data);
       }
     }
     memory_pool_.clear();
@@ -109,7 +118,7 @@ class PooledAllocator final : public Allocator {
     VLOG(1) << "release all buffers";
   }
 
- private:
+ protected:
   size_t page_size_;
   std::atomic<size_t> used_memory_;
   std::unordered_map<size_t, std::vector<Buffer>> memory_pool_;

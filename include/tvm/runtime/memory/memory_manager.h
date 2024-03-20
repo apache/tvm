@@ -99,6 +99,10 @@ class Allocator {
    */
   TVM_DLL virtual size_t UsedMemory() const = 0;
 
+ protected:
+  /*! \brief Check if the given memory scope is allowed to allocate by the allocator. */
+  TVM_DLL virtual bool AllowMemoryScope(const std::string& mem_scope) const;
+
  private:
   AllocatorType type_;
 };
@@ -137,6 +141,8 @@ class StorageObj : public Object {
  public:
   /*! \brief The index into the VM function table. */
   Buffer buffer;
+  /*! \brief The allocator where the storage buffer is allocated from. */
+  Allocator* allocator;
 
   /*! \brief Allocate an NDArray from a given piece of storage. */
   TVM_DLL NDArray AllocNDArray(int64_t offset, ShapeTuple shape, DLDataType dtype);
@@ -144,10 +150,7 @@ class StorageObj : public Object {
   /*! \brief The deleter for an NDArray when allocated from underlying storage. */
   static void Deleter(Object* ptr);
 
-  ~StorageObj() {
-    auto alloc = MemoryManager::Global()->GetAllocator(buffer.device, buffer.alloc_type);
-    alloc->Free(buffer);
-  }
+  ~StorageObj() { allocator->Free(buffer); }
 
   static constexpr const uint32_t _type_index = TypeIndex::kDynamic;
   static constexpr const char* _type_key = "vm.Storage";
@@ -157,7 +160,7 @@ class StorageObj : public Object {
 /*! \brief reference to storage. */
 class Storage : public ObjectRef {
  public:
-  TVM_DLL explicit Storage(Buffer buffer);
+  TVM_DLL explicit Storage(Buffer buffer, Allocator* allocator);
 
   TVM_DEFINE_MUTABLE_OBJECT_REF_METHODS(Storage, ObjectRef, StorageObj);
 };

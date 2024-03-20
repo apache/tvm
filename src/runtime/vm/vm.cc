@@ -847,6 +847,7 @@ void VirtualMachine::RunLoop(const std::vector<Index>& output_tensor_reg_indices
                         instr.alloc_storage.shape + instr.alloc_storage.ndim);
           storage_obj->buffer = allocator->Alloc(device, ShapeTuple(shape_),
                                                  instr.alloc_storage.dtype_hint, mem_scope);
+          storage_obj->allocator = allocator;
         } else {
           auto size = LoadScalarInt(instr.alloc_storage.allocation_size);
           auto alignment = instr.alloc_storage.alignment;
@@ -855,6 +856,7 @@ void VirtualMachine::RunLoop(const std::vector<Index>& output_tensor_reg_indices
                   << ", device_index=" << instr.alloc_storage.device_index;
           storage_obj->buffer =
               allocator->Alloc(device, size, alignment, instr.alloc_storage.dtype_hint);
+          storage_obj->allocator = allocator;
         }
         Storage storage(storage_obj);
         WriteRegister(instr.dst, storage);

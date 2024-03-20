@@ -349,6 +349,7 @@ Storage VMAllocStorage(void* ctx_ptr, ShapeTuple buffer_shape, Index device_inde
 
   storage_obj->buffer =
       alloc->Alloc(vm->devices[device_index], buffer_shape, dtype_hint, mem_scope);
+  storage_obj->allocator = alloc;
   Storage storage(storage_obj);
   return storage;
 }
