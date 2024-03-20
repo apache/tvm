@@ -93,6 +93,7 @@ AOT_APROFILE_AEM_RUNNER = AOTTestRunner(
 
 
 @tvm.testing.requires_x86
+@tvm.testing.skip_if_32bit
 def test_aem_simple_addition():
     """Tests a simple addition running on the AArch64 AEM."""
     inp = relay.var("data", shape=(1, 2, 4, 4))
@@ -121,6 +122,7 @@ def test_aem_simple_addition():
 
 
 @tvm.testing.requires_x86
+@tvm.testing.skip_if_32bit
 def test_aem_asm_sme():
     """
     Tests SME assembly runs on the AArch64 AEM. This test is used as a simple
