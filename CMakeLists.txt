@@ -369,6 +369,7 @@ tvm_file_glob(GLOB RUNTIME_SRCS
   src/runtime/minrpc/*.cc
   src/runtime/relax_vm/*.cc
 )
+set(TVM_RUNTIME_EXT_OBJS "")
 
 if(BUILD_FOR_HEXAGON)
   if(NOT BUILD_STATIC_RUNTIME)
@@ -595,18 +596,32 @@ add_library(tvm_libinfo_objs OBJECT ${LIBINFO_FILE})
 
 include(GNUInstallDirs)
 if(NOT BUILD_DUMMY_LIBTVM)
-  add_library(tvm SHARED $<TARGET_OBJECTS:tvm_objs> $<TARGET_OBJECTS:tvm_runtime_objs> $<TARGET_OBJECTS:tvm_libinfo_objs>)
+  add_library(tvm SHARED
+    $<TARGET_OBJECTS:tvm_objs>
+    $<TARGET_OBJECTS:tvm_runtime_objs>
+    $<TARGET_OBJECTS:tvm_libinfo_objs>
+    ${TVM_RUNTIME_EXT_OBJS}
+  )
+
 else()
   # dummy version of libtvm that can be used by downstream to specify dependencies
   # the real runner still need a full version of libtvm
-  add_library(tvm SHARED $<TARGET_OBJECTS:tvm_runtime_objs> $<TARGET_OBJECTS:tvm_libinfo_objs>)
+  add_library(tvm SHARED
+    $<TARGET_OBJECTS:tvm_runtime_objs>
+    $<TARGET_OBJECTS:tvm_libinfo_objs>
+    ${TVM_RUNTIME_EXT_OBJS}
+  )
 endif()
 
 target_include_directories(tvm PUBLIC "$<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>")
 set_property(TARGET tvm APPEND PROPERTY LINK_OPTIONS "${TVM_NO_UNDEFINED_SYMBOLS}")
 set_property(TARGET tvm APPEND PROPERTY LINK_OPTIONS "${TVM_VISIBILITY_FLAG}")
 if(BUILD_STATIC_RUNTIME)
-  add_library(tvm_runtime STATIC $<TARGET_OBJECTS:tvm_runtime_objs> $<TARGET_OBJECTS:tvm_libinfo_objs>)
+  add_library(tvm_runtime STATIC
+    $<TARGET_OBJECTS:tvm_runtime_objs>
+    $<TARGET_OBJECTS:tvm_libinfo_objs>
+    ${TVM_RUNTIME_EXT_OBJS}
+  )
   set(NOTICE_MULTILINE
     "You have build static version of the TVM runtime library. Make "
     "sure to use --whole-archive when linking it into your project.")
@@ -614,7 +629,11 @@ if(BUILD_STATIC_RUNTIME)
   add_custom_command(TARGET tvm_runtime POST_BUILD
     COMMAND ${CMAKE_COMMAND} -E cmake_echo_color --yellow --bold ${NOTICE})
 else()
-  add_library(tvm_runtime SHARED $<TARGET_OBJECTS:tvm_runtime_objs> $<TARGET_OBJECTS:tvm_libinfo_objs>)
+  add_library(tvm_runtime SHARED
+    $<TARGET_OBJECTS:tvm_runtime_objs>
+    $<TARGET_OBJECTS:tvm_libinfo_objs>
+    ${TVM_RUNTIME_EXT_OBJS}
+  )
   set_property(TARGET tvm_runtime APPEND PROPERTY LINK_OPTIONS "${TVM_NO_UNDEFINED_SYMBOLS}")
 endif()
 
