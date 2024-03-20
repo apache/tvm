@@ -125,7 +125,7 @@ importer-mxnet = ["mxnet"]
 
 [tool.poetry.dev-dependencies]
 autodocsumm = "^0.1"
-black = "^19.10b0"
+black = "^24.3"
 matplotlib = "^3.2"
 Image = "^1.5"
 recommonmark = "^0.6"
