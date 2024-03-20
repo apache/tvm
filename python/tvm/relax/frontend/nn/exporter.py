@@ -299,20 +299,16 @@ def _method_spec_to_inputs(
         return var
 
     def _convert_input(arg_name, arg_spec):
-        if isinstance(arg_spec, rx.TensorStructInfo):
-            return core.Tensor.from_struct_info(arg_spec, name=arg_name)
-        elif isinstance(arg_spec, rx.StructInfo):
-            return core.Object(_expr=rx.Var(arg_name, arg_spec), _name=arg_name)
-        elif isinstance(arg_spec, _spec.Int):
-            return _get_var(arg_name)
+        if isinstance(arg_spec, _spec.Int):
+            arg = _get_var(arg_name)
         elif isinstance(arg_spec, _spec.Tensor):
-            return core.Tensor.placeholder(  # pylint: disable=protected-access
+            arg = core.Tensor.placeholder(  # pylint: disable=protected-access
                 shape=[_get_var(x) if isinstance(x, str) else x for x in arg_spec.shape],
                 dtype=arg_spec.dtype,
                 name=arg_name,
             )
         elif isinstance(arg_spec, _spec.Object):
-            return arg_spec.object_type(_expr=rx.Var(arg_name, ObjectStructInfo()), _name=arg_name)
+            arg = arg_spec.object_type(_expr=rx.Var(arg_name, ObjectStructInfo()), _name=arg_name)
         elif isinstance(arg_spec, _spec.Tuple):
             elements = type(arg_spec.elements)(
                 [
@@ -320,12 +316,13 @@ def _method_spec_to_inputs(
                     for i in range(len(arg_spec.elements))
                 ]
             )
-            return _spec.Tuple(
+            arg = _spec.Tuple(
                 name=arg_name,
                 elements=elements,
             )
         else:
             raise TypeError(f"Invalid spec for argument {arg_name}: {arg_spec}")
+        return arg
 
     args = []
     for arg_name, arg_spec in zip(spec.arg_names, spec.arg_specs):
