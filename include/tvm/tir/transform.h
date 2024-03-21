@@ -398,6 +398,7 @@ TVM_DLL Pass ForceNarrowIndexToInt32();
 /*!
  * \brief Legalize bf16 compute Ops. Add a cast to fp32
  *   before Ops, then add a cast back to bf16.
+ * \param target The target used for checking native bf16 support
  * \return The pass.
  */
 TVM_DLL Pass BF16ComputeLegalize();
@@ -405,10 +406,11 @@ TVM_DLL Pass BF16ComputeLegalize();
 /*!
  * \brief Legalize fp8 compute Ops. Add a cast to fp16/fp32
  *   before Ops, then add a cast back to fp8.
+ * \param target The target used for checking native fp8 support
  * \param promote_dtype_str The data type used for type promotion, defaults to float16
  * \return The pass.
  */
-TVM_DLL Pass FP8ComputeLegalize(String promote_dtype_str = "float16");
+TVM_DLL Pass FP8ComputeLegalize(Target target, String promote_dtype_str = "float16");
 
 /*!
  * \brief Legalize bf16 storage types to u16.
@@ -420,7 +422,7 @@ TVM_DLL Pass BF16StorageLegalize();
  * \brief Legalize fp8 storage types to u8.
  * \return The pass.
  */
-TVM_DLL Pass FP8StorageLegalize();
+TVM_DLL Pass FP8StorageLegalize(Target target);
 
 /*!
  * \brief Inline calls to private functions

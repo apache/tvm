@@ -20,6 +20,7 @@ import shutil
 from typing import Any, Union, List
 
 from tvm.contrib.msc.core.tools.tool import BaseTool, ToolType
+from tvm.contrib.msc.core.utils.message import MSCStage
 from tvm.contrib.msc.core.utils.namespace import MSCFramework
 from tvm.contrib.msc.core import utils as msc_utils
 from .manager import MSCManager
@@ -37,8 +38,6 @@ class BaseWrapper(object):
         The config for pipeline
     plugins: dict
         The plugins for pipeline.
-    debug: bool
-        Whether to use debug mode.
     """
 
     def __init__(
@@ -47,14 +46,13 @@ class BaseWrapper(object):
         config: dict,
         workspace: str = "msc_workspace",
         plugins: dict = None,
-        debug: bool = False,
     ):
         self._meta_model = model
         self._optimized_model, self._compiled_model = None, None
         self._config = config
         self._plugins = plugins
         verbose = config.get("verbose", "info")
-        self._debug = True if verbose.startswith("debug") else debug
+        self._debug = verbose.startswith("debug")
         self._workspace = msc_utils.msc_dir(workspace, keep_history=self._debug)
         log_path = self._workspace.relpath("MSC_LOG", keep_history=False)
         self._config["logger"] = msc_utils.create_file_logger(verbose, log_path)
@@ -92,9 +90,15 @@ class BaseWrapper(object):
         self.logger.info("[Wrapper] Start optimize model")
         config = msc_utils.copy_dict(self._config)
         config["workspace"] = self._workspace.create_dir(workspace)
+        if MSCStage.OPTIMIZE not in config:
+            config[MSCStage.OPTIMIZE] = {
+                "run_type": self.model_type(),
+                "profile": {"check": {"atol": 1e-3, "rtol": 1e-3}, "benchmark": {"repeat": -1}},
+            }
         self._manager = MSCManager(self._meta_model, config, self._plugins, run_compile=False)
-        self._manager.run_pipe()
-        self._optimized_model = self._manager.get_runnable("runnable")
+        report = self._manager.run_pipe()
+        if report["success"]:
+            self._optimized_model = self._manager.get_runnable("runnable")
         return self
 
     def compile(
@@ -118,8 +122,9 @@ class BaseWrapper(object):
             pipeline = self.export(ckpt_path, dump=dump)
             pipeline["config"]["workspace"] = self._workspace.create_dir(workspace)
             self._manager = MSCManager(**pipeline)
-            self._manager.run_pipe()
-            self._compiled_model = self._manager.get_runnable("runnable")
+            report = self._manager.run_pipe()
+            if report["success"]:
+                self._compiled_model = self._manager.get_runnable("runnable")
             if not self._debug:
                 shutil.rmtree(ckpt_path)
         else:
@@ -127,8 +132,9 @@ class BaseWrapper(object):
             config = msc_utils.copy_dict(self._config)
             config["workspace"] = self._workspace.create_dir(workspace)
             self._manager = MSCManager(self._meta_model, config, self._plugins)
-            self._manager.run_pipe()
-            self._compiled_model = self._manager.get_runnable("runnable")
+            report = self._manager.run_pipe()
+            if report["success"]:
+                self._compiled_model = self._manager.get_runnable("runnable")
         return self
 
     def export(self, path: str = "msc_export", dump: bool = True) -> Union[str, dict]:

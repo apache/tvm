@@ -338,6 +338,9 @@ def test_nn():
             silu_out = op.silu(x)
             gelu_out = op.gelu(x)
             sigmoid_out = op.sigmoid(x)
+            tanh_out = op.tanh(x)
+            exp_out = op.exp(x)
+            negative_out = op.negative(x)
             softmax_out = op.softmax(x, axis=2)
             rms_norm_out = op.rms_norm(x, weight, axes=[-2, -1])
             rms_norm_with_bias_out = op.rms_norm(x, weight, axes=[-2, -1])
@@ -357,6 +360,9 @@ def test_nn():
             silu: R.Tensor((2, 3, 4, 5), dtype="float32") = R.nn.silu(x)
             gelu: R.Tensor((2, 3, 4, 5), dtype="float32") = R.nn.gelu(x)
             sigmoid: R.Tensor((2, 3, 4, 5), dtype="float32") = R.sigmoid(x)
+            tanh: R.Tensor((2, 3, 4, 5), dtype="float32") = R.tanh(x)
+            exp: R.Tensor((2, 3, 4, 5), dtype="float32") = R.exp(x)
+            negative: R.Tensor((2, 3, 4, 5), dtype="float32") = R.negative(x)
             softmax: R.Tensor((2, 3, 4, 5), dtype="float32") = R.nn.softmax(x, axis=2)
             rms_norm: R.Tensor((2, 3, 4, 5), dtype="float32") = R.nn.rms_norm(
                 x, weight, axes=[-2, -1], epsilon=1.0000000000000001e-05

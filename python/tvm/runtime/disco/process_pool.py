@@ -20,8 +20,6 @@ import os
 import subprocess
 import sys
 
-import psutil
-
 from tvm._ffi import register_func
 from tvm.runtime import ShapeTuple
 
@@ -158,6 +156,8 @@ def _kill_child_processes(pid):
     pid : int
         The given parameter id.
     """
+    import psutil  # pylint: disable=import-outside-toplevel
+
     try:
         parent = psutil.Process(pid)
         children = parent.children(recursive=True)

@@ -1275,6 +1275,13 @@ class VectorTypeAccessChecker : public StmtExprVisitor {
     auto it = info_map_.find(buffer);
     ICHECK(it != info_map_.end()) << "Load/Store of buffer " << buffer->name_hint << " (" << buffer
                                   << ") occurred before its declaration.";
+
+    if (value_dtype.is_scalable_vector()) {
+      // Scalable types are not currently supported in storage_rewrite. Scalable buffer
+      // accesses are not currently checked and therefore are not rewritten.
+      return;
+    }
+
     BufferVarInfo& var_info = it->second;
 
     if (value_dtype.element_of() == DataType::Bool()) {

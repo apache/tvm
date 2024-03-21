@@ -30,19 +30,28 @@ def _check_function_metadata(function_metadata, expected_infos):
         func_info = function_metadata[symbol]
         # Check workspace_sizes
         key, value = func_info.workspace_sizes.items()[0]
-        assert str(key) == expected_info["target"]
+        actual_target = tvm.target.Target(key)
+        assert str(actual_target.kind) == expected_info["target_kind"]
+        assert expected_info["target_key"] in actual_target.keys
         assert value == expected_info["workspace_sizes"]
+
         # Check io_sizes
         key, value = func_info.io_sizes.items()[0]
-        assert str(key) == expected_info["target"]
+        actual_target = tvm.target.Target(key)
+        assert str(actual_target.kind) == expected_info["target_kind"]
+        assert expected_info["target_key"] in actual_target.keys
         assert value == expected_info["io_sizes"]
         # Check constant_sizes
         key, value = func_info.constant_sizes.items()[0]
-        assert str(key) == expected_info["target"]
+        actual_target = tvm.target.Target(key)
+        assert str(actual_target.kind) == expected_info["target_kind"]
+        assert expected_info["target_key"] in actual_target.keys
         assert value == expected_info["constant_sizes"]
         # Check tir_primfuncs
         key, value = func_info.tir_primfuncs.items()[0]
-        assert str(key) == expected_info["target"]
+        actual_target = tvm.target.Target(key)
+        assert str(actual_target.kind) == expected_info["target_kind"]
+        assert expected_info["target_key"] in actual_target.keys
         tvm.ir.assert_structural_equal(value, expected_info["tir_primfuncs"])
 
 
@@ -68,7 +77,8 @@ def test_create_function_metadata_workspace_allocate_only():
 
     expected_infos = {
         "__tvm_main__": {
-            "target": "llvm -keys=cpu ",
+            "target_kind": "llvm",
+            "target_key": "cpu",
             "workspace_sizes": 432,
             "io_sizes": 280,
             "constant_sizes": 0,
@@ -98,7 +108,8 @@ def test_create_function_metadata_constant_allocate_only():
 
     expected_infos = {
         "__tvm_main__": {
-            "target": "llvm -keys=cpu ",
+            "target_kind": "llvm",
+            "target_key": "cpu",
             "workspace_sizes": 0,
             "io_sizes": 280,
             "constant_sizes": 140,
@@ -127,7 +138,8 @@ def test_create_function_metadata_constant_pool_only():
 
     expected_infos = {
         "__tvm_main__": {
-            "target": "llvm -keys=cpu ",
+            "target_kind": "llvm",
+            "target_key": "cpu",
             "workspace_sizes": 0,
             "io_sizes": 280,
             "constant_sizes": 256,
@@ -171,7 +183,8 @@ def test_create_function_metadata_workspace_pool_only():
 
     expected_infos = {
         "__tvm_main__": {
-            "target": "llvm -keys=cpu ",
+            "target_kind": "llvm",
+            "target_key": "cpu",
             "workspace_sizes": 256,
             "io_sizes": 280,
             "constant_sizes": 0,
@@ -218,7 +231,8 @@ def test_create_function_metadata_all_single_func():
 
     expected_infos = {
         "__tvm_main__": {
-            "target": "llvm -keys=cpu ",
+            "target_kind": "llvm",
+            "target_key": "cpu",
             "workspace_sizes": 688,
             "io_sizes": 280,
             "constant_sizes": 652,
@@ -278,14 +292,16 @@ def test_create_function_metadata_workspace_multi_funcs():
 
     expected_infos = {
         "__tvm_main__": {
-            "target": "llvm -keys=cpu ",
+            "target_kind": "llvm",
+            "target_key": "cpu",
             "workspace_sizes": 0,
             "io_sizes": 280,
             "constant_sizes": 0,
             "tir_primfuncs": Module["__tvm_main__"],
         },
         "test_fused_add": {
-            "target": "llvm -keys=cpu ",
+            "target_kind": "llvm",
+            "target_key": "cpu",
             "workspace_sizes": 144,
             "io_sizes": 420,
             "constant_sizes": 140,

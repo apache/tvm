@@ -17,6 +17,7 @@
 """tvm.contrib.msc.core.utils.expr"""
 
 import copy
+from typing import Dict
 
 import tvm
 from tvm import relax
@@ -44,6 +45,28 @@ def get_expr_name(expr: relax.Expr) -> str:
     return name
 
 
+def make_span(kwargs: Dict[str, str], span: relax.Span = None) -> relax.Span:
+    """Change name to span
+
+    Parameters
+    ----------
+    kwargs: dict<str,str>
+        The attrs in span.
+    span: relax.Span
+        The source span.
+
+    Returns
+    -------
+    span: relax.Span
+        The span.
+    """
+
+    span = span or relax.Span(tvm.ir.SourceName(""), 0, 0, 0, 0)
+    for k, v in kwargs.items():
+        span = _ffi_api.SpanSetAttr(span, _ffi_api.ToAttrKey(k), v)
+    return span
+
+
 def set_expr_name(expr: relax.Expr, name: str):
     """Set the name for expr
 
@@ -60,7 +83,7 @@ def set_expr_name(expr: relax.Expr, name: str):
         The expr with name.
     """
 
-    expr.span = _ffi_api.SpanSetAttr(expr.span, _ffi_api.ToAttrKey("name"), name)
+    expr.span = make_span({"name": name}, expr.span)
     return expr
 
 

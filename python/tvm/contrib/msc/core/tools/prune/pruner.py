@@ -541,10 +541,8 @@ class BasePruner(WeightTool):
         return ToolType.PRUNER
 
 
+@msc_utils.register_tool
 class DefaultPruner(BasePruner):
     @classmethod
     def tool_style(cls):
         return "default"
-
-
-msc_utils.register_tool_cls(DefaultPruner)

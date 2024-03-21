@@ -17,8 +17,11 @@
 """Unit tests for the Bring Your Own Datatype framework.
 
 TODO(@gussmith23 @hypercubestart) link to documentation"""
+import platform
+
 import numpy as np
 import pytest
+
 import tvm
 import tvm.topi.testing
 import tvm.testing

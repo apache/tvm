@@ -30,7 +30,12 @@ from ...ir_builder import ir as I
 from ...ir_builder import relax as R
 from ...ir_builder.base import IRBuilder
 from .._core import Parser, dispatch, doc
-from .entry import MatchCastPair, StructInfoProxy, TupleProxy
+from .entry import (
+    MatchCastPair,
+    StructInfoProxy,
+    _normalize_struct_info_proxy,
+    _normalize_struct_info,
+)
 
 
 def bind_assign_value(
@@ -91,13 +96,7 @@ def bind_assign_value(
 def eval_struct_info_proxy(self: Parser, node: doc.expr) -> StructInfoProxy:
     try:
         annotation = self.eval_expr(node)
-        if annotation is None:
-            return TupleProxy([])
-        if callable(annotation):
-            annotation = annotation()
-        if isinstance(annotation, StructInfoProxy):
-            return annotation
-        raise TypeError(f"Expected StructInfoProxy but got {type(annotation)}.")
+        return _normalize_struct_info_proxy(annotation)
     except Exception as err:
         self.report_error(node, str(err))
         raise err
@@ -106,7 +105,8 @@ def eval_struct_info_proxy(self: Parser, node: doc.expr) -> StructInfoProxy:
 def eval_struct_info(self: Parser, node: doc.expr, eval_str: bool = False) -> StructInfo:
     var_table = self.var_table.get() if eval_str else None
     try:
-        return eval_struct_info_proxy(self, node).as_struct_info(var_table)
+        struct_info = self.eval_expr(node)
+        return _normalize_struct_info(struct_info, var_table)
     except Exception as err:
         self.report_error(node, str(err))
         raise err
@@ -381,7 +381,6 @@ def visit_if(self: Parser, node: doc.If) -> None:
 @dispatch.register(token="relax", type_name="enter_token")
 def enter_token(self: Parser) -> Dict[str, Any]:
     def relax_call(self, *args) -> Expr:
-
         args = [convert_to_expr(arg) if isinstance(arg, tuple) else arg for arg in args]
 
         if all(isinstance(x, Expr) for x in args):

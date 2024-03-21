@@ -586,11 +586,20 @@ llvm::Type* CodeGenLLVM::DTypeToLLVMType(const DataType& dtype) const {
       default:
         LOG(FATAL) << "do not support " << dtype;
     }
+  } else if (dtype.code() == DataType::kE4M3Float || dtype.code() == DataType::kE5M2Float) {
+    etype = llvm::Type::getInt8Ty(*ctx);
   }
-  if (dtype.lanes() != 1) {
+  if (!dtype.is_scalar()) {
 #if TVM_LLVM_VERSION >= 110
-    return llvm::FixedVectorType::get(etype, dtype.lanes());
+    if (dtype.is_scalable_vector()) {
+      return llvm::VectorType::get(etype, dtype.vscale_factor(), true);
+    } else {
+      return llvm::FixedVectorType::get(etype, dtype.lanes());
+    }
 #else
+    ICHECK(!dtype.is_scalable_vector())
+        << "Versions of LLVM < 11 do not support scalable vectors. Please upgrade to a later "
+           "version.";
     return llvm::VectorType::get(etype, dtype.lanes());
 #endif
   } else {
@@ -747,26 +756,6 @@ std::unique_ptr<CodeGenLLVM::DebugInfo> CodeGenLLVM::CreateDebugInfo(llvm::Modul
       /*Lang=*/llvm::dwarf::DW_LANG_C, /*File=*/debug_info->file_, /*Producer=*/"TVM", is_optimized,
       compiler_flags, runtime_version);
   return debug_info;
-}
-
-llvm::Value* CodeGenLLVM::CreateBroadcast(llvm::Value* value, int lanes) {
-#if TVM_LLVM_VERSION >= 110
-  llvm::Type* type = llvm::FixedVectorType::get(value->getType(), lanes);
-#else
-  llvm::Type* type = llvm::VectorType::get(value->getType(), lanes);
-#endif
-  llvm::Constant* undef = llvm::UndefValue::get(type);
-  llvm::Constant* zero = ConstInt32(0);
-  value = builder_->CreateInsertElement(undef, value, zero);
-#if TVM_LLVM_VERSION >= 120
-  llvm::Constant* mask = llvm::ConstantVector::getSplat(llvm::ElementCount::getFixed(lanes), zero);
-#elif TVM_LLVM_VERSION >= 110
-  llvm::Constant* mask =
-      llvm::ConstantVector::getSplat(llvm::ElementCount(lanes, /*Scalable=*/false), zero);
-#else
-  llvm::Constant* mask = llvm::ConstantVector::getSplat(lanes, zero);
-#endif
-  return builder_->CreateShuffleVector(value, undef, mask);
 }
 
 llvm::Value* CodeGenLLVM::CreateVecSlice(llvm::Value* vec, int begin, int extent) {
@@ -1693,7 +1682,8 @@ void CodeGenLLVM::BufferAccessHelper(
   }
 
   PrimExpr last_index = indices[indices.size() - 1];
-  ICHECK_EQ(value_dtype.lanes(), last_index.dtype().lanes() * buffer_element_dtype.lanes());
+  ICHECK_EQ(value_dtype.get_lanes_or_vscale_factor(),
+            last_index.dtype().get_lanes_or_vscale_factor() * buffer_element_dtype.lanes());
 
   // Record index and elemtype in original form used for alias info
   PrimExpr last_index_origin = last_index;
@@ -1736,8 +1726,6 @@ void CodeGenLLVM::BufferAccessHelper(
     llvm::Value* last_index_value;
     int subelement_i = i;
     if (const RampNode* ramp = last_index.as<RampNode>()) {
-      // TODO(ekalda): P4 in https://github.com/apache/tvm/issues/16455
-      ICHECK(!last_index.dtype().is_scalable_vector());
       PrimExpr offset = ramp->base + (ramp->stride * i);
       last_index_value = MakeValue(offset);
     } else if (last_index.dtype().lanes() > 1) {
@@ -1754,8 +1742,13 @@ void CodeGenLLVM::BufferAccessHelper(
     all_index_values.push_back(last_index_value);
 
     TypedPointer buffer_ptr =
-        CreateBufferPtr(MakeValue(buffer->data), buffer_element_dtype, all_index_values,
-                        value_dtype.with_lanes(value_dtype.lanes() / last_index.dtype().lanes()));
+        value_dtype.is_scalable_vector()
+            ? CreateBufferPtr(MakeValue(buffer->data), buffer_element_dtype, all_index_values,
+                              value_dtype.with_scalable_vscale_factor(value_dtype.vscale_factor() /
+                                                                      last_index.dtype().lanes()))
+            : CreateBufferPtr(
+                  MakeValue(buffer->data), buffer_element_dtype, all_index_values,
+                  value_dtype.with_lanes(value_dtype.lanes() / last_index.dtype().lanes()));
     auto instruction = make_instruction(buffer_ptr, subelement_i, alignment, is_volatile);
     AddAliasInfo(instruction, buffer->data.get(), last_index_origin, buffer_element_dtype_origin);
   }
@@ -1870,10 +1863,23 @@ llvm::Value* CodeGenLLVM::VisitExpr_(const ShuffleNode* op) {
 }
 
 llvm::Value* CodeGenLLVM::VisitExpr_(const BroadcastNode* op) {
-  // TODO(ekalda): P4 in https://github.com/apache/tvm/issues/16455
-  ICHECK(!op->dtype.is_scalable_vector());
-  int lanes = op->dtype.lanes();
-  return CreateBroadcast(MakeValue(op->value), lanes);
+  DataType dtype = op->dtype;
+  llvm::Value* value = MakeValue(op->value);
+  llvm::Type* type = DTypeToLLVMType(dtype);
+  llvm::Constant* undef = llvm::UndefValue::get(type);
+  llvm::Constant* zero = ConstInt32(0);
+  value = builder_->CreateInsertElement(undef, value, zero);
+#if TVM_LLVM_VERSION >= 110
+  llvm::ElementCount ec =
+      llvm::ElementCount::get(dtype.get_lanes_or_vscale_factor(), dtype.is_scalable_vector());
+  llvm::Constant* mask = llvm::ConstantVector::getSplat(ec, zero);
+#else
+  ICHECK(!dtype.is_scalable_vector())
+      << "Versions of LLVM < 11 do not support scalable vectors. Please upgrade to a later "
+         "version.";
+  llvm::Constant* mask = llvm::ConstantVector::getSplat(dtype.lanes(), zero);
+#endif
+  return builder_->CreateShuffleVector(value, undef, mask);
 }
 
 void CodeGenLLVM::VisitStmt_(const BufferStoreNode* op) {

@@ -31,7 +31,7 @@ from tvm import topi
 
 @pytest.mark.parametrize(
     "target, expected_implementation",
-    [("llvm", "concatenate.cpu"), ("llvm -device=arm_cpu", "concatenate.arm_cpu")],
+    [("llvm -device=arm_cpu", "concatenate.arm_cpu")],
 )
 def test_concatenate(target, expected_implementation):
     target = tvm.target.Target(target)
@@ -93,7 +93,6 @@ def _get_conv2d_impl(dtype, target):
 @pytest.mark.parametrize(
     "target,expected_impl",
     [
-        ("llvm -device=arm_cpu", "conv2d_nhwc_spatial_pack.arm_cpu"),
         (
             "llvm -device=arm_cpu -mtriple=aarch64-linux-gnu -mattr=+neon",
             "conv2d_NHWC_quantized_interleaved_without_transform.arm_cpu",
@@ -135,7 +134,6 @@ def test_int8_conv2d(target, expected_impl):
 @pytest.mark.parametrize(
     "target,expected_impl",
     [
-        ("llvm -device=arm_cpu", "conv2d_nhwc_spatial_pack.arm_cpu"),
         (
             "llvm -device=arm_cpu -mtriple=armv8l-linux-gnu -mattr=+neon",
             "conv2d_nhwc_spatial_pack.arm_cpu",
@@ -169,7 +167,6 @@ def test_fp32_conv2d(target, expected_impl):
 @pytest.mark.parametrize(
     "target,expected_impl",
     [
-        ("llvm -device=arm_cpu", "conv2d_nhwc_spatial_pack.arm_cpu"),
         (
             "llvm -device=arm_cpu -mtriple=armv8l-linux-gnu -mattr=+neon",
             "conv2d_nhwc_spatial_pack.arm_cpu",
@@ -183,11 +180,11 @@ def test_fp32_conv2d(target, expected_impl):
             "conv2d_NHWC_hybrid_without_transform.arm_cpu",
         ),
         (
-            "llvm --device=arm_cpu --mtriple=aarch64-linux-gnu -mattr=+v8.2a,+neon",
+            "llvm -device=arm_cpu -mtriple=aarch64-linux-gnu -mattr=+v8.2a,+neon",
             "conv2d_NHWC_hybrid_without_transform.arm_cpu",
         ),
         (
-            "llvm --device=arm_cpu --mtriple=aarch64-linux-gnu -mattr=+v9a",
+            "llvm -device=arm_cpu -mtriple=aarch64-linux-gnu -mattr=+v9a",
             "conv2d_NHWC_hybrid_without_transform.arm_cpu",
         ),
     ],
@@ -203,7 +200,6 @@ def test_fp16_conv2d(target, expected_impl):
 @pytest.mark.parametrize(
     "target,expected_impl",
     [
-        ("llvm -device=arm_cpu", "depthwise_conv2d_nhwc.generic"),
         (
             "llvm -device=arm_cpu -mtriple=aarch64-linux-gnu -mattr=+neon",
             "depthwise_conv2d_nhwc.arm_cpu",

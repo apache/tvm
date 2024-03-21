@@ -17,6 +17,7 @@
 # pylint: disable=unused-import
 """tvm.contrib.msc.framework.tensorrt.runtime.runner"""
 
+import os
 from typing import Any, List, Dict
 
 import tvm
@@ -101,6 +102,28 @@ class TensorRTRunner(BYOCRunner):
             self._generate_config = tool.config_generate(self._generate_config)
 
         return super()._generate_model(graphs, weights)
+
+    def export_runnable(self, folder: msc_utils.MSCDirectory) -> dict:
+        """Export the runnable
+
+        Parameters
+        -------
+        folder: MSCDirectory
+            The export folder.
+
+        Returns
+        -------
+        info: dict
+            The runnable info.
+        """
+
+        info = super().export_runnable(folder)
+        info["engines"] = {}
+        for graph in self._graphs:
+            engine_file = msc_utils.get_output_dir().relpath(graph.name + ".trt")
+            assert os.path.isfile(engine_file), "Missing engine file " + engine_file
+            info["engines"] = folder.copy(engine_file)
+        return info
 
     @classmethod
     def target_transform(cls, mod: tvm.IRModule):

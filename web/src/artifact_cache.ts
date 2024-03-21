@@ -26,6 +26,11 @@ export interface ArtifactCacheTemplate {
   fetchWithCache(url: string);
 
   /**
+   * add ey url to cache
+   */
+  addToCache(url: string);
+
+  /**
    * check if cache has all keys in Cache
    */
   hasAllKeys(keys: string[]);

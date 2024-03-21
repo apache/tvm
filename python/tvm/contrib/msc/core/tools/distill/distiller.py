@@ -271,10 +271,8 @@ class BaseDistiller(BaseTool):
         return ToolType.DISTILLER
 
 
+@msc_utils.register_tool
 class DefaultDistiller(BaseDistiller):
     @classmethod
     def tool_style(cls):
         return "default"
-
-
-msc_utils.register_tool_cls(DefaultDistiller)

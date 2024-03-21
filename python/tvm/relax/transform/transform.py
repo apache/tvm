@@ -233,6 +233,29 @@ def ToNonDataflow() -> tvm.ir.transform.Pass:
     return _ffi_api.ToNonDataflow()  # type: ignore
 
 
+def TopologicalSort(order="depth-first", direction="from-inputs") -> tvm.ir.transform.Pass:
+    """Sort bindings in relax.Dataflow blocks in the order specified
+
+    Parameters
+    ----------
+    order: str
+
+        The order in which bindings should be emitted.  Allowed values
+        are "depth-first" and "breadth-first".
+
+    direciton: str
+
+        The direction in which the sort should be performed.  Allowed
+        values are "from-inputs" and "from-outputs".
+
+    Returns
+    -------
+    ret: tvm.ir.transform.Pass
+
+    """
+    return _ffi_api.TopologicalSort(order, direction)  # type: ignore
+
+
 def RemovePurityChecking() -> tvm.ir.transform.Pass:
     """Activate relax.force_pure on all pure functions in the module
     and unwrap all pure override ops into the normal versions.
@@ -832,7 +855,7 @@ def MergeCompositeFunctions() -> tvm.ir.transform.Pass:
     return _ffi_api.MergeCompositeFunctions()  # type: ignore
 
 
-def LiftTransformParams() -> tvm.ir.transform.Pass:
+def LiftTransformParams(shared_transform: Union[bool, List[str]] = False) -> tvm.ir.transform.Pass:
     """Lift transformation of the parameters of a function.
 
     When some inputs of the function is marked as 'parameters' (the model weights), this pass
@@ -844,12 +867,30 @@ def LiftTransformParams() -> tvm.ir.transform.Pass:
     Users are expected to invoke the `transform_params` function in runtime and pass the transformed
     parameters to the original function as input.
 
+    Parameters
+    ----------
+    shared_transform: Union[bool, List[str]]
+
+        Indicates how the parameter transformation function will be produced
+
+        - `False` (default): A separate parameter transformation function will be
+        produced for each function with the `"num_input"` attribute.
+
+        - `True`: A single parameter transformation function will be produced,
+        containing the preprocessing steps common across all functions with
+        the `"num_input"` attribute.
+
+        - List[str]: A single parameter transformation function will be produced,
+        containing the preprocessing steps common across each function whose
+        name is in the list.  Passing a list of all functions with the `"num_input"`
+        attribute or an empty list is equivalent to passing `True`.
+
     Returns
     -------
     ret : tvm.transform.Pass
         The registered pass for lifting transformation of parameters.
     """
-    return _ffi_api.LiftTransformParams()  # type: ignore
+    return _ffi_api.LiftTransformParams(shared_transform)  # type: ignore
 
 
 def BundleModelParams(param_tuple_name: Optional[str] = None) -> tvm.ir.transform.Pass:

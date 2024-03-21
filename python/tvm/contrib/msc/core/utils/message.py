@@ -39,6 +39,7 @@ class MSCStage(object):
     OPTIMIZE = "optimize"
     COMPILE = "compile"
     SUMMARY = "summary"
+    EXPORT = "export"
     ALL = [
         SETUP,
         PREPARE,
@@ -51,6 +52,7 @@ class MSCStage(object):
         OPTIMIZE,
         COMPILE,
         SUMMARY,
+        EXPORT,
     ]
 
     @classmethod

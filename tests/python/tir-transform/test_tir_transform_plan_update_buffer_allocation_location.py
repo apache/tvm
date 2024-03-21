@@ -417,7 +417,8 @@ def test_allocate_const_after_tensorize():
 
 
 def test_buffer_conditional_lowering():
-    """
+    """Buffers passed as pointer arguments are unmodified
+
     Confirm that the `tir.PlanAndUpdateBufferAllocationLocation` pass
     leaves (Buffer nodes corresponding to pointer-typed PrimFunc arguments)
     unchanged, rather than lowering them to `reads`, `writes`, and `alloc_buffer` nodes.
@@ -429,6 +430,36 @@ def test_buffer_conditional_lowering():
         for i in range(1):
             A_1 = T.Buffer((1,), data=A)
             A_1[i] = 0
+
+    after = before
+    _check(before, after)
+
+
+def test_dltensor_buffer_is_unlowered():
+    """Buffers allocated with a LetStmt are unmodified
+
+    Confirm that the `tir.PlanAndUpdateBufferAllocationLocation` pass
+    leaves (Buffer nodes corresponding to PrimFunc DLTensor arguments)
+    unchanged, rather than lowering them to `reads`, `writes`, and
+    `alloc_buffer` nodes.
+    """
+
+    @T.prim_func
+    def before(dlpack_handle: T.handle, axis: T.int64) -> T.int64:
+        ndim: T.int32 = T.tvm_struct_get(dlpack_handle, 0, 5, "int32")
+        stride_ptr: T.handle("int64") = T.tvm_struct_get(dlpack_handle, 0, 4, "handle")
+        if T.isnullptr(stride_ptr):
+            shape_ptr: T.handle("int64") = T.tvm_struct_get(dlpack_handle, 0, 3, "handle")
+            shape = T.decl_buffer(ndim, "int64", data=shape_ptr)
+            product = T.decl_buffer([], "int64")
+            product[()] = 1
+            for dim in range(axis + 1, ndim):
+                product[()] = product[()] * shape[dim]
+            return product[()]
+        else:
+            strides = T.decl_buffer(ndim, "int64", data=stride_ptr)
+            stride: T.int64 = strides[axis]
+            return stride
 
     after = before
     _check(before, after)
