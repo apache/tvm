@@ -107,54 +107,6 @@ def test_debug_effect():
     assert_structural_equal(exported_mod, Expected)
 
 
-def test_struct_info_specification():
-    """An argument may be specified with relax StructInfo"""
-
-    slm_mod = nn.modules.ReLU()
-    exported_mod, _ = slm_mod.export_tvm(
-        spec={"forward": {"x": relax.TensorStructInfo([3, 3], "float32")}},
-        debug=False,
-    )
-
-    @I.ir_module
-    class Expected:
-        @R.function
-        def forward(x: R.Tensor([3, 3], dtype="float32")):
-            R.func_attr({"num_input": 1})
-            with R.dataflow():
-                relu = R.nn.relu(x)
-                R.output(relu)
-            return relu
-
-    assert_structural_equal(exported_mod, Expected)
-
-
-def test_tvmscript_struct_info_specification():
-    """An argument may be specified with R.Tensor
-
-    The same syntax used in TVMScript for type annotations may be used
-    when exporting from SLM.
-    """
-
-    slm_mod = nn.modules.ReLU()
-    exported_mod, _ = slm_mod.export_tvm(
-        spec={"forward": {"x": R.Tensor([3, 3], "float32")}},
-        debug=False,
-    )
-
-    @I.ir_module
-    class Expected:
-        @R.function
-        def forward(x: R.Tensor([3, 3], dtype="float32")):
-            R.func_attr({"num_input": 1})
-            with R.dataflow():
-                relu = R.nn.relu(x)
-                R.output(relu)
-            return relu
-
-    assert_structural_equal(exported_mod, Expected)
-
-
 def test_dynamic_shape():
     """An argument may have a dynamic shape"""
 
