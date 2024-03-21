@@ -39,7 +39,7 @@ func TestErrorTest(t *testing.T) {
     }
 
     errStr := err.Error()
-    if !(strings.Contains(errStr, string("cannot open shared object"))) {
+    if !(strings.Contains(errStr, string("Failed to load dynamic shared library"))) {
         t.Error("Ah! TVM didn't report an error\n")
     }
 }
