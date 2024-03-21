@@ -430,6 +430,7 @@ def test_inline_prim_func():
             y,
         ),
         R.Tensor(ndim=0, dtype="int32"),
+        is_pure=True,
     ).with_attr("global_symbol", "foo")
     new_mod = tvm.IRModule.from_expr(new_func)
     assert not rx.analysis.well_formed(new_mod, check_struct_info=False)
@@ -563,11 +564,45 @@ def test_unlabeled_impure():
     x = rx.Var("x", R.Tensor((), dtype="int32"))
     y = rx.Var("y")
     block = rx.BindingBlock([rx.VarBinding(y, rx.op.print(x, format="{}"))])
-    # print is impure, but the function is not labeled as impure
+    # Calls to `relax.op.print` are impure, but the function is not
+    # explicitly labeled as impure.  If there is no user-specified
+    # purity annotation, the function's purity is inferred from the
+    # body.
     func = rx.Function([x], rx.SeqExpr([block], x), R.Tensor((), dtype="int32")).with_attr(
         "global_symbol", "foo"
     )
+    assert not func.is_pure
     mod = rx.transform.Normalize()(tvm.IRModule.from_expr(func))
+    assert rx.analysis.well_formed(mod)
+
+
+def test_unlabeled_pure():
+    x = rx.Var("x", R.Tensor((), dtype="int32"))
+    # There are no calls to impure functions, so the `relax::Function`
+    # constructor infers that the function is pure.
+    func = rx.Function([x], rx.SeqExpr([], x), R.Tensor((), dtype="int32")).with_attr(
+        "global_symbol", "foo"
+    )
+    assert func.is_pure
+    mod = rx.transform.Normalize()(tvm.IRModule.from_expr(func))
+    assert rx.analysis.well_formed(mod)
+
+
+def test_labeled_pure():
+    x = rx.Var("x", R.Tensor((), dtype="int32"))
+    y = rx.Var("y")
+    block = rx.BindingBlock([rx.VarBinding(y, rx.op.print(x, format="{}"))])
+    # Calls to `relax.op.print` are impure, but the function is
+    # explicitly labeled as pure.
+    func = rx.Function(
+        [x], rx.SeqExpr([block], x), R.Tensor((), dtype="int32"), is_pure=True
+    ).with_attr("global_symbol", "foo")
+    # The explicit argument is used for the function's purity.
+    assert func.is_pure
+    mod = rx.transform.Normalize()(tvm.IRModule.from_expr(func))
+
+    # The function is ill-formed, as the function's purity does not
+    # match the explicit annotation.
     assert not rx.analysis.well_formed(mod)
 
 
@@ -576,10 +611,11 @@ def test_labeled_impure():
     x = rx.Var("x", R.Tensor((), dtype="int32"))
     y = rx.Var("y")
     block = rx.BindingBlock([rx.VarBinding(y, rx.op.print(x, format="{}"))])
-    # print is impure, but the function is not labeled as impure
+    # print is impure, and the function is labeled as impure.
     func = rx.Function(
         [x], rx.SeqExpr([block], x), R.Tensor((), dtype="int32"), is_pure=False
     ).with_attrs({"global_symbol": "foo"})
+    assert not func.is_pure
     mod = rx.transform.Normalize()(tvm.IRModule.from_expr(func))
     assert rx.analysis.well_formed(mod)
 
@@ -589,9 +625,13 @@ def test_force_pure():
     y = rx.Var("y")
     block = rx.BindingBlock([rx.VarBinding(y, rx.op.print(x, format="{}"))])
     # print is impure, but force_pure overrides the judgment
-    func = rx.Function([x], rx.SeqExpr([block], x), R.Tensor((), dtype="int32")).with_attrs(
-        {"global_symbol": "foo", "relax.force_pure": True}
+    func = rx.Function(
+        [x],
+        rx.SeqExpr([block], x),
+        R.Tensor((), dtype="int32"),
+        attrs={"global_symbol": "foo", "relax.force_pure": True},
     )
+    assert func.is_pure
     mod = rx.transform.Normalize()(tvm.IRModule.from_expr(func))
     assert rx.analysis.well_formed(mod)
 

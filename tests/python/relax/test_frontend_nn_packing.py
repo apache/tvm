@@ -59,8 +59,7 @@ def test_nn_export_to_relax():
                 matmul = R.matmul(x, matmul_1_weight)
                 matmul_2_weight = R.permute_dims(linear_2_weight)
                 matmul1 = R.matmul(x, matmul_2_weight)
-                add = R.add(matmul, matmul1)
-                gv = add
+                gv = R.add(matmul, matmul1)
                 R.output(gv)
             return gv
 
