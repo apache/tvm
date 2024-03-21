@@ -327,7 +327,8 @@ class TestDeDuplicateThreadIdxAcrossMultipleFunctions(BaseBeforeAfter):
     def before(self):
         threadIdx_x = tvm.tir.Var("threadIdx_x", "int32")
 
-        @I.ir_module
+        # threadIdx_x is defined outside
+        @I.ir_module(check_well_formed=False)
         class mod:
             @T.prim_func
             def kernel_1(A: T.Buffer([256], "float32")):
@@ -389,7 +390,8 @@ class TestDeDuplicateThreadIdxIterVarAcrossMultipleFunctions(BaseBeforeAfter):
             tvm.ir.Range(0, 256), threadIdx_x, tvm.tir.IterVar.ThreadIndex, "threadIdx.x"
         )
 
-        @I.ir_module
+        # complaints of multiple definitions for threadIdx_x
+        @I.ir_module(check_well_formed=False)
         class mod:
             @T.prim_func
             def kernel_1(A: T.Buffer([256], "float32")):
@@ -404,7 +406,7 @@ class TestDeDuplicateThreadIdxIterVarAcrossMultipleFunctions(BaseBeforeAfter):
         return mod
 
     def expected(self):
-        @I.ir_module
+        @I.ir_module(check_well_formed=False)
         class mod:
             @T.prim_func
             def kernel_1(A: T.Buffer([256], "float32")):
@@ -445,7 +447,8 @@ class TestThreadIdxReusedWithinAndAcrossFunctions(BaseBeforeAfter):
             tvm.ir.Range(0, 256), threadIdx_x, tvm.tir.IterVar.ThreadIndex, "threadIdx.x"
         )
 
-        @I.ir_module
+        # complaints of multiple definitions of threadIdx_x
+        @I.ir_module(check_well_formed=False)
         class mod:
             @T.prim_func
             def kernel_1(A: T.Buffer([256], "float32")):

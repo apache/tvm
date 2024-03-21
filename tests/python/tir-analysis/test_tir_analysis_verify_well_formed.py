@@ -43,7 +43,7 @@ def test_pass_simple():
 
 
 def test_fail_use_out_loop_var():
-    @T.prim_func
+    @T.prim_func(check_well_formed=False)
     def element_wise(
         A: T.Buffer((128, 128), "float32"),
         B: T.Buffer((128, 128), "float32"),
@@ -60,7 +60,7 @@ def test_fail_use_out_loop_var():
 def test_error_for_out_of_scope_usage():
     """A variable may not be used after its scope ends"""
 
-    @T.prim_func
+    @T.prim_func(check_well_formed=False)
     def func():
         i = T.int32()
         with T.LetStmt(42, var=i):
@@ -76,7 +76,7 @@ def test_error_for_out_of_scope_usage():
 def test_error_for_nested_rebind_usage():
     """A variable may not be re-defined within the initial scope"""
 
-    @T.prim_func
+    @T.prim_func(check_well_formed=False)
     def func():
         i = T.int32()
         with T.LetStmt(42, var=i):
@@ -92,7 +92,7 @@ def test_error_for_nested_rebind_usage():
 def test_error_for_repeated_binding():
     """A variable may not be re-defined after the scope ends"""
 
-    @T.prim_func
+    @T.prim_func(check_well_formed=False)
     def func():
         i = T.int32()
         with T.LetStmt(42, var=i):
@@ -109,7 +109,7 @@ def test_error_for_cross_function_reuse():
 
     i = tvm.tir.Var("i", "int32")
 
-    @I.ir_module
+    @I.ir_module(check_well_formed=False)
     class mod:
         @T.prim_func
         def func1():
@@ -175,7 +175,7 @@ def test_reuse_of_env_thread_across_functions_is_ill_formed():
 
     threadIdx_x = tvm.tir.Var("threadIdx_x", "int32")
 
-    @I.ir_module
+    @I.ir_module(check_well_formed=False)
     class mod:
         @T.prim_func
         def kernel_1(A: T.Buffer([256], "float32")):
