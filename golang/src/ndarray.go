@@ -266,7 +266,7 @@ func (parray Array) GetDevice() (retVal Device) {
 func nativeTVMArrayAlloc(shape []int64, ndim int32,
                    dtypeCode int32, dtypeBits int32, dtypeLanes int32,
                    deviceType int32, deviceID int32) (retVal uintptr, err error) {
-    ret := (int32)(C.TVMArrayAlloc((*C.long)(&(shape[0])),
+    ret := (int32)(C.TVMArrayAlloc((*C.longlong)(&(shape[0])),
                                    C.int(ndim),
                                    C.int(dtypeCode),
                                    C.int(dtypeBits),
