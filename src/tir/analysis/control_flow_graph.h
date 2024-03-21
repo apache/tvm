@@ -576,12 +576,13 @@ class ControlFlowGraph {
      *
      * \param  current_predicate The aggregate of scope predicate and
      * additional predicate introduced due to assume statement
-     * 
+     *
      * \returns The newly generated BufferTouch
      */
     BufferTouch MakeBufferTouch(ControlFlowGraph* graph, const Buffer& buf,
                                 const Array<PrimExpr>& indices, BufferTouch::AccessType touch_type,
-                                PrimExpr known_value_expr, PrimExpr current_predicate = Bool(true)) const;
+                                PrimExpr known_value_expr,
+                                PrimExpr current_predicate = Bool(true)) const;
 
     /* \brief Construct a BufferTouch instance as if it occurred in
      * this ControlFlowBlock
@@ -603,17 +604,15 @@ class ControlFlowGraph {
      *
      * \param current_predicate The aggregate of scope predicate and
      * additional predicate introduced due to assume statement
-     * 
+     *
      * \returns The newly generated BufferTouch, and a map specifying
      * all free parameters that may occur in the BufferTouch's
      * predicate.
      */
-    std::pair<BufferTouch, Map<Var, Range>> MakeBufferTouch(const Buffer& buf,
-                                                            Array<Var> index_variables,
-                                                            Array<PrimExpr> indices,
-                                                            BufferTouch::AccessType touch_type,
-                                                            PrimExpr known_value_expr,
-                                                            PrimExpr current_predicate = Bool(true)) const;
+    std::pair<BufferTouch, Map<Var, Range>> MakeBufferTouch(
+        const Buffer& buf, Array<Var> index_variables, Array<PrimExpr> indices,
+        BufferTouch::AccessType touch_type, PrimExpr known_value_expr,
+        PrimExpr current_predicate = Bool(true)) const;
   };
   friend std::ostream& operator<<(std::ostream& os, const ControlFlowBlock& pattern);
 
