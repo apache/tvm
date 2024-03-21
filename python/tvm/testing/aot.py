@@ -459,19 +459,35 @@ def _emit_main_compare(
 
         if print_output_on_mismatch:
             main_file.write(
-                f"int mismatch = 0;"
-                f'printf("Actual, Reference\\n");\n'
+                f"{{\n"
+                f"int mismatch = 0;\n"
+                f"int out_ndim = {outputs[key].ndim};\n"
+                f"int out_shape[] = {{{','.join(map(str, outputs[key].shape))}}};\n"
+                f"int out_indices[out_ndim];\n"
+                f'printf("Element [Position]: Actual, Reference\\n");\n'
+                f'printf("-------------------------------------\\n");\n'
                 f"for (int i = 0; i<{data_length_var_name}; i++) {{\n"
                 f"\tif ({comparison_function}({actual_data_name}[i]-"
                 f"{expected_data_name}[i]) > {tolerance}) {{\n"
-                f'\t\tprintf("{value_format_specifier}, {value_format_specifier}\\n"'
+                f"\t\tint flat_index = i;\n"
+                f"\t\tfor (int j = out_ndim - 1; j >= 0; j--){{\n"
+                f"\t\t\tout_indices[j] = flat_index % out_shape[j];\n"
+                f"\t\t\tflat_index /= out_shape[j];\n"
+                f"\t\t}}\n"
+                f'\t\tprintf("Element [%d", out_indices[0]);\n'
+                f"\t\tfor (int j = 1; j < out_ndim; j++)\n"
+                f'\t\t\tprintf(", %d", out_indices[j]);\n'
+                f'\t\tprintf("]: {value_format_specifier}, {value_format_specifier}\\n"'
                 f", {actual_data_name}[i], {expected_data_name}[i]);\n"
-                f"\t\tmismatch = 1;\n"
+                f"\t\tmismatch += 1;\n"
                 f"\t}}\n"
                 f"}}"
-                f"if (mismatch == 1) {{\n"
+                f"if (mismatch >= 1) {{\n"
+                f"\tfloat percent_mismatched = ((float) mismatch) / ((float) {data_length_var_name}) * 100;\n"
+                f'\tprintf("\\nMismatched elements: %d / %zu (%.2f%%)\\n", mismatch, {data_length_var_name}, percent_mismatched);\n'
                 f'\tprintf("{AOT_FAILURE_TOKEN}\\n");\n'
                 f"\treturn -1;\n"
+                f"}}\n"
                 f"}}"
             )
         else:
