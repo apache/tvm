@@ -144,10 +144,10 @@ int main(int argc, char** argv) {
   gettimeofday(&t4, 0);
 
   for (auto i = 0; i < 10 * 5; ++i) {
-    assert(fabs(output_storage[i] - result_storage[i]) < 1e-5f);
     if (fabs(output_storage[i] - result_storage[i]) >= 1e-5f) {
       printf("got %f, expected %f\n", output_storage[i], result_storage[i]);
     }
+    assert(fabs(output_storage[i] - result_storage[i]) < 1e-5f);
   }
 
   getFunc<void(void*)>(bundle, "tvm_runtime_destroy")(handle);
