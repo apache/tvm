@@ -21,6 +21,7 @@ import subprocess
 
 # pylint: disable=invalid-name
 import sys
+from typing import Dict
 
 from .._ffi.base import py_str
 from . import tar as _tar
@@ -176,6 +177,51 @@ def create_executable(output, objects, options=None, cc=None, cwd=None, ccache_e
         _windows_compile(output, objects, options, cwd, ccache_env)
     else:
         raise ValueError("Unsupported platform")
+
+
+def get_global_symbol_section_map(path, *, nm=None) -> Dict[str, str]:
+    """Get global symbols from a library via nm -g
+
+    Parameters
+    ----------
+    path : str
+        The library path
+
+    nm: str
+        The path to nm command
+
+    Returns
+    -------
+    symbol_section_map: Dict[str, str]
+        A map from defined global symbol to their sections
+    """
+    if nm is None:
+        if not _is_linux_like():
+            raise ValueError("Unsupported platform")
+        nm = "nm"
+
+    symbol_section_map = {}
+
+    if not os.path.isfile(path):
+        raise FileNotFoundError(f"{path} does not exist")
+
+    cmd = [nm, "-gU", path]
+    proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+    (out, _) = proc.communicate()
+
+    if proc.returncode != 0:
+        msg = "Runtime error:\n"
+        msg += py_str(out)
+        raise RuntimeError(msg)
+
+    for line in py_str(out).split("\n"):
+        data = line.strip().split()
+        if len(data) != 3:
+            continue
+        symbol = data[-1]
+        section = data[-2]
+        symbol_section_map[symbol] = section
+    return symbol_section_map
 
 
 def get_target_by_dump_machine(compiler):
