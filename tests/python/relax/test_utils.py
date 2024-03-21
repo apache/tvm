@@ -22,7 +22,7 @@ import pytest
 import tvm
 from tvm import relax
 from tvm.ir.base import assert_structural_equal
-from tvm.script.parser import relax as R
+from tvm.script.parser import relax as R, tir as T
 
 
 def test_copy_with_new_vars():
@@ -167,6 +167,43 @@ def test_structural_equal_of_call_nodes():
         return C
 
     tvm.ir.assert_structural_equal(uses_same_object_twice, uses_two_different_objects)
+
+
+def test_structural_equal_with_recursive_lambda_function():
+    """A recursive lambda function may be checked for structural equality
+
+    Recursive function definitions may reference the bound variable
+    within the value being bound.  In these cases, the `DefEqual(var,
+    other->var)` must occur first, to ensure it is defined at point of
+    use.
+
+    In all other cases, checking for structural equality of the bound
+    value prior to the variable provides a better error message.
+    """
+
+    def define_function():
+        @R.function
+        def func(n: R.Prim("int64")):
+            @R.function
+            def recursive_lambda(i_arg: R.Prim(value="i")) -> R.Prim("int64"):
+                i = T.int64()
+                if R.prim_value(i == 0):
+                    output = R.prim_value(T.int64(0))
+                else:
+                    remainder_relax = recursive_lambda(R.prim_value(i - 1))
+                    remainder_tir = T.int64()
+                    _ = R.match_cast(remainder_relax, R.Prim(value=remainder_tir))
+                    output = R.prim_value(i + remainder_tir)
+                return output
+
+            return recursive_lambda(n)
+
+        return func
+
+    func_1 = define_function()
+    func_2 = define_function()
+
+    tvm.ir.assert_structural_equal(func_1, func_2)
 
 
 if __name__ == "__main__":
