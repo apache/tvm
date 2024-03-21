@@ -21,8 +21,10 @@ from __future__ import absolute_import as _abs
 import subprocess
 import os
 import shutil
+from typing import Dict
+
 from .._ffi.base import py_str
-from . import utils as _utils, tar as _tar
+from . import utils as _utils, tar as _tar, cc as _cc
 from .cc import get_target_by_dump_machine
 
 
@@ -123,3 +125,30 @@ def create_staticlib(output, inputs):
 
 
 create_staticlib.output_format = "a"
+
+
+def get_global_symbol_section_map(path, *, nm=None) -> Dict[str, str]:
+    """Get global symbols from a library via nm -gU in NDK
+
+    Parameters
+    ----------
+    path : str
+        The library path
+
+    nm: str
+        The path to nm command
+
+    Returns
+    -------
+    symbol_section_map: Dict[str, str]
+        A map from defined global symbol to their sections
+    """
+    if "TVM_NDK_CC" not in os.environ:
+        raise RuntimeError(
+            "Require environment variable TVM_NDK_CC" " to be the NDK standalone compiler"
+        )
+    if nm is None:
+        compiler = os.environ["TVM_NDK_CC"]
+        base_path = os.path.dirname(compiler)
+        nm = os.path.join(base_path, "llvm-nm")
+    return _cc.get_global_symbol_section_map(path, nm=nm)
