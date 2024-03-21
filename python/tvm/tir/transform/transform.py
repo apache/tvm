@@ -19,7 +19,7 @@
 
 
 import enum
-from typing import Callable, Optional
+from typing import Any, Callable, Optional
 
 from . import _ffi_api
 from . import function_pass as _fpass
@@ -230,6 +230,17 @@ def StorageRewrite():
     return _ffi_api.StorageRewrite()  # type: ignore
 
 
+def InlinePrivateFunctions():
+    """Inline calls to private functions
+
+    Returns
+    -------
+    fpass : tvm.transform.Pass
+        The result pass
+    """
+    return _ffi_api.InlinePrivateFunctions()  # type: ignore
+
+
 def PointerValueTypeRewrite():
     """
     Rewrite the pointer content type of arguments, as well as Alloc internal to the function to use
@@ -312,7 +323,7 @@ def BF16ComputeLegalize():
     return _ffi_api.BF16ComputeLegalize()  # type: ignore
 
 
-def FP8ComputeLegalize(promote_dtype_str: str = "float32"):
+def FP8ComputeLegalize(target: Any, promote_dtype_str: str = "float32"):
     """Legalize fp8 compute Ops.
 
     Parameters
@@ -320,12 +331,15 @@ def FP8ComputeLegalize(promote_dtype_str: str = "float32"):
     promote_dtype : str
         The data type we promote fp8 to, options: float16/float32.
 
+    target : tvm.target.Target
+        The legalization target
+
     Returns
     -------
     fpass : tvm.transform.Pass
         The result pass
     """
-    return _ffi_api.FP8ComputeLegalize(promote_dtype_str)  # type: ignore
+    return _ffi_api.FP8ComputeLegalize(target, promote_dtype_str)  # type: ignore
 
 
 def BF16StorageLegalize():
@@ -339,15 +353,20 @@ def BF16StorageLegalize():
     return _ffi_api.BF16StorageLegalize()  # type: ignore
 
 
-def FP8StorageLegalize():
+def FP8StorageLegalize(target: Any):
     """Legalize fp8 storage types to u8.
+
+    Parameters
+    ----------
+    target : tvm.target.Target
+        The legalization target
 
     Returns
     -------
     fpass : tvm.transform.Pass
         The result pass
     """
-    return _ffi_api.FP8StorageLegalize()  # type: ignore
+    return _ffi_api.FP8StorageLegalize(target)  # type: ignore
 
 
 def CommonSubexprElimTIR(enable_cse_tir: bool = True, identify_equiv_terms: bool = False):

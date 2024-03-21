@@ -67,7 +67,9 @@ def matmul_m_128(a: T.handle, b: T.handle, c: T.handle) -> None:
             C[vi, vj] = C[vi, vj] + A[vi, vk] * B[vj, vk]
 
 
-@T.prim_func
+# x is considered undefined because it appears as part of x*8,
+# but not on its own
+@T.prim_func(check_well_formed=False)
 def matmul_m_8x(a: T.handle, b: T.handle, c: T.handle) -> None:
     x = T.int32()
     m = T.int32()
@@ -277,7 +279,9 @@ def test_specialize_buffer_var_to_var():
         for i in range(256):
             B_flat[i] = A_flat[i] * 2.0
 
-    @T.prim_func(private=True)
+    # well-formed checker complains about multiple nested definitions of B_flat
+    # since it appears in the buffer map twice
+    @T.prim_func(private=True, check_well_formed=False)
     def expected(A: T.Buffer([16, 16], "float32"), B_handle: T.handle):
         B = T.match_buffer(B_handle, [16, 16], "float32", data=A.data)
         A_flat = T.decl_buffer([256], "float32", data=A.data)
