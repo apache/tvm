@@ -97,7 +97,7 @@ def test_binding_block_remove_all_unused():
 
     @tvm.script.ir_module
     class IdentityUnused:
-        @R.function
+        @R.function(pure=False)
         def main(x: R.Tensor((32, 32), "float32")) -> R.Tensor:
             with R.dataflow():
                 lv0 = x
@@ -113,7 +113,7 @@ def test_binding_block_remove_all_unused():
 
     @tvm.script.ir_module
     class GroundTruth:
-        @R.function
+        @R.function(pure=False)
         def main(x: R.Tensor((32, 32), "float32")) -> R.Tensor:
             with R.dataflow():
                 lv0 = x
@@ -157,7 +157,7 @@ def test_binding_block_keep_impure_without_dataflow():
     contain side effects.
     """
 
-    @R.function(private=True)
+    @R.function(private=True, pure=False)
     def before(x: R.Tensor((32, 32), "float32")) -> R.Tensor:
         lv0 = x
         y = R.call_packed("vm.builtin.copy", lv0, sinfo_args=(R.Tensor((32, 32), "float32")))
@@ -185,7 +185,7 @@ def test_binding_block_keep_pure_func_used_only_for_impure():
     it was required to evaluate the packed function.
     """
 
-    @R.function(private=True)
+    @R.function(private=True, pure=False)
     def before(x: R.Tensor((32, 32), "int32")):
         y = x * R.const(2)
         z = R.call_packed(
@@ -202,7 +202,7 @@ def test_binding_block_keep_pure_func_used_only_for_impure():
 def test_binding_block_remove_all_unused_func_without_dataflow():
     @tvm.script.ir_module
     class IdentityUnused:
-        @R.function
+        @R.function(pure=False)
         def main(x: R.Tensor((32, 32), "float32")) -> R.Tensor:
             lv0 = x
 
@@ -217,7 +217,7 @@ def test_binding_block_remove_all_unused_func_without_dataflow():
 
     @tvm.script.ir_module
     class GroundTruth:
-        @R.function
+        @R.function(pure=False)
         def main(x: R.Tensor((32, 32), "float32")) -> R.Tensor:
             lv0 = x
             z = R.call_packed("vm.builtin.copy", lv0, sinfo_args=(R.Tensor((32, 32), "float32")))
@@ -229,7 +229,7 @@ def test_binding_block_remove_all_unused_func_without_dataflow():
 def test_binding_block_fake_unused_remove_all_unused():
     @tvm.script.ir_module
     class IdentityUnused:
-        @R.function
+        @R.function(pure=False)
         def main(x: R.Tensor((32, 32), "float32")) -> R.Tensor:
             with R.dataflow():
                 lv0 = x
@@ -241,7 +241,7 @@ def test_binding_block_fake_unused_remove_all_unused():
 
     @tvm.script.ir_module
     class GroundTruth:
-        @R.function
+        @R.function(pure=False)
         def main(x: R.Tensor((32, 32), "float32")) -> R.Tensor:
             with R.dataflow():
                 lv0 = x
@@ -256,7 +256,7 @@ def test_binding_block_fake_unused_remove_all_unused():
 def test_edge_binding_block_fake_unused_remove_all_unused():
     @tvm.script.ir_module
     class IdentityUnused:
-        @R.function
+        @R.function(pure=False)
         def main(x: R.Tensor((32, 32), "float32")) -> R.Tensor((32, 32), "float32"):
             z = R.call_packed("vm.builtin.copy", x, sinfo_args=(R.Tensor((32, 32), "float32")))
             return x
@@ -335,14 +335,14 @@ def test_remove_all_unused_from_binding_block():
 def test_retain_impure_calls_unused_in_binding_block():
     """An impure call may have side effects, and must be kept"""
 
-    @R.function
+    @R.function(pure=False)
     def before(x: R.Tensor((32, 32), "float32")) -> R.Tensor:
         lv0 = x
         unused0 = R.call_packed("my_impure_call", x, sinfo_args=R.Tensor((32, 32), dtype="float32"))
         unused1 = R.call_dps_packed("my_unused_call", (lv0,), R.Tensor((32, 32), dtype="float32"))
         return lv0
 
-    @R.function
+    @R.function(pure=False)
     def expected(x: R.Tensor((32, 32), "float32")) -> R.Tensor:
         lv0 = x
         unused0 = R.call_packed("my_impure_call", x, sinfo_args=R.Tensor((32, 32), dtype="float32"))

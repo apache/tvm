@@ -153,7 +153,7 @@ def test_flatten_let_buffer():
 @T.prim_func
 def tir_func(a: T.handle, b: T.handle) -> None:
     A = T.match_buffer(a, [2, 2])
-    B = T.match_buffer(a, [2, 2])
+    B = T.match_buffer(b, [2, 2])
     A[0, 1] = B[1, 1]
 
 

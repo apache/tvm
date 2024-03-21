@@ -49,7 +49,7 @@ class Module_1D:
                 T.writes(C[v_ax0])
                 C[v_ax0] = A[v_ax0] + B[v_ax0]
 
-    @R.function
+    @R.function(pure=False)
     def main(
         x: R.Tensor((12800,), data_type),
         y: R.Tensor((12800,), data_type),

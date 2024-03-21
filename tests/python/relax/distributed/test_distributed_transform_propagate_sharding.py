@@ -1370,7 +1370,9 @@ def test_decoder_layer_tir():
             gv: R.Tensor((1, 256, 4096), dtype="float16") = lv44
             return gv
 
-    @I.ir_module
+    # the below uses global vars that are not yet defined but the definitions
+    # will be added later
+    @I.ir_module(check_well_formed=False)
     class ShardedLlamaAttentionLayerTIR:
         I.module_attrs({"device_num": 10})
         I.module_global_infos(

@@ -28,7 +28,8 @@ from .infra import make_ethosu_conv2d
 
 
 # fmt: off
-@tvm.script.ir_module
+# complains of an undefined buffer
+@tvm.script.ir_module(check_well_formed=False)
 class ReferenceModule:
     @T.prim_func
     def main(input_placeholder: T.Buffer((1,8,12,16), "int8"), input_placeholder_1: T.Buffer((1,8,10,16), "int8"), input_T_concat: T.Buffer((1,8,32,16), "int8")) -> None:
@@ -54,7 +55,6 @@ class ReferenceModule:
         T.evaluate(T.call_extern("ethosu_conv2d", "int8", 8, 10, 16, 8, 0, 10, T_concat_1[192], 0, 0, 0, T.float32(0.5), 10, "NHWC", 352, 16, 1, "int8", 8, 10, 16, 8, 0, 10, T_concat[352], 0, 0, 0, T.float32(0.25), 14, "NHWC", 512, 16, 1, 3, 3, 1, 1, 1, 1, buffer_2[0], 2992, T.int8(-1), T.int8(-1), 12, buffer_3[0], 160, T.int8(-1), T.int8(-1), 1, 1, 1, 1, "NONE", 0, 0, "TFL", "NONE", 0, 0, 0, dtype="handle"))
         T.evaluate(T.call_extern("ethosu_conv2d", "int8", 8, 12, 16, 8, 0, 12, placeholder[0], 0, 0, 0, T.float32(0.5), 10, "NHWC", 192, 16, 1, "int8", 8, 12, 16, 8, 0, 12, T_concat_1[0], 0, 0, 0, T.float32(0.25), 14, "NHWC", 352, 16, 1, 3, 3, 1, 1, 1, 1, buffer_4[0], 2992, T.int8(-1), T.int8(-1), 12, buffer_5[0], 160, T.int8(-1), T.int8(-1), 1, 1, 1, 1, "NONE", 0, 0, "TFL", "NONE", 0, 0, 0, dtype="handle"))
         T.evaluate(T.call_extern("ethosu_conv2d", "int8", 8, 22, 16, 8, 0, 22, T_concat_1[0], 0, 0, 0, T.float32(0.5), 10, "NHWC", 352, 16, 1, "int8", 8, 22, 16, 8, 0, 22, T_concat[0], 0, 0, 0, T.float32(0.25), 14, "NHWC", 512, 16, 1, 3, 3, 1, 1, 1, 1, buffer_6[0], 2992, T.int8(-1), T.int8(-1), 12, buffer_7[0], 160, T.int8(-1), T.int8(-1), 1, 1, 1, 1, "NONE", 0, 0, "TFL", "NONE", 0, 0, 0, dtype="handle"))
-    __tvm_meta__ = None
 # fmt: on
 
 
@@ -75,7 +75,7 @@ def test_concat():
     func = _get_func()
     mod, _ = _lower_to_tir(func)
     script = mod.script()
-    test_mod = tvm.script.from_source(script)
+    test_mod = tvm.script.from_source(script, check_well_formed=False)
 
     reference_mod = ReferenceModule
     tvm.ir.assert_structural_equal(test_mod["main"], reference_mod["main"], True)

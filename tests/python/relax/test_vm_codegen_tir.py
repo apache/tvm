@@ -34,7 +34,7 @@ def get_tir_mod(mod):
 def test_add():
     @tvm.script.ir_module
     class Before:
-        @R.function
+        @R.function(pure=False)
         def foo(x: R.Tensor):
             R.func_attr({"global_symbol": "foo"})
             z = R.call_packed("test.vm.add", x, x, sinfo_args=(R.Tensor))
@@ -71,7 +71,7 @@ def test_tir_call():
             # generated compute function
             H[T.int64(0)] = H[T.int64(0)] + T.int64(1)
 
-        @R.function
+        @R.function(pure=False)
         def foo(x: R.Tensor):
             R.func_attr({"global_symbol": "foo"})
             _ = Before.shape_func(x)
@@ -104,7 +104,7 @@ def test_tir_call():
 def test_if_cond():
     @tvm.script.ir_module
     class Before:
-        @R.function
+        @R.function(pure=False)
         def ife(cond: R.Tensor((), "bool"), x: R.Tensor) -> R.Tensor:
             R.func_attr({"global_symbol": "ife"})
             if cond:
@@ -191,7 +191,7 @@ def test_const():
 def test_const_call():
     @tvm.script.ir_module
     class Before:
-        @R.function
+        @R.function(pure=False)
         def main(x: R.Tensor):
             R.func_attr({"global_symbol": "main"})
             y = R.const([1, 2])
