@@ -30,7 +30,7 @@ namespace cpu {
 
 Optional<String> DetectSystemTriple() {
   auto pf = tvm::runtime::Registry::Get("target.llvm_get_system_triple");
-  if (pf->defined()) {
+  if (pf != 0 && pf->defined()) {
     return (*pf)();
   }
   return {};
