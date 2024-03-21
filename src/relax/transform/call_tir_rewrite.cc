@@ -85,12 +85,12 @@ class CallTIRMutator : public ExprMutator {
           dev_index = GetDeviceIndex(mod_, tensor_sinfo->vdevice.value());
         }
         if (!is_inplace) {
-          outs.push_back(
-              builder_->Emit(Call(alloc_tensor_op,
-                                  {Downcast<ShapeExpr>(tensor_sinfo->shape.value()),
-                                   DataTypeImm(tensor_sinfo->dtype), PrimValue::Int64(dev_index)},
-                                  Attrs()),
-                             "alloc"));
+          outs.push_back(builder_->Emit(Call(alloc_tensor_op,
+                                             {Downcast<ShapeExpr>(tensor_sinfo->shape.value()),
+                                              DataTypeImm(tensor_sinfo->dtype),
+                                              PrimValue::Int64(dev_index), StringImm("global")},
+                                             Attrs()),
+                                        "alloc"));
         } else {
           // if there is only one output, it must be an in-place argument, but check anyway
           ICHECK(inplace_attrs->inplace_indices[0].IntValue() != -1)
@@ -113,12 +113,12 @@ class CallTIRMutator : public ExprMutator {
               << "call_tir expects all TensorStructInfo has shape, but got " << field_tensor
               << " as an element of TupleStructInfo";
           if (!is_inplace || inplace_attrs->inplace_indices[i].IntValue() == -1) {
-            outs.push_back(
-                builder_->Emit(Call(alloc_tensor_op,
-                                    {Downcast<ShapeExpr>(field_tensor->shape.value()),
-                                     DataTypeImm(field_tensor->dtype), PrimValue::Int64(0)},
-                                    Attrs()),
-                               "alloc"));
+            outs.push_back(builder_->Emit(
+                Call(alloc_tensor_op,
+                     {Downcast<ShapeExpr>(field_tensor->shape.value()),
+                      DataTypeImm(field_tensor->dtype), PrimValue::Int64(0), StringImm("global")},
+                     Attrs()),
+                "alloc"));
           } else {
             outs.push_back(Downcast<Tuple>(call->args[1])
                                ->fields[inplace_attrs->inplace_indices[i].IntValue()]);
