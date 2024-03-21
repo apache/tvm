@@ -404,10 +404,7 @@ class SEqualHandlerDefault::Impl {
       auto& entry = task_stack_.back();
 
       if (entry.force_fail) {
-        if (IsPathTracingEnabled() && !first_mismatch_->defined()) {
-          *first_mismatch_ = entry.current_paths;
-        }
-        return false;
+        return CheckResult(false, entry.lhs, entry.rhs, entry.current_paths);
       }
 
       if (entry.children_expanded) {
