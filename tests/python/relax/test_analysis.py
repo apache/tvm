@@ -19,19 +19,21 @@ from typing import List, Set, Union
 
 import tvm
 import tvm.testing
-from tvm import tir
 from tvm import relax as rx
+from tvm import tir
 from tvm.relax.analysis import (
-    has_reshape_pattern,
-    udchain,
-    remove_all_unused,
-    name_to_binding,
-    all_vars,
     all_global_vars,
-    free_vars,
+    all_vars,
     bound_vars,
+    free_vars,
+    has_reshape_pattern,
+    name_to_binding,
+    remove_all_unused,
+    udchain,
 )
-from tvm.script import relax as R, tir as T
+from tvm.script import ir as I
+from tvm.script import relax as R
+from tvm.script import tir as T
 
 
 def var_name_set(vars: List[Union[rx.Var, rx.GlobalVar]]) -> Set[str]:
@@ -350,6 +352,30 @@ def test_retain_impure_calls_unused_in_binding_block():
 
     after = remove_all_unused(before.body)
     tvm.ir.assert_structural_equal(expected.body, after, map_free_vars=True)
+
+
+def test_retain_calls_to_impure_builtin_ops():
+    @I.ir_module
+    class Module:
+        @T.prim_func(private=True)
+        def my_tir(A: T.handle, B: T.handle, n: T.int64):
+            T.evaluate(0)
+
+        @R.function(pure=False)
+        def main(x: R.Tensor(("n",), "float32")):
+            cls = Module
+            n = T.int64()
+            storage = R.memory.alloc_storage((n * 4,), 0, "global", "float32")
+            alloc = R.memory.alloc_tensor(storage, R.prim_value(0), R.shape([n]), "float32")
+            # "call_tir_dyn" is impure which shouldn't be removed.
+            R.vm.call_tir_dyn(cls.my_tir, (x, alloc, R.shape([n])))
+            # "kill_tensor"/"kill_storage" are impure which shouldn't be removed.
+            R.memory.kill_tensor(alloc)
+            R.memory.kill_storage(storage)
+            return x
+
+    after = remove_all_unused(Module["main"])
+    tvm.ir.assert_structural_equal(after, Module["main"], map_free_vars=True)
 
 
 def test_name_to_binding_var_shadowing():
