@@ -19,10 +19,13 @@
 
 #include <gmock/gmock.h>
 #include <gtest/gtest.h>
-#include <llvm/IR/Intrinsics.h>
 #include <tvm/runtime/data_type.h>
 #include <tvm/tir/builtin.h>
 #include <tvm/tir/expr.h>
+
+#ifdef TVM_INFO_USE_LLVM
+  #include <llvm/IR/Intrinsics.h>
+#endif
 
 #include "../../src/script/printer/utils.h"
 

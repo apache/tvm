@@ -290,6 +290,7 @@ TEST(TargetCreation, ProcessStrings) {
   ASSERT_EQ(array7[1][1][0], "fred");
 }
 
+#ifdef TVM_INFO_USE_LLVM
 // Checks that malformed options cause an assertion.
 TEST(TargetCreation, LLVMCommandLineParseFatalDashDashDash) {
   tvm::codegen::LLVMInstance inst;
@@ -447,6 +448,7 @@ TEST(TargetCreation, LLVMCommandLineSaveRestore) {
   // Check that we restored global state.
   ASSERT_FALSE(info.MatchesGlobalState());
 }
+#endif
 
 TVM_REGISTER_TARGET_KIND("test_external_codegen_0", kDLCUDA)
     .set_attr<Bool>(tvm::attr::kIsExternalCodegen, Bool(true));
