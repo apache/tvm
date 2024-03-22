@@ -955,9 +955,9 @@ class TestMultiplicationNodesAreInligned(tvm.testing.CompareBeforeAfter):
         T.attr("default", "async_scope", 1)
         for i in range(16):
             cse_var_1: T.int64 = T.Cast("int64", i)
-            A_shared[T.Ramp(tx * T.int64(128) + cse_var_1 * T.int64(8), T.int64(1), 8)] = (
-                A_flattened[T.Ramp(tx * T.int64(128) + cse_var_1 * T.int64(8), T.int64(1), 8)]
-            )
+            A_shared[
+                T.Ramp(tx * T.int64(128) + cse_var_1 * T.int64(8), T.int64(1), 8)
+            ] = A_flattened[T.Ramp(tx * T.int64(128) + cse_var_1 * T.int64(8), T.int64(1), 8)]
         T.ptx_commit_group()
         T.ptx_wait_group(0)
 
