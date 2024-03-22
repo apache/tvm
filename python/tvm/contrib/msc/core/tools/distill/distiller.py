@@ -37,7 +37,7 @@ class BaseDistiller(BaseTool):
             The setup info.
         """
 
-        self._max_iter = self._options.get("max_iter", 5)
+        self._max_iter = self._options.get("max_iter", 1)
         self._save_step = self._options.get("save_step", 50)
         if "weights_folder" in self._options:
             self._weights_folder = msc_utils.msc_dir(self._options["weights_folder"])
@@ -72,7 +72,8 @@ class BaseDistiller(BaseTool):
             with open(self._weights_path, "rb") as f:
                 distilled_weights = tvm.runtime.load_param_dict(f.read())
             weights.update({k: v for k, v in distilled_weights.items() if k in weights})
-            self._logger.info("Update %d distilled weights", len(distilled_weights))
+            msg = "Update {} distilled weights".format(len(distilled_weights))
+            self._logger.info(self.tool_mark(msg))
         return super()._reset(graphs, weights)
 
     def build_model(self, teacher: Any, student: Any) -> Any:
@@ -103,7 +104,8 @@ class BaseDistiller(BaseTool):
         """
 
         if self.on_debug(3, in_forward=False):
-            self._logger.debug("%s start learn[%d]", self.tool_type(), self._current_iter)
+            msg = "Start learn[{}]".format(self._current_iter)
+            self._logger.debug(self.tool_mark(msg))
         self._total_loss += float(self._learn(loss))
 
     def _learn(self, loss: Any):
@@ -134,9 +136,10 @@ class BaseDistiller(BaseTool):
         if self._current_iter >= self._max_iter:
             self._distilled = True
             self._plan = {n: msc_utils.inspect_array(d, False) for n, d in weights.items()}
-        self._logger.info(
-            "Distill[%d] loss(%d batch) %f", self._current_iter, self._forward_cnt, self._total_loss
+        msg = "Distill[{}] loss({} batch) {}".format(
+            self._current_iter, self._forward_cnt, self._total_loss
         )
+        self._logger.info(self.tool_mark(msg))
         self._current_iter += 1
         self._total_loss, self._forward_cnt = 0, 0
         return weights
@@ -165,8 +168,9 @@ class BaseDistiller(BaseTool):
         weights_path = self._weights_folder.relpath("distill_{}.bin".format(self._current_iter))
         with open(weights_path, "wb") as f_params:
             f_params.write(tvm.runtime.save_param_dict(weights))
-        if self.on_debug(2, in_forward=False):
-            self._logger.debug("Save weights[%d] to %s", self._current_iter, weights_path)
+        if self._debug_level >= 2:
+            msg = "Save weights[{}] to {}".format(self._current_iter, weights_path)
+            self._logger.debug(self.tool_mark(msg))
 
     def _support_scope(self, scope: str) -> bool:
         """Check if the scope si supported
@@ -244,24 +248,6 @@ class BaseDistiller(BaseTool):
         self._plan[name][scope] = plan
         return tensor
 
-    def export_config(self, config: dict, folder: msc_utils.MSCDirectory) -> dict:
-        """Export the config for tool
-
-        Parameters
-        -------
-        config: dict
-            The source config.
-        folder: MSCDirectory
-            The export folder.
-
-        Returns
-        -------
-        config: dict
-            The exported config.
-        """
-
-        return {}
-
     @property
     def distilled(self):
         return self._distilled
@@ -269,6 +255,10 @@ class BaseDistiller(BaseTool):
     @classmethod
     def tool_type(cls):
         return ToolType.DISTILLER
+
+    @classmethod
+    def exportable(cls):
+        return False
 
 
 @msc_utils.register_tool

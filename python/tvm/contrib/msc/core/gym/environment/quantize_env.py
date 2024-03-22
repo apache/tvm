@@ -70,7 +70,7 @@ class QuantizeEnv(BaseEnv):
                 continue
             info.update(strategys[name].get_executor(msc_utils.MSCStage.QUANTIZE).config)
         summary_file = msc_utils.get_cache_dir().relpath("gym_summary.json")
-        return msc_utils.dump_dict(plan, summary_file)
+        return msc_utils.save_dict(plan, summary_file)
 
     @classmethod
     def role_type(cls):

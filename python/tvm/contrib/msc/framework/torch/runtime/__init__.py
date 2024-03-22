@@ -17,3 +17,4 @@
 """tvm.contrib.msc.framework.torch.runtime"""
 
 from .runner import *
+from .jit import *

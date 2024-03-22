@@ -55,7 +55,7 @@ class BaseRunner(object):
     device: str
         The device to build runnable.
     training: bool
-        Whether compile model to trainable
+        Whether compile model to trainable.
     stage: str
         The stage of runner.
     plugin: PluginManager
@@ -94,7 +94,7 @@ class BaseRunner(object):
         self._translate_config = msc_utils.copy_dict(translate_config)
         self._generate_config = msc_utils.copy_dict(generate_config)
         self._build_config = msc_utils.copy_dict(build_config)
-        self._device = device if self._device_enabled(device) else "cpu"
+        self._device = device if self.support_device(device) else "cpu"
         self._stage = stage
         self._plugin = plugin
         self._name = name
@@ -274,7 +274,7 @@ class BaseRunner(object):
         build_msg += "runnable({}, {}) on {}".format(
             self.framework, "train" if self._training else "eval", self._device
         )
-        self._logger.info(build_msg)
+        self._logger.info(self.runner_mark(build_msg))
         return self._runnable
 
     def run(
@@ -295,45 +295,13 @@ class BaseRunner(object):
             The outputs in dict.
         """
 
-        model_inputs = self.get_inputs()
-        model_outputs = self.get_outputs()
-        if isinstance(inputs, (list, tuple)):
-            assert len(inputs) == len(
-                model_inputs
-            ), "inputs({}) mismatch with model inputs {}".format(len(inputs), model_inputs)
-            inputs = {info["name"]: data for info, data in zip(model_inputs, inputs)}
-        assert isinstance(inputs, dict), "Expect inputs as list or dict, get {}({})".format(
-            inputs, type(inputs)
-        )
-        assert all(
-            msc_utils.is_array(data) for data in inputs.values()
-        ), "Expected all inputs as array like"
-        inputs = {i["name"]: inputs[i["name"]] for i in model_inputs}
+        in_names = [i["name"] for i in self.get_inputs()]
+        inputs = msc_utils.format_datas(inputs, in_names, style="dict")
         outputs = self._call_runnable(self._runnable, inputs, self._device)
         if ret_type == "native":
             return outputs
-        if ret_type == "dict":
-            if isinstance(outputs, (list, tuple, tvm.ir.container.Array)):
-                assert len(outputs) == len(
-                    model_outputs
-                ), "outputs({}) mismatch with model outputs {}".format(len(outputs), model_outputs)
-                outputs = {info["name"]: data for info, data in zip(model_outputs, outputs)}
-            if not isinstance(outputs, dict):
-                assert len(model_outputs) == 1, "Expect model_outputs with len 1, get " + str(
-                    model_outputs
-                )
-                outputs = {model_outputs[0]["name"]: outputs}
-            return {name: msc_utils.cast_array(data) for name, data in outputs.items()}
-        if ret_type == "list":
-            if isinstance(outputs, dict):
-                assert len(outputs) == len(
-                    model_outputs
-                ), "outputs({}) mismatch with model outputs {}".format(len(outputs), model_outputs)
-                outputs = [outputs[o["name"]] for o in model_outputs]
-            if not isinstance(outputs, (list, tuple)):
-                outputs = [outputs]
-            return [msc_utils.cast_array(data) for data in outputs]
-        return outputs
+        out_names = [o["name"] for o in self.get_outputs()]
+        return msc_utils.format_datas(outputs, out_names, style=ret_type)
 
     def save_cache(
         self,
@@ -548,7 +516,7 @@ class BaseRunner(object):
             The exported module
         """
 
-        raise NotImplementedError("export_module is not supported in BaseRunner")
+        raise NotImplementedError("export_module is not implemented for " + str(self.__class__))
 
     def export_runnable(self, folder: msc_utils.MSCDirectory) -> dict:
         """Export the runnable
@@ -564,7 +532,23 @@ class BaseRunner(object):
             The runnable info.
         """
 
-        raise NotImplementedError("export_runnable is not supported in BaseRunner")
+        raise NotImplementedError("export_runnable is not implemented for " + str(self.__class__))
+
+    def export_graphs(self, folder: msc_utils.MSCDirectory) -> dict:
+        """Export the graphs
+
+        Parameters
+        -------
+        folder: MSCDirectory
+            The export folder.
+
+        Returns
+        -------
+        info: dict
+            The graphs info.
+        """
+
+        raise NotImplementedError("export_graphs is not implemented for " + str(self.__class__))
 
     def train(self):
         """Change status to train"""
@@ -584,8 +568,7 @@ class BaseRunner(object):
         """Change status to eval"""
 
         if self._training:
-            self._trained = True
-            self._training = False
+            self._training, self._trained = False, True
             for tool in self.get_tools():
                 tool.eval()
             self._eval()
@@ -657,47 +640,42 @@ class BaseRunner(object):
             The saved plan file.
         """
 
+        def _finalize_tool(
+            checker: callable, post_batch: callable = None, post_iter: callable = None
+        ):
+            tool = self.get_tool(tool_type)
+            while not checker(tool):
+                assert data_loader, "data_loader should be given to make plan for " + tool_type
+                for inputs in data_loader():
+                    outputs = self.run(inputs, ret_type="native")
+                    if post_batch:
+                        post_batch(tool, outputs)
+                    if checker(tool):
+                        break
+                if post_iter:
+                    post_iter(tool)
+            return tool.finalize()
+
         assert tool_type in self._tools, "Can not find tool " + str(tool_type)
         if tool_type == ToolType.PRUNER:
-            pruner = self.get_tool(ToolType.PRUNER)
-            if not pruner.pruned:
-                assert data_loader, "data_loader should be given to plan prune"
-                for inputs in data_loader():
-                    self.run(inputs, ret_type="native")
-                    break
-            plan = pruner.finalize()
+            plan = _finalize_tool(lambda t: t.pruned)
         elif tool_type == ToolType.QUANTIZER:
-            quantizer = self.get_tool(ToolType.QUANTIZER)
-            while not quantizer.calibrated:
-                assert data_loader, "data_loader should be given to plan prune"
-                for inputs in data_loader():
-                    self.run(inputs, ret_type="native")
-                quantizer.calibrate()
-            plan = quantizer.finalize()
+            plan = _finalize_tool(lambda t: t.calibrated, post_iter=lambda t: t.calibrate())
         elif tool_type == ToolType.DISTILLER:
-            distiller = self.get_tool(ToolType.DISTILLER)
-            while not distiller.distilled:
-                assert data_loader, "data_loader should be given to plan prune"
-                for inputs in data_loader():
-                    loss = self.run(inputs, ret_type="native")
-                    distiller.learn(loss)
-                distiller.distill()
-            plan = distiller.finalize()
+            plan = _finalize_tool(
+                lambda t: t.distilled,
+                post_batch=lambda t, outputs: t.learn(outputs),
+                post_iter=lambda t: t.distill(),
+            )
         elif tool_type == ToolType.TRACKER:
-            tracker = self.get_tool(ToolType.TRACKER)
-            if not tracker.tracked:
-                assert data_loader, "data_loader should be given to plan prune"
-                for inputs in data_loader():
-                    self.run(inputs, ret_type="native")
-                    if tracker.tracked:
-                        break
-            plan = tracker.finalize()
+            plan = _finalize_tool(lambda t: t.tracked)
         else:
             plan = self.get_tool(tool_type).finalize()
         self._logger.debug("Made %d plan for %s", len(plan), tool_type)
         plan_file = self._tools_config[tool_type]["plan_file"]
-        with open(plan_file, "w") as f:
-            f.write(json.dumps(plan, indent=2))
+        if plan:
+            with open(plan_file, "w") as f:
+                f.write(json.dumps(plan, indent=2))
         return plan_file
 
     def _apply_hook(self, desc: str, hook_def: dict, *args, **kwargs) -> Any:
@@ -744,17 +722,22 @@ class BaseRunner(object):
         else:
             raise TypeError("Unexpecet codegen config " + str(codegen))
 
-    def visualize(self, visual_dir: msc_utils.MSCDirectory):
+    def visualize(self, visual_dir: msc_utils.MSCDirectory, export_graph: bool = False):
         """Visualize MSCGraphs
 
         Parameters
         -------
         visual_dir: MSCDirectory
             Visualize path for saving graph
+        export_graph: bool
+            Whether to export the graph
         """
 
         for graph in self._graphs:
             graph.visualize(visual_dir.relpath(graph.name + ".prototxt"))
+            if export_graph:
+                with open(visual_dir.relpath(graph.name + "_graph.json"), "w") as f_graph:
+                    f_graph.write(graph.to_json())
         for tool in self._tools.values():
             tool.visualize(visual_dir)
 
@@ -976,17 +959,6 @@ class BaseRunner(object):
 
         raise NotImplementedError("_call_runnable is not implemented for " + str(self.__class__))
 
-    def _device_enabled(self, device: str) -> bool:
-        """Check if the device is enabled
-
-        Returns
-        -------
-        enabled: bool
-            Whether the device is enabled.
-        """
-
-        return True
-
     def runner_mark(self, msg: Any) -> str:
         """Mark the message with runner info
 
@@ -1001,7 +973,7 @@ class BaseRunner(object):
             The message with mark.
         """
 
-        return "RUNNER({} @ {}) {}".format(self.framework, self._stage, msg)
+        return "RUNNER[{}]({} @ {}) {}".format(self._name, self.framework, self._stage, msg)
 
     @property
     def stage(self):
@@ -1010,6 +982,10 @@ class BaseRunner(object):
     @property
     def debug_level(self):
         return self._debug_level
+
+    @property
+    def trained(self):
+        return self._trained
 
     @property
     def model(self):
@@ -1059,6 +1035,66 @@ class BaseRunner(object):
         return model, "cpu", False
 
     @classmethod
+    def run_native(
+        cls,
+        model: Any,
+        inputs: Dict[str, np.ndarray],
+        input_names: List[str],
+        output_names: List[str],
+        warm_up: int = 10,
+        repeat: int = 0,
+    ) -> Tuple[Dict[str, np.ndarray], float]:
+        """Run the datas and get outputs
+
+        Parameters
+        -------
+        model:
+            The nativate model.
+        inputs: dict<str, data>
+            The inputs in dict.
+        input_names: list<str>
+            The input names.
+        output_names: list<str>
+            The outut names.
+        warm_up: int
+            The warm_up num for profile.
+        repeat: int
+            The repeat num for profile.
+
+        Returns
+        -------
+        outputs: dict<str, np.array>
+            The outputs in dict.
+        avg_time: float
+            The average time.
+        """
+
+        raise NotImplementedError("run_native is not implemented for " + str(cls))
+
+    @classmethod
+    def dump_nativate(
+        cls, model: Any, folder: msc_utils.MSCDirectory, dump_config: dict = None
+    ) -> str:
+        """Dump the nativate model
+
+        Parameters
+        -------
+        model:
+            The native model.
+        folder: MSCDirectory
+            The export folder.
+        dump_config: dict
+            The dump config.
+
+        Returns
+        -------
+        export_path: str
+            The exported path
+        """
+
+        raise NotImplementedError("dump_nativate is not implemented for " + str(cls))
+
+    @classmethod
     def update_config(cls, stage: str, config: dict, model: Any = None) -> dict:
         """Update the config for parse
 
@@ -1093,6 +1129,18 @@ class BaseRunner(object):
             run_config["translate_config"]["build"]["output_aliases"] = config["outputs"]
             config[stage]["run_config"] = run_config
         return config
+
+    @classmethod
+    def support_device(cls, device: str) -> bool:
+        """Check if the device is enabled
+
+        Returns
+        -------
+        enabled: bool
+            Whether the device is enabled.
+        """
+
+        return True
 
 
 class ModelRunner(BaseRunner):
@@ -1218,6 +1266,25 @@ class ModelRunner(BaseRunner):
         )
         return module
 
+    def export_graphs(self, folder: msc_utils.MSCDirectory) -> dict:
+        """Export the graphs
+
+        Parameters
+        -------
+        folder: MSCDirectory
+            The export folder.
+
+        Returns
+        -------
+        info: dict
+            The graphs info.
+        """
+
+        graphs = {"main": folder.relpath(self._graphs[0].name + "_graph.json")}
+        with open(graphs["main"], "w") as f_graph:
+            f_graph.write(self._graphs[0].to_json())
+        return graphs
+
 
 class BYOCRunner(BaseRunner):
     """BYOC runner of MSC"""
@@ -1235,17 +1302,22 @@ class BYOCRunner(BaseRunner):
         self._executable = None
         return super().setup()
 
-    def visualize(self, visual_dir: msc_utils.MSCDirectory):
+    def visualize(self, visual_dir: msc_utils.MSCDirectory, export_graph: bool = False):
         """Visualize MSCGraphs
 
         Parameters
         -------
         visual_dir: MSCDirectory
             Visualize path for saving graph
+        export_graph: bool
+            Whether to export the graph
         """
 
         super().visualize(visual_dir)
         self._byoc_graph.visualize(visual_dir.relpath(self._byoc_graph.name + ".prototxt"))
+        if export_graph:
+            with open(visual_dir.relpath(self._byoc_graph.name + "_graph.json"), "w") as f_graph:
+                f_graph.write(self._byoc_graph.to_json())
 
     def _translate(self, mod: tvm.IRModule) -> Tuple[List[MSCGraph], Dict[str, tvm.nd.array]]:
         """Translate IRModule to MSCgraphs
@@ -1350,10 +1422,7 @@ class BYOCRunner(BaseRunner):
         """
 
         extra_option = self._generate_config.get("extra_option", {})
-        if self._stage == MSCStage.COMPILE and not self.get_tool(ToolType.TRACKER):
-            extra_option["tool_tag"] = ""
-        else:
-            extra_option["tool_tag"] = self._name
+        extra_option["tool_tag"] = "" if self._stage == MSCStage.COMPILE else self._name
         return self.codegen_func(
             self._byoc_mod,
             graphs,
@@ -1438,22 +1507,6 @@ class BYOCRunner(BaseRunner):
             self._logger.debug(msc_utils.msg_block(title, sub_graphs))
         return self._byoc_graph.inspect()
 
-    def _device_enabled(self, device: str) -> bool:
-        """Check if the device is enabled
-
-        Returns
-        -------
-        enabled: bool
-            Whether the device is enabled.
-        """
-
-        if device == "cpu":
-            return True
-        if device.startswith("cuda"):
-            dev_id = int(device.split(":")[1]) if ":" in device else 0
-            return tvm.cuda(dev_id).exist
-        return False
-
     def export_runnable(self, folder: msc_utils.MSCDirectory) -> dict:
         """Export the runnable
 
@@ -1468,10 +1521,57 @@ class BYOCRunner(BaseRunner):
             The runnable info.
         """
 
-        export_path = folder.relpath("model.so")
-        self._executable.export_library(export_path)
-        return {"model": export_path}
+        export_lib = folder.relpath("lib.so")
+        self._executable.export_library(export_lib)
+        return {
+            "lib": export_lib,
+            "device": self.device,
+            "model_type": self.framework,
+            "abstract": self.model_info,
+        }
+
+    def export_graphs(self, folder: msc_utils.MSCDirectory) -> dict:
+        """Export the graphs
+
+        Parameters
+        -------
+        folder: MSCDirectory
+            The export folder.
+
+        Returns
+        -------
+        info: dict
+            The graphs info.
+        """
+
+        graphs = {
+            "byoc_graph": folder.relpath(self._byoc_graph.name + "_graph.json"),
+            "sub_graphs": {g.name: folder.relpath(g.name + "_graph.json") for g in self._graphs},
+        }
+        with open(graphs["byoc_graph"], "w") as f:
+            f.write(self._byoc_graph.to_json())
+        for graph in self._graphs:
+            with open(graphs["sub_graphs"][graph.name], "w") as f:
+                f.write(graph.to_json())
+        return graphs
 
     @property
     def partition_func(self):
         raise NotImplementedError("partition_func is not implemented for " + str(self.__class__))
+
+    @classmethod
+    def support_device(cls, device: str) -> bool:
+        """Check if the device is enabled
+
+        Returns
+        -------
+        enabled: bool
+            Whether the device is enabled.
+        """
+
+        if device == "cpu":
+            return True
+        if device.startswith("cuda"):
+            dev_id = int(device.split(":")[1]) if ":" in device else 0
+            return tvm.cuda(dev_id).exist
+        return False

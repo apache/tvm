@@ -72,14 +72,11 @@ class MSCArray(object):
         """Get abstract describe of the data"""
 
         data = self._to_ndarray()
+        prefix = "[{},{}]".format(";".join([str(s) for s in data.shape]), data.dtype.name)
         if data.size < 10:
-            return ",".join([str(i) for i in data.flatten()])
-        return "[{},{}] Max {:g}, Min {:g}, Avg {:g}".format(
-            ";".join([str(s) for s in data.shape]),
-            data.dtype.name,
-            data.max(),
-            data.min(),
-            data.sum() / data.size,
+            return "{} {}".format(prefix, ",".join([str(i) for i in data.flatten()]))
+        return "{} Max {:g}, Min {:g}, Avg {:g}".format(
+            prefix, data.max(), data.min(), data.sum() / data.size
         )
 
     def _to_ndarray(self) -> np.ndarray:
@@ -299,23 +296,26 @@ def inspect_array(data: Any, as_str: bool = True) -> Union[Dict[str, Any], str]:
 
 
 def compare_arrays(
-    golden: Dict[str, np.ndarray],
-    datas: Dict[str, np.ndarray],
+    golden: Dict[str, Any],
+    datas: Dict[str, Any],
     atol: float = 1e-2,
     rtol: float = 1e-2,
+    report_detail: bool = False,
 ) -> dict:
     """Compare elements in array
 
     Parameters
     ----------
-    golden: dict<str, np.ndarray>
+    golden: dict<str, array_like>
         The golden datas.
-    datas: dict<str, np.ndarray>
+    datas: dict<str, array_like>
         The datas to be compared.
     atol: float
         The atol for compare.
     rtol: float
         The rtol for compare.
+    report_detail: bool
+        Whether to report detail
 
     Returns
     -------
@@ -326,27 +326,53 @@ def compare_arrays(
     assert golden.keys() == datas.keys(), "golden {} and datas {} mismatch".format(
         golden.keys(), datas.keys()
     )
+    golden = {k: cast_array(v) for k, v in golden.items()}
+    datas = {k: cast_array(v) for k, v in datas.items()}
     report = {"total": 0, "passed": 0, "info": {}}
+
+    def _add_report(name: str, gol: Any, data: Any, passed: bool):
+        diff = MSCArray(gol - data)
+        if passed:
+            if report_detail:
+                report["info"][name] = {
+                    "data": MSCArray(data).abstract(),
+                    "d_pass": diff.abstract(),
+                }
+            else:
+                report["info"][name] = "d_pass: {}".format(diff.abstract())
+            report["passed"] += 1
+        else:
+            if report_detail:
+                report["info"][name] = {
+                    "gold": MSCArray(gol).abstract(),
+                    "data": MSCArray(data).abstract(),
+                    "d_fail": diff.abstract(),
+                }
+            else:
+                report["info"][name] = "d_fail: {}".format(diff.abstract())
+
     for name, gol in golden.items():
         report["total"] += 1
         data = datas[name]
         if list(gol.shape) != list(data.shape):
-            report["info"][name] = "<Fail> shape mismatch [G]{} vs [D]{}".format(
+            report["info"][name] = "fail: shape mismatch [G]{} vs [D]{}".format(
                 gol.shape, data.shape
             )
             continue
         if gol.dtype != data.dtype:
-            report["info"][name] = "<Fail> dtype mismatch [G]{} vs [D]{}".format(
+            report["info"][name] = "fail: dtype mismatch [G]{} vs [D]{}".format(
                 gol.dtype, data.dtype
             )
             continue
-        diff = MSCArray(gol - data)
+        if gol.dtype.name in ("int32", "int64"):
+            passed = np.abs(gol - data), max() == 0
+            _add_report(name, gol, data, passed)
+            continue
         try:
             np.testing.assert_allclose(gol, data, rtol=rtol, atol=atol, verbose=False)
-            report["info"][name] = "<Pass> diff {}".format(diff.abstract())
-            report["passed"] += 1
+            _add_report(name, gol, data, True)
         except:  # pylint: disable=bare-except
-            report["info"][name] = "<Fail> diff {}".format(diff.abstract())
+            _add_report(name, gol, data, False)
     return report
 
 
