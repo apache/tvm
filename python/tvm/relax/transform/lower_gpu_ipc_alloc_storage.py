@@ -21,7 +21,6 @@ The pass is written in Python for experiment, fast development.
 import tvm
 from tvm import relax
 from tvm.ir.module import IRModule
-from tvm.relax.analysis import remove_all_unused
 from tvm.relax.expr import Expr
 from tvm.relax.expr_functor import PyExprMutator, mutator
 
@@ -49,7 +48,6 @@ class _Rewriter(PyExprMutator):
         for g_var, func in self.mod.functions_items():
             if isinstance(func, relax.Function):
                 updated_func = self.visit_expr(func)
-                updated_func = remove_all_unused(updated_func)
                 self.builder_.update_func(g_var, updated_func)
         return self.builder_.get()
 
