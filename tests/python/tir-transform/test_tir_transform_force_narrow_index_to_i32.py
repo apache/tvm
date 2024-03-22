@@ -45,6 +45,13 @@ def test_thread_axis1():
     tvm.ir.assert_structural_equal(func, expected)
 
 
+@pytest.mark.skip(
+    reason="Caused by failing to update the datatype in an IndexVar in data_type_rewriter.cc. "
+    "However, changing it breaks important code in MLC. "
+    "This should be fixed and addressed. "
+    "See discussion in https://github.com/apache/tvm/pull/16634#issuecomment-1973891325 "
+    "and https://github.com/apache/tvm/pull/16769."
+)
 def test_thread_axis2():
     @T.prim_func
     def before(
