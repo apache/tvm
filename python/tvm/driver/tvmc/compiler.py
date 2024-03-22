@@ -47,17 +47,20 @@ from .pass_list import parse_pass_list_str
 from .transform import generate_transform_args, parse_graph_transform_args, apply_graph_transforms
 from .shape_parser import parse_shape_string
 from .workspace_pools import generate_workspace_pools_args, workspace_pools_recombobulate
+from .extensions import load_extensions, get_extensions
+from .arguments import TVMCSuppressedArgumentParser
 
 # pylint: disable=invalid-name
 logger = logging.getLogger("TVMC")
 
 
 @register_parser
-def add_compile_parser(subparsers, _, json_params):
+def add_compile_parser(subparsers, main_parser, json_params, argv):
     """Include parser for 'compile' subcommand"""
 
     parser = subparsers.add_parser("compile", help="compile a model.")
     parser.set_defaults(func=drive_compile)
+
     parser.add_argument(
         "--cross-compiler",
         default="",
@@ -114,7 +117,6 @@ def add_compile_parser(subparsers, _, json_params):
         "e.g. '--pass-config tir.add_lower_pass=opt_level1,pass1,opt_level2,pass2'.",
     )
 
-    generate_target_args(parser)
     parser.add_argument(
         "--tuning-records",
         metavar="PATH",
@@ -122,8 +124,6 @@ def add_compile_parser(subparsers, _, json_params):
         help="path to an auto-tuning log file by AutoTVM. If not presented, "
         "the fallback/tophub configs will be used.",
     )
-    generate_registry_args(parser, Executor, "graph")
-    generate_registry_args(parser, Runtime, "cpp")
 
     parser.add_argument("-v", "--verbose", action="count", default=0, help="increase verbosity.")
     # TODO (@leandron) This is a path to a physical file, but
@@ -177,7 +177,40 @@ def add_compile_parser(subparsers, _, json_params):
     for one_entry in json_params:
         parser.set_defaults(**one_entry)
 
+    parser.add_argument(
+        "--experimental-tvmc-extension",
+        default=[],
+        action="append",
+        help="path from which to load packages named tvmc_extension which implement the "
+        "TVMCExtension interface.",
+    )
+    disposable_parser = TVMCSuppressedArgumentParser(main_parser)
+    try:
+        known_args, _ = disposable_parser.parse_known_args(argv)
+    except TVMCException:
+        known_args = None
+    try:
+        ext_dirs = known_args.experimental_tvmc_extension
+    except AttributeError:
+        ext_dirs = []
+    _handle_extensions(ext_dirs)
+
+    generate_target_args(parser)
+    generate_registry_args(parser, Executor, "graph")
+    generate_registry_args(parser, Runtime, "cpp")
+
     generate_workspace_pools_args(parser)
+
+
+def _handle_extensions(extra_paths):
+    extension_paths = extra_paths
+    if os.environ.get("TVMC_EXTENSION_DIR", None):
+        extension_paths.append(os.environ["TVMC_EXTENSION_DIR"])
+
+    load_extensions(extension_paths)
+    for ext in get_extensions():
+        for uma_backend in ext.uma_backends():
+            uma_backend.register()
 
 
 def drive_compile(args):
@@ -410,6 +443,10 @@ def compile_model(
         if initial_relay:
             # dump which operations are offloaded to which backend
             dump_operation_offloads(mod, initial_relay, dump_offloads)
+
+        for ext in get_extensions():
+            for uma_backend in ext.uma_backends():
+                mod = uma_backend.partition(mod)
 
         if tuning_records and os.path.exists(tuning_records):
             logger.debug("tuning records file provided: %s", tuning_records)
