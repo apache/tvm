@@ -569,6 +569,7 @@ transform::Sequential MixedModulePassManager(IRModule mixed_mod, Target target) 
 
   Array<Pass> mixed_pass_list;
 
+  // FPComputeLegalize uses the target attrs added by BindTarget, so it must come first
   mixed_pass_list.push_back(tir::transform::BindTarget(target));
   mixed_pass_list.push_back(tir::transform::FP8ComputeLegalize());
 
