@@ -483,8 +483,10 @@ def _emit_main_compare(
                 f"\t}}\n"
                 f"}}"
                 f"if (mismatch >= 1) {{\n"
-                f"\tfloat percent_mismatched = ((float) mismatch) / ((float) {data_length_var_name}) * 100;\n"
-                f'\tprintf("\\nMismatched elements: %d / %zu (%.2f%%)\\n", mismatch, {data_length_var_name}, percent_mismatched);\n'
+                f"\tfloat percent_mismatched = ((float) mismatch) /"
+                f"((float) {data_length_var_name}) * 100;\n"
+                f'\tprintf("\\nMismatched elements: %d / %zu (%.2f%%)\\n"'
+                f", mismatch, {data_length_var_name}, percent_mismatched);\n"
                 f'\tprintf("{AOT_FAILURE_TOKEN}\\n");\n'
                 f"\treturn -1;\n"
                 f"}}\n"
