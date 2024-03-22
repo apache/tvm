@@ -82,9 +82,7 @@ def test_simple():
 
 
 def test_match_buffer():
-    # well-formed checker complains about multiple definitions for variable A0_s1,
-    # likely stemming from strides=[s, s]
-    @T.prim_func(check_well_formed=False)
+    @T.prim_func
     # A and B should be remapped
     def func_match_buffer(A: T.Buffer((128, 128), "float32"), B: T.Buffer((128, 128), "float32")):
         with T.block("root"):

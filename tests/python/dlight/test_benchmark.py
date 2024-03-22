@@ -36,11 +36,9 @@ from tvm.dlight.benchmark import (
 )
 import tvm.testing
 
-# The test function uses an undefined symbolic var in Relax.
-# In principle, this should be attached to an argument.
 # pylint: disable=no-self-argument,invalid-name,line-too-long,no-method-argument
 # fmt: off
-@I.ir_module(check_well_formed=False)
+@I.ir_module
 class Module:
     @T.prim_func
     def full1(var_T_full: T.handle):

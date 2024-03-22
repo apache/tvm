@@ -22,8 +22,7 @@ from tvm import tir
 from tvm.script import tir as T
 
 
-# complains of an undefined var being used
-@tvm.script.ir_module(check_well_formed=False)
+@tvm.script.ir_module
 class Module:
     @T.prim_func
     def tvm_test_cpacked(
@@ -53,7 +52,7 @@ class Module:
         )
 
 
-@tvm.script.ir_module(check_well_formed=False)
+@tvm.script.ir_module
 class Expected:
     @T.prim_func
     def tvm_test_cpacked(

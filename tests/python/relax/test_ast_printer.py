@@ -564,7 +564,7 @@ def test_operators():
     # axis is -1
     assert "PrimExpr(value=`T.int64(-1)`)" in foo_str
 
-    @R.function(pure=False)
+    @R.function
     def bar(x: R.Tensor):
         return R.print(x, format="{}")
 

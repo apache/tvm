@@ -314,7 +314,7 @@ def test_is_call_tir():
     assert is_call_tir("tir_zeros", wildcard(), wildcard()).match(lv2_val, var2val=var2val)
 
 
-@R.function(pure=False)
+@R.function
 def simple_call_packed(
     x: R.Tensor((32, 32), "float32"), w: R.Tensor((32, 32), "float32")
 ) -> R.Tensor:

@@ -951,8 +951,7 @@ def argmax_split_body_bufferstore_value_not_var(
             argmax_v1[i] = v_argmax_v1
 
 
-# v_unbound is unbound
-@T.prim_func(check_well_formed=False)
+@T.prim_func
 def argmax_split_body_bufferstore_value_unbound_var(
     idx: T.Buffer((128, 128), "int32"),
     val: T.Buffer((128, 128), "float32"),

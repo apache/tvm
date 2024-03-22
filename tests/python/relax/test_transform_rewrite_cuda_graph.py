@@ -709,7 +709,7 @@ def test_transform_is_no_op_when_disabled():
 def test_static_args():
     @I.ir_module
     class Before:
-        @R.function(pure=False)
+        @R.function
         def main():
             storage0 = R.memory.alloc_storage(R.shape([8]), 0, "global", "float32")
             alloc0 = R.memory.alloc_tensor(storage0, 0, R.shape([8]), "float32")
@@ -734,7 +734,7 @@ def test_static_args():
             gv: R.Tuple = R.tuple()
             return gv
 
-        @R.function(pure=False)
+        @R.function
         def main() -> R.Tuple:
             cls = Expected
             gv: R.Tuple(R.Object) = R.call_builtin_with_ctx(

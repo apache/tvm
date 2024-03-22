@@ -15,7 +15,6 @@
 # specific language governing permissions and limitations
 # under the License.
 import tvm
-import tvm.testing
 from tvm import tir, te
 from tvm.script import tir as T
 
@@ -85,7 +84,6 @@ def test_lower_te():
 
 class TestErrorIfPredicateUsesBlockVariables(tvm.testing.CompareBeforeAfter):
     transform = tvm.tir.transform.ConvertBlocksToOpaque()
-    check_well_formed = False
 
     def before(A: T.Buffer(8, "int32")):
         for i in T.serial(8):

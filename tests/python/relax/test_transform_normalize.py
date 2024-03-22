@@ -571,11 +571,11 @@ def test_remove_usage_of_void_type_variables():
         relax.VarBinding(x, R.assert_op(R.const(True, "bool"))),
     ]
     seq = relax.SeqExpr([relax.BindingBlock(bindings)], x)
-    before = relax.Function([], seq, ret_struct_info=R.Tuple([]), is_pure=False)
+    before = relax.Function([], seq, ret_struct_info=R.Tuple([]))
 
     after = relax.transform.Normalize()(tvm.IRModule({"main": before}))["main"]
 
-    @R.function(private=True, pure=False)
+    @R.function(private=True)
     def expected():
         x = R.assert_op(R.const(True, "bool"))
         return R.tuple()

@@ -32,7 +32,6 @@ class BaseTest:
     """Utility class for defining unit tests for memcpy"""
 
     def __init_subclass__(cls):
-        cls.check_well_formed = True  # CompareBeforeAfter has a member var
         cls.func = tvm.testing.CompareBeforeAfter._normalize_before(cls.func)
         cls.expected = pytest.fixture(cls.expected)
 

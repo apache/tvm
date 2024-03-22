@@ -44,7 +44,7 @@ class Module:
                     T.writes(output[v_ax0, v_ax1])
                     output[v_ax0, v_ax1] = arg0[v_ax0, v_ax1] + arg1[v_ax0, v_ax1]
 
-    @R.function(pure=False)
+    @R.function
     def main(x: R.Tensor((2, 2), dtype="float32")):
         cls = Module
         storage = R.vm.alloc_storage(

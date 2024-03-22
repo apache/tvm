@@ -297,10 +297,9 @@ def test_conv2d_dynamic():
             lv1: R.Tensor((n, 32, h - 2, w - 2), dtype="float32") = R.nn.conv2d(x, weight)
             lv2: R.Tensor((1, 32, 1, 1), dtype="float32") = R.reshape(bias, R.shape([1, 32, 1, 1]))
             conv2d: R.Tensor((n, 32, h - 2, w - 2), dtype="float32") = R.add(lv1, lv2)
-            gv1: R.Tuple(R.Tensor((n, 32, h - 2, w - 2), dtype="float32"), R.Tuple(R.Object)) = (
-                conv2d,
-                (_io,),
-            )
+            gv1: R.Tuple(
+                R.Tensor((n, 32, h - 2, w - 2), dtype="float32"), R.Tuple(R.Object)
+            ) = conv2d, (_io,)
             R.output(gv1)
         return gv1
 
@@ -464,10 +463,9 @@ def test_timesteps():
             get_timestep_embedding: R.Tensor((3, 10), dtype="float32") = R.astype(
                 lv11, dtype="float32"
             )
-            gv1: R.Tuple(R.Tensor((3, 10), dtype="float32"), R.Tuple(R.Object)) = (
-                get_timestep_embedding,
-                (_io,),
-            )
+            gv1: R.Tuple(
+                R.Tensor((3, 10), dtype="float32"), R.Tuple(R.Object)
+            ) = get_timestep_embedding, (_io,)
             R.output(gv1)
         return gv1
 
@@ -491,7 +489,7 @@ def test_kv_cache():
                     lv,
                     R.shape([8, 2, 4]),
                     R.prim_value(0),
-                    sinfo_args=[R.Object()],
+                    sinfo_args=(R.Object,),
                 )
                 lv1 = _io, cache
                 gv = lv1
@@ -504,12 +502,8 @@ def test_kv_cache():
         ) -> R.Tuple(R.Tensor((4, 2, 4), dtype="float32"), R.Tuple(R.Object, R.Object)):
             R.func_attr({"num_input": 3})
             with R.dataflow():
-                lv2: R.Object = R.call_inplace_packed(
-                    "vm.builtin.attention_kv_cache_append",
-                    cache,
-                    x,
-                    inplace_indices=[0],
-                    sinfo_args=[R.Object()],
+                lv2: R.Object = R.call_pure_packed(
+                    "vm.builtin.attention_kv_cache_append", cache, x, sinfo_args=(R.Object,)
                 )
                 lv3: R.Tensor((4, 2, 4), dtype="float32") = R.call_pure_packed(
                     "vm.builtin.attention_kv_cache_view",
@@ -517,10 +511,9 @@ def test_kv_cache():
                     R.shape([4, 2, 4]),
                     sinfo_args=(R.Tensor((4, 2, 4), dtype="float32"),),
                 )
-                gv1: R.Tuple(R.Tensor((4, 2, 4), dtype="float32"), R.Tuple(R.Object, R.Object)) = (
-                    lv3,
-                    (_io, lv2),
-                )
+                gv1: R.Tuple(
+                    R.Tensor((4, 2, 4), dtype="float32"), R.Tuple(R.Object, R.Object)
+                ) = lv3, (_io, lv2)
                 R.output(gv1)
             return gv1
 

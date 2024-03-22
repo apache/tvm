@@ -142,8 +142,6 @@ class BaseBeforeAfter(tvm.testing.CompareBeforeAfter):
     apply_constraints_to_boolean_branches = False
     propagate_knowns_to_prove_conditional = False
     propagate_knowns_to_simplify_expressions = False
-    # from base class
-    check_well_formed = False
 
     def transform(self):
         def inner(mod):
@@ -652,8 +650,7 @@ class TestRemoveTransitivelyProvableCondition(BaseBeforeAfter):
     def before(self, test_case):
         priors, postulate, _ = test_case
 
-        # well formed checker complains of undefined variables in condition
-        @T.prim_func(check_well_formed=False)
+        @T.prim_func
         def func(A: T.Buffer(1, "bool")):
             if priors:
                 A[0] = postulate
@@ -669,8 +666,7 @@ class TestRemoveTransitivelyProvableCondition(BaseBeforeAfter):
 
         if provable:
 
-            # well formed checker complains of undefined variables in condition
-            @T.prim_func(check_well_formed=False)
+            @T.prim_func
             def func(A: T.Buffer(1, "bool")):
                 if priors:
                     A[0] = True
@@ -680,8 +676,7 @@ class TestRemoveTransitivelyProvableCondition(BaseBeforeAfter):
         else:
             postulate = analyzer.canonical_simplify(postulate)
 
-            # well formed checker complains of undefined variables in condition
-            @T.prim_func(check_well_formed=False)
+            @T.prim_func
             def func(A: T.Buffer(1, "bool")):
                 if priors:
                     A[0] = postulate
@@ -1039,8 +1034,7 @@ class TestMostRestrictiveConditional(BaseBeforeAfter):
     def before(self, test_case):
         priors, expr_before, _ = test_case
 
-        # well formed checker complains of undefined variables in condition
-        @T.prim_func(check_well_formed=False)
+        @T.prim_func
         def func(A: T.Buffer(1, "bool")):
             if priors:
                 A[0] = expr_before
@@ -1051,8 +1045,7 @@ class TestMostRestrictiveConditional(BaseBeforeAfter):
     def expected(self, test_case):
         priors, _, expr_after = test_case
 
-        # well formed checker complains of undefined variables in condition
-        @T.prim_func(check_well_formed=False)
+        @T.prim_func
         def func(A: T.Buffer(1, "bool")):
             if priors:
                 A[0] = expr_after

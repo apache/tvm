@@ -22,8 +22,7 @@ import tvm.testing
 from tvm.script import tir as T
 
 
-# complains that index_i is defined outside of a block
-@T.prim_func(check_well_formed=False)
+@T.prim_func
 def tensorcore_gemm(handle_a: T.handle, handle_b: T.handle, handle_c: T.handle) -> None:
     # pylint: disable=missing-function-docstring
     # match buffer

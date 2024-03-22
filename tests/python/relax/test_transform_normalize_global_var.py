@@ -28,7 +28,7 @@ from tvm.script import tir as T, relax as R, ir as I
 
 @pytest.mark.skip_well_formed_check_before_transform
 def test_normalize_relax_function():
-    @I.ir_module(check_well_formed=False)
+    @I.ir_module
     class Before:
         @R.function(private=True)
         def f():
@@ -62,7 +62,7 @@ def test_normalize_relax_function():
 
 @pytest.mark.skip_well_formed_check_before_transform
 def test_normalize_tir_function():
-    @I.ir_module(check_well_formed=False)
+    @I.ir_module
     class Before:
         @T.prim_func(private=True)
         def f(x: T.Buffer((1,), "int32")):

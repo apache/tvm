@@ -456,7 +456,7 @@ class TestMatmul(tvm.testing.CompareBeforeAfter):
 class TestSimpleAllocNoReuse(tvm.testing.CompareBeforeAfter):
     """Test alloc and free within the same scope."""
 
-    transform = tvm.tir.transform.MergeSharedMemoryAllocations()
+    transform = tvm.tir.transform.MergeDynamicSharedMemoryAllocations()
 
     def before(self):
         @T.prim_func
@@ -485,7 +485,7 @@ class TestSimpleAllocNoReuse(tvm.testing.CompareBeforeAfter):
 class TestSimpleAllocReuse(tvm.testing.CompareBeforeAfter):
     """Test alloc and free within the same scope with a reuse chance."""
 
-    transform = tvm.tir.transform.MergeSharedMemoryAllocations()
+    transform = tvm.tir.transform.MergeDynamicSharedMemoryAllocations()
 
     def before(self):
         @T.prim_func

@@ -123,6 +123,8 @@ class Module1:
             )
         )
 
+    __tvm_meta__ = None
+
 
 """Test case 2 with per-channel quantization"""
 
@@ -217,10 +219,11 @@ class Module2:
             )
         )
 
+    __tvm_meta__ = None
 
-# Complains of the use of undefined vars
+
 # fmt: off
-@tvm.script.ir_module(check_well_formed=False)
+@tvm.script.ir_module
 class Module3:
     @T.prim_func
     def main(ethos_u_0_i0: T.Buffer((1, 299, 299, 2), "int8"), ethosu_write: T.Buffer((1, 299, 299, 3), "int8")):
@@ -236,6 +239,8 @@ class Module3:
         ethos_u_0_i0_1 = T.Buffer((178802,), "int8", data=ethos_u_0_i0.data)
         ethosu_write_1 = T.Buffer((268203,), "int8", data=ethosu_write.data)
         T.call_extern("handle", "ethosu_conv2d", "int8", 299, 299, 2, 299, 0, 299, ethos_u_0_i0_1[0], 0, 0, 0, T.float32(0.0039215683937072754), -128, "NHWC", 598, 2, 1, "int8", 299, 299, 3, 299, 0, 299, ethosu_write_1[0], 0, 0, 0, T.float32(0.025585981085896492), -128, "NHWC", 897, 3, 1, 2, 3, 1, 1, 1, 2, p2_global_1[0], 96, T.int8(-1), T.int8(-1), 0, p2_global_1[96], 32, T.int8(-1), T.int8(-1), 2, 0, 2, 1, "NONE", 0, 0, "TFL", "NONE", 32, 12, 8)
+
+    __tvm_meta__ = None
 # fmt: on
 
 

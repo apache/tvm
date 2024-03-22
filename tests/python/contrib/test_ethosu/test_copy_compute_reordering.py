@@ -22,9 +22,8 @@ import tvm
 from tvm.script import tir as T
 from tvm.relay.backend.contrib.ethosu.tir.passes import CopyComputeReordering
 
-# Uninitialized vars used
 # fmt: off
-@tvm.script.ir_module(check_well_formed=False)
+@tvm.script.ir_module
 class AllOperatorsWithWeights:
     @T.prim_func
     def main() -> None:
@@ -71,9 +70,8 @@ def test_all_operators_with_weights_max_copy_movements_0():
 
 
 def test_all_operators_with_weights_max_copy_movements_1():
-    # Uninitialized vars used
     # fmt: off
-    @tvm.script.ir_module(check_well_formed=False)
+    @tvm.script.ir_module
     class ReferenceModule:
         @T.prim_func
         def main() -> None:
@@ -118,9 +116,8 @@ def test_all_operators_with_weights_max_copy_movements_1():
 
 
 def test_all_operators_with_weights_max_copy_movements_2():
-    # Uninitialized vars used
     # fmt: off
-    @tvm.script.ir_module(check_well_formed=False)
+    @tvm.script.ir_module
     class ReferenceModule:
         @T.prim_func
         def main() -> None:
@@ -164,9 +161,8 @@ def test_all_operators_with_weights_max_copy_movements_2():
     tvm.ir.assert_structural_equal(test_mod, reference_mod, True)
 
 
-# Uninitialized vars used
 # fmt: off
-@tvm.script.ir_module(check_well_formed=False)
+@tvm.script.ir_module
 class AllOperatorsWithoutWeights:
     @T.prim_func
     def main() -> None:
@@ -187,9 +183,8 @@ def test_all_operators_without_weights(max_copy_movements):
     tvm.ir.assert_structural_equal(test_mod, reference_mod, True)
 
 
-# Uninitialized vars used
 # fmt: off
-@tvm.script.ir_module(check_well_formed=False)
+@tvm.script.ir_module
 class OperatorsWithAndWithoutWeights:
     @T.prim_func
     def main() -> None:
@@ -223,9 +218,8 @@ def test_operators_with_and_without_weights_max_copy_movements_0():
 
 
 def test_operators_with_and_without_weights_max_copy_movements_1():
-    # Uninitialized vars used
     # fmt: off
-    @tvm.script.ir_module(check_well_formed=False)
+    @tvm.script.ir_module
     class ReferenceModule:
         @T.prim_func
         def main() -> None:
@@ -257,9 +251,8 @@ def test_operators_with_and_without_weights_max_copy_movements_1():
 
 
 def test_operators_with_and_without_weights_max_copy_movements_2():
-    # Uninitialized vars used
     # fmt: off
-    @tvm.script.ir_module(check_well_formed=False)
+    @tvm.script.ir_module
     class ReferenceModule:
         @T.prim_func
         def main() -> None:
@@ -290,9 +283,8 @@ def test_operators_with_and_without_weights_max_copy_movements_2():
     tvm.ir.assert_structural_equal(test_mod, reference_mod, True)
 
 
-# Uninitialized vars used
 # fmt: off
-@tvm.script.ir_module(check_well_formed=False)
+@tvm.script.ir_module
 class CopyToBufferWithLocalScope:
     @T.prim_func
     def main() -> None:
@@ -332,9 +324,8 @@ def test_copy_to_buffer_with_local_scope_max_copy_movements_0():
 
 @pytest.mark.parametrize("max_copy_movements", [1, 2])
 def test_copy_to_buffer_with_local_scope_max_copy_movements_n(max_copy_movements):
-    # Uninitialized vars used
     # fmt: off
-    @tvm.script.ir_module(check_well_formed=False)
+    @tvm.script.ir_module
     class ReferenceModule:
         @T.prim_func
         def main() -> None:
@@ -409,9 +400,8 @@ def test_no_main_prim_func():
 
 
 def test_default_max_copy_movements():
-    # Uninitialized vars used
     # fmt: off
-    @tvm.script.ir_module(check_well_formed=False)
+    @tvm.script.ir_module
     class ReferenceModule:
         @T.prim_func
         def main() -> None:
@@ -443,9 +433,8 @@ def test_default_max_copy_movements():
 
 
 def test_pass_context_option_max_copy_movements():
-    # Uninitialized vars used
     # fmt: off
-    @tvm.script.ir_module(check_well_formed=False)
+    @tvm.script.ir_module
     class ReferenceModule:
         @T.prim_func
         def main() -> None:
@@ -480,9 +469,8 @@ def test_pass_context_option_max_copy_movements():
 
 
 def test_reordering_based_on_cycles():
-    # Uninitialized vars used
     # fmt: off
-    @tvm.script.ir_module(check_well_formed=False)
+    @tvm.script.ir_module
     class ModuleBefore:
         @T.prim_func
         def main(placeholder: T.Buffer(97156, "int8"), placeholder_encoded: T.Buffer(208, "uint8"), placeholder_encoded_1: T.Buffer(112, "uint8"), placeholder_encoded_2: T.Buffer(96, "uint8"), placeholder_encoded_3: T.Buffer(112, "uint8"), ethosu_write: T.Buffer(43672, "int8")) -> None:
@@ -530,8 +518,7 @@ def test_reordering_based_on_cycles():
             T.evaluate(T.call_extern("ethosu_depthwise_conv2d", "int8", 103, 106, 4, 103, 0, 106, ethosu_write_5[0], 0, 0, 0, T.float32(0.0057637207210063934), -128, "NHCWB16", 1696, 16, 1, "int8", 103, 106, 4, 103, 0, 106, ethosu_write[0], 0, 0, 0, T.float32(0.0057619437575340271), -128, "NHWC", 424, 4, 1, 3, 2, 1, 1, 2, 2, placeholder_d_global_3[0], 64, 0, placeholder_d_global_3[64], 48, 1, 2, 1, 2, "NONE", 0, 0, "TFL", "NONE", 14, 18, 8, dtype="handle"))
 
 
-    # Uninitialized vars used
-    @tvm.script.ir_module(check_well_formed=False)
+    @tvm.script.ir_module
     class ModuleAfter:
         @T.prim_func
         def main(placeholder: T.Buffer(97156, "int8"), placeholder_encoded: T.Buffer(208, "uint8"), placeholder_encoded_1: T.Buffer(112, "uint8"), placeholder_encoded_2: T.Buffer(96, "uint8"), placeholder_encoded_3: T.Buffer(112, "uint8"), ethosu_write: T.Buffer(43672, "int8")) -> None:
@@ -585,9 +572,8 @@ def test_reordering_based_on_cycles():
 
 
 def test_reordering_based_on_cycles_luts_present():
-    # Uninitialized vars used
     # fmt: off
-    @tvm.script.ir_module(check_well_formed=False)
+    @tvm.script.ir_module
     class ModuleBefore:
         @T.prim_func
         def main(placeholder: T.Buffer(97156, "int8"), placeholder_encoded: T.Buffer(208, "uint8"), placeholder_encoded_1: T.Buffer(112, "uint8"), placeholder_1: T.Buffer(256, "int8"), placeholder_encoded_2: T.Buffer(96, "uint8"), placeholder_2: T.Buffer(256, "int8"), placeholder_3: T.Buffer(256, "int8"), ethosu_write: T.Buffer(46200, "int8")) -> None:
@@ -637,8 +623,7 @@ def test_reordering_based_on_cycles_luts_present():
             T.evaluate(T.call_extern("ethosu_pooling", "int8", 105, 110, 4, 105, 0, 110, ethosu_write_5[0], 0, 0, 0, T.float32(1), 0, "NHCWB16", 1760, 16, 1, "int8", 105, 110, 4, 105, 0, 110, ethosu_write[0], 0, 0, 0, T.float32(1), 0, "NHWC", 440, 4, 1, "MAX", 1, 1, 1, 1, 1, 1, 0, 0, 0, 0, "TANH", 0, 0, "TFL", "NONE", 4, 64, 8, dtype="handle"))
 
 
-    # Uninitialized vars used
-    @tvm.script.ir_module(check_well_formed=False)
+    @tvm.script.ir_module
     class ModuleAfter:
         @T.prim_func
         def main(placeholder: T.Buffer(97156, "int8"), placeholder_encoded: T.Buffer(208, "uint8"), placeholder_encoded_1: T.Buffer(112, "uint8"), placeholder_1: T.Buffer(256, "int8"), placeholder_encoded_2: T.Buffer(96, "uint8"), placeholder_2: T.Buffer(256, "int8"), placeholder_3: T.Buffer(256, "int8"), ethosu_write: T.Buffer(46200, "int8")) -> None:

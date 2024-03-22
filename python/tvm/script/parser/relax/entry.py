@@ -52,7 +52,7 @@ FType = TypeVar("FType", bound=_Callable)
 # appear as a decorator by itself or to have optional arguments
 # like @R.function(pure=False)
 def function(
-    f: Optional[FType] = None, pure: bool = True, private: bool = False, check_well_formed=True
+    f: Optional[FType] = None, pure: bool = True, private: bool = False
 ) -> Union[Function, FType]:
     # pylint: disable=unused-argument
     # (pure and private aren't used here, but are used later in parsing)
@@ -66,7 +66,7 @@ def function(
             raise TypeError(f"Expect a function, but got: {f}")
         if utils.is_defined_in_class(orig_stack, f):
             return f
-        return parse(f, utils.inspect_function_capture(f), check_well_formed=check_well_formed)
+        return parse(f, utils.inspect_function_capture(f))
 
     if f is not None:
         # if there are no optional args given, this will directly invoke the wrapper

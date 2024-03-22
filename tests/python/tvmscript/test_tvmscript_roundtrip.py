@@ -27,9 +27,8 @@ import numpy as np
 
 
 def opt_gemm_normalize():
-    @tvm.script.ir_module(check_well_formed=False)
+    @tvm.script.ir_module
     class Module:
-        # packedB is treated as undefined
         @T.prim_func
         def mmult(A: T.handle, B: T.handle, C: T.handle) -> None:
             # function attr dict
@@ -181,9 +180,8 @@ def launch_env_thread():
 
 
 def opt_gemm_mod_host():
-    @tvm.script.ir_module(check_well_formed=False)
+    @tvm.script.ir_module
     class Module:
-        # packedB is treated as undefined
         @T.prim_func
         def mmult(
             args: T.handle,
@@ -480,7 +478,7 @@ def opt_gemm_mod_host():
 
 
 def opt_conv_tensorcore_normalize():
-    @T.prim_func(check_well_formed=False)
+    @T.prim_func
     def func(A: T.handle, W: T.handle, Conv: T.handle) -> None:
         # function attr dict
         T.func_attr({"global_symbol": "default_function", "tir.noalias": True})
@@ -1600,7 +1598,7 @@ def opt_conv_tensorcore_lower():
                             (
                                 (
                                     (
-                                        1 <= (T.floordiv(bz, 14) + kh)
+                                        (1 <= (T.floordiv(bz, 14) + kh))
                                         and ((T.floordiv(bz, 14) + kh) < 15)
                                     )
                                     and (1 <= (ax2 + T.floormod(bz, 14)))
@@ -2911,8 +2909,7 @@ def constant_folding():
 
 
 def simplify_bracket():
-    # uninitialized variables
-    @T.prim_func(check_well_formed=False)
+    @T.prim_func
     def simplify_bracket() -> None:
         a = T.int32()
         b = T.int32()
@@ -3027,8 +3024,7 @@ def comm_reducer_multiple_reduce_groups():
 
 
 def multiple_commreducer():
-    # normal_reduce_temp0 is treated as uninitialized value
-    @T.prim_func(check_well_formed=False)
+    @T.prim_func
     def multiple_commreducer() -> None:
         normal_reduce_temp0 = T.Buffer([1], dtype="float32", strides=[1], scope="local")
         normal_reduce_temp1 = T.Buffer([1], dtype="float32", strides=[1], scope="local")
@@ -3048,8 +3044,7 @@ def multiple_commreducer():
 
 
 def func_div_mod():
-    # not well-formed: free variables
-    @T.prim_func(check_well_formed=False)
+    @T.prim_func
     def func_div_mod():
         a = T.int32()
         b = T.int32()
@@ -3062,7 +3057,7 @@ def func_div_mod():
 
 def test_div_mod():
     func = func_div_mod()
-    rt_func = tvm.script.from_source(func.script(), check_well_formed=False)
+    rt_func = tvm.script.from_source(func.script())
     tvm.ir.assert_structural_equal(func, rt_func, True)
 
     assert isinstance(func.body[0].value, tvm.tir.FloorDiv)
@@ -3225,8 +3220,7 @@ def llvm_intrin_call():
 
 
 def parse_bufferslice_as_range_bound():
-    # apparently the use of i in the "outer" block when it is defined outside of a block is wrong
-    @T.prim_func(check_well_formed=False)
+    @T.prim_func
     def segment_sum(
         A_ptr: T.handle, B_ptr: T.handle, indptr_ptr: T.handle, n: T.int32, m: T.int32
     ) -> None:
@@ -3491,8 +3485,7 @@ def bool_primitive():
 
 
 def bool_cast():
-    # uninitialized var
-    @T.prim_func(check_well_formed=False)
+    @T.prim_func
     def func() -> None:
         a = T.bool()
         T.evaluate(T.bool(T.int32(0)))
@@ -3615,8 +3608,7 @@ def let_stmt_var():
 
 
 def let_stmt_value():
-    # uninitialized var
-    @T.prim_func(check_well_formed=False)
+    @T.prim_func
     def func():
         y = T.int32()
         with T.LetStmt(y) as x:
@@ -3662,8 +3654,7 @@ def string_stride_int64():
 
 
 def merge_shape_var_def():
-    # uninitialized vars
-    @T.prim_func(check_well_formed=False)
+    @T.prim_func
     def main(A: T.handle, B: T.handle):
         T.func_attr({"from_legacy_te_schedule": True, "global_symbol": "main", "tir.noalias": True})
         m, n = T.int32(), T.int32()
@@ -3881,8 +3872,8 @@ def undefined_data_ptr_in_decl_buffer():
     Allocate/DeclBuffer pair, performing a round-trip through
     TVMScript should not introduce an Allocate node.
     """
-    # uninitialized var
-    @T.prim_func(check_well_formed=False)
+
+    @T.prim_func
     def func():
         data_ptr = T.handle("float32")
         buf = T.decl_buffer(shape=[1], dtype="float32", data=data_ptr)
@@ -3892,8 +3883,7 @@ def undefined_data_ptr_in_decl_buffer():
 
 
 def undefined_shape_in_decl_buffer():
-    # uninitialized var
-    @T.prim_func(check_well_formed=False)
+    @T.prim_func
     def func():
         size = T.int32()
         buf = T.decl_buffer(shape=[size], dtype="float32")
@@ -3903,8 +3893,7 @@ def undefined_shape_in_decl_buffer():
 
 
 def undefined_stride_in_decl_buffer():
-    # uninitialized var
-    @T.prim_func(check_well_formed=False)
+    @T.prim_func
     def func():
         stride = T.int32()
         buf = T.decl_buffer(shape=[1], dtype="float32", strides=[stride])
@@ -3914,8 +3903,7 @@ def undefined_stride_in_decl_buffer():
 
 
 def undefined_elem_offset_in_decl_buffer():
-    # uninitialized var
-    @T.prim_func(check_well_formed=False)
+    @T.prim_func
     def func():
         elem_offset = T.int32()
         buf = T.decl_buffer(shape=[1], dtype="float32", elem_offset=elem_offset)
@@ -4174,9 +4162,7 @@ show_all_relax_struct_info = tvm.testing.parameter(
 
 def test_roundtrip(ir_generator):
     original = ir_generator()
-    after_roundtrip = tvm.script.from_source(
-        original.script(show_meta=True), check_well_formed=False
-    )
+    after_roundtrip = tvm.script.from_source(original.script(show_meta=True))
     tvm.ir.assert_structural_equal(original, after_roundtrip, True)
 
 

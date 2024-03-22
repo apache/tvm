@@ -532,12 +532,6 @@ Stmt IndexDataTypeRewriter::VisitStmt_(const ForNode* op) {
     n->loop_var = new_loop_var;
     n->min = cast(new_loop_var.dtype(), min);
     n->extent = cast(new_loop_var.dtype(), extent);
-    if (op->thread_binding.defined()) {
-      auto old_thread_binding = op->thread_binding.value();
-      auto* ptr = old_thread_binding.CopyOnWrite();
-      ptr->var = old_thread_binding->var.copy_with_dtype(new_loop_var.dtype());
-      n->thread_binding = std::move(Optional<IterVar>(std::move(old_thread_binding)));
-    }
     n->body = new_body;
     return std::move(new_for);
   } else {

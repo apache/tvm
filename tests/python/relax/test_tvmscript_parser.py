@@ -821,14 +821,14 @@ def test_direct_return():
 
 
 def test_call_packed():
-    @R.function(pure=False)
+    @R.function
     def foo(x: R.Tensor((32, 32), "float32")) -> R.Tensor:
         z = R.call_packed("vm.builtin.copy", x, sinfo_args=R.Tensor((32, 32), "float32"))
         return z
 
     x = relax.Var("x", R.Tensor((32, 32), "float32"))
     bb = relax.BlockBuilder()
-    with bb.function("foo", (x), pure=False):
+    with bb.function("foo", (x)):
         z = bb.emit(
             relax.Call(
                 relax.ExternFunc("vm.builtin.copy"),
@@ -843,14 +843,14 @@ def test_call_packed():
 
 
 def test_call_packed_without_sinfo_args():
-    @R.function(pure=False)
+    @R.function
     def foo(x: R.Object) -> R.Object:
         z = R.call_packed("test", x)
         return z
 
     x = relax.Var("x", R.Object())
     bb = relax.BlockBuilder()
-    with bb.function("foo", (x), pure=False):
+    with bb.function("foo", (x)):
         z = bb.emit(
             relax.Call(
                 relax.ExternFunc("test"),
@@ -865,7 +865,7 @@ def test_call_packed_without_sinfo_args():
 
 
 def test_annotation():
-    @R.function(pure=False)
+    @R.function
     def foo(
         x: R.Tensor((32, "m"), "float32"),
         y: R.Tensor(("m",), "float32"),
@@ -1576,7 +1576,7 @@ def test_builtin_ops():
 
 
 def test_prim_value():
-    @R.function(pure=False)
+    @R.function
     def foo():
         gv = R.call_packed("test", 1, sinfo_args=R.Tensor((32, 32), "float32"))
         return gv
@@ -1585,7 +1585,7 @@ def test_prim_value():
 
 
 def test_string_imm():
-    @R.function(pure=False)
+    @R.function
     def foo():
         gv = R.call_packed("test", "hello", sinfo_args=R.Tensor((32, 32), "float32"))
         return gv
@@ -1594,7 +1594,7 @@ def test_string_imm():
 
 
 def test_datatype_imm():
-    @R.function(pure=False)
+    @R.function
     def foo():
         gv = R.call_packed("test", R.dtype("float32"), sinfo_args=R.Tensor((32, 32), "float32"))
         return gv

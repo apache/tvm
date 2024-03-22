@@ -26,9 +26,7 @@ from .._core import parse, scan_macro, utils
 from ..core.parser import Parser, ScriptMacro
 
 
-def prim_func(
-    func: Optional[Callable] = None, private: bool = False, check_well_formed=True
-) -> Union[PrimFunc, Callable]:
+def prim_func(func: Optional[Callable] = None, private: bool = False) -> Union[PrimFunc, Callable]:
     """The parsing method for tir prim func, by using `@prim_func` as decorator.
 
     Parameters
@@ -62,7 +60,7 @@ def prim_func(
             raise TypeError(f"Expect a function, but got: {func}")
         if utils.is_defined_in_class(outer_stack, func):
             return func
-        f = parse(func, utils.inspect_function_capture(func), check_well_formed=check_well_formed)
+        f = parse(func, utils.inspect_function_capture(func))
         setattr(f, "__name__", func.__name__)
         return f
 

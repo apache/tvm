@@ -74,12 +74,11 @@ def test_normalization_suppressed_for_tvmscript(custom_op):
     """FNormalize isn't applied when parsing TVMScript
 
     TVMScript should be able to produce un-normalized Relax IR for
-    specifying test cases if the well-formed check is disabled,
-    and to ensure that no changes occur when performing a round-trip
-    through TVMScript.
+    specifying test cases, and to ensure that no changes occur when
+    performing a round-trip through TVMScript.
     """
 
-    @R.function(check_well_formed=False)
+    @R.function
     def func(A: R.Tensor):
         return relax.Call(custom_op, [A])
 
@@ -96,7 +95,7 @@ def test_normalization_suppressed_for_tvmscript(custom_op):
 def test_normalization_applied_during_cpp_mutator(custom_op):
     """FNormalize is applied by relax::ExprMutator subclasses"""
 
-    @I.ir_module(check_well_formed=False)
+    @I.ir_module
     class Before:
         @R.function
         def main(A: R.Tensor):
@@ -117,7 +116,7 @@ def test_normalization_applied_during_cpp_mutator(custom_op):
 def test_normalization_applied_during_python_mutator(custom_op):
     """FNormalize is applied by relax.ExprMutator subclasses"""
 
-    @R.function(private=True, check_well_formed=False)
+    @R.function(private=True)
     def before(A: R.Tensor):
         return relax.Call(custom_op, [A])
 
@@ -156,7 +155,7 @@ def test_un_normalized_call_node_is_ill_formed(custom_op, define_normalization):
     FNormalize has no corresponding check applied.
     """
 
-    @I.ir_module(check_well_formed=False)
+    @I.ir_module
     class Module:
         @R.function
         def main(A: R.Tensor):
@@ -172,7 +171,7 @@ def test_un_normalized_call_node_is_ill_formed(custom_op, define_normalization):
 def test_normalize_to_inline_tuple_for_call_tir(custom_op):
     """FNormalize in-lines the argument tuple for R.call_tir"""
 
-    @I.ir_module(check_well_formed=False)
+    @I.ir_module
     class Before:
         @R.function
         def main(A: R.Tensor([16], "float32")):
@@ -220,7 +219,7 @@ def test_normalize_argument_to_inline_tuple_for_call_tir(custom_op):
     argument tuple is provided as a relax function argument.
     """
 
-    @I.ir_module(check_well_formed=False)
+    @I.ir_module
     class Before:
         @R.function
         def main(args: R.Tuple([R.Tensor([16], "float32")])):
@@ -262,9 +261,9 @@ def test_normalize_argument_to_inline_tuple_for_call_tir(custom_op):
 def test_normalize_to_inline_tuple_for_call_tir_inplace(custom_op):
     """FNormalize in-lines the argument tuple for R.call_tir_inplace"""
 
-    # The CallTIRInplaceAttrs is difficult to construct in the Python
-    # API, so it is more convenient to declare the expected one first
-    # and reuse its attributes
+    # The CallTIRInplaceAttrs cannot be constructed from the Python
+    # API.  Therefore, declaring the Expected output first, so that
+    # the attributes can be used for the non-normalized Before.
     @I.ir_module
     class Expected:
         @R.function
@@ -285,7 +284,7 @@ def test_normalize_to_inline_tuple_for_call_tir_inplace(custom_op):
 
     inplace_attrs = Expected["main"].body.blocks[0].bindings[1].value.attrs
 
-    @I.ir_module(check_well_formed=False)
+    @I.ir_module
     class Before:
         @R.function
         def main(A: R.Tensor([16], "float32")):
@@ -313,9 +312,9 @@ def test_normalize_to_inline_tuple_for_call_tir_inplace(custom_op):
 def test_normalize_to_inline_tuple_for_call_tir_with_grad(custom_op):
     """FNormalize in-lines the argument tuple for R.call_tir_with_grad"""
 
-    # The CallTIRWithGradAttrs is difficult to construct in the Python
-    # API, so it is more convenient to declare the expected one first
-    # and reuse its attributes
+    # The CallTIRWithGradAttrs cannot be constructed from the Python
+    # API.  Therefore, declaring the Expected output first, so that
+    # the attributes can be used for the non-normalized Before.
     @I.ir_module
     class Expected:
         @R.function
@@ -343,7 +342,7 @@ def test_normalize_to_inline_tuple_for_call_tir_with_grad(custom_op):
 
     with_grad_attrs = Expected["main"].body.blocks[0].bindings[1].value.attrs
 
-    @I.ir_module(check_well_formed=False)
+    @I.ir_module
     class Before:
         @R.function
         def main(A: R.Tensor([16], "float32")):

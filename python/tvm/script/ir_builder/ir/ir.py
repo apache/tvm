@@ -43,7 +43,7 @@ def decl_function(func_name: str, func_signature: BaseFunc) -> GlobalVar:
     func_name : str
         The function unique name.
 
-    func_signature: BaseFunc
+    func_signature: Optional[BaseFunc]
         A Function w/o body, which used to specify the function signature
         (i.e. func params and func return type/shape).
 
@@ -55,11 +55,7 @@ def decl_function(func_name: str, func_signature: BaseFunc) -> GlobalVar:
     gv : GlobalVar
         The corresponding GlobalVar.
     """
-    if not isinstance(func_signature, BaseFunc):
-        raise ValueError(
-            "decl_function expects an instance of BaseFunc, "
-            f"but {func_signature} is of type {type(func_signature)}"
-        )
+
     return _ffi_api.DeclFunction(  # type: ignore[attr-defined] # pylint: disable=no-member
         func_name, func_signature
     )

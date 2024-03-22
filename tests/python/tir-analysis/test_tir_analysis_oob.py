@@ -43,7 +43,8 @@ def bad_store_loop(A: T.Buffer((2, 3), "float32"), B: T.Buffer((3, 2), "float32"
 
 
 @T.prim_func
-def unknown_bounds(A: T.Buffer((2, 3), "float32"), B: T.Buffer((3, 2), "float32"), N: T.int32):
+def unknown_bounds(A: T.Buffer((2, 3), "float32"), B: T.Buffer((3, 2), "float32")):
+    N = T.int32()
     for i in range(3):
         B[0, N] = A[1, i]
 

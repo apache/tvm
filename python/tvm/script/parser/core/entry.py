@@ -18,19 +18,11 @@
 import inspect
 from typing import Any, Dict, Union
 
-from ....ir.module import IRModule
 from ...ir_builder import IRBuilder
 from . import doc
 from .diagnostics import Source
 from .error import ParserError
 from .parser import Parser
-
-WELL_FORMED_ERROR_MESSAGE = (
-    "Program is not well-formed. If this is deliberate, consider "
-    "setting check_well_formed in the top-level decorator to False "
-    "(e.g., @I.ir_module(check_well_formed=False) or "
-    "@R.function(check_well_formed=False))."
-)
 
 
 def _default_globals() -> Dict[str, Any]:
@@ -51,11 +43,7 @@ def scan_macro(program: Union[Any, str], extra_vars: Dict[str, Any] = None) -> A
     return source, closure_vars
 
 
-def parse(
-    program: Union[doc.AST, Any, str],
-    extra_vars: Dict[str, Any] = None,
-    check_well_formed: bool = True,
-) -> Any:
+def parse(program: Union[doc.AST, Any, str], extra_vars: Dict[str, Any] = None) -> Any:
     """Register a method for a operand type, AST operator node and operand index.
 
     Parameters
@@ -65,9 +53,6 @@ def parse(
 
     extra_vars : Dict[str, Any]
         The extra variable table for parsing.
-
-    check_well_formed : bool
-        Whether to check well-formedness after parsing.
 
     Returns
     -------
@@ -92,25 +77,4 @@ def parse(
             parser.parse(extra_vars=extra_vars)
         except ParserError as err:
             parser.report_error(err.node, err.args[0])
-    ret = builder.get()
-    # check well-formedness in both Relax and TIR
-    if check_well_formed:
-        # (C0415 = import-outside-toplevel. It is necessary here to avoid a circular dependency,
-        # since importing Relax imports a dependency on the parser)
-        from ....relax.analysis import well_formed as relax_well_formed  # pylint: disable=C0415
-        from ....tir.analysis import verify_well_formed as tir_well_formed  # pylint: disable=C0415
-
-        check_ret = ret
-        if not isinstance(check_ret, IRModule):
-            check_ret = IRModule.from_expr(ret)
-        source_ast = source.as_ast()
-        if not relax_well_formed(check_ret):
-            parser.report_error(source_ast, err=WELL_FORMED_ERROR_MESSAGE)
-        try:
-            tir_well_formed(check_ret)
-        except Exception as err:  # pylint: disable=broad-exception-caught
-            parser.report_error(
-                source_ast,
-                err=f"{WELL_FORMED_ERROR_MESSAGE}\n\nTraceback: {str(err)}",
-            )
-    return ret
+    return builder.get()

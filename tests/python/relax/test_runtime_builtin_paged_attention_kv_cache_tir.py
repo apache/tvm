@@ -566,8 +566,7 @@ def test_paged_attention_kv_cache_sliding_window(kv_cache_and_config):
 
 
 def kv_cache_transpose_append(head_dim, dtype):
-    # undefined vars used
-    @T.prim_func(check_well_formed=False)
+    @T.prim_func
     def _kv_cache_transpose_append(
         var_pages: T.handle,
         var_k_data: T.handle,
@@ -605,8 +604,7 @@ def kv_cache_transpose_append(head_dim, dtype):
 
 
 def copy_cache(head_dim, dtype):
-    # undefined vars used
-    @T.prim_func(check_well_formed=False)
+    @T.prim_func
     def _copy_cache(
         var_pages: T.handle,
         var_position_map: T.handle,
@@ -679,8 +677,7 @@ def llama_rope_with_position_map(  # pylint: disable=too-many-arguments
         )
         return cos + sin
 
-    # undefined vars used
-    @T.prim_func(private=True, check_well_formed=False)
+    @T.prim_func(private=True)
     def fused_rope(  # pylint: disable=too-many-locals
         var_qkv: T.handle,
         var_position_map: T.handle,
@@ -855,10 +852,9 @@ def _attention_prefill(
         tile_z = 8
         num_warps = 2
 
-    # undefined vars used
     # pylint: disable=line-too-long,too-many-arguments,too-many-branches
     # fmt: off
-    @T.prim_func(check_well_formed=False)
+    @T.prim_func
     def batch_prefill_paged_kv(
         _0: T.int32,  # pylint: disable=unused-argument
         var_q: T.handle, # [total_len, h_q, d]
@@ -1218,10 +1214,9 @@ def _attention_decode(
     tile_size_per_bdx = TILE_SIZE_PER_BDX if GROUP_SIZE == 1 else 1
     log2e = math.log2(math.exp(1))
 
-    # undefined vars used
     # pylint: disable=line-too-long,too-many-arguments,too-many-branches
     # fmt: off
-    @T.prim_func(check_well_formed=False)
+    @T.prim_func
     def batch_decode_paged_kv(
         _0: T.int32,  # pylint: disable=unused-argument
         Q_handle: T.handle,
@@ -1462,10 +1457,9 @@ def _attention_prefill_ragged(
         tile_z = 8
         num_warps = 2
 
-    # undefined vars used
     # fmt: off
-    @T.prim_func(check_well_formed=False)
-    def batch_prefill_ragged_kv( # pylint: disable=too-many-arguments,too-many-branches
+    @T.prim_func
+    def batch_prefill_ragged_kv(  # pylint: disable=too-many-arguments,too-many-branches
         var_q: T.handle, # [total_len, h_q, d]
         var_q_indptr: T.handle, # [batch_size + 1]
         var_k: T.handle, # [total_len, h_kv, d]
@@ -1781,8 +1775,7 @@ def _merge_state_inplace(
         bdy //= 2
     gdy = num_heads // bdy
 
-    # undefined vars used
-    @T.prim_func(check_well_formed=False)
+    @T.prim_func
     def merge_state_inplace(
         v: T.handle,
         s: T.handle,

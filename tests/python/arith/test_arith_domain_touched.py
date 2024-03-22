@@ -72,14 +72,15 @@ def test_domain_touched_vector():
     m = tvm.runtime.convert(128)
 
     @T.prim_func
-    def func(a: T.handle, b: T.handle, n: T.int32):
+    def func(a: T.handle, b: T.handle):
+        n = T.int32()
         A = T.match_buffer(a, (n * m,))
         B = T.match_buffer(b, (n * m,))
 
         for i in T.serial(n):
             A[i * m : (i + 1) * m : 1] = A[i * m : (i + 1) * m : 1] + B[i * m : (i + 1) * m : 1]
 
-    a, b = [func.buffer_map[var] for var in func.params[:2]]
+    a, b = [func.buffer_map[var] for var in func.params]
 
     assert tvm.arith._ffi_api.DomainTouched(func.body, a, True, False)[0].extent.value == 128
     assert tvm.arith._ffi_api.DomainTouched(func.body, a, True, False)[0].extent.value == 128
