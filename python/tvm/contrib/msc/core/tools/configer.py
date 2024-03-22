@@ -93,7 +93,7 @@ class ToolConfiger(object):
         raise NotImplementedError("config_gym is not implemented in ToolConfiger")
 
     def config_apply(self) -> dict:
-        """Get the config fro apply
+        """Get the config for apply
 
         Returns
         -------

@@ -87,7 +87,7 @@ class BaseTracker(BaseTool):
                 msg += "; ".join(
                     ["{}: {}/{}".format(s, i["passed"], i["total"]) for s, i in passed.items()]
                 )
-            self._logger.info(msg)
+            self._logger.info(self.msg_mark(msg, in_forward=False))
         else:
             self._tracked = True
         return output
@@ -183,6 +183,10 @@ class BaseTracker(BaseTool):
     @classmethod
     def tool_type(cls):
         return ToolType.TRACKER
+
+    @classmethod
+    def apply_once(cls):
+        return True
 
 
 @msc_utils.register_tool
