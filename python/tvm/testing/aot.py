@@ -179,6 +179,15 @@ def _subprocess_check_log_output(cmd, cwd, logfile):
         raise RuntimeError(f"Subprocess failed: {cmd}\nstdout:\n{stdout}")
 
 
+def _get_entrypoint_suffix(target):
+    # LLVM modules don't use the same entrypoint suffix
+    # as C source generated modules.
+    if target.kind.name == "llvm":
+        return "__tvm_main__"
+    else:
+        return "run"
+
+
 def _mangle_name(mod_name, name):
     mod_name = mangle_module_name(mod_name)
     return mod_name + "_" + name
@@ -385,7 +394,14 @@ def _emit_main_fake_packed_values(main_file):
     )
 
 
-def _emit_main_packed_call(main_file, input_map, output_list, mod_name):
+def _emit_entry_function_forward_declaration(main_file, mod_name, entrypoint_suffix):
+    main_file.write(
+        f"int {_mangle_name(mod_name, entrypoint_suffix)}"
+        f"(TVMValue[], int32_t[], int32_t, void*, int32_t, void*);\n"
+    )
+
+
+def _emit_main_packed_call(main_file, input_map, output_list, mod_name, entrypoint_suffix):
     tensors_name = _mangle_name(mod_name, "tensors")
     values_name = _mangle_name(mod_name, "values")
     typeids_name = _mangle_name(mod_name, "typeids")
@@ -420,7 +436,8 @@ def _emit_main_packed_call(main_file, input_map, output_list, mod_name):
         fake_tensor(_mangle_name(mod_name, "outputs"), i, i + num_inputs)
 
     main_file.write(
-        f'{_mangle_name(mod_name, "run")}({values_name}, {typeids_name}, 0, NULL, 0, NULL);\n'
+        f"{_mangle_name(mod_name, entrypoint_suffix)}"
+        f"({values_name}, {typeids_name}, 0, NULL, 0, NULL);\n"
     )
     main_file.write("\n")
 
@@ -544,6 +561,15 @@ def _create_main(
             model = compiled_model.model
             _emit_main_data(main_file, model.inputs, model.outputs, model.name)
 
+        if interface_api == "packed":
+            for compiled_model in compiled_models:
+                entrypoint_suffix = _get_entrypoint_suffix(
+                    compiled_model.executor_factory.target[0]
+                )
+                _emit_entry_function_forward_declaration(
+                    main_file, compiled_model.model.name, entrypoint_suffix
+                )
+
         _emit_main_prologue(
             main_file,
             custom_prologue,
@@ -592,7 +618,12 @@ def _create_main(
             for compiled_model in compiled_models:
                 model = compiled_model.model
                 _emit_main_data_setup(main_file, model.inputs, model.outputs, model.name)
-                _emit_main_packed_call(main_file, model.inputs, model.outputs, model.name)
+                entrypoint_suffix = _get_entrypoint_suffix(
+                    compiled_model.executor_factory.target[0]
+                )
+                _emit_main_packed_call(
+                    main_file, model.inputs, model.outputs, model.name, entrypoint_suffix
+                )
 
         for compiled_model in compiled_models:
             model = compiled_model.model
@@ -665,6 +696,7 @@ def compile_models(
     workspace_memory_pools=None,
     constant_memory_pools=None,
     schedule_name: str = None,
+    runtime: tvm.relay.backend.Runtime = Runtime("crt"),
 ) -> List[AOTCompiledTestModel]:
     """
     This method generates runtime.Modules for the tests
@@ -672,7 +704,10 @@ def compile_models(
     if not isinstance(models, list):
         models = [models]
 
-    runtime = Runtime("crt")
+    assert (
+        runtime.name == "crt"
+    ), f"Currently only 'crt' is supported by the test framework, but got {runtime.name}"
+
     executor = Executor(
         "aot",
         {
@@ -835,10 +870,12 @@ def run_and_check(
         makefile_dir = os.path.join(file_dir, "../../../tests/python/relay/aot")
         codegen_path = os.path.join(base_path, "codegen")
         makefile = os.path.join(makefile_dir, f"{runner.makefile}.mk")
-        fvp_dir = "/opt/arm/FVP_Corstone_SSE-300/models/Linux64_GCC-6.4/"
-        # TODO(@grant-arm): Remove once ci_cpu docker image has been updated to FVP_Corstone_SSE
-        if not os.path.isdir(fvp_dir):
-            fvp_dir = "/opt/arm/FVP_Corstone_SSE-300_Ethos-U55/models/Linux64_GCC-6.4/"
+
+        if runner.makefile == "aprofile_aem":
+            fvp_dir = "/opt/arm/fvp/Base_RevC_AEMvA_pkg/models/Linux64_GCC-9.3/"
+        else:
+            fvp_dir = "/opt/arm/FVP_Corstone_SSE-300/models/Linux64_GCC-6.4/"
+
         custom_params = " ".join(
             [f" {param}='{value}'" for param, value in runner.parameters.items()]
         )
@@ -901,11 +938,28 @@ def compile_and_run(
     debug_last_error: bool = False,
     checker: Optional[Callable[[str], bool]] = None,
     print_output_on_mismatch: bool = False,
+    runtime: tvm.relay.backend.Runtime = Runtime("crt"),
 ) -> bool:
     """This is a wrapper API to compile and run models as test for AoT
 
     Parameters
     ----------
+    interface_api : str
+        The external calling convention interface API.
+
+        Examples: "c", "packed"
+
+    use_unpacked_api : bool
+        Whether or not to use type-erased API internally for the
+        operator calling convention.
+
+        Note: This feature can be useful for embedded targets
+        when space is at a premium.
+
+        Permitted values when interface API is:
+        > "c": True
+        > "packed": True/False
+
     test_dir : str
         This path will contain build, codegen, include directories.
 
@@ -935,6 +989,7 @@ def compile_and_run(
         use_runtime_executor=use_runtime_executor,
         target=target,
         schedule_name=schedule_name,
+        runtime=runtime,
     )
 
     return run_and_check(
