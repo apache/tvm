@@ -15,7 +15,6 @@
 # specific language governing permissions and limitations
 # under the License.
 # pylint: disable=invalid-name,,missing-function-docstring
-import pytest
 import tvm
 from tvm.tir.transform import DefaultGPUSchedule
 from tvm.script import tir as T
@@ -455,11 +454,6 @@ def test_multiple():
     assert tvm.ir.structural_equal(After, Expected)
 
 
-@pytest.mark.skip(
-    reason="src/tir/transforms/default_gpu_schedule.cc only checks for CUDA, not Metal. "
-    "However, changing this definition causes failures in MLC. This should be fixed. "
-    "See discussion in https://github.com/apache/tvm/pull/16634"
-)
 def test_add_on_metal():
     # pylint: disable=no-self-argument,missing-class-docstring,line-too-long
     # fmt: off
