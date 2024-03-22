@@ -1029,6 +1029,12 @@ void CodeGenC::VisitStmt_(const AssertStmtNode* op) {
   this->PrintStmt(op->body);
 }
 
+void CodeGenC::VisitStmt_(const ImportedCodeNode* op) {
+  this->stream << "\n";
+  PrintIndent();
+  stream << op->code;
+}
+
 void CodeGenC::VisitStmt_(const ForNode* op) {
   std::string extent = PrintExpr(op->extent);
   PrintIndent();

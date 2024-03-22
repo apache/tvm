@@ -591,6 +591,12 @@ Doc TIRTextPrinter::VisitStmt_(const PrefetchNode* op) {
   return doc;
 }
 
+Doc TIRTextPrinter::VisitStmt_(const ImportedCodeNode* op) {
+  Doc doc;
+  doc << "import_code(" << Print(op->code) << ")";
+  return doc;
+}
+
 Doc TIRTextPrinter::VisitStmt_(const BlockRealizeNode* op) {
   const auto* block_op = op->block.as<BlockNode>();
   // print block name and block vars

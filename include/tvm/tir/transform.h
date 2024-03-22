@@ -743,6 +743,8 @@ TVM_DLL Pass UnifiedStaticMemoryPlanner();
  */
 TVM_DLL Pass InjectSoftwarePipeline();
 
+TVM_DLL Pass InjectCustomizedImportedCode();
+
 TVM_DLL Pass BindParams(const Array<runtime::NDArray>& constants);
 
 /*!

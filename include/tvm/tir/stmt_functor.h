@@ -96,6 +96,7 @@ class StmtFunctor<R(const Stmt& n, Args... args)> {
   virtual R VisitStmt_(const ProducerStoreNode* op, Args... args) STMT_FUNCTOR_DEFAULT;
   virtual R VisitStmt_(const ProducerRealizeNode* op, Args... args) STMT_FUNCTOR_DEFAULT;
   virtual R VisitStmt_(const PrefetchNode* op, Args... args) STMT_FUNCTOR_DEFAULT;
+  virtual R VisitStmt_(const ImportedCodeNode* op, Args... args) STMT_FUNCTOR_DEFAULT;
   virtual R VisitStmt_(const SeqStmtNode* op, Args... args) STMT_FUNCTOR_DEFAULT;
   virtual R VisitStmt_(const EvaluateNode* op, Args... args) STMT_FUNCTOR_DEFAULT;
   virtual R VisitStmt_(const BlockNode* op, Args... args) STMT_FUNCTOR_DEFAULT;
@@ -120,6 +121,7 @@ class StmtFunctor<R(const Stmt& n, Args... args)> {
     IR_STMT_FUNCTOR_DISPATCH(ProducerStoreNode);
     IR_STMT_FUNCTOR_DISPATCH(ProducerRealizeNode);
     IR_STMT_FUNCTOR_DISPATCH(PrefetchNode);
+    IR_STMT_FUNCTOR_DISPATCH(ImportedCodeNode);
     IR_STMT_FUNCTOR_DISPATCH(SeqStmtNode);
     IR_STMT_FUNCTOR_DISPATCH(EvaluateNode);
     IR_STMT_FUNCTOR_DISPATCH(BufferStoreNode);
@@ -165,6 +167,7 @@ class TVM_DLL StmtVisitor : protected StmtFunctor<void(const Stmt&)> {
   void VisitStmt_(const ProducerStoreNode* op) override;
   void VisitStmt_(const ProducerRealizeNode* op) override;
   void VisitStmt_(const PrefetchNode* op) override;
+  void VisitStmt_(const ImportedCodeNode* op) override;
   void VisitStmt_(const SeqStmtNode* op) override;
   void VisitStmt_(const EvaluateNode* op) override;
   void VisitStmt_(const BlockNode* op) override;
@@ -266,6 +269,7 @@ class TVM_DLL StmtMutator : protected StmtFunctor<Stmt(const Stmt&)> {
   Stmt VisitStmt_(const ProducerStoreNode* op) override;
   Stmt VisitStmt_(const ProducerRealizeNode* op) override;
   Stmt VisitStmt_(const PrefetchNode* op) override;
+  Stmt VisitStmt_(const ImportedCodeNode* op) override;
   Stmt VisitStmt_(const SeqStmtNode* op) override;
   Stmt VisitStmt_(const EvaluateNode* op) override;
   Stmt VisitStmt_(const BlockNode* op) override;

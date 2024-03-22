@@ -281,6 +281,10 @@ void TIRVisitorWithPath::VisitStmt_(const PrefetchNode* op, ObjectPath path) {
   Visit(op->bounds, path->Attr("bounds"));
 }
 
+void TIRVisitorWithPath::VisitStmt_(const ImportedCodeNode* op, ObjectPath path) {
+  
+}
+
 void TIRVisitorWithPath::VisitStmt_(const SeqStmtNode* op, ObjectPath path) {
   Visit(op->seq, path->Attr("seq"));
 }

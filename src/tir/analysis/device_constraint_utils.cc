@@ -323,6 +323,11 @@ class ApplyDeviceConstraintsMutator : public StmtExprMutator {
     return std::move(new_prefetch);
   }
 
+  Stmt VisitStmt_(const ImportedCodeNode* imported_code_node) final {
+    ImportedCode new_imported_code = Downcast<ImportedCode>(StmtExprMutator::VisitStmt_(imported_code_node));
+    return std::move(new_imported_code);
+  }
+
   // SeqStmtNode default ok
   // EvaluateNode default ok
 

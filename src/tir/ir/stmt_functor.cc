@@ -115,6 +115,10 @@ void StmtVisitor::VisitStmt_(const PrefetchNode* op) {
   });
 }
 
+void StmtVisitor::VisitStmt_(const ImportedCodeNode* op) {
+  
+}
+
 void StmtVisitor::VisitStmt_(const SeqStmtNode* op) {
   VisitArray(op->seq, [this](const Stmt& s) { this->VisitStmt(s); });
 }
@@ -432,6 +436,10 @@ Stmt StmtMutator::VisitStmt_(const PrefetchNode* op) {
     n->bounds = std::move(bounds);
     return Stmt(n);
   }
+}
+
+Stmt StmtMutator::VisitStmt_(const ImportedCodeNode* op) {
+  return GetRef<Stmt>(op);
 }
 
 Stmt StmtMutator::VisitStmt_(const SeqStmtNode* op) {

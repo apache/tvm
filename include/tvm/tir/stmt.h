@@ -1126,6 +1126,47 @@ class Prefetch : public Stmt {
 };
 
 /*!
+ * \brief A imported source Node
+ */
+class ImportedCodeNode : public StmtNode {
+ public:
+  /*! \brief Buffer. */
+  String code;
+
+  void VisitAttrs(AttrVisitor* v) {
+    v->Visit("code", &code);
+    v->Visit("span", &span);
+  }
+
+  bool SEqualReduce(const ImportedCodeNode* other, SEqualReducer equal) const {
+    return equal(code, other->code);
+  }
+
+  void SHashReduce(SHashReducer hash_reduce) const {
+    hash_reduce(code);
+  }
+
+  ImportedCodeNode() = default;
+  ImportedCodeNode(String code, Span span = Span())
+      : StmtNode(span), code(code) {}
+
+  static constexpr const char* _type_key = "tir.ImportedCode";
+  TVM_DECLARE_FINAL_OBJECT_INFO(ImportedCodeNode, StmtNode);
+};
+
+/*!
+ * \brief Managed reference to ImportedCodeNode.
+ * \sa ImportedCodeNode
+ */
+class ImportedCode : public Stmt {
+ public:
+  TVM_DLL explicit ImportedCode(String code, Span span = Span());
+
+  TVM_DEFINE_NOTNULLABLE_OBJECT_REF_METHODS(ImportedCode, Stmt, ImportedCodeNode);
+  TVM_DEFINE_OBJECT_REF_COW_METHOD(ImportedCodeNode);
+};
+
+/*!
  * \brief Representing the region of multi-dimensional buffer access.
  */
 class BufferRegionNode : public Object {
@@ -1570,6 +1611,9 @@ constexpr const char* software_pipeline_order = "software_pipeline_order";
  *       semantics (e.g. CUDA async global to shared memory copy).
  */
 constexpr const char* software_pipeline_async_stages = "software_pipeline_async_stages";
+
+/*! \brief Mark the imported c source */
+constexpr const char* customized_imported_code = "customized_imported_code";
 
 /*! \brief Mark the buffers which is const access and can be transformed layout. */
 constexpr const char* layout_free_buffers = "layout_free_buffers";
