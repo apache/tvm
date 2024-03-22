@@ -19,7 +19,7 @@
 
 
 import enum
-from typing import Any, Callable, Optional
+from typing import Callable, Optional
 
 from . import _ffi_api
 from . import function_pass as _fpass
