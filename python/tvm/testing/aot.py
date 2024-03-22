@@ -484,7 +484,7 @@ def _emit_main_compare(
                   }}
                 }}
                 if (mismatch >= 1) {{
-                  float percent_mismatched = 
+                  float percent_mismatched =
                       ((float) mismatch) / ((float) {data_length_var_name}) * 100;
                   printf("\\nMismatched elements: %d / %zu (%.2f%%)\\n",
                          mismatch, {data_length_var_name}, percent_mismatched);
