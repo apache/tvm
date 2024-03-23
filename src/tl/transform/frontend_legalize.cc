@@ -28,7 +28,7 @@
 
 #include "../../arith/ir_mutator_with_analyzer.h"
 #include "../layout/layout.h"
-#include "../op.h"
+#include "../op/op.h"
 
 namespace tvm {
 namespace tl {
@@ -71,63 +71,15 @@ class FrontendLegalizer : public arith::IRMutatorWithAnalyzer {
 
   Stmt VisitStmt_(const EvaluateNode* node) final {
     Stmt new_node = arith::IRMutatorWithAnalyzer::VisitStmt_(node);
-    ICHECK(new_node.as<EvaluateNode>());
-    if (auto call = new_node.as<EvaluateNode>()->value.as<CallNode>()) {
-      if (call->op.same_as(tl::fill())) {
-        return LowerFill(call->args);
-      } else if (call->op.same_as(tl::copy())) {
-        return LowerCopy(call->args);
-      }
-    }
-    return new_node;
-  }
 
-  Stmt LowerCopy(const Array<PrimExpr>& call_args) {
-    CopyArgs args = CopyArgs::Parse(call_args);
-    Array<IterVar> loop_vars = args.MakeIterVars();
-    for (const auto& iv : loop_vars) analyzer_->Bind(iv->var, iv->dom);
+    auto op = ParseOperator(new_node, buffer_data_to_buffer_);
+    if (op == nullptr) return new_node;
 
-    Array<PrimExpr> src_indices = args.MakeIndices(loop_vars, 0);
-    Array<PrimExpr> dst_indices = args.MakeIndices(loop_vars, 1);
-
-    PrimExpr src_predicate = args.MakePredicate(analyzer_, loop_vars, args.src->shape, 0);
-    PrimExpr dst_predicate = args.MakePredicate(analyzer_, loop_vars, args.dst->shape, 1);
-
-    PrimExpr value = BufferLoad(args.src, src_indices);
-    if (args.src->dtype != args.dst->dtype) value = Cast(args.dst->dtype, value);
-    if (src_predicate.defined())
-      value = if_then_else(src_predicate, value, make_zero(args.dst->dtype));
-
-    Stmt body = BufferStore(args.dst, value, dst_indices);
-    if (dst_predicate.defined()) body = IfThenElse(dst_predicate, body);
-
-    for (int i = loop_vars.size() - 1; i >= 0; i--) {
-      body = For(loop_vars[i]->var, 0, loop_vars[i]->dom->extent, ForKind::kParallel, body);
-    }
-    return body;
-  }
-
-  Stmt LowerFill(const Array<PrimExpr>& clear_args) {
-    FillArgs args = FillArgs::Parse(clear_args, buffer_data_to_buffer_);
-    int ndim = args.dst->shape.size();
-    Array<IterVar> loop_vars;
-    Array<PrimExpr> dst_indices;
-    for (int i = 0; i < ndim; i++) {
-      Var var = Var(std::string{char('i' + i)});
-      loop_vars.push_back({Range(0, args.dst->shape[i]), var, IterVarType::kDataPar});
-      dst_indices.push_back(var);
-    }
-    Stmt body = BufferStore(args.dst, args.value, dst_indices);
-    for (int i = ndim - 1; i >= 0; i--) {
-      body = For(loop_vars[i]->var, 0, loop_vars[i]->dom->extent, ForKind::kParallel, body);
-    }
-    // it is not good to use the fill op to infer the fragment's layout
-    if (args.dst.scope() == "local.fragment") {
-      auto as_for = body.as<For>().value();
-      as_for.CopyOnWrite()->annotations.Set(attr::kSkipLayoutInfer, PrimExpr(1));
-      return as_for;
-    }
-    return body;
+    auto lowered = op->Canonialize(CanonializeArgs{}, analyzer_);
+    if (lowered.defined())
+      return lowered;
+    else
+      return new_node;
   }
 
   PrimExpr VisitExpr_(const VarNode* node) final {

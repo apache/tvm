@@ -31,7 +31,7 @@
 #include <utility>
 #include <vector>
 
-#include "../op.h"
+#include "../op/op.h"
 
 namespace tvm {
 namespace codegen {

@@ -26,8 +26,7 @@
 #include <tvm/tir/op.h>
 #include <tvm/tir/stmt_functor.h>
 
-#include "../../tl/op.h"
-
+#include "../../tl/op/op.h"
 #include "../transforms/ir_utils.h"
 namespace tvm {
 namespace tir {
@@ -207,24 +206,20 @@ void BlockReadWriteDetector::VisitExpr_(const CallNode* op) {
     }
     return;
   }
-  if (op->op.same_as(tl::region())) {
-    const BufferLoadNode* load = op->args[0].as<BufferLoadNode>();
-    const IntImmNode* access_mask = op->args[1].as<IntImmNode>();
-    CHECK(load && access_mask);
-
-    const Buffer& buffer = load->buffer;
+  if (op->op.same_as(tl::RegionOp::Get())) {
+    auto R = tl::RegionOp(op->args, buffer_var_map_);
     std::vector<arith::IntSet> int_set;
-    Array<Range> region = tl::ParseRegionArgs(op);
+    auto& region = R.GetRanges();
     int_set.reserve(region.size());
     for (const Range& range : region) {
       int_set.push_back(arith::EvalSet(range, dom_map_));
     }
-    if ((access_mask->value & 1) && (access_mask->value & 2)) {
-      Update(&opaque_buffers_, &opaque_regions_, buffer, int_set);
-    } else if (access_mask->value & 1) {
-      Update(&read_buffers_, &read_regions_, buffer, int_set);
-    } else if (access_mask->value & 2) {
-      Update(&writes_buffers_, &write_regions_, buffer, int_set);
+    if ((R.GetAccessMask() & 1) && (R.GetAccessMask() & 2)) {
+      Update(&opaque_buffers_, &opaque_regions_, R.GetBuffer(), int_set);
+    } else if (R.GetAccessMask() & 1) {
+      Update(&read_buffers_, &read_regions_, R.GetBuffer(), int_set);
+    } else if (R.GetAccessMask() & 2) {
+      Update(&writes_buffers_, &write_regions_, R.GetBuffer(), int_set);
     }
     return;
   }

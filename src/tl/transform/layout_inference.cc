@@ -22,6 +22,7 @@
  * \brief infer the fragment/shared memory layout
  */
 
+#include <tvm/tir/builtin.h>
 #include <tvm/tir/op.h>
 #include <tvm/tir/stmt_functor.h>
 #include <tvm/tir/transform.h>
@@ -30,7 +31,7 @@
 #include <queue>
 
 #include "../../arith/ir_mutator_with_analyzer.h"
-#include "../layout/layout_infer.h"
+#include "../op/parallel.h"
 #include "loop_partition.h"
 #include "loop_vectorize.h"
 
@@ -60,8 +61,11 @@ class BufferUseDefCollector : public StmtExprVisitor {
     for (int i = 0; i < num_infer; i++) q.push(i);
 
     auto run_infer_step = [&](int cur_infer_id, InferLevel level, bool update_queue) {
-      auto next = infer_list_[cur_infer_id];
-      auto updates = next->Inference(layout_map, level);
+      auto& next = infer_list_[cur_infer_id];
+      auto updates = next->InferLayout(
+          LayoutInferArgs{target_, static_cast<size_t>(*as_const_int(thread_var_->dom->extent)),
+                          layout_map},
+          level);
       for (const auto& [buffer, layout] : updates) {
         if (layout_map.count(buffer)) {
           ICHECK(StructuralEqual()(layout, layout_map[buffer]))
@@ -111,13 +115,13 @@ class BufferUseDefCollector : public StmtExprVisitor {
     Map<For, Fragment> for_map;
     Map<For, PrimExpr> predicate_map;
     for (auto& base_infer : infer_list_) {
-      if (auto for_infer = std::dynamic_pointer_cast<ForNodeLayoutInfer>(base_infer)) {
+      if (auto for_infer = dynamic_cast<ParallelOp*>(base_infer.get())) {
         ICHECK(for_infer->GetLoopLayout().defined())
             << "The Layout for Parallel for can not be infered correctly : \n"
             << GetRef<For>(for_infer->GetRoot());
         for_map.Set(GetRef<For>(for_infer->GetRoot()), for_infer->GetLoopLayout());
-        if (for_infer->GetPredicate().defined())
-          predicate_map.Set(GetRef<For>(for_infer->GetRoot()), for_infer->GetPredicate());
+        if (auto predicate = for_infer->GetPredicate(thread_var_->var))
+          predicate_map.Set(GetRef<For>(for_infer->GetRoot()), predicate.value());
       }
     }
 
@@ -130,37 +134,38 @@ class BufferUseDefCollector : public StmtExprVisitor {
     }
     auto target = f->GetAttr<Target>(tvm::attr::kTarget);
     ICHECK(target.defined()) << "Layout_Inference: Require the target attribute";
-    target_ = target.as<TargetNode>();
+    target_ = target.value();
     this->operator()(f->body);
   }
 
  private:
   void VisitExpr_(const CallNode* op) final {
     StmtExprVisitor::VisitExpr_(op);
-    std::unordered_set<Buffer, ObjectPtrHash, ObjectPtrEqual> access_regions;
-    std::shared_ptr<LayoutInferBase> p;
     ICHECK(thread_var_.defined());
     auto thread_block_size = as_const_int(thread_var_->dom->extent);
     ICHECK(thread_block_size);
-    if (op->op.same_as(gemm())) {
-      GemmArgs args = GemmArgs::Parse(op->args, buffer_data_to_buffer_);
-      p = std::make_shared<GemmOpLayoutInfer>(args, *thread_block_size, target_);
-      access_regions.insert({args.A, args.B, args.C});
-    } else if (op->op.same_as(reduce())) {
-      ReduceArgs args = ReduceArgs::Parse(op->args, buffer_data_to_buffer_);
-      p = std::make_shared<ReduceOpLayoutInfer>(args, *thread_block_size);
-      access_regions.insert({args.src, args.dst});
-    }
-    if (p) {
-      infer_list_.push_back(p);
-      for (const auto& buffer : access_regions) {
-        addToUseList(buffer);
+    auto p = ParseOperator(GetRef<Call>(op), buffer_data_to_buffer_);
+    if (p != nullptr) {
+      for (const auto& arg : op->args) {
+        if (auto buffer = getBufferFromAccessPtr(arg)) {
+          addToUseList(buffer.value());
+        }
       }
+      infer_list_.push_back(std::move(p));
     }
   }
 
+  Optional<Buffer> getBufferFromAccessPtr(const PrimExpr& expr) {
+    auto call = expr.as<CallNode>();
+    if (call && call->op.same_as(builtin::tvm_access_ptr())) {
+      auto var = call->args[1].as<Var>().value();
+      return buffer_data_to_buffer_[var];
+    }
+    return NullOpt;
+  }
+
   void addToUseList(const Buffer& buffer) {
-    int infer_idx = infer_list_.size() - 1;
+    int infer_idx = infer_list_.size();
     if (use_list_.find(buffer) == use_list_.end()) {
       use_list_[buffer] = {};
     }
@@ -169,12 +174,11 @@ class BufferUseDefCollector : public StmtExprVisitor {
 
   void VisitStmt_(const ForNode* op) final {
     if (op->kind == ForKind::kParallel) {
-      ICHECK(thread_var_.defined());
-      auto infer = std::make_shared<ForNodeLayoutInfer>(op, thread_var_);
-      infer_list_.push_back(infer);
+      auto infer = std::make_unique<ParallelOp>(op);
       for (const auto& [buffer, _] : infer->GetIndiceMap()) {
         addToUseList(buffer);
       }
+      infer_list_.push_back(std::move(infer));
     } else {
       StmtExprVisitor::VisitStmt(op->body);
     }
@@ -207,10 +211,10 @@ class BufferUseDefCollector : public StmtExprVisitor {
   }
 
   Map<Var, Buffer> buffer_data_to_buffer_;
-  std::vector<std::shared_ptr<LayoutInferBase>> infer_list_;
+  std::vector<std::unique_ptr<Operator>> infer_list_;
   std::unordered_map<Buffer, std::vector<int>, ObjectPtrHash, ObjectPtrEqual> use_list_;
   IterVar thread_var_;
-  const TargetNode* target_;
+  Target target_;
   LayoutMap annotated_layout_map_;
 };
 

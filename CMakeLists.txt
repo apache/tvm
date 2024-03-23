@@ -345,6 +345,7 @@ tvm_file_glob(GLOB TILE_LIBRARY_SRCS
     src/tl/layout/*.cc
     src/tl/target/*.cc 
     src/tl/transform/*.cc
+    src/tl/op/*.cc
     )
 list(APPEND COMPILER_SRCS ${TILE_LIBRARY_SRCS})
 

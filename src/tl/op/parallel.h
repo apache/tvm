@@ -18,90 +18,71 @@
  */
 
 /*!
- * \file tl/layout_infer.h
+ * \file tl/op/parallel.h
  * \brief Infer layout from ops and parallel for
  */
 
-#ifndef TVM_TL_LAYOUT_INFER_H_
-#define TVM_TL_LAYOUT_INFER_H_
+#ifndef TVM_TL_OP_PARALLEL_H_
+#define TVM_TL_OP_PARALLEL_H_
 
 #include <tvm/target/target.h>
 #include <tvm/tir/stmt_functor.h>
 
-#include "../op.h"
-#include "layout.h"
+#include "../layout/layout.h"
+#include "op.h"
 
 namespace tvm {
 namespace tl {
 
 using namespace tir;
 
-using LayoutMap = Map<Buffer, Layout>;
+class ParallelOp;
 
-enum class InferLevel {
-  kFree = 0,
-  kCommon = 1,
-  kStrict = 2,
+class ParallelLoopNestVisitor : public StmtExprVisitor {
+ private:
+  ParallelLoopNestVisitor(ParallelOp* op) : p(op){};
+  void VisitStmt_(const ForNode* op) final;
+  void VisitStmt_(const BufferStoreNode* op) final;
+  void VisitExpr_(const BufferLoadNode* op) final;
+
+  ParallelOp* p;
+
+  friend class ParallelOp;
 };
 
-class LayoutInferBase {
+class ParallelOp : public Operator {
  public:
-  virtual LayoutMap Inference(const LayoutMap& layout_map, InferLevel level) { return {}; };
-};
-
-class ForNodeLayoutInfer : public LayoutInferBase, StmtExprVisitor {
- public:
-  ForNodeLayoutInfer(const ForNode* root, IterVar thread_var);
-  Map<Buffer, Layout> Inference(const Map<Buffer, Layout>& layout_map, InferLevel level) final;
+  ParallelOp(const ForNode* root);
+  LayoutMap InferLayout(const LayoutInferArgs& T, InferLevel level) final;
 
   Fragment GetLoopLayout() const { return loop_layout_; }
   const ForNode* GetRoot() const { return root_; }
   Map<Buffer, Array<PrimExpr>> GetIndiceMap() const { return indice_map_; }
-  PrimExpr GetPredicate() const { return predicate_; }
+  Optional<PrimExpr> GetPredicate(Var thread_var) const;
 
  private:
   Fragment CompleteBufferFragment(const Buffer& buffer);
   bool IsCommonAccessIndice(const Buffer& buffer) const;
-  void VisitStmt_(const ForNode* op) final;
-  void VisitStmt_(const BufferStoreNode* op) final;
-  void VisitExpr_(const BufferLoadNode* op) final;
   void AddPredicate(PrimExpr expr) {
-    predicate_ = predicate_.defined() ? And(expr, predicate_) : expr;
+    predicate_ = predicate_.defined() ? And(expr, predicate_.value()) : expr;
   }
+
   const ForNode* root_;
-  IterVar thread_var_;
+
+  ParallelLoopNestVisitor V;
 
   Map<Buffer, Array<PrimExpr>> indice_map_;
   std::unordered_set<Buffer, ObjectPtrHash, ObjectPtrEqual> buffer_is_write_;
   Array<IterVar> loop_vars_;
+
   Fragment loop_layout_;
   arith::Analyzer analyzer_;
-  PrimExpr predicate_;
-};
+  Optional<PrimExpr> predicate_;
 
-class GemmOpLayoutInfer : public LayoutInferBase {
- public:
-  GemmOpLayoutInfer(const GemmArgs& gemm_args, size_t block_size, const TargetNode* target);
-  LayoutMap Inference(const LayoutMap& layout_map, InferLevel level) final;
-
- private:
-  const GemmArgs args;
-  const size_t block_size_;
-  bool completed_ = false;
-  const TargetNode* target_;
-};
-
-class ReduceOpLayoutInfer : public LayoutInferBase {
- public:
-  ReduceOpLayoutInfer(const ReduceArgs& reduce_args, size_t block_size);
-  LayoutMap Inference(const LayoutMap& layout_map, InferLevel level) final;
-
- private:
-  const ReduceArgs args;
-  const size_t block_size_;
+  friend class ParallelLoopNestVisitor;
 };
 
 }  // namespace tl
 }  // namespace tvm
 
-#endif  // TVM_TL_LAYOUT_INFER_H_
+#endif  // TVM_TL_OP_PARALLEL_H_

@@ -128,7 +128,7 @@ class Fragment : public Layout {
 
   TVM_DLL Fragment(Array<PrimExpr> input_size, Array<PrimExpr> forward_index,
                    PrimExpr forward_thread, PrimExpr replicate_size,
-                   std::optional<Var> replicate_var);
+                   Optional<Var> replicate_var);
 
   TVM_DEFINE_OBJECT_REF_METHODS(Fragment, Layout, FragmentNode);
 };
