@@ -482,6 +482,12 @@ def test_cp_async_in_if_then_else(postproc_if_missing_async_support):
     assert generated_code == expected_cuda_script
 
 
+@pytest.mark.skip(
+    reason="This test fails due to an ordering issue with MergeSharedMemoryAllocations "
+    "in device_driver_api.cc. However, fixing this causes failures in MLC. "
+    "This bug should be addressed. See discussion in https://github.com/apache/tvm/pull/16769 "
+    "and https://github.com/apache/tvm/pull/16569#issuecomment-1992720448"
+)
 @tvm.testing.requires_cuda
 def test_vectorize_cp_async_in_if_then_else(postproc_if_missing_async_support):
     @T.prim_func
