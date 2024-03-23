@@ -342,12 +342,16 @@ class GEMV(GPUScheduleRule):
             sch.reverse_compute_at(rf2, loop=bx, preserve_unit_loops=True)
             tr, vec_c, *ts_tile_s = sch.get_loops(block=rf2)[1:]
             ts_tile_s = sch.fuse(*ts_tile_s)
-            ts, tile_s = sch.split(ts_tile_s, factors=[TS, None], preserve_unit_iters=True)
+            ts_o, ts_i, tile_s = sch.split(
+                ts_tile_s, factors=[None, TS, TILE_S], preserve_unit_iters=True
+            )
             tile_s, vec_s = sch.split(
                 tile_s,
                 factors=[None, get_max_factor(TILE_S, [1, 2, 4, 8])],
                 preserve_unit_iters=True,
             )
+            assert sch.get(ts_o).extent.value == 1
+            ts = sch.fuse(ts_o, ts_i)
             sch.reorder(ts, tr, tile_s, vec_s, vec_c)
             sch.bind(ts, TAG_S)
             sch.bind(tr, TAG_R)
@@ -357,7 +361,11 @@ class GEMV(GPUScheduleRule):
             sch.reverse_compute_at(gemv, loop=bx, preserve_unit_loops=True)
             tr, *ts_tile_s = sch.get_loops(block=gemv)[1:]
             ts_tile_s = sch.fuse(*ts_tile_s)
-            ts, tile_s = sch.split(ts_tile_s, factors=[TS, None], preserve_unit_iters=True)
+            ts_o, ts_i, tile_s = sch.split(
+                ts_tile_s, factors=[None, TS, TILE_S], preserve_unit_iters=True
+            )
+            assert sch.get(ts_o).extent.value == 1
+            ts = sch.fuse(ts_o, ts_i)
             sch.reorder(tile_s, ts, tr)
             sch.bind(ts, TAG_S)
             sch.bind(tr, TAG_R)
@@ -411,7 +419,11 @@ class GEMV(GPUScheduleRule):
                     sch.reverse_compute_at(epilogue, bx, preserve_unit_loops=True)
                     ts_tile_s = sch.fuse(*sch.get_loops(epilogue)[1:])
                     ts_tile_s = sch.get_loops(epilogue)[-1]
-                    ts, tile_s = sch.split(ts_tile_s, factors=[TS, None], preserve_unit_iters=True)
+                    ts_o, ts_i, tile_s = sch.split(
+                        ts_tile_s, factors=[None, TS, TILE_S], preserve_unit_iters=True
+                    )
+                    assert sch.get(ts_o).extent.value == 1
+                    ts = sch.fuse(ts_o, ts_i)
                     sch.bind(ts, TAG_S)
                     sch.set_scope(block, 0, "local")
             # pylint: enable=invalid-name
