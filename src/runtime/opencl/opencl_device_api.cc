@@ -294,7 +294,7 @@ cl_mem OpenCLWorkspace::AllocTexture(Device dev, size_t width, size_t height,
   cl_channel_type cl_type = DTypeToOpenCLChannelType(type_hint);
   cl_image_format format = {CL_RGBA, cl_type};
   cl_image_desc descriptor = {CL_MEM_OBJECT_IMAGE2D, width, height, 0, 0, 0, 0, 0, 0};
-  cl_mem mptr = clCreateImage(this->contexts[platform], CL_MEM_CREATE_FLAGS, &format, &descriptor,
+  cl_mem mptr = clCreateImage(this->contexts[platform], CL_MEM_READ_WRITE, &format, &descriptor,
                               nullptr, &err_code);
   OPENCL_CHECK_ERROR(err_code);
   return mptr;
