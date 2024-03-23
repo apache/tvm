@@ -313,7 +313,7 @@ def _test_with_manager(plugins, compile_type, expected_info):
     }
     manager = MSCManager(model, config, plugins=plugins)
     report = manager.run_pipe()
-    model_info = manager.runner.model_info
+    model_info = manager.get_runtime().model_info
     manager.destory()
     assert report["success"], "Failed to run pipe for torch -> {}".format(compile_type)
     assert msc_utils.dict_equal(

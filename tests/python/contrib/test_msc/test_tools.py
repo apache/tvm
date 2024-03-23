@@ -144,7 +144,7 @@ def get_tools(tool_type, use_distill=False, run_type=MSCFramework.MSC):
                 }
             ],
         }
-        tools.append({"tool_type": ToolType.TRACKER, "tool_config": config, "apply_once": True})
+        tools.append({"tool_type": ToolType.TRACKER, "tool_config": config})
     if use_distill:
         config = {
             "plan_file": "msc_distiller.json",
@@ -180,7 +180,7 @@ def _get_torch_model(name, training=False):
 def _check_manager(manager, expected_info):
     """Check the manager results"""
 
-    model_info = manager.runner.model_info
+    model_info = manager.get_runtime().model_info
     passed, err = True, ""
     if not manager.report["success"]:
         passed = False
