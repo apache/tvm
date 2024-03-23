@@ -107,12 +107,12 @@ class Module_1D:
         )
         __: R.Tuple = R.call_builtin_with_ctx(
             "vm.builtin.hexagon.dma_wait",
-            [0, 2, x, a],
+            [0, 2, True, x, a],
             sinfo_args=[],
         )
         __: R.Tuple = R.call_builtin_with_ctx(
             "vm.builtin.hexagon.dma_wait",
-            [1, 1, y, b],
+            [1, 1, True, y, b],
             sinfo_args=[],
         )
         ___: R.Tuple = cls.compute_add_in_vtcm(a, b, c)
@@ -132,7 +132,7 @@ class Module_1D:
         )
         __: R.Tuple = R.call_builtin_with_ctx(
             "vm.builtin.hexagon.dma_wait",
-            [0, 1, c, ret_val],
+            [0, 1, True, c, ret_val],
             sinfo_args=[],
         )
         _t3: R.Tuple = R.vm.kill_object(vtcm_obj)

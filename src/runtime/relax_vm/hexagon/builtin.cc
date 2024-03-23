@@ -44,6 +44,9 @@ TVM_REGISTER_GLOBAL("vm.builtin.hexagon.dma_copy")
       CHECK_EQ(GetDataSize(*dptr), GetDataSize(*sptr));
       auto size = GetDataSize(*dptr);
       ICHECK(size > 0);
+      if (bypass_cache)
+        qurt_mem_cache_clean(reinterpret_cast<qurt_addr_t>(src), size, QURT_MEM_CACHE_INVALIDATE,
+                             QURT_MEM_DCACHE);
       do {
         ret = tvm::runtime::hexagon::HexagonDeviceAPI::Global()->UserDMA()->Copy(
             queue_id, dst, src, size, bypass_cache);
@@ -52,10 +55,17 @@ TVM_REGISTER_GLOBAL("vm.builtin.hexagon.dma_copy")
     });
 
 TVM_REGISTER_GLOBAL("vm.builtin.hexagon.dma_wait")
-    .set_body_typed([](TVMArgValue vm_ptr, int queue_id, int inflight_dma,
+    .set_body_typed([](TVMArgValue vm_ptr, int queue_id, int inflight_dma, bool bypass_cache,
                        [[maybe_unused]] NDArray src_arr, [[maybe_unused]] NDArray dst_arr) {
       ICHECK(inflight_dma >= 0);
       tvm::runtime::hexagon::HexagonDeviceAPI::Global()->UserDMA()->Wait(queue_id, inflight_dma);
+      if (bypass_cache) {
+        const DLTensor* dptr = dst_arr.operator->();
+        void* dst = dptr->data;
+        auto size = GetDataSize(*dptr);
+        qurt_mem_cache_clean(reinterpret_cast<qurt_addr_t>(dst), size, QURT_MEM_CACHE_FLUSH,
+                             QURT_MEM_DCACHE);
+      }
     });
 }  // namespace relax_vm
 }  // namespace runtime
