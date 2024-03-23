@@ -114,6 +114,10 @@ class DictAttrs(Attrs):
     def __getitem__(self, k):
         return self._dict().__getitem__(k)
 
+    def get(self, key, default=None):
+        """Get an element with a default value."""
+        return self._dict().get(key, default)
+
     def __contains__(self, k):
         return self._dict().__contains__(k)
 
