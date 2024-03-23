@@ -111,6 +111,7 @@ OpenCLWorkspace* OpenCLWorkspace::Global() {
 }
 
 cl_device_id OpenCLWorkspace::GetCLDeviceID(int device_id) {
+  this->Init();
   ICHECK_LT(device_id, devices.size()) << "Invalid device id " << device_id << ". " << GetError();
   return devices[device_id];
 }
@@ -198,11 +199,27 @@ void OpenCLWorkspace::GetAttr(Device dev, DeviceAttrKind kind, TVMRetValue* rv) 
       *rv = std::string(value);
       break;
     }
+    case kL2CacheSizeBytes: {
+      // NOTE(Zihao): this API cannot reflect the real L2 cache size in both CUDA/AMD GPUs.
+      cl_ulong value;
+      OPENCL_CALL(clGetDeviceInfo(device_id, CL_DEVICE_GLOBAL_MEM_CACHE_SIZE, sizeof(value), &value,
+                                  nullptr));
+      *rv = static_cast<int64_t>(value);
+      break;
+    }
+    case kTotalGlobalMemory: {
+      cl_ulong total_global_memory;
+      OPENCL_CALL(clGetDeviceInfo(device_id, CL_DEVICE_GLOBAL_MEM_SIZE, sizeof(total_global_memory),
+                                  &total_global_memory, nullptr));
+      *rv = static_cast<int64_t>(total_global_memory);
+      return;
+    }
   }
 }
 
 void* OpenCLWorkspace::CreateHostPtrIfEnabled(cl::BufferDescriptor* desc, Device dev, size_t size) {
 #if defined(OPENCL_ENABLE_HOST_PTR)
+  this->Init();
   cl_int err_code;
   desc->host_ptr = reinterpret_cast<cl_uchar*>(
       clEnqueueMapBuffer(this->GetQueue(dev), desc->buffer, CL_TRUE, CL_MAP_WRITE, 0,
@@ -232,7 +249,7 @@ void* OpenCLWorkspace::AllocDataSpace(Device dev, size_t size, size_t alignment,
 
 void* OpenCLWorkspace::AllocDataSpace(Device dev, int ndim, const int64_t* shape, DLDataType dtype,
                                       Optional<String> mem_scope) {
-  if (!mem_scope.defined() || mem_scope.value() == "global") {
+  if (!mem_scope.defined() || mem_scope.value().empty() || mem_scope.value() == "global") {
     return DeviceAPI::AllocDataSpace(dev, ndim, shape, dtype, mem_scope);
   }
   ICHECK(IsTextureStorage(std::string(mem_scope.value())))
@@ -277,7 +294,7 @@ cl_mem OpenCLWorkspace::AllocTexture(Device dev, size_t width, size_t height,
   cl_channel_type cl_type = DTypeToOpenCLChannelType(type_hint);
   cl_image_format format = {CL_RGBA, cl_type};
   cl_image_desc descriptor = {CL_MEM_OBJECT_IMAGE2D, width, height, 0, 0, 0, 0, 0, 0};
-  cl_mem mptr = clCreateImage(this->contexts[platform], CL_MEM_CREATE_FLAGS, &format, &descriptor,
+  cl_mem mptr = clCreateImage(this->contexts[platform], CL_MEM_READ_WRITE, &format, &descriptor,
                               nullptr, &err_code);
   OPENCL_CHECK_ERROR(err_code);
   return mptr;
@@ -293,6 +310,7 @@ void OpenCLWorkspace::FreeTextureWorkspace(Device dev, void* ptr) {
 }
 
 void OpenCLWorkspace::CopyDataFromTo(DLTensor* from, DLTensor* to, TVMStreamHandle stream) {
+  this->Init();
   size_t nbytes = GetDataSize(*from);
   ICHECK_EQ(nbytes, GetDataSize(*to));
   ICHECK(IsContiguous(*from) && IsContiguous(*to))
@@ -372,6 +390,7 @@ void OpenCLWorkspace::CopyDataFromTo(DLTensor* from, DLTensor* to, TVMStreamHand
 }
 
 void OpenCLWorkspace::StreamSync(Device dev, TVMStreamHandle stream) {
+  this->Init();
   ICHECK(stream == nullptr);
   OPENCL_CALL(clFinish(this->GetQueue(dev)));
 }
