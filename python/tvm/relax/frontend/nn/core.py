@@ -591,22 +591,7 @@ def wrap_nested(expr: rx.Expr, name: str) -> Union[Tensor, Sequence[Tensor]]:
         The computed result.
     """
     if not isinstance(expr, rx.DataflowVar):
-        block_builder = BlockBuilder.current()
-        if block_builder is None:
-            # Normalize to make sure we have valid StructInfo, but
-            # wait until we are actually building the function to
-            # flatten nested expressions.
-            #
-            # TODO(Lunderberg): Make this easier to call.  Infering
-            # struct info for a nested expression should be doable in
-            # a free function, without requiring an active
-            # BlockBuilder and an active FunctionFrame.
-            builder = BlockBuilder()
-            with builder.function("dummy_scope", params=[]):
-                expr = builder.normalize(expr)
-                builder.emit_func_output([])
-        else:
-            expr = BlockBuilder.current().emit(expr, name)
+        expr = BlockBuilder.current().emit(expr, name)
     if isinstance(expr.struct_info_, TensorStructInfo):
         return Tensor(_expr=expr)
     if isinstance(expr.struct_info_, TupleStructInfo):

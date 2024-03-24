@@ -94,8 +94,9 @@ def _check_ir_equality(mod):
                 ext_scalar_add = R.call_dps_packed(
                     "ext_scalar_add", (a, b), out_sinfo=R.Tensor((), dtype="float32")
                 )
-                R.output(ext_scalar_add)
-            return ext_scalar_add
+                gv: R.Tensor((), dtype="float32") = ext_scalar_add
+                R.output(gv)
+            return gv
 
         @R.function
         def test_sym(
@@ -109,8 +110,9 @@ def _check_ir_equality(mod):
                 ext_test_sym = R.call_dps_packed(
                     "ext_test_sym", (a, b), out_sinfo=R.Tensor((x, y, z, 9), dtype="float32")
                 )
-                R.output(ext_test_sym)
-            return ext_test_sym
+                gv1: R.Tensor((x, y, z, 9), dtype="float32") = ext_test_sym
+                R.output(gv1)
+            return gv1
 
     tvm.ir.assert_structural_equal(ExpectedModule, mod)
 
