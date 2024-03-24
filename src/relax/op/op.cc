@@ -921,8 +921,8 @@ RELAY_REGISTER_OP("relax.memory.kill_storage")
     .set_num_inputs(1)
     .add_argument("storage", "Expr", "The storage to be killed.")
     .set_attr<FInferStructInfo>("FInferStructInfo", ReturnVoidStructInfo)
-    // deallocation also isn't considered a "visible effect" as far as purity is concerned
-    .set_attr<Bool>("FPurity", Bool(true));
+    // We mark this as impure so it wouldn't be removed by "remove_all_unused"
+    .set_attr<Bool>("FPurity", Bool(false));
 
 Expr MakeMemKillStorage(Expr storage) {
   static const Op& op = Op::Get("relax.memory.kill_storage");
@@ -937,8 +937,8 @@ RELAY_REGISTER_OP("relax.memory.kill_tensor")
     .set_num_inputs(1)
     .add_argument("tensor", "Expr", "The tensor to be killed.")
     .set_attr<FInferStructInfo>("FInferStructInfo", ReturnVoidStructInfo)
-    // memory deallocation also isn't considered a "visible effect" as far as purity is concerned
-    .set_attr<Bool>("FPurity", Bool(true));
+    // We mark this as impure so it wouldn't be removed by "remove_all_unused"
+    .set_attr<Bool>("FPurity", Bool(false));
 
 Expr MakeMemKillTensor(Expr tensor) {
   static const Op& op = Op::Get("relax.memory.kill_tensor");
@@ -1013,8 +1013,8 @@ TVM_REGISTER_OP("relax.vm.kill_object")
     .set_num_inputs(1)
     .add_argument("obj", "Expr", "The object to be killed.")
     .set_attr<FInferStructInfo>("FInferStructInfo", ReturnVoidStructInfo)
-    // deallocation also isn't considered a "visible effect" as far as purity is concerned
-    .set_attr<Bool>("FPurity", Bool(true));
+    // We mark this as impure so it wouldn't be removed by "remove_all_unused"
+    .set_attr<Bool>("FPurity", Bool(false));
 
 Expr MakeVMKillObject(Expr obj) {
   static const Op& op = Op::Get("relax.vm.kill_object");
@@ -1031,7 +1031,8 @@ RELAY_REGISTER_OP("relax.vm.call_tir_dyn")
     .add_argument("args", "Tuple",
                   "The input arguments (list of tensors and last argument is ShapeExpr)")
     .set_attr<FInferStructInfo>("FInferStructInfo", ReturnVoidStructInfo)
-    .set_attr<Bool>("FPurity", Bool(true));
+    // "relax.vm.call_tir_dyn" works in an in-place way, which is impure.
+    .set_attr<Bool>("FPurity", Bool(false));
 
 Expr MakeCallTIRDyn(Expr func, Tuple args) {
   static const Op& op = Op::Get("relax.vm.call_tir_dyn");
