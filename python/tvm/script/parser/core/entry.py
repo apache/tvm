@@ -103,9 +103,12 @@ def parse(
         check_ret = ret
         if not isinstance(check_ret, IRModule):
             check_ret = IRModule.from_expr(ret)
+
         source_ast = source.as_ast()
-        if not relax_well_formed(check_ret):
+
+        if not relax_well_formed(ret):
             parser.report_error(source_ast, err=WELL_FORMED_ERROR_MESSAGE)
+
         try:
             tir_well_formed(check_ret)
         except Exception as err:  # pylint: disable=broad-exception-caught

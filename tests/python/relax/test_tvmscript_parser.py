@@ -2091,5 +2091,42 @@ def test_extern_func_in_module():
     _check(parsed_module, expected)
 
 
+def test_define_relax_function_using_global_var():
+    """A @R.function may call a GlobalVar
+
+    When parsing a @R.function, the function's body may reference
+    GlobalVar instances available in the calling python scope.  The
+    resulting function should pass TVMScript's well-formed check, as
+    the GlobalVar may be available in the IRModule for which the
+    function is being defined.
+    """
+
+    @I.ir_module
+    class DefinedAllAtOnce:
+        @R.function
+        def main(A: R.Tensor, B: R.Tensor):
+            return DefinedAllAtOnce.subroutine(A, B)
+
+        @R.function(private=True)
+        def subroutine(A: R.Tensor, B: R.Tensor) -> R.Tensor:
+            return R.matmul(A, B)
+
+    @I.ir_module
+    class MainDefinedLater:
+        @R.function(private=True)
+        def subroutine(A: R.Tensor, B: R.Tensor) -> R.Tensor:
+            return R.matmul(A, B)
+
+    subroutine_gvar = MainDefinedLater.get_global_var("subroutine")
+
+    @R.function
+    def main(A: R.Tensor, B: R.Tensor):
+        return subroutine_gvar(A, B)
+
+    MainDefinedLater["main"] = main
+
+    tvm.ir.assert_structural_equal(DefinedAllAtOnce, MainDefinedLater)
+
+
 if __name__ == "__main__":
     tvm.testing.main()

@@ -85,22 +85,30 @@ class WellFormedChecker : public relax::ExprVisitor,
                           public relax::StructInfoVisitor,
                           public tir::ExprVisitor {
  public:
-  static bool Check(IRModule mod, bool check_struct_info) {
-    WellFormedChecker well_formed_checker = WellFormedChecker(mod, check_struct_info);
+  static bool Check(Variant<IRModule, Function> obj, bool check_struct_info) {
+    WellFormedChecker well_formed_checker =
+        WellFormedChecker(obj.as<IRModule>(), check_struct_info);
 
-    for (const auto& it : mod->functions) {
-      // visit relax.Function
-      if (auto* n = it.second.as<FunctionNode>()) {
-        Function func = GetRef<Function>(n);
-        well_formed_checker.CheckGlobalVarAndGsymbolConsistency(it.first, func);
-        well_formed_checker.VisitExpr(func);
+    if (const auto* mod = obj.as<IRModuleNode>()) {
+      for (const auto& it : mod->functions) {
+        // visit relax.Function
+        if (auto* n = it.second.as<FunctionNode>()) {
+          Function func = GetRef<Function>(n);
+          well_formed_checker.CheckGlobalVarAndGsymbolConsistency(it.first, func);
+          well_formed_checker.VisitExpr(func);
+        }
       }
+    } else if (const auto* func = obj.as<FunctionNode>()) {
+      well_formed_checker.VisitExpr(GetRef<Expr>(func));
+    } else {
+      LOG(FATAL) << "Unreachable, "
+                 << "variant did not contain any of the allowed types";
     }
     return well_formed_checker.well_formed_;
   }
 
  private:
-  explicit WellFormedChecker(IRModule mod, bool check_struct_info)
+  WellFormedChecker(Optional<IRModule> mod, bool check_struct_info)
       : mod_(std::move(mod)), check_struct_info_(check_struct_info), cur_visited_func_(nullptr) {}
 
   using relax::ExprVisitor::VisitExpr_;
@@ -147,9 +155,11 @@ class WellFormedChecker : public relax::ExprVisitor,
 
   void VisitExpr_(const GlobalVarNode* op) final {
     GlobalVar var = GetRef<GlobalVar>(op);
-    if (!(mod_->ContainGlobalVar(var->name_hint) &&
-          mod_->GetGlobalVar(var->name_hint).same_as(var))) {
-      Malformed(Diagnostic::Error(var) << "GlobalVar " << GetRef<Expr>(op) << " is not defined.");
+    if (mod_.defined()) {
+      if (!(mod_.value()->ContainGlobalVar(var->name_hint) &&
+            mod_.value()->GetGlobalVar(var->name_hint).same_as(var))) {
+        Malformed(Diagnostic::Error(var) << "GlobalVar " << GetRef<Expr>(op) << " is not defined.");
+      }
     }
 
     if (op->checked_type_.defined()) {
@@ -556,7 +566,7 @@ class WellFormedChecker : public relax::ExprVisitor,
     std::swap(mode_, mode);
   }
 
-  IRModule mod_;
+  Optional<IRModule> mod_;
   const bool check_struct_info_;
   bool well_formed_ = true;
   bool is_dataflow_;
@@ -576,14 +586,11 @@ class WellFormedChecker : public relax::ExprVisitor,
   tvm::OpAttrMap<FNormalize> op_map_normalize_ = Op::GetAttrMap<FNormalize>("FNormalize");
 };
 
-bool WellFormed(IRModule m, bool check_struct_info) {
-  return WellFormedChecker::Check(std::move(m), check_struct_info);
+bool WellFormed(Variant<IRModule, Function> obj, bool check_struct_info) {
+  return WellFormedChecker::Check(obj, check_struct_info);
 }
 
-TVM_REGISTER_GLOBAL(("relax.analysis.well_formed"))
-    .set_body_typed([](IRModule m, bool check_struct_info) {
-      return WellFormed(m, check_struct_info);
-    });
+TVM_REGISTER_GLOBAL(("relax.analysis.well_formed")).set_body_typed(WellFormed);
 
 }  // namespace relax
 }  // namespace tvm
