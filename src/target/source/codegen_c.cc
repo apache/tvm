@@ -1008,10 +1008,32 @@ void CodeGenC::VisitStmt_(const AttrStmtNode* op) {
   } else if (op->attr_key == tir::attr::pragma_import_c) {
     const StringImmNode* value = op->value.as<StringImmNode>();
     ICHECK(value != nullptr);
-    // check if the import is already in the set
-    if (imported_sources_.count(value->value) == 0) {
-      imported_sources_.insert(value->value);
-      decl_stream << value->value;
+    String import_source = value->value;
+    auto is_in_imported_source = [&, this](const String& import_source) {
+      std::string target = std::string(import_source.c_str());
+      for (const auto& imported_source : imported_sources_) {
+        std::string source = std::string(imported_source.c_str());
+        if (source.find(target) != std::string::npos) {
+          return true;
+        }
+      }
+      return false;
+    };
+    auto remove_duplicated_from_source = [&, this](String& import_source) {
+      std::string target = std::string(import_source.c_str());
+      for (const auto& imported_source : imported_sources_) {
+        std::string source = std::string(imported_source.c_str());
+        std::string::size_type i = target.find(source);
+        if (i != std::string::npos) {
+          target.erase(i, source.length());
+        }
+      }
+      return String(target);
+    };
+    if (!is_in_imported_source(import_source)) {
+      String new_import_source = remove_duplicated_from_source(import_source);
+      imported_sources_.insert(new_import_source);
+      decl_stream << new_import_source;
     }
   }
   this->PrintStmt(op->body);
@@ -1029,7 +1051,7 @@ void CodeGenC::VisitStmt_(const AssertStmtNode* op) {
   this->PrintStmt(op->body);
 }
 
-void CodeGenC::VisitStmt_(const ImportedCodeNode* op) {
+void CodeGenC::VisitStmt_(const CustomizedCodeNode* op) {
   this->stream << "\n";
   PrintIndent();
   stream << op->code;

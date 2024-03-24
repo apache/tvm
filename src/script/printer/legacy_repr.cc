@@ -754,8 +754,8 @@ TVM_STATIC_IR_FUNCTOR(ReprLegacyPrinter, vtable)
     });
 
 TVM_STATIC_IR_FUNCTOR(ReprLegacyPrinter, vtable)
-    .set_dispatch<ImportedCodeNode>([](const ObjectRef& node, ReprLegacyPrinter* p) {
-      auto* op = static_cast<const ImportedCodeNode*>(node.get());
+    .set_dispatch<CustomizedCodeNode>([](const ObjectRef& node, ReprLegacyPrinter* p) {
+      auto* op = static_cast<const CustomizedCodeNode*>(node.get());
       p->PrintIndent();
       (*p) << "import " << op->code;
     });

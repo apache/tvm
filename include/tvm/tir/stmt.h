@@ -1128,7 +1128,7 @@ class Prefetch : public Stmt {
 /*!
  * \brief A imported source Node
  */
-class ImportedCodeNode : public StmtNode {
+class CustomizedCodeNode : public StmtNode {
  public:
   /*! \brief Buffer. */
   String code;
@@ -1138,7 +1138,7 @@ class ImportedCodeNode : public StmtNode {
     v->Visit("span", &span);
   }
 
-  bool SEqualReduce(const ImportedCodeNode* other, SEqualReducer equal) const {
+  bool SEqualReduce(const CustomizedCodeNode* other, SEqualReducer equal) const {
     return equal(code, other->code);
   }
 
@@ -1146,24 +1146,24 @@ class ImportedCodeNode : public StmtNode {
     hash_reduce(code);
   }
 
-  ImportedCodeNode() = default;
-  ImportedCodeNode(String code, Span span = Span())
+  CustomizedCodeNode() = default;
+  CustomizedCodeNode(String code, Span span = Span())
       : StmtNode(span), code(code) {}
 
-  static constexpr const char* _type_key = "tir.ImportedCode";
-  TVM_DECLARE_FINAL_OBJECT_INFO(ImportedCodeNode, StmtNode);
+  static constexpr const char* _type_key = "tir.CustomizedCode";
+  TVM_DECLARE_FINAL_OBJECT_INFO(CustomizedCodeNode, StmtNode);
 };
 
 /*!
- * \brief Managed reference to ImportedCodeNode.
- * \sa ImportedCodeNode
+ * \brief Managed reference to CustomizedCodeNode.
+ * \sa CustomizedCodeNode
  */
-class ImportedCode : public Stmt {
+class CustomizedCode : public Stmt {
  public:
-  TVM_DLL explicit ImportedCode(String code, Span span = Span());
+  TVM_DLL explicit CustomizedCode(String code, Span span = Span());
 
-  TVM_DEFINE_NOTNULLABLE_OBJECT_REF_METHODS(ImportedCode, Stmt, ImportedCodeNode);
-  TVM_DEFINE_OBJECT_REF_COW_METHOD(ImportedCodeNode);
+  TVM_DEFINE_NOTNULLABLE_OBJECT_REF_METHODS(CustomizedCode, Stmt, CustomizedCodeNode);
+  TVM_DEFINE_OBJECT_REF_COW_METHOD(CustomizedCodeNode);
 };
 
 /*!
@@ -1612,8 +1612,11 @@ constexpr const char* software_pipeline_order = "software_pipeline_order";
  */
 constexpr const char* software_pipeline_async_stages = "software_pipeline_async_stages";
 
-/*! \brief Mark the imported c source */
-constexpr const char* customized_imported_code = "customized_imported_code";
+/*! \brief Mark the imported source before the target stmt */
+constexpr const char* inject_customized_code_prepend = "inject_customized_code_prepend";
+
+/*! \brief Mark the imported source behind the target stmt */
+constexpr const char* inject_customized_code_postpend = "inject_customized_code_postpend";
 
 /*! \brief Mark the buffers which is const access and can be transformed layout. */
 constexpr const char* layout_free_buffers = "layout_free_buffers";

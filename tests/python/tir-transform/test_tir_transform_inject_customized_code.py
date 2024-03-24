@@ -178,7 +178,9 @@ mod = main_opt_m_16
 sch = tvm.tir.Schedule(mod, debug_mask="all")
 block_init = sch.get_block("C_o_init")
 i = sch.get_loops(block_init)[-2]
-sch.annotate(i, "customized_imported_code", "hello")
+b = sch.get_loops(block_init)[-3]
+# sch.annotate(i, "inject_customized_code_prepend", "hello")
+sch.annotate(b, "inject_customized_code_postpend", "hello")
 with tvm.transform.PassContext(
             config={"tir.use_async_copy": True}
         ):

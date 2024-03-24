@@ -115,7 +115,7 @@ void StmtVisitor::VisitStmt_(const PrefetchNode* op) {
   });
 }
 
-void StmtVisitor::VisitStmt_(const ImportedCodeNode* op) {
+void StmtVisitor::VisitStmt_(const CustomizedCodeNode* op) {
   
 }
 
@@ -438,7 +438,7 @@ Stmt StmtMutator::VisitStmt_(const PrefetchNode* op) {
   }
 }
 
-Stmt StmtMutator::VisitStmt_(const ImportedCodeNode* op) {
+Stmt StmtMutator::VisitStmt_(const CustomizedCodeNode* op) {
   return GetRef<Stmt>(op);
 }
 

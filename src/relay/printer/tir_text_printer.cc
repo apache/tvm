@@ -591,7 +591,7 @@ Doc TIRTextPrinter::VisitStmt_(const PrefetchNode* op) {
   return doc;
 }
 
-Doc TIRTextPrinter::VisitStmt_(const ImportedCodeNode* op) {
+Doc TIRTextPrinter::VisitStmt_(const CustomizedCodeNode* op) {
   Doc doc;
   doc << "import_code(" << Print(op->code) << ")";
   return doc;

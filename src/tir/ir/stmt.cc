@@ -388,17 +388,17 @@ TVM_REGISTER_GLOBAL("tir.Prefetch")
 
 TVM_REGISTER_NODE_TYPE(PrefetchNode);
 
-// ImportedCode
-ImportedCode::ImportedCode(String code, Span span) {
-  data_ = make_object<ImportedCodeNode>(code, span);
+// CustomizedCode
+CustomizedCode::CustomizedCode(String code, Span span) {
+  data_ = make_object<CustomizedCodeNode>(code, span);
 }
 
-TVM_REGISTER_GLOBAL("tir.ImportedCode")
+TVM_REGISTER_GLOBAL("tir.CustomizedCode")
     .set_body_typed([](String code, Span span) {
-      return ImportedCode(code, span);
+      return CustomizedCode(code, span);
     });
 
-TVM_REGISTER_NODE_TYPE(ImportedCodeNode);
+TVM_REGISTER_NODE_TYPE(CustomizedCodeNode);
 
 // SeqStmt
 SeqStmt::SeqStmt(Array<Stmt> seq, Span span) {

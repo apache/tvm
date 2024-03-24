@@ -441,7 +441,7 @@ TVM_SCRIPT_REPR(tir::AllocateNode, ReprPrintTIR);
 TVM_SCRIPT_REPR(tir::AllocateConstNode, ReprPrintTIR);
 TVM_SCRIPT_REPR(tir::DeclBufferNode, ReprPrintTIR);
 TVM_SCRIPT_REPR(tir::PrefetchNode, ReprPrintTIR);
-TVM_SCRIPT_REPR(tir::ImportedCodeNode, ReprPrintTIR);
+TVM_SCRIPT_REPR(tir::CustomizedCodeNode, ReprPrintTIR);
 TVM_SCRIPT_REPR(tir::SeqStmtNode, ReprPrintTIR);
 TVM_SCRIPT_REPR(tir::IfThenElseNode, ReprPrintTIR);
 TVM_SCRIPT_REPR(tir::EvaluateNode, ReprPrintTIR);

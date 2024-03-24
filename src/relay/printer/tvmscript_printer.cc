@@ -263,7 +263,7 @@ class TVMScriptPrinter : public StmtFunctor<Doc(const Stmt&)>,
   Doc VisitStmt_(const ForNode* op) override;
   Doc VisitStmt_(const WhileNode* op) override;
   Doc VisitStmt_(const PrefetchNode* op) override;
-  Doc VisitStmt_(const ImportedCodeNode* op) override;
+  Doc VisitStmt_(const CustomizedCodeNode* op) override;
   Doc VisitStmt_(const EvaluateNode* op) override;
   Doc VisitStmt_(const BlockRealizeNode* op) override;
   Doc VisitStmtDefault_(const Object* op) override;
@@ -1319,7 +1319,7 @@ Doc TVMScriptPrinter::VisitStmt_(const PrefetchNode* op) {
   return doc;
 }
 
-Doc TVMScriptPrinter::VisitStmt_(const ImportedCodeNode* op) {
+Doc TVMScriptPrinter::VisitStmt_(const CustomizedCodeNode* op) {
   Doc doc;
   doc << tir_prefix_ << ".import(" << Print(op->code) << ")";
   return doc;

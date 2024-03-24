@@ -1044,7 +1044,7 @@ def InjectSoftwarePipeline():
     """
     return _ffi_api.InjectSoftwarePipeline()  # type: ignore
 
-def InjectCustomizedImportedCode():
+def InjectCustomizedCode():
     """Transform loops into thread-rasterized loops
 
     Returns
@@ -1052,7 +1052,7 @@ def InjectCustomizedImportedCode():
     fpass : tvm.transform.Pass
         The result pass
     """
-    return _ffi_api.InjectCustomizedImportedCode()  # type: ignore
+    return _ffi_api.InjectCustomizedCode()  # type: ignore
 
 def ExtractPrimFuncConstants():
     """Collects and unificates tir non-scalar constants to module's attr 'Constants' array.

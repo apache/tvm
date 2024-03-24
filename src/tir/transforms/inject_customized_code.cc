@@ -35,45 +35,60 @@
 namespace tvm {
 namespace tir {
 
-namespace customized_imported_code {
+namespace inject_customized_code {
 
 /*! Structure that represents the provided annotation per block or loop. */
-struct CustomziedImportedCodeInfo {
+struct CustomziedCodeInfo {
   int width;
 };
 
-class CustomziedImportedCodeInjector : private StmtExprMutator {
+class CustomziedCodeInjector : private StmtExprMutator {
  public:
   static Stmt Inject(const PrimFunc& func) {
-    CustomziedImportedCodeInjector injector;
+    CustomziedCodeInjector injector;
     return injector(func->body);
   }
 
  private:
-  explicit CustomziedImportedCodeInjector(){}
+  explicit CustomziedCodeInjector() {}
   Stmt VisitStmt_(const ForNode* op) final {
     // Step 1: Recursively rewrite the children first.
     For for_node = Downcast<For>(StmtExprMutator::VisitStmt_(op));
-    if (!HasCustomizedImportedCodeAnnotation(op)) {
-      return std::move(for_node);
+    if (HasCustomizedCodePrependAnnotation(op)) {
+      String code = Downcast<String>(op->annotations.at(attr::inject_customized_code_prepend));
+      // Create a CustomizedCode
+      auto _code = CustomizedCode(code);
+      Array<Stmt> seq;
+      seq.push_back(_code);
+      seq.push_back(for_node);
+      auto seq_node = SeqStmt(seq);
+      // Step 2: Rewrite the current node.
+      return std::move(seq_node);
+    } else if (HasCustomizedCodePostpendAnnotation(op)) {
+      String code = Downcast<String>(op->annotations.at(attr::inject_customized_code_postpend));
+      // Create a CustomizedCode
+      auto _code = CustomizedCode(code);
+      Array<Stmt> seq;
+      seq.push_back(for_node);
+      seq.push_back(_code);
+      auto seq_node = SeqStmt(seq);
+      // Step 2: Rewrite the current node.
+      return std::move(seq_node);
     }
-
-    String code = Downcast<String>(op->annotations.at(attr::customized_imported_code));
-
-    // Create a RasterNode
-    auto imported_code = ImportedCode(code);
-    Array<Stmt> seq;
-    seq.push_back(imported_code);
-    seq.push_back(for_node);
-    auto seq_node = SeqStmt(seq);
-    // Step 2: Rewrite the current node.
-    // combine raster with for_node into a stmt
-
-    return std::move(seq_node);
+    return std::move(for_node);
   }
 
-  bool HasCustomizedImportedCodeAnnotation(const ForNode* op) const {
-    auto it = op->annotations.find(attr::customized_imported_code);
+  bool HasCustomizedCodePrependAnnotation(const ForNode* op) const {
+    auto it = op->annotations.find(attr::inject_customized_code_prepend);
+    bool has_annotation = it != op->annotations.end();
+    if (has_annotation) {
+      return true;
+    }
+    return false;
+  }
+
+  bool HasCustomizedCodePostpendAnnotation(const ForNode* op) const {
+    auto it = op->annotations.find(attr::inject_customized_code_postpend);
     bool has_annotation = it != op->annotations.end();
     if (has_annotation) {
       return true;
@@ -82,7 +97,7 @@ class CustomziedImportedCodeInjector : private StmtExprMutator {
   }
 };
 
-}  // namespace customized_code
+}  // namespace inject_customized_code_prepend
 
 namespace transform {
 
@@ -90,18 +105,17 @@ namespace transform {
  * \brief Transform annotated block into threa block rasteration form.
  * \return The IR transform pass.
  */
-Pass InjectCustomizedImportedCode() {
+Pass InjectCustomizedCode() {
   auto pass_func = [=](PrimFunc f, IRModule m, PassContext ctx) {
     auto* fptr = f.CopyOnWrite();
-    fptr->body =
-        customized_imported_code::CustomziedImportedCodeInjector::Inject(f);
+    fptr->body = inject_customized_code::CustomziedCodeInjector::Inject(f);
     fptr->body = ConvertSSA(std::move(fptr->body));
     return f;
   };
-  return CreatePrimFuncPass(pass_func, 0, "tir.InjectCustomizedImportedCode", {});
+  return CreatePrimFuncPass(pass_func, 0, "tir.InjectCustomizedCode", {});
 }
 
-TVM_REGISTER_GLOBAL("tir.transform.InjectCustomizedImportedCode").set_body_typed(InjectCustomizedImportedCode);
+TVM_REGISTER_GLOBAL("tir.transform.InjectCustomizedCode").set_body_typed(InjectCustomizedCode);
 
 }  // namespace transform
 
