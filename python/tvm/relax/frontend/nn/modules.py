@@ -106,6 +106,10 @@ class Linear(Module):
         out_dtype: Optional[str] = None,
     ):
         super().__init__()
+
+        if isinstance(out_features, str):
+            out_features = tir.Var(out_features, "int64")
+
         self.in_features = in_features
         self.out_features = out_features
         self.out_dtype = out_dtype

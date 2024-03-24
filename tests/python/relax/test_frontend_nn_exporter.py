@@ -439,5 +439,35 @@ def test_generate_parameters():
     assert_structural_equal(lifted_mod, ExpectedAfterLift)
 
 
+def test_linear_dynamic_shape():
+    """The weight and bias of nn.Linear have the same out_features
+
+    Even if dynamic, the weight/bias must be the same value.
+    """
+
+    @R.function
+    def forward(
+        x: R.Tensor((1, 4), dtype="float32"),
+        _io: R.Object,
+        weight: R.Tensor(("n", 4), dtype="float32"),
+        bias: R.Tensor(("n",), dtype="float32"),
+    ) -> R.Tuple(R.Tensor((1, "n"), dtype="float32"), R.Tuple(R.Object)):
+        n = T.int64()
+        R.func_attr({"num_input": 2})
+        with R.dataflow():
+            permute_dims: R.Tensor((4, n), dtype="float32") = R.permute_dims(weight, axes=None)
+            matmul: R.Tensor((1, n), dtype="float32") = R.matmul(x, permute_dims, out_dtype="void")
+            add: R.Tensor((1, n), dtype="float32") = R.add(matmul, bias)
+            gv1: R.Tuple(R.Tensor((1, n), dtype="float32"), R.Tuple(R.Object)) = add, (_io,)
+            R.output(gv1)
+        return gv1
+
+    mod = nn.modules.Linear(in_features=4, out_features="n", bias=True)
+    tvm_mod, _ = mod.export_tvm(
+        spec={"forward": {"x": nn.spec.Tensor((1, 4), "float32")}}, debug=True
+    )
+    assert_structural_equal(tvm_mod["forward"], forward, True)
+
+
 if __name__ == "__main__":
     tvm.testing.main()
