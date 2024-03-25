@@ -30,12 +30,18 @@ namespace tir {
 
 void PrimFuncFrameNode::ExitWithScope() {
   TIRFrameNode::ExitWithScope();
+  // if the prim func is not private and there isn't already a global symbol,
+  // add a global symbol
+  if (!is_private && name.defined() && !attrs.count(tvm::attr::kGlobalSymbol)) {
+    attrs.Set(tvm::attr::kGlobalSymbol, name.value());
+  }
+
   tvm::tir::PrimFunc func(
       /*params=*/args,
       /*body=*/AsStmt(stmts),
       /*ret_type=*/ret_type.value_or(TupleType::Empty()),
       /*buffer_map=*/buffer_map,
-      /*attrs=*/attrs.defined() ? DictAttrs(attrs.value()) : NullValue<DictAttrs>());
+      /*attrs=*/DictAttrs(attrs));
   func = tvm::tir::ScriptComplete(func, root_alloc_buffers);
   IRBuilder builder = IRBuilder::Current();
   if (builder->frames.empty()) {

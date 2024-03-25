@@ -61,7 +61,7 @@ PrimFuncFrame PrimFunc(bool is_private) {
   n->args.clear();
   n->ret_type = NullOpt;
   n->buffer_map.clear();
-  n->attrs = NullOpt;
+  n->attrs = {};
   n->env_threads.clear();
   n->root_alloc_buffers.clear();
   return PrimFuncFrame(n);
@@ -91,17 +91,25 @@ void FuncName(String name) {
   frame->name = name;
 }
 
-void FuncAttrs(Map<String, ObjectRef> attrs) {
+void FuncAttrs(Map<String, ObjectRef> new_attrs) {
   using namespace tvm::tir;
   PrimFuncFrame frame = FindPrimFuncFrame("T.func_attr");
-  if (frame->attrs.defined()) {
-    LOG(FATAL) << "ValueError: Duplicate prim func annotations, previous one is " << frame->attrs;
+  for (const auto& [key, value] : new_attrs) {
+    if (key == tvm::attr::kGlobalSymbol && frame->is_private) {
+      LOG(FATAL) << "ValueError: "
+                 << "A private function may not have the kGlobalSymbol (\""
+                 << tvm::attr::kGlobalSymbol << "\") attribute.  "
+                 << "However, a private function specified the global symbol as " << value;
+    }
+
+    if (auto prev = frame->attrs.Get(key)) {
+      LOG(FATAL) << "ValueError: "
+                 << "Duplicate prim func annotation for key = \"" << key << "\".  "
+                 << "Previous value was " << prev.value() << ", with later definition as " << value;
+    } else {
+      frame->attrs.Set(key, value);
+    }
   }
-  if (attrs.count(tvm::attr::kGlobalSymbol) && frame->is_private) {
-    LOG(FATAL) << "ValueError: Specifying the global symbol even though the PrimFunc is annotated "
-                  "as private";
-  }
-  frame->attrs = attrs;
 }
 
 tvm::Type FuncRet(tvm::Type ret_type) {
