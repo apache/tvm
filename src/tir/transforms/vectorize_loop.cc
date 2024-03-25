@@ -40,8 +40,9 @@ namespace tir {
 inline PrimExpr CreateNewLanes(bool is_scalable, int lanes_or_vscale_factor) {
   if (is_scalable) {
     return Mul(Call(DataType::Int(32), builtin::vscale(), {}), lanes_or_vscale_factor);
-  } else
+  } else {
     return lanes_or_vscale_factor;
+  }
 }
 
 inline PrimExpr BroadcastTo(PrimExpr e, int lanes, bool is_scalable) {
