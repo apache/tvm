@@ -108,10 +108,10 @@ class Tensor(_TensorOp):
             assert expr.struct_info_ is not None
             assert isinstance(expr.struct_info, TensorStructInfo)
             assert expr.struct_info.ndim != -1
-            assert expr.struct_info.shape is not None
-            assert expr.struct_info.shape.struct_info_ is not None
-            assert isinstance(expr.struct_info.shape.struct_info, ShapeStructInfo)
-            assert expr.struct_info.shape.struct_info.values is not None
+            if expr.struct_info.shape is not None:
+                assert expr.struct_info.shape.struct_info_ is not None
+                assert isinstance(expr.struct_info.shape.struct_info, ShapeStructInfo)
+                assert expr.struct_info.shape.struct_info.values is not None
 
         _check_tensor(_expr)
         self._expr = _expr
@@ -248,6 +248,24 @@ class Parameter(Tensor):
             dtype = get_default_dtype()
         super().__init__(_expr=Tensor.placeholder(shape, dtype=dtype, name="param")._expr)
         self._data = None
+
+        # Save the original shape, distinct from the shape of
+        # `self._expr`.  This allows correct handling of dynamic
+        # shapes specified as a python string (follows value equality,
+        # should be de-duplicated by name), and dynamic shapes
+        # specified as a TIR variable (follows reference equality,
+        # should not be de-duplicated by name).
+        #
+        # We cannot neither perform the de-duplication at this point
+        # nor can we convert from python strings to TIR variables.
+        # Performing de-duplication would produce one TIR variable for
+        # each name for each `nn.Parameter`, rather than one TIR
+        # variable for each name across all `nn.Parameter`s.
+        # Converting to TIR variables now would require de-duplication
+        # at a later point, which would errorneously merge distinct
+        # TIR variables that have the same name.
+        self._shape = shape
+
         self.attrs = OrderedDict()
 
     @property
@@ -591,7 +609,22 @@ def wrap_nested(expr: rx.Expr, name: str) -> Union[Tensor, Sequence[Tensor]]:
         The computed result.
     """
     if not isinstance(expr, rx.DataflowVar):
-        expr = BlockBuilder.current().emit(expr, name)
+        block_builder = BlockBuilder.current()
+        if block_builder is None:
+            # Normalize to make sure we have valid StructInfo, but
+            # wait until we are actually building the function to
+            # flatten nested expressions.
+            #
+            # TODO(Lunderberg): Make this easier to call.  Infering
+            # struct info for a nested expression should be doable in
+            # a free function, without requiring an active
+            # BlockBuilder and an active FunctionFrame.
+            builder = BlockBuilder()
+            with builder.function("dummy_scope", params=[]):
+                expr = builder.normalize(expr)
+                builder.emit_func_output([])
+        else:
+            expr = BlockBuilder.current().emit(expr, name)
     if isinstance(expr.struct_info_, TensorStructInfo):
         return Tensor(_expr=expr)
     if isinstance(expr.struct_info_, TupleStructInfo):

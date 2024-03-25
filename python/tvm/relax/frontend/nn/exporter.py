@@ -94,6 +94,7 @@ class Exporter:
         # pylint: disable=protected-access
         def _params() -> typing.List[typing.Tuple[str, core.Parameter]]:
             params = []
+
             for name, param in core._attribute_finder(
                 spec.module, prefix="", condition_yield=lambda x: isinstance(x, core.Parameter)
             ):
@@ -111,7 +112,7 @@ class Exporter:
             return result
 
         # pylint: enable=protected-access
-        params = None
+
         effects = _effects()
         ext_mods = self.extern_mods
         with self:
@@ -135,9 +136,18 @@ class Exporter:
                     with self.builder.dataflow():
                         outputs, inputs = _emit_method(self.builder, method_spec, params, effects)
                     self.builder.emit_func_output(outputs, inputs)
+
+                # TODO(Lunderberg): Make a `ir.transform.ConvertSSA`,
+                # similar to the existing `tir.transform.ConvertSSA`,
+                # that converts an entire module to SSA, including TIR
+                # variable definitions used in either TIR or Relax.
+                mod = self.builder.get()
+                mod[method_name] = rx.utils.copy_with_new_vars(mod[method_name])
+
         mod = self.builder.finalize()
         assert rx.analysis.well_formed(mod)
 
+        mod = rx.transform.CanonicalizeBindings()(mod)
         return mod, params, ext_mods
 
 
@@ -161,7 +171,14 @@ def _emit_method(  # pylint: disable=too-many-locals,too-many-branches,too-many-
     effects: typing.Optional[typing.List[typing.Tuple[str, core.Effect]]],
 ):
     # pylint: disable=protected-access
-    # symbolic shape's name mapping to its tir.Var for reuse
+
+    # Symbolic shape's name mapping to its tir.Var for reuse.  This is
+    # only used when the user specifies a dynamic shape as a python
+    # string.  If a user specifies a dynamic shape as a TIR variable,
+    # it is used as-is.  We should only unify dynamic shapes by name
+    # if they are specified as python strings, which have value
+    # equality, and not if they are specified as TIR variables, which
+    # have reference equality.
     str2var_params: typing.Dict[str, tir.Var] = {}
 
     def _unwrap_ret(expr: typing.Any) -> typing.Any:
@@ -190,34 +207,64 @@ def _emit_method(  # pylint: disable=too-many-locals,too-many-branches,too-many-
     def _params(mode: str) -> typing.List[rx.Var]:
         inputs: typing.List[rx.Var] = []
 
-        def _get_var(shape_var: tir.Var) -> tir.Var:
-            name = shape_var.name
-            if name in str2var_params:
-                return str2var_params[name]
-            var = tir.Var(name, "int64")
-            str2var_params[name] = var
-            return var
+        def _normalize_dim(dim: typing.Union[int, str, tir.Var]) -> tir.PrimExpr:
+            if isinstance(dim, int):
+                return tir.IntImm("int64", dim)
+            elif isinstance(dim, str):
+                if dim in str2var_params:
+                    return str2var_params[dim]
+                else:
+                    new_var = tir.Var(dim, "int64")
+                    str2var_params[dim] = new_var
+                    return new_var
+            elif isinstance(dim, tir.Var):
+                return dim
+            else:
+                raise TypeError(
+                    f"Expected dim to be int, str, or tir.Var, "
+                    f"but {dim} was of type {type(dim)}."
+                )
 
         for name, param in params:
             # Make sure the a symbolic shape is not re-registered (same as _method_spec_to_inputs)
             # e.g. we do not see `vocab_size` for `lm_head` and `vocab_size_1` for `embed_tokens`
-            new_shape = [_get_var(x) if isinstance(x, tir.Var) else x for x in param.shape]
-            var = core.Tensor.placeholder(new_shape, param.dtype, name)._expr
+            new_shape = [_normalize_dim(dim) for dim in param._shape]
+            # var_cls = rx.DataflowVar if mode == "packed" else rx.Var
+            var_cls = rx.Var
+            var = var_cls(name, rx.TensorStructInfo(new_shape, param.dtype))
             inputs.append(var)
-            param._expr = var
+
         if mode == "none":
             return []
-        if mode == "plain":
+
+        elif mode == "plain":
+            for param_var, (_, param) in zip(inputs, params):
+                # Emit a binding into the relax.Function, without
+                # overwriting the `param._expr`.  The `param._expr` may
+                # appear in pre-processing steps that have been defined by
+                # a user, and should not be replaced.  This is a trivial
+                # binding that will be removed when the post-processing
+                # pass `CanonicalizeBindings` is applied, and will not
+                # occur in the output of `nn.Module.export_tvm`.
+                builder.emit_normalized(rx.VarBinding(param._expr, param_var))
             return inputs
-        if mode == "packed":
+
+        elif mode == "packed":
             input_var = rx.Var(
                 "packed_params",
                 TupleStructInfo(fields=[x.struct_info for x in inputs]),
             )
-            for i, (name, param) in enumerate(params):
-                param._expr = builder.emit(rx.TupleGetItem(input_var, i), name_hint=name)
+            for i, (param_var, (_, param)) in enumerate(zip(inputs, params)):
+                # Emit a binding into the relax.Function to unpack the
+                # tuple (providing a human-readable name in the
+                # process), then define the `param._expr`.
+                builder.emit_normalized(rx.VarBinding(param_var, rx.TupleGetItem(input_var, i)))
+                builder.emit_normalized(rx.VarBinding(param._expr, param_var))
+
             return [input_var]
-        raise ValueError(f"Invalid param_mode: {mode}")
+
+        else:
+            raise ValueError(f"Invalid param_mode: {mode}")
 
     def _effects(mode: str) -> typing.List[rx.Var]:
         unflat_inputs: typing.List[typing.List[rx.Var]] = []

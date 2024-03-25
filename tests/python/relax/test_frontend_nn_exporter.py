@@ -42,7 +42,6 @@ def test_simple():
             R.func_attr({"num_input": 1})
             with R.dataflow():
                 relu = R.nn.relu(x)
-                relu = relu
                 R.output(relu)
             return relu
 
@@ -69,7 +68,6 @@ def test_custom_module():
             R.func_attr({"num_input": 1})
             with R.dataflow():
                 relu = R.nn.relu(x)
-                relu = relu
                 R.output(relu)
             return relu
 
@@ -104,7 +102,6 @@ def test_debug_effect():
             with R.dataflow():
                 _io = R.null_value()
                 output = (_io,)
-                output = output
                 R.output(output)
             return output
 
@@ -127,7 +124,6 @@ def test_dynamic_shape():
             R.func_attr({"num_input": 1})
             with R.dataflow():
                 relu = R.nn.relu(x)
-                relu = relu
                 R.output(relu)
             return relu
 
@@ -160,7 +156,6 @@ def test_dynamic_shape_in_multiple_functions():
             R.func_attr({"num_input": 1})
             with R.dataflow():
                 relu = R.nn.relu(x)
-                relu = relu
                 R.output(relu)
             return relu
 
@@ -169,7 +164,6 @@ def test_dynamic_shape_in_multiple_functions():
             R.func_attr({"num_input": 1})
             with R.dataflow():
                 silu = R.nn.silu(x)
-                silu = silu
                 R.output(silu)
             return silu
 
@@ -243,14 +237,12 @@ def test_export_nested_module():
                 down: R.Tensor([batch_size, hidden_size]) = R.matmul(
                     R.nn.silu(gate) * up, R.permute_dims(down_proj_weights)
                 )
-                down = down
                 R.output(down)
             return down
 
     assert_structural_equal(exported_mod, Expected)
 
 
-@pytest.mark.xfail(reason="Not yet supported.  See revert https://github.com/apache/tvm/pull/16777")
 def test_generate_parameters():
     """Weights may be expressions in terms of other parameters
 
@@ -485,12 +477,7 @@ def test_linear_dynamic_shape():
         "different_python_string",
         "same_tir_var",
         "distinct_tir_vars_with_distinct_names",
-        pytest.param(
-            "distinct_tir_vars_with_same_name",
-            marks=pytest.mark.xfail(
-                reason="Not yet supported.  See revert https://github.com/apache/tvm/pull/16777"
-            ),
-        ),
+        "distinct_tir_vars_with_same_name",
     ],
 )
 def test_duplicate_names(dynamic_type):
@@ -582,7 +569,6 @@ def test_duplicate_names(dynamic_type):
                     state: R.Tensor([batch_size, hidden_size], "float32") = R.matmul(
                         state, R.permute_dims(down_weights)
                     )
-                    state = state
                     R.output(state)
                 return state
 
@@ -612,7 +598,6 @@ def test_duplicate_names(dynamic_type):
                     state: R.Tensor([batch_size, hidden_size], "float32") = R.matmul(
                         state, R.permute_dims(down_weights)
                     )
-                    state = state
                     R.output(state)
                 return state
 

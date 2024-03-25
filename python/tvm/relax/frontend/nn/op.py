@@ -676,12 +676,31 @@ def permute_dims(x: Tensor, axes: Optional[List[int]] = None, name: str = None) 
     result : Tensor
         The transposed result.
     """
+
+    # TODO(Lunderberg): This is a more extensive auto-naming than
+    # intended here.  Is this still worth it?
+    def _generate_name():
+        fallback = "permute_dims"
+        arg = getattr(x, "_expr", None)
+        if not isinstance(arg, rx.Var):
+            return fallback
+
+        while True:
+            if "linear" in arg.name_hint:
+                return arg.name_hint.replace("linear", "matmul")
+
+            builder = BlockBuilder.current()
+            if builder is None:
+                return fallback
+
+            bound_to = builder.lookup_binding(arg)
+            if isinstance(bound_to, rx.Var):
+                arg = bound_to
+            else:
+                return fallback
+
     if name is None:
-        x_name = getattr(getattr(x, "_expr", None), "name_hint", None)
-        if x_name is not None and "linear" in x_name:
-            name = x_name.replace("linear", "matmul")
-        else:
-            name = "permute_dims"
+        name = _generate_name()
 
     return wrap_nested(_op.permute_dims(x._expr, axes=axes), name)
 

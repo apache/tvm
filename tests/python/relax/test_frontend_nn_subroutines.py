@@ -61,8 +61,7 @@ def test_linear():
         def _initialize_effect() -> R.Tuple(R.Object):
             with R.dataflow():
                 _io: R.Object = R.null_value()
-                lv: R.Tuple(R.Object) = (_io,)
-                gv: R.Tuple(R.Object) = lv
+                gv = (_io,)
                 R.output(gv)
 
             return gv
@@ -75,9 +74,8 @@ def test_linear():
             with R.dataflow():
                 state = R.matmul(state, weights)
                 state = Expected.activation(state)
-                dataflow_output = state
-                R.output(dataflow_output)
-            return dataflow_output
+                R.output(state)
+            return state
 
         @R.function(private=True)
         def activation(
@@ -85,9 +83,8 @@ def test_linear():
         ) -> R.Tensor(("batch_size", 32), dtype="float32"):
             with R.dataflow():
                 state = R.nn.silu(state)
-                dataflow_output = state
-                R.output(dataflow_output)
-            return dataflow_output
+                R.output(state)
+            return state
 
     mod = Layer(64, 32)
     batch_size = tvm.tir.Var("batch_size", "int64")
