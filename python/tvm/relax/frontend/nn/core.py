@@ -248,6 +248,24 @@ class Parameter(Tensor):
             dtype = get_default_dtype()
         super().__init__(_expr=Tensor.placeholder(shape, dtype=dtype, name="param")._expr)
         self._data = None
+
+        # Save the original shape, distinct from the shape of
+        # `self._expr`.  This allows correct handling of dynamic
+        # shapes specified as a python string (follows value equality,
+        # should be de-duplicated by name), and dynamic shapes
+        # specified as a TIR variable (follows reference equality,
+        # should not be de-duplicated by name).
+        #
+        # We cannot neither perform the de-duplication at this point
+        # nor can we convert from python strings to TIR variables.
+        # Performing de-duplication would produce one TIR variable for
+        # each name for each `nn.Parameter`, rather than one TIR
+        # variable for each name across all `nn.Parameter`s.
+        # Converting to TIR variables now would require de-duplication
+        # at a later point, which would errorneously merge distinct
+        # TIR variables that have the same name.
+        self._shape = shape
+
         self.attrs = OrderedDict()
 
     @property

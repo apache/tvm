@@ -25,7 +25,7 @@ def _iter_binding_names(mod):
     """Helper function to compare the names of relax variables"""
     for block in mod["forward"].body.blocks:
         for binding in block.bindings:
-            yield binding.var.name_hint
+            yield binding.var.name_hint.replace(".", "_")
 
 
 def test_nn_export_to_relax():
@@ -55,10 +55,10 @@ def test_nn_export_to_relax():
             with R.dataflow():
                 linear_1_weight = packed_params[0]
                 linear_2_weight = packed_params[1]
-                matmul_1_weight = R.permute_dims(linear_1_weight)
-                matmul = R.matmul(x, matmul_1_weight)
-                matmul_2_weight = R.permute_dims(linear_2_weight)
-                matmul1 = R.matmul(x, matmul_2_weight)
+                permute_dims = R.permute_dims(linear_1_weight)
+                matmul = R.matmul(x, permute_dims)
+                permute_dims1 = R.permute_dims(linear_2_weight)
+                matmul1 = R.matmul(x, permute_dims1)
                 gv = R.add(matmul, matmul1)
                 R.output(gv)
             return gv
