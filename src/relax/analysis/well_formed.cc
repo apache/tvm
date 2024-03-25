@@ -149,13 +149,13 @@ class WellFormedChecker : public relax::ExprVisitor,
     GlobalVar var = GetRef<GlobalVar>(op);
     if (!(mod_->ContainGlobalVar(var->name_hint) &&
           mod_->GetGlobalVar(var->name_hint).same_as(var))) {
-      Malformed(Diagnostic::Error(var) << "GlobalVar " << op << " is not defined.");
+      Malformed(Diagnostic::Error(var) << "GlobalVar " << GetRef<Expr>(op) << " is not defined.");
     }
 
     if (op->checked_type_.defined()) {
       if ((!op->checked_type_->IsInstance<FuncTypeNode>()) &&
           (!op->checked_type_->IsInstance<PackedFuncTypeNode>())) {
-        Malformed(Diagnostic::Error(var) << "The checked_type_ of GlobalVar " << op
+        Malformed(Diagnostic::Error(var) << "The checked_type_ of GlobalVar " << GetRef<Expr>(op)
                                          << " must be either FuncType or PackedFuncType.");
       }
     }
@@ -190,7 +190,7 @@ class WellFormedChecker : public relax::ExprVisitor,
   void VisitExpr_(const VarNode* op) final {
     Var var = GetRef<Var>(op);
     if (var_set_.count(var) == 0 && recur_vars_.count(var) == 0) {
-      Malformed(Diagnostic::Error(var) << "Var " << op << " is not defined.");
+      Malformed(Diagnostic::Error(var) << "Var " << GetRef<Expr>(op) << " is not defined.");
     }
     CheckStructInfo(op);
   }
@@ -199,10 +199,10 @@ class WellFormedChecker : public relax::ExprVisitor,
     DataflowVar var = GetRef<DataflowVar>(op);
     if (!is_dataflow_) {
       Malformed(Diagnostic::Error(var)
-                << "DataflowVar " << op << " is used outside DataflowBlock.");
+                << "DataflowVar " << GetRef<Expr>(op) << " is used outside DataflowBlock.");
     }
     if (dataflow_var_set_.count(var) == 0) {
-      Malformed(Diagnostic::Error(var) << "DataflowVar " << op << " is not defined.");
+      Malformed(Diagnostic::Error(var) << "DataflowVar " << GetRef<Expr>(op) << " is not defined.");
     }
     CheckStructInfo(op);
   }
@@ -234,7 +234,7 @@ class WellFormedChecker : public relax::ExprVisitor,
     // ensure the purity attributes are valid
     if (op->GetAttr<Bool>(relax::attr::kForcePure).value_or(Bool(false))->value && !op->is_pure) {
       Malformed(Diagnostic::Error(op->span)
-                << "Function " << op << " has true for " << relax::attr::kForcePure
+                << "Function " << GetRef<Expr>(op) << " has true for " << relax::attr::kForcePure
                 << " but false for is_pure; " << relax::attr::kForcePure
                 << " should be true only if is_pure is also true.");
     }
