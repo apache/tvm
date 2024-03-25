@@ -91,15 +91,13 @@ class CUDAIPCMemoryAllocator final : public memory::PooledAllocator {
  private:
   void* DeviceAllocDataSpace(Device dev, size_t size, size_t alignment,
                              DLDataType type_hint) final {
-    auto [data_ptr, data_comm_ptrs] = AllocIPCMemory(dev, size, alignment, type_hint);
+    auto [data_ptr, data_comm_ptrs] =
+        AllocIPCMemory(dev, size, alignment, type_hint, /*reset_memory_to_zero=*/false);
     int barrier_ptr_size = sizeof(uint32_t) * (MAX_ALL_REDUCE_BLOCKS + 2) * MAX_RANKS_PER_NODE;
-    auto [barrier_in_ptr, barrier_in_comm_ptrs] =
-        AllocIPCMemory(dev, barrier_ptr_size, alignment, DataType::UInt(32));
-    auto [barrier_out_ptr, barrier_out_comm_ptrs] =
-        AllocIPCMemory(dev, barrier_ptr_size, alignment, DataType::UInt(32));
-    // Initialize the barrier values to 0 to avoid synchronization issue.
-    CUDA_CALL(cudaMemset(barrier_in_ptr, 0, barrier_ptr_size));
-    CUDA_CALL(cudaMemset(barrier_out_ptr, 0, barrier_ptr_size));
+    auto [barrier_in_ptr, barrier_in_comm_ptrs] = AllocIPCMemory(
+        dev, barrier_ptr_size, alignment, DataType::UInt(32), /*reset_memory_to_zero=*/true);
+    auto [barrier_out_ptr, barrier_out_comm_ptrs] = AllocIPCMemory(
+        dev, barrier_ptr_size, alignment, DataType::UInt(32), /*reset_memory_to_zero=*/true);
 
     // Create the CUDAIPCMemory object.
     ObjectPtr<CUDAIPCMemoryObj> ipc_memory = make_object<CUDAIPCMemoryObj>();
@@ -142,12 +140,22 @@ class CUDAIPCMemoryAllocator final : public memory::PooledAllocator {
    * pointer.
    */
   std::pair<void*, std::vector<void*>> AllocIPCMemory(Device dev, size_t size, size_t alignment,
-                                                      DLDataType type_hint) {
+                                                      DLDataType type_hint,
+                                                      bool reset_memory_to_zero) {
     // Alloc local buffer
     ICHECK(dev.device_type == kDLCUDA);
     void* ptr;
     CUDA_CALL(cudaSetDevice(dev.device_id));
     CUDA_CALL(cudaMalloc(&ptr, size));
+    // Reset allocated memory to zero when required.
+    // We explicitly synchronize after memset, to make sure memset finishes
+    // before using all-gather to exchange IPC handles.
+    // This is important to ensure the memory reset get ordered
+    // before any other peers read the memory.
+    if (reset_memory_to_zero) {
+      CUDA_CALL(cudaMemset(ptr, 0, size));
+      CUDA_CALL(cudaDeviceSynchronize());
+    }
     // Create ipc handle
     cudaIpcMemHandle_t local_handle;
     CUDA_CALL(cudaIpcGetMemHandle(&local_handle, ptr));

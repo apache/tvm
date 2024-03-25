@@ -40,8 +40,6 @@ class IPCAllReduceRewrite:
             The all-reduce strategy. Only "1" and "2" are supported.
             "1" stands for one-shot, and "2" stands for two-shot.
         """
-        if allreduce_strategy not in [1, 2]:
-            raise ValueError(f"All-reduce strategy {allreduce_strategy} is not supported.")
         self.allreduce_strategy = allreduce_strategy
 
     def transform_module(self, mod: IRModule, _ctx: tvm.transform.PassContext) -> IRModule:

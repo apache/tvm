@@ -66,7 +66,15 @@ void CustomAllReduce(DLTensor* send, int strategy, DLTensor* recv) {
   int64_t num_elements = TensorSize(send);
   nccl::CCLThreadLocalContext* ctx = nccl::CCLThreadLocalContext::Get();
 
-  if (!CanApplyCustomAllReduce(num_elements, send->dtype)) {
+  tensorrt_llm::AllReduceStrategyType strategy_ =
+      static_cast<tensorrt_llm::AllReduceStrategyType>(strategy);
+  if (strategy_ == tensorrt_llm::AllReduceStrategyType::AUTO) {
+    strategy_ = tensorrt_llm::SelectImplementation(
+        num_elements * ((send->dtype.bits * send->dtype.lanes + 7) / 8), ctx->worker->num_workers);
+  }
+
+  if (strategy_ == tensorrt_llm::AllReduceStrategyType::RING ||
+      !CanApplyCustomAllReduce(num_elements, send->dtype)) {
     // Dispatch to nccl AllReduce if the customized all-reduce cannot apply.
     deviceStream_t stream = ctx->GetDefaultStream();
     NCCL_CALL(ncclAllReduce(send->data, recv->data, num_elements,
@@ -92,8 +100,6 @@ void CustomAllReduce(DLTensor* send, int strategy, DLTensor* recv) {
     params.peer_barrier_ptrs_out[i] = reinterpret_cast<uint32_t*>(ipc_memory->barrier_out[i]);
   }
 
-  tensorrt_llm::AllReduceStrategyType strategy_ =
-      static_cast<tensorrt_llm::AllReduceStrategyType>(strategy);
   if (!CanApplyTwoShotAllReduce(num_elements, send->dtype, ctx->worker->num_workers)) {
     // Two-shot all-reduce does not support this case.
     // So we fallback to the one-shot strategy.
