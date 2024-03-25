@@ -35,14 +35,18 @@ WELL_FORMED_ERROR_MESSAGE = (
 
 
 def _default_globals() -> Dict[str, Any]:
+    from tvm.script.parser import ir  # pylint: disable=import-outside-toplevel
+    from tvm.script.parser import relax  # pylint: disable=import-outside-toplevel
+    from tvm.script.parser import tir  # pylint: disable=import-outside-toplevel
+
     extra_vars = {
         "tvm": tvm,
-        "I": tvm.script.parser.ir,
-        "ir": tvm.script.parser.ir,
-        "T": tvm.script.parser.tir,
-        "tir": tvm.script.parser.tir,
-        "R": tvm.script.parser.relax,
-        "relax": tvm.script.parser.relax,
+        "I": ir,
+        "ir": ir,
+        "T": tir,
+        "tir": tir,
+        "R": relax,
+        "relax": relax,
     }
     return extra_vars
 
