@@ -386,41 +386,21 @@ static const llvm::Target* CreateLLVMTargetInstance(const std::string triple,
   return llvm_instance;
 }
 
-static llvm::TargetMachine* CreateLLVMTargetMachine(
+static std::unique_ptr<llvm::TargetMachine> CreateLLVMTargetMachine(
     const llvm::Target* llvm_instance, const std::string& triple, const std::string& cpu,
-    const std::string& features, const llvm::TargetOptions& target_options,
-    const llvm::Reloc::Model& reloc_model, const llvm::CodeModel::Model& code_model,
+    const std::string& features, const llvm::TargetOptions& target_options = {},
+    const llvm::Reloc::Model& reloc_model = llvm::Reloc::Static,
+    const llvm::CodeModel::Model& code_model = llvm::CodeModel::Small,
 #if TVM_LLVM_VERSION <= 170
-    const llvm::CodeGenOpt::Level& opt_level) {
+    const llvm::CodeGenOpt::Level& opt_level = llvm::CodeGenOpt::Level(0)) {
 #else
-    const llvm::CodeGenOptLevel& opt_level) {
+    const llvm::CodeGenOptLevel& opt_level = llvm::CodeGenOptLevel(0)) {
 #endif
   llvm::TargetMachine* tm = llvm_instance->createTargetMachine(
       triple, cpu, features, target_options, reloc_model, code_model, opt_level);
   ICHECK(tm != nullptr);
 
-  return tm;
-}
-
-static const llvm::MCSubtargetInfo* GetLLVMSubtargetInfo(const std::string& triple,
-                                                         const std::string& cpu_name,
-                                                         const std::string& feats) {
-  // create a LLVM instance
-  auto llvm_instance = CreateLLVMTargetInstance(triple, true);
-  // create a target machine
-  // required minimum: llvm::InitializeAllTargetMCs()
-  llvm::TargetOptions target_options;
-  auto tm = CreateLLVMTargetMachine(llvm_instance, triple, cpu_name, feats, target_options,
-                                    llvm::Reloc::Static, llvm::CodeModel::Small,
-#if TVM_LLVM_VERSION <= 170
-                                    llvm::CodeGenOpt::Level(0));
-#else
-                                    llvm::CodeGenOptLevel(0));
-#endif
-  // create subtarget info module
-  const llvm::MCSubtargetInfo* MCInfo = tm->getMCSubtargetInfo();
-
-  return MCInfo;
+  return std::unique_ptr<llvm::TargetMachine>(tm);
 }
 
 llvm::TargetMachine* LLVMTargetInfo::GetOrCreateTargetMachine(bool allow_missing) {
@@ -428,10 +408,9 @@ llvm::TargetMachine* LLVMTargetInfo::GetOrCreateTargetMachine(bool allow_missing
 
   std::string error;
   if (const llvm::Target* llvm_instance = CreateLLVMTargetInstance(triple_, allow_missing)) {
-    llvm::TargetMachine* tm =
+    target_machine_ =
         CreateLLVMTargetMachine(llvm_instance, triple_, cpu_, GetTargetFeatureString(),
                                 target_options_, reloc_model_, code_model_, opt_level_);
-    target_machine_ = std::unique_ptr<llvm::TargetMachine>(tm);
   }
   ICHECK(target_machine_ != nullptr);
   return target_machine_.get();
@@ -837,7 +816,11 @@ const Array<String> LLVMTargetInfo::GetAllLLVMTargets() const {
 const Array<String> LLVMTargetInfo::GetAllLLVMTargetArches() const {
   Array<String> cpu_arches;
   // get the subtarget info module
-  const auto MCInfo = GetLLVMSubtargetInfo(triple_, "", "");
+  auto llvm_instance = CreateLLVMTargetInstance(triple_, true);
+  std::unique_ptr<llvm::TargetMachine> target_machine =
+      CreateLLVMTargetMachine(llvm_instance, triple_, "", "");
+  const auto MCInfo = target_machine->getMCSubtargetInfo();
+
   if (!MCInfo) {
     return cpu_arches;
   }
@@ -861,7 +844,11 @@ const Map<String, String> LLVMTargetInfo::GetAllLLVMCpuFeatures() const {
     feats += feats.empty() ? attr : ("," + attr);
   }
   // get the subtarget info module
-  const auto MCInfo = GetLLVMSubtargetInfo(triple_, cpu_.c_str(), feats);
+  auto llvm_instance = CreateLLVMTargetInstance(triple_, true);
+  std::unique_ptr<llvm::TargetMachine> target_machine =
+      CreateLLVMTargetMachine(llvm_instance, triple_, cpu_.c_str(), feats);
+  const auto MCInfo = target_machine->getMCSubtargetInfo();
+
   // get all features for CPU
   llvm::ArrayRef<llvm::SubtargetFeatureKV> llvm_features =
 #if TVM_LLVM_VERSION < 180
