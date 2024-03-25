@@ -569,14 +569,14 @@ transform::Sequential MixedModulePassManager(IRModule mixed_mod, Target target) 
 
   Array<Pass> mixed_pass_list;
 
-  mixed_pass_list.push_back(tir::transform::FP8ComputeLegalize(target));
+  // FPComputeLegalize uses the target attrs added by BindTarget, so it must come first
+  mixed_pass_list.push_back(tir::transform::BindTarget(target));
+  mixed_pass_list.push_back(tir::transform::FP8ComputeLegalize());
 
   // VerifyVTCMLimit must occur before LowerVtcmAlloc
   mixed_pass_list.push_back(tir::transform::VerifyVTCMLimit(target));
   // LowerVtcmAlloc must occur after any transformations that modify memory allocation locations
   mixed_pass_list.push_back(tir::transform::LowerVtcmAlloc());
-
-  mixed_pass_list.push_back(tir::transform::BindTarget(target));
 
   mixed_pass_list.push_back(tir::transform::VerifyMemory());
 
@@ -620,7 +620,7 @@ transform::Sequential MixedModulePassManager(IRModule mixed_mod, Target target) 
   } else {
     mixed_pass_list.push_back(tir::transform::MakePackedAPI());
   }
-  mixed_pass_list.push_back(tir::transform::FP8StorageLegalize(target));
+  mixed_pass_list.push_back(tir::transform::FP8StorageLegalize());
   mixed_pass_list.push_back(tir::transform::BF16StorageLegalize());
 
   mixed_pass_list.push_back(tir::transform::LowerDeviceKernelLaunch());
