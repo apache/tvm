@@ -196,7 +196,9 @@ TVM_REGISTER_NODE_TYPE(StringImmNode);
 // Cast
 Cast::Cast(DataType t, PrimExpr value, Span span) {
   ICHECK(value.defined());
-  ICHECK_EQ(t.lanes(), value.dtype().lanes());
+  ICHECK_EQ(t.get_lanes_or_vscale_factor(), value.dtype().get_lanes_or_vscale_factor());
+  ICHECK((t.is_scalable_vector() == value.dtype().is_scalable_vector()) ||
+         (!t.is_scalable_vector() && !value.dtype().is_scalable_vector()));
   ObjectPtr<CastNode> node = make_object<CastNode>();
   node->dtype = t;
   node->value = std::move(value);
@@ -354,7 +356,8 @@ And::And(PrimExpr a, PrimExpr b, Span span) {
   ICHECK(a.dtype() == b.dtype()) << "TypeError: mismatched types";
 
   ObjectPtr<AndNode> node = make_object<AndNode>();
-  node->dtype = DataType::Bool(a.dtype().lanes());
+  node->dtype =
+      DataType::Bool(a.dtype().get_lanes_or_vscale_factor(), a.dtype().is_scalable_vector());
   node->a = std::move(a);
   node->b = std::move(b);
   node->span = std::move(span);
@@ -376,7 +379,8 @@ Or::Or(PrimExpr a, PrimExpr b, Span span) {
   ICHECK(a.dtype() == b.dtype()) << "TypeError: mismatched types";
 
   ObjectPtr<OrNode> node = make_object<OrNode>();
-  node->dtype = DataType::Bool(a.dtype().lanes());
+  node->dtype =
+      DataType::Bool(a.dtype().get_lanes_or_vscale_factor(), a.dtype().is_scalable_vector());
   node->a = std::move(a);
   node->b = std::move(b);
   node->span = std::move(span);
@@ -412,7 +416,9 @@ Select::Select(PrimExpr condition, PrimExpr true_value, PrimExpr false_value, Sp
   ICHECK(true_value.defined()) << "ValueError: true_value is undefined";
   ICHECK(false_value.defined()) << "ValueError: true_value is undefined";
   ICHECK(condition.dtype().is_bool());
-  ICHECK(condition.dtype().lanes() == true_value.dtype().lanes() || condition.dtype().lanes() == 1);
+  ICHECK(condition.dtype().get_lanes_or_vscale_factor() ==
+             true_value.dtype().get_lanes_or_vscale_factor() ||
+         condition.dtype().is_scalar());
   ICHECK(false_value.dtype() == true_value.dtype())
       << "TypeError: mismatched types. "
       << "False type: " << false_value.dtype() << "; True type: " << true_value.dtype();
