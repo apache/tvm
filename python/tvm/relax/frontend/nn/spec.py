@@ -18,6 +18,8 @@
 import inspect
 import typing
 
+import tvm
+
 if typing.TYPE_CHECKING:
     from .core import Module as nn_module_class
 
@@ -149,13 +151,16 @@ class MethodSpec:
         arg_specs = []
 
         def _convert_arg_spec(arg_spec, arg_name):
+            if hasattr(arg_spec, "as_struct_info"):
+                arg_spec = arg_spec.as_struct_info()
+
             if arg_spec is Int or arg_spec is int:
                 return Int()
-            if isinstance(arg_spec, str) and arg_spec == "int":
+            elif isinstance(arg_spec, str) and arg_spec == "int":
                 return Int()
-            if isinstance(arg_spec, (Int, Tensor, Object)):
+            elif isinstance(arg_spec, (Int, Tensor, Object, tvm.relax.TensorStructInfo)):
                 return arg_spec
-            if isinstance(arg_spec, (tuple, list, Tuple)):
+            elif isinstance(arg_spec, (tuple, list, Tuple)):
                 return Tuple(
                     arg_name,
                     elements=type(arg_spec)(
