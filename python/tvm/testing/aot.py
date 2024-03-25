@@ -476,20 +476,40 @@ def _emit_main_compare(
 
         if print_output_on_mismatch:
             main_file.write(
-                f"int mismatch = 0;"
-                f'printf("Actual, Reference\\n");\n'
-                f"for (int i = 0; i<{data_length_var_name}; i++) {{\n"
-                f"\tif ({comparison_function}({actual_data_name}[i]-"
-                f"{expected_data_name}[i]) > {tolerance}) {{\n"
-                f'\t\tprintf("{value_format_specifier}, {value_format_specifier}\\n"'
-                f", {actual_data_name}[i], {expected_data_name}[i]);\n"
-                f"\t\tmismatch = 1;\n"
-                f"\t}}\n"
-                f"}}"
-                f"if (mismatch == 1) {{\n"
-                f'\tprintf("{AOT_FAILURE_TOKEN}\\n");\n'
-                f"\treturn -1;\n"
-                f"}}"
+                f"""
+                {{
+                int mismatch = 0;
+                int out_ndim = {outputs[key].ndim};
+                int out_shape[] = {{{','.join(map(str, outputs[key].shape))}}};
+                int out_indices[out_ndim];
+                printf("Element [Position]: Actual, Reference\\n");
+                printf("-------------------------------------\\n");
+                for (int i = 0; i<{data_length_var_name}; i++) {{
+                  if ({comparison_function}({actual_data_name}[i] -
+                      {expected_data_name}[i]) > {tolerance}) {{
+                    int flat_index = i;
+                    for (int j = out_ndim - 1; j >= 0; j--){{
+                      out_indices[j] = flat_index % out_shape[j];
+                      flat_index /= out_shape[j];
+                    }}
+                    printf("Element [%d", out_indices[0]);
+                    for (int j = 1; j < out_ndim; j++)
+                      printf(", %d", out_indices[j]);
+                    printf("]: {value_format_specifier}, {value_format_specifier}\\n",
+                           {actual_data_name}[i], {expected_data_name}[i]);
+                    mismatch += 1;
+                  }}
+                }}
+                if (mismatch >= 1) {{
+                  float percent_mismatched =
+                      ((float) mismatch) / ((float) {data_length_var_name}) * 100;
+                  printf("\\nMismatched elements: %d / %zu (%.2f%%)\\n",
+                         mismatch, {data_length_var_name}, percent_mismatched);
+                  printf("{AOT_FAILURE_TOKEN}\\n");
+                  return -1;
+                }}
+                }}
+                """
             )
         else:
             main_file.write(
