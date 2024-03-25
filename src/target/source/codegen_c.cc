@@ -672,10 +672,14 @@ void CodeGenC::VisitExpr_(const CallNode* op, std::ostream& os) {  // NOLINT(*)
       this->PrintExpr(op->args[0], os);
       os << " == NULL)";
     } else if (op->op.same_as(builtin::reinterpret())) {
+      auto target_dtype = op->dtype;
+      auto source_dtype = op->args[0]->dtype;
+      CHECK_EQ(target_dtype.lanes() * target_dtype.bits(), source_dtype.lanes() * source_dtype.bits())
+          << "reinterpret expects source and target to have the same number of bits";
       int ssa_scope = BeginScope();
-      std::string rhs = SSAGetID(PrintExpr(op->args[0]), op->args[0]->dtype);
+      std::string rhs = SSAGetID(PrintExpr(op->args[0]), source_dtype);
       os << "(*(";
-      this->PrintType(op->dtype, os);
+      this->PrintType(target_dtype, os);
       os << " *)(&(" << rhs << ")))";
       EndScope(ssa_scope);
     } else if (op->op.same_as(builtin::isnan())) {
