@@ -249,7 +249,7 @@ def build(
         if target is None and isinstance(input_mod, tvm.IRModule):
             target_mod = {}
             for gvar, func in input_mod.functions.items():
-                tgt = func.attrs["target"] if func.attrs and "target" in func.attrs else "llvm"
+                tgt = func.attrs["target"] if "target" in func.attrs else "llvm"
                 if tgt not in target_mod:
                     target_mod[tgt] = {}
                 target_mod[tgt][gvar] = func

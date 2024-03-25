@@ -230,7 +230,7 @@ class DictAttrs : public Attrs {
    * \brief Consruct a Attrs backed by DictAttrsNode.
    * \param dict The attributes.
    */
-  TVM_DLL explicit DictAttrs(Map<String, ObjectRef> dict);
+  TVM_DLL explicit DictAttrs(Map<String, ObjectRef> dict = {});
 
   // Utils for accessing attributes
   // This needs to be on DictAttrs, not DictAttrsNode because we return the default
@@ -298,7 +298,7 @@ class DictAttrs : public Attrs {
     return GetAttr<Integer>(attr_key, 0).value_or(0).IntValue() != 0;
   }
 
-  TVM_DEFINE_OBJECT_REF_METHODS(DictAttrs, Attrs, DictAttrsNode);
+  TVM_DEFINE_OBJECT_REF_METHODS_WITHOUT_DEFAULT_CONSTRUCTOR(DictAttrs, Attrs, DictAttrsNode);
   TVM_DEFINE_OBJECT_REF_COW_METHOD(DictAttrsNode);
 };
 
@@ -415,9 +415,6 @@ inline TFunc WithoutAttr(TFunc input, const std::string& attr_key) {
   if (input->attrs.defined()) {
     TNode* node = input.CopyOnWrite();
     node->attrs.CopyOnWrite()->dict.erase(attr_key);
-    if (node->attrs->dict.size() == 0) {
-      node->attrs = NullValue<DictAttrs>();
-    }
   }
   return input;
 }

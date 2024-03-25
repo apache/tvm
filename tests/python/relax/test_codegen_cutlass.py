@@ -328,7 +328,7 @@ def test_cutlass_partition_conv2d_residual_blocked():
     mod = partition_for_cutlass(Conv2dReLU, annotate_codegen=False)
     for f_var in mod.functions:
         func = mod[f_var]
-        if func.attrs and "Composite" in func.attrs:
+        if "Composite" in func.attrs:
             # verify that the function is not fused as residual block
             assert func.attrs["Composite"] == "cutlass.conv2d_bias_relu"
 
@@ -554,7 +554,7 @@ def test_cutlass_partition_matmul_tuple_return_blocked():
     mod = partition_for_cutlass(TransposedMatmul, annotate_codegen=False)
     for f_var in mod.functions:
         func = mod[f_var]
-        if func.attrs and "Composite" in func.attrs:
+        if "Composite" in func.attrs:
             # verify that the function is not fused as transposed matmul
             assert func.attrs["Composite"] == "cutlass.matmul"
 
@@ -575,7 +575,7 @@ def test_cutlass_partition_matmul_cyclic_dependency_blocked():
     mod = partition_for_cutlass(Module, annotate_codegen=False)
     for f_var in mod.functions:
         func = mod[f_var]
-        if func.attrs and "Composite" in func.attrs:
+        if "Composite" in func.attrs:
             assert func.attrs["Composite"] == "cutlass.matmul"
 
 

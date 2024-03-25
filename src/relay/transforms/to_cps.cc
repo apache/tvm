@@ -170,7 +170,7 @@ Function ToCPS(const Function& f, const IRModule& m, CPSMap* cm, VarMap* vm,
 
     Expr reify(const MCont& k) {
       Var arg = Var("arg", Type());
-      return Function({arg}, k(arg), Type(), {}, {});
+      return Function({arg}, k(arg), Type(), {});
     }
 
     Expr reify(const MCont& k, const std::function<Expr(MCont)>& cont) {
@@ -328,7 +328,7 @@ Function UnCPS(const Function& f) {
   // TODO(@M.K.): make alphaequal work on free term
   // ICHECK(tvm::StructuralEqual()(cont_type, Arrow(new_ret_type, answer_type)));
   auto x = Var("x", new_ret_type);
-  auto cont = Function({x}, x, new_ret_type, {}, {});
+  auto cont = Function({x}, x, new_ret_type, {});
   tvm::Array<Expr> args;
   for (const auto& p : new_params) {
     args.push_back(p);
