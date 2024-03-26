@@ -3542,7 +3542,7 @@ class Schedule(Object):
         .. code-block:: python
 
             sch = tir.Schedule(before_set_axis_separator)
-            sch.set_axis_separators(sch.get_block("B"), buffer_index=0, buffer_index_type="write",
+            sch.set_axis_separators(sch.get_block("B"), buffer=("write", 0),
                                     axis_separators=[1])
             print(sch.mod["main"].script())
 
