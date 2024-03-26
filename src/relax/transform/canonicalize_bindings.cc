@@ -96,15 +96,16 @@ class CanonicalizePlanner : public ExprVisitor {
         // Case 1: Var = Var
         // Case 2: DataflowVar = Var
         // Case 3: DataflowVar = DataflowVar
-        // Case 4a: Var = DataflowVar, but used outside this DataflowBlock
+        // Case 4a: Var = DataflowVar, where the Var is not used
+        //          outside the DataflowBlock containing the binding
         //
-        // For these three cases, the trivial binding can be
-        // unwrapped, using the bound variable directly at the point
-        // of use.
+        // For these four cases, the trivial binding can be unwrapped,
+        // using the bound variable directly at the point of use.
         plan.replace_usage.Set(bound_var->vid, bound_to);
         plan.bindings_to_remove.insert(bound_var->vid);
       } else {
-        // Case 4b: Var = DataflowVar, and used outside this DataflowBlock
+        // Case 4b: Var = DataflowVar, where the Var is used somewhere
+        //          outside the DataflowBlock containing the binding
         //
         // Replacing a Var with a DataflowVar could result in illegal
         // use of a DataflowVar outside of a DataflowBlock.  Instead,
