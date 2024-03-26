@@ -1346,6 +1346,7 @@ class TestAssumeMayContainAdditionalPredicate(BaseBeforeAfter):
 
     expected = before
 
+
 class TestNoSimplificationIfPredicateNotMet(BaseBeforeAfter):
     """Assumptions about buffer contents must apply to all cases to be used
 
