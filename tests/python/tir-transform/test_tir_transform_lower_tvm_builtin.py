@@ -217,7 +217,7 @@ class TestLowerDeviceAllocate(tvm.testing.CompareBeforeAfter):
 
     def before():
         T.func_attr({"target": T.target("llvm")})
-        T.attr("dummy", "device_type", 2)  # kDLCuda
+        T.attr("dummy", "device_type", tvm.runtime.Device.kDLCUDA)
         T.attr("dummy", "device_id", 0)
         ptr = T.allocate([16], "float32")
         buf = T.decl_buffer(16, "float32", data=ptr)
@@ -246,7 +246,7 @@ class TestLowerCPUAllocation(tvm.testing.CompareBeforeAfter):
 
     def before():
         T.func_attr({"target": T.target("llvm")})
-        T.attr("dummy", "device_type", 1)  # kDLCPU
+        T.attr("dummy", "device_type", tvm.runtime.Device.kDLCPU)
         T.attr("dummy", "device_id", 0)
         ptr = T.allocate([16], "float32")
         buf = T.decl_buffer(16, "float32", data=ptr)
@@ -266,7 +266,7 @@ class TestLowerAllocateRequiresDeviceID(tvm.testing.CompareBeforeAfter):
 
     def before():
         T.func_attr({"target": T.target("llvm")})
-        T.attr("dummy", "device_type", 2)  # kDLCuda
+        T.attr("dummy", "device_type", tvm.runtime.Device.kDLCUDA)
         ptr = T.allocate([16], "float32")
         buf = T.decl_buffer(16, "float32", data=ptr)
         buf[0] = 0.0
