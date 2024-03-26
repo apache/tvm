@@ -656,6 +656,7 @@ def test_well_formed_function_referencing_global_var():
     assert rx.analysis.well_formed(Module["main"])
     assert rx.analysis.well_formed(Module["subroutine"])
 
+
 def test_pass_dltensor_arg_to_tir():
     """Relax may pass R.Tensor as DLTensor
 
