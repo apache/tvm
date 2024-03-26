@@ -5191,7 +5191,7 @@ def _verify_infiniteness_ops(tf_op, name):
     for tf_dtype in tf_dtypes:
         shape = (8, 8)
         data = np.random.uniform(size=shape).astype(tf_dtype)
-        data.ravel()[np.random.choice(data.size, int(data.size * 0.5), replace=False)] = np.infty
+        data.ravel()[np.random.choice(data.size, int(data.size * 0.5), replace=False)] = np.inf
         data.ravel()[np.random.choice(data.size, int(data.size * 0.5), replace=False)] = np.nan
 
         tf.reset_default_graph()

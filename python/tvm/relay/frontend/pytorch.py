@@ -1864,7 +1864,7 @@ class PyTorchOpConverter:
         order = inputs[1]
         if order == np.inf:
             return _op.reduce.max(_op.abs(data), axis=axis, keepdims=keepdims)
-        elif order == np.NINF:
+        elif order == -np.inf:
             return _op.reduce.min(_op.abs(data), axis=axis, keepdims=keepdims)
         else:
             reci_order = _expr.const(1.0 / order, dtype=dtype)
@@ -3910,7 +3910,7 @@ class PyTorchOpConverter:
             )
         elif ord == np.inf:
             return _op.reduce.max(_op.abs(data), axis=dim, keepdims=keepdim)
-        elif ord == np.NINF:
+        elif ord == -np.inf:
             return _op.reduce.min(_op.abs(data), axis=dim, keepdims=keepdim)
         reci_ord = _expr.const(1.0 / ord, dtype=dtype)
         ord = _expr.const(ord, dtype=dtype)
