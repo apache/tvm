@@ -1829,12 +1829,10 @@ def convert_dequantize_linear(g, op, block):
     paddle_dequantize_scale = g.get_params(op.input("Scale")[0]).asnumpy()
     tvm_dequantize_scale = paddle_dequantize_scale / 127.0
     tvm_dequantize_scale = tvm_dequantize_scale.squeeze()
-    print("tvm_dequantize_scale is ", tvm_dequantize_scale)
 
 
     tvm_dequantize_zp = g.get_params(op.input("ZeroPoint")[0]).asnumpy()
     tvm_dequantize_zp = tvm_dequantize_zp.squeeze()
-    print("tvm_dequantize_zp is ", tvm_dequantize_zp)
 
     tvm_quantize_axis = op.attr("quant_axis")
     if tvm_quantize_axis == -1:
