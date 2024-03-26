@@ -104,7 +104,6 @@ def pattern_table():
             and dequantize_call.args[0].checked_type.dtype == "int16"
         ):
             return True
-        print("check_qnn_softmax failed")
         return False
 
     def qnn_conv2d_pattern(with_pad):
