@@ -27,6 +27,7 @@
 #include <tvm/node/structural_equal.h>
 #include <tvm/runtime/registry.h>
 
+#include <optional>
 #include <unordered_map>
 
 #include "ndarray_hash_equal.h"
@@ -249,15 +250,30 @@ class SEqualHandlerDefault::Impl {
     // in which case we can use same_as for quick checking,
     // or we have to run deep comparison and avoid to use same_as checks.
     auto run = [=]() {
-      if (!lhs.defined() && !rhs.defined()) return true;
-      if (!lhs.defined() && rhs.defined()) return false;
-      if (!rhs.defined() && lhs.defined()) return false;
-      if (lhs->type_index() != rhs->type_index()) return false;
-      auto it = equal_map_lhs_.find(lhs);
-      if (it != equal_map_lhs_.end()) {
-        return it->second.same_as(rhs);
+      std::optional<bool> early_result = [&]() -> std::optional<bool> {
+        if (!lhs.defined() && !rhs.defined()) return true;
+        if (!lhs.defined() && rhs.defined()) return false;
+        if (!rhs.defined() && lhs.defined()) return false;
+        if (lhs->type_index() != rhs->type_index()) return false;
+        auto it = equal_map_lhs_.find(lhs);
+        if (it != equal_map_lhs_.end()) {
+          return it->second.same_as(rhs);
+        }
+        if (equal_map_rhs_.count(rhs)) return false;
+
+        return std::nullopt;
+      }();
+
+      if (early_result.has_value()) {
+        if (early_result.value()) {
+          return true;
+        } else if (IsPathTracingEnabled() && IsFailDeferralEnabled() && current_paths.defined()) {
+          DeferFail(current_paths.value());
+          return true;
+        } else {
+          return false;
+        }
       }
-      if (equal_map_rhs_.count(rhs)) return false;
 
       // need to push to pending tasks in this case
       pending_tasks_.emplace_back(lhs, rhs, map_free_vars, current_paths);
@@ -388,10 +404,7 @@ class SEqualHandlerDefault::Impl {
       auto& entry = task_stack_.back();
 
       if (entry.force_fail) {
-        if (IsPathTracingEnabled() && !first_mismatch_->defined()) {
-          *first_mismatch_ = entry.current_paths;
-        }
-        return false;
+        return CheckResult(false, entry.lhs, entry.rhs, entry.current_paths);
       }
 
       if (entry.children_expanded) {
@@ -530,8 +543,14 @@ bool SEqualHandlerDefault::DispatchSEqualReduce(const ObjectRef& lhs, const Obje
 TVM_REGISTER_GLOBAL("node.StructuralEqual")
     .set_body_typed([](const ObjectRef& lhs, const ObjectRef& rhs, bool assert_mode,
                        bool map_free_vars) {
+      // If we are asserting on failure, then the `defer_fails` option
+      // should be enabled, to provide better error messages.  For
+      // example, if the number of bindings in a `relax::BindingBlock`
+      // differs, highlighting the first difference rather than the
+      // entire block.
+      bool defer_fails = assert_mode;
       Optional<ObjectPathPair> first_mismatch;
-      return SEqualHandlerDefault(assert_mode, &first_mismatch, false)
+      return SEqualHandlerDefault(assert_mode, &first_mismatch, defer_fails)
           .Equal(lhs, rhs, map_free_vars);
     });
 
