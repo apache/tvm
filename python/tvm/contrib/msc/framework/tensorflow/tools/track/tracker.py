@@ -39,6 +39,7 @@ class TensorflowTrackerFactory(object):
             The tracker class.
         """
 
+        @msc_utils.register_tool
         class Tracker(base_cls):
             """Adaptive tracker for tensorflow"""
 
@@ -50,6 +51,6 @@ class TensorflowTrackerFactory(object):
 
 
 factory = TensorflowTrackerFactory()
-tools = msc_utils.get_registered_tool_cls(MSCFramework.MSC, ToolType.TRACKER, tool_style="all")
+tools = msc_utils.get_registered_tool(MSCFramework.MSC, ToolType.TRACKER, tool_style="all")
 for tool in tools.values():
-    msc_utils.register_tool_cls(factory.create(tool))
+    factory.create(tool)

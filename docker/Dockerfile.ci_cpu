@@ -149,3 +149,8 @@ RUN bash /install/ubuntu_install_libxsmm.sh
 # ONNX and PyTorch
 COPY install/ubuntu_install_onnx.sh /install/ubuntu_install_onnx.sh
 RUN bash /install/ubuntu_install_onnx.sh
+
+# AArch64 Architecture Envelope Model (AEM)
+COPY install/ubuntu_install_aprofile_aem.sh /install
+RUN bash /install/ubuntu_install_aprofile_aem.sh
+ENV PATH $PATH:/opt/arm/fvp/Base_RevC_AEMvA_pkg/models/Linux64_GCC-9.3/:/opt/arm/gcc-aarch64-none-elf/bin

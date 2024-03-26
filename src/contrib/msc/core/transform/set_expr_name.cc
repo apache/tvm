@@ -84,8 +84,9 @@ class FuncNameGetter : public ExprVisitor {
  */
 class RelaxExprNameSetter : public ExprVisitor {
  public:
-  explicit RelaxExprNameSetter(const IRModule& ref_module, const String& target)
-      : ref_module_(ref_module), target_{target} {}
+  explicit RelaxExprNameSetter(const IRModule& ref_module, const String& target,
+                               const Map<String, String>& var_names)
+      : ref_module_(ref_module), target_{target}, var_names_{var_names} {}
 
   void VisitBindingBlock(const BindingBlock& block) final {
     String block_name = SpanUtils::GetAttr(block->span, msc_attr::kName);
@@ -170,7 +171,9 @@ class RelaxExprNameSetter : public ExprVisitor {
     ExprVisitor::VisitBinding_(binding, val);
     String name_hint, optype;
     bool use_unique = true;
-    if (const auto* op_node = val->op.as<OpNode>()) {
+    if (var_names_.count(binding->var->name_hint())) {
+      name_hint = var_names_[binding->var->name_hint()];
+    } else if (const auto* op_node = val->op.as<OpNode>()) {
       const std::string& op_name = op_node->name;
       if (op_name == "relax.call_dps_packed" && val->args[0]->IsInstance<ExternFuncNode>()) {
         const auto& func = Downcast<ExternFunc>(val->args[0]);
@@ -306,18 +309,21 @@ class RelaxExprNameSetter : public ExprVisitor {
   Map<Expr, Function> local_funcs_;
   IRModule ref_module_;
   String target_;
+  Map<String, String> var_names_;
 };  // class ExprNameSetter
 
-void SetRelaxExprName(const IRModule& ref_module, const Expr& e, const String& target) {
-  RelaxExprNameSetter(ref_module, target).VisitExpr(e);
+void SetRelaxExprName(const IRModule& ref_module, const Expr& e, const String& target,
+                      const Map<String, String>& var_names) {
+  RelaxExprNameSetter(ref_module, target, var_names).VisitExpr(e);
 }
 
 namespace transform {
 
-Pass SetRelaxExprName(const String& entry_name, const String& target) {
+Pass SetRelaxExprName(const String& entry_name, const String& target,
+                      const Map<String, String>& var_names) {
   runtime::TypedPackedFunc<IRModule(IRModule, PassContext)> pass_func = [=](IRModule m,
                                                                             PassContext pc) {
-    relax::SetRelaxExprName(m, m->Lookup(entry_name), target);
+    relax::SetRelaxExprName(m, m->Lookup(entry_name), target, var_names);
     return m;
   };
   return CreateModulePass(pass_func, 0, "SetRelaxExprName", {});

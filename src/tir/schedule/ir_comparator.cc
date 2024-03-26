@@ -83,6 +83,30 @@ bool TensorizeComparator::VisitExpr(const PrimExpr& n, const PrimExpr& other) {
   return equal;
 }
 
+bool TensorizeComparator::VisitExpr_(const CallNode* op, const PrimExpr& other) {
+  const auto* rhs = other.as<CallNode>();
+  if (!rhs->op.same_as(op->op)) return false;
+  if (op->dtype.code() != rhs->dtype.code()) {
+    if (assert_mode_) {
+      std::ostringstream os;
+      os << "CallNode data type codes do not match: op->dtype.code()=" << op->dtype.code()
+         << " vs rhs->dtype.code()=" << rhs->dtype.code();
+      EmitError(os.str());
+    }
+    return false;
+  }
+  if (!CompareArray(op->args, rhs->args, &TensorizeComparator::VisitExpr)) {
+    if (assert_mode_) {
+      std::ostringstream os;
+      os << "CallNode iter_values do not match: op->iter_values=" << op->args
+         << " vs rhs->iter_values=" << rhs->args;
+      EmitError(os.str());
+    }
+    return false;
+  }
+  return true;
+}
+
 bool TensorizeComparator::VisitStmt_(const ForNode* op, const Stmt& other) {
   const auto* rhs = other.as<ForNode>();
   if (!DefEqual(op->loop_var, rhs->loop_var)) {

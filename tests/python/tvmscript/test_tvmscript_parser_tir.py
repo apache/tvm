@@ -272,7 +272,7 @@ def test_tir_starred_for_loop():
     @T.prim_func(private=True)
     def starred(a: T.handle, b: T.handle):
         A = T.match_buffer(a, [*dims, 128], "int32")
-        B = T.match_buffer(a, dims, "int32")
+        B = T.match_buffer(b, dims, "int32")
         for *spatial, reduction in T.grid(*A.shape):
             with T.block("reduce"):
                 with T.init():
@@ -282,7 +282,7 @@ def test_tir_starred_for_loop():
     @T.prim_func(private=True)
     def non_starred(a: T.handle, b: T.handle):
         A = T.match_buffer(a, [128, 128, 128], "int32")
-        B = T.match_buffer(a, [128, 128], "int32")
+        B = T.match_buffer(b, [128, 128], "int32")
         for i, j, k in T.grid(128, 128, 128):
             with T.block("reduce"):
                 with T.init():

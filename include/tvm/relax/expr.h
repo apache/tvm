@@ -169,13 +169,11 @@ class CallNode : public ExprNode {
 
   bool SEqualReduce(const CallNode* other, SEqualReducer equal) const {
     // skip sinfo_args check for primitive ops.
-    equal->MarkGraphNode();
     return equal(op, other->op) && equal(args, other->args) && equal(attrs, other->attrs) &&
            equal(sinfo_args, other->sinfo_args) && equal(struct_info_, other->struct_info_);
   }
 
   void SHashReduce(SHashReducer hash_reduce) const {
-    hash_reduce->MarkGraphNode();
     hash_reduce(op);
     hash_reduce(args);
     hash_reduce(attrs);
@@ -985,15 +983,14 @@ class FunctionNode : public BaseFuncNode {
 class Function : public BaseFunc {
  public:
   TVM_DLL explicit Function(Array<Var> params, Expr body, Optional<StructInfo> ret_struct_info,
-                            bool is_pure = true, DictAttrs attrs = NullValue<DictAttrs>(),
-                            Span span = Span());
+                            bool is_pure = true, DictAttrs attrs = DictAttrs(), Span span = Span());
 
   /*!
    * \brief Mimics the constructor but without body Expr.
    * \note ret_struct_info is required, since it can not deduced by the body.
    */
   TVM_DLL static Function CreateEmpty(Array<Var> params, StructInfo ret_struct_info,
-                                      bool is_pure = true, DictAttrs attrs = NullValue<DictAttrs>(),
+                                      bool is_pure = true, DictAttrs attrs = DictAttrs(),
                                       Span span = Span());
 
   TVM_DEFINE_OBJECT_REF_METHODS(Function, BaseFunc, FunctionNode);

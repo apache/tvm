@@ -547,7 +547,14 @@ class Normalizer : public BlockBuilderImpl, private ExprFunctor<Expr(const Expr&
     return GetRef<Var>(var);
   }
 
-  Expr VisitExpr_(const VarNode* var) final { return VisitVar_<Var>(var); }
+  Expr VisitExpr_(const VarNode* var_ptr) final {
+    auto var = VisitVar_<Var>(var_ptr);
+    if (HasVoidStructInfo(var)) {
+      return VisitExpr(Tuple(Array<Expr>{}));
+    } else {
+      return var;
+    }
+  }
 
   Expr VisitExpr_(const DataflowVarNode* var) final { return VisitVar_<DataflowVar>(var); }
 

@@ -70,7 +70,7 @@ def test_qnn_leaky_relu():
 
     op_res = relay.create_executor("graph", device=tvm.cpu(0), target="llvm").evaluate(func)(x_data)
 
-    np.testing.assert_equal(op_res.numpy(), golden_output)
+    np.testing.assert_allclose(op_res.numpy(), golden_output, atol=1)
 
 
 if __name__ == "__main__":

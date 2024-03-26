@@ -162,6 +162,22 @@ TEST(ScalableDataType, TestScalableDataTypeInvalidLanesAccess) {
       tvm::InternalError);
 }
 
+TEST(ScalableDataType, TestScalableBool) {
+  tvm::DataType scalable_type = tvm::DataType::Bool(4, true);
+  ASSERT_EQ(scalable_type.code(), kDLUInt);
+  ASSERT_EQ(scalable_type.bits(), 1);
+  ASSERT_EQ(scalable_type.vscale_factor(), 4);
+  ASSERT_TRUE(scalable_type.is_scalable_vector());
+}
+
+TEST(ScalableDataType, TestScalableUInt) {
+  tvm::DataType scalable_type = tvm::DataType::UInt(1, 4, true);
+  ASSERT_EQ(scalable_type.code(), kDLUInt);
+  ASSERT_EQ(scalable_type.bits(), 1);
+  ASSERT_EQ(scalable_type.vscale_factor(), 4);
+  ASSERT_TRUE(scalable_type.is_scalable_vector());
+}
+
 // -----------
 // Integration
 // -----------

@@ -20,6 +20,7 @@ import numpy as np
 from tvm import te
 from tvm.contrib.ethosu.cascader import TESubgraph, EthosuPart, Propagator, register_matcher
 
+from .common import get_lut_expr
 from .dma import read_compute, write_compute
 
 
@@ -72,7 +73,7 @@ def identity_compute(
     has_lut = activation in ("TANH", "LUT", "SIGMOID")
 
     # This is a trick to insert the LUT tensor into the TE graph if LUT is present
-    lut_expr = (lut[0] + lut[255]).astype(ifm.dtype) if has_lut else 0
+    lut_expr = get_lut_expr(lut, ifm.dtype) if has_lut else 0
 
     # Add the LUT tensor to the attributes to be able to later tell which tensor is the LUT
     if has_lut:

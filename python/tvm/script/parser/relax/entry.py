@@ -47,11 +47,12 @@ FType = TypeVar("FType", bound=_Callable)
 
 ############################## R.function ##############################
 
+
 # this formulation allows us to support having @R.function
 # appear as a decorator by itself or to have optional arguments
 # like @R.function(pure=False)
 def function(
-    f: Optional[FType] = None, pure: bool = True, private: bool = False
+    f: Optional[FType] = None, pure: bool = True, private: bool = False, check_well_formed=True
 ) -> Union[Function, FType]:
     # pylint: disable=unused-argument
     # (pure and private aren't used here, but are used later in parsing)
@@ -65,7 +66,7 @@ def function(
             raise TypeError(f"Expect a function, but got: {f}")
         if utils.is_defined_in_class(orig_stack, f):
             return f
-        return parse(f, utils.inspect_function_capture(f))
+        return parse(f, utils.inspect_function_capture(f), check_well_formed=check_well_formed)
 
     if f is not None:
         # if there are no optional args given, this will directly invoke the wrapper
@@ -488,8 +489,31 @@ class MatchCastPair:
 
 
 def match_cast(value: Expr, struct_info: StructInfo):
+    struct_info = _normalize_struct_info(struct_info)
+
     if value is None:
         raise ValueError("value of match_cast cannot be None")
     if struct_info is None:
         raise ValueError("struct_info of match_cast cannot be None")
     return MatchCastPair(value, struct_info)
+
+
+def _normalize_struct_info_proxy(annotation) -> StructInfoProxy:
+    if annotation is None:
+        return TupleProxy([])
+    elif callable(annotation):
+        return annotation()
+    elif isinstance(annotation, StructInfoProxy):
+        return annotation
+    else:
+        raise TypeError(f"Expected StructInfoProxy but got {type(annotation)}.")
+
+
+def _normalize_struct_info(
+    struct_info, dict_globals: Optional[Dict[str, Any]] = None
+) -> StructInfo:
+    if isinstance(struct_info, StructInfo):
+        return struct_info
+    else:
+        proxy = _normalize_struct_info_proxy(struct_info)
+        return proxy.as_struct_info(dict_globals)

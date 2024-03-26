@@ -1561,7 +1561,7 @@ class TorchFXImporter:
                         ), f"Unsupported module type {type(module)}"
                         self.env[node] = self.convert_map[type(module)](node)
                     elif node.op == "call_function":
-                        func_name = node.name.rstrip("0123456789_")
+                        func_name = node.target.__name__
                         assert (
                             func_name in self.convert_map
                         ), f"Unsupported function type {func_name}"

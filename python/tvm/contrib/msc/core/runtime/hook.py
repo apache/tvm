@@ -128,6 +128,7 @@ class CustomizedHook(RunnerHook):
         return "customized"
 
 
+@msc_utils.register_runner_hook
 class UpdateWeightsHook(RunnerHook):
     """Hook for update weights"""
 
@@ -191,6 +192,3 @@ def load_runner_hook(config: dict) -> Any:
     if hook_cls:
         return hook_cls(hook_config)
     return CustomizedHook(hook_ref, hook_config)
-
-
-msc_utils.register_runner_hook(UpdateWeightsHook)

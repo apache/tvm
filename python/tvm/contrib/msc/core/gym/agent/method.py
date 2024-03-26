@@ -18,9 +18,11 @@
 """tvm.contrib.msc.core.gym.agent.method"""
 
 from typing import Any
+from tvm.contrib.msc.core.gym.namespace import GYMObject
 from tvm.contrib.msc.core import utils as msc_utils
 
 
+@msc_utils.register_gym_method
 class AgentMethod(object):
     """Default prune method"""
 
@@ -73,8 +75,9 @@ class AgentMethod(object):
         return reward["reward"]
 
     @classmethod
+    def role(cls):
+        return GYMObject.AGENT
+
+    @classmethod
     def method_type(cls):
-        return "agent.default"
-
-
-msc_utils.register_gym_method(AgentMethod)
+        return "default"

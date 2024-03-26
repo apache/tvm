@@ -24,6 +24,7 @@ from typing import List, Union, Dict, Any
 import numpy as np
 
 from .arguments import load_dict
+from .info import cast_array
 
 
 class BaseDataLoader(object):
@@ -344,6 +345,7 @@ class BaseDataSaver(object):
            The folder that data saved to.
         """
 
+        data = cast_array(data)
         save_name = name.replace("/", "_").replace(":", "_")
         sub_folder = f_path = os.path.join(self._folder, save_name)
         if not os.path.isdir(sub_folder):
@@ -428,6 +430,8 @@ class IODataSaver(BaseDataSaver):
         """Finalize the saver"""
 
         super().finalize()
+        if "inputs" not in self._info:
+            return
         with open(os.path.join(self._folder, "datas_info.txt"), "w") as f:
             for name in self._input_names:
                 info = self._info["inputs"][name]

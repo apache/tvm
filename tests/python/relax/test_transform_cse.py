@@ -435,7 +435,7 @@ def test_call_tir_tuple_arg():
 def test_do_not_eliminate_dtype():
     @I.ir_module
     class Before:
-        @R.function
+        @R.function(pure=False)
         def foo() -> R.Tensor((32, 64), "int32"):
             obj: R.Object = R.vm.alloc_storage(
                 R.shape([24576]), runtime_device_index=0, dtype="uint8"

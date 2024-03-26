@@ -122,36 +122,22 @@ class AttentionKVCacheObj : public KVStateObj {
    */
   virtual int32_t GetNumAvailablePages() const = 0;
 
-  /************** Attention **************/
+  /*! \brief Get the current total sequence length in the KV cache. */
+  virtual int32_t GetTotalSequenceLength() const = 0;
+
+  /************** Sequence Management **************/
 
   /*!
-   * \brief Compute attention with the given Q/K/V data at the specified
-   * layer with regard to the previously reserved append lengths.
-   * Q/K/V data are in layout `(total_length, num_heads, head_dim)`,
-   * where `total_length` is the sum of reserved append lengths.
-   * The returned attention result has the same layout as well.
-   * For example, say the KV cache contains 5 sequences. Before
-   * the current model forward, BeginForward is invoked for seq_ids
-   * `[3, 2]` and append_lengths [10, 20]. Then the leading dim of Q/K/V
-   * is 30, where [0, 10) corresponds to seq 3, and [10, 30)
-   * corresponds to seq 2.
-   * This method typically performs the following operations:
-   * - apply positional embeddings to Q/K data,
-   * - append K/V data to cache,
-   * - compute attention with the given Q and all history K/V
-   * for the corresponding sequences.
-   * The function writes attention output to `o_data`, conforming to
-   * the destination-passing style.
-   * \param layer_id The model layer where the attention compute happens.
-   * \param q_data The input Q data, in layout `(total_length, num_qo_heads, head_dim)`.
-   * \param k_data The input K data, in layout `(total_length, num_kv_heads, head_dim)`.
-   * \param v_data The input V data, in layout `(total_length, num_kv_heads, head_dim)`.
-   * \param mask The input mask data, in layout `(total_sqr_length)`.
-   * \param o_data The output O data, in layout `(total_length, num_qo_heads, head_dim)`.
+   * \brief Enable sliding window attention for the given sequence.
+   * Error will be thrown when the KV cache does not support sliding window.
+   * \param seq_id The id of the sequence to enable sliding window for.
+   * \param sliding_window_size The sliding window size for the sequence.
+   * \param attn_sink_size The attention sink set for the sequence.
    */
-  virtual void Attention(int64_t layer_id, NDArray q_data, NDArray k_data, NDArray v_data,
-                         Optional<NDArray> mask, NDArray o_data,
-                         double attn_score_scaling_factor) = 0;
+  virtual void EnableSlidingWindowForSeq(int64_t seq_id, int32_t sliding_window_size,
+                                         int32_t attn_sink_size) = 0;
+
+  /************** Attention **************/
 
   /*!
    * \brief Compute attention with Q/K/V data which are concatenated along
@@ -173,7 +159,7 @@ class AttentionKVCacheObj : public KVStateObj {
    * This function is supposed to be invoked after calling BeginForward.
    * \return The in-sequence query positions, in shape `(total_length,)`.
    */
-  virtual NDArray GetQueryPositions() const = 0;
+  virtual NDArray GetQueryPositions() = 0;
 
   /************** Debug Helpers **************/
 

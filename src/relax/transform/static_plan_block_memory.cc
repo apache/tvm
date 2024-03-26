@@ -102,6 +102,8 @@ class StorageTokenNode : public Object {
   PrimExpr bytes;
   /*! \brief The dtype of this token. */
   DataType dtype;
+  /*! \brief The memory scope of the token. */
+  std::string storage_scope;
   /*! \brief The storage id, reserved for debug and demo use. */
   int storage_id{-1};
 
@@ -126,7 +128,7 @@ class StorageTokenNode : public Object {
  */
 class StorageToken : public ObjectRef {
  public:
-  explicit StorageToken(Array<PrimExpr> shape, DataType dtype) {
+  explicit StorageToken(Array<PrimExpr> shape, DataType dtype, std::string storage_scope) {
     // Compute the tensor size from the shape.
     int64_t const_coeff = dtype.bytes() * dtype.lanes();
     PrimExpr size = tir::make_const(DataType::Int(64), 1);
@@ -142,6 +144,7 @@ class StorageToken : public ObjectRef {
     ObjectPtr<StorageTokenNode> n = make_object<StorageTokenNode>();
     n->bytes = size;
     n->dtype = dtype;
+    n->storage_scope = std::move(storage_scope);
     data_ = std::move(n);
   }
   TVM_DEFINE_MUTABLE_NOTNULLABLE_OBJECT_REF_METHODS(StorageToken, ObjectRef, StorageTokenNode);
@@ -176,7 +179,8 @@ class TokenAllocator1D {
     }
 
     // Step 1. Get the available pool of the token dtype.
-    std::multimap<int64_t, StorageToken>& pool = available_pool_[prototype->dtype];
+    std::multimap<int64_t, StorageToken>& pool =
+        available_pool_[{prototype->storage_scope, prototype->dtype}];
 
     int64_t size = prototype->const_bytes();
     if (size == -1) {
@@ -250,7 +254,7 @@ class TokenAllocator1D {
     ICHECK_GE(token->storage_id, 0)
         << "The token to be released is expected to be allocated before";
     ICHECK_EQ(token->ref_counter, 0) << "The token to be released is expected to have 0 reference.";
-    available_pool_[token->dtype].insert({token->const_bytes(), token});
+    available_pool_[{token->storage_scope, token->dtype}].insert({token->const_bytes(), token});
   }
 
   /*! \brief Clear the allocator. */
@@ -260,12 +264,24 @@ class TokenAllocator1D {
   }
 
  private:
+  /*! \brief The hash class to enable std::pair as map key class. */
+  struct PairHash {
+    template <class T1, class T2>
+    std::size_t operator()(const std::pair<T1, T2>& p) const {
+      auto h1 = std::hash<T1>{}(p.first);
+      auto h2 = std::hash<T2>{}(p.second);
+      return h1 ^ h2;
+    }
+  };
+
   /*! \brief The arithmetic analyzer. */
   arith::Analyzer* analyzer_;
   /*! \brief A constant scale representing the token search range. */
   const int match_range_{16};
-  /*! \brief The pool of available storage tokens for each dtype. */
-  std::unordered_map<DataType, std::multimap<int64_t, StorageToken>> available_pool_;
+  /*! \brief The pool of available storage tokens for each storage scope and dtype. */
+  std::unordered_map<std::pair<std::string, DataType>, std::multimap<int64_t, StorageToken>,
+                     PairHash>
+      available_pool_;
   /*! \brief All the storage tokens that have been allocated with actual storage. */
   std::vector<StorageToken> full_pool_;
 };
@@ -552,7 +568,8 @@ class StorageAllocatorInit : public StorageAllocatorBaseVisitor {
     Array<PrimExpr> upper_bounded_shape = GetUpperBoundShape(shape->values, analyzer_);
 
     // Create and set token.
-    StorageToken token(upper_bounded_shape, sinfo->dtype);
+    StringImm storage_scope = Downcast<StringImm>(call->args[3]);
+    StorageToken token(upper_bounded_shape, sinfo->dtype, storage_scope->value);
 
     Tokens tokens(token);
     SetTokens(call, tokens);
@@ -835,12 +852,11 @@ class StorageAllocationRewriter : public ExprMutator {
       if (it_token == token2storage_var_.end()) {
         ShapeExpr size({token->bytes});
         PrimValue virtual_device_index = runtime_device_index;
-        std::string storage_scope = "global";
         DataType dtype = token->dtype;
-        Call alloc_storage(
-            mem_alloc_storage,
-            {std::move(size), virtual_device_index, StringImm(storage_scope), DataTypeImm(dtype)},
-            Attrs());
+        Call alloc_storage(mem_alloc_storage,
+                           {std::move(size), virtual_device_index, StringImm(token->storage_scope),
+                            DataTypeImm(dtype)},
+                           Attrs());
         storage_var = builder_->Emit(alloc_storage, "storage");
         token2storage_var_[token.get()] = storage_var;
       } else {
@@ -875,7 +891,7 @@ class StorageAllocationRewriter : public ExprMutator {
         Call alloc_storage(mem_alloc_storage,
                            {/*size=*/ShapeExpr({bytes}),
                             /*virtual_device_index=*/Downcast<PrimValue>(call->args[2]),
-                            /*storage_scope=*/StringImm("global"),  //
+                            /*storage_scope=*/Downcast<StringImm>(call->args[3]),  //
                             /*dtype=*/DataTypeImm(sinfo->dtype)});
         Var storage = builder_->Emit(alloc_storage, "storage");
         return Call(mem_alloc_tensor, {storage,  //

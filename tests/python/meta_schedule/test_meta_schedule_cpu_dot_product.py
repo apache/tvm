@@ -43,7 +43,7 @@ def _schedule_dense(m: Optional[int], do_tune: bool, intrin=VNNI_INTRIN):
     """
 
     def schedule_fn(sch, dense_block: Optional[BlockRV] = None) -> bool:
-        if sch.mod.attrs is not None and "dense" not in sch.mod.attrs["task_name"]:
+        if "dense" not in sch.mod.attrs["task_name"]:
             return False
         if dense_block is None:
             assert has_block(sch, "compute")

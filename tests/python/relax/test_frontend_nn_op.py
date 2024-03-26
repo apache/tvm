@@ -338,6 +338,9 @@ def test_nn():
             silu_out = op.silu(x)
             gelu_out = op.gelu(x)
             sigmoid_out = op.sigmoid(x)
+            tanh_out = op.tanh(x)
+            exp_out = op.exp(x)
+            negative_out = op.negative(x)
             softmax_out = op.softmax(x, axis=2)
             rms_norm_out = op.rms_norm(x, weight, axes=[-2, -1])
             rms_norm_with_bias_out = op.rms_norm(x, weight, axes=[-2, -1])
@@ -357,6 +360,9 @@ def test_nn():
             silu: R.Tensor((2, 3, 4, 5), dtype="float32") = R.nn.silu(x)
             gelu: R.Tensor((2, 3, 4, 5), dtype="float32") = R.nn.gelu(x)
             sigmoid: R.Tensor((2, 3, 4, 5), dtype="float32") = R.sigmoid(x)
+            tanh: R.Tensor((2, 3, 4, 5), dtype="float32") = R.tanh(x)
+            exp: R.Tensor((2, 3, 4, 5), dtype="float32") = R.exp(x)
+            negative: R.Tensor((2, 3, 4, 5), dtype="float32") = R.negative(x)
             softmax: R.Tensor((2, 3, 4, 5), dtype="float32") = R.nn.softmax(x, axis=2)
             rms_norm: R.Tensor((2, 3, 4, 5), dtype="float32") = R.nn.rms_norm(
                 x, weight, axes=[-2, -1], epsilon=1.0000000000000001e-05
@@ -846,34 +852,36 @@ def test_empty():
 @tvm.testing.requires_gpu
 def test_multinomial_from_uniform():
 
-    prob_shape = (4, 5)
-    sample_shape = (4, 1)
+    prob_shape = (3, 5)
+    sample_shape = (6, 1)
 
     class Model(Module):
-        def foo(self, prob: Tensor, uniform_sample: Tensor):
-            z0 = op.multinomial_from_uniform(prob, uniform_sample)
+        def foo(self, prob: Tensor, uniform_sample: Tensor, sample_indices: Tensor):
+            z0 = op.multinomial_from_uniform(prob, uniform_sample, sample_indices)
             return z0
 
     # fmt: off
     @I.ir_module
     class Expected:
         @T.prim_func(private=True)
-        def get_sample_index(A: T.handle, B: T.handle, C: T.handle):
+        def get_sample_index(A: T.handle, B: T.handle, C: T.handle, D: T.handle):
             batch, vocab_size = T.int64(), T.int64()
             prob = T.match_buffer(A, (batch, vocab_size))
-            usample = T.match_buffer(B, (batch, 1))
-            output_index = T.match_buffer(C, (batch, 1), "int64")
+            out_batch = T.int64()
+            usample = T.match_buffer(B, (out_batch, 1))
+            sample_indices = T.match_buffer(C, (out_batch, 1), "int64")
+            output_index = T.match_buffer(D, (out_batch, 1), "int64")
             # with T.block("root"):
-            for ax0, ax1 in T.grid(batch, vocab_size):
+            for ax0, ax1 in T.grid(out_batch, vocab_size):
                 with T.block("T_get_sample_index"):
                     v_ax0, v_ax1 = T.axis.remap("SS", [ax0, ax1])
-                    T.reads(usample[v_ax0, T.int64(0)], prob[v_ax0, v_ax1 - T.int64(1):v_ax1 - T.int64(1) + T.int64(2)])
+                    T.reads(usample[v_ax0, T.int64(0)], prob[sample_indices[v_ax0, T.int64(0)], v_ax1 - T.int64(1):v_ax1 - T.int64(1) + T.int64(2)], sample_indices[v_ax0, T.int64(0)])
                     T.writes(output_index[v_ax0, 0])
-                    if usample[v_ax0, T.int64(0)] < prob[v_ax0, v_ax1] or v_ax1 + T.int64(1) == vocab_size:
+                    if usample[v_ax0, T.int64(0)] < prob[sample_indices[v_ax0, T.int64(0)], v_ax1] or v_ax1 + T.int64(1) == vocab_size:
                         if v_ax1 == T.int64(0):
                             output_index[v_ax0, 0] = T.int64(0)
                         else:
-                            if usample[v_ax0, T.int64(0)] >= prob[v_ax0, v_ax1 - T.int64(1)]:
+                            if usample[v_ax0, T.int64(0)] >= prob[sample_indices[v_ax0, T.int64(0)], v_ax1 - T.int64(1)]:
                                 output_index[v_ax0, 0] = v_ax1
 
         @R.function
@@ -886,13 +894,13 @@ def test_multinomial_from_uniform():
             return gv
 
         @R.function
-        def foo(prob: R.Tensor((4, 5), dtype="float32"), uniform_sample: R.Tensor((4, 1), dtype="float32"), _io: R.Object) -> R.Tuple(R.Tensor((4, 1), dtype="int64"), R.Tuple(R.Object)):
-            R.func_attr({"num_input": 3})
+        def foo(prob: R.Tensor((3, 5), dtype="float32"), uniform_sample: R.Tensor((6, 1), dtype="float32"), sample_indices: R.Tensor((6, 1), dtype="int64"), _io: R.Object) -> R.Tuple(R.Tensor((6, 1), dtype="int64"), R.Tuple(R.Object)):
+            R.func_attr({"num_input": 4})
             cls = Expected
             with R.dataflow():
-                cumsum: R.Tensor((4, 5), dtype="float32") = R.cumsum(prob, axis=1, dtype="void", exclusive=False)
-                lv1 = R.call_tir(cls.get_sample_index, (cumsum, uniform_sample), out_sinfo=R.Tensor((4, 1), dtype="int64"))
-                gv1: R.Tuple(R.Tensor((4, 1), dtype="int64"), R.Tuple(R.Object)) = lv1, (_io,)
+                cumsum: R.Tensor((3, 5), dtype="float32") = R.cumsum(prob, axis=1, dtype="void", exclusive=0)
+                lv1 = R.call_tir(cls.get_sample_index, (cumsum, uniform_sample, sample_indices), out_sinfo=R.Tensor((6, 1), dtype="int64"))
+                gv1: R.Tuple(R.Tensor((6, 1), dtype="int64"), R.Tuple(R.Object)) = lv1, (_io,)
                 R.output(gv1)
             return gv1
     # fmt: on
@@ -903,6 +911,7 @@ def test_multinomial_from_uniform():
             "foo": {
                 "prob": spec.Tensor(prob_shape, "float32"),
                 "uniform_sample": spec.Tensor(sample_shape, "float32"),
+                "sample_indices": spec.Tensor(sample_shape, "int64"),
             }
         },
         debug=True,
@@ -924,63 +933,60 @@ def test_multinomial_from_uniform():
     np_prob = np_rand / np_rand.sum(axis=1, keepdims=True)
     nd_prob = tvm.nd.array(np_prob, dev)
     # special sample to get deterministic results
-    nd_sample = tvm.nd.array(np.array([[1], [0], [0], [1]]).astype(np.float32), dev)
-    inputs = [nd_prob, nd_sample, effects]
+    nd_sample = tvm.nd.array(np.array([[1], [0], [1], [1], [0], [1]]).astype(np.float32), dev)
+    nd_sample_indices = tvm.nd.array(np.array([[0], [1], [1], [2], [2], [2]]).astype(np.int64), dev)
+    inputs = [nd_prob, nd_sample, nd_sample_indices, effects]
     res = vm["foo"](*inputs)
-    tvm.testing.assert_allclose(res[0].numpy(), np.array([[4], [0], [0], [4]]).astype(np.int64))
+    tvm.testing.assert_allclose(
+        res[0].numpy(), np.array([[4], [0], [4], [4], [0], [4]]).astype(np.int64)
+    )
 
 
 @tvm.testing.requires_gpu
 def test_sample_top_p_top_k_from_sorted_prob():
     prob_shape = (2, 3)
-    sample_shape = (2, 1)
+    sample_shape = (3, 1)
 
     class Model(Module):
         def foo(
-            self, prob: Tensor, index: Tensor, top_p: Tensor, top_k: Tensor, uniform_sample: Tensor
+            self,
+            prob: Tensor,
+            index: Tensor,
+            top_p: Tensor,
+            top_k: Tensor,
+            uniform_sample: Tensor,
+            sample_indices: Tensor,
         ):
-            z0 = op.sample_top_p_top_k_from_sorted_prob(prob, index, top_p, top_k, uniform_sample)
+            z0 = op.sample_top_p_top_k_from_sorted_prob(
+                prob, index, top_p, top_k, uniform_sample, sample_indices
+            )
             return z0
 
     # fmt: off
     @I.ir_module
     class Expected:
         @T.prim_func(private=True)
-        def get_index_from_sorted(A: T.handle, B: T.handle, C: T.handle, D: T.handle, E: T.handle):
+        def get_index_from_sorted(A: T.handle, B: T.handle, C: T.handle, D: T.handle, E: T.handle, F: T.handle):
             batch, vocab_size = T.int64(), T.int64()
             cumsum_sorted = T.match_buffer(A, (batch, vocab_size))
-            renorm_prob = T.match_buffer(B, (batch, 1))
-            usample = T.match_buffer(C, (batch, 1))
-            indices = T.match_buffer(D, (batch, vocab_size), "int64")
-            output_index = T.match_buffer(E, (batch, 1), "int64")
+            indices = T.match_buffer(B, (batch, vocab_size), "int64")
+            renorm_prob = T.match_buffer(C, (batch, 1))
+            out_batch = T.int64()
+            usample = T.match_buffer(D, (out_batch, 1))
+            sample_indices = T.match_buffer(E, (out_batch, 1), "int64")
+            output_index = T.match_buffer(F, (out_batch, 1), "int64")
             # with T.block("root"):
-            for ax0, ax1 in T.grid(batch, vocab_size):
+            for ax0, ax1 in T.grid(out_batch, vocab_size):
                 with T.block("T_get_index_from_sorted"):
                     v_ax0, v_ax1 = T.axis.remap("SS", [ax0, ax1])
-                    T.reads(
-                        usample[v_ax0, T.int64(0)],
-                        cumsum_sorted[v_ax0, v_ax1 - T.int64(1) : v_ax1 - T.int64(1) + T.int64(2)],
-                        renorm_prob[v_ax0, 0],
-                        indices[
-                            v_ax0,
-                            T.min(T.int64(0), v_ax1) : T.min(T.int64(0), v_ax1)
-                            + (T.max(T.int64(0), v_ax1) + T.int64(1) - T.min(T.int64(0), v_ax1)),
-                        ],
-                    )
+                    T.reads(usample[v_ax0, T.int64(0)], cumsum_sorted[sample_indices[v_ax0, T.int64(0)], v_ax1 - T.int64(1):v_ax1 - T.int64(1) + T.int64(2)], sample_indices[v_ax0, T.int64(0)], renorm_prob[sample_indices[v_ax0, T.int64(0)], 0], indices[sample_indices[v_ax0, T.int64(0)], T.min(T.int64(0), v_ax1):T.min(T.int64(0), v_ax1) + (T.max(T.int64(0), v_ax1) + T.int64(1) - T.min(T.int64(0), v_ax1))])
                     T.writes(output_index[v_ax0, 0])
-                    if (
-                        usample[v_ax0, T.int64(0)]
-                        < cumsum_sorted[v_ax0, v_ax1] / renorm_prob[v_ax0, 0]
-                        or v_ax1 + T.int64(1) == vocab_size
-                    ):
+                    if usample[v_ax0, T.int64(0)] < cumsum_sorted[sample_indices[v_ax0, T.int64(0)], v_ax1] / renorm_prob[sample_indices[v_ax0, T.int64(0)], 0] or v_ax1 + T.int64(1) == vocab_size:
                         if v_ax1 == T.int64(0):
-                            output_index[v_ax0, 0] = indices[v_ax0, 0]
+                            output_index[v_ax0, 0] = indices[sample_indices[v_ax0, T.int64(0)], 0]
                         else:
-                            if (
-                                usample[v_ax0, T.int64(0)]
-                                >= cumsum_sorted[v_ax0, v_ax1 - T.int64(1)] / renorm_prob[v_ax0, 0]
-                            ):
-                                output_index[v_ax0, 0] = indices[v_ax0, v_ax1]
+                            if usample[v_ax0, T.int64(0)] >= cumsum_sorted[sample_indices[v_ax0, T.int64(0)], v_ax1 - T.int64(1)] / renorm_prob[sample_indices[v_ax0, T.int64(0)], 0]:
+                                output_index[v_ax0, 0] = indices[sample_indices[v_ax0, T.int64(0)], v_ax1]
 
         @T.prim_func(private=True)
         def get_renorm_prob(A: T.handle, B: T.handle, C: T.handle, D: T.handle):
@@ -1015,21 +1021,14 @@ def test_sample_top_p_top_k_from_sorted_prob():
             return gv
 
         @R.function
-        def foo(
-            prob: R.Tensor((2, 3), dtype="float32"),
-            index: R.Tensor((2, 3), dtype="int64"),
-            top_p: R.Tensor((2, 1), dtype="float32"),
-            top_k: R.Tensor((2, 1), dtype="int64"),
-            uniform_sample: R.Tensor((2, 1), dtype="float32"),
-            _io: R.Object,
-        ) -> R.Tuple(R.Tensor((2, 1), dtype="int64"), R.Tuple(R.Object)):
-            R.func_attr({"num_input": 6})
+        def foo(prob: R.Tensor((2, 3), dtype="float32"), index: R.Tensor((2, 3), dtype="int64"), top_p: R.Tensor((2, 1), dtype="float32"), top_k: R.Tensor((2, 1), dtype="int64"), uniform_sample: R.Tensor((3, 1), dtype="float32"), sample_indices: R.Tensor((3, 1), dtype="int64"), _io: R.Object,) -> R.Tuple(R.Tensor((3, 1), dtype="int64"), R.Tuple(R.Object)):
+            R.func_attr({"num_input": 7})
             cls = Expected
             with R.dataflow():
                 cumsum: R.Tensor((2, 3), dtype="float32") = R.cumsum(prob, axis=1, dtype="void", exclusive=None)
                 lv1 = R.call_tir(cls.get_renorm_prob, (cumsum, top_p, top_k), out_sinfo=R.Tensor((2, 1), dtype="float32"))
-                lv2 = R.call_tir(cls.get_index_from_sorted, (cumsum, lv1, uniform_sample, index), out_sinfo=R.Tensor((2, 1), dtype="int64"))
-                gv1: R.Tuple(R.Tensor((2, 1), dtype="int64"), R.Tuple(R.Object)) = lv2, (_io,)
+                lv2 = R.call_tir(cls.get_index_from_sorted, (cumsum, index, lv1, uniform_sample, sample_indices), out_sinfo=R.Tensor((3, 1), dtype="int64"))
+                gv1: R.Tuple(R.Tensor((3, 1), dtype="int64"), R.Tuple(R.Object)) = lv2, (_io,)
                 R.output(gv1)
             return gv1
     # fmt: on
@@ -1040,9 +1039,10 @@ def test_sample_top_p_top_k_from_sorted_prob():
             "foo": {
                 "prob": spec.Tensor(prob_shape, "float32"),
                 "index": spec.Tensor(prob_shape, "int64"),
-                "top_p": spec.Tensor(sample_shape, "float32"),
-                "top_k": spec.Tensor(sample_shape, "int64"),
+                "top_p": spec.Tensor((prob_shape[0], 1), "float32"),
+                "top_k": spec.Tensor((prob_shape[0], 1), "int64"),
                 "uniform_sample": spec.Tensor(sample_shape, "float32"),
+                "sample_indices": spec.Tensor(sample_shape, "int64"),
             }
         },
         debug=True,
@@ -1063,12 +1063,13 @@ def test_sample_top_p_top_k_from_sorted_prob():
     indices = tvm.nd.array(np.array([[2, 1, 0], [2, 0, 1]]).astype(np.int64), dev)
     top_p = tvm.nd.array(np.array([[0.6], [0.9]]).astype(np.float32), dev)
     top_k = tvm.nd.array(np.array([[3], [2]]).astype(np.int64), dev)
-    usample = tvm.nd.array(np.array([[0.5], [0.6]]).astype(np.float32), dev)
+    usample = tvm.nd.array(np.array([[0.5], [0.6], [0.7]]).astype(np.float32), dev)
+    sample_indices = tvm.nd.array(np.array([[0], [1], [1]]).astype(np.int64), dev)
 
-    inputs = [sorted_prob, indices, top_p, top_k, usample, effects]
+    inputs = [sorted_prob, indices, top_p, top_k, usample, sample_indices, effects]
 
     res = vm["foo"](*inputs)
-    tvm.testing.assert_allclose(res[0].numpy(), np.array([[2], [0]]).astype(np.int64))
+    tvm.testing.assert_allclose(res[0].numpy(), np.array([[2], [0], [0]]).astype(np.int64))
 
 
 @tvm.testing.requires_gpu
@@ -1166,7 +1167,6 @@ def test_renormalize_top_p_top_k_prob():
 
     target = tvm.target.Target("cuda -libs=thrust", host="llvm")
     with target:
-        mod = relax.backend.DispatchSortScan()(mod)
         mod = relax.transform.LegalizeOps()(mod)
         mod = tir.transform.DefaultGPUSchedule()(mod)
 

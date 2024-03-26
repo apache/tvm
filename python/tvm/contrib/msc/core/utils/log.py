@@ -135,3 +135,11 @@ def get_global_logger() -> logging.Logger:
     if not MSCMap.get(MSCKey.GLOBALE_LOGGER):
         MSCMap.set(MSCKey.GLOBALE_LOGGER, IOLogger())
     return MSCMap.get(MSCKey.GLOBALE_LOGGER)
+
+
+def remove_loggers():
+    """Remove the logger handlers"""
+
+    logger = MSCMap.get(MSCKey.GLOBALE_LOGGER)
+    if logger:
+        logger.handlers.clear()

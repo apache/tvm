@@ -17,7 +17,7 @@
 """A rule for low-batch GEMM / decode-GEMM using GEMV schedule."""
 import re
 from functools import reduce
-from typing import List, Optional, Union, Set
+from typing import List, Optional, Set, Union
 
 from tvm import DataType, arith, ir, tir
 from tvm.target import Target
@@ -98,7 +98,14 @@ def is_gemv(sch: tir.Schedule, block_info: BlockInfo) -> Optional[List[tir.Buffe
         for iter_var in block_stmt.iter_vars
         if isinstance(iter_var.dom.extent, tir.IntImm)
     )
-    if len(const_iter_vars) == len(block_stmt.iter_vars):
+    if len(block_stmt.iter_vars) - len(const_iter_vars) != 1:
+        return None
+    symbolic_iter_var = list(
+        iter_var
+        for iter_var in block_stmt.iter_vars
+        if not isinstance(iter_var.dom.extent, tir.IntImm)
+    )[0]
+    if symbolic_iter_var.iter_type != tir.stmt.IterVar.DataPar:
         return None
     ret = [
         read.buffer
@@ -220,7 +227,8 @@ class LowBatchGEMV(GPUScheduleRule):
             return None
         sch = tir.Schedule(func)
         block_infos = normalize_prim_func(sch)
-
+        if block_infos is None:
+            return None
         reduction_block_infos = [
             block_info for block_info in block_infos if block_info.is_reduction()
         ]
@@ -287,7 +295,7 @@ class LowBatchGEMV(GPUScheduleRule):
             )
             return sch
         else:
-            raise NotImplementedError("Outer reduction is not supported yet")
+            return None
 
     def sch_inner_reduction(  # pylint: disable=too-many-arguments, invalid-name, unused-argument
         self,
@@ -420,12 +428,16 @@ class LowBatchGEMV(GPUScheduleRule):
             sch.reverse_compute_at(rf2, loop=bx, preserve_unit_loops=True)
             tr, vec_c, batch_loop, *ts_tile_s = sch.get_loops(block=rf2)[2:]
             ts_tile_s = sch.fuse(*ts_tile_s)
-            ts, tile_s = sch.split(ts_tile_s, factors=[TS, None], preserve_unit_iters=True)
+            ts_o, ts_i, tile_s = sch.split(
+                ts_tile_s, factors=[None, TS, TILE_S], preserve_unit_iters=True
+            )
             tile_s, vec_s = sch.split(
                 tile_s,
                 factors=[None, get_max_factor(TILE_S, [1, 2, 4, 8])],
                 preserve_unit_iters=True,
             )
+            assert sch.get(ts_o).extent.value == 1
+            ts = sch.fuse(ts_o, ts_i)
             sch.reorder(ts, tr, tile_s, batch_loop, vec_s, vec_c)
             sch.bind(ts, TAG_S)
             sch.bind(tr, TAG_R)
@@ -436,7 +448,11 @@ class LowBatchGEMV(GPUScheduleRule):
 
             tr, batch_loop, *ts_tile_s = sch.get_loops(block=gemv)[2:]
             ts_tile_s = sch.fuse(*ts_tile_s)
-            ts, tile_s = sch.split(ts_tile_s, factors=[TS, None], preserve_unit_iters=True)
+            ts_o, ts_i, tile_s = sch.split(
+                ts_tile_s, factors=[None, TS, TILE_S], preserve_unit_iters=True
+            )
+            assert sch.get(ts_o).extent.value == 1
+            ts = sch.fuse(ts_o, ts_i)
             sch.reorder(tile_s, batch_loop, ts, tr)
             sch.bind(ts, TAG_S)
             sch.bind(tr, TAG_R)
@@ -491,7 +507,11 @@ class LowBatchGEMV(GPUScheduleRule):
                     sch.reverse_compute_at(epilogue, bx, preserve_unit_loops=True)
                     ts_tile_s = sch.fuse(*sch.get_loops(epilogue)[3:])
                     ts_tile_s = sch.get_loops(epilogue)[-1]
-                    ts, tile_s = sch.split(ts_tile_s, factors=[TS, None], preserve_unit_iters=True)
+                    ts_o, ts_i, tile_s = sch.split(
+                        ts_tile_s, factors=[None, TS, TILE_S], preserve_unit_iters=True
+                    )
+                    assert sch.get(ts_o).extent.value == 1
+                    ts = sch.fuse(ts_o, ts_i)
                     sch.bind(ts, TAG_S)
                     sch.set_scope(block, 0, "local")
 

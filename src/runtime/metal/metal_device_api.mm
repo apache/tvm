@@ -222,7 +222,7 @@ void MetalWorkspace::CopyDataFromTo(const void* from, size_t from_offset, void* 
     if (dev_from.device_type == kDLCPU) dev = dev_to;
     Stream* s = this->CastStreamOrGetDefault(stream, dev.device_id);
     if (s->HasErrorHappened()) {
-      LOG(FATAL) << "Error! Some problems on GPU happaned! Cannot copy data to current stream";
+      LOG(FATAL) << "GPUError: " << s->ErrorDescription();
     }
     id<MTLCommandBuffer> cb = s->GetCommandBuffer();
     int from_dev_type = static_cast<int>(dev_from.device_type);
@@ -301,7 +301,7 @@ void MetalWorkspace::StreamSync(Device dev, TVMStreamHandle stream) {
     [cb commit];
     [cb waitUntilCompleted];
     if (s->HasErrorHappened()) {
-      LOG(FATAL) << "Error! Some problems on GPU happaned!";
+      LOG(FATAL) << "GPUError: " << s->ErrorDescription();
     }
   };
 }
@@ -310,6 +310,11 @@ void MetalWorkspace::SetStream(Device dev, TVMStreamHandle stream) {
   ICHECK_LT(dev.device_id, devices.size()) << "Invalid device id " << dev.device_id;
   ICHECK(stream != nullptr);
   MetalThreadEntry::ThreadLocal()->stream[dev.device_id] = stream;
+}
+
+TVMStreamHandle MetalWorkspace::GetCurrentStream(Device dev) {
+  ICHECK_LT(dev.device_id, devices.size()) << "Invalid device id " << dev.device_id;
+  return MetalThreadEntry::ThreadLocal()->stream[dev.device_id];
 }
 
 void* MetalWorkspace::AllocWorkspace(Device dev, size_t size, DLDataType type_hint) {

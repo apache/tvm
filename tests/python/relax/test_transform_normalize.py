@@ -552,5 +552,34 @@ def test_nesting_non_dataflow_in_dataflow_error():
     # should fail due to a normal binding block being inside a dataflowblock
 
 
+def test_remove_usage_of_void_type_variables():
+    """All empty tuples should be constructed in-line
+
+    For readability, TVMScript hides the variable binding if the
+    variable has a void type.  For example, `R.assert_op(condition)`
+    instead of `void_var: R.Tuple([]) = R.assert_op(condition)`.
+    However, Relax follows standard convention of functional
+    languages, and uses an empty tuple to represent void.  Since an
+    empty tuple may be legally used later in the function, the
+    `void_var` may require a binding.
+
+    This is avoided by normalizing all usage of a void-type
+    variable with an in-line `R.tuple()`.
+    """
+    x = relax.Var("x", R.Tuple([]))
+    bindings = [
+        relax.VarBinding(x, R.assert_op(R.const(True, "bool"))),
+    ]
+    seq = relax.SeqExpr([relax.BindingBlock(bindings)], x)
+    before = relax.Function([], seq, ret_struct_info=R.Tuple([]), is_pure=False)
+
+    after = relax.transform.Normalize()(tvm.IRModule({"main": before}))["main"]
+
+    @R.function(private=True, pure=False)
+    def expected():
+        x = R.assert_op(R.const(True, "bool"))
+        return R.tuple()
+
+
 if __name__ == "__main__":
     tvm.testing.main()

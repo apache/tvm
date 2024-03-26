@@ -72,6 +72,7 @@ from .transform import (
     StaticPlanBlockMemory,
     ToMixedPrecision,
     ToNonDataflow,
+    TopologicalSort,
     UpdateParamStructInfo,
     UpdateVDevice,
     VMBuiltinLower,
@@ -80,7 +81,9 @@ from .transform import (
     function_pass,
 )
 
+from .ipc_allreduce_rewrite import IPCAllReduceRewrite
 from .lazy_transform_params import LazyTransformParams
+from .lower_gpu_ipc_alloc_storage import LowerGPUIPCAllocStorage
 from .optimize_layout_transform import OptimizeLayoutTransform
 from .remove_redundant_reshape import RemoveRedundantReshape
 from .fast_math import FastMathTransform

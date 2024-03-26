@@ -14,8 +14,13 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-import numpy as np
+
 import os
+import platform
+
+import numpy as np
+import pytest
+
 from tvm import relay, runtime
 from tvm.relay import testing
 import tvm
@@ -23,6 +28,7 @@ from tvm.contrib import graph_executor
 from tvm.contrib.debugger import debug_executor
 from tvm.contrib.cuda_graph import cuda_graph_executor
 import tvm.testing
+import pytest
 
 
 def input_shape(mod):
@@ -48,10 +54,11 @@ def verify(data):
 
 
 @tvm.testing.requires_llvm
-def test_legacy_compatibility():
+@pytest.mark.parametrize("target", ["llvm", "llvm -jit=orcjit"])
+def test_legacy_compatibility(target):
     mod, params = relay.testing.synthetic.get_workload()
     with relay.build_config(opt_level=3):
-        graph, lib, graph_params = relay.build_module.build(mod, "llvm", params=params)
+        graph, lib, graph_params = relay.build_module.build(mod, target, params=params)
     data = np.random.uniform(-1, 1, size=input_shape(mod)).astype("float32")
     dev = tvm.cpu()
     module = graph_executor.create(graph, lib, dev)
@@ -63,10 +70,11 @@ def test_legacy_compatibility():
 
 
 @tvm.testing.requires_llvm
-def test_cpu():
+@pytest.mark.parametrize("target", ["llvm", "llvm -jit=orcjit"])
+def test_cpu(target):
     mod, params = relay.testing.synthetic.get_workload()
     with relay.build_config(opt_level=3):
-        complied_graph_lib = relay.build_module.build(mod, "llvm", params=params)
+        complied_graph_lib = relay.build_module.build(mod, target, params=params)
     data = np.random.uniform(-1, 1, size=input_shape(mod)).astype("float32")
     # raw api
     dev = tvm.cpu()
@@ -105,10 +113,11 @@ def test_cpu_get_graph_json():
 
 
 @tvm.testing.requires_llvm
-def test_cpu_get_graph_params_run():
+@pytest.mark.parametrize("target", ["llvm", "llvm -jit=orcjit"])
+def test_cpu_get_graph_params_run(target):
     mod, params = relay.testing.synthetic.get_workload()
     with tvm.transform.PassContext(opt_level=3):
-        complied_graph_lib = relay.build_module.build(mod, "llvm", params=params)
+        complied_graph_lib = relay.build_module.build(mod, target, params=params)
     data = np.random.uniform(-1, 1, size=input_shape(mod)).astype("float32")
     dev = tvm.cpu()
     from tvm.contrib import utils
@@ -160,9 +169,8 @@ def test_cpu_get_graph_params_compare():
     loaded_lib = tvm.runtime.load_module(path_lib)
     loaded_params = loaded_lib["get_graph_params"]()
 
-    tvm.testing.assert_allclose(
-        params["conv_weight"].numpy(), loaded_params["p0"].numpy()[0][0], atol=1e-5
-    )
+    p0_squeezed = np.squeeze(loaded_params["p0"].numpy())
+    tvm.testing.assert_allclose(params["conv_weight"].numpy(), p0_squeezed, atol=1e-5)
 
 
 @tvm.testing.requires_cuda
@@ -584,10 +592,11 @@ def test_remove_package_params():
 
 
 @tvm.testing.requires_llvm
-def test_debug_graph_executor():
+@pytest.mark.parametrize("target", ["llvm", "llvm -jit=orcjit"])
+def test_debug_graph_executor(target):
     mod, params = relay.testing.synthetic.get_workload()
     with relay.build_config(opt_level=3):
-        complied_graph_lib = relay.build_module.build(mod, "llvm", params=params)
+        complied_graph_lib = relay.build_module.build(mod, target, params=params)
     data = np.random.uniform(-1, 1, size=input_shape(mod)).astype("float32")
 
     # raw api

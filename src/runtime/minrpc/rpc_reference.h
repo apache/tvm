@@ -69,6 +69,7 @@ enum class RPCCode : int {
   kDevCreateStream,
   kDevFreeStream,
   kDevSetStream,
+  kDevGetCurrentStream,
 };
 
 /*!

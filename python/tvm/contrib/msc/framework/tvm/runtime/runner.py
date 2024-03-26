@@ -57,6 +57,18 @@ class WrapRunnable(object):
 class TVMRunner(ModelRunner):
     """Runner of Relax"""
 
+    def setup(self) -> dict:
+        """Setup the runner
+
+        Returns
+        -------
+        info: dict
+            The setup info.
+        """
+
+        self._executable = None
+        return super().setup()
+
     def _build_runnable(self, model: Any) -> Any:
         """Build runnable object
 
@@ -88,15 +100,15 @@ class TVMRunner(ModelRunner):
             if self._device.startswith("cpu"):
                 target = tvm.target.Target("llvm")
                 with tvm.transform.PassContext(opt_level=3):
-                    relax_exec = tvm.relax.build(model, target)
-                    runnable = tvm.relax.VirtualMachine(relax_exec, tvm.cpu())
+                    self._executable = tvm.relax.build(model, target)
+                    runnable = tvm.relax.VirtualMachine(self._executable, tvm.cpu())
             elif self._device.startswith("cuda"):
                 target = tvm.target.Target("cuda")
                 with target:
                     model = tvm.tir.transform.DefaultGPUSchedule()(model)
                 with tvm.transform.PassContext(opt_level=3):
-                    relax_exec = tvm.relax.build(model, target)
-                    runnable = tvm.relax.VirtualMachine(relax_exec, tvm.cuda())
+                    self._executable = tvm.relax.build(model, target)
+                    runnable = tvm.relax.VirtualMachine(self._executable, tvm.cuda())
             else:
                 raise NotImplementedError("Unsupported device " + str(self._device))
         return WrapRunnable(runnable)
@@ -121,16 +133,10 @@ class TVMRunner(ModelRunner):
             The outputs in list.
         """
 
-        model_inputs = self.get_inputs()
-        if device == "cpu":
-            tvm_inputs = [tvm.nd.array(inputs[i["name"]]) for i in model_inputs]
-        elif device.startswith("cuda"):
-            dev_id = int(device.split(":")[1]) if ":" in device else 0
-            tvm_inputs = [
-                tvm.nd.array(inputs[i["name"]], device=tvm.cuda(dev_id)) for i in model_inputs
-            ]
-        else:
-            raise NotImplementedError("Unsupported device " + str(device))
+        input_names = [i["name"] for i in self.get_inputs()]
+        tvm_inputs = [
+            msc_utils.cast_array(inputs[i], MSCFramework.TVM, device) for i in input_names
+        ]
         return runnable(*tvm_inputs)
 
     def _device_enabled(self, device: str) -> bool:
@@ -149,6 +155,24 @@ class TVMRunner(ModelRunner):
             return tvm.cuda(dev_id).exist
         return False
 
+    def export_runnable(self, folder: msc_utils.MSCDirectory) -> dict:
+        """Export the runnable
+
+        Parameters
+        -------
+        folder: MSCDirectory
+            The export folder.
+
+        Returns
+        -------
+        info: dict
+            The runnable info.
+        """
+
+        export_path = folder.relpath("model.so")
+        self._executable.export_library(export_path)
+        return {"model": export_path}
+
     @property
     def codegen_func(self):
         return to_relax
@@ -158,18 +182,24 @@ class TVMRunner(ModelRunner):
         return MSCFramework.TVM
 
     @classmethod
-    def load_native(cls, model: Any) -> tvm.IRModule:
+    def load_native(cls, model: Any, config: dict) -> Tuple[tvm.IRModule, str, bool]:
         """Load the native model
 
         Parameters
         -------
         model:
             The native model.
+        config: dict
+            The config for pipeline.
 
         Returns
         -------
         model: tvm.IRModule
             The loaded native model.
+        device: str
+            The device of the model.
+        training: bool
+            Whether the model is for training.
         """
 
         if isinstance(model, dict) and "model" in model:

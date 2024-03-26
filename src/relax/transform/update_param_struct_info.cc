@@ -27,10 +27,10 @@
 #include <tvm/relax/transform.h>
 
 #include <optional>
-#include <regex>
 #include <unordered_map>
 #include <vector>
 
+#include "../../runtime/regex.h"
 #include "utils.h"
 
 namespace tvm {

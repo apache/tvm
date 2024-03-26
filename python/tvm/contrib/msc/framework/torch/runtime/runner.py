@@ -102,18 +102,33 @@ class TorchRunner(ModelRunner):
             The outputs in list.
         """
 
-        model_inputs = self.get_inputs()
-        parameters = list(runnable.parameters())
-        if parameters:
-            in_dev = parameters[0].device
-        elif device == "cpu":
-            in_dev = torch.device(device)
-        elif device.startswith("cuda"):
-            in_dev = torch.device(device)
-        else:
-            raise NotImplementedError("Unsupported device " + str(device))
-        torch_inputs = [torch.from_numpy(inputs[i["name"]]).to(in_dev) for i in model_inputs]
+        input_names = [i["name"] for i in self.get_inputs()]
+        torch_inputs = [
+            msc_utils.cast_array(inputs[i], MSCFramework.TORCH, device) for i in input_names
+        ]
         return runnable(*torch_inputs)
+
+    def _get_runtime_params(self) -> Dict[str, tvm.nd.array]:
+        """Get the runtime parameters
+
+        Returns
+        -------
+        params: dict<str, tvm.nd.array>
+            The parameters from runtime.
+        """
+
+        assert self._runnable, "runnable is needed to get params"
+        state_dict = self._runnable.state_dict()
+        params = {}
+        for graph in self._graphs:
+            for weight in graph.get_weights():
+                assert weight.alias in state_dict, "Missing weight {} in state_dict".format(
+                    weight.alias
+                )
+                params[weight.name] = msc_utils.cast_array(
+                    state_dict[weight.alias], MSCFramework.TVM, "cpu"
+                )
+        return params
 
     def _device_enabled(self, device: str) -> bool:
         """Check if the device is enabled
@@ -139,13 +154,15 @@ class TorchRunner(ModelRunner):
         return MSCFramework.TORCH
 
     @classmethod
-    def load_native(cls, model: Any) -> Tuple[torch.nn.Module, str, bool]:
+    def load_native(cls, model: Any, config: dict) -> Tuple[torch.nn.Module, str, bool]:
         """Load the native model
 
         Parameters
         -------
         model:
             The native model.
+        config: dict
+            The config for pipeline.
 
         Returns
         -------
@@ -249,10 +266,16 @@ class TorchRunner(ModelRunner):
 
         parameters = list(model.parameters())
         if parameters:
-            device = parameters[0].device
+            ref_dev = parameters[0].device
+            if ref_dev.index:
+                device = "{}:{}".format(ref_dev.type, ref_dev.index)
+            else:
+                device = ref_dev.type
         else:
-            device = torch.device("cpu")
-        torch_inputs = [torch.from_numpy(inputs[i_name]).to(device) for i_name in input_names]
+            device = "cpu"
+        torch_inputs = [
+            msc_utils.cast_array(inputs[i], MSCFramework.TORCH, device) for i in input_names
+        ]
 
         def _run_once():
             return model(*torch_inputs)

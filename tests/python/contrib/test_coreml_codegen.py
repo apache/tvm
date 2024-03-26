@@ -140,7 +140,7 @@ def _construct_model(func, m1, m2):
     fcompile = tvm._ffi.get_global_func("relay.ext.coremlcompiler")
 
     for var, func in mod.functions.items():
-        if func.attrs and "Compiler" in func.attrs and func.attrs["Compiler"] == "coremlcompiler":
+        if "Compiler" in func.attrs and func.attrs["Compiler"] == "coremlcompiler":
             fcompile(func)
 
 

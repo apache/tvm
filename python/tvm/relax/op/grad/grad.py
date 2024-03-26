@@ -130,6 +130,7 @@ def max_pool2d_backward(
     padding: Tuple[int, int, int, int] = (0, 0, 0, 0),
     dilation: Tuple[int, int] = (1, 1),
     ceil_mode: bool = False,
+    count_include_pad: bool = False,
     layout: str = "NCHW",
     out_layout: Optional[str] = None,
 ) -> Expr:
@@ -147,7 +148,16 @@ def max_pool2d_backward(
       The gradient w.r.t. data.
     """
     return _ffi_api.max_pool2d_backward(  # type: ignore
-        output_grad, data, pool_size, strides, padding, dilation, ceil_mode, layout, out_layout
+        output_grad,
+        data,
+        pool_size,
+        strides,
+        padding,
+        dilation,
+        ceil_mode,
+        count_include_pad,
+        layout,
+        out_layout,
     )
 
 
@@ -159,6 +169,7 @@ def avg_pool2d_backward(
     padding: Tuple[int, int, int, int] = (0, 0, 0, 0),
     dilation: Tuple[int, int] = (1, 1),
     ceil_mode: bool = False,
+    count_include_pad: bool = False,
     layout: str = "NCHW",
     out_layout: Optional[str] = None,
 ) -> Expr:
@@ -176,7 +187,16 @@ def avg_pool2d_backward(
       The gradient w.r.t. data.
     """
     return _ffi_api.avg_pool2d_backward(  # type: ignore
-        output_grad, data, pool_size, strides, padding, dilation, ceil_mode, layout, out_layout
+        output_grad,
+        data,
+        pool_size,
+        strides,
+        padding,
+        dilation,
+        ceil_mode,
+        count_include_pad,
+        layout,
+        out_layout,
     )
 
 

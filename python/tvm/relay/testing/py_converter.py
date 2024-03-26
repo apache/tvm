@@ -553,7 +553,11 @@ class PythonConverter(ExprFunctor):
 
         # lowered operator: generate a call to a function that gets the PackedFunc
         # from TVM's registry
-        if isinstance(func, Function) and func.attrs and func.attrs.Primitive.value == 1:
+        if (
+            isinstance(func, Function)
+            and hasattr(func.attrs, "Primitive")
+            and int(func.attrs.Primitive) == 1
+        ):
             op_call_def, op_call = self.create_op_call(func, call.args, fields)
             return (op_call, field_defs + [op_call_def])
 

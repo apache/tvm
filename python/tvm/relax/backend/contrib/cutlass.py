@@ -526,11 +526,11 @@ class WorkspaceAnnotator(PyExprMutator):
         super().__init__(mod)
 
     def visit_function_(self, f):
-        if f.attrs is None or "Composite" not in f.attrs:
+        if "Composite" not in f.attrs:
             body = super().visit_expr(f.body)
             new_f = Function(f.params, body, f.ret_struct_info, f.is_pure, f.attrs, f.span)
 
-            if f.attrs and "global_symbol" in f.attrs and "cutlass" in f.attrs["global_symbol"]:
+            if "global_symbol" in f.attrs and "cutlass" in f.attrs["global_symbol"]:
                 composite_func = body.blocks[0].bindings[0].value
                 if "WorkspaceSize" in composite_func.attrs:
                     return new_f.with_attr("WorkspaceSize", composite_func.attrs["WorkspaceSize"])

@@ -29,7 +29,10 @@
 #include <tvm/tir/stmt_functor.h>
 
 #include <exception>
+#include <optional>
+#include <unordered_set>
 #include <utility>
+#include <vector>
 
 namespace tvm {
 namespace tir {
@@ -173,6 +176,7 @@ class TIRVisitorWithPath : protected ExprFunctor<void(const PrimExpr&, ObjectPat
       // construction of the DefContext and the destruction, we avoid
       // this case and allow the first error to propagate upward.
       if (self_ && std::uncaught_exceptions() == uncaught_exceptions_) {
+        self_->in_scope_definitions_.erase(obj_);
         self_->ExitDef(obj_, path_);
       }
     }
@@ -182,6 +186,7 @@ class TIRVisitorWithPath : protected ExprFunctor<void(const PrimExpr&, ObjectPat
 
     DefContext(TIRVisitorWithPath* self, T obj, ObjectPath path)
         : self_(self), obj_(obj), path_(path), uncaught_exceptions_(std::uncaught_exceptions()) {
+      self_->in_scope_definitions_.insert(obj_);
       self_->EnterDef(obj_, path_);
     }
 
@@ -203,6 +208,44 @@ class TIRVisitorWithPath : protected ExprFunctor<void(const PrimExpr&, ObjectPat
   DefContext<T> WithDef(T obj, ObjectPath path) {
     return DefContext(this, obj, path);
   }
+
+  /* \brief Utility to track the scope of a node's definition. */
+  template <typename T>
+  std::optional<DefContext<T>> WithDefIfUndefined(T obj, ObjectPath path) {
+    if (in_scope_definitions_.count(obj)) {
+      return std::nullopt;
+    } else {
+      return WithDef(obj, path);
+    }
+  }
+
+  std::vector<DefContext<Var>> WithMatchBufferDefs(Buffer buf, ObjectPath path) {
+    std::vector<DefContext<Var>> context;
+
+    auto try_visit_implicit_var_def = [this, &context](const PrimExpr& expr, ObjectPath path) {
+      if (auto opt = expr.as<Var>()) {
+        auto var = opt.value();
+        if (auto var_def = WithDefIfUndefined(var, path)) {
+          context.push_back(std::move(var_def).value());
+        }
+      }
+    };
+    auto try_visit_implicit_var_def_array = [&try_visit_implicit_var_def](
+                                                const Array<PrimExpr>& arr, ObjectPath path) {
+      for (size_t i = 0; i < arr.size(); i++) {
+        try_visit_implicit_var_def(arr[i], path->ArrayIndex(i));
+      }
+    };
+
+    try_visit_implicit_var_def(buf->data, path->Attr("data"));
+    try_visit_implicit_var_def_array(buf->shape, path->Attr("shape"));
+    try_visit_implicit_var_def_array(buf->strides, path->Attr("strides"));
+    try_visit_implicit_var_def(buf->elem_offset, path->Attr("elem_offset"));
+
+    return context;
+  }
+
+  std::unordered_set<ObjectRef, ObjectPtrHash, ObjectPtrEqual> in_scope_definitions_;
 };
 
 }  // namespace tir

@@ -542,6 +542,87 @@ def pad(data, pad_width, pad_value=0, pad_mode="constant"):
     return _ffi_api.pad(data, pad_width, pad_value, pad_mode)
 
 
+def max_pool1d(
+    data: Expr,
+    pool_size: Union[int, Tuple[int, int]] = (1,),
+    strides: Union[int, Tuple[int, int]] = (1,),
+    padding: Union[int, Tuple[int, ...]] = (0, 0),
+    dilation: Union[int, Tuple[int, int]] = (1,),
+    ceil_mode: bool = False,
+    count_include_pad: bool = False,
+    layout: str = "NCW",
+    out_layout: Optional[str] = None,
+) -> Expr:
+    r"""1D maximum pooling operator.
+
+    This operator takes data as input and does 1D max value calculation
+    with in pool_size sized window by striding defined by stride.
+
+    IIn the default case, where the data_layout is `NCW`
+    a data Tensor with shape `(batch_size, channels, width)`,
+    to produce an output Tensor.
+
+    The ceil_mode is used to take ceil or floor while computing out shape.
+    count_include_pad indicates including or excluding padded input values in computation.
+    This operator accepts data layout specification.
+
+    Parameters
+    ----------
+    data : relax.Expr
+        The input data to the operator.
+
+    pool_size : Union[int, Tuple[int, int]]
+        The size of window for pooling. It is required to have length either 1.
+
+    strides : Union[int, Tuple[int, int]]
+        The strides of pooling. It is required to have length either 1.
+
+    padding : Union[int, Tuple[int, ...]]
+        The padding for pooling. It is required to have length either 1 or 2.
+
+    dilation : Union[int, Tuple[int, int]]
+        The dilation of pooling. It is required to have length either 1.
+
+    ceil_mode : bool
+        A boolean indicating if use ceil or floor to compute the output shape.
+        By using ceil, every element in the input tensor will be covered by a sliding window.
+
+    count_include_pad : bool, optional
+        To include padding to compute the average.
+
+    layout : str
+        Layout of the input.
+
+    out_layout : Optional[str]
+        Layout of the output. If not specified, it is the same as data_layout
+
+    Returns
+    -------
+    result : Expr
+        The computed result.
+    """
+    if isinstance(pool_size, int):
+        pool_size = (pool_size,)
+    if isinstance(strides, int):
+        strides = (strides,)
+    if isinstance(dilation, int):
+        dilation = (dilation,)
+    if isinstance(padding, int):
+        padding = (padding, padding)
+
+    return _ffi_api.max_pool1d(  # type: ignore
+        data,
+        pool_size,
+        strides,
+        padding,
+        dilation,
+        ceil_mode,
+        count_include_pad,
+        layout,
+        out_layout,
+    )
+
+
 def max_pool2d(
     data: Expr,
     pool_size: Union[int, Tuple[int, int]] = (1, 1),
@@ -549,6 +630,7 @@ def max_pool2d(
     padding: Union[int, Tuple[int, ...]] = (0, 0),
     dilation: Union[int, Tuple[int, int]] = (1, 1),
     ceil_mode: bool = False,
+    count_include_pad: bool = False,
     layout: str = "NCHW",
     out_layout: Optional[str] = None,
 ) -> Expr:
@@ -593,6 +675,9 @@ def max_pool2d(
         A boolean indicating if use ceil or floor to compute the output shape.
         By using ceil, every element in the input tensor will be covered by a sliding window.
 
+    count_include_pad : bool, optional
+        To include padding to compute the average.
+
     layout : str
         Layout of the input.
 
@@ -614,7 +699,177 @@ def max_pool2d(
         padding = (padding, padding, padding, padding)
 
     return _ffi_api.max_pool2d(  # type: ignore
-        data, pool_size, strides, padding, dilation, ceil_mode, layout, out_layout
+        data,
+        pool_size,
+        strides,
+        padding,
+        dilation,
+        ceil_mode,
+        count_include_pad,
+        layout,
+        out_layout,
+    )
+
+
+def max_pool3d(
+    data: Expr,
+    pool_size: Union[int, Tuple[int, int]] = (1, 1, 1),
+    strides: Union[int, Tuple[int, int]] = (1, 1, 1),
+    padding: Union[int, Tuple[int, ...]] = (0, 0, 0),
+    dilation: Union[int, Tuple[int, int]] = (1, 1, 1),
+    ceil_mode: bool = False,
+    count_include_pad: bool = False,
+    layout: str = "NCDHW",
+    out_layout: Optional[str] = None,
+) -> Expr:
+    r"""3D maximum pooling operator.
+
+    This operator takes data as input and does 3D max value calculation
+    with in pool_size sized window by striding defined by stride.
+
+
+    In the default case, where the data_layout is `NCDHW`
+    a data Tensor with shape `(batch_size, channels, depth, height, width)`,
+    to produce an output Tensor.
+
+    The ceil_mode is used to take ceil or floor while computing out shape.
+    count_include_pad indicates including or excluding padded input values in computation.
+    This operator accepts data layout specification.
+
+    Parameters
+    ----------
+    data : relax.Expr
+        The input data to the operator.
+
+    pool_size : Union[int, Tuple[int, int]]
+        The size of window for pooling. It is required to have length either 1 or 3.
+
+    strides : Union[int, Tuple[int, int]]
+        The strides of pooling. It is required to have length either 1 or 3.
+
+    padding : Union[int, Tuple[int, ...]]
+        The padding for pooling. It is required to have length either 1, 3 or 6.
+
+    dilation : Union[int, Tuple[int, int]]
+        The dilation of pooling. It is required to have length either 1 or 3.
+
+    ceil_mode : bool
+        A boolean indicating if use ceil or floor to compute the output shape.
+        By using ceil, every element in the input tensor will be covered by a sliding window.
+
+    count_include_pad : bool, optional
+        To include padding to compute the average.
+
+    layout : str
+        Layout of the input.
+
+    out_layout : Optional[str]
+        Layout of the output. If not specified, it is the same as data_layout
+
+    Returns
+    -------
+    result : Expr
+        The computed result.
+    """
+    if isinstance(pool_size, int):
+        pool_size = (pool_size, pool_size, pool_size)
+    if isinstance(strides, int):
+        strides = (strides, strides, strides)
+    if isinstance(dilation, int):
+        dilation = (dilation, dilation, dilation)
+    if isinstance(padding, int):
+        padding = (padding, padding, padding, padding, padding, padding)
+
+    return _ffi_api.max_pool3d(  # type: ignore
+        data,
+        pool_size,
+        strides,
+        padding,
+        dilation,
+        ceil_mode,
+        count_include_pad,
+        layout,
+        out_layout,
+    )
+
+
+def avg_pool1d(
+    data: Expr,
+    pool_size: Union[int, Tuple[int, int]] = (1,),
+    strides: Union[int, Tuple[int, int]] = (1,),
+    padding: Union[int, Tuple[int, ...]] = (0, 0),
+    dilation: Union[int, Tuple[int, int]] = (1,),
+    ceil_mode: bool = False,
+    count_include_pad: bool = False,
+    layout: str = "NCW",
+    out_layout: Optional[str] = None,
+) -> Expr:
+    r"""1D average pooling operator.
+
+    This operator takes data as input and does 1D average value calculation
+    with in pool_size sized window by striding defined by stride
+
+    In the default case, where the data_layout is `NCW`
+    a data Tensor with shape `(batch_size, channels, width)`,
+    to produce an output Tensor.
+
+    The ceil_mode is used to take ceil or floor while computing out shape.
+    count_include_pad indicates including or excluding padded input values in computation.
+    This operator accepts data layout specification.
+
+    Parameters
+    ----------
+    data : relax.Expr
+        The input data to the operator.
+
+    pool_size : Union[int, Tuple[int]]
+        The size of window for pooling. It is required to have length is 1.
+
+    strides : Union[int, Tuple[int]]
+        The strides of pooling. It is required to have length is 1.
+
+    padding : Union[int, Tuple[int, int]]
+        The padding for pooling. It is required to have length either 1 or 2.
+
+    dilation : Union[int, Tuple[int]]
+        The dilation of pooling. It is required to have length is 1.
+
+    ceil_mode : bool
+        A boolean indicating if use ceil or floor to compute the output shape.
+        By using ceil, every element in the input tensor will be covered by a sliding window.
+
+    count_include_pad : bool, optional
+        To include padding to compute the average.
+
+    layout : str
+        Layout of the input.
+
+    out_layout : Optional[str]
+        Layout of the output. If not specified, it is the same as data_layout
+
+    Returns
+    -------
+    result : Expr
+        The computed result.
+    """
+    if isinstance(pool_size, int):
+        pool_size = (pool_size,)
+    if isinstance(strides, int):
+        strides = (strides,)
+    if isinstance(dilation, int):
+        dilation = (dilation,)
+    if isinstance(padding, int):
+        padding = (padding, padding)
+    return _ffi_api.avg_pool1d(  # type: ignore
+        data,
+        pool_size,
+        strides,
+        padding,
+        dilation,
+        ceil_mode,
+        count_include_pad,
+        layout,
+        out_layout,
     )
 
 
@@ -625,6 +880,7 @@ def avg_pool2d(
     padding: Union[int, Tuple[int, ...]] = (0, 0),
     dilation: Union[int, Tuple[int, int]] = (1, 1),
     ceil_mode: bool = False,
+    count_include_pad: bool = False,
     layout: str = "NCHW",
     out_layout: Optional[str] = None,
 ) -> Expr:
@@ -670,6 +926,9 @@ def avg_pool2d(
         A boolean indicating if use ceil or floor to compute the output shape.
         By using ceil, every element in the input tensor will be covered by a sliding window.
 
+    count_include_pad : bool, optional
+        To include padding to compute the average.
+
     layout : str
         Layout of the input.
 
@@ -689,10 +948,152 @@ def avg_pool2d(
         dilation = (dilation, dilation)
     if isinstance(padding, int):
         padding = (padding, padding, padding, padding)
-
     return _ffi_api.avg_pool2d(  # type: ignore
-        data, pool_size, strides, padding, dilation, ceil_mode, layout, out_layout
+        data,
+        pool_size,
+        strides,
+        padding,
+        dilation,
+        ceil_mode,
+        count_include_pad,
+        layout,
+        out_layout,
     )
+
+
+def avg_pool3d(
+    data: Expr,
+    pool_size: Union[int, Tuple[int, int]] = (1, 1, 1),
+    strides: Union[int, Tuple[int, int]] = (1, 1, 1),
+    padding: Union[int, Tuple[int, ...]] = (0, 0, 0),
+    dilation: Union[int, Tuple[int, int]] = (1, 1, 1),
+    ceil_mode: bool = False,
+    count_include_pad: bool = False,
+    layout: str = "NCDHW",
+    out_layout: Optional[str] = None,
+) -> Expr:
+    r"""2D average pooling operator.
+
+    This operator takes data as input and does 3D average value calculation
+    with in pool_size sized window by striding defined by stride
+
+
+    In the default case, where the data_layout is `NCDHW`
+    a data Tensor with shape `(batch_size, channels, depth, height, width)`,
+    to produce an output Tensor.
+
+    The ceil_mode is used to take ceil or floor while computing out shape.
+    count_include_pad indicates including or excluding padded input values in computation.
+    This operator accepts data layout specification.
+
+    Parameters
+    ----------
+    data : relax.Expr
+        The input data to the operator.
+
+    pool_size : Union[int, Tuple[int, int, int]]
+        The size of window for pooling. It is required to have length either 1 or 3.
+
+    strides : Union[int, Tuple[int, int, int]]
+        The strides of pooling. It is required to have length either 1 or 3.
+
+    padding : Union[int, Tuple[int, ...]]
+        The padding for pooling. It is required to have length either 1, 3 or 6.
+
+    dilation : Union[int, Tuple[int, int, int]]
+        The dilation of pooling. It is required to have length either 1 or 3.
+
+    ceil_mode : bool
+        A boolean indicating if use ceil or floor to compute the output shape.
+        By using ceil, every element in the input tensor will be covered by a sliding window.
+
+    count_include_pad : bool, optional
+        To include padding to compute the average.
+
+    layout : str
+        Layout of the input.
+
+    out_layout : Optional[str]
+        Layout of the output. If not specified, it is the same as data_layout
+
+    Returns
+    -------
+    result : Expr
+        The computed result.
+    """
+    if isinstance(pool_size, int):
+        pool_size = (pool_size, pool_size, pool_size)
+    if isinstance(strides, int):
+        strides = (strides, strides, strides)
+    if isinstance(dilation, int):
+        dilation = (dilation, dilation, dilation)
+    if isinstance(padding, int):
+        padding = (padding, padding, padding, padding, padding, padding)
+
+    return _ffi_api.avg_pool3d(  # type: ignore
+        data,
+        pool_size,
+        strides,
+        padding,
+        dilation,
+        ceil_mode,
+        count_include_pad,
+        layout,
+        out_layout,
+    )
+
+
+def adaptive_avg_pool1d(
+    data: Expr,
+    output_size: Optional[Union[int, Tuple[int]]] = None,
+    layout: str = "NCW",
+    out_layout: Optional[str] = None,
+) -> Expr:
+    r"""1D adaptive average pooling operator. This operator is experimental.
+
+    This operator takes data as input and does 1D average value calculation
+    across each window represented by W.
+
+
+    In the default case, where the data_layout is `NCW`
+    a data Tensor with shape `(batch_size, in_channels, width)`,
+    to produce an output Tensor with shape
+    (batch_size, in_channels, output_width).
+
+    The pooling kernel and stride sizes are automatically chosen for
+    desired output sizes.
+
+    For output_size:
+        If this argument is not provided, input height and width will be used
+        as output width.
+
+        If a single integer is provided for output_size, the output size is
+        (N x C x output_size) for any input (NCW).
+
+    Parameters
+    ----------
+    data : relax.Expr
+        The input data to the operator.
+
+    output_size : Optional[Union[int, Tuple[int, int]]]
+        Output height and width.
+        If not specified, it will be the same as the input height and width.
+        If specified, it is required to have length either 1 or 2.
+
+    layout : str
+        Layout of the input.
+
+    out_layout : Optional[str]
+        Layout of the output. If not specified, it is the same as data_layout
+
+    Returns
+    -------
+    result : relax.Expr
+        The computed result.
+    """
+    if isinstance(output_size, int):
+        output_size = (output_size,)
+    return _ffi_api.adaptive_avg_pool1d(data, output_size, layout, out_layout)  # type: ignore
 
 
 def adaptive_avg_pool2d(
@@ -749,6 +1150,62 @@ def adaptive_avg_pool2d(
     if isinstance(output_size, int):
         output_size = (output_size, output_size)
     return _ffi_api.adaptive_avg_pool2d(data, output_size, layout, out_layout)  # type: ignore
+
+
+def adaptive_avg_pool3d(
+    data: Expr,
+    output_size: Optional[Union[int, Tuple[int, int]]] = None,
+    layout: str = "NCDHW",
+    out_layout: Optional[str] = None,
+) -> Expr:
+    r"""3D adaptive average pooling operator. This operator is experimental.
+
+    This operator takes data as input and does 3D average value calculation
+    across each window represented by WxH.
+
+
+    In the default case, where the data_layout is `NCDHW`
+    a data Tensor with shape `(batch_size, in_channels, depth, height, width)`,
+    to produce an output Tensor with shape
+    (batch_size, in_channels, output_depth, output_height, output_width).
+
+    The pooling kernel and stride sizes are automatically chosen for
+    desired output sizes.
+
+    For output_size:
+        If this argument is not provided, input depth, height and width will be used
+        as output depth, height and width.
+
+        If a single integer is provided for output_size, the output size is
+        (N x C x output_size x output_size x output_size) for any input (NCDHW).
+
+        If a tuple of integers (depth, height, width) are provided for output_size,
+        the output size is (N x C x depth x height x width) for any input (NCDHW).
+
+    Parameters
+    ----------
+    data : relax.Expr
+        The input data to the operator.
+
+    output_size : Optional[Union[int, Tuple[int, int]]]
+        Output height and width.
+        If not specified, it will be the same as the input height and width.
+        If specified, it is required to have length either 1 or 3.
+
+    layout : str
+        Layout of the input.
+
+    out_layout : Optional[str]
+        Layout of the output. If not specified, it is the same as data_layout
+
+    Returns
+    -------
+    result : relax.Expr
+        The computed result.
+    """
+    if isinstance(output_size, int):
+        output_size = (output_size, output_size, output_size)
+    return _ffi_api.adaptive_avg_pool3d(data, output_size, layout, out_layout)  # type: ignore
 
 
 def relu(data: Expr) -> Expr:

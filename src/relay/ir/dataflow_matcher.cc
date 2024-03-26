@@ -438,7 +438,7 @@ Expr InferTypeWithModule(const Expr& expr, const IRModule& m) {
   if (expr.as<FunctionNode>()) {
     func = Downcast<Function>(expr);
   } else {
-    func = relay::Function(relay::FreeVars(expr), expr, Type(), relay::FreeTypeVars(expr, mod), {});
+    func = relay::Function(relay::FreeVars(expr), expr, Type(), relay::FreeTypeVars(expr, mod));
   }
   mod->Add(gvar, func);
   mod = transform::InferType()(mod);

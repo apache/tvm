@@ -228,6 +228,7 @@ class UndefinedVarVerifier : public Verifier<UndefinedVarVerifier> {
   using Verifier::Verifier;
 
  private:
+  using Verifier::Visit;
   void Visit(const PrimFunc& prim_func, ObjectPath path) override {
     Verifier::Visit(prim_func, path);
     redefine_allowed_within_function_.clear();

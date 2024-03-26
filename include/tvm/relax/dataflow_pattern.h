@@ -54,6 +54,7 @@ class OrPattern;
 class AndPattern;
 class NotPattern;
 class ShapePattern;
+class StructInfoPattern;
 class TypePattern;
 class DataTypePattern;
 class AttrPattern;
@@ -112,6 +113,8 @@ class DFPattern : public ObjectRef {
   TVM_DLL NotPattern operator~() const;
   /*! \brief Syntatic Sugar for creating an AttrPattern */
   TVM_DLL AttrPattern HasAttr(const Map<String, ObjectRef>& attrs) const;
+  /*! \brief Syntatic Sugar for creating a StructInfoPattern */
+  TVM_DLL StructInfoPattern HasStructInfo(const StructInfo& struct_info) const;
   /*! \brief Syntatic Sugar for creating a TypePattern */
   TVM_DLL TypePattern HasType(const Type& type) const;
   /*! \brief Syntatic Sugar for creating a DataTypePattern with a DataType */
@@ -763,6 +766,30 @@ class TypePattern : public DFPattern {
  public:
   TVM_DLL TypePattern(DFPattern pattern, Type type);
   TVM_DEFINE_OBJECT_REF_METHODS(TypePattern, DFPattern, TypePatternNode);
+};
+
+/*!
+ * \brief Pattern for matching a certain struct info.
+ * \sa StructInfoPattern
+ */
+class StructInfoPatternNode : public DFPatternNode {
+ public:
+  DFPattern pattern;      /*!< The pattern to match */
+  StructInfo struct_info; /*!< The type to match */
+
+  void VisitAttrs(tvm::AttrVisitor* v) {
+    v->Visit("pattern", &pattern);
+    v->Visit("struct_info", &struct_info);
+  }
+
+  static constexpr const char* _type_key = "relax.dpl.StructInfoPattern";
+  TVM_DECLARE_FINAL_OBJECT_INFO(StructInfoPatternNode, DFPatternNode);
+};
+
+class StructInfoPattern : public DFPattern {
+ public:
+  TVM_DLL StructInfoPattern(DFPattern pattern, StructInfo struct_info);
+  TVM_DEFINE_OBJECT_REF_METHODS(StructInfoPattern, DFPattern, StructInfoPatternNode);
 };
 
 /*!
