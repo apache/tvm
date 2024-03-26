@@ -229,10 +229,7 @@ def _emit_method(  # pylint: disable=too-many-locals,too-many-branches,too-many-
             # Make sure the a symbolic shape is not re-registered (same as _method_spec_to_inputs)
             # e.g. we do not see `vocab_size` for `lm_head` and `vocab_size_1` for `embed_tokens`
             new_shape = [_normalize_dim(dim) for dim in param._shape]
-            # var_cls = rx.DataflowVar if mode == "packed" else rx.Var
-            var_cls = rx.Var
-            var = var_cls(name, rx.TensorStructInfo(new_shape, param.dtype))
-            inputs.append(var)
+            inputs.append(rx.Var(name, rx.TensorStructInfo(new_shape, param.dtype)))
 
         if mode == "none":
             return []
