@@ -72,7 +72,7 @@ def test_tir_call():
             H[T.int64(0)] = H[T.int64(0)] + T.int64(1)
 
         @R.function(pure=False)
-        def foo(x: R.Tensor):
+        def foo(x: R.Tensor([4], "int64")):
             R.func_attr({"global_symbol": "foo"})
             _ = Before.shape_func(x)
             return x

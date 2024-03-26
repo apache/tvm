@@ -76,11 +76,7 @@ class RenewDefMutator : public StmtExprMutator {
     // Visit body
     Stmt body = generator(func->body);
     // Recreate function
-    auto n = make_object<PrimFuncNode>(*func.get());
-    n->params = std::move(params);
-    n->buffer_map = std::move(buffer_map);
-    n->body = std::move(body);
-    return PrimFunc(n);
+    return PrimFunc(params, body, func->ret_type, buffer_map, func->attrs, func->span);
   }
 
  private:
