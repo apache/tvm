@@ -284,5 +284,74 @@ def test_subroutine_call_to_externally_visible_subroutine():
     )
 
 
+def test_function_call_with_wrong_argument_count():
+    """Argument counts must be checked before accessing the type codes"""
+
+    @T.prim_func
+    def func(
+        A: T.Buffer([16, 16], "int32"),
+        B: T.Buffer([16, 16], "int32"),
+        C: T.Buffer([16, 16], "int32"),
+        D: T.Buffer([16, 16], "int32"),
+    ):
+        pass
+
+    built = tvm.build(func, target="llvm")
+
+    with pytest.raises(tvm.TVMError):
+        built()
+
+
+def test_function_call_with_wrong_type_code():
+    """Type codes must be checked before accessing the arguments"""
+
+    @T.prim_func
+    def func(A: T.Buffer([16, 16], "int32")):
+        pass
+
+    built = tvm.build(func, target="llvm")
+
+    with pytest.raises(tvm.TVMError):
+        built(0)
+
+
+def test_function_call_with_null_data_pointer():
+    """The data pointer must be checked before accessing the array"""
+
+    @T.prim_func
+    def func(A: T.Buffer([16, 16], "int32"), B: T.Buffer([16, 16], "int32")):
+        for i, j in T.grid(16, 16):
+            B[i, j] = A[i, j]
+
+    built = tvm.build(func, target="llvm")
+
+    A = tvm.nd.empty([16, 16], "int32", tvm.cpu())
+    B = tvm.nd.empty([16, 16], "int32", tvm.cpu())
+
+    A.handle.contents.data = 0
+
+    with pytest.raises(tvm.TVMError):
+        built(A, B)
+
+
+def test_function_call_with_wrong_dimensionality():
+    """The dimensionality must be checked before validating the shape"""
+
+    @T.prim_func
+    def func(A: T.Buffer([16, 16], "int32"), B: T.Buffer([16, 16], "int32")):
+        for i, j in T.grid(16, 16):
+            B[i, j] = A[i, j]
+
+    built = tvm.build(func, target="llvm")
+
+    A = tvm.nd.empty([16], "int32", tvm.cpu())
+    B = tvm.nd.empty([16], "int32", tvm.cpu())
+
+    A.handle.contents.data = 0
+
+    with pytest.raises(tvm.TVMError):
+        built(A, B)
+
+
 if __name__ == "__main__":
-    test_makeapi()
+    tvm.testing.main()
