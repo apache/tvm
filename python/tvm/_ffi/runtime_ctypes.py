@@ -96,7 +96,7 @@ class DataType(ctypes.Structure):
         np.dtype(np.float32): "float32",
         np.dtype(np.float64): "float64",
     }
-    if np.__version__.startswith("1."):
+    if hasattr(np, "float_"):
         NUMPY2STR[np.dtype(np.float_)] = "float64"
     STR2DTYPE = {
         "void": {"type_code": DataTypeCode.HANDLE, "bits": 0, "lanes": 0},
