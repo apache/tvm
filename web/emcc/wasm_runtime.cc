@@ -58,9 +58,11 @@
 #include "src/runtime/relax_vm/builtin.cc"
 #include "src/runtime/relax_vm/bytecode.cc"
 #include "src/runtime/relax_vm/executable.cc"
+#include "src/runtime/relax_vm/kv_state.cc"
 #include "src/runtime/relax_vm/lm_support.cc"
 #include "src/runtime/relax_vm/ndarray_cache_support.cc"
 #include "src/runtime/relax_vm/paged_kv_cache.cc"
+#include "src/runtime/relax_vm/rnn_state.cc"
 #include "src/runtime/relax_vm/vm.cc"
 
 // --- Implementations of backend and wasm runtime API. ---
