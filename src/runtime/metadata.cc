@@ -97,7 +97,7 @@ class MetadataModuleNode : public ::tvm::runtime::ModuleNode {
 
   void SaveToBinary(dmlc::Stream* stream) final {}
 
-  PackedFunc GetFunction(const std::string& name, const ObjectPtr<Object>& sptr_to_self) {
+  PackedFunc GetFunction(const String& name, const ObjectPtr<Object>& sptr_to_self) {
     if (name == "get_metadata") {
       return PackedFunc([this, sptr_to_self](TVMArgs args, TVMRetValue* rv) {
         if (!metadata_.defined()) {
@@ -118,11 +118,10 @@ class MetadataModuleNode : public ::tvm::runtime::ModuleNode {
               << symbol::tvm_get_c_metadata << " returned nullptr";
 
           metadata_ = runtime::metadata::Metadata(
-              static_cast<const struct ::TVMMetadata*>(ret_value.v_handle));
+              static_cast<const struct TVMMetadata*>(ret_value.v_handle));
         }
 
         *rv = metadata_;
-        return;
       });
     }
 
