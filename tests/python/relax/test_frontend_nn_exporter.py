@@ -27,7 +27,7 @@ from tvm.script import ir as I, relax as R, tir as T
 
 
 def test_simple():
-    """A module may be exported from nn.Module to Relax"""
+    """The nn.modules.* may be exported from nn.Module to Relax"""
 
     slm_mod = nn.modules.ReLU()
     exported_mod, _ = slm_mod.export_tvm(
@@ -50,7 +50,11 @@ def test_simple():
 
 
 def test_custom_module():
-    """A module may be exported from nn.Module to Relax"""
+    """A user can define their own nn.Module subclasses
+
+    Like the built-in subclasses, these can be exported from nn.Module
+    to Relax.
+    """
 
     class Before(nn.Module):
         def forward(self, x: R.Tensor):
@@ -77,7 +81,7 @@ def test_custom_module():
 
 
 def test_debug_effect():
-    """Passing debug=True provides an argument for IO effect"""
+    """Passing debug=True provides an argument for IO effects"""
 
     slm_mod = nn.modules.ReLU()
     exported_mod, _ = slm_mod.export_tvm(
