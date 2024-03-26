@@ -1121,6 +1121,7 @@ def test_invalid_reinterpret():
     def func(A: T.Buffer((4,), "uint32"), B: T.Buffer((4,), "uint8")) -> None:
         for tx in T.thread_binding(4, "threadIdx.x"):
             B[tx] = T.reinterpret("uint8", A[tx])
+
     with pytest.raises(tvm.error.TVMError):
         tvm.build(func, target="cuda")
 
