@@ -20,6 +20,7 @@ import tvm.testing
 from tvm import relax as rx
 from tvm import tir
 from tvm.script import relax as R
+from tvm.script import ir as I
 from tvm.script import tir as T
 
 m = tir.Var("m", "int64")
@@ -620,6 +621,39 @@ def test_impure_in_dataflow_block(capfd):
 
     _stdout, stderr = capfd.readouterr()
     assert "R.print" in stderr
+
+
+def test_well_formed_function():
+    """Relax's well-formed check can be applied on a function"""
+
+    @R.function
+    def func(A: R.Tensor([16, 32], "float32"), B: R.Tensor([32, 64], "float32")):
+        return R.matmul(A, B)
+
+    assert rx.analysis.well_formed(func)
+
+
+def test_well_formed_function_referencing_global_var():
+    """GlobalVar may refer to other functions in the module
+
+    If validating that a IRModule is well-formed, the GlobalVar must
+    have a definition.  If validating that a relax.Function is
+    well-formed, no GlobalVar definitions are available.
+    """
+
+    @I.ir_module
+    class Module:
+        @R.function
+        def main(A: R.Tensor([16, 32], "float32"), B: R.Tensor([32, 64], "float32")):
+            return Module.subroutine(A, B)
+
+        @R.function(private=True)
+        def subroutine(A: R.Tensor([16, 32], "float32"), B: R.Tensor([32, 64], "float32")):
+            return R.matmul(A, B)
+
+    assert rx.analysis.well_formed(Module)
+    assert rx.analysis.well_formed(Module["main"])
+    assert rx.analysis.well_formed(Module["subroutine"])
 
 
 if __name__ == "__main__":

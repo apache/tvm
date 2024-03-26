@@ -18,6 +18,7 @@
 import inspect
 from typing import Any, Dict, Union
 
+import tvm
 from ....ir.module import IRModule
 from ...ir_builder import IRBuilder
 from . import doc
@@ -34,12 +35,19 @@ WELL_FORMED_ERROR_MESSAGE = (
 
 
 def _default_globals() -> Dict[str, Any]:
-    import tvm  # pylint: disable=import-outside-toplevel
     from tvm.script.parser import ir  # pylint: disable=import-outside-toplevel
     from tvm.script.parser import relax  # pylint: disable=import-outside-toplevel
     from tvm.script.parser import tir  # pylint: disable=import-outside-toplevel
 
-    extra_vars = {"tvm": tvm, "I": ir, "ir": ir, "T": tir, "tir": tir, "R": relax, "relax": relax}
+    extra_vars = {
+        "tvm": tvm,
+        "I": ir,
+        "ir": ir,
+        "T": tir,
+        "tir": tir,
+        "R": relax,
+        "relax": relax,
+    }
     return extra_vars
 
 
@@ -95,19 +103,19 @@ def parse(
     ret = builder.get()
     # check well-formedness in both Relax and TIR
     if check_well_formed:
-        # (C0415 = import-outside-toplevel. It is necessary here to avoid a circular dependency,
-        # since importing Relax imports a dependency on the parser)
-        from ....relax.analysis import well_formed as relax_well_formed  # pylint: disable=C0415
-        from ....tir.analysis import verify_well_formed as tir_well_formed  # pylint: disable=C0415
-
         check_ret = ret
         if not isinstance(check_ret, IRModule):
             check_ret = IRModule.from_expr(ret)
+
         source_ast = source.as_ast()
-        if not relax_well_formed(check_ret):
+
+        if isinstance(ret, (IRModule, tvm.relax.Function)) and not tvm.relax.analysis.well_formed(
+            ret
+        ):
             parser.report_error(source_ast, err=WELL_FORMED_ERROR_MESSAGE)
+
         try:
-            tir_well_formed(check_ret)
+            tvm.tir.analysis.verify_well_formed(check_ret)
         except Exception as err:  # pylint: disable=broad-exception-caught
             parser.report_error(
                 source_ast,
