@@ -721,6 +721,31 @@ def test_simplify_dq_argsort():
     assert tvm.ir.structural_equal(opt, after)
 
 
+def test_simplify_clip_cast_clip():
+    x = relay.var("x", shape=(4, 8), dtype="int32")
+    a_min_1 = np.random.randint(low=0, high=127)
+    a_max_1 = np.random.randint(low=128, high=255)
+    a_min_2 = np.random.randint(low=0, high=127)
+    a_max_2 = np.random.randint(low=128, high=255)
+
+    def before():
+        clip = relay.clip(x, a_min=a_min_1, a_max=a_max_1)
+        cast = relay.cast(clip, "uint8")
+        return relay.clip(cast, a_min=a_min_2, a_max=a_max_2)
+
+    def expected():
+        clip = relay.clip(
+            x,
+            a_min=a_min_1 if a_min_1 > a_min_2 else a_min_2,
+            a_max=a_max_1 if a_max_1 < a_max_1 else a_max_2,
+        )
+        return relay.cast(clip, "uint8")
+
+    opt = run_opt_pass(before(), transform.SimplifyExpr())
+    ref = run_infer_type(expected())
+    assert tvm.ir.structural_equal(opt, ref)
+
+
 def test_simplify_clip_cast():
     def before1():
         x = relay.var("x", shape=(4, 8), dtype="int32")
