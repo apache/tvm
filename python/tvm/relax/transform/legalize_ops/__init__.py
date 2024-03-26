@@ -23,6 +23,7 @@ from . import distributed
 from . import grad
 from . import image
 from . import index
+from . import inspect_op
 from . import linear_algebra
 from . import manipulate
 from . import nn
