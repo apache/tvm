@@ -16,11 +16,14 @@
 # under the License.
 # pylint: disable=invalid-name, dangerous-default-value, arguments-differ
 """Driver for partitioning and building a Relay module for CUTLASS offload."""
+import contextlib
 import itertools
 import logging
 import multiprocessing
 import operator
 import os
+import tempfile
+
 from functools import reduce
 from typing import Optional, Sequence
 
@@ -319,7 +322,7 @@ def tune_cutlass_kernels(
     profile_all_alignments=False,
     find_first_valid=False,
     use_multiprocessing=False,
-    tmp_dir="./tmp",
+    tmp_dir=None,
 ):
     """Given a module partitioned for CUTLASS offloading, profile each workload to select which
     kernels to emit.
@@ -355,7 +358,7 @@ def tune_cutlass_kernels(
     use_multiprocessing : bool
         Whether or not compile profiler executables for different kernels in parallel.
 
-    tmp_dir : string, optional
+    tmp_dir : Optional[str]
         A temporary directory where intermediate compiled artifacts will be stored.
 
     Returns
@@ -366,27 +369,33 @@ def tune_cutlass_kernels(
     num_cutlass_partition : int
         The number of partitioned functions created for CUTLASS.
     """
-    gemm_profiler = CutlassGemmProfiler(sm, _get_cutlass_path(), tmp_dir)
-    conv2d_profiler = CutlassConv2DProfiler(sm, _get_cutlass_path(), tmp_dir)
-    num_cutlass_partition = 0
-    for var in mod.get_global_vars():
-        fun_name = var.name_hint
-        func = mod[fun_name]
-        if "cutlass" in fun_name:
-            num_cutlass_partition += 1
-            new_func = tune_cutlass_function(
-                func,
-                use_3xtf32,
-                split_k_slices,
-                profile_all_alignments,
-                find_first_valid,
-                use_multiprocessing,
-                gemm_profiler,
-                conv2d_profiler,
+    with contextlib.ExitStack() as exit_stack:
+        if tmp_dir is None:
+            tmp_dir = exit_stack.enter_context(
+                tempfile.TemporaryDirectory(prefix="tmp_cutlass_tuning_")
             )
-            mod.update_func(var, new_func)
 
-    return mod, num_cutlass_partition
+        gemm_profiler = CutlassGemmProfiler(sm, _get_cutlass_path(), tmp_dir)
+        conv2d_profiler = CutlassConv2DProfiler(sm, _get_cutlass_path(), tmp_dir)
+        num_cutlass_partition = 0
+        for var in mod.get_global_vars():
+            fun_name = var.name_hint
+            func = mod[fun_name]
+            if "cutlass" in fun_name:
+                num_cutlass_partition += 1
+                new_func = tune_cutlass_function(
+                    func,
+                    use_3xtf32,
+                    split_k_slices,
+                    profile_all_alignments,
+                    find_first_valid,
+                    use_multiprocessing,
+                    gemm_profiler,
+                    conv2d_profiler,
+                )
+                mod.update_func(var, new_func)
+
+        return mod, num_cutlass_partition
 
 
 def tune_cutlass_function(
@@ -1003,20 +1012,27 @@ class CutlassRelaxFunctionAnnotator(relax.PyExprMutator):
 @register_func("contrib.cutlass.tune_relax_function")
 def profile_relax_function(functions, options):
     """Tune and annotate CUTLASS composite functions with shape, dtype and generated templates."""
-    tmp_dir = options.get("tmp_dir", "./tmp")
-    sm = options.get("sm", 80)
-    conv2d_profiler = CutlassConv2DProfiler(sm, _get_cutlass_path(), tmp_dir)
-    gemm_profiler = CutlassGemmProfiler(sm, _get_cutlass_path(), tmp_dir)
+    with contextlib.ExitStack() as exit_stack:
+        if "tmp_dir" in options:
+            tmp_dir = options["tmp_dir"]
+        else:
+            tmp_dir = exit_stack.enter_context(
+                tempfile.TemporaryDirectory(prefix="tmp_cutlass_compile_")
+            )
 
-    annotated_functions = []
+        sm = options.get("sm", 80)
+        conv2d_profiler = CutlassConv2DProfiler(sm, _get_cutlass_path(), tmp_dir)
+        gemm_profiler = CutlassGemmProfiler(sm, _get_cutlass_path(), tmp_dir)
 
-    for f in functions:
-        annotator = CutlassRelaxFunctionAnnotator(
-            tvm.IRModule.from_expr(f), conv2d_profiler, gemm_profiler, options
-        )
-        annotated_functions.append(annotator.visit_expr(f))
+        annotated_functions = []
 
-    return annotated_functions
+        for f in functions:
+            annotator = CutlassRelaxFunctionAnnotator(
+                tvm.IRModule.from_expr(f), conv2d_profiler, gemm_profiler, options
+            )
+            annotated_functions.append(annotator.visit_expr(f))
+
+        return annotated_functions
 
 
 @register_func("contrib.cutlass.compile")
@@ -1041,18 +1057,32 @@ def compile_cutlass_module(c_source_module, options):
     rt_mod : runtime.Module
         A runtime module where all cutlass kernels have been compiled.
     """
-    tmp_dir = options.get("tmp_dir", "./tmp")
+
     defaults = {"sm": 80, "threads": -1, "use_fast_math": False}
     compile_config = {key: options.get(key, val) for key, val in defaults.items()}
 
     function_names = c_source_module.get_function("get_func_names")()
     compile_options = _get_cutlass_compile_options(**compile_config)
-    lib_path = os.path.join(tmp_dir, "cutlass.o")
-    logger.info("Compiling generated CUTLASS code")
-    c_source_module.export_library(lib_path, workspace_dir=tmp_dir, **compile_options)
 
-    # Recover static library
-    return tvm.runtime.load_static_library(lib_path, function_names)
+    with contextlib.ExitStack() as exit_stack:
+        if "tmp_dir" in options:
+            tmp_dir = options["tmp_dir"]
+        else:
+            tmp_dir = exit_stack.enter_context(
+                tempfile.TemporaryDirectory(prefix="tmp_cutlass_compile_")
+            )
+
+        lib_path = os.path.join(tmp_dir, "cutlass.o")
+
+        logger.info("Compiling generated CUTLASS code")
+        c_source_module.export_library(lib_path, workspace_dir=tmp_dir, **compile_options)
+
+        # Recover static library
+        return tvm.runtime.load_static_library(
+            lib_path,
+            function_names,
+            source_code=c_source_module.get_source(),
+        )
 
 
 @register_func("relay.ext.cutlass.compile_for_cutlass")
@@ -1101,7 +1131,7 @@ def compile_for_cutlass(mod, cutlass_target):
     return compile_cutlass_module(c_module, compile_config)
 
 
-def finalize_modules(lib, lib_path="compile.so", tmp_dir="./tmp"):
+def finalize_modules(lib, lib_path="compile.so", tmp_dir=None):
     """Returns lib with any C source, LLVM and static library modules complied and linked in ready
     for use by the graph or AOT executors. This method is not specific to CUTLASS, however it does
     assume nvcc will be used for final compilation and linking. It is provided here for
@@ -1112,10 +1142,10 @@ def finalize_modules(lib, lib_path="compile.so", tmp_dir="./tmp"):
     lib : runtime.Module
         The output from relay.build.
 
-    lib_path : string
+    lib_path : str
         The path to a shared library which will be generated as the result of the build process.
 
-    tmp_dir : string
+    tmp_dir : Optional[str]
         A temporary directory where intermediate compiled artifacts will be stored.
 
     Returns
@@ -1124,12 +1154,17 @@ def finalize_modules(lib, lib_path="compile.so", tmp_dir="./tmp"):
         The updated library with all compilation and linking completed.
 
     """
-    lib_path = os.path.join(tmp_dir, lib_path)
-    lib.export_library(lib_path, workspace_dir=tmp_dir, cc="nvcc")
-    return runtime.load_module(lib_path)
+    with contextlib.ExitStack() as exit_stack:
+        if tmp_dir is None:
+            tmp_dir = exit_stack.enter_context(
+                tempfile.TemporaryDirectory(prefix="tmp_cutlass_finalize_")
+            )
+        lib_path = os.path.join(tmp_dir, lib_path)
+        lib.export_library(lib_path, workspace_dir=tmp_dir, cc="nvcc")
+        return runtime.load_module(lib_path)
 
 
-def finalize_modules_vm(vm_exec, lib_path="compile.so", vmcode_path="vmcode.ro", tmp_dir="./tmp"):
+def finalize_modules_vm(vm_exec, lib_path="compile.so", vmcode_path="vmcode.ro", tmp_dir=None):
     """Returns vm_exec with any C source, LLVM and static library modules compiled and linked in
     ready for use by the VM executor. This method is not specific to CUTLASS, however it does
     assume nvcc will be used for final compilation and linking. It is provided here for
@@ -1143,10 +1178,10 @@ def finalize_modules_vm(vm_exec, lib_path="compile.so", vmcode_path="vmcode.ro",
     lib_path : string
         The path to a shared library which will be generated as the result of the build process.
 
-    vmcode_path : string
+    vmcode_path : str
         The path where the VM bytecode will be serialized to as a side-effect.
 
-    tmp_dir : string
+    tmp_dir : Optional[str]
         A temporary directory where intermediate compiled artifacts will be stored.
 
     Returns
@@ -1155,10 +1190,15 @@ def finalize_modules_vm(vm_exec, lib_path="compile.so", vmcode_path="vmcode.ro",
         The updated VM executable with all compilation and linking completed.
     """
     code, lib = vm_exec.save()
-    lib_path = os.path.join(tmp_dir, lib_path)
-    vmcode_path = os.path.join(tmp_dir, vmcode_path)
-    lib.export_library(lib_path, workspace_dir=tmp_dir, cc="nvcc")
-    with open(vmcode_path, "wb") as fo:
-        fo.write(code)
-    lib = tvm.runtime.load_module(lib_path)
-    return tvm.runtime.vm.Executable.load_exec(code, lib)
+    with contextlib.ExitStack() as exit_stack:
+        if tmp_dir is None:
+            tmp_dir = exit_stack.enter_context(
+                tempfile.TemporaryDirectory(prefix="tmp_cutlass_finalize_vm_")
+            )
+        lib_path = os.path.join(tmp_dir, lib_path)
+        vmcode_path = os.path.join(tmp_dir, vmcode_path)
+        lib.export_library(lib_path, workspace_dir=tmp_dir, cc="nvcc")
+        with open(vmcode_path, "wb") as fo:
+            fo.write(code)
+        lib = tvm.runtime.load_module(lib_path)
+        return tvm.runtime.vm.Executable.load_exec(code, lib)

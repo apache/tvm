@@ -56,6 +56,14 @@ class StaticLibraryNode final : public runtime::ModuleNode {
     }
   }
 
+  String GetSource(const String& format = "") override {
+    if (source_code_.defined()) {
+      return source_code_.value();
+    } else {
+      return String();
+    }
+  }
+
   void SaveToBinary(dmlc::Stream* stream) final {
     stream->Write(data_);
     std::vector<std::string> func_names;
@@ -114,14 +122,18 @@ class StaticLibraryNode final : public runtime::ModuleNode {
   std::string data_;
   /*! \brief Function names exported by the above. */
   Array<String> func_names_;
+  /*! \brief Source code that generated the object file. */
+  Optional<String> source_code_;
 };
 
 }  // namespace
 
-Module LoadStaticLibrary(const std::string& filename, Array<String> func_names) {
+Module LoadStaticLibrary(const std::string& filename, Array<String> func_names,
+                         Optional<String> source_code) {
   auto node = make_object<StaticLibraryNode>();
   LoadBinaryFromFile(filename, &node->data_);
   node->func_names_ = std::move(func_names);
+  node->source_code_ = std::move(source_code);
   VLOG(0) << "Loaded static library from '" << filename << "' implementing " << node->FuncNames();
   return Module(node);
 }
