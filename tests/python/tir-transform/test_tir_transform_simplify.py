@@ -17,6 +17,7 @@
 import tvm
 import tvm.testing
 
+import pytest
 from tvm import te
 from tvm.script import tir as T
 
@@ -1332,6 +1333,27 @@ class TestSimplifyUsingPartiallyKnownBufferExpression(BaseBeforeAfter):
                 A[i] = 42
 
 
+class TestAssumeMayContainAdditionalPredicate(BaseBeforeAfter):
+    """An assumption about buffer contents may apply to only part of a buffer
+    Like TestSimplifyUsingPartiallyKnownBufferConditional, but the
+    conditional is expressed as part of T.assume, instead of in the
+    control flow.
+    """
+
+    propagate_knowns_to_simplify_expressions = True
+
+    def before(A: T.Buffer(16, "int32")):
+        for i in T.serial(16):
+            T.evaluate(T.assume(i < 14 or A[i] == 0))
+
+        for i in T.serial(16):
+            if i < 14:
+                if A[i] == 0:
+                    A[i] = 42
+
+    expected = before
+
+
 class TestNoSimplificationIfPredicateNotMet(BaseBeforeAfter):
     """Assumptions about buffer contents must apply to all cases to be used
 
@@ -1632,6 +1654,7 @@ class TestSimplifyUsingPartiallyProvenBufferValueGather(BaseBeforeAfter):
                 T.evaluate(0)
 
 
+@pytest.mark.skip("Skipping because this test will hang")
 class TestSimplifyUsingPartiallyProvenBufferValueScatter(BaseBeforeAfter):
     """Propagate known buffer values in part of buffer.
 

@@ -473,8 +473,9 @@ class ControlFlowGraphBuilder final : public IRVisitorWithAnalyzer {
   void VisitAccess(const BufferAccess& node, BufferTouch::AccessType touch_type,
                    PrimExpr known_value_expr) {
     auto& current_block = out_->control_flow_.back();
-    BufferTouch buffer_touch = current_block.MakeBufferTouch(out_, node->buffer, node->indices,
-                                                             touch_type, known_value_expr);
+    PrimExpr current_predicate = CurrentScopePredicate();
+    BufferTouch buffer_touch = current_block.MakeBufferTouch(
+        out_, node->buffer, node->indices, touch_type, known_value_expr, current_predicate);
     current_block.touch_points.push_back(buffer_touch);
   }
 
@@ -637,7 +638,8 @@ class ControlFlowGraphBuilder final : public IRVisitorWithAnalyzer {
 
 std::pair<BufferTouch, Map<Var, Range>> ControlFlowGraph::ControlFlowBlock::MakeBufferTouch(
     const tir::Buffer& buf, Array<Var> index_variables, Array<PrimExpr> indices,
-    BufferTouch::AccessType touch_type, PrimExpr known_value_expr) const {
+    BufferTouch::AccessType touch_type, PrimExpr known_value_expr,
+    PrimExpr current_predicate) const {
   const auto& current_block = *this;
 
   Analyzer local_analyzer;
@@ -797,9 +799,16 @@ std::pair<BufferTouch, Map<Var, Range>> ControlFlowGraph::ControlFlowBlock::Make
   known_value_expr = local_analyzer.Simplify(normalize_expr(known_value_expr));
 
   // Deliberately use an analyzer without scope-based information,
-  // to avoid simplifying `scope_predicate` to True.
-  PrimExpr predicate_expr = local_analyzer.Simplify(transform_predicate && scope_predicate);
-
+  // to avoid simplifying `scope_predicate` or `current_predicate` to True.
+  PrimExpr scope_additional_predicate;
+  if (touch_type == BufferTouch::AccessType::Assume) {
+    // Consider the expression (additional_predicate) in T.assume to be included in `predicate_expr`
+    scope_additional_predicate = normalize_expr(current_predicate);
+  } else {
+    scope_additional_predicate = scope_predicate;
+  }
+  PrimExpr predicate_expr =
+      local_analyzer.Simplify(transform_predicate && scope_additional_predicate);
   BufferTouch buffer_touch = {buf, predicate_expr, known_value_expr, loop_var_expressions,
                               touch_type};
 
@@ -810,10 +819,12 @@ BufferTouch ControlFlowGraph::ControlFlowBlock::MakeBufferTouch(ControlFlowGraph
                                                                 const tir::Buffer& buf,
                                                                 const Array<PrimExpr>& indices,
                                                                 BufferTouch::AccessType touch_type,
-                                                                PrimExpr known_value_expr) const {
+                                                                PrimExpr known_value_expr,
+                                                                PrimExpr current_predicate) const {
   ICHECK(graph);
-  auto [buffer_touch, free_params] = MakeBufferTouch(buf, graph->GetIndexVariables(buf, indices),
-                                                     indices, touch_type, known_value_expr);
+  auto [buffer_touch, free_params] =
+      MakeBufferTouch(buf, graph->GetIndexVariables(buf, indices), indices, touch_type,
+                      known_value_expr, current_predicate);
   for (const auto& pair : free_params) {
     graph->free_predicate_parameters_.Set(pair.first, pair.second);
   }
