@@ -513,5 +513,34 @@ class TestSimpleAllocReuse(tvm.testing.CompareBeforeAfter):
         return func
 
 
+class TestAsyncCopy(tvm.testing.CompareBeforeAfter):
+    """Test async copy in shared memory."""
+
+    transform = tvm.tir.transform.MergeSharedMemoryAllocations()
+
+    def before(self):
+        @T.prim_func
+        def func(A: T.buffer((128)), B: T.buffer((128))):
+            A_sh_data = T.allocate([128], "float32", "shared.dyn")
+            B_sh_data = T.allocate([128], "float32", "shared.dyn")
+            A_sh = T.buffer([128], data=A_sh_data, scope="shared.dyn")
+            B_sh = T.buffer([128], data=B_sh_data, scope="shared.dyn")
+            threadIdx_x = T.launch_thread("threadIdx.x", 128)
+            T.ptx_cp_async("float32", A_sh.data, threadIdx_x, A.data, threadIdx_x, 512)
+            T.ptx_cp_async("float32", B_sh.data, threadIdx_x, B.data, threadIdx_x, 512)
+            
+        return func
+
+    def expected(self):
+        @T.prim_func
+        def func(A: T.Buffer((128,), "float32"), B: T.Buffer((128,), "float32")):
+            threadIdx_x = T.launch_thread("threadIdx.x", 128)
+            buf_dyn_shmem = T.allocate([1024], "uint8", "shared.dyn")
+            T.ptx_cp_async("float32", buf_dyn_shmem, threadIdx_x, A.data, threadIdx_x, 512)
+            T.ptx_cp_async("float32", buf_dyn_shmem, 64 + threadIdx_x, B.data, threadIdx_x, 512)
+
+        return func
+    
+
 if __name__ == "__main__":
     tvm.testing.main()
