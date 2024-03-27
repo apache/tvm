@@ -129,6 +129,14 @@ TVM_REGISTER_GLOBAL("runtime.disco.worker_rank").set_body_typed([]() -> int64_t 
 TVM_REGISTER_GLOBAL("runtime.disco.device").set_body_typed([]() -> Device {
   return DiscoWorker::ThreadLocal()->default_device;
 });
+TVM_REGISTER_GLOBAL("runtime.disco.bind_worker_to_cpu_core").set_body_typed([](IntTuple cpu_ids) {
+  int worker_id = WorkerId();
+  ICHECK_LT(worker_id, static_cast<int>(cpu_ids.size()));
+  const PackedFunc* f_set_thread_affinity =
+      Registry::Get("tvm.runtime.threading.set_current_thread_affinity");
+  ICHECK_NOTNULL(f_set_thread_affinity);
+  (*f_set_thread_affinity)(IntTuple{cpu_ids[worker_id]});
+});
 
 }  // namespace runtime
 }  // namespace tvm
