@@ -1830,7 +1830,6 @@ def convert_dequantize_linear(g, op, block):
     tvm_dequantize_scale = paddle_dequantize_scale / 127.0
     tvm_dequantize_scale = tvm_dequantize_scale.squeeze()
 
-
     tvm_dequantize_zp = g.get_params(op.input("ZeroPoint")[0]).asnumpy()
     tvm_dequantize_zp = tvm_dequantize_zp.squeeze()
 
