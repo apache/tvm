@@ -157,6 +157,14 @@ class LLVMTargetInfo {
   // NOLINTNEXTLINE(runtime/references)
   LLVMTargetInfo(LLVMInstance& scope, const std::string& target_str);
   /*!
+   * \brief Constructs LLVMTargetInfo from `Target`
+   * \param scope LLVMInstance object
+   * \param target TVM JSON Target object for target "llvm"
+   */
+  // NOLINTNEXTLINE(runtime/references)
+  LLVMTargetInfo(LLVMInstance& instance, const TargetJSON& target);
+
+  /*!
    * \brief Destroys LLVMTargetInfo object
    */
   ~LLVMTargetInfo();
@@ -290,11 +298,12 @@ class LLVMTargetInfo {
 
   /*!
    * \brief Get all CPU features from target
-   * \return list with all valid cpu features
+   * \return Map with all valid cpu features as keys and empty string as value. The Map
+   *         is intended to be used as a Set, which TVM does not currently support.
    * \note The features are fetched from the LLVM backend using the target `-mtriple`
    *       and the `-mcpu` architecture, but also consider the `-mattr` attributes.
    */
-  const Array<String> GetAllLLVMCpuFeatures() const;
+  const Map<String, String> GetAllLLVMCpuFeatures() const;
 
   /*!
    * \brief Check the target if has a specific cpu feature
