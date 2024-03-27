@@ -1158,17 +1158,51 @@ class ExprPatternRewriter : ExprMutator {
   Expr VisitExpr(const Expr& expr) override {
     auto node = ExprMutator::VisitExpr(expr);
 
-    if (auto matches_opt = ExtractMatchedExpr(pattern_, node, bindings_)) {
-      Expr rewritten_expr = rewriter_func_(node, matches_opt.value());
-      if (!rewritten_expr.same_as(node)) {
-        return builder_->Normalize(rewritten_expr);
-      }
+    std::vector<DFPattern> matches_top_level;
+    if (auto rewritten = TryRewrite(node, pattern_, &matches_top_level)) {
+      return builder_->Normalize(rewritten.value());
     }
 
     return node;
   }
 
  private:
+  Optional<Expr> TryRewrite(const Expr& expr, const DFPattern& pattern,
+                            std::vector<DFPattern>* matches_top_level) {
+    ICHECK(matches_top_level);
+
+    // Special handling if the user-supplied pattern is a `OrPattern`.
+    // While the `ExtractMatchedExpr` can handle matching the
+    // `OrPattern`, it will return on the first match, even if the
+    // `rewriter_func_` doesn't apply a replacement.  Unpacking the
+    // `OrPattern` here allows the match to be resumed if
+    // `rewriter_func_` returns the original function unmodified.
+    // This is only valid for a top-level match.
+    if (auto or_pattern = pattern.as<OrPatternNode>()) {
+      matches_top_level->push_back(pattern);
+      Optional<Expr> output = TryRewrite(expr, or_pattern->left, matches_top_level);
+      if (!output.defined()) {
+        output = TryRewrite(expr, or_pattern->right, matches_top_level);
+      }
+      matches_top_level->pop_back();
+      return output;
+    }
+
+    if (auto opt_matches = ExtractMatchedExpr(pattern, expr, bindings_)) {
+      auto matches = opt_matches.value();
+      for (const auto& pat : *matches_top_level) {
+        matches.Set(pat, expr);
+      }
+
+      Expr rewritten_expr = rewriter_func_(expr, matches);
+      if (!rewritten_expr.same_as(expr)) {
+        return builder_->Normalize(rewritten_expr);
+      }
+    }
+
+    return NullOpt;
+  }
+
   /*! \brief The pattern for rewriting call nodes */
   DFPattern pattern_;
   /*!
