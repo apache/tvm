@@ -65,7 +65,7 @@ class LazyInputMutator : public ExprMutator {
     }
 
     Var fget_param("fget_param",
-                   FuncStructInfo({ObjectStructInfo(), PrimStructInfo(DataType::Int(64))},
+                   FuncStructInfo({PrimStructInfo(DataType::Int(64)), ObjectStructInfo()},
                                   ObjectStructInfo()));
 
     Array<Var> new_params(func->params.begin(), func->params.begin() + num_input_params);
@@ -88,8 +88,8 @@ class LazyInputMutator : public ExprMutator {
         auto untyped =
             builder_->Emit(relax::Call(plan_->fget_param,
                                        {
-                                           StringImm(var->name_hint()),
                                            PrimValue(IntImm(DataType::Int(64), it->second)),
+                                           StringImm(var->name_hint()),
                                        }),
                            var->name_hint() + "_untyped");
         return builder_->EmitMatchCast(untyped, GetStructInfo(var), var->name_hint());

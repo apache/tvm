@@ -836,13 +836,13 @@ def test_get_item_callback():
     @I.ir_module
     class Expected:
         @R.function
-        def transform_params(fget_param: R.Callable([R.Object, R.Prim("int64")], R.Object)):
+        def transform_params(fget_param: R.Callable([R.Prim("int64"), R.Object], R.Object)):
             R.func_attr({"num_input": 1})
-            A = fget_param(R.str("A"), R.prim_value(0))
+            A = fget_param(R.prim_value(0), R.str("A"))
             A = R.match_cast(A, R.Tensor([16, 16], "float32"))
             C = R.multiply(A, R.const(2, "float32"))
 
-            B = fget_param(R.str("B"), R.prim_value(1))
+            B = fget_param(R.prim_value(1), R.str("B"))
             B = R.match_cast(B, R.Tensor([16, 16], "float32"))
             D = R.add(C, B)
             return (D, B)
@@ -904,7 +904,7 @@ def test_get_item_callback_num_attrs():
         def transform_params(
             rank_arg: R.Prim(value="rank"),
             world_size_arg: R.Prim(value="world_size"),
-            fget_item: R.Callable([R.Object, R.Prim("int64")], R.Object),
+            fget_item: R.Callable([R.Prim("int64"), R.Object], R.Object),
         ):
             R.func_attr({"num_input": 3})
 
@@ -919,7 +919,7 @@ def test_get_item_callback_num_attrs():
                     "but received world size of {}."
                 ),
             )
-            weight_A = fget_item(R.str("weight_A"), R.prim_value(0))
+            weight_A = fget_item(R.prim_value(0), R.str("weight_A"))
             weight_A = R.match_cast(weight_A, R.Tensor([16, 64], "float32"))
             weight_A = R.strided_slice(
                 weight_A,
@@ -936,7 +936,7 @@ def test_get_item_callback_num_attrs():
                     "but received world size of {}."
                 ),
             )
-            weight_B = fget_item(R.str("weight_B"), R.prim_value(1))
+            weight_B = fget_item(R.prim_value(1), R.str("weight_B"))
             weight_B = R.match_cast(weight_B, R.Tensor([1024, 2048], "float32"))
             weight_B = R.strided_slice(
                 weight_B,
