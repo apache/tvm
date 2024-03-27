@@ -233,9 +233,9 @@ std::vector<MemoryCopy> MemoryCopy::MergeAdjacent(std::vector<MemoryCopy> micro_
   return macro_copies;
 }
 
-void hexagon_buffer_copy_across_regions(const BufferSet& dest, const BufferSet& src,
-                                        size_t bytes_to_copy, bool src_is_hexbuff,
-                                        bool dest_is_hexbuff) {
+void HexagonBufferCopyAcrossRegions(const BufferSet& dest, const BufferSet& src,
+                                    size_t bytes_to_copy, bool src_is_hexbuff,
+                                    bool dest_is_hexbuff) {
   // First, determine all copies that do not cross boundaries in
   // either source or destination region.
   auto micro_copies = BufferSet::MemoryCopies(dest, src, bytes_to_copy);
@@ -268,24 +268,24 @@ void HexagonBuffer::CopyTo(void* data, size_t nbytes) const {
   BufferSet src(allocations_.data(), allocations_.size(), nbytes_per_allocation_);
   BufferSet dest(&data, 1, nbytes);
 
-  hexagon_buffer_copy_across_regions(dest, src, nbytes, true /* src_is_hexbuff */,
-                                     false /* dest_is_hexbuff */);
+  HexagonBufferCopyAcrossRegions(dest, src, nbytes, true /* src_is_hexbuff */,
+                                 false /* dest_is_hexbuff */);
 }
 
 void HexagonBuffer::CopyFrom(void* data, size_t nbytes) {
   BufferSet src(&data, 1, nbytes);
   BufferSet dest(allocations_.data(), allocations_.size(), nbytes_per_allocation_);
 
-  hexagon_buffer_copy_across_regions(dest, src, nbytes, false /* src_is_hexbuff */,
-                                     true /* dest_is_hexbuff */);
+  HexagonBufferCopyAcrossRegions(dest, src, nbytes, false /* src_is_hexbuff */,
+                                 true /* dest_is_hexbuff */);
 }
 
 void HexagonBuffer::CopyFrom(const HexagonBuffer& other, size_t nbytes) {
   BufferSet src(other.allocations_.data(), other.allocations_.size(), other.nbytes_per_allocation_);
   BufferSet dest(allocations_.data(), allocations_.size(), nbytes_per_allocation_);
 
-  hexagon_buffer_copy_across_regions(dest, src, nbytes, true /* src_is_hexbuff */,
-                                     true /* dest_is_hexbuff */);
+  HexagonBufferCopyAcrossRegions(dest, src, nbytes, true /* src_is_hexbuff */,
+                                 true /* dest_is_hexbuff */);
 }
 
 }  // namespace hexagon

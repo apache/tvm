@@ -238,6 +238,8 @@ class CodeGenVMTIR : public ExprFunctor<Optional<PrimExpr>(const Expr&)> {
         EmitAllocStorage(call, dst_reg);
       } else if (call_node->op == alloc_tensor_op_) {
         EmitAllocTensor(call, dst_reg);
+      } else if (call_node->op == copy_tensor_from_to_op_) {
+        EmitCopyTensor(call, dst_reg);
       } else if (call_node->op == kill_object_op_) {
         dst_reg = EmitKillObject(call);
       } else {
@@ -414,6 +416,16 @@ class CodeGenVMTIR : public ExprFunctor<Optional<PrimExpr>(const Expr&)> {
     this->EmitCallPacked("vm.builtin.alloc_tensor", args, dst_reg);
   }
 
+  void EmitCopyTensor(const Call& call_node, int64_t dst_reg) {
+    ICHECK_EQ(call_node->args.size(), 2);
+    Array<PrimExpr> args;
+    args.reserve(2);
+    for (Expr arg : call_node->args) {
+      args.push_back(this->VisitExpr(arg).value());
+    }
+    this->EmitCallPacked("vm.builtin.copy_tensor_from_to", args, dst_reg);
+  }
+
   int64_t EmitKillObject(const Call& call_node) {
     ICHECK_EQ(call_node->args.size(), 1);
     PrimExpr arg = this->VisitExpr(call_node->args[0]).value();
@@ -519,6 +531,7 @@ class CodeGenVMTIR : public ExprFunctor<Optional<PrimExpr>(const Expr&)> {
   /*! \brief Cache ops that need to be frequently used later to reduce lookup overhead. */
   const Op& alloc_storage_op_ = Op::Get("relax.vm.alloc_storage");
   const Op& alloc_tensor_op_ = Op::Get("relax.vm.alloc_tensor");
+  const Op& copy_tensor_from_to_op_ = Op::Get("relax.vm.copy_tensor_from_to");
   const Op& kill_object_op_ = Op::Get("relax.vm.kill_object");
   const Op& call_builtin_with_ctx_op_ = Op::Get("relax.call_builtin_with_ctx");
   const Op& null_value_op_ = Op::Get("relax.null_value");

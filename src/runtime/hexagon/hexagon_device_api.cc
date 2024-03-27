@@ -32,7 +32,9 @@
 #include <cstring>
 
 #include "../workspace_pool.h"
+#include "hexagon_buffer.h"
 #include "hexagon_common.h"
+#include "qurt_memory.h"
 
 namespace tvm {
 namespace runtime {
@@ -91,23 +93,29 @@ void* HexagonDeviceAPI::AllocDataSpace(Device dev, int ndim, const int64_t* shap
   CHECK(runtime_hexbuffs) << "Attempted to allocate Hexagon data with "
                           << "HexagonDeviceAPI::AllocDataSpace before initializing resources.  "
                           << "Please call HexagonDeviceAPI::AcquireResources";
-
+  void* base_ptr;
+  PhysicalShape physical_shape;
   if (ndim == 0) {
     // Allocate storage for a single scalar value.
-    return runtime_hexbuffs->AllocateHexagonBuffer(typesize, kHexagonAllocAlignment, mem_scope);
+    base_ptr = runtime_hexbuffs->AllocateHexagonBuffer(typesize, kHexagonAllocAlignment, mem_scope);
+    physical_shape = {1, 1, typesize};
   } else if (ndim == 1) {
     // Allocate a single, contiguous memory region.
     size_t nbytes = shape[0] * typesize;
-    return runtime_hexbuffs->AllocateHexagonBuffer(nbytes, kHexagonAllocAlignment, mem_scope);
+    base_ptr = runtime_hexbuffs->AllocateHexagonBuffer(nbytes, kHexagonAllocAlignment, mem_scope);
+    physical_shape = {1, 1, nbytes};
   } else if (ndim == 2) {
     // Allocate the region(s) needed for Hexagon's indirect-tensor format.
     size_t nallocs = shape[0];
     size_t nbytes = shape[1] * typesize;
-    return runtime_hexbuffs->AllocateHexagonBuffer(nallocs, nbytes, kHexagonAllocAlignment,
-                                                   mem_scope);
+    base_ptr =
+        runtime_hexbuffs->AllocateHexagonBuffer(nallocs, nbytes, kHexagonAllocAlignment, mem_scope);
+    physical_shape = {2, nallocs, nbytes};
   } else {
     return nullptr;  // unreachable
   }
+  SetPhysicalShape(base_ptr, physical_shape);
+  return base_ptr;
 }
 
 void* HexagonDeviceAPI::AllocDataSpace(Device dev, size_t nbytes, size_t alignment,
@@ -121,7 +129,11 @@ void* HexagonDeviceAPI::AllocDataSpace(Device dev, size_t nbytes, size_t alignme
   CHECK(runtime_hexbuffs) << "Attempted to allocate Hexagon data with "
                           << "HexagonDeviceAPI::AllocDataSpace before initializing resources.  "
                           << "Please call HexagonDeviceAPI::AcquireResources";
-  return runtime_hexbuffs->AllocateHexagonBuffer(nbytes, alignment, String("global"));
+  void* base_ptr = runtime_hexbuffs->AllocateHexagonBuffer(nbytes, alignment, String("global"));
+  PhysicalShape physical_shape = {1, 1, nbytes};
+  LOG(INFO) << "Setting physical shape to 1D\n";
+  SetPhysicalShape(base_ptr, physical_shape);
+  return base_ptr;
 }
 
 void HexagonDeviceAPI::FreeDataSpace(Device dev, void* ptr) {
@@ -134,6 +146,7 @@ void HexagonDeviceAPI::FreeDataSpace(Device dev, void* ptr) {
     // occur in the normal course of shutdown, log a message and continue.
     DLOG(INFO) << "FreeDataSpace called outside a session for " << ptr;
   }
+  ndarray_physical_shape.erase(ptr);
 }
 
 // WorkSpace: runtime allocations for Hexagon
@@ -157,6 +170,8 @@ void HexagonDeviceAPI::FreeWorkspace(Device dev, void* data) {
   dmlc::ThreadLocalStore<HexagonWorkspacePool>::Get()->FreeWorkspace(dev, data);
 }
 
+void* get_data_start(DLTensor* tensor) { return (reinterpret_cast<uint8_t*>(tensor->data)); }
+
 void HexagonDeviceAPI::CopyDataFromTo(DLTensor* from, DLTensor* to, TVMStreamHandle stream) {
   CHECK_EQ(from->byte_offset, 0);
   CHECK_EQ(to->byte_offset, 0);
@@ -165,22 +180,44 @@ void HexagonDeviceAPI::CopyDataFromTo(DLTensor* from, DLTensor* to, TVMStreamHan
                           << "HexagonDeviceAPI::CopyDataFromTo before initializing resources.  "
                           << "Please call HexagonDeviceAPI::AcquireResources";
 
-  auto lookup_hexagon_buffer = [this](void* ptr) -> HexagonBuffer* {
-    return runtime_hexbuffs->FindHexagonBuffer(ptr);
-  };
+  auto numBytes = GetDataSize(*from);
 
-  HexagonBuffer* hex_from_buf = lookup_hexagon_buffer(from->data);
-  HexagonBuffer* hex_to_buf = lookup_hexagon_buffer(to->data);
+  size_t FlatShape = 1;
+  for (auto i = 0; i < from->ndim; ++i) FlatShape *= from->shape[i];
 
-  if (hex_from_buf && hex_to_buf) {
-    hex_to_buf->CopyFrom(*hex_from_buf, GetDataSize(*from));
-  } else if (hex_to_buf) {
-    hex_to_buf->CopyFrom(from->data, GetDataSize(*from));
-  } else if (hex_from_buf) {
-    hex_from_buf->CopyTo(to->data, GetDataSize(*to));
+  PhysicalShape source_shape = {1, 1, FlatShape};
+  PhysicalShape dest_shape = {1, 1, FlatShape};
+  auto it1 = ndarray_physical_shape.find(from->data);
+  if (it1 != ndarray_physical_shape.end()) source_shape = it1->second;
+  size_t src_rank = source_shape.ndim;
+  void* src_start = get_data_start(from);
+  void* dst_start = get_data_start(to);
+  BufferSet src((src_rank == 1) ? &(src_start) : static_cast<void**>(src_start),
+                source_shape.nblocks, numBytes / source_shape.nblocks);
+  auto it2 = ndarray_physical_shape.find(to->data);
+  if (it2 != ndarray_physical_shape.end()) dest_shape = it2->second;
+  size_t dest_rank = dest_shape.ndim;
+  BufferSet dest((dest_rank == 1) ? &(dst_start) : static_cast<void**>(dst_start),
+                 dest_shape.nblocks, numBytes / dest_shape.nblocks);
+  HexagonBufferCopyAcrossRegions(dest, src, numBytes, (it1 != ndarray_physical_shape.end()),
+                                 (it2 != ndarray_physical_shape.end()));
+  return;
+}
+
+void HexagonDeviceAPI::SetPhysicalShape(const DLTensor* tensor, const int64_t ndim,
+                                        const int64_t* shape) {
+  PhysicalShape physical_shape = {static_cast<size_t>(ndim), static_cast<size_t>(shape[0]),
+                                  static_cast<size_t>(shape[1])};
+  SetPhysicalShape(tensor->data, physical_shape);
+}
+
+void HexagonDeviceAPI::SetPhysicalShape(const void* data, const PhysicalShape& physical_shape) {
+  auto it = ndarray_physical_shape.find(const_cast<void*>(data));
+  if (it != ndarray_physical_shape.end()) {
+    ndarray_physical_shape[const_cast<void*>(data)] = physical_shape;
   } else {
-    CHECK(false) << "CopyDataFromTo requested between src and dst which are not managed by the "
-                    "hexagon device api.";
+    ndarray_physical_shape.insert(
+        std::pair<void*, PhysicalShape>(const_cast<void*>(data), physical_shape));
   }
 }
 

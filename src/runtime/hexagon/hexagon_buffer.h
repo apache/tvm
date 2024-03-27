@@ -195,6 +195,19 @@ struct BufferSet {
   size_t region_size_bytes;
 };
 
+/**
+ * @brief Single function to handle copying potentially discontiguous buffers efficiently
+ *
+ * @param The destination buffer
+ * @param The source buffer
+ * @param Number of bytes to copy. This should be less than both source and dest buffer size
+ * @param Boolean to specify whether the source is a hexagon buffer
+ * @param Boolean to specify whether the destination is a hexagon buffer
+ */
+void HexagonBufferCopyAcrossRegions(const BufferSet& dest, const BufferSet& src,
+                                    size_t bytes_to_copy, bool src_is_hexbuff,
+                                    bool dest_is_hexbuff);
+
 }  // namespace hexagon
 }  // namespace runtime
 }  // namespace tvm

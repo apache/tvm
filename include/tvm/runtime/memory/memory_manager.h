@@ -144,6 +144,10 @@ class StorageObj : public Object {
   /*! \brief The allocator where the storage buffer is allocated from. */
   Allocator* allocator;
 
+  /* \brief Common function to create an NDArray container with the provided offset, shape and dtype
+   */
+  NDArray::Container* CreateNDArrayContainer(int64_t offset, ShapeTuple shape, DLDataType dtype);
+
   /*! \brief Allocate an NDArray from a given piece of storage. */
   TVM_DLL NDArray AllocNDArray(int64_t offset, ShapeTuple shape, DLDataType dtype);
 

@@ -16,4 +16,4 @@
 # under the License.
 """Relax vm primitives."""
 
-from .vm import alloc_storage, alloc_tensor, call_tir_dyn, kill_object
+from .vm import alloc_storage, alloc_tensor, call_tir_dyn, copy_tensor_from_to, kill_object
