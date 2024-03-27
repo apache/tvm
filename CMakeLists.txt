@@ -62,7 +62,6 @@ tvm_option(USE_AOT_EXECUTOR "Build with AOT executor" ON)
 tvm_option(USE_PROFILER "Build profiler for the VM and graph executor" ON)
 tvm_option(USE_OPENMP "Build with OpenMP thread pool implementation" OFF)
 tvm_option(USE_RELAY_DEBUG "Building Relay in debug mode..." OFF)
-tvm_option(TVM_DEBUG_WITH_ABI_CHANGE "Enable debug code that may cause ABI changes" OFF)
 tvm_option(USE_RTTI "Build with RTTI" ON)
 tvm_option(USE_MSVC_MT "Build with MT" OFF)
 tvm_option(USE_MICRO "Build with Micro TVM support" OFF)
@@ -97,6 +96,7 @@ tvm_option(USE_BLAS "The blas library to be linked" none)
 tvm_option(USE_AMX "Enable Intel AMX" OFF)
 tvm_option(USE_MKL "MKL root path when use MKL blas" OFF)
 tvm_option(USE_DNNL "Enable DNNL codegen" OFF)
+tvm_option(USE_IMP "Enable IMP codegen" OFF)
 tvm_option(USE_CUDNN "Build with cuDNN" OFF)
 tvm_option(USE_CUBLAS "Build with cuBLAS" OFF)
 tvm_option(USE_NVTX "Build with NVTX" OFF)
@@ -369,7 +369,6 @@ tvm_file_glob(GLOB RUNTIME_SRCS
   src/runtime/minrpc/*.cc
   src/runtime/relax_vm/*.cc
 )
-set(TVM_RUNTIME_EXT_OBJS "")
 
 if(BUILD_FOR_HEXAGON)
   if(NOT BUILD_STATIC_RUNTIME)
@@ -454,7 +453,7 @@ endif(USE_PROFILER)
 if(USE_CUDA AND USE_NCCL)
   message(STATUS "Build with NCCL...")
   find_nccl(${USE_NCCL})
-  tvm_file_glob(GLOB RUNTIME_NCCL_SRC src/runtime/disco/nccl/*.cc src/runtime/disco/cuda_ipc/*.cc 3rdparty/tensorrt_llm/*.cu)
+  tvm_file_glob(GLOB RUNTIME_NCCL_SRC src/runtime/disco/nccl/*.cc)
   set_source_files_properties(src/runtime/disco/nccl/nccl.cc PROPERTIES COMPILE_DEFINITIONS "TVM_NCCL_RCCL_SWITCH=0")
   list(APPEND RUNTIME_SRCS ${RUNTIME_NCCL_SRC})
 endif()
@@ -558,6 +557,7 @@ include(cmake/modules/contrib/EthosU.cmake)
 include(cmake/modules/contrib/BLAS.cmake)
 include(cmake/modules/contrib/CODEGENC.cmake)
 include(cmake/modules/contrib/DNNL.cmake)
+include(cmake/modules/contrib/IMP.cmake)
 include(cmake/modules/contrib/AMX.cmake)
 include(cmake/modules/contrib/CUTLASS.cmake)
 include(cmake/modules/contrib/ExampleTargetHooks.cmake)
@@ -596,32 +596,18 @@ add_library(tvm_libinfo_objs OBJECT ${LIBINFO_FILE})
 
 include(GNUInstallDirs)
 if(NOT BUILD_DUMMY_LIBTVM)
-  add_library(tvm SHARED
-    $<TARGET_OBJECTS:tvm_objs>
-    $<TARGET_OBJECTS:tvm_runtime_objs>
-    $<TARGET_OBJECTS:tvm_libinfo_objs>
-    ${TVM_RUNTIME_EXT_OBJS}
-  )
-
+  add_library(tvm SHARED $<TARGET_OBJECTS:tvm_objs> $<TARGET_OBJECTS:tvm_runtime_objs> $<TARGET_OBJECTS:tvm_libinfo_objs>)
 else()
   # dummy version of libtvm that can be used by downstream to specify dependencies
   # the real runner still need a full version of libtvm
-  add_library(tvm SHARED
-    $<TARGET_OBJECTS:tvm_runtime_objs>
-    $<TARGET_OBJECTS:tvm_libinfo_objs>
-    ${TVM_RUNTIME_EXT_OBJS}
-  )
+  add_library(tvm SHARED $<TARGET_OBJECTS:tvm_runtime_objs> $<TARGET_OBJECTS:tvm_libinfo_objs>)
 endif()
 
 target_include_directories(tvm PUBLIC "$<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>")
 set_property(TARGET tvm APPEND PROPERTY LINK_OPTIONS "${TVM_NO_UNDEFINED_SYMBOLS}")
 set_property(TARGET tvm APPEND PROPERTY LINK_OPTIONS "${TVM_VISIBILITY_FLAG}")
 if(BUILD_STATIC_RUNTIME)
-  add_library(tvm_runtime STATIC
-    $<TARGET_OBJECTS:tvm_runtime_objs>
-    $<TARGET_OBJECTS:tvm_libinfo_objs>
-    ${TVM_RUNTIME_EXT_OBJS}
-  )
+  add_library(tvm_runtime STATIC $<TARGET_OBJECTS:tvm_runtime_objs> $<TARGET_OBJECTS:tvm_libinfo_objs>)
   set(NOTICE_MULTILINE
     "You have build static version of the TVM runtime library. Make "
     "sure to use --whole-archive when linking it into your project.")
@@ -629,11 +615,7 @@ if(BUILD_STATIC_RUNTIME)
   add_custom_command(TARGET tvm_runtime POST_BUILD
     COMMAND ${CMAKE_COMMAND} -E cmake_echo_color --yellow --bold ${NOTICE})
 else()
-  add_library(tvm_runtime SHARED
-    $<TARGET_OBJECTS:tvm_runtime_objs>
-    $<TARGET_OBJECTS:tvm_libinfo_objs>
-    ${TVM_RUNTIME_EXT_OBJS}
-  )
+  add_library(tvm_runtime SHARED $<TARGET_OBJECTS:tvm_runtime_objs> $<TARGET_OBJECTS:tvm_libinfo_objs>)
   set_property(TARGET tvm_runtime APPEND PROPERTY LINK_OPTIONS "${TVM_NO_UNDEFINED_SYMBOLS}")
 endif()
 
@@ -686,13 +668,6 @@ else()
   target_compile_definitions(tvm_runtime_objs PRIVATE "NDEBUG")
   target_compile_definitions(tvm_libinfo_objs PRIVATE "NDEBUG")
 endif(USE_RELAY_DEBUG)
-
-if(TVM_DEBUG_WITH_ABI_CHANGE)
-  message(STATUS "Building with debug code that may cause ABI changes...")
-  target_compile_definitions(tvm_objs PRIVATE "TVM_DEBUG_WITH_ABI_CHANGE")
-  target_compile_definitions(tvm_runtime_objs PRIVATE "TVM_DEBUG_WITH_ABI_CHANGE")
-  target_compile_definitions(tvm_libinfo_objs PRIVATE "TVM_DEBUG_WITH_ABI_CHANGE")
-endif(TVM_DEBUG_WITH_ABI_CHANGE)
 
 if(USE_FALLBACK_STL_MAP)
   message(STATUS "Building with STL Map...")
@@ -798,10 +773,6 @@ if(GTEST_FOUND)
   else()
     target_compile_definitions(cpptest PRIVATE "NDEBUG")
   endif()
-  if(TVM_DEBUG_WITH_ABI_CHANGE)
-    target_compile_definitions(cpptest PRIVATE "TVM_DEBUG_WITH_ABI_CHANGE")
-  endif(TVM_DEBUG_WITH_ABI_CHANGE)
-
   # For some reason, compile definitions are not propagated correctly, so we manually add them here
   target_compile_definitions(cpptest PUBLIC $<TARGET_PROPERTY:tvm,INTERFACE_COMPILE_DEFINITIONS>)
   gtest_discover_tests(cpptest)
