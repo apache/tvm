@@ -29,15 +29,19 @@ from tvm.runtime.disco import Session
 
 
 class AllReduceStrategyType(enum.IntEnum):
+    RING = 0
     ONESHOT = 1
     TWOSHOT = 2
+    AUTO = 3
 
 
 _shapes = [(2, 3), (3, 4), (128, 128)]
 
 _strategies = [
+    AllReduceStrategyType.RING,
     AllReduceStrategyType.ONESHOT,
     AllReduceStrategyType.TWOSHOT,
+    AllReduceStrategyType.AUTO,
 ]
 
 _ccl = [ccl for ccl in tvm.get_global_func("runtime.disco.compiled_ccl")() if ccl == "nccl"]

@@ -25,8 +25,10 @@ constexpr size_t MAX_RANKS_PER_NODE = 8;
 constexpr size_t DEFAULT_BLOCK_SIZE = 1024;
 
 enum class AllReduceStrategyType : int8_t {
+  RING = 0,
   ONESHOT = 1,
   TWOSHOT = 2,
+  AUTO = 3,
 };
 
 struct AllReduceParams {
@@ -41,6 +43,37 @@ struct AllReduceParams {
   void* peer_comm_buffer_ptrs[MAX_RANKS_PER_NODE];
   void* local_output_buffer_ptr;
 };
+
+inline size_t GetMaxRequiredWorkspaceSize(int world_size) {
+  if (world_size <= 2) {
+    return 16 * 1000 * 1000;
+  }
+  return 8 * 1000 * 1000;
+}
+
+inline AllReduceStrategyType SelectImplementation(size_t message_size, int world_size) {
+  const size_t maxWorkspaceSize = GetMaxRequiredWorkspaceSize(world_size);
+
+  if (message_size > maxWorkspaceSize) {
+    return AllReduceStrategyType::RING;
+  }
+
+  if (world_size <= 2) {
+    return AllReduceStrategyType::ONESHOT;
+  }
+
+  if (world_size <= 4) {
+    if (message_size < 1 * 1000 * 1000) {
+      return AllReduceStrategyType::ONESHOT;
+    }
+    return AllReduceStrategyType::TWOSHOT;
+  }
+
+  if (message_size < 500 * 1000) {
+    return AllReduceStrategyType::ONESHOT;
+  }
+  return AllReduceStrategyType::TWOSHOT;
+}
 
 void customAllReduce(AllReduceParams& params, void* data, size_t elts, DLDataType dataType,
                      AllReduceStrategyType strat, cudaStream_t stream);
