@@ -32,6 +32,7 @@
 #include "../json/json_node.h"
 #include "../json/json_runtime.h"
 #include "cublas_utils.h"
+#include "cublas_algo.h"
 
 namespace tvm {
 namespace runtime {
@@ -46,7 +47,9 @@ class CublasJSONRuntime : public JSONRuntimeBase {
                     const Array<String> const_names)
       : JSONRuntimeBase(symbol_name, graph_json, const_names) {}
 
-  void Init(const Array<NDArray>& consts) override {}
+  void Init(const Array<NDArray>& consts) override {
+    LoadPredefAlgoCollection();
+  }
 
   PackedFunc GetFunction(const String& name, const ObjectPtr<Object>& sptr_to_self) override {
     // JSONRuntimeBase::SetInputOutputBuffers(...) is not thread safe. Since CublasJSONRuntime
@@ -129,14 +132,50 @@ class CublasJSONRuntime : public JSONRuntimeBase {
 
         auto [a_ptr, b_ptr, bias_ptr] = get_inputs(node, epilogue != CUBLASLT_EPILOGUE_DEFAULT);
 
+        const cublasLtMatmulAlgo_t* predef_algo_ptr = nullptr;
+        int64_t dyn_dim_val = dl_tensors[std::get<0>(dyn_dim_position)]->shape[std::get<1>(dyn_dim_position)];
+        auto algo_desc = algo_collection(dyn_dim_val);
+        if (algo_desc.defined())
+          predef_algo_ptr = &algo_desc->algo;
+
         tvm::contrib::CallCublasLt(entry_ptr->handle, stream, entry_ptr->matmul_pref_desc, a_ptr,
                                    b_ptr, bias_ptr, out_ptr, transa, transb,
-                                   entry_ptr->workspace_ptr, entry_ptr->workspace_size, epilogue);
+                                   entry_ptr->workspace_ptr, entry_ptr->workspace_size, epilogue,
+                                   predef_algo_ptr);
       }
     }
   }
 
   void Run() override { LOG(FATAL) << "Unreachable"; }
+
+ protected:
+  void LoadPredefAlgoCollection() {
+    for (const auto& node : nodes_) {
+      if (node.GetOpType() == "kernel" && node.HasAttr("predefined_algos")) {
+        // Load algo collection
+        auto predef_algos_str = node.GetAttr<std::vector<std::string>>("predefined_algos");
+        ICHECK_EQ(predef_algos_str.size(), 1);
+        algo_collection = tvm::contrib::AlgoCollection::FromJSON(predef_algos_str[0]);
+
+        // Define dynamic dimension position
+        for (const auto& ne : node.GetInputs()) {
+          auto shape = nodes_[ne.id_].GetOpShape()[ne.index_];
+          auto found = std::find(shape.begin(), shape.end(), -1);
+          if (found != shape.end()) {
+            uint32_t dyn_dim_idx = std::distance(shape.begin(), found);
+            uint32_t dyn_dim_eid = EntryID(ne);
+            dyn_dim_position = {dyn_dim_eid, dyn_dim_idx};
+          }
+        }
+      }
+    }
+  }
+
+ protected:
+  /* Collection of predefined cublas matmul algo */
+  tvm::contrib::AlgoCollection algo_collection;
+  /* Position of symbolic var in argument shapes. [0] - eid of tensor, [1] - dim idx in shape */
+  std::tuple<int, int> dyn_dim_position;
 };
 
 runtime::Module CublasJSONRuntimeCreate(String symbol_name, String graph_json,

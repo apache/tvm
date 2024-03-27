@@ -22,6 +22,7 @@ import tvm.testing
 import tvm.topi.testing
 from tvm import relax
 from tvm.relax.backend.contrib.cublas import partition_for_cublas
+from tvm.relax.backend.contrib.algo_tuning import AlgoDatabase, TuneCodegenAlgo
 from tvm.relax.testing import get_relax_matmul_module
 from tvm.script import relax as R
 
@@ -284,6 +285,43 @@ def test_cublas_matmul_cuda_graph():
         mod = tvm.tir.transform.DefaultGPUSchedule()(mod)
     ref = build_and_run(mod, inputs, "llvm", legalize=True)
     tvm.testing.assert_allclose(out, ref, rtol=1e-2, atol=1e-2)
+
+
+@pytest.mark.parametrize(
+    "a_shape, b_shape, i_dtype, o_dtype, trans_b",
+    [
+        ((_vars["a"], 32), (32, 16), "float16", "float16", False),
+        ((_vars["a"], 32), (16, 32), "float16", "float16", True),
+        ((_vars["a"], 32), (32, 16), "float32", "float32", False),
+        ((1, _vars["a"], 32), (32, 16), "float16", "float16", False),
+    ]
+)
+def test_algo_tuning(a_shape, b_shape, i_dtype, o_dtype, trans_b):
+    dev = tvm.device("cuda", 0)
+
+    mod = get_relax_matmul_module(a_shape, b_shape, i_dtype, o_dtype, trans_b)
+    mod = partition_for_cublas(mod)
+
+    db = TuneCodegenAlgo(mod, codegen_name="cublas", cfg_map={
+        "dyn_m_range": 2,
+        "mode": "cublas.heuristic_top1",
+        "verbose": True,
+    })
+    mod = relax.transform.RunCodegen({"cublas": {"algo_db": db}})(mod)
+    ex = relax.build(mod, "cuda")
+    vm = relax.VirtualMachine(ex, dev)
+    
+    # Check if algo db was applyed and stored inside json runtime 
+    assert "predefined_algos" in vm.module.imported_modules[0].imported_modules[1].get_source()
+
+    M = 2
+    a_shape = (M if d == _vars["a"] else d for d in a_shape)
+
+    a = tvm.nd.array(np.random.randn(*a_shape).astype(i_dtype), dev)
+    b = tvm.nd.array(np.random.randn(*b_shape).astype(i_dtype), dev)
+    
+    # Check if execution goes without error with particular M value
+    vm["main"](a, b).numpy()
 
 
 if __name__ == "__main__":
