@@ -27,6 +27,7 @@ from tvm import te
 from tvm.relay.testing import run_infer_type, run_opt_pass
 import tvm.testing
 from tvm import topi
+from tvm.target.codegen import llvm_version_major
 
 
 @pytest.mark.parametrize(
@@ -90,6 +91,9 @@ def _get_conv2d_impl(dtype, target):
     return impl.name
 
 
+@pytest.mark.skipif(
+    llvm_version_major() < 15, reason=f"Requires LLVM 15+, got {llvm_version_major()}"
+)
 @pytest.mark.parametrize(
     "target,expected_impl",
     [
@@ -119,7 +123,7 @@ def _get_conv2d_impl(dtype, target):
         ),
         (
             "llvm --device=arm_cpu --mtriple=aarch64-linux-gnu -mattr=+v9a",
-            "conv2d_NHWC_quantized_interleaved_without_transform.arm_cpu",
+            "conv2d_NHWC_quantized_native_without_transform.arm_cpu",
         ),
     ],
 )
@@ -131,6 +135,9 @@ def test_int8_conv2d(target, expected_impl):
     assert selected_impl == expected_impl
 
 
+@pytest.mark.skipif(
+    llvm_version_major() < 15, reason=f"Requires LLVM 15+, got {llvm_version_major()}"
+)
 @pytest.mark.parametrize(
     "target,expected_impl",
     [
@@ -164,6 +171,9 @@ def test_fp32_conv2d(target, expected_impl):
     assert selected_impl == expected_impl
 
 
+@pytest.mark.skipif(
+    llvm_version_major() < 15, reason=f"Requires LLVM 15+, got {llvm_version_major()}"
+)
 @pytest.mark.parametrize(
     "target,expected_impl",
     [
