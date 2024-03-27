@@ -398,7 +398,7 @@ class SharedMemoryRewriter : public StmtExprMutator {
                   {op->args[0], merged_buf_var_, extra_offset + offset, extent, op->args[4]});
     } else if (op->op.same_as(builtin::ptx_cp_async())) {
       ICHECK((op->args.size() == 5U) || (op->args.size() == 6U));
-      DataType dtype = op->args[0].dtype();
+      DataType dtype = op->dtype;
       Var buffer = Downcast<Var>(op->args[0]);
       if (!IsAppropriateSharedMemory(buffer)) {
         return StmtExprMutator::VisitExpr_(op);
@@ -407,10 +407,10 @@ class SharedMemoryRewriter : public StmtExprMutator {
       PrimExpr offset = this->VisitExpr(op->args[1]);
       if (op->args.size() == 5)
         return Call(
-            op->dtype, op->op,
+            dtype, op->op,
             {merged_buf_var_, extra_offset + offset, op->args[2], op->args[3], op->args[4]});
       else
-        return Call(op->dtype, op->op,
+        return Call(dtype, op->op,
                     {merged_buf_var_, extra_offset + offset, op->args[2], op->args[3], op->args[4],
                      op->args[5]});
     } else {
