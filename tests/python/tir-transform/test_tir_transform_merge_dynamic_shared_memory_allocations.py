@@ -536,8 +536,8 @@ class TestAsyncCopy(tvm.testing.CompareBeforeAfter):
         def func(A: T.Buffer((128,), "float32"), B: T.Buffer((128,), "float32")):
             threadIdx_x = T.launch_thread("threadIdx.x", 128)
             buf_dyn_shmem = T.allocate([1024], "uint8", "shared.dyn")
-            T.ptx_cp_async("float32", buf_dyn_shmem, threadIdx_x, A.data, threadIdx_x, 512)
-            T.ptx_cp_async("float32", buf_dyn_shmem, 128 + threadIdx_x, B.data, threadIdx_x, 512)
+            T.ptx_cp_async("float32", buf_dyn_shmem, threadIdx_x * 4, A.data, threadIdx_x, 512)
+            T.ptx_cp_async("float32", buf_dyn_shmem, (128 + threadIdx_x) * 4, B.data, threadIdx_x, 512)
 
         return func
 
