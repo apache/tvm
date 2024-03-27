@@ -91,10 +91,12 @@ class CanonicalizePlanner : public ExprVisitor {
         bound_to = opt.value();
       }
 
-      if (bound_var.as<DataflowVarNode>() || !bound_to.as<DataflowVarNode>()) {
+      if (bound_var.as<DataflowVarNode>() || !bound_to.as<DataflowVarNode>() ||
+          !visitor.used_outside_home_dataflow_.count(bound_var)) {
         // Case 1: Var = Var
         // Case 2: DataflowVar = Var
         // Case 3: DataflowVar = DataflowVar
+        // Case 4a: Var = DataflowVar, but used outside this DataflowBlock
         //
         // For these three cases, the trivial binding can be
         // unwrapped, using the bound variable directly at the point
@@ -102,7 +104,7 @@ class CanonicalizePlanner : public ExprVisitor {
         plan.replace_usage.Set(bound_var->vid, bound_to);
         plan.bindings_to_remove.insert(bound_var->vid);
       } else {
-        // Case 4: Var = DataflowVar
+        // Case 4b: Var = DataflowVar, and used outside this DataflowBlock
         //
         // Replacing a Var with a DataflowVar could result in illegal
         // use of a DataflowVar outside of a DataflowBlock.  Instead,

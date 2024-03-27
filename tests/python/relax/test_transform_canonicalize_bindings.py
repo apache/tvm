@@ -977,5 +977,39 @@ def test_unwrap_tuple_of_constant():
     verify(TestChainAssignments, Expected)
 
 
+def test_trivial_binding_of_replaced_non_dataflow_var():
+    @I.ir_module
+    class Before:
+        @R.function
+        def main(param_tuple: R.Tuple([R.Tensor])):
+            with R.dataflow():
+                A = param_tuple[0]
+                B = A
+                C = R.add(A, B)
+                R.output(A, B, C)
+            return C
+
+    @I.ir_module
+    class Expected:
+        @R.function
+        def main(param_tuple: R.Tuple([R.Tensor])):
+            with R.dataflow():
+                A = param_tuple[0]
+                C = R.add(A, A)
+                R.output(C)
+            return C
+
+    After = CanonicalizeBindings()(Before)
+    tvm.ir.assert_structural_equal(After, Expected)
+
+    def _get_binding_names(mod):
+        return [binding.var.name_hint for binding in mod["main"].body.blocks[0].bindings]
+
+    expected_names = _get_binding_names(Expected)
+    after_names = _get_binding_names(After)
+
+    assert after_names == expected_names
+
+
 if __name__ == "__main__":
     tvm.testing.main()
