@@ -528,7 +528,7 @@ class TestAsyncCopy(tvm.testing.CompareBeforeAfter):
             threadIdx_x = T.launch_thread("threadIdx.x", 128)
             T.ptx_cp_async("float32", A_sh.data, threadIdx_x, A.data, threadIdx_x, 512)
             T.ptx_cp_async("float32", B_sh.data, threadIdx_x, B.data, threadIdx_x, 512)
-            
+
         return func
 
     def expected(self):
@@ -540,7 +540,7 @@ class TestAsyncCopy(tvm.testing.CompareBeforeAfter):
             T.ptx_cp_async("float32", buf_dyn_shmem, 64 + threadIdx_x, B.data, threadIdx_x, 512)
 
         return func
-    
+
 
 if __name__ == "__main__":
     tvm.testing.main()
