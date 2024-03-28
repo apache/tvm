@@ -21,6 +21,7 @@ from .analysis import (
     all_global_vars,
     all_vars,
     bound_vars,
+    collect_non_negative_expressions,
     computable_at_compile_time,
     contains_impure_call,
     definable_tir_vars_in_struct_info,

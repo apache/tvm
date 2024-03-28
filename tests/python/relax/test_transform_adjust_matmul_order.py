@@ -347,5 +347,169 @@ class TestNoOpForFullyDynamicOnRHS(Base):
     Expected = Before
 
 
+class TestRHSPermuteDims(Base):
+    """Prefer (x*A)*B instead of x*(A*B)
+
+    Like `TestRHS`, but the weights on the RHS are transposed.
+    """
+
+    @I.ir_module
+    class Before:
+        @R.function
+        def main(
+            x: R.Tensor([16]),
+            A: R.Tensor([32, 2]),
+            B: R.Tensor([2, 16]),
+        ) -> R.Tensor([32]):
+            linear_weight: R.Tensor([32, 16]) = R.matmul(A, B)
+            matmul_weight: R.Tensor([16, 32]) = R.permute_dims(linear_weight)
+            out: R.Tensor([32]) = R.matmul(x, matmul_weight)
+            return out
+
+    @I.ir_module
+    class Expected:
+        @R.function
+        def main(
+            x: R.Tensor([16]),
+            A: R.Tensor([32, 2]),
+            B: R.Tensor([2, 16]),
+        ) -> R.Tensor([32]):
+            B_transpose = R.permute_dims(B)
+            x: R.Tensor([2]) = R.matmul(x, B_transpose)
+            A_transpose = R.permute_dims(A)
+            x: R.Tensor([32]) = R.matmul(x, A_transpose)
+            return x
+
+
+class TestRHSPermuteDimsDynamic(Base):
+    """Prefer (x*A)*B instead of x*(A*B)
+
+    Like `TestRHSPermuteDims`, but the weights on the RHS have a
+    dynamic shape.
+    """
+
+    @I.ir_module
+    class Before:
+        @R.function
+        def main(
+            x: R.Tensor([16]),
+            A: R.Tensor([32, "lora_r"]),
+            B: R.Tensor(["lora_r", 16]),
+        ) -> R.Tensor([32]):
+            linear_weight: R.Tensor([32, 16]) = R.matmul(A, B)
+            matmul_weight: R.Tensor([16, 32]) = R.permute_dims(linear_weight)
+            out: R.Tensor([32]) = R.matmul(x, matmul_weight)
+            return out
+
+    @I.ir_module
+    class Expected:
+        @R.function
+        def main(
+            x: R.Tensor([16]),
+            A: R.Tensor([32, "lora_r"]),
+            B: R.Tensor(["lora_r", 16]),
+        ) -> R.Tensor([32]):
+            lora_r = T.int64()
+            B_transpose = R.permute_dims(B)
+            x: R.Tensor([lora_r]) = R.matmul(x, B_transpose)
+            A_transpose = R.permute_dims(A)
+            x: R.Tensor([32]) = R.matmul(x, A_transpose)
+            return x
+
+
+class TestRHSPermuteDimsWithDynamicBatch(Base):
+    """Prefer (x*A)*B instead of x*(A*B)
+
+    Like `TestRHSPermuteDims`, but both the weights on the RHS and the
+    activations on the LHS have a dynamic dimension.
+
+    Unlike most of the tests for this transform, the
+    `tir_vars_upper_bound` attribute is required.  In order to make a
+    change, `AdjustMatmulOrder` must first prove that the modified
+    execution order reduces the number of computations.
+
+        ops_left_to_right = (batch_size + lora_r)*4096*4096
+        ops_right_to_left = (4096 + 4096)*batch_size*lora_r
+
+    Without an upper bound on `lora_r`, we cannot prove which of these
+    is the preferred execution order.  With the upper bound, TVM can
+    determine the preferred order using the following arithmethic
+    reasoning.
+
+        (batch_size + lora_r)*4096*4096 < (4096 + 4096)*batch_size*lora_r
+        (batch_size + lora_r)*2048 < batch_size*lora_r
+        1/batch_size + 1/lora_r < 1/2048
+
+    """
+
+    @I.ir_module
+    class Before:
+        @R.function
+        def main(
+            x: R.Tensor(["batch_size", 4096]),
+            A: R.Tensor([4096, "lora_r"]),
+            B: R.Tensor(["lora_r", 4096]),
+        ) -> R.Tensor(["batch_size", 4096]):
+            R.func_attr({"tir_var_upper_bound": {"lora_r": 2048}})
+            batch_size = T.int64()
+            linear_weight: R.Tensor([4096, 4096]) = R.matmul(A, B)
+            matmul_weight: R.Tensor([4096, 4096]) = R.permute_dims(linear_weight)
+            out: R.Tensor([batch_size, 4096]) = R.matmul(x, matmul_weight)
+            return out
+
+    @I.ir_module
+    class Expected:
+        @R.function
+        def main(
+            x: R.Tensor(["batch_size", 4096]),
+            A: R.Tensor([4096, "lora_r"]),
+            B: R.Tensor(["lora_r", 4096]),
+        ) -> R.Tensor(["batch_size", 4096]):
+            R.func_attr({"tir_var_upper_bound": {"lora_r": 2048}})
+            lora_r = T.int64()
+            batch_size = T.int64()
+            B_transpose = R.permute_dims(B)
+            x: R.Tensor([batch_size, lora_r]) = R.matmul(x, B_transpose)
+            A_transpose = R.permute_dims(A)
+            x: R.Tensor([batch_size, 4096]) = R.matmul(x, A_transpose)
+            return x
+
+
+class TestRHSPermuteDimsDynamicWithSquareMatrix(Base):
+    """Prefer (x*A)*B instead of x*(A*B)
+
+    Like `TestRHSPermuteDims`, but the weights on the RHS have a
+    dynamic shape.
+    """
+
+    @I.ir_module
+    class Before:
+        @R.function
+        def main(
+            x: R.Tensor([32]),
+            A: R.Tensor([32, "lora_r"]),
+            B: R.Tensor(["lora_r", 32]),
+        ) -> R.Tensor([32]):
+            linear_weight: R.Tensor([32, 32]) = R.matmul(A, B)
+            matmul_weight: R.Tensor([32, 32]) = R.permute_dims(linear_weight)
+            out: R.Tensor([32]) = R.matmul(x, matmul_weight)
+            return out
+
+    @I.ir_module
+    class Expected:
+        @R.function
+        def main(
+            x: R.Tensor([32]),
+            A: R.Tensor([32, "lora_r"]),
+            B: R.Tensor(["lora_r", 32]),
+        ) -> R.Tensor([32]):
+            lora_r = T.int64()
+            B_transpose = R.permute_dims(B)
+            x: R.Tensor([lora_r]) = R.matmul(x, B_transpose)
+            A_transpose = R.permute_dims(A)
+            x: R.Tensor([32]) = R.matmul(x, A_transpose)
+            return x
+
+
 if __name__ == "__main__":
     tvm.testing.main()
