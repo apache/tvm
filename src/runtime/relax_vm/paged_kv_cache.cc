@@ -585,9 +585,6 @@ class PagedAttentionKVCacheObj : public AttentionKVCacheObj {
       }
       int32_t in_page_offset = in_block_offset % page_size_;
       int32_t moved_offset = in_block_offset - in_page_offset;
-      // LOG_INFO << "in block offset = " << in_block_offset;
-      // LOG_INFO << "in page offset = " << in_page_offset;
-      // LOG_INFO << "moved offset = " << moved_offset;
       if (moved_offset == 0) {
         // Forked at the first page in block
         int32_t parent_block_idx = global_block_pool_[forked_block_idx].parent_idx;
