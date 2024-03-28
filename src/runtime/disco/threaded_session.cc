@@ -42,11 +42,11 @@ class DiscoThreadedMessageQueue : private dmlc::Stream,
  public:
   void Send(const TVMArgs& args) {
     RPCReference::ReturnPackedSeq(args.values, args.type_codes, args.num_args, this);
-    NotifyEnqueue();
+    CommitSendAndNotifyEnqueue();
   }
 
   TVMArgs Recv() {
-    WaitDequeue();
+    DequeueNextPacket();
     TVMValue* values = nullptr;
     int* type_codes = nullptr;
     int num_args = 0;
@@ -55,43 +55,51 @@ class DiscoThreadedMessageQueue : private dmlc::Stream,
   }
 
  protected:
-  void NotifyEnqueue() {
+  void CommitSendAndNotifyEnqueue() {
+    bool need_notify = false;
     {
       std::lock_guard<std::mutex> lock{mutex_};
       ++msg_cnt_;
+      ring_buffer_.Write(write_buffer_.data(), write_buffer_.size());
+      need_notify = dequeue_waiting_;
     }
-    condition_.notify_one();
+    if (need_notify) {
+      condition_.notify_one();
+    }
+    write_buffer_.clear();
   }
 
-  void WaitDequeue() {
+  void DequeueNextPacket() {
     {
       std::unique_lock<std::mutex> lock(mutex_);
+      dequeue_waiting_ = true;
       condition_.wait(lock, [this] { return msg_cnt_.load() > 0; });
+      dequeue_waiting_ = false;
       --msg_cnt_;
+      uint64_t packet_nbytes = 0;
+      ring_buffer_.Read(&packet_nbytes, sizeof(packet_nbytes));
+      read_buffer_.resize(packet_nbytes);
+      ring_buffer_.Read(read_buffer_.data(), packet_nbytes);
+      read_offset_ = 0;
     }
     this->RecycleAll();
-    uint64_t packet_nbytes = 0;
     RPCCode code = RPCCode::kReturn;
-    this->Read(&packet_nbytes);
     this->Read(&code);
   }
 
-  void MessageStart(uint64_t packet_nbytes) {
-    std::lock_guard<std::mutex> lock(mutex_);
-    size_t n = ring_buffer_.bytes_available();
-    n += packet_nbytes + sizeof(uint64_t);
-    this->ring_buffer_.Reserve(n);
-  }
+  void MessageStart(uint64_t packet_nbytes) {}
 
   size_t Read(void* data, size_t size) final {
-    std::lock_guard<std::mutex> lock(mutex_);
-    ring_buffer_.Read(data, size);
+    std::memcpy(data, read_buffer_.data() + read_offset_, size);
+    read_offset_ += size;
+    ICHECK_LE(read_offset_, read_buffer_.size());
     return size;
   }
 
   void Write(const void* data, size_t size) final {
-    std::lock_guard<std::mutex> lock(mutex_);
-    ring_buffer_.Write(data, size);
+    size_t cur_size = write_buffer_.size();
+    write_buffer_.resize(cur_size + size);
+    std::memcpy(write_buffer_.data() + cur_size, data, size);
   }
 
   using dmlc::Stream::Read;
@@ -100,6 +108,12 @@ class DiscoThreadedMessageQueue : private dmlc::Stream,
   using dmlc::Stream::WriteArray;
   friend struct RPCReference;
   friend struct DiscoProtocol<DiscoThreadedMessageQueue>;
+
+  // The read/write buffer will only be accessed by the producer thread.
+  std::string write_buffer_;
+  std::string read_buffer_;
+  size_t read_offset_ = 0;
+  bool dequeue_waiting_ = false;
 
   std::mutex mutex_;
   std::atomic<int> msg_cnt_{0};
