@@ -37,7 +37,14 @@ def pytest_configure(config):
         "markers",
         (
             "skip_well_formed_check_before_transform: "
-            "Only check for well-formed IRModule after a transform"
+            "Suppress the default well-formed check before a IRModule transform"
+        ),
+    )
+    config.addinivalue_line(
+        "markers",
+        (
+            "skip_well_formed_check_after_transform: "
+            "Suppress the default well-formed check after a IRModule transform"
         ),
     )
 
@@ -54,15 +61,20 @@ def pytest_configure(config):
 # `@pytest.mark.skip_well_formed_check_before_transform`
 @pytest.fixture(autouse=True)
 def apply_instrument_well_formed(unit_test_marks):
-
     validate_before_transform = "skip_well_formed_check_before_transform" not in unit_test_marks
+    validate_after_transform = "skip_well_formed_check_after_transform" not in unit_test_marks
 
-    instrument = WellFormedInstrument(validate_before_transform=validate_before_transform)
     current = tvm.transform.PassContext.current()
+    instruments = list(current.instruments)
+
+    if validate_before_transform or validate_after_transform:
+        instruments.append(
+            WellFormedInstrument(validate_before_transform=validate_before_transform)
+        )
 
     override = tvm.transform.PassContext(
-        # Append the new instrument
-        instruments=[*current.instruments, instrument],
+        # With the new WellFormedInstrument appended
+        instruments=instruments,
         # Forward all other parameters
         opt_level=current.opt_level,
         required_pass=current.required_pass,
