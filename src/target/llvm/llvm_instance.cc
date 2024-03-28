@@ -223,9 +223,11 @@ LLVMTargetInfo::LLVMTargetInfo(LLVMInstance& instance, const TargetJSON& target)
     if (!has_arch) {
       // Flag an error, but don't abort. This mimicks the behaviour of 'llc' to
       // give the code a chance to run with a less-specific target.
-      LOG(ERROR) << "LLVM cpu architecture `-mcpu=" << cpu_
+      LOG(ERROR) << "Using LLVM " << LLVM_VERSION_STRING << " with `-mcpu=" << cpu_
                  << "` is not valid in `-mtriple=" << triple_ << "`"
                  << ", using default `-mcpu=" << String(defaults::cpu) << "`";
+      // LLVM default cpu fallback
+      cpu_ = String(defaults::cpu);
     }
   }
 
