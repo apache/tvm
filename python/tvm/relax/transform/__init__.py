@@ -28,6 +28,7 @@ from .transform import (
     CallTIRRewrite,
     CanonicalizeBindings,
     CombineParallelMatmul,
+    ComputePrimValue,
     ConvertLayout,
     ConvertToDataflow,
     DataflowBlockPass,

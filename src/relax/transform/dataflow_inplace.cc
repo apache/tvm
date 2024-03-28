@@ -877,10 +877,12 @@ class ModuleInplaceTransformer : public ExprMutator {
     auto inline_legal_op_name = legal_op->name_hint + "_inplace";
 
     auto mod = builder_->GetContextIRModule();
-    auto legal_primfunc = Downcast<tir::PrimFunc>(mod->Lookup(legal_op));
-    auto* legal_primfunc_cow = legal_primfunc.CopyOnWrite();
+    auto old_primfunc = Downcast<tir::PrimFunc>(mod->Lookup(legal_op));
+
+    tir::Stmt new_body = old_primfunc->body;
+
     size_t num_outs = inplace_indices.size();
-    size_t num_params = legal_primfunc->params.size();
+    size_t num_params = old_primfunc->params.size();
 
     // the replacement we must make:
     // 1. For each output var, replace its corresponding buffers with the corresponding inplace
@@ -893,42 +895,43 @@ class ModuleInplaceTransformer : public ExprMutator {
     Map<tir::Var, tir::Var> var_subst_map;
     for (size_t i = 0; i < num_outs; i++) {
       // we will substitute output i with the corresponding param indicated by inplace indices
-      auto output_var = legal_primfunc->params[num_params - num_outs + i];
-      auto inplace_var = legal_primfunc->params[inplace_indices[i].IntValue()];
+      auto output_var = old_primfunc->params[num_params - num_outs + i];
+      auto inplace_var = old_primfunc->params[inplace_indices[i].IntValue()];
       var_subst_map.Set(output_var, inplace_var);
 
       // also do the same with the buffer vars
-      auto output_buffer = legal_primfunc->buffer_map.at(output_var);
-      auto inplace_buffer = legal_primfunc->buffer_map.at(inplace_var);
+      auto output_buffer = old_primfunc->buffer_map.at(output_var);
+      auto inplace_buffer = old_primfunc->buffer_map.at(inplace_var);
       var_subst_map.Set(output_buffer->data, inplace_buffer->data);
       buffer_subst_map.Set(output_buffer, inplace_buffer);
     }
 
     // apply substitutions
-    legal_primfunc_cow->body = RemapBuffers(legal_primfunc->body, buffer_subst_map);
-    legal_primfunc_cow->body = tir::Substitute(
-        legal_primfunc->body, [&var_subst_map](const tir::Var& v) -> Optional<PrimExpr> {
-          if (var_subst_map.count(v)) {
-            return var_subst_map.at(v);
-          }
-          return Optional<PrimExpr>();
-        });
+    new_body = RemapBuffers(new_body, buffer_subst_map);
+    new_body = tir::Substitute(new_body, [&var_subst_map](const tir::Var& v) -> Optional<PrimExpr> {
+      if (var_subst_map.count(v)) {
+        return var_subst_map.at(v);
+      }
+      return Optional<PrimExpr>();
+    });
 
     // remove the now-unused outputs from the buffer map
-    auto buffer_map = legal_primfunc->buffer_map;
+    auto new_buffer_map = old_primfunc->buffer_map;
     for (size_t i = 0; i < num_outs; i++) {
-      buffer_map.erase(legal_primfunc->params[num_params - num_outs + i]);
+      new_buffer_map.erase(old_primfunc->params[num_params - num_outs + i]);
     }
-    legal_primfunc_cow->buffer_map = buffer_map;
 
     // now get rid of the last num_outputs arguments
     // (couldn't do earlier or else it would have thrown off the indexing)
-    legal_primfunc_cow->params = Array<tir::Var>(
-        legal_primfunc->params.begin(), legal_primfunc->params.begin() + (num_params - num_outs));
+    Array<tir::Var> new_params(old_primfunc->params.begin(),
+                               old_primfunc->params.begin() + (num_params - num_outs));
+
+    tir::PrimFunc new_primfunc(new_params, new_body, old_primfunc->ret_type, new_buffer_map,
+                               old_primfunc->attrs, old_primfunc->span);
 
     // note: this might be a good time to get rid of the old legalized function, but we don't do it
     // now because later ops might need the same one. Instead, we will clean up at the end
-    auto new_gv = builder_->AddFunction(legal_primfunc, inline_legal_op_name);
+    auto new_gv = builder_->AddFunction(new_primfunc, inline_legal_op_name);
 
     // update the call (change the op, update the argument, change the attrs)
     legalized_call_cow->op = call_tir_inplace_op;

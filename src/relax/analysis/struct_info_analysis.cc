@@ -840,8 +840,10 @@ class CallRetStructInfoDeriver : public StructInfoBaseChecker {
     auto params = finfo->params.value();
     if (params.size() != call->args.size()) {
       ctx->ReportFatal(Diagnostic::Error(call->span)
-                       << "number of arguments and parameters mismatch:"
-                       << " expected " << params.size() << ", given " << call->args.size());
+                       << "Number of arguments and parameters mismatch:"
+                       << " Function " << call->op << " has struct info " << finfo
+                       << " and accepts " << params.size() << " parameters, but was called with "
+                       << call->args.size() << " arguments (" << call->args << ")");
     }
     // Visit each param arg pair, check and populate the var map
     for (size_t i = 0; i < params.size(); ++i) {

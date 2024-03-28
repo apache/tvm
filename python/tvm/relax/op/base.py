@@ -503,19 +503,26 @@ def relax_assert_op(condition: tvm.Object, format_str: str, *format_args: tvm.Ob
             f"The format string argument to assert must be a string, given {type(format_str)})"
         )
 
-    # should be guaranteed by the type system
-    if not isinstance(condition, tvm.nd.NDArray):
-        raise ValueError(f"The condition must be an NDArray, but given a {type(condition)}.")
+    if isinstance(condition, (bool, int)):
+        val = condition
+    elif isinstance(condition, tvm.nd.NDArray):
+        # may happen if the original program had unknown shape or dtype for the tensor's type
+        dtype = condition.dtype
+        if dtype != "bool":
+            raise ValueError(f"The condition must be a bool scalar, but given a {dtype} tensor")
+        shape = condition.shape
+        if len(shape) != 0:
+            raise ValueError(f"The condition must be a scalar, but it has a shape of {shape}")
 
-    # may happen if the original program had unknown shape or dtype for the tensor's type
-    dtype = condition.dtype
-    if dtype != "bool":
-        raise ValueError(f"The condition must be a bool scalar, but given a {dtype} tensor")
-    shape = condition.shape
-    if len(shape) != 0:
-        raise ValueError(f"The condition must be a scalar, but it has a shape of {shape}")
+        val = condition.numpy()
 
-    val = condition.numpy()
+    else:
+        # should be guaranteed by the type system
+        raise ValueError(
+            f"The condition for relax assert must be a bool, int, or NDArray, "
+            f"but received a {type(condition)}."
+        )
+
     if not val:
         error_message = "Assertion Failed"
         if format_args or format_str != "":
@@ -528,7 +535,7 @@ def relax_assert_op(condition: tvm.Object, format_str: str, *format_args: tvm.Ob
 
 
 def assert_op(
-    condition: Expr,
+    condition: Union[Expr, PrimExpr],
     format_args: Optional[Union[Expr, List[Expr]]] = None,
     format: Union[str, Expr] = "",
 ) -> Expr:
@@ -538,7 +545,7 @@ def assert_op(
 
     Parameters
     ----------
-    condition: Expr
+    condition: Union[Expr, PrimExpr]
         The assertion condition.
 
     format_args: Optional[Union[Expr, List[Expr]]]
@@ -552,12 +559,17 @@ def assert_op(
     result : Expr
         A Call to the Relax assert operation.
     """
+    if not isinstance(condition, Expr):
+        condition = tvm.relax.PrimValue(condition)
+
     if format_args is None:
         format_args = []
-    if isinstance(format_args, Expr):  # type: ignore
+    elif isinstance(format_args, Expr):
         format_args = [format_args]
+
     if isinstance(format, str):
         format = StringImm(format)
+
     return _ffi_api.assert_op(condition, format_args, format)  # type: ignore
 
 

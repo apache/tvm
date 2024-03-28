@@ -19,6 +19,8 @@ import sys
 import tempfile
 
 import numpy as np
+import pytest
+
 import tvm
 import tvm.testing
 from tvm import relax
@@ -35,13 +37,18 @@ class InputModule:
         return y, y_sorted
 
 
-def run_cpu(mod, func_name, *input):
+def run_cpu(mod, func_name, *args):
+    if isinstance(mod, relax.Function):
+        func = mod
+        args = [func_name, *args]
+        func_name = func.attrs["global_symbol"]
+        mod = tvm.IRModule.from_expr(func)
+
     target = tvm.target.Target("llvm")
     ex = relax.build(mod, target)
     vm = relax.VirtualMachine(ex, tvm.cpu())
-    vm.set_input(func_name, *input)
-    vm.invoke_stateful(func_name)
-    return vm.get_outputs(func_name)
+
+    return vm[func_name](*args)
 
 
 def test_unique():
@@ -88,67 +95,108 @@ def test_print():
         sys.stdout = stdout
 
 
-@tvm.script.ir_module
-class AssertOpTest:
+def test_assert_passes():
     @R.function(pure=False)
-    def passes(x: R.Tensor((), "int32")):
-        p1 = R.assert_op(relax.const(True))
+    def func(x: R.Tensor((), "int32")):
+        _ = R.assert_op(relax.const(True))
         return x
 
+    run_cpu(func, tvm.nd.array(np.array(1).astype("int32")))
+
+
+def test_assert_passes_with_format_args():
     @R.function(pure=False)
-    def pass_with_args(x: R.Tensor((), "int32")):
-        p1 = R.assert_op(relax.const(True), x, format="You won't see me")
+    def func(x: R.Tensor((), "int32")):
+        _ = R.assert_op(relax.const(True), x, format="You won't see me")
         return x
 
+    run_cpu(func, tvm.nd.array(np.array(1).astype("int32")))
+
+
+def test_assert_fails():
     @R.function(pure=False)
-    def simple_fail(x: R.Tensor((), "int32")):
-        p1 = R.assert_op(relax.const(False))
+    def func(x: R.Tensor((), "int32")):
+        _ = R.assert_op(relax.const(False))
         return x
 
+    with pytest.raises(AssertionError, match="Assertion Failed"):
+        run_cpu(func, tvm.nd.array(np.array(1).astype("int32")))
+
+
+def test_assert_fails_with_message():
     @R.function(pure=False)
-    def fail_with_message(x: R.Tensor((), "int32")):
-        p1 = R.assert_op(relax.const(False), format="I failed...")
+    def func(x: R.Tensor((), "int32")):
+        _ = R.assert_op(relax.const(False), format="I failed...")
         return x
 
+    with pytest.raises(AssertionError, match="I failed..."):
+        run_cpu(func, tvm.nd.array(np.array(1).astype("int32")))
+
+
+def test_assert_fails_with_args():
     @R.function(pure=False)
-    def fail_with_args(x: R.Tensor((), "int32")):
-        # no format
-        p1 = R.assert_op(relax.const(False), [x, x])
+    def func(x: R.Tensor((), "int32")):
+        _ = R.assert_op(relax.const(False), [x, x])
         return x
 
+    with pytest.raises(AssertionError, match="5, 5"):
+        run_cpu(func, tvm.nd.array(np.array(5).astype("int32")))
+
+
+def test_assert_fails_with_formatted_args():
     @R.function(pure=False)
-    def fail_with_formatted_message(x: R.Tensor((), "int32")):
-        p1 = R.assert_op(relax.const(False), x, format="Number: {}")
+    def func(x: R.Tensor((), "int32")):
+        _ = R.assert_op(relax.const(False), x, format="Number: {}")
         return x
 
+    with pytest.raises(AssertionError, match="Number: 6"):
+        run_cpu(func, tvm.nd.array(np.array(6).astype("int32")))
 
-def test_assert_op():
-    def check_assertion_error(func_name, func_arg, expected_message):
-        passed = False
-        try:
-            run_cpu(AssertOpTest, func_name, func_arg)
-            passed = True
-        except TVMError as e:
-            # TVM will print out a TVMError that will contain the
-            # generated error at the bottom of a stack trace
-            assert "AssertionError" in e.args[0]
-            assert expected_message in e.args[0]
-        except AssertionError:
-            return
-        assert not passed
 
-    run_cpu(AssertOpTest, "passes", tvm.nd.array(np.array(1).astype("int32")))
-    run_cpu(AssertOpTest, "pass_with_args", tvm.nd.array(np.array(2).astype("int32")))
-    check_assertion_error(
-        "simple_fail", tvm.nd.array(np.array(3).astype("int32")), "Assertion Failed"
-    )
-    check_assertion_error(
-        "fail_with_message", tvm.nd.array(np.array(4).astype("int32")), "I failed..."
-    )
-    check_assertion_error("fail_with_args", tvm.nd.array(np.array(5).astype("int32")), "5, 5")
-    check_assertion_error(
-        "fail_with_formatted_message", tvm.nd.array(np.array(6).astype("int32")), "Number: 6"
-    )
+def test_assert_on_argument_passes():
+    @R.function(pure=False)
+    def func(condition: R.Tensor((), "bool"), x: R.Tensor((), "int32")):
+        _ = R.assert_op(condition)
+        return x
+
+    condition = tvm.nd.array(np.array(True))
+    x = tvm.nd.array(np.array(5).astype("int32"))
+    run_cpu(func, condition, x)
+
+
+def test_assert_on_argument_fails():
+    @R.function(pure=False)
+    def func(condition: R.Tensor((), "bool"), x: R.Tensor((), "int32")):
+        _ = R.assert_op(condition)
+        return x
+
+    condition = tvm.nd.array(np.array(False))
+    x = tvm.nd.array(np.array(5).astype("int32"))
+    with pytest.raises(AssertionError):
+        run_cpu(func, condition, x)
+
+
+def test_assert_on_symbolic_var_passes():
+    @R.function(pure=False)
+    def func(x: R.Tensor(["N"], "int32")):
+        N = T.int64()
+        _ = R.assert_op(R.prim_value(N % 8 == 0))
+        return x
+
+    x = tvm.nd.array(np.arange(8, dtype="int32"))
+    run_cpu(func, x)
+
+
+def test_assert_on_symbolic_var_fails():
+    @R.function(pure=False)
+    def func(x: R.Tensor(["N"], "int32")):
+        N = T.int64()
+        _ = R.assert_op(R.prim_value(N % 8 == 0))
+        return x
+
+    x = tvm.nd.array(np.arange(10, dtype="int32"))
+    with pytest.raises(AssertionError):
+        run_cpu(func, x)
 
 
 @tvm.script.ir_module
@@ -368,6 +416,61 @@ def test_op_to_vdevice():
     arr = np.random.rand(3, 4).astype("float32")
     copy_found = run_cpu(ToVDevice, "to_vdev", tvm.nd.array(arr))
     assert (copy_found.numpy() == arr).all()
+
+
+def test_scalar_tensor_as_branch_condition():
+    """The condition of a branch may be a scalar tensor"""
+
+    @R.function
+    def func(condition: R.Tensor((), "bool")):
+        if condition:
+            out = R.prim_value(5)
+        else:
+            out = R.prim_value(10)
+        return out
+
+    res = run_cpu(func, tvm.nd.array(np.array(True)))
+    assert res == 5
+
+    res = run_cpu(func, tvm.nd.array(np.array(False)))
+    assert res == 10
+
+
+def test_prim_value_as_branch_condition():
+    """The condition may be a PrimValue"""
+
+    @R.function
+    def func(condition: R.Prim("bool")):
+        if condition:
+            out = R.prim_value(5)
+        else:
+            out = R.prim_value(10)
+        return out
+
+    res = run_cpu(func, True)
+    assert res == 5
+
+    res = run_cpu(func, False)
+    assert res == 10
+
+
+def test_computed_prim_value_as_branch_condition():
+    """The R.Prim condition may be computed within the function"""
+
+    @R.function
+    def func(x: R.Tensor(["N"], "int64")):
+        N = T.int64()
+        if R.prim_value(N % 16 == 0):
+            out = R.prim_value(5)
+        else:
+            out = R.prim_value(10)
+        return out
+
+    res = run_cpu(func, tvm.nd.array(np.arange(16)))
+    assert res == 5
+
+    res = run_cpu(func, tvm.nd.array(np.arange(20)))
+    assert res == 10
 
 
 if __name__ == "__main__":

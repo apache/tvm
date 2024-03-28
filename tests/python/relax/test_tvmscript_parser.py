@@ -1261,6 +1261,149 @@ def test_if_branch_var_scope():
             return w
 
 
+def test_scalar_tensor_as_branch_condition():
+    """Branch condition can be 0-d tensor"""
+
+    @R.function
+    def func(cond: R.Tensor([], "bool"), x: R.Tensor((1,), "float32")):
+        if cond:
+            out = R.add(x, x)
+        else:
+            out = R.multiply(x, x)
+        return out
+
+    if_else = func.body.blocks[0].bindings[0].value
+    assert isinstance(if_else.cond, relax.Var)
+    tvm.ir.assert_structural_equal(if_else.cond.struct_info, R.Tensor([], "bool"))
+
+
+def test_prim_value_as_branch_condition():
+    """In addition to scalar tensor, can use R.Prim condition"""
+
+    @R.function
+    def func(cond: R.Prim("bool"), x: R.Tensor((1,), "float32")):
+        if cond:
+            out = R.add(x, x)
+        else:
+            out = R.multiply(x, x)
+        return out
+
+    if_else = func.body.blocks[0].bindings[0].value
+    assert isinstance(if_else.cond, relax.Var)
+    tvm.ir.assert_structural_equal(if_else.cond.struct_info, R.Prim("bool"))
+
+
+def test_computed_prim_value_as_branch_condition():
+    """The R.Prim condition may be computed within the function"""
+
+    @R.function
+    def func(x: R.Tensor(["N"], "float32")):
+        N = T.int64()
+        if R.prim_value(N % 16 == 0):
+            out = R.call_pure_packed("fast_vectorized_impl", x, sinfo_args=[x.struct_info])
+        else:
+            out = R.call_pure_packed("slow_non_vectorized_impl", x, sinfo_args=[x.struct_info])
+        return out
+
+    N = func.params[0].struct_info.shape[0]
+    if_else = func.body.blocks[0].bindings[0].value
+    assert isinstance(if_else.cond, relax.PrimValue)
+    tvm.ir.assert_structural_equal(N % 16 == 0, if_else.cond.value)
+    tvm.ir.assert_structural_equal(if_else.cond.struct_info, R.Prim(value=N % 16 == 0))
+
+
+def test_tir_expr_as_branch_condition():
+    """Syntactic sugar, wrap PrimExpr as PrimValue"""
+
+    @R.function(private=True)
+    def sugared(x: R.Tensor(["N"], "float32")):
+        N = T.int64()
+        if N % 16 == 0:
+            out = R.call_pure_packed("fast_vectorized_impl", x, sinfo_args=[x.struct_info])
+        else:
+            out = R.call_pure_packed("slow_non_vectorized_impl", x, sinfo_args=[x.struct_info])
+        return out
+
+    @R.function(private=True)
+    def unsugared(x: R.Tensor(["N"], "float32")):
+        N = T.int64()
+        if R.prim_value(N % 16 == 0):
+            out = R.call_pure_packed("fast_vectorized_impl", x, sinfo_args=[x.struct_info])
+        else:
+            out = R.call_pure_packed("slow_non_vectorized_impl", x, sinfo_args=[x.struct_info])
+        return out
+
+    tvm.ir.assert_structural_equal(unsugared, sugared)
+
+
+def test_scalar_tensor_as_assert_condition():
+    """Branch condition can be 0-d tensor"""
+
+    @R.function(pure=False)
+    def func(cond: R.Tensor([], "bool"), x: R.Tensor((1,), "float32")):
+        _ = R.assert_op(cond)
+        out = R.add(x, x)
+        return out
+
+    assert_op = func.body.blocks[0].bindings[0].value
+    condition = assert_op.args[0]
+    assert isinstance(condition, relax.Var)
+    tvm.ir.assert_structural_equal(condition.struct_info, R.Tensor([], "bool"))
+
+
+def test_prim_value_as_assert_condition():
+    """In addition to scalar tensor, can use R.Prim condition"""
+
+    @R.function(pure=False)
+    def func(cond: R.Prim("bool"), x: R.Tensor((1,), "float32")):
+        _ = R.assert_op(cond)
+        out = R.add(x, x)
+        return out
+
+    assert_op = func.body.blocks[0].bindings[0].value
+    condition = assert_op.args[0]
+    assert isinstance(condition, relax.Var)
+    tvm.ir.assert_structural_equal(condition.struct_info, R.Prim("bool"))
+
+
+def test_computed_prim_value_as_assert_condition():
+    """The R.Prim condition may be computed within the function"""
+
+    @R.function(pure=False)
+    def func(x: R.Tensor(["N"], "float32")):
+        N = T.int64()
+        _ = R.assert_op(R.prim_value(N % 16 == 0))
+        out = R.call_packed("fast_vectorized_impl", x, sinfo_args=[x.struct_info])
+        return out
+
+    N = func.params[0].struct_info.shape[0]
+    assert_op = func.body.blocks[0].bindings[0].value
+    condition = assert_op.args[0]
+    assert isinstance(condition, relax.PrimValue)
+    tvm.ir.assert_structural_equal(N % 16 == 0, condition.value)
+    tvm.ir.assert_structural_equal(condition.struct_info, R.Prim(value=N % 16 == 0))
+
+
+def test_tir_expr_as_assert_condition():
+    """Syntactic sugar, wrap PrimExpr as PrimValue"""
+
+    @R.function(pure=False, private=True)
+    def sugared(x: R.Tensor(["N"], "float32")):
+        N = T.int64()
+        _ = R.assert_op(N % 16 == 0)
+        out = R.call_packed("fast_vectorized_impl", x, sinfo_args=[x.struct_info])
+        return out
+
+    @R.function(pure=False, private=True)
+    def unsugared(x: R.Tensor(["N"], "float32")):
+        N = T.int64()
+        _ = R.assert_op(R.prim_value(N % 16 == 0))
+        out = R.call_packed("fast_vectorized_impl", x, sinfo_args=[x.struct_info])
+        return out
+
+    tvm.ir.assert_structural_equal(unsugared, sugared)
+
+
 def test_erase_to_well_defined_removes_internal_vars():
     @R.function
     def foo(x: R.Tensor):
@@ -1664,9 +1807,9 @@ def test_context_aware_parsing():
     class Module:
         @T.prim_func
         def add(
-            X: T.Buffer(T.int64(8), "float32"),
+            X: T.Buffer([T.int64(2), T.int64(4)], "float32"),
             Y: T.Buffer((), "float32"),
-            Z: T.Buffer(T.int64(8), "float32"),
+            Z: T.Buffer([T.int64(2), T.int64(4)], "float32"),
         ):
             T.evaluate(0)
 

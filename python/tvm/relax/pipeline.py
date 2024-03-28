@@ -92,6 +92,7 @@ def default_build_pipeline():
                 transform.LowerAllocTensor(),
                 transform.KillAfterLastUse(),
                 transform.VMBuiltinLower(),
+                transform.ComputePrimValue(),
                 transform.VMShapeLower(),
                 transform.AttachGlobalSymbol(),
             ],
