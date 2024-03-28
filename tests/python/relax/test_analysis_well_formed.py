@@ -22,6 +22,7 @@ from tvm import tir
 from tvm.script import relax as R
 from tvm.script import ir as I
 from tvm.script import tir as T
+from tvm.script import ir as I
 
 m = tir.Var("m", "int64")
 n = tir.Var("n", "int64")
@@ -654,6 +655,51 @@ def test_well_formed_function_referencing_global_var():
     assert rx.analysis.well_formed(Module)
     assert rx.analysis.well_formed(Module["main"])
     assert rx.analysis.well_formed(Module["subroutine"])
+
+
+def test_pass_dltensor_arg_to_tir():
+    """Relax may pass R.Tensor as DLTensor
+
+    In TIR, a `DLTensor*` argument with unknown shape and dtype is
+    represented as a `tir.Var` with
+    `tvm::PrimType(DataType::Handle())`, and with no entry in the
+    `PrimFuncNode::buffer_map`.  In Relax, this is represented as
+    `R.Tensor`.  Calls from Relax to TIR that pass a tensor of unknown
+    rank/shape are well-formed.
+
+    In the test case below, a TIR function accepts an arbitrary
+    `R.Tensor`, and returns a boolean value based on inspection of the
+    runtime datatype.
+    """
+
+    @I.ir_module
+    class Module:
+        @R.function
+        def main(A: R.Tensor) -> R.Prim("bool"):
+            return Module.is_bfloat16_dtype(A)
+
+        @T.prim_func(private=True)
+        def is_bfloat16_dtype(tensor: T.handle) -> T.bool:
+            T.func_attr({"tir.is_scheduled": True, "tir.is_host_func": True})
+
+            # From #include <tvm/tir/builtin.h>
+            kArrTypeCode = T.meta_var(5)
+            kArrTypeBits = T.meta_var(6)
+            kArrTypeLanes = T.meta_var(7)
+
+            # From #include <dlpack/dlpack.h>
+            kDLBfloat = T.meta_var(4)
+
+            type_code = T.tvm_struct_get(tensor, 0, kArrTypeCode, dtype="uint8")
+            type_bits = T.tvm_struct_get(tensor, 0, kArrTypeBits, dtype="uint8")
+            type_lanes = T.tvm_struct_get(tensor, 0, kArrTypeLanes, dtype="uint16")
+
+            is_bfloat16: T.bool = (
+                (type_code == kDLBfloat) and (type_bits == 16) and (type_lanes == 1)
+            )
+            return is_bfloat16
+
+    assert rx.analysis.well_formed(Module)
 
 
 if __name__ == "__main__":

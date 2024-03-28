@@ -117,12 +117,25 @@ TVM_DLL Array<Var> UndefinedVars(const PrimExpr& expr);
 TVM_DLL Array<Var> UndefinedVars(const PrimExpr& expr, const Array<Var>& defs);
 
 /*!
- * \brief Analyze the side effect
+ * \brief Analyze the side effect of an expression
  * \param expr The expression to be checked.
  *
  * \return CallEffectKind, can be kPure, kReadState or kUpdateState
  */
 TVM_DLL CallEffectKind SideEffect(const PrimExpr& expr);
+
+/*!
+ * \brief Analyze the side effect of a function
+ *
+ * \param func The expression to be checked.
+ *
+ * \param assert_on_error If true, an error will be thrown for an
+ *    impure function.  If false (default), the purity of the PrimFunc
+ *    will be returned.
+ *
+ * \return The purity of the function
+ */
+TVM_DLL bool IsPureFunction(const PrimFunc& func, bool assert_on_error = false);
 
 /*!
  * \brief Whether the given Stmt uses any var in the given variable set.

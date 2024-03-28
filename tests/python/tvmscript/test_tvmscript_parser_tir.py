@@ -340,5 +340,114 @@ def test_thread_binding_dtype():
     assert loop_j.thread_binding.var.dtype == "int32"
 
 
+def test_inferred_sinfo_with_prim_args():
+    """A PrimFunc may have inferred StructInfo"""
+
+    @T.prim_func
+    def func(M: T.int32, N: T.int32) -> T.int32:
+        T.ret(M * N)
+
+    expected = tvm.relax.FuncStructInfo(
+        [
+            tvm.relax.PrimStructInfo("int32"),
+            tvm.relax.PrimStructInfo("int32"),
+        ],
+        tvm.relax.PrimStructInfo("int32"),
+        purity=True,
+    )
+    tvm.ir.assert_structural_equal(func.struct_info, expected)
+
+
+def test_inferred_sinfo_with_buffer_args():
+    """PrimFunc buffer arguments are inferred as R.Tensor"""
+
+    @T.prim_func
+    def func(A: T.Buffer([16, 16], "float32"), B: T.Buffer([256], "int32")) -> T.float32:
+        T.ret(T.float32(42.0))
+
+    expected = tvm.relax.FuncStructInfo(
+        [
+            tvm.relax.TensorStructInfo([16, 16], "float32"),
+            tvm.relax.TensorStructInfo([256], "int32"),
+        ],
+        tvm.relax.PrimStructInfo("float32"),
+        purity=True,
+    )
+    tvm.ir.assert_structural_equal(func.struct_info, expected)
+
+
+def test_inferred_sinfo_with_internal_allocation():
+    """A pure function may still write to internal allocations.
+
+    Whether a function writes to internal allocations is not a visible
+    effect, and does not impact the purity of a function.
+    """
+
+    @T.prim_func
+    def func(A: T.Buffer([16, 16], "float32")) -> T.float32:
+        Sum = T.decl_buffer([], "float32")
+        Sum[()] = 0.0
+        for i, j in T.grid(16, 16):
+            Sum[()] = Sum[()] + A[i, j]
+
+        T.ret(Sum[()])
+
+    expected = tvm.relax.FuncStructInfo(
+        [
+            tvm.relax.TensorStructInfo([16, 16], "float32"),
+        ],
+        tvm.relax.PrimStructInfo("float32"),
+        purity=True,
+    )
+    tvm.ir.assert_structural_equal(func.struct_info, expected)
+
+
+def test_inferred_sinfo_with_output_buffer():
+    """A pure function may not write to an argument buffer
+
+    If an argument buffer is written to, the function must be impure.
+    """
+
+    @T.prim_func
+    def func(A: T.Buffer(16, "float32"), B: T.Buffer(16, "float32")):
+        for i in range(16):
+            B[i] = A[i]
+
+    expected = tvm.relax.FuncStructInfo(
+        [
+            tvm.relax.TensorStructInfo([16], "float32"),
+            tvm.relax.TensorStructInfo([16], "float32"),
+        ],
+        tvm.relax.TupleStructInfo([]),
+        purity=False,
+    )
+    tvm.ir.assert_structural_equal(func.struct_info, expected)
+
+
+def test_inferred_sinfo_with_dynamic_buffer():
+    """The inferred StructInfo may contain dynamic shapes"""
+
+    @T.prim_func
+    def func(a_handle: T.handle, b_handle: T.handle):
+        M = T.int64()
+        N = T.int64()
+        A = T.match_buffer(a_handle, [M, N], "float32")
+        B = T.match_buffer(b_handle, [M * N], "float32")
+        for i, j in T.grid(M, N):
+            B[i * N + j] = A[i, j]
+
+    M = tvm.tir.Var("M", "int64")
+    N = tvm.tir.Var("N", "int64")
+    expected = tvm.relax.FuncStructInfo(
+        [
+            tvm.relax.TensorStructInfo([M, N], "float32"),
+            tvm.relax.TensorStructInfo([M * N], "float32"),
+        ],
+        tvm.relax.TupleStructInfo([]),
+        purity=False,
+    )
+    tvm.ir.assert_structural_equal(func.struct_info, expected)
+
+
 if __name__ == "__main__":
     tvm.testing.main()

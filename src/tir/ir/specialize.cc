@@ -105,14 +105,10 @@ class PrimFuncSpecializer : public StmtExprMutator {
     Stmt body = specializer(f->body);
 
     if (param_updated || buffer_map_updated || !f->body.same_as(body)) {
-      PrimFuncNode* f_ptr = f.CopyOnWrite();
-      f_ptr->params = std::move(params);
-      f_ptr->buffer_map = std::move(buffer_map);
-      f_ptr->body = std::move(body);
-      f_ptr->struct_info_ = NullOpt;
-      f_ptr->checked_type_ = Type(nullptr);
+      return PrimFunc(params, body, f->ret_type, buffer_map, f->attrs, f->span);
+    } else {
+      return f;
     }
-    return f;
   }
 
  private:

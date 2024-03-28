@@ -85,6 +85,7 @@ class PrimExprSlotCollector : public ExprVisitor, public StructInfoVisitor {
       collector.VisitExpr(param);
     }
     collector.VisitExpr(func->body);
+    collector.VisitStructInfo(func->ret_struct_info);
   }
 
  private:
