@@ -82,6 +82,7 @@ TVM_REGISTER_TARGET_TAG("raspberry-pi/4b-aarch64")
                                                  {"mattr", Array<String>{"+neon"}},
                                                  {"num-cores", Integer(4)}}}});
 
+#if TVM_LLVM_VERSION >= 110
 TVM_REGISTER_TARGET_TAG("nvidia/jetson-agx-xavier")
     .set_config({{"kind", String("cuda")},
                  {"arch", String("sm_72")},
@@ -129,6 +130,7 @@ TVM_REGISTER_TARGET_TAG("nvidia/jetson-agx-orin-64gb")
                                                  {"mtriple", String("aarch64-linux-gnu")},
                                                  {"mcpu", String("cortex-a78")},
                                                  {"num-cores", Integer(12)}}}});
+#endif
 
 #define TVM_REGISTER_CUDA_TAG(Name, Arch, SharedMem, RegPerBlock) \
   TVM_REGISTER_TARGET_TAG(Name).set_config({                      \
