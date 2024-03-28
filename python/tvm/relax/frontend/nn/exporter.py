@@ -138,6 +138,7 @@ class Exporter:
         mod = self.builder.finalize()
         assert rx.analysis.well_formed(mod)
 
+        mod = rx.transform.CanonicalizeBindings()(mod)
         return mod, params, ext_mods
 
 
@@ -161,8 +162,6 @@ def _emit_method(  # pylint: disable=too-many-locals,too-many-branches,too-many-
     effects: typing.Optional[typing.List[typing.Tuple[str, core.Effect]]],
 ):
     # pylint: disable=protected-access
-    # symbolic shape's name mapping to its tir.Var for reuse
-    str2var_params: typing.Dict[str, tir.Var] = {}
 
     def _unwrap_ret(expr: typing.Any) -> typing.Any:
         if isinstance(expr, (core.Tensor, core.Object)):
@@ -188,36 +187,39 @@ def _emit_method(  # pylint: disable=too-many-locals,too-many-branches,too-many-
         raise TypeError(f"Unsupported input type: {type(arg)}")
 
     def _params(mode: str) -> typing.List[rx.Var]:
-        inputs: typing.List[rx.Var] = []
+        param_vars: typing.List[rx.Var] = [
+            rx.Var(name, rx.TensorStructInfo(param.shape, param.dtype)) for name, param in params
+        ]
 
-        def _get_var(shape_var: tir.Var) -> tir.Var:
-            name = shape_var.name
-            if name in str2var_params:
-                return str2var_params[name]
-            var = tir.Var(name, "int64")
-            str2var_params[name] = var
-            return var
-
-        for name, param in params:
-            # Make sure the a symbolic shape is not re-registered (same as _method_spec_to_inputs)
-            # e.g. we do not see `vocab_size` for `lm_head` and `vocab_size_1` for `embed_tokens`
-            new_shape = [_get_var(x) if isinstance(x, tir.Var) else x for x in param.shape]
-            var = core.Tensor.placeholder(new_shape, param.dtype, name)._expr
-            inputs.append(var)
-            param._expr = var
+        # TODO(Lunderberg): Remove the handling of "packed" model
+        # weights from `_emit_method`, and instead apply
+        # `tvm.relax.transform.BundleModelParams` as a post-processing
+        # step.
         if mode == "none":
-            return []
-        if mode == "plain":
-            return inputs
-        if mode == "packed":
-            input_var = rx.Var(
+            func_params = []
+        elif mode == "plain":
+            func_params = param_vars
+        elif mode == "packed":
+            tuple_var = rx.Var(
                 "packed_params",
-                TupleStructInfo(fields=[x.struct_info for x in inputs]),
+                TupleStructInfo(fields=[x.struct_info for x in param_vars]),
             )
-            for i, (name, param) in enumerate(params):
-                param._expr = builder.emit(rx.TupleGetItem(input_var, i), name_hint=name)
-            return [input_var]
-        raise ValueError(f"Invalid param_mode: {mode}")
+            func_params = [tuple_var]
+            for i, param_var in enumerate(param_vars):
+                builder.emit_normalized(rx.VarBinding(param_var, rx.TupleGetItem(tuple_var, i)))
+        else:
+            raise ValueError(f"Invalid param_mode: {mode}")
+
+        # Bind each function parameter to the placeholder variable used
+        # inside `nn.Tensor`.  We cannot replace the placeholder
+        # variable, as the user may have defined expressions in terms of
+        # those variables.  The trivial binding introduced at this step
+        # will be removed by `relax.transform.CanonicalizeBindings`.
+        for param_var, (_, nn_param) in zip(param_vars, params):
+            assert isinstance(nn_param._expr, rx.Var)
+            builder.emit_normalized(rx.VarBinding(nn_param._expr, param_var))
+
+        return func_params
 
     def _effects(mode: str) -> typing.List[rx.Var]:
         unflat_inputs: typing.List[typing.List[rx.Var]] = []
@@ -309,6 +311,8 @@ def _method_spec_to_inputs(
                 dtype=arg_spec.dtype,
                 name=arg_name,
             )
+        elif isinstance(arg_spec, rx.TensorStructInfo):
+            arg = core.Tensor.from_struct_info(arg_spec, name=arg_name)
         elif isinstance(arg_spec, _spec.Object):
             arg = arg_spec.object_type(_expr=rx.Var(arg_name, ObjectStructInfo()), _name=arg_name)
         elif isinstance(arg_spec, _spec.Tuple):

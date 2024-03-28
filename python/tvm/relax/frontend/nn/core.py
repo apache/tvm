@@ -107,11 +107,11 @@ class Tensor(_TensorOp):
         def _check_tensor(expr: rx.Expr) -> None:
             assert expr.struct_info_ is not None
             assert isinstance(expr.struct_info, TensorStructInfo)
-            assert expr.struct_info.ndim != -1
-            assert expr.struct_info.shape is not None
-            assert expr.struct_info.shape.struct_info_ is not None
-            assert isinstance(expr.struct_info.shape.struct_info, ShapeStructInfo)
-            assert expr.struct_info.shape.struct_info.values is not None
+            if expr.struct_info.ndim != -1:
+                assert expr.struct_info.shape is not None
+                assert expr.struct_info.shape.struct_info_ is not None
+                assert isinstance(expr.struct_info.shape.struct_info, ShapeStructInfo)
+                assert expr.struct_info.shape.struct_info.values is not None
 
         _check_tensor(_expr)
         self._expr = _expr
@@ -154,24 +154,20 @@ class Tensor(_TensorOp):
                 expr = int(expr)
                 assert expr >= 0
                 new_shape.append(expr)
-                continue
-            if isinstance(expr, str):
+            elif isinstance(expr, str):
                 expr = tir.Var(expr, "int64")
                 new_shape.append(expr)
-                continue
-            if not isinstance(expr, tir.PrimExpr):
+            elif isinstance(expr, tir.PrimExpr):
+                assert expr.dtype == "int64"
+                new_shape.append(expr)
+            else:
                 raise TypeError(f"Invalid shape: {shape}")
-            assert expr.dtype == "int64"
-            new_shape.append(expr)
-        return Tensor(
-            _expr=rx.Var(
-                name_hint=name,
-                struct_info=TensorStructInfo(
-                    shape=new_shape,  # type: ignore[arg-type]
-                    dtype=dtype,
-                ),
-            )
+
+        struct_info = TensorStructInfo(
+            shape=new_shape,  # type: ignore[arg-type]
+            dtype=dtype,
         )
+        return Tensor.from_struct_info(struct_info, name)
 
     @property
     def shape(self) -> List[Union[int, tir.PrimExpr]]:
@@ -186,6 +182,8 @@ class Tensor(_TensorOp):
         shape : List[Union[int, tir.PrimExpr]]
             The shape of the tensor
         """
+        if self._expr.struct_info.shape is None:
+            return None
 
         def _simplify(expr: tir.PrimExpr):
             return expr.value if isinstance(expr, tir.IntImm) else expr
@@ -591,7 +589,22 @@ def wrap_nested(expr: rx.Expr, name: str) -> Union[Tensor, Sequence[Tensor]]:
         The computed result.
     """
     if not isinstance(expr, rx.DataflowVar):
-        expr = BlockBuilder.current().emit(expr, name)
+        block_builder = BlockBuilder.current()
+        if block_builder is None:
+            # Normalize to make sure we have valid StructInfo, but
+            # wait until we are actually building the function to
+            # flatten nested expressions.
+            #
+            # TODO(Lunderberg): Make this easier to call.  Infering
+            # struct info for a nested expression should be doable in
+            # a free function, without requiring an active
+            # BlockBuilder and an active scope.
+            builder = BlockBuilder()
+            with builder.function("dummy_scope", params=[]):
+                expr = builder.normalize(expr)
+                builder.emit_func_output([])
+        else:
+            expr = BlockBuilder.current().emit(expr, name)
     if isinstance(expr.struct_info_, TensorStructInfo):
         return Tensor(_expr=expr)
     if isinstance(expr.struct_info_, TupleStructInfo):
