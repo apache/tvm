@@ -86,9 +86,14 @@ def pattern_table():
         zero_point = pattern.args[2].data.numpy().item(0)
 
         # check for dtypes of quantize and dequantize
+        # if (
+        #     (scale == 1.0 / 256 and zero_point == -128)
+        #     and pattern.attrs.out_dtype == "int8"
+        #     and dequantize_call.args[0].checked_type.dtype == "int8"
+        # ):
+        #     return True
         if (
-            (scale == 1.0 / 256 and zero_point == -128)
-            and pattern.attrs.out_dtype == "int8"
+            pattern.attrs.out_dtype == "int8"
             and dequantize_call.args[0].checked_type.dtype == "int8"
         ):
             return True
@@ -99,7 +104,6 @@ def pattern_table():
             and dequantize_call.args[0].checked_type.dtype == "int16"
         ):
             return True
-
         return False
 
     def qnn_conv2d_pattern(with_pad):
