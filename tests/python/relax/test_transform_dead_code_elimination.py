@@ -509,8 +509,6 @@ def test_extern_func():
     verify(before, before)
 
 
-@pytest.mark.skip_well_formed_check_before_transform
-@pytest.mark.skip_well_formed_check_after_transform
 def test_compatibility_with_apply_pass_to_function():
     """DeadCodeElimination can be used with ApplyPassToFunction
 
@@ -590,8 +588,6 @@ def test_compatibility_with_apply_pass_to_function():
     tvm.ir.assert_structural_equal(Expected, After)
 
 
-@pytest.mark.skip_well_formed_check_before_transform
-@pytest.mark.skip_well_formed_check_after_transform
 def test_well_formed_output_with_restricted_scope():
     """DeadCodeElimination can be used with ApplyPassToFunction
 
