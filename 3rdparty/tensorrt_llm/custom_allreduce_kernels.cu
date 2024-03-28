@@ -15,8 +15,9 @@
  */
 
 #include <cuda_fp16.h>
-#include <dmlc/logging.h>
+#include <dlpack/dlpack.h>
 #include <stdint.h>
+#include <tvm/runtime/logging.h>
 
 #include "custom_allreduce_kernels.h"
 
