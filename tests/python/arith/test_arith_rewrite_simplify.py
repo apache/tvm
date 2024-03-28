@@ -75,6 +75,7 @@ class BaseCompare:
 
 class TestVector(BaseCompare):
     x, y, z = te.var("x"), te.var("y"), te.var("z")
+    x64 = te.var("x", dtype="int64")
     vx = te.var("vx", dtype="int32x2")
     vc = te.var("vc", dtype="uint1")
     test_case = tvm.testing.parameter(
@@ -88,6 +89,7 @@ class TestVector(BaseCompare):
         ),
         TestCase(y.astype("int32x2") + x.astype("int32x2"), (y + x).astype("int32x2")),
         TestCase(tvm.tir.Broadcast(0, 4) + y, tvm.tir.Broadcast(y, 4)),
+        # int64 lanes
         TestCase(
             tvm.tir.Broadcast(x, 4) + tvm.tir.Ramp(0, 1, tvm.tir.IntImm(dtype="int64", value=4)),
             tvm.tir.Ramp(x, 1, 4),
@@ -95,6 +97,11 @@ class TestVector(BaseCompare):
         TestCase(
             tvm.tir.Broadcast(x, tvm.tir.IntImm(dtype="int64", value=4)) + tvm.tir.Ramp(0, 1, 4),
             tvm.tir.Ramp(x, 1, 4),
+        ),
+        # int64 iterators with int32 lanes
+        TestCase(
+            tvm.tir.Broadcast(x64, 4) + tvm.tir.Ramp(tvm.tir.IntImm(dtype="int64", value=0), 1, 4),
+            tvm.tir.Ramp(x64, 1, 4),
         ),
         TestCase(
             tvm.tir.Broadcast(0, tir.vscale() * 8) + y, tvm.tir.Broadcast(y, tir.vscale() * 8)
