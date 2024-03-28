@@ -220,12 +220,21 @@ tvm::Map<tir::Var, PrimExpr> InferSymbolicVarMap(
 
 bool IsBoolStructInfo(const StructInfo& sinfo, bool permit_unknown_rank,
                       bool permit_unknown_dtype) {
-  const TensorStructInfoNode* tt = sinfo.as<TensorStructInfoNode>();
-  if (!tt) {
+  DataType dtype;
+  int ndim;
+
+  if (const auto* tensor = sinfo.as<TensorStructInfoNode>()) {
+    dtype = tensor->dtype;
+    ndim = tensor->ndim;
+  } else if (const auto* prim = sinfo.as<PrimStructInfoNode>()) {
+    dtype = prim->dtype;
+    ndim = 0;
+  } else {
     return false;
   }
-  bool correct_dtype = tt->dtype.is_bool() || (permit_unknown_dtype && tt->dtype.is_void());
-  bool correct_rank = tt->ndim == 0 || (permit_unknown_rank && tt->ndim == -1);
+
+  bool correct_dtype = dtype.is_bool() || (permit_unknown_dtype && dtype.is_void());
+  bool correct_rank = ndim == 0 || (permit_unknown_rank && ndim == -1);
   return correct_dtype && correct_rank;
 }
 

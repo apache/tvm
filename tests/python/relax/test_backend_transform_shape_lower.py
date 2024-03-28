@@ -452,6 +452,90 @@ def test_return_match_check():
     assert_structural_equal(after, expected)
 
 
+def test_return_match_check_with_new_expr():
+    """Like test_return_match_check, but requires a computation
+
+    When return body is not same as ret_struct_info, a runtime match
+    check is required.  This match check may require a symbolic
+    expression to be computed.
+    """
+    MS = MatchShapeCode
+
+    @tvm.script.ir_module
+    class Before:
+        @R.function
+        def main(x: R.Tensor(["n", "n"], "float32")) -> R.Tensor(["n * n"], "float32"):
+            R.func_attr({"relax.force_pure": True})
+            out = R.call_packed("flatten_matrix", x, sinfo_args=R.Object)
+            return out
+
+    # slot assignment:
+    sindex = {
+        "n": 0,
+        "n * n": 1,
+    }
+
+    @tvm.script.ir_module
+    class Expected:
+        @R.function
+        def main(x: R.Tensor(["n", "n"], "float32")) -> R.Tensor(["n * n"], "float32"):
+            R.func_attr({"relax.force_pure": True})
+            shape_heap = R.call_builtin_with_ctx(
+                "vm.builtin.alloc_shape_heap",
+                [R.prim_value(2)],
+                sinfo_args=[R.Tensor(ndim=1, dtype="int64")],
+            )
+            _ = R.call_packed(
+                "vm.builtin.check_tensor_info", x, 2, R.dtype("float32"), "", sinfo_args=[R.Tuple()]
+            )
+            _ = R.call_packed(
+                "vm.builtin.match_shape",
+                x,
+                shape_heap,
+                2,
+                MS.STORE_TO_HEAP,
+                sindex["n"],
+                MS.ASSERT_EQUAL_TO_LOAD,
+                sindex["n"],
+                "",
+                sinfo_args=[R.Tuple()],
+            )
+
+            _ = Expected.shape_func(shape_heap)
+
+            out = R.call_packed("flatten_matrix", x, sinfo_args=R.Object)
+            _ = R.call_packed(
+                "vm.builtin.check_tensor_info",
+                out,
+                1,
+                R.dtype("float32"),
+                "",
+                sinfo_args=[R.Tuple()],
+            )
+            _ = R.call_packed(
+                "vm.builtin.match_shape",
+                out,
+                shape_heap,
+                1,
+                MS.ASSERT_EQUAL_TO_LOAD,
+                sindex["n * n"],
+                "",
+                sinfo_args=[R.Tuple()],
+            )
+            return out
+
+        @T.prim_func(private=True)
+        def shape_func(H: T.Buffer(T.int64(2), "int64")):
+            # generated compute function
+            T.func_attr({"tir.is_host_func": 1})
+            H[T.int64(sindex["n * n"])] = H[T.int64(sindex["n"])] * H[T.int64(sindex["n"])]
+
+    before = Before
+    expected = Expected
+    after = relax.transform.VMShapeLower(emit_err_ctx=False)(before)
+    assert_structural_equal(after, expected)
+
+
 def test_symbolic_shape_multiple_function():
     MS = MatchShapeCode
     MK = MakeShapeCode
