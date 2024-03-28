@@ -319,7 +319,7 @@ class RNNStateImpObj : public RNNStateObj {
     dirty_aux_data_device_ = true;
   }
 
-  void ForkSequence(int64_t parent_seq_id, int64_t child_seq_id) final {
+  void ForkSequence(int64_t parent_seq_id, int64_t child_seq_id, int64_t fork_pos = -1) final {
     auto parent_it = seq_map_.find(parent_seq_id);
     CHECK(parent_it != seq_map_.end()) << "The parent sequence \"" << parent_seq_id
                                        << "\" cannot be found in space state storage.";
