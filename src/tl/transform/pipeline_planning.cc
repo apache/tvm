@@ -67,7 +67,7 @@ class PipelinePlanner : public StmtExprMutator {
     }
     auto target = f->GetAttr<Target>(tvm::attr::kTarget);
     ICHECK(target.defined()) << "Layout_Inference: Require the target attribute";
-    substituter.target_ = target.as<TargetNode>();
+    substituter.target_ = target.value();
     return substituter.VisitStmt(f->body);
   }
 
@@ -223,7 +223,7 @@ class PipelinePlanner : public StmtExprMutator {
   }
 
   Map<Var, Buffer> buffer_data_to_buffer_;
-  const TargetNode* target_;
+  Target target_;
 };
 
 tvm::transform::Pass PipelinePlanning() {

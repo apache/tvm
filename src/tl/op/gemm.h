@@ -46,7 +46,7 @@ class Gemm : public Operator {
   } policy;
 
  private:
-  std::pair<int, int> ComputeWarpPartition(int num_warps) const;
+  std::pair<int, int> ComputeWarpPartition(int num_warps, Target target) const;
 
   Array<PrimExpr> call_args;
   tir::Buffer A, B, C;

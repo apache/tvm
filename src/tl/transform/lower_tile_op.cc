@@ -45,6 +45,9 @@ class LowerTileOpPass : arith::IRMutatorWithAnalyzer {
     for (const auto& [_, buffer] : f->buffer_map) {
       substituter.buffer_data_to_buffer_.Set(buffer->data, buffer);
     }
+    auto target = f->GetAttr<Target>(tvm::attr::kTarget);
+    ICHECK(target.defined()) << "LowerTileOpPass: Require the target attribute";
+    substituter.target_ = target.value();
     PrimFuncNode* fptr = f.CopyOnWrite();
     fptr->body = substituter.VisitStmt(f->body);
     return f;
@@ -81,7 +84,7 @@ class LowerTileOpPass : arith::IRMutatorWithAnalyzer {
       return workspace.access_ptr(2);  // write
     };
     auto lowered =
-        op->Lower(LowerArgs{thread_block_size_, thread_var_, callback, layout_map_}, analyzer_);
+        op->Lower(LowerArgs{target_, thread_block_size_, thread_var_, callback, layout_map_}, analyzer_);
     if (lowered.defined())
       return lowered;
     else
@@ -101,6 +104,7 @@ class LowerTileOpPass : arith::IRMutatorWithAnalyzer {
     return arith::IRMutatorWithAnalyzer::VisitStmt_(op);
   }
 
+  Target target_;
   Map<Var, Buffer> buffer_data_to_buffer_;
   Map<Buffer, Layout> layout_map_;
   Var thread_var_;

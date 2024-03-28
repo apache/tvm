@@ -31,13 +31,14 @@
 namespace tvm {
 namespace tl {
 
-bool TargetIsCuda(const TargetNode* target);
+bool TargetIsCuda(Target target);
 
-bool TargetIsVolta(const TargetNode* target);
-bool TargetIsTuring(const TargetNode* target);
-bool TargetIsAmpere(const TargetNode* target);
+bool TargetIsVolta(Target target);
+bool TargetIsTuring(Target target);
+bool TargetIsAmpere(Target target);
+bool TargetIsHopper(Target target);
 
-bool TargetHasAsyncCopy(const TargetNode* target);
+bool TargetHasAsyncCopy(Target target);
 
 }  // namespace tl
 }  // namespace tvm

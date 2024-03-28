@@ -62,6 +62,7 @@ using AddWorkspaceCallback = std::function<PrimExpr(int, DataType)>;
 using LayoutMap = Map<Buffer, Layout>;
 
 struct LowerArgs {
+  Target target;
   size_t block_size;
   Var thread_var;
   AddWorkspaceCallback AddWorkspace;

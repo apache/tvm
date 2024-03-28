@@ -63,8 +63,13 @@ Gemm::Gemm(const Array<PrimExpr>& args, const Map<Var, Buffer>& vmap) {
   policy = static_cast<GemmWarpPolicy>(args[8].as<IntImm>().value()->value);
 }
 
-std::pair<int, int> Gemm::ComputeWarpPartition(int num_warps) const {
+std::pair<int, int> Gemm::ComputeWarpPartition(int num_warps, Target target) const {
   int m_warp = 1, n_warp = 1;
+  if (TargetIsHopper(target)) {
+    ICHECK(num_warps % 4 == 0) << "Use Warp Group MMA requires 128*N threads.";
+    m_warp = num_warps;
+    return {m_warp, n_warp};
+  }
   if (this->policy == GemmWarpPolicy::kFullRow) {
     m_warp = num_warps;
     ICHECK(this->M % num_warps == 0);
@@ -100,7 +105,7 @@ std::pair<int, int> Gemm::ComputeWarpPartition(int num_warps) const {
 
 Stmt Gemm::Lower(const LowerArgs& T, arith::Analyzer* analyzer) const {
   ICHECK(T.block_size % 32 == 0);
-  auto [warp_m, warp_n] = ComputeWarpPartition(T.block_size / 32);
+  auto [warp_m, warp_n] = ComputeWarpPartition(T.block_size / 32, T.target);
   std::stringstream ss;
   std::string op_name = "tl::gemm_ss";
   if (A.scope() == "local") {
@@ -127,9 +132,9 @@ LayoutMap Gemm::InferLayout(const LayoutInferArgs& T, InferLevel level) {
 
   LayoutMap results;
   ICHECK(C.scope() == "local.fragment");
-  auto [warp_m, warp_n] = ComputeWarpPartition(T.block_size / 32);
+  auto [warp_m, warp_n] = ComputeWarpPartition(T.block_size / 32, T.target);
 
-  if (TargetIsVolta(T.target.get())) {
+  if (TargetIsVolta(T.target)) {
     auto fragment = makeGemmVoltaFragmentC(M, N, M / warp_m, N / warp_n, C->dtype.bits());
     results.Set(C, fragment);
     if (A.scope() == "shared" || A.scope() == "shared.dyn") {
@@ -145,7 +150,7 @@ LayoutMap Gemm::InferLayout(const LayoutInferArgs& T, InferLevel level) {
     ICHECK(B.scope() == "shared" || B.scope() == "shared.dyn");
     results.Set(B, makeGemmVoltaABLayout(*as_const_int(B->shape[0]), *as_const_int(B->shape[1]),
                                          false, trans_B ? 2 : 1));
-  } else if (TargetIsAmpere(T.target.get()) || TargetIsTuring(T.target.get())) {
+  } else if (TargetIsAmpere(T.target) || TargetIsTuring(T.target)) {
     auto fragment = makeGemmFragmentC(M, N, M / warp_m, N / warp_n, C->dtype.bits());
     results.Set(C, fragment);
 
@@ -167,7 +172,21 @@ LayoutMap Gemm::InferLayout(const LayoutInferArgs& T, InferLevel level) {
     } else {
       ICHECK(0);
     }
-
+  } else if (TargetIsHopper(T.target)) {
+    auto fragment = makeGemmFragmentCHopper(M, N, M / warp_m, N / warp_n, C->dtype.bits());
+    results.Set(C, fragment);
+    if (A.scope() == "shared" || A.scope() == "shared.dyn") {
+      results.Set(A, makeGemmABLayout(*as_const_int(A->shape[0]), *as_const_int(A->shape[1]),
+                                      A->dtype.bits(), trans_A ? 1 : 2));
+    } else {
+      ICHECK(0);
+    }
+    if (B.scope() == "shared" || B.scope() == "shared.dyn") {
+      results.Set(B, makeGemmABLayout(*as_const_int(B->shape[0]), *as_const_int(B->shape[1]),
+                                      B->dtype.bits(), trans_B ? 2 : 1));
+    } else {
+      ICHECK(0);
+    }
   } else {
     ICHECK(0) << "Not supported " << T.target->str();
   }

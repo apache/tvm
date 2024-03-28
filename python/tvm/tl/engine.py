@@ -40,10 +40,18 @@ def tvm_callback_cuda_compile(code, target):
     else:
         cutlass_path = osp.abspath(osp.join(tvm_root, "3rdparty/cutlass/include"))
     compute_version = "".join(nvcc.get_target_compute_version(target).split("."))
-    arch = [f"-arch=sm_{compute_version}"]
+
+    # special handle for Hopper
+    if compute_version == "90":
+        arch = [f"-arch=sm_90a"]
+        format = "cubin"
+    else:
+        arch = [f"-arch=sm_{compute_version}"]
+        format = "ptx"
+    
     ptx = nvcc.compile_cuda(
         code,
-        "ptx",
+        format,
         arch,
         options=[
             "-std=c++17",

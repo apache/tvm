@@ -27,9 +27,9 @@
 namespace tvm {
 namespace tl {
 
-bool TargetIsCuda(const TargetNode* target) { return target->GetTargetDeviceType() == kDLCUDA; }
+bool TargetIsCuda(Target target) { return target->GetTargetDeviceType() == kDLCUDA; }
 
-int GetArchInt(const TargetNode* target) {
+int GetArchInt(Target target) {
   auto s = target->GetAttr<String>("arch");
   ICHECK(s.defined());
   const char* arch_str = s.value().c_str();
@@ -39,25 +39,31 @@ int GetArchInt(const TargetNode* target) {
   return atoi(&arch_str[3]);
 }
 
-bool TargetIsVolta(const TargetNode* target) {
+bool TargetIsVolta(Target target) {
   if (!TargetIsCuda(target)) return false;
   int arch = GetArchInt(target);
   return arch >= 70 && arch < 75;
 }
 
-bool TargetIsTuring(const TargetNode* target) {
+bool TargetIsTuring(Target target) {
   if (!TargetIsCuda(target)) return false;
   int arch = GetArchInt(target);
   return arch >= 75 && arch < 80;
 }
 
-bool TargetIsAmpere(const TargetNode* target) {
+bool TargetIsAmpere(Target target) {
   if (!TargetIsCuda(target)) return false;
   int arch = GetArchInt(target);
   return arch >= 80 && arch < 90;
 }
 
-bool TargetHasAsyncCopy(const TargetNode* target) { return TargetIsAmpere(target); }
+bool TargetIsHopper(Target target) {
+  if (!TargetIsCuda(target)) return false;
+  int arch = GetArchInt(target);
+  return arch >= 90;
+}
+
+bool TargetHasAsyncCopy(Target target) { return TargetIsAmpere(target); }
 
 }  // namespace tl
 }  // namespace tvm
