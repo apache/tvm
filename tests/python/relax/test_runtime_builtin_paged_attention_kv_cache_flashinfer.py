@@ -94,9 +94,9 @@ def kv_cache_transpose_append(
                 pages[position_map[vgpos] // page_size, 0, vh, position_map[vgpos] % page_size, vf]
             )
             position: T.int64 = T.Cast("int64", position_map[vgpos])
-            pages[T.floordiv(position, page_size), 0, vh, T.floormod(position, page_size), vf] = (
-                k_data[vgpos, vh, vf]
-            )
+            pages[
+                T.floordiv(position, page_size), 0, vh, T.floormod(position, page_size), vf
+            ] = k_data[vgpos, vh, vf]
         with T.block("v_transpose_append"):
             vgpos, vh, vf = T.axis.remap("SSS", [global_pos, h, f])
             T.reads(position_map[vgpos], k_data[vgpos, vh, vf])
@@ -104,9 +104,9 @@ def kv_cache_transpose_append(
                 pages[position_map[vgpos] // page_size, 1, vh, position_map[vgpos] % page_size, vf]
             )
             position: T.int64 = T.Cast("int64", position_map[vgpos])
-            pages[T.floordiv(position, page_size), 1, vh, T.floormod(position, page_size), vf] = (
-                v_data[vgpos, vh, vf]
-            )
+            pages[
+                T.floordiv(position, page_size), 1, vh, T.floormod(position, page_size), vf
+            ] = v_data[vgpos, vh, vf]
 
 
 def llama_rope_with_position_map(  # pylint: disable=too-many-arguments
