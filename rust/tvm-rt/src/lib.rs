@@ -112,7 +112,7 @@ pub fn version() -> &'static str {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{ByteArray, DataType, Device};
+    use crate::{DataType, Device};
     use std::{convert::TryInto, str::FromStr};
 
     #[test]
