@@ -27,7 +27,7 @@ namespace tvm {
 namespace runtime {
 
 template <typename T>
-cudaError_t allreduce(T* buff, T* scratch, T* resultBuff,
+cudaError_t allreduce(const T* buff, T* scratch, T* resultBuff,
                       mscclpp::DeviceHandle<mscclpp::SmChannel>* smChannels,
                       mscclpp::DeviceHandle<mscclpp::SmChannel>* smOutChannels, int rank,
                       int nRanksPerNode, int worldSize, size_t nelems, cudaStream_t stream);
@@ -70,19 +70,24 @@ MSCCL_API mscclResult_t mscclAllReduce(const void* sendbuff, void* recvbuff, siz
 
   switch (datatype) {
     case mscclFloat16:
-      CUDACHECK(allreduce((half*)sendbuff, (half*)comm->scratchBuff.get(), (half*)recvbuff,
-                          smChannels, smOutChannels, rank, NRANKS_PER_NODE,
-                          comm->comm->bootstrap()->getNranks(), count, stream));
+      CUDACHECK(allreduce(reinterpret_cast<const half*>(sendbuff),
+                          reinterpret_cast<half*>(comm->scratchBuff.get()),
+                          reinterpret_cast<half*>(recvbuff), smChannels, smOutChannels, rank,
+                          NRANKS_PER_NODE, comm->comm->bootstrap()->getNranks(), count, stream));
       break;
     case mscclFloat32:
-      CUDACHECK(allreduce((float*)sendbuff, (float*)comm->scratchBuff.get(), (float*)recvbuff,
-                          smChannels, smOutChannels, comm->comm->bootstrap()->getRank(),
-                          NRANKS_PER_NODE, comm->comm->bootstrap()->getNranks(), count, stream));
+      CUDACHECK(allreduce(reinterpret_cast<const float*>(sendbuff),
+                          reinterpret_cast<float*>(comm->scratchBuff.get()),
+                          reinterpret_cast<float*>(recvbuff), smChannels, smOutChannels,
+                          comm->comm->bootstrap()->getRank(), NRANKS_PER_NODE,
+                          comm->comm->bootstrap()->getNranks(), count, stream));
       break;
     case mscclInt32:
     case mscclUint32:
-      CUDACHECK(allreduce((int*)sendbuff, (int*)comm->scratchBuff.get(), (int*)recvbuff, smChannels,
-                          smOutChannels, comm->comm->bootstrap()->getRank(), NRANKS_PER_NODE,
+      CUDACHECK(allreduce(reinterpret_cast<const int*>(sendbuff),
+                          reinterpret_cast<int*>(comm->scratchBuff.get()),
+                          reinterpret_cast<int*>(recvbuff), smChannels, smOutChannels,
+                          comm->comm->bootstrap()->getRank(), NRANKS_PER_NODE,
                           comm->comm->bootstrap()->getNranks(), count, stream));
       break;
     default:
@@ -91,12 +96,12 @@ MSCCL_API mscclResult_t mscclAllReduce(const void* sendbuff, void* recvbuff, siz
   return mscclSuccess;
 }
 
-template <typename TYPE>
+template <typename T>
 __global__ void __launch_bounds__(1024, 1)
-    allreduce_simple(mscclpp::SmChannelDeviceHandle* smChans, TYPE* buff, TYPE* scratch,
+    allreduce_simple(mscclpp::SmChannelDeviceHandle* smChans, const T* buff, T* scratch,
                      void* resultBuff, int rank, int worldSize, size_t nelems,
                      const uint32_t flag) {
-  nelems = nelems / (sizeof(int) / sizeof(TYPE));
+  nelems = nelems / (sizeof(int) / sizeof(T));
 
   const int nPeers = worldSize - 1;
   const size_t nPkts = nelems / 2;
@@ -112,8 +117,10 @@ __global__ void __launch_bounds__(1024, 1)
   size_t scratchOffset = rank * nPktsPerRank * sizeof(mscclpp::LLPacket);
   size_t resultOffset = 2 * nPkts * sizeof(mscclpp::LLPacket);
   size_t srcOffset = remoteRank * nelemsPerRank * sizeof(int);
-  uint2* src = (uint2*)((char*)buff + rank * nelemsPerRank * sizeof(int));
-  uint2* dst = (uint2*)((char*)resultBuff + rank * nelemsPerRank * sizeof(int));
+  const uint2* src = reinterpret_cast<const uint2*>(reinterpret_cast<const char*>(buff) +
+                                                    rank * nelemsPerRank * sizeof(int));
+  uint2* dst = reinterpret_cast<uint2*>(reinterpret_cast<char*>(resultBuff) +
+                                        rank * nelemsPerRank * sizeof(int));
 
   // Step 1. Write to scratch buffer which exposes memory to peers via cuda IPC memory
   smChan.putPackets(scratchOffset, srcOffset, nelemsPerRank * sizeof(int), tid,
@@ -125,11 +132,12 @@ __global__ void __launch_bounds__(1024, 1)
     uint2 data = make_uint2(0, 0);
     for (int index = 0; index < nPeers; index++) {
       const int remoteRank = index < rank ? index : index + 1;
-      mscclpp::LLPacket* dstPkt = (mscclpp::LLPacket*)scratch + remoteRank * nPktsPerRank;
+      mscclpp::LLPacket* dstPkt =
+          reinterpret_cast<mscclpp::LLPacket*>(scratch) + remoteRank * nPktsPerRank;
       uint2 val = dstPkt[idx].read(flag);
-      data = add_vectors<TYPE>(val, data);
+      data = add_vectors<T>(val, data);
     }
-    data = add_vectors<TYPE>(data, src[idx]);
+    data = add_vectors<T>(data, src[idx]);
     dst[idx] = data;
 
     mscclpp::LLPacket packet;
@@ -144,9 +152,11 @@ __global__ void __launch_bounds__(1024, 1)
   }
 
   // Step 3. Update local GPU's final result from peer scratch buffers
-  mscclpp::LLPacket* dstPkt = (mscclpp::LLPacket*)((char*)scratch + resultOffset);
+  mscclpp::LLPacket* dstPkt =
+      reinterpret_cast<mscclpp::LLPacket*>(reinterpret_cast<char*>(scratch) + resultOffset);
   const int dstOffset = remoteRank * nPktsPerRank;
-  uint2* result = (uint2*)((char*)resultBuff + remoteRank * nelemsPerRank * sizeof(int));
+  uint2* result = reinterpret_cast<uint2*>(reinterpret_cast<char*>(resultBuff) +
+                                           remoteRank * nelemsPerRank * sizeof(int));
   for (int idx = threadIdx.x + localBlockIdx * blockDim.x; idx < nPktsPerRank;
        idx += blockDim.x * nBlocksPerPeer) {
     uint2 data = dstPkt[idx + dstOffset].read(flag);
@@ -156,7 +166,7 @@ __global__ void __launch_bounds__(1024, 1)
 }
 
 template <typename T>
-cudaError_t allreduce(T* buff, T* scratch, T* resultBuff,
+cudaError_t allreduce(const T* buff, T* scratch, T* resultBuff,
                       mscclpp::DeviceHandle<mscclpp::SmChannel>* smChannels,
                       mscclpp::DeviceHandle<mscclpp::SmChannel>* smOutChannels, int rank,
                       int nRanksPerNode, int worldSize, size_t nelems, cudaStream_t stream) {

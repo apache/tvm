@@ -89,8 +89,8 @@ mscclResult_t pmscclGetUniqueId(mscclUniqueId* uniqueId);
  * set by users. */
 mscclResult_t mscclCommInitRankConfig(mscclComm_t* comm, int nranks, mscclUniqueId commId, int rank,
                                       mscclConfig_t* config);
-mscclResult_t pmscclCommInitRankConfig(mscclComm_t* comm, int nranks, mscclUniqueId commId, int rank,
-                                       mscclConfig_t* config);
+mscclResult_t pmscclCommInitRankConfig(mscclComm_t* comm, int nranks, mscclUniqueId commId,
+                                       int rank, mscclConfig_t* config);
 
 /* Creates a new communicator (multi thread/process version).
  * rank must be between 0 and nranks-1 and unique within a communicator clique.
@@ -134,8 +134,10 @@ mscclResult_t pmscclCommAbort(mscclComm_t comm);
  * and will therefore return a NULL communicator.
  * If config is NULL, the new communicator will inherit the original communicator's
  * configuration*/
-mscclResult_t mscclCommSplit(mscclComm_t comm, int color, int key, mscclComm_t* newcomm, mscclConfig_t* config);
-mscclResult_t pmscclCommSplit(mscclComm_t comm, int color, int key, mscclComm_t* newcomm, mscclConfig_t* config);
+mscclResult_t mscclCommSplit(mscclComm_t comm, int color, int key, mscclComm_t* newcomm,
+                             mscclConfig_t* config);
+mscclResult_t pmscclCommSplit(mscclComm_t comm, int color, int key, mscclComm_t* newcomm,
+                              mscclConfig_t* config);
 
 /* Returns a string for each error code. */
 const char* mscclGetErrorString(mscclResult_t result);
@@ -272,10 +274,12 @@ mscclResult_t pmscclRedOpDestroy(mscclRedOp_t op, mscclComm_t comm);
  *
  * In-place operation will happen if sendbuff == recvbuff.
  */
-mscclResult_t mscclReduce(const void* sendbuff, void* recvbuff, size_t count, mscclDataType_t datatype, mscclRedOp_t op,
-                          int root, mscclComm_t comm, cudaStream_t stream);
-mscclResult_t pmscclReduce(const void* sendbuff, void* recvbuff, size_t count, mscclDataType_t datatype,
-                           mscclRedOp_t op, int root, mscclComm_t comm, cudaStream_t stream);
+mscclResult_t mscclReduce(const void* sendbuff, void* recvbuff, size_t count,
+                          mscclDataType_t datatype, mscclRedOp_t op, int root, mscclComm_t comm,
+                          cudaStream_t stream);
+mscclResult_t pmscclReduce(const void* sendbuff, void* recvbuff, size_t count,
+                           mscclDataType_t datatype, mscclRedOp_t op, int root, mscclComm_t comm,
+                           cudaStream_t stream);
 
 /*
  * (deprecated) Broadcast (in-place)
@@ -286,10 +290,10 @@ mscclResult_t pmscclReduce(const void* sendbuff, void* recvbuff, size_t count, m
  *
  * This operation is implicitly in place.
  */
-mscclResult_t mscclBcast(void* buff, size_t count, mscclDataType_t datatype, int root, mscclComm_t comm,
-                         cudaStream_t stream);
-mscclResult_t pmscclBcast(void* buff, size_t count, mscclDataType_t datatype, int root, mscclComm_t comm,
-                          cudaStream_t stream);
+mscclResult_t mscclBcast(void* buff, size_t count, mscclDataType_t datatype, int root,
+                         mscclComm_t comm, cudaStream_t stream);
+mscclResult_t pmscclBcast(void* buff, size_t count, mscclDataType_t datatype, int root,
+                          mscclComm_t comm, cudaStream_t stream);
 
 /*
  * Broadcast
@@ -300,10 +304,12 @@ mscclResult_t pmscclBcast(void* buff, size_t count, mscclDataType_t datatype, in
  *
  * In-place operation will happen if sendbuff == recvbuff.
  */
-mscclResult_t mscclBroadcast(const void* sendbuff, void* recvbuff, size_t count, mscclDataType_t datatype, int root,
-                             mscclComm_t comm, cudaStream_t stream);
-mscclResult_t pmscclBroadcast(const void* sendbuff, void* recvbuff, size_t count, mscclDataType_t datatype, int root,
-                              mscclComm_t comm, cudaStream_t stream);
+mscclResult_t mscclBroadcast(const void* sendbuff, void* recvbuff, size_t count,
+                             mscclDataType_t datatype, int root, mscclComm_t comm,
+                             cudaStream_t stream);
+mscclResult_t pmscclBroadcast(const void* sendbuff, void* recvbuff, size_t count,
+                              mscclDataType_t datatype, int root, mscclComm_t comm,
+                              cudaStream_t stream);
 
 /*
  * All-Reduce
@@ -313,10 +319,12 @@ mscclResult_t pmscclBroadcast(const void* sendbuff, void* recvbuff, size_t count
  *
  * In-place operation will happen if sendbuff == recvbuff.
  */
-mscclResult_t mscclAllReduce(const void* sendbuff, void* recvbuff, size_t count, mscclDataType_t datatype,
-                             mscclRedOp_t op, mscclComm_t comm, cudaStream_t stream);
-mscclResult_t pmscclAllReduce(const void* sendbuff, void* recvbuff, size_t count, mscclDataType_t datatype,
-                              mscclRedOp_t op, mscclComm_t comm, cudaStream_t stream);
+mscclResult_t mscclAllReduce(const void* sendbuff, void* recvbuff, size_t count,
+                             mscclDataType_t datatype, mscclRedOp_t op, mscclComm_t comm,
+                             cudaStream_t stream);
+mscclResult_t pmscclAllReduce(const void* sendbuff, void* recvbuff, size_t count,
+                              mscclDataType_t datatype, mscclRedOp_t op, mscclComm_t comm,
+                              cudaStream_t stream);
 
 /*
  * Reduce-Scatter
@@ -329,10 +337,12 @@ mscclResult_t pmscclAllReduce(const void* sendbuff, void* recvbuff, size_t count
  *
  * In-place operations will happen if recvbuff == sendbuff + rank * recvcount.
  */
-mscclResult_t mscclReduceScatter(const void* sendbuff, void* recvbuff, size_t recvcount, mscclDataType_t datatype,
-                                 mscclRedOp_t op, mscclComm_t comm, cudaStream_t stream);
-mscclResult_t pmscclReduceScatter(const void* sendbuff, void* recvbuff, size_t recvcount, mscclDataType_t datatype,
-                                  mscclRedOp_t op, mscclComm_t comm, cudaStream_t stream);
+mscclResult_t mscclReduceScatter(const void* sendbuff, void* recvbuff, size_t recvcount,
+                                 mscclDataType_t datatype, mscclRedOp_t op, mscclComm_t comm,
+                                 cudaStream_t stream);
+mscclResult_t pmscclReduceScatter(const void* sendbuff, void* recvbuff, size_t recvcount,
+                                  mscclDataType_t datatype, mscclRedOp_t op, mscclComm_t comm,
+                                  cudaStream_t stream);
 
 /*
  * All-Gather
@@ -344,10 +354,10 @@ mscclResult_t pmscclReduceScatter(const void* sendbuff, void* recvbuff, size_t r
  *
  * In-place operations will happen if sendbuff == recvbuff + rank * sendcount.
  */
-mscclResult_t mscclAllGather(const void* sendbuff, void* recvbuff, size_t sendcount, mscclDataType_t datatype,
-                             mscclComm_t comm, cudaStream_t stream);
-mscclResult_t pmscclAllGather(const void* sendbuff, void* recvbuff, size_t sendcount, mscclDataType_t datatype,
-                              mscclComm_t comm, cudaStream_t stream);
+mscclResult_t mscclAllGather(const void* sendbuff, void* recvbuff, size_t sendcount,
+                             mscclDataType_t datatype, mscclComm_t comm, cudaStream_t stream);
+mscclResult_t pmscclAllGather(const void* sendbuff, void* recvbuff, size_t sendcount,
+                              mscclDataType_t datatype, mscclComm_t comm, cudaStream_t stream);
 
 /*
  * Send
@@ -361,10 +371,10 @@ mscclResult_t pmscclAllGather(const void* sendbuff, void* recvbuff, size_t sendc
  * need to progress concurrently to complete, they must be fused within a mscclGroupStart/
  * mscclGroupEnd section.
  */
-mscclResult_t mscclSend(const void* sendbuff, size_t count, mscclDataType_t datatype, int peer, mscclComm_t comm,
-                        cudaStream_t stream);
-mscclResult_t pmscclSend(const void* sendbuff, size_t count, mscclDataType_t datatype, int peer, mscclComm_t comm,
-                         cudaStream_t stream);
+mscclResult_t mscclSend(const void* sendbuff, size_t count, mscclDataType_t datatype, int peer,
+                        mscclComm_t comm, cudaStream_t stream);
+mscclResult_t pmscclSend(const void* sendbuff, size_t count, mscclDataType_t datatype, int peer,
+                         mscclComm_t comm, cudaStream_t stream);
 
 /*
  * Receive
@@ -378,10 +388,10 @@ mscclResult_t pmscclSend(const void* sendbuff, size_t count, mscclDataType_t dat
  * need to progress concurrently to complete, they must be fused within a mscclGroupStart/
  * mscclGroupEnd section.
  */
-mscclResult_t pmscclRecv(void* recvbuff, size_t count, mscclDataType_t datatype, int peer, mscclComm_t comm,
-                         cudaStream_t stream);
-mscclResult_t mscclRecv(void* recvbuff, size_t count, mscclDataType_t datatype, int peer, mscclComm_t comm,
-                        cudaStream_t stream);
+mscclResult_t pmscclRecv(void* recvbuff, size_t count, mscclDataType_t datatype, int peer,
+                         mscclComm_t comm, cudaStream_t stream);
+mscclResult_t mscclRecv(void* recvbuff, size_t count, mscclDataType_t datatype, int peer,
+                        mscclComm_t comm, cudaStream_t stream);
 
 /* All-To-All
  *
@@ -391,10 +401,10 @@ mscclResult_t mscclRecv(void* recvbuff, size_t count, mscclDataType_t datatype, 
  *
  * In-place operation will happen if sendbuff == recvbuff.
  */
-mscclResult_t mscclAllToAll(const void* sendbuff, void* recvbuff, size_t count, mscclDataType_t datatype,
-                            mscclComm_t comm, cudaStream_t stream);
-mscclResult_t pmscclAllToAll(const void* sendbuff, void* recvbuff, size_t count, mscclDataType_t datatype,
-                             mscclComm_t comm, cudaStream_t stream);
+mscclResult_t mscclAllToAll(const void* sendbuff, void* recvbuff, size_t count,
+                            mscclDataType_t datatype, mscclComm_t comm, cudaStream_t stream);
+mscclResult_t pmscclAllToAll(const void* sendbuff, void* recvbuff, size_t count,
+                             mscclDataType_t datatype, mscclComm_t comm, cudaStream_t stream);
 /*! @brief Opaque handle to MSCCL algorithm */
 typedef int mscclAlgoHandle_t;
 
@@ -404,8 +414,10 @@ typedef int mscclAlgoHandle_t;
  * its handle via mscclAlgoHandle. This API is expected to be called by MSCCL
  * scheduler instead of end users.
  */
-mscclResult_t mscclLoadAlgo(const char* mscclAlgoFilePath, mscclAlgoHandle_t* mscclAlgoHandle, int rank);
-mscclResult_t pmscclLoadAlgo(const char* mscclAlgoFilePath, mscclAlgoHandle_t* mscclAlgoHandle, int rank);
+mscclResult_t mscclLoadAlgo(const char* mscclAlgoFilePath, mscclAlgoHandle_t* mscclAlgoHandle,
+                            int rank);
+mscclResult_t pmscclLoadAlgo(const char* mscclAlgoFilePath, mscclAlgoHandle_t* mscclAlgoHandle,
+                             int rank);
 
 /*! @brief MSCCL Run Algorithm
  *
@@ -414,13 +426,15 @@ mscclResult_t pmscclLoadAlgo(const char* mscclAlgoFilePath, mscclAlgoHandle_t* m
  * is a general-purposed API. This API is expected to be called by MSCCL
  * scheduler instead of end users.
  */
-mscclResult_t mscclRunAlgo(const void* sendBuff, const size_t sendCounts[], const size_t sDisPls[], void* recvBuff,
-                           const size_t recvCounts[], const size_t rDisPls[], size_t count, mscclDataType_t dataType,
-                           int root, int peer, mscclRedOp_t op, mscclAlgoHandle_t mscclAlgoHandle, mscclComm_t comm,
+mscclResult_t mscclRunAlgo(const void* sendBuff, const size_t sendCounts[], const size_t sDisPls[],
+                           void* recvBuff, const size_t recvCounts[], const size_t rDisPls[],
+                           size_t count, mscclDataType_t dataType, int root, int peer,
+                           mscclRedOp_t op, mscclAlgoHandle_t mscclAlgoHandle, mscclComm_t comm,
                            cudaStream_t stream);
-mscclResult_t pmscclRunAlgo(const void* sendBuff, const size_t sendCounts[], const size_t sDisPls[], void* recvBuff,
-                            const size_t recvCounts[], const size_t rDisPls[], size_t count, mscclDataType_t dataType,
-                            int root, int peer, mscclRedOp_t op, mscclAlgoHandle_t mscclAlgoHandle, mscclComm_t comm,
+mscclResult_t pmscclRunAlgo(const void* sendBuff, const size_t sendCounts[], const size_t sDisPls[],
+                            void* recvBuff, const size_t recvCounts[], const size_t rDisPls[],
+                            size_t count, mscclDataType_t dataType, int root, int peer,
+                            mscclRedOp_t op, mscclAlgoHandle_t mscclAlgoHandle, mscclComm_t comm,
                             cudaStream_t stream);
 
 /*! @brief MSCCL Load Algorithm
@@ -477,4 +491,4 @@ mscclResult_t pmscclGroupEnd();
 }  // end extern "C"
 #endif
 
-#endif // end include guard
+#endif  // end include guard
