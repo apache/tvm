@@ -40,6 +40,10 @@ if(USE_CUDA AND USE_NCCL)
     $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/3rdparty/mscclpp/include>
     $<INSTALL_INTERFACE:include/msccl>
   )
+  include_directories(
+    ${mscclpp_SOURCE_DIR}/include
+    ${PROJECT_SOURCE_DIR}/3rdparty/mscclpp/include
+  )
 
   install(TARGETS mscclpp_obj
     EXPORT ${PROJECT_NAME}Targets

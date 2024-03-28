@@ -30,11 +30,6 @@ namespace tvm {
 namespace runtime {
 namespace nccl {
 
-CCLThreadLocalContext* CCLThreadLocalContext::Get() {
-  thread_local static CCLThreadLocalContext ctx;
-  return &ctx;
-}
-
 inline ncclRedOp_t AsNCCLRedOp(ReduceKind kind) {
   switch (kind) {
     case ReduceKind::kSum:
@@ -52,25 +47,37 @@ inline ncclRedOp_t AsNCCLRedOp(ReduceKind kind) {
   throw;
 }
 
-void InitCCL(Session sess, IntTuple device_ids) {
+template <typename T>
+void InitCCLImpl(Session sess, IntTuple device_ids) {
   DRef func = sess->GetGlobalFunc("runtime.disco." TVM_DISCO_CCL_NAME ".init_ccl_per_worker");
   DLOG(INFO) << "Initializing " TVM_DISCO_CCL_NAME " with devices: " << device_ids;
-  ncclUniqueId id;
+
+  typename ccl<T>::UniqueId id;
   TVMByteArray array;
-  NCCL_CALL(ncclGetUniqueId(&id));
+  ccl<T>::GetUniqueId(&id);
   array.data = id.internal;
-  array.size = NCCL_UNIQUE_ID_BYTES;
-  sess->CallPacked(func, device_ids, array);
+  array.size = ccl<T>::CCL_UNIQUE_ID_BYTES;
+  sess->CallPacked(func, device_ids, array, ccl<T>::type);
 }
 
-void InitCCLPerWorker(IntTuple device_ids, std::string unique_id_bytes) {
-  CCLThreadLocalContext* ctx = CCLThreadLocalContext::Get();
+void InitCCL(Session sess, IntTuple device_ids) {
+  InitCCLImpl<nccl_t>(sess, device_ids);
+  InitCCLImpl<msccl_t>(sess, device_ids);
+}
+
+template <typename T>
+void InitCCLPerWorkerImpl(IntTuple device_ids, std::string unique_id_bytes) {
+  static_assert(sizeof(typename ccl<T>::UniqueId) == ccl<T>::CCL_UNIQUE_ID_BYTES,
+                "Mismatch between expected unique ID size and provided bytes");
+
+  runtime::CCLThreadLocalContext<T>* ctx = runtime::CCLThreadLocalContext<T>::Get();
+
   DiscoWorker* worker = DiscoWorker::ThreadLocal();
   ICHECK(worker != nullptr);
-  CHECK_EQ(unique_id_bytes.size(), NCCL_UNIQUE_ID_BYTES)
-      << "ValueError: The length of unique_id must be " << NCCL_UNIQUE_ID_BYTES << ", but got "
-      << unique_id_bytes.size() << ".";
-  // Step up local context of NCCL
+  CHECK_EQ(unique_id_bytes.size(), ccl<T>::CCL_UNIQUE_ID_BYTES)
+      << "ValueError: The length of unique_id must be " << ccl<T>::CCL_UNIQUE_ID_BYTES
+      << ", but got " << unique_id_bytes.size() << ".";
+
   int device_id = device_ids[worker->worker_id];
   SetDevice(device_id);
 #if TVM_NCCL_RCCL_SWITCH == 0
@@ -82,19 +89,29 @@ void InitCCLPerWorker(IntTuple device_ids, std::string unique_id_bytes) {
   ctx->worker = worker;
   ctx->device_id = device_id;
   // Initialize the communicator
-  ncclUniqueId id;
-  std::memcpy(id.internal, unique_id_bytes.data(), NCCL_UNIQUE_ID_BYTES);
-  NCCL_CALL(ncclCommInitRank(&ctx->comm, worker->num_workers, id, worker->worker_id));
+  typename ccl<T>::UniqueId id;
+  std::memcpy(id.internal, unique_id_bytes.data(), ccl<T>::CCL_UNIQUE_ID_BYTES);
+  ccl<T>::InitCommRank(&ctx->comm, worker->num_workers, id, worker->worker_id);
 }
 
+void InitCCLPerWorker(IntTuple device_ids, std::string unique_id_bytes, std::string ccl) {
+  if (ccl == "nccl") {
+    InitCCLPerWorkerImpl<nccl_t>(device_ids, unique_id_bytes);
+  }
+  if (ccl == "msccl") {
+    InitCCLPerWorkerImpl<msccl_t>(device_ids, unique_id_bytes);
+  }
+}
+
+template <typename T>
 void AllReduce(NDArray send, ReduceKind reduce_kind, NDArray recv) {
-  CCLThreadLocalContext* ctx = CCLThreadLocalContext::Get();
   ShapeTuple shape = send.Shape();
   int64_t numel = shape->Product();
+  auto datatype = static_cast<typename ccl<T>::DataType_t>(AsNCCLDataType(DataType(send->dtype)));
+  auto op = static_cast<typename ccl<T>::RedOp_t>(AsNCCLRedOp(reduce_kind));
+  auto* ctx = runtime::CCLThreadLocalContext<T>::Get();
   deviceStream_t stream = ctx->GetDefaultStream();
-  NCCL_CALL(ncclAllReduce(send->data, recv->data, numel,
-                          /*datatype=*/AsNCCLDataType(DataType(send->dtype)),
-                          /*op=*/AsNCCLRedOp(reduce_kind), ctx->comm, stream));
+  ccl<T>::AllReduce(send->data, recv->data, numel, datatype, op, ctx->comm, stream);
 }
 
 void AllGather(NDArray send, NDArray recv) {
@@ -228,7 +245,12 @@ TVM_REGISTER_GLOBAL("runtime.disco." TVM_DISCO_CCL_NAME ".init_ccl_per_worker")
 TVM_REGISTER_GLOBAL("runtime.disco." TVM_DISCO_CCL_NAME ".allreduce")
     .set_body_typed([](NDArray send, int kind, NDArray recv) {
       CHECK(0 <= kind && kind <= 4) << "ValueError: Unknown ReduceKind: " << kind;
-      nccl::AllReduce(send, static_cast<ReduceKind>(kind), recv);
+      AllReduce<nccl_t>(send, static_cast<ReduceKind>(kind), recv);
+    });
+TVM_REGISTER_GLOBAL("runtime.disco.mscclpp.allreduce")
+    .set_body_typed([](NDArray send, int kind, NDArray recv) {
+      CHECK(0 <= kind && kind <= 4) << "ValueError: Unknown ReduceKind: " << kind;
+      AllReduce<msccl_t>(send, static_cast<ReduceKind>(kind), recv);
     });
 TVM_REGISTER_GLOBAL("runtime.disco." TVM_DISCO_CCL_NAME ".allgather")
     .set_body_typed([](NDArray send, NDArray recv) { nccl::AllGather(send, recv); });
