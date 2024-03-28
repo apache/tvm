@@ -172,7 +172,7 @@ def test_rnn_state_fork_sequence(rnn_state):  # pylint: disable=redefined-outer-
     f_set(state, 0, 0, tvm.nd.array(np_two.reshape(1, 16, 16), device=device))
     f_set(state, 0, 1, tvm.nd.array(np_three.reshape(1, 32, 32), device=device))
     f_end_forward(state)
-    f_fork_sequence(state, 0, 1)
+    f_fork_sequence(state, 0, 1, -1)
     verify_state(state, [0, 1], [[np_two, np_three], [np_two, np_three]])
     # Verify popn for the forked sequence
     f_popn(state, 1, 1)
