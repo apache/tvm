@@ -19,6 +19,8 @@
 #ifndef TVM_RUNTIME_NVTX_H_
 #define TVM_RUNTIME_NVTX_H_
 
+#include <tvm/runtime/c_runtime_api.h>
+
 #include <string>
 namespace tvm {
 namespace runtime {
@@ -29,11 +31,11 @@ namespace runtime {
 class NVTXScopedRange {
  public:
   /*! \brief Enter an NVTX scoped range */
-  explicit NVTXScopedRange(const char* name);
+  TVM_DLL explicit NVTXScopedRange(const char* name);
   /*! \brief Enter an NVTX scoped range */
   explicit NVTXScopedRange(const std::string& name) : NVTXScopedRange(name.c_str()) {}
   /*! \brief Exist an NVTX scoped range */
-  ~NVTXScopedRange();
+  TVM_DLL ~NVTXScopedRange();
   NVTXScopedRange(const NVTXScopedRange& other) = delete;
   NVTXScopedRange(NVTXScopedRange&& other) = delete;
   NVTXScopedRange& operator=(const NVTXScopedRange& other) = delete;
