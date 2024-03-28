@@ -17,12 +17,36 @@
 """tvm.contrib.msc.core.utils.expr"""
 
 import copy
-from typing import Dict
+from typing import Dict, List
 
 import tvm
 from tvm import relax
 from tvm.relax import PyExprVisitor
 from tvm.contrib.msc.core import _ffi_api
+
+
+def legalize_expr_name(name: str, symbols: List[str] = None, dst: str = "_") -> str:
+    """Legalize expr name
+
+    Parameters
+    ----------
+    name: str
+        The source name.
+    symbols: list<str>
+        The symbols to be replaced.
+    dst: str
+        The symbol for replace.
+
+    Returns
+    -------
+    name: str
+        The legialized name.
+    """
+
+    symbols = symbols or ["::", "/", "."]
+    for sym in symbols:
+        name = name.replace(sym, dst)
+    return name.strip(dst)
 
 
 def get_expr_name(expr: relax.Expr) -> str:
@@ -46,11 +70,11 @@ def get_expr_name(expr: relax.Expr) -> str:
 
 
 def make_span(kwargs: Dict[str, str], span: relax.Span = None) -> relax.Span:
-    """Change name to span
+    """Make a span from kwargs
 
     Parameters
     ----------
-    kwargs: dict<str,str>
+    kwargs: dict<str, str>
         The attrs in span.
     span: relax.Span
         The source span.

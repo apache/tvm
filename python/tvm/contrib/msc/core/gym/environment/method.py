@@ -105,7 +105,7 @@ class EnvMethod(object):
             outputs = runner.run(inputs)
             baseline = loader[idx]
             for name, data in outputs.items():
-                loss += _get_loss(baseline[name], data)
+                loss += _get_loss(baseline[name], msc_utils.cast_array(data))
         return {"loss": loss / len(loader)}
 
     @classmethod
