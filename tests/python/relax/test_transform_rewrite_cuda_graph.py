@@ -857,7 +857,12 @@ def test_dynamic_capture():
             )
             R.call_builtin_with_ctx(
                 "vm.builtin.cuda_graph.run_or_capture",
-                (cls.cuda_graph_capture, (alloc1, alloc2), R.prim_value(0), R.shape([m])),
+                (
+                    cls.cuda_graph_capture,
+                    (alloc1, alloc2, R.shape([m])),
+                    R.prim_value(0),
+                    R.shape([m]),
+                ),
                 sinfo_args=(R.Tuple,),
             )
             alloc3: R.Tensor((m,), dtype="float32") = R.builtin.alloc_tensor(
