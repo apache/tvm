@@ -144,6 +144,10 @@ Expr Bind(const Expr& expr, const tvm::Map<Var, Expr>& binds,
   return ExprBinder(binds, symbolic_var_map).VisitExpr(expr);
 }
 
+StructInfo Bind(const StructInfo& sinfo, const tvm::Map<tir::Var, PrimExpr>& symbolic_var_map) {
+  return ExprBinder({}, symbolic_var_map).VisitExprDepStructInfoField(sinfo);
+}
+
 tvm::Map<tir::Var, PrimExpr> InferSymbolicVarMap(
     const tvm::Map<relax::Var, relax::Expr>& relax_var_remap, arith::Analyzer* analyzer) {
   tvm::Map<tir::Var, PrimExpr> tir_var_remap;
