@@ -26,6 +26,7 @@
 #include <tvm/runtime/registry.h>
 #include <tvm/runtime/relax_vm/vm.h>
 
+#include "../../../support/utils.h"
 #include "../../cuda/cuda_common.h"
 namespace tvm {
 namespace runtime {
@@ -33,43 +34,32 @@ namespace relax_vm {
 
 struct CUDAGraphCaptureKey {
   int64_t index;
-  ShapeTuple shape_expr;
+  ShapeTuple shape_expr;  // This is default constructed as an empty tuple
 
   CUDAGraphCaptureKey(int64_t index, const Optional<ShapeTuple>& shape_expr) : index(index) {
     if (shape_expr) {
       this->shape_expr = shape_expr.value();
     }
   }
-
-  bool operator==(const CUDAGraphCaptureKey& other) const {
-    return index == other.index && std::equal(shape_expr.begin(), shape_expr.end(),
-                                              other.shape_expr.begin(), other.shape_expr.end());
-  }
 };
 
-}  // namespace relax_vm
-}  // namespace runtime
-}  // namespace tvm
-
-namespace std {
-
-template <>
-struct hash<tvm::runtime::relax_vm::CUDAGraphCaptureKey> {
-  size_t operator()(const tvm::runtime::relax_vm::CUDAGraphCaptureKey& key) const {
+struct CUDAGraphCaptureKeyHash {
+  size_t operator()(const CUDAGraphCaptureKey& key) const {
     std::hash<int64_t> hash_fn;
     size_t hash = hash_fn(key.index);
     for (const auto& shape : key.shape_expr) {
-      hash = hash * 31 + std::hash<int64_t>()(shape);
+      support::HashCombine(hash, hash_fn(shape));
     }
     return hash;
   }
 };
 
-}  // namespace std
-
-namespace tvm {
-namespace runtime {
-namespace relax_vm {
+struct CUDAGraphCaptureKeyEqual {
+  bool operator()(const CUDAGraphCaptureKey& lhs, const CUDAGraphCaptureKey& rhs) const {
+    return lhs.index == rhs.index && std::equal(lhs.shape_expr.begin(), lhs.shape_expr.end(),
+                                                rhs.shape_expr.begin(), rhs.shape_expr.end());
+  }
+};
 
 /*! \brief The cache states of a CUDA graph. */
 class CUDAGraphCache : public Object {
@@ -178,7 +168,9 @@ class CUDAGraphCache : public Object {
    * \brief The cache of captured cuda graphs. The key is a unique index for the capture function.
    * The value is the result of the capture.
    */
-  std::unordered_map<CUDAGraphCaptureKey, CaptureResult> capture_cache_;
+  std::unordered_map<CUDAGraphCaptureKey, CaptureResult, CUDAGraphCaptureKeyHash,
+                     CUDAGraphCaptureKeyEqual>
+      capture_cache_;
   /*!
    * \brief The cache of allocations. The key is a unique index for the allocation function.
    * The value is the cached allocations, which is a tuple of storages.
