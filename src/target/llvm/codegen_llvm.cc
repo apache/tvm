@@ -1871,7 +1871,11 @@ llvm::Value* CodeGenLLVM::VisitExpr_(const BroadcastNode* op) {
   value = builder_->CreateInsertElement(undef, value, zero);
 #if TVM_LLVM_VERSION >= 110
   llvm::ElementCount ec =
+#if TVM_LLVM_VERSION >= 120
       llvm::ElementCount::get(dtype.get_lanes_or_vscale_factor(), dtype.is_scalable_vector());
+#else
+      llvm::ElementCount(dtype.get_lanes_or_vscale_factor(), dtype.is_scalable_vector());
+#endif
   llvm::Constant* mask = llvm::ConstantVector::getSplat(ec, zero);
 #else
   ICHECK(!dtype.is_scalable_vector())
