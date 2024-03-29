@@ -79,7 +79,7 @@ def create_tvmjs_wasm(output, objects, options=None, cc="emcc"):
     if options:
         cmd += options
 
-    is_windows = os.name == 'nt'
+    is_windows = os.name == "nt"
     proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, shell=is_windows)
     (out, _) = proc.communicate()
 
