@@ -583,12 +583,25 @@ class CUDAGraphRewriter : public ExprMutator {
       // Arguments of builtin_run_or_capture
       Array<Expr> tuple_arg_fields{gv_func, Tuple(args),
                                    PrimValue(IntImm(DataType::Int(64), index_capture_++))};
+      StructInfo call_sinfo = plan.func->ret_struct_info;
       if (plan.propogated_tir_vars.defined()) {
-        tuple_arg_fields.push_back(plan.propogated_tir_vars.value());
+        auto propogated_tir_vars = plan.propogated_tir_vars.value();
+        tuple_arg_fields.push_back(propogated_tir_vars);
+        // The ret_struct_info of the lifted function can contain symbolic variables. We need to
+        // bind the symbolic parameters to the actual values.
+        const auto& shape_expr = plan.func->params.back();
+        auto symbolic_params =
+            Downcast<ShapeStructInfo>(shape_expr->struct_info_.value())->values.value();
+        Map<tir::Var, PrimExpr> tir_var_remap;
+        ICHECK_EQ(symbolic_params.size(), propogated_tir_vars->values.size());
+        for (int i = 0; i < static_cast<int>(symbolic_params.size()); ++i) {
+          tir_var_remap.Set(Downcast<tir::Var>(symbolic_params[i]), propogated_tir_vars->values[i]);
+        }
+        call_sinfo = Bind(call_sinfo, tir_var_remap);
       }
       launch_subgraph =
           Call(call_builtin_with_ctx_op, {builtin_run_or_capture, Tuple(tuple_arg_fields)}, Attrs(),
-               {plan.func->ret_struct_info});
+               {call_sinfo});
     }
     Expr ret_value = builder_->Emit(launch_subgraph);
     for (int i = 0; i < static_cast<int>(plan.outputs.size()); ++i) {
