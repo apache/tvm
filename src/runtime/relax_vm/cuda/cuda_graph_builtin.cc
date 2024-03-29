@@ -65,25 +65,27 @@ struct CUDAGraphCaptureKeyEqual {
   }
 };
 
-/*! \brief The cache states of a CUDA graph. */
-class CUDAGraphCache : public Object {
- public:
-  struct CaptureResult {
-    ~CaptureResult() {
-      if (exec) {
-        CUDA_CALL(cudaGraphExecDestroy(exec));
-      }
+/*! \brief The captured state of a CUDA graph */
+struct CUDAGraphCapturedState {
+  ~CUDAGraphCapturedState() {
+    if (exec) {
+      CUDA_CALL(cudaGraphExecDestroy(exec));
     }
-    /*!
-     * \brief Tuple of intemediate tensors in the capture func that will be used outside the
-     * capture func
-     */
-    ObjectRef states;
-    /*! \brief The instantiated cuda graph */
-    cudaGraphExec_t exec = nullptr;
-  };
+  }
 
-  static CUDAGraphCache* Get() { return dmlc::ThreadLocalStore<CUDAGraphCache>::Get(); }
+  /*!
+   * \brief Tuple of intemediate tensors in the capture func that will be used outside the
+   * capture func
+   */
+  ObjectRef states;
+  /*! \brief The instantiated cuda graph */
+  cudaGraphExec_t exec = nullptr;
+};
+
+/*! \brief The VM extension of CUDA graph. */
+class CUDAGraphExtensionNode : public VMExtensionNode {
+ public:
+  TVM_DECLARE_FINAL_OBJECT_INFO(CUDAGraphExtensionNode, VMExtensionNode);
 
   /*!
    * \brief Launch the cuda graph if it has been cached, otherwise execute it in capture mode.
@@ -107,7 +109,7 @@ class CUDAGraphCache : public Object {
 
     cudaStream_t capture_stream;
     CUDA_CALL(cudaStreamCreate(&capture_stream));
-    CUDAGraphCache::CaptureResult entry;
+    CUDAGraphCapturedState entry;
 
     // Set up arguments for the graph execution
     Array<ObjectRef> tuple_args = Downcast<Array<ObjectRef>>(args);
@@ -164,12 +166,14 @@ class CUDAGraphCache : public Object {
     return alloc_result;
   }
 
+  static constexpr const char* _type_key = "relax_vm.CUDAGraphExtension";
+
  private:
   /*!
    * \brief The cache of captured cuda graphs. The key is a unique index for the capture function.
    * The value is the result of the capture.
    */
-  std::unordered_map<CUDAGraphCaptureKey, CaptureResult, CUDAGraphCaptureKeyHash,
+  std::unordered_map<CUDAGraphCaptureKey, CUDAGraphCapturedState, CUDAGraphCaptureKeyHash,
                      CUDAGraphCaptureKeyEqual>
       capture_cache_;
   /*!
@@ -179,10 +183,21 @@ class CUDAGraphCache : public Object {
   std::unordered_map<int64_t, ObjectRef> alloc_cache_;
 };
 
+/*! Managed reference to CUDAGraphExtensionNode */
+class CUDAGraphExtension : public VMExtension {
+ public:
+  TVM_DEFINE_MUTABLE_OBJECT_REF_METHODS(CUDAGraphExtension, VMExtension, CUDAGraphExtensionNode);
+  static CUDAGraphExtension Create() {
+    auto data_ = make_object<CUDAGraphExtensionNode>();
+    return CUDAGraphExtension(std::move(data_));
+  }
+};
+
 TVM_REGISTER_GLOBAL("vm.builtin.cuda_graph.run_or_capture")
     .set_body([](TVMArgs args, TVMRetValue* rv) {
       ICHECK(args.size() == 5 || args.size() == 4);
       VirtualMachine* vm = VirtualMachine::GetContextPtr(args[0]);
+      auto extension = vm->GetOrCreateExtension<CUDAGraphExtension>();
       ObjectRef capture_func = args[1];
       ObjectRef func_args = args[2];
       int64_t entry_index = args[3];
@@ -190,18 +205,17 @@ TVM_REGISTER_GLOBAL("vm.builtin.cuda_graph.run_or_capture")
       if (args.size() == 5) {
         shape_expr = args[4].AsObjectRef<ShapeTuple>();
       }
-      CUDAGraphCache* cache = CUDAGraphCache::Get();
-      *rv = cache->RunOrCapture(vm, capture_func, func_args, entry_index, shape_expr);
+      *rv = extension->RunOrCapture(vm, capture_func, func_args, entry_index, shape_expr);
     });
 
 TVM_REGISTER_GLOBAL("vm.builtin.cuda_graph.get_cached_alloc")
     .set_body([](TVMArgs args, TVMRetValue* rv) {
       ICHECK_EQ(args.size(), 3);
       VirtualMachine* vm = VirtualMachine::GetContextPtr(args[0]);
+      auto extension = vm->GetOrCreateExtension<CUDAGraphExtension>();
       ObjectRef alloc_func = args[1];
       int64_t entry_index = args[2];
-      CUDAGraphCache* cache = CUDAGraphCache::Get();
-      *rv = cache->GetCachedAllocation(vm, alloc_func, entry_index);
+      *rv = extension->GetCachedAllocation(vm, alloc_func, entry_index);
     });
 
 }  // namespace relax_vm

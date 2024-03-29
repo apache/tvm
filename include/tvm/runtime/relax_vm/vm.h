@@ -29,6 +29,7 @@
 
 #include <memory>
 #include <string>
+#include <unordered_map>
 #include <vector>
 
 #include "../memory/memory_manager.h"
@@ -98,6 +99,27 @@ class VMClosure : public Closure {
 };
 
 /*!
+ * \brief Represent a VM extension.
+ * A VM extension allows the user to extend the VM with target specific functionalities.
+ * The VM holds the reference of the extensions to ensure the extensions have the same lifetime
+ * as the VM.
+ *
+ * This is the base class for all VM extensions and should not be used directly.
+ */
+class VMExtensionNode : public Object {
+ protected:
+  static constexpr const uint32_t _type_index = TypeIndex::kDynamic;
+  static constexpr const char* _type_key = "runtime.VMExtension";
+  TVM_DECLARE_BASE_OBJECT_INFO(VMExtensionNode, Object);
+};
+
+/*! \brief Managed reference to VM extension. */
+class VMExtension : public ObjectRef {
+ public:
+  TVM_DEFINE_OBJECT_REF_METHODS(VMExtension, ObjectRef, VMExtensionNode);
+};
+
+/*!
  * \brief The virtual machine.
  *
  * The virtual machine contains all the current execution state,
@@ -156,6 +178,25 @@ class VirtualMachine : public runtime::ModuleNode {
    * \param instrument The instrument function.
    */
   virtual void SetInstrument(PackedFunc instrument) = 0;
+
+  /*!
+   * \brief Get or create a VM extension. Once created, the extension will be stored in the VM
+   * and held until the VM is destructed.
+   *
+   * \tparam T The type of the extension
+   * \return The extension instance
+   */
+  template <typename T, typename = std::enable_if_t<std::is_base_of<VMExtension, T>::value>>
+  T GetOrCreateExtension() {
+    using ContainerType = typename T::ContainerType;
+    uint32_t key = ContainerType::RuntimeTypeIndex();
+    if (auto it = extensions.find(key); it != extensions.end()) {
+      return Downcast<T>((*it).second);
+    }
+    auto [it, _] = extensions.emplace(key, T::Create());
+    return Downcast<T>((*it).second);
+  }
+
   /*!
    * \brief Create a specific instance of VM.
    * \return Created VM
@@ -183,6 +224,9 @@ class VirtualMachine : public runtime::ModuleNode {
   std::vector<Allocator*> allocators;
   /*! \brief Runtime physical device list. */
   std::vector<Device> devices;
+  /*! \brief The VM extensions. Mapping from the type index to the extension and the extension
+   * instance. */
+  std::unordered_map<uint32_t, VMExtension> extensions;
 };
 
 }  // namespace relax_vm
