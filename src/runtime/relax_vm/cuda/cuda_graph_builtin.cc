@@ -33,8 +33,12 @@ namespace runtime {
 namespace relax_vm {
 
 struct CUDAGraphCaptureKey {
+  // The unique index of the capture function within the module
   int64_t index;
-  ShapeTuple shape_expr;  // This is default constructed as an empty tuple
+  // The symbolic variables the capture function depends on. When the capture function is ran with
+  // different symbolic variable values, the CUDA graph will be re-captured as a different version,
+  // identified by this shape tuple. This is default constructed as an empty tuple.
+  ShapeTuple shape_expr;
 
   CUDAGraphCaptureKey(int64_t index, const Optional<ShapeTuple>& shape_expr) : index(index) {
     if (shape_expr) {
