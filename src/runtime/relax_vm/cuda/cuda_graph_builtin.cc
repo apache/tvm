@@ -112,15 +112,12 @@ class CUDAGraphCache : public Object {
     // Set up arguments for the graph execution
     Array<ObjectRef> tuple_args = Downcast<Array<ObjectRef>>(args);
     int nargs = static_cast<int>(tuple_args.size());
-    std::vector<TVMValue> values(nargs + 1);
-    std::vector<int> tcodes(nargs + 1);
+    std::vector<TVMValue> values(nargs);
+    std::vector<int> tcodes(nargs);
     TVMArgsSetter setter(values.data(), tcodes.data());
     for (int i = 0; i < nargs; ++i) {
       ObjectRef arg = tuple_args[i];
       setter(i, arg);
-    }
-    if (shape_expr) {
-      setter(nargs++, shape_expr);
     }
 
     TVMRetValue capture_func_rv;
