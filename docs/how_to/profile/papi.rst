@@ -102,7 +102,7 @@ You can also change which metrics are collected:
     report = vm.profile(
         data,
         func_name="main",
-        collectors=[tvm.runtime.profiling.PAPIMetricCollector({dev: ["PAPI_FP_OPS"])],
+        collectors=[tvm.runtime.profiling.PAPIMetricCollector({dev: ["PAPI_FP_OPS"]})],
     )
 
 .. code::
