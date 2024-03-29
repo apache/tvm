@@ -359,10 +359,9 @@ class TaskScheduler:
         self.best_score = self.cur_score
 
         # put task without schedule on warm up to dead state
-        if self.strategy == "gradient":
-            for task_idx in range(len(self.tasks)):
-                if(self.best_costs[task_idx] == 1e10):
-                    self.dead_tasks.add(task_idx)
+        for task_idx, cost in enumerate(self.best_costs):
+            if cost == 1e10:
+                self.dead_tasks.add(task_idx)
 
         # use the specific strategy to choose workload to tune
         task_idx = -1
