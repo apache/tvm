@@ -26,10 +26,44 @@
 #include <tvm/runtime/registry.h>
 #include <tvm/runtime/relax_vm/vm.h>
 
+#include "../../../support/utils.h"
 #include "../../cuda/cuda_common.h"
 namespace tvm {
 namespace runtime {
 namespace relax_vm {
+
+struct CUDAGraphCaptureKey {
+  // The unique index of the capture function within the module
+  int64_t index;
+  // The symbolic variables the capture function depends on. When the capture function is ran with
+  // different symbolic variable values, the CUDA graph will be re-captured as a different version,
+  // identified by this shape tuple. This is default constructed as an empty tuple.
+  ShapeTuple shape_expr;
+
+  CUDAGraphCaptureKey(int64_t index, const Optional<ShapeTuple>& shape_expr) : index(index) {
+    if (shape_expr) {
+      this->shape_expr = shape_expr.value();
+    }
+  }
+};
+
+struct CUDAGraphCaptureKeyHash {
+  size_t operator()(const CUDAGraphCaptureKey& key) const {
+    std::hash<int64_t> hash_fn;
+    size_t hash = hash_fn(key.index);
+    for (const auto& shape : key.shape_expr) {
+      support::HashCombine(hash, hash_fn(shape));
+    }
+    return hash;
+  }
+};
+
+struct CUDAGraphCaptureKeyEqual {
+  bool operator()(const CUDAGraphCaptureKey& lhs, const CUDAGraphCaptureKey& rhs) const {
+    return lhs.index == rhs.index && std::equal(lhs.shape_expr.begin(), lhs.shape_expr.end(),
+                                                rhs.shape_expr.begin(), rhs.shape_expr.end());
+  }
+};
 
 /*! \brief The cache states of a CUDA graph. */
 class CUDAGraphCache : public Object {
@@ -62,8 +96,9 @@ class CUDAGraphCache : public Object {
    * \return The return value of the capture function.
    */
   ObjectRef RunOrCapture(VirtualMachine* vm, const ObjectRef& capture_func, ObjectRef args,
-                         int64_t entry_index) {
-    if (auto it = capture_cache_.find(entry_index); it != capture_cache_.end()) {
+                         int64_t entry_index, Optional<ShapeTuple> shape_expr) {
+    CUDAGraphCaptureKey entry_key{entry_index, shape_expr};
+    if (auto it = capture_cache_.find(entry_key); it != capture_cache_.end()) {
       // Launch CUDA graph
       const auto& [states, exec] = it->second;
       CUDA_CALL(cudaGraphLaunch(exec, CUDAThreadEntry::ThreadLocal()->stream));
@@ -103,8 +138,8 @@ class CUDAGraphCache : public Object {
     CUDA_CALL(cudaStreamEndCapture(CUDAThreadEntry::ThreadLocal()->stream, &graph));
     std::swap(capture_stream, CUDAThreadEntry::ThreadLocal()->stream);
 
-    capture_cache_[entry_index] = entry;
-    CUDA_CALL(cudaGraphInstantiate(&capture_cache_[entry_index].exec, graph, NULL, NULL, 0));
+    capture_cache_[entry_key] = entry;
+    CUDA_CALL(cudaGraphInstantiate(&capture_cache_[entry_key].exec, graph, NULL, NULL, 0));
     CUDA_CALL(cudaStreamDestroy(capture_stream));
     CUDA_CALL(cudaGraphDestroy(graph));
     return entry.states;
@@ -134,7 +169,9 @@ class CUDAGraphCache : public Object {
    * \brief The cache of captured cuda graphs. The key is a unique index for the capture function.
    * The value is the result of the capture.
    */
-  std::unordered_map<int64_t, CaptureResult> capture_cache_;
+  std::unordered_map<CUDAGraphCaptureKey, CaptureResult, CUDAGraphCaptureKeyHash,
+                     CUDAGraphCaptureKeyEqual>
+      capture_cache_;
   /*!
    * \brief The cache of allocations. The key is a unique index for the allocation function.
    * The value is the cached allocations, which is a tuple of storages.
@@ -143,11 +180,18 @@ class CUDAGraphCache : public Object {
 };
 
 TVM_REGISTER_GLOBAL("vm.builtin.cuda_graph.run_or_capture")
-    .set_body_typed([](TVMArgValue vm_ptr, ObjectRef capture_func, ObjectRef func_args,
-                       int64_t entry_index) {
-      VirtualMachine* vm = VirtualMachine::GetContextPtr(vm_ptr);
+    .set_body([](TVMArgs args, TVMRetValue* rv) {
+      ICHECK(args.size() == 5 || args.size() == 4);
+      VirtualMachine* vm = VirtualMachine::GetContextPtr(args[0]);
+      ObjectRef capture_func = args[1];
+      ObjectRef func_args = args[2];
+      int64_t entry_index = args[3];
+      Optional<ShapeTuple> shape_expr = NullOpt;
+      if (args.size() == 5) {
+        shape_expr = args[4].AsObjectRef<ShapeTuple>();
+      }
       CUDAGraphCache* cache = CUDAGraphCache::Get();
-      return cache->RunOrCapture(vm, capture_func, func_args, entry_index);
+      *rv = cache->RunOrCapture(vm, capture_func, func_args, entry_index, shape_expr);
     });
 
 TVM_REGISTER_GLOBAL("vm.builtin.cuda_graph.get_cached_alloc")
