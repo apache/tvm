@@ -22,6 +22,7 @@
  */
 #include <tvm/runtime/device_api.h>
 #include <tvm/runtime/logging.h>
+#include <tvm/runtime/memory/memory_manager.h>
 #include <tvm/runtime/ndarray.h>
 #include <tvm/runtime/registry.h>
 
@@ -191,6 +192,384 @@ enum class RoPEMode : int {
 };
 
 /*!
+ * \brief The paged attention auxiliary data manager class.
+ * This class manages all the int32 auxiliary data on GPU device, such as
+ * page table, position arrays, etc..
+ *
+ * The core functions of this class is `CopyXXXAsync` and `CommitCopy`.
+ * `CopyXXXAsync` takes the input data on CPU host, and copy the input data
+ * to GPU in an asynchronous way, and returns the NDArray view of the data
+ * on GPU device.
+ *
+ * Being asynchronous here means the `CopyXXXAsync` function may not perform
+ * data copy from CPU to GPU at the time of being called. Therefore, the
+ * returned NDArray view may have wrong result, until `CommitCopy` is
+ * explicitly invoked and the data copy stream is synchronized.
+ *
+ * We design this manager class in order to reduce the data copy overhead.
+ */
+class PagedKVCacheAuxDataManager {
+ public:
+  PagedKVCacheAuxDataManager(DLDataType dtype_aux, Device device, TVMStreamHandle copy_stream)
+      : dtype_aux_(dtype_aux), device_(device), copy_stream_(copy_stream) {
+    ICHECK(DataType(dtype_aux) == DataType::Int(32));
+  }
+
+  virtual ~PagedKVCacheAuxDataManager() = default;
+  /*! \brief Copy the indptr array of append lengths after coalescing. (see GetChunkedBlockIds) */
+  virtual NDArray CopyQOIndptrOnDepthAsync(std::vector<int32_t>* data, int depth) = 0;
+  /*! \brief Copy the indptr array of page table. */
+  virtual NDArray CopyPageIndptrOnDepthAsync(std::vector<int32_t>* data, int depth) = 0;
+  /*! \brief Copy the indices array of page table. */
+  virtual NDArray CopyPageIndicesOnDepthAsync(std::vector<int32_t>* data, int depth) = 0;
+  /*! \brief Copy the array of KV slot number used in the last page of the seq. */
+  virtual NDArray CopyLastPageLenOnDepthAsync(std::vector<int32_t>* data, int depth) = 0;
+  /*!
+   * \brief Copy the length information of the sequences.
+   * Each NDArray is in shape `(3, n)`. "n" is the number of sequences.
+   * For a sequence "i", location
+   * - "(0, i)" is the number of KV slots used in the last page of the seq ("last_page_len"),
+   * - "(1, i)" is the starting offset of the sliding window in the seq,
+   * - "(2, i)" is the attn sink length of the sequence.
+   * \note When sliding window is not enabled, only the
+   * "last_page_len" (a.k.a., the first "n" elements) will be effectively used.
+   */
+  virtual NDArray CopyLengthInfoOnDepthAsync(std::vector<int32_t>* last_page_len,
+                                             std::vector<int32_t>* sliding_window_offset,
+                                             std::vector<int32_t>* sink_size, int depth) = 0;
+  /*! \brief Copy the k position offset of applying RoPE for each sequence. */
+  virtual NDArray CopyKRoPEPosOffsetOnDepthAsync(std::vector<int32_t>* data, int depth) = 0;
+  /*!
+   * \brief Copy the append length indptr array on device.
+   * \note Since the Q/K/V data may have raggedness in terms of lengths,
+   * we represent the the append lengths in CSR format.
+   */
+  virtual NDArray CopyCurAppendLengthIndptrAsync(std::vector<int32_t>* data) = 0;
+  /*! \brief Copy the k position offset of applying RoPE for each sequence. */
+  virtual NDArray CopyKRaggedRoPEPosOffsetAsync(std::vector<int32_t>* data) = 0;
+  /*! \brief Copy the q position mapping of applying RoPE for each sequence. */
+  virtual NDArray CopyQRoPEPosMapAsync(std::vector<int32_t>* data) = 0;
+  /*!
+   * \brief Copy the corresponding position in global KV cache (pages)
+   * for each position along the length dimension of K/V data when
+   * appending new K/V data.
+   */
+  virtual NDArray CopyAppendPositionMapAsync(std::vector<int32_t>* data) = 0;
+  /*! \brief Commit all the copy operations since the last commit. */
+  virtual void CommitCopy() = 0;
+
+ protected:
+  /*! \brief The dtype of the auxiliary data. It is expected to be int32. */
+  const DLDataType dtype_aux_;
+  /*! \brief The device this PagedKVCache runs on. */
+  const Device device_;
+  /*! \brief The device stream for copying auxiliary data structure to GPU. */
+  const TVMStreamHandle copy_stream_;
+};
+
+/*!
+ * \brief The plain auxiliary data manager class.
+ * It simply issues one host-to-device copy operation for each `CopyXXXAsync`.
+ */
+class PlainPagedKVCacheAuxDataManager : public PagedKVCacheAuxDataManager {
+ public:
+  explicit PlainPagedKVCacheAuxDataManager(int64_t reserved_num_seqs, int64_t num_total_pages,
+                                           int64_t prefill_chunk_size, DLDataType dtype_aux,
+                                           DLDevice device, TVMStreamHandle copy_stream)
+      : PagedKVCacheAuxDataManager(dtype_aux, device, copy_stream) {
+    for (int d = 0; d < kPagedKVCacheMaxBlockDepth; ++d) {
+      qo_indptr_on_depths_device_.push_back(
+          NDArray::Empty({reserved_num_seqs + 1}, dtype_aux_, device));
+      page_indptr_on_depths_device_.push_back(
+          NDArray::Empty({reserved_num_seqs + 1}, dtype_aux_, device));
+      page_indices_on_depths_device_.push_back(
+          NDArray::Empty({num_total_pages}, dtype_aux_, device));
+      length_info_on_depths_device_.push_back(
+          NDArray::Empty({3, reserved_num_seqs}, dtype_aux_, device));
+      k_rope_pos_offset_on_depths_device_.push_back(
+          NDArray::Empty({reserved_num_seqs}, dtype_aux_, device));
+    }
+    cur_append_length_indptr_device_ = NDArray::Empty({reserved_num_seqs + 1}, dtype_aux_, device);
+    k_ragged_rope_pos_offset_device_ = NDArray::Empty({reserved_num_seqs}, dtype_aux_, device);
+    q_rope_position_map_device_ = NDArray::Empty({prefill_chunk_size}, dtype_aux_, device);
+    append_position_map_device_ = NDArray::Empty({prefill_chunk_size}, dtype_aux_, device);
+  }
+
+  NDArray CopyQOIndptrOnDepthAsync(std::vector<int32_t>* data, int depth) final {
+    NDArray view = qo_indptr_on_depths_device_[depth].CreateView(
+        {static_cast<int64_t>(data->size())}, dtype_aux_);
+    CopyVecDataToArray(view, data->data());
+    return view;
+  }
+  NDArray CopyPageIndptrOnDepthAsync(std::vector<int32_t>* data, int depth) final {
+    NDArray view = page_indptr_on_depths_device_[depth].CreateView(
+        {static_cast<int64_t>(data->size())}, dtype_aux_);
+    CopyVecDataToArray(view, data->data());
+    return view;
+  }
+  NDArray CopyPageIndicesOnDepthAsync(std::vector<int32_t>* data, int depth) final {
+    NDArray view = page_indices_on_depths_device_[depth].CreateView(
+        {static_cast<int64_t>(data->size())}, dtype_aux_);
+    CopyVecDataToArray(view, data->data());
+    return view;
+  }
+  NDArray CopyLastPageLenOnDepthAsync(std::vector<int32_t>* data, int depth) final {
+    NDArray view = length_info_on_depths_device_[depth].CreateView(
+        {static_cast<int64_t>(data->size())}, dtype_aux_);
+    CopyVecDataToArray(view, data->data());
+    return view;
+  }
+  NDArray CopyKRoPEPosOffsetOnDepthAsync(std::vector<int32_t>* data, int depth) final {
+    NDArray view = k_rope_pos_offset_on_depths_device_[depth].CreateView(
+        {static_cast<int64_t>(data->size())}, dtype_aux_);
+    CopyVecDataToArray(view, data->data());
+    return view;
+  }
+  NDArray CopyCurAppendLengthIndptrAsync(std::vector<int32_t>* data) final {
+    NDArray view = cur_append_length_indptr_device_.CreateView({static_cast<int64_t>(data->size())},
+                                                               dtype_aux_);
+    CopyVecDataToArray(view, data->data());
+    return view;
+  }
+  NDArray CopyKRaggedRoPEPosOffsetAsync(std::vector<int32_t>* data) final {
+    NDArray view = k_ragged_rope_pos_offset_device_.CreateView({static_cast<int64_t>(data->size())},
+                                                               dtype_aux_);
+    CopyVecDataToArray(view, data->data());
+    return view;
+  }
+  NDArray CopyQRoPEPosMapAsync(std::vector<int32_t>* data) final {
+    NDArray view =
+        q_rope_position_map_device_.CreateView({static_cast<int64_t>(data->size())}, dtype_aux_);
+    CopyVecDataToArray(view, data->data());
+    return view;
+  }
+  NDArray CopyAppendPositionMapAsync(std::vector<int32_t>* data) final {
+    NDArray view =
+        append_position_map_device_.CreateView({static_cast<int64_t>(data->size())}, dtype_aux_);
+    CopyVecDataToArray(view, data->data());
+    return view;
+  }
+
+  NDArray CopyLengthInfoOnDepthAsync(std::vector<int32_t>* last_page_len,
+                                     std::vector<int32_t>* sliding_window_offset,
+                                     std::vector<int32_t>* sink_size, int depth) final {
+    int n_elem = last_page_len->size();
+    ICHECK_GT(n_elem, 0);
+    NDArray view = length_info_on_depths_device_[depth].CreateView({3, n_elem}, dtype_aux_);
+    ShapeTuple copy_shape{n_elem};
+    CopyVecDataToArray(view, last_page_len->data(), copy_shape);
+    CopyVecDataToArray(view, sliding_window_offset->data(), copy_shape,
+                       /*dst_elem_offset=*/n_elem);
+    CopyVecDataToArray(view, sink_size->data(), copy_shape,
+                       /*dst_elem_offset=*/2 * n_elem);
+    return view;
+  }
+
+  // The commit of the plain auxiliary data manager is no-op.
+  void CommitCopy() final {}
+
+ private:
+  /*!
+   * \brief Copy a vector of data to the input NDArray.
+   * It optionally supports specifying the shape of copy and the element
+   * offset to the destination NDArray.
+   */
+  void CopyVecDataToArray(NDArray array, int32_t* vec_data, Optional<ShapeTuple> shape = NullOpt,
+                          int dst_elem_offset = 0) {
+    if (array->shape[0] == 0) {
+      return;
+    }
+    DLTensor copy_dst = *array.operator->();
+    if (shape.defined()) {
+      ICHECK_EQ(shape.value().size(), 1);
+      copy_dst.ndim = 1;
+      copy_dst.shape = shape.value()->data;
+    }
+    copy_dst.byte_offset = dst_elem_offset * sizeof(int32_t);
+
+    DLTensor copy_src;
+    copy_src.data = vec_data;
+    copy_src.device = Device{kDLCPU, 0};
+    copy_src.ndim = 1;
+    copy_src.dtype = array->dtype;
+    copy_src.shape = copy_dst.shape;
+    copy_src.strides = nullptr;
+    copy_src.byte_offset = 0;
+    NDArray::CopyFromTo(&copy_src, &copy_dst, copy_stream_);
+  }
+
+  std::vector<NDArray> qo_indptr_on_depths_device_;
+  std::vector<NDArray> page_indptr_on_depths_device_;
+  std::vector<NDArray> page_indices_on_depths_device_;
+  std::vector<NDArray> length_info_on_depths_device_;
+  std::vector<NDArray> k_rope_pos_offset_on_depths_device_;
+  NDArray cur_append_length_indptr_device_;
+  NDArray k_ragged_rope_pos_offset_device_;
+  NDArray q_rope_position_map_device_;
+  NDArray append_position_map_device_;
+};
+
+/*!
+ * \brief The cached auxiliary data manager class.
+ * It allocates a large on-device array to store all the auxiliary data.
+ * For each `CopyXXXAsync`, it copies the input data to a local cache on host.
+ * In `CommitCopy`, it copies all the data in the local cache to the device
+ * array for a single time, and thus reduce the number of host-to-device copies needed.
+ */
+class CachedPagedKVCacheAuxDataManager : public PagedKVCacheAuxDataManager {
+ public:
+  explicit CachedPagedKVCacheAuxDataManager(int64_t reserved_num_seqs, int64_t num_total_pages,
+                                            int64_t prefill_chunk_size, DLDataType dtype_aux,
+                                            DLDevice device, TVMStreamHandle copy_stream)
+      : PagedKVCacheAuxDataManager(dtype_aux, device, copy_stream),
+        elem_byte_size_((dtype_aux.bits * dtype_aux.lanes + 7) / 8),
+        offset_alignment_(cuda_byte_alignment_ / elem_byte_size_) {
+    // - Calculate all the starting offsets of the auxiliary arrays in
+    // local cache and the large on-device array.
+    int64_t total_elems =
+        InitializeArrayElemOffset(reserved_num_seqs, num_total_pages, prefill_chunk_size);
+    copy_shape_ = {total_elems};
+    // - Initialize the host auxiliary data buffer.
+    merged_aux_data_host_.resize(total_elems);
+    // - Initialize the device auxiliary data buffer.
+    memory::Allocator* allocator =
+        memory::MemoryManager::GetOrCreateAllocator(device, memory::AllocatorType::kNaive);
+    ICHECK_NOTNULL(allocator);
+    merged_aux_data_device_ =
+        memory::Storage(allocator->Alloc(device, {total_elems}, dtype_aux), allocator);
+  }
+
+  NDArray CopyQOIndptrOnDepthAsync(std::vector<int32_t>* data, int depth) final {
+    return CopyVecToCacheAtOffset(data, depth_offsets_[depth] + qo_indptr_in_depth_offset_);
+  }
+  NDArray CopyPageIndptrOnDepthAsync(std::vector<int32_t>* data, int depth) final {
+    return CopyVecToCacheAtOffset(data, depth_offsets_[depth] + page_indptr_in_depth_offset_);
+  }
+  NDArray CopyPageIndicesOnDepthAsync(std::vector<int32_t>* data, int depth) final {
+    return CopyVecToCacheAtOffset(data, depth_offsets_[depth] + page_indices_in_depth_offset_);
+  }
+  NDArray CopyLastPageLenOnDepthAsync(std::vector<int32_t>* data, int depth) final {
+    return CopyVecToCacheAtOffset(data, depth_offsets_[depth] + length_info_in_depth_offset_);
+  }
+  NDArray CopyKRoPEPosOffsetOnDepthAsync(std::vector<int32_t>* data, int depth) final {
+    return CopyVecToCacheAtOffset(data, depth_offsets_[depth] + k_rope_pos_offset_in_depth_offset_);
+  }
+  NDArray CopyCurAppendLengthIndptrAsync(std::vector<int32_t>* data) final {
+    return CopyVecToCacheAtOffset(data, cur_append_length_indptr_offset_);
+  }
+  NDArray CopyKRaggedRoPEPosOffsetAsync(std::vector<int32_t>* data) final {
+    return CopyVecToCacheAtOffset(data, k_ragged_rope_pos_offset_offset_);
+  }
+  NDArray CopyQRoPEPosMapAsync(std::vector<int32_t>* data) final {
+    return CopyVecToCacheAtOffset(data, q_rope_position_map_offset_);
+  }
+  NDArray CopyAppendPositionMapAsync(std::vector<int32_t>* data) final {
+    return CopyVecToCacheAtOffset(data, append_position_map_offset_);
+  }
+  NDArray CopyLengthInfoOnDepthAsync(std::vector<int32_t>* last_page_len,
+                                     std::vector<int32_t>* sliding_window_offset,
+                                     std::vector<int32_t>* sink_size, int depth) final {
+    int64_t offset = depth_offsets_[depth] + length_info_in_depth_offset_;
+    int64_t n_elem = last_page_len->size();
+    std::memcpy(merged_aux_data_host_.data() + offset, last_page_len->data(),
+                n_elem * elem_byte_size_);
+    std::memcpy(merged_aux_data_host_.data() + offset + n_elem, sliding_window_offset->data(),
+                n_elem * elem_byte_size_);
+    std::memcpy(merged_aux_data_host_.data() + offset + 2 * n_elem, sink_size->data(),
+                n_elem * elem_byte_size_);
+    return merged_aux_data_device_->AllocNDArray(offset * elem_byte_size_, {3, n_elem}, dtype_aux_);
+  }
+
+  void CommitCopy() final {
+    DLTensor copy_dst;
+    copy_dst.data = merged_aux_data_device_->buffer.data;
+    copy_dst.device = device_;
+    copy_dst.ndim = 1;
+    copy_dst.dtype = dtype_aux_;
+    copy_dst.shape = copy_shape_.data();
+    copy_dst.strides = nullptr;
+    copy_dst.byte_offset = 0;
+
+    DLTensor copy_src = copy_dst;
+    copy_src.data = merged_aux_data_host_.data();
+    copy_src.device = Device{kDLCPU, 0};
+    NDArray::CopyFromTo(&copy_src, &copy_dst, copy_stream_);
+  }
+
+ private:
+  /*!
+   * \brief Calculate the start element offsets of the auxiliary arrays in the local cache.
+   * \return Return the local cache size (total number of elements in the local cache).
+   */
+  int64_t InitializeArrayElemOffset(int64_t reserved_num_seqs, int64_t num_total_pages,
+                                    int64_t prefill_chunk_size) {
+    // For safety, we align the start offset of the arrays to `offset_alignment`.
+    auto f_ceil_div_elem_alignment = [this](int n) {
+      return (n + offset_alignment_ - 1) / offset_alignment_ * offset_alignment_;
+    };
+
+    // - Element offsets of the arrays that every depth has.
+    qo_indptr_in_depth_offset_ = 0;
+    page_indptr_in_depth_offset_ =
+        qo_indptr_in_depth_offset_ + f_ceil_div_elem_alignment(reserved_num_seqs + 1);
+    page_indices_in_depth_offset_ =
+        page_indptr_in_depth_offset_ + f_ceil_div_elem_alignment(reserved_num_seqs + 1);
+    length_info_in_depth_offset_ =
+        page_indices_in_depth_offset_ + f_ceil_div_elem_alignment(num_total_pages);
+    k_rope_pos_offset_in_depth_offset_ =
+        length_info_in_depth_offset_ + f_ceil_div_elem_alignment(3 * reserved_num_seqs);
+
+    // - Element offsets of each depth.
+    int64_t elem_per_depth =
+        k_rope_pos_offset_in_depth_offset_ + f_ceil_div_elem_alignment(reserved_num_seqs);
+    for (int d = 0; d < kPagedKVCacheMaxBlockDepth; ++d) {
+      depth_offsets_.push_back(d * elem_per_depth);
+    }
+
+    // - Element offsets of other arrays.
+    cur_append_length_indptr_offset_ = kPagedKVCacheMaxBlockDepth * elem_per_depth;
+    k_ragged_rope_pos_offset_offset_ =
+        cur_append_length_indptr_offset_ + f_ceil_div_elem_alignment(reserved_num_seqs + 1);
+    q_rope_position_map_offset_ =
+        k_ragged_rope_pos_offset_offset_ + f_ceil_div_elem_alignment(reserved_num_seqs);
+    append_position_map_offset_ =
+        q_rope_position_map_offset_ + f_ceil_div_elem_alignment(prefill_chunk_size);
+
+    // - The total number of elements after alignment.
+    return append_position_map_offset_ + f_ceil_div_elem_alignment(prefill_chunk_size);
+  }
+
+  /*!
+   * \brief Copy the input data to the cache at the given offset.
+   * And return the NDArray view of the cache starting at the offset.
+   */
+  NDArray CopyVecToCacheAtOffset(std::vector<int32_t>* data, int64_t offset) {
+    int64_t n_elem = data->size();
+    std::memcpy(merged_aux_data_host_.data() + offset, data->data(), n_elem * elem_byte_size_);
+    return merged_aux_data_device_->AllocNDArray(offset * elem_byte_size_, {n_elem}, dtype_aux_);
+  }
+
+  const int64_t cuda_byte_alignment_ = 256;
+  const int64_t elem_byte_size_;
+  const int64_t offset_alignment_;
+
+  int64_t qo_indptr_in_depth_offset_;
+  int64_t page_indptr_in_depth_offset_;
+  int64_t page_indices_in_depth_offset_;
+  int64_t length_info_in_depth_offset_;
+  int64_t k_rope_pos_offset_in_depth_offset_;
+  std::vector<int64_t> depth_offsets_;
+  int64_t cur_append_length_indptr_offset_;
+  int64_t k_ragged_rope_pos_offset_offset_;
+  int64_t q_rope_position_map_offset_;
+  int64_t append_position_map_offset_;
+
+  std::vector<int64_t> copy_shape_;
+  std::vector<int32_t> merged_aux_data_host_;
+  memory::Storage merged_aux_data_device_;
+};
+
+/*!
  * \brief The paged KV cache for attention.
  * - It supports managing the K/V data of **multiple sequences**.
  * - It manages K/V values by doing paging along the sequence-length
@@ -278,41 +657,8 @@ class PagedAttentionKVCacheObj : public AttentionKVCacheObj {
   int64_t cur_batch_size_;
   /*! \brief The append lengths of the sequences in the current round of forwarding. */
   IntTuple cur_append_lengths_;
-  /*! \brief The indptr array of append lengths after coalescing. (see GetChunkedBlockIds) */
-  std::vector<NDArray> qo_indptr_on_depths_device_;
-  /*! \brief The indptr array of page table. */
-  std::vector<NDArray> page_indptr_on_depths_device_;
-  /*! \brief The indices array of page table. */
-  std::vector<NDArray> page_indices_on_depths_device_;
-  /*!
-   * \brief The length information of the sequences.
-   * Each NDArray is in shape `(3, n)`. "n" is the number of sequences.
-   * For a sequence "i", location
-   * - "(0, i)" is the number of KV slots used in the last page of the seq ("last_page_len"),
-   * - "(1, i)" is the starting offset of the sliding window in the seq,
-   * - "(2, i)" is the attn sink length of the sequence.
-   * \note When sliding window is not enabled, only the
-   * "last_page_len" (a.k.a., the first "n" elements) will be effectively used.
-   */
-  std::vector<NDArray> length_info_on_depths_device_;
-  /*! \brief The k position offset of applying RoPE for each sequence. */
-  std::vector<NDArray> k_rope_pos_offset_device_;
-  /*!
-   * \brief The append length indptr array on device.
-   * \note Since the Q/K/V data may have raggedness in terms of lengths,
-   * we represent the the append lengths in CSR format.
-   */
-  NDArray cur_append_length_indptr_device_;
-  /*! \brief The k position offset of applying RoPE for each sequence. */
-  NDArray k_ragged_rope_pos_offset_device_;
-  /*! \brief The q position mapping of applying RoPE for each sequence. */
-  NDArray q_rope_position_map_device_;
-  /*!
-   * \brief The corresponding position in global KV cache (pages)
-   * for each position along the length dimension of K/V data when
-   * appending new K/V data.
-   */
-  NDArray append_position_map_device_;
+  /*! \brief The auxiliary data manager for attention. */
+  std::unique_ptr<PagedKVCacheAuxDataManager> aux_data_manager_;
 
   // Temporary arrays to store intermediate attention results.
   NDArray temp_attn_q_device_;
@@ -445,15 +791,6 @@ class PagedAttentionKVCacheObj : public AttentionKVCacheObj {
           NDArray::Empty({num_total_pages, 2, num_kv_heads, page_size, head_dim}, dtype, device));
     }
     for (int d = 0; d < kPagedKVCacheMaxBlockDepth; ++d) {
-      qo_indptr_on_depths_device_.push_back(
-          NDArray::Empty({reserved_num_seqs + 1}, dtype_aux_, device));
-      page_indptr_on_depths_device_.push_back(
-          NDArray::Empty({reserved_num_seqs + 1}, dtype_aux_, device));
-      page_indices_on_depths_device_.push_back(
-          NDArray::Empty({num_total_pages}, dtype_aux_, device));
-      length_info_on_depths_device_.push_back(
-          NDArray::Empty({3, reserved_num_seqs}, dtype_aux_, device));
-      k_rope_pos_offset_device_.push_back(NDArray::Empty({reserved_num_seqs}, dtype_aux_, device));
       temp_attn_workspace_.push_back(
           NDArray::Empty({kAttnWorkspaceByte / 4}, DataType::Float(32), device));
       qo_indptr_on_depths_view_.push_back(NDArray());
@@ -465,10 +802,6 @@ class PagedAttentionKVCacheObj : public AttentionKVCacheObj {
     // Additional workspace for the "prefill with ragged kv" kernel.
     temp_attn_workspace_.push_back(
         NDArray::Empty({kAttnWorkspaceByte / 4}, DataType::Float(32), device));
-    cur_append_length_indptr_device_ = NDArray::Empty({reserved_num_seqs + 1}, dtype_aux_, device);
-    k_ragged_rope_pos_offset_device_ = NDArray::Empty({reserved_num_seqs}, dtype_aux_, device);
-    q_rope_position_map_device_ = NDArray::Empty({prefill_chunk_size_}, dtype_aux_, device);
-    append_position_map_device_ = NDArray::Empty({prefill_chunk_size_}, dtype_aux_, device);
 
     temp_attn_q_device_ =
         NDArray::Empty({prefill_chunk_size_, num_qo_heads, head_dim}, dtype, device);
@@ -493,6 +826,17 @@ class PagedAttentionKVCacheObj : public AttentionKVCacheObj {
       // The compute stream is the default stream.
       compute_stream_ = DeviceAPI::Get(device)->GetCurrentStream(device);
       copy_stream_ = DeviceAPI::Get(device)->CreateStream(device);
+    }
+
+    // Create the auxiliary data manager for attention.
+    // We only use the merged aux data for CUDA, since direct pointer
+    // operations may have issues on other platforms.
+    if (device_.device_type == DLDeviceType::kDLCUDA) {
+      aux_data_manager_ = std::make_unique<CachedPagedKVCacheAuxDataManager>(
+          reserved_num_seqs, num_total_pages, prefill_chunk_size, dtype_aux_, device, copy_stream_);
+    } else {
+      aux_data_manager_ = std::make_unique<PlainPagedKVCacheAuxDataManager>(
+          reserved_num_seqs, num_total_pages, prefill_chunk_size, dtype_aux_, device, copy_stream_);
     }
   }
 
@@ -636,8 +980,16 @@ class PagedAttentionKVCacheObj : public AttentionKVCacheObj {
   }
 
   void CopySinglePage(int32_t src_page_id, int32_t tgt_page_id, int64_t copy_length) {
+    if (copy_stream_ != compute_stream_) {
+      // Set the copy stream for copy.
+      DeviceAPI::Get(device_)->SetStream(device_, copy_stream_);
+    }
     for (int layer = 0; layer < num_layers_; ++layer) {
       f_copy_single_page_(pages_[layer], src_page_id, tgt_page_id, copy_length);
+    }
+    if (copy_stream_ != compute_stream_) {
+      // Set the compute stream back.
+      DeviceAPI::Get(device_)->SetStream(device_, compute_stream_);
     }
   }
 
@@ -959,8 +1311,7 @@ class PagedAttentionKVCacheObj : public AttentionKVCacheObj {
         append_position_map.push_back(page_id * page_size_ + page_offset);
       }
     }
-    NDArray position_map_device =
-        NDArray::Empty({end_pos - start_pos}, dtype_aux_, cur_append_length_indptr_device_->device);
+    NDArray position_map_device = NDArray::Empty({end_pos - start_pos}, dtype_aux_, device_);
     position_map_device.CopyFromBytes(
         append_position_map.data() + start_pos,
         (end_pos - start_pos) * ((dtype_aux_.bits * dtype_aux_.lanes + 7) / 8));
@@ -1320,32 +1671,6 @@ class PagedAttentionKVCacheObj : public AttentionKVCacheObj {
   }
 
   /*!
-   * \brief Copy a vector of data to the input NDArray.
-   * It optionally supports specifying the shape of copy and the element
-   * offset to the destination NDArray.
-   */
-  void CopyVecDataToArray(NDArray array, int32_t* vec_data, Optional<ShapeTuple> shape = NullOpt,
-                          int dst_elem_offset = 0) {
-    DLTensor copy_dst = *array.operator->();
-    if (shape.defined()) {
-      ICHECK_EQ(shape.value().size(), 1);
-      copy_dst.ndim = 1;
-      copy_dst.shape = shape.value()->data;
-    }
-    copy_dst.byte_offset = dst_elem_offset * sizeof(int32_t);
-
-    DLTensor copy_src;
-    copy_src.data = vec_data;
-    copy_src.device = Device{kDLCPU, 0};
-    copy_src.ndim = 1;
-    copy_src.dtype = array->dtype;
-    copy_src.shape = copy_dst.shape;
-    copy_src.strides = nullptr;
-    copy_src.byte_offset = 0;
-    NDArray::CopyFromTo(&copy_src, &copy_dst, copy_stream_);
-  }
-
-  /*!
    * \brief Synchronize auxiliary arrays to device.
    * \note This method resets the dirty flag to false, and needs to be
    * invoked before running attention computation on device.
@@ -1369,29 +1694,21 @@ class PagedAttentionKVCacheObj : public AttentionKVCacheObj {
 
     // 1. qo_indptr_on_depths
     for (int d = 0; d < num_depths_; ++d) {
-      qo_indptr_on_depths_view_[d] = qo_indptr_on_depths_device_[d].CreateView(
-          {static_cast<int64_t>(qo_indptr_on_depths_host_[d].size())}, dtype_aux_);
-      CopyVecDataToArray(qo_indptr_on_depths_view_[d], qo_indptr_on_depths_host_[d].data());
+      qo_indptr_on_depths_view_[d] =
+          aux_data_manager_->CopyQOIndptrOnDepthAsync(&qo_indptr_on_depths_host_[d], d);
     }
-
     // 2. page_indptr_on_depths
     for (int d = 0; d < num_depths_; ++d) {
       ICHECK_EQ(page_indptr_on_depths_host_[d].size(), qo_indptr_on_depths_host_[d].size());
-      page_indptr_on_depths_view_[d] = page_indptr_on_depths_device_[d].CreateView(
-          {static_cast<int64_t>(page_indptr_on_depths_host_[d].size())}, dtype_aux_);
-      CopyVecDataToArray(page_indptr_on_depths_view_[d], page_indptr_on_depths_host_[d].data());
+      page_indptr_on_depths_view_[d] =
+          aux_data_manager_->CopyPageIndptrOnDepthAsync(&page_indptr_on_depths_host_[d], d);
     }
-
     // 3. page_indices_on_depths
     for (int d = 0; d < num_depths_; ++d) {
       ICHECK_EQ(page_indices_on_depths_host_[d].size(), page_indptr_on_depths_host_[d].back());
-      page_indices_on_depths_view_[d] = page_indices_on_depths_device_[d].CreateView(
-          {static_cast<int64_t>(page_indices_on_depths_host_[d].size())}, dtype_aux_);
-      if (!page_indices_on_depths_host_[d].empty()) {
-        CopyVecDataToArray(page_indices_on_depths_view_[d], page_indices_on_depths_host_[d].data());
-      }
+      page_indices_on_depths_view_[d] =
+          aux_data_manager_->CopyPageIndicesOnDepthAsync(&page_indices_on_depths_host_[d], d);
     }
-
     // 4. length_info_on_depths
     // last_page_len_on_depths_host_;
     // sliding_window_offset_on_depths_host_;
@@ -1404,54 +1721,34 @@ class PagedAttentionKVCacheObj : public AttentionKVCacheObj {
       if (!support_sliding_window_) {
         // Sliding window is not enabled, so we first copy "last_page_len".
         length_info_on_depths_view_[d] =
-            length_info_on_depths_device_[d].CreateView({num_seq_on_layer}, dtype_aux_);
-        CopyVecDataToArray(length_info_on_depths_view_[d], last_page_len_on_depths_host_[d].data());
+            aux_data_manager_->CopyLastPageLenOnDepthAsync(&last_page_len_on_depths_host_[d], d);
       } else {
         // Sliding window is enabled,
-        length_info_on_depths_view_[d] =
-            length_info_on_depths_device_[d].CreateView({3, num_seq_on_layer}, dtype_aux_);
-        ShapeTuple copy_shape{num_seq_on_layer};
-        CopyVecDataToArray(length_info_on_depths_view_[d], last_page_len_on_depths_host_[d].data(),
-                           copy_shape);
-        CopyVecDataToArray(length_info_on_depths_view_[d],
-                           sliding_window_offset_on_depths_host_[d].data(), copy_shape,
-                           /*dst_elem_offset=*/num_seq_on_layer);
-        CopyVecDataToArray(length_info_on_depths_view_[d], sink_size_on_depths_host_[d].data(),
-                           copy_shape, /*dst_elem_offset=*/2 * num_seq_on_layer);
+        length_info_on_depths_view_[d] = aux_data_manager_->CopyLengthInfoOnDepthAsync(
+            &last_page_len_on_depths_host_[d], &sliding_window_offset_on_depths_host_[d],
+            &sink_size_on_depths_host_[d], d);
       }
     }
-
     // 5. k_rope_pos_offset_on_depths
     for (int d = 0; d < num_depths_; ++d) {
       ICHECK_EQ(k_rope_pos_offset_on_depths_host_[d].size() + 1,
                 qo_indptr_on_depths_host_[d].size());
-      k_rope_pos_offset_view_[d] = k_rope_pos_offset_device_[d].CreateView(
-          {static_cast<int64_t>(k_rope_pos_offset_on_depths_host_[d].size())}, dtype_aux_);
-      CopyVecDataToArray(k_rope_pos_offset_view_[d], k_rope_pos_offset_on_depths_host_[d].data());
+      k_rope_pos_offset_view_[d] = aux_data_manager_->CopyKRoPEPosOffsetOnDepthAsync(
+          &k_rope_pos_offset_on_depths_host_[d], d);
     }
-
     // 6. cur_append_lengths_indptr
     cur_append_length_indptr_view_ =
-        cur_append_length_indptr_device_.CreateView({num_sequences + 1}, dtype_aux_);
-    CopyVecDataToArray(cur_append_length_indptr_view_, cur_append_lengths_indptr_host_.data());
-
+        aux_data_manager_->CopyCurAppendLengthIndptrAsync(&cur_append_lengths_indptr_host_);
     // 7. k_ragged_rope_pos_offset
     ICHECK_EQ(k_ragged_rope_pos_offset_host_.size(), num_sequences);
     k_ragged_rope_pos_offset_view_ =
-        k_ragged_rope_pos_offset_device_.CreateView({num_sequences}, dtype_aux_);
-    CopyVecDataToArray(k_ragged_rope_pos_offset_view_, k_ragged_rope_pos_offset_host_.data());
-
+        aux_data_manager_->CopyKRaggedRoPEPosOffsetAsync(&k_ragged_rope_pos_offset_host_);
     // 8. q_rope_position_map
     ICHECK_EQ(q_rope_position_map_host_.size(), total_append_length);
-    q_rope_position_map_view_ =
-        q_rope_position_map_device_.CreateView({total_append_length}, dtype_aux_);
-    CopyVecDataToArray(q_rope_position_map_view_, q_rope_position_map_host_.data());
-
+    q_rope_position_map_view_ = aux_data_manager_->CopyQRoPEPosMapAsync(&q_rope_position_map_host_);
     // 9. append_position_map
     append_position_map_view_ =
-        append_position_map_device_.CreateView({total_append_length}, dtype_aux_);
-    CopyVecDataToArray(append_position_map_view_, append_position_map_host_.data());
-
+        aux_data_manager_->CopyAppendPositionMapAsync(&append_position_map_host_);
     // 10. Create view for temporary arrays for attention computation.
     temp_attn_output_view_ = temp_attn_output_device_.CreateView(
         {total_append_length, num_qo_heads_, head_dim_}, temp_attn_output_device_->dtype);
@@ -1460,6 +1757,8 @@ class PagedAttentionKVCacheObj : public AttentionKVCacheObj {
     merged_attn_scores_view_ = merged_attn_scores_device_.CreateView(
         {total_append_length, num_qo_heads_}, merged_attn_scores_device_->dtype);
 
+    // - Commit the copy.
+    aux_data_manager_->CommitCopy();
     // - Reset the dirty flag to false.
     dirty_aux_data_device_ = false;
   }
