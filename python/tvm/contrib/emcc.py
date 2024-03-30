@@ -17,11 +17,13 @@
 """Util to invoke emscripten compilers in the system."""
 # pylint: disable=invalid-name
 import subprocess
+from pathlib import Path
+
 from tvm._ffi.base import py_str
 from tvm._ffi.libinfo import find_lib_path
 
 
-def create_tvmjs_wasm(output, objects, options=None, cc="emcc"):
+def create_tvmjs_wasm(output, objects, options=None, cc="emcc", custom_bc_files=None):
     """Create wasm that is supposed to run with the tvmjs.
 
     Parameters
@@ -37,6 +39,9 @@ def create_tvmjs_wasm(output, objects, options=None, cc="emcc"):
 
     cc : str, optional
         The compile string.
+
+    custom_bc_files : list
+        List of user-defined bc files to add into the wasm.
     """
     cmd = [cc]
     cmd += ["-O3"]
@@ -69,6 +74,18 @@ def create_tvmjs_wasm(output, objects, options=None, cc="emcc"):
 
     libs += [find_lib_path("tvmjs_support.bc")[0]]
     libs += [find_lib_path("webgpu_runtime.bc")[0]]
+
+    if custom_bc_files:
+        if not isinstance(custom_bc_files, list):
+            raise ValueError("Expect `custom_bc_files` to be a list of paths in string.")
+        for custom_bc_file in custom_bc_files:
+            if not Path(custom_bc_file).exists():
+                raise RuntimeError(
+                    "Cannot find file from custom_bc_files:"
+                    + custom_bc_file
+                    + "\n Try pass in an absolute path."
+                )
+        libs += custom_bc_files
 
     cmd += ["-o", output]
 
