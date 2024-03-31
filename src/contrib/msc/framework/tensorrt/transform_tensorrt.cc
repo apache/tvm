@@ -644,15 +644,11 @@ Expr RewriteSplit(BlockBuilder builder, const Var& var, const Call& src_call,
               << src_attrs->indices_or_sections->GetTypeKey() << ")";
   }
   // create strided_slices
-  static const Op& slice_op = Op::Get("relax.strided_slice");
   Array<Expr> outputs;
   for (size_t i = 0; i < split_begins.size(); i++) {
-    auto slice_attrs = make_object<StridedSliceAttrs>();
-    slice_attrs->axes.push_back(Integer(axis));
-    slice_attrs->begin.push_back(Integer(split_begins[i]));
-    slice_attrs->end.push_back(Integer(split_ends[i]));
-    const auto& slice = MakeCall(builder, call->span, "slice_" + std::to_string(i), slice_op,
-                                 {call->args[0]}, Attrs(slice_attrs));
+    auto slice = strided_slice(call->args[0], Tuple(Array<Expr>{PrimValue(Integer(axis))}),
+                               Tuple(Array<Expr>{PrimValue(Integer(split_begins[i]))}),
+                               Tuple(Array<Expr>{PrimValue(Integer(split_ends[i]))}));
     outputs.push_back(slice);
   }
   return Tuple(outputs, call->span);

@@ -16,11 +16,12 @@
 # under the License.
 # pylint: disable=invalid-name
 """Default legalization function for index operators."""
+import tvm
 from tvm import topi, tir, te
 from ...op import call_pure_packed
 from ...block_builder import BlockBuilder
-from ...expr import Call, Expr
-from ...struct_info import ShapeStructInfo
+from ...expr import Call, Expr, Tuple
+from ...struct_info import ShapeStructInfo, PrimStructInfo
 from .common import register_legalize
 
 
@@ -35,18 +36,37 @@ def _take(bb: BlockBuilder, call: Call) -> Expr:
 
 @register_legalize("relax.strided_slice")
 def _strided_slice(bb: BlockBuilder, call: Call) -> Expr:
-    strides = (
-        [tir.IntImm("int64", 1)] * len(call.attrs.axes)
-        if call.attrs.strides is None
-        else call.attrs.strides
-    )
+    def _relax_tuple_to_tir(relax_tuple):
+        output = []
+        for field in relax_tuple.struct_info.fields:
+            assert isinstance(field, PrimStructInfo)
+            assert field.value is not None
+            output.append(field.value)
+        return output
+
+    if len(call.args) == 4:
+        data, axes, begin, end = call.args
+        strides = [tir.IntImm("int64", 1)] * len(axes.struct_info.fields)
+    elif len(call.args) == 5:
+        data, axes, begin, end, strides = call.args
+        strides = _relax_tuple_to_tir(strides)
+    else:
+        raise ValueError(
+            f"Expression {call} provides {len(call.args)} arguments, "
+            f"but {call.op} requires either 4 or 5 arguments."
+        )
+
+    axes = _relax_tuple_to_tir(axes)
+    begin = _relax_tuple_to_tir(begin)
+    end = _relax_tuple_to_tir(end)
+
     return bb.call_te(
         topi.strided_slice,
-        call.args[0],
-        call.attrs.begin,
-        call.attrs.end,
+        data,
+        begin,
+        end,
         strides,
-        call.attrs.axes,
+        axes,
         slice_mode="end",
     )
 

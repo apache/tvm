@@ -360,15 +360,28 @@ class ConstIntBoundAnalyzer::Impl
   }
 
   Entry VisitExpr_(const CallNode* op) final {
-    // only special handle >> and & which can be
-    // used for index calculation.
-
     if (op->op.same_as(tir::builtin::shift_right())) {
       return VisitRightShift(op);
     } else if (op->op.same_as(tir::builtin::shift_left())) {
       return VisitLeftShift(op);
     } else if (op->op.same_as(tir::builtin::bitwise_and())) {
       return VisitBitwiseAnd(op);
+    } else if (op->op.same_as(tir::builtin::if_then_else())) {
+      PrimExpr cond = op->args[0];
+      Entry then_bounds;
+      {
+        auto restore = EnterConstraint(cond);
+        then_bounds = VisitExpr(op->args[1]);
+        if (restore) restore();
+      }
+      Entry else_bounds;
+      {
+        auto restore = EnterConstraint(!cond);
+        else_bounds = VisitExpr(op->args[2]);
+        if (restore) restore();
+      }
+      return Union(then_bounds, else_bounds);
+
     } else {
       return Everything(op->dtype);
     }
@@ -710,15 +723,49 @@ class ConstIntBoundAnalyzer::Impl
       // NOTE: The canonical form always uses <= or <, but a
       // user-supplied constraint from the python API might not be
       // canonicalized.
-      if ((c <= x).Match(subexpr) || (x >= c).Match(subexpr)) {
+      if (PMatchesOneOf{
+              c <= x,
+              x >= c,
+              !(x < c),
+              !(c > x),
+          }
+              .Match(subexpr)) {
         add_info(x.Eval(), c.Eval()->value, kPosInf);
-      } else if ((c < x).Match(subexpr) || (x > c).Match(subexpr)) {
+
+      } else if (PMatchesOneOf{
+                     c<x, x>
+                         c,
+                     !(x <= c),
+                     !(c >= x),
+                 }
+                     .Match(subexpr)) {
         add_info(x.Eval(), c.Eval()->value + 1, kPosInf);
-      } else if ((x <= c).Match(subexpr) || (x >= c).Match(subexpr)) {
+
+      } else if (PMatchesOneOf{
+                     x <= c,
+                     x >= c,
+                     !(c > x),
+                     !(x < c),
+                 }
+                     .Match(subexpr)) {
         add_info(x.Eval(), kNegInf, c.Eval()->value);
-      } else if ((x < c).Match(subexpr) || (c > x).Match(subexpr)) {
+
+      } else if (PMatchesOneOf{
+                     x<c, c>
+                         x,
+                     !(x >= c),
+                     !(c <= x),
+                 }
+                     .Match(subexpr)) {
         add_info(x.Eval(), kNegInf, c.Eval()->value - 1);
-      } else if ((x == c).Match(subexpr) || (c == x).Match(subexpr)) {
+
+      } else if (PMatchesOneOf{
+                     x == c,
+                     c == x,
+                     !(x != c),
+                     !(c != x),
+                 }
+                     .Match(subexpr)) {
         add_info(x.Eval(), c.Eval()->value, c.Eval()->value);
       }
     }

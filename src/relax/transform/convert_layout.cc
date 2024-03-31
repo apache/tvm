@@ -189,7 +189,11 @@ class LayoutConvertMutator : public ExprMutator {
     } else {
       // Convert the layout according to the inferred layout output.
       Array<Expr> new_args = RewriteArgs(call_node->args, res.value()->input_layouts);
+      for (const auto& [i, arg] : res.value()->new_args) {
+        new_args.Set(i->value, arg);
+      }
       new_call->args = std::move(new_args);
+
       new_call->attrs = std::move(res.value()->new_attrs);
       Expr cur_call = builder_->Normalize(Call(new_call));
       if (binding->var->IsInstance<DataflowVarNode>()) {
