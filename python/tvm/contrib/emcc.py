@@ -23,7 +23,7 @@ from tvm._ffi.base import py_str
 from tvm._ffi.libinfo import find_lib_path
 
 
-def create_tvmjs_wasm(output, objects, options=None, cc="emcc", custom_bc_files=None):
+def create_tvmjs_wasm(output, objects, options=None, cc="emcc", libs=None):
     """Create wasm that is supposed to run with the tvmjs.
 
     Parameters
@@ -40,8 +40,8 @@ def create_tvmjs_wasm(output, objects, options=None, cc="emcc", custom_bc_files=
     cc : str, optional
         The compile string.
 
-    custom_bc_files : list
-        List of user-defined bc files to add into the wasm.
+    libs : list
+        List of user-defined library files (e.g. .bc files) to add into the wasm.
     """
     cmd = [cc]
     cmd += ["-O3"]
@@ -68,29 +68,27 @@ def create_tvmjs_wasm(output, objects, options=None, cc="emcc", custom_bc_files=
         if obj.find("wasm_runtime.bc") != -1:
             with_runtime = True
 
-    libs = []
+    all_libs = []
     if not with_runtime:
-        libs += [find_lib_path("wasm_runtime.bc")[0]]
+        all_libs += [find_lib_path("wasm_runtime.bc")[0]]
 
-    libs += [find_lib_path("tvmjs_support.bc")[0]]
-    libs += [find_lib_path("webgpu_runtime.bc")[0]]
+    all_libs += [find_lib_path("tvmjs_support.bc")[0]]
+    all_libs += [find_lib_path("webgpu_runtime.bc")[0]]
 
-    if custom_bc_files:
-        if not isinstance(custom_bc_files, list):
-            raise ValueError("Expect `custom_bc_files` to be a list of paths in string.")
-        for custom_bc_file in custom_bc_files:
-            if not Path(custom_bc_file).exists():
+    if libs:
+        if not isinstance(libs, list):
+            raise ValueError("Expect `libs` to be a list of paths in string.")
+        for lib in libs:
+            if not Path(lib).exists():
                 raise RuntimeError(
-                    "Cannot find file from custom_bc_files:"
-                    + custom_bc_file
-                    + "\n Try pass in an absolute path."
+                    "Cannot find file from libs:" + lib + "\n Try pass in an absolute path."
                 )
-        libs += custom_bc_files
+        all_libs += libs
 
     cmd += ["-o", output]
 
     # let libraries go before normal object
-    cmd += libs + objects
+    cmd += all_libs + objects
 
     if options:
         cmd += options
