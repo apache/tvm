@@ -78,10 +78,15 @@ impl Into<i64> for PrimExpr {
 define_node!(FloatImm, "FloatImm", "FloatImm";
              FloatImmNode { value: f64 });
 
-impl Into<f64> for PrimExpr {
-    fn into(self) -> f64 {
-        let float_val = self.downcast::<FloatImm>().unwrap().value as f64;
-        float_val
+impl TryInto<f64> for PrimExpr {
+    type Error = ();
+    fn try_into(self) -> Result<f64,  Self::Error> {
+        
+        if let float_imm = self.downcast::<FloatImm>() {
+            OK(float_imm.value)
+        } else {
+            Err(())
+        }
     }
 }
 
