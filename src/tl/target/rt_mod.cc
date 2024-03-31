@@ -18,11 +18,39 @@
  */
 
 #include "../../runtime/cuda/cuda_module.h"
-#include "../../target/build_common.h"
 #include "codegen.h"
 
 namespace tvm {
 namespace codegen {
+
+static std::unordered_map<std::string, runtime::FunctionInfo> ExtractFuncInfo(const IRModule& mod) {
+  std::unordered_map<std::string, runtime::FunctionInfo> fmap;
+
+  for (auto kv : mod->functions) {
+    ICHECK(kv.second->IsInstance<tir::PrimFuncNode>()) << "Can only lower IR Module with PrimFuncs";
+    auto f = Downcast<tir::PrimFunc>(kv.second);
+
+    runtime::FunctionInfo info;
+    for (size_t i = 0; i < f->params.size(); ++i) {
+      if (f->params[i]->dtype.is_handle()) {
+        auto ptr = f->params[i]->type_annotation.as<PointerTypeNode>();
+        if (ptr && ptr->storage_scope == "grid_constant") {
+          info.arg_types.push_back(DataType(kTVMGridConstant, 64, 1));
+          continue;
+        }
+      }
+      info.arg_types.push_back(f->params[i].dtype());
+    }
+    if (auto opt = f->GetAttr<Array<String>>(tir::attr::kKernelLaunchParams)) {
+      for (const auto& tag : opt.value()) {
+        info.launch_param_tags.push_back(tag);
+      }
+    }
+    auto global_symbol = f->GetAttr<String>(tvm::attr::kGlobalSymbol);
+    fmap[static_cast<std::string>(global_symbol.value())] = info;
+  }
+  return fmap;
+}
 
 runtime::Module BuildTL(IRModule mod, Target target) {
   using tvm::runtime::Registry;

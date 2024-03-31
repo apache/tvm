@@ -34,12 +34,11 @@ namespace tl {
 
 using namespace tir;
 
-Stmt PartitionLoop(const ForNode* op, const Var& thread, arith::Analyzer* analyzer,
-                   const Fragment& loop_layout);
+For PartitionLoop(For op, Var thread_var, arith::Analyzer* analyzer, Fragment loop_layout);
 
-Fragment PlanLoopPartition(const ForNode* op, size_t num_thread, int vectorize_size);
+Fragment PlanLoopPartition(For op, size_t num_thread, int vectorize_size);
 
-Stmt LoopPragmaUnroll(Stmt stmt);
+For LoopPragmaUnroll(For stmt);
 
 }  // namespace tl
 }  // namespace tvm

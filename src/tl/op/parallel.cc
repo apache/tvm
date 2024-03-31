@@ -78,7 +78,6 @@ bool ParallelOp::IsCommonAccessIndice(const Buffer& buffer) const {
 LayoutMap ParallelOp::InferLayout(const LayoutInferArgs& T, InferLevel level) {
   if (loop_layout_.defined()) return {};
   if (level == InferLevel::kStrict) return {};
-  if (level == InferLevel::kFree && root_->annotations.count(attr::kSkipLayoutInfer)) return {};
 
   // Step 1: try to infer loop's partition from a source fragment
   Buffer source_buffer, read_source_buffer;
@@ -120,7 +119,7 @@ LayoutMap ParallelOp::InferLayout(const LayoutInferArgs& T, InferLevel level) {
       }
     } else {
       int vector_size = GetVectorizeSize(GetRef<For>(root_));
-      loop_layout_ = PlanLoopPartition(root_, T.block_size, vector_size);
+      loop_layout_ = PlanLoopPartition(GetRef<For>(root_), T.block_size, vector_size);
     }
     PrimExpr loop_thread_extent = loop_layout_->ThreadExtent();
     if (!analyzer_.CanProveEqual(loop_thread_extent, static_cast<int>(T.block_size)))

@@ -27,8 +27,6 @@
 #include <tvm/tir/transform.h>
 
 #include "../../arith/ir_mutator_with_analyzer.h"
-#include "../layout/layout.h"
-#include "../op/op.h"
 
 namespace tvm {
 namespace tl {
@@ -40,9 +38,6 @@ class FrontendLegalizer : public arith::IRMutatorWithAnalyzer {
   static PrimFunc Substitute(PrimFunc f) {
     arith::Analyzer analyzer;
     FrontendLegalizer substituter(&analyzer);
-    for (const auto& [_, buffer] : f->buffer_map) {
-      substituter.buffer_data_to_buffer_.Set(buffer->data, buffer);
-    }
     PrimFuncNode* fptr = f.CopyOnWrite();
     fptr->body = substituter.VisitStmt(f->body);
     return f;
@@ -50,13 +45,6 @@ class FrontendLegalizer : public arith::IRMutatorWithAnalyzer {
 
  private:
   using arith::IRMutatorWithAnalyzer::IRMutatorWithAnalyzer;
-
-  Stmt VisitStmt_(const BlockNode* op) final {
-    for (auto buffer : op->alloc_buffers) {
-      buffer_data_to_buffer_.Set(buffer->data, buffer);
-    }
-    return arith::IRMutatorWithAnalyzer::VisitStmt_(op);
-  }
 
   Stmt VisitStmt_(const ForNode* node) final {
     if (node->kind == ForKind::kParallel) {
@@ -67,19 +55,6 @@ class FrontendLegalizer : public arith::IRMutatorWithAnalyzer {
       parallel_for_scope_--;
     }
     return n;
-  }
-
-  Stmt VisitStmt_(const EvaluateNode* node) final {
-    Stmt new_node = arith::IRMutatorWithAnalyzer::VisitStmt_(node);
-
-    auto op = ParseOperator(new_node, buffer_data_to_buffer_);
-    if (op == nullptr) return new_node;
-
-    auto lowered = op->Canonialize(CanonializeArgs{}, analyzer_);
-    if (lowered.defined())
-      return lowered;
-    else
-      return new_node;
   }
 
   PrimExpr VisitExpr_(const VarNode* node) final {
@@ -102,7 +77,6 @@ class FrontendLegalizer : public arith::IRMutatorWithAnalyzer {
 
   int parallel_for_scope_ = 0;
   std::unordered_map<const VarNode*, PrimExpr> let_bindings_;
-  Map<Var, Buffer> buffer_data_to_buffer_;
 };
 
 using namespace tir::transform;

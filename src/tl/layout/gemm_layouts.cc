@@ -28,7 +28,6 @@
 #include <cmath>
 
 #include "layout.h"
-#include "swizzle.h"
 
 namespace tvm {
 namespace tl {
@@ -81,13 +80,14 @@ Fragment makeGemmFragmentC(const int block_m, const int block_n, const int warp_
   return block_layout;
 }
 
-Fragment makeGemmFragmentCHopper(const int block_m, const int block_n, const int warp_m, const int warp_n,
-                                 const int element_size) {
+Fragment makeGemmFragmentCHopper(const int block_m, const int block_n, const int warp_m,
+                                 const int warp_n, const int element_size) {
   ICHECK(block_m % warp_m == 0);
   ICHECK(block_n == warp_n);
   ICHECK(warp_m % 16 == 0);
-  auto warp_layout = makeGemmFragment8x8()->Repeat({2, block_n / 8}, false, false); // 16 x N (1 warp)
-  auto block_layout = warp_layout->Repeat({block_m / warp_m, 1}, true); // 16*Y x N (Y warp)
+  auto warp_layout =
+      makeGemmFragment8x8()->Repeat({2, block_n / 8}, false, false);     // 16 x N (1 warp)
+  auto block_layout = warp_layout->Repeat({block_m / warp_m, 1}, true);  // 16*Y x N (Y warp)
   return block_layout->Repeat({warp_m / 16, 1}, false);
 }
 
@@ -167,9 +167,9 @@ Fragment makeGemmVoltaFragmentA(const int block_m, const int block_n, const int 
   return block_layout;
 }
 
-static PrimExpr xor2x2(const PrimExpr& i, const PrimExpr& j) { return FloorMod(i + j, 2); }
+PrimExpr xor2x2(const PrimExpr& i, const PrimExpr& j) { return FloorMod(i + j, 2); }
 
-static PrimExpr xor4x4(const PrimExpr& i, const PrimExpr& j) {
+PrimExpr xor4x4(const PrimExpr& i, const PrimExpr& j) {
   PrimExpr i0 = FloorMod(i, 2);
   PrimExpr j0 = FloorMod(j, 2);
   PrimExpr i1 = FloorDiv(i, 2);
@@ -177,77 +177,72 @@ static PrimExpr xor4x4(const PrimExpr& i, const PrimExpr& j) {
   return 2 * xor2x2(i1, j1) + xor2x2(i0, j0);
 }
 
-static Layout makeCommonLayout(const Array<PrimExpr>& shape) {
-  PrimExpr index = 0;
-  PrimExpr stride = 1;
-  for (int i = shape.size() - 1; i >= 0; i--) {
-    index = index + stride * InputPlaceholder(i);
-    stride = stride * shape[i];
-  }
-  return Layout(shape, {index});
+PrimExpr xor8x8(const PrimExpr& i, const PrimExpr j) {
+  PrimExpr i0 = FloorMod(i, 2);
+  PrimExpr j0 = FloorMod(j, 2);
+  PrimExpr i1 = FloorDiv(i, 2);
+  PrimExpr j1 = FloorDiv(j, 2);
+  return 2 * xor4x4(i1, j1) + xor2x2(i0, j0);
 }
 
-static Layout TileToShape(Layout layout, const Array<PrimExpr>& shape) {
-  ICHECK(shape.size() == layout->InputDim());
-  auto old_shape = layout->InputShape();
-  auto index_list = layout->GetForwardIndex();
-
-  Map<Var, PrimExpr> vmap;
-  for (size_t i = 0; i < shape.size(); i++) {
-    vmap.Set(InputPlaceholder(i), FloorMod(InputPlaceholder(i), old_shape[i]));
-  }
-  index_list = index_list.Map([&](const auto& e) { return Substitute(e, vmap); });
-
-  PrimExpr index = index_list.back();
-  PrimExpr stride = layout->OutputShape().back();
-  // for (int i = shape.size() - 1; i >= 0; i--) {
-  for (size_t i = 0; i < shape.size(); i++) {
-    index = index + stride * FloorDiv(InputPlaceholder(i), old_shape[i]);
-    stride = stride * (FloorDiv(shape[i], old_shape[i]));
-  }
-  index_list.pop_back();
-  index_list.push_back(index);
-  return Layout(shape, index_list);
-}
-
-static SwizzledLayout WithSwizzle(Layout layout, SwizzlePattern pattern) {
-  return SwizzledLayout(layout->InputShape(), layout->GetForwardIndex(), pattern);
-}
-
-Layout makeGemmABLayoutHalfBank(int stride, int continuous, int element_size) {
+Layout makeHalfBankSwizzleLayout(int stride, int continuous, int element_size) {
   // Swizzle 2 bit
+  Var i = InputPlaceholder(0);
+  Var j = InputPlaceholder(1);
   int vector_size = 128 / element_size;
   ICHECK(stride % 8 == 0);
   ICHECK(continuous % (vector_size * 4) == 0);
-  auto pattern = SwizzlePattern(2, static_cast<int>(std::log2(vector_size)), 3);
-  Layout base = makeCommonLayout({8, vector_size * 4});
-  Layout extended = TileToShape(base, {stride, continuous});
-  return WithSwizzle(extended, pattern);
+  PrimExpr ts = FloorDiv(i, 8);
+  PrimExpr s = FloorMod(i, 8);
+  PrimExpr tc = FloorDiv(FloorDiv(j, vector_size), 4);
+  PrimExpr c = FloorMod(FloorDiv(j, vector_size), 4);
+  PrimExpr vec = FloorMod(j, vector_size);
+  PrimExpr c_swizzle = xor4x4(c, FloorDiv(s, 2));
+  PrimExpr index = vec + (c_swizzle + s * 4) * vector_size;
+  return Layout(Array<PrimExpr>{stride, continuous}, {tc, ts, index});
 }
 
-Layout makeGemmABLayoutFullBank(int stride, int continuous, int element_size) {
+Layout makeFullBankSwizzleLayout(int stride, int continuous, int element_size) {
   // Swizzle 3 bit
+  Var i = InputPlaceholder(0);
+  Var j = InputPlaceholder(1);
   int vector_size = 128 / element_size;
   ICHECK(stride % 8 == 0);
   ICHECK(continuous % (vector_size * 8) == 0);
-  auto pattern = SwizzlePattern(3, static_cast<int>(std::log2(vector_size)), 3);
-  Layout base = makeCommonLayout({8, vector_size * 8});
-  Layout extended = TileToShape(base, {stride, continuous});
-  return WithSwizzle(extended, pattern);
+  PrimExpr ts = FloorDiv(i, 8);
+  PrimExpr s = FloorMod(i, 8);
+  PrimExpr tc = FloorDiv(FloorDiv(j, vector_size), 8);
+  PrimExpr c = FloorMod(FloorDiv(j, vector_size), 8);
+  PrimExpr vec = FloorMod(j, vector_size);
+  PrimExpr c_swizzle = xor8x8(c, s);
+  PrimExpr index = vec + (c_swizzle + s * 8) * vector_size;
+  return Layout(Array<PrimExpr>{stride, continuous}, {tc, ts, index});
 }
 
 Layout makeGemmABLayoutF64_Kinner(int stride, int continuous) {
-  auto pattern = SwizzlePattern(2, 0, 4);
-  Layout base = makeCommonLayout({4, 16});
-  Layout extended = TileToShape(base, {stride, continuous});
-  return WithSwizzle(extended, pattern);
+  // Swizzle<2, 0, 4>
+  Var i = InputPlaceholder(0);
+  Var j = InputPlaceholder(1);
+  PrimExpr tc = FloorDiv(j, 16);
+  PrimExpr ts = FloorDiv(i, 4);
+  PrimExpr c = FloorMod(j, 16);
+  PrimExpr s = FloorMod(i, 4);
+  PrimExpr swizzled_c = FloorDiv(c, 4) * 4 + xor4x4(FloorMod(c, 4), s);
+  PrimExpr index = swizzled_c + s * 16;
+  return Layout(Array<PrimExpr>{stride, continuous}, {tc, ts, index});
 }
 
 Layout makeGemmABLayoutF64_Kouter(int stride, int continuous) {
-  auto pattern = SwizzlePattern(2, 2, 2);
-  Layout base = makeCommonLayout({4, 16});
-  Layout extended = TileToShape(base, {stride, continuous});
-  return WithSwizzle(extended, pattern);
+  // Swizzle<2, 2, 2>
+  Var i = InputPlaceholder(0);
+  Var j = InputPlaceholder(1);
+  PrimExpr tc = FloorDiv(j, 16);
+  PrimExpr ts = FloorDiv(i, 4);
+  PrimExpr c = FloorMod(j, 16);
+  PrimExpr s = FloorMod(i, 4);
+  PrimExpr swizzled_c = FloorMod(c, 4) + xor4x4(FloorDiv(c, 4), s) * 4;
+  PrimExpr index = swizzled_c + s * 16;
+  return Layout(Array<PrimExpr>{stride, continuous}, {tc, ts, index});
 }
 
 Layout makeGemmABLayoutPadded(int stride, int continuous, int element_size) {
@@ -342,9 +337,9 @@ Layout makeGemmABLayout(int stride, int continuous, int element_size, int kfacto
   if (kfactor == 1 && element_size == 8)  // int8 KxN
     return makeGemmABLayoutPadded(stride, continuous, element_size);
   else if (continuous % (vector_size * 8) == 0)
-    return makeGemmABLayoutFullBank(stride, continuous, element_size);
+    return makeFullBankSwizzleLayout(stride, continuous, element_size);
   else if (continuous % (vector_size * 4) == 0)
-    return makeGemmABLayoutHalfBank(stride, continuous, element_size);
+    return makeHalfBankSwizzleLayout(stride, continuous, element_size);
   else {
     return makeGemmABLayoutPadded(stride, continuous, element_size);
   }

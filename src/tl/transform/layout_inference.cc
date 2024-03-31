@@ -141,9 +141,6 @@ class BufferUseDefCollector : public StmtExprVisitor {
  private:
   void VisitExpr_(const CallNode* op) final {
     StmtExprVisitor::VisitExpr_(op);
-    ICHECK(thread_var_.defined());
-    auto thread_block_size = as_const_int(thread_var_->dom->extent);
-    ICHECK(thread_block_size);
     auto p = ParseOperator(GetRef<Call>(op), buffer_data_to_buffer_);
     if (p != nullptr) {
       for (const auto& arg : op->args) {
@@ -233,90 +230,35 @@ class LayoutInferencer : public IRMutatorWithAnalyzer {
 
  private:
   LayoutInferencer(const LayoutInferenceResult result, arith::Analyzer* analyzer)
-      : arith::IRMutatorWithAnalyzer(analyzer), result_(result) {
-    for (const auto& [buffer, layout] : result_.layout_map) {
-      new_alloc_.Set(buffer->data, makeBufferWithLayout(buffer, layout));
-    }
-  };
+      : arith::IRMutatorWithAnalyzer(analyzer), result_(result){};
 
   Stmt VisitStmt_(const BlockNode* op) final {
     Block block = Downcast<Block>(IRMutatorWithAnalyzer::VisitStmt_(op));
-    auto block_ptr = block.CopyOnWrite();
-    Map<Var, Layout> new_layout_map;
-    for (size_t i = 0; i < block_ptr->alloc_buffers.size(); i++) {
-      const auto& buffer = block_ptr->alloc_buffers[i];
-      if (new_alloc_.find(buffer->data) != new_alloc_.end()) {
-        block_ptr->alloc_buffers.Set(i, new_alloc_[buffer->data]);
-        new_layout_map.Set(new_alloc_[buffer->data]->data, result_.layout_map[buffer]);
-      } else {
-        ICHECK(buffer.scope() != "local.fragment")
+
+    for (auto buffer : block->alloc_buffers) {
+      if (buffer.scope() == "local.framgent") {
+        ICHECK(result_.layout_map.count(buffer))
             << "Cannot inference fragment layout for " << buffer;
       }
     }
-    block_ptr->annotations.Set(attr::kLayoutMap, new_layout_map);
+    auto block_ptr = block.CopyOnWrite();
+    block_ptr->annotations.Set(attr::kLayoutMap, result_.layout_map);
     return block;
   }
 
-  Buffer makeBufferWithLayout(const Buffer& buffer, const Layout& layout) {
-    const auto* ptr_type = TVM_TYPE_AS(buffer->data->type_annotation, PointerTypeNode);
-    Type new_type;
-    // convert fragments to normal local buffer
-    if (ptr_type->storage_scope == "local.fragment") {
-      new_type = PointerType(ptr_type->element_type, "local");
-    } else {
-      new_type = buffer->data->type_annotation;
-    }
-    Var new_var;
-    if (ptr_type->storage_scope == "global") {
-      new_var = buffer->data;
-    } else {
-      new_var = Var(buffer->data->name_hint, new_type);
-    }
-    return Buffer(new_var, buffer->dtype, layout->OutputShape(), {}, buffer->elem_offset,
-                  buffer->name, buffer->data_alignment, buffer->offset_factor, buffer->buffer_type);
-  }
-
-  PrimExpr VisitExpr_(const VarNode* var) final {
-    if (new_alloc_.count(GetRef<Var>(var))) {
-      return new_alloc_[GetRef<Var>(var)]->data;
-    }
-    return IRMutatorWithAnalyzer::VisitExpr_(var);
-  }
-
-  PrimExpr VisitExpr_(const BufferLoadNode* op) final {
-    if (new_alloc_.count(op->buffer->data)) {
-      auto new_indices = result_.layout_map[op->buffer]->Forward(op->indices);
-      auto new_buffer = new_alloc_[op->buffer->data];
-      return BufferLoad(new_buffer, new_indices);
-    }
-    return IRMutatorWithAnalyzer::VisitExpr_(op);
-  }
-
-  Stmt VisitStmt_(const BufferStoreNode* op) final {
-    if (new_alloc_.count(op->buffer->data)) {
-      auto new_indices = result_.layout_map[op->buffer]->Forward(op->indices);
-      auto new_buffer = new_alloc_[op->buffer->data];
-      auto new_value = VisitExpr(op->value);
-      return BufferStore(new_buffer, new_value, new_indices);
-    }
-    return IRMutatorWithAnalyzer::VisitStmt_(op);
-  }
-
   Stmt VisitStmt_(const ForNode* op) final {
-    Stmt body = IRMutatorWithAnalyzer::VisitStmt_(op);
+    For for_node = Downcast<For>(IRMutatorWithAnalyzer::VisitStmt_(op));
     if (result_.for_map.count(GetRef<For>(op))) {
       auto loop_layout = result_.for_map[GetRef<For>(op)];
-      auto stmt = PartitionLoop(body.as<ForNode>(), thread_var_->var, analyzer_,
-                                result_.for_map[GetRef<For>(op)]);
-      if (stmt.as<For>()) {
-        stmt = VectorizeLoop(stmt.as<For>().value());
-      }
+      for_node = PartitionLoop(for_node, thread_var_->var, analyzer_, loop_layout);
+      for_node = VectorizeLoop(for_node);
       if (result_.predicate_map.count(GetRef<For>(op))) {
-        stmt = IfThenElse(result_.predicate_map[GetRef<For>(op)], stmt);
+        return IfThenElse(result_.predicate_map[GetRef<For>(op)], for_node);
+      } else {
+        return for_node;
       }
-      return stmt;
     }
-    return body;
+    return for_node;
   }
 
   Stmt VisitStmt_(const AttrStmtNode* op) final {
@@ -332,7 +274,6 @@ class LayoutInferencer : public IRMutatorWithAnalyzer {
 
  private:
   const LayoutInferenceResult result_;
-  Map<Var, Buffer> new_alloc_;
   IterVar thread_var_;
 };
 

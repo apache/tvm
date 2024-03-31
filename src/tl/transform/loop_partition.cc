@@ -54,10 +54,9 @@ class BufferIndiceSimplify : public StmtExprMutator {
 };
 
 // Rewrite the parallel loop into a common loop, which is mapped to threads
-Stmt PartitionLoop(const ForNode* op, const Var& thread, arith::Analyzer* analyzer,
-                   const Fragment& loop_layout) {
+For PartitionLoop(For op, Var thread_var, arith::Analyzer* analyzer, Fragment loop_layout) {
   ICHECK(loop_layout.defined());
-  ICHECK(thread.defined());
+  ICHECK(thread_var.defined());
   int old_loop_depth = loop_layout->InputDim();
   int new_loop_depth = loop_layout->OutputDim();
 
@@ -67,11 +66,11 @@ Stmt PartitionLoop(const ForNode* op, const Var& thread, arith::Analyzer* analyz
     Var var = Var(std::string{char('i' + i)});
     vars.push_back(var);
   }
-  vars.push_back(thread);
+  vars.push_back(thread_var);
 
   // create the substitute map, and the loop body
   Map<Var, PrimExpr> vmap;
-  Stmt body = GetRef<Stmt>(op);
+  Stmt body = op;
   auto inv_loop = loop_layout->Inverse();
   auto indices = inv_loop->Forward(vars.Map([](const Var& v) { return PrimExpr(v); }));
   for (int i = 0; i < old_loop_depth; i++) {
@@ -95,9 +94,9 @@ Stmt PartitionLoop(const ForNode* op, const Var& thread, arith::Analyzer* analyz
 
   body = BufferIndiceSimplify(analyzer)(body);
 
-  body = LoopPragmaUnroll(body);
+  auto for_node = LoopPragmaUnroll(Downcast<For>(body));
 
-  return body;
+  return for_node;
 }
 
 class LoopPramaUnroller : public StmtExprMutator {
@@ -121,8 +120,8 @@ class LoopPartitioner : public StmtExprVisitor {
  public:
   LoopPartitioner() = default;
 
-  Fragment Partition(const ForNode* op, int num_thread, int vectorize_size) {
-    this->VisitStmt_(op);
+  Fragment Partition(For op, int num_thread, int vectorize_size) {
+    this->VisitStmt(op);
     int loop_size_full = 1;
     PrimExpr flattened = 0;
     for (size_t i = 0; i < loop_vars_.size(); i++) {
@@ -155,14 +154,15 @@ class LoopPartitioner : public StmtExprVisitor {
   Array<IterVar> loop_vars_;
 };
 
-Fragment PlanLoopPartition(const ForNode* op, size_t num_thread, int vectorize_size) {
+Fragment PlanLoopPartition(For op, size_t num_thread, int vectorize_size) {
   LoopPartitioner partitioner;
   return partitioner.Partition(op, num_thread, vectorize_size);
 }
 
-Stmt LoopPragmaUnroll(Stmt stmt) {
+For LoopPragmaUnroll(For stmt) {
   LoopPramaUnroller unroller;
-  return unroller(stmt);
+  For unrolled = Downcast<For>(unroller(stmt));
+  return unrolled;
 }
 
 }  // namespace tl

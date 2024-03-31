@@ -35,7 +35,7 @@ using namespace tir;
 
 class ReduceOp : public Operator {
  public:
-  ReduceOp(const Array<PrimExpr>& args, const Map<Var, Buffer>& vmap);
+  ReduceOp(Array<PrimExpr> args, BufferMap vmap);
   Stmt Lower(const LowerArgs& T, arith::Analyzer* analyzer) const final;
   LayoutMap InferLayout(const LayoutInferArgs& T, InferLevel level) final;
   static const Op& Get();

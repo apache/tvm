@@ -50,7 +50,7 @@ static std::vector<int> toPrimeFactors(int x) {
   return result;
 }
 
-Gemm::Gemm(const Array<PrimExpr>& args, const Map<Var, Buffer>& vmap) {
+Gemm::Gemm(Array<PrimExpr> args, BufferMap vmap) {
   call_args = args;
   A = vmap[GetVarFromAccessPtr(args[0])];
   B = vmap[GetVarFromAccessPtr(args[1])];
@@ -108,21 +108,25 @@ Stmt Gemm::Lower(const LowerArgs& T, arith::Analyzer* analyzer) const {
   auto [warp_m, warp_n] = ComputeWarpPartition(T.block_size / 32, T.target);
   std::stringstream ss;
   std::string op_name = "tl::gemm_ss";
-  if (A.scope() == "local") {
-    ICHECK(B.scope() != "local");
+  if (A.scope() == "local.fragment") {
+    ICHECK(B.scope() != "local.fragment");
     op_name = "tl::gemm_rs";
-  } else if (B.scope() == "local") {
+  } else if (B.scope() == "local.fragment") {
     op_name = "tl::gemm_sr";
   }
   ss << op_name << "<" << M << ", " << N << ", " << K << ", ";
   ss << warp_m << ", " << warp_n << ", ";
   ss << trans_A << ", " << trans_B << ">";
 
+  auto A_buffer = T.buffer_remap.count(A) ? T.buffer_remap[A] : A;
+  auto B_buffer = T.buffer_remap.count(B) ? T.buffer_remap[B] : B;
+  auto C_buffer = T.buffer_remap[C];
+
   Array<PrimExpr> new_args;
   new_args.push_back(StringImm(ss.str()));
-  new_args.push_back(call_args[0]);
-  new_args.push_back(call_args[1]);
-  new_args.push_back(call_args[2]);
+  new_args.push_back(A_buffer.access_ptr(1));
+  new_args.push_back(B_buffer.access_ptr(1));
+  new_args.push_back(C_buffer.access_ptr(3));
   auto new_call = Call(DataType::Handle(), builtin::call_extern(), new_args);
   return Evaluate(new_call);
 }
@@ -179,13 +183,14 @@ LayoutMap Gemm::InferLayout(const LayoutInferArgs& T, InferLevel level) {
       results.Set(A, makeGemmABLayout(*as_const_int(A->shape[0]), *as_const_int(A->shape[1]),
                                       A->dtype.bits(), trans_A ? 1 : 2));
     } else {
-      ICHECK(0);
+      ICHECK(trans_A == false);
+      results.Set(A, makeGemmFragmentA(M, N, K, M / warp_m, N / warp_n));
     }
     if (B.scope() == "shared" || B.scope() == "shared.dyn") {
       results.Set(B, makeGemmABLayout(*as_const_int(B->shape[0]), *as_const_int(B->shape[1]),
                                       B->dtype.bits(), trans_B ? 2 : 1));
     } else {
-      ICHECK(0);
+      ICHECK(0) << "WGMMA only support B in shared.";
     }
   } else {
     ICHECK(0) << "Not supported " << T.target->str();

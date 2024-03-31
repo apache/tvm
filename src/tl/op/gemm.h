@@ -35,7 +35,7 @@ using namespace tir;
 
 class Gemm : public Operator {
  public:
-  Gemm(const Array<PrimExpr>& args, const Map<Var, Buffer>& vmap);
+  Gemm(Array<PrimExpr> args, BufferMap vmap);
   Stmt Lower(const LowerArgs& T, arith::Analyzer* analyzer) const final;
   LayoutMap InferLayout(const LayoutInferArgs& T, InferLevel level) final;
   static const Op& Get();

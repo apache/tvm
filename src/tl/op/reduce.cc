@@ -37,7 +37,7 @@ namespace tl {
 
 using namespace tir;
 
-ReduceOp::ReduceOp(const Array<PrimExpr>& args, const Map<Var, Buffer>& vmap) {
+ReduceOp::ReduceOp(Array<PrimExpr> args, BufferMap vmap) {
   src = vmap[GetVarFromAccessPtr(args[0])];
   dst = vmap[GetVarFromAccessPtr(args[1])];
   String reduce_type = args[2].as<StringImm>().value()->value;
@@ -99,33 +99,35 @@ std::string ReduceOp::MakeCodegenReducer() const {
 }
 
 Stmt ReduceOp::Lower(const LowerArgs& T, arith::Analyzer* analyzer) const {
-  ICHECK(this->src.scope() == "local" && this->dst.scope() == "local")
+  ICHECK(this->src.scope() == "local.fragment" && this->dst.scope() == "local.fragment")
       << "Reduce for shared memory not implemented.";
-  Fragment src = T.layout_map[this->src].as<Fragment>().value();
-  Fragment dst = T.layout_map[this->dst].as<Fragment>().value();
-  ICHECK(src->InputDim() == dst->InputDim() + 1);
+  auto src_buffer = T.buffer_remap[this->src];
+  auto dst_buffer = T.buffer_remap[this->dst];
+  Fragment src_layout = T.layout_map[this->src].as<Fragment>().value();
+  Fragment dst_layout = T.layout_map[this->dst].as<Fragment>().value();
+  ICHECK(src_layout->InputDim() == dst_layout->InputDim() + 1);
   Array<IterVar> dst_vars;
-  for (size_t i = 0; i < dst->InputDim(); i++) {
+  for (size_t i = 0; i < dst_layout->InputDim(); i++) {
     Var var = Var(std::string{char('i' + i)});
-    dst_vars.push_back(IterVar(Range(0, dst->InputShape()[i]), var, IterVarType::kDataPar));
+    dst_vars.push_back(IterVar(Range(0, dst_layout->InputShape()[i]), var, IterVarType::kDataPar));
   }
   Array<IterVar> src_vars = dst_vars;
-  src_vars.insert(src_vars.begin() + this->dim,
-                  {Range(0, src->InputShape()[this->dim]), Var("rv"), IterVarType::kDataPar});
+  src_vars.insert(src_vars.begin() + this->dim, {Range(0, src_layout->InputShape()[this->dim]),
+                                                 Var("rv"), IterVarType::kDataPar});
   Array<PrimExpr> src_indices =
-      src->Forward(src_vars.Map([](const auto& iv) { return PrimExpr(iv->var); }));
+      src_layout->Forward(src_vars.Map([](const auto& iv) { return PrimExpr(iv->var); }));
   Array<PrimExpr> dst_indices =
-      dst->Forward(dst_vars.Map([](const auto& iv) { return PrimExpr(iv->var); }));
+      dst_layout->Forward(dst_vars.Map([](const auto& iv) { return PrimExpr(iv->var); }));
 
   Array<Stmt> stmts;
 
   // make reduce-init stmt
-  if (this->clear) stmts.push_back(BufferStore(this->dst, this->MakeInitValue(), dst_indices));
+  if (this->clear) stmts.push_back(BufferStore(dst_buffer, this->MakeInitValue(), dst_indices));
 
   // make thread-local reduce
   Array<PrimExpr> src_indice_compressed;
   Array<IterVar> src_var_compressed;
-  for (size_t i = 0; i < src->OutputDim(); i++) {
+  for (size_t i = 0; i < src_layout->OutputDim(); i++) {
     PrimExpr expr;
     IterVar var;
     std::tie(expr, var) =
@@ -133,11 +135,11 @@ Stmt ReduceOp::Lower(const LowerArgs& T, arith::Analyzer* analyzer) const {
     src_indice_compressed.push_back(expr);
     src_var_compressed.push_back(var);
   }
-  Stmt reduce_local = BufferStore(this->dst,
-                                  this->MakeReduce(BufferLoad(this->dst, dst_indices),
-                                                   BufferLoad(this->src, src_indice_compressed)),
+  Stmt reduce_local = BufferStore(dst_buffer,
+                                  this->MakeReduce(BufferLoad(dst_buffer, dst_indices),
+                                                   BufferLoad(src_buffer, src_indice_compressed)),
                                   dst_indices);
-  for (int i = src->OutputDim() - 1; i >= 0; i--) {
+  for (int i = src_layout->OutputDim() - 1; i >= 0; i--) {
     reduce_local =
         For(src_var_compressed[i]->var, 0, src_var_compressed[i]->dom->extent, ForKind::kUnrolled,
             reduce_local, NullOpt, {{tir::attr::pragma_unroll_explicit, Bool(false)}});
@@ -146,7 +148,7 @@ Stmt ReduceOp::Lower(const LowerArgs& T, arith::Analyzer* analyzer) const {
 
   // make inter-thread reduce
   PrimExpr src_thread =
-      src->ForwardThread(src_vars.Map([](const auto& iv) { return PrimExpr(iv->var); }), {});
+      src_layout->ForwardThread(src_vars.Map([](const auto& iv) { return PrimExpr(iv->var); }), {});
   auto iter_sum = arith::NormalizeToIterSum(src_thread, ToVMap(src_vars), analyzer);
   for (const auto& iter_split : iter_sum->args) {
     auto mark = iter_split->source->source.as<Var>();
@@ -161,24 +163,25 @@ Stmt ReduceOp::Lower(const LowerArgs& T, arith::Analyzer* analyzer) const {
       ss << "tl::AllReduce<" << this->MakeCodegenReducer() << ", " << reducing_threads << ", "
          << (*scale) << ">::run";
       Array<PrimExpr> thread_reduce_args = {StringImm(ss.str()),
-                                            BufferLoad(this->dst, dst_indices)};
+                                            BufferLoad(dst_buffer, dst_indices)};
       if (reducing_threads >= 32) {
-        PrimExpr workspace = T.AddWorkspace(T.block_size, this->dst->dtype);
+        PrimExpr workspace = T.AddWorkspace(T.block_size, dst_buffer->dtype);
         thread_reduce_args.push_back(workspace);
       }
-      auto call = Call(this->dst->dtype, builtin::call_extern(), thread_reduce_args);
-      stmts.push_back(BufferStore(this->dst, call, dst_indices));
+      auto call = Call(dst_buffer->dtype, builtin::call_extern(), thread_reduce_args);
+      stmts.push_back(BufferStore(dst_buffer, call, dst_indices));
     }
   }
-  Stmt reduce_interthread = BufferStore(this->dst, BufferLoad(this->dst, dst_indices), dst_indices);
+  Stmt reduce_interthread =
+      BufferStore(dst_buffer, BufferLoad(dst_buffer, dst_indices), dst_indices);
 
   // make the outer spatial loop
   Stmt body = SeqStmt(stmts);
-  for (int i = dst->InputDim() - 1; i >= 0; i--) {
+  for (int i = dst_layout->InputDim() - 1; i >= 0; i--) {
     body = For(dst_vars[i]->var, 0, dst_vars[i]->dom->extent, ForKind::kParallel, body);
   }
 
-  body = PartitionLoop(body.as<ForNode>(), T.thread_var, analyzer, dst);
+  body = PartitionLoop(Downcast<For>(body), T.thread_var, analyzer, dst_layout);
   return body;
 }
 

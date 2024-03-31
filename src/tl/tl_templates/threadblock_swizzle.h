@@ -5,7 +5,7 @@
 namespace tl {
 
 template <int panel_width>
-__device__ dim3 rasterization2DRow() {
+TL_DEVICE dim3 rasterization2DRow() {
   const int block_idx = blockIdx.x + blockIdx.y * gridDim.x;
   const int grid_size = gridDim.x * gridDim.y;
   const int panel_size = panel_width * gridDim.x;
@@ -21,7 +21,7 @@ __device__ dim3 rasterization2DRow() {
 }
 
 template <int panel_width>
-__device__ dim3 rasterization2DColumn() {
+TL_DEVICE dim3 rasterization2DColumn() {
   const int block_idx = blockIdx.x + blockIdx.y * gridDim.x;
   const int grid_size = gridDim.x * gridDim.y;
   const int panel_size = panel_width * gridDim.y;

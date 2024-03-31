@@ -2,7 +2,7 @@
  * Licensed to the Apache Software Foundation (ASF) under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
- * regarding copyright ownership. The ASF licenses this file
+ * regarding copyright ownership.  The ASF licenses this file
  * to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
@@ -18,24 +18,20 @@
  */
 
 /*!
- * \file loop_vectorize.h
- * \brief A tool to automatically vectorize a for loop
+ * \file tl/runtime/runtime.h
+ * \brief Runtime functions.
+ *
  */
 
-#ifndef TVM_TL_LOOP_VECTORIZE_H_
-#define TVM_TL_LOOP_VECTORIZE_H_
-
-#include <tvm/tir/op.h>
+#ifndef TVM_TL_RUNTIME_RUNTIME_H_
+#define TVM_TL_RUNTIME_RUNTIME_H_
 
 namespace tvm {
 namespace tl {
 
-using namespace tir;
-
-int GetVectorizeSize(const For& loop);
-For VectorizeLoop(const For& loop, int vectorize_hint = -1);
+constexpr const char* tvm_tensormap_create = "__tvm_tensormap_create";
 
 }  // namespace tl
 }  // namespace tvm
 
-#endif  // TVM_TL_LOOP_VECTORIZE_H_
+#endif  //  TVM_TL_RUNTIME_RUNTIME_H_

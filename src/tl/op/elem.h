@@ -35,14 +35,14 @@ using namespace tir;
 
 class Copy : public Operator {
  public:
-  Copy(const Array<PrimExpr>& args, const Map<Var, Buffer>& vmap);
-  Stmt Canonialize(const CanonializeArgs& T, arith::Analyzer* analyzer) const final;
+  Copy(Array<PrimExpr> args, BufferMap vmap);
+  Stmt Lower(const LowerArgs& T, arith::Analyzer* analyzer) const final;
+  LayoutMap InferLayout(const LayoutInferArgs& T, InferLevel level) final;
 
   static const Op& Get();
 
- private:
-  bool CheckRangeEqual() const;
-
+ protected:
+  Stmt LowerBulkCopy(const LowerArgs& T, arith::Analyzer* analyzer) const;
   Array<IterVar> MakeIterVars() const;
 
   // ivs: itervars returned by MakeIterVars()
@@ -52,14 +52,16 @@ class Copy : public Operator {
   PrimExpr MakePredicate(arith::Analyzer* analyzer, const Array<IterVar>& ivs,
                          Array<PrimExpr> extents, int src_dst) const;
 
+  Array<PrimExpr> args_;
+
   Buffer src, dst;
   Array<Range> src_range, dst_range;
 };
 
 class Fill : public Operator {
  public:
-  Fill(const Array<PrimExpr>& args, const Map<Var, Buffer>& vmap);
-  Stmt Canonialize(const CanonializeArgs& T, arith::Analyzer* analyzer) const final;
+  Fill(Array<PrimExpr> args, BufferMap vmap);
+  Stmt Lower(const LowerArgs& T, arith::Analyzer* analyzer) const final;
   static const Op& Get();
 
  private:

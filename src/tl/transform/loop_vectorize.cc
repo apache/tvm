@@ -189,13 +189,13 @@ class VectorizeRewriter : public StmtExprMutator {
 
 int GetVectorizeSize(const For& loop) { return VectorizePlanner().Plan(loop); }
 
-Stmt VectorizeLoop(const For& loop, int vectorize_hint) {
+For VectorizeLoop(const For& loop, int vectorize_hint) {
   if (vectorize_hint <= 0) {
     vectorize_hint = GetVectorizeSize(loop);
   }
   if (vectorize_hint == 1) return loop;
   auto rewriter = VectorizeRewriter(vectorize_hint);
-  return rewriter(loop);
+  return Downcast<For>(rewriter(loop));
 }
 
 }  // namespace tl

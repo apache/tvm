@@ -355,6 +355,7 @@ tvm_file_glob(GLOB RUNTIME_SRCS
   src/runtime/memory/*.cc
   src/runtime/disco/*.cc
   src/runtime/minrpc/*.cc
+  src/tl/runtime/*.cc
 )
 
 if(BUILD_FOR_HEXAGON)

@@ -64,6 +64,9 @@ class CodeGenTL final : public CodeGenC {
   void VisitStmt_(const AllocateNode* op) final;
   void VisitStmt_(const AttrStmtNode* op) final;
 
+  // Override this as a work around for __grid_constant__ parameter
+  void AddFunction(const PrimFunc& f);
+
  protected:
   void PrintCallExtern(Type ret_type, String global_symbol, const Array<PrimExpr>& args,
                        bool skip_first_arg, std::ostream& os) final;  // NOLINT(*)

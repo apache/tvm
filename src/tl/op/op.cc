@@ -38,7 +38,7 @@ TIR_REGISTER_TL_OP(RegionOp, region)
     .set_num_inputs(-1)
     .set_attr<TCallEffectKind>("TCallEffectKind", Integer(CallEffectKind::kPure));
 
-std::unique_ptr<Operator> ParseOperator(Call call, const Map<Var, Buffer>& vmap) {
+std::unique_ptr<Operator> ParseOperator(Call call, BufferMap vmap) {
   auto op_map = Op::GetAttrMap<OpBuilderFunc>("TLOpBuilder");
   Op op = call->op.as<Op>().value();
   if (op_map.count(op)) {
@@ -49,7 +49,7 @@ std::unique_ptr<Operator> ParseOperator(Call call, const Map<Var, Buffer>& vmap)
   return nullptr;
 }
 
-std::unique_ptr<Operator> ParseOperator(Stmt stmt, const Map<Var, Buffer>& vmap) {
+std::unique_ptr<Operator> ParseOperator(Stmt stmt, BufferMap vmap) {
   if (stmt.as<Evaluate>() && stmt.as<EvaluateNode>()->value.as<CallNode>()) {
     auto call = stmt.as<EvaluateNode>()->value.as<CallNode>();
     return ParseOperator(GetRef<Call>(call), vmap);
@@ -66,7 +66,7 @@ Var GetVarFromAccessPtr(const PrimExpr& expr) {
   return GetRef<Var>(var);
 }
 
-RegionOp::RegionOp(const Array<PrimExpr>& args, const Map<Var, Buffer>& vmap) {
+RegionOp::RegionOp(Array<PrimExpr> args, BufferMap vmap) {
   size_t n = args.size();
   size_t ndim = n - 2;
   auto load = args[0].as<BufferLoadNode>();
@@ -81,7 +81,18 @@ RegionOp::RegionOp(const Array<PrimExpr>& args, const Map<Var, Buffer>& vmap) {
   }
 }
 
-Stmt Operator::Lower(const LowerArgs& T, arith::Analyzer* analyzer) const { return {}; }
+bool RegionOp::IsFullRegion() const {
+  for (size_t i = 0; i < ranges_.size(); i++) {
+    if (!is_zero(ranges_[i]->min)) return false;
+    if (!StructuralEqual()(ranges_[i]->extent, buffer_->shape[i])) return false;
+  }
+  return true;
+}
+
+Stmt Operator::Lower(const LowerArgs& T, arith::Analyzer* analyzer) const {
+  ICHECK(0) << "Not Implemented Lower method.";
+  return Evaluate(0);
+}
 
 Stmt Operator::Canonialize(const CanonializeArgs& T, arith::Analyzer* analyzer) const { return {}; }
 

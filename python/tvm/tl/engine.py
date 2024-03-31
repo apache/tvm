@@ -48,7 +48,7 @@ def tvm_callback_cuda_compile(code, target):
     else:
         arch = [f"-arch=sm_{compute_version}"]
         format = "ptx"
-    
+
     ptx = nvcc.compile_cuda(
         code,
         format,
@@ -83,6 +83,7 @@ def lower(func):
     mod = tir.transform.Simplify()(mod)
     mod = tl.transform.LayoutInference()(mod)
     mod = tl.transform.LowerTileOp()(mod)
+    mod = tir.transform.Simplify()(mod)
 
     mod = tir.transform.PlanAndUpdateBufferAllocationLocation()(mod)
     mod = tl.transform.PipelinePlanning()(mod)
@@ -106,6 +107,7 @@ def lower(func):
     mod = tir.transform.ThreadSync("shared")(mod)
     mod = tir.transform.ThreadSync("shared.dyn")(mod)
     mod = tir.transform.MergeDynamicSharedMemoryAllocations()(mod)
+    mod = tl.transform.LowerTMADescriptor()(mod)
     mod = tir.transform.InjectPTXAsyncCopy()(mod)
 
     mod = tir.transform.AnnotateDeviceRegions()(mod)

@@ -25,12 +25,14 @@
 
 #include <tvm/arith/analyzer.h>
 #include <tvm/runtime/registry.h>
+#include <tvm/tir/op.h>
 
 #include <cmath>
 #include <string>
 #include <utility>
 #include <vector>
 
+#include "../op/bulk_copy.h"
 #include "../op/op.h"
 
 namespace tvm {
@@ -121,6 +123,11 @@ void CodeGenTL::PrintType(DataType t, std::ostream& os) {  // NOLINT(*)
 
   if (t.is_void()) {
     os << "void";
+    return;
+  }
+
+  if (t == tl::cuTensorMapType()) {
+    os << "CUtensorMap";
     return;
   }
 
@@ -626,6 +633,52 @@ void CodeGenTL::VisitExpr_(const CallNode* op, std::ostream& os) {
     this->PrintIndent();
     int n = Downcast<IntImm>(op->args[0])->value;
     this->stream << "tl::cp_async_wait<" << n << ">();\n";
+  } else if (op->op.same_as(builtin::create_barriers())) {
+    this->PrintIndent();
+    int barrier_count = Downcast<IntImm>(op->args[0])->value;
+    barrier_count = (barrier_count + 15) / 16 * 16; // roundup
+    std::string barrier_name = "_mbarrier";
+    this->stream << "__shared__ __align__(16) uint64_t " << barrier_name << "[" << barrier_count
+                 << "];\n";
+  } else if (op->op.same_as(builtin::ptx_arrive_barrier())) {
+    this->PrintIndent();
+    std::string barrier_name = "_mbarrier";
+    std::string barrier_id = this->PrintExpr(op->args[0]);
+    std::string barrier = barrier_name + "[" + barrier_id + "]";
+    this->stream << "tl::mbarrier_arrive(" << barrier << ");\n";
+  } else if (op->op.same_as(builtin::ptx_init_barrier_thread_count())) {
+    this->PrintIndent();
+    std::string barrier_id = this->PrintExpr(op->args[0]);
+    std::string barrier_name = "_mbarrier";
+    std::string barrier = barrier_name + "[" + barrier_id + "]";
+    std::string thread_count = this->PrintExpr(op->args[1]);
+    this->stream << "tl::mbarrier_init(" << barrier << ", " << thread_count << ");\n";
+  } else if (op->op.same_as(builtin::ptx_arrive_barrier_expect_tx())) {
+    this->PrintIndent();
+    std::string barrier_id = this->PrintExpr(op->args[0]);
+    std::string barrier_name = "_mbarrier";
+    std::string barrier = barrier_name + "[" + barrier_id + "]";
+    std::string tx = this->PrintExpr(op->args[1]);
+    this->stream << "tl::mbarrier_expect_tx(" << barrier << ", " << tx << ");\n";
+  } else if (op->op.same_as(tl::MBarrierWaitParity())) {
+    this->PrintIndent();
+    std::string barrier_id = this->PrintExpr(op->args[0]);
+    std::string barrier_name = "_mbarrier";
+    std::string barrier = barrier_name + "[" + barrier_id + "]";
+    std::string parity = this->PrintExpr(op->args[1]);
+    this->stream << "tl::mbarrier_wait(" << barrier << ", " << parity << ");\n";
+  } else if (op->op.same_as(tl::TMACopyOp())) {
+    this->PrintIndent();
+    std::string barrier_name = "_mbarrier";
+    std::string barrier_id = this->PrintExpr(op->args[1]);
+    std::string barrier = barrier_name + "[" + barrier_id + "]";
+    std::string descriptor = this->PrintExpr(op->args[0]);
+    std::string smem_addr = this->PrintExpr(op->args[2]);
+    this->stream << "tl::tma_load(" << descriptor << ", " << barrier << ", " << smem_addr;
+    for (size_t i = 4; i < op->args.size(); i++) { // coords
+      this->stream << ", " << this->PrintExpr(op->args[i]);
+    }
+    this->stream << ");\n";
   } else {
     CodeGenC::VisitExpr_(op, os);
   }
@@ -928,6 +981,66 @@ void CodeGenTL::PrintVecElemLoadExpr(DataType t, int i, const std::string& value
     os << ")";
   }
   return;
+}
+
+void CodeGenTL::AddFunction(const PrimFunc& f) {
+  // clear previous generated state.
+  this->InitFuncState(f);
+  // reserve keywords
+  ReserveKeywordsAsUnique();
+
+  auto global_symbol = f->GetAttr<String>(tvm::attr::kGlobalSymbol);
+  ICHECK(global_symbol.defined())
+      << "CodeGenC: Expect PrimFunc to have the global_symbol attribute";
+  bool no_alias = f->HasNonzeroAttr(tir::attr::kNoAlias);
+
+  this->PrintFuncPrefix(stream);
+  CodeGenC::PrintType(f->ret_type, stream);
+  this->PrintExtraAttrs(f);
+  this->stream << " " << static_cast<std::string>(global_symbol.value()) << "(";
+
+  for (size_t i = 0; i < f->params.size(); ++i) {
+    tir::Var v = f->params[i];
+    std::string vid = AllocVarID(v.get());
+    if (i != 0) stream << ", ";
+    if (v.dtype().is_handle()) {
+      // work around for grid constant parameters.
+      if (auto* ptr = v->type_annotation.as<PointerTypeNode>()) {
+        if (ptr->storage_scope == "grid_constant") {
+          stream << "__grid_constant__ const ";
+          CodeGenC::PrintType(ptr->element_type, stream);
+          stream << ' ' << vid;
+          continue;
+        }
+      }
+
+      auto it = alloc_storage_scope_.find(v.get());
+      if (it != alloc_storage_scope_.end()) {
+        PrintStorageScope(it->second, stream);
+      }
+
+      CodeGenC::PrintType(GetType(v), stream);
+      if (auto* ptr = v->type_annotation.as<PointerTypeNode>()) {
+        if (auto* prim = ptr->element_type.as<PrimTypeNode>()) {
+          RegisterHandleType(v.get(), prim->dtype);
+        }
+      }
+
+      if (no_alias) {
+        PrintRestrict(v, stream);
+      }
+    } else {
+      CodeGenC::PrintType(GetType(v), stream);
+    }
+    stream << ' ' << vid;
+  }
+  stream << ") {\n";
+  this->PreFunctionBody(f);
+  int func_scope = this->BeginScope();
+  this->PrintStmt(f->body);
+  this->EndScope(func_scope);
+  this->PrintIndent();
+  this->stream << "}\n\n";
 }
 
 }  // namespace codegen

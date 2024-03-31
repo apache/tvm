@@ -127,8 +127,7 @@ class Fragment : public Layout {
                    PrimExpr forward_thread, IterVar thread_replicate);
 
   TVM_DLL Fragment(Array<PrimExpr> input_size, Array<PrimExpr> forward_index,
-                   PrimExpr forward_thread, PrimExpr replicate_size,
-                   Optional<Var> replicate_var);
+                   PrimExpr forward_thread, PrimExpr replicate_size, Optional<Var> replicate_var);
 
   TVM_DEFINE_OBJECT_REF_METHODS(Fragment, Layout, FragmentNode);
 };
@@ -138,8 +137,8 @@ Var ReplicationPlaceholder();
 
 Fragment makeGemmFragmentC(const int block_m, const int block_n, const int warp_m, const int warp_n,
                            const int element_size);
-Fragment makeGemmFragmentCHopper(const int block_m, const int block_n, const int warp_m, const int warp_n,
-                           const int element_size);
+Fragment makeGemmFragmentCHopper(const int block_m, const int block_n, const int warp_m,
+                                 const int warp_n, const int element_size);
 Fragment makeGemmFragmentA(const int block_m, const int block_n, const int block_k,
                            const int warp_m, const int warp_n);
 Fragment makeGemmFragmentB(const int block_m, const int block_n, const int block_k,
@@ -152,11 +151,10 @@ Fragment makeGemmVoltaFragmentA(const int block_m, const int block_n, const int 
                                 const int warp_m, const int warp_n);
 Layout makeGemmVoltaABLayout(int stride, int continuous, bool is_a, int kfactor);
 
+Layout makeFullBankSwizzleLayout(int stride, int continuous, int element_size);
+Layout makeHalfBankSwizzleLayout(int stride, int continuous, int element_size);
+
 namespace attr {
-
-// LoopAttr, Disable a for loop to infer under InferLevel kFree
-constexpr const char* kSkipLayoutInfer = "skip_layout_infer";
-
 // BlockAttr, Containing the layout for all the buffers in the block
 constexpr const char* kLayoutMap = "layout_map";
 }  // namespace attr
