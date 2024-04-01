@@ -492,9 +492,6 @@ PrimExpr RewriteSimplifier::Impl::VisitExpr_(const AddNode* op) {
 
   // condition rules.
   TVM_TRY_REWRITE(select(x, b1, b2) + select(x, s1, s2), select(x, b1 + s1, b2 + s2));
-
-  // TVM_TRY_RECURSIVE_REWRITE(if_then_else(x, y, z) + c1, if_then_else(x, y + c1, z + c1));
-
   // default value
   return ret;
 }
@@ -715,10 +712,6 @@ PrimExpr RewriteSimplifier::Impl::VisitExpr_(const SubNode* op) {
   TVM_TRY_REWRITE(select(x, b1, b2) - select(x, s1, s2), select(x, b1 - s1, b2 - s2));
   TVM_TRY_REWRITE(select(x, y, z) - z, select(x, y - z, ZeroWithTypeLike(z)));
   TVM_TRY_REWRITE(select(x, y, z) - y, select(x, ZeroWithTypeLike(y), z - y));
-
-  // TVM_TRY_RECURSIVE_REWRITE(c1 - if_then_else(x, y, z), if_then_else(x, c1 - y, c1 - z));
-  // TVM_TRY_RECURSIVE_REWRITE(if_then_else(x, y, z) - c1, if_then_else(x, y - c1, z - c1));
-
   return ret;
 }
 
@@ -1429,10 +1422,6 @@ PrimExpr RewriteSimplifier::Impl::VisitExpr_(const MinNode* op) {
 
   // condition rules.
   TVM_TRY_REWRITE(min(select(x, y, z), select(x, s1, s2)), select(x, min(y, s1), min(z, s2)));
-
-  // TVM_TRY_RECURSIVE_REWRITE(min(if_then_else(x, y, z), c1),
-  //                           if_then_else(x, min(y, c1), min(z, c1)));
-
   return ret;
 }
 
@@ -1616,10 +1605,6 @@ PrimExpr RewriteSimplifier::Impl::VisitExpr_(const MaxNode* op) {
 
   // condition rules.
   TVM_TRY_REWRITE(max(select(x, y, z), select(x, s1, s2)), select(x, max(y, s1), max(z, s2)));
-
-  // TVM_TRY_RECURSIVE_REWRITE(max(if_then_else(x, y, z), c1),
-  //                           if_then_else(x, max(y, c1), max(z, c1)));
-
   return ret;
 }
 
