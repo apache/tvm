@@ -382,8 +382,6 @@ def gen_call_tir_inputs(
                         name = arg.name_hint if isinstance(arg, tvm.relax.Var) else "prim_arg"
                         call_tir_args.append(arg)
                         return tir.Var(name, arg.struct_info.dtype)
-                        # call_tir_args.append(tir.Var(name, arg.struct_info.dtype))
-                        # return arg
                     else:
                         return _convert_te_arg_helper(arg.struct_info.value)
 
@@ -400,7 +398,7 @@ def gen_call_tir_inputs(
             elif isinstance(arg, tir.PrimExpr):
                 _copy_undefined_var(arg)
                 new_arg = tir.stmt_functor.substitute(arg, tir_var_map)
-                extra_tir_args_list.append(arg)
+                extra_tir_args_list.append(new_arg)
                 return new_arg
             elif isinstance(arg, (int, float, str, Type, Attrs)) or arg is None:
                 return arg
@@ -477,10 +475,13 @@ def gen_call_tir_inputs(
     ), "only support te.tensor or tuple/list/Array of te.tensor as function output"
 
     outs = [te_out] if isinstance(te_out, te_Tensor) else list(te_out)
-    unbound_tir_vars = _get_unbound_tir_vars([*te_args, *outs], extra_tir_args_list)
+    unbound_tir_vars = _get_unbound_tir_vars(
+        [*call_tir_args, *outs],
+        extra_tir_args_list,
+    )
 
-    inputs = [*te_args] + outs + unbound_tir_vars
-    tir_func = create_prim_func(inputs, "int64")
+    prim_func_args = [*call_tir_args, *outs, *unbound_tir_vars]
+    tir_func = create_prim_func(prim_func_args, "int64")
 
     if primfunc_attrs:
         tir_func = tir_func.with_attrs(primfunc_attrs)
