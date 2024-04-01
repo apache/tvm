@@ -453,8 +453,8 @@ InferLayoutOutput InferLayoutStridedSlice(const Call& call,
 
   Array<Expr> new_axes;
   for (const auto& axis : axes_tuple) {
-    auto new_axis = FindAxis(existing_layout->layout, axis->value);
-    new_axes.push_back(relax::PrimValue(new_axis));
+    int new_axis = FindAxis(existing_layout->layout, axis->value);
+    new_axes.push_back(relax::PrimValue::Int64(new_axis));
   }
 
   return InferLayoutOutput({existing_layout}, {existing_layout}, call->attrs,

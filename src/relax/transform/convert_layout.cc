@@ -107,11 +107,26 @@ class LayoutConvertMutator : public ExprMutator {
   }
 
   Array<Expr> RewriteArgs(const Array<Expr>& args, const Array<NLayout>& to) {
-    ICHECK(args.size() == to.size());
+    // The `Array<Expr> args` array contains both tensor and
+    // non-tensor arguments, where the `Array<NLayout> to` array only
+    // contains tensor arguments.  The number of tensor arguments in
+    // `args` should match the full extent of `to`.
+
+    ICHECK_LE(to.size(), args.size());
+
     std::vector<Expr> new_args;
+    size_t i_layout = 0;
     for (size_t i = 0; i < args.size(); ++i) {
-      new_args.push_back(RewriteExpr(args[i], to[i]));
+      Expr arg = args[i];
+      if (arg->struct_info_.as<TensorStructInfoNode>()) {
+        ICHECK_LT(i_layout, to.size());
+        arg = RewriteExpr(arg, to[i_layout]);
+        i_layout++;
+      }
+      new_args.push_back(arg);
     }
+    ICHECK_EQ(i_layout, to.size());
+
     return std::move(new_args);
   }
 

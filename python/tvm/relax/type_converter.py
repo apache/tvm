@@ -67,19 +67,19 @@ class _ArgsConverter:
             if name in args_to_expr:
                 try:
                     return tvm.relax.utils.convert_to_expr(value)
-                except:
+                except Exception as err:
                     raise TypeError(
                         f"Argument `{name}` is expected to be converted to `Expr`, "
                         f"but failed with input value: {value}"
-                    )
+                    ) from err
             elif name in args_to_list_expr:
                 try:
-                    return [convert_to_expr(x) for x in value]
-                except:
+                    return [tvm.relax.utils.convert_to_expr(x) for x in value]
+                except Exception as err:
                     raise TypeError(
                         f"Argument `{name}` is expected to be converted to `List[Expr]`, "
                         f"but failed with input value: {value}"
-                    )
+                    ) from err
             else:
                 return value
 
