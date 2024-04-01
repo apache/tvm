@@ -240,51 +240,90 @@ InferLayoutOutput InferLayoutUnaryEwise(const Call& call,
                                         const VarLayoutMap& var_layout_map);
 
 /*!
+ * \brief Get the element dtype from StructInfo
+ *
+ * \param sinfo The StructInfo to expect
+ * \return The inferred element dtype.
+ * \throw Throw exception if the StructInfo doesn't have an element type.
+ */
+inline DataType GetElementDType(const StructInfo& sinfo) {
+  if (const auto* prim = sinfo.as<PrimStructInfoNode>()) {
+    return prim->dtype;
+  } else if (const auto* tensor = sinfo.as<TensorStructInfoNode>()) {
+    return tensor->dtype;
+  } else if (sinfo.as<ObjectStructInfoNode>()) {
+    return DataType::Void();
+  } else {
+    LOG(FATAL) << "TypeError: "
+               << "Cannot determine element type of " << sinfo;
+  }
+}
+
+/*!
  * \brief Infer the output datatype for binary arithmetic operators.
  * \param call The context Call to the operator.
  * \param ctx The error reporting context.
- * \param x1_sinfo The struct info of the first operand
- * \param x2_sinfo The struct info of the second operand
+ * \param lhs_sinfo The struct info of the first operand
+ * \param rhs_sinfo The struct info of the second operand
  * \return The inferred output dtype.
  * \throw Throw exception if the dtype of two input TensorStructInfo don’t match
  */
 inline DataType InferBinaryArithOpOutDtype(const Call& call, const BlockBuilder& ctx,
-                                           const TensorStructInfo& x1_sinfo,
-                                           const TensorStructInfo& x2_sinfo) {
-  if (x1_sinfo->IsUnknownDtype() || x2_sinfo->IsUnknownDtype()) {
+                                           const StructInfo& lhs_sinfo,
+                                           const StructInfo& rhs_sinfo) {
+  auto lhs_dtype = GetElementDType(lhs_sinfo);
+  auto rhs_dtype = GetElementDType(rhs_sinfo);
+  if (lhs_dtype.is_void() || rhs_dtype.is_void()) {
     return DataType::Void();
-  } else if (x1_sinfo->dtype != x2_sinfo->dtype) {
+  } else if (lhs_dtype != rhs_dtype) {
     ctx->ReportFatal(Diagnostic::Error(call)
-                     << "Data types " << x1_sinfo->dtype << " and " << x2_sinfo->dtype
-                     << " must be equal for binary operators");
+                     << "TypeErorr: "
+                     << "Binary operators must have the same datatype for both operands.  "
+                     << "However, " << call << " uses datatype " << lhs_dtype
+                     << " on the LHS (StructInfo of " << lhs_sinfo << "), and datatype "
+                     << rhs_dtype << " on the RHS (StructInfo of " << rhs_sinfo << ").");
   }
-  return x1_sinfo->dtype;
+  return lhs_dtype;
 }
 
 /*!
  * \brief Infer the output virtual device for binary arithmetic operators.
  * \param call The context Call to the operator.
  * \param ctx The error reporting context.
- * \param x1_sinfo The struct info of the first operand
- * \param x2_sinfo The struct info of the second operand
+ * \param lhs_sinfo The struct info of the first operand
+ * \param rhs_sinfo The struct info of the second operand
  * \return The inferred output vdevice.
  * \throw Throw exception if the vdevice of two input TensorStructInfo don’t match
  */
 inline Optional<VDevice> InferBinaryArithOpOutVDevice(const Call& call, const BlockBuilder& ctx,
-                                                      const TensorStructInfo& x1_sinfo,
-                                                      const TensorStructInfo& x2_sinfo) {
-  if (!x1_sinfo->vdevice.defined() || !x1_sinfo->vdevice.value()->target.defined()) {
-    return x2_sinfo->vdevice;
+                                                      const StructInfo& lhs_sinfo,
+                                                      const StructInfo& rhs_sinfo) {
+  auto get_vdevice = [&](const StructInfo& sinfo) -> Optional<VDevice> {
+    if (const auto* tensor = sinfo.as<TensorStructInfoNode>()) {
+      return tensor->vdevice;
+    } else {
+      return NullOpt;
+    }
+  };
+
+  auto lhs_vdevice = get_vdevice(lhs_sinfo);
+  auto rhs_vdevice = get_vdevice(rhs_sinfo);
+
+  if (!lhs_vdevice.defined() || !lhs_vdevice.value()->target.defined()) {
+    return rhs_vdevice;
   }
-  if (!x2_sinfo->vdevice.defined() || !x2_sinfo->vdevice.value()->target.defined()) {
-    return x1_sinfo->vdevice;
+  if (!rhs_vdevice.defined() || !rhs_vdevice.value()->target.defined()) {
+    return lhs_vdevice;
   }
-  if (x1_sinfo->vdevice.value() != x2_sinfo->vdevice.value()) {
+  if (lhs_vdevice.value() != rhs_vdevice.value()) {
     ctx->ReportFatal(Diagnostic::Error(call)
-                     << "VDevice " << x1_sinfo->vdevice.value() << " and "
-                     << x2_sinfo->vdevice.value() << " must be equal for binary operators");
+                     << "TypeErorr: "
+                     << "Binary operators with Tensor arguments "
+                     << "must have the same VDevice for both operands.  "
+                     << "However, " << call << " has a LHS on VDevice " << lhs_vdevice
+                     << " and a RHS on VDevice " << rhs_vdevice);
   }
-  return x1_sinfo->vdevice;
+  return lhs_vdevice;
 }
 
 /*!

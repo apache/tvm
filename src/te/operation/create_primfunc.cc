@@ -581,17 +581,16 @@ PrimFunc GenerateAndCompletePrimFunc(const Array<ObjectRef>& arg_tir_var_list,
                                      const Array<Stmt>& root_stmts, CreateFuncInfo* info) {
   Array<Var> parameters;
   Map<Var, Buffer> buffer_map;
-  for (const ObjectRef& x : arg_tir_var_list) {
-    if (auto n = x.as<te::TensorNode>()) {
-      te::Tensor tensor = GetRef<te::Tensor>(n);
+  for (const ObjectRef& arg : arg_tir_var_list) {
+    if (auto opt_tensor = arg.as<te::Tensor>()) {
+      te::Tensor tensor = opt_tensor.value();
       Var arg("var_" + tensor->GetNameHint(), PrimType(DataType::Handle()));
       parameters.push_back(arg);
       auto it = info->tensor2buffers.find(tensor);
       ICHECK(it != info->tensor2buffers.end());
       buffer_map.Set(arg, it->second);
-    } else if (auto n = x.as<tir::VarNode>()) {
-      tir::Var var = GetRef<tir::Var>(n);
-      parameters.push_back(var);
+    } else if (auto var = arg.as<tir::Var>()) {
+      parameters.push_back(var.value());
     }
   }
   PrimFunc func = WithAttrs(PrimFunc(/*params=*/std::move(parameters),
