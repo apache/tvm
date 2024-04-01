@@ -30,7 +30,7 @@ from ..ir import Array, Attrs, Type, Map, VDevice
 from .struct_info import PrimStructInfo, ShapeStructInfo, TensorStructInfo
 
 # Re-export `args_converter` here for backwards compatibility
-from .type_converter import args_converter
+from .type_converter import args_converter  # pylint: disable=unused-import
 
 
 def metadata_partitioner(rx_txt: str) -> List[str]:

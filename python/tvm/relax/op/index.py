@@ -15,7 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 """Indexing operators."""
-from typing import List, Optional, Union
+from typing import Optional, Union
 
 from tvm.ir.expr import PrimExpr
 

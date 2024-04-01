@@ -16,11 +16,10 @@
 # under the License.
 # pylint: disable=invalid-name
 """Default legalization function for index operators."""
-import tvm
 from tvm import topi, tir, te
 from ...op import call_pure_packed
 from ...block_builder import BlockBuilder
-from ...expr import Call, Expr, Tuple
+from ...expr import Call, Expr
 from ...struct_info import ShapeStructInfo, PrimStructInfo
 from .common import register_legalize
 

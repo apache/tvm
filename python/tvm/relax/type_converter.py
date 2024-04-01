@@ -164,9 +164,7 @@ class _ArgsConverter:
         args_to_expr = []
         args_to_list_expr = []
 
-        from . import Expr
-
-        # Expr = tvm.relax.Expr
+        from . import Expr  # pylint: disable=import-outside-toplevel
 
         for param in sig.parameters.values():
             anno = param.annotation
