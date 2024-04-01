@@ -80,11 +80,13 @@ def kv_cache_transpose_append(
     ntoken = T.SizeVar("ntoken", "int64")
     page_size = T.SizeVar("page_size", "int64")
     num_pages = T.int64()
-
+    position_map_elem_offset = T.int32()
     pages = T.match_buffer(var_pages, (num_pages, 2, num_kv_heads, page_size, head_dim), dtype)
     k_data = T.match_buffer(var_k_data, (ntoken, num_kv_heads, head_dim), dtype)
     v_data = T.match_buffer(var_v_data, (ntoken, num_kv_heads, head_dim), dtype)
-    position_map = T.match_buffer(var_position_map, (ntoken,), "int32")
+    position_map = T.match_buffer(
+        var_position_map, (ntoken,), "int32", elem_offset=position_map_elem_offset
+    )
 
     for global_pos, h, f in T.grid(ntoken, num_kv_heads, head_dim):
         with T.block("k_transpose_append"):
@@ -161,11 +163,14 @@ def llama_rope_with_position_map(  # pylint: disable=too-many-arguments
             }
         )
         seq_len = T.int64()
+        position_map_elem_offset = T.int64()
         qkv = T.match_buffer(var_qkv, (seq_len, fused_heads, head_dim), dtype)
         q = T.match_buffer(var_q, (seq_len, num_q_heads, head_dim), dtype)
         k = T.match_buffer(var_k, (seq_len, num_kv_heads, head_dim), dtype)
         v = T.match_buffer(var_v, (seq_len, num_kv_heads, head_dim), dtype)
-        position_map = T.match_buffer(var_position_map, (seq_len,), "int32")
+        position_map = T.match_buffer(
+            var_position_map, (seq_len,), "int32", elem_offset=position_map_elem_offset
+        )
         for iters in T.grid(seq_len, fused_heads, head_dim):
             with T.block("llama_fused_rope"):
                 s, h, d = T.axis.remap("SSS", iters)
@@ -200,9 +205,11 @@ def copy_cache(
     seqlen = T.SizeVar("seqlen", "int64")
     page_size = T.int64()
     num_pages = T.int64()
-
+    position_map_elem_offset = T.int64()
     pages = T.match_buffer(var_pages, (num_pages, 2, num_kv_heads, page_size, head_dim), "float16")
-    position_map = T.match_buffer(var_position_map, (seqlen,), "int32")
+    position_map = T.match_buffer(
+        var_position_map, (seqlen,), "int32", elem_offset=position_map_elem_offset
+    )
     k_data = T.match_buffer(var_k_data, (num_layers, seqlen, num_kv_heads, head_dim), "float16")
     v_data = T.match_buffer(var_v_data, (num_layers, seqlen, num_kv_heads, head_dim), "float16")
 
@@ -665,7 +672,7 @@ def test_paged_attention_kv_cache_popn(kv_cache_and_rope_mode):
     cached_v = {}
     batch = [(0, 35), (1, 88), (2, 17), (3, 4)]
     apply_attention(kv_cache, rope_mode, batch, cached_k, cached_v)
-    apply_attention(kv_cache, rope_mode, [((4, 3), 35)], cached_k, cached_v)
+    apply_attention(kv_cache, rope_mode, [((4, 3, -1), 35)], cached_k, cached_v)
 
     popn_operations = [(0, 17), (1, 57), (2, 16), (3, 0), (4, 19)]
     for seq_id, pop_length in popn_operations:
