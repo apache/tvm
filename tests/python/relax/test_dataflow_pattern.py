@@ -1952,5 +1952,38 @@ def test_backtrack_if_rewriter_returns_no_op():
     tvm.ir.assert_structural_equal(expected, after)
 
 
+def test_backtrack_for_no_op_rewriter_does_not_match_on_var():
+    """The matches should always contain the bound value
+
+    This is a regression test.  In versions from
+    https://github.com/apache/tvm/pull/16732 to
+    https://github.com/apache/tvm/pull/16828, the `rewrite_call`
+    function could erroneously call the rewriter with `expr` and
+    `matches[pat]` set to a variable (`C`) instead of the value to
+    which it is bound (`R.add(A,B)`).
+    """
+    pat_a = is_op("relax.add")(wildcard(), wildcard())
+    pat_b = is_op("relax.add")(wildcard(), wildcard())
+    pat = pat_a | pat_b
+
+    def rewriter(expr, matches):
+        assert isinstance(matches[pat], rx.Call)
+        return expr
+
+    @R.function(private=True)
+    def before():
+        with R.dataflow():
+            A = R.ones([64, 128], "int32")
+            B = R.zeros([64, 128], "int32")
+            C = R.add(A, B)
+
+            R.output(C)
+        return C
+
+    expected = before
+    after = rewrite_call(pat, rewriter, before)
+    tvm.ir.assert_structural_equal(expected, after)
+
+
 if __name__ == "__main__":
     tvm.testing.main()
