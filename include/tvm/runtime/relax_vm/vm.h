@@ -224,7 +224,7 @@ class VirtualMachine : public runtime::ModuleNode {
   std::vector<Allocator*> allocators;
   /*! \brief Runtime physical device list. */
   std::vector<Device> devices;
-  /*! \brief The VM extensions. Mapping from the type index to the extension and the extension
+  /*! \brief The VM extensions. Mapping from the type index of the extension to the extension
    * instance. */
   std::unordered_map<uint32_t, VMExtension> extensions;
 };
