@@ -1957,7 +1957,7 @@ def test_backtrack_for_no_op_rewriter_does_not_match_on_var():
 
     This is a regression test.  In versions from
     https://github.com/apache/tvm/pull/16732 to
-    https://github.com/apache/tvm/pull/#####, the `rewrite_call`
+    https://github.com/apache/tvm/pull/16828, the `rewrite_call`
     function could erroneously call the rewriter with `expr` and
     `matches[pat]` set to a variable (`C`) instead of the value to
     which it is bound (`R.add(A,B)`).
