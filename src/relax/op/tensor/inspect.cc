@@ -107,7 +107,7 @@ tir::PrimFunc GetDLTensorField(tir::builtin::TVMStructFieldKind field, DataType 
 
   FuncStructInfo sinfo({TensorStructInfo(DataType::Void(), kUnknownNDim)},
                        PrimStructInfo(field_dtype));
-  UpdateStructInfo(func, sinfo);
+  func->struct_info_ = sinfo;
 
   return func;
 }
@@ -338,7 +338,7 @@ Expr LegalizeTensorShape(const BlockBuilder& bb, const Call& call) {
     FuncStructInfo sinfo(
         {TensorStructInfo(DataType::Void(), kUnknownNDim), PrimStructInfo(axis->dtype)},
         PrimStructInfo(field_dtype));
-    UpdateStructInfo(func, sinfo);
+    func->struct_info_ = sinfo;
     return func;
   }();
 

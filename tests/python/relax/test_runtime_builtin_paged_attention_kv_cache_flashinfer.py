@@ -66,6 +66,7 @@ fattention_merge_state = None
 
 ftranspose_append = None
 fsplit_rotary = None
+fcopy_single_page = None
 fcopy_cache = None
 
 
@@ -222,6 +223,46 @@ def copy_cache(
             ]
 
 
+def _copy_single_page(num_heads, page_size, head_dim, dtype, target):
+    tx = 256 if str(target.kind) == "webgpu" else 1024
+
+    @T.prim_func
+    def copy_single_page(
+        pages: T.handle,
+        src_page_id: T.int64,
+        tgt_page_id: T.int64,
+        copy_length: T.int64,
+    ):
+        T.func_attr({"tir.is_scheduled": 1})
+        num_pages = T.int32()
+        P = T.match_buffer(pages, (num_pages, 2, num_heads, page_size, head_dim), dtype)
+
+        for b in T.thread_binding(
+            (copy_length * num_heads * head_dim + tx - 1) // tx, thread="blockIdx.x"
+        ):
+            for t in T.thread_binding(tx, thread="threadIdx.x"):
+                with T.block("copy"):
+                    vh = T.axis.spatial(
+                        num_heads,
+                        T.Cast("int32", (b * tx + t) // (copy_length * head_dim)),
+                    )
+                    vp = T.axis.spatial(
+                        copy_length,
+                        (b * tx + t) % (copy_length * head_dim) // head_dim,
+                    )
+                    vd = T.axis.spatial(
+                        head_dim,
+                        T.Cast(
+                            "int32",
+                            (b * tx + t) % head_dim,
+                        ),
+                    )
+                    P[tgt_page_id, 0, vh, vp, vd] = P[src_page_id, 0, vh, vp, vd]
+                    P[tgt_page_id, 1, vh, vp, vd] = P[src_page_id, 1, vh, vp, vd]
+
+    return copy_single_page
+
+
 def set_global_func():
     global fclear, fcreate, fadd_sequence, fremove_sequence, ffork_sequence, fpopn
     global fbegin_forward, fend_forward, fattention, fattention_with_fuse_qkv, fdebug_get_kv
@@ -230,7 +271,7 @@ def set_global_func():
     global fattention_prefill_ragged
     global fattention_prefill_ragged_begin_forward
     global fattention_prefill_ragged_end_forward
-    global fattention_merge_state, fsplit_rotary
+    global fattention_merge_state, fsplit_rotary, fcopy_single_page
     global ftranspose_append, fcopy_cache
 
     fclear = tvm.get_global_func("vm.builtin.kv_state_clear")
@@ -282,6 +323,7 @@ def set_global_func():
         llama_rope_with_position_map(
             rope_theta, rope_scale, head_dim, num_qo_heads, num_kv_heads, dtype
         ),
+        _copy_single_page(num_kv_heads, page_size, head_dim, dtype, target),
         copy_cache,
     ]:
         mod = tvm.IRModule({"main": tir_func})
@@ -290,7 +332,7 @@ def set_global_func():
         f = tvm.build(mod["main"], target=target)
         builts.append(f.entry_func)
 
-    ftranspose_append, fsplit_rotary, fcopy_cache = builts
+    ftranspose_append, fsplit_rotary, fcopy_single_page, fcopy_cache = builts
 
 
 def create_kv_cache(rope_mode):
@@ -327,6 +369,7 @@ def create_kv_cache(rope_mode):
         fattention_decode_end_forward,
         fattention_merge_state,
         fsplit_rotary,
+        fcopy_single_page,
         fcopy_cache,
     )
     return cache
@@ -384,7 +427,7 @@ def f_apply_rotary(x, offset, scale, theta):
 def apply_attention(
     kv_cache,
     rope_mode: RopeMode,
-    batch: List[Tuple[Union[int, Tuple[int, int]], int]],
+    batch: List[Tuple[Union[int, Tuple[int, int, int]], int]],
     cached_k: Dict[int, np.ndarray],
     cached_v: Dict[int, np.ndarray],
 ) -> None:
@@ -394,16 +437,20 @@ def apply_attention(
         fork_parent_id = None
         if isinstance(seq_id, tuple):
             # Fork sequence
-            seq_id, fork_parent_id = seq_id
+            seq_id, fork_parent_id, fork_pos = seq_id
             batch[i] = (seq_id, append_length)
         seq_ids.append(seq_id)
         append_lengths.append(append_length)
         if fork_parent_id is not None:
             assert fork_parent_id in cached_k
             assert seq_id not in cached_k
-            ffork_sequence(kv_cache, fork_parent_id, seq_id)
-            cached_k[seq_id] = cached_k[fork_parent_id]
-            cached_v[seq_id] = cached_v[fork_parent_id]
+            ffork_sequence(kv_cache, fork_parent_id, seq_id, fork_pos)
+            if fork_pos == -1:
+                cached_k[seq_id] = cached_k[fork_parent_id]
+                cached_v[seq_id] = cached_v[fork_parent_id]
+            else:
+                cached_k[seq_id] = cached_k[fork_parent_id][::, :fork_pos]
+                cached_v[seq_id] = cached_v[fork_parent_id][::, :fork_pos]
         elif seq_id not in cached_k:
             fadd_sequence(kv_cache, seq_id)
             cached_k[seq_id] = np.zeros((num_layers, 0, num_kv_heads, head_dim), dtype)
@@ -563,12 +610,15 @@ def test_paged_attention_kv_cache_fork_sequence(kv_cache_and_rope_mode):
     batch = [(0, 60), (1, 88), (2, 17), (3, 4)]
     apply_attention(kv_cache, rope_mode, batch, cached_k, cached_v)
     # Fork existing sequences.
-    apply_attention(kv_cache, rope_mode, [((4, 3), 35)], cached_k, cached_v)
-    apply_attention(kv_cache, rope_mode, [((5, 0), 20)], cached_k, cached_v)
-    apply_attention(kv_cache, rope_mode, [((6, 5), 102)], cached_k, cached_v)
-    apply_attention(kv_cache, rope_mode, [((7, 0), 3)], cached_k, cached_v)
-    apply_attention(kv_cache, rope_mode, [((8, 5), 71)], cached_k, cached_v)
-    apply_attention(kv_cache, rope_mode, [((9, 5), 20)], cached_k, cached_v)
+    apply_attention(kv_cache, rope_mode, [((4, 3, -1), 35)], cached_k, cached_v)
+    apply_attention(kv_cache, rope_mode, [((5, 0, -1), 20)], cached_k, cached_v)
+    apply_attention(kv_cache, rope_mode, [((6, 5, -1), 102)], cached_k, cached_v)
+    apply_attention(kv_cache, rope_mode, [((7, 0, -1), 3)], cached_k, cached_v)
+    apply_attention(kv_cache, rope_mode, [((8, 5, -1), 71)], cached_k, cached_v)
+    apply_attention(kv_cache, rope_mode, [((9, 5, -1), 20)], cached_k, cached_v)
+    # 0 <- 5 <- 6,8,9
+    # 0 <- 7
+    # 3 <- 4
     # Mixture of decode and prefill.
     operation_seq = [
         [(2, 1), (4, 1), (7, 1), (6, 1), (8, 1), (9, 1)],
@@ -578,6 +628,32 @@ def test_paged_attention_kv_cache_fork_sequence(kv_cache_and_rope_mode):
     ]
     for batch in operation_seq:
         apply_attention(kv_cache, rope_mode, batch, cached_k, cached_v)
+
+    apply_attention(kv_cache, rope_mode, [((10, 1, 33), 11)], cached_k, cached_v)
+    apply_attention(kv_cache, rope_mode, [((11, 0, 60), 45)], cached_k, cached_v)
+    apply_attention(kv_cache, rope_mode, [((12, 0, 15), 14)], cached_k, cached_v)
+    apply_attention(kv_cache, rope_mode, [((13, 0, 16), 19)], cached_k, cached_v)
+    apply_attention(kv_cache, rope_mode, [((14, 0, 17), 19)], cached_k, cached_v)
+    apply_attention(kv_cache, rope_mode, [((15, 5, 60), 8)], cached_k, cached_v)
+    apply_attention(kv_cache, rope_mode, [((16, 5, 80), 10)], cached_k, cached_v)
+    apply_attention(kv_cache, rope_mode, [((17, 5, 75), 11)], cached_k, cached_v)
+    apply_attention(kv_cache, rope_mode, [((18, 5, 76), 45)], cached_k, cached_v)
+    apply_attention(kv_cache, rope_mode, [((19, 5, 77), 14)], cached_k, cached_v)
+
+    operation_seq = [
+        [(6, 1), (11, 1), (13, 1), (9, 1)],
+        [(10, 1), (16, 1), (18, 1), (19, 1)],
+        [(8, 1), (15, 1), (17, 1), (12, 1), (14, 1)],
+        [(10, 10), (6, 2), (8, 3), (19, 4)],
+    ]
+    for batch in operation_seq:
+        apply_attention(kv_cache, rope_mode, batch, cached_k, cached_v)
+
+    for i in range(19, -1, -1):
+        fremove_sequence(kv_cache, i)
+        cached_k.pop(i)
+        cached_v.pop(i)
+        verify_cached_kv(kv_cache, seq_ids=list(range(i)), expected_k=cached_k, expected_v=cached_v)
 
 
 @pytest.mark.skip(reason="Require FlashInfer enabled")

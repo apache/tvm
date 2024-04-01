@@ -333,6 +333,10 @@ set(USE_VTA_TSIM OFF)
 set(USE_VTA_FPGA OFF)
 
 # Whether use Thrust
+# Possible values:
+# - ON: enable Thrust with cmake's auto search
+# - OFF: disable Thrust
+# - /path/to/cccl: use specific path to CCCL
 set(USE_THRUST OFF)
 
 # Whether use cuRAND

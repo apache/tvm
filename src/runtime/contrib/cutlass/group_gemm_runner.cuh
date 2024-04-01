@@ -40,14 +40,11 @@
 #include "cutlass/gemm/kernel/gemm_universal.hpp"
 // clang-format on
 
-#define CUTLASS_CHECK(status)                                                                    \
-  {                                                                                              \
-    cutlass::Status error = status;                                                              \
-    if (error != cutlass::Status::kSuccess) {                                                    \
-      std::cerr << "Got cutlass error: " << cutlassGetStatusString(error) << " at: " << __LINE__ \
-                << std::endl;                                                                    \
-      exit(EXIT_FAILURE);                                                                        \
-    }                                                                                            \
+#define CUTLASS_CHECK(status)                                      \
+  {                                                                \
+    cutlass::Status error = status;                                \
+    CHECK(error == cutlass::Status::kSuccess)                      \
+        << "Got cutlass error: " << cutlassGetStatusString(error); \
   }
 
 using namespace cute;
@@ -147,7 +144,7 @@ struct CutlassGroupGemmRunner {
     CUTLASS_CHECK(gemm_op.can_implement(arguments));
     CHECK_GE(workspace_size, gemm_op.get_workspace_size(arguments));
     CUTLASS_CHECK(gemm_op.initialize(arguments, workspace, stream));
-    CUTLASS_CHECK(gemm_op.run());
+    CUTLASS_CHECK(gemm_op.run(stream));
   }
 };
 

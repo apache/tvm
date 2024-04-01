@@ -59,9 +59,12 @@ class KVStateObj : public Object {
    * \param parent_seq_id The parent (source) of the fork.
    * \param child_seq_id The child (destination) of the fork.
    * The child sequence id should not exist in cache prior to fork.
+   * \param fork_pos The parent position to fork, the legal forking position is within
+   * [0, parent_seq_length] and -1 as default for last position. And if forking position is 0,
+   * it equals to add a new sequence with child sequence id.
    * \throws Error if the given sequence ids are not valid.
    */
-  virtual void ForkSequence(int64_t parent_seq_id, int64_t child_seq_id) = 0;
+  virtual void ForkSequence(int64_t parent_seq_id, int64_t child_seq_id, int64_t fork_pos = -1) = 0;
 
   /*!
    * \brief Pop out the trailing `n` tokens from the KV cache for the
