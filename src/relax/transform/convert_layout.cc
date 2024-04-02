@@ -125,7 +125,10 @@ class LayoutConvertMutator : public ExprMutator {
       }
       new_args.push_back(arg);
     }
-    ICHECK_EQ(i_layout, to.size());
+    ICHECK_EQ(i_layout, to.size())
+        << "Arguments " << args << " with StructInfo " << args.Map(GetStructInfo) << " contained "
+        << i_layout << " tensor arguments, "
+        << "but received " << to.size() << " layouts to apply";
 
     return std::move(new_args);
   }
