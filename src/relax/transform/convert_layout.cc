@@ -115,20 +115,13 @@ class LayoutConvertMutator : public ExprMutator {
     ICHECK_LE(to.size(), args.size());
 
     std::vector<Expr> new_args;
-    size_t i_layout = 0;
     for (size_t i = 0; i < args.size(); ++i) {
       Expr arg = args[i];
-      if (arg->struct_info_.as<TensorStructInfoNode>()) {
-        ICHECK_LT(i_layout, to.size());
-        arg = RewriteExpr(arg, to[i_layout]);
-        i_layout++;
+      if (i < to.size()) {
+        arg = RewriteExpr(arg, to[i]);
       }
       new_args.push_back(arg);
     }
-    ICHECK_EQ(i_layout, to.size())
-        << "Arguments " << args << " with StructInfo " << args.Map(GetStructInfo) << " contained "
-        << i_layout << " tensor arguments, "
-        << "but received " << to.size() << " layouts to apply";
 
     return std::move(new_args);
   }
