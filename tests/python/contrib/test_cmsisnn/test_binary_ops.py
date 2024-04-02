@@ -31,7 +31,6 @@ from tvm.micro.testing.aot_test_utils import (
 )
 
 from .utils import (
-    skip_if_no_reference_system,
     make_module,
     make_qnn_relu,
     assert_partitioned_function,
@@ -84,7 +83,7 @@ def make_model(
     return make_qnn_relu(binary_op, relu_type, out_scale, out_zero_point, "int8")
 
 
-@skip_if_no_reference_system
+@tvm.testing.skip_if_no_reference_system
 @tvm.testing.requires_cmsisnn
 @pytest.mark.parametrize("op", [relay.qnn.op.mul, relay.qnn.op.add])
 @pytest.mark.parametrize("relu_type", ["RELU", "NONE"])
@@ -153,7 +152,7 @@ def test_op_int8(
     )
 
 
-@skip_if_no_reference_system
+@tvm.testing.skip_if_no_reference_system
 @tvm.testing.requires_cmsisnn
 @pytest.mark.parametrize("op", [relay.qnn.op.mul, relay.qnn.op.add])
 @pytest.mark.parametrize("relu_type", ["RELU", "NONE"])
@@ -225,7 +224,7 @@ def test_op_int16(
     )
 
 
-@skip_if_no_reference_system
+@tvm.testing.skip_if_no_reference_system
 @tvm.testing.requires_cmsisnn
 @pytest.mark.parametrize("op", [relay.qnn.op.mul, relay.qnn.op.add])
 @pytest.mark.parametrize("relu_type", ["RELU", "NONE"])
@@ -278,7 +277,7 @@ def test_op_int16_cannot_partition(
     assert_no_external_function(cmsisnn_mod)
 
 
-@skip_if_no_reference_system
+@tvm.testing.skip_if_no_reference_system
 @tvm.testing.requires_cmsisnn
 @pytest.mark.parametrize("op", [relay.qnn.op.mul, relay.qnn.op.add])
 @pytest.mark.parametrize("relu_type", ["RELU", "NONE"])
@@ -366,7 +365,7 @@ def parameterize_for_constant_inputs(test):
     )(test)
 
 
-@skip_if_no_reference_system
+@tvm.testing.skip_if_no_reference_system
 @tvm.testing.requires_cmsisnn
 @parameterize_for_constant_inputs
 def test_constant_input_int8(op, input_0, input_1):
@@ -418,7 +417,7 @@ def test_constant_input_int8(op, input_0, input_1):
     )
 
 
-@skip_if_no_reference_system
+@tvm.testing.skip_if_no_reference_system
 @tvm.testing.requires_cmsisnn
 @pytest.mark.parametrize("op", [relay.qnn.op.mul, relay.qnn.op.add])
 def test_both_scalar_inputs_int8(
@@ -442,7 +441,7 @@ def test_both_scalar_inputs_int8(
     assert_no_external_function(cmsisnn_mod)
 
 
-@skip_if_no_reference_system
+@tvm.testing.skip_if_no_reference_system
 @tvm.testing.requires_cmsisnn
 @pytest.mark.parametrize("op", [relay.qnn.op.mul, relay.qnn.op.add])
 @pytest.mark.parametrize(["input_dtype"], [["uint8"], ["uint16"]])

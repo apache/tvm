@@ -27,7 +27,6 @@ from tvm.relay.op.contrib import cmsisnn
 from tvm.testing.aot import get_dtype_range, AOTTestModel, compile_and_run, generate_ref_data
 
 from .utils import (
-    skip_if_no_reference_system,
     make_module,
     assert_partitioned_function,
     assert_no_external_function,
@@ -55,7 +54,7 @@ def make_model(
     return model
 
 
-@skip_if_no_reference_system
+@tvm.testing.skip_if_no_reference_system
 @tvm.testing.requires_cmsisnn
 @pytest.mark.parametrize(["zero_point", "scale"], [[33, 0.256], [-64, 0.0128]])
 @pytest.mark.parametrize(
@@ -91,7 +90,7 @@ def test_op_int8(zero_point, scale, compiler_cpu, cpu_flags):
     )
 
 
-@skip_if_no_reference_system
+@tvm.testing.skip_if_no_reference_system
 @tvm.testing.requires_cmsisnn
 @pytest.mark.parametrize(["zero_point", "scale"], [[0, 1.0 / 32768]])
 @pytest.mark.parametrize(

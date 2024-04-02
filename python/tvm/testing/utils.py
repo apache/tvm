@@ -1205,6 +1205,10 @@ def skip_if_32bit(reason):
     return decorator
 
 
+def skip_if_no_reference_system(func):
+    return skip_if_32bit(reason="Reference system unavailable in i386 container")(func)
+
+
 def requires_package(*packages):
     """Mark a test as requiring python packages to run.
 

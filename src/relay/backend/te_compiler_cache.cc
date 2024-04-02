@@ -477,12 +477,10 @@ class ScheduleBuilder : public ExprVisitor {
     // Whether to use auto_scheduler schedule.
     use_auto_scheduler_ = backend::IsAutoSchedulerEnabled();
     if (backend::IsMetaScheduleEnabled()) {
-      database_ = meta_schedule::Database::Current();
       CHECK(database_.defined()) << "ValueError: `use_meta_schedule` is enabled in Relay "
                                     "build, but no `meta_schedule.Database` context is provided. ";
-    } else {
-      database_ = NullOpt;
     }
+    database_ = meta_schedule::Database::Current();
   }
 
   CachedFunc Create(const Function& relay_func, GlobalVarSupply global_var_supply,

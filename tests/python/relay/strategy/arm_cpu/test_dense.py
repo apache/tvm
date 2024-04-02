@@ -14,14 +14,23 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+import pytest
 import numpy as np
+
 import tvm
 import tvm.testing
 from tvm import relay
-from tvm.testing.aot import AOTTestModel, compile_and_run, generate_ref_data
-from tvm.micro.testing.aot_test_utils import (
-    AOT_CORSTONE300_RUNNER,
+from tvm import meta_schedule
+from tvm.testing.aot import (
+    AOTTestModel,
+    AOTCompiledTestModel,
+    compile_and_run,
+    run_and_check,
+    generate_ref_data,
 )
+from tvm.micro.testing.aot_test_utils import AOT_CORSTONE300_RUNNER, AOT_APROFILE_AEM_RUNNER
+from tvm.relay.op.strategy.arm_cpu import arm_cpu_tir_strategy
+from scalable_utils import calculate_extra_workspace_size_from_scalable_extents
 
 
 class BasicDenseTests:
@@ -82,6 +91,78 @@ class TestDense(BasicDenseTests):
     dtype = tvm.testing.parameter("int8", "int16")
     schedule_name = tvm.testing.parameter("dense_dsp.arm_cpu")
     enable_bias = tvm.testing.parameter(False, True)
+
+
+@tvm.testing.skip_if_no_reference_system
+@pytest.mark.parametrize(
+    "data_shape,weight_shape",
+    [
+        ((32, 32), (32, 32)),
+        ((2, 35), (6, 35)),
+        ((3, 3), (68, 3)),
+        ((79, 65), (152, 65)),
+    ],
+)
+@pytest.mark.parametrize("dtype", ["float32"])
+def test_sme_dense(data_shape, weight_shape, dtype):
+    np.random.seed(0)
+
+    input_data = np.random.uniform(size=data_shape).astype(dtype)
+    inp = relay.var("data", shape=data_shape, dtype=dtype)
+    weight_data = np.random.uniform(size=weight_shape).astype(dtype)
+    weight = relay.const(weight_data, dtype=dtype)
+
+    dense = relay.nn.dense(inp, weight)
+    func = relay.Function(relay.analysis.free_vars(dense), dense)
+
+    ir_mod = tvm.IRModule.from_expr(func)
+    ir_mod = tvm.relay.transform.InferType()(ir_mod)
+
+    inputs = {"data": input_data}
+    params = {}
+    ref_outputs = generate_ref_data(ir_mod, inputs, params)
+
+    target = tvm.target.Target("llvm -mtriple=aarch64-none-elf -mattr=+v9.2a,+sme")
+    runtime = tvm.relay.backend.Runtime("crt", {"system-lib": True})
+    executor = tvm.relay.backend.Executor(
+        "aot",
+        {
+            "interface-api": "packed",
+            "unpacked-api": False,
+        },
+    )
+
+    with tvm.transform.PassContext(
+        opt_level=3, config=AOT_APROFILE_AEM_RUNNER.pass_config
+    ), meta_schedule.database.ScheduleFnDatabase(arm_cpu_tir_strategy):
+        executor_factory = tvm.relay.build(
+            ir_mod,
+            target=target,
+            executor=executor,
+            runtime=runtime,
+            params=params,
+        )
+    generated_func = executor_factory.lowered_ir_mods.items()[0][1][
+        "tvmgen_default_fused_nn_matmul"
+    ]
+    extra_memory_in_bytes = calculate_extra_workspace_size_from_scalable_extents(generated_func, 4)
+
+    test_model = AOTTestModel(
+        ir_mod, inputs, ref_outputs, params=params, extra_memory_in_bytes=extra_memory_in_bytes
+    )
+    compiled = AOTCompiledTestModel(test_model, executor_factory)
+
+    assembly = (
+        compiled.executor_factory.module.imported_modules[0].imported_modules[0].get_source("asm")
+    )
+    assert "fmopa" in assembly
+
+    assert run_and_check(
+        models=[compiled],
+        interface_api="packed",
+        runner=AOT_APROFILE_AEM_RUNNER,
+        print_output_on_mismatch=True,
+    )
 
 
 if __name__ == "__main__":
