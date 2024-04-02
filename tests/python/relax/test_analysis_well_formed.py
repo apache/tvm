@@ -702,5 +702,35 @@ def test_pass_dltensor_arg_to_tir():
     assert rx.analysis.well_formed(Module)
 
 
+def test_incorrect_relax_func_struct_info():
+    """relax::Function annotations must be correct"""
+
+    @I.ir_module
+    class Module:
+        @R.function
+        def func(x: R.Prim("int64")) -> R.Prim("int64"):
+            return x
+
+    arg_binder = tvm.get_global_func("relax.testing.IncorrectImplementationOfBindParamForRelaxFunc")
+    Module["func"] = arg_binder(Module["func"])
+
+    assert not rx.analysis.well_formed(Module)
+
+
+def test_incorrect_tir_func_struct_info():
+    """If present, PrimFunc annotations must be correct"""
+
+    @I.ir_module
+    class Module:
+        @T.prim_func
+        def func(x: T.int64) -> T.int64:
+            return x
+
+    arg_binder = tvm.get_global_func("relax.testing.IncorrectImplementationOfBindParamForPrimFunc")
+    Module["func"] = arg_binder(Module["func"])
+
+    assert not rx.analysis.well_formed(Module)
+
+
 if __name__ == "__main__":
     tvm.testing.main()

@@ -90,11 +90,14 @@ class WellFormedChecker : public relax::ExprVisitor,
         WellFormedChecker(obj.as<IRModule>(), check_struct_info);
 
     if (const auto* mod = obj.as<IRModuleNode>()) {
-      for (const auto& it : mod->functions) {
+      for (const auto& [gvar, base_func] : mod->functions) {
+        well_formed_checker.CheckGlobalVarStructInfoConsistency(gvar, base_func);
+        well_formed_checker.CheckParamStructInfoConsistency(gvar, base_func);
+
         // visit relax.Function
-        if (auto* n = it.second.as<FunctionNode>()) {
-          Function func = GetRef<Function>(n);
-          well_formed_checker.CheckGlobalVarAndGsymbolConsistency(it.first, func);
+        if (auto opt_func = base_func.as<Function>()) {
+          Function func = opt_func.value();
+          well_formed_checker.CheckGlobalVarAndGsymbolConsistency(gvar, func);
           well_formed_checker.VisitExpr(func);
         }
       }
@@ -143,6 +146,58 @@ class WellFormedChecker : public relax::ExprVisitor,
       Malformed(Diagnostic::Error(func->span)
                 << "Name in GlobalVar is not equal to name in gsymbol: " << var
                 << " != " << gsymbol.value());
+    }
+  }
+
+  void CheckGlobalVarStructInfoConsistency(GlobalVar gvar, BaseFunc func) {
+    if (!gvar->struct_info_.defined() || !func->struct_info_.defined()) {
+      return;
+    }
+
+    if (!StructuralEqual()(gvar->struct_info_, func->struct_info_)) {
+      Malformed(Diagnostic::Error(func->span)
+                << "ValueError: "
+                << "StructInfo of GlobalVar " << gvar
+                << " does not match the StructInfo of the function.  "
+                << "The GlobalVar has StructInfo " << gvar->struct_info_
+                << ", while the function itself has StructInfo " << func->struct_info_);
+    }
+  }
+
+  void CheckParamStructInfoConsistency(GlobalVar gvar, BaseFunc base_func) {
+    if (!base_func->struct_info_.defined()) {
+      return;
+    }
+
+    auto func_sinfo = base_func->struct_info_.as<FuncStructInfo>();
+    if (!func_sinfo) {
+      Malformed(Diagnostic::Error(base_func->span)
+                << "TypeError: "
+                << "Functions must be annotated with FuncStructInfo.  "
+                << "However, function " << gvar << " has struct info " << base_func->struct_info_);
+      return;
+    }
+
+    auto expected_sinfo = [&]() -> Optional<StructInfo> {
+      if (auto func = base_func.as<FunctionNode>()) {
+        return FuncStructInfo(func->params.Map(GetStructInfo), func->ret_struct_info,
+                              func->is_pure);
+      } else if (auto func = base_func.as<tir::PrimFuncNode>()) {
+        return GetStructInfo(
+            tir::PrimFunc(func->params, func->body, func->ret_type, func->buffer_map, func->attrs));
+      } else {
+        return NullOpt;
+      }
+    }();
+
+    if (expected_sinfo.defined() && !StructuralEqual()(func_sinfo, expected_sinfo)) {
+      Malformed(Diagnostic::Error(base_func->span)
+                << "ValueError: "
+                << "If annotated with any StructInfo, "
+                << "a PrimFunc must have FuncStructInfo that matches the parameters.  "
+                << "However, function " << gvar << " is annotated with struct info " << func_sinfo
+                << ", but has parameters indicated that it should have struct info "
+                << expected_sinfo);
     }
   }
 
