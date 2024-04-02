@@ -951,6 +951,40 @@ def test_get_item_callback_num_attrs():
     tvm.ir.assert_structural_equal(After, Expected)
 
 
+def test_get_item_callback_dynamic_shape():
+    @I.ir_module
+    class Before:
+        @R.function
+        def transform_params(
+            A: R.Tensor(["m", "n"], "float32"), B: R.Tensor(["m", "n"], "float32")
+        ) -> R.Tuple(R.Tensor(["m", "n"], "float32"), R.Tensor(["m", "n"], "float32")):
+            C = R.multiply(A, R.const(2, "float32"))
+            D = R.add(C, B)
+            return (D, B)
+
+    @I.ir_module
+    class Expected:
+        @R.function
+        def transform_params(
+            fget_param: R.Callable([R.Prim("int64"), R.Object], R.Object)
+        ) -> R.Tuple(R.Tensor(ndim=2, dtype="float32"), R.Tensor(ndim=2, dtype="float32")):
+            R.func_attr({"num_input": 1})
+            m = T.int64()
+            n = T.int64()
+
+            A = fget_param(R.prim_value(0), R.str("A"))
+            A = R.match_cast(A, R.Tensor([m, n], "float32"))
+            C = R.multiply(A, R.const(2, "float32"))
+
+            B = fget_param(R.prim_value(1), R.str("B"))
+            B = R.match_cast(B, R.Tensor([m, n], "float32"))
+            D = R.add(C, B)
+            return (D, B)
+
+    After = relax.transform.LazyGetInput()(Before)
+    tvm.ir.assert_structural_equal(After, Expected)
+
+
 def test_set_output_callback():
     """fset_output is called for each element of the output tuple
 
