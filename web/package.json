@@ -9,11 +9,11 @@
   "main": "lib/index.js",
   "types": "lib/index.d.ts",
   "scripts": {
-    "prepwasm": "make && python3 tests/python/prepare_test_libs.py",
+    "prepwasm": "make && python tests/python/prepare_test_libs.py",
     "build": "rollup -c",
     "lint": "eslint -c .eslintrc.json .",
     "typedoc": "typedoc src/index.ts --plugin typedoc-plugin-missing-exports",
-    "test": "node --experimental-wasm-eh node_modules/.bin/jest",
+    "test": "python run_jest.py",
     "bundle": "npm run build && cp lib/index.js dist/index.js && cp lib/index.js dist/tvmjs.bundle.js",
     "example": "npm run bundle && node apps/node/example.js",
     "example:wasi": "npm run bundle && node --experimental-wasi-unstable-preview1 --experimental-wasm-bigint apps/node/wasi_example.js",
