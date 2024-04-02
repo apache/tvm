@@ -111,7 +111,8 @@ static TargetFeatures GetFeatures(TargetJSON target) {
           {"has_sve", Bool(has_feature("sve"))},
           {"has_dotprod", Bool(has_feature("dotprod"))},
           {"has_matmul_i8", Bool(has_feature("i8mm"))},
-          {"has_fp16_simd", Bool(has_feature("fullfp16"))}};
+          {"has_fp16_simd", Bool(has_feature("fullfp16"))},
+          {"has_sme", Bool(has_feature("sme"))}};
 #endif
 
   LOG(WARNING) << "Cannot parse Arm(R)-based target features without LLVM support.";
