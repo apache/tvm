@@ -42,13 +42,22 @@ StructInfo InferStructInfoBroadcast(const Call& call, const BlockBuilder& ctx,
   auto lhs_sinfo = GetStructInfo(call->args[0]);
   auto rhs_sinfo = GetStructInfo(call->args[1]);
 
+  CHECK(lhs_sinfo.as<PrimStructInfoNode>() || lhs_sinfo.as<TensorStructInfoNode>())
+      << "TypeError: "
+      << "Arguments to binary operators must be either R.Tensor or R.Prim types, "
+      << "but expression " << call << " has LHS " << call->args[0] << ", which has StructInfo "
+      << lhs_sinfo;
+  CHECK(rhs_sinfo.as<PrimStructInfoNode>() || rhs_sinfo.as<TensorStructInfoNode>())
+      << "TypeError: "
+      << "Arguments to binary operators must be either R.Tensor or R.Prim types, "
+      << "but expression " << call << " has RHS " << call->args[1] << ", which has StructInfo "
+      << rhs_sinfo;
+
   // DateType
   DataType output_dtype = f_compute_out_dtype(call, ctx, lhs_sinfo, rhs_sinfo);
 
   if (lhs_sinfo.as<PrimStructInfoNode>() && rhs_sinfo.as<PrimStructInfoNode>()) {
     return PrimStructInfo(output_dtype);
-  } else if (lhs_sinfo.as<ObjectStructInfoNode>() && rhs_sinfo.as<ObjectStructInfoNode>()) {
-    return ObjectStructInfo();
   }
 
   // VDevice

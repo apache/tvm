@@ -251,10 +251,10 @@ inline DataType GetElementDType(const StructInfo& sinfo) {
     return prim->dtype;
   } else if (const auto* tensor = sinfo.as<TensorStructInfoNode>()) {
     return tensor->dtype;
-  } else if (sinfo.as<ObjectStructInfoNode>()) {
-    return DataType::Void();
   } else {
     LOG(FATAL) << "TypeError: "
+               << "Only PrimStructInfo and TensorStructInfo "
+               << "have an associated data type.  "
                << "Cannot determine element type of " << sinfo;
   }
 }
