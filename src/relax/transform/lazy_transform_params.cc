@@ -60,7 +60,7 @@ class LazyInputMutator : public ExprMutator {
     int64_t num_input_params = GetNumInputParams(func).value_or(0);
 
     std::unordered_map<Var, size_t, ObjectPtrHash, ObjectPtrEqual> param_lookup;
-    for (size_t i = 0; i < func->params.size(); i++) {
+    for (size_t i = num_input_params; i < func->params.size(); i++) {
       param_lookup.insert({func->params[i], i - num_input_params});
     }
 
@@ -260,17 +260,6 @@ Pass LazySetOutput() {
 }
 
 TVM_REGISTER_GLOBAL("relax.transform.LazySetOutput").set_body_typed(LazySetOutput);
-
-// Pass LazyTransformParams() {
-//   auto pass_func = [](Function func, IRModule, PassContext) -> Function {
-//     LazyInput mutator;
-//     return Downcast<Function>(mutator(func));
-//   };
-//   return CreateFunctionPass(/*pass_function=*/pass_func,
-//                             /*opt_level=*/0,
-//                             /*pass_name=*/"MutateOpsForTraining",
-//                             /*required=*/{});
-// }
 
 }  // namespace transform
 }  // namespace relax
