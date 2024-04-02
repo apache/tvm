@@ -22,6 +22,7 @@
 import functools
 import inspect
 import itertools
+import string
 
 from typing import Tuple as typing_Tuple
 from typing import Any, Callable, List, Dict, Optional, TypeVar
@@ -311,6 +312,7 @@ def gen_call_tir_inputs(
     tir_var_map: Dict[tir.Var, tir.PrimExpr] = {}
 
     call_tir_args = []
+    create_primfunc_args = []
     # extra list of tir expression arguments
     # that are not covered by Tensor
     extra_tir_args_list = []
@@ -355,10 +357,7 @@ def gen_call_tir_inputs(
             Relax expression
         """
 
-        n_tensor = 0
-
         def _convert_te_arg_helper(arg):
-            nonlocal n_tensor
             if isinstance(arg, Expr):  # type: ignore
                 if isinstance(arg.struct_info, TensorStructInfo):
                     assert isinstance(
@@ -367,21 +366,43 @@ def gen_call_tir_inputs(
                     for shape_value in arg.struct_info.shape.values:
                         _copy_undefined_var(shape_value)
 
-                    name = chr(ord("A") + n_tensor) if n_tensor < 26 else f"input{n_tensor}"
-                    arg = te_tensor(arg, tir_var_map, name)
-                    n_tensor += 1
+                    n_args = len(create_primfunc_args)
+                    if isinstance(arg, tvm.relax.Var):
+                        name = arg.name_hint
+                    elif n_args < len(string.ascii_uppercase):
+                        name = string.ascii_uppercase[n_args]
+                    else:
+                        name = f"tensor_input_{n_args}"
+
+                    te_arg = te_tensor(arg, tir_var_map, name)
+
                     call_tir_args.append(arg)
-                    return arg
+                    create_primfunc_args.append(te_arg)
+
+                    return te_arg
+
                 if isinstance(arg.struct_info, ShapeStructInfo):
                     assert isinstance(
                         arg, ShapeExpr
                     ), "For Expr having ShapeStructInfo, emit_te now only supports ShapeExpr"
                     return [_convert_te_arg_helper(val) for val in arg.values]
+
                 if isinstance(arg.struct_info, PrimStructInfo):
                     if arg.struct_info.value is None:
-                        name = arg.name_hint if isinstance(arg, tvm.relax.Var) else "prim_arg"
+                        n_args = len(create_primfunc_args)
+                        if isinstance(arg, tvm.relax.Var):
+                            name = arg.name_hint
+                        elif n_args < len(string.ascii_lowercase):
+                            name = string.ascii_lowercase[n_args]
+                        else:
+                            name = f"scalar_input_{n_args}"
+
+                        tir_param = tir.Var(name, arg.struct_info.dtype)
+
                         call_tir_args.append(arg)
-                        return tir.Var(name, arg.struct_info.dtype)
+                        create_primfunc_args.append(tir_param)
+
+                        return tir_param
                     else:
                         return _convert_te_arg_helper(arg.struct_info.value)
 
@@ -475,20 +496,15 @@ def gen_call_tir_inputs(
     ), "only support te.tensor or tuple/list/Array of te.tensor as function output"
 
     outs = [te_out] if isinstance(te_out, te_Tensor) else list(te_out)
-    unbound_tir_vars = _get_unbound_tir_vars(
-        [*call_tir_args, *outs],
-        extra_tir_args_list,
-    )
+    unbound_tir_vars = _get_unbound_tir_vars([*create_primfunc_args, *outs], extra_tir_args_list)
 
-    prim_func_args = [*call_tir_args, *outs, *unbound_tir_vars]
-    tir_func = create_prim_func(prim_func_args, "int64")
+    inputs = [*create_primfunc_args] + outs + unbound_tir_vars
+    tir_func = create_prim_func(inputs, "int64")
 
     if primfunc_attrs:
         tir_func = tir_func.with_attrs(primfunc_attrs)
 
     tir_func = tir_func.without_attr("global_symbol")
-
-    call_tir_args = [arg.op.value if isinstance(arg, te_Tensor) else arg for arg in call_tir_args]
 
     # Invert the TIR variable mapping, to convert the output shape back
     # with old set of variables.
