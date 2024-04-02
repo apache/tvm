@@ -1666,5 +1666,69 @@ def test_layout_transform_with_pad_axis_sep():
     tvm.ir.assert_structural_equal(mod, Expected)
 
 
+def test_func_struct_info_of_legalized_layout_transform():
+    """PrimFunc shape information must be correct
+
+    This is a regression test.  Previously, the legalization of
+    `R.layout_transform` produced a PrimFunc with `FuncStructInfo`
+    different than its actual signature.  This resulted in errors
+    when later passes attempted to infer the StructInfo.
+    """
+
+    @I.ir_module
+    class Before:
+        @R.function
+        def main(
+            x: R.Tensor((16,), dtype="float32"), y: R.Tensor((16,), dtype="float32")
+        ) -> R.Tensor((16,), dtype="float32"):
+            R.func_attr({"relax.force_pure": True})
+            with R.dataflow():
+                lv: R.Tensor((4, 4), dtype="float32") = R.layout_transform(
+                    x, index_map=lambda i: (i // 4, i % 4), pad_value=None
+                )
+                gv: R.Tensor((4, 4), dtype="float32") = lv
+                R.output(gv)
+            return gv
+
+    After = tvm.ir.transform.Sequential(
+        [
+            relax.transform.LegalizeOps(),
+            relax.transform.ToNonDataflow(),
+            relax.transform.RemovePurityChecking(),
+            relax.transform.CallTIRRewrite(),
+        ]
+    )(Before)
+
+    @I.ir_module
+    class Expected:
+        @R.function
+        def main(
+            x: R.Tensor((16,), dtype="float32"),
+            y: R.Tensor((16,), dtype="float32"),
+        ):
+            R.func_attr({"relax.force_pure": True})
+            cls = Expected
+            alloc: R.Tensor((4, 4), dtype="float32") = R.builtin.alloc_tensor(
+                R.shape([4, 4]), R.dtype("float32"), R.prim_value(0), R.str("global")
+            )
+            cls.te_layout_transform(x, alloc)
+            lv = alloc
+            gv = lv
+            return gv
+
+        @T.prim_func(private=True)
+        def te_layout_transform(
+            A: T.Buffer((T.int64(16),), "float32"),
+            te_layout_transform: T.Buffer((T.int64(4), T.int64(4)), "float32"),
+        ):
+            T.func_attr({"tir.noalias": T.bool(True)})
+            for i in range(T.int64(16)):
+                with T.block("te_layout_transform"):
+                    vi = T.axis.spatial(T.int64(16), i)
+                    te_layout_transform[vi // T.int64(4), vi % T.int64(4)] = A[vi]
+
+    tvm.ir.assert_structural_equal(Expected, After)
+
+
 if __name__ == "__main__":
     tvm.testing.main()
