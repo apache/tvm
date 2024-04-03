@@ -1122,6 +1122,32 @@ save_and_reload = tvm.testing.parameter(
 )
 
 
+def _save_and_reload(mod):
+    with tempfile.TemporaryDirectory() as temp_dir:
+        temp_dir = pathlib.Path(temp_dir)
+        model_path = temp_dir.joinpath("lib.so")
+        mod.export_library(model_path)
+        mod = tvm.runtime.load_module(model_path)
+        return mod
+
+
+@tvm.testing.requires_llvm
+def test_return_string(save_and_reload: bool):
+    @I.ir_module
+    class mod:
+        @T.prim_func
+        def main():
+            return "my string here"
+
+    mod = tvm.build(mod)
+
+    if save_and_reload:
+        mod = _save_and_reload(mod)
+
+    res = mod()
+    assert res == "my string here"
+
+
 @tvm.testing.requires_llvm
 def test_inspect_module_contents(save_and_reload: bool):
     @I.ir_module
@@ -1142,11 +1168,7 @@ def test_inspect_module_contents(save_and_reload: bool):
     mod = tvm.build(mod, target="llvm")
 
     if save_and_reload:
-        with tempfile.TemporaryDirectory() as temp_dir:
-            temp_dir = pathlib.Path(temp_dir)
-            model_path = temp_dir.joinpath("lib.so")
-            mod.export_library(model_path)
-            mod = tvm.runtime.load_module(model_path)
+        mod = _save_and_reload(mod)
 
     assert "main" in mod
     assert "main_2" in mod
@@ -1170,11 +1192,7 @@ def test_suggest_nearby_name(save_and_reload: bool):
     mod = tvm.build(mod, target="llvm")
 
     if save_and_reload:
-        with tempfile.TemporaryDirectory() as temp_dir:
-            temp_dir = pathlib.Path(temp_dir)
-            model_path = temp_dir.joinpath("lib.so")
-            mod.export_library(model_path)
-            mod = tvm.runtime.load_module(model_path)
+        mod = _save_and_reload(mod)
 
     mod["main"]
     mod["long_tedious_name_that_would_be_easy_to_misspell"]

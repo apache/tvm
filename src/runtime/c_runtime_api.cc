@@ -555,6 +555,12 @@ int TVMBackendRunOnce(void** handle, int (*f)(void*), void* cdata, int nbytes) {
   return 0;
 }
 
+void* TVMBackendStringRetValue(const char* c_str) {
+  // The `std::string` allocated here is immediately stored in a
+  // `TVMRetValue`, which takes ownership of the object.
+  return new std::string(c_str);
+}
+
 int TVMFuncFree(TVMFunctionHandle func) { return TVMObjectFree(func); }
 
 int TVMByteArrayFree(TVMByteArray* arr) {

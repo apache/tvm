@@ -1639,6 +1639,9 @@ def ret(val):
     """
 
     val = convert(val)
+    if isinstance(val, tvm.runtime.String):
+        val = StringImm(val)
+
     return call_intrin(val.dtype, "tir.ret", val)
 
 
