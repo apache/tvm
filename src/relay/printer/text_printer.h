@@ -41,7 +41,7 @@
 #include <unordered_set>
 #include <vector>
 
-#include "../../ir/attr_functor.h"
+#include <tvm/ir/attr_functor.h>
 #include "../analysis/dependency_graph.h"
 #include "doc.h"
 #include "meta_data.h"

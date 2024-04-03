@@ -40,7 +40,7 @@
 #include <tvm/target/virtual_device.h>
 #include <tvm/tir/function.h>
 
-#include "../../ir/attr_functor.h"
+#include <tvm/ir/attr_functor.h>
 #include "../../support/scalars.h"
 #include "../analysis/dependency_graph.h"
 #include "../parser/meta_ref.h"

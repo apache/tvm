@@ -23,7 +23,7 @@
 #include <tvm/ir/attrs.h>
 #include <tvm/runtime/registry.h>
 
-#include "attr_functor.h"
+#include <tvm/ir/attr_functor.h>
 
 namespace tvm {
 
