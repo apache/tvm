@@ -70,6 +70,10 @@ relax::StructInfo InferStructInfo(const PrimFunc& prim_func) {
 // Get the function type of a PrimFunc
 PrimFunc::PrimFunc(Array<tir::Var> params, Stmt body, Type ret_type,
                    Map<tir::Var, Buffer> buffer_map, DictAttrs attrs, Span span) {
+  if (!attrs.defined()) {
+    attrs = DictAttrs();
+  }
+
   // Assume void-return type for now
   // TODO(tvm-team) consider type deduction from body.
   if (!ret_type.defined()) {
