@@ -159,9 +159,6 @@ inline PrimExpr CanonicalizeIndex(PrimExpr index, PrimExpr extent, PrimExpr stri
   PrimExpr upper_bound = tvm::if_then_else(stride < 0, extent - 1, extent);
   index = tvm::min(tvm::max(index, lower_bound), upper_bound);
 
-  // PrimExpr bounds_offset = tvm::if_then_else(stride < 0, -1, 0);
-  // index = tvm::min(tvm::max(index, 0 + bounds_offset), extent + bounds_offset);
-
   return index;
 }
 
