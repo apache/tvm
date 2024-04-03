@@ -264,6 +264,13 @@ TVM_DLL Pass LowerCustomDatatypes();
 TVM_DLL Pass DecorateDeviceScope();
 
 /*!
+ * \brief Generate module metadata describing function signatures
+ *
+ * \return The pass.
+ */
+TVM_DLL Pass GenerateFunctionSignatureMetadata();
+
+/*!
  * \brief Annotate locations that should be run on the device
  *
  * Insert `AttrStmt` nodes specifying a target on which regions within

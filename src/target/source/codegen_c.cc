@@ -451,7 +451,28 @@ void CodeGenC::VisitExpr_(const FloatImmNode* op, std::ostream& os) {  // NOLINT
   PrintConst(op, os, this);
 }
 void CodeGenC::VisitExpr_(const StringImmNode* op, std::ostream& os) {  // NOLINT(*)
-  os << "\"" << op->value << "\"";
+  const auto& str = op->value;
+  os << '"';
+  for (size_t i = 0; i < str.size(); i++) {
+    char c = str.c_str()[i];
+    switch (c) {
+      case '\n':
+        os << "\\n";
+        break;
+
+      case '\\':
+      case '"':
+      case '?':
+        os << '\\' << c;
+        break;
+
+      default:
+        os << c;
+        break;
+    }
+  }
+
+  os << '"';
 }
 
 template <typename T>

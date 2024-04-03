@@ -35,6 +35,7 @@
 #include <vector>
 
 #include "../../support/str_escape.h"
+#include "../../support/utils.h"
 #include "../build_common.h"
 #include "../func_registry_generator.h"
 #include "codegen_params.h"
@@ -51,8 +52,8 @@ void CodeGenCHost::Init(bool output_ssa, bool emit_asserts, bool emit_fwd_func_d
   declared_globals_.clear();
   decl_stream << "// tvm target: " << target_str << "\n";
   decl_stream << "#define TVM_EXPORTS\n";
-  decl_stream << "#include \"tvm/runtime/c_runtime_api.h\"\n";
-  decl_stream << "#include \"tvm/runtime/c_backend_api.h\"\n";
+  DeclareIncludeTVMRuntimeAPI();
+  DeclareIncludeTVMBackendAPI();
   decl_stream << "#include <math.h>\n";
   decl_stream << "#include <stdbool.h>\n";
   if (devices.find("ethos-u") != devices.end()) {
@@ -67,6 +68,66 @@ void CodeGenCHost::Init(bool output_ssa, bool emit_asserts, bool emit_fwd_func_d
     decl_stream << "#include <arm_nn_math_types.h>\n";
   }
   CodeGenC::Init(output_ssa);
+}
+
+void CodeGenCHost::DeclareIncludeTVMRuntimeAPI() {
+  decl_stream << "#include \"tvm/runtime/c_runtime_api.h\"\n";
+  included_function_names_.insert("TVMAPISetLastError");
+  included_function_names_.insert("TVMAPISetLastPythonError");
+  included_function_names_.insert("TVMGetLastPythonError");
+  included_function_names_.insert("TVMGetLastError");
+  included_function_names_.insert("TVMGetLastBacktrace");
+  included_function_names_.insert("TVMDropLastPythonError");
+  included_function_names_.insert("TVMThrowLastError");
+  included_function_names_.insert("TVMModLoadFromFile");
+  included_function_names_.insert("TVMModImport");
+  included_function_names_.insert("TVMModGetFunction");
+  included_function_names_.insert("TVMModFree");
+  included_function_names_.insert("TVMFuncFree");
+  included_function_names_.insert("TVMFuncCall");
+  included_function_names_.insert("TVMCFuncSetReturn");
+  included_function_names_.insert("TVMCbArgToReturn");
+  included_function_names_.insert("TVMFuncCreateFromCFunc");
+  included_function_names_.insert("TVMFuncRegisterGlobal");
+  included_function_names_.insert("TVMFuncGetGlobal");
+  included_function_names_.insert("TVMFuncListGlobalNames");
+  included_function_names_.insert("TVMFuncRemoveGlobal");
+  included_function_names_.insert("TVMArrayAlloc");
+  included_function_names_.insert("TVMArrayFree");
+  included_function_names_.insert("TVMArrayCopyFromBytes");
+  included_function_names_.insert("TVMArrayCopyToBytes");
+  included_function_names_.insert("TVMArrayCopyFromTo");
+  included_function_names_.insert("TVMArrayFromDLPack");
+  included_function_names_.insert("TVMArrayToDLPack");
+  included_function_names_.insert("TVMDLManagedTensorCallDeleter");
+  included_function_names_.insert("TVMStreamCreate");
+  included_function_names_.insert("TVMStreamFree");
+  included_function_names_.insert("TVMSetStream");
+  included_function_names_.insert("TVMSynchronize");
+  included_function_names_.insert("TVMStreamStreamSynchronize");
+  included_function_names_.insert("TVMObjectGetTypeIndex");
+  included_function_names_.insert("TVMObjectTypeKey2Index");
+  included_function_names_.insert("TVMObjectTypeIndex2Key");
+  included_function_names_.insert("TVMObjectRetain");
+  included_function_names_.insert("TVMObjectFree");
+  included_function_names_.insert("TVMByteArrayFree");
+  included_function_names_.insert("TVMDeviceAllocDataSpace");
+  included_function_names_.insert("TVMDeviceAllocDataSpaceWithScope");
+  included_function_names_.insert("TVMDeviceFreeDataSpace");
+  included_function_names_.insert("TVMDeviceCopyDataFromTo");
+  included_function_names_.insert("TVMObjectDerivedFrom");
+}
+
+void CodeGenCHost::DeclareIncludeTVMBackendAPI() {
+  decl_stream << "#include \"tvm/runtime/c_backend_api.h\"\n";
+  included_function_names_.insert("TVMBackendGetFuncFromEnv");
+  included_function_names_.insert("TVMBackendRegisterSystemLibSymbol");
+  included_function_names_.insert("TVMBackendAllocWorkspace");
+  included_function_names_.insert("TVMBackendFreeWorkspace");
+  included_function_names_.insert("TVMBackendRegisterEnvCAPI");
+  included_function_names_.insert("TVMBackendParallelLaunch");
+  included_function_names_.insert("TVMBackendParallelBarrier");
+  included_function_names_.insert("TVMBackendRunOnce");
 }
 
 void CodeGenCHost::InitGlobalContext() {
@@ -118,6 +179,10 @@ void CodeGenCHost::GenerateForwardFunctionDeclarations(String global_symbol,
       return;
     }
   }
+  if (tvm::support::StartsWith(global_symbol, "TVMBackend")) {
+    return;
+  }
+
   this->PrintFuncPrefix(fwd_decl_stream);
   this->PrintType(ret_type, fwd_decl_stream);
   fwd_decl_stream << " " << global_symbol << "(";

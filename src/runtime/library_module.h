@@ -64,13 +64,6 @@ class Library : public Object {
   virtual void* GetSymbol(const char* name) = 0;
   // NOTE: we do not explicitly create an type index and type_key here for libary.
   // This is because we do not need dynamic type downcasting.
-
-  /*! \brief List symbols available within the module
-   *
-   * \param callback The callback to be executed for each symbol in
-   *    the library.
-   */
-  virtual void ListSymbols(std::function<void(const char*)> callback) {}
 };
 
 /*!

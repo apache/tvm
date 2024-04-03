@@ -73,6 +73,21 @@ class CodeGenCHost : public CodeGenC {
                                            const Type& ret_type) override;
   Array<String> GetFunctionNames() { return function_names_; }
 
+ protected:
+  /* \brief Names declared in external headers
+   *
+   * When encountering a `builtin::call_extern`, a forward declaration
+   * will usually be generated based on the arguments used in TIR.  In
+   * some cases, this can conflict with the declaration used in the
+   * header file.  For example, the `c_backend_api.h` header declares
+   * `void* TVMBackendStringRetValue(const char*)`, but the
+   * auto-generated declaration would have `uint8*` argument.
+   *
+   * Names in this set will be excluded from the automatic forward
+   * declaration, to avoid conflicting declarations.
+   */
+  std::unordered_set<std::string> included_function_names_;
+
  private:
   /* \brief Internal structure to store information about function calls */
   struct FunctionInfo {
@@ -110,6 +125,9 @@ class CodeGenCHost : public CodeGenC {
   template <typename T>
   inline void PrintTernaryCondExpr(const T* op, const char* compare,
                                    std::ostream& os);  // NOLINT(*)
+
+  void DeclareIncludeTVMRuntimeAPI();
+  void DeclareIncludeTVMBackendAPI();
 };
 
 }  // namespace codegen
