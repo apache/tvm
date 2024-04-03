@@ -14,14 +14,19 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+
 import collections
 import ctypes
 import json
 import math
-import numpy as np
-import pytest
+import pathlib
 import re
 import sys
+import tempfile
+
+import numpy as np
+import pytest
+
 
 import tvm
 import tvm.testing
@@ -1107,6 +1112,87 @@ def test_call_extern_returning_void():
         T.Call("void", tvm.ir.Op.get("tir.call_extern"), ["dummy_function_name"])
 
     built = tvm.build(func, target="llvm")
+
+
+save_and_reload = tvm.testing.parameter(
+    by_dict={
+        "llvm_module": False,
+        "library_module": True,
+    }
+)
+
+
+@tvm.testing.requires_llvm
+def test_inspect_module_contents(save_and_reload: bool):
+    @I.ir_module
+    class mod:
+        @T.prim_func
+        def main(A: T.Buffer(1, dtype="float32")):
+            mod.subroutine(A.data)
+
+        @T.prim_func(private=True)
+        def subroutine(A_data: T.handle("float32")):
+            A = T.decl_buffer(1, dtype="float32", data=A_data)
+            A[0] = 42.0
+
+        @T.prim_func
+        def main_2(A: T.Buffer(1, dtype="float32")):
+            mod.subroutine(A.data)
+
+    mod = tvm.build(mod, target="llvm")
+
+    if save_and_reload:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            temp_dir = pathlib.Path(temp_dir)
+            model_path = temp_dir.joinpath("lib.so")
+            mod.export_library(model_path)
+            mod = tvm.runtime.load_module(model_path)
+
+    assert "main" in mod
+    assert "main_2" in mod
+    assert "subroutine" not in mod
+
+    assert set(mod.keys()) == set(["main", "main_2"])
+
+
+@tvm.testing.requires_llvm
+def test_suggest_nearby_name(save_and_reload: bool):
+    @I.ir_module
+    class mod:
+        @T.prim_func
+        def main():
+            pass
+
+        @T.prim_func
+        def long_tedious_name_that_would_be_easy_to_misspell():
+            pass
+
+    mod = tvm.build(mod, target="llvm")
+
+    if save_and_reload:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            temp_dir = pathlib.Path(temp_dir)
+            model_path = temp_dir.joinpath("lib.so")
+            mod.export_library(model_path)
+            mod = tvm.runtime.load_module(model_path)
+
+    mod["main"]
+    mod["long_tedious_name_that_would_be_easy_to_misspell"]
+
+    with pytest.raises(KeyError, match=r"similar names: \['main'\]"):
+        mod["mian"]
+
+    with pytest.raises(
+        KeyError,
+        match=r"similar names: \['long_tedious_name_that_would_be_easy_to_misspell'\]",
+    ):
+        mod["long_tedious_name_that_would_be_easy_to_mispell"]
+
+    with pytest.raises(
+        KeyError,
+        match=r"does not contain any function with a similar name",
+    ):
+        mod["unrelated_name_that_is_different_from_any_valid_name"]
 
 
 if __name__ == "__main__":

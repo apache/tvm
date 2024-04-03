@@ -17,10 +17,14 @@
 
 # pylint: disable=invalid-name, unused-import, import-outside-toplevel, inconsistent-return-statements
 """Runtime Module namespace."""
-import os
+
 import ctypes
+import difflib
+import os
 import struct
-from typing import Sequence
+
+from typing import Sequence, Iterable, Iterator
+
 import numpy as np
 
 from tvm._ffi.base import _LIB, check_call, c_str, string_types, _RUNTIME_ONLY
@@ -173,7 +177,19 @@ class Module(object):
             )
         )
         if not ret_handle.value:
-            raise AttributeError(f"Module has no function '{name}'")
+            nearby_names = difflib.get_close_matches(name, self.keys())
+            if nearby_names:
+                message = (
+                    f"Module has no function '{name}'.  "
+                    f"The module does contain functions with similar names: "
+                    f"{nearby_names}."
+                )
+            else:
+                message = (
+                    f"Module has no function '{name}'.  "
+                    f"The module does not contain any function with a similar name."
+                )
+            raise KeyError(message)
         return PackedFunc(ret_handle, False)
 
     def import_module(self, module):
@@ -186,10 +202,44 @@ class Module(object):
         """
         check_call(_LIB.TVMModImport(self.handle, module.handle))
 
-    def __getitem__(self, name):
+    def __getitem__(self, name: str) -> PackedFunc:
+        """Return the PackedFunc associated with the gven name
+
+        Parameters
+        ----------
+        name: str
+            The name of the function to be returned
+
+        Returns
+        -------
+        PackedFunc
+
+        """
+
         if not isinstance(name, string_types):
-            raise ValueError("Can only take string as function name")
+            raise TypeError(f"Module.__getitem__ expects a string, but received {type(name)}")
         return self.get_function(name)
+
+    def __contains__(self, key: str) -> bool:
+        return key in self.keys()
+
+    def keys(self) -> Sequence[str]:
+        """Return a list of functions in the module
+
+        Returns
+        -------
+        Sequence[str]
+           The functions in the module
+        """
+        return self["__get_func_names"]()
+
+    def values(self) -> Iterator[PackedFunc]:
+        for key in self.keys():
+            yield self[key]
+
+    def items(self) -> Iterator[PackedFunc]:
+        for key in self.keys():
+            yield key, self[key]
 
     def __eq__(self, other):
         return self.handle.value == other.handle.value

@@ -171,7 +171,7 @@ PackedFunc LLVMModuleNode::GetFunction(const String& name, const ObjectPtr<Objec
         *rv = nullptr;
       }
     });
-  } else if (name == "get_func_names") {
+  } else if (name == "get_func_names" || name == "__get_func_names") {
     return PackedFunc(
         [sptr_to_self, this](TVMArgs args, TVMRetValue* rv) { *rv = this->function_names_; });
   } else if (name == "get_symbol") {

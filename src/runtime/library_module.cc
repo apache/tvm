@@ -48,6 +48,14 @@ class LibraryModuleNode final : public ModuleNode {
   };
 
   PackedFunc GetFunction(const String& name, const ObjectPtr<Object>& sptr_to_self) final {
+    if (name == "__get_func_names") {
+      return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
+        Array<String> names;
+        lib_->ListSymbols([&names](const char* symbol) { names.push_back(symbol); });
+        *rv = std::move(names);
+      });
+    }
+
     TVMBackendPackedCFunc faddr;
     if (name == runtime::symbol::tvm_module_main) {
       const char* entry_name =
