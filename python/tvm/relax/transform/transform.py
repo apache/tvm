@@ -303,6 +303,86 @@ def LambdaLift() -> tvm.ir.transform.Pass:
     return _ffi_api.LambdaLift()
 
 
+def LazyGetInput() -> tvm.ir.transform.Pass:
+    """A pass that requests inputs lazily.
+
+    In many cases, the size of the model weights exceeds the available
+    memory on a GPU.  In these cases, a function that accepts all
+    model weights as arguments would not be able to be called.  In
+    these cases, parameters must be loaded as they are required by the
+    function, and unloaded once they are no longer needed.
+
+    This pass mutates a function such that all model weights
+    (arguments after the first `func.attrs["num_input"]` arguments)
+    are loaded on demand.  Rather than accepting the weights as
+    function arguments, the function accepts a callback argument,
+    which can load each parameter as needed.  The callback accepts two
+    arguments, first the index of the model weight, and second the
+    name of the parameter.  The callback should return the parameter
+    as specified.
+
+    .. code-block:: python
+
+        @R.function
+        def before(A: R.Tensor([16,32],"float32")):
+            ...
+
+        @R.function
+        def after(fget_param: R.Callable([R.Prim('int64'), R.Object], R.Object)):
+            A_untyped = fget_param(0, R.str('A'))
+            A = R.match_cast(A_untyped, R.Tensor([16,32], "float32")
+            ...
+
+    Returns
+    -------
+    ret : tvm.ir.transform.Pass
+
+    """
+    return _ffi_api.LazyGetInput()
+
+
+def LazySetOutput() -> tvm.ir.transform.Pass:
+    """A pass that sets function outputs when available
+
+    In many cases, the size of the model weights exceeds the available
+    memory on a GPU.  In these cases, a function that produces all
+    model weights as a single return value would not be able to be
+    called.  In these cases, parameters must be returned as they are
+    produced, unloaded from the GPU (or saved to disk), before
+    producing additional outputs.
+
+    This pass mutates a function such that all outputs from a function
+    are returned when they are available.  The function accepts an
+    additional callback argument, which is called with each output of
+    the function.  The callback accepts two arguments, first the index
+    of the output tuple that was produced (or zero if the output is
+    not a tuple), and second the value itself.
+
+    .. code-block:: python
+
+        @R.function
+        def before(args):
+            ...
+            return (A, B)
+
+        @R.function
+        def after(args, fset_param: R.Callable([R.Prim('int64'), R.Object])):
+            ...
+            fset_param(0, A)
+            ...
+            fset_param(1, B)
+            ...
+            return ()
+
+
+    Returns
+    -------
+    ret : tvm.ir.transform.Pass
+
+    """
+    return _ffi_api.LazySetOutput()
+
+
 def ConvertToDataflow(min_size: int = 2) -> tvm.ir.transform.Pass:
     """A pass that converts consecutive dataflow operations
     inside binding blocks into dataflow blocks.

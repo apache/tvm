@@ -493,6 +493,10 @@ TVM_REGISTER_NODE_TYPE(FunctionNode);
 
 Function::Function(Array<Var> params, Expr body, Optional<StructInfo> ret_struct_info, bool is_pure,
                    DictAttrs attrs, Span span) {
+  if (!attrs.defined()) {
+    attrs = DictAttrs();
+  }
+
   // Set the function type.
   // For function, we take a conservative approach and require the function type
   // to be known at construction time.

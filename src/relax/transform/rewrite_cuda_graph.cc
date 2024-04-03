@@ -239,13 +239,31 @@ class CUDAGraphRewritePlanner : public ExprVisitor {
       if (pair.second->IsInstance<FunctionNode>()) {
         // If a function has the num_input attribute, the last func->params.size() - num_inputs
         // inputs are assumed to be fixed and thus they can be captured into a cuda graph.
+        // The symbolic variables in the struct info of the fixed inputs (weights) are also allowed
+        // to be captured.
+        // If the hints for capturing symbolic variables via
+        // 'relax.rewrite_cuda_graph.capture_symbolic_vars' annotation, the actual variables with
+        // these names are extracted from the struct info for the capturing.
         const auto& func = Downcast<Function>(pair.second);
-        if (auto num_input = func->attrs.GetAttr<Integer>(attr::kNumInput)) {
-          for (size_t i = num_input.value().IntValue(); i < func->params.size(); ++i) {
+        auto num_inputs =
+            func->attrs.GetAttr<Integer>(attr::kNumInput).value_or(Integer(func->params.size()));
+        auto capture_symbolic_var_name_hints = ExtractSymbolicVarHints(func);
+        for (int i = 0; i < static_cast<int>(func->params.size()); ++i) {
+          Array<tir::Var> symbolic_vars = DefinableTIRVarsInStructInfo(
+              Downcast<StructInfo>(func->params[i]->struct_info_.value()));
+          if (i < num_inputs.IntValue()) {
+            for (const auto& symbolic_var : symbolic_vars) {
+              if (capture_symbolic_var_name_hints.count(symbolic_var->name_hint)) {
+                capture_symbolic_vars_.insert(symbolic_var.get());
+              }
+            }
+          } else {
             static_vars_.insert(func->params[i].get());
+            for (const auto& symbolic_var : symbolic_vars) {
+              capture_symbolic_vars_.insert(symbolic_var.get());
+            }
           }
         }
-        CollectSymbolicVarHints(func);
         disabled_storage_vars_ = OutputStorageCollector::Collect(func);
         VisitExpr(func);
       }
@@ -284,17 +302,16 @@ class CUDAGraphRewritePlanner : public ExprVisitor {
   }
 
   /*!
-   * \brief Collect the name hints of the symbolic variables that are allowed to be captured.
+   * \brief Extract the name hints of the symbolic variables that are allowed to be captured
+   * from the function attributes.
    */
-  void CollectSymbolicVarHints(const Function& func) {
-    capture_symbolic_vars_.clear();
-    if (auto symbolic_vars =
-            func->attrs.GetAttr<Array<String>>("relax.rewrite_cuda_graph.capture_symbolic_vars")) {
-      for (const auto& var : symbolic_vars.value()) {
-        capture_symbolic_vars_.insert(var);
-      }
-    }
+  std::unordered_set<String> ExtractSymbolicVarHints(const Function& func) {
+    auto symbolic_var_names =
+        func->attrs.GetAttr<Array<String>>("relax.rewrite_cuda_graph.capture_symbolic_vars")
+            .value_or(Array<String>());
+    return {symbolic_var_names.begin(), symbolic_var_names.end()};
   }
+
   /*!
    *\brief Start a new static region. This method should be called when encountering a
    * CUDA kernel launch (calls to PrimFunc or ExternFunc) that only depends on static parameters.
@@ -467,7 +484,7 @@ class CUDAGraphRewritePlanner : public ExprVisitor {
     bool is_static = true;
     tir::PostOrderVisit(expr, [&](const ObjectRef& e) {
       if (auto var = e.as<tir::VarNode>()) {
-        if (!capture_symbolic_vars_.count(var->name_hint)) {
+        if (!capture_symbolic_vars_.count(var)) {
           is_static = false;
           return;
         }
@@ -596,8 +613,9 @@ class CUDAGraphRewritePlanner : public ExprVisitor {
   FunctionScope current_function_scope_;
   // Variables whose buffer address is fixed
   std::unordered_set<const VarNode*> static_vars_;
-  // The name of the variables that are allowed to be symbolic
-  std::unordered_set<String> capture_symbolic_vars_;
+  // Symbolic variables that are allowed to be captured. This can come from symbolic shapes of
+  // weights or hints in the function annotations.
+  std::unordered_set<const tir::VarNode*> capture_symbolic_vars_;
   // Binding to the FuncBuilder if the binding is lifted. This is used to update the inputs/outputs
   // of the lifted function when its binding is used outside.
   std::unordered_map<const VarNode*, FuncBuilder*> binding_to_region_;
