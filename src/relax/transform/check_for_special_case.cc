@@ -224,5 +224,52 @@ Function FunctionCheckForSpecialCase(
 TVM_REGISTER_GLOBAL("relax.FunctionCheckForSpecialCase")
     .set_body_typed(FunctionCheckForSpecialCase);
 
+namespace {
+IRModule ModuleCheckForSpecialCase(
+    IRModule mod,
+    Map<Variant<tir::Var, relax::Var, String>, Variant<Expr, PrimExpr>> arg_special_case) {
+  IRModule updates;
+  for (const auto& [gvar, base_func] : mod->functions) {
+    if (auto opt = base_func.as<Function>()) {
+      auto func = opt.value();
+      auto new_func = FunctionCheckForSpecialCase(func, arg_special_case);
+      if (!func.same_as(new_func)) {
+        updates->Add(gvar, new_func);
+      }
+    }
+  }
+
+  if (updates->functions.size()) {
+    mod.CopyOnWrite()->Update(updates);
+  }
+  return mod;
+}
+}  // namespace
+
+namespace transform {
+
+Pass CheckForSpecialCase(
+    Map<Variant<tir::Var, relax::Var, String>, Variant<Expr, PrimExpr>> arg_special_case,
+    Optional<String> func_name) {
+  auto pass_func = [=](IRModule mod, PassContext context) -> IRModule {
+    if (func_name) {
+      auto gvar = mod->GetGlobalVar(func_name.value());
+      auto func = Downcast<Function>(mod->Lookup(gvar));
+      auto new_func = FunctionCheckForSpecialCase(func, arg_special_case);
+      if (!func.same_as(new_func)) {
+        mod.CopyOnWrite()->Update(gvar, new_func);
+      }
+    } else {
+      mod = ModuleCheckForSpecialCase(mod, arg_special_case);
+    }
+    return mod;
+  };
+
+  return tvm::transform::CreateModulePass(pass_func, 1, "relax.CheckForSpecialCase", {});
+}
+
+TVM_REGISTER_GLOBAL("relax.transform.CheckForSpecialCase").set_body_typed(CheckForSpecialCase);
+
+}  // namespace transform
 }  // namespace relax
 }  // namespace tvm
