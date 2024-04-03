@@ -249,20 +249,9 @@ IRModule ModuleCheckForSpecialCase(
 namespace transform {
 
 Pass CheckForSpecialCase(
-    Map<Variant<tir::Var, relax::Var, String>, Variant<Expr, PrimExpr>> arg_special_case,
-    Optional<String> func_name) {
+    Map<Variant<tir::Var, relax::Var, String>, Variant<Expr, PrimExpr>> arg_special_case) {
   auto pass_func = [=](IRModule mod, PassContext context) -> IRModule {
-    if (func_name) {
-      auto gvar = mod->GetGlobalVar(func_name.value());
-      auto func = Downcast<Function>(mod->Lookup(gvar));
-      auto new_func = FunctionCheckForSpecialCase(func, arg_special_case);
-      if (!func.same_as(new_func)) {
-        mod.CopyOnWrite()->Update(gvar, new_func);
-      }
-    } else {
-      mod = ModuleCheckForSpecialCase(mod, arg_special_case);
-    }
-    return mod;
+    return ModuleCheckForSpecialCase(mod, arg_special_case);
   };
 
   return tvm::transform::CreateModulePass(pass_func, 1, "relax.CheckForSpecialCase", {});

@@ -23,14 +23,14 @@ from tvm.script import relax as R, tir as T
 
 specialize_by_tir_var = tvm.testing.parameter(
     by_dict={
-        # "specialize-by-string": False,
+        "specialize-by-string": False,
         "specialize-by-tir-var": True,
     }
 )
 
 
-def test_bind_static_value(specialize_by_tir_var):
-    """Symbolic vars may be specialized
+def test_check_for_static_value(specialize_by_tir_var):
+    """Specialized implementations may be produced for static shapes
 
     The specialized variables may be given either as strings, or as
     TIR variables.
@@ -77,13 +77,7 @@ def test_bind_static_value(specialize_by_tir_var):
     else:
         symbolic_var_map = {"M": 128, "K": 64, "N": 32}
 
-    before.show(name="before")
-
     after = before.check_for_special_case(symbolic_var_map)
-
-    expected.show(name="expected")
-    after.show(name="after")
-
     tvm.ir.assert_structural_equal(expected, after)
 
 
