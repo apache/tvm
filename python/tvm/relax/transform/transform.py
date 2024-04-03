@@ -684,8 +684,7 @@ def BindSymbolicVars(
 
 
 def CheckForSpecialCase(
-    special_case: Mapping[Union[str, tvm.tir.Var, Var], Union[tvm.tir.PrimExpr, Expr]],
-    func_name: Optional[str] = None,
+    special_case: Mapping[Union[str, tvm.tir.Var, Var], Union[tvm.tir.PrimExpr, Expr]]
 ) -> tvm.ir.transform.Pass:
     """Bind params of function of the module to constant tensors to produce a
     special case
@@ -694,10 +693,6 @@ def CheckForSpecialCase(
     ----------
     special_case : Mapping[Union[str, tvm.tir.Var, Var], Union[tvm.tir.PrimExpr, Expr]],
         The map from symbolic varname to integer.
-
-    func_name : Optional[str]
-        The function name to be special cased. If None (default), all
-        functions within the module will be updated.
 
     Returns
     -------
@@ -709,7 +704,7 @@ def CheckForSpecialCase(
         key: tvm.tir.const(value, "int64") if isinstance(value, int) else value
         for key, value in special_case.items()
     }
-    return _ffi_api.CheckForSpecialCase(special_case, func_name)  # type: ignore
+    return _ffi_api.CheckForSpecialCase(special_case)  # type: ignore
 
 
 def RunCodegen(
