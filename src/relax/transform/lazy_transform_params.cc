@@ -71,8 +71,22 @@ class LazyInputMutator : public ExprMutator {
     Array<Var> new_params(func->params.begin(), func->params.begin() + num_input_params);
     new_params.push_back(fget_param);
 
+    auto array_externally_visible_vars =
+        DefinableTIRVarsInStructInfo(TupleStructInfo(new_params.Map(GetStructInfo)));
+    std::unordered_set<tir::Var, ObjectPtrHash, ObjectPtrEqual> externally_visible_vars(
+        array_externally_visible_vars.begin(), array_externally_visible_vars.end());
+    StructInfo new_ret_struct_info =
+        EraseToWellDefined(func->ret_struct_info, [&](const tir::Var& var) -> Optional<PrimExpr> {
+          if (externally_visible_vars.count(var)) {
+            return var;
+          } else {
+            return NullOpt;
+          }
+        });
+
     auto node = GetRef<Function>(func);
     node.CopyOnWrite()->params = new_params;
+    node.CopyOnWrite()->ret_struct_info = new_ret_struct_info;
     node = WithAttr(node, attr::kNumInput, Integer(num_input_params + 1));
 
     plan_ = FunctionPlan{std::move(param_lookup), fget_param};
