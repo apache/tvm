@@ -154,13 +154,14 @@ class WellFormedChecker : public relax::ExprVisitor,
       return;
     }
 
-    if (!StructuralEqual()(gvar->struct_info_, func->struct_info_)) {
+    if (!IsBaseOf(GetStructInfo(gvar), GetStructInfo(func))) {
       Malformed(Diagnostic::Error(func->span)
                 << "ValueError: "
                 << "StructInfo of GlobalVar " << gvar
-                << " does not match the StructInfo of the function.  "
-                << "The GlobalVar has StructInfo " << gvar->struct_info_
-                << ", while the function itself has StructInfo " << func->struct_info_);
+                << " must be an accurate description of the function it references.  "
+                << "While it does not need to be an exact match, "
+                << "the GlobalVar has StructInfo " << gvar->struct_info_
+                << ", which is not a superset of the function's StructInfo " << func->struct_info_);
     }
   }
 
