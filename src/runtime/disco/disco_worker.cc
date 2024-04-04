@@ -77,7 +77,9 @@ struct DiscoWorker::Impl {
         }
         case DiscoAction::kCallPacked: {
           int func_reg_id = args[2];
+          CHECK_LT(func_reg_id, self->register_file.size());
           PackedFunc func = GetReg(self, func_reg_id);
+          CHECK(func.defined());
           CallPacked(self, reg_id, func,
                      TVMArgs(args.values + 3, args.type_codes + 3, args.num_args - 3));
           break;
