@@ -18,6 +18,7 @@
 import tempfile
 
 import numpy as np
+import pytest
 
 from tvm import auto_scheduler, relay
 from tvm.contrib import graph_executor
