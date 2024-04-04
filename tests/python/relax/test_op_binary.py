@@ -250,10 +250,10 @@ def test_binary_infer_struct_info_shape_var(binary_arith_op: Callable):
     y4 = relax.Var("y", relax.TensorStructInfo(s4, "float32"))
 
     _check_inference(bb, binary_arith_op(x, y0), relax.TensorStructInfo(s0, "float32"))
-    # _check_inference(bb, binary_arith_op(x, y1), relax.TensorStructInfo(dtype="float32", ndim=2))
-    # _check_inference(bb, binary_arith_op(x, y2), relax.TensorStructInfo(dtype="float32", ndim=4))
-    # _check_inference(bb, binary_arith_op(x, y3), relax.TensorStructInfo(dtype="float32", ndim=2))
-    # _check_inference(bb, binary_arith_op(x, y4), relax.TensorStructInfo(dtype="float32"))
+    _check_inference(bb, binary_arith_op(x, y1), relax.TensorStructInfo(dtype="float32", ndim=2))
+    _check_inference(bb, binary_arith_op(x, y2), relax.TensorStructInfo(dtype="float32", ndim=4))
+    _check_inference(bb, binary_arith_op(x, y3), relax.TensorStructInfo(dtype="float32", ndim=2))
+    _check_inference(bb, binary_arith_op(x, y4), relax.TensorStructInfo(dtype="float32"))
 
 
 def test_binary_arith_infer_struct_info_more_input_dtype(binary_arith_op: Callable):
