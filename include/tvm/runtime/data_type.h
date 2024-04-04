@@ -111,7 +111,9 @@ class DataType {
     return -lanes_as_int;
   }
   /*! \return get vscale factor or lanes depending on scalability of the vector. */
-  int get_lanes_or_vscale_factor() { return is_scalable_vector() ? vscale_factor() : lanes(); }
+  int get_lanes_or_vscale_factor() const {
+    return is_scalable_vector() ? vscale_factor() : lanes();
+  }
   /*! \return whether type is a scalar type. */
   bool is_scalar() const { return !is_scalable_vector() && lanes() == 1; }
   /*! \return whether type is a scalar type. */

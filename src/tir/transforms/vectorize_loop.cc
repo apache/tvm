@@ -54,7 +54,7 @@ inline PrimExpr BroadcastTo(PrimExpr e, int lanes, bool is_scalable) {
   if (const BroadcastNode* op = e.as<BroadcastNode>()) {
     ICHECK(op->dtype.is_scalable_vector() == is_scalable)
         << "Can't broadcast between scalable and fixed length vectors.";
-    int e_lanes = is_scalable ? op->dtype.vscale_factor() : op->dtype.lanes();
+    int e_lanes = op->dtype.get_lanes_or_vscale_factor();
 
     if (lanes % e_lanes == 0) {
       return Broadcast(op->value, CreateNewLanes(is_scalable, lanes));
@@ -203,16 +203,17 @@ class Vectorizer : public StmtMutator, public ExprFunctor<PrimExpr(const PrimExp
       bool is_vec_b = b.dtype().is_scalable_or_fixed_length_vector();
       if (is_vec_a && is_vec_b) {
         // Let's not multiply scalable and fixed length vectors
-        ICHECK(a.dtype().is_scalable_vector() == b.dtype().is_scalable_vector());
+        ICHECK(a.dtype().is_scalable_vector() == b.dtype().is_scalable_vector())
+            << "Fixed length and scalable vectors can't be mixed in multiplication.";
       }
       if (is_vec_a || is_vec_b) {
         const RampNode* b_ramp = b.as<RampNode>();
         const RampNode* a_ramp = a.as<RampNode>();
-        if (a_ramp && !b_ramp && analyzer_.CanProve(b > 0)) {
+        if (a_ramp && b.dtype().is_scalar() && analyzer_.CanProve(b > 0)) {
           PrimExpr lanes = a_ramp->lanes;
           return Ramp(a_ramp->base * b, a_ramp->stride * b, lanes);
         }
-        if (b_ramp && !a_ramp && analyzer_.CanProve(a > 0)) {
+        if (b_ramp && a.dtype().is_scalar() && analyzer_.CanProve(a > 0)) {
           PrimExpr lanes = b_ramp->lanes;
           return Ramp(b_ramp->base * a, b_ramp->stride * a, lanes);
         }
@@ -500,14 +501,15 @@ class Vectorizer : public StmtMutator, public ExprFunctor<PrimExpr(const PrimExp
       }
 
       // The total number of lanes of indexing, including the last index.
-      int lanes_in_last_index = indices[indices.size() - 1].dtype().get_lanes_or_vscale_factor();
+      auto last_index_dtype = indices[indices.size() - 1].dtype();
+      int lanes_in_last_index = last_index_dtype.get_lanes_or_vscale_factor();
       int index_lanes = other_index_lanes * lanes_in_last_index;
 
       // The total number of lanes in this store operation.  Either
       // the index or the value will be broadcast out to this number
       // of lanes, depending on which has more lanes.
       int value_dtype_lanes = value.dtype().get_lanes_or_vscale_factor();
-      bool is_last_index_scalable = indices[indices.size() - 1].dtype().is_scalable_vector();
+      bool is_last_index_scalable = last_index_dtype.is_scalable_vector();
       int total_lanes = std::max(index_lanes, value_dtype_lanes);
 
       ICHECK_EQ(total_lanes % other_index_lanes, 0)
@@ -707,11 +709,11 @@ class Vectorizer : public StmtMutator, public ExprFunctor<PrimExpr(const PrimExp
       if (lanes != 1) {
         const RampNode* b_ramp = b.as<RampNode>();
         const RampNode* a_ramp = a.as<RampNode>();
-        if (!a.dtype().is_scalable_or_fixed_length_vector() && b_ramp) {
+        if (a.dtype().is_scalar() && b_ramp) {
           return Ramp(fcompute(a, b_ramp->base),
                       fcompute(make_zero(b_ramp->stride.dtype()), b_ramp->stride), b_ramp->lanes);
         }
-        if (!b.dtype().is_scalable_or_fixed_length_vector() && a_ramp) {
+        if (b.dtype().is_scalar() && a_ramp) {
           return Ramp(fcompute(a_ramp->base, b), a_ramp->stride, a_ramp->lanes);
         }
       }

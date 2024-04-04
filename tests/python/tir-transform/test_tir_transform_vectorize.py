@@ -69,7 +69,8 @@ def test_vectorize_vector_scalable_error():
             for j in T.vectorized(T.vscale() * 4):
                 A[j * 4 : j * 4 + 4] = T.Broadcast(T.float32(1), 4)
 
-    with pytest.raises(tvm.error.InternalError):
+    error_msg = f"Creating scalable vectors from existing vectors is not supported."
+    with pytest.raises(tvm.error.InternalError, match=error_msg):
         tvm.tir.transform.VectorizeLoop()(Module)
 
 
@@ -81,7 +82,8 @@ def test_vectorize_vector_scalable_error2():
             for j in T.vectorized(4):
                 A[j] = T.Broadcast(T.float32(1), T.vscale() * 4)
 
-    with pytest.raises(tvm.error.InternalError):
+    error_msg = f"Vectorizing over scalable buffer elements is not supported in vectorizer."
+    with pytest.raises(tvm.error.InternalError, match=error_msg):
         tvm.tir.transform.VectorizeLoop()(Module)
 
 
@@ -95,7 +97,8 @@ def test_vectorize_vector_scalable_error3():
                     T.float32(1), T.vscale() * 4
                 )
 
-    with pytest.raises(tvm.error.InternalError):
+    error_msg = f"Vectorizing over existing scalable vectors is not supported."
+    with pytest.raises(tvm.error.InternalError, match=error_msg):
         tvm.tir.transform.VectorizeLoop()(Module)
 
 
@@ -109,7 +112,8 @@ def test_vectorize_vector_scalable_error4():
                     T.float32(1), T.vscale() * 4
                 )
 
-    with pytest.raises(tvm.error.InternalError):
+    error_msg = f"Creating scalable vectors from existing vectors is not supported."
+    with pytest.raises(tvm.error.InternalError, match=error_msg):
         tvm.tir.transform.VectorizeLoop()(Module)
 
 
@@ -426,6 +430,20 @@ def test_vectorize_cast(extent, vec_str):
 
     mod = tvm.tir.transform.VectorizeLoop()(Before)
     tvm.ir.assert_structural_equal(mod, After)
+
+
+def test_illegal_extent():
+    @I.ir_module(check_well_formed=False)
+    class Mod:
+        @T.prim_func
+        def main(A: T.Buffer((25,), "int32")):
+            n = T.Var("n", dtype="int32")
+            for j in T.vectorized(n):
+                A[j] = 3
+
+    error_msg = f"Invalid expression for scalable lanes n"
+    with pytest.raises(tvm.error.InternalError, match=error_msg):
+        tvm.tir.transform.VectorizeLoop()(Mod)
 
 
 if __name__ == "__main__":

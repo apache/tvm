@@ -197,8 +197,7 @@ TVM_REGISTER_NODE_TYPE(StringImmNode);
 Cast::Cast(DataType t, PrimExpr value, Span span) {
   ICHECK(value.defined());
   ICHECK_EQ(t.get_lanes_or_vscale_factor(), value.dtype().get_lanes_or_vscale_factor());
-  ICHECK((t.is_scalable_vector() == value.dtype().is_scalable_vector()) ||
-         (!t.is_scalable_vector() && !value.dtype().is_scalable_vector()));
+  ICHECK(t.is_scalable_vector() == value.dtype().is_scalable_vector());
   ObjectPtr<CastNode> node = make_object<CastNode>();
   node->dtype = t;
   node->value = std::move(value);
