@@ -2271,5 +2271,27 @@ def test_define_relax_function_using_global_var():
     tvm.ir.assert_structural_equal(DefinedAllAtOnce, MainDefinedLater)
 
 
+def test_function_attributes_are_defined():
+    """func.attrs defaults to an empty DictAttrs"""
+
+    @I.ir_module
+    class Module:
+        @R.function
+        def main(x: R.Tensor, shape: R.Shape(["m", "n"])):
+            output = Module.subroutine(x, shape)
+            return output
+
+        @R.function
+        def subroutine(x: R.Tensor, _: R.Shape(["m", "n"])) -> R.Tensor(["m", "n"]):
+            q = x
+            m, n = T.int64(), T.int64()
+            z = R.match_cast(q, R.Tensor((m, n)))
+            w = z
+            return w
+
+    for gvar, func in Module.functions.items():
+        assert func.attrs is not None
+
+
 if __name__ == "__main__":
     tvm.testing.main()
