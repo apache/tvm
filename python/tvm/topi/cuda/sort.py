@@ -682,7 +682,7 @@ def sort(data, axis=-1, is_ascend=1):
     return out
 
 
-def sort_thrust(data, axis=-1, is_ascend=1):
+def sort_thrust(data, axis=-1, is_ascend=1, workspace=None):
     """Performs sorting along the given axis and returns an array of
     sorted values with the same shape as the input data.
 
@@ -696,6 +696,12 @@ def sort_thrust(data, axis=-1, is_ascend=1):
 
     is_ascend : boolean, optional
         Whether to sort in ascending or descending order.
+
+    workspace: Optional[tvm.te.Tensor]
+        A buffer to store intermediate results. The size of the workspace should be sufficiently
+        large, this can be obtained by overestimation or memory usage profiling. If None, it will
+        fallback to use thrust internal memory allocation.
+
 
     Returns
     -------
@@ -714,15 +720,20 @@ def sort_thrust(data, axis=-1, is_ascend=1):
 
     value_buf = tvm.tir.decl_buffer(data.shape, data.dtype, "value_buf", data_alignment=8)
     indices_buf = tvm.tir.decl_buffer(data.shape, dtype, "out_buf", data_alignment=8)
+
+    def f_compute(ins, outs):
+        args = ["tvm.contrib.thrust.sort", ins[0], outs[0], outs[1], is_ascend]
+        if workspace is not None:
+            args.append(ins[1])
+        return tvm.tir.call_packed(*args)
+
     out = te.extern(
         [data.shape, data.shape],
-        [data],
+        [data] if workspace is None else [data, workspace],
         ## TODO(mbrookhart): This thrust function is actually doing argsort, not sort
         ## For performance, we should probably rename the contrib function and add
         ## a pure sort
-        lambda ins, outs: tvm.tir.call_packed(
-            "tvm.contrib.thrust.sort", ins[0], outs[0], outs[1], is_ascend
-        ),
+        f_compute,
         out_buffers=[value_buf, indices_buf],
         name="sort_gpu",
         tag="sort_gpu",
@@ -801,7 +812,7 @@ def argsort(data, axis=-1, is_ascend=1, dtype="float32", ret_type="indices"):
     return outs[0], outs[1]
 
 
-def argsort_thrust(data, axis=-1, is_ascend=1, dtype="float32", ret_type="indices"):
+def argsort_thrust(data, axis=-1, is_ascend=1, dtype="float32", ret_type="indices", workspace=None):
     """Performs sorting along the given axis and returns an array of indices
     having same shape as an input array that index data in sorted order.
 
@@ -824,12 +835,17 @@ def argsort_thrust(data, axis=-1, is_ascend=1, dtype="float32", ret_type="indice
         "both": return both sorted data and indices.
         "indices": return sorted indices only.
 
+    workspace : Optional[tvm.te.Tensor]
+        A buffer to store intermediate results. The size of the workspace should be sufficiently
+        large, this can be obtained by overestimation or memory usage profiling. If None, it will
+        fallback to use thrust internal memory allocation.
+
     Returns
     -------
     out : tvm.te.Tensor
         The output of this function.
     """
-    return topk_thrust(data, 0, axis, ret_type, is_ascend, dtype)
+    return topk_thrust(data, 0, axis, ret_type, is_ascend, dtype, workspace)
 
 
 def schedule_sort(outs):
@@ -972,7 +988,9 @@ def topk(data, k=1, axis=-1, ret_type="both", is_ascend=False, dtype="int64"):
     return output
 
 
-def topk_thrust(data, k=1, axis=-1, ret_type="both", is_ascend=False, dtype="int64"):
+def topk_thrust(
+    data, k=1, axis=-1, ret_type="both", is_ascend=False, dtype="int64", workspace=None
+):
     """Get the top k elements in an input tensor along the given axis.
 
     Parameters
@@ -998,6 +1016,11 @@ def topk_thrust(data, k=1, axis=-1, ret_type="both", is_ascend=False, dtype="int
     dtype : string, optional
         The data type of the indices output.
 
+    workspace : Optional[tvm.te.Tensor]
+        A buffer to store intermediate results. The size of the workspace should be sufficiently
+        large, this can be obtained by overestimation or memory usage profiling. If None, it will
+        fallback to use thrust internal memory allocation.
+
     Returns
     -------
     out : tvm.te.Tensor or List[tvm.te.Tensor]
@@ -1013,20 +1036,30 @@ def topk_thrust(data, k=1, axis=-1, ret_type="both", is_ascend=False, dtype="int
         data = transpose(data, axes)
 
     data_buf = tvm.tir.decl_buffer(data.shape, data.dtype, "data_buf", data_alignment=8)
+    if workspace is not None:
+        workspace_buf = tvm.tir.decl_buffer(
+            workspace.shape, workspace.dtype, "workspace_buf", data_alignment=8
+        )
+    else:
+        workspace_buf = None
     out_bufs = [
         tvm.tir.decl_buffer(data.shape, data.dtype, "value_buf", data_alignment=8),
         tvm.tir.decl_buffer(data.shape, dtype, "indices_buf", data_alignment=8),
     ]
 
+    def f_compute(ins, outs):
+        args = ["tvm.contrib.thrust.sort", ins[0], outs[0], outs[1], is_ascend]
+        if workspace is not None:
+            args.append(ins[1])
+        return tvm.tir.call_packed(*args)
+
     is_ascend = 1 if is_ascend else 0
 
     out = te.extern(
         [data.shape, data.shape],
-        [data],
-        lambda ins, outs: tvm.tir.call_packed(
-            "tvm.contrib.thrust.sort", ins[0], outs[0], outs[1], is_ascend
-        ),
-        in_buffers=[data_buf],
+        [data] if workspace is None else [data, workspace],
+        f_compute,
+        in_buffers=[data_buf] if workspace is None else [data_buf, workspace_buf],
         out_buffers=out_bufs,
         name="topk_gpu",
         tag="topk_gpu",
@@ -1120,7 +1153,7 @@ def sort_by_key(keys, values, axis=-1, is_ascend=1):
     return out[0], out[1]
 
 
-def stable_sort_by_key_thrust(keys, values, for_scatter=False):
+def stable_sort_by_key_thrust(keys, values, for_scatter=False, workspace=None):
     """Sort values with respect to keys using thrust.
     Both keys and values will be sorted and returned.
     Sorting is done via stable sort, so relative ordering among
@@ -1140,6 +1173,11 @@ def stable_sort_by_key_thrust(keys, values, for_scatter=False):
         The output keys (indices) are all positive.
         This option is introduced to optimize the scatter implementation.
 
+    workspace : Optional[tvm.te.Tensor]
+        A buffer to store intermediate results. The size of the workspace should be sufficiently
+        large, this can be obtained by overestimation or memory usage profiling. If None, it will
+        fallback to use thrust internal memory allocation.
+
     Returns
     -------
     keys_sorted : tvm.te.Tensor
@@ -1150,17 +1188,34 @@ def stable_sort_by_key_thrust(keys, values, for_scatter=False):
     """
     keys_buf = tvm.tir.decl_buffer(keys.shape, keys.dtype, "keys_buf", data_alignment=8)
     values_buf = tvm.tir.decl_buffer(values.shape, values.dtype, "values_buf", data_alignment=8)
+    workspace_buf = tvm.tir.decl_buffer(
+        workspace.shape, workspace.dtype, "workspace_buf", data_alignment=8
+    )
     out_bufs = [
         tvm.tir.decl_buffer(keys.shape, keys.dtype, "keys_buf", data_alignment=8),
         tvm.tir.decl_buffer(keys.shape, values.dtype, "values_buf", data_alignment=8),
     ]
+
+    def f_compute(ins, outs):
+        args = [
+            "tvm.contrib.thrust.stable_sort_by_key",
+            ins[0],
+            ins[1],
+            outs[0],
+            outs[1],
+            for_scatter,
+        ]
+        if workspace is not None:
+            args.append(ins[2])
+        return tvm.tir.call_packed(*args)
+
     out = te.extern(
         [keys.shape, values.shape],
-        [keys, values],
-        lambda ins, outs: tvm.tir.call_packed(
-            "tvm.contrib.thrust.stable_sort_by_key", ins[0], ins[1], outs[0], outs[1], for_scatter
-        ),
-        in_buffers=[keys_buf, values_buf],
+        [keys, values] if workspace is None else [keys, values, workspace],
+        f_compute,
+        in_buffers=[keys_buf, values_buf]
+        if workspace is None
+        else [keys_buf, values_buf, workspace_buf],
         out_buffers=out_bufs,
         dtype=[keys.dtype, values.dtype],
         name="stable_sort_by_key",
