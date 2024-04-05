@@ -22,6 +22,7 @@ from typing import Dict
 import tvm
 from tvm.relax.transform import _ffi_api as relax_api
 from tvm.relay.transform import _ffi_api as relay_api
+from tvm.contrib.msc.core import utils as msc_utils
 
 
 def SetExprName(
@@ -49,12 +50,8 @@ def SetExprName(
     """
 
     if as_relax:
-
-        def _get_name(name):
-            return name.replace("/", "_").replace(".", "_").strip("_")
-
         var_names = var_names or {}
-        var_names = {k: _get_name(v) for k, v in var_names.items()}
+        var_names = {k: msc_utils.legalize_expr_name(v) for k, v in var_names.items()}
         return relax_api.SetRelaxExprName(entry_name, target, var_names)  # type: ignore
     return relay_api.SetRelayExprName(entry_name)  # type: ignore
 
