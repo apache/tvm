@@ -1012,9 +1012,9 @@ export class ArtifactCache implements ArtifactCacheTemplate {
    * @param storetype the storetype stored in the indexedDB database
    * @returns the expected response object
    */
-  async responseTostoretype(response: Response, storetype: string): Promise<any>{
+  async responseTostoretype(response: Response, storetype: string): Promise<any> {
     let result: any;
-    if (storetype.toLowerCase() === "json"){
+    if (storetype.toLowerCase() === "json") {
       result = await result.json();
     } else if (storetype.toLowerCase() === "arraybuffer") {
       result = await result.arrayBuffer();
@@ -1041,7 +1041,7 @@ export class ArtifactCache implements ArtifactCacheTemplate {
       result = await this.addToCache(url, storetype);
       return result;
     } else {
-      if (storetype === undefined){
+      if (storetype === undefined) {
         return result;
       } else {
         return await this.responseTostoretype(result, storetype);
@@ -1059,7 +1059,7 @@ export class ArtifactCache implements ArtifactCacheTemplate {
       await this.cache.add(request);
       result = await this.cache.match(request);
     }
-    if (storetype === undefined){
+    if (storetype === undefined) {
       return result;
     } else {
       return await this.responseTostoretype(result, storetype);
@@ -1101,7 +1101,7 @@ export class ArtifactindexDBCache implements ArtifactCacheTemplate {
   private dbVersion = 1;
   private db: IDBDatabase | undefined;
 
-  constructor(dbName: string){
+  constructor(dbName: string) {
     this.dbName = dbName;
   }
 
@@ -1109,7 +1109,7 @@ export class ArtifactindexDBCache implements ArtifactCacheTemplate {
    * Init the indexed DB database if it is not initialized.
    */
   private async initDB() {
-    if (this.db != null){
+    if (this.db != null) {
       return; // the db is already inialized
     }
     return new Promise<void>((resolve, reject) => {
@@ -1139,7 +1139,7 @@ export class ArtifactindexDBCache implements ArtifactCacheTemplate {
   private async isUrlInDB(url: string): Promise<boolean> {
     return new Promise<boolean>((resolve, reject) => {
       const transaction = this.db?.transaction(['urls'], 'readonly');
-      if (transaction === undefined){
+      if (transaction === undefined) {
         return false;
       }
       const store = transaction.objectStore('urls');
@@ -1153,11 +1153,11 @@ export class ArtifactindexDBCache implements ArtifactCacheTemplate {
     });
   }
 
-  async asyncGetHelper(url: string){
+  async asyncGetHelper(url: string) {
     return new Promise((resolve, reject) => {
       let result: any;
       const transaction = this.db?.transaction(['urls'], 'readonly');
-      if (transaction === undefined){
+      if (transaction === undefined) {
         return false;
       }
       transaction.oncomplete = () => resolve(result);
@@ -1179,9 +1179,9 @@ export class ArtifactindexDBCache implements ArtifactCacheTemplate {
     } else {
       // URL found in DB, just fetch without storing
       const result = await this.asyncGetHelper(url);
-      if (result != null && typeof result === "object" && "data" in result){
+      if (result != null && typeof result === "object" && "data" in result) {
         return result.data;
-      } else if (result === null){
+      } else if (result === null) {
         // previously null data in cache!
         await this.deleteInCache(url);
         const response = await this.addToCache(url, storetype);
@@ -1191,13 +1191,13 @@ export class ArtifactindexDBCache implements ArtifactCacheTemplate {
     }
   }
 
-  async addToIndexDB(url: string, response: any, storetype?: string){
+  async addToIndexDB(url: string, response: any, storetype?: string) {
     await this.initDB();
     let data: any;
-    if (storetype != undefined){
-      if (storetype.toLowerCase() === "json"){
+    if (storetype != undefined) {
+      if (storetype.toLowerCase() === "json") {
         data = await response.json();
-      } else if (storetype.toLocaleLowerCase() === "arraybuffer"){
+      } else if (storetype.toLocaleLowerCase() === "arraybuffer") {
         data = await response.arrayBuffer();
       } else {
         console.error("Unsupported Type in IndexDB");
@@ -1205,17 +1205,17 @@ export class ArtifactindexDBCache implements ArtifactCacheTemplate {
     }
     return new Promise<void>((resolve, reject) => {
       const transaction = this.db?.transaction(['urls'], 'readwrite');
-      if (transaction === undefined){
+      if (transaction === undefined) {
         return;
       }
       const store = transaction.objectStore('urls');
-      const request = store.add({data, url}); // Index DB follows a {value, key} format, instead of {key, value} format!
+      const request = store.add({ data, url }); // Index DB follows a {value, key} format, instead of {key, value} format!
       request.onsuccess = () => resolve();
       request.onerror = (event) => reject((event.target as IDBRequest).error);
     });
   }
 
-  async addToCache(url: string, storetype?: string) :Promise<any>{
+  async addToCache(url: string, storetype?: string): Promise<any> {
     let response: Response;
     try {
       response = await fetch(url);
@@ -1224,9 +1224,9 @@ export class ArtifactindexDBCache implements ArtifactCacheTemplate {
       }
       const response_copy = response.clone();
       await this.addToIndexDB(url, response_copy, storetype);
-      if (storetype.toLowerCase() === "arraybuffer"){
+      if (storetype.toLowerCase() === "arraybuffer") {
         return await response.arrayBuffer();
-      } else if (storetype.toLowerCase() === "json"){
+      } else if (storetype.toLowerCase() === "json") {
         return await response.json();
       } else {
         return response;
@@ -1236,7 +1236,7 @@ export class ArtifactindexDBCache implements ArtifactCacheTemplate {
     }
   }
 
-  async hasAllKeys(keys: string[]) :Promise<boolean> {
+  async hasAllKeys(keys: string[]): Promise<boolean> {
     await this.initDB(); // Ensure the DB is initialized
     if (!this.db) {
       throw new Error('Database is not initialized');
@@ -1271,7 +1271,7 @@ export class ArtifactindexDBCache implements ArtifactCacheTemplate {
   async deleteInCache(url: string) {
     await this.initDB(); // Make sure the DB is initialized
     const transaction = this.db?.transaction(['urls'], 'readwrite');
-    if (transaction === undefined){
+    if (transaction === undefined) {
       return;
     }
     const store = transaction.objectStore('urls');
@@ -1743,12 +1743,12 @@ export class Instance implements Disposable {
     cacheType = "cache"
   ): Promise<any> {
     let artifactCache;
-    if (cacheType === undefined){
+    if (cacheType === undefined) {
       artifactCache = new ArtifactCache(cacheScope);
     }
-    if (cacheType.toLowerCase() === "cache"){
+    if (cacheType.toLowerCase() === "cache") {
       artifactCache = new ArtifactCache(cacheScope);
-    } else if (cacheType.toLowerCase() == "indexdb"){
+    } else if (cacheType.toLowerCase() == "indexdb") {
       artifactCache = new ArtifactindexDBCache(cacheScope);
     } else {
       console.error("Unsupported Cache Type, using default browser cache");
@@ -1849,7 +1849,7 @@ export class Instance implements Disposable {
       }
     }
     // We launch 4 parallel for loops to limit the max concurrency to 4 download
-    if (!cacheOnly){
+    if (!cacheOnly) {
       const loopSize = Math.floor(list.length / 4);
       await Promise.all([
         downloadCache(0, loopSize),
@@ -1908,7 +1908,7 @@ export class Instance implements Disposable {
           throw err;
         }
       }
-      if (cacheOnly){
+      if (cacheOnly) {
         reportCallback(i + 1, /* Need to Report call back*/false);
       }
     }
@@ -2847,9 +2847,9 @@ export async function hasNDArrayInCache(
   cacheType = "cache"
 ): Promise<boolean> {
   let artifactCache;
-  if (cacheType.toLowerCase() === "cache"){
+  if (cacheType.toLowerCase() === "cache") {
     artifactCache = new ArtifactCache(cacheScope);
-  } else if (cacheType.toLowerCase() == "indexdb"){
+  } else if (cacheType.toLowerCase() == "indexdb") {
     artifactCache = new ArtifactindexDBCache(cacheScope);
   } else {
     console.error("Unsupported Cache Type, using default browser cache");
@@ -2885,9 +2885,9 @@ export async function deleteNDArrayCache(
   cacheType = "cache"
 ) {
   let artifactCache;
-  if (cacheType.toLowerCase() === "cache"){
+  if (cacheType.toLowerCase() === "cache") {
     artifactCache = new ArtifactCache(cacheScope);
-  } else if (cacheType.toLowerCase() == "indexdb"){
+  } else if (cacheType.toLowerCase() == "indexdb") {
     artifactCache = new ArtifactindexDBCache(cacheScope);
   } else {
     console.error("Unsupported Cache Type, using default browser cache");
