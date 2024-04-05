@@ -996,7 +996,7 @@ export interface InitProgressReport {
 export type InitProgressCallback = (report: InitProgressReport) => void;
 
 /**
- * Cache to store model related data.
+ * Cache to store model related data, implemented with the Cache API.
  */
 export class ArtifactCache implements ArtifactCacheTemplate {
   private scope: string;
@@ -1008,7 +1008,7 @@ export class ArtifactCache implements ArtifactCacheTemplate {
 
   /**
    * Convert the Response object to the expected storetype instead
-   * @param response the cache or indexDB response
+   * @param response the cache or indexedDB response
    * @param storetype the storetype stored in the indexedDB database
    * @returns the expected response object
    */
@@ -1028,7 +1028,7 @@ export class ArtifactCache implements ArtifactCacheTemplate {
   /**
    * fetch the corresponding url object in response or stored object format
    * @param url url
-   * @param storetype the storage type for indexDB
+   * @param storetype the storage type for indexedDB
    * @returns response in json, arraybuffer or pure response format
    */
   async fetchWithCache(url: string, storetype?: string) {
@@ -1094,9 +1094,9 @@ export class ArtifactCache implements ArtifactCacheTemplate {
 }
 
 /**
- * Cache by IndexDB to support caching model data
+ * Cache by IndexedDB to support caching model data
  */
-export class ArtifactindexDBCache implements ArtifactCacheTemplate {
+export class ArtifactIndexedDBCache implements ArtifactCacheTemplate {
   private dbName?: string;
   private dbVersion = 1;
   private db: IDBDatabase | undefined;
@@ -1191,7 +1191,7 @@ export class ArtifactindexDBCache implements ArtifactCacheTemplate {
     }
   }
 
-  async addToIndexDB(url: string, response: any, storetype?: string) {
+  async addToIndexedDB(url: string, response: any, storetype?: string) {
     await this.initDB();
     let data: any;
     if (storetype != undefined) {
@@ -1200,7 +1200,7 @@ export class ArtifactindexDBCache implements ArtifactCacheTemplate {
       } else if (storetype.toLocaleLowerCase() === "arraybuffer") {
         data = await response.arrayBuffer();
       } else {
-        console.error("Unsupported Type in IndexDB");
+        console.error("Unsupported Type in IndexedDB");
       }
     }
     return new Promise<void>((resolve, reject) => {
@@ -1223,7 +1223,7 @@ export class ArtifactindexDBCache implements ArtifactCacheTemplate {
         throw new Error('Network response was not ok');
       }
       const response_copy = response.clone();
-      await this.addToIndexDB(url, response_copy, storetype);
+      await this.addToIndexedDB(url, response_copy, storetype);
       if (storetype.toLowerCase() === "arraybuffer") {
         return await response.arrayBuffer();
       } else if (storetype.toLowerCase() === "json") {
@@ -1733,7 +1733,7 @@ export class Instance implements Disposable {
    * @param ndarrayCacheUrl The cache url.
    * @param device The device to be fetched to.
    * @param cacheScope The scope identifier of the cache
-   * @param cacheType The type of the cache: "cache" or "indexDB"
+   * @param cacheType The type of the cache: "cache" or "indexedDB"
    * @returns The meta data
    */
   async fetchNDArrayCache(
@@ -1748,8 +1748,8 @@ export class Instance implements Disposable {
     }
     if (cacheType.toLowerCase() === "cache") {
       artifactCache = new ArtifactCache(cacheScope);
-    } else if (cacheType.toLowerCase() == "indexdb") {
-      artifactCache = new ArtifactindexDBCache(cacheScope);
+    } else if (cacheType.toLowerCase() == "indexeddb") {
+      artifactCache = new ArtifactIndexedDBCache(cacheScope);
     } else {
       console.error("Unsupported Cache Type, using default browser cache");
       artifactCache = new ArtifactCache(cacheScope);
@@ -2838,7 +2838,7 @@ export function instantiate(
  *
  * @param ndarrayCacheUrl The cache url which links to the NDArray
  * @param cacheScope The scope identifier of the cache
- * @param cacheType The type of the cache: "cache" or "indexDB"
+ * @param cacheType The type of the cache: "cache" or "indexedDB"
  * @returns the result if the cache has NDArray
  */
 export async function hasNDArrayInCache(
@@ -2849,8 +2849,8 @@ export async function hasNDArrayInCache(
   let artifactCache;
   if (cacheType.toLowerCase() === "cache") {
     artifactCache = new ArtifactCache(cacheScope);
-  } else if (cacheType.toLowerCase() == "indexdb") {
-    artifactCache = new ArtifactindexDBCache(cacheScope);
+  } else if (cacheType.toLowerCase() == "indexeddb") {
+    artifactCache = new ArtifactIndexedDBCache(cacheScope);
   } else {
     console.error("Unsupported Cache Type, using default browser cache");
     artifactCache = new ArtifactCache(cacheScope);
@@ -2877,7 +2877,7 @@ export async function hasNDArrayInCache(
  *
  * @param cacheUrl The cacheUrl for the items
  * @param cacheScope The scope identifier of the cache
- * @param cacheType The type of the cache: "cache" or "indexDB"
+ * @param cacheType The type of the cache: "cache" or "indexedDB"
  */
 export async function deleteNDArrayCache(
   cacheUrl: string,
@@ -2887,8 +2887,8 @@ export async function deleteNDArrayCache(
   let artifactCache;
   if (cacheType.toLowerCase() === "cache") {
     artifactCache = new ArtifactCache(cacheScope);
-  } else if (cacheType.toLowerCase() == "indexdb") {
-    artifactCache = new ArtifactindexDBCache(cacheScope);
+  } else if (cacheType.toLowerCase() == "indexeddb") {
+    artifactCache = new ArtifactIndexedDBCache(cacheScope);
   } else {
     console.error("Unsupported Cache Type, using default browser cache");
     artifactCache = new ArtifactCache(cacheScope);

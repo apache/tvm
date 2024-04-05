@@ -22,11 +22,10 @@ export {
   PackedFunc, Module, NDArray,
   TVMArray, TVMObject, VirtualMachine,
   InitProgressCallback, InitProgressReport,
-  ArtifactCache, ArtifactindexDBCache, Instance, instantiate, hasNDArrayInCache, deleteNDArrayCache
+  ArtifactCache, ArtifactIndexedDBCache, Instance, instantiate, hasNDArrayInCache, deleteNDArrayCache
 } from "./runtime";
 export { Disposable, LibraryProvider } from "./types";
 export { RPCServer } from "./rpc_server";
-export { wasmPath, LinearCongruentialGenerator } from "./support";
+export { assert, wasmPath, LinearCongruentialGenerator } from "./support";
 export { detectGPUDevice, GPUDeviceDetectOutput } from "./webgpu";
-export { assert } from "./support";
 export { createPolyfillWASI } from "./compact";
