@@ -1790,7 +1790,7 @@ TVM_REGISTER_GLOBAL("vm.builtin.paged_attention_kv_cache_create")
       int64_t prefill_chunk_size = cache_config[2];
       int64_t page_size = cache_config[3];
       bool support_sliding_window = cache_config[4];
-      int64_t num_total_pages = (total_token_capacity + page_size - 1) / page_size;
+      int64_t num_total_pages = (total_token_capacity + page_size - 1) / page_size + 1;
       if (support_sliding_window) {
         // When sliding window is enabled, each sequence may use two more pages at most.
         num_total_pages += reserved_num_seqs * 2;
@@ -1827,7 +1827,7 @@ TVM_REGISTER_GLOBAL("vm.builtin.paged_attention_kv_cache_create_reduced")
       int64_t prefill_chunk_size = cache_config[2];
       int64_t page_size = cache_config[3];
       bool support_sliding_window = cache_config[4];
-      int64_t num_total_pages = (total_token_capacity + page_size - 1) / page_size;
+      int64_t num_total_pages = (total_token_capacity + page_size - 1) / page_size + 1;
       if (support_sliding_window) {
         // When sliding window is enabled, each sequence may use two more pages at most.
         num_total_pages += reserved_num_seqs * 2;
