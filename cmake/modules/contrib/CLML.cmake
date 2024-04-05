@@ -18,6 +18,7 @@
 if(USE_CLML)
     file(GLOB CLML_RELAY_CONTRIB_SRC src/relay/backend/contrib/clml/*.cc)
     file(GLOB CLML_RUNTIME_MODULE src/runtime/contrib/clml/clml_runtime.cc)
+    include_directories(SYSTEM "3rdparty/OpenCL-Headers")
     list(APPEND COMPILER_SRCS ${CLML_RELAY_CONTRIB_SRC})
     if(NOT USE_CLML_GRAPH_EXECUTOR)
         list(APPEND COMPILER_SRCS ${CLML_RUNTIME_MODULE})
@@ -56,6 +57,15 @@ if(USE_CLML_GRAPH_EXECUTOR)
           NAMES OpenCL libOpenCL
           HINTS "${CLML_PATH}" "${CLML_PATH}/lib64" "${CLML_PATH}/lib"
           )
+    if(NOT EXTERN_CLML_COMPUTE_LIB)
+        string(FIND ${ANDROID_ABI} "64" ARCH_64)
+        set(EXTERN_CLML_COMPUTE_LIB "")
+        if(ARCH_64 GREATER -1)
+            list(APPEND EXTERN_CLML_COMPUTE_LIB ${CLML_PATH}/lib64/libOpenCL.so ${CLML_PATH}/lib64/libOpenCL_system.so)
+        else()
+            list(APPEND EXTERN_CLML_COMPUTE_LIB ${CLML_PATH}/lib/libOpenCL.so ${CLML_PATH}/lib/libOpenCL_system.so)
+        endif()
+    endif()
     list(APPEND TVM_RUNTIME_LINKER_LIBS ${EXTERN_CLML_COMPUTE_LIB})
     list(APPEND RUNTIME_SRCS ${CLML_CONTRIB_SRC})
     message(STATUS "Build with CLML graph runtime support: "

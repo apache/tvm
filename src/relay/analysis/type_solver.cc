@@ -659,7 +659,7 @@ TVM_REGISTER_GLOBAL("relay.analysis._test_type_solver")
       auto module = IRModule({}, {});
       DiagnosticContext diag_ctx = DiagnosticContext::Default(module);
       auto dummy_fn_name = GlobalVar("test");
-      module->Add(dummy_fn_name, Function({}, Tuple(tvm::Array<relay::Expr>({})), Type(), {}, {}));
+      module->Add(dummy_fn_name, Function({}, Tuple(tvm::Array<relay::Expr>({})), Type(), {}));
       auto solver = std::make_shared<TypeSolver>(dummy_fn_name, diag_ctx);
 
       auto mod = [module, solver, diag_ctx](std::string name) -> PackedFunc {

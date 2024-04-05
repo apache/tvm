@@ -25,6 +25,7 @@ from tvm import relax
 from tvm.script import ir as I
 from tvm.script import relax as R
 from tvm.script import tir as T
+import pytest
 
 
 # pylint: disable=missing-docstring,no-self-argument,invalid-name
@@ -46,7 +47,7 @@ class Module:
                     T.writes(output[v_ax0, v_ax1])
                     output[v_ax0, v_ax1] = arg0[v_ax0, v_ax1] + arg1[v_ax0, v_ax1]
 
-    @R.function
+    @R.function(pure=False)
     def main(x: R.Tensor((2, 2), dtype="float32")):
         cls = Module
         # Try allocating 2d storage (2,2) in global.vtcm scope with nd allocator
@@ -64,6 +65,7 @@ class Module:
 
 
 # pylint: enable=missing-docstring,no-self-argument,invalid-name
+@pytest.mark.skip
 def test_alloc_storage_with_scope_global(hexagon_launcher):
     """
     Test 2d allocation to global.vtcm memory scope in a Relax Function

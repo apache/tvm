@@ -85,6 +85,7 @@ class PrimExprSlotCollector : public ExprVisitor, public StructInfoVisitor {
       collector.VisitExpr(param);
     }
     collector.VisitExpr(func->body);
+    collector.VisitStructInfo(func->ret_struct_info);
   }
 
  private:
@@ -224,6 +225,7 @@ class VMShapeLowerMutator
     // prepare mapping and heap var
     slot_vec_.clear();
     slot_map_.clear();
+    current_gvar_ = gvar;
     PrimExprSlotCollector::Collect(func, &slot_vec_, &slot_map_);
     heap_size_ = IntImm(ShapeDType(), static_cast<int64_t>(slot_vec_.size()));
     VarBinding shape_heap_binding = this->AllocShapeHeapBinding(heap_size_);
@@ -285,6 +287,9 @@ class VMShapeLowerMutator
     }
 
     auto new_body = builder_->Normalize(SeqExpr(blocks, body_seq->body));
+
+    current_gvar_ = NullOpt;
+
     // create a new function
     return Function(func->params, new_body, func->ret_struct_info, func->is_pure, func->attrs);
   }
@@ -357,7 +362,8 @@ class VMShapeLowerMutator
       auto it = slot_map_.find(expr);
       ICHECK(it != slot_map_.end());
       auto* slot = it->second;
-      ICHECK(slot->value_computed) << "PrimExpr " << expr << " has not been computed";
+      ICHECK(slot->value_computed)
+          << "PrimExpr " << expr << " in function " << current_gvar_ << " has not been computed";
       return {PrimValue::Int64(static_cast<int>(MakeShapeCode::kLoadShape)),
               PrimValue::Int64(slot->index)};
     }
@@ -772,6 +778,7 @@ class VMShapeLowerMutator
   std::vector<std::unique_ptr<PrimExprSlot>> slot_vec_;
   /*! \brief Expr => slot. */
   PrimExprSlotMap slot_map_;
+  Optional<GlobalVar> current_gvar_ = NullOpt;
   /*!
    * \brief List of vars that are being defined but
    * have not go through outstanding shape compute check.

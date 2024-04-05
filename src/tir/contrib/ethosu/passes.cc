@@ -81,7 +81,7 @@ FlattenUnwrapResult FlattenUnwrap(const Stmt& stmt) {
       for (const auto& sub_stmt : ptr->seq) {
         flatten_unwrap(sub_stmt);
       }
-    } else if (auto* ptr = stmt.as<EvaluateNode>(); ptr && ptr->value.as<IntImmNode>()) {
+    } else if (auto* ptr1 = stmt.as<EvaluateNode>(); ptr1 && ptr1->value.as<IntImmNode>()) {
       // Skip
     } else {
       seq_stmt.push_back(stmt);

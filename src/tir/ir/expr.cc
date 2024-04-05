@@ -449,16 +449,18 @@ Ramp::Ramp(PrimExpr base, PrimExpr stride, PrimExpr lanes, Span span) {
     int lanes = static_cast<int>(lanes_as_int->value);
     ICHECK_GT(lanes, 1);
     node->dtype = base.dtype().with_lanes(lanes);
+    // Stick to int32 lanes for fixed length vectors
+    node->lanes = lanes;
   } else { /* scalable vector */
     std::optional<int> vscale_factor = arith::ExtractVscaleFactor(lanes);
     ICHECK(vscale_factor) << "Invalid expression for scalable lanes " << lanes;
 
     node->dtype = base.dtype().with_scalable_vscale_factor(vscale_factor.value());
     lanes = Mul(Call(DataType::Int(32), tir::builtin::vscale(), {}), vscale_factor.value());
+    node->lanes = lanes;
   }
   node->base = base;
   node->stride = stride;
-  node->lanes = lanes;
   node->span = std::move(span);
   data_ = std::move(node);
 }
@@ -481,15 +483,17 @@ Broadcast::Broadcast(PrimExpr value, PrimExpr lanes, Span span) {
     int lanes = static_cast<int>(lanes_int->value);
     ICHECK_GT(lanes, 1);
     node->dtype = value.dtype().with_lanes(lanes);
+    // Stick to int32 lanes for fixed length vectors
+    node->lanes = lanes;
   } else { /* scalable vector */
     std::optional<int> vscale_factor = arith::ExtractVscaleFactor(lanes);
     ICHECK(vscale_factor) << "Invalid expression for scalable lanes " << lanes;
 
     node->dtype = value.dtype().with_scalable_vscale_factor(vscale_factor.value());
     lanes = Mul(Call(DataType::Int(32), tir::builtin::vscale(), {}), vscale_factor.value());
+    node->lanes = lanes;
   }
   node->value = std::move(value);
-  node->lanes = lanes;
   node->span = std::move(span);
   data_ = node;
 }

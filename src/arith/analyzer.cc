@@ -317,6 +317,16 @@ TVM_REGISTER_GLOBAL("arith.CreateAnalyzer").set_body([](TVMArgs args, TVMRetValu
     } else if (name == "can_prove_equal") {
       return PackedFunc(
           [self](TVMArgs args, TVMRetValue* ret) { *ret = self->CanProveEqual(args[0], args[1]); });
+    } else if (name == "get_enabled_extensions") {
+      return PackedFunc([self](TVMArgs args, TVMRetValue* ret) {
+        *ret = static_cast<std::int64_t>(self->rewrite_simplify.GetEnabledExtensions());
+      });
+    } else if (name == "set_enabled_extensions") {
+      return PackedFunc([self](TVMArgs args, TVMRetValue* ret) {
+        std::int64_t flags = args[0];
+        self->rewrite_simplify.SetEnabledExtensions(
+            static_cast<RewriteSimplifier::Extension>(flags));
+      });
     }
     return PackedFunc();
   };

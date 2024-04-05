@@ -32,7 +32,7 @@ Installing PAPI
 
 PAPI can either be installed using your package manager (``apt-get install libpapi-dev``
 on Ubuntu), or from source here:
-https://bitbucket.org/icl/papi/src/master/.
+https://github.com/icl-utk-edu/papi.
 
 Pulling the latest version of PAPI from source has caused build issues before. Therefore, it is recommended to checkout tagged version ``papi-6-0-0-1-t``.
 
@@ -102,7 +102,7 @@ You can also change which metrics are collected:
     report = vm.profile(
         data,
         func_name="main",
-        collectors=[tvm.runtime.profiling.PAPIMetricCollector({dev: ["PAPI_FP_OPS"])],
+        collectors=[tvm.runtime.profiling.PAPIMetricCollector({dev: ["PAPI_FP_OPS"]})],
     )
 
 .. code::

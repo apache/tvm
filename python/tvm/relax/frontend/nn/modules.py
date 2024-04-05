@@ -19,7 +19,7 @@
 from typing import List, Optional, Sequence, Union
 
 from tvm import relax as rx
-from tvm import tir, ir
+from tvm import tir
 
 from . import op
 from .core import Effect, Module, ModuleList, Parameter, Tensor, get_default_dtype
@@ -599,15 +599,12 @@ class KVCache(Effect):
         init_shape = rx.ShapeExpr([self.init_seq_len] + self.unit_shape)
         return [
             bb.emit(
-                rx.Call(
-                    ir.Op.get("relax.call_pure_packed"),
-                    args=[
-                        rx.extern("vm.builtin.attention_kv_cache_create"),
-                        rx.op.zeros(init_shape, self.dtype),
-                        init_shape,
-                        rx.PrimValue(0),
-                    ],
-                    sinfo_args=[rx.ObjectStructInfo()],
+                rx.op.call_pure_packed(
+                    "vm.builtin.attention_kv_cache_create",
+                    rx.op.zeros(init_shape, self.dtype),
+                    init_shape,
+                    rx.PrimValue(0),
+                    sinfo_args=rx.ObjectStructInfo(),
                 ),
                 name_hint=name_hint,
             )
@@ -675,14 +672,11 @@ class KVCache(Effect):
         shape = rx.ShapeExpr([seq_len] + self.unit_shape)
         return Tensor(
             _expr=rx.BlockBuilder.current().emit(
-                rx.Call(
-                    ir.Op.get("relax.call_pure_packed"),
-                    args=[
-                        rx.extern("vm.builtin.attention_kv_cache_view"),
-                        self.cache,
-                        shape,
-                    ],
-                    sinfo_args=[rx.TensorStructInfo(shape, self.dtype)],
+                rx.op.call_pure_packed(
+                    "vm.builtin.attention_kv_cache_view",
+                    self.cache,
+                    shape,
+                    sinfo_args=rx.TensorStructInfo(shape, self.dtype),
                 )
             )
         )
@@ -702,14 +696,12 @@ class KVCache(Effect):
                 f'but got "{new_element.dtype}"'
             )
         self.cache = rx.BlockBuilder.current().emit(
-            rx.Call(
-                ir.Op.get("relax.call_pure_packed"),
-                args=[
-                    rx.extern("vm.builtin.attention_kv_cache_append"),
-                    self.cache,
-                    new_element._expr,
-                ],
-                sinfo_args=[rx.ObjectStructInfo()],
+            rx.op.call_inplace_packed(
+                "vm.builtin.attention_kv_cache_append",
+                self.cache,
+                new_element._expr,
+                inplace_indices=[0],
+                sinfo_args=rx.ObjectStructInfo(),
             )
         )
 

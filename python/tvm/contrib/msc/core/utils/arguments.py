@@ -77,7 +77,7 @@ def save_dict(dict_obj: Any, path: str, indent: int = 2) -> str:
     return path
 
 
-def update_dict(src_dict: dict, new_dict: dict, soft_update: bool = True) -> dict:
+def update_dict(src_dict: dict, new_dict: dict, soft_update: bool = False) -> dict:
     """Update src_dict with new_dict.
 
     Parameters
@@ -95,14 +95,18 @@ def update_dict(src_dict: dict, new_dict: dict, soft_update: bool = True) -> dic
         The updated dict.
     """
 
+    if not new_dict:
+        return src_dict
     assert isinstance(src_dict, dict) and isinstance(
         new_dict, dict
     ), "update_dict only support dict, get src {} and new {}".format(type(src_dict), type(new_dict))
     for k, v in new_dict.items():
-        if isinstance(v, dict):
+        if not src_dict.get(k):
+            src_dict[k] = v
+        elif isinstance(v, dict):
             v = update_dict(src_dict.get(k, {}), v, soft_update)
             src_dict[k] = v
-        elif not soft_update or k not in src_dict:
+        elif not soft_update:
             src_dict[k] = v
     return src_dict
 

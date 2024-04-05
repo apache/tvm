@@ -29,6 +29,8 @@
 #include <tvm/tir/function.h>
 #include <tvm/tir/op.h>
 
+#include <tuple>
+
 namespace tvm {
 namespace relax {
 namespace inspect {
@@ -50,6 +52,42 @@ TensorStructInfo GetTensorArgInfo(const Call& call) {
   return tensor_sinfo.value();
 }
 
+std::tuple<TensorStructInfo, PrimStructInfo> GetTensorArgInfoWithIndex(const Call& call) {
+  CHECK_EQ(call->args.size(), 2) << "TypeError: "
+                                 << "Operator " << call->op << " expects two arguments, "
+                                 << "but received " << call->args.size()
+                                 << " arguments: " << call->args;
+  const auto& arg = call->args[0];
+  const auto& axis = call->args[1];
+
+  auto tensor_sinfo = arg->struct_info_.as<TensorStructInfoNode>();
+  CHECK(tensor_sinfo) << "TypeError: "
+                      << "Operator " << call->op << " expects arguments (tensor, axis), "
+                      << "but the first argument " << arg << " in expression " << call
+                      << " has struct info " << arg->struct_info_;
+
+  auto axis_sinfo = axis->struct_info_.as<PrimStructInfoNode>();
+  CHECK(axis_sinfo) << "TypeError: "
+                    << "Operator " << call->op << " expects arguments (tensor, axis), "
+                    << "but the second argument " << arg << " in expression " << call
+                    << " has struct info " << axis->struct_info_;
+
+  auto int_imm_axis = axis_sinfo->value.as<IntImmNode>();
+
+  if (int_imm_axis) {
+    CHECK_GE(int_imm_axis->value, 0);
+  }
+  if (int_imm_axis && !tensor_sinfo->IsUnknownNdim()) {
+    CHECK_LT(int_imm_axis->value, tensor_sinfo->ndim)
+        << "ValueError: "
+        << "Expression " << call << " attempts to access " << arg << ".shape["
+        << int_imm_axis->value << "]"
+        << ", but " << arg << ".shape only has " << tensor_sinfo->ndim << " elements";
+  }
+
+  return {GetRef<TensorStructInfo>(tensor_sinfo), GetRef<PrimStructInfo>(axis_sinfo)};
+}
+
 DataType GetTensorDataType(const Call& call) { return GetTensorArgInfo(call)->dtype; }
 
 tir::PrimFunc GetDLTensorField(tir::builtin::TVMStructFieldKind field, DataType field_dtype) {
@@ -69,7 +107,7 @@ tir::PrimFunc GetDLTensorField(tir::builtin::TVMStructFieldKind field, DataType 
 
   FuncStructInfo sinfo({TensorStructInfo(DataType::Void(), kUnknownNDim)},
                        PrimStructInfo(field_dtype));
-  UpdateStructInfo(func, sinfo);
+  func->struct_info_ = sinfo;
 
   return func;
 }
@@ -244,39 +282,11 @@ Expr tensor_shape_i(Expr expr) {
 StructInfo InferStructInfoTensorShape(const Call& call, const BlockBuilder&) {
   auto dlpack_type = DataType::Int(64);
 
-  CHECK_EQ(call->args.size(), 2) << "TypeError: "
-                                 << "Operator " << call->op << " expects two arguments, "
-                                 << "but received " << call->args.size()
-                                 << " arguments: " << call->args;
-  const auto& arg = call->args[0];
-  const auto& axis = call->args[1];
-
-  auto tensor_sinfo = arg->struct_info_.as<TensorStructInfoNode>();
-  CHECK(tensor_sinfo) << "TypeError: "
-                      << "Operator " << call->op << " expects arguments (tensor, axis), "
-                      << "but the first argument " << arg << " in expression " << call
-                      << " has struct info " << arg->struct_info_;
-
-  auto axis_sinfo = axis->struct_info_.as<PrimStructInfoNode>();
-  CHECK(axis_sinfo) << "TypeError: "
-                    << "Operator " << call->op << " expects arguments (tensor, axis), "
-                    << "but the second argument " << arg << " in expression " << call
-                    << " has struct info " << axis->struct_info_;
-
-  auto int_imm_axis = axis_sinfo->value.as<IntImmNode>();
-
-  if (int_imm_axis) {
-    CHECK_GE(int_imm_axis->value, 0);
-  }
-  if (int_imm_axis && !tensor_sinfo->IsUnknownNdim()) {
-    CHECK_LT(int_imm_axis->value, tensor_sinfo->ndim)
-        << "ValueError: "
-        << "Expression " << call << " attempts to access " << arg << ".shape["
-        << int_imm_axis->value << "]"
-        << ", but " << arg << ".shape only has " << tensor_sinfo->ndim << " elements";
-  }
+  auto [tensor_sinfo, axis_sinfo] = GetTensorArgInfoWithIndex(call);
 
   auto tensor_shape = tensor_sinfo->GetShape();
+  auto int_imm_axis = axis_sinfo->value.as<IntImmNode>();
+
   if (int_imm_axis && tensor_shape.defined()) {
     return PrimStructInfo(tensor_shape.value()[int_imm_axis->value]);
   } else {
@@ -328,7 +338,7 @@ Expr LegalizeTensorShape(const BlockBuilder& bb, const Call& call) {
     FuncStructInfo sinfo(
         {TensorStructInfo(DataType::Void(), kUnknownNDim), PrimStructInfo(axis->dtype)},
         PrimStructInfo(field_dtype));
-    UpdateStructInfo(func, sinfo);
+    func->struct_info_ = sinfo;
     return func;
   }();
 
@@ -342,6 +352,116 @@ TVM_REGISTER_OP("relax.inspect.tensor_shape_i")
     .add_argument("axis", "Prim(int64)", "The axis whose extent should be returned")
     .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoTensorShape)
     .set_attr<FLegalize>("FLegalize", LegalizeTensorShape)
+    .set_attr<Bool>("RequiresArgumentShapes", Bool(false))
+    .set_attr<FNormalize>("FNormalize", NormalizeToKnownPrimValue)
+    .set_attr<Bool>("FPurity", Bool(true));
+
+//// relax.tensor_stride_i
+
+Expr tensor_stride_i(Expr expr) {
+  static const Op& op = Op::Get("relax.inspect.tensor_stride_i");
+  return Call(op, {expr});
+}
+
+StructInfo InferStructInfoTensorStride(const Call& call, const BlockBuilder&) {
+  auto dlpack_type = DataType::Int(64);
+
+  auto [tensor_sinfo, axis_sinfo] = GetTensorArgInfoWithIndex(call);
+
+  auto opt_tensor_shape = tensor_sinfo->GetShape();
+  auto int_imm_axis = axis_sinfo->value.as<IntImmNode>();
+
+  if (int_imm_axis && opt_tensor_shape.defined()) {
+    // As of 2024-03-14, Relax does not have an explicit
+    // representation for striding in `TensorStructInfo`.  The
+    // `FLegalize` function for most operators is implemented in terms
+    // of `topi`, and is then converted from TE to `tir::PrimFunc`
+    // using `tvm::tir::CreatePrimFunc`.  The `te::Tensor` is
+    // converted to a `tir::Buffer` in `RewriteStageToBlock`, and uses
+    // the default empty list for the strides.  The empty strides
+    // represent a compact data array.
+    //
+    // Therefore, while Relax does not explicitly represent the
+    // striding of a tensor, it implicitly requires compact striding
+    // for any legalizable Tensor.
+    auto tensor_shape = opt_tensor_shape.value();
+    PrimExpr stride = IntImm(DataType::Int(64), 1);
+    for (size_t axis = int_imm_axis->value + 1; axis < tensor_shape.size(); axis++) {
+      stride = stride * tensor_shape[axis];
+    }
+    return PrimStructInfo(stride);
+  } else {
+    return PrimStructInfo(dlpack_type);
+  }
+}
+
+TVM_REGISTER_OP("relax.inspect.tensor_stride_i")
+    .set_num_inputs(2)
+    .add_argument("tensor", "Tensor", "The tensor to be inspected")
+    .add_argument("axis", "Prim(int64)", "The axis whose extent should be returned")
+    .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoTensorStride)
+    .set_attr<Bool>("RequiresArgumentShapes", Bool(false))
+    .set_attr<FNormalize>("FNormalize", NormalizeToKnownPrimValue)
+    .set_attr<Bool>("FPurity", Bool(true));
+
+//// relax.tensor_byte_offset
+
+Expr tensor_byte_offset(Expr expr) {
+  static const Op& op = Op::Get("relax.inspect.tensor_byte_offset");
+  return Call(op, {expr});
+}
+
+StructInfo InferStructInfoTensorByteOffset(const Call& call, const BlockBuilder&) {
+  auto dlpack_type = DataType::UInt(64);
+
+  auto tensor_sinfo = GetTensorArgInfo(call);
+
+  auto opt_tensor_shape = tensor_sinfo->GetShape();
+  if (opt_tensor_shape.defined()) {
+    // Relax implicitly requires that the byte offset is zero for any
+    // legalizable tensor.  See InferStructInfoTensorStride for full
+    // explanation.
+    return PrimStructInfo(IntImm(dlpack_type, 0));
+  } else {
+    return PrimStructInfo(dlpack_type);
+  }
+}
+
+TVM_REGISTER_OP("relax.inspect.tensor_byte_offset")
+    .set_num_inputs(1)
+    .add_argument("tensor", "Tensor", "The tensor to be inspected")
+    .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoTensorByteOffset)
+    .set_attr<Bool>("RequiresArgumentShapes", Bool(false))
+    .set_attr<FNormalize>("FNormalize", NormalizeToKnownPrimValue)
+    .set_attr<Bool>("FPurity", Bool(true));
+
+//// relax.tensor_elem_offset
+
+Expr tensor_elem_offset(Expr expr) {
+  static const Op& op = Op::Get("relax.inspect.tensor_elem_offset");
+  return Call(op, {expr});
+}
+
+StructInfo InferStructInfoTensorElemOffset(const Call& call, const BlockBuilder&) {
+  auto dlpack_type = DataType::UInt(64);
+
+  auto tensor_sinfo = GetTensorArgInfo(call);
+
+  auto opt_tensor_shape = tensor_sinfo->GetShape();
+  if (opt_tensor_shape.defined()) {
+    // Relax implicitly requires that the element offset is zero for
+    // any legalizable tensor.  See InferStructInfoTensorStride for
+    // full explanation.
+    return PrimStructInfo(IntImm(dlpack_type, 0));
+  } else {
+    return PrimStructInfo(dlpack_type);
+  }
+}
+
+TVM_REGISTER_OP("relax.inspect.tensor_elem_offset")
+    .set_num_inputs(1)
+    .add_argument("tensor", "Tensor", "The tensor to be inspected")
+    .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoTensorElemOffset)
     .set_attr<Bool>("RequiresArgumentShapes", Bool(false))
     .set_attr<FNormalize>("FNormalize", NormalizeToKnownPrimValue)
     .set_attr<Bool>("FPurity", Bool(true));

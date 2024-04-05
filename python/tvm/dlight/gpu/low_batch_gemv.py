@@ -17,7 +17,7 @@
 """A rule for low-batch GEMM / decode-GEMM using GEMV schedule."""
 import re
 from functools import reduce
-from typing import List, Optional, Union, Set
+from typing import List, Optional, Set, Union
 
 from tvm import DataType, arith, ir, tir
 from tvm.target import Target
@@ -428,12 +428,16 @@ class LowBatchGEMV(GPUScheduleRule):
             sch.reverse_compute_at(rf2, loop=bx, preserve_unit_loops=True)
             tr, vec_c, batch_loop, *ts_tile_s = sch.get_loops(block=rf2)[2:]
             ts_tile_s = sch.fuse(*ts_tile_s)
-            ts, tile_s = sch.split(ts_tile_s, factors=[TS, None], preserve_unit_iters=True)
+            ts_o, ts_i, tile_s = sch.split(
+                ts_tile_s, factors=[None, TS, TILE_S], preserve_unit_iters=True
+            )
             tile_s, vec_s = sch.split(
                 tile_s,
                 factors=[None, get_max_factor(TILE_S, [1, 2, 4, 8])],
                 preserve_unit_iters=True,
             )
+            assert sch.get(ts_o).extent.value == 1
+            ts = sch.fuse(ts_o, ts_i)
             sch.reorder(ts, tr, tile_s, batch_loop, vec_s, vec_c)
             sch.bind(ts, TAG_S)
             sch.bind(tr, TAG_R)
@@ -444,7 +448,11 @@ class LowBatchGEMV(GPUScheduleRule):
 
             tr, batch_loop, *ts_tile_s = sch.get_loops(block=gemv)[2:]
             ts_tile_s = sch.fuse(*ts_tile_s)
-            ts, tile_s = sch.split(ts_tile_s, factors=[TS, None], preserve_unit_iters=True)
+            ts_o, ts_i, tile_s = sch.split(
+                ts_tile_s, factors=[None, TS, TILE_S], preserve_unit_iters=True
+            )
+            assert sch.get(ts_o).extent.value == 1
+            ts = sch.fuse(ts_o, ts_i)
             sch.reorder(tile_s, batch_loop, ts, tr)
             sch.bind(ts, TAG_S)
             sch.bind(tr, TAG_R)
@@ -499,7 +507,11 @@ class LowBatchGEMV(GPUScheduleRule):
                     sch.reverse_compute_at(epilogue, bx, preserve_unit_loops=True)
                     ts_tile_s = sch.fuse(*sch.get_loops(epilogue)[3:])
                     ts_tile_s = sch.get_loops(epilogue)[-1]
-                    ts, tile_s = sch.split(ts_tile_s, factors=[TS, None], preserve_unit_iters=True)
+                    ts_o, ts_i, tile_s = sch.split(
+                        ts_tile_s, factors=[None, TS, TILE_S], preserve_unit_iters=True
+                    )
+                    assert sch.get(ts_o).extent.value == 1
+                    ts = sch.fuse(ts_o, ts_i)
                     sch.bind(ts, TAG_S)
                     sch.set_scope(block, 0, "local")
 

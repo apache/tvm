@@ -1871,7 +1871,11 @@ llvm::Value* CodeGenLLVM::VisitExpr_(const BroadcastNode* op) {
   value = builder_->CreateInsertElement(undef, value, zero);
 #if TVM_LLVM_VERSION >= 110
   llvm::ElementCount ec =
+#if TVM_LLVM_VERSION >= 120
       llvm::ElementCount::get(dtype.get_lanes_or_vscale_factor(), dtype.is_scalable_vector());
+#else
+      llvm::ElementCount(dtype.get_lanes_or_vscale_factor(), dtype.is_scalable_vector());
+#endif
   llvm::Constant* mask = llvm::ConstantVector::getSplat(ec, zero);
 #else
   ICHECK(!dtype.is_scalable_vector())
@@ -2229,19 +2233,18 @@ llvm::DIType* CodeGenLLVM::GetDebugType(const Type& ty_tir, llvm::Type* ty_llvm)
 
   } else if (auto* prim_type = ty_tir.as<PrimTypeNode>()) {
     DataType dtype = prim_type->dtype;
-    auto dwarf_type = [&]() -> llvm::dwarf::TypeKind {
-      if (dtype.is_bool()) {
-        return llvm::dwarf::DW_ATE_boolean;
-      } else if (dtype.is_float()) {
-        return llvm::dwarf::DW_ATE_float;
-      } else if (dtype.is_int()) {
-        return llvm::dwarf::DW_ATE_signed;
-      } else if (dtype.is_uint()) {
-        return llvm::dwarf::DW_ATE_unsigned;
-      } else {
-        LOG(FATAL) << "No DWARF representation for TIR type " << dtype;
-      }
-    }();
+    llvm::dwarf::TypeKind dwarf_type;
+    if (dtype.is_bool()) {
+      dwarf_type = llvm::dwarf::DW_ATE_boolean;
+    } else if (dtype.is_float()) {
+      dwarf_type = llvm::dwarf::DW_ATE_float;
+    } else if (dtype.is_int()) {
+      dwarf_type = llvm::dwarf::DW_ATE_signed;
+    } else if (dtype.is_uint()) {
+      dwarf_type = llvm::dwarf::DW_ATE_unsigned;
+    } else {
+      return nullptr;
+    }
 
     return dbg_info_->di_builder_->createBasicType(DLDataType2String(dtype),
                                                    dtype.bits() * dtype.lanes(), dwarf_type);

@@ -343,14 +343,18 @@ def test_call_tir_inplace_multiple_args():
     @tvm.script.ir_module
     class Expected:
         @T.prim_func
-        def copy(A: T.Buffer((2, 3), "int32"), B: T.Buffer((2, 3), "int32")):
+        def copy(
+            A: T.Buffer((2, 3), "int32"), B: T.Buffer((2, 3), "int32"), C: T.Buffer((2, 3), "int32")
+        ):
+            # copies the contents of C into A and B
             T.func_attr({"tir.noalias": True})
             for i0, i1 in T.grid(T.int64(2), T.int64(3)):
                 with T.block("T_zeros"):
                     ax0, ax1 = T.axis.remap("SS", [i0, i1])
-                    T.reads(B[ax0, ax1])
-                    T.writes(A[ax0, ax1])
-                    A[ax0, ax1] = B[ax0, ax1]
+                    T.reads(C[ax0, ax1])
+                    T.writes(A[ax0, ax1], B[ax0, ax1])
+                    A[ax0, ax1] = C[ax0, ax1]
+                    B[ax0, ax1] = C[ax0, ax1]
 
         @R.function
         def foo(

@@ -14,12 +14,15 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+
+import re
+
 import pytest
 
 import tvm
 from tvm import relax
 from tvm.ir.base import assert_structural_equal
-from tvm.script.parser import relax as R
+from tvm.script.parser import relax as R, tir as T
 
 
 def test_copy_with_new_vars():
@@ -122,6 +125,27 @@ def test_copy_with_new_vars_on_ir_module_nested_function():
     assert_structural_equal(Actual, Expected)
 
 
+def test_assert_structural_equal_in_seqexpr():
+    """The first mismatch is correctly identified."""
+
+    @R.function(private=True)
+    def func_1(A: R.Tensor([16, 16], "float32")):
+        B = R.concat([A, A])
+        return B
+
+    @R.function(private=True)
+    def func_2(A: R.Tensor([16, 16], "float32")):
+        B = R.add(A, A)
+        C = R.add(B, B)
+        return B
+
+    with pytest.raises(
+        ValueError,
+        match=re.escape("<root>.body.blocks[0].bindings[0].value.op"),
+    ):
+        assert_structural_equal(func_1, func_2)
+
+
 def test_structural_equal_of_call_nodes():
     """relax.Call must be compared by structural equality, not reference"""
 
@@ -143,6 +167,108 @@ def test_structural_equal_of_call_nodes():
         return C
 
     tvm.ir.assert_structural_equal(uses_same_object_twice, uses_two_different_objects)
+
+
+def test_structural_equal_with_recursive_lambda_function():
+    """A recursive lambda function may be checked for structural equality
+
+    Recursive function definitions may reference the bound variable
+    within the value being bound.  In these cases, the `DefEqual(var,
+    other->var)` must occur first, to ensure it is defined at point of
+    use.
+
+    In all other cases, checking for structural equality of the bound
+    value prior to the variable provides a better error message.
+    """
+
+    def define_function():
+        @R.function
+        def func(n: R.Prim("int64")):
+            @R.function
+            def recursive_lambda(i_arg: R.Prim(value="i")) -> R.Prim("int64"):
+                i = T.int64()
+                if R.prim_value(i == 0):
+                    output = R.prim_value(T.int64(0))
+                else:
+                    remainder_relax = recursive_lambda(R.prim_value(i - 1))
+                    remainder_tir = T.int64()
+                    _ = R.match_cast(remainder_relax, R.Prim(value=remainder_tir))
+                    output = R.prim_value(i + remainder_tir)
+                return output
+
+            return recursive_lambda(n)
+
+        return func
+
+    func_1 = define_function()
+    func_2 = define_function()
+
+    tvm.ir.assert_structural_equal(func_1, func_2)
+
+
+def test_structural_equal_with_distinct_recursive_lambda_function():
+    """A recursive lambda function may be checked for structural equality
+
+    Like `test_structural_equal_with_recursive_lambda_function`, but
+    comparing between two distinct functions.
+    """
+
+    @R.function(private=True)
+    def func_a(n: R.Prim("int64")):
+        @R.function
+        def recursive_lambda(i_arg: R.Prim(value="i")) -> R.Prim("int64"):
+            i = T.int64()
+            if R.prim_value(i == 0):
+                output = R.prim_value(T.int64(0))
+                #                             ^
+                # The first mismatch is here  ^
+            else:
+                remainder_relax = recursive_lambda(R.prim_value(i - 1))
+                remainder_tir = T.int64()
+                _ = R.match_cast(remainder_relax, R.Prim(value=remainder_tir))
+                output = R.prim_value(i + remainder_tir)
+            return output
+
+        return recursive_lambda(n)
+
+    @R.function(private=True)
+    def func_b(n: R.Prim("int64")):
+        @R.function
+        def recursive_lambda(i_arg: R.Prim(value="i")) -> R.Prim("int64"):
+            i = T.int64()
+            if R.prim_value(i == 0):
+                output = R.prim_value(T.int64(1))
+                #                             ^
+                # The first mismatch is here  ^
+            else:
+                remainder_relax = recursive_lambda(R.prim_value(i - 1))
+                remainder_tir = T.int64()
+                _ = R.match_cast(remainder_relax, R.Prim(value=remainder_tir))
+                output = R.prim_value(i * remainder_tir)
+            return output
+
+        return recursive_lambda(n)
+
+    # The path to the first mismatch, which should appear within the
+    # error message.
+    mismatch_path = [
+        "<root>",
+        "body",
+        "blocks[0]",
+        "bindings[0]",
+        "value",
+        "body",
+        "blocks[0]",
+        "bindings[0]",
+        "value",
+        "true_branch",
+        "body",
+        "value",
+        "value",
+    ]
+
+    with pytest.raises(ValueError, match=re.escape(".".join(mismatch_path))):
+        tvm.ir.assert_structural_equal(func_a, func_b)
 
 
 if __name__ == "__main__":

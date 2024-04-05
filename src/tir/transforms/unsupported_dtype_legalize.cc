@@ -727,8 +727,9 @@ Pass BF16StorageLegalize() {
 
 TVM_REGISTER_GLOBAL("tir.transform.BF16StorageLegalize").set_body_typed(BF16StorageLegalize);
 
-Pass FP8ComputeLegalize(Target target, String promote_dtype_str) {
+Pass FP8ComputeLegalize(String promote_dtype_str) {
   auto pass_func = [=](PrimFunc f, IRModule m, PassContext ctx) {
+    auto target = f->GetAttr<Target>(tvm::attr::kTarget).value();
     if (CheckDataTypeSupport(target, "tvm.contrib.nvcc.supports_fp8")) {
       return f;
     }
@@ -739,8 +740,9 @@ Pass FP8ComputeLegalize(Target target, String promote_dtype_str) {
 
 TVM_REGISTER_GLOBAL("tir.transform.FP8ComputeLegalize").set_body_typed(FP8ComputeLegalize);
 
-Pass FP8StorageLegalize(Target target) {
+Pass FP8StorageLegalize() {
   auto pass_func = [=](PrimFunc f, IRModule m, PassContext ctx) {
+    auto target = f->GetAttr<Target>(tvm::attr::kTarget).value();
     if (CheckDataTypeSupport(target, "tvm.contrib.nvcc.supports_fp8")) {
       return f;
     }

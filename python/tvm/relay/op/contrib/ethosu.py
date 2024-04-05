@@ -1251,7 +1251,7 @@ class LutActivationParams:
         """
         This function checks whether activation has compatible attributes with the NPU
         """
-        if not check_valid_dtypes([self.ifm, self.ofm], supported_dtypes=[np.int8]):
+        if not check_valid_dtypes([self.ifm, self.ofm], supported_dtypes=[np.int8, np.int16]):
             return False
         return True
 
@@ -1267,6 +1267,60 @@ def tanh_pattern():
     tanh = is_op("tanh")(dequant)
     quant = is_op("qnn.quantize")(tanh, is_constant(), is_constant())
     return quant
+
+
+class TanhFixedPointParams:
+    """
+    This class will parse a call to a ethos-u.tanh_fixed_point composite function
+    and extract the parameter information.
+    """
+
+    composite_name = "ethos-u.tanh_fixed_point"
+
+    @requires_vela
+    def __init__(self, func_body):
+        layout = "NHWC"
+
+        tanh_fixed_point = func_body.args[0]
+        tanh = tanh_fixed_point.args[0]
+        # fixed_point_multiply relay operation uses multiplier with 31 fractional bits
+        # so to determine the size of the fraction use the formula: 31 - shift
+        self.fraction_size = 31 - tanh_fixed_point.attrs.shift
+        fract_scale = tvm.relay.Constant(tvm.nd.array(np.array(1 / 2**self.fraction_size)))
+        fract_zero_point = tvm.relay.Constant(tvm.nd.array(np.array(0, dtype="int32")))
+
+        self.ifm = TensorParams(
+            tanh.args[0].args[0].args[0],
+            layout=layout,
+            scale=fract_scale,
+            zero_point=fract_zero_point,
+        )
+        self.ofm = TensorParams(
+            func_body,
+            layout=layout,
+            scale=fract_scale,
+            zero_point=fract_zero_point,
+        )
+
+    def is_valid(self) -> bool:
+        """
+        This function checks whether activation has compatible attributes with the NPU
+        """
+
+        if self.fraction_size < 0 or self.fraction_size > 16:
+            return False
+        if not check_valid_dtypes([self.ifm, self.ofm], supported_dtypes=[np.int8, np.int16]):
+            return False
+        return True
+
+
+def tanh_fixed_point_pattern():
+    """Create pattern for fixed point tanh"""
+    ifm = is_op("cast")(wildcard())
+    ifm = is_op("fixed_point_multiply")(ifm)
+    tanh = is_op("tanh")(ifm)
+    tanh = is_op("fixed_point_multiply")(tanh)
+    return is_op("cast")(tanh)
 
 
 class SigmoidParams(LutActivationParams):
@@ -2373,6 +2427,11 @@ def pattern_table() -> List[Tuple[str, tvm.relay.dataflow_pattern.DFPattern, Cal
             lambda pat: AbsParams(pat).is_valid(),
         ),
         (TanhParams.composite_name, tanh_pattern(), lambda pat: TanhParams(pat).is_valid()),
+        (
+            TanhFixedPointParams.composite_name,
+            tanh_fixed_point_pattern(),
+            lambda pat: TanhFixedPointParams(pat).is_valid(),
+        ),
         (
             MeanParams.composite_name,
             mean_pattern(),

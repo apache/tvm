@@ -51,15 +51,17 @@ class TestCase:
 
 
 class BaseCompare:
+    extensions = tvm.arith.Extension.NoExtensions
+
     def test_simplify(self, test_case):
         analyzer = tvm.arith.Analyzer()
+        analyzer.enabled_extensions = self.extensions
 
         if inspect.isclass(test_case.expected) and issubclass(test_case.expected, Exception):
             with pytest.raises(test_case.expected):
                 with analyzer.constraint_scope(test_case.constraint):
                     analyzer.rewrite_simplify(test_case.before)
         else:
-
             with analyzer.constraint_scope(test_case.constraint):
                 after = analyzer.rewrite_simplify(test_case.before)
 
@@ -73,6 +75,7 @@ class BaseCompare:
 
 class TestVector(BaseCompare):
     x, y, z = te.var("x"), te.var("y"), te.var("z")
+    x64 = te.var("x", dtype="int64")
     vx = te.var("vx", dtype="int32x2")
     vc = te.var("vc", dtype="uint1")
     test_case = tvm.testing.parameter(
@@ -86,6 +89,20 @@ class TestVector(BaseCompare):
         ),
         TestCase(y.astype("int32x2") + x.astype("int32x2"), (y + x).astype("int32x2")),
         TestCase(tvm.tir.Broadcast(0, 4) + y, tvm.tir.Broadcast(y, 4)),
+        # int64 lanes
+        TestCase(
+            tvm.tir.Broadcast(x, 4) + tvm.tir.Ramp(0, 1, tvm.tir.IntImm(dtype="int64", value=4)),
+            tvm.tir.Ramp(x, 1, 4),
+        ),
+        TestCase(
+            tvm.tir.Broadcast(x, tvm.tir.IntImm(dtype="int64", value=4)) + tvm.tir.Ramp(0, 1, 4),
+            tvm.tir.Ramp(x, 1, 4),
+        ),
+        # int64 iterators with int32 lanes
+        TestCase(
+            tvm.tir.Broadcast(x64, 4) + tvm.tir.Ramp(tvm.tir.IntImm(dtype="int64", value=0), 1, 4),
+            tvm.tir.Ramp(x64, 1, 4),
+        ),
         TestCase(
             tvm.tir.Broadcast(0, tir.vscale() * 8) + y, tvm.tir.Broadcast(y, tir.vscale() * 8)
         ),
@@ -983,6 +1000,39 @@ class TestComparisons(BaseCompare):
         TestCase(y * y >= 0, tvm.tir.const(1, "bool"), y <= 0),
         TestCase(x * 6 <= -3, tvm.tir.const(0, "bool"), x >= 0),
         TestCase(tmod(y - 1, 3) == 0, tmod(y + (-1), 3) == 0),
+    )
+
+
+class TestComparisonOfProductAndSum(BaseCompare):
+    extensions = tvm.arith.Extension.ComparisonOfProductAndSum
+
+    x, y, z = te.var("x"), te.var("y"), te.var("z")
+
+    test_case = tvm.testing.parameter(
+        # Special inequality cases
+        TestCase(
+            x * y < (x + y) * 2048,
+            tvm.tir.const(1, "bool"),
+            [x > 0, y > 0, x < 2048],
+        ),
+        TestCase(
+            x * y < (x + y) * 2048,
+            tvm.tir.const(1, "bool"),
+            [x > 0, y > 0, x < 4096, y < 4096],
+        ),
+        TestCase(
+            # Both sides are divisible by 8192
+            x * y * 8192 < (y + x) * 16777216,
+            tvm.tir.const(1, "bool"),
+            [x > 0, y > 0, x < 4096, y < 4096],
+        ),
+        TestCase(
+            # The two sides have co-prime factors, but the bounds are
+            # still sufficient to prove the inequality.
+            x * y * 59 < (y + x) * 176128,
+            tvm.tir.const(1, "bool"),
+            [x > 0, y > 0, x < 4096, y < 4096],
+        ),
     )
 
 

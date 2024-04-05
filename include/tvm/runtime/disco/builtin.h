@@ -62,7 +62,7 @@ inline std::string ReduceKind2String(ReduceKind kind) {
  * \param device The default device used to initialize the RelaxVM
  * \return The RelaxVM as a runtime Module
  */
-Module LoadVMModule(std::string path, Device device);
+TVM_DLL Module LoadVMModule(std::string path, Device device);
 /*!
  * \brief Create an uninitialized empty NDArray
  * \param shape The shape of the NDArray
@@ -70,20 +70,20 @@ Module LoadVMModule(std::string path, Device device);
  * \param device The device the NDArray is created on. If None, use the thread local default device
  * \return The NDArray created
  */
-NDArray DiscoEmptyNDArray(ShapeTuple shape, DataType dtype, Device device);
+TVM_DLL NDArray DiscoEmptyNDArray(ShapeTuple shape, DataType dtype, Device device);
 /*!
  * \brief Perform an allreduce operation using the underlying communication library
  * \param send The array send to perform allreduce on
  * \param reduce_kind The kind of reduction operation (e.g. sum, avg, min, max)
  * \param recv The array receives the outcome of allreduce
  */
-void AllReduce(NDArray send, ReduceKind reduce_kind, NDArray recv);
+TVM_DLL void AllReduce(NDArray send, ReduceKind reduce_kind, NDArray recv);
 /*!
  * \brief Perform an allgather operation using the underlying communication library
  * \param send The array send to perform allgather on
  * \param recv The array receives the outcome of allgather
  */
-void AllGather(NDArray send, NDArray recv);
+TVM_DLL void AllGather(NDArray send, NDArray recv);
 /*!
  * \brief Perform a broadcast operation from worker-0
  * \param send The buffer to be broadcasted
@@ -103,20 +103,20 @@ TVM_DLL void ScatterFromWorker0(Optional<NDArray> send, NDArray recv);
  * \param recv For worker-0, it must be provided, and otherwise, the buffer must be None. The
  * receiving buffer will be divided into equal parts and receive from each worker accordingly.
  */
-void GatherToWorker0(NDArray send, Optional<NDArray> recv);
+TVM_DLL void GatherToWorker0(NDArray send, Optional<NDArray> recv);
 /*!
  * \brief Receive a buffer from worker-0. No-op if the current worker is worker-0.
  * \param buffer The buffer to be received
  */
-void RecvFromWorker0(NDArray buffer);
+TVM_DLL void RecvFromWorker0(NDArray buffer);
 /*! \brief Get the local worker id */
-int WorkerId();
+TVM_DLL int WorkerId();
 /*!
  * \brief Called by the worker thread. Waiting until the worker completes all its tasks.
  * As a specific example, on a CUDA worker, it blocks until all kernels are launched and
  * cudaStreamSynchronize is complete.
  */
-void SyncWorker();
+TVM_DLL void SyncWorker();
 
 }  // namespace runtime
 }  // namespace tvm

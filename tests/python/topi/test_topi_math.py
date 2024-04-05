@@ -152,9 +152,7 @@ def ewise_ref_data(topi_name, dtype):
         if config.get("replace_with_nan", False):
             a_np.ravel()[np.random.choice(a_np.size, int(a_np.size * 0.5), replace=False)] = np.nan
         if config.get("replace_with_inf", False):
-            a_np.ravel()[
-                np.random.choice(a_np.size, int(a_np.size * 0.5), replace=False)
-            ] = np.infty
+            a_np.ravel()[np.random.choice(a_np.size, int(a_np.size * 0.5), replace=False)] = np.inf
 
     # avoid round check too close to boundary
     if topi_name == "round":

@@ -118,11 +118,10 @@ class MetadataModuleNode : public ::tvm::runtime::ModuleNode {
               << symbol::tvm_get_c_metadata << " returned nullptr";
 
           metadata_ = runtime::metadata::Metadata(
-              static_cast<const struct ::TVMMetadata*>(ret_value.v_handle));
+              static_cast<const struct TVMMetadata*>(ret_value.v_handle));
         }
 
         *rv = metadata_;
-        return;
       });
     }
 

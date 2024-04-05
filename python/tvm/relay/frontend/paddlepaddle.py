@@ -494,7 +494,7 @@ def convert_dist(g, op, block):
     p = op.attr("p")
     if p == np.inf:
         out = _op.reduce.max(z)
-    elif p == np.NINF:
+    elif p == -np.inf:
         out = _op.reduce.min(z)
     elif p == 0.0:
         out = _op.reduce.sum(_op.sign(z))

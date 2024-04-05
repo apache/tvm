@@ -273,6 +273,7 @@ def tune_relay(
     seed: Optional[int] = None,
     module_equality: str = "structural",
     num_tuning_cores: Union[Literal["physical", "logical"], int] = "physical",
+    opt_level: int = 3,
     disabled_pass: Optional[Union[List[str], Set[str], Tuple[str]]] = None,
     instruments: Optional[Sequence[PassInstrument]] = None,
 ) -> Database:
@@ -324,6 +325,8 @@ def tune_relay(
                             For the definition of the anchor block, see tir/analysis/analysis.py.
     num_tuning_cores : Union[Literal["physical", "logical"], int]
         The number of CPU cores to use during tuning.
+    opt_level : int
+        The optimization level of the compilation
     disabled_pass : Optional[Union[List[str], Set[str], Tuple[str]]]
         The list of disabled passes during tasks extraction
     instruments : Optional[Sequence[PassInstrument]]
@@ -339,6 +342,7 @@ def tune_relay(
             mod,
             target,
             params,
+            opt_level=opt_level,
             module_equality=module_equality,
             disabled_pass=disabled_pass,
             instruments=instruments,

@@ -85,6 +85,45 @@ Expr tensor_ndim(Expr expr);
  */
 Expr tensor_shape_i(Expr expr, Expr axis);
 
+/* \brief Return the DLTensor::strides[i] field
+ *
+ * The `int64_t* DLTensor::strides` is allowed to be NULL, which
+ * represents a compact packing of the data.  In this case, the
+ * returned stride is computed from the `DLTensor::shape`.
+ *
+ * \param expr The relax expression to be inspected.  Must have
+ * `TensorStructInfo`.
+ *
+ * \param axis The axis to inspect.  Must be within the range `0 <=
+ *     axis < tensor_ndim(expr)`, or else the results are undefined.
+ *
+ * \returns The int64_t extent of the specified tensor axis, with
+ * `PrimStructInfo(DataType::Int(64))`.
+ */
+Expr tensor_stride_i(Expr expr, Expr axis);
+
+/* \brief Return the DLTensor::byte_offset field
+ *
+ * \param expr The relax expression to be inspected.  Must have
+ * `TensorStructInfo`.
+ *
+ * \returns The uint64_t byte offset, with `PrimStructInfo(DataType::UInt(64))`.
+ */
+Expr tensor_byte_offset(Expr expr);
+
+/* \brief Return the element offset of a DLTensor
+ *
+ * While the DLTensor does not directly contain the element offset, it
+ * can be inferred from the `DLTensor::byte_offset` and
+ * `DLTensor::data_type` fields.
+ *
+ * \param expr The relax expression to be inspected.  Must have
+ * `TensorStructInfo`.
+ *
+ * \returns The uint64_t element offset, with `PrimStructInfo(DataType::UInt(64))`.
+ */
+Expr tensor_elem_offset(Expr expr);
+
 }  // namespace inspect
 }  // namespace relax
 }  // namespace tvm
