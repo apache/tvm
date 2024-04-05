@@ -31,6 +31,7 @@
 #include <tvm/relay/op.h>
 #include <tvm/tir/data_layout.h>
 
+#include <optional>
 #include <tuple>
 #include <utility>
 #include <vector>
@@ -246,12 +247,13 @@ InferLayoutOutput InferLayoutUnaryEwise(const Call& call,
  * \return The inferred element dtype.
  * \throw Throw exception if the StructInfo doesn't have an element type.
  */
-inline DataType GetElementDType(const StructInfo& sinfo) {
+inline std::optional<DataType> GetElementDType(const StructInfo& sinfo) {
   if (const auto* prim = sinfo.as<PrimStructInfoNode>()) {
     return prim->dtype;
   } else if (const auto* tensor = sinfo.as<TensorStructInfoNode>()) {
     return tensor->dtype;
   } else {
+    return std::nullopt;
     LOG(FATAL) << "TypeError: "
                << "Only PrimStructInfo and TensorStructInfo "
                << "have an associated data type.  "
@@ -271,13 +273,33 @@ inline DataType GetElementDType(const StructInfo& sinfo) {
 inline DataType InferBinaryArithOpOutDtype(const Call& call, const BlockBuilder& ctx,
                                            const StructInfo& lhs_sinfo,
                                            const StructInfo& rhs_sinfo) {
-  auto lhs_dtype = GetElementDType(lhs_sinfo);
-  auto rhs_dtype = GetElementDType(rhs_sinfo);
+  auto opt_lhs_dtype = GetElementDType(lhs_sinfo);
+  if (!opt_lhs_dtype) {
+    ctx->ReportFatal(Diagnostic::Error(call)
+                     << "TypeError: "
+                     << "Binary operators must have the same datatype for both operands.  "
+                     << "However, " << call << " has argument " << call->args[0]
+                     << " on the LHS, with struct info " << lhs_sinfo << ".   This is of type "
+                     << lhs_sinfo->GetTypeKey() << ", which does not have a datatype.");
+  }
+  auto lhs_dtype = opt_lhs_dtype.value();
+
+  auto opt_rhs_dtype = GetElementDType(rhs_sinfo);
+  if (!opt_rhs_dtype) {
+    ctx->ReportFatal(Diagnostic::Error(call)
+                     << "TypeError: "
+                     << "Binary operators must have the same datatype for both operands.  "
+                     << "However, " << call << " has argument " << call->args[1]
+                     << " on the RHS, with struct info " << rhs_sinfo << ".   This is of type "
+                     << rhs_sinfo->GetTypeKey() << ", which does not have a datatype.");
+  }
+  auto rhs_dtype = opt_rhs_dtype.value();
+
   if (lhs_dtype.is_void() || rhs_dtype.is_void()) {
     return DataType::Void();
   } else if (lhs_dtype != rhs_dtype) {
     ctx->ReportFatal(Diagnostic::Error(call)
-                     << "TypeErorr: "
+                     << "TypeError: "
                      << "Binary operators must have the same datatype for both operands.  "
                      << "However, " << call << " uses datatype " << lhs_dtype
                      << " on the LHS (StructInfo of " << lhs_sinfo << "), and datatype "
