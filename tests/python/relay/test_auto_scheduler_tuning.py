@@ -29,7 +29,7 @@ from test_auto_scheduler_task_extraction import get_network
 
 network = tvm.testing.parameter(
     "mlp",
-    pytest.param("winograd-test", mark=pytest.mark.xfail(reason="Flaky unit test")),
+    pytest.param("winograd-test", marks=pytest.mark.xfail(reason="Flaky unit test")),
 )
 
 
