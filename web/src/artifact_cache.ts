@@ -48,7 +48,7 @@ export interface ArtifactCacheTemplate {
    * 1. "json": returns equivalent to `fetch(url).json()`
    * 2. "arraybuffer": returns equivalent to `fetch(url).arraybuffer()`
    * @return The data object (i.e. users do not need to call `.json()` or `.arraybuffer()`).
-   * 
+   *
    * @note This is an async function.
    */
   fetchWithCache(url: string, storetype?: string): Promise<any>;
@@ -61,21 +61,21 @@ export interface ArtifactCacheTemplate {
    * data rather than a request, we specify `storagetype`. There are two options:
    * 1. "json": IndexedDB stores `fetch(url).json()`
    * 2. "arraybuffer": IndexedDB stores `fetch(url).arrayBuffer()`
-   * 
+   *
    * @note This is an async function.
    */
   addToCache(url: string, storetype?: string): Promise<void>;
 
   /**
    * check if cache has all keys in Cache
-   * 
+   *
    * @note This is an async function.
    */
   hasAllKeys(keys: string[]): Promise<boolean>;
 
   /**
    * Delete url in cache if url exists
-   * 
+   *
    * @note This is an async function.
    */
   deleteInCache(url: string): Promise<void>;
