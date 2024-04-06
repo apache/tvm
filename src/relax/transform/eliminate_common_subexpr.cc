@@ -126,6 +126,8 @@ class CommonSubexprEliminator : public ExprMutator {
     } else if (ContainsImpureCall(bound_value)) {
       VLOG(1) << "Since the expression is impure, cannot de-duplicate " << bound_value;
 
+    } else if (IsAllocatorCall(bound_value)) {
+      VLOG(1) << "Skip allocator calls";
     } else if (auto it = expr_replacements_.find(lookup_key);
                it != expr_replacements_.end() && it->second.size()) {
       VLOG(1) << "Value " << bound_value << " has previously been bound as " << it->second[0]
@@ -184,6 +186,19 @@ class CommonSubexprEliminator : public ExprMutator {
   Expr VisitWithCleanScope(Expr expr) {
     CommonSubexprEliminator clean_mutator(call_only_);
     return clean_mutator.VisitExpr(expr);
+  }
+
+  bool IsAllocatorCall(const Expr& expr) {
+    static const auto& allocator_attr_map = Op::GetAttrMap<Bool>("TAllocator");
+    if (const auto* call = expr.as<CallNode>()) {
+      if (const auto* op = call->op.as<OpNode>()) {
+        bool is_allocator = allocator_attr_map.get(GetRef<Op>(op), Bool(false))->value;
+        if (is_allocator) {
+          return true;
+        }
+      }
+    }
+    return false;
   }
 
   bool call_only_{false};
