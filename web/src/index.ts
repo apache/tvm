@@ -22,8 +22,15 @@ export {
   PackedFunc, Module, NDArray,
   TVMArray, TVMObject, VirtualMachine,
   InitProgressCallback, InitProgressReport,
-  ArtifactCache, ArtifactIndexedDBCache, Instance, instantiate, hasNDArrayInCache, deleteNDArrayCache
+  Instance, instantiate
 } from "./runtime";
+export {
+  ArtifactCacheTemplate,
+  ArtifactCache,
+  ArtifactIndexedDBCache,
+  hasNDArrayInCache,
+  deleteNDArrayCache
+} from "./artifact_cache";
 export { Disposable, LibraryProvider } from "./types";
 export { RPCServer } from "./rpc_server";
 export { assert, wasmPath, LinearCongruentialGenerator } from "./support";
