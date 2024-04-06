@@ -1188,8 +1188,10 @@ def stable_sort_by_key_thrust(keys, values, for_scatter=False, workspace=None):
     """
     keys_buf = tvm.tir.decl_buffer(keys.shape, keys.dtype, "keys_buf", data_alignment=8)
     values_buf = tvm.tir.decl_buffer(values.shape, values.dtype, "values_buf", data_alignment=8)
-    workspace_buf = tvm.tir.decl_buffer(
-        workspace.shape, workspace.dtype, "workspace_buf", data_alignment=8
+    workspace_buf = (
+        tvm.tir.decl_buffer(workspace.shape, workspace.dtype, "workspace_buf", data_alignment=8)
+        if workspace is not None
+        else None
     )
     out_bufs = [
         tvm.tir.decl_buffer(keys.shape, keys.dtype, "keys_buf", data_alignment=8),
