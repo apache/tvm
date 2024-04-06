@@ -989,7 +989,6 @@ export interface NDArrayShardEntry {
 export interface InitProgressReport {
   progress: number;
   timeElapsed: number;
-  cacheOnly: boolean;
   text: string;
 }
 
@@ -1008,21 +1007,18 @@ export class ArtifactCache implements ArtifactCacheTemplate {
 
   /**
    * Convert the Response object to the expected storetype instead
-   * @param response the cache or indexedDB response
-   * @param storetype the storetype stored in the indexedDB database
-   * @returns the expected response object
    */
-  async responseTostoretype(response: Response, storetype: string): Promise<any> {
-    let result: any;
-    if (storetype.toLowerCase() === "json") {
-      result = await result.json();
+  async responseTostoretype(response: Response, storetype?: string): Promise<any> {
+    if (storetype === undefined) {
+      return response;
+    } else if (storetype.toLowerCase() === "json") {
+      return await response.json();
     } else if (storetype.toLowerCase() === "arraybuffer") {
-      result = await result.arrayBuffer();
+      return await response.arrayBuffer();
     } else {
-      console.error("Unknown storage type, return raw response");
+      console.error("Unknown storage type " + storetype + ", returning raw response");
       return response;
     }
-    return result;
   }
 
   /**
@@ -1031,38 +1027,25 @@ export class ArtifactCache implements ArtifactCacheTemplate {
    * @param storetype the storage type for indexedDB
    * @returns response in json, arraybuffer or pure response format
    */
-  async fetchWithCache(url: string, storetype?: string) {
-    const request = new Request(url);
-    if (this.cache === undefined) {
-      this.cache = await caches.open(this.scope);
-    }
-    let result = await this.cache.match(request);
+  async fetchWithCache(url: string, storetype?: string): Promise<any> {
+    await this.addToCache(url, storetype);
+    const result = await this.cache.match(new Request(url));
     if (result === undefined) {
-      result = await this.addToCache(url, storetype);
-      return result;
-    } else {
-      if (storetype === undefined) {
-        return result;
-      } else {
-        return await this.responseTostoretype(result, storetype);
-      }
+      // Already called `addToCache()`, should expect the request in cache.
+      throw Error("Cannot fetch " + url);
     }
+    return await this.responseTostoretype(result, storetype);
   }
 
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   async addToCache(url: string, storetype?: string) {
     const request = new Request(url);
     if (this.cache === undefined) {
       this.cache = await caches.open(this.scope);
     }
-    let result = await this.cache.match(request);
+    const result = await this.cache.match(request);
     if (result === undefined) {
       await this.cache.add(request);
-      result = await this.cache.match(request);
-    }
-    if (storetype === undefined) {
-      return result;
-    } else {
-      return await this.responseTostoretype(result, storetype);
     }
   }
 
@@ -1153,7 +1136,7 @@ export class ArtifactIndexedDBCache implements ArtifactCacheTemplate {
     });
   }
 
-  async asyncGetHelper(url: string) {
+  async asyncGetHelper(url: string): Promise<any> {
     return new Promise((resolve, reject) => {
       let result: any;
       const transaction = this.db?.transaction(['urls'], 'readonly');
@@ -1170,37 +1153,33 @@ export class ArtifactIndexedDBCache implements ArtifactCacheTemplate {
     })
   }
 
-  async fetchWithCache(url: string, storetype?: string) {
-    await this.initDB(); // await the initDB process
-    const isInDB = await this.isUrlInDB(url);
-    if (!isInDB) {
-      const response = await this.addToCache(url, storetype);
-      return response;
-    } else {
-      // URL found in DB, just fetch without storing
-      const result = await this.asyncGetHelper(url);
-      if (result != null && typeof result === "object" && "data" in result) {
-        return result.data;
-      } else if (result === null) {
-        // previously null data in cache!
-        await this.deleteInCache(url);
-        const response = await this.addToCache(url, storetype);
-        return response;
-      }
-      return null;
+  async fetchWithCache(url: string, storetype?: string): Promise<any> {
+    await this.addToCache(url, storetype);
+    let result = await this.asyncGetHelper(url);
+    if (result === null) {
+      // previously null data in cache or somehow failed to add to cache, delete and retry
+      await this.deleteInCache(url);
+      await this.addToCache(url, storetype);
+      result = await this.asyncGetHelper(url);
     }
+    if (result != null && typeof result === "object" && "data" in result) {
+      // `storetype` not used here because the data stored in indexedDB is already in that type
+      return result.data;
+    }
+    throw Error("ArtifactIndexedDBCache failed to fetch: " + url);
   }
 
   async addToIndexedDB(url: string, response: any, storetype?: string) {
     await this.initDB();
     let data: any;
+    // IndexedDB, unlike the Cache API, stores the actual data object, so we convert reponse here.
     if (storetype != undefined) {
       if (storetype.toLowerCase() === "json") {
         data = await response.json();
       } else if (storetype.toLocaleLowerCase() === "arraybuffer") {
         data = await response.arrayBuffer();
       } else {
-        console.error("Unsupported Type in IndexedDB");
+        throw Error("Unsupported storetyp for IndexedDB: " + storetype);
       }
     }
     return new Promise<void>((resolve, reject) => {
@@ -1215,24 +1194,22 @@ export class ArtifactIndexedDBCache implements ArtifactCacheTemplate {
     });
   }
 
-  async addToCache(url: string, storetype?: string): Promise<any> {
-    let response: Response;
+  async addToCache(url: string, storetype?: string): Promise<void> {
+    await this.initDB(); // await the initDB process
+    // If already cached, nothing to do
+    const isInDB = await this.isUrlInDB(url);
+    if (isInDB) {
+      return;
+    }
     try {
-      response = await fetch(url);
+      const response = await fetch(url);
       if (!response.ok) {
         throw new Error('Network response was not ok');
       }
       const response_copy = response.clone();
       await this.addToIndexedDB(url, response_copy, storetype);
-      if (storetype.toLowerCase() === "arraybuffer") {
-        return await response.arrayBuffer();
-      } else if (storetype.toLowerCase() === "json") {
-        return await response.json();
-      } else {
-        return response;
-      }
     } catch (error) {
-      console.error("There was a problem fetching the data:", error);
+      throw Error("Failed to store " + url + " with error: " + error);
     }
   }
 
@@ -1742,26 +1719,17 @@ export class Instance implements Disposable {
     cacheScope = "tvmjs",
     cacheType = "cache"
   ): Promise<any> {
-    let artifactCache;
-    if (cacheType === undefined) {
-      artifactCache = new ArtifactCache(cacheScope);
-    }
-    if (cacheType.toLowerCase() === "cache") {
+    let artifactCache: ArtifactCacheTemplate;
+    if (cacheType === undefined || cacheType.toLowerCase() === "cache") {
       artifactCache = new ArtifactCache(cacheScope);
     } else if (cacheType.toLowerCase() == "indexeddb") {
       artifactCache = new ArtifactIndexedDBCache(cacheScope);
     } else {
-      console.error("Unsupported Cache Type, using default browser cache");
+      console.error("Unsupported cacheType: " + cacheType + ", using default ArtifactCache.");
       artifactCache = new ArtifactCache(cacheScope);
     }
     const jsonUrl = new URL("ndarray-cache.json", ndarrayCacheUrl).href;
-    const result = await artifactCache.fetchWithCache(jsonUrl, "json");
-    let list;
-    if (result instanceof Response) {
-      list = await result.json();
-    } else {
-      list = result;
-    }
+    const list = await artifactCache.fetchWithCache(jsonUrl, "json");
     await this.fetchNDArrayCacheInternal(
       ndarrayCacheUrl,
       list["records"] as Array<NDArrayShardEntry>, device, artifactCache);
@@ -1794,13 +1762,13 @@ export class Instance implements Disposable {
     let timeElapsed = 0;
 
     const cacheOnly = await artifactCache.hasAllKeys(list.map(key => new URL(key.dataPath, ndarrayCacheUrl).href));
+
+    // `loading`: we have finished downloading (or already cacheOnly) and are loading onto WebGPU
     const reportCallback = (iter: number, loading = false) => {
       // report
       for (let j = 0; j < this.initProgressCallback.length; ++j) {
         let text: string;
         if (loading) {
-          text = "Finished fetching params, loading onto WebGPU.";
-        } else if (cacheOnly) {
           text = "Loading model from cache[" + iter + "/" + list.length + "]: ";
           text += Math.ceil(fetchedBytes / (1024 * 1024)).toString() + "MB loaded. "
           text += Math.floor(fetchedBytes * 100 / totalBytes).toString() + "% completed, "
@@ -1816,7 +1784,6 @@ export class Instance implements Disposable {
         this.initProgressCallback[j]({
           progress: fetchedBytes / totalBytes,
           timeElapsed: timeElapsed,
-          cacheOnly: cacheOnly,
           text: text
         });
       }
@@ -1826,7 +1793,6 @@ export class Instance implements Disposable {
       this.initProgressCallback[j]({
         progress: fetchedBytes / totalBytes,
         timeElapsed: 0,
-        cacheOnly: cacheOnly,
         text: "Start to fetch params",
       });
     }
@@ -1845,7 +1811,7 @@ export class Instance implements Disposable {
         }
         timeElapsed = Math.ceil((perf.now() - tstart) / 1000);
         fetchedBytes += shard.nbytes;
-        reportCallback(fetchedShards++);
+        reportCallback(fetchedShards++, /*loading=*/false);
       }
     }
     // We launch 4 parallel for loops to limit the max concurrency to 4 download
@@ -1857,7 +1823,6 @@ export class Instance implements Disposable {
         downloadCache(2 * loopSize, 3 * loopSize),
         downloadCache(3 * loopSize, list.length)
       ]);
-      reportCallback(list.length, /*loading=*/true);
     }
 
     // Then iteratively, load the shard from cache
@@ -1908,9 +1873,7 @@ export class Instance implements Disposable {
           throw err;
         }
       }
-      if (cacheOnly) {
-        reportCallback(i + 1, /* Need to Report call back*/false);
-      }
+      reportCallback(i + 1, /*loading=*/true);
     }
   }
 
@@ -2383,7 +2346,6 @@ export class Instance implements Disposable {
           this.initProgressCallback[j]({
             progress: progress,
             timeElapsed: timeElapsed,
-            cacheOnly: false,
             text: text
           });
         }
@@ -2846,13 +2808,13 @@ export async function hasNDArrayInCache(
   cacheScope = "tvmjs",
   cacheType = "cache"
 ): Promise<boolean> {
-  let artifactCache;
+  let artifactCache: ArtifactCacheTemplate;
   if (cacheType.toLowerCase() === "cache") {
     artifactCache = new ArtifactCache(cacheScope);
   } else if (cacheType.toLowerCase() == "indexeddb") {
     artifactCache = new ArtifactIndexedDBCache(cacheScope);
   } else {
-    console.error("Unsupported Cache Type, using default browser cache");
+    console.error("Unsupported cacheType: " + cacheType + ", using default ArtifactCache.");
     artifactCache = new ArtifactCache(cacheScope);
   }
   const jsonUrl = new URL("ndarray-cache.json", ndarrayCacheUrl).href;
@@ -2860,13 +2822,7 @@ export async function hasNDArrayInCache(
   if (!hasJsonUrlInCache) {
     return false;
   }
-  const result = await artifactCache.fetchWithCache(jsonUrl, "json");
-  let list;
-  if (result instanceof Response) {
-    list = await result.json();
-  } else {
-    list = result;
-  }
+  let list = await artifactCache.fetchWithCache(jsonUrl, "json");
   list = list["records"] as Array<NDArrayShardEntry>;
   return await artifactCache.hasAllKeys(list.map(key => new URL(key.dataPath, ndarrayCacheUrl).href));
 }
@@ -2890,17 +2846,11 @@ export async function deleteNDArrayCache(
   } else if (cacheType.toLowerCase() == "indexeddb") {
     artifactCache = new ArtifactIndexedDBCache(cacheScope);
   } else {
-    console.error("Unsupported Cache Type, using default browser cache");
+    console.error("Unsupported cacheType: " + cacheType + ", using default ArtifactCache.");
     artifactCache = new ArtifactCache(cacheScope);
   }
   const jsonUrl = new URL("ndarray-cache.json", cacheUrl).href;
-  const result = await artifactCache.fetchWithCache(jsonUrl, "json");
-  let list;
-  if (result instanceof Response) {
-    list = await result.json();
-  } else {
-    list = result;
-  }
+  const list = await artifactCache.fetchWithCache(jsonUrl, "json");
   const arrayentry = list["records"] as Array<NDArrayShardEntry>;
   const processShard = async (i: number) => {
     const dataUrl = new URL(arrayentry[i].dataPath, cacheUrl).href;

@@ -21,32 +21,45 @@
  */
 export interface ArtifactCacheTemplate {
   /**
-   * fetch key url from cache, optional storetype for IndexedDB
+   * Retrieve data object that corresponds to `url` from cache. If data object does not exist in
+   * cache, fetch the data and then add to cache.
    *
-   * storagetype for indexedDB have two options:
-   * @param url: return a json object
-   * 2. arraybuffer: return an arraybuffer object
+   * @param url: The url to the data to be cached.
+   * @param storetype: This field is required so that `ArtifactIndexedDBCache` can store the
+   * actual data object (see `addToCache()`), while `ArtifactCache` which uses the Cache API can
+   * return the actual data object rather than the request. There are two options:
+   * 1. "json": returns equivalent to `fetch(url).json()`
+   * 2. "arraybuffer": returns equivalent to `fetch(url).arraybuffer()`
+   * @return The data object (i.e. users do not need to call `.json()` or `.arraybuffer()`).
+   * 
+   * @note This is an async function.
    */
-  fetchWithCache(url: string, storetype?: string);
+  fetchWithCache(url: string, storetype?: string): Promise<any>;
 
   /**
-   * add key url to cache, optional storetype for IndexedDB
+   * Fetch data from url and add into cache. If already exists in cache, should return instantly.
    *
-   * storagetype for indexedDB have two options:
-   * 1. json: return a json object
-   * 2. arraybuffer: return an arraybuffer object
-   *
-   * returns the response or the specified stored object
-   * for reduced database transaction
+   * @param url: The url to the data to be cached.
+   * @param storetype: Only applies to `ArtifactIndexedDBCache`. Since `indexedDB` stores the actual
+   * data rather than a request, we specify `storagetype`. There are two options:
+   * 1. "json": IndexedDB stores `fetch(url).json()`
+   * 2. "arraybuffer": IndexedDB stores `fetch(url).arrayBuffer()`
+   * 
+   * @note This is an async function.
    */
-  addToCache(url: string, storetype?: string): Promise<any>;
+  addToCache(url: string, storetype?: string): Promise<void>;
+
   /**
    * check if cache has all keys in Cache
+   * 
+   * @note This is an async function.
    */
-  hasAllKeys(keys: string[]);
+  hasAllKeys(keys: string[]): Promise<boolean>;
 
   /**
    * Delete url in cache if url exists
+   * 
+   * @note This is an async function.
    */
-  deleteInCache(url: string);
+  deleteInCache(url: string): Promise<void>;
 }
