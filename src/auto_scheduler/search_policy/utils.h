@@ -628,7 +628,7 @@ inline Array<State> RandomSampleStates(const Array<State>& in_states, std::mt199
   return out_states;
 }
 
-/*! \brief Compute prefix-sum probabiilty based on the given weights */
+/*! \brief Compute prefix-sum probability based on the given weights */
 inline void ComputePrefixSumProb(const std::vector<float>& weights,
                                  std::vector<double>* prefix_sum_probs) {
   // Compute selection probabilities.
