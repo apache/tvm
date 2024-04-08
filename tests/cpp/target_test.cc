@@ -448,6 +448,20 @@ TEST(TargetCreation, LLVMCommandLineSaveRestore) {
   // Check that we restored global state.
   ASSERT_FALSE(info.MatchesGlobalState());
 }
+
+TEST(TargetCreation, DetectSystemTriple) {
+  Map<String, ObjectRef> config = {
+      {"kind", String("llvm")},
+  };
+
+  Target target = Target(config);
+  ICHECK_EQ(target->kind, TargetKind::Get("llvm").value());
+
+  Optional<String> mtriple = target->GetAttr<String>("mtriple");
+  auto pf = tvm::runtime::Registry::Get("target.llvm_get_system_triple");
+  ASSERT_TRUE(pf->defined());
+}
+
 #endif
 
 TVM_REGISTER_TARGET_KIND("test_external_codegen_0", kDLCUDA)
@@ -498,21 +512,6 @@ TEST(TargetCreation, DeduplicateKeys) {
   ICHECK_EQ(target->keys[1], "arm_cpu");
   ICHECK_EQ(target->attrs.size(), 2U);
   ICHECK_EQ(target->GetAttr<String>("device"), "arm_cpu");
-}
-
-TEST(TargetCreation, DetectSystemTriple) {
-  Map<String, ObjectRef> config = {
-      {"kind", String("llvm")},
-  };
-
-  Target target = Target(config);
-  ICHECK_EQ(target->kind, TargetKind::Get("llvm").value());
-
-  Optional<String> mtriple = target->GetAttr<String>("mtriple");
-  auto pf = tvm::runtime::Registry::Get("target.llvm_get_system_triple");
-  if (!pf->defined()) {
-    GTEST_SKIP() << "LLVM is not available, skipping test";
-  }
 }
 
 TEST(TargetKindRegistry, ListTargetKinds) {
