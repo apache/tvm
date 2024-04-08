@@ -27,8 +27,12 @@ import { assert, StringToUint8Array, LinearCongruentialGenerator } from "./suppo
 import { Environment } from "./environment";
 import { AsyncifyHandler } from "./asyncify";
 import { FunctionInfo, WebGPUContext } from "./webgpu";
-import { ArtifactCacheTemplate } from "./artifact_cache";
-
+import {
+  ArtifactCache,
+  ArtifactCacheTemplate,
+  ArtifactIndexedDBCache,
+  NDArrayShardEntry,
+} from "./artifact_cache";
 import * as compact from "./compact";
 import * as ctypes from "./ctypes";
 
@@ -970,87 +974,14 @@ enum AsyncCallbackCode {
   kReturn = 4,
   kException = 5,
 }
-export interface NDArrayCacheEntry {
-  name: string;
-  shape: Array<number>;
-  dtype: string;
-  format: "f32-to-bf16" | "raw";
-  byteOffset: number;
-  nbytes: number;
-}
-
-export interface NDArrayShardEntry {
-  dataPath: string;
-  format: "raw-shard";
-  nbytes: number;
-  records: Array<NDArrayCacheEntry>;
-}
 
 export interface InitProgressReport {
   progress: number;
   timeElapsed: number;
-  cacheOnly: boolean;
   text: string;
 }
 
 export type InitProgressCallback = (report: InitProgressReport) => void;
-
-/**
- * Cache to store model related data.
- */
-export class ArtifactCache implements ArtifactCacheTemplate {
-  private scope: string;
-  private cache?: Cache;
-
-  constructor(scope: string) {
-    this.scope = scope;
-  }
-
-  async fetchWithCache(url: string) {
-    const request = new Request(url);
-    if (this.cache === undefined) {
-      this.cache = await caches.open(this.scope);
-    }
-    let result = await this.cache.match(request);
-    if (result === undefined) {
-      await this.cache.add(request);
-      result = await this.cache.match(request);
-    }
-    if (result === undefined) {
-      throw Error("Cannot fetch " + url);
-    }
-    return result;
-  }
-
-  async addToCache(url: string) {
-    const request = new Request(url);
-    if (this.cache === undefined) {
-      this.cache = await caches.open(this.scope);
-    }
-    const result = await this.cache.match(request);
-    if (result === undefined) {
-      await this.cache.add(request);
-    }
-  }
-
-  async hasAllKeys(keys: string[]) {
-    if (this.cache === undefined) {
-      this.cache = await caches.open(this.scope);
-    }
-    return this.cache.keys()
-      .then(requests => requests.map(request => request.url))
-      .then(cacheKeys => keys.every(key => cacheKeys.indexOf(key) !== -1))
-      .catch(err => false);
-  }
-
-  async deleteInCache(url: string) {
-    if (this.cache === undefined) {
-      this.cache = await caches.open(this.scope);
-    }
-    const result = await this.cache.delete(url);
-    return result;
-  }
-}
 
 /**
  * TVM runtime instance.
@@ -1500,21 +1431,26 @@ export class Instance implements Disposable {
    * @param ndarrayCacheUrl The cache url.
    * @param device The device to be fetched to.
    * @param cacheScope The scope identifier of the cache
+   * @param cacheType The type of the cache: "cache" or "indexedDB"
    * @returns The meta data
    */
   async fetchNDArrayCache(
     ndarrayCacheUrl: string,
     device: DLDevice,
-    cacheScope = "tvmjs"
+    cacheScope = "tvmjs",
+    cacheType = "cache"
   ): Promise<any> {
-    const artifactCache = new ArtifactCache(cacheScope);
-    const jsonUrl = new URL("ndarray-cache.json", ndarrayCacheUrl).href;
-    const result = await artifactCache.fetchWithCache(jsonUrl);
-
-    let list;
-    if (result instanceof Response) {
-      list = await result.json();
+    let artifactCache: ArtifactCacheTemplate;
+    if (cacheType === undefined || cacheType.toLowerCase() === "cache") {
+      artifactCache = new ArtifactCache(cacheScope);
+    } else if (cacheType.toLowerCase() == "indexeddb") {
+      artifactCache = new ArtifactIndexedDBCache(cacheScope);
+    } else {
+      console.error("Unsupported cacheType: " + cacheType + ", using default ArtifactCache.");
+      artifactCache = new ArtifactCache(cacheScope);
     }
+    const jsonUrl = new URL("ndarray-cache.json", ndarrayCacheUrl).href;
+    const list = await artifactCache.fetchWithCache(jsonUrl, "json");
     await this.fetchNDArrayCacheInternal(
       ndarrayCacheUrl,
       list["records"] as Array<NDArrayShardEntry>, device, artifactCache);
@@ -1538,7 +1474,6 @@ export class Instance implements Disposable {
   ) {
     const perf = compact.getPerformance();
     const tstart = perf.now();
-
     let totalBytes = 0;
     for (let i = 0; i < list.length; ++i) {
       totalBytes += list[i].nbytes;
@@ -1547,15 +1482,14 @@ export class Instance implements Disposable {
     let fetchedShards = 0;
     let timeElapsed = 0;
 
-    const cacheOnly = await artifactCache.hasAllKeys(list.map(key => new URL(key.dataPath, ndarrayCacheUrl).href))
+    const cacheOnly = await artifactCache.hasAllKeys(list.map(key => new URL(key.dataPath, ndarrayCacheUrl).href));
 
+    // `loading`: we have finished downloading (or already cacheOnly) and are loading onto WebGPU
     const reportCallback = (iter: number, loading = false) => {
       // report
       for (let j = 0; j < this.initProgressCallback.length; ++j) {
         let text: string;
         if (loading) {
-          text = "Finished fetching params, loading onto WebGPU.";
-        } else if (cacheOnly) {
           text = "Loading model from cache[" + iter + "/" + list.length + "]: ";
           text += Math.ceil(fetchedBytes / (1024 * 1024)).toString() + "MB loaded. "
           text += Math.floor(fetchedBytes * 100 / totalBytes).toString() + "% completed, "
@@ -1571,7 +1505,6 @@ export class Instance implements Disposable {
         this.initProgressCallback[j]({
           progress: fetchedBytes / totalBytes,
           timeElapsed: timeElapsed,
-          cacheOnly: cacheOnly,
           text: text
         });
       }
@@ -1581,7 +1514,6 @@ export class Instance implements Disposable {
       this.initProgressCallback[j]({
         progress: fetchedBytes / totalBytes,
         timeElapsed: 0,
-        cacheOnly: cacheOnly,
         text: "Start to fetch params",
       });
     }
@@ -1593,25 +1525,26 @@ export class Instance implements Disposable {
         const shard = list[i];
         const dataUrl = new URL(shard.dataPath, ndarrayCacheUrl).href;
         try {
-          await artifactCache.addToCache(dataUrl);
+          await artifactCache.addToCache(dataUrl, "arraybuffer");
         } catch (err) {
           this.env.logger("Error: Cannot fetch " + dataUrl + " err= " + err);
           throw err;
         }
         timeElapsed = Math.ceil((perf.now() - tstart) / 1000);
         fetchedBytes += shard.nbytes;
-        reportCallback(fetchedShards++);
+        reportCallback(fetchedShards++, /*loading=*/false);
       }
     }
     // We launch 4 parallel for loops to limit the max concurrency to 4 download
-    const loopSize = Math.floor(list.length / 4);
-    await Promise.all([
-      downloadCache(0, loopSize),
-      downloadCache(loopSize, 2 * loopSize),
-      downloadCache(2 * loopSize, 3 * loopSize),
-      downloadCache(3 * loopSize, list.length)
-    ]);
-    reportCallback(list.length, /*loading=*/true);
+    if (!cacheOnly) {
+      const loopSize = Math.floor(list.length / 4);
+      await Promise.all([
+        downloadCache(0, loopSize),
+        downloadCache(loopSize, 2 * loopSize),
+        downloadCache(2 * loopSize, 3 * loopSize),
+        downloadCache(3 * loopSize, list.length)
+      ]);
+    }
 
     // Then iteratively, load the shard from cache
     for (let i = 0; i < list.length; ++i) {
@@ -1619,7 +1552,7 @@ export class Instance implements Disposable {
       const dataUrl = new URL(shard.dataPath, ndarrayCacheUrl).href;
       let buffer;
       try {
-        buffer = await (await artifactCache.fetchWithCache(dataUrl)).arrayBuffer();
+        buffer = await artifactCache.fetchWithCache(dataUrl, "arraybuffer");
       } catch (err) {
         this.env.logger("Error: Cannot fetch " + dataUrl + " err= " + err);
         throw err;
@@ -1661,6 +1594,7 @@ export class Instance implements Disposable {
           throw err;
         }
       }
+      reportCallback(i + 1, /*loading=*/true);
     }
   }
 
@@ -2118,7 +2052,6 @@ export class Instance implements Disposable {
       }).then(() => {
         finishCounter += 1;
         const tend = perf.now();
-        const timeReportGap = 1000;
         // skip report if gap is smaller than 1000
         if ((tend - tlastReport) < 1000 && finishCounter != fmapEntries.length) {
           return;
@@ -2134,7 +2067,6 @@ export class Instance implements Disposable {
           this.initProgressCallback[j]({
             progress: progress,
             timeElapsed: timeElapsed,
-            cacheOnly: false,
             text: text
           });
         }
@@ -2582,48 +2514,4 @@ export function instantiate(
       return new Instance(result.module, {}, result.instance, env);
     }
   );
-}
-
-export async function hasNDArrayInCache(
-  ndarrayCacheUrl: string,
-  cacheScope = "tvmjs"
-): Promise<boolean> {
-  const artifactCache = new ArtifactCache(cacheScope);
-  const jsonUrl = new URL("ndarray-cache.json", ndarrayCacheUrl).href;
-  const hasJsonUrlInCache = await artifactCache.hasAllKeys([jsonUrl]);
-  if (!hasJsonUrlInCache) {
-    return false;
-  }
-  const result = await artifactCache.fetchWithCache(jsonUrl);
-  let list;
-  if (result instanceof Response) {
-    list = await result.json();
-  }
-  list = list["records"] as Array<NDArrayShardEntry>;
-  return await artifactCache.hasAllKeys(list.map(key => new URL(key.dataPath, ndarrayCacheUrl).href));
-}
-
-/**
- * Given cacheUrl, search up items to delete based on cacheUrl/ndarray-cache.json
- *
- * @param cacheUrl
- * @param cacheScope
- */
-export async function deleteNDArrayCache(
-  cacheUrl: string,
-  cacheScope = "tvmjs"
-) {
-  const artifactCache = new ArtifactCache(cacheScope);
-  const jsonUrl = new URL("ndarray-cache.json", cacheUrl).href;
-  const result = await artifactCache.fetchWithCache(jsonUrl);
-  let list;
-  if (result instanceof Response) {
-    list = await result.json();
-  }
-  const arrayentry = list["records"] as Array<NDArrayShardEntry>;
-  const processShard = async (i: number) => {
-    const dataUrl = new URL(arrayentry[i].dataPath, cacheUrl).href;
-    await artifactCache.deleteInCache(dataUrl);
-  }
-  await Promise.all(arrayentry.map((_, index) => processShard(index)));
 }
