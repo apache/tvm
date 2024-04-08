@@ -86,6 +86,25 @@ def test_tuple() -> None:
         t[-3]
 
 
+def test_tuple_sinfo_inferred_on_construction():
+    v0 = rx.Var("v0", rx.ObjectStructInfo())
+    v1 = rx.Var("v1", rx.ObjectStructInfo())
+    tup = rx.Tuple((v0, v1))
+
+    assert tup.struct_info_ is not None
+    tvm.ir.assert_structural_equal(
+        tup.struct_info, rx.TupleStructInfo([rx.ObjectStructInfo(), rx.ObjectStructInfo()])
+    )
+
+
+def test_tuple_sinfo_requires_fields_with_known_sinfo():
+    v0 = rx.Var("v0", rx.ObjectStructInfo())
+    v1 = rx.Var("v1")
+    tup = rx.Tuple((v0, v1))
+
+    assert tup.struct_info_ is None
+
+
 def test_match_cast() -> None:
     # match_cast([16, 8], [m, n])
     m = tir.Var("m", dtype="int64")

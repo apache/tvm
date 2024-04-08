@@ -137,9 +137,25 @@ TVM_REGISTER_GLOBAL("relax.If")
     });
 
 Tuple::Tuple(tvm::Array<relay::Expr> fields, Span span) {
+  Optional<StructInfo> tuple_sinfo = [&]() -> Optional<StructInfo> {
+    Array<StructInfo> field_sinfo;
+    for (const auto& field : fields) {
+      if (field->struct_info_.defined()) {
+        field_sinfo.push_back(GetStructInfo(field));
+      } else {
+        return NullOpt;
+      }
+    }
+    return TupleStructInfo(field_sinfo);
+  }();
+
   ObjectPtr<TupleNode> n = make_object<TupleNode>();
   n->fields = std::move(fields);
   n->span = std::move(span);
+  if (tuple_sinfo) {
+    n->checked_type_ = GetStaticType(tuple_sinfo.value());
+  }
+  n->struct_info_ = tuple_sinfo;
   data_ = std::move(n);
 }
 
