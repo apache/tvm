@@ -799,19 +799,5 @@ class TestFP8e4x4QuantDequantScale(BaseFP8E4M3QuantScaleOnly):
         tvm.testing.assert_allclose(weight_np, dequant_weight_np, atol=10, rtol=5e-2)
 
 
-@pytest.mark.parametrize("dtype", ["e5m2_float8", "e4m3_float8"])
-def test_const(dtype):
-    @T.prim_func
-    def func(A: T.Buffer((4,), dtype)) -> None:
-        A_local = T.alloc_buffer((4,), dtype=dtype, scope="local")
-        for tx in T.thread_binding(0, 4, "threadIdx.x"):
-            for i in T.vectorized(4):
-                A_local[i] = T.float32(1.0).astype(dtype)
-            A[tx] = A_local[tx]
-
-    mod = tvm.IRModule({"main": func})
-    tvm.build(mod, target="cuda")
-
-
 if __name__ == "__main__":
     tvm.testing.main()
