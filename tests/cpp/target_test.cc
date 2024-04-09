@@ -290,7 +290,7 @@ TEST(TargetCreation, ProcessStrings) {
   ASSERT_EQ(array7[1][1][0], "fred");
 }
 
-#ifdef TVM_INFO_USE_LLVM
+#ifdef TVM_LLVM_VERSION
 // Checks that malformed options cause an assertion.
 TEST(TargetCreation, LLVMCommandLineParseFatalDashDashDash) {
   tvm::codegen::LLVMInstance inst;

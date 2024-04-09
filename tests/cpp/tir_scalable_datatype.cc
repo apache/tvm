@@ -23,7 +23,7 @@
 #include <tvm/tir/builtin.h>
 #include <tvm/tir/expr.h>
 
-#ifdef TVM_INFO_USE_LLVM
+#ifdef TVM_LLVM_VERSION
   #include <llvm/IR/Intrinsics.h>
 #endif
 
