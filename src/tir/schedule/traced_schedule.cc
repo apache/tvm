@@ -226,8 +226,9 @@ LoopRV TracedScheduleNode::Fuse(const Array<LoopRV>& loop_rvs, bool preserve_uni
 
 Array<LoopRV> TracedScheduleNode::Split(const LoopRV& loop_rv,
                                         const Array<Optional<ExprRV>>& factor_rvs,
-                                        bool preserve_unit_iters) {
-  Array<LoopRV> results = ConcreteScheduleNode::Split(loop_rv, factor_rvs, preserve_unit_iters);
+                                        bool preserve_unit_iters, bool disable_predication) {
+  Array<LoopRV> results =
+      ConcreteScheduleNode::Split(loop_rv, factor_rvs, preserve_unit_iters, disable_predication);
 
   std::vector<ObjectRef> inputs;
   inputs.reserve(1 + factor_rvs.size());
@@ -237,10 +238,11 @@ Array<LoopRV> TracedScheduleNode::Split(const LoopRV& loop_rv,
   }
 
   static const InstructionKind& kind = InstructionKind::Get("Split");
-  trace_->Append(/*inst=*/Instruction(/*kind=*/kind,
-                                      /*inputs=*/inputs,
-                                      /*attrs=*/{Integer(preserve_unit_iters)},
-                                      /*outputs=*/{results.begin(), results.end()}));
+  trace_->Append(
+      /*inst=*/Instruction(/*kind=*/kind,
+                           /*inputs=*/inputs,
+                           /*attrs=*/{Integer(preserve_unit_iters), Integer(disable_predication)},
+                           /*outputs=*/{results.begin(), results.end()}));
   return results;
 }
 

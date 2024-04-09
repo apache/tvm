@@ -25,6 +25,8 @@
 #include <tvm/tir/expr.h>
 #include <tvm/tir/op.h>
 
+#include "../tir/analysis/check_contains.h"
+#include "./scalable_expression.h"
 #include "const_fold.h"
 #include "product_normal_form.h"
 
@@ -227,6 +229,24 @@ bool Analyzer::CanProve(const PrimExpr& expr, ProofStrength strength) {
     }
   }
 
+  // Current analysis may not be powerful enough to prove expressions containing
+  // the same symbolic value multiple times. However, when the symbolic values are
+  // "T.vscale" and the compile target uses a scalable architecture extension like
+  // SVE, we can make some assumptions about the value of vscale and iterate over a
+  // space of pre-defined values to attempt to prove the expression.
+  if (tir::CheckContains::ExprContains(expr, IsVScaleCall)) {
+    Target curr_target = tvm::Target::Current();
+    if (curr_target.defined() && curr_target->features.defined() &&
+        (curr_target->features.find("has_sve") != curr_target->features.end()) &&
+        bool(curr_target->GetFeature<Bool>("has_sve").value_or(Bool(false)))) {
+      return CanProveVscaleExpressionFromKnownValues(this, simplified, kAArch64VScaleValues);
+    }
+    LOG(WARNING)
+        << "The expression contains scalable values. An attempt to prove by substituting "
+           "with known values of vscale was not performed. This proof currently only supports "
+           "AArch64 SVE targets, but the target was "
+        << curr_target;
+  }
   return false;
 }
 

@@ -637,7 +637,8 @@ void PassUpBoundCheck(const Stage& s, const Map<IterVar, Range>& dom_map,
         if (outer || inner) {
           state[s->parent] = true;
         } else {
-          if (analyzer->CanProve(dom_map.at(s->parent)->extent == factor * step)) {
+          if (analyzer->CanProve(dom_map.at(s->parent)->extent == factor * step) ||
+              s->disable_predication) {
             state[s->parent] = false;
           } else {
             state[s->parent] = true;

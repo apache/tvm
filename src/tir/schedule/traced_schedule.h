@@ -67,7 +67,7 @@ class TracedScheduleNode : public ConcreteScheduleNode {
   LoopRV Fuse(const Array<LoopRV>& loop_rvs, bool preserve_unit_iters) final;
   LoopRV Merge(const Array<LoopRV>& loop_rvs) final;
   Array<LoopRV> Split(const LoopRV& loop_rv, const Array<Optional<ExprRV>>& factor_rvs,
-                      bool preserve_unit_iters) final;
+                      bool preserve_unit_iters, bool disable_predication) final;
   Array<LoopRV> LoopPartition(const LoopRV& loop_rv, const Array<Optional<ExprRV>>& factor_rvs,
                               bool preserve_unit_iters) final;
   void Reorder(const Array<LoopRV>& ordered_loop_rvs) final;

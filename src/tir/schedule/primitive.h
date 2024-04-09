@@ -204,10 +204,15 @@ Array<StmtSRef> GetOutputBlocks(const ScheduleState& self, const StmtSRef& scope
  * \param loop_sref The sref to the loop being split
  * \param factors The splitting factors
  * \param preserve_unit_iters Whether or not to preserve unit iterators in block bindings
- * \return An array of srefs to the loops after splitting
+ * \param disable_predication If enabled, don't create a predicate for guarding the
+ *      loop. This can be useful when splitting with scalable factors that the schedule writer
+ *      knows are divisible by the loop bound.
+ *      Warning: enabling this feature may result in incorrect code generation if not used
+ * carefully. \return An array of srefs to the loops after splitting
  */
 TVM_DLL Array<StmtSRef> Split(ScheduleState self, const StmtSRef& loop_sref,
-                              const Array<PrimExpr>& factors, bool preserve_unit_iters);
+                              const Array<PrimExpr>& factors, bool preserve_unit_iters,
+                              bool disable_predication);
 
 /*!
  * Partition a loop into a list of consecutive loops. It requires:

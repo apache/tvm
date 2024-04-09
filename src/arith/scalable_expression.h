@@ -25,12 +25,18 @@
 #ifndef TVM_ARITH_SCALABLE_EXPRESSION_H_
 #define TVM_ARITH_SCALABLE_EXPRESSION_H_
 
+#include <tvm/arith/analyzer.h>
 #include <tvm/ir/expr.h>
 
 #include <optional>
+#include <vector>
 
 namespace tvm {
 namespace arith {
+
+/*! \brief A list of known vscale values to try for an AArch64 SVE target. */
+static const std::vector<unsigned int> kAArch64VScaleValues = {1, 2,  3,  4,  5,  6,  7,  8,
+                                                               9, 10, 11, 12, 13, 14, 15, 16};
 
 /*!
  * \brief Check if an expr is a call to the vscale intrinsic.
@@ -40,11 +46,29 @@ namespace arith {
 bool IsVScaleCall(const PrimExpr& expr);
 
 /*!
+ * \brief Substitute a vscale intrinsic call with a known scalar value.
+ * \param expr The expr to apply substitutions to.
+ * \param vscale_value The scalar value to replace vscale with.
+ * \return A rewritten expression with vscale values replaced with a scalar value.
+ */
+PrimExpr SubstituteVScaleWithKnownValue(const PrimExpr& expr, unsigned int vscale_value);
+
+/*!
  * \brief Returns the vscale multiplier as a nullable type
  * \param lanes The scalable lanes as a PrimExpr
  * \return vscale multiplier as std::optional<int>
  */
 std::optional<int> ExtractVscaleFactor(const PrimExpr& lanes);
+
+/*!
+ * \brief Check if the expression can be proven when evaluating it on all possible values
+           of vscale.
+ * \param analyzer An analyzer instance.
+ * \param expr The expression to try to prove.
+ * \return Whether or not the expression can be proven with this technique.
+ */
+bool CanProveVscaleExpressionFromKnownValues(arith::Analyzer* analyzer, const PrimExpr& expr,
+                                             const std::vector<unsigned int>& vscale_values);
 
 }  // namespace arith
 }  // namespace tvm
