@@ -457,9 +457,13 @@ TEST(TargetCreation, DetectSystemTriple) {
   Target target = Target(config);
   ICHECK_EQ(target->kind, TargetKind::Get("llvm").value());
 
-  Optional<String> mtriple = target->GetAttr<String>("mtriple");
   auto pf = tvm::runtime::Registry::Get("target.llvm_get_system_triple");
-  ASSERT_TRUE(pf->defined());
+  if (pf == nullptr) {
+    GTEST_SKIP() << "LLVM is not available, skipping test";
+  }
+
+  Optional<String> mtriple = target->GetAttr<String>("mtriple");
+  ASSERT_TRUE(mtriple.value() == String((*pf)()));
 }
 
 #endif
