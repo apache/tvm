@@ -1260,6 +1260,20 @@ void CodeGenCUDA::VisitExpr_(const BroadcastNode* op, std::ostream& os) {  // NO
     return;
   }
 
+  if (op->dtype.is_float8()) {
+    int lanes = op->dtype.lanes();
+    ICHECK(lanes == 1 || lanes == 2 || lanes == 4);
+    std::string v = PrintExpr(op->value);
+    PrintType(op->dtype, os);
+    os << "(make_float" << lanes << "(";
+    for (int i = 0; i < lanes; ++i) {
+      if (i != 0) os << ", ";
+      os << "static_cast<float>(" << v << ")";
+    }
+    os << "))";
+    return;
+  }
+
   if ((op->dtype.is_int() || op->dtype.is_uint()) && op->dtype.bits() == 4) {
     bool fail = false;
     const int64_t* p = as_const_int(op->value);
@@ -1356,6 +1370,12 @@ inline void PrintConst(const FloatImmNode* op, std::ostream& os, CodeGenCUDA* p)
   // Type code is kBFloat
   if (op->dtype.is_bfloat16()) {
     os << "__float2bfloat16_rn";
+    os << '(' << std::scientific << op->value << 'f' << ')';
+    return;
+  }
+  // Type code is kE5M2Float or kE4M4Float
+  if (op->dtype.is_float8()) {
+    p->PrintType(op->dtype, os);
     os << '(' << std::scientific << op->value << 'f' << ')';
     return;
   }
