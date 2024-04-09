@@ -1257,9 +1257,19 @@ class CompositeFunctionAnnotator : public ExprMutator {
       params.push_back(new_v);
     }
 
+    // We cannot delegate to `ExprMutator::VisitExpr_(const FunctionNode*)` at this point, as it
+    // would recursively visit the Call node.  However, we are still required to generate
+    // well-formed Relax IR.  As a result, we need to build the SeqExpr ourselves.
+    Var local_func_var("local_func", GetStructInfo(f_inner));
+    Var output_var("output", f_inner->ret_struct_info);
+    SeqExpr new_body({BindingBlock({
+                         VarBinding(local_func_var, f_inner),
+                         VarBinding(output_var, Call(local_func_var, params)),
+                     })},
+                     output_var);
+
     // pure if the inner func is pure (no need to force purity if it's forced for the inner func)
-    return Function(param_vars, Call(f_inner, params), func_node->ret_struct_info,
-                    f_inner->is_pure);
+    return Function(param_vars, new_body, func_node->ret_struct_info, f_inner->is_pure);
   }
 
  private:
