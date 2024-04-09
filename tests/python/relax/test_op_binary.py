@@ -282,7 +282,7 @@ def test_binary_arith_infer_struct_info_dtype_mismatch(binary_arith_op: Callable
     bb = relax.BlockBuilder()
     x = relax.Var("x", R.Tensor((2, 3), "float32"))
     y = relax.Var("y", R.Tensor((2, 3), "int32"))
-    with pytest.raises(TVMError):
+    with pytest.raises(TypeError):
         bb.normalize(binary_arith_op(x, y))
 
 
@@ -290,7 +290,7 @@ def test_binary_arith_infer_struct_info_vdevice_mismatch(binary_arith_op: Callab
     bb = relax.BlockBuilder()
     x = relax.Var("x", R.Tensor((2, 3), "float32", VDevice("llvm")))
     y = relax.Var("y", R.Tensor((2, 3), "int32", VDevice("cuda")))
-    with pytest.raises(TVMError):
+    with pytest.raises(TypeError):
         bb.normalize(binary_arith_op(x, y))
 
 
