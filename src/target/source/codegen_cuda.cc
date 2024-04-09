@@ -1264,7 +1264,7 @@ void CodeGenCUDA::VisitExpr_(const BroadcastNode* op, std::ostream& os) {  // NO
     int lanes = op->dtype.lanes();
     ICHECK(lanes == 1 || lanes == 2 || lanes == 4);
     std::string v = PrintExpr(op->value);
-    // Implicit conversion from float back to fp8 
+    // Implicit conversion from float back to fp8
     PrintType(op->dtype, os);
     os << "(make_float" << lanes << "(";
     for (int i = 0; i < lanes; ++i) {
