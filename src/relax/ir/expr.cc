@@ -559,10 +559,18 @@ Function Function::CreateEmpty(Array<Var> params, StructInfo ret_struct_info, bo
 
   FuncStructInfo finfo(param_sinfo, ret_struct_info, is_pure);
 
+  // A dummy body, to ensure that the empty function is still well-formed.
+  Expr body = [&]() -> Expr {
+    Var output("output", ret_struct_info);
+    Call expr(ExternFunc("_dummy_function", FuncStructInfo({}, ret_struct_info)), {});
+
+    return SeqExpr({BindingBlock({VarBinding(output, expr)})}, output);
+  }();
+
   // set the fields
   ObjectPtr<FunctionNode> n = make_object<FunctionNode>();
   n->params = std::move(params);
-  n->body = Expr();
+  n->body = std::move(body);
   n->is_pure = is_pure;
   n->checked_type_ = GetStaticType(finfo);
   n->struct_info_ = std::move(finfo);
@@ -602,13 +610,19 @@ FuncStructInfo GetExternFuncStructInfo() {
 
 TVM_REGISTER_NODE_TYPE(ExternFuncNode);
 
-ExternFunc::ExternFunc(String global_symbol, Span span) {
+ExternFunc::ExternFunc(String global_symbol, Span span)
+    : ExternFunc(global_symbol, GetExternFuncStructInfo(), span) {}
+
+ExternFunc::ExternFunc(String global_symbol, StructInfo struct_info, Span span) {
+  CHECK(struct_info.as<FuncStructInfoNode>())
+      << "ExternFunc must have FuncStructInfo, "
+      << "but declaration of '" << global_symbol << "' received " << struct_info;
+
   ObjectPtr<ExternFuncNode> n = make_object<ExternFuncNode>();
   n->global_symbol = std::move(global_symbol);
   n->span = span;
-  static auto sinfo = GetExternFuncStructInfo();
-  n->struct_info_ = sinfo;
-  n->checked_type_ = GetStaticType(sinfo);
+  n->struct_info_ = struct_info;
+  n->checked_type_ = GetStaticType(struct_info);
   data_ = std::move(n);
 }
 
