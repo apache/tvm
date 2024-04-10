@@ -14,6 +14,9 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+
+import pytest
+
 import tvm
 import tvm.testing
 from tvm import tir
@@ -51,6 +54,33 @@ def test_simplify_symbolic_comparison():
     assert ana.can_prove(i0 * 32 + i1 + 1 <= (n + 31) // 32 * 32, PS.SYMBOLIC_BOUND)
     assert ana.can_prove((n + 31) // 32 * 32 >= i0 * 32 + i1 + 1, PS.SYMBOLIC_BOUND)
     assert ana.can_prove((n + 31) // 32 * 32 >= i0 * 32 + i1, PS.SYMBOLIC_BOUND)
+
+
+def test_simplify_vscale_comparison_with_sve_target():
+    ana = tvm.arith.Analyzer()
+    vs = tvm.tir.vscale()
+
+    with tvm.target.Target("llvm -mtriple=aarch64-linux-gnu -mattr=+sve"):
+        assert ana.can_prove(vs * 32 < vs * 64)
+        assert ana.can_prove(vs * 2 * (vs * 2) >= vs * 4)
+        assert ana.can_prove((vs * 4 + 114) // (vs * 4) * (vs * 4) >= 115)
+
+
+def test_simplify_vscale_comparison_without_sve_target(capfd):
+    ana = tvm.arith.Analyzer()
+    vs = tvm.tir.vscale()
+
+    with pytest.raises(AssertionError):
+        with tvm.target.Target("llvm -mtriple=aarch64-linux-gnu"):
+            assert ana.can_prove(vs * 32 < vs * 64)
+
+    warning_msg = (
+        "Warning: The expression contains scalable values. An attempt to prove by substituting "
+        "with known values of vscale was not performed. This proof currently only supports "
+        "AArch64 SVE targets, but the target was llvm -keys=arm_cpu,cpu -mtriple=aarch64-linux-gnu"
+    )
+    capture = capfd.readouterr().err
+    assert warning_msg in capture
 
 
 def test_regression_simplify_inf_recursion():
