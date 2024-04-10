@@ -20,9 +20,12 @@ import inspect
 import pytest
 
 import tvm
+import tvm.testing
 from tvm import te, tir
-
-from tvm.tir import truncdiv as tdiv, truncmod as tmod, floordiv as fld, floormod as flm
+from tvm.tir import floordiv as fld
+from tvm.tir import floormod as flm
+from tvm.tir import truncdiv as tdiv
+from tvm.tir import truncmod as tmod
 
 
 class TestCase:
@@ -1147,6 +1150,19 @@ class TestIfThenElse(BaseCompare):
             tvm.tir.if_then_else(x > 2, tvm.tir.if_then_else(x > 1, 1, 0), 0),
             tvm.tir.if_then_else(tvm.tir.LT(2, x), 1, 0),
         ),
+    )
+
+
+class TestCLZ(BaseCompare):
+    test_case = tvm.testing.parameter(
+        TestCase(tvm.tir.call_intrin("int32", "tir.clz", 0), 32),
+        TestCase(tvm.tir.call_intrin("int32", "tir.clz", 1), 31),
+        TestCase(tvm.tir.call_intrin("int32", "tir.clz", 2), 30),
+        TestCase(tvm.tir.call_intrin("int32", "tir.clz", 128), 24),
+        TestCase(tvm.tir.call_intrin("int32", "tir.clz", tvm.tir.IntImm("int64", 0)), 64),
+        TestCase(tvm.tir.call_intrin("int32", "tir.clz", tvm.tir.IntImm("int64", 1)), 63),
+        TestCase(tvm.tir.call_intrin("int32", "tir.clz", tvm.tir.IntImm("int64", 2)), 62),
+        TestCase(tvm.tir.call_intrin("int32", "tir.clz", tvm.tir.IntImm("int64", 128)), 56),
     )
 
 

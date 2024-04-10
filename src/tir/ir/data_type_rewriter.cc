@@ -215,6 +215,7 @@ TVM_DEFINE_BIOP_EXPR_MUTATE_WITH_TYPE_MATCH(GENode, operator>=);
 #undef TVM_DEFINE_BIOP_EXPR_MUTATE_WITH_TYPE_MATCH
 
 PrimExpr DataTypeLegalizer::VisitExpr_(const CallNode* op) {
+  Call before = GetRef<Call>(op);
   PrimExpr e = StmtExprMutator::VisitExpr_(op);
   op = e.as<CallNode>();
   static const Op& builtin_pow_ = Op::Get("tir.pow");
@@ -234,6 +235,16 @@ PrimExpr DataTypeLegalizer::VisitExpr_(const CallNode* op) {
     return pow(op->args[0], op->args[1]);
   } else if (op->op.same_as(builtin::if_then_else())) {
     return if_then_else(op->args[0], op->args[1], op->args[2]);
+  } else if (op->op.same_as(Op::Get("tir.clz"))) {
+    DataType before_dtype = before->args[0]->dtype;
+    DataType after_dtype = op->args[0]->dtype;
+    CHECK(before_dtype.is_int() && (before_dtype.bits() == 32 || before_dtype.bits() == 64))
+        << "clz only supports 32 or 64 bit integer types, but get type before legalizing: "
+        << before_dtype;
+    CHECK(after_dtype.is_int() && (after_dtype.bits() == 32 || after_dtype.bits() == 64))
+        << "clz only supports 32 or 64 bit integer types, but get type after legalizing: "
+        << after_dtype;
+    return e - after_dtype.bits() + before_dtype.bits();
   }
   return e;
 }
