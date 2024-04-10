@@ -24,7 +24,7 @@
 #include <tvm/tir/expr.h>
 
 #ifdef TVM_LLVM_VERSION
-  #include <llvm/IR/Intrinsics.h>
+#include <llvm/IR/Intrinsics.h>
 #endif
 
 #include "../../src/script/printer/utils.h"
