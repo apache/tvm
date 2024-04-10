@@ -238,7 +238,7 @@ bool Analyzer::CanProve(const PrimExpr& expr, ProofStrength strength) {
     Target curr_target = tvm::Target::Current();
     if (curr_target.defined() && curr_target->features.defined() &&
         (curr_target->features.find("has_sve") != curr_target->features.end()) &&
-        bool(curr_target->GetFeature<Bool>("has_sve").value_or(Bool(false)))) {
+        curr_target->GetFeature<Bool>("has_sve").value_or(Bool(false)).operator bool()) {
       return CanProveVscaleExpressionFromKnownValues(this, simplified, kAArch64VScaleValues);
     }
     LOG(WARNING)
