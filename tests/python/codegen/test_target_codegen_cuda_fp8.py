@@ -799,6 +799,7 @@ class TestFP8e4x4QuantDequantScale(BaseFP8E4M3QuantScaleOnly):
         tvm.testing.assert_allclose(weight_np, dequant_weight_np, atol=10, rtol=5e-2)
 
 
+@tvm.testing.requires_cuda_compute_version(9)
 @pytest.mark.parametrize("dtype", ["e5m2_float8", "e4m3_float8"])
 def test_const(dtype):
     @T.prim_func
