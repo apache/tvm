@@ -56,7 +56,7 @@ Buffer BufferDecl(Array<PrimExpr> shape, DataType dtype, String buffer_name, Opt
  * \brief The primitive function statement.
  * \return The PrimFuncFrame.
  */
-PrimFuncFrame PrimFunc();
+PrimFuncFrame PrimFunc(bool is_private);
 
 /*!
  * \brief The PrimFunc variable arguments adding function.
@@ -428,16 +428,26 @@ void Evaluate(PrimExpr value);
 
 /*!
  * \brief Create a TIR var that represents a pointer
+ *
  * \param dtype The data type of the pointer.
+ *
  * \param storage_scope The storage scope of the pointer.
+ *
  * \param is_size_var Whether the pointer is a size var.
+ *
+ * \param is_unknown_type Used to distinguish between
+ * `PrimType(DataType::Handle())` and
+ * `PointerType(PrimType(DataType::Void()))`.  If true, resolve dtype
+ * of `Void()` as `PrimType`, and if false resolve dtype of `Void()`
+ * as a `PointerType`.
+ *
  * \return The pointer.
  */
-inline Var Handle(runtime::DataType dtype = runtime::DataType::Void(),  //
-                  String storage_scope = "global",                      //
-                  bool is_size_var = false) {
+inline Var Handle(runtime::DataType dtype = runtime::DataType::Void(),
+                  String storage_scope = "global", bool is_size_var = false,
+                  bool is_unknown_type = false) {
   Type type_annotation{nullptr};
-  if (dtype.is_void() && storage_scope == "global") {
+  if (is_unknown_type && storage_scope == "global") {
     type_annotation = PrimType(runtime::DataType::Handle());
   } else {
     type_annotation = PointerType(PrimType(dtype), storage_scope);
@@ -479,6 +489,18 @@ TVM_TIR_IR_BUILDER_DEF_DTYPE_CAST_SIZES(Int, DataType::Int);
 TVM_TIR_IR_BUILDER_DEF_DTYPE_CAST_SIZES_LANES(Float, DataType::Float);
 TVM_TIR_IR_BUILDER_DEF_DTYPE_CAST_SIZES_LANES(UInt, DataType::UInt);
 TVM_TIR_IR_BUILDER_DEF_DTYPE_CAST_SIZES_LANES(Int, DataType::Int);
+
+#define TVM_TIR_IR_BUILDER_DEF_DTYPE_CAST_LANES_FIXED_SIZE(DType, FDType) \
+  TVM_TIR_IR_BUILDER_DEF_DTYPE_CAST(DType, FDType(1));                    \
+  TVM_TIR_IR_BUILDER_DEF_DTYPE_CAST(DType##x4, FDType(4));                \
+  TVM_TIR_IR_BUILDER_DEF_DTYPE_CAST(DType##x8, FDType(8));                \
+  TVM_TIR_IR_BUILDER_DEF_DTYPE_CAST(DType##x16, FDType(16));              \
+  TVM_TIR_IR_BUILDER_DEF_DTYPE_CAST(DType##x32, FDType(32));              \
+  TVM_TIR_IR_BUILDER_DEF_DTYPE_CAST(DType##x64, FDType(64));
+
+TVM_TIR_IR_BUILDER_DEF_DTYPE_CAST_LANES_FIXED_SIZE(E4M3Float8, DataType::NVFloat8E4M3);
+TVM_TIR_IR_BUILDER_DEF_DTYPE_CAST_LANES_FIXED_SIZE(E5M2Float8, DataType::NVFloat8E5M2);
+
 TVM_TIR_IR_BUILDER_DEF_DTYPE_CAST(Boolean, DataType::Bool());
 TVM_TIR_IR_BUILDER_DEF_DTYPE_CAST(Void, DataType::Void());
 
