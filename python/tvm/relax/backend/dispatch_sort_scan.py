@@ -175,8 +175,8 @@ class SortScanDispatcher(PyExprMutator):
         input_shape = call.args[0].struct_info.shape
         input_byte_per_elem = DataType(call.args[0].struct_info.dtype).bits // 8
         input_size = reduce(mul, input_shape, 1) * input_byte_per_elem
-        # Most GPU algorithms take O(n) space or less, we choose 2N + 4MB as a safe estimation
-        return 2 * input_size + 4 * 1024 * 1024
+        # Most GPU algorithms take O(n) space or less, we choose 8N + 4MB as a safe estimation
+        return 8 * input_size + 4 * 1024 * 1024
 
     def allocate_workspace(self, call: relax.Call) -> relax.Var:
         """

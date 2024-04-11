@@ -65,6 +65,8 @@ class WorkspaceMemoryResource : public thrust::mr::memory_resource<void*> {
       void* result = std::align(alignment, bytes, workspace, workspace_size);
       CHECK(result) << "Failed to allocate " << bytes << " bytes with alignment " << alignment
                     << " bytes.";
+      workspace += size;
+      workspace_size -= size;
       return result;
     }
     return thrust_pool_->do_allocate(bytes, alignment).get();
