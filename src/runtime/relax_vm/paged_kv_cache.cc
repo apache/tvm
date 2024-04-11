@@ -1021,7 +1021,7 @@ class PagedAttentionKVCacheObj : public AttentionKVCacheObj {
 
     Block& block = global_block_pool_[it->second.last_block_idx];
     CHECK_GE(n, 0) << "The length of popping " << n << " cannot be negative.";
-    CHECK_LT(n, block.seq_length) << "The sequence only has length " << block.seq_length
+    CHECK_LE(n, block.seq_length) << "The sequence only has length " << block.seq_length
                                   << " in the last block, while the length of pop is " << n
                                   << " which exceeds the last-block sequence length.";
 
