@@ -351,7 +351,7 @@ def test_prim_func():
     assert len(func.buffer_map) == 1
     f2 = func.with_attr({"calling_conv": 1, "tir.noalias": True})
     assert f2.attrs["calling_conv"].value == 1
-    assert func.attrs is None
+    assert not func.attrs
 
 
 def test_vars():
@@ -407,6 +407,16 @@ def _create_ramp(lanes):
 
 def _create_broadcast(lanes):
     return tvm.tir.Broadcast(0, lanes)
+
+
+@pytest.mark.parametrize("lanes", [(tvm.tir.IntImm(dtype="int64", value=11))])
+@pytest.mark.parametrize("node_func", [_create_ramp, _create_broadcast])
+def test_lane_types(lanes, node_func):
+    def _check_dtype(node):
+        assert node.lanes.dtype == "int32"
+        assert node.lanes == 11
+
+    _check_dtype(node_func(lanes))
 
 
 @pytest.mark.parametrize("lanes", [(11 * tvm.tir.vscale()), (tvm.tir.vscale() * 11)])

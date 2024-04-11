@@ -260,11 +260,13 @@ class TestLowerCPUAllocation(tvm.testing.CompareBeforeAfter):
 
 
 class TestLowerAllocateRequiresDeviceID(tvm.testing.CompareBeforeAfter):
+    """If device id is missing, error."""
+
     transform = tvm.tir.transform.LowerTVMBuiltin()
 
     def before():
         T.func_attr({"target": T.target("llvm")})
-        T.attr("dummy", "device_id", 0)
+        T.attr("dummy", "device_type", 2)  # kDLCuda
         ptr = T.allocate([16], "float32")
         buf = T.decl_buffer(16, "float32", data=ptr)
         buf[0] = 0.0
@@ -273,16 +275,45 @@ class TestLowerAllocateRequiresDeviceID(tvm.testing.CompareBeforeAfter):
 
 
 class TestLowerAllocateRequiresDeviceType(tvm.testing.CompareBeforeAfter):
+    """If device type is missing, error.
+
+    The device type can be inferred either from the `"device_type"`
+    statement attribute, or from the `"target"` function attribute.
+    Here, we provide neither.  The `"tir.is_host_func"` attribute is
+    provided as otherwise the function would be skipped altogether by
+    LowerTVMBuiltin.
+    """
+
+    transform = tvm.tir.transform.LowerTVMBuiltin()
+
+    def before():
+        T.func_attr({"tir.is_host_func": True})
+        T.attr("dummy", "device_id", 0)
+        ptr = T.allocate([1024 * 1024], "float32")
+        buf = T.decl_buffer(1024 * 1024, "float32", data=ptr)
+        buf[0] = 0.0
+
+    expected = tvm.TVMError
+
+
+class TestLowerCPUAllocWithFunctionAttr(tvm.testing.CompareBeforeAfter):
+    """CPU allocations can be handled at codegen time
+
+    Like `TestLowerCPUAllocation`, but the device type is taken from
+    the function attribute.  The `AttrStmt` can override the device
+    type for allocations within its scope, but it defaults to the
+    function's target.
+    """
+
     transform = tvm.tir.transform.LowerTVMBuiltin()
 
     def before():
         T.func_attr({"target": T.target("llvm")})
-        T.attr("dummy", "device_id", 0)
         ptr = T.allocate([16], "float32")
         buf = T.decl_buffer(16, "float32", data=ptr)
         buf[0] = 0.0
 
-    expected = tvm.TVMError
+    expected = before
 
 
 if __name__ == "__main__":

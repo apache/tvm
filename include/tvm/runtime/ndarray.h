@@ -112,8 +112,9 @@ class NDArray : public ObjectRef {
    * \param dev The target device.
    * \param mem_scope The memory scope of the target array.
    * \return The array under another device.
+   * \note The copy always triggers a TVMSynchronize.
    */
-  inline NDArray CopyTo(const Device& dev, Optional<String> mem_scope = NullOpt) const;
+  TVM_DLL NDArray CopyTo(const Device& dev, Optional<String> mem_scope = NullOpt) const;
   /*!
    * \brief Load NDArray from stream
    * \param stream The input data stream
@@ -397,15 +398,6 @@ inline void NDArray::CopyTo(const NDArray& other) const {
   ICHECK(data_ != nullptr);
   ICHECK(other.data_ != nullptr);
   CopyFromTo(&(get_mutable()->dl_tensor), &(other.get_mutable()->dl_tensor));
-}
-
-inline NDArray NDArray::CopyTo(const Device& dev, Optional<String> mem_scope) const {
-  ICHECK(data_ != nullptr);
-  const DLTensor* dptr = operator->();
-  NDArray ret =
-      Empty(ShapeTuple(dptr->shape, dptr->shape + dptr->ndim), dptr->dtype, dev, mem_scope);
-  this->CopyTo(ret);
-  return ret;
 }
 
 inline int NDArray::use_count() const { return data_.use_count(); }

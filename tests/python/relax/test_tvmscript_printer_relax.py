@@ -16,8 +16,6 @@
 # under the License.
 # pylint: disable=missing-docstring
 
-import pytest
-
 import tvm
 import tvm.testing
 from tvm import IRModule, relax, tir
@@ -636,7 +634,6 @@ class Module:
     )
 
 
-@pytest.mark.xfail(reason="Eliding void variable bindings currently disabled")
 def test_assert_op():
     @I.ir_module
     class AssertOpMod:
@@ -661,7 +658,6 @@ class Module:
     )
 
 
-@pytest.mark.xfail(reason="Eliding void variable bindings currently disabled")
 def test_print():
     @I.ir_module
     class PrintMod:
@@ -710,7 +706,6 @@ class Module:
     )
 
 
-@pytest.mark.xfail(reason="Eliding void variable bindings currently disabled")
 def test_directly_construct_private_funcs():
     # public
     @R.function

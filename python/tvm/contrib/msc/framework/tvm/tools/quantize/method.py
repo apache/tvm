@@ -28,6 +28,7 @@ from tvm.contrib.msc.core import utils as msc_utils
 from tvm.contrib.msc.core import _ffi_api
 
 
+@msc_utils.register_tool_method
 class TVMQuantizeMethod(QuantizeMethod):
     """Default quantize method for tvm"""
 
@@ -200,6 +201,3 @@ class TVMQuantizeMethod(QuantizeMethod):
     @classmethod
     def framework(cls):
         return MSCFramework.TVM
-
-
-msc_utils.register_tool_method(TVMQuantizeMethod)

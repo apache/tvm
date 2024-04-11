@@ -123,6 +123,7 @@ class BasePruner(WeightTool):
             The weights.
         """
 
+        self._unpruned_tensors = {}
         self._meta_weights = weights
         graphs, weights = super()._reset(graphs, weights)
         if self._plan and self._enabled:
@@ -423,7 +424,9 @@ class BasePruner(WeightTool):
 
             pruned_tensors = {k: v for k, v in pruned_tensors.items() if _is_pruned(v, graph)}
             if self.on_debug(3, in_forward=False):
-                self._logger.debug(msc_utils.msg_block("Pruned Tensors", pruned_tensors))
+                self._logger.debug(
+                    msc_utils.msg_block(self.tool_mark("Pruned Tensors"), pruned_tensors)
+                )
 
             if pruned_tensors:
                 pruned_graph = _ffi_api.PruneWeights(graph, pruned_tensors)
@@ -439,15 +442,12 @@ class BasePruner(WeightTool):
         # log compress rate
         if pruned_cnt > 0:
             new_size = _flatten_size(pruned_weights)
-            self._logger.info(
-                "Prune %d weights, compress to %.2f%% (%.4f M->%.4f M)",
-                pruned_cnt,
-                new_size * 100 / raw_size,
-                raw_size,
-                new_size,
+            msg = "Prune {} weights, compress to {:.2f}% ({:.4f} M->{:.4f} M)".format(
+                pruned_cnt, new_size * 100 / raw_size, raw_size, new_size
             )
         else:
-            self._logger.info("No weights pruned, size %.4f M", raw_size)
+            msg = "No weights pruned, size {:.4f} M".format(raw_size)
+        self._logger.info(self.tool_mark(msg))
         return pruned_graphs, pruned_weights
 
     def get_meta_data(self, name: str) -> np.ndarray:
@@ -514,24 +514,6 @@ class BasePruner(WeightTool):
         self._plan = {n: c for n, c in self._plan.items() if c["in_indices"] or c["out_indices"]}
         return super().finalize()
 
-    def export_config(self, config: dict, folder: msc_utils.MSCDirectory) -> dict:
-        """Export the config for tool
-
-        Parameters
-        -------
-        config: dict
-            The source config.
-        folder: MSCDirectory
-            The export folder.
-
-        Returns
-        -------
-        config: dict
-            The exported config.
-        """
-
-        return {}
-
     @property
     def pruned(self):
         return len(self._plan) > 0
@@ -540,11 +522,13 @@ class BasePruner(WeightTool):
     def tool_type(cls):
         return ToolType.PRUNER
 
+    @classmethod
+    def exportable(cls):
+        return False
 
+
+@msc_utils.register_tool
 class DefaultPruner(BasePruner):
     @classmethod
     def tool_style(cls):
         return "default"
-
-
-msc_utils.register_tool_cls(DefaultPruner)

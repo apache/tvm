@@ -45,10 +45,7 @@ class ToolConfiger(object):
             config["tool_config"] = self.update_tool(raw_config)
         else:
             config["tool_config"] = self.config_tool()
-        if self.run_type:
-            config["run_type"] = self.run_type
-        if self.apply_once:
-            config["apply_once"] = self.apply_once
+        config.update(self.config_apply())
         return config
 
     def config_tool(self) -> dict:
@@ -95,13 +92,16 @@ class ToolConfiger(object):
 
         raise NotImplementedError("config_gym is not implemented in ToolConfiger")
 
-    @property
-    def run_type(self):
-        return ""
+    def config_apply(self) -> dict:
+        """Get the config for apply
 
-    @property
-    def apply_once(self):
-        return False
+        Returns
+        -------
+        config: dict
+            The apply config.
+        """
+
+        return {}
 
     @classmethod
     def tool_type(cls):

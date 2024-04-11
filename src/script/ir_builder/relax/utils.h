@@ -20,6 +20,7 @@
 #define TVM_SCRIPT_IR_BUILDER_RELAX_UTILS_H_
 
 #include <tvm/relax/struct_info_functor.h>
+#include <tvm/relax/utils.h>
 #include <tvm/script/ir_builder/relax/frame.h>
 #include <tvm/script/ir_builder/relax/ir.h>
 
@@ -109,12 +110,12 @@ inline tvm::relax::SeqExpr GetSeqExprForBranch(const SeqExprFrame& frame, String
                                             GetStructInfo(last_binding->var));
   tvm::relax::Expr body;
 
-  if (const auto* var_binding = last_binding.as<tvm::relax::VarBindingNode>();
-      var_binding && var_binding->value->IsInstance<tvm::relax::VarNode>()) {
+  const auto* var_binding = last_binding.as<tvm::relax::VarBindingNode>();
+
+  if (var_binding && tvm::relax::IsLeafOrTuple(var_binding->value)) {
     body = var_binding->value;
-  } else if (const auto* var_binding = last_binding.as<tvm::relax::VarBindingNode>()) {
-    last_block_bindings.push_back(last_binding =
-                                      tvm::relax::VarBinding(new_var, var_binding->value));
+  } else if (var_binding) {
+    last_block_bindings.push_back(tvm::relax::VarBinding(new_var, var_binding->value));
     body = new_var;
   } else if (const auto* match_cast = last_binding.as<tvm::relax::MatchCastNode>()) {
     last_block_bindings.push_back(

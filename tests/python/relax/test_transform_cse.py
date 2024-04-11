@@ -435,7 +435,7 @@ def test_call_tir_tuple_arg():
 def test_do_not_eliminate_dtype():
     @I.ir_module
     class Before:
-        @R.function
+        @R.function(pure=False)
         def foo() -> R.Tensor((32, 64), "int32"):
             obj: R.Object = R.vm.alloc_storage(
                 R.shape([24576]), runtime_device_index=0, dtype="uint8"
@@ -621,6 +621,38 @@ def test_keep_duplicate_after_branch():
             C = R.add(x, y)
             D = R.multiply(B, C)
             return D
+
+    Expected = Before
+
+    verify(Before, Expected)
+
+
+def test_keep_alloc_tensor():
+    @I.ir_module
+    class Before:
+        @R.function
+        def foo(x: R.Tensor((2, 3), dtype="float32")):
+            tmp_buf1 = R.builtin.alloc_tensor(R.shape([64]), R.dtype("int32"), R.prim_value(0))
+            tmp_buf2 = R.builtin.alloc_tensor(R.shape([64]), R.dtype("int32"), R.prim_value(0))
+            out = R.add(tmp_buf1, tmp_buf2)
+            return out
+
+    Expected = Before
+
+    verify(Before, Expected)
+
+
+def test_keep_alloc_storage():
+    @I.ir_module
+    class Before:
+        @R.function
+        def foo(x: R.Tensor((2, 3), dtype="float32")):
+            tmp_storage1 = R.vm.alloc_storage(R.shape([64]), runtime_device_index=0, dtype="uint8")
+            tmp_buf1 = R.vm.alloc_tensor(tmp_storage1, offset=0, shape=R.shape([64]), dtype="int32")
+            tmp_storage2 = R.vm.alloc_storage(R.shape([64]), runtime_device_index=0, dtype="uint8")
+            tmp_buf2 = R.vm.alloc_tensor(tmp_storage2, offset=0, shape=R.shape([64]), dtype="int32")
+            out = R.add(tmp_buf1, tmp_buf2)
+            return out
 
     Expected = Before
 

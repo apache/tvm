@@ -17,13 +17,21 @@
 # pylint: disable=invalid-name, unused-argument, redefined-argument-from-local
 """Dispatch sort and scan operators to platform dependent implementation."""
 
-from tvm import topi, dlight, relax
+from functools import reduce
+from operator import mul
+
+from tvm import DataType, dlight, relax, topi
+from tvm.contrib.thrust import can_use_thrust
 from tvm.ir import Op
 from tvm.ir.module import IRModule
 from tvm.ir.transform import PassContext, module_pass
-from tvm.target import Target
-from tvm.contrib.thrust import can_use_thrust
 from tvm.relax import PyExprMutator, expr_functor
+from tvm.target import Target
+
+
+def is_gpu_target(target: Target) -> bool:
+    """Check if the target is a GPU target."""
+    return "gpu" in target.keys
 
 
 @expr_functor.mutator
@@ -80,24 +88,25 @@ class SortScanDispatcher(PyExprMutator):
         if call.op.name == "relax.sort":
             tgt = self._get_target(call.struct_info)
             te_func = topi.sort
+            kwargs = {}
             with tgt:
                 if can_use_thrust(tgt, "tvm.contrib.thrust.sort"):
                     te_func = topi.cuda.sort_thrust
-                elif tgt.kind.name == "cuda":
+                    kwargs["workspace"] = self.allocate_workspace(call)
+                elif is_gpu_target(tgt):
                     te_func = topi.cuda.sort
             return self.builder_.call_te(
-                te_func,
-                call.args[0],
-                call.attrs.axis,
-                not call.attrs.descending,
+                te_func, call.args[0], call.attrs.axis, not call.attrs.descending, **kwargs
             )
         if call.op.name == "relax.argsort":
             tgt = self._get_target(call.struct_info)
             te_func = topi.argsort
+            kwargs = {}
             with tgt:
                 if can_use_thrust(tgt, "tvm.contrib.thrust.sort"):
                     te_func = topi.cuda.argsort_thrust
-                elif tgt.kind.name == "cuda":
+                    kwargs["workspace"] = self.allocate_workspace(call)
+                elif is_gpu_target(tgt):
                     te_func = topi.cuda.argsort
             return self.builder_.call_te(
                 te_func,
@@ -105,13 +114,16 @@ class SortScanDispatcher(PyExprMutator):
                 axis=call.attrs.axis,
                 is_ascend=not call.attrs.descending,
                 dtype=call.attrs.dtype,
+                **kwargs,
             )
         if call.op.name == "relax.topk":
             tgt = self._get_target(call.struct_info)
             te_func = topi.topk
+            kwargs = {}
             if can_use_thrust(tgt, "tvm.contrib.thrust.sort"):
                 te_func = topi.cuda.topk_thrust
-            elif tgt.kind.name == "cuda":
+                kwargs["workspace"] = self.allocate_workspace(call)
+            elif is_gpu_target(tgt):
                 te_func = topi.cuda.topk
             tir_call = self.builder_.call_te(
                 te_func,
@@ -121,8 +133,9 @@ class SortScanDispatcher(PyExprMutator):
                 ret_type=call.attrs.ret_type,
                 is_ascend=not call.attrs.largest,
                 dtype=call.attrs.dtype,
+                **kwargs,
             )
-            if tgt.kind.name != "cuda":
+            if not is_gpu_target(tgt):
                 return tir_call
             # apply dlight gpu fallback
             self._apply_dlight_gpu_fallback(tgt, tir_call)
@@ -130,22 +143,50 @@ class SortScanDispatcher(PyExprMutator):
         if call.op.name in ("relax.cumprod", "relax.cumsum"):
             tgt = self._get_target(call.struct_info)
             axis = int(call.attrs.axis) if call.attrs.axis is not None else call.attrs.axis
-            te_func = topi.cuda.cumsum if tgt.kind.name == "cuda" else topi.cumsum
-            if call.op.name == "relax.cumprod":
-                te_func = topi.cuda.cumprod if tgt.kind.name == "cuda" else topi.cumprod
-            tir_call = self.builder_.call_te(
-                te_func,
-                call.args[0],
-                axis,
-                call.attrs.dtype,
-                call.attrs.exclusive,
-            )
-            if tgt.kind.name != "cuda":
+            kwargs = {}
+            with tgt:
+                if call.op.name == "relax.cumsum":
+                    te_func = topi.cuda.cumsum if is_gpu_target(tgt) else topi.cumsum
+                    if can_use_thrust(tgt, "tvm.contrib.thrust.sum_scan"):
+                        kwargs["workspace"] = self.allocate_workspace(call)
+                elif call.op.name == "relax.cumprod":
+                    te_func = topi.cuda.cumprod if is_gpu_target(tgt) else topi.cumprod
+                else:
+                    raise ValueError(f"Unsupported op: {call.op.name}")
+                tir_call = self.builder_.call_te(
+                    te_func,
+                    call.args[0],
+                    axis,
+                    call.attrs.dtype,
+                    call.attrs.exclusive,
+                    **kwargs,
+                )
+            if not is_gpu_target(tgt):
                 return tir_call
             # apply dlight gpu fallback
             self._apply_dlight_gpu_fallback(tgt, tir_call)
             return tir_call
         return super().visit_call_(call)
+
+    def estimate_thrust_workspace_size(self, call: relax.Call) -> int:
+        """
+        Estimate the workspace size for thrust sort/argsort/topk/cumsum
+        """
+        input_shape = call.args[0].struct_info.shape
+        input_byte_per_elem = DataType(call.args[0].struct_info.dtype).bits // 8
+        input_size = reduce(mul, input_shape, 1) * input_byte_per_elem
+        # Most GPU algorithms take O(n) space or less, we choose 2N + 4MB as a safe estimation
+        return 2 * input_size + 4 * 1024 * 1024
+
+    def allocate_workspace(self, call: relax.Call) -> relax.Var:
+        """
+        Allocate workspace for thrust sort/argsort/topk.
+        """
+        workspace_size = self.estimate_thrust_workspace_size(call)
+        alloc = relax.op.builtin.alloc_tensor(
+            relax.ShapeExpr((workspace_size,)), "uint8", runtime_device_index=0
+        )
+        return self.builder_.emit(alloc)
 
 
 @module_pass(opt_level=0, name="DispatchSortScan")

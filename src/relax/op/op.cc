@@ -841,19 +841,23 @@ StructInfo InferStructInfoAllocateTensor(const Call& call, const BlockBuilder& c
 }
 
 RELAY_REGISTER_OP("relax.builtin.alloc_tensor")
-    .set_num_inputs(3)
+    .set_num_inputs(4)
     .add_argument("shape", "Expr", "The shape of the tensor to allocate.")
     .add_argument("dtype", "DataTypeImm", "The dtype of the tensor to allocate.")
     .add_argument("runtime_device_index", "PrimValue",
                   "The device index indicating on which device the tensor is to be "
                   "allocated at runtime. Index -1 is reserved for the host device.")
+    .add_argument("storage_scope", "StringImm",
+                  "The storage scope of the storage to allocate. Default is global.")
     .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoAllocateTensor)
     // memory allocation isn't considered a "visible effect" as far as purity is concerned
-    .set_attr<Bool>("FPurity", Bool(true));
+    .set_attr<Bool>("FPurity", Bool(true))
+    .set_attr<Bool>("TAllocator", Bool(true));
 
-Expr MakeAllocTensor(Expr shape, DataTypeImm dtype, PrimValue runtime_device_index) {
+Expr MakeAllocTensor(Expr shape, DataTypeImm dtype, PrimValue runtime_device_index,
+                     StringImm storage_scope) {
   static const Op& op = Op::Get("relax.builtin.alloc_tensor");
-  return Call(op, {shape, dtype, runtime_device_index}, Attrs(), {});
+  return Call(op, {shape, dtype, runtime_device_index, storage_scope}, Attrs(), {});
 }
 
 TVM_REGISTER_GLOBAL("relax.op.builtin.alloc_tensor").set_body_typed(MakeAllocTensor);
@@ -872,7 +876,8 @@ RELAY_REGISTER_OP("relax.memory.alloc_storage")
     .add_argument("dtype", "DataTypeImm", "The dtype of the tensor to allocate.")
     .set_attr<FInferStructInfo>("FInferStructInfo", ReturnObjectStructInfo)
     // memory allocation isn't considered a "visible effect" as far as purity is concerned
-    .set_attr<Bool>("FPurity", Bool(true));
+    .set_attr<Bool>("FPurity", Bool(true))
+    .set_attr<Bool>("TAllocator", Bool(true));
 
 Expr MakeAllocStorage(Expr size, PrimValue virtual_device_index, StringImm storage_scope,
                       DataTypeImm dtype) {
@@ -903,7 +908,8 @@ RELAY_REGISTER_OP("relax.memory.alloc_tensor")
     .add_argument("dtype", "DataTypeImm", "The dtype of the tensor to allocate.")
     .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoMemAllocTensor)
     // memory allocation isn't considered a "visible effect" as far as purity is concerned
-    .set_attr<Bool>("FPurity", Bool(true));
+    .set_attr<Bool>("FPurity", Bool(true))
+    .set_attr<Bool>("TAllocator", Bool(true));
 
 Expr MakeMemAllocTensor(Expr storage, PrimValue offset, Expr shape, DataTypeImm dtype) {
   static const Op& op = Op::Get("relax.memory.alloc_tensor");
@@ -918,8 +924,8 @@ RELAY_REGISTER_OP("relax.memory.kill_storage")
     .set_num_inputs(1)
     .add_argument("storage", "Expr", "The storage to be killed.")
     .set_attr<FInferStructInfo>("FInferStructInfo", ReturnVoidStructInfo)
-    // deallocation also isn't considered a "visible effect" as far as purity is concerned
-    .set_attr<Bool>("FPurity", Bool(true));
+    // We mark this as impure so it wouldn't be removed by "remove_all_unused"
+    .set_attr<Bool>("FPurity", Bool(false));
 
 Expr MakeMemKillStorage(Expr storage) {
   static const Op& op = Op::Get("relax.memory.kill_storage");
@@ -934,8 +940,8 @@ RELAY_REGISTER_OP("relax.memory.kill_tensor")
     .set_num_inputs(1)
     .add_argument("tensor", "Expr", "The tensor to be killed.")
     .set_attr<FInferStructInfo>("FInferStructInfo", ReturnVoidStructInfo)
-    // memory deallocation also isn't considered a "visible effect" as far as purity is concerned
-    .set_attr<Bool>("FPurity", Bool(true));
+    // We mark this as impure so it wouldn't be removed by "remove_all_unused"
+    .set_attr<Bool>("FPurity", Bool(false));
 
 Expr MakeMemKillTensor(Expr tensor) {
   static const Op& op = Op::Get("relax.memory.kill_tensor");
@@ -957,7 +963,8 @@ RELAY_REGISTER_OP("relax.vm.alloc_storage")
                   "The storage scope of the storage to allocate. Default is global.")
     .set_attr<FInferStructInfo>("FInferStructInfo", ReturnObjectStructInfo)
     // memory allocation isn't considered a "visible effect" as far as purity is concerned
-    .set_attr<Bool>("FPurity", Bool(true));
+    .set_attr<Bool>("FPurity", Bool(true))
+    .set_attr<Bool>("TAllocator", Bool(true));
 
 Expr MakeVMAllocStorage(Expr size, PrimValue runtime_device_index, DataTypeImm dtype,
                         StringImm storage_scope) {
@@ -995,7 +1002,8 @@ RELAY_REGISTER_OP("relax.vm.alloc_tensor")
     .add_argument("dtype", "DataTypeImm", "The dtype of the tensor to allocate.")
     .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoVMAllocTensor)
     // memory allocation isn't considered a "visible effect" as far as purity is concerned
-    .set_attr<Bool>("FPurity", Bool(true));
+    .set_attr<Bool>("FPurity", Bool(true))
+    .set_attr<Bool>("TAllocator", Bool(true));
 
 Expr MakeVMAllocTensor(Expr storage, PrimValue offset, Expr shape, DataTypeImm dtype) {
   static const Op& op = Op::Get("relax.vm.alloc_tensor");
@@ -1010,8 +1018,8 @@ TVM_REGISTER_OP("relax.vm.kill_object")
     .set_num_inputs(1)
     .add_argument("obj", "Expr", "The object to be killed.")
     .set_attr<FInferStructInfo>("FInferStructInfo", ReturnVoidStructInfo)
-    // deallocation also isn't considered a "visible effect" as far as purity is concerned
-    .set_attr<Bool>("FPurity", Bool(true));
+    // We mark this as impure so it wouldn't be removed by "remove_all_unused"
+    .set_attr<Bool>("FPurity", Bool(false));
 
 Expr MakeVMKillObject(Expr obj) {
   static const Op& op = Op::Get("relax.vm.kill_object");
@@ -1028,7 +1036,8 @@ RELAY_REGISTER_OP("relax.vm.call_tir_dyn")
     .add_argument("args", "Tuple",
                   "The input arguments (list of tensors and last argument is ShapeExpr)")
     .set_attr<FInferStructInfo>("FInferStructInfo", ReturnVoidStructInfo)
-    .set_attr<Bool>("FPurity", Bool(true));
+    // "relax.vm.call_tir_dyn" works in an in-place way, which is impure.
+    .set_attr<Bool>("FPurity", Bool(false));
 
 Expr MakeCallTIRDyn(Expr func, Tuple args) {
   static const Op& op = Op::Get("relax.vm.call_tir_dyn");

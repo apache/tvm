@@ -482,6 +482,886 @@ def test_multiple_functions():
     tvm.ir.assert_structural_equal(after, Expected)
 
 
+def test_share_identical_transform_across_multiple_functions():
+    """Like test_multiple_functions, but producing a single transform_params
+
+    `func1` and `func2` contain the same values `w1_t` and `w2_t`.
+    When `shared_transform=True`, all eligible publicly-exposed
+    functions must be usable with the same shared transform.
+    """
+
+    @I.ir_module
+    class Before:
+        @R.function
+        def func1(
+            x: R.Tensor((256, 256), "float32"),
+            w1: R.Tensor((256, 256), "float32"),
+            w2: R.Tensor((256, 256), "float32"),
+        ) -> R.Tensor((256, 256), "float32"):
+            R.func_attr({"num_input": 1})
+            with R.dataflow():
+                w1_t = R.permute_dims(w1)
+                y1 = R.matmul(x, w1_t)
+                w2_t = R.permute_dims(w2)
+                y2 = R.matmul(x, w2_t)
+                output = R.add(y1, y2)
+                R.output(output)
+            return output
+
+        @R.function
+        def func2(
+            x: R.Tensor((256, 256), "float32"),
+            w1: R.Tensor((256, 256), "float32"),
+            w2: R.Tensor((256, 256), "float32"),
+        ) -> R.Tensor((256, 256), "float32"):
+            R.func_attr({"num_input": 1})
+            with R.dataflow():
+                w1_t = R.permute_dims(w1)
+                y1 = R.matmul(x, w1_t)
+                w2_t = R.permute_dims(w2)
+                y2 = R.matmul(x, w2_t)
+                output = R.multiply(y1, y2)
+                R.output(output)
+            return output
+
+    @I.ir_module
+    class Expected:
+        @R.function
+        def transform_params(
+            params: R.Tuple(
+                R.Tensor((256, 256), dtype="float32"),
+                R.Tensor((256, 256), dtype="float32"),
+            )
+        ):
+            R.func_attr({"num_input": 0})
+            with R.dataflow():
+                w1 = params[0]
+                w1_t = R.permute_dims(w1)
+                w2 = params[1]
+                w2_t = R.permute_dims(w2)
+                output = (w1_t, w2_t)
+                R.output(output)
+            return output
+
+        @R.function
+        def func1(
+            x: R.Tensor((256, 256), "float32"),
+            w1_t: R.Tensor((256, 256), "float32"),
+            w2_t: R.Tensor((256, 256), "float32"),
+        ) -> R.Tensor((256, 256), "float32"):
+            R.func_attr({"num_input": 1})
+            with R.dataflow():
+                y1 = R.matmul(x, w1_t)
+                y2 = R.matmul(x, w2_t)
+                output = R.add(y1, y2)
+                R.output(output)
+            return output
+
+        @R.function
+        def func2(
+            x: R.Tensor((256, 256), "float32"),
+            w1_t: R.Tensor((256, 256), "float32"),
+            w2_t: R.Tensor((256, 256), "float32"),
+        ) -> R.Tensor((256, 256), "float32"):
+            R.func_attr({"num_input": 1})
+            with R.dataflow():
+                y1 = R.matmul(x, w1_t)
+                y2 = R.matmul(x, w2_t)
+                output = R.multiply(y1, y2)
+                R.output(output)
+            return output
+
+    after = relax.transform.LiftTransformParams(shared_transform=True)(Before)
+    tvm.ir.assert_structural_equal(after, Expected)
+
+
+def test_incompatible_weights_in_shared_transform_raises_error():
+    """Model weights must have matched shape for shared_transform
+
+    Here, `func1` accepts one model weight, but `func2` accepts two.
+    """
+
+    @I.ir_module
+    class Before:
+        @R.function
+        def func1(
+            x: R.Tensor((256, 256), "float32"),
+            w1: R.Tensor((256, 256), "float32"),
+        ) -> R.Tensor((256, 256), "float32"):
+            R.func_attr({"num_input": 1})
+            with R.dataflow():
+                w1_t = R.permute_dims(w1)
+                y1 = R.matmul(x, w1_t)
+                output = y1
+                R.output(output)
+            return output
+
+        @R.function
+        def func2(
+            x: R.Tensor((256, 256), "float32"),
+            w1: R.Tensor((256, 256), "float32"),
+            w2: R.Tensor((256, 256), "float32"),
+        ) -> R.Tensor((256, 256), "float32"):
+            R.func_attr({"num_input": 1})
+            with R.dataflow():
+                w1_t = R.permute_dims(w1)
+                y1 = R.matmul(x, w1_t)
+                w2_t = R.permute_dims(w2)
+                y2 = R.matmul(x, w2_t)
+                output = R.multiply(y1, y2)
+                R.output(output)
+            return output
+
+    with pytest.raises(tvm.TVMError):
+        relax.transform.LiftTransformParams(shared_transform=True)(Before)
+
+
+def test_incompatible_shape_in_shared_transform_raises_error():
+    """Model weights must have matched shape for shared_transform
+
+    Here, `func1` accepts `w1` and `w2` with shape `[256,256]`, but `func2`
+    requires shape `[128, 256]`.
+    """
+
+    @I.ir_module
+    class Before:
+        @R.function
+        def func1(
+            x: R.Tensor((256, 256), "float32"),
+            w1: R.Tensor((256, 256), "float32"),
+            w2: R.Tensor((256, 256), "float32"),
+        ) -> R.Tensor((256, 256), "float32"):
+            R.func_attr({"num_input": 1})
+            with R.dataflow():
+                w1_t = R.permute_dims(w1)
+                y1 = R.matmul(x, w1_t)
+                w2_t = R.permute_dims(w2)
+                y2 = R.matmul(x, w2_t)
+                output = R.add(y1, y2)
+                R.output(output)
+            return output
+
+        @R.function
+        def func2(
+            x: R.Tensor((256, 256), "float32"),
+            w1: R.Tensor((128, 256), "float32"),
+            w2: R.Tensor((128, 256), "float32"),
+        ) -> R.Tensor((256, 128), "float32"):
+            R.func_attr({"num_input": 1})
+            with R.dataflow():
+                w1_t = R.permute_dims(w1)
+                y1 = R.matmul(x, w1_t)
+                w2_t = R.permute_dims(w2)
+                y2 = R.matmul(x, w2_t)
+                output = R.multiply(y1, y2)
+                R.output(output)
+            return output
+
+    with pytest.raises(tvm.TVMError):
+        relax.transform.LiftTransformParams(shared_transform=True)(Before)
+
+
+def test_incompatible_dtype_in_shared_transform_raises_error():
+    """Model weights must have matched dtype for shared_transform
+
+    Here, `func1` accepts `w1` and `w2` with "float32" dtype, but
+    `func2` requires "float16".
+    """
+
+    @I.ir_module
+    class Before:
+        @R.function
+        def func1(
+            x: R.Tensor((256, 256), "float32"),
+            w1: R.Tensor((256, 256), "float32"),
+            w2: R.Tensor((256, 256), "float32"),
+        ) -> R.Tensor((256, 256), "float32"):
+            R.func_attr({"num_input": 1})
+            with R.dataflow():
+                w1_t = R.permute_dims(w1)
+                y1 = R.matmul(x, w1_t)
+                w2_t = R.permute_dims(w2)
+                y2 = R.matmul(x, w2_t)
+                output = R.add(y1, y2)
+                R.output(output)
+            return output
+
+        @R.function
+        def func2(
+            x: R.Tensor((256, 256), "float16"),
+            w1: R.Tensor((128, 256), "float16"),
+            w2: R.Tensor((128, 256), "float16"),
+        ) -> R.Tensor((256, 128), "float16"):
+            R.func_attr({"num_input": 1})
+            with R.dataflow():
+                w1_t = R.permute_dims(w1)
+                y1 = R.matmul(x, w1_t)
+                w2_t = R.permute_dims(w2)
+                y2 = R.matmul(x, w2_t)
+                output = R.multiply(y1, y2)
+                R.output(output)
+            return output
+
+    with pytest.raises(tvm.TVMError):
+        relax.transform.LiftTransformParams(shared_transform=True)(Before)
+
+
+def test_share_transform_across_multiple_functions_has_intersection_of_transforms():
+    """Like test_multiple_functions, but producing a single transform_params
+
+    In `func1`, both `w1_t` and `w2_t` could be lifted out.  In
+    `func2`, only `w1_t` could be lifted out of the function.
+    Therefore, the shared `transform_params` can pre-compute `w1_t`,
+    but must preserve `w2`.
+
+    When `shared_transform=True`, all eligible publicly-exposed
+    functions must be usable with the same shared transform.
+    """
+
+    @I.ir_module
+    class Before:
+        @R.function
+        def func1(
+            x: R.Tensor((256, 256), "float32"),
+            w1: R.Tensor((256, 256), "float32"),
+            w2: R.Tensor((256, 256), "float32"),
+        ) -> R.Tensor((256, 256), "float32"):
+            R.func_attr({"num_input": 1})
+            with R.dataflow():
+                w1_t = R.permute_dims(w1)
+                y1 = R.matmul(x, w1_t)
+                w2_t = R.permute_dims(w2)
+                y2 = R.matmul(x, w2_t)
+                output = R.add(y1, y2)
+                R.output(output)
+            return output
+
+        @R.function
+        def func2(
+            x: R.Tensor((256, 256), "float32"),
+            w1: R.Tensor((256, 256), "float32"),
+            w2: R.Tensor((256, 256), "float32"),
+        ) -> R.Tensor((256, 256), "float32"):
+            R.func_attr({"num_input": 1})
+            with R.dataflow():
+                w1_t = R.permute_dims(w1)
+                y1 = R.matmul(x, w1_t)
+                y2 = Before.fused_permute_dims_matmul(x, w2)
+                output = R.add(y1, y2)
+                R.output(output)
+            return output
+
+        @R.function(private=True)
+        def fused_permute_dims_matmul(
+            x: R.Tensor((256, 256), "float32"),
+            weight: R.Tensor((256, 256), "float32"),
+        ) -> R.Tensor((256, 256), "float32"):
+            with R.dataflow():
+                weight_t = R.permute_dims(weight)
+                y = R.matmul(x, weight_t)
+                R.output(y)
+            return y
+
+    @I.ir_module
+    class Expected:
+        @R.function
+        def transform_params(
+            params: R.Tuple(
+                R.Tensor((256, 256), dtype="float32"),
+                R.Tensor((256, 256), dtype="float32"),
+            )
+        ):
+            R.func_attr({"num_input": 0})
+            with R.dataflow():
+                w1 = params[0]
+                w1_t = R.permute_dims(w1)
+                w2 = params[1]
+                output = (w2, w1_t)
+                R.output(output)
+            return output
+
+        @R.function
+        def func1(
+            x: R.Tensor((256, 256), "float32"),
+            w2: R.Tensor((256, 256), "float32"),
+            w1_t: R.Tensor((256, 256), "float32"),
+        ) -> R.Tensor((256, 256), "float32"):
+            R.func_attr({"num_input": 1})
+            with R.dataflow():
+                y1 = R.matmul(x, w1_t)
+                w2_t = R.permute_dims(w2)
+                y2 = R.matmul(x, w2_t)
+                output = R.add(y1, y2)
+                R.output(output)
+            return output
+
+        @R.function
+        def func2(
+            x: R.Tensor((256, 256), "float32"),
+            w2: R.Tensor((256, 256), "float32"),
+            w1_t: R.Tensor((256, 256), "float32"),
+        ) -> R.Tensor((256, 256), "float32"):
+            R.func_attr({"num_input": 1})
+            with R.dataflow():
+                y1 = R.matmul(x, w1_t)
+                y2 = Expected.fused_permute_dims_matmul(x, w2)
+                output = R.add(y1, y2)
+                R.output(output)
+            return output
+
+        @R.function(private=True)
+        def fused_permute_dims_matmul(
+            x: R.Tensor((256, 256), "float32"),
+            weight: R.Tensor((256, 256), "float32"),
+        ) -> R.Tensor((256, 256), "float32"):
+            with R.dataflow():
+                weight_t = R.permute_dims(weight)
+                y = R.matmul(x, weight_t)
+                R.output(y)
+            return y
+
+    after = relax.transform.LiftTransformParams(shared_transform=True)(Before)
+    tvm.ir.assert_structural_equal(after, Expected)
+
+
+def test_share_transforms_with_different_binding_order():
+    """Like test_share_transform_across_multiple_functions, but the
+    lifted bindings are in different order for each function.
+
+    Both `func1` and `func2` compute the same value for `w1_t` and
+    `w2_t`.  However, the bindings occur in different orders.  The
+    shared `transform_params` can pre-compute both `w1_t` and `w2_t`,
+    even though they occur in different orders.
+
+    For consistency in testing and pre-computing weights, the order of
+    `transform_params` should be deterministic.  When lifting from a
+    single function, the bindings in `transform_params` may be
+    determined from the order in that function.  When lifting from
+    multiple functions, the order should be deterministic.  Since
+    `IRModule::functions` has unspecified order, the order in this
+    test assumes that public functions are visited in alphabetical
+    order by name.
+    """
+
+    @I.ir_module
+    class Before:
+        @R.function
+        def func1(
+            x: R.Tensor((256, 256), "float32"),
+            w1: R.Tensor((256, 256), "float32"),
+            w2: R.Tensor((256, 256), "float32"),
+        ) -> R.Tensor((256, 256), "float32"):
+            R.func_attr({"num_input": 1})
+            with R.dataflow():
+                w2_t = R.permute_dims(w2)
+                w1_t = R.permute_dims(w1)
+                y1 = R.matmul(x, w1_t)
+                y2 = R.matmul(x, w2_t)
+                output = R.add(y1, y2)
+                R.output(output)
+            return output
+
+        @R.function
+        def func2(
+            x: R.Tensor((256, 256), "float32"),
+            w1: R.Tensor((256, 256), "float32"),
+            w2: R.Tensor((256, 256), "float32"),
+        ) -> R.Tensor((256, 256), "float32"):
+            R.func_attr({"num_input": 1})
+            with R.dataflow():
+                w1_t = R.permute_dims(w1)
+                y1 = R.matmul(x, w1_t)
+                w2_t = R.permute_dims(w2)
+                y2 = R.matmul(x, w2_t)
+                output = R.multiply(y1, y2)
+                R.output(output)
+            return output
+
+    @I.ir_module
+    class Expected:
+        @R.function
+        def transform_params(
+            params: R.Tuple(
+                R.Tensor((256, 256), dtype="float32"),
+                R.Tensor((256, 256), dtype="float32"),
+            )
+        ):
+            R.func_attr({"num_input": 0})
+            with R.dataflow():
+                w2 = params[1]
+                w2_t = R.permute_dims(w2)
+                w1 = params[0]
+                w1_t = R.permute_dims(w1)
+
+                output = (w2_t, w1_t)
+                R.output(output)
+            return output
+
+        @R.function
+        def func1(
+            x: R.Tensor((256, 256), "float32"),
+            w2_t: R.Tensor((256, 256), "float32"),
+            w1_t: R.Tensor((256, 256), "float32"),
+        ) -> R.Tensor((256, 256), "float32"):
+            R.func_attr({"num_input": 1})
+            with R.dataflow():
+                y1 = R.matmul(x, w1_t)
+                y2 = R.matmul(x, w2_t)
+                output = R.add(y1, y2)
+                R.output(output)
+            return output
+
+        @R.function
+        def func2(
+            x: R.Tensor((256, 256), "float32"),
+            w2_t: R.Tensor((256, 256), "float32"),
+            w1_t: R.Tensor((256, 256), "float32"),
+        ) -> R.Tensor((256, 256), "float32"):
+            R.func_attr({"num_input": 1})
+            with R.dataflow():
+                y1 = R.matmul(x, w1_t)
+                y2 = R.matmul(x, w2_t)
+                output = R.multiply(y1, y2)
+                R.output(output)
+            return output
+
+    after = relax.transform.LiftTransformParams(shared_transform=True)(Before)
+    tvm.ir.assert_structural_equal(after, Expected)
+
+
+def test_share_transforms_resulting_in_identical_functions():
+    """Functions in the public interface must be preserved
+
+    When lifting functions, the resulting functions may be identical.
+    Even though the `relax.BlockBuilder` de-duplicates identical
+    functions, functions that are part of the IRModule's public
+    interface must be preserved.
+    """
+
+    @I.ir_module
+    class Before:
+        @R.function
+        def func1(
+            x: R.Tensor((256, 256), "float32"),
+            w1: R.Tensor((256, 256), "float32"),
+            w2: R.Tensor((256, 256), "float32"),
+        ) -> R.Tensor((256, 256), "float32"):
+            R.func_attr({"num_input": 1})
+            with R.dataflow():
+                w2_t = R.permute_dims(w2)
+                w1_t = R.permute_dims(w1)
+                y1 = R.matmul(x, w1_t)
+                y2 = R.matmul(x, w2_t)
+                output = R.add(y1, y2)
+                R.output(output)
+            return output
+
+        @R.function
+        def func2(
+            x: R.Tensor((256, 256), "float32"),
+            w1: R.Tensor((256, 256), "float32"),
+            w2: R.Tensor((256, 256), "float32"),
+        ) -> R.Tensor((256, 256), "float32"):
+            R.func_attr({"num_input": 1})
+            with R.dataflow():
+                w1_t = R.permute_dims(w1)
+                y1 = R.matmul(x, w1_t)
+                w2_t = R.permute_dims(w2)
+                y2 = R.matmul(x, w2_t)
+                output = R.add(y1, y2)
+                R.output(output)
+            return output
+
+    @I.ir_module
+    class Expected:
+        @R.function
+        def transform_params(
+            params: R.Tuple(
+                R.Tensor((256, 256), dtype="float32"),
+                R.Tensor((256, 256), dtype="float32"),
+            )
+        ):
+            R.func_attr({"num_input": 0})
+            with R.dataflow():
+                w2 = params[1]
+                w2_t = R.permute_dims(w2)
+                w1 = params[0]
+                w1_t = R.permute_dims(w1)
+                output = (w2_t, w1_t)
+                R.output(output)
+            return output
+
+        @R.function
+        def func1(
+            x: R.Tensor((256, 256), "float32"),
+            w2_t: R.Tensor((256, 256), "float32"),
+            w1_t: R.Tensor((256, 256), "float32"),
+        ) -> R.Tensor((256, 256), "float32"):
+            R.func_attr({"num_input": 1})
+            with R.dataflow():
+                y1 = R.matmul(x, w1_t)
+                y2 = R.matmul(x, w2_t)
+                output = R.add(y1, y2)
+                R.output(output)
+            return output
+
+        @R.function
+        def func2(
+            x: R.Tensor((256, 256), "float32"),
+            w2_t: R.Tensor((256, 256), "float32"),
+            w1_t: R.Tensor((256, 256), "float32"),
+        ) -> R.Tensor((256, 256), "float32"):
+            R.func_attr({"num_input": 1})
+            with R.dataflow():
+                y1 = R.matmul(x, w1_t)
+                y2 = R.matmul(x, w2_t)
+                output = R.add(y1, y2)
+                R.output(output)
+            return output
+
+    after = relax.transform.LiftTransformParams(shared_transform=True)(Before)
+    tvm.ir.assert_structural_equal(after, Expected)
+
+
+def test_share_transform_across_specified_functions():
+    """Like test_multiple_functions, but producing a single transform_params
+
+    In `func1`, both `w1_t` and `w2_t` could be lifted out.  In
+    `func2`, only `w1_t` could be lifted out of the function.
+    Therefore, the shared `transform_params` can pre-compute `w1_t`,
+    but must preserve `w2`.
+
+    If `func3` were included in the `transform_params`, the same logic
+    would prevent `w1_t` from being computed in the shared
+    `transform_params`.  However, the
+    `shared_transform=['func1','func2']` argument means that `func3`
+    does not have any parameter transformations lifted out.
+    """
+
+    @I.ir_module
+    class Before:
+        @R.function
+        def func1(
+            x: R.Tensor((256, 256), "float32"),
+            w1: R.Tensor((256, 256), "float32"),
+            w2: R.Tensor((256, 256), "float32"),
+        ) -> R.Tensor((256, 256), "float32"):
+            R.func_attr({"num_input": 1})
+            with R.dataflow():
+                w1_t = R.permute_dims(w1)
+                y1 = R.matmul(x, w1_t)
+                w2_t = R.permute_dims(w2)
+                y2 = R.matmul(x, w2_t)
+                output = R.add(y1, y2)
+                R.output(output)
+            return output
+
+        @R.function
+        def func2(
+            x: R.Tensor((256, 256), "float32"),
+            w1: R.Tensor((256, 256), "float32"),
+            w2: R.Tensor((256, 256), "float32"),
+        ) -> R.Tensor((256, 256), "float32"):
+            R.func_attr({"num_input": 1})
+            with R.dataflow():
+                w1_t = R.permute_dims(w1)
+                y1 = R.matmul(x, w1_t)
+                y2 = Before.fused_permute_dims_matmul(x, w2)
+                output = R.add(y1, y2)
+                R.output(output)
+            return output
+
+        @R.function
+        def func3(
+            x: R.Tensor((256, 256), "float32"),
+            w1: R.Tensor((256, 256), "float32"),
+            w2: R.Tensor((256, 256), "float32"),
+        ) -> R.Tensor((256, 256), "float32"):
+            R.func_attr({"num_input": 1})
+            with R.dataflow():
+                y1 = Before.fused_permute_dims_matmul(x, w1)
+                y2 = Before.fused_permute_dims_matmul(x, w2)
+                output = R.add(y1, y2)
+                R.output(output)
+            return output
+
+        @R.function(private=True)
+        def fused_permute_dims_matmul(
+            x: R.Tensor((256, 256), "float32"),
+            weight: R.Tensor((256, 256), "float32"),
+        ) -> R.Tensor((256, 256), "float32"):
+            with R.dataflow():
+                weight_t = R.permute_dims(weight)
+                y = R.matmul(x, weight_t)
+                R.output(y)
+            return y
+
+    @I.ir_module
+    class Expected:
+        @R.function
+        def transform_params(
+            params: R.Tuple(
+                R.Tensor((256, 256), dtype="float32"),
+                R.Tensor((256, 256), dtype="float32"),
+            )
+        ):
+            R.func_attr({"num_input": 0})
+            with R.dataflow():
+                w1 = params[0]
+                w1_t = R.permute_dims(w1)
+                w2 = params[1]
+                output = (w2, w1_t)
+                R.output(output)
+            return output
+
+        @R.function
+        def func1(
+            x: R.Tensor((256, 256), "float32"),
+            w2: R.Tensor((256, 256), "float32"),
+            w1_t: R.Tensor((256, 256), "float32"),
+        ) -> R.Tensor((256, 256), "float32"):
+            R.func_attr({"num_input": 1})
+            with R.dataflow():
+                y1 = R.matmul(x, w1_t)
+                w2_t = R.permute_dims(w2)
+                y2 = R.matmul(x, w2_t)
+                output = R.add(y1, y2)
+                R.output(output)
+            return output
+
+        @R.function
+        def func2(
+            x: R.Tensor((256, 256), "float32"),
+            w2: R.Tensor((256, 256), "float32"),
+            w1_t: R.Tensor((256, 256), "float32"),
+        ) -> R.Tensor((256, 256), "float32"):
+            R.func_attr({"num_input": 1})
+            with R.dataflow():
+                y1 = R.matmul(x, w1_t)
+                y2 = Expected.fused_permute_dims_matmul(x, w2)
+                output = R.add(y1, y2)
+                R.output(output)
+            return output
+
+        @R.function
+        def func3(
+            x: R.Tensor((256, 256), "float32"),
+            w1: R.Tensor((256, 256), "float32"),
+            w2: R.Tensor((256, 256), "float32"),
+        ) -> R.Tensor((256, 256), "float32"):
+            R.func_attr({"num_input": 1})
+            with R.dataflow():
+                y1 = Expected.fused_permute_dims_matmul(x, w1)
+                y2 = Expected.fused_permute_dims_matmul(x, w2)
+                output = R.add(y1, y2)
+                R.output(output)
+            return output
+
+        @R.function(private=True)
+        def fused_permute_dims_matmul(
+            x: R.Tensor((256, 256), "float32"),
+            weight: R.Tensor((256, 256), "float32"),
+        ) -> R.Tensor((256, 256), "float32"):
+            with R.dataflow():
+                weight_t = R.permute_dims(weight)
+                y = R.matmul(x, weight_t)
+                R.output(y)
+            return y
+
+    after = relax.transform.LiftTransformParams(shared_transform=["func1", "func2"])(Before)
+    tvm.ir.assert_structural_equal(after, Expected)
+
+
+def test_share_transform_with_unused_parameter():
+    """Like test_share_transform_across_specified_functions, but not
+    all functions use every model weight.
+
+    In `func1`, both `w1_t` and `w2_t` could be lifted out.  In
+    `func2`, only `w1_t` could be lifted out of the function.
+    Normally, the `w2` parameter would need to be preserved, as `w2_t`
+    is only generated in one of the functions.  However, `func2`
+    doesn't use `w2` at all, and so `w2_t` can still be pre-computed.
+
+    For example, a `embed_vocab` function would only use the embedding
+    weights.  It could accept the full set of model weights for
+    consistency, but any transformations performed on unused weights
+    in other functions can still be lifted out.
+    """
+
+    @I.ir_module
+    class Before:
+        @R.function
+        def func1(
+            x: R.Tensor((256, 256), "float32"),
+            w1: R.Tensor((256, 256), "float32"),
+            w2: R.Tensor((256, 256), "float32"),
+        ) -> R.Tensor((256, 256), "float32"):
+            R.func_attr({"num_input": 1})
+            with R.dataflow():
+                w1_t = R.permute_dims(w1)
+                y1 = R.matmul(x, w1_t)
+                w2_t = R.permute_dims(w2)
+                y2 = R.matmul(x, w2_t)
+                output = R.add(y1, y2)
+                R.output(output)
+            return output
+
+        @R.function
+        def func2(
+            x: R.Tensor((256, 256), "float32"),
+            w1: R.Tensor((256, 256), "float32"),
+            w2: R.Tensor((256, 256), "float32"),
+        ) -> R.Tensor((256, 256), "float32"):
+            R.func_attr({"num_input": 1})
+            with R.dataflow():
+                w1_t = R.permute_dims(w1)
+                y1 = R.matmul(x, w1_t)
+                R.output(y1)
+            return y1
+
+    @I.ir_module
+    class Expected:
+        @R.function
+        def transform_params(
+            params: R.Tuple(
+                R.Tensor((256, 256), dtype="float32"),
+                R.Tensor((256, 256), dtype="float32"),
+            )
+        ):
+            R.func_attr({"num_input": 0})
+            with R.dataflow():
+                w1 = params[0]
+                w1_t = R.permute_dims(w1)
+                w2 = params[1]
+                output = (w2, w1_t)
+                R.output(output)
+            return output
+
+        @R.function
+        def func1(
+            x: R.Tensor((256, 256), "float32"),
+            w2: R.Tensor((256, 256), "float32"),
+            w1_t: R.Tensor((256, 256), "float32"),
+        ) -> R.Tensor((256, 256), "float32"):
+            R.func_attr({"num_input": 1})
+            with R.dataflow():
+                y1 = R.matmul(x, w1_t)
+                w2_t = R.permute_dims(w2)
+                y2 = R.matmul(x, w2_t)
+                output = R.add(y1, y2)
+                R.output(output)
+            return output
+
+        @R.function
+        def func2(
+            x: R.Tensor((256, 256), "float32"),
+            w2: R.Tensor((256, 256), "float32"),
+            w1_t: R.Tensor((256, 256), "float32"),
+        ) -> R.Tensor((256, 256), "float32"):
+            R.func_attr({"num_input": 1})
+            with R.dataflow():
+                y1 = R.matmul(x, w1_t)
+                R.output(y1)
+            return y1
+
+    after = relax.transform.LiftTransformParams(shared_transform=True)(Before)
+    tvm.ir.assert_structural_equal(after, Expected)
+
+
+@pytest.mark.xfail
+def test_share_transform_with_no_shared_preprocessing():
+    """Like test_share_transform_with_unused_parameter, but each
+    function uses a single model weight.
+
+    In `func1`, `w2_t` can be lifted out and `w1` is unused.  In
+    `func2`, `w1_t` can be lifted out, and `w2` is unused.  In their
+    shared `transform_params`, both `w1_t` and `w2_t` can be computed.
+
+    For consistency in testing and pre-computing weights, the order of
+    `transform_params` should be deterministic.  When lifting from a
+    single function, the bindings in `transform_params` may be
+    determined from the order in that function.  When lifting from
+    multiple functions, the order should be deterministic.  Since
+    `IRModule::functions` has unspecified order, the order in this
+    test assumes that public functions are visited in alphabetical
+    order by name.
+    """
+
+    @I.ir_module
+    class Before:
+        @R.function
+        def func1(
+            x: R.Tensor((256, 256), "float32"),
+            w1: R.Tensor((256, 256), "float32"),
+            w2: R.Tensor((256, 256), "float32"),
+        ) -> R.Tensor((256, 256), "float32"):
+            R.func_attr({"num_input": 1})
+            with R.dataflow():
+                w2_t = R.permute_dims(w2)
+                y2 = R.matmul(x, w2_t)
+                R.output(y2)
+            return y2
+
+        @R.function
+        def func2(
+            x: R.Tensor((256, 256), "float32"),
+            w1: R.Tensor((256, 256), "float32"),
+            w2: R.Tensor((256, 256), "float32"),
+        ) -> R.Tensor((256, 256), "float32"):
+            R.func_attr({"num_input": 1})
+            with R.dataflow():
+                w1_t = R.permute_dims(w1)
+                y1 = R.matmul(x, w1_t)
+                R.output(y1)
+            return y1
+
+    @I.ir_module
+    class Expected:
+        @R.function
+        def transform_params(
+            params: R.Tuple(
+                R.Tensor((256, 256), dtype="float32"),
+                R.Tensor((256, 256), dtype="float32"),
+            )
+        ):
+            R.func_attr({"num_input": 0})
+            with R.dataflow():
+                w1 = params[0]
+                w1_t = R.permute_dims(w1)
+                w2 = params[1]
+                w2_t = R.permute_dims(w2)
+                output = (w2_t, w1_t)
+                R.output(output)
+            return output
+
+        @R.function
+        def func1(
+            x: R.Tensor((256, 256), "float32"),
+            w2_t: R.Tensor((256, 256), "float32"),
+            w1_t: R.Tensor((256, 256), "float32"),
+        ) -> R.Tensor((256, 256), "float32"):
+            R.func_attr({"num_input": 1})
+            with R.dataflow():
+                y2 = R.matmul(x, w2_t)
+                R.output(y2)
+            return y2
+
+        @R.function
+        def func2(
+            x: R.Tensor((256, 256), "float32"),
+            w2_t: R.Tensor((256, 256), "float32"),
+            w1_t: R.Tensor((256, 256), "float32"),
+        ) -> R.Tensor((256, 256), "float32"):
+            R.func_attr({"num_input": 1})
+            with R.dataflow():
+                y1 = R.matmul(x, w1_t)
+                R.output(y1)
+            return y1
+
+    after = relax.transform.LiftTransformParams(shared_transform=True)(Before)
+    tvm.ir.assert_structural_equal(after, Expected)
+
+
 def test_stop_lifting():
     @tvm.script.ir_module
     class Before:
@@ -548,8 +1428,10 @@ def test_symbolic_var_1():
             R.func_attr({"num_input": 0})
             with R.dataflow():
                 gv: R.Tuple = R.tuple()
-                R.output(gv)
-            return gv
+                R.output()
+            # All instance of the empty tuple are normalized to be
+            # in-line.
+            return R.tuple()
 
         @R.function
         def main(shape: R.Shape(["n"])) -> R.Shape(["n"]):
@@ -612,8 +1494,8 @@ def test_symbolic_var_2():
             R.func_attr({"num_input": 0})
             with R.dataflow():
                 gv: R.Tuple = R.tuple()
-                R.output(gv)
-            return gv
+                R.output()
+            return R.tuple()
 
         @R.function
         def main(shape: R.Shape(["n"])) -> R.Shape(["n"]):

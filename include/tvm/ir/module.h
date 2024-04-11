@@ -376,7 +376,8 @@ class IRModule : public ObjectRef {
   TVM_DLL explicit IRModule(Map<GlobalVar, BaseFunc> functions,
                             Map<GlobalTypeVar, TypeData> type_definitions = {},
                             std::unordered_set<String> import_set = {}, SourceMap map = {},
-                            DictAttrs attrs = {}, Map<String, Array<GlobalInfo>> global_infos = {});
+                            DictAttrs attrs = DictAttrs(),
+                            Map<String, Array<GlobalInfo>> global_infos = {});
 
   /*! \brief default constructor */
   IRModule() : IRModule(Map<GlobalVar, BaseFunc>({})) {}

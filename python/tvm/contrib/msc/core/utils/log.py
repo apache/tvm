@@ -135,3 +135,52 @@ def get_global_logger() -> logging.Logger:
     if not MSCMap.get(MSCKey.GLOBALE_LOGGER):
         MSCMap.set(MSCKey.GLOBALE_LOGGER, IOLogger())
     return MSCMap.get(MSCKey.GLOBALE_LOGGER)
+
+
+def get_log_file(logger: logging.Logger) -> str:
+    """Get the log file from logger
+
+    Parameters
+    ----------
+    logger: logging.Logger
+        The logger.
+
+    Returns
+    -------
+    log_file: str
+        The log file.
+    """
+
+    for log_h in logger.handlers:
+        if isinstance(log_h, logging.FileHandler):
+            return log_h.baseFilename
+    return None
+
+
+def remove_loggers():
+    """Remove the logger handlers"""
+
+    logger = MSCMap.get(MSCKey.GLOBALE_LOGGER)
+    if logger:
+        logger.handlers.clear()
+
+
+def split_line(msg: str, symbol: str = "#", width: int = 100) -> str:
+    """Mark message to split line
+
+    Parameters
+    ----------
+    msg: str
+        The message.
+    symbol: str
+        The split symbol.
+    width: int
+        The line width.
+
+    Returns
+    -------
+    split_line: str
+        The split line with message.
+    """
+
+    return "\n{0}{1}{0}".format(20 * symbol, msg.center(width - 40))

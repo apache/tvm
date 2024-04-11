@@ -39,6 +39,7 @@ def get_network(name, batch_size):
     return mod, params, input_shape
 
 
+@tvm.testing.requires_x86
 def test_task_extraction():
     target = "llvm"
     mod_list = []

@@ -5544,7 +5544,7 @@ def test_linalg_vector_norm():
     verify_model(test_fn(order=2), input_data=input_data)
     verify_model(test_fn(order=3.5), input_data=input_data)
     verify_model(test_fn(order=np.inf), input_data=input_data)
-    verify_model(test_fn(order=np.NINF), input_data=input_data)
+    verify_model(test_fn(order=-np.inf), input_data=input_data)
     verify_model(test_fn(order=0), input_data=input_data)
 
     # Also test on double
@@ -5552,7 +5552,7 @@ def test_linalg_vector_norm():
     verify_model(test_fn(order=2), input_data=input_data)
     verify_model(test_fn(order=3.5), input_data=input_data)
     verify_model(test_fn(order=np.inf), input_data=input_data)
-    verify_model(test_fn(order=np.NINF), input_data=input_data)
+    verify_model(test_fn(order=-np.inf), input_data=input_data)
     verify_model(test_fn(order=0), input_data=input_data)
 
 

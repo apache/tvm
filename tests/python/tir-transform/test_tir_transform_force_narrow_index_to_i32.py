@@ -259,5 +259,24 @@ def test_pod_params_and_select():
     tvm.ir.assert_structural_equal(Expected, after)
 
 
+def test_clz():
+    @tvm.script.ir_module
+    class Before:
+        @T.prim_func
+        def main(B: T.Buffer((T.int64(4),), "int32")):
+            for i in T.serial(T.int64(4)):
+                B[i] = T.clz(i)
+
+    @tvm.script.ir_module
+    class Expected:
+        @T.prim_func
+        def main(B: T.Buffer((4,), "int32")):
+            for i in range(4):
+                B[i] = T.clz(i) - 32 + 64
+
+    after = tvm.tir.transform.ForceNarrowIndexToInt32()(Before)
+    tvm.ir.assert_structural_equal(Expected, after)
+
+
 if __name__ == "__main__":
     tvm.testing.main()

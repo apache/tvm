@@ -17,6 +17,7 @@
 # pylint: disable=unused-import
 """tvm.contrib.msc.framework.runtime.tvm.runner"""
 
+import os
 import time
 from typing import Dict, List, Union, Any, Tuple
 import numpy as np
@@ -57,6 +58,18 @@ class WrapRunnable(object):
 class TVMRunner(ModelRunner):
     """Runner of Relax"""
 
+    def setup(self) -> dict:
+        """Setup the runner
+
+        Returns
+        -------
+        info: dict
+            The setup info.
+        """
+
+        self._executable = None
+        return super().setup()
+
     def _build_runnable(self, model: Any) -> Any:
         """Build runnable object
 
@@ -88,15 +101,15 @@ class TVMRunner(ModelRunner):
             if self._device.startswith("cpu"):
                 target = tvm.target.Target("llvm")
                 with tvm.transform.PassContext(opt_level=3):
-                    relax_exec = tvm.relax.build(model, target)
-                    runnable = tvm.relax.VirtualMachine(relax_exec, tvm.cpu())
+                    self._executable = tvm.relax.build(model, target)
+                    runnable = tvm.relax.VirtualMachine(self._executable, tvm.cpu())
             elif self._device.startswith("cuda"):
                 target = tvm.target.Target("cuda")
                 with target:
                     model = tvm.tir.transform.DefaultGPUSchedule()(model)
                 with tvm.transform.PassContext(opt_level=3):
-                    relax_exec = tvm.relax.build(model, target)
-                    runnable = tvm.relax.VirtualMachine(relax_exec, tvm.cuda())
+                    self._executable = tvm.relax.build(model, target)
+                    runnable = tvm.relax.VirtualMachine(self._executable, tvm.cuda())
             else:
                 raise NotImplementedError("Unsupported device " + str(self._device))
         return WrapRunnable(runnable)
@@ -127,21 +140,28 @@ class TVMRunner(ModelRunner):
         ]
         return runnable(*tvm_inputs)
 
-    def _device_enabled(self, device: str) -> bool:
-        """Check if the device is enabled
+    def export_runnable(self, folder: msc_utils.MSCDirectory) -> dict:
+        """Export the runnable
+
+        Parameters
+        -------
+        folder: MSCDirectory
+            The export folder.
 
         Returns
         -------
-        enabled: bool
-            Whether the device is enabled.
+        info: dict
+            The runnable info.
         """
 
-        if device == "cpu":
-            return True
-        if device.startswith("cuda"):
-            dev_id = int(device.split(":")[1]) if ":" in device else 0
-            return tvm.cuda(dev_id).exist
-        return False
+        export_lib = folder.relpath("lib.so")
+        self._executable.export_library(export_lib)
+        return {
+            "lib": export_lib,
+            "device": self.device,
+            "model_type": self.framework,
+            "abstract": self.model_info,
+        }
 
     @property
     def codegen_func(self):
@@ -172,8 +192,8 @@ class TVMRunner(ModelRunner):
             Whether the model is for training.
         """
 
-        if isinstance(model, dict) and "model" in model:
-            with open(model["model"], "r") as f:
+        if isinstance(model, str) and os.path.isfile(model):
+            with open(model, "r") as f:
                 native_model = tvm.ir.load_json(f.read())
         elif isinstance(model, tvm.IRModule):
             native_model = model
@@ -186,36 +206,6 @@ class TVMRunner(ModelRunner):
         else:
             device = "cpu"
         return native_model, device, False
-
-    @classmethod
-    def update_config(cls, stage: str, config: dict, model: Any = None) -> dict:
-        """Update the config for parse
-
-        Parameters
-        -------
-        stage: str
-            The stage to be updated
-        config: dict
-            The config for pipeline.
-        model:
-            The native model.
-
-        Returns
-        -------
-        config: dict
-            The updated config.
-        """
-
-        config = ModelRunner.update_config(stage, config, model)
-        if stage not in config:
-            return config
-        if stage == MSCStage.PARSE:
-            # pylint: disable=unused-argument
-            def passby(mod, *args, **kwargs):
-                return mod, None
-
-            config["parse"]["parser"] = passby
-        return config
 
     @classmethod
     def run_native(
@@ -290,3 +280,50 @@ class TVMRunner(ModelRunner):
             o_name: msc_utils.cast_array(o_data) for o_name, o_data in zip(output_names, outputs)
         }
         return outputs, avg_time
+
+    @classmethod
+    def update_config(cls, stage: str, config: dict, model: Any = None) -> dict:
+        """Update the config for parse
+
+        Parameters
+        -------
+        stage: str
+            The stage to be updated
+        config: dict
+            The config for pipeline.
+        model:
+            The native model.
+
+        Returns
+        -------
+        config: dict
+            The updated config.
+        """
+
+        config = ModelRunner.update_config(stage, config, model)
+        if stage not in config:
+            return config
+        if stage == MSCStage.PARSE:
+            # pylint: disable=unused-argument
+            def passby(mod, *args, **kwargs):
+                return mod, None
+
+            config["parse"]["parser"] = passby
+        return config
+
+    @classmethod
+    def support_device(cls, device: str) -> bool:
+        """Check if the device is enabled
+
+        Returns
+        -------
+        enabled: bool
+            Whether the device is enabled.
+        """
+
+        if device == "cpu":
+            return True
+        if device.startswith("cuda"):
+            dev_id = int(device.split(":")[1]) if ":" in device else 0
+            return tvm.cuda(dev_id).exist
+        return False

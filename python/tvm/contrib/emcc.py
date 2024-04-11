@@ -16,12 +16,15 @@
 # under the License.
 """Util to invoke emscripten compilers in the system."""
 # pylint: disable=invalid-name
+import os
 import subprocess
+from pathlib import Path
+
 from tvm._ffi.base import py_str
 from tvm._ffi.libinfo import find_lib_path
 
 
-def create_tvmjs_wasm(output, objects, options=None, cc="emcc"):
+def create_tvmjs_wasm(output, objects, options=None, cc="emcc", libs=None):
     """Create wasm that is supposed to run with the tvmjs.
 
     Parameters
@@ -37,6 +40,9 @@ def create_tvmjs_wasm(output, objects, options=None, cc="emcc"):
 
     cc : str, optional
         The compile string.
+
+    libs : list
+        List of user-defined library files (e.g. .bc files) to add into the wasm.
     """
     cmd = [cc]
     cmd += ["-O3"]
@@ -63,22 +69,33 @@ def create_tvmjs_wasm(output, objects, options=None, cc="emcc"):
         if obj.find("wasm_runtime.bc") != -1:
             with_runtime = True
 
-    libs = []
+    all_libs = []
     if not with_runtime:
-        libs += [find_lib_path("wasm_runtime.bc")[0]]
+        all_libs += [find_lib_path("wasm_runtime.bc")[0]]
 
-    libs += [find_lib_path("tvmjs_support.bc")[0]]
-    libs += [find_lib_path("webgpu_runtime.bc")[0]]
+    all_libs += [find_lib_path("tvmjs_support.bc")[0]]
+    all_libs += [find_lib_path("webgpu_runtime.bc")[0]]
+
+    if libs:
+        if not isinstance(libs, list):
+            raise ValueError("Expect `libs` to be a list of paths in string.")
+        for lib in libs:
+            if not Path(lib).exists():
+                raise RuntimeError(
+                    "Cannot find file from libs:" + lib + "\n Try pass in an absolute path."
+                )
+        all_libs += libs
 
     cmd += ["-o", output]
 
     # let libraries go before normal object
-    cmd += libs + objects
+    cmd += all_libs + objects
 
     if options:
         cmd += options
 
-    proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+    is_windows = os.name == "nt"
+    proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, shell=is_windows)
     (out, _) = proc.communicate()
 
     if proc.returncode != 0:

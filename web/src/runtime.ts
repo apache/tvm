@@ -23,12 +23,16 @@
 import { Pointer, PtrOffset, SizeOf, ArgTypeCode } from "./ctypes";
 import { Disposable } from "./types";
 import { Memory, CachedCallStack } from "./memory";
-import { assert, StringToUint8Array } from "./support";
+import { assert, StringToUint8Array, LinearCongruentialGenerator } from "./support";
 import { Environment } from "./environment";
 import { AsyncifyHandler } from "./asyncify";
 import { FunctionInfo, WebGPUContext } from "./webgpu";
-import { ArtifactCacheTemplate } from "./artifact_cache";
-
+import {
+  ArtifactCache,
+  ArtifactCacheTemplate,
+  ArtifactIndexedDBCache,
+  NDArrayShardEntry,
+} from "./artifact_cache";
 import * as compact from "./compact";
 import * as ctypes from "./ctypes";
 
@@ -165,6 +169,7 @@ class RuntimeContext implements Disposable {
   makeShapeTuple: PackedFunc;
   ndarrayCreateView: PackedFunc;
   sampleTopPFromLogits: PackedFunc;
+  sampleTopPFromProb: PackedFunc;
   applyRepetitionPenalty: PackedFunc;
   applyPresenceAndFrequencyPenalty: PackedFunc;
   applySoftmaxWithTemperature: PackedFunc;
@@ -188,6 +193,7 @@ class RuntimeContext implements Disposable {
     this.makeShapeTuple = getGlobalFunc("runtime.ShapeTuple");
     this.ndarrayCreateView = getGlobalFunc("runtime.TVMArrayCreateView");
     this.sampleTopPFromLogits = getGlobalFunc("vm.builtin.sample_top_p_from_logits");
+    this.sampleTopPFromProb = getGlobalFunc("vm.builtin.sample_top_p_from_prob");
     this.applyRepetitionPenalty = getGlobalFunc("vm.builtin.apply_repetition_penalty");
     this.applyPresenceAndFrequencyPenalty = getGlobalFunc("vm.builtin.apply_presence_and_frequency_penalty");
     this.applySoftmaxWithTemperature = getGlobalFunc("vm.builtin.apply_softmax_with_temperature");
@@ -968,76 +974,14 @@ enum AsyncCallbackCode {
   kReturn = 4,
   kException = 5,
 }
-export interface NDArrayCacheEntry {
-  name: string;
-  shape: Array<number>;
-  dtype: string;
-  format: "f32-to-bf16" | "raw";
-  byteOffset: number;
-  nbytes: number;
-}
-
-export interface NDArrayShardEntry {
-  dataPath: string;
-  format: "raw-shard";
-  nbytes: number;
-  records: Array<NDArrayCacheEntry>;
-}
 
 export interface InitProgressReport {
   progress: number;
   timeElapsed: number;
-  cacheOnly: boolean;
   text: string;
 }
 
 export type InitProgressCallback = (report: InitProgressReport) => void;
-
-/**
- * Cache to store model related data.
- */
-export class ArtifactCache implements ArtifactCacheTemplate {
-  private scope: string;
-  private cache?: Cache;
-
-  constructor(scope: string) {
-    this.scope = scope;
-  }
-
-  async fetchWithCache(url: string) {
-    const request = new Request(url);
-    if (this.cache === undefined) {
-      this.cache = await caches.open(this.scope);
-    }
-    let result = await this.cache.match(request);
-    if (result === undefined) {
-      await this.cache.add(request);
-      result = await this.cache.match(request);
-    }
-    if (result === undefined) {
-      throw Error("Cannot fetch " + url);
-    }
-    return result;
-  }
-
-  async hasAllKeys(keys: string[]) {
-    if (this.cache === undefined) {
-      this.cache = await caches.open(this.scope);
-    }
-    return this.cache.keys()
-      .then(requests => requests.map(request => request.url))
-      .then(cacheKeys => keys.every(key => cacheKeys.indexOf(key) !== -1))
-      .catch(err => false);
-  }
-
-  async deleteInCache(url: string) {
-    if (this.cache === undefined) {
-      this.cache = await caches.open(this.scope);
-    }
-    const result = await this.cache.delete(url);
-    return result;
-  }
-}
 
 /**
  * TVM runtime instance.
@@ -1066,6 +1010,7 @@ export class Instance implements Disposable {
   private ctx: RuntimeContext;
   private asyncifyHandler: AsyncifyHandler;
   private initProgressCallback: Array<InitProgressCallback> = [];
+  private rng: LinearCongruentialGenerator;
 
   /**
    * Internal function(registered by the runtime)
@@ -1118,6 +1063,7 @@ export class Instance implements Disposable {
     );
     this.registerEnvGlobalPackedFuncs();
     this.registerObjectFactoryFuncs();
+    this.rng = new LinearCongruentialGenerator();
   }
 
   /**
@@ -1485,21 +1431,26 @@ export class Instance implements Disposable {
    * @param ndarrayCacheUrl The cache url.
    * @param device The device to be fetched to.
    * @param cacheScope The scope identifier of the cache
+   * @param cacheType The type of the cache: "cache" or "indexedDB"
    * @returns The meta data
    */
   async fetchNDArrayCache(
     ndarrayCacheUrl: string,
     device: DLDevice,
-    cacheScope = "tvmjs"
+    cacheScope = "tvmjs",
+    cacheType = "cache"
   ): Promise<any> {
-    const artifactCache = new ArtifactCache(cacheScope);
-    const jsonUrl = new URL("ndarray-cache.json", ndarrayCacheUrl).href;
-    const result = await artifactCache.fetchWithCache(jsonUrl);
-
-    let list;
-    if (result instanceof Response) {
-      list = await result.json();
+    let artifactCache: ArtifactCacheTemplate;
+    if (cacheType === undefined || cacheType.toLowerCase() === "cache") {
+      artifactCache = new ArtifactCache(cacheScope);
+    } else if (cacheType.toLowerCase() == "indexeddb") {
+      artifactCache = new ArtifactIndexedDBCache(cacheScope);
+    } else {
+      console.error("Unsupported cacheType: " + cacheType + ", using default ArtifactCache.");
+      artifactCache = new ArtifactCache(cacheScope);
     }
+    const jsonUrl = new URL("ndarray-cache.json", ndarrayCacheUrl).href;
+    const list = await artifactCache.fetchWithCache(jsonUrl, "json");
     await this.fetchNDArrayCacheInternal(
       ndarrayCacheUrl,
       list["records"] as Array<NDArrayShardEntry>, device, artifactCache);
@@ -1523,7 +1474,6 @@ export class Instance implements Disposable {
   ) {
     const perf = compact.getPerformance();
     const tstart = perf.now();
-
     let totalBytes = 0;
     for (let i = 0; i < list.length; ++i) {
       totalBytes += list[i].nbytes;
@@ -1532,27 +1482,29 @@ export class Instance implements Disposable {
     let fetchedShards = 0;
     let timeElapsed = 0;
 
-    const cacheOnly = await artifactCache.hasAllKeys(list.map(key => new URL(key.dataPath, ndarrayCacheUrl).href))
+    const cacheOnly = await artifactCache.hasAllKeys(list.map(key => new URL(key.dataPath, ndarrayCacheUrl).href));
 
-    const reportCallback = (iter: number) => {
+    // `loading`: we have finished downloading (or already cacheOnly) and are loading onto WebGPU
+    const reportCallback = (iter: number, loading = false) => {
       // report
       for (let j = 0; j < this.initProgressCallback.length; ++j) {
-        let text = "Fetching param cache[" + iter + "/" + list.length + "]: ";
-        text += Math.ceil(fetchedBytes / (1024 * 1024)).toString() + "MB fetched. "
-        text += Math.floor(fetchedBytes * 100 / totalBytes).toString() + "% completed, "
-        text += timeElapsed + " secs elapsed.";
-        text += " It can take a while when we first visit this page to populate the cache."
-        text += " Later refreshes will become faster.";
-        if (cacheOnly) {
+        let text: string;
+        if (loading) {
           text = "Loading model from cache[" + iter + "/" + list.length + "]: ";
           text += Math.ceil(fetchedBytes / (1024 * 1024)).toString() + "MB loaded. "
           text += Math.floor(fetchedBytes * 100 / totalBytes).toString() + "% completed, "
           text += timeElapsed + " secs elapsed.";
+        } else {
+          text = "Fetching param cache[" + iter + "/" + list.length + "]: ";
+          text += Math.ceil(fetchedBytes / (1024 * 1024)).toString() + "MB fetched. "
+          text += Math.floor(fetchedBytes * 100 / totalBytes).toString() + "% completed, "
+          text += timeElapsed + " secs elapsed.";
+          text += " It can take a while when we first visit this page to populate the cache."
+          text += " Later refreshes will become faster.";
         }
         this.initProgressCallback[j]({
           progress: fetchedBytes / totalBytes,
           timeElapsed: timeElapsed,
-          cacheOnly: cacheOnly,
           text: text
         });
       }
@@ -1562,56 +1514,88 @@ export class Instance implements Disposable {
       this.initProgressCallback[j]({
         progress: fetchedBytes / totalBytes,
         timeElapsed: 0,
-        cacheOnly: cacheOnly,
         text: "Start to fetch params",
       });
     }
 
-    const processShard = async (i: number) => {
+    // First download all shards to cache parallely if not yet in cache
+    const downloadCache = async (start: number, end: number) => {
+      // Download params [start, end) from `list`
+      for (let i = start; i < end; i++) {
+        const shard = list[i];
+        const dataUrl = new URL(shard.dataPath, ndarrayCacheUrl).href;
+        try {
+          await artifactCache.addToCache(dataUrl, "arraybuffer");
+        } catch (err) {
+          this.env.logger("Error: Cannot fetch " + dataUrl + " err= " + err);
+          throw err;
+        }
+        timeElapsed = Math.ceil((perf.now() - tstart) / 1000);
+        fetchedBytes += shard.nbytes;
+        reportCallback(fetchedShards++, /*loading=*/false);
+      }
+    }
+    // We launch 4 parallel for loops to limit the max concurrency to 4 download
+    if (!cacheOnly) {
+      const loopSize = Math.floor(list.length / 4);
+      await Promise.all([
+        downloadCache(0, loopSize),
+        downloadCache(loopSize, 2 * loopSize),
+        downloadCache(2 * loopSize, 3 * loopSize),
+        downloadCache(3 * loopSize, list.length)
+      ]);
+    }
+
+    // Then iteratively, load the shard from cache
+    for (let i = 0; i < list.length; ++i) {
       const shard = list[i];
       const dataUrl = new URL(shard.dataPath, ndarrayCacheUrl).href;
       let buffer;
       try {
-        buffer = await (await artifactCache.fetchWithCache(dataUrl)).arrayBuffer();
+        buffer = await artifactCache.fetchWithCache(dataUrl, "arraybuffer");
       } catch (err) {
         this.env.logger("Error: Cannot fetch " + dataUrl + " err= " + err);
         throw err;
       }
       const shardRecords = shard.records;
       for (let j = 0; j < shardRecords.length; ++j) {
-        const rec = shardRecords[j];
-        const cpu_arr = this.withNewScope(() => {
-          return this.detachFromCurrentScope(
-            this.empty(rec.shape, rec.dtype, this.cpu())
-          )
-        });
-        const recSource = buffer.slice(rec.byteOffset, rec.byteOffset + rec.nbytes);
-        // first sync copy to cpu.
-        this.ctx.arrayDecodeStorage(cpu_arr, new Uint8Array(recSource), rec.format, rec.dtype);
-        // then async stream into GPU if needed
-        if (device.deviceType === DeviceStrToEnum.cpu) {
-          this.ndarrayCacheUpdate(rec.name, cpu_arr, false);
-          cpu_arr.dispose();
-        } else {
-          // allocate a gpu arr and async copy to it.
-          const gpu_arr = this.withNewScope(() => {
+        try {
+          const rec = shardRecords[j];
+          const cpu_arr = this.withNewScope(() => {
             return this.detachFromCurrentScope(
-              this.empty(rec.shape, rec.dtype, device)
+              this.empty(rec.shape, rec.dtype, this.cpu())
             )
           });
-          gpu_arr.copyFrom(cpu_arr);
-          await device.sync();
-          this.ndarrayCacheUpdate(rec.name, gpu_arr, false);
-          cpu_arr.dispose();
-          gpu_arr.dispose();
+          const recSource = buffer.slice(rec.byteOffset, rec.byteOffset + rec.nbytes);
+          // first sync copy to cpu.
+          this.ctx.arrayDecodeStorage(cpu_arr, new Uint8Array(recSource), rec.format, rec.dtype);
+          // then async stream into GPU if needed
+          if (device.deviceType === DeviceStrToEnum.cpu) {
+            this.ndarrayCacheUpdate(rec.name, cpu_arr, false);
+            cpu_arr.dispose();
+          } else {
+            // allocate a gpu arr and async copy to it.
+            const gpu_arr = this.withNewScope(() => {
+              return this.detachFromCurrentScope(
+                this.empty(rec.shape, rec.dtype, device)
+              )
+            });
+            gpu_arr.copyFrom(cpu_arr);
+            await device.sync();
+            this.ndarrayCacheUpdate(rec.name, gpu_arr, false);
+            cpu_arr.dispose();
+            gpu_arr.dispose();
+          }
+        } catch (err) {
+          this.env.logger(
+            "Failed to load shard " + i + "'s record: " + JSON.stringify(shardRecords[j]) + "\n" +
+            "Error: " + err
+          );
+          throw err;
         }
       }
-      timeElapsed = Math.ceil((perf.now() - tstart) / 1000);
-      fetchedBytes += shard.nbytes;
-      reportCallback(fetchedShards++);
+      reportCallback(i + 1, /*loading=*/true);
     }
-    await Promise.all(list.map((_, index) => processShard(index)));
-    reportCallback(list.length);
   }
 
   /**
@@ -1763,9 +1747,16 @@ export class Instance implements Disposable {
     const scale = high - low;
     const input = new Float32Array(size);
     for (let i = 0; i < input.length; ++i) {
-      input[i] = low + Math.random() * scale;
+      input[i] = low + this.rng.randomFloat() * scale;
     }
     return ret.copyFrom(input);
+  }
+
+  /**
+   * Set the seed of the internal LinearCongruentialGenerator.
+   */
+  setSeed(seed: number): void {
+    this.rng.setSeed(seed);
   }
 
   /**
@@ -1777,7 +1768,18 @@ export class Instance implements Disposable {
    * @returns The sampled index.
    */
   sampleTopPFromLogits(logits: NDArray, temperature: number, top_p: number): number {
-    return this.ctx.sampleTopPFromLogits(logits, temperature, top_p, Math.random());
+    return this.ctx.sampleTopPFromLogits(logits, temperature, top_p, this.rng.randomFloat());
+  }
+
+  /**
+   * Sample index via top-p sampling.
+   *
+   * @param prob The distribution, i.e. logits after `applySoftmaxWithTemperature()` is performed.
+   * @param top_p The top_p
+   * @returns The sampled index.
+   */
+  sampleTopPFromProb(prob: NDArray, top_p: number): number {
+    return this.ctx.sampleTopPFromProb(prob, top_p, this.rng.randomFloat());
   }
 
   /**
@@ -2050,7 +2052,6 @@ export class Instance implements Disposable {
       }).then(() => {
         finishCounter += 1;
         const tend = perf.now();
-        const timeReportGap = 1000;
         // skip report if gap is smaller than 1000
         if ((tend - tlastReport) < 1000 && finishCounter != fmapEntries.length) {
           return;
@@ -2066,7 +2067,6 @@ export class Instance implements Disposable {
           this.initProgressCallback[j]({
             progress: progress,
             timeElapsed: timeElapsed,
-            cacheOnly: false,
             text: text
           });
         }
@@ -2514,48 +2514,4 @@ export function instantiate(
       return new Instance(result.module, {}, result.instance, env);
     }
   );
-}
-
-export async function hasNDArrayInCache(
-  ndarrayCacheUrl: string,
-  cacheScope = "tvmjs"
-): Promise<boolean> {
-  const artifactCache = new ArtifactCache(cacheScope);
-  const jsonUrl = new URL("ndarray-cache.json", ndarrayCacheUrl).href;
-  const hasJsonUrlInCache = await artifactCache.hasAllKeys([jsonUrl]);
-  if (!hasJsonUrlInCache) {
-    return false;
-  }
-  const result = await artifactCache.fetchWithCache(jsonUrl);
-  let list;
-  if (result instanceof Response) {
-    list = await result.json();
-  }
-  list = list["records"] as Array<NDArrayShardEntry>;
-  return await artifactCache.hasAllKeys(list.map(key => new URL(key.dataPath, ndarrayCacheUrl).href));
-}
-
-/**
- * Given cacheUrl, search up items to delete based on cacheUrl/ndarray-cache.json
- *
- * @param cacheUrl
- * @param cacheScope
- */
-export async function deleteNDArrayCache(
-  cacheUrl: string,
-  cacheScope = "tvmjs"
-) {
-  const artifactCache = new ArtifactCache(cacheScope);
-  const jsonUrl = new URL("ndarray-cache.json", cacheUrl).href;
-  const result = await artifactCache.fetchWithCache(jsonUrl);
-  let list;
-  if (result instanceof Response){
-    list = await result.json();
-  }
-  const arrayentry = list["records"] as Array<NDArrayShardEntry>;
-  const processShard = async (i: number) => {
-    const dataUrl = new URL(arrayentry[i].dataPath, cacheUrl).href;
-    await artifactCache.deleteInCache(dataUrl);
-  }
-  await Promise.all(arrayentry.map((_, index) => processShard(index)));
 }

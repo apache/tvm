@@ -116,7 +116,8 @@ def no_normal_reduction(a: T.handle, b: T.handle) -> None:
                 B[vi] = B[vi] + A[vi, vk]
 
 
-@T.prim_func
+# complains that k is defined outside of a block
+@T.prim_func(check_well_formed=False)
 def lowered_no_normal_reduction(a: T.handle, b: T.handle) -> None:
     A = T.match_buffer(a, [128, 128], dtype="float32")
     B = T.match_buffer(b, [128], dtype="float32")
@@ -162,7 +163,8 @@ def two_bound_loops(a: T.handle, b: T.handle) -> None:
                     B[vi] = B[vi] + A[vi, vk]
 
 
-@T.prim_func
+# complains that ko is defined outside of a block
+@T.prim_func(check_well_formed=False)
 def lowered_two_bound_loops(a: T.handle, b: T.handle) -> None:
     A = T.match_buffer(a, [128, 128], dtype="float32")
     B = T.match_buffer(b, [128], dtype="float32")
@@ -899,7 +901,8 @@ def reducer_max(a: T.handle, b: T.handle) -> None:
                 B[vi] = T.max(B[vi], A[vi, vk])
 
 
-@T.prim_func
+# complains that k is defined outside of a block
+@T.prim_func(check_well_formed=False)
 def lowered_reducer_max(a: T.handle, b: T.handle) -> None:
     A = T.match_buffer(a, [128, 128], dtype="float32")
     B = T.match_buffer(b, [128], dtype="float32")
@@ -942,7 +945,8 @@ def zero_rank_buffer(a: T.handle, b: T.handle) -> None:
             B[()] = B[()] + A[vk]
 
 
-@T.prim_func
+# complains that k is defined outside of a block
+@T.prim_func(check_well_formed=False)
 def lowered_zero_rank_buffer(a: T.handle, b: T.handle) -> None:
     A = T.match_buffer(a, [128], dtype="float32")
     B = T.match_buffer(b, [], dtype="float32")
@@ -1572,7 +1576,8 @@ def thread_broadcast_1(A: T.Buffer((256, 256), "float32"), B: T.Buffer((256,), "
             B[vi] = temp_local[vi] + T.float32(1)
 
 
-@T.prim_func
+# complains that k is defined outside of a block
+@T.prim_func(check_well_formed=False)
 def lowered_thread_broadcast_1(A: T.Buffer((256, 256), "float32"), B: T.Buffer((256,), "float32")):
     temp_local = T.alloc_buffer((256,), scope="local")
     cross_thread_temp_local = T.alloc_buffer((1,), strides=(1,), scope="local")
@@ -1745,7 +1750,8 @@ def no_thread_broadcast(A: T.Buffer((256, 256), "float32"), B: T.Buffer((256, 25
                 B[vi, vj] = A[vi, vj] + temp_2_local[0]
 
 
-@T.prim_func
+# complains that k is defined outside of a block
+@T.prim_func(check_well_formed=False)
 def lowered_no_thread_broadcast(
     A: T.Buffer((256, 256), "float32"), B: T.Buffer((256, 256), "float32")
 ):

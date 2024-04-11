@@ -18,15 +18,14 @@
 with the distributed runtime.
 """
 
+import logging
 import os
 import pickle
-
-
 from typing import Any, Callable, Optional, Sequence, Union
 
 import numpy as np
 
-from ..._ffi import register_object, register_func
+from ..._ffi import get_global_func, register_func, register_object
 from ..._ffi.runtime_ctypes import Device
 from ..container import ShapeTuple
 from ..ndarray import NDArray
@@ -283,7 +282,8 @@ class Session(Object):
             The device IDs to be used by the underlying communication library.
         """
         assert ccl in ("nccl", "rccl"), f"Unsupported CCL backend: {ccl}"
-        return _ffi_api.SessionInitCCL(self, ccl, ShapeTuple(device_ids))  # type: ignore # pylint: disable=no-member
+        _ffi_api.SessionInitCCL(self, ccl, ShapeTuple(device_ids))  # type: ignore # pylint: disable=no-member
+        self._clear_ipc_memory_pool()
 
     def broadcast_from_worker0(self, src: DRef, dst: DRef) -> DRef:
         """Broadcast an array from worker-0 to all other workers.
@@ -365,6 +365,12 @@ class Session(Object):
         func = self._get_cached_method("runtime.disco.allgather")
         func(src, dst)
 
+    def _clear_ipc_memory_pool(self):
+        # Clear the IPC memory allocator when the allocator exists.
+        name = "runtime.disco.cuda_ipc.cuda_ipc_memory_allocator_clear"
+        if get_global_func(name, allow_missing=True) is not None:
+            self.call_packed(self.get_global_func(name))
+
 
 @register_object("runtime.disco.ThreadedSession")
 class ThreadedSession(Session):
@@ -397,7 +403,19 @@ class ProcessSession(Session):
         except ImportError:
             return
 
-        config = pickle.dumps(structlog.get_config())
+        root_logger = logging.getLogger()
+        if len(root_logger.handlers) == 1 and isinstance(
+            root_logger.handlers[0].formatter, structlog.stdlib.ProcessorFormatter
+        ):
+            stdlib_formatter = root_logger.handlers[0].formatter
+        else:
+            stdlib_formatter = None
+
+        stdlib_level = root_logger.level
+
+        full_config = (structlog.get_config(), stdlib_formatter, stdlib_level)
+
+        config = pickle.dumps(full_config)
         func = self.get_global_func("runtime.disco._configure_structlog")
         func(config, os.getpid())
 
@@ -423,8 +441,18 @@ def _configure_structlog(pickled_config: bytes, parent_pid: int) -> None:
 
     import structlog  # pylint: disable=import-outside-toplevel
 
-    config = pickle.loads(pickled_config)
-    structlog.configure(**config)
+    full_config = pickle.loads(pickled_config)
+    structlog_config, stdlib_formatter, stdlib_level = full_config
+
+    root_logger = logging.getLogger()
+
+    root_logger.setLevel(stdlib_level)
+    if stdlib_formatter is not None:
+        handler = logging.StreamHandler()
+        handler.setFormatter(stdlib_formatter)
+        root_logger.addHandler(handler)
+
+    structlog.configure(**structlog_config)
 
 
 @register_func("runtime.disco._import_python_module")

@@ -527,7 +527,6 @@ def enabled_targets():
 
 
 class Feature:
-
     """A feature that may be required to run a test.
 
     Parameters
@@ -1042,6 +1041,13 @@ requires_arm_dot = Feature(
     "arm_dot",
     "ARM dot product",
     run_time_check=lambda: _has_cpu_feat("dotprod"),
+)
+
+
+requires_aarch64_sve = Feature(
+    "arm_sve",
+    "AArch64 SVE",
+    run_time_check=lambda: _has_cpu_feat("sve"),
 )
 
 
@@ -1945,6 +1951,8 @@ class CompareBeforeAfter:
 
     """
 
+    check_well_formed: bool = True
+
     def __init_subclass__(cls):
         assert len([getattr(cls, name) for name in ["before", "Before"] if hasattr(cls, name)]) <= 1
         assert (
@@ -1988,7 +1996,9 @@ class CompareBeforeAfter:
                         func_dict[name] = method.with_attr("global_symbol", name)
                     else:
                         source_code = "@T.prim_func\n" + textwrap.dedent(inspect.getsource(method))
-                        prim_func = tvm.script.from_source(source_code)
+                        prim_func = tvm.script.from_source(
+                            source_code, check_well_formed=self.check_well_formed
+                        )
                         func_dict[name] = prim_func.with_attr("global_symbol", name)
                 return tvm.IRModule(func_dict)
 
@@ -1997,7 +2007,7 @@ class CompareBeforeAfter:
             def inner(self):
                 # pylint: disable=unused-argument
                 source_code = "@T.prim_func\n" + textwrap.dedent(inspect.getsource(func))
-                return tvm.script.from_source(source_code)
+                return tvm.script.from_source(source_code, check_well_formed=self.check_well_formed)
 
         return pytest.fixture(inner)
 

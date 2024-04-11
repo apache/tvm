@@ -114,7 +114,7 @@ class Function : public BaseFunc {
    * \param span The span of the function.
    */
   TVM_DLL Function(tvm::Array<Var> params, Expr body, Type ret_type, tvm::Array<TypeVar> ty_params,
-                   tvm::DictAttrs attrs = NullValue<DictAttrs>(), Span span = Span());
+                   tvm::DictAttrs attrs = DictAttrs(), Span span = Span());
 
   TVM_DEFINE_OBJECT_REF_METHODS(Function, BaseFunc, FunctionNode);
   TVM_DEFINE_OBJECT_REF_COW_METHOD(FunctionNode);

@@ -76,9 +76,8 @@ class BaseQuantizer(BaseTool):
                 self._plan[name] = {k: v for k, v in plan.items() if k not in ("calibrated")}
             self.change_stage(MSCStage.QUANTIZE)
         calib_type = "calibrate" if self._calibrated else "gather"
-        self._logger.info(
-            "Quantizer %s %d plan after %d batch", calib_type, len(new_plan), self._forward_cnt
-        )
+        msg = "{} {} plan after {} batch".format(calib_type, len(new_plan), self._forward_cnt)
+        self._logger.info(self.tool_mark(msg))
         self._forward_cnt = 0
         return new_plan
 
@@ -254,10 +253,8 @@ class BaseQuantizer(BaseTool):
         return ToolType.QUANTIZER
 
 
+@msc_utils.register_tool
 class DefaultQuantizer(BaseQuantizer):
     @classmethod
     def tool_style(cls):
         return "default"
-
-
-msc_utils.register_tool_cls(DefaultQuantizer)

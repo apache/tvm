@@ -547,15 +547,15 @@ TVM_DLL bool ContainsImpureCall(const Expr& expr,
 /*!
  * \brief Check if the IRModule is well formed.
  *
- * \param m the IRModule to check.
+ * \param obj The IRModule or relax::Function to check.
  * \param check_struct_info A boolean flag indicating if the property "every Expr
  * must have defined structure info" will be checked.
- * \return true if the IRModule is well formed, false if not.
+ * \return true if the object is well formed, false if not.
  * \note By default the structure info is always checked. It is only in test cases
  * where `check_struct_info` might be false, so that other well-formed requirements
  * will be well tested and will not be blocked by not having structure info.
  */
-TVM_DLL bool WellFormed(IRModule m, bool check_struct_info = true);
+TVM_DLL bool WellFormed(Variant<IRModule, Function> obj, bool check_struct_info = true);
 
 /*!
  * \brief Using the layout transforms on the outputs, suggest layout transformation on the blocks

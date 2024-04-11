@@ -194,7 +194,7 @@ class LambdaLifter : public transform::DeviceAwareExprMutator {
       CHECK_EQ(before_arity, after_arity);
       lifted_func =
           Function(typed_captured_vars, rebound_body, /*ret_type=*/func->func_type_annotation(),
-                   free_type_vars, /*attrs=*/{}, func->span);
+                   free_type_vars, DictAttrs(), func->span);
       lifted_func->virtual_device_ = result_virtual_device;
       lifted_func = MarkClosure(lifted_func);
     }

@@ -38,6 +38,7 @@
 #include <memory>
 #include <mutex>
 #include <string>
+#include <utility>
 #include <vector>
 
 #include "../workspace_pool.h"
@@ -106,25 +107,35 @@ class AutoReleasePoolWrapper {
  */
 class Stream {
  public:
-  explicit Stream(id<MTLDevice> device) : error_happened_(false) {
-    queue_ = [device newCommandQueue];
-  }
+  explicit Stream(id<MTLDevice> device) { queue_ = [device newCommandQueue]; }
   ~Stream() { [queue_ release]; }
-  id<MTLCommandBuffer> GetCommandBuffer() {
+  id<MTLCommandBuffer> GetCommandBuffer(bool attach_error_callback = true) {
     id<MTLCommandBuffer> cb = [queue_ commandBuffer];
     [cb addCompletedHandler:^(id<MTLCommandBuffer> buffer) {
-      if (buffer.status == MTLCommandBufferStatusError) SetErrorStatus();
+      if (buffer.status == MTLCommandBufferStatusError) {
+        ICHECK(buffer.error != nil);
+        this->SetError(buffer.error.localizedDescription.UTF8String);
+      }
     }];
     return cb;
   }
-  bool HasErrorHappened() { return error_happened_; }
+
+  void SetError(std::string error_description) {
+    error_happened_ = true;
+    error_description_ = std::move(error_description);
+  }
+
+  bool HasErrorHappened() const { return error_happened_; }
+
+  const std::string& ErrorDescription() const { return error_description_; }
 
  private:
-  void SetErrorStatus() { error_happened_ = true; }
   // Queue
   id<MTLCommandQueue> queue_;
   // Check if error happened in one previous run
-  bool error_happened_;
+  bool error_happened_{false};
+  // error description
+  std::string error_description_;
 };
 
 /*!

@@ -156,7 +156,7 @@ class QPadArgs(Enum):
 
 def is_npu_func(func: relay.Function) -> bool:
     """Check if the given function is an NPU function."""
-    return func.attrs and "Compiler" in func.attrs and func.attrs["Compiler"] == "ethos-u"
+    return "Compiler" in func.attrs and func.attrs["Compiler"] == "ethos-u"
 
 
 def is_composite_func(func: relay.Function, name: str) -> bool:
