@@ -547,5 +547,17 @@ def test_target_from_device_rocm(input_device):
     )
 
 
+@tvm.testing.requires_opencl
+@pytest.mark.parametrize("input_device", ["opencl", tvm.opencl()])
+def test_target_from_device_opencl(input_device):
+    target = Target.from_device(input_device)
+
+    dev = tvm.opencl()
+    assert target.kind.name == "opencl"
+    assert target.attrs["max_threads_per_block"] == dev.max_threads_per_block
+    assert target.max_shared_memory_per_block == dev.max_shared_memory_per_block
+    assert target.thread_warp_size == dev.warp_size
+
+
 if __name__ == "__main__":
     tvm.testing.main()
