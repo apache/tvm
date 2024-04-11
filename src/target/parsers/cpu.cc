@@ -29,10 +29,12 @@ namespace parsers {
 namespace cpu {
 
 Optional<String> DetectSystemTriple() {
+#ifdef TVM_LLVM_VERSION
   auto pf = tvm::runtime::Registry::Get("target.llvm_get_system_triple");
-  if (pf->defined()) {
-    return (*pf)();
-  }
+  ICHECK(pf != nullptr) << "The target llvm_get_system_triple was not found, "
+                           "please compile with USE_LLVM = ON";
+  return (*pf)();
+#endif
   return {};
 }
 
