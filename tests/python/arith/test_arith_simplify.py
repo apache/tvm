@@ -20,6 +20,7 @@ import pytest
 import tvm
 import tvm.testing
 from tvm import tir
+from tvm.script import tir as T
 
 
 def test_simplify_reshape_flattened_index():
@@ -56,14 +57,20 @@ def test_simplify_symbolic_comparison():
     assert ana.can_prove((n + 31) // 32 * 32 >= i0 * 32 + i1, PS.SYMBOLIC_BOUND)
 
 
-def test_simplify_vscale_comparison_with_sve_target():
+@pytest.mark.parametrize(
+    "expression",
+    [
+        T.vscale() * 32 < T.vscale() * 64,
+        T.vscale() * 2 * (T.vscale() * 2) >= T.vscale() * 4,
+        (T.vscale() * 4 + 114) // (T.vscale() * 4) * (T.vscale() * 4) >= 115,
+        64 % T.vscale() <= T.vscale(),
+    ],
+)
+def test_simplify_vscale_comparison_with_sve_target(expression):
     ana = tvm.arith.Analyzer()
-    vs = tvm.tir.vscale()
 
     with tvm.target.Target("llvm -mtriple=aarch64-linux-gnu -mattr=+sve"):
-        assert ana.can_prove(vs * 32 < vs * 64)
-        assert ana.can_prove(vs * 2 * (vs * 2) >= vs * 4)
-        assert ana.can_prove((vs * 4 + 114) // (vs * 4) * (vs * 4) >= 115)
+        assert ana.can_prove(expression)
 
 
 def test_simplify_vscale_comparison_without_sve_target(capfd):
@@ -81,6 +88,16 @@ def test_simplify_vscale_comparison_without_sve_target(capfd):
     )
     capture = capfd.readouterr().err
     assert warning_msg in capture
+
+
+def test_simplify_vscale_non_comparison():
+    ana = tvm.arith.Analyzer()
+    vs = tvm.tir.vscale()
+
+    err_msg = r".*Expected comparison but got: T.vscale\(\) \* 4"
+    with pytest.raises(tvm.TVMError, match=err_msg):
+        with tvm.target.Target("llvm -mtriple=aarch64-linux-gnu -mattr=+sve"):
+            ana.can_prove(vs * 4)
 
 
 def test_regression_simplify_inf_recursion():

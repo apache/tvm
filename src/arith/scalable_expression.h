@@ -65,6 +65,7 @@ std::optional<int> ExtractVscaleFactor(const PrimExpr& lanes);
            of vscale.
  * \param analyzer An analyzer instance.
  * \param expr The expression to try to prove.
+ * \param vscale_values A list of values to substitute vscale with.
  * \return Whether or not the expression can be proven with this technique.
  */
 bool CanProveVscaleExpressionFromKnownValues(arith::Analyzer* analyzer, const PrimExpr& expr,

@@ -697,7 +697,7 @@ def test_sve_scalable_split_assume_exact_multiple():
     If the schedule writer knows the extent of the loop to be split will always
     be a multiple of vscale, they may use `disable_predication=True` to ensure
     a predicate is not created. This can be used to ensure predication is not
-    inserted where current analysis is not powerful enough to recognise this.
+    inserted.
     """
 
     @T.prim_func
@@ -761,7 +761,7 @@ def test_sve_split_over_scalable_loop():
     tvm.ir.assert_structural_equal(sch.mod["main"], after)
 
 
-def test_default_scalable_split(capfd):
+def test_unsupported_target_scalable_split(capfd):
     @T.prim_func
     def before(a: T.handle):
         A = T.match_buffer(a, (128,), "float32")
