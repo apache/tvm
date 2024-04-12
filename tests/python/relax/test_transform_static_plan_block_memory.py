@@ -1347,5 +1347,107 @@ def test_invalid_tir_var_upper_bound():
         relax.transform.StaticPlanBlockMemory()(Module)
 
 
+def test_add():
+    @I.ir_module
+    class Module:
+        @T.prim_func(private=True)
+        def cumsum(var_A: T.handle, var_A_1: T.handle, var_exclusive_scan_thrust: T.handle):
+            T.evaluate(0)
+
+        @R.function
+        def main(
+            probs: R.Tensor(("batch_size", "vocab_size"), dtype="float32")
+        ) -> R.Tensor(("batch_size", "vocab_size"), dtype="float32"):
+            batch_size = T.int64()
+            vocab_size = T.int64()
+            R.func_attr(
+                {
+                    "relax.force_pure": 1,
+                    "relax.memory_plan_dynamic_func_output": 1,
+                    "tir_var_upper_bound": {"batch_size": 32},
+                    "tir_non_negative_var": ["vocab_size"],
+                }
+            )
+            cls = Module
+            lv1: R.Tensor(
+                (2 * (batch_size * vocab_size * 4) + 4194304,),
+                dtype="uint8",
+            ) = R.builtin.alloc_tensor(
+                R.shape([2 * (batch_size * vocab_size * 4) + 4194304]),
+                R.dtype("uint8"),
+                R.prim_value(0),
+                R.str("global"),
+            )
+            alloc1: R.Tensor((batch_size, vocab_size), dtype="float32") = R.builtin.alloc_tensor(
+                R.shape([batch_size, vocab_size]),
+                R.dtype("float32"),
+                R.prim_value(0),
+                R.str("global"),
+            )
+            cls.cumsum(probs, lv1, alloc1)
+            cumsum: R.Tensor((batch_size, vocab_size), dtype="float32") = alloc1
+            lv1_1: R.Tensor((batch_size, vocab_size), dtype="int32") = R.call_packed(
+                "vm.builtin.reshape",
+                cumsum,
+                R.shape([batch_size, vocab_size]),
+                sinfo_args=(R.Tensor((batch_size, vocab_size), dtype="float"),),
+            )
+            return lv1_1
+
+    @I.ir_module
+    class Expected:
+        @T.prim_func(private=True)
+        def cumsum(var_A: T.handle, var_A_1: T.handle, var_exclusive_scan_thrust: T.handle):
+            T.evaluate(0)
+
+        @R.function
+        def main(
+            probs: R.Tensor(("batch_size", "vocab_size"), dtype="float32")
+        ) -> R.Tensor(("batch_size", "vocab_size"), dtype="int32"):
+            batch_size = T.int64()
+            vocab_size = T.int64()
+            R.func_attr(
+                {
+                    "relax.force_pure": 1,
+                    "tir_non_negative_var": ["vocab_size"],
+                    "tir_var_upper_bound": {"batch_size": 32},
+                }
+            )
+            cls = Expected
+            storage: R.Object = R.memory.alloc_storage(
+                R.shape([32 * vocab_size * 4 * 2 + 4194304]),
+                R.prim_value(0),
+                R.str("global"),
+                R.dtype("uint8"),
+            )
+            lv1: R.Tensor(
+                (2 * (batch_size * vocab_size * 4) + 4194304,),
+                dtype="uint8",
+            ) = R.memory.alloc_tensor(
+                storage,
+                R.prim_value(0),
+                R.shape([2 * (batch_size * vocab_size * 4) + 4194304]),
+                R.dtype("uint8"),
+            )
+            storage1: R.Object = R.memory.alloc_storage(
+                R.shape([128 * vocab_size]), R.prim_value(0), R.str("global"), R.dtype("float32")
+            )
+            alloc1: R.Tensor((batch_size, vocab_size), dtype="float32") = R.memory.alloc_tensor(
+                storage1, R.prim_value(0), R.shape([batch_size, vocab_size]), R.dtype("float32")
+            )
+            cls.cumsum(probs, lv1, alloc1)
+            cumsum: R.Tensor((batch_size, vocab_size), dtype="float32") = alloc1
+            lv1_1: R.Tensor((batch_size, vocab_size), dtype="int32") = R.call_packed(
+                "vm.builtin.reshape",
+                cumsum,
+                R.shape([batch_size, vocab_size]),
+                sinfo_args=(R.Tensor((batch_size, vocab_size), dtype="float32"),),
+            )
+            return lv1_1
+
+    mod = relax.transform.StaticPlanBlockMemory()(Module)
+    tvm.ir.assert_structural_equal(mod, Expected)
+
+
 if __name__ == "__main__":
     tvm.testing.main()
