@@ -124,63 +124,61 @@ void ParserTensor(TensorProto* proto, const std::string& name,
 }
 
 }  // namespace onnx_helper
+class AttributeValueVisitor
+    : public AttrFunctor<void(const ObjectRef&, onnx::AttributeProto*)> {
+ public:
+  AttributeValueVisitor() : inside_array_(false) {}
+  ~AttributeValueVisitor() {}
+
+  void VisitAttrDefault_(const Object* op, onnx::AttributeProto* proto) final {
+    return;
+  };
+  void VisitAttr_(const ArrayNode* op, onnx::AttributeProto* proto) final {
+    inside_array_ = true;
+    for (size_t i = 0; i < op->size(); i++) {
+      VisitAttr(op->at(i), proto);
+    }
+    inside_array_ = false;
+  };
+  void VisitAttr_(const tir::IntImmNode* op,
+                  onnx::AttributeProto* proto) final {
+    if (proto->type() == AttributeProto_AttributeType_UNDEFINED) {
+      if (inside_array_) {
+        proto->set_type(AttributeProto_AttributeType_INTS);
+      } else {
+        proto->set_type(AttributeProto_AttributeType_INT);
+      }
+    }
+
+    proto->add_ints(op->value);
+  };
+  void VisitAttr_(const tir::FloatImmNode* op,
+                  onnx::AttributeProto* proto) final {
+    if (proto->type() == AttributeProto_AttributeType_UNDEFINED) {
+      if (inside_array_) {
+        proto->set_type(AttributeProto_AttributeType_FLOATS);
+      } else {
+        proto->set_type(AttributeProto_AttributeType_FLOAT);
+      }
+    }
+    proto->add_floats(op->value);
+  };
+  void VisitAttr_(const tir::StringImmNode* op,
+                  onnx::AttributeProto* proto) final {
+    if (proto->type() == AttributeProto_AttributeType_UNDEFINED) {
+      proto->set_type(AttributeProto_AttributeType_STRINGS);
+    }
+    proto->add_strings(op->value);
+  };
+
+ private:
+  bool inside_array_;
+};
 
 class AttrsProtoPrinter : public AttrVisitor {
  public:
   AttrsProtoPrinter(onnx::NodeProto* node) : node_(node) {}
   ~AttrsProtoPrinter() {}
-
-  class AttributeValueVisitor
-      : public AttrFunctor<void(const ObjectRef&, onnx::AttributeProto*)> {
-   public:
-    AttributeValueVisitor() : inside_array_(false) {}
-    ~AttributeValueVisitor() {}
-
-    void VisitAttrDefault_(const Object* op,
-                           onnx::AttributeProto* proto) final {
-      return;
-    };
-    void VisitAttr_(const ArrayNode* op, onnx::AttributeProto* proto) final {
-      inside_array_ = true;
-      for (size_t i = 0; i < op->size(); i++) {
-        VisitAttr(op->at(i), proto);
-      }
-      inside_array_ = false;
-    };
-    void VisitAttr_(const tir::IntImmNode* op,
-                    onnx::AttributeProto* proto) final {
-      if (proto->type() == AttributeProto_AttributeType_UNDEFINED) {
-        if (inside_array_) {
-          proto->set_type(AttributeProto_AttributeType_INTS);
-        } else {
-          proto->set_type(AttributeProto_AttributeType_INT);
-        }
-      }
-
-      proto->add_ints(op->value);
-    };
-    void VisitAttr_(const tir::FloatImmNode* op,
-                    onnx::AttributeProto* proto) final {
-      if (proto->type() == AttributeProto_AttributeType_UNDEFINED) {
-        if (inside_array_) {
-          proto->set_type(AttributeProto_AttributeType_FLOATS);
-        } else {
-          proto->set_type(AttributeProto_AttributeType_FLOAT);
-        }
-      }
-      proto->add_floats(op->value);
-    };
-    void VisitAttr_(const tir::StringImmNode* op,
-                    onnx::AttributeProto* proto) final {
-      if (proto->type() == AttributeProto_AttributeType_UNDEFINED) {
-        proto->set_type(AttributeProto_AttributeType_STRINGS);
-      }
-      proto->add_strings(op->value);
-    };
-
-   private:
-    bool inside_array_;
-  };
 
   void Visit(const char* key, double* value) {
     auto proto = node_->add_attribute();

@@ -721,6 +721,7 @@ if(NOT BUILD_DUMMY_LIBTVM)
 endif()
 
 target_link_libraries(tvm PRIVATE ${TVM_RUNTIME_LINKER_LIBS})
+target_link_libraries(tvm PRIVATE protobuf)
 target_link_libraries(tvm_runtime PRIVATE ${TVM_RUNTIME_LINKER_LIBS})
 
 if(BUILD_FOR_HEXAGON AND DEFINED USE_HEXAGON_GTEST AND EXISTS ${USE_HEXAGON_GTEST})

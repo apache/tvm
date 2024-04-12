@@ -20,8 +20,8 @@
  * \file tvm/relay/onnx/printer.h
  * \brief Print Relay IR as .Onnx
  */
-#ifndef TVM_RELAY_ONNX_PRINTER
-#define TVM_RELAY_ONNX_PRINTER
+#ifndef TVM_RELAY_ONNX_PRINTER_H_
+#define TVM_RELAY_ONNX_PRINTER_H_
 #include <tvm/relay/base.h>
 
 #include <iostream>
