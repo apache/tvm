@@ -345,6 +345,7 @@ tvm_file_glob(GLOB RELAY_BACKEND_SRCS
     )
 tvm_file_glob(GLOB_RECURSE RELAY_IR_SRCS
     src/relay/ir/*.cc
+    src/relay/onnx/*.cc
     src/relay/printer/*.cc
     src/relay/parser/*.cc
     )
