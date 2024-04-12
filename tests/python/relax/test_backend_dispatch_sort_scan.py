@@ -180,7 +180,7 @@ def test_dispatch_sort_cuda():
                 if can_use_thrust(target, "tvm.contrib.thrust.sort"):
                     workspace = bb.emit(
                         relax.op.builtin.alloc_tensor(
-                            relax.ShapeExpr([4194352]), "uint8", runtime_device_index=0
+                            relax.ShapeExpr([4194568]), "uint8", runtime_device_index=0
                         )
                     )
                     out = bb.emit_te(
@@ -272,7 +272,7 @@ def test_dispatch_argsort_cuda():
                 if can_use_thrust(target, "tvm.contrib.thrust.sort"):
                     workspace = bb.emit(
                         relax.op.builtin.alloc_tensor(
-                            R.shape([4194352]), R.dtype("uint8"), R.prim_value(0), R.str("global")
+                            R.shape([4194568]), R.dtype("uint8"), R.prim_value(0), R.str("global")
                         )
                     )
                     out = bb.emit_te(
