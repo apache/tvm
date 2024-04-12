@@ -117,7 +117,7 @@ def _get_formatter(formatter: Optional[str] = None):
         try:
             # pylint: disable=import-outside-toplevel
             import black
-        except ImportError as err:
+        except ImportError:
             return None
 
         def formatter(code_str):
