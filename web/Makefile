@@ -15,7 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 
-TVM_ROOT=$(shell cd ..; pwd)
+TVM_ROOT=$(realpath $(shell dirname $(firstword $(MAKEFILE_LIST))))/../
 
 INCLUDE_FLAGS = -I$(TVM_ROOT) -I$(TVM_ROOT)/include\
 	-I$(TVM_ROOT)/3rdparty/dlpack/include -I$(TVM_ROOT)/3rdparty/dmlc-core/include\

@@ -117,12 +117,13 @@ class TensorRTRunner(BYOCRunner):
             The runnable info.
         """
 
-        info = super().export_runnable(folder)
-        info["engines"] = {}
-        for graph in self._graphs:
+        def _get_engine(graph: MSCGraph) -> str:
             engine_file = msc_utils.get_output_dir().relpath(graph.name + ".trt")
             assert os.path.isfile(engine_file), "Missing engine file " + engine_file
-            info["engines"] = folder.copy(engine_file)
+            return engine_file
+
+        info = super().export_runnable(folder)
+        info["engines"] = {g.name: _get_engine(g) for g in self._graphs}
         return info
 
     @classmethod

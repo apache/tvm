@@ -2241,6 +2241,112 @@ def cumsum(
     return wrap_nested(_op.cumsum(data._expr, axis, dtype, exclusive), name)
 
 
+def sort(x: Tensor, axis: int = -1, descending: bool = False, name="sort"):
+    """Performs sorting along the given axis and returns an array
+    in sorted order.
+
+    Parameters
+    ----------
+    x : Tensor
+        The input tensor.
+
+    axis : int
+        Axis along which to sort the input tensor.
+        By default the last axis of the input is used.
+
+    descending : bool
+        Whether to sort in descending order, the default is False
+
+    name : str
+        Name hint.
+
+    Returns
+    -------
+    out : Tensor
+        The sorted tensor.
+    """
+    return wrap_nested(_op.sort(x, axis, descending), name=name)
+
+
+def argsort(
+    data: Tensor, axis: int = -1, descending: bool = False, dtype: str = "int32", name="argsort"
+):
+    """Performs sorting along the given axis and returns an array of indices
+    having same shape as an input array that index data in sorted order.
+
+    Parameters
+    ----------
+    data : Tensor
+        The input data tensor.
+
+    axis : int
+        Axis long which to sort the input tensor.
+
+    descending : bool
+        Whether to sort in descending order, the default is False
+
+    dtype : str
+        The data type of the output indices.
+
+    name : str
+        Name hint.
+
+    Returns
+    -------
+    out : Tensor
+        The indices of the sorted tensor.
+    """
+    return wrap_nested(_op.argsort(data, axis, descending, dtype), name=name)
+
+
+def topk(
+    data: Tensor,
+    k: int = 1,
+    axis: int = -1,
+    ret_type: str = "both",
+    largest: bool = True,
+    dtype: str = "int32",
+    name: str = "topk",
+):
+    """Get the top k elements in an input tensor along the given axis.
+
+    ret_type specifies the return type, can be one of ("both", "values", "indices").
+
+    Parameters
+    ----------
+    data : Tensor
+        The input data tensor.
+
+    k : int
+        Number of top elements to select. Return all elements if k < 1.
+
+    axis : int
+        Axis long which to sort the input tensor.
+
+    ret_type: str
+        The return type [both, values, indices].
+        "both": return both top k data and indices.
+        "values": return top k data only.
+        "indices": return top k indices only.
+
+    largest : bool
+        Whether to return largest or smallest elements.
+        The k smallest elements are returned if largest is False.
+
+    dtype : str
+        The data type of the indices output.
+
+    name : str
+        Name hint.
+
+    Returns
+    -------
+    out : Tensor or Tuple[Tensor, Tensor]
+        The computed result.
+    """
+    return wrap_nested(_op.topk(data, k, axis, ret_type, largest, dtype), name=name)
+
+
 def multinomial_from_uniform(
     prob: Tensor,
     uniform_sample: Tensor,

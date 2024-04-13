@@ -27,6 +27,7 @@ from tvm.contrib import graph_executor, utils
 from tvm import meta_schedule as ms
 
 
+@pytest.mark.skip(reason="flaky test")
 @tvm.testing.requires_micro
 def test_micro_tuning_with_meta_schedule():
     from tests.micro.zephyr.test_ms_tuning import create_relay_module

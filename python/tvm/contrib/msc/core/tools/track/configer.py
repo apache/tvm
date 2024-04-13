@@ -25,19 +25,6 @@ from tvm.contrib.msc.core import utils as msc_utils
 class TrackConfiger(ToolConfiger):
     """Configer for track"""
 
-    def config_apply(self) -> dict:
-        """Get the config fro apply
-
-        Returns
-        -------
-        config: dict
-            The apply config.
-        """
-
-        config = super().config_apply()
-        config.update({"apply_once": True})
-        return config
-
     @classmethod
     def tool_type(cls):
         return ToolType.TRACKER

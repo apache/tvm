@@ -1190,8 +1190,17 @@ class ExprPatternRewriter : ExprMutator {
 
     if (auto opt_matches = ExtractMatchedExpr(pattern, expr, bindings_)) {
       auto matches = opt_matches.value();
-      for (const auto& pat : *matches_top_level) {
-        matches.Set(pat, expr);
+
+      // Append any additional matches that from the unwrapped
+      // `OrPattern`.  When matching against `pat = pat_lhs |
+      // pat_rhs`, we call `ExtractMatchedExpr` on `pat_lhs` and
+      // `pat_rhs` separately.  The top-level `pat` is never seen by
+      // `ExtractMatchedExpr`, and must be re-added afterward.
+      if (matches_top_level->size()) {
+        auto matched_expr = TryGetValOfVar(expr, bindings_);
+        for (const auto& pat : *matches_top_level) {
+          matches.Set(pat, matched_expr);
+        }
       }
 
       Expr rewritten_expr = rewriter_func_(expr, matches);

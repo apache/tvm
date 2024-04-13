@@ -16,6 +16,7 @@
 # under the License.
 """Util to invoke emscripten compilers in the system."""
 # pylint: disable=invalid-name
+import os
 import subprocess
 from pathlib import Path
 
@@ -93,7 +94,8 @@ def create_tvmjs_wasm(output, objects, options=None, cc="emcc", libs=None):
     if options:
         cmd += options
 
-    proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+    is_windows = os.name == "nt"
+    proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, shell=is_windows)
     (out, _) = proc.communicate()
 
     if proc.returncode != 0:

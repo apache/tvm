@@ -409,6 +409,16 @@ def _create_broadcast(lanes):
     return tvm.tir.Broadcast(0, lanes)
 
 
+@pytest.mark.parametrize("lanes", [(tvm.tir.IntImm(dtype="int64", value=11))])
+@pytest.mark.parametrize("node_func", [_create_ramp, _create_broadcast])
+def test_lane_types(lanes, node_func):
+    def _check_dtype(node):
+        assert node.lanes.dtype == "int32"
+        assert node.lanes == 11
+
+    _check_dtype(node_func(lanes))
+
+
 @pytest.mark.parametrize("lanes", [(11 * tvm.tir.vscale()), (tvm.tir.vscale() * 11)])
 @pytest.mark.parametrize("node_func", [_create_ramp, _create_broadcast])
 def test_scalable_vec(lanes, node_func):

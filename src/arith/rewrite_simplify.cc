@@ -2250,6 +2250,17 @@ PrimExpr RewriteSimplifier::Impl::VisitExpr_(const CallNode* op) {
         }
       }
     }
+  } else if (op->op.same_as(Op::Get("tir.clz"))) {
+    if (const auto* arg_int = op->args[0].as<IntImmNode>()) {
+      int bits = arg_int->dtype.bits();
+      if (arg_int->value == 0) return make_const(op->dtype, bits);
+      for (int i = bits - 1; i >= 0; --i) {
+        if ((int64_t(1) << i) & arg_int->value) {
+          return IntImm(op->dtype, bits - i - 1);
+        }
+      }
+      LOG(FATAL) << "Should not reach here";
+    }
   }
 
   if (op->op.same_as(tir::builtin::likely())) {

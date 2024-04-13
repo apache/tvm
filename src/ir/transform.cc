@@ -25,6 +25,7 @@
 #include <tvm/ir/transform.h>
 #include <tvm/node/repr_printer.h>
 #include <tvm/node/structural_hash.h>
+#include <tvm/relax/expr.h>
 #include <tvm/relax/tuning_api.h>
 #include <tvm/runtime/device_api.h>
 #include <tvm/runtime/registry.h>
@@ -531,37 +532,6 @@ Pass CreateModulePass(const runtime::TypedPackedFunc<IRModule(IRModule, PassCont
   PassInfo pass_info = PassInfo(opt_level, name, required, traceable);
   return ModulePass(pass_func, pass_info);
 }
-
-Pass ApplyPassToFunction(Pass pass, String func_name_regex,
-                         bool error_if_no_function_matches_regex) {
-  auto pass_name =
-      static_cast<const std::stringstream&>(std::stringstream() << "ApplyPassTo" << func_name_regex)
-          .str();
-
-  auto pass_func = [pass, func_name_regex](IRModule mod, PassContext) -> IRModule {
-    IRModule subset;
-
-    for (const auto& [gvar, func] : mod->functions) {
-      std::string name = gvar->name_hint;
-      if (tvm::runtime::regex_match(name, func_name_regex)) {
-        subset->Add(gvar, func);
-      }
-    }
-
-    if (subset->functions.size()) {
-      IRModule new_subset = pass(subset);
-      if (!new_subset.same_as(subset)) {
-        mod.CopyOnWrite()->Update(new_subset);
-      }
-    }
-
-    return mod;
-  };
-
-  return CreateModulePass(pass_func, 0, pass_name, {});
-}
-
-TVM_REGISTER_GLOBAL("transform.ApplyPassToFunction").set_body_typed(ApplyPassToFunction);
 
 TVM_REGISTER_NODE_TYPE(PassInfoNode);
 

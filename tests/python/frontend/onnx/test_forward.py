@@ -3404,6 +3404,36 @@ def test_convtranspose(target, dev):
                 auto_pad="SAME_LOWER",
             )
 
+            verify_convtranspose_with_output_shape(
+                (1, 1) + repeat(32, dims),
+                (1, 2) + repeat(4, dims),
+                repeat(num, dims),
+                repeat(4, dims),
+                repeat(2, dims),
+                repeat(1, dims),
+                auto_pad="SAME_UPPER",
+            )
+
+    verify_convtranspose_with_output_shape(
+        (1, 1, 3, 3),
+        (1, 2, 3, 3),
+        (6, 6),
+        (3, 3),
+        (2, 2),
+        (1, 1),
+        auto_pad="SAME_UPPER",
+    )
+
+    verify_convtranspose_with_output_shape(
+        (1, 1, 3, 3),
+        (1, 2, 3, 3),
+        (6, 6),
+        (3, 3),
+        (2, 2),
+        (1, 1),
+        auto_pad="SAME_LOWER",
+    )
+
 
 @tvm.testing.parametrize_targets
 def test_unsqueeze_constant(target, dev):
@@ -5634,7 +5664,6 @@ unsupported_onnx_tests = [
     "test_cast_DOUBLE_to_FLOAT16",
     "test_castlike_DOUBLE_to_FLOAT16",
     "test_castlike_DOUBLE_to_FLOAT16_expanded",
-    "test_convtranspose_autopad_same",
     "test_convtranspose_dilations",
     "test_cumsum_1d",
     "test_cumsum_1d_exclusive",
@@ -5766,6 +5795,15 @@ def _load_proto(proto_filename, target_list, model_type_proto):
             )
 
 
+def is_ort_version_lower_than(ver):
+    import onnxruntime as ort
+
+    v11, v12, v13 = tuple(int(v) for v in ort.__version__.split("."))
+    v21, v22, v23 = tuple(int(v) for v in ver.split("."))
+
+    return (v11 < v21) or (v11 == v21 and v12 < v22) or ((v11, v12) == (v21, v22) and v13 < v23)
+
+
 @pytest.mark.parametrize("onnx_test", onnx_test_folders)
 @tvm.testing.parametrize_targets
 def test_onnx_nodes(target, dev, onnx_test):
@@ -5781,6 +5819,12 @@ def test_onnx_nodes(target, dev, onnx_test):
     target_specific_skips = target_skips.get(target_kind, [])
     if onnx_test in target_specific_skips:
         pytest.skip(f"Onnx test '{onnx_test}' not yet supported by TVM on {target_kind} targets")
+
+    if is_ort_version_lower_than("1.13.1") and onnx_test == "test_convtranspose_autopad_same":
+        pytest.skip(
+            f"Onnx test '{onnx_test}' expected to fail for onnxruntime version lower than 1.13.1 "
+            "due to different interpretation of auto_pad parameters SAME_UPPER and SAME_LOWER."
+        )
 
     test_dir = os.path.join(onnx_test_node_dir, onnx_test)
 

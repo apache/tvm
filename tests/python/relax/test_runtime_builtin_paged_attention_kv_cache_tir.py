@@ -607,11 +607,13 @@ def kv_cache_transpose_append(head_dim, dtype):
     ):
         ntoken = T.SizeVar("ntoken", "int32")
         num_pages = T.int32()
-
+        position_map_elem_offset = T.int32()
         pages = T.match_buffer(var_pages, (num_pages, 2, num_kv_heads, 16, head_dim), dtype)
         k_data = T.match_buffer(var_k_data, (ntoken, num_kv_heads, head_dim), dtype)
         v_data = T.match_buffer(var_v_data, (ntoken, num_kv_heads, head_dim), dtype)
-        position_map = T.match_buffer(var_position_map, (ntoken,), "int32")
+        position_map = T.match_buffer(
+            var_position_map, (ntoken,), "int32", elem_offset=position_map_elem_offset
+        )
 
         for global_pos, h, f in T.grid(ntoken, num_kv_heads, head_dim):
             if position_map[global_pos] != T.int32(-1):
@@ -649,9 +651,11 @@ def copy_cache(head_dim, dtype):
         seqlen = T.SizeVar("seqlen", "int64")
         page_size = T.int64()
         num_pages = T.int64()
-
+        position_map_elem_offset = T.int64()
         pages = T.match_buffer(var_pages, (num_pages, 2, num_kv_heads, page_size, head_dim), dtype)
-        position_map = T.match_buffer(var_position_map, (seqlen,), "int32")
+        position_map = T.match_buffer(
+            var_position_map, (seqlen,), "int32", elem_offset=position_map_elem_offset
+        )
         k_data = T.match_buffer(var_k_data, (num_layers, seqlen, num_kv_heads, head_dim), dtype)
         v_data = T.match_buffer(var_v_data, (num_layers, seqlen, num_kv_heads, head_dim), dtype)
 
@@ -727,11 +731,14 @@ def llama_rope_with_position_map(  # pylint: disable=too-many-arguments
             }
         )
         seq_len = T.int64()
+        position_map_elem_offset = T.int64()
         qkv = T.match_buffer(var_qkv, (seq_len, fused_heads, head_dim), dtype)
         q = T.match_buffer(var_q, (seq_len, num_q_heads, head_dim), dtype)
         k = T.match_buffer(var_k, (seq_len, num_kv_heads, head_dim), dtype)
         v = T.match_buffer(var_v, (seq_len, num_kv_heads, head_dim), dtype)
-        position_map = T.match_buffer(var_position_map, (seq_len,), "int32")
+        position_map = T.match_buffer(
+            var_position_map, (seq_len,), "int32", elem_offset=position_map_elem_offset
+        )
         for iters in T.grid(seq_len, fused_heads, head_dim):
             with T.block("llama_fused_rope"):
                 s, h, d = T.axis.remap("SSS", iters)
@@ -819,11 +826,11 @@ def _causal_mask(causal, row, col, kv_len, qo_len):
     )
 
 
-def _declare_length_info(var_length_info, batch_size, sliding_window):
+def _declare_length_info(var_length_info, batch_size, sliding_window, elem_offset):
     return (
-        T.match_buffer(var_length_info, (3, batch_size), "int32")
+        T.match_buffer(var_length_info, (3, batch_size), "int32", elem_offset=elem_offset)
         if sliding_window
-        else T.match_buffer(var_length_info, (batch_size,), "int32")
+        else T.match_buffer(var_length_info, (batch_size,), "int32", elem_offset=elem_offset)
     )
 
 
@@ -912,14 +919,20 @@ def _attention_prefill(
         total_len = T.int32(is_size_var=True)
         nnz_pages = T.int32(is_size_var=True)
         max_num_pages = T.int32(is_size_var=True)
+        q_indptr_elem_offset = T.int32(is_size_var=True)
+        page_indptr_elem_offset = T.int32(is_size_var=True)
+        page_values_elem_offset = T.int32(is_size_var=True)
+        k_rope_pos_offset_elem_offset = T.int32(is_size_var=True)
+        q_rope_position_elem_offset = T.int32(is_size_var=True)
+        length_info_elem_offset = T.int32(is_size_var=True)
 
         q = T.match_buffer(var_q, (total_len, h_q, d), dtype)
-        q_indptr = T.match_buffer(var_q_indptr, (batch_size + 1,), "int32")
+        q_indptr = T.match_buffer(var_q_indptr, (batch_size + 1,), "int32", elem_offset=q_indptr_elem_offset)
         pages = T.match_buffer(var_pages, (max_num_pages, 2, h_kv, 16, d), dtype)
-        page_indptr = T.match_buffer(var_page_indptr, (batch_size + 1,), "int32")
-        page_values = T.match_buffer(var_page_values, (nnz_pages,), "int32")
-        k_rope_pos_offset = T.match_buffer(var_k_rope_pos_offset, (batch_size,), "int32")
-        q_rope_position = T.match_buffer(var_q_rope_position, (total_len,), "int32")
+        page_indptr = T.match_buffer(var_page_indptr, (batch_size + 1,), "int32", elem_offset=page_indptr_elem_offset)
+        page_values = T.match_buffer(var_page_values, (nnz_pages,), "int32", elem_offset=page_values_elem_offset)
+        k_rope_pos_offset = T.match_buffer(var_k_rope_pos_offset, (batch_size,), "int32", elem_offset=k_rope_pos_offset_elem_offset)
+        q_rope_position = T.match_buffer(var_q_rope_position, (total_len,), "int32", elem_offset=q_rope_position_elem_offset)
         output = T.match_buffer(var_output, (total_len, h_q, d), dtype)
         lse = T.match_buffer(var_lse, (total_len, h_q), "float32")  # pylint: disable=unused-variable
         # The length information of the sequences.
@@ -930,7 +943,7 @@ def _attention_prefill(
         #   - "(2, i)" is the attn sink length of the sequence.
         # - It is in shape `(batch_size,)` when sliding window is disabled,
         #   denoting the "last_page_len".
-        length_info = _declare_length_info(var_length_info, batch_size, sliding_window)
+        length_info = _declare_length_info(var_length_info, batch_size, sliding_window, length_info_elem_offset)
 
         # kernel code
         for lbx in T.thread_binding(NUM_BLKS, thread="blockIdx.x"):
@@ -1273,15 +1286,20 @@ def _attention_decode(
         B = T.int32(is_size_var=True)
         nnz_pages = T.int32(is_size_var=True)
         max_num_pages = T.int32(is_size_var=True)
+        page_indptr_elem_offset = T.int32(is_size_var=True)
+        page_values_elem_offset = T.int32(is_size_var=True)
+        k_rope_pos_offset_elem_offset = T.int32(is_size_var=True)
+        q_rope_position_elem_offset = T.int32(is_size_var=True)
+        length_info_elem_offset = T.int32(is_size_var=True)
 
         Q = T.match_buffer(Q_handle, (B, H_qo, D), qkv_dtype)
         pages = T.match_buffer(
             pages_handle, (max_num_pages, 2, H_kv, 16, D), qkv_dtype
         )
-        page_table_indptr = T.match_buffer(page_table_indptr_handle, (B + 1,), "int32")
-        page_table_values = T.match_buffer(page_table_values_handle, (nnz_pages,), "int32")
-        k_rope_pos_offset = T.match_buffer(k_rope_pos_offset_handle, (B,), "int32")
-        q_rope_position = T.match_buffer(q_rope_position_handle, (B,), "int32")
+        page_table_indptr = T.match_buffer(page_table_indptr_handle, (B + 1,), "int32", elem_offset=page_indptr_elem_offset)
+        page_table_values = T.match_buffer(page_table_values_handle, (nnz_pages,), "int32", elem_offset=page_values_elem_offset)
+        k_rope_pos_offset = T.match_buffer(k_rope_pos_offset_handle, (B,), "int32", elem_offset=k_rope_pos_offset_elem_offset)
+        q_rope_position = T.match_buffer(q_rope_position_handle, (B,), "int32", elem_offset=q_rope_position_elem_offset)
         output = T.match_buffer(output_handle, (B, H_qo, D), qkv_dtype)
         lse = T.match_buffer(lse_handle, (B, H_qo), "float32")  # pylint: disable=unused-variable
         # The length information of the sequences.
@@ -1292,7 +1310,7 @@ def _attention_decode(
         #   - "(2, i)" is the attn sink length of the sequence.
         # - It is in shape `(batch_size,)` when sliding window is disabled,
         #   denoting the "last_page_len".
-        length_info = _declare_length_info(var_length_info, B, sliding_window)
+        length_info = _declare_length_info(var_length_info, B, sliding_window, length_info_elem_offset)
 
         sm_scale = 1.0 / math.sqrt(float(D)) * log2e
 
@@ -1515,14 +1533,18 @@ def _attention_prefill_ragged(
         batch_size = T.int32(is_size_var=True)
         qo_len = T.int32(is_size_var=True)
         kv_len = T.int32(is_size_var=True)
+        q_indptr_elem_offset = T.int32(is_size_var=True)
+        kv_indptr_elem_offset = T.int32(is_size_var=True)
+        q_rope_position_elem_offset = T.int32(is_size_var=True)
+        k_rope_pos_offset_elem_offset = T.int32(is_size_var=True)
 
         q = T.match_buffer(var_q, (qo_len, h_q, d), dtype)
-        q_indptr = T.match_buffer(var_q_indptr, (batch_size + 1,), "int32")
+        q_indptr = T.match_buffer(var_q_indptr, (batch_size + 1,), "int32", elem_offset=q_indptr_elem_offset)
         k = T.match_buffer(var_k, (kv_len, h_kv, d), dtype)
         v = T.match_buffer(var_v, (kv_len, h_kv, d), dtype)
-        kv_indptr = T.match_buffer(var_kv_indptr, (batch_size + 1,), "int32")
-        q_rope_position = T.match_buffer(var_q_rope_position, (qo_len,), "int32")
-        k_rope_pos_offset = T.match_buffer(var_k_rope_pos_offset, (batch_size,), "int32")
+        kv_indptr = T.match_buffer(var_kv_indptr, (batch_size + 1,), "int32", elem_offset=kv_indptr_elem_offset)
+        q_rope_position = T.match_buffer(var_q_rope_position, (qo_len,), "int32", elem_offset=q_rope_position_elem_offset)
+        k_rope_pos_offset = T.match_buffer(var_k_rope_pos_offset, (batch_size,), "int32", elem_offset=k_rope_pos_offset_elem_offset)
         output = T.match_buffer(var_output, (qo_len, h_q, d), dtype)
         lse = T.match_buffer(var_lse, (qo_len, h_q), "float32")  # pylint: disable=unused-variable
 

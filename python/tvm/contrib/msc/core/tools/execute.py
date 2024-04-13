@@ -70,6 +70,27 @@ def add_tool(tool: BaseTool, tool_type: str, tag: str = "main"):
     return tool
 
 
+def get_tool_cls(framework: str, tool_type: str, config: dict) -> BaseTool:
+    """Get the tool class
+
+    Parameters
+    -------
+    framework: str
+        The framework for implement
+    tool_type: str
+        The type of the tool prune| quantize| distill...
+    config: dict
+        The config of tool.
+    """
+
+    tool_style = config.pop("tool_style") if "tool_style" in config else "default"
+    tool_cls = msc_utils.get_registered_tool(framework, tool_type, tool_style)
+    assert tool_cls, "Can not find tool class for {}:{} @ {}".format(
+        tool_type, tool_style, framework
+    )
+    return tool_cls
+
+
 def create_tool(framework: str, tool_type: str, tag: str = "main", **config) -> BaseTool:
     """Create tool by type, config and tag
 
@@ -85,12 +106,8 @@ def create_tool(framework: str, tool_type: str, tag: str = "main", **config) -> 
         The config of tool.
     """
 
-    tool_style = config.pop("tool_style") if "tool_style" in config else "default"
-    tool_cls = msc_utils.get_registered_tool(framework, tool_type, tool_style)
-    assert tool_cls, "Can not find tool class for {}:{} @ {}".format(
-        tool_type, tool_style, framework
-    )
-    return add_tool(tool_cls(**config), tool_type, tag)
+    tool_cls = get_tool_cls(framework, tool_type, config)
+    return add_tool(tool_cls(tag, **config), tool_type, tag)
 
 
 def get_tool(tool_type: str, tag: str = "main") -> BaseTool:
