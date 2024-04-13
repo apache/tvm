@@ -15,7 +15,6 @@
 # specific language governing permissions and limitations
 # under the License.
 """A rule for low-batch GEMM / decode-GEMM using GEMV schedule."""
-import re
 from functools import reduce
 from typing import List, Optional, Set, Union
 
