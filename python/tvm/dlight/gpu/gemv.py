@@ -56,10 +56,9 @@ def get_extent(sch: tir.Schedule, loop_rv: tir.schedule.LoopRV):
 
 
 def get_bytes(dtype: Union[DataType, str]) -> int:
-    num = re.findall(r"\d+", dtype)
-    if len(num) != 1:
-        raise ValueError(f"Cannot get bytes from {dtype}")
-    return int(num[0]) // 8
+    if isinstance(dtype, str):
+        dtype = DataType(dtype)
+    return dtype.bits * dtype.lanes // 8
 
 
 def is_gemv(sch: tir.Schedule, block_info: BlockInfo) -> Optional[List[tir.Buffer]]:
@@ -297,10 +296,9 @@ class GEMV(GPUScheduleRule):
             Aq_local = sch.cache_read(rf, read_buffer_index=1, storage_scope="local")
             sch.compute_at(Aq_local, r, preserve_unit_loops=True)
             s_local, r_local = sch.get_loops(block=Aq_local)[-2:]
-            s_local, vec_load = sch.split(
-                s_local, factors=[None, VEC_LOAD], preserve_unit_iters=True
-            )
-            sch.reorder(s_local, r_local, vec_load)  # either s_local or r_local should be 1
+            fused_load = sch.fuse(s_local, r_local)
+            aq_vec_len = max(1, VEC_LOAD // get_bytes(sch.get(Aq_local).reads[0].buffer.dtype))
+            fused_load, vec_load = sch.split(fused_load, factors=[None, aq_vec_len], preserve_unit_iters=True)
             sch.vectorize(vec_load)
 
             # load vector into shared memory, shape should be the whole vector
@@ -442,10 +440,12 @@ class GEMV(GPUScheduleRule):
 
         TAG_S, TAG_R = "threadIdx.y", "threadIdx.x"
         SUPPORT_WARP_SHUFFLE = False
+        VEC_LOAD = 1
         if target.kind.name == "cuda":
             VEC_C = 4
             LOAD_V_SHARED = True
             LOAD_V_VEC = 8
+            VEC_LOAD = 4
             UNROLL = 256
             SUPPORT_WARP_SHUFFLE = True
             if isinstance(len_S, int):
@@ -522,7 +522,6 @@ class GEMV(GPUScheduleRule):
             else max(get_max_factor(len_r, [TR * 1, TR * 2, TR * 4, TR * 8]) // TR, 1),
         )
         VEC_C = min(get_max_factor(TILE_R, [1, 2, 4, 8]), VEC_C)
-        VEC_LOAD = 1
 
         return apply(
             sch,
