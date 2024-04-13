@@ -84,14 +84,21 @@ void FuncName(const String& name) {
 
 void FuncAttrs(Map<String, ObjectRef> attrs) {
   FunctionFrame frame = FindFunctionFrame("R.func_attr");
-  if (!frame->attrs.empty()) {
-    LOG(FATAL) << "ValueError: Duplicate function attrs, previous one is:\n" << frame->attrs;
+  for (const auto& [key, value] : attrs) {
+    if (key == tvm::attr::kGlobalSymbol && frame->is_private.value_or(Bool(false))->value) {
+      LOG(FATAL) << "ValueError: "
+                 << "A private function may not have the kGlobalSymbol (\""
+                 << tvm::attr::kGlobalSymbol << "\") attribute.  "
+                 << "However, a private function specified the global symbol as " << value;
+    }
+    if (auto prev = frame->attrs.Get(key)) {
+      LOG(FATAL) << "ValueError: "
+                 << "Duplicate R.func_attr annotation for key = \"" << key << "\".  "
+                 << "Previous value was " << prev.value() << ", with later definition as " << value;
+    } else {
+      frame->attrs.Set(key, value);
+    }
   }
-  if (attrs.count(tvm::attr::kGlobalSymbol) && frame->is_private.value_or(Bool(false))->value) {
-    LOG(FATAL) << "ValueError: Specifying a global symbol attribute even though the function is "
-                  "annotated as private";
-  }
-  frame->attrs = attrs;
 }
 
 void FuncRetStructInfo(const tvm::relax::StructInfo& ret_sinfo) {

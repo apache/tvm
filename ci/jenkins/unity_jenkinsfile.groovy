@@ -56,6 +56,10 @@ properties([
   ])
 ])
 
+// Global variable assigned during Sanity Check that holds the sha1 which should be
+// merged into the PR in all branches.
+upstream_revision = null
+
 // tvm libraries
 tvm_runtime = 'build/libtvm_runtime.so, build/config.cmake'
 tvm_lib = 'build/libtvm.so, ' + tvm_runtime
@@ -76,6 +80,28 @@ def per_exec_ws(folder) {
   return "workspace/exec_${env.EXECUTOR_NUMBER}/" + folder
 }
 
+def update_upstream_revision(git_ref) {
+  if (upstream_revision == null) {
+    upstream_revision = sh(
+      script: "git log -1 ${git_ref} --format=\'%H\'",
+      label: 'Determine upstream revision',
+      returnStdout: true,
+    ).trim()
+  }
+}
+
+def merge_with_main() {
+  sh (
+    script: 'git fetch origin main',
+    label: 'Fetch upstream',
+  )
+  update_upstream_revision("FETCH_HEAD")
+  sh (
+    script: "git -c user.name=TVM-Jenkins -c user.email=jenkins@tvm.apache.org merge ${upstream_revision}",
+    label: 'Merge to origin/main'
+  )
+}
+
 // initialize source codes
 def init_git() {
   checkout scm
@@ -84,8 +110,18 @@ def init_git() {
     script: './tests/scripts/task_show_node_info.sh',
     label: 'Show executor node info',
   )
-  retry(5) {
-    timeout(time: 2, unit: 'MINUTES') {
+
+  // Determine merge commit to use for all stages
+  if (env.BRANCH_NAME == 'main') {
+    // Only set upstream_revision to HEAD and skip merging to avoid a race with another commit merged to main.
+    update_upstream_revision("HEAD")
+  } else {
+    // This is PR branch so merge with latest main.
+    merge_with_main()
+  }
+
+  retry(3) {
+    timeout(time: 5, unit: 'MINUTES') {
       sh (script: 'git submodule update --init --recursive -f', label: 'Update git submodules')
     }
   }

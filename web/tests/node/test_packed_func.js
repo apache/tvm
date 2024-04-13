@@ -22,6 +22,9 @@ const fs = require("fs");
 const assert = require("assert");
 const tvmjs = require("../../dist/tvmjs.bundle")
 
+// for now skip exception testing
+// as it may not be compatible with asyncify
+const exceptionEnabled = false;
 const wasmPath = tvmjs.wasmPath();
 const wasmSource = fs.readFileSync(path.join(wasmPath, "tvmjs_runtime.wasm"));
 
@@ -124,6 +127,48 @@ test("RegisterGlobal", () => {
   let syslib = tvm.systemLib();
   syslib.dispose();
   tvm.endScope();
+});
+
+test("ExceptionPassing", () => {
+  if (!exceptionEnabled) return;
+
+  tvm.beginScope();
+  tvm.registerFunc("throw_error", function (msg) {
+    throw Error(msg);
+  });
+  let f = tvm.getGlobalFunc("throw_error");
+  try {
+    f("error-xyz");
+    throw Error("error not caught");
+  } catch (error) {
+    assert(error.message.indexOf("error-xyz") != -1);
+  }
+  tvm.endScope();
+});
+
+
+test("AsyncifyFunc", async () => {
+  if (!tvm.asyncifyEnabled()) {
+    console.log("Skip asyncify tests as it is not enabled..");
+    return;
+  }
+  tvm.beginScope();
+  tvm.registerAsyncifyFunc("async_sleep_echo", async function (x) {
+    await new Promise(resolve => setTimeout(resolve, 10));
+    return x;
+  });
+  let fecho = tvm.wrapAsyncifyPackedFunc(
+    tvm.getGlobalFunc("async_sleep_echo")
+  );
+  let fcall = tvm.wrapAsyncifyPackedFunc(
+    tvm.getGlobalFunc("testing.call")
+  );
+  assert((await fecho(1)) == 1);
+  assert((await fecho(2)) == 2);
+  assert((await fcall(fecho, 2) == 2));
+  tvm.endScope();
+  assert(fecho._tvmPackedCell.getHandle(false) == 0);
+  assert(fcall._tvmPackedCell.getHandle(false) == 0);
 });
 
 test("NDArrayCbArg", () => {

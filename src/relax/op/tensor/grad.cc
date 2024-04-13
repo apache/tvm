@@ -130,13 +130,15 @@ TVM_REGISTER_OP("relax.grad.nll_loss_backward")
 /* relax.grad.max_pool2d_backward */
 Expr max_pool2d_backward(Expr output_grad, Expr data, Array<IntImm> pool_size,
                          Array<IntImm> strides, Array<IntImm> padding, Array<IntImm> dilation,
-                         bool ceil_mode, String layout, Optional<String> out_layout) {
+                         bool ceil_mode, bool count_include_pad, String layout,
+                         Optional<String> out_layout) {
   auto attrs = make_object<Pool2DAttrs>();
   attrs->pool_size = std::move(pool_size);
   attrs->strides = ConvertIntImmToInt64(strides);
   attrs->padding = ConvertIntImmToInt64(padding);
   attrs->dilation = ConvertIntImmToInt64(dilation);
   attrs->ceil_mode = ceil_mode;
+  attrs->count_include_pad = count_include_pad;
   attrs->layout = layout;
   attrs->out_layout = out_layout.value_or(layout);
   static const Op& op = Op::Get("relax.grad.max_pool2d_backward");
@@ -160,13 +162,15 @@ TVM_REGISTER_OP("relax.grad.max_pool2d_backward")
 /* relax.grad.avg_pool2d_backward */
 Expr avg_pool2d_backward(Expr output_grad, Expr data, Array<IntImm> pool_size,
                          Array<IntImm> strides, Array<IntImm> padding, Array<IntImm> dilation,
-                         bool ceil_mode, String layout, Optional<String> out_layout) {
+                         bool ceil_mode, bool count_include_pad, String layout,
+                         Optional<String> out_layout) {
   auto attrs = make_object<Pool2DAttrs>();
   attrs->pool_size = std::move(pool_size);
   attrs->strides = ConvertIntImmToInt64(strides);
   attrs->padding = ConvertIntImmToInt64(padding);
   attrs->dilation = ConvertIntImmToInt64(dilation);
   attrs->ceil_mode = ceil_mode;
+  attrs->count_include_pad = count_include_pad;
   attrs->layout = layout;
   attrs->out_layout = out_layout.value_or(layout);
   static const Op& op = Op::Get("relax.grad.avg_pool2d_backward");

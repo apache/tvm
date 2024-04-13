@@ -17,9 +17,9 @@
 """tvm.contrib.msc.core.gym.control.controller"""
 
 from typing import Dict, Any
+from tvm.contrib.msc.core.gym.namespace import GYMObject, GYMAction
 from tvm.contrib.msc.core import utils as msc_utils
 from .service import MainService, NodeService
-from .namespace import GYMObject, GYMAction
 
 
 class BaseController(object):
@@ -98,10 +98,8 @@ def create_controller(stage: str, config: dict, extra_config: dict = None):
     return controller_cls(msc_utils.get_gym_dir(), config)
 
 
+@msc_utils.register_gym_controller
 class DefaultController(BaseController):
     @classmethod
     def control_type(cls):
         return "default"
-
-
-msc_utils.register_gym_controller(DefaultController)

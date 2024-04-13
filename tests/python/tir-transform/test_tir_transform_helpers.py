@@ -33,7 +33,7 @@ def test_annotate_entry_func_single_primfunc():
 
     mod = MockModule
     assert mod
-    assert mod["func1"].attrs is None
+    assert not mod["func1"].attrs
     after = tvm.tir.transform.AnnotateEntryFunc()(mod)
     assert (
         after["func1"].attrs
@@ -64,8 +64,8 @@ class MockModule:
 def test_annotate_entry_func_multiple_primfunc():
     mod = MockModule
     assert mod
-    assert mod["func1"].attrs is None
-    assert mod["func2"].attrs is None
+    assert not mod["func1"].attrs
+    assert not mod["func2"].attrs
     # This should fail
     after = tvm.tir.transform.AnnotateEntryFunc()(mod)
 
@@ -75,13 +75,13 @@ def test_bind_target():
     assert mod
 
     target = tvm.target.Target("cuda")
-    assert mod["func1"].attrs is None
-    assert mod["func2"].attrs is None
+    assert not mod["func1"].attrs
+    assert not mod["func2"].attrs
     after = tvm.tir.transform.BindTarget(target)(mod)
 
-    assert after["func1"].attrs and "target" in after["func1"].attrs
+    assert "target" in after["func1"].attrs
     assert after["func1"].attrs["target"] == target
-    assert after["func2"].attrs and "target" in after["func2"].attrs
+    assert "target" in after["func2"].attrs
     assert after["func2"].attrs["target"] == target
 
 
@@ -218,7 +218,7 @@ def test_filter_primfunc():
 
     # Test condition that does not filter out anything
     def checker_filter_out_none(func: tvm.tir.PrimFunc):
-        return (func.attrs is not None) and ("temp" in func.attrs)
+        return "temp" in func.attrs
 
     after = tvm.tir.transform.Filter(checker_filter_out_none)(mod)
     assert len(after.functions) == 2
@@ -228,7 +228,7 @@ def test_filter_primfunc():
 
     # Test condition that selectively filters out primfuncs
     def checker_filter_out_one(func: tvm.tir.PrimFunc):
-        return (func.attrs is not None) and ("temp" in func.attrs) and func.attrs["temp"] == "test1"
+        return ("temp" in func.attrs) and func.attrs["temp"] == "test1"
 
     after = tvm.tir.transform.Filter(checker_filter_out_one)(mod)
     assert len(after.functions) == 1
@@ -237,7 +237,7 @@ def test_filter_primfunc():
 
     # Test condition that filters out everything
     def checker_filter_out_both(func: tvm.tir.PrimFunc):
-        return (func.attrs is not None) and ("invalid_attr" in func.attrs)
+        return "invalid_attr" in func.attrs
 
     after = tvm.tir.transform.Filter(checker_filter_out_both)(mod)
     assert len(after.functions) == 0

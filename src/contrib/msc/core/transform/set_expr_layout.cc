@@ -509,6 +509,21 @@ InferLayoutOutput ForwardInferLayoutTake(const Call& call,
   return InferLayoutOutput({LayoutDecision("WE"), input_layout}, {output_layout}, Attrs());
 }
 
+InferLayoutOutput ForwardInferLayoutPlugin(const Call& call,
+                                           const Map<String, Array<String>>& desired_layouts,
+                                           const VarLayoutMap& var_layout_map) {
+  if (!call->args[0]->IsInstance<ExternFuncNode>()) {
+    return InferLayoutOutput();
+  }
+  const auto& name = Downcast<ExternFunc>(call->args[0])->global_symbol;
+  const auto* pf = runtime::Registry::Get("msc.plugin.op.InferLayout" + name);
+  if (pf == nullptr) {
+    return InferLayoutOutput();
+  }
+  const auto& args = Downcast<Tuple>(call->args[1]);
+  return (*pf)(args->fields, var_layout_map);
+}
+
 TVM_REGISTER_OP("relax.nn.conv1d")
     .set_attr<FRelaxInferLayout>("FMSCForwardInferLayout", MSCInferLayoutConv);
 TVM_REGISTER_OP("relax.nn.conv2d")
@@ -602,6 +617,10 @@ TVM_REGISTER_OP("relax.nn.group_norm")
     .set_attr<FRelaxInferLayout>("FMSCForwardInferLayout", ForwardInferLayoutNormalize);
 TVM_REGISTER_OP("relax.nn.layer_norm")
     .set_attr<FRelaxInferLayout>("FMSCForwardInferLayout", ForwardInferLayoutNormalize);
+
+// plugin op
+TVM_REGISTER_OP("relax.call_dps_packed")
+    .set_attr<FRelaxInferLayout>("FMSCForwardInferLayout", ForwardInferLayoutPlugin);
 
 // Backward Infer
 InferLayoutOutput BackwardInferLayoutCommon(const Call& call,

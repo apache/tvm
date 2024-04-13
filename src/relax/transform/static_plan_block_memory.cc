@@ -102,6 +102,8 @@ class StorageTokenNode : public Object {
   PrimExpr bytes;
   /*! \brief The dtype of this token. */
   DataType dtype;
+  /*! \brief The memory scope of the token. */
+  std::string storage_scope;
   /*! \brief The storage id, reserved for debug and demo use. */
   int storage_id{-1};
 
@@ -126,7 +128,7 @@ class StorageTokenNode : public Object {
  */
 class StorageToken : public ObjectRef {
  public:
-  explicit StorageToken(Array<PrimExpr> shape, DataType dtype) {
+  explicit StorageToken(Array<PrimExpr> shape, DataType dtype, std::string storage_scope) {
     // Compute the tensor size from the shape.
     int64_t const_coeff = dtype.bytes() * dtype.lanes();
     PrimExpr size = tir::make_const(DataType::Int(64), 1);
@@ -142,6 +144,7 @@ class StorageToken : public ObjectRef {
     ObjectPtr<StorageTokenNode> n = make_object<StorageTokenNode>();
     n->bytes = size;
     n->dtype = dtype;
+    n->storage_scope = std::move(storage_scope);
     data_ = std::move(n);
   }
   TVM_DEFINE_MUTABLE_NOTNULLABLE_OBJECT_REF_METHODS(StorageToken, ObjectRef, StorageTokenNode);
@@ -176,7 +179,8 @@ class TokenAllocator1D {
     }
 
     // Step 1. Get the available pool of the token dtype.
-    std::multimap<int64_t, StorageToken>& pool = available_pool_[prototype->dtype];
+    std::multimap<int64_t, StorageToken>& pool =
+        available_pool_[{prototype->storage_scope, prototype->dtype}];
 
     int64_t size = prototype->const_bytes();
     if (size == -1) {
@@ -250,7 +254,7 @@ class TokenAllocator1D {
     ICHECK_GE(token->storage_id, 0)
         << "The token to be released is expected to be allocated before";
     ICHECK_EQ(token->ref_counter, 0) << "The token to be released is expected to have 0 reference.";
-    available_pool_[token->dtype].insert({token->const_bytes(), token});
+    available_pool_[{token->storage_scope, token->dtype}].insert({token->const_bytes(), token});
   }
 
   /*! \brief Clear the allocator. */
@@ -260,12 +264,24 @@ class TokenAllocator1D {
   }
 
  private:
+  /*! \brief The hash class to enable std::pair as map key class. */
+  struct PairHash {
+    template <class T1, class T2>
+    std::size_t operator()(const std::pair<T1, T2>& p) const {
+      auto h1 = std::hash<T1>{}(p.first);
+      auto h2 = std::hash<T2>{}(p.second);
+      return h1 ^ h2;
+    }
+  };
+
   /*! \brief The arithmetic analyzer. */
   arith::Analyzer* analyzer_;
   /*! \brief A constant scale representing the token search range. */
   const int match_range_{16};
-  /*! \brief The pool of available storage tokens for each dtype. */
-  std::unordered_map<DataType, std::multimap<int64_t, StorageToken>> available_pool_;
+  /*! \brief The pool of available storage tokens for each storage scope and dtype. */
+  std::unordered_map<std::pair<std::string, DataType>, std::multimap<int64_t, StorageToken>,
+                     PairHash>
+      available_pool_;
   /*! \brief All the storage tokens that have been allocated with actual storage. */
   std::vector<StorageToken> full_pool_;
 };
@@ -337,8 +353,10 @@ class StorageAllocatorBaseVisitor : public ExprVisitor {
  * the input function signature in the analyzer.
  * \param func The function to be analyzed.
  * \param ana The analyzer which contains the TIR var upper bounds.
+ * \param dom_map The domain map of the TIR variables.
  */
-void SetTIRVarUpperBound(Function func, arith::Analyzer* ana) {
+void SetTIRVarUpperBound(Function func, arith::Analyzer* ana,
+                         Map<tir::Var, arith::IntSet>* dom_map) {
   // Use the attribute-annotated TIR var upper bounds as the TIR var values for
   // memory planning.
   // NOTE: we only apply the annotated upper bounds to the TIR variables that
@@ -346,7 +364,10 @@ void SetTIRVarUpperBound(Function func, arith::Analyzer* ana) {
   Map<ObjectRef, ObjectRef> var_upper_bound_attr_raw =
       func->GetAttr<Map<ObjectRef, ObjectRef>>("tir_var_upper_bound")
           .value_or(Map<ObjectRef, ObjectRef>());
+  Array<ObjectRef> non_negative_var_attr_raw =
+      func->GetAttr<Array<ObjectRef>>("tir_non_negative_var").value_or(Array<ObjectRef>());
   std::unordered_map<String, IntImm> var_upper_bound_attr;
+  std::unordered_set<String> non_negative_var_attr;
   // We manually check the value type to ensure the values are all positive IntImm.
   for (auto it : var_upper_bound_attr_raw) {
     const auto* key = it.first.as<StringObj>();
@@ -362,13 +383,23 @@ void SetTIRVarUpperBound(Function func, arith::Analyzer* ana) {
         << value->value << " is got.";
     var_upper_bound_attr[GetRef<String>(key)] = GetRef<IntImm>(value);
   }
+  for (ObjectRef var_name : non_negative_var_attr_raw) {
+    const auto* key = var_name.as<StringObj>();
+    CHECK(key != nullptr) << "The element of attr `tir_non_negative_var` should be string. However "
+                          << key->GetTypeKey() << " is got.";
+    non_negative_var_attr.insert(GetRef<String>(key));
+  }
   Array<tir::Var> var_in_signature = TIRVarsInStructInfo(GetStructInfo(func));
   for (const tir::Var& tir_var : var_in_signature) {
     auto it = var_upper_bound_attr.find(tir_var->name_hint);
     if (it != var_upper_bound_attr.end()) {
-      ana->Bind(tir_var,
-                tvm::Range::FromMinExtent(tvm::IntImm(DataType::Int(64), 0),
-                                          tvm::IntImm(DataType::Int(64), (*it).second->value + 1)));
+      tvm::Range range =
+          tvm::Range::FromMinExtent(tvm::IntImm(DataType::Int(64), 0),
+                                    tvm::IntImm(DataType::Int(64), (*it).second->value + 1));
+      ana->Bind(tir_var, range);
+      dom_map->Set(tir_var, arith::IntSet::FromRange(range));
+    } else if (non_negative_var_attr.count(tir_var->name_hint)) {
+      ana->MarkGlobalNonNegValue(tir_var);
     }
   }
 }
@@ -382,14 +413,20 @@ void SetTIRVarUpperBound(Function func, arith::Analyzer* ana) {
  * \return The upper-bounded shape. When a dimension's upper bound
  * cannot be determined, we keep the dimension unchanged.
  */
-Array<PrimExpr> GetUpperBoundShape(Array<PrimExpr> shape, arith::Analyzer* ana) {
+Array<PrimExpr> GetUpperBoundShape(Array<PrimExpr> shape, arith::Analyzer* ana,
+                                   const Map<tir::Var, arith::IntSet>& dom_map) {
   // Use the upper bounds of TIR vars as their values.
   Array<PrimExpr> upper_bounded_shape;
   upper_bounded_shape.reserve(shape.size());
   for (const PrimExpr& dim_len : shape) {
     int64_t max_bound = ana->const_int_bound(dim_len)->max_value;
     if (max_bound == std::numeric_limits<int64_t>::max()) {
-      upper_bounded_shape.push_back(dim_len);
+      arith::IntSet int_set = ana->int_set(dim_len, dom_map);
+      if (int_set.HasUpperBound()) {
+        upper_bounded_shape.push_back(int_set.max());
+      } else {
+        upper_bounded_shape.push_back(dim_len);
+      }
     } else {
       upper_bounded_shape.push_back(tvm::IntImm(DataType::Int(64), max_bound));
     }
@@ -446,7 +483,7 @@ class StorageAllocatorInit : public StorageAllocatorBaseVisitor {
 
   void VisitExpr_(const FunctionNode* func) final {
     // Set the upper bound of TIR variables in the analyzer.
-    SetTIRVarUpperBound(GetRef<Function>(func), analyzer_);
+    SetTIRVarUpperBound(GetRef<Function>(func), analyzer_, &dom_map_);
     // Recurse into the function to get its tokens.
     Tokens body_tokens = GetTokens(func->body);
     // Discard the tokens used by the function return value, as they are external referenced.
@@ -549,10 +586,11 @@ class StorageAllocatorInit : public StorageAllocatorBaseVisitor {
 
     // Use the upper bounds of TIR vars as their values. The upper bound shape can still be dynamic
     // if the upper bounds of some variables are not provided.
-    Array<PrimExpr> upper_bounded_shape = GetUpperBoundShape(shape->values, analyzer_);
+    Array<PrimExpr> upper_bounded_shape = GetUpperBoundShape(shape->values, analyzer_, dom_map_);
 
     // Create and set token.
-    StorageToken token(upper_bounded_shape, sinfo->dtype);
+    StringImm storage_scope = Downcast<StringImm>(call->args[3]);
+    StorageToken token(upper_bounded_shape, sinfo->dtype, storage_scope->value);
 
     Tokens tokens(token);
     SetTokens(call, tokens);
@@ -624,6 +662,8 @@ class StorageAllocatorInit : public StorageAllocatorBaseVisitor {
   const IRModule& ctx_mod_;
   /*! \brief The arithmetic analyzer. */
   arith::Analyzer* analyzer_;
+  /*! \brief The domain map of dynamic TIR variables for analysis. */
+  Map<tir::Var, arith::IntSet> dom_map_;
   /*! \brief The mapping from each token to the binding block where it is created. */
   std::unordered_map<const StorageTokenNode*, const BindingBlockNode*> token2block_;
   /*! \brief The mapping from each token to the Exprs that are using this token. */
@@ -799,7 +839,7 @@ class StorageAllocationRewriter : public ExprMutator {
       plan_dynamic_output_ = static_cast<bool>(
           func_->GetAttr<IntImm>(plan_dyn_attr_).value_or(IntImm(DataType::Int(32), 0))->value);
       if (plan_dynamic_output_) {
-        SetTIRVarUpperBound(GetRef<Function>(func_), &ana_);
+        SetTIRVarUpperBound(GetRef<Function>(func_), &ana_, &dom_map_);
       }
       token2storage_var_.clear();
       Function func = Downcast<Function>(this->VisitExpr_(func_));
@@ -835,12 +875,11 @@ class StorageAllocationRewriter : public ExprMutator {
       if (it_token == token2storage_var_.end()) {
         ShapeExpr size({token->bytes});
         PrimValue virtual_device_index = runtime_device_index;
-        std::string storage_scope = "global";
         DataType dtype = token->dtype;
-        Call alloc_storage(
-            mem_alloc_storage,
-            {std::move(size), virtual_device_index, StringImm(storage_scope), DataTypeImm(dtype)},
-            Attrs());
+        Call alloc_storage(mem_alloc_storage,
+                           {std::move(size), virtual_device_index, StringImm(token->storage_scope),
+                            DataTypeImm(dtype)},
+                           Attrs());
         storage_var = builder_->Emit(alloc_storage, "storage");
         token2storage_var_[token.get()] = storage_var;
       } else {
@@ -863,7 +902,7 @@ class StorageAllocationRewriter : public ExprMutator {
       ICHECK_NOTNULL(sinfo);
       const auto* shape = sinfo->shape.as<ShapeExprNode>();
       ICHECK_NOTNULL(shape);
-      Array<PrimExpr> upper_bounded_shape = GetUpperBoundShape(shape->values, &ana_);
+      Array<PrimExpr> upper_bounded_shape = GetUpperBoundShape(shape->values, &ana_, dom_map_);
       if (!IsStaticShape(shape->values)) {
         ICHECK(!sinfo->IsUnknownDtype());
         ICHECK_EQ(sinfo->dtype, Downcast<DataTypeImm>(call->args[1])->value);
@@ -875,7 +914,7 @@ class StorageAllocationRewriter : public ExprMutator {
         Call alloc_storage(mem_alloc_storage,
                            {/*size=*/ShapeExpr({bytes}),
                             /*virtual_device_index=*/Downcast<PrimValue>(call->args[2]),
-                            /*storage_scope=*/StringImm("global"),  //
+                            /*storage_scope=*/Downcast<StringImm>(call->args[3]),  //
                             /*dtype=*/DataTypeImm(sinfo->dtype)});
         Var storage = builder_->Emit(alloc_storage, "storage");
         return Call(mem_alloc_tensor, {storage,  //
@@ -890,6 +929,8 @@ class StorageAllocationRewriter : public ExprMutator {
 
   /*! \brief The arithmetic analyzer. */
   arith::Analyzer ana_;
+  /*! \brief The domain map of dynamic TIR variables for analysis. */
+  Map<tir::Var, arith::IntSet> dom_map_;
   /*! \brief A boolean indicating whether to plan dynamic-shape function output tensors. */
   bool plan_dynamic_output_;
   /*!

@@ -189,4 +189,58 @@ TVM_REGISTER_GLOBAL("testing.ReturnsVariant").set_body_typed([](int x) -> Varian
 TVM_REGISTER_GLOBAL("testing.AcceptsVariant")
     .set_body_typed([](Variant<String, Integer> arg) -> String { return arg->GetTypeKey(); });
 
+/**
+ * Simple event logger that can be used for testing purposes
+ */
+class TestingEventLogger {
+ public:
+  struct Entry {
+    String event;
+    double time_us;
+  };
+
+  TestingEventLogger() {
+    entries_.reserve(1024);
+    start_ = std::chrono::high_resolution_clock::now();
+  }
+
+  void Record(String event) {
+    auto tend = std::chrono::high_resolution_clock::now();
+    double time_us = static_cast<double>((tend - start_).count()) / 1e3;
+    entries_.emplace_back(Entry{event, time_us});
+  }
+
+  void Reset() { entries_.clear(); }
+
+  void Dump() const {
+    for (const Entry& e : entries_) {
+      LOG(INFO) << e.event << "\t" << e.time_us << " us";
+    }
+  }
+
+  static TestingEventLogger* ThreadLocal() {
+    thread_local TestingEventLogger inst;
+    return &inst;
+  }
+
+ private:
+  std::chrono::high_resolution_clock::time_point start_;
+  std::vector<Entry> entries_;
+};
+
+TVM_REGISTER_GLOBAL("testing.record_event").set_body([](TVMArgs args, TVMRetValue* rv) {
+  if (args.size() != 0 && args[0].type_code() == kTVMStr) {
+    TestingEventLogger::ThreadLocal()->Record(args[0]);
+  } else {
+    TestingEventLogger::ThreadLocal()->Record("X");
+  }
+});
+
+TVM_REGISTER_GLOBAL("testing.reset_events").set_body([](TVMArgs args, TVMRetValue* rv) {
+  TestingEventLogger::ThreadLocal()->Reset();
+});
+
+TVM_REGISTER_GLOBAL("testing.dump_events").set_body_typed([]() {
+  TestingEventLogger::ThreadLocal()->Dump();
+});
 }  // namespace tvm

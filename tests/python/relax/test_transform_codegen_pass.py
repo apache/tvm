@@ -352,6 +352,35 @@ def test_dynamic_shape():
     tvm.ir.assert_structural_equal(after["main"], Expected["main"])
 
 
+def test_no_op_for_call_to_tir():
+    """Calls to PrimFunc are ignored
+
+    RunCodegen should only update calls to Relax functions annotated
+    with the `"Codegen"` attribute.  Calls to any other function type
+    should be ignored.
+
+    This is a regression test.  Previous implementations performed an
+    unconditional cast from `tvm::BaseFunc` to `tvm::relax::Function`,
+    which produced an error.
+    """
+
+    @tvm.script.ir_module
+    class Before:
+        @R.function
+        def main(x: R.Tensor):
+            R.func_attr({"relax.force_pure": True})
+            _ = Before.shape_func(x)
+            return x
+
+        @T.prim_func(private=True)
+        def shape_func(H: T.Buffer(T.int64(4), "int64")):
+            H[T.int64(0)] = H[T.int64(0)] + T.int64(1)
+
+    Expected = Before
+    After = relax.transform.RunCodegen()(Before)
+    tvm.ir.assert_structural_equal(Expected, After)
+
+
 # TODO(@sunggg):  test with more complex patterns (e.g., multiple annots, mixed codegens, different ops, const binding)
 
 if __name__ == "__main__":

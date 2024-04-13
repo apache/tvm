@@ -22,6 +22,7 @@
  * \brief The hexagon graph related builtin functions for Relax virtual machine.
  */
 
+#include <tvm/runtime/device_api.h>
 #include <tvm/runtime/packed_func.h>
 #include <tvm/runtime/registry.h>
 #include <tvm/runtime/relax_vm/vm.h>
@@ -38,13 +39,14 @@ TVM_REGISTER_GLOBAL("vm.builtin.hexagon.dma_copy")
       const DLTensor* sptr = src_arr.operator->();
       void* dst = dptr->data;
       void* src = sptr->data;
-      uint32_t size = 1;
       int ret = DMA_RETRY;
-      for (int i = 0; i < dptr->ndim; i++) {
-        size = size * dptr->shape[i];
-      }
-      size = size * sizeof(dptr->dtype);
+
+      CHECK_EQ(GetDataSize(*dptr), GetDataSize(*sptr));
+      auto size = GetDataSize(*dptr);
       ICHECK(size > 0);
+      if (bypass_cache)
+        qurt_mem_cache_clean(reinterpret_cast<qurt_addr_t>(src), size, QURT_MEM_CACHE_INVALIDATE,
+                             QURT_MEM_DCACHE);
       do {
         ret = tvm::runtime::hexagon::HexagonDeviceAPI::Global()->UserDMA()->Copy(
             queue_id, dst, src, size, bypass_cache);
@@ -53,9 +55,17 @@ TVM_REGISTER_GLOBAL("vm.builtin.hexagon.dma_copy")
     });
 
 TVM_REGISTER_GLOBAL("vm.builtin.hexagon.dma_wait")
-    .set_body_typed([](TVMArgValue vm_ptr, int queue_id, int inflight_dma) {
+    .set_body_typed([](TVMArgValue vm_ptr, int queue_id, int inflight_dma, bool bypass_cache,
+                       [[maybe_unused]] NDArray src_arr, [[maybe_unused]] NDArray dst_arr) {
       ICHECK(inflight_dma >= 0);
       tvm::runtime::hexagon::HexagonDeviceAPI::Global()->UserDMA()->Wait(queue_id, inflight_dma);
+      if (bypass_cache) {
+        const DLTensor* dptr = dst_arr.operator->();
+        void* dst = dptr->data;
+        auto size = GetDataSize(*dptr);
+        qurt_mem_cache_clean(reinterpret_cast<qurt_addr_t>(dst), size, QURT_MEM_CACHE_FLUSH,
+                             QURT_MEM_DCACHE);
+      }
     });
 }  // namespace relax_vm
 }  // namespace runtime

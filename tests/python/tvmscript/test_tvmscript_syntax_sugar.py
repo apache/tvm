@@ -492,5 +492,19 @@ def test_foldable_boolean_in_assert():
     assert_structural_equal_ignore_global_symbol(implicit, explicit)
 
 
+def test_return_statement():
+    """A python `return` statement uses `T.ret`"""
+
+    @T.prim_func
+    def explicit():
+        T.evaluate(T.ret(5))
+
+    @T.prim_func
+    def implicit():
+        return 5
+
+    assert_structural_equal_ignore_global_symbol(implicit, explicit)
+
+
 if __name__ == "__main__":
     tvm.testing.main()

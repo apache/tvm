@@ -31,15 +31,17 @@ import tvm.testing
 
 # pylint: disable=invalid-name, missing-class-docstring, missing-function-docstring, no-self-argument
 
+data_type = "int32"
+
 
 @I.ir_module
 class Module_1D:
     @T.prim_func
     def compute_add_in_vtcm(a: T.handle, b: T.handle, c: T.handle) -> None:
         m = T.int32()
-        A = T.match_buffer(a, (m,), "int32", scope="global.vtcm")
-        B = T.match_buffer(b, (m,), "int32", scope="global.vtcm")
-        C = T.match_buffer(c, (m,), "int32", scope="global.vtcm")
+        A = T.match_buffer(a, (m,), data_type, scope="global.vtcm")
+        B = T.match_buffer(b, (m,), data_type, scope="global.vtcm")
+        C = T.match_buffer(c, (m,), data_type, scope="global.vtcm")
         for ax0 in T.grid(m):
             with T.block("T_add"):
                 v_ax0 = T.axis.remap("S", [ax0])
@@ -47,100 +49,80 @@ class Module_1D:
                 T.writes(C[v_ax0])
                 C[v_ax0] = A[v_ax0] + B[v_ax0]
 
-    @R.function
+    @R.function(pure=False)
     def main(
-        x: R.Tensor((12800,), "int32"),
-        y: R.Tensor((12800,), "int32"),
-    ) -> R.Tensor((12800,), "int32"):
+        x: R.Tensor((12800,), data_type),
+        y: R.Tensor((12800,), data_type),
+    ) -> R.Tensor((12800,), data_type):
         cls = Module_1D
-        vtcm_obj_a: R.Object = R.vm.alloc_storage(
+        vtcm_obj: R.Object = R.vm.alloc_storage(
             R.shape(
                 [
-                    12800,
+                    3 * 12800,  # 3 = 2 inputs + 1 output
                 ]
             ),
             runtime_device_index=0,
-            dtype="int32",
+            dtype=data_type,
             storage_scope="global.vtcm",
         )
-        a: R.Tensor([12800,], dtype="int32") = R.vm.alloc_tensor(
-            vtcm_obj_a,
+        a: R.Tensor([12800,], dtype=data_type) = R.vm.alloc_tensor(
+            vtcm_obj,
             offset=0,
             shape=R.shape(
                 [
                     12800,
                 ]
             ),
-            dtype="int32",
+            dtype=data_type,
         )
         __: R.Tuple = R.call_builtin_with_ctx(
             "vm.builtin.hexagon.dma_copy",
             [x, a, 0, True],
             sinfo_args=[],
         )
-        vtcm_obj_b: R.Object = R.vm.alloc_storage(
-            R.shape(
-                [
-                    12800,
-                ]
-            ),
-            runtime_device_index=0,
-            dtype="int32",
-            storage_scope="global.vtcm",
-        )
-        b: R.Tensor([12800,], dtype="int32") = R.vm.alloc_tensor(
-            vtcm_obj_b,
-            offset=0,
+        b: R.Tensor([12800,], dtype=data_type) = R.vm.alloc_tensor(
+            vtcm_obj,
+            offset=12800 * 4,
             shape=R.shape(
                 [
                     12800,
                 ]
             ),
-            dtype="int32",
+            dtype=data_type,
         )
         __: R.Tuple = R.call_builtin_with_ctx(
             "vm.builtin.hexagon.dma_copy",
             [y, b, 1, True],
             sinfo_args=[],
         )
-        vtcm_obj_c: R.Object = R.vm.alloc_storage(
-            R.shape(
-                [
-                    12800,
-                ]
-            ),
-            runtime_device_index=0,
-            dtype="int32",
-            storage_scope="global.vtcm",
-        )
-        c: R.Tensor([12800,], dtype="int32") = R.vm.alloc_tensor(
-            vtcm_obj_c,
-            offset=0,
+        c: R.Tensor([12800,], dtype=data_type) = R.vm.alloc_tensor(
+            vtcm_obj,
+            offset=2 * 12800 * 4,
             shape=R.shape(
                 [
                     12800,
                 ]
             ),
-            dtype="int32",
+            dtype=data_type,
         )
         __: R.Tuple = R.call_builtin_with_ctx(
             "vm.builtin.hexagon.dma_wait",
-            [0, 2],
+            [0, 2, True, x, a],
             sinfo_args=[],
         )
         __: R.Tuple = R.call_builtin_with_ctx(
             "vm.builtin.hexagon.dma_wait",
-            [1, 1],
+            [1, 1, True, y, b],
             sinfo_args=[],
         )
         ___: R.Tuple = cls.compute_add_in_vtcm(a, b, c)
-        ret_val: R.Tensor((12800,), dtype="int32") = R.builtin.alloc_tensor(
+        ret_val: R.Tensor((12800,), dtype=data_type) = R.builtin.alloc_tensor(
             R.shape(
                 [
                     12800,
                 ]
             ),
-            R.dtype("int32"),
+            R.dtype(data_type),
             R.prim_value(0),
         )
         __: R.Tuple = R.call_builtin_with_ctx(
@@ -148,18 +130,16 @@ class Module_1D:
             [c, ret_val, 0, True],
             sinfo_args=[],
         )
-        _t3: R.Tuple = R.vm.kill_object(vtcm_obj_a)
-        _t4: R.Tuple = R.vm.kill_object(vtcm_obj_b)
-        _t6: R.Tuple = R.vm.kill_object(a)
-        _t7: R.Tuple = R.vm.kill_object(b)
         __: R.Tuple = R.call_builtin_with_ctx(
             "vm.builtin.hexagon.dma_wait",
-            [0, 1],
+            [0, 1, True, c, ret_val],
             sinfo_args=[],
         )
-        _t5: R.Tuple = R.vm.kill_object(vtcm_obj_c)
+        _t3: R.Tuple = R.vm.kill_object(vtcm_obj)
+        _t6: R.Tuple = R.vm.kill_object(a)
+        _t7: R.Tuple = R.vm.kill_object(b)
         _t8: R.Tuple = R.vm.kill_object(c)
-        lv: R.Tensor((12800,), dtype="int32") = ret_val
+        lv: R.Tensor((12800,), dtype=data_type) = ret_val
         return lv
 
 
@@ -177,8 +157,8 @@ class TestDMACopyWait:
             ex = relax.build(mod=module, target=target, exec_mode=mode)
         with hexagon_launcher.create_session() as session:
             dev = session.device
-            input_arg0_data = np.random.randint(0, 9, size=(12800,), dtype="int32")
-            input_arg1_data = np.random.randint(0, 9, size=(12800,), dtype="int32")
+            input_arg0_data = np.random.randint(0, 9, size=(12800,), dtype=data_type)
+            input_arg1_data = np.random.randint(0, 9, size=(12800,), dtype=data_type)
             output_data = np.add(input_arg0_data, input_arg1_data)
             vm_mod = session.get_executor_from_factory(ex)
             vm_rt = relax.VirtualMachine(

@@ -114,6 +114,10 @@ class DictAttrs(Attrs):
     def __getitem__(self, k):
         return self._dict().__getitem__(k)
 
+    def get(self, key, default=None):
+        """Get an element with a default value."""
+        return self._dict().get(key, default)
+
     def __contains__(self, k):
         return self._dict().__contains__(k)
 
@@ -153,7 +157,7 @@ def make_node(type_key, **kwargs):
 
     .. code-block:: python
 
-       x = tvm.ir.make_node("IntImm", dtype="int32", value=10)
+       x = tvm.ir.make_node("IntImm", dtype="int32", value=10, span=None)
        assert isinstance(x, tvm.tir.IntImm)
        assert x.value == 10
     """

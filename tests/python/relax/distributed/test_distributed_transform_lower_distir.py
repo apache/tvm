@@ -136,7 +136,7 @@ def test_mlp():
             )
             return lv3
 
-    @I.ir_module
+    @I.ir_module(check_well_formed=False)
     class LoweredMLP:
         I.module_attrs({"device_num": 10})
         I.module_global_infos(
@@ -331,7 +331,7 @@ def test_mlp_with_tuple():
             )
             return lv4
 
-    @I.ir_module
+    @I.ir_module(check_well_formed=False)
     class LoweredMLPWithTuple:
         I.module_attrs({"device_num": 10})
         I.module_global_infos(

@@ -36,7 +36,7 @@ requires_tensorrt = pytest.mark.skipif(
 def _get_config(
     model_type,
     compile_type,
-    tools_config,
+    tools,
     inputs,
     outputs,
     atol=1e-2,
@@ -45,7 +45,7 @@ def _get_config(
 ):
     """Get msc config"""
 
-    path = "_".join(["test_tools", model_type, compile_type] + list(tools_config.keys()))
+    path = "_".join(["test_tools", model_type, compile_type] + [t["tool_type"] for t in tools])
     return {
         "workspace": msc_utils.msc_dir(path),
         "verbose": "critical",
@@ -53,6 +53,7 @@ def _get_config(
         "inputs": inputs,
         "outputs": outputs,
         "dataset": {"prepare": {"loader": "from_random", "max_iter": 5}},
+        "tools": tools,
         "prepare": {"profile": {"benchmark": {"repeat": 10}}},
         "baseline": {
             "run_type": model_type,
@@ -61,7 +62,6 @@ def _get_config(
         "optimize": {
             "run_type": optimize_type or model_type,
             "profile": {"check": {"atol": atol, "rtol": rtol}, "benchmark": {"repeat": 10}},
-            **tools_config,
         },
         "compile": {
             "run_type": compile_type,
@@ -70,79 +70,93 @@ def _get_config(
     }
 
 
-def get_tool_config(tool_type, use_distill=False):
+def get_tools(tool_type, use_distill=False, run_type=MSCFramework.MSC):
     """Get config for the tool"""
 
-    config = {}
+    tools = []
     if tool_type == ToolType.PRUNER:
         config = {
             "plan_file": "msc_pruner.json",
-            "strategys": [{"method": "per_channel", "density": 0.8}],
+            "strategys": [
+                {
+                    "methods": {
+                        "weights": {"method_name": "per_channel", "density": 0.8},
+                        "output": {"method_name": "per_channel", "density": 0.8},
+                    }
+                }
+            ],
         }
+        tools.append({"tool_type": ToolType.PRUNER, "tool_config": config})
     elif tool_type == ToolType.QUANTIZER:
         # pylint: disable=import-outside-toplevel
         from tvm.contrib.msc.core.tools.quantize import QuantizeStage
 
-        config = {
-            "plan_file": "msc_quantizer.json",
-            "strategys": [
-                {
-                    "method": "gather_maxmin",
-                    "op_types": ["nn.conv2d", "msc.linear"],
-                    "tensor_types": ["input", "output"],
-                    "stages": [QuantizeStage.GATHER],
-                },
-                {
-                    "method": "gather_max_per_channel",
-                    "op_types": ["nn.conv2d", "msc.linear"],
-                    "tensor_types": ["weight"],
-                    "stages": [QuantizeStage.GATHER],
-                },
-                {
-                    "method": "calibrate_maxmin",
-                    "op_types": ["nn.conv2d", "msc.linear"],
-                    "tensor_types": ["input", "output"],
-                    "stages": [QuantizeStage.CALIBRATE],
-                },
-                {
-                    "method": "quantize_normal",
-                    "op_types": ["nn.conv2d", "msc.linear"],
-                    "tensor_types": ["input", "weight"],
-                },
-                {
-                    "method": "dequantize_normal",
-                    "op_types": ["nn.conv2d", "msc.linear"],
-                    "tensor_types": ["output"],
-                },
-            ],
-        }
+        if run_type == MSCFramework.TENSORRT:
+            config = {"plan_file": "msc_quantizer.json", "strategys": []}
+        else:
+            op_types = ["nn.conv2d", "msc.conv2d_bias", "msc.linear", "msc.linear_bias"]
+            config = {
+                "plan_file": "msc_quantizer.json",
+                "strategys": [
+                    {
+                        "methods": {
+                            "input": "gather_maxmin",
+                            "output": "gather_maxmin",
+                            "weights": "gather_max_per_channel",
+                        },
+                        "op_types": op_types,
+                        "stages": [QuantizeStage.GATHER],
+                    },
+                    {
+                        "methods": {"input": "calibrate_maxmin", "output": "calibrate_maxmin"},
+                        "op_types": op_types,
+                        "stages": [QuantizeStage.CALIBRATE],
+                    },
+                    {
+                        "methods": {
+                            "input": "quantize_normal",
+                            "weights": "quantize_normal",
+                            "output": "dequantize_normal",
+                        },
+                        "op_types": op_types,
+                    },
+                ],
+            }
+        tools.append({"tool_type": ToolType.QUANTIZER, "tool_config": config})
     elif tool_type == ToolType.TRACKER:
+        # pylint: disable=import-outside-toplevel
+        from tvm.contrib.msc.core.utils import MSCStage
+
         config = {
             "plan_file": "msc_tracker.json",
             "strategys": [
                 {
-                    "method": "save_compared",
-                    "compare_to": {
-                        "optimize": ["baseline"],
-                        "compile": ["optimize", "baseline"],
+                    "methods": {
+                        "output": {
+                            "method_name": "save_compared",
+                            "compare_to": {
+                                MSCStage.OPTIMIZE: [MSCStage.BASELINE],
+                                MSCStage.COMPILE: [MSCStage.OPTIMIZE, MSCStage.BASELINE],
+                            },
+                        }
                     },
                     "op_types": ["nn.relu"],
-                    "tensor_types": ["output"],
                 }
             ],
         }
+        tools.append({"tool_type": ToolType.TRACKER, "tool_config": config})
     if use_distill:
-        distill_config = {
+        config = {
             "plan_file": "msc_distiller.json",
             "strategys": [
                 {
-                    "method": "loss_lp_norm",
-                    "op_types": ["loss"],
+                    "methods": {"mark": "loss_lp_norm"},
+                    "marks": ["loss"],
                 },
             ],
         }
-        return {tool_type: config, ToolType.DISTILLER: distill_config}
-    return {tool_type: config}
+        tools.append({"tool_type": ToolType.DISTILLER, "tool_config": config})
+    return tools
 
 
 def _get_torch_model(name, training=False):
@@ -166,7 +180,7 @@ def _get_torch_model(name, training=False):
 def _check_manager(manager, expected_info):
     """Check the manager results"""
 
-    model_info = manager.runner.model_info
+    model_info = manager.get_runtime().model_info
     passed, err = True, ""
     if not manager.report["success"]:
         passed = False
@@ -181,7 +195,7 @@ def _check_manager(manager, expected_info):
 
 def _test_from_torch(
     compile_type,
-    tools_config,
+    tools,
     expected_info,
     training=False,
     atol=1e-1,
@@ -195,7 +209,7 @@ def _test_from_torch(
         config = _get_config(
             MSCFramework.TORCH,
             compile_type,
-            tools_config,
+            tools,
             inputs=[["input_0", [1, 3, 224, 224], "float32"]],
             outputs=["output"],
             atol=atol,
@@ -245,21 +259,16 @@ def get_model_info(compile_type):
 def test_tvm_tool(tool_type):
     """Test tools for tvm"""
 
-    tool_config = get_tool_config(tool_type)
-    _test_from_torch(
-        MSCFramework.TVM, tool_config, get_model_info(MSCFramework.TVM), training=False
-    )
+    tools = get_tools(tool_type)
+    _test_from_torch(MSCFramework.TVM, tools, get_model_info(MSCFramework.TVM), training=False)
 
 
-@tvm.testing.requires_cuda
 @pytest.mark.parametrize("tool_type", [ToolType.PRUNER, ToolType.QUANTIZER])
 def test_tvm_distill(tool_type):
     """Test tools for tvm with distiller"""
 
-    tool_config = get_tool_config(tool_type, use_distill=True)
-    _test_from_torch(
-        MSCFramework.TVM, tool_config, get_model_info(MSCFramework.TVM), training=False
-    )
+    tools = get_tools(tool_type, use_distill=True)
+    _test_from_torch(MSCFramework.TVM, tools, get_model_info(MSCFramework.TVM), training=False)
 
 
 @requires_tensorrt
@@ -270,15 +279,14 @@ def test_tvm_distill(tool_type):
 def test_tensorrt_tool(tool_type):
     """Test tools for tensorrt"""
 
-    tool_config = get_tool_config(tool_type)
+    tools = get_tools(tool_type, run_type=MSCFramework.TENSORRT)
     if tool_type == ToolType.QUANTIZER:
-        tool_config[ToolType.QUANTIZER]["strategys"] = []
         optimize_type = MSCFramework.TENSORRT
     else:
         optimize_type = None
     _test_from_torch(
         MSCFramework.TENSORRT,
-        tool_config,
+        tools,
         get_model_info(MSCFramework.TENSORRT),
         training=False,
         atol=1e-1,
@@ -292,9 +300,9 @@ def test_tensorrt_tool(tool_type):
 def test_tensorrt_distill(tool_type):
     """Test tools for tensorrt with distiller"""
 
-    tool_config = get_tool_config(tool_type, use_distill=True)
+    tools = get_tools(tool_type, use_distill=True)
     _test_from_torch(
-        MSCFramework.TENSORRT, tool_config, get_model_info(MSCFramework.TENSORRT), training=False
+        MSCFramework.TENSORRT, tools, get_model_info(MSCFramework.TENSORRT), training=False
     )
 
 

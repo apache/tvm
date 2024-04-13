@@ -105,14 +105,26 @@ StructInfo InferStructInfoResize2D(const Call& call, const BlockBuilder& ctx) {
 InferLayoutOutput InferLayoutResize2d(const Call& call,
                                       const Map<String, Array<String>>& desired_layouts,
                                       const VarLayoutMap& var_layout_map) {
-  ICHECK(NoDesiredLayout(call, desired_layouts));
+  const auto& it = desired_layouts.find("relax.image.resize2d");
   const auto* attrs = call->attrs.as<Resize2DAttrs>();
   ICHECK(attrs) << "Invalid Call";
 
-  LayoutDecision layout = GetLayoutDecision(var_layout_map, call->args[0]);
+  LayoutDecision data_layout;
   ObjectPtr<Resize2DAttrs> new_attrs = make_object<Resize2DAttrs>(*attrs);
-  new_attrs->layout = TransposeLike(attrs->layout, InitialLayout(4), layout->layout).name();
-  return InferLayoutOutput({layout, InitialNLayout(call->args[1])}, {layout}, Attrs(new_attrs));
+
+  if (it != desired_layouts.end()) {
+    // We have a desired layout for resize2d.
+    Layout desired_data_layout = (*it).second[0];
+    ICHECK_EQ(desired_data_layout.ndim(), desired_data_layout.ndim_primal()) << "Axis swap only";
+    data_layout = TransposeLike(InitialLayout(4), attrs->layout, desired_data_layout);
+    new_attrs->layout = (*it).second[0];
+  } else {
+    // We dont have a desired layout for resize2d, propagate from the input instead.
+    data_layout = GetLayoutDecision(var_layout_map, call->args[0]);
+    new_attrs->layout = TransposeLike(attrs->layout, InitialLayout(4), data_layout->layout).name();
+  }
+  return InferLayoutOutput({data_layout, InitialNLayout(call->args[1])}, {data_layout},
+                           Attrs(new_attrs));
 }
 
 TVM_REGISTER_OP("relax.image.resize2d")

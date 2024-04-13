@@ -468,7 +468,6 @@ class CodeGenLLVM : public ExprFunctor<llvm::Value*(const PrimExpr&)>,
   llvm::Value* CreateAdd(DataType t, llvm::Value* a, llvm::Value* b);
   llvm::Value* CreateSub(DataType t, llvm::Value* a, llvm::Value* b);
   llvm::Value* CreateMul(DataType t, llvm::Value* a, llvm::Value* b);
-  llvm::Value* CreateBroadcast(llvm::Value* value, int lanes);
   virtual TypedPointer CreateBufferPtr(llvm::Value* buffer_ptr, DataType buffer_element_dtype,
                                        llvm::ArrayRef<llvm::Value*> indices, DataType value_dtype);
   // Vector concatenation.
@@ -563,7 +562,7 @@ class CodeGenLLVM : public ExprFunctor<llvm::Value*(const PrimExpr&)>,
   // binding of let variables. Enables duplicate var defs that map to same value
   std::unordered_map<Var, const LetNode*, ObjectPtrHash, ObjectPtrEqual> let_binding_;
   // debug info for function being compiled
-  llvm::DISubprogram* di_subprogram_;
+  llvm::DISubprogram* di_subprogram_{nullptr};
   // Cache potential common path ops to slightly improve lookup time.
   // global symbol table.
   OpAttrMap<TGlobalSymbol> op_attr_global_symbol_ = Op::GetAttrMap<TGlobalSymbol>("TGlobalSymbol");
@@ -575,8 +574,19 @@ class CodeGenLLVM : public ExprFunctor<llvm::Value*(const PrimExpr&)>,
   const Op& builtin_tvm_call_cpacked_lowered_ = builtin::tvm_call_cpacked_lowered();
 
   void EmitDebugLocation();
-  void EmitDebugLocation(const Span& span);
+  void EmitDebugLocation(const Optional<Span>& span);
   void EmitDebugLocation(const StmtNode* op);
+
+  // Get the DWARF type corresponding to the LLVM type |ty|. The current API in practice only
+  // generates |int32|, and |int8*|.
+  llvm::DIType* GetDebugType(const Type& ty_tir);
+  llvm::DIType* GetDebugType(const Type& ty_tir, llvm::Type* ty_llvm);
+
+  // Adds the DWARF debug information for |function| to |dbg_info_|.
+  void AddDebugInformation(llvm::Function* f_llvm, const Array<Type>& tvm_param_types);
+  // Adds the DWARF debug information for |tir_var| to |dbg_info_|.
+  void AddDebugInformation(llvm::Value* llvm_value, const Var& tir_var,
+                           llvm::Instruction* insert_before = nullptr);
 
   /*! \brief Helper struct for debug infos. */
   struct DebugInfo {
@@ -585,6 +595,10 @@ class CodeGenLLVM : public ExprFunctor<llvm::Value*(const PrimExpr&)>,
     llvm::DICompileUnit* compilation_unit_{nullptr};
     llvm::DIFile* file_{nullptr};
   };
+  // Internal debug information, to be populated by EmitDebugLocation
+  // and AddDebugInformation
+  std::unique_ptr<DebugInfo> dbg_info_;
+
   /*!
    * \brief Create a new DebugInfo struct from the given Module that
    *  initializes file and compilation_unit_ to TVM defaults.

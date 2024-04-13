@@ -78,31 +78,12 @@ void TIRVisitorWithPath::Visit(const PrimFunc& func, ObjectPath path) {
   // variable has occurred.  Therefore, to ensure that we only avoid
   // duplicate calls to VisitVarDef, these semantics need to be
   // checked.
-  std::unordered_set<Var, ObjectPtrHash, ObjectPtrEqual> defined_params;
   std::vector<std::variant<DefContext<Var>, DefContext<Buffer>>> context;
 
   auto ppath = path->Attr("params");
   for (size_t i = 0; i < func->params.size(); i++) {
     context.push_back(WithDef(func->params[i], ppath->ArrayIndex(i)));
-    defined_params.insert(func->params[i]);
   }
-
-  auto try_visit_implicit_var_def = [this, &defined_params, &context](const PrimExpr& expr,
-                                                                      ObjectPath path) {
-    if (auto opt = expr.as<Var>()) {
-      auto var = opt.value();
-      if (!defined_params.count(var)) {
-        context.push_back(WithDef(var, path));
-        defined_params.insert(var);
-      }
-    }
-  };
-  auto try_visit_implicit_var_def_array = [&try_visit_implicit_var_def](const Array<PrimExpr>& arr,
-                                                                        ObjectPath path) {
-    for (size_t i = 0; i < arr.size(); i++) {
-      try_visit_implicit_var_def(arr[i], path->ArrayIndex(i));
-    }
-  };
 
   auto buffer_map_path = path->Attr("buffer_map");
   for (size_t i = 0; i < func->params.size(); i++) {
@@ -110,15 +91,9 @@ void TIRVisitorWithPath::Visit(const PrimFunc& func, ObjectPath path) {
       auto buf = opt.value();
       auto buf_path = buffer_map_path->MapValue(ppath->ArrayIndex(i));
 
-      // A buffer in the buffer_map always defines its data pointer
-      context.push_back(WithDef(buf->data, buf_path->Attr("data")));
-
-      // But other implicit definitions only apply if they weren't
-      // provided as explicit parameters, and they weren't defined
-      // implicitly by any previous buffer.
-      try_visit_implicit_var_def_array(buf->shape, buf_path->Attr("shape"));
-      try_visit_implicit_var_def_array(buf->strides, buf_path->Attr("strides"));
-      try_visit_implicit_var_def(buf->elem_offset, buf_path->Attr("elem_offset"));
+      for (auto& def : WithMatchBufferDefs(buf, buf_path)) {
+        context.push_back(std::move(def));
+      }
     }
   }
 
@@ -127,7 +102,7 @@ void TIRVisitorWithPath::Visit(const PrimFunc& func, ObjectPath path) {
   for (size_t i = 0; i < func->params.size(); i++) {
     if (auto opt = func->buffer_map.Get(func->params[i])) {
       auto buf_path = buffer_map_path->MapValue(ppath->ArrayIndex(i));
-      EnterDef(opt.value(), buf_path);
+      context.push_back(WithDef(opt.value(), buf_path));
     }
   }
 
@@ -199,16 +174,40 @@ void TIRVisitorWithPath::VisitStmt_(const LetStmtNode* op, ObjectPath path) {
 void TIRVisitorWithPath::VisitStmt_(const AttrStmtNode* op, ObjectPath path) {
   Visit(op->value, path->Attr("value"));
 
-  std::optional<DefContext<IterVar>> context = std::nullopt;
+  std::vector<std::variant<DefContext<IterVar>, DefContext<Var>>> context;
   if (auto iter_var = op->node.as<IterVar>();
       iter_var && (op->attr_key == attr::thread_extent || op->attr_key == attr::virtual_thread)) {
     // Some attributes serve as a source of definition for the
     // tir::Var they annotate.
-    context = WithDef(iter_var.value(), path->Attr("node"));
+    context.push_back(WithDef(iter_var.value(), path->Attr("node")));
+
+  } else if (op->attr_key == attr::buffer_bind_scope) {
+    // The `attr::buffer_bind_scope` attribute defines a view into an
+    // existing buffer, similar to the newer
+    // `BlockNode::match_buffers` field.  It requires the buffer being
+    // viewed to be defined prior to the attribute.  The
+    // `attr::buffer_bind_scope` is the point of definition for the
+    // `tir::Buffer buffer_view`, its `tir::Var` data pointer, and any
+    // symbolic shapes used within `buffer_view that are not already
+    // defined.
+    Array<ObjectRef> arr = Downcast<Array<ObjectRef>>(op->node);
+    ICHECK_EQ(arr.size(), 2U);
+    Buffer buffer_view = Downcast<Buffer>(arr[0]);
+    Buffer orig_buffer = Downcast<Buffer>(arr[1]);
+    Visit(orig_buffer, path->Attr("node")->ArrayIndex(1));
+
+    for (auto& var : WithMatchBufferDefs(buffer_view, path->Attr("node")->ArrayIndex(0))) {
+      context.push_back(std::move(var));
+    }
+
   } else if (auto expr = op->node.as<PrimExpr>()) {
     Visit(expr.value(), path->Attr("node"));
   }
   Visit(op->body, path->Attr("body"));
+
+  while (context.size()) {
+    context.pop_back();
+  }
 }
 
 void TIRVisitorWithPath::VisitStmt_(const ForNode* op, ObjectPath path) {
@@ -250,7 +249,8 @@ void TIRVisitorWithPath::VisitStmt_(const BufferStoreNode* op, ObjectPath path) 
 void TIRVisitorWithPath::VisitStmt_(const BufferRealizeNode* op, ObjectPath path) {
   Visit(op->condition, path->Attr("condition"));
   Visit(op->bounds, path->Attr("bounds"));
-  auto context = WithDef(op->buffer, path->Attr("buffer"));
+  auto context = WithDefIfUndefined(op->buffer->data, path->Attr("buffer")->Attr("data"));
+  Visit(op->buffer, path->Attr("buffer"));
   Visit(op->body, path->Attr("body"));
 }
 
@@ -318,8 +318,10 @@ void TIRVisitorWithPath::VisitStmt_(const BlockNode* op, ObjectPath path) {
     for (size_t i = 0; i < op->match_buffers.size(); i++) {
       auto buf = op->match_buffers[i]->buffer;
       auto buffer_path = match_path->ArrayIndex(i)->Attr("buffer");
-      context.push_back(WithDef(buf->data, buffer_path->Attr("data")));
-      context.push_back(WithDef(buf, buffer_path));
+
+      for (auto& def : WithMatchBufferDefs(buf, buffer_path)) {
+        context.push_back(std::move(def));
+      }
     }
   }
 
@@ -419,6 +421,7 @@ void TIRVisitorWithPath::VisitExpr_(const SelectNode* op, ObjectPath path) {
 void TIRVisitorWithPath::VisitExpr_(const RampNode* op, ObjectPath path) {
   Visit(op->base, path->Attr("base"));
   Visit(op->stride, path->Attr("stride"));
+  Visit(op->lanes, path->Attr("lanes"));
 }
 
 void TIRVisitorWithPath::VisitExpr_(const ShuffleNode* op, ObjectPath path) {
@@ -428,6 +431,7 @@ void TIRVisitorWithPath::VisitExpr_(const ShuffleNode* op, ObjectPath path) {
 
 void TIRVisitorWithPath::VisitExpr_(const BroadcastNode* op, ObjectPath path) {
   Visit(op->value, path->Attr("value"));
+  Visit(op->lanes, path->Attr("lanes"));
 }
 
 }  // namespace tir

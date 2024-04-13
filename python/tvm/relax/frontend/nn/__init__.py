@@ -25,6 +25,7 @@ from .modules import (
     Conv1D,
     ConvTranspose1D,
     Embedding,
+    GroupNorm,
     IOEffect,
     KVCache,
     LayerNorm,

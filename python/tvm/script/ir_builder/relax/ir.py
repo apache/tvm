@@ -357,13 +357,15 @@ def call_packed(
         sinfo_args = list(sinfo_args)
     elif not isinstance(sinfo_args, list):
         sinfo_args = [sinfo_args]
-    for i, sinfo_arg in enumerate(sinfo_args):
-        if callable(sinfo_arg):
-            sinfo_arg = sinfo_arg()
-        # Convert possible StructInfoProxy to StructInfo
-        if isinstance(sinfo_arg, ObjectGeneric):
-            sinfo_arg = sinfo_arg.asobject()
-        sinfo_args[i] = sinfo_arg
+
+    sinfo_args = [
+        sinfo()
+        if callable(sinfo)
+        else sinfo.asobject()
+        if isinstance(sinfo, ObjectGeneric)
+        else sinfo
+        for sinfo in sinfo_args
+    ]
 
     is_default = False
     if "attrs_type_key" in kwargs:
@@ -509,18 +511,25 @@ def SeqExpr() -> frame.SeqExprFrame:  # pylint: disable=invalid-name
 ############################# If Then Else #############################
 
 
-def If(condition: Expr) -> frame.IfFrame:  # pylint: disable=invalid-name
+def If(condition: Union[Expr, PrimExpr]) -> frame.IfFrame:  # pylint: disable=invalid-name
     """Create an if frame.
+
     Parameters
     ----------
-    condition : Expr
-        The condition of if statement, executes the true branch if the condition is true,
-        otherwise jump into the false branch.
+    condition : Union[Expr, PrimExpr]
+
+        The condition of if statement, executes the true branch if the
+        condition is true, otherwise jump into the false branch.
+
     Returns
     -------
     res : frame.IfFrame
         The result IfFrame.
+
     """
+    if not isinstance(condition, Expr):
+        condition = relax.PrimValue(condition)
+
     return _ffi_api.If(condition)  # type: ignore[attr-defined] # pylint: disable=no-member
 
 

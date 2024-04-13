@@ -123,5 +123,35 @@ class TestExpansionOfRuntimeAddition(Base):
             return out
 
 
+class TestRHSPermuteDims(Base):
+    @I.ir_module
+    class Before:
+        @R.function
+        def main(
+            x: R.Tensor([16], "float32"),
+            A: R.Tensor([32, 16], "float32"),
+            B: R.Tensor([32, 16], "float32"),
+        ) -> R.Tensor([32], "float32"):
+            linear_weight = R.add(A, B)
+            matmul_weight = R.permute_dims(linear_weight)
+            out = R.matmul(x, matmul_weight)
+            return out
+
+    @I.ir_module
+    class Expected:
+        @R.function
+        def main(
+            x: R.Tensor([16], "float32"),
+            A: R.Tensor([32, 16], "float32"),
+            B: R.Tensor([32, 16], "float32"),
+        ) -> R.Tensor([32], "float32"):
+            A_transpose = R.permute_dims(A)
+            lhs = R.matmul(x, A_transpose)
+            B_transpose = R.permute_dims(B)
+            rhs = R.matmul(x, B_transpose)
+            out = R.add(lhs, rhs)
+            return out
+
+
 if __name__ == "__main__":
     tvm.testing.main()

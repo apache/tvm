@@ -35,6 +35,7 @@
 
 #include <memory>
 #include <unordered_map>
+#include <unordered_set>
 #include <vector>
 
 #include "../../node/ndarray_hash_equal.h"
@@ -102,24 +103,41 @@ class BlockBuilderImpl : public BlockBuilderNode {
 
       context_mod_->Add(gvar, func);
 
-      ctx_func_dedup_map_->emplace(func, gvar);
+      (*ctx_func_dedup_map_)[func].insert(gvar);
       return gvar;
     } else {
-      return it->second;
+      ICHECK(it->second.size()) << "Values contained in de-duplication map must be non-empty sets, "
+                                << "but found an empty set for function of type "
+                                << func->GetTypeKey();
+      // To provide deterministic results, return the GlobalVar that
+      // comes first in lexicographic order.
+      return *std::min_element(
+          it->second.begin(), it->second.end(),
+          [](const GlobalVar& a, const GlobalVar& b) { return a->name_hint < b->name_hint; });
     }
   }
 
   void UpdateFunction(const GlobalVar& gv, BaseFunc function) final {
     context_mod_.CopyOnWrite();
 
-    // invalidate old dedup map
+    // Remove function from the de-duplication map.
     if (ctx_func_dedup_map_ != nullptr) {
       auto it = context_mod_->functions.find(gv);
       if (it != context_mod_->functions.end()) {
         BaseFunc old_func = (*it).second;
         auto ptr = ctx_func_dedup_map_->find(old_func);
-        ICHECK(ptr != ctx_func_dedup_map_->end());
-        ctx_func_dedup_map_->erase(ptr);
+        ICHECK(ptr != ctx_func_dedup_map_->end())
+            << "BlockBuilder::UpdateFunction is updating " << gv
+            << ", which appears in the BlockBuilder's context_mod_, "
+            << "but does not appear in the de-duplication map";
+        ICHECK(ptr->second.count(gv))
+            << "BlockBuilder::UpdateFunction is updating " << gv
+            << ", but the de-duplication map for the previous value of this function "
+            << "does not include " << gv;
+        ptr->second.erase(gv);
+        if (ptr->second.empty()) {
+          ctx_func_dedup_map_->erase(ptr);
+        }
       }
     }
 
@@ -127,7 +145,7 @@ class BlockBuilderImpl : public BlockBuilderNode {
 
     // add new dedup map item.
     if (ctx_func_dedup_map_ != nullptr) {
-      ctx_func_dedup_map_->emplace(function, gv);
+      (*ctx_func_dedup_map_)[function].insert(gv);
     }
   }
 
@@ -170,13 +188,17 @@ class BlockBuilderImpl : public BlockBuilderNode {
         auto it = shape_var_map.find(shape_var);
         if (it == shape_var_map.end()) {
           shape_var_map.Set(shape_var, shape_expr);
+          // Expose the shape variable as non-negative, for purposes
+          // of shape inference.  In many cases, knowning that the
+          // shape variable is non-negative allows for simpler
+          // expressions for dynamic shapes.
+          analyzer_.MarkGlobalNonNegValue(shape_var);
         } else {
           const PrimExpr& old_shape_expr = (*it).second;
           CHECK(analyzer_.CanProveEqual(old_shape_expr, shape_expr))
               << "Inconsistent shape var " << shape_var << " in scope: " << old_shape_expr << " vs "
               << shape_expr;
         }
-        shape_var_map.Set(shape_var, shape_expr);
       }
     }
     scope_stack_.emplace_back(ScopeFrame({std::move(shape_var_map)}));
@@ -395,7 +417,8 @@ class BlockBuilderImpl : public BlockBuilderNode {
    * We use a custom hash to avoid hashing constants that may be bound to each BaseFunc.
    */
   std::unique_ptr<
-      std::unordered_map<BaseFunc, GlobalVar, StructuralHashIgnoreNDarray, StructuralEqual>>
+      std::unordered_map<BaseFunc, std::unordered_set<GlobalVar, ObjectPtrHash, ObjectPtrEqual>,
+                         StructuralHashIgnoreNDarray, StructuralEqual>>
       ctx_func_dedup_map_ = nullptr;
 
   /*!
@@ -404,11 +427,12 @@ class BlockBuilderImpl : public BlockBuilderNode {
   void LazyInitCtxFuncDedupMap() {
     if (ctx_func_dedup_map_ != nullptr) return;
     ctx_func_dedup_map_ = std::make_unique<
-        std::unordered_map<BaseFunc, GlobalVar, StructuralHashIgnoreNDarray, StructuralEqual>>();
+        std::unordered_map<BaseFunc, std::unordered_set<GlobalVar, ObjectPtrHash, ObjectPtrEqual>,
+                           StructuralHashIgnoreNDarray, StructuralEqual>>();
     for (const auto& kv : context_mod_->functions) {
       const GlobalVar gv = kv.first;
       const BaseFunc func = kv.second;
-      ctx_func_dedup_map_->emplace(func, gv);
+      (*ctx_func_dedup_map_)[func].insert(gv);
     }
   }
 
@@ -543,7 +567,14 @@ class Normalizer : public BlockBuilderImpl, private ExprFunctor<Expr(const Expr&
     return GetRef<Var>(var);
   }
 
-  Expr VisitExpr_(const VarNode* var) final { return VisitVar_<Var>(var); }
+  Expr VisitExpr_(const VarNode* var_ptr) final {
+    auto var = VisitVar_<Var>(var_ptr);
+    if (HasVoidStructInfo(var)) {
+      return VisitExpr(Tuple(Array<Expr>{}));
+    } else {
+      return var;
+    }
+  }
 
   Expr VisitExpr_(const DataflowVarNode* var) final { return VisitVar_<DataflowVar>(var); }
 
@@ -701,7 +732,8 @@ class Normalizer : public BlockBuilderImpl, private ExprFunctor<Expr(const Expr&
     if (!node->struct_info_.defined()) {
       auto opt = MatchStructInfo<TupleStructInfo>(node->tuple);
       ICHECK(opt) << "The struct info of Tuple must be TupleStructInfo, "
-                  << "but expression " << node << " has struct info " << node->struct_info_;
+                  << "but expression " << node->tuple << " has struct info "
+                  << node->tuple->struct_info_;
       UpdateStructInfo(node, opt.value()->fields[node->index]);
     }
 
@@ -1011,8 +1043,8 @@ TVM_REGISTER_GLOBAL("relax.BlockBuilderEmit")
     });
 
 TVM_REGISTER_GLOBAL("relax.BlockBuilderEmitMatchCast")
-    .set_body_typed([](BlockBuilder builder, Expr value, StructInfo struct_info) {
-      return builder->EmitMatchCast(value, struct_info);
+    .set_body_typed([](BlockBuilder builder, Expr value, StructInfo struct_info, String name_hint) {
+      return builder->EmitMatchCast(value, struct_info, name_hint);
     });
 
 TVM_REGISTER_GLOBAL("relax.BlockBuilderEmitOutput")

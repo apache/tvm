@@ -169,13 +169,11 @@ class CallNode : public ExprNode {
 
   bool SEqualReduce(const CallNode* other, SEqualReducer equal) const {
     // skip sinfo_args check for primitive ops.
-    equal->MarkGraphNode();
     return equal(op, other->op) && equal(args, other->args) && equal(attrs, other->attrs) &&
            equal(sinfo_args, other->sinfo_args) && equal(struct_info_, other->struct_info_);
   }
 
   void SHashReduce(SHashReducer hash_reduce) const {
-    hash_reduce->MarkGraphNode();
     hash_reduce(op);
     hash_reduce(args);
     hash_reduce(attrs);
@@ -319,6 +317,24 @@ class Tuple : public Expr {
    * \param span The source span of the expression.
    */
   TVM_DLL explicit Tuple(tvm::Array<Expr> fields, Span span = Span());
+
+  /*!
+   * \brief Utility constructor to handle conversion to relax::Expr
+   *
+   * If the calling scope already has an array of a specific type of
+   * relax expression (e.g. `Array<relax::Var>`), it must be converted
+   * into an array of base type.  This constructor handles the
+   * conversion to the base `Array<relax::Expr>`.
+   *
+   * \tparam RelaxExpr The type of relax expression passed in as an argument.
+   *
+   * \param fields The fields of a tuple.
+   *
+   * \param span The source span of the expression.
+   */
+  template <typename RelaxExpr, typename = std::enable_if_t<std::is_base_of_v<Expr, RelaxExpr>>>
+  TVM_DLL explicit Tuple(tvm::Array<RelaxExpr> fields, Span span = Span())
+      : Tuple(fields.Map([](const RelaxExpr& expr) -> Expr { return expr; }), span) {}
 
   TVM_DEFINE_OBJECT_REF_METHODS(Tuple, Expr, TupleNode);
   TVM_DEFINE_OBJECT_REF_COW_METHOD(TupleNode);
@@ -764,18 +780,8 @@ class MatchCastNode : public BindingNode {
     v->Visit("span", &span);
   }
 
-  bool SEqualReduce(const MatchCastNode* other, SEqualReducer equal) const {
-    // NOTE: pattern can contain ShapeExpr which defines the vars
-    return equal.DefEqual(var, other->var) && equal.DefEqual(struct_info, other->struct_info) &&
-           equal(value, other->value);
-  }
-
-  void SHashReduce(SHashReducer hash_reduce) const {
-    // NOTE: pattern can contain ShapeExpr which defines the vars
-    hash_reduce.DefHash(var);
-    hash_reduce.DefHash(struct_info);
-    hash_reduce(value);
-  }
+  bool SEqualReduce(const MatchCastNode* other, SEqualReducer equal) const;
+  void SHashReduce(SHashReducer hash_reduce) const;
 
   static constexpr const char* _type_key = "relax.expr.MatchCast";
   static constexpr const bool _type_has_method_sequal_reduce = true;
@@ -806,13 +812,9 @@ class VarBindingNode : public BindingNode {
     v->Visit("span", &span);
   }
 
-  bool SEqualReduce(const VarBindingNode* other, SEqualReducer equal) const {
-    return equal.DefEqual(var, other->var) && equal(value, other->value);
-  }
-  void SHashReduce(SHashReducer hash_reduce) const {
-    hash_reduce.DefHash(var);
-    hash_reduce(value);
-  }
+  bool SEqualReduce(const VarBindingNode* other, SEqualReducer equal) const;
+  void SHashReduce(SHashReducer hash_reduce) const;
+
   static constexpr const char* _type_key = "relax.expr.VarBinding";
   static constexpr const bool _type_has_method_sequal_reduce = true;
   static constexpr const bool _type_has_method_shash_reduce = true;
@@ -967,15 +969,14 @@ class FunctionNode : public BaseFuncNode {
 class Function : public BaseFunc {
  public:
   TVM_DLL explicit Function(Array<Var> params, Expr body, Optional<StructInfo> ret_struct_info,
-                            bool is_pure = true, DictAttrs attrs = NullValue<DictAttrs>(),
-                            Span span = Span());
+                            bool is_pure = true, DictAttrs attrs = DictAttrs(), Span span = Span());
 
   /*!
    * \brief Mimics the constructor but without body Expr.
    * \note ret_struct_info is required, since it can not deduced by the body.
    */
   TVM_DLL static Function CreateEmpty(Array<Var> params, StructInfo ret_struct_info,
-                                      bool is_pure = true, DictAttrs attrs = NullValue<DictAttrs>(),
+                                      bool is_pure = true, DictAttrs attrs = DictAttrs(),
                                       Span span = Span());
 
   TVM_DEFINE_OBJECT_REF_METHODS(Function, BaseFunc, FunctionNode);

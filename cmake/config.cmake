@@ -320,6 +320,9 @@ set(USE_ANTLR OFF)
 # Whether use Relay debug mode
 set(USE_RELAY_DEBUG OFF)
 
+# Whether to enable debug code that may cause ABI changes
+set(TVM_DEBUG_WITH_ABI_CHANGE OFF)
+
 # Whether to build fast VTA simulator driver
 set(USE_VTA_FSIM OFF)
 
@@ -330,6 +333,10 @@ set(USE_VTA_TSIM OFF)
 set(USE_VTA_FPGA OFF)
 
 # Whether use Thrust
+# Possible values:
+# - ON: enable Thrust with cmake's auto search
+# - OFF: disable Thrust
+# - /path/to/cccl: use specific path to CCCL
 set(USE_THRUST OFF)
 
 # Whether use cuRAND
@@ -357,6 +364,9 @@ set(USE_HEXAGON_RPC OFF)
 # building runtime for Android.
 # Valid values are v65, v66, v68, v69, v73.
 set(USE_HEXAGON_ARCH "v68")
+
+# Whether use MRVL codegen
+set(USE_MRVL OFF)
 
 # Whether to use QHL library
 set(USE_HEXAGON_QHL OFF)
@@ -442,3 +452,9 @@ set(USE_UMA OFF)
 
 # Set custom Alloc Alignment for device allocated memory ndarray points to
 set(USE_KALLOC_ALIGNMENT 64)
+
+# Set Windows Visual Studio default Architecture (equivalent to -A x64)
+SET(CMAKE_VS_PLATFORM_NAME_DEFAULT "x64")
+
+# Set Windows Visual Studio default host (equivalent to -Thost=x64)
+SET(CMAKE_VS_PLATFORM_TOOLSET_HOST_ARCHITECTURE "x64")

@@ -25,9 +25,9 @@ from functools import partial, reduce
 import queue
 import numpy as np
 
+from tvm.contrib.msc.core.gym.namespace import GYMObject, GYMAction
 from tvm.contrib.msc.core import utils as msc_utils
-from .worker import BaseWorker, WorkerFactory
-from .namespace import GYMObject, GYMAction
+from .worker import BaseGymWorker, WorkerFactory
 
 
 def _send_message(msg_queue: queue.Queue, header: str, body: dict, header_type: str = "message"):
@@ -149,10 +149,8 @@ class BaseService(object):
         The max seatch iter.
     record_step: int
         The record step.
-    debug_level: int
-        The debug level
     verbose: str
-        The verbose level.
+        The verbose level
     """
 
     def __init__(
@@ -170,15 +168,13 @@ class BaseService(object):
     ):
         self._workspace = workspace
         tasks = tasks or [GYMObject.ENV + ":0", GYMObject.AGENT + ":0"]
-        if not verbose:
-            verbose = "debug" if debug_level > 0 else "info"
+        verbose = verbose or "info"
+        debug_level = int(verbose.split(":")[1]) if verbose.startswith("debug:") else 0
         self._logger = msc_utils.create_file_logger(verbose, self._workspace.relpath("SERVICE_LOG"))
 
-        def _create_workers(config: dict, obj_type: str) -> List[BaseWorker]:
+        def _create_workers(config: dict, obj_type: str) -> List[BaseGymWorker]:
             if "debug_level" not in config:
                 config["debug_level"] = debug_level
-            if "verbose" not in config:
-                config["verbose"] = verbose
             if "logger" not in config:
                 config["logger"] = self._logger
             return [
@@ -192,9 +188,7 @@ class BaseService(object):
         self._max_iter = max_iter
         self._record_step = record_step
         self._debug_level = debug_level
-        self._logger.info(
-            msc_utils.msg_block("SERVICE.SETUP({})".format(self.service_type), self.setup())
-        )
+        self._logger.info(msc_utils.msg_block(self.service_mark("SETUP"), self.setup()))
 
     def setup(self) -> dict:
         """Setup the tool
@@ -242,8 +236,8 @@ class BaseService(object):
         self._task_id, self._states = 0, []
         self._iter_done = False
         self._logger.info("SERVICE Reset %d/%d th iter", self._iter_id, self._max_iter)
-        self.execute(GYMObject.AGENT, GYMAction.RESET)
         self.execute(GYMObject.ENV, GYMAction.RESET)
+        self.execute(GYMObject.AGENT, GYMAction.RESET)
 
     def learn(self):
         self.execute(GYMObject.AGENT, GYMAction.LEARN)
@@ -387,9 +381,9 @@ class BaseService(object):
         workers = {w.worker_id: w for w in self._get_workers(obj_type)}
         requests = self._wait_request(msg_key)
         if act_type in (GYMAction.INIT, GYMAction.RESET):
-            mark = "I[{}/{}] {}.{}".format(self._iter_id, self._max_iter, obj_type, act_type)
+            mark = "Iter[{}/{}] {}.{}".format(self._iter_id, self._max_iter, obj_type, act_type)
         else:
-            mark = "I[{}/{}].T[{}/{}] {}.{}".format(
+            mark = "Iter[{}/{}] Task[{}/{}] {}.{}".format(
                 self._iter_id, self._max_iter, self._task_id, self._max_task, obj_type, act_type
             )
         requests = {int(k): v for k, v in requests.items()}
@@ -400,7 +394,7 @@ class BaseService(object):
             "requests": {workers[w].name: r for w, r in requests.items()},
             "responses": {workers[w].name: r for w, r in responses.items()},
         }
-        self._logger.info(msc_utils.msg_table(mark, info))
+        self._logger.info(msc_utils.msg_block(mark, info, symbol="="))
         return responses
 
     def _process_response(self, msg_key: str, response: dict):
@@ -464,7 +458,7 @@ class BaseService(object):
 
         return msg_key.split("-s-")
 
-    def _get_workers(self, obj_type: str) -> List[BaseWorker]:
+    def _get_workers(self, obj_type: str) -> List[BaseGymWorker]:
         """Get workers according to obj_type
 
         Parameters
@@ -518,6 +512,22 @@ class BaseService(object):
         if obj_type == GYMObject.AGENT:
             return self._agent_world_ids
         return []
+
+    def service_mark(self, msg: Any) -> str:
+        """Mark the message with service info
+
+        Parameters
+        -------
+        msg: str
+            The message
+
+        Returns
+        -------
+        msg: str
+            The message with mark.
+        """
+
+        return "SERIVCE({}) {}".format(self.service_type, msg)
 
     @property
     def done(self):

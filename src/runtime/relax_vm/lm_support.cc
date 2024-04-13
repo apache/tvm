@@ -59,7 +59,7 @@ namespace relax_vm {
 /*!
  * \brief An object representing an attention kv cache.
  */
-class AttentionKVCacheObj : public Object {
+class AttentionKVCacheLegacyObj : public Object {
  public:
   /*!
    * \brief Underlying support data.
@@ -226,19 +226,20 @@ class AttentionKVCacheObj : public Object {
   }
 
   static constexpr const uint32_t _type_index = TypeIndex::kDynamic;
-  static constexpr const char* _type_key = "relax.vm.AttentionKVCache";
-  TVM_DECLARE_FINAL_OBJECT_INFO(AttentionKVCacheObj, Object);
+  static constexpr const char* _type_key = "relax.vm.AttentionKVCacheLegacy";
+  TVM_DECLARE_FINAL_OBJECT_INFO(AttentionKVCacheLegacyObj, Object);
 };
 
 /*! \brief reference to closure. */
-class AttentionKVCache : public ObjectRef {
+class AttentionKVCacheLegacy : public ObjectRef {
  public:
   /*!
    * \brief Create the attention kv cache.
    * \param init_data The initial reserved.
    */
-  static AttentionKVCache Create(NDArray init_data, ShapeTuple reserve_shape, int init_fill_count) {
-    auto n = make_object<AttentionKVCacheObj>();
+  static AttentionKVCacheLegacy Create(NDArray init_data, ShapeTuple reserve_shape,
+                                       int init_fill_count) {
+    auto n = make_object<AttentionKVCacheLegacyObj>();
     n->data = NDArray::Empty(reserve_shape, init_data->dtype, init_data->device);
     n->fill_count = 0;
     n->Append(init_data);
@@ -246,36 +247,37 @@ class AttentionKVCache : public ObjectRef {
       n->fill_count = init_fill_count;
       n->window_attention_current_pos = init_fill_count;  // window attention only
     }
-    return AttentionKVCache(n);
+    return AttentionKVCacheLegacy(n);
   }
 
-  TVM_DEFINE_MUTABLE_OBJECT_REF_METHODS(AttentionKVCache, ObjectRef, AttentionKVCacheObj);
+  TVM_DEFINE_MUTABLE_OBJECT_REF_METHODS(AttentionKVCacheLegacy, ObjectRef,
+                                        AttentionKVCacheLegacyObj);
 };
 
-TVM_REGISTER_OBJECT_TYPE(AttentionKVCacheObj);
+TVM_REGISTER_OBJECT_TYPE(AttentionKVCacheLegacyObj);
 
 //-------------------------------------------------
 //  Register runtime functions
 //-------------------------------------------------
 TVM_REGISTER_GLOBAL("vm.builtin.attention_kv_cache_create")
-    .set_body_typed(AttentionKVCache::Create);
+    .set_body_typed(AttentionKVCacheLegacy::Create);
 
-AttentionKVCache AttentionKVCacheUpdate(AttentionKVCache cache, NDArray value) {
+AttentionKVCacheLegacy AttentionKVCacheUpdate(AttentionKVCacheLegacy cache, NDArray value) {
   cache->Update(value);
   return cache;
 }
 
 TVM_REGISTER_GLOBAL("vm.builtin.attention_kv_cache_update").set_body_typed(AttentionKVCacheUpdate);
 
-AttentionKVCache AttentionKVCacheAppend(AttentionKVCache cache, NDArray value) {
+AttentionKVCacheLegacy AttentionKVCacheAppend(AttentionKVCacheLegacy cache, NDArray value) {
   cache->Append(value);
   return cache;
 }
 
 TVM_REGISTER_GLOBAL("vm.builtin.attention_kv_cache_append").set_body_typed(AttentionKVCacheAppend);
 
-AttentionKVCache AttentionKVCacheWindowOverride(AttentionKVCache cache, NDArray value,
-                                                int64_t max_cache_size) {
+AttentionKVCacheLegacy AttentionKVCacheWindowOverride(AttentionKVCacheLegacy cache, NDArray value,
+                                                      int64_t max_cache_size) {
   cache->WindowOverride(value, max_cache_size);
   return cache;
 }
@@ -283,9 +285,10 @@ AttentionKVCache AttentionKVCacheWindowOverride(AttentionKVCache cache, NDArray 
 TVM_REGISTER_GLOBAL("vm.builtin.attention_kv_cache_window_override")
     .set_body_typed(AttentionKVCacheWindowOverride);
 
-AttentionKVCache AttentionKVCacheWindowOverrideWithSinks(AttentionKVCache cache, NDArray value,
-                                                         int64_t max_cache_size,
-                                                         int64_t num_attention_sinks) {
+AttentionKVCacheLegacy AttentionKVCacheWindowOverrideWithSinks(AttentionKVCacheLegacy cache,
+                                                               NDArray value,
+                                                               int64_t max_cache_size,
+                                                               int64_t num_attention_sinks) {
   cache->WindowOverride(value, max_cache_size, num_attention_sinks);
   return cache;
 }
@@ -293,7 +296,7 @@ AttentionKVCache AttentionKVCacheWindowOverrideWithSinks(AttentionKVCache cache,
 TVM_REGISTER_GLOBAL("vm.builtin.attention_kv_cache_window_override_with_sinks")
     .set_body_typed(AttentionKVCacheWindowOverrideWithSinks);
 
-NDArray AttentionKVCacheView(AttentionKVCache cache, ShapeTuple shape) {
+NDArray AttentionKVCacheView(AttentionKVCacheLegacy cache, ShapeTuple shape) {
   return cache->View(shape);
 }
 
@@ -302,7 +305,7 @@ TVM_REGISTER_GLOBAL("vm.builtin.attention_kv_cache_view")
       CHECK(args.size() == 1 || args.size() == 2)
           << "ValueError: `vm.builtin.attention_kv_cache_view` expects 1 or 2 arguments, but got "
           << args.size() << ".";
-      AttentionKVCache cache = args[0];
+      AttentionKVCacheLegacy cache = args[0];
       if (args.size() == 2) {
         ShapeTuple shape = args[1];
         *rv = cache->View(shape);
@@ -316,8 +319,8 @@ TVM_REGISTER_GLOBAL("vm.builtin.attention_kv_cache_view")
       }
     });
 
-void AttentionKVCacheArrayPopN(Array<AttentionKVCache> caches, int64_t n) {
-  for (AttentionKVCache cache : caches) {
+void AttentionKVCacheArrayPopN(Array<AttentionKVCacheLegacy> caches, int64_t n) {
+  for (AttentionKVCacheLegacy cache : caches) {
     cache->PopN(static_cast<size_t>(n));
   }
 }
@@ -325,8 +328,8 @@ void AttentionKVCacheArrayPopN(Array<AttentionKVCache> caches, int64_t n) {
 TVM_REGISTER_GLOBAL("vm.builtin.attention_kv_cache_array_popn")
     .set_body_typed(AttentionKVCacheArrayPopN);
 
-void AttentionKVCacheArrayClear(Array<AttentionKVCache> caches) {
-  for (AttentionKVCache cache : caches) {
+void AttentionKVCacheArrayClear(Array<AttentionKVCacheLegacy> caches) {
+  for (AttentionKVCacheLegacy cache : caches) {
     cache->Clear();
   }
 }
@@ -492,6 +495,43 @@ int SampleTopPFromProb(NDArray prob, double top_p, double uniform_sample) {
 }
 
 TVM_REGISTER_GLOBAL("vm.builtin.sample_top_p_from_prob").set_body_typed(SampleTopPFromProb);
+
+NDArray MultinomialFromUniform(NDArray prob, NDArray uniform_sample) {
+  ICHECK(prob.IsContiguous());
+  ICHECK(uniform_sample.IsContiguous());
+
+  if (prob->device.device_type != kDLCPU) {
+    prob = prob.CopyTo(DLDevice{kDLCPU, 0});
+  }
+  if (uniform_sample->device.device_type != kDLCPU) {
+    uniform_sample = uniform_sample.CopyTo(DLDevice{kDLCPU, 0});
+  }
+
+  ICHECK(prob->device.device_type == kDLCPU);
+  ICHECK(uniform_sample->device.device_type == kDLCPU);
+
+  int64_t batch_size = prob->shape[0];
+  int64_t vocab_size = prob->shape[prob->ndim - 1];
+  const float* pprob = static_cast<float*>(prob->data);
+  const float* psample = static_cast<float*>(uniform_sample->data);
+  NDArray new_array = NDArray::Empty({batch_size, 1}, DataType::Int(64), uniform_sample->device);
+  int64_t* parray = static_cast<int64_t*>(new_array->data);
+  for (int64_t i = 0; i < batch_size; ++i) {
+    float cum_sum_prob = 0.0f;
+    int64_t prob_idx = 0;
+    for (int64_t j = 0; j < vocab_size; ++j) {
+      prob_idx = j;
+      cum_sum_prob += pprob[i * vocab_size + j];
+      if (cum_sum_prob > psample[i]) {
+        break;
+      }
+    }
+    parray[i] = prob_idx;
+  }
+  return new_array;
+}
+
+TVM_REGISTER_GLOBAL("vm.builtin.multinomial_from_uniform").set_body_typed(MultinomialFromUniform);
 
 // This is an inplace operation.
 void ApplyRepetitionPenalty(NDArray logits, NDArray token_ids, double penalty) {

@@ -743,7 +743,7 @@ def test_avg_pool2d():
                     T.reads(pool_sum[v_ax0, v_ax1, v_ax2, v_ax3])
                     T.writes(pool_avg[v_ax0, v_ax1, v_ax2, v_ax3])
                     T.block_attr({"schedule_rule": "meta_schedule.pool_avg"})
-                    pool_avg[v_ax0, v_ax1, v_ax2, v_ax3] = pool_sum[v_ax0, v_ax1, v_ax2, v_ax3] / T.Cast("float32", (T.min(T.int64(1), T.int64(112) - v_ax1 * T.int64(2)) + T.int64(2)) * (T.min(T.int64(1), T.int64(112) - v_ax2 * T.int64(2)) + T.int64(2)))
+                    pool_avg[v_ax0, v_ax1, v_ax2, v_ax3] = pool_sum[v_ax0, v_ax1, v_ax2, v_ax3] / T.Cast("float32", T.max((T.min(v_ax1 * T.int64(2) + T.int64(1), T.int64(111)) + T.int64(2) - T.max(T.int64(1) - v_ax1 * T.int64(2), T.int64(0)) - v_ax1 * T.int64(2)) * (T.min(v_ax2 * T.int64(2) + T.int64(1), T.int64(111)) + T.int64(2) - T.max(T.int64(1) - v_ax2 * T.int64(2), T.int64(0)) - v_ax2 * T.int64(2)), T.int64(1)))
 
         @R.function
         def main(x: R.Tensor((4, 112, 112, 6), dtype="float32")) -> R.Tensor((4, 56, 56, 6), dtype="float32"):
@@ -785,8 +785,7 @@ def test_avg_pool2d_NCHW16c():
                     T.reads(pool_sum[v_ax0, v_ax1, v_ax2, v_ax3, v_ax4])
                     T.writes(pool_avg[v_ax0, v_ax1, v_ax2, v_ax3, v_ax4])
                     T.block_attr({"schedule_rule": "meta_schedule.pool_avg"})
-                    pool_avg[v_ax0, v_ax1, v_ax2, v_ax3, v_ax4] = pool_sum[v_ax0, v_ax1, v_ax2, v_ax3, v_ax4] / T.Cast("float32", (T.min(T.int64(2), T.int64(111) - v_ax2) + T.int64(1)) * (T.min(T.int64(2), T.int64(111) - v_ax3) + T.int64(1)))
-
+                    pool_avg[v_ax0, v_ax1, v_ax2, v_ax3, v_ax4] = pool_sum[v_ax0, v_ax1, v_ax2, v_ax3, v_ax4] / T.Cast("float32", T.max((T.min(T.int64(2), T.int64(111) - v_ax2) + T.int64(1) - T.max(T.int64(0) - v_ax2, T.int64(0))) * (T.min(T.int64(2), T.int64(111) - v_ax3) + T.int64(1) - T.max(T.int64(0) - v_ax3, T.int64(0))), T.int64(1)))
         @R.function
         def main(x: R.Tensor((4, 4, 112, 112, 16), dtype="float32")) -> R.Tensor((4, 4, 110, 110, 16), dtype="float32"):
             gv = R.call_tir(Expected.avg_pool2d, (x,), out_sinfo=R.Tensor((4, 4, 110, 110, 16), dtype="float32"))
@@ -834,7 +833,7 @@ def test_avg_pool2d_ceil_mode():
                     T.reads(pool_sum[v_ax0, v_ax1, v_ax2, v_ax3])
                     T.writes(pool_avg[v_ax0, v_ax1, v_ax2, v_ax3])
                     T.block_attr({"schedule_rule": "meta_schedule.pool_avg"})
-                    pool_avg[v_ax0, v_ax1, v_ax2, v_ax3] = pool_sum[v_ax0, v_ax1, v_ax2, v_ax3] / T.Cast("float32", (T.min(T.int64(1), T.int64(112) - v_ax2 * T.int64(3)) + T.int64(2)) * (T.min(T.int64(1), T.int64(112) - v_ax3 * T.int64(3)) + T.int64(2)))
+                    pool_avg[v_ax0, v_ax1, v_ax2, v_ax3] = pool_sum[v_ax0, v_ax1, v_ax2, v_ax3] / T.Cast("float32", T.max((T.min(v_ax2 * T.int64(3) + T.int64(1), T.int64(111)) + T.int64(2) - T.max(T.int64(1) - v_ax2 * T.int64(3), T.int64(0)) - v_ax2 * T.int64(3)) * (T.min(v_ax3 * T.int64(3) + T.int64(1), T.int64(111)) + T.int64(2) - T.max(T.int64(1) - v_ax3 * T.int64(3), T.int64(0)) - v_ax3 * T.int64(3)), T.int64(1)))
 
         @R.function
         def main(x: R.Tensor((4, 6, 112, 112), dtype="float32")) -> R.Tensor((4, 6, 38, 38), dtype="float32"):
@@ -1259,10 +1258,11 @@ def test_gelu_tanh():
         def gelu_tanh(A: T.Buffer((T.int64(2), T.int64(3)), "float32"), T_multiply: T.Buffer((T.int64(2), T.int64(3)), "float32")):
             T.func_attr({"tir.noalias": T.bool(True)})
             T_multiply_1 = T.alloc_buffer((T.int64(2), T.int64(3)))
-            T_power = T.alloc_buffer((T.int64(2), T.int64(3)))
             T_multiply_2 = T.alloc_buffer((T.int64(2), T.int64(3)))
-            T_add = T.alloc_buffer((T.int64(2), T.int64(3)))
             T_multiply_3 = T.alloc_buffer((T.int64(2), T.int64(3)))
+            T_multiply_4 = T.alloc_buffer((T.int64(2), T.int64(3)))
+            T_add = T.alloc_buffer((T.int64(2), T.int64(3)))
+            T_multiply_5 = T.alloc_buffer((T.int64(2), T.int64(3)))
             compute = T.alloc_buffer((T.int64(2), T.int64(3)))
             T_add_1 = T.alloc_buffer((T.int64(2), T.int64(3)))
             for ax0, ax1 in T.grid(T.int64(2), T.int64(3)):
@@ -1272,35 +1272,41 @@ def test_gelu_tanh():
                     T.writes(T_multiply_1[v_ax0, v_ax1])
                     T_multiply_1[v_ax0, v_ax1] = T.float32(0.5) * A[v_ax0, v_ax1]
             for ax0, ax1 in T.grid(T.int64(2), T.int64(3)):
-                with T.block("T_power"):
-                    v_ax0, v_ax1 = T.axis.remap("SS", [ax0, ax1])
-                    T.reads(A[v_ax0, v_ax1])
-                    T.writes(T_power[v_ax0, v_ax1])
-                    T_power[v_ax0, v_ax1] = T.pow(A[v_ax0, v_ax1], T.float32(3))
-            for ax0, ax1 in T.grid(T.int64(2), T.int64(3)):
                 with T.block("T_multiply_1"):
                     v_ax0, v_ax1 = T.axis.remap("SS", [ax0, ax1])
-                    T.reads(T_power[v_ax0, v_ax1])
+                    T.reads(A[v_ax0, v_ax1])
                     T.writes(T_multiply_2[v_ax0, v_ax1])
-                    T_multiply_2[v_ax0, v_ax1] = T.float32(0.044714999999999998) * T_power[v_ax0, v_ax1]
-            for ax0, ax1 in T.grid(T.int64(2), T.int64(3)):
-                with T.block("T_add"):
-                    v_ax0, v_ax1 = T.axis.remap("SS", [ax0, ax1])
-                    T.reads(A[v_ax0, v_ax1], T_multiply_2[v_ax0, v_ax1])
-                    T.writes(T_add[v_ax0, v_ax1])
-                    T_add[v_ax0, v_ax1] = A[v_ax0, v_ax1] + T_multiply_2[v_ax0, v_ax1]
+                    T_multiply_2[v_ax0, v_ax1] = T.float32(0.79788456080286541) * A[v_ax0, v_ax1]
             for ax0, ax1 in T.grid(T.int64(2), T.int64(3)):
                 with T.block("T_multiply_2"):
                     v_ax0, v_ax1 = T.axis.remap("SS", [ax0, ax1])
-                    T.reads(T_add[v_ax0, v_ax1])
+                    T.reads(A[v_ax0, v_ax1])
                     T.writes(T_multiply_3[v_ax0, v_ax1])
-                    T_multiply_3[v_ax0, v_ax1] = T.float32(0.79788456080286541) * T_add[v_ax0, v_ax1]
+                    T_multiply_3[v_ax0, v_ax1] = T.float32(0.044714999999999998) * A[v_ax0, v_ax1]
+            for ax0, ax1 in T.grid(T.int64(2), T.int64(3)):
+                with T.block("T_multiply_3"):
+                    v_ax0, v_ax1 = T.axis.remap("SS", [ax0, ax1])
+                    T.reads(T_multiply_3[v_ax0, v_ax1], A[v_ax0, v_ax1])
+                    T.writes(T_multiply_4[v_ax0, v_ax1])
+                    T_multiply_4[v_ax0, v_ax1] = T_multiply_3[v_ax0, v_ax1] * A[v_ax0, v_ax1]
+            for ax0, ax1 in T.grid(T.int64(2), T.int64(3)):
+                with T.block("T_add"):
+                    v_ax0, v_ax1 = T.axis.remap("SS", [ax0, ax1])
+                    T.reads(T_multiply_4[v_ax0, v_ax1])
+                    T.writes(T_add[v_ax0, v_ax1])
+                    T_add[v_ax0, v_ax1] = T.float32(1) + T_multiply_4[v_ax0, v_ax1]
+            for ax0, ax1 in T.grid(T.int64(2), T.int64(3)):
+                with T.block("T_multiply_4"):
+                    v_ax0, v_ax1 = T.axis.remap("SS", [ax0, ax1])
+                    T.reads(T_multiply_2[v_ax0, v_ax1], T_add[v_ax0, v_ax1])
+                    T.writes(T_multiply_5[v_ax0, v_ax1])
+                    T_multiply_5[v_ax0, v_ax1] = T_multiply_2[v_ax0, v_ax1] * T_add[v_ax0, v_ax1]
             for i0, i1 in T.grid(T.int64(2), T.int64(3)):
                 with T.block("compute"):
                     v_i0, v_i1 = T.axis.remap("SS", [i0, i1])
-                    T.reads(T_multiply_3[v_i0, v_i1])
+                    T.reads(T_multiply_5[v_i0, v_i1])
                     T.writes(compute[v_i0, v_i1])
-                    compute[v_i0, v_i1] = T.tanh(T_multiply_3[v_i0, v_i1])
+                    compute[v_i0, v_i1] = T.tanh(T_multiply_5[v_i0, v_i1])
             for ax0, ax1 in T.grid(T.int64(2), T.int64(3)):
                 with T.block("T_add_1"):
                     v_ax0, v_ax1 = T.axis.remap("SS", [ax0, ax1])
@@ -1308,7 +1314,7 @@ def test_gelu_tanh():
                     T.writes(T_add_1[v_ax0, v_ax1])
                     T_add_1[v_ax0, v_ax1] = T.float32(1) + compute[v_ax0, v_ax1]
             for ax0, ax1 in T.grid(T.int64(2), T.int64(3)):
-                with T.block("T_multiply_3"):
+                with T.block("T_multiply_5"):
                     v_ax0, v_ax1 = T.axis.remap("SS", [ax0, ax1])
                     T.reads(T_multiply_1[v_ax0, v_ax1], T_add_1[v_ax0, v_ax1])
                     T.writes(T_multiply[v_ax0, v_ax1])
@@ -1344,11 +1350,13 @@ def test_gelu_tanh_symbolic():
             m, n = T.int64(), T.int64()
             A = T.match_buffer(var_A, (m, n))
             T_multiply = T.match_buffer(var_T_multiply, (m, n))
+            # with T.block("root"):
             T_multiply_1 = T.alloc_buffer((m, n))
-            T_power = T.alloc_buffer((m, n))
             T_multiply_2 = T.alloc_buffer((m, n))
-            T_add = T.alloc_buffer((m, n))
             T_multiply_3 = T.alloc_buffer((m, n))
+            T_multiply_4 = T.alloc_buffer((m, n))
+            T_add = T.alloc_buffer((m, n))
+            T_multiply_5 = T.alloc_buffer((m, n))
             compute = T.alloc_buffer((m, n))
             T_add_1 = T.alloc_buffer((m, n))
             for ax0, ax1 in T.grid(m, n):
@@ -1358,35 +1366,41 @@ def test_gelu_tanh_symbolic():
                     T.writes(T_multiply_1[v_ax0, v_ax1])
                     T_multiply_1[v_ax0, v_ax1] = T.float32(0.5) * A[v_ax0, v_ax1]
             for ax0, ax1 in T.grid(m, n):
-                with T.block("T_power"):
-                    v_ax0, v_ax1 = T.axis.remap("SS", [ax0, ax1])
-                    T.reads(A[v_ax0, v_ax1])
-                    T.writes(T_power[v_ax0, v_ax1])
-                    T_power[v_ax0, v_ax1] = T.pow(A[v_ax0, v_ax1], T.float32(3))
-            for ax0, ax1 in T.grid(m, n):
                 with T.block("T_multiply_1"):
                     v_ax0, v_ax1 = T.axis.remap("SS", [ax0, ax1])
-                    T.reads(T_power[v_ax0, v_ax1])
+                    T.reads(A[v_ax0, v_ax1])
                     T.writes(T_multiply_2[v_ax0, v_ax1])
-                    T_multiply_2[v_ax0, v_ax1] = T.float32(0.044714999999999998) * T_power[v_ax0, v_ax1]
-            for ax0, ax1 in T.grid(m, n):
-                with T.block("T_add"):
-                    v_ax0, v_ax1 = T.axis.remap("SS", [ax0, ax1])
-                    T.reads(A[v_ax0, v_ax1], T_multiply_2[v_ax0, v_ax1])
-                    T.writes(T_add[v_ax0, v_ax1])
-                    T_add[v_ax0, v_ax1] = A[v_ax0, v_ax1] + T_multiply_2[v_ax0, v_ax1]
+                    T_multiply_2[v_ax0, v_ax1] = T.float32(0.79788456080286541) * A[v_ax0, v_ax1]
             for ax0, ax1 in T.grid(m, n):
                 with T.block("T_multiply_2"):
                     v_ax0, v_ax1 = T.axis.remap("SS", [ax0, ax1])
-                    T.reads(T_add[v_ax0, v_ax1])
+                    T.reads(A[v_ax0, v_ax1])
                     T.writes(T_multiply_3[v_ax0, v_ax1])
-                    T_multiply_3[v_ax0, v_ax1] = T.float32(0.79788456080286541) * T_add[v_ax0, v_ax1]
+                    T_multiply_3[v_ax0, v_ax1] = T.float32(0.044714999999999998) * A[v_ax0, v_ax1]
+            for ax0, ax1 in T.grid(m, n):
+                with T.block("T_multiply_3"):
+                    v_ax0, v_ax1 = T.axis.remap("SS", [ax0, ax1])
+                    T.reads(T_multiply_3[v_ax0, v_ax1], A[v_ax0, v_ax1])
+                    T.writes(T_multiply_4[v_ax0, v_ax1])
+                    T_multiply_4[v_ax0, v_ax1] = T_multiply_3[v_ax0, v_ax1] * A[v_ax0, v_ax1]
+            for ax0, ax1 in T.grid(m, n):
+                with T.block("T_add"):
+                    v_ax0, v_ax1 = T.axis.remap("SS", [ax0, ax1])
+                    T.reads(T_multiply_4[v_ax0, v_ax1])
+                    T.writes(T_add[v_ax0, v_ax1])
+                    T_add[v_ax0, v_ax1] = T.float32(1) + T_multiply_4[v_ax0, v_ax1]
+            for ax0, ax1 in T.grid(m, n):
+                with T.block("T_multiply_4"):
+                    v_ax0, v_ax1 = T.axis.remap("SS", [ax0, ax1])
+                    T.reads(T_multiply_2[v_ax0, v_ax1], T_add[v_ax0, v_ax1])
+                    T.writes(T_multiply_5[v_ax0, v_ax1])
+                    T_multiply_5[v_ax0, v_ax1] = T_multiply_2[v_ax0, v_ax1] * T_add[v_ax0, v_ax1]
             for i0, i1 in T.grid(m, n):
                 with T.block("compute"):
                     v_i0, v_i1 = T.axis.remap("SS", [i0, i1])
-                    T.reads(T_multiply_3[v_i0, v_i1])
+                    T.reads(T_multiply_5[v_i0, v_i1])
                     T.writes(compute[v_i0, v_i1])
-                    compute[v_i0, v_i1] = T.tanh(T_multiply_3[v_i0, v_i1])
+                    compute[v_i0, v_i1] = T.tanh(T_multiply_5[v_i0, v_i1])
             for ax0, ax1 in T.grid(m, n):
                 with T.block("T_add_1"):
                     v_ax0, v_ax1 = T.axis.remap("SS", [ax0, ax1])
@@ -1394,7 +1408,7 @@ def test_gelu_tanh_symbolic():
                     T.writes(T_add_1[v_ax0, v_ax1])
                     T_add_1[v_ax0, v_ax1] = T.float32(1) + compute[v_ax0, v_ax1]
             for ax0, ax1 in T.grid(m, n):
-                with T.block("T_multiply_3"):
+                with T.block("T_multiply_5"):
                     v_ax0, v_ax1 = T.axis.remap("SS", [ax0, ax1])
                     T.reads(T_multiply_1[v_ax0, v_ax1], T_add_1[v_ax0, v_ax1])
                     T.writes(T_multiply[v_ax0, v_ax1])
@@ -3253,6 +3267,30 @@ def test_attention():
     # fmt: on
     mod = LegalizeOps()(Attention)
     tvm.ir.assert_structural_equal(mod, Expected)
+
+
+def test_dynamic_attention():
+    """The sequence lengths may be dynamic
+
+    In previous implementations, the `seq_len` and `seq_len_kv` were
+    assumed to be static integers, and produced an exception during
+    legalization.
+    """
+
+    @tvm.script.ir_module
+    class Attention:
+        @R.function
+        def main(
+            q: R.Tensor((4, "seq_len", 32, 8), "float32"),
+            k: R.Tensor((4, "seq_len_kv", 32, 8), "float32"),
+            v: R.Tensor((4, "seq_len_kv", 32, 16), "float32"),
+            bias: R.Tensor((4, 32, "seq_len", "seq_len_kv"), "float32"),
+        ):
+            scale = T.FloatImm("float32", 0.1)
+            gv = R.nn.attention(q, k, v, bias, scale=scale, causal_mask="BottomRight")
+            return gv
+
+    LegalizeOps()(Attention)
 
 
 def test_nll_loss():

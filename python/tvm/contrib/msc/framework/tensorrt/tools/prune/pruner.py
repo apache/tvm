@@ -39,6 +39,7 @@ class TensorRTPrunerFactory(object):
             The pruner class.
         """
 
+        @msc_utils.register_tool
         class Pruner(base_cls):
             """Adaptive pruner for tensorrt"""
 
@@ -50,6 +51,6 @@ class TensorRTPrunerFactory(object):
 
 
 factory = TensorRTPrunerFactory()
-tools = msc_utils.get_registered_tool_cls(MSCFramework.MSC, ToolType.PRUNER, tool_style="all")
+tools = msc_utils.get_registered_tool(MSCFramework.MSC, ToolType.PRUNER, tool_style="all")
 for tool in tools.values():
-    msc_utils.register_tool_cls(factory.create(tool))
+    factory.create(tool)

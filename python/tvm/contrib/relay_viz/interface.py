@@ -213,14 +213,14 @@ class DefaultVizParser(VizParser):
         node_to_id: Dict[relay.Expr, str],
     ) -> Tuple[Union[VizNode, None], List[VizEdge]]:
         """Render rule for a relay function node"""
-        node_details = []
-        name = ""
         func_attrs = node.attrs
-        if func_attrs:
-            node_details = [f"{k}: {func_attrs.get_str(k)}" for k in func_attrs.keys()]
-            # "Composite" might from relay.transform.MergeComposite
-            if "Composite" in func_attrs.keys():
-                name = func_attrs["Composite"]
+        node_details = [f"{k}: {func_attrs.get_str(k)}" for k in func_attrs.keys()]
+        # "Composite" might from relay.transform.MergeComposite
+        if "Composite" in func_attrs.keys():
+            name = func_attrs["Composite"]
+        else:
+            name = ""
+
         node_id = node_to_id[node]
 
         # Body -> FunctionNode
@@ -244,11 +244,10 @@ class DefaultVizParser(VizParser):
         elif isinstance(node.op, relay.Function):
             func_attrs = node.op.attrs
             op_name = "Anonymous Func"
-            if func_attrs:
-                node_detail = [f"{k}: {func_attrs.get_str(k)}" for k in func_attrs.keys()]
-                # "Composite" might from relay.transform.MergeComposite
-                if "Composite" in func_attrs.keys():
-                    op_name = func_attrs["Composite"]
+            node_detail = [f"{k}: {func_attrs.get_str(k)}" for k in func_attrs.keys()]
+            # "Composite" might from relay.transform.MergeComposite
+            if "Composite" in func_attrs.keys():
+                op_name = func_attrs["Composite"]
         elif isinstance(node.op, relay.GlobalVar):
             op_name = "GlobalVar"
             node_detail = [f"GlobalVar.name_hint: {node.op.name_hint}"]

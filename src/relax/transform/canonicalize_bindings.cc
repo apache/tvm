@@ -39,6 +39,7 @@ struct CanonicalizationPlan {
   Map<Id, Var> replace_usage;
   Map<Id, Var> replace_binding;
   std::unordered_set<Id, ObjectPtrHash, ObjectPtrEqual> bindings_to_remove;
+  Map<Id, Constant> inline_constant;
 };
 
 /*! \brief Utility class to identify usage location
@@ -69,6 +70,10 @@ class CanonicalizePlanner : public ExprVisitor {
       }
     }
 
+    for (const auto& [var, constant] : visitor.known_bound_to_constant_) {
+      plan.inline_constant.Set(var->vid, constant);
+    }
+
     for (const auto& binding_iter : visitor.trivial_bindings_) {
       Var bound_var = binding_iter.first;
       Var bound_to = binding_iter.second;
@@ -86,18 +91,21 @@ class CanonicalizePlanner : public ExprVisitor {
         bound_to = opt.value();
       }
 
-      if (bound_var.as<DataflowVarNode>() || !bound_to.as<DataflowVarNode>()) {
+      if (bound_var.as<DataflowVarNode>() || !bound_to.as<DataflowVarNode>() ||
+          !visitor.used_outside_home_dataflow_.count(bound_var)) {
         // Case 1: Var = Var
         // Case 2: DataflowVar = Var
         // Case 3: DataflowVar = DataflowVar
+        // Case 4a: Var = DataflowVar, where the Var is not used
+        //          outside the DataflowBlock containing the binding
         //
-        // For these three cases, the trivial binding can be
-        // unwrapped, using the bound variable directly at the point
-        // of use.
+        // For these four cases, the trivial binding can be unwrapped,
+        // using the bound variable directly at the point of use.
         plan.replace_usage.Set(bound_var->vid, bound_to);
         plan.bindings_to_remove.insert(bound_var->vid);
       } else {
-        // Case 4: Var = DataflowVar
+        // Case 4b: Var = DataflowVar, where the Var is used somewhere
+        //          outside the DataflowBlock containing the binding
         //
         // Replacing a Var with a DataflowVar could result in illegal
         // use of a DataflowVar outside of a DataflowBlock.  Instead,
@@ -180,6 +188,10 @@ class CanonicalizePlanner : public ExprVisitor {
       trivial_bindings_.Set(binding->var, parent.value());
     }
 
+    if (auto constant = value.as<Constant>()) {
+      known_bound_to_constant_.Set(binding->var, constant.value());
+    }
+
     known_bindings_.Set(binding->var, value);
     def_blocks_.Set(binding->var, current_block_.value());
 
@@ -213,6 +225,7 @@ class CanonicalizePlanner : public ExprVisitor {
 
   Map<Var, Var> trivial_bindings_;
   Map<Var, Expr> known_bindings_;
+  Map<Var, Constant> known_bound_to_constant_;
   std::unordered_set<Var, ObjectPtrHash, ObjectPtrEqual> defined_inside_dataflow_;
   // Set of vars either used outside a dataflow block altogether or outside their
   // home dataflow block (the one where they were defined)
@@ -250,6 +263,9 @@ class BindingCanonicalizer : public ExprMutator {
     Var new_var = GetRef<Var>(var);
     while (auto opt = plan_.replace_usage.Get(new_var->vid)) {
       new_var = opt.value();
+    }
+    if (auto opt = plan_.inline_constant.Get(new_var->vid)) {
+      return VisitExpr(opt.value());
     }
 
     return ExprMutator::VisitExpr_(new_var.get());

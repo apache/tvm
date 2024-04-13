@@ -31,8 +31,6 @@ from .schedule_rule import ScheduleRule
 def _is_scheduled(func: tir.PrimFunc) -> bool:
     if not isinstance(func, tir.PrimFunc):
         return False
-    if not func.attrs:
-        return False
     if "tir.is_scheduled" not in func.attrs:
         return False
     return func.attrs["tir.is_scheduled"] == 1

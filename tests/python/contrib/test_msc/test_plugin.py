@@ -26,6 +26,7 @@ import tvm.testing
 from tvm import relax
 from tvm.relax.transform import BindParams
 from tvm.script import relax as R
+from tvm.contrib.msc.pipeline import MSCManager
 from tvm.contrib.msc.plugin import build_plugins
 from tvm.contrib.msc.core.utils.namespace import MSCFramework
 from tvm.contrib.msc.core import utils as msc_utils
@@ -287,6 +288,39 @@ def _test_torch_plugin(manager):
     assert outputs.min() >= 0 and outputs.max() <= 0.5
 
 
+def _test_with_manager(plugins, compile_type, expected_info):
+    """Test the plugin with manager"""
+
+    path = "test_plugin_" + compile_type
+    model = _get_torch_model(plugins[MSCFramework.TORCH])
+    if torch.cuda.is_available():
+        model = model.to(torch.device("cuda:0"))
+    config = {
+        "workspace": msc_utils.msc_dir(path),
+        "model_type": MSCFramework.TORCH,
+        "verbose": "critical",
+        "inputs": [["input_0", [1, 3, 224, 224], "float32"]],
+        "outputs": ["output"],
+        "dataset": {"prepare": {"loader": "from_random", "max_iter": 5}},
+        "prepare": {"profile": {"benchmark": {"repeat": 10}}},
+        "baseline": {
+            "profile": {"check": {"atol": 1e-2, "rtol": 1e-2}, "benchmark": {"repeat": 10}},
+        },
+        "compile": {
+            "run_type": compile_type,
+            "profile": {"check": {"atol": 1e-2, "rtol": 1e-2}, "benchmark": {"repeat": 10}},
+        },
+    }
+    manager = MSCManager(model, config, plugins=plugins)
+    report = manager.run_pipe()
+    model_info = manager.get_runtime().model_info
+    manager.destory()
+    assert report["success"], "Failed to run pipe for torch -> {}".format(compile_type)
+    assert msc_utils.dict_equal(
+        model_info, expected_info
+    ), "Model info {} mismatch with expected {}".format(model_info, expected_info)
+
+
 def test_plugin():
     """Test the plugins"""
 
@@ -301,6 +335,30 @@ def test_plugin():
     if tvm.cuda().exist:
         _test_tvm_plugin(managers[MSCFramework.TVM], "cuda")
     _test_torch_plugin(managers[MSCFramework.TORCH])
+
+    # test the plugin with manager
+    model_info = {
+        "inputs": [
+            {"name": "input_0", "shape": [1, 3, 224, 224], "dtype": "float32", "layout": "NCHW"}
+        ],
+        "outputs": [
+            {"name": "output", "shape": [1, 6, 218, 218], "dtype": "float32", "layout": "NCHW"}
+        ],
+        "nodes": {"total": 4, "input": 1, "msc.conv2d_bias": 1, "MyRelu": 1, "nn.max_pool2d": 1},
+    }
+    _test_with_manager(managers, MSCFramework.TORCH, model_info)
+    _test_with_manager(managers, MSCFramework.TVM, model_info)
+    if tvm.get_global_func("relax.ext.tensorrt", True) is not None:
+        byoc_info = {
+            "inputs": [
+                {"name": "input_0", "shape": [1, 3, 224, 224], "dtype": "float32", "layout": "NCHW"}
+            ],
+            "outputs": [
+                {"name": "output", "shape": [1, 6, 218, 218], "dtype": "float32", "layout": ""}
+            ],
+            "nodes": {"total": 2, "input": 1, "msc_tensorrt": 1},
+        }
+        _test_with_manager(managers, MSCFramework.TENSORRT, byoc_info)
 
     plugin_root.destory()
 

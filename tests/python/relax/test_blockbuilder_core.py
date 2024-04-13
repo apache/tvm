@@ -24,7 +24,7 @@ from tvm import te, tir, topi
 from tvm import relax as rx, relay
 from tvm.ir.base import assert_structural_equal
 from tvm.relax import ExternFunc
-from tvm.script import relax as R, tir as T
+from tvm.script import ir as I, relax as R, tir as T
 from tvm.tir.function import PrimFunc
 
 
@@ -226,7 +226,7 @@ def test_emit_match_cast():
             assert_structural_equal(lv0.struct_info, rx.TensorStructInfo([m, n], "float32"))
 
             # lv1: Shape = match_cast(shape, rx.ShapeStructInfo([m, n]))
-            lv1 = bb.match_cast(y, rx.ShapeStructInfo([m, n]))
+            lv1 = bb.match_cast(y, rx.ShapeStructInfo([m, n]), "var_name")
             assert lv1.struct_info == rx.ShapeStructInfo([m, n])
             gv0 = bb.emit_output(lv1)
 
@@ -244,6 +244,7 @@ def test_emit_match_cast():
     assert b1.value == y
     assert b1.struct_info == rx.ShapeStructInfo([m, n])
     assert b1.var == lv1
+    assert b1.var.name_hint == "var_name"
 
 
 def test_emit_match_cast_binding_in_dataflow_block():
@@ -922,6 +923,71 @@ def test_error_when_unwrapping_dataflowvar():
 
         with pytest.raises(tvm.TVMError, match="Malformed AST"):
             bb.emit_func_output(out)
+
+
+def test_deduplication_when_input_contains_duplicates():
+    """De-duplication of IRModules
+
+    A well-formed IRModule may contain duplicate function definitions.
+    This is rare, as most functions can be disambiguated by the the
+    function attribute `tvm::attr::kGlobalSymbol`.  However, private
+    functions do not have this attribute, and a well-formed IRModule
+    may contain multiple copies of the same function.
+
+    This is a regression test.  Previous implementation de-duplicated
+    using a `Dict[Function, GlobalVar]`, which has the failure mode
+    shown below.  This was resolved by de-duplicating using a
+    `Dict[Function, Set[GlobalVar]]` instead.
+
+    """
+
+    @I.ir_module
+    class Module:
+        @R.function
+        def main(A: R.Tensor):
+            B = Module.subroutine_a(A)
+            C = Module.subroutine_b(B)
+            return C
+
+        @R.function(private=True)
+        def subroutine_a(arg: R.Tensor) -> R.Tensor:
+            return R.add(arg, arg)
+
+        @R.function(private=True)
+        def subroutine_b(arg: R.Tensor) -> R.Tensor:
+            return R.add(arg, arg)
+
+        @R.function(private=True)
+        def subroutine_c(arg: R.Tensor) -> R.Tensor:
+            return R.multiply(arg, arg)
+
+    # This test case is only valid when the two subroutines are
+    # structurally equal, and therefore allowed to be de-duplicated by
+    # the BlockBuilder.
+    tvm.ir.assert_structural_equal(Module["subroutine_a"], Module["subroutine_b"])
+
+    gvar_a = Module.get_global_var("subroutine_a")
+    gvar_b = Module.get_global_var("subroutine_b")
+    subroutine_c = Module["subroutine_c"]
+
+    bb = rx.BlockBuilder(Module)
+
+    # Add a function to the module.  What we add doesn't matter, as
+    # this is only to initialize the de-duplication map.
+    bb.add_func(subroutine_c, "_unused")
+    # The deduplication table now maps `subroutine_ab` to either
+    # `gvar_a` or `gvar_b`.
+
+    # Update gvar_a.
+    bb.update_func(gvar_a, subroutine_c)
+    # The deduplication map no longer has an entry for
+    # `subroutine_ab`.
+
+    # Update gvar_b.  The deduplication map is present (because we
+    # called `add_func`), but doesn't contain an entry for
+    # `subroutine_ab` (because it was just removed).  This throws an
+    # error.
+    bb.update_func(gvar_b, subroutine_c)
 
 
 if __name__ == "__main__":

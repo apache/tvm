@@ -61,13 +61,12 @@ void FunctionFrameNode::ExitWithScope() {
       !attrs.count(tvm::attr::kGlobalSymbol)) {
     attrs.Set(tvm::attr::kGlobalSymbol, name.value());
   }
-  auto dict_attrs = attrs.empty() ? NullValue<DictAttrs>() : DictAttrs(attrs);
   this->block_builder->EndScope();
   tvm::relax::Function func(/*params=*/params,
                             /*body=*/body,
                             /*ret_struct_info=*/ret_struct_info,
                             /*is_pure=*/is_pure.value_or(Bool(true))->value,
-                            /*attrs=*/dict_attrs);
+                            /*attrs=*/DictAttrs(attrs));
   // Step 2: Update IRModule.
   if (builder->frames.empty()) {
     // Case 0. No outer frame, return function directly
@@ -263,7 +262,9 @@ void ElseFrameNode::ExitWithScope() {
   IfFrame frame = FindIfFrame("R.Else");
   frame->else_expr = output;
   CHECK(frame->var_name == var_name)
-      << "This last binding of both branches must have the same variable.";
+      << "This last binding of both branches must provide the same variable.  "
+      << "However, the R.Then branch provides variable " << frame->var_name
+      << ", while the R.Else branch provides variable " << var_name;
 }
 
 TVM_REGISTER_NODE_TYPE(FunctionFrameNode);

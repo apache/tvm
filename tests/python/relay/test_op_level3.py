@@ -1359,9 +1359,7 @@ def _verify_infiniteness_ops(relay_op, ref_op, target="llvm", dev=None):
 
         data = np.random.uniform(size=shape).astype(dtype)
         if dtype.startswith("float"):
-            data.ravel()[
-                np.random.choice(data.size, int(data.size * 0.5), replace=False)
-            ] = np.infty
+            data.ravel()[np.random.choice(data.size, int(data.size * 0.5), replace=False)] = np.inf
             data.ravel()[np.random.choice(data.size, int(data.size * 0.5), replace=False)] = np.nan
 
         op_res = create_executor(target=target, device=dev).evaluate(y, {x: data})

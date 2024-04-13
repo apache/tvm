@@ -469,17 +469,47 @@ BufferStore::BufferStore(Buffer buffer, PrimExpr value, Array<PrimExpr> indices,
         << "Only the last index of a buffer access may be a vector type.";
   }
 
-  int index_lanes = indices.size() ? indices.back().dtype().lanes() : 1;
-  int buffer_lanes = buffer->dtype.lanes();
+  bool is_index_scalable = indices.empty() ? false : indices.back().dtype().is_scalable_vector();
+  bool is_buffer_dtype_scalable = buffer->dtype.is_scalable_vector();
+  bool is_value_dtype_scalable = value.dtype().is_scalable_vector();
 
-  ICHECK_EQ(index_lanes * buffer_lanes, value.dtype().lanes())
-      << "Cannot store value with " << value.dtype().lanes() << ", expected value with "
+  ICHECK(!(is_index_scalable && is_buffer_dtype_scalable))
+      << "Index dtype and buffer dtype can't both be scalable.";
+
+  if (is_index_scalable || is_buffer_dtype_scalable) {
+    ICHECK(is_value_dtype_scalable) << "Can't store non-scalable data into scalable buffer";
+  }
+
+  int index_lanes;
+  if (indices.empty()) {
+    index_lanes = 1;
+  } else if (is_index_scalable) {
+    index_lanes = indices.back().dtype().vscale_factor();
+  } else {
+    index_lanes = indices.back().dtype().lanes();
+  }
+
+  int buffer_lanes =
+      is_buffer_dtype_scalable ? buffer->dtype.vscale_factor() : buffer->dtype.lanes();
+  int value_dtype_lanes =
+      is_value_dtype_scalable ? value.dtype().vscale_factor() : value.dtype().lanes();
+
+  ICHECK_EQ(index_lanes * buffer_lanes, value_dtype_lanes)
+      << "Cannot store value with " << value_dtype_lanes << ", expected value with "
       << index_lanes * buffer_lanes << " (" << index_lanes << " index lanes * " << buffer_lanes
       << " buffer element lanes)";
-  if (buffer->dtype.with_lanes(buffer_lanes * index_lanes) != value.dtype()) {
+
+  runtime::DataType buffer_dtype;
+  if (is_index_scalable || is_buffer_dtype_scalable) {
+    buffer_dtype = buffer->dtype.with_scalable_vscale_factor(buffer_lanes * index_lanes);
+  } else {
+    buffer_dtype = buffer->dtype.with_lanes(buffer_lanes * index_lanes);
+  }
+  if (buffer_dtype != value.dtype()) {
     LOG(FATAL) << "TypeError: dtype mismatch on BufferStore: "      //
                << "buffer's dtype is `" << buffer->dtype            //
                << "`, the lanes of indexing are: `" << index_lanes  //
+               << "`, the scalability is: `" << buffer_dtype.is_scalable_vector()
                << "`, but RHS's dtype is `" << value.dtype() << "`";
   }
 

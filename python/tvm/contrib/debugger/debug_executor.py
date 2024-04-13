@@ -76,12 +76,12 @@ def create(graph_json_str, libmod, device, dump_root=None):
     # Automatically set params if they can be extracted from the libmod
     try:
         params = libmod["get_graph_params"]()
+        if isinstance(params, tvm.ir.container.Map):
+            gmod.set_input(**params)
     except (AttributeError, tvm.error.RPCError):
         # Params can not be extracted from the libmod and must be set somewhere else manually
         # Do not set params during RPC communication
         pass
-    else:
-        gmod.set_input(**params)
 
     return gmod
 
@@ -272,8 +272,10 @@ class GraphModuleDebug(graph_executor.GraphModule):
             node_index = node
         else:
             raise RuntimeError("Require node index or name only.")
-
-        self._debug_get_output(node_index, out)
+        if out:
+            self._debug_get_output(node_index, out)
+            return out
+        return self._debug_get_output(node_index)
 
     # pylint: disable=arguments-differ
     def run(

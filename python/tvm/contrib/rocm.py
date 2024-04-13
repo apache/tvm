@@ -52,7 +52,7 @@ def find_lld(required=True):
     if major is not None:
         lld_list += [f"ld.lld-{major}.0"]
         lld_list += [f"ld.lld-{major}"]
-    lld_list += ["ld.lld"]
+    lld_list += ["ld.lld", "/opt/rocm/llvm/bin"]
     valid_list = [utils.which(x) for x in lld_list]
     valid_list = [x for x in valid_list if x]
     if not valid_list and required:

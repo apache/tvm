@@ -28,6 +28,7 @@ from tvm.contrib.msc.core import utils as msc_utils
 from tvm.contrib.msc.core import _ffi_api
 
 
+@msc_utils.register_tool_method
 class TVMQuantizeMethod(QuantizeMethod):
     """Default quantize method for tvm"""
 
@@ -74,6 +75,7 @@ class TVMQuantizeMethod(QuantizeMethod):
         zero_point = quantizer._get_tensor_cache(name, consumer, "zero_point")
         if scale_tensor is None:
             scale_tensor = cls.get_scale_tensor(data, scale, axis, epsilon, expand_dims=False)
+            scale_tensor = 1 / scale_tensor
             if isinstance(scale_tensor, float):
                 scale_tensor = np.array(scale_tensor)
             scale_tensor = scale_tensor.astype(quantizer.find_tensor(name).dtype_name)
@@ -199,6 +201,3 @@ class TVMQuantizeMethod(QuantizeMethod):
     @classmethod
     def framework(cls):
         return MSCFramework.TVM
-
-
-msc_utils.register_tool_method(TVMQuantizeMethod)

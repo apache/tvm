@@ -34,6 +34,7 @@
 
 #include "../op/tensor/binary.h"
 #include "../op/tensor/linear_algebra.h"
+#include "../op/tensor/manipulate.h"
 
 namespace tvm {
 namespace relax {
@@ -49,7 +50,11 @@ std::tuple<DFPattern, TypedPackedFunc<Expr(Expr, Map<DFPattern, Expr>)>> CreateP
 
   auto pat_rhs_a = WildcardPattern();
   auto pat_rhs_b = WildcardPattern();
-  auto pat_rhs = IsOp("relax.add")(pat_rhs_a, pat_rhs_b);
+  auto pat_rhs_sum = IsOp("relax.add")(pat_rhs_a, pat_rhs_b);
+
+  auto pat_rhs_permute_dims = IsOp("relax.permute_dims")(pat_rhs_sum);
+
+  auto pat_rhs = pat_rhs_sum | pat_rhs_permute_dims;
 
   auto pat_matmul = IsOp("relax.matmul")(pat_lhs, pat_rhs);
 
@@ -70,6 +75,17 @@ std::tuple<DFPattern, TypedPackedFunc<Expr(Expr, Map<DFPattern, Expr>)>> CreateP
 
     if (is_compile_time(rhs_a) && is_compile_time(rhs_b)) {
       return expr;
+    }
+
+    if (matches.count(pat_rhs_permute_dims)) {
+      auto call_permute = Downcast<Call>(matches[pat_rhs_permute_dims]);
+      auto attrs = call_permute->attrs.as<PermuteDimsAttrs>();
+      ICHECK(attrs) << "Operator permute_dims should have PermuteDimsAttrs, "
+                    << "but " << call_permute << " has attributes " << call_permute->attrs;
+      auto axes = attrs->axes;
+
+      rhs_a = permute_dims(rhs_a, axes);
+      rhs_b = permute_dims(rhs_b, axes);
     }
 
     return add(matmul(lhs, rhs_a, DataType::Void()), matmul(lhs, rhs_b, DataType::Void()));

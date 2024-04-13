@@ -48,6 +48,7 @@ class BaseConfiger(object):
         raise NotImplementedError("update is not implemented in BaseConfiger")
 
 
+@msc_utils.register_gym_configer
 class DefaultConfiger(BaseConfiger):
     """Default configer for gym"""
 
@@ -67,10 +68,10 @@ class DefaultConfiger(BaseConfiger):
 
         config = msc_utils.copy_dict(raw_config)
         assert "env" in config and "agent" in config, "env and agent should be given to run gym"
-        if "env_type" not in config["env"]:
-            config["env"]["env_type"] = self._stage + ".default"
-        if "agent_type" not in config["agent"]:
-            config["agent"]["agent_type"] = "search.grid"
+        if "role_type" not in config["env"]:
+            config["env"]["role_type"] = self._stage + ".default"
+        if "role_type" not in config["agent"]:
+            config["agent"]["role_type"] = "search.grid"
         if "executors" not in config["env"]:
             config["env"]["executors"] = {}
         # update executors
@@ -92,6 +93,3 @@ class DefaultConfiger(BaseConfiger):
     @classmethod
     def config_type(cls):
         return "default"
-
-
-msc_utils.register_gym_configer(DefaultConfiger)

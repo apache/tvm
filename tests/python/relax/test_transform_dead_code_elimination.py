@@ -15,6 +15,8 @@
 # specific language governing permissions and limitations
 # under the License.
 
+import pytest
+
 import tvm
 import tvm.testing
 from tvm.relax.transform import DeadCodeElimination
@@ -505,6 +507,155 @@ def test_extern_func():
     before = builder.get()
 
     verify(before, before)
+
+
+def test_compatibility_with_apply_pass_to_function():
+    """DeadCodeElimination can be used with ApplyPassToFunction
+
+    The `ApplyPassToFunction` utility calls another transform, where
+    only the specified functions are exposed to the internal
+    transform.  This intermediate does not contain `cls.subroutine`,
+    and so the intermediate is ill-formed.
+
+    In general, IRModule transformations may assume that their inputs
+    are well-formed.  In specific cases, IRModule transformations may
+    accept IRModules that are ill-formed.  The `DeadCodeElimination`
+    transform allows IRModule arguments that are ill-formed due to
+    a dangling GlobalVar.
+
+    After `DeadCodeElimination` completes, the resulting function is
+    inserted in the original IRModule, providing a well-formed output
+    from `ApplyPassToFunction`.
+
+    """
+
+    @I.ir_module
+    class Before:
+        @R.function
+        def to_be_transformed(A: R.Tensor):
+            cls = Before
+
+            B = R.add(A, A)
+            C = cls.subroutine(B)
+            D = R.multiply(C, C)
+            return C
+
+        @R.function
+        def to_be_ignored(A: R.Tensor):
+            cls = Before
+
+            B = R.add(A, A)
+            C = cls.subroutine(B)
+            D = R.multiply(C, C)
+            return C
+
+        @R.function(private=True)
+        def subroutine(arg: R.Tensor) -> R.Tensor:
+            return R.add(arg, arg)
+
+    @I.ir_module
+    class Expected:
+        @R.function
+        def to_be_transformed(A: R.Tensor):
+            cls = Expected
+
+            B = R.add(A, A)
+            C = cls.subroutine(B)
+            return C
+
+        @R.function
+        def to_be_ignored(A: R.Tensor):
+            cls = Expected
+
+            B = R.add(A, A)
+            C = cls.subroutine(B)
+            D = R.multiply(C, C)
+            return C
+
+        @R.function(private=True)
+        def subroutine(arg: R.Tensor) -> R.Tensor:
+            return R.add(arg, arg)
+
+    # The well-formed check in conftest.py must be disabled, to avoid
+    # triggering on the ill-formed intermediate, so this unit test
+    # checks it explicitly.
+    assert tvm.relax.analysis.well_formed(Before)
+    After = tvm.ir.transform.ApplyPassToFunction(
+        tvm.relax.transform.DeadCodeElimination(),
+        "to_be_transformed",
+    )(Before)
+    assert tvm.relax.analysis.well_formed(After)
+    tvm.ir.assert_structural_equal(Expected, After)
+
+
+def test_well_formed_output_with_restricted_scope():
+    """DeadCodeElimination can be used with ApplyPassToFunction
+
+    If the call graph cannot be completely traced, private functions
+    should not be removed.
+
+    See `test_compatibility_with_apply_pass_to_function` for full
+    description of `DeadCodeElimination` and `ApplyPassToFunction`.
+
+    """
+
+    @I.ir_module
+    class Before:
+        @R.function
+        def main(A: R.Tensor):
+            cls = Before
+
+            B = R.add(A, A)
+            C = cls.subroutine(B)
+            D = R.multiply(C, C)
+            return C
+
+        @R.function(private=True)
+        def subroutine(A: R.Tensor) -> R.Tensor:
+            cls = Before
+
+            B = R.add(A, A)
+            C = cls.subsubroutine(B)
+            D = R.multiply(C, C)
+            return C
+
+        @R.function(private=True)
+        def subsubroutine(A: R.Tensor) -> R.Tensor:
+            B = R.add(A, A)
+            C = R.multiply(B, B)
+            return B
+
+    @I.ir_module
+    class Expected:
+        @R.function
+        def main(A: R.Tensor):
+            cls = Expected
+
+            B = R.add(A, A)
+            C = cls.subroutine(B)
+            return C
+
+        @R.function(private=True)
+        def subroutine(A: R.Tensor) -> R.Tensor:
+            cls = Expected
+
+            B = R.add(A, A)
+            C = cls.subsubroutine(B)
+            D = R.multiply(C, C)
+            return C
+
+        @R.function(private=True)
+        def subsubroutine(A: R.Tensor) -> R.Tensor:
+            B = R.add(A, A)
+            return B
+
+    assert tvm.relax.analysis.well_formed(Before)
+    After = tvm.ir.transform.ApplyPassToFunction(
+        tvm.relax.transform.DeadCodeElimination(),
+        "main|subsubroutine",
+    )(Before)
+    assert tvm.relax.analysis.well_formed(After)
+    tvm.ir.assert_structural_equal(Expected, After)
 
 
 if __name__ == "__main__":

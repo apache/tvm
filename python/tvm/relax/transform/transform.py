@@ -52,7 +52,7 @@ def Gradient(
     """Reverse-mode automatic differentiation.
 
     This pass will differentiate one function in the IRModule. Now the input function must have only
-    one dataflow block.
+    one dataflow block (ConvertToDataflow may need to be called first).
 
     For a given function specified by `func_name`, it generates a new function with the name
     `func_name + "_adjoint"`. The new function computes the gradient of the **differentiation
@@ -233,6 +233,29 @@ def ToNonDataflow() -> tvm.ir.transform.Pass:
     return _ffi_api.ToNonDataflow()  # type: ignore
 
 
+def TopologicalSort(order="depth-first", direction="from-inputs") -> tvm.ir.transform.Pass:
+    """Sort bindings in relax.Dataflow blocks in the order specified
+
+    Parameters
+    ----------
+    order: str
+
+        The order in which bindings should be emitted.  Allowed values
+        are "depth-first" and "breadth-first".
+
+    direciton: str
+
+        The direction in which the sort should be performed.  Allowed
+        values are "from-inputs" and "from-outputs".
+
+    Returns
+    -------
+    ret: tvm.ir.transform.Pass
+
+    """
+    return _ffi_api.TopologicalSort(order, direction)  # type: ignore
+
+
 def RemovePurityChecking() -> tvm.ir.transform.Pass:
     """Activate relax.force_pure on all pure functions in the module
     and unwrap all pure override ops into the normal versions.
@@ -260,6 +283,8 @@ def DataflowUseInplaceCalls() -> tvm.ir.transform.Pass:
     in-place PrimFunc implementations of those operators (which are based on the legalizations of
     those operators).
 
+    Note: ConvertToDataflow may need to be called first to provide dataflow blocks.
+
     Returns
     -------
     ret: tvm.ir.transform.Pass
@@ -278,9 +303,91 @@ def LambdaLift() -> tvm.ir.transform.Pass:
     return _ffi_api.LambdaLift()
 
 
+def LazyGetInput() -> tvm.ir.transform.Pass:
+    """A pass that requests inputs lazily.
+
+    In many cases, the size of the model weights exceeds the available
+    memory on a GPU.  In these cases, a function that accepts all
+    model weights as arguments would not be able to be called.  In
+    these cases, parameters must be loaded as they are required by the
+    function, and unloaded once they are no longer needed.
+
+    This pass mutates a function such that all model weights
+    (arguments after the first `func.attrs["num_input"]` arguments)
+    are loaded on demand.  Rather than accepting the weights as
+    function arguments, the function accepts a callback argument,
+    which can load each parameter as needed.  The callback accepts two
+    arguments, first the index of the model weight, and second the
+    name of the parameter.  The callback should return the parameter
+    as specified.
+
+    .. code-block:: python
+
+        @R.function
+        def before(A: R.Tensor([16,32],"float32")):
+            ...
+
+        @R.function
+        def after(fget_param: R.Callable([R.Prim('int64'), R.Object], R.Object)):
+            A_untyped = fget_param(0, R.str('A'))
+            A = R.match_cast(A_untyped, R.Tensor([16,32], "float32")
+            ...
+
+    Returns
+    -------
+    ret : tvm.ir.transform.Pass
+
+    """
+    return _ffi_api.LazyGetInput()
+
+
+def LazySetOutput() -> tvm.ir.transform.Pass:
+    """A pass that sets function outputs when available
+
+    In many cases, the size of the model weights exceeds the available
+    memory on a GPU.  In these cases, a function that produces all
+    model weights as a single return value would not be able to be
+    called.  In these cases, parameters must be returned as they are
+    produced, unloaded from the GPU (or saved to disk), before
+    producing additional outputs.
+
+    This pass mutates a function such that all outputs from a function
+    are returned when they are available.  The function accepts an
+    additional callback argument, which is called with each output of
+    the function.  The callback accepts two arguments, first the index
+    of the output tuple that was produced (or zero if the output is
+    not a tuple), and second the value itself.
+
+    .. code-block:: python
+
+        @R.function
+        def before(args):
+            ...
+            return (A, B)
+
+        @R.function
+        def after(args, fset_param: R.Callable([R.Prim('int64'), R.Object])):
+            ...
+            fset_param(0, A)
+            ...
+            fset_param(1, B)
+            ...
+            return ()
+
+
+    Returns
+    -------
+    ret : tvm.ir.transform.Pass
+
+    """
+    return _ffi_api.LazySetOutput()
+
+
 def ConvertToDataflow(min_size: int = 2) -> tvm.ir.transform.Pass:
     """A pass that converts consecutive dataflow operations
     inside binding blocks into dataflow blocks.
+
+    Note: ConvertToDataflow may need to be called first.
 
     Params
     ------
@@ -395,6 +502,8 @@ def RewriteDataflowReshape() -> tvm.ir.transform.Pass:
     operation at runtime, instead of doing real data copy.
     Here "reshape-like" includes reshape, expand_dims, flatten, etc.
 
+    Note: Operates only in dataflow blocks. ConvertToDataflow may need to be called first.
+
     Returns
     -------
     ret : tvm.ir.transform.Pass
@@ -455,6 +564,25 @@ def KillAfterLastUse() -> tvm.ir.transform.Pass:
     ret : tvm.ir.transform.Pass
     """
     return _ffi_api.KillAfterLastUse()  # type: ignore
+
+
+def ComputePrimValue() -> tvm.ir.transform.Pass:
+    """Compute all R.prim_value instances
+
+    While high-level relax can include expressions in terms of its
+    symbolic variables, these expressions cannot natively be computed
+    within relax.  In order to provide values for symbolic expressions
+    (e.g. `R.prim_value(N*N)`, where `N` is a symbolic variable), this
+    pass generates a PrimFunc in which the expression can be computed.
+    The relax graph is then updated to include a call to that
+    PrimFunc, in place of the original `R.prim_value(expr)`.
+
+    Returns
+    -------
+    ret : tvm.ir.transform.Pass
+
+    """
+    return _ffi_api.ComputePrimValue()  # type: ignore
 
 
 def VMBuiltinLower() -> tvm.ir.transform.Pass:
@@ -584,7 +712,9 @@ def RunCodegen(
 
 
 def FoldConstant() -> tvm.ir.transform.Pass:
-    """Fold constant expressions.
+    """Fold constant expressions within dataflow blocks.
+
+    Note: ConvertToDataflow may need to be called first to provide dataflow blocks.
 
     Returns
     -------
@@ -650,6 +780,8 @@ def FuseOps(fuse_opt_level=-1) -> tvm.ir.transform.Pass:
     the function being manipulated into function calls to the new grouped function.
 
     A follow-up pass named "FuseTIR" will generate a TIR PrimFunc for each grouped function.
+
+    Note: ConvertToDataflow may need to be called first to provide dataflow blocks.
 
     Parameters
     ----------
@@ -764,6 +896,8 @@ def FuseOpsByPattern(
 
     The end result is similar to FuseOps, but fusion is driven completely by the provided patterns.
 
+    Note: Only operates within dataflow blocks. ConvertToDataflow may need to be called first.
+
     Parameters
     ----------
     patterns : List[Union[FusionPattern, Tuple]]
@@ -820,7 +954,7 @@ def MergeCompositeFunctions() -> tvm.ir.transform.Pass:
     return _ffi_api.MergeCompositeFunctions()  # type: ignore
 
 
-def LiftTransformParams() -> tvm.ir.transform.Pass:
+def LiftTransformParams(shared_transform: Union[bool, List[str]] = False) -> tvm.ir.transform.Pass:
     """Lift transformation of the parameters of a function.
 
     When some inputs of the function is marked as 'parameters' (the model weights), this pass
@@ -832,15 +966,33 @@ def LiftTransformParams() -> tvm.ir.transform.Pass:
     Users are expected to invoke the `transform_params` function in runtime and pass the transformed
     parameters to the original function as input.
 
+    Parameters
+    ----------
+    shared_transform: Union[bool, List[str]]
+
+        Indicates how the parameter transformation function will be produced
+
+        - `False` (default): A separate parameter transformation function will be
+        produced for each function with the `"num_input"` attribute.
+
+        - `True`: A single parameter transformation function will be produced,
+        containing the preprocessing steps common across all functions with
+        the `"num_input"` attribute.
+
+        - List[str]: A single parameter transformation function will be produced,
+        containing the preprocessing steps common across each function whose
+        name is in the list.  Passing a list of all functions with the `"num_input"`
+        attribute or an empty list is equivalent to passing `True`.
+
     Returns
     -------
     ret : tvm.transform.Pass
         The registered pass for lifting transformation of parameters.
     """
-    return _ffi_api.LiftTransformParams()  # type: ignore
+    return _ffi_api.LiftTransformParams(shared_transform)  # type: ignore
 
 
-def BundleModelParams() -> tvm.ir.transform.Pass:
+def BundleModelParams(param_tuple_name: Optional[str] = None) -> tvm.ir.transform.Pass:
     """Bundle several model parameters into a single tuple paramters
 
     For each function, if the function has the attribute "num_input",
@@ -848,13 +1000,20 @@ def BundleModelParams() -> tvm.ir.transform.Pass:
     Run-time parameters (e.g. activations) are the first `num_input`
     parameters, and the remainder are compile-time weights.
 
+    Parameters
+    ----------
+    param_tuple_name: Optional[str]
+
+        The name of the tuple parameter.  If unspecified, defaults to
+        "model_params".
+
     Returns
     -------
     ret : tvm.transform.Pass
         The registered pass for lifting transformation of parameters.
 
     """
-    return _ffi_api.BundleModelParams()  # type: ignore
+    return _ffi_api.BundleModelParams(param_tuple_name)  # type: ignore
 
 
 def LegalizeOps(
@@ -1172,11 +1331,12 @@ def DeadCodeElimination(entry_functions: Optional[List[str]] = None) -> tvm.ir.t
     """Remove dead code in the IRModule.
     Currently it removes:
 
-       1. Unused local VarBindings in a DataflowBlock.
-       2. Unused DataflowBlocks in a function.
-       3. Unused Relax functions in the module.
+       1. Unused local VarBindings
+          (those where the bound var is unused and no impure operation is used).
+       2. Unused Relax functions in the module.
           We detect the call chain from the entry function, and remove all unused functions.
 
+    Any binding blocks that are left empty will be removed by the normalizer.
 
     Notes
     -----
@@ -1202,6 +1362,8 @@ def ToMixedPrecision(
 ) -> tvm.ir.transform.Pass:
     """Automatic mixed precision pass. Currently the pass assumes the input module to be fp32
     only, and will automatically cast fp32 to fp16 for certain ops.
+
+    Note: Mainly operates within dataflow blocks. ConvertToDataflow may need to be called first.
 
     Parameters
     ----------
@@ -1301,6 +1463,26 @@ def ExpandMatmulOfSum():
     """
 
     return _ffi_api.ExpandMatmulOfSum()  # type: ignore
+
+
+def ReorderPermuteDimsAfterConcat():
+    """Reorder `concat(permute_dims(A), permute_dims(B))` into `permute_dims(concat(A,B))`
+
+    Useful for optimizing computations after `CombineParallelMatmul`.
+    The patterns for optimized `nn.Linear` implementations look for
+    `matmul(activations, permute_dims(weights))`.  After
+    `CombineParallelMatmul`, the `matmul(activations,
+    concat(permute_dims(A), permute_dims(B)))` no longer matches this
+    pattern.  Rearranging into `matmul(activations,
+    permute_dims(concat(A,B)))` restores the pattern match.
+
+    Returns
+    -------
+    ret : tvm.transform.Pass
+        The corresponding pass.
+    """
+
+    return _ffi_api.ReorderPermuteDimsAfterConcat()  # type: ignore
 
 
 def ReorderTakeAfterMatmul():

@@ -66,7 +66,7 @@ def test_basic():
         ):
             T.evaluate(0)
 
-        @R.function
+        @R.function(pure=False)
         def main(x: R.Tensor((2, 4), dtype="float32")) -> R.Tensor((10,), dtype="float32"):
             cls = Module
             storage: R.Object = R.memory.alloc_storage(

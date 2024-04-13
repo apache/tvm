@@ -217,7 +217,7 @@ class Reduction(GPUScheduleRule):
         # Schedule epilogue
         if epilogue_info is not None:
             epilogue = epilogue_info.block_rv
-            sch.reverse_compute_at(epilogue, bx)
+            sch.reverse_compute_at(epilogue, bx, preserve_unit_loops=True)
             if is_broadcast_epilogue(sch, block, epilogue):
                 sch.set_scope(block, 0, "shared")
                 _, *s = sch.get_loops(epilogue)  # pylint: disable=invalid-name

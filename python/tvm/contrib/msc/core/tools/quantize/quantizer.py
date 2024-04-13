@@ -19,6 +19,7 @@
 from typing import List, Dict, Any
 
 from tvm.contrib.msc.core.tools.tool import ToolType, BaseTool, ToolStrategy
+from tvm.contrib.msc.core.utils.message import MSCStage
 from tvm.contrib.msc.core import utils as msc_utils
 
 
@@ -41,7 +42,7 @@ class BaseQuantizer(BaseTool):
 
         if self._plan:
             self._calibrated = True
-            self.change_stage(msc_utils.MSCStage.QUANTIZE)
+            self.change_stage(MSCStage.QUANTIZE)
         else:
             self._calibrated = False
             self._calibrate_plan = {}
@@ -73,17 +74,20 @@ class BaseQuantizer(BaseTool):
             self._calibrated = True
             for name, plan in new_plan.items():
                 self._plan[name] = {k: v for k, v in plan.items() if k not in ("calibrated")}
-            self.change_stage(msc_utils.MSCStage.QUANTIZE)
+            self.change_stage(MSCStage.QUANTIZE)
+        calib_type = "calibrate" if self._calibrated else "gather"
+        msg = "{} {} plan after {} batch".format(calib_type, len(new_plan), self._forward_cnt)
+        self._logger.info(self.tool_mark(msg))
         self._forward_cnt = 0
         return new_plan
 
-    def _parse_strategys(self, strategy_list: dict) -> Dict[str, ToolStrategy]:
+    def _parse_strategys(self, strategy_list: List[dict]) -> Dict[str, ToolStrategy]:
         """Parse the strategy to get valid strategy
 
         Parameters
         -------
-        strategy_list: dict
-            The given strategy
+        strategy_list: list<dict>
+            The given strategys
 
         Returns
         -------
@@ -93,7 +97,7 @@ class BaseQuantizer(BaseTool):
 
         def _update_stages(strategy):
             if "stages" not in strategy:
-                strategy["stages"] = [msc_utils.MSCStage.QUANTIZE]
+                strategy["stages"] = [MSCStage.QUANTIZE]
             return strategy
 
         return super()._parse_strategys([_update_stages(s) for s in strategy_list])
@@ -114,6 +118,8 @@ class BaseQuantizer(BaseTool):
             Whether to process the tensor.
         """
 
+        if self._calibrated:
+            return self.to_tensor_id(name, consumer) in self._plan
         strategys = self._get_tensor_strategys(name, consumer)
         if not strategys:
             return False
@@ -221,14 +227,21 @@ class BaseQuantizer(BaseTool):
         """
 
         tasks, recorded = [], set()
-        for tensor_id, plan in self._plan.items():
-            name, _ = self.from_tensor_id(tensor_id)
+        for tensor_id in self._plan:
+            name, consumer = self.from_tensor_id(tensor_id)
             if self.is_weight(name) and not kwargs.get("quantize_weights", False):
                 continue
             if name not in recorded:
-                tasks.append({"name": tensor_id, **plan})
+                executor = self._get_tensor_strategy(name, consumer).get_executor(MSCStage.QUANTIZE)
+                task = {"methods": {"tensor": executor.method_def}}
                 if self._cache_processed:
+                    task["tensor_ids"] = [
+                        self.to_tensor_id(name, c.name) for c in self.find_consumers(name)
+                    ]
                     recorded.add(name)
+                else:
+                    task["tensor_ids"] = [tensor_id]
+                tasks.append(task)
         return tasks
 
     @property
@@ -240,10 +253,8 @@ class BaseQuantizer(BaseTool):
         return ToolType.QUANTIZER
 
 
+@msc_utils.register_tool
 class DefaultQuantizer(BaseQuantizer):
     @classmethod
     def tool_style(cls):
         return "default"
-
-
-msc_utils.register_tool_cls(DefaultQuantizer)

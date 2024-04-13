@@ -27,7 +27,7 @@ import numpy as np
 
 @I.ir_module
 class Module:
-    @R.function
+    @R.function(pure=False)
     def main(x: R.Tensor((16, 16), dtype="float32")) -> R.Tensor((16, 16), dtype="float32"):
         cls = Module
         R.func_attr({"global_symbol": "main"})
@@ -63,7 +63,7 @@ class Module:
         gv: R.Tuple(R.Object, R.Object) = (storage, storage1)
         return gv
 
-    @R.function
+    @R.function(pure=False)
     def cuda_graph_capture(alloc: R.Tensor((16, 16), dtype="float32"), storage1: R.Object, storage: R.Object) -> R.Tuple(R.Tensor((16, 16), dtype="float32")):
         cls = Module
         R.func_attr({"global_symbol": "cuda_graph_capture"})

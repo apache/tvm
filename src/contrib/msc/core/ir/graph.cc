@@ -1067,8 +1067,7 @@ void WeightGraphNode::FromJson(const JsonWeightGraph& j_graph) {
   }
   // set friends
   for (const auto& j_joint : j_graph.nodes) {
-    name = j_joint.name;
-    const auto& node = Downcast<WeightJoint>(nodes[name]);
+    const auto& node = Downcast<WeightJoint>(nodes[j_joint.name]);
     for (const auto& f_name : j_joint.friends) {
       ICHECK(nodes.count(f_name)) << "Can not find friend " << f_name;
       node->friends.push_back(nodes[f_name]);

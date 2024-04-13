@@ -17,11 +17,11 @@
 """tvm.contrib.msc.core.gym.control.worker"""
 
 from typing import Any
+from tvm.contrib.msc.core.gym.namespace import GYMObject, GYMAction
 from tvm.contrib.msc.core import utils as msc_utils
-from .namespace import GYMObject, GYMAction
 
 
-class BaseWorker(object):
+class BaseGymWorker(object):
     """Basic worker for gym
 
     Parameters
@@ -78,7 +78,7 @@ class BaseWorker(object):
             The execute result.
         """
 
-        raise NotImplementedError("execute is not implemented in BaseWorker")
+        raise NotImplementedError("execute is not implemented in " + str(self.__class__))
 
     @property
     def obj_type(self):
@@ -93,7 +93,7 @@ class BaseWorker(object):
         return self._worker_id
 
 
-class EnvWorker(BaseWorker):
+class EnvGymWorker(BaseGymWorker):
     """Env worker for gym"""
 
     def execute(self, act_type: str, **kwargs) -> Any:
@@ -136,8 +136,8 @@ class EnvWorker(BaseWorker):
         return GYMObject.ENV
 
 
-class AgentWorker(BaseWorker):
-    """Env worker for gym"""
+class AgentGymWorker(BaseGymWorker):
+    """Agent worker for gym"""
 
     def execute(self, act_type: str, **kwargs) -> Any:
         """Execute the worker
@@ -182,7 +182,7 @@ class WorkerFactory(object):
     """The Factory for workers"""
 
     @classmethod
-    def create(cls, name: str, workspace: msc_utils.MSCDirectory, config: dict) -> BaseWorker:
+    def create(cls, name: str, workspace: msc_utils.MSCDirectory, config: dict) -> BaseGymWorker:
         """Create worker
 
         Parameters
@@ -200,17 +200,21 @@ class WorkerFactory(object):
 
         Returns
         -------
-        worker: BaseWorker
+        worker: BaseGymWorker
             The create worker.
         """
 
+        def _get_worker_cls(obj: str):
+            worker_type = config.pop("role_type") if "role_type" in config else "default"
+            worker_cls = msc_utils.get_registered_gym_object(obj, worker_type)
+            assert worker_cls, "Can not find worker class for {}:{}".format(obj, worker_type)
+            return worker_cls
+
         obj_type, worker_id = name.split(":")
         if obj_type == GYMObject.ENV:
-            env_type = config.pop("env_type") if "env_type" in config else "default"
-            worker_cls = msc_utils.get_registered_gym_env(env_type)
-            return EnvWorker(name, workspace, int(worker_id), worker_cls, config)
+            worker_cls = _get_worker_cls(obj_type)
+            return EnvGymWorker(name, workspace, int(worker_id), worker_cls, config)
         if obj_type == GYMObject.AGENT:
-            agent_type = config.pop("agent_type") if "agent_type" in config else "default"
-            worker_cls = msc_utils.get_registered_gym_agent(agent_type)
-            return AgentWorker(name, workspace, int(worker_id), worker_cls, config)
+            worker_cls = _get_worker_cls(obj_type)
+            return AgentGymWorker(name, workspace, int(worker_id), worker_cls, config)
         raise TypeError("Worker for {} is not supported".format(obj_type))

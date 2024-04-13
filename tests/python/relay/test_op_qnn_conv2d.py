@@ -15,6 +15,9 @@
 # specific language governing permissions and limitations
 # under the License.
 
+import pytest
+import platform
+
 import tvm
 from tvm import te
 import numpy as np
@@ -763,6 +766,10 @@ def test_kernel_size_1x1_strides_2():
         verify(ref_func, qnn_func, data_shape, data_dtype, kernel_shape, kernel_dtype)
 
 
+@pytest.mark.skipif(
+    platform.machine() == "aarch64",
+    reason="Fails due to encountering none type in autotvm. See https://github.com/apache/tvm/issues/16538",
+)
 def test_tflite_large_irregular():
     with TempOpAttr("qnn.conv2d", "FTVMQnnLegalize", legalize_qnn_conv2d):
 

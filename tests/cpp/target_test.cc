@@ -290,6 +290,7 @@ TEST(TargetCreation, ProcessStrings) {
   ASSERT_EQ(array7[1][1][0], "fred");
 }
 
+#ifdef TVM_LLVM_VERSION
 // Checks that malformed options cause an assertion.
 TEST(TargetCreation, LLVMCommandLineParseFatalDashDashDash) {
   tvm::codegen::LLVMInstance inst;
@@ -448,6 +449,25 @@ TEST(TargetCreation, LLVMCommandLineSaveRestore) {
   ASSERT_FALSE(info.MatchesGlobalState());
 }
 
+TEST(TargetCreation, DetectSystemTriple) {
+  Map<String, ObjectRef> config = {
+      {"kind", String("llvm")},
+  };
+
+  Target target = Target(config);
+  ICHECK_EQ(target->kind, TargetKind::Get("llvm").value());
+
+  auto pf = tvm::runtime::Registry::Get("target.llvm_get_system_triple");
+  if (pf == nullptr) {
+    GTEST_SKIP() << "LLVM is not available, skipping test";
+  }
+
+  Optional<String> mtriple = target->GetAttr<String>("mtriple");
+  ASSERT_TRUE(mtriple.value() == String((*pf)()));
+}
+
+#endif
+
 TVM_REGISTER_TARGET_KIND("test_external_codegen_0", kDLCUDA)
     .set_attr<Bool>(tvm::attr::kIsExternalCodegen, Bool(true));
 
@@ -494,7 +514,7 @@ TEST(TargetCreation, DeduplicateKeys) {
   ICHECK_EQ(target->keys.size(), 2U);
   ICHECK_EQ(target->keys[0], "cpu");
   ICHECK_EQ(target->keys[1], "arm_cpu");
-  ICHECK_EQ(target->attrs.size(), 1U);
+  ICHECK_EQ(target->attrs.size(), 2U);
   ICHECK_EQ(target->GetAttr<String>("device"), "arm_cpu");
 }
 

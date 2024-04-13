@@ -22,7 +22,7 @@ from tvm.target import _ffi_api, codegen, Target
 LLVM_VERSION = codegen.llvm_version_major()
 
 
-def test_llvm_targets():
+def test_llvm_targets(capfd):
 
     ##
     ## check LLVM backend
@@ -39,20 +39,16 @@ def test_llvm_targets():
     assert codegen.llvm_get_system_x86_vendor() == _ffi_api.llvm_get_system_x86_vendor()
     assert str(codegen.llvm_get_targets()) == str(_ffi_api.llvm_get_targets())
 
-    # check LLVM target -mcpu legality
-    try:
-        tvm.target.codegen.llvm_get_cpu_features(
-            tvm.target.Target("llvm -mtriple=x86_64-linux-gnu -mcpu=dummy")
-        )
-        assert False
-    except tvm.error.TVMError as e:
-        msg = str(e)
-        assert (
-            msg.find(
-                "TVMError: LLVM cpu architecture `-mcpu=dummy` is not valid in `-mtriple=x86_64-linux-gnu`"
-            )
-            != -1
-        )
+    tvm.target.codegen.llvm_get_cpu_features(
+        tvm.target.Target("llvm -mtriple=x86_64-linux-gnu -mcpu=dummy")
+    )
+    expected_str = (
+        " with `-mcpu=dummy` is not valid in "
+        "`-mtriple=x86_64-linux-gnu`, using default `-mcpu=generic`"
+    )
+    readout_error = capfd.readouterr().err
+    assert "Error: Using LLVM " in readout_error
+    assert expected_str in readout_error
 
 
 min_llvm_version, llvm_target, cpu_arch, cpu_features, is_supported = tvm.testing.parameters(

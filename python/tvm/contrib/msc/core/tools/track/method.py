@@ -25,6 +25,7 @@ from tvm.contrib.msc.core.utils.namespace import MSCFramework
 from tvm.contrib.msc.core import utils as msc_utils
 
 
+@msc_utils.register_tool_method
 class TrackMethod(object):
     """Default track method"""
 
@@ -62,7 +63,7 @@ class TrackMethod(object):
         config = {"info": msc_utils.inspect_array(data)}
         # save the data
         tracker._saver.save_datas({name: data}, tracker._forward_cnt)
-        tracker.debug_tensor(data, name, consumer, "save")
+        tracker.debug_tensors(name, consumer, "save_compares", {"save": data})
         # compare datas
         if tracker._stage in compare_to:
             diffs = {}
@@ -72,13 +73,11 @@ class TrackMethod(object):
                         continue
                     golden = tracker._loaders[stage].load_data(name, tracker._forward_cnt)
                     report = msc_utils.compare_arrays({name: golden}, {name: data})
-                    diff_msg = "{}{} to {} -> {}".format(
-                        tracker.msg_mark(), name, stage, report["info"][name]
-                    )
+                    diff_msg = "{} to {} -> {}".format(name, stage, report["info"][name])
                     if report["passed"] == 0:
-                        tracker._logger.info(diff_msg)
+                        tracker._logger.info(tracker.msg_mark(diff_msg))
                     elif tracker.on_debug():
-                        tracker._logger.debug(diff_msg)
+                        tracker._logger.debug(tracker.msg_mark(diff_msg))
                     diffs[stage] = {
                         "pass": report["passed"] == 1,
                         "info": msc_utils.inspect_array(np.abs(golden - data)),
@@ -94,5 +93,6 @@ class TrackMethod(object):
     def tool_type(cls):
         return ToolType.TRACKER
 
-
-msc_utils.register_tool_method(TrackMethod)
+    @classmethod
+    def method_style(cls):
+        return "default"

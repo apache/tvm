@@ -21,10 +21,14 @@
  * \file expr.cc
  */
 #include <tvm/runtime/registry.h>
+#include <tvm/tir/builtin.h>
 #include <tvm/tir/expr.h>
 #include <tvm/tir/op.h>
 #include <tvm/tir/stmt_functor.h>
 
+#include <optional>
+
+#include "../../arith/scalable_expression.h"
 #include "../../support/str_escape.h"
 #include "buffer_common.h"
 
@@ -54,7 +58,9 @@ namespace tir {
     CHECK(a.dtype() == b.dtype()) << "TypeError: mismatched types. " << a.dtype() << " vs. " \
                                   << b.dtype() << "\n";                                      \
     ObjectPtr<T> node = make_object<T>();                                                    \
-    node->dtype = DataType::Bool(a.dtype().lanes());                                         \
+    DataType a_dtype = a.dtype();                                                            \
+    node->dtype =                                                                            \
+        DataType::Bool(a_dtype.get_lanes_or_vscale_factor(), a_dtype.is_scalable_vector());  \
     node->a = std::move(a);                                                                  \
     node->b = std::move(b);                                                                  \
     node->span = std::move(span);                                                            \
@@ -190,7 +196,8 @@ TVM_REGISTER_NODE_TYPE(StringImmNode);
 // Cast
 Cast::Cast(DataType t, PrimExpr value, Span span) {
   ICHECK(value.defined());
-  ICHECK_EQ(t.lanes(), value.dtype().lanes());
+  ICHECK_EQ(t.get_lanes_or_vscale_factor(), value.dtype().get_lanes_or_vscale_factor());
+  ICHECK(t.is_scalable_vector() == value.dtype().is_scalable_vector());
   ObjectPtr<CastNode> node = make_object<CastNode>();
   node->dtype = t;
   node->value = std::move(value);
@@ -348,7 +355,8 @@ And::And(PrimExpr a, PrimExpr b, Span span) {
   ICHECK(a.dtype() == b.dtype()) << "TypeError: mismatched types";
 
   ObjectPtr<AndNode> node = make_object<AndNode>();
-  node->dtype = DataType::Bool(a.dtype().lanes());
+  node->dtype =
+      DataType::Bool(a.dtype().get_lanes_or_vscale_factor(), a.dtype().is_scalable_vector());
   node->a = std::move(a);
   node->b = std::move(b);
   node->span = std::move(span);
@@ -370,7 +378,8 @@ Or::Or(PrimExpr a, PrimExpr b, Span span) {
   ICHECK(a.dtype() == b.dtype()) << "TypeError: mismatched types";
 
   ObjectPtr<OrNode> node = make_object<OrNode>();
-  node->dtype = DataType::Bool(a.dtype().lanes());
+  node->dtype =
+      DataType::Bool(a.dtype().get_lanes_or_vscale_factor(), a.dtype().is_scalable_vector());
   node->a = std::move(a);
   node->b = std::move(b);
   node->span = std::move(span);
@@ -389,7 +398,8 @@ Not::Not(PrimExpr a, Span span) {
   ICHECK(a.dtype().is_bool());
 
   ObjectPtr<NotNode> node = make_object<NotNode>();
-  node->dtype = DataType::Bool(a.dtype().lanes());
+  DataType a_dtype = a.dtype();
+  node->dtype = DataType::Bool(a_dtype.get_lanes_or_vscale_factor(), a_dtype.is_scalable_vector());
   node->a = std::move(a);
   node->span = std::move(span);
   data_ = std::move(node);
@@ -405,7 +415,9 @@ Select::Select(PrimExpr condition, PrimExpr true_value, PrimExpr false_value, Sp
   ICHECK(true_value.defined()) << "ValueError: true_value is undefined";
   ICHECK(false_value.defined()) << "ValueError: true_value is undefined";
   ICHECK(condition.dtype().is_bool());
-  ICHECK(condition.dtype().lanes() == true_value.dtype().lanes() || condition.dtype().lanes() == 1);
+  ICHECK(condition.dtype().get_lanes_or_vscale_factor() ==
+             true_value.dtype().get_lanes_or_vscale_factor() ||
+         condition.dtype().is_scalar());
   ICHECK(false_value.dtype() == true_value.dtype())
       << "TypeError: mismatched types. "
       << "False type: " << false_value.dtype() << "; True type: " << true_value.dtype();
@@ -427,47 +439,71 @@ TVM_REGISTER_GLOBAL("tir.Select")
 TVM_REGISTER_NODE_TYPE(SelectNode);
 
 // Ramp
-Ramp::Ramp(PrimExpr base, PrimExpr stride, int lanes, Span span) {
+Ramp::Ramp(PrimExpr base, PrimExpr stride, PrimExpr lanes, Span span) {
   ICHECK(base.defined());
   ICHECK(stride.defined());
   ICHECK(base.dtype().is_scalar());
   ICHECK(stride.dtype().is_scalar());
-  ICHECK_GT(lanes, 1);
   if (stride.dtype() != base.dtype()) {
     stride = cast(base.dtype(), stride);
   }
 
   ObjectPtr<RampNode> node = make_object<RampNode>();
-  node->dtype = base.dtype().with_lanes(lanes);
+  auto* lanes_as_int = lanes.as<IntImmNode>();
+  if (lanes_as_int) {
+    int lanes = static_cast<int>(lanes_as_int->value);
+    ICHECK_GT(lanes, 1);
+    node->dtype = base.dtype().with_lanes(lanes);
+    // Stick to int32 lanes for fixed length vectors
+    node->lanes = lanes;
+  } else { /* scalable vector */
+    std::optional<int> vscale_factor = arith::ExtractVscaleFactor(lanes);
+    ICHECK(vscale_factor) << "Invalid expression for scalable lanes " << lanes;
+
+    node->dtype = base.dtype().with_scalable_vscale_factor(vscale_factor.value());
+    lanes = Mul(Call(DataType::Int(32), tir::builtin::vscale(), {}), vscale_factor.value());
+    node->lanes = lanes;
+  }
   node->base = base;
   node->stride = stride;
-  node->lanes = lanes;
   node->span = std::move(span);
   data_ = std::move(node);
 }
 
 TVM_REGISTER_GLOBAL("tir.Ramp")
-    .set_body_typed([](PrimExpr base, PrimExpr stride, int lanes, Span span) {
+    .set_body_typed([](PrimExpr base, PrimExpr stride, PrimExpr lanes, Span span) {
       return Ramp(base, stride, lanes, span);
     });
 
 TVM_REGISTER_NODE_TYPE(RampNode);
 
 // Broadcast
-Broadcast::Broadcast(PrimExpr value, int lanes, Span span) {
+Broadcast::Broadcast(PrimExpr value, PrimExpr lanes, Span span) {
   ICHECK(value.defined());
   ICHECK(value.dtype().is_scalar());
-  ICHECK_GT(lanes, 1);
 
   ObjectPtr<BroadcastNode> node = make_object<BroadcastNode>();
-  node->dtype = value.dtype().with_lanes(lanes);
+  auto* lanes_int = lanes.as<IntImmNode>();
+  if (lanes_int) {
+    int lanes = static_cast<int>(lanes_int->value);
+    ICHECK_GT(lanes, 1);
+    node->dtype = value.dtype().with_lanes(lanes);
+    // Stick to int32 lanes for fixed length vectors
+    node->lanes = lanes;
+  } else { /* scalable vector */
+    std::optional<int> vscale_factor = arith::ExtractVscaleFactor(lanes);
+    ICHECK(vscale_factor) << "Invalid expression for scalable lanes " << lanes;
+
+    node->dtype = value.dtype().with_scalable_vscale_factor(vscale_factor.value());
+    lanes = Mul(Call(DataType::Int(32), tir::builtin::vscale(), {}), vscale_factor.value());
+    node->lanes = lanes;
+  }
   node->value = std::move(value);
-  node->lanes = lanes;
   node->span = std::move(span);
   data_ = node;
 }
 
-TVM_REGISTER_GLOBAL("tir.Broadcast").set_body_typed([](PrimExpr value, int lanes, Span span) {
+TVM_REGISTER_GLOBAL("tir.Broadcast").set_body_typed([](PrimExpr value, PrimExpr lanes, Span span) {
   return Broadcast(value, lanes, span);
 });
 
@@ -525,8 +561,8 @@ TVM_REGISTER_GLOBAL("tir.Call")
           for (Range r : br->region) {
             if (is_one(r->extent)) {
               indices.push_back(r->min);
-            } else if (const auto* extent = r->extent.as<IntImmNode>()) {
-              indices.push_back(tir::Ramp(r->min, make_const(r->min->dtype, 1), extent->value));
+            } else if (r->extent.as<IntImmNode>()) {
+              indices.push_back(tir::Ramp(r->min, make_const(r->min->dtype, 1), r->extent));
             } else {
               LOG(FATAL) << "ValueError: Cannot convert to BufferLoad: "
                          << GetRef<BufferRegion>(br);
@@ -714,10 +750,26 @@ void BufferLoadNode::LegalizeDType() {
         << "Only the last index of a buffer access may be a vector type.";
   }
 
-  int index_lanes = indices.size() ? indices.back().dtype().lanes() : 1;
-  int buffer_lanes = buffer->dtype.lanes();
+  if (indices.empty()) {
+    this->dtype = buffer->dtype;
+  } else {
+    auto index_dtype = indices.back().dtype();
+    bool is_buffer_dtype_scalable = buffer->dtype.is_scalable_vector();
+    bool is_index_scalable = index_dtype.is_scalable_vector();
 
-  this->dtype = buffer->dtype.with_lanes(index_lanes * buffer_lanes);
+    ICHECK(!(is_index_scalable && is_buffer_dtype_scalable))
+        << "Index dtype and buffer dtype can't both be scalable.";
+
+    if (is_index_scalable) {
+      this->dtype = buffer->dtype.with_scalable_vscale_factor(index_dtype.vscale_factor() *
+                                                              buffer->dtype.lanes());
+    } else if (is_buffer_dtype_scalable) {
+      this->dtype = buffer->dtype.with_scalable_vscale_factor(buffer->dtype.vscale_factor() *
+                                                              index_dtype.lanes());
+    } else {
+      this->dtype = buffer->dtype.with_lanes(index_dtype.lanes() * buffer->dtype.lanes());
+    }
+  }
 }
 
 BufferLoad::BufferLoad(Buffer buffer, Array<PrimExpr> indices, Span span) {

@@ -32,6 +32,8 @@ namespace relay {
 
 Function::Function(tvm::Array<Var> params, Expr body, Type ret_type,
                    tvm::Array<TypeVar> type_params, DictAttrs attrs, Span span) {
+  CHECK(attrs.defined());
+
   ObjectPtr<FunctionNode> n = make_object<FunctionNode>();
   ICHECK(params.defined());
   ICHECK(type_params.defined());
@@ -251,7 +253,7 @@ TVM_REGISTER_GLOBAL("relay.ir.IRModuleUpdateWithRenamer")
 
 TVM_REGISTER_GLOBAL("relay.ir.FunctionFromExprInContext")
     .set_body_typed([](RelayExpr expr, IRModule mod) -> Function {
-      return Function(relay::FreeVars(expr), expr, Type(), relay::FreeTypeVars(expr, mod), {});
+      return Function(relay::FreeVars(expr), expr, Type(), relay::FreeTypeVars(expr, mod));
     });
 
 TVM_REGISTER_GLOBAL("relay.ir.FuncWithAttr")
