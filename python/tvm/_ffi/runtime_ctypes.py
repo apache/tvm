@@ -212,6 +212,20 @@ class DataType(ctypes.Structure):
     def __ne__(self, other):
         return not self.__eq__(other)
 
+    def itemsize(self):
+        """Get the number of bytes of a single element of this data type. When the number of lanes
+        is greater than 1, the itemsize is the size of the vector type.
+
+        Returns
+        -------
+        itemsize : int
+            The number of bytes of a single element of this data type
+        """
+        lanes_as_int = ctypes.c_int16(self.lanes).value
+        if lanes_as_int < 0:
+            raise ValueError("Cannot determine itemsize for scalable vector types")
+        return self.bits * self.lanes // 8
+
 
 if ml_dtypes is not None:
     DataType.NUMPY2STR[np.dtype(ml_dtypes.bfloat16)] = "bfloat16"
