@@ -298,7 +298,9 @@ class GEMV(GPUScheduleRule):
             s_local, r_local = sch.get_loops(block=Aq_local)[-2:]
             fused_load = sch.fuse(s_local, r_local)
             aq_vec_len = max(1, VEC_LOAD // get_bytes(sch.get(Aq_local).reads[0].buffer.dtype))
-            fused_load, vec_load = sch.split(fused_load, factors=[None, aq_vec_len], preserve_unit_iters=True)
+            fused_load, vec_load = sch.split(
+                fused_load, factors=[None, aq_vec_len], preserve_unit_iters=True
+            )
             sch.vectorize(vec_load)
 
             # load vector into shared memory, shape should be the whole vector
