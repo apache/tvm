@@ -15,7 +15,6 @@
 # specific language governing permissions and limitations
 # under the License.
 """A rule for GEMV and DecodeGEMV."""
-import re
 from functools import reduce
 from typing import List, Optional, Union
 
