@@ -57,7 +57,7 @@ def get_extent(sch: tir.Schedule, loop_rv: tir.schedule.LoopRV):
 def get_bytes(dtype: Union[DataType, str]) -> int:
     if isinstance(dtype, str):
         dtype = DataType(dtype)
-    return dtype.bits * dtype.lanes // 8
+    return dtype.itemsize()
 
 
 def is_gemv(sch: tir.Schedule, block_info: BlockInfo) -> Optional[List[tir.Buffer]]:
