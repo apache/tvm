@@ -224,7 +224,7 @@ class DataType(ctypes.Structure):
         lanes_as_int = ctypes.c_int16(self.lanes).value
         if lanes_as_int < 0:
             raise ValueError("Cannot determine itemsize for scalable vector types")
-        return self.bits * self.lanes // 8
+        return (self.bits * self.lanes + 7) // 8
 
 
 if ml_dtypes is not None:
