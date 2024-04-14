@@ -444,7 +444,8 @@ class GraphExecutorCodegen : public backend::MemoizedExprTranslator<std::vector<
       // TODO(mbs): "reshape" cleanup.
       if (IsReshapeOnly(call_lowered_props) &&
           ShareSameStorage(GetRef<Expr>(call_node), call_lowered_props.arguments[0])) {
-        auto node = GraphOpNode::make_node_ptr("reshape_nop", GraphAttrs(), "__nop", inputs, attrs);
+        auto op_name = name_supply_->FreshName("reshape_nop");
+        auto node = GraphOpNode::make_node_ptr(op_name, GraphAttrs(), "__nop", inputs, attrs);
         return AddNode(node, call);
       }
     } else if (!call_node->attrs.defined()) {  // Call is an extern function
