@@ -1789,7 +1789,7 @@ def infinity(dtype: str, span: Optional[Span] = None) -> Any:
     return _ffi_api.infinity(dtype, span)  # type: ignore
 
 
-def reinterpret(dtype, value) -> Any:
+def reinterpret(dtype, value, span: Optional[Span] = None) -> Any:
     """infinity value of dtype
 
     Parameters
@@ -1808,7 +1808,7 @@ def reinterpret(dtype, value) -> Any:
     value : tvm.Expr
         The reinterpret cast value of dtype.
     """
-    return call_intrin(dtype, "tir.reinterpret", value)
+    return _ffi_api.reinterpret(dtype, value, span)  # type: ignore
 
 
 def exp(x):
