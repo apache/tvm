@@ -449,5 +449,27 @@ def test_inferred_sinfo_with_dynamic_buffer():
     tvm.ir.assert_structural_equal(func.struct_info, expected)
 
 
+def test_reinterpret_nop():
+    """Test builtin reinterpret op"""
+
+    @T.prim_func
+    def func(A: T.Buffer((32,), "float32"), B: T.Buffer((32,), "float32")) -> None:
+        T.func_attr({"global_symbol": "main"})
+        for i in T.serial(0, 32):
+            with T.block():
+                vi = T.axis.remap("S", [i])
+                B[vi] = T.reinterpret("float32", A[vi])
+
+    @T.prim_func
+    def expected(A: T.Buffer((32,), "float32"), B: T.Buffer((32,), "float32")) -> None:
+        T.func_attr({"global_symbol": "main"})
+        for i in T.serial(0, 32):
+            with T.block():
+                vi = T.axis.remap("S", [i])
+                B[vi] = A[vi]
+
+    tvm.ir.assert_structural_equal(func, expected)
+
+
 if __name__ == "__main__":
     tvm.testing.main()
