@@ -89,7 +89,8 @@ class AlterOpImplMutator : public ExprMutator {
         op_buffer_axis_separators__(axis_separators_) {}
 
   IRModule Run() {
-    for (const auto& [gv, func] : mod_->functions) {
+    for (const auto& gv : mod_->GetGlobalVars()) {
+      const auto& func = mod_->Lookup(gv);
       if (func->IsInstance<relax::FunctionNode>()) {
         relax::Function update_func = Downcast<Function>(VisitExpr(func));
         builder_->UpdateFunction(gv, update_func);

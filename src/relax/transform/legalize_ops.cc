@@ -67,16 +67,18 @@ class LegalizeMutator : public ExprMutator {
   }
 
   IRModule Transform() {
-    for (const auto& [gv, func] : mod_->functions) {
+    for (const auto& gv : mod_->GetGlobalVars()) {
+      const auto& func = mod_->Lookup(gv);
       if (func->IsInstance<FunctionNode>()) {
         auto updated_func = Downcast<Function>(this->VisitExpr(func));
         builder_->UpdateFunction(gv, Downcast<BaseFunc>(updated_func));
       }
     }
     // Fill the "kTarget" attribute of PrimFunc
-    for (const auto& [gv, func] : builder_->GetContextIRModule()->functions) {
+    const auto& mod = builder_->GetContextIRModule();
+    for (const auto& gv : mod->GetGlobalVars()) {
       const tir::PrimFuncNode* prim_func;
-      if (tmap_.count(gv) && (prim_func = func.as<tir::PrimFuncNode>())) {
+      if (tmap_.count(gv) && (prim_func = mod->Lookup(gv).as<tir::PrimFuncNode>())) {
         auto f = WithAttr(GetRef<tir::PrimFunc>(prim_func), tvm::attr::kTarget, tmap_[gv]);
         builder_->UpdateFunction(gv, f);
       }

@@ -26,6 +26,7 @@
 #include <tvm/node/structural_equal.h>
 #include <tvm/runtime/registry.h>
 
+#include <algorithm>
 #include <fstream>
 #include <sstream>
 #include <unordered_set>
@@ -183,6 +184,9 @@ tvm::Array<GlobalVar> IRModuleNode::GetGlobalVars() const {
   for (const auto& pair : global_var_map_) {
     global_vars.push_back(pair.second);
   }
+  std::sort(global_vars.begin(), global_vars.end(), [](const GlobalVar& lhs, const GlobalVar& rhs) {
+    return lhs->name_hint < rhs->name_hint;
+  });
   return tvm::Array<GlobalVar>(global_vars);
 }
 
