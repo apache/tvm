@@ -736,6 +736,7 @@ class Schedule(Object):
         loop: LoopRV,
         factors: List[Union[int, ExprRV, None]],
         preserve_unit_iters: bool = True,
+        disable_predication: bool = False,
     ) -> List[LoopRV]:
         """Split a loop into a list of consecutive loops. It requires:
         1) The loop can't have annotation or thread binding.
@@ -758,6 +759,14 @@ class Schedule(Object):
 
         preserve_unit_iters : bool
             Whether or not to preserve unit iterators in block bindings
+
+        disable_predication : bool
+            If enabled, don't create a predicate for guarding the loop. This can
+            be useful when splitting with scalable factors that the schedule writer
+            knows are divisible by the loop bound.
+
+            Warning: enabling this feature may result in incorrect code generation
+            if not used carefully.
 
         Returns
         -------
@@ -809,7 +818,11 @@ class Schedule(Object):
         # that there is at most one None in `factors`
         return list(
             _ffi_api.ScheduleSplit(  # type: ignore # pylint: disable=no-member
-                self, loop, factors, preserve_unit_iters
+                self,
+                loop,
+                factors,
+                preserve_unit_iters,
+                disable_predication,
             )
         )
 

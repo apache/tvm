@@ -27,6 +27,9 @@
 #include <tvm/tir/expr.h>
 #include <tvm/tir/op.h>
 
+#include <vector>
+
+#include "../tir/transforms/replace_selected_expr.h"
 #include "./pattern_match.h"
 
 namespace tvm {
@@ -39,6 +42,19 @@ bool IsVScaleCall(const PrimExpr& expr) {
   return false;
 }
 
+PrimExpr SubstituteVScaleWithKnownValue(const PrimExpr& expr, unsigned int vscale_value) {
+  std::function<bool(const PrimExpr&)> predicate_selector = [](const PrimExpr& current_expr) {
+    return IsVScaleCall(current_expr);
+  };
+  std::function<bool(const PrimExpr&)> can_replace_inside = [](const PrimExpr& current_expr) {
+    return true;
+  };
+
+  return tir::ReplaceSelectedExpr::ReplaceSelectedExprInExpr(
+      expr, predicate_selector, tir::MakeConstScalar(DataType::Int(32), vscale_value),
+      can_replace_inside);
+}
+
 std::optional<int> ExtractVscaleFactor(const PrimExpr& lanes) {
   PVar<IntImm> multiplier;
   PCallExpr<PVscaleOp> vscale;
@@ -48,6 +64,28 @@ std::optional<int> ExtractVscaleFactor(const PrimExpr& lanes) {
   } else {
     return std::nullopt;
   }
+}
+
+bool IsComparison(const PrimExpr& expr) {
+  return expr->IsInstance<tir::LENode>() || expr->IsInstance<tir::LTNode>() ||
+         expr->IsInstance<tir::GENode>() || expr->IsInstance<tir::GTNode>() ||
+         expr->IsInstance<tir::EQNode>() || expr->IsInstance<tir::NENode>();
+}
+
+bool CanProveVscaleExpressionFromKnownValues(arith::Analyzer* analyzer, const PrimExpr& expr,
+                                             const std::vector<unsigned int>& vscale_values) {
+  ICHECK(IsComparison(expr)) << "Expected comparison but got: " << expr;
+  bool can_prove_expr = true;
+  for (const unsigned int vscale_value : vscale_values) {
+    PrimExpr result = SubstituteVScaleWithKnownValue(expr, vscale_value);
+    result = analyzer->Simplify(result);
+    const int64_t* as_int = tir::as_const_int(result);
+    if (!as_int || *as_int == 0) {
+      can_prove_expr = false;
+      break;
+    }
+  }
+  return can_prove_expr;
 }
 
 }  // namespace arith

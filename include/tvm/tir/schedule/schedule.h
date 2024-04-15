@@ -349,11 +349,16 @@ class ScheduleNode : public runtime::Object {
    * \param loop_rv The loop to be split
    * \param factors The positive tiling factors, and at most one of which is `NullOpt`, which means
    * that factor is inferred.
-   * \param preserve_unit_iters Whether or not to preserve unit iterators in block bindings
-   * \return The new loops after split
+   * \param preserve_unit_iters Whether or not to preserve unit iterators in block bindings.
+   * \param disable_predication If enabled, don't create a predicate for guarding the
+   * loop. This can be useful when splitting with scalable factors that the schedule writer
+   * knows are divisible by the loop bound.
+   * Warning: enabling this feature may result in incorrect code generation if not used carefully.
+   * \return The new loops after split.
    */
   virtual Array<LoopRV> Split(const LoopRV& loop_rv, const Array<Optional<ExprRV>>& factors,
-                              bool preserve_unit_iters = true) = 0;
+                              bool preserve_unit_iters = true,
+                              bool disable_predication = false) = 0;
   /*!
    * \brief Partition the loops into sequence of multiple loops
    * 1) The loop can't have annotation or thread binding.
