@@ -249,7 +249,8 @@ class IRModuleNode : public Object {
   TVM_DLL GlobalVar GetGlobalVar(const String& str) const;
 
   /*!
-   * \brief Collect all global vars defined in this module.
+   * \brief Collect all global vars defined in this module, ordered by
+   *        the global variable name.
    * \returns An array of global vars
    */
   TVM_DLL Array<GlobalVar> GetGlobalVars() const;
