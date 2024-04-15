@@ -691,7 +691,8 @@ class OperatorFusor : public ExprMutator {
    * \return The new IRModule after transformation
    */
   IRModule Transform() {
-    for (const auto& [gv, func] : mod_->functions) {
+    for (const auto& gv : mod_->GetGlobalVars()) {
+      const auto& func = mod_->Lookup(gv);
       // Only visit Relax function without attr kPrimitive.
       if (func->IsInstance<relax::FunctionNode>() && !func->HasNonzeroAttr(attr::kPrimitive)) {
         auto updated_func = Downcast<Function>(VisitExpr(func));
@@ -1196,9 +1197,9 @@ class CompositeFunctionAnnotator : public ExprMutator {
 
   IRModule Run() {
     auto mod = builder_->GetContextIRModule();
-    auto all_functions = mod->functions;
-    for (const auto& entry : all_functions) {
-      if (const auto* func = entry.second.as<FunctionNode>()) {
+    for (const auto& gv : mod->GetGlobalVars()) {
+      const auto& base_func = mod->Lookup(gv);
+      if (const auto* func = base_func.as<FunctionNode>()) {
         if (func->GetAttr<String>(attr::kComposite).defined() ||
             func->GetAttr<String>(attr::kCodegen).defined()) {
           continue;
@@ -1208,7 +1209,7 @@ class CompositeFunctionAnnotator : public ExprMutator {
         if (!new_body.same_as(func->body)) {
           auto new_func = Function(func->params, new_body, func->ret_struct_info, func->is_pure,
                                    func->attrs, func->span);
-          builder_->UpdateFunction(entry.first, new_func);
+          builder_->UpdateFunction(gv, new_func);
         }
       }
     }
@@ -1272,11 +1273,12 @@ IRModule FuseOpsByPattern(const tvm::Array<transform::FusionPattern>& patterns, 
   support::Arena arena;
   for (const auto& pattern : patterns) {
     OperatorFusor::GroupMap group_map;
-    for (const auto& entry : mod->functions) {
-      if (entry.second->IsInstance<tir::PrimFuncNode>()) {
+    for (const auto& gv : mod->GetGlobalVars()) {
+      const auto& base_func = mod->Lookup(gv);
+      if (base_func->IsInstance<tir::PrimFuncNode>()) {
         continue;
       }
-      const FunctionNode* function = entry.second.as<FunctionNode>();
+      const FunctionNode* function = base_func.as<FunctionNode>();
       if (function->GetAttr<Integer>(attr::kPrimitive).defined() ||
           function->GetAttr<String>(attr::kComposite).defined() ||
           function->GetAttr<String>(attr::kCodegen).defined()) {
@@ -1285,8 +1287,8 @@ IRModule FuseOpsByPattern(const tvm::Array<transform::FusionPattern>& patterns, 
 
       auto map = PatternBasedPartitioner::Run(pattern->name, pattern->pattern,
                                               pattern->annotation_patterns,
-                                              pattern->check.value_or(nullptr), entry.second,
-                                              &arena, pattern->attrs_getter.value_or(nullptr));
+                                              pattern->check.value_or(nullptr), base_func, &arena,
+                                              pattern->attrs_getter.value_or(nullptr));
       for (const auto& [key, value] : map) {
         CHECK(!group_map.count(key))
             << "ValueError: "
