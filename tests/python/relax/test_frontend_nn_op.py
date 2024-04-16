@@ -1188,5 +1188,34 @@ def test_renormalize_top_p_top_k_prob():
     )
 
 
+def test_sort_argsort_topk():
+    class Model(Module):
+        def foo(self, x: Tensor):
+            z0 = op.sort(x, axis=-1, descending=True)
+            z1 = op.argsort(x, axis=-1, descending=False)
+            z2 = op.topk(x, k=2, axis=-1)
+            return z0, z1, z2
+
+    @I.ir_module
+    class Expected:
+        @R.function
+        def foo(x: R.Tensor(("seq_len", 64), dtype="float16")):
+            R.func_attr({"num_input": 1})
+            with R.dataflow():
+                sort = R.sort(x, axis=-1, descending=True)
+                argsort = R.argsort(x, axis=-1, descending=False, dtype="int32")
+                topk = R.topk(x, k=2, axis=-1, ret_type="both", largest=True, dtype="int32")
+                topk_0 = topk[0]
+                topk_1 = topk[1]
+                gv = sort, argsort, (topk_0, topk_1)
+                R.output(gv)
+            return gv
+
+    m = Model()
+    mod, _ = m.export_tvm({"foo": {"x": spec.Tensor(("seq_len", 64), "float16")}})
+
+    tvm.ir.assert_structural_equal(mod, Expected)
+
+
 if __name__ == "__main__":
     tvm.testing.main()
