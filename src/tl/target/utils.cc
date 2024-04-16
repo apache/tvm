@@ -63,7 +63,23 @@ bool TargetIsHopper(Target target) {
   return arch >= 90;
 }
 
-bool TargetHasAsyncCopy(Target target) { return TargetIsAmpere(target); }
+bool TargetHasAsyncCopy(Target target) {
+  if (!TargetIsCuda(target)) return false;
+  int arch = GetArchInt(target);
+  return arch >= 80;
+}
+
+bool TargetHasLdmatrix(Target target) {
+  if (!TargetIsCuda(target)) return false;
+  int arch = GetArchInt(target);
+  return arch >= 75;
+}
+
+bool TargetHasStmatrix(Target target) {
+  if (!TargetIsCuda(target)) return false;
+  int arch = GetArchInt(target);
+  return arch >= 90;
+}
 
 }  // namespace tl
 }  // namespace tvm

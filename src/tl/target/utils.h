@@ -39,6 +39,8 @@ bool TargetIsAmpere(Target target);
 bool TargetIsHopper(Target target);
 
 bool TargetHasAsyncCopy(Target target);
+bool TargetHasLdmatrix(Target target);
+bool TargetHasStmatrix(Target target);
 
 }  // namespace tl
 }  // namespace tvm

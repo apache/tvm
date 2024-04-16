@@ -25,6 +25,7 @@
 #ifndef TVM_TL_LOOP_VECTORIZE_H_
 #define TVM_TL_LOOP_VECTORIZE_H_
 
+#include <tvm/arith/analyzer.h>
 #include <tvm/tir/op.h>
 
 namespace tvm {
@@ -34,6 +35,9 @@ using namespace tir;
 
 int GetVectorizeSize(const For& loop);
 For VectorizeLoop(const For& loop, int vectorize_hint = -1);
+
+bool IndiceCanVectorize(PrimExpr expr, Var var, PrimExpr iter_var_size, int target_vectorized_size,
+                        arith::Analyzer* analyzer);
 
 }  // namespace tl
 }  // namespace tvm
