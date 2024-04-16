@@ -88,6 +88,7 @@ struct VulkanDeviceProperties {
   bool supports_push_descriptor{false};
   bool supports_dedicated_allocation{false};
   bool supports_integer_dot_product{false};
+  bool supports_cooperative_matrix{false};
   uint32_t supported_subgroup_operations{0};
   uint32_t max_num_threads{1};
   uint32_t thread_warp_size{1};
@@ -222,6 +223,8 @@ class VulkanDevice {
       queue_insert_debug_utils_label_functions{nullptr};
   // Memory type index for compute
   uint32_t compute_mtype_index{0};
+  // maximum memory size for compute
+  int64_t compute_memory_size{0};
 
   // queue family_index;
   uint32_t queue_family_index{uint32_t(-1)};
