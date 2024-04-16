@@ -118,10 +118,10 @@ class BufferUseDefCollector : public StmtExprVisitor {
       if (auto for_infer = dynamic_cast<ParallelOp*>(base_infer.get())) {
         ICHECK(for_infer->GetLoopLayout().defined())
             << "The Layout for Parallel for can not be infered correctly : \n"
-            << GetRef<For>(for_infer->GetRoot());
-        for_map.Set(GetRef<For>(for_infer->GetRoot()), for_infer->GetLoopLayout());
+            << for_infer->GetRoot();
+        for_map.Set(for_infer->GetRoot(), for_infer->GetLoopLayout());
         if (auto predicate = for_infer->GetPredicate(thread_var_->var))
-          predicate_map.Set(GetRef<For>(for_infer->GetRoot()), predicate.value());
+          predicate_map.Set(for_infer->GetRoot(), predicate.value());
       }
     }
 
@@ -171,7 +171,7 @@ class BufferUseDefCollector : public StmtExprVisitor {
 
   void VisitStmt_(const ForNode* op) final {
     if (op->kind == ForKind::kParallel) {
-      auto infer = std::make_unique<ParallelOp>(op);
+      auto infer = std::make_unique<ParallelOp>(GetRef<For>(op));
       for (const auto& [buffer, _] : infer->GetIndiceMap()) {
         addToUseList(buffer);
       }

@@ -52,11 +52,11 @@ class ParallelLoopNestVisitor : public StmtExprVisitor {
 
 class ParallelOp : public Operator {
  public:
-  ParallelOp(const ForNode* root);
+  ParallelOp(For root);
   LayoutMap InferLayout(const LayoutInferArgs& T, InferLevel level) final;
 
   Fragment GetLoopLayout() const { return loop_layout_; }
-  const ForNode* GetRoot() const { return root_; }
+  For GetRoot() const { return root_; }
   Map<Buffer, Array<PrimExpr>> GetIndiceMap() const { return indice_map_; }
   Optional<PrimExpr> GetPredicate(Var thread_var) const;
 
@@ -67,7 +67,7 @@ class ParallelOp : public Operator {
     predicate_ = predicate_.defined() ? And(expr, predicate_.value()) : expr;
   }
 
-  const ForNode* root_;
+  For root_;
 
   ParallelLoopNestVisitor V;
 

@@ -68,7 +68,7 @@ void ParallelLoopNestVisitor::VisitExpr_(const BufferLoadNode* op) {
   StmtExprVisitor::VisitExpr_(op);
 }
 
-ParallelOp::ParallelOp(const ForNode* root) : root_(root), V(this) { V.VisitStmt_(root); }
+ParallelOp::ParallelOp(For root) : root_(root), V(this) { V.VisitStmt(root); }
 
 bool ParallelOp::IsCommonAccessIndice(const Buffer& buffer) const {
   auto common_indice = loop_vars_.Map([](const auto& iv) { return iv->var; });
@@ -118,8 +118,8 @@ LayoutMap ParallelOp::InferLayout(const LayoutInferArgs& T, InferLevel level) {
         AddPredicate(EQ(rep, 0));
       }
     } else {
-      int vector_size = GetVectorizeSize(GetRef<For>(root_));
-      loop_layout_ = PlanLoopPartition(GetRef<For>(root_), T.block_size, vector_size);
+      int vector_size = GetVectorizeSize(root_);
+      loop_layout_ = PlanLoopPartition(root_, T.block_size, vector_size);
     }
     PrimExpr loop_thread_extent = loop_layout_->ThreadExtent();
     if (!analyzer_.CanProveEqual(loop_thread_extent, static_cast<int>(T.block_size)))
