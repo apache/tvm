@@ -34,6 +34,9 @@
 #include <unordered_map>
 #include <vector>
 
+#include "../../src/arith/scalable_expression.h"
+#include "../../tir/analysis/check_contains.h"
+
 namespace tvm {
 namespace tir {
 
@@ -725,17 +728,33 @@ class Vectorizer : public StmtMutator, public ExprFunctor<PrimExpr(const PrimExp
 
 class LoopVectorizer : public StmtMutator {
  public:
+  LoopVectorizer(PrimFunc f) {
+    auto target = f->attrs.GetAttr<tvm::Target>(tvm::attr::kTarget);
+    if (target.defined()) {
+      target_ = Downcast<Target>(target);
+      has_sve_ = target_->GetFeature<Bool>("has_sve").value_or(Bool(false));
+    }
+  }
+
   Stmt VisitStmt_(const ForNode* op) final {
     if (op->kind == ForKind::kVectorized) {
+      auto* extent_as_int = op->extent.as<IntImmNode>();
+      if (!extent_as_int || extent_as_int->value < 1) {
+        bool is_scalable_expr = CheckContains::ExprContains(op->extent, arith::IsVScaleCall);
+        ICHECK(is_scalable_expr && has_sve_)
+            << "Failed to vectorize loop with extent " << op->extent << " for target " << target_;
+      }
       ICHECK(is_zero(op->min));
       return Vectorizer(op->loop_var, op->extent)(op->body);
     } else {
       return StmtMutator::VisitStmt_(op);
     }
   }
-};
 
-Stmt VectorizeLoop(Stmt stmt) { return LoopVectorizer()(std::move(stmt)); }
+ private:
+  bool has_sve_{false};
+  Target target_{};
+};
 
 class VectorizeSkipper : public StmtMutator {
  public:
@@ -759,7 +778,7 @@ Pass VectorizeLoop(bool enable_vectorize) {
   auto pass_func = [=](PrimFunc f, IRModule m, PassContext ctx) {
     auto* n = f.CopyOnWrite();
     if (enable_vectorize) {
-      n->body = LoopVectorizer()(std::move(n->body));
+      n->body = LoopVectorizer(f)(std::move(n->body));
     } else {
       n->body = VectorizeSkipper()(std::move(n->body));
     }
