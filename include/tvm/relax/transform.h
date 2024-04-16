@@ -307,6 +307,23 @@ TVM_DLL Pass RemoveUnusedParameters();
  */
 TVM_DLL Pass RemoveUnusedOutputs();
 
+/*! \brief Remove unnecessary symbolic expressions in subroutines
+ *
+ * If all occurrences of a symbolic variable within a subroutine
+ * occur within the same symbolic expression, then the subroutine
+ * could be simplified to be in terms of that expression.
+ *
+ * For example, if a subroutine accepts symbolic shape parameters `N`
+ * and `M`, and the variables `N` and `M` are only ever used to
+ * compute `N*M`, then the subroutine could instead accept a symbolic
+ * shape parameter `new_var = N*M`.  This can allow shape parameters
+ * to be inferred from tensor shapes, rather than requiring additional
+ * arguments.
+ *
+ * \return The pass
+ */
+TVM_DLL Pass RemoveSymbolicExpressionInSubroutine();
+
 /*!
  * \brief Annotate Op Pattern Kind for TIR functions, which is used in FuseOps.
  * \note It is an auto-detect pass for "unscheduled prim_funcs", the op_pattern will be
