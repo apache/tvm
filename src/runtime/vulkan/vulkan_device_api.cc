@@ -165,6 +165,7 @@ void VulkanDeviceAPI::GetAttr(Device dev, DeviceAttrKind kind, TVMRetValue* rv) 
       break;
 
     case kTotalGlobalMemory: {
+      *rv = device(index).compute_memory_size;
       return;
     }
   }
