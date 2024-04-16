@@ -841,9 +841,10 @@ class Matmul(GPUScheduleRule):
             if apply_tensorization:
                 # Analyze read/write buffers and choose correct tensorizer: int8 or fp16.
                 in_dtype, out_dtype = get_in_out_dtypes(block_stmt)
+                tensorize_sch = None
                 if in_dtype == "int8" and out_dtype == "int32":
                     tensorize_sch = MatmulInt8Tensorization().apply(func, target, _)
-                else:
+                elif in_dtype == "float16" and out_dtype in ["float16", "float32"]:
                     tensorize_sch = MatmulTensorization().apply(func, target, _)
                 if tensorize_sch is not None:
                     return tensorize_sch
