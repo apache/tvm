@@ -142,7 +142,7 @@ class LowerTileOpPass : arith::IRMutatorWithAnalyzer {
     auto lowered = tile_op->Lower(
         LowerArgs{target_, thread_block_size_, thread_var_, callback, layout_map_, buffer_remap_},
         analyzer_);
-    return lowered;
+    return IRMutatorWithAnalyzer::VisitStmt(lowered);
   }
 
   Stmt VisitStmt_(const AttrStmtNode* op) final {

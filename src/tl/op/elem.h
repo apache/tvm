@@ -27,6 +27,7 @@
 #define TVM_TL_OP_ELEM_H_
 
 #include "op.h"
+#include "parallel.h"
 
 namespace tvm {
 namespace tl {
@@ -43,6 +44,7 @@ class Copy : public Operator {
 
  protected:
   Stmt LowerBulkCopy(const LowerArgs& T, arith::Analyzer* analyzer) const;
+  For MakeSIMTLoop(arith::Analyzer* analyzer) const;
   Array<IterVar> MakeIterVars() const;
 
   // ivs: itervars returned by MakeIterVars()
@@ -56,6 +58,8 @@ class Copy : public Operator {
 
   Buffer src, dst;
   Array<Range> src_range, dst_range;
+
+  std::unique_ptr<ParallelOp> par_op_;
 };
 
 class Fill : public Operator {
@@ -65,6 +69,7 @@ class Fill : public Operator {
   static const Op& Get();
 
  private:
+  For MakeSIMTLoop(arith::Analyzer* analyzer) const;
   tir::Buffer dst;
   PrimExpr value;
 };
