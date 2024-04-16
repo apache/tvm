@@ -63,12 +63,12 @@ class TestMatmul(BaseBeforeAfter):
                     for ax1_1 in T.thread_binding(T.int64(1), thread="vthread.x"):
                         for ax2_2 in T.thread_binding(T.int64(16), thread="threadIdx.y"):
                             for ax1_2 in T.thread_binding(T.int64(8), thread="threadIdx.x", annotations={"pragma_auto_unroll_max_step": 256, "pragma_unroll_explicit": 1}):
-                                for ax2_3_init, ax1_3_0_init in T.grid(T.int64(4), T.int64(2)):
-                                    for ax1_3_1_init in T.vectorized(T.int64(2)):
+                                for ax1_3_init, ax2_3_0_init in T.grid(T.int64(4), T.int64(2)):
+                                    for ax2_3_1_init in T.vectorized(T.int64(2)):
                                         with T.block("matmul_init"):
                                             v0 = T.axis.spatial(T.int64(1), T.int64(0))
-                                            v1 = T.axis.spatial((m + T.int64(31)) // T.int64(32) * T.int64(32), ax1_0 * T.int64(32) + ax1_1 * T.int64(32) + ax1_2 * T.int64(4) + ax1_3_0_init * T.int64(2) + ax1_3_1_init)
-                                            v2 = T.axis.spatial(T.int64(4096), ax0_ax2_0_fused * T.int64(64) + ax2_1 * T.int64(64) + ax2_2 * T.int64(4) + ax2_3_init)
+                                            v1 = T.axis.spatial((m + T.int64(31)) // T.int64(32) * T.int64(32), ax1_0 * T.int64(32) + ax1_1 * T.int64(32) + ax1_2 * T.int64(4) + ax1_3_init)
+                                            v2 = T.axis.spatial(T.int64(4096), ax0_ax2_0_fused * T.int64(64) + ax2_1 * T.int64(64) + ax2_2 * T.int64(4) + ax2_3_0_init * T.int64(2) + ax2_3_1_init)
                                             T.reads()
                                             T.writes(matmul_reindex_pad_local[T.int64(0), v1, v2])
                                             matmul_reindex_pad_local[T.int64(0), v1, v2] = T.float32(0)
@@ -97,12 +97,12 @@ class TestMatmul(BaseBeforeAfter):
                                                         T.writes(inp1_reindex_shared[v0, v1, v2])
                                                         T.block_attr({"buffer_dim_align": [[0, 1, 8, 2]]})
                                                         inp1_reindex_shared[v0, v1, v2] = inp1[v2, v1]
-                                    for ax3_1, ax2_3, ax1_3_0 in T.grid(T.int64(16), T.int64(4), T.int64(2)):
-                                        for ax1_3_1 in T.vectorized(T.int64(2)):
+                                    for ax3_1, ax1_3, ax2_3_0 in T.grid(T.int64(16), T.int64(4), T.int64(2)):
+                                        for ax2_3_1 in T.vectorized(T.int64(2)):
                                             with T.block("matmul_update"):
                                                 v0 = T.axis.spatial(T.int64(1), T.int64(0))
-                                                v1 = T.axis.spatial((m + T.int64(31)) // T.int64(32) * T.int64(32), ax1_0 * T.int64(32) + ax1_1 * T.int64(32) + ax1_2 * T.int64(4) + ax1_3_0 * T.int64(2) + ax1_3_1)
-                                                v2 = T.axis.spatial(T.int64(4096), ax0_ax2_0_fused * T.int64(64) + ax2_1 * T.int64(64) + ax2_2 * T.int64(4) + ax2_3)
+                                                v1 = T.axis.spatial((m + T.int64(31)) // T.int64(32) * T.int64(32), ax1_0 * T.int64(32) + ax1_1 * T.int64(32) + ax1_2 * T.int64(4) + ax1_3)
+                                                v2 = T.axis.spatial(T.int64(4096), ax0_ax2_0_fused * T.int64(64) + ax2_1 * T.int64(64) + ax2_2 * T.int64(4) + ax2_3_0 * T.int64(2) + ax2_3_1)
                                                 v3 = T.axis.reduce(T.int64(4096), ax3_0 * T.int64(16) + ax3_1)
                                                 T.reads(matmul_reindex_pad_local[T.int64(0), v1, v2], inp0_reindex_pad_shared[T.int64(0), v1, v3], inp1_reindex_shared[T.int64(0), v2, v3])
                                                 T.writes(matmul_reindex_pad_local[T.int64(0), v1, v2])
@@ -117,7 +117,6 @@ class TestMatmul(BaseBeforeAfter):
                                             T.writes(matmul[T.int64(0), v1, v2])
                                             if v1 < m:
                                                 matmul[T.int64(0), v1, v2] = matmul_reindex_pad_local[v0, v1, v2]
-
     # fmt: on
 
 
@@ -151,12 +150,12 @@ def test_matmul_int32():
                     for ax1_1 in T.thread_binding(1, thread="vthread.x"):
                         for ax2_2 in T.thread_binding(16, thread="threadIdx.y"):
                             for ax1_2 in T.thread_binding(8, thread="threadIdx.x", annotations={"pragma_auto_unroll_max_step": 256, "pragma_unroll_explicit": 1}):
-                                for ax2_3_init, ax1_3_0_init in T.grid(4, 2):
-                                    for ax1_3_1_init in T.vectorized(2):
+                                for ax1_3_init, ax2_3_0_init in T.grid(4, 2):
+                                    for ax2_3_1_init in T.vectorized(2):
                                         with T.block("matmul_init"):
                                             v0 = T.axis.spatial(1, 0)
-                                            v1 = T.axis.spatial((m + 31) // 32 * 32, ax1_0 * 32 + ax1_1 * 32 + ax1_2 * 4 + ax1_3_0_init * 2 + ax1_3_1_init)
-                                            v2 = T.axis.spatial(4096, ax0_ax2_0_fused * 64 + ax2_1 * 64 + ax2_2 * 4 + ax2_3_init)
+                                            v1 = T.axis.spatial((m + 31) // 32 * 32, ax1_0 * 32 + ax1_1 * 32 + ax1_2 * 4 + ax1_3_init)
+                                            v2 = T.axis.spatial(4096, ax0_ax2_0_fused * 64 + ax2_1 * 64 + ax2_2 * 4 + ax2_3_0_init * 2 + ax2_3_1_init)
                                             T.reads()
                                             T.writes(matmul_reindex_pad_local[0, v1, v2])
                                             matmul_reindex_pad_local[0, v1, v2] = T.float32(0)
@@ -185,12 +184,12 @@ def test_matmul_int32():
                                                         T.writes(inp1_reindex_shared[v0, v1, v2])
                                                         T.block_attr({"buffer_dim_align": [[0, 1, 8, 2]]})
                                                         inp1_reindex_shared[v0, v1, v2] = inp1[v2, v1]
-                                    for ax3_1, ax2_3, ax1_3_0 in T.grid(16, 4, 2):
-                                        for ax1_3_1 in T.vectorized(2):
+                                    for ax3_1, ax1_3, ax2_3_0 in T.grid(16, 4, 2):
+                                        for ax2_3_1 in T.vectorized(2):
                                             with T.block("matmul_update"):
                                                 v0 = T.axis.spatial(1, 0)
-                                                v1 = T.axis.spatial((m + 31) // 32 * 32, ax1_0 * 32 + ax1_1 * 32 + ax1_2 * 4 + ax1_3_0 * 2 + ax1_3_1)
-                                                v2 = T.axis.spatial(4096, ax0_ax2_0_fused * 64 + ax2_1 * 64 + ax2_2 * 4 + ax2_3)
+                                                v1 = T.axis.spatial((m + 31) // 32 * 32, ax1_0 * 32 + ax1_1 * 32 + ax1_2 * 4 + ax1_3)
+                                                v2 = T.axis.spatial(4096, ax0_ax2_0_fused * 64 + ax2_1 * 64 + ax2_2 * 4 + ax2_3_0 * 2 + ax2_3_1)
                                                 v3 = T.axis.reduce(4096, ax3_0 * 16 + ax3_1)
                                                 T.reads(matmul_reindex_pad_local[0, v1, v2], inp0_reindex_pad_shared[0, v1, v3], inp1_reindex_shared[0, v2, v3])
                                                 T.writes(matmul_reindex_pad_local[0, v1, v2])
@@ -254,12 +253,12 @@ class TestFusedMatmul(BaseBeforeAfter):
                     for ax1_1 in T.thread_binding(T.int64(1), thread="vthread.x"):
                         for ax2_2 in T.thread_binding(T.int64(16), thread="threadIdx.y"):
                             for ax1_2 in T.thread_binding(T.int64(8), thread="threadIdx.x", annotations={"pragma_auto_unroll_max_step": 256, "pragma_unroll_explicit": 1}):
-                                for ax2_3_init, ax1_3_0_init in T.grid(T.int64(4), T.int64(2)):
-                                    for ax1_3_1_init in T.vectorized(T.int64(2)):
+                                for ax1_3_init, ax2_3_0_init in T.grid(T.int64(4), T.int64(2)):
+                                    for ax2_3_1_init in T.vectorized(T.int64(2)):
                                         with T.block("matmul_init"):
                                             v0 = T.axis.spatial(T.int64(1), T.int64(0))
-                                            v1 = T.axis.spatial(T.int64(32), ax1_0 * T.int64(32) + ax1_1 * T.int64(32) + ax1_2 * T.int64(4) + ax1_3_0_init * T.int64(2) + ax1_3_1_init)
-                                            v2 = T.axis.spatial(T.int64(4096), ax0_ax2_0_fused * T.int64(64) + ax2_1 * T.int64(64) + ax2_2 * T.int64(4) + ax2_3_init)
+                                            v1 = T.axis.spatial(T.int64(32), ax1_0 * T.int64(32) + ax1_1 * T.int64(32) + ax1_2 * T.int64(4) + ax1_3_init)
+                                            v2 = T.axis.spatial(T.int64(4096), ax0_ax2_0_fused * T.int64(64) + ax2_1 * T.int64(64) + ax2_2 * T.int64(4) + ax2_3_0_init * T.int64(2) + ax2_3_1_init)
                                             T.reads()
                                             T.writes(var_matmul_intermediate_reindex_local[T.int64(0), v1, v2])
                                             var_matmul_intermediate_reindex_local[T.int64(0), v1, v2] = T.float32(0)
@@ -288,12 +287,12 @@ class TestFusedMatmul(BaseBeforeAfter):
                                                         T.writes(var_decode_intermediate_reindex_shared[v0, v1, v2])
                                                         T.block_attr({"buffer_dim_align": [[0, 1, 8, 2]]})
                                                         var_decode_intermediate_reindex_shared[v0, v1, v2] = T.Cast("float32", T.bitwise_and(T.shift_right(W[v2 // T.int64(8), v1], T.Cast("uint32", v2 % T.int64(8) * T.int64(4))), T.uint32(15))) * T.reinterpret("float32", T.shift_left(T.bitwise_and(S[v2 // T.int64(32), v1], T.uint32(65535)), T.uint32(16))) + T.reinterpret("float32", T.shift_left(T.bitwise_and(T.shift_right(S[v2 // T.int64(32), v1], T.uint32(16)), T.uint32(65535)), T.uint32(16)))
-                                    for ax3_1, ax2_3, ax1_3_0 in T.grid(T.int64(16), T.int64(4), T.int64(2)):
-                                        for ax1_3_1 in T.vectorized(T.int64(2)):
+                                    for ax3_1, ax1_3, ax2_3_0 in T.grid(T.int64(16), T.int64(4), T.int64(2)):
+                                        for ax2_3_1 in T.vectorized(T.int64(2)):
                                             with T.block("matmul_update"):
                                                 v0 = T.axis.spatial(T.int64(1), T.int64(0))
-                                                v1 = T.axis.spatial(T.int64(32), ax1_0 * T.int64(32) + ax1_1 * T.int64(32) + ax1_2 * T.int64(4) + ax1_3_0 * T.int64(2) + ax1_3_1)
-                                                v2 = T.axis.spatial(T.int64(4096), ax0_ax2_0_fused * T.int64(64) + ax2_1 * T.int64(64) + ax2_2 * T.int64(4) + ax2_3)
+                                                v1 = T.axis.spatial(T.int64(32), ax1_0 * T.int64(32) + ax1_1 * T.int64(32) + ax1_2 * T.int64(4) + ax1_3)
+                                                v2 = T.axis.spatial(T.int64(4096), ax0_ax2_0_fused * T.int64(64) + ax2_1 * T.int64(64) + ax2_2 * T.int64(4) + ax2_3_0 * T.int64(2) + ax2_3_1)
                                                 v3 = T.axis.reduce(T.int64(4096), ax3_0 * T.int64(16) + ax3_1)
                                                 T.reads(var_matmul_intermediate_reindex_local[T.int64(0), v1, v2], A_reindex_shared[T.int64(0), v1, v3], var_decode_intermediate_reindex_shared[T.int64(0), v2, v3])
                                                 T.writes(var_matmul_intermediate_reindex_local[T.int64(0), v1, v2])
@@ -417,12 +416,12 @@ class TestOutputFP32(BaseBeforeAfter):
                     for ax1_1 in T.thread_binding(T.int64(1), thread="vthread.x"):
                         for ax2_2 in T.thread_binding(T.int64(16), thread="threadIdx.y"):
                             for ax1_2 in T.thread_binding(T.int64(8), thread="threadIdx.x", annotations={"pragma_auto_unroll_max_step": 256, "pragma_unroll_explicit": 1}):
-                                for ax2_3_init, ax1_3_0_init in T.grid(T.int64(4), T.int64(2)):
-                                    for ax1_3_1_init in T.vectorized(T.int64(2)):
+                                for ax1_3_init, ax2_3_0_init in T.grid(T.int64(4), T.int64(2)):
+                                    for ax2_3_1_init in T.vectorized(T.int64(2)):
                                         with T.block("matmul_init"):
                                             v0 = T.axis.spatial(T.int64(1), T.int64(0))
-                                            v1 = T.axis.spatial((n + T.int64(31)) // T.int64(32) * T.int64(32), ax1_0 * T.int64(32) + ax1_1 * T.int64(32) + ax1_2 * T.int64(4) + ax1_3_0_init * T.int64(2) + ax1_3_1_init)
-                                            v2 = T.axis.spatial(T.int64(4096), ax0_ax2_0_fused * T.int64(64) + ax2_1 * T.int64(64) + ax2_2 * T.int64(4) + ax2_3_init)
+                                            v1 = T.axis.spatial((n + T.int64(31)) // T.int64(32) * T.int64(32), ax1_0 * T.int64(32) + ax1_1 * T.int64(32) + ax1_2 * T.int64(4) + ax1_3_init)
+                                            v2 = T.axis.spatial(T.int64(4096), ax0_ax2_0_fused * T.int64(64) + ax2_1 * T.int64(64) + ax2_2 * T.int64(4) + ax2_3_0_init * T.int64(2) + ax2_3_1_init)
                                             T.reads()
                                             T.writes(var_matmul_intermediate_reindex_pad_local[T.int64(0), v1, v2])
                                             var_matmul_intermediate_reindex_pad_local[T.int64(0), v1, v2] = T.float32(0)
@@ -451,12 +450,12 @@ class TestOutputFP32(BaseBeforeAfter):
                                                         T.writes(p_output0_intermediate_1_reindex_shared[v0, v1, v2])
                                                         T.block_attr({"buffer_dim_align": [[0, 1, 8, 2]]})
                                                         p_output0_intermediate_1_reindex_shared[v0, v1, v2] = (T.Cast("float16", T.bitwise_and(T.shift_right(lv13[v2, v1 // T.int64(8)], T.Cast("uint32", v1 % T.int64(8)) * T.uint32(4)), T.uint32(15))) - T.float16(7)) * lv14[v2, v1 // T.int64(32)]
-                                    for ax3_1, ax2_3, ax1_3_0 in T.grid(T.int64(16), T.int64(4), T.int64(2)):
-                                        for ax1_3_1 in T.vectorized(T.int64(2)):
+                                    for ax3_1, ax1_3, ax2_3_0 in T.grid(T.int64(16), T.int64(4), T.int64(2)):
+                                        for ax2_3_1 in T.vectorized(T.int64(2)):
                                             with T.block("matmul_update"):
                                                 v0 = T.axis.spatial(T.int64(1), T.int64(0))
-                                                v1 = T.axis.spatial((n + T.int64(31)) // T.int64(32) * T.int64(32), ax1_0 * T.int64(32) + ax1_1 * T.int64(32) + ax1_2 * T.int64(4) + ax1_3_0 * T.int64(2) + ax1_3_1)
-                                                v2 = T.axis.spatial(T.int64(4096), ax0_ax2_0_fused * T.int64(64) + ax2_1 * T.int64(64) + ax2_2 * T.int64(4) + ax2_3)
+                                                v1 = T.axis.spatial((n + T.int64(31)) // T.int64(32) * T.int64(32), ax1_0 * T.int64(32) + ax1_1 * T.int64(32) + ax1_2 * T.int64(4) + ax1_3)
+                                                v2 = T.axis.spatial(T.int64(4096), ax0_ax2_0_fused * T.int64(64) + ax2_1 * T.int64(64) + ax2_2 * T.int64(4) + ax2_3_0 * T.int64(2) + ax2_3_1)
                                                 v3 = T.axis.reduce(T.int64(4096), ax3_0 * T.int64(16) + ax3_1)
                                                 T.reads(var_matmul_intermediate_reindex_pad_local[T.int64(0), v1, v2], lv48_reindex_pad_shared[T.int64(0), v1, v3], p_output0_intermediate_1_reindex_shared[T.int64(0), v2, v3])
                                                 T.writes(var_matmul_intermediate_reindex_pad_local[T.int64(0), v1, v2])
@@ -546,12 +545,12 @@ class TestInlineConsumerChain(BaseBeforeAfter):
                     for ax1_1 in T.thread_binding(T.int64(1), thread="vthread.x"):
                         for ax2_2 in T.thread_binding(T.int64(16), thread="threadIdx.y"):
                             for ax1_2 in T.thread_binding(T.int64(8), thread="threadIdx.x", annotations={"pragma_auto_unroll_max_step": 256, "pragma_unroll_explicit": 1}):
-                                for ax2_3_init, ax1_3_0_init in T.grid(T.int64(4), T.int64(2)):
-                                    for ax1_3_1_init in T.vectorized(T.int64(2)):
+                                for ax1_3_init, ax2_3_0_init in T.grid(T.int64(4), T.int64(2)):
+                                    for ax2_3_1_init in T.vectorized(T.int64(2)):
                                         with T.block("NT_matmul_init"):
                                             v0 = T.axis.spatial(T.int64(1), T.int64(0))
-                                            v1 = T.axis.spatial((n + T.int64(31)) // T.int64(32) * T.int64(32), ax1_0 * T.int64(32) + ax1_1 * T.int64(32) + ax1_2 * T.int64(4) + ax1_3_0_init * T.int64(2) + ax1_3_1_init)
-                                            v2 = T.axis.spatial(T.int64(2048), ax0_ax2_0_fused * T.int64(64) + ax2_1 * T.int64(64) + ax2_2 * T.int64(4) + ax2_3_init)
+                                            v1 = T.axis.spatial((n + T.int64(31)) // T.int64(32) * T.int64(32), ax1_0 * T.int64(32) + ax1_1 * T.int64(32) + ax1_2 * T.int64(4) + ax1_3_init)
+                                            v2 = T.axis.spatial(T.int64(2048), ax0_ax2_0_fused * T.int64(64) + ax2_1 * T.int64(64) + ax2_2 * T.int64(4) + ax2_3_0_init * T.int64(2) + ax2_3_1_init)
                                             T.reads()
                                             T.writes(var_NT_matmul_intermediate_reindex_pad_local[T.int64(0), v1, v2])
                                             var_NT_matmul_intermediate_reindex_pad_local[T.int64(0), v1, v2] = T.float16(0)
@@ -580,12 +579,12 @@ class TestInlineConsumerChain(BaseBeforeAfter):
                                                         T.writes(lv9_reindex_shared[v0, v1, v2])
                                                         T.block_attr({"buffer_dim_align": [[0, 1, 8, 2]]})
                                                         lv9_reindex_shared[v0, v1, v2] = lv9[v1, v2]
-                                    for ax3_1, ax2_3, ax1_3_0 in T.grid(T.int64(16), T.int64(4), T.int64(2)):
-                                        for ax1_3_1 in T.vectorized(T.int64(2)):
+                                    for ax3_1, ax1_3, ax2_3_0 in T.grid(T.int64(16), T.int64(4), T.int64(2)):
+                                        for ax2_3_1 in T.vectorized(T.int64(2)):
                                             with T.block("NT_matmul_update"):
                                                 v0 = T.axis.spatial(T.int64(1), T.int64(0))
-                                                v1 = T.axis.spatial((n + T.int64(31)) // T.int64(32) * T.int64(32), ax1_0 * T.int64(32) + ax1_1 * T.int64(32) + ax1_2 * T.int64(4) + ax1_3_0 * T.int64(2) + ax1_3_1)
-                                                v2 = T.axis.spatial(T.int64(2048), ax0_ax2_0_fused * T.int64(64) + ax2_1 * T.int64(64) + ax2_2 * T.int64(4) + ax2_3)
+                                                v1 = T.axis.spatial((n + T.int64(31)) // T.int64(32) * T.int64(32), ax1_0 * T.int64(32) + ax1_1 * T.int64(32) + ax1_2 * T.int64(4) + ax1_3)
+                                                v2 = T.axis.spatial(T.int64(2048), ax0_ax2_0_fused * T.int64(64) + ax2_1 * T.int64(64) + ax2_2 * T.int64(4) + ax2_3_0 * T.int64(2) + ax2_3_1)
                                                 v3 = T.axis.reduce(T.int64(2048), ax3_0 * T.int64(16) + ax3_1)
                                                 T.reads(var_NT_matmul_intermediate_reindex_pad_local[T.int64(0), v1, v2], lv26_reindex_pad_shared[T.int64(0), v1, v3], lv9_reindex_shared[T.int64(0), v2, v3])
                                                 T.writes(var_NT_matmul_intermediate_reindex_pad_local[T.int64(0), v1, v2])
