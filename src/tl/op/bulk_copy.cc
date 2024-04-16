@@ -256,5 +256,9 @@ TIR_DEFINE_TL_BUILTIN(MBarrierWaitParity)
     .set_num_inputs(2)
     .set_attr<TCallEffectKind>("TCallEffectKind", Integer(CallEffectKind::kOpaque));
 
+TIR_DEFINE_TL_BUILTIN(LDMatrixOp)
+    .set_num_inputs(4)
+    .set_attr<TCallEffectKind>("TCallEffectKind", Integer(CallEffectKind::kOpaque));
+
 }  // namespace tl
 }  // namespace tvm

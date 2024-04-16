@@ -44,6 +44,8 @@ class Copy : public Operator {
 
  protected:
   Stmt LowerBulkCopy(const LowerArgs& T, arith::Analyzer* analyzer) const;
+  Stmt LowerLDSMCopy(const LowerArgs& T, arith::Analyzer* analyzer) const;
+
   For MakeSIMTLoop(arith::Analyzer* analyzer) const;
   Array<IterVar> MakeIterVars() const;
 

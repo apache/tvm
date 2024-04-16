@@ -32,6 +32,7 @@
 #include "../target/utils.h"
 #include "../transform/loop_partition.h"
 #include "../transform/loop_vectorize.h"
+#include "bulk_copy.h"
 
 namespace tvm {
 namespace tl {
@@ -134,6 +135,8 @@ For Copy::MakeSIMTLoop(arith::Analyzer* analyzer) const {
 }
 
 Stmt Copy::Lower(const LowerArgs& T, arith::Analyzer* analyzer) const {
+  Stmt ldsm_stmt = LowerLDSMCopy(T, analyzer);
+  if (ldsm_stmt.defined()) return ldsm_stmt;
   if (TargetIsHopper(T.target) && src.scope() == "global" &&
       (dst.scope() == "shared.dyn" || dst.scope() == "shared")) {
     // Use the Hopper TMA bulk copy instructions
@@ -151,6 +154,123 @@ Stmt Copy::Lower(const LowerArgs& T, arith::Analyzer* analyzer) const {
     return vectorized_thread_loop;
   }
   return vectorized_thread_loop;
+}
+
+Stmt Copy::LowerLDSMCopy(const LowerArgs& T, arith::Analyzer* analyzer) const {
+  // Check buffer scope
+  bool is_ldmatrix;
+  if (TargetHasLdmatrix(T.target) && src.scope() == "shared.dyn" &&
+      dst.scope() == "local.fragment") {
+    is_ldmatrix = true;
+  } else if (TargetHasStmatrix(T.target) && dst.scope() == "shared.dyn" &&
+             src.scope() == "local.fragment") {
+    is_ldmatrix = false;
+  } else {
+    return Stmt();
+  }
+
+  // Check no predicates
+  Array<IterVar> loop_vars = MakeIterVars();
+  if (loop_vars.size() < 2) return Stmt();
+  for (const auto& iv : loop_vars) analyzer->Bind(iv->var, iv->dom);
+  PrimExpr src_predicate = MakePredicate(analyzer, loop_vars, src->shape, 0);
+  PrimExpr dst_predicate = MakePredicate(analyzer, loop_vars, dst->shape, 1);
+  if (src_predicate.defined() || dst_predicate.defined()) return Stmt();
+
+  Buffer shared_tensor = is_ldmatrix ? src : dst;
+  Buffer local_tensor = is_ldmatrix ? dst : src;
+
+  Array<PrimExpr> local_indices = MakeIndices(loop_vars, is_ldmatrix ? 1 : 0);
+  Fragment local_layout = Downcast<Fragment>(T.layout_map[local_tensor]);
+  Array<PrimExpr> local_indices_transformed = local_layout->Forward(local_indices);
+  local_tensor = T.buffer_remap[local_tensor];
+  // currently only support 1-d case
+  if (local_layout->OutputDim() != 1) return Stmt();
+
+  Array<PrimExpr> shared_indices = MakeIndices(loop_vars, is_ldmatrix ? 0 : 1);
+  Array<PrimExpr> shared_indices_transformed = shared_indices;
+  Layout shared_layout;
+  if (T.buffer_remap.count(shared_tensor)) {
+    shared_layout = T.layout_map[shared_tensor];
+    shared_tensor = T.buffer_remap[shared_tensor];
+    shared_indices_transformed = shared_layout->Forward(shared_indices);
+  }
+
+  // Check local_layout follows 8x8 layout
+  if (is_ldmatrix && local_tensor->dtype.bytes() != 2) return Stmt();
+  bool is_transposed;
+  IterVar col_var = loop_vars[loop_vars.size() - 1];
+  IterVar row_var = loop_vars[loop_vars.size() - 2];
+  PrimExpr local_layout_thread_map =
+      FloorMod(local_layout->ForwardThread(local_indices, NullOpt), 32);
+  PrimExpr matrix_8x8_thread_map =
+      makeGemmFragment8x8()->ForwardThread({FloorMod(row_var, 8), FloorMod(col_var, 8)}, NullOpt);
+  PrimExpr matrix_8x8_thread_map_trans = makeGemmFragment8x8Transposed()->ForwardThread(
+      {FloorMod(row_var, 8), FloorMod(col_var, 8)}, NullOpt);
+  PrimExpr local_indices_flattened = local_tensor.OffsetOf(local_indices_transformed).back();
+  if (analyzer->CanProveEqual(matrix_8x8_thread_map, local_layout_thread_map) &&
+      IndiceCanVectorize(local_indices_flattened, col_var->var, col_var->dom->extent, 2,
+                         analyzer)) {
+    is_transposed = false;
+  } else if (analyzer->CanProveEqual(matrix_8x8_thread_map_trans, local_layout_thread_map) &&
+             IndiceCanVectorize(local_indices_flattened, row_var->var, row_var->dom->extent, 2,
+                                analyzer)) {
+    is_transposed = true;
+  } else {
+    return Stmt();
+  }
+  // Check shared_layout is 16 bytes continuous
+  if (shared_tensor->dtype.bytes() != 2) return Stmt();
+  PrimExpr flattened_indice = shared_tensor.OffsetOf(shared_indices_transformed).back();
+  if (!IndiceCanVectorize(flattened_indice, loop_vars.back()->var, loop_vars.back()->dom->extent, 8,
+                          analyzer))
+    return Stmt();
+
+  // TODO: implement st_matrix
+  if (!is_ldmatrix) return Stmt();
+  // Can only support local_range to be a full range
+  for (size_t i = 0; i < dst_range.size(); i++) {
+    if (!is_zero(dst_range[i]->min) ||
+        !analyzer->CanProveEqual(dst_range[i]->extent, dst->shape[i]))
+      return Stmt();
+  }
+  // Do the lowering here
+  Layout inv = local_layout->Inverse();
+  PrimExpr extent = inv->InputShape()[0];
+  int num = 1;
+  if (analyzer->CanProveEqual(FloorMod(extent, 8), 0))
+    num = 4;
+  else if (analyzer->CanProveEqual(FloorMod(extent, 4), 0))
+    num = 2;
+  Var local_iter("i");
+  PrimExpr local_addr =
+      local_tensor.access_ptr(2, DataType::Handle(), 1, local_iter * 2 * num, PrimExpr(2 * num));
+  PrimExpr warp = FloorDiv(T.thread_var, 32) * 32;
+  // if not transpose
+  // coords = Inverse(base + 2 * (thread / 8) % num, warp + (thread % 8) * 4))
+  // if transpose
+  // coords = Inverse(base + 2 * (thread / 8) % num + thread % 2, warp + thread % 8 / 2)
+  Array<PrimExpr> shared_coords;
+  if (!is_transposed)
+    shared_coords =
+        inv->Forward({local_iter * 2 * num + 2 * FloorMod(FloorDiv(T.thread_var, 8), num),
+                      warp + FloorMod(T.thread_var, 8) * 4});
+  else
+    shared_coords =
+        inv->Forward({local_iter * 2 * num + 2 * FloorMod(FloorDiv(T.thread_var, 8), num) +
+                          FloorMod(T.thread_var, 2),
+                      warp + FloorDiv(FloorMod(T.thread_var, 8), 2)});
+  shared_coords.pop_back();  // remove rep
+  if (shared_layout.defined()) shared_coords = shared_layout->Forward(shared_coords);
+  PrimExpr shared_addr = shared_tensor.access_ptr(
+      1, DataType::Handle(), 1, shared_tensor.OffsetOf(shared_coords).back(), PrimExpr(2 * num));
+
+  auto body = Evaluate(Call(DataType::Handle(), tl::LDMatrixOp(),
+                            {int(is_transposed), num, shared_addr, local_addr}));
+
+  For for_node = For(local_iter, 0, FloorDiv(extent, 2 * num), ForKind::kSerial, body);
+  for_node = LoopPragmaUnroll(for_node);
+  return for_node;
 }
 
 LayoutMap Copy::InferLayout(const LayoutInferArgs& T, InferLevel level) {

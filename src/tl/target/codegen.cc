@@ -83,6 +83,7 @@ std::string CodeGenTL::Finish() {
   decl_stream << "#include <tl_templates/gemm.h>\n";
   decl_stream << "#include <tl_templates/copy.h>\n";
   decl_stream << "#include <tl_templates/reduce.h>\n";
+  decl_stream << "#include <tl_templates/ldsm.h>\n";
   decl_stream << "#include <tl_templates/threadblock_swizzle.h>\n";
   decl_stream << "\n";
   return CodeGenC::Finish();
@@ -636,7 +637,7 @@ void CodeGenTL::VisitExpr_(const CallNode* op, std::ostream& os) {
   } else if (op->op.same_as(builtin::create_barriers())) {
     this->PrintIndent();
     int barrier_count = Downcast<IntImm>(op->args[0])->value;
-    barrier_count = (barrier_count + 15) / 16 * 16; // roundup
+    barrier_count = (barrier_count + 15) / 16 * 16;  // roundup
     std::string barrier_name = "_mbarrier";
     this->stream << "__shared__ __align__(16) uint64_t " << barrier_name << "[" << barrier_count
                  << "];\n";
@@ -675,10 +676,19 @@ void CodeGenTL::VisitExpr_(const CallNode* op, std::ostream& os) {
     std::string descriptor = this->PrintExpr(op->args[0]);
     std::string smem_addr = this->PrintExpr(op->args[2]);
     this->stream << "tl::tma_load(" << descriptor << ", " << barrier << ", " << smem_addr;
-    for (size_t i = 4; i < op->args.size(); i++) { // coords
+    for (size_t i = 4; i < op->args.size(); i++) {  // coords
       this->stream << ", " << this->PrintExpr(op->args[i]);
     }
     this->stream << ");\n";
+  } else if (op->op.same_as(tl::LDMatrixOp())) {
+    this->PrintIndent();
+    int trans = Downcast<IntImm>(op->args[0])->value;
+    int num = Downcast<IntImm>(op->args[1])->value;
+    std::string func_name = "tl::ptx_ldmatrix_x" + std::to_string(num);
+    if (trans == 1) func_name += "_trans";
+    std::string smem_addr = this->PrintExpr(op->args[2]);
+    std::string local_addr = this->PrintExpr(op->args[3]);
+    this->stream << func_name << "(" << smem_addr << ", " << local_addr << ");\n";
   } else {
     CodeGenC::VisitExpr_(op, os);
   }

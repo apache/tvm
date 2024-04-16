@@ -74,6 +74,14 @@ const Op& TMACopyOp();
  */
 const Op& MBarrierWaitParity();
 
+/*!
+ * \brief tvm intrinsics for ldmatrix
+ *
+ * LDMatrixOp(transposed, num, shared_addr, local_addr)
+ *
+ */
+const Op& LDMatrixOp();
+
 }  // namespace tl
 }  // namespace tvm
 
