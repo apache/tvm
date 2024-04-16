@@ -134,6 +134,8 @@ VulkanDeviceProperties::VulkanDeviceProperties(const VulkanInstance& instance,
 
   supports_integer_dot_product = device.HasExtension("VK_KHR_shader_integer_dot_product");
 
+  supports_cooperative_matrix = device.HasExtension("VK_NV_cooperative_matrix");
+
   // The check of VK_SHADER_STAGE_COMPUTE_BIT isn't technically
   // needed, since it will be set so long at least one queue has
   // VK_QUEUE_COMPUTE_BIT.  Including it to avoid potential future
@@ -291,7 +293,7 @@ VulkanDevice::VulkanDevice(const VulkanInstance& instance, VkPhysicalDevice phy_
 
   for (uint32_t k = 0; k < prop.memoryTypeCount; ++k) {
     VkMemoryType ty = prop.memoryTypes[k];
-    size_t heap_size = prop.memoryHeaps[ty.heapIndex].size;
+    int64_t heap_size = static_cast<int64_t>(prop.memoryHeaps[ty.heapIndex].size);
     // host visible
     if (!(ty.propertyFlags & VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT)) continue;
     // match copy requirment
@@ -310,7 +312,7 @@ VulkanDevice::VulkanDevice(const VulkanInstance& instance, VkPhysicalDevice phy_
   win_rank = -1;
   for (uint32_t k = 0; k < prop.memoryTypeCount; ++k) {
     VkMemoryType ty = prop.memoryTypes[k];
-    size_t heap_size = prop.memoryHeaps[ty.heapIndex].size;
+    int64_t heap_size = static_cast<int64_t>(prop.memoryHeaps[ty.heapIndex].size);
     // host visible
     if (!(ty.propertyFlags & VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT)) continue;
     // match copy requirment
@@ -322,8 +324,10 @@ VulkanDevice::VulkanDevice(const VulkanInstance& instance, VkPhysicalDevice phy_
     if (rank > win_rank) {
       win_rank = rank;
       compute_mtype_index = k;
+      compute_memory_size = heap_size;
     }
   }
+
   ICHECK_GE(win_rank, 0) << "Cannot find suitable local memory on device.";
 
   if (device_properties.supports_push_descriptor) {
@@ -381,6 +385,7 @@ void VulkanDevice::do_swap(VulkanDevice&& other) {
   std::swap(queue_insert_debug_utils_label_functions,
             other.queue_insert_debug_utils_label_functions);
   std::swap(compute_mtype_index, other.compute_mtype_index);
+  std::swap(compute_memory_size, other.compute_memory_size);
   std::swap(queue, other.queue);
   std::swap(queue_family_index, other.queue_family_index);
   std::swap(physical_device_, other.physical_device_);
@@ -439,7 +444,8 @@ std::vector<const char*> VulkanDevice::SelectEnabledExtensions() const {
                                                "VK_KHR_get_memory_requirements2",
                                                "VK_KHR_dedicated_allocation",
                                                "VK_KHR_spirv_1_4",
-                                               "VK_KHR_shader_integer_dot_product"};
+                                               "VK_KHR_shader_integer_dot_product",
+                                               "VK_NV_cooperative_matrix"};
 
   uint32_t device_extension_prop_count;
   VULKAN_CALL(vkEnumerateDeviceExtensionProperties(physical_device_, nullptr,
