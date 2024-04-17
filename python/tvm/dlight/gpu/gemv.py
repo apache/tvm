@@ -470,7 +470,8 @@ class GEMV(GPUScheduleRule):
         elif target.kind.name == "rocm":
             VEC_C = 4
             LOAD_V_SHARED = True
-            LOAD_V_VEC = 8
+            # TODO: for MI250, set LOAD_V_VEC = 4 for now
+            LOAD_V_VEC = 4
             UNROLL = 256
             if isinstance(len_S, int):
                 if len_S > len_R:
