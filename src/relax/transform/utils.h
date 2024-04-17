@@ -137,12 +137,14 @@ inline std::string GetExtSymbol(const Function& func) {
  * \param partition A mapping from a subexpression to the containing group.
  * \param lift_constants Whether or not to lift bound constants to parameters of the
  * grouped function.
+ * \param entry_function_names The names of the entry functions.
  * \return A new module containing grouped functions.
  */
 IRModule MakeGroupedFunctions(
     IRModule mod,
     const std::unordered_map<const Object*, relay::GraphPartitioner::Group*>& partition,
-    bool lift_constants = true);
+    bool lift_constants = true,
+    const Array<String>& entry_function_names = {});
 
 /*!
  * \brief Check if the given StructInfo is a scalar tensor. The sinfo should be an instance of

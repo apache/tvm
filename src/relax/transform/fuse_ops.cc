@@ -690,8 +690,16 @@ class OperatorFusor : public ExprMutator {
    * \brief The main transformation on the IRModule
    * \return The new IRModule after transformation
    */
-  IRModule Transform() {
-    for (const auto& gv : mod_->GetGlobalVars()) {
+  IRModule Transform(const Array<String>& entry_function_names = {}) {
+    Array<GlobalVar> entry_functions;
+    if (entry_function_names.empty()) {
+      entry_functions = mod_->GetGlobalVars();
+    } else {
+      for (const auto& name : entry_function_names) {
+        entry_functions.push_back(mod_->GetGlobalVar(name));
+      }
+    }
+    for (const auto& gv : entry_functions) {
       const auto& func = mod_->Lookup(gv);
       // Only visit Relax function without attr kPrimitive.
       if (func->IsInstance<relax::FunctionNode>() && !func->HasNonzeroAttr(attr::kPrimitive)) {
@@ -1023,8 +1031,8 @@ IRModule FuseOps(IRModule mod, int opt_level, size_t max_fuse_depth) {
 
 IRModule MakeGroupedFunctions(
     IRModule mod, const std::unordered_map<const Object*, GraphPartitioner::Group*>& partition,
-    bool lift_constants) {
-  return OperatorFusor(mod, partition, lift_constants).Transform();
+    bool lift_constants, const Array<String>& entry_function_names) {
+  return OperatorFusor(mod, partition, lift_constants).Transform(entry_function_names);
 }
 
 /*! \brief Create a "partitioning", a map from interior / leaf expr to its representative group,
@@ -1269,26 +1277,39 @@ class CompositeFunctionAnnotator : public ExprMutator {
 };
 
 IRModule FuseOpsByPattern(const tvm::Array<transform::FusionPattern>& patterns, IRModule mod,
-                          bool bind_constants, bool annotate_codegen) {
+                          bool bind_constants, bool annotate_codegen,
+                          Array<String> entry_function_names) {
   support::Arena arena;
-  for (const auto& pattern : patterns) {
-    OperatorFusor::GroupMap group_map;
-    for (const auto& gv : mod->GetGlobalVars()) {
-      const auto& base_func = mod->Lookup(gv);
-      if (base_func->IsInstance<tir::PrimFuncNode>()) {
-        continue;
-      }
-      const FunctionNode* function = base_func.as<FunctionNode>();
-      if (function->GetAttr<Integer>(attr::kPrimitive).defined() ||
-          function->GetAttr<String>(attr::kComposite).defined() ||
-          function->GetAttr<String>(attr::kCodegen).defined()) {
-        continue;
-      }
 
-      auto map = PatternBasedPartitioner::Run(pattern->name, pattern->pattern,
-                                              pattern->annotation_patterns,
-                                              pattern->check.value_or(nullptr), base_func, &arena,
-                                              pattern->attrs_getter.value_or(nullptr));
+  for (const auto& pattern : patterns) {
+    Array<Function> entry_functions;
+    if (entry_function_names.size()) {
+      for (const auto& name : entry_function_names) {
+        auto gv = mod->GetGlobalVar(name);
+        auto func = mod->Lookup(gv);
+        ICHECK(func->IsInstance<FunctionNode>()) << "Entry function must be a relax function";
+        entry_functions.push_back(Downcast<Function>(func));
+      }
+    } else {
+      for (const auto& gv : mod->GetGlobalVars()) {
+        const auto& base_func = mod->Lookup(gv);
+        if (base_func->IsInstance<tir::PrimFuncNode>()) {
+          continue;
+        }
+        const FunctionNode* function = base_func.as<FunctionNode>();
+        if (function->GetAttr<Integer>(attr::kPrimitive).defined() ||
+            function->GetAttr<String>(attr::kComposite).defined() ||
+            function->GetAttr<String>(attr::kCodegen).defined()) {
+          continue;
+        }
+        entry_functions.push_back(Downcast<Function>(base_func));
+      }
+    }
+    OperatorFusor::GroupMap group_map;
+    for (const auto& func : entry_functions) {
+      auto map = PatternBasedPartitioner::Run(
+          pattern->name, pattern->pattern, pattern->annotation_patterns,
+          pattern->check.value_or(nullptr), func, &arena, pattern->attrs_getter.value_or(nullptr));
       for (const auto& [key, value] : map) {
         CHECK(!group_map.count(key))
             << "ValueError: "
@@ -1298,7 +1319,8 @@ IRModule FuseOpsByPattern(const tvm::Array<transform::FusionPattern>& patterns, 
         group_map.insert({key, value});
       }
     }
-    mod = MakeGroupedFunctions(mod, group_map, /*lift_constants*/ !bind_constants);
+    mod = MakeGroupedFunctions(mod, group_map, /*lift_constants*/ !bind_constants,
+                               entry_function_names);
   }
   if (annotate_codegen) {
     return CompositeFunctionAnnotator(mod).Run();
@@ -1358,10 +1380,11 @@ Pass FuseOps(int fuse_opt_level) {
 TVM_REGISTER_GLOBAL("relax.transform.FuseOps").set_body_typed(FuseOps);
 
 Pass FuseOpsByPattern(const tvm::Array<FusionPattern>& patterns, bool bind_constants,
-                      bool annotate_codegen) {
+                      bool annotate_codegen, const Array<String>& entry_function_names) {
   runtime::TypedPackedFunc<IRModule(IRModule, PassContext)> pass_func =  //
       [=](IRModule m, PassContext pc) {
-        return relax::FuseOpsByPattern(patterns, m, bind_constants, annotate_codegen);
+        return relax::FuseOpsByPattern(patterns, m, bind_constants, annotate_codegen,
+                                       entry_function_names);
       };
   return CreateModulePass(/*pass_function=*/pass_func,       //
                           /*opt_level=*/0,                   //
