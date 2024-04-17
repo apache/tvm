@@ -469,7 +469,10 @@ class GEMV(GPUScheduleRule):
                     TS, TR = 2, 64
         elif target.kind.name == "rocm":
             VEC_C = 4
-            LOAD_V_SHARED = True
+            # TODO: set LOAD_V_SHARED = False for now
+            # rocm might have some issues when load/store of shared do not belong to same data type
+            # and only works for certain vector lens, our commonly useful vector lens are in 4
+            LOAD_V_SHARED = False
             LOAD_V_VEC = 8
             UNROLL = 256
             if isinstance(len_S, int):
