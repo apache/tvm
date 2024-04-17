@@ -24,6 +24,8 @@ from tvm import relax
 from tvm.relax.backend.contrib.cublas import partition_for_cublas
 from tvm.relax.testing import get_relax_matmul_module
 from tvm.script import relax as R
+from tvm.script.ir_builder import IRBuilder
+from tvm.script.ir_builder import relax as relax_builder
 
 try:
     import ml_dtypes
@@ -60,8 +62,8 @@ def build_and_run(mod, inputs_np, target, legalize=False, cuda_graph=False):
     return f(*inputs).numpy()
 
 
-def get_result_with_relax_cublas_offload(mod, np_inputs, cuda_graph=False):
-    mod = partition_for_cublas(mod)
+def get_result_with_relax_cublas_offload(mod, np_inputs, cuda_graph=False, bind_constants=False):
+    mod = partition_for_cublas(mod, bind_constants=bind_constants)
     mod = relax.transform.RunCodegen()(mod)
 
     return build_and_run(mod, np_inputs, "cuda", cuda_graph)
@@ -93,6 +95,43 @@ _epilogue_table = {
     "relu": (True, R.nn.relu),
     "gelu": (True, R.nn.gelu),
 }
+
+
+def get_relax_matmul_dequantize_module(
+    x_shape,
+    y_shape,
+    in_dtype,
+    out_dtype,
+    transposed_y=False,
+    scale_const=1.0,
+    zero_point_const=0.0,
+):
+    """Create a matmul op followd by dequantize operations."""
+    with IRBuilder() as builder:
+        with relax_builder.function():
+            R.func_name("main")
+            x = R.arg("x", R.Tensor(x_shape, in_dtype))
+            y = R.arg("y", R.Tensor(y_shape, in_dtype))
+
+            with R.dataflow() as frame:
+                if transposed_y:
+                    axes = list(range(len(y_shape) - 2)) + [-1, -2]
+                    y = R.emit(R.permute_dims(y, axes=axes))
+                result = R.emit(R.matmul(x, y, out_dtype="float32"))
+                result = R.emit(
+                    R.dequantize(
+                        result,
+                        scale=R.const(scale_const, "float16"),
+                        zero_point=R.const(zero_point_const, "float16"),
+                        axis=-1,
+                        out_dtype=out_dtype,
+                    )
+                )
+                R.output(result)
+            R.func_ret_value(frame.output_vars[0])
+
+    func = builder.get()
+    return tvm.IRModule({"main": func})
 
 
 @pytest.mark.parametrize(
@@ -262,6 +301,32 @@ def test_matmul_fp8_offload(
     tvm.testing.assert_allclose(out, ref_out, rtol=1e-3, atol=1e-3)
 
 
+@tvm.testing.requires_cuda_compute_version(9)
+@pytest.mark.skipif(ml_dtypes is None, reason="requires ml_dtypes to be installed")
+def test_matmul_fp8_dequantize_offload():
+    x_shape = (10, 32)
+    y_shape = (64, 32)
+    in_dtype = "e4m3_float8"
+    mod = get_relax_matmul_dequantize_module(
+        x_shape,
+        y_shape,
+        in_dtype,
+        "float16",
+        transposed_y=True,
+        scale_const=0.34786,
+        zero_point_const=0.0,
+    )
+
+    numpytype = "float8_e4m3fn"
+    x = np.random.uniform(low=0, high=5, size=x_shape).astype(numpytype)
+    y = np.random.uniform(low=0, high=5, size=y_shape).astype(numpytype)
+    args = (x, y)
+
+    out = get_result_with_relax_cublas_offload(mod, args, bind_constants=True)
+    ref = build_and_run(mod, args, "llvm", legalize=True)
+    tvm.testing.assert_allclose(out, ref, rtol=1e-3, atol=1e-3)
+
+
 @pytest.mark.parametrize(
     "M, N, K, out_dtype, transposed_y, partition_done",
     [
@@ -281,6 +346,29 @@ def test_cublas_partition_fp8_matmul(M, N, K, out_dtype, transposed_y, partition
     mod = partition_for_cublas(mod)
     func_name = "relax_matmul_cublas" if partition_done else "R.matmul"
     assert func_name in mod["main"].script()
+
+
+@pytest.mark.parametrize(
+    "M, N, K, scale, zp, num_bindings",
+    [
+        (16, 64, 32, 2.0, 0.0, 1),
+        (16, 64, 32, 2.0, 1.0, 2),
+        (16, 64, 32, [2.0] * 64, [2.0] * 64, 2),
+    ],
+)
+def test_cublas_partition_fp8_matmul_dequantize(M, N, K, scale, zp, num_bindings):
+    mod = get_relax_matmul_dequantize_module(
+        (M, K),
+        (N, K),
+        "e4m3_float8",
+        "float16",
+        transposed_y=True,
+        scale_const=scale,
+        zero_point_const=zp,
+    )
+    mod = partition_for_cublas(mod)
+    # Check whether R.dequantize is still in main function or not
+    assert len(mod["main"].body.blocks[0].bindings) == num_bindings
 
 
 def test_cublas_partition_matmul_without_bias():
