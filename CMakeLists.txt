@@ -28,6 +28,7 @@ endif()
 # Alernatively, use cmake -DOPTION=VALUE through command-line.
 tvm_option(USE_CUDA "Build with CUDA" OFF)
 tvm_option(USE_NCCL "Build with NCCL" OFF)
+tvm_option(USE_MSCCL "Build with MSCCL" OFF)
 tvm_option(USE_OPENCL "Build with OpenCL" OFF)
 tvm_option(USE_OPENCL_ENABLE_HOST_PTR "Enable OpenCL memory object access to host" OFF)
 tvm_option(USE_OPENCL_GTEST "Path to OpenCL specific gtest version for runtime cpp tests." /path/to/opencl/gtest)
@@ -940,8 +941,8 @@ endif()
 
 if(USE_CUDA AND USE_NCCL)
   find_library(LIBRT rt)
-  target_link_libraries(tvm PRIVATE nccl msccl ${LIBRT})
-  target_link_libraries(tvm_runtime PRIVATE nccl msccl ${LIBRT})
+  target_link_libraries(tvm PRIVATE nccl ${LIBRT})
+  target_link_libraries(tvm_runtime PRIVATE nccl ${LIBRT})
 endif()
 
 if(USE_ROCM AND USE_RCCL)

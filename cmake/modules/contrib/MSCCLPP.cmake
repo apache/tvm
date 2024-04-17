@@ -15,7 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 
-if(USE_CUDA AND USE_NCCL)
+if(USE_CUDA AND USE_NCCL AND USE_MSCCL)
   include(FetchContent)
   FetchContent_Declare(
     mscclpp
@@ -46,5 +46,5 @@ if(USE_CUDA AND USE_NCCL)
     FILE_SET HEADERS DESTINATION ${INSTALL_PREFIX}/include)
   install(TARGETS mscclpp EXPORT ${PROJECT_NAME}Targets DESTINATION lib${LIB_SUFFIX})
   install(TARGETS msccl EXPORT ${PROJECT_NAME}Targets DESTINATION lib${LIB_SUFFIX})
-
+  list(APPEND TVM_RUNTIME_LINKER_LIBS msccl)
 endif()

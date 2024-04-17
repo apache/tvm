@@ -46,11 +46,8 @@ macro(tvm_option variable description value)
 
   if(${__condition})
     if("${__value}" MATCHES ";")
-      if(${__value})
-        __tvm_option(${variable} "${description}" ON)
-      else()
-        __tvm_option(${variable} "${description}" OFF)
-      endif()
+      # list values directly pass through
+      __tvm_option(${variable} "${description}" "${__value}")
     elseif(DEFINED ${__value})
       if(${__value})
         __tvm_option(${variable} "${description}" ON)
