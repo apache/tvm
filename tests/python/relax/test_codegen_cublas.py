@@ -269,17 +269,21 @@ def test_matmul_fp8_offload(
 
 
 @pytest.mark.parametrize(
-    "M, N, K, out_dtype, partition_done",
+    "M, N, K, out_dtype, transposed_y, partition_done",
     [
-        (15, 64, 32, "float32", True),
-        (15, 64, 32, "e4m3_float8", True),
-        (15, 64, 32, "e5m2_float8", False),
-        (16, 32, 60, "float32", False),
-        (16, 30, 64, "float32", False),
+        (15, 64, 32, "float32", True, True),
+        (15, 64, 32, "e4m3_float8", True, True),
+        (15, 64, 32, "e5m2_float8", True, False),
+        (16, 32, 60, "float32", True, False),
+        (16, 30, 64, "float32", True, False),
+        (16, 8, 16, "float16", True, True),
+        (16, 16, 16, "float16", False, False),
     ],
 )
-def test_cublas_partition_fp8_matmul(M, N, K, out_dtype, partition_done):
-    mod = get_relax_matmul_module((M, K), (N, K), "e4m3_float8", out_dtype, transposed_y=True)
+def test_cublas_partition_fp8_matmul(M, N, K, out_dtype, transposed_y, partition_done):
+    mod = get_relax_matmul_module(
+        (M, K), (N, K), "e4m3_float8", out_dtype, transposed_y=transposed_y
+    )
     mod = partition_for_cublas(mod)
     func_name = "relax_matmul_cublas" if partition_done else "R.matmul"
     assert func_name in mod["main"].script()

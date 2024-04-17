@@ -20,6 +20,7 @@ import operator
 from functools import reduce
 
 import tvm
+from tvm import DataType
 from tvm.relax import transform
 from tvm.relax.transform import PatternCheckContext
 
@@ -68,11 +69,30 @@ def _check_matmul(context: PatternCheckContext) -> bool:
             # Rows number must be multiples of 4 for IGEMM
             return False
     elif lhs_dtype == "e4m3_float8" and rhs_dtype == "e4m3_float8":
-        # Matrix dimensions must be multiples of 16. This requirement is missing from the cuBLAS
-        # docs, but it was observed during testing.
-        if not isinstance(rhs_shape[-1], (tvm.tir.expr.IntImm, int)) or rhs_shape[-1] % 16 != 0:
+        matmul_rhs_var = matmul_call.args[1]
+        rhs_transposed = False
+        if matmul_rhs_var in context.matched_bindings:
+            matmul_rhs_call = context.matched_bindings[matmul_rhs_var]
+            assert (
+                isinstance(matmul_rhs_call, tvm.relax.Call)
+                and matmul_rhs_call.op.name == "relax.permute_dims"
+            )
+            rhs_transposed = True
+
+        if not rhs_transposed:
+            # cuBLAS FP8 operations require rhs being transposed
             return False
-        if not isinstance(rhs_shape[-2], (tvm.tir.expr.IntImm, int)) or rhs_shape[-2] % 16 != 0:
+
+        # cuBLAS FP8 operations require all tensors being aligned to 16 bytes.
+        if (
+            not isinstance(rhs_shape[-1], (tvm.tir.expr.IntImm, int))
+            or rhs_shape[-1] % (16 // DataType(lhs_dtype).itemsize()) != 0
+        ):
+            return False
+        if (
+            not isinstance(rhs_shape[-2], (tvm.tir.expr.IntImm, int))
+            or rhs_shape[-2] % (16 // DataType(out_dtype).itemsize()) != 0
+        ):
             return False
 
     lhs_batches = reduce(operator.mul, lhs_shape[:-2], 1)
