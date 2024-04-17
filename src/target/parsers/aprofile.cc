@@ -94,8 +94,8 @@ static TargetFeatures GetFeatures(TargetJSON target) {
   Array<String> targets = llvm_backend.GetAllLLVMTargets();
   if ((IsAArch64(mtriple) && !CheckContains(targets, "aarch64")) ||
       (IsAArch32(mtriple, mcpu) && !CheckContains(targets, "arm"))) {
-    LOG(WARNING) << "Cannot parse target features. LLVM was not compiled with support for "
-                    "Arm(R)-based targets.";
+    LOG(WARNING) << "Cannot parse target features for target: " << target
+                 << ". LLVM was not compiled with support for Arm(R)-based targets.";
     return {};
   }
 
@@ -115,7 +115,8 @@ static TargetFeatures GetFeatures(TargetJSON target) {
           {"has_sme", Bool(has_feature("sme"))}};
 #endif
 
-  LOG(WARNING) << "Cannot parse Arm(R)-based target features without LLVM support.";
+  LOG(WARNING) << "Cannot parse Arm(R)-based target features for target " << target
+               << " without LLVM support.";
   return {};
 }
 
