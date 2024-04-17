@@ -874,7 +874,10 @@ class Matmul(GPUScheduleRule):
             x, [None, config.vthread_x, config.block_size_x, config.micro_size_x]
         )
         ko, ki = sch.split(k, factors=[None, config.micro_size_k])
-        sch.reorder(by, bx, vy, vx, ty, tx, ko, ki, yi, xi)
+        reordered_loops = [by, bx, vy, vx, ty, tx, ko, ki] + (
+            [yi, xi] if config.inner_x else [xi, yi]
+        )
+        sch.reorder(*reordered_loops)
         by = sch.fuse(batch, by)
         sch.bind(bx, "blockIdx.x")
         sch.bind(by, "blockIdx.y")
@@ -884,7 +887,7 @@ class Matmul(GPUScheduleRule):
         sch.bind(tx, "threadIdx.x")
         inner_loop = config.micro_size_x if config.inner_x else config.micro_size_y
         if inner_loop % config.vector_size == 0:
-            _, v = sch.split(xi, [None, config.vector_size])
+            _, v = sch.split(reordered_loops[-1], [None, config.vector_size])
             sch.vectorize(v)
 
         if config.unroll > 0:
