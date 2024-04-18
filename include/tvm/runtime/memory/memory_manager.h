@@ -142,7 +142,7 @@ class StorageObj : public Object {
   /*! \brief The index into the VM function table. */
   Buffer buffer;
   /*! \brief The allocator where the storage buffer is allocated from. */
-  Allocator* allocator;
+  Allocator* allocator = nullptr;
 
   /*! \brief Allocate an NDArray from a given piece of storage. */
   TVM_DLL NDArray AllocNDArray(int64_t offset, ShapeTuple shape, DLDataType dtype);
@@ -150,7 +150,11 @@ class StorageObj : public Object {
   /*! \brief The deleter for an NDArray when allocated from underlying storage. */
   static void Deleter(Object* ptr);
 
-  ~StorageObj() { allocator->Free(buffer); }
+  ~StorageObj() {
+    if (allocator) {
+      allocator->Free(buffer);
+    }
+  }
 
   static constexpr const uint32_t _type_index = TypeIndex::kDynamic;
   static constexpr const char* _type_key = "vm.Storage";
