@@ -890,6 +890,7 @@ def FuseOpsByPattern(
     patterns: List[Union[FusionPattern, Tuple]],
     bind_constants: bool = True,
     annotate_codegen: bool = False,
+    entry_functions: Optional[List[str]] = None,
 ) -> tvm.ir.transform.Pass:
     """Apply pattern matching to each function in the given module, and group matched expressions
     into a new function.
@@ -919,6 +920,9 @@ def FuseOpsByPattern(
         This must be True if the created composite functions are intended to be offloaded to
         an external backend without using the MergeCompositeFunctions pass.
 
+    entry_functions : Optional[List[str]]
+        The set of entry functions to start from.
+
     Returns
     -------
     ret : tvm.transform.Pass
@@ -938,6 +942,7 @@ def FuseOpsByPattern(
         converted_patterns,
         bind_constants,
         annotate_codegen,
+        entry_functions or [],
     )  # type: ignore
 
 
