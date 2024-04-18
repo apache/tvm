@@ -505,7 +505,7 @@ void CodeGenTL::PrintStorageScope(const std::string& scope, std::ostream& os) { 
   if (scope == "shared") {
     os << "__shared__ ";
   } else if (scope == "shared.dyn") {
-    os << "extern __shared__ ";
+    os << "extern __shared__ __align__(1024) ";
   }
 }
 
@@ -637,10 +637,8 @@ void CodeGenTL::VisitExpr_(const CallNode* op, std::ostream& os) {
   } else if (op->op.same_as(builtin::create_barriers())) {
     this->PrintIndent();
     int barrier_count = Downcast<IntImm>(op->args[0])->value;
-    barrier_count = (barrier_count + 15) / 16 * 16;  // roundup
     std::string barrier_name = "_mbarrier";
-    this->stream << "__shared__ __align__(16) uint64_t " << barrier_name << "[" << barrier_count
-                 << "];\n";
+    this->stream << "__shared__ uint64_t " << barrier_name << "[" << barrier_count << "];\n";
   } else if (op->op.same_as(builtin::ptx_arrive_barrier())) {
     this->PrintIndent();
     std::string barrier_name = "_mbarrier";
