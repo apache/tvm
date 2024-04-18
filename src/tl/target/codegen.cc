@@ -666,7 +666,7 @@ void CodeGenTL::VisitExpr_(const CallNode* op, std::ostream& os) {
     std::string barrier = barrier_name + "[" + barrier_id + "]";
     std::string parity = this->PrintExpr(op->args[1]);
     this->stream << "tl::mbarrier_wait(" << barrier << ", " << parity << ");\n";
-  } else if (op->op.same_as(tl::TMACopyOp())) {
+  } else if (op->op.same_as(tl::TMALoadOp())) {
     this->PrintIndent();
     std::string barrier_name = "_mbarrier";
     std::string barrier_id = this->PrintExpr(op->args[1]);
@@ -674,7 +674,16 @@ void CodeGenTL::VisitExpr_(const CallNode* op, std::ostream& os) {
     std::string descriptor = this->PrintExpr(op->args[0]);
     std::string smem_addr = this->PrintExpr(op->args[2]);
     this->stream << "tl::tma_load(" << descriptor << ", " << barrier << ", " << smem_addr;
-    for (size_t i = 4; i < op->args.size(); i++) {  // coords
+    for (size_t i = 3; i < op->args.size(); i++) {  // coords
+      this->stream << ", " << this->PrintExpr(op->args[i]);
+    }
+    this->stream << ");\n";
+  } else if (op->op.same_as(tl::TMAStoreOp())) {
+    this->PrintIndent();
+    std::string descriptor = this->PrintExpr(op->args[0]);
+    std::string smem_addr = this->PrintExpr(op->args[2]);
+    this->stream << "tl::tma_load(" << descriptor << ", " << smem_addr;
+    for (size_t i = 2; i < op->args.size(); i++) {  // coords
       this->stream << ", " << this->PrintExpr(op->args[i]);
     }
     this->stream << ");\n";

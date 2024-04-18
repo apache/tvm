@@ -59,12 +59,20 @@ DataType cuTensorMapType();
 const Op& CreateTMADescriptorOp();
 
 /*!
- * \brief tvm intrinsics for bulk async copy using mbarrier and TMADescriptor
+ * \brief tvm intrinsics for loading data from global tensor descriptor to shared memory
  *
- * TMACopyOp(descritor, barrier_id, smem_data, is_load, coord_0, coord_1, ...)
+ * TMALoadOp(descriptor, barrier_id, smem_data, coord_0, coord_1, ...)
  *
  */
-const Op& TMACopyOp();
+const Op& TMALoadOp();
+
+/*!
+ * \brief tvm intrinsics for storing data from shared memory to global tensor descriptor
+ *
+ * TMAStoreOp(descriptor, smem_data, coord_0, coord_1, ...)
+ *
+ */
+const Op& TMAStoreOp();
 
 /*!
  * \brief tvm intrinsics for mbarrier wait with parity bit

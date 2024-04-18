@@ -192,34 +192,30 @@ Stmt Copy::LowerBulkCopy(const LowerArgs& T, arith::Analyzer* analyzer) const {
 
   Call create_descriptor = Call(DataType::Handle(), CreateTMADescriptorOp(), desc.EncodeCallArgs());
 
+  Array<PrimExpr> args;
+  args.reserve(desc.rank + 3);
+  args.push_back(create_descriptor);
+  if (is_load) args.push_back(0);  // mbarrier id placeholder
+  auto op = is_load ? TMALoadOp() : TMAStoreOp();
+
   if ((*inner_box_dim) != instruction_dim) {
     Var loop_var("i");
     int loop_extent = (*inner_box_dim) / instruction_dim;
-    Array<PrimExpr> args;
-    args.reserve(desc.rank + 3);
-    args.push_back(create_descriptor);
-    args.push_back(0);  // mbarrier id placeholder
     PrimExpr total_elements = 1;
     for (auto e : desc.smem_box) total_elements *= e;
     PrimExpr shared_addr = shared_tensor.access_ptr(is_load ? 2 : 1, DataType::Handle(), 1,
                                                     total_elements * loop_var, total_elements);
     args.push_back(shared_addr);
-    args.push_back(static_cast<int>(is_load));
     global_coords.Set(0, global_coords[0] + instruction_dim * loop_var);
     for (auto coord : global_coords) args.push_back(coord);
-    Call TMA_copy = Call(DataType::Handle(), TMACopyOp(), args);
+    Call TMA_copy = Call(DataType::Handle(), op, args);
     For loop = For(loop_var, 0, loop_extent, ForKind::kUnrolled, Evaluate(TMA_copy));
     return loop;
   } else {
-    Array<PrimExpr> args;
-    args.reserve(desc.rank + 3);
-    args.push_back(create_descriptor);
-    args.push_back(0);  // mbarrier id placeholder
     PrimExpr shared_addr = shared_tensor.access_ptr(is_load ? 2 : 1);
     args.push_back(shared_addr);
-    args.push_back(static_cast<int>(is_load));
     for (auto coord : global_coords) args.push_back(coord);
-    Call TMA_copy = Call(DataType::Handle(), TMACopyOp(), args);
+    Call TMA_copy = Call(DataType::Handle(), op, args);
     return Evaluate(TMA_copy);
   }
 }
@@ -249,8 +245,12 @@ TIR_DEFINE_TL_BUILTIN(CreateTMADescriptorOp)
     .set_num_inputs(-1)
     .set_attr<TCallEffectKind>("TCallEffectKind", Integer(CallEffectKind::kOpaque));
 
-TIR_DEFINE_TL_BUILTIN(TMACopyOp).set_num_inputs(-1).set_attr<TCallEffectKind>(
+TIR_DEFINE_TL_BUILTIN(TMALoadOp).set_num_inputs(-1).set_attr<TCallEffectKind>(
     "TCallEffectKind", Integer(CallEffectKind::kOpaque));
+
+TIR_DEFINE_TL_BUILTIN(TMAStoreOp)
+    .set_num_inputs(-1)
+    .set_attr<TCallEffectKind>("TCallEffectKind", Integer(CallEffectKind::kOpaque));
 
 TIR_DEFINE_TL_BUILTIN(MBarrierWaitParity)
     .set_num_inputs(2)

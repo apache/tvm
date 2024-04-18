@@ -126,7 +126,7 @@ class WarpSpecializedRoleMarker : public StmtVisitor {
   void VisitStmt_(const EvaluateNode* op) final {
     Role role = Role::kConsumer;
     if (auto call = op->value.as<CallNode>()) {
-      if (call->op.same_as(TMACopyOp()) && is_one(call->args[3])) {
+      if (call->op.same_as(TMALoadOp())) {
         role = Role::kProducer;
       }
     }
@@ -222,7 +222,7 @@ class ProducerTraitsCollector : public StmtExprMutator {
  private:
   PrimExpr VisitExpr_(const CallNode* op) final {
     auto call = Downcast<Call>(StmtExprMutator::VisitExpr_(op));
-    if (call->op == TMACopyOp()) {
+    if (call->op == TMALoadOp()) {
       Call access_ptr = Downcast<Call>(call->args[2]);
       ICHECK(access_ptr->op.same_as(builtin::tvm_access_ptr()));
       int type_bytes = access_ptr->args[0]->dtype.bytes();
