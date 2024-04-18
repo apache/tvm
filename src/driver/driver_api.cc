@@ -161,7 +161,6 @@ Array<tvm::transform::Pass> CreatePassList(bool disable_loop_partition) {
           .value();
 
   bool instrument_lwp = pass_ctx->GetConfig<Bool>("tir.instrument_lwp", Bool(false)).value();
-  Target current_target = Target::Current();
 
   Array<transform::Pass> user_lower_phase0 = Array<transform::Pass>();
   Array<transform::Pass> user_lower_phase1 = Array<transform::Pass>();
@@ -197,9 +196,6 @@ Array<tvm::transform::Pass> CreatePassList(bool disable_loop_partition) {
   Array<tvm::transform::Pass> pass_list = user_lower_phase0;
 
   // PHASE 1
-  if (current_target.defined()) {
-    pass_list.push_back(tir::transform::BindTarget(current_target));
-  }
   pass_list.push_back(tir::transform::InjectPrefetch());
   pass_list.push_back(tir::transform::TextureFlatten());
   pass_list.push_back(tir::transform::StorageFlatten(64, instrument_bound_checkers));

@@ -728,21 +728,18 @@ class Vectorizer : public StmtMutator, public ExprFunctor<PrimExpr(const PrimExp
 
 class LoopVectorizer : public StmtMutator {
  public:
-  LoopVectorizer(PrimFunc f) {
-    auto target = f->attrs.GetAttr<tvm::Target>(tvm::attr::kTarget);
-    if (target.defined()) {
-      target_ = Downcast<Target>(target);
-      has_sve_ = target_->GetFeature<Bool>("has_sve").value_or(Bool(false));
-    }
-  }
-
   Stmt VisitStmt_(const ForNode* op) final {
     if (op->kind == ForKind::kVectorized) {
       auto* extent_as_int = op->extent.as<IntImmNode>();
       if (!extent_as_int || extent_as_int->value < 1) {
+        Target current_target = Target::Current();
+        bool has_sve{false};
+        if (current_target.defined()) {
+          has_sve = current_target->GetFeature<Bool>("has_sve").value_or(Bool(false));
+        }
         bool is_scalable_expr = CheckContains::ExprContains(op->extent, arith::IsVScaleCall);
-        ICHECK(is_scalable_expr && has_sve_)
-            << "Failed to vectorize loop with extent " << op->extent << " for target " << target_;
+        ICHECK(is_scalable_expr && has_sve) << "Failed to vectorize loop with extent " << op->extent
+                                            << " for target " << current_target;
       }
       ICHECK(is_zero(op->min));
       return Vectorizer(op->loop_var, op->extent)(op->body);
@@ -750,10 +747,6 @@ class LoopVectorizer : public StmtMutator {
       return StmtMutator::VisitStmt_(op);
     }
   }
-
- private:
-  bool has_sve_{false};
-  Target target_{};
 };
 
 class VectorizeSkipper : public StmtMutator {
@@ -778,7 +771,7 @@ Pass VectorizeLoop(bool enable_vectorize) {
   auto pass_func = [=](PrimFunc f, IRModule m, PassContext ctx) {
     auto* n = f.CopyOnWrite();
     if (enable_vectorize) {
-      n->body = LoopVectorizer(f)(std::move(n->body));
+      n->body = LoopVectorizer()(std::move(n->body));
     } else {
       n->body = VectorizeSkipper()(std::move(n->body));
     }
