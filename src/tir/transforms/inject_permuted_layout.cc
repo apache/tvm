@@ -150,6 +150,7 @@ class PermutedLayoutInjector : private IRMutatorWithAnalyzer {
   }
 
   bool CheckBufferShapeIsPermutable(Buffer buffer) {
+    LOG(INFO) << "CheckBufferShapeIsPermutable: " << buffer->name << " " << buffer->shape;
     if (buffer->shape.size() < 2) {
       LOG(WARNING) << "The dimension of Buffer \"" << buffer->name << "\" with shape " << buffer->shape
                 << " should be at least 2";
@@ -157,6 +158,7 @@ class PermutedLayoutInjector : private IRMutatorWithAnalyzer {
     }
 
     auto dim = buffer->shape.size();
+    auto bits = buffer->dtype.bits();
     auto buffer_row_size = buffer->shape[dim - 1].as<IntImmNode>()->value;
     auto buffer_col_size = buffer->shape[dim - 2].as<IntImmNode>()->value;
 
@@ -172,6 +174,9 @@ class PermutedLayoutInjector : private IRMutatorWithAnalyzer {
       }
     }
 
+    CHECK(buffer_row_size * bits == 512)
+        << "Permuted Layout for Buffer \"" << buffer->name << "\" with shape " << buffer->shape
+        << " is not supported as we only support 512 bits buffer col size for now";
     return true;
   }
 
