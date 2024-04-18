@@ -143,8 +143,7 @@ inline std::string GetExtSymbol(const Function& func) {
 IRModule MakeGroupedFunctions(
     IRModule mod,
     const std::unordered_map<const Object*, relay::GraphPartitioner::Group*>& partition,
-    bool lift_constants = true,
-    const Array<String>& entry_function_names = {});
+    bool lift_constants = true, const Array<String>& entry_function_names = {});
 
 /*!
  * \brief Check if the given StructInfo is a scalar tensor. The sinfo should be an instance of
