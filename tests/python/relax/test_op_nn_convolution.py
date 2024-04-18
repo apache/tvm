@@ -386,7 +386,7 @@ def test_conv1d_dtype_mismatch():
     x = relax.Var("x", R.Tensor((2, 3, 28), "float32"))
     w = relax.Var("w", R.Tensor((4, 3, 3), "int8"))
 
-    with pytest.raises(TVMError):
+    with pytest.raises(TypeError):
         bb.normalize(relax.op.nn.conv1d(x, w))
 
 
@@ -744,7 +744,7 @@ def test_conv1d_transpose_dtype_mismatch():
     x = relax.Var("x", R.Tensor((2, 3, 28), "float32"))
     w = relax.Var("w", R.Tensor((3, 4, 3), "int8"))
 
-    with pytest.raises(TVMError):
+    with pytest.raises(TypeError):
         bb.normalize(relax.op.nn.conv1d_transpose(x, w))
 
 
@@ -1141,7 +1141,7 @@ def test_conv2d_dtype_mismatch():
     x = relax.Var("x", R.Tensor((2, 3, 28, 28), "float32"))
     w = relax.Var("w", R.Tensor((4, 3, 3, 3), "int8"))
 
-    with pytest.raises(TVMError):
+    with pytest.raises(TypeError):
         bb.normalize(relax.op.nn.conv2d(x, w))
 
 
@@ -1533,7 +1533,7 @@ def test_conv2d_transpose_dtype_mismatch():
     x = relax.Var("x", R.Tensor((2, 3, 28, 28), "float32"))
     w = relax.Var("w", R.Tensor((3, 4, 3, 3), "int8"))
 
-    with pytest.raises(TVMError):
+    with pytest.raises(TypeError):
         bb.normalize(relax.op.nn.conv2d_transpose(x, w))
 
 
