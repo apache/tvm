@@ -19,6 +19,7 @@ import pickle as pkl
 import pytest
 import tvm
 from tvm import te
+from tvm.driver.build_module import schedule_to_module
 
 
 def test_schedule_create():
@@ -354,21 +355,28 @@ def test_compute_at():
     invalid_compute_at_loop()
 
 
+@pytest.mark.parametrize("split_factor", [4, 4 * tvm.tir.vscale()])
+@pytest.mark.parametrize("disable_predication", [True, False])
+def test_split_disable_predicate(split_factor, disable_predication):
+    A = te.placeholder((43,), name="A")
+    B = te.compute(A.shape, lambda i: A[i] + 2, name="C")
+
+    sch = te.create_schedule(B.op)
+    (i,) = sch[B].op.axis
+    _, _ = sch[B].split(i, factor=split_factor, disable_predication=disable_predication)
+
+    mod = schedule_to_module(sch, [A, B], "main")
+
+    predicates = []
+
+    def _find_predicates(stmt):
+        if isinstance(stmt, tvm.tir.stmt.IfThenElse):
+            predicates.append(stmt)
+
+    tvm.tir.stmt_functor.post_order_visit(mod["main"].body, _find_predicates)
+
+    assert bool(len(predicates)) != disable_predication
+
+
 if __name__ == "__main__":
-    test_singleton()
-    test_pragma()
-    test_tensor_intrin()
-    test_tensor_intrin_scalar_params()
-    test_rfactor()
-    test_schedule_create()
-    test_reorder()
-    test_tile()
-    test_split()
-    test_fuse()
-    test_fuse_with_split()
-    test_fuse_with_out_of_order_axis()
-    test_fuse_with_out_of_order_axis_with_reorder()
-    test_vectorize()
-    test_vectorize_commreduce()
-    test_legalize_invalid_attach()
-    test_compute_at()
+    tvm.testing.main()

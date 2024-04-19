@@ -492,12 +492,15 @@ TVM_DLL Pass Gradient(String func_name, Optional<Array<Var>> require_grads = Nul
  * corresponding pattern name. For example, "dnnl" if the pattern name is "dnnl.conv2d_relu".
  * This must be True if the created composite functions are intended to be offloaded to
  * an external backend without using the MergeCompositeFunctions pass.
+ * \param entry_function_names The names of functions that should be considered as entry points. If
+ * not specified, all externally exposed functions will be considered as entry points.
  * \return The Pass.
  *
  * \note Only operates within dataflow blocks. ConvertToDataflow may need to be called first.
  */
 TVM_DLL Pass FuseOpsByPattern(const tvm::Array<FusionPattern>& patterns, bool bind_constants = true,
-                              bool annotate_codegen = false);
+                              bool annotate_codegen = false,
+                              const tvm::Array<String>& entry_function_names = {});
 
 /*!
  * \brief Group one or multiple composite functions created by FuseOpsByPattern into a new

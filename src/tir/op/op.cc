@@ -263,6 +263,7 @@ PrimExpr max_value(const DataType& dtype, Span span) {
   } else if (dtype.is_bfloat16()) {
     return FloatImm(dtype, std::numeric_limits<float>::max(), span);
   } else if (dtype.is_float8()) {
+    // according to https://arxiv.org/pdf/2209.05433.pdf
     if (dtype.code() == DataType::TypeCode::kE5M2Float) {
       return FloatImm(dtype, 57344.0, span);
     } else if (dtype.code() == DataType::TypeCode::kE4M3Float) {
@@ -303,6 +304,7 @@ PrimExpr min_value(const DataType& dtype, Span span) {
   } else if (dtype.is_bfloat16()) {
     return FloatImm(dtype, std::numeric_limits<float>::lowest(), span);
   } else if (dtype.is_float8()) {
+    // according to https://arxiv.org/pdf/2209.05433.pdf
     if (dtype.code() == DataType::TypeCode::kE5M2Float) {
       return FloatImm(dtype, -57344.0, span);
     } else if (dtype.code() == DataType::TypeCode::kE4M3Float) {
@@ -409,8 +411,10 @@ PrimExpr cast(const DataType& t, PrimExpr value, Span span) {
 // reinterpret
 PrimExpr reinterpret(const DataType& t, PrimExpr value, Span span) {
   if (value.dtype() == t) return value;
-  ICHECK(value.dtype().bits() * value.dtype().lanes() == t.bits() * t.lanes())
-      << "Bitcast requires size match " << t << " vs " << value.dtype();
+  if (!t.is_scalable_vector() && !value.dtype().is_scalable_vector()) {
+    ICHECK(value.dtype().bits() * value.dtype().lanes() == t.bits() * t.lanes())
+        << "Bitcast requires size match " << t << " vs " << value.dtype();
+  }
   return tir::Call(t, tir::builtin::reinterpret(), {value}, span);
 }
 
@@ -1082,6 +1086,8 @@ TVM_REGISTER_GLOBAL("tir.nearbyint").set_body_typed(tvm::nearbyint);
 TVM_REGISTER_GLOBAL("tir.trunc").set_body_typed(tvm::trunc);
 
 TVM_REGISTER_GLOBAL("tir._cast").set_body_typed(tvm::cast);
+
+TVM_REGISTER_GLOBAL("tir.reinterpret").set_body_typed(tvm::reinterpret);
 
 // operator overloading, smarter than make
 #define REGISTER_MAKE_BINARY_OP(Node, Func)                                                \

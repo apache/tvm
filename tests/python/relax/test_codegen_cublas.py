@@ -25,6 +25,11 @@ from tvm.relax.backend.contrib.cublas import partition_for_cublas
 from tvm.relax.testing import get_relax_matmul_module
 from tvm.script import relax as R
 
+try:
+    import ml_dtypes
+except ImportError:
+    ml_dtypes = None
+
 
 @pytest.fixture(autouse=True)
 def reset_seed():
@@ -224,6 +229,64 @@ def test_matmul_igemm_offload(
     ref = build_and_run(mod, args, "llvm", legalize=True)
 
     tvm.testing.assert_allclose(out, ref, rtol=1e-2, atol=1e-2)
+
+
+@pytest.mark.skipif(ml_dtypes is None, reason="requires ml_dtypes to be installed")
+@pytest.mark.parametrize(
+    "x_shape, y_shape, transpose_y, out_dtype",
+    [
+        ((10, 32), (64, 32), True, "float32"),
+        ((32, 16), (32, 16), True, "float16"),
+        ((2, 10, 32), (2, 64, 32), True, "float32"),
+    ],
+)
+def test_matmul_fp8_offload(
+    x_shape,
+    y_shape,
+    transpose_y,
+    out_dtype,
+):
+    in_dtype = "e4m3_float8"
+    mod = get_relax_matmul_module(
+        x_shape,
+        y_shape,
+        in_dtype,
+        out_dtype,
+        bias_shape=None,
+        transposed_y=transpose_y,
+        activation=None,
+    )
+    numpytype = "float8_e4m3fn"
+    x = np.random.uniform(low=0, high=5, size=x_shape).astype(numpytype)
+    y = np.random.uniform(low=0, high=5, size=y_shape).astype(numpytype)
+    z = np.swapaxes(y, -2, -1) if transpose_y else y
+    args = (x, y)
+
+    out = get_result_with_relax_cublas_offload(mod, args)
+    ref_out = np.matmul(x, z).astype(out_dtype)
+
+    tvm.testing.assert_allclose(out, ref_out, rtol=1e-3, atol=1e-3)
+
+
+@pytest.mark.parametrize(
+    "M, N, K, out_dtype, transposed_y, partition_done",
+    [
+        (15, 64, 32, "float32", True, True),
+        (15, 64, 32, "e4m3_float8", True, True),
+        (15, 64, 32, "e5m2_float8", True, False),
+        (16, 32, 60, "float32", True, False),
+        (16, 30, 64, "float32", True, False),
+        (16, 8, 16, "float16", True, True),
+        (16, 16, 16, "float16", False, False),
+    ],
+)
+def test_cublas_partition_fp8_matmul(M, N, K, out_dtype, transposed_y, partition_done):
+    mod = get_relax_matmul_module(
+        (M, K), (N, K), "e4m3_float8", out_dtype, transposed_y=transposed_y
+    )
+    mod = partition_for_cublas(mod)
+    func_name = "relax_matmul_cublas" if partition_done else "R.matmul"
+    assert func_name in mod["main"].script()
 
 
 def test_cublas_partition_matmul_without_bias():

@@ -167,7 +167,19 @@ void thrust_sort(DLTensor* input, DLTensor* out_values, DLTensor* out_indices, b
 void thrust_sort_common(DLTensor* input, DLTensor* values_out, DLTensor* indices_out,
                         bool is_ascend, int sort_len, std::string data_dtype, std::string out_dtype,
                         DLTensor* workspace) {
-  if (data_dtype == "float32") {
+  if (data_dtype == "float16") {
+    if (out_dtype == "int32") {
+      thrust_sort<half, int32_t>(input, values_out, indices_out, is_ascend, sort_len, workspace);
+    } else if (out_dtype == "int64") {
+      thrust_sort<half, int64_t>(input, values_out, indices_out, is_ascend, sort_len, workspace);
+    } else if (out_dtype == "float32") {
+      thrust_sort<half, float>(input, values_out, indices_out, is_ascend, sort_len, workspace);
+    } else if (out_dtype == "float64") {
+      thrust_sort<half, double>(input, values_out, indices_out, is_ascend, sort_len, workspace);
+    } else {
+      LOG(FATAL) << "Unsupported output dtype: " << out_dtype;
+    }
+  } else if (data_dtype == "float32") {
     if (out_dtype == "int32") {
       thrust_sort<float, int32_t>(input, values_out, indices_out, is_ascend, sort_len, workspace);
     } else if (out_dtype == "int64") {

@@ -41,11 +41,12 @@ class CUDADeviceAPI final : public DeviceAPI {
   void GetAttr(Device dev, DeviceAttrKind kind, TVMRetValue* rv) final {
     int value = 0;
     switch (kind) {
-      case kExist:
+      case kExist: {
         int count;
-        CUDA_CALL(cudaGetDeviceCount(&count));
-        value = static_cast<int>(dev.device_id < count);
+        auto err = cudaGetDeviceCount(&count);
+        value = (err == cudaSuccess && static_cast<int>(dev.device_id < count));
         break;
+      }
       case kMaxThreadsPerBlock: {
         CUDA_CALL(cudaDeviceGetAttribute(&value, cudaDevAttrMaxThreadsPerBlock, dev.device_id));
         break;

@@ -2293,5 +2293,29 @@ def test_function_attributes_are_defined():
         assert func.attrs is not None
 
 
+@pytest.mark.xfail(reason="Bug: Implicit bounds not provided when parsing")
+def test_function_symbolic_variables_are_annotated():
+    """Symbolic variables must be exposed for struct inference
+
+    Because Relax struct inference is performed while the function is
+    being built, all constraints on symbolic variables that are used
+    for simplifications must be provided to the analyzer.
+    """
+
+    @R.function(private=True)
+    def inferred_sinfo(A: R.Tensor(["extent"])):
+        extent = T.int64()
+        output = R.strided_slice(A, [0], [0], [extent - 1])
+        return output
+
+    @R.function(private=True)
+    def expected(A: R.Tensor(["extent"])) -> R.Tensor(["extent-1"]):
+        extent = T.int64()
+        output: R.Tensor([extent - 1]) = R.strided_slice(A, [0], [0], [extent - 1])
+        return output
+
+    tvm.ir.assert_structural_equal(inferred_sinfo, expected)
+
+
 if __name__ == "__main__":
     tvm.testing.main()

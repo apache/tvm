@@ -262,9 +262,9 @@ def test_where_infer_struct_info_dtype_mismatch():
     x1 = relax.Var("x", R.Tensor((2, 3), "int8"))
     y1 = relax.Var("y", R.Tensor((2, 3), "float32"))
 
-    with pytest.raises(TVMError):
+    with pytest.raises(TypeError):
         bb.normalize(relax.op.where(cond, x0, y0))
-    with pytest.raises(TVMError):
+    with pytest.raises(TypeError):
         bb.normalize(relax.op.where(cond, x1, y1))
 
 

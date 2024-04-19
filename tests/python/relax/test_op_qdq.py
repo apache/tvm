@@ -68,5 +68,42 @@ def test_qdq_op_infer_struct_info_symbolic():
     )
 
 
+def test_qdq_e4m3_float8_op_infer_struct_info_symbolic():
+    bb = relax.BlockBuilder()
+    n = tir.Var("n", "int64")
+    x = relax.Var("x", R.Tensor((n, 3), "float32"))
+    dx = relax.Var("dx", R.Tensor((n, 3), "e4m3_float8"))
+    s = relax.Var("s", R.Tensor([3], "float32"))
+    zp = relax.Var("zp", R.Tensor([3], "float16"))
+    _check_inference(
+        bb,
+        relax.op.quantize(x, s, zp, 1, "e4m3_float8"),
+        relax.TensorStructInfo((n, 3), "e4m3_float8"),
+    )
+    _check_inference(
+        bb,
+        relax.op.dequantize(dx, s, zp, 1, "float32"),
+        relax.TensorStructInfo((n, 3), "float32"),
+    )
+
+
+def test_qdq_e5m2_float8_op_infer_struct_info_symbolic():
+    dtype = "e5m2_float8"
+    bb = relax.BlockBuilder()
+    n = tir.Var("n", "int64")
+    x = relax.Var("x", R.Tensor((n, 3), "float32"))
+    dx = relax.Var("dx", R.Tensor((n, 3), dtype))
+    s = relax.Var("s", R.Tensor([3], "float32"))
+    zp = relax.Var("zp", R.Tensor([3], "float16"))
+    _check_inference(
+        bb, relax.op.quantize(x, s, zp, 1, dtype), relax.TensorStructInfo((n, 3), dtype)
+    )
+    _check_inference(
+        bb,
+        relax.op.dequantize(dx, s, zp, 1, "float32"),
+        relax.TensorStructInfo((n, 3), "float32"),
+    )
+
+
 if __name__ == "__main__":
     tvm.testing.main()

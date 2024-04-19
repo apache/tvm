@@ -70,6 +70,7 @@ Target TargetTag::AddTag(String name, Map<String, ObjectRef> config, bool overri
 
 /**********  Register Target tags  **********/
 
+#if TVM_LLVM_HAS_AARCH64_TARGET
 TVM_REGISTER_TARGET_TAG("raspberry-pi/4b-aarch64")
     .set_config({{"kind", String("llvm")},
                  {"mtriple", String("aarch64-linux-gnu")},
@@ -130,7 +131,8 @@ TVM_REGISTER_TARGET_TAG("nvidia/jetson-agx-orin-64gb")
                                                  {"mtriple", String("aarch64-linux-gnu")},
                                                  {"mcpu", String("cortex-a78")},
                                                  {"num-cores", Integer(12)}}}});
-#endif
+#endif  // TVM_LLVM_VERSION >= 110
+#endif  // TVM_LLVM_HAS_AARCH64_TARGET
 
 #define TVM_REGISTER_CUDA_TAG(Name, Arch, SharedMem, RegPerBlock) \
   TVM_REGISTER_TARGET_TAG(Name).set_config({                      \
@@ -437,9 +439,11 @@ TVM_REGISTER_TAG_AWS_C5("aws/cpu/c5.24xlarge", 48, "cascadelake");
                                        {"mtriple", String("arm64-apple-macos")}, \
                                        {"mcpu", String("apple-latest")}}}});
 
+#if TVM_LLVM_HAS_AARCH64_TARGET
 TVM_REGISTER_METAL_GPU_TAG("apple/m1-gpu", 1024, 32768, 32);
 TVM_REGISTER_METAL_GPU_TAG("apple/m1-gpu-restricted", 256, 32768, 32);
 TVM_REGISTER_METAL_GPU_TAG("apple/m2-gpu", 1024, 32768, 32);
+#endif  // TVM_LLVM_HAS_AARCH64_TARGET
 
 #undef TVM_REGISTER_METAL_TAG
 
