@@ -35,79 +35,6 @@ namespace tl {
 
 using namespace tir;
 
-struct PipelineStageInfo {
-  bool is_producer = false;
-  Array<Buffer> reads, writes;
-};
-
-struct PipelineInfo {
-  std::vector<PipelineStageInfo> pinfos;
-  Array<Buffer> versioned_buffers;
-};
-
-static PipelineStageInfo MakePipelineStageInfo_impl(
-    Stmt stmt, const std::unordered_set<const BufferNode*>& scoped_buffers,
-    Map<Var, Buffer> buffer_data_to_buffer) {
-  Block block(/*iter_vars=*/{}, /*reads=*/{}, /*writes=*/{}, /*name_hint=*/"", /*body*/ stmt);
-  auto access = GetBlockAccessRegion(block, buffer_data_to_buffer);
-  PipelineStageInfo pinfo;
-  for (auto buffer_region : access[0]) {
-    if (scoped_buffers.count(buffer_region->buffer.get()))
-      pinfo.reads.push_back(buffer_region->buffer);
-  }
-  for (auto buffer_region : access[1]) {
-    if (scoped_buffers.count(buffer_region->buffer.get()))
-      pinfo.writes.push_back(buffer_region->buffer);
-  }
-
-  size_t cnt_global_read = 0, cnt_shared_write = 0;
-  for (auto region : access[0]) {
-    if (region->buffer.scope() == "global") ++cnt_global_read;
-  }
-  for (auto region : access[1]) {
-    if (region->buffer.scope() == "shared" || region->buffer.scope() == "shared.dyn")
-      ++cnt_shared_write;
-  }
-  if (cnt_global_read == access[0].size() && cnt_shared_write == access[1].size())
-    pinfo.is_producer = true;
-  return pinfo;
-}
-
-static std::vector<PipelineStageInfo> MakePipelineStageInfo(
-    Array<Stmt> seq_stmt, Array<Buffer> scoped_buffers, Map<Var, Buffer> buffer_data_to_buffer) {
-  std::unordered_set<const BufferNode*> set;
-  set.reserve(scoped_buffers.size());
-  for (auto buffer : scoped_buffers) set.insert(buffer.get());
-
-  std::vector<PipelineStageInfo> pinfos;
-  for (auto stmt : seq_stmt)
-    pinfos.push_back(MakePipelineStageInfo_impl(stmt, set, buffer_data_to_buffer));
-  return pinfos;
-}
-
-PipelineInfo ExtractPipelineInfo(Array<Stmt> seq_stmt, Array<Buffer> scoped_buffers,
-                                 Map<Var, Buffer> buffer_data_to_buffer) {
-  PipelineInfo info;
-  info.pinfos = MakePipelineStageInfo(seq_stmt, scoped_buffers, buffer_data_to_buffer);
-
-  std::unordered_set<const BufferNode*> consumer_used, producer_used;
-  for (const auto& pinfo : info.pinfos) {
-    if (pinfo.is_producer) {
-      for (Buffer buffer : pinfo.writes) producer_used.insert(buffer.get());
-    } else {
-      for (Buffer buffer : pinfo.reads) consumer_used.insert(buffer.get());
-    }
-  }
-
-  info.versioned_buffers.reserve(scoped_buffers.size());
-  for (Buffer buffer : scoped_buffers) {
-    if (consumer_used.count(buffer.get()) && producer_used.count(buffer.get())) {
-      info.versioned_buffers.push_back(buffer);
-    }
-  }
-  return info;
-}
-
 enum class Role { kConsumer, kProducer, kBoth };
 
 class WarpSpecializedRoleMarker : public StmtVisitor {
@@ -267,6 +194,36 @@ class MultiVersionBufferRewriter : public StmtExprMutator {
  private:
   MultiVersionBufferRewriter() = default;
 
+  Array<Buffer> GetVersionedBuffers(Array<Stmt> seq_stmt, Array<Buffer> scoped_buffers) {
+    std::vector<Role> roles;
+    Array<Array<BufferRegion>> reads, writes;
+    auto marker = WarpSpecializedRoleMarker(buffer_data_to_buffer_);
+    for (auto stmt : seq_stmt) {
+      marker(stmt);
+      Block block(/*iter_vars=*/{}, /*reads=*/{}, /*writes=*/{}, /*name_hint=*/"", /*body*/ stmt);
+      auto access = GetBlockAccessRegion(block, buffer_data_to_buffer_);
+      reads.push_back(std::move(access[0]));
+      writes.push_back(std::move(access[1]));
+      roles.push_back(marker.GetRole(stmt));
+    }
+
+    std::unordered_set<const BufferNode*> consumer_used, producer_used;
+    for (size_t i = 0; i < seq_stmt.size(); i++) {
+      if (roles[i] == Role::kProducer) {
+        for (BufferRegion br : writes[i]) producer_used.insert(br->buffer.get());
+      } else {
+        for (BufferRegion br : reads[i]) consumer_used.insert(br->buffer.get());
+      }
+    }
+    Array<Buffer> versioned_buffers;
+    for (Buffer buffer : scoped_buffers) {
+      if (consumer_used.count(buffer.get()) && producer_used.count(buffer.get())) {
+        versioned_buffers.push_back(buffer);
+      }
+    }
+    return versioned_buffers;
+  }
+
   static Buffer RewriteAllocBuffer(const Buffer& buffer, int num_versions) {
     ObjectPtr<BufferNode> new_buffer = make_object<BufferNode>(*(buffer.get()));
     new_buffer->shape.insert(new_buffer->shape.begin(), PrimExpr(num_versions));
@@ -317,11 +274,10 @@ class MultiVersionBufferRewriter : public StmtExprMutator {
       if (stmt.defined() && stmt.value().get() == op) scoped_buffers.push_back(buffer);
     }
 
-    PipelineInfo info =
-        ExtractPipelineInfo(pipeline_body_seq->seq, scoped_buffers, buffer_data_to_buffer_);
+    Array<Buffer> versioned_buffers = GetVersionedBuffers(pipeline_body_seq->seq, scoped_buffers);
 
     // Map<Buffer, Buffer> buffer_remap;
-    for (auto buffer : info.versioned_buffers) {
+    for (auto buffer : versioned_buffers) {
       Var buffer_var = buffer->data;
       Buffer new_buffer = RewriteAllocBuffer(buffer, num_stages);
       buffer_remap_.Set(buffer, new_buffer);
@@ -477,7 +433,7 @@ class WSCodeEmitter : public StmtMutator {
         auto stmt = collector.Rewrite(seq_transformed[i], release_barrier_id);
         if (!is_zero(collector.BulkCopyBytes())) {
           auto expect_tx_call = Call(DataType::Handle(), MBarrierExpectTX(),
-                                {release_barrier_id, collector.BulkCopyBytes()});
+                                     {release_barrier_id, collector.BulkCopyBytes()});
           new_body.push_back(IfThenElse(EQ(thread_var_, 0), Evaluate(expect_tx_call)));
         }
         new_body.push_back(stmt);
