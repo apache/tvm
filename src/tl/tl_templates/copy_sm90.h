@@ -92,7 +92,7 @@ TL_DEVICE void tma_store(const CUtensorMap& descriptor, void const* const smem_p
   uint64_t gmem_int_desc = reinterpret_cast<uint64_t>(&descriptor);
   uint32_t smem_int_ptr = smem_ptr_to_uint(smem_ptr);
 
-  asm volatile("cp.async.bulk.tensor.1d.global.shared::cta.bulk_group [%0, {%2, %3}], [%1];"
+  asm volatile("cp.async.bulk.tensor.2d.global.shared::cta.bulk_group [%0, {%2, %3}], [%1];"
                :
                : "l"(gmem_int_desc), "r"(smem_int_ptr), "r"(crd0), "r"(crd1)
                : "memory");
@@ -126,7 +126,7 @@ TL_DEVICE void tma_store(const CUtensorMap& descriptor, void const* const smem_p
                          int32_t const& crd3, int32_t const& crd4) {
   uint64_t gmem_int_desc = reinterpret_cast<uint64_t>(&descriptor);
   uint32_t smem_int_ptr = smem_ptr_to_uint(smem_ptr);
-  
+
   asm volatile(
       "cp.async.bulk.tensor.5d.global.shared::cta.bulk_group [%0, {%2, %3, %4, %5, %6}], [%1];"
       :
@@ -192,18 +192,6 @@ TL_DEVICE void mbarrier_arrive_expect_tx(uint64_t& smem_barrier, uint32_t transa
       "}"
       :
       : "r"(transaction_bytes), "r"(smem_int_ptr));
-}
-
-TL_DEVICE void ptx_stmatrix(void const* const smem_ptr, const int32_t& value) {
-  uint32_t smem_int_ptr = smem_ptr_to_uint(smem_ptr);
-  asm volatile("stmatrix.sync.aligned.x1.m8n8.shared.b16 [%0], {%1};\n" ::"r"(smem_int_ptr),
-               "r"(value));
-}
-
-TL_DEVICE void ptx_stmatrix_trans(void const* const smem_ptr, const int32_t& value) {
-  uint32_t smem_int_ptr = smem_ptr_to_uint(smem_ptr);
-  asm volatile("stmatrix.sync.aligned.x1.trans.m8n8.shared.b16 [%0], {%1};\n" ::"r"(smem_int_ptr),
-               "r"(value));
 }
 
 }  // namespace tl

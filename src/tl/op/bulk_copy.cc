@@ -104,7 +104,16 @@ static Array<T> ReverseArray(Array<T> array) {
 }
 
 Stmt Copy::LowerBulkCopy(const LowerArgs& T, arith::Analyzer* analyzer) const {
-  bool is_load = src.scope() == "global";
+  if (!TargetIsHopper(T.target)) return Stmt();
+  bool is_load;
+  if (src.scope() == "global" && (dst.scope() == "shared.dyn" || dst.scope() == "shared")) {
+    // Use the Hopper TMA bulk copy instructions
+    is_load = true;
+  } else if (dst.scope() == "global" && (src.scope() == "shared.dyn" || src.scope() == "shared")) {
+    is_load = false;
+  } else {
+    return Stmt();
+  }
   Buffer global_tensor = is_load ? src : dst;
   Buffer shared_tensor = is_load ? dst : src;
   Layout shared_layout;
@@ -115,8 +124,6 @@ Stmt Copy::LowerBulkCopy(const LowerArgs& T, arith::Analyzer* analyzer) const {
   if (T.layout_map.count(global_tensor)) {
     ICHECK(T.layout_map.count(global_tensor) == 0) << "Cannot support global layout.";
   }
-  ICHECK(shared_tensor.scope() == "shared" || shared_tensor.scope() == "shared.dyn");
-  ICHECK(global_tensor.scope() == "global");
 
   TMADesc desc;
 
@@ -198,6 +205,8 @@ Stmt Copy::LowerBulkCopy(const LowerArgs& T, arith::Analyzer* analyzer) const {
   if (is_load) args.push_back(0);  // mbarrier id placeholder
   auto op = is_load ? TMALoadOp() : TMAStoreOp();
 
+  Stmt tma_copy;
+
   if ((*inner_box_dim) != instruction_dim) {
     Var loop_var("i");
     int loop_extent = (*inner_box_dim) / instruction_dim;
@@ -208,16 +217,16 @@ Stmt Copy::LowerBulkCopy(const LowerArgs& T, arith::Analyzer* analyzer) const {
     args.push_back(shared_addr);
     global_coords.Set(0, global_coords[0] + instruction_dim * loop_var);
     for (auto coord : global_coords) args.push_back(coord);
-    Call TMA_copy = Call(DataType::Handle(), op, args);
-    For loop = For(loop_var, 0, loop_extent, ForKind::kUnrolled, Evaluate(TMA_copy));
-    return loop;
+    tma_copy = For(loop_var, 0, loop_extent, ForKind::kUnrolled,
+                   Evaluate(Call(DataType::Handle(), op, args)));
   } else {
     PrimExpr shared_addr = shared_tensor.access_ptr(is_load ? 2 : 1);
     args.push_back(shared_addr);
     for (auto coord : global_coords) args.push_back(coord);
-    Call TMA_copy = Call(DataType::Handle(), op, args);
-    return Evaluate(TMA_copy);
+    tma_copy = Evaluate(Call(DataType::Handle(), op, args));
   }
+  tma_copy = IfThenElse(EQ(T.thread_var, 0), tma_copy);
+  return tma_copy;
 }
 
 Array<PrimExpr> TMADesc::EncodeCallArgs() const {
@@ -260,5 +269,12 @@ TIR_DEFINE_TL_BUILTIN(LDMatrixOp)
     .set_num_inputs(4)
     .set_attr<TCallEffectKind>("TCallEffectKind", Integer(CallEffectKind::kOpaque));
 
+TIR_DEFINE_TL_BUILTIN(STMatrixOp)
+    .set_num_inputs(-1)
+    .set_attr<TCallEffectKind>("TCallEffectKind", Integer(CallEffectKind::kOpaque));
+
+TIR_DEFINE_TL_BUILTIN(PackB16Op)
+    .set_num_inputs(2)
+    .set_attr<TCallEffectKind>("TCallEffectKind", Integer(CallEffectKind::kPure));
 }  // namespace tl
 }  // namespace tvm

@@ -90,6 +90,22 @@ const Op& MBarrierWaitParity();
  */
 const Op& LDMatrixOp();
 
+/*!
+ * \brief tvm intrinsics for stmatrix
+ *
+ * LDMatrixOp(transposed, num, shared_addr, int32_values...)
+ *
+ */
+const Op& STMatrixOp();
+
+/*!
+ * \brief Pack two b16 value into a b32 value
+ *
+ * int32 PackB16Op(b16_value, b16_value)
+ *
+ */
+const Op& PackB16Op();
+
 }  // namespace tl
 }  // namespace tvm
 

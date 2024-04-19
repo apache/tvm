@@ -137,11 +137,10 @@ For Copy::MakeSIMTLoop(arith::Analyzer* analyzer) const {
 Stmt Copy::Lower(const LowerArgs& T, arith::Analyzer* analyzer) const {
   Stmt ldsm_stmt = LowerLDSMCopy(T, analyzer);
   if (ldsm_stmt.defined()) return ldsm_stmt;
-  if (TargetIsHopper(T.target) && src.scope() == "global" &&
-      (dst.scope() == "shared.dyn" || dst.scope() == "shared")) {
-    // Use the Hopper TMA bulk copy instructions
-    return LowerBulkCopy(T, analyzer);
-  }
+
+  Stmt bulk_copy_stmt = LowerBulkCopy(T, analyzer);
+  if (bulk_copy_stmt.defined()) return bulk_copy_stmt;
+
   auto par_op = std::make_unique<ParallelOp>(MakeSIMTLoop(analyzer));
   par_op->InferLayout({T.target, T.block_size, T.layout_map}, InferLevel::kFree);
   auto thread_loop =
@@ -197,7 +196,6 @@ Stmt Copy::LowerLDSMCopy(const LowerArgs& T, arith::Analyzer* analyzer) const {
   }
 
   // Check local_layout follows 8x8 layout
-  if (is_ldmatrix && local_tensor->dtype.bytes() != 2) return Stmt();
   bool is_transposed;
   IterVar col_var = loop_vars[loop_vars.size() - 1];
   IterVar row_var = loop_vars[loop_vars.size() - 2];
@@ -226,31 +224,35 @@ Stmt Copy::LowerLDSMCopy(const LowerArgs& T, arith::Analyzer* analyzer) const {
                           analyzer))
     return Stmt();
 
-  // TODO: implement st_matrix
-  if (!is_ldmatrix) return Stmt();
   // Can only support local_range to be a full range
   for (size_t i = 0; i < dst_range.size(); i++) {
     if (!is_zero(dst_range[i]->min) ||
         !analyzer->CanProveEqual(dst_range[i]->extent, dst->shape[i]))
       return Stmt();
   }
-  // Do the lowering here
-  Layout inv = local_layout->Inverse();
-  PrimExpr extent = inv->InputShape()[0];
+
+  // Do the lowering here, try vectorized ldmatrix/stmatrix by 4/2/1
+  PrimExpr extent = local_tensor->shape[0];
   int num = 1;
   if (analyzer->CanProveEqual(FloorMod(extent, 8), 0))
     num = 4;
   else if (analyzer->CanProveEqual(FloorMod(extent, 4), 0))
     num = 2;
-  Var local_iter("i");
-  PrimExpr local_addr =
-      local_tensor.access_ptr(2, DataType::Handle(), 1, local_iter * 2 * num, PrimExpr(2 * num));
-  PrimExpr warp = FloorDiv(T.thread_var, 32) * 32;
+
+  Array<PrimExpr> args;
+  const Op& op = is_ldmatrix ? tl::LDMatrixOp() : tl::STMatrixOp();
+  args.push_back(static_cast<int>(is_transposed));
+  args.push_back(num);
+
+  // Create shared address with regard to local address
   // if not transpose
   // coords = Inverse(base + 2 * (thread / 8) % num, warp + (thread % 8) * 4))
   // if transpose
   // coords = Inverse(base + 2 * (thread / 8) % num + thread % 2, warp + thread % 8 / 2)
+  Var local_iter("i");
+  Layout inv = local_layout->Inverse();
   Array<PrimExpr> shared_coords;
+  PrimExpr warp = FloorDiv(T.thread_var, 32) * 32;
   if (!is_transposed)
     shared_coords =
         inv->Forward({local_iter * 2 * num + 2 * FloorMod(FloorDiv(T.thread_var, 8), num),
@@ -264,10 +266,28 @@ Stmt Copy::LowerLDSMCopy(const LowerArgs& T, arith::Analyzer* analyzer) const {
   if (shared_layout.defined()) shared_coords = shared_layout->Forward(shared_coords);
   PrimExpr shared_addr = shared_tensor.access_ptr(
       1, DataType::Handle(), 1, shared_tensor.OffsetOf(shared_coords).back(), PrimExpr(2 * num));
+  args.push_back(shared_addr);
 
-  auto body = Evaluate(Call(DataType::Handle(), tl::LDMatrixOp(),
-                            {int(is_transposed), num, shared_addr, local_addr}));
+  if (is_ldmatrix) {
+    // Can only support same dtype for ldmatrx
+    if (local_tensor->dtype != shared_tensor->dtype) return Stmt();
+    PrimExpr local_addr =
+        local_tensor.access_ptr(2, DataType::Handle(), 1, local_iter * 2 * num, PrimExpr(2 * num));
+    args.push_back(local_addr);
+  } else {
+    for (int i = 0; i < num; i++) {
+      PrimExpr value0 = BufferLoad(local_tensor, {local_iter * 2 * num + 2 * i});
+      PrimExpr value1 = BufferLoad(local_tensor, {local_iter * 2 * num + 2 * i + 1});
+      if (local_tensor->dtype != shared_tensor->dtype) {
+        value0 = Cast(shared_tensor->dtype, value0);
+        value1 = Cast(shared_tensor->dtype, value1);
+      }
+      PrimExpr value_packed = Call(DataType::Int(32), PackB16Op(), {value0, value1});
+      args.push_back(value_packed);
+    }
+  }
 
+  auto body = Evaluate(Call(DataType::Handle(), op, args));
   For for_node = For(local_iter, 0, FloorDiv(extent, 2 * num), ForKind::kSerial, body);
   for_node = LoopPragmaUnroll(for_node);
   return for_node;

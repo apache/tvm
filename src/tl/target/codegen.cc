@@ -681,8 +681,8 @@ void CodeGenTL::VisitExpr_(const CallNode* op, std::ostream& os) {
   } else if (op->op.same_as(tl::TMAStoreOp())) {
     this->PrintIndent();
     std::string descriptor = this->PrintExpr(op->args[0]);
-    std::string smem_addr = this->PrintExpr(op->args[2]);
-    this->stream << "tl::tma_load(" << descriptor << ", " << smem_addr;
+    std::string smem_addr = this->PrintExpr(op->args[1]);
+    this->stream << "tl::tma_store(" << descriptor << ", " << smem_addr;
     for (size_t i = 2; i < op->args.size(); i++) {  // coords
       this->stream << ", " << this->PrintExpr(op->args[i]);
     }
@@ -696,6 +696,20 @@ void CodeGenTL::VisitExpr_(const CallNode* op, std::ostream& os) {
     std::string smem_addr = this->PrintExpr(op->args[2]);
     std::string local_addr = this->PrintExpr(op->args[3]);
     this->stream << func_name << "(" << smem_addr << ", " << local_addr << ");\n";
+  } else if (op->op.same_as(tl::STMatrixOp())) {
+    this->PrintIndent();
+    int trans = Downcast<IntImm>(op->args[0])->value;
+    int num = Downcast<IntImm>(op->args[1])->value;
+    std::string func_name = "tl::ptx_stmatrix_x" + std::to_string(num);
+    if (trans == 1) func_name += "_trans";
+    std::string smem_addr = this->PrintExpr(op->args[2]);
+    this->stream << func_name << "(" << smem_addr;
+    for (size_t i = 3; i < op->args.size(); i++) {  // values
+      this->stream << ", " << this->PrintExpr(op->args[i]);
+    }
+    this->stream << ");\n";
+  } else if (op->op.same_as(tl::PackB16Op())) {
+    this->stream << "__pack_half2(" << this->PrintExpr(op->args[0]) << ", " << this->PrintExpr(op->args[1]) << ")";
   } else {
     CodeGenC::VisitExpr_(op, os);
   }

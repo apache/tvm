@@ -399,6 +399,29 @@ class MultiVersionBufferRewriter : public StmtExprMutator {
   Map<Buffer, Buffer> buffer_remap_;
 };
 
+class ThreadIdxRewriter : public StmtExprMutator {
+ public:
+  static Stmt Rewrite(Stmt stmt, Var thread_var, PrimExpr replaced) {
+    auto rewriter = ThreadIdxRewriter(thread_var, replaced);
+    return rewriter(stmt);
+  }
+
+ private:
+  ThreadIdxRewriter(Var thread_var, PrimExpr replaced)
+      : thread_var_(thread_var), replaced_(replaced) {}
+
+  PrimExpr VisitExpr_(const VarNode* var) final {
+    if (var == thread_var_.get()) {
+      return replaced_;
+    } else {
+      return StmtExprMutator::VisitExpr_(var);
+    }
+  }
+
+  Var thread_var_;
+  PrimExpr replaced_;
+};
+
 class WSCodeEmitter : public StmtMutator {
  public:
   WSCodeEmitter(bool is_emitting_producer, IterVar thread_iv,
@@ -725,6 +748,8 @@ class WarpSpecializedPipeline : public StmtExprMutator {
       PrimExpr consumer_thread_extent = thread_iv->dom->extent;
       PrimExpr producer_thread_extent = 1;
 
+      producer_code = ThreadIdxRewriter::Rewrite(producer_code, thread_iv->var,
+                                                 thread_iv->var - consumer_thread_extent);
       PrimExpr new_thread_extent = consumer_thread_extent + producer_thread_extent;
       thread_iv.CopyOnWrite()->dom = {0, new_thread_extent};
 
