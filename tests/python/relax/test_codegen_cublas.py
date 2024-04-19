@@ -36,7 +36,7 @@ def reset_seed():
     np.random.seed(0)
 
 
-# pytestmark = tvm.testing.requires_cublas.marks()
+pytestmark = tvm.testing.requires_cublas.marks()
 
 
 def build_and_run(mod, inputs_np, target, legalize=False, cuda_graph=False):
