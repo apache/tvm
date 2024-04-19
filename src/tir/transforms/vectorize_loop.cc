@@ -731,15 +731,12 @@ class LoopVectorizer : public StmtMutator {
   Stmt VisitStmt_(const ForNode* op) final {
     if (op->kind == ForKind::kVectorized) {
       auto* extent_as_int = op->extent.as<IntImmNode>();
+
       if (!extent_as_int || extent_as_int->value < 1) {
-        Target current_target = Target::Current();
-        bool has_sve{false};
-        if (current_target.defined()) {
-          has_sve = current_target->GetFeature<Bool>("has_sve").value_or(Bool(false));
-        }
         bool is_scalable_expr = CheckContains::ExprContains(op->extent, arith::IsVScaleCall);
-        ICHECK(is_scalable_expr && has_sve) << "Failed to vectorize loop with extent " << op->extent
-                                            << " for target " << current_target;
+        ICHECK(is_scalable_expr && arith::TargetHasSVE())
+            << "Failed to vectorize loop with extent " << op->extent << " for target "
+            << Target::Current();
       }
       ICHECK(is_zero(op->min));
       return Vectorizer(op->loop_var, op->extent)(op->body);

@@ -114,7 +114,6 @@ def test_vectorize_vector_scalable_error4():
     class Module:
         @T.prim_func(private=True)
         def main(A: T.Buffer((25,), "float32")):
-            T.func_attr({"target": sve_target})
             for j in T.vectorized(T.vscale() * 4):
                 A[j * T.vscale() * 4 : j * T.vscale() * 4 + T.vscale() * 4] = T.Broadcast(
                     T.float32(1), T.vscale() * 4

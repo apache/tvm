@@ -71,6 +71,12 @@ std::optional<int> ExtractVscaleFactor(const PrimExpr& lanes);
 bool CanProveVscaleExpressionFromKnownValues(arith::Analyzer* analyzer, const PrimExpr& expr,
                                              const std::vector<unsigned int>& vscale_values);
 
+/*!
+ * \brief Check whether the compilation target supports SVE
+ * \return Whether SVE is supported
+ */
+bool TargetHasSVE();
+
 }  // namespace arith
 }  // namespace tvm
 
