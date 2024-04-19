@@ -19,8 +19,6 @@
 
 """Utility functions for Relax"""
 
-import functools
-import inspect
 import itertools
 import string
 
