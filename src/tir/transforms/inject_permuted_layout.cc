@@ -150,7 +150,6 @@ class PermutedLayoutInjector : private IRMutatorWithAnalyzer {
   }
 
   bool CheckBufferShapeIsPermutable(Buffer buffer) {
-    LOG(INFO) << "CheckBufferShapeIsPermutable: " << buffer->name << " " << buffer->shape;
     if (buffer->shape.size() < 2) {
       LOG(WARNING) << "The dimension of Buffer \"" << buffer->name << "\" with shape " << buffer->shape
                 << " should be at least 2";
