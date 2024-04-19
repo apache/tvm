@@ -32,7 +32,7 @@
 #include "../target/utils.h"
 #include "../transform/loop_partition.h"
 #include "../transform/loop_vectorize.h"
-#include "bulk_copy.h"
+#include "builtin.h"
 
 namespace tvm {
 namespace tl {

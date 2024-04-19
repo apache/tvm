@@ -53,13 +53,6 @@ using OpBuilderFunc = TypedPackedFunc<void*(Array<PrimExpr>, BufferMap)>;
       .set_attr<OpBuilderFunc>(                                    \
           "TLOpBuilder", [](Array<PrimExpr> a, BufferMap b) { return (void*)(new Entry(a, b)); })
 
-#define TIR_DEFINE_TL_BUILTIN(OpName)             \
-  const Op& OpName() {                            \
-    static const Op& op = Op::Get("tl." #OpName); \
-    return op;                                    \
-  }                                               \
-  TVM_REGISTER_OP("tl." #OpName).set_attr<TScriptPrinterName>("TScriptPrinterName", #OpName)
-
 enum class InferLevel {
   kFree = 0,
   kCommon = 1,

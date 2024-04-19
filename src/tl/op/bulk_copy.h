@@ -49,63 +49,6 @@ struct TMADesc {
 
 DataType cuTensorMapType();
 
-/*!
- * \brief tvm intrinsics for TMADescriptor creation
- *
- * CreateTMADescriptorOp(data_type, rank, global_addr, global_shape..., global_stride...,
- * smem_box..., smem_stride..., interleave, swizzle, l2_promotion, oob_fill)
- *
- */
-const Op& CreateTMADescriptorOp();
-
-/*!
- * \brief tvm intrinsics for loading data from global tensor descriptor to shared memory
- *
- * TMALoadOp(descriptor, barrier_id, smem_data, coord_0, coord_1, ...)
- *
- */
-const Op& TMALoadOp();
-
-/*!
- * \brief tvm intrinsics for storing data from shared memory to global tensor descriptor
- *
- * TMAStoreOp(descriptor, smem_data, coord_0, coord_1, ...)
- *
- */
-const Op& TMAStoreOp();
-
-/*!
- * \brief tvm intrinsics for mbarrier wait with parity bit
- *
- * MBarrierWaitParity(barrier_id, parity)
- *
- */
-const Op& MBarrierWaitParity();
-
-/*!
- * \brief tvm intrinsics for ldmatrix
- *
- * LDMatrixOp(transposed, num, shared_addr, local_addr)
- *
- */
-const Op& LDMatrixOp();
-
-/*!
- * \brief tvm intrinsics for stmatrix
- *
- * LDMatrixOp(transposed, num, shared_addr, int32_values...)
- *
- */
-const Op& STMatrixOp();
-
-/*!
- * \brief Pack two b16 value into a b32 value
- *
- * int32 PackB16Op(b16_value, b16_value)
- *
- */
-const Op& PackB16Op();
-
 }  // namespace tl
 }  // namespace tvm
 

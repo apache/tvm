@@ -28,7 +28,7 @@
 #include <tvm/tir/stmt_functor.h>
 #include <tvm/tir/transform.h>
 
-#include "../op/bulk_copy.h"
+#include "../op/builtin.h"
 
 namespace tvm {
 namespace tl {
@@ -428,7 +428,8 @@ class WSCodeEmitter : public StmtMutator {
                 Map<Var, Buffer> buffer_data_to_buffer, const WarpSpecializedRoleMarker& marker)
       : is_emitting_producer_(is_emitting_producer),
         buffer_data_to_buffer_(buffer_data_to_buffer),
-        marker_(marker) {}
+        marker_(marker),
+        thread_var_(thread_iv->var) {}
 
  private:
   template <typename NodeType>
@@ -475,9 +476,9 @@ class WSCodeEmitter : public StmtMutator {
         PrimExpr release_barrier_id = stage_ + num_barriers_ + num_stages_ * map.release[i];
         auto stmt = collector.Rewrite(seq_transformed[i], release_barrier_id);
         if (!is_zero(collector.BulkCopyBytes())) {
-          new_body.push_back(
-              Evaluate(Call(DataType::Handle(), builtin::ptx_arrive_barrier_expect_tx(),
-                            {release_barrier_id, collector.BulkCopyBytes()})));
+          auto expect_tx_call = Call(DataType::Handle(), MBarrierExpectTX(),
+                                {release_barrier_id, collector.BulkCopyBytes()});
+          new_body.push_back(IfThenElse(EQ(thread_var_, 0), Evaluate(expect_tx_call)));
         }
         new_body.push_back(stmt);
         if (collector.HasSimtCopy() > 0) {
@@ -716,6 +717,7 @@ class WSCodeEmitter : public StmtMutator {
   PrimExpr parity_ = 0;
   PrimExpr stage_ = 0;
   int num_stages_ = 1;
+  Var thread_var_;
   friend class WarpSpecializedPipeline;
 };
 

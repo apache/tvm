@@ -25,11 +25,10 @@
 
 #include "bulk_copy.h"
 
-#include <tvm/tir/builtin.h>
 #include <tvm/tir/op.h>
-#include <tvm/tir/op_attr_types.h>
 
 #include "../target/utils.h"
+#include "builtin.h"
 #include "cuda.h"
 
 namespace tvm {
@@ -250,31 +249,5 @@ Array<PrimExpr> TMADesc::EncodeCallArgs() const {
 
 DataType cuTensorMapType() { return DataType::UInt(8, 128); }
 
-TIR_DEFINE_TL_BUILTIN(CreateTMADescriptorOp)
-    .set_num_inputs(-1)
-    .set_attr<TCallEffectKind>("TCallEffectKind", Integer(CallEffectKind::kOpaque));
-
-TIR_DEFINE_TL_BUILTIN(TMALoadOp).set_num_inputs(-1).set_attr<TCallEffectKind>(
-    "TCallEffectKind", Integer(CallEffectKind::kOpaque));
-
-TIR_DEFINE_TL_BUILTIN(TMAStoreOp)
-    .set_num_inputs(-1)
-    .set_attr<TCallEffectKind>("TCallEffectKind", Integer(CallEffectKind::kOpaque));
-
-TIR_DEFINE_TL_BUILTIN(MBarrierWaitParity)
-    .set_num_inputs(2)
-    .set_attr<TCallEffectKind>("TCallEffectKind", Integer(CallEffectKind::kOpaque));
-
-TIR_DEFINE_TL_BUILTIN(LDMatrixOp)
-    .set_num_inputs(4)
-    .set_attr<TCallEffectKind>("TCallEffectKind", Integer(CallEffectKind::kOpaque));
-
-TIR_DEFINE_TL_BUILTIN(STMatrixOp)
-    .set_num_inputs(-1)
-    .set_attr<TCallEffectKind>("TCallEffectKind", Integer(CallEffectKind::kOpaque));
-
-TIR_DEFINE_TL_BUILTIN(PackB16Op)
-    .set_num_inputs(2)
-    .set_attr<TCallEffectKind>("TCallEffectKind", Integer(CallEffectKind::kPure));
 }  // namespace tl
 }  // namespace tvm

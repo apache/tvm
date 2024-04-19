@@ -141,12 +141,7 @@ TL_DEVICE void prefetch_tma_descriptor(const CUtensorMap& descriptor) {
 
 TL_DEVICE void mbarrier_init(uint64_t& smem_barrier, uint32_t arrive_count) {
   uint32_t smem_int_ptr = smem_ptr_to_uint(&smem_barrier);
-  asm volatile(
-      "{\n\t"
-      "mbarrier.init.shared.b64 [%1], %0; \n"
-      "}"
-      :
-      : "r"(arrive_count), "r"(smem_int_ptr));
+  asm volatile("mbarrier.init.shared.b64 [%1], %0;" : : "r"(arrive_count), "r"(smem_int_ptr));
 }
 
 TL_DEVICE void mbarrier_wait(uint64_t& smem_barrier, int phase_bit) {
@@ -156,42 +151,43 @@ TL_DEVICE void mbarrier_wait(uint64_t& smem_barrier, int phase_bit) {
       ".reg .pred                P1;\n"
       "LAB_WAIT:\n"
       "mbarrier.try_wait.parity.shared.b64 P1, [%0], %1;\n"
-      "@P1                       bra.uni DONE;\n"
-      "bra.uni                   LAB_WAIT;\n"
-      "DONE:\n"
+      "@!P1                      bra.uni LAB_WAIT;\n"
       "}\n" ::"r"(smem_int_ptr),
       "r"(phase_bit));
 }
 
 TL_DEVICE void mbarrier_arrive(uint64_t& smem_barrier) {
   uint32_t smem_int_ptr = smem_ptr_to_uint(&smem_barrier);
-  uint64_t state = 0;
-  asm volatile(
-      "{\n\t"
-      "mbarrier.arrive.shared.b64 %1, [%0];\n\t"
-      "}"
-      :
-      : "r"(smem_int_ptr), "l"(state));
+  asm volatile("mbarrier.arrive.shared.b64 _, [%0];" : : "r"(smem_int_ptr));
 }
 
 TL_DEVICE void mbarrier_expect_tx(uint64_t& smem_barrier, uint32_t transaction_bytes) {
   uint32_t smem_int_ptr = smem_ptr_to_uint(&smem_barrier);
-  asm volatile(
-      "{\n\t"
-      "mbarrier.expect_tx.shared.b64 [%1], %0; \n\t"
-      "}"
-      :
-      : "r"(transaction_bytes), "r"(smem_int_ptr));
+  asm volatile("mbarrier.expect_tx.shared.b64 [%1], %0;"
+               :
+               : "r"(transaction_bytes), "r"(smem_int_ptr));
 }
 
 TL_DEVICE void mbarrier_arrive_expect_tx(uint64_t& smem_barrier, uint32_t transaction_bytes) {
   uint32_t smem_int_ptr = smem_ptr_to_uint(&smem_barrier);
+  asm volatile("mbarrier.arrive.expect_tx.shared.b64 _, [%1], %0;"
+               :
+               : "r"(transaction_bytes), "r"(smem_int_ptr));
+}
+
+TL_DEVICE void syncthreads_partial(uint64_t& smem_barrier) {
+  uint32_t smem_int_ptr = smem_ptr_to_uint(&smem_barrier);
+  uint64_t state;
   asm volatile(
-      "{\n\t"
-      "mbarrier.arrive.expect_tx.shared.b64 _, [%1], %0; \n\t"
-      "}"
+      "{\n"
+      ".reg .pred                P1;\n"
+      "mbarrier.arrive.shared.b64 %1, [%0];\n"
+      "LAB_WAIT:\n"
+      "mbarrier.try_wait.shared.b64 P1, [%0], %1;\n"
+      "@!P1                      bra.uni LAB_WAIT;\n"
+      "}\n"
       :
-      : "r"(transaction_bytes), "r"(smem_int_ptr));
+      : "r"(smem_int_ptr), "l"(state));
 }
 
 }  // namespace tl

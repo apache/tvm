@@ -32,8 +32,8 @@
 #include <utility>
 #include <vector>
 
+#include "../op/builtin.h"
 #include "../op/bulk_copy.h"
-#include "../op/op.h"
 
 namespace tvm {
 namespace codegen {
@@ -658,6 +658,13 @@ void CodeGenTL::VisitExpr_(const CallNode* op, std::ostream& os) {
     std::string barrier_name = "_mbarrier";
     std::string barrier = barrier_name + "[" + barrier_id + "]";
     std::string tx = this->PrintExpr(op->args[1]);
+    this->stream << "tl::mbarrier_arrive_expect_tx(" << barrier << ", " << tx << ");\n";
+  } else if (op->op.same_as(tl::MBarrierExpectTX())) {
+    this->PrintIndent();
+    std::string barrier_id = this->PrintExpr(op->args[0]);
+    std::string barrier_name = "_mbarrier";
+    std::string barrier = barrier_name + "[" + barrier_id + "]";
+    std::string tx = this->PrintExpr(op->args[1]);
     this->stream << "tl::mbarrier_expect_tx(" << barrier << ", " << tx << ");\n";
   } else if (op->op.same_as(tl::MBarrierWaitParity())) {
     this->PrintIndent();
@@ -666,6 +673,12 @@ void CodeGenTL::VisitExpr_(const CallNode* op, std::ostream& os) {
     std::string barrier = barrier_name + "[" + barrier_id + "]";
     std::string parity = this->PrintExpr(op->args[1]);
     this->stream << "tl::mbarrier_wait(" << barrier << ", " << parity << ");\n";
+  } else if (op->op.same_as(tl::SyncThreadsPartialOp())) {
+    this->PrintIndent();
+    std::string barrier_id = this->PrintExpr(op->args[0]);
+    std::string barrier_name = "_mbarrier";
+    std::string barrier = barrier_name + "[" + barrier_id + "]";
+    this->stream << "tl::syncthreads_partial(" << barrier << ");\n";
   } else if (op->op.same_as(tl::TMALoadOp())) {
     this->PrintIndent();
     std::string barrier_name = "_mbarrier";
@@ -709,7 +722,8 @@ void CodeGenTL::VisitExpr_(const CallNode* op, std::ostream& os) {
     }
     this->stream << ");\n";
   } else if (op->op.same_as(tl::PackB16Op())) {
-    this->stream << "__pack_half2(" << this->PrintExpr(op->args[0]) << ", " << this->PrintExpr(op->args[1]) << ")";
+    this->stream << "__pack_half2(" << this->PrintExpr(op->args[0]) << ", "
+                 << this->PrintExpr(op->args[1]) << ")";
   } else {
     CodeGenC::VisitExpr_(op, os);
   }
