@@ -85,9 +85,13 @@ def lower(func):
     mod = tl.transform.LowerTileOp()(mod)
     mod = tir.transform.Simplify()(mod)
 
-    mod = tir.transform.PlanAndUpdateBufferAllocationLocation()(mod)
-    mod = tl.transform.PipelinePlanning()(mod)
-    mod = tl.transform.InjectSoftwarePipeline()(mod)
+    if target.arch == "sm_90":
+        mod = tl.transform.WarpSpecializedPipeline()(mod)
+    else:
+        mod = tir.transform.PlanAndUpdateBufferAllocationLocation()(mod)
+        mod = tl.transform.PipelinePlanning()(mod)
+        mod = tl.transform.InjectSoftwarePipeline()(mod)
+
     mod = tir.transform.LowerOpaqueBlock()(mod)
     mod = tir.transform.FlattenBuffer()(mod)
     mod = tir.transform.NarrowDataType(32)(mod)
