@@ -223,7 +223,7 @@ def test_matmul_igemm_offload(
 
     tvm.testing.assert_allclose(out, ref, rtol=1e-2, atol=1e-2)
 
-
+@tvm.testing.requires_cuda_compute_version(9)
 @pytest.mark.skipif(ml_dtypes is None, reason="requires ml_dtypes to be installed")
 @pytest.mark.parametrize(
     "x_shape, y_shape, transpose_y, out_dtype",
