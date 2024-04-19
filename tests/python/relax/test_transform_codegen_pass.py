@@ -369,7 +369,7 @@ def test_no_op_for_call_to_tir():
     @tvm.script.ir_module
     class Before:
         @R.function
-        def main(x: R.Tensor):
+        def main(x: R.Tensor([4], "int64")):
             R.func_attr({"relax.force_pure": True})
             _ = Before.shape_func(x)
             return x
