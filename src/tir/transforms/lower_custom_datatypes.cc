@@ -231,7 +231,7 @@ class CustomDatatypesLowerer : public StmtExprMutator {
  private:
   std::string target_;
   // remap buffer vars
-  std::unordered_map<Var, Var, ObjectPtrHash, ObjectPtrEqual> var_remap_;
+  std::unordered_map<Var, Var> var_remap_;
   std::unordered_map<Buffer, Buffer, ObjectPtrHash, ObjectPtrEqual> buf_remap_;
 };
 

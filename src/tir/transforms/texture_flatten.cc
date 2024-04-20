@@ -184,7 +184,7 @@ class TextureFlattener : public TextureLoweringBase {
   }
 
   // Bindings to new texture vars with texture pointer scope
-  std::unordered_map<Var, PrimExpr, ObjectPtrHash, ObjectPtrEqual> let_binding_;
+  std::unordered_map<Var, PrimExpr> let_binding_;
 };
 
 PrimFunc TextureFlatten(PrimFunc func) {

@@ -971,7 +971,7 @@ void BuildDependencyGraph(
     const Array<Block>& blocks,
     std::unordered_map<Block, Array<Block>, ObjectPtrHash, ObjectPtrEqual>* dep_src2dst,
     std::unordered_map<Block, Array<Block>, ObjectPtrHash, ObjectPtrEqual>* dep_dst2src) {
-  std::unordered_map<Var, Array<Block>, ObjectPtrHash, ObjectPtrEqual> buffer_writers;
+  std::unordered_map<Var, Array<Block>> buffer_writers;
 
   for (const Block& block : blocks) {
     for (const BufferRegion& read : block->reads) {

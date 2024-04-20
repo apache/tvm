@@ -447,7 +447,7 @@ class ConstIntBoundAnalyzer::Impl
  private:
   friend class ConstIntBoundAnalyzer;
   // internal variable map
-  std::unordered_map<Var, Entry, ObjectPtrHash, ObjectPtrEqual> var_map_;
+  std::unordered_map<Var, Entry> var_map_;
   // additional bound info
   std::vector<BoundInfo> additional_info_;
   // look up table for memorization

@@ -41,9 +41,8 @@ namespace relax {
 // pairs of indices (the liveness interval, from the starting index to the end index).
 // A starting index of -1 means the var is defined before the block starts and an end index
 // of block->bindings.size() (one past the last index) means it is live after the block ends.
-std::unordered_map<Var, std::pair<int, int>, ObjectPtrHash, ObjectPtrEqual> AnalyzeLiveness(
-    const DataflowBlock& block) {
-  std::unordered_map<Var, std::pair<int, int>, ObjectPtrHash, ObjectPtrEqual> ret;
+std::unordered_map<Var, std::pair<int, int>> AnalyzeLiveness(const DataflowBlock& block) {
+  std::unordered_map<Var, std::pair<int, int>> ret;
   for (int i = block->bindings.size() - 1; i >= 0; i--) {
     Binding b = block->bindings[i];
     Var defined_var = b->var;
@@ -103,7 +102,7 @@ class AliasAnalyzer {
   // that correspond to tuples (this maps to sets of memory locations for each tuple element).
   // Note: inputs are values that should be assumed not to be aliased and are therefore
   // (in the case of in-place ops) safe to overwrite. This may not be true of function args.
-  std::pair<std::unordered_map<Var, std::unordered_set<int>, ObjectPtrHash, ObjectPtrEqual>,
+  std::pair<std::unordered_map<Var, std::unordered_set<int>>,
             std::unordered_map<int, std::vector<std::unordered_set<int>>>>
   Analyze(const DataflowBlock& block, const Array<Var>& inputs) {
     for (auto input : inputs) {
@@ -296,7 +295,7 @@ class AliasAnalyzer {
     return ret;
   }
 
-  std::unordered_map<Var, std::unordered_set<int>, ObjectPtrHash, ObjectPtrEqual> alias_map_;
+  std::unordered_map<Var, std::unordered_set<int>> alias_map_;
   std::unordered_map<int, std::vector<std::unordered_set<int>>> tuple_map_;
   int mem_idx_;
 };
@@ -415,8 +414,7 @@ std::pair<bool, bool> SizeMatches(const StructInfo& target_info, const StructInf
 // Return false if the alias set contains -1, meaning a reference to an unknown or
 // possibly dangerous value (no checking we can do for that).
 bool GatherSetsToCheckForLiveness(
-    const std::unordered_map<Var, std::unordered_set<int>, ObjectPtrHash, ObjectPtrEqual>&
-        alias_sets,
+    const std::unordered_map<Var, std::unordered_set<int>>& alias_sets,
     const std::unordered_map<int, std::vector<std::unordered_set<int>>>& tuple_map,
     std::vector<std::unordered_set<int>>* sets_to_check, int alias_idx) {
   if (tuple_map.count(alias_idx)) {
@@ -443,12 +441,10 @@ bool GatherSetsToCheckForLiveness(
 // Check that the target is not live past the index and that no alias of it is live past the
 // binding index (if the target is a tuple, check the conditions recursively for the members)
 bool InplaceConditionsMet(
-    const std::unordered_map<Var, std::pair<int, int>, ObjectPtrHash, ObjectPtrEqual>& live_ranges,
-    const std::unordered_map<Var, std::unordered_set<int>, ObjectPtrHash, ObjectPtrEqual>&
-        alias_sets,
+    const std::unordered_map<Var, std::pair<int, int>>& live_ranges,
+    const std::unordered_map<Var, std::unordered_set<int>>& alias_sets,
     const std::unordered_map<int, std::vector<std::unordered_set<int>>>& tuple_map,
-    const std::unordered_set<Var, ObjectPtrHash, ObjectPtrEqual>& currently_live,
-    const Expr& target, int binding_idx) {
+    const std::unordered_set<Var>& currently_live, const Expr& target, int binding_idx) {
   if (auto* var_node = target.as<VarNode>()) {
     auto current_var = GetRef<Var>(var_node);
     // if the var is live past this point, we can't use it for in-place computations anyway
@@ -586,7 +582,7 @@ FindInplaceOpportunities(const DataflowBlock& block, const Array<Var>& inputs,
               return live_ranges[var1].first < live_ranges[var2].first;
             });
 
-  std::unordered_set<Var, ObjectPtrHash, ObjectPtrEqual> currently_live;
+  std::unordered_set<Var> currently_live;
   int last_live = 0;
 
   for (size_t i = 0; i < block->bindings.size(); i++) {
@@ -602,7 +598,7 @@ FindInplaceOpportunities(const DataflowBlock& block, const Array<Var>& inputs,
     }
     // remove vars whose range has come to an end
     // (keep a separate set to avoid changing the set while iterating on it)
-    std::unordered_set<Var, ObjectPtrHash, ObjectPtrEqual> remove;
+    std::unordered_set<Var> remove;
     for (auto var : currently_live) {
       auto live_range = live_ranges[var];
       if (live_range.second < static_cast<int>(i)) {
