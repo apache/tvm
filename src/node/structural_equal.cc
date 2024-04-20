@@ -563,8 +563,8 @@ TVM_REGISTER_GLOBAL("node.GetFirstStructuralMismatch")
       return first_mismatch;
     });
 
-bool StructuralEqual::operator()(const ObjectRef& lhs, const ObjectRef& rhs) const {
-  return SEqualHandlerDefault(false, nullptr, false).Equal(lhs, rhs, false);
+bool StructuralEqual::operator()(const ObjectRef& lhs, const ObjectRef& rhs, bool map_free_params) const {
+  return SEqualHandlerDefault(false, nullptr, false).Equal(lhs, rhs, map_free_params);
 }
 
 bool NDArrayEqual(const runtime::NDArray::Container* lhs, const runtime::NDArray::Container* rhs,

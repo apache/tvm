@@ -110,7 +110,7 @@ class StructuralEqual : public BaseValueEqual {
    * \param rhs The right operand.
    * \return The comparison result.
    */
-  TVM_DLL bool operator()(const ObjectRef& lhs, const ObjectRef& rhs) const;
+  TVM_DLL bool operator()(const ObjectRef& lhs, const ObjectRef& rhs, const bool map_free_params = false) const;
 };
 
 /*!
