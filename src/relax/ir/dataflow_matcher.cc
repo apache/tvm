@@ -59,13 +59,30 @@ bool DFPatternMatcher::Match(const DFPattern& pattern, const Expr& expr) {
   return VisitDFPattern(pattern, expr);
 }
 
-static Expr TryGetValOfVar(const Expr& expr, const Map<Var, Expr>& var2val) {
-  if (var2val.empty()) return expr;
+static Expr TryGetValOfVar(Expr expr, const Map<Var, Expr>& var2val) {
+  auto unwrap = [&](Expr expr) -> Optional<Expr> {
+    // Unwrap variables into the value to which they are bound.
+    if (var2val.size()) {
+      if (const VarNode* var = expr.as<VarNode>()) {
+        if (auto may = var2val.Get(GetRef<Var>(var))) {
+          return may.value();
+        }
+      }
+    }
 
-  // if not match, try to match value of var if expr is a var.
-  if (const VarNode* var = expr.as<VarNode>()) {
-    auto may = var2val.Get(GetRef<Var>(var));
-    if (may.defined()) return may.value();
+    // Unwrap SeqExpr with no bindings.  These can occur due to Relax
+    // IR constraints for the bodies of Function and If nodes.
+    if (auto seq = expr.as<SeqExprNode>()) {
+      if (seq->blocks.empty()) {
+        return seq->body;
+      }
+    }
+
+    return NullOpt;
+  };
+
+  while (auto unwrapped = unwrap(expr)) {
+    expr = unwrapped.value();
   }
 
   return expr;
