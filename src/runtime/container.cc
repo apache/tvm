@@ -49,23 +49,6 @@ TVM_REGISTER_GLOBAL("runtime.Array").set_body([](TVMArgs args, TVMRetValue* ret)
   *ret = Array<ObjectRef>(data);
 });
 
-// Concatenate n TVMArrays
-TVM_REGISTER_GLOBAL("runtime.ArrayConcat").set_body([](TVMArgs args, TVMRetValue* ret) {
-  std::vector<ObjectRef> data;
-  for (int i = 0; i < args.size(); ++i) {
-    // Get i-th TVMArray
-    ICHECK_EQ(args[i].type_code(), kTVMObjectHandle);
-    Object* ptr = static_cast<Object*>(args[i].value().v_handle);
-    ICHECK(ptr->IsInstance<ArrayNode>());
-    auto* arr_i = static_cast<const ArrayNode*>(ptr);
-    for (int j = 0; j < arr_i->size(); j++) {
-      // Push back each j-th element of the i-th array
-      data.push_back(arr_i->at(j));
-    }
-  }
-  *ret = Array<ObjectRef>(data);
-});
-
 TVM_REGISTER_GLOBAL("runtime.ArrayGetItem").set_body([](TVMArgs args, TVMRetValue* ret) {
   int64_t i = args[1];
   ICHECK_EQ(args[0].type_code(), kTVMObjectHandle);

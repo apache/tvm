@@ -181,7 +181,7 @@ class RuntimeContext implements Disposable {
     this.arrayGetItem = getGlobalFunc("runtime.ArrayGetItem");
     this.arrayGetSize = getGlobalFunc("runtime.ArraySize");
     this.arrayMake = getGlobalFunc("runtime.Array");
-    this.arrayConcat = getGlobalFunc("runtime.ArrayConcat");
+    this.arrayConcat = getGlobalFunc("tvmjs.runtime.ArrayConcat");
     this.stringMake = getGlobalFunc("runtime.String");
     this.getFFIString = getGlobalFunc("runtime.GetFFIString");
     this.getSysLib = getGlobalFunc("runtime.SystemLib");
