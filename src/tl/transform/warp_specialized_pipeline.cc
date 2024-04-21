@@ -152,12 +152,6 @@ static Stmt makeParityWait(PrimExpr barrier_id, PrimExpr parity) {
   return Evaluate(call);
 }
 
-static Stmt makeInitBarrier(PrimExpr barrier_id, PrimExpr num_threads) {
-  auto call = Call(DataType::Handle(), builtin::ptx_init_barrier_thread_count(),
-                   {makeGetBarrier(barrier_id), num_threads});
-  return Evaluate(call);
-}
-
 class ProducerTraitsCollector : public StmtExprMutator {
  public:
   ProducerTraitsCollector() { Clear(); }
@@ -467,6 +461,7 @@ class WSCodeEmitter : public StmtMutator {
         }
         new_body.push_back(stmt);
         if (collector.HasSimtCopy() > 0) {
+          has_simt_copy_ = true;
           new_body.push_back(makeCpAsyncBarrier(release_barrier_id));
         }
         if (map.release_after[i]) {
@@ -699,6 +694,7 @@ class WSCodeEmitter : public StmtMutator {
   PrimExpr stage_ = 0;
   int num_stages_ = 1;
   Var thread_var_;
+  bool has_simt_copy_ = false;
   friend class WarpSpecializedPipeline;
 };
 
@@ -729,7 +725,9 @@ class WarpSpecializedPipeline : public StmtExprMutator {
       Stmt consumer_code = consumer(block->body);
 
       PrimExpr consumer_thread_extent = thread_iv->dom->extent;
-      PrimExpr producer_thread_extent = 1;
+      PrimExpr producer_thread_extent = thread_iv->dom->extent;
+      // Only need one thread for bulk-copy only case
+      if (!producer.has_simt_copy_) producer_thread_extent = 1;
 
       producer_code = ThreadIdxRewriter::Rewrite(producer_code, thread_iv->var,
                                                  thread_iv->var - consumer_thread_extent);
@@ -747,9 +745,15 @@ class WarpSpecializedPipeline : public StmtExprMutator {
         barrier_num_threads.push_back(arrive_thread_count);
       }
 
-      Stmt init_barrier = Evaluate(Call(DataType::Handle(), CreateListofMBarrierOp(), barrier_num_threads));
+      Stmt init_barrier =
+          Evaluate(Call(DataType::Handle(), CreateListofMBarrierOp(), barrier_num_threads));
       Stmt body =
           IfThenElse(GE(thread_iv->var, consumer_thread_extent), producer_code, consumer_code);
+      // Add an attr here to handle the partial thread count in THreadSync pass.
+      Array<IntImm> ws_partition = {Downcast<IntImm>(producer_thread_extent),
+                                    Downcast<IntImm>(consumer_thread_extent)};
+      body = AttrStmt(ws_partition, "kWarpSpecializationScope", 0, body);
+
       block.CopyOnWrite()->body = SeqStmt({init_barrier, body});
 
       return AttrStmt(thread_iv, attr_node->attr_key, new_thread_extent,
