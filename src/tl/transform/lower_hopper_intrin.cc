@@ -18,8 +18,8 @@
  */
 
 /*!
- * \file lower_TMA_copy.cc
- * \brief Lower TMA copy for cuda GPU(sm90+)
+ * \file lower hopper intrin.cc
+ * \brief Lower Hopper intrinsics cuda GPU(sm90+)
  */
 
 #include <tvm/tir/analysis.h>
@@ -36,11 +36,11 @@ namespace tl {
 
 using namespace tir;
 
-class LowerTMADescriptor : public StmtExprMutator {
+class LowerHopperIntrin : public StmtExprMutator {
  public:
   static PrimFunc Substitute(PrimFunc& f) {
     PrimFuncNode* fptr = f.CopyOnWrite();
-    LowerTMADescriptor substituter;
+    LowerHopperIntrin substituter;
     fptr->body = substituter.VisitStmt(f->body);
     for (auto [call, var] : substituter.desc_map_) {
       // Should allocate 128 bytes for TensorMap on stack
@@ -60,13 +60,31 @@ class LowerTMADescriptor : public StmtExprMutator {
       IterVar iv = Downcast<IterVar>(op->node);
       if (iv->thread_tag == "threadIdx.x") {
         auto body = StmtExprMutator::VisitStmt(op->body);
-        if (prefetch_calls_.empty()) {
+        if (prefetch_calls_.empty() && init_mbarrier_calls_.empty()) {
           return AttrStmt(op->node, op->attr_key, op->value, body);
         } else {
-          auto cond = EQ(iv->var, 0);
-          auto init_stmt = IfThenElse(cond, SeqStmt(prefetch_calls_));
+          Array<Stmt> stmt_seq;
+          if (!init_mbarrier_calls_.empty()) {
+            auto alloc_mbarrier = Evaluate(Call(DataType::Handle(), builtin::create_barriers(),
+                                                {static_cast<int>(init_mbarrier_calls_.size())}));
+            stmt_seq.push_back(alloc_mbarrier);
+          }
+
+          auto stmts = prefetch_calls_;
+          stmts.insert(stmts.end(), init_mbarrier_calls_.begin(), init_mbarrier_calls_.end());
+          auto init_stmt = IfThenElse(EQ(iv->var, 0), SeqStmt(stmts));
+          stmt_seq.push_back(init_stmt);
+          if (!init_mbarrier_calls_.empty()) {
+            Stmt mem_sync = Evaluate(
+                Call(DataType::Handle(), builtin::tvm_storage_sync(), {StringImm("shared")}));
+            stmt_seq.push_back(mem_sync);
+          }
+          stmt_seq.push_back(body);
+
           prefetch_calls_.clear();
-          return AttrStmt(op->node, op->attr_key, op->value, SeqStmt({init_stmt, body}));
+          init_mbarrier_calls_.clear();
+          return AttrStmt(op->node, op->attr_key, op->value,
+                          SeqStmt(stmt_seq));
         }
       }
     }
@@ -87,6 +105,23 @@ class LowerTMADescriptor : public StmtExprMutator {
                                                 {StringImm("tl::prefetch_tma_descriptor"), var})));
       }
       return var;
+    } else if (call->op.same_as(CreateListofMBarrierOp())) {
+      ICHECK(init_mbarrier_calls_.size() == 0);
+      int num_barriers = static_cast<int>(call->args.size());
+      for (int i = 0; i < num_barriers; i++) {
+        PrimExpr mbarrier = Call(DataType::Handle(), GetMBarrierOp(), {i});
+        init_mbarrier_calls_.push_back(
+            Evaluate(Call(DataType::Handle(), builtin::ptx_init_barrier_thread_count(),
+                          {mbarrier, call->args[i]})));
+      }
+      return 0;
+    } else if (call->op.same_as(SyncThreadsPartialOp())) {
+      int barrier_id = init_mbarrier_calls_.size();
+      PrimExpr mbarrier = Call(DataType::Handle(), GetMBarrierOp(), {barrier_id});
+      init_mbarrier_calls_.push_back(
+          Evaluate(Call(DataType::Handle(), builtin::ptx_init_barrier_thread_count(),
+                        {mbarrier, call->args[0]})));
+      return Call(DataType::Handle(), SyncThreadsPartialOp(), {mbarrier});
     } else {
       return StmtExprMutator::VisitExpr_(call);
     }
@@ -94,20 +129,21 @@ class LowerTMADescriptor : public StmtExprMutator {
 
  private:
   Array<Stmt> prefetch_calls_;
+  Array<Stmt> init_mbarrier_calls_;
   std::unordered_map<Call, Var, StructuralHash, ExprDeepEqual> desc_map_;
-  LowerTMADescriptor() = default;
+  LowerHopperIntrin() = default;
 };
 
 using namespace tir::transform;
 
-tvm::transform::Pass LowerTMADescriptor() {
+tvm::transform::Pass LowerHopperIntrin() {
   auto pass_func = [=](PrimFunc f, IRModule m, PassContext ctx) {
-    return LowerTMADescriptor::Substitute(f);
+    return LowerHopperIntrin::Substitute(f);
   };
-  return CreatePrimFuncPass(pass_func, 0, "tl.LowerTMADescriptor", {});
+  return CreatePrimFuncPass(pass_func, 0, "tl.LowerHopperIntrin", {});
 }
 
-TVM_REGISTER_GLOBAL("tl.LowerTMADescriptor").set_body_typed(LowerTMADescriptor);
+TVM_REGISTER_GLOBAL("tl.LowerHopperIntrin").set_body_typed(LowerHopperIntrin);
 
 }  // namespace tl
 }  // namespace tvm

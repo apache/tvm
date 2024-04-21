@@ -111,7 +111,7 @@ def lower(func):
     mod = tir.transform.ThreadSync("shared")(mod)
     mod = tir.transform.ThreadSync("shared.dyn")(mod)
     mod = tir.transform.MergeDynamicSharedMemoryAllocations()(mod)
-    mod = tl.transform.LowerTMADescriptor()(mod)
+    mod = tl.transform.LowerHopperIntrin()(mod)
     mod = tir.transform.InjectPTXAsyncCopy()(mod)
 
     mod = tir.transform.AnnotateDeviceRegions()(mod)

@@ -127,6 +127,37 @@ class WarpSpecializedRoleMarker : public StmtVisitor {
   std::unordered_map<const StmtNode*, Role> map_;
 };
 
+static PrimExpr makeGetBarrier(PrimExpr barrier_id) {
+  return Call(DataType::Handle(), GetMBarrierOp(), {barrier_id});
+}
+
+static Stmt makeExpectTX(PrimExpr barrier_id, PrimExpr bytes) {
+  auto call = Call(DataType::Handle(), MBarrierExpectTX(), {makeGetBarrier(barrier_id), bytes});
+  return Evaluate(call);
+}
+
+static Stmt makeArriveBarrier(PrimExpr barrier_id) {
+  auto call = Call(DataType::Handle(), builtin::ptx_arrive_barrier(), {makeGetBarrier(barrier_id)});
+  return Evaluate(call);
+}
+
+static Stmt makeCpAsyncBarrier(PrimExpr barrier_id) {
+  auto call =
+      Call(DataType::Handle(), builtin::ptx_cp_async_barrier(), {makeGetBarrier(barrier_id)});
+  return Evaluate(call);
+}
+
+static Stmt makeParityWait(PrimExpr barrier_id, PrimExpr parity) {
+  auto call = Call(DataType::Handle(), MBarrierWaitParity(), {makeGetBarrier(barrier_id), parity});
+  return Evaluate(call);
+}
+
+static Stmt makeInitBarrier(PrimExpr barrier_id, PrimExpr num_threads) {
+  auto call = Call(DataType::Handle(), builtin::ptx_init_barrier_thread_count(),
+                   {makeGetBarrier(barrier_id), num_threads});
+  return Evaluate(call);
+}
+
 class ProducerTraitsCollector : public StmtExprMutator {
  public:
   ProducerTraitsCollector() { Clear(); }
@@ -154,7 +185,7 @@ class ProducerTraitsCollector : public StmtExprMutator {
       ICHECK(access_ptr->op.same_as(builtin::tvm_access_ptr()));
       int type_bytes = access_ptr->args[0]->dtype.bytes();
       bulk_copy_bytes += access_ptr->args[3] * loop_extents * type_bytes;
-      call.CopyOnWrite()->args.Set(1, producer_barrier_idx_);
+      call.CopyOnWrite()->args.Set(1, makeGetBarrier(producer_barrier_idx_));
     }
     return call;
   }
@@ -276,7 +307,6 @@ class MultiVersionBufferRewriter : public StmtExprMutator {
 
     Array<Buffer> versioned_buffers = GetVersionedBuffers(pipeline_body_seq->seq, scoped_buffers);
 
-    // Map<Buffer, Buffer> buffer_remap;
     for (auto buffer : versioned_buffers) {
       Var buffer_var = buffer->data;
       Buffer new_buffer = RewriteAllocBuffer(buffer, num_stages);
@@ -425,25 +455,22 @@ class WSCodeEmitter : public StmtMutator {
         }
         if (map.acquire[i] != -1) {
           PrimExpr acquire_barrier_id = stage_ + num_barriers_ + num_stages_ * map.acquire[i];
-          new_body.push_back(Evaluate(Call(DataType::Handle(), MBarrierWaitParity(),
-                                           {acquire_barrier_id, bitwise_xor(parity_, 1)})));
+          new_body.push_back(makeParityWait(acquire_barrier_id, bitwise_xor(parity_, 1)));
         }
         ICHECK(map.release[i] >= 0);
         PrimExpr release_barrier_id = stage_ + num_barriers_ + num_stages_ * map.release[i];
         auto stmt = collector.Rewrite(seq_transformed[i], release_barrier_id);
         if (!is_zero(collector.BulkCopyBytes())) {
-          auto expect_tx_call = Call(DataType::Handle(), MBarrierExpectTX(),
-                                     {release_barrier_id, collector.BulkCopyBytes()});
-          new_body.push_back(IfThenElse(EQ(thread_var_, 0), Evaluate(expect_tx_call)));
+          auto expect_tx = IfThenElse(EQ(thread_var_, 0),
+                                      makeExpectTX(release_barrier_id, collector.BulkCopyBytes()));
+          new_body.push_back(expect_tx);
         }
         new_body.push_back(stmt);
         if (collector.HasSimtCopy() > 0) {
-          new_body.push_back(Evaluate(
-              Call(DataType::Handle(), builtin::ptx_cp_async_barrier(), {release_barrier_id})));
+          new_body.push_back(makeCpAsyncBarrier(release_barrier_id));
         }
         if (map.release_after[i]) {
-          new_body.push_back(Evaluate(
-              Call(DataType::Handle(), builtin::ptx_arrive_barrier(), {release_barrier_id})));
+          new_body.push_back(makeArriveBarrier(release_barrier_id));
           for (int j = 0; j < num_stages_; j++) {
             released_barrier_.insert(j + num_barriers_ + num_stages_ * map.release[i]);
           }
@@ -455,14 +482,12 @@ class WSCodeEmitter : public StmtMutator {
         if (marker_.GetRole(op->seq[i]) == Role::kProducer) continue;
         if (map.acquire[i] != -1) {
           PrimExpr acquire_barrier_id = stage_ + num_barriers_ + num_stages_ * map.acquire[i];
-          new_body.push_back(Evaluate(
-              Call(DataType::Handle(), MBarrierWaitParity(), {acquire_barrier_id, parity_})));
+          new_body.push_back(makeParityWait(acquire_barrier_id, parity_));
         }
         new_body.push_back(seq_transformed[i]);
         if (map.release_after[i]) {
           PrimExpr release_barrier_id = stage_ + num_barriers_ + num_stages_ * map.release[i];
-          new_body.push_back(Evaluate(
-              Call(DataType::Handle(), builtin::ptx_arrive_barrier(), {release_barrier_id})));
+          new_body.push_back(makeArriveBarrier(release_barrier_id));
           for (int j = 0; j < num_stages_; j++) {
             released_barrier_.insert(j + num_barriers_ + num_stages_ * map.release[i]);
           }
@@ -714,26 +739,18 @@ class WarpSpecializedPipeline : public StmtExprMutator {
       ICHECK(producer.num_barriers_ == consumer.num_barriers_)
           << producer.num_barriers_ << " " << consumer.num_barriers_;
       int num_barriers = consumer.num_barriers_;
-      Stmt create_barrier =
-          Evaluate(Call(DataType::Handle(), builtin::create_barriers(), {num_barriers}));
-
-      Array<Stmt> barrier_init_seq;
-      barrier_init_seq.reserve(num_barriers);
+      Array<PrimExpr> barrier_num_threads;
+      barrier_num_threads.reserve(num_barriers);
       for (int i = 0; i < num_barriers; i++) {
         PrimExpr arrive_thread_count =
             producer.released_barrier_.count(i) ? producer_thread_extent : consumer_thread_extent;
-        Stmt init_barrier =
-            Evaluate(Call(DataType::Handle(), builtin::ptx_init_barrier_thread_count(),
-                          {i, arrive_thread_count}));
-        barrier_init_seq.push_back(init_barrier);
+        barrier_num_threads.push_back(arrive_thread_count);
       }
 
-      Stmt init_barrier = IfThenElse(EQ(thread_iv->var, 0), SeqStmt(barrier_init_seq));
-      Stmt mem_sync =
-          Evaluate(Call(DataType::Handle(), builtin::tvm_storage_sync(), {StringImm("shared")}));
+      Stmt init_barrier = Evaluate(Call(DataType::Handle(), CreateListofMBarrierOp(), barrier_num_threads));
       Stmt body =
           IfThenElse(GE(thread_iv->var, consumer_thread_extent), producer_code, consumer_code);
-      block.CopyOnWrite()->body = SeqStmt({create_barrier, init_barrier, mem_sync, body});
+      block.CopyOnWrite()->body = SeqStmt({init_barrier, body});
 
       return AttrStmt(thread_iv, attr_node->attr_key, new_thread_extent,
                       BlockRealize({}, Bool(true), block));

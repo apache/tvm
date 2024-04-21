@@ -86,15 +86,15 @@ def FrontendLegalize():
     return _ffi_api.FrontendLegalize()  # type: ignore
 
 
-def LowerTMADescriptor():
-    """LowerTMADescriptor
+def LowerHopperIntrin():
+    """LowerHopperIntrin
 
     Returns
     -------
     fpass : tvm.transform.Pass
         The result pass
     """
-    return _ffi_api.LowerTMADescriptor()  # type: ignore
+    return _ffi_api.LowerHopperIntrin()  # type: ignore
 
 
 def WarpSpecializedPipeline():

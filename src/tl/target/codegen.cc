@@ -610,6 +610,15 @@ void CodeGenTL::PrintCallExtern(Type ret_type, String global_symbol, const Array
 }
 
 void CodeGenTL::VisitExpr_(const CallNode* op, std::ostream& os) {
+  auto print_extern_call_stmt = [&](std::string name, size_t offset = 0) {
+    this->PrintIndent();
+    this->stream << name << "(";
+    for (size_t i = offset; i < op->args.size(); i++) {
+      if (i > offset) this->stream << ", ";
+      this->stream << this->PrintExpr(op->args[i]);
+    }
+    this->stream << ");\n";
+  };
   if (op->op.same_as(builtin::ptx_cp_async())) {
     std::string dst = this->PrintExpr(op->args[0]);
     std::string dst_offset = this->PrintExpr(op->args[1]);
@@ -628,101 +637,50 @@ void CodeGenTL::VisitExpr_(const CallNode* op, std::ostream& os) {
                    << ", " << src << "+" << src_offset << ", " << condition << ");\n";
     }
   } else if (op->op.same_as(builtin::ptx_commit_group())) {
-    this->PrintIndent();
-    this->stream << "tl::cp_async_commit();\n";
+    print_extern_call_stmt("tl::cp_async_commit");
   } else if (op->op.same_as(builtin::ptx_wait_group())) {
-    this->PrintIndent();
     int n = Downcast<IntImm>(op->args[0])->value;
-    this->stream << "tl::cp_async_wait<" << n << ">();\n";
+    std::string func_name = "tl::cp_async_wait<" + std::to_string(n) + ">";
+    print_extern_call_stmt(func_name, 1);
   } else if (op->op.same_as(builtin::create_barriers())) {
     this->PrintIndent();
     int barrier_count = Downcast<IntImm>(op->args[0])->value;
     std::string barrier_name = "_mbarrier";
     this->stream << "__shared__ uint64_t " << barrier_name << "[" << barrier_count << "];\n";
+  } else if (op->op.same_as(tl::GetMBarrierOp())) {
+    std::string barrier_name = "_mbarrier";
+    std::string barrier_id = this->PrintExpr(op->args[0]);
+    os << barrier_name + "[" + barrier_id + "]";
   } else if (op->op.same_as(builtin::ptx_arrive_barrier())) {
-    this->PrintIndent();
-    std::string barrier_name = "_mbarrier";
-    std::string barrier_id = this->PrintExpr(op->args[0]);
-    std::string barrier = barrier_name + "[" + barrier_id + "]";
-    this->stream << "tl::mbarrier_arrive(" << barrier << ");\n";
+    print_extern_call_stmt("tl::mbarrier_arrive");
   } else if (op->op.same_as(builtin::ptx_init_barrier_thread_count())) {
-    this->PrintIndent();
-    std::string barrier_id = this->PrintExpr(op->args[0]);
-    std::string barrier_name = "_mbarrier";
-    std::string barrier = barrier_name + "[" + barrier_id + "]";
-    std::string thread_count = this->PrintExpr(op->args[1]);
-    this->stream << "tl::mbarrier_init(" << barrier << ", " << thread_count << ");\n";
+    print_extern_call_stmt("tl::mbarrier_init");
   } else if (op->op.same_as(builtin::ptx_arrive_barrier_expect_tx())) {
-    this->PrintIndent();
-    std::string barrier_id = this->PrintExpr(op->args[0]);
-    std::string barrier_name = "_mbarrier";
-    std::string barrier = barrier_name + "[" + barrier_id + "]";
-    std::string tx = this->PrintExpr(op->args[1]);
-    this->stream << "tl::mbarrier_arrive_expect_tx(" << barrier << ", " << tx << ");\n";
+    print_extern_call_stmt("tl::mbarrier_arrive_expect_tx");
   } else if (op->op.same_as(tl::MBarrierExpectTX())) {
-    this->PrintIndent();
-    std::string barrier_id = this->PrintExpr(op->args[0]);
-    std::string barrier_name = "_mbarrier";
-    std::string barrier = barrier_name + "[" + barrier_id + "]";
-    std::string tx = this->PrintExpr(op->args[1]);
-    this->stream << "tl::mbarrier_expect_tx(" << barrier << ", " << tx << ");\n";
+    print_extern_call_stmt("tl::mbarrier_expect_tx");
   } else if (op->op.same_as(tl::MBarrierWaitParity())) {
-    this->PrintIndent();
-    std::string barrier_id = this->PrintExpr(op->args[0]);
-    std::string barrier_name = "_mbarrier";
-    std::string barrier = barrier_name + "[" + barrier_id + "]";
-    std::string parity = this->PrintExpr(op->args[1]);
-    this->stream << "tl::mbarrier_wait(" << barrier << ", " << parity << ");\n";
+    print_extern_call_stmt("tl::mbarrier_wait");
   } else if (op->op.same_as(tl::SyncThreadsPartialOp())) {
-    this->PrintIndent();
-    std::string barrier_id = this->PrintExpr(op->args[0]);
-    std::string barrier_name = "_mbarrier";
-    std::string barrier = barrier_name + "[" + barrier_id + "]";
-    this->stream << "tl::syncthreads_partial(" << barrier << ");\n";
+    print_extern_call_stmt("tl::syncthreads_partial");
   } else if (op->op.same_as(tl::TMALoadOp())) {
-    this->PrintIndent();
-    std::string barrier_name = "_mbarrier";
-    std::string barrier_id = this->PrintExpr(op->args[1]);
-    std::string barrier = barrier_name + "[" + barrier_id + "]";
-    std::string descriptor = this->PrintExpr(op->args[0]);
-    std::string smem_addr = this->PrintExpr(op->args[2]);
-    this->stream << "tl::tma_load(" << descriptor << ", " << barrier << ", " << smem_addr;
-    for (size_t i = 3; i < op->args.size(); i++) {  // coords
-      this->stream << ", " << this->PrintExpr(op->args[i]);
-    }
-    this->stream << ");\n";
+    print_extern_call_stmt("tl::tma_load");
   } else if (op->op.same_as(tl::TMAStoreOp())) {
-    this->PrintIndent();
-    std::string descriptor = this->PrintExpr(op->args[0]);
-    std::string smem_addr = this->PrintExpr(op->args[1]);
-    this->stream << "tl::tma_store(" << descriptor << ", " << smem_addr;
-    for (size_t i = 2; i < op->args.size(); i++) {  // coords
-      this->stream << ", " << this->PrintExpr(op->args[i]);
-    }
-    this->stream << ");\n";
+    print_extern_call_stmt("tl::tma_store");
   } else if (op->op.same_as(tl::LDMatrixOp())) {
-    this->PrintIndent();
     int trans = Downcast<IntImm>(op->args[0])->value;
     int num = Downcast<IntImm>(op->args[1])->value;
     std::string func_name = "tl::ptx_ldmatrix_x" + std::to_string(num);
     if (trans == 1) func_name += "_trans";
-    std::string smem_addr = this->PrintExpr(op->args[2]);
-    std::string local_addr = this->PrintExpr(op->args[3]);
-    this->stream << func_name << "(" << smem_addr << ", " << local_addr << ");\n";
+    print_extern_call_stmt(func_name, 2);
   } else if (op->op.same_as(tl::STMatrixOp())) {
-    this->PrintIndent();
     int trans = Downcast<IntImm>(op->args[0])->value;
     int num = Downcast<IntImm>(op->args[1])->value;
     std::string func_name = "tl::ptx_stmatrix_x" + std::to_string(num);
     if (trans == 1) func_name += "_trans";
-    std::string smem_addr = this->PrintExpr(op->args[2]);
-    this->stream << func_name << "(" << smem_addr;
-    for (size_t i = 3; i < op->args.size(); i++) {  // values
-      this->stream << ", " << this->PrintExpr(op->args[i]);
-    }
-    this->stream << ");\n";
+    print_extern_call_stmt(func_name, 2);
   } else if (op->op.same_as(tl::PackB16Op())) {
-    this->stream << "__pack_half2(" << this->PrintExpr(op->args[0]) << ", "
+    os << "__pack_half2(" << this->PrintExpr(op->args[0]) << ", "
                  << this->PrintExpr(op->args[1]) << ")";
   } else {
     CodeGenC::VisitExpr_(op, os);

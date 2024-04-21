@@ -42,9 +42,17 @@ namespace tl {
   }                                               \
   TVM_REGISTER_OP("tl." #OpName).set_attr<TScriptPrinterName>("TScriptPrinterName", #OpName)
 
-TIR_DEFINE_TL_BUILTIN(CreateTMADescriptorOp)
+TIR_DEFINE_TL_BUILTIN(CreateListofMBarrierOp)
     .set_num_inputs(-1)
     .set_attr<TCallEffectKind>("TCallEffectKind", Integer(CallEffectKind::kOpaque));
+
+TIR_DEFINE_TL_BUILTIN(CreateTMADescriptorOp)
+    .set_num_inputs(-1)
+    .set_attr<TCallEffectKind>("TCallEffectKind", Integer(CallEffectKind::kPure));
+
+TIR_DEFINE_TL_BUILTIN(GetMBarrierOp)
+    .set_num_inputs(1)
+    .set_attr<TCallEffectKind>("TCallEffectKind", Integer(CallEffectKind::kPure));
 
 TIR_DEFINE_TL_BUILTIN(TMALoadOp).set_num_inputs(-1).set_attr<TCallEffectKind>(
     "TCallEffectKind", Integer(CallEffectKind::kOpaque));

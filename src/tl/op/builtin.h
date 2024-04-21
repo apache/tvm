@@ -34,16 +34,32 @@ namespace tl {
 /*!
  * \brief tvm intrinsics for TMADescriptor creation
  *
- * CreateTMADescriptorOp(data_type, rank, global_addr, global_shape..., global_stride...,
- * smem_box..., smem_stride..., interleave, swizzle, l2_promotion, oob_fill)
+ * CuTensorMap* CreateTMADescriptorOp(data_type, rank, global_addr, global_shape...,
+ * global_stride..., smem_box..., smem_stride..., interleave, swizzle, l2_promotion, oob_fill)
  *
  */
 const Op& CreateTMADescriptorOp();
 
 /*!
+ * \brief Create a list of mbarrier with num_threads
+ *
+ * GetMBarrier(num_threads0, num_threads1, ...)
+ *
+ */
+const Op& CreateListofMBarrierOp();
+
+/*!
+ * \brief Get the mbarrier with barrier_id
+ *
+ * int64_t* GetMBarrier(barrier_id)
+ *
+ */
+const Op& GetMBarrierOp();
+
+/*!
  * \brief tvm intrinsics for loading data from global tensor descriptor to shared memory
  *
- * TMALoadOp(descriptor, barrier_id, smem_data, coord_0, coord_1, ...)
+ * TMALoadOp(descriptor, mbarrier, smem_data, coord_0, coord_1, ...)
  *
  */
 const Op& TMALoadOp();
@@ -59,7 +75,7 @@ const Op& TMAStoreOp();
 /*!
  * \brief tvm intrinsics for mbarrier wait with parity bit
  *
- * MBarrierWaitParity(barrier_id, parity)
+ * MBarrierWaitParity(mbarrier, parity)
  *
  */
 const Op& MBarrierWaitParity();
@@ -67,7 +83,7 @@ const Op& MBarrierWaitParity();
 /*!
  * \brief tvm intrinsics for mbarrier expect tx
  *
- * MBarrierExpectTX(barrier_id, transaction_bytes)
+ * MBarrierExpectTX(mbarrier, transaction_bytes)
  *
  */
 const Op& MBarrierExpectTX();
@@ -99,7 +115,7 @@ const Op& PackB16Op();
 /*!
  * \brief Similar to __syncthreads(), but can be used to sync partial threads
  *
- * SyncThreadsPartialOp(barrier_id)
+ * SyncThreadsPartialOp(num_partial_threads or mbarrier)
  *
  */
 const Op& SyncThreadsPartialOp();
