@@ -31,6 +31,7 @@
 #include <tvm/runtime/object.h>
 
 #include <algorithm>
+#include <functional>
 #include <limits>
 #include <string>
 #include <type_traits>

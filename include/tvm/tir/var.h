@@ -28,6 +28,7 @@
 #include <tvm/node/node.h>
 #include <tvm/runtime/data_type.h>
 
+#include <functional>
 #include <string>
 
 namespace tvm {
