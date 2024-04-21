@@ -156,6 +156,7 @@ class RuntimeContext implements Disposable {
   arrayGetItem: PackedFunc;
   arrayGetSize: PackedFunc;
   arrayMake: PackedFunc;
+  arrayConcat: PackedFunc;
   stringMake: PackedFunc;
   getFFIString: PackedFunc;
   getSysLib: PackedFunc;
@@ -180,6 +181,7 @@ class RuntimeContext implements Disposable {
     this.arrayGetItem = getGlobalFunc("runtime.ArrayGetItem");
     this.arrayGetSize = getGlobalFunc("runtime.ArraySize");
     this.arrayMake = getGlobalFunc("runtime.Array");
+    this.arrayConcat = getGlobalFunc("runtime.ArrayConcat");
     this.stringMake = getGlobalFunc("runtime.String");
     this.getFFIString = getGlobalFunc("runtime.GetFFIString");
     this.getSysLib = getGlobalFunc("runtime.SystemLib");
@@ -205,6 +207,7 @@ class RuntimeContext implements Disposable {
     this.arrayGetItem.dispose();
     this.arrayGetSize.dispose();
     this.arrayMake.dispose();
+    this.arrayConcat.dispose();
     this.stringMake.dispose();
     this.getFFIString.dispose();
     this.arrayCacheGet.dispose();
@@ -1382,11 +1385,7 @@ export class Instance implements Disposable {
    * @returns Parameters read.
    */
   getParamsFromCacheByName(paramNames: Array<string>): TVMObject {
-    // Convert Array<string> to Array<TVMString>
-    const paramNamesTVM: TVMString[] = [];
-    paramNames.forEach(paramName => { paramNamesTVM.push(this.makeString(paramName)) });
-    return (this.ctx.paramModuleFromCacheByName(
-      this.makeTVMArray(paramNamesTVM)) as Module).getFunction("get_params")();
+    return (this.ctx.paramModuleFromCacheByName(paramNames) as Module).getFunction("get_params")();
   }
 
   /**
@@ -1873,7 +1872,20 @@ export class Instance implements Disposable {
   makeTVMArray(
     inputs: Array<TVMObjectBase>
   ): TVMArray {
-    return this.ctx.arrayMake(...inputs) as TVMArray;
+    const CALL_STACK_LIMIT = 30000;
+    const inputsLength = inputs.length;
+    if (inputsLength <= CALL_STACK_LIMIT) {
+      return this.ctx.arrayMake(...inputs) as TVMArray;
+    }
+    // If too many elements, TypeScript would complain `Maximum call stack size exceeded`
+    // So we make several arrays and concatenate them
+    const listOfArrays: Array<TVMArray> = [];
+    for (let begin = 0; begin < inputsLength; begin += CALL_STACK_LIMIT) {
+      const end = Math.min(inputsLength, begin + CALL_STACK_LIMIT);
+      const chunk: Array<TVMObjectBase> = inputs.slice(begin, end);
+      listOfArrays.push(this.ctx.arrayMake(...chunk) as TVMArray);
+    }
+    return this.ctx.arrayConcat(...listOfArrays) as TVMArray;
   }
 
   /**
@@ -2230,6 +2242,14 @@ export class Instance implements Disposable {
       const tp = typeof val;
       const valueOffset = argsValue + i * SizeOf.TVMValue;
       const codeOffset = argsCode + i * SizeOf.I32;
+
+      // Convert string[] to a TVMArray of TVMString, hence treated as a TVMObject
+      if (val instanceof Array && val.every(e => typeof e === "string")) {
+        const tvmStringArray: TVMString[] = [];
+        val.forEach(e => { tvmStringArray.push(this.makeString(e)) });
+        val = this.makeTVMArray(tvmStringArray);
+      }
+
       if (val instanceof NDArray) {
         if (!val.isView) {
           stack.storePtr(valueOffset, val.getHandle());
