@@ -1455,7 +1455,7 @@ def test_alter_op_dense_packed_data():
 @pytest.mark.skipif(
     llvm_version_major() < 17, reason="SME is not supported in earlier versions of LLVM"
 )
-def test_alter_op_dense_arm_cpu_sme():
+def test_alter_op_dense_arm_cpu_sme_float32():
     np.random.seed(0)
     y_data = np.random.uniform(size=(64, 32)).astype("float32")
 
@@ -1469,6 +1469,36 @@ def test_alter_op_dense_arm_cpu_sme():
         x = relay.var("x", shape=(32, 32), dtype="float32")
         y = relay.const(y_data.transpose(), dtype="float32")
         matmul = relay.nn.matmul(x, y)
+        return relay.Function(analysis.free_vars(matmul), matmul)
+
+    with tvm.target.Target("llvm -mtriple=aarch64-linux-gnu -mattr=+v9.2a,+sme"):
+        with TempOpAttr("nn.dense", "FTVMAlterOpLayout", topi.arm_cpu.dense_alter_op._alter_dense):
+            a = run_opt_pass(before(), transform.AlterOpLayout())
+            b = run_opt_pass(expected(), transform.InferType())
+            assert tvm.ir.structural_equal(a, b)
+
+
+@pytest.mark.skipif(
+    llvm_version_major() < 17, reason="SME is not supported in earlier versions of LLVM"
+)
+def test_alter_op_dense_arm_cpu_sme_float16_float32():
+    from tvm.relay.op.nn import _make  # pylint: disable-top-level-import
+
+    np.random.seed(0)
+    y_data = np.random.uniform(size=(64, 32)).astype("float16")
+
+    def before():
+        x = relay.var("x", shape=(32, 32), dtype="float16")
+        y = relay.const(y_data, dtype="float16")
+        dense = relay.nn.dense(x, y, out_dtype="float32")
+        return relay.Function(analysis.free_vars(dense), dense)
+
+    def expected():
+        x = relay.var("x", shape=(32, 32), dtype="float16")
+        y = relay.const(y_data, dtype="float16")
+        # Cannot make using the public API (relay.nn.matmul) since it will
+        # create an nn.dense op instead
+        matmul = _make.matmul(x, y, None, "float32", False, True)
         return relay.Function(analysis.free_vars(matmul), matmul)
 
     with tvm.target.Target("llvm -mtriple=aarch64-linux-gnu -mattr=+v9.2a,+sme"):

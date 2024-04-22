@@ -16,7 +16,7 @@
 # under the License.
 # pylint: disable=redefined-builtin, invalid-name
 """Operators used in TIR expression."""
-from typing import Any, Optional
+from typing import Any, Optional, Union
 
 import tvm._ffi
 from tvm.ir import Array, Op, PrimExpr
@@ -3368,6 +3368,22 @@ def get_active_lane_mask(dtype, base, limit):
         An expression representing the limit.
     """
     return call_intrin(dtype, "tir.get_active_lane_mask", base, limit)
+
+
+def get_vscale_factor(dtype: Union[str, tvm.DataType], min_size: int = 128) -> PrimExpr:
+    """
+    Create a datatype dependent scalable expression.
+
+    Parameters
+    ----------
+    dtype : tvm.DataType
+        Element data type.
+    min_size : int
+        The minimum size of the scalable vector.
+    """
+    if isinstance(dtype, str):
+        dtype = tvm.DataType(dtype)
+    return min_size // dtype.bits * vscale()
 
 
 # pylint: disable=unnecessary-lambda
