@@ -34,6 +34,9 @@
 #include <unordered_map>
 #include <vector>
 
+#include "../../src/arith/scalable_expression.h"
+#include "../../tir/analysis/check_contains.h"
+
 namespace tvm {
 namespace tir {
 
@@ -727,6 +730,14 @@ class LoopVectorizer : public StmtMutator {
  public:
   Stmt VisitStmt_(const ForNode* op) final {
     if (op->kind == ForKind::kVectorized) {
+      auto* extent_as_int = op->extent.as<IntImmNode>();
+
+      if (!extent_as_int || extent_as_int->value < 1) {
+        bool is_scalable_expr = CheckContains::ExprContains(op->extent, arith::IsVScaleCall);
+        ICHECK(is_scalable_expr && arith::TargetHasSVE())
+            << "Failed to vectorize loop with extent " << op->extent << " for target "
+            << Target::Current();
+      }
       ICHECK(is_zero(op->min));
       return Vectorizer(op->loop_var, op->extent)(op->body);
     } else {
@@ -734,8 +745,6 @@ class LoopVectorizer : public StmtMutator {
     }
   }
 };
-
-Stmt VectorizeLoop(Stmt stmt) { return LoopVectorizer()(std::move(stmt)); }
 
 class VectorizeSkipper : public StmtMutator {
  public:
