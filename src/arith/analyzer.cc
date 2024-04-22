@@ -235,17 +235,14 @@ bool Analyzer::CanProve(const PrimExpr& expr, ProofStrength strength) {
   // SVE, we can make some assumptions about the value of vscale and iterate over a
   // space of pre-defined values to attempt to prove the expression.
   if (tir::CheckContains::ExprContains(expr, IsVScaleCall)) {
-    Target curr_target = tvm::Target::Current();
-    if (curr_target.defined() && curr_target->features.defined() &&
-        (curr_target->features.find("has_sve") != curr_target->features.end()) &&
-        curr_target->GetFeature<Bool>("has_sve").value_or(Bool(false)).operator bool()) {
+    if (TargetHasSVE()) {
       return CanProveVscaleExpressionFromKnownValues(this, simplified, kAArch64VScaleValues);
     }
     LOG(WARNING)
         << "The expression contains scalable values. An attempt to prove by substituting "
            "with known values of vscale was not performed. This proof currently only supports "
            "AArch64 SVE targets, but the target was "
-        << curr_target;
+        << Target::Current();
   }
   return false;
 }
