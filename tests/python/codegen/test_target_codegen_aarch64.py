@@ -645,5 +645,40 @@ def test_unsupported_multiple_function_attributes(attr_key, attr_value):
         tvm.build(prim_func, target=target)
 
 
+@pytest.mark.skipif(
+    llvm_version_major() < 15, reason="Test requires an LLVM version of at least 15 to target SVE"
+)
+@pytest.mark.parametrize("dtype", ["float16", "float32"])
+def test_conv2d_sve(dtype):
+    target = "llvm -mtriple=aarch64-linux-gnu -mattr=+sve"
+
+    def check_correct_assembly(dtype):
+        A = te.placeholder((1, 32, 32, 3), dtype=dtype, name="A")
+        W = te.placeholder((3, 3, 3, 8), dtype=dtype, name="B")
+        stride = padding = dilation = 1
+
+        compute = tvm.topi.arm_cpu.compute_conv2d_NHWC_hybrid_SVE
+        schedule = tvm.topi.arm_cpu.schedule_conv2d_NHWC_hybrid_SVE
+        B = compute(A, W, stride, padding, dilation, dtype)
+        s = schedule([B])
+
+        f = tvm.build(s, [A, W, B], target)
+        assembly = f.get_source("asm")
+
+        loads = re.findall(r"ld1[r]?[q]?[whdb]\t{\s?z", assembly)
+        compute_ops = re.findall(
+            r"fm(la|ad)\tz\d+.[shdb], (p\d+\/[zm], )?z\d+.[shdb], z\d+.[shdb]",
+            assembly,
+        )
+        stores = re.findall(r"st1[whdb]\t{\s?z", assembly)
+
+        assert len(loads) > 0
+        assert len(compute_ops) > 0
+        assert len(stores) > 0
+
+    with tvm.target.Target(target):
+        check_correct_assembly(dtype=dtype)
+
+
 if __name__ == "__main__":
     tvm.testing.main()

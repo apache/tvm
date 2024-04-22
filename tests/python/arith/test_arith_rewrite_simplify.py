@@ -745,6 +745,11 @@ class TestMinIndex(BaseCompare):
         TestCase(tvm.te.min(tvm.te.max(x, 4), fld(x + 3, 4) * 4), tvm.te.max(x, 4), x > 0),
         TestCase(tvm.te.min(fld(x, 10), fld(y, 10)), fld(tvm.te.min(x, y), 10)),
         TestCase(tvm.te.min(fld(x, (-10)), fld(y, (-10))), fld(tvm.te.max(x, y), (-10))),
+        # vscale expression comparison
+        TestCase(tvm.te.min(x + tir.vscale() * 4, x), x),
+        TestCase(tvm.te.min(x - tir.vscale() * 4, x), x + tir.vscale() * -4),
+        TestCase(tvm.te.min(x + tir.vscale() * 4, x + tir.vscale() * 8), tir.vscale() * 4 + x),
+        TestCase(tvm.te.min(x + tir.vscale() * 4 - flm(4, tir.vscale() * 4), x), x),
     )
 
 
@@ -811,6 +816,14 @@ class TestMaxIndex(BaseCompare):
         TestCase(tvm.te.max(fld(x + 3, 4) * 4, x), fld(x + 3, 4) * 4),
         TestCase(tvm.te.max(fld(x, 4) * 4, x), x),
         TestCase(tvm.te.max(x, fld(x, 4) * 4), x),
+        # vscale expression comparison
+        TestCase(tvm.te.max(x + tir.vscale() * 4, x), x + tir.vscale() * 4),
+        TestCase(tvm.te.max(x - tir.vscale() * 4, x), x),
+        TestCase(tvm.te.max(x + tir.vscale() * 4, x + tir.vscale() * 4), x + tir.vscale() * 4),
+        TestCase(
+            tvm.te.max(x + tir.vscale() * 4 - flm(4, tir.vscale() * 4), x),
+            x + tir.vscale() * 4 - flm(4, tir.vscale() * 4),
+        ),
     )
 
 

@@ -46,6 +46,13 @@ static const std::vector<unsigned int> kAArch64VScaleValues = {1, 2,  3,  4,  5,
 bool IsVScaleCall(const PrimExpr& expr);
 
 /*!
+ * \brief Check if an expr contains a call to the vscale intrinsic.
+ * \param expr The expr to check
+ * \return True if the expr contains a call to the vscale intrinsic, false if not.
+ */
+bool ContainsVscaleCall(const PrimExpr& expr);
+
+/*!
  * \brief Substitute a vscale intrinsic call with a known scalar value.
  * \param expr The expr to apply substitutions to.
  * \param vscale_value The scalar value to replace vscale with.

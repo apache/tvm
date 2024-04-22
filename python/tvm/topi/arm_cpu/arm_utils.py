@@ -17,10 +17,11 @@
 # pylint: disable=invalid-name,unused-variable,unused-argument,no-member
 """Arm target utility functions"""
 
+import tvm
 from tvm.target import Target
 
 
-def get_tiling_B_transformed(interleave_A, in_dtype):
+def get_tiling_B_transformed(interleave_A, in_dtype, use_scalable_vectors=False):
     """Compute the tiling information for matrix B', where B'
     is the tiled, interleaved (and transposed) version of matrix B in C=A*B.
 
@@ -40,6 +41,8 @@ def get_tiling_B_transformed(interleave_A, in_dtype):
         determines if A is expected to be interleaved
     in_dtype : str
         input datatype
+    use_scalable_vectors : bool
+        determines if operations on scalable vectors are expected
 
 
     Returns
@@ -75,6 +78,15 @@ def get_tiling_B_transformed(interleave_A, in_dtype):
             tile_N = 4
             tile_K = 16
     # In non-quantized cases, A is not interleaved.
+    elif use_scalable_vectors:
+        if in_dtype == "float16":
+            # Each load from B' contains 32 * vscale elements (i.e. 32 * vscale columns from B)
+            tile_N = 32 * tvm.tir.vscale()
+        else:
+            # Each load from B' contains 16 * vscale elements (i.e. 16 * vscale columns from B)
+            tile_N = 16 * tvm.tir.vscale()
+        # We are loading 4 rows from B', in the dimension of reduction (i.e. 4 rows from B)
+        tile_K = 4
     elif in_dtype == "float16" and target.features.has_fp16_simd:
         # Each load from B' contains 32 elements (i.e. 32 columns from B)
         # We are loading 4 rows from B', in the dimension of reduction (i.e. 4 rows from B)

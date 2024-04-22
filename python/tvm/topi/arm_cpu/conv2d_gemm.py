@@ -67,6 +67,7 @@ def compute_conv2d_gemm_without_weight_transform(
     kernel_size,
     output_channels,
     interleave_A,
+    use_scalable_vectors=False,
 ):
     """Compute conv2d by transforming the input,
     executing GEMM and transforming the output back"""
@@ -120,13 +121,7 @@ def compute_conv2d_gemm_without_weight_transform(
         )
 
     #  Pad if necessary
-    N_transformed = B_interleaved_t.shape[0]
-    if in_dtype in ["int8", "uint8"]:
-        tile_N = B_interleaved_t.shape[2]
-        tile_K_B = B_interleaved_t.shape[3]
-    else:
-        tile_N = B_interleaved_t.shape[3]
-        tile_K_B = B_interleaved_t.shape[2]
+    tile_N, tile_K_B = get_tiling_B_transformed(interleave_A, in_dtype, use_scalable_vectors)
 
     # Select the tiling strategy for A.
     # The tiling information is chosen to maximize register usage during
@@ -164,6 +159,7 @@ def compute_conv2d_gemm_without_weight_transform(
         tile_K_A = 4
 
     pad_M = 0
+    pad_N = 0
     pad_K = 0
 
     if M % tile_M != 0:
@@ -172,9 +168,17 @@ def compute_conv2d_gemm_without_weight_transform(
     if K % tile_K_A != 0:
         pad_K = tile_K_A - (K % tile_K_A)
 
+    if N % tile_N != 0:
+        pad_N = tile_N - (N % tile_N)
+
     M_padded = M + pad_M
     K_padded = K + pad_K
-    N_padded = N_transformed * tile_N
+
+    if use_scalable_vectors:
+        N_padded = N + pad_N
+    else:
+        N_transformed = B_interleaved_t.shape[0]
+        N_padded = N_transformed * tile_N
 
     pad_before = (0, 0, 0)
     pad_after = (0, pad_M, pad_K)
@@ -322,10 +326,24 @@ def compute_conv2d_gemm_without_weight_transform(
                 tvm.tir.const(1, C.dtype) * C[0, M_padded - 1, N_padded - 1]
                 - tvm.tir.const(1, C.dtype) * C[0, M_padded - 1, N_padded - 1]
             )
+    elif use_scalable_vectors:
+        assert len(B_interleaved_t.shape) == 2
+        C = te.compute(
+            (batches, M_padded, N_padded),
+            lambda b, x, y: te.sum(
+                A[b, x, k].astype(in_dtype) * B_interleaved_t[k, y].astype(in_dtype),
+                axis=k,
+            ),
+            name="C",
+        )
+        # Ensure padding on the N axis does not get removed during tir passes
+        # by adding a dummy reference to the specific padded area of the result
+        zero = (
+            tvm.tir.const(1, C.dtype) * C[0, 0, N_padded - 1]
+            - tvm.tir.const(1, C.dtype) * C[0, 0, N_padded - 1]
+        )
     else:
-        # Configuration space
-        configure_knobs(cfg, M_padded, K_padded, target)
-
+        assert len(B_interleaved_t.shape) == 4
         C = te.compute(
             (batches, M_padded, N_padded),
             lambda b, x, y: te.sum(
@@ -356,6 +374,7 @@ def compute_conv2d_gemm_without_weight_transform(
         out_shape,
         lambda b, x, y, z: (C(b, y + OW * x, z) + zero).astype(out_dtype),
         name="conv2d_gemm_output",
+        attrs={"use_scalable_vectors": use_scalable_vectors},
     )
     return out
 
@@ -463,7 +482,8 @@ def schedule_conv2d_gemm_native(cfg, s, out, final_out):
     C = out.op.input_tensors[0]
     A = C.op.input_tensors[0]
     in_type = A.dtype
-    y_tile_size, _ = get_tiling_B_transformed(False, in_type)
+    use_scalable_vectors = out.op.attrs["use_scalable_vectors"].value
+    y_tile_size, _ = get_tiling_B_transformed(False, in_type, use_scalable_vectors)
 
     # Computation
     b, x, y = C.op.axis
@@ -478,9 +498,9 @@ def schedule_conv2d_gemm_native(cfg, s, out, final_out):
         s[C].tensorize(y_inner, gemm_acc)
         s[C].parallel(x_outer)
     else:
-        k_outer, k_inner = s[C].split(k, 4)
-        x_outer, y_outer, x_inner, y_inner = s[C].tile(x, y, x_factor=4, y_factor=y_tile_size)
-        y_inner_outer, y_inner_inner = s[C].split(y_inner, nparts=4)
+        k_outer, k_inner = s[C].split(k, factor=4)
+        x_outer, x_inner = s[C].split(x, factor=4)
+        y_outer, y_inner = s[C].split(y, factor=y_tile_size, disable_predication=True)
         b_x_outer_fused = s[C].fuse(b, x_outer)
         s[C].parallel(b_x_outer_fused)
         s[C].reorder(
@@ -488,13 +508,11 @@ def schedule_conv2d_gemm_native(cfg, s, out, final_out):
             y_outer,
             k_outer,
             k_inner,
-            y_inner_outer,
             x_inner,
-            y_inner_inner,
+            y_inner,
         )
-        s[C].unroll(y_inner_outer)
         s[C].unroll(x_inner)
-        s[C].vectorize(y_inner_inner)
+        s[C].vectorize(y_inner)
 
     # Input transform
     if A.op.name == "A_padded_K" or A.op.name == "A_padded_M":
@@ -546,6 +564,13 @@ def schedule_conv2d_gemm_native(cfg, s, out, final_out):
         n_h_fused = s[A_pad].fuse(n, h)
         s[A_pad].parallel(n_h_fused)
         s[A_pad].vectorize(c)
+
+    # Weight transform
+    if use_scalable_vectors:
+        B_pad = C.op.input_tensors[1]
+        s[B_pad].parallel(B_pad.op.axis[0])
+        B_flat = B_pad.op.input_tensors[0]
+        s[B_flat].compute_inline()
 
     # Output transform
     if out != final_out:

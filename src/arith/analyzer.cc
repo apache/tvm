@@ -234,7 +234,7 @@ bool Analyzer::CanProve(const PrimExpr& expr, ProofStrength strength) {
   // "T.vscale" and the compile target uses a scalable architecture extension like
   // SVE, we can make some assumptions about the value of vscale and iterate over a
   // space of pre-defined values to attempt to prove the expression.
-  if (tir::CheckContains::ExprContains(expr, IsVScaleCall)) {
+  if (tir::CheckContains::ExprContains(simplified, IsVScaleCall)) {
     if (TargetHasSVE()) {
       return CanProveVscaleExpressionFromKnownValues(this, simplified, kAArch64VScaleValues);
     }

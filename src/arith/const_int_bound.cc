@@ -369,6 +369,8 @@ class ConstIntBoundAnalyzer::Impl
       return VisitLeftShift(op);
     } else if (op->op.same_as(tir::builtin::bitwise_and())) {
       return VisitBitwiseAnd(op);
+    } else if (op->op.same_as(tir::builtin::vscale())) {
+      return MakeBound(1, 16);
     } else {
       return Everything(op->dtype);
     }
