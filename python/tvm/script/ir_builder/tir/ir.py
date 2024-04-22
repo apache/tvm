@@ -1241,7 +1241,7 @@ def launch_thread(
     return _ffi_api.LaunchThread(thread, extent)  # type: ignore[attr-defined] # pylint: disable=no-member
 
 
-def env_thread(thread_tag: str) -> IterVar:
+def env_thread(thread_tag: str, dtype: str = "int32") -> IterVar:
     """Bind a var to thread env
 
     Parameters
@@ -1249,13 +1249,16 @@ def env_thread(thread_tag: str) -> IterVar:
     thread_tag : str
         The thread type tag.
 
+    dtype : str
+        The data type of the thread env.
+
     Returns
     -------
     res : IterVar
         The result iteration variable gets bound to the thread env.
 
     """
-    return _ffi_api.EnvThread(thread_tag)  # type: ignore[attr-defined] # pylint: disable=no-member
+    return _ffi_api.EnvThread(thread_tag, dtype)  # type: ignore[attr-defined] # pylint: disable=no-member
 
 
 def buffer_store(
