@@ -604,7 +604,8 @@ void CodeGenCUDA::PrintVecElemStore(const std::string& vec, DataType t, int i,
 void CodeGenCUDA::PrintStorageSync(const CallNode* op) {
   const std::string& sync = op->args[0].as<StringImmNode>()->value;
   if (sync == "warp") {
-    // DO nothing.
+    this->PrintIndent();
+    this->stream << "__syncwarp();\n";
   } else if (sync == "shared" || sync == "shared.dyn") {
     this->PrintIndent();
     this->stream << "__syncthreads();\n";
