@@ -31,6 +31,7 @@
 #include "constraint_extract.h"
 #include "int_operator.h"
 #include "pattern_match.h"
+#include "scalable_expression.h"
 
 namespace tvm {
 namespace arith {
@@ -369,7 +370,7 @@ class ConstIntBoundAnalyzer::Impl
       return VisitLeftShift(op);
     } else if (op->op.same_as(tir::builtin::bitwise_and())) {
       return VisitBitwiseAnd(op);
-    } else if (op->op.same_as(tir::builtin::vscale())) {
+    } else if (op->op.same_as(tir::builtin::vscale()) && TargetHasSVE()) {
       return MakeBound(1, 16);
     } else {
       return Everything(op->dtype);

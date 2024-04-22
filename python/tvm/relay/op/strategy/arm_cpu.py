@@ -257,6 +257,7 @@ def conv2d_strategy_arm_cpu(attrs, inputs, out_type, target):
                         # for scalable vector alias analysis, which causes redundant loads / stores
                         # to remain after LLVM's optimisation passes, unlike the non-scalable case.
                         # Hence, it is given a lower priority level until these issues are resolved.
+                        # Last checked manually using: LLVM 18.1.0
                         strategy.add_implementation(
                             wrap_compute_conv2d(topi.arm_cpu.compute_conv2d_NHWC_hybrid_SVE),
                             wrap_topi_schedule(topi.arm_cpu.schedule_conv2d_NHWC_hybrid_SVE),

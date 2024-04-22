@@ -21,6 +21,59 @@ import tvm
 from tvm.target import Target
 
 
+def get_tiling_A(interleave_A, in_dtype):
+    """Compute the tiling information for matrix A in C=A*B,
+    which corresponds to the im2col-transformed input matrix.
+
+    The tiling information is chosen to maximize register usage during
+    the tile computation.
+
+    Please refer to:
+    - https://discuss.tvm.apache.org/t/rfc-improve-quantized-convolution-performance-for-armv8-architectures # pylint: disable=line-too-long
+    - https://discuss.tvm.apache.org/t/rfc-accelerate-quantized-convolution-through-dot-product
+    - https://discuss.tvm.apache.org/t/rfc-improve-quantized-convolution-through-mmla-instruction
+    - Conv2DGemmWeightTransformRel in src/relay/op/nn/convolution.h
+     In order to have more information
+
+    Parameters
+    ----------
+    interleave_A : bool
+        determines if A is expected to be interleaved
+    in_dtype : str
+        input datatype
+
+    Returns
+    ----------
+    tile_M: the output tile size of A on M axis (M = OH * OW)
+    tile_K: the output tile size of A on K axis (K = KW * KH * IC)
+    """
+    target = Target.current(allow_none=False)
+    if in_dtype in ["int8", "uint8"]:
+        if target.features.has_matmul_i8:
+            # If smmla/ummla is enabled, we are loading 8 rows from A. Each row
+            # will contain 8 elements
+            tile_M = 8
+            tile_K = 8
+        elif target.features.has_dotprod and interleave_A:
+            # If dot product has been enabled, and we are interleaving A
+            # tile size should be 8x4
+            tile_M = 8
+            tile_K = 4
+        else:
+            # If either there is no dot product or if we are using a native strategy
+            # tile size should be 4x16
+            tile_M = 4
+            tile_K = 16
+    else:
+        # In non-quantized cases, A is not interleaved.
+        # We are loading 4 rows from A.
+        # Each row will contain 4 elements, along the dimension of reduction
+        tile_M = 4
+        tile_K = 4
+
+    return tile_M, tile_K
+
+
 def get_tiling_B_transformed(interleave_A, in_dtype, use_scalable_vectors=False):
     """Compute the tiling information for matrix B', where B'
     is the tiled, interleaved (and transposed) version of matrix B in C=A*B.
@@ -99,6 +152,38 @@ def get_tiling_B_transformed(interleave_A, in_dtype, use_scalable_vectors=False)
         tile_K = 4
 
     return tile_N, tile_K
+
+
+def get_conv2d_im2col_padding(M, K, tile_M, tile_K):
+    """Compute the necessary padding for matrix A in C=A*B,
+    which corresponds to the im2col-transformed input matrix.
+
+    Parameters
+    ----------
+    M : int
+        Number of rows in A = OH * OW
+    K : int
+        Number of columns in A = KW * KH * IC
+    tile_M : int
+             tile size of A on M axis
+    tile_K : int
+             tile size of A on K axis
+
+    Returns
+    ----------
+    pad_M : padding for M axis
+    pad_K : padding for K axis
+    """
+    pad_M = 0
+    pad_K = 0
+
+    if M % tile_M != 0:
+        pad_M = tile_M - (M % tile_M)
+
+    if K % tile_K != 0:
+        pad_K = tile_K - (K % tile_K)
+
+    return pad_M, pad_K
 
 
 def get_conv2d_weights_padding(N, K, tile_N, tile_K):

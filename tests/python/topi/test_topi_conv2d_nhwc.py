@@ -67,11 +67,24 @@ device = tvm.testing.parameter(
 dtype = tvm.testing.parameter("float32")
 
 batch, in_channel, in_size, num_filter, kernel, stride, padding, dilation = tvm.testing.parameters(
+    # Pad M, N, K
     (1, 1, 3, 15, 1, 1, "SAME", 1),
+    # Pad M, K
+    (1, 3, 9, 16, 3, 1, "SAME", 1),
+    # Pad M, N
+    (1, 2, 9, 15, 4, 1, "SAME", 1),
+    # Pad K, N
+    (1, 7, 4, 15, 3, 1, "SAME", 1),
+    # Pad M
+    (1, 2, 9, 16, 4, 1, "SAME", 1),
+    # Pad K
+    (1, 7, 4, 16, 3, 1, "SAME", 1),
+    # Pad N
+    (1, 2, 4, 15, 4, 1, "SAME", 1),
+    # Large workloads
     (1, 256, 32, 256, 3, 1, "SAME", 1),
     (4, 128, 16, 128, 5, 2, "SAME", 1),
     (4, 128, 16, 256, 5, 2, "SAME", 1),
-    (1, 256, 32, 256, 3, 1, "VALID", 1),
     (1, 256, 32, 256, 3, 1, "VALID", 1),
     (4, 128, 16, 128, 5, 2, "VALID", 1),
     (4, 128, 16, 256, 5, 2, "VALID", 1),
