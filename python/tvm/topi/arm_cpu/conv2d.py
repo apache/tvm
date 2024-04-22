@@ -528,6 +528,7 @@ def compute_conv2d_NHWC(
     interleave_A,
     use_scalable_vectors=False,
 ):
+    """Compute definition for conv2d NHWC"""
     N, IH, IW, IC = get_const_tuple(data.shape)
     KH, KW, _, OC = get_const_tuple(kernel.shape)
     tile_N, tile_K = get_tiling_B_transformed(interleave_A, data.dtype, use_scalable_vectors)
