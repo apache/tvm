@@ -108,6 +108,7 @@ class StructuralEqual : public BaseValueEqual {
    * \brief Compare objects via strutural equal.
    * \param lhs The left operand.
    * \param rhs The right operand.
+   * \param map_free_params Whether or not to map free variables.
    * \return The comparison result.
    */
   TVM_DLL bool operator()(const ObjectRef& lhs, const ObjectRef& rhs, const bool map_free_params = false) const;
