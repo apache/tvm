@@ -106,7 +106,7 @@ DRef BcastSessionObj::CallWithPacked(const TVMArgs& args) {
           type_code != kTVMDataType && type_code != kDLDevice && type_code != kTVMOpaqueHandle &&
           type_code != kTVMStr && type_code != kTVMNullptr && type_code != kTVMBytes &&
           type_code != kTVMObjectHandle) {
-        os << "\n  Argument #" << i << " has unsupported type code: " << type_code << " ("
+        os << "\n  Argument #" << i - 3 << " has unsupported type code: " << type_code << " ("
            << ArgTypeCode2Str(type_code) << ")";
         cnt += 1;
       }
