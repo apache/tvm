@@ -27,6 +27,7 @@
 
 #include "../codegen_json/codegen_json.h"
 #include "../utils.h"
+#include "algo_db.h"
 
 namespace tvm {
 namespace relax {
@@ -39,8 +40,9 @@ using backend::contrib::NodeEntries;
 
 class CublasJSONSerializer : public JSONSerializer {
  public:
-  CublasJSONSerializer(Map<Constant, String> constant_names, Map<Var, Expr> bindings)
-      : JSONSerializer(constant_names), bindings_(bindings) {}
+  CublasJSONSerializer(Map<Constant, String> constant_names, Map<Var, Expr> bindings,
+                       Optional<AlgoDatabase> algo_db)
+      : JSONSerializer(constant_names), bindings_(bindings), algo_db_(algo_db) {}
 
   using JSONSerializer::VisitExpr_;
 
@@ -77,20 +79,44 @@ class CublasJSONSerializer : public JSONSerializer {
 
     const CallNode* root_call = backend::GetOpInFunction(fn, "relax.matmul");
     SetCallNodeAttribute(node, root_call);
+
+    if (algo_db_.defined()) {
+      AlgoDatabase db = algo_db_.value();
+      AlgoCollection algos = db(StructuralHash()(fn));
+
+      if (algos.defined()) {
+        std::ostringstream os;
+        dmlc::JSONWriter writer(&os);
+        writer.Write(algos);
+        std::vector<std::string> algos_ser = {os.str()};
+
+        std::vector<dmlc::any> algo_attr;
+        algo_attr.emplace_back(algos_ser);
+        node->SetAttr("predefined_algos", algo_attr);
+      }
+    }
+
     return AddNode(node, GetRef<Expr>(call_node));
   }
 
  private:
   /*! \brief The bindings to look up composite functions. */
   Map<Var, Expr> bindings_;
+  /*! \brief Collection of predefined algo to use in runtime */
+  Optional<AlgoDatabase> algo_db_;
 };
 
-Array<runtime::Module> CublasCompiler(Array<Function> functions, Map<String, ObjectRef> /*unused*/,
+Array<runtime::Module> CublasCompiler(Array<Function> functions, Map<String, ObjectRef> options,
                                       Map<Constant, String> constant_names) {
   Array<runtime::Module> compiled_functions;
+  
+  Optional<AlgoDatabase> algo_db = AlgoDatabase::Current();
+  if (options.count("algo_db") != 0) {
+    algo_db = Downcast<AlgoDatabase>(options.at("algo_db"));
+  }
 
   for (const auto& func : functions) {
-    CublasJSONSerializer serializer(constant_names, AnalyzeVar2Value(func));
+    CublasJSONSerializer serializer(constant_names, AnalyzeVar2Value(func), algo_db);
     serializer.serialize(func);
     auto graph_json = serializer.GetJSON();
     auto constant_names = serializer.GetConstantNames();
